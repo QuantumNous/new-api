@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { ReactNode } from 'react'
+import { Fragment, type CSSProperties, type ReactNode } from 'react'
 import {
   shouldOpenLinkInNewTab,
   type ImageNode,
@@ -24,11 +24,43 @@ import {
   type TextNode,
 } from 'stream-markdown-parser'
 
+import { classifyValue, type FadeRun } from './response-fade'
 import { ResponseImage } from './response-renderer-image'
 import type { RenderChildren } from './response-types'
 
-export function renderTextNode(node: TextNode): ReactNode {
-  return node.content
+const STREAM_FADE_DELAY_VAR = '--stream-fade-delay'
+
+export function renderTextNode(
+  node: TextNode,
+  fadeRun?: FadeRun
+): ReactNode {
+  if (!fadeRun) {
+    return node.content
+  }
+
+  const segments = classifyValue(fadeRun, node.content)
+  if (segments.every((segment) => !segment.animated)) {
+    return node.content
+  }
+
+  return segments.map((segment) => {
+    if (!segment.animated) {
+      return <Fragment key={segment.start}>{segment.value}</Fragment>
+    }
+
+    const style =
+      segment.delay > 0
+        ? ({
+            [STREAM_FADE_DELAY_VAR]: `${segment.delay}ms`,
+          } as CSSProperties)
+        : undefined
+
+    return (
+      <span data-stream-fade='' key={segment.start} style={style}>
+        {segment.value}
+      </span>
+    )
+  })
 }
 
 export function renderLink(

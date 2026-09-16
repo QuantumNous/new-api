@@ -1,6 +1,9 @@
 # Chinese (Traditional) translations
 # 中文（繁體）翻譯檔案
 
+# Task plugin messages
+task_plugin.unknown_meta_field: '外掛中繼資料包含未知欄位「{{.Field}}」。如果外掛來自官方市集，可能需要較新版本的 new-api。請嘗試更新 new-api 後重新安裝外掛。'
+
 # Common messages
 common.invalid_params: "無效的參數"
 common.database_error: "資料庫出錯，請聯繫管理員"
@@ -193,6 +196,9 @@ passkey.login_abnormal: "Passkey 登錄狀態異常"
 passkey.update_failed: "Passkey 憑證更新失敗"
 passkey.invalid_user_id: "無效的使用者 ID"
 passkey.verify_failed: "Passkey 驗證失敗，請重試或聯繫管理員"
+passkey.rp_id_invalid: "通行金鑰網域無效。請填寫網域，不包含通訊協定、連接埠、路徑或萬用字元。"
+passkey.rp_id_unavailable: "此通行金鑰網域無法在目前網站使用。請前往原網站或選擇其他驗證方式。"
+passkey.rp_id_removal_confirmation: "請核對受影響的通行金鑰並確認刪除網域。設定或影響範圍變更後，需要重新確認。"
 
 # 2FA messages
 twofa.not_enabled: "使用者未啟用2FA"
@@ -273,6 +279,7 @@ distributor.invalid_playground_request: "無效的playground請求，{{.Error}}"
 distributor.group_access_denied: "無權存取該分組"
 distributor.get_channel_failed: "獲取分組 {{.Group}} 下模型 {{.Model}} 的可用管道失敗（distributor）：{{.Error}}"
 distributor.no_available_channel: "分組 {{.Group}} 下模型 {{.Model}} 無可用管道（distributor）"
+distributor.no_available_channel_task_plugin: "分組 {{.Group}} 下模型 {{.Model}} 無可用管道：該模型由任務插件「{{.Plugin}}」認領，但該插件目前沒有啟用的管道可服務此模型。若要讓其他插件或管道服務該模型，請在任務插件管理中停用或覆蓋插件「{{.Plugin}}」（distributor）"
 distributor.invalid_midjourney_request: "無效的midjourney請求，{{.Error}}"
 distributor.invalid_request_parse_model: "無效的請求，無法解析模型"
 

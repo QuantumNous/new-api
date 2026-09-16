@@ -16,230 +16,808 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQueryClient } from '@tanstack/react-query'
-import { Loader2, RefreshCw } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 
+import { StaticDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
-import { StatusBadge } from '@/components/status-badge'
+import { EmptyState } from '@/components/empty-state'
+import { ErrorState } from '@/components/error-state'
+import { LoadingState } from '@/components/loading-state'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { useIsMobile } from '@/hooks/use-mobile'
-import { cn } from '@/lib/utils'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { handleServerError } from '@/lib/handle-server-error'
+import { createServerError } from '@/lib/server-error-message'
 
-import { syncUpstream, previewUpstreamDiff } from '../../api'
-import { getSyncLocaleOptions, getSyncSourceOptions } from '../../constants'
-import { modelsQueryKeys, vendorsQueryKeys } from '../../lib'
-import type { SyncLocale, SyncSource } from '../../types'
-import { useModels } from '../models-provider'
+import { previewUpstreamDiff, syncUpstream } from '../../api'
+import { getSyncLocaleOptions } from '../../constants'
+import type {
+  MetadataSyncCandidate,
+  MetadataSyncField,
+  MetadataSyncPreview,
+  MetadataSyncSelection,
+  SyncLocale,
+} from '../../types'
 
-type SyncWizardDialogProps = {
-  open: boolean
-  onOpenChange: (open: boolean) => void
+const FIELD_LABELS: Record<MetadataSyncField, string> = {
+  description: 'Description',
+  icon: 'Icon',
+  tags: 'Tags',
+  vendor: 'Vendor',
+  endpoints: 'Custom endpoints',
+  name_rule: 'Match Type',
+  status: 'Model square visibility',
+}
+const REASON_LABELS = {
+  create: 'New metadata',
+  update: 'Metadata changes',
+  unchanged: 'No changes',
+  blocked: 'Metadata sync disabled',
+  missing_upstream: 'Not found upstream',
+  missing_vendor: 'Upstream vendor missing',
+}
+const STEPS = [
+  'Select models',
+  'Preview fields',
+  'Confirm changes',
+  'Sync results',
+]
+const PAGE_SIZE = 20
+
+function isMetadataSyncable(item: MetadataSyncCandidate) {
+  return item.kind === 'create' || item.kind === 'update'
 }
 
-export function SyncWizardDialog({
-  open,
-  onOpenChange,
-}: SyncWizardDialogProps) {
+export function SyncWizardDialog(props: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const {
-    setOpen,
-    setUpstreamConflicts,
-    setSyncWizardOptions,
-    syncWizardOptions,
-  } = useModels()
-  const isMobile = useIsMobile()
   const [locale, setLocale] = useState<SyncLocale>('zh')
-  const [source, setSource] = useState<SyncSource>('official')
-  const [isSyncing, setIsSyncing] = useState(false)
+  const [preview, setPreview] = useState<MetadataSyncPreview | null>(null)
+  const [scope, setScope] = useState('site')
+  const [search, setSearch] = useState('')
+  const [onlySyncable, setOnlySyncable] = useState(false)
+  const [step, setStep] = useState(0)
+  const [page, setPage] = useState(0)
+  const [selection, setSelection] = useState<
+    Record<string, MetadataSyncField[]>
+  >({})
+  const load = useMutation({
+    onMutate: () => {
+      setPreview(null)
+      setSelection({})
+      setStep(0)
+      setPage(0)
+    },
+    mutationFn: async () => {
+      const response = await previewUpstreamDiff({ locale })
+      if (!response.success || !response.data) {
+        throw createServerError(response, t('Failed to preview metadata'))
+      }
+      return response.data
+    },
+    onSuccess: (data) => {
+      setPreview(data)
+    },
+    onError: (error) => handleServerError(error),
+  })
 
-  // Get translated options
-  const SYNC_SOURCE_OPTIONS = getSyncSourceOptions(t)
-  const SYNC_LOCALE_OPTIONS = getSyncLocaleOptions(t)
+  const apply = useMutation({
+    mutationFn: async (selections: MetadataSyncSelection[]) => {
+      if (!preview) throw new Error(t('Preview metadata first'))
+      const response = await syncUpstream({
+        locale: preview.source.locale,
+        source_version: preview.source.version,
+        selections,
+      })
+      if (!response.success || !response.data) {
+        throw createServerError(response, t('Metadata sync failed'))
+      }
+      return response.data
+    },
+    onSuccess: async () => {
+      await Promise.all(
+        ['models', 'vendors', 'pricing'].map((key) =>
+          queryClient.invalidateQueries({ queryKey: [key] })
+        )
+      )
+      setStep(3)
+    },
+    onError: (error) => handleServerError(error),
+  })
 
   useEffect(() => {
-    if (open) {
-      setLocale(syncWizardOptions.locale || 'zh')
-      const preferredSource = SYNC_SOURCE_OPTIONS.find(
-        (option) => option.value === syncWizardOptions.source
-      )
-      setSource(
-        preferredSource && !preferredSource.disabled
-          ? (preferredSource.value as SyncSource)
-          : 'official'
+    if (props.open) {
+      setPreview(null)
+      setSelection({})
+      setStep(0)
+      setSearch('')
+      setPage(0)
+      setScope('site')
+      setOnlySyncable(false)
+      load.reset()
+      apply.reset()
+    }
+    // Reset only when the dialog opens; mutation objects change on each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.open])
+
+  const filteredCandidates = useMemo(() => {
+    const keyword = search.trim().toLowerCase()
+    return (preview?.candidates ?? []).filter(
+      (item) =>
+        (scope === 'catalog' || item.scope === 'site') &&
+        item.model_name.toLowerCase().includes(keyword)
+    )
+  }, [preview, scope, search])
+  const syncableCandidates = useMemo(
+    () => filteredCandidates.filter(isMetadataSyncable),
+    [filteredCandidates]
+  )
+  const candidates = useMemo(
+    () =>
+      onlySyncable
+        ? syncableCandidates
+        : [
+            ...syncableCandidates,
+            ...filteredCandidates.filter((item) => !isMetadataSyncable(item)),
+          ],
+    [filteredCandidates, syncableCandidates, onlySyncable]
+  )
+  const visibleNames = useMemo(
+    () => new Set(candidates.map((item) => item.model_name)),
+    [candidates]
+  )
+  const pageCount = Math.max(1, Math.ceil(candidates.length / PAGE_SIZE))
+  const currentPage = Math.min(page, pageCount - 1)
+  const pageCandidates = candidates.slice(
+    currentPage * PAGE_SIZE,
+    (currentPage + 1) * PAGE_SIZE
+  )
+  const pageSyncable = pageCandidates.filter(isMetadataSyncable)
+  const pageSelectedCount = pageSyncable.filter((item) =>
+    Object.hasOwn(selection, item.model_name)
+  ).length
+  const selected = useMemo(
+    () =>
+      (preview?.candidates ?? []).filter((item) =>
+        Object.hasOwn(selection, item.model_name)
+      ),
+    [preview, selection]
+  )
+  const hiddenSelectedCount = selected.filter(
+    (item) => !visibleNames.has(item.model_name)
+  ).length
+  const updates: MetadataSyncSelection[] = selected
+    .filter(
+      (item) => item.kind === 'create' || selection[item.model_name].length > 0
+    )
+    .map((item) => ({
+      model_name: item.model_name,
+      record_version: item.record_version,
+      create: item.kind === 'create',
+      fields:
+        item.kind === 'create'
+          ? item.fields.map((field) => field.field)
+          : selection[item.model_name],
+    }))
+  const vendors = [
+    ...new Set(
+      selected
+        .filter(
+          (item) =>
+            item.kind === 'create' ||
+            selection[item.model_name].includes('vendor')
+        )
+        .map((item) => item.vendor_to_create)
+        .filter(Boolean)
+    ),
+  ]
+  const busy = load.isPending || apply.isPending
+  const chooseModels = (items: MetadataSyncCandidate[], checked: boolean) =>
+    setSelection((previous) => {
+      const eligible = items.filter(isMetadataSyncable)
+      if (checked) {
+        return {
+          ...previous,
+          ...Object.fromEntries(
+            eligible.map((item) => [
+              item.model_name,
+              Object.hasOwn(previous, item.model_name)
+                ? previous[item.model_name]
+                : [],
+            ])
+          ),
+        }
+      }
+      const next = { ...previous }
+      for (const item of eligible) {
+        delete next[item.model_name]
+      }
+      return next
+    })
+  const chooseField = (
+    name: string,
+    field: MetadataSyncField,
+    checked: boolean
+  ) =>
+    setSelection((previous) => ({
+      ...previous,
+      [name]: checked
+        ? [...previous[name], field]
+        : previous[name].filter((value) => value !== field),
+    }))
+  const impact = (field: MetadataSyncField) => {
+    if (field === 'name_rule') {
+      return t(
+        'Changes which model names inherit this metadata. Prices are not inherited.'
       )
     }
-  }, [open, syncWizardOptions, SYNC_SOURCE_OPTIONS])
-
-  const handleSync = async () => {
-    setIsSyncing(true)
-    try {
-      setSyncWizardOptions({ locale, source })
-      const previewRes = await previewUpstreamDiff({ locale, source })
-
-      if (!previewRes.success) {
-        throw new Error(previewRes.message || 'Failed to preview upstream diff')
-      }
-
-      const conflicts = previewRes.data?.conflicts || []
-
-      if (conflicts.length > 0) {
-        toast.warning(
-          `Found ${conflicts.length} conflict${conflicts.length > 1 ? 's' : ''}. Please resolve them first.`
-        )
-        setUpstreamConflicts(conflicts)
-        setOpen('upstream-conflict')
-        return
-      }
-
-      // No conflicts, proceed with sync
-      const response = await syncUpstream({ locale, source })
-
-      if (response.success) {
-        const { created_models, created_vendors, updated_models } =
-          response.data || {}
-        toast.success(
-          `Sync completed! Created ${created_models || 0} models, updated ${updated_models || 0}, and added ${created_vendors || 0} vendors.`
-        )
-        queryClient.invalidateQueries({ queryKey: modelsQueryKeys.lists() })
-        queryClient.invalidateQueries({ queryKey: vendorsQueryKeys.lists() })
-        onOpenChange(false)
-      } else {
-        toast.error(response.message || 'Sync failed')
-      }
-    } catch (error: unknown) {
-      toast.error((error as Error)?.message || 'Sync failed')
-    } finally {
-      setIsSyncing(false)
+    if (field === 'status') {
+      return t(
+        'Changes visibility in the model square. Channel status and existing API access are unchanged.'
+      )
     }
+    if (field === 'endpoints') {
+      return t(
+        'Changes declared endpoint types and custom paths shown to users.'
+      )
+    }
+    return ''
+  }
+  const display = (field: MetadataSyncField, value: string | number) => {
+    if (field === 'status') {
+      return value === 1 ? t('Shown') : t('Not shown')
+    }
+    if (field === 'name_rule') {
+      return (
+        [t('Exact'), t('Prefix'), t('Contains'), t('Suffix')][Number(value)] ??
+        String(value)
+      )
+    }
+    return String(value || '—')
   }
 
   return (
     <Dialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={t('Sync Upstream Models')}
-      description={t('Synchronize models and vendors from an upstream source')}
-      initialFocus={!isMobile}
-      contentHeight='auto'
-      bodyClassName='flex flex-col gap-6'
+      open={props.open}
+      onOpenChange={(open) => !busy && props.onOpenChange(open)}
+      title={t('Sync model metadata')}
+      description={t(
+        'Review every addition and overwrite before applying. Pricing, channels, and group access are not changed.'
+      )}
+      contentClassName='sm:max-w-5xl'
+      contentHeight='min(68vh, 720px)'
+      showCloseButton={!busy}
       footer={
         <>
+          <div className='text-muted-foreground mr-auto min-w-0 text-sm'>
+            <p>{t('{{count}} selected models', { count: selected.length })}</p>
+            {step === 0 && hiddenSelectedCount > 0 && (
+              <p className='text-xs'>
+                {t('{{count}} selected outside the current filters', {
+                  count: hiddenSelectedCount,
+                })}
+              </p>
+            )}
+          </div>
           <Button
             variant='outline'
-            onClick={() => onOpenChange(false)}
-            disabled={isSyncing}
+            disabled={busy}
+            onClick={() => props.onOpenChange(false)}
           >
-            {t('Cancel')}
+            {t('Close')}
           </Button>
-          <Button onClick={handleSync} disabled={isSyncing}>
-            {isSyncing && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
-            <RefreshCw className='mr-2 h-4 w-4' />
-            {isSyncing ? t('Syncing...') : t('Sync Now')}
-          </Button>
+          {step > 0 && step < 3 && (
+            <Button
+              variant='outline'
+              disabled={busy}
+              onClick={() => setStep(step - 1)}
+            >
+              {t('Back')}
+            </Button>
+          )}
+          {step < 2 && (
+            <Button
+              disabled={
+                busy ||
+                !preview ||
+                (step === 0 ? selected.length === 0 : updates.length === 0)
+              }
+              onClick={() => setStep(step + 1)}
+            >
+              {step === 0
+                ? t('Preview selected changes')
+                : t('Review confirmation')}
+            </Button>
+          )}
+          {step === 2 && (
+            <Button
+              disabled={busy || updates.length === 0}
+              onClick={() => apply.mutate(updates)}
+            >
+              {busy
+                ? t('Applying...')
+                : t('Apply {{count}} model changes', { count: updates.length })}
+            </Button>
+          )}
         </>
       }
     >
-      <div className='space-y-3'>
-        <div>
-          <Label className='text-base'>{t('Select Sync Source')}</Label>
+      <ol
+        className='mb-5 grid grid-cols-2 gap-2 sm:grid-cols-4'
+        aria-label={t('Sync steps')}
+      >
+        {STEPS.map((label, index) => (
+          <li
+            key={label}
+            aria-current={step === index ? 'step' : undefined}
+            className={
+              step === index
+                ? 'border-primary bg-primary/5 rounded-lg border p-2 text-sm font-medium'
+                : 'text-muted-foreground rounded-lg border p-2 text-sm'
+            }
+          >
+            {index + 1}. {t(label)}
+          </li>
+        ))}
+      </ol>
+      {step === 0 && (
+        <div className='space-y-4'>
+          <div className='flex flex-wrap items-end gap-3'>
+            <div className='space-y-1'>
+              <Label>{t('Metadata language')}</Label>
+              <Select
+                value={locale}
+                disabled={busy}
+                items={getSyncLocaleOptions(t)}
+                onValueChange={(value) => {
+                  if (value) setLocale(value as SyncLocale)
+                  setPreview(null)
+                  setSelection({})
+                  setPage(0)
+                  load.reset()
+                }}
+              >
+                <SelectTrigger
+                  className='w-44'
+                  aria-label={t('Metadata language')}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {getSyncLocaleOptions(t).map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              variant='outline'
+              disabled={busy}
+              onClick={() => load.mutate()}
+            >
+              {t('Load metadata preview')}
+            </Button>
+          </div>
+          {load.isPending && <LoadingState />}
+          {load.isError && (
+            <ErrorState
+              description={
+                load.error instanceof Error
+                  ? load.error.message
+                  : t('Failed to preview metadata')
+              }
+              onRetry={() => load.mutate()}
+            />
+          )}
+          {preview && (
+            <>
+              <div className='text-muted-foreground space-y-1 text-xs break-all'>
+                <p>
+                  {t('Models source')}: {preview.source.models_url}
+                </p>
+                <p>
+                  {t('Vendors source')}: {preview.source.vendors_url}
+                </p>
+                <p>
+                  {t('Metadata language')}: {preview.source.locale}
+                </p>
+              </div>
+              <div className='flex flex-wrap gap-3'>
+                <Select
+                  value={scope}
+                  onValueChange={(value) => {
+                    setScope(value ?? 'site')
+                    setPage(0)
+                  }}
+                  items={[
+                    { value: 'site', label: t('Models used on this site') },
+                    { value: 'catalog', label: t('Upstream model list') },
+                  ]}
+                >
+                  <SelectTrigger
+                    aria-label={t('Sync scope')}
+                    className='w-full sm:w-64'
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectItem value='site'>
+                        {t('Models used on this site')}
+                      </SelectItem>
+                      <SelectItem value='catalog'>
+                        {t('Upstream model list')}
+                      </SelectItem>
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+                <Input
+                  className='w-full sm:w-64'
+                  placeholder={t('Search models...')}
+                  aria-label={t('Search models')}
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value)
+                    setPage(0)
+                  }}
+                />
+              </div>
+              <div className='space-y-3'>
+                <div className='flex flex-wrap items-center gap-3'>
+                  <label className='flex cursor-pointer items-center gap-2 text-sm'>
+                    <Checkbox
+                      checked={onlySyncable}
+                      onCheckedChange={(checked) => {
+                        setOnlySyncable(Boolean(checked))
+                        setPage(0)
+                      }}
+                    />
+                    {t('Only show syncable models')}
+                  </label>
+                  <p className='text-muted-foreground text-xs' role='status'>
+                    {t(
+                      '{{total}} models · {{syncable}} syncable · {{skipped}} skipped this time',
+                      {
+                        total: filteredCandidates.length,
+                        syncable: syncableCandidates.length,
+                        skipped:
+                          filteredCandidates.length - syncableCandidates.length,
+                      }
+                    )}
+                  </p>
+                </div>
+                <div className='flex flex-wrap gap-2'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    className='h-auto min-h-7 max-w-full py-1.5 whitespace-normal'
+                    disabled={busy || syncableCandidates.length === 0}
+                    onClick={() => chooseModels(syncableCandidates, true)}
+                  >
+                    {t('Select all syncable models (all pages, {{count}})', {
+                      count: syncableCandidates.length,
+                    })}
+                  </Button>
+                  <Button
+                    variant='ghost'
+                    size='sm'
+                    disabled={busy || selected.length === 0}
+                    onClick={() => setSelection({})}
+                  >
+                    {t('Clear selection')}
+                  </Button>
+                </div>
+                {syncableCandidates.length === 0 && candidates.length > 0 && (
+                  <p className='text-muted-foreground text-sm'>
+                    {t(
+                      'No models can be synced with the current filters. Adjust the search or sync scope.'
+                    )}
+                  </p>
+                )}
+              </div>
+              <StaticDataTable
+                data={pageCandidates}
+                getRowKey={(item) => item.model_name}
+                emptyContent={
+                  <EmptyState
+                    className='min-h-36 p-4'
+                    title={
+                      onlySyncable
+                        ? t('No syncable models')
+                        : t('No models match these filters')
+                    }
+                    description={t(
+                      'No models can be synced with the current filters. Adjust the search or sync scope.'
+                    )}
+                  />
+                }
+                columns={[
+                  {
+                    id: 'select',
+                    header: (
+                      <Checkbox
+                        checked={
+                          pageSyncable.length > 0 &&
+                          pageSelectedCount === pageSyncable.length
+                        }
+                        indeterminate={
+                          pageSelectedCount > 0 &&
+                          pageSelectedCount < pageSyncable.length
+                        }
+                        disabled={busy || pageSyncable.length === 0}
+                        aria-label={t('Select syncable models on this page')}
+                        onCheckedChange={(checked) =>
+                          chooseModels(pageSyncable, Boolean(checked))
+                        }
+                      />
+                    ),
+                    cell: (item) =>
+                      isMetadataSyncable(item) ? (
+                        <Checkbox
+                          checked={Object.hasOwn(selection, item.model_name)}
+                          disabled={busy}
+                          aria-label={t('Select {{name}}', {
+                            name: item.model_name,
+                          })}
+                          onCheckedChange={(checked) =>
+                            chooseModels([item], Boolean(checked))
+                          }
+                        />
+                      ) : (
+                        <span className='text-muted-foreground'>—</span>
+                      ),
+                  },
+                  {
+                    id: 'name',
+                    header: t('Model'),
+                    cell: (item) => (
+                      <span className='block max-w-64 font-mono text-sm break-all whitespace-normal'>
+                        {item.model_name}
+                      </span>
+                    ),
+                  },
+                  {
+                    id: 'kind',
+                    header: t('Planned action'),
+                    cell: (item) => t(REASON_LABELS[item.kind]),
+                  },
+                  {
+                    id: 'vendor',
+                    header: t('Vendor'),
+                    cell: (item) => item.upstream?.vendor || '—',
+                  },
+                ]}
+              />
+              <div className='flex items-center justify-end gap-3 text-sm'>
+                <span>
+                  {t('{{count}} models', { count: candidates.length })}
+                </span>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  disabled={currentPage === 0}
+                  onClick={() => setPage(currentPage - 1)}
+                >
+                  {t('Previous')}
+                </Button>
+                <span>
+                  {currentPage + 1} / {pageCount}
+                </span>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  disabled={currentPage + 1 >= pageCount}
+                  onClick={() => setPage(currentPage + 1)}
+                >
+                  {t('Next')}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      {step === 1 && (
+        <div className='space-y-5'>
           <p className='text-muted-foreground text-sm'>
-            {t('Choose where to fetch upstream metadata.')}
+            {t(
+              'New records include the fields below. Existing fields are kept unless explicitly selected.'
+            )}
+          </p>
+          {selected.map((item) => (
+            <section key={item.model_name} className='space-y-2'>
+              <h3 className='font-mono text-sm font-semibold break-all'>
+                {item.model_name} · {t(REASON_LABELS[item.kind])}
+              </h3>
+              <StaticDataTable
+                data={item.fields}
+                columns={[
+                  {
+                    id: 'select',
+                    header: t('Apply'),
+                    cell: (field) => (
+                      <Checkbox
+                        aria-label={t('Apply {{field}} for {{name}}', {
+                          field: t(FIELD_LABELS[field.field]),
+                          name: item.model_name,
+                        })}
+                        checked={
+                          item.kind === 'create' ||
+                          selection[item.model_name].includes(field.field)
+                        }
+                        disabled={item.kind === 'create'}
+                        onCheckedChange={(checked) =>
+                          chooseField(
+                            item.model_name,
+                            field.field,
+                            Boolean(checked)
+                          )
+                        }
+                      />
+                    ),
+                  },
+                  {
+                    id: 'field',
+                    header: t('Field'),
+                    cell: (field) => (
+                      <div className='w-44 max-w-60 space-y-1 whitespace-normal'>
+                        <span>{t(FIELD_LABELS[field.field])}</span>
+                        {impact(field.field) && (
+                          <p className='text-warning text-xs'>
+                            {impact(field.field)}
+                          </p>
+                        )}
+                      </div>
+                    ),
+                  },
+                  {
+                    id: 'local',
+                    header: t('Current value'),
+                    cell: (field) => (
+                      <pre className='max-h-32 max-w-64 overflow-auto text-xs break-words whitespace-pre-wrap'>
+                        {item.kind === 'create'
+                          ? '—'
+                          : display(field.field, field.local)}
+                      </pre>
+                    ),
+                  },
+                  {
+                    id: 'upstream',
+                    header: t('Change To'),
+                    cell: (field) => (
+                      <pre className='max-h-32 max-w-64 overflow-auto text-xs break-words whitespace-pre-wrap'>
+                        {display(field.field, field.upstream)}
+                      </pre>
+                    ),
+                  },
+                ]}
+              />
+            </section>
+          ))}
+        </div>
+      )}
+      {step === 2 && (
+        <div className='space-y-4'>
+          <p className='text-sm'>
+            {t(
+              'Only the changes listed here will be committed. If any write fails, none of these changes are applied.'
+            )}
+          </p>
+          <StaticDataTable
+            data={updates}
+            columns={[
+              {
+                id: 'model',
+                header: t('Model'),
+                cell: (item) => (
+                  <span className='font-mono text-sm'>{item.model_name}</span>
+                ),
+              },
+              {
+                id: 'action',
+                header: t('Planned action'),
+                cell: (item) =>
+                  item.create
+                    ? t('Create metadata')
+                    : t('Update selected fields'),
+              },
+              {
+                id: 'fields',
+                header: t('Fields'),
+                cell: (item) =>
+                  item.fields.map((field) => t(FIELD_LABELS[field])).join(', '),
+              },
+            ]}
+          />
+          <p className='text-sm'>
+            {t('New vendors')}: {vendors.join(', ') || t('None')}
+          </p>
+          <p className='text-muted-foreground text-sm'>
+            {t(
+              'Importing metadata does not add channels, enable model access, or configure prices.'
+            )}
+          </p>
+          {apply.isError && (
+            <ErrorState
+              description={
+                apply.error instanceof Error
+                  ? apply.error.message
+                  : t('Metadata sync failed')
+              }
+              action={
+                <Button
+                  variant='outline'
+                  onClick={() => {
+                    setStep(0)
+                    setPreview(null)
+                    setSelection({})
+                    apply.reset()
+                  }}
+                >
+                  {t('Preview again')}
+                </Button>
+              }
+            />
+          )}
+        </div>
+      )}
+      {step === 3 && apply.data && (
+        <div className='space-y-4' role='status'>
+          <h3 className='font-semibold'>{t('Metadata sync completed')}</h3>
+          <p>
+            {t(
+              '{{created}} models created, {{updated}} models updated, {{vendors}} vendors created.',
+              {
+                created: apply.data.created_models.length,
+                updated: apply.data.updated_models.length,
+                vendors: apply.data.created_vendors.length,
+              }
+            )}
+          </p>
+          <StaticDataTable
+            data={[
+              ...apply.data.created_models.map((name) => ({
+                name,
+                result: t('Create metadata'),
+              })),
+              ...apply.data.updated_models.map((item) => ({
+                name: item.model_name,
+                result: item.fields
+                  .map((field) => t(FIELD_LABELS[field]))
+                  .join(', '),
+              })),
+            ]}
+            columns={[
+              { id: 'model', header: t('Model'), cell: (item) => item.name },
+              {
+                id: 'result',
+                header: t('Applied changes'),
+                cell: (item) => item.result,
+              },
+            ]}
+          />
+          <p className='text-sm'>
+            {t('New vendors')}:{' '}
+            {apply.data.created_vendors.join(', ') || t('None')}
           </p>
         </div>
-        <RadioGroup
-          value={source}
-          onValueChange={(value) => {
-            const selected = SYNC_SOURCE_OPTIONS.find(
-              (option) => option.value === value
-            )
-            if (!selected || selected.disabled) return
-            setSource(selected.value)
-          }}
-          className='grid gap-3 md:grid-cols-2'
-        >
-          {SYNC_SOURCE_OPTIONS.map((option) => {
-            const isActive = source === option.value
-            const isDisabled = option.disabled
-            return (
-              <Label
-                key={option.value}
-                htmlFor={`sync-source-${option.value}`}
-                className={cn(
-                  'flex-col items-start gap-0 rounded-lg border p-4 font-normal transition-all',
-                  isActive && 'border-primary ring-primary ring-1',
-                  isDisabled
-                    ? 'cursor-not-allowed opacity-60'
-                    : 'hover:border-primary/60 cursor-pointer'
-                )}
-              >
-                <div className='flex items-start gap-3'>
-                  <RadioGroupItem
-                    value={option.value}
-                    id={`sync-source-${option.value}`}
-                    disabled={isDisabled}
-                  />
-                  <div className='space-y-1'>
-                    <div className='flex items-center gap-2'>
-                      <span className='font-medium'>{option.label}</span>
-                      {option.value === 'official' && (
-                        <StatusBadge
-                          label='Default'
-                          variant='neutral'
-                          copyable={false}
-                        />
-                      )}
-                    </div>
-                    <p className='text-muted-foreground text-sm'>
-                      {option.description}
-                    </p>
-                  </div>
-                </div>
-              </Label>
-            )
-          })}
-        </RadioGroup>
-      </div>
-
-      <div className='space-y-2'>
-        <Label className='text-base'>{t('Select Language')}</Label>
-        <RadioGroup
-          value={locale}
-          onValueChange={(v) => setLocale(v as SyncLocale)}
-          className='grid gap-3 sm:grid-cols-3'
-        >
-          {SYNC_LOCALE_OPTIONS.map((option) => (
-            <div
-              key={option.value}
-              className='flex items-center space-x-2 rounded-lg border p-3'
-            >
-              <RadioGroupItem
-                value={option.value}
-                id={`locale-${option.value}`}
-              />
-              <Label
-                htmlFor={`locale-${option.value}`}
-                className='cursor-pointer font-normal'
-              >
-                {option.label}
-              </Label>
-            </div>
-          ))}
-        </RadioGroup>
-      </div>
-
-      <div className='bg-muted/50 rounded-lg border p-4'>
-        <p className='text-muted-foreground text-sm'>
-          {t(
-            'The sync will fetch missing models and vendors from the selected source. Existing records are updated only when you approve conflicts.'
-          )}
-        </p>
-      </div>
+      )}
     </Dialog>
   )
 }

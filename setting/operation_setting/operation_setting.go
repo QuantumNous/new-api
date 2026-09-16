@@ -21,8 +21,8 @@ func AutomaticDisableKeywordsToString() string {
 
 func AutomaticDisableKeywordsFromString(s string) {
 	AutomaticDisableKeywords = []string{}
-	ak := strings.Split(s, "\n")
-	for _, k := range ak {
+	ak := strings.SplitSeq(s, "\n")
+	for k := range ak {
 		k = strings.TrimSpace(k)
 		k = strings.ToLower(k)
 		if k != "" {

@@ -26,12 +26,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useMediaQuery } from '@/hooks'
+import { cn } from '@/lib/utils'
 
-import {
-  // AutoGroupBadge,
-  GroupRatioBadge,
-  type GroupRatio,
-} from './auto-group-visuals'
+import { GroupRatioBadge, type GroupRatio } from './auto-group-visuals'
 
 type ApiKeyGroupCellProps = {
   crossGroupRetry: boolean
@@ -42,16 +40,26 @@ type ApiKeyGroupCellProps = {
 
 export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
   const { t } = useTranslation()
+  const isMobile = useMediaQuery('(max-width: 640px)')
 
-  if (props.group !== 'auto') {
-    const ratio = typeof props.ratio === 'number' ? props.ratio : undefined
+  const group = props.group?.trim() || ''
+  if (group !== 'auto') {
+    const ratio =
+      group && typeof props.ratio === 'number' ? props.ratio : undefined
     return (
       <TruncatedCell
-        className='-ml-1.5'
-        tooltipContent={props.group || '-'}
+        className={isMobile ? 'w-full' : 'max-w-50'}
+        tabIndex={0}
+        tooltipContent={group || t('Follow user group')}
         tooltipClassName='break-all'
       >
-        <GroupBadge group={props.group} ratio={ratio} />
+        <GroupBadge
+          group={group}
+          ratio={ratio}
+          ratioLabel={group ? undefined : t('Inherited')}
+          className='px-0'
+          containerClassName={cn('gap-3', isMobile && 'w-full justify-between')}
+        />
       </TruncatedCell>
     )
   }
@@ -62,7 +70,11 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
         render={
           <BadgeCell
             data-api-key-group-cell='auto'
-            className='gap-1.5 overflow-visible text-xs'
+            tabIndex={0}
+            className={cn(
+              'ml-0 gap-3 overflow-visible text-xs',
+              isMobile ? 'w-full justify-between' : 'max-w-50'
+            )}
           />
         }
       >
@@ -70,8 +82,8 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
           label={t('Cross-group')}
           variant='info'
           copyable={false}
+          className='px-0'
         />
-        {/*<AutoGroupBadge shouldReduceMotion={props.shouldReduceMotion} />*/}
         <GroupRatioBadge
           ratio={props.ratio}
           isAuto

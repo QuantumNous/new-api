@@ -8,6 +8,21 @@
   "model": "gpt-test",
   "output": [
     {
+      "type": "reasoning",
+      "id": "chatcmpl-fixed_reasoning_0",
+      "status": "completed",
+      "role": "",
+      "content": null,
+      "summary": [
+        {
+          "type": "summary_text",
+          "text": "Deep thought."
+        }
+      ],
+      "quality": "",
+      "size": ""
+    },
+    {
       "type": "message",
       "id": "chatcmpl-fixed_msg_0",
       "status": "completed",
@@ -17,21 +32,6 @@
           "type": "output_text",
           "text": "The answer is 42.",
           "annotations": []
-        }
-      ],
-      "quality": "",
-      "size": ""
-    },
-    {
-      "type": "reasoning",
-      "id": "chatcmpl-fixed_reasoning_0",
-      "status": "completed",
-      "role": "",
-      "content": [
-        {
-          "type": "summary_text",
-          "text": "Deep thought.",
-          "annotations": null
         }
       ],
       "quality": "",

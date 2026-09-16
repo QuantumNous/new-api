@@ -8,6 +8,7 @@ type OAuthToken struct {
 	ExpiresIn    int    `json:"expires_in,omitempty"`
 	Scope        string `json:"scope,omitempty"`
 	IDToken      string `json:"id_token,omitempty"`
+	ClientID     string `json:"-"` // Expected OIDC audience from the server-owned flow.
 }
 
 // OAuthUser represents the user info from OAuth provider

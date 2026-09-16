@@ -26,10 +26,11 @@ func TestGenerateTextOtherInfoNestsClaudeStopDetailsUnderAdminInfo(t *testing.T)
 		ChannelMeta: &relaycommon.ChannelMeta{},
 	}, 0, 0, 0, 0, 0, 0, 0)
 
-	adminInfo, ok := other["admin_info"].(map[string]interface{})
+	snapshot := other.Snapshot()
+	adminInfo, ok := snapshot["admin_info"].(map[string]any)
 	require.True(t, ok)
 	loggedStopDetails, ok := adminInfo["claude_stop_details"].(*dto.ClaudeStopDetails)
 	require.True(t, ok)
 	assert.Equal(t, stopDetails, loggedStopDetails)
-	assert.NotContains(t, other, "claude_stop_details")
+	assert.NotContains(t, snapshot, "claude_stop_details")
 }
