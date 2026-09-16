@@ -116,6 +116,33 @@ func TestImageCacheUsageAcrossResponseFormats(t *testing.T) {
 	}
 }
 
+func TestNormalizeOpenAIUsageMapsOutputImageTokens(t *testing.T) {
+	previousTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = previousTimeout })
+
+	const usageJSON = `{"input_tokens":15,"output_tokens":1352,"total_tokens":1367,"input_tokens_details":{"text_tokens":15,"image_tokens":0},"output_tokens_details":{"image_tokens":1120,"text_tokens":232}}`
+	for _, stream := range []bool{false, true} {
+		t.Run(fmt.Sprintf("stream=%t", stream), func(t *testing.T) {
+			body := `{"data":[{"b64_json":"image"}],"usage":` + usageJSON + `}`
+			contentType := "application/json"
+			if stream {
+				body = "data: {\"type\":\"image_generation.completed\",\"usage\":" + usageJSON + "}\n\ndata: [DONE]\n\n"
+				contentType = "text/event-stream"
+			}
+			ctx, _, response, info := newImageTestContext(t, body, contentType, stream)
+			info.RelayMode = relayconstant.RelayModeImagesGenerations
+			result, apiErr := (&Adaptor{}).DoResponse(ctx, response, info)
+			require.Nil(t, apiErr)
+			usage := result.(*dto.Usage)
+			assert.Equal(t, 15, usage.PromptTokens)
+			assert.Equal(t, 1352, usage.CompletionTokens)
+			assert.Equal(t, 1120, usage.CompletionTokenDetails.ImageTokens)
+			assert.Equal(t, 232, usage.CompletionTokenDetails.TextTokens)
+		})
+	}
+}
+
 func TestOpenaiImageDoResponseUsesInfoIsStream(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)

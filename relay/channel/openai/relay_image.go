@@ -53,13 +53,14 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 }
 
 // normalizeOpenAIUsage maps the OpenAI Images usage shape (input_tokens /
-// output_tokens / input_tokens_details) onto the canonical prompt/completion
-// fields. It is used only on the OpenAI image relay paths (generations/edits,
-// streaming and non-streaming): the image API never returns prompt_tokens /
-// completion_tokens, so the overwrite (=) semantics here are equivalent to the
-// previous additive (+=) behavior while avoiding any future double-counting if
-// both field sets are ever populated. Do not reuse this on chat/embedding paths
-// without revisiting the overwrite semantics.
+// output_tokens / input_tokens_details / output_tokens_details) onto the
+// canonical prompt/completion fields. It is used only on the OpenAI image
+// relay paths (generations/edits, streaming and non-streaming): the image
+// API never returns prompt_tokens / completion_tokens, so the overwrite (=)
+// semantics here are equivalent to the previous additive (+=) behavior while
+// avoiding any future double-counting if both field sets are ever populated.
+// Do not reuse this on chat/embedding paths without revisiting the overwrite
+// semantics.
 func normalizeOpenAIUsage(usage *dto.Usage) {
 	if usage == nil {
 		return
@@ -72,6 +73,9 @@ func normalizeOpenAIUsage(usage *dto.Usage) {
 	}
 	if usage.InputTokensDetails != nil {
 		usage.PromptTokensDetails = usage.InputTokensDetails.Clone()
+	}
+	if usage.OutputTokensDetails != nil {
+		usage.CompletionTokenDetails = *usage.OutputTokensDetails
 	}
 	if usage.TotalTokens == 0 {
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
