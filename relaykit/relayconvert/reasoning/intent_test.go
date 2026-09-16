@@ -156,6 +156,43 @@ func TestOpenAIPivotRetainsExactStrengthAndBudget(t *testing.T) {
 	}
 }
 
+func TestValidateGeminiThinkingConfigNormalizesNativeThinkingLevel(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		model      string
+		level      string
+		wantEffort Effort
+		wantErr    bool
+	}{
+		{name: "lowercase medium", model: "gemini-3.7-flash", level: "medium", wantEffort: EffortMedium},
+		{name: "uppercase enum medium", model: "gemini-3.7-flash", level: "MEDIUM", wantEffort: EffortMedium},
+		{name: "mixed case with whitespace", model: "gemini-3.7-flash", level: " Medium ", wantEffort: EffortMedium},
+		{name: "uppercase high", model: "gemini-3.1-pro-preview", level: "HIGH", wantEffort: EffortHigh},
+		{name: "minimal remains unsupported on gemini-3-pro", model: "gemini-3-pro-preview", level: "minimal", wantErr: true},
+		{name: "uppercase minimal remains unsupported on gemini-3-pro", model: "gemini-3-pro-preview", level: "MINIMAL", wantErr: true},
+		{name: "uppercase minimal remains unsupported on gemini-3.1-pro", model: "gemini-3.1-pro-preview", level: "MINIMAL", wantErr: true},
+		{name: "xhigh is not a Gemini level", model: "gemini-3.7-flash", level: "xhigh", wantErr: true},
+		{name: "unknown level", model: "gemini-3.7-flash", level: "ULTRA", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			config := &dto.GeminiThinkingConfig{ThinkingLevel: tt.level}
+			got, err := ValidateGeminiThinkingConfig(tt.model, config)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantEffort, got)
+			assert.Equal(t, tt.level, config.ThinkingLevel, "validation must not rewrite the client's wire value")
+		})
+	}
+}
+
 func TestOpenAIPivotDoesNotTreatMaxAndXHighAsEquivalent(t *testing.T) {
 	intent := Intent{Mode: ModeEnabled, Effort: EffortMax}
 	chat := &dto.GeneralOpenAIRequest{}

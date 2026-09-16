@@ -19,10 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import type { FieldErrors, FieldPath } from 'react-hook-form'
 
 import {
+  CHANNEL_TYPE_OLLAMA,
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
   MODEL_FETCHABLE_TYPES,
   OPENAI_FIELD_PASSTHROUGH_TYPES,
 } from '../constants'
+import { CHANNEL_TYPE_ADVANCED_CUSTOM } from './advanced-custom'
 import { channelFormSchema, type ChannelFormValues } from './channel-form'
 
 export type ChannelProviderTarget =
@@ -57,6 +59,8 @@ const CONFIGURATION_BLOCKS = {
       'force_format',
       'thinking_to_content',
       'pass_through_body_enabled',
+      'responses_websocket_enabled',
+      'ollama_openai_chat',
       'system_prompt',
       'system_prompt_override',
     ],
@@ -147,7 +151,11 @@ export function getChannelConfigurationState(
     requestProcessing: Boolean(
       (values.type === 1 && values.force_format) ||
       values.thinking_to_content ||
-      values.pass_through_body_enabled ||
+      (values.type !== CHANNEL_TYPE_ADVANCED_CUSTOM &&
+        values.pass_through_body_enabled) ||
+      ((values.type === 1 || values.type === 57) &&
+        values.responses_websocket_enabled) ||
+      (values.type === CHANNEL_TYPE_OLLAMA && values.ollama_openai_chat) ||
       values.system_prompt?.trim() ||
       values.system_prompt_override
     ),

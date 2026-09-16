@@ -36,6 +36,11 @@ import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 import type { TaskPluginOption } from '../../api'
+import {
+  CHANNEL_TYPE_OLLAMA,
+  CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_VLLM,
+} from '../../constants'
 import { channelSchema, type Channel } from '../../types'
 import { ChannelPluginExtensions } from '../channel-plugin-extensions'
 import { ChannelsProvider } from '../channels-provider'
@@ -226,8 +231,20 @@ test.each([
     url: 'https://volcengine.server.example',
     savedUrl: 'https://custom.example',
   },
+  {
+    type: CHANNEL_TYPE_VLLM,
+    label: /^Base URL/,
+    url: 'vLLM server address, without /v1',
+    savedUrl: 'http://localhost:8000',
+  },
+  {
+    type: CHANNEL_TYPE_SGLANG,
+    label: /^Base URL/,
+    url: 'SGLang server address, without /v1',
+    savedUrl: 'http://localhost:30000',
+  },
 ])(
-  'editing type $type keeps the server URL placeholder out of the saved address',
+  'editing type $type keeps the URL placeholder out of the saved address',
   async ({ type, label, url, savedUrl }) => {
     editingChannel.type = type
     const put = vi
@@ -1312,13 +1329,41 @@ test('request processing configuration does not mark the network category as con
   ).not.toHaveAccessibleName(/Configured/)
 })
 
+test.each([1, 57])(
+  'provider %s marks a saved Responses WebSocket setting in Request & Response and clears the mark when disabled',
+  async (type) => {
+    editingChannel = {
+      ...editingChannel,
+      type,
+      setting: '{"responses_websocket_enabled":true}',
+    }
+    const user = userEvent.setup()
+    render(<ConfigurationHarness currentRow={editingChannel} />)
+    await screen.findByDisplayValue('Existing channel')
+    const requestTab = screen.getByRole('tab', { name: /Request & Response/ })
+    expect(requestTab).toHaveAccessibleName(/Configured/)
+    expect(
+      screen.getByRole('tab', { name: /Other Settings/ })
+    ).not.toHaveAccessibleName(/Configured/)
+    await user.click(requestTab)
+    const toggle = screen.getByRole('switch', {
+      name: 'Enable Responses WebSocket',
+    })
+    expect(toggle).toBeChecked()
+    await user.click(toggle)
+    expect(toggle).not.toBeChecked()
+    expect(requestTab).not.toHaveAccessibleName(/Configured/)
+  }
+)
+
 test('configuration from fields unsupported by the selected provider stays unmarked', async () => {
   editingChannel = {
     ...editingChannel,
     type: 61,
-    setting: '{"task_plugin_key":"video-a","force_format":true}',
+    setting:
+      '{"task_plugin_key":"video-a","force_format":true,"responses_websocket_enabled":true}',
     settings:
-      '{"allow_speed":true,"allow_service_tier":true,"upstream_model_update_check_enabled":true}',
+      '{"allow_speed":true,"allow_service_tier":true,"upstream_model_update_check_enabled":true,"ollama_openai_chat":true}',
   }
   render(<ConfigurationHarness currentRow={editingChannel} />)
   await screen.findByDisplayValue('Existing channel')
@@ -1328,6 +1373,41 @@ test('configuration from fields unsupported by the selected provider stays unmar
   expect(
     screen.getByRole('tab', { name: /Other Settings/ })
   ).not.toHaveAccessibleName(/Configured/)
+  expect(
+    screen.queryByRole('switch', {
+      name: 'Use OpenAI-compatible Ollama chat API',
+    })
+  ).not.toBeInTheDocument()
+})
+
+test('an Ollama channel marks a saved OpenAI-compatible chat setting in Request & Response and saves the toggled value', async () => {
+  editingChannel = {
+    ...editingChannel,
+    type: CHANNEL_TYPE_OLLAMA,
+    settings: '{"ollama_openai_chat":true}',
+  }
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const requestTab = screen.getByRole('tab', { name: /Request & Response/ })
+  expect(requestTab).toHaveAccessibleName(/Configured/)
+  await user.click(requestTab)
+  const toggle = screen.getByRole('switch', {
+    name: 'Use OpenAI-compatible Ollama chat API',
+  })
+  expect(toggle).toBeChecked()
+  await user.click(toggle)
+  expect(toggle).not.toBeChecked()
+  expect(requestTab).not.toHaveAccessibleName(/Configured/)
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as { settings: string }
+  expect(JSON.parse(payload.settings)).toMatchObject({
+    ollama_openai_chat: false,
+  })
 })
 
 test('an invalid edit switches categories and replaces configured styling with the field error', async () => {

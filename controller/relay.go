@@ -22,14 +22,11 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
-	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
-	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -128,59 +125,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		return
 	}
 
-	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
-	needCountToken := constant.CountToken
-	// Avoid building huge CombineText (strings.Join) when token counting and sensitive check are both disabled.
-	var meta *types.TokenCountMeta
-	if needSensitiveCheck || needCountToken {
-		meta = request.GetTokenCountMeta()
-	} else {
-		meta = fastTokenCountMetaForPricing(request)
-	}
-
-	if needSensitiveCheck && meta != nil {
-		contains, words := service.CheckSensitiveText(meta.CombineText)
-		if contains {
-			logger.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
-			newAPIError = types.NewError(err, types.ErrorCodeSensitiveWordsDetected)
-			return
-		}
-	}
-
-	tokens, err := service.EstimateRequestToken(c, meta, relayInfo)
-	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeCountTokenFailed)
+	if newAPIError = relay.PrepareRequestBilling(c, relayInfo); newAPIError != nil {
 		return
 	}
-
-	relayInfo.SetEstimatePromptTokens(tokens)
-
-	priceData, err := helper.ModelPriceHelper(c, relayInfo, tokens, meta)
-	if err != nil {
-		newAPIError = types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
-		return
-	}
-
-	// common.SetContextKey(c, constant.ContextKeyTokenCountMeta, meta)
-
-	if priceData.FreeModel {
-		logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", relayInfo.OriginModelName))
-	} else {
-		newAPIError = service.PreConsumeBilling(c, priceData.QuotaToPreConsume, relayInfo)
-		if newAPIError != nil {
-			return
-		}
-	}
-
 	defer func() {
-		// Only return quota if downstream failed and quota was actually pre-consumed
-		if newAPIError != nil {
-			newAPIError = service.NormalizeViolationFeeError(newAPIError)
-			if relayInfo.Billing != nil {
-				relayInfo.Billing.Refund(c)
-			}
-			service.ChargeViolationFeeIfNeeded(c, relayInfo, newAPIError)
-		}
+		newAPIError = relay.RefundFailedRequestBilling(c, relayInfo, newAPIError)
 	}()
 
 	retryParam := &service.RetryParam{
@@ -290,7 +239,7 @@ func CountClaudeTokens(c *gin.Context) {
 }
 
 var upgrader = websocket.Upgrader{
-	Subprotocols: []string{"realtime"}, // WS 握手支持的协议，如果有使用 Sec-WebSocket-Protocol，则必须在此声明对应的 Protocol TODO add other protocol
+	Subprotocols: []string{"realtime", "responses"}, // WS 握手支持的协议，如果有使用 Sec-WebSocket-Protocol，则必须在此声明对应的 Protocol
 	CheckOrigin: func(r *http.Request) bool {
 		return true // 允许跨域
 	},
@@ -300,35 +249,6 @@ func addUsedChannel(c *gin.Context, channelId int) {
 	useChannel := c.GetStringSlice("use_channel")
 	useChannel = append(useChannel, fmt.Sprintf("%d", channelId))
 	c.Set("use_channel", useChannel)
-}
-
-func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
-	if request == nil {
-		return &types.TokenCountMeta{}
-	}
-	meta := &types.TokenCountMeta{
-		TokenType: types.TokenTypeTokenizer,
-	}
-	switch r := request.(type) {
-	case *dto.GeneralOpenAIRequest:
-		maxCompletionTokens := lo.FromPtrOr(r.MaxCompletionTokens, uint(0))
-		maxTokens := lo.FromPtrOr(r.MaxTokens, uint(0))
-		if maxCompletionTokens > maxTokens {
-			meta.MaxTokens = int(maxCompletionTokens)
-		} else {
-			meta.MaxTokens = int(maxTokens)
-		}
-	case *dto.OpenAIResponsesRequest:
-		meta.MaxTokens = int(lo.FromPtrOr(r.MaxOutputTokens, uint(0)))
-	case *dto.ClaudeRequest:
-		meta.MaxTokens = int(lo.FromPtr(r.MaxTokens))
-	case *dto.ImageRequest:
-		// Pricing for image requests depends on ImagePriceRatio; safe to compute even when CountToken is disabled.
-		return r.GetTokenCountMeta()
-	default:
-		// Best-effort: leave CombineText empty to avoid large allocations.
-	}
-	return meta
 }
 
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
@@ -363,71 +283,11 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 }
 
 func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) bool {
-	if openaiErr == nil {
-		return false
-	}
-	if service.ShouldSkipRetryAfterChannelAffinityFailure(c) {
-		return false
-	}
-	if types.IsChannelError(openaiErr) {
-		return true
-	}
-	if types.IsSkipRetryError(openaiErr) {
-		return false
-	}
-	if retryTimes <= 0 {
-		return false
-	}
-	if service.GetChannelConstraints(c).SuppressesRetry() {
-		return false
-	}
-	code := openaiErr.StatusCode
-	if code >= 200 && code < 300 {
-		return false
-	}
-	if code < 100 || code > 599 {
-		return true
-	}
-	if operation_setting.IsAlwaysSkipRetryCode(openaiErr.GetErrorCode()) {
-		return false
-	}
-	return operation_setting.ShouldRetryByStatusCode(code)
+	return service.ShouldRetryRelayError(c, openaiErr, retryTimes)
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError, relayInfo *relaycommon.RelayInfo) {
-	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
-	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
-	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
-	if service.ShouldDisableChannel(err) && channelError.AutoBan {
-		gopool.Go(func() {
-			service.DisableChannel(channelError, err.ErrorWithStatusCode())
-		})
-	}
-
-	if constant.ErrorLogEnabled && types.IsRecordErrorLog(err) {
-		// 保存错误日志到mysql中
-		userId := c.GetInt("id")
-		tokenName := c.GetString("token_name")
-		modelName := c.GetString("original_model")
-		tokenId := c.GetInt("token_id")
-		userGroup := c.GetString("group")
-		other := model.NewLogOther()
-		if c.Request != nil && c.Request.URL != nil {
-			other.SetPublic("request_path", c.Request.URL.Path)
-		}
-		other.SetPublic("error_type", err.GetErrorType())
-		other.SetPublic("error_code", err.GetErrorCode())
-		other.SetPublic("status_code", err.StatusCode)
-		service.AppendRelayLogAdminInfo(c, relayInfo, other)
-		service.AppendTaskPluginContextAuditInfo(c, other)
-		startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
-		if startTime.IsZero() {
-			startTime = time.Now()
-		}
-		useTimeSeconds := int(time.Since(startTime).Seconds())
-		model.RecordErrorLog(c, userId, channelError.ChannelId, modelName, tokenName, err.MaskSensitiveErrorWithStatusCode(), tokenId, useTimeSeconds, common.GetContextKeyBool(c, constant.ContextKeyIsStream), userGroup, other)
-	}
-
+	service.ProcessChannelError(c, channelError, err, relayInfo)
 }
 
 func RelayMidjourney(c *gin.Context) {

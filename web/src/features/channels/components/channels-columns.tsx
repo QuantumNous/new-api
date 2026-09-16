@@ -61,6 +61,8 @@ import { getCodexUsage, updateChannelBalance } from '../api'
 import {
   CHANNEL_STATUS_CONFIG,
   CHANNEL_TYPE_TASK_PLUGIN,
+  CHANNEL_TYPE_VLLM,
+  CHANNEL_TYPE_SGLANG,
   MODEL_FETCHABLE_TYPES,
 } from '../constants'
 import {
@@ -337,7 +339,7 @@ export function BalanceCell({ channel }: { channel: Channel }) {
   const { t, i18n } = useTranslation()
   const queryClient = useQueryClient()
   const layout = useContext(ChannelRowActionsLayoutContext)
-  const { sensitiveVisible, setCurrentRow } = useChannels()
+  const { sensitiveVisible, setCurrentRow, setOpen } = useChannels()
   const isTagRow = isTagAggregateRow(channel)
   const balance = channel.balance || 0
   const usedQuota = channel.used_quota || 0
@@ -428,8 +430,17 @@ export function BalanceCell({ channel }: { channel: Channel }) {
 
   // Regular channel row: show used and remaining with click to update
   const variant = getBalanceVariant(balance)
+  const isInferenceChannel =
+    channel.type === CHANNEL_TYPE_VLLM || channel.type === CHANNEL_TYPE_SGLANG
+  const inferenceStatusLabel =
+    channel.type === CHANNEL_TYPE_SGLANG ? t('SGLang status') : t('vLLM status')
 
   const handleClickUpdate = async () => {
+    if (isInferenceChannel) {
+      setCurrentRow(channel)
+      setOpen('inference-status')
+      return
+    }
     if (isUpdating) {
       return
     }
@@ -483,19 +494,34 @@ export function BalanceCell({ channel }: { channel: Channel }) {
     remainingBadgeLabel = t('Updating...')
   } else if (sensitiveVisible && channel.type === 57) {
     remainingBadgeLabel = t('Account Info')
+  } else if (sensitiveVisible && isInferenceChannel) {
+    remainingBadgeLabel = inferenceStatusLabel
   }
   let remainingTooltipLabel = remainingLabel
   if (!sensitiveVisible) {
     remainingTooltipLabel = maskedRemainingLabel
   } else if (channel.type === 57) {
     remainingTooltipLabel = t('Click to view Codex usage')
+  } else if (isInferenceChannel) {
+    remainingTooltipLabel = inferenceStatusLabel
   }
   let remainingBadgeVariant: StatusBadgeProps['variant'] = variant
-  if (channel.type === 57) {
+  if (channel.type === 57 || isInferenceChannel) {
     remainingBadgeVariant = 'info'
   } else if (isUpdating) {
     remainingBadgeVariant = 'neutral'
   }
+  const remainingBadge = (
+    <StatusBadge
+      label={remainingBadgeLabel}
+      variant={remainingBadgeVariant}
+      size='sm'
+      copyable={false}
+      showDot={false}
+      className='cursor-pointer'
+      onClick={isInferenceChannel ? undefined : handleClickUpdate}
+    />
+  )
 
   return (
     <TooltipProvider>
@@ -520,20 +546,26 @@ export function BalanceCell({ channel }: { channel: Channel }) {
         <Tooltip>
           <TooltipTrigger
             render={
-              <StatusBadge
-                label={remainingBadgeLabel}
-                variant={remainingBadgeVariant}
-                size='sm'
-                copyable={false}
-                showDot={false}
-                className='cursor-pointer'
-                onClick={handleClickUpdate}
-              />
+              isInferenceChannel ? (
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  className='h-auto rounded-full p-0'
+                  aria-haspopup='dialog'
+                  onClick={handleClickUpdate}
+                >
+                  {remainingBadge}
+                </Button>
+              ) : (
+                remainingBadge
+              )
             }
           />
           <TooltipContent>
             <p>{remainingTooltipLabel}</p>
-            {channel.type !== 57 && <p>{t('Click to update balance')}</p>}
+            {channel.type !== 57 && !isInferenceChannel && (
+              <p>{t('Click to update balance')}</p>
+            )}
           </TooltipContent>
         </Tooltip>
       </div>
