@@ -113,3 +113,25 @@
 ### Next Steps
 
 - 任务已本地归档；后续推送和部署按用户指令执行。
+
+
+## Session 4: 优化首页品牌与社群入口
+<!-- trellis-session: v=2 fp=15fd52429f64b029 -->
+
+**Date**: 2026-09-18
+**Task**: 优化首页品牌与社群入口
+**Branch**: `qq-image`
+
+### Summary
+
+在首页品牌行加入 yeschoy 玻璃胶囊，保留交流社群在公共页面、轻松模式和开发模式中的常驻入口，并补充响应式、主题与模式回归验证。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7f4da2c1b` | feat(home): add yeschoy brand badge |
+
+### Status
+
+[OK] **Completed**
