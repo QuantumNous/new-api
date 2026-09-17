@@ -3,8 +3,8 @@ Copyright (C) 2023-2026 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
+published by the Free Software Foundation, either version 3 of
+the License, or (at your option) any later version.
 
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -17,13 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 export const INTERFACE_LANGUAGE_OPTIONS = [
-  { code: 'zhCN', label: '简体中文' },
-  { code: 'en', label: 'English' },
-  { code: 'fr', label: 'Français' },
-  { code: 'ru', label: 'Русский' },
-  { code: 'ja', label: '日本語' },
-  { code: 'vi', label: 'Tiếng Việt' },
-  { code: 'zhTW', label: '繁體中文' },
+  { code: 'zhCN', label: 'zhCN' },
+  { code: 'en', label: 'en' },
+  { code: 'ptBR', label: 'ptBR' },
+  { code: 'fr', label: 'fr' },
+  { code: 'ru', label: 'ru' },
+  { code: 'ja', label: 'ja' },
+  { code: 'vi', label: 'vi' },
+  { code: 'zhTW', label: 'zhTW' },
 ] as const
 
 export type InterfaceLanguageCode =
@@ -43,6 +44,9 @@ export function normalizeInterfaceLanguage(value?: string | null): string {
   }
   if (value === 'zh-CN' || value === 'zh-Hans' || value === 'zhCN') {
     normalized = 'zhCN'
+  }
+  if (normalized === 'pt-br' || normalized === 'ptbr' || normalized === 'pt') {
+    normalized = 'ptBR'
   }
 
   return INTERFACE_LANGUAGE_OPTIONS.some((lang) => lang.code === normalized)
@@ -90,6 +94,8 @@ export function toIntlLocale(value?: string | null): string | undefined {
       return 'zh-CN'
     case 'zhTW':
       return 'zh-TW'
+    case 'ptBR':
+      return 'pt-BR'
     default:
       break
   }
