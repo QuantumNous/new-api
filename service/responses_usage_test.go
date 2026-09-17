@@ -251,3 +251,91 @@ func TestApplyResponsesUsagePreservesBillingSnapshotAcrossPartialUpdates(t *test
 	assert.Equal(t, src.BillingUsage, dst.BillingUsage)
 	assert.NotSame(t, src.BillingUsage, dst.BillingUsage)
 }
+
+func TestResponsesUsageAccumulatorMissingUsageEstimation(t *testing.T) {
+	const model = "gpt-4o"
+	const summary = "Inspect the repository before editing."
+	const arguments = `{"command":["bash","-lc","ls"]}`
+	inProgress := &dto.OpenAIResponsesResponse{Status: []byte(`"in_progress"`)}
+	for _, tc := range []struct {
+		name           string
+		events         []dto.ResponsesStreamResponse
+		wantPrompt     int
+		wantCompletion int
+	}{
+		{
+			name: "tool call stream cut before terminal usage",
+			events: []dto.ResponsesStreamResponse{
+				{Type: "response.created", Response: inProgress},
+				{Type: "response.reasoning_summary_text.delta", Delta: summary},
+				{Type: "response.function_call_arguments.delta", Delta: arguments},
+				{Type: dto.ResponsesOutputTypeItemDone, Item: &dto.ResponsesOutput{Type: dto.BuildInCallFunctionCall, Name: "shell"}},
+			},
+			wantPrompt:     100,
+			wantCompletion: CountTextToken(summary+arguments, model),
+		},
+		{
+			name: "created only then disconnect bills the prompt",
+			events: []dto.ResponsesStreamResponse{
+				{Type: "response.created", Response: inProgress},
+			},
+			wantPrompt: 100,
+		},
+		{
+			name: "incomplete without usage bills the prompt",
+			events: []dto.ResponsesStreamResponse{
+				{Type: "response.created", Response: inProgress},
+				{Type: "response.incomplete", Response: &dto.OpenAIResponsesResponse{Status: []byte(`"incomplete"`)}},
+			},
+			wantPrompt: 100,
+		},
+		{
+			name: "completed without usage estimates from terminal output",
+			events: []dto.ResponsesStreamResponse{
+				{Type: "response.completed", Response: &dto.OpenAIResponsesResponse{
+					Status: []byte(`"completed"`),
+					Output: []dto.ResponsesOutput{{
+						Type:    "message",
+						Role:    "assistant",
+						Content: []dto.ResponsesOutputContent{{Type: "output_text", Text: "final answer"}},
+					}},
+				}},
+			},
+			wantPrompt:     100,
+			wantCompletion: CountTextToken("final answer", model),
+		},
+		{
+			name: "explicit failure without usage bills nothing",
+			events: []dto.ResponsesStreamResponse{
+				{Type: "response.created", Response: inProgress},
+				{Type: "response.failed", Response: &dto.OpenAIResponsesResponse{Status: []byte(`"failed"`)}},
+			},
+		},
+		{
+			name: "flat error event bills nothing",
+			events: []dto.ResponsesStreamResponse{
+				{Type: "response.created", Response: inProgress},
+				{Type: "error", Code: "server_error"},
+			},
+		},
+		{
+			name: "no upstream events bills nothing",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{
+				ChannelMeta:  &relaycommon.ChannelMeta{UpstreamModelName: model},
+				StreamStatus: relaycommon.NewStreamStatus(),
+			}
+			info.SetEstimatePromptTokens(100)
+			accumulator := NewResponsesUsageAccumulator(info)
+			for i := range tc.events {
+				accumulator.Observe(&tc.events[i])
+			}
+			usage := accumulator.Finish()
+			assert.Equal(t, tc.wantPrompt, usage.PromptTokens)
+			assert.Equal(t, tc.wantCompletion, usage.CompletionTokens)
+			assert.Equal(t, tc.wantPrompt+tc.wantCompletion, usage.TotalTokens)
+		})
+	}
+}

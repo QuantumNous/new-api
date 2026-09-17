@@ -20,6 +20,7 @@ type ResponsesUsageAccumulator struct {
 	outputText     strings.Builder
 	imageCounter   relaycommon.ImageGenerationCallCounter
 	imageCommitted bool
+	started        bool
 	finished       bool
 }
 
@@ -34,11 +35,16 @@ func (a *ResponsesUsageAccumulator) Observe(event *dto.ResponsesStreamResponse) 
 	if event.Response != nil {
 		a.info.ObserveResponseModel(event.Response.Model)
 	}
+	a.started = true
 	ObserveResponsesOutcome(a.info, event)
 	switch event.Type {
 	case "response.completed", "response.done", "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
 		if event.Response != nil {
 			ApplyResponsesUsage(a.usage, event.Response.Usage)
+			if a.outputText.Len() == 0 {
+				// Some upstreams carry the output only on the terminal event.
+				a.outputText.WriteString(relayconvert.ExtractOutputTextFromResponses(event.Response))
+			}
 		}
 		if a.imageCommitted {
 			return
@@ -53,7 +59,10 @@ func (a *ResponsesUsageAccumulator) Observe(event *dto.ResponsesStreamResponse) 
 		}
 		a.imageCounter.Commit(a.info)
 		a.imageCommitted = true
-	case "response.output_text.delta":
+	case "response.output_text.delta", "response.function_call_arguments.delta",
+		"response.reasoning_summary_text.delta", "response.reasoning_text.delta", "response.refusal.delta":
+		// Every delta kind here is generated output that upstream bills as
+		// output tokens, so all of them feed the missing-usage estimate.
 		a.outputText.WriteString(event.Delta)
 	case dto.ResponsesOutputTypeItemDone:
 		if event.Item == nil {
@@ -87,7 +96,11 @@ func (a *ResponsesUsageAccumulator) Finish() *dto.Usage {
 			a.usage.CompletionTokens = CountTextToken(output, a.info.GetUpstreamModelName())
 		}
 	}
-	if a.usage.PromptTokens == 0 && a.usage.CompletionTokens != 0 {
+	// Upstream bills the prompt as soon as it starts generating, so a stream
+	// that produced any event but no usage still owes its input tokens unless
+	// upstream reported an explicit failure.
+	billsPrompt := a.usage.CompletionTokens != 0 || (a.started && !a.info.StreamStatus.ResponseFailed())
+	if a.usage.PromptTokens == 0 && billsPrompt {
 		a.usage.PromptTokens = a.info.GetEstimatePromptTokens()
 	}
 	a.usage.TotalTokens = a.usage.PromptTokens + a.usage.CompletionTokens
