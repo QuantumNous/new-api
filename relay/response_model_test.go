@@ -72,6 +72,41 @@ func TestResponseModelComparisonAndLog(t *testing.T) {
 	}
 }
 
+func TestResponseModelLogOmitsUnchangedModel(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		upstream string
+		returned string
+		mapped   bool
+		record   bool
+	}{
+		{name: "same model", upstream: "requested", returned: "requested"},
+		{name: "no upstream name", returned: "requested"},
+		{name: "mapped model", upstream: "mapped", returned: "mapped", mapped: true, record: true},
+		{name: "mapped response echoes request", upstream: "mapped", returned: "requested", mapped: true, record: true},
+		{name: "prefix difference", upstream: "requested", returned: "requested-2026-09-01", record: true},
+		{name: "case difference", upstream: "requested", returned: "REQUESTED", record: true},
+		{name: "mismatch", upstream: "requested", returned: "other", record: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			info := &relaycommon.RelayInfo{
+				OriginModelName: "requested",
+				ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: tc.upstream, IsModelMapped: tc.mapped},
+			}
+			info.ObserveResponseModel(tc.returned)
+			other := service.GenerateTextOtherInfo(c, info, 1, 1, 1, 0, 0, 0, 1)
+			require.NotNil(t, info.ResponseModel)
+			assert.Equal(t, float64(1), other.Snapshot()["model_ratio"])
+			if tc.record {
+				assert.Equal(t, *info.ResponseModel, other.Snapshot()["response_model"])
+			} else {
+				assert.NotContains(t, other.Snapshot(), "response_model")
+			}
+		})
+	}
+}
+
 func TestResponseModelEmptyExpectedNamesDoNotMatchEveryPrefix(t *testing.T) {
 	for _, tc := range []struct{ requested, upstream string }{
 		{}, {upstream: "mapped"}, {requested: "requested"},

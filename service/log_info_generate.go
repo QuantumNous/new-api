@@ -130,9 +130,17 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 }
 
 func AppendResponseModelLogInfo(relayInfo *relaycommon.RelayInfo, other *model.LogOther) {
-	if relayInfo != nil && relayInfo.ResponseModel != nil && other != nil {
-		other.SetPublic("response_model", *relayInfo.ResponseModel)
+	if relayInfo == nil || relayInfo.ResponseModel == nil || other == nil {
+		return
 	}
+	observation := relayInfo.ResponseModel
+	if !observation.Mismatch &&
+		observation.ReturnedModel == observation.RequestedModel &&
+		(observation.UpstreamModel == "" || observation.UpstreamModel == observation.RequestedModel) &&
+		(relayInfo.ChannelMeta == nil || !relayInfo.IsModelMapped) {
+		return
+	}
+	other.SetPublic("response_model", *observation)
 }
 
 func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other *model.LogOther) {
