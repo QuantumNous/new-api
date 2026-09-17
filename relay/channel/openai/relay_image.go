@@ -291,14 +291,14 @@ func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 		}
 		if writeErr := helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: "image_generation.completed"}, string(payload)); writeErr != nil {
 			if info != nil && info.StreamStatus != nil {
-				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, writeErr)
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, relaycommon.WithStreamErrorSource(writeErr, "downstream_write"))
 			}
 			return &usageResp.Usage, nil
 		}
 	}
 	if err := writeOpenaiImageStreamDone(c); err != nil {
 		if info != nil && info.StreamStatus != nil {
-			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, err)
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, relaycommon.WithStreamErrorSource(err, "downstream_write"))
 		}
 		return &usageResp.Usage, nil
 	}

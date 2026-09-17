@@ -98,7 +98,7 @@ func GeminiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, r
 		}
 		if err := helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: event.Type}, string(data)); err != nil {
 			if info.StreamStatus != nil {
-				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, err)
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, relaycommon.WithStreamErrorSource(err, "downstream_write"))
 			}
 			return false
 		}

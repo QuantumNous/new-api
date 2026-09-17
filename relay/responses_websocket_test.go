@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -16,6 +20,7 @@ import (
 	appdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
@@ -402,14 +407,14 @@ func TestResponsesWSShutdownInterruptsBusyWriter(t *testing.T) {
 	defer cleanupClient()
 	target, peer, cleanupTarget := newTestWebSocketPair(t)
 	defer cleanupTarget()
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancelCause(context.Background())
 	s := &responsesWSSession{ctx: ctx, cancel: cancel, client: server, target: target}
 	// A blocked network writer owns this lock. Closing the connection must
 	// remain possible so that writer can be interrupted.
 	s.targetWriteMu.Lock()
 	defer s.targetWriteMu.Unlock()
 	done := make(chan struct{})
-	go func() { s.shutdown(); close(done) }()
+	go func() { s.shutdown(nil); close(done) }()
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
@@ -440,4 +445,167 @@ func TestResponsesWSPassthroughPreservesRawPricingParameters(t *testing.T) {
 	storage, err := common.GetBodyStorage(c)
 	require.NoError(t, err)
 	require.NoError(t, storage.Close())
+}
+
+func TestStreamErrorLogCodes(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		code string
+	}{
+		{"cancel", context.Canceled, "context_canceled"},
+		{"context deadline", context.DeadlineExceeded, "deadline_exceeded"},
+		{"io deadline", os.ErrDeadlineExceeded, "io_timeout"},
+		{"broken pipe", fmt.Errorf("write: %w", syscall.EPIPE), "broken_pipe"},
+		{"reset", &net.OpError{Op: "read", Net: "tcp", Err: syscall.ECONNRESET}, "connection_reset"},
+		{"closed", net.ErrClosed, "connection_closed"},
+		{"closed pipe", io.ErrClosedPipe, "closed_pipe"},
+		{"unexpected eof", io.ErrUnexpectedEOF, "unexpected_eof"},
+		{"eof", io.EOF, "eof"},
+		{"network timeout", &net.DNSError{IsTimeout: true}, "network_timeout"},
+		{"websocket close", fmt.Errorf("read: %w", &websocket.CloseError{Code: websocket.CloseGoingAway, Text: "leaving"}), "websocket_close_1001"},
+		{"untyped cancellation text", errors.New("context canceled"), "unknown_error"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			info := &relaycommon.RelayInfo{IsStream: true, ChannelMeta: &relaycommon.ChannelMeta{}, StreamStatus: relaycommon.NewStreamStatus()}
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, relaycommon.WithStreamErrorSource(tc.err, "downstream_read"))
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, net.ErrClosed)
+			other := service.GenerateTextOtherInfo(c, info, 1, 1, 1, 0, 1, 0, 1)
+			stream, ok := other.Snapshot()["stream_status"].(map[string]any)
+			require.True(t, ok)
+			assert.Equal(t, tc.code, stream["end_error_code"])
+			assert.Equal(t, "downstream_read", stream["end_error_source"])
+			assert.Equal(t, tc.err.Error(), stream["end_error"])
+			assert.Equal(t, "client_gone", stream["end_reason"])
+			assert.Contains(t, info.StreamStatus.Summary(), tc.code)
+		})
+	}
+}
+
+func TestResponsesWSClientClosePreservesCause(t *testing.T) {
+	client, server, cleanup := newTestWebSocketPair(t)
+	defer cleanup()
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+	started := make(chan struct{})
+	cause := make(chan error, 1)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ResponsesWebSocketHelper(c, server, func(request *http.Request, _ string, _ func(*gin.Context) *types.NewAPIError) *types.NewAPIError {
+			close(started)
+			<-request.Context().Done()
+			cause <- context.Cause(request.Context())
+			return nil
+		})
+	}()
+	require.NoError(t, client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"test"}`)))
+	select {
+	case <-started:
+	case <-time.After(2 * time.Second):
+		t.Fatal("request did not start")
+	}
+	require.NoError(t, client.WriteControl(websocket.CloseMessage,
+		websocket.FormatCloseMessage(websocket.CloseGoingAway, "leaving"), time.Now().Add(time.Second)))
+	select {
+	case err := <-cause:
+		var closeErr *websocket.CloseError
+		require.ErrorAs(t, err, &closeErr)
+		assert.Equal(t, websocket.CloseGoingAway, closeErr.Code)
+		assert.Equal(t, "leaving", closeErr.Text)
+		status := relaycommon.NewStreamStatus()
+		status.SetEndReason(relaycommon.StreamEndReasonClientGone, relaycommon.WithStreamErrorSource(err, "request_context"))
+		assert.Equal(t, "downstream_read", status.EndErrorSource)
+		assert.Equal(t, "websocket_close_1001", status.EndErrorCode)
+	case <-time.After(2 * time.Second):
+		t.Fatal("request was not canceled")
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("websocket handler did not exit")
+	}
+}
+
+func TestResponsesWSPolicyClosePreservesCause(t *testing.T) {
+	_, server, cleanup := newTestWebSocketPair(t)
+	defer cleanup()
+	ctx, cancel := context.WithCancelCause(context.Background())
+	s := &responsesWSSession{ctx: ctx, cancel: cancel, client: server}
+	s.closeForPolicy("channel disabled")
+	// Subsequent socket cleanup must not replace the policy decision.
+	s.shutdown(relaycommon.WithStreamErrorSource(net.ErrClosed, "downstream_read"))
+	status := relaycommon.NewStreamStatus()
+	status.SetEndReason(relaycommon.StreamEndReasonClientGone, context.Cause(ctx))
+	assert.Equal(t, "server_policy", status.EndErrorSource)
+	assert.Equal(t, "websocket_close_1008", status.EndErrorCode)
+	assert.Contains(t, status.EndError.Error(), "channel disabled")
+}
+
+type diagnosticFailWriter struct{ *httptest.ResponseRecorder }
+
+func (w diagnosticFailWriter) Write([]byte) (int, error) { return 0, syscall.EPIPE }
+
+func TestSSEWriteErrorPreservedAfterTerminal(t *testing.T) {
+	previousTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = previousTimeout })
+	c, _ := gin.CreateTestContext(diagnosticFailWriter{httptest.NewRecorder()})
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	info := &relaycommon.RelayInfo{IsStream: true, DisablePing: true, ChannelMeta: &relaycommon.ChannelMeta{}}
+	originalWriter := c.Writer
+	resp := &http.Response{Body: io.NopCloser(strings.NewReader("data: hello\n\n"))}
+	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		// The upstream may finish before buffered chunks reach the client.
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+		_ = helper.StringData(c, data)
+	})
+	assert.Same(t, originalWriter, c.Writer)
+	require.NotEmpty(t, info.StreamStatus.Errors)
+	assert.Equal(t, "broken_pipe", info.StreamStatus.Errors[0].Code)
+	assert.Equal(t, "downstream_write", info.StreamStatus.Errors[0].Source)
+	other := service.GenerateTextOtherInfo(c, info, 1, 1, 1, 0, 1, 0, 1)
+	var decoded map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(other.JSONString(), &decoded))
+	stream, ok := decoded["stream_status"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "error", stream["status"])
+	assert.NotContains(t, stream, "end_error")
+	details, ok := stream["error_details"].([]any)
+	require.True(t, ok)
+	require.NotEmpty(t, details)
+	assert.Equal(t, map[string]any{"message": "broken pipe", "code": "broken_pipe", "source": "downstream_write"}, details[0])
+}
+
+func TestSSERequestCancellationPreservesCause(t *testing.T) {
+	previousTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = previousTimeout })
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+	reader, writer := io.Pipe()
+	defer reader.Close()
+	defer writer.Close()
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil).WithContext(ctx)
+	info := &relaycommon.RelayInfo{IsStream: true, DisablePing: true, ChannelMeta: &relaycommon.ChannelMeta{}}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		helper.StreamScannerHandler(c, &http.Response{Body: reader}, info, func(string, *helper.StreamResult) {
+			cancel(context.DeadlineExceeded)
+		})
+	}()
+	_, err := fmt.Fprint(writer, "data: hello\n\n")
+	require.NoError(t, err)
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("SSE handler did not exit")
+	}
+	assert.Equal(t, relaycommon.StreamEndReasonClientGone, info.StreamStatus.EndReason)
+	assert.ErrorIs(t, info.StreamStatus.EndError, context.DeadlineExceeded)
+	assert.Equal(t, "deadline_exceeded", info.StreamStatus.EndErrorCode)
+	assert.Equal(t, "request_context", info.StreamStatus.EndErrorSource)
 }
