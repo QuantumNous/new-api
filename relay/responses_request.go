@@ -58,6 +58,13 @@ func PrepareResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, req *d
 		return adaptor, body, io.NopCloser(body), nil
 	}
 
+	// Compact and passthrough requests stay unchanged;
+	if info.RelayMode == relayconstant.RelayModeResponses {
+		if err := helper.ApplyResponsesSystemPrompt(c, info.ChannelSetting, request); err != nil {
+			return nil, nil, nil, newConvertRequestFailedError(c, info, err)
+		}
+	}
+
 	convertedRequest, err := adaptor.ConvertOpenAIResponsesRequest(c, info, *request)
 	if err != nil {
 		return nil, nil, nil, newConvertRequestFailedError(c, info, err)
