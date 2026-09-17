@@ -138,8 +138,8 @@ export async function listMarketplaceSources() {
 }
 
 export async function updateMarketplaceSources(sources: MarketplaceSource[]) {
-  const response = await api.put<ApiResponse<MarketplaceSource[]>>(
-    '/api/plugin/task/marketplace/sources',
+  const response = await api.post<ApiResponse<MarketplaceSource[]>>(
+    '/api/plugin/task/marketplace/sources/put',
     sources,
     mutationConfig
   )
@@ -173,8 +173,8 @@ export async function deleteTaskPluginVersion(
   version: string,
   force = false
 ) {
-  const response = await api.delete<ApiResponse<null>>(
-    `/api/plugin/task/${encodeURIComponent(key)}/versions/${encodeURIComponent(version)}`,
+  const response = await api.get<ApiResponse<null>>(
+    `/api/plugin/task/del/${encodeURIComponent(key)}/versions/del/${encodeURIComponent(version)}`,
     { ...mutationConfig, params: force ? { force: true } : undefined }
   )
   requireSuccess(response.data)
@@ -193,8 +193,8 @@ export async function getTaskPluginEnabledOption() {
 }
 
 export async function setTaskPluginEnabledOption(enabled: boolean) {
-  const response = await api.put<ApiResponse<null>>(
-    '/api/option/',
+  const response = await api.post<ApiResponse<null>>(
+    '/api/option/put',
     { key: 'TaskPluginEnabled', value: String(enabled) },
     mutationConfig
   )

@@ -35,7 +35,7 @@ export async function clearAllCache(): Promise<{
   success: boolean
   message?: string
 }> {
-  const res = await api.delete('/api/option/channel_affinity_cache', {
+  const res = await api.get('/api/option/channel_affinity_cache/del', {
     params: { all: true },
   })
   return res.data
@@ -44,7 +44,7 @@ export async function clearAllCache(): Promise<{
 export async function clearRuleCache(
   ruleName: string
 ): Promise<{ success: boolean; message?: string }> {
-  const res = await api.delete('/api/option/channel_affinity_cache', {
+  const res = await api.get('/api/option/channel_affinity_cache/del', {
     params: { rule_name: ruleName },
   })
   return res.data

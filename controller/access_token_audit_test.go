@@ -73,7 +73,7 @@ func TestAccessTokenLifecycleAndLateRequests(t *testing.T) {
 	router.GET("/api/user/token/status", middleware.UserAuth(), GetAccessTokenStatus)
 	router.GET("/api/user/token", middleware.UserAuth(), GenerateAccessToken)
 	router.POST("/api/user/token", middleware.UserAuth(), GenerateAccessToken)
-	router.DELETE("/api/user/token", middleware.UserAuth(), RevokeAccessToken)
+	router.GET("/api/user/token/del", middleware.UserAuth(), RevokeAccessToken)
 	// Rotate during the handler, after authentication has captured the old PAT.
 	router.POST("/rotate-in-flight", middleware.UserAuth(), func(c *gin.Context) {
 		require.NoError(t, model.UpdateUserAccessToken(user.Id, "new-token"))
@@ -92,8 +92,12 @@ func TestAccessTokenLifecycleAndLateRequests(t *testing.T) {
 	assert.NotNil(t, status.CreatedAt)
 	assert.Nil(t, status.LastUsedAt, "in-flight old requests must not mark the new generation as used")
 	assert.Equal(t, 401, auditRequest(router, "GET", "/api/user/token/status", old).Code)
-	for _, method := range []string{"POST", "GET", "DELETE"} {
-		response := auditRequest(router, method, "/api/user/token", "new-token")
+	for _, req := range []struct{ method, path string }{
+		{"POST", "/api/user/token"},
+		{"GET", "/api/user/token"},
+		{"GET", "/api/user/token/del"},
+	} {
+		response := auditRequest(router, req.method, req.path, "new-token")
 		assert.Equal(t, http.StatusForbidden, response.Code)
 		assert.Contains(t, response.Body.String(), `"code":"SECURITY_PROOF_INVALID"`)
 		stored, err := model.GetUserById(user.Id, true)

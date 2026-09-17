@@ -74,7 +74,7 @@ export async function createRedemption(
 export async function updateRedemption(
   data: RedemptionFormData & { id: number }
 ): Promise<ApiResponse<Redemption>> {
-  const res = await api.put('/api/redemption/', data)
+  const res = await api.post('/api/redemption/put', data)
   return res.data
 }
 
@@ -83,19 +83,19 @@ export async function updateRedemptionStatus(
   id: number,
   status: number
 ): Promise<ApiResponse<Redemption>> {
-  const res = await api.put('/api/redemption/?status_only=true', { id, status })
+  const res = await api.post('/api/redemption/put?status_only=true', { id, status })
   return res.data
 }
 
 // Delete a single redemption code
 export async function deleteRedemption(id: number): Promise<ApiResponse> {
-  const res = await api.delete(`/api/redemption/${id}/`)
+  const res = await api.get(`/api/redemption/del/${id}/`)
   return res.data
 }
 
 // Delete invalid redemption codes (used, disabled, expired)
 export async function deleteInvalidRedemptions(): Promise<ApiResponse<number>> {
-  const res = await api.delete('/api/redemption/invalid')
+  const res = await api.get('/api/redemption/invalid/del')
   return res.data
 }
 

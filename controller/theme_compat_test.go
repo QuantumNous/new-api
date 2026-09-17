@@ -16,8 +16,8 @@ func TestUpdateOptionRejectsRetiredFrontendTheme(t *testing.T) {
 	response := httptest.NewRecorder()
 	context, _ := gin.CreateTestContext(response)
 	context.Request = httptest.NewRequest(
-		http.MethodPut,
-		"/api/option/",
+		http.MethodPost,
+		"/api/option/put",
 		strings.NewReader(`{"key":"theme.frontend","value":"classic"}`),
 	)
 

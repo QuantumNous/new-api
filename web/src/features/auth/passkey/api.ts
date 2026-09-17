@@ -71,7 +71,7 @@ export function deletePasskey(
   signal?: AbortSignal
 ): Promise<unknown> {
   return authResult(
-    api.delete('/api/user/passkey', {
+    api.get('/api/user/passkey/del', {
       ...authRequestOptions,
       headers: proofHeaders(proofToken),
       acceptAuthRotation: true,

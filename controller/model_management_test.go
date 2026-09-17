@@ -927,7 +927,7 @@ export function parseTaskResult() { return {}; }
 				require.NoError(t, model.UpdateModelPricing([]model.ModelPricingChange{{ModelName: exact.ModelName, ExpectedVersion: priceBefore.Entries[0].Version, Pricing: model.PricingValues{"ModelPrice": float64(0)}}}))
 				exact.ModelName = "matrix-renamed"
 				exact.Endpoints = `{"openai":{"path":"/v1/chat/completions","method":"POST"}}`
-				response := modelManagementRequest(t, UpdateModelMeta, http.MethodPut, "/api/models/", exact, nil)
+				response := modelManagementRequest(t, UpdateModelMeta, http.MethodPost, "/api/models/put", exact, nil)
 				assert.Contains(t, response.Body.String(), `"success":true`)
 				var reloaded model.Model
 				require.NoError(t, db.First(&reloaded, exact.Id).Error)
@@ -1306,7 +1306,7 @@ func TestModelDeletionDatabaseMatrix(t *testing.T) {
 			recorder := modelManagementRequest(t, func(c *gin.Context) {
 				c.Params = gin.Params{{Key: "id", Value: strconv.Itoa(metadataOnly.Id)}}
 				DeleteModelMeta(c)
-			}, http.MethodDelete, "/api/models/"+strconv.Itoa(metadataOnly.Id), nil, &response)
+			}, http.MethodGet, "/api/models/del/"+strconv.Itoa(metadataOnly.Id), nil, &response)
 			require.True(t, response.Success, recorder.Body.String())
 			assert.Equal(t, model.ModelDeleteResult{DeletedCount: 1}, response.Data)
 			var retained model.Channel
@@ -1587,19 +1587,19 @@ func TestSharedModelPluginPricingDatabaseMatrix(t *testing.T) {
 			assert.NotEqual(t, loaded.Entries[0].Version, updated.Entries[0].Version)
 			assert.ErrorIs(t, model.UpdateModelPricing([]model.ModelPricingChange{change}), model.ErrModelPricingConflict)
 			// The legacy option API validates the full draft and cannot drop a required override.
-			response := modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{Key: billing_setting.PluginBillingExprOption, Value: `{}`}, nil)
+			response := modelManagementRequest(t, UpdateOption, http.MethodPost, "/api/option/put", OptionUpdateRequest{Key: billing_setting.PluginBillingExprOption, Value: `{}`}, nil)
 			assert.Contains(t, response.Body.String(), `"success":false`)
 			assert.Contains(t, response.Body.String(), "matrix-beta")
 			afterFailure, err := model.GetModelPricingSnapshot([]string{name})
 			require.NoError(t, err)
 			assert.Equal(t, updated.Entries[0].Version, afterFailure.Entries[0].Version)
 			// Model-level legacy saves also skip providers with a stored override.
-			response = modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{Key: "billing_setting.billing_expr", Value: string(baseJSON)}, nil)
+			response = modelManagementRequest(t, UpdateOption, http.MethodPost, "/api/option/put", OptionUpdateRequest{Key: "billing_setting.billing_expr", Value: string(baseJSON)}, nil)
 			assert.Contains(t, response.Body.String(), `"success":true`)
 			flat["matrix-beta::"+name] = variant
 			raw, err := common.Marshal(flat)
 			require.NoError(t, err)
-			response = modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{Key: billing_setting.PluginBillingExprOption, Value: string(raw)}, nil)
+			response = modelManagementRequest(t, UpdateOption, http.MethodPost, "/api/option/put", OptionUpdateRequest{Key: billing_setting.PluginBillingExprOption, Value: string(raw)}, nil)
 			assert.Contains(t, response.Body.String(), `"success":true`)
 			final, err := model.GetModelPricingSnapshot([]string{name})
 			require.NoError(t, err)
@@ -1616,9 +1616,9 @@ func TestSharedModelPluginPricingDatabaseMatrix(t *testing.T) {
 			require.NoError(t, err)
 			ratioJSON, err := common.Marshal(map[string]float64{name: 2})
 			require.NoError(t, err)
-			response = modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{Key: "ModelRatio", Value: string(ratioJSON)}, nil)
+			response = modelManagementRequest(t, UpdateOption, http.MethodPost, "/api/option/put", OptionUpdateRequest{Key: "ModelRatio", Value: string(ratioJSON)}, nil)
 			assert.Contains(t, response.Body.String(), `"success":true`)
-			response = modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{Key: "billing_setting.billing_expr", Value: string(baseJSON)}, nil)
+			response = modelManagementRequest(t, UpdateOption, http.MethodPost, "/api/option/put", OptionUpdateRequest{Key: "billing_setting.billing_expr", Value: string(baseJSON)}, nil)
 			assert.Contains(t, response.Body.String(), `"success":true`)
 			final, err = model.GetModelPricingSnapshot([]string{name})
 			require.NoError(t, err)
@@ -1652,7 +1652,7 @@ export function parseTaskResult(){return {};}
 			assert.Equal(t, "Beta updated", stale.Entries[0].PluginVariants[0].PluginName)
 			require.NoError(t, model.UpdateModelPricingOptions(map[string]string{"ModelRatio": string(ratioJSON)}))
 			// Removing just the stale override succeeds and leaves other prices.
-			response = modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{Key: billing_setting.PluginBillingExprOption, Value: `{}`}, nil)
+			response = modelManagementRequest(t, UpdateOption, http.MethodPost, "/api/option/put", OptionUpdateRequest{Key: billing_setting.PluginBillingExprOption, Value: `{}`}, nil)
 			assert.Contains(t, response.Body.String(), `"success":true`)
 			final, err = model.GetModelPricingSnapshot([]string{name})
 			require.NoError(t, err)

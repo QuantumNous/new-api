@@ -123,7 +123,7 @@ export function parseTaskResult() { return {}; }
 	context, _ := gin.CreateTestContext(recorder)
 	context.Set("id", 2)
 	context.Set("role", common.RoleAdminUser)
-	context.Request = httptest.NewRequest(http.MethodPut, "/api/channel", strings.NewReader(payload))
+	context.Request = httptest.NewRequest(http.MethodPost, "/api/channel/put", strings.NewReader(payload))
 	context.Request.Header.Set("Content-Type", "application/json")
 	UpdateChannel(context)
 	assert.Contains(t, recorder.Body.String(), "task plugin channels require the task_plugin.bind permission")

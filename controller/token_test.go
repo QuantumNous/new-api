@@ -531,7 +531,7 @@ func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 		"cross_group_retry":    false,
 	}
 
-	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", body, 1)
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/put", body, 1)
 	UpdateToken(ctx)
 
 	response := decodeAPIResponse(t, recorder)
@@ -655,8 +655,8 @@ func verifyAPITokenAudit(t *testing.T) {
 	router.Use(middleware.RequestId(), middleware.AccessTokenAudit())
 	tokenRoutes := router.Group("/api/token", middleware.UserAuth(), middleware.TokenOperationAudit())
 	tokenRoutes.POST("/", AddToken)
-	tokenRoutes.PUT("/", UpdateToken)
-	tokenRoutes.DELETE("/:id", DeleteToken)
+	tokenRoutes.POST("/put", UpdateToken)
+	tokenRoutes.GET("/del/:id", DeleteToken)
 	tokenRoutes.POST("/batch", DeleteTokenBatch)
 	tokenRoutes.POST("/batch/keys", GetTokenKeysBatch)
 	tokenRoutes.POST("/:id/key", func(c *gin.Context) {

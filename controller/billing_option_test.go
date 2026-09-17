@@ -61,7 +61,7 @@ export function parseTaskResult() { return {}; }
 			require.NoError(t, marshalErr)
 			recorder := httptest.NewRecorder()
 			context, _ := gin.CreateTestContext(recorder)
-			context.Request = httptest.NewRequest(http.MethodPut, "/api/option/", strings.NewReader(string(body)))
+			context.Request = httptest.NewRequest(http.MethodPost, "/api/option/put", strings.NewReader(string(body)))
 
 			UpdateOption(context)
 
@@ -87,8 +87,8 @@ func TestUpdateOptionRejectsUsageExpressionWithoutTaskPlugin(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	context, _ := gin.CreateTestContext(recorder)
 	context.Request = httptest.NewRequest(
-		http.MethodPut,
-		"/api/option/",
+		http.MethodPost,
+		"/api/option/put",
 		strings.NewReader(string(body)),
 	)
 
@@ -154,7 +154,7 @@ export function parseTaskResult() { return {}; }
 		require.NoError(t, marshalErr)
 		recorder := httptest.NewRecorder()
 		context, _ := gin.CreateTestContext(recorder)
-		context.Request = httptest.NewRequest(http.MethodPut, "/api/option/", strings.NewReader(string(body)))
+		context.Request = httptest.NewRequest(http.MethodPost, "/api/option/put", strings.NewReader(string(body)))
 		UpdateOption(context)
 		return recorder
 	}

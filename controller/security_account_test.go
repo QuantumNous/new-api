@@ -383,7 +383,7 @@ func TestSecurityAccountPasswordRequiresCurrentPassword(t *testing.T) {
 			proof := issueSecurityEnrollmentProof(t, identity, service.VerificationOperation{Scope: service.VerificationScopePasswordChange}, service.VerificationMethodPassword)
 			request, err := common.Marshal(map[string]string{"password": "password123", "original_password": test.original})
 			require.NoError(t, err)
-			response := securityEnrollmentRequest(http.MethodPut, "/api/user/self", string(request), proof, identity, UpdateSelf)
+			response := securityEnrollmentRequest(http.MethodPost, "/api/user/self/put", string(request), proof, identity, UpdateSelf)
 			var result securityEnrollmentResponse
 			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
 			assert.Equal(t, test.success, result.Success, response.Body.String())
@@ -395,7 +395,7 @@ func TestSecurityAccountPasswordRequiresCurrentPassword(t *testing.T) {
 			} else {
 				assert.Equal(t, "CURRENT_PASSWORD_INVALID", result.Code)
 				assert.Equal(t, user.Password, stored.Password)
-				repeated := securityEnrollmentRequest(http.MethodPut, "/api/user/self", string(request), proof, identity, UpdateSelf)
+				repeated := securityEnrollmentRequest(http.MethodPost, "/api/user/self/put", string(request), proof, identity, UpdateSelf)
 				require.NoError(t, common.Unmarshal(repeated.Body.Bytes(), &result))
 				assert.Equal(t, "SECURITY_PROOF_CONSUMED", result.Code)
 			}
@@ -456,7 +456,7 @@ func TestSecurityAccountProfileReadsPasswordStatusInOneQuery(t *testing.T) {
 
 func TestSecurityAccountProfileUpdateDoesNotRequireProof(t *testing.T) {
 	user, identity := setupSecurityEnrollmentTest(t)
-	response := securityEnrollmentRequest(http.MethodPut, "/api/user/self", `{"display_name":"Updated"}`, "", identity, UpdateSelf)
+	response := securityEnrollmentRequest(http.MethodPost, "/api/user/self/put", `{"display_name":"Updated"}`, "", identity, UpdateSelf)
 	var result securityEnrollmentResponse
 	require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
 	require.True(t, result.Success, response.Body.String())
@@ -476,7 +476,7 @@ func TestSecurityAccountLongUnicodePasswordAndSessionRotation(t *testing.T) {
 	proof := issueSecurityEnrollmentProof(t, identity, service.VerificationOperation{Scope: service.VerificationScopePasswordChange}, service.VerificationMethodPassword)
 	body, err := common.Marshal(map[string]string{"password": password, "original_password": "enrollment-password"})
 	require.NoError(t, err)
-	response := securityEnrollmentRequest(http.MethodPut, "/api/user/self", string(body), proof, identity, UpdateSelf)
+	response := securityEnrollmentRequest(http.MethodPost, "/api/user/self/put", string(body), proof, identity, UpdateSelf)
 	var result struct {
 		Success bool `json:"success"`
 		Data    struct {

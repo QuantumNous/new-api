@@ -318,8 +318,8 @@ export function LogSettingsSection({
 
     setServerLogCleanupLoading(true)
     try {
-      const res = await api.delete(
-        `/api/performance/logs?mode=${serverLogCleanupMode}&value=${serverLogCleanupValue}`
+      const res = await api.get(
+        `/api/performance/logs/del?mode=${serverLogCleanupMode}&value=${serverLogCleanupValue}`
       )
       if (res.data.success) {
         const { deleted_count, freed_bytes } = res.data.data

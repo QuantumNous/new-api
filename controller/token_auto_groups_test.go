@@ -167,7 +167,7 @@ func TestUpdateTokenAutoGroupsTriStateAndNonAutoCleanup(t *testing.T) {
 			if test.includeField {
 				request["auto_groups"] = test.value
 			}
-			ctx, recorder := newTokenAutoGroupsAuthenticatedContext(t, http.MethodPut, "/api/token/", request, user.Id)
+			ctx, recorder := newTokenAutoGroupsAuthenticatedContext(t, http.MethodPost, "/api/token/put", request, user.Id)
 			UpdateToken(ctx)
 			response := decodeAPIResponse(t, recorder)
 			require.True(t, response.Success, response.Message)

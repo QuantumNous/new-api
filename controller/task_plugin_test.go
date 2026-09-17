@@ -89,7 +89,7 @@ func TestDeleteThirdPartyPluginReportsAssociatedChannelsAndInFlightTasks(t *test
 	recorder := httptest.NewRecorder()
 	context, _ := gin.CreateTestContext(recorder)
 	context.Params = gin.Params{{Key: "key", Value: "lifecycle-only"}, {Key: "version", Value: "1"}}
-	context.Request = httptest.NewRequest(http.MethodDelete, "/api/plugin/task/lifecycle-only/versions/1", nil)
+	context.Request = httptest.NewRequest(http.MethodGet, "/api/plugin/task/lifecycle-only/versions/del/1", nil)
 	DeleteTaskPluginVersion(context)
 
 	assert.Contains(t, recorder.Body.String(), `"name":"linked"`)
@@ -437,7 +437,7 @@ func TestDeleteActiveOverrideFallsBackToFactoryAndDeletesRecord(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	context, _ := gin.CreateTestContext(recorder)
 	context.Params = gin.Params{{Key: "key", Value: "kling"}, {Key: "version", Value: loaded.Meta.Version}}
-	context.Request = httptest.NewRequest(http.MethodDelete, "/api/plugin/task/kling/versions/"+loaded.Meta.Version, nil)
+	context.Request = httptest.NewRequest(http.MethodGet, "/api/plugin/task/kling/versions/del/"+loaded.Meta.Version, nil)
 
 	DeleteTaskPluginVersion(context)
 
@@ -472,7 +472,7 @@ func TestDeleteActiveTaskPluginPromotesEnabledVersionInRuntime(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	context, _ := gin.CreateTestContext(recorder)
 	context.Params = gin.Params{{Key: "key", Value: key}, {Key: "version", Value: "1.0.0"}}
-	context.Request = httptest.NewRequest(http.MethodDelete, "/api/plugin/task/"+key+"/versions/1.0.0", nil)
+	context.Request = httptest.NewRequest(http.MethodGet, "/api/plugin/task/"+key+"/versions/del/1.0.0", nil)
 	DeleteTaskPluginVersion(context)
 
 	assert.Contains(t, recorder.Body.String(), `"success":true`)
@@ -994,7 +994,7 @@ func TestDeletePureFactoryPluginIsRejected(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			context, _ := gin.CreateTestContext(recorder)
 			context.Params = gin.Params{{Key: "key", Value: "kling"}, {Key: "version", Value: "1.0.0"}}
-			context.Request = httptest.NewRequest(http.MethodDelete, "/api/plugin/task/kling/versions/1.0.0"+query, nil)
+			context.Request = httptest.NewRequest(http.MethodGet, "/api/plugin/task/kling/versions/del/1.0.0"+query, nil)
 
 			DeleteTaskPluginVersion(context)
 
@@ -1118,7 +1118,7 @@ func TestUpdateTaskPluginMarketplaceSourcesRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	putRecorder := httptest.NewRecorder()
 	putContext, _ := gin.CreateTestContext(putRecorder)
-	putContext.Request = httptest.NewRequest(http.MethodPut, "/api/plugin/task/marketplace/sources", strings.NewReader(string(body)))
+	putContext.Request = httptest.NewRequest(http.MethodPost, "/api/plugin/task/marketplace/sources/put", strings.NewReader(string(body)))
 	putContext.Request.Header.Set("Content-Type", "application/json")
 
 	UpdateTaskPluginMarketplaceSources(putContext)
@@ -1161,7 +1161,7 @@ func TestUpdateTaskPluginMarketplaceSourcesValidation(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			context, _ := gin.CreateTestContext(recorder)
-			context.Request = httptest.NewRequest(http.MethodPut, "/api/plugin/task/marketplace/sources", strings.NewReader(testCase.body))
+			context.Request = httptest.NewRequest(http.MethodPost, "/api/plugin/task/marketplace/sources/put", strings.NewReader(testCase.body))
 			context.Request.Header.Set("Content-Type", "application/json")
 
 			UpdateTaskPluginMarketplaceSources(context)

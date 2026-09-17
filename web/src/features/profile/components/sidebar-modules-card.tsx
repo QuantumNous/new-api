@@ -182,7 +182,7 @@ export function SidebarModulesCard() {
     setLoading(true)
     try {
       const serialized = JSON.stringify(config)
-      const res = await api.put('/api/user/self', {
+      const res = await api.post('/api/user/self/put', {
         sidebar_modules: serialized,
       })
       if (res.data.success) {

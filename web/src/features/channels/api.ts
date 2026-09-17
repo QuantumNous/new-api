@@ -176,8 +176,8 @@ export async function updateChannel(
   id: number,
   data: Partial<Channel>
 ): Promise<{ success: boolean; message?: string; data?: Channel }> {
-  const res = await api.put(
-    '/api/channel/',
+  const res = await api.post(
+    '/api/channel/put',
     { id, ...data },
     channelActionConfig()
   )
@@ -220,7 +220,7 @@ export async function batchUpdateChannelStatus(
 export async function deleteChannel(
   id: number
 ): Promise<{ success: boolean; message?: string }> {
-  const res = await api.delete(`/api/channel/${id}`, channelActionConfig())
+  const res = await api.get(`/api/channel/del/${id}`, channelActionConfig())
   return res.data
 }
 
@@ -331,7 +331,7 @@ export async function deleteDisabledChannels(): Promise<{
   message?: string
   data?: number
 }> {
-  const res = await api.delete('/api/channel/disabled', channelActionConfig())
+  const res = await api.get('/api/channel/disabled/del', channelActionConfig())
   return res.data
 }
 
@@ -552,7 +552,7 @@ export async function disableTagChannels(
 export async function editTagChannels(
   params: TagOperationParams
 ): Promise<{ success: boolean; message?: string }> {
-  const res = await api.put('/api/channel/tag', params, channelActionConfig())
+  const res = await api.post('/api/channel/tag/put', params, channelActionConfig())
   return res.data
 }
 
@@ -597,8 +597,8 @@ export async function deleteOllamaModel(params: {
   channel_id: number
   model_name: string
 }): Promise<{ success: boolean; message?: string }> {
-  const res = await api.delete(
-    '/api/channel/ollama/delete',
+  const res = await api.get(
+    '/api/channel/ollama/delete/del',
     channelActionConfig({ data: params })
   )
   return res.data

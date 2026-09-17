@@ -51,7 +51,7 @@ export async function getUserProfile(): Promise<ApiResponse<UserProfile>> {
 export async function updateUserProfile(
   data: UpdateUserRequest
 ): Promise<ApiResponse> {
-  const res = await api.put('/api/user/self', data, {
+  const res = await api.post('/api/user/self/put', data, {
     acceptAuthRotation: Boolean(data.password),
   })
   return res.data
@@ -63,7 +63,7 @@ export function changeAccountPassword(
   signal: AbortSignal
 ): Promise<AccountSecurityResult & { has_password: boolean }> {
   return authResult(
-    api.put('/api/user/self', data, {
+    api.post('/api/user/self/put', data, {
       ...authRequestOptions,
       headers: { 'X-Security-Proof': proofToken },
       acceptAuthRotation: true,
@@ -84,7 +84,7 @@ export async function updateUserSettings(
     return { success: false, message: profile.message }
   }
   const settings = normalizeUserSettings(profile.data.setting)
-  const res = await api.put('/api/user/setting', { ...settings, ...data })
+  const res = await api.post('/api/user/setting/put', { ...settings, ...data })
   return res.data
 }
 
@@ -94,7 +94,7 @@ export async function updateUserSettings(
 export async function updateUserLanguage(
   language: string
 ): Promise<ApiResponse> {
-  const res = await api.put('/api/user/self', { language })
+  const res = await api.post('/api/user/self/put', { language })
   return res.data
 }
 
@@ -106,7 +106,7 @@ export function deleteUserAccount(
   signal: AbortSignal
 ): Promise<AccountSecurityResult> {
   return authResult(
-    api.delete('/api/user/self', {
+    api.get('/api/user/self/del', {
       ...authRequestOptions,
       headers: { 'X-Security-Proof': proof },
       singleUseAuthorization: true,
@@ -238,7 +238,7 @@ export async function getLoginSessions(): Promise<ApiResponse<LoginSession[]>> {
 }
 
 export async function revokeLoginSession(sid: string): Promise<ApiResponse> {
-  const res = await api.delete(`/api/user/sessions/${encodeURIComponent(sid)}`)
+  const res = await api.get(`/api/user/sessions/del/${encodeURIComponent(sid)}`)
   return res.data
 }
 
@@ -270,7 +270,7 @@ export function unbindCustomOAuth(
   signal: AbortSignal
 ): Promise<AccountSecurityResult> {
   return authResult(
-    api.delete(`/api/user/oauth/bindings/${providerId}`, {
+    api.get(`/api/user/oauth/bindings/del/${providerId}`, {
       ...authRequestOptions,
       headers: { 'X-Security-Proof': proofToken },
       singleUseAuthorization: true,

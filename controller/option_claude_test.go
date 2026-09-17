@@ -16,8 +16,8 @@ func TestUpdateOptionRejectsNegativeClaudeDefaultMaxTokens(t *testing.T) {
 	response := httptest.NewRecorder()
 	context, _ := gin.CreateTestContext(response)
 	context.Request = httptest.NewRequest(
-		http.MethodPut,
-		"/api/option/",
+		http.MethodPost,
+		"/api/option/put",
 		strings.NewReader(`{"key":"claude.default_max_tokens","value":"{\"default\":-1}"}`),
 	)
 

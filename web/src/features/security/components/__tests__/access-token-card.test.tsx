@@ -342,8 +342,8 @@ describe('system access token management', () => {
     await user.click(confirm)
     await verifyPassword(user)
     expect(await screen.findByText('Failed to revoke token')).toBeVisible()
-    expect(api.delete).toHaveBeenLastCalledWith(
-      '/api/user/token',
+    expect(api.get).toHaveBeenLastCalledWith(
+      '/api/user/token/del',
       expect.objectContaining({
         headers: { 'X-Security-Proof': 'one-use-proof-1' },
       })
@@ -355,8 +355,8 @@ describe('system access token management', () => {
       })
     )
     await verifyPassword(user)
-    expect(api.delete).toHaveBeenLastCalledWith(
-      '/api/user/token',
+    expect(api.get).toHaveBeenLastCalledWith(
+      '/api/user/token/del',
       expect.objectContaining({
         headers: { 'X-Security-Proof': 'one-use-proof-2' },
       })

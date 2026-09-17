@@ -134,8 +134,8 @@ func TestUpdateChannelRejectsStatusField(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(
-		http.MethodPut,
-		"/api/channel/",
+		http.MethodPost,
+		"/api/channel/put",
 		bytes.NewBufferString(`{"id":1,"status":2}`),
 	)
 	ctx.Request.Header.Set("Content-Type", "application/json")

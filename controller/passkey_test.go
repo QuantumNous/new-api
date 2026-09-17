@@ -523,9 +523,9 @@ func TestPasskeyDomainEndpointRequiresRoot(t *testing.T) {
 	bundle, err := service.CreateLoginSession(user.Id, "password", "127.0.0.1", "domain-settings-test")
 	require.NoError(t, err)
 	router := gin.New()
-	router.PUT("/api/option/passkey/domains", middleware.RootAuth(), UpdatePasskeyDomains)
+	router.POST("/api/option/passkey/domains/put", middleware.RootAuth(), UpdatePasskeyDomains)
 	for _, bearer := range []string{"", bundle.AccessToken} {
-		request := httptest.NewRequest(http.MethodPut, "/api/option/passkey/domains", strings.NewReader(`{"rp_id":"example.com","legacy_rp_ids":"","origins":"https://example.com","preview":true}`))
+	request := httptest.NewRequest(http.MethodPost, "/api/option/passkey/domains/put", strings.NewReader(`{"rp_id":"example.com","legacy_rp_ids":"","origins":"https://example.com","preview":true}`))
 		if bearer != "" {
 			request.Header.Set("Authorization", "Bearer "+bearer)
 		}
@@ -687,7 +687,7 @@ func TestPasskeyDomainErrorsRespectRequestLanguage(t *testing.T) {
 				c, _ := gin.CreateTestContext(response)
 				method := http.MethodPost
 				if request.path == "/api/option/" {
-					method = http.MethodPut
+					method = http.MethodPost
 				}
 				c.Request = httptest.NewRequest(method, request.path, strings.NewReader(request.body))
 				c.Request.Header.Set("Accept-Language", locale.language)

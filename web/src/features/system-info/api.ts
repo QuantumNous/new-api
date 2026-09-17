@@ -31,15 +31,15 @@ export async function listSystemInstances() {
 }
 
 export async function deleteStaleSystemInstances() {
-  const res = await api.delete<SystemInstanceDeleteResponse>(
-    '/api/system-info/stale-instances'
+  const res = await api.get<SystemInstanceDeleteResponse>(
+    '/api/system-info/stale-instances/del'
   )
   return res.data
 }
 
 export async function deleteStaleSystemInstance(nodeName: string) {
-  const res = await api.delete<SystemInstanceDeleteResponse>(
-    `/api/system-info/instances/${encodeURIComponent(nodeName)}`
+  const res = await api.get<SystemInstanceDeleteResponse>(
+    `/api/system-info/instances/del/${encodeURIComponent(nodeName)}`
   )
   return res.data
 }

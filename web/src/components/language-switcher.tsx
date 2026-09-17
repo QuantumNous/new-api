@@ -44,7 +44,7 @@ export function LanguageSwitcher() {
       await i18n.changeLanguage(code)
       if (user) {
         try {
-          await api.put('/api/user/self', { language: code })
+          await api.post('/api/user/self/put', { language: code })
         } catch {
           // Best-effort persistence; don't block the UI on failure
         }

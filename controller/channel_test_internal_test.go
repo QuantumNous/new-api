@@ -204,7 +204,7 @@ func TestDeleteChannelResetsProxyCacheWhenPreReadFails(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Params = gin.Params{{Key: "id", Value: "999999"}}
-	ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/channel/999999", nil)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/channel/del/999999", nil)
 
 	DeleteChannel(ctx)
 

@@ -59,14 +59,14 @@ export async function updateCustomOAuthProvider(
   id: number,
   data: Partial<CustomOAuthProvider>
 ): Promise<ApiResponse<CustomOAuthProvider>> {
-  const res = await api.put(`/api/custom-oauth-provider/${id}`, data)
+  const res = await api.post(`/api/custom-oauth-provider/put/${id}`, data)
   return res.data
 }
 
 export async function deleteCustomOAuthProvider(
   id: number
 ): Promise<ApiResponse> {
-  const res = await api.delete(`/api/custom-oauth-provider/${id}`)
+  const res = await api.get(`/api/custom-oauth-provider/del/${id}`)
   return res.data
 }
 

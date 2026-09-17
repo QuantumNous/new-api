@@ -61,7 +61,7 @@ export async function revokeAccessToken(
   signal: AbortSignal
 ): Promise<void> {
   await authResult<null>(
-    api.delete('/api/user/token', {
+    api.get('/api/user/token/del', {
       ...authRequestOptions,
       headers: { 'X-Security-Proof': proofToken },
       singleUseAuthorization: true,

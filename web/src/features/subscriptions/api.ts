@@ -52,7 +52,7 @@ export async function updatePlan(
   id: number,
   data: PlanPayload
 ): Promise<ApiResponse<PlanRecord>> {
-  const res = await api.put(`/api/subscription/admin/plans/${id}`, data)
+  const res = await api.post(`/api/subscription/admin/plans/put/${id}`, data)
   return res.data
 }
 
@@ -102,8 +102,8 @@ export async function invalidateUserSubscription(
 export async function deleteUserSubscription(
   subId: number
 ): Promise<ApiResponse> {
-  const res = await api.delete(
-    `/api/subscription/admin/user_subscriptions/${subId}`
+  const res = await api.get(
+    `/api/subscription/admin/user_subscriptions/del/${subId}`
   )
   return res.data
 }
@@ -227,7 +227,7 @@ export async function getPublicPlans(): Promise<ApiResponse<PlanRecord[]>> {
 export async function updateBillingPreference(
   preference: string
 ): Promise<ApiResponse<{ billing_preference?: string }>> {
-  const res = await api.put('/api/subscription/self/preference', {
+  const res = await api.post('/api/subscription/self/preference/put', {
     billing_preference: preference,
   })
   return res.data

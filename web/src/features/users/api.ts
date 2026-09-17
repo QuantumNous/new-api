@@ -107,7 +107,7 @@ export async function createUser(
 export async function updateUser(
   data: UserFormData & { id: number }
 ): Promise<ApiResponse<Partial<User>>> {
-  const res = await api.put('/api/user/', data)
+  const res = await api.post('/api/user/put', data)
   return res.data
 }
 
@@ -115,7 +115,7 @@ export async function updateUser(
  * Delete a single user (hard delete)
  */
 export async function deleteUser(id: number): Promise<ApiResponse> {
-  const res = await api.delete(`/api/user/${id}/`)
+  const res = await api.get(`/api/user/del/${id}/`)
   return res.data
 }
 
@@ -144,7 +144,7 @@ export async function adjustUserQuota(
  * Reset user's Passkey registration
  */
 export async function resetUserPasskey(id: number): Promise<ApiResponse> {
-  const res = await api.delete(`/api/user/${id}/reset_passkey`)
+  const res = await api.get(`/api/user/del/${id}/reset_passkey`)
   return res.data
 }
 
@@ -152,7 +152,7 @@ export async function resetUserPasskey(id: number): Promise<ApiResponse> {
  * Reset user's Two-Factor Authentication setup
  */
 export async function resetUserTwoFA(id: number): Promise<ApiResponse> {
-  const res = await api.delete(`/api/user/${id}/2fa`)
+  const res = await api.get(`/api/user/del/${id}/2fa`)
   return res.data
 }
 
@@ -198,7 +198,7 @@ export async function adminClearUserBinding(
   userId: number,
   bindingType: string
 ): Promise<ApiResponse> {
-  const res = await api.delete(`/api/user/${userId}/bindings/${bindingType}`)
+  const res = await api.get(`/api/user/del/${userId}/bindings/del/${bindingType}`)
   return res.data
 }
 
@@ -209,8 +209,8 @@ export async function adminUnbindCustomOAuth(
   userId: number,
   providerId: number
 ): Promise<ApiResponse> {
-  const res = await api.delete(
-    `/api/user/${userId}/oauth/bindings/${providerId}`
+  const res = await api.get(
+    `/api/user/del/${userId}/oauth/bindings/del/${providerId}`
   )
   return res.data
 }

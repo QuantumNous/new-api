@@ -256,7 +256,7 @@ export function PerformanceSection(props: Props) {
 
   const clearDiskCache = async () => {
     try {
-      const res = await api.delete('/api/performance/disk_cache')
+      const res = await api.get('/api/performance/disk_cache/del')
       if (res.data.success) {
         toast.success(t('Disk cache cleared'))
         fetchStats()
