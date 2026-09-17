@@ -190,6 +190,7 @@ export function AccountBindings({ profile, onUpdate }: AccountBindingsProps) {
             params: {
               state: callback.state,
               code: callback.code,
+              redirect_origin: window.location.origin,
               error: callback.error,
               error_description: callback.errorDescription,
             },
