@@ -137,6 +137,17 @@ beforeEach(() => {
     },
   })
   vi.spyOn(api, 'get').mockImplementation(async (url) => {
+    if (url === '/api/channel/ops') {
+      return {
+        data: {
+          success: true,
+          data: {
+            retry_times: 3,
+            route_paths: ['/v1/chat/completions', '/v1/responses'],
+          },
+        },
+      }
+    }
     if (url === '/api/channel/42') {
       return { data: { success: true, data: editingChannel } }
     }
@@ -178,6 +189,82 @@ afterEach(() => {
   useAuthStore.setState({ auth: originalAuth })
   vi.restoreAllMocks()
 })
+
+test('route restriction validates, searches and saves multiple routes without growing the field', async () => {
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  await user.click(screen.getByRole('switch', { name: 'Route restriction' }))
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  expect(
+    await screen.findByText('Select at least one allowed route')
+  ).toBeVisible()
+  expect(put).not.toHaveBeenCalled()
+  expect(
+    screen.getByRole('combobox', { name: 'Select allowed routes' })
+  ).toHaveAttribute('aria-invalid', 'true')
+  expect(
+    screen.getByRole('combobox', { name: 'Select allowed routes' })
+  ).toHaveAccessibleDescription(/Select at least one allowed route/)
+  const picker = screen.getByRole('combobox', { name: 'Select allowed routes' })
+  await user.click(picker)
+  await user.type(picker, 'OpenAI Responses')
+  await user.click(
+    await screen.findByRole('option', {
+      name: /OpenAI Responses.*\/v1\/responses/,
+    })
+  )
+  expect(picker).toHaveAttribute('aria-expanded', 'true')
+  await user.clear(picker)
+  await user.type(picker, '/v1/chat/completions')
+  await user.click(
+    await screen.findByRole('option', {
+      name: /OpenAI Chat.*\/v1\/chat\/completions/,
+    })
+  )
+  await user.keyboard('{Escape}')
+  expect(picker).toHaveValue('2 selected')
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as { setting: string }
+  expect(JSON.parse(payload.setting).route_restriction).toEqual({
+    allowed_paths: ['/v1/responses', '/v1/chat/completions'],
+  })
+})
+
+test.each([false, true])(
+  'editing preserves a saved route restriction unless explicitly disabled (%s)',
+  async (disable) => {
+    editingChannel.setting =
+      '{"route_restriction":{"allowed_paths":["/v1/responses"]},"proxy":"http://localhost:8080"}'
+    const put = vi
+      .spyOn(api, 'put')
+      .mockResolvedValue({ data: { success: true } })
+    const user = userEvent.setup()
+    render(<ConfigurationHarness currentRow={editingChannel} />)
+    await screen.findByDisplayValue('Existing channel')
+    await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+    const toggle = screen.getByRole('switch', { name: 'Route restriction' })
+    expect(toggle).toBeChecked()
+    await waitFor(() =>
+      expect(
+        screen.getByRole('combobox', { name: 'Select allowed routes' })
+      ).toHaveValue('OpenAI Responses')
+    )
+    if (disable) await user.click(toggle)
+    await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+    await waitFor(() => expect(put).toHaveBeenCalled())
+    const payload = put.mock.calls[0]?.[1] as { setting: string }
+    expect(JSON.parse(payload.setting).route_restriction).toEqual(
+      disable ? undefined : { allowed_paths: ['/v1/responses'] }
+    )
+    expect(JSON.parse(payload.setting).proxy).toBe('http://localhost:8080')
+  }
+)
 
 test('changing built-in providers updates server-provided URL placeholders without replacing the draft address', async () => {
   const user = userEvent.setup()

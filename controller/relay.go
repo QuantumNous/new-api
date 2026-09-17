@@ -494,6 +494,10 @@ func executeTaskSubmissionWith(
 
 		if lockedCh, ok := relayInfo.LockedChannel.(*model.Channel); ok && lockedCh != nil {
 			channel = lockedCh
+			if !channel.GetSetting().RouteRestriction.AllowsRequest(c.Request.Method, c.Request.URL.Path) {
+				taskErr = service.TaskErrorWrapperLocal(errors.New("channel route is restricted"), string(types.ErrorCodeChannelRouteRestricted), http.StatusBadRequest)
+				break
+			}
 			if retryParam.GetRetry() > 0 {
 				if setupErr := middleware.SetupContextForSelectedChannel(c, channel, relayInfo.OriginModelName); setupErr != nil {
 					taskErr = service.TaskErrorWrapperLocal(setupErr.Err, "setup_locked_channel_failed", http.StatusInternalServerError)

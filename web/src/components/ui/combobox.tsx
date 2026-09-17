@@ -41,6 +41,7 @@ import { usePortalContainer } from '@/components/ui/portal-container'
 import { cn } from '@/lib/utils'
 
 type LegacyComboboxProps = {
+  multiple?: false
   options: readonly ComboboxInputOption[]
   value?: string | null
   onValueChange?: (value: string | null) => void
@@ -63,7 +64,17 @@ type LegacyComboboxProps = {
   'aria-invalid'?: React.AriaAttributes['aria-invalid']
 }
 
+type MultipleOptionComboboxProps = Omit<
+  LegacyComboboxProps,
+  'multiple' | 'value' | 'onValueChange' | 'allowCustomValue'
+> & {
+  multiple: true
+  value?: string[]
+  onValueChange?: (value: string[]) => void
+}
+
 function Combobox(props: LegacyComboboxProps): React.ReactElement
+function Combobox(props: MultipleOptionComboboxProps): React.ReactElement
 function Combobox<Value, Multiple extends boolean | undefined = false>(
   props: ComboboxPrimitive.Root.Props<Value, Multiple>
 ): React.ReactElement
@@ -71,9 +82,11 @@ function Combobox(
   props:
     | ComboboxPrimitive.Root.Props<unknown, boolean | undefined>
     | LegacyComboboxProps
+    | MultipleOptionComboboxProps
 ) {
   if ('options' in props) {
-    if (!props.allowCustomValue) return <OptionCombobox {...props} />
+    if (props.multiple || !props.allowCustomValue)
+      return <OptionCombobox {...props} />
     return (
       <LegacyComboboxInput
         id={props.id}
@@ -96,17 +109,36 @@ function Combobox(
   return <ComboboxPrimitive.Root {...props} />
 }
 
-function OptionCombobox(props: LegacyComboboxProps) {
+function OptionCombobox(
+  props: LegacyComboboxProps | MultipleOptionComboboxProps
+) {
   const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
   const [search, setSearch] = React.useState('')
   const anchor = useComboboxAnchor()
   const selected = props.options.find((option) => option.value === props.value)
-  const displayedValue = selected?.label ?? props.value ?? ''
+  const selectedItems = props.multiple
+    ? (props.value ?? []).map(
+        (value) =>
+          props.options.find((option) => option.value === value) ?? {
+            value,
+            label: value,
+          }
+      )
+    : []
+  let displayedValue =
+    selected?.label ?? (props.multiple ? '' : props.value) ?? ''
+  if (props.multiple) {
+    displayedValue =
+      selectedItems.length > 1
+        ? t('{{count}} selected', { count: selectedItems.length })
+        : (selectedItems[0]?.label ?? '')
+  }
   return (
-    <ComboboxPrimitive.Root
+    <ComboboxPrimitive.Root<ComboboxInputOption, boolean>
+      multiple={props.multiple ?? false}
       items={props.options}
-      value={selected ?? null}
+      value={props.multiple ? selectedItems : (selected ?? null)}
       name={props.name}
       disabled={props.disabled}
       open={open && !props.disabled}
@@ -115,11 +147,20 @@ function OptionCombobox(props: LegacyComboboxProps) {
         if (details.reason === 'input-change') setSearch(value)
       }}
       onOpenChange={(nextOpen, details) => {
+        if (props.multiple && !nextOpen && details.reason === 'item-press') {
+          details.cancel()
+          return
+        }
         setOpen(nextOpen)
         if (details.reason !== 'input-change') setSearch('')
       }}
       onValueChange={(option) => {
-        if (option) props.onValueChange?.(option.value)
+        if (props.multiple) {
+          if (Array.isArray(option))
+            props.onValueChange?.(option.map((item) => item.value))
+        } else if (option && !Array.isArray(option)) {
+          props.onValueChange?.(option.value)
+        }
       }}
       filter={(option, query) => {
         const term = query.trim().toLowerCase()

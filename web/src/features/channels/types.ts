@@ -80,6 +80,7 @@ export type Channel = z.infer<typeof channelSchema>
 // ============================================================================
 
 export interface ChannelSettings {
+  route_restriction?: { allowed_paths: string[] } | null
   task_plugin_key?: string
   force_format?: boolean
   thinking_to_content?: boolean
@@ -182,6 +183,7 @@ export interface ChannelOpsResponse {
   message?: string
   data?: {
     retry_times: number
+    route_paths?: string[]
   }
 }
 

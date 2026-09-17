@@ -69,6 +69,7 @@ import { MultiSelect } from '@/components/multi-select'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Combobox } from '@/components/ui/combobox'
 import {
   Form,
   FormControl,
@@ -127,6 +128,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import {
   getAllModels,
   getChannel,
+  getChannelOps,
   getChannelDefaultBaseURLs,
   getGroups,
   getPrefillGroups,
@@ -174,6 +176,7 @@ import {
   findMissingModelsInMapping,
   validateModelMappingJson,
 } from '../../lib'
+import { ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS } from '../../lib/advanced-custom'
 import {
   getChannelConfigurationSection,
   getChannelConfigurationState,
@@ -276,6 +279,7 @@ const SENSITIVE_FORM_FIELDS = [
   'http2_connection_shards',
   'pass_through_body_enabled',
   'responses_websocket_enabled',
+  'route_restriction',
   'system_prompt',
   'system_prompt_override',
   'allow_service_tier',
@@ -460,6 +464,12 @@ export function ChannelMutateDrawer({
     // Optional hints must not trigger the global error-page redirect.
     queryFn: () => getChannelDefaultBaseURLs().catch(() => null),
     enabled: open,
+    staleTime: 5 * 60 * 1000,
+  })
+  const { data: channelOps } = useQuery({
+    queryKey: ['channel-ops'],
+    queryFn: async () => requireServerSuccess(await getChannelOps()),
+    enabled: open && !showProviderPicker,
     staleTime: 5 * 60 * 1000,
   })
 
@@ -1868,6 +1878,72 @@ export function ChannelMutateDrawer({
         status={configuration.blocks.routingStrategy}
         icon={<Route className='h-3.5 w-3.5' />}
         iconTone='info'
+      />
+      <FormField
+        control={form.control}
+        name='route_restriction'
+        render={({ field }) => (
+          <FormItem className='space-y-3'>
+            <div className='flex items-center justify-between gap-4'>
+              <div className='space-y-0.5'>
+                <FormLabel>{t('Route restriction')}</FormLabel>
+                <FormDescription>
+                  {t('Allow only selected API routes')}
+                </FormDescription>
+              </div>
+              <FormControl>
+                <Switch
+                  disabled={sensitiveLocked}
+                  checked={field.value != null}
+                  onCheckedChange={(checked) =>
+                    field.onChange(checked ? { allowed_paths: [] } : null)
+                  }
+                />
+              </FormControl>
+            </div>
+            {field.value != null && (
+              <FormField
+                control={form.control}
+                name='route_restriction.allowed_paths'
+                render={({ field: pathsField }) => (
+                  <FormItem>
+                    <FormLabel required className='sr-only'>
+                      {t('Allowed routes')}
+                    </FormLabel>
+                    <FormControl>
+                      <Combobox
+                        multiple
+                        disabled={sensitiveLocked}
+                        options={(channelOps?.data?.route_paths ?? []).map(
+                          (path) => {
+                            const label =
+                              ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS.find(
+                                (option) => option.value === path
+                              )?.label
+                            return {
+                              value: path,
+                              label: label ?? path,
+                              description: label ? path : undefined,
+                            }
+                          }
+                        )}
+                        value={pathsField.value ?? []}
+                        onValueChange={pathsField.onChange}
+                        onBlur={pathsField.onBlur}
+                        ref={pathsField.ref}
+                        aria-label={t('Select allowed routes')}
+                        placeholder={t('Select allowed routes')}
+                        className='w-full'
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            <FormMessage />
+          </FormItem>
+        )}
       />
       <div className='grid gap-4 sm:grid-cols-2'>
         <FormField

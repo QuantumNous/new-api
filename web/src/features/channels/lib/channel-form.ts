@@ -268,6 +268,13 @@ export const channelFormSchema = z
     http2_connection_shards: z.number().int().optional(),
     pass_through_body_enabled: z.boolean().optional(),
     responses_websocket_enabled: z.boolean().optional(),
+    route_restriction: z
+      .object({
+        allowed_paths: z
+          .array(z.string().min(1))
+          .min(1, 'Select at least one allowed route'),
+      })
+      .nullish(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
     // Type-specific settings (stored in settings JSON)
@@ -458,6 +465,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   http2_connection_shards: 1,
   pass_through_body_enabled: false,
   responses_websocket_enabled: false,
+  route_restriction: null,
   system_prompt: '',
   system_prompt_override: false,
   // Type-specific settings
@@ -501,6 +509,7 @@ export function transformChannelToFormDefaults(
     http2_connection_shards: 1,
     pass_through_body_enabled: false,
     responses_websocket_enabled: false,
+    route_restriction: null as ChannelFormValues['route_restriction'],
     system_prompt: '',
     system_prompt_override: false,
   }
@@ -522,6 +531,7 @@ export function transformChannelToFormDefaults(
         pass_through_body_enabled: parsed.pass_through_body_enabled || false,
         responses_websocket_enabled:
           parsed.responses_websocket_enabled === true,
+        route_restriction: parsed.route_restriction ?? null,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
       }
@@ -651,6 +661,11 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
     responses_websocket_enabled:
       (formData.type === 1 || formData.type === 57) &&
       formData.responses_websocket_enabled === true,
+    route_restriction: formData.route_restriction
+      ? {
+          allowed_paths: [...new Set(formData.route_restriction.allowed_paths)],
+        }
+      : undefined,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
   }

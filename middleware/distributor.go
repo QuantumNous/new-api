@@ -36,8 +36,9 @@ func Distribute() func(c *gin.Context) {
 		var channel *model.Channel
 		constraints := service.GetChannelConstraints(c)
 		constraints.AddFilter(taskdto.ChannelFilter{
-			Kind:        taskdto.FilterRequestPath,
-			RequestPath: c.Request.URL.Path,
+			Kind:          taskdto.FilterRequestPath,
+			RequestPath:   c.Request.URL.Path,
+			RequestMethod: c.Request.Method,
 		})
 		service.AppendTaskPluginIdentityFilter(c, c.GetString("expected_task_plugin_key"))
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)
@@ -195,7 +196,10 @@ func Distribute() func(c *gin.Context) {
 			}
 		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
-		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
+		if setupErr := SetupContextForSelectedChannel(c, channel, modelRequest.Model); setupErr != nil && setupErr.GetErrorCode() == types.ErrorCodeChannelRouteRestricted {
+			abortWithOpenAiMessage(c, setupErr.StatusCode, setupErr.Error(), setupErr.GetErrorCode())
+			return
+		}
 		c.Next()
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
 			service.RecordChannelAffinity(c, channel.Id)
@@ -616,6 +620,10 @@ func SetupContextForSelectedChannel(c *gin.Context, channel *model.Channel, mode
 	if channel == nil {
 		logTaskPluginChannelDecision(c, nil, modelName, "channel_rejected", "nil_channel")
 		return types.NewError(errors.New("channel is nil"), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+	}
+	if c.Request != nil && !channel.GetSetting().RouteRestriction.AllowsRequest(c.Request.Method, c.Request.URL.Path) {
+		logger.LogWarn(c, fmt.Sprintf("channel route restricted: channel_id=%d path=%s", channel.Id, c.Request.URL.Path))
+		return types.NewErrorWithStatusCode(errors.New("channel route is restricted"), types.ErrorCodeChannelRouteRestricted, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
 	if expectedPlugin != "" && !channelMatchesExpectedTaskPlugin(c, channel, expectedPlugin) {
 		logTaskPluginChannelDecision(c, channel, modelName, "channel_rejected", "identity_mismatch")
