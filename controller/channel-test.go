@@ -108,6 +108,23 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 	}
 
+	if isVertexStorageChannelTest(channel, testModel) {
+		c.Request = httptest.NewRequestWithContext(ctx, http.MethodPost, relayconstant.VertexStorageRoutePrefix, nil)
+		c.Set("channel", channel.Type)
+		c.Set("base_url", channel.GetBaseURL())
+		if newAPIError := middleware.SetupContextForSelectedChannel(c, channel, testModel); newAPIError != nil {
+			return testResult{
+				context:     c,
+				localErr:    newAPIError,
+				newAPIError: newAPIError,
+			}
+		}
+		return testResult{
+			context:  c,
+			localErr: testVertexStorageChannel(ctx, c, testModel),
+		}
+	}
+
 	endpointType = normalizeChannelTestEndpoint(channel, endpointType)
 
 	requestPath := "/v1/chat/completions"
@@ -667,6 +684,14 @@ func validateTestResponseBody(respBody []byte, isStream bool) error {
 
 func shouldUseStreamForAutomaticChannelTest(channel *model.Channel) bool {
 	return channel != nil && channel.Type == constant.ChannelTypeCodex
+}
+
+// isVertexStorageChannelTest reports whether the requested test model targets a
+// Cloud Storage bucket instead of a Vertex AI generative model.
+func isVertexStorageChannelTest(channel *model.Channel, testModel string) bool {
+	return channel != nil &&
+		channel.Type == constant.ChannelTypeVertexAi &&
+		strings.HasPrefix(strings.TrimSpace(testModel), relayconstant.VertexStorageModelPrefix)
 }
 
 func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {

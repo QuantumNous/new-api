@@ -173,6 +173,8 @@ import {
   hasModelConfigChanged,
   findMissingModelsInMapping,
   validateModelMappingJson,
+  mergeVertexStorageModels,
+  splitVertexStorageModels,
 } from '../../lib'
 import {
   getChannelConfigurationSection,
@@ -220,6 +222,7 @@ import {
   ChannelBasicSection,
   ChannelEditorLoadingState,
   ChannelModelsSection,
+  VertexStorageBucketsField,
 } from './sections'
 
 type ChannelMutateDrawerProps = {
@@ -693,6 +696,16 @@ export function ChannelMutateDrawer({
     [currentModels]
   )
 
+  // Vertex AI channels persist their allowed Cloud Storage buckets in the same
+  // models column as "storage:gs:<bucket>". Split them out so the model editors
+  // neither show nor drop a bucket entry.
+  const vertexStorageParts = useMemo(
+    () => splitVertexStorageModels(currentModelsArray),
+    [currentModelsArray]
+  )
+  const currentRegularModels = vertexStorageParts.models
+  const currentStorageBuckets = vertexStorageParts.buckets
+
   const currentTypeLabel = useMemo(
     () =>
       CHANNEL_TYPE_OPTIONS.find((option) => option.value === currentType)
@@ -828,16 +841,16 @@ export function ChannelMutateDrawer({
 
   // Transform models to multi-select options
   const modelOptions = useMemo(() => {
-    const allModels = new Set([
+    const availableModels = splitVertexStorageModels([
       ...allModelsList,
-      ...currentModelsArray,
+      ...currentRegularModels,
       ...pluginExtensions.flatMap((plugin) => plugin.models),
-    ])
-    return [...allModels].map((model) => ({
+    ]).models
+    return availableModels.map((model) => ({
       value: model,
       label: model,
     }))
-  }, [allModelsList, currentModelsArray, pluginExtensions])
+  }, [allModelsList, currentRegularModels, pluginExtensions])
 
   const modelMappingGuardrail = useMemo<ModelMappingGuardrail>(() => {
     if (!currentModelMapping?.trim()) {
@@ -870,7 +883,7 @@ export function ChannelMutateDrawer({
             .filter(
               (entry) =>
                 Boolean(entry.source) &&
-                !currentModelsArray.includes(entry.source)
+                !currentRegularModels.includes(entry.source)
             )
             .map((entry) => entry.source)
         ),
@@ -882,7 +895,7 @@ export function ChannelMutateDrawer({
             .filter(
               (entry) =>
                 Boolean(entry.target) &&
-                currentModelsArray.includes(entry.target)
+                currentRegularModels.includes(entry.target)
             )
             .map((entry) => entry.target)
         ),
@@ -897,7 +910,7 @@ export function ChannelMutateDrawer({
     } catch {
       return { ...createEmptyModelMappingGuardrail(), invalidJson: true }
     }
-  }, [currentModelMapping, currentModelsArray])
+  }, [currentModelMapping, currentRegularModels])
 
   const mappingPreviewPairs =
     modelMappingGuardrail.entries.length > 0
@@ -1090,16 +1103,29 @@ export function ChannelMutateDrawer({
     }
   }, [channelId, queryClient, t])
 
-  // Unified function to update models
+  const setAllModels = useCallback(
+    (models: string[]) => {
+      form.setValue('models', formatModelsArray(models), {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+    },
+    [form]
+  )
+
+  // Unified function to update models. Configured Cloud Storage buckets are
+  // preserved so editing the model list never revokes bucket access.
   const updateModels = useCallback(
     (newModels: string[], merge: boolean = false) => {
-      const finalModels = merge
-        ? formatModelsArray([...currentModelsArray, ...newModels])
-        : formatModelsArray(newModels)
-      form.setValue('models', finalModels)
+      const regularModels = merge
+        ? [...currentRegularModels, ...newModels]
+        : newModels
+      setAllModels(
+        mergeVertexStorageModels(regularModels, currentStorageBuckets)
+      )
       return newModels.length
     },
-    [currentModelsArray, form]
+    [currentRegularModels, currentStorageBuckets, setAllModels]
   )
 
   // Ordinary edits use the saved channel. Advanced Custom retains its existing
@@ -1185,9 +1211,9 @@ export function ChannelMutateDrawer({
   }, [basicModels, updateModels, t])
 
   const handleClearModels = useCallback(() => {
-    form.setValue('models', '')
+    updateModels([])
     toast.success(t('Cleared all models'))
-  }, [form, t])
+  }, [updateModels, t])
 
   const handleCopyModels = useCallback(async () => {
     const models = form.getValues('models')
@@ -1227,9 +1253,9 @@ export function ChannelMutateDrawer({
   // Handle model selection change from MultiSelect
   const handleModelsChange = useCallback(
     (selected: string[]) => {
-      form.setValue('models', selected.join(','))
+      updateModels(selected)
     },
-    [form]
+    [updateModels]
   )
 
   // Handle successful submission
@@ -2160,7 +2186,7 @@ export function ChannelMutateDrawer({
                 value={field.value || ''}
                 onChange={field.onChange}
                 disabled={isSubmitting}
-                sourceModelOptions={currentModelsArray}
+                sourceModelOptions={currentRegularModels}
                 targetModelOptions={modelOptions.map((option) => option.value)}
               />
             </FormControl>
@@ -2191,7 +2217,7 @@ export function ChannelMutateDrawer({
                     size='sm'
                     onClick={() => {
                       updateModels([
-                        ...currentModelsArray,
+                        ...currentRegularModels,
                         ...modelMappingGuardrail.missingSourceModels,
                       ])
                     }}
@@ -2765,7 +2791,7 @@ export function ChannelMutateDrawer({
                       size='sm'
                       onClick={() => setModelConfiguration({})}
                       disabled={
-                        currentModelsArray.length === 0 &&
+                        currentRegularModels.length === 0 &&
                         !pluginExtensions.some(
                           (plugin) => plugin.models.length > 0
                         )
@@ -2778,7 +2804,7 @@ export function ChannelMutateDrawer({
                   <FormControl>
                     <MultiSelect
                       options={modelOptions}
-                      selected={currentModelsArray}
+                      selected={currentRegularModels}
                       onChange={handleModelsChange}
                       placeholder={t('Select models or add custom ones')}
                       allowCreate
@@ -2808,7 +2834,7 @@ export function ChannelMutateDrawer({
                         )}
                         <ChannelPluginExtensions
                           plugins={pluginExtensions}
-                          selected={currentModelsArray}
+                          selected={currentRegularModels}
                           onConfigure={(pluginKey) =>
                             setModelConfiguration({ pluginKey })
                           }
@@ -2836,7 +2862,7 @@ export function ChannelMutateDrawer({
                               modelMappingGuardrail.exposedTargetModels
                             )
                             updateModels(
-                              currentModelsArray.filter(
+                              currentRegularModels.filter(
                                 (model) => !hiddenTargets.has(model)
                               )
                             )
@@ -2914,11 +2940,11 @@ export function ChannelMutateDrawer({
                   discovery.models.length > 0 && (
                     <UpstreamModelSelection
                       models={discovery.models}
-                      selected={currentModelsArray}
+                      selected={currentRegularModels}
                       existingModels={
                         isEditing
                           ? initialModelsRef.current
-                          : currentModelsArray
+                          : currentRegularModels
                       }
                       onChange={handleModelsChange}
                       showChanges={isEditing}
@@ -2942,6 +2968,12 @@ export function ChannelMutateDrawer({
                 )}
               </div>
             )}
+
+            <VertexStorageBucketsField
+              channelType={currentType}
+              models={currentModelsArray}
+              onModelsChange={setAllModels}
+            />
 
             <Separator className='my-4' />
 
@@ -2991,7 +3023,7 @@ export function ChannelMutateDrawer({
                   variant='outline'
                   size='sm'
                   onClick={handleCopyModels}
-                  disabled={currentModelsArray.length === 0}
+                  disabled={currentRegularModels.length === 0}
                 >
                   <Copy className='mr-2 h-4 w-4' aria-hidden='true' />
                   {t('Copy All')}
@@ -3001,7 +3033,7 @@ export function ChannelMutateDrawer({
                   variant='ghost'
                   size='sm'
                   onClick={handleClearModels}
-                  disabled={currentModelsArray.length === 0}
+                  disabled={currentRegularModels.length === 0}
                 >
                   <Eraser className='mr-2 h-4 w-4' aria-hidden='true' />
                   {t('Clear All')}
@@ -4463,7 +4495,7 @@ export function ChannelMutateDrawer({
       {open && modelConfiguration && (
         <ConfigureModelsDialog
           open
-          models={currentModelsArray}
+          models={currentRegularModels}
           plugins={pluginExtensions}
           initialPluginKey={modelConfiguration.pluginKey}
           onOpenChange={(nextOpen) => {

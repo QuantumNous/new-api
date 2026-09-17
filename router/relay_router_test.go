@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -123,4 +124,29 @@ func setupRelayRouterTestDB(t *testing.T) {
 			require.NoError(t, os.Unsetenv("SQL_DSN"))
 		}
 	})
+}
+
+// TestVertexStorageRoutesAreExact pins the Cloud Storage proxy to the five
+// object-level routes it is allowed to expose. A wildcard or an extra method
+// here would widen the proxy into a general Google API passthrough.
+func TestVertexStorageRoutesAreExact(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	engine := gin.New()
+	SetRelayRouter(engine)
+
+	want := map[string]bool{
+		"POST /vertexai/upload/storage/v1/b/:bucket/o":    true,
+		"PUT /vertexai/upload/storage/v1/b/:bucket/o":     true,
+		"GET /vertexai/storage/v1/b/:bucket/o":            true,
+		"GET /vertexai/storage/v1/b/:bucket/o/*object":    true,
+		"DELETE /vertexai/storage/v1/b/:bucket/o/*object": true,
+	}
+	got := make(map[string]bool, len(want))
+	for _, route := range engine.Routes() {
+		if strings.HasPrefix(route.Path, relayconstant.VertexStorageRoutePrefix+"/") {
+			got[route.Method+" "+route.Path] = true
+		}
+	}
+
+	assert.Equal(t, want, got)
 }

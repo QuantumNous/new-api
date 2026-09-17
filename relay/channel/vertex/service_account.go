@@ -3,21 +3,20 @@ package vertex
 import (
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/bytedance/gopkg/cache/asynccache"
 	"github.com/golang-jwt/jwt/v5"
-
-	"fmt"
-	"time"
 )
 
 type Credentials struct {
@@ -37,30 +36,57 @@ var Cache = asynccache.NewAsyncCache(asynccache.Options{
 	},
 })
 
-func getAccessToken(a *Adaptor, info *relaycommon.RelayInfo) (string, error) {
-	var cacheKey string
-	if info.ChannelIsMultiKey {
-		cacheKey = fmt.Sprintf("access-token-%d-%d", info.ChannelId, info.ChannelMultiKeyIndex)
-	} else {
-		cacheKey = fmt.Sprintf("access-token-%d", info.ChannelId)
+type CachedAccessTokenRequest struct {
+	ChannelID            int
+	ChannelIsMultiKey    bool
+	ChannelMultiKeyIndex int
+	Credentials          Credentials
+	Proxy                string
+}
+
+func AcquireCachedAccessToken(input CachedAccessTokenRequest) (string, error) {
+	return acquireCachedAccessToken(input, func(signedJWT string) (string, error) {
+		return exchangeJwtForAccessTokenWithProxy(signedJWT, input.Proxy)
+	})
+}
+
+func acquireCachedAccessToken(input CachedAccessTokenRequest, exchange func(string) (string, error)) (string, error) {
+	cacheKey := fmt.Sprintf("access-token-%d", input.ChannelID)
+	if input.ChannelIsMultiKey {
+		cacheKey = fmt.Sprintf("access-token-%d-%d", input.ChannelID, input.ChannelMultiKeyIndex)
 	}
-	val, err := Cache.Get(cacheKey)
-	if err == nil {
-		return val.(string), nil
+	if value, err := Cache.Get(cacheKey); err == nil {
+		if token, ok := value.(string); ok && token != "" {
+			return token, nil
+		}
 	}
 
-	signedJWT, err := createSignedJWT(a.AccountCredentials.ClientEmail, a.AccountCredentials.PrivateKey)
+	signedJWT, err := createSignedJWT(input.Credentials.ClientEmail, input.Credentials.PrivateKey)
 	if err != nil {
 		return "", fmt.Errorf("failed to create signed JWT: %w", err)
 	}
-	newToken, err := exchangeJwtForAccessToken(signedJWT, info)
+	newToken, err := exchange(signedJWT)
 	if err != nil {
 		return "", fmt.Errorf("failed to exchange JWT for access token: %w", err)
 	}
-	if err := Cache.SetDefault(cacheKey, newToken); err {
-		return newToken, nil
+	value := Cache.GetOrSet(cacheKey, newToken)
+	if token, ok := value.(string); ok && token != "" {
+		return token, nil
 	}
 	return newToken, nil
+}
+
+func getAccessToken(a *Adaptor, info *relaycommon.RelayInfo) (string, error) {
+	input := CachedAccessTokenRequest{
+		ChannelID:            info.ChannelId,
+		ChannelIsMultiKey:    info.ChannelIsMultiKey,
+		ChannelMultiKeyIndex: info.ChannelMultiKeyIndex,
+		Credentials:          a.AccountCredentials,
+		Proxy:                info.ChannelSetting.Proxy,
+	}
+	return acquireCachedAccessToken(input, func(signedJWT string) (string, error) {
+		return exchangeJwtForAccessToken(signedJWT, info)
+	})
 }
 
 func createSignedJWT(email, privateKeyPEM string) (string, error) {
@@ -123,7 +149,7 @@ func exchangeJwtForAccessToken(signedJWT string, info *relaycommon.RelayInfo) (s
 	defer resp.Body.Close()
 
 	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := common.DecodeJson(resp.Body, &result); err != nil {
 		return "", err
 	}
 
@@ -166,7 +192,7 @@ func exchangeJwtForAccessTokenWithProxy(signedJWT string, proxy string) (string,
 	defer resp.Body.Close()
 
 	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := common.DecodeJson(resp.Body, &result); err != nil {
 		return "", err
 	}
 
