@@ -187,10 +187,11 @@ func TestDistributeHidesTaskPluginDetailsButLogsDiagnostics(t *testing.T) {
 	common.MemoryCacheEnabled = true
 	t.Cleanup(func() { common.MemoryCacheEnabled = previousCacheEnabled })
 
+	const group = "private-plugin-error-test-group"
 	for _, locale := range []struct{ language, message string }{
-		{"en", "No channel is currently available for this model. Please try again later or contact support."},
-		{"zh-CN", "当前模型暂无可用渠道，请稍后重试或联系客服。"},
-		{"zh-TW", "目前模型暫無可用管道，請稍後重試或聯絡客服。"},
+		{"en", "No available channel for model task-model under group " + group + ": the model is claimed by a task plugin, which has no enabled channel serving it (distributor)"},
+		{"zh-CN", "分组 " + group + " 下模型 task-model 无可用渠道：该模型由任务插件认领，但当前没有启用的渠道可服务此模型（distributor）"},
+		{"zh-TW", "分組 " + group + " 下模型 task-model 無可用管道：該模型由任務插件認領，但目前沒有啟用的管道可服務此模型（distributor）"},
 	} {
 		for _, providerCount := range []int{1, 2} {
 			t.Run(fmt.Sprintf("%s/%d_providers", locale.language, providerCount), func(t *testing.T) {
@@ -215,7 +216,6 @@ func TestDistributeHidesTaskPluginDetailsButLogsDiagnostics(t *testing.T) {
 					common.LogWriterMu.Unlock()
 				})
 
-				const group = "private-plugin-error-test-group"
 				router := gin.New()
 				router.POST("/v1/responses", RequestId(), func(c *gin.Context) {
 					common.SetContextKey(c, constant.ContextKeyUsingGroup, group)
@@ -243,7 +243,7 @@ func TestDistributeHidesTaskPluginDetailsButLogsDiagnostics(t *testing.T) {
 				require.NotEmpty(t, requestID)
 				assert.JSONEq(t, fmt.Sprintf(`{"error":{"message":%q,"type":"new_api_error","code":"model_not_found"}}`,
 					locale.message+" (request id: "+requestID+")"), recorder.Body.String())
-				assert.NotContains(t, recorder.Body.String(), group)
+				assert.NotContains(t, recorder.Body.String(), "disable or override")
 				for _, key := range keys {
 					assert.NotContains(t, recorder.Body.String(), key)
 					assert.Contains(t, logs.String(), key)
