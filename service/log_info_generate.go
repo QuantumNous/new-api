@@ -150,6 +150,10 @@ func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other *model.LogOther)
 	}
 	if ss.EndError != nil {
 		streamInfo["end_error"] = ss.EndError.Error()
+		streamInfo["end_error_code"] = ss.EndErrorCode
+		if ss.EndErrorSource != "" {
+			streamInfo["end_error_source"] = ss.EndErrorSource
+		}
 	}
 	if ss.ErrorCount > 0 {
 		streamInfo["error_count"] = ss.ErrorCount
@@ -158,6 +162,7 @@ func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other *model.LogOther)
 			messages = append(messages, e.Message)
 		}
 		streamInfo["errors"] = messages
+		streamInfo["error_details"] = ss.Errors
 	}
 	other.SetPublic("stream_status", streamInfo)
 }

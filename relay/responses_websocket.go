@@ -76,7 +76,7 @@ type responsesWSCallState struct {
 
 type responsesWSSession struct {
 	ctx            context.Context
-	cancel         context.CancelFunc
+	cancel         context.CancelCauseFunc
 	client         *websocket.Conn
 	runner         ResponsesWSRequestRunner
 	request        *http.Request
@@ -104,7 +104,7 @@ type responsesWSSession struct {
 }
 
 func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn, runner ResponsesWSRequestRunner) *types.NewAPIError {
-	ctx, cancel := context.WithCancel(c.Request.Context())
+	ctx, cancel := context.WithCancelCause(c.Request.Context())
 	s := &responsesWSSession{ctx: ctx, cancel: cancel, client: client, runner: runner,
 		request: c.Request.Clone(ctx), requestID: c.GetString(common.RequestIdKey)}
 	if s.requestID == "" {
@@ -116,13 +116,14 @@ func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn, runner Res
 	}
 	client.SetReadLimit(int64(maxMB) << 20)
 	defer func() {
-		s.shutdown()
+		s.shutdown(nil)
 		s.workers.Wait()
 	}()
 
 	for {
 		_, message, err := client.ReadMessage()
 		if err != nil {
+			s.shutdown(relaycommon.WithStreamErrorSource(err, "downstream_read"))
 			return nil
 		}
 		eventType, err := responsesWSEventType(message)
@@ -190,7 +191,7 @@ func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []b
 		s.stateMu.Unlock()
 		s.clientWriteMu.Unlock()
 		if state.closeAfter {
-			s.shutdown()
+			s.shutdown(nil)
 		}
 	}()
 	request := s.request.Clone(s.ctx)
@@ -348,9 +349,13 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 		case incoming := <-state.inbox:
 			idle.Reset(timeout)
 			if incoming.err != nil {
-				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, incoming.err)
+				if s.ctx.Err() != nil {
+					info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, relaycommon.WithStreamErrorSource(context.Cause(s.ctx), "request_context"))
+				} else {
+					info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, incoming.err)
+				}
 				state.closeAfter = true
-				ConsumeResponsesQuota(c, info, accumulator.Finish())
+				ConsumeResponsesQuota(c, info, accumulator.Finish(c))
 				return nil
 			}
 			info.SetFirstResponseTime()
@@ -389,15 +394,15 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				}
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
 				state.terminal = &incoming
-				ConsumeResponsesQuota(c, info, accumulator.Finish())
+				ConsumeResponsesQuota(c, info, accumulator.Finish(c))
 				return nil
 			}
 			if err := s.writeClient(incoming.kind, incoming.body); err != nil {
-				s.shutdown()
+				s.shutdown(err)
 			}
 			if accepted && pendingControl != nil {
 				if err := s.writeTarget(websocket.TextMessage, pendingControl); err != nil {
-					s.shutdown()
+					s.shutdown(err)
 				}
 				pendingControl = nil
 			}
@@ -407,16 +412,16 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				continue
 			}
 			if err := s.writeTarget(websocket.TextMessage, control); err != nil {
-				s.shutdown()
+				s.shutdown(err)
 			}
 		case <-idle.C:
-			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, context.DeadlineExceeded)
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, relaycommon.WithStreamErrorSource(context.DeadlineExceeded, "stream_idle_timeout"))
 			state.closeAfter = true
-			ConsumeResponsesQuota(c, info, accumulator.Finish())
+			ConsumeResponsesQuota(c, info, accumulator.Finish(c))
 			return nil
 		case <-s.ctx.Done():
-			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, s.ctx.Err())
-			ConsumeResponsesQuota(c, info, accumulator.Finish())
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, relaycommon.WithStreamErrorSource(context.Cause(s.ctx), "request_context"))
+			ConsumeResponsesQuota(c, info, accumulator.Finish(c))
 			return nil
 		}
 	}
@@ -499,6 +504,7 @@ func (s *responsesWSSession) startTargetReader(target *websocket.Conn) {
 	s.workers.Go(func() {
 		for {
 			kind, body, err := target.ReadMessage()
+			err = relaycommon.WithStreamErrorSource(err, "upstream_read")
 			incoming := responsesWSMessage{kind: kind, body: body, err: err}
 			if state := s.getCurrent(); state != nil {
 				select {
@@ -506,22 +512,22 @@ func (s *responsesWSSession) startTargetReader(target *websocket.Conn) {
 				case <-state.done:
 					if err == nil {
 						if writeErr := s.writeClient(kind, body); writeErr != nil {
-							s.shutdown()
+							s.shutdown(writeErr)
 							return
 						}
 					} else {
-						s.shutdown()
+						s.shutdown(err)
 					}
 				case <-s.ctx.Done():
 					return
 				}
 			} else if err == nil {
 				if writeErr := s.writeClient(kind, body); writeErr != nil {
-					s.shutdown()
+					s.shutdown(writeErr)
 					return
 				}
 			} else {
-				s.shutdown()
+				s.shutdown(err)
 			}
 			if err != nil {
 				return
@@ -568,21 +574,21 @@ func (s *responsesWSSession) writeTarget(kind int, message []byte) error {
 	defer s.targetWriteMu.Unlock()
 	target := s.getTarget()
 	if target == nil {
-		return errors.New("responses websocket upstream is not connected")
+		return relaycommon.WithStreamErrorSource(errors.New("responses websocket upstream is not connected"), "upstream_write")
 	}
 	if err := target.SetWriteDeadline(time.Now().Add(responsesWSWriteTimeout)); err != nil {
-		return err
+		return relaycommon.WithStreamErrorSource(err, "upstream_write")
 	}
-	return target.WriteMessage(kind, message)
+	return relaycommon.WithStreamErrorSource(target.WriteMessage(kind, message), "upstream_write")
 }
 
 func (s *responsesWSSession) writeClient(kind int, message []byte) error {
 	s.clientWriteMu.Lock()
 	defer s.clientWriteMu.Unlock()
 	if err := s.client.SetWriteDeadline(time.Now().Add(responsesWSWriteTimeout)); err != nil {
-		return err
+		return relaycommon.WithStreamErrorSource(err, "downstream_write")
 	}
-	return s.client.WriteMessage(kind, message)
+	return relaycommon.WithStreamErrorSource(s.client.WriteMessage(kind, message), "downstream_write")
 }
 
 func (s *responsesWSSession) sendError(eventID string, apiErr *types.NewAPIError) {
@@ -608,8 +614,8 @@ func (s *responsesWSSession) closeTarget() {
 	}
 }
 
-func (s *responsesWSSession) shutdown() {
-	s.cancel()
+func (s *responsesWSSession) shutdown(cause error) {
+	s.cancel(cause)
 	s.closeTarget()
 	_ = s.client.Close()
 }
@@ -627,10 +633,13 @@ func (s *responsesWSSession) registerChannelClose(channelID int) {
 }
 
 func (s *responsesWSSession) closeForPolicy(reason string) {
+	cause := relaycommon.WithStreamErrorSource(&websocket.CloseError{Code: websocket.ClosePolicyViolation, Text: reason}, "server_policy")
+	// Save the policy cause before the peer reacts to our close frame.
+	s.cancel(cause)
 	closeMessage := websocket.FormatCloseMessage(websocket.ClosePolicyViolation, reason)
 	deadline := time.Now().Add(time.Second)
 	_ = s.client.WriteControl(websocket.CloseMessage, closeMessage, deadline)
-	s.shutdown()
+	s.shutdown(cause)
 }
 
 func responsesWSEventType(message []byte) (string, error) {

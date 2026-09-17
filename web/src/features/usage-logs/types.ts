@@ -236,6 +236,9 @@ export interface LogOtherData {
     end_reason?: string
     error_count?: number
     end_error?: string
+    end_error_code?: string
+    end_error_source?: string
+    error_details?: { message: string; code?: string; source?: string }[]
     errors?: string[]
   }
   // Violation fee fields

@@ -88,6 +88,9 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 
 	// 无条件新建 StreamStatus
 	info.StreamStatus = relaycommon.NewStreamStatus()
+	writer := c.Writer
+	c.Writer = &streamDiagnosticWriter{ResponseWriter: writer, status: info.StreamStatus}
+	defer func() { c.Writer = writer }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -183,7 +186,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 					}()
 					if err != nil {
 						logger.LogError(c, "ping data error: "+err.Error())
-						info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonPingFail, err)
+						info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonPingFail, relaycommon.WithStreamErrorSource(err, "downstream_ping"))
 						return
 					}
 					logger.LogDebug(c, "ping data sent")
@@ -289,7 +292,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		if err := scanner.Err(); err != nil {
 			if err != io.EOF {
 				logger.LogError(c, "scanner error: "+err.Error())
-				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, err)
+				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, relaycommon.WithStreamErrorSource(err, "upstream_read"))
 			}
 		}
 		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonEOF, nil)
@@ -298,13 +301,13 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	// 主循环等待完成或超时
 	select {
 	case <-ticker.C:
-		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, nil)
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, relaycommon.WithStreamErrorSource(context.DeadlineExceeded, "stream_idle_timeout"))
 	case <-stopChan:
 		// EndReason already set by the goroutine that triggered stopChan
 	case <-c.Request.Context().Done():
 		// 客户端断开：立即 cleanup 关闭上游 resp.Body，解除 scanner 阻塞并让上游停止生成，
 		// 避免为已放弃的请求继续消费上游 token。
-		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, c.Request.Context().Err())
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, relaycommon.WithStreamErrorSource(context.Cause(c.Request.Context()), "request_context"))
 	}
 
 	cleanup()
@@ -314,3 +317,24 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 		logger.LogError(c, fmt.Sprintf("stream ended: %s, received=%d", info.StreamStatus.Summary(), info.ReceivedResponseCount))
 	}
 }
+
+// Observe writes even when a provider's renderer ignores the returned error.
+// These are soft diagnostics: do not replace the first terminal reason or alter billing.
+type streamDiagnosticWriter struct {
+	gin.ResponseWriter
+	status *relaycommon.StreamStatus
+}
+
+func (w *streamDiagnosticWriter) Write(data []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(data)
+	w.status.RecordErrorCause(relaycommon.WithStreamErrorSource(err, "downstream_write"))
+	return n, err
+}
+
+func (w *streamDiagnosticWriter) WriteString(data string) (int, error) {
+	n, err := w.ResponseWriter.WriteString(data)
+	w.status.RecordErrorCause(relaycommon.WithStreamErrorSource(err, "downstream_write"))
+	return n, err
+}
+
+func (w *streamDiagnosticWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }

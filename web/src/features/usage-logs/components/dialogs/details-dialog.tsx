@@ -1219,6 +1219,18 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 value={String(other.stream_status.error_count)}
               />
             )}
+            {other.stream_status.end_error_code && (
+              <DetailRow
+                label={t('Code')}
+                value={other.stream_status.end_error_code}
+              />
+            )}
+            {other.stream_status.end_error_source && (
+              <DetailRow
+                label={t('Source')}
+                value={other.stream_status.end_error_source}
+              />
+            )}
             {other.stream_status.end_error && (
               <DetailRow
                 label={t('End Error')}
@@ -1228,7 +1240,15 @@ export function DetailsDialog(props: DetailsDialogProps) {
             {Array.isArray(other.stream_status.errors) &&
               other.stream_status.errors.length > 0 && (
                 <pre className='bg-background/60 mt-1 max-h-32 overflow-y-auto rounded border p-2 font-mono text-[11px] leading-relaxed wrap-break-word whitespace-pre-wrap'>
-                  {other.stream_status.errors.join('\n')}
+                  {other.stream_status.error_details?.length
+                    ? other.stream_status.error_details
+                        .map((error) =>
+                          [error.source, error.code, error.message]
+                            .filter(Boolean)
+                            .join(': ')
+                        )
+                        .join('\n')
+                    : other.stream_status.errors.join('\n')}
                 </pre>
               )}
           </DetailSection>
