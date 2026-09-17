@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 
 import {
@@ -311,4 +312,58 @@ it('shows the OpenAI icon in the mobile inspection button', () => {
 
 it('makes the Wan icon available to model icon selectors', () => {
   expect(getLobeIconNames()).toContain('Wan')
+})
+
+it('opens the mismatch evidence with the keyboard and shows all three models', async () => {
+  const user = userEvent.setup()
+  const returned =
+    'unexpected-provider-model-with-a-long-dated-version-2026-09-17'
+  render(
+    <ModelBadge
+      modelName='requested-model'
+      responseModel={{
+        requested_model: 'requested-model',
+        upstream_model: 'mapped-model',
+        returned_model: returned,
+        mismatch: true,
+      }}
+    />
+  )
+  expect(screen.getByText('Response model mismatch')).toBeVisible()
+  await user.tab()
+  expect(
+    screen.getByRole('button', { name: /Response model mismatch/ })
+  ).toHaveFocus()
+  await user.keyboard('{Enter}')
+  expect(await screen.findByText(returned)).toBeVisible()
+  expect(screen.getByText('mapped-model')).toBeVisible()
+  expect(screen.getByText('Request Model')).toBeVisible()
+  expect(screen.getByText('Upstream Model')).toBeVisible()
+  expect(screen.getByText('Response Model')).toBeVisible()
+  expect(
+    screen.getByText(/this warning alone does not prove model substitution/)
+  ).toBeVisible()
+})
+
+it('shows a matching response model without a warning and leaves old logs unmarked', async () => {
+  const user = userEvent.setup()
+  const view = render(<ModelBadge modelName='requested-model' />)
+  expect(screen.queryByText('Response model mismatch')).not.toBeInTheDocument()
+  expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  view.rerender(
+    <ModelBadge
+      modelName='requested-model'
+      responseModel={{
+        requested_model: 'requested-model',
+        upstream_model: 'mapped-model',
+        returned_model: 'mapped-model',
+        mismatch: false,
+      }}
+    />
+  )
+  await user.click(
+    screen.getByRole('button', { name: 'Model: requested-model' })
+  )
+  expect(await screen.findByText('Response Model')).toBeVisible()
+  expect(screen.queryByText('Response model mismatch')).not.toBeInTheDocument()
 })

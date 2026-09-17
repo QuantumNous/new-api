@@ -74,6 +74,7 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		other.SetPublic("error_code", err.GetErrorCode())
 		other.SetPublic("status_code", err.StatusCode)
 		AppendRelayLogAdminInfo(c, relayInfo, other)
+		AppendResponseModelLogInfo(relayInfo, other)
 		AppendTaskPluginContextAuditInfo(c, other)
 		startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
 		if startTime.IsZero() {

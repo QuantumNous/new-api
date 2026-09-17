@@ -97,6 +97,34 @@ function renderLogs(props: Parameters<typeof Fixture>[0] = {}) {
   )
 }
 
+it('shows model mismatch evidence when tapping the mobile model badge', async () => {
+  const user = userEvent.setup()
+  renderLogs({
+    logs: [
+      {
+        ...log,
+        other: JSON.stringify({
+          response_model: {
+            requested_model: longName,
+            upstream_model: 'mapped-model',
+            returned_model: 'unexpected-model',
+            mismatch: true,
+          },
+        }),
+      },
+    ],
+  })
+  await user.click(
+    screen.getByRole('button', {
+      name: `Model: ${longName}, Response model mismatch`,
+    })
+  )
+  const dialog = await screen.findByRole('dialog', { name: 'Model' })
+  expect(within(dialog).getByText('Response model mismatch')).toBeVisible()
+  expect(within(dialog).getByText('mapped-model')).toBeVisible()
+  expect(within(dialog).getByText('unexpected-model')).toBeVisible()
+})
+
 it('opens long channel text on tap and copies the complete value', async () => {
   const user = userEvent.setup()
   const copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
