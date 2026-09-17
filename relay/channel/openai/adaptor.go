@@ -251,7 +251,14 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	if info.ChannelType != constant.ChannelTypeOpenAI && info.ChannelType != constant.ChannelTypeAzure {
+	// Tencent is listed here because TokenHub keys are dispatched to this
+	// OpenAI-compatible adaptor while the channel type stays Tencent; TokenHub
+	// speaks the OpenAI streaming protocol and must receive include_usage to
+	// report usage on a streamed response. The three-segment TC3 key path keeps
+	// using the native Tencent adaptor and never reaches this code.
+	if info.ChannelType != constant.ChannelTypeOpenAI &&
+		info.ChannelType != constant.ChannelTypeAzure &&
+		info.ChannelType != constant.ChannelTypeTencent {
 		request.StreamOptions = nil
 	}
 	// Nested reasoning is an OpenRouter-compatible input dialect and needs
