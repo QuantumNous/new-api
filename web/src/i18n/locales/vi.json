@@ -4772,6 +4772,7 @@
     "Response": "Phản hồi",
     "Response Model": "Mô hình trong phản hồi",
     "Response model mismatch": "Mô hình phản hồi không khớp",
+    "Response model: {{model}}": "Mô hình phản hồi: {{model}}",
     "Response Time": "Thời gian phản hồi",
     "Response time: {{duration}}": "Thời gian phản hồi: {{duration}}",
     "Response too large": "Phản hồi quá lớn",

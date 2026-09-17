@@ -4772,6 +4772,7 @@
     "Response": "Ответ",
     "Response Model": "Модель в ответе",
     "Response model mismatch": "Несовпадение модели в ответе",
+    "Response model: {{model}}": "Модель в ответе: {{model}}",
     "Response Time": "Время ответа",
     "Response time: {{duration}}": "Время ответа: {{duration}}",
     "Response too large": "Ответ слишком большой",

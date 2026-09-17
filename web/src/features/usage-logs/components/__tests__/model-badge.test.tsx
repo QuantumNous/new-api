@@ -329,10 +329,12 @@ it('opens the mismatch evidence with the keyboard and shows all three models', a
       }}
     />
   )
-  expect(screen.getByText('Response model mismatch')).toBeVisible()
+  expect(screen.getByText(`Response model: ${returned}`)).toBeVisible()
   await user.tab()
   expect(
-    screen.getByRole('button', { name: /Response model mismatch/ })
+    screen.getByRole('button', {
+      name: `Model: requested-model, Response model: ${returned}`,
+    })
   ).toHaveFocus()
   await user.keyboard('{Enter}')
   expect(await screen.findByText(returned)).toBeVisible()
@@ -348,7 +350,7 @@ it('opens the mismatch evidence with the keyboard and shows all three models', a
 it('shows a matching response model without a warning and leaves old logs unmarked', async () => {
   const user = userEvent.setup()
   const view = render(<ModelBadge modelName='requested-model' />)
-  expect(screen.queryByText('Response model mismatch')).not.toBeInTheDocument()
+  expect(screen.queryByText(/^Response model:/)).not.toBeInTheDocument()
   expect(screen.queryByRole('button')).not.toBeInTheDocument()
   view.rerender(
     <ModelBadge
@@ -365,5 +367,40 @@ it('shows a matching response model without a warning and leaves old logs unmark
     screen.getByRole('button', { name: 'Model: requested-model' })
   )
   expect(await screen.findByText('Response Model')).toBeVisible()
-  expect(screen.queryByText('Response model mismatch')).not.toBeInTheDocument()
+  expect(screen.queryByText(/^Response model:/)).not.toBeInTheDocument()
 })
+
+it.each([
+  'requested-model-2026-09-17',
+  'REQUESTED-MODEL',
+  'mapped-model-2026-09-17',
+  'MAPPED-MODEL',
+])(
+  'keeps the compatible response %s in the popover without a list annotation',
+  async (returned) => {
+    const user = userEvent.setup()
+    render(
+      <ModelBadge
+        modelName='requested-model'
+        responseModel={{
+          requested_model: 'requested-model',
+          upstream_model: 'mapped-model',
+          returned_model: returned,
+          mismatch: false,
+        }}
+      />
+    )
+    expect(screen.queryByText(returned)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Response model:/)).not.toBeInTheDocument()
+    const trigger = screen.getByRole('button', {
+      name: 'Model: requested-model',
+    })
+    expect(trigger).toHaveTextContent(/^requested-model$/)
+    await user.click(trigger)
+    expect(await screen.findByText(returned)).toBeVisible()
+    expect(screen.queryByText(/^Response model:/)).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(/this warning alone does not prove model substitution/)
+    ).not.toBeInTheDocument()
+  }
+)

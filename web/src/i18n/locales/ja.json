@@ -4772,6 +4772,7 @@
     "Response": "レスポンス",
     "Response Model": "応答モデル",
     "Response model mismatch": "応答モデルの不一致",
+    "Response model: {{model}}": "応答モデル：{{model}}",
     "Response Time": "応答時間",
     "Response time: {{duration}}": "応答時間: {{duration}}",
     "Response too large": "応答が大きすぎます",

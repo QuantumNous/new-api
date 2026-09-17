@@ -4772,6 +4772,7 @@
     "Response": "回應",
     "Response Model": "回應模型",
     "Response model mismatch": "回應模型不一致",
+    "Response model: {{model}}": "回應模型：{{model}}",
     "Response Time": "回應時間",
     "Response time: {{duration}}": "回應時間：{{duration}}",
     "Response too large": "回應過大",

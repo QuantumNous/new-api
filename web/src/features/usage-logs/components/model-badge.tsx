@@ -90,13 +90,19 @@ function ModelBadgeContent(props: ModelBadgeProps) {
 
 export function ModelBadge(props: ModelBadgeProps) {
   const { t } = useTranslation()
+  const responseModelLabel = props.responseModel?.mismatch
+    ? t('Response model: {{model}}', {
+        model: props.responseModel.returned_model,
+      })
+    : ''
+  const modelLabel = `${t('Model')}: ${props.modelName}${responseModelLabel ? `, ${responseModelLabel}` : ''}`
   const content = (
     <>
       <ModelBadgeContent {...props} />
       {props.responseModel?.mismatch && (
         <StatusBadge
           icon={AlertTriangle}
-          label={t('Response model mismatch')}
+          label={responseModelLabel}
           variant='warning'
           copyable={false}
         />
@@ -114,7 +120,7 @@ export function ModelBadge(props: ModelBadgeProps) {
     return (
       <Button
         variant='ghost'
-        aria-label={`${t('Model')}: ${props.modelName}${props.responseModel?.mismatch ? `, ${t('Response model mismatch')}` : ''}`}
+        aria-label={modelLabel}
         aria-haspopup='dialog'
         onClick={props.onInspect}
         className='h-auto min-h-8 max-w-full min-w-0 flex-wrap justify-start gap-1 px-0 py-0 text-left font-normal whitespace-normal'
@@ -134,7 +140,7 @@ export function ModelBadge(props: ModelBadgeProps) {
         render={
           <Button
             variant='ghost'
-            aria-label={`${t('Model')}: ${props.modelName}${props.responseModel?.mismatch ? `, ${t('Response model mismatch')}` : ''}`}
+            aria-label={modelLabel}
             className='h-auto max-w-full min-w-0 flex-wrap justify-start gap-1 p-0 font-normal'
           />
         }
@@ -179,7 +185,9 @@ export function ResponseModelDetails(props: {
       {props.observation.mismatch && (
         <StatusBadge
           icon={AlertTriangle}
-          label={t('Response model mismatch')}
+          label={t('Response model: {{model}}', {
+            model: props.observation.returned_model,
+          })}
           variant='warning'
           copyable={false}
           className='h-auto whitespace-normal'

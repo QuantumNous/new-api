@@ -116,11 +116,13 @@ it('shows model mismatch evidence when tapping the mobile model badge', async ()
   })
   await user.click(
     screen.getByRole('button', {
-      name: `Model: ${longName}, Response model mismatch`,
+      name: `Model: ${longName}, Response model: unexpected-model`,
     })
   )
   const dialog = await screen.findByRole('dialog', { name: 'Model' })
-  expect(within(dialog).getByText('Response model mismatch')).toBeVisible()
+  expect(
+    within(dialog).getByText('Response model: unexpected-model')
+  ).toBeVisible()
   expect(within(dialog).getByText('mapped-model')).toBeVisible()
   expect(within(dialog).getByText('unexpected-model')).toBeVisible()
 })

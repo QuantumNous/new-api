@@ -34,8 +34,15 @@ func TestResponseModelComparisonAndLog(t *testing.T) {
 		{name: "requested model", models: []string{"requested"}, returned: "requested"},
 		{name: "mapped model", models: []string{"mapped"}, returned: "mapped"},
 		{name: "different model", models: []string{"other"}, returned: "other", mismatch: true},
-		{name: "case differs", models: []string{"Requested"}, returned: "Requested", mismatch: true},
-		{name: "dated alias", models: []string{"requested-2026-09-01"}, returned: "requested-2026-09-01", mismatch: true},
+		{name: "case differs", models: []string{"Requested"}, returned: "Requested"},
+		{name: "requested prefix", models: []string{"requested-2026-09-01"}, returned: "requested-2026-09-01"},
+		{name: "mapped case differs", models: []string{"MAPPED"}, returned: "MAPPED"},
+		{name: "mapped prefix", models: []string{"mapped-2026-09-01"}, returned: "mapped-2026-09-01"},
+		{name: "reverse prefix still warns", models: []string{"request"}, returned: "request", mismatch: true},
+		{name: "substring still warns", models: []string{"other-requested"}, returned: "other-requested", mismatch: true},
+		{name: "compatible difference survives matching frames", models: []string{"mapped", "Requested", "", "requested"}, returned: "Requested"},
+		{name: "warning supersedes compatible difference", models: []string{"Requested", "other"}, returned: "other", mismatch: true},
+		{name: "compatible difference cannot erase warning", models: []string{"other", "Requested"}, returned: "other", mismatch: true},
 		{name: "mismatch survives later frames", models: []string{"mapped", "other", "", "requested"}, returned: "other", mismatch: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -61,6 +68,22 @@ func TestResponseModelComparisonAndLog(t *testing.T) {
 				RequestedModel: "requested", UpstreamModel: "mapped", ReturnedModel: tc.returned, Mismatch: tc.mismatch,
 			}, stored.ResponseModel)
 			assert.Equal(t, "mapped", info.UpstreamModelName)
+		})
+	}
+}
+
+func TestResponseModelEmptyExpectedNamesDoNotMatchEveryPrefix(t *testing.T) {
+	for _, tc := range []struct{ requested, upstream string }{
+		{}, {upstream: "mapped"}, {requested: "requested"},
+	} {
+		t.Run(tc.requested+"/"+tc.upstream, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{
+				OriginModelName: tc.requested,
+				ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: tc.upstream},
+			}
+			info.ObserveResponseModel("other")
+			require.NotNil(t, info.ResponseModel)
+			assert.True(t, info.ResponseModel.Mismatch)
 		})
 	}
 }

@@ -4772,6 +4772,7 @@
     "Response": "Réponse",
     "Response Model": "Modèle de réponse",
     "Response model mismatch": "Modèle de réponse différent",
+    "Response model: {{model}}": "Modèle de réponse : {{model}}",
     "Response Time": "Temps de réponse",
     "Response time: {{duration}}": "Temps de réponse : {{duration}}",
     "Response too large": "Réponse trop volumineuse",

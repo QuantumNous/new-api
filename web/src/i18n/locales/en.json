@@ -4772,6 +4772,7 @@
     "Response": "Response",
     "Response Model": "Response Model",
     "Response model mismatch": "Response model mismatch",
+    "Response model: {{model}}": "Response model: {{model}}",
     "Response Time": "Response Time",
     "Response time: {{duration}}": "Response time: {{duration}}",
     "Response too large": "Response too large",
