@@ -61,9 +61,10 @@ const (
 	ErrorCodeChannelResponseTimeExceeded  ErrorCode = "channel:response_time_exceeded"
 
 	// client request error
-	ErrorCodeReadRequestBodyFailed ErrorCode = "read_request_body_failed"
-	ErrorCodeConvertRequestFailed  ErrorCode = "convert_request_failed"
-	ErrorCodeAccessDenied          ErrorCode = "access_denied"
+	ErrorCodeReadRequestBodyFailed  ErrorCode = "read_request_body_failed"
+	ErrorCodeConvertRequestFailed   ErrorCode = "convert_request_failed"
+	ErrorCodeAccessDenied           ErrorCode = "access_denied"
+	ErrorCodeChannelRouteRestricted ErrorCode = "channel_route_restricted"
 
 	// request error
 	ErrorCodeBadRequestBody ErrorCode = "bad_request_body"

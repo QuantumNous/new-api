@@ -184,6 +184,110 @@ describe('searchable single selection', () => {
   })
 })
 
+describe('compact multiple selection', () => {
+  it('keeps the menu open for consecutive selections and summarizes them when closed', async () => {
+    const change = vi.fn()
+    const view = render(
+      <Combobox
+        multiple
+        options={options}
+        value={[]}
+        onValueChange={change}
+        aria-label='Providers'
+      />
+    )
+    const user = userEvent.setup()
+    const input = screen.getByRole('combobox', { name: 'Providers' })
+    await user.click(input)
+    await user.click(screen.getByRole('option', { name: 'OpenAI' }))
+    expect(change).toHaveBeenLastCalledWith(['openai'])
+    expect(input).toHaveAttribute('aria-expanded', 'true')
+    view.rerender(
+      <Combobox
+        multiple
+        options={options}
+        value={['openai']}
+        onValueChange={change}
+        aria-label='Providers'
+      />
+    )
+    expect(screen.getByRole('option', { name: 'OpenAI' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    )
+    await user.click(screen.getByRole('option', { name: 'Google' }))
+    expect(change).toHaveBeenLastCalledWith(['openai', 'gemini'])
+    view.rerender(
+      <Combobox
+        multiple
+        options={options}
+        value={['openai', 'gemini']}
+        onValueChange={change}
+        aria-label='Providers'
+      />
+    )
+    await user.keyboard('{Escape}')
+    expect(input).toHaveValue('2 selected')
+    await user.click(input)
+    await user.click(screen.getByRole('option', { name: 'OpenAI' }))
+    expect(change).toHaveBeenLastCalledWith(['gemini'])
+    view.rerender(
+      <Combobox
+        multiple
+        options={options}
+        value={['gemini']}
+        onValueChange={change}
+        aria-label='Providers'
+      />
+    )
+    expect(screen.getByRole('option', { name: 'OpenAI' })).toHaveAttribute(
+      'aria-selected',
+      'false'
+    )
+    await user.keyboard('{Escape}')
+    expect(input).toHaveValue('Google')
+  })
+
+  it('searches route names and paths and supports keyboard selection without closing', async () => {
+    const change = vi.fn()
+    render(
+      <Combobox
+        multiple
+        options={[
+          {
+            value: '/v1/responses',
+            label: 'OpenAI Responses',
+            description: '/v1/responses',
+          },
+          {
+            value: '/v1/messages',
+            label: 'Claude Messages',
+            description: '/v1/messages',
+          },
+        ]}
+        value={[]}
+        onValueChange={change}
+        aria-label='Routes'
+      />
+    )
+    const user = userEvent.setup()
+    const input = screen.getByRole('combobox', { name: 'Routes' })
+    await user.click(input)
+    await user.type(input, 'Claude')
+    expect(
+      screen.getByRole('option', { name: /Claude Messages.*\/v1\/messages/ })
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('option', { name: /OpenAI Responses/ })
+    ).not.toBeInTheDocument()
+    await user.clear(input)
+    await user.type(input, '/v1/responses')
+    await user.keyboard('{ArrowDown}{Enter}')
+    expect(change).toHaveBeenLastCalledWith(['/v1/responses'])
+    expect(input).toHaveAttribute('aria-expanded', 'true')
+  })
+})
+
 const pluginOptions = [
   {
     value: 'alpha',

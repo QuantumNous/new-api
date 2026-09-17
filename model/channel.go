@@ -1002,6 +1002,9 @@ func (channel *Channel) ValidateSettings() error {
 	if err := channelParams.ValidateHTTPTransport(); err != nil {
 		return err
 	}
+	if err := channelParams.RouteRestriction.Validate(); err != nil {
+		return err
+	}
 	channelOtherSettings := &dto.ChannelOtherSettings{}
 	if channel.OtherSettings != "" {
 		err := common.UnmarshalJsonStr(channel.OtherSettings, channelOtherSettings)
@@ -1039,6 +1042,18 @@ func (channel *Channel) GetSetting() dto.ChannelSettings {
 		err := common.Unmarshal([]byte(*channel.Setting), &setting)
 		if err != nil {
 			common.SysLog(fmt.Sprintf("failed to unmarshal setting: channel_id=%d, error=%v", channel.Id, err))
+			// Read routing independently of unrelated field type errors. Never
+			// erase a restriction, including one whose JSON cannot be decoded.
+			var routing struct {
+				RouteRestriction *dto.ChannelRouteRestriction `json:"route_restriction"`
+			}
+			if err := common.UnmarshalJsonStr(*channel.Setting, &routing); err != nil {
+				return dto.ChannelSettings{RouteRestriction: &dto.ChannelRouteRestriction{}}
+			}
+			if routing.RouteRestriction != nil {
+				setting.RouteRestriction = routing.RouteRestriction
+				return setting
+			}
 			channel.Setting = nil // 清空设置以避免后续错误
 			_ = channel.Save()    // 保存修改
 		}

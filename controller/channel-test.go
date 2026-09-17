@@ -16,6 +16,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	filterdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -108,6 +109,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		}
 	}
 
+	automaticEndpoint := strings.TrimSpace(endpointType) == ""
 	endpointType = normalizeChannelTestEndpoint(channel, endpointType)
 
 	requestPath := "/v1/chat/completions"
@@ -148,6 +150,47 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	// GeminiChatRequest.IsStream 依据请求 URL 判定，合成请求路径需与生产入口保持一致
 	if isStream && constant.EndpointType(endpointType) == constant.EndpointTypeGemini {
 		requestPath = strings.Replace(requestPath, ":generateContent", ":streamGenerateContent", 1)
+	}
+	restriction := channel.GetSetting().RouteRestriction
+	pathAllowed, _ := model.ChannelSatisfiesFilters(channel, testModel, []filterdto.ChannelFilter{{Kind: filterdto.FilterRequestPath, RequestMethod: http.MethodPost, RequestPath: requestPath}})
+	if automaticEndpoint && restriction != nil && !pathAllowed {
+		// Prefer the administrator's allowed paths, but only synthesize requests
+		// for the endpoint types supported by the channel-test implementation.
+		for _, allowedPath := range restriction.AllowedPaths {
+			for _, candidate := range []constant.EndpointType{
+				constant.EndpointTypeOpenAI, constant.EndpointTypeOpenAIResponse,
+				constant.EndpointTypeOpenAIResponseCompact, constant.EndpointTypeAnthropic,
+				constant.EndpointTypeGemini, constant.EndpointTypeJinaRerank,
+				constant.EndpointTypeImageGeneration, constant.EndpointTypeEmbeddings,
+			} {
+				endpoint, ok := common.GetDefaultEndpointInfo(candidate)
+				if !ok {
+					continue
+				}
+				candidatePath := endpoint.Path
+				if candidate == constant.EndpointTypeGemini && (isStream || strings.HasSuffix(allowedPath, ":streamGenerateContent")) {
+					candidatePath = strings.Replace(candidatePath, ":generateContent", ":streamGenerateContent", 1)
+				}
+				if candidatePath != allowedPath {
+					continue
+				}
+				if allowed, _ := model.ChannelSatisfiesFilters(channel, testModel, []filterdto.ChannelFilter{{Kind: filterdto.FilterRequestPath, RequestMethod: http.MethodPost, RequestPath: candidatePath}}); allowed {
+					endpointType, requestPath = string(candidate), candidatePath
+					pathAllowed = true
+					if candidate == constant.EndpointTypeGemini {
+						isStream = strings.HasSuffix(candidatePath, ":streamGenerateContent")
+					}
+					break
+				}
+			}
+			if pathAllowed {
+				break
+			}
+		}
+	}
+	if restriction != nil && !pathAllowed {
+		err := types.NewErrorWithStatusCode(errors.New("channel route is restricted; no permitted test endpoint was selected"), types.ErrorCodeChannelRouteRestricted, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		return testResult{context: c, localErr: err, newAPIError: err}
 	}
 	c.Request = httptest.NewRequestWithContext(ctx, http.MethodPost, requestPath, nil)
 
@@ -928,6 +971,12 @@ func testChannelForHealthCheck(ctx context.Context, channel *model.Channel, test
 	}
 
 	summary.Tested++
+	if result.newAPIError != nil && result.newAPIError.GetErrorCode() == types.ErrorCodeChannelRouteRestricted {
+		// A local routing policy says nothing about upstream health. Do not
+		// record latency or enable/disable the channel from this result.
+		summary.Failed++
+		return summary
+	}
 
 	shouldBanChannel := false
 	newAPIError := result.newAPIError

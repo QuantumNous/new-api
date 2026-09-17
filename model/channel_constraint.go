@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 )
 
 var filterEvalOrder = []dto.ChannelFilterKind{
@@ -90,6 +91,10 @@ func candidatePassesKindFilters(ch *Channel, exists bool, modelName string, kind
 func channelMatchesFilter(ch *Channel, modelName string, filter dto.ChannelFilter) bool {
 	switch filter.Kind {
 	case dto.FilterRequestPath:
+		if !ch.GetSetting().RouteRestriction.AllowsRequest(filter.RequestMethod, filter.RequestPath) {
+			logger.LogDebug(nil, "channel candidate rejected: channel_id=%d path=%s reason=route_restriction", ch.Id, filter.RequestPath)
+			return false
+		}
 		if filter.RequestPath == "" {
 			return true
 		}

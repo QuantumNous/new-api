@@ -6,22 +6,208 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	filterdto "github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	kittypes "github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestChannelRouteRestrictionDistribute(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	user, _ := setupResponsesWSRequestTest(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}, &model.Ability{}))
+	channels := []model.Channel{
+		{Name: "chat-only", Type: constant.ChannelTypeOpenAI, Key: "test", Status: common.ChannelStatusEnabled, Models: "gpt-4o", Group: "default", Priority: common.GetPointer(int64(100))},
+		{Name: "responses-only", Type: constant.ChannelTypeOpenAI, Key: "test", Status: common.ChannelStatusEnabled, Models: "gpt-4o", Group: "default", Priority: common.GetPointer(int64(10))},
+	}
+	for i, path := range []string{"/v1/chat/completions", "/v1/responses"} {
+		channels[i].SetSetting(dto.ChannelSettings{RouteRestriction: &dto.ChannelRouteRestriction{AllowedPaths: []string{path}}})
+		require.NoError(t, channels[i].Insert())
+	}
+	keyless := &model.Channel{
+		Name: "keyless", Type: constant.ChannelTypeOpenAI, Key: "disabled-key", Status: common.ChannelStatusEnabled, Models: "keyless-model", Group: "default",
+		ChannelInfo: model.ChannelInfo{IsMultiKey: true, MultiKeyStatusList: map[int]int{0: common.ChannelStatusManuallyDisabled}},
+	}
+	require.NoError(t, keyless.Insert())
+	affinity := operation_setting.GetChannelAffinitySetting()
+	oldAffinity := *affinity
+	*affinity = operation_setting.ChannelAffinitySetting{Enabled: true, DefaultTTLSeconds: 60, MaxEntries: 100, Rules: []operation_setting.ChannelAffinityRule{{Name: t.Name(), ModelRegex: []string{"^gpt-4o$"}, PathRegex: []string{"^/v1/responses$"}, KeySources: []operation_setting.ChannelAffinityKeySource{{Type: "request_header", Key: "X-Route-Test"}}, IncludeRuleName: true}}}
+	t.Cleanup(func() { *affinity = oldAffinity })
+	for _, tc := range []struct {
+		name, path, model string
+		pin               filterdto.ChannelPinSource
+		status, selected  int
+		affinity          bool
+	}{
+		{name: "ordinary", path: "/v1/responses", status: http.StatusOK, selected: channels[1].Id},
+		{name: "affinity cannot bypass", path: "/v1/responses", status: http.StatusOK, selected: channels[1].Id, affinity: true},
+		{name: "token pin cannot bypass", path: "/v1/responses", pin: filterdto.PinSourceToken, status: http.StatusBadRequest},
+		{name: "origin task pin cannot bypass new submission", path: "/v1/responses", pin: filterdto.PinSourceOriginTask, status: http.StatusBadRequest},
+		{name: "all excluded", path: "/v1/messages", status: http.StatusServiceUnavailable},
+		{name: "unrelated setup errors retain downstream handling", path: "/v1/chat/completions", model: "keyless-model", status: http.StatusOK, selected: keyless.Id},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			engine := gin.New()
+			engine.POST(tc.path, middleware.BodyStorageCleanup(), func(c *gin.Context) {
+				c.Set("id", user.Id)
+				common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+				common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+				if tc.pin != "" {
+					service.GetChannelConstraints(c).AddPin(filterdto.ChannelPin{ChannelId: channels[0].Id, Source: tc.pin})
+				}
+				if tc.affinity {
+					service.GetPreferredChannelByAffinity(c, "gpt-4o", "default")
+					service.RecordChannelAffinity(c, channels[0].Id)
+					preferred, found := service.GetPreferredChannelByAffinity(c, "gpt-4o", "default")
+					require.True(t, found)
+					require.Equal(t, channels[0].Id, preferred)
+				}
+			}, middleware.Distribute(), func(c *gin.Context) {
+				assert.Equal(t, tc.selected, c.GetInt("channel_id"))
+				c.Status(http.StatusOK)
+			})
+			request := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(fmt.Sprintf(`{"model":%q}`, common.GetStringIfEmpty(tc.model, "gpt-4o"))))
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("X-Route-Test", t.Name())
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, request)
+			assert.Equal(t, tc.status, response.Code, response.Body.String())
+		})
+	}
+}
+
+func TestChannelRouteRestrictionChannelTest(t *testing.T) {
+	user, _ := setupResponsesWSRequestTest(t)
+	withTieredBillingConfig(t, map[string]string{"gpt-4o": "tiered_expr"}, map[string]string{"gpt-4o": "p * 2"})
+	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}, &model.Ability{}))
+	oldCount, oldLogs, oldDisable := constant.CountToken, common.LogConsumeEnabled, common.AutomaticDisableChannelEnabled
+	constant.CountToken, common.LogConsumeEnabled, common.AutomaticDisableChannelEnabled = false, false, true
+	t.Cleanup(func() {
+		constant.CountToken, common.LogConsumeEnabled, common.AutomaticDisableChannelEnabled = oldCount, oldLogs, oldDisable
+	})
+	service.InitHttpClient()
+	var calls atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		assert.Equal(t, "/v1/responses", r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"resp_test","object":"response","status":"completed","model":"gpt-4o","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"hi"}]}],"usage":{"input_tokens":1,"output_tokens":1,"total_tokens":2}}`))
+	}))
+	defer upstream.Close()
+	channel := &model.Channel{Name: "test-restriction", Type: constant.ChannelTypeOpenAI, Key: "test", BaseURL: &upstream.URL, Status: common.ChannelStatusEnabled, Models: "gpt-4o", Group: "default", ResponseTime: 123}
+	channel.SetSetting(dto.ChannelSettings{RouteRestriction: &dto.ChannelRouteRestriction{AllowedPaths: []string{"/v1/responses"}}})
+	require.NoError(t, channel.Insert())
+	result := testChannel(context.Background(), channel, user.Id, "gpt-4o", string(constant.EndpointTypeOpenAI), false)
+	require.NotNil(t, result.newAPIError)
+	assert.Equal(t, kittypes.ErrorCodeChannelRouteRestricted, result.newAPIError.GetErrorCode())
+	assert.False(t, service.ShouldDisableChannel(result.newAPIError))
+	assert.Zero(t, calls.Load())
+	result = testChannel(context.Background(), channel, user.Id, "gpt-4o", "", false)
+	require.NoError(t, result.localErr)
+	require.Nil(t, result.newAPIError)
+	assert.EqualValues(t, 1, calls.Load())
+	channel.SetSetting(dto.ChannelSettings{RouteRestriction: &dto.ChannelRouteRestriction{AllowedPaths: []string{"/v1/audio/speech"}}})
+	summary := testChannelForHealthCheck(context.Background(), channel, user.Id, true, -1)
+	assert.Equal(t, channelTestSummary{Tested: 1, Failed: 1}, summary)
+	var loaded model.Channel
+	require.NoError(t, model.DB.First(&loaded, channel.Id).Error)
+	assert.Equal(t, common.ChannelStatusEnabled, loaded.Status)
+	assert.Equal(t, 123, loaded.ResponseTime)
+	assert.EqualValues(t, 1, calls.Load())
+	channel.Type = constant.ChannelTypeAdvancedCustom
+	channel.SetSetting(dto.ChannelSettings{RouteRestriction: &dto.ChannelRouteRestriction{AllowedPaths: []string{"/v1/responses"}}})
+	channel.SetOtherSettings(dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{{IncomingPath: "/v1/chat/completions", UpstreamPath: "/v1/responses"}}}})
+	result = testChannel(context.Background(), channel, user.Id, "gpt-4o", "", false)
+	require.NotNil(t, result.newAPIError)
+	assert.Equal(t, kittypes.ErrorCodeChannelRouteRestricted, result.newAPIError.GetErrorCode())
+	assert.EqualValues(t, 1, calls.Load())
+}
+
+func TestChannelRouteRestrictionOriginSubmissions(t *testing.T) {
+	user, _ := setupResponsesWSRequestTest(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.Task{}, &model.Midjourney{}))
+	channel := &model.Channel{Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled, Key: "test", Group: "default", Models: "model"}
+	channel.SetSetting(dto.ChannelSettings{RouteRestriction: &dto.ChannelRouteRestriction{AllowedPaths: []string{"/v1/responses"}}})
+	require.NoError(t, channel.Insert())
+	t.Run("video remix checks the origin channel before submitting", func(t *testing.T) {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos/origin/remix", strings.NewReader(`{}`))
+		info := taskSubmissionRelayInfo(nil)
+		info.LockedChannel = channel
+		_, taskErr := executeTaskSubmissionWith(c, info, func(*gin.Context, *relaycommon.RelayInfo) (*relay.TaskSubmitResult, *filterdto.TaskError) {
+			t.Fatal("a restricted origin channel must not receive a submission")
+			return nil, nil
+		})
+		require.NotNil(t, taskErr)
+		assert.Equal(t, "channel_route_restricted", taskErr.Code)
+		assert.Equal(t, http.StatusBadRequest, taskErr.StatusCode)
+	})
+	t.Run("midjourney changes check the actual origin channel", func(t *testing.T) {
+		task := &model.Midjourney{UserId: user.Id, ChannelId: channel.Id, MjId: "origin", Status: "SUCCESS", Prompt: "test"}
+		require.NoError(t, model.DB.Create(task).Error)
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/mj/submit/change", strings.NewReader(`{"taskId":"origin","action":"UPSCALE","index":1}`))
+		c.Request.Header.Set("Content-Type", "application/json")
+		t.Cleanup(func() { common.CleanupBodyStorage(c) })
+		info := &relaycommon.RelayInfo{UserId: user.Id, RelayMode: relayconstant.RelayModeMidjourneyChange}
+		result := relay.RelayMidjourneySubmit(c, info)
+		require.NotNil(t, result)
+		assert.Equal(t, "channel_route_restricted", result.Description)
+	})
+}
+
+func TestChannelRouteRestrictionWebSocket(t *testing.T) {
+	var requests atomic.Int32
+	fixture := newResponsesWSBillingTest(t, `p * 2`, func(ws *websocket.Conn, r *http.Request) {
+		for {
+			if _, _, err := ws.ReadMessage(); err != nil {
+				return
+			}
+			requests.Add(1)
+			if err := ws.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.completed","response":{"id":"resp_route","status":"completed","model":"ws-billing","output":[],"usage":{"input_tokens":1000,"output_tokens":10,"total_tokens":1010}}}`)); err != nil {
+				return
+			}
+		}
+	})
+	var channel model.Channel
+	require.NoError(t, model.DB.First(&channel).Error)
+	for _, tc := range []struct {
+		path, eventType string
+		requests        int32
+	}{
+		{"/v1/chat/completions", "error", 0},
+		{"/v1/responses", "response.completed", 1},
+		{"/v1/chat/completions", "error", 1},
+	} {
+		channel.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: true, RouteRestriction: &dto.ChannelRouteRestriction{AllowedPaths: []string{tc.path}}})
+		require.NoError(t, model.DB.Model(&channel).Update("setting", channel.Setting).Error)
+		require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"hi"}`)))
+		event := readResponsesWSTestEvent(t, fixture.client)
+		require.Equal(t, tc.eventType, event["type"], event)
+		assert.Equal(t, tc.requests, requests.Load())
+	}
+	fixture.closeAndWait(t)
+	assertResponsesWSAccounting(t, fixture, []int{1000})
+}
 
 func TestGetChannelDefaultBaseURLsUsesBuiltInDefaults(t *testing.T) {
 	originalBaseURLs := constant.ChannelBaseURLs

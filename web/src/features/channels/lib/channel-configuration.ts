@@ -47,7 +47,13 @@ const CONFIGURATION_BLOCKS = {
   modelMapping: { section: 'routing', fields: ['model_mapping'] },
   routingStrategy: {
     section: 'routing',
-    fields: ['priority', 'weight', 'test_model', 'auto_ban'],
+    fields: [
+      'priority',
+      'weight',
+      'test_model',
+      'auto_ban',
+      'route_restriction',
+    ],
   },
   overrideRules: {
     section: 'request',
@@ -108,8 +114,9 @@ export type ChannelConfigurationBlock = keyof typeof CONFIGURATION_BLOCKS
 export function getChannelConfigurationSection(
   field: string
 ): ChannelConfigurationSection {
+  const rootField = field.split('.')[0]
   for (const block of Object.values(CONFIGURATION_BLOCKS)) {
-    if ((block.fields as readonly string[]).includes(field)) {
+    if ((block.fields as readonly string[]).includes(rootField)) {
       return block.section
     }
   }
@@ -139,6 +146,7 @@ export function getChannelConfigurationState(
   const configured: Record<ChannelConfigurationBlock, boolean> = {
     modelMapping: hasConfiguredJson(values.model_mapping),
     routingStrategy: Boolean(
+      values.route_restriction ||
       values.priority ||
       values.weight ||
       values.test_model?.trim() ||

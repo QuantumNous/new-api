@@ -158,6 +158,7 @@ func buildChannelListQuery(group string, statusFilter int, typeFilter int) *gorm
 func GetChannelOps(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{
 		"retry_times": common.RetryTimes,
+		"route_paths": dto.ChannelRoutePaths(),
 	})
 }
 
