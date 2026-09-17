@@ -162,7 +162,8 @@ export function CiLandingPage(props: LandingPageProps) {
               <div className='ci-heroCopy'>
                 <div className='ci-heroBrand'>
                   <CiMark size={56} />
-                  <span>{PRODUCT_NAME}</span>
+                  <span className='ci-heroProductName'>{PRODUCT_NAME}</span>
+                  <span className='ci-heroBrandBadge'>yeschoy</span>
                 </div>
                 <h1
                   className={cn(

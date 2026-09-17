@@ -123,6 +123,7 @@ For commercial licensing, please contact support@quantumnous.com
 }
 .ci-liquidHome .ci-heroBrand {
   display: flex;
+  max-width: 100%;
   align-items: center;
   justify-content: center;
   gap: 12px;
@@ -131,6 +132,26 @@ For commercial licensing, please contact support@quantumnous.com
   font-size: clamp(2rem, 3.3vw, 3rem);
   font-weight: 650;
   letter-spacing: -0.04em;
+}
+.ci-liquidHome .ci-heroProductName,
+.ci-liquidHome .ci-heroBrandBadge {
+  flex: none;
+}
+.ci-liquidHome .ci-heroBrandBadge {
+  padding: 0.5rem 0.68rem;
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 34%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 72%),
+    0 8px 22px -14px rgb(54 74 41 / 48%);
+  -webkit-backdrop-filter: blur(14px) saturate(145%);
+  backdrop-filter: blur(14px) saturate(145%);
+  color: #3f503d;
+  font-size: clamp(0.68rem, 1.1vw, 0.8rem);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.08em;
 }
 .ci-liquidHome .ci-heroCopy h1 {
   max-width: 1000px;
@@ -282,6 +303,14 @@ For commercial licensing, please contact support@quantumnous.com
 .ci-liquidHome[data-theme='dark'] :is(.ci-heroBrand, .ci-heroCopy h1) {
   color: #f2f4e6;
 }
+.ci-liquidHome[data-theme='dark'] .ci-heroBrandBadge {
+  border-color: rgb(232 241 218 / 28%);
+  background: rgb(255 255 255 / 10%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 16%),
+    0 8px 22px -14px rgb(0 0 0 / 65%);
+  color: #e1ead8;
+}
 .ci-liquidHome[data-theme='dark']
   :is(.ci-heroCopy > p, .ci-heroCopy .ci-trustRow) {
   color: #d1d9c8;
@@ -353,8 +382,9 @@ For commercial licensing, please contact support@quantumnous.com
     border-radius: 24px;
   }
   .ci-liquidHome .ci-heroBrand {
-    font-size: 34px;
+    gap: 10px;
     margin-bottom: 22px;
+    font-size: 34px;
   }
   .ci-liquidHome .ci-heroBrand img {
     width: 46px;
@@ -372,6 +402,18 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 @media (max-width: 520px) {
+  .ci-liquidHome .ci-heroBrand {
+    gap: 8px;
+    font-size: clamp(1.75rem, 9vw, 2.125rem);
+  }
+  .ci-liquidHome .ci-heroBrand img {
+    width: 40px;
+    height: 40px;
+  }
+  .ci-liquidHome .ci-heroBrandBadge {
+    padding: 0.45rem 0.58rem;
+    font-size: 0.66rem;
+  }
   .ci-liquidHome .ci-heroCopy .ci-heroActions--primary {
     width: min(100%, 20rem);
     flex-direction: column;

@@ -133,6 +133,18 @@ describe('terminal sidebar transitions', () => {
     expect(screen.getByRole('link', { name: 'API keys' })).toBeVisible()
   })
 
+  it('keeps one community entry in the terminal top bar', async () => {
+    await renderLayout()
+
+    const topbar = screen.getByRole('banner')
+    expect(
+      within(topbar).getByRole('button', { name: 'Community' })
+    ).toBeVisible()
+    expect(
+      within(topbar).getAllByRole('button', { name: 'Community' })
+    ).toHaveLength(1)
+  })
+
   it('keeps search input and page state while collapsing and reopening', async () => {
     const user = userEvent.setup()
     await renderLayout()

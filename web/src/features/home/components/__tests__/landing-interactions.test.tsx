@@ -23,6 +23,7 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { PRODUCT_NAME } from '@/lib/product-brand'
 import { useAuthStore } from '@/stores/auth-store'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 import { createTestAuthBundle } from '@/test-utils/auth-bundle'
@@ -66,6 +67,44 @@ const models = buildModelCatalog(
 )
 
 describe('landing interactions and price layout', () => {
+  it('keeps the hero brand in mark, product, and yeschoy capsule order', async () => {
+    style.textContent = readFileSync(
+      'src/features/home/components/home-glass.css',
+      'utf8'
+    )
+    const { container } = await renderApp(
+      <CiLandingPage
+        isAuthenticated={false}
+        models={models}
+        maxSavingsPercent={0}
+      />,
+      client
+    )
+
+    const brand = container.querySelector('.ci-heroBrand')
+    if (!brand) throw new Error('Missing hero brand')
+    expect(brand.children).toHaveLength(3)
+    expect(brand.children[0]).toHaveClass('ci-mark')
+    expect(brand.children[1]).toHaveClass('ci-heroProductName')
+    expect(brand.children[1]).toHaveTextContent(PRODUCT_NAME)
+    expect(brand.children[2]).toHaveClass('ci-heroBrandBadge')
+    expect(brand.children[2]).toHaveTextContent('yeschoy')
+
+    const badge = brand.children[2]
+    expect(getComputedStyle(badge).borderRadius).toBe('999px')
+    expect(getComputedStyle(badge).color).toBe('rgb(63, 80, 61)')
+    const landing = container.querySelector('.ci-liquidHome')
+    if (!landing) throw new Error('Missing landing page')
+    landing.setAttribute('data-theme', 'dark')
+    expect(getComputedStyle(badge).color).toBe('rgb(225, 234, 216)')
+
+    expect(
+      within(screen.getByRole('banner')).getByRole('button', {
+        name: 'Community',
+      })
+    ).toBeVisible()
+  })
+
   it('shows the signed-in account menu and overview entry instead of sign-in links', async () => {
     const user = userEvent.setup()
     const bundle = createTestAuthBundle()
@@ -78,6 +117,9 @@ describe('landing interactions and price layout', () => {
       client
     )
     const header = screen.getByRole('banner')
+    expect(
+      within(header).getByRole('button', { name: 'Community' })
+    ).toBeVisible()
     expect(
       within(header).queryByRole('link', { name: 'Sign in' })
     ).not.toBeInTheDocument()
