@@ -151,20 +151,41 @@ it('opens long channel text on tap and copies the complete value', async () => {
   ).toHaveFocus()
 })
 
-it('keeps the model clamped to two lines and exposes its full value with keyboard input', async () => {
-  const user = userEvent.setup()
-  renderLogs()
-  const button = screen.getByRole('button', { name: `Model: ${longName}` })
-  expect(within(button).getByText(longName)).toHaveClass(
-    'line-clamp-2',
-    '[overflow-wrap:anywhere]'
-  )
-  button.focus()
-  await user.keyboard('{Enter}')
-  expect(
-    await screen.findByRole('dialog', { name: 'Model' })
-  ).toHaveTextContent(longName)
-})
+it.each([false, true])(
+  'copies the full mobile model name with the keyboard without opening details when there is no mapping or difference (response observed: %s)',
+  async (observed) => {
+    const user = userEvent.setup()
+    const copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
+    renderLogs({
+      logs: [
+        {
+          ...log,
+          other: observed
+            ? JSON.stringify({
+                response_model: {
+                  requested_model: longName,
+                  upstream_model: longName,
+                  returned_model: longName,
+                  mismatch: false,
+                },
+              })
+            : log.other,
+        },
+      ],
+    })
+    const button = screen.getByRole('button', { name: `Model: ${longName}` })
+    expect(within(button).getByText(longName)).toHaveClass(
+      'line-clamp-2',
+      '[overflow-wrap:anywhere]'
+    )
+    button.focus()
+    await user.keyboard('{Enter}')
+    expect(copy).toHaveBeenCalledWith(longName)
+    expect(
+      screen.queryByRole('dialog', { name: 'Model' })
+    ).not.toBeInTheDocument()
+  }
+)
 
 it('hides sensitive names and disables full-text inspection when privacy is enabled', async () => {
   const user = userEvent.setup()

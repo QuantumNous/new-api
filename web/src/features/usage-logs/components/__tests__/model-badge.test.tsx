@@ -301,7 +301,7 @@ it('preserves model names and input order when grouping models', () => {
   })
 })
 
-it('shows the OpenAI icon in the mobile inspection button', () => {
+it('shows the OpenAI icon in the mobile model button', () => {
   render(
     <ModelBadge modelName='codex-auto-review' wrapText onInspect={vi.fn()} />
   )
@@ -347,12 +347,37 @@ it('opens the mismatch evidence with the keyboard and shows all three models', a
   ).toBeVisible()
 })
 
-it('shows a matching response model without a warning and leaves old logs unmarked', async () => {
+it.each([false, true])(
+  'copies the model without opening details when there is no mapping or difference (response observed: %s)',
+  async (observed) => {
+    const user = userEvent.setup()
+    const copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
+    render(
+      <ModelBadge
+        modelName='requested-model'
+        responseModel={
+          observed
+            ? {
+                requested_model: 'requested-model',
+                upstream_model: 'requested-model',
+                returned_model: 'requested-model',
+                mismatch: false,
+              }
+            : undefined
+        }
+      />
+    )
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    await user.click(screen.getByText('requested-model'))
+    expect(copy).toHaveBeenCalledWith('requested-model')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.queryByText('Response Model')).not.toBeInTheDocument()
+  }
+)
+
+it('keeps mapped model details available when the response matches the upstream model', async () => {
   const user = userEvent.setup()
-  const view = render(<ModelBadge modelName='requested-model' />)
-  expect(screen.queryByText(/^Response model:/)).not.toBeInTheDocument()
-  expect(screen.queryByRole('button')).not.toBeInTheDocument()
-  view.rerender(
+  render(
     <ModelBadge
       modelName='requested-model'
       responseModel={{

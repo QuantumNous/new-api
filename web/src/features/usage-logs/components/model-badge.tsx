@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { AlertTriangle, Route } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { CopyButton } from '@/components/copy-button'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -42,13 +43,13 @@ interface ModelBadgeProps {
   onInspect?: () => void
 }
 
-function ModelBadgeContent(props: ModelBadgeProps) {
+function ModelBadgeContent(props: ModelBadgeProps & { copyable: boolean }) {
   const provider = resolveModelProvider(props.modelName)
 
   return (
     <StatusBadge
       copyText={props.modelName}
-      copyable={!props.onInspect && !props.actualModel && !props.responseModel}
+      copyable={props.copyable}
       size='sm'
       showDot={!provider?.icon}
       autoColor={provider?.icon ? undefined : props.modelName}
@@ -96,9 +97,38 @@ export function ModelBadge(props: ModelBadgeProps) {
       })
     : ''
   const modelLabel = `${t('Model')}: ${props.modelName}${responseModelLabel ? `, ${responseModelLabel}` : ''}`
+  const hasDetails =
+    !!props.actualModel ||
+    !!(
+      props.responseModel &&
+      (props.responseModel.mismatch ||
+        props.responseModel.returned_model !==
+          props.responseModel.requested_model ||
+        (props.responseModel.upstream_model &&
+          props.responseModel.upstream_model !==
+            props.responseModel.requested_model))
+    )
+
+  if (!hasDetails) {
+    if (props.onInspect) {
+      return (
+        <CopyButton
+          value={props.modelName}
+          aria-label={modelLabel}
+          size='sm'
+          iconClassName='hidden'
+          className='h-auto min-h-8 max-w-full min-w-0 justify-start px-0 py-0 text-left font-normal whitespace-normal'
+        >
+          <ModelBadgeContent {...props} copyable={false} />
+        </CopyButton>
+      )
+    }
+    return <ModelBadgeContent {...props} copyable />
+  }
+
   const content = (
     <>
-      <ModelBadgeContent {...props} />
+      <ModelBadgeContent {...props} copyable={false} />
       {props.responseModel?.mismatch && (
         <StatusBadge
           icon={AlertTriangle}
@@ -128,10 +158,6 @@ export function ModelBadge(props: ModelBadgeProps) {
         {content}
       </Button>
     )
-  }
-
-  if (!props.actualModel && !props.responseModel) {
-    return <ModelBadgeContent {...props} />
   }
 
   return (
