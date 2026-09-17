@@ -341,6 +341,7 @@ async function verifyOAuth(
         params: {
           state: callback.state,
           code: callback.code,
+          redirect_origin: window.location.origin,
           error: callback.error,
           error_description: callback.errorDescription,
         },
