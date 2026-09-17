@@ -24,7 +24,7 @@ func AttachRequest(format types.RelayFormat, request any, set Set, options *conv
 	)
 	switch format {
 	case types.RelayFormatOpenAI:
-		value, diagnostics, err = attachOpenAIChatRequest(request, set)
+		value, diagnostics, err = attachOpenAIChatRequest(request, set, options)
 	case types.RelayFormatOpenAIResponses:
 		value, diagnostics, err = attachOpenAIResponsesRequest(request, set)
 	case types.RelayFormatClaude:
@@ -47,7 +47,7 @@ func AttachRequest(format types.RelayFormat, request any, set Set, options *conv
 	return value, diagnostics, nil
 }
 
-func attachOpenAIChatRequest(request any, set Set) (any, []types.ConversionDiagnostic, error) {
+func attachOpenAIChatRequest(request any, set Set, options *convmeta.Options) (any, []types.ConversionDiagnostic, error) {
 	target, ok := request.(*dto.GeneralOpenAIRequest)
 	if !ok || target == nil {
 		return nil, nil, fmt.Errorf("expected OpenAI chat completions request, got %T", request)
@@ -68,6 +68,18 @@ func attachOpenAIChatRequest(request any, set Set) (any, []types.ConversionDiagn
 					Strict:      definition.Function.Strict,
 				},
 			})
+			if options != nil {
+				if options.ResponsesToChatTools == nil {
+					options.ResponsesToChatTools = make(map[string]convmeta.ResponsesToolIdentity)
+				}
+				kind := "function"
+				if definition.NativeType == "mcp" {
+					kind = "mcp"
+				}
+				options.ResponsesToChatTools[definition.Function.Name] = convmeta.ResponsesToolIdentity{
+					Kind: kind, Name: definition.Name, Namespace: definition.Namespace, ServerLabel: definition.ServerName,
+				}
+			}
 		case KindWebSearch:
 			if set.Source == types.RelayFormatGemini {
 				diagnostics = append(diagnostics, geminiNativeWebSearchDiagnostics(index, definition, types.RelayFormatOpenAI)...)
@@ -342,6 +354,14 @@ func attachGeminiRequest(request any, set Set) (any, []types.ConversionDiagnosti
 		switch definition.Kind {
 		case KindFunction:
 			if definition.Function == nil {
+				continue
+			}
+			if set.Source == types.RelayFormatOpenAIResponses && definition.NativeType == "custom" {
+				diagnostics = append(diagnostics, presentationLoss(
+					fmt.Sprintf("tools[%d]", index),
+					"custom_tool_omitted",
+					"Gemini cannot represent this OpenAI free-form tool; its preprocessed call history and definition were omitted",
+				))
 				continue
 			}
 			parameters := definition.Function.Parameters
