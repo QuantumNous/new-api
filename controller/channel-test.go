@@ -507,7 +507,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		PromptTokens:     usage.PromptTokens,
 		CompletionTokens: usage.CompletionTokens,
 		ModelName:        info.OriginModelName,
-		TokenName:        "Model Test",
+		TokenName:        "model-test",
 		Quota:            quota,
 		Content:          "Model Test",
 		UseTimeSeconds:   int(consumedTime),
