@@ -308,6 +308,24 @@ func TestGeneralOpenAIRequestPreserveMessageLevelTools(t *testing.T) {
 	assert.Contains(t, meta.CombineText, "lookup_order")
 }
 
+func TestOpenAIResponsesRequestCombineTextIncludesFunctionCallOutput(t *testing.T) {
+	raw := []byte(`{
+		"model":"gpt-5.6-luna",
+		"input":[
+			{"role":"user","content":"你好"},
+			{"type":"function_call_output","call_id":"call_1","output":"敏感词"}
+		]
+	}`)
+
+	var req OpenAIResponsesRequest
+	require.NoError(t, kitutil.Unmarshal(raw, &req))
+
+	meta := req.GetTokenCountMeta()
+	require.NotNil(t, meta)
+	assert.Contains(t, meta.CombineText, "你好")
+	assert.Contains(t, meta.CombineText, "敏感词")
+}
+
 func TestSGLangRequestExtensionsRoundTrip(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
