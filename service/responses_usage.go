@@ -3,9 +3,12 @@ package service
 import (
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	"github.com/gin-gonic/gin"
 )
 
 // ResponsesUsageAccumulator owns the accounting facts for one Responses stream.
@@ -64,7 +67,7 @@ func (a *ResponsesUsageAccumulator) Observe(event *dto.ResponsesStreamResponse) 
 	}
 }
 
-func (a *ResponsesUsageAccumulator) Finish() *dto.Usage {
+func (a *ResponsesUsageAccumulator) Finish(c *gin.Context) *dto.Usage {
 	if a.finished {
 		return a.usage
 	}
@@ -79,10 +82,12 @@ func (a *ResponsesUsageAccumulator) Finish() *dto.Usage {
 	if a.usage.CompletionTokens == 0 {
 		if output := a.outputText.String(); output != "" {
 			a.usage.CompletionTokens = CountTextToken(output, a.info.GetUpstreamModelName())
+			common.SetContextKey(c, constant.ContextKeyLocalCountTokens, true)
 		}
 	}
 	if a.usage.PromptTokens == 0 && a.usage.CompletionTokens != 0 {
 		a.usage.PromptTokens = a.info.GetEstimatePromptTokens()
+		common.SetContextKey(c, constant.ContextKeyLocalCountTokens, true)
 	}
 	a.usage.TotalTokens = a.usage.PromptTokens + a.usage.CompletionTokens
 	if a.usage.BillingUsage != nil {

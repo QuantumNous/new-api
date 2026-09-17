@@ -350,7 +350,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			if incoming.err != nil {
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, incoming.err)
 				state.closeAfter = true
-				ConsumeResponsesQuota(c, info, accumulator.Finish())
+				ConsumeResponsesQuota(c, info, accumulator.Finish(c))
 				return nil
 			}
 			info.SetFirstResponseTime()
@@ -389,7 +389,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				}
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
 				state.terminal = &incoming
-				ConsumeResponsesQuota(c, info, accumulator.Finish())
+				ConsumeResponsesQuota(c, info, accumulator.Finish(c))
 				return nil
 			}
 			if err := s.writeClient(incoming.kind, incoming.body); err != nil {
@@ -412,11 +412,11 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 		case <-idle.C:
 			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, context.DeadlineExceeded)
 			state.closeAfter = true
-			ConsumeResponsesQuota(c, info, accumulator.Finish())
+			ConsumeResponsesQuota(c, info, accumulator.Finish(c))
 			return nil
 		case <-s.ctx.Done():
 			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonClientGone, s.ctx.Err())
-			ConsumeResponsesQuota(c, info, accumulator.Finish())
+			ConsumeResponsesQuota(c, info, accumulator.Finish(c))
 			return nil
 		}
 	}

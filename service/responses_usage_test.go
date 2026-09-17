@@ -1,11 +1,16 @@
 package service
 
 import (
+	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,6 +30,7 @@ func TestResponsesUsageAccumulatorTerminalAccounting(t *testing.T) {
 		{eventType: "response.canceled"},
 	} {
 		t.Run(tc.eventType, func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 			info := &relaycommon.RelayInfo{OriginModelName: "gpt-5.1"}
 			accumulator := NewResponsesUsageAccumulator(info)
 			for _, item := range []dto.ResponsesOutput{
@@ -47,7 +53,7 @@ func TestResponsesUsageAccumulatorTerminalAccounting(t *testing.T) {
 			}
 			accumulator.Observe(terminal)
 			accumulator.Observe(terminal)
-			usage := accumulator.Finish()
+			usage := accumulator.Finish(ctx)
 
 			assert.Equal(t, 20, usage.PromptTokens)
 			assert.Equal(t, 5, usage.CompletionTokens)
@@ -56,6 +62,8 @@ func TestResponsesUsageAccumulatorTerminalAccounting(t *testing.T) {
 			require.NotNil(t, usage.BillingUsage)
 			assert.Equal(t, upstream.BillingUsage, usage.BillingUsage)
 			assert.NotSame(t, upstream.BillingUsage, usage.BillingUsage)
+			assert.False(t, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens))
+			assert.Equal(t, "billing-usage-openai", usageBillingPathForLog(false, usage))
 			tools := info.ResponsesUsageInfo.BuiltInTools
 			for _, name := range []string{dto.BuildInToolWebSearchPreview, dto.BuildInToolFileSearch, "responses_priced_fn"} {
 				require.Contains(t, tools, name)
@@ -69,45 +77,71 @@ func TestResponsesUsageAccumulatorTerminalAccounting(t *testing.T) {
 }
 
 func TestResponsesUsageAccumulatorInterruptedTextFallback(t *testing.T) {
-	for _, withUsage := range []bool{false, true} {
-		name := "disconnect without terminal usage"
-		if withUsage {
-			name = "failed response preserves native billing usage"
-		}
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		withUsage    bool
+		withSnapshot bool
+	}{
+		{name: "disconnect without terminal usage"},
+		{name: "failed response without billing snapshot", withUsage: true},
+		{name: "failed response preserves native billing usage", withUsage: true, withSnapshot: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gpt-4o"}}
 			info.SetEstimatePromptTokens(100)
 			accumulator := NewResponsesUsageAccumulator(info)
 			accumulator.Observe(&dto.ResponsesStreamResponse{Type: "response.output_text.delta", Delta: "hello"})
-			if withUsage {
+			if tc.withUsage {
 				upstream := &dto.Usage{InputTokens: 20, InputTokensDetails: &dto.InputTokenDetails{CachedTokens: 4}}
-				upstream.BillingUsage = dto.NewOpenAIResponsesBillingUsage(upstream)
+				if tc.withSnapshot {
+					upstream.BillingUsage = dto.NewOpenAIResponsesBillingUsage(upstream)
+				}
 				accumulator.Observe(&dto.ResponsesStreamResponse{Type: "response.failed", Response: &dto.OpenAIResponsesResponse{Usage: upstream}})
 			}
-			usage := accumulator.Finish()
+			usage := accumulator.Finish(ctx)
 			assert.Equal(t, 1, usage.CompletionTokens)
-			if withUsage {
+			if tc.withUsage {
 				assert.Equal(t, 20, usage.PromptTokens)
 				assert.Equal(t, 21, usage.TotalTokens)
+				assert.Equal(t, 4, usage.PromptTokensDetails.CachedTokens)
+			} else {
+				assert.Equal(t, 100, usage.PromptTokens)
+				assert.Equal(t, 101, usage.TotalTokens)
+			}
+			wantPath := "local"
+			if tc.withSnapshot {
+				wantPath = "billing-usage-openai-estimated"
 				require.NotNil(t, usage.BillingUsage)
 				assert.Equal(t, dto.BillingUsageSourceOAIResponses, usage.BillingUsage.Source)
 				assert.True(t, usage.BillingUsage.Estimated)
 				canonical, ok := usage.BillingUsage.CanonicalUsage()
 				require.True(t, ok)
+				assert.Equal(t, 20, canonical.PromptTokens)
 				assert.Equal(t, 4, canonical.PromptTokensDetails.CachedTokens)
 				assert.Equal(t, 1, canonical.CompletionTokens)
 			} else {
-				assert.Equal(t, 100, usage.PromptTokens)
-				assert.Equal(t, 101, usage.TotalTokens)
+				assert.Nil(t, usage.BillingUsage)
 			}
+
+			other := model.NewLogOther()
+			AppendRelayLogAdminInfo(ctx, info, other)
+			appendUsageBillingPathForLog(other, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens), usage)
+			adminInfo, ok := other.Snapshot()["admin_info"].(map[string]any)
+			require.True(t, ok)
+			assert.Equal(t, true, adminInfo["local_count_tokens"])
+			assert.Equal(t, wantPath, adminInfo["usage_billing_path"])
+
 			accumulator.Observe(&dto.ResponsesStreamResponse{Type: "response.output_text.delta", Delta: " late output"})
-			assert.Equal(t, usage, accumulator.Finish())
+			assert.Equal(t, usage, accumulator.Finish(ctx))
 			assert.Equal(t, 1, usage.CompletionTokens)
+			assert.True(t, common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens))
 		})
 	}
 }
 
 func TestResponsesUsageAccumulatorDisconnectBillsCompletedImage(t *testing.T) {
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	info := &relaycommon.RelayInfo{OriginModelName: "gpt-5.1"}
 	accumulator := NewResponsesUsageAccumulator(info)
 	accumulator.Observe(&dto.ResponsesStreamResponse{
@@ -118,11 +152,11 @@ func TestResponsesUsageAccumulatorDisconnectBillsCompletedImage(t *testing.T) {
 		Type: dto.ResponsesOutputTypeItemDone,
 		Item: &dto.ResponsesOutput{ID: "partial-image", Type: dto.ResponsesOutputTypeImageGenerationCall, Status: "partial", Result: "partial-image-data"},
 	})
-	usage := accumulator.Finish()
+	usage := accumulator.Finish(ctx)
 	assert.Zero(t, usage.TotalTokens)
 	require.Contains(t, info.ResponsesUsageInfo.BuiltInTools, dto.BuildInToolImageGeneration)
 	assert.Equal(t, 1, info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration].CallCount)
-	accumulator.Finish()
+	accumulator.Finish(ctx)
 	assert.Equal(t, 1, info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration].CallCount)
 }
 
