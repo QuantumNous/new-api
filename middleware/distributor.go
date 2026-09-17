@@ -122,6 +122,13 @@ func Distribute() func(c *gin.Context) {
 						common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
 					}
 				}
+				retryParam := &service.RetryParam{
+					Ctx:         c,
+					ModelName:   modelRequest.Model,
+					TokenGroup:  usingGroup,
+					RequestPath: c.Request.URL.Path,
+					Retry:       common.GetPointer(0),
+				}
 
 				if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelRequest.Model, usingGroup); found {
 					affinityUsable := false
@@ -154,16 +161,15 @@ func Distribute() func(c *gin.Context) {
 					if !affinityUsable && !service.ShouldKeepChannelAffinityOnChannelDisabled() {
 						service.ClearCurrentChannelAffinityCache(c)
 					}
+					if affinityUsable {
+						if err := service.PrepareChannelPriorityPlan(retryParam, selectGroup); err != nil {
+							logger.LogWarn(c, fmt.Sprintf("failed to capture channel priority plan for group %s: %v", selectGroup, err))
+						}
+					}
 				}
 
 				if channel == nil {
-					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(&service.RetryParam{
-						Ctx:         c,
-						ModelName:   modelRequest.Model,
-						TokenGroup:  usingGroup,
-						RequestPath: c.Request.URL.Path,
-						Retry:       common.GetPointer(0),
-					})
+					channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(retryParam)
 					if err != nil {
 						showGroup := usingGroup
 						if usingGroup == "auto" {
