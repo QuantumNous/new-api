@@ -141,15 +141,17 @@ export function SidebarModulesCard() {
   const adminConfig = parseSidebarModulesAdmin(
     status?.SidebarModulesAdmin as string | null | undefined
   )
-  const visibleSectionDefs = sectionDefs.flatMap((section) => {
-    const adminSection = adminConfig[section.key]
-    if (!adminSection?.enabled) return []
+  const visibleSectionDefs = status
+    ? sectionDefs.flatMap((section) => {
+        const adminSection = adminConfig[section.key]
+        if (!adminSection?.enabled) return []
 
-    const modules = section.modules.filter(
-      (module) => adminSection[module.key] === true
-    )
-    return modules.length ? [{ ...section, modules }] : []
-  })
+        const modules = section.modules.filter(
+          (module) => adminSection[module.key] === true
+        )
+        return modules.length ? [{ ...section, modules }] : []
+      })
+    : []
 
   const loadConfig = useCallback(async () => {
     try {
@@ -159,12 +161,7 @@ export function SidebarModulesCard() {
         const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
         setConfig(parsed)
       } else {
-        const defaults: SidebarModulesConfig = {}
-        for (const sec of visibleSectionDefs) {
-          defaults[sec.key] = { enabled: true }
-          for (const mod of sec.modules) defaults[sec.key][mod.key] = true
-        }
-        setConfig(defaults)
+        setConfig({})
       }
     } catch {
       /* ignore */
@@ -227,6 +224,8 @@ export function SidebarModulesCard() {
     setConfig(defaults)
     toast.success(t('Reset to default configuration'))
   }
+
+  if (!status) return null
 
   return (
     <Card data-card-hover='false' className='gap-0 overflow-hidden py-0'>
