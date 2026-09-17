@@ -119,7 +119,7 @@ cd new-api
 nano docker-compose.yml
 
 # サービスを起動
-docker-compose up -d
+docker compose up -d
 ```
 
 <details>
@@ -359,7 +359,7 @@ cd new-api
 nano docker-compose.yml
 
 # サービスを起動
-docker-compose up -d
+docker compose up -d
 ```
 
 </details>
