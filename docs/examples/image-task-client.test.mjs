@@ -1,6 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { requestImageTask, prepareImageTaskRequest } from './image-task-client.mjs'
+import { setImmediate } from 'node:timers/promises'
 
 const id = 'a0a0a0a0-1234-4321-8765-123456789abc'
 const endpoint = 'https://example.test/v1/images/generations'
@@ -52,4 +53,104 @@ test('a transient polling failure retries GET only', async (t) => {
   })
   await requestImageTask(endpoint, 'test-only', {}, { taskId: id, pollIntervalMs: 0 })
   assert.deepEqual(methods, ['GET', 'GET', 'GET'])
+})
+
+test('result body can take over 30 seconds without cancellation', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  let stream, signal
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).endsWith('/result')) return Response.json({ status: 'succeeded' })
+    signal = init.signal
+    return new Response(new ReadableStream({ start(controller) {
+      stream = controller
+      signal.addEventListener('abort', () => controller.error(signal.reason), { once: true })
+    } }), { headers: { 'Content-Type': 'application/json' } })
+  })
+  const pending = requestImageTask(endpoint, 'test-only', {}, { taskId: id })
+  await setImmediate()
+  assert.ok(stream)
+  t.mock.timers.tick(31000)
+  assert.equal(signal.aborted, false)
+  stream.enqueue(new TextEncoder().encode('{"data":[]}'))
+  stream.close()
+  assert.deepEqual(await pending, { data: [] })
+})
+
+test('interrupted result retries the same GET and submits generation only once', async (t) => {
+  const calls = []
+  let reads = 0
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    calls.push({ url: String(url), method: init.method })
+    if (init.method === 'POST') return Response.json({ id })
+    if (!String(url).endsWith('/result')) return Response.json({ status: 'succeeded' })
+    if (++reads === 1) return new Response(new ReadableStream({ start(controller) {
+      controller.enqueue(new TextEncoder().encode('{"data":'))
+      controller.error(new TypeError('connection terminated'))
+    } }), { headers: { 'Content-Type': 'application/json' } })
+    return Response.json({ data: [{ b64_json: 'aW1hZ2U=' }] })
+  })
+  const result = await requestImageTask(endpoint, 'test-only', {}, { resultRetryDelayMs: 0 })
+  assert.equal(result.data[0].b64_json, 'aW1hZ2U=')
+  assert.equal(calls.filter(call => call.method === 'POST').length, 1)
+  assert.deepEqual(calls.filter(call => call.url.endsWith('/result')), Array(2).fill({ url: `https://example.test/v1/images/tasks/${id}/result`, method: 'GET' }))
+})
+
+test('configured download timeout retries twice, retaining request ID and original cause', async (t) => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  let reads = 0
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    assert.equal(init.method, 'GET')
+    if (!String(url).endsWith('/result')) return Response.json({ status: 'succeeded' })
+    reads++
+    return new Response(new ReadableStream({ start(controller) {
+      init.signal.addEventListener('abort', () => controller.error(init.signal.reason), { once: true })
+    } }), { headers: { 'Content-Type': 'application/json', 'X-Request-Id': 'saved-request' } })
+  })
+  const pending = assert.rejects(requestImageTask(endpoint, 'test-only', {}, {
+    taskId: id, resultTimeoutMs: 45000, resultRetryDelayMs: 10,
+  }), error => {
+    assert.equal(error.code, 'REQUEST_TIMEOUT')
+    assert.equal(error.taskId, id)
+    assert.equal(error.requestId, 'saved-request')
+    assert.equal(error.cause.code, 'READ_RESPONSE_FAILED')
+    assert.equal(error.cause.cause.name, 'TimeoutError')
+    return true
+  })
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await setImmediate()
+    assert.equal(reads, attempt)
+    t.mock.timers.tick(45000)
+    await setImmediate()
+    t.mock.timers.tick(10)
+  }
+  await pending
+  assert.equal(reads, 3)
+})
+
+test('user cancellation during download does not retry', async (t) => {
+  const controller = new AbortController()
+  let reads = 0
+  t.mock.method(globalThis, 'fetch', async (url, init) => {
+    if (!String(url).endsWith('/result')) return Response.json({ status: 'succeeded' })
+    reads++
+    return new Response(new ReadableStream({ start(stream) {
+      init.signal.addEventListener('abort', () => stream.error(init.signal.reason), { once: true })
+    } }), { headers: { 'Content-Type': 'application/json' } })
+  })
+  const pending = assert.rejects(requestImageTask(endpoint, 'test-only', {}, { taskId: id, signal: controller.signal }), { code: 'READ_RESPONSE_FAILED', taskId: id })
+  await setImmediate()
+  controller.abort()
+  await pending
+  assert.equal(reads, 1)
+})
+
+test('saved upstream failure is returned without retrying its result', async (t) => {
+  let reads = 0
+  t.mock.method(globalThis, 'fetch', async url => {
+    if (!String(url).endsWith('/result')) return Response.json({ status: 'failed' })
+    reads++
+    return Response.json({ error: { code: 'upstream_error', message: 'Generation failed' } }, { status: 500 })
+  })
+  await assert.rejects(requestImageTask(endpoint, 'test-only', {}, { taskId: id }), { code: 'upstream_error' })
+  assert.equal(reads, 1)
 })

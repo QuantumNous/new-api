@@ -149,12 +149,13 @@ func TestAPIImageTaskDetachedIdempotentBillingAndAccess(t *testing.T) {
 	assert.Equal(t, "unknown", saved.Status)
 }
 
-func TestAPIImageTaskRejectsStreamAndOtherTokenResults(t *testing.T) {
+func TestAPIImageTaskSubmissionKeepsTransportContract(t *testing.T) {
 	r, token, _ := setupAPIImageTasks(t)
 	bad := apiTaskCall(t, r, token, "POST", "/v1/images/tasks", uuid.NewString(), `{"model":"gpt-image-2","prompt":"test","stream":true}`)
 	assert.Equal(t, 400, bad.Code)
 	assert.Equal(t, 400, apiTaskCall(t, r, token, "POST", "/v1/images/tasks", "", `{"model":"gpt-image-2","prompt":"test"}`).Code)
-	assert.Equal(t, 400, apiTaskCall(t, r, token, "POST", "/v1/images/tasks", uuid.NewString(), `{"model":"gpt-image-2","prompt":"test","images":[{}]}`).Code)
+	assert.Equal(t, 202, apiTaskCall(t, r, token, "POST", "/v1/images/tasks", uuid.NewString(), `{"model":"gpt-image-2","prompt":"test","images":[{}]}`).Code)
+	assert.Equal(t, 202, apiTaskCall(t, r, token, "POST", "/v1/images/tasks", uuid.NewString(), `{"model":"gpt-image-2","prompt":"test","n":21}`).Code)
 }
 
 func TestAPIImageTaskReferencesUseJSONEditRoute(t *testing.T) {

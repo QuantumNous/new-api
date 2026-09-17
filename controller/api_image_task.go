@@ -60,17 +60,9 @@ func CreateAPIImageTask(c *gin.Context) {
 		apiImageTaskError(c, 400, "invalid_request", "Async tasks return JSON; stream must be false")
 		return
 	}
-	if _, err := service.ValidateJSONImageReferences(input.Images); err != nil {
-		apiImageTaskError(c, 400, "invalid_reference_image", err.Error())
-		return
-	}
 	count := 1
 	if input.N != nil {
 		count = int(*input.N)
-	}
-	if count < 1 || count > 20 {
-		apiImageTaskError(c, 400, "invalid_request", "Async requests support 1 to 20 images")
-		return
 	}
 	if c.GetBool("token_model_limit_enabled") {
 		value, _ := c.Get("token_model_limit")
@@ -259,12 +251,8 @@ func executeAPIImageTask(task *model.APIImageTask) {
 	if common.Unmarshal(body, &input) != nil {
 		return
 	}
-	edits, err := service.ValidateJSONImageReferences(input.Images)
-	if err != nil {
-		return
-	}
 	requestPath := "/v1/images/generations"
-	if edits {
+	if service.HasJSONImageReferences(input.Images) {
 		requestPath = "/v1/images/edits"
 	}
 	req, err := http.NewRequestWithContext(ctx, "POST", requestPath, bytes.NewReader(body))

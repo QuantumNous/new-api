@@ -1,7 +1,7 @@
 /** A dependency-free JSON reader for external image API clients. No retry. */
 export class ImageRequestError extends Error {
-  constructor(message, status, code, requestId) {
-    super(message)
+  constructor(message, status, code, requestId, cause) {
+    super(message, cause === undefined ? undefined : { cause })
     this.name = 'ImageRequestError'
     this.status = status
     this.code = code
@@ -35,8 +35,8 @@ export async function readImageResponse(response) {
   try {
     // Read exactly once. Parsing the saved string never reads the network again.
     raw = await response.text()
-  } catch {
-    throw new ImageRequestError('响应读取失败，无法确认生图结果。请先核对任务记录，不要自动重新提交。', response.status, 'READ_RESPONSE_FAILED', requestId)
+  } catch (cause) {
+    throw new ImageRequestError('响应读取失败，无法确认生图结果。请先核对任务记录，不要自动重新提交。', response.status, 'READ_RESPONSE_FAILED', requestId, cause)
   }
   let body
   try {

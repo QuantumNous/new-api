@@ -10,7 +10,7 @@ import (
 )
 
 // Accept the public URL-array form and the OpenAI-compatible image_url form.
-// Never accept empty objects produced by JSON.stringify(Blob).
+// Interpret known structures for provider adaptation; validation belongs upstream.
 func JSONImageReferences(raw json.RawMessage) ([]string, error) {
 	if len(raw) == 0 || string(raw) == "null" {
 		return nil, nil
@@ -21,29 +21,34 @@ func JSONImageReferences(raw json.RawMessage) ([]string, error) {
 	}
 	refs := make([]string, 0, len(items))
 	for _, item := range items {
+		if strings.TrimSpace(string(item)) == "null" {
+			return nil, errors.New("unrecognized reference image")
+		}
 		var location string
 		if common.Unmarshal(item, &location) != nil {
 			var object struct {
-				URL string `json:"image_url"`
+				URL *string `json:"image_url"`
 			}
-			if common.Unmarshal(item, &object) != nil {
+			if common.Unmarshal(item, &object) != nil || object.URL == nil {
 				return nil, errors.New("invalid reference image")
 			}
-			location = object.URL
-		}
-		parsed, err := url.Parse(location)
-		valid := err == nil && ((parsed.Scheme == "https" || parsed.Scheme == "http") && parsed.Host != "" || strings.HasPrefix(location, "data:image/"))
-		if !valid {
-			return nil, errors.New("reference image must be an HTTP(S) URL or image data URL; do not serialize Blob as an empty object")
+			location = *object.URL
 		}
 		refs = append(refs, location)
 	}
 	return refs, nil
 }
 
-func ValidateJSONImageReferences(raw json.RawMessage) (bool, error) {
-	refs, err := JSONImageReferences(raw)
-	return len(refs) > 0, err
+func HasJSONImageReferences(raw json.RawMessage) bool {
+	value := strings.TrimSpace(string(raw))
+	if value == "" || value == "null" {
+		return false
+	}
+	var items []json.RawMessage
+	if common.Unmarshal(raw, &items) == nil {
+		return len(items) > 0
+	}
+	return true
 }
 
 // GoEasy documents a URL string array; CPA/OpenAI-compatible JSON edits use
@@ -51,7 +56,7 @@ func ValidateJSONImageReferences(raw json.RawMessage) (bool, error) {
 func AdaptJSONImageReferences(raw json.RawMessage, baseURL string) (json.RawMessage, error) {
 	refs, err := JSONImageReferences(raw)
 	if err != nil {
-		return nil, err
+		return raw, nil
 	}
 	if len(refs) == 0 {
 		return raw, nil

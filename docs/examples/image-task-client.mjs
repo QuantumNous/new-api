@@ -42,12 +42,16 @@ export async function prepareImageTaskRequest(request) {
   return body
 }
 
-async function taskRequest(url, apiKey, method, body, submissionId, signal) {
+async function taskRequest(url, apiKey, method, body, submissionId, signal, timeoutMs = 30000) {
   const controller = new AbortController()
   const abort = () => controller.abort(signal?.reason)
   if (signal?.aborted) abort()
   signal?.addEventListener('abort', abort, { once: true })
-  const timer = setTimeout(() => controller.abort(), 30000)
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort(new DOMException('Image request timed out', 'TimeoutError'))
+  }, timeoutMs)
   try {
     const headers = { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' }
     if (body !== undefined) headers['Content-Type'] = 'application/json'
@@ -55,8 +59,11 @@ async function taskRequest(url, apiKey, method, body, submissionId, signal) {
     const response = await fetch(url, { method, headers, body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body), signal: controller.signal })
     return await readImageResponse(response)
   } catch (error) {
+    if (timedOut && !signal?.aborted) {
+      throw new ImageRequestError('读取任务超时，请使用原任务编号恢复，不要重新生图。', error.status ?? 0, 'REQUEST_TIMEOUT', error.requestId, error)
+    }
     if (error instanceof ImageRequestError) throw error
-    throw new ImageRequestError('网络中断；保留任务编号，恢复查询，不要用新编号重新生图。', 0, 'NETWORK_ERROR')
+    throw new ImageRequestError('网络中断；保留任务编号，恢复查询，不要用新编号重新生图。', 0, 'NETWORK_ERROR', undefined, error)
   } finally {
     clearTimeout(timer)
     signal?.removeEventListener('abort', abort)
@@ -129,7 +136,19 @@ export async function requestImageTask(endpoint, apiKey, request, options = {}) 
         throw error
       }
       if (task.status === 'succeeded' || task.status === 'failed') {
-        return await taskRequest(`${base}/${taskId}/result`, apiKey, 'GET', undefined, undefined, options.signal)
+        for (let attempt = 0; ; attempt++) {
+          try {
+            return await taskRequest(`${base}/${taskId}/result`, apiKey, 'GET', undefined, undefined, options.signal, options.resultTimeoutMs ?? 180000)
+          } catch (error) {
+            const transient = error instanceof ImageRequestError && (
+              ['NETWORK_ERROR', 'REQUEST_TIMEOUT', 'READ_RESPONSE_FAILED', 'INVALID_JSON_RESPONSE'].includes(error.code) ||
+              (task.status === 'succeeded' && error.status >= 500)
+            )
+            if (options.signal?.aborted || !transient || attempt >= 2) throw error
+            // Retry only the saved result, never the paid generation request.
+            await wait(options.resultRetryDelayMs ?? 1000 * (attempt + 1), options.signal)
+          }
+        }
       }
       if (task.status !== 'queued' && task.status !== 'running') {
         throw new ImageRequestError('任务结果未确认，请核对记录，不要自动重新生图。', 409, 'TASK_OUTCOME_UNKNOWN')

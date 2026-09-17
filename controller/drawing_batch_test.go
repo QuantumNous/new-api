@@ -343,8 +343,7 @@ func TestDrawingRealRelayBatchBillingAndRecovery(t *testing.T) {
 				} `json:"error"`
 			}
 			require.NoError(t, common.Unmarshal(body, &envelope))
-			assert.Contains(t, envelope.Error.Message, "Image generation failed.")
-			assert.NotContains(t, envelope.Error.Message, "safety checks")
+			assert.Contains(t, envelope.Error.Message, "The image generation request was rejected by upstream safety checks.")
 			assert.Equal(t, "content_policy_violation", envelope.Error.Code)
 		}
 		if i == 6 {
