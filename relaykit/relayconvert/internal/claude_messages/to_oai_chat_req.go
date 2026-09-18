@@ -154,6 +154,15 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 		}
 	}
 
+	// pendingToolImages holds images hoisted out of tool_result blocks.
+	//
+	// An OpenAI role:tool message can only carry string content, so a structured
+	// image block has nowhere to go. Marshalling the whole content array instead
+	// hands the raw base64 to the upstream text tokenizer: a 1280x543 PNG was
+	// billed as 745,305 tokens (926 by pixel size). Hoisting the image into the
+	// following user message keeps it a vision input.
+	var pendingToolImages []dto.MediaContent
+
 	for _, claudeMessage := range claudeRequest.Messages {
 		openAIMessage := dto.Message{
 			Role: claudeMessage.Role,
@@ -208,8 +217,47 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 						oaiToolMessage.SetStringContent(mediaMsg.GetStringContent())
 					} else {
 						mediaContents := mediaMsg.ParseMediaContent()
-						encodedJSON, _ := kitutil.Marshal(mediaContents)
-						oaiToolMessage.SetStringContent(string(encodedJSON))
+						texts := make([]string, 0, len(mediaContents))
+						imageCount := 0
+						for i := range mediaContents {
+							sub := &mediaContents[i]
+							switch sub.Type {
+							case "text", "input_text":
+								if text := sub.GetText(); text != "" {
+									texts = append(texts, text)
+								}
+							case "image":
+								if sub.Source == nil {
+									continue
+								}
+								url := sub.Source.Url
+								if url == "" {
+									url = fmt.Sprintf("data:%s;base64,%s", sub.Source.MediaType,
+										kitutil.Interface2String(sub.Source.Data))
+								}
+								if url == "" {
+									continue
+								}
+								pendingToolImages = append(pendingToolImages, dto.MediaContent{
+									Type:     "image_url",
+									ImageUrl: &dto.MessageImageUrl{Url: url},
+								})
+								imageCount++
+							}
+						}
+						switch {
+						case len(texts) > 0:
+							oaiToolMessage.SetStringContent(strings.Join(texts, "\n"))
+						case imageCount > 0:
+							// Upstream requires non-empty tool content; the images
+							// themselves ride on the following user message.
+							oaiToolMessage.SetStringContent("[image]")
+						default:
+							// Neither text nor image: keep the original whole-array
+							// serialization so unknown shapes are not dropped.
+							encodedJSON, _ := kitutil.Marshal(mediaContents)
+							oaiToolMessage.SetStringContent(string(encodedJSON))
+						}
 					}
 					openAIMessages = append(openAIMessages, oaiToolMessage)
 				}
@@ -218,8 +266,24 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 			if len(toolCalls) > 0 {
 				openAIMessage.SetToolCalls(toolCalls)
 			}
-			if len(mediaMessages) > 0 && len(toolCalls) == 0 {
-				openAIMessage.SetMediaContent(mediaMessages)
+			// Hoisted images join this message's regular content, first, so they
+			// sit next to the tool message they came from.
+			if len(pendingToolImages) > 0 {
+				mediaMessages = append(pendingToolImages, mediaMessages...)
+				pendingToolImages = nil
+			}
+			if len(mediaMessages) > 0 {
+				if len(toolCalls) == 0 {
+					openAIMessage.SetMediaContent(mediaMessages)
+				} else {
+					// tool_use and tool_result live in separate assistant/user
+					// messages, so both appearing here is not expected. If it
+					// happens, SetToolCalls would drop the media content, so
+					// carry the images on their own user message.
+					carrier := dto.Message{Role: "user"}
+					carrier.SetMediaContent(mediaMessages)
+					openAIMessages = append(openAIMessages, carrier)
+				}
 			}
 		}
 		if len(openAIMessage.ParseContent()) > 0 || len(openAIMessage.ToolCalls) > 0 {
