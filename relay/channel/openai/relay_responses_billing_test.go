@@ -235,6 +235,48 @@ func runResponsesImageBillingStream(t *testing.T, events ...string) *relaycommon
 	return info
 }
 
+func TestOaiResponsesStreamHandlerExplicitFailureUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+	for _, tc := range []struct {
+		name           string
+		event          string
+		wantPrompt     int
+		wantCompletion int
+	}{
+		{"flat error", `{"type":"error","code":"upstream_stream_read_error","message":"Upstream response stream was interrupted","param":null}`, 0, 0},
+		{"failed without usage", `{"type":"response.failed","response":{"status":"failed"}}`, 0, 0},
+		{"failed with zero usage", `{"type":"response.failed","response":{"status":"failed","usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0}}}`, 0, 0},
+		{"failed with real usage", `{"type":"response.failed","response":{"status":"failed","usage":{"input_tokens":20,"output_tokens":5,"total_tokens":25}}}`, 20, 5},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hello\"}\n\ndata: " + tc.event + "\n\n"
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+			info := &relaycommon.RelayInfo{
+				OriginModelName: "gpt-4o", DisablePing: true,
+				ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gpt-4o"},
+			}
+			info.SetEstimatePromptTokens(100)
+			resp := &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: http.Header{"Content-Type": {"text/event-stream"}}}
+			usage, apiErr := OaiResponsesStreamHandler(c, info, resp)
+			require.Nil(t, apiErr, "an already-forwarded failure must not trigger a retry or a second error")
+			require.NotNil(t, usage)
+			assert.Equal(t, tc.wantPrompt, usage.PromptTokens)
+			assert.Equal(t, tc.wantCompletion, usage.CompletionTokens)
+			assert.Equal(t, tc.wantPrompt+tc.wantCompletion, usage.TotalTokens)
+			assert.True(t, info.StreamStatus.ResponseFailed())
+			assert.Equal(t, 1, strings.Count(w.Body.String(), tc.event))
+			assert.Contains(t, w.Body.String(), `"delta":"hello"`)
+			assert.NotContains(t, w.Body.String(), "response.completed")
+			assert.NotContains(t, w.Body.String(), "[DONE]")
+		})
+	}
+}
+
 func TestOaiResponsesStreamHandlerDeduplicatesCompletedImageOutput(t *testing.T) {
 	item := `{"type":"image_generation_call","id":"img_1","call_id":"call_1","status":"completed","result":"base64-a"}`
 	info := runResponsesImageBillingStream(

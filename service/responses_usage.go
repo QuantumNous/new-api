@@ -20,6 +20,7 @@ type ResponsesUsageAccumulator struct {
 	outputText     strings.Builder
 	imageCounter   relaycommon.ImageGenerationCallCounter
 	imageCommitted bool
+	failed         bool
 	started        bool
 	finished       bool
 }
@@ -36,7 +37,9 @@ func (a *ResponsesUsageAccumulator) Observe(event *dto.ResponsesStreamResponse) 
 		a.info.ObserveResponseModel(event.Response.Model)
 	}
 	a.started = true
-	ObserveResponsesOutcome(a.info, event)
+	if observeResponsesOutcome(a.info, event) {
+		a.failed = true
+	}
 	switch event.Type {
 	case "response.completed", "response.done", "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
 		if event.Response != nil {
@@ -91,6 +94,11 @@ func (a *ResponsesUsageAccumulator) Finish() *dto.Usage {
 		a.imageCounter.Commit(a.info)
 		a.imageCommitted = true
 	}
+	// Explicit failures retain reported usage, including zero token counts.
+	// Partial output must not turn a failed response into estimated usage.
+	if a.failed {
+		return a.usage
+	}
 	if a.usage.CompletionTokens == 0 {
 		if output := a.outputText.String(); output != "" {
 			a.usage.CompletionTokens = CountTextToken(output, a.info.GetUpstreamModelName())
@@ -114,15 +122,25 @@ func (a *ResponsesUsageAccumulator) Finish() *dto.Usage {
 // on the stream status for health classification. Only codes and types are
 // kept; messages never leave the event.
 func ObserveResponsesOutcome(info *relaycommon.RelayInfo, event *dto.ResponsesStreamResponse) {
-	if info == nil || info.StreamStatus == nil || event == nil {
-		return
+	observeResponsesOutcome(info, event)
+}
+
+// observeResponsesOutcome also reports explicit failure when the transport
+// does not maintain a StreamStatus, so accounting uses the same protocol facts.
+func observeResponsesOutcome(info *relaycommon.RelayInfo, event *dto.ResponsesStreamResponse) bool {
+	if event == nil {
+		return false
 	}
 	var responseStatus string
 	if event.Response != nil {
 		_ = common.Unmarshal(event.Response.Status, &responseStatus)
 	}
+	failed := event.Type == "error" || event.Type == "response.failed" || event.Type == "response.error" || responseStatus == "failed"
+	if info == nil || info.StreamStatus == nil {
+		return failed
+	}
 	switch {
-	case event.Type == "error" || event.Type == "response.failed" || event.Type == "response.error" || responseStatus == "failed":
+	case failed:
 		code, errorType := event.Code, ""
 		if event.Response != nil {
 			if oaiErr := event.Response.GetOpenAIError(); oaiErr != nil {
@@ -144,6 +162,7 @@ func ObserveResponsesOutcome(info *relaycommon.RelayInfo, event *dto.ResponsesSt
 	case event.Type == "response.completed" || event.Type == "response.done" || responseStatus == "completed":
 		info.StreamStatus.MarkCompleted()
 	}
+	return failed
 }
 
 func ApplyResponsesUsage(dst *dto.Usage, src *dto.Usage) {

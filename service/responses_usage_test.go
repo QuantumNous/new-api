@@ -88,25 +88,75 @@ func TestResponsesUsageAccumulatorInterruptedTextFallback(t *testing.T) {
 				accumulator.Observe(&dto.ResponsesStreamResponse{Type: "response.failed", Response: &dto.OpenAIResponsesResponse{Usage: upstream}})
 			}
 			usage := accumulator.Finish()
-			assert.Equal(t, 1, usage.CompletionTokens)
 			if withUsage {
+				assert.Zero(t, usage.CompletionTokens)
 				assert.Equal(t, 20, usage.PromptTokens)
-				assert.Equal(t, 21, usage.TotalTokens)
+				assert.Equal(t, 20, usage.TotalTokens)
 				require.NotNil(t, usage.BillingUsage)
 				assert.Equal(t, dto.BillingUsageSourceOAIResponses, usage.BillingUsage.Source)
-				assert.True(t, usage.BillingUsage.Estimated)
+				assert.False(t, usage.BillingUsage.Estimated)
 				canonical, ok := usage.BillingUsage.CanonicalUsage()
 				require.True(t, ok)
 				assert.Equal(t, 4, canonical.PromptTokensDetails.CachedTokens)
-				assert.Equal(t, 1, canonical.CompletionTokens)
+				assert.Zero(t, canonical.CompletionTokens)
 			} else {
+				assert.Equal(t, 1, usage.CompletionTokens)
 				assert.Equal(t, 100, usage.PromptTokens)
 				assert.Equal(t, 101, usage.TotalTokens)
 			}
 			accumulator.Observe(&dto.ResponsesStreamResponse{Type: "response.output_text.delta", Delta: " late output"})
 			assert.Equal(t, usage, accumulator.Finish())
-			assert.Equal(t, 1, usage.CompletionTokens)
+			if withUsage {
+				assert.Zero(t, usage.CompletionTokens)
+			} else {
+				assert.Equal(t, 1, usage.CompletionTokens)
+			}
 		})
+	}
+}
+
+func TestResponsesUsageAccumulatorExplicitFailureDoesNotEstimate(t *testing.T) {
+	for _, tc := range []struct {
+		name           string
+		event          string
+		wantPrompt     int
+		wantCompletion int
+	}{
+		{"flat error", `{"type":"error","code":"server_error","message":"interrupted"}`, 0, 0},
+		{"response error", `{"type":"response.error","code":"server_error"}`, 0, 0},
+		{"failed without usage", `{"type":"response.failed","response":{"status":"failed"}}`, 0, 0},
+		{"done with failed status", `{"type":"response.done","response":{"status":"failed"}}`, 0, 0},
+		{"failed with zero usage", `{"type":"response.failed","response":{"status":"failed","usage":{"input_tokens":0,"output_tokens":0,"total_tokens":0}}}`, 0, 0},
+		{"failed with input only", `{"type":"response.failed","response":{"usage":{"input_tokens":20,"output_tokens":0,"total_tokens":20}}}`, 20, 0},
+		{"failed with output only", `{"type":"response.failed","response":{"usage":{"input_tokens":0,"output_tokens":5,"total_tokens":5}}}`, 0, 5},
+		{"failed with real usage", `{"type":"response.failed","response":{"usage":{"input_tokens":20,"output_tokens":5,"total_tokens":25}}}`, 20, 5},
+	} {
+		for _, withStatus := range []bool{false, true} {
+			name := tc.name + "/without stream status"
+			if withStatus {
+				name = tc.name + "/with stream status"
+			}
+			t.Run(name, func(t *testing.T) {
+				info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gpt-4o"}}
+				if withStatus {
+					info.StreamStatus = relaycommon.NewStreamStatus()
+				}
+				info.SetEstimatePromptTokens(100)
+				accumulator := NewResponsesUsageAccumulator(info)
+				accumulator.Observe(&dto.ResponsesStreamResponse{Type: "response.output_text.delta", Delta: "hello"})
+				var event dto.ResponsesStreamResponse
+				require.NoError(t, common.UnmarshalJsonStr(tc.event, &event))
+				accumulator.Observe(&event)
+				usage := accumulator.Finish()
+				assert.Equal(t, tc.wantPrompt, usage.PromptTokens)
+				assert.Equal(t, tc.wantCompletion, usage.CompletionTokens)
+				assert.Equal(t, tc.wantPrompt+tc.wantCompletion, usage.TotalTokens)
+				if usage.BillingUsage != nil {
+					assert.False(t, usage.BillingUsage.Estimated)
+				}
+				assert.Same(t, usage, accumulator.Finish())
+			})
+		}
 	}
 }
 
