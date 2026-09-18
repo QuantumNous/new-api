@@ -158,6 +158,52 @@ func TestConvertRequestClaudeToResponsesUsesDirectPath(t *testing.T) {
 	assert.Equal(t, []types.RelayFormat{types.RelayFormatClaude, types.RelayFormatOpenAIResponses}, info.ConversionChain)
 }
 
+func TestConvertRequestClaudeToChatResolvesToolResultNames(t *testing.T) {
+	req := &dto.ClaudeRequest{
+		Model: "claude-test",
+		Messages: []dto.ClaudeMessage{
+			{Role: "user", Content: []dto.ClaudeMediaMessage{
+				{Type: "tool_result", ToolUseId: "call_1", Content: "before call"},
+			}},
+			{Role: "assistant", Content: []dto.ClaudeMediaMessage{
+				{Type: "tool_use", Id: "call_1", Name: "first", Input: map[string]any{}},
+			}},
+			{Role: "user", Content: []dto.ClaudeMediaMessage{
+				{Type: "tool_result", ToolUseId: "call_1", Content: "after call"},
+				{Type: "tool_result", ToolUseId: "missing", Content: "unknown"},
+				{Type: "tool_result", ToolUseId: "call_1", Name: "explicit", Content: "named"},
+			}},
+			{Role: "assistant", Content: []dto.ClaudeMediaMessage{
+				{Type: "tool_use", Id: "call_1", Name: "later", Input: map[string]any{}},
+			}},
+		},
+	}
+
+	result, err := ConvertRequestByID(nil, nil, ConverterClaudeMessagesToOpenAIChat, req)
+	require.NoError(t, err)
+	chatReq, ok := result.Value.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	require.Len(t, chatReq.Messages, 6)
+	for _, tt := range []struct {
+		index int
+		id    string
+		name  string
+	}{
+		{0, "call_1", "first"},
+		{2, "call_1", "first"},
+		{3, "missing", ""},
+		{4, "call_1", "explicit"},
+	} {
+		message := chatReq.Messages[tt.index]
+		assert.Equal(t, "tool", message.Role)
+		assert.Equal(t, tt.id, message.ToolCallId)
+		require.NotNil(t, message.Name)
+		assert.Equal(t, tt.name, *message.Name)
+	}
+	assert.Equal(t, "assistant", chatReq.Messages[1].Role)
+	assert.Equal(t, "assistant", chatReq.Messages[5].Role)
+}
+
 func TestConvertRequestClaudeToResponsesPreservesMixedBlockOrder(t *testing.T) {
 	info := &convmeta.Values{ConversionChain: []types.RelayFormat{types.RelayFormatClaude}}
 	stream := true

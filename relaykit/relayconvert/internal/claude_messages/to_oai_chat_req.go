@@ -154,6 +154,11 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 		}
 	}
 
+	toolNames := make(map[string]string)
+	var unnamedToolResults []struct {
+		index int
+		id    string
+	}
 	for _, claudeMessage := range claudeRequest.Messages {
 		openAIMessage := dto.Message{
 			Role: claudeMessage.Role,
@@ -169,6 +174,9 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 			mediaMessages := make([]dto.MediaContent, 0, len(content))
 
 			for _, mediaMsg := range content {
+				if _, exists := toolNames[mediaMsg.Id]; !exists {
+					toolNames[mediaMsg.Id] = mediaMsg.Name
+				}
 				switch mediaMsg.Type {
 				case "text", "input_text":
 					message := dto.MediaContent{
@@ -197,7 +205,10 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 				case "tool_result":
 					toolName := mediaMsg.Name
 					if toolName == "" {
-						toolName = claudeRequest.SearchToolNameByToolCallId(mediaMsg.ToolUseId)
+						unnamedToolResults = append(unnamedToolResults, struct {
+							index int
+							id    string
+						}{len(openAIMessages), mediaMsg.ToolUseId})
 					}
 					oaiToolMessage := dto.Message{
 						Role:       "tool",
@@ -225,6 +236,9 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 		if len(openAIMessage.ParseContent()) > 0 || len(openAIMessage.ToolCalls) > 0 {
 			openAIMessages = append(openAIMessages, openAIMessage)
 		}
+	}
+	for _, result := range unnamedToolResults {
+		*openAIMessages[result.index].Name = toolNames[result.id]
 	}
 
 	openAIRequest.Messages = openAIMessages
