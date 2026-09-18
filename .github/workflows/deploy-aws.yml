@@ -24,7 +24,9 @@ env:
 jobs:
   deploy:
     name: Build and deploy new-api
-    runs-on: thecybersailor-linux-amd64
+    # The repository is public; the existing organization ARC scale set is not
+    # configured to accept public-repository jobs.
+    runs-on: ubuntu-latest
     environment: production
     timeout-minutes: 30
     env:
