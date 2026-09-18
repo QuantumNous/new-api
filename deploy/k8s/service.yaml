@@ -5,8 +5,12 @@ metadata:
   namespace: new-api
   labels:
     app.kubernetes.io/name: new-api
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+    service.beta.kubernetes.io/aws-load-balancer-subnets: subnet-08e2c697899fd9c9b,subnet-0ebf4de18d18c8fe1,subnet-0d4439f65e797dfda
 spec:
   type: LoadBalancer
+  loadBalancerClass: eks.amazonaws.com/nlb
   selector:
     app.kubernetes.io/name: new-api
   ports:

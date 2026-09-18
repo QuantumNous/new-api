@@ -21,6 +21,14 @@ spec:
     spec:
       serviceAccountName: new-api
       terminationGracePeriodSeconds: 30
+      tolerations:
+        - key: github-runner
+          operator: Equal
+          value: "true"
+          effect: NoSchedule
+        - key: CriticalAddonsOnly
+          operator: Exists
+          effect: NoSchedule
       securityContext:
         fsGroup: 1000
       containers:

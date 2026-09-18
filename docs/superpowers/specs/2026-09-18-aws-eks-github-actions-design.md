@@ -23,7 +23,7 @@ push to main
   -> LoadBalancer Service exposes port 80 to container port 3000
 ```
 
-The first version uses SQLite on a single encrypted EKS Auto Mode `gp3` PVC. This matches the repository's documented single-node Docker deployment and keeps the initial chain small. The Deployment uses one replica and a `Recreate` strategy so the single-writer SQLite file is never mounted by two pods at once. A later production-hardening change can move the primary database to RDS PostgreSQL and enable multiple replicas with Redis.
+The first version uses SQLite on a single encrypted EKS Auto Mode `gp3` PVC. This matches the repository's documented single-node Docker deployment and keeps the initial chain small. The Deployment uses one replica and a `Recreate` strategy so the single-writer SQLite file is never mounted by two pods at once. Because this cluster currently exposes only its system node pool, the pod tolerates that pool's runner/system taints. A later production-hardening change can move the primary database to RDS PostgreSQL, add a dedicated application node pool, and enable multiple replicas with Redis.
 
 ## AWS Resources
 
@@ -51,7 +51,7 @@ Add version-controlled manifests under `deploy/k8s`:
 - `storageclass.yaml`: One-time administrator bootstrap for the EKS Auto Mode `gp3` StorageClass.
 - `pvc.yaml`: An encrypted `auto-ebs-sc` PVC for `/data`.
 - `deployment.yaml`: One-replica `new-api` Deployment with image placeholder, health probes, resource requests/limits, and `/data` mount.
-- `service.yaml`: AWS LoadBalancer Service mapping port 80 to container port 3000.
+- `service.yaml`: EKS Auto Mode NLB Service mapping port 80 to container port 3000.
 - `kustomization.yaml`: Base resource list and image replacement target.
 
 Sensitive settings are supplied by a Kubernetes Secret created by the workflow from GitHub environment secrets. Real secret values must not be committed. Required secret keys are `SESSION_SECRET`; optional keys include `SQL_DSN`, `REDIS_CONN_STRING`, `CRYPTO_SECRET`, and `SESSION_COOKIE_TRUSTED_URL`.

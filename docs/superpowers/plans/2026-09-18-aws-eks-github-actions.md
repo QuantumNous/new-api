@@ -4,7 +4,7 @@
 
 **Goal:** Publish `thecybersailor/new-api` from GitHub Actions to the existing AWS EKS cluster `syngy-lancelot` in `ap-southeast-1`.
 
-**Architecture:** GitHub Actions runs on `ubuntu-latest` because the public repository cannot use the existing organization ARC scale set, builds the repository Docker image, pushes an immutable commit-tagged image to ECR, and uses GitHub OIDC to obtain short-lived AWS credentials. The workflow applies version-controlled Kubernetes manifests for a single-replica `new-api` Deployment with SQLite persisted on an encrypted EKS Auto Mode `gp3` PVC and an AWS LoadBalancer Service.
+**Architecture:** GitHub Actions runs on `ubuntu-latest` because the public repository cannot use the existing organization ARC scale set, builds the repository Docker image, pushes an immutable commit-tagged image to ECR, and uses GitHub OIDC to obtain short-lived AWS credentials. The workflow applies version-controlled Kubernetes manifests for a single-replica `new-api` Deployment with SQLite persisted on an encrypted EKS Auto Mode `gp3` PVC and an Auto Mode NLB Service. The pod tolerates the existing system node pool's runner/system taints because that is currently the only application-capable node pool.
 
 **Tech Stack:** GitHub Actions, GitHub OIDC, AWS IAM, Amazon ECR, Amazon EKS, Kubernetes, Kustomize, Docker, Go, Bun, SQLite.
 
