@@ -3,6 +3,10 @@ package billing_setting
 // Built-in token prices use actual USD per million tokens. Keep new model
 // defaults here instead of splitting them across the legacy ratio tables.
 var builtinBillingExpr = map[string]string{
+	// https://docs.typesafe.ai/models (2026-09-18): input $0.042/M tokens, output free.
+	"jev-1.13.0":  `tier("standard", p * 0.042)`,
+	"jev-latest":  `tier("standard", p * 0.042)`,
+	"jev-preview": `tier("standard", p * 0.042)`,
 	// https://developers.openai.com/api/docs/pricing (Standard, 2026-09-09).
 	// The Images API reports image output in output_tokens, normalized to c.
 	"gpt-image-2":            `tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 2 + c * 30)`,

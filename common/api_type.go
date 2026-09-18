@@ -2,6 +2,8 @@ package common
 
 import "github.com/QuantumNous/new-api/constant"
 
+// ChannelType2APIType resolves the relay adaptor type and reports whether the channel
+// is explicitly mapped. Unmapped channels fall back to OpenAI except task plugins.
 func ChannelType2APIType(channelType int) (int, bool) {
 	apiType := -1
 	switch channelType {
@@ -79,6 +81,8 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeAdvancedCustom
 	case constant.ChannelTypeSub2API:
 		apiType = constant.APITypeSub2API
+	case constant.ChannelTypeTypeSafe:
+		apiType = constant.APITypeTypeSafe
 	case constant.ChannelTypeNewAPI:
 		apiType = constant.APITypeNewAPI
 	}

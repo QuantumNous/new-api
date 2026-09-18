@@ -361,6 +361,8 @@ func getFetchModelsResponseBody(method string, requestURL string, channel *model
 	return io.ReadAll(response.Body)
 }
 
+// fetchChannelUpstreamModelIDs reads model IDs using the channel-specific discovery
+// protocol. Invalid TypeSafe lists return an error rather than imply model removals.
 func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	if channel.Type == constant.ChannelTypeTaskPlugin {
 		plugin, ok := jsplugin.DefaultRegistry.Get(channel.GetSetting().TaskPluginKey)
@@ -449,6 +451,29 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	body, err := getFetchModelsResponseBody(http.MethodGet, url, channel, headers)
 	if err != nil {
 		return nil, sanitizeAdvancedCustomRequestError(err, key, url)
+	}
+
+	if channel.Type == constant.ChannelTypeTypeSafe {
+		var result struct {
+			Models []struct {
+				Name string `json:"name"`
+			} `json:"models"`
+		}
+		if err := common.Unmarshal(body, &result); err != nil {
+			return nil, errors.New("invalid TypeSafe model list")
+		}
+		if len(result.Models) == 0 {
+			return nil, errors.New("empty TypeSafe model list")
+		}
+		ids := make([]string, 0, len(result.Models))
+		for _, item := range result.Models {
+			name := strings.TrimSpace(item.Name)
+			if name == "" {
+				return nil, errors.New("invalid TypeSafe model name")
+			}
+			ids = append(ids, name)
+		}
+		return normalizeModelNames(ids), nil
 	}
 
 	var result OpenAIModelsResponse
