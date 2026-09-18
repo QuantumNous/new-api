@@ -285,7 +285,7 @@ export function RoutingReliabilitySection({
   switch (channelTestMode) {
     case 'auto_ban_only':
       channelTestModeDescription = t(
-        'Periodically checks only channels with auto-disable enabled, excluding manually disabled channels.'
+        'Checks auto-disable-enabled channels with active probing enabled; auto-disabled channels are always checked for recovery.'
       )
       break
     case 'passive_recovery':

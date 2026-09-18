@@ -94,6 +94,12 @@ describe('New API channel', () => {
 
     expect(result.success).toBe(true)
   })
+
+  test('includes active probing in new channel payloads', () => {
+    const payload = transformFormDataToCreatePayload(newAPIForm(''))
+
+    expect(payload.channel.active_probe).toBe(1)
+  })
 })
 
 describe.each([
