@@ -460,12 +460,16 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		if err := common.Unmarshal(body, &result); err != nil {
 			return nil, errors.New("invalid TypeSafe model list")
 		}
-		if result.Models == nil {
-			return nil, errors.New("missing TypeSafe models")
+		if len(result.Models) == 0 {
+			return nil, errors.New("empty TypeSafe model list")
 		}
 		ids := make([]string, 0, len(result.Models))
 		for _, item := range result.Models {
-			ids = append(ids, item.Name)
+			name := strings.TrimSpace(item.Name)
+			if name == "" {
+				return nil, errors.New("invalid TypeSafe model name")
+			}
+			ids = append(ids, name)
 		}
 		return normalizeModelNames(ids), nil
 	}

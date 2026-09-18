@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -87,10 +88,13 @@ func (a *Adaptor) validResponse(result *dto.DecisionsResponse) bool {
 	}
 	for id, question := range a.request.Questions {
 		var answer struct {
-			Type   string   `json:"type"`
-			Noul   *float64 `json:"noul"`
-			Choice *string  `json:"choice"`
-			Score  *float64 `json:"score"`
+			Type          string              `json:"type"`
+			Noul          *float64            `json:"noul"`
+			Choice        *string             `json:"choice"`
+			Score         *float64            `json:"score"`
+			Confidence    *float64            `json:"confidence"`
+			Probabilities map[string]*float64 `json:"probabilities"`
+			Legend        map[string]*string  `json:"legend"`
 		}
 		if common.Unmarshal(result.Answers[id], &answer) != nil || answer.Type != question.Type {
 			return false
@@ -108,11 +112,45 @@ func (a *Adaptor) validResponse(result *dto.DecisionsResponse) bool {
 			if _, ok := criteria[*answer.Choice]; !ok {
 				return false
 			}
+			if len(answer.Probabilities) != len(criteria) {
+				return false
+			}
+			for option := range criteria {
+				if answer.Probabilities[option] == nil {
+					return false
+				}
+			}
 		case "score":
 			var criteria []string
 			if answer.Score == nil || common.Unmarshal(question.Criteria, &criteria) != nil || *answer.Score < 0 || *answer.Score > float64(len(criteria)-1) {
 				return false
 			}
+			if len(answer.Probabilities) != len(criteria) || len(answer.Legend) != len(criteria) {
+				return false
+			}
+			for i := range criteria {
+				level := strconv.Itoa(i)
+				if answer.Probabilities[level] == nil || answer.Legend[level] == nil {
+					return false
+				}
+			}
+		}
+		if question.Type == "noul" {
+			continue
+		}
+		if answer.Confidence == nil || *answer.Confidence < 0 || *answer.Confidence > 1 {
+			return false
+		}
+		sum := 0.0
+		for _, probability := range answer.Probabilities {
+			if probability == nil || *probability < 0 || *probability > 1 {
+				return false
+			}
+			sum += *probability
+		}
+		// Allow floating-point rounding while rejecting incomplete distributions.
+		if math.Abs(sum-1) > 1e-4 {
+			return false
 		}
 	}
 	return true

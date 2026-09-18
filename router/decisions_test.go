@@ -67,6 +67,19 @@ func TestJevRelay(t *testing.T) {
 		{name: "mismatched answer refunds", response: strings.Replace(jevResponse, `"urgent":`, `"unknown":`, 1), expectedStatus: 502, wantUpstream: true},
 		{name: "missing noul refunds", response: strings.Replace(jevResponse, `,"noul":0`, ``, 1), expectedStatus: 502, wantUpstream: true},
 		{name: "unlisted choice refunds", response: strings.Replace(jevResponse, `"choice":"billing"`, `"choice":"sales"`, 1), expectedStatus: 502, wantUpstream: true},
+		{name: "missing choice probabilities refunds", response: strings.Replace(jevResponse, `,"probabilities":{"billing":0.9,"technical":0.1}`, ``, 1), expectedStatus: 502, wantUpstream: true},
+		{name: "missing choice confidence refunds", response: strings.Replace(jevResponse, `,"confidence":0.8`, ``, 1), expectedStatus: 502, wantUpstream: true},
+		{name: "invalid confidence refunds", response: strings.Replace(jevResponse, `"confidence":0.8`, `"confidence":2`, 1), expectedStatus: 502, wantUpstream: true},
+		{name: "null probability refunds", response: strings.Replace(jevResponse, `"billing":0.9`, `"billing":null`, 1), expectedStatus: 502, wantUpstream: true},
+		{name: "negative probability refunds", response: strings.Replace(jevResponse, `"billing":0.9`, `"billing":-0.9`, 1), expectedStatus: 502, wantUpstream: true},
+		{name: "wrong probability option refunds", response: strings.Replace(jevResponse, `"technical":0.1`, `"unknown":0.1`, 1), expectedStatus: 502, wantUpstream: true},
+		{name: "unnormalized distribution refunds", response: strings.Replace(jevResponse, `"billing":0.9`, `"billing":0.1`, 1), expectedStatus: 502, wantUpstream: true},
+		{name: "missing score probabilities refunds", response: strings.Replace(jevResponse, `,"probabilities":{"0":0.05,"1":0.1,"2":0.85}`, ``, 1), expectedStatus: 502, wantUpstream: true},
+		{name: "missing score confidence refunds", response: strings.Replace(jevResponse, `,"confidence":0.7`, ``, 1), expectedStatus: 502, wantUpstream: true},
+		{name: "missing score legend refunds", response: strings.Replace(jevResponse, `,"legend":{"0":"Low","1":"Medium","2":"High"}`, ``, 1), expectedStatus: 502, wantUpstream: true},
+		{name: "wrong score legend level refunds", response: strings.Replace(jevResponse, `"2":"High"`, `"3":"High"`, 1), expectedStatus: 502, wantUpstream: true},
+		{name: "zero confidence remains valid", response: strings.Replace(jevResponse, `"confidence":0.8`, `"confidence":0`, 1), wantUpstream: true, charge: 21},
+		{name: "rounded probabilities remain valid", response: strings.Replace(jevResponse, `"billing":0.9`, `"billing":0.89999999`, 1), wantUpstream: true, charge: 21},
 		{name: "out of range score refunds", response: strings.Replace(jevResponse, `"score":1.8`, `"score":9`, 1), expectedStatus: 502, wantUpstream: true},
 	}
 	for _, tc := range cases {
@@ -151,7 +164,11 @@ func TestJevRelay(t *testing.T) {
 				assert.Zero(t, calls.Load())
 			}
 			if status == 200 {
-				assert.JSONEq(t, jevResponse, recorder.Body.String())
+				expectedResponse := tc.response
+				if expectedResponse == "" {
+					expectedResponse = jevResponse
+				}
+				assert.JSONEq(t, expectedResponse, recorder.Body.String())
 			}
 			assertJevAccounting(t, user, token, channel, tc.charge, status == 200)
 		})
@@ -207,53 +224,98 @@ func createJevChannel(t *testing.T, baseURL, key string, passthrough bool) *mode
 }
 
 func TestJevChannelManagement(t *testing.T) {
-	user, _ := setupJevRelayTest(t)
-	var evaluations atomic.Int32
-	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, "Bearer upstream-test-key", r.Header.Get("Authorization"))
-		w.Header().Set("Content-Type", "application/json")
-		switch r.URL.Path {
-		case "/v1/models":
-			_, _ = io.WriteString(w, `{"models":[{"name":"jev-1.13.0","description":"Jev"},{"name":"jev-latest"}]}`)
-		case "/v1/systemone":
-			evaluations.Add(1)
-			var request dto.DecisionsRequest
-			assert.NoError(t, common.DecodeJson(r.Body, &request))
-			assert.Equal(t, "jev-1.13.0", request.Model)
-			assert.Equal(t, "noul", request.Questions["payment"].Type)
-			_, _ = io.WriteString(w, `{"model":"jev-1.13.0","answers":{"payment":{"type":"noul","noul":0.9}},"usage":{"input_tokens":1000,"output_tokens":10}}`)
-		default:
-			t.Errorf("unexpected upstream path: %s", r.URL.Path)
-			w.WriteHeader(404)
-		}
-	}))
-	t.Cleanup(upstream.Close)
-	channel := createJevChannel(t, upstream.URL, "upstream-test-key", false)
-	engine := gin.New()
-	// The existing admin middleware is unchanged; exercise its controllers
-	// with an authenticated administrator supplied by this fixture.
-	engine.Use(func(c *gin.Context) { c.Set("id", user.Id); c.Next() })
-	engine.GET("/models/:id", controller.FetchUpstreamModels)
-	engine.GET("/test/:id", controller.TestChannel)
-	for _, path := range []string{"/models/", "/test/"} {
-		recorder := httptest.NewRecorder()
-		engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, fmt.Sprintf("%s%d", path, channel.Id), nil))
-		require.Equal(t, 200, recorder.Code)
-		var result struct {
-			Success bool     `json:"success"`
-			Data    []string `json:"data"`
-		}
-		require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &result))
-		require.True(t, result.Success, recorder.Body.String())
-		if path == "/models/" {
-			assert.Equal(t, []string{"jev-1.13.0", "jev-latest"}, result.Data)
-		}
+	cases := []struct {
+		name, models, override    string
+		modelFailure, testFailure bool
+	}{
+		{name: "native discovery and test"},
+		{name: "missing model name", models: `{"models":[{}]}`, modelFailure: true},
+		{name: "blank model name", models: `{"models":[{"name":" "}]}`, modelFailure: true},
+		{name: "invalid model name type", models: `{"models":[{"name":7}]}`, modelFailure: true},
+		{name: "empty model list", models: `{"models":[]}`, modelFailure: true},
+		{name: "final question override", override: `{"questions":{"payment":{"type":"choice","instructions":"Which team?","criteria":{"billing":null,"technical":null}}}}`},
+		{name: "invalid final question override", override: `{"questions":{}}`, testFailure: true},
+		{name: "stream override rejected", override: `{"stream":true}`, testFailure: true},
+		{name: "false stream override omitted", override: `{"stream":false}`},
 	}
-	assert.EqualValues(t, 1, evaluations.Load())
-	require.Eventually(t, func() bool {
-		var saved model.Channel
-		return model.DB.First(&saved, channel.Id).Error == nil && saved.TestTime > 0
-	}, 3*time.Second, 10*time.Millisecond)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			user, _ := setupJevRelayTest(t)
+			var evaluations atomic.Int32
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "Bearer upstream-test-key", r.Header.Get("Authorization"))
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/v1/models":
+					body := tc.models
+					if body == "" {
+						body = `{"models":[{"name":"jev-1.13.0","description":"Jev"},{"name":"jev-latest"}]}`
+					}
+					_, _ = io.WriteString(w, body)
+				case "/v1/systemone":
+					evaluations.Add(1)
+					var request dto.DecisionsRequest
+					if !assert.NoError(t, common.DecodeJson(r.Body, &request)) {
+						w.WriteHeader(400)
+						return
+					}
+					assert.NoError(t, request.Validate())
+					assert.Nil(t, request.Stream)
+					assert.Equal(t, "jev-1.13.0", request.Model)
+					answer := `{"type":"noul","noul":0.9}`
+					if tc.override != "" && !strings.Contains(tc.override, "stream") {
+						assert.Equal(t, "choice", request.Questions["payment"].Type)
+						answer = `{"type":"choice","choice":"billing","probabilities":{"billing":0.9,"technical":0.1},"confidence":0.8}`
+					}
+					_, _ = fmt.Fprintf(w, `{"model":"jev-1.13.0","answers":{"payment":%s},"usage":{"input_tokens":1000,"output_tokens":10}}`, answer)
+				default:
+					t.Errorf("unexpected upstream path: %s", r.URL.Path)
+					w.WriteHeader(404)
+				}
+			}))
+			t.Cleanup(upstream.Close)
+			channel := createJevChannel(t, upstream.URL, "upstream-test-key", false)
+			if tc.override != "" {
+				channel.ParamOverride = &tc.override
+				require.NoError(t, model.DB.Save(channel).Error)
+			}
+			engine := gin.New()
+			// Existing admin authentication is unchanged; supply an authenticated user.
+			engine.Use(func(c *gin.Context) { c.Set("id", user.Id); c.Next() })
+			engine.GET("/models/:id", controller.FetchUpstreamModels)
+			engine.GET("/test/:id", controller.TestChannel)
+			for _, path := range []string{"/models/", "/test/"} {
+				recorder := httptest.NewRecorder()
+				engine.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, fmt.Sprintf("%s%d", path, channel.Id), nil))
+				require.Equal(t, 200, recorder.Code)
+				var result struct {
+					Success bool     `json:"success"`
+					Data    []string `json:"data"`
+				}
+				require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &result))
+				if path == "/models/" {
+					require.Equal(t, !tc.modelFailure, result.Success, recorder.Body.String())
+					if !tc.modelFailure {
+						assert.Equal(t, []string{"jev-1.13.0", "jev-latest"}, result.Data)
+					}
+				} else {
+					require.Equal(t, !tc.testFailure, result.Success, recorder.Body.String())
+				}
+			}
+			if tc.testFailure {
+				assert.Zero(t, evaluations.Load())
+			} else {
+				assert.EqualValues(t, 1, evaluations.Load())
+				require.Eventually(t, func() bool {
+					var saved model.Channel
+					return model.DB.First(&saved, channel.Id).Error == nil && saved.TestTime > 0
+				}, 3*time.Second, 10*time.Millisecond)
+			}
+			var saved model.Channel
+			require.NoError(t, model.DB.First(&saved, channel.Id).Error)
+			assert.Equal(t, "jev-latest", saved.Models)
+		})
+	}
 }
 
 func assertJevAccounting(t *testing.T, user *model.User, token *model.Token, channel *model.Channel, charge int, success bool) {

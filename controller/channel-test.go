@@ -318,9 +318,10 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	// 根据 RelayMode 选择正确的转换函数
 	switch info.RelayMode {
 	case relayconstant.RelayModeDecisions:
-		decisions, supported := adaptor.(relaychannel.DecisionsAdaptor)
+		_, supported := adaptor.(relaychannel.DecisionsAdaptor)
 		if req, ok := request.(*dto.DecisionsRequest); ok && supported {
-			convertedRequest, err = decisions.ConvertDecisionsRequest(c, info, req)
+			// Convert after parameter overrides, just like the decisions relay.
+			convertedRequest = req
 		} else {
 			err = errors.New("channel does not support decisions")
 		}
@@ -443,6 +444,24 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 				context:     c,
 				localErr:    err,
 				newAPIError: types.NewError(err, types.ErrorCodeChannelParamOverrideInvalid),
+			}
+		}
+	}
+
+	if info.RelayMode == relayconstant.RelayModeDecisions {
+		var finalRequest dto.DecisionsRequest
+		err = common.Unmarshal(jsonData, &finalRequest)
+		if err == nil {
+			convertedRequest, err = adaptor.(relaychannel.DecisionsAdaptor).ConvertDecisionsRequest(c, info, &finalRequest)
+		}
+		if err == nil {
+			jsonData, err = common.Marshal(convertedRequest)
+		}
+		if err != nil {
+			return testResult{
+				context:     c,
+				localErr:    err,
+				newAPIError: types.NewError(err, types.ErrorCodeConvertRequestFailed),
 			}
 		}
 	}
