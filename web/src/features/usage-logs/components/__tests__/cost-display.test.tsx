@@ -70,6 +70,7 @@ describe('log cost display', () => {
           billing_source: 'subscription',
           subscription_consumed: consumed,
         },
+        showBillingSource: true,
       })
 
       expect(screen.getByText(expected)).toBeVisible()
@@ -82,7 +83,7 @@ describe('log cost display', () => {
     renderCost({
       quota: 5000,
       other: { billing_source: 'wallet', subscription_consumed: 12500 },
-      showWalletSource: true,
+      showBillingSource: true,
     })
 
     expect(screen.getByText('$0.01')).toBeVisible()
@@ -90,14 +91,26 @@ describe('log cost display', () => {
     expect(screen.queryByText('Subscription')).not.toBeInTheDocument()
   })
 
-  test('hides the wallet label when subscriptions are unavailable', () => {
+  test('hides the wallet label when billing sources are unavailable', () => {
     renderCost({
       quota: 5000,
       other: { billing_source: 'wallet' },
-      showWalletSource: false,
+      showBillingSource: false,
     })
 
     expect(screen.getByText('$0.01')).toBeVisible()
+    expect(screen.queryByText('Wallet')).not.toBeInTheDocument()
+  })
+
+  test('hides the subscription label but keeps the deducted amount when billing sources are unavailable', () => {
+    renderCost({
+      quota: 5000,
+      other: { billing_source: 'subscription', subscription_consumed: 12500 },
+      showBillingSource: false,
+    })
+
+    expect(screen.getByText('$0.025')).toBeVisible()
+    expect(screen.queryByText('Subscription')).not.toBeInTheDocument()
     expect(screen.queryByText('Wallet')).not.toBeInTheDocument()
   })
 
@@ -113,6 +126,7 @@ describe('log cost display', () => {
     const rendered = renderCost({
       quota: 2147483647,
       other: { billing_source: 'subscription' },
+      showBillingSource: true,
     })
 
     const amount = screen.getByText('$4,294.9673')
@@ -150,6 +164,7 @@ describe('log cost display', () => {
         web_search_call_count: 1,
         web_search_price: 10,
       },
+      showBillingSource: true,
     })
 
     expect(screen.getByText('$0.01')).toBeVisible()

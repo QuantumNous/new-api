@@ -36,7 +36,7 @@ import type { LogOtherData } from '../types'
 interface LogCostDisplayProps {
   quota: number
   other: LogOtherData | null
-  showWalletSource?: boolean
+  showBillingSource?: boolean
 }
 
 function ToolSurchargeMarker() {
@@ -81,14 +81,14 @@ export function LogCostDisplay(props: LogCostDisplayProps) {
   const quota = isSubscription
     ? (props.other?.subscription_consumed ?? props.quota)
     : props.quota
+  const billingSource = props.showBillingSource
+    ? props.other?.billing_source
+    : undefined
   let source: string | undefined
 
-  if (isSubscription) {
+  if (billingSource === 'subscription') {
     source = t('Subscription')
-  } else if (
-    props.showWalletSource &&
-    props.other?.billing_source === 'wallet'
-  ) {
+  } else if (billingSource === 'wallet') {
     source = t('Wallet')
   }
 
