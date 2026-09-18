@@ -14,7 +14,7 @@ The local AWS CLI is authenticated as account `712090706271`. The existing Kuber
 
 ```text
 push to main
-  -> existing ARC runner in EKS
+  -> GitHub-hosted runner
   -> Docker build from repository Dockerfile
   -> Amazon ECR repository new-api
   -> GitHub OIDC assumes a short-lived AWS IAM role
@@ -23,7 +23,7 @@ push to main
   -> LoadBalancer Service exposes port 80 to container port 3000
 ```
 
-The first version uses SQLite on a single EBS-backed PVC. This matches the repository's documented single-node Docker deployment and keeps the initial chain small. The Deployment uses one replica and a `Recreate` strategy so the single-writer SQLite file is never mounted by two pods at once. A later production-hardening change can move the primary database to RDS PostgreSQL and enable multiple replicas with Redis.
+The first version uses SQLite on a single encrypted EKS Auto Mode `gp3` PVC. This matches the repository's documented single-node Docker deployment and keeps the initial chain small. The Deployment uses one replica and a `Recreate` strategy so the single-writer SQLite file is never mounted by two pods at once. A later production-hardening change can move the primary database to RDS PostgreSQL and enable multiple replicas with Redis.
 
 ## AWS Resources
 
@@ -34,8 +34,9 @@ Create or reuse these resources in `ap-southeast-1`:
 - IAM role `GitHubActionsNewApiDeploy`.
 - IAM policy allowing ECR image push operations for the `new-api` repository, EKS cluster description, and `sts:GetCallerIdentity`.
 - EKS access entry for the role with namespace-scoped Kubernetes access to the `new-api` namespace. The `new-api` Namespace is provisioned once by an administrator because namespace-scoped access cannot create cluster-scoped Namespace objects. The deployment workflow still uses the AWS EKS token flow; it does not store a long-lived Kubernetes token.
+- EKS Auto Mode StorageClass `auto-ebs-sc`, provisioned once by an administrator because StorageClass objects are cluster-scoped. It uses encrypted `gp3` volumes through `ebs.csi.eks.amazonaws.com`.
 
-The IAM trust policy is restricted to the `thecybersailor/new-api` repository and the `production` GitHub environment subject. The workflow must use the `production` environment so the subject claim is stable and can be protected by GitHub environment rules.
+The IAM trust policy is restricted to the immutable `production` environment subject for `thecybersailor/new-api`: `repo:thecybersailor@235312835/new-api@1375746808:environment:production`. The workflow must use the `production` environment so the subject claim remains stable and can be protected by GitHub environment rules.
 
 The deployment role does not receive account-wide `AdministratorAccess`, `system:masters`, or unrestricted EKS access. ECR permissions are repository-scoped. Kubernetes permissions are namespace-scoped through an EKS access policy where supported; the manifests are applied only to `new-api`.
 
@@ -47,7 +48,8 @@ Add version-controlled manifests under `deploy/k8s`:
 - `serviceaccount.yaml`: ServiceAccount for the application pod.
 - `configmap.yaml`: Non-sensitive runtime settings such as `TZ`, `PORT`, and `SESSION_COOKIE_SECURE`.
 - `secret.example.yaml`: Documentation-only example showing required secret keys without real values.
-- `pvc.yaml`: A `gp2` PVC for `/data`.
+- `storageclass.yaml`: One-time administrator bootstrap for the EKS Auto Mode `gp3` StorageClass.
+- `pvc.yaml`: An encrypted `auto-ebs-sc` PVC for `/data`.
 - `deployment.yaml`: One-replica `new-api` Deployment with image placeholder, health probes, resource requests/limits, and `/data` mount.
 - `service.yaml`: AWS LoadBalancer Service mapping port 80 to container port 3000.
 - `kustomization.yaml`: Base resource list and image replacement target.
@@ -61,7 +63,7 @@ The application will use `SESSION_COOKIE_SECURE=true` only when deployed behind 
 Add `.github/workflows/deploy-aws.yml`:
 
 - Triggers on pushes to `main` and manual dispatch.
-- Runs on the existing `thecybersailor-linux-amd64` runner label.
+- Runs on `ubuntu-latest` because the repository is public and the existing organization ARC scale set is not configured to accept public-repository jobs.
 - Uses workflow permissions `contents: read` and `id-token: write`.
 - Checks out the repository, resolves the image tag from `${{ github.sha }}`, configures AWS credentials through `aws-actions/configure-aws-credentials`, logs into ECR, and builds/pushes the Docker image. Because the ECR repository uses immutable tags, only the commit SHA tag is pushed.
 - Installs `kubectl`, updates a temporary kubeconfig for `syngy-lancelot`, creates/updates the Kubernetes Secret from GitHub environment secrets, applies the namespace-scoped manifests, waits for rollout, and performs an HTTP health check through the Service once an external address exists.

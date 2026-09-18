@@ -4,7 +4,7 @@
 
 **Goal:** Publish `thecybersailor/new-api` from GitHub Actions to the existing AWS EKS cluster `syngy-lancelot` in `ap-southeast-1`.
 
-**Architecture:** GitHub Actions runs on the existing `thecybersailor-linux-amd64` ARC runner, builds the repository Docker image, pushes an immutable commit-tagged image to ECR, and uses GitHub OIDC to obtain short-lived AWS credentials. The workflow applies version-controlled Kubernetes manifests for a single-replica `new-api` Deployment with SQLite persisted on a `gp2` EBS PVC and an AWS LoadBalancer Service.
+**Architecture:** GitHub Actions runs on `ubuntu-latest` because the public repository cannot use the existing organization ARC scale set, builds the repository Docker image, pushes an immutable commit-tagged image to ECR, and uses GitHub OIDC to obtain short-lived AWS credentials. The workflow applies version-controlled Kubernetes manifests for a single-replica `new-api` Deployment with SQLite persisted on an encrypted EKS Auto Mode `gp3` PVC and an AWS LoadBalancer Service.
 
 **Tech Stack:** GitHub Actions, GitHub OIDC, AWS IAM, Amazon ECR, Amazon EKS, Kubernetes, Kustomize, Docker, Go, Bun, SQLite.
 
@@ -19,12 +19,13 @@
 - ECR repository: `new-api`.
 - Kubernetes namespace: `new-api`.
 - Application deployment uses one replica and `Recreate` strategy because SQLite is single-writer.
-- Persistent application data is mounted at `/data` from a `gp2` PVC.
+- Persistent application data is mounted at `/data` from an encrypted `auto-ebs-sc` PVC.
 - Do not commit AWS credentials, Kubernetes tokens, application secrets, or generated kubeconfig files.
 - Do not modify the existing GitHub Runner Scale Set.
 - Do not create RDS, ElastiCache, custom DNS, ACM certificates, or HTTPS Ingress in this change.
 - Use immutable image tags based on `${{ github.sha }}`.
 - The `new-api` Namespace is created once by an administrator; the namespace-scoped deployment role does not manage the Namespace object.
+- The `auto-ebs-sc` StorageClass is created once by an administrator; the namespace-scoped deployment role does not manage cluster-scoped StorageClass objects.
 - Pin third-party GitHub Actions to commit SHAs, matching existing repository conventions.
 
 ---
@@ -326,6 +327,7 @@ Expected: one namespace-scoped association for `new-api`.
 - Create: `deploy/k8s/serviceaccount.yaml`
 - Create: `deploy/k8s/configmap.yaml`
 - Create: `deploy/k8s/secret.example.yaml`
+- Create: `deploy/k8s/storageclass.yaml`
 - Create: `deploy/k8s/pvc.yaml`
 - Create: `deploy/k8s/deployment.yaml`
 - Create: `deploy/k8s/service.yaml`
@@ -407,13 +409,38 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-  storageClassName: gp2
+  storageClassName: auto-ebs-sc
   resources:
     requests:
       storage: 20Gi
 ```
 
-- [ ] **Step 5: Write the Deployment**
+- [ ] **Step 5: Write the EKS Auto Mode StorageClass**
+
+Create `deploy/k8s/storageclass.yaml` for one-time administrator bootstrap:
+
+```yaml
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: auto-ebs-sc
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "false"
+allowedTopologies:
+  - matchLabelExpressions:
+      - key: eks.amazonaws.com/compute-type
+        values:
+          - auto
+provisioner: ebs.csi.eks.amazonaws.com
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  type: gp3
+  encrypted: "true"
+```
+
+The file is intentionally excluded from Kustomize because the StorageClass is cluster-scoped.
+
+- [ ] **Step 6: Write the Deployment**
 
 Create `deploy/k8s/deployment.yaml`:
 
@@ -488,7 +515,7 @@ spec:
             claimName: new-api-data
 ```
 
-- [ ] **Step 6: Write the LoadBalancer Service**
+- [ ] **Step 7: Write the LoadBalancer Service**
 
 Create `deploy/k8s/service.yaml`:
 
@@ -511,7 +538,7 @@ spec:
       protocol: TCP
 ```
 
-- [ ] **Step 7: Write Kustomize configuration**
+- [ ] **Step 8: Write Kustomize configuration**
 
 Create `deploy/k8s/kustomization.yaml`:
 
@@ -530,7 +557,7 @@ images:
     newTag: bootstrap
 ```
 
-- [ ] **Step 8: Render and validate the manifests**
+- [ ] **Step 9: Render and validate the manifests**
 
 Run:
 
@@ -707,6 +734,7 @@ aws eks update-kubeconfig \
   --profile default \
   --kubeconfig /tmp/sg.aws.kubeconfig
 KUBECONFIG=/tmp/sg.aws.kubeconfig kubectl apply -f deploy/k8s/namespace.yaml
+KUBECONFIG=/tmp/sg.aws.kubeconfig kubectl apply -f deploy/k8s/storageclass.yaml
 KUBECONFIG=/tmp/sg.aws.kubeconfig kubectl apply -k deploy/k8s
 ```
 
