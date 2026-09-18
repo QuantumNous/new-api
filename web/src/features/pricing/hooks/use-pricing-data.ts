@@ -20,16 +20,18 @@ import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 
 import { useStatus } from '@/hooks/use-status'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { getPricing } from '../api'
 
-export function usePricingData() {
+export function usePricingData(enabled = true) {
   const { status } = useStatus()
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['pricing'],
-    queryFn: getPricing,
+    queryFn: async () => requireServerSuccess(await getPricing()),
     staleTime: 5 * 60 * 1000,
+    enabled,
   })
 
   // Ensure rates never reach zero to prevent division errors

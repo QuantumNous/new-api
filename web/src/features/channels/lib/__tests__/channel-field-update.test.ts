@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import {
   CHANNEL_FIELD_UPDATE_DELAY_MS,
@@ -31,7 +30,7 @@ function createFakeTimers() {
   return {
     timers: {
       setTimeout: (callback: () => void, delay: number) => {
-        assert.equal(delay, CHANNEL_FIELD_UPDATE_DELAY_MS)
+        expect(delay).toBe(CHANNEL_FIELD_UPDATE_DELAY_MS)
         const id = nextId++
         pending.set(id, callback)
         return id
@@ -63,11 +62,11 @@ describe('channel field update scheduler', () => {
     scheduler.schedule(1)
     scheduler.schedule(2)
     scheduler.schedule(3)
-    assert.deepEqual(updates, [])
-    assert.equal(fake.pendingCount, 1)
+    expect(updates).toEqual([])
+    expect(fake.pendingCount).toBe(1)
 
     fake.fireAll()
-    assert.deepEqual(updates, [3])
+    expect(updates).toEqual([3])
   })
 
   test('flush commits the pending value immediately and cancels the timer', () => {
@@ -80,11 +79,11 @@ describe('channel field update scheduler', () => {
 
     scheduler.schedule(7)
     scheduler.flush()
-    assert.deepEqual(updates, [7])
-    assert.equal(fake.pendingCount, 0)
+    expect(updates).toEqual([7])
+    expect(fake.pendingCount).toBe(0)
 
     fake.fireAll()
-    assert.deepEqual(updates, [7])
+    expect(updates).toEqual([7])
   })
 
   test('flush without a pending value does nothing', () => {
@@ -99,7 +98,7 @@ describe('channel field update scheduler', () => {
     scheduler.schedule(5)
     scheduler.flush()
     scheduler.flush()
-    assert.deepEqual(updates, [5])
+    expect(updates).toEqual([5])
   })
 
   test('preserves a pending value of 0', () => {
@@ -112,6 +111,6 @@ describe('channel field update scheduler', () => {
 
     scheduler.schedule(0)
     scheduler.flush()
-    assert.deepEqual(updates, [0])
+    expect(updates).toEqual([0])
   })
 })

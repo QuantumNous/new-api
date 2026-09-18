@@ -94,7 +94,14 @@ function billingOther(overrides: Partial<LogOtherData> = {}): LogOtherData {
 
 describe('usage log ratio visibility', () => {
   test('普通用户使用日志列表不展示分组倍率片段', () => {
-    const segments = buildTypeDetailSegments(baseLog, billingOther(), t, false)
+    const segments = buildTypeDetailSegments(
+      baseLog,
+      billingOther(),
+      t,
+      'en',
+      undefined,
+      false
+    )
 
     assert.equal(
       segments.some((segment) => segment.text.includes('Group Ratio')),
@@ -103,7 +110,14 @@ describe('usage log ratio visibility', () => {
   })
 
   test('管理员使用日志列表展示分组倍率片段', () => {
-    const segments = buildTypeDetailSegments(baseLog, billingOther(), t, true)
+    const segments = buildTypeDetailSegments(
+      baseLog,
+      billingOther(),
+      t,
+      'en',
+      undefined,
+      true
+    )
 
     assert.equal(
       segments.some((segment) => segment.text.includes('Group Ratio 2x')),

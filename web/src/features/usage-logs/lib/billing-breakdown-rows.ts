@@ -19,7 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import type { TFunction } from 'i18next'
 
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
-import { formatLogQuota } from '@/lib/format'
 
 import type { UsageLog } from '../data/schema'
 import { USAGE_BILLING_PATH, type LogOtherData } from '../types'
@@ -97,13 +96,13 @@ export function buildBillingBreakdownRows(props: {
       for (const entry of tieredSummary.priceEntries) {
         rows.push({
           label: props.t(entry.shortLabel),
-          value: `${fmtPrice(entry.price)}/M`,
+          value: `${fmtPrice(entry.price)}/${entry.unit ? props.t(entry.unit) : 'M'}`,
         })
       }
     } else {
       rows.push({
         label: props.t('Matched Tier'),
-        value: props.t('No matching results'),
+        value: props.other.matched_tier || props.t('No matching results'),
       })
     }
   } else if (isPerCall) {
@@ -244,11 +243,6 @@ export function buildBillingBreakdownRows(props: {
       value: getUsageBillingPathLabel(props.t, props.other.admin_info),
     })
   }
-
-  rows.push({
-    label: props.t('Total Cost'),
-    value: formatLogQuota(props.log.quota),
-  })
 
   return rows
 }
