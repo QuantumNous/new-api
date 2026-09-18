@@ -40,22 +40,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Inspect GitHub OIDC claims
-        shell: bash
-        run: |
-          set -euo pipefail
-          token="$(
-            curl -fsSL \
-              -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" |
-              jq -r '.value'
-          )"
-          printf '%s' "$token" |
-            cut -d. -f2 |
-            tr '_-' '/+' |
-            base64 --decode 2>/dev/null |
-            jq '{sub,aud,repository,repository_visibility,ref,environment,workflow_ref}'
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
