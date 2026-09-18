@@ -27,8 +27,8 @@ import (
 const jevRequest = `{"model":"jev-latest","state":{"ticket":"Payment failed. Help today."},"questions":{"urgent":{"type":"noul","instructions":"Is this urgent?"},"team":{"type":"choice","instructions":{"task":"Choose a team"},"criteria":{"billing":null,"technical":"Software errors"}},"priority":{"type":"score","instructions":["Rate urgency"],"criteria":["Low","Medium","High"]}}}`
 const jevResponse = `{"model":"jev-1.13.0","answers":{"urgent":{"type":"noul","noul":0},"team":{"type":"choice","choice":"billing","probabilities":{"billing":0.9,"technical":0.1},"confidence":0.8},"priority":{"type":"score","score":1.8,"legend":{"0":"Low","1":"Medium","2":"High"},"probabilities":{"0":0.05,"1":0.1,"2":0.85},"confidence":0.7}},"usage":{"input_tokens":1000,"output_tokens":500}}`
 
-// Exercise the registered production route, authentication, distribution,
-// provider transport, billing reservation/refund, settlement and usage logs.
+// TestJevRelay exercises the production decisions route, authentication, request
+// and response validation, model mapping, pricing, settlement and refund accounting.
 func TestJevRelay(t *testing.T) {
 	cases := []struct {
 		name, path, request, response, auth, expression string
@@ -175,6 +175,8 @@ func TestJevRelay(t *testing.T) {
 	}
 }
 
+// setupJevRelayTest isolates database and billing settings, creates a funded user
+// and token, and drains asynchronous workers before restoring shared state.
 func setupJevRelayTest(t *testing.T) (*model.User, *model.Token) {
 	t.Helper()
 	previousDB, previousLogDB := model.DB, model.LOG_DB
@@ -213,6 +215,8 @@ func setupJevRelayTest(t *testing.T) (*model.User, *model.Token) {
 	return user, token
 }
 
+// createJevChannel registers an enabled TypeSafe test channel with a model alias
+// and routing ability in the fixture database.
 func createJevChannel(t *testing.T, baseURL, key string, passthrough bool) *model.Channel {
 	t.Helper()
 	mapping := `{"jev-latest":"jev-1.13.0"}`
@@ -223,6 +227,8 @@ func createJevChannel(t *testing.T, baseURL, key string, passthrough bool) *mode
 	return channel
 }
 
+// TestJevChannelManagement covers native model discovery and channel probes,
+// including malformed lists and validation after parameter overrides.
 func TestJevChannelManagement(t *testing.T) {
 	cases := []struct {
 		name, models, override    string
@@ -318,6 +324,8 @@ func TestJevChannelManagement(t *testing.T) {
 	}
 }
 
+// assertJevAccounting waits for settlement or refunds, then checks wallet, token,
+// channel and consume-log totals for a single gateway request.
 func assertJevAccounting(t *testing.T, user *model.User, token *model.Token, channel *model.Channel, charge int, success bool) {
 	t.Helper()
 	// Failure refunds run asynchronously. Wait for both account writes before

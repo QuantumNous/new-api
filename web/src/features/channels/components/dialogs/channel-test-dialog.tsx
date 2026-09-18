@@ -43,8 +43,6 @@ import {
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { CHANNEL_TYPE_TYPESAFE } from '../../constants'
-
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import {
   DataTableBulkActions as BulkActionsToolbar,
@@ -84,6 +82,7 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { handleServerError } from '@/lib/handle-server-error'
 
 import { updateChannel } from '../../api'
+import { CHANNEL_TYPE_TYPESAFE } from '../../constants'
 import {
   channelsQueryKeys,
   formatResponseTime,
@@ -314,6 +313,9 @@ export function ChannelTestDialog({
   )
 }
 
+/**
+ * Manages single and batch channel probes, restricting streaming for incompatible endpoints.
+ */
 function ChannelTestDialogContent({
   open,
   onOpenChange,

@@ -52,6 +52,8 @@ const (
 	RelayModeDecisions
 )
 
+// Path2RelayMode classifies gateway endpoint paths, returning RelayModeUnknown
+// when no supported route matches.
 func Path2RelayMode(path string) int {
 	relayMode := RelayModeUnknown
 	if path == "/v1/decisions" {

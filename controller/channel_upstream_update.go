@@ -361,6 +361,8 @@ func getFetchModelsResponseBody(method string, requestURL string, channel *model
 	return io.ReadAll(response.Body)
 }
 
+// fetchChannelUpstreamModelIDs reads model IDs using the channel-specific discovery
+// protocol. Invalid TypeSafe lists return an error rather than imply model removals.
 func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	if channel.Type == constant.ChannelTypeTaskPlugin {
 		plugin, ok := jsplugin.DefaultRegistry.Get(channel.GetSetting().TaskPluginKey)

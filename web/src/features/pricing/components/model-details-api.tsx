@@ -82,6 +82,9 @@ type SampleContext = {
   endpointPath: string
 }
 
+/**
+ * Builds a Chat Completions or Responses example for the selected language and endpoint.
+ */
 function buildChatSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}`
   const isResponses = ctx.endpointType === 'openai-response'
@@ -158,6 +161,9 @@ function buildChatSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+/**
+ * Builds a Claude Messages example with the required version and authentication headers.
+ */
 function buildAnthropicSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}`
   const userMessage = 'Explain quantum entanglement in one paragraph.'
@@ -236,6 +242,9 @@ function buildAnthropicSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+/**
+ * Builds a Gemini generateContent example using the configured model and base URL.
+ */
 function buildGeminiSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}?key=$${ctx.apiKeyEnv}`
   const userMessage = 'Explain quantum entanglement in one paragraph.'
@@ -289,6 +298,9 @@ function buildGeminiSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+/**
+ * Builds an embedding example that prints a short preview of the returned vector.
+ */
 function buildEmbeddingSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}`
   const text = 'The food was delicious and the waiter…'
@@ -351,6 +363,9 @@ function buildEmbeddingSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+/**
+ * Builds an image generation example that prints the first returned image URL.
+ */
 function buildImageSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}`
   const prompt = 'A serene koi pond at sunset, ukiyo-e style.'
@@ -423,6 +438,10 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+/**
+ * Builds a native decisions example with shared state and a noul question.
+ * Credentials are read from the configured environment variable.
+ */
 function buildDecisionsSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}`
   const body = JSON.stringify(
@@ -472,6 +491,9 @@ function buildDecisionsSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+/**
+ * Selects the protocol-specific example builder for the model endpoint.
+ */
 function buildSample(
   lang: Lang,
   endpointType: string,

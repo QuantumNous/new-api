@@ -14,6 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// DecisionsHelper maps the model, applies overrides, and validates the final decisions
+// request before relay. It settles quota only after the adaptor accepts the response.
 func DecisionsHelper(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
 	info.InitChannelMeta(c)
 	original, ok := info.Request.(*dto.DecisionsRequest)

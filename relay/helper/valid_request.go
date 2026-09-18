@@ -20,6 +20,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GetAndValidateRequest decodes and validates the request according to its relay
+// format and endpoint path before channel execution.
 func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dto.Request, err error) {
 	relayMode := relayconstant.Path2RelayMode(c.Request.URL.Path)
 

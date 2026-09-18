@@ -25,10 +25,14 @@ type DecisionsQuestion struct {
 	Criteria     json.RawMessage `json:"criteria,omitempty"`
 }
 
+// IsStream always returns false; Validate rejects an explicit streaming request.
 func (r *DecisionsRequest) IsStream(*http.Request) bool { return false }
 
+// SetModelName applies the channel model mapping to the upstream request.
 func (r *DecisionsRequest) SetModelName(model string) { r.Model = model }
 
+// GetTokenCountMeta supplies shared state and questions for the gateway token estimate.
+// Actual settlement uses the token counts returned by the provider.
 func (r *DecisionsRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	questions, _ := kitutil.Marshal(r.Questions)
 	return &types.TokenCountMeta{
@@ -37,6 +41,8 @@ func (r *DecisionsRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	}
 }
 
+// Validate checks required fields and the criteria shape for noul, choice and score
+// questions, and rejects streaming before any upstream call.
 func (r *DecisionsRequest) Validate() error {
 	if r == nil || strings.TrimSpace(r.Model) == "" {
 		return errors.New("model is required")

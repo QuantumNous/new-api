@@ -30,6 +30,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// relayHandler dispatches a prepared request to the handler for its relay format.
 func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
 	var err *types.NewAPIError
 	switch info.RelayMode {

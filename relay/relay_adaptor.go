@@ -48,6 +48,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GetAdaptor creates the provider adaptor for an API type, or returns nil if unsupported.
 func GetAdaptor(apiType int) channel.Adaptor {
 	switch apiType {
 	case constant.APITypeAli:

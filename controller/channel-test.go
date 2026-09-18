@@ -42,6 +42,8 @@ type testResult struct {
 	newAPIError *types.NewAPIError
 }
 
+// normalizeChannelTestEndpoint preserves an explicit endpoint and supplies native
+// defaults for TypeSafe and Codex when the selection is empty.
 func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) string {
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
@@ -73,6 +75,8 @@ func resolveChannelTestUserID(c *gin.Context) (int, error) {
 	return rootUser.Id, nil
 }
 
+// testChannel probes a configured channel using its model mapping and parameter
+// overrides, reporting local setup errors separately from upstream relay errors.
 func testChannel(ctx context.Context, channel *model.Channel, testUserID int, testModel string, endpointType string, isStream bool) testResult {
 	if ctx == nil {
 		ctx = context.Background()
@@ -733,6 +737,7 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	return message
 }
 
+// buildTestRequest constructs a synthetic request for the selected endpoint and model.
 func buildTestRequest(model string, endpointType string, channel *model.Channel, isStream bool) dto.Request {
 	testResponsesInput := json.RawMessage(`[{"role":"user","content":"hi"}]`)
 
