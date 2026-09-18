@@ -154,11 +154,12 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 		}
 	}
 
-	toolNames := make(map[string]string)
-	var unnamedToolResults []struct {
+	type unnamedToolResult struct {
 		index int
 		id    string
 	}
+	toolNames := make(map[string]string)
+	var unnamedToolResults []unnamedToolResult
 	for _, claudeMessage := range claudeRequest.Messages {
 		openAIMessage := dto.Message{
 			Role: claudeMessage.Role,
@@ -205,10 +206,7 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 				case "tool_result":
 					toolName := mediaMsg.Name
 					if toolName == "" {
-						unnamedToolResults = append(unnamedToolResults, struct {
-							index int
-							id    string
-						}{len(openAIMessages), mediaMsg.ToolUseId})
+						unnamedToolResults = append(unnamedToolResults, unnamedToolResult{index: len(openAIMessages), id: mediaMsg.ToolUseId})
 					}
 					oaiToolMessage := dto.Message{
 						Role:       "tool",
