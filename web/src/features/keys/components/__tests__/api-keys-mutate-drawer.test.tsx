@@ -237,6 +237,22 @@ describe('API keys mutate drawer Auto group integration', () => {
     }
   })
 
+  test('reverts a concrete group back to Follow user group and sends an empty group', async () => {
+    const createdPayloads: Array<Record<string, unknown>> = []
+    installApiFixtures(createdPayloads)
+    await renderCreateDrawer()
+
+    const groupTrigger = getControlByLabel('Group')
+    selectComboboxOption(groupTrigger, 'Priority access')
+    selectComboboxOption(groupTrigger, 'Follow user group')
+    expect(groupTrigger.textContent?.includes('Follow user group')).toBe(true)
+
+    changeInput(getControlByLabel('Name'), 'inherit')
+    fireEvent.click(findButton('Save changes', true))
+    await waitFor(() => expect(createdPayloads).toHaveLength(1))
+    expect(createdPayloads[0]?.group).toBe('')
+  })
+
   test('preserves an unsaved custom order and mode after Auto to ordinary to Auto changes', async () => {
     const createdPayloads: Array<Record<string, unknown>> = []
     installApiFixtures(createdPayloads)
