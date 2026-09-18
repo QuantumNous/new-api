@@ -79,13 +79,20 @@ jobs:
         run: |
           set -euo pipefail
           image="$ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA"
-          docker buildx build \
-            --file Dockerfile \
-            --tag "$image" \
-            --push \
-            --cache-from type=gha \
-            --cache-to type=gha,mode=max \
-            .
+          if aws ecr describe-images \
+            --repository-name "$ECR_REPOSITORY" \
+            --image-ids "imageTag=$GITHUB_SHA" \
+            --region "$AWS_REGION" >/dev/null 2>&1; then
+            echo "Reusing existing immutable image tag $GITHUB_SHA"
+          else
+            docker buildx build \
+              --file Dockerfile \
+              --tag "$image" \
+              --push \
+              --cache-from type=gha \
+              --cache-to type=gha,mode=max \
+              .
+          fi
           echo "IMAGE_URI=$image" >> "$GITHUB_ENV"
 
       - name: Configure kubeconfig
