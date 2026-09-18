@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TFunction } from 'i18next'
+import type { TFunction } from 'i18next'
 
 import type { TokenUnit } from './types'
 
@@ -74,6 +74,7 @@ export const ENDPOINT_TYPES = {
   ANTHROPIC: 'anthropic',
   GEMINI: 'gemini',
   JINA_RERANK: 'jina-rerank',
+  TYPESAFE_DECISIONS: 'typesafe-decisions',
   IMAGE_GENERATION: 'image-generation',
   EMBEDDINGS: 'embeddings',
   OPENAI_VIDEO: 'openai-video',
@@ -93,6 +94,7 @@ export function getEndpointTypeLabels(
     [ENDPOINT_TYPES.ANTHROPIC]: 'Anthropic',
     [ENDPOINT_TYPES.GEMINI]: 'Gemini',
     [ENDPOINT_TYPES.JINA_RERANK]: 'Rerank',
+    [ENDPOINT_TYPES.TYPESAFE_DECISIONS]: 'TypeSafe Jev',
     [ENDPOINT_TYPES.IMAGE_GENERATION]: t('Image'),
     [ENDPOINT_TYPES.EMBEDDINGS]: t('Embeddings'),
     [ENDPOINT_TYPES.OPENAI_VIDEO]: t('Video'),

@@ -33,6 +33,11 @@ type Adaptor interface {
 	ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error)
 }
 
+// DecisionsAdaptor is implemented only by providers with a native decisions API.
+type DecisionsAdaptor interface {
+	ConvertDecisionsRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.DecisionsRequest) (any, error)
+}
+
 type TaskAdaptor interface {
 	Init(info *relaycommon.RelayInfo)
 

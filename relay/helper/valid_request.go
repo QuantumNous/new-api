@@ -47,6 +47,12 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request, err = GetAndValidOpenAIImageRequest(c, relayMode)
 	case types.RelayFormatEmbedding:
 		request, err = GetAndValidateEmbeddingRequest(c, relayMode)
+	case types.RelayFormatDecisions:
+		decisions := &dto.DecisionsRequest{}
+		if err = common.UnmarshalBodyReusable(c, decisions); err == nil {
+			err = decisions.Validate()
+		}
+		request = decisions
 	case types.RelayFormatRerank:
 		request, err = GetAndValidateRerankRequest(c)
 	case types.RelayFormatOpenAIAudio:

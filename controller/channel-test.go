@@ -20,6 +20,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/relay"
+	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -45,6 +46,9 @@ func normalizeChannelTestEndpoint(channel *model.Channel, endpointType string) s
 	normalized := strings.TrimSpace(endpointType)
 	if normalized != "" {
 		return normalized
+	}
+	if channel != nil && channel.Type == constant.ChannelTypeTypeSafe {
+		return string(constant.EndpointTypeDecisions)
 	}
 	if channel != nil && channel.Type == constant.ChannelTypeCodex {
 		return string(constant.EndpointTypeOpenAIResponse)
@@ -109,6 +113,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	}
 
 	endpointType = normalizeChannelTestEndpoint(channel, endpointType)
+	if isStream && constant.EndpointType(endpointType) == constant.EndpointTypeDecisions {
+		return testResult{localErr: errors.New("decisions do not support streaming")}
+	}
 
 	requestPath := "/v1/chat/completions"
 
@@ -192,6 +199,8 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			relayFormat = types.RelayFormatClaude
 		case constant.EndpointTypeGemini:
 			relayFormat = types.RelayFormatGemini
+		case constant.EndpointTypeDecisions:
+			relayFormat = types.RelayFormatDecisions
 		case constant.EndpointTypeJinaRerank:
 			relayFormat = types.RelayFormatRerank
 		case constant.EndpointTypeImageGeneration:
@@ -308,6 +317,13 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	var convertedRequest any
 	// 根据 RelayMode 选择正确的转换函数
 	switch info.RelayMode {
+	case relayconstant.RelayModeDecisions:
+		decisions, supported := adaptor.(relaychannel.DecisionsAdaptor)
+		if req, ok := request.(*dto.DecisionsRequest); ok && supported {
+			convertedRequest, err = decisions.ConvertDecisionsRequest(c, info, req)
+		} else {
+			err = errors.New("channel does not support decisions")
+		}
 	case relayconstant.RelayModeEmbeddings:
 		// Embedding 请求 - request 已经是正确的类型
 		if embeddingReq, ok := request.(*dto.EmbeddingRequest); ok {
@@ -704,6 +720,14 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	// 根据端点类型构建不同的测试请求
 	if endpointType != "" {
 		switch constant.EndpointType(endpointType) {
+		case constant.EndpointTypeDecisions:
+			return &dto.DecisionsRequest{
+				Model: model,
+				State: json.RawMessage(`"The customer needs help with a failed payment."`),
+				Questions: map[string]dto.DecisionsQuestion{
+					"payment": {Type: "noul", Instructions: json.RawMessage(`"Is this about a payment?"`)},
+				},
+			}
 		case constant.EndpointTypeEmbeddings:
 			// 返回 EmbeddingRequest
 			return &dto.EmbeddingRequest{

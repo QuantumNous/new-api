@@ -451,6 +451,25 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return nil, sanitizeAdvancedCustomRequestError(err, key, url)
 	}
 
+	if channel.Type == constant.ChannelTypeTypeSafe {
+		var result struct {
+			Models []struct {
+				Name string `json:"name"`
+			} `json:"models"`
+		}
+		if err := common.Unmarshal(body, &result); err != nil {
+			return nil, errors.New("invalid TypeSafe model list")
+		}
+		if result.Models == nil {
+			return nil, errors.New("missing TypeSafe models")
+		}
+		ids := make([]string, 0, len(result.Models))
+		for _, item := range result.Models {
+			ids = append(ids, item.Name)
+		}
+		return normalizeModelNames(ids), nil
+	}
+
 	var result OpenAIModelsResponse
 	if err := common.Unmarshal(body, &result); err != nil {
 		return nil, err

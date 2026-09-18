@@ -680,6 +680,10 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		info = GenRelayInfoWs(c, ws)
 	case types.RelayFormatClaude:
 		info = GenRelayInfoClaude(c, request)
+	case types.RelayFormatDecisions:
+		info = genBaseRelayInfo(c, request)
+		info.RelayFormat = types.RelayFormatDecisions
+		info.RelayMode = relayconstant.RelayModeDecisions
 	case types.RelayFormatRerank:
 		if request, ok := request.(*dto.RerankRequest); ok {
 			info = GenRelayInfoRerank(c, request)
