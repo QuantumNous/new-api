@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: new-api
+  namespace: new-api
+data:
+  PORT: "3000"
+  TZ: Asia/Shanghai
+  SESSION_COOKIE_SECURE: "false"
+  ERROR_LOG_ENABLED: "true"
+  BATCH_UPDATE_ENABLED: "true"
+  NODE_NAME: new-api-0

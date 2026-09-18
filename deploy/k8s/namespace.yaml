@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: new-api
+  labels:
+    app.kubernetes.io/name: new-api
+    app.kubernetes.io/part-of: new-api

@@ -1,0 +1,153 @@
+name: Deploy to AWS EKS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-aws-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-southeast-1
+  EKS_CLUSTER: syngy-lancelot
+  ECR_REGISTRY: 712090706271.dkr.ecr.ap-southeast-1.amazonaws.com
+  ECR_REPOSITORY: new-api
+  KUBE_NAMESPACE: new-api
+
+jobs:
+  deploy:
+    name: Build and deploy new-api
+    runs-on: thecybersailor-linux-amd64
+    environment: production
+    timeout-minutes: 30
+    env:
+      SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+      SQL_DSN: ${{ secrets.SQL_DSN }}
+      REDIS_CONN_STRING: ${{ secrets.REDIS_CONN_STRING }}
+      CRYPTO_SECRET: ${{ secrets.CRYPTO_SECRET }}
+      SESSION_COOKIE_TRUSTED_URL: ${{ secrets.SESSION_COOKIE_TRUSTED_URL }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: github-actions-new-api
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Ensure AWS CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v aws >/dev/null 2>&1; then
+            curl -fsSL https://awscli.amazonaws.com/v2/install.sh | \
+              bash -s -- -i "$RUNNER_TEMP/aws-cli" -b "$RUNNER_TEMP/aws-bin"
+            echo "$RUNNER_TEMP/aws-bin" >> "$GITHUB_PATH"
+          fi
+          aws --version
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5.1.0
+        with:
+          version: v1.35.0
+
+      - name: Log in to Amazon ECR
+        run: |
+          set -euo pipefail
+          aws ecr get-login-password --region "$AWS_REGION" | \
+            docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Write build version
+        run: printf '%s\n' "$GITHUB_SHA" > VERSION
+
+      - name: Build and push image
+        run: |
+          set -euo pipefail
+          image="$ECR_REGISTRY/$ECR_REPOSITORY:$GITHUB_SHA"
+          docker buildx build \
+            --file Dockerfile \
+            --tag "$image" \
+            --push \
+            --cache-from type=gha \
+            --cache-to type=gha,mode=max \
+            .
+          echo "IMAGE_URI=$image" >> "$GITHUB_ENV"
+
+      - name: Configure kubeconfig
+        run: |
+          set -euo pipefail
+          aws eks update-kubeconfig \
+            --region "$AWS_REGION" \
+            --name "$EKS_CLUSTER"
+          kubectl config current-context
+
+      - name: Validate required deployment secret
+        run: |
+          set -euo pipefail
+          if [ -z "${SESSION_SECRET:-}" ]; then
+            echo "::error::The production environment secret SESSION_SECRET is required"
+            exit 1
+          fi
+
+      - name: Apply application resources
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          kubectl apply -f deploy/k8s/serviceaccount.yaml
+          kubectl apply -f deploy/k8s/configmap.yaml
+          kubectl apply -f deploy/k8s/pvc.yaml
+          kubectl apply -f deploy/k8s/service.yaml
+
+          secret_args=(--from-literal="SESSION_SECRET=$SESSION_SECRET")
+          for name in SQL_DSN REDIS_CONN_STRING CRYPTO_SECRET SESSION_COOKIE_TRUSTED_URL; do
+            value="${!name:-}"
+            if [ -n "$value" ]; then
+              secret_args+=(--from-literal="$name=$value")
+            fi
+          done
+
+          kubectl create secret generic new-api \
+            --namespace "$KUBE_NAMESPACE" \
+            "${secret_args[@]}" \
+            --dry-run=client \
+            --output yaml | kubectl apply -f -
+
+          kubectl apply -f deploy/k8s/deployment.yaml
+          kubectl -n "$KUBE_NAMESPACE" set image deployment/new-api \
+            new-api="$IMAGE_URI"
+          kubectl -n "$KUBE_NAMESPACE" rollout status deployment/new-api --timeout=10m
+
+      - name: Print deployment status on failure
+        if: failure()
+        run: |
+          kubectl -n "$KUBE_NAMESPACE" get deployment,pod,pvc,service -o wide || true
+          kubectl -n "$KUBE_NAMESPACE" describe deployment/new-api || true
+          kubectl -n "$KUBE_NAMESPACE" logs deployment/new-api --all-containers --tail=200 || true
+
+      - name: Summarize deployment
+        run: |
+          {
+            echo "## AWS EKS deployment"
+            echo
+            echo "- Image: \`$IMAGE_URI\`"
+            echo "- Cluster: \`$EKS_CLUSTER\`"
+            echo "- Namespace: \`$KUBE_NAMESPACE\`"
+            echo
+            echo '```'
+            kubectl -n "$KUBE_NAMESPACE" get deployment,pod,pvc,service -o wide
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
