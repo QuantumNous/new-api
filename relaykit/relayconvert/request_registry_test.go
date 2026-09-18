@@ -302,7 +302,7 @@ func TestGeminiThinkingLevelCaseInsensitiveAcrossPaths(t *testing.T) {
 		assert.Equal(t, "ULTRA", info.GetReasoningEffort())
 	})
 
-	t.Run("suffix state validates uppercase level against normalized effort", func(t *testing.T) {
+	t.Run("suffix state canonicalizes uppercase level against normalized effort", func(t *testing.T) {
 		info := &convmeta.Values{
 			OriginModelName:     "gemini-3.7-flash-thinking-medium",
 			UpstreamModelName:   "gemini-3.7-flash",
@@ -312,7 +312,7 @@ func TestGeminiThinkingLevelCaseInsensitiveAcrossPaths(t *testing.T) {
 		req := newRequest("MEDIUM")
 		require.NoError(t, ApplyGeminiThinkingConfigChecked(req, info))
 		assert.Equal(t, "medium", info.GetReasoningEffort())
-		assert.Equal(t, "MEDIUM", req.GenerationConfig.ThinkingConfig.ThinkingLevel)
+		assert.Equal(t, "medium", req.GenerationConfig.ThinkingConfig.ThinkingLevel)
 	})
 
 	t.Run("gemini to openai conversion accepts uppercase level", func(t *testing.T) {
@@ -329,15 +329,23 @@ func TestGeminiThinkingLevelCaseInsensitiveAcrossPaths(t *testing.T) {
 		assert.Equal(t, "medium", info.GetReasoningEffort())
 	})
 
-	t.Run("gemini to openai conversion still rejects unsupported level", func(t *testing.T) {
+	t.Run("gemini to openai conversion adjusts unsupported level with a diagnostic", func(t *testing.T) {
 		info := &convmeta.Values{
 			OriginModelName:   "gemini-3-pro-preview",
 			UpstreamModelName: "gemini-3-pro-preview",
 			ConversionChain:   []types.RelayFormat{types.RelayFormatGemini},
 		}
-		_, err := ConvertRequest(nil, info, types.RelayFormatOpenAI, newRequest("MINIMAL"))
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not supported by model")
+		result, err := ConvertRequest(nil, info, types.RelayFormatOpenAI, newRequest("MINIMAL"))
+		require.NoError(t, err)
+		openaiReq, ok := result.Value.(*dto.GeneralOpenAIRequest)
+		require.True(t, ok)
+		assert.Equal(t, "low", openaiReq.ReasoningEffort)
+		assert.Equal(t, "low", info.GetReasoningEffort())
+		codes := make([]string, 0, len(result.Diagnostics))
+		for _, diagnostic := range result.Diagnostics {
+			codes = append(codes, diagnostic.Code)
+		}
+		assert.Contains(t, codes, "gemini_level_adjusted")
 	})
 }
 

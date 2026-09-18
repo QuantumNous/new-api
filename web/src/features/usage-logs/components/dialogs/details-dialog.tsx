@@ -60,6 +60,7 @@ import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-p
 import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import { BILLING_PRICING_VARS } from '@/features/pricing/lib/billing-expr'
 import { pluginUsageSchema } from '@/features/pricing/lib/plugin-pricing'
+import { PolicyDecisionRecord } from '@/features/system-settings/request-policies/decision-record'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
@@ -789,6 +790,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
         )}
 
         {/* Quota saturation marker (admin only) */}
+        {props.isAdmin && adminInfo?.request_policy?.length ? (
+          <DetailSection
+            label={t('Request policy decisions')}
+            icon={<Route className='size-4' />}
+          >
+            <PolicyDecisionRecord events={adminInfo.request_policy} />
+          </DetailSection>
+        ) : null}
         {props.isAdmin && other?.admin_info?.quota_saturation && (
           <DetailSection
             icon={<AlertTriangle className='size-3.5' aria-hidden='true' />}

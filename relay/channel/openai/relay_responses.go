@@ -95,6 +95,8 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		accumulator.Observe(&streamResponse)
 	})
 
+	common.SetContextKey(c, constant.ContextKeyResponseStreamStatus, info.StreamStatus)
+	info.StreamStatus.RequireTerminal()
 	return accumulator.Finish(), nil
 }
 

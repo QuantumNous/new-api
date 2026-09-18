@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,16 +14,18 @@ func TestMergeExplicitAndSuffix(t *testing.T) {
 
 	budget1024 := 1024
 	budget2048 := 2048
+	budget4096 := 4096
 
 	tests := []struct {
 		name         string
 		explicit     Intent
 		suffix       Intent
-		wantErr      bool
 		wantMode     Mode
 		wantEffort   Effort
 		wantBudget   *int
+		wantNoBudget bool
 		wantThoughts *bool
+		wantCodes    []string
 	}{
 		{
 			name:       "enabled plus matching effort merges",
@@ -32,28 +35,62 @@ func TestMergeExplicitAndSuffix(t *testing.T) {
 			wantEffort: EffortHigh,
 		},
 		{
-			name:     "enabled vs disabled conflict",
-			explicit: Intent{Mode: ModeEnabled, Effort: EffortHigh},
-			suffix:   Intent{Mode: ModeDisabled, Effort: EffortNone, Source: SourceSuffix},
-			wantErr:  true,
+			name:       "suffix disable wins over explicit enable",
+			explicit:   Intent{Mode: ModeEnabled, Effort: EffortHigh},
+			suffix:     Intent{Mode: ModeDisabled, Effort: EffortNone, Source: SourceSuffix},
+			wantMode:   ModeDisabled,
+			wantEffort: EffortNone,
+			wantCodes:  []string{"suffix_overrode_request"},
 		},
 		{
-			name:     "different efforts conflict",
-			explicit: Intent{Mode: ModeEnabled, Effort: EffortLow},
-			suffix:   Intent{Mode: ModeEnabled, Effort: EffortHigh, Source: SourceSuffix},
-			wantErr:  true,
+			name:       "bare suffix enable wins over explicit disable",
+			explicit:   Intent{Mode: ModeDisabled, Effort: EffortNone},
+			suffix:     Intent{Mode: ModeEnabled, Source: SourceSuffix},
+			wantMode:   ModeEnabled,
+			wantEffort: "",
+			wantCodes:  []string{"suffix_overrode_request"},
 		},
 		{
-			name:     "different budgets conflict",
-			explicit: Intent{BudgetTokens: &budget1024},
-			suffix:   Intent{BudgetTokens: &budget2048, Source: SourceSuffix, BudgetSource: SourceSuffix},
-			wantErr:  true,
+			name:       "suffix effort wins over explicit effort",
+			explicit:   Intent{Mode: ModeEnabled, Effort: EffortLow},
+			suffix:     Intent{Mode: ModeEnabled, Effort: EffortHigh, Source: SourceSuffix},
+			wantMode:   ModeEnabled,
+			wantEffort: EffortHigh,
+			wantCodes:  []string{"suffix_overrode_request"},
 		},
 		{
-			name:     "effort versus exact suffix budget conflict",
-			explicit: Intent{Mode: ModeEnabled, Effort: EffortHigh},
-			suffix:   Intent{BudgetTokens: &budget1024, Source: SourceSuffix, BudgetSource: SourceSuffix},
-			wantErr:  true,
+			name:       "suffix budget wins over explicit budget",
+			explicit:   Intent{BudgetTokens: &budget1024},
+			suffix:     Intent{BudgetTokens: &budget2048, Source: SourceSuffix, BudgetSource: SourceSuffix},
+			wantMode:   ModeEnabled,
+			wantBudget: &budget2048,
+			wantCodes:  []string{"suffix_overrode_request"},
+		},
+		{
+			name:       "suffix budget drops explicit effort",
+			explicit:   Intent{Mode: ModeEnabled, Effort: EffortHigh},
+			suffix:     Intent{BudgetTokens: &budget1024, Source: SourceSuffix, BudgetSource: SourceSuffix},
+			wantMode:   ModeEnabled,
+			wantEffort: "",
+			wantBudget: &budget1024,
+			wantCodes:  []string{"suffix_overrode_request"},
+		},
+		{
+			name:         "suffix effort drops explicit budget",
+			explicit:     Intent{BudgetTokens: &budget4096},
+			suffix:       Intent{Mode: ModeEnabled, Effort: EffortHigh, Source: SourceSuffix},
+			wantMode:     ModeEnabled,
+			wantEffort:   EffortHigh,
+			wantNoBudget: true,
+			wantCodes:    []string{"suffix_overrode_request"},
+		},
+		{
+			name:       "bare suffix enable keeps explicit strength",
+			explicit:   Intent{Mode: ModeEnabled, Effort: EffortLow, BudgetTokens: &budget4096},
+			suffix:     Intent{Mode: ModeEnabled, Source: SourceSuffix},
+			wantMode:   ModeEnabled,
+			wantEffort: EffortLow,
+			wantBudget: &budget4096,
 		},
 		{
 			name:         "suffix only is adopted",
@@ -75,12 +112,7 @@ func TestMergeExplicitAndSuffix(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := MergeExplicitAndSuffix(tt.explicit, tt.suffix, "claude-opus-4-8")
-			if tt.wantErr {
-				require.Error(t, err)
-				assert.ErrorIs(t, err, ErrEffortConflict)
-				return
-			}
+			got, diagnostics, err := MergeExplicitAndSuffix(tt.explicit, tt.suffix, "claude-opus-4-8")
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantMode, got.Mode)
 			assert.Equal(t, tt.wantEffort, got.Effort)
@@ -88,12 +120,71 @@ func TestMergeExplicitAndSuffix(t *testing.T) {
 				require.NotNil(t, got.BudgetTokens)
 				assert.Equal(t, *tt.wantBudget, *got.BudgetTokens)
 			}
+			if tt.wantNoBudget {
+				assert.Nil(t, got.BudgetTokens)
+			}
 			if tt.wantThoughts != nil {
 				require.NotNil(t, got.IncludeThoughts)
 				assert.Equal(t, *tt.wantThoughts, *got.IncludeThoughts)
 			}
+			assert.Equal(t, tt.wantCodes, diagnosticCodes(diagnostics))
 		})
 	}
+}
+
+func TestFromOpenAIChatResolvesFieldConflictsWithDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reasoning_effort wins over nested effort", func(t *testing.T) {
+		t.Parallel()
+		got, diagnostics, err := FromOpenAIChat(&dto.GeneralOpenAIRequest{
+			ReasoningEffort: "low",
+			Reasoning:       []byte(`{"effort":"high"}`),
+		})
+		require.NoError(t, err)
+		assert.Equal(t, ModeEnabled, got.Mode)
+		assert.Equal(t, EffortLow, got.Effort)
+		assert.Equal(t, []string{"explicit_fields_conflict"}, diagnosticCodes(diagnostics))
+	})
+
+	t.Run("zero nested budget disables despite enabled flag", func(t *testing.T) {
+		t.Parallel()
+		got, diagnostics, err := FromOpenAIChat(&dto.GeneralOpenAIRequest{
+			Reasoning: []byte(`{"enabled":true,"max_tokens":0}`),
+		})
+		require.NoError(t, err)
+		assert.Equal(t, ModeDisabled, got.Mode)
+		assert.Equal(t, EffortNone, got.Effort)
+		assert.Equal(t, []string{"explicit_fields_conflict"}, diagnosticCodes(diagnostics))
+	})
+
+	t.Run("unknown effort value is still rejected", func(t *testing.T) {
+		t.Parallel()
+		_, _, err := FromOpenAIChat(&dto.GeneralOpenAIRequest{ReasoningEffort: "ultra"})
+		require.ErrorIs(t, err, ErrUnsupportedEffort)
+	})
+}
+
+func TestFromClaudeKeepsOutOfRangeBudgetsForTheRenderer(t *testing.T) {
+	t.Parallel()
+
+	maxTokens := uint(4096)
+	for _, budget := range []int{512, 4096} {
+		got, diagnostics, err := FromClaude(&dto.ClaudeRequest{
+			MaxTokens: &maxTokens,
+			Thinking:  &dto.Thinking{Type: "enabled", BudgetTokens: &budget},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, ModeEnabled, got.Mode)
+		require.NotNil(t, got.BudgetTokens)
+		assert.Equal(t, budget, *got.BudgetTokens)
+		assert.Empty(t, diagnostics)
+	}
+
+	got, diagnostics, err := FromClaude(&dto.ClaudeRequest{Thinking: &dto.Thinking{Type: "auto"}})
+	require.NoError(t, err)
+	assert.Equal(t, ModeEnabled, got.Mode)
+	assert.Equal(t, []string{"claude_thinking_type_coerced"}, diagnosticCodes(diagnostics))
 }
 
 func TestIntentStateRoundTrip(t *testing.T) {
@@ -125,6 +216,14 @@ func boolPtr(v bool) *bool {
 	return &v
 }
 
+func diagnosticCodes(diagnostics []types.ConversionDiagnostic) []string {
+	var codes []string
+	for _, diagnostic := range diagnostics {
+		codes = append(codes, diagnostic.Code)
+	}
+	return codes
+}
+
 func TestOpenAIPivotRetainsExactStrengthAndBudget(t *testing.T) {
 	budget, include := 16384, false
 	for _, effort := range []Effort{EffortMax, EffortXHigh} {
@@ -133,7 +232,7 @@ func TestOpenAIPivotRetainsExactStrengthAndBudget(t *testing.T) {
 			chat := &dto.GeneralOpenAIRequest{}
 			require.NoError(t, ApplyToOpenAIChat(chat, intent))
 			assert.Equal(t, string(effort), chat.ReasoningEffort)
-			restored, err := FromOpenAIChat(chat)
+			restored, _, err := FromOpenAIChat(chat)
 			require.NoError(t, err)
 			assert.Equal(t, effort, restored.Effort)
 			require.NotNil(t, restored.BudgetTokens)
@@ -145,7 +244,7 @@ func TestOpenAIPivotRetainsExactStrengthAndBudget(t *testing.T) {
 			require.NoError(t, ApplyToOpenAIResponses(responses, restored))
 			require.NotNil(t, responses.Reasoning)
 			assert.Equal(t, string(effort), responses.Reasoning.Effort)
-			restored, err = FromOpenAIResponses(responses)
+			restored, _, err = FromOpenAIResponses(responses)
 			require.NoError(t, err)
 			assert.Equal(t, effort, restored.Effort)
 			require.NotNil(t, restored.BudgetTokens)
@@ -156,54 +255,21 @@ func TestOpenAIPivotRetainsExactStrengthAndBudget(t *testing.T) {
 	}
 }
 
-func TestValidateGeminiThinkingConfigNormalizesNativeThinkingLevel(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		model      string
-		level      string
-		wantEffort Effort
-		wantErr    bool
-	}{
-		{name: "lowercase medium", model: "gemini-3.7-flash", level: "medium", wantEffort: EffortMedium},
-		{name: "uppercase enum medium", model: "gemini-3.7-flash", level: "MEDIUM", wantEffort: EffortMedium},
-		{name: "mixed case with whitespace", model: "gemini-3.7-flash", level: " Medium ", wantEffort: EffortMedium},
-		{name: "uppercase high", model: "gemini-3.1-pro-preview", level: "HIGH", wantEffort: EffortHigh},
-		{name: "minimal remains unsupported on gemini-3-pro", model: "gemini-3-pro-preview", level: "minimal", wantErr: true},
-		{name: "uppercase minimal remains unsupported on gemini-3-pro", model: "gemini-3-pro-preview", level: "MINIMAL", wantErr: true},
-		{name: "uppercase minimal remains unsupported on gemini-3.1-pro", model: "gemini-3.1-pro-preview", level: "MINIMAL", wantErr: true},
-		{name: "xhigh is not a Gemini level", model: "gemini-3.7-flash", level: "xhigh", wantErr: true},
-		{name: "unknown level", model: "gemini-3.7-flash", level: "ULTRA", wantErr: true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			config := &dto.GeminiThinkingConfig{ThinkingLevel: tt.level}
-			got, err := ValidateGeminiThinkingConfig(tt.model, config)
-			if tt.wantErr {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.wantEffort, got)
-			assert.Equal(t, tt.level, config.ThinkingLevel, "validation must not rewrite the client's wire value")
-		})
-	}
-}
-
-func TestOpenAIPivotDoesNotTreatMaxAndXHighAsEquivalent(t *testing.T) {
+func TestOpenAIPivotExplicitEffortOverridesPivotWithDiagnostic(t *testing.T) {
 	intent := Intent{Mode: ModeEnabled, Effort: EffortMax}
 	chat := &dto.GeneralOpenAIRequest{}
 	require.NoError(t, ApplyToOpenAIChat(chat, intent))
 	chat.ReasoningEffort = "xhigh"
-	_, err := FromOpenAIChat(chat)
-	require.ErrorIs(t, err, ErrEffortConflict)
+	got, diagnostics, err := FromOpenAIChat(chat)
+	require.NoError(t, err)
+	assert.Equal(t, EffortXHigh, got.Effort)
+	assert.Equal(t, []string{"explicit_fields_conflict"}, diagnosticCodes(diagnostics))
 
 	responses := &dto.OpenAIResponsesRequest{}
 	require.NoError(t, ApplyToOpenAIResponses(responses, intent))
 	responses.Reasoning.Effort = "xhigh"
-	_, err = FromOpenAIResponses(responses)
-	require.ErrorIs(t, err, ErrEffortConflict)
+	got, diagnostics, err = FromOpenAIResponses(responses)
+	require.NoError(t, err)
+	assert.Equal(t, EffortXHigh, got.Effort)
+	assert.Equal(t, []string{"explicit_fields_conflict"}, diagnosticCodes(diagnostics))
 }

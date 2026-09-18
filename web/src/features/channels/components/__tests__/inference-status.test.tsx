@@ -18,6 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  createRouter,
+  createRootRoute,
+  createMemoryHistory,
+  RouterContextProvider,
+} from '@tanstack/react-router'
+import {
   act,
   cleanup,
   render,
@@ -485,15 +491,21 @@ it.each([
     vi.spyOn(api, 'get').mockImplementation(async (url) => ({
       data: { success: true, data: url === '/api/channel/42' ? channel : [] },
     }))
+    const router = createRouter({
+      routeTree: createRootRoute(),
+      history: createMemoryHistory({ initialEntries: ['/'] }),
+    })
     render(
       <QueryClientProvider client={client}>
-        <ChannelsProvider>
-          <ChannelMutateDrawer
-            open
-            onOpenChange={vi.fn()}
-            currentRow={channel}
-          />
-        </ChannelsProvider>
+        <RouterContextProvider router={router}>
+          <ChannelsProvider>
+            <ChannelMutateDrawer
+              open
+              onOpenChange={vi.fn()}
+              currentRow={channel}
+            />
+          </ChannelsProvider>
+        </RouterContextProvider>
       </QueryClientProvider>
     )
     expect(await screen.findByDisplayValue('Inference')).toBeInTheDocument()

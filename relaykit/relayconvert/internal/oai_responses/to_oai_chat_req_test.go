@@ -1,6 +1,7 @@
 package oairesponses
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -19,7 +20,7 @@ func TestResponsesRequestToChatCompletionsRequestInstructionsAndScalarInput(t *t
 	maxOutputTokens := uint(128)
 	parallelToolCalls := true
 
-	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+	got, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
 		Model:                "gpt-test",
 		Instructions:         mustRawMessage(t, "system rules"),
 		Input:                mustRawMessage(t, "hello"),
@@ -68,7 +69,7 @@ func TestResponsesRequestToChatCompletionsRequestPreservesQwenThinkingBudget(t *
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+			got, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
 				Model:          "qwen-plus",
 				Input:          mustRawMessage(t, "hello"),
 				EnableThinking: json.RawMessage(`true`),
@@ -89,7 +90,7 @@ func TestResponsesRequestToChatCompletionsRequestPreservesQwenThinkingBudget(t *
 }
 
 func TestResponsesRequestToChatCompletionsRequestMultimodalInput(t *testing.T) {
-	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+	got, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
 		Model: "gpt-test",
 		Input: mustRawMessage(t, []map[string]any{
 			{
@@ -123,7 +124,7 @@ func TestResponsesRequestToChatCompletionsRequestMultimodalInput(t *testing.T) {
 }
 
 func TestResponsesRequestToChatCompletionsRequestAssistantTextAndFunctionCallCoexist(t *testing.T) {
-	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+	got, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
 		Model: "gpt-test",
 		Input: mustRawMessage(t, []map[string]any{
 			{
@@ -162,7 +163,7 @@ func TestResponsesRequestToChatCompletionsRequestAssistantTextAndFunctionCallCoe
 }
 
 func TestResponsesRequestToChatCompletionsRequestOnlyFunctionCallCreatesAssistant(t *testing.T) {
-	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+	got, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
 		Model: "gpt-test",
 		Input: mustRawMessage(t, []map[string]any{
 			{
@@ -184,7 +185,7 @@ func TestResponsesRequestToChatCompletionsRequestOnlyFunctionCallCreatesAssistan
 }
 
 func TestResponsesRequestToChatCompletionsRequestToolsToolChoiceAndTextFormat(t *testing.T) {
-	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+	got, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
 		Model: "gpt-test",
 		Input: mustRawMessage(t, "hello"),
 		Tools: mustRawMessage(t, []map[string]any{
@@ -233,7 +234,7 @@ func TestResponsesRequestToChatCompletionsRequestToolsToolChoiceAndTextFormat(t 
 }
 
 func TestResponsesRequestToChatCompletionsRequestCustomToolCallPreservesRawShape(t *testing.T) {
-	got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+	got, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
 		Model: "gpt-test",
 		Input: mustRawMessage(t, []map[string]any{
 			{
@@ -287,7 +288,7 @@ func TestResponsesRequestToChatCompletionsRequestRejectsStatefulFields(t *testin
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := ResponsesRequestToChatCompletionsRequest(tt.req)
+			_, err := ResponsesRequestToChatCompletionsRequest(context.Background(), tt.req)
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), tt.want)
 			assert.Contains(t, err.Error(), "stateful fields")
@@ -326,7 +327,7 @@ func TestResponsesRequestToChatCompletionsRequestPreservesPenalties(t *testing.T
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+			got, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
 				Model:            "gpt-test",
 				Input:            mustRawMessage(t, "hello"),
 				FrequencyPenalty: tt.frequencyRaw,
@@ -341,7 +342,7 @@ func TestResponsesRequestToChatCompletionsRequestPreservesPenalties(t *testing.T
 }
 
 func TestResponsesRequestToChatCompletionsRequestRejectsMalformedPenalty(t *testing.T) {
-	_, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+	_, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
 		Model:            "gpt-test",
 		Input:            mustRawMessage(t, "hello"),
 		FrequencyPenalty: json.RawMessage(`"not-a-number"`),

@@ -156,8 +156,25 @@ func buildChannelListQuery(group string, statusFilter int, typeFilter int) *gorm
 }
 
 func GetChannelOps(c *gin.Context) {
+	snapshot := model.CurrentRequestPolicy()
+	automaticDisable, source := snapshot.AutoDisable, "global"
+	if value, present := c.GetQuery("auto_ban"); present {
+		autoBan, err := strconv.ParseBool(value)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		automaticDisable = snapshot.AutoDisable && autoBan
+		if snapshot.AutoDisable {
+			source = "global_and_channel"
+			if !autoBan {
+				source = "channel"
+			}
+		}
+	}
 	common.ApiSuccess(c, gin.H{
-		"retry_times": common.RetryTimes,
+		"retry_times":    snapshot.RetryTimes,
+		"request_policy": gin.H{"automatic_disable": automaticDisable, "source": source},
 	})
 }
 

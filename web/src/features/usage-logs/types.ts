@@ -1,3 +1,4 @@
+import type { PolicyEvent } from '@/features/system-settings/request-policies/api'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -115,6 +116,7 @@ export interface ToolSurchargeItem {
 
 export interface LogOtherData {
   admin_info?: {
+    request_policy?: PolicyEvent[]
     is_multi_key?: boolean
     multi_key_index?: number
     use_channel?: number[]

@@ -92,10 +92,14 @@ func AppendRelayLogAdminInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	}
 
 	AppendChannelAffinityAdminInfo(ctx, other)
+	if events := RequestPolicy(ctx).Events(); len(events) > 0 {
+		other.SetAdmin("request_policy", events)
+	}
 }
 
 func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelRatio, groupRatio, completionRatio float64,
 	cacheTokens int, cacheRatio float64, modelPrice float64, userGroupRatio float64) *model.LogOther {
+	MarkRequestPolicySuccess(ctx, relayInfo.StreamStatus)
 	other := model.NewLogOther()
 	other.SetPublic("model_ratio", modelRatio)
 	other.SetPublic("group_ratio", groupRatio)
@@ -156,12 +160,15 @@ func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other *model.LogOther)
 	}
 	ss := relayInfo.StreamStatus
 	status := "ok"
-	if !ss.IsNormalEnd() || ss.HasErrors() {
+	if !ss.IsNormalEnd() || ss.HasErrors() || ss.ResponseFailed() {
 		status = "error"
 	}
 	streamInfo := map[string]any{
 		"status":     status,
 		"end_reason": string(ss.EndReason),
+	}
+	if outcome := ss.ResponseOutcome(); outcome != "" {
+		streamInfo["response_status"] = outcome
 	}
 	if ss.EndError != nil {
 		streamInfo["end_error"] = ss.EndError.Error()

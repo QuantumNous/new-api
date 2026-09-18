@@ -195,6 +195,13 @@ func InitOptionMap() {
 }
 
 func loadOptionsFromDatabase() {
+	requestPolicyOptionMutex.Lock()
+	defer requestPolicyOptionMutex.Unlock()
+	defer func() {
+		if err := refreshRequestPolicySnapshot(); err != nil {
+			common.SysError("invalid request policy: " + err.Error())
+		}
+	}()
 	passkeyOptionMutex.Lock()
 	defer passkeyOptionMutex.Unlock()
 	options, _ := AllOption()
@@ -234,6 +241,9 @@ func validateOptionValue(key string, value string) error {
 }
 
 func UpdateOption(key string, value string) error {
+	if IsRequestPolicyOption(key) {
+		return UpdateRequestPolicyOptions(map[string]string{key: value})
+	}
 	if IsPasskeyDomainOption(key) {
 		_, err := UpdatePasskeyDomainOptions(map[string]string{key: value}, false, "")
 		return err
@@ -279,6 +289,26 @@ func UpdateOptionsBulk(values map[string]string) error {
 			return err
 		}
 	}
+	var policySnapshot *RequestPolicySnapshot
+	for key := range values {
+		if IsRequestPolicyOption(key) {
+			requestPolicyOptionMutex.Lock()
+			defer requestPolicyOptionMutex.Unlock()
+			options := maps.Clone(CurrentRequestPolicy().Options)
+			for key, value := range values {
+				if IsRequestPolicyOption(key) {
+					options[key] = value
+				}
+			}
+			var err error
+			policySnapshot, err = BuildRequestPolicy(options)
+			if err != nil {
+				return err
+			}
+			break
+		}
+	}
+
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		for k, v := range values {
 			option := Option{Key: k}
@@ -299,6 +329,9 @@ func UpdateOptionsBulk(values map[string]string) error {
 		if err := updateOptionMap(k, v); err != nil {
 			return err
 		}
+	}
+	if policySnapshot != nil {
+		requestPolicySnapshot.Store(policySnapshot)
 	}
 	return nil
 }

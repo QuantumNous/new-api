@@ -203,3 +203,51 @@ test('selecting search results adds only matching models and retains the manual 
     'manual-model,gpt-two'
   )
 })
+
+test('the redirect action appears per model only when a handler is provided and reports the model without toggling it', async () => {
+  const user = userEvent.setup()
+  const onRedirect = vi.fn()
+  const view = render(
+    <UpstreamModelSelection
+      models={['gpt-one']}
+      selected={[]}
+      existingModels={[]}
+      showChanges={false}
+      onChange={() => undefined}
+    />
+  )
+  expect(
+    screen.queryByRole('button', { name: 'Redirect gpt-one' })
+  ).not.toBeInTheDocument()
+
+  view.rerender(
+    <UpstreamModelSelection
+      models={['gpt-one']}
+      selected={[]}
+      existingModels={[]}
+      showChanges={false}
+      onChange={() => undefined}
+      onRedirectModel={onRedirect}
+    />
+  )
+  await user.click(screen.getByRole('button', { name: 'Redirect gpt-one' }))
+  expect(onRedirect).toHaveBeenCalledWith('gpt-one')
+  expect(screen.getByRole('checkbox', { name: 'gpt-one' })).not.toBeChecked()
+})
+
+test('models published under another name show that name as a badge next to the row', () => {
+  render(
+    <UpstreamModelSelection
+      models={['gpt-4o-all', 'o3']}
+      selected={[]}
+      existingModels={[]}
+      showChanges={false}
+      onChange={() => undefined}
+      aliases={{ 'gpt-4o-all': 'gpt-4o' }}
+    />
+  )
+  expect(screen.getByLabelText('Published as gpt-4o')).toHaveTextContent(
+    'gpt-4o'
+  )
+  expect(screen.queryByLabelText(/Published as o3/)).not.toBeInTheDocument()
+})

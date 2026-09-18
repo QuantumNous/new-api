@@ -1,6 +1,7 @@
 package claudemessages
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -23,7 +24,7 @@ type openRouterRequestReasoning struct {
 	Exclude   bool   `json:"exclude,omitempty"`
 }
 
-func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info convmeta.Meta) (*dto.GeneralOpenAIRequest, error) {
+func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.ClaudeRequest, info convmeta.Meta) (*dto.GeneralOpenAIRequest, error) {
 	openAIRequest := dto.GeneralOpenAIRequest{
 		Model:       claudeRequest.Model,
 		Temperature: claudeRequest.Temperature,
@@ -40,7 +41,7 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 	if claudeRequest.Stream != nil {
 		openAIRequest.Stream = kitutil.GetPointer(*claudeRequest.Stream)
 	}
-	reasoningIntent, effectiveEffort, err := claudeRequestReasoningIntent(&claudeRequest, info)
+	reasoningIntent, effectiveEffort, err := claudeRequestReasoningIntent(ctx, &claudeRequest, info)
 	if err != nil {
 		return nil, reasoning.AsClientError(err)
 	}

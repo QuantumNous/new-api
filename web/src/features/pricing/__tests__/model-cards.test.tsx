@@ -160,7 +160,7 @@ describe('model cards', () => {
     const metrics = screen.getByLabelText(
       'Performance metrics for the last 24 hours'
     )
-    expect(within(metrics).getByText('—%')).toBeVisible()
+    expect(within(metrics).getByText('—')).toBeVisible()
     expect(within(metrics).getByText('—s')).toBeVisible()
     expect(within(metrics).getByText('—t/s')).toBeVisible()
     expect(within(metrics).queryByText(/100/)).not.toBeInTheDocument()
@@ -245,9 +245,9 @@ describe('model cards', () => {
   })
 
   it.each([
-    { success_rate: 0, expected: '0.0%' },
-    { success_rate: 99.8, expected: '99.8%' },
-    { success_rate: Number.NaN, expected: '—%' },
+    { success_rate: 0, expected: '0.00%' },
+    { success_rate: 99.8, expected: '99.80%' },
+    { success_rate: Number.NaN, expected: '—' },
   ])(
     'shows $expected for the reported request success rate $success_rate',
     ({ success_rate, expected }) => {
@@ -501,6 +501,7 @@ describe('model cards', () => {
           avg_latency_ms: 1200,
           avg_tps: 42,
           success_rate: 100,
+          window_start: currentHourStart - 23 * 3600,
           recent_success_series: [
             { ts: currentHourStart, success_rate: 100 },
             { ts: currentHourStart - 5 * 3600, success_rate: 80 },
@@ -538,6 +539,7 @@ describe('model cards', () => {
           avg_latency_ms: 1200,
           avg_tps: 42,
           success_rate: 100,
+          window_start: currentHourStart - 23 * 3600,
           recent_success_series: [
             { ts: currentHourStart - 24 * 3600, success_rate: 100 },
           ],
@@ -577,7 +579,7 @@ describe('model cards', () => {
     })
   })
 
-  it('places a five-hour-old point in slot 18 when now is mid-hour', () => {
+  it('uses the server window even when the browser clock is a day ahead', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-07T12:37:00.000Z'))
     const currentHourStart = Math.floor(Date.now() / 1000 / 3600) * 3600
@@ -590,8 +592,9 @@ describe('model cards', () => {
           avg_latency_ms: 1200,
           avg_tps: 42,
           success_rate: 80,
+          window_start: currentHourStart - 47 * 3600,
           recent_success_series: [
-            { ts: currentHourStart - 5 * 3600, success_rate: 80 },
+            { ts: currentHourStart - 29 * 3600, success_rate: 80 },
           ],
         }}
       />
