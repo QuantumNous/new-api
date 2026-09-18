@@ -547,3 +547,14 @@ func TestNewAwsClientUsesCredentialChain(t *testing.T) {
 	assert.Equal(t, "ap-southeast-2", client.Options().Region)
 	assert.NotNil(t, client.Options().Credentials)
 }
+
+func TestParseAwsCredentialChainKeyRejectsExtraSeparators(t *testing.T) {
+	for _, key := range []string{
+		"profile|region|extra",
+		"a|b|c|d",
+		"|ap-southeast-2|",
+	} {
+		_, _, err := parseAwsCredentialChainKey(key)
+		require.Error(t, err, "key %q should be rejected", key)
+	}
+}

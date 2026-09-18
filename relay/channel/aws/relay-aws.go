@@ -110,12 +110,16 @@ var awsCredentialChainProviders sync.Map
 // parseAwsCredentialChainKey 解析 credential_chain 模式的渠道密钥。
 // 支持 "<region>" 与 "<profile>|<region>" 两种格式。
 func parseAwsCredentialChainKey(key string) (profile string, region string, err error) {
-	parts := strings.SplitN(key, "|", 2)
-	if len(parts) == 2 {
+	parts := strings.Split(key, "|")
+	switch len(parts) {
+	case 1:
+		region = strings.TrimSpace(parts[0])
+	case 2:
 		profile = strings.TrimSpace(parts[0])
 		region = strings.TrimSpace(parts[1])
-	} else {
-		region = strings.TrimSpace(parts[0])
+	default:
+		// 多余的分隔符只可能是笔误；早点拒绝，避免把 "b|c" 当成 Region 带到 AWS 调用才失败。
+		return "", "", errors.New("invalid aws credential chain key, should be in format of <region> or <profile>|<region>")
 	}
 	if region == "" {
 		return "", "", errors.New("invalid aws credential chain key, should be in format of <region> or <profile>|<region>")
