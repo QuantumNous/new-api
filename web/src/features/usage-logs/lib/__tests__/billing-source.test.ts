@@ -30,13 +30,13 @@ function plan(enabled: boolean): PlanRecord {
   return { plan: { id: 1, enabled } as SubscriptionPlan }
 }
 
-const purchased: UserSubscriptionRecord[] = [
+const active: UserSubscriptionRecord[] = [
   {
     subscription: {
       id: 7,
       user_id: 3,
       plan_id: 1,
-      status: 'expired',
+      status: 'active',
       start_time: 0,
       end_time: 1,
       amount_total: 100,
@@ -50,7 +50,7 @@ describe('billing source visibility', () => {
     { name: 'no plans exist', plans: [] },
     { name: 'all plans are disabled', plans: [plan(false), plan(false)] },
     { name: 'plans failed to load', plans: undefined },
-  ])('hides labels for admins when $name', ({ plans }) => {
+  ])('hides icons for admins when $name', ({ plans }) => {
     expect(
       shouldShowBillingSource({
         isAdmin: true,
@@ -60,7 +60,7 @@ describe('billing source visibility', () => {
     ).toBe(false)
   })
 
-  test('shows labels for admins when at least one plan is enabled', () => {
+  test('shows icons for admins when at least one plan is enabled', () => {
     expect(
       shouldShowBillingSource({
         isAdmin: true,
@@ -70,7 +70,7 @@ describe('billing source visibility', () => {
     ).toBe(true)
   })
 
-  test('hides labels for a user who never purchased a subscription', () => {
+  test('hides icons for a user without an active subscription', () => {
     expect(
       shouldShowBillingSource({
         isAdmin: false,
@@ -80,22 +80,22 @@ describe('billing source visibility', () => {
     ).toBe(false)
   })
 
-  test('hides labels for a user when the system has no enabled plans', () => {
+  test('shows icons for an active subscription even when the system has no enabled plans', () => {
     expect(
       shouldShowBillingSource({
         isAdmin: false,
         plans: [],
-        subscriptions: purchased,
+        subscriptions: active,
       })
-    ).toBe(false)
+    ).toBe(true)
   })
 
-  test('shows labels for a user with a purchase when enabled plans exist', () => {
+  test('shows icons for a user with an active subscription when enabled plans exist', () => {
     expect(
       shouldShowBillingSource({
         isAdmin: false,
         plans: [plan(true)],
-        subscriptions: purchased,
+        subscriptions: active,
       })
     ).toBe(true)
   })

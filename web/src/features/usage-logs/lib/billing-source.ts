@@ -23,29 +23,22 @@ import type {
 
 interface BillingSourceVisibilityInput {
   isAdmin: boolean
-  /** Admin view: every plan; own-logs view: the enabled public plans. */
+  /** Admin view only: every system plan. */
   plans: PlanRecord[] | undefined
-  /** Own-logs view only: every subscription the user ever held. */
+  /** Own-logs view only: active subscriptions returned by the self API. */
   subscriptions: UserSubscriptionRecord[] | undefined
 }
 
 /**
  * Every consume log carries `billing_source`, so the Wallet / Subscription
- * label on the cost column is only a disambiguator. It stays hidden unless the
- * system has at least one enabled plan and, when viewing one's own logs, that
- * user has purchased a subscription.
+ * icon on the cost column is only a disambiguator. Admins see it when the
+ * system has an enabled plan; own-logs views require an active subscription.
  */
 export function shouldShowBillingSource(
   input: BillingSourceVisibilityInput
 ): boolean {
-  const hasEnabledPlan = (input.plans ?? []).some(
-    (record) => record.plan?.enabled === true
-  )
-  if (!hasEnabledPlan) {
-    return false
-  }
   if (input.isAdmin) {
-    return true
+    return (input.plans ?? []).some((record) => record.plan?.enabled === true)
   }
   return (input.subscriptions?.length ?? 0) > 0
 }

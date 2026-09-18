@@ -28,7 +28,6 @@ import {
 } from '@/components/data-table'
 import {
   getAdminPlans,
-  getPublicPlans,
   getSelfSubscriptionFull,
 } from '@/features/subscriptions/api'
 import { useMediaQuery } from '@/hooks'
@@ -107,16 +106,13 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
         })
       }
 
-      const [plansResult, selfResult] = await Promise.all([
-        getPublicPlans(),
-        getSelfSubscriptionFull(),
-      ])
-      const subscriptions =
-        selfResult.data?.all_subscriptions ?? selfResult.data?.subscriptions
+      const selfResult = await getSelfSubscriptionFull()
       return shouldShowBillingSource({
         isAdmin,
-        plans: plansResult.success ? plansResult.data : undefined,
-        subscriptions: selfResult.success ? subscriptions : undefined,
+        plans: undefined,
+        subscriptions: selfResult.success
+          ? selfResult.data?.subscriptions
+          : undefined,
       })
     },
   })
