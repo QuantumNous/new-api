@@ -77,6 +77,9 @@ test.each([
     expect(input).toHaveValue(0.0001)
     expect(input.checkValidity()).toBe(true)
     await user.clear(input)
+    await user.type(input, '0.00001')
+    expect(input.validity.stepMismatch).toBe(true)
+    await user.clear(input)
     await user.type(input, '-0.04')
     expect(input.validity.rangeUnderflow).toBe(true)
   }

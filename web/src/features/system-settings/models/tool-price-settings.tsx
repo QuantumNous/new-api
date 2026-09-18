@@ -330,7 +330,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
                     <Input
                       type='number'
                       min={0}
-                      step='any'
+                      step={0.0001}
                       value={row.price}
                       aria-invalid={isInvalid}
                       aria-label={`${t('Price ($/1K calls)')}: ${row.key || t('Tool identifier')}`}
