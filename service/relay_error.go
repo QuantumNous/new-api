@@ -1,6 +1,7 @@
 package service
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -52,7 +53,12 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	if err == nil {
 		return
 	}
-	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.MaskSensitiveErrorWithStatusCode())))
+	upstreamResponseError, _ := common.GetContextKeyType[[]byte](c, constant.ContextKeyUpstreamResponseError)
+	logMessage := fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.MaskSensitiveErrorWithStatusCode()))
+	if len(upstreamResponseError) > 0 {
+		logMessage += ", response.error=" + common.LocalLogPreview(common.MaskSensitiveInfo(string(upstreamResponseError)))
+	}
+	logger.LogError(c, logMessage)
 	if ShouldDisableChannel(err) && channelError.AutoBan {
 		reason := err.MaskSensitiveErrorWithStatusCode()
 		gopool.Go(func() {
@@ -74,6 +80,9 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 		other.SetPublic("error_code", err.GetErrorCode())
 		other.SetPublic("status_code", err.StatusCode)
 		AppendRelayLogAdminInfo(c, relayInfo, other)
+		if common.GetJsonType(upstreamResponseError) == "object" {
+			other.SetAdmin("upstream_response_error", json.RawMessage(upstreamResponseError))
+		}
 		AppendTaskPluginContextAuditInfo(c, other)
 		startTime := common.GetContextKeyTime(c, constant.ContextKeyRequestStartTime)
 		if startTime.IsZero() {

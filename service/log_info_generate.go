@@ -119,6 +119,9 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	}
 
 	AppendRelayLogAdminInfo(ctx, relayInfo, other)
+	if claudeStopDetails, ok := common.GetContextKeyType[*dto.ClaudeStopDetails](ctx, constant.ContextKeyClaudeStopDetails); ok && claudeStopDetails != nil {
+		other.SetAdmin("claude_stop_details", claudeStopDetails)
+	}
 	appendRequestPath(ctx, relayInfo, other)
 	appendRequestConversionChain(relayInfo, other)
 	appendFinalRequestFormat(relayInfo, other)

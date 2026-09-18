@@ -65,6 +65,12 @@ const (
 	// It is not returned to end users, but can be persisted into consume/error logs for debugging.
 	ContextKeyAdminRejectReason ContextKey = "admin_reject_reason"
 
+	// ContextKeyClaudeStopDetails stores Claude refusal details for administrator consume logs only.
+	ContextKeyClaudeStopDetails ContextKey = "claude_stop_details"
+
+	// ContextKeyUpstreamResponseError 保存序列化后的 Responses 上游错误对象
+	ContextKeyUpstreamResponseError ContextKey = "upstream_response_error"
+
 	// ContextKeyLanguage stores the user's language preference for i18n
 	ContextKeyLanguage ContextKey = "language"
 	ContextKeyIsStream ContextKey = "is_stream"

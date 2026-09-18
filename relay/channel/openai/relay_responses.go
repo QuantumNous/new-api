@@ -32,6 +32,9 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	if hasResponsesFailedStatus(responsesResponse.Status) {
+		return nil, newResponsesFailedError(c, &responsesResponse, resp.StatusCode)
+	}
 	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
@@ -77,6 +80,7 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	defer service.CloseResponseBodyGracefully(resp)
 
 	accumulator := service.NewResponsesUsageAccumulator(info)
+	var streamErr *types.NewAPIError
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 
@@ -92,7 +96,14 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 		sendResponsesStreamData(c, streamResponse, data)
 		accumulator.Observe(&streamResponse)
+		if streamResponse.Type == "response.failed" {
+			streamErr = newResponsesFailedError(c, streamResponse.Response, resp.StatusCode)
+			sr.Stop(streamErr)
+		}
 	})
+	if streamErr != nil {
+		return nil, streamErr
+	}
 
 	return accumulator.Finish(), nil
 }
