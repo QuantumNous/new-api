@@ -10,7 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
-// DecisionsRequest is the TypeSafe /v1/systemone protocol. State is shared
+// DecisionsRequest is the native decisions protocol used by TypeSafe. State is shared
 // across questions; it must not be expanded into one chat request per question.
 type DecisionsRequest struct {
 	Model     string                       `json:"model"`

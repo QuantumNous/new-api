@@ -68,88 +68,90 @@ func TestJevRelay(t *testing.T) {
 		{name: "unlisted choice refunds", response: strings.Replace(jevResponse, `"choice":"billing"`, `"choice":"sales"`, 1), expectedStatus: 502, wantUpstream: true},
 		{name: "out of range score refunds", response: strings.Replace(jevResponse, `"score":1.8`, `"score":9`, 1), expectedStatus: 502, wantUpstream: true},
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			user, token := setupJevRelayTest(t)
-			if tc.expired {
-				token.ExpiredTime = time.Now().Unix() - 1
-			}
-			if tc.disabled {
-				token.Status = common.TokenStatusDisabled
-			}
-			if tc.restricted {
-				token.ModelLimitsEnabled = true
-				token.ModelLimits = "another-model"
-			}
-			require.NoError(t, model.DB.Save(token).Error)
-			if tc.expression != "" {
-				expressions, err := common.Marshal(map[string]string{"jev-latest": tc.expression})
-				require.NoError(t, err)
-				require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{"billing_setting.billing_expr": string(expressions)}))
-			}
-			var calls atomic.Int32
-			var reserved atomic.Int64
-			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				calls.Add(1)
-				assert.Equal(t, "/v1/systemone", r.URL.Path)
-				assert.Equal(t, "Bearer upstream-test-key", r.Header.Get("Authorization"))
-				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-				var received dto.DecisionsRequest
-				assert.NoError(t, common.DecodeJson(r.Body, &received))
-				assert.Equal(t, "jev-1.13.0", received.Model)
-				assert.Len(t, received.Questions, 3)
-				assert.Nil(t, received.Stream)
-				var current model.Token
-				assert.NoError(t, model.DB.First(&current, token.Id).Error)
-				reserved.Store(int64(50000 - current.RemainQuota))
-				status := tc.upstreamStatus
+	for _, path := range []string{"/v1/decisions", "/v1/systemone"} {
+		for _, tc := range cases {
+			t.Run(path+"/"+tc.name, func(t *testing.T) {
+				user, token := setupJevRelayTest(t)
+				if tc.expired {
+					token.ExpiredTime = time.Now().Unix() - 1
+				}
+				if tc.disabled {
+					token.Status = common.TokenStatusDisabled
+				}
+				if tc.restricted {
+					token.ModelLimitsEnabled = true
+					token.ModelLimits = "another-model"
+				}
+				require.NoError(t, model.DB.Save(token).Error)
+				if tc.expression != "" {
+					expressions, err := common.Marshal(map[string]string{"jev-latest": tc.expression})
+					require.NoError(t, err)
+					require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{"billing_setting.billing_expr": string(expressions)}))
+				}
+				var calls atomic.Int32
+				var reserved atomic.Int64
+				upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					calls.Add(1)
+					assert.Equal(t, "/v1/systemone", r.URL.Path)
+					assert.Equal(t, "Bearer upstream-test-key", r.Header.Get("Authorization"))
+					assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+					var received dto.DecisionsRequest
+					assert.NoError(t, common.DecodeJson(r.Body, &received))
+					assert.Equal(t, "jev-1.13.0", received.Model)
+					assert.Len(t, received.Questions, 3)
+					assert.Nil(t, received.Stream)
+					var current model.Token
+					assert.NoError(t, model.DB.First(&current, token.Id).Error)
+					reserved.Store(int64(50000 - current.RemainQuota))
+					status := tc.upstreamStatus
+					if status == 0 {
+						status = 200
+					}
+					response := tc.response
+					if response == "" {
+						response = jevResponse
+					}
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(status)
+					_, _ = io.WriteString(w, response)
+				}))
+				t.Cleanup(upstream.Close)
+				channel := createJevChannel(t, upstream.URL, "upstream-test-key", tc.passthrough)
+				engine := gin.New()
+				SetRelayRouter(engine)
+				body := tc.request
+				if body == "" {
+					body = jevRequest
+				}
+				request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+				request.Header.Set("Content-Type", "application/json")
+				if tc.auth != "none" {
+					key := token.Key
+					if tc.auth == "invalid" {
+						key = "invalid-key"
+					}
+					request.Header.Set("Authorization", "Bearer sk-"+key)
+				}
+				recorder := httptest.NewRecorder()
+				engine.ServeHTTP(recorder, request)
+				status := tc.expectedStatus
 				if status == 0 {
 					status = 200
 				}
-				response := tc.response
-				if response == "" {
-					response = jevResponse
+				require.Equal(t, status, recorder.Code, recorder.Body.String())
+				assert.NotContains(t, recorder.Body.String(), "upstream-test-key")
+				if tc.wantUpstream {
+					assert.EqualValues(t, 1, calls.Load())
+					assert.Positive(t, reserved.Load())
+				} else {
+					assert.Zero(t, calls.Load())
 				}
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(status)
-				_, _ = io.WriteString(w, response)
-			}))
-			t.Cleanup(upstream.Close)
-			channel := createJevChannel(t, upstream.URL, "upstream-test-key", tc.passthrough)
-			engine := gin.New()
-			SetRelayRouter(engine)
-			body := tc.request
-			if body == "" {
-				body = jevRequest
-			}
-			request := httptest.NewRequest(http.MethodPost, "/v1/systemone", strings.NewReader(body))
-			request.Header.Set("Content-Type", "application/json")
-			if tc.auth != "none" {
-				key := token.Key
-				if tc.auth == "invalid" {
-					key = "invalid-key"
+				if status == 200 {
+					assert.JSONEq(t, jevResponse, recorder.Body.String())
 				}
-				request.Header.Set("Authorization", "Bearer sk-"+key)
-			}
-			recorder := httptest.NewRecorder()
-			engine.ServeHTTP(recorder, request)
-			status := tc.expectedStatus
-			if status == 0 {
-				status = 200
-			}
-			require.Equal(t, status, recorder.Code, recorder.Body.String())
-			assert.NotContains(t, recorder.Body.String(), "upstream-test-key")
-			if tc.wantUpstream {
-				assert.EqualValues(t, 1, calls.Load())
-				assert.Positive(t, reserved.Load())
-			} else {
-				assert.Zero(t, calls.Load())
-			}
-			if status == 200 {
-				assert.JSONEq(t, jevResponse, recorder.Body.String())
-			}
-			assertJevAccounting(t, user, token, channel, tc.charge, status == 200)
-		})
+				assertJevAccounting(t, user, token, channel, tc.charge, status == 200)
+			})
+		}
 	}
 }
 
@@ -291,7 +293,7 @@ func TestJevLive(t *testing.T) {
 	createJevChannel(t, "https://api.typesafe.ai", strings.TrimSpace(string(key)), false)
 	engine := gin.New()
 	SetRelayRouter(engine)
-	request := httptest.NewRequest(http.MethodPost, "/v1/systemone", strings.NewReader(jevRequest))
+	request := httptest.NewRequest(http.MethodPost, "/v1/decisions", strings.NewReader(jevRequest))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Authorization", "Bearer sk-"+token.Key)
 	recorder := httptest.NewRecorder()

@@ -187,7 +187,7 @@ const endpointTypeOptions: Array<{ value: string; label: string }> = [
     value: 'gemini',
     label: 'Gemini (/v1beta/models/{model}:generateContent)',
   },
-  { value: 'typesafe-decisions', label: 'TypeSafe Jev (/v1/systemone)' },
+  { value: 'typesafe-decisions', label: 'TypeSafe Jev (/v1/decisions)' },
   { value: 'jina-rerank', label: 'Jina Rerank (/v1/rerank)' },
   {
     value: 'image-generation',

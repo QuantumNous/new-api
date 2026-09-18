@@ -143,10 +143,14 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatOpenAIAudio)
 		})
 
+		// Native decisions, with the TypeSafe route retained as an alias.
+		for _, path := range []string{"/decisions", "/systemone"} {
+			httpRouter.POST(path, func(c *gin.Context) {
+				controller.Relay(c, types.RelayFormatDecisions)
+			})
+		}
+
 		// rerank related routes
-		httpRouter.POST("/systemone", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatDecisions)
-		})
 		httpRouter.POST("/rerank", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatRerank)
 		})
