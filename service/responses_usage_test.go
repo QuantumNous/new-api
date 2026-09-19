@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -25,7 +26,7 @@ func TestResponsesUsageAccumulatorTerminalAccounting(t *testing.T) {
 		{eventType: "response.canceled"},
 	} {
 		t.Run(tc.eventType, func(t *testing.T) {
-			info := &relaycommon.RelayInfo{OriginModelName: "gpt-5.1"}
+			info := &relaycommon.RelayInfo{OriginModelName: "gpt-5.1", StreamStatus: relaycommon.NewStreamStatus()}
 			accumulator := NewResponsesUsageAccumulator(info)
 			for _, item := range []dto.ResponsesOutput{
 				{Type: dto.BuildInCallWebSearchCall},
@@ -48,6 +49,8 @@ func TestResponsesUsageAccumulatorTerminalAccounting(t *testing.T) {
 			accumulator.Observe(terminal)
 			accumulator.Observe(terminal)
 			usage := accumulator.Finish()
+			assert.Equal(t, tc.eventType == "response.failed", info.StreamStatus.ResponseFailed())
+			assert.NotEmpty(t, info.StreamStatus.ResponseOutcome())
 
 			assert.Equal(t, 20, usage.PromptTokens)
 			assert.Equal(t, 5, usage.CompletionTokens)
@@ -107,8 +110,36 @@ func TestResponsesUsageAccumulatorInterruptedTextFallback(t *testing.T) {
 	}
 }
 
+func TestObserveResponsesOutcomeRecordsProtocolFacts(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		event       string
+		wantOutcome relaycommon.ResponseOutcome
+		wantCode    string
+		wantType    string
+		wantIncompl string
+	}{
+		{"flat sse error", `{"type":"error","code":"context_length_exceeded","message":"too long"}`, relaycommon.ResponseOutcomeFailed, "context_length_exceeded", "", ""},
+		{"done with failed status", `{"type":"response.done","response":{"status":"failed","error":{"code":"invalid_api_key","type":"invalid_request_error","message":"bad key"}}}`, relaycommon.ResponseOutcomeFailed, "invalid_api_key", "invalid_request_error", ""},
+		{"incomplete keeps reason", `{"type":"response.incomplete","response":{"status":"incomplete","incomplete_details":{"reason":"max_output_tokens"}}}`, relaycommon.ResponseOutcomeIncomplete, "", "", "max_output_tokens"},
+		{"in progress is not terminal", `{"type":"response.created","response":{"status":"in_progress"}}`, relaycommon.ResponseOutcomeUnknown, "", "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var event dto.ResponsesStreamResponse
+			require.NoError(t, common.UnmarshalJsonStr(tc.event, &event))
+			info := &relaycommon.RelayInfo{StreamStatus: relaycommon.NewStreamStatus()}
+			ObserveResponsesOutcome(info, &event)
+			outcome := info.StreamStatus.OutcomeSnapshot()
+			assert.Equal(t, tc.wantOutcome, outcome.Response)
+			assert.Equal(t, tc.wantCode, outcome.ErrorCode)
+			assert.Equal(t, tc.wantType, outcome.ErrorType)
+			assert.Equal(t, tc.wantIncompl, outcome.IncompleteReason)
+		})
+	}
+}
+
 func TestResponsesUsageAccumulatorDisconnectBillsCompletedImage(t *testing.T) {
-	info := &relaycommon.RelayInfo{OriginModelName: "gpt-5.1"}
+	info := &relaycommon.RelayInfo{OriginModelName: "gpt-5.1", StreamStatus: relaycommon.NewStreamStatus()}
 	accumulator := NewResponsesUsageAccumulator(info)
 	accumulator.Observe(&dto.ResponsesStreamResponse{
 		Type: dto.ResponsesOutputTypeItemDone,
@@ -219,4 +250,92 @@ func TestApplyResponsesUsagePreservesBillingSnapshotAcrossPartialUpdates(t *test
 	require.NotNil(t, dst.BillingUsage)
 	assert.Equal(t, src.BillingUsage, dst.BillingUsage)
 	assert.NotSame(t, src.BillingUsage, dst.BillingUsage)
+}
+
+func TestResponsesUsageAccumulatorMissingUsageEstimation(t *testing.T) {
+	const model = "gpt-4o"
+	const summary = "Inspect the repository before editing."
+	const arguments = `{"command":["bash","-lc","ls"]}`
+	inProgress := &dto.OpenAIResponsesResponse{Status: []byte(`"in_progress"`)}
+	for _, tc := range []struct {
+		name           string
+		events         []dto.ResponsesStreamResponse
+		wantPrompt     int
+		wantCompletion int
+	}{
+		{
+			name: "tool call stream cut before terminal usage",
+			events: []dto.ResponsesStreamResponse{
+				{Type: "response.created", Response: inProgress},
+				{Type: "response.reasoning_summary_text.delta", Delta: summary},
+				{Type: "response.function_call_arguments.delta", Delta: arguments},
+				{Type: dto.ResponsesOutputTypeItemDone, Item: &dto.ResponsesOutput{Type: dto.BuildInCallFunctionCall, Name: "shell"}},
+			},
+			wantPrompt:     100,
+			wantCompletion: CountTextToken(summary+arguments, model),
+		},
+		{
+			name: "created only then disconnect bills the prompt",
+			events: []dto.ResponsesStreamResponse{
+				{Type: "response.created", Response: inProgress},
+			},
+			wantPrompt: 100,
+		},
+		{
+			name: "incomplete without usage bills the prompt",
+			events: []dto.ResponsesStreamResponse{
+				{Type: "response.created", Response: inProgress},
+				{Type: "response.incomplete", Response: &dto.OpenAIResponsesResponse{Status: []byte(`"incomplete"`)}},
+			},
+			wantPrompt: 100,
+		},
+		{
+			name: "completed without usage estimates from terminal output",
+			events: []dto.ResponsesStreamResponse{
+				{Type: "response.completed", Response: &dto.OpenAIResponsesResponse{
+					Status: []byte(`"completed"`),
+					Output: []dto.ResponsesOutput{{
+						Type:    "message",
+						Role:    "assistant",
+						Content: []dto.ResponsesOutputContent{{Type: "output_text", Text: "final answer"}},
+					}},
+				}},
+			},
+			wantPrompt:     100,
+			wantCompletion: CountTextToken("final answer", model),
+		},
+		{
+			name: "explicit failure without usage bills nothing",
+			events: []dto.ResponsesStreamResponse{
+				{Type: "response.created", Response: inProgress},
+				{Type: "response.failed", Response: &dto.OpenAIResponsesResponse{Status: []byte(`"failed"`)}},
+			},
+		},
+		{
+			name: "flat error event bills nothing",
+			events: []dto.ResponsesStreamResponse{
+				{Type: "response.created", Response: inProgress},
+				{Type: "error", Code: "server_error"},
+			},
+		},
+		{
+			name: "no upstream events bills nothing",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{
+				ChannelMeta:  &relaycommon.ChannelMeta{UpstreamModelName: model},
+				StreamStatus: relaycommon.NewStreamStatus(),
+			}
+			info.SetEstimatePromptTokens(100)
+			accumulator := NewResponsesUsageAccumulator(info)
+			for i := range tc.events {
+				accumulator.Observe(&tc.events[i])
+			}
+			usage := accumulator.Finish()
+			assert.Equal(t, tc.wantPrompt, usage.PromptTokens)
+			assert.Equal(t, tc.wantCompletion, usage.CompletionTokens)
+			assert.Equal(t, tc.wantPrompt+tc.wantCompletion, usage.TotalTokens)
+		})
+	}
 }

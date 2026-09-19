@@ -33,6 +33,7 @@ import {
   TIME_FUNCS,
 } from '@/features/pricing/lib/billing-expr'
 import type { VisualComparison } from '@/features/pricing/lib/billing-expression/visual'
+import { toIntlLocale } from '@/i18n/languages'
 
 import { DraftNumberInput } from './draft-number-input'
 
@@ -127,7 +128,7 @@ export function BillingConditionValueInput(props: {
     (props.value === '' || /^[0-6]$/.test(props.value))
   ) {
     const formatter = new Intl.DateTimeFormat(
-      i18n.language === 'zhCN' ? 'zh-CN' : i18n.language,
+      toIntlLocale(i18n.resolvedLanguage || i18n.language),
       { weekday: 'long', timeZone: 'UTC' }
     )
     const days = Array.from({ length: 7 }, (_, day) => ({

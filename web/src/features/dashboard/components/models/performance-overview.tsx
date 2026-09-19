@@ -38,52 +38,6 @@ import { cn } from '@/lib/utils'
 const PERFORMANCE_WINDOW_HOURS = 24
 const TOP_MODEL_LIMIT = 6
 
-type WeightedMetric = 'avg_latency_ms' | 'avg_tps' | 'success_rate'
-
-type PerformanceSummary = {
-  totalRequests: number
-  avgLatencyMs: number
-  avgTps: number
-  successRate: number
-}
-
-function simpleAverage(
-  rows: PerfModelSummary[],
-  metric: WeightedMetric,
-  isValid: (value: number) => boolean
-): number {
-  let total = 0
-  let count = 0
-
-  for (const row of rows) {
-    const value = Number(row[metric])
-    if (!isValid(value)) continue
-    total += value
-    count++
-  }
-
-  return count > 0 ? total / count : Number.NaN
-}
-
-function buildPerformanceSummary(rows: PerfModelSummary[]): PerformanceSummary {
-  return {
-    totalRequests: rows.length,
-    avgLatencyMs: Math.round(
-      simpleAverage(
-        rows,
-        'avg_latency_ms',
-        (value) => Number.isFinite(value) && value > 0
-      )
-    ),
-    avgTps: simpleAverage(
-      rows,
-      'avg_tps',
-      (value) => Number.isFinite(value) && value > 0
-    ),
-    successRate: simpleAverage(rows, 'success_rate', Number.isFinite),
-  }
-}
-
 export function PerformanceOverview() {
   const { t } = useTranslation()
   const metricsQuery = useQuery({
@@ -100,7 +54,7 @@ export function PerformanceOverview() {
     () => metricsQuery.data?.data.models ?? [],
     [metricsQuery.data]
   )
-  const summary = useMemo(() => buildPerformanceSummary(models), [models])
+  const summary = metricsQuery.data?.data.summary
   const topModels = useMemo(() => models.slice(0, TOP_MODEL_LIMIT), [models])
   const loading = metricsQuery.isLoading
   const hasData = models.length > 0
@@ -144,20 +98,22 @@ export function PerformanceOverview() {
             <InlineMetric
               icon={HeartPulse}
               label={t('Success rate')}
-              value={formatUptimePct(summary.successRate)}
-              valueClassName={getSuccessRateTextClass(summary.successRate)}
+              value={formatUptimePct(summary?.success_rate ?? Number.NaN)}
+              valueClassName={getSuccessRateTextClass(
+                summary?.success_rate ?? Number.NaN
+              )}
               tone='success'
             />
             <InlineMetric
               icon={Timer}
               label={t('Average latency')}
-              value={formatLatency(summary.avgLatencyMs)}
+              value={formatLatency(summary?.avg_latency_ms ?? 0)}
               tone='warning'
             />
             <InlineMetric
               icon={Gauge}
               label={t('Throughput')}
-              value={formatThroughput(summary.avgTps)}
+              value={formatThroughput(summary?.avg_tps ?? 0)}
               tone='info'
             />
           </div>

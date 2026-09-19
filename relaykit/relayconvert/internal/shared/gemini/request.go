@@ -1,13 +1,16 @@
 package gemini
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 var SupportedMimeTypes = map[string]bool{
@@ -73,7 +76,12 @@ func AttachFirstTextThoughtSignature(opts *convmeta.Options, parts []dto.GeminiP
 	return false
 }
 
-func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info convmeta.Meta, oaiRequest ...dto.GeneralOpenAIRequest) error {
+// ApplyThinkingConfig resolves every reasoning control that can reach a
+// Gemini request (provider-native thinkingConfig, generic OpenAI fields, and
+// host model-name aliases) into the target model's dialect. Precedence is
+// model name, then provider-native config, then generic fields; each override
+// and each capability coercion is reported through convdiag on ctx.
+func ApplyThinkingConfig(ctx context.Context, geminiRequest *dto.GeminiChatRequest, info convmeta.Meta, oaiRequest ...dto.GeneralOpenAIRequest) error {
 	opts := convmeta.OptionsOf(info)
 	if geminiRequest == nil {
 		return nil
@@ -86,11 +94,13 @@ func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info convmeta.Met
 		if modelName == "" {
 			modelName = oaiRequest[0].Model
 		}
+		var diagnostics []types.ConversionDiagnostic
 		var err error
-		source, err = reasoning.FromOpenAIChat(&oaiRequest[0])
+		source, diagnostics, err = reasoning.FromOpenAIChat(&oaiRequest[0])
 		if err != nil {
 			return err
 		}
+		convdiag.Add(ctx, diagnostics...)
 	}
 
 	baseModel := modelName
@@ -124,33 +134,47 @@ func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info convmeta.Met
 		}
 		return nil
 	}
-	native, err := reasoning.FromGemini(geminiRequest)
+	// Rewrite the provider-native config into the target model's dialect
+	// first, so a budget on Gemini 3 or a level on Gemini 2.5 is converted
+	// rather than rejected and later comparisons see what will be sent.
+	nativeEffort, diagnostics, err := reasoning.NormalizeGeminiThinkingConfig(baseModel, &geminiRequest.GenerationConfig)
 	if err != nil {
 		return err
 	}
-	source = reasoning.ResolveGeminiEnabledDefault(baseModel, source, geminiRequest.GenerationConfig.MaxOutputTokens)
+	convdiag.Add(ctx, diagnostics...)
+	native, diagnostics, err := reasoning.FromGemini(geminiRequest)
+	if err != nil {
+		return err
+	}
+	convdiag.Add(ctx, diagnostics...)
 	if native.HasStrength() && source.HasStrength() {
-		equivalent, compareErr := reasoning.EquivalentGeminiStrength(baseModel, native, source)
-		if compareErr != nil {
-			return compareErr
+		// Native Gemini configuration is the lossless representation and wins
+		// over the generic OpenAI fields. Only a generic effort or budget can
+		// disagree with it; a bare enable states no strength to compare.
+		if source.Effort != "" || source.BudgetTokens != nil {
+			equivalent, compareErr := reasoning.EquivalentGeminiStrength(baseModel, native, source)
+			if compareErr != nil {
+				return compareErr
+			}
+			if !equivalent {
+				convdiag.Add(ctx, types.ConversionDiagnostic{
+					Code:     "native_overrode_standard",
+					Path:     "generationConfig.thinkingConfig",
+					Message:  fmt.Sprintf("model %q: Gemini thinking_config effort %q overrides the standard reasoning effort %q", modelName, reasoning.EffectiveEffort(native), reasoning.EffectiveEffort(source)),
+					Severity: types.ConversionDiagnosticWarning,
+				})
+			}
 		}
-		if !equivalent {
-			nativeEffort := reasoning.EffectiveEffort(native)
-			sourceEffort := reasoning.EffectiveEffort(source)
-			return fmt.Errorf("%w for model %q: Gemini thinking_config effort %q differs from standard effort %q", reasoning.ErrEffortConflict, modelName, nativeEffort, sourceEffort)
-		}
-		// Native Gemini configuration is the lossless representation. Once the
-		// two controls are equivalent, retain only portable visibility metadata
-		// from the standard representation.
 		if native.IncludeThoughts == nil {
 			native.IncludeThoughts = source.IncludeThoughts
 		}
 		source = reasoning.Intent{}
 	}
-	explicit, err := reasoning.MergeExplicit(native, source, modelName)
+	explicit, diagnostics, err := reasoning.MergeExplicit(native, source, modelName)
 	if err != nil {
 		return err
 	}
+	convdiag.Add(ctx, diagnostics...)
 	if explicit.HasStrength() && suffix.HasStrength() {
 		equivalent, compareErr := reasoning.EquivalentGeminiStrength(baseModel, explicit, suffix)
 		if compareErr != nil {
@@ -163,22 +187,21 @@ func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info convmeta.Met
 			suffix = reasoning.Intent{}
 		}
 	}
-	requested, err := reasoning.MergeExplicitAndSuffix(explicit, suffix, modelName)
+	requested, diagnostics, err := reasoning.MergeExplicitAndSuffix(explicit, suffix, modelName)
 	if err != nil {
 		return err
 	}
+	convdiag.Add(ctx, diagnostics...)
 	requested = reasoning.ResolveGeminiEnabledDefault(baseModel, requested, geminiRequest.GenerationConfig.MaxOutputTokens)
 
 	if native.HasStrength() && !suffix.HasStrength() {
+		// The normalized native config is what goes upstream; only portable
+		// visibility metadata is taken from the standard representation.
 		if explicit.IncludeThoughts != nil {
 			geminiRequest.GenerationConfig.ThinkingConfig.IncludeThoughts = explicit.IncludeThoughts
 		}
-		effort, err := reasoning.ValidateGeminiThinkingConfig(baseModel, geminiRequest.GenerationConfig.ThinkingConfig)
-		if err != nil {
-			return err
-		}
-		if info != nil && effort != "" {
-			info.SetReasoningEffort(string(effort))
+		if info != nil && nativeEffort != "" {
+			info.SetReasoningEffort(string(nativeEffort))
 		}
 		return nil
 	}
@@ -194,6 +217,7 @@ func ApplyThinkingConfig(geminiRequest *dto.GeminiChatRequest, info convmeta.Met
 	if err != nil {
 		return err
 	}
+	convdiag.Add(ctx, rendered.Diagnostics...)
 	geminiRequest.GenerationConfig.ThinkingConfig = rendered.Config
 	if info != nil && rendered.EffectiveEffort != "" {
 		info.SetReasoningEffort(string(rendered.EffectiveEffort))

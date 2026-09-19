@@ -23,6 +23,8 @@ For commercial licensing, please contact support@quantumnous.com
 
 export const CHANNEL_TYPE_OLLAMA = 4
 
+export const CHANNEL_TYPE_SUB2API = 59
+
 export const CHANNEL_TYPE_NEW_API = 60
 
 export const CHANNEL_TYPE_TASK_PLUGIN = 61

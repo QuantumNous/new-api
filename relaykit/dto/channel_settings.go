@@ -188,6 +188,14 @@ const (
 	AdvancedCustomBalancePath = "/v1/dashboard/billing/credit_grants"
 )
 
+// IsNative reports whether the route forwards requests without protocol
+// conversion. Validate normalizes an empty converter to none, but callers may
+// see configurations that were never saved.
+func (r AdvancedCustomRoute) IsNative() bool {
+	converter := strings.TrimSpace(r.Converter)
+	return converter == "" || converter == advancedCustomConverterNone
+}
+
 // MatchPath returns the first route whose IncomingPath matches requestPath.
 // Matching mirrors the relay adaptor: exact match, {model} placeholder, and
 // :generateContent <-> :streamGenerateContent equivalence.

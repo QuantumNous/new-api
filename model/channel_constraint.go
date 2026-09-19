@@ -105,7 +105,20 @@ func channelMatchesFilter(ch *Channel, modelName string, filter dto.ChannelFilte
 		}
 		return filter.TaskPluginKey == "" || slices.Contains(filter.TaskPluginChannelTypes, ch.Type)
 	case dto.FilterResponsesWebSocket:
-		return (ch.Type == constant.ChannelTypeOpenAI || ch.Type == constant.ChannelTypeCodex) && ch.GetSetting().ResponsesWebSocketEnabled
+		if !ch.GetSetting().ResponsesWebSocketEnabled {
+			return false
+		}
+		switch ch.Type {
+		case constant.ChannelTypeOpenAI, constant.ChannelTypeCodex, constant.ChannelTypeSub2API, constant.ChannelTypeNewAPI:
+			return true
+		case constant.ChannelTypeAdvancedCustom:
+			// The session forwards native Responses events without protocol
+			// conversion, so only a converter-free /v1/responses route qualifies.
+			route, ok := ch.GetOtherSettings().AdvancedCustom.MatchPathForModel("/v1/responses", modelName)
+			return ok && route.IsNative()
+		default:
+			return false
+		}
 	default:
 		return true
 	}

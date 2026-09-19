@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Code, Plus, Table, Trash2 } from 'lucide-react'
+import { Code, ListPlus, Plus, Table, Trash2 } from 'lucide-react'
 import {
   useEffect,
   useEffectEvent,
@@ -30,8 +30,28 @@ import { useTranslation } from 'react-i18next'
 import { JsonCodeEditor } from '@/components/json-code-editor'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
+import { ComboboxInput } from '@/components/ui/combobox-input'
 import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+
+type MappingField = 'from' | 'to'
+
+/**
+ * Asks the editor to open a mapping row for a model the caller already knows
+ * one side of. When a row for `from` exists its upstream field is focused;
+ * otherwise a draft row is appended and the empty side receives focus. Drafts
+ * are only written to the mapping once both names are filled in.
+ */
+export type ModelMappingDraftRequest = {
+  /** Request model name; empty when only the upstream name is known. */
+  from: string
+  /** Upstream model name; empty when only the request name is known. */
+  to: string
+  /** Field to focus; defaults to the empty side, or the upstream side of an existing row. */
+  focus?: MappingField
+  /** Changes re-trigger the request even for identical names. */
+  token: number
+}
 
 type ModelMappingEditorProps = {
   value: string
@@ -39,6 +59,16 @@ type ModelMappingEditorProps = {
   disabled?: boolean
   sourceModelOptions?: string[]
   targetModelOptions?: string[]
+  /** Shows the batch button; the caller owns the batch dialog. */
+  onBatchAdd?: () => void
+  /**
+   * Fires with the latest value once an edit settles: Enter, focus leaving the
+   * editor, or a row being deleted. Lets callers react per completed edit
+   * instead of per keystroke.
+   */
+  onCommit?: (value: string) => void
+  draftRequest?: ModelMappingDraftRequest | null
+  onDraftRequestHandled?: () => void
 }
 
 type MappingRow = {
@@ -48,6 +78,8 @@ type MappingRow = {
 }
 
 const DUPLICATE_MAPPING_SENTINEL = '{ "duplicate_source_models": '
+/** Show the row filter once the table is long enough to need scanning. */
+const MAPPING_FILTER_THRESHOLD = 6
 
 function getDuplicateSources(rows: MappingRow[]): string[] {
   const seen = new Set<string>()
@@ -68,19 +100,43 @@ function getDuplicateSources(rows: MappingRow[]): string[] {
 
 export function ModelMappingEditor(props: ModelMappingEditorProps) {
   const { t } = useTranslation()
-  const sourceListId = useId()
-  const targetListId = useId()
+  const inputsId = useId()
   const [mode, setMode] = useState<'visual' | 'json'>('visual')
   const [rows, setRows] = useState<MappingRow[]>([])
   const [jsonValue, setJsonValue] = useState(props.value)
   const [jsonError, setJsonError] = useState<string | null>(null)
+  const [filter, setFilter] = useState('')
   const nextRowIdRef = useRef(0)
+  const lastEmittedRef = useRef(props.value)
+  const pendingRowFocusRef = useRef<{
+    rowId: string
+    field: MappingField
+  } | null>(null)
   const duplicateSources = useMemo(() => getDuplicateSources(rows), [rows])
+  const sourceOptions = useMemo(
+    () =>
+      (props.sourceModelOptions ?? []).map((model) => ({
+        value: model,
+        label: model,
+      })),
+    [props.sourceModelOptions]
+  )
+  const targetOptions = useMemo(
+    () =>
+      (props.targetModelOptions ?? []).map((model) => ({
+        value: model,
+        label: model,
+      })),
+    [props.targetModelOptions]
+  )
 
   const createRowId = () => {
     nextRowIdRef.current += 1
     return `mapping-${nextRowIdRef.current}`
   }
+
+  const rowInputId = (rowId: string, field: MappingField) =>
+    `${inputsId}-${rowId}-${field}`
 
   const parseJsonToRows = (json: string): boolean => {
     try {
@@ -102,7 +158,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
       }
       setRows((previousRows) => {
         const remainingRows = [...previousRows]
-        return entries.map(([from, to], index) => {
+        const mapped = entries.map(([from, to], index) => {
           const toString = String(to)
           const existingIndex = remainingRows.findIndex(
             (row) =>
@@ -124,6 +180,13 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
             to: toString,
           }
         })
+        // Rows without a request name are not serialized yet; keep them so a
+        // draft survives edits to other rows.
+        const mappedIds = new Set(mapped.map((row) => row.id))
+        const drafts = previousRows.filter(
+          (row) => !row.from.trim() && !mappedIds.has(row.id)
+        )
+        return [...mapped, ...drafts]
       })
       setJsonError(null)
       return true
@@ -134,14 +197,72 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
   }
 
   const syncExternalValue = useEffectEvent(() => {
+    lastEmittedRef.current = props.value
     setJsonValue(props.value)
     parseJsonToRows(props.value)
   })
+
+  const commit = () => {
+    props.onCommit?.(lastEmittedRef.current)
+  }
 
   // Only replace the draft when the external value changes, not on language changes.
   useEffect(() => {
     syncExternalValue()
   }, [props.value])
+
+  // A freshly added row exists one commit after the click, so focus it once
+  // its inputs are rendered.
+  const focusPendingRow = useEffectEvent(() => {
+    const pending = pendingRowFocusRef.current
+    if (!pending) return
+    const input = document.querySelector(
+      `[id="${rowInputId(pending.rowId, pending.field)}"]`
+    )
+    if (!(input instanceof HTMLInputElement)) return
+    pendingRowFocusRef.current = null
+    input.focus()
+  })
+
+  useEffect(() => {
+    focusPendingRow()
+  }, [rows])
+
+  const applyDraftRequest = useEffectEvent(() => {
+    const request = props.draftRequest
+    if (!request) return
+    const existing = request.from
+      ? rows.find((row) => row.from === request.from)
+      : undefined
+    if (existing) {
+      const input = document.querySelector(
+        `[id="${rowInputId(existing.id, request.focus ?? 'to')}"]`
+      )
+      if (input instanceof HTMLInputElement) {
+        input.focus()
+        input.scrollIntoView({ block: 'center' })
+      }
+    } else {
+      const rowId = createRowId()
+      pendingRowFocusRef.current = {
+        rowId,
+        field: request.focus ?? (request.from ? 'to' : 'from'),
+      }
+      setRows((previous) => [
+        ...previous,
+        { id: rowId, from: request.from, to: request.to },
+      ])
+    }
+    props.onDraftRequestHandled?.()
+  })
+
+  // Callers raise draft requests while closing a dialog, whose focus return
+  // runs on the next frame; wait one frame so the editor keeps the focus.
+  useEffect(() => {
+    if (!props.draftRequest) return
+    const frame = window.requestAnimationFrame(() => applyDraftRequest())
+    return () => window.cancelAnimationFrame(frame)
+  }, [props.draftRequest])
 
   const convertRowsToJson = (updatedRows: MappingRow[]): string => {
     if (updatedRows.length === 0) {
@@ -162,6 +283,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
     if (duplicates.length > 0) {
       setJsonError(t('Duplicate source model mappings are not allowed'))
       setJsonValue(DUPLICATE_MAPPING_SENTINEL)
+      lastEmittedRef.current = DUPLICATE_MAPPING_SENTINEL
       props.onChange(DUPLICATE_MAPPING_SENTINEL)
       return
     }
@@ -169,6 +291,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
     const json = convertRowsToJson(updatedRows)
     setJsonError(null)
     setJsonValue(json)
+    lastEmittedRef.current = json
     props.onChange(json)
   }
 
@@ -178,16 +301,18 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
       from: '',
       to: '',
     }
+    pendingRowFocusRef.current = { rowId: newRow.id, field: 'from' }
     syncRows([...rows, newRow])
   }
 
   const handleDeleteRow = (id: string) => {
     syncRows(rows.filter((row) => row.id !== id))
+    commit()
   }
 
   const handleRowChange = (
     id: string,
-    field: 'from' | 'to',
+    field: MappingField,
     newValue: string
   ) => {
     const updatedRows = rows.map((row) =>
@@ -198,6 +323,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
 
   const handleJsonChange = (newJson: string) => {
     setJsonValue(newJson)
+    lastEmittedRef.current = newJson
     props.onChange(newJson)
     parseJsonToRows(newJson)
   }
@@ -209,8 +335,10 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
       2
     )
     setJsonValue(template)
+    lastEmittedRef.current = template
     props.onChange(template)
     parseJsonToRows(template)
+    commit()
   }
 
   const handleModeChange = (nextMode: string) => {
@@ -220,6 +348,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
       if (duplicates.length === 0) {
         const json = convertRowsToJson(rows)
         setJsonValue(json)
+        lastEmittedRef.current = json
         props.onChange(json)
       }
       setMode('json')
@@ -229,10 +358,29 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
     setMode('visual')
   }
 
+  const filterKeyword = filter.trim().toLowerCase()
+  const showFilter = rows.length >= MAPPING_FILTER_THRESHOLD
+  let visibleRows = rows
+  if (showFilter && filterKeyword) {
+    visibleRows = rows.filter(
+      (row) =>
+        row.from.toLowerCase().includes(filterKeyword) ||
+        row.to.toLowerCase().includes(filterKeyword)
+    )
+  }
+
   return (
-    <div className='space-y-2'>
+    <div
+      className='space-y-2'
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') commit()
+      }}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) commit()
+      }}
+    >
       <Tabs value={mode} onValueChange={handleModeChange} className='space-y-2'>
-        <div className='flex items-center justify-between gap-3'>
+        <div className='flex flex-wrap items-center justify-between gap-3'>
           <TabsList>
             <TabsTrigger value='visual'>
               <Table className='h-4 w-4' aria-hidden='true' />
@@ -243,16 +391,30 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
               {t('JSON')}
             </TabsTrigger>
           </TabsList>
-          <Button
-            type='button'
-            variant='link'
-            size='sm'
-            className='h-auto p-0'
-            onClick={handleFillTemplate}
-            disabled={props.disabled}
-          >
-            {t('Fill Template')}
-          </Button>
+          <div className='flex items-center gap-3'>
+            {props.onBatchAdd && (
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={props.onBatchAdd}
+                disabled={props.disabled || Boolean(jsonError)}
+              >
+                <ListPlus aria-hidden='true' />
+                {t('Batch Add')}
+              </Button>
+            )}
+            <Button
+              type='button'
+              variant='link'
+              size='sm'
+              className='h-auto p-0'
+              onClick={handleFillTemplate}
+              disabled={props.disabled}
+            >
+              {t('Fill Template')}
+            </Button>
+          </div>
         </div>
 
         {jsonError && (
@@ -274,33 +436,59 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
         <TabsContent value='visual' className='space-y-2'>
           {rows.length > 0 ? (
             <div className='space-y-2'>
+              {showFilter && (
+                <div className='space-y-1'>
+                  <Input
+                    aria-label={t('Filter mappings')}
+                    placeholder={t('Filter by model name')}
+                    value={filter}
+                    onChange={(event) => setFilter(event.target.value)}
+                  />
+                  {filterKeyword && (
+                    <p className='text-muted-foreground text-xs'>
+                      {t('Showing {{shown}} of {{total}} mappings', {
+                        shown: visibleRows.length,
+                        total: rows.length,
+                      })}
+                    </p>
+                  )}
+                </div>
+              )}
               <div className='grid grid-cols-[1fr_1fr_auto] gap-2 text-sm font-medium'>
                 <div>{t('Request Model Name')}</div>
                 <div>{t('Upstream Model Name')}</div>
                 <div className='w-10' />
               </div>
-              {rows.map((row) => (
+              {visibleRows.map((row) => (
                 <div
                   key={row.id}
                   className='grid grid-cols-[1fr_1fr_auto] gap-2'
                 >
-                  <Input
+                  <ComboboxInput
+                    id={rowInputId(row.id, 'from')}
+                    options={sourceOptions}
                     value={row.from}
-                    onChange={(e) =>
-                      handleRowChange(row.id, 'from', e.target.value)
+                    onValueChange={(value) =>
+                      handleRowChange(row.id, 'from', value)
                     }
                     placeholder='gpt-3.5-turbo'
+                    emptyText='No matching items'
+                    allowCustomValue
                     disabled={props.disabled}
-                    list={sourceListId}
+                    aria-label={t('Request Model Name')}
                   />
-                  <Input
+                  <ComboboxInput
+                    id={rowInputId(row.id, 'to')}
+                    options={targetOptions}
                     value={row.to}
-                    onChange={(e) =>
-                      handleRowChange(row.id, 'to', e.target.value)
+                    onValueChange={(value) =>
+                      handleRowChange(row.id, 'to', value)
                     }
                     placeholder='gpt-3.5-turbo-0125'
+                    emptyText='No matching items'
+                    allowCustomValue
                     disabled={props.disabled}
-                    list={targetListId}
+                    aria-label={t('Upstream Model Name')}
                   />
                   <Button
                     type='button'
@@ -315,6 +503,11 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
                   </Button>
                 </div>
               ))}
+              {visibleRows.length === 0 && (
+                <p className='text-muted-foreground py-3 text-center text-sm'>
+                  {t('No matching items')}
+                </p>
+              )}
             </div>
           ) : (
             <div className='text-muted-foreground flex h-24 items-center justify-center rounded-md border border-dashed text-sm'>
@@ -352,21 +545,6 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
           />
         </TabsContent>
       </Tabs>
-
-      {props.sourceModelOptions && props.sourceModelOptions.length > 0 && (
-        <datalist id={sourceListId}>
-          {props.sourceModelOptions.map((model) => (
-            <option key={model} value={model} />
-          ))}
-        </datalist>
-      )}
-      {props.targetModelOptions && props.targetModelOptions.length > 0 && (
-        <datalist id={targetListId}>
-          {props.targetModelOptions.map((model) => (
-            <option key={model} value={model} />
-          ))}
-        </datalist>
-      )}
     </div>
   )
 }

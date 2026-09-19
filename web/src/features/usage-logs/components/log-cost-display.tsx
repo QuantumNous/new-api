@@ -16,7 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Wrench01Icon } from '@hugeicons/core-free-icons'
+import {
+  CrownIcon,
+  Wallet01Icon,
+  Wrench01Icon,
+} from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useTranslation } from 'react-i18next'
 
@@ -36,12 +40,7 @@ import type { LogOtherData } from '../types'
 interface LogCostDisplayProps {
   quota: number
   other: LogOtherData | null
-}
-
-function splitQuotaDisplay(value: string): { prefix: string; amount: string } {
-  const match = value.match(/^([^0-9+\-.,\s]+)(.+)$/)
-  if (!match) return { prefix: '', amount: value }
-  return { prefix: match[1], amount: match[2] }
+  showBillingSource?: boolean
 }
 
 function ToolSurchargeMarker() {
@@ -79,64 +78,58 @@ function ToolSurchargeMarker() {
   )
 }
 
-function QuotaBadge(props: { quota: number }) {
-  const quotaDisplay = splitQuotaDisplay(formatLogQuota(props.quota))
-
-  return (
-    <span className='border-border/80 bg-muted/60 inline-flex h-6 w-fit items-center rounded-md border px-2 [font-family:var(--font-body)] text-sm leading-none font-semibold tabular-nums'>
-      {quotaDisplay.prefix ? (
-        <span className='mr-1'>{quotaDisplay.prefix}</span>
-      ) : null}
-      <span>{quotaDisplay.amount}</span>
-    </span>
-  )
-}
-
-function SubscriptionBadge(props: { quota: number }) {
-  const { t } = useTranslation()
-
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <StatusBadge
-            label={t('Subscription')}
-            variant='success'
-            size='sm'
-            copyable={false}
-            className='cursor-help'
-          />
-        }
-      />
-      <TooltipContent>
-        <span>
-          {t('Deducted by subscription')}: {formatLogQuota(props.quota)}
-        </span>
-      </TooltipContent>
-    </Tooltip>
-  )
-}
-
 export function LogCostDisplay(props: LogCostDisplayProps) {
+  const { t } = useTranslation()
   const isSubscription = props.other?.billing_source === 'subscription'
   const showToolSurcharge = hasToolSurcharge(props.other)
+  const quota = isSubscription
+    ? (props.other?.subscription_consumed ?? props.quota)
+    : props.quota
+  let source: string | undefined
 
-  if (!isSubscription && !showToolSurcharge) {
-    return (
-      <div className='flex flex-col gap-0.5'>
-        <QuotaBadge quota={props.quota} />
-      </div>
-    )
+  if (props.showBillingSource && isSubscription) {
+    source = t('Subscription')
+  } else if (
+    props.showBillingSource &&
+    props.other?.billing_source === 'wallet'
+  ) {
+    source = t('Wallet')
   }
 
   return (
     <TooltipProvider>
-      <div className='inline-flex items-center gap-1'>
-        {isSubscription ? (
-          <SubscriptionBadge quota={props.quota} />
-        ) : (
-          <QuotaBadge quota={props.quota} />
-        )}
+      <div className='inline-flex w-fit items-center gap-1.5'>
+        <StatusBadge
+          type='badge'
+          variant='neutral'
+          size='lg'
+          copyable={false}
+          className='border-border/80 bg-muted/60 text-foreground rounded-md border font-semibold tabular-nums'
+        >
+          {source ? (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <span
+                    className='inline-flex shrink-0 cursor-help'
+                    role='img'
+                    aria-label={source}
+                    tabIndex={0}
+                  >
+                    <HugeiconsIcon
+                      icon={isSubscription ? CrownIcon : Wallet01Icon}
+                      className='size-3.5'
+                      strokeWidth={2}
+                      aria-hidden='true'
+                    />
+                  </span>
+                }
+              />
+              <TooltipContent>{source}</TooltipContent>
+            </Tooltip>
+          ) : null}
+          <span className='whitespace-nowrap'>{formatLogQuota(quota)}</span>
+        </StatusBadge>
         {showToolSurcharge ? <ToolSurchargeMarker /> : null}
       </div>
     </TooltipProvider>

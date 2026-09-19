@@ -146,7 +146,7 @@ func TestPasskeyDomainsPreserveCredentialsAcrossVerificationFlows(t *testing.T) 
 			beginHandler, finishHandler := PasskeyLoginBegin, PasskeyLoginFinish
 			request := map[string]any{"rp_id": legacyRPID}
 			if kind == "login factor" {
-				pending, err := service.StartLoginVerification(user, "password")
+				pending, err := service.StartLoginVerification(user, "password", nil)
 				require.NoError(t, err)
 				request["flow_token"] = pending.FlowToken
 				beginPath, finishPath = "/api/user/login/passkey/begin", "/api/user/login/passkey/finish"

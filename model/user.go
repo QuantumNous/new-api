@@ -1106,14 +1106,6 @@ func (user *User) FillUserByGitHubId() error {
 	return nil
 }
 
-// UpdateGitHubId updates the user's GitHub ID (used for migration from login to numeric ID)
-func (user *User) UpdateGitHubId(newGitHubId string) error {
-	if user.Id == 0 {
-		return errors.New("user id is empty")
-	}
-	return DB.Model(user).Update("github_id", newGitHubId).Error
-}
-
 func (user *User) FillUserByDiscordId() error {
 	if user.DiscordId == "" {
 		return errors.New("discord id 为空！")

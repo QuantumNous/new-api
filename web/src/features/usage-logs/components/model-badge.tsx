@@ -16,9 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Route } from 'lucide-react'
+import { AlertTriangle, Route } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { CopyButton } from '@/components/copy-button'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -30,21 +31,25 @@ import { getLobeIcon } from '@/lib/lobe-icon'
 import { resolveModelProvider } from '@/lib/model-provider'
 import { cn } from '@/lib/utils'
 
+import type { LogOtherData } from '../types'
+import { DetailRow } from './dialogs/log-detail-layout'
+
 interface ModelBadgeProps {
   modelName: string
   actualModel?: string
+  responseModel?: LogOtherData['response_model']
   className?: string
   wrapText?: boolean
   onInspect?: () => void
 }
 
-function ModelBadgeContent(props: ModelBadgeProps) {
+function ModelBadgeContent(props: ModelBadgeProps & { copyable: boolean }) {
   const provider = resolveModelProvider(props.modelName)
 
   return (
     <StatusBadge
       copyText={props.modelName}
-      copyable={!props.onInspect}
+      copyable={props.copyable}
       size='sm'
       showDot={!provider?.icon}
       autoColor={provider?.icon ? undefined : props.modelName}
@@ -86,58 +91,158 @@ function ModelBadgeContent(props: ModelBadgeProps) {
 
 export function ModelBadge(props: ModelBadgeProps) {
   const { t } = useTranslation()
+  const responseModelLabel = props.responseModel?.mismatch
+    ? t('Response model: {{model}}', {
+        model: props.responseModel.returned_model,
+      })
+    : ''
+  const modelLabel = `${t('Model')}: ${props.modelName}${responseModelLabel ? `, ${responseModelLabel}` : ''}`
+  const hasDetails =
+    !!props.actualModel ||
+    !!(
+      props.responseModel &&
+      (props.responseModel.mismatch ||
+        props.responseModel.returned_model !==
+          props.responseModel.requested_model ||
+        (props.responseModel.upstream_model &&
+          props.responseModel.upstream_model !==
+            props.responseModel.requested_model))
+    )
+
+  if (!hasDetails) {
+    if (props.onInspect) {
+      return (
+        <CopyButton
+          value={props.modelName}
+          aria-label={modelLabel}
+          size='sm'
+          iconClassName='hidden'
+          className='h-auto min-h-8 max-w-full min-w-0 justify-start px-0 py-0 text-left font-normal whitespace-normal'
+        >
+          <ModelBadgeContent {...props} copyable={false} />
+        </CopyButton>
+      )
+    }
+    return <ModelBadgeContent {...props} copyable />
+  }
+
+  const content = (
+    <>
+      <ModelBadgeContent {...props} copyable={false} />
+      {props.responseModel?.mismatch && (
+        <StatusBadge
+          icon={AlertTriangle}
+          label={responseModelLabel}
+          variant='warning'
+          copyable={false}
+        />
+      )}
+      {!props.responseModel?.mismatch && props.actualModel && (
+        <Route
+          className='text-muted-foreground size-3 shrink-0'
+          aria-hidden='true'
+        />
+      )}
+    </>
+  )
 
   if (props.onInspect) {
     return (
       <Button
         variant='ghost'
-        aria-label={`${t('Model')}: ${props.modelName}`}
+        aria-label={modelLabel}
         aria-haspopup='dialog'
         onClick={props.onInspect}
-        className='h-auto min-h-8 max-w-full min-w-0 justify-start gap-1 px-0 py-0 text-left font-normal whitespace-normal'
+        className='h-auto min-h-8 max-w-full min-w-0 flex-wrap justify-start gap-1 px-0 py-0 text-left font-normal whitespace-normal'
       >
-        <ModelBadgeContent {...props} />
-        {props.actualModel && (
-          <Route className='text-muted-foreground size-3 shrink-0' />
-        )}
+        {content}
       </Button>
     )
-  }
-
-  if (!props.actualModel) {
-    return <ModelBadgeContent {...props} />
   }
 
   return (
     <Popover>
       <PopoverTrigger
         render={
-          <button type='button' className='inline-flex items-center gap-1' />
+          <Button
+            variant='ghost'
+            aria-label={modelLabel}
+            className='h-auto max-w-full min-w-0 flex-wrap justify-start gap-1 p-0 font-normal'
+          />
         }
       >
-        <ModelBadgeContent {...props} />
-        <Route className='text-muted-foreground size-3 shrink-0' />
+        {content}
       </PopoverTrigger>
-      <PopoverContent className='w-72'>
-        <div className='space-y-2'>
-          <div className='flex items-start justify-between gap-3'>
-            <span className='text-muted-foreground text-xs'>
-              {t('Request Model:')}
-            </span>
-            <span className='truncate font-mono text-xs font-medium'>
-              {props.modelName}
-            </span>
+      <PopoverContent className='w-96 max-w-[calc(100vw-2rem)]'>
+        {props.responseModel ? (
+          <ResponseModelDetails observation={props.responseModel} />
+        ) : (
+          <div className='space-y-2'>
+            <div className='flex items-start justify-between gap-3'>
+              <span className='text-muted-foreground text-xs'>
+                {t('Request Model:')}
+              </span>
+              <span className='truncate font-mono text-xs font-medium'>
+                {props.modelName}
+              </span>
+            </div>
+            <div className='flex items-start justify-between gap-3'>
+              <span className='text-muted-foreground text-xs'>
+                {t('Actual Model:')}
+              </span>
+              <span className='truncate font-mono text-xs font-medium'>
+                {props.actualModel}
+              </span>
+            </div>
           </div>
-          <div className='flex items-start justify-between gap-3'>
-            <span className='text-muted-foreground text-xs'>
-              {t('Actual Model:')}
-            </span>
-            <span className='truncate font-mono text-xs font-medium'>
-              {props.actualModel}
-            </span>
-          </div>
-        </div>
+        )}
       </PopoverContent>
     </Popover>
+  )
+}
+
+export function ResponseModelDetails(props: {
+  observation: NonNullable<LogOtherData['response_model']>
+}) {
+  const { t } = useTranslation()
+
+  return (
+    <div className='min-w-0 space-y-2'>
+      {props.observation.mismatch && (
+        <StatusBadge
+          icon={AlertTriangle}
+          label={t('Response model: {{model}}', {
+            model: props.observation.returned_model,
+          })}
+          variant='warning'
+          copyable={false}
+          className='h-auto whitespace-normal'
+        />
+      )}
+      <DetailRow
+        label={t('Request Model')}
+        value={props.observation.requested_model}
+        mono
+      />
+      <DetailRow
+        label={t('Upstream Model')}
+        value={
+          props.observation.upstream_model || props.observation.requested_model
+        }
+        mono
+      />
+      <DetailRow
+        label={t('Response Model')}
+        value={props.observation.returned_model}
+        mono
+      />
+      {props.observation.mismatch && (
+        <p className='text-muted-foreground text-xs'>
+          {t(
+            'The upstream returned a model name different from both the requested and upstream models. Aliases or dated versions may also cause this; this warning alone does not prove model substitution.'
+          )}
+        </p>
+      )}
+    </div>
   )
 }

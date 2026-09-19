@@ -22,7 +22,10 @@ export interface KeySource {
   path?: string
 }
 
+export type SessionMode = 'off' | 'prefer' | 'strict'
+
 export interface AffinityRule {
+  session_mode?: SessionMode | 'inherit'
   id?: number
   name: string
   model_regex: string[]
@@ -49,6 +52,7 @@ export interface CacheStats {
 
 export interface ChannelAffinitySettings {
   'channel_affinity_setting.enabled': boolean
+  'channel_affinity_setting.session_mode'?: '' | SessionMode
   'channel_affinity_setting.switch_on_success': boolean
   'channel_affinity_setting.keep_on_channel_disabled': boolean
   'channel_affinity_setting.max_entries': number

@@ -559,7 +559,7 @@ function GroupPricingTable({
                   <Input
                     type='number'
                     min={0}
-                    step={0.1}
+                    step={0.0001}
                     value={row.ratio}
                     onChange={(event) =>
                       updateRow(row._id, 'ratio', event.target.value)
@@ -575,7 +575,7 @@ function GroupPricingTable({
                   <Input
                     type='number'
                     min={0}
-                    step={0.1}
+                    step={0.0001}
                     value={row.topupRatio}
                     placeholder={t('Not set')}
                     onChange={(event) =>
