@@ -19,6 +19,9 @@ type ChannelSettings struct {
 	ResponsesWebSocketEnabled bool   `json:"responses_websocket_enabled,omitempty"`
 	SystemPrompt              string `json:"system_prompt,omitempty"`
 	SystemPromptOverride      bool   `json:"system_prompt_override,omitempty"`
+	// DecisionsUpstreamPath overrides the upstream decisions endpoint path.
+	// Empty uses the TypeSafe default /v1/systemone; set /api/alpha/decisions for OpenRouter.
+	DecisionsUpstreamPath string `json:"decisions_upstream_path,omitempty"`
 	// HTTPProtocol controls outbound HTTP version negotiation for this channel.
 	// Accepted values: "", "auto" (default), "http1".
 	HTTPProtocol string `json:"http_protocol,omitempty"`

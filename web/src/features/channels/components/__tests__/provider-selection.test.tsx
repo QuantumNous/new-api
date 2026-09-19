@@ -46,6 +46,28 @@ const plugins = [
   },
 ]
 
+test('an administrator can find and select the TypeSafe Jev provider', async () => {
+  const user = userEvent.setup()
+  const select = vi.fn()
+  render(
+    <ChannelProviderPicker
+      isCreating
+      currentProvider={{ kind: 'builtin', type: 1 }}
+      plugins={[]}
+      canBindPlugin
+      loading={false}
+      failed={false}
+      disabled={false}
+      onRetry={vi.fn()}
+      onSelect={select}
+    />
+  )
+  await user.click(screen.getByRole('tab', { name: 'Built-in' }))
+  await user.type(screen.getByRole('combobox'), 'TypeSafe')
+  await user.click(screen.getByRole('option', { name: 'TypeSafe Built-in #64' }))
+  expect(select).toHaveBeenCalledWith({ kind: 'builtin', type: 64 })
+})
+
 const migratedProviders = [
   { type: 36, label: 'SunoAPI', key: 'sunoapi' },
   { type: 50, label: 'Kling', key: 'kling' },
