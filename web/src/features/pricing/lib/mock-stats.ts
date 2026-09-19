@@ -509,7 +509,9 @@ export type SupportedParameter = {
   defaultValue?: string | number | boolean
   range?: string
   enumValues?: string[]
-  descriptionKey: string
+  descriptionKey?: string
+  /** Plugin-provided localized description; takes priority over descriptionKey. */
+  description?: Record<string, string>
   required?: boolean
 }
 
@@ -802,13 +804,45 @@ function apiCategoryOf(model: PricingModel): ApiCategory {
 }
 
 /**
- * Build the list of request parameters that the model accepts. The list is
- * shaped per-modality so reasoning, embedding, image, video and chat models
- * each show their relevant parameter set.
+ * Render numeric bounds in the drawer's range notation ("1 ~ 15", ">= 1").
+ * A stable business concept: task plugins declare bounds, the drawer shows
+ * them exactly like the static profiles do.
+ */
+function parameterRangeLabel(
+  minimum?: number,
+  maximum?: number
+): string | undefined {
+  if (minimum !== undefined && maximum !== undefined) {
+    return `${minimum} ~ ${maximum}`
+  }
+  if (minimum !== undefined) return `>= ${minimum}`
+  if (maximum !== undefined) return `<= ${maximum}`
+  return undefined
+}
+
+/**
+ * Build the list of request parameters that the model accepts. Task plugins
+ * may declare their real parameter surface via meta.requestParams; when they
+ * do, that declaration wins because it reflects what the plugin actually
+ * validates. Otherwise the list falls back to a per-modality static profile
+ * so reasoning, embedding, image, video and chat models each show their
+ * relevant parameter set.
  */
 export function buildSupportedParameters(
   model: PricingModel
 ): SupportedParameter[] {
+  const declared = model.request_params
+  if (declared && declared.length > 0) {
+    return declared.map((param) => ({
+      name: param.name,
+      type: param.type,
+      required: param.required,
+      defaultValue: param.default,
+      range: parameterRangeLabel(param.minimum, param.maximum),
+      enumValues: param.enum,
+      description: param.description,
+    }))
+  }
   const cat = apiCategoryOf(model)
   if (cat === 'reasoning') return REASONING_PARAMS
   if (cat === 'embedding') return EMBEDDING_PARAMS

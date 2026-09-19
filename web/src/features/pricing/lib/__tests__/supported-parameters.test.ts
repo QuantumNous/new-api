@@ -90,4 +90,54 @@ describe('buildSupportedParameters', () => {
       'prompt'
     )
   })
+
+  it('prefers plugin-declared request params over the static video profile', () => {
+    const model = pricingModel({
+      model_name: 'MiniMax-H3 768P 特价',
+      supported_endpoint_types: ['openai-video'],
+      request_params: [
+        { name: 'prompt', type: 'string', required: true },
+        {
+          name: 'seconds',
+          type: 'integer',
+          minimum: 1,
+          maximum: 15,
+          default: 5,
+        },
+        {
+          name: 'ratio',
+          type: 'enum',
+          enum: ['16:9', '4:3', '1:1', '3:4', '9:16'],
+          default: '9:16',
+        },
+      ],
+    })
+
+    const params = buildSupportedParameters(model)
+    expect(params.map((param) => param.name)).toEqual([
+      'prompt',
+      'seconds',
+      'ratio',
+    ])
+    expect(params[0].required).toBe(true)
+    expect(params[1].range).toBe('1 ~ 15')
+    expect(params[1].defaultValue).toBe(5)
+    expect(params[2].enumValues).toContain('9:16')
+    expect(params[2].defaultValue).toBe('9:16')
+  })
+
+  it('renders one-sided bounds without a default', () => {
+    const model = pricingModel({
+      model_name: 'clips-model',
+      supported_endpoint_types: ['openai-video'],
+      request_params: [
+        { name: 'clips', type: 'integer', minimum: 1 },
+        { name: 'seed', type: 'integer', maximum: 4294967295 },
+      ],
+    })
+
+    const params = buildSupportedParameters(model)
+    expect(params[0].range).toBe('>= 1')
+    expect(params[1].range).toBe('<= 4294967295')
+  })
 })

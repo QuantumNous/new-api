@@ -1,6 +1,7 @@
 package plugins_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -35,6 +36,39 @@ func TestFankeResponsesProtocol(t *testing.T) {
 		wantSubmitUsageKeys: []string{"seconds"},
 		wantVendorName:      "fanke",
 	})
+}
+
+func TestFankeRequestDocsDeclareVendorLimits(t *testing.T) {
+	source, err := builtinplugins.Source("fanke")
+	require.NoError(t, err)
+	registry := jsplugin.NewRegistry()
+	plugin, err := registry.RegisterFactory(source, jsplugin.Options{Key: "fanke"})
+	require.NoError(t, err)
+
+	params := plugin.Meta.RequestParams
+	require.NotEmpty(t, params, "the model drawer documents request params from plugin meta")
+
+	byName := make(map[string]jsplugin.RequestParameter, len(params))
+	for _, param := range params {
+		byName[param.Name] = param
+	}
+
+	seconds, ok := byName["seconds"]
+	require.True(t, ok, "seconds parameter must be documented")
+	require.NotNil(t, seconds.Minimum)
+	require.NotNil(t, seconds.Maximum)
+	assert.Equal(t, 1.0, *seconds.Minimum)
+	assert.Equal(t, 15.0, *seconds.Maximum)
+	require.NotNil(t, seconds.Default)
+	assert.Equal(t, "5", fmt.Sprintf("%v", seconds.Default))
+
+	ratio, ok := byName["ratio"]
+	require.True(t, ok, "ratio parameter must be documented")
+	assert.Equal(t, []string{"16:9", "4:3", "1:1", "3:4", "9:16"}, ratio.Enum)
+
+	assert.NotContains(t, byName, "input_video", "the vendor rejects reference videos")
+	assert.NotNil(t, plugin.Meta.SamplePrompt)
+	assert.NotEmpty(t, plugin.Meta.SamplePrompt["en"])
 }
 
 func TestFankeVideoProtocol(t *testing.T) {

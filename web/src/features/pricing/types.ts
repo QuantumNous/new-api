@@ -44,6 +44,19 @@ export type BillingUsageExample = {
   facts: Record<string, string | number>
 }
 
+/** Plugin-declared documentation for one request parameter. */
+export type RequestParameterDoc = {
+  name: string
+  type: 'number' | 'integer' | 'boolean' | 'string' | 'object' | 'array' | 'enum' | 'file'
+  required?: boolean
+  minimum?: number
+  maximum?: number
+  default?: string | number | boolean
+  enum?: string[]
+  enumLabels?: Record<string, Record<string, string>>
+  description?: Record<string, string>
+}
+
 export type PricingModel = {
   id: number
   model_name: string
@@ -75,6 +88,10 @@ export type PricingModel = {
   billing_usage_schema?: BillingUsageSchema
   /** Display-only labeled usage vectors for pricing examples. */
   billing_usage_examples?: BillingUsageExample[]
+  /** Plugin-declared request parameter docs for the model drawer. */
+  request_params?: RequestParameterDoc[]
+  /** Plugin-declared example generation input used in code samples. */
+  sample_prompt?: Record<string, string>
   /** Pricing version returned by backend, useful for cache busting */
   pricing_version?: string
   /**
