@@ -76,7 +76,7 @@ import {
   getApiKey,
   getTokenAutoGroups,
 } from '../api'
-import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
+import { DEFAULT_GROUP, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
   getApiKeyFormSchema,
   type ApiKeyFormValues,
@@ -168,6 +168,10 @@ export function ApiKeysMutateDrawer({
         ratio: info.ratio,
       })),
     [groupsData]
+  )
+  const groupSelectOptions = useMemo<ApiKeyGroupOption[]>(
+    () => [{ value: DEFAULT_GROUP, label: t('Follow user group') }, ...groups],
+    [groups, t]
   )
   const backendHasAuto = groups.some((g) => g.value === 'auto')
   const availableAutoGroupNames = useMemo(
@@ -424,7 +428,7 @@ export function ApiKeysMutateDrawer({
                     <FormLabel>{t('Group')}</FormLabel>
                     <FormControl>
                       <ApiKeyGroupCombobox
-                        options={groups}
+                        options={groupSelectOptions}
                         value={field.value}
                         onValueChange={(group) => {
                           field.onChange(group)
