@@ -18,9 +18,9 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
-
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/lo"
@@ -224,13 +224,24 @@ func FetchUpstreamRatios(c *gin.Context) {
 
 	if len(req.Upstreams) > 0 {
 		for _, u := range req.Upstreams {
-			if strings.HasPrefix(u.BaseURL, "http") {
-				if u.Endpoint == "" {
-					u.Endpoint = defaultEndpoint
-				}
-				u.BaseURL = strings.TrimRight(u.BaseURL, "/")
-				upstreams = append(upstreams, u)
+			if !strings.HasPrefix(u.BaseURL, "http") {
+				continue
 			}
+			if err := service.ValidateSSRFProtectedFetchURL(u.BaseURL); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": fmt.Sprintf("upstream base_url %q failed validation: %v", u.BaseURL, err)})
+				return
+			}
+			if strings.HasPrefix(u.Endpoint, "http") {
+				if err := service.ValidateSSRFProtectedFetchURL(u.Endpoint); err != nil {
+					c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": fmt.Sprintf("upstream endpoint %q failed validation: %v", u.Endpoint, err)})
+					return
+				}
+			}
+			if u.Endpoint == "" {
+				u.Endpoint = defaultEndpoint
+			}
+			u.BaseURL = strings.TrimRight(u.BaseURL, "/")
+			upstreams = append(upstreams, u)
 		}
 	} else if len(req.ChannelIDs) > 0 {
 		intIds := make([]int, 0, len(req.ChannelIDs))
@@ -284,7 +295,21 @@ func FetchUpstreamRatios(c *gin.Context) {
 		}
 		return dialer.DialContext(ctx, network, addr)
 	}
-	client := &http.Client{Transport: transport}
+	client := &http.Client{
+		Transport: transport,
+		// 初始 URL 已通过 ValidateSSRFProtectedFetchURL 校验，但上游可能 3xx
+		// 跳转到内网/私网地址；在每次重定向前按同一 SSRF 策略再校验一次，
+		// 与 service.checkProtectedFetchRedirect 行为保持一致。
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if err := service.ValidateSSRFProtectedFetchURL(req.URL.String()); err != nil {
+				return fmt.Errorf("redirect to %s blocked: %v", req.URL.String(), err)
+			}
+			if len(via) >= 10 {
+				return fmt.Errorf("stopped after 10 redirects")
+			}
+			return nil
+		},
+	}
 
 	for _, chn := range upstreams {
 		wg.Add(1)
