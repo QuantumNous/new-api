@@ -56,7 +56,8 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     icon: 'TypeSafe',
     supportedModels: ['jev-1.13.0', 'jev-latest', 'jev-preview'],
     hints: {
-      baseUrl: 'https://api.typesafe.ai',
+      baseUrl:
+        'TypeSafe: https://api.typesafe.ai; OpenRouter: https://openrouter.ai/api',
       key: 'Enter API key for this channel',
       models: 'jev-latest,jev-1.13.0,jev-preview',
     },

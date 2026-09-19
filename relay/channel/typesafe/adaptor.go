@@ -18,7 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var errUnsupported = errors.New("TypeSafe supports only /v1/systemone decisions")
+var errUnsupported = errors.New("this channel only supports native decisions requests")
 
 type Adaptor struct {
 	request *dto.DecisionsRequest
@@ -27,12 +27,20 @@ type Adaptor struct {
 // Init requires no channel-specific setup; conversion captures the final request.
 func (a *Adaptor) Init(*relaycommon.RelayInfo) {}
 
-// GetRequestURL maps decisions to the native TypeSafe endpoint and rejects other modes.
+// GetRequestURL maps decisions to the configured upstream endpoint and rejects other modes.
+// The default TypeSafe path is /v1/systemone; set DecisionsUpstreamPath to /api/alpha/decisions for OpenRouter.
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.RelayMode != relayconstant.RelayModeDecisions {
 		return "", errUnsupported
 	}
-	return strings.TrimRight(info.ChannelBaseUrl, "/") + "/v1/systemone", nil
+	upstreamPath := strings.TrimSpace(info.ChannelSetting.DecisionsUpstreamPath)
+	if upstreamPath == "" {
+		upstreamPath = "/v1/systemone"
+	}
+	if !strings.HasPrefix(upstreamPath, "/") {
+		upstreamPath = "/" + upstreamPath
+	}
+	return strings.TrimRight(info.ChannelBaseUrl, "/") + upstreamPath, nil
 }
 
 // SetupRequestHeader applies shared headers and authenticates TypeSafe JSON requests.
