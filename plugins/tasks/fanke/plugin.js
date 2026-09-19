@@ -39,7 +39,7 @@ export const meta = {
     en: "Video generation via the 跨境AI (fanke2026) aggregation platform, billed per second",
     zh: "通过跨境AI（fanke2026）聚合平台生成视频，按秒计费",
   },
-  version: "1.0.0",
+  version: "1.1.0",
   author: { name: "kyeai" },
   baseUrl: "https://ai.fanke2026.xyz",
   models: Object.keys(MODEL_IDS),
@@ -53,6 +53,48 @@ export const meta = {
     },
   },
   usageExamples: [{ label: "768P 5s", facts: { seconds: 5 } }, { label: "768P 10s", facts: { seconds: 10 } }],
+  samplePrompt: {
+    en: "A red apple slowly rotating on a white table, studio lighting",
+    zh: "一只红苹果在白色桌面上缓缓旋转，摄影棚灯光",
+  },
+  requestParams: [
+    {
+      name: "prompt",
+      type: "string",
+      required: true,
+      description: { en: "Text description of the video to generate", zh: "想要生成视频的文字描述" },
+    },
+    {
+      name: "seconds",
+      type: "integer",
+      minimum: 1,
+      maximum: 15,
+      default: 5,
+      description: { en: "Video length in seconds; billed per second", zh: "视频时长（秒），按秒计费" },
+    },
+    {
+      name: "ratio",
+      type: "enum",
+      enum: ["16:9", "4:3", "1:1", "3:4", "9:16"],
+      default: "9:16",
+      description: { en: "Aspect ratio; resolution is fixed at 768P", zh: "画面比例；分辨率固定 768P" },
+    },
+    {
+      name: "size",
+      type: "string",
+      description: { en: "Aspect ratio as width x height (e.g. 720x1280); ignored when ratio is set", zh: "以宽x高指定画面比例（如 720x1280）；设置 ratio 后忽略" },
+    },
+    {
+      name: "input_reference",
+      type: "file",
+      description: { en: "Reference image upload (multipart); repeat with the _2 .. _9 suffix for up to 9 images", zh: "参考图上传（multipart）；用 _2 .. _9 后缀最多 9 张" },
+    },
+    {
+      name: "input_audio",
+      type: "file",
+      description: { en: "Reference audio upload (multipart); repeat with the _2 .. _3 suffix for up to 3 audios", zh: "参考音频上传（multipart）；用 _2 .. _3 后缀最多 3 个" },
+    },
+  ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
 };
 

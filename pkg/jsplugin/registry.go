@@ -97,7 +97,13 @@ type Meta struct {
 	Protocols     []ProtocolClaim             `json:"protocols"`
 	UsageSchema   map[string]UsageFieldSchema `json:"usageSchema,omitempty"`
 	UsageExamples []UsageExample              `json:"usageExamples,omitempty"`
-	Auth          AuthMeta                    `json:"auth"`
+	// RequestParams documents the request fields the model drawer should
+	// advertise for this plugin's models, and SamplePrompt is the example
+	// generation input used in code samples. Both are display-only metadata
+	// and never participate in billing.
+	RequestParams []RequestParameter `json:"requestParams,omitempty"`
+	SamplePrompt  LocalizedText      `json:"samplePrompt,omitempty"`
+	Auth          AuthMeta           `json:"auth"`
 }
 
 // ProtocolSupports reports whether the named protocol claim includes mode.
@@ -115,6 +121,21 @@ func (m Meta) ProtocolSupports(protocol, mode string) bool {
 type UsageExample struct {
 	Label string         `json:"label"`
 	Facts map[string]any `json:"facts"`
+}
+
+// RequestParameter documents one request field a client may send to the
+// plugin's task endpoints. It is display-only drawer metadata: the plugin
+// keeps validating real requests at runtime.
+type RequestParameter struct {
+	Name        string                   `json:"name"`
+	Type        string                   `json:"type"`
+	Required    bool                     `json:"required,omitempty"`
+	Minimum     *float64                 `json:"minimum,omitempty"`
+	Maximum     *float64                 `json:"maximum,omitempty"`
+	Default     any                      `json:"default,omitempty"`
+	Enum        []string                 `json:"enum,omitempty"`
+	EnumLabels  map[string]LocalizedText `json:"enumLabels,omitempty"`
+	Description LocalizedText            `json:"description,omitempty"`
 }
 
 type AuthorMeta struct {
@@ -924,7 +945,7 @@ func decodeMeta(value any) (Meta, error) {
 	}
 	for field := range object {
 		switch field {
-		case "sortPriority", "website", "apiVersion", "key", "name", "icon", "description", "version", "author", "baseUrl", "channelTypes", "channelType", "compatibleChannelTypes", "models", "fetchMode", "allowedHosts", "routes", "protocols", "usageSchema", "usageExamples", "auth", "endpoints", "submitPaths", "actions":
+		case "sortPriority", "website", "apiVersion", "key", "name", "icon", "description", "version", "author", "baseUrl", "channelTypes", "channelType", "compatibleChannelTypes", "models", "fetchMode", "allowedHosts", "routes", "protocols", "usageSchema", "usageExamples", "requestParams", "samplePrompt", "auth", "endpoints", "submitPaths", "actions":
 		default:
 			return Meta{}, fmt.Errorf("plugin meta has unknown field %q", field)
 		}
@@ -1018,6 +1039,18 @@ func decodeMeta(value any) (Meta, error) {
 	}
 	if usageExamples, exists := object["usageExamples"]; exists {
 		meta.UsageExamples, err = decodeUsageExamples(usageExamples)
+		if err != nil {
+			return Meta{}, err
+		}
+	}
+	if _, exists := object["samplePrompt"]; exists {
+		meta.SamplePrompt, err = localizedTextMetaField(object, "samplePrompt", maxMetaDescriptionRunes)
+		if err != nil {
+			return Meta{}, err
+		}
+	}
+	if requestParams, exists := object["requestParams"]; exists {
+		meta.RequestParams, err = decodeRequestParams(requestParams)
 		if err != nil {
 			return Meta{}, err
 		}
@@ -1282,6 +1315,26 @@ func normalizeV1Meta(meta *Meta) error {
 	if err := validateUsageExamples(meta.UsageSchema, meta.UsageExamples); err != nil {
 		return err
 	}
+	if err := validateLocalizedText(meta.SamplePrompt, "samplePrompt", maxMetaDescriptionRunes); err != nil {
+		return err
+	}
+	if len(meta.RequestParams) > maxRequestParams {
+		return fmt.Errorf("plugin meta requestParams must not exceed %d entries", maxRequestParams)
+	}
+	seenRequestParams := make(map[string]struct{}, len(meta.RequestParams))
+	for index := range meta.RequestParams {
+		param := &meta.RequestParams[index]
+		if strings.TrimSpace(param.Name) == "" || strings.TrimSpace(param.Name) != param.Name {
+			return fmt.Errorf("plugin meta requestParams[%d] name must be a non-empty canonical name", index)
+		}
+		if _, duplicate := seenRequestParams[param.Name]; duplicate {
+			return fmt.Errorf("plugin meta requestParams names must be unique")
+		}
+		seenRequestParams[param.Name] = struct{}{}
+		if err := validateLocalizedText(param.Description, fmt.Sprintf("requestParams[%d] description", index), maxUsageFieldDescriptionRunes); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -1433,6 +1486,126 @@ func decodeUsageExamples(value any) ([]UsageExample, error) {
 		examples = append(examples, UsageExample{Label: label, Facts: facts})
 	}
 	return examples, nil
+}
+
+const maxRequestParams = 16
+
+var requestParamTypes = map[string]struct{}{
+	"number": {}, "integer": {}, "boolean": {}, "string": {},
+	"object": {}, "array": {}, "enum": {}, "file": {},
+}
+
+func requestParamBound(object map[string]any, name string, index int) (*float64, error) {
+	value, exists := object[name]
+	if !exists || value == nil {
+		return nil, nil
+	}
+	var number float64
+	switch typed := value.(type) {
+	case int64:
+		number = float64(typed)
+	case float64:
+		number = typed
+	default:
+		return nil, fmt.Errorf("plugin meta requestParams[%d] %s must be a number", index, name)
+	}
+	if math.IsNaN(number) || math.IsInf(number, 0) {
+		return nil, fmt.Errorf("plugin meta requestParams[%d] %s must be finite", index, name)
+	}
+	return &number, nil
+}
+
+func decodeRequestParams(value any) ([]RequestParameter, error) {
+	items, ok := value.([]any)
+	if !ok {
+		return nil, fmt.Errorf("plugin meta requestParams must be an array")
+	}
+	if len(items) > maxRequestParams {
+		return nil, fmt.Errorf("plugin meta requestParams must not exceed %d entries", maxRequestParams)
+	}
+	params := make([]RequestParameter, 0, len(items))
+	for index, item := range items {
+		object, ok := item.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("plugin meta requestParams[%d] must be an object", index)
+		}
+		for key := range object {
+			switch key {
+			case "name", "type", "required", "minimum", "maximum", "default", "enum", "enumLabels", "description":
+			default:
+				return nil, fmt.Errorf("plugin meta requestParams[%d] has unknown field %q", index, key)
+			}
+		}
+		name, err := stringMetaField(object, "name")
+		if err != nil {
+			return nil, fmt.Errorf("plugin meta requestParams[%d] %w", index, err)
+		}
+		if strings.TrimSpace(name) == "" {
+			return nil, fmt.Errorf("plugin meta requestParams[%d] name is required", index)
+		}
+		paramType, err := stringMetaField(object, "type")
+		if err != nil {
+			return nil, fmt.Errorf("plugin meta requestParams[%d] %w", index, err)
+		}
+		if _, known := requestParamTypes[paramType]; !known {
+			return nil, fmt.Errorf("plugin meta requestParams[%d] type must be one of number, integer, boolean, string, object, array, enum, file", index)
+		}
+		param := RequestParameter{Name: name, Type: paramType}
+		if rawRequired, exists := object["required"]; exists && rawRequired != nil {
+			required, ok := rawRequired.(bool)
+			if !ok {
+				return nil, fmt.Errorf("plugin meta requestParams[%d] required must be a boolean", index)
+			}
+			param.Required = required
+		}
+		if param.Minimum, err = requestParamBound(object, "minimum", index); err != nil {
+			return nil, err
+		}
+		if param.Maximum, err = requestParamBound(object, "maximum", index); err != nil {
+			return nil, err
+		}
+		if param.Minimum != nil && param.Maximum != nil && *param.Minimum > *param.Maximum {
+			return nil, fmt.Errorf("plugin meta requestParams[%d] minimum must not exceed maximum", index)
+		}
+		if rawDefault, exists := object["default"]; exists && rawDefault != nil {
+			switch typed := rawDefault.(type) {
+			case string, bool, int64, float64:
+				param.Default = typed
+			default:
+				return nil, fmt.Errorf("plugin meta requestParams[%d] default must be a string, number, or boolean", index)
+			}
+		}
+		if rawEnum, exists := object["enum"]; exists && rawEnum != nil {
+			values, err := strictStringSlice(map[string]any{"enum": rawEnum}, "enum")
+			if err != nil {
+				return nil, fmt.Errorf("plugin meta requestParams[%d] enum %w", index, err)
+			}
+			param.Enum = values
+		}
+		if paramType == "enum" && len(param.Enum) == 0 {
+			return nil, fmt.Errorf("plugin meta requestParams[%d] enum params must declare enum values", index)
+		}
+		if rawLabels, exists := object["enumLabels"]; exists && rawLabels != nil {
+			labelsObject, ok := rawLabels.(map[string]any)
+			if !ok {
+				return nil, fmt.Errorf("plugin meta requestParams[%d] enumLabels must be an object", index)
+			}
+			labels := make(map[string]LocalizedText, len(labelsObject))
+			for value := range labelsObject {
+				localized, err := localizedTextMetaField(labelsObject, value, maxUsageFieldDescriptionRunes)
+				if err != nil {
+					return nil, fmt.Errorf("plugin meta requestParams[%d] %w", index, err)
+				}
+				labels[value] = localized
+			}
+			param.EnumLabels = labels
+		}
+		if param.Description, err = localizedTextMetaField(object, "description", maxUsageFieldDescriptionRunes); err != nil {
+			return nil, fmt.Errorf("plugin meta requestParams[%d] %w", index, err)
+		}
+		params = append(params, param)
+	}
+	return params, nil
 }
 
 func usageSchemaHasTokenUnit(schema map[string]UsageFieldSchema) bool {

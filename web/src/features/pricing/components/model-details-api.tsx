@@ -80,6 +80,22 @@ type SampleContext = {
   modelName: string
   endpointType: string
   endpointPath: string
+  /** Plugin-declared example generation input, resolved to the active locale. */
+  samplePrompt?: string
+}
+
+/**
+ * Resolve a plugin-declared localized prompt to the active locale, falling
+ * back to the base language and then English. Undefined lets each sample
+ * builder keep its generic chat/image/video example text.
+ */
+function localizedSamplePrompt(
+  prompt: Record<string, string> | undefined,
+  language: string
+): string | undefined {
+  if (!prompt) return undefined
+  const base = language.split('-')[0]
+  return prompt[language] ?? prompt[base] ?? prompt.en
 }
 
 function buildChatSample(lang: Lang, ctx: SampleContext): string {
@@ -88,7 +104,8 @@ function buildChatSample(lang: Lang, ctx: SampleContext): string {
   const isReasoning = /^o[1-4]|reasoning|thinking|deepseek-r/i.test(
     ctx.modelName
   )
-  const userMessage = 'Explain quantum entanglement in one paragraph.'
+  const userMessage =
+    ctx.samplePrompt ?? 'Explain quantum entanglement in one paragraph.'
 
   const bodyJson = isResponses
     ? JSON.stringify({ model: ctx.modelName, input: userMessage }, null, 2)
@@ -160,7 +177,8 @@ function buildChatSample(lang: Lang, ctx: SampleContext): string {
 
 function buildAnthropicSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}`
-  const userMessage = 'Explain quantum entanglement in one paragraph.'
+  const userMessage =
+    ctx.samplePrompt ?? 'Explain quantum entanglement in one paragraph.'
 
   if (lang === 'curl') {
     const body = JSON.stringify(
@@ -238,7 +256,8 @@ function buildAnthropicSample(lang: Lang, ctx: SampleContext): string {
 
 function buildGeminiSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}?key=$${ctx.apiKeyEnv}`
-  const userMessage = 'Explain quantum entanglement in one paragraph.'
+  const userMessage =
+    ctx.samplePrompt ?? 'Explain quantum entanglement in one paragraph.'
 
   if (lang === 'curl') {
     const body = JSON.stringify(
@@ -353,7 +372,7 @@ function buildEmbeddingSample(lang: Lang, ctx: SampleContext): string {
 
 function buildImageSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}`
-  const prompt = 'A serene koi pond at sunset, ukiyo-e style.'
+  const prompt = ctx.samplePrompt ?? 'A serene koi pond at sunset, ukiyo-e style.'
 
   if (lang === 'curl') {
     const body = JSON.stringify(
@@ -425,7 +444,7 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
 
 function buildVideoSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}`
-  const prompt = 'A cat walking through tall grass at golden hour.'
+  const prompt = ctx.samplePrompt ?? 'A cat walking through tall grass at golden hour.'
   const pollUrl = `${ctx.baseUrl}/v1/videos/<VIDEO_ID>`
   const contentUrl = `${ctx.baseUrl}/v1/videos/<VIDEO_ID>/content`
 
@@ -537,7 +556,7 @@ function CodeSamplesSection(props: {
   model: PricingModel
   endpointMap: Record<string, { path?: string; method?: string }>
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { status } = useStatus()
 
   const baseUrl = useMemo(() => {
@@ -586,6 +605,10 @@ function CodeSamplesSection(props: {
     modelName: props.model.model_name || '',
     endpointType: activeEndpoint.type,
     endpointPath: activeEndpoint.path,
+    samplePrompt: localizedSamplePrompt(
+      props.model.sample_prompt,
+      i18n.language
+    ),
   })
 
   return (
@@ -646,7 +669,7 @@ function CodeSamplesSection(props: {
 // ---------------------------------------------------------------------------
 
 function SupportedParametersSection(props: { model: PricingModel }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const params = useMemo(
     () => buildSupportedParameters(props.model),
     [props.model]
@@ -709,7 +732,18 @@ function SupportedParametersSection(props: { model: PricingModel }) {
             header: t('Description'),
             className: 'h-9',
             cellClassName: tableStyles.topMutedCell,
-            cell: (p) => t(p.descriptionKey),
+            cell: (p) => {
+              if (p.description) {
+                const base = i18n.language.split('-')[0]
+                return (
+                  p.description[i18n.language] ??
+                  p.description[base] ??
+                  p.description.en ??
+                  ''
+                )
+              }
+              return p.descriptionKey ? t(p.descriptionKey) : ''
+            },
           },
         ]}
       />
@@ -720,6 +754,9 @@ function SupportedParametersSection(props: { model: PricingModel }) {
 function ParamRangeCell(props: { param: SupportedParameter }) {
   const { defaultValue, range, enumValues } = props.param
   if (defaultValue !== undefined) {
+    const alternatives = (enumValues ?? []).filter(
+      (value) => value !== defaultValue
+    )
     return (
       <div className='flex flex-wrap items-center gap-1'>
         <span className='text-muted-foreground text-sm'>=</span>
@@ -729,6 +766,14 @@ function ParamRangeCell(props: { param: SupportedParameter }) {
         {range && (
           <span className='text-muted-foreground text-sm'>{range}</span>
         )}
+        {alternatives.map((value) => (
+          <code
+            key={value}
+            className='bg-muted text-muted-foreground rounded px-1.5 py-0.5 font-mono text-sm'
+          >
+            {value}
+          </code>
+        ))}
       </div>
     )
   }

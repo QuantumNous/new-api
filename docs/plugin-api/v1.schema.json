@@ -18,9 +18,25 @@
       {"type": "object", "additionalProperties": false, "required": ["name", "supports"], "properties": {"name": {"const": "openai_responses"}, "supports": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["stream", "sync", "background"]}}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}},
       {"type": "object", "additionalProperties": false, "required": ["name"], "properties": {"name": {"const": "openai_video"}, "models": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}}}
     ]}},
-    "routes": {"type": "array", "items": {"$ref": "#/$defs/route"}}, "usageSchema": {"type": "object", "additionalProperties": {"$ref": "#/$defs/usageField"}}, "usageExamples": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "facts"], "properties": {"label": {"type": "string"}, "facts": {"type": "object"}}}}, "auth": {}
+    "routes": {"type": "array", "items": {"$ref": "#/$defs/route"}}, "usageSchema": {"type": "object", "additionalProperties": {"$ref": "#/$defs/usageField"}}, "usageExamples": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["label", "facts"], "properties": {"label": {"type": "string"}, "facts": {"type": "object"}}}}, "requestParams": {"type": "array", "maxItems": 16, "uniqueItems": true, "items": {"$ref": "#/$defs/requestParam"}}, "samplePrompt": {"$ref": "#/$defs/localizedText"}, "auth": {}
   },
   "$defs": {
+    "requestParam": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "type"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "type": {"enum": ["number", "integer", "boolean", "string", "object", "array", "enum", "file"]},
+        "required": {"type": "boolean"},
+        "minimum": {"type": "number"},
+        "maximum": {"type": "number"},
+        "default": {"oneOf": [{"type": "string"}, {"type": "number"}, {"type": "boolean"}]},
+        "enum": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+        "enumLabels": {"type": "object", "additionalProperties": {"$ref": "#/$defs/usageLabel"}},
+        "description": {"$ref": "#/$defs/usageLabel"}
+      }
+    },
     "usageField": {
       "type": "object",
       "additionalProperties": false,

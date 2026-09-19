@@ -40,6 +40,8 @@ type Pricing struct {
 	BillingExpr            string                               `json:"billing_expr,omitempty"`
 	BillingUsageSchema     map[string]jsplugin.UsageFieldSchema `json:"billing_usage_schema,omitempty"`
 	BillingUsageExamples   []jsplugin.UsageExample              `json:"billing_usage_examples,omitempty"`
+	RequestParams          []jsplugin.RequestParameter          `json:"request_params,omitempty"`
+	SamplePrompt           jsplugin.LocalizedText               `json:"sample_prompt,omitempty"`
 	PricingVersion         string                               `json:"pricing_version,omitempty"`
 }
 
@@ -469,6 +471,27 @@ func updatePricing() {
 						Facts: facts,
 					}
 				}
+			}
+		}
+		if ok && plugin != nil {
+			if len(plugin.Meta.RequestParams) > 0 {
+				pricing.RequestParams = make([]jsplugin.RequestParameter, len(plugin.Meta.RequestParams))
+				for index, param := range plugin.Meta.RequestParams {
+					copied := param
+					copied.Enum = append([]string(nil), param.Enum...)
+					copied.Description = maps.Clone(param.Description)
+					if param.EnumLabels != nil {
+						labels := make(map[string]jsplugin.LocalizedText, len(param.EnumLabels))
+						for value, label := range param.EnumLabels {
+							labels[value] = maps.Clone(label)
+						}
+						copied.EnumLabels = labels
+					}
+					pricing.RequestParams[index] = copied
+				}
+			}
+			if plugin.Meta.SamplePrompt != nil {
+				pricing.SamplePrompt = maps.Clone(plugin.Meta.SamplePrompt)
 			}
 		}
 		pricingMap = append(pricingMap, pricing)

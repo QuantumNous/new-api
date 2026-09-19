@@ -17,7 +17,13 @@ func pricingUsagePluginSource(version, usageSchema string) string {
 	return fmt.Sprintf(`
 export const meta = {
   apiVersion: 1, key: "pricing-usage-probe", name: "Pricing Usage Probe", version: %q, author: {name: "Test"},
-  models: ["pricing-usage-model"], fetchMode: "per_task", usageSchema: %s
+  models: ["pricing-usage-model"], fetchMode: "per_task", usageSchema: %s,
+  samplePrompt: {en: "A red apple rotating on a white table.", zh: "红苹果在白色桌面上旋转。"},
+  requestParams: [
+    {name: "seconds", type: "integer", minimum: 1, maximum: 15, default: 5, description: "Video length in seconds."},
+    {name: "ratio", type: "enum", enum: ["16:9", "9:16"], default: "9:16",
+     enumLabels: {"16:9": {en: "Landscape", zh: "横屏"}}, description: {en: "Aspect ratio.", zh: "画面比例。"}}
+  ]
 };
 export function buildSubmitRequest() { return {}; }
 export function parseSubmitResponse() { return {}; }
@@ -48,6 +54,20 @@ func TestPricingCarriesTaskUsageSchemaAndRefreshesWithPluginGeneration(t *testin
 	assert.Equal(t, "Estimated duration.", initialPricing["pricing-usage-model"].BillingUsageSchema["seconds"].Description["en"])
 	assert.Equal(t, "生成视频", initialPricing["pricing-usage-model"].BillingUsageSchema["action"].EnumLabels["video"]["zh"])
 	assert.Nil(t, initialPricing["ordinary-model"].BillingUsageSchema)
+
+	require.Len(t, initialPricing["pricing-usage-model"].RequestParams, 2)
+	secondsParam := initialPricing["pricing-usage-model"].RequestParams[0]
+	require.NotNil(t, secondsParam.Minimum)
+	require.NotNil(t, secondsParam.Maximum)
+	assert.Equal(t, 1.0, *secondsParam.Minimum)
+	assert.Equal(t, 15.0, *secondsParam.Maximum)
+	assert.Equal(t, "Video length in seconds.", secondsParam.Description["en"])
+	ratioParam := initialPricing["pricing-usage-model"].RequestParams[1]
+	assert.Equal(t, "9:16", ratioParam.Default)
+	assert.Equal(t, []string{"16:9", "9:16"}, ratioParam.Enum)
+	assert.Equal(t, "横屏", ratioParam.EnumLabels["16:9"]["zh"])
+	assert.Nil(t, initialPricing["ordinary-model"].RequestParams)
+	assert.Equal(t, "A red apple rotating on a white table.", initialPricing["pricing-usage-model"].SamplePrompt["en"])
 
 	updatedSource := pricingUsagePluginSource("1.1.0", `{
   seconds: {type: "number", unit: "second", description: "Measured duration."},
