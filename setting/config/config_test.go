@@ -10,6 +10,10 @@ type testConfigWithMap struct {
 	Name  string            `json:"name"`
 }
 
+type testConfigWithStringSlice struct {
+	Values []string `json:"values"`
+}
+
 func TestUpdateConfigFromMap_MapReplacement(t *testing.T) {
 	cfg := &testConfigWithMap{
 		Modes: map[string]string{
@@ -44,6 +48,27 @@ func TestUpdateConfigFromMap_MapReplacement(t *testing.T) {
 	}
 	if cfg.Exprs["model-b"] != "p * 10 + c * 50" {
 		t.Errorf("Exprs[model-b] = %q, want %q", cfg.Exprs["model-b"], "p * 10 + c * 50")
+	}
+}
+
+func TestUpdateConfigFromMapConvertsHistoricalNumericStringSlices(t *testing.T) {
+	cfg := &testConfigWithStringSlice{}
+
+	err := UpdateConfigFromMap(cfg, map[string]string{
+		"values": `[80,443,23000]`,
+	})
+	if err != nil {
+		t.Fatalf("UpdateConfigFromMap failed: %v", err)
+	}
+
+	expected := []string{"80", "443", "23000"}
+	if len(cfg.Values) != len(expected) {
+		t.Fatalf("Values = %v, want %v", cfg.Values, expected)
+	}
+	for index := range expected {
+		if cfg.Values[index] != expected[index] {
+			t.Fatalf("Values = %v, want %v", cfg.Values, expected)
+		}
 	}
 }
 
