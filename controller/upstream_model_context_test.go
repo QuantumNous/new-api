@@ -59,6 +59,31 @@ func fakeEngineModelsServer(t *testing.T, models map[string]*int64) *httptest.Se
 
 func int64Ptr(v int64) *int64 { return &v }
 
+// A negative limit simulates an outage; zero is a healthy response without
+// max_model_len. Atomic updates let tests change the engine between syncs.
+func fakeMutableEngineModelsServer(t *testing.T, name string, initialLimit int64) (*httptest.Server, *atomic.Int64) {
+	t.Helper()
+	limit := &atomic.Int64{}
+	limit.Store(initialLimit)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		length := limit.Load()
+		if length < 0 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		entry := map[string]any{"id": name}
+		if length > 0 {
+			entry["max_model_len"] = length
+		}
+		body, err := common.Marshal(map[string]any{"data": []map[string]any{entry}})
+		if assert.NoError(t, err) {
+			_, _ = w.Write(body)
+		}
+	}))
+	t.Cleanup(server.Close)
+	return server, limit
+}
+
 func setUpstreamContextTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 	db := setupModelListControllerTestDB(t)
@@ -161,10 +186,8 @@ func TestSyncUpstreamModelContextsKeepsSmallestAcrossChannels(t *testing.T) {
 	db := setUpstreamContextTestDB(t)
 	resetUpstreamContextCache(t)
 
-	serverA := fakeEngineModelsServer(t, map[string]*int64{"shared-model": int64Ptr(131072)})
-	defer serverA.Close()
-	serverB := fakeEngineModelsServer(t, map[string]*int64{"shared-model": int64Ptr(1048576)})
-	defer serverB.Close()
+	serverA, smallLimit := fakeMutableEngineModelsServer(t, "shared-model", 131072)
+	serverB, largeLimit := fakeMutableEngineModelsServer(t, "shared-model", 1048576)
 
 	createEngineChannel(t, db, 811, constant.ChannelTypeVLLM, "vllm-small", serverA.URL)
 	createEngineChannel(t, db, 812, constant.ChannelTypeVLLM, "vllm-large", serverB.URL)
@@ -180,6 +203,30 @@ func TestSyncUpstreamModelContextsKeepsSmallestAcrossChannels(t *testing.T) {
 	length, ok := GetUpstreamModelContextLength("shared-model")
 	require.True(t, ok)
 	assert.Equal(t, int64(131072), length)
+
+	// The smaller channel still routes requests when its metadata probe fails.
+	smallLimit.Store(-1)
+	largeLimit.Store(2097152)
+	SyncUpstreamModelContexts(context.Background())
+	length, ok = GetUpstreamModelContextLength("shared-model")
+	require.True(t, ok)
+	assert.Equal(t, int64(131072), length, "a partial outage must not raise the advertised limit")
+
+	smallLimit.Store(262144)
+	SyncUpstreamModelContexts(context.Background())
+	length, ok = GetUpstreamModelContextLength("shared-model")
+	require.True(t, ok)
+	assert.Equal(t, int64(262144), length, "a recovered channel must refresh its snapshot")
+
+	// Removing a channel must discard its snapshot even if every remaining
+	// channel's probe fails in this pass.
+	largeLimit.Store(-1)
+	require.NoError(t, db.Delete(&model.Channel{}, 811).Error)
+	model.InitChannelCache()
+	SyncUpstreamModelContexts(context.Background())
+	length, ok = GetUpstreamModelContextLength("shared-model")
+	require.True(t, ok)
+	assert.Equal(t, int64(2097152), length)
 }
 
 func TestSyncUpstreamModelContextsMapsModelMappingAliases(t *testing.T) {
@@ -417,13 +464,13 @@ func TestProbeChannelUpstreamContextToleratesFailures(t *testing.T) {
 
 	createEngineChannel(t, db, 821, constant.ChannelTypeVLLM, "vllm-dead", "http://127.0.0.1:1")
 	require.NoError(t, db.Create(&model.Ability{
-		Group: "default", Model: "some-model", ChannelId: 821, Enabled: true,
+		Group: "default", Model: "shared-model", ChannelId: 821, Enabled: true,
 	}).Error)
 	model.InitChannelCache()
 
 	// Must not panic and must leave an empty cache.
 	require.NotPanics(t, func() { SyncUpstreamModelContexts(context.Background()) })
-	_, ok := GetUpstreamModelContextLength("some-model")
+	_, ok := GetUpstreamModelContextLength("shared-model")
 	assert.False(t, ok)
 }
 
@@ -447,43 +494,134 @@ func TestUpstreamContextSyncScheduleFromEnv(t *testing.T) {
 
 func TestSyncKeepsLastKnownGoodWhenAllUpstreamsFail(t *testing.T) {
 	db := setUpstreamContextTestDB(t)
-	seedUpstreamContextsForTest(map[string]int64{"stale-model": 4096})
-	t.Cleanup(func() { seedUpstreamContextsForTest(map[string]int64{}) })
+	resetUpstreamContextCache(t)
 
-	// One dead engine channel.
-	createEngineChannel(t, db, 841, constant.ChannelTypeVLLM, "vllm-dead-outage", "http://127.0.0.1:1")
+	server, limit := fakeMutableEngineModelsServer(t, "shared-model", 4096)
+	createEngineChannel(t, db, 841, constant.ChannelTypeVLLM, "vllm-outage", server.URL)
 	require.NoError(t, db.Create(&model.Ability{
-		Group: "default", Model: "stale-model", ChannelId: 841, Enabled: true,
+		Group: "default", Model: "shared-model", ChannelId: 841, Enabled: true,
 	}).Error)
 	model.InitChannelCache()
 
 	SyncUpstreamModelContexts(context.Background())
+	length, ok := GetUpstreamModelContextLength("shared-model")
+	require.True(t, ok)
+	require.Equal(t, int64(4096), length)
 
-	length, ok := GetUpstreamModelContextLength("stale-model")
+	limit.Store(-1)
+	SyncUpstreamModelContexts(context.Background())
+
+	length, ok = GetUpstreamModelContextLength("shared-model")
 	require.True(t, ok, "total outage must keep the last-known-good cache")
+	assert.Equal(t, int64(4096), length)
+
+	// A failed ability query must not be mistaken for removed channels.
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	require.NoError(t, sqlDB.Close())
+	SyncUpstreamModelContexts(context.Background())
+	length, ok = GetUpstreamModelContextLength("shared-model")
+	require.True(t, ok)
 	assert.Equal(t, int64(4096), length)
 }
 
 func TestSyncDropsStaleCacheWhenEngineStopsAdvertising(t *testing.T) {
 	db := setUpstreamContextTestDB(t)
-	seedUpstreamContextsForTest(map[string]int64{"gone-limit-model": 4096})
-	t.Cleanup(func() { seedUpstreamContextsForTest(map[string]int64{}) })
-
-	// Engine answers fine but no longer includes max_model_len: the sync
-	// must treat it as healthy and withdraw the stale advertised limit.
-	server := fakeEngineModelsServer(t, map[string]*int64{"gone-limit-model": nil})
-	defer server.Close()
+	resetUpstreamContextCache(t)
+	server, limit := fakeMutableEngineModelsServer(t, "shared-model", 4096)
 
 	createEngineChannel(t, db, 842, constant.ChannelTypeVLLM, "vllm-no-field", server.URL)
 	require.NoError(t, db.Create(&model.Ability{
-		Group: "default", Model: "gone-limit-model", ChannelId: 842, Enabled: true,
+		Group: "default", Model: "shared-model", ChannelId: 842, Enabled: true,
 	}).Error)
 	model.InitChannelCache()
 
 	SyncUpstreamModelContexts(context.Background())
+	length, ok := GetUpstreamModelContextLength("shared-model")
+	require.True(t, ok)
+	require.Equal(t, int64(4096), length)
 
-	_, ok := GetUpstreamModelContextLength("gone-limit-model")
+	limit.Store(0)
+	SyncUpstreamModelContexts(context.Background())
+	_, ok = GetUpstreamModelContextLength("shared-model")
 	assert.False(t, ok, "a healthy engine that stopped advertising must clear the stale cache")
+
+	limit.Store(-1)
+	SyncUpstreamModelContexts(context.Background())
+	_, ok = GetUpstreamModelContextLength("shared-model")
+	assert.False(t, ok, "a later failure must not restore the cleared snapshot")
+}
+
+func TestSyncDropsStaleCacheWhenChannelBecomesIneligible(t *testing.T) {
+	for _, reason := range []string{"deleted channel", "deleted ability", "disabled channel", "disabled ability", "non-engine channel", "invalid URL"} {
+		t.Run(reason, func(t *testing.T) {
+			db := setUpstreamContextTestDB(t)
+			resetUpstreamContextCache(t)
+			server, limit := fakeMutableEngineModelsServer(t, "shared-model", 4096)
+			channel := createEngineChannel(t, db, 843, constant.ChannelTypeVLLM, "vllm-removed", server.URL)
+			ability := &model.Ability{Group: "default", Model: "shared-model", ChannelId: channel.Id, Enabled: true}
+			require.NoError(t, db.Create(ability).Error)
+			model.InitChannelCache()
+			SyncUpstreamModelContexts(context.Background())
+			length, ok := GetUpstreamModelContextLength("shared-model")
+			require.True(t, ok)
+			require.Equal(t, int64(4096), length)
+
+			switch reason {
+			case "deleted channel":
+				require.NoError(t, db.Delete(&model.Channel{}, channel.Id).Error)
+			case "deleted ability":
+				require.NoError(t, db.Delete(ability).Error)
+			case "disabled channel":
+				require.NoError(t, db.Model(&model.Channel{Id: channel.Id}).Update("status", common.ChannelStatusManuallyDisabled).Error)
+			case "disabled ability":
+				require.NoError(t, db.Model(ability).Update("enabled", false).Error)
+			case "non-engine channel":
+				require.NoError(t, db.Model(&model.Channel{Id: channel.Id}).Update("type", constant.ChannelTypeOpenAI).Error)
+			case "invalid URL":
+				require.NoError(t, db.Model(&model.Channel{Id: channel.Id}).Update("base_url", "file:///engine").Error)
+			}
+			model.InitChannelCache()
+			SyncUpstreamModelContexts(context.Background())
+			_, ok = GetUpstreamModelContextLength("shared-model")
+			assert.False(t, ok)
+
+			// Restoring eligibility during an outage must not resurrect a snapshot
+			// that was removed while this channel was out of the routing pool.
+			limit.Store(-1)
+			ability.Enabled = true
+			require.NoError(t, db.Save(channel).Error)
+			require.NoError(t, db.Save(ability).Error)
+			model.InitChannelCache()
+			SyncUpstreamModelContexts(context.Background())
+			_, ok = GetUpstreamModelContextLength("shared-model")
+			assert.False(t, ok)
+		})
+	}
+}
+
+func TestSyncUpstreamModelContextsRemapsFailedChannelSnapshot(t *testing.T) {
+	db := setUpstreamContextTestDB(t)
+	resetUpstreamContextCache(t)
+	server, limit := fakeMutableEngineModelsServer(t, "shared-model", 4096)
+	channel := createEngineChannel(t, db, 844, constant.ChannelTypeVLLM, "vllm-remapped", server.URL)
+	ability := &model.Ability{Group: "default", Model: "shared-model", ChannelId: channel.Id, Enabled: true}
+	require.NoError(t, db.Create(ability).Error)
+	model.InitChannelCache()
+	SyncUpstreamModelContexts(context.Background())
+
+	limit.Store(-1)
+	require.NoError(t, db.Model(channel).Updates(map[string]any{
+		"models": "new-alias", "model_mapping": `{"new-alias":"shared-model"}`,
+	}).Error)
+	require.NoError(t, db.Model(ability).Update("model", "new-alias").Error)
+	model.InitChannelCache()
+	SyncUpstreamModelContexts(context.Background())
+	length, ok := GetUpstreamModelContextLength("new-alias")
+	require.True(t, ok)
+	assert.Equal(t, int64(4096), length)
+	_, ok = GetUpstreamModelContextLength("shared-model")
+	assert.False(t, ok, "snapshots must be aggregated using the current routing names")
 }
 
 func TestProbeHonoursMidFlightCancellation(t *testing.T) {

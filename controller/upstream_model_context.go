@@ -41,9 +41,18 @@ const (
 )
 
 var (
-	upstreamContextLock    sync.RWMutex
-	upstreamContextByModel = map[string]int64{}
+	upstreamContextSyncLock  sync.Mutex
+	upstreamContextLock      sync.RWMutex
+	upstreamContextByModel   = map[string]int64{}
+	upstreamContextByChannel = map[int]upstreamContextSnapshot{}
 )
+
+// Snapshots are immutable after publication and retain engine-side names so
+// they can be aggregated using the channel's current model mapping.
+type upstreamContextSnapshot struct {
+	limits    map[string]int64
+	updatedAt time.Time
+}
 
 // GetUpstreamModelContextLength returns the cached max_model_len advertised by
 // an upstream for the given user model name, or false when unknown.
@@ -60,6 +69,7 @@ func seedUpstreamContextsForTest(modelLengths map[string]int64) {
 	upstreamContextLock.Lock()
 	defer upstreamContextLock.Unlock()
 	upstreamContextByModel = modelLengths
+	upstreamContextByChannel = map[int]upstreamContextSnapshot{}
 }
 
 // upstreamModelContextEntry mirrors the subset of the OpenAI models payload we
@@ -84,11 +94,11 @@ type upstreamContextProbe struct {
 // the OpenAI models protocol AND reports max_model_len. Only the engine
 // channel types do today (vLLM, SGLang); probing other providers would spam
 // their /v1/models with signed requests that never carry the field.
-func channelsEligibleForContextProbe() []upstreamContextProbe {
+func channelsEligibleForContextProbe() ([]upstreamContextProbe, error) {
 	abilities, err := model.GetAllEnableAbilityWithChannels()
 	if err != nil {
 		common.SysLog(fmt.Sprintf("upstream context probe: load abilities error: %v", err))
-		return nil
+		return nil, err
 	}
 	seen := make(map[int]struct{})
 	probes := make([]upstreamContextProbe, 0, len(abilities))
@@ -115,7 +125,7 @@ func channelsEligibleForContextProbe() []upstreamContextProbe {
 		seen[ability.ChannelId] = struct{}{}
 		probes = append(probes, upstreamContextProbe{channel: channel, baseURL: baseURL})
 	}
-	return probes
+	return probes, nil
 }
 
 // validateUpstreamContextBaseURL applies the same URL safety rules as the
@@ -265,53 +275,64 @@ func engineModelToUserNames(channel *model.Channel, engineName string) []string 
 // bounded worker pool and swaps the cache afterwards, so readers never see a
 // half-updated map. When several channels serve the same user model, the
 // smallest advertised value wins: it is the only bound every serving channel
-// can honour. A sync pass only replaces the cache when it observed at least
-// one healthy engine; if every probe failed (or the channel list could not be
-// loaded), the previous cache stays as last-known-good instead of going dark.
-// Individual failed channels simply drop out of the fresh map.
+// can honour. Failed probes retain their channel's last successful snapshot.
+// Ineligible channels and healthy responses without limits drop their old
+// snapshots. If the channel list cannot be loaded, both caches stay intact.
 func SyncUpstreamModelContexts(ctx context.Context) {
-	probes := channelsEligibleForContextProbe()
-	fresh := make(map[string]int64)
-	healthy := 0
+	// Serialize sync passes without holding the reader lock during network I/O.
+	upstreamContextSyncLock.Lock()
+	defer upstreamContextSyncLock.Unlock()
+	probes, err := channelsEligibleForContextProbe()
+	if err != nil {
+		return
+	}
+	upstreamContextLock.RLock()
+	previous := upstreamContextByChannel
+	upstreamContextLock.RUnlock()
+	freshByChannel := make(map[int]upstreamContextSnapshot, len(probes))
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 	// Buffered channel as a semaphore: at most N probes in flight.
 	sem := make(chan struct{}, upstreamContextProbeConcurrency)
 	for _, probe := range probes {
-		wg.Add(1)
-		go func(probe upstreamContextProbe) {
-			defer wg.Done()
+		wg.Go(func() {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 			collected, err := probeChannelUpstreamContext(ctx, probe)
-			if err != nil {
+			snapshot := previous[probe.channel.Id]
+			if err == nil {
+				// A healthy empty response withdraws the old limits. Failures
+				// keep both the engine limits and their last successful timestamp.
+				snapshot = upstreamContextSnapshot{limits: collected, updatedAt: time.Now()}
+			}
+			if len(snapshot.limits) == 0 {
 				return
 			}
 			mu.Lock()
-			defer mu.Unlock()
-			// A well-formed reply counts as healthy even when it advertises
-			// no limits: the engine dropped the field, so the fresh cache
-			// must drop the stale values for this channel's models.
-			healthy++
-			for engineName, length := range collected {
-				for _, userName := range engineModelToUserNames(probe.channel, engineName) {
-					if existing, ok := fresh[userName]; !ok || length < existing {
-						fresh[userName] = length
-					}
-				}
-			}
-		}(probe)
+			freshByChannel[probe.channel.Id] = snapshot
+			mu.Unlock()
+		})
 	}
 	wg.Wait()
 
-	if len(probes) > 0 && healthy == 0 {
-		// Every upstream failed: likely a transient outage. Keep serving the
-		// previously observed limits rather than withdrawing them.
+	if len(previous) == 0 && len(freshByChannel) == 0 {
+		// No successful observation yet, including a first pass of failures.
 		return
+	}
+	fresh := make(map[string]int64)
+	for _, probe := range probes {
+		for engineName, length := range freshByChannel[probe.channel.Id].limits {
+			for _, userName := range engineModelToUserNames(probe.channel, engineName) {
+				if existing, ok := fresh[userName]; !ok || length < existing {
+					fresh[userName] = length
+				}
+			}
+		}
 	}
 
 	upstreamContextLock.Lock()
 	defer upstreamContextLock.Unlock()
+	upstreamContextByChannel = freshByChannel
 	upstreamContextByModel = fresh
 	if len(fresh) > 0 {
 		common.SysLog(fmt.Sprintf("upstream context sync: %d model(s) with advertised max_model_len", len(fresh)))
