@@ -73,6 +73,87 @@ func TestRedisIPRateLimiterThresholdTTLAndNamespace(t *testing.T) {
 	assert.True(t, redisServer.Exists(legacyKey), "the v2 counter must not touch an old list key")
 }
 
+func TestRegistrationRateLimitUsesDedicatedBudget(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	redisServer, _ := useRateLimitMiniRedis(t)
+
+	previousEnabled := common.RegistrationRateLimitEnable
+	previousLimit := common.RegistrationRateLimitNum
+	previousDuration := common.RegistrationRateLimitDuration
+	common.RegistrationRateLimitEnable = true
+	common.RegistrationRateLimitNum = 2
+	common.RegistrationRateLimitDuration = 43
+	t.Cleanup(func() {
+		common.RegistrationRateLimitEnable = previousEnabled
+		common.RegistrationRateLimitNum = previousLimit
+		common.RegistrationRateLimitDuration = previousDuration
+	})
+
+	router := gin.New()
+	require.NoError(t, router.SetTrustedProxies(nil))
+	router.POST("/register", RegistrationRateLimit(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	remoteAddr := "192.0.2.11:12345"
+	perform := func() *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/register", nil)
+		request.RemoteAddr = remoteAddr
+		router.ServeHTTP(recorder, request)
+		return recorder
+	}
+
+	assert.Equal(t, http.StatusNoContent, perform().Code)
+	assert.Equal(t, http.StatusNoContent, perform().Code)
+	limitedResponse := perform()
+	assert.Equal(t, http.StatusTooManyRequests, limitedResponse.Code)
+	assert.Equal(t, "43", limitedResponse.Header().Get("Retry-After"))
+
+	key := redisIPRateLimitKey("REG", "192.0.2.11")
+	assert.True(t, redisServer.Exists(key))
+	assert.Equal(t, 43*time.Second, redisServer.TTL(key))
+}
+
+func TestRegistrationRateLimitUsesMemoryBudgetWithoutRedis(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	previousRedisEnabled := common.RedisEnabled
+	previousEnabled := common.RegistrationRateLimitEnable
+	previousLimit := common.RegistrationRateLimitNum
+	previousDuration := common.RegistrationRateLimitDuration
+	common.RedisEnabled = false
+	common.RegistrationRateLimitEnable = true
+	common.RegistrationRateLimitNum = 1
+	common.RegistrationRateLimitDuration = 47
+	t.Cleanup(func() {
+		common.RedisEnabled = previousRedisEnabled
+		common.RegistrationRateLimitEnable = previousEnabled
+		common.RegistrationRateLimitNum = previousLimit
+		common.RegistrationRateLimitDuration = previousDuration
+	})
+
+	router := gin.New()
+	require.NoError(t, router.SetTrustedProxies(nil))
+	router.POST("/register", RegistrationRateLimit(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+
+	remoteAddr := "192.0.2.12:12345"
+	perform := func() *httptest.ResponseRecorder {
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequest(http.MethodPost, "/register", nil)
+		request.RemoteAddr = remoteAddr
+		router.ServeHTTP(recorder, request)
+		return recorder
+	}
+
+	assert.Equal(t, http.StatusNoContent, perform().Code)
+	limitedResponse := perform()
+	assert.Equal(t, http.StatusTooManyRequests, limitedResponse.Code)
+	assert.Equal(t, "47", limitedResponse.Header().Get("Retry-After"))
+}
+
 func TestRedisUserRateLimiterUsesSharedFixedWindow(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	redisServer, _ := useRateLimitMiniRedis(t)
