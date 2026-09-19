@@ -3,6 +3,9 @@ package billing_setting
 // Built-in token prices use actual USD per million tokens. Keep new model
 // defaults here instead of splitting them across the legacy ratio tables.
 var builtinBillingExpr = map[string]string{
+	// MiniMax-H3 task pricing: $0.1195 per generated video second,
+	// converted from CNY 0.8 at the configured exchange rate.
+	"minimax/h3": `tier("per_second", u("seconds") * 0.1195)`,
 	// https://developers.openai.com/api/docs/pricing (Standard, 2026-09-09).
 	// The Images API reports image output in output_tokens, normalized to c.
 	"gpt-image-2":            `tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 2 + c * 30)`,
