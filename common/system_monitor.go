@@ -61,8 +61,11 @@ func updateSystemStatus() {
 	}
 
 	// Memory
-	memInfo, err := mem.VirtualMemory()
-	if err == nil {
+	if containerMemoryUsage, ok := readContainerMemoryUsage(); ok {
+		status.MemoryUsage = containerMemoryUsage
+	} else if memInfo, err := mem.VirtualMemory(); err == nil {
+		// Fall back to the host metric for non-container deployments and
+		// environments where no finite cgroup memory limit is available.
 		status.MemoryUsage = memInfo.UsedPercent
 	}
 
