@@ -79,7 +79,23 @@ func EstimateToken(provider Provider, text string) int {
 	)
 	currentWordType := None
 
-	for _, r := range text {
+	runes := []rune(text)
+	for i := 0; i < len(runes); i++ {
+		r := runes[i]
+
+		// 0. JSON \uXXXX 转义序列：按它解码后的那一个字符计费。
+		// 许多客户端（例如 Python json.dumps 的默认 ensure_ascii=True）会把所有
+		// 非 ASCII 字符写成 \uXXXX。若逐字符扫描，"\u4e2d" 会被算成
+		// 反斜杠 + 字母 + 数字 + 字母 + 数字 + 字母 —— 由于下方状态机在
+		// 字母/数字每次交替时都记一个新 token，单个汉字的估算会从 CJK 的
+		// 0.85 涨到约 6.56，即同一段内容仅因编码方式不同就高估 5 倍以上。
+		if decoded, width, ok := decodeUnicodeEscape(runes, i); ok {
+			currentWordType = None
+			count += runeWeight(m, decoded)
+			i += width - 1
+			continue
+		}
+
 		// 1. 处理空格和换行符
 		if unicode.IsSpace(r) {
 			currentWordType = None
@@ -145,6 +161,59 @@ func EstimateToken(provider Provider, text string) int {
 
 	// 向上取整并加上基础 padding
 	return int(math.Ceil(count)) + m.BasePad
+}
+
+// decodeUnicodeEscape 识别形如 \uXXXX 的 JSON 转义序列。
+// 命中时返回解码后的字符、消耗的 rune 数（6）与 true。
+// 仅识别标准的 4 位十六进制形式；代理对（surrogate pair）的高位会被单独解码，
+// 这对计费估算足够——两个代理各按一个字符计，与真实 tokenizer 的量级一致。
+func decodeUnicodeEscape(runes []rune, i int) (rune, int, bool) {
+	if i+5 >= len(runes) || runes[i] != '\\' || (runes[i+1] != 'u' && runes[i+1] != 'U') {
+		return 0, 0, false
+	}
+	var v rune
+	for k := i + 2; k < i+6; k++ {
+		c := runes[k]
+		switch {
+		case c >= '0' && c <= '9':
+			v = v<<4 | (c - '0')
+		case c >= 'a' && c <= 'f':
+			v = v<<4 | (c - 'a' + 10)
+		case c >= 'A' && c <= 'F':
+			v = v<<4 | (c - 'A' + 10)
+		default:
+			return 0, 0, false
+		}
+	}
+	return v, 6, true
+}
+
+// runeWeight 返回单个字符在估算模型中的权重。
+// 与 EstimateToken 主循环的分类保持一致，供转义序列解码后复用。
+func runeWeight(m multipliers, r rune) float64 {
+	switch {
+	case unicode.IsSpace(r):
+		if r == '\n' || r == '\t' {
+			return m.Newline
+		}
+		return m.Space
+	case isCJK(r):
+		return m.CJK
+	case isEmoji(r):
+		return m.Emoji
+	case unicode.IsNumber(r):
+		return m.Number
+	case unicode.IsLetter(r):
+		return m.Word
+	case isMathSymbol(r):
+		return m.MathSymbol
+	case r == '@':
+		return m.AtSign
+	case isURLDelim(r):
+		return m.URLDelim
+	default:
+		return m.Symbol
+	}
 }
 
 // 辅助：判断是否为 CJK 字符
