@@ -63,8 +63,16 @@ func validateDrawingSubmission(input *drawingSubmission) string {
 		if strings.TrimSpace(input.Prompt) == "" || len(input.Prompt) > 16000 {
 			return "Prompt is required and must be within 16000 bytes"
 		}
-		for i := 0; i < count; i++ {
-			input.Items = append(input.Items, DrawingPlanItem{Title: fmt.Sprintf("%02d", i+1), Prompt: input.Prompt})
+		items, message := splitDrawingRequirements(input.Prompt, count)
+		if message != "" {
+			return message
+		}
+		if len(items) > 0 {
+			input.Items = items
+		} else {
+			for i := 0; i < count; i++ {
+				input.Items = append(input.Items, DrawingPlanItem{Title: fmt.Sprintf("%02d", i+1), Prompt: input.Prompt})
+			}
 		}
 	}
 	if len(input.Items) != count {
