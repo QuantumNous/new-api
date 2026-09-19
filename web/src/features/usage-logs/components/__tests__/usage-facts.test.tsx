@@ -100,7 +100,6 @@ test('shows the recorded request and response models in log details', () => {
       requested_model: 'requested-model',
       upstream_model: 'mapped-model',
       returned_model: 'unexpected-model',
-      mismatch: true,
     },
   })
   expect(screen.getByText('Response model: unexpected-model')).toBeVisible()

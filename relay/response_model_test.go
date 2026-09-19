@@ -39,7 +39,14 @@ func TestResponseModelComparisonAndLog(t *testing.T) {
 		{name: "mapped case differs", models: []string{"MAPPED"}, returned: "MAPPED"},
 		{name: "mapped prefix", models: []string{"mapped-2026-09-01"}, returned: "mapped-2026-09-01"},
 		{name: "reverse prefix still warns", models: []string{"request"}, returned: "request", mismatch: true},
-		{name: "substring still warns", models: []string{"other-requested"}, returned: "other-requested", mismatch: true},
+		{name: "suffix", models: []string{"other-requested"}, returned: "other-requested"},
+		{name: "provider path", models: []string{"vendor/requested"}, returned: "vendor/requested"},
+		{name: "provider path case differs", models: []string{"vendor/REQUESTED"}, returned: "vendor/REQUESTED"},
+		{name: "provider path with dated mapped model", models: []string{"vendor/mapped-2026-09-01"}, returned: "vendor/mapped-2026-09-01", mismatch: true},
+		{name: "nested provider path", models: []string{"accounts/vendor/models/requested"}, returned: "accounts/vendor/models/requested"},
+		{name: "provider path reverse prefix still warns", models: []string{"vendor/request"}, returned: "vendor/request", mismatch: true},
+		{name: "provider path other model still warns", models: []string{"vendor/other"}, returned: "vendor/other", mismatch: true},
+		{name: "provider path only still warns", models: []string{"vendor/"}, returned: "vendor/", mismatch: true},
 		{name: "compatible difference survives matching frames", models: []string{"mapped", "Requested", "", "requested"}, returned: "Requested"},
 		{name: "warning supersedes compatible difference", models: []string{"Requested", "other"}, returned: "other", mismatch: true},
 		{name: "compatible difference cannot erase warning", models: []string{"other", "Requested"}, returned: "other", mismatch: true},
@@ -65,8 +72,10 @@ func TestResponseModelComparisonAndLog(t *testing.T) {
 			}
 			require.NotNil(t, stored.ResponseModel)
 			assert.Equal(t, &relaycommon.ResponseModel{
-				RequestedModel: "requested", UpstreamModel: "mapped", ReturnedModel: tc.returned, Mismatch: tc.mismatch,
+				RequestedModel: "requested", UpstreamModel: "mapped", ReturnedModel: tc.returned,
 			}, stored.ResponseModel)
+			assert.NotContains(t, other.JSONString(), "mismatch")
+			assert.Equal(t, tc.mismatch, stored.ResponseModel.Mismatch())
 			assert.Equal(t, "mapped", info.UpstreamModelName)
 		})
 	}
@@ -118,7 +127,33 @@ func TestResponseModelEmptyExpectedNamesDoNotMatchEveryPrefix(t *testing.T) {
 			}
 			info.ObserveResponseModel("other")
 			require.NotNil(t, info.ResponseModel)
-			assert.True(t, info.ResponseModel.Mismatch)
+			assert.True(t, info.ResponseModel.Mismatch())
+		})
+	}
+}
+
+func TestResponseModelExpectedProviderPath(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		requested string
+		upstream  string
+		returned  string
+		mismatch  bool
+	}{
+		{name: "requested carries provider path", requested: "vendor/requested", returned: "requested", mismatch: true},
+		{name: "same provider path on both sides", requested: "vendor/requested", returned: "vendor/requested-2026-09-01"},
+		{name: "provider path alone does not match", requested: "vendor/requested", returned: "vendor", mismatch: true},
+		{name: "different model behind same provider still warns", requested: "vendor/requested", returned: "vendor/other", mismatch: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{
+				OriginModelName: tc.requested,
+				ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: tc.upstream},
+			}
+			info.ObserveResponseModel(tc.returned)
+			require.NotNil(t, info.ResponseModel)
+			assert.Equal(t, tc.returned, info.ResponseModel.ReturnedModel)
+			assert.Equal(t, tc.mismatch, info.ResponseModel.Mismatch())
 		})
 	}
 }
@@ -129,11 +164,11 @@ func TestResponseModelRetryResetsObservation(t *testing.T) {
 	info := &relaycommon.RelayInfo{OriginModelName: "requested"}
 	info.InitChannelMeta(c)
 	info.ObserveResponseModel("other")
-	require.True(t, info.ResponseModel.Mismatch)
+	require.True(t, info.ResponseModel.Mismatch())
 	info.InitChannelMeta(c)
 	assert.Nil(t, info.ResponseModel)
 	info.ObserveResponseModel("requested")
-	assert.False(t, info.ResponseModel.Mismatch)
+	assert.False(t, info.ResponseModel.Mismatch())
 }
 
 func TestResponseModelHandlersCaptureBeforeConversion(t *testing.T) {
@@ -194,7 +229,8 @@ func TestResponseModelHandlersCaptureBeforeConversion(t *testing.T) {
 			require.NotNil(t, usage)
 			assert.Equal(t, 5, usage.TotalTokens)
 			require.NotNil(t, info.ResponseModel)
-			assert.Equal(t, &relaycommon.ResponseModel{RequestedModel: "requested", UpstreamModel: "mapped", ReturnedModel: "returned", Mismatch: true}, info.ResponseModel)
+			assert.Equal(t, &relaycommon.ResponseModel{RequestedModel: "requested", UpstreamModel: "mapped", ReturnedModel: "returned"}, info.ResponseModel)
+			assert.True(t, info.ResponseModel.Mismatch())
 			other := service.GenerateTextOtherInfo(c, info, 1, 1, 1, 0, 0, 0, 1)
 			assert.Equal(t, *info.ResponseModel, other.Snapshot()["response_model"])
 		})
@@ -210,7 +246,7 @@ func TestResponseModelSharedResponsesAccumulator(t *testing.T) {
 	accumulator.Observe(&dto.ResponsesStreamResponse{Type: "response.failed", Response: &dto.OpenAIResponsesResponse{Usage: &dto.Usage{InputTokens: 2, OutputTokens: 3}}})
 	assert.Equal(t, 5, accumulator.Finish().TotalTokens)
 	require.NotNil(t, info.ResponseModel)
-	assert.True(t, info.ResponseModel.Mismatch)
+	assert.True(t, info.ResponseModel.Mismatch())
 	assert.Equal(t, "returned", info.ResponseModel.ReturnedModel)
 }
 

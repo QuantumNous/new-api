@@ -108,7 +108,6 @@ it('shows model mismatch evidence when tapping the mobile model badge', async ()
             requested_model: longName,
             upstream_model: 'mapped-model',
             returned_model: 'unexpected-model',
-            mismatch: true,
           },
         }),
       },
@@ -166,7 +165,6 @@ it.each([false, true])(
                   requested_model: longName,
                   upstream_model: longName,
                   returned_model: longName,
-                  mismatch: false,
                 },
               })
             : log.other,
