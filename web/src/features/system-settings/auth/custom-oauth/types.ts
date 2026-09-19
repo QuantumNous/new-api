@@ -80,24 +80,6 @@ export const customOAuthFormSchema = z.object({
 export type CustomOAuthFormValues = z.infer<typeof customOAuthFormSchema>
 
 // ============================================================================
-// OIDC Discovery
-// ============================================================================
-
-export interface DiscoveryResponse {
-  success: boolean
-  message?: string
-  data?: {
-    well_known_url?: string
-    discovery?: {
-      authorization_endpoint?: string
-      token_endpoint?: string
-      userinfo_endpoint?: string
-      scopes_supported?: string[]
-    }
-  }
-}
-
-// ============================================================================
 // Preset Templates
 // ============================================================================
 
