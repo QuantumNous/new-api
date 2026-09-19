@@ -531,6 +531,103 @@ func TestOpenAIChatToGeminiKeepsUnmatchedFunctionResponseAfterMissingPlaceholder
 	assert.Equal(t, "call_orphan", kitutil.JsonRawMessageToString(got.Contents[2].Parts[2].FunctionResponse.ID))
 }
 
+func TestOpenAIChatToGeminiAlignsEmptyIdFunctionCallsByUniqueName(t *testing.T) {
+	gamma := "gamma"
+	beta := "beta"
+	req := dto.GeneralOpenAIRequest{
+		Model: "gemini-test",
+		Messages: []dto.Message{
+			{Role: "user", Content: "run tools"},
+			assistantToolCall("", "alpha", `{"q":"a"}`),
+			assistantToolCall("", "beta", `{"q":"b"}`),
+			{Role: "tool", Name: &gamma, Content: `{"ok":"extra"}`},
+			{Role: "tool", Name: &beta, Content: `{"ok":false}`},
+		},
+	}
+
+	got, err := OpenAIChatRequestToGeminiGenerateContent(context.Background(), req, &convmeta.Values{ChannelMetaAttached: true})
+	require.NoError(t, err)
+	require.NoError(t, geminiFunctionCallHistoryAligned(got.Contents))
+
+	require.Len(t, got.Contents, 3)
+	require.Len(t, got.Contents[1].Parts, 2)
+	require.NotNil(t, got.Contents[1].Parts[0].FunctionCall)
+	require.NotNil(t, got.Contents[1].Parts[1].FunctionCall)
+	assert.Equal(t, "", got.Contents[1].Parts[0].FunctionCall.ID)
+	assert.Equal(t, "alpha", got.Contents[1].Parts[0].FunctionCall.FunctionName)
+	assert.Equal(t, "", got.Contents[1].Parts[1].FunctionCall.ID)
+	assert.Equal(t, "beta", got.Contents[1].Parts[1].FunctionCall.FunctionName)
+
+	require.Len(t, got.Contents[2].Parts, 3)
+	require.NotNil(t, got.Contents[2].Parts[0].FunctionResponse)
+	assert.Equal(t, "alpha", got.Contents[2].Parts[0].FunctionResponse.Name)
+	assert.Equal(t, "", kitutil.JsonRawMessageToString(got.Contents[2].Parts[0].FunctionResponse.ID))
+	assert.Equal(t, "missing function response", got.Contents[2].Parts[0].FunctionResponse.Response["conversion_error"])
+	require.NotNil(t, got.Contents[2].Parts[1].FunctionResponse)
+	assert.Equal(t, "beta", got.Contents[2].Parts[1].FunctionResponse.Name)
+	assert.Equal(t, "", kitutil.JsonRawMessageToString(got.Contents[2].Parts[1].FunctionResponse.ID))
+	assert.Equal(t, false, got.Contents[2].Parts[1].FunctionResponse.Response["ok"])
+	require.NotNil(t, got.Contents[2].Parts[2].FunctionResponse)
+	assert.Equal(t, "gamma", got.Contents[2].Parts[2].FunctionResponse.Name)
+	assert.Equal(t, "extra", got.Contents[2].Parts[2].FunctionResponse.Response["ok"])
+}
+
+func TestOpenAIChatToGeminiDoesNotBindAmbiguousEmptyIdNameMatches(t *testing.T) {
+	alpha := "alpha"
+	req := dto.GeneralOpenAIRequest{
+		Model: "gemini-test",
+		Messages: []dto.Message{
+			{Role: "user", Content: "run tools"},
+			assistantToolCall("call_0", "alpha", `{"q":"a"}`),
+			assistantToolCall("call_1", "alpha", `{"q":"b"}`),
+			{Role: "tool", Name: &alpha, Content: `{"ok":true}`},
+			{Role: "tool", Name: &alpha, Content: `{"ok":false}`},
+		},
+	}
+
+	got, err := OpenAIChatRequestToGeminiGenerateContent(context.Background(), req, &convmeta.Values{ChannelMetaAttached: true})
+	require.NoError(t, err)
+
+	require.Len(t, got.Contents, 3)
+	require.Len(t, got.Contents[2].Parts, 4)
+	assert.Equal(t, "call_0", kitutil.JsonRawMessageToString(got.Contents[2].Parts[0].FunctionResponse.ID))
+	assert.Equal(t, "alpha", got.Contents[2].Parts[0].FunctionResponse.Name)
+	assert.Equal(t, "missing function response", got.Contents[2].Parts[0].FunctionResponse.Response["conversion_error"])
+	assert.Equal(t, "call_1", kitutil.JsonRawMessageToString(got.Contents[2].Parts[1].FunctionResponse.ID))
+	assert.Equal(t, "alpha", got.Contents[2].Parts[1].FunctionResponse.Name)
+	assert.Equal(t, "missing function response", got.Contents[2].Parts[1].FunctionResponse.Response["conversion_error"])
+	assert.Equal(t, "", kitutil.JsonRawMessageToString(got.Contents[2].Parts[2].FunctionResponse.ID))
+	assert.Equal(t, true, got.Contents[2].Parts[2].FunctionResponse.Response["ok"])
+	assert.Equal(t, "", kitutil.JsonRawMessageToString(got.Contents[2].Parts[3].FunctionResponse.ID))
+	assert.Equal(t, false, got.Contents[2].Parts[3].FunctionResponse.Response["ok"])
+}
+
+func TestOpenAIChatToGeminiLeavesFunctionResponsesAfterTextOnlyAssistantUnchanged(t *testing.T) {
+	req := dto.GeneralOpenAIRequest{
+		Model: "gemini-test",
+		Messages: []dto.Message{
+			{Role: "user", Content: "run tools"},
+			{Role: "assistant", Content: "I'll think first."},
+			toolResult("call_0", `{"ok":true}`),
+		},
+	}
+
+	got, err := OpenAIChatRequestToGeminiGenerateContent(context.Background(), req, &convmeta.Values{ChannelMetaAttached: true})
+	require.NoError(t, err)
+
+	require.Len(t, got.Contents, 3)
+	assert.Equal(t, []string{"user", "model", "user"}, geminiRoles(got.Contents))
+	require.Len(t, got.Contents[1].Parts, 1)
+	assert.Equal(t, "I'll think first.", got.Contents[1].Parts[0].Text)
+	assert.Nil(t, got.Contents[1].Parts[0].FunctionCall)
+	require.Len(t, got.Contents[2].Parts, 1)
+	require.NotNil(t, got.Contents[2].Parts[0].FunctionResponse)
+	assert.Equal(t, "call_0", kitutil.JsonRawMessageToString(got.Contents[2].Parts[0].FunctionResponse.ID))
+	assert.Equal(t, true, got.Contents[2].Parts[0].FunctionResponse.Response["ok"])
+	_, hasConversionError := got.Contents[2].Parts[0].FunctionResponse.Response["conversion_error"]
+	assert.False(t, hasConversionError)
+}
+
 func assistantToolCall(id, name, args string) dto.Message {
 	msg := dto.Message{Role: "assistant"}
 	msg.SetToolCalls([]dto.ToolCallRequest{
