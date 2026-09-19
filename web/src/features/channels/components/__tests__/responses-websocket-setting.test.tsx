@@ -19,18 +19,30 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, test } from 'vitest'
+import { assert, describe, expect, test } from 'vitest'
 
 import { Form } from '@/components/ui/form'
 
+import { CHANNEL_TYPE_NEW_API, CHANNEL_TYPE_SUB2API } from '../../constants'
+import { CHANNEL_TYPE_ADVANCED_CUSTOM } from '../../lib/advanced-custom'
 import {
   buildSettingJSON,
   CHANNEL_FORM_DEFAULT_VALUES,
   transformChannelToFormDefaults,
+  transformFormDataToCreatePayload,
+  transformFormDataToUpdatePayload,
   type ChannelFormValues,
 } from '../../lib/channel-form'
 import { channelSchema } from '../../types'
 import { ResponsesWebSocketSetting } from '../responses-websocket-setting'
+
+const supportedChannelTypes = [
+  1,
+  57,
+  CHANNEL_TYPE_ADVANCED_CUSTOM,
+  CHANNEL_TYPE_SUB2API,
+  CHANNEL_TYPE_NEW_API,
+]
 
 function SettingsForm(props: {
   channelType: number
@@ -63,26 +75,42 @@ function SettingsForm(props: {
 }
 
 describe('Responses WebSocket channel setting', () => {
-  test.each([undefined, false, true])(
-    'loads and saves the explicit setting %s',
-    (enabled) => {
-      const channel = channelSchema.parse({
-        id: 1,
-        name: 'Test channel',
-        key: '',
-        type: 1,
-        status: 1,
-        created_time: 0,
-        test_time: 0,
-        response_time: 0,
-        balance_updated_time: 0,
-        setting: JSON.stringify({ responses_websocket_enabled: enabled }),
-      })
-      const values = transformChannelToFormDefaults(channel)
-      const settings = JSON.parse(buildSettingJSON(values))
-      expect(settings.responses_websocket_enabled).toBe(enabled === true)
-    }
-  )
+  describe.each(supportedChannelTypes)('channel type %s', (channelType) => {
+    test.each([undefined, false, true])(
+      'preserves setting %s through create, update and reload',
+      (enabled) => {
+        const channel = channelSchema.parse({
+          id: 1,
+          name: 'Test channel',
+          key: '',
+          type: channelType,
+          status: 1,
+          created_time: 0,
+          test_time: 0,
+          response_time: 0,
+          balance_updated_time: 0,
+          setting: JSON.stringify({ responses_websocket_enabled: enabled }),
+        })
+        const values = transformChannelToFormDefaults(channel)
+        const payloads = [
+          transformFormDataToCreatePayload(values).channel,
+          transformFormDataToUpdatePayload(values, channel.id),
+        ]
+        for (const payload of payloads) {
+          assert(typeof payload.setting === 'string')
+          expect(JSON.parse(payload.setting).responses_websocket_enabled).toBe(
+            enabled === true
+          )
+          expect(
+            transformChannelToFormDefaults({
+              ...channel,
+              setting: payload.setting,
+            }).responses_websocket_enabled
+          ).toBe(enabled === true)
+        }
+      }
+    )
+  })
 
   test('new channels default to WebSocket disabled', () => {
     expect(
@@ -91,7 +119,7 @@ describe('Responses WebSocket channel setting', () => {
     ).toBe(false)
   })
 
-  test.each([1, 57])(
+  test.each(supportedChannelTypes)(
     'channel type %s exposes an accessible switch and saves on and off',
     async (channelType) => {
       const user = userEvent.setup()
