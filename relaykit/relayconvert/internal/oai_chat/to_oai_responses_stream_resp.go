@@ -484,7 +484,7 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 	if tool == nil {
 		tool = &chatToResponsesStreamTool{
 			ChatIndex:   chatIndex,
-			OutputIndex: s.nextIndex("tool", chatIndex),
+			OutputIndex: -1,
 			CallID:      incomingID,
 			Name:        strings.TrimSpace(toolCall.Function.Name),
 		}
@@ -493,6 +493,34 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 			tool.ItemID = fmt.Sprintf("%s_call_%d", s.ID, chatIndex)
 		}
 		s.toolsByIndex[chatIndex] = tool
+	}
+	if tool.Done {
+		return nil, fmt.Errorf("tool-call stream index %d received data after completion", chatIndex)
+	}
+	if incomingID != "" {
+		if tool.CallID != "" && tool.CallID != incomingID {
+			return nil, fmt.Errorf("tool-call stream index %d changed id from %q to %q", chatIndex, tool.CallID, incomingID)
+		}
+		tool.CallID = incomingID
+		if tool.OutputIndex < 0 {
+			tool.ItemID = incomingID
+		}
+	}
+	incomingName := strings.TrimSpace(toolCall.Function.Name)
+	if incomingName != "" {
+		if tool.Name != "" && tool.Name != incomingName {
+			return nil, fmt.Errorf("tool-call stream index %d changed name from %q to %q", chatIndex, tool.Name, incomingName)
+		}
+		tool.Name = incomingName
+	}
+	tool.Arguments.WriteString(toolCall.Function.Arguments)
+	if tool.Name == "" {
+		return events, nil
+	}
+	argumentsDelta := toolCall.Function.Arguments
+	if tool.OutputIndex < 0 {
+		// Wait for a valid name before exposing the call or consuming an output index.
+		tool.OutputIndex = s.nextIndex("tool", chatIndex)
 		events = append(events, s.event(responsesEventOutputItemAdded, dto.ResponsesStreamResponse{
 			Type:        responsesEventOutputItemAdded,
 			OutputIndex: intPtr(tool.OutputIndex),
@@ -506,30 +534,14 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 				Arguments: []byte(`""`),
 			},
 		}))
+		argumentsDelta = tool.Arguments.String()
 	}
-	if tool.Done {
-		return nil, fmt.Errorf("tool-call stream index %d received data after completion", chatIndex)
-	}
-	if incomingID != "" {
-		if tool.CallID != "" && tool.CallID != incomingID {
-			return nil, fmt.Errorf("tool-call stream index %d changed id from %q to %q", chatIndex, tool.CallID, incomingID)
-		}
-		tool.CallID = incomingID
-	}
-	incomingName := strings.TrimSpace(toolCall.Function.Name)
-	if incomingName != "" {
-		if tool.Name != "" && tool.Name != incomingName {
-			return nil, fmt.Errorf("tool-call stream index %d changed name from %q to %q", chatIndex, tool.Name, incomingName)
-		}
-		tool.Name = incomingName
-	}
-	if toolCall.Function.Arguments != "" {
-		tool.Arguments.WriteString(toolCall.Function.Arguments)
+	if argumentsDelta != "" {
 		events = append(events, s.event(responsesEventFunctionArgsDelta, dto.ResponsesStreamResponse{
 			Type:        responsesEventFunctionArgsDelta,
 			OutputIndex: intPtr(tool.OutputIndex),
 			ItemID:      tool.ItemID,
-			Delta:       toolCall.Function.Arguments,
+			Delta:       argumentsDelta,
 		}))
 	}
 	return events, nil
@@ -580,7 +592,7 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 		}))
 	}
 	for _, tool := range s.sortedTools() {
-		if tool.Done {
+		if tool.Done || tool.OutputIndex < 0 {
 			continue
 		}
 		tool.Done = true
