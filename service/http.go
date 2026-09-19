@@ -38,6 +38,24 @@ func ShouldCopyUpstreamHeader(c *gin.Context, k string, v []string) bool {
 		}
 		return false
 	}
+	// F-66: never forward credential-bearing response headers from the upstream
+	// to the client. A misbehaving/malicious upstream may echo the channel key
+	// (or any credential it received) back in an Authorization / X-Api-Key /
+	// X-Goog-Api-Key response header; IOCopyBytesGracefully copies all
+	// non-blocked response headers verbatim.
+	switch strings.ToLower(k) {
+	case "authorization",
+		"proxy-authorization",
+		"x-api-key",
+		"x-goog-api-key",
+		"x-goog-auth",
+		"api-key",
+		"apikey",
+		"x-auth-token",
+		"x-access-token",
+		"x-amz-security-token":
+		return false
+	}
 	return true
 }
 
