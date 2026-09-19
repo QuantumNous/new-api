@@ -2,12 +2,12 @@ package controller
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,10 +47,13 @@ func fakeEngineModelsServer(t *testing.T, models map[string]*int64) *httptest.Se
 			entries = append(entries, entry)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{
+		body, err := common.Marshal(map[string]any{
 			"object": "list",
 			"data":   entries,
 		})
+		if assert.NoError(t, err) {
+			_, _ = w.Write(body)
+		}
 	}))
 }
 
@@ -73,7 +77,7 @@ func createEngineChannel(t *testing.T, db *gorm.DB, id int, channelType int, nam
 	channel := &model.Channel{
 		Id:     id,
 		Type:   channelType,
-		Key:    "test-key",
+		Key:    "EMPTY",
 		Status: common.ChannelStatusEnabled,
 		Name:   name,
 		Group:  "default",
@@ -217,6 +221,7 @@ func TestProbeRejectsUnsafeBaseURLs(t *testing.T) {
 		"file:///etc/passwd",
 		"http://user:secret@localhost",
 		"http://localhost/?key=secret",
+		"https://localhost/#fragment",
 		"ftp://localhost",
 	} {
 		_, err := validateUpstreamContextBaseURL(strings.TrimRight(base, "/"))
@@ -224,6 +229,78 @@ func TestProbeRejectsUnsafeBaseURLs(t *testing.T) {
 	}
 	_, err := validateUpstreamContextBaseURL("http://ok.example:8000")
 	require.NoError(t, err)
+	_, err = validateUpstreamContextBaseURL("https://ok.example:8000")
+	require.NoError(t, err)
+}
+
+func TestProbeRequiresHTTPSForCredentials(t *testing.T) {
+	for _, channelType := range []int{constant.ChannelTypeVLLM, constant.ChannelTypeSGLang} {
+		for _, tc := range []struct {
+			name     string
+			key      string
+			tls      bool
+			redirect bool
+			wantAuth string
+			wantErr  bool
+		}{
+			{name: "http credential", key: "test-key", wantErr: true},
+			{name: "http padded credential", key: " test-key \n", wantErr: true},
+			{name: "http empty key"},
+			{name: "http whitespace key", key: " \t"},
+			{name: "http EMPTY key", key: " EMPTY "},
+			{name: "https credential", tls: true, key: " test-key ", wantAuth: "Bearer test-key"},
+			{name: "https empty key", tls: true},
+			{name: "https EMPTY key", tls: true, key: "EMPTY"},
+			{name: "https redirect to http", tls: true, key: "test-key", redirect: true, wantAuth: "Bearer test-key", wantErr: true},
+		} {
+			t.Run(fmt.Sprintf("%d/%s", channelType, tc.name), func(t *testing.T) {
+				var requests, redirected atomic.Int32
+				target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					redirected.Add(1)
+				}))
+				t.Cleanup(target.Close)
+				server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					requests.Add(1)
+					assert.Equal(t, "/v1/models", r.URL.Path)
+					assert.Equal(t, tc.wantAuth, r.Header.Get("Authorization"))
+					if tc.redirect {
+						http.Redirect(w, r, target.URL, http.StatusFound)
+						return
+					}
+					_, _ = w.Write([]byte(`{"data":[{"id":"engine-model","max_model_len":4096}]}`))
+				}))
+				if tc.tls {
+					server.StartTLS()
+					client, err := service.GetHttpClientWithProxySettings("", dto.ChannelSettings{})
+					require.NoError(t, err)
+					originalTransport := client.Transport
+					client.Transport = server.Client().Transport
+					t.Cleanup(func() { client.Transport = originalTransport })
+				} else {
+					server.Start()
+				}
+				t.Cleanup(server.Close)
+
+				collected, err := probeChannelUpstreamContext(context.Background(), upstreamContextProbe{
+					channel: &model.Channel{Type: channelType, Key: tc.key},
+					baseURL: server.URL,
+				})
+				if tc.wantErr {
+					require.Error(t, err)
+					assert.Nil(t, collected)
+				} else {
+					require.NoError(t, err)
+					assert.Equal(t, map[string]int64{"engine-model": 4096}, collected)
+				}
+				if tc.wantErr && !tc.tls {
+					assert.Zero(t, requests.Load(), "credential-bearing HTTP probes must not send a request")
+				} else {
+					assert.Equal(t, int32(1), requests.Load())
+				}
+				assert.Zero(t, redirected.Load(), "redirects must not forward credentials")
+			})
+		}
+	}
 }
 
 func TestProbeRejectsOversizedResponses(t *testing.T) {
@@ -235,7 +312,7 @@ func TestProbeRejectsOversizedResponses(t *testing.T) {
 
 	base := server.URL
 	channel := &model.Channel{
-		Type: constant.ChannelTypeVLLM, Key: "k",
+		Type: constant.ChannelTypeVLLM, Key: "EMPTY",
 		Status: common.ChannelStatusEnabled, Name: "vllm-huge",
 		BaseURL: &base,
 	}
@@ -257,7 +334,7 @@ func TestProbeHonoursContextCancellation(t *testing.T) {
 
 	base := server.URL
 	channel := &model.Channel{
-		Type: constant.ChannelTypeVLLM, Key: "k",
+		Type: constant.ChannelTypeVLLM, Key: "EMPTY",
 		Status: common.ChannelStatusEnabled, Name: "vllm-slow",
 		BaseURL: &base,
 	}
@@ -298,7 +375,7 @@ func TestListModelsSurfacesUpstreamMaxModelLen(t *testing.T) {
 		Success bool               `json:"success"`
 		Data    []dto.OpenAIModels `json:"data"`
 	}
-	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
 	require.Len(t, payload.Data, 1)
 	assert.Equal(t, "zz-context-model", payload.Data[0].Id)
 	assert.Equal(t, int64(1048576), payload.Data[0].MaxModelLen)
@@ -327,7 +404,7 @@ func TestListModelsOmitsMaxModelLenWhenUnknown(t *testing.T) {
 		Success bool               `json:"success"`
 		Data    []dto.OpenAIModels `json:"data"`
 	}
-	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
 	require.Len(t, payload.Data, 1)
 	assert.Zero(t, payload.Data[0].MaxModelLen)
 	// omitempty keeps the wire shape identical for models without data.
@@ -419,7 +496,7 @@ func TestProbeHonoursMidFlightCancellation(t *testing.T) {
 
 	base := server.URL
 	channel := &model.Channel{
-		Type: constant.ChannelTypeVLLM, Key: "k",
+		Type: constant.ChannelTypeVLLM, Key: "EMPTY",
 		Status: common.ChannelStatusEnabled, Name: "vllm-cancel-mid",
 		BaseURL: &base,
 	}

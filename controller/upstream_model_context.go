@@ -140,6 +140,15 @@ func probeChannelUpstreamContext(ctx context.Context, probe upstreamContextProbe
 		return nil, keyErr
 	}
 	key = strings.TrimSpace(key)
+	parsedURL, err := validateUpstreamContextBaseURL(probe.baseURL)
+	if err != nil {
+		return nil, err
+	}
+	// Engine channels use an empty key or EMPTY for unauthenticated access.
+	// Never send a real channel credential over plaintext HTTP.
+	if key != "" && key != "EMPTY" && parsedURL.Scheme != "https" {
+		return nil, errors.New("upstream context probes with credentials require HTTPS")
+	}
 
 	headers, err := buildFetchModelsHeaders(channel, key)
 	if err != nil {
