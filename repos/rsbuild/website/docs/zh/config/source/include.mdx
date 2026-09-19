@@ -1,0 +1,117 @@
+---
+description: '用于指定额外需要被 SWC 编译的 JavaScript 文件。'
+---
+
+# source.include
+
+- **类型：** [Rspack.RuleSetCondition](https://rspack.rs/zh/config/module-rules#condition)`[]`
+
+用于指定额外需要被 [SWC](/guide/configuration/swc) 编译的 JavaScript 文件。
+
+## 默认值
+
+默认情况下，Rsbuild 内置的 [swc-loader](https://rspack.rs/zh/guide/features/builtin-swc-loader) 会编译以下文件：
+
+- 任意目录下的 TypeScript 和 JSX 文件，匹配的文件后缀为 `.ts`、`.tsx`、`.jsx`、`.mts`、`.cts`。
+- 非 `node_modules` 目录下的 JavaScript 文件，匹配的文件后缀为 `.js`、`.mjs`、`.cjs`。
+
+`source.include` 的默认值可以表示为：
+
+```ts
+const defaultInclude = [{ not: /[\\/]node_modules[\\/]/ }, /\.(?:ts|tsx|jsx|mts|cts)$/];
+```
+
+## 用法
+
+通过 `source.include` 配置项，你可以指定需要 Rsbuild 额外进行编译的目录或模块。`source.include` 的用法与 Rspack 中的 [rules[].include](https://rspack.rs/zh/config/module-rules#rulesinclude) 一致，支持传入字符串、正则表达式来匹配模块的路径。
+
+比如:
+
+```ts title="rsbuild.config.ts"
+import path from 'node:path';
+
+export default {
+  source: {
+    include: [path.resolve(__dirname, '../other-dir')],
+  },
+};
+```
+
+## 编译 npm 包
+
+比较典型的使用场景是编译 node_modules 下的 npm 包，因为某些第三方依赖存在 ESNext 的语法，这可能导致在低版本浏览器上无法运行，你可以通过该选项指定需要编译的依赖，从而解决此类问题。
+
+:::tip
+如果你不确定 node_modules 中的哪些第三方依赖存在 ESNext 的语法，可以使用 [@rsbuild/plugin-check-syntax](https://github.com/rstackjs/rsbuild-plugin-check-syntax) 进行检查，插件可以帮助你找到存在 ESNext 语法的模块。
+:::
+
+以 `query-string` 为例，你可以做如下的配置：
+
+```ts title="rsbuild.config.ts"
+import path from 'node:path';
+
+export default {
+  source: {
+    include: [
+      // 方法一:
+      // 通过正则表达式进行匹配
+      // 所有包含 `node_modules/query-string/` 的路径都会被匹配到
+      /node_modules[\\/]query-string[\\/]/,
+      // 方法二:
+      // 先通过 require.resolve 来获取模块的路径
+      // 再通过 path.dirname 来指向对应的目录
+      path.dirname(require.resolve('query-string')),
+    ],
+  },
+};
+```
+
+上述两种方法分别通过 "路径前缀" 和 "正则表达式" 来匹配文件的绝对路径，值得留意的是，项目中所有被引用的模块都会经过匹配，因此你不能使用过于松散的值进行匹配，避免造成编译性能问题或编译异常。
+
+:::tip
+在正则表达式的例子中，我们使用 `[\\/]` 来匹配路径分隔符，这是因为不同的操作系统使用了不同的路径分隔符，使用 `[\\/]` 可以保证 macOS、Linux 和 Windows 的路径都被匹配到。
+:::
+
+## 编译间接依赖
+
+当你通过 `source.include` 编译一个 npm 包时，Rsbuild 默认只会编译匹配到的模块，不会编译对应模块的**子依赖**。
+
+以 `query-string` 为例，它依赖的 `decode-uri-component` 包中同样存在 ESNext 代码，因此你需要将 `decode-uri-component` 也加入到 `source.include` 中：
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    include: [/node_modules[\\/]query-string[\\/]/, /node_modules[\\/]decode-uri-component[\\/]/],
+  },
+};
+```
+
+## 匹配 Symlink
+
+如果你匹配的模块是通过 symlink 链接到当前项目中的，那么需要匹配这个模块的**真实路径**，而不是 symlink 后的路径。
+
+比如，你将 Monorepo 中的 `packages/foo` 路径 symlink 到当前项目的 `node_modules/foo` 路径下，则需要去匹配 `packages/foo` 路径，而不是 `node_modules/foo` 路径。
+
+## 编译 node_modules \{#compile-node_modules}
+
+通常来说，`source.include` 不应该用于编译整个 `node_modules` 目录，比如下面的写法是不推荐的：
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    include: [/[\\/]node_modules[\\/]/],
+  },
+};
+```
+
+这是因为 `node_modules` 中的大部分 npm 包发布的已经是编译后的产物，通常没必要经过二次编译。如果 Rsbuild 对整个 `node_modules` 进行编译，会使编译时间增加，并且个别的 npm 包可能会产生不可预期的错误，比如 `core-js` 被编译后会出现运行时异常。
+
+如果你可以接受编译时间的增加，可以通过下面的配置来编译所有 JavaScript 文件，但是需要排除 `core-js`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    include: [{ not: /[\\/]core-js[\\/]/ }],
+  },
+};
+```

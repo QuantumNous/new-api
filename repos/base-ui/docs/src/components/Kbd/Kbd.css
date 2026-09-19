@@ -1,0 +1,47 @@
+@layer components {
+  .Kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-inline: 1px;
+    font-family: var(--default-font-family);
+    font-weight: var(--font-weight-400);
+    white-space: nowrap;
+
+    position: relative;
+    top: -0.03em;
+
+    font-size: 0.8em;
+    min-width: 1.75em;
+    line-height: 1.65em;
+    box-sizing: border-box;
+    padding-block: 0.025em;
+    padding-inline: 0.5em;
+    word-spacing: -0.1em;
+    border-radius: 0.25em;
+
+    /* Make sure that the height is not stretched in a Flex/Grid layout */
+    height: fit-content;
+
+    color: var(--gray-t1);
+    background-color: var(--gray-s2);
+    box-shadow:
+      inset 0 round(0.05em, 1px) white,
+      inset 0 round(0.25em, 1px) round(0.75em, 1px) var(--gray-c1),
+      inset 0 round(-0.05em, 1px) var(--gray-c2),
+      0 0 0 round(0.05em, 1px) var(--gray-c3),
+      0 round(0.08em, 1px) round(0.17em, 1px) var(--gray-c3);
+
+    @media (prefers-color-scheme: dark) {
+      text-shadow: #fff8 0 0 1px;
+      color: var(--gray-t2);
+      background-color: var(--color-content);
+      box-shadow:
+        inset 0 round(-0.1em, 1px) black,
+        inset 0 round(-0.05em, 1px) round(0.75em, 1px) var(--gray-c1),
+        0 0 0 round(0.075em, 1px) var(--gray-p1),
+        inset 0 round(0.05em, 1px) var(--gray-p2);
+    }
+  }
+}

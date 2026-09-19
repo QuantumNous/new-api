@@ -1,0 +1,58 @@
+---
+description: '自动添加导入文件的扩展名。这意味着你可以导入文件，而不需要显式地写它们的扩展名。'
+---
+
+# resolve.extensions
+
+- **类型：** `string[]`
+- **默认值：** `['.ts', '.tsx', '.mjs', '.js', '.jsx', '.json']`
+- **版本：** `>= 1.1.9`
+
+自动添加导入文件的扩展名。这意味着你可以导入文件，而不需要显式地写它们的扩展名。
+
+例如，如果导入 `'./index'`，Rsbuild 将尝试按以下顺序解析：
+
+- `./index.ts`
+- `./index.tsx`
+- `./index.mjs`
+- `./index.js`
+- `./index.jsx`
+- `./index.json`
+
+:::tip
+不建议使用 `resolve.extensions` 来省略 `.vue` 等自定义的扩展名，因为这可能会干扰 IDE 和类型支持。
+:::
+
+## 示例
+
+`resolve.extensions` 配置的值会覆盖 Rsbuild 的默认值：
+
+```ts title="rsbuild.config.ts"
+export default {
+  resolve: {
+    extensions: ['.ts', '.tsx', '.js'],
+  },
+};
+```
+
+## Rspack 配置
+
+`resolve.extensions` 是 Rspack 提供的配置，参考 [Rspack - resolve.extensions](https://rspack.rs/zh/config/resolve#resolveextensions)。
+
+事实上，你也可以使用 [tools.rspack](/config/tools/rspack) 来配置它：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      resolve: {
+        extensions: ['.ts', '.tsx', '.js'],
+      },
+    },
+  },
+};
+```
+
+这两种用法的区别在于配置合并的方式。
+
+`tools.rspack` 基于 [rspack-merge](https://github.com/rstackjs/rspack-merge) 来合并配置中的数组，这意味着 `tools.rspack.resolve.extensions` 会与 Rsbuild 的默认值合并，而不是覆盖它。

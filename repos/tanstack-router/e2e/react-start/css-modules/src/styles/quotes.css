@@ -1,0 +1,17 @@
+/* CSS file with quotes that could break regex extraction */
+
+.quote-test {
+  /* Using content with quotes - common pattern that could break extraction */
+  content: 'Hello World';
+  background-color: #ef4444; /* red-500 */
+  padding: 20px;
+  border-radius: 8px;
+  color: white;
+}
+
+.after-quote {
+  /* This style comes after quoted content - should still be present */
+  background-color: #f59e0b; /* amber-500 */
+  padding: 16px;
+  font-weight: bold;
+}

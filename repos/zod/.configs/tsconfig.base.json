@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "lib": ["es2020", "dom"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "jsx": "react",
+
+    "strict": true,
+    "alwaysStrict": true,
+    "noUncheckedIndexedAccess": false,
+
+    "types": [],
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noImplicitThis": true,
+    "noImplicitOverride": true,
+
+    "noFallthroughCasesInSwitch": true,
+    "resolveJsonModule": true,
+
+    "removeComments": false,
+    "esModuleInterop": true,
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "isolatedModules": true,
+
+    "pretty": true
+  },
+  "exclude": ["node_modules"]
+}

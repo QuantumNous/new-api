@@ -1,0 +1,51 @@
+{"type":"message_start","message":{"model":"claude-sonnet-4-5-20250929","id":"msg_01A4vjL51mNRof8JMvA9CFph","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":722,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":1,"service_tier":"standard"}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"server_tool_use","id":"srvtoolu_01TFsKhwiJYqVMitK2XGtH87","name":"tool_search_tool_regex","input":{},"caller":{"type":"direct"}}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":""}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"pattern\": \"weather|"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"SF"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"|"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"San Francisco|"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"forecast"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"|temperature"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"|climate"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\", \"limit\": 10"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"}"}}
+{"type":"content_block_stop","index":0}
+{"type":"content_block_start","index":1,"content_block":{"type":"tool_search_tool_result","tool_use_id":"srvtoolu_01TFsKhwiJYqVMitK2XGtH87","content":{"type":"tool_search_tool_search_result","tool_references":[{"type":"tool_reference","tool_name":"get_temp_data"}]}}}
+{"type":"content_block_stop","index":1}
+{"type":"content_block_start","index":2,"content_block":{"type":"text","text":""}}
+{"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":"Great"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":"! I"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":" found a"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":" weather tool"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":"."}}
+{"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":" Let"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":" me get the current weather"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"text_delta","text":" data for San Francisco."}}
+{"type":"content_block_stop","index":2}
+{"type":"content_block_start","index":3,"content_block":{"type":"tool_use","id":"toolu_01UmPwkecewaEpMupy2ywk8b","name":"get_temp_data","input":{},"caller":{"type":"direct"}}}
+{"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":""}}
+{"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":"{\"location\": \"San Francisco, CA"}}
+{"type":"content_block_delta","index":3,"delta":{"type":"input_json_delta","partial_json":"\"}"}}
+{"type":"content_block_stop","index":3}
+{"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"input_tokens":1681,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":163,"server_tool_use":{"web_search_requests":0}}}
+{"type":"message_stop"}
+{"type":"message_start","message":{"model":"claude-sonnet-4-5-20250929","id":"msg_01L42mFXxzijtGwwfiLdKoUn","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":1071,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":1,"service_tier":"standard"}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Here"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"'s the current"}}
+{"type":"ping"}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" weather data for San Francisco:\n\n-"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" **"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Location:** San Francisco, CA"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n- **Temperature:** 64°F"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n- **Condition:** Partly clou"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"dy\n- **Humidity:** "}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"65%\n\nThe weather in"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" SF"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" is pleasant"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" with partly cloudy skies and moderate"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" humidity!"}}
+{"type":"content_block_stop","index":0}
+{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":1071,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":67}}
+{"type":"message_stop"}

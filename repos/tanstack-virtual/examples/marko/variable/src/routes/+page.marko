@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Variable Virtualisation — @tanstack/marko-virtual</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: system-ui, sans-serif; padding: 24px; }
+      h1 { font-size: 24px; margin-bottom: 8px; }
+      h2 { font-size: 18px; margin: 24px 0 12px; }
+      p { color: #555; margin-bottom: 16px; }
+      section { margin-bottom: 32px; }
+      .scroll-row { height: 200px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; position: relative; }
+      .scroll-col { width: 400px; height: 80px; overflow-x: auto; border: 1px solid #e5e7eb; border-radius: 6px; position: relative; }
+      .scroll-masonry { height: 300px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; position: relative; }
+      .item { display: flex; align-items: center; padding: 0 12px; font-size: 12px; border-bottom: 1px solid #f3f4f6; box-sizing: border-box; }
+      .item-even { background: #f9fafb; }
+      .item-odd  { background: #ffffff; }
+    </style>
+  </head>
+  <body>
+    <h1>Variable Virtualisation</h1>
+    <p>
+      Each item has a variable but knowable size — passed directly via
+      <code>estimateSize</code> using a deterministic formula so no DOM measurement is needed.
+    </p>
+
+    <let/mounted = false/>
+    <lifecycle onMount() { mounted = true }/>
+
+    <section>
+      <h2>Rows</h2>
+      <div/rowScroll class="scroll-row">
+        <if=mounted>
+          <virtualizer|{ virtualItems, totalSize }|
+            count=10000
+            estimateSize=(i) => 25 + ((i * 17 + 31) % 100)
+            getScrollElement=rowScroll
+          >
+            <div style=`height: ${totalSize}px; width: 100%; position: relative`>
+              <for|item| of=virtualItems>
+                <div
+                  class=item.index % 2 === 0 ? "item item-even" : "item item-odd"
+                  style=`position: absolute; top: 0; left: 0; width: 100%; height: ${item.size}px; transform: translateY(${item.start}px)`
+                >
+                  Row ${item.index} — ${item.size}px
+                </div>
+              </for>
+            </div>
+          </virtualizer>
+        </if>
+      </div>
+    </section>
+
+    <section>
+      <h2>Columns</h2>
+      <div/colScroll class="scroll-col">
+        <if=mounted>
+          <virtualizer|{ virtualItems, totalSize }|
+            count=10000
+            estimateSize=(i) => 75 + ((i * 13 + 43) % 100)
+            horizontal=true
+            getScrollElement=colScroll
+          >
+            <div style=`width: ${totalSize}px; height: 100%; position: relative`>
+              <for|item| of=virtualItems>
+                <div
+                  class=item.index % 2 === 0 ? "item item-even" : "item item-odd"
+                  style=`position: absolute; top: 0; left: 0; height: 100%; width: ${item.size}px; transform: translateX(${item.start}px)`
+                >
+                  Col ${item.index}
+                </div>
+              </for>
+            </div>
+          </virtualizer>
+        </if>
+      </div>
+    </section>
+
+    <section>
+      <h2>Masonry (vertical, 4 lanes)</h2>
+      <div/masonryScroll class="scroll-masonry">
+        <if=mounted>
+          <virtualizer|{ virtualItems, totalSize }|
+            count=10000
+            estimateSize=(i) => 25 + ((i * 17 + 31) % 100)
+            lanes=4
+            getScrollElement=masonryScroll
+          >
+            <div style=`height: ${totalSize}px; width: 100%; position: relative`>
+              <for|item| of=virtualItems>
+                <div
+                  class=item.index % 2 === 0 ? "item item-even" : "item item-odd"
+                  style=`position: absolute; top: 0; left: ${item.lane * 25}%; width: 25%; height: ${item.size}px; transform: translateY(${item.start}px); box-sizing: border-box`
+                >
+                  ${item.index}
+                </div>
+              </for>
+            </div>
+          </virtualizer>
+        </if>
+      </div>
+    </section>
+  </body>
+</html>

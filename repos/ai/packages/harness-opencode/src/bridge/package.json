@@ -1,0 +1,13 @@
+{
+  "name": "harness-opencode-bridge",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.29.0",
+    "@opencode-ai/sdk": "1.17.6",
+    "opencode-ai": "1.17.6",
+    "ws": "8.21.0",
+    "zod": "3.25.76"
+  }
+}

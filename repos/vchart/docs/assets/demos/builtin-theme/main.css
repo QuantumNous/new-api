@@ -1,0 +1,12 @@
+* {
+  box-sizing: border-box;
+}
+
+#buttons {
+  text-align: left;
+  line-height: 30px;
+}
+
+button {
+  margin: 0 5px;
+}

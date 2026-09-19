@@ -1,0 +1,39 @@
+---
+description: 'Specify the project root directory. Can be an absolute path, or a path relative to process.cwd().'
+---
+
+# root
+
+- **Type:** `string`
+- **Default:** [process.cwd()](https://nodejs.org/api/process.html#processcwd)
+- **Version:** `>= 1.0.0`
+
+Specify the project root directory. Can be an absolute path, or a path relative to `process.cwd()`.
+
+The value of Rsbuild `root` is also passed to the [context](https://rspack.rs/config/context) configuration of Rspack.
+
+:::tip
+The value of `root` does not affect the path of the `.env` file, as the `.env` file is resolved before the Rsbuild configuration file.
+
+Rsbuild CLI supports using the `--root` option to specify the root directory, which can affect the path of the `.env` file. See ["CLI"](/guide/basic/cli) for more details.
+:::
+
+## Example
+
+- Relative path:
+
+```ts title="rsbuild.config.ts"
+export default {
+  root: './foo',
+};
+```
+
+- Absolute path:
+
+```ts title="rsbuild.config.ts"
+import { join } from 'node:path';
+
+export default {
+  root: join(__dirname, 'foo'),
+};
+```

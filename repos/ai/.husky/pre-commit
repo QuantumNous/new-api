@@ -1,0 +1,17 @@
+# Skip all checks if ARTISANAL_MODE is set
+if [ -n "$ARTISANAL_MODE" ]; then
+  echo "ARTISANAL_MODE is set, skipping pre-commit hooks"
+  exit 0
+fi
+
+# Run pnpm install if any package.json files are staged.
+# Note: This is not done via lint-staged because lint-staged would run
+# pnpm install once per staged package.json file, whereas this runs it
+# only once regardless of how many package.json files are staged.
+if git diff --cached --name-only | grep -q 'package\.json$'; then
+  echo "package.json changes detected, running pnpm install..."
+  pnpm install
+  git add pnpm-lock.yaml
+fi
+
+pnpm lint-staged

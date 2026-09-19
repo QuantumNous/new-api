@@ -22,6 +22,9 @@
 # Shell scripts
 *.sh text eol=lf
 
+# Preserve vendored subtree sources byte-for-byte and exclude them from language stats.
+repos/** -text linguist-vendored
+
 # Binary files
 *.png binary
 *.jpg binary

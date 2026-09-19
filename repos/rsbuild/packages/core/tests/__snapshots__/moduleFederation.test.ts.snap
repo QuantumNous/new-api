@@ -1,0 +1,95 @@
+// Rstest Snapshot v1
+
+exports[`plugin-module-federation > should set environment module federation config correctly 1`] = `
+[
+  ModuleFederationPlugin {
+    "_options": {
+      "exposes": {
+        "./Button": "./src/Button",
+      },
+      "filename": "remoteEntry.js",
+      "name": "remote",
+      "shared": {
+        "react": {
+          "requiredVersion": "^19.0.0",
+          "singleton": true,
+        },
+        "react-dom": {
+          "requiredVersion": "^19.0.0",
+          "singleton": true,
+        },
+      },
+    },
+    "_treeShakingSharedPlugin": undefined,
+  },
+  null,
+]
+`;
+
+exports[`plugin-module-federation > should set module federation and environment chunkSplit config correctly 1`] = `
+[
+  ModuleFederationPlugin {
+    "_options": {
+      "exposes": {
+        "./Button": "./src/Button",
+      },
+      "filename": "remoteEntry.js",
+      "name": "remote",
+      "shared": {
+        "react": {
+          "requiredVersion": "^19.0.0",
+          "singleton": true,
+        },
+        "react-dom": {
+          "requiredVersion": "^19.0.0",
+          "singleton": true,
+        },
+      },
+    },
+    "_treeShakingSharedPlugin": undefined,
+  },
+  ModuleFederationPlugin {
+    "_options": {
+      "exposes": {
+        "./Button": "./src/Button",
+      },
+      "filename": "remoteEntry.js",
+      "name": "remote",
+      "shared": {
+        "react": {
+          "requiredVersion": "^19.0.0",
+          "singleton": true,
+        },
+        "react-dom": {
+          "requiredVersion": "^19.0.0",
+          "singleton": true,
+        },
+      },
+    },
+    "_treeShakingSharedPlugin": undefined,
+  },
+]
+`;
+
+exports[`plugin-module-federation > should set module federation config 1`] = `
+ModuleFederationPlugin {
+  "_options": {
+    "exposes": {
+      "./Button": "./src/Button",
+    },
+    "filename": "remoteEntry.js",
+    "name": "remote",
+    "shared": {
+      "react": {
+        "requiredVersion": "^19.0.0",
+        "singleton": true,
+      },
+      "react-dom": {
+        "requiredVersion": "^19.0.0",
+        "singleton": true,
+      },
+    },
+  },
+  "_treeShakingSharedPlugin": undefined,
+}
+`;

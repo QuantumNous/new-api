@@ -1,0 +1,41 @@
+.Root {
+  width: 300px;
+  height: 300px;
+  --scrollbar-size: 20px;
+}
+
+.Viewport {
+  width: 100%;
+  height: 100%;
+}
+
+.Content {
+  width: 600px;
+  height: 600px;
+  padding-inline-end: var(--scrollbar-size);
+  padding-bottom: var(--scrollbar-size);
+}
+
+.Scrollbar {
+  background: lightgray;
+
+  &[data-orientation='vertical'] {
+    width: var(--scrollbar-size);
+  }
+
+  &[data-orientation='horizontal'] {
+    height: var(--scrollbar-size);
+  }
+}
+
+.Thumb {
+  background: black;
+
+  &[data-orientation='vertical'] {
+    width: var(--scrollbar-size);
+  }
+
+  &[data-orientation='horizontal'] {
+    height: var(--scrollbar-size);
+  }
+}

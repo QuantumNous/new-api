@@ -1,0 +1,110 @@
+---
+description: 'Rsbuild 1.0 officially launches with faster builds, simpler configuration, a growing plugin ecosystem, and broader adoption across Rstack.'
+date: 2024-09-10 18:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+  - name: 9aoy
+    avatar: 'https://github.com/9aoy.png'
+    github: '9aoy'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Announcing Rsbuild 1.0
+
+_September 10, 2024_
+
+<BlogAuthors />
+
+![](https://assets.rspack.rs/rsbuild/assets/rsbuild-1-0-banner.png)
+
+We are pleased to announce the release of Rsbuild 1.0!
+
+## Why Rsbuild
+
+For a long time, developers using webpack have been bothered by two major issues: **slow build times and configuration complexity**.
+
+We have used Rust to rewrite webpack into [Rspack](https://github.com/web-infra-dev/rspack), which addresses the slow build issue. However, to maintain compatibility with the webpack ecosystem, Rspack retains webpack's configuration and API, which means it still has some complexity and a learning curve.
+
+### Evolution of the ecosystem
+
+In the early days, there were some excellent tools within the webpack ecosystem, such as Create React App (CRA) and Vue CLI. These tools provided best practices for building React or Vue applications, while hiding the complex webpack configuration. As a result, many React and Vue users used these tools to build applications without having to configure webpack from scratch.
+
+As the ecosystem evolved, full-stack web frameworks such as Next.js, Nuxt, and Remix became popular; Vite was introduced as a lightweight build tool and also gained popularity. However, CRA and Vue CLI gradually stopped being maintained.
+
+When we look at the npm download numbers for webpack, CRA, and Vue CLI, we find that a large number of projects are still using these tools. For example, webpack has about 25 million weekly downloads, and CRA has nearly 3 million weekly downloads. Many of these projects are CSR applications that do not require the SSR features of full-stack frameworks. Vite seems like a good choice, but after using Vite in our ByteDance projects, we found that migrating from webpack to Vite comes with high costs and introduces new problems, such as dev and build inconsistency, and slow page refreshes in large applications during development.
+
+For the webpack ecosystem, we discovered a sad fact: **the webpack ecosystem lacks a build tool that is easy to use and well maintained**. The tool should be as user-friendly as CRA and Vue CLI, fully meet the needs of CSR application development, and have features such as fast startup and plugin support similar to Vite.
+
+### The birth of Rsbuild
+
+During the development of Rspack, we became aware of the above problems and decided to create a modern build tool based on Rspack called **Rsbuild**.
+
+![](https://assets.rspack.rs/rsbuild/assets/rsbuild-1-0-build-tools.png)
+
+Rsbuild is built on top of Rspack. We designed Rsbuild with an easy-to-use, TypeScript-friendly API and a set of carefully designed configurations to fully leverage the Rspack's build performance while reducing configuration complexity and high up-front costs.
+
+When developing Rsbuild, we learned best practices from the best tools in the community and focused on two usage scenarios:
+
+- As a lightweight build tool: Helps developers quickly set up web applications with out-of-the-box support for CSR applications.
+- As a shared infrastructure: Provides [JavaScript API](/api/start/) and [Plugin API](/plugins/dev/) for higher-level tools and frameworks, allowing developers to easily build their tools or frameworks on top of Rsbuild.
+
+## Performance
+
+**Rsbuild is currently the fastest build tool in the webpack and Rspack ecosystem**. Here is a comparison between Rsbuild, Create React App, Vite, and Rspack CLI:
+
+| Metric                          | Create React App | Vite (with SWC) | Rspack CLI | Rsbuild | Rsbuild vs CRA    |
+| ------------------------------- | ---------------- | --------------- | ---------- | ------- | ----------------- |
+| dev startup time (1000 modules) | 5.47s            | 1.29s           | 0.66s      | 0.39s   | **14x faster**    |
+| build time (1000 modules)       | 5.69s            | 1.39s           | 0.51s      | 0.27s   | **20x faster**    |
+| npm dependencies count          | 1241             | 15              | 283        | 14      | **99% reduction** |
+| npm install size                | 146.6MB          | 56.3MB          | 75.1MB     | 59.1MB  | **60% reduction** |
+
+Compared to the [Rspack CLI](https://npmjs.com/package/@rspack/cli), Rsbuild provides a richer set of features while demonstrating superior performance.
+
+This is because Rspack CLI needs to maintain compatibility with the [webpack-cli](https://npmjs.com/package/webpack-cli). It relies on the `webpack-dev-server` and provides the same default behavior as webpack, which has some performance limitations. Rsbuild, on the other hand, is designed for modern web development. We have reimplemented a lighter CLI, dev server, and build process for Rsbuild, resulting in faster startup speeds and fewer npm dependencies.
+
+> See the [Rsbuild Introduction](/guide/start/index) for more comparisons between Rsbuild, webpack, Vue CLI, and Vite.
+
+## Who is using
+
+In the [Rspack 1.0 Announcement](https://rspack.rs/blog/announcing-1-0), we introduced that Rspack is growing rapidly, with almost half of Rspack users using Rsbuild and giving us lots of positive feedback.
+
+At ByteDance, we use Rsbuild as the cornerstone of our internal web frameworks to support thousands of web projects. These projects cover diverse use cases, including desktop web applications, mobile web applications, cross-platform web applications, documentation sites, and more.
+
+For the community, we have open-sourced a high-performance toolchain based on Rsbuild, including the static site generator [Rspress](https://github.com/web-infra-dev/rspress), the library development tool [Rslib](https://github.com/web-infra-dev/rslib), the full-stack React framework [Modern.js](https://github.com/web-infra-dev/modern.js), and the [Storybook Rsbuild](https://github.com/rstackjs/storybook-rsbuild). The extensibility of Rsbuild allows these tools to flexibly integrate with Rsbuild and share its plugin ecosystem.
+
+After releasing Rsbuild 1.0, we also plan to collaborate with some excellent teams like [Remix](https://github.com/remix-run/remix), to bring Rsbuild to more web frameworks.
+
+## Plugin ecosystem
+
+The Rsbuild plugin ecosystem is constantly evolving. There are currently over 50 [Rsbuild plugins](https://github.com/rstackjs/awesome-rstack#rsbuild-plugins) available in the community. We provide several advanced features through plugins to support the development of production-grade applications, such as [type checking](https://github.com/rstackjs/rsbuild-plugin-type-check), [compatibility checking](https://github.com/rstackjs/rsbuild-plugin-check-syntax), and [static assets retry](https://github.com/rstackjs/rsbuild-plugin-assets-retry). Thanks to Rspack's compatibility with webpack, Rsbuild also supports most webpack plugins.
+
+Compared to webpack or Rspack, the Rsbuild plugin API is more straightforward and beginner-friendly, allowing developers to easily create plugins to meet their specific needs.
+
+For example, let us implement a plugin that outputs a file to the dist directory. The implementation comparison between Rspack and Rsbuild is as follows:
+
+![](https://assets.rspack.rs/rsbuild/assets/rsbuild-1-0-plugin-compare.png)
+
+As shown, the API style of the Rsbuild plugin is similar to esbuild, it can be defined by a function. The plugin hooks have been simplified to avoid verbose APIs, making plugin development more intuitive.
+
+## How to use 1.0
+
+- If you haven't used Rsbuild before, you can experience it through the [CodeSandbox example](https://codesandbox.io/p/github/rstackjs/rsbuild-codesandbox-example) or refer to the [Quick start](/guide/start/quick-start) to use Rsbuild.
+- If you are using Rsbuild 0.7 or earlier, please note that 1.0 includes some breaking changes. You can refer to the [Migrating from 0.x](/guide/upgrade/v0-to-v1) document to upgrade.
+- Rsbuild also provides migration guides for projects that use webpack, CRA, Vue CLI, etc. See [Migrate from Existing Projects](/guide/start/quick-start#migrate-from-existing-projects).
+
+> Give a star 🌟 to the [Rsbuild GitHub repository](https://github.com/web-infra-dev/rsbuild).
+
+## What's next
+
+Rsbuild 1.0 provides several advanced features for the development of enterprise applications and higher-level tools, such as the [multi-environment build API](/guide/advanced/environments), [SSR API](/guide/advanced/ssr), [plugin API](/plugins/dev/), [Module Federation support](/guide/advanced/module-federation), and [library build (Rslib)](https://github.com/web-infra-dev/rslib). We plan to continue to enhance these features to better support the development of the Rsbuild ecosystem.
+
+In the next 12 to 18 months, Rsbuild will evolve together with Rspack, adopting Rspack's new features as soon as they become available. These features include persistent caching, faster HMR, and TypeScript-based optimizations. For more details, see [Rspack - What's next](https://rspack.rs/blog/announcing-1-0#whats-next).
+
+Finally, a big thank you to all the developers who have contributed to Rsbuild ❤️:
+
+![](https://assets.rspack.rs/rsbuild/assets/rsbuild-1-0-contributors.png)

@@ -1,0 +1,475 @@
+@import 'docs/src/css/custom-media.css';
+
+@layer components {
+  .DemoRoot {
+    --demo-radius: var(--radius-12);
+    border: 1px solid var(--color-border);
+    border-radius: var(--demo-radius);
+    margin-bottom: var(--space-24);
+  }
+
+  .DemoPlaygroundExternalLink {
+    position: absolute;
+    top: 0.75rem;
+    right: 1.125rem;
+  }
+
+  .DemoPlayground {
+    position: relative;
+
+    background-color: var(--color-content);
+    border-top-left-radius: calc(var(--demo-radius) - 1px);
+    border-top-right-radius: calc(var(--demo-radius) - 1px);
+
+    /* Scroll */
+    overflow: auto hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+
+    /* Scroll containers may be focusable */
+    &:focus-visible {
+      outline: 2px solid var(--gray-t2);
+      outline-offset: -1px;
+      z-index: 1;
+    }
+  }
+
+  /* A separate element for the padding to work when there is horizontal scroll */
+  .DemoPlaygroundInner {
+    padding: 2rem 1.5rem;
+    min-height: 8rem;
+
+    /* Make sure contents aren't squashed smaller than their natural width */
+    min-width: fit-content;
+
+    /* Center the contents vertically */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  .DemoToolbar {
+    box-sizing: border-box;
+    position: relative;
+    z-index: 1;
+    font-size: var(--font-size-13);
+    line-height: 1.25rem;
+    white-space: nowrap;
+    color: var(--gray-t2);
+    background-clip: padding-box;
+    display: flex;
+    align-items: end;
+    /* Tab row (2.25rem) plus the top border. Without the extra 1px the tab would
+       overflow into the border strip that `overflow: hidden` clips, cutting the
+       top 1px of the tab's focus ring. */
+    height: calc(2.25rem + 1px);
+    border-top: 1px solid var(--color-border);
+    -webkit-user-select: none;
+    user-select: none;
+    overflow: hidden;
+  }
+
+  /* The single horizontal scroller for the toolbar. On mobile it holds the tabs
+     and the (in-scroll) actions; at --sm+ it holds just the tabs and the sticky
+     actions sit outside it. */
+  .DemoToolbarScrollAreaRoot {
+    position: relative;
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+    align-self: stretch;
+
+    /* Shift 1px left (keeping the right edge flush) so the active first tab's left
+       border lands on top of the card's 1px left border instead of 1px inboard.
+       This lives on the (non-scrolling) Root rather than the scrolling viewport so
+       it doesn't inflate the viewport's scrollWidth and falsely trip
+       `data-has-overflow-x`. */
+    width: calc(100% + 1px);
+    margin-left: -1px;
+  }
+
+  /* The viewport is focusable, but its own outline is unusable here: an inset
+     outline paints beneath the tabs, and the viewport's edge-fade mask erases it
+     at the edges. Draw the focus ring on this (unmasked, non-scrolling) wrapper
+     instead, overlaid above the tabs, when the viewport is focused. */
+  /* stylelint-disable-next-line selector-pseudo-class-disallowed-list */
+  .DemoToolbarScrollAreaRoot:has(.DemoToolbarViewport:focus-visible)::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    outline: 2px solid var(--gray-t2);
+    outline-offset: -2px;
+    pointer-events: none;
+  }
+
+  .DemoToolbarViewport {
+    display: flex;
+    flex: 1 1 auto;
+    min-width: 0;
+
+    /* ScrollArea hardcodes `overflow: scroll` on both axes; force horizontal-only
+       so a trackpad gesture can't rubber-band the (non-scrolling) vertical axis. */
+    overflow-y: hidden !important;
+
+    /* Edge-fade scroll indicators at every viewport, driven by the
+       distance-from-edge ScrollArea exposes (`--scroll-area-overflow-x-*`), so
+       each fade is absent at rest and grows in only once scrolled past that
+       edge. The second mask layer keeps the bottom 1px opaque so the active
+       tab's background can bridge the border into the code block below. */
+    --demo-tabs-fade: 1.5rem;
+    mask-image:
+      linear-gradient(
+        to right,
+        transparent,
+        #000 min(var(--demo-tabs-fade), var(--scroll-area-overflow-x-start, 0px)),
+        #000 calc(100% - min(var(--demo-tabs-fade), var(--scroll-area-overflow-x-end, 0px))),
+        transparent
+      ),
+      linear-gradient(#000, #000);
+    mask-repeat: no-repeat;
+    mask-position:
+      0 0,
+      0 100%;
+    mask-size:
+      100% calc(100% - 1px),
+      100% 1px;
+
+    /* Focus ring is drawn on `.DemoToolbarScrollAreaRoot` so it sits above the
+       tabs and outside this viewport's edge-fade mask. */
+    &:focus-visible {
+      outline: none;
+    }
+
+    &[data-has-overflow-x] {
+      /* Prevent Chrome/Safari page navigation gestures when scrolling horizontally */
+      overscroll-behavior-x: contain;
+    }
+  }
+
+  .DemoToolbarActions {
+    display: flex;
+    align-items: center;
+    height: 100%;
+    gap: var(--space-4);
+    padding-inline: 0.5rem;
+  }
+
+  /* Inside the scroller — shown on mobile so the actions scroll with the tabs */
+  .DemoToolbarActionsMobile {
+    flex: 0 0 auto;
+    margin-left: auto;
+
+    @media (--sm) {
+      display: none;
+    }
+  }
+
+  /* Outside the scroller — shown at --sm+, pinned to the toolbar's right edge */
+  .DemoToolbarActionsDesktop {
+    display: none;
+
+    @media (--sm) {
+      display: flex;
+      flex: 0 0 auto;
+      padding-inline-start: 1rem;
+    }
+  }
+
+  .DemoTabsRoot {
+    display: flex;
+    flex: 0 0 auto;
+  }
+
+  .DemoTabsList {
+    display: flex;
+    align-self: flex-end;
+    width: max-content;
+  }
+
+  .DemoTab {
+    font-family: var(--font-mono);
+    position: relative;
+    z-index: 0;
+    outline: 0;
+    height: 2.25rem;
+    padding-inline: 0.75rem;
+    padding-top: 0.25rem;
+    padding-bottom: calc(0.25rem + 1px);
+    border-right: 1px solid transparent;
+    border-left: 1px solid transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+
+    > span {
+      position: relative;
+    }
+
+    @media (hover: hover) {
+      &:hover:not([data-active]) {
+        &::before {
+          content: '';
+          position: absolute;
+          inset: 0 -1px 1px;
+          background-color: var(--gray-s2);
+          background-clip: padding-box;
+          pointer-events: none;
+        }
+      }
+    }
+
+    &[data-active] {
+      border-color: var(--color-border);
+      background-color: var(--gray-s1);
+
+      &::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 1px;
+        background-color: var(--gray-s1);
+        pointer-events: none;
+      }
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--gray-t2);
+      outline-offset: -2px;
+
+      &::after {
+        content: none;
+      }
+    }
+  }
+
+  .DemoCodeBlockCollapsible {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+
+    /* stylelint-disable-next-line selector-pseudo-class-disallowed-list */
+    &:has(.DemoCodeBlockViewport:focus-visible) {
+      z-index: 1;
+    }
+  }
+
+  .DemoCodeBlockRoot {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    isolation: isolate;
+    outline: 0;
+    border-top: 1px solid var(--color-border);
+    border-bottom-left-radius: var(--demo-radius);
+    border-bottom-right-radius: var(--demo-radius);
+    margin-top: -1px;
+    background-color: var(--gray-s1);
+
+    &[data-closed] {
+      &::before {
+        content: '';
+        position: absolute;
+        z-index: 1;
+        pointer-events: none;
+        height: 100%;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        border-bottom-left-radius: calc(var(--demo-radius) - 1px);
+        border-bottom-right-radius: calc(var(--demo-radius) - 1px);
+        background: linear-gradient(
+          to bottom,
+          transparent 0%,
+          color-mix(in srgb, var(--gray-s1), transparent 5%) 100%
+        );
+      }
+    }
+  }
+
+  /* Round the viewport's bottom corners so the code text and selection
+     highlight are clipped to the card's curve instead of bleeding past it. The
+     viewport's own overflow doesn't clip its own focus-ring outline, so the
+     focus ring is unaffected (and rounds to match the card). */
+  .DemoCodeBlockRoot .ScrollAreaViewport {
+    border-bottom-left-radius: calc(var(--demo-radius) - 1px);
+    border-bottom-right-radius: calc(var(--demo-radius) - 1px);
+  }
+
+  .DemoCodeBlockViewport {
+    --demo-code-block-line-height: 1.25rem; /* 20px */
+    line-height: var(--demo-code-block-line-height);
+
+    &[data-has-overflow-x] {
+      /* Prevent Chrome/Safari page navigation gestures when scrolling horizontally */
+      overscroll-behavior-x: contain;
+    }
+
+    /* Max height for code blocks, if we ever want to recover this (https://github.com/mui/base-ui/pull/1187) */
+    /* max-height: clamp(8.75lh + 0.5rem, 80vh, 23.75lh + 0.5rem); */
+
+    &[data-closed] {
+      overflow: hidden;
+      max-height: calc(5.7lh + 0.5rem); /* Display almost 6 code lines plus top padding */
+    }
+    &[data-closed] code .frame:not([data-frame-type]),
+    &[data-closed] code .frame[data-frame-type='highlighted-unfocused'],
+    &[data-closed] code .frame[data-frame-type='focus-unfocused'] {
+      display: none;
+    }
+  }
+
+  .DemoSourceBrowser {
+    position: relative;
+    font-size: 0.8125rem; /* 13px */
+    line-height: var(--demo-code-block-line-height); /* 20px */
+    cursor: text;
+    display: flex;
+
+    & pre {
+      /* Different fonts may introduce vertical align issues */
+      display: flex;
+      /* Make sure selection highlight spans full container width in Safari */
+      flex-grow: 1;
+    }
+
+    & code {
+      padding: 0.5rem 0;
+    }
+
+    & code .frame {
+      display: block;
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+    }
+
+    & code .frame[data-lined] {
+      display: block;
+      white-space: normal;
+      padding-left: 0;
+      padding-right: 0;
+    }
+
+    & code .frame[data-lined] .line {
+      display: block;
+      white-space: pre;
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+    }
+  }
+
+  .DemoCodeBlockCopyButton {
+    position: absolute;
+    z-index: 3;
+    top: 0.5rem;
+    right: 0.5rem;
+    background-color: color-mix(in srgb, var(--gray-s1), transparent 10%);
+
+    @media (--md) {
+      background-color: transparent;
+      box-shadow: none;
+    }
+  }
+
+  .DemoCollapseButton {
+    box-sizing: border-box;
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    flex-shrink: 0;
+    border: none;
+    padding: 0 0 0.75rem;
+    color: var(--color-foreground);
+    background: transparent;
+    font-family: inherit;
+    font-size: var(--font-size-13);
+    font-weight: 500;
+    line-height: 1;
+    vertical-align: top;
+    cursor: default;
+    z-index: 2;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    appearance: none;
+
+    &:focus-visible {
+      outline: 0;
+    }
+
+    &:focus-visible .DemoCollapseButtonVisual {
+      outline: 2px solid var(--gray-t2);
+      outline-offset: -1px;
+    }
+
+    &[data-sticky] {
+      position: sticky;
+      inset: auto;
+      bottom: 0.75rem;
+      align-self: center;
+      align-items: center;
+      width: auto;
+      height: var(--space-28);
+      /* Overlay the button over the code block instead of adding a row below it.
+         The margins cancel out (net 0) so the card keeps its height, while the
+         button rests 0.75rem above the bottom border instead of touching it. */
+      margin-top: calc((var(--space-28) + 0.75rem) * -1);
+      margin-bottom: 0.75rem;
+      padding: 0;
+      z-index: 2;
+    }
+  }
+
+  .DemoCollapseButtonVisual {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-8);
+    height: var(--space-28);
+    padding-inline: var(--space-12);
+    border-radius: var(--radius-pill);
+    background: linear-gradient(to bottom, hsl(0deg 0% 0% / 4%), hsl(0deg 0% 0% / 10%));
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 0;
+
+    @media (prefers-color-scheme: dark) {
+      background: linear-gradient(to bottom, hsl(0deg 0% 100% / 12%), hsl(0deg 0% 100% / 24%));
+    }
+
+    &::before {
+      content: '';
+      position: absolute;
+      z-index: -1;
+      inset: 1px;
+      border-radius: var(--radius-pill);
+      background: var(--color-content);
+      pointer-events: none;
+      box-shadow:
+        inset 0 0 0 1px white,
+        0 1px 2px hsl(0deg 0% 0% / 5%),
+        0 2px 8px -1px hsl(0deg 0% 0% / 6%),
+        0 4px 16px -4px hsl(0deg 0% 0% / 5%);
+
+      @media (prefers-color-scheme: dark) {
+        box-shadow: none;
+      }
+    }
+
+    @media (hover: hover) {
+      .DemoCollapseButton:hover & {
+        background: linear-gradient(to bottom, hsl(0deg 0% 0% / 10%), hsl(0deg 0% 0% / 20%));
+
+        @media (prefers-color-scheme: dark) {
+          background: linear-gradient(to bottom, hsl(0deg 0% 100% / 16%), hsl(0deg 0% 100% / 32%));
+        }
+      }
+    }
+  }
+}

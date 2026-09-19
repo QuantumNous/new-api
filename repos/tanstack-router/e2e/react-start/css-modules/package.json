@@ -1,0 +1,51 @@
+{
+  "name": "tanstack-react-start-e2e-css-modules",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "dev:e2e": "vite dev --port $PORT",
+    "dev:nitro": "VITE_USE_NITRO=true vite dev --port 3000",
+    "dev:e2e:nitro": "VITE_USE_NITRO=true vite dev --port $PORT",
+    "dev:basepath": "VITE_BASE_PATH=/my-app vite dev --port 3000",
+    "dev:e2e:basepath": "VITE_BASE_PATH=/my-app vite dev --port $PORT",
+    "dev:cloudflare": "echo 'Cloudflare dev mode has React duplication issues - use build+preview instead' && exit 1",
+    "dev:e2e:cloudflare": "echo 'Cloudflare dev mode has React duplication issues - use build+preview instead' && exit 1",
+    "build": "vite build && tsc --noEmit",
+    "preview": "vite preview",
+    "start": "pnpx srvx --prod -s ../client dist/server/server.js",
+    "test:e2e:dev": "MODE=dev playwright test --project=chromium",
+    "test:e2e:dev:nitro": "MODE=dev VITE_CONFIG=nitro playwright test --project=chromium",
+    "test:e2e:dev:basepath": "MODE=dev VITE_CONFIG=basepath playwright test --project=chromium",
+    "_test:e2e:dev:cloudflare": "MODE=dev VITE_CONFIG=cloudflare playwright test --project=chromium",
+    "test:e2e:prod:default": "MODE=prod playwright test --project=chromium",
+    "test:e2e:prod": "pnpm run test:e2e:prod:default && pnpm run test:e2e:prod:css-code-split-false",
+    "test:e2e:prod:css-code-split-false": "MODE=prod VITE_CSS_CODE_SPLIT=false playwright test tests/css.prod.spec.ts --project=chromium",
+    "test:e2e": "rm -rf port*.txt; pnpm run test:e2e:dev && pnpm run test:e2e:prod",
+    "test:e2e:nitro": "rm -rf port*.txt; pnpm run test:e2e:dev:nitro",
+    "test:e2e:basepath": "rm -rf port*.txt; pnpm run test:e2e:dev:basepath",
+    "_test:e2e:cloudflare": "echo 'Cloudflare dev mode disabled - React duplication issues' && exit 0"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "workspace:*",
+    "@tanstack/react-start": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.29.0",
+    "@playwright/test": "^1.50.1",
+    "@tanstack/router-e2e-utils": "workspace:*",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "nitro": "^3.0.260311-beta",
+    "sass": "^1.97.2",
+    "srvx": "^0.11.9",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14",
+    "wrangler": "^4.74.0"
+  }
+}

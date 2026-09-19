@@ -1,0 +1,19 @@
+{
+  "name": "tanstack-marko-virtual-example-window",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "marko-run dev",
+    "build": "marko-run build",
+    "preview": "marko-run preview"
+  },
+  "dependencies": {
+    "@marko/run": "^0.7.0",
+    "@tanstack/marko-virtual": "workspace:*",
+    "marko": "^6.0.0"
+  },
+  "devDependencies": {
+    "typescript": "5.6.3",
+    "vite": "^6.4.2"
+  }
+}

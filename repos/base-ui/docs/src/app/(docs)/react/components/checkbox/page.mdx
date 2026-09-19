@@ -1,0 +1,121 @@
+# Checkbox
+
+<Subtitle>An easily stylable checkbox component.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled React checkbox component that is easy to customize."
+/>
+
+import { DemoCheckboxBasic } from './demos/hero';
+
+<DemoCheckboxBasic />
+
+## Usage guidelines
+
+- **Form controls must have an accessible name**: It can be created using a `<label>` element or the `Field` component. See [Labeling a checkbox](#labeling-a-checkbox) and the [forms guide](/react/handbook/forms).
+
+## Anatomy
+
+Import the component and assemble its parts:
+
+```jsx title="Anatomy"
+import { Checkbox } from '@base-ui/react/checkbox';
+
+<Checkbox.Root>
+  <Checkbox.Indicator />
+</Checkbox.Root>;
+```
+
+## Examples
+
+### Labeling a checkbox
+
+An enclosing `<label>` is the simplest labeling pattern:
+
+```tsx title="Wrapping a label around a checkbox"
+// @highlight
+<label>
+  <Checkbox.Root />
+  Accept terms and conditions
+  {/* @highlight */}
+</label>
+```
+
+### Rendering as a native button
+
+By default, `<Checkbox.Root>` renders a `<span>` element to support enclosing labels. Prefer rendering the checkbox as a native button when using sibling labels (`htmlFor`/`id`).
+
+```tsx title="Sibling label pattern with a native button"
+<div>
+  <label htmlFor="notifications-checkbox">Enable notifications</label>
+  {/* @highlight-text "nativeButton" "render={<button />}" */}
+  <Checkbox.Root id="notifications-checkbox" nativeButton render={<button />}>
+    <Checkbox.Indicator />
+  </Checkbox.Root>
+</div>
+```
+
+Native buttons with wrapping labels are supported by using the `render` callback to avoid invalid HTML, so the hidden input is placed outside the label:
+
+```tsx title="Render callback"
+<Checkbox.Root
+  nativeButton
+  // @highlight-start
+  render={(buttonProps) => (
+    <label>
+      <button {...buttonProps} />
+      Enable notifications
+    </label>
+  )}
+  {/* @highlight-end */}
+/>
+```
+
+### Form integration
+
+Use [Field](/react/components/field) to handle label associations and form integration:
+
+```tsx title="Using Checkbox in a form"
+<Form>
+  {/* @highlight */}
+  <Field.Root name="stayLoggedIn">
+    <Field.Label>
+      <Checkbox.Root />
+      Stay logged in for 7 days
+    </Field.Label>
+  </Field.Root>
+</Form>
+```
+
+## API reference
+
+import { TypesCheckbox } from './types';
+
+### Root
+
+<TypesCheckbox.Root />
+
+### Indicator
+
+<TypesCheckbox.Indicator />
+
+export const metadata = {
+  keywords: [
+    'React Checkbox',
+    'Checkbox Component',
+    'Accessible Checkbox',
+    'Customizable Checkbox',
+    'Form Control Checkbox',
+    'Checkmark',
+    'Tick Box',
+    'Selection Control',
+    'Checkbox Input',
+    'Binary Input',
+    'Checked State',
+    'Indeterminate Checkbox',
+    'Tri-State Checkbox',
+    'Headless React Components',
+    'Input Indicator',
+    'Base UI',
+  ],
+};

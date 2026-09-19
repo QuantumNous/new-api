@@ -1,0 +1,52 @@
+---
+description: '控制用于定位包入口文件的 package.json 字段优先级。Rspack 在解析 npm 包入口时，会按该列表的顺序依次尝试这些字段。'
+---
+
+# resolve.mainFields
+
+- **类型：** `string[]`
+- **版本：** `>= 1.5.9`
+
+控制用于定位包入口文件的 package.json 字段优先级。Rspack 在解析 npm 包入口时，会按该列表的顺序依次尝试这些字段。
+
+:::tip
+`resolve.mainFields` 是 Rspack 提供的配置，参考 [Rspack - resolve.mainFields](https://rspack.rs/zh/config/resolve#resolvemainfields) 了解更多。
+:::
+
+## 默认值
+
+- 当 [output.target](/config/output/target) 配置为 `'web'`, `'web-worker'`，或未指定时，默认值为 `["browser", "module", "main"]`。
+- 当 [output.target](/config/output/target) 配置为 `'node'`，默认值为 `["module", "main"]`。
+
+## 基础示例
+
+`resolve.mainFields` 配置的值会覆盖 Rsbuild 的默认值：
+
+```js title="rsbuild.config.ts"
+export default {
+  resolve: {
+    mainFields: ['custom', 'module', 'main'],
+  },
+};
+```
+
+## 多环境
+
+为不同 [environments](/config/environments) 配置不同的 `mainFields`：
+
+```js title="rsbuild.config.ts"
+export default {
+  environments: {
+    web: {
+      resolve: {
+        mainFields: ['custom', 'browser', 'module', 'main'],
+      },
+    },
+    node: {
+      resolve: {
+        mainFields: ['custom', 'module', 'main'],
+      },
+    },
+  },
+};
+```

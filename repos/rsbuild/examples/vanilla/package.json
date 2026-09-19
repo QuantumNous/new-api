@@ -1,0 +1,14 @@
+{
+  "name": "@examples/vanilla",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "rsbuild --open",
+    "build": "rsbuild build",
+    "preview": "rsbuild preview"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

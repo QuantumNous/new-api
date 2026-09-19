@@ -1,0 +1,9 @@
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+
+# persistence
+.harness-observability
+.env*

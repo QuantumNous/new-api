@@ -1,0 +1,10 @@
+.page {
+  padding: 1rem;
+  min-height: 12rem;
+  background: rgb(240, 253, 244);
+  border: 4px solid rgb(22, 163, 74);
+}
+
+.title {
+  color: rgb(21, 128, 61);
+}

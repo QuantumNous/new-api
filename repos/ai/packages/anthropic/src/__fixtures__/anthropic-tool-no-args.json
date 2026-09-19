@@ -1,0 +1,31 @@
+{
+  "model": "claude-3-opus-20240229",
+  "id": "msg_01GCBaV8gyWAYgMVggRqZbuQ",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "<thinking>\nThe updateIssueList tool was provided in the list of available functions. The tool has no required parameters, so it can be called without any additional information needed from the user.\n</thinking>\n\nOkay, I will update the current issue list:"
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_01LRmxn9vGM1d2DZSDBowdZ1",
+      "name": "updateIssueList",
+      "input": {}
+    }
+  ],
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 602,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 93,
+    "service_tier": "standard"
+  }
+}

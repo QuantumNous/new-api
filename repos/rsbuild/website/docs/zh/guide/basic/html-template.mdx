@@ -1,0 +1,444 @@
+---
+description: '在构建的过程中，Rsbuild 会基于 HTML 模板文件和模板参数进行编译，生成若干份 HTML 文件。'
+---
+
+# HTML
+
+在构建的过程中，Rsbuild 会基于 HTML 模板文件和模板参数进行编译，生成若干份 HTML 文件。
+
+Rsbuild 提供了一些配置项来对 HTML 模板进行设置。通过本章节你可以了解到这些配置项的基本用法。
+
+## HTML 生成
+
+Rsbuild 会为 [source.entry](/config/source/entry) 中定义的每个入口生成一个 HTML 文件。
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    entry: {
+      foo: './src/pages/foo/index.ts', // 生成 foo.html
+      bar: './src/pages/bar/index.ts', // 生成 bar.html
+    },
+  },
+};
+```
+
+参考 [source.entry - HTML 生成](/config/source/entry#html-generation) 了解如何控制 HTML 生成。
+
+## 设置模板文件
+
+在 Rsbuild 中，你可以使用 [html.template](/config/html/template) 配置项来设置自定义的 HTML 模板文件。
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    template: './static/index.html',
+  },
+};
+```
+
+未设置 `html.template` 时，Rsbuild 会使用内置的 HTML 模板，内容如下：
+
+```html title="defaultTemplate.html"
+<!DOCTYPE html>
+<html>
+  <head></head>
+  <body>
+    <div id="<%= mountId %>"></div>
+  </body>
+</html>
+```
+
+在默认模板中，`id="<%= mountId %>"` 会被替换为 `id="root"`，你可以通过 [html.mountId](/config/html/mount-id) 选项来修改这个值。
+
+## 设置页面标题 \{#set-page-title}
+
+你可以通过 [html.title](/config/html/title) 配置项来设置 HTML 的 `<title>` 标签。
+
+当你的项目中只有一个页面时，直接使用 `html.title` 设置即可：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    title: 'example',
+  },
+};
+```
+
+当你的项目中有多个页面时，可以基于入口名称，来为不同的页面设置对应的标题。
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    title({ entryName }) {
+      const titles = {
+        foo: 'Foo',
+        bar: 'Bar',
+      };
+      return titles[entryName];
+    },
+  },
+};
+```
+
+:::tip
+对于单页应用（SPA），Rsbuild 会在 HTML 页面中包含一个初始的 title，但你通常需要在路由切换时动态更新页面标题，例如使用一些路由库，或是 [React Helmet](https://github.com/nfl/react-helmet) 这类库。
+:::
+
+## 设置页面图标 \{#set-page-icon}
+
+Rsbuild 支持设置 [favicon](https://developer.mozilla.org/en-US/docs/Glossary/Favicon) 和 Web 应用图标。
+
+默认情况下，Rsbuild 会自动从 [public 目录](/config/server/public-dir) 中查找 favicon 文件。如果你想自定义 favicon，可以通过 [html.favicon](/config/html/favicon) 配置项进行设置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    favicon: './src/assets/icon.png',
+  },
+};
+```
+
+此外，还可以使用 [html.appIcon](/config/html/app-icon) 配置项来设置 Web 应用图标，用于在将网站添加到移动设备主屏幕时显示。
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    appIcon: {
+      name: 'My Website',
+      icons: [
+        { src: './src/assets/logo-192.png', size: 192 },
+        { src: './src/assets/logo-512.png', size: 512 },
+      ],
+    },
+  },
+};
+```
+
+## 设置 meta 标签 \{#set-meta-tags}
+
+你可以通过 [html.meta](/config/html/meta) 配置项来设置 HTML 的 `<meta>` 标签。
+
+Rsbuild 默认设置了 charset 和 viewport meta 标签：
+
+```html
+<meta charset="utf-8" /> <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+```
+
+你也可以添加自定义的 meta 标签，比如设置 description：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    meta: {
+      description: 'a description of the page',
+    },
+  },
+};
+```
+
+最终在 HTML 中生成的 meta 标签为：
+
+```html
+<meta name="description" content="a description of the page" />
+```
+
+## 默认模板引擎
+
+Rsbuild 内置了一个默认的模板引擎来处理 HTML 模板文件，它的语法接近 EJS 的子集，但也有一些不同。当 HTML 模板文件的后缀为 `.html` 时，Rsbuild 会使用内置的模板引擎来解析 HTML 模板。
+
+例如，在模板中定义一个 `text` 参数，值为 `'world'`。Rsbuild 在构建时会自动将 `<%= text %>` 替换为指定的值。
+
+```html
+<!-- 输入  -->
+<div>hello <%= text %>!</div>
+
+<!-- 输出 -->
+<div>hello world!</div>
+```
+
+### 模板参数 \{#template-parameters}
+
+在 HTML 模板中，你可以使用丰富的模板参数，Rsbuild 默认注入的模板参数包括：
+
+```ts
+type DefaultParameters = {
+  mountId: string; // 对应 html.mountId 配置
+  entryName: string; // 入口名称
+  assetPrefix: string; // 对应 dev.assetPrefix 和 output.assetPrefix 配置
+  compilation: Compilation; // 对应 Rspack 的 compilation 对象
+  rspackConfig: Rspack.Configuration; // Rspack 的配置对象
+  // html-rspack-plugin 生成的参数
+  htmlPlugin: {
+    tags: {
+      headTags: HtmlTagObject[];
+      bodyTags: HtmlTagObject[];
+    };
+    files: {
+      publicPath: string;
+      js: string[];
+      css: string[];
+      favicon?: string;
+    };
+  };
+};
+```
+
+你可以通过 [html.templateParameters](/config/html/template-parameters) 配置项来传入自定义的模板参数，比如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    templateParameters: {
+      text: 'world',
+    },
+  },
+};
+```
+
+接下来，你可以在 HTML 模板中，通过 `<%= text %>` 来读取参数：
+
+```html title="index.html"
+<div>hello <%= text %>!</div>
+```
+
+编译后的 HTML 代码如下：
+
+```html title="dist/index.html"
+<div>hello world!</div>
+```
+
+### 参数转义
+
+使用 `<%= text %>` 时，参数不会被转义。你可以使用 `<%- text %>` 来 escape 参数。
+
+比如参数 `text` 的值是 `'<script>'`，则会被转义为 `&lt;script&gt;`：
+
+```html
+<!-- 输入  -->
+<div>hello <%- text %>!</div>
+
+<!-- 输出 -->
+<div>hello &lt;script&gt;!</div>
+```
+
+:::tip
+注意，Rsbuild 默认的转义语法是与 EJS 不同的。在 EJS 中，默认的转义语法是 `<%= text %>`，而 Rsbuild 的默认转义语法是 `<%- text %>`。
+:::
+
+### 条件语句
+
+- if 条件：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    templateParameters: {
+      show: true,
+    },
+  },
+};
+```
+
+```ejs
+<% if (show) { %>
+<p>show is true</p>
+<% } %>
+```
+
+- if/else 条件：
+
+```ejs
+<% if (show) { %>
+<p>show is true</p>
+<% } else { %>
+<p>show is false</p>
+<% } %>
+```
+
+- else if 条件：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    templateParameters: {
+      count: 7,
+    },
+  },
+};
+```
+
+```ejs
+<% if (count > 10) { %>
+<p>count > 10</p>
+<% } else if (count > 5) { %>
+<p>count > 5</p>
+<% } else { %>
+<p>count ≤ 5</p>
+<% } %>
+```
+
+- 嵌套条件：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    templateParameters: {
+      parent: true,
+      child: true,
+    },
+  },
+};
+```
+
+```ejs
+<% if (parent) { %>
+<p>parent is true</p>
+  <% if (child) { %>
+  <p>child is true</p>
+  <% } %>
+<% } %>
+```
+
+- 三元运算符：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    templateParameters: {
+      show: true,
+      value: 'success',
+    },
+  },
+};
+```
+
+```ejs
+<p>result: <%= show ? value : 'none' %></p>
+```
+
+### 循环语句
+
+- for 循环：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    templateParameters: {
+      items: ['Item 1', 'Item 2', 'Item 3'],
+    },
+  },
+};
+```
+
+```ejs title="index.html"
+<ul>
+  <% for (let i = 0; i < items.length; i++) { %>
+  <li><%= items[i] %></li>
+  <% } %>
+</ul>
+```
+
+- forEach 循环：
+
+```ejs title="index.html"
+<ul>
+  <% items.forEach(function(item, index) { %>
+  <li><%= item %> <%= index %></li>
+  <% }); %>
+</ul>
+```
+
+- for...of 循环：
+
+```ejs title="index.html"
+<ul>
+  <% for (let item of items) { %>
+  <li><%= item %></li>
+  <% } %>
+</ul>
+```
+
+## 其他模板引擎
+
+Rsbuild 也支持通过插件来使用其他模板引擎，如 [EJS](https://ejs.co/)、[Pug](https://pugjs.org/) 等。
+
+### EJS
+
+Rsbuild 内置的模板语法与 [EJS](https://ejs.co/) 存在一些差异，如果你需要使用完整的 EJS 语法，可以通过插件来支持，详见 [rsbuild-plugin-ejs](https://github.com/rstackjs/rsbuild-plugin-ejs)。
+
+### Pug
+
+Rsbuild 通过插件来支持 [Pug](https://pugjs.org/) 模板引擎，详见 [@rsbuild/plugin-pug](https://github.com/rstackjs/rsbuild-plugin-pug)。
+
+## 注入标签
+
+通过配置 [html.tags](/config/html/tags) 选项，可以在 Rsbuild 生成的 HTML 文件中插入任意标签。
+
+在 HTML 的模版中，可以通过 `htmlPlugin.tags` 变量来访问被注入到 HTML 的所有标签：
+
+```html title="index.html"
+<html>
+  <head>
+    <%= htmlPlugin.tags.headTags %>
+  </head>
+  <body>
+    <div id="root"></div>
+    <%= htmlPlugin.tags.bodyTags %>
+  </body>
+</html>
+```
+
+`html.tags` 的作用就是调整这些 tags 变量，从而修改 HTML 里的标签，下面是一个基本的例子：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [{ tag: 'script', attrs: { src: 'https://cdn.example.com/my-script.js' } }],
+  },
+};
+```
+
+- 生成的 HTML 文件如下：
+
+```html
+<html>
+  <head>
+    <script src="https://cdn.example.com/my-script.js"></script>
+    <!-- some other headTags... -->
+  </head>
+  <body>
+    <!-- some other bodyTags... -->
+  </body>
+</html>
+```
+
+> 更多用法请参考：[html.tags](/config/html/tags)。
+
+:::tip
+通常你不需要手动使用 `htmlPlugin.tags.headTags` 和 `htmlPlugin.tags.bodyTags` 模板参数，因为 Rsbuild 会自动注入这些标签。参考 [html.inject](/config/html/inject) 了解调整标签注入位置。
+:::
+
+## HTML 插件
+
+Rsbuild 内部基于 [html-rspack-plugin](https://github.com/rstackjs/html-rspack-plugin) 实现 HTML 相关的能力。它是 [html-webpack-plugin](https://github.com/jantimon/html-webpack-plugin) 的一个 fork 版本，具备完全一致的功能和选项。
+
+你可以通过 [tools.htmlPlugin](/config/tools/html-plugin) 来修改 html-rspack-plugin 的选项，也可以禁用内置的 html-rspack-plugin 插件。
+
+比如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    htmlPlugin(config, { entryName }) {
+      if (process.env.NODE_ENV === 'production') {
+        config.filename = `${entryName}.[contenthash:10].html`;
+      }
+    },
+  },
+};
+```
+
+## HTML 压缩
+
+Rsbuild 目前不对 HTML 文件进行压缩，如果你需要压缩 HTML 文件，可以使用 [rsbuild-plugin-html-minifier-terser 插件](https://github.com/rstackjs/rsbuild-plugin-html-minifier-terser)。

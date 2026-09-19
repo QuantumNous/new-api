@@ -1,0 +1,183 @@
+@layer components {
+  .AccordionRoot {
+    --color-trigger-hover: hsl(0deg 0 99);
+    --color-open-trigger-shadow: var(--gray-c3);
+
+    @media (prefers-color-scheme: dark) {
+      --color-trigger-hover: hsl(0deg 0 9);
+      --color-open-trigger-shadow: hsl(0deg 0 5);
+    }
+
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    color: var(--gray-t1);
+
+    border: 1px solid var(--color-border);
+    border-collapse: separate;
+    border-radius: var(--radius-12);
+  }
+
+  .AccordionHeaderRow {
+    border-radius: calc(var(--radius-12) - 1px) calc(var(--radius-12) - 1px) 0 0;
+    border-bottom: 1px solid var(--color-border);
+    background-color: var(--gray-s2);
+    background-clip: padding-box;
+  }
+
+  .AccordionHeaderCell {
+    padding: 0.5rem 0.75rem;
+    font-size: var(--font-size-14);
+    font-weight: var(--font-weight-400);
+    color: var(--color-foreground);
+  }
+
+  .AccordionItem:not(:last-child) {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .AccordionTrigger {
+    box-sizing: border-box;
+    position: relative;
+    display: flex;
+    width: 100%;
+    min-height: 2.5rem;
+    align-items: center;
+    /* use padding to match TableCell height in CSS vars or data attributes table */
+    padding-block: 0.5rem;
+    padding-inline: 0.75rem 0.5rem;
+    border: none;
+    outline: none;
+    text-align: left;
+    background-color: var(--color-content);
+
+    /* remove default disclosure triangle  */
+    &::-webkit-details-marker {
+      display: none;
+    }
+    list-style: none;
+
+    @media (hover: hover) {
+      &:hover {
+        background-color: var(--color-trigger-hover);
+        cursor: default;
+      }
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--gray-t2);
+      z-index: 1;
+    }
+
+    [open] & {
+      box-shadow:
+        0 2px 4px -3px var(--color-open-trigger-shadow),
+        inset 0 -1px 1px transparent;
+    }
+
+    .AccordionItem:not([open]):last-child & {
+      border-bottom-left-radius: calc(var(--radius-12) - 1px);
+      border-bottom-right-radius: calc(var(--radius-12) - 1px);
+    }
+  }
+
+  .AccordionIcon {
+    box-sizing: border-box;
+    flex-shrink: 0;
+    width: 0.75rem;
+    height: 0.75rem;
+
+    [open] & {
+      transform: rotate(180deg);
+    }
+  }
+
+  .AccordionPanel {
+    box-sizing: border-box;
+    height: auto;
+    overflow: hidden;
+    color: var(--color-foreground);
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+
+  .AccordionContent {
+    padding-block: 1px;
+
+    [open] & {
+      background-color: var(--gray-s2);
+      box-shadow: inset 0 1px 0 0 var(--gray-c1);
+    }
+
+    .AccordionItem:last-child & {
+      border-bottom-left-radius: calc(var(--radius-12) - 1px);
+      border-bottom-right-radius: calc(var(--radius-12) - 1px);
+    }
+  }
+
+  .AccordionScrollable {
+    overflow-x: hidden;
+
+    &[data-scrollable] {
+      position: relative;
+
+      /* Overscroll overlay */
+      &::after {
+        content: '';
+        position: absolute;
+        pointer-events: none;
+        top: 1px;
+        bottom: 1px;
+        right: -1px;
+        width: 1.25rem;
+        background-image: linear-gradient(to right, transparent, var(--scrollable-gradient-color));
+        animation: accordion-overscroll-overlay 500ms;
+      }
+
+      /* Only applied when the container is scrollable as this creates a layer. */
+      & .AccordionScrollableInner {
+        /* Prevent Chrome/Safari page navigation gestures when scrolling horizontally */
+        overscroll-behavior-x: contain;
+      }
+
+      @media (hover: hover) {
+        .AccordionTrigger:hover &::after {
+          background-image: linear-gradient(to right, transparent, var(--color-trigger-hover));
+        }
+      }
+    }
+  }
+
+  @keyframes accordion-overscroll-overlay {
+    from {
+      opacity: 0;
+    }
+  }
+
+  .AccordionScrollableInner {
+    /* Ensure consistent height of the cells */
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2.5rem;
+    padding-block: 0.5rem;
+    padding-right: 1rem;
+
+    /* Make individual cells scrollable */
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  /* stylelint-disable-next-line selector-pseudo-class-disallowed-list */
+  .AccordionScrollable:has(pre) .AccordionScrollableInner {
+    min-height: unset;
+    padding: 0;
+    gap: 0;
+    padding-right: 0.5rem;
+  }
+}

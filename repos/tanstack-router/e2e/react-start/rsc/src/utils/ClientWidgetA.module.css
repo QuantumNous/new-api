@@ -1,0 +1,63 @@
+/* Client Widget A - Purple theme */
+.widget {
+  background-color: #f3e8ff;
+  border: 2px solid #9333ea;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 8px 0;
+}
+
+.header {
+  margin-bottom: 8px;
+}
+
+.badge {
+  display: inline-block;
+  background-color: #9333ea;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: bold;
+}
+
+.title {
+  margin: 0 0 8px 0;
+  color: #581c87;
+  font-size: 16px;
+}
+
+.content {
+  margin: 0 0 12px 0;
+  color: #7e22ce;
+  font-size: 13px;
+}
+
+.counter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.button {
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 6px;
+  background-color: #9333ea;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.button:hover {
+  background-color: #7e22ce;
+}
+
+.count {
+  font-size: 18px;
+  font-weight: bold;
+  color: #581c87;
+  min-width: 40px;
+  text-align: center;
+}

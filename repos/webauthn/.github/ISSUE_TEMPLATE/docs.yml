@@ -1,0 +1,23 @@
+---
+name: Documentation Feedback
+description: Report issues or suggestions surrounding documentation
+labels:
+  - type/documentation
+  - status/needs-triage
+  - priority/normal
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the issue or suggestion
+    validations:
+      required: true
+  - type: textarea
+    id: additional-information
+    attributes:
+      label: Additional Information
+      description: Any additional information that may be useful like links etc
+    validations:
+      required: false
+...

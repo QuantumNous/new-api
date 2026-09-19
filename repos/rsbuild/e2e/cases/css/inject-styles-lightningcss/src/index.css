@@ -1,0 +1,7 @@
+@media (min-resolution: 2dppx) {
+  .item {
+    transition: all 0.5s;
+    user-select: none;
+    background: linear-gradient(to bottom, white, black);
+  }
+}

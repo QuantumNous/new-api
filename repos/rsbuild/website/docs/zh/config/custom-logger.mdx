@@ -1,0 +1,34 @@
+---
+description: '为当前 Rsbuild 实例指定独立的 logger。推荐配合 createLogger() 创建，避免修改共享 logger。'
+---
+
+# customLogger
+
+- **类型：** [Logger](/api/javascript-api/core#logger)
+- **默认值：** `undefined`
+
+为当前 Rsbuild 实例指定一个自定义 logger。
+
+> 查看 [日志](/guide/advanced/logging) 了解更多。
+
+## 示例
+
+使用 [createLogger](/api/javascript-api/core#createlogger) 来创建一个新的 logger 实例。
+
+```ts title="rsbuild.config.ts"
+import { createLogger, defineConfig } from '@rsbuild/core';
+
+const logger = createLogger({
+  level: 'warn',
+});
+
+export default defineConfig({
+  customLogger: logger,
+});
+```
+
+## 版本历史
+
+| 版本   | 变更内容                 |
+| ------ | ------------------------ |
+| v2.0.0 | 新增 `customLogger` 选项 |

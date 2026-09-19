@@ -1,0 +1,12 @@
+{
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "outputs": ["**/dist/**"]
+    },
+    "test": {
+      "dependsOn": ["^build", "build"],
+      "env": ["UPDATE_SNAPSHOT"]
+    }
+  }
+}

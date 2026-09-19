@@ -1,0 +1,44 @@
+# dotenv-expand@13 clones the full processEnv for every .env key in expandValue.
+# In Rsbuild projects with large process.env objects, this dominates loadEnv CPU
+# time, so this patch keeps the original expansion behavior but uses lazy lookup.
+diff --git a/lib/main.js b/lib/main.js
+index 794f3bf512ee8cd24fe20e83d159bf8682fb901e..56278af36df3b07f685869e1387e75751018fd81 100644
+--- a/lib/main.js
++++ b/lib/main.js
+@@ -4,9 +4,17 @@ function _resolveEscapeSequences (value) {
+   return value.replace(/\\\$/g, '$')
+ }
+ 
+-function expandValue (value, processEnv, runningParsed) {
+-  const env = { ...runningParsed, ...processEnv } // process.env wins
++const propertyIsEnumerable = Object.prototype.propertyIsEnumerable
++
++function getEnvValue (key, processEnv, runningParsed) {
++  if (propertyIsEnumerable.call(processEnv, key)) {
++    return processEnv[key]
++  }
+ 
++  return runningParsed[key]
++}
++
++function expandValue (value, processEnv, runningParsed) {
+   const regex = /(?<!\\)\${([^{}]+)}|(?<!\\)\$([A-Za-z_][A-Za-z0-9_]*)/g
+ 
+   let result = value
+@@ -31,13 +39,14 @@ function expandValue (value, processEnv, runningParsed) {
+     let value
+ 
+     const key = r.shift()
++    const envValue = getEnvValue(key, processEnv, runningParsed)
+ 
+     if ([':+', '+'].includes(splitter)) {
+-      defaultValue = env[key] ? r.join(splitter) : ''
++      defaultValue = envValue ? r.join(splitter) : ''
+       value = null
+     } else {
+       defaultValue = r.join(splitter)
+-      value = env[key]
++      value = envValue
+     }
+ 
+     if (value) {

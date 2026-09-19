@@ -1,0 +1,6 @@
+{"contentBlockStart":{"contentBlockIndex":0,"start":{"toolUse":{"toolUseId":"tool-use-id","name":"test-tool"}}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"toolUse":{"input":"{\"value\":"}}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"toolUse":{"input":"\"Sparkle Day\"}"}}}}
+{"contentBlockStop":{"contentBlockIndex":0}}
+{"metadata":{"usage":{"inputTokens":125,"outputTokens":45,"totalTokens":170},"metrics":{"latencyMs":234}}}
+{"messageStop":{"stopReason":"tool_use"}}

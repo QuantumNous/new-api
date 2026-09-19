@@ -1,0 +1,390 @@
+---
+description: '转换 import 的路径，可以用于模块化引用三方包的子路径，能力类似于 babel-plugin-import。'
+---
+
+# source.transformImport
+
+- **类型：**
+
+```ts
+type TransformImport =
+  | Array<{
+      libraryName: string;
+      libraryDirectory?: string;
+      customName?: string;
+      customStyleName?: string;
+      style?: string | boolean;
+      styleLibraryDirectory?: string;
+      camelToDashComponentName?: boolean;
+      transformToDefaultImport?: boolean;
+      ignoreEsComponent?: string[];
+      ignoreStyleComponent?: string[];
+    }>
+  | Function;
+```
+
+- **默认值：** `undefined`
+
+转换 import 的路径，可以用于模块化引用三方包的子路径，能力类似于 [babel-plugin-import](https://npmjs.com/package/babel-plugin-import)。
+
+## 示例
+
+### 按需引入 antd 组件
+
+在使用 [antd](https://github.com/ant-design/ant-design) 组件库时（低于 v5 版本），你可以通过以下配置来按需引入组件：
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: [
+      {
+        libraryName: 'antd',
+        libraryDirectory: 'es',
+        // 设置 `style: 'css'` 来加载 `.css` 样式
+        // 设置 `style: true` 来加载 `.less` 样式
+        style: 'css',
+      },
+    ],
+  },
+};
+```
+
+源代码如下：
+
+```js
+import { Button } from 'antd';
+```
+
+会被转换成：
+
+```js
+import Button from 'antd/es/button';
+import 'antd/es/button/style/css';
+```
+
+### 按需引入 lodash
+
+在使用 lodash 时，你可以通过 `transformImport` 来自动引用子路径，减小包体积。
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: [
+      {
+        libraryName: 'lodash',
+        customName: 'lodash/{{ member }}',
+      },
+    ],
+  },
+};
+```
+
+源代码如下：
+
+```js
+import { get } from 'lodash';
+```
+
+会被转换成：
+
+```js
+import get from 'lodash/get';
+```
+
+请避免以下用法，否则会引入所有的 lodash 代码：
+
+```js
+import _ from 'lodash';
+import lodash from 'lodash';
+```
+
+## 适用范围
+
+`transformImport` 只适用于经过 Rsbuild 编译的模块。需要注意的是，Rsbuild 默认并不会编译位于 node_modules 目录下的 JavaScript 文件。这意味着，node_modules 目录内的代码将不会被 `transformImport` 处理。
+
+如果你希望通过 `transformImport` 对 node_modules 下的代码进行处理，请将相关模块添加到 [source.include](/config/source/include) 配置中。
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    include: [/node_modules[\\/]some-package[\\/]/],
+  },
+};
+```
+
+## 选项
+
+### libraryName
+
+- **类型：** `string`
+
+用于指定需要按需加载的模块名称。当 Rsbuild 遍历代码时，如果遇到了对应模块的 import 语句，则会对其进行转换。
+
+### libraryDirectory
+
+- **类型：** `string`
+- **默认值：** `'lib'`
+
+用于拼接转换后的路径，拼接规则为 `${libraryName}/${libraryDirectory}/${member}`，其中 member 为引入成员。
+
+示例：
+
+```ts
+import { Button } from 'foo';
+```
+
+转换结果:
+
+```ts
+import Button from 'foo/lib/button';
+```
+
+### style
+
+- **类型：** `string | boolean`
+- **默认值：** `undefined`
+
+确定是否需要引入相关样式：
+
+- `true`：引入 `${libraryName}/${libraryDirectory}/${member}/style`。
+- `'css'`：引入 `${libraryName}/${libraryDirectory}/${member}/style/css`。
+- `false` 或 `undefined`：不引入样式。
+
+当配置为 `true` 时：
+
+```ts
+import { Button } from 'foo';
+```
+
+转换结果:
+
+```ts
+import Button from 'foo/lib/button';
+import 'foo/lib/button/style';
+```
+
+当配置为 `'css'` 时：
+
+```ts
+import { Button } from 'foo';
+```
+
+转换结果:
+
+```ts
+import Button from 'foo/lib/button';
+import 'foo/lib/button/style/css';
+```
+
+如果需要自定义样式引入路径，请使用 [customStyleName](#customstylename) 或 [styleLibraryDirectory](#stylelibrarydirectory)。
+
+### styleLibraryDirectory
+
+- **类型：** `string`
+- **默认值：** `undefined`
+
+该配置用于拼接引入样式时的引入路径，若该配置被指定，则 `style` 配置项会被忽略。拼接引入路径为 `${libraryName}/${styleLibraryDirectory}/${member}`。
+
+当配置为 `styles` 时：
+
+```ts
+import { Button } from 'foo';
+```
+
+转换结果:
+
+```ts
+import Button from 'foo/lib/button';
+import 'foo/styles/button';
+```
+
+### camelToDashComponentName
+
+- **类型：** `boolean`
+- **默认值：** `true`
+
+是否需要将 camelCase 的引入转换成 kebab-case。
+
+示例：
+
+```ts
+import { ButtonGroup } from 'foo';
+```
+
+转换结果：
+
+```ts
+// 设置成 true：
+import ButtonGroup from 'foo/button-group';
+// 设置成 false：
+import ButtonGroup from 'foo/ButtonGroup';
+```
+
+### transformToDefaultImport
+
+- **类型：** `boolean`
+- **默认值：** `true`
+
+是否将导入语句转换成默认导入。
+
+示例：
+
+```ts
+import { Button } from 'foo';
+```
+
+转换结果：
+
+```ts
+// 设置成 true：
+import Button from 'foo/button';
+// 设置成 false：
+import { Button } from 'foo/button';
+```
+
+### customName
+
+- **类型：** `string`
+- **默认值：** `undefined`
+
+自定义转换后的导入路径。
+
+比如下面的配置，会将 `import { foo } from 'my-lib'` 转换为 `import foo from 'my-lib/foo'`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: [
+      {
+        libraryName: 'my-lib',
+        customName: `my-lib/{{ member }}`,
+      },
+    ],
+  },
+};
+```
+
+此外，你还可以声明转换后的路径格式，例如设置为 `my-lib/{{ camelCase member }}`，来将 member 转换成驼峰格式。
+
+支持以下格式：
+
+- `kebabCase`：字母小写，单词之间使用连字符连接。例如：`my-variable-name`。
+- `snakeCase`：字母小写，单词之间使用下划线连接。例如：`my_variable_name`。
+- `camelCase`：首字母小写，随后每个单词的首字母大写。例如：`myVariableName`。
+- `upperCase`：字母大写，其他字符不变。例如：`MY-VARIABLE-NAME`。
+- `lowerCase`：字母小写，其他字符不变。例如：`my-variable-name`。
+
+### customStyleName
+
+- **类型：** `string`
+- **默认值：** `undefined`
+
+自定义转换后的样式导入路径，用法与 `customName` 一致。
+
+### ignoreEsComponent
+
+- **类型：** `string[]`
+- **默认值：** `undefined`
+
+指定不需要转换为子路径导入的导入项。数组中的值需要与原始 import 语句中的导入名称一致。
+
+例如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: [
+      {
+        libraryName: 'foo',
+        libraryDirectory: 'lib',
+        style: true,
+        ignoreEsComponent: ['Icon'],
+      },
+    ],
+  },
+};
+```
+
+源代码如下：
+
+```js
+import { Button, Icon } from 'foo';
+```
+
+会被转换成：
+
+```js
+import Button from 'foo/lib/button';
+import 'foo/lib/button/style';
+import { Icon } from 'foo';
+```
+
+### ignoreStyleComponent
+
+- **类型：** `string[]`
+- **默认值：** `undefined`
+
+指定不需要引入相关样式的导入项。对应的 JavaScript 导入路径仍然会被转换。数组中的值需要与原始 import 语句中的导入名称一致。
+
+例如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: [
+      {
+        libraryName: 'foo',
+        libraryDirectory: 'lib',
+        style: true,
+        ignoreStyleComponent: ['Button'],
+      },
+    ],
+  },
+};
+```
+
+源代码如下：
+
+```js
+import { Button, Alert } from 'foo';
+```
+
+会被转换成：
+
+```js
+import Button from 'foo/lib/button';
+import Alert from 'foo/lib/alert';
+import 'foo/lib/alert/style';
+```
+
+## Function 类型
+
+`transformImport` 的值定义为函数时，可以接受原本的 transformImport 配置，并对其进行修改。
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: (imports) => {
+      return imports.filter((data) => data.libraryName !== 'antd');
+    },
+  },
+};
+```
+
+也可以在函数中返回一个新数组作为最终结果，新数组会覆盖原本的 transformImport 配置。
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: () => {
+      return [
+        {
+          libraryName: 'antd',
+          libraryDirectory: 'es',
+          style: 'css',
+        },
+      ];
+    },
+  },
+};
+```

@@ -1,0 +1,66 @@
+<div class="p-2">
+  <table>
+    <thead>
+      @for (headerGroup of table.getHeaderGroups(); track headerGroup.id) {
+        <tr>
+          @for (header of headerGroup.headers; track header.id) {
+            @if (!header.isPlaceholder) {
+              <th>
+                <ng-container
+                  *flexRender="
+                    header.column.columnDef.header;
+                    props: header.getContext();
+                    let header
+                  "
+                >
+                  <div [innerHTML]="header"></div>
+                </ng-container>
+              </th>
+            }
+          }
+        </tr>
+      }
+    </thead>
+    <tbody>
+      @for (row of table.getRowModel().rows; track row.id) {
+        <tr>
+          @for (cell of row.getVisibleCells(); track cell.id) {
+            <td>
+              <ng-container
+                *flexRender="
+                  cell.column.columnDef.cell;
+                  props: cell.getContext();
+                  let cell
+                "
+              >
+                <div [innerHTML]="cell"></div>
+              </ng-container>
+            </td>
+          }
+        </tr>
+      }
+    </tbody>
+    <tfoot>
+      @for (footerGroup of table.getFooterGroups(); track footerGroup.id) {
+        <tr>
+          @for (footer of footerGroup.headers; track footer.id) {
+            <th>
+              <ng-container
+                *flexRender="
+                  footer.column.columnDef.footer;
+                  props: footer.getContext();
+                  let footer
+                "
+              >
+                {{ footer }}
+              </ng-container>
+            </th>
+          }
+        </tr>
+      }
+    </tfoot>
+  </table>
+
+  <div class="h-4"></div>
+  <button (click)="rerender()" class="border p-2">Rerender</button>
+</div>

@@ -1,0 +1,82 @@
+# Setup taken from https://codspeed.io/docs/benchmarks/nodejs/vitest
+name: Benchmarks
+
+on:
+  push:
+    # Broad on purpose: CodSpeed compares each PR against the run on its
+    # merge-base commit. Skipping main pushes that don't touch packages/**
+    # (pnpm config, CI, root tooling) leaves those commits without a baseline
+    # run, and CodSpeed silently falls back to an older, possibly outlier run —
+    # which then flags phantom regressions on every PR until the next eligible
+    # push. Only paths that cannot affect benchmark results are excluded.
+    branches:
+      - 'main'
+    paths-ignore:
+      - 'docs/**'
+      - 'examples/**'
+      - 'e2e/**'
+  pull_request:
+    paths:
+      - 'packages/**'
+      - 'benchmarks/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read # required for actions/checkout
+  id-token: write # required for OIDC authentication with CodSpeed
+
+env:
+  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+  SERVER_PRESET: 'node-server'
+  NX_NO_CLOUD: true
+
+jobs:
+  benchmarks:
+    name: Run ${{ matrix.benchmark }}:${{ matrix.framework }} CodSpeed benchmark
+    strategy:
+      fail-fast: false
+      matrix:
+        framework:
+          - react
+          - solid
+          - vue
+        benchmark:
+          - client-nav
+          - ssr
+          - memory-server
+          - memory-client
+        include:
+          - benchmark: client-nav
+            mode: simulation
+          - benchmark: ssr
+            mode: simulation
+          - benchmark: memory-server
+            mode: memory
+          - benchmark: memory-client
+            mode: memory
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Tools
+        uses: TanStack/config/.github/setup@e4b48f16568324f76f467aa4c2aac2f05db632c3 # main
+
+      # Run the build outside of the CodSpeed action to avoid being slowed by intrumentation overhead.
+      # (and then run the task itself with --excludeTaskDependencies)
+      - name: Prepare ${{ matrix.benchmark }}:${{ matrix.framework }} benchmark
+        run: >-
+          pnpm nx run
+          @benchmarks/${{ matrix.benchmark }}:build:${{ matrix.framework }}
+
+      - name: Run ${{ matrix.benchmark }}:${{ matrix.framework }} CodSpeed benchmark
+        uses: CodSpeedHQ/action@9d332c4d90b43981c3e55ae8e38e68709996240f # v4.17.0
+        with:
+          mode: ${{ matrix.mode }}
+          run: >-
+            WITH_INSTRUMENTATION=1
+            pnpm nx run
+            @benchmarks/${{ matrix.benchmark }}:test:perf:${{ matrix.framework }}
+            --excludeTaskDependencies

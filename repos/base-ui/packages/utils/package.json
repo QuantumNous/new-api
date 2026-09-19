@@ -1,0 +1,61 @@
+{
+  "name": "@base-ui/utils",
+  "version": "0.3.1",
+  "author": "MUI Team",
+  "description": "A collection of React utility functions for Base UI.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mui/base-ui.git",
+    "directory": "packages/utils"
+  },
+  "exports": {
+    "./store": "./src/store/index.ts",
+    "./platform": "./src/platform/index.ts",
+    "./*": "./src/*.ts",
+    "./*.test": null,
+    "./*.spec": null
+  },
+  "imports": {
+    "#formatErrorMessage": "./src/formatErrorMessage.ts"
+  },
+  "scripts": {
+    "prebuild": "rimraf --glob build build-tests \"*.tsbuildinfo\"",
+    "build": "code-infra build --flat --copy .npmignore --tsgo",
+    "test:package": "publint --pack pnpm run ./build && attw --pack ./build --exclude-entrypoints package.json",
+    "release": "pnpm build && pnpm publish",
+    "test": "cross-env VITEST_ENV=jsdom vitest",
+    "typescript": "tsgo -b tsconfig.json"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.29.2",
+    "@floating-ui/utils": "^0.2.11",
+    "reselect": "^5.2.0",
+    "use-sync-external-store": "^1.6.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@types/use-sync-external-store": "1.5.0",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
+    "typescript": "6.0.3"
+  },
+  "peerDependencies": {
+    "@types/react": "^17 || ^18 || ^19",
+    "react": "^17 || ^18 || ^19",
+    "react-dom": "^17 || ^18 || ^19"
+  },
+  "peerDependenciesMeta": {
+    "@types/react": {
+      "optional": true
+    }
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "directory": "build"
+  }
+}

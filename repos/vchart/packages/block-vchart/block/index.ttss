@@ -1,0 +1,30 @@
+.content {
+  display: flex;
+  flex-direction: column;
+  overflow-y: scroll;
+}
+
+
+/* chart */
+.vchart {
+  position: relative;
+  width: 100%;
+  margin: 12px 8px;
+  height: 400px;
+  display: block;
+}
+
+.cs-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.cs-tooltip-canvas {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}

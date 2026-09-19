@@ -1,0 +1,2 @@
+# Let GitHub languages ignores MDX files
+*.mdx linguist-documentation

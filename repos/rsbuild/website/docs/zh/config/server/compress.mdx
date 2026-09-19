@@ -1,0 +1,85 @@
+---
+description: '配置开发和预览服务器是否对静态资源启用 gzip 压缩。'
+---
+
+# server.compress
+
+- **类型：**
+
+```ts
+type Compress =
+  | boolean
+  | {
+      filter?: (req: IncomingMessage, res: ServerResponse) => boolean;
+      level?: number;
+    };
+```
+
+- **默认值：** `true`
+
+配置开发和预览服务器是否对静态资源启用 [gzip 压缩](https://developer.mozilla.org/en-US/docs/Glossary/gzip_compression)。
+
+## 禁用压缩
+
+如果你需要禁用 gzip 压缩，可以将 `compress` 设置为 `false`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    compress: false,
+  },
+};
+```
+
+## 选项
+
+### filter
+
+- **类型：** `(req: IncomingMessage, res: ServerResponse) => boolean`
+- **默认值：** `undefined`
+- **版本：** `>= v1.4.4`
+
+一个过滤函数，用于决定 response 是否需要被压缩。
+
+返回 `true` 表示需要压缩该 response，返回 `false` 表示跳过压缩。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    compress: {
+      filter: (req) => {
+        if (req.url?.includes('/foo')) {
+          return false;
+        }
+        return true;
+      },
+    },
+  },
+};
+```
+
+### level
+
+- **类型：** `number`
+- **默认值：**
+  - 开发服务器：`1` (zlib.constants.Z_BEST_SPEED)
+  - 预览服务器：`6` (zlib.constants.Z_DEFAULT_COMPRESSION)
+- **版本：** `>= v1.4.4`
+
+用于设置应用于响应的 zlib 压缩级别。更高的级别会产生更好的压缩效果，但需要更长时间完成；更低的级别压缩效果较差，但速度更快。该值是一个范围在 0（无压缩）到 9（最大压缩）之间的整数。
+
+Rsbuild 的开发服务器默认采用 [zlib.constants.Z_BEST_SPEED](https://nodejs.org/api/zlib.html#constants) 作为压缩级别，这提供了最佳的压缩性能；预览服务器默认将 `level` 设置为 [zlib.constants.Z_DEFAULT_COMPRESSION](https://nodejs.org/api/zlib.html#constants)。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    compress: {
+      level: 6,
+    },
+  },
+};
+```
+
+:::tip
+在实际生产环境中，通常会使用 Nginx 或 Apache 等 Web 服务器，它们可能使用不同的压缩级别，因此你可能会发现本地环境中使用 gzip 压缩后的文件大小与生产环境存在差异。
+:::

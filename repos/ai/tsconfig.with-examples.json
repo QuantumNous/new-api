@@ -1,0 +1,80 @@
+{
+  "compilerOptions": {
+    "composite": true
+  },
+  "references": [
+    {
+      "path": "./"
+    },
+    {
+      "path": "examples/ai-e2e-next"
+    },
+    {
+      "path": "examples/ai-functions"
+    },
+    {
+      "path": "examples/angular"
+    },
+    {
+      "path": "examples/express"
+    },
+    {
+      "path": "examples/fastify"
+    },
+    {
+      "path": "examples/harness-e2e-next"
+    },
+    {
+      "path": "examples/harness-e2e-tui"
+    },
+    {
+      "path": "examples/hono"
+    },
+    {
+      "path": "examples/mcp"
+    },
+    {
+      "path": "examples/nest"
+    },
+    {
+      "path": "examples/next-agent"
+    },
+    {
+      "path": "examples/next-fastapi"
+    },
+    {
+      "path": "examples/next-google-vertex"
+    },
+    {
+      "path": "examples/next-langchain"
+    },
+    {
+      "path": "examples/next-openai-kasada-bot-protection"
+    },
+    {
+      "path": "examples/next-openai-pages"
+    },
+    {
+      "path": "examples/next-openai-telemetry-sentry"
+    },
+    {
+      "path": "examples/next-openai-telemetry"
+    },
+    {
+      "path": "examples/next-openai-upstash-rate-limits"
+    },
+    {
+      "path": "examples/next-workflow"
+    },
+    {
+      "path": "examples/next"
+    },
+    {
+      "path": "examples/node-http-server"
+    },
+    {
+      "path": "examples/nuxt-openai"
+    }
+  ],
+  "include": []
+}

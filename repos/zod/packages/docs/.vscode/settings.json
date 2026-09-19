@@ -1,0 +1,15 @@
+{
+  "editor.defaultFormatter": "biomejs.biome",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports.biome": "explicit",
+    "source.fixAll": "always",
+    "quickfix.biome": "explicit"
+  },
+  "editor.wordWrap": "wordWrapColumn",
+  "editor.wordWrapColumn": 120,
+  "[mdx]": {
+    "editor.defaultFormatter": "unifiedjs.vscode-mdx",
+    "editor.formatOnSave": true
+  }
+}

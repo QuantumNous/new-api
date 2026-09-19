@@ -1,0 +1,12 @@
+A callback function that is triggered after the Rspack Compiler instance has been created, but before the build process. This hook is called when you run `rsbuild.startDevServer`, `rsbuild.build`, or `rsbuild.createCompiler`.
+
+You can access the [Compiler instance](https://rspack.rs/api/javascript-api/compiler) through the `compiler` parameter:
+
+- **Type:**
+
+```ts
+function OnAfterCreateCompiler(callback: (params: {
+  compiler: Compiler | MultiCompiler;
+  environments: Record<string, EnvironmentContext>;
+}) => Promise<void> | void;): void;
+```

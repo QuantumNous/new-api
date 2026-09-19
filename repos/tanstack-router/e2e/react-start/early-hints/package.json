@@ -1,0 +1,35 @@
+{
+  "name": "tanstack-react-start-e2e-early-hints",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "dev:e2e": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "gen-certs": "node --import tsx tests/gen-certs.ts",
+    "start": "pnpm gen-certs && srvx --prod --tls --cert=tests/.tmp/tls/server.crt --key=tests/.tmp/tls/server.key -s ../client dist/server/server.js",
+    "test:e2e": "rm -rf port*.txt; playwright test --project=chromium"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "workspace:^",
+    "@tanstack/react-start": "workspace:^",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.1",
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "@types/node": "^22.10.2",
+    "@types/node-forge": "^1.3.14",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "node-forge": "^1.3.1",
+    "srvx": "0.11.15",
+    "tsx": "4.20.3",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14"
+  }
+}
