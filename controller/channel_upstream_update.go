@@ -454,26 +454,32 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	}
 
 	if channel.Type == constant.ChannelTypeTypeSafe {
-		var result struct {
+		var typeSafeResult struct {
 			Models []struct {
 				Name string `json:"name"`
 			} `json:"models"`
 		}
-		if err := common.Unmarshal(body, &result); err != nil {
+		typeSafeErr := common.Unmarshal(body, &typeSafeResult)
+		if typeSafeErr == nil && len(typeSafeResult.Models) > 0 {
+			ids := make([]string, 0, len(typeSafeResult.Models))
+			for _, item := range typeSafeResult.Models {
+				name := strings.TrimSpace(item.Name)
+				if name == "" {
+					return nil, errors.New("invalid TypeSafe model name")
+				}
+				ids = append(ids, name)
+			}
+			return normalizeModelNames(ids), nil
+		}
+		// TypeSafe format absent; fall through to OpenAI Models format for OpenRouter.
+		ids, openRouterErr := parseOpenAIModelIDs(body)
+		if openRouterErr == nil {
+			return ids, nil
+		}
+		if typeSafeErr != nil {
 			return nil, errors.New("invalid TypeSafe model list")
 		}
-		if len(result.Models) == 0 {
-			return nil, errors.New("empty TypeSafe model list")
-		}
-		ids := make([]string, 0, len(result.Models))
-		for _, item := range result.Models {
-			name := strings.TrimSpace(item.Name)
-			if name == "" {
-				return nil, errors.New("invalid TypeSafe model name")
-			}
-			ids = append(ids, name)
-		}
-		return normalizeModelNames(ids), nil
+		return nil, errors.New("empty TypeSafe model list")
 	}
 
 	var result OpenAIModelsResponse

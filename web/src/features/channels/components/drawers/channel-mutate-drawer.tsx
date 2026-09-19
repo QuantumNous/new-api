@@ -142,6 +142,7 @@ import {
   CHANNEL_TYPE_OLLAMA,
   CHANNEL_TYPE_OPTIONS,
   CHANNEL_TYPE_TASK_PLUGIN,
+  CHANNEL_TYPE_TYPESAFE,
   CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
   CHANNEL_TYPE_WARNINGS,
@@ -2144,6 +2145,32 @@ export function ChannelMutateDrawer({
           </FormItem>
         )
       }}
+    />
+  )
+
+  const decisionsUpstreamPathFields = (
+    <FormField
+      control={form.control}
+      name='decisions_upstream_path'
+      render={({ field }) => (
+        <FormItem>
+          <FormLabel>{t('Decisions upstream path')}</FormLabel>
+          <FormControl>
+            <Input
+              {...field}
+              value={field.value || ''}
+              disabled={sensitiveLocked}
+              placeholder='/v1/systemone'
+            />
+          </FormControl>
+          <FormDescription>
+            {t(
+              'Override the upstream decisions endpoint path. Leave empty for TypeSafe (/v1/systemone). Set /alpha/decisions when the base URL is OpenRouter (https://openrouter.ai/api).'
+            )}
+          </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
     />
   )
 
@@ -4650,6 +4677,8 @@ export function ChannelMutateDrawer({
                 {proxyFields}
                 {httpProtocolFields}
                 {httpShardsFields}
+                {currentType === CHANNEL_TYPE_TYPESAFE &&
+                  decisionsUpstreamPathFields}
               </fieldset>
             </div>
             {upstreamModelDetectionFields}

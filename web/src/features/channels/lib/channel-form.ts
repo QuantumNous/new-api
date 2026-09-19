@@ -23,6 +23,7 @@ import {
   CHANNEL_TYPE_NEW_API,
   CHANNEL_TYPE_OLLAMA,
   CHANNEL_TYPE_TASK_PLUGIN,
+  CHANNEL_TYPE_TYPESAFE,
   CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
   CHANNEL_STATUS,
@@ -270,6 +271,7 @@ export const channelFormSchema = z
     responses_websocket_enabled: z.boolean().optional(),
     system_prompt: z.string().optional(),
     system_prompt_override: z.boolean().optional(),
+    decisions_upstream_path: z.string().optional(),
     // Type-specific settings (stored in settings JSON)
     is_enterprise_account: z.boolean().optional(), // OpenRouter specific
     vertex_key_type: z.enum(['json', 'api_key']).optional(), // Vertex AI specific
@@ -460,6 +462,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   responses_websocket_enabled: false,
   system_prompt: '',
   system_prompt_override: false,
+  decisions_upstream_path: '',
   // Type-specific settings
   is_enterprise_account: false,
   vertex_key_type: 'json',
@@ -503,6 +506,7 @@ export function transformChannelToFormDefaults(
     responses_websocket_enabled: false,
     system_prompt: '',
     system_prompt_override: false,
+    decisions_upstream_path: '',
   }
 
   if (channel.setting) {
@@ -524,6 +528,10 @@ export function transformChannelToFormDefaults(
           parsed.responses_websocket_enabled === true,
         system_prompt: parsed.system_prompt || '',
         system_prompt_override: parsed.system_prompt_override || false,
+        decisions_upstream_path:
+          typeof parsed.decisions_upstream_path === 'string'
+            ? parsed.decisions_upstream_path
+            : '',
       }
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -653,6 +661,11 @@ export function buildSettingJSON(formData: ChannelFormValues): string {
       formData.responses_websocket_enabled === true,
     system_prompt: formData.system_prompt || '',
     system_prompt_override: formData.system_prompt_override || false,
+    decisions_upstream_path:
+      formData.type === CHANNEL_TYPE_TYPESAFE &&
+      formData.decisions_upstream_path?.trim()
+        ? formData.decisions_upstream_path.trim()
+        : '',
   }
 
   const protocol = normalizeHttpProtocol(formData.http_protocol)

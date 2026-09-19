@@ -35,8 +35,10 @@ func TestJevRelay(t *testing.T) {
 		upstreamStatus, expectedStatus, charge          int
 		expired, restricted, disabled, passthrough      bool
 		wantUpstream                                    bool
+		upstreamPath                                    string
 	}{
 		{name: "three primitives and zero noul", wantUpstream: true, charge: 21},
+		{name: "OpenRouter upstream path override", upstreamPath: "/api/alpha/decisions", wantUpstream: true, charge: 21},
 		{name: "upstream path is not a gateway endpoint", path: "/v1/systemone", expectedStatus: 404},
 		{name: "string state", request: strings.Replace(jevRequest, `{"ticket":"Payment failed. Help today."}`, `"Payment failed"`, 1), wantUpstream: true, charge: 21},
 		{name: "array state", request: strings.Replace(jevRequest, `{"ticket":"Payment failed. Help today."}`, `["Payment failed"]`, 1), wantUpstream: true, charge: 21},
@@ -103,9 +105,13 @@ func TestJevRelay(t *testing.T) {
 			}
 			var calls atomic.Int32
 			var reserved atomic.Int64
+			expectedPath := tc.upstreamPath
+			if expectedPath == "" {
+				expectedPath = "/v1/systemone"
+			}
 			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				calls.Add(1)
-				assert.Equal(t, "/v1/systemone", r.URL.Path)
+				assert.Equal(t, expectedPath, r.URL.Path)
 				assert.Equal(t, "Bearer upstream-test-key", r.Header.Get("Authorization"))
 				assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 				var received dto.DecisionsRequest
@@ -129,7 +135,7 @@ func TestJevRelay(t *testing.T) {
 				_, _ = io.WriteString(w, response)
 			}))
 			t.Cleanup(upstream.Close)
-			channel := createJevChannel(t, upstream.URL, "upstream-test-key", tc.passthrough)
+			channel := createJevChannel(t, upstream.URL, "upstream-test-key", tc.passthrough, tc.upstreamPath)
 			engine := gin.New()
 			SetRelayRouter(engine)
 			body := tc.request
@@ -217,11 +223,11 @@ func setupJevRelayTest(t *testing.T) (*model.User, *model.Token) {
 
 // createJevChannel registers an enabled TypeSafe test channel with a model alias
 // and routing ability in the fixture database.
-func createJevChannel(t *testing.T, baseURL, key string, passthrough bool) *model.Channel {
+func createJevChannel(t *testing.T, baseURL, key string, passthrough bool, upstreamPath string) *model.Channel {
 	t.Helper()
 	mapping := `{"jev-latest":"jev-1.13.0"}`
 	channel := &model.Channel{Name: "jev-test", Type: constant.ChannelTypeTypeSafe, Key: key, Status: common.ChannelStatusEnabled, Models: "jev-latest", Group: "default", BaseURL: &baseURL, ModelMapping: &mapping}
-	channel.SetSetting(dto.ChannelSettings{PassThroughBodyEnabled: passthrough})
+	channel.SetSetting(dto.ChannelSettings{PassThroughBodyEnabled: passthrough, DecisionsUpstreamPath: upstreamPath})
 	require.NoError(t, model.DB.Create(channel).Error)
 	require.NoError(t, model.DB.Create(&model.Ability{ChannelId: channel.Id, Model: "jev-latest", Group: "default", Enabled: true}).Error)
 	return channel
@@ -232,9 +238,11 @@ func createJevChannel(t *testing.T, baseURL, key string, passthrough bool) *mode
 func TestJevChannelManagement(t *testing.T) {
 	cases := []struct {
 		name, models, override    string
+		expectedModels            []string
 		modelFailure, testFailure bool
 	}{
-		{name: "native discovery and test"},
+		{name: "native discovery and test", expectedModels: []string{"jev-1.13.0", "jev-latest"}},
+		{name: "OpenRouter model discovery", models: `{"data":[{"id":"~typesafe/jev-latest"},{"id":"typesafe/jev-1.13"}]}`, override: `{"questions":{"payment":{"type":"choice","instructions":"Which team?","criteria":{"billing":null,"technical":null}}}}`, expectedModels: []string{"~typesafe/jev-latest", "typesafe/jev-1.13"}},
 		{name: "missing model name", models: `{"models":[{}]}`, modelFailure: true},
 		{name: "blank model name", models: `{"models":[{"name":" "}]}`, modelFailure: true},
 		{name: "invalid model name type", models: `{"models":[{"name":7}]}`, modelFailure: true},
@@ -245,6 +253,10 @@ func TestJevChannelManagement(t *testing.T) {
 		{name: "false stream override omitted", override: `{"stream":false}`},
 	}
 	for _, tc := range cases {
+		expectedModels := tc.expectedModels
+		if len(expectedModels) == 0 && !tc.modelFailure {
+			expectedModels = []string{"jev-1.13.0", "jev-latest"}
+		}
 		t.Run(tc.name, func(t *testing.T) {
 			user, _ := setupJevRelayTest(t)
 			var evaluations atomic.Int32
@@ -280,7 +292,7 @@ func TestJevChannelManagement(t *testing.T) {
 				}
 			}))
 			t.Cleanup(upstream.Close)
-			channel := createJevChannel(t, upstream.URL, "upstream-test-key", false)
+			channel := createJevChannel(t, upstream.URL, "upstream-test-key", false, "")
 			if tc.override != "" {
 				channel.ParamOverride = &tc.override
 				require.NoError(t, model.DB.Save(channel).Error)
@@ -302,7 +314,7 @@ func TestJevChannelManagement(t *testing.T) {
 				if path == "/models/" {
 					require.Equal(t, !tc.modelFailure, result.Success, recorder.Body.String())
 					if !tc.modelFailure {
-						assert.Equal(t, []string{"jev-1.13.0", "jev-latest"}, result.Data)
+						assert.Equal(t, expectedModels, result.Data)
 					}
 				} else {
 					require.Equal(t, !tc.testFailure, result.Success, recorder.Body.String())
@@ -363,7 +375,7 @@ func TestJevLive(t *testing.T) {
 	key, err := os.ReadFile(keyPath)
 	require.NoError(t, err)
 	user, token := setupJevRelayTest(t)
-	createJevChannel(t, "https://api.typesafe.ai", strings.TrimSpace(string(key)), false)
+	createJevChannel(t, "https://api.typesafe.ai", strings.TrimSpace(string(key)), false, "")
 	engine := gin.New()
 	SetRelayRouter(engine)
 	request := httptest.NewRequest(http.MethodPost, "/v1/decisions", strings.NewReader(jevRequest))
