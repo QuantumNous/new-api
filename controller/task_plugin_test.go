@@ -106,6 +106,9 @@ func TestDisableThirdPartyPluginSupportsCascadeAndForce(t *testing.T) {
 	setting := `{"task_plugin_key":"lifecycle-only"}`
 	channel := model.Channel{Type: constant.ChannelTypeTaskPlugin, Status: common.ChannelStatusEnabled, Name: "linked", Models: "doc", Group: "default", BaseURL: &baseURL, Setting: &setting}
 	require.NoError(t, channel.Insert())
+	gatewaySetting := `{"task_extend_plugin_keys":["lifecycle-only","other"]}`
+	gateway := model.Channel{Type: constant.ChannelTypeNewAPI, Status: common.ChannelStatusEnabled, Name: "gateway", Models: "doc,gpt", Group: "default", BaseURL: &baseURL, Setting: &gatewaySetting}
+	require.NoError(t, gateway.Insert())
 	require.NoError(t, model.DB.Create(&model.Task{Platform: "lifecycle-only", Status: model.TaskStatusSubmitted}).Error)
 
 	recorder := httptest.NewRecorder()
@@ -116,9 +119,15 @@ func TestDisableThirdPartyPluginSupportsCascadeAndForce(t *testing.T) {
 	SetTaskPluginStatus(context)
 
 	assert.Contains(t, recorder.Body.String(), `"success":true`)
+	assert.Contains(t, recorder.Body.String(), `"disabled_channels":1`)
+	assert.Contains(t, recorder.Body.String(), `"unbound_channels":1`)
 	updated, err := model.GetChannelById(channel.Id, true)
 	require.NoError(t, err)
 	assert.Equal(t, common.ChannelStatusManuallyDisabled, updated.Status)
+	updatedGateway, err := model.GetChannelById(gateway.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, common.ChannelStatusEnabled, updatedGateway.Status, "a gateway channel keeps serving its other traffic")
+	assert.Equal(t, []string{"other"}, updatedGateway.GetSetting().TaskExtendPluginKeys, "only the disabled plugin is unbound")
 }
 
 // klingFactoryVersion returns the version declared in the embedded kling factory
@@ -368,6 +377,7 @@ export const meta = {
   description: {en: "Video generation via the vendor API", zh: "通过厂商接口生成视频"},
   icon: "text:UO", baseUrl: "http://localhost:9000/",
   channelTypes: [1990, 1991],
+  upstreams: ["vendor", "new_api"],
   models: ["usage-options-model"], fetchMode: "per_task",
   usageSchema: {seconds: {type: "number", unit: "second", description: "Video generation unit price"}},
   usageProfiles: [{models:["usage-options-model"],schema:{image_count:{type:"number",unit:"count"}}}]
@@ -395,6 +405,7 @@ export function parseTaskResult() { return {}; }
 			Icon          string                               `json:"icon"`
 			BaseURL       string                               `json:"baseUrl"`
 			ChannelTypes  []int                                `json:"channelTypes"`
+			Upstreams     []string                             `json:"upstreams"`
 			UsageSchema   map[string]jsplugin.UsageFieldSchema `json:"usageSchema"`
 			UsageProfiles []jsplugin.UsageProfile              `json:"usageProfiles"`
 		} `json:"data"`
@@ -413,6 +424,7 @@ export function parseTaskResult() { return {}; }
 		assert.Equal(t, "count", option.UsageProfiles[0].Schema["image_count"].Unit)
 		assert.Equal(t, "text:UO", option.Icon)
 		assert.Equal(t, []int{1990, 1991}, option.ChannelTypes)
+		assert.Equal(t, []string{"vendor", "new_api"}, option.Upstreams, "the New API channel form lists only plugins declaring new_api")
 		assert.Equal(t, "http://localhost:9000", option.BaseURL, "the drawer prefills the normalized plugin default")
 		return
 	}

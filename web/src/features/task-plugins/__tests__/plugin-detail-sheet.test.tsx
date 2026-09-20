@@ -190,6 +190,21 @@ describe('PluginDetailSheet host protocol endpoints', () => {
     expect(screen.queryByText('background')).toBeNull()
   })
 
+  test('given an openai_image string claim, both synchronous image endpoints render as submit rows without mode chips', async () => {
+    renderSheet({ protocols: ['openai_image'] })
+
+    expect(
+      await screen.findByText('/v1/images/generations')
+    ).toBeInTheDocument()
+    expect(screen.getByText('/v1/images/edits')).toBeInTheDocument()
+    expect(endpointRow('/v1/images/generations').textContent).toContain('POST')
+    expect(endpointRow('/v1/images/edits').textContent).toContain('POST')
+    expect(screen.queryByText('Retrieve result')).toBeNull()
+    expect(screen.queryByText('stream')).toBeNull()
+    expect(screen.queryByText('sync')).toBeNull()
+    expect(screen.queryByText('background')).toBeNull()
+  })
+
   test('given a claim narrowing the protocol to a model subset, the subset is marked without printing the model list', async () => {
     renderSheet({
       models: ['kling-v1', 'kling-v2-master'],

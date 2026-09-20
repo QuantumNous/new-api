@@ -97,6 +97,35 @@ function renderLogs(props: Parameters<typeof Fixture>[0] = {}) {
   )
 }
 
+it('shows model mismatch evidence when tapping the mobile model badge', async () => {
+  const user = userEvent.setup()
+  renderLogs({
+    logs: [
+      {
+        ...log,
+        other: JSON.stringify({
+          response_model: {
+            requested_model: longName,
+            upstream_model: 'mapped-model',
+            returned_model: 'unexpected-model',
+          },
+        }),
+      },
+    ],
+  })
+  await user.click(
+    screen.getByRole('button', {
+      name: `Model: ${longName}, Response model: unexpected-model`,
+    })
+  )
+  const dialog = await screen.findByRole('dialog', { name: 'Model' })
+  expect(
+    within(dialog).getByText('Response model: unexpected-model')
+  ).toBeVisible()
+  expect(within(dialog).getByText('mapped-model')).toBeVisible()
+  expect(within(dialog).getByText('unexpected-model')).toBeVisible()
+})
+
 it('opens long channel text on tap and copies the complete value', async () => {
   const user = userEvent.setup()
   const copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
@@ -121,20 +150,40 @@ it('opens long channel text on tap and copies the complete value', async () => {
   ).toHaveFocus()
 })
 
-it('keeps the model clamped to two lines and exposes its full value with keyboard input', async () => {
-  const user = userEvent.setup()
-  renderLogs()
-  const button = screen.getByRole('button', { name: `Model: ${longName}` })
-  expect(within(button).getByText(longName)).toHaveClass(
-    'line-clamp-2',
-    '[overflow-wrap:anywhere]'
-  )
-  button.focus()
-  await user.keyboard('{Enter}')
-  expect(
-    await screen.findByRole('dialog', { name: 'Model' })
-  ).toHaveTextContent(longName)
-})
+it.each([false, true])(
+  'copies the full mobile model name with the keyboard without opening details when there is no mapping or difference (response observed: %s)',
+  async (observed) => {
+    const user = userEvent.setup()
+    const copy = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
+    renderLogs({
+      logs: [
+        {
+          ...log,
+          other: observed
+            ? JSON.stringify({
+                response_model: {
+                  requested_model: longName,
+                  upstream_model: longName,
+                  returned_model: longName,
+                },
+              })
+            : log.other,
+        },
+      ],
+    })
+    const button = screen.getByRole('button', { name: `Model: ${longName}` })
+    expect(within(button).getByText(longName)).toHaveClass(
+      'line-clamp-2',
+      '[overflow-wrap:anywhere]'
+    )
+    button.focus()
+    await user.keyboard('{Enter}')
+    expect(copy).toHaveBeenCalledWith(longName)
+    expect(
+      screen.queryByRole('dialog', { name: 'Model' })
+    ).not.toBeInTheDocument()
+  }
+)
 
 it('hides sensitive names and disables full-text inspection when privacy is enabled', async () => {
   const user = userEvent.setup()
@@ -230,6 +279,21 @@ it('omits unused token and throughput placeholders for async jobs', () => {
     .getByRole('button', { name: /^Time:/ })
     .closest('[data-slot="log-time-and-timing"]')
   expect(within(timing as HTMLElement).queryByText('—')).not.toBeInTheDocument()
+})
+
+it('labels a task whose result was returned in the response as synchronous', () => {
+  renderLogs({
+    logs: [
+      {
+        ...log,
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        other: JSON.stringify({ is_task: true, task_sync: true }),
+      },
+    ],
+  })
+  expect(screen.getByText('Sync')).toBeVisible()
+  expect(screen.queryByText('Async')).not.toBeInTheDocument()
 })
 
 it('shows mapped model names in full when inspecting a mobile model badge', async () => {

@@ -9,6 +9,49 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNormalizeResponsesUsagePreservesImageCacheDetails(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		imageTokens int
+	}{
+		{name: "image cache", imageTokens: 200},
+		{name: "explicit zero image cache", imageTokens: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			imageTokens, audioTokens := tc.imageTokens, 0
+			source := &dto.Usage{
+				InputTokens:  1000,
+				OutputTokens: 100,
+				InputTokensDetails: &dto.InputTokenDetails{
+					CachedTokens:         300,
+					CachedCreationTokens: 20,
+					CacheWriteTokens:     10,
+					TextTokens:           400,
+					ImageTokens:          600,
+					CachedTokensDetails: &dto.CachedTokenDetails{
+						ImageTokens: &imageTokens,
+						AudioTokens: &audioTokens,
+					},
+				},
+			}
+
+			usage := NormalizeResponsesUsage(source)
+			assert.Equal(t, *source.InputTokensDetails, usage.PromptTokensDetails)
+			details := usage.PromptTokensDetails.CachedTokensDetails
+			require.NotNil(t, details)
+			require.NotNil(t, details.ImageTokens)
+			require.NotNil(t, details.AudioTokens)
+			assert.Nil(t, details.TextTokens, "missing modalities must remain absent")
+
+			imageTokens, audioTokens = 999, 888
+			source.InputTokensDetails.ImageTokens = 9999
+			assert.Equal(t, tc.imageTokens, *details.ImageTokens, "later source updates must not change billable image cache")
+			assert.Zero(t, *details.AudioTokens, "explicit zero must survive normalization and source mutation")
+			assert.Equal(t, 600, usage.PromptTokensDetails.ImageTokens)
+		})
+	}
+}
+
 func TestResponsesResponseToChatCompletionsPreservesTextAndToolCalls(t *testing.T) {
 	resp := &dto.OpenAIResponsesResponse{
 		ID:        "resp_1",

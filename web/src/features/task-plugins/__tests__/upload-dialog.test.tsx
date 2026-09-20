@@ -87,7 +87,9 @@ describe('UploadDialog layout', () => {
 
     const content = document.querySelector('[data-slot=dialog-content]')
     const body = content?.querySelector(':scope > div:nth-child(2)')
-    expect(content).toHaveClass('max-h-[calc(100vh-2rem)]')
+    expect(content).toHaveClass(
+      'max-h-[var(--dialog-available-height,calc(100dvh-2rem))]'
+    )
     expect(body).toHaveClass('overflow-y-auto')
   })
 

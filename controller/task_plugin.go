@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
@@ -509,6 +510,7 @@ func SetTaskPluginStatus(c *gin.Context) {
 	}
 	key := c.Param("key")
 	disabledChannels := 0
+	unboundChannels := 0
 	if !*request.Enabled {
 		channels, inFlight, usageErr := model.GetTaskPluginUsage(key)
 		if usageErr != nil {
@@ -523,9 +525,25 @@ func SetTaskPluginStatus(c *gin.Context) {
 		}
 		if cascade {
 			for _, channel := range channels {
+				if channel.Type == constant.ChannelTypeNewAPI {
+					// A gateway channel also carries ordinary traffic, so the
+					// cascade only drops this plugin from its bindings.
+					unbound, unbindErr := model.UnbindTaskPlugin(channel.Id, key)
+					if unbindErr != nil {
+						common.ApiError(c, unbindErr)
+						return
+					}
+					if unbound {
+						unboundChannels++
+					}
+					continue
+				}
 				if model.UpdateChannelStatus(channel.Id, "", common.ChannelStatusManuallyDisabled, "task plugin disabled") {
 					disabledChannels++
 				}
+			}
+			if unboundChannels > 0 {
+				model.InitChannelCache()
 			}
 		}
 	}
@@ -567,7 +585,7 @@ func SetTaskPluginStatus(c *gin.Context) {
 			return
 		}
 		if !hasActiveOverride {
-			common.ApiSuccess(c, gin.H{"plugin_enabled": *request.Enabled, "disabled_channels": disabledChannels})
+			common.ApiSuccess(c, gin.H{"plugin_enabled": *request.Enabled, "disabled_channels": disabledChannels, "unbound_channels": unboundChannels})
 			return
 		}
 	}
@@ -579,7 +597,7 @@ func SetTaskPluginStatus(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, gin.H{"plugin_enabled": *request.Enabled, "disabled_channels": disabledChannels})
+	common.ApiSuccess(c, gin.H{"plugin_enabled": *request.Enabled, "disabled_channels": disabledChannels, "unbound_channels": unboundChannels})
 }
 
 func taskPluginHasFactory(key string) bool {
@@ -669,6 +687,7 @@ func GetTaskPluginOptions(c *gin.Context) {
 				"website":       meta.Website,
 				"models":        meta.Models,
 				"channelTypes":  meta.ChannelTypes,
+				"upstreams":     meta.Upstreams,
 				"usageSchema":   meta.UsageSchema,
 				"usageProfiles": meta.UsageProfiles,
 			})

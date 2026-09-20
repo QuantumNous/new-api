@@ -120,8 +120,8 @@ test('loading keeps installation disabled and footer outside the bounded scroll 
   const dialog = screen.getByRole('dialog')
   expect(dialog).toHaveClass(
     'sm:max-w-3xl',
-    'max-h-[calc(100vh-2rem)]',
-    'overflow-hidden'
+    'max-h-[var(--dialog-available-height,calc(100dvh-2rem))]',
+    'overflow-y-auto'
   )
   const footer = dialog.querySelector('[data-slot=dialog-footer]')
   const body = [...dialog.children].find((element) =>
@@ -504,7 +504,7 @@ test('a late response for the previous version cannot replace the selected sourc
   })
   const { reopen } = renderDialog(false, undefined, true)
   const selector = screen.getByRole('combobox', { name: 'Select version' })
-  selector.focus()
+  await user.click(selector)
   await user.keyboard('1.0{ArrowDown}{Enter}')
   await waitFor(() =>
     expect(

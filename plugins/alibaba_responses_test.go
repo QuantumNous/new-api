@@ -42,7 +42,7 @@ func TestAlibabaResponsesProtocol(t *testing.T) {
 	})
 
 	t.Run("selects image and video usage profiles for every declared model", func(t *testing.T) {
-		require.Len(t, plugin.Meta.UsageProfiles, 2)
+		require.Len(t, plugin.Meta.UsageProfiles, 9)
 		covered := make(map[string]bool)
 		for _, profile := range plugin.Meta.UsageProfiles {
 			for _, name := range profile.Models {
@@ -54,13 +54,30 @@ func TestAlibabaResponsesProtocol(t *testing.T) {
 			require.True(t, covered[name], name)
 			schema, examples := plugin.Meta.UsageForModel(name)
 			assert.Empty(t, examples)
-			isImage := strings.Contains(name, "-image") || strings.Contains(name, "-t2i")
-			if isImage {
+			isImage := strings.Contains(name, "-image") || strings.Contains(name, "-t2i") || strings.Contains(name, "-i2i")
+			switch {
+			case strings.HasPrefix(name, "qwen-image-3.0"):
+				assert.ElementsMatch(t, []string{"image_count", "output_image_type", "input_image_count"}, keysOf(schema), name)
+				assert.Equal(t, plugin.Meta.UsageSchema["image_count"], schema["image_count"], name)
+				assert.Equal(t, []string{"qima_output_1k", "qima_output_2k"}, schema["output_image_type"].Enum, name)
+			case name == "z-image-turbo":
+				assert.ElementsMatch(t, []string{"image_count", "prompt_extend"}, keysOf(schema), name)
+				assert.Equal(t, "boolean", schema["prompt_extend"].Type, name)
+			case isImage:
 				assert.Equal(t, map[string]jsplugin.UsageFieldSchema{"image_count": plugin.Meta.UsageSchema["image_count"]}, schema, name)
-			} else {
-				assert.Equal(t, map[string]jsplugin.UsageFieldSchema{
-					"seconds": plugin.Meta.UsageSchema["seconds"], "resolution": plugin.Meta.UsageSchema["resolution"],
-				}, schema, name)
+			case name == "wan2.6-i2v-flash":
+				assert.ElementsMatch(t, []string{"seconds", "resolution", "audio"}, keysOf(schema), name)
+				assert.Equal(t, plugin.Meta.UsageSchema["seconds"], schema["seconds"], name)
+				assert.Equal(t, []string{"720P", "1080P"}, schema["resolution"].Enum, name)
+				assert.Equal(t, "boolean", schema["audio"].Type, name)
+			default:
+				assert.ElementsMatch(t, []string{"seconds", "resolution"}, keysOf(schema), name)
+				assert.Equal(t, plugin.Meta.UsageSchema["seconds"], schema["seconds"], name)
+				assert.Subset(t, plugin.Meta.UsageSchema["resolution"].Enum, schema["resolution"].Enum, name)
+			}
+			for key, field := range schema {
+				assert.NotEmpty(t, field.Description["en"], name+" "+key)
+				assert.NotEmpty(t, field.Description["zh"], name+" "+key)
 			}
 		}
 	})
@@ -378,7 +395,14 @@ func TestAlibabaWanModelCapabilities(t *testing.T) {
 			request := alibabaObject(t, value)["requestBody"].(map[string]any)
 			body, facts, url := submitAlibabaRequest(t, plugin, tc.model, request)
 			assert.Equal(t, "https://dashscope.aliyuncs.com/api/v1/services/aigc/"+tc.service+"/video-synthesis", url)
-			assert.Equal(t, map[string]any{"seconds": tc.seconds, "resolution": tc.resolution}, facts)
+			// The pricing table lists exactly the resolutions the model accepts.
+			schema, _ := plugin.Meta.UsageForModel(tc.model)
+			assert.Equal(t, tc.allowed, schema["resolution"].Enum)
+			wantFacts := map[string]any{"seconds": tc.seconds, "resolution": tc.resolution}
+			if tc.model == "wan2.6-i2v-flash" {
+				wantFacts["audio"] = true // priced separately for silent output; defaults to audio
+			}
+			assert.Equal(t, wantFacts, facts)
 			assert.Equal(t, tc.input, body["input"])
 			parameters := body["parameters"].(map[string]any)
 			if tc.size != "" {
@@ -445,6 +469,36 @@ func TestAlibabaWanCompatibilityParameters(t *testing.T) {
 			assert.Equal(t, tc.parameters, parameters)
 		})
 	}
+}
+
+func TestAlibabaWanFlashAudioFact(t *testing.T) {
+	plugin := newAlibabaPlugin(t)
+	for _, tc := range []struct {
+		name    string
+		request map[string]any
+		audio   bool
+	}{
+		{"audio defaults to true", map[string]any{}, true},
+		{"explicit audio", map[string]any{"audio": true}, true},
+		{"silent output", map[string]any{"audio": false}, false},
+		{"native parameters win", map[string]any{"audio": true, "metadata": map[string]any{"parameters": map[string]any{"audio": false}}}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			request := map[string]any{"model": "wan2.6-i2v-flash", "prompt": "a cat", "image": "https://cdn.example/first.png", "resolution": "720P", "duration": float64(5)}
+			maps.Copy(request, tc.request)
+			body, facts, _ := submitAlibabaRequest(t, plugin, "wan2.6-i2v-flash", request)
+			assert.Equal(t, map[string]any{"seconds": float64(5), "resolution": "720P", "audio": tc.audio}, facts)
+			parameters := body["parameters"].(map[string]any)
+			if _, explicit := tc.request["audio"]; explicit || tc.request["metadata"] != nil {
+				assert.Equal(t, tc.audio, parameters["audio"])
+			} else {
+				assert.NotContains(t, parameters, "audio")
+			}
+		})
+	}
+	// Other Wan models keep their two-fact schema even when a client sends audio.
+	_, facts, _ := submitAlibabaRequest(t, plugin, "wan2.6-i2v", map[string]any{"model": "wan2.6-i2v", "prompt": "a cat", "image": "https://cdn.example/first.png", "audio": false, "duration": float64(5)})
+	assert.Equal(t, map[string]any{"seconds": float64(5), "resolution": "1080P"}, facts)
 }
 
 func TestAlibabaWanEntrypointsPreserveOptions(t *testing.T) {
@@ -611,6 +665,9 @@ func TestAlibabaWanCompletionFactsAndArtifacts(t *testing.T) {
 		{"Wan3 without reference video", "wan3.0-video-prime", map[string]any{"input_video_duration": 0, "output_video_duration": 8, "SR": 1080}, map[string]any{"seconds": float64(8), "resolution": "1080P"}},
 		{"Wan3 missing input duration preserves reserved seconds", "wan3.0-video", map[string]any{"output_video_duration": 6, "SR": 720}, map[string]any{"resolution": "720P"}},
 		{"2.7 continuation uses total duration", "wan2.7-i2v", map[string]any{"duration": 15, "output_video_duration": 12, "SR": 1080}, map[string]any{"seconds": float64(15), "resolution": "1080P"}},
+		{"flash silent output settles as silent", "wan2.6-i2v-flash", map[string]any{"duration": 5, "SR": 720, "audio": false}, map[string]any{"seconds": float64(5), "resolution": "720P", "audio": false}},
+		{"flash without audio flag keeps the estimate", "wan2.6-i2v-flash", map[string]any{"duration": 5, "SR": 1080}, map[string]any{"seconds": float64(5), "resolution": "1080P"}},
+		{"audio flag is ignored for models priced without it", "wan2.6-i2v", map[string]any{"duration": 5, "SR": 1080, "audio": false}, map[string]any{"seconds": float64(5), "resolution": "1080P"}},
 		{"missing usage keeps reservation", "wan2.7-t2v", map[string]any{}, nil},
 		{"oversized duration rejected by host", "wan2.2-s2v", map[string]any{"duration": 1e30, "SR": 480}, nil},
 		{"negative input cannot reduce Wan3 charge", "wan3.0-video", map[string]any{"input_video_duration": -5, "output_video_duration": 10}, nil},
@@ -746,7 +803,7 @@ func TestAlibabaImageValidation(t *testing.T) {
 		{"upstream SSE", "wan2.6-image", map[string]any{"metadata": map[string]any{"parameters": map[string]any{"stream": true}}}, "upstream streaming requires"},
 		{"legacy synchronous", "wan2.2-t2i-flash", map[string]any{"metadata": map[string]any{"upstream_mode": "sync"}}, "only supports asynchronous"},
 		{"edit without reference", "wan2.6-image", nil, "requires a reference image"},
-		{"t2i with reference", "wan2.6-t2i", map[string]any{"image": "https://cdn.example/input.png"}, "too many input images"},
+		{"t2i with reference", "wan2.6-t2i", map[string]any{"image": "https://cdn.example/input.png"}, "only supports text-to-image input"},
 		{"invalid 4K", "wan2.7-image", map[string]any{"size": "4K"}, "4K is only supported"},
 		{"oversized pixel dimensions", "wan2.7-image", map[string]any{"size": "999999999999*999999999999"}, "pixel and aspect-ratio limits"},
 		{"4K group dimensions", "wan2.7-image-pro", map[string]any{"size": "4096*4096", "enable_sequential": true}, "pixel and aspect-ratio limits"},
@@ -974,4 +1031,356 @@ func TestAlibabaSynchronousMultiImageAndStream(t *testing.T) {
 			assert.False(t, c.Writer.Written())
 		})
 	}
+}
+
+// The OpenAI Images protocol claims every declared image model on both image
+// endpoints; chat and video models keep the built-in relay.
+func TestAlibabaOpenAIImageProtocolBindings(t *testing.T) {
+	source, err := builtinplugins.Source("alibaba")
+	require.NoError(t, err)
+	registry := jsplugin.NewRegistry()
+	plugin, err := registry.RegisterFactory(source, jsplugin.Options{Key: "alibaba"})
+	require.NoError(t, err)
+	for _, name := range []string{"qwen-image-3.0-pro", "qwen-image-plus", "qwen-image-edit-plus", "z-image-turbo", "wan2.6-t2i", "wan2.2-t2i-flash", "wan2.5-i2i-preview", "wanx2.1-imageedit", "qwen-image-edit-max-2026-01-16"} {
+		for _, path := range []string{"/v1/images/generations", "/v1/images/edits"} {
+			binding, found := registry.Generation().LookupEndpoint(http.MethodPost, path, name)
+			require.True(t, found, name+" "+path)
+			assert.Same(t, plugin, binding.Plugin)
+			assert.Equal(t, "openai_image", binding.Protocol)
+		}
+		_, found := registry.Generation().LookupEndpoint(http.MethodPost, "/v1/videos", name)
+		assert.False(t, found, name)
+	}
+	for _, name := range []string{"wan2.6-t2v", "qwen-turbo"} {
+		_, found := registry.Generation().LookupEndpoint(http.MethodPost, "/v1/images/generations", name)
+		assert.False(t, found, name)
+	}
+}
+
+func decodeAlibabaImage(t *testing.T, plugin *jsplugin.LoadedPlugin, operation string, body map[string]any) (map[string]any, error) {
+	t.Helper()
+	path := "/v1/images/generations"
+	if operation == "edit" {
+		path = "/v1/images/edits"
+	}
+	value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_image", "decodeRequest"}, map[string]any{
+		"protocol": "openai_image", "operation": operation, "model": body["model"], "path": path, "method": http.MethodPost,
+		"body": map[string]any{"kind": "json", "value": body},
+	})
+	if err != nil {
+		return nil, err
+	}
+	return alibabaObject(t, value), nil
+}
+
+// OpenAI image requests map onto the DashScope services the models support,
+// reserve the requested count, and reject counts the vendor would refuse
+// before any quota is reserved.
+func TestAlibabaOpenAIImageDecodeAndSubmission(t *testing.T) {
+	plugin := newAlibabaPlugin(t)
+	const base = "https://dashscope.aliyuncs.com/api/v1/services/aigc/"
+	for _, tc := range []struct {
+		name, model, operation string
+		body                   map[string]any
+		wantService, wantAsync string
+		wantAction             string
+		wantN                  float64
+		wantFacts              map[string]any
+		wantRatios             map[string]any
+	}{
+		{"qwen-image-3.0-pro two images", "qwen-image-3.0-pro", "generate", map[string]any{"prompt": "a white siamese cat", "n": 2, "size": "1024x1024"},
+			"multimodal-generation/generation", "", "text_to_image", 2,
+			map[string]any{"image_count": float64(2), "output_image_type": "qima_output_1k", "input_image_count": float64(0)}, map[string]any{"image_count": float64(2)}},
+		{"qwen-image-3.0-pro without size reserves the 2K tier", "qwen-image-3.0", "generate", map[string]any{"prompt": "poster"},
+			"multimodal-generation/generation", "", "text_to_image", 1,
+			map[string]any{"image_count": float64(1), "output_image_type": "qima_output_2k", "input_image_count": float64(0)}, map[string]any{"image_count": float64(1)}},
+		{"fixed count model", "qwen-image-plus", "generate", map[string]any{"prompt": "a cat", "size": "1328x1328"},
+			"multimodal-generation/generation", "", "text_to_image", 1, map[string]any{"image_count": float64(1)}, map[string]any{"image_count": float64(1)}},
+		{"z-image with prompt rewriting", "z-image-turbo", "generate", map[string]any{"prompt": "a cat", "prompt_extend": true},
+			"multimodal-generation/generation", "", "text_to_image", 1,
+			map[string]any{"image_count": float64(1), "prompt_extend": true}, map[string]any{"image_count": float64(1), "prompt_extend_ratio": float64(2)}},
+		{"legacy text-to-image is asynchronous", "wan2.2-t2i-flash", "generate", map[string]any{"prompt": "a cat", "n": 2, "size": "1024x1024"},
+			"text2image/image-synthesis", "enable", "text_to_image", 2, map[string]any{"image_count": float64(2)}, map[string]any{"image_count": float64(2)}},
+		{"wan2.6 text-to-image is asynchronous by default", "wan2.6-t2i", "generate", map[string]any{"prompt": "a cat", "n": 2},
+			"image-generation/generation", "enable", "text_to_image", 2, map[string]any{"image_count": float64(2)}, map[string]any{"image_count": float64(2)}},
+		{"qwen edit with an image URL", "qwen-image-edit-plus", "edit", map[string]any{"prompt": "watercolor", "image": "https://cdn.example/input.png"},
+			"multimodal-generation/generation", "", "image_to_image", 1, map[string]any{"image_count": float64(1)}, map[string]any{"image_count": float64(1)}},
+		{"qwen-image-3.0 edit counts input images", "qwen-image-3.0-pro", "edit", map[string]any{"prompt": "watercolor", "image": []any{"https://cdn.example/1.png", "https://cdn.example/2.png"}, "size": "2048x2048"},
+			"multimodal-generation/generation", "", "image_to_image", 1,
+			map[string]any{"image_count": float64(1), "output_image_type": "qima_output_2k", "input_image_count": float64(2)}, map[string]any{"image_count": float64(1)}},
+		{"wan2.5 legacy edit is asynchronous", "wan2.5-i2i-preview", "edit", map[string]any{"prompt": "watercolor", "image": "https://cdn.example/input.png", "n": 2},
+			"image2image/image-synthesis", "enable", "image_to_image", 2, map[string]any{"image_count": float64(2)}, map[string]any{"image_count": float64(2)}},
+		{"wanx2.1 function edit is asynchronous", "wanx2.1-imageedit", "edit", map[string]any{"prompt": "make the hair red", "image": "https://cdn.example/input.png", "n": 2},
+			"image2image/image-synthesis", "enable", "image_to_image", 2, map[string]any{"image_count": float64(2)}, map[string]any{"image_count": float64(2)}},
+		{"provider parameters pass through", "qwen-image-2.0-pro", "generate", map[string]any{"prompt": "a cat", "n": 3, "parameters": map[string]any{"negative_prompt": "blurry", "watermark": false}},
+			"multimodal-generation/generation", "", "text_to_image", 3, map[string]any{"image_count": float64(3)}, map[string]any{"image_count": float64(3)}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := map[string]any{"model": tc.model}
+			maps.Copy(body, tc.body)
+			resolved, err := decodeAlibabaImage(t, plugin, tc.operation, body)
+			require.NoError(t, err)
+			assert.Equal(t, "submit", resolved["kind"])
+			assert.Equal(t, tc.model, resolved["model"])
+			assert.Equal(t, tc.wantAction, resolved["action"])
+			request := resolved["requestBody"].(map[string]any)
+			upstreamBody, facts, url := submitAlibabaRequest(t, plugin, tc.model, request)
+			assert.Equal(t, base+tc.wantService, url)
+			assert.Equal(t, tc.model, upstreamBody["model"])
+			parameters := upstreamBody["parameters"].(map[string]any)
+			assert.Equal(t, tc.wantN, parameters["n"], "the reserved count is sent explicitly")
+			if size, ok := tc.body["size"].(string); ok {
+				assert.Equal(t, strings.Replace(size, "x", "*", 1), parameters["size"])
+			}
+			if extra, ok := tc.body["parameters"].(map[string]any); ok {
+				for key, expected := range alibabaObject(t, extra) {
+					assert.Equal(t, expected, parameters[key], key)
+				}
+			}
+			assert.Equal(t, tc.wantFacts, facts)
+			value, err := plugin.Engine.Call(t.Context(), "extractUsage", map[string]any{"upstreamModel": tc.model, "model": tc.model, "usagePurpose": "billing_ratios", "requestBody": request})
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantRatios, alibabaObject(t, value))
+			value, err = plugin.Engine.Call(t.Context(), "buildSubmitRequest", map[string]any{"upstreamModel": tc.model, "requestBody": request, "baseUrl": "https://dashscope.aliyuncs.com", "apiKey": "k"})
+			require.NoError(t, err)
+			headers := alibabaObject(t, value)["headers"].(map[string]any)
+			if tc.wantAsync == "" {
+				assert.NotContains(t, headers, "X-DashScope-Async")
+			} else {
+				assert.Equal(t, tc.wantAsync, headers["X-DashScope-Async"])
+			}
+		})
+	}
+
+	t.Run("multipart edits address every uploaded file", func(t *testing.T) {
+		value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_image", "decodeRequest"}, map[string]any{
+			"protocol": "openai_image", "operation": "edit", "model": "qwen-image-edit-plus", "path": "/v1/images/edits", "method": http.MethodPost,
+			"body": map[string]any{"kind": "multipart",
+				"fields": map[string][]string{"model": {"qwen-image-edit-plus"}, "prompt": {"watercolor"}, "n": {"2"}, "response_format": {"b64_json"}, "watermark": {"false"}},
+				"files": []any{
+					map[string]any{"ref": "request_file:image[]", "field": "image[]", "filename": "a.png", "mimeType": "image/png", "size": 10},
+					map[string]any{"ref": "request_file:image[]#1", "field": "image[]", "filename": "b.jpg", "mimeType": "image/jpeg", "size": 10},
+					map[string]any{"ref": "request_file:mask", "field": "mask", "filename": "m.png", "mimeType": "image/png", "size": 10},
+				},
+			},
+		})
+		require.NoError(t, err)
+		resolved := alibabaObject(t, value)
+		assert.Equal(t, "image_to_image", resolved["action"])
+		request := resolved["requestBody"].(map[string]any)
+		assert.Equal(t, float64(2), request["n"])
+		assert.Equal(t, false, request["watermark"])
+		images := request["images"].([]any)
+		require.Len(t, images, 2, "mask uploads are not reference images")
+		assert.Equal(t, map[string]any{"__fileRef": "request_file:image[]", "encoding": "dataUrl", "mimeType": "image/png", "maxBytes": float64(10485760)}, images[0])
+		assert.Equal(t, "request_file:image[]#1", images[1].(map[string]any)["__fileRef"])
+		driver := map[string]any{"upstreamModel": "qwen-image-edit-plus", "model": "qwen-image-edit-plus", "requestBody": request, "baseUrl": "https://dashscope.aliyuncs.com", "apiKey": "k", "usagePurpose": "facts"}
+		value, err = plugin.Engine.Call(t.Context(), "buildSubmitRequest", driver)
+		require.NoError(t, err)
+		body := alibabaObject(t, value)["body"].(map[string]any)
+		content := body["input"].(map[string]any)["messages"].([]any)[0].(map[string]any)["content"].([]any)
+		require.Len(t, content, 3)
+		assert.Equal(t, "request_file:image[]#1", content[1].(map[string]any)["image"].(map[string]any)["__fileRef"], "placeholders reach the upstream body for the host to inline")
+		assert.Equal(t, "watercolor", content[2].(map[string]any)["text"])
+		value, err = plugin.Engine.Call(t.Context(), "extractUsage", driver)
+		require.NoError(t, err)
+		assert.Equal(t, map[string]any{"image_count": float64(2)}, alibabaObject(t, value))
+	})
+
+	// wanx2.1-imageedit selects its operation with input.function. OpenAI edit
+	// fields map onto the documented body: the image becomes base_image_url, a
+	// mask becomes mask_image_url and selects local repainting, and the native
+	// route forwards the DashScope body unchanged.
+	t.Run("wanx2.1-imageedit maps OpenAI edit fields onto the function API", func(t *testing.T) {
+		const model = "wanx2.1-imageedit"
+		const image, mask = "https://cdn.example/base.png", "https://cdn.example/mask.png"
+		for _, tc := range []struct {
+			name           string
+			body           map[string]any
+			wantInput      map[string]any
+			wantParameters map[string]any
+		}{
+			{"defaults to instruction editing", map[string]any{"prompt": "make the hair red", "image": image},
+				map[string]any{"prompt": "make the hair red", "function": "description_edit", "base_image_url": image}, map[string]any{"n": float64(1)}},
+			{"a mask selects local repainting", map[string]any{"prompt": "a ceramic rabbit", "image": image, "mask": mask, "n": 2},
+				map[string]any{"prompt": "a ceramic rabbit", "function": "description_edit_with_mask", "base_image_url": image, "mask_image_url": mask}, map[string]any{"n": float64(2)}},
+			{"explicit function with its parameters", map[string]any{"prompt": "a green fairy", "image": image, "function": "expand", "top_scale": 1.5, "watermark": true},
+				map[string]any{"prompt": "a green fairy", "function": "expand", "base_image_url": image}, map[string]any{"n": float64(1), "top_scale": 1.5, "watermark": true}},
+		} {
+			body := map[string]any{"model": model}
+			maps.Copy(body, tc.body)
+			resolved, err := decodeAlibabaImage(t, plugin, "edit", body)
+			require.NoError(t, err, tc.name)
+			upstreamBody, facts, url := submitAlibabaRequest(t, plugin, model, resolved["requestBody"].(map[string]any))
+			assert.Equal(t, base+"image2image/image-synthesis", url, tc.name)
+			assert.Equal(t, tc.wantInput, upstreamBody["input"], tc.name)
+			assert.Equal(t, tc.wantParameters, upstreamBody["parameters"], tc.name)
+			assert.Equal(t, map[string]any{"image_count": tc.wantParameters["n"]}, facts, tc.name)
+		}
+
+		native, err := plugin.Engine.CallPath(t.Context(), "native", []string{"createImageTask"}, map[string]any{
+			"path": "/ali/api/v1/services/aigc/image2image/image-synthesis",
+			"body": map[string]any{"kind": "json", "value": map[string]any{"model": model, "input": map[string]any{"function": "super_resolution", "prompt": "sharpen", "base_image_url": image}, "parameters": map[string]any{"upscale_factor": 2, "n": 1}}},
+		})
+		require.NoError(t, err)
+		upstreamBody, facts, url := submitAlibabaRequest(t, plugin, model, alibabaObject(t, native)["requestBody"].(map[string]any))
+		assert.Equal(t, base+"image2image/image-synthesis", url)
+		assert.Equal(t, map[string]any{"function": "super_resolution", "prompt": "sharpen", "base_image_url": image}, upstreamBody["input"])
+		assert.Equal(t, map[string]any{"upscale_factor": float64(2), "n": float64(1)}, upstreamBody["parameters"])
+		assert.Equal(t, map[string]any{"image_count": float64(1)}, facts)
+
+		value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_image", "decodeRequest"}, map[string]any{
+			"protocol": "openai_image", "operation": "edit", "model": model, "path": "/v1/images/edits", "method": http.MethodPost,
+			"body": map[string]any{"kind": "multipart",
+				"fields": map[string][]string{"model": {model}, "prompt": {"a ceramic rabbit"}},
+				"files": []any{
+					map[string]any{"ref": "request_file:image", "field": "image", "filename": "a.png", "mimeType": "image/png", "size": 10},
+					map[string]any{"ref": "request_file:mask", "field": "mask", "filename": "m.png", "mimeType": "image/png", "size": 10},
+				},
+			},
+		})
+		require.NoError(t, err)
+		value, err = plugin.Engine.Call(t.Context(), "buildSubmitRequest", map[string]any{"upstreamModel": model, "requestBody": alibabaObject(t, value)["requestBody"], "baseUrl": "https://dashscope.aliyuncs.com", "apiKey": "k"})
+		require.NoError(t, err)
+		input := alibabaObject(t, value)["body"].(map[string]any)["input"].(map[string]any)
+		assert.Equal(t, "description_edit_with_mask", input["function"], "a mask upload selects local repainting")
+		assert.Equal(t, "request_file:image", input["base_image_url"].(map[string]any)["__fileRef"])
+		assert.Equal(t, "request_file:mask", input["mask_image_url"].(map[string]any)["__fileRef"], "the mask placeholder reaches the upstream body for the host to inline")
+	})
+
+	for _, tc := range []struct {
+		name, model, operation string
+		body                   map[string]any
+		decodeErr, submitErr   string
+	}{
+		{"wanx2.1-imageedit takes exactly one image", "wanx2.1-imageedit", "edit", map[string]any{"prompt": "x", "image": []any{"https://cdn.example/1.png", "https://cdn.example/2.png"}}, "", "exactly one input image"},
+		{"wanx2.1-imageedit rejects unknown functions", "wanx2.1-imageedit", "edit", map[string]any{"prompt": "x", "image": "https://cdn.example/1.png", "function": "paint"}, "", "function must be one of"},
+		{"wanx2.1-imageedit local repainting needs a mask", "wanx2.1-imageedit", "edit", map[string]any{"prompt": "x", "image": "https://cdn.example/1.png", "function": "description_edit_with_mask"}, "", "requires a mask image"},
+		{"wanx2.1-imageedit has no size parameter", "wanx2.1-imageedit", "edit", map[string]any{"prompt": "x", "image": "https://cdn.example/1.png", "size": "1024x1024"}, "", "does not accept size"},
+		{"wanx2.1-imageedit bounds n", "wanx2.1-imageedit", "edit", map[string]any{"prompt": "x", "image": "https://cdn.example/1.png", "n": 5}, "", "n must be an integer between 1 and 4"},
+		{"fixed count model rejects n=2 before reservation", "qwen-image-plus", "generate", map[string]any{"prompt": "a cat", "n": 2}, "", "n must be 1 for this model"},
+		{"z-image rejects n=2", "z-image-turbo", "generate", map[string]any{"prompt": "a cat", "n": 2}, "", "n must be 1 for this model"},
+		{"qwen-image-3.0 bounds n", "qwen-image-3.0-pro", "generate", map[string]any{"prompt": "a cat", "n": 7}, "", "n must be an integer between 1 and 6"},
+		{"legacy bounds n", "wan2.2-t2i-flash", "generate", map[string]any{"prompt": "a cat", "n": 5}, "", "n must be an integer between 1 and 4"},
+		{"edit requires an image", "qwen-image-edit-plus", "edit", map[string]any{"prompt": "watercolor"}, "image is required", ""},
+		{"edit-only model requires an image on generations", "qwen-image-edit", "generate", map[string]any{"prompt": "watercolor"}, "", "requires at least one input image"},
+		{"text-to-image model rejects images", "qwen-image-plus", "edit", map[string]any{"prompt": "a cat", "image": "https://cdn.example/1.png"}, "", "only supports text-to-image input"},
+		{"streaming is rejected", "qwen-image-plus", "generate", map[string]any{"prompt": "a cat", "stream": true}, "stream is not supported", ""},
+		{"zero count is rejected", "qwen-image-3.0-pro", "generate", map[string]any{"prompt": "a cat", "n": 0}, "n must be a positive integer", ""},
+		{"response_format is validated", "qwen-image-plus", "generate", map[string]any{"prompt": "a cat", "response_format": "png"}, "response_format must be url or b64_json", ""},
+		{"prompt is required", "qwen-image-plus", "generate", map[string]any{}, "prompt is required", ""},
+		{"size bounds follow the model", "z-image-turbo", "generate", map[string]any{"prompt": "a cat", "size": "256x256"}, "", "pixel and aspect-ratio limits"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := map[string]any{"model": tc.model}
+			maps.Copy(body, tc.body)
+			resolved, err := decodeAlibabaImage(t, plugin, tc.operation, body)
+			if tc.decodeErr != "" {
+				require.ErrorContains(t, err, tc.decodeErr)
+				return
+			}
+			require.NoError(t, err)
+			request := resolved["requestBody"].(map[string]any)
+			_, err = plugin.Engine.Call(t.Context(), "buildSubmitRequest", map[string]any{"requestBody": request, "upstreamModel": tc.model})
+			require.ErrorContains(t, err, tc.submitErr)
+			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: tc.model}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+			adaptor := taskplugin.New(plugin)
+			adaptor.Init(info)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+			c.Set("task_request", request)
+			taskErr := adaptor.ValidateRequestAndSetAction(c, info)
+			require.NotNil(t, taskErr, "the production validator must reject the request before billing")
+			assert.Equal(t, http.StatusBadRequest, taskErr.StatusCode)
+		})
+	}
+}
+
+// Count derivation for synchronous image results: usage.image_count first,
+// then the Qwen-Image-3.0 usage.output_image_count, then image payloads
+// flattened across every choice; payload-less parts never count and an
+// inconsistent count retains the reservation. The response renderer emits one
+// OpenAI data entry per image, so the client sees as many images as are billed.
+func TestAlibabaOpenAIImageCountDerivationAndRender(t *testing.T) {
+	plugin := newAlibabaPlugin(t)
+	const first, second = "https://cdn.example/first.png", "https://cdn.example/second.png"
+	twoImagesOneChoice := []any{map[string]any{"finish_reason": "stop", "message": map[string]any{"role": "assistant", "content": []any{map[string]any{"image": first}, map[string]any{"image": second}}}}}
+	for _, tc := range []struct {
+		name, model string
+		output      map[string]any
+		usage       map[string]any
+		wantFacts   map[string]any
+		wantData    int
+		wantErr     bool
+	}{
+		{"qwen-image-3.0 reports output_image_count", "qwen-image-3.0-pro", map[string]any{"choices": twoImagesOneChoice},
+			map[string]any{"output_width": 1024, "output_height": 1024, "input_image_count": 0, "input_image_type": "qima_input_1k", "output_image_count": 2, "output_image_type": "qima_output_1k"},
+			map[string]any{"image_count": float64(2), "output_image_type": "qima_output_1k", "input_image_count": float64(0)}, 2, false},
+		{"one choice with two images and no usage counts payloads", "qwen-image-2.0-pro", map[string]any{"choices": twoImagesOneChoice}, nil,
+			map[string]any{"image_count": float64(2)}, 2, false},
+		{"usage.image_count is preferred", "wan2.6-t2i", map[string]any{"choices": twoImagesOneChoice}, map[string]any{"image_count": 2},
+			map[string]any{"image_count": float64(2)}, 2, false},
+		{"payload-less parts are not counted", "qwen-image-plus", map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": []any{map[string]any{"text": "revised"}, map[string]any{"image": first}, map[string]any{"image": ""}}}}}}, nil,
+			map[string]any{"image_count": float64(1)}, 1, false},
+		{"z-image keeps its count", "z-image-turbo", map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": []any{map[string]any{"image": first}}}}}}, map[string]any{"image_count": 1, "width": 1024, "height": 1536},
+			map[string]any{"image_count": float64(1)}, 1, false},
+		{"inconsistent zero count retains the reservation", "qwen-image-3.0-pro", map[string]any{"choices": twoImagesOneChoice}, map[string]any{"output_image_count": 0},
+			nil, 2, true},
+		{"fractional count retains the reservation", "wan2.6-t2i", map[string]any{"choices": twoImagesOneChoice}, map[string]any{"image_count": 1.5},
+			nil, 2, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := map[string]any{"request_id": "r", "output": tc.output}
+			if tc.usage != nil {
+				body["usage"] = tc.usage
+			}
+			request := map[string]any{"model": tc.model, "prompt": "a cat", "n": 2}
+			if tc.model == "qwen-image-plus" || tc.model == "z-image-turbo" {
+				request["n"] = 1
+			}
+			if strings.HasPrefix(tc.model, "wan") {
+				// Wan models default to the asynchronous service; the synchronous response shape needs the sync mode.
+				request["metadata"] = map[string]any{"upstream_mode": "sync"}
+			}
+			info := &relaycommon.RelayInfo{OriginModelName: tc.model, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: tc.model, ChannelBaseUrl: "https://dashscope.aliyuncs.com"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "task_public"}}
+			adaptor := taskplugin.New(plugin)
+			adaptor.Init(info)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+			c.Set("task_request", request)
+			require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+			encoded, err := common.Marshal(body)
+			require.NoError(t, err)
+			parsed, taskErr := adaptor.ParseResponse(c, &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(bytes.NewReader(encoded))}, info)
+			require.Nil(t, taskErr)
+			require.NotNil(t, parsed.Immediate)
+			assert.Equal(t, "SUCCESS", parsed.Immediate.Status)
+			assert.Equal(t, "task_public", parsed.UpstreamTaskID, "synchronous results keep the host task id")
+			if tc.wantErr {
+				assert.Nil(t, parsed.Immediate.UsageFacts, "an unrecognized count must not replace the reservation")
+			} else {
+				assert.Equal(t, tc.wantFacts, parsed.Immediate.UsageFacts)
+				ratios := adaptor.AdjustBillingOnSubmit(info, parsed.TaskData)
+				assert.Equal(t, tc.wantFacts["image_count"], ratios["image_count"], "legacy per-call pricing settles to the same count")
+			}
+			value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_image", "render"}, map[string]any{"model": tc.model}, map[string]any{"task_id": "task_public", "status": "SUCCESS", "created_at": 1700000000, "data": body})
+			require.NoError(t, err)
+			rendered := alibabaObject(t, value)
+			assert.Equal(t, float64(1700000000), rendered["created"])
+			data := rendered["data"].([]any)
+			require.Len(t, data, tc.wantData)
+			assert.Equal(t, first, data[0].(map[string]any)["url"])
+			assert.NotContains(t, data[0], "b64_json")
+		})
+	}
+
+	t.Run("legacy results and Base64 payloads render as OpenAI entries", func(t *testing.T) {
+		body := map[string]any{"output": map[string]any{"task_status": "SUCCEEDED", "results": []any{map[string]any{"url": first}, map[string]any{"code": "DataInspectionFailed"}, map[string]any{"url": "data:image/png;base64,QUFB"}}}, "usage": map[string]any{"image_count": 2}}
+		value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_image", "render"}, map[string]any{}, map[string]any{"status": "SUCCESS", "created_at": 1, "data": body})
+		require.NoError(t, err)
+		data := alibabaObject(t, value)["data"].([]any)
+		require.Len(t, data, 2)
+		assert.Equal(t, map[string]any{"url": first}, data[0])
+		assert.Equal(t, map[string]any{"b64_json": "QUFB"}, data[1])
+	})
 }

@@ -58,40 +58,7 @@ export function PasskeyDomainSelector(props: PasskeyDomainSelectorProps) {
       window.location.hostname.endsWith(`.${domain}`)
     )
   })
-  const otherWebsites: string[] = []
-  if (typeof status?.passkey_origins === 'string') {
-    for (const origin of status.passkey_origins.split(',')) {
-      try {
-        const url = new URL(origin.trim())
-        if (
-          url.protocol !== 'https:' &&
-          !(url.protocol === 'http:' && url.hostname === 'localhost')
-        ) {
-          continue
-        }
-        if (
-          url.username ||
-          url.password ||
-          url.origin === window.location.origin
-        ) {
-          continue
-        }
-        if (
-          !configured.some(
-            (rpID) =>
-              url.hostname === rpID.toLowerCase() ||
-              url.hostname.endsWith(`.${rpID.toLowerCase()}`)
-          )
-        ) {
-          continue
-        }
-        if (!otherWebsites.includes(url.origin)) otherWebsites.push(url.origin)
-      } catch {
-        /* Ignore malformed status entries. */
-      }
-    }
-  }
-  if (available.length < 2 && otherWebsites.length === 0) return null
+  if (available.length < 2) return null
   const value = props.value ?? props.domains?.rpID ?? available[0]
   return (
     <div className='space-y-2 text-sm'>
@@ -109,62 +76,36 @@ export function PasskeyDomainSelector(props: PasskeyDomainSelectorProps) {
       </Button>
       {expanded && (
         <div id={id} className='space-y-2'>
-          {available.length > 1 && (
-            <>
-              <Label htmlFor={`${id}-domain`}>
-                {t('Passkey website domain')}
-              </Label>
-              <Select
-                value={available.includes(value ?? '') ? value : available[0]}
-                onValueChange={(value) => {
-                  if (value) props.onChange(value)
-                }}
-                disabled={props.disabled}
-              >
-                <SelectTrigger id={`${id}-domain`}>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {available.map((domain) => (
-                    <SelectItem key={domain} value={domain}>
-                      {domain}
-                      {domain !== domain.toLowerCase() &&
-                        available.some(
-                          (other) =>
-                            other !== domain &&
-                            other.toLowerCase() === domain.toLowerCase()
-                        ) && <> · {t('Historical capitalization')}</>}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </>
-          )}
+          <Label htmlFor={`${id}-domain`}>{t('Passkey website domain')}</Label>
+          <Select
+            value={available.includes(value ?? '') ? value : available[0]}
+            onValueChange={(value) => {
+              if (value) props.onChange(value)
+            }}
+            disabled={props.disabled}
+          >
+            <SelectTrigger id={`${id}-domain`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {available.map((domain) => (
+                <SelectItem key={domain} value={domain}>
+                  {domain}
+                  {domain !== domain.toLowerCase() &&
+                    available.some(
+                      (other) =>
+                        other !== domain &&
+                        other.toLowerCase() === domain.toLowerCase()
+                    ) && <> · {t('Historical capitalization')}</>}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <p className='text-muted-foreground'>
             {t(
               'Choose the domain used when this Passkey was created, then try again.'
             )}
           </p>
-          {otherWebsites.length > 0 && (
-            <div className='space-y-1'>
-              <p>
-                {t(
-                  'If your Passkey belongs to another website, start sign-in there:'
-                )}
-              </p>
-              {otherWebsites.map((origin) => (
-                <Button
-                  key={origin}
-                  variant='link'
-                  size='sm'
-                  className='h-auto p-0 break-all'
-                  render={<a href={`${origin}/sign-in`} />}
-                >
-                  {origin}
-                </Button>
-              ))}
-            </div>
-          )}
         </div>
       )}
     </div>

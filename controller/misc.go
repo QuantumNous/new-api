@@ -119,7 +119,6 @@ func GetStatus(c *gin.Context) {
 		"passkey_display_name":        passkeySetting.RPDisplayName,
 		"passkey_rp_id":               passkeySetting.EffectiveRPID(),
 		"passkey_rp_ids":              passkeySetting.RelyingPartyIDs(),
-		"passkey_origins":             passkeySetting.Origins,
 		"passkey_allow_insecure":      passkeySetting.AllowInsecureOrigin,
 		"passkey_user_verification":   passkeySetting.UserVerification,
 		"passkey_attachment":          passkeySetting.AttachmentPreference,

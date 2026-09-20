@@ -30,6 +30,21 @@ For commercial licensing, please contact support@quantumnous.com
 @import './theme.css';
 @import './theme-presets.css';
 
+@layer base {
+  :root {
+    /* Mobile browser toolbars change dvh; 50% positioning and vh still use
+       the layout viewport and can place dialog actions behind those bars. */
+    --dialog-inset-top: max(1rem, env(safe-area-inset-top, 0px));
+    --dialog-inset-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+    --dialog-available-height: calc(
+      100dvh - var(--dialog-inset-top) - var(--dialog-inset-bottom)
+    );
+    --dialog-viewport-center: calc(
+      (100dvh + var(--dialog-inset-top) - var(--dialog-inset-bottom)) / 2
+    );
+  }
+}
+
 /* Shiki dual themes: token colors follow dark theme (pre background stays `bg-background` on the block) */
 @layer components {
   .shiki span {

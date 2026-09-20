@@ -246,6 +246,8 @@ type ClaudeRequest struct {
 	Thinking          *Thinking       `json:"thinking,omitempty"`
 	McpServers        json.RawMessage `json:"mcp_servers,omitempty"`
 	Metadata          json.RawMessage `json:"metadata,omitempty"`
+	// vLLM Messages extension; forwarded verbatim when present.
+	ChatTemplateKwargs json.RawMessage `json:"chat_template_kwargs,omitempty"`
 	// Speed specifies the Claude inference speed mode.
 	// This field is filtered by default and can be enabled via channel setting allow_speed.
 	Speed json.RawMessage `json:"speed,omitempty"`
@@ -387,18 +389,6 @@ func (c *ClaudeRequest) SetModelName(modelName string) {
 	if modelName != "" {
 		c.Model = modelName
 	}
-}
-
-func (c *ClaudeRequest) SearchToolNameByToolCallId(toolCallId string) string {
-	for _, message := range c.Messages {
-		content, _ := message.ParseContent()
-		for _, mediaMessage := range content {
-			if mediaMessage.Id == toolCallId {
-				return mediaMessage.Name
-			}
-		}
-	}
-	return ""
 }
 
 // AddTool 添加工具到请求中

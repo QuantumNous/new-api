@@ -857,6 +857,70 @@ func TestPrepareTaskPluginEndpointAcceptsRegisteredVideoMultipartBody(t *testing
 	assert.Equal(t, http.StatusNoContent, recorder.Code)
 }
 
+// The OpenAI Images edits endpoint accepts multipart uploads. Every file of a
+// repeated image[] field is exposed to the decoder with its own ref, and an
+// unclaimed model on the shared endpoint still reaches the ordinary relay.
+func TestPrepareTaskPluginEndpointExposesIndexedRefsForRepeatedImageFiles(t *testing.T) {
+	const key = "endpoint-image-edits-test"
+	_, err := jsplugin.DefaultRegistry.Register(taskProtocolPluginSource(
+		key,
+		"1.0.0",
+		`["image-edit-model"]`,
+		"/v1/images/edits",
+		`if (ctx.body.kind !== "multipart" || ctx.body.fields.prompt[0] !== "watercolor") throw new Error("bad prompt");
+		 return {model: ctx.model, action: "image_to_image", requestBody: {prompt: ctx.body.fields.prompt[0], refs: ctx.body.files.map(function(file) { return file.ref; })}};`,
+	), jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister(key)) })
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("model", "image-edit-model"))
+	require.NoError(t, writer.WriteField("prompt", "watercolor"))
+	for _, name := range []string{"first.png", "second.png"} {
+		file, createErr := writer.CreateFormFile("image[]", name)
+		require.NoError(t, createErr)
+		_, err = file.Write([]byte(name))
+		require.NoError(t, err)
+	}
+	require.NoError(t, writer.Close())
+
+	router := gin.New()
+	var pinnedProtocol string
+	var taskRequest any
+	router.POST("/v1/images/edits", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), func(c *gin.Context) {
+		if pinned, ok := c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint); ok {
+			pinnedProtocol = pinned.Protocol
+		}
+		taskRequest, _ = c.Get("task_request")
+		c.Status(http.StatusNoContent)
+	})
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/edits", bytes.NewReader(body.Bytes()))
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusNoContent, recorder.Code, recorder.Body.String())
+	assert.Equal(t, jsplugin.ProtocolOpenAIImage, pinnedProtocol)
+	decoded, ok := taskRequest.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, []any{"request_file:image[]", "request_file:image[]#1"}, decoded["refs"])
+
+	unclaimed := gin.New()
+	reachedRelay := false
+	unclaimed.POST("/v1/images/generations", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), func(c *gin.Context) {
+		_, pinned := c.Get(jsplugin.ContextKeyPinnedEndpoint)
+		reachedRelay = !pinned
+		c.Status(http.StatusNoContent)
+	})
+	plain := httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(`{"model":"dall-e-3","prompt":"a cat"}`))
+	plain.Header.Set("Content-Type", "application/json")
+	recorder = httptest.NewRecorder()
+	unclaimed.ServeHTTP(recorder, plain)
+	assert.Equal(t, http.StatusNoContent, recorder.Code)
+	assert.True(t, reachedRelay, "an unclaimed image model keeps the built-in relay")
+}
+
 func TestVideoGenerationsIsNotClaimedByOpenAIVideoProtocol(t *testing.T) {
 	const key = "endpoint-video-gen-test"
 	_, err := jsplugin.DefaultRegistry.Register(taskProtocolPluginSource(
@@ -1065,6 +1129,12 @@ export const native = {status: function(ctx, task) { return {id: task.task_id}; 
 	insertTaskPluginRouteTask(t, &model.Task{
 		TaskID: "legacy-task", UserId: 7, Platform: constant.TaskPlatform("651"),
 	})
+	// Submitted through a route with retainResult: false; owned by the caller
+	// but not retrievable, so it must be indistinguishable from a missing task.
+	insertTaskPluginRouteTask(t, &model.Task{
+		TaskID: "discarded-task", UserId: 7, Platform: constant.TaskPlatform("route-static-query-test"),
+		Status: model.TaskStatusSuccess, PrivateData: model.TaskPrivateData{ResultDiscarded: true},
+	})
 
 	router := gin.New()
 	router.GET("/vendor/jobs/:id",
@@ -1082,7 +1152,7 @@ export const native = {status: function(ctx, task) { return {id: task.task_id}; 
 	assert.JSONEq(t, `{"id":"legacy-task"}`, legacyRecorder.Body.String())
 
 	var firstBody string
-	for _, taskID := range []string{"missing-task", "foreign-task", "wrong-platform", "wrong-legacy-platform"} {
+	for _, taskID := range []string{"missing-task", "foreign-task", "wrong-platform", "wrong-legacy-platform", "discarded-task"} {
 		recorder := httptest.NewRecorder()
 		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/vendor/jobs/"+taskID, nil))
 		assert.Equal(t, http.StatusNotFound, recorder.Code)
@@ -1636,6 +1706,11 @@ func taskProtocolPluginSource(key, version, models, endpoint, parseRequestBody s
 		protocol = "openai_video"
 		protocolClaim = `"openai_video"`
 		presenters = `render: function() { return {}; },`
+	}
+	if endpoint == "/v1/images/edits" || endpoint == "/v1/images/generations" {
+		protocol = "openai_image"
+		protocolClaim = `"openai_image"`
+		presenters = `render: function() { return {data: []}; },`
 	}
 	return fmt.Sprintf(`
 export const meta = {

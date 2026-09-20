@@ -20,10 +20,12 @@ import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
+import { PricingSidebar } from '../components/pricing-sidebar'
 import {
   PricingToolbar,
   type PricingToolbarProps,
 } from '../components/pricing-toolbar'
+import type { PricingModel } from '../types'
 
 function toolbarProps(): PricingToolbarProps {
   return {
@@ -59,6 +61,84 @@ function toolbarProps(): PricingToolbarProps {
 }
 
 describe('pricing controls', () => {
+  it('counts each model once per filter and updates counts when the catalog changes', () => {
+    const props = toolbarProps()
+    const base: PricingModel = {
+      id: 1,
+      model_name: 'text-model',
+      vendor_name: 'Vendor A',
+      quota_type: 0,
+      model_ratio: 1,
+      completion_ratio: 1,
+      enable_groups: ['default'],
+      tags: 'Chat,chat',
+      supported_endpoint_types: ['openai', 'openai'],
+    }
+    const models: PricingModel[] = [
+      base,
+      {
+        ...base,
+        id: 2,
+        model_name: 'image-model',
+        quota_type: 1,
+        tags: 'chat,Image',
+        supported_endpoint_types: ['image-generation'],
+      },
+      {
+        ...base,
+        id: 3,
+        model_name: 'task-model',
+        vendor_name: 'Vendor B',
+        tags: 'Video',
+        supported_endpoint_types: ['openai-video'],
+        billing_usage_schema: { seconds: { type: 'number', unit: 'second' } },
+      },
+    ]
+    const sidebarProps = {
+      ...props,
+      vendors: [
+        { id: 1, name: 'Vendor A' },
+        { id: 2, name: 'Vendor B' },
+      ],
+      tags: ['Chat', 'Image', 'Video'],
+    }
+    const { rerender } = render(
+      <PricingSidebar {...sidebarProps} models={models} />
+    )
+
+    expect(
+      screen.getByRole('button', { name: /^All Vendors\s*3$/ })
+    ).toBeVisible()
+    expect(screen.getByRole('button', { name: /^Vendor A\s*2$/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: /^Vendor B\s*1$/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: /^Chat\s*2$/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: /^Chat\s*1$/ })).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: /^Token-based\s*1$/ })
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: /^Per Request\s*1$/ })
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: /^Task billing\s*1$/ })
+    ).toBeVisible()
+
+    rerender(<PricingSidebar {...sidebarProps} models={[models[1]]} />)
+    expect(
+      screen.getByRole('button', { name: /^All Vendors\s*1$/ })
+    ).toBeVisible()
+    expect(screen.getByRole('button', { name: /^Vendor A\s*1$/ })).toBeVisible()
+    expect(screen.queryByRole('button', { name: /^Vendor B\s*1$/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /^Chat\s*1$/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: /^Chat\s*0$/ })).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: /^Token-based\s*0$/ })
+    ).toBeVisible()
+    expect(
+      screen.getByRole('button', { name: /^Task billing\s*0$/ })
+    ).toBeVisible()
+  })
+
   it('changes the token unit and keeps the selected unit pressed when clicked again', async () => {
     const props = toolbarProps()
     const user = userEvent.setup()

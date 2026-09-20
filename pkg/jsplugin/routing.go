@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +30,11 @@ type Route struct {
 	Decode      string    `json:"decode,omitempty"`
 	Render      string    `json:"render,omitempty"`
 	TaskIDParam string    `json:"taskIdParam,omitempty"`
+	// RetainResult, when explicitly false on a submit or dynamic route, tells
+	// the host not to persist the upstream snapshot of an immediate terminal
+	// result and to treat the task as not found on every retrieval surface
+	// afterwards. nil means the route did not declare it (retain).
+	RetainResult *bool `json:"retainResult,omitempty"`
 	// Models restricts this route to the listed models. The host matches the
 	// canonical top-level "model" body field before any JS hook runs; empty
 	// means unrestricted. Must be a subset of meta.models.
@@ -88,7 +94,18 @@ var hostProtocols = []HostProtocolDefinition{
 		{Name: "retrieve", Methods: []string{http.MethodGet}, Path: "/v1/videos/:task_id", BodyKinds: []BodyKind{BodyNone}, RequiredProtocolMembers: []string{"render"}},
 		{Name: "content", Methods: []string{http.MethodGet, http.MethodHead}, Path: "/v1/videos/:task_id/content", BodyKinds: []BodyKind{BodyNone}, RequiredDriverHooks: []string{"listArtifacts", "buildContentRequest"}},
 	}},
+	// The OpenAI Images API is synchronous: both operations create a task and
+	// the host answers with the rendered image response once the task is
+	// terminal, so there is no retrieve operation and no request modes.
+	{Name: ProtocolOpenAIImage, Operations: []HostProtocolOperation{
+		{Name: "generate", Methods: []string{http.MethodPost}, Path: "/v1/images/generations", BodyKinds: []BodyKind{BodyJSON}, ModelField: "model", RequiredProtocolMembers: []string{"decodeRequest", "render"}},
+		{Name: "edit", Methods: []string{http.MethodPost}, Path: "/v1/images/edits", BodyKinds: []BodyKind{BodyJSON, BodyMultipart}, ModelField: "model", RequiredProtocolMembers: []string{"decodeRequest", "render"}},
+	}},
 }
+
+// ProtocolOpenAIImage is the host protocol that serves the OpenAI Images API
+// (`POST /v1/images/generations` and `POST /v1/images/edits`) from a plugin.
+const ProtocolOpenAIImage = "openai_image"
 
 func HostProtocol(name string) (HostProtocolDefinition, bool) {
 	for _, definition := range hostProtocols {
@@ -226,6 +243,38 @@ type PinnedEndpoint struct {
 	Model       string
 	MappedModel string
 	Candidates  []ProtocolBinding
+}
+
+// FileReference returns the opaque ref of the index-th uploaded file in a
+// multipart field. The first file keeps the historical `request_file:<field>`
+// spelling; later files in the same repeated field (`image[]`, `image[]`)
+// append `#<index>` so a plugin can address each of them.
+func FileReference(field string, index int) string {
+	if index <= 0 {
+		return "request_file:" + field
+	}
+	return "request_file:" + field + "#" + strconv.Itoa(index)
+}
+
+// ParseFileReference resolves a ref produced by FileReference back to the
+// multipart field and the zero-based file index within that field.
+func ParseFileReference(ref string) (field string, index int, ok bool) {
+	rest, found := strings.CutPrefix(ref, "request_file:")
+	if !found || rest == "" {
+		return "", 0, false
+	}
+	field, suffix, hasIndex := strings.Cut(rest, "#")
+	if field == "" {
+		return "", 0, false
+	}
+	if !hasIndex {
+		return field, 0, true
+	}
+	parsed, err := strconv.Atoi(suffix)
+	if err != nil || parsed < 0 || strconv.Itoa(parsed) != suffix {
+		return "", 0, false
+	}
+	return field, parsed, true
 }
 
 // RouteRequestContext is the canonical request view exposed to declarative
@@ -711,6 +760,9 @@ func validateRoute(route *Route) error {
 		}
 		if route.Action != "" {
 			return fmt.Errorf("query route %s %s must not declare action", route.Method, route.Path)
+		}
+		if route.RetainResult != nil {
+			return fmt.Errorf("query route %s %s must not declare retainResult", route.Method, route.Path)
 		}
 		if route.TaskIDParam == "" {
 			route.TaskIDParam = "task_id"

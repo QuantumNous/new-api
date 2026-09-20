@@ -132,11 +132,11 @@ Gemini 音频输入使用旧结算实际采用的美元单价生成 `ai`，不�
 转换生成音频请求与纯文本请求两个分支。音频分支使用 `max(len - ai, 0)` 计量普通输入，避免纯文本
 分支中引用的缓存变量改变音频费用。Gemini 文本结算仍保留缓存/音频交叠后的输入余量零下限。
 只读 `billing_details` 为预览提供实际音频单价、图片数量和请求倍率规则，不成为新的持久化价格来源。
-同一计费名在 Gemini/兼容音频入口存在相互冲突的单价，或活动图片渠道采用不同请求倍率时，
+同一计费名在 Gemini/兼容音频入口存在相互冲突的单价时，
 转换返回该具体冲突，不能静默选择其中一条规则覆盖其他入口。
 
-图片按次价格转换为 `tier("image", fixed(price)) * image_count`，再追加旧尺寸、质量及适用的
-prompt_extend 条件倍率。DALL·E 尺寸/质量规则按原始请求模型名生成，模型映射不会额外引入这些规则。
+图片按次价格转换为 `tier("image", fixed(price)) * image_count`，再追加旧尺寸、质量条件倍率。
+DALL·E 尺寸/质量规则按原始请求模型名生成，模型映射不会额外引入这些规则。
 OpenAI 已于 2026-05-12 下线 DALL·E 2/3；其校验、默认值和倍率保留在独立 legacy 文件，
 仅用于历史配置及兼容上游。转换从 DTO 的旧计费逻辑获取倍率，不维护第二份价格表。
 图片 token 定价不额外乘数量。所有金额和倍率固化在表达式中，不再叠加旧 OtherRatios。
@@ -145,13 +145,16 @@ OpenAI 已于 2026-05-12 下线 DALL·E 2/3；其校验、默认值和倍率保�
 
 `image_count` 是独立于 token 的计费数量。省略上下文时默认 1；提供的数量必须是 1 到
 `dto.MaxImageN`（128）的整数。固定价格语法允许它作为乘数，仍禁止用 token 乘固定价格。
-图片入口只解析一次 provider 计费标量并随请求携带。Ali 遵循 `parameters.n → n → 1` 的优先级：
-缺失或 `null` 的嵌套数量回退顶层，显式 `parameters.n=0` 返回 400；顶层 `n=0` 仍兼容为 1。
-Ali JSON 和 multipart 请求都明确发送该生效数量。每次渠道重试或参数覆盖之后，再校验最终上游数量并在发送前补足预留，
+图片入口只解析一次 provider 计费标量并随请求携带。数量来自顶层 `n`（`n=0` 兼容为 1）；
+`parameters.n` 仍在入口校验范围，但不再覆盖计费数量。每次渠道重试或参数覆盖之后，再校验最终上游数量并在发送前补足预留，
 图片钱包预留使用原子余额检查，不能通过增加数量形成欠费后继续提交。
 `estimated_image_count` 保存本次发送前的数量；JSON/multipart 图片参数上下文只保留计费需要的标量，不保留图片或提示词内容。
-结算使用独立的实际数量，不修改被冻结的 `param("n")`。非法 Ali usage 数量记录诊断，并回退有效图片列表数量；缺少有效实际数量时保持发送数量。正常结束
+结算使用独立的实际数量，不修改被冻结的 `param("n")`。正常结束
 的 SSE 可以减少数量，客户端提前断开不能减少应收数量。最终消费日志记录 `image_count`。
+阿里百炼图片模型（万相、Qwen-Image、Z-Image）由 alibaba 任务插件通过 `openai_image` 宿主协议承接：
+其数量是任务用量事实 `u("image_count")`，提交时按请求数量预留，完成时按上游 `usage.image_count`
+（Qwen-Image-3.0 为 `usage.output_image_count`）或按各 `choices[].message.content[]` / `results[]`
+中的图片载荷数结算，任务消费日志同样记录 `image_count`。
 
 > **注意：** 自动扣除针对 GPT/OpenAI 格式的 API（prompt_tokens 包含子类别）。Claude 格式的 API 不重复扣除缓存；未独立计价的缓存读取加回输入。系统根据上游返回格式自动处理。
 
@@ -323,7 +326,9 @@ pricing and expression-save APIs use the declared target; an ambiguous alias
 with multiple targets in the same plugin retains the plugin defaults. Request
 and usage validation use the executing plugin and final upstream model. Polling
 selects metadata from each saved task's model, including in mixed-model batches.
-Unmatched models and plugins without profiles retain the plugin defaults.
+An upstream name that no profile declares, such as a channel mapping to a vendor
+endpoint ID, falls back to the client-facing model's profile. Unmatched models
+and plugins without profiles retain the plugin defaults.
 
 Profiles do not introduce a request-body whitelist or remove legacy multiplier
 extensions. Numeric hook facts retain a consistent floating-point representation
@@ -450,9 +455,11 @@ On save, the expression is validated:
 When a request arrives and the model uses `tiered_expr` billing:
 1. Loads expression from `billing_setting.GetBillingExpr()`
 2. Builds `RequestInput` (headers + body) for `param()` / `header()` functions
-3. Runs expression with estimated tokens: `RunExprWithRequest(expr, {P, C}, requestInput)`
-4. Converts output to quota: `rawCost / 1,000,000 * QuotaPerUnit`
+3. Runs the expression with locally estimated input tokens (`P` and `Len`) and zero output tokens (`C=0`). Client output limits do not affect the reservation. If request token estimation is disabled, the estimated input is zero.
+4. Converts output to quota: `rawCost / 1,000,000 * QuotaPerUnit`. For token-priced leaves, multiplies this reservation by `quota_setting.pre_consume_multiplier` (default 1; any finite positive decimal). The multiplier does not change context-length tier selection, actual settlement, or request-priced leaves. The snapshot freezes the multiplier for image quantity retries; group retries reuse the multiplied reservation. Older snapshots with no multiplier retain a factor of 1.
 5. Creates `BillingSnapshot` and stores it on `RelayInfo`. Expression and request state stay frozen for settlement. An auto-group retry refreshes group-dependent fields from the selected group before the next upstream attempt. If a free initial group skipped pre-consume and the retry selects a paid group, the billing session is created before that attempt. If an existing session moves to a more expensive group, its reservation is raised to that group's estimate before sending; cheaper groups are refunded only after actual usage is settled.
+
+Wallet trust bypass uses `quota_setting.trust_quota_usd` (default 10 USD; 0 disables bypass). Both the wallet and any limited API token must exceed the threshold. The wallet must still cover the estimated reservation before bypass is considered. Subscriptions and asynchronous tasks do not use this bypass. Legacy token-ratio pricing also reserves estimated input cost times the multiplier, without the former `PreConsumedQuota` floor or output-token estimate. Task usage pricing is unchanged.
 
 ### 4. Settlement (Actual Billing)
 

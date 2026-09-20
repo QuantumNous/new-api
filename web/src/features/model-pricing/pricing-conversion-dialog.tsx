@@ -112,7 +112,7 @@ export function PricingConversionDialog(props: {
       )}
       confirmText={t('Apply to draft')}
       handleConfirm={props.onConfirm}
-      className='max-h-[90vh] overflow-y-auto data-[size=default]:max-w-[calc(100%-2rem)] data-[size=default]:sm:max-w-5xl'
+      className='max-h-[min(90dvh,var(--dialog-available-height))] overflow-y-auto data-[size=default]:max-w-[calc(100%-2rem)] data-[size=default]:sm:max-w-5xl'
     >
       <p className='font-mono text-sm break-all'>{props.preview.modelName}</p>
       <div className='grid min-w-0 gap-4 md:grid-cols-2'>

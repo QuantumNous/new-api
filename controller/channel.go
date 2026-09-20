@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -73,6 +74,68 @@ func clearChannelInfo(channel *model.Channel) {
 	}
 }
 
+func channelIDsFromChannels(channels []*model.Channel) []int {
+	ids := make([]int, 0, len(channels))
+	for _, channel := range channels {
+		if channel != nil && channel.Id > 0 {
+			ids = append(ids, channel.Id)
+		}
+	}
+	return ids
+}
+
+func closeActiveChannelWebSockets(channelIDs []int) {
+	service.CloseActiveWebSocketsForChannels(channelIDs, service.ChannelDisabledCloseReason)
+}
+
+func hasEnabledMultiKey(channel *model.Channel) bool {
+	if channel == nil || !channel.ChannelInfo.IsMultiKey {
+		return true
+	}
+	keys := channel.GetKeys()
+	if len(keys) == 0 {
+		return false
+	}
+	for i := range keys {
+		if channel.ChannelInfo.MultiKeyStatusList == nil {
+			return true
+		}
+		if status, ok := channel.ChannelInfo.MultiKeyStatusList[i]; !ok || status == common.ChannelStatusEnabled {
+			return true
+		}
+	}
+	return false
+}
+
+func disableMultiKeyChannelIfUnavailable(channel *model.Channel) bool {
+	if channel == nil || !channel.ChannelInfo.IsMultiKey || hasEnabledMultiKey(channel) {
+		return false
+	}
+	if channel.Status != common.ChannelStatusEnabled {
+		return true
+	}
+	channel.Status = common.ChannelStatusManuallyDisabled
+	info := channel.GetOtherInfo()
+	info["status_reason"] = model.ChannelStatusReasonAllKeysDisabled
+	info["status_time"] = common.GetTimestamp()
+	channel.SetOtherInfo(info)
+	return true
+}
+
+func restoreMultiKeyChannelIfAvailable(channel *model.Channel) {
+	if channel.Status != common.ChannelStatusManuallyDisabled || !hasEnabledMultiKey(channel) {
+		return
+	}
+	info := channel.GetOtherInfo()
+	if info["status_reason"] != model.ChannelStatusReasonAllKeysDisabled {
+		return
+	}
+	channel.Status = common.ChannelStatusEnabled
+	info["status_reason"] = ""
+	info["status_time"] = common.GetTimestamp()
+	channel.SetOtherInfo(info)
+}
+
 func applyChannelStatusFilter(query *gorm.DB, statusFilter int) *gorm.DB {
 	if statusFilter == common.ChannelStatusEnabled {
 		return query.Where("status = ?", common.ChannelStatusEnabled)
@@ -94,8 +157,25 @@ func buildChannelListQuery(group string, statusFilter int, typeFilter int) *gorm
 }
 
 func GetChannelOps(c *gin.Context) {
+	snapshot := model.CurrentRequestPolicy()
+	automaticDisable, source := snapshot.AutoDisable, "global"
+	if value, present := c.GetQuery("auto_ban"); present {
+		autoBan, err := strconv.ParseBool(value)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		automaticDisable = snapshot.AutoDisable && autoBan
+		if snapshot.AutoDisable {
+			source = "global_and_channel"
+			if !autoBan {
+				source = "channel"
+			}
+		}
+	}
 	common.ApiSuccess(c, gin.H{
-		"retry_times": common.RetryTimes,
+		"retry_times":    snapshot.RetryTimes,
+		"request_policy": gin.H{"automatic_disable": automaticDisable, "source": source},
 	})
 }
 
@@ -458,6 +538,10 @@ func GetChannelKey(c *gin.Context) {
 	})
 }
 
+// maxTaskExtendPluginKeys bounds the plugins one New API channel can be
+// extended with; it comfortably covers every built-in and installed plugin.
+const maxTaskExtendPluginKeys = 32
+
 // validateChannel 通用的渠道校验函数
 func validateChannel(channel *model.Channel, isAdd bool) error {
 	if channel == nil {
@@ -492,8 +576,50 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 		}
 	}
 
+	setting := channel.GetSetting()
+	if channel.Type != constant.ChannelTypeNewAPI && len(setting.TaskExtendPluginKeys) > 0 {
+		return fmt.Errorf("task_extend_plugin_keys is only supported on New API channels")
+	}
+	if channel.Type == constant.ChannelTypeNewAPI {
+		if len(setting.TaskExtendPluginKeys) > maxTaskExtendPluginKeys {
+			return fmt.Errorf("task_extend_plugin_keys must not exceed %d plugins", maxTaskExtendPluginKeys)
+		}
+		// The single key stays valid on a New API channel, so both bindings are
+		// checked as one set.
+		keys := setting.TaskExtendPluginKeys
+		if setting.TaskPluginKey != "" {
+			keys = append([]string{setting.TaskPluginKey}, keys...)
+		}
+		bound := make(map[string]struct{}, len(keys))
+		for _, key := range keys {
+			if key == "" || key != strings.TrimSpace(key) {
+				return fmt.Errorf("task plugin key %q is invalid", key)
+			}
+			if len(key) > 30 {
+				return fmt.Errorf("task plugin key must not exceed 30 characters")
+			}
+			if _, duplicate := bound[key]; duplicate {
+				return fmt.Errorf("task plugin %q is bound more than once", key)
+			}
+			plugin, ok := jsplugin.DefaultRegistry.Get(key)
+			if !ok {
+				return fmt.Errorf("task plugin %q is not registered", key)
+			}
+			if !plugin.Meta.SupportsUpstream(jsplugin.UpstreamKindNewAPI) {
+				return fmt.Errorf("task plugin %q does not support a New API upstream and cannot be bound to a New API channel", key)
+			}
+			bound[key] = struct{}{}
+		}
+	}
+
 	if channel.Type == constant.ChannelTypeNewAPI && strings.TrimSpace(channel.GetBaseURL()) == "" {
 		return fmt.Errorf("New API channel base URL cannot be empty")
+	}
+	if channel.Type == constant.ChannelTypeVLLM && strings.TrimSpace(channel.GetBaseURL()) == "" {
+		return fmt.Errorf("vLLM channel base URL cannot be empty")
+	}
+	if channel.Type == constant.ChannelTypeSGLang && strings.TrimSpace(channel.GetBaseURL()) == "" {
+		return fmt.Errorf("SGLang channel base URL cannot be empty")
 	}
 
 	// 如果是添加操作，检查 channel 和 key 是否为空
@@ -628,7 +754,10 @@ func AddChannel(c *gin.Context) {
 		return
 	}
 
-	if addChannelRequest.Channel != nil && addChannelRequest.Channel.Type == constant.ChannelTypeTaskPlugin &&
+	// Binding a plugin needs the same permission on a New API channel as the
+	// type-61 channel dedicated to it.
+	if addChannelRequest.Channel != nil &&
+		(addChannelRequest.Channel.Type == constant.ChannelTypeTaskPlugin || len(addChannelRequest.Channel.GetSetting().TaskPluginBindings()) > 0) &&
 		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.TaskPluginBind) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -767,6 +896,7 @@ func DeleteChannel(c *gin.Context) {
 		"id":   id,
 		"name": channelName,
 	})
+	closeActiveChannelWebSockets([]int{id})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -775,6 +905,13 @@ func DeleteChannel(c *gin.Context) {
 }
 
 func DeleteDisabledChannel(c *gin.Context) {
+	var ids []int
+	if err := model.DB.Model(&model.Channel{}).
+		Where("status = ? or status = ?", common.ChannelStatusAutoDisabled, common.ChannelStatusManuallyDisabled).
+		Pluck("id", &ids).Error; err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	rows, err := model.DeleteDisabledChannel()
 	if err != nil {
 		common.ApiError(c, err)
@@ -787,6 +924,7 @@ func DeleteDisabledChannel(c *gin.Context) {
 	recordManageAudit(c, "channel.delete_disabled", map[string]any{
 		"count": rows,
 	})
+	closeActiveChannelWebSockets(ids)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -817,6 +955,12 @@ func DisableTagChannels(c *gin.Context) {
 		})
 		return
 	}
+	channels, err := model.GetChannelsByTag(channelTag.Tag, false, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	ids := channelIDsFromChannels(channels)
 	err = model.DisableChannelByTag(channelTag.Tag)
 	if err != nil {
 		common.ApiError(c, err)
@@ -826,6 +970,7 @@ func DisableTagChannels(c *gin.Context) {
 	recordManageAudit(c, "channel.tag_disable", map[string]any{
 		"tag": channelTag.Tag,
 	})
+	closeActiveChannelWebSockets(ids)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -946,6 +1091,7 @@ func DeleteChannelBatch(c *gin.Context) {
 	recordManageAudit(c, "channel.delete_batch", map[string]any{
 		"count": deletedCount,
 	})
+	closeActiveChannelWebSockets(channelBatch.Ids)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -1021,10 +1167,23 @@ func UpdateChannel(c *gin.Context) {
 	}
 	originProxy := originChannel.GetSetting().Proxy
 	proxyChanged := false
-	if _, settingProvided := requestData["setting"]; settingProvided {
+	_, settingProvided := requestData["setting"]
+	if settingProvided {
 		newProxy, _ := service.NormalizeProxyURL(channel.GetSetting().Proxy)
 		normalizedOriginProxy, originProxyErr := service.NormalizeProxyURL(originProxy)
 		proxyChanged = originProxyErr != nil || normalizedOriginProxy != newProxy
+	}
+	// Changing which plugins a channel binds needs the bind permission on any
+	// channel type; resubmitting an unchanged New API binding list does not, so
+	// administrators without it can still edit the rest of a gateway channel.
+	if settingProvided &&
+		!slices.Equal(channel.GetSetting().TaskPluginBindings(), originChannel.GetSetting().TaskPluginBindings()) &&
+		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.TaskPluginBind) {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "task plugin channels require the task_plugin.bind permission",
+		})
+		return
 	}
 
 	// Always copy the original ChannelInfo so that fields like IsMultiKey and MultiKeySize are retained.
@@ -1180,6 +1339,9 @@ func UpdateChannelStatus(c *gin.Context) {
 	changed := model.UpdateChannelStatus(id, "", req.Status, "manual operation")
 	if changed {
 		model.InitChannelCache()
+		if req.Status != common.ChannelStatusEnabled {
+			closeActiveChannelWebSockets([]int{id})
+		}
 	}
 	recordManageAudit(c, "channel.status_update", map[string]any{
 		"id":      id,
@@ -1200,13 +1362,20 @@ func BatchUpdateChannelStatus(c *gin.Context) {
 		return
 	}
 	changedCount := 0
+	var disabledIDs []int
 	for _, id := range req.Ids {
 		if model.UpdateChannelStatus(id, "", req.Status, "manual batch operation") {
 			changedCount++
+			if req.Status != common.ChannelStatusEnabled {
+				disabledIDs = append(disabledIDs, id)
+			}
 		}
 	}
 	if changedCount > 0 {
 		model.InitChannelCache()
+	}
+	if len(disabledIDs) > 0 {
+		closeActiveChannelWebSockets(disabledIDs)
 	}
 	recordManageAudit(c, "channel.status_update_batch", map[string]any{
 		"count":  changedCount,
@@ -1466,7 +1635,7 @@ func CopyChannel(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "获取渠道信息失败，请稍后重试"})
 		return
 	}
-	if origin.Type == constant.ChannelTypeTaskPlugin &&
+	if (origin.Type == constant.ChannelTypeTaskPlugin || len(origin.GetSetting().TaskPluginBindings()) > 0) &&
 		!authz.Can(c.GetInt("id"), c.GetInt("role"), authz.TaskPluginBind) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "task plugin channels require the task_plugin.bind permission"})
 		return
@@ -1724,13 +1893,16 @@ func ManageMultiKeys(c *gin.Context) {
 
 		channel.ChannelInfo.MultiKeyStatusList[keyIndex] = 2 // disabled
 
+		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		err = channel.Update()
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-
 		model.InitChannelCache()
+		if shouldCloseWebSocket {
+			closeActiveChannelWebSockets([]int{channel.Id})
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": "密钥已禁用",
@@ -1765,6 +1937,7 @@ func ManageMultiKeys(c *gin.Context) {
 		if channel.ChannelInfo.MultiKeyDisabledReason != nil {
 			delete(channel.ChannelInfo.MultiKeyDisabledReason, keyIndex)
 		}
+		restoreMultiKeyChannelIfAvailable(channel)
 
 		err = channel.Update()
 		if err != nil {
@@ -1789,6 +1962,7 @@ func ManageMultiKeys(c *gin.Context) {
 		channel.ChannelInfo.MultiKeyStatusList = make(map[int]int)
 		channel.ChannelInfo.MultiKeyDisabledTime = make(map[int]int64)
 		channel.ChannelInfo.MultiKeyDisabledReason = make(map[int]string)
+		restoreMultiKeyChannelIfAvailable(channel)
 
 		err = channel.Update()
 		if err != nil {
@@ -1837,13 +2011,16 @@ func ManageMultiKeys(c *gin.Context) {
 			return
 		}
 
+		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		err = channel.Update()
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-
 		model.InitChannelCache()
+		if shouldCloseWebSocket {
+			closeActiveChannelWebSockets([]int{channel.Id})
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": fmt.Sprintf("已禁用 %d 个密钥", disabledCount),
@@ -1917,13 +2094,16 @@ func ManageMultiKeys(c *gin.Context) {
 		channel.ChannelInfo.MultiKeyDisabledTime = newDisabledTime
 		channel.ChannelInfo.MultiKeyDisabledReason = newDisabledReason
 
+		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		err = channel.Update()
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-
 		model.InitChannelCache()
+		if shouldCloseWebSocket {
+			closeActiveChannelWebSockets([]int{channel.Id})
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": "密钥已删除",
@@ -1985,13 +2165,16 @@ func ManageMultiKeys(c *gin.Context) {
 		channel.ChannelInfo.MultiKeyDisabledTime = newDisabledTime
 		channel.ChannelInfo.MultiKeyDisabledReason = newDisabledReason
 
+		shouldCloseWebSocket := disableMultiKeyChannelIfUnavailable(channel)
 		err = channel.Update()
 		if err != nil {
 			common.ApiError(c, err)
 			return
 		}
-
 		model.InitChannelCache()
+		if shouldCloseWebSocket {
+			closeActiveChannelWebSockets([]int{channel.Id})
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"success": true,
 			"message": fmt.Sprintf("已删除 %d 个自动禁用的密钥", deletedCount),

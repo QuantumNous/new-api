@@ -63,7 +63,7 @@ export function AuditLogDetailsDialog(props: { entry: AuditLog }) {
           {t('Details')}
         </Button>
       }
-      contentClassName='min-w-0 sm:max-w-lg max-sm:max-h-[calc(100dvh-1.5rem)] max-sm:w-[calc(100vw-1.5rem)] max-sm:max-w-[calc(100vw-1.5rem)]'
+      contentClassName='min-w-0 sm:max-w-lg max-sm:max-h-(--dialog-available-height) max-sm:w-[calc(100vw-1.5rem)] max-sm:max-w-[calc(100vw-1.5rem)]'
       titleClassName='text-base'
       contentHeight='auto'
       bodyClassName='space-y-3'

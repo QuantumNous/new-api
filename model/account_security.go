@@ -149,3 +149,25 @@ func UpdateUserOAuthBindingForSessionWithTx(tx *gorm.DB, identity AuthSessionIde
 	// The existing unique provider/subject index rejects concurrent ownership.
 	return tx.Model(&binding).Update("provider_user_id", subject).Error
 }
+
+// MigrateLegacyGitHubBindingWithTx rewrites a login-name GitHub binding to the
+// numeric account ID once the login flow has confirmed the account. It reports
+// whether the row was rewritten; a row whose binding changed since it was read
+// is left untouched.
+func MigrateLegacyGitHubBindingWithTx(tx *gorm.DB, userID int, legacyID, gitHubID string) (bool, error) {
+	if userID <= 0 || legacyID == "" || gitHubID == "" {
+		return false, ErrAccountBindingChanged
+	}
+	var count int64
+	if err := tx.Model(&User{}).Where("github_id = ? AND id <> ?", gitHubID, userID).Count(&count).Error; err != nil {
+		return false, err
+	}
+	if count != 0 {
+		return false, ErrExternalIdentityAlreadyClaimed
+	}
+	result := tx.Model(&User{}).Where("id = ? AND github_id = ?", userID, legacyID).Update("github_id", gitHubID)
+	if result.Error != nil {
+		return false, result.Error
+	}
+	return result.RowsAffected == 1, nil
+}

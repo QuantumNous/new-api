@@ -130,6 +130,14 @@ export type SystemTaskListResponse = {
   success: boolean
   message: string
   data?: SystemTask[]
+  total: number
+}
+
+export type SystemTaskFilters = {
+  type?: string
+  status?: SystemTaskStatus | ''
+  scope?: 'active' | 'history'
+  offset?: number
 }
 
 export type SiteSettings = {
@@ -141,6 +149,7 @@ export type SiteSettings = {
   HomePageContent: string
   ServerAddress: string
   TaskPublicAddress: string
+  'general_setting.docs_link': string
   'legal.user_agreement': string
   'legal.privacy_policy': string
   HeaderNavModules: string
@@ -257,38 +266,18 @@ export type ModelSettings = {
   MaxTokenAutoGroups: number
   DefaultUseAutoGroup: boolean
   'group_ratio_setting.group_special_usable_group': string
-  RetryTimes: number
-  ChannelDisableThreshold: string
-  AutomaticDisableChannelEnabled: boolean
-  AutomaticEnableChannelEnabled: boolean
-  AutomaticDisableKeywords: string
-  AutomaticDisableStatusCodes: string
-  AutomaticRetryStatusCodes: string
-  'monitor_setting.auto_test_channel_enabled': boolean
-  'monitor_setting.auto_test_channel_minutes': number
-  'monitor_setting.channel_test_concurrency': number
-  'monitor_setting.channel_test_mode':
-    | 'scheduled_all'
-    | 'auto_ban_only'
-    | 'passive_recovery'
-  'channel_affinity_setting.enabled': boolean
-  'channel_affinity_setting.switch_on_success': boolean
-  'channel_affinity_setting.keep_on_channel_disabled': boolean
-  'channel_affinity_setting.max_entries': number
-  'channel_affinity_setting.default_ttl_seconds': number
-  'channel_affinity_setting.rules': string
   'model_deployment.ionet.api_key': string
   'model_deployment.ionet.enabled': boolean
 }
 
 export type BillingSettings = {
   QuotaForNewUser: number
-  PreConsumedQuota: number
   QuotaForInviter: number
   QuotaForInvitee: number
   TopUpLink: string
-  'general_setting.docs_link': string
   'quota_setting.enable_free_model_pre_consume': boolean
+  'quota_setting.trust_quota_usd': number
+  'quota_setting.pre_consume_multiplier': number
   QuotaPerUnit: number
   USDExchangeRate: number
   'general_setting.quota_display_type': string

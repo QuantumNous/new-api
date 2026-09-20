@@ -91,7 +91,8 @@ import {
   hasSimpleTaskPricing,
   taskPriceLabel,
   taskUsageUnitLabel,
-  taskPricingConditions,
+  taskTierConditions,
+  pricingDisplayFallbackKey,
 } from '../lib/task-price-display'
 import type {
   ModelCapability,
@@ -273,31 +274,10 @@ function OverviewSummaryGrid(props: { model: PricingModel }) {
     staleTime: 60 * 1000,
   })
 
-  const groups = metricsQuery.data?.data.groups ?? []
-  const successRates = groups
-    .map((group) => group.success_rate)
-    .filter((rate) => Number.isFinite(rate))
-  const successRate =
-    successRates.length > 0
-      ? successRates.reduce((sum, rate) => sum + rate, 0) / successRates.length
-      : Number.NaN
-  const tpsValues = groups
-    .map((group) => group.avg_tps)
-    .filter((value) => value > 0)
-  const avgTps =
-    tpsValues.length > 0
-      ? tpsValues.reduce((sum, value) => sum + value, 0) / tpsValues.length
-      : 0
-  const latencyValues = groups
-    .map((group) => group.avg_latency_ms)
-    .filter((value) => value > 0)
-  const avgLatency =
-    latencyValues.length > 0
-      ? Math.round(
-          latencyValues.reduce((sum, value) => sum + value, 0) /
-            latencyValues.length
-        )
-      : 0
+  const summary = metricsQuery.data?.data.summary
+  const successRate = summary?.success_rate ?? Number.NaN
+  const avgTps = summary?.avg_tps ?? 0
+  const avgLatency = summary?.avg_latency_ms ?? 0
 
   return (
     <div className='bg-muted/20 grid overflow-hidden rounded-lg border sm:grid-cols-3 sm:divide-x'>
@@ -742,7 +722,12 @@ function PriceSection(props: {
               {t('Special billing expression')}
             </div>
             <p className='text-muted-foreground mt-1 text-xs'>
-              {t('Unable to parse structured pricing')}
+              {t(
+                pricingDisplayFallbackKey(
+                  dynamicSummary.rawExpression,
+                  props.model.billing_usage_schema
+                )
+              )}
             </p>
             <div className='mt-3'>
               <div className='text-muted-foreground mb-1 text-[10px] font-medium tracking-wider uppercase'>
@@ -1148,7 +1133,10 @@ function ProviderGroupPricingSection(
             </div>
             <p className='text-muted-foreground mt-1 text-xs'>
               {t(
-                'Group prices cannot be expanded because this expression is not a standard tiered pricing expression.'
+                pricingDisplayFallbackKey(
+                  props.model.billing_expr || '',
+                  props.model.billing_usage_schema
+                )
               )}
             </p>
             <div className='mt-3'>
@@ -1221,7 +1209,7 @@ function ProviderGroupPricingSection(
                   headerRowClassName='hover:bg-transparent'
                   data={dynamicTiers}
                   getRowKey={(tier, tierIndex) =>
-                    `${group}-${tier.label || tierIndex}`
+                    `${group}-${tier.label}-${tierIndex}`
                   }
                   columns={[
                     ...(hasSimpleTaskPricing(props.model)
@@ -1238,8 +1226,8 @@ function ProviderGroupPricingSection(
                             cell: (tier: DynamicPricingTier) => {
                               if ('unitPrices' in tier) {
                                 return (
-                                  taskPricingConditions(
-                                    (tier as ParsedTaskTier).conditions,
+                                  taskTierConditions(
+                                    tier as ParsedTaskTier,
                                     props.model.billing_usage_schema,
                                     i18n.language,
                                     t

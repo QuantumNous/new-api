@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,7 +19,6 @@ import (
 	"github.com/QuantumNous/new-api/setting/model_setting"
 
 	"github.com/gin-gonic/gin"
-	"github.com/tidwall/sjson"
 )
 
 func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
@@ -46,11 +46,10 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
-	imageCount, err := request.ImageCount(info.ChannelType == constant.ChannelTypeAli)
+	imageCount, err := request.ImageCount(false)
 	if err != nil {
 		return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 	}
-	promptExtend := request.BillingParameters != nil && request.BillingParameters.PromptExtend != nil && *request.BillingParameters.PromptExtend
 
 	var requestBody io.Reader
 	var jsonData []byte
@@ -71,6 +70,13 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	} else {
 		convertedRequest, err := adaptor.ConvertImageRequest(c, info, *request)
 		if err != nil {
+			// An adaptor that already classified its rejection (status code
+			// and retry policy) keeps that classification instead of being
+			// downgraded to a retryable conversion failure.
+			var apiErr *types.NewAPIError
+			if errors.As(err, &apiErr) {
+				return apiErr
+			}
 			return types.NewError(err, types.ErrorCodeConvertRequestFailed)
 		}
 		relaycommon.AppendRequestConversionFromRequest(info, convertedRequest)
@@ -98,28 +104,18 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		// This is a different trust boundary from ingress: channel overrides
 		// and pass-through bodies can change the quantity actually submitted.
 		var outbound struct {
-			N          *uint                       `json:"n"`
-			Parameters *dto.ImageBillingParameters `json:"parameters"`
+			N *uint `json:"n"`
 		}
 		if err := common.Unmarshal(jsonData, &outbound); err != nil {
 			return types.NewErrorWithStatusCode(fmt.Errorf("invalid image billing parameters: %w", err), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
-		quantityRequest := dto.ImageRequest{N: outbound.N, BillingParameters: outbound.Parameters}
+		quantityRequest := dto.ImageRequest{N: outbound.N}
 		if quantityRequest.N == nil {
 			quantityRequest.N = common.GetPointer(uint(imageCount))
 		}
-		imageCount, err = quantityRequest.ImageCount(info.ChannelType == constant.ChannelTypeAli)
+		imageCount, err = quantityRequest.ImageCount(false)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
-		}
-		promptExtend = outbound.Parameters != nil && outbound.Parameters.PromptExtend != nil && *outbound.Parameters.PromptExtend
-		if info.ChannelType == constant.ChannelTypeAli {
-			// Always send the same explicit quantity that is reserved, including
-			// when an empty parameters object accompanies a top-level n.
-			jsonData, err = sjson.SetBytes(jsonData, "parameters.n", imageCount)
-			if err != nil {
-				return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
-			}
 		}
 		logger.LogDebug(c, "image request body: %s", jsonData)
 		body, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
@@ -129,7 +125,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		defer closer.Close()
 		requestBody = body
 	}
-	if billingErr := service.PrepareImageBillingForRequest(c, info, imageCount, promptExtend); billingErr != nil {
+	if billingErr := service.PrepareImageBillingForRequest(c, info, imageCount); billingErr != nil {
 		return billingErr
 	}
 
@@ -163,9 +159,13 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		return newAPIError
 	}
 
-	imageN := uint(1)
-	if request.N != nil {
-		imageN = *request.N
+	// The log content shows the settled count: the count the handler derived
+	// from the upstream response when it did, otherwise the reserved quantity.
+	imageN := info.RequestedImageCount()
+	if info.BillingImageCount != nil {
+		imageN = *info.BillingImageCount
+	} else if count, ok := info.PriceData.OtherRatios()["n"]; ok && info.PriceData.UsePrice && count >= 1 && count <= dto.MaxImageN {
+		imageN = common.QuotaRound(count)
 	}
 
 	if usage.(*dto.Usage).TotalTokens == 0 {

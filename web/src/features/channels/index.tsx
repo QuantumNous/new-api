@@ -64,8 +64,8 @@ export function Channels() {
               aria-label={t('Retry Settings')}
               render={
                 <Link
-                  to='/system-settings/models/$section'
-                  params={{ section: 'routing-reliability' }}
+                  to='/system-settings/request-policies/$section'
+                  params={{ section: 'routing' }}
                 />
               }
             />

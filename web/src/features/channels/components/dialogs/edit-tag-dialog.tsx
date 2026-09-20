@@ -225,7 +225,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
       description={t(
         'Batch edit all channels with this tag. Leave fields empty to keep current values.'
       )}
-      contentClassName='max-h-[90vh] max-w-2xl'
+      contentClassName='max-h-[min(90dvh,var(--dialog-available-height))] max-w-2xl'
       contentHeight='auto'
       bodyClassName='space-y-4'
       footer={

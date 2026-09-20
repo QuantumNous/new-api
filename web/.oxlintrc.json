@@ -1,6 +1,9 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
   "plugins": ["typescript", "unicorn", "oxc", "react", "import", "promise"],
+  "jsPlugins": [
+    { "name": "project", "specifier": "./scripts/oxlint/intl-locale.mjs" }
+  ],
   "categories": {
     "correctness": "error"
   },
@@ -72,6 +75,7 @@
     "prefer-object-has-own": "warn",
     "prefer-object-spread": "warn",
     "prefer-template": "warn",
+    "project/intl-locale": "error",
     "promise/catch-or-return": "error",
     "promise/no-callback-in-promise": "error",
     "promise/no-new-statics": "error",
@@ -120,6 +124,9 @@
           "getOperationsSectionNavItems",
           "getOperationsSectionContent",
           "getOperationsSectionMeta",
+          "getPolicySectionNavItems",
+          "getPolicySectionContent",
+          "getPolicySectionMeta",
           "getSecuritySectionNavItems",
           "getSecuritySectionContent",
           "getSecuritySectionMeta",
