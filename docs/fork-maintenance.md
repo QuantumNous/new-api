@@ -28,13 +28,13 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 状态 | `adapted`；在合并 `05f423130` 后核验，已纳入 fork 的 OpenRouter 修复 `104902b51` |
+| 状态 | `adapted`；2026-09-21 合并 `bf9f4111f` 后核验，继续保留 OpenRouter 修复 `104902b51`；本轮无需新增适配 |
 | 原始提交 | `4add2c53afe574d0a26038ac51c9e2668d7bab1d` |
 | 后续修复 | `104902b51371345fead518d9e702a967983675b4`，保留 OpenRouter 输入总数，处理 aggregate/split cache write 不一致 |
 | 实现 | [service/text_quota.go](../service/text_quota.go) |
 | 回归 | [service/text_quota_test.go](../service/text_quota_test.go)、[service/text_quota_consume_log_test.go](../service/text_quota_consume_log_test.go) |
 | 必要性 | Anthropic 风格 fresh-only 输入计数在写 consume log 时需加回 cache read/write，使统计采用总输入 token |
-| 上游跟踪 | 目标 `043ff99a5` 尚未包含等价实现；未登记 PR 状态 |
+| 上游跟踪 | 目标 `9a0be8750` 尚未包含等价实现，仍直接记录 `summary.PromptTokens`；未登记 PR 状态 |
 
 必须保持的行为：
 
@@ -283,6 +283,123 @@ model 覆盖重复 migration、数据与唯一约束；Passkey 覆盖 fresh 和 
 
 本地证据目录：`/Users/andy/AI/GitHub/new-api/.git/maintenance-evidence/2026-09-12-fork-104902b51/`。
 其中 `service-before-test-correction.jsonl`、`service-after-test-correction.jsonl` 保存修正前后结果；文件不会随 push 分享。
+
+### 2026-09-21：同步 76 个上游提交并补验三数据库
+
+| 字段 | 记录 |
+| --- | --- |
+| 执行环境 | macOS darwin/arm64，日期按 Asia/Shanghai |
+| 维护分支 / 合并前 | `fix/anthropic-consume-log-cache-tokens` / `c95446d2f4a1cf03da9e7f067feeedeb9f4327d9` |
+| 固定上游目标 | `origin/main` → `9a0be8750a6d736d9692535ed2cd68f8eec46529`，新增 76 个提交 |
+| fork 初次 fetch | `c95446d2f4a1cf03da9e7f067feeedeb9f4327d9`，与本地相同，无远端独有提交；也确认上一轮文档提交已在远端 |
+| 恢复引用 | `codex/backup/anthropic-cache-2026-09-20T172846Z-upstream-9a0be8750`，保留在本地 |
+| merge commit | `bf9f4111f4eeeca0d736035bcc67d4218279bd6b` |
+| 冲突 / 本地适配 | 无文本冲突；自动合并 `service/text_quota.go` 与测试。未修改业务实现或测试断言 |
+| PATCH-001 | `adapted`，原生 Anthropic、legacy Claude-derived、显式 OpenAI semantic、OpenRouter aggregate/split 不一致及幂等读取回归通过 |
+| 工具 | Go 1.27.1、Bun 1.3.9、Node 26.8.2；模块声明 Go 1.25.1，CI 使用该声明及 Bun 1.4.0。依赖清单和 lockfile 本轮无变化 |
+| 前端 | frozen-lockfile 安装、typecheck、真实 build、236 个涉及 TS/JS 文件 lint 通过；完整测试首轮 164/164 文件、2057/2057 用例通过 |
+| root | 默认 CGO 的 vet 被 Xcode license 环境阻塞；`CGO_ENABLED=0` 下 vet/build 通过，全量 test 失败，归因见下文 |
+| relaykit | 独立 `GOWORK=off` vet/build/test 通过；9 个有测试的 package、462 个含子用例的 pass event，无测试用例 SKIP、无 cached package |
+| 数据库 | 真实 SQLite 3.50.4、MySQL 8.4.11、PostgreSQL 16.14；本轮受影响 focused matrix 最终均通过且无 SKIP |
+| 同步与验收状态 | 固定上游已纳入历史；PATCH-001 已验证；完整验证未通过；不作为已完整验收或可发布版本交付 |
+| 推送状态（文档提交前） | 用户已明确授权完成后推送；此条写入时尚未执行最终 push。最终 HEAD 回执保存于本轮证据和任务回复，下轮再补记 |
+
+补丁独立审查确认，上游在 `text_quota.go` 的增量只调整 performance output 记录，未实现 consume log 输入归一化。
+合并同时保留该上游改动和本地日志边界修复，OpenRouter 只加回计费实际减去的 aggregate cache，不用更大的 split 合计替代。
+TPM、`SumUsedToken`、`quota_data.token_used` 的消费链做了源码核对；没有新增这些聚合值的端到端数值断言，不把计费 matrix 冒称为其动态验证。
+桌面、移动卡片与详情直接显示 `log.prompt_tokens`，cache 仅为明细；前端既有用例覆盖输入 1000、缓存 300 时仍显示输入 1000。
+
+本轮前端只读审查聚焦日志契约及代表性公共交互，非 253 个变更文件的逐行全面审计。
+模型复制复用 `CopyButton`，详情复用 `DetailRow`，批量映射复用共享 `Dialog` / `UpstreamModelSelection`；
+新增 `FloatingWindow` 的非 modal 拖动、resize、collapse 能力不由这些既有候选覆盖。
+7 个变更插件的 numeric usage descriptions 已检查为“计费对象 + unit price/单价”，unit 分离、en/zh 等价；
+`openai_image`、`retainResult`、`upstreams` 的 API 文档、schema、d.ts 与 runtime 契约一致。
+
+#### 检查命令与数据库范围
+
+从 `web/` 执行 `bun install --frozen-lockfile`、`bun run typecheck`、`bun run build`、`bun run test`；
+lint 使用 `bun x --no-install oxlint -c .oxlintrc.json <本轮 236 个 TS/JS 文件>`，文件集合取固定 PRE/TARGET 的 diff。
+额外 `bun run format:check` 未通过，固定上游对照结果见下一节。
+
+root 首次执行 `GOWORK=off go vet ./...`；环境阻塞后依次执行：
+
+```sh
+CGO_ENABLED=0 GOWORK=off go vet ./...
+CGO_ENABLED=0 GOWORK=off go build ./...
+CGO_ENABLED=0 GOWORK=off go test -json ./...
+```
+
+relaykit 目录独立执行 `GOWORK=off go vet ./...`、`go build ./...`、`go test -json ./...`。
+原始 root 全量测试无缓存，含 49 个数据库/外部服务 SKIP 子项；不能将这些视为成功。
+随后以专用实例和进程作用域 DSN 执行以下 `go test -json -count=1`，均带 `CGO_ENABLED=0 GOWORK=off`：
+
+| package / `-run` | 数据库设置与实际覆盖 |
+| --- | --- |
+| `./model` / `Test(MigrationSchemaStability\|MigratePrefillGroupUniqueness\|RequestPolicyDatabaseMatrix\|SystemTaskHistoryDatabaseMatrix\|InferencePresetSettingsAndDatabaseRoundTrip)` | `TEST_MYSQL_DSN`、`TEST_POSTGRES_DSN`；三库 options 事务、history、channel settings、重复 migration、数据/约束/索引，含 PostgreSQL renamed unique constraints |
+| `./service` / `Test(CalculateTextQuotaSummary\|ConsumeLogPromptTokens\|FixedPriceBillingDatabaseMatrix)` | `TEST_FIXED_{MYSQL,POSTGRES}_DSN` 及各自 `_LOG_DSN`；三库主库与独立 log DB、预扣/结算/退款和 PATCH-001 |
+| `./controller` / `Test(ExecuteTaskSubmissionHonorsRouteRetainResult\|ImmediateTaskSettlementDatabase\|TaskListsOmitPersistedSnapshot)` | `TEST_TASK_DB_DIALECT=sqlite/mysql/postgres` 分别运行；三库 serializer、NULL data、列表省略快照、立即结算 |
+| `./controller` / `Test(OAuthLogin\|OAuthBind\|GenerateOAuthCode\|SecurityLogin\|SessionLimitDoesNotRecordRejectedLoginAsSuccessful\|GetStatusDoesNotExposePasskeyOrigins\|PasskeyRPIDMigrationPreservesExistingCredentials)` | `TEST_SECURITY_DIALECT=sqlite/mysql/postgres` 分别运行；每库 74 个含子用例的 pass event，动态创建隔离 main/log DB |
+| `./controller` / `Test(PreConsumePolicyDatabaseMatrix\|ModelPricingConversionDatabaseMatrix\|ModelManagementDatabaseMatrix\|SharedModelPluginPricingDatabaseMatrix)` | 三库设置持久化、重复加载、价格与 model management |
+| `./controller` / `^TestMultiKeyEnableRestoresOnlyExhaustedChannels$` | 通过 `TEST_CHANNEL_SQL_DSN` 分别运行三库，验证手动/标签禁用状态保留 |
+| `./controller` / `^TestRequestPolicyRoutingDatabaseMatrix$` | 三库 routing / affinity / cache 路径 |
+| `./pkg/perf_metrics` / `^TestPerformanceAggregationAndFlush$` | `TEST_PERF_MYSQL_DSN`、`TEST_PERF_POSTGRES_DSN`；首轮误用普通 DSN 名产生 2 SKIP，保留日志；纠正变量名后三库通过、0 SKIP |
+| `./controller` / `^Test(DeleteThirdPartyPluginReportsAssociatedChannelsAndInFlightTasks\|DisableThirdPartyPluginSupportsCascadeAndForce)$` | 使用 `-overlay <证据目录>/plugin-matrix-overlay.json`；仅将原 SQLite fixture 换为既有 `openTaskDialectDatabase`，原断言不变，三库验证关联渠道查询与只解绑目标插件；仓库文件未修改 |
+
+所有上述最终 focused matrix 已逐项检查 0 SKIP。全量中未补跑的无关历史矩阵、ClickHouse audit、VLLM live 等仍以
+`test-summary.json` 的原始 SKIP 清单为准，不能据此宣称全仓库全部外部集成已验收。
+本轮没有 schema、migration 或 GORM/driver dependency 变更；现场 fetch 到的 `v1.0.0-rc.39` 与固定目标之间
+`model/`、`go.mod`、`go.sum` tree diff 为空。
+补跑的历史 migration fixture 覆盖合成旧 schema 和重复 migration；Passkey 包括 fresh、rc.36 schema 升级、两次 migration、凭据/索引保留及登录。
+它们不是从 latest release 完整实例导出的升级验收。上一轮“完全没有 MySQL/PostgreSQL 实例”的阻塞已消除，不继续沿用为本轮理由。
+
+#### 首轮失败、复跑与固定上游对照
+
+1. 默认 CGO 的 root vet 在 `runtime/cgo` 报 Xcode license 未接受；未接受或改动系统许可，改用纯 Go 构建完成 vet/build。
+2. root 全量 `controller` 失败：`TestResponsesWebSocketInitialUpstreamRejectionRefundsReservation` 的两个子项期望余额 2990，实际 3000。
+   以 `-p 1 -count=1` 单独复跑仍失败；固定 `9a0be8750` 的 detached worktree、相同工具和依赖、相同 CGO 设置也复现两个断言。
+   上游已改为仅按输入预扣，该测试仍假定 output-only expression 会预扣 10；本轮不修改上游实现或断言。
+3. `TestSecurityAccountDeletionConcurrentRequestsHaveOneWinner` 首轮出现 `SQLITE_BUSY`，期望一个成功响应而实际为零。
+   同批 focused 复跑通过，固定上游对照失败；归为已有并发/时序不稳定，未确证根因、未标记修复。
+4. 前端 format check 报 21 个文件；固定上游 worktree 使用同一 node_modules 后复现完全相同文件列表。
+   未批量格式化无关上游代码。前端完整测试首轮已全绿，无需重跑到绿。
+
+后端复跑与上游对照均执行：
+
+```sh
+CGO_ENABLED=0 GOWORK=off go test -json -p 1 -count=1 ./controller \
+  -run 'Test(ResponsesWebSocketInitialUpstreamRejectionRefundsReservation|SecurityAccountDeletionConcurrentRequestsHaveOneWinner)'
+```
+
+用户补充允许改为 [v1.0.0-rc.39](https://github.com/QuantumNous/new-api/releases/tag/v1.0.0-rc.39) 后，
+额外在固定 release SHA `9978ee1e25a647bfe004e96c8719a2cb62c24732` 的独立 worktree 执行同一后端对照及 format check。
+该版本的两个 WebSocket 预扣断言同样失败，账户删除并发用例此次通过；format check 报 22 个文件，不能视为全绿替代版本。
+rc.39 到本轮目标仅有 `47713bcb1`（插件版本更新）和 `9a0be8750`（插件 enum 收窄后的定价编辑修复）两个提交，
+相关后端/认证路径没有 tree diff。由于回到 rc.39 不能避开已发现的问题，本轮仍采用原固定目标，保留上述验证缺口。
+release 对照日志与 `rc39-comparison.json` 已保存，对照 worktree 随后清理。
+
+#### 认证审查边界与后续事项
+
+本轮按 [ASVS 5.0.0](https://github.com/OWASP/ASVS/releases/tag/v5.0.0) 及
+[Authentication](https://cheatsheetseries.owasp.org/cheatsheets/Authentication_Cheat_Sheet.html)、
+[Session Management](https://cheatsheetseries.owasp.org/cheatsheets/Session_Management_Cheat_Sheet.html)、
+[OAuth2](https://cheatsheetseries.owasp.org/cheatsheets/OAuth2_Cheat_Sheet.html)、
+[MFA](https://cheatsheetseries.owasp.org/cheatsheets/Multifactor_Authentication_Cheat_Sheet.html)、
+[CSRF](https://cheatsheetseries.owasp.org/cheatsheets/Cross-Site_Request_Forgery_Prevention_Cheat_Sheet.html) 指南审查。
+使用的控制项为 `v5.0.0-6.3.4`、`6.5.1`、`6.5.5`、`7.2.1`、`7.2.4`、`7.5.1`、`10.1.2`、`10.2.1`。
+GitHub legacy binding 增量要求 verified account evidence 或既有 MFA，相关错误证据、replay、expiry、事务回滚回归通过。
+仍有两项明确边界，不声明 OWASP 合规完成：
+
+- 既有 OAuth login 缺少发起浏览器的服务端绑定：`controller/oauth.go` 仅 bind/verify 强制发起 session，
+  login flow 无 browser secret；前端无记忆 marker 时仍可按 login 兑换 callback，并写 refresh cookie。
+  关联行为在合并前已存在。静态确认与 `10.1.2` 的会话/事务绑定要求有缺口；真实 provider、双浏览器攻击复现未执行。
+- GitHub 跨用户并发认领的唯一性尚未验证：`migrateLegacyGitHubBinding` 使用 COUNT 后 UPDATE，`github_id` 仅普通 index。
+  现有顺序 interference 测试不证明并发所有权保证；这是待审查/验证项，未称为已复现缺陷。
+
+本轮证据：`/Users/andy/AI/GitHub/new-api/.git/maintenance-evidence/2026-09-20T172846Z-upstream-9a0be8750/`。
+包括 baseline/environment、原始 root/relaykit/frontend 日志、全部 matrix 命令和 JSONL、首次失败/复跑/上游对照、
+`test-summary.json`、独立审查摘要、overlay fixture 与 cleanup 回执；均为本地持久证据，不随 push 共享。
+专用数据库容器及其匿名 volume、上游对照 worktree 已清理；无其他运行容器时将 OrbStack 恢复到初始 stopped 状态，保留恢复引用。
+merge 后目标 ancestry 成立，相对目标仅剩 3 个 PATCH-001 业务/测试文件和 2 个维护资产；维护记录另作独立 docs commit。
 
 ### 新轮次记录模板
 
