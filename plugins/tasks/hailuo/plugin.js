@@ -67,6 +67,7 @@ export const meta = {
   channelTypes: [35],
   models: [
     "MiniMax-H3",
+    "minimax/h3",
     "MiniMax-Hailuo-2.3",
     "MiniMax-Hailuo-2.3-Fast",
     "MiniMax-Hailuo-02",
@@ -99,7 +100,7 @@ export const meta = {
   ],
   usageProfiles: [
     {
-      models: ["MiniMax-H3"],
+      models: ["MiniMax-H3", "minimax/h3"],
       schema: H3_USAGE_SCHEMA,
       examples: [
         { label: "H3 768P 5s", facts: { seconds: 5, resolution: "768P", input_images: 0, input_video_seconds: 0 } },
@@ -187,6 +188,7 @@ function hasHailuoImage(req, hasInputReferenceFile) {
 }
 
 const H3_MODEL = "MiniMax-H3";
+const H3_ALIAS = "minimax/h3";
 const H3_MIN_DURATION = 4;
 const H3_MAX_DURATION = 15;
 const H3_DEFAULT_DURATION = 5;
@@ -201,7 +203,11 @@ const H3_RATIOS = ["adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16"];
 // array instead of flat frame fields, an explicit `ratio`, 768P/2K resolutions,
 // a task id path parameter on query, and a `{task: {...}}` query envelope.
 function isH3(model) {
-  return model === H3_MODEL;
+  return model === H3_MODEL || model === H3_ALIAS;
+}
+
+function canonicalModel(model) {
+  return isH3(model) ? H3_MODEL : model;
 }
 
 function h3Duration(req) {
@@ -444,7 +450,7 @@ export function buildSubmitRequest(ctx) {
   if (isH3(model)) {
     const content = h3Content(req);
     const h3Body = {
-      model: model,
+      model: canonicalModel(model),
       content: content,
       resolution: h3Resolution(req),
       duration: h3Duration(req),

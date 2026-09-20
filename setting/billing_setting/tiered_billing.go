@@ -104,6 +104,11 @@ func GetPluginBillingExpr(pluginKey, model string) (string, bool) {
 	return expression, ok
 }
 
+func GetBuiltinTaskBillingExpr(pluginKey, model string) (string, bool) {
+	expression, ok := builtinTaskBillingExpr[PluginBillingExprKey(pluginKey, model)]
+	return expression, ok
+}
+
 // ResolveTaskBillingExpr selects the executing plugin's override before the
 // model expression, retaining the model alias fallback and explicit modes.
 func ResolveTaskBillingExpr(pluginKey, model, mappedModel string) (string, bool) {
@@ -122,7 +127,19 @@ func ResolveTaskBillingExpr(pluginKey, model, mappedModel string) (string, bool)
 	}
 	if mappedModel != "" && mappedModel != model && GetBillingMode(mappedModel) == BillingModeTieredExpr {
 		expression, ok := GetBillingExpr(mappedModel)
-		return expression, ok && strings.TrimSpace(expression) != ""
+		if ok && strings.TrimSpace(expression) != "" {
+			return expression, true
+		}
+	}
+	if pluginKey != "" {
+		if expr, ok := GetBuiltinTaskBillingExpr(pluginKey, model); ok {
+			return expr, true
+		}
+		if mappedModel != "" && mappedModel != model {
+			if expr, ok := GetBuiltinTaskBillingExpr(pluginKey, mappedModel); ok {
+				return expr, true
+			}
+		}
 	}
 	return "", false
 }
@@ -146,6 +163,10 @@ func TaskExprCompatible(expression string, schema map[string]jsplugin.UsageField
 
 func GetBuiltinBillingExprCopy() map[string]string {
 	return lo.Assign(builtinBillingExpr)
+}
+
+func GetBuiltinTaskBillingExprCopy() map[string]string {
+	return lo.Assign(builtinTaskBillingExpr)
 }
 
 func GetBillingModeCopy() map[string]string {

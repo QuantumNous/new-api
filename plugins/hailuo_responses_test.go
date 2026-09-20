@@ -57,7 +57,7 @@ func TestHailuoUsageProfilesPerModel(t *testing.T) {
 		resolutions []string
 	}{
 		{
-			models:      []string{"MiniMax-H3"},
+			models:      []string{"MiniMax-H3", "minimax/h3"},
 			fields:      []string{"input_images", "input_video_seconds", "resolution", "seconds"},
 			resolutions: []string{"768P", "2K"},
 		},
@@ -109,6 +109,18 @@ func TestHailuoUsageProfilesPerModel(t *testing.T) {
 			"seconds": float64(10), "resolution": "768P", "input_images": float64(0), "input_video_seconds": float64(0),
 		}, facts)
 	})
+}
+
+func TestHailuoH3AliasUsesCanonicalUpstreamModel(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	ctx := hailuoH3SubmitContext(map[string]any{"prompt": "p", "duration": 5})
+	ctx["model"] = "minimax/h3"
+	ctx["upstreamModel"] = "minimax/h3"
+
+	descriptor := callHailuoHook(t, plugin, "buildSubmitRequest", ctx)
+	body, err := common.Marshal(descriptor["body"])
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"model":"MiniMax-H3","content":[{"type":"text","text":"p"}],"resolution":"768P","duration":5,"ratio":"16:9"}`, string(body))
 }
 
 func TestHailuoArtifactContentProxy(t *testing.T) {

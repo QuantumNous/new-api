@@ -361,6 +361,9 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billing
 	if !ok {
 		return hosttypes.PriceData{}, fmt.Errorf("model %s is configured as tiered_expr but has no billing expression", billingModelName)
 	}
+	if usageKeys := billingexpr.UsedUsageKeys(exprStr); len(usageKeys) > 0 {
+		return hosttypes.PriceData{}, fmt.Errorf("model %s task usage billing requires a task plugin route", billingModelName)
+	}
 	exprHash := billingexpr.ExprHashString(exprStr)
 	if info.RelayFormat == types.RelayFormatOpenAIRealtime && billingexpr.UsesFixedPricingByHash(exprStr, exprHash) {
 		return hosttypes.PriceData{}, fmt.Errorf("fixed pricing is not supported for Realtime requests")

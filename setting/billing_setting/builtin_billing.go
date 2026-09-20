@@ -3,9 +3,6 @@ package billing_setting
 // Built-in token prices use actual USD per million tokens. Keep new model
 // defaults here instead of splitting them across the legacy ratio tables.
 var builtinBillingExpr = map[string]string{
-	// MiniMax-H3 task pricing: $0.1195 per generated video second,
-	// converted from CNY 0.8 at the configured exchange rate.
-	"MiniMax-H3": `tier("per_second", u("seconds") * 0.1195)`,
 	// https://developers.openai.com/api/docs/pricing (Standard, 2026-09-09).
 	// The Images API reports image output in output_tokens, normalized to c.
 	"gpt-image-2":            `tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 2 + c * 30)`,
@@ -16,4 +13,12 @@ var builtinBillingExpr = map[string]string{
 	// Do not infer service-tier discounts from incoming request parameters:
 	// channels filter service_tier by default, so it may not reach the upstream.
 	"gpt-6-astra": `len <= 272000 ? tier("standard", p * 10 + c * 50 + cr * 1 + cc * 12.5) : tier("long_context", p * 20 + c * 75 + cr * 2 + cc * 25)`,
+}
+
+// Built-in task prices are keyed by plugin and model because usage facts only
+// exist on the task-plugin path. They must never participate in generic token
+// pricing, where u("...") has no value.
+var builtinTaskBillingExpr = map[string]string{
+	"hailuo::MiniMax-H3": `tier("per_second", u("seconds") * 0.1195)`,
+	"hailuo::minimax/h3": `tier("per_second", u("seconds") * 0.1195)`,
 }

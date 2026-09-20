@@ -150,13 +150,19 @@ func TestImageModelBuiltinPricesAndOverrides(t *testing.T) {
 }
 
 func TestMiniMaxH3BuiltinTaskBilling(t *testing.T) {
-	expression, ok := billing_setting.GetBillingExpr("MiniMax-H3")
+	expression, ok := billing_setting.ResolveTaskBillingExpr("hailuo", "MiniMax-H3", "")
 	require.True(t, ok)
-	assert.Equal(t, billing_setting.BillingModeTieredExpr, billing_setting.GetBillingMode("MiniMax-H3"))
+	assert.Equal(t, billing_setting.BillingModeRatio, billing_setting.GetBillingMode("MiniMax-H3"))
+	_, ok = billing_setting.GetBillingExpr("MiniMax-H3")
+	assert.False(t, ok, "task pricing must not be exposed as a token billing expression")
 
 	cost, _, err := billingexpr.RunExprWithRequest(expression, billingexpr.TokenParams{}, billingexpr.RequestInput{
 		Usage: map[string]any{"seconds": float64(5)},
 	})
 	require.NoError(t, err)
 	assert.InDelta(t, 0.5975, cost, 0.0000001)
+
+	aliasExpression, ok := billing_setting.ResolveTaskBillingExpr("hailuo", "minimax/h3", "MiniMax-H3")
+	require.True(t, ok)
+	assert.Equal(t, expression, aliasExpression)
 }
