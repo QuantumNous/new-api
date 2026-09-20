@@ -51,8 +51,8 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 
 	updateOpenAIImageCount(info, gjson.GetBytes(responseBody, "data.#").Int())
 	clientBody := responseBody
-	if info != nil && service.ImageUpscaleTarget(info.OriginModelName) != 0 {
-		target := service.ImageUpscaleTarget(info.OriginModelName)
+	if info != nil && service.LocalImageUpscaleTarget(info.OriginModelName, info.UpstreamModelName) != 0 {
+		target := service.LocalImageUpscaleTarget(info.OriginModelName, info.UpstreamModelName)
 		clientBody, err = service.UpscaleImageResponse(c.Request.Context(), clientBody, target)
 		if err != nil {
 			c.Header("x-should-retry", "false")

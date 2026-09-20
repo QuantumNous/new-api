@@ -16,7 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { DrawingForm } from '../drawing-form'
@@ -73,4 +74,32 @@ describe('AI drawing form', () => {
     ).toHaveAttribute('src', 'blob:source-image')
     expect(screen.getByRole('button', { name: 'Remove image' })).toBeEnabled()
   })
+
+  it.each(['gpt-image-2.5-2k', 'gpt-image-2.5-4k'])(
+    'submits %s unchanged and resets an unsupported wide ratio',
+    async (model) => {
+      const user = userEvent.setup()
+      const { rerender } = render(<DrawingForm {...FORM_PROPS} />)
+      await user.click(screen.getByLabelText('Aspect ratio'))
+      await user.click(
+        await screen.findByRole('option', { name: '21:9 · Landscape' })
+      )
+      rerender(<DrawingForm {...FORM_PROPS} model={model} />)
+      expect(screen.getByLabelText('Aspect ratio')).toHaveTextContent(
+        '1:1 · Square'
+      )
+      await user.click(screen.getByLabelText('Aspect ratio'))
+      expect(
+        screen.queryByRole('option', { name: '21:9 · Landscape' })
+      ).not.toBeInTheDocument()
+      await user.keyboard('{Escape}')
+      await user.type(screen.getByLabelText('Prompt'), 'Product')
+      await user.click(screen.getByRole('button', { name: 'Generate image' }))
+      await waitFor(() =>
+        expect(FORM_PROPS.onSubmit).toHaveBeenCalledWith(
+          expect.objectContaining({ model, size: '1024x1024' })
+        )
+      )
+    }
+  )
 })

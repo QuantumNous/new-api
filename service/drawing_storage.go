@@ -56,6 +56,9 @@ func DrawingConcurrency() int {
 }
 
 func DrawingSize(modelName, ratio string) (string, error) {
+	if ImageUpscaleTarget(modelName) != 0 {
+		return ProImageSizeForRatio(modelName, ratio)
+	}
 	size, ok := DrawingRatios[ratio]
 	if !ok {
 		return "", errors.New("Unsupported aspect ratio")

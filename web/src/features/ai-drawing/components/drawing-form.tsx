@@ -64,6 +64,11 @@ type DrawingFormProps = {
 export function DrawingForm(props: DrawingFormProps) {
   const { t } = useTranslation()
   const [image, setImage] = useState<File>()
+  const isProAlias =
+    props.model === 'gpt-image-2.5-2k' || props.model === 'gpt-image-2.5-4k'
+  const ratioOptions = IMAGE_RATIO_OPTIONS.filter(
+    (option) => !isProAlias || option.ratio !== '21:9'
+  )
   const form = useForm<DrawingFormValues>({
     resolver: zodResolver(drawingSchema),
     defaultValues: { prompt: '', size: '1024x1024', count: '' },
@@ -80,7 +85,8 @@ export function DrawingForm(props: DrawingFormProps) {
       model: props.model,
       group: props.group,
       prompt: values.prompt,
-      size: values.size,
+      size:
+        isProAlias && values.size === '1792x768' ? '1024x1024' : values.size,
       count,
       image,
     })
@@ -146,11 +152,15 @@ export function DrawingForm(props: DrawingFormProps) {
               control={form.control}
               name='size'
               render={({ field }) => {
-                const selected = IMAGE_RATIO_OPTIONS.find(
-                  (option) => option.size === field.value
+                const size =
+                  isProAlias && field.value === '1792x768'
+                    ? '1024x1024'
+                    : field.value
+                const selected = ratioOptions.find(
+                  (option) => option.size === size
                 )
                 return (
-                  <Select value={field.value} onValueChange={field.onChange}>
+                  <Select value={size} onValueChange={field.onChange}>
                     <SelectTrigger
                       id='drawing-size'
                       className='w-full'
@@ -164,7 +174,7 @@ export function DrawingForm(props: DrawingFormProps) {
                     </SelectTrigger>
                     <SelectContent alignItemWithTrigger={false}>
                       <SelectGroup>
-                        {IMAGE_RATIO_OPTIONS.map((option) => (
+                        {ratioOptions.map((option) => (
                           <SelectItem key={option.size} value={option.size}>
                             {option.ratio} · {t(option.labelKey)}
                           </SelectItem>

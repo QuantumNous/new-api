@@ -43,7 +43,31 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		return types.NewError(fmt.Errorf("invalid api type: %d", info.ApiType), types.ErrorCodeInvalidApiType, types.ErrOptionWithSkipRetry())
 	}
 	adaptor.Init(info)
-	if service.ImageUpscaleTarget(info.OriginModelName) != 0 {
+	if service.ImageUpscaleTarget(info.OriginModelName) != 0 && service.LocalImageUpscaleTarget(info.OriginModelName, request.Model) == 0 {
+		if info.ApiType != constant.APITypeOpenAI || model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled || len(info.ParamOverride) > 0 {
+			return types.NewErrorWithStatusCode(fmt.Errorf("Pro image aliases require an OpenAI channel without parameter overrides or pass-through"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		request.Size, err = service.ProImageRequestSize(info.OriginModelName, request.Size)
+		if err != nil {
+			return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		}
+		imageReq.Size = request.Size
+		if strings.Contains(c.GetHeader("Content-Type"), "multipart/form-data") {
+			form := c.Request.MultipartForm
+			if form == nil {
+				form, err = common.ParseMultipartFormReusable(c)
+				if err != nil {
+					return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+				}
+			}
+			if form.Value == nil {
+				form.Value = make(map[string][]string)
+			}
+			form.Value["size"] = []string{request.Size}
+			c.Request.MultipartForm = form
+		}
+	}
+	if service.LocalImageUpscaleTarget(info.OriginModelName, request.Model) != 0 {
 		if info.ApiType != constant.APITypeOpenAI || service.ImageUpscaleTarget(request.Model) != 0 || model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled || len(info.ParamOverride) > 0 {
 			return types.NewErrorWithStatusCode(fmt.Errorf("upscale models require a mapped OpenAI channel without parameter overrides or pass-through"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 		}
@@ -127,7 +151,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		}
 	}
 
-	if service.ImageUpscaleTarget(info.OriginModelName) != 0 && info.IsStream {
+	if service.LocalImageUpscaleTarget(info.OriginModelName, request.Model) != 0 && info.IsStream {
 		if httpResp != nil {
 			service.CloseResponseBodyGracefully(httpResp)
 		}
