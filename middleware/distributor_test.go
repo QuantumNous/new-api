@@ -341,3 +341,20 @@ func TestSharedEndpointRebindsToBoundNewAPIExtension(t *testing.T) {
 	assert.Equal(t, "alpha", c.GetString("task_plugin_key"), "the first bound candidate executes regardless of the earlier pin")
 	assert.Equal(t, "alpha", c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint).Plugin.Meta.Key)
 }
+
+func TestClientCapturePreservesOriginalUAAndIgnoresAdditionalHeaders(t *testing.T) {
+	engine := gin.New()
+	engine.Use(CaptureClientIdentity())
+	engine.POST("/", func(c *gin.Context) {
+		c.Request.Header.Set("User-Agent", "curl/9.0")
+		identity := common.RequestClient(c)
+		require.NotNil(t, identity)
+		assert.Equal(t, "unknown", identity.Family)
+		assert.Equal(t, "my-agent", identity.UserAgent)
+	})
+	request := httptest.NewRequest(http.MethodPost, "/", nil)
+	request.Header.Set("User-Agent", "my-agent")
+	request.Header.Set("X-Client-Name", "Codex Desktop")
+	request.Header.Set("Authorization", "Bearer private")
+	engine.ServeHTTP(httptest.NewRecorder(), request)
+}

@@ -243,7 +243,7 @@ it.each([false, true])(
     expect(row).toHaveClass('grid', 'grid-cols-2')
     expect(
       screen.getByRole('button', { name: /^Time:/ }).parentElement
-    ).toHaveClass('flex-col', 'justify-between')
+    ).toHaveClass('flex', 'items-center')
     expect(
       within(row as HTMLElement)
         .getByText('Duration')

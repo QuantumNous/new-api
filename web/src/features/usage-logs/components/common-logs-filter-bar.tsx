@@ -89,6 +89,7 @@ function buildSearchSourceKey(values: {
   channel?: unknown
   model?: unknown
   token?: unknown
+  clientFamily?: unknown
   group?: unknown
   username?: unknown
   requestId?: unknown
@@ -102,6 +103,7 @@ function buildSearchSourceKey(values: {
     values.model,
     values.token,
     values.group,
+    values.clientFamily,
     values.username,
     values.requestId,
     values.upstreamRequestId,
@@ -153,6 +155,7 @@ export function CommonLogsFilterBar<TData>(
       channel: searchParams.channel,
       model: searchParams.model,
       token: searchParams.token,
+      clientFamily: searchParams.clientFamily,
       group: searchParams.group,
       username: searchParams.username,
       requestId: searchParams.requestId,
@@ -167,6 +170,7 @@ export function CommonLogsFilterBar<TData>(
       channel: searchParams.channel || undefined,
       model: searchParams.model || undefined,
       token: searchParams.token || undefined,
+      clientFamily: searchParams.clientFamily || undefined,
       group: searchParams.group || undefined,
       username: searchParams.username || undefined,
       requestId: searchParams.requestId || undefined,
@@ -184,6 +188,7 @@ export function CommonLogsFilterBar<TData>(
     searchParams.model,
     searchParams.token,
     searchParams.group,
+    searchParams.clientFamily,
     searchParams.username,
     searchParams.requestId,
     searchParams.upstreamRequestId,
@@ -270,7 +275,11 @@ export function CommonLogsFilterBar<TData>(
 
   const hasTypeFilter = logType !== LOG_TYPE_ALL_VALUE
   const hasAdditionalFilters =
-    !!filters.model || !!filters.group || hasTypeFilter || hasExpandedFilters
+    !!filters.clientFamily ||
+    !!filters.model ||
+    !!filters.group ||
+    hasTypeFilter ||
+    hasExpandedFilters
 
   const expandedFilterCount = [
     filters.token,
@@ -356,6 +365,36 @@ export function CommonLogsFilterBar<TData>(
         value={filters.group || ''}
         onValueChange={(value) => handleChange('group', value ?? '')}
         onKeyDown={handleKeyDown}
+      />
+    </LogsFilterField>
+  )
+  const clientFilter = (
+    <LogsFilterField>
+      <Combobox
+        aria-label={t('Client family')}
+        placeholder={t('Client family')}
+        options={Object.entries({
+          codex: 'Codex',
+          claude_code: 'Claude Code',
+          pi: 'Pi',
+          opencode: 'OpenCode',
+          zcode: 'ZCode',
+          dsh: 'DeepSeek Harness (DSH)',
+          newapi: 'NewAPI',
+          openclaw: 'OpenClaw',
+          cherry_studio: 'Cherry Studio',
+          openai_sdk: 'OpenAI SDK',
+          node: 'Node',
+          bun: 'Bun',
+          python: 'Python',
+          browser: t('Browser'),
+          curl: 'curl',
+          unknown: t('Unknown client'),
+          unrecorded: t('Not recorded'),
+        }).map(([value, label]) => ({ value, label }))}
+        value={filters.clientFamily || ''}
+        onValueChange={(value) => handleChange('clientFamily', value ?? '')}
+        className='h-8 min-w-0 text-sm'
       />
     </LogsFilterField>
   )
@@ -494,6 +533,7 @@ export function CommonLogsFilterBar<TData>(
           {dateRangeFilter}
           {modelFilter}
           {groupFilter}
+          {clientFilter}
           {typeFilter}
         </>
       }
@@ -503,13 +543,18 @@ export function CommonLogsFilterBar<TData>(
         <>
           {modelFilter}
           {groupFilter}
+          {clientFilter}
           {typeFilter}
           {advancedFilters}
         </>
       }
       mobileFilterCount={
-        [filters.model, filters.group, hasTypeFilter].filter(Boolean).length +
-        expandedFilterCount
+        [
+          filters.model,
+          filters.group,
+          filters.clientFamily,
+          hasTypeFilter,
+        ].filter(Boolean).length + expandedFilterCount
       }
       hasAdvancedActiveFilters={hasExpandedFilters}
       advancedFilterCount={expandedFilterCount}

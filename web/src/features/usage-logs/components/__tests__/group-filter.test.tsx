@@ -302,3 +302,16 @@ it('keeps historical auto values editable when auto is the only available group'
     expect(router.state.location.search).toMatchObject({ group: 'retired' })
   )
 })
+
+it('applies client family on the server query and resets pagination', async () => {
+  const router = await renderFilter('/usage-logs/common?page=3')
+  await userEvent.click(screen.getByRole('combobox', { name: 'Client family' }))
+  await userEvent.click(await screen.findByRole('option', { name: 'Codex' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Search' }))
+  await waitFor(() =>
+    expect(router.state.location.search).toMatchObject({
+      clientFamily: 'codex',
+      page: 1,
+    })
+  )
+})

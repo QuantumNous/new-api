@@ -281,7 +281,12 @@ func RefundTaskQuota(ctx context.Context, task *model.Task, reason string) bool 
 	other := taskBillingOther(task)
 	other.SetPublic("task_id", task.TaskID)
 	other.SetPublic("reason", reason)
+	var client *common.ClientIdentity
+	if task.PrivateData.Execution != nil {
+		client = task.PrivateData.Execution.Client
+	}
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
+		Client:    client,
 		UserId:    task.UserId,
 		LogType:   model.LogTypeRefund,
 		Content:   "",
@@ -361,7 +366,12 @@ func RecalculateTaskQuota(ctx context.Context, task *model.Task, actualQuota int
 	for _, clamp := range clamps {
 		attachQuotaSaturationToOther(other, clamp)
 	}
+	var client *common.ClientIdentity
+	if task.PrivateData.Execution != nil {
+		client = task.PrivateData.Execution.Client
+	}
 	model.RecordTaskBillingLog(model.RecordTaskBillingLogParams{
+		Client:    client,
 		UserId:    task.UserId,
 		LogType:   logType,
 		Content:   reason,
