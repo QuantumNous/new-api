@@ -132,9 +132,12 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
                 unitLabelKey ? t(unitLabelKey) : tokenUnitLabel
               )
               let label: ReactNode = null
+              const showTaskLabel =
+                !dynamicSummary.isTaskUsage ||
+                dynamicSummary.primaryEntries.length > 1
               if (entry.labelKind !== 'schema') {
                 label = t(entry.shortLabel)
-              } else {
+              } else if (showTaskLabel) {
                 label = taskPriceLabel(
                   entry.description,
                   entry.shortLabel,

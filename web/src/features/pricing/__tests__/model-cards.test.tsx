@@ -361,6 +361,23 @@ describe('model cards', () => {
     expect(screen.queryByText(/1K|1M/)).not.toBeInTheDocument()
   })
 
+  it('shows a simple seconds expression as a per-second price without exposing the raw expression', () => {
+    render(
+      <ModelCard
+        model={pricingModel({
+          model_name: 'minimax/h3',
+          billing_mode: 'tiered_expr',
+          billing_expr: 'tier("per_second", u("seconds") * 0.1195)',
+        })}
+        onClick={vi.fn()}
+      />
+    )
+    expect(screen.getByText('$0.1195')).toBeVisible()
+    expect(screen.getByText(/^\/\s*s$/)).toBeVisible()
+    expect(screen.queryByText('Special billing expression')).not.toBeInTheDocument()
+    expect(screen.queryByText(/tier\(/)).not.toBeInTheDocument()
+  })
+
   it('shows the unconfigured usage message without inventing a token price', () => {
     render(
       <ModelCard

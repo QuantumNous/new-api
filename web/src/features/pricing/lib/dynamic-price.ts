@@ -37,6 +37,7 @@ import {
   type ParsedTier,
 } from './billing-expr'
 import { compileBillingExpression } from './billing-expression/parser'
+import { visitExpression } from './billing-expression/types'
 import { getDisplayGroupRatio } from './model-helpers'
 import { withPluginPricing } from './plugin-pricing'
 import {
@@ -100,6 +101,61 @@ export type DynamicPricingSummary = {
   hasUnconfiguredProviders?: boolean
 }
 
+const INFERRED_USAGE_UNITS: Partial<Record<string, BillingUsageUnit>> = {
+  seconds: 'second',
+  duration_seconds: 'second',
+  input_video_seconds: 'second',
+  tokens: 'token',
+  credits: 'credit',
+  clips: 'count',
+  images: 'count',
+  image_count: 'count',
+  input_images: 'count',
+  units: 'count',
+}
+
+function inferTaskUsageSchema(
+  expression: string | undefined
+): BillingUsageSchema | undefined {
+  if (!expression) return undefined
+  const { billingExpr } = splitBillingExprAndRequestRules(expression)
+  const compiled = compileBillingExpression(billingExpr)
+  if (compiled.status !== 'ready' || !compiled.functions.has('u')) {
+    return undefined
+  }
+
+  const schema: BillingUsageSchema = {}
+  visitExpression(compiled.ast, (node) => {
+    if (
+      node.kind !== 'call' ||
+      node.name !== 'u' ||
+      node.args[0]?.kind !== 'literal' ||
+      typeof node.args[0].value !== 'string'
+    ) {
+      return
+    }
+    const field = node.args[0].value
+    const unit = INFERRED_USAGE_UNITS[field]
+    if (!unit) return
+    schema[field] = {
+      type: 'number',
+      unit,
+      description: { en: 'Unit price', zh: '单位价格' },
+    }
+  })
+  return Object.keys(schema).length > 0 ? schema : undefined
+}
+
+export function getTaskUsageDisplaySchema(
+  model: PricingModel
+): BillingUsageSchema | undefined {
+  if (Object.keys(model.billing_usage_schema ?? {}).length > 0) {
+    return model.billing_usage_schema
+  }
+  if (model.billing_plugin_variants?.length) return undefined
+  return inferTaskUsageSchema(model.billing_expr)
+}
+
 export function getTaskUsageQuantityUnitLabelKey(
   unit: BillingUsageUnit | undefined
 ): string {
@@ -151,11 +207,13 @@ export function isDynamicPricingModel(model: PricingModel): boolean {
 }
 
 export function hasTaskUsageSchema(model: PricingModel): boolean {
-  return Object.keys(model.billing_usage_schema ?? {}).length > 0
+  return Boolean(getTaskUsageDisplaySchema(model))
 }
 
 export function isTaskUsagePricingModel(model: PricingModel): boolean {
-  return model.billing_mode === 'tiered_expr' && hasTaskUsageSchema(model)
+  return (
+    model.billing_mode === 'tiered_expr' && hasTaskUsageSchema(model)
+  )
 }
 
 export function isUnconfiguredTaskUsageModel(model: PricingModel): boolean {
@@ -176,7 +234,9 @@ export function isUnconfiguredTaskUsageModel(model: PricingModel): boolean {
 export function getTaskPricingUnit(
   model: PricingModel
 ): BillingUsageUnit | null {
-  const primaryField = getTaskNumberFields(model.billing_usage_schema)[0]
+  const primaryField = getTaskNumberFields(
+    getTaskUsageDisplaySchema(model)
+  )[0]
   return primaryField?.[1].unit ?? null
 }
 
@@ -257,8 +317,9 @@ export function getDynamicPricingTiers(
   const { billingExpr } = splitBillingExprAndRequestRules(
     model.billing_expr || ''
   )
-  if (isTaskUsagePricingModel(model)) {
-    return parseTaskTiersFromExpr(billingExpr, model.billing_usage_schema, true)
+  const usageSchema = getTaskUsageDisplaySchema(model)
+  if (isTaskUsagePricingModel(model) && usageSchema) {
+    return parseTaskTiersFromExpr(billingExpr, usageSchema, true)
   }
   return parseTiersFromExpr(billingExpr)
 }
@@ -506,9 +567,10 @@ export function getDynamicPricingSummary(
   const tier = isTaskUsage
     ? (summaryTiers.at(-1) ?? null)
     : (summaryTiers[0] ?? null)
+  const usageSchema = getTaskUsageDisplaySchema(model)
   let entries = getDynamicPriceEntries(tier, {
     ...options,
-    usageSchema: model.billing_usage_schema,
+    usageSchema,
   })
   let isMixedBilling = false
   if (!isTaskUsage) {
@@ -528,7 +590,7 @@ export function getDynamicPricingSummary(
   }
   if (isTaskUsage) {
     const priceRanges = new Map<string, { min: number; max: number }>()
-    for (const [field] of getTaskNumberFields(model.billing_usage_schema)) {
+    for (const [field] of getTaskNumberFields(usageSchema)) {
       let min = Number.POSITIVE_INFINITY
       let max = Number.NEGATIVE_INFINITY
       for (const taskTier of tiers) {
@@ -605,7 +667,7 @@ export function getCardExamplePrice(
       : null
   }
   if (!isTaskUsagePricingModel(model)) return null
-  const schema = model.billing_usage_schema
+  const schema = getTaskUsageDisplaySchema(model)
   const firstExample = model.billing_usage_examples?.[0]
   if (!schema || !firstExample) return null
 

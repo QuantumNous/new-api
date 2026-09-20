@@ -279,11 +279,45 @@ it('shows one standard task price and a localized group price without duplicate 
   ).toHaveLength(2)
 })
 
-it('labels even a single task price on model cards', async () => {
+it('infers seconds pricing in model details when the usage schema is omitted', () => {
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { data: { groups: [] } } })
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  clients.push(client)
+  render(
+    <QueryClientProvider client={client}>
+      <ModelDetailsContent
+        model={{
+          ...model,
+          model_name: 'minimax/h3',
+          billing_expr: 'tier("per_second", u("seconds") * 0.1195)',
+          billing_usage_schema: undefined,
+        }}
+        groupRatio={{ default: 1 }}
+        usableGroup={{ default: { desc: '', ratio: 1 } }}
+        endpointMap={{}}
+        autoGroups={[]}
+        priceRate={1}
+        usdExchangeRate={1}
+        tokenUnit='M'
+      />
+    </QueryClientProvider>
+  )
+  expect(screen.getAllByText('Per Second')).toHaveLength(2)
+  expect(screen.getAllByText('$0.1195')).toHaveLength(2)
+  expect(screen.getAllByText(/^\/\s*s$/)).toHaveLength(2)
+  expect(screen.queryByText('Special billing expression')).not.toBeInTheDocument()
+  expect(screen.queryByText(/tier\(/)).not.toBeInTheDocument()
+})
+
+it('shows a single task price with its usage unit on model cards', async () => {
   render(<ModelCard model={model} onClick={() => {}} />)
-  expect(screen.getByText('Song generation unit price')).toBeVisible()
+  expect(screen.getByText('$0.22')).toBeVisible()
+  expect(screen.getByText(/\/\s*unit/)).toBeVisible()
   await act(() => i18next.changeLanguage('zhCN'))
-  expect(screen.getByText('生成歌曲单价')).toBeVisible()
+  expect(screen.getByText('$0.22')).toBeVisible()
+  expect(screen.getByText(/\/\s*unit/)).toBeVisible()
 })
 
 it('preserves condition tables, boolean states and additional charges', () => {

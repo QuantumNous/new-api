@@ -150,9 +150,9 @@ func TestImageModelBuiltinPricesAndOverrides(t *testing.T) {
 }
 
 func TestMiniMaxH3BuiltinTaskBilling(t *testing.T) {
-	expression, ok := billing_setting.GetBillingExpr("minimax/h3")
+	expression, ok := billing_setting.GetBillingExpr("MiniMax-H3")
 	require.True(t, ok)
-	assert.Equal(t, billing_setting.BillingModeTieredExpr, billing_setting.GetBillingMode("minimax/h3"))
+	assert.Equal(t, billing_setting.BillingModeTieredExpr, billing_setting.GetBillingMode("MiniMax-H3"))
 
 	cost, _, err := billingexpr.RunExprWithRequest(expression, billingexpr.TokenParams{}, billingexpr.RequestInput{
 		Usage: map[string]any{"seconds": float64(5)},
