@@ -322,3 +322,73 @@ func TestAliImageHandlerHonorsRequestResponseFormat(t *testing.T) {
 		})
 	}
 }
+
+func TestAliImageHandlerReturnsEveryImageInChoices(t *testing.T) {
+	tests := []struct {
+		name         string
+		responseBody string
+		wantData     []dto.ImageData
+		wantCount    float64
+	}{
+		{
+			name:         "one choice with one image",
+			responseBody: `{"output":{"choices":[{"message":{"content":[{"image":"https://img/1.png"}]}}]},"usage":{"image_count":1}}`,
+			wantData:     []dto.ImageData{{Url: "https://img/1.png"}},
+			wantCount:    1,
+		},
+		{
+			name:         "one choice with several images",
+			responseBody: `{"output":{"choices":[{"message":{"content":[{"image":"https://img/1.png"},{"image":"https://img/2.png"}]}}]},"usage":{"image_count":2}}`,
+			wantData:     []dto.ImageData{{Url: "https://img/1.png"}, {Url: "https://img/2.png"}},
+			wantCount:    2,
+		},
+		{
+			name:         "several choices with one image each",
+			responseBody: `{"output":{"choices":[{"message":{"content":[{"image":"https://img/1.png"}]}},{"message":{"content":[{"image":"https://img/2.png"}]}}]},"usage":{"image_count":2}}`,
+			wantData:     []dto.ImageData{{Url: "https://img/1.png"}, {Url: "https://img/2.png"}},
+			wantCount:    2,
+		},
+		{
+			name:         "text part becomes the revised prompt of every image",
+			responseBody: `{"output":{"choices":[{"message":{"content":[{"image":"https://img/1.png"},{"text":"a red dot"},{"image":"aW1hZ2U="}]}}]},"usage":{"image_count":2}}`,
+			wantData: []dto.ImageData{
+				{Url: "https://img/1.png", RevisedPrompt: "a red dot"},
+				{B64Json: "aW1hZ2U=", RevisedPrompt: "a red dot"},
+			},
+			wantCount: 2,
+		},
+		{
+			name:         "count falls back to returned images without usage",
+			responseBody: `{"output":{"choices":[{"message":{"content":[{"image":"https://img/1.png"},{"image":"https://img/2.png"},{"image":"https://img/3.png"}]}}]}}`,
+			wantData:     []dto.ImageData{{Url: "https://img/1.png"}, {Url: "https://img/2.png"}, {Url: "https://img/3.png"}},
+			wantCount:    3,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			info := &relaycommon.RelayInfo{
+				RelayMode: constant.RelayModeImagesGenerations,
+				StartTime: time.Unix(1, 0),
+				Request:   &dto.ImageRequest{},
+			}
+			info.PriceData.UsePrice = true
+			resp := &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{},
+				Body:       io.NopCloser(strings.NewReader(tt.responseBody)),
+			}
+
+			newAPIError, usage := aliImageHandler(&Adaptor{IsSyncImageModel: true}, c, resp, info)
+			require.Nil(t, newAPIError)
+			require.NotNil(t, usage)
+
+			var imageResponse dto.ImageResponse
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &imageResponse))
+			assert.Equal(t, tt.wantData, imageResponse.Data)
+			assert.Equal(t, tt.wantCount, info.PriceData.OtherRatios()["n"])
+		})
+	}
+}
