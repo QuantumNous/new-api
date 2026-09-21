@@ -156,12 +156,24 @@ export function isImageExtension(extension: string): boolean {
 }
 
 /**
- * Media type for an image extension, used when the browser reports no MIME type
- * or a type that disagrees with the extension. Falls back to `image/png`, which
- * keeps the previous default for an extension that is not recognised here.
+ * Media type for an image extension, or `null` when the extension has no known
+ * type. The bytes are forwarded to the model unchanged, so an unknown extension
+ * must not be relabelled as a type it is not — a decoder would then be handed a
+ * format it cannot read. Callers reject the attachment in that case.
  */
-export function getImageMediaType(filename: string): string {
+export function getImageMediaType(filename: string): string | null {
   const match = /\.([^.]+)$/.exec(filename.trim().toLowerCase())
 
-  return IMAGE_EXTENSION_MEDIA_TYPES[match?.[1] ?? ''] ?? 'image/png'
+  return IMAGE_EXTENSION_MEDIA_TYPES[match?.[1] ?? ''] ?? null
+}
+
+/**
+ * Whether an `image/*` media type is one we can label and forward as-is. Used
+ * for attachments that carry no usable extension and are identified by their
+ * MIME type alone.
+ */
+export function isSupportedImageMediaType(mediaType: string): boolean {
+  return Object.values(IMAGE_EXTENSION_MEDIA_TYPES).includes(
+    mediaType.trim().toLowerCase()
+  )
 }

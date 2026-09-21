@@ -69,12 +69,19 @@ function replaceDataUrlMediaType(dataUrl: string, mediaType: string): string {
   return `data:${mediaType}${dataUrl.slice(dataUrl.indexOf(marker))}`
 }
 
-async function buildImageAttachment(file: File): Promise<PlaygroundAttachment> {
-  // The extension decided this file is an image, so it is also what labels it:
-  // `file.type` can be empty, or present but wrong (a drag-and-dropped PNG can
-  // report `application/octet-stream`). Using the extension for both the
-  // metadata and the data URL keeps the two from describing different types.
-  const mediaType = getImageMediaType(file.name)
+async function buildImageAttachment(
+  file: File,
+  mediaTypeHint: string
+): Promise<PlaygroundAttachment> {
+  // The extension decides the label, so the metadata and the data URL always
+  // agree; `file.type` can be empty or wrong and would otherwise end up in the
+  // payload while the metadata claimed something else. An extensionless payload
+  // has no extension to read, so it falls back to the type it was classified by
+  // — which `getAttachmentKind` only accepts when it is one we can label.
+  const mediaType = getImageMediaType(file.name) ?? mediaTypeHint
+  if (!mediaType) {
+    throw new AttachmentExtractionError(ATTACHMENT_ERRORS.UNSUPPORTED_TYPE)
+  }
 
   return {
     id: nanoid(),
@@ -138,7 +145,7 @@ async function parseAttachment(
   }
 
   if (kind === ATTACHMENT_KINDS.IMAGE) {
-    return buildImageAttachment(file)
+    return buildImageAttachment(file, file.type)
   }
 
   const limit = Math.max(

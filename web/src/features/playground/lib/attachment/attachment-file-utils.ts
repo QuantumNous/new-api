@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import {
   ATTACHMENT_KINDS,
   isImageExtension,
+  isSupportedImageMediaType,
   SUPPORTED_ATTACHMENT_EXTENSIONS,
 } from './attachment-constants'
 import type { AttachmentKind } from '../../types'
@@ -44,24 +45,25 @@ export function getAttachmentKind(
   filename: string,
   mediaType: string
 ): AttachmentKind | null {
-  const type = mediaType.trim().toLowerCase()
-
-  if (type.startsWith('image/')) {
-    return ATTACHMENT_KINDS.IMAGE
-  }
-
   const extension = getAttachmentExtension(filename)
-  // The extension is the only signal when the browser reports no MIME type,
-  // so an image must be recognised here rather than falling through to the
-  // document branch and having its bytes decoded as text.
+
   if (isImageExtension(extension)) {
     return ATTACHMENT_KINDS.IMAGE
   }
-  if (!SUPPORTED_ATTACHMENT_EXTENSIONS.includes(extension)) {
-    return null
+  if (SUPPORTED_ATTACHMENT_EXTENSIONS.includes(extension)) {
+    return ATTACHMENT_KINDS.DOCUMENT
   }
 
-  return ATTACHMENT_KINDS.DOCUMENT
+  // No usable extension — an unnamed clipboard or screenshot payload, for
+  // instance. Fall back to the MIME type, but only for an image whose type we
+  // can actually label: the bytes are forwarded unchanged, so labelling them as
+  // something else would hand a decoder a format it cannot read.
+  const type = mediaType.trim().toLowerCase()
+  if (type.startsWith('image/') && isSupportedImageMediaType(type)) {
+    return ATTACHMENT_KINDS.IMAGE
+  }
+
+  return null
 }
 
 export function isSupportedAttachment(

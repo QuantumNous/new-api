@@ -152,16 +152,35 @@ describe('parseAttachments', () => {
     expect(attachment.dataUrl).toMatch(/^data:image\/jpeg;base64,/)
   })
 
-  it('falls back to image/png for an image extension it cannot map', async () => {
-    // `getImageMediaType` must always return a usable type, so an extension the
-    // map does not know still produces a well-formed data URL.
-    const [attachment] = await parseAttachments([
-      fakeFile('photo.tiff', 'image/tiff'),
-    ])
+  it('rejects an unsupported image type rather than relabelling its bytes', async () => {
+    // The bytes are forwarded to the model unchanged, so labelling TIFF data as
+    // `image/png` would hand a decoder a format it cannot read. An image type we
+    // cannot label has to be rejected instead.
+    await expect(
+      parseAttachments([fakeFile('photo.tiff', 'image/tiff')])
+    ).rejects.toThrow(ATTACHMENT_ERRORS.UNSUPPORTED_TYPE)
+  })
+
+  it('rejects an unsupported image type that reports no MIME type', async () => {
+    await expect(
+      parseAttachments([fakeFile('photo.svg', '')])
+    ).rejects.toThrow(ATTACHMENT_ERRORS.UNSUPPORTED_TYPE)
+  })
+
+  it('accepts an image with no usable extension when the MIME type is supported', async () => {
+    // A clipboard or screenshot payload can arrive without a name. The MIME type
+    // is then the only signal, and a supported one is enough to label it.
+    const [attachment] = await parseAttachments([fakeFile('image', 'image/png')])
 
     expect(attachment.kind).toBe('image')
     expect(attachment.mediaType).toBe('image/png')
-    expect(attachment.dataUrl).toMatch(/^data:image\/png;base64,/)
+    expect(attachment.dataUrl ?? '').toMatch(/^data:image\/png;base64,/)
+  })
+
+  it('rejects an extensionless image whose MIME type we cannot label', async () => {
+    await expect(
+      parseAttachments([fakeFile('image', 'image/tiff')])
+    ).rejects.toThrow(ATTACHMENT_ERRORS.UNSUPPORTED_TYPE)
   })
 
   it('still parses a document extension with an empty MIME type', async () => {
