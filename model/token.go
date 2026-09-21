@@ -562,6 +562,9 @@ func BatchDeleteTokensAdmin(ids []int) (int, error) {
 		tx.Rollback()
 		return 0, err
 	}
+	if err := invalidateTokensCache(tokens); err != nil {
+		common.SysLog("failed to invalidate token cache before batch delete: " + err.Error())
+	}
 
 	if err := tx.Where("id IN (?)", ids).Delete(&Token{}).Error; err != nil {
 		tx.Rollback()
@@ -570,14 +573,6 @@ func BatchDeleteTokensAdmin(ids []int) (int, error) {
 
 	if err := tx.Commit().Error; err != nil {
 		return 0, err
-	}
-
-	if common.RedisEnabled {
-		gopool.Go(func() {
-			for _, t := range tokens {
-				_ = cacheDeleteToken(t.Key)
-			}
-		})
 	}
 
 	return len(tokens), nil
