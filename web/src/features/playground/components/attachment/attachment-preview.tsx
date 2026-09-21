@@ -74,16 +74,30 @@ export function AttachmentPreviewDialog({
   }
 
   const handleDownload = () => {
-    if (!attachment.dataUrl) return
-
     const link = document.createElement('a')
-    link.href = attachment.dataUrl
-    link.download = attachment.filename
+    let objectUrl: string | null = null
+
+    if (attachment.dataUrl) {
+      link.href = attachment.dataUrl
+      link.download = attachment.filename
+    } else if (attachment.text) {
+      // Documents are stored as extracted text only (no dataUrl), so the best
+      // we can offer is the text the model actually received, as a .txt file.
+      const blob = new Blob([attachment.text], { type: 'text/plain;charset=utf-8' })
+      objectUrl = URL.createObjectURL(blob)
+      link.href = objectUrl
+      link.download = `${attachment.filename}.txt`
+    } else {
+      return
+    }
+
     // Safari and Firefox ignore clicks on detached anchors, so the element has
     // to be in the document while the click is dispatched.
     document.body.appendChild(link)
     link.click()
     link.remove()
+
+    if (objectUrl) URL.revokeObjectURL(objectUrl)
   }
 
   return (
@@ -138,7 +152,7 @@ export function AttachmentPreviewDialog({
           </div>
         )}
 
-        {attachment.dataUrl && (
+        {(attachment.dataUrl || attachment.text) && (
           <div className='flex justify-end'>
             <Button onClick={handleDownload} size='sm' variant='outline'>
               <DownloadIcon className='mr-1.5 size-3.5' />

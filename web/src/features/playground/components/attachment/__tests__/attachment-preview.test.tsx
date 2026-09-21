@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
-import { beforeAll, describe, expect, it } from 'vitest'
+import { beforeAll, describe, expect, it, vi } from 'vitest'
 
 import {
   AttachmentPreviewDialog,
@@ -150,8 +150,12 @@ describe('AttachmentPreviewDialog', () => {
     ).toBeDefined()
   })
 
-  it('does not offer a download when there is no data URL', async () => {
+  it('offers a text download for a document, which carries no data URL', async () => {
     const user = userEvent.setup()
+    const createObjectURL = vi.fn(() => 'blob:mock')
+    const revokeObjectURL = vi.fn()
+    vi.stubGlobal('URL', { ...URL, createObjectURL, revokeObjectURL })
+
     render(
       <AttachmentPreviewDialog
         attachment={textAttachment({ dataUrl: undefined })}
@@ -162,6 +166,31 @@ describe('AttachmentPreviewDialog', () => {
 
     await user.click(screen.getByText('report.pdf'))
     await screen.findByText('extracted pdf body')
+
+    // Documents hold extracted text only, so the download must fall back to a
+    // .txt built from that text rather than silently disappearing.
+    const download = screen.getByText('Download')
+    expect(download).toBeDefined()
+
+    await user.click(download)
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1)
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:mock')
+    vi.unstubAllGlobals()
+  })
+
+  it('offers no download when there is neither a data URL nor text', async () => {
+    const user = userEvent.setup()
+    render(
+      <AttachmentPreviewDialog
+        attachment={textAttachment({ dataUrl: undefined, text: undefined })}
+      >
+        <span>report.pdf</span>
+      </AttachmentPreviewDialog>
+    )
+
+    await user.click(screen.getByText('report.pdf'))
+    await screen.findByText('No text could be extracted from this file.')
 
     expect(screen.queryByText('Download')).toBeNull()
   })
