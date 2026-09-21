@@ -172,7 +172,7 @@ it.each([false, true])(
       ],
     })
     const button = screen.getByRole('button', { name: `Model: ${longName}` })
-    expect(within(button).getByText(longName)).toHaveClass(
+    expect(within(button).getByText(longName).parentElement).toHaveClass(
       'line-clamp-2',
       '[overflow-wrap:anywhere]'
     )

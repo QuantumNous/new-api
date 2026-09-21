@@ -80,11 +80,13 @@ function ModelBadgeContent(props: ModelBadgeProps & { copyable: boolean }) {
         <span
           className={
             props.wrapText
-              ? 'leading-normal line-clamp-2 [overflow-wrap:anywhere]'
-              : 'leading-normal whitespace-nowrap'
+              ? 'line-clamp-2 [overflow-wrap:anywhere]'
+              : 'whitespace-nowrap'
           }
         >
-          {props.modelName}
+          <span className={props.wrapText ? 'relative -top-px' : undefined}>
+            {props.modelName}
+          </span>
         </span>
       </span>
     </StatusBadge>
