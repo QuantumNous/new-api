@@ -1378,9 +1378,12 @@ func TestAlibabaOpenAIImageCountDerivationAndRender(t *testing.T) {
 		body := map[string]any{"output": map[string]any{"task_status": "SUCCEEDED", "results": []any{map[string]any{"url": first}, map[string]any{"code": "DataInspectionFailed"}, map[string]any{"url": "data:image/png;base64,QUFB"}}}, "usage": map[string]any{"image_count": 2}}
 		value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_image", "render"}, map[string]any{}, map[string]any{"status": "SUCCESS", "created_at": 1, "data": body})
 		require.NoError(t, err)
-		data := alibabaObject(t, value)["data"].([]any)
+		rendered := alibabaObject(t, value)
+		data := rendered["data"].([]any)
 		require.Len(t, data, 2)
 		assert.Equal(t, map[string]any{"url": first}, data[0])
 		assert.Equal(t, map[string]any{"b64_json": "QUFB"}, data[1])
+		// metadata keeps the upstream body so clients still see DashScope usage.
+		assert.Equal(t, float64(2), rendered["metadata"].(map[string]any)["usage"].(map[string]any)["image_count"])
 	})
 }

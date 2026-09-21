@@ -222,7 +222,7 @@ export const meta = {
     en: "Alibaba Cloud Bailian image and video generation (Wan, Qwen-Image, Z-Image)",
     zh: "阿里云百炼图片与视频生成（万相、千问图像、Z-Image）",
   },
-  version: "1.4.0",
+  version: "1.4.1",
   author: { name: "QuantumNous" },
   channelTypes: [17],
   // Literal metadata also supports the dashboard's static script preview.
@@ -1466,7 +1466,7 @@ export const protocols = {
       for (const part of imageContent(artifactData(task))) {
         if (part.image) data.push(imageDatum(part.image));
       }
-      return { created: task.created_at, data: data };
+      return { created: task.created_at, data: data, metadata: artifactData(task) };
     },
   },
   openai_video: {
