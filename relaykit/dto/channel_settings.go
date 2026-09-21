@@ -127,6 +127,11 @@ type ChannelOtherSettings struct {
 	// rejection. Empty follows the default allow policy. Accepted values:
 	// "", "allow", "safe", "strict".
 	ToolLossPolicy string `json:"tool_loss_policy,omitempty"`
+	// BalanceScript is an optional per-channel JS module (ESM, synchronous)
+	// exporting buildBalanceRequest(ctx) and parseBalanceResponse(ctx, response).
+	// When set, it overrides the channel type's built-in balance query for
+	// single-key channels. See pkg/balancescript.MaxSourceBytes for the size cap.
+	BalanceScript string `json:"balance_script,omitempty"`
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
