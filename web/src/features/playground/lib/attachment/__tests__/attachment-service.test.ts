@@ -121,6 +121,49 @@ describe('parseAttachments', () => {
     }
   })
 
+  it('labels the data URL with the resolved image type when the MIME type is missing', async () => {
+    // FileReader embeds file.type verbatim, so an empty type would produce
+    // `data:;base64,...`. The metadata and the data URL must agree, otherwise
+    // the attachment claims one type while the payload sent upstream declares
+    // another (or none at all).
+    const [attachment] = await parseAttachments([fakeFile('photo.heic', '')])
+
+    expect(attachment.mediaType).toBe('image/heic')
+    expect(attachment.dataUrl).toMatch(/^data:image\/heic;base64,/)
+  })
+
+  it('labels the data URL with the extension type when the MIME type disagrees', async () => {
+    // A wrong-but-present type must not survive into the data URL either. The
+    // extension decides both fields, so they cannot disagree with each other.
+    const [attachment] = await parseAttachments([
+      fakeFile('photo.png', 'application/octet-stream'),
+    ])
+
+    expect(attachment.mediaType).toBe('image/png')
+    expect(attachment.dataUrl).toMatch(/^data:image\/png;base64,/)
+  })
+
+  it('keeps metadata and data URL type consistent for a correct MIME type', async () => {
+    const [attachment] = await parseAttachments([
+      fakeFile('photo.jpg', 'image/jpeg', 'binary-ish'),
+    ])
+
+    expect(attachment.mediaType).toBe('image/jpeg')
+    expect(attachment.dataUrl).toMatch(/^data:image\/jpeg;base64,/)
+  })
+
+  it('falls back to image/png for an image extension it cannot map', async () => {
+    // `getImageMediaType` must always return a usable type, so an extension the
+    // map does not know still produces a well-formed data URL.
+    const [attachment] = await parseAttachments([
+      fakeFile('photo.tiff', 'image/tiff'),
+    ])
+
+    expect(attachment.kind).toBe('image')
+    expect(attachment.mediaType).toBe('image/png')
+    expect(attachment.dataUrl).toMatch(/^data:image\/png;base64,/)
+  })
+
   it('still parses a document extension with an empty MIME type', async () => {
     // The image check must not swallow document handling.
     const [attachment] = await parseAttachments([

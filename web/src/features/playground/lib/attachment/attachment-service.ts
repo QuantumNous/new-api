@@ -25,6 +25,7 @@ import {
   MAX_ATTACHMENT_COUNT,
   MAX_ATTACHMENT_TEXT_CHARS,
   MAX_MESSAGE_CONTEXT_CHARS,
+  getImageMediaType,
 } from './attachment-constants'
 import {
   AttachmentExtractionError,
@@ -34,23 +35,54 @@ import {
 import { extractTextFromBytes, truncateAttachmentText } from './attachment-extractors'
 import type { PlaygroundAttachment } from '../../types'
 
-function readFileAsDataUrl(file: File): Promise<string> {
+function readFileAsDataUrl(
+  file: File,
+  mediaTypeOverride?: string
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result ?? ''))
+    reader.onload = () => {
+      const result = String(reader.result ?? '')
+      resolve(
+        mediaTypeOverride
+          ? replaceDataUrlMediaType(result, mediaTypeOverride)
+          : result
+      )
+    }
     reader.onerror = () => reject(new AttachmentExtractionError(ATTACHMENT_ERRORS.READ_FAILED))
     reader.readAsDataURL(file)
   })
 }
 
+/**
+ * `FileReader.readAsDataURL` embeds `file.type` verbatim, so a file with no MIME
+ * type yields `data:;base64,...`. Some providers reject that even though the
+ * extension identifies the image, so the resolved type is written back in.
+ */
+function replaceDataUrlMediaType(dataUrl: string, mediaType: string): string {
+  const marker = ';base64,'
+
+  if (!dataUrl.startsWith('data:') || !dataUrl.includes(marker)) {
+    return dataUrl
+  }
+
+  return `data:${mediaType}${dataUrl.slice(dataUrl.indexOf(marker))}`
+}
+
 async function buildImageAttachment(file: File): Promise<PlaygroundAttachment> {
+  // The extension decided this file is an image, so it is also what labels it:
+  // `file.type` can be empty, or present but wrong (a drag-and-dropped PNG can
+  // report `application/octet-stream`). Using the extension for both the
+  // metadata and the data URL keeps the two from describing different types.
+  const mediaType = getImageMediaType(file.name)
+
   return {
     id: nanoid(),
     kind: ATTACHMENT_KINDS.IMAGE,
     filename: file.name,
-    mediaType: file.type || 'image/png',
+    mediaType,
     size: file.size,
-    dataUrl: await readFileAsDataUrl(file),
+    dataUrl: await readFileAsDataUrl(file, mediaType),
   }
 }
 

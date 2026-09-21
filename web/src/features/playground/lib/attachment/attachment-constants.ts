@@ -50,17 +50,25 @@ export const ATTACHMENT_ERRORS = {
   CONTEXT_FULL: 'Attachment context is already full',
 } as const
 
-const IMAGE_EXTENSIONS = [
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'webp',
-  'bmp',
-  'avif',
-  'heic',
-  'heif',
-]
+/**
+ * Image extensions mapped to the media type to send upstream. The MIME type is
+ * not always present — a pasted or drag-and-dropped file can arrive with an
+ * empty or wrong type — so the extension is the fallback for both classifying
+ * the file and labelling it.
+ */
+const IMAGE_EXTENSION_MEDIA_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  avif: 'image/avif',
+  heic: 'image/heic',
+  heif: 'image/heif',
+}
+
+const IMAGE_EXTENSIONS = Object.keys(IMAGE_EXTENSION_MEDIA_TYPES)
 
 const DOCUMENT_EXTENSIONS = [
   'pdf',
@@ -145,4 +153,15 @@ export function isPlainTextExtension(extension: string): boolean {
  */
 export function isImageExtension(extension: string): boolean {
   return IMAGE_EXTENSIONS.includes(extension)
+}
+
+/**
+ * Media type for an image extension, used when the browser reports no MIME type
+ * or a type that disagrees with the extension. Falls back to `image/png`, which
+ * keeps the previous default for an extension that is not recognised here.
+ */
+export function getImageMediaType(filename: string): string {
+  const match = /\.([^.]+)$/.exec(filename.trim().toLowerCase())
+
+  return IMAGE_EXTENSION_MEDIA_TYPES[match?.[1] ?? ''] ?? 'image/png'
 }
