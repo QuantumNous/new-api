@@ -26,6 +26,7 @@ import mammoth from 'mammoth'
 // The legacy build avoids `Promise.try` and other bleeding-edge runtime APIs,
 // so it works in browsers and test environments that the modern build rejects.
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs'
+// oxlint-disable-next-line import/default -- Vite `?url` import resolves to a string URL at build time
 import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'
 
 import {
@@ -96,7 +97,7 @@ function localName(name: string): string {
 }
 
 function decodeXmlEntities(value: string): string {
-  return value.replace(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity) => {
+  return value.replaceAll(/&(#x?[0-9a-fA-F]+|[a-zA-Z]+);/g, (match, entity) => {
     if (entity.startsWith('#x') || entity.startsWith('#X')) {
       return String.fromCodePoint(Number.parseInt(entity.slice(2), 16))
     }

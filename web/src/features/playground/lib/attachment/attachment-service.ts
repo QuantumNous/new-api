@@ -28,7 +28,6 @@ import {
 } from './attachment-constants'
 import {
   AttachmentExtractionError,
-  decodeDataUrl,
   getAttachmentExtension,
   getAttachmentKind,
 } from './attachment-file-utils'
@@ -59,7 +58,14 @@ async function buildDocumentAttachment(
   file: File,
   limit: number
 ): Promise<PlaygroundAttachment> {
-  const { bytes } = decodeDataUrl(await readFileAsDataUrl(file))
+  let bytes: Uint8Array
+  try {
+    bytes = new Uint8Array(await file.arrayBuffer())
+  } catch (error) {
+    throw new AttachmentExtractionError(ATTACHMENT_ERRORS.READ_FAILED, {
+      cause: error,
+    })
+  }
 
   const { text, truncated } = truncateAttachmentText(
     await extractTextFromBytes(bytes, getAttachmentExtension(file.name)),

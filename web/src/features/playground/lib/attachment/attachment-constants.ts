@@ -136,3 +136,13 @@ export const ATTACHMENT_ACCEPT = [
 export function isPlainTextExtension(extension: string): boolean {
   return PLAIN_TEXT_EXTENSIONS.has(extension)
 }
+
+/**
+ * Image extensions, for callers that only have a filename to go on. The MIME
+ * type is not always present — a pasted or drag-and-dropped file can arrive
+ * with an empty type — and without this check such a file would be filed as a
+ * document and have its binary bytes run through text extraction.
+ */
+export function isImageExtension(extension: string): boolean {
+  return IMAGE_EXTENSIONS.includes(extension)
+}

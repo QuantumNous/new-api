@@ -64,15 +64,14 @@ func main() {
 	// embedded copy would keep pointing at the previous asset hashes and a
 	// frontend update would appear to do nothing. Analytics injection below
 	// still runs on whatever bytes are loaded here.
-	if dir := os.Getenv("NEW_API_WEB_DIR"); dir != "" {
+	//
+	// The directory is resolved through common.DiskFrontendDir so the static
+	// assets and this document are selected by the same check. Deciding them
+	// separately could serve disk assets with the embedded index page, mixing
+	// asset hashes from two builds and breaking the dashboard.
+	if dir := common.DiskFrontendDir(); dir != "" {
 		diskIndex := filepath.Join(dir, "index.html")
-		if data, readErr := os.ReadFile(diskIndex); readErr != nil {
-			common.SysError("failed to read index page from " + diskIndex + " (" + readErr.Error() + "), falling back to the embedded copy")
-		} else if len(data) == 0 {
-			// An empty file would serve a blank dashboard, which is worse than
-			// the stale embedded page, so treat it as unusable.
-			common.SysError("index page at " + diskIndex + " is empty, falling back to the embedded copy")
-		} else {
+		if data, readErr := os.ReadFile(diskIndex); readErr == nil && len(data) > 0 {
 			indexPage = data
 			common.SysLog("loaded index page from " + diskIndex)
 		}

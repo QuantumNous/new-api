@@ -35,6 +35,16 @@ function fakeFile(
   return new File([content], name, { type })
 }
 
+/** A file whose bytes cannot be read, to exercise the read-failure path. */
+function unreadableFile(name: string, type: string): File {
+  const file = fakeFile(name, type)
+  Object.defineProperty(file, 'arrayBuffer', {
+    value: () => Promise.reject(new Error('read failed')),
+  })
+
+  return file
+}
+
 function existingDocument(text: string): PlaygroundAttachment {
   return {
     id: 'doc-existing',
@@ -86,6 +96,41 @@ describe('parseAttachments', () => {
     expect(code).toBe(ATTACHMENT_ERRORS.UNSUPPORTED_TYPE)
   })
 
+  it('treats an image extension as an image when the MIME type is missing', async () => {
+    // Browsers do not always report a type — a pasted or drag-and-dropped file
+    // can arrive with an empty one. The extension is then the only signal, and
+    // without it these files would be filed as documents and have their binary
+    // bytes decoded as text context instead of being sent as images.
+    for (const filename of ['photo.heic', 'photo.heif', 'photo.avif']) {
+      const [attachment] = await parseAttachments([fakeFile(filename, '')])
+
+      expect(attachment.kind).toBe('image')
+      expect(attachment.dataUrl).toMatch(/^data:/)
+      expect(attachment.text).toBeUndefined()
+    }
+  })
+
+  it('treats an image extension as an image when the MIME type is not an image', async () => {
+    for (const filename of ['photo.png', 'photo.jpg', 'photo.webp']) {
+      const [attachment] = await parseAttachments([
+        fakeFile(filename, 'application/octet-stream'),
+      ])
+
+      expect(attachment.kind).toBe('image')
+      expect(attachment.text).toBeUndefined()
+    }
+  })
+
+  it('still parses a document extension with an empty MIME type', async () => {
+    // The image check must not swallow document handling.
+    const [attachment] = await parseAttachments([
+      fakeFile('notes.txt', '', 'first line'),
+    ])
+
+    expect(attachment.kind).toBe('document')
+    expect(attachment.text).toContain('first line')
+  })
+
   it('rejects a file over the size limit', async () => {
     const oversized = fakeFile('big.txt', 'text/plain')
     Object.defineProperty(oversized, 'size', {
@@ -95,6 +140,14 @@ describe('parseAttachments', () => {
     const code = await expectError(parseAttachments([oversized]))
 
     expect(code).toBe(ATTACHMENT_ERRORS.FILE_TOO_LARGE)
+  })
+
+  it('reports a read failure when document bytes cannot be read', async () => {
+    const code = await expectError(
+      parseAttachments([unreadableFile('notes.txt', 'text/plain')])
+    )
+
+    expect(code).toBe(ATTACHMENT_ERRORS.READ_FAILED)
   })
 
   it('rejects a batch that exceeds the attachment count', async () => {

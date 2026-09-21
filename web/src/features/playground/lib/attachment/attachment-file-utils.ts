@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   ATTACHMENT_KINDS,
-  ATTACHMENT_ERRORS,
+  isImageExtension,
   SUPPORTED_ATTACHMENT_EXTENSIONS,
 } from './attachment-constants'
 import type { AttachmentKind } from '../../types'
@@ -51,6 +51,12 @@ export function getAttachmentKind(
   }
 
   const extension = getAttachmentExtension(filename)
+  // The extension is the only signal when the browser reports no MIME type,
+  // so an image must be recognised here rather than falling through to the
+  // document branch and having its bytes decoded as text.
+  if (isImageExtension(extension)) {
+    return ATTACHMENT_KINDS.IMAGE
+  }
   if (!SUPPORTED_ATTACHMENT_EXTENSIONS.includes(extension)) {
     return null
   }
@@ -63,40 +69,6 @@ export function isSupportedAttachment(
   mediaType: string
 ): boolean {
   return getAttachmentKind(filename, mediaType) !== null
-}
-
-const DATA_URL_PATTERN = /^data:([^,]*),([\s\S]*)$/
-
-/**
- * Decode a data URL produced by `FileReader.readAsDataURL`.
- */
-export function decodeDataUrl(dataUrl: string): {
-  bytes: Uint8Array
-  mediaType: string
-} {
-  const match = DATA_URL_PATTERN.exec(dataUrl.trim())
-  if (!match) {
-    throw new AttachmentExtractionError(ATTACHMENT_ERRORS.READ_FAILED)
-  }
-
-  const meta = match[1]
-  const payload = match[2]
-  const mediaType = meta.split(';')[0] || 'application/octet-stream'
-
-  try {
-    if (/;base64/i.test(meta)) {
-      const binary = atob(payload.replace(/\s/g, ''))
-
-      return {
-        bytes: Uint8Array.from(binary, (char) => char.charCodeAt(0)),
-        mediaType,
-      }
-    }
-
-    return { bytes: new TextEncoder().encode(decodeURIComponent(payload)), mediaType }
-  } catch {
-    throw new AttachmentExtractionError(ATTACHMENT_ERRORS.READ_FAILED)
-  }
 }
 
 export function decodePlainText(bytes: Uint8Array): string {

@@ -140,4 +140,61 @@ describe('playground attachment persistence', () => {
   it('returns null when nothing has been stored', () => {
     expect(loadMessages()).toBeNull()
   })
+
+  it('shares one payload budget across every stored message', () => {
+    // The budget describes how much attachment payload localStorage holds in
+    // total, and saveMessages writes all messages in a single setItem. If each
+    // message got its own budget, N messages could store N x the limit and the
+    // write would be rejected by the browser, silently losing the conversation.
+    //
+    // The newest message is the one worth keeping: it must survive with its
+    // text intact, and the older message must not be able to keep claiming
+    // budget on top of it.
+    const longText = (marker: string) =>
+      // Over half the budget each, so two messages cannot both fit.
+      marker + 'x'.repeat(300_000 - marker.length)
+
+    const first = message([{ ...DOCUMENT, id: 'a', filename: 'a.pdf', text: longText('AAAA') }])
+    const second = message([{ ...DOCUMENT, id: 'b', filename: 'b.pdf', text: longText('BBBB') }])
+
+    saveMessages([first, second])
+
+    const restored = loadMessages() ?? []
+    const storedChars = restored
+      .flatMap((m) => m.attachments ?? [])
+      .reduce((total, a) => total + (a.text?.length ?? 0), 0)
+
+    // Whatever survives, the total must stay inside the documented budget.
+    expect(storedChars).toBeLessThanOrEqual(400_000)
+
+    // The newest message keeps its attachment; the older one cannot claim
+    // budget on top of it. Loading also caps what is kept in memory, so the
+    // retained text is bounded rather than the full 300,000 characters.
+    const newest = restored.at(-1)
+    expect(newest?.attachments?.[0].text?.startsWith('BBBB')).toBe(true)
+    expect(newest?.attachments?.[0].textTruncated).toBe(true)
+    expect((newest?.attachments?.[0].text ?? '').length).toBeLessThan(300_000)
+  })
+
+  it('keeps the total payload within budget for many attachment messages', () => {
+    const messages = Array.from({ length: 4 }, (_, index) =>
+      message([
+        {
+          ...DOCUMENT,
+          id: `doc-${index}`,
+          filename: `doc-${index}.pdf`,
+          text: 'y'.repeat(150_000),
+        },
+      ])
+    )
+
+    saveMessages(messages)
+
+    const storedChars = (loadMessages() ?? [])
+      .flatMap((m) => m.attachments ?? [])
+      .reduce((total, a) => total + (a.text?.length ?? 0), 0)
+
+    // Four messages at 150k each would be 600k, over the 400k limit.
+    expect(storedChars).toBeLessThanOrEqual(400_000)
+  })
 })

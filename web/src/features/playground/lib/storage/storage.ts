@@ -127,19 +127,21 @@ function getMessageSize(message: Message): number {
  * storage anyway. Reloading a conversation therefore restores the document
  * context but not the images, and only for the newest messages.
  */
-function sanitizeAttachmentsForStorage(message: Message): Message {
+function sanitizeAttachmentsForStorage(
+  message: Message,
+  budget: { remaining: number }
+): Message {
   const attachments = message.attachments
   if (!attachments?.length) {
     return message
   }
 
-  let payloadBudget = MAX_STORED_ATTACHMENT_PAYLOAD_CHARS
   const sanitized: PlaygroundAttachment[] = []
 
   for (const attachment of attachments.slice(-MAX_STORED_ATTACHMENTS)) {
     const text = attachment.text?.trim() ?? ''
-    const textLength = Math.min(text.length, Math.max(0, payloadBudget))
-    payloadBudget -= textLength
+    const textLength = Math.min(text.length, Math.max(0, budget.remaining))
+    budget.remaining -= textLength
 
     const stored: PlaygroundAttachment = {
       id: attachment.id,
@@ -439,7 +441,14 @@ export function loadMessages(): Message[] | null {
 export function saveMessages(messages: Message[]): void {
   try {
     const trimmed = trimMessages(messages)
-    const sanitized = trimmed.map(sanitizeAttachmentsForStorage)
+    // One budget for the whole array, not per message: the limit describes how
+    // much attachment payload localStorage holds in total, and the write below
+    // stores every message at once. Per-message budgets multiplied by the
+    // number of messages would let the write exceed the limit and be rejected.
+    const budget = { remaining: MAX_STORED_ATTACHMENT_PAYLOAD_CHARS }
+    const sanitized = trimmed.map((message) =>
+      sanitizeAttachmentsForStorage(message, budget)
+    )
     const parsed = messagesSchema.parse(sanitized) as Message[]
     writeStoredValue(STORAGE_KEYS.MESSAGES, parsed)
   } catch (error) {

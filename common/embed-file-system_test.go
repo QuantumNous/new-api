@@ -123,3 +123,88 @@ func TestEmbedFolderRootIsNotServedDirectly(t *testing.T) {
 		})
 	}
 }
+
+// A directory without index.html cannot serve the dashboard: its assets would
+// come from disk while the root document still came from the embedded build,
+// leaving the browser to load bundles whose hashes do not match the HTML it was
+// given. Such a directory must be rejected outright so assets and document stay
+// on the same build.
+func TestDiskFrontendDirRejectsDirWithoutIndexPage(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "static"), 0o755))
+	// A name the embedded fixture does not contain, so the assertion below can
+	// only pass if the disk directory is genuinely not being served.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "static", "disk-only.js"), []byte("disk-js"), 0o644))
+
+	t.Setenv("NEW_API_WEB_DIR", dir)
+
+	assert.Empty(t, DiskFrontendDir(), "a directory without index.html is not a usable frontend")
+
+	fsys := EmbedFolder(newTestFS(), "web/dist")
+	body, err := openFile(t, fsys, "/index.html")
+	require.NoError(t, err)
+	assert.Equal(t, "<html>embedded</html>", body)
+
+	// The decisive part: the disk-only asset must not be reachable either, or
+	// assets and document would come from different builds.
+	assert.False(t, fsys.Exists("", "/static/disk-only.js"))
+}
+
+// An empty index.html would render a blank dashboard, so it is rejected for
+// both the document and the assets.
+func TestDiskFrontendDirRejectsEmptyIndexPage(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "index.html"), []byte(""), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "static.js"), []byte("disk-js"), 0o644))
+
+	t.Setenv("NEW_API_WEB_DIR", dir)
+
+	assert.Empty(t, DiskFrontendDir())
+
+	fsys := EmbedFolder(newTestFS(), "web/dist")
+	body, err := openFile(t, fsys, "/index.html")
+	require.NoError(t, err)
+	assert.Equal(t, "<html>embedded</html>", body)
+	assert.False(t, fsys.Exists("", "/static.js"))
+}
+
+// The two consumers must never disagree: whenever DiskFrontendDir accepts a
+// directory, EmbedFolder serves assets from it, and whenever it rejects one,
+// EmbedFolder uses the embedded copy.
+func TestDiskFrontendDirAgreesWithEmbedFolder(t *testing.T) {
+	valid := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(valid, "index.html"), []byte("disk"), 0o644))
+
+	noIndex := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(noIndex, "only-asset.js"), []byte("x"), 0o644))
+
+	for name, dir := range map[string]string{
+		"valid":     valid,
+		"no-index":  noIndex,
+		"missing":   filepath.Join(t.TempDir(), "nope"),
+		"unset":     "",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if dir == "" {
+				t.Setenv("NEW_API_WEB_DIR", "")
+			} else {
+				t.Setenv("NEW_API_WEB_DIR", dir)
+			}
+
+			selected := DiskFrontendDir()
+			fsys := EmbedFolder(newTestFS(), "web/dist")
+
+			body, err := openFile(t, fsys, "/index.html")
+			require.NoError(t, err)
+
+			if selected != "" {
+				assert.Equal(t, "disk", body, "accepted directory must be the one serving assets")
+				return
+			}
+			assert.Equal(t, "<html>embedded</html>", body, "rejected directory must fall back to embedded")
+			if dir != "" {
+				assert.False(t, fsys.Exists("", "/only-asset.js"), "rejected directory must not serve assets")
+			}
+		})
+	}
+}
