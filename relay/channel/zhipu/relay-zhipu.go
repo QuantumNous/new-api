@@ -185,7 +185,9 @@ func zhipuStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		}
 		stopChan <- true
 	}()
-	helper.SetEventStreamHeaders(c)
+	if err := helper.CommitEventStreamHeaders(c); err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
+	}
 	c.Stream(func(w io.Writer) bool {
 		select {
 		case data := <-dataChan:

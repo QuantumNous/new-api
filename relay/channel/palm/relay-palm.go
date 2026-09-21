@@ -86,7 +86,9 @@ func palmStreamHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError,
 		dataChan <- string(jsonResponse)
 		stopChan <- true
 	}()
-	helper.SetEventStreamHeaders(c)
+	if err := helper.CommitEventStreamHeaders(c); err != nil {
+		return types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry()), ""
+	}
 	c.Stream(func(w io.Writer) bool {
 		select {
 		case data := <-dataChan:

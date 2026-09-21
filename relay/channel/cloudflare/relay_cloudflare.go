@@ -33,7 +33,9 @@ func cfStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Res
 	scanner := helper.NewStreamScanner(resp.Body)
 	scanner.Split(bufio.ScanLines)
 
-	helper.SetEventStreamHeaders(c)
+	if err := helper.CommitEventStreamHeaders(c); err != nil {
+		return types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry()), nil
+	}
 	id := helper.GetResponseID(c)
 	var responseText string
 	isFirst := true
