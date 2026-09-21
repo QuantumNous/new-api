@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -58,6 +59,24 @@ func main() {
 	kitutil.SetSystemErrorLogging(common.SysError)
 
 	err := InitResources()
+	// With NEW_API_WEB_DIR set (see common.EmbedFolder) the frontend is served
+	// from disk, so the index page must come from disk too — otherwise the
+	// embedded copy would keep pointing at the previous asset hashes and a
+	// frontend update would appear to do nothing. Analytics injection below
+	// still runs on whatever bytes are loaded here.
+	if dir := os.Getenv("NEW_API_WEB_DIR"); dir != "" {
+		diskIndex := filepath.Join(dir, "index.html")
+		if data, readErr := os.ReadFile(diskIndex); readErr != nil {
+			common.SysError("failed to read index page from " + diskIndex + " (" + readErr.Error() + "), falling back to the embedded copy")
+		} else if len(data) == 0 {
+			// An empty file would serve a blank dashboard, which is worse than
+			// the stale embedded page, so treat it as unusable.
+			common.SysError("index page at " + diskIndex + " is empty, falling back to the embedded copy")
+		} else {
+			indexPage = data
+			common.SysLog("loaded index page from " + diskIndex)
+		}
+	}
 	if err != nil {
 		common.FatalLog("failed to initialize resources: " + err.Error())
 		return
