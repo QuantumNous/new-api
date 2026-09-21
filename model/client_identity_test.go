@@ -21,6 +21,7 @@ func TestClientRecognition(t *testing.T) {
 	for _, tc := range []struct{ ua, key string }{
 		{"Codex Desktop/0.155.0-alpha.9 (Windows 10.0.26200; x86_64) unknown (Codex Desktop; 26.915.31029)", "codex:desktop"},
 		{"codex_cli_rs/0.1.0", "codex:cli"}, {"codex_vscode/1.2.3", "codex:vscode"}, {"codex_exec/1.0", "codex:exec"},
+		{"codex-tui/0.155.1 (Mac OS 26.5.2; arm64) Apple_Terminal/470.2 (codex-tui; 0.155.1)", "codex:tui"},
 		{"codex_sdk_ts/1.0", "codex:sdk"}, {"codex-acp/1.0", "codex:acp"},
 		{"claude-cli/2.0", "claude_code:cli"}, {"pi/1.0", "pi:cli"}, {"opencode/1.0", "opencode:cli"},
 		{"ZCode/1.0", "zcode:versioned"}, {"ZCode/unknown", "zcode:unknown"},

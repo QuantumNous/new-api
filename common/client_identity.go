@@ -36,6 +36,7 @@ var clientPrefixes = []struct{ prefix, family, variant, name string }{
 	{"codex_acp/", "codex", "acp", "Codex ACP"},
 	{"codex_cli_rs/", "codex", "cli", "Codex CLI/TUI"},
 	{"codex_cli/", "codex", "cli", "Codex CLI/TUI"},
+	{"codex-tui/", "codex", "tui", "Codex TUI"},
 	{"claude-cli/", "claude_code", "cli", "Claude Code"},
 	{"Claude-Code/", "claude_code", "cli", "Claude Code"},
 	{"pi/", "pi", "cli", "Pi"},
