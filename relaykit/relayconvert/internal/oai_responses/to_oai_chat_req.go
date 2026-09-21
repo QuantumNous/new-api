@@ -198,8 +198,14 @@ func responsesInputItemToChatMessages(item map[string]any, messages []dto.Messag
 		return appendToolCallToLastAssistant(messages, toolCall), nil
 	case responsesInputTypeFunctionCallOutput:
 		callID := strings.TrimSpace(kitutil.Interface2String(item["call_id"]))
-		content := responseToolOutputToChatContent(item["output"])
-		return append(messages, dto.Message{Role: "tool", ToolCallId: callID, Content: content}), nil
+		content, mediaParts := splitFunctionCallOutputToChatMessages(item["output"])
+		messages = append(messages, dto.Message{Role: "tool", ToolCallId: callID, Content: content})
+		if len(mediaParts) > 0 {
+			// Chat Completions 的 tool 消息按规范只能承载文本：媒体块改为紧随其后的一条
+			// user 消息，避免把二进制（base64）序列化进 tool 消息文本。
+			messages = append(messages, dto.Message{Role: "user", Content: mediaParts})
+		}
+		return messages, nil
 	}
 
 	role := strings.TrimSpace(kitutil.Interface2String(item["role"]))
@@ -541,6 +547,101 @@ func responseToolOutputToChatContent(value any) any {
 			return fmt.Sprintf("%v", v)
 		}
 		return string(raw)
+	}
+}
+
+// splitFunctionCallOutputToChatMessages 把 function_call_output 的 output 映射为 Chat 目标的
+// 消息内容：返回 tool 消息的 content，以及（可选）需要以独立 user 消息下发的媒体内容块。
+//
+// Chat Completions 的 tool 消息按规范只能承载文本，因此当 Responses 的 output 是内容块数组
+// 且含图片/文件等非文本块时，把文本留在 tool 消息、非文本块交给调用方紧随其后追加一条 user
+// 消息；否则整段内容（含 base64 数据）会被序列化成 tool 消息文本——上游会把二进制当作文本
+// 计数，触发 context_length_exceeded，且图像语义完全丢失。
+//
+// 非内容块数组的形态（字符串、对象、任意 JSON 数组、纯文本内容块数组）保持既有字符串化行为。
+func splitFunctionCallOutputToChatMessages(value any) (any, []any) {
+	parts, ok := responsesToolOutputContentParts(value)
+	if !ok {
+		return responseToolOutputToChatContent(value), nil
+	}
+
+	text := strings.Builder{}
+	mediaParts := make([]any, 0, len(parts))
+	for _, part := range parts {
+		if isResponsesTextContentPartType(strings.TrimSpace(kitutil.Interface2String(part["type"]))) {
+			text.WriteString(kitutil.Interface2String(part["text"]))
+			continue
+		}
+		mediaParts = append(mediaParts, part)
+	}
+	if len(mediaParts) == 0 {
+		return responseToolOutputToChatContent(value), nil
+	}
+
+	converted, err := responsesContentPartsToChatContent(mediaParts)
+	if err != nil {
+		return responseToolOutputToChatContent(value), nil
+	}
+	chatParts, ok := converted.([]any)
+	if !ok || len(chatParts) == 0 {
+		return responseToolOutputToChatContent(value), nil
+	}
+	return text.String(), chatParts
+}
+
+// responsesToolOutputContentParts 判定 value 是否为 Responses 内容块数组：数组非空，且每个
+// 元素都是带已知内容块 type 的对象。这样 `[1,2]`、`[{"type":"unknown"}]` 等普通 JSON 数组
+// 不满足条件，继续走既有字符串化路径。
+func responsesToolOutputContentParts(value any) ([]map[string]any, bool) {
+	var rawParts []any
+	switch typed := value.(type) {
+	case []any:
+		rawParts = typed
+	case []map[string]any:
+		rawParts = make([]any, 0, len(typed))
+		for _, part := range typed {
+			rawParts = append(rawParts, part)
+		}
+	default:
+		return nil, false
+	}
+	if len(rawParts) == 0 {
+		return nil, false
+	}
+
+	parts := make([]map[string]any, 0, len(rawParts))
+	for _, rawPart := range rawParts {
+		part, ok := rawPart.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		if !isResponsesContentPartType(strings.TrimSpace(kitutil.Interface2String(part["type"]))) {
+			return nil, false
+		}
+		parts = append(parts, part)
+	}
+	return parts, true
+}
+
+// isResponsesContentPartType 已知的 Responses 内容块 type（与 responsesContentPartsToChatContent
+// 的 switch 同集合）。
+func isResponsesContentPartType(partType string) bool {
+	switch partType {
+	case "input_text", "output_text", "text",
+		"input_image", "input_file", "input_audio", "input_video":
+		return true
+	default:
+		return false
+	}
+}
+
+// isResponsesTextContentPartType 文本类内容块：承载 text 字段，可以留在 tool 消息里。
+func isResponsesTextContentPartType(partType string) bool {
+	switch partType {
+	case "input_text", "output_text", "text":
+		return true
+	default:
+		return false
 	}
 }
 
