@@ -557,6 +557,7 @@ func responseToolOutputToChatContent(value any) any {
 // 且含图片/文件等非文本块时，把文本留在 tool 消息、非文本块交给调用方紧随其后追加一条 user
 // 消息；否则整段内容（含 base64 数据）会被序列化成 tool 消息文本——上游会把二进制当作文本
 // 计数，触发 context_length_exceeded，且图像语义完全丢失。
+// 文本块以 "\n" 连接；若没有任何文本块，tool 内容使用类型感知的非空占位（如 "[image]"）。
 //
 // 非内容块数组的形态（字符串、对象、任意 JSON 数组、纯文本内容块数组）保持既有字符串化行为。
 func splitFunctionCallOutputToChatMessages(value any) (any, []any) {
@@ -565,11 +566,13 @@ func splitFunctionCallOutputToChatMessages(value any) (any, []any) {
 		return responseToolOutputToChatContent(value), nil
 	}
 
-	text := strings.Builder{}
+	texts := make([]string, 0, len(parts))
 	mediaParts := make([]any, 0, len(parts))
 	for _, part := range parts {
 		if isResponsesTextContentPartType(strings.TrimSpace(kitutil.Interface2String(part["type"]))) {
-			text.WriteString(kitutil.Interface2String(part["text"]))
+			if text := kitutil.Interface2String(part["text"]); text != "" {
+				texts = append(texts, text)
+			}
 			continue
 		}
 		mediaParts = append(mediaParts, part)
@@ -586,7 +589,50 @@ func splitFunctionCallOutputToChatMessages(value any) (any, []any) {
 	if !ok || len(chatParts) == 0 {
 		return responseToolOutputToChatContent(value), nil
 	}
-	return text.String(), chatParts
+	if len(texts) == 0 {
+		// Chat Completions 的 tool 消息只能承载文本；媒体块已由调用方追加的 user
+		// 消息承载，这里用类型感知的非空占位，避免上游拒绝空 tool 内容。
+		return responsesToolOutputMediaPlaceholder(mediaParts), chatParts
+	}
+	return strings.Join(texts, "\n"), chatParts
+}
+
+// responsesToolOutputMediaPlaceholder 生成无文本块时 tool 消息的占位文案：按非文本块
+// 类型去重、按首次出现顺序排列、空格连接；纯图片场景返回 "[image]"。
+func responsesToolOutputMediaPlaceholder(mediaParts []any) string {
+	labels := make([]string, 0, len(mediaParts))
+	seen := make(map[string]struct{}, len(mediaParts))
+	for _, rawPart := range mediaParts {
+		part, ok := rawPart.(map[string]any)
+		if !ok {
+			continue
+		}
+		label := responsesToolOutputMediaPlaceholderLabel(strings.TrimSpace(kitutil.Interface2String(part["type"])))
+		if label == "" {
+			continue
+		}
+		if _, exists := seen[label]; exists {
+			continue
+		}
+		seen[label] = struct{}{}
+		labels = append(labels, label)
+	}
+	return strings.Join(labels, " ")
+}
+
+func responsesToolOutputMediaPlaceholderLabel(partType string) string {
+	switch partType {
+	case "input_image":
+		return "[image]"
+	case "input_file":
+		return "[file]"
+	case "input_audio":
+		return "[audio]"
+	case "input_video":
+		return "[video]"
+	default:
+		return ""
+	}
 }
 
 // responsesToolOutputContentParts 判定 value 是否为 Responses 内容块数组：数组非空，且每个

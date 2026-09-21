@@ -389,6 +389,81 @@ func TestResponsesRequestToChatCompletionsRequestHoistsToolOutputMedia(t *testin
 	assert.Equal(t, dataURL, parts[0].GetImageMedia().Url)
 }
 
+func TestResponsesRequestToChatCompletionsRequestHoistsToolOutputMediaForms(t *testing.T) {
+	const dataURL = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+
+	tests := []struct {
+		name        string
+		output      []map[string]any
+		wantContent string
+		wantParts   []string
+	}{
+		{
+			name: "multiple text blocks join with newline",
+			output: []map[string]any{
+				{"type": "input_text", "text": "first"},
+				{"type": "input_image", "image_url": dataURL},
+				{"type": "input_text", "text": "second"},
+			},
+			wantContent: "first\nsecond",
+			wantParts:   []string{dto.ContentTypeImageURL},
+		},
+		{
+			name: "media only uses type aware placeholder",
+			output: []map[string]any{
+				{"type": "input_image", "image_url": dataURL},
+			},
+			wantContent: "[image]",
+			wantParts:   []string{dto.ContentTypeImageURL},
+		},
+		{
+			name: "mixed media dedupes placeholder labels",
+			output: []map[string]any{
+				{"type": "input_image", "image_url": dataURL},
+				{"type": "input_file", "file_id": "file_1"},
+				{"type": "input_image", "image_url": dataURL},
+			},
+			wantContent: "[image] [file]",
+			wantParts:   []string{dto.ContentTypeImageURL, dto.ContentTypeFile, dto.ContentTypeImageURL},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
+				Model: "gpt-test",
+				Input: mustRawMessage(t, []map[string]any{
+					{
+						"type":      "function_call",
+						"call_id":   "call_1",
+						"name":      "view_image",
+						"arguments": "{}",
+					},
+					{
+						"type":    "function_call_output",
+						"call_id": "call_1",
+						"output":  tt.output,
+					},
+				}),
+			})
+			require.NoError(t, err)
+
+			require.Len(t, got.Messages, 3)
+			assert.Equal(t, "tool", got.Messages[1].Role)
+			assert.Equal(t, tt.wantContent, got.Messages[1].StringContent())
+			assert.NotContains(t, got.Messages[1].StringContent(), "base64")
+
+			assert.Equal(t, "user", got.Messages[2].Role)
+			parts := got.Messages[2].ParseContent()
+			require.Len(t, parts, len(tt.wantParts))
+			for i, wantType := range tt.wantParts {
+				assert.Equal(t, wantType, parts[i].Type)
+			}
+			require.NotNil(t, parts[0].GetImageMedia())
+			assert.Equal(t, dataURL, parts[0].GetImageMedia().Url)
+		})
+	}
+}
 func TestResponsesRequestToChatCompletionsRequestKeepsNonContentToolOutputs(t *testing.T) {
 	tests := []struct {
 		name   string
