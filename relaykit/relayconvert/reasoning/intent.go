@@ -684,5 +684,11 @@ func EffortFromBudget(budget int) Effort {
 	if budget <= 8192 {
 		return EffortMedium
 	}
-	return EffortHigh
+	if budget < 16000 {
+		return EffortHigh
+	}
+	if budget < 32000 {
+		return EffortXHigh
+	}
+	return EffortMax
 }

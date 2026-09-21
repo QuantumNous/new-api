@@ -273,3 +273,29 @@ func TestOpenAIPivotExplicitEffortOverridesPivotWithDiagnostic(t *testing.T) {
 	assert.Equal(t, EffortXHigh, got.Effort)
 	assert.Equal(t, []string{"explicit_fields_conflict"}, diagnosticCodes(diagnostics))
 }
+
+func TestEffortFromBudgetIncludesXHighAndMax(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		budget int
+		want   Effort
+	}{
+		{0, EffortNone},
+		{-1, EffortHigh},
+		{1024, EffortLow},
+		{8000, EffortMedium},
+		{8192, EffortMedium},
+		{8193, EffortHigh},
+		{15999, EffortHigh},
+		{16000, EffortXHigh},
+		{31999, EffortXHigh},
+		{32000, EffortMax},
+		{64000, EffortMax},
+	} {
+		got := EffortFromBudget(tc.budget)
+		if got != tc.want {
+			t.Errorf("EffortFromBudget(%d) = %q, want %q", tc.budget, got, tc.want)
+		}
+	}
+}

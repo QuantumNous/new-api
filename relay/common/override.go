@@ -321,8 +321,12 @@ func reasoningEffortFromBudgetValue(value gjson.Result) (string, bool) {
 		return string(kitreasoning.EffortLow), true
 	case budget <= 8192:
 		return string(kitreasoning.EffortMedium), true
-	default:
+	case budget < 16000:
 		return string(kitreasoning.EffortHigh), true
+	case budget < 32000:
+		return string(kitreasoning.EffortXHigh), true
+	default:
+		return string(kitreasoning.EffortMax), true
 	}
 }
 

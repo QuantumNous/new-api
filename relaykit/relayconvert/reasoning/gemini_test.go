@@ -53,7 +53,7 @@ func TestRenderGeminiMapsAndClampsInsteadOfRejecting(t *testing.T) {
 			name:       "effort on gemini 2.5 flash becomes budget",
 			model:      "gemini-2.5-flash",
 			intent:     Intent{Mode: ModeEnabled, Effort: EffortHigh},
-			wantBudget: intPtr(24576),
+			wantBudget: intPtr(12288),
 			wantEffort: EffortHigh,
 		},
 		{
@@ -61,7 +61,7 @@ func TestRenderGeminiMapsAndClampsInsteadOfRejecting(t *testing.T) {
 			model:      "gemini-2.5-flash",
 			intent:     Intent{BudgetTokens: &budget100000},
 			wantBudget: intPtr(24576),
-			wantEffort: EffortHigh,
+			wantEffort: EffortXHigh,
 			wantCodes:  []string{"gemini_budget_clamped"},
 		},
 		{
@@ -176,7 +176,7 @@ func TestNormalizeGeminiThinkingConfigRewritesNativeConfig(t *testing.T) {
 			name:       "level on gemini 2.5 flash becomes budget",
 			model:      "gemini-2.5-flash",
 			config:     dto.GeminiThinkingConfig{ThinkingLevel: "high"},
-			wantBudget: intPtr(24576),
+			wantBudget: intPtr(12288),
 			wantEffort: EffortHigh,
 			wantCodes:  []string{"gemini_level_to_budget"},
 		},
@@ -244,7 +244,7 @@ func TestNormalizeGeminiThinkingConfigRewritesNativeConfig(t *testing.T) {
 			model:      "gemini-2.5-flash",
 			config:     dto.GeminiThinkingConfig{ThinkingBudget: intPtr(100000)},
 			wantBudget: intPtr(24576),
-			wantEffort: EffortHigh,
+			wantEffort: EffortXHigh,
 			wantCodes:  []string{"gemini_budget_clamped"},
 		},
 		{

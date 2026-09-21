@@ -482,7 +482,10 @@ func gemini25BudgetForEffort(effort Effort) int {
 		return 1024
 	case EffortMedium:
 		return 8192
-	case EffortHigh, EffortXHigh, EffortMax:
+	case EffortHigh:
+		// Keep high below the EffortFromBudget xhigh rung (16000).
+		return 12288
+	case EffortXHigh, EffortMax:
 		return 24576
 	default:
 		return 0

@@ -14,6 +14,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/tidwall/gjson"
 )
 
 func TestApplyParamOverrideTrimPrefix(t *testing.T) {
@@ -2522,4 +2523,27 @@ func TestReasoningEffortOverrideIsAuditedWithoutDebugMode(t *testing.T) {
 	_, err := ApplyParamOverrideWithRelayInfo([]byte(`{"reasoning":{"effort":"high"}}`), info)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"set reasoning.effort = max"}, info.ParamOverrideAudit)
+}
+
+func TestReasoningEffortFromBudgetValueIncludesXHighAndMax(t *testing.T) {
+	for _, tc := range []struct {
+		budget string
+		want   string
+	}{
+		{"0", "none"},
+		{"-1", "high"},
+		{"1024", "low"},
+		{"8000", "medium"},
+		{"8192", "medium"},
+		{"8193", "high"},
+		{"15999", "high"},
+		{"16000", "xhigh"},
+		{"31999", "xhigh"},
+		{"32000", "max"},
+		{"64000", "max"},
+	} {
+		got, ok := reasoningEffortFromBudgetValue(gjson.Parse(tc.budget))
+		require.True(t, ok, "budget %s", tc.budget)
+		assert.Equal(t, tc.want, got, "budget %s", tc.budget)
+	}
 }
