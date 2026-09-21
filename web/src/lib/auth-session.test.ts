@@ -16,10 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { afterEach, describe, test } from 'node:test'
-
 import { QueryClient } from '@tanstack/react-query'
+import { afterEach, describe, expect, test } from 'vitest'
 
 import { useAuthStore, type AuthBundle } from '../stores/auth-store'
 import {
@@ -59,10 +57,10 @@ afterEach(() => {
 describe('authentication session coordination', () => {
   test('bootstrap distinguishes a completed anonymous check from an active session', async () => {
     useAuthStore.getState().auth.reset('complete')
-    assert.deepEqual(await bootstrapAuthentication(), { kind: 'anonymous' })
+    expect(await bootstrapAuthentication()).toEqual({ kind: 'anonymous' })
 
     useAuthStore.getState().auth.setBundle(bundle)
-    assert.deepEqual(await bootstrapAuthentication(), {
+    expect(await bootstrapAuthentication()).toEqual({
       kind: 'authenticated',
       bundle,
     })
@@ -97,10 +95,10 @@ describe('authentication session coordination', () => {
 
     const outcome = await createRefreshRunner(runtime)()
 
-    assert.equal(outcome.kind, 'authenticated')
-    assert.deepEqual(requestedSIDs, [bundle.session.sid, undefined])
-    assert.deepEqual(clears, [[false, 'idle']])
-    assert.deepEqual(accepted, [bundle])
+    expect(outcome.kind).toBe('authenticated')
+    expect(requestedSIDs).toEqual([bundle.session.sid, undefined])
+    expect(clears).toEqual([[false, 'idle']])
+    expect(accepted).toEqual([bundle])
   })
 
   test('a rejected refresh confirms anonymous state and synchronizes sign-out', async () => {
@@ -117,10 +115,10 @@ describe('authentication session coordination', () => {
       wait: async () => undefined,
     }
 
-    assert.deepEqual(await createRefreshRunner(runtime)(), {
+    expect(await createRefreshRunner(runtime)()).toEqual({
       kind: 'anonymous',
     })
-    assert.deepEqual(clears, [[true, undefined]])
+    expect(clears).toEqual([[true, undefined]])
   })
 
   test('a temporary refresh failure remains retryable without clearing the session', async () => {
@@ -142,9 +140,9 @@ describe('authentication session coordination', () => {
 
     const outcome = await createRefreshRunner(runtime)()
 
-    assert.equal(outcome.kind, 'transient_error')
-    assert.equal(clearCount, 0)
-    assert.equal(transientCount, 1)
+    expect(outcome.kind).toBe('transient_error')
+    expect(clearCount).toBe(0)
+    expect(transientCount).toBe(1)
   })
 
   test('a rate limited refresh remains retryable without clearing the session', async () => {
@@ -166,9 +164,9 @@ describe('authentication session coordination', () => {
 
     const outcome = await createRefreshRunner(runtime)()
 
-    assert.equal(outcome.kind, 'transient_error')
-    assert.equal(clearCount, 0)
-    assert.equal(transientCount, 1)
+    expect(outcome.kind).toBe('transient_error')
+    expect(clearCount).toBe(0)
+    expect(transientCount).toBe(1)
   })
 
   test('an exhausted refresh race clears the unusable local session', async () => {
@@ -191,12 +189,12 @@ describe('authentication session coordination', () => {
       },
     }
 
-    assert.deepEqual(await createRefreshRunner(runtime)(), {
+    expect(await createRefreshRunner(runtime)()).toEqual({
       kind: 'out_of_sync',
       code: 'AUTH_REFRESH_RACE',
     })
-    assert.deepEqual(requestedDelays, [80, 200, 500])
-    assert.deepEqual(clears, [[false, undefined]])
+    expect(requestedDelays).toEqual([80, 200, 500])
+    expect(clears).toEqual([[false, undefined]])
   })
 
   test('an unexpected successful response is treated as out of sync', async () => {
@@ -213,11 +211,11 @@ describe('authentication session coordination', () => {
       wait: async () => undefined,
     }
 
-    assert.deepEqual(await createRefreshRunner(runtime)(), {
+    expect(await createRefreshRunner(runtime)()).toEqual({
       kind: 'out_of_sync',
       code: 'AUTH_INVALID_REFRESH_RESPONSE',
     })
-    assert.equal(cleared, true)
+    expect(cleared).toBe(true)
   })
 
   test('a refresh response cannot restore credentials after a newer auth operation', async () => {
@@ -241,8 +239,8 @@ describe('authentication session coordination', () => {
 
     const outcome = await createRefreshRunner(runtime)()
 
-    assert.equal(outcome.kind, 'transient_error')
-    assert.equal(accepted, false)
+    expect(outcome.kind).toBe('transient_error')
+    expect(accepted).toBe(false)
   })
 
   test('explicit rotations update only the current session', () => {
@@ -254,41 +252,35 @@ describe('authentication session coordination', () => {
       session: { ...bundle.session, last_active_at: 200 },
     })
 
-    assert.equal(useAuthStore.getState().auth.accessToken, 'rotated-token')
-    assert.strictEqual(useAuthStore.getState().auth.user, bundle.user)
+    expect(useAuthStore.getState().auth.accessToken).toBe('rotated-token')
+    expect(useAuthStore.getState().auth.user).toBe(bundle.user)
 
-    assert.throws(
-      () =>
-        applyAuthRotation({
-          access_token: 'non-bearer-token',
-          token_type: 'Custom',
-          access_expires_at: bundle.access_expires_at + 120,
-          session: bundle.session,
-        }),
-      /Invalid authentication rotation response/
-    )
-    assert.throws(
-      () =>
-        applyAuthRotation({
-          access_token: 'non-current-token',
-          token_type: 'Bearer',
-          access_expires_at: bundle.access_expires_at + 120,
-          session: { ...bundle.session, current: false },
-        }),
-      /Invalid authentication rotation response/
-    )
+    expect(() =>
+      applyAuthRotation({
+        access_token: 'non-bearer-token',
+        token_type: 'Custom',
+        access_expires_at: bundle.access_expires_at + 120,
+        session: bundle.session,
+      })
+    ).toThrow(/Invalid authentication rotation response/)
+    expect(() =>
+      applyAuthRotation({
+        access_token: 'non-current-token',
+        token_type: 'Bearer',
+        access_expires_at: bundle.access_expires_at + 120,
+        session: { ...bundle.session, current: false },
+      })
+    ).toThrow(/Invalid authentication rotation response/)
 
-    assert.throws(
-      () =>
-        applyAuthRotation({
-          access_token: 'wrong-session-token',
-          token_type: 'Bearer',
-          access_expires_at: bundle.access_expires_at + 120,
-          session: { ...bundle.session, sid: 'session-b' },
-        }),
-      /session mismatch/
-    )
-    assert.equal(useAuthStore.getState().auth.accessToken, 'rotated-token')
+    expect(() =>
+      applyAuthRotation({
+        access_token: 'wrong-session-token',
+        token_type: 'Bearer',
+        access_expires_at: bundle.access_expires_at + 120,
+        session: { ...bundle.session, sid: 'session-b' },
+      })
+    ).toThrow(/session mismatch/)
+    expect(useAuthStore.getState().auth.accessToken).toBe('rotated-token')
   })
 
   test('sign-out clears user-scoped query, mutation, and authentication state', () => {
@@ -305,13 +297,13 @@ describe('authentication session coordination', () => {
 
     clearAuthenticatedClientState(queryClient, false)
 
-    assert.equal(queryClient.getQueryCache().getAll().length, 0)
-    assert.equal(queryClient.getMutationCache().getAll().length, 0)
-    assert.equal(useAuthStore.getState().auth.user, null)
-    assert.equal(useAuthStore.getState().auth.accessToken, null)
-    assert.equal(useAuthStore.getState().auth.session, null)
-    assert.equal(useAuthStore.getState().auth.pending2FAFlowToken, null)
-    assert.equal(useAuthStore.getState().auth.bootstrapState, 'complete')
+    expect(queryClient.getQueryCache().getAll().length).toBe(0)
+    expect(queryClient.getMutationCache().getAll().length).toBe(0)
+    expect(useAuthStore.getState().auth.user).toBe(null)
+    expect(useAuthStore.getState().auth.accessToken).toBe(null)
+    expect(useAuthStore.getState().auth.session).toBe(null)
+    expect(useAuthStore.getState().auth.pending2FAFlowToken).toBe(null)
+    expect(useAuthStore.getState().auth.bootstrapState).toBe('complete')
 
     const nextBundle: AuthBundle = {
       ...bundle,
@@ -320,8 +312,7 @@ describe('authentication session coordination', () => {
       session: { ...bundle.session, sid: 'session-b' },
     }
     useAuthStore.getState().auth.setBundle(nextBundle)
-    assert.equal(
-      queryClient.getQueryData(['account', bundle.user.id]),
+    expect(queryClient.getQueryData(['account', bundle.user.id])).toBe(
       undefined
     )
   })

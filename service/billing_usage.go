@@ -113,6 +113,29 @@ func usageFromOpenAIBillingUsage(billingUsage *dto.BillingUsage) *dto.Usage {
 	if usage.TotalTokens == 0 {
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}
+	if inputDetails := usage.InputTokensDetails; inputDetails != nil {
+		if usage.PromptTokensDetails.CachedTokens == 0 && inputDetails.CachedTokens > 0 {
+			usage.PromptTokensDetails.CachedTokens = inputDetails.CachedTokens
+		}
+		if usage.PromptTokensDetails.CachedCreationTokens == 0 && inputDetails.CachedCreationTokens > 0 {
+			usage.PromptTokensDetails.CachedCreationTokens = inputDetails.CachedCreationTokens
+		}
+		if usage.PromptTokensDetails.CacheWriteTokens == 0 && inputDetails.CacheWriteTokens > 0 {
+			usage.PromptTokensDetails.CacheWriteTokens = inputDetails.CacheWriteTokens
+		}
+		if usage.PromptTokensDetails.TextTokens == 0 && inputDetails.TextTokens > 0 {
+			usage.PromptTokensDetails.TextTokens = inputDetails.TextTokens
+		}
+		if usage.PromptTokensDetails.ImageTokens == 0 && inputDetails.ImageTokens > 0 {
+			usage.PromptTokensDetails.ImageTokens = inputDetails.ImageTokens
+		}
+		if usage.PromptTokensDetails.AudioTokens == 0 && inputDetails.AudioTokens > 0 {
+			usage.PromptTokensDetails.AudioTokens = inputDetails.AudioTokens
+		}
+	}
+	if usage.PromptTokensDetails.CachedTokens == 0 && usage.PromptCacheHitTokens > 0 {
+		usage.PromptTokensDetails.CachedTokens = usage.PromptCacheHitTokens
+	}
 	usage.UsageSemantic = dto.BillingUsageSemanticOpenAI
 	usage.UsageSource = billingUsage.Source
 	usage.BillingUsage = dto.CloneBillingUsage(billingUsage)

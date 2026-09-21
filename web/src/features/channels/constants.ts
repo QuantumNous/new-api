@@ -392,6 +392,30 @@ export const MODEL_FETCHABLE_TYPES = new Set([
   59, 60,
 ])
 
+export const FIELD_PASSTHROUGH_TYPES = new Set([
+  1,
+  14,
+  57,
+  58,
+  59,
+  CHANNEL_TYPE_NEW_API,
+])
+
+export const OPENAI_FIELD_PASSTHROUGH_TYPES = new Set([
+  1,
+  57,
+  58,
+  59,
+  CHANNEL_TYPE_NEW_API,
+])
+
+export const CLAUDE_FIELD_PASSTHROUGH_TYPES = new Set([
+  14,
+  58,
+  59,
+  CHANNEL_TYPE_NEW_API,
+])
+
 export const TYPE_TO_KEY_PROMPT: Record<number, string> = {
   15: 'Format: APIKey|SecretKey',
   18: 'Format: APPID|APISecret|APIKey',

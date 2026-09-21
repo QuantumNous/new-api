@@ -442,6 +442,28 @@ For commercial licensing, please contact support@quantumnous.com
   }
 }
 
+/* Smooth streaming: one-shot fade-in on newly streamed words.
+ * Duration must match FADE_DURATION_MS in response-fade.ts */
+@keyframes stream-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+[data-stream-fade] {
+  animation: stream-fade-in 250ms ease-out both;
+  animation-delay: var(--stream-fade-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-stream-fade] {
+    animation: none;
+  }
+}
+
 /* ── Landing page scroll-triggered animations ── */
 @keyframes landing-fade-up {
   from {

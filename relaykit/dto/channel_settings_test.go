@@ -147,6 +147,70 @@ func TestAdvancedCustomModelListRouteRequiresExactIncomingPath(t *testing.T) {
 	assert.Equal(t, "/provider/models", route.UpstreamPath)
 }
 
+func TestAdvancedCustomValidateBalanceRouteConstraints(t *testing.T) {
+	valid := &AdvancedCustomConfig{
+		Routes: []AdvancedCustomRoute{{
+			IncomingPath: AdvancedCustomBalancePath,
+			UpstreamPath: "/provider/balance",
+			Converter:    advancedCustomConverterNone,
+		}},
+	}
+	require.NoError(t, valid.Validate())
+
+	route, ok := valid.BalanceRoute()
+	require.True(t, ok)
+	assert.Equal(t, "/provider/balance", route.UpstreamPath)
+
+	tests := []struct {
+		name   string
+		routes []AdvancedCustomRoute
+		want   string
+	}{
+		{
+			name: "model matching rules",
+			routes: []AdvancedCustomRoute{{
+				IncomingPath: AdvancedCustomBalancePath,
+				UpstreamPath: "/provider/balance",
+				Models:       []string{"gpt-4o"},
+			}},
+			want: "models must be empty",
+		},
+		{
+			name: "converter",
+			routes: []AdvancedCustomRoute{{
+				IncomingPath: AdvancedCustomBalancePath,
+				UpstreamPath: "/provider/balance",
+				Converter:    advancedCustomConverterOpenAIChatToOpenAIResponses,
+			}},
+			want: "converter must be none",
+		},
+		{
+			name: "model placeholder",
+			routes: []AdvancedCustomRoute{{
+				IncomingPath: AdvancedCustomBalancePath,
+				UpstreamPath: "/provider/{model}/balance",
+			}},
+			want: "upstream_path must not contain {model}",
+		},
+		{
+			name: "duplicate routes",
+			routes: []AdvancedCustomRoute{
+				{IncomingPath: AdvancedCustomBalancePath, UpstreamPath: "/provider/balance"},
+				{IncomingPath: AdvancedCustomBalancePath, UpstreamPath: "/provider/credits"},
+			},
+			want: "duplicates the /v1/dashboard/billing/credit_grants route",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := (&AdvancedCustomConfig{Routes: tt.routes}).Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
+}
+
 func TestAdvancedCustomValidateDuplicateIncomingPathWithDisjointModels(t *testing.T) {
 	config := &AdvancedCustomConfig{
 		Routes: []AdvancedCustomRoute{

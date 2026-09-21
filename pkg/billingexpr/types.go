@@ -28,12 +28,18 @@ type TokenParams struct {
 	AO   float64 // audio output tokens
 }
 
-// TraceResult holds side-channel info captured by the tier() function
-// during Expr execution. This replaces the old Breakdown mechanism —
-// the Expr itself is the single source of truth for billing logic.
+// RequestRuleTrace describes one request-dependent multiplier detected at compile time.
+type RequestRuleTrace struct {
+	Cond       string  `json:"cond"`
+	Multiplier float64 `json:"multiplier"`
+	Matched    bool    `json:"matched"`
+}
+
+// TraceResult holds side-channel info captured while an expression runs.
 type TraceResult struct {
-	MatchedTier string  `json:"matched_tier"`
-	Cost        float64 `json:"cost"`
+	MatchedTier  string             `json:"matched_tier"`
+	RequestRules []RequestRuleTrace `json:"request_rules,omitempty"`
+	Cost         float64            `json:"cost"`
 }
 
 // BillingSnapshot captures billing state at pre-consume time. Expression and
@@ -57,10 +63,11 @@ type BillingSnapshot struct {
 
 // TieredResult holds everything needed after running tiered settlement.
 type TieredResult struct {
-	ActualQuotaBeforeGroup float64 `json:"actual_quota_before_group"`
-	ActualQuotaAfterGroup  int     `json:"actual_quota_after_group"`
-	MatchedTier            string  `json:"matched_tier"`
-	CrossedTier            bool    `json:"crossed_tier"`
+	ActualQuotaBeforeGroup float64            `json:"actual_quota_before_group"`
+	ActualQuotaAfterGroup  int                `json:"actual_quota_after_group"`
+	MatchedTier            string             `json:"matched_tier"`
+	RequestRules           []RequestRuleTrace `json:"request_rules,omitempty"`
+	CrossedTier            bool               `json:"crossed_tier"`
 	// Clamp records an int32 saturation event during quota conversion so the
 	// caller can surface it on the consume log for admin auditing. Nil when no
 	// clamping occurred. Not serialized: the marker is attached separately via
