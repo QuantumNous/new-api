@@ -1,6 +1,7 @@
 package oaichat
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -158,4 +159,108 @@ func mustResponsesEventsFromChatChunk(t *testing.T, state *ChatToResponsesStream
 	events, err := ChatCompletionsStreamChunkToResponsesEvents(chunk, state)
 	require.NoError(t, err)
 	return events
+}
+
+func TestChatCompletionsStreamToResponsesReopensReasoningAfterMidStreamFinishReason(t *testing.T) {
+	for _, emitSequenceNumber := range []bool{false, true} {
+		t.Run(fmt.Sprintf("EmitSequenceNumber=%t", emitSequenceNumber), func(t *testing.T) {
+			state := NewChatToResponsesStreamState("resp_1", "gpt-test")
+			state.EmitSequenceNumber = emitSequenceNumber
+			toolIndex := 0
+			toolCalls := "tool_calls"
+			stop := "stop"
+
+			var events []ChatToResponsesStreamEvent
+			appendEvents := func(chunk *dto.ChatCompletionsStreamResponse) {
+				events = append(events, mustResponsesEventsFromChatChunk(t, state, chunk)...)
+			}
+
+			appendEvents(&dto.ChatCompletionsStreamResponse{
+				Id:    "chatcmpl_1",
+				Model: "gpt-test",
+				Choices: []dto.ChatCompletionsStreamResponseChoice{{
+					Index: 0,
+					Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+						ReasoningContent: lo.ToPtr("round 1"),
+					},
+				}},
+			})
+			appendEvents(&dto.ChatCompletionsStreamResponse{
+				Choices: []dto.ChatCompletionsStreamResponseChoice{{
+					Index: 0,
+					Delta: dto.ChatCompletionsStreamResponseChoiceDelta{ToolCalls: []dto.ToolCallResponse{{
+						Index: &toolIndex,
+						ID:    "call_1",
+						Type:  "function",
+						Function: dto.FunctionResponse{
+							Name:      "lookup",
+							Arguments: "{}",
+						},
+					}}},
+				}},
+			})
+			appendEvents(&dto.ChatCompletionsStreamResponse{
+				Choices: []dto.ChatCompletionsStreamResponseChoice{{
+					Index:        0,
+					FinishReason: &toolCalls,
+				}},
+			})
+			appendEvents(&dto.ChatCompletionsStreamResponse{
+				Choices: []dto.ChatCompletionsStreamResponseChoice{{
+					Index: 0,
+					Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+						ReasoningContent: lo.ToPtr("round 2"),
+					},
+				}},
+			})
+			appendEvents(&dto.ChatCompletionsStreamResponse{
+				Choices: []dto.ChatCompletionsStreamResponseChoice{{
+					Index:        0,
+					FinishReason: &stop,
+				}},
+			})
+			events = append(events, FinalizeChatCompletionsStreamToResponses(state)...)
+
+			openReasoning := map[string]bool{}
+			reasoningPartAdded := 0
+			for _, event := range events {
+				itemID := event.Payload.ItemID
+				if event.Payload.Item != nil && itemID == "" {
+					itemID = event.Payload.Item.ID
+				}
+				switch event.Type {
+				case responsesEventOutputItemAdded:
+					if event.Payload.Item != nil && event.Payload.Item.Type == responsesOutputTypeReasoning {
+						openReasoning[itemID] = true
+					}
+				case responsesEventOutputItemDone:
+					delete(openReasoning, itemID)
+				case "response.reasoning_summary_part.added":
+					reasoningPartAdded++
+				case responsesEventReasoningSummaryDelta:
+					assert.Truef(t, openReasoning[itemID], "reasoning delta for %q arrived without an active item", itemID)
+				}
+			}
+
+			assert.Equal(t, 2, reasoningPartAdded)
+
+			require.NotEmpty(t, events)
+			completed := events[len(events)-1]
+			require.Equal(t, responsesEventCompleted, completed.Type)
+			require.NotNil(t, completed.Payload.Response)
+
+			var reasoningOutputs []dto.ResponsesOutput
+			for _, output := range completed.Payload.Response.Output {
+				if output.Type == responsesOutputTypeReasoning {
+					reasoningOutputs = append(reasoningOutputs, output)
+				}
+			}
+			require.Len(t, reasoningOutputs, 2)
+			assert.NotEqual(t, reasoningOutputs[0].ID, reasoningOutputs[1].ID)
+			require.Len(t, reasoningOutputs[0].Summary, 1)
+			require.Len(t, reasoningOutputs[1].Summary, 1)
+			assert.Equal(t, "round 1", reasoningOutputs[0].Summary[0].Text)
+			assert.Equal(t, "round 2", reasoningOutputs[1].Summary[0].Text)
+		})
+	}
 }

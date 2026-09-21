@@ -44,6 +44,8 @@ type ChatToResponsesStreamState struct {
 	text               strings.Builder
 	annotations        []any
 	reasoning          strings.Builder
+	reasoningSegments  int
+	reasoningTexts     []string
 }
 
 type chatToResponsesStreamTool struct {
@@ -57,9 +59,11 @@ type chatToResponsesStreamTool struct {
 }
 
 type chatToResponsesOutputRef struct {
-	Kind      string
-	ToolIndex int
-	HostedID  string
+	Kind string
+	// ReasoningSegment is the ordinal of the reasoning segment for Kind=="reasoning".
+	ReasoningSegment int
+	ToolIndex        int
+	HostedID         string
 }
 
 // HostedToolStreamStart describes a provider-hosted tool call that is already
@@ -447,10 +451,21 @@ func (s *ChatToResponsesStreamState) appendAnnotationDelta(raw []byte) ([]ChatTo
 }
 
 func (s *ChatToResponsesStreamState) appendReasoningDelta(delta string) []ChatToResponsesStreamEvent {
-	events := make([]ChatToResponsesStreamEvent, 0, 2)
+	events := make([]ChatToResponsesStreamEvent, 0, 3)
+	// A reasoning item that was already closed by doneDeltaEvents() (e.g. the
+	// upstream chat stream emitted finish_reason for a tool round and then kept
+	// streaming) must not receive further deltas: Responses clients reject
+	// response.reasoning_summary_text.delta when no item is active. Open a new
+	// reasoning segment instead so every delta always has an active item.
+	if s.reasoningDone {
+		s.reasoningStarted = false
+		s.reasoningDone = false
+		s.reasoning.Reset()
+		s.reasoningSegments++
+	}
 	if !s.reasoningStarted {
 		s.reasoningStarted = true
-		s.reasoningIndex = s.nextIndex("reasoning", -1)
+		s.reasoningIndex = s.nextReasoningIndex()
 		events = append(events, s.event(responsesEventOutputItemAdded, dto.ResponsesStreamResponse{
 			Type:        responsesEventOutputItemAdded,
 			OutputIndex: intPtr(s.reasoningIndex),
@@ -459,6 +474,16 @@ func (s *ChatToResponsesStreamState) appendReasoningDelta(delta string) []ChatTo
 				ID:      s.reasoningID(),
 				Status:  "in_progress",
 				Summary: []dto.ResponsesReasoningSummaryPart{},
+			},
+		}))
+		events = append(events, s.event(responsesEventReasoningSummaryPartAdded, dto.ResponsesStreamResponse{
+			Type:         responsesEventReasoningSummaryPartAdded,
+			OutputIndex:  intPtr(s.reasoningIndex),
+			SummaryIndex: intPtr(0),
+			ItemID:       s.reasoningID(),
+			Part: &dto.ResponsesReasoningSummaryPart{
+				Type: "summary_text",
+				Text: "",
 			},
 		}))
 	}
@@ -558,6 +583,7 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 	}
 	if s.reasoningStarted && !s.reasoningDone {
 		s.reasoningDone = true
+		s.reasoningTexts = append(s.reasoningTexts, s.reasoning.String())
 		reasoningDone := dto.ResponsesStreamResponse{
 			Type:         responsesEventReasoningSummaryDone,
 			OutputIndex:  intPtr(s.reasoningIndex),
@@ -651,7 +677,7 @@ func (s *ChatToResponsesStreamState) finalResponse() *dto.OpenAIResponsesRespons
 		case "message":
 			output = append(output, *s.messageOutput(status))
 		case "reasoning":
-			output = append(output, *s.reasoningOutput(status))
+			output = append(output, *s.reasoningOutputFor(ref.ReasoningSegment, status))
 		case "tool":
 			if tool := s.toolsByIndex[ref.ToolIndex]; tool != nil {
 				output = append(output, *s.toolOutput(tool, status))
@@ -692,6 +718,16 @@ func (s *ChatToResponsesStreamState) nextIndex(kind string, toolIndex int) int {
 	return index
 }
 
+func (s *ChatToResponsesStreamState) nextReasoningIndex() int {
+	index := s.nextOutputIndex
+	s.nextOutputIndex++
+	s.outputOrder = append(s.outputOrder, chatToResponsesOutputRef{
+		Kind:             "reasoning",
+		ReasoningSegment: s.reasoningSegments,
+	})
+	return index
+}
+
 func (s *ChatToResponsesStreamState) nextHostedIndex(id string) int {
 	index := s.nextOutputIndex
 	s.nextOutputIndex++
@@ -724,7 +760,7 @@ func (s *ChatToResponsesStreamState) messageID() string {
 }
 
 func (s *ChatToResponsesStreamState) reasoningID() string {
-	return fmt.Sprintf("%s_reasoning_0", s.ID)
+	return fmt.Sprintf("%s_reasoning_%d", s.ID, s.reasoningSegments)
 }
 
 func (s *ChatToResponsesStreamState) messageOutput(status string) *dto.ResponsesOutput {
@@ -747,18 +783,33 @@ func (s *ChatToResponsesStreamState) messageOutput(status string) *dto.Responses
 	}
 }
 
-func (s *ChatToResponsesStreamState) reasoningOutput(status string) *dto.ResponsesOutput {
+func (s *ChatToResponsesStreamState) reasoningIDFor(segment int) string {
+	return fmt.Sprintf("%s_reasoning_%d", s.ID, segment)
+}
+
+func (s *ChatToResponsesStreamState) reasoningOutputFor(segment int, status string) *dto.ResponsesOutput {
+	text := ""
+	switch {
+	case segment >= 0 && segment < len(s.reasoningTexts):
+		text = s.reasoningTexts[segment]
+	case segment == s.reasoningSegments:
+		text = s.reasoning.String()
+	}
 	return &dto.ResponsesOutput{
 		Type:   responsesOutputTypeReasoning,
-		ID:     s.reasoningID(),
+		ID:     s.reasoningIDFor(segment),
 		Status: status,
 		Summary: []dto.ResponsesReasoningSummaryPart{
 			{
 				Type: "summary_text",
-				Text: s.reasoning.String(),
+				Text: text,
 			},
 		},
 	}
+}
+
+func (s *ChatToResponsesStreamState) reasoningOutput(status string) *dto.ResponsesOutput {
+	return s.reasoningOutputFor(s.reasoningSegments, status)
 }
 
 func (s *ChatToResponsesStreamState) toolOutput(tool *chatToResponsesStreamTool, status string) *dto.ResponsesOutput {
