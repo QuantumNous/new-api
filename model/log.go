@@ -137,14 +137,24 @@ func FormatRootLogs(logs []*Log) {
 	}
 }
 
-func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
+// GetLogByTokenId 查询 tokenId 的日志，startIdx 为偏移量，num 为条数，countTotal 控制是否统计总数
+// 返回脱敏后的日志、匹配总数（未统计时为零）和查询错误
+func GetLogByTokenId(tokenId, startIdx, num int, countTotal bool) (logs []*Log, total int64, err error) {
+	// 1. 使用同一令牌条件统计和查询，旧版请求不增加计数开销
+	tx := LOG_DB.Model(&Log{}).Where("token_id = ?", tokenId)
+	if countTotal {
+		if err = tx.Count(&total).Error; err != nil {
+			return nil, 0, err
+		}
+	}
+	// 2. 保留各数据库的排序方式，并按偏移量生成脱敏日志的展示序号
 	order := "id desc"
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		order = clickHouseLogOrder("")
 	}
-	err = LOG_DB.Model(&Log{}).Where("token_id = ?", tokenId).Order(order).Limit(common.MaxRecentItems).Find(&logs).Error
-	formatUserLogs(logs, 0)
-	return logs, err
+	err = tx.Order(order).Limit(num).Offset(startIdx).Find(&logs).Error
+	formatUserLogs(logs, startIdx)
+	return logs, total, err
 }
 
 func RecordLog(userId int, logType int, content string) {
