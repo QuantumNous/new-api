@@ -52,6 +52,7 @@ type PluginUrlImportFieldProps = {
 export function PluginUrlImportField(props: PluginUrlImportFieldProps) {
   const { t } = useTranslation()
   const importMutation = useMutation({
+    meta: { errorToast: false },
     mutationFn: async () => {
       const normalized = normalizePluginSourceUrl(props.value)
       if (!normalized) {
@@ -72,7 +73,7 @@ export function PluginUrlImportField(props: PluginUrlImportFieldProps) {
         return
       }
       if (error.reason === 'too_large') {
-        props.onError(t('Plugin source exceeds the 1 MiB limit.'))
+        props.onError(t('Plugin source exceeds the 8 MiB limit.'))
         return
       }
       if (error.reason === 'not_found') {

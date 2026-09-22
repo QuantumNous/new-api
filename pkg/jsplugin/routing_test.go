@@ -81,6 +81,7 @@ func TestRegistryIndexesSharedEndpointCandidatesForDistinctLegacyProviders(t *te
 func TestSupportsRegisteredHostProtocols(t *testing.T) {
 	assert.True(t, SupportsHostProtocol("openai_responses"))
 	assert.True(t, SupportsHostProtocol("openai_video"))
+	assert.True(t, SupportsHostProtocol(ProtocolOpenAIImage))
 	assert.False(t, SupportsHostProtocol("plugin_owned_wire"))
 }
 
@@ -89,6 +90,71 @@ func TestLookupHostProtocolOperationExcludesRetrieveWithoutModelField(t *testing
 	assert.False(t, ok)
 	_, _, ok = LookupHostProtocolOperation(http.MethodPost, "/v1/responses")
 	assert.True(t, ok)
+	for _, path := range []string{"/v1/images/generations", "/v1/images/edits"} {
+		protocol, operation, found := LookupHostProtocolOperation(http.MethodPost, path)
+		require.True(t, found, path)
+		assert.Equal(t, ProtocolOpenAIImage, protocol)
+		assert.Equal(t, "model", operation.ModelField)
+		assert.Empty(t, operation.Modes, "the synchronous image protocol has no request modes")
+	}
+}
+
+// The OpenAI Images protocol is claimed in bare-string form, binds both image
+// endpoints for every declared model, and requires the render hook that shapes
+// the synchronous response.
+func TestOpenAIImageProtocolClaimBindsBothEndpointsAndRequiresRender(t *testing.T) {
+	exports := `export const protocols = {openai_image: {
+		decodeRequest: function(ctx) { return {kind: "submit", model: ctx.model, requestBody: ctx.body.value}; },
+		render: function(ctx, task) { return {data: []}; }
+	}};`
+	registry := NewRegistry()
+	plugin := mustCompileRoutingPlugin(t, "image-plugin", 17, `["image-a", "image-b"]`, `protocols: ["openai_image"],`, exports)
+	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{plugin}))
+	for _, path := range []string{"/v1/images/generations", "/v1/images/edits"} {
+		for _, model := range []string{"image-a", "image-b"} {
+			binding, ok := registry.Generation().LookupEndpoint(http.MethodPost, path, model)
+			require.True(t, ok, path+" "+model)
+			assert.Equal(t, ProtocolOpenAIImage, binding.Protocol)
+			assert.Same(t, plugin, binding.Plugin)
+		}
+	}
+	_, ok := registry.Generation().LookupEndpoint(http.MethodPost, "/v1/videos", "image-a")
+	assert.False(t, ok, "an image claim must not bind the video endpoint")
+
+	scoped := mustCompileRoutingPlugin(t, "image-scoped", 17, `["image-a", "image-b"]`, `protocols: [{name: "openai_image", models: ["image-a"]}],`, exports)
+	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{scoped}))
+	_, ok = registry.Generation().LookupEndpoint(http.MethodPost, "/v1/images/generations", "image-b")
+	assert.False(t, ok, "models narrows the image endpoint bindings")
+
+	_, err := CompilePlugin(routingTestPluginSource("image-no-render", 17, `["image-a"]`, `protocols: ["openai_image"],`,
+		`export const protocols = {openai_image: {decodeRequest: function(ctx) { return {kind: "submit", model: ctx.model}; }}};`), Options{})
+	require.ErrorContains(t, err, `missing hook "render"`)
+	_, err = CompilePlugin(routingTestPluginSource("image-modes", 17, `["image-a"]`, `protocols: [{name: "openai_image", supports: ["sync"]}],`, exports), Options{})
+	require.ErrorContains(t, err, "does not define modes")
+}
+
+func TestFileReferenceRoundTripAddressesRepeatedFieldFiles(t *testing.T) {
+	assert.Equal(t, "request_file:image[]", FileReference("image[]", 0))
+	assert.Equal(t, "request_file:image[]#2", FileReference("image[]", 2))
+	for _, tc := range []struct {
+		ref   string
+		field string
+		index int
+		ok    bool
+	}{
+		{"request_file:input_reference", "input_reference", 0, true},
+		{"request_file:image[]#1", "image[]", 1, true},
+		{"request_file:image[]#01", "", 0, false},
+		{"request_file:image[]#-1", "", 0, false},
+		{"request_file:#1", "", 0, false},
+		{"request_file:", "", 0, false},
+		{"image", "", 0, false},
+	} {
+		field, index, ok := ParseFileReference(tc.ref)
+		assert.Equal(t, tc.ok, ok, tc.ref)
+		assert.Equal(t, tc.field, field, tc.ref)
+		assert.Equal(t, tc.index, index, tc.ref)
+	}
 }
 
 func TestPerProtocolModelsNarrowEndpointBindings(t *testing.T) {
@@ -155,32 +221,33 @@ func TestPreflightRoutingConflict(t *testing.T) {
 		routingProtocolExport("openai_responses"))
 	protocolRegistry := NewRegistry()
 	require.NoError(t, protocolRegistry.ReplaceOverrides([]*LoadedPlugin{left}))
-	protocolErr := PreflightRoutingConflict(protocolRegistry.Generation(), right)
-	require.Error(t, protocolErr)
-	assert.Contains(t, protocolErr.Error(), "preflight-left")
-	assert.Contains(t, protocolErr.Error(), `model "shared-model" conflicts`)
+	require.NoError(t, PreflightRoutingConflict(protocolRegistry.Generation(), right))
 }
 
-func TestPerProtocolModelsStillConflictOnOverlap(t *testing.T) {
-	registry := NewRegistry()
-	first := mustCompileRoutingPlugin(t, "overlap-first", 0, `["shared-model"]`,
-		`protocols: [{name: "openai_responses", models: ["shared-model"], supports: ["stream", "sync", "background"]}],`,
-		routingProtocolExport("openai_responses"))
-	second := mustCompileRoutingPlugin(t, "overlap-second", 0, `["shared-model"]`,
-		`protocols: [{name: "openai_responses", models: ["shared-model"], supports: ["stream", "sync", "background"]}],`,
-		routingProtocolExport("openai_responses"))
-
-	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{first, second}))
-	routingErrors := registry.RoutingErrors()
-	require.Len(t, routingErrors, 1, "one of two overlapping claims must be rejected from the generation")
-	for _, message := range routingErrors {
-		assert.Contains(t, message, "conflicts")
+func TestPerProtocolModelsAcceptSharedPluginClaims(t *testing.T) {
+	for _, channelType := range []int{0, 24} {
+		t.Run(fmt.Sprintf("first_channel_type_%d", channelType), func(t *testing.T) {
+			registry := NewRegistry()
+			first := mustCompileRoutingPlugin(t, "overlap-first", channelType, `["shared-model"]`,
+				`protocols: [{name: "openai_responses", models: ["shared-model"], supports: ["stream", "sync", "background"]}],`, routingProtocolExport("openai_responses"))
+			second := mustCompileRoutingPlugin(t, "overlap-second", 0, `["shared-model"]`,
+				`protocols: [{name: "openai_responses", models: ["shared-model"], supports: ["stream", "sync", "background"]}],`, routingProtocolExport("openai_responses"))
+			require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{second, first}))
+			assert.Empty(t, registry.RoutingErrors())
+			generation := registry.Generation()
+			candidates := generation.LookupEndpointCandidates("POST", "/v1/responses", "shared-model")
+			require.Len(t, candidates, 2)
+			assert.Same(t, first, candidates[0].Plugin)
+			assert.Same(t, second, candidates[1].Plugin)
+			assert.Equal(t, []*LoadedPlugin{first, second}, generation.PluginsByModel("shared-model"))
+			metadata, ok := generation.GetByModel("shared-model")
+			require.True(t, ok)
+			assert.Same(t, first, metadata)
+			copy := generation.PluginsByModel("shared-model")
+			copy[0] = nil
+			assert.Same(t, first, generation.PluginsByModel("shared-model")[0])
+		})
 	}
-	binding, ok := registry.Generation().LookupEndpoint("POST", "/v1/responses", "shared-model")
-	require.True(t, ok)
-	candidates := registry.Generation().LookupEndpointCandidates("POST", "/v1/responses", "shared-model")
-	assert.Len(t, candidates, 1)
-	assert.NotNil(t, binding.Plugin)
 }
 
 func TestProtocolClaimDecodeAndValidation(t *testing.T) {
@@ -347,6 +414,56 @@ func TestRouteModelsDecodeAndValidation(t *testing.T) {
 	}
 }
 
+func TestRouteRetainResultDecodeAndValidation(t *testing.T) {
+	routeExports := `export const native = {
+		decodeJob: function(ctx) { return {kind: "submit", model: "gpt-5.5", requestBody: ctx.body.value}; },
+		jobCreated: function(ctx, task) { return task; },
+		jobStatus: function(ctx, task) { return task; }
+	};`
+	falseValue := false
+	tests := []struct {
+		name        string
+		metaFields  string
+		want        *bool
+		errContains string
+	}{
+		{
+			name:       "undeclared route retains",
+			metaFields: `routes: [{method: "POST", path: "/v1/batch", type: "submit", decode: "decodeJob", render: "jobCreated"}],`,
+		},
+		{
+			name:       "submit route declines retention",
+			metaFields: `routes: [{method: "POST", path: "/v1/batch", type: "submit", decode: "decodeJob", render: "jobCreated", retainResult: false}],`,
+			want:       &falseValue,
+		},
+		{
+			name:        "query route rejects retainResult",
+			metaFields:  `routes: [{method: "GET", path: "/v1/batch/:task_id", type: "query", render: "jobStatus", retainResult: true}],`,
+			errContains: "must not declare retainResult",
+		},
+		{
+			name:        "non-boolean value",
+			metaFields:  `routes: [{method: "POST", path: "/v1/batch", type: "submit", decode: "decodeJob", render: "jobCreated", retainResult: "no"}],`,
+			errContains: "retainResult must be a boolean",
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			plugin, err := CompilePlugin(
+				routingTestPluginSource("route-retain", 0, `["gpt-5.5"]`, testCase.metaFields, routeExports),
+				Options{},
+			)
+			if testCase.errContains != "" {
+				require.ErrorContains(t, err, testCase.errContains)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, plugin.Meta.Routes, 1)
+			assert.Equal(t, testCase.want, plugin.Meta.Routes[0].RetainResult)
+		})
+	}
+}
+
 func TestRouteRequestContextClonesFormAndMultipartValuesPerDecoder(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -386,9 +503,6 @@ func TestRegistryNoOpMutationsKeepCurrentGeneration(t *testing.T) {
 	current := registry.Generation()
 
 	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{plugin}))
-	assert.Same(t, current, registry.Generation())
-
-	registry.SetOverrideEnabled(true)
 	assert.Same(t, current, registry.Generation())
 
 	require.NoError(t, registry.Unregister("missing"))
@@ -499,16 +613,6 @@ func TestRegistryExcludesConflictingPluginWithoutBlockingGeneration(t *testing.T
 				`routes: [{method: "GET", path: "/vendor/jobs/:id", type: "query", render: "status", taskIdParam: "id"}],`,
 				`export const native = {status: function(ctx, task) { return task; }};`),
 			expectedError: "route GET /vendor/jobs/:id conflicts",
-		},
-		{
-			name: "endpoint model ownership",
-			first: mustCompileRoutingPlugin(t, "endpoint-alpha", 0, `["shared-model"]`,
-				`protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],`,
-				routingProtocolExport("openai_responses")),
-			second: mustCompileRoutingPlugin(t, "endpoint-beta", 0, `["shared-model"]`,
-				`protocols: [{name: "openai_responses", supports: ["stream", "sync", "background"]}],`,
-				routingProtocolExport("openai_responses")),
-			expectedError: `model "shared-model" conflicts`,
 		},
 	}
 
@@ -684,23 +788,6 @@ func TestRejectedNewOverrideRetainsFactoryIncumbent(t *testing.T) {
 	assert.Same(t, conflictingOverride, registry.OverridePlugins()["factory-fallback"])
 	assert.NotContains(t, registry.ActiveOverridePlugins(), "factory-fallback")
 	assert.Contains(t, registry.RoutingErrors()["factory-fallback"], "channelType 122 conflicts")
-}
-
-func TestDisablingOverridesPublishesFactoryInsteadOfRetainingOverride(t *testing.T) {
-	registry := NewRegistry()
-	factorySource := routingTestPluginSource("switchable", 93, `["factory"]`, "", "")
-	factory, err := registry.RegisterFactory(factorySource, Options{})
-	require.NoError(t, err)
-	override := mustCompileRoutingPlugin(t, "switchable", 94, `["override"]`, "", "")
-	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{override}))
-
-	registry.SetOverrideEnabled(false)
-
-	active, ok := registry.Get("switchable")
-	require.True(t, ok)
-	assert.Same(t, factory, active)
-	assert.Same(t, override, registry.OverridePlugins()["switchable"])
-	assert.Empty(t, registry.ActiveOverridePlugins())
 }
 
 func TestGenericChannelTypesDoNotCreateLegacyIdentityConflicts(t *testing.T) {

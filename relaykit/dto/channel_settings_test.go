@@ -585,6 +585,84 @@ func TestAdvancedCustomValidateAlphaSearchConverterPath(t *testing.T) {
 	}
 }
 
+func TestAdvancedCustomValidateRoutePassThroughBody(t *testing.T) {
+	valid := &AdvancedCustomConfig{
+		Routes: []AdvancedCustomRoute{
+			{
+				IncomingPath:           "/v1/chat/completions",
+				UpstreamPath:           "/v1/chat/completions",
+				PassThroughBodyEnabled: true,
+			},
+			{
+				IncomingPath:           "/v1/rerank",
+				UpstreamPath:           "/v1/rerank",
+				Converter:              AdvancedCustomConverterSGLangRerank,
+				PassThroughBodyEnabled: true,
+			},
+			{
+				IncomingPath: "/v1/messages",
+				UpstreamPath: "/v1/chat/completions",
+				Converter:    advancedCustomConverterClaudeMessagesToOpenAIChat,
+			},
+		},
+	}
+	require.NoError(t, valid.Validate())
+
+	route, ok := valid.MatchPathForModel("/v1/chat/completions", "gpt-4o")
+	require.True(t, ok)
+	assert.True(t, route.PassThroughBodyEnabled)
+	route, ok = valid.MatchPathForModel("/v1/messages", "gpt-4o")
+	require.True(t, ok)
+	assert.False(t, route.PassThroughBodyEnabled)
+
+	encoded, err := json.Marshal(valid.Routes[2])
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "pass_through_body_enabled")
+
+	tests := []struct {
+		name  string
+		route AdvancedCustomRoute
+		want  string
+	}{
+		{
+			name: "converter route",
+			route: AdvancedCustomRoute{
+				IncomingPath:           "/v1/messages",
+				UpstreamPath:           "/v1/chat/completions",
+				Converter:              advancedCustomConverterClaudeMessagesToOpenAIChat,
+				PassThroughBodyEnabled: true,
+			},
+			want: "pass_through_body_enabled requires converter none",
+		},
+		{
+			name: "model list route",
+			route: AdvancedCustomRoute{
+				IncomingPath:           AdvancedCustomModelListPath,
+				UpstreamPath:           "/v1/models",
+				PassThroughBodyEnabled: true,
+			},
+			want: "pass_through_body_enabled must be false for /v1/models",
+		},
+		{
+			name: "balance route",
+			route: AdvancedCustomRoute{
+				IncomingPath:           AdvancedCustomBalancePath,
+				UpstreamPath:           "/provider/balance",
+				PassThroughBodyEnabled: true,
+			},
+			want: "pass_through_body_enabled must be false for /v1/dashboard/billing/credit_grants",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := (&AdvancedCustomConfig{Routes: []AdvancedCustomRoute{tt.route}}).Validate()
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.want)
+		})
+	}
+}
+
 func TestChannelSettingsHTTPTransportJSONRoundTrip(t *testing.T) {
 	legacy := `{"proxy":"http://127.0.0.1:8080","force_format":true}`
 	var settings ChannelSettings

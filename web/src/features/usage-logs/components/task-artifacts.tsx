@@ -27,7 +27,7 @@ import {
 } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import { useQuery } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
@@ -55,6 +55,13 @@ import {
 } from '@/components/ui/empty'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Spinner } from '@/components/ui/spinner'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import { getTaskArtifacts } from '../api'
@@ -63,10 +70,7 @@ import {
   shouldLoadTaskArtifacts,
 } from '../lib/task-artifacts'
 import type { TaskArtifact, TaskArtifactType, TaskLog } from '../types'
-import {
-  AudioPreviewDialog,
-  type AudioClip,
-} from './dialogs/audio-preview-dialog'
+import { AudioPreviewDialog } from './dialogs/audio-preview-dialog'
 
 function artifactIcon(type: TaskArtifactType) {
   switch (type) {
@@ -94,33 +98,19 @@ function artifactTypeLabel(type: TaskArtifactType): string {
   }
 }
 
-function parseLegacyAudioClips(data: unknown): AudioClip[] {
-  let values: unknown[] = []
-  if (Array.isArray(data)) {
-    values = data
-  } else if (typeof data === 'string') {
-    try {
-      const parsed = JSON.parse(data)
-      values = Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
-  }
-
-  return values.filter(
-    (value): value is AudioClip =>
-      value != null &&
-      typeof value === 'object' &&
-      typeof (value as Record<string, unknown>).audio_url === 'string'
-  )
-}
-
-function LegacyAudioPreview(props: { data: unknown }) {
+// Task lists no longer carry the persisted snapshot, so the legacy Suno clip
+// list is fetched through the artifacts endpoint when the preview opens.
+function LegacyAudioPreview(props: { taskId: string }) {
   const { t } = useTranslation()
   const [open, setOpen] = useState(false)
-  const clips = useMemo(() => parseLegacyAudioClips(props.data), [props.data])
-
-  if (clips.length === 0) return null
+  const artifactsQuery = useQuery({
+    queryKey: ['usage-logs', 'task-artifacts', props.taskId],
+    queryFn: async () =>
+      requireServerSuccess(await getTaskArtifacts(props.taskId)),
+    enabled: open,
+    retry: false,
+    staleTime: 30_000,
+  })
 
   return (
     <>
@@ -139,7 +129,12 @@ function LegacyAudioPreview(props: { data: unknown }) {
           {t('Click to preview audio')}
         </span>
       </button>
-      <AudioPreviewDialog open={open} onOpenChange={setOpen} clips={clips} />
+      <AudioPreviewDialog
+        open={open}
+        onOpenChange={setOpen}
+        clips={artifactsQuery.data?.legacyAudioClips ?? []}
+        loading={open && artifactsQuery.isPending}
+      />
     </>
   )
 }
@@ -311,7 +306,8 @@ function TaskArtifacts(props: TaskArtifactsProps) {
   const { t } = useTranslation()
   const artifactsQuery = useQuery({
     queryKey: ['usage-logs', 'task-artifacts', props.taskId],
-    queryFn: () => getTaskArtifacts(props.taskId),
+    queryFn: async () =>
+      requireServerSuccess(await getTaskArtifacts(props.taskId)),
     enabled: props.enabled,
     retry: false,
     staleTime: 30_000,
@@ -406,11 +402,31 @@ export function TaskArtifactsCell(props: { log: TaskLog }) {
   const [open, setOpen] = useState(false)
   const previewMode = resolveTaskPreviewMode(props.log)
 
+  if (previewMode === 'discarded') {
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <span className='text-muted-foreground cursor-help text-xs' />
+            }
+          >
+            {t('Result not retained')}
+          </TooltipTrigger>
+          <TooltipContent>
+            {t(
+              'The result was returned in the API response and was not saved as an artifact'
+            )}
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
+  }
   if (!shouldLoadTaskArtifacts(props.log, true)) {
     return <span className='text-muted-foreground/60 text-xs'>-</span>
   }
   if (previewMode === 'legacy-suno') {
-    return <LegacyAudioPreview data={props.log.data} />
+    return <LegacyAudioPreview taskId={props.log.task_id} />
   }
 
   return (

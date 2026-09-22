@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
 import {
   ArrowUpCircle,
   CheckCircle2,
@@ -32,14 +33,18 @@ import { resolveLocalizedText } from '@/lib/localized-text'
 import {
   findMarketplaceVersion,
   marketplaceBuiltInVersion,
-  resolveMarketplaceActionPolicy,
+  resolvePluginSourceUrl,
   type InstallState,
 } from '../lib/marketplace'
+import { fetchPluginIconDataUri } from '../lib/plugin-icon-file'
 import type { MarketplacePlugin, TaskPluginListItem } from '../types'
 import { PluginIcon } from './plugin-icon'
+import { PluginWebsiteLink } from './plugin-website-link'
 
 type MarketplacePluginCardProps = {
   plugin: MarketplacePlugin
+  /** Index URL the plugin came from; sidecar logos resolve against it. */
+  indexUrl?: string
   installState: InstallState
   installed?: TaskPluginListItem
   onInstall: () => void
@@ -52,15 +57,28 @@ export function MarketplacePluginCard(props: MarketplacePluginCardProps) {
   const channelTypes = plugin.channelTypes ?? []
   const latestEntry = findMarketplaceVersion(plugin, plugin.latest)
   const labelClass = 'text-muted-foreground text-[11px] font-medium select-none'
-  const actionPolicy = resolveMarketplaceActionPolicy(props.installed)
   const builtInVersion = marketplaceBuiltInVersion(props.installed)
+  // Same-origin-as-index rule as the source itself: a logo is only ever
+  // fetched from the repository the administrator chose to trust.
+  const iconUrl =
+    plugin.iconFile && props.indexUrl
+      ? resolvePluginSourceUrl(props.indexUrl, plugin.iconFile.path)
+      : null
 
   return (
     <div className='flex h-full flex-col gap-2.5 rounded-xl border p-3'>
       <div className='flex items-start justify-between gap-2'>
         <div className='flex min-w-0 flex-1 items-center gap-2.5'>
           <span className='mt-0.5 shrink-0'>
-            <PluginIcon plugin={plugin} size={20} />
+            {iconUrl ? (
+              <MarketplacePluginLogo
+                plugin={plugin}
+                iconUrl={iconUrl}
+                sha256={plugin.iconFile?.sha256}
+              />
+            ) : (
+              <PluginIcon plugin={plugin} size={20} />
+            )}
           </span>
           <div className='min-w-0'>
             <div className='truncate text-sm font-medium'>{plugin.name}</div>
@@ -71,6 +89,8 @@ export function MarketplacePluginCard(props: MarketplacePluginCardProps) {
         </div>
         <InstallStateBadge state={props.installState} />
       </div>
+
+      <PluginWebsiteLink website={plugin.website} />
 
       {description ? (
         <p className='text-muted-foreground line-clamp-2 text-xs'>
@@ -87,8 +107,8 @@ export function MarketplacePluginCard(props: MarketplacePluginCardProps) {
           <div className={labelClass}>{t('Channel type')}</div>
           <div className='truncate text-xs'>
             {channelTypes.length > 0
-              ? getChannelTypeLabel(channelTypes[0])
-              : '—'}
+              ? t(getChannelTypeLabel(channelTypes[0]))
+              : t('Task Plugin')}
           </div>
         </div>
         <div className='min-w-0'>
@@ -117,21 +137,17 @@ export function MarketplacePluginCard(props: MarketplacePluginCardProps) {
       )}
 
       <div className='mt-auto border-t pt-2'>
-        {actionPolicy.kind === 'system_update' ? (
-          <Badge variant='secondary'>{t('Updates with the system')}</Badge>
-        ) : (
-          <Button
-            size='sm'
-            variant={
-              props.installState.status === 'up_to_date' ? 'outline' : 'default'
-            }
-            className='w-full'
-            onClick={props.onInstall}
-          >
-            <Download />
-            {getActionLabel(props.installState, t)}
-          </Button>
-        )}
+        <Button
+          size='sm'
+          variant={
+            props.installState.status === 'up_to_date' ? 'outline' : 'default'
+          }
+          className='w-full'
+          onClick={props.onInstall}
+        >
+          <Download />
+          {t('Install')}
+        </Button>
       </div>
     </div>
   )
@@ -174,11 +190,36 @@ function InstallStateBadge({ state }: { state: InstallState }) {
   )
 }
 
-function getActionLabel(
-  state: InstallState,
-  t: (key: string, options?: Record<string, unknown>) => string
-): string {
-  if (state.status === 'not_installed') return t('Install')
-  if (state.status === 'up_to_date') return t('Reinstall latest')
-  return t('Review and upgrade')
+type MarketplacePluginLogoProps = {
+  plugin: MarketplacePlugin
+  iconUrl: string
+  sha256?: string
+}
+
+/**
+ * Loads the sidecar logo through fetch and shows it as a data URI. Linking the
+ * raw file with `<img src>` fails on hosts that serve SVG as text/plain with
+ * nosniff (raw.githubusercontent.com does), and fetching also lets the index
+ * digest be checked before anything is displayed. Until the bytes arrive, or if
+ * they never do, the manifest icon or text avatar renders instead.
+ */
+function MarketplacePluginLogo(props: MarketplacePluginLogoProps) {
+  const iconQuery = useQuery({
+    queryKey: [
+      'task-plugin-marketplace-icon',
+      props.iconUrl,
+      props.sha256 ?? '',
+    ],
+    queryFn: () =>
+      fetchPluginIconDataUri(props.iconUrl, { sha256: props.sha256 }),
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: false,
+    meta: { errorToast: false },
+  })
+  return (
+    <PluginIcon
+      plugin={{ ...props.plugin, iconSrc: iconQuery.data ?? undefined }}
+      size={20}
+    />
+  )
 }

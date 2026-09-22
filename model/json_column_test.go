@@ -68,7 +68,7 @@ func TestJSONColumnValuersZeroValueIsNil(t *testing.T) {
 // 保护契约:json 列的 Scan 必须同时接受 []byte 与 string——不同驱动/协议
 // 模式返回类型不同,静默丢弃 string 会把已有数据清零。
 func TestJSONColumnScannersAcceptStringAndBytes(t *testing.T) {
-	toInput := func(kind string, payload string) interface{} {
+	toInput := func(kind string, payload string) any {
 		if kind == "bytes" {
 			return []byte(payload)
 		}

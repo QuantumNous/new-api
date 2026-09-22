@@ -19,6 +19,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	builtinplugins "github.com/QuantumNous/new-api/plugins"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -856,6 +857,70 @@ func TestPrepareTaskPluginEndpointAcceptsRegisteredVideoMultipartBody(t *testing
 	assert.Equal(t, http.StatusNoContent, recorder.Code)
 }
 
+// The OpenAI Images edits endpoint accepts multipart uploads. Every file of a
+// repeated image[] field is exposed to the decoder with its own ref, and an
+// unclaimed model on the shared endpoint still reaches the ordinary relay.
+func TestPrepareTaskPluginEndpointExposesIndexedRefsForRepeatedImageFiles(t *testing.T) {
+	const key = "endpoint-image-edits-test"
+	_, err := jsplugin.DefaultRegistry.Register(taskProtocolPluginSource(
+		key,
+		"1.0.0",
+		`["image-edit-model"]`,
+		"/v1/images/edits",
+		`if (ctx.body.kind !== "multipart" || ctx.body.fields.prompt[0] !== "watercolor") throw new Error("bad prompt");
+		 return {model: ctx.model, action: "image_to_image", requestBody: {prompt: ctx.body.fields.prompt[0], refs: ctx.body.files.map(function(file) { return file.ref; })}};`,
+	), jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister(key)) })
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("model", "image-edit-model"))
+	require.NoError(t, writer.WriteField("prompt", "watercolor"))
+	for _, name := range []string{"first.png", "second.png"} {
+		file, createErr := writer.CreateFormFile("image[]", name)
+		require.NoError(t, createErr)
+		_, err = file.Write([]byte(name))
+		require.NoError(t, err)
+	}
+	require.NoError(t, writer.Close())
+
+	router := gin.New()
+	var pinnedProtocol string
+	var taskRequest any
+	router.POST("/v1/images/edits", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), func(c *gin.Context) {
+		if pinned, ok := c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint); ok {
+			pinnedProtocol = pinned.Protocol
+		}
+		taskRequest, _ = c.Get("task_request")
+		c.Status(http.StatusNoContent)
+	})
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/edits", bytes.NewReader(body.Bytes()))
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusNoContent, recorder.Code, recorder.Body.String())
+	assert.Equal(t, jsplugin.ProtocolOpenAIImage, pinnedProtocol)
+	decoded, ok := taskRequest.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, []any{"request_file:image[]", "request_file:image[]#1"}, decoded["refs"])
+
+	unclaimed := gin.New()
+	reachedRelay := false
+	unclaimed.POST("/v1/images/generations", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), func(c *gin.Context) {
+		_, pinned := c.Get(jsplugin.ContextKeyPinnedEndpoint)
+		reachedRelay = !pinned
+		c.Status(http.StatusNoContent)
+	})
+	plain := httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(`{"model":"dall-e-3","prompt":"a cat"}`))
+	plain.Header.Set("Content-Type", "application/json")
+	recorder = httptest.NewRecorder()
+	unclaimed.ServeHTTP(recorder, plain)
+	assert.Equal(t, http.StatusNoContent, recorder.Code)
+	assert.True(t, reachedRelay, "an unclaimed image model keeps the built-in relay")
+}
+
 func TestVideoGenerationsIsNotClaimedByOpenAIVideoProtocol(t *testing.T) {
 	const key = "endpoint-video-gen-test"
 	_, err := jsplugin.DefaultRegistry.Register(taskProtocolPluginSource(
@@ -1064,6 +1129,12 @@ export const native = {status: function(ctx, task) { return {id: task.task_id}; 
 	insertTaskPluginRouteTask(t, &model.Task{
 		TaskID: "legacy-task", UserId: 7, Platform: constant.TaskPlatform("651"),
 	})
+	// Submitted through a route with retainResult: false; owned by the caller
+	// but not retrievable, so it must be indistinguishable from a missing task.
+	insertTaskPluginRouteTask(t, &model.Task{
+		TaskID: "discarded-task", UserId: 7, Platform: constant.TaskPlatform("route-static-query-test"),
+		Status: model.TaskStatusSuccess, PrivateData: model.TaskPrivateData{ResultDiscarded: true},
+	})
 
 	router := gin.New()
 	router.GET("/vendor/jobs/:id",
@@ -1081,7 +1152,7 @@ export const native = {status: function(ctx, task) { return {id: task.task_id}; 
 	assert.JSONEq(t, `{"id":"legacy-task"}`, legacyRecorder.Body.String())
 
 	var firstBody string
-	for _, taskID := range []string{"missing-task", "foreign-task", "wrong-platform", "wrong-legacy-platform"} {
+	for _, taskID := range []string{"missing-task", "foreign-task", "wrong-platform", "wrong-legacy-platform", "discarded-task"} {
 		recorder := httptest.NewRecorder()
 		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/vendor/jobs/"+taskID, nil))
 		assert.Equal(t, http.StatusNotFound, recorder.Code)
@@ -1636,6 +1707,11 @@ func taskProtocolPluginSource(key, version, models, endpoint, parseRequestBody s
 		protocolClaim = `"openai_video"`
 		presenters = `render: function() { return {}; },`
 	}
+	if endpoint == "/v1/images/edits" || endpoint == "/v1/images/generations" {
+		protocol = "openai_image"
+		protocolClaim = `"openai_image"`
+		presenters = `render: function() { return {data: []}; },`
+	}
 	return fmt.Sprintf(`
 export const meta = {
   apiVersion: 1,
@@ -1697,4 +1773,53 @@ func setupTaskPluginRouteDB(t *testing.T) {
 func insertTaskPluginRouteTask(t *testing.T, task *model.Task) {
 	t.Helper()
 	require.NoError(t, model.DB.Create(task).Error)
+}
+
+func TestPrepareTaskPluginEndpointFiltersEachSharedCandidate(t *testing.T) {
+	for _, tc := range []struct {
+		name, alpha, beta string
+		wantKeys          []string
+		wantError         string
+	}{
+		{name: "first decoder rejects", alpha: `throw new Error("alpha only accepts 720p")`, beta: `return {model:ctx.model,action:"beta",requestBody:{resolution:"1080p"}}`, wantKeys: []string{"decode-beta"}},
+		{name: "second decoder rejects", alpha: `return {model:ctx.model,action:"alpha"}`, beta: `throw new Error("beta rejects")`, wantKeys: []string{"decode-alpha"}},
+		{name: "both decoders accept", alpha: `return {model:ctx.model,action:"alpha"}`, beta: `return {model:ctx.model,action:"beta"}`, wantKeys: []string{"decode-alpha", "decode-beta"}},
+		{name: "all decoders reject", alpha: `throw new Error("alpha rejects first")`, beta: `throw new Error("beta rejects second")`, wantError: "decode-alpha: alpha rejects first; decode-beta: beta rejects second"},
+		{name: "duplicate failures are grouped", alpha: `throw new Error("unsupported resolution")`, beta: `throw new Error("unsupported resolution")`, wantError: "decode-alpha, decode-beta: unsupported resolution"},
+		{name: "invalid result is excluded", alpha: `return {kind:"query",model:ctx.model}`, beta: `return {model:ctx.model,action:"beta"}`, wantKeys: []string{"decode-beta"}},
+		{name: "rewritten model is excluded", alpha: `return {model:"another-model"}`, beta: `return {model:ctx.model,action:"beta"}`, wantKeys: []string{"decode-beta"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, spec := range []struct{ key, decode string }{{"decode-alpha", tc.alpha}, {"decode-beta", tc.beta}} {
+				_, err := jsplugin.DefaultRegistry.Register(taskResponsesPluginSource(spec.key, 0, `["decode-shared-model"]`, `["sync"]`, `renderFinal:function(){return {};}`, spec.decode), jsplugin.Options{})
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister(spec.key)) })
+			}
+			var gotKeys []string
+			router := gin.New()
+			router.POST("/v1/responses", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), func(c *gin.Context) {
+				pinned := c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint)
+				for _, candidate := range pinned.Candidates {
+					gotKeys = append(gotKeys, candidate.Plugin.Meta.Key)
+				}
+				assert.Equal(t, tc.wantKeys[0], pinned.Plugin.Meta.Key)
+				assert.Equal(t, tc.wantKeys[0], c.GetString("task_plugin_key"))
+				assert.Same(t, pinned.Plugin, c.MustGet(jsplugin.ContextKeyPinnedPlugin).(jsplugin.PinnedPlugin).Plugin)
+				assert.Equal(t, tc.wantKeys, service.GetChannelConstraints(c).Filters[0].TaskPluginKeys)
+				c.Status(http.StatusNoContent)
+			})
+			request := httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(`{"model":"decode-shared-model","resolution":"1080p"}`))
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+			if tc.wantError != "" {
+				assert.Equal(t, http.StatusBadRequest, recorder.Code)
+				assert.Contains(t, recorder.Body.String(), tc.wantError)
+				assert.Empty(t, gotKeys)
+			} else {
+				assert.Equal(t, http.StatusNoContent, recorder.Code, recorder.Body.String())
+				assert.Equal(t, tc.wantKeys, gotKeys)
+			}
+		})
+	}
 }

@@ -9,14 +9,23 @@ body:
         <!--
         If you are an AI coding agent: do not fill this GitHub form. Create the issue with the filled body from `.agents/github/ISSUE.md`.
         -->
-        ## Read This First (Do Not Remove This Section)
 
+  - type: textarea
+    id: read-first
+    attributes:
+      label: Read This First
+      description: GitHub markdown instructions are not included in the submitted issue. This section is written into the issue body. Do not delete or clear it.
+      value: |
         - Docs: https://docs.newapi.ai/
         - Usage questions first: https://deepwiki.com/QuantumNous/new-api
-        - Relay reports must first establish that the issue occurs in the new-api layer. Use equivalent redacted requests to compare the direct upstream result with the result through new-api, including response status, error body, and server logs. Reports involving pass-through mode, or showing only an upstream error without this comparison, are not accepted.
+        - Do not report issues when pass-through is enabled; pass-through sends content as-is and does not go through new-api processing logic.
+        - State facts and evidence concisely. Do not paste unfiltered AI-generated text in the issue body or in later comments.
+        - Relay reports must first establish that the issue occurs in the new-api layer. Use equivalent redacted requests to compare the direct upstream result with the result through new-api, including response status, error body, and server logs. Reports that skip this comparison or only show an upstream error are not accepted.
         - Reports about Coding Plan services, reverse-engineered channels, third-party API wrappers, or compatibility issues caused by exposing a Codex endpoint through a reverse proxy as a general-purpose API are not accepted. Protocols or behavior specific to the Codex API should not be treated as standard OpenAI API behavior; confirm such issues with the channel or API provider first.
         - This project does not operate an official hosted service or provide technical support for third-party hosting sites, relay services, or API services. Contact the relevant operator for those issues.
-        - Warning: issues with this template removed, section headings deleted, or content cleared may be closed directly. Repeated abusive submissions may result in a block.
+        - Warning: issues with this template removed, section headings deleted, or content cleared may be closed directly. Repeated submissions of unfiltered AI-generated text, or repeated abusive submissions, may result in a block.
+    validations:
+      required: true
 
   - type: dropdown
     id: deployment-source
@@ -52,11 +61,13 @@ body:
           required: true
         - label: "**Not a third-party service:** I confirm that this issue is not exclusive to a third-party hosting site, relay, API service, or fork that has not been verified against the unmodified repository. Third-party instance issues must be reported to their operator."
           required: true
+        - label: "**Not pass-through:** I confirm that pass-through is not enabled on the relevant channel. Pass-through sends content as-is and does not go through new-api processing logic; such reports are not accepted."
+          required: true
         - label: "**Issue attribution:** I have provided evidence that distinguishes the client, new-api, and upstream layers. For relay issues, I compared equivalent redacted requests sent directly upstream and through new-api, confirming that new-api introduces or changes the error rather than merely forwarding the upstream error unchanged."
           required: true
         - label: "**Channel and protocol boundary:** I confirm that the issue is not caused by a Coding Plan service, reverse-engineered channel, third-party API wrapper, Codex reverse-proxy endpoint, or behavior specific to the Codex API. If first observed through such an interface, I have reproduced it using a standard API protocol supported by this repository."
           required: true
-        - label: "**Maintainer time:** I understand that maintainers have limited time and issues that do not follow this template may be ignored or closed directly."
+        - label: "**Maintainer time:** I understand that maintainers have limited time. Do not paste unfiltered AI-generated text in the issue body or in later comments; extract the points needed for review first. Submissions that do not follow this template, or that omit the necessary points and cannot be reviewed, may be ignored or closed. Repeated submissions of this kind may result in a block."
           required: true
 
   - type: markdown

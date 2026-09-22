@@ -17,6 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/http-client'
+import { authRequestOptions, authResult } from '@/lib/secure-verification'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 export {
   applyAuthBundle,
@@ -70,7 +72,7 @@ export async function getUserGroups(): Promise<{
 
 export async function getStatus() {
   const res = await api.get('/api/status')
-  return res.data?.data as Record<string, unknown>
+  return requireServerSuccess(res.data)?.data as Record<string, unknown>
 }
 
 export async function getNotice(): Promise<{
@@ -93,39 +95,40 @@ export async function getNotice(): Promise<{
 // 2FA Management APIs
 // ============================================================================
 
-export async function get2FAStatus() {
-  const res = await api.get('/api/user/2fa/status')
-  return res.data
-}
-
-export async function setup2FA() {
-  const res = await api.post('/api/user/2fa/setup')
-  return res.data
-}
-
-export async function enable2FA(code: string) {
-  const res = await api.post(
-    '/api/user/2fa/enable',
-    { code },
-    { acceptAuthRotation: true }
+export function disable2FA(
+  proofToken: string,
+  signal?: AbortSignal
+): Promise<{ notification_warning?: boolean }> {
+  return authResult(
+    api.post(
+      '/api/user/2fa/disable',
+      {},
+      {
+        ...authRequestOptions,
+        headers: { 'X-Security-Proof': proofToken },
+        acceptAuthRotation: true,
+        singleUseAuthorization: true,
+        signal,
+      }
+    )
   )
-  return res.data
 }
 
-export async function disable2FA(code: string) {
-  const res = await api.post(
-    '/api/user/2fa/disable',
-    { code },
-    { acceptAuthRotation: true }
+export function regenerate2FABackupCodes(
+  proofToken: string,
+  signal?: AbortSignal
+): Promise<{ backup_codes: string[]; notification_warning?: boolean }> {
+  return authResult(
+    api.post(
+      '/api/user/2fa/backup_codes',
+      {},
+      {
+        ...authRequestOptions,
+        headers: { 'X-Security-Proof': proofToken },
+        acceptAuthRotation: true,
+        singleUseAuthorization: true,
+        signal,
+      }
+    )
   )
-  return res.data
-}
-
-export async function regenerate2FABackupCodes(code: string) {
-  const res = await api.post(
-    '/api/user/2fa/backup_codes',
-    { code },
-    { acceptAuthRotation: true }
-  )
-  return res.data
 }

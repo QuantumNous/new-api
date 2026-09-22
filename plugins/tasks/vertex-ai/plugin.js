@@ -7,31 +7,29 @@ export const meta = {
     en: "Google Veo video generation on Vertex AI (text-to-video and image-to-video)",
     zh: "Google Veo 视频生成（文生视频、图生视频），Vertex AI 版本",
   },
-  version: "1.0.1",
+  version: "1.0.2",
   channelTypes: [41],
   author: { name: "QuantumNous" },
   models: ["veo-3.0-generate-001", "veo-3.0-fast-generate-001", "veo-3.1-generate-preview", "veo-3.1-fast-generate-preview"],
   fetchMode: "per_task",
   auth: { type: "oauth2_jwt" },
   usageSchema: {
+    // Requested video duration in seconds. Allowed values: 4, 6, 8.
     seconds: {
       type: "number",
       unit: "second",
-      description: {
-        en: "Requested video duration in seconds. Allowed values: 4, 6, 8.",
-        zh: "请求的视频时长，单位为秒。允许值为 4、6、8。",
-      },
+      description: { en: "Video generation unit price", zh: "视频生成单价" },
     },
+    // Requested video output resolution.
     resolution: {
       enum: ["720p", "1080p", "4k"],
-      description: { en: "Requested video output resolution.", zh: "请求的输出视频分辨率。" },
+      enumLabels: { "720p": { en: "720p", zh: "720p" }, "1080p": { en: "1080p", zh: "1080p" }, "4k": { en: "4k", zh: "4k" } },
+      description: { en: "Output video resolution", zh: "输出视频分辨率" },
     },
+    // Whether audio is generated. Default true. Audio and muted tiers have different prices.
     generate_audio: {
       type: "boolean",
-      description: {
-        en: "Whether audio is generated. Default true. Audio and muted tiers have different prices.",
-        zh: "是否生成音频。默认为 true。有声与静音档位计费不同。",
-      },
+      description: { en: "Whether audio is generated", zh: "是否生成音频" },
     },
   },
   usageExamples: [

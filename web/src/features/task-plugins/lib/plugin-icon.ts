@@ -16,29 +16,51 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { getChannelTypeIcon } from '@/features/channels/lib/channel-utils'
-
 export type PluginIconDescriptor =
   | { kind: 'lobe'; name: string }
+  | { kind: 'image'; src: string }
   | { kind: 'text'; label: string; colorSeed: string }
+
+/**
+ * Where the gateway serves a plugin's sidecar logo (icon.svg / icon.png shipped
+ * next to plugin.js). The bytes never travel inside list JSON; the browser
+ * loads them like any other image.
+ */
+export function pluginIconUrl(key: string, version?: string): string {
+  const base = `/api/plugin/task/${encodeURIComponent(key)}/icon`
+  return version ? `${base}?version=${encodeURIComponent(version)}` : base
+}
 
 export type PluginIconInput = {
   icon?: string
   channelTypes?: number[] | null
   key: string
   name?: string
+  /** True when the gateway holds a sidecar logo for this plugin. */
+  hasIcon?: boolean
+  /** Direct image source, used by marketplace cards whose logo lives in the index repository. */
+  iconSrc?: string
 }
 
 /**
  * Resolves how a plugin logo should render.
  *
- * Priority: explicit `icon` (a LobeHub icon name, or the `text` /
- * `text:<label>` scheme for a generated text avatar), then the first declared
- * channel type's icon, then a text avatar derived from the plugin name — so a
- * plugin without any logo still gets a stable, branded-looking mark instead of
- * a generic placeholder.
+ * Priority: a shipped image logo (`iconSrc`, or `hasIcon` served by the
+ * gateway), then explicit `meta.icon` (a LobeHub icon name, or the `text` /
+ * `text:<label>` scheme for a generated text avatar), then a text avatar derived
+ * from the plugin name. Channel compatibility does not imply brand identity.
+ * Inline data URIs and remote URLs in `meta.icon` are
+ * not honoured: logos ship as sidecar files, never inside the manifest.
  */
-export function resolvePluginIcon(input: PluginIconInput): PluginIconDescriptor {
+export function resolvePluginIcon(
+  input: PluginIconInput
+): PluginIconDescriptor {
+  if (input.iconSrc) {
+    return { kind: 'image', src: input.iconSrc }
+  }
+  if (input.hasIcon) {
+    return { kind: 'image', src: pluginIconUrl(input.key) }
+  }
   const icon = input.icon?.trim()
   if (icon) {
     if (icon === 'text' || icon.startsWith('text:')) {
@@ -49,11 +71,9 @@ export function resolvePluginIcon(input: PluginIconInput): PluginIconDescriptor 
         colorSeed: input.key,
       }
     }
-    return { kind: 'lobe', name: icon }
-  }
-  const channelTypes = input.channelTypes
-  if (channelTypes != null && channelTypes.length > 0) {
-    return { kind: 'lobe', name: `${getChannelTypeIcon(channelTypes[0])}.Color` }
+    if (!icon.startsWith('data:') && !icon.includes('://')) {
+      return { kind: 'lobe', name: icon }
+    }
   }
   return { kind: 'text', label: deriveTextLabel(input), colorSeed: input.key }
 }

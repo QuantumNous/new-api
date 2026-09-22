@@ -502,17 +502,17 @@ func newGeminiStreamResponse(candidates []dto.GeminiChatCandidate, usage *dto.Us
 	return response
 }
 
-func geminiFunctionArguments(raw string) map[string]interface{} {
+func geminiFunctionArguments(raw string) map[string]any {
 	if strings.TrimSpace(raw) == "" || strings.TrimSpace(raw) == "null" {
-		return map[string]interface{}{}
+		return map[string]any{}
 	}
-	var args map[string]interface{}
+	var args map[string]any
 	if err := kitutil.Unmarshal([]byte(raw), &args); err == nil && args != nil {
 		return args
 	}
 	// Preserve historically accepted malformed/non-object input without
 	// emitting a non-object Gemini args value.
-	return map[string]interface{}{"arguments": raw}
+	return map[string]any{"arguments": raw}
 }
 
 func geminiFinishReason(finishReason string) string {

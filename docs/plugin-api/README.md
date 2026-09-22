@@ -54,11 +54,15 @@ query is redacted before request logging.
 Deployment boundaries and concurrency environment variables are documented in
 [v1.md](./v1.md#generic-task-management-api).
 
-The host treats `protocols.openai_video.render` as a standard DTO, not an arbitrary
-JSON passthrough. Unknown top-level fields and legacy `task_id` are removed,
-`id` is forced to the public task id, and case-insensitive `url` entries are
-removed from metadata. Provider output URLs belong only behind artifact
-capabilities.
+The host requires `protocols.openai_video.render` to return a JSON object and
+preserves provider extensions, including output URLs and metadata. Plugins may
+return `task.data` to expose the latest persisted upstream snapshot. The host
+still overwrites `id`, `object`, `model`, `status`, `progress`, `created_at`, and
+`completed_at`, and removes legacy `task_id`. This is field-level projection,
+not byte-for-byte HTTP forwarding: known private task IDs are replaced before
+rendering, polling may redact inline video data, and retrieval reads the latest
+saved snapshot rather than issuing a new upstream request. Artifact content
+endpoints remain available for proxied downloads.
 
 Provider-authenticated content URLs must use the channel base host or a
 plugin-declared `meta.allowedHosts` entry. A public dynamic CDN URL may instead

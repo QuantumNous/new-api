@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
+
 import { describe, test } from 'vitest'
 
 import {
@@ -170,7 +171,7 @@ describe('browser plugin source fetch', () => {
     )
   })
 
-  test('rejects a declared content-length above the 1 MiB backend limit before reading the body', async () => {
+  test('rejects a declared content-length above the 8 MiB backend limit before reading the body', async () => {
     let bodyRead = false
     await assert.rejects(
       fetchPluginSourceText('https://example.com/huge.js', async () => {

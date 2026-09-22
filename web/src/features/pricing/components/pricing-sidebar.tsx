@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { ChevronDown, RotateCcw } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { memo, useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
@@ -77,13 +77,6 @@ export interface PricingSidebarProps {
   className?: string
 }
 
-function countBy(
-  models: PricingModel[],
-  predicate: (model: PricingModel) => boolean
-): number {
-  return models.reduce((count, model) => count + (predicate(model) ? 1 : 0), 0)
-}
-
 function formatGroupRatio(ratio: number | undefined): string | undefined {
   if (ratio == null) return undefined
   const formatted = Number.isInteger(ratio)
@@ -98,15 +91,13 @@ function FilterChip(props: {
   onClick: () => void
 }) {
   return (
-    <button
+    <Button
       type='button'
+      variant={props.active ? 'secondary' : 'outline'}
+      size='sm'
       onClick={props.onClick}
-      className={cn(
-        'group inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium transition-all',
-        props.active
-          ? 'border-foreground/30 bg-foreground/5 text-foreground shadow-sm'
-          : 'border-border/70 bg-background text-muted-foreground hover:border-border hover:bg-muted/50 hover:text-foreground'
-      )}
+      aria-pressed={props.active}
+      className='h-auto max-w-full gap-1.5 px-2 py-1 text-xs'
       title={props.option.label}
     >
       {props.option.icon && (
@@ -125,7 +116,7 @@ function FilterChip(props: {
           {props.option.suffix ?? props.option.count}
         </span>
       )}
-    </button>
+    </Button>
   )
 }
 
@@ -157,8 +148,40 @@ function FilterSection(props: FilterSectionProps) {
   )
 }
 
-export function PricingSidebar(props: PricingSidebarProps) {
+export const PricingSidebar = memo(function PricingSidebar(
+  props: PricingSidebarProps
+) {
   const { t } = useTranslation()
+  const counts = useMemo(() => {
+    const vendors = new Map<string, number>()
+    const tags = new Map<string, number>()
+    const endpoints = new Map<string, number>()
+    const quotas = { token: 0, request: 0, task: 0 }
+    for (const model of props.models) {
+      if (model.vendor_name) {
+        vendors.set(
+          model.vendor_name,
+          (vendors.get(model.vendor_name) ?? 0) + 1
+        )
+      }
+      for (const tag of new Set(
+        parseTags(model.tags).map((tag) => tag.toLowerCase())
+      )) {
+        tags.set(tag, (tags.get(tag) ?? 0) + 1)
+      }
+      for (const endpoint of new Set(model.supported_endpoint_types ?? [])) {
+        endpoints.set(endpoint, (endpoints.get(endpoint) ?? 0) + 1)
+      }
+      if (hasTaskUsageSchema(model)) {
+        quotas.task++
+      } else if (model.quota_type === 0) {
+        quotas.token++
+      } else if (model.quota_type === 1) {
+        quotas.request++
+      }
+    }
+    return { vendors, tags, endpoints, quotas }
+  }, [props.models])
   const quotaTypeLabels = getQuotaTypeLabels(t)
   const endpointTypeLabels = getEndpointTypeLabels(t)
 
@@ -172,10 +195,7 @@ export function PricingSidebar(props: PricingSidebarProps) {
       .map((vendor) => ({
         value: vendor.name,
         label: vendor.name,
-        count: countBy(
-          props.models,
-          (model) => model.vendor_name === vendor.name
-        ),
+        count: counts.vendors.get(vendor.name) ?? 0,
         icon: vendor.icon ? getLobeIcon(vendor.icon, 14) : undefined,
       }))
       .filter((vendor) => vendor.count > 0),
@@ -202,23 +222,17 @@ export function PricingSidebar(props: PricingSidebarProps) {
     {
       value: QUOTA_TYPES.TOKEN,
       label: quotaTypeLabels[QUOTA_TYPES.TOKEN],
-      count: countBy(
-        props.models,
-        (model) => model.quota_type === 0 && !hasTaskUsageSchema(model)
-      ),
+      count: counts.quotas.token,
     },
     {
       value: QUOTA_TYPES.REQUEST,
       label: quotaTypeLabels[QUOTA_TYPES.REQUEST],
-      count: countBy(
-        props.models,
-        (model) => model.quota_type === 1 && !hasTaskUsageSchema(model)
-      ),
+      count: counts.quotas.request,
     },
     {
       value: QUOTA_TYPES.TASK,
       label: quotaTypeLabels[QUOTA_TYPES.TASK],
-      count: countBy(props.models, (model) => hasTaskUsageSchema(model)),
+      count: counts.quotas.task,
     },
   ]
 
@@ -231,11 +245,7 @@ export function PricingSidebar(props: PricingSidebarProps) {
     ...props.tags.map((tag) => ({
       value: tag,
       label: tag,
-      count: countBy(props.models, (model) =>
-        parseTags(model.tags)
-          .map((item) => item.toLowerCase())
-          .includes(tag.toLowerCase())
-      ),
+      count: counts.tags.get(tag.toLowerCase()) ?? 0,
     })),
   ]
 
@@ -250,15 +260,12 @@ export function PricingSidebar(props: PricingSidebarProps) {
       .map(([value, label]) => ({
         value,
         label,
-        count: countBy(
-          props.models,
-          (model) => model.supported_endpoint_types?.includes(value) ?? false
-        ),
+        count: counts.endpoints.get(value) ?? 0,
       })),
   ]
 
   return (
-    <aside className={cn('rounded-xl border p-3', props.className)}>
+    <aside className={cn('bg-card rounded-xl border p-3', props.className)}>
       <div className='mb-2.5 flex items-center justify-between gap-2'>
         <div>
           <h2 className='text-foreground text-sm font-bold'>{t('Filter')}</h2>
@@ -319,4 +326,4 @@ export function PricingSidebar(props: PricingSidebarProps) {
       </div>
     </aside>
   )
-}
+})

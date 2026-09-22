@@ -258,8 +258,8 @@ func smartDetectMimeType(resp *http.Response, url string, fileBytes []byte) stri
 
 	// 2. 尝试从 Content-Disposition header 的 filename 获取
 	if cd := resp.Header.Get("Content-Disposition"); cd != "" {
-		parts := strings.Split(cd, ";")
-		for _, part := range parts {
+		parts := strings.SplitSeq(cd, ";")
+		for part := range parts {
 			part = strings.TrimSpace(part)
 			if strings.HasPrefix(strings.ToLower(part), "filename=") {
 				name := strings.TrimSpace(strings.TrimPrefix(part, "filename="))
@@ -322,10 +322,10 @@ func loadFromBase64(base64String string, providedMimeType string) (*types.Cached
 
 	// 处理 data: 前缀
 	if strings.HasPrefix(base64String, "data:") {
-		idx := strings.Index(base64String, ",")
-		if idx != -1 {
-			header := base64String[:idx]
-			cleanBase64 = base64String[idx+1:]
+		before, after, ok := strings.Cut(base64String, ",")
+		if ok {
+			header := before
+			cleanBase64 = after
 
 			if strings.Contains(header, ":") && strings.Contains(header, ";") {
 				mimeStart := strings.Index(header, ":") + 1

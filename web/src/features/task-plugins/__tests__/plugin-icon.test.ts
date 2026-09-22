@@ -17,9 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
+
 import { describe, test } from 'vitest'
 
 import {
+  pluginIconUrl,
   resolvePluginIcon,
   TEXT_AVATAR_PALETTE,
   textAvatarClass,
@@ -37,13 +39,14 @@ describe('resolvePluginIcon', () => {
     )
   })
 
-  test('uses the first channel type when icon is absent', () => {
+  test('uses a text avatar when icon is absent even with a declared channel type', () => {
     assert.deepEqual(
       resolvePluginIcon({
-        channelTypes: [55, 1],
-        key: 'sora',
+        channelTypes: [36],
+        key: 'sunoapi',
+        name: 'SunoAPI',
       }),
-      { kind: 'lobe', name: 'OpenAI.Color' }
+      { kind: 'text', label: 'SU', colorSeed: 'sunoapi' }
     )
   })
 
@@ -85,6 +88,62 @@ describe('resolvePluginIcon', () => {
     assert.deepEqual(
       resolvePluginIcon({ icon: 'text:', key: 'sunoapi', name: 'SunoAPI' }),
       { kind: 'text', label: 'SU', colorSeed: 'sunoapi' }
+    )
+  })
+})
+
+describe('resolvePluginIcon image logos', () => {
+  test('serves a gateway-held sidecar logo through the icon endpoint, ahead of meta.icon and channelTypes', () => {
+    assert.deepEqual(
+      resolvePluginIcon({
+        icon: 'Sora.Color',
+        channelTypes: [1],
+        key: 'in cho',
+        hasIcon: true,
+      }),
+      { kind: 'image', src: '/api/plugin/task/in%20cho/icon' }
+    )
+  })
+
+  test('prefers an explicit image source over the gateway endpoint', () => {
+    assert.deepEqual(
+      resolvePluginIcon({
+        key: 'incho',
+        hasIcon: true,
+        iconSrc: 'https://raw.example/plugins/tasks/incho/icon.svg',
+      }),
+      { kind: 'image', src: 'https://raw.example/plugins/tasks/incho/icon.svg' }
+    )
+  })
+
+  test('ignores an inline data URI in meta.icon and falls back to the text avatar', () => {
+    assert.deepEqual(
+      resolvePluginIcon({
+        icon: 'data:image/png;base64,iVBORw0KGgo=',
+        channelTypes: [1],
+        key: 'x',
+      }),
+      { kind: 'text', label: 'X', colorSeed: 'x' }
+    )
+  })
+
+  test('ignores a remote URL in meta.icon and falls back to the text avatar', () => {
+    assert.deepEqual(
+      resolvePluginIcon({
+        icon: 'https://evil.example/icon.png',
+        key: 'x',
+        name: 'Suno',
+      }),
+      { kind: 'text', label: 'SU', colorSeed: 'x' }
+    )
+  })
+})
+
+describe('pluginIconUrl', () => {
+  test('pins a version through the query string', () => {
+    assert.equal(
+      pluginIconUrl('incho', '1.0.1'),
+      '/api/plugin/task/incho/icon?version=1.0.1'
     )
   })
 })

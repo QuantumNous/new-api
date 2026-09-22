@@ -205,7 +205,7 @@ func TestConvertResponseDirectAndMultiHopConverters(t *testing.T) {
 	assert.Equal(t, "text", claudeValue.Content[0].Type)
 	assert.Equal(t, "tool_use", claudeValue.Content[1].Type)
 	assert.Equal(t, "lookup", claudeValue.Content[1].Name)
-	assert.Equal(t, map[string]interface{}{"q": "x"}, claudeValue.Content[1].Input)
+	assert.Equal(t, map[string]any{"q": "x"}, claudeValue.Content[1].Input)
 	assert.Equal(t, 11, toClaude.Usage.TotalTokens)
 
 	toGemini, err := ConvertResponse(nil, &convmeta.Values{ChannelMetaAttached: true, UpstreamModelName: "gemini-test"}, types.RelayFormatGemini, responses)
@@ -223,7 +223,7 @@ func TestConvertResponseDirectAndMultiHopConverters(t *testing.T) {
 	assert.Equal(t, "hello", geminiValue.Candidates[0].Content.Parts[0].Text)
 	require.NotNil(t, geminiValue.Candidates[0].Content.Parts[1].FunctionCall)
 	assert.Equal(t, "lookup", geminiValue.Candidates[0].Content.Parts[1].FunctionCall.FunctionName)
-	assert.Equal(t, map[string]interface{}{"q": "x"}, geminiValue.Candidates[0].Content.Parts[1].FunctionCall.Arguments)
+	assert.Equal(t, map[string]any{"q": "x"}, geminiValue.Candidates[0].Content.Parts[1].FunctionCall.Arguments)
 	assert.Equal(t, 11, toGemini.Usage.TotalTokens)
 }
 
@@ -284,7 +284,7 @@ func TestConvertResponseProviderToOAIChatUsage(t *testing.T) {
 		Model:      "claude-test",
 		StopReason: "end_turn",
 		Content: []dto.ClaudeMediaMessage{
-			{Type: "tool_use", Id: "toolu_1", Name: "lookup", Input: map[string]interface{}{"q": "x"}},
+			{Type: "tool_use", Id: "toolu_1", Name: "lookup", Input: map[string]any{"q": "x"}},
 		},
 		Usage: &dto.ClaudeUsage{
 			InputTokens:              10,
@@ -326,7 +326,7 @@ func TestConvertResponseProviderToOAIChatUsage(t *testing.T) {
 				Content: dto.GeminiChatContent{
 					Parts: []dto.GeminiPart{
 						{Text: "hello"},
-						{FunctionCall: &dto.FunctionCall{FunctionName: "lookup", Arguments: map[string]interface{}{"q": "x"}}},
+						{FunctionCall: &dto.FunctionCall{FunctionName: "lookup", Arguments: map[string]any{"q": "x"}}},
 					},
 				},
 			},

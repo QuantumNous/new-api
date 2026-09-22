@@ -52,13 +52,13 @@ func TestShardedRoundTripperPerOriginRotation(t *testing.T) {
 	originB := "https://b.example:443"
 
 	gotA := make([]uint32, 0, 8)
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		gotA = append(gotA, s.pickShard(originA))
 	}
 	assert.Equal(t, []uint32{0, 1, 2, 3, 0, 1, 2, 3}, gotA)
 
 	gotB := make([]uint32, 0, 4)
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		gotB = append(gotB, s.pickShard(originB))
 	}
 	assert.Equal(t, []uint32{0, 1, 2, 3}, gotB, "independent origins must have independent counters")
@@ -68,10 +68,10 @@ func TestShardedRoundTripperPerOriginRotation(t *testing.T) {
 	const perWorker = 50
 	var badShardCount atomic.Uint32
 	wg.Add(workers)
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go func() {
 			defer wg.Done()
-			for j := 0; j < perWorker; j++ {
+			for range perWorker {
 				idx := s.pickShard(originA)
 				if idx >= 4 {
 					badShardCount.Add(1)
@@ -132,7 +132,7 @@ func TestAutoOneShardNegotiatesHTTP2SingleConnection(t *testing.T) {
 	}))
 
 	client := newHTTPClientWithPolicyAndTLS(defaultHTTPTransportPolicy(), testTLSClientConfig(t, server))
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		resp, err := client.Get(server.URL)
 		require.NoError(t, err)
 		assert.Equal(t, 2, resp.ProtoMajor)
@@ -165,7 +165,7 @@ func TestFourShardHTTP2ReusesExactlyFourConnections(t *testing.T) {
 
 	policy := HTTPTransportPolicy{Protocol: dto.HTTPProtocolAuto, Shards: 4}
 	client := newHTTPClientWithPolicyAndTLS(policy, testTLSClientConfig(t, server))
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		resp, err := client.Get(server.URL)
 		require.NoError(t, err)
 		assert.Equal(t, 2, resp.ProtoMajor)
@@ -233,7 +233,7 @@ func TestForcedHTTP1ConcurrentDistinctConnections(t *testing.T) {
 	client := newHTTPClientWithPolicyAndTLS(policy, testTLSClientConfig(t, server))
 
 	errCh := make(chan error, k)
-	for i := 0; i < k; i++ {
+	for range k {
 		go func() {
 			resp, err := client.Get(server.URL)
 			if err != nil {
@@ -251,7 +251,7 @@ func TestForcedHTTP1ConcurrentDistinctConnections(t *testing.T) {
 		}()
 	}
 
-	for i := 0; i < k; i++ {
+	for range k {
 		<-arrived
 	}
 	mu.Lock()
@@ -259,7 +259,7 @@ func TestForcedHTTP1ConcurrentDistinctConnections(t *testing.T) {
 	mu.Unlock()
 	close(release)
 
-	for i := 0; i < k; i++ {
+	for range k {
 		require.NoError(t, <-errCh)
 	}
 	assert.Equal(t, uint32(0), nonHTTP1Count.Load())
@@ -308,7 +308,7 @@ func TestHTTPClientCacheConcurrentGetOrCreate(t *testing.T) {
 	errs := make([]error, workers)
 	var wg sync.WaitGroup
 	wg.Add(workers)
-	for i := 0; i < workers; i++ {
+	for i := range workers {
 		i := i
 		go func() {
 			defer wg.Done()
@@ -318,7 +318,7 @@ func TestHTTPClientCacheConcurrentGetOrCreate(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	for i := 0; i < workers; i++ {
+	for i := range workers {
 		require.NoError(t, errs[i])
 	}
 	for i := 1; i < workers; i++ {
@@ -433,7 +433,7 @@ func TestResetProxyClientCacheConcurrentWithGetHttpClient(t *testing.T) {
 	const workers = 64
 	var wg sync.WaitGroup
 	wg.Add(workers * 2)
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go func() {
 			defer wg.Done()
 			_ = GetHttpClient()

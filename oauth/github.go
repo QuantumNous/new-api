@@ -37,6 +37,11 @@ type gitHubUser struct {
 	Email string `json:"email"`
 }
 
+type gitHubEmail struct {
+	Email    string `json:"email"`
+	Verified bool   `json:"verified"`
+}
+
 func (p *GitHubProvider) GetName() string {
 	return "GitHub"
 }
@@ -49,8 +54,6 @@ func (p *GitHubProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 	if code == "" {
 		return nil, NewOAuthError(i18n.MsgOAuthInvalidCode, nil)
 	}
-
-	logger.LogDebug(ctx, "[OAuth-GitHub] ExchangeToken: code=%s...", code[:min(len(code), 10)])
 
 	values := map[string]string{
 		"client_id":     common.GitHubClientId,
@@ -158,6 +161,47 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 			"legacy_id": githubUser.Login, // Store login for migration from old accounts
 		},
 	}, nil
+}
+
+// GetVerifiedEmails lists the addresses GitHub has confirmed for the signed-in
+// account. The email field of the user endpoint carries no confirmation status
+// and is not used for this.
+func (p *GitHubProvider) GetVerifiedEmails(ctx context.Context, token *OAuthToken) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/user/emails", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+token.AccessToken)
+	req.Header.Set("Accept", "application/vnd.github+json")
+
+	client := http.Client{
+		Timeout: 20 * time.Second,
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetVerifiedEmails error: %s", err.Error()))
+		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthConnectFailed, map[string]any{"Provider": "GitHub"}, err.Error())
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetVerifiedEmails failed: status=%d", res.StatusCode))
+		return nil, NewOAuthErrorWithRaw(i18n.MsgOAuthGetUserErr, map[string]any{"Provider": "GitHub"}, fmt.Sprintf("status %d", res.StatusCode))
+	}
+
+	var emails []gitHubEmail
+	if err := common.DecodeJson(res.Body, &emails); err != nil {
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetVerifiedEmails decode error: %s", err.Error()))
+		return nil, err
+	}
+	verified := make([]string, 0, len(emails))
+	for _, email := range emails {
+		if email.Verified && email.Email != "" {
+			verified = append(verified, email.Email)
+		}
+	}
+	logger.LogDebug(ctx, "[OAuth-GitHub] GetVerifiedEmails success: verified=%d", len(verified))
+	return verified, nil
 }
 
 func (p *GitHubProvider) IsUserIDTaken(providerUserID string) bool {
