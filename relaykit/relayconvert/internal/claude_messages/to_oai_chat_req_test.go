@@ -6,6 +6,9 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -105,6 +108,74 @@ func TestClaudeMessagesRequestToOpenAIChatToolResultContent(t *testing.T) {
 			}
 			assert.Equal(t, dto.ContentTypeText, parts[len(parts)-1].Type)
 			assert.Equal(t, "what do you see?", parts[len(parts)-1].Text)
+		})
+	}
+}
+
+func TestClaudeMessagesRequestToOpenAIChatUserMediaBlocks(t *testing.T) {
+	const question = `{"type":"text","text":"describe it"}`
+	tests := []struct {
+		name            string
+		block           dto.ClaudeMediaMessage
+		wantContent     string
+		wantDiagnostics []types.ConversionDiagnostic
+	}{
+		{
+			name:        "url image keeps the url",
+			block:       dto.ClaudeMediaMessage{Type: "image", Source: &dto.ClaudeMessageSource{Type: "url", Url: "https://example.com/cat.png"}},
+			wantContent: `[{"type":"image_url","image_url":{"url":"https://example.com/cat.png"}},` + question + `]`,
+		},
+		{
+			name:        "base64 image becomes a data url",
+			block:       dto.ClaudeMediaMessage{Type: "image", Source: &dto.ClaudeMessageSource{Type: "base64", MediaType: "image/png", Data: "iVBORw0KGgo="}},
+			wantContent: `[{"type":"image_url","image_url":{"url":"data:image/png;base64,iVBORw0KGgo="}},` + question + `]`,
+		},
+		{
+			name:        "image without source is skipped",
+			block:       dto.ClaudeMediaMessage{Type: "image"},
+			wantContent: `[` + question + `]`,
+		},
+		{
+			name:        "base64 document becomes a file part",
+			block:       dto.ClaudeMediaMessage{Type: "document", Source: &dto.ClaudeMessageSource{Type: "base64", MediaType: "application/pdf", Data: "JVBERi0xLjQ="}},
+			wantContent: `[{"type":"file","file":{"file_data":"data:application/pdf;base64,JVBERi0xLjQ="}},` + question + `]`,
+		},
+		{
+			name:        "text document becomes text",
+			block:       dto.ClaudeMediaMessage{Type: "document", Source: &dto.ClaudeMessageSource{Type: "text", MediaType: "text/plain", Data: "meeting notes"}},
+			wantContent: `[{"type":"text","text":"meeting notes"},` + question + `]`,
+		},
+		{
+			name:        "url document is reported instead of dropped silently",
+			block:       dto.ClaudeMediaMessage{Type: "document", Source: &dto.ClaudeMessageSource{Type: "url", Url: "https://example.com/a.pdf"}},
+			wantContent: `[` + question + `]`,
+			wantDiagnostics: []types.ConversionDiagnostic{{
+				Code:     "document_source_unsupported",
+				Path:     "messages[0].content[0].source",
+				Message:  `document source type "url" cannot be sent as an OpenAI Chat file part and was dropped`,
+				Severity: types.ConversionDiagnosticWarning,
+			}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, collector := convdiag.WithCollector(context.Background())
+			got, err := ClaudeMessagesRequestToOpenAIChat(ctx, dto.ClaudeRequest{
+				Model:     "claude-test",
+				MaxTokens: lo.ToPtr(uint(64)),
+				Messages: []dto.ClaudeMessage{{
+					Role:    "user",
+					Content: []dto.ClaudeMediaMessage{tt.block, {Type: "text", Text: lo.ToPtr("describe it")}},
+				}},
+			}, &convmeta.Values{})
+			require.NoError(t, err)
+
+			require.Len(t, got.Messages, 1)
+			content, err := kitutil.Marshal(got.Messages[0].Content)
+			require.NoError(t, err)
+			assert.JSONEq(t, tt.wantContent, string(content))
+			assert.Equal(t, tt.wantDiagnostics, collector.Diagnostics())
 		})
 	}
 }

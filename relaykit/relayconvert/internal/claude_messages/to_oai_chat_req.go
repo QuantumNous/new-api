@@ -7,8 +7,10 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 const (
@@ -160,7 +162,7 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 	}
 	toolNames := make(map[string]string)
 	var unnamedToolResults []unnamedToolResult
-	for _, claudeMessage := range claudeRequest.Messages {
+	for messageIndex, claudeMessage := range claudeRequest.Messages {
 		openAIMessage := dto.Message{
 			Role: claudeMessage.Role,
 		}
@@ -174,7 +176,7 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 			var toolCalls []dto.ToolCallRequest
 			mediaMessages := make([]dto.MediaContent, 0, len(content))
 
-			for _, mediaMsg := range content {
+			for blockIndex, mediaMsg := range content {
 				if _, exists := toolNames[mediaMsg.Id]; !exists {
 					toolNames[mediaMsg.Id] = mediaMsg.Name
 				}
@@ -187,12 +189,39 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 					}
 					mediaMessages = append(mediaMessages, message)
 				case "image":
-					imageData := fmt.Sprintf("data:%s;base64,%s", mediaMsg.Source.MediaType, mediaMsg.Source.Data)
-					mediaMessage := dto.MediaContent{
-						Type:     "image_url",
-						ImageUrl: &dto.MessageImageUrl{Url: imageData},
+					if url := claudeSourceURL(mediaMsg.Source); url != "" {
+						mediaMessages = append(mediaMessages, dto.MediaContent{
+							Type:     "image_url",
+							ImageUrl: &dto.MessageImageUrl{Url: url},
+						})
 					}
-					mediaMessages = append(mediaMessages, mediaMessage)
+				case "document":
+					// Chat Completions carries documents as a file part with inline data only.
+					// Plain-text sources become text; url and Anthropic file_id sources have no
+					// Chat equivalent, so they are reported instead of being dropped silently.
+					switch {
+					case mediaMsg.Source != nil && mediaMsg.Source.Type == "text":
+						mediaMessages = append(mediaMessages, dto.MediaContent{
+							Type: "text",
+							Text: kitutil.Interface2String(mediaMsg.Source.Data),
+						})
+					case mediaMsg.Source != nil && mediaMsg.Source.Type == "base64" && kitutil.Interface2String(mediaMsg.Source.Data) != "":
+						mediaMessages = append(mediaMessages, dto.MediaContent{
+							Type: dto.ContentTypeFile,
+							File: &dto.MessageFile{FileData: claudeSourceURL(mediaMsg.Source)},
+						})
+					default:
+						sourceType := ""
+						if mediaMsg.Source != nil {
+							sourceType = mediaMsg.Source.Type
+						}
+						convdiag.Add(ctx, types.ConversionDiagnostic{
+							Code:     "document_source_unsupported",
+							Path:     fmt.Sprintf("messages[%d].content[%d].source", messageIndex, blockIndex),
+							Message:  fmt.Sprintf("document source type %q cannot be sent as an OpenAI Chat file part and was dropped", sourceType),
+							Severity: types.ConversionDiagnosticWarning,
+						})
+					}
 				case "tool_use":
 					toolCall := dto.ToolCallRequest{
 						ID:   mediaMsg.Id,
