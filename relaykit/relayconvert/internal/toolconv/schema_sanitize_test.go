@@ -109,3 +109,72 @@ func TestSanitizeDefinitions_RepairsFunctionTools(t *testing.T) {
 		t.Error("expected a definition without a function to stay untouched")
 	}
 }
+
+// Keywords such as default, examples, const and enum carry instance data, so a
+// literal {"required": null} inside them is legitimate payload rather than a
+// malformed schema.
+func TestSanitizeToolParameters_PreservesInstanceData(t *testing.T) {
+	for _, keyword := range []string{"default", "examples", "const", "enum", "x-vendor"} {
+		t.Run(keyword, func(t *testing.T) {
+			payload := map[string]any{"required": nil}
+			parameters := map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"cfg": map[string]any{
+						"type":  "object",
+						keyword: payload,
+					},
+				},
+			}
+
+			_, changed := sanitizeToolParameters(parameters)
+
+			if changed {
+				t.Errorf("instance data under %q must not be treated as a schema", keyword)
+			}
+			if _, exists := payload["required"]; !exists {
+				t.Errorf("expected the literal required member under %q to survive", keyword)
+			}
+		})
+	}
+}
+
+func TestSanitizeToolParameters_WalksSchemaKeywords(t *testing.T) {
+	cases := map[string]map[string]any{
+		"properties":           {"properties": map[string]any{"a": map[string]any{"required": nil}}},
+		"patternProperties":    {"patternProperties": map[string]any{"^a$": map[string]any{"required": nil}}},
+		"$defs":                {"$defs": map[string]any{"a": map[string]any{"required": nil}}},
+		"items object":         {"items": map[string]any{"required": nil}},
+		"items tuple":          {"items": []any{map[string]any{"required": nil}}},
+		"prefixItems":          {"prefixItems": []any{map[string]any{"required": nil}}},
+		"anyOf":                {"anyOf": []any{map[string]any{"required": nil}}},
+		"allOf":                {"allOf": []any{map[string]any{"required": nil}}},
+		"oneOf":                {"oneOf": []any{map[string]any{"required": nil}}},
+		"not":                  {"not": map[string]any{"required": nil}},
+		"if":                   {"if": map[string]any{"required": nil}},
+		"additionalProperties": {"additionalProperties": map[string]any{"required": nil}},
+	}
+
+	for name, parameters := range cases {
+		t.Run(name, func(t *testing.T) {
+			if _, changed := sanitizeToolParameters(parameters); !changed {
+				t.Fatalf("expected the null required member under %s to be dropped", name)
+			}
+		})
+	}
+}
+
+func TestSanitizeToolParameters_StopsAtMaxDepth(t *testing.T) {
+	root := map[string]any{}
+	node := root
+	for i := 0; i < schemaSanitizeMaxDepth+10; i++ {
+		child := map[string]any{}
+		node["not"] = child
+		node = child
+	}
+	node["required"] = nil
+
+	// The point is that a pathologically deep schema terminates instead of
+	// exhausting the stack.
+	sanitizeToolParameters(root)
+}
