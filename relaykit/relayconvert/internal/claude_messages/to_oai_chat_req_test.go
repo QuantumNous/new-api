@@ -156,6 +156,28 @@ func TestClaudeMessagesRequestToOpenAIChatUserMediaBlocks(t *testing.T) {
 				Severity: types.ConversionDiagnosticWarning,
 			}},
 		},
+		{
+			name:        "document without source is reported instead of dropped silently",
+			block:       dto.ClaudeMediaMessage{Type: "document"},
+			wantContent: `[` + question + `]`,
+			wantDiagnostics: []types.ConversionDiagnostic{{
+				Code:     "document_source_unsupported",
+				Path:     "messages[0].content[0].source",
+				Message:  `document source type "" cannot be sent as an OpenAI Chat file part and was dropped`,
+				Severity: types.ConversionDiagnosticWarning,
+			}},
+		},
+		{
+			name:        "empty base64 document is reported instead of sent as an empty file",
+			block:       dto.ClaudeMediaMessage{Type: "document", Source: &dto.ClaudeMessageSource{Type: "base64", MediaType: "application/pdf"}},
+			wantContent: `[` + question + `]`,
+			wantDiagnostics: []types.ConversionDiagnostic{{
+				Code:     "document_source_unsupported",
+				Path:     "messages[0].content[0].source",
+				Message:  `document source type "base64" cannot be sent as an OpenAI Chat file part and was dropped`,
+				Severity: types.ConversionDiagnosticWarning,
+			}},
+		},
 	}
 
 	for _, tt := range tests {
