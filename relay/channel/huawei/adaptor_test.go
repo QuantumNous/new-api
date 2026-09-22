@@ -3,6 +3,7 @@ package huawei
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -68,6 +70,161 @@ func TestGetRequestURL(t *testing.T) {
 	require.Error(t, err)
 }
 
+// TestGetRequestURLByRelayFormat pins the client-format routing. Claude
+// requests keep the Anthropic protocol and reach the dedicated endpoint;
+// Gemini and OpenAI Responses requests have no MaaS endpoint of their own and
+// are collapsed onto the OpenAI-compatible chat endpoint.
+func TestGetRequestURLByRelayFormat(t *testing.T) {
+	a := &Adaptor{}
+	tests := []struct {
+		name   string
+		format relaytypes.RelayFormat
+		mode   int
+		want   string
+	}{
+		{
+			name:   "claude stays native",
+			format: relaytypes.RelayFormatClaude,
+			mode:   relayconstant.RelayModeUnknown,
+			want:   "https://api.modelarts-maas.com/anthropic/v1/messages",
+		},
+		{
+			name:   "gemini downgrades to chat completions",
+			format: relaytypes.RelayFormatGemini,
+			mode:   relayconstant.RelayModeGemini,
+			want:   "https://api.modelarts-maas.com/openai/v1/chat/completions",
+		},
+		{
+			name:   "openai responses downgrades to chat completions",
+			format: relaytypes.RelayFormatOpenAIResponses,
+			mode:   relayconstant.RelayModeResponses,
+			want:   "https://api.modelarts-maas.com/openai/v1/chat/completions",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{
+				RelayFormat: tt.format,
+				RelayMode:   tt.mode,
+				ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://api.modelarts-maas.com"},
+			}
+			got, err := a.GetRequestURL(info)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestSetupRequestHeaderAuthScheme(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	a := &Adaptor{}
+
+	t.Run("claude uses x-api-key", func(t *testing.T) {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+		info := &relaycommon.RelayInfo{
+			RelayFormat: relaytypes.RelayFormatClaude,
+			ChannelMeta: &relaycommon.ChannelMeta{ApiKey: "hw-key"},
+		}
+
+		header := http.Header{}
+		require.NoError(t, a.SetupRequestHeader(c, &header, info))
+		assert.Equal(t, "hw-key", header.Get("x-api-key"))
+		assert.Empty(t, header.Get("Authorization"))
+		assert.Equal(t, "2023-06-01", header.Get("anthropic-version"))
+		// The client sent no Content-Type at all; the outbound header must
+		// still be application/json rather than the propagated empty value.
+		assert.Equal(t, "application/json", header.Get("Content-Type"))
+	})
+
+	t.Run("chat keeps bearer auth", func(t *testing.T) {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+		info := &relaycommon.RelayInfo{
+			RelayFormat: relaytypes.RelayFormatOpenAI,
+			ChannelMeta: &relaycommon.ChannelMeta{ApiKey: "hw-key"},
+		}
+
+		header := http.Header{}
+		require.NoError(t, a.SetupRequestHeader(c, &header, info))
+		assert.Equal(t, "Bearer hw-key", header.Get("Authorization"))
+		assert.Empty(t, header.Get("x-api-key"))
+		assert.Equal(t, "application/json", header.Get("Content-Type"))
+	})
+
+	t.Run("multipart image edit is retyped as json", func(t *testing.T) {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", nil)
+		c.Request.Header.Set("Content-Type", "multipart/form-data; boundary=----x")
+		info := &relaycommon.RelayInfo{
+			RelayFormat: relaytypes.RelayFormatOpenAI,
+			RelayMode:   relayconstant.RelayModeImagesEdits,
+			ChannelMeta: &relaycommon.ChannelMeta{ApiKey: "hw-key"},
+		}
+
+		header := http.Header{}
+		require.NoError(t, a.SetupRequestHeader(c, &header, info))
+		// The multipart body is converted to JSON before the upstream call.
+		assert.Equal(t, "application/json", header.Get("Content-Type"))
+	})
+}
+
+func TestConvertGeminiRequestDowngradesToChatCompletions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1beta/models/glm-5.2:generateContent", nil)
+
+	info := &relaycommon.RelayInfo{
+		RelayFormat: relaytypes.RelayFormatGemini,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "https://api.modelarts-maas.com",
+			UpstreamModelName: "glm-5.2",
+		},
+	}
+	request := &dto.GeminiChatRequest{
+		Contents: []dto.GeminiChatContent{
+			{Role: "user", Parts: []dto.GeminiPart{{Text: "hello"}}},
+		},
+	}
+
+	converted, err := (&Adaptor{}).ConvertGeminiRequest(c, info, request)
+	require.NoError(t, err)
+
+	body, err := common.Marshal(converted)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), `"model":"glm-5.2"`)
+	assert.Contains(t, string(body), `"role":"user"`)
+	assert.Contains(t, string(body), `hello`)
+	assert.NotContains(t, string(body), `"contents"`)
+}
+
+func TestConvertOpenAIResponsesRequestDowngradesToChatCompletions(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	info := &relaycommon.RelayInfo{
+		RelayFormat: relaytypes.RelayFormatOpenAIResponses,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl:    "https://api.modelarts-maas.com",
+			UpstreamModelName: "glm-5.2",
+		},
+	}
+	request := dto.OpenAIResponsesRequest{
+		Model: "glm-5.2",
+		Input: json.RawMessage(`"hello"`),
+	}
+
+	converted, err := (&Adaptor{}).ConvertOpenAIResponsesRequest(c, info, request)
+	require.NoError(t, err)
+
+	body, err := common.Marshal(converted)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), `"model":"glm-5.2"`)
+	assert.Contains(t, string(body), `"messages"`)
+	assert.NotContains(t, string(body), `"input"`)
+}
+
 func TestConvertGenerationRequest(t *testing.T) {
 	t.Run("maps openai fields and seed from extra", func(t *testing.T) {
 		var req dto.ImageRequest
@@ -92,6 +249,24 @@ func TestConvertGenerationRequest(t *testing.T) {
 		got, err := convertGenerationRequest(req)
 		require.NoError(t, err)
 		assert.Empty(t, got.ResponseFormat)
+	})
+
+	t.Run("defaults size when the client omits it", func(t *testing.T) {
+		var req dto.ImageRequest
+		require.NoError(t, common.Unmarshal([]byte(`{"model":"qwen-image","prompt":"a cat"}`), &req))
+
+		got, err := convertGenerationRequest(req)
+		require.NoError(t, err)
+		assert.Equal(t, defaultGenerationSize, got.Size)
+	})
+
+	t.Run("keeps an explicit size", func(t *testing.T) {
+		var req dto.ImageRequest
+		require.NoError(t, common.Unmarshal([]byte(`{"model":"qwen-image","prompt":"a cat","size":"512x512"}`), &req))
+
+		got, err := convertGenerationRequest(req)
+		require.NoError(t, err)
+		assert.Equal(t, "512x512", got.Size)
 	})
 
 	t.Run("rejects n greater than 1", func(t *testing.T) {
@@ -167,6 +342,26 @@ func TestConvertEditRequest(t *testing.T) {
 		assert.Equal(t, "data:image/jpg;base64,QUFB,data:image/png;base64,QkJC", got.Image)
 	})
 
+	t.Run("does not forward response_format to the edit endpoint", func(t *testing.T) {
+		c := newJSONContext()
+		var req dto.ImageRequest
+		require.NoError(t, common.Unmarshal([]byte(`{"model":"qwen-image-edit-2509","prompt":"make it blue","image":"data:image/jpg;base64,QUFB","response_format":"b64_json"}`), &req))
+
+		got, err := convertEditRequest(c, req)
+		require.NoError(t, err)
+		assert.Empty(t, got.ResponseFormat)
+	})
+
+	t.Run("leaves size empty so MaaS derives it from the input image", func(t *testing.T) {
+		c := newJSONContext()
+		var req dto.ImageRequest
+		require.NoError(t, common.Unmarshal([]byte(`{"model":"qwen-image-edit-2509","prompt":"make it blue","image":"data:image/jpg;base64,QUFB"}`), &req))
+
+		got, err := convertEditRequest(c, req)
+		require.NoError(t, err)
+		assert.Empty(t, got.Size)
+	})
+
 	t.Run("rejects edit without an image", func(t *testing.T) {
 		c := newJSONContext()
 		var req dto.ImageRequest
@@ -174,6 +369,9 @@ func TestConvertEditRequest(t *testing.T) {
 
 		_, err := convertEditRequest(c, req)
 		require.Error(t, err)
+		var apiErr *relaytypes.NewAPIError
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
 	})
 
 	t.Run("rejects response_format url", func(t *testing.T) {
@@ -195,6 +393,9 @@ func TestConvertEditRequest(t *testing.T) {
 
 		_, err := convertEditRequest(c, req)
 		require.Error(t, err)
+		var apiErr *relaytypes.NewAPIError
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
 	})
 
 	t.Run("rejects raw base64 without data uri prefix", func(t *testing.T) {
@@ -204,6 +405,9 @@ func TestConvertEditRequest(t *testing.T) {
 
 		_, err := convertEditRequest(c, req)
 		require.Error(t, err)
+		var apiErr *relaytypes.NewAPIError
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
 	})
 
 	t.Run("rejects n greater than 1", func(t *testing.T) {
@@ -242,9 +446,14 @@ func TestConvertEditRequest(t *testing.T) {
 func TestHuaweiImageHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
-	t.Run("strips data uri prefix and sets n ratio", func(t *testing.T) {
+	t.Run("strips data uri prefix and records the returned image count", func(t *testing.T) {
 		c, w := newTestContext(t)
 		info := &relaycommon.RelayInfo{StartTime: time.Now()}
+		// The n ratio is only applied under per-call pricing, so the flag has
+		// to be set for the count to surface as a multiplier.
+		info.PriceData.UsePrice = true
+		estimated := 1
+		info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{EstimatedImageCount: &estimated}
 
 		usage, apiErr := huaweiImageHandler(c, info, newHTTPResp(`{"model":"qwen-image","created":123,"data":[{"url":null,"b64_json":"data:image/jpg;base64,/9j/QVBJ"}],"usage":{"prompt_tokens":10,"completion_tokens":100,"total_tokens":110}}`))
 		require.Nil(t, apiErr)
@@ -258,6 +467,9 @@ func TestHuaweiImageHandler(t *testing.T) {
 		ratios := info.PriceData.OtherRatios()
 		require.NotNil(t, ratios)
 		assert.Equal(t, 1.0, ratios["n"])
+
+		require.NotNil(t, info.BillingImageCount)
+		assert.Equal(t, 1, *info.BillingImageCount)
 
 		require.NotNil(t, usage)
 		assert.Equal(t, 10, usage.PromptTokens)
@@ -279,9 +491,12 @@ func TestHuaweiImageHandler(t *testing.T) {
 		assert.Equal(t, "/9j/RAW", out.Data[0].B64Json)
 	})
 
-	t.Run("does not set n ratio above MaxImageN", func(t *testing.T) {
+	t.Run("leaves billing untouched when the count is out of range", func(t *testing.T) {
 		c, _ := newTestContext(t)
 		info := &relaycommon.RelayInfo{StartTime: time.Now()}
+		info.PriceData.UsePrice = true
+		estimated := 1
+		info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{EstimatedImageCount: &estimated}
 
 		items := make([]string, dto.MaxImageN+1)
 		for i := range items {
@@ -295,6 +510,8 @@ func TestHuaweiImageHandler(t *testing.T) {
 		if ratios != nil {
 			assert.NotContains(t, ratios, "n")
 		}
+		// Out-of-range counts must leave the pre-consume estimate in effect.
+		assert.Nil(t, info.BillingImageCount)
 	})
 
 	t.Run("surfaces upstream error with upstream status", func(t *testing.T) {
