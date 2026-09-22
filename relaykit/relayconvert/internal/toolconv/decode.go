@@ -14,6 +14,18 @@ import (
 const maxClaudeWebSearchUses = 1000
 
 func ExtractRequest(format types.RelayFormat, request any) (any, Set, error) {
+	extracted, set, err := extractRequest(format, request)
+	if err != nil {
+		return extracted, set, err
+	}
+	// Every inbound format funnels through here, so repairing the decoded tool
+	// schemas once covers all of them and keeps the per-format decoders free of
+	// duplicated compatibility logic.
+	sanitizeDefinitions(set.Definitions)
+	return extracted, set, nil
+}
+
+func extractRequest(format types.RelayFormat, request any) (any, Set, error) {
 	switch format {
 	case types.RelayFormatOpenAI:
 		return extractOpenAIChatRequest(request)
