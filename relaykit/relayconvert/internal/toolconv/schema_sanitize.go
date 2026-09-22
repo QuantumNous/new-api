@@ -25,6 +25,7 @@ var schemaSubschemaKeywords = map[string]struct{}{
 	"additionalItems":       {},
 	"additionalProperties":  {},
 	"contains":              {},
+	"contentSchema":         {},
 	"else":                  {},
 	"if":                    {},
 	"items":                 {},
@@ -45,10 +46,13 @@ var schemaSubschemaListKeywords = map[string]struct{}{
 	"prefixItems": {},
 }
 
-// schemaSubschemaMapKeywords map property names to nested schemas.
+// schemaSubschemaMapKeywords map property names to nested schemas. Draft-07
+// "dependencies" also accepts an array of property names; those entries are not
+// maps, so sanitizeSchema leaves them untouched.
 var schemaSubschemaMapKeywords = map[string]struct{}{
 	"$defs":             {},
 	"definitions":       {},
+	"dependencies":      {},
 	"dependentSchemas":  {},
 	"patternProperties": {},
 	"properties":        {},

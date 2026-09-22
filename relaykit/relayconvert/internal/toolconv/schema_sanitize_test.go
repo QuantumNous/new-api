@@ -153,6 +153,9 @@ func TestSanitizeToolParameters_WalksSchemaKeywords(t *testing.T) {
 		"not":                  {"not": map[string]any{"required": nil}},
 		"if":                   {"if": map[string]any{"required": nil}},
 		"additionalProperties": {"additionalProperties": map[string]any{"required": nil}},
+		"contentSchema":        {"contentSchema": map[string]any{"required": nil}},
+		"dependencies":         {"dependencies": map[string]any{"a": map[string]any{"required": nil}}},
+		"dependentSchemas":     {"dependentSchemas": map[string]any{"a": map[string]any{"required": nil}}},
 	}
 
 	for name, parameters := range cases {
@@ -177,4 +180,21 @@ func TestSanitizeToolParameters_StopsAtMaxDepth(t *testing.T) {
 	// The point is that a pathologically deep schema terminates instead of
 	// exhausting the stack.
 	sanitizeToolParameters(root)
+}
+
+// Draft-07 "dependencies" may also map a property name to an array of required
+// property names. That form is instance data, not a subschema.
+func TestSanitizeToolParameters_PreservesArrayFormDependencies(t *testing.T) {
+	names := []any{"b", "c"}
+	parameters := map[string]any{
+		"type":         "object",
+		"dependencies": map[string]any{"a": names},
+	}
+
+	if _, changed := sanitizeToolParameters(parameters); changed {
+		t.Error("array-form dependencies must be left untouched")
+	}
+	if len(names) != 2 {
+		t.Errorf("expected the property-name list to survive, got %v", names)
+	}
 }
