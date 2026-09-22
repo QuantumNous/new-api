@@ -91,6 +91,8 @@ func streamResponseTencent2OpenAI(TencentResponse *TencentChatResponse) *dto.Cha
 }
 
 func tencentStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	defer service.CloseResponseBodyGracefully(resp)
+
 	var responseText strings.Builder
 	scanner := helper.NewStreamScanner(resp.Body)
 	scanner.Split(bufio.ScanLines)
@@ -129,8 +131,6 @@ func tencentStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *htt
 	}
 
 	helper.Done(c)
-
-	service.CloseResponseBodyGracefully(resp)
 
 	return service.ResponseText2Usage(c, responseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens()), nil
 }

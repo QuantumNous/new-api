@@ -134,9 +134,7 @@ func xunfeiStreamHandler(c *gin.Context, textRequest dto.GeneralOpenAIRequest, a
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed)
 	}
-	if err := helper.CommitEventStreamHeaders(c); err != nil {
-		return nil, types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
-	}
+	helper.SetEventStreamHeaders(c)
 	var usage dto.Usage
 	c.Stream(func(w io.Writer) bool {
 		select {
