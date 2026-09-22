@@ -344,23 +344,21 @@ func attachGeminiRequest(request any, set Set) (any, []types.ConversionDiagnosti
 			if definition.Function == nil {
 				continue
 			}
-			parameters := definition.Function.Parameters
-			if parameters != nil {
-				cloned, err := kitutil.Any2Type[any](parameters)
-				if err != nil {
-					return nil, diagnostics, fmt.Errorf("tools[%d].parameters: %w", index, err)
-				}
-				if params, ok := cloned.(map[string]any); ok {
-					if properties, exists := params["properties"].(map[string]any); exists && len(properties) == 0 {
-						cloned = nil
-					}
-				}
-				parameters = sharedgemini.CleanFunctionParameters(cloned)
-			}
 			function := map[string]any{
 				"name":        definition.Function.Name,
 				"description": definition.Function.Description,
-				"parameters":  parameters,
+			}
+			if definition.Function.Parameters != nil {
+				cloned, err := kitutil.Any2Type[any](definition.Function.Parameters)
+				if err != nil {
+					return nil, diagnostics, fmt.Errorf("tools[%d].parameters: %w", index, err)
+				}
+				parameters, parametersJSONSchema := sharedgemini.EncodeFunctionParametersForGemini(cloned)
+				if parametersJSONSchema != nil {
+					function["parametersJsonSchema"] = parametersJSONSchema
+				} else {
+					function["parameters"] = parameters
+				}
 			}
 			deleteEmptyStrings(function)
 			functions = append(functions, function)

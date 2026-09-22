@@ -37,6 +37,71 @@ func CleanFunctionParameters(params interface{}) interface{} {
 	return cleanGeminiFunctionParametersWithDepth(params, 0)
 }
 
+// FunctionParametersNeedJSONSchema reports whether params contains JSON Schema
+// keywords outside Gemini's OpenAPI Schema subset for functionDeclarations.parameters.
+// When true, callers should emit parametersJsonSchema instead of a cleaned parameters object.
+func FunctionParametersNeedJSONSchema(params any) bool {
+	return functionParametersNeedJSONSchemaWithDepth(params, 0)
+}
+
+func functionParametersNeedJSONSchemaWithDepth(params any, depth int) bool {
+	if params == nil || depth >= geminiFunctionSchemaMaxDepth {
+		return false
+	}
+	m, ok := params.(map[string]any)
+	if !ok {
+		return false
+	}
+	for key := range m {
+		if _, allowed := geminiOpenAPISchemaAllowedFields[key]; !allowed {
+			return true
+		}
+	}
+	if props, ok := m["properties"].(map[string]any); ok {
+		for _, propValue := range props {
+			if functionParametersNeedJSONSchemaWithDepth(propValue, depth+1) {
+				return true
+			}
+		}
+	}
+	if items, ok := m["items"].(map[string]any); ok {
+		if functionParametersNeedJSONSchemaWithDepth(items, depth+1) {
+			return true
+		}
+	}
+	if itemsArray, ok := m["items"].([]any); ok && len(itemsArray) > 0 {
+		if functionParametersNeedJSONSchemaWithDepth(itemsArray[0], depth+1) {
+			return true
+		}
+	}
+	if nested, ok := m["anyOf"].([]any); ok {
+		for _, item := range nested {
+			if functionParametersNeedJSONSchemaWithDepth(item, depth+1) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// EncodeFunctionParametersForGemini returns either a Gemini Schema subset for
+// parameters, or the original schema for parametersJsonSchema when unsupported
+// keywords would otherwise be stripped by CleanFunctionParameters.
+func EncodeFunctionParametersForGemini(params any) (parameters any, parametersJSONSchema any) {
+	if params == nil {
+		return nil, nil
+	}
+	if m, ok := params.(map[string]any); ok {
+		if properties, exists := m["properties"].(map[string]any); exists && len(properties) == 0 {
+			return nil, nil
+		}
+	}
+	if FunctionParametersNeedJSONSchema(params) {
+		return nil, params
+	}
+	return CleanFunctionParameters(params), nil
+}
+
 func cleanGeminiFunctionParametersWithDepth(params interface{}, depth int) interface{} {
 	if params == nil {
 		return nil

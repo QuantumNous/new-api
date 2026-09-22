@@ -393,11 +393,12 @@ type ToolCallRequest struct {
 }
 
 type FunctionRequest struct {
-	Description string `json:"description,omitempty"`
-	Name        string `json:"name"`
-	Parameters  any    `json:"parameters,omitempty"`
-	Arguments   string `json:"arguments,omitempty"`
-	Strict      *bool  `json:"strict,omitempty"`
+	Description          string `json:"description,omitempty"`
+	Name                 string `json:"name"`
+	Parameters           any    `json:"parameters,omitempty"`
+	ParametersJsonSchema any    `json:"parametersJsonSchema,omitempty"`
+	Arguments            string `json:"arguments,omitempty"`
+	Strict               *bool  `json:"strict,omitempty"`
 }
 
 type StreamOptions struct {

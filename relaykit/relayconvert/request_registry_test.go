@@ -572,22 +572,23 @@ func TestConvertRequestResponsesToGeminiUsesDirectConverter(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, functions, 1)
 	assert.Equal(t, "lookup", functions[0].Name)
-	params, ok := functions[0].Parameters.(map[string]any)
+	assert.Nil(t, functions[0].Parameters)
+	params, ok := functions[0].ParametersJsonSchema.(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, "OBJECT", params["type"])
-	assert.NotContains(t, params, "additionalProperties")
-	assert.NotContains(t, params, "propertyNames")
+	assert.Equal(t, "object", params["type"])
+	assert.Equal(t, false, params["additionalProperties"])
+	assert.Contains(t, params, "propertyNames")
 	properties, ok := params["properties"].(map[string]any)
 	require.True(t, ok)
 	queryParam, ok := properties["q"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, "STRING", queryParam["type"])
-	assert.NotContains(t, queryParam, "exclusiveMinimum")
+	assert.Equal(t, "string", queryParam["type"])
+	assert.EqualValues(t, 0, queryParam["exclusiveMinimum"])
 	filterParam, ok := properties["filters"].(map[string]any)
 	require.True(t, ok)
 	filterItems, ok := filterParam["items"].(map[string]any)
 	require.True(t, ok)
-	assert.NotContains(t, filterItems, "additionalProperties")
+	assert.Equal(t, true, filterItems["additionalProperties"])
 
 	require.Len(t, geminiReq.Contents, 2)
 	assert.Equal(t, "model", geminiReq.Contents[0].Role)
@@ -807,6 +808,57 @@ func TestConvertRequestRejectsUnregisteredExplicitPath(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "from claude to embedding is not registered")
+}
+
+func TestConvertRequestOpenAIChatToGeminiPreservesConstViaParametersJSONSchema(t *testing.T) {
+	info := &convmeta.Values{
+		ConversionChain:     []types.RelayFormat{types.RelayFormatOpenAI},
+		ChannelMetaAttached: true,
+		UpstreamModelName:   "gemini-test",
+	}
+	req := &dto.GeneralOpenAIRequest{
+		Model: "gemini-test",
+		Messages: []dto.Message{
+			{Role: "user", Content: "hi"},
+		},
+		Tools: []dto.ToolCallRequest{
+			{
+				Type: "function",
+				Function: dto.FunctionRequest{
+					Name:        "tool_a",
+					Description: "test",
+					Parameters: map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"value": map[string]any{"const": "alice"},
+						},
+						"required": []any{"value"},
+					},
+				},
+			},
+		},
+	}
+
+	result, err := ConvertRequest(nil, info, types.RelayFormatGemini, req)
+	require.NoError(t, err)
+	geminiReq, ok := result.Value.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+
+	tools := geminiReq.GetTools()
+	require.Len(t, tools, 1)
+	functions, err := kitutil.Any2Type[[]dto.FunctionRequest](tools[0].FunctionDeclarations)
+	require.NoError(t, err)
+	require.Len(t, functions, 1)
+	assert.Equal(t, "tool_a", functions[0].Name)
+	assert.Nil(t, functions[0].Parameters)
+	schema, ok := functions[0].ParametersJsonSchema.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "object", schema["type"])
+	props, ok := schema["properties"].(map[string]any)
+	require.True(t, ok)
+	value, ok := props["value"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "alice", value["const"])
 }
 
 func mustRawMessage(t *testing.T, value any) []byte {
