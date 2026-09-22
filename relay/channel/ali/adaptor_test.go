@@ -8,9 +8,9 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/relay/constant"
 	relayhelper "github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -129,33 +129,18 @@ func TestConvertOpenAIRequestPreservesExplicitZeroForMappedQwenModel(t *testing.
 	assert.Equal(t, int64(0), value.Int())
 }
 
-func TestMappedAliImageModelUsesUpstreamProtocol(t *testing.T) {
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-
-	info := &relaycommon.RelayInfo{
-		RelayMode:       constant.RelayModeImagesGenerations,
-		OriginModelName: "customer-image-model",
-		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelBaseUrl:    "https://dashscope.aliyuncs.com",
-			UpstreamModelName: "qwen-image-3.0-pro",
-		},
+// Image models the alibaba task plugin does not claim reach this adaptor only
+// through a channel misconfiguration. The rejection is a client error that
+// skips channel retries; a retryable 500 would be re-attempted on unrelated
+// channels and still end as a 500 for the client.
+func TestConvertImageRequestRejectsUnclaimedModelWithoutRetry(t *testing.T) {
+	for _, name := range []string{"wanx-style-repaint-v1", "custom-image-model"} {
+		info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: name}}
+		_, err := (&Adaptor{}).ConvertImageRequest(nil, info, dto.ImageRequest{Model: name, Prompt: "a cat"})
+		var apiErr *types.NewAPIError
+		require.ErrorAs(t, err, &apiErr, name)
+		assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode, name)
+		assert.True(t, types.IsSkipRetryError(apiErr), name)
+		assert.Contains(t, apiErr.Error(), name)
 	}
-
-	adaptor := &Adaptor{}
-	url, err := adaptor.GetRequestURL(info)
-	require.NoError(t, err)
-	assert.Equal(t, "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation", url)
-
-	header := http.Header{}
-	require.NoError(t, adaptor.SetupRequestHeader(c, &header, info))
-	assert.Empty(t, header.Get("X-DashScope-Async"))
-
-	converted, err := adaptor.ConvertImageRequest(c, info, dto.ImageRequest{
-		Model:  info.UpstreamModelName,
-		Prompt: "poster",
-	})
-	require.NoError(t, err)
-	assert.True(t, adaptor.IsSyncImageModel)
-	assert.IsType(t, &AliImageRequest{}, converted)
 }

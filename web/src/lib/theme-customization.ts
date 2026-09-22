@@ -154,14 +154,6 @@ export const CONTENT_LAYOUT_VALUES: ReadonlySet<ContentLayout> = new Set([
   'centered',
 ])
 
-export const THEME_COOKIE_KEYS = {
-  preset: 'theme_preset',
-  font: 'theme_font',
-  radius: 'theme_radius',
-  scale: 'theme_scale',
-  contentLayout: 'theme_content_layout',
-} as const
-
 /**
  * Preset → default font mapping. Used by the provider to resolve the user's
  * `font: 'default'` preference against the active preset.
