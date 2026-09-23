@@ -1672,6 +1672,7 @@
     "Experiment with prompts and models in real time.": "实时实验提示词和模型。",
     "Expiration Time": "过期时间",
     "Expired": "已过期",
+    "Channel test result is stale; response time is not live latency.": "渠道测试结果已过期；响应时间不是实时业务延迟。",
     "Expired at": "过期于",
     "Expired time cannot be earlier than current time": "过期时间不能早于当前时间",
     "Expires": "过期",

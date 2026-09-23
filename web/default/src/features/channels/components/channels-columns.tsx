@@ -86,6 +86,8 @@ import {
 } from './dialogs/codex-usage-dialog'
 import { NumericSpinnerInput } from './numeric-spinner-input'
 
+const CHANNEL_TEST_STALE_SECONDS = 24 * 60 * 60
+
 function parseIonetMeta(otherInfo: string | null | undefined): null | {
   source?: string
   deployment_id?: string
@@ -1070,16 +1072,37 @@ export function useChannelsColumns(
         meta: { mobileHidden: true },
         cell: ({ row }) => {
           const responseTime = row.getValue('response_time') as number
+          const testTime = row.original.test_time
           const config = getResponseTimeConfig(responseTime)
+          const isStale =
+            !testTime ||
+            Date.now() / 1000 - testTime > CHANNEL_TEST_STALE_SECONDS
 
-          return (
+          const responseBadge = (
             <StatusBadge
               label={formatResponseTime(responseTime, t)}
-              variant={config.variant}
+              variant={isStale ? 'warning' : config.variant}
               size='sm'
               copyable={false}
               className='-ml-1.5'
             />
+          )
+
+          if (!isStale) return responseBadge
+
+          return (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger render={responseBadge} />
+                <TooltipContent side='top'>
+                  <p>
+                    {t(
+                      'Channel test result is stale; response time is not live latency.'
+                    )}
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )
         },
         size: 110,

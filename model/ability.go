@@ -122,6 +122,7 @@ func GetChannel(group string, model string, retry int, requestPath string) (*Cha
 		return nil, err
 	}
 	abilities = filterAbilitiesByRequestPath(abilities, requestPath)
+	abilities = filterAbilitiesByChannelModelRoute(abilities, group, model, requestPath)
 	channel := Channel{}
 	if len(abilities) > 0 {
 		// Randomly choose one

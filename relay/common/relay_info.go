@@ -95,7 +95,11 @@ type RelayInfo struct {
 	TokenUnlimited    bool
 	StartTime         time.Time
 	FirstResponseTime time.Time
-	isFirstResponse   bool
+	// UpstreamResponseTime records when the upstream HTTP response headers
+	// arrived. It is intentionally separate from FirstResponseTime, which is
+	// the first streamed data event and is unavailable for non-stream requests.
+	UpstreamResponseTime time.Time
+	isFirstResponse      bool
 	//SendLastReasoningResponse bool
 	IsStream               bool
 	IsGeminiBatchEmbedding bool
@@ -271,10 +275,21 @@ func (info *RelayInfo) ToString() string {
 		info.UserId, common.MaskEmail(info.UserEmail), info.UserGroup, info.UsingGroup, info.UserQuota)
 	fmt.Fprintf(b, "Token{ Id: %d, Unlimited: %t, Key: ***masked*** }, ", info.TokenId, info.TokenUnlimited)
 
-	// Time info
-	latencyMs := info.FirstResponseTime.Sub(info.StartTime).Milliseconds()
-	fmt.Fprintf(b, "Timing{ Start: %s, FirstResponse: %s, LatencyMs: %d }, ",
-		info.StartTime.Format(time.RFC3339Nano), info.FirstResponseTime.Format(time.RFC3339Nano), latencyMs)
+	// Time info. Do not use a negative sentinel for requests without a streamed
+	// first response; an unset timestamp is easier for logs and metrics to
+	// distinguish from a real latency.
+	firstResponse := "unset"
+	latencyMs := int64(-1)
+	if info.HasSendResponse() {
+		firstResponse = info.FirstResponseTime.Format(time.RFC3339Nano)
+		latencyMs = info.FirstResponseTime.Sub(info.StartTime).Milliseconds()
+	}
+	upstreamResponse := "unset"
+	if info.HasUpstreamResponse() {
+		upstreamResponse = info.UpstreamResponseTime.Format(time.RFC3339Nano)
+	}
+	fmt.Fprintf(b, "Timing{ Start: %s, UpstreamResponse: %s, FirstResponse: %s, LatencyMs: %d }, ",
+		info.StartTime.Format(time.RFC3339Nano), upstreamResponse, firstResponse, latencyMs)
 
 	// Audio / realtime
 	if info.InputAudioFormat != "" || info.OutputAudioFormat != "" || len(info.RealtimeTools) > 0 || info.AudioUsage {
@@ -489,8 +504,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		RequestHeaders:  cloneRequestHeaders(c),
 		IsStream:        isStream,
 
-		StartTime:         startTime,
-		FirstResponseTime: startTime.Add(-time.Second),
+		StartTime: startTime,
 		ThinkingContentInfo: ThinkingContentInfo{
 			IsFirstThinkingContent:  true,
 			SendLastThinkingContent: false,
@@ -666,6 +680,16 @@ func (info *RelayInfo) SetFirstResponseTime() {
 		info.FirstResponseTime = time.Now()
 		info.isFirstResponse = false
 	}
+}
+
+func (info *RelayInfo) SetUpstreamResponseTime() {
+	if info != nil && info.UpstreamResponseTime.IsZero() {
+		info.UpstreamResponseTime = time.Now()
+	}
+}
+
+func (info *RelayInfo) HasUpstreamResponse() bool {
+	return info != nil && info.UpstreamResponseTime.After(info.StartTime)
 }
 
 func (info *RelayInfo) HasSendResponse() bool {

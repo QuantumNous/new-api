@@ -64,6 +64,28 @@ func ShouldDisableChannel(err *types.NewAPIError) bool {
 	return search
 }
 
+// ShouldQuarantineChannelModel identifies an upstream route-capability error.
+// These errors should not disable the whole channel: another model or endpoint
+// on the same channel may still be healthy.
+func ShouldQuarantineChannelModel(err *types.NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	lowerMessage := strings.ToLower(err.Error())
+	for _, keyword := range []string{
+		"当前路由暂无可用渠道",
+		"暂无可用渠道",
+		"no available channel",
+		"no available route",
+		"route unavailable",
+	} {
+		if strings.Contains(lowerMessage, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
 func ShouldEnableChannel(newAPIError *types.NewAPIError, status int) bool {
 	if !common.AutomaticEnableChannelEnabled {
 		return false

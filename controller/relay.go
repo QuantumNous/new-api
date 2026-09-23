@@ -356,6 +356,21 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(err.Error())))
+	if service.ShouldQuarantineChannelModel(err) {
+		modelName := c.GetString("original_model")
+		group := common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+		if group == "" {
+			group = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+		}
+		if group == "" {
+			group = c.GetString("group")
+		}
+		requestPath := ""
+		if c.Request != nil && c.Request.URL != nil {
+			requestPath = c.Request.URL.Path
+		}
+		model.QuarantineChannelModelRoute(channelError.ChannelId, group, modelName, requestPath, err.Error())
+	}
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	if service.ShouldDisableChannel(err) && channelError.AutoBan {

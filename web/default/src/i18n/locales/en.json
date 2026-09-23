@@ -1672,6 +1672,7 @@
     "Experiment with prompts and models in real time.": "Experiment with prompts and models in real time.",
     "Expiration Time": "Expiration Time",
     "Expired": "Expired",
+    "Channel test result is stale; response time is not live latency.": "Channel test result is stale; response time is not live latency.",
     "Expired at": "Expired at",
     "Expired time cannot be earlier than current time": "Expired time cannot be earlier than current time",
     "Expires": "Expires",
