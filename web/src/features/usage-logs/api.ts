@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api, type ApiRequestConfig } from '@/lib/api'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { buildQueryParams } from './lib/query-params'
 import { parseTaskArtifactsResponse } from './lib/task-artifacts'
@@ -71,6 +72,17 @@ async function fetchLogStats<T>(
 // ============================================================================
 // Common Log APIs
 // ============================================================================
+
+export async function getClientFamilies(): Promise<
+  Array<{ value: string; label: string }>
+> {
+  const response = await api.get<{
+    success: boolean
+    message: string
+    data: Array<{ value: string; label: string }>
+  }>('/api/log/client-families')
+  return requireServerSuccess(response.data).data
+}
 
 export const getAllLogs = (params: GetLogsParams = {}) =>
   fetchLogs('/api/log', params, true)

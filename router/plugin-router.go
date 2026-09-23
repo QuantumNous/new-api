@@ -273,6 +273,7 @@ func (b *pluginGenerationBuilder) buildInnerEngine(generation *jsplugin.RoutingG
 		return nil, "", err
 	}
 	engine.Use(importPluginDispatchState())
+	engine.Use(middleware.CaptureClientIdentity())
 	engine.Use(pluginRouteRecovery())
 	engine.Use(middleware.BodyStorageCleanup())
 	engine.NoMethod(func(c *gin.Context) {

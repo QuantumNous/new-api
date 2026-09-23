@@ -67,6 +67,18 @@ async function renderFilter(
   }
 ) {
   vi.spyOn(api, 'get').mockImplementation(async (url) => {
+    if (url === '/api/log/client-families') {
+      return {
+        data: {
+          success: true,
+          data: [
+            { value: 'tender', label: 'Tender Agent' },
+            { value: 'go', label: 'Go HTTP' },
+            { value: 'hertz', label: 'Hertz' },
+          ],
+        },
+      }
+    }
     if (url === '/api/user/self/groups' || url === '/api/group/') {
       if (groups === null) throw new Error('Group loading failed')
       return {
@@ -120,6 +132,19 @@ afterEach(() => {
   } else {
     Reflect.deleteProperty(HTMLElement.prototype, 'setPointerCapture')
   }
+})
+
+it('loads client families from the registry and applies the selected family', async () => {
+  const user = userEvent.setup()
+  const router = await renderFilter()
+  await user.click(screen.getByRole('combobox', { name: 'Client family' }))
+  await user.click(await screen.findByRole('option', { name: 'Tender Agent' }))
+  await user.click(screen.getByRole('button', { name: 'Search' }))
+  await waitFor(() =>
+    expect(router.state.location.search).toMatchObject({
+      clientFamily: 'tender',
+    })
+  )
 })
 
 it('loads personal groups and filters choices without submitting until Search', async () => {
@@ -300,5 +325,18 @@ it('keeps historical auto values editable when auto is the only available group'
   await userEvent.click(screen.getByRole('button', { name: 'Search' }))
   await waitFor(() =>
     expect(router.state.location.search).toMatchObject({ group: 'retired' })
+  )
+})
+
+it('applies client family on the server query and resets pagination', async () => {
+  const router = await renderFilter('/usage-logs/common?page=3')
+  await userEvent.click(screen.getByRole('combobox', { name: 'Client family' }))
+  await userEvent.click(await screen.findByRole('option', { name: 'Hertz' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Search' }))
+  await waitFor(() =>
+    expect(router.state.location.search).toMatchObject({
+      clientFamily: 'hertz',
+      page: 1,
+    })
   )
 })

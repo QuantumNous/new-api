@@ -38,6 +38,7 @@ import {
   isDisplayableLogType,
   isTimingLogType,
 } from '../lib/utils'
+import { ClientIdentity } from './client-identity'
 import { ModelBadge, ResponseModelDetails } from './model-badge'
 import { StreamTpsCell, TimingMetricsCell } from './timing-metrics-cell'
 import { useUsageLogsContext } from './usage-logs-provider'
@@ -166,14 +167,7 @@ export function CommonLogMobileCard<TData>(props: {
         data-slot='log-time-and-timing'
       >
         {fields.time.visible && (
-          <div className='flex min-w-0 flex-col items-start justify-between gap-1'>
-            <StatusBadge
-              label={t(config.label)}
-              variant={config.color as StatusVariant}
-              copyable={false}
-              showDot
-              className='h-5 px-0 text-xs'
-            />
+          <div className='flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1'>
             <Button
               variant='ghost'
               aria-label={`${t('Time')}: ${fields.time.value}`}
@@ -183,6 +177,13 @@ export function CommonLogMobileCard<TData>(props: {
             >
               {dayjs.unix(log.created_at).format('MM-DD HH:mm:ss')}
             </Button>
+            <StatusBadge
+              label={t(config.label)}
+              variant={config.color as StatusVariant}
+              copyable={false}
+              showDot
+              className='h-5 px-0 text-xs'
+            />
           </div>
         )}
         {timing &&
@@ -217,6 +218,7 @@ export function CommonLogMobileCard<TData>(props: {
             </div>
           )}
       </div>
+      {fields.time.visible && <ClientIdentity client={other?.client} />}
       {visibleMetadata.length > 0 && (
         <div className='grid min-w-0 grid-cols-2 gap-x-4 gap-y-0.5'>
           {visibleMetadata.map((id) => {

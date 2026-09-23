@@ -71,6 +71,7 @@ import {
   isPerCallBilling,
 } from '../../lib/utils'
 import type { LogOtherData } from '../../types'
+import { ClientIdentity } from '../client-identity'
 import { DetailsDialog } from '../dialogs/details-dialog'
 import { LogCostDisplay } from '../log-cost-display'
 import { ModelBadge } from '../model-badge'
@@ -356,17 +357,20 @@ export function useCommonLogsColumns(
           const config = getLogTypeConfig(log.type)
 
           return (
-            <div className='flex min-w-0 flex-col gap-0.5'>
-              <span className='truncate font-mono text-xs tabular-nums'>
-                {formatTimestampToDate(timestamp)}
-              </span>
-              <StatusBadge
-                label={t(config.label)}
-                variant={config.color as StatusBadgeProps['variant']}
-                size='sm'
-                copyable={false}
-                className='-ml-1.5 !text-xs [&_span]:!text-xs'
-              />
+            <div className='flex min-w-0 flex-col gap-1'>
+              <div className='flex items-center gap-3'>
+                <span className='truncate font-mono text-base tabular-nums'>
+                  {formatTimestampToDate(timestamp)}
+                </span>
+                <StatusBadge
+                  label={t(config.label)}
+                  variant={config.color as StatusBadgeProps['variant']}
+                  size='sm'
+                  copyable={false}
+                  className='-ml-1.5 !text-base [&_span]:!text-base'
+                />
+              </div>
+              <ClientIdentity client={parseLogOther(log.other)?.client} />
             </div>
           )
         },
@@ -376,7 +380,7 @@ export function useCommonLogsColumns(
           return value.includes(String(row.original.type))
         },
         enableHiding: false,
-        size: 180,
+        size: 280,
       },
     ]
 

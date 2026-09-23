@@ -51,6 +51,7 @@ export interface CommonFilters {
 export interface CommonLogFilters extends CommonFilters {
   model?: string
   token?: string
+  clientFamily?: string
   group?: string
   username?: string
   requestId?: string
@@ -115,6 +116,7 @@ export interface ToolSurchargeItem {
 }
 
 export interface LogOtherData {
+  client?: import('./components/client-identity').ClientSnapshot
   admin_info?: {
     request_policy?: PolicyEvent[]
     is_multi_key?: boolean
@@ -430,6 +432,7 @@ export interface GetLogsParams {
   channel?: number
   group?: string
   request_id?: string
+  client_family?: string
   upstream_request_id?: string
 }
 
@@ -454,6 +457,7 @@ export interface GetLogStatsParams {
   channel?: number
   group?: string
   request_id?: string
+  client_family?: string
   upstream_request_id?: string
 }
 
