@@ -201,23 +201,52 @@ func sizeToResolution(size string) (string, error) {
 func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) {
 	otherRatios := make(map[string]float64)
 	aliRatios := map[string]map[string]float64{
+		// happyhorse series (720P/1080P only, no 480P support)
+		"happyhorse-1.1-i2v": {
+			"720P":  1,
+			"1080P": 1 / 0.6,
+		},
+		"happyhorse-1.1-r2v": {
+			"720P":  1,
+			"1080P": 1 / 0.6,
+		},
+		"happyhorse-1.0-i2v": {
+			"720P":  1,
+			"1080P": 1 / 0.6,
+		},
+		"happyhorse-1.0-r2v": {
+			"720P":  1,
+			"1080P": 1 / 0.6,
+		},
+		"happyhorse-1.0-t2v": {
+			"720P":  1,
+			"1080P": 1 / 0.6,
+		},
+		// wan2.7 series
+		"wan2.7-i2v": {
+			"720P":  1,
+			"1080P": 1 / 0.6,
+		},
+		// wan2.6 series
 		"wan2.6-i2v": {
 			"720P":  1,
 			"1080P": 1 / 0.6,
 		},
+		// wan2.5 series
 		"wan2.5-t2v-preview": {
 			"480P":  1,
 			"720P":  2,
 			"1080P": 1 / 0.3,
 		},
-		"wan2.2-t2v-plus": {
-			"480P":  1,
-			"1080P": 0.7 / 0.14,
-		},
 		"wan2.5-i2v-preview": {
 			"480P":  1,
 			"720P":  2,
 			"1080P": 1 / 0.3,
+		},
+		// wan2.2 series
+		"wan2.2-t2v-plus": {
+			"480P":  1,
+			"1080P": 0.7 / 0.14,
 		},
 		"wan2.2-i2v-plus": {
 			"480P":  1,
@@ -260,8 +289,16 @@ func ProcessAliOtherRatios(aliReq *AliVideoRequest) (map[string]float64, error) 
 	return otherRatios, nil
 }
 
-func isWan27I2VModel(model string) bool {
-	return strings.HasPrefix(model, "wan2.7-i2v")
+// requiresInputMedia returns true for models using the new input.media protocol
+// (happyhorse series and wan2.7+) instead of legacy img_url.
+func requiresInputMedia(model string) bool {
+	return strings.Contains(model, "happyhorse") ||
+		strings.HasPrefix(model, "wan2.7-i2v")
+}
+
+// isR2VModel returns true for reference-to-video models that support multiple images.
+func isR2VModel(model string) bool {
+	return strings.Contains(model, "-r2v")
 }
 
 func firstNonEmpty(values ...string) string {
@@ -304,42 +341,149 @@ func secondTaskImage(req relaycommon.TaskSubmitReq) string {
 	return ""
 }
 
-func normalizeWan27I2VInput(aliReq *AliVideoRequest, req relaycommon.TaskSubmitReq) error {
-	if !isWan27I2VModel(aliReq.Model) {
+// extractImagesFromContent extracts image URLs from a content array
+// (supports both req.Content and metadata.content formats).
+func extractImagesFromContent(content []map[string]interface{}) []string {
+	var images []string
+	for _, item := range content {
+		if itemType, ok := item["type"].(string); ok && itemType == "image_url" {
+			if imageURL, ok := item["image_url"].(map[string]interface{}); ok {
+				if url, ok := imageURL["url"].(string); ok {
+					if trimmed := strings.TrimSpace(url); trimmed != "" {
+						images = append(images, trimmed)
+					}
+				}
+			}
+		}
+	}
+	return images
+}
+
+// extractImagesFromMetadataContent extracts image URLs from metadata.content
+// (BuildingAI format: metadata: {content: [{type: "image_url", image_url: {url: "..."}}]}).
+func extractImagesFromMetadataContent(metadata map[string]interface{}) []string {
+	if metadata == nil {
+		return nil
+	}
+	contentRaw, ok := metadata["content"]
+	if !ok {
+		return nil
+	}
+
+	// Handle []interface{} (when parsed from JSON)
+	contentSlice, ok := contentRaw.([]interface{})
+	if !ok {
+		return nil
+	}
+
+	var images []string
+	for _, item := range contentSlice {
+		itemMap, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		if itemType, ok := itemMap["type"].(string); ok && itemType == "image_url" {
+			if imageURL, ok := itemMap["image_url"].(map[string]interface{}); ok {
+				if url, ok := imageURL["url"].(string); ok {
+					if trimmed := strings.TrimSpace(url); trimmed != "" {
+						images = append(images, trimmed)
+					}
+				}
+			}
+		}
+	}
+	return images
+}
+
+// normalizeInputMedia converts legacy image fields to the new input.media protocol
+// for models that require it (happyhorse series and wan2.7-i2v).
+//
+// For i2v models: builds first_frame (required) and optional last_frame/driving_audio.
+// For r2v models: builds up to 9 reference_image entries.
+func normalizeInputMedia(aliReq *AliVideoRequest, req relaycommon.TaskSubmitReq) error {
+	if !requiresInputMedia(aliReq.Model) {
 		return nil
 	}
 
 	if len(aliReq.Input.Media) == 0 {
-		firstFrameURL := firstNonEmpty(aliReq.Input.FirstFrameURL, aliReq.Input.ImgURL, firstTaskImage(req))
-		lastFrameURL := firstNonEmpty(aliReq.Input.LastFrameURL, secondTaskImage(req))
-		audioURL := aliReq.Input.AudioURL
+		if isR2VModel(aliReq.Model) {
+			// r2v: collect up to 9 reference images from all sources
+			var refImages []string
+			if img := strings.TrimSpace(aliReq.Input.ImgURL); img != "" {
+				refImages = append(refImages, img)
+			}
+			if img := strings.TrimSpace(req.Image); img != "" && img != aliReq.Input.ImgURL {
+				refImages = append(refImages, img)
+			}
+			for _, img := range req.Images {
+				if trimmed := strings.TrimSpace(img); trimmed != "" {
+					refImages = append(refImages, trimmed)
+				}
+			}
+			if img := strings.TrimSpace(req.InputReference); img != "" {
+				refImages = append(refImages, img)
+			}
+			// Extract images from req.Content (OpenAI-style image_url)
+			refImages = append(refImages, extractImagesFromContent(req.Content)...)
+			// Extract images from metadata.content (BuildingAI format)
+			refImages = append(refImages, extractImagesFromMetadataContent(req.Metadata)...)
 
-		if firstFrameURL != "" {
-			aliReq.Input.Media = append(aliReq.Input.Media, AliVideoMedia{
-				Type: "first_frame",
-				URL:  firstFrameURL,
-			})
-		}
-		if lastFrameURL != "" {
-			aliReq.Input.Media = append(aliReq.Input.Media, AliVideoMedia{
-				Type: "last_frame",
-				URL:  lastFrameURL,
-			})
-		}
-		if audioURL != "" {
-			aliReq.Input.Media = append(aliReq.Input.Media, AliVideoMedia{
-				Type: "driving_audio",
-				URL:  audioURL,
-			})
+			// Deduplicate
+			refImages = lo.Uniq(refImages)
+			if len(refImages) > 9 {
+				refImages = refImages[:9]
+			}
+			for _, url := range refImages {
+				aliReq.Input.Media = append(aliReq.Input.Media, AliVideoMedia{
+					Type: "reference_image",
+					URL:  url,
+				})
+			}
+		} else {
+			// i2v: first_frame + optional last_frame/driving_audio
+			// First try to get from standard fields
+			firstFrameURL := firstNonEmpty(aliReq.Input.FirstFrameURL, aliReq.Input.ImgURL, firstTaskImage(req))
+
+			// If no first frame yet, try extracting from content arrays
+			if firstFrameURL == "" {
+				contentImages := extractImagesFromContent(req.Content)
+				if len(contentImages) == 0 {
+					contentImages = extractImagesFromMetadataContent(req.Metadata)
+				}
+				if len(contentImages) > 0 {
+					firstFrameURL = contentImages[0]
+				}
+			}
+
+			lastFrameURL := firstNonEmpty(aliReq.Input.LastFrameURL, secondTaskImage(req))
+			audioURL := aliReq.Input.AudioURL
+
+			if firstFrameURL != "" {
+				aliReq.Input.Media = append(aliReq.Input.Media, AliVideoMedia{
+					Type: "first_frame",
+					URL:  firstFrameURL,
+				})
+			}
+			if lastFrameURL != "" {
+				aliReq.Input.Media = append(aliReq.Input.Media, AliVideoMedia{
+					Type: "last_frame",
+					URL:  lastFrameURL,
+				})
+			}
+			if audioURL != "" {
+				aliReq.Input.Media = append(aliReq.Input.Media, AliVideoMedia{
+					Type: "driving_audio",
+					URL:  audioURL,
+				})
+			}
 		}
 	}
 
 	if len(aliReq.Input.Media) == 0 {
-		return fmt.Errorf("wan2.7-i2v requires image, images, input_reference, or input.media")
+		return fmt.Errorf("model %s requires image, images, input_reference, content[].image_url, metadata.content[].image_url, or input.media", aliReq.Model)
 	}
 
-	// Wan2.7 image-to-video uses the new input.media protocol. Avoid sending
-	// legacy fields that belong to wan2.6 and earlier image-to-video APIs.
+	// Clear legacy fields when using the new protocol
 	aliReq.Input.ImgURL = ""
 	aliReq.Input.FirstFrameURL = ""
 	aliReq.Input.LastFrameURL = ""
@@ -382,7 +526,7 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 		}
 	} else {
 		// 根据模型设置默认分辨率
-		if strings.Contains(req.Model, "t2v") { // image to video
+		if strings.Contains(req.Model, "t2v") { // text to video
 			if strings.HasPrefix(req.Model, "wan2.5") {
 				aliReq.Parameters.Size = "1920*1080"
 			} else if strings.HasPrefix(req.Model, "wan2.2") {
@@ -390,8 +534,13 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 			} else {
 				aliReq.Parameters.Size = "1280*720"
 			}
-		} else {
-			if strings.HasPrefix(req.Model, "wan2.6") {
+		} else { // image/reference to video
+			if strings.Contains(req.Model, "happyhorse") {
+				// happyhorse doesn't accept 480P; default to 720P
+				aliReq.Parameters.Resolution = "720P"
+			} else if strings.HasPrefix(req.Model, "wan2.7") {
+				aliReq.Parameters.Resolution = "720P"
+			} else if strings.HasPrefix(req.Model, "wan2.6") {
 				aliReq.Parameters.Resolution = "1080P"
 			} else if strings.HasPrefix(req.Model, "wan2.5") {
 				aliReq.Parameters.Resolution = "1080P"
@@ -403,6 +552,16 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 				aliReq.Parameters.Resolution = "720P"
 			}
 		}
+	}
+
+	// Normalize resolution: happyhorse rejects 480P, upgrade to 720P
+	if strings.Contains(req.Model, "happyhorse") && aliReq.Parameters.Resolution == "480P" {
+		aliReq.Parameters.Resolution = "720P"
+	}
+
+	// Clear size parameter for i2v/r2v models (only resolution is accepted)
+	if !strings.Contains(req.Model, "t2v") {
+		aliReq.Parameters.Size = ""
 	}
 
 	// 处理时长
@@ -436,7 +595,7 @@ func (a *TaskAdaptor) convertToAliRequest(info *relaycommon.RelayInfo, req relay
 		return nil, errors.New("can't change model with metadata")
 	}
 
-	if err := normalizeWan27I2VInput(aliReq, req); err != nil {
+	if err := normalizeInputMedia(aliReq, req); err != nil {
 		return nil, err
 	}
 

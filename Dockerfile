@@ -1,27 +1,16 @@
-FROM oven/bun:1@sha256:0733e50325078969732ebe3b15ce4c4be5082f18c4ac1a0f0ca4839c2e4e42a7 AS builder
-
-WORKDIR /build/web
-COPY web/package.json web/bun.lock ./
-COPY web/default/package.json ./default/package.json
-COPY web/classic/package.json ./classic/package.json
-RUN bun install --frozen-lockfile
-COPY ./web/default ./default
-COPY ./VERSION /build/VERSION
-RUN cd default && DISABLE_ESLINT_PLUGIN='true' VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
-
-FROM oven/bun:1@sha256:0733e50325078969732ebe3b15ce4c4be5082f18c4ac1a0f0ca4839c2e4e42a7 AS builder-classic
-
-WORKDIR /build/web
-COPY web/package.json web/bun.lock ./
-COPY web/default/package.json ./default/package.json
-COPY web/classic/package.json ./classic/package.json
-RUN bun install --filter ./classic --frozen-lockfile
-COPY ./web/classic ./classic
-COPY ./VERSION /build/VERSION
-RUN cd classic && VITE_REACT_APP_VERSION=$(cat /build/VERSION) bun run build
+# 说明：bun 在容器内拉 npm tarball 时频繁出现 ZlibError，已改为本地预构建前端 dist，
+#       本 Dockerfile 仅在容器内编译 Go 二进制并打包运行镜像。
+# 本地构建步骤（执行一次或前端变更后执行）：
+#   cd web && BUN_CONFIG_REGISTRY=https://registry.npmjs.org/ bun install --no-verify
+#   cd web/default && DISABLE_ESLINT_PLUGIN=true VITE_REACT_APP_VERSION=$(cat ../../VERSION) bun run build
+#   cd web/classic && VITE_REACT_APP_VERSION=$(cat ../../VERSION) bun run build
+# 然后再 docker compose build 即可。
 
 FROM golang:1.26.1-alpine@sha256:2389ebfa5b7f43eeafbd6be0c3700cc46690ef842ad962f6c5bd6be49ed82039 AS builder2
 ENV GO111MODULE=on CGO_ENABLED=0
+# 切换 Go 模块代理为 goproxy.cn（proxy.golang.org 在境内不可达）
+ENV GOPROXY=https://goproxy.cn,direct
+ENV GOSUMDB=sum.golang.google.cn
 
 ARG TARGETOS
 ARG TARGETARCH
@@ -34,8 +23,8 @@ ADD go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-COPY --from=builder /build/web/default/dist ./web/default/dist
-COPY --from=builder-classic /build/web/classic/dist ./web/classic/dist
+# 本地预构建的前端产物会随构建上下文进入 /build/web/{default,classic}/dist，
+# 供 main.go 中的 //go:embed 指令打包进二进制。
 RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
 
 FROM debian:bookworm-slim@sha256:f06537653ac770703bc45b4b113475bd402f451e85223f0f2837acbf89ab020a

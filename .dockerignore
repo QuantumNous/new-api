@@ -9,7 +9,6 @@ docs
 .gocache
 /web/node_modules
 /web/default/node_modules
-/web/default/dist
 /web/classic/node_modules
-/web/classic/dist
+# 注意：/web/default/dist 与 /web/classic/dist 由本地预构建后随构建上下文一起进入镜像
 !THIRD-PARTY-LICENSES.md

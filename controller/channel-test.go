@@ -91,6 +91,23 @@ func shouldUseTaskChannelTest(channel *model.Channel, testModel string) bool {
 			return true
 		}
 	}
+	// 阿里渠道视频模型使用任务型渠道测试
+	if channel.Type == constant.ChannelTypeAli {
+		modelName := strings.ToLower(strings.TrimSpace(testModel))
+		if modelName == "" {
+			models := channel.GetModels()
+			if len(models) > 0 {
+				modelName = strings.ToLower(strings.TrimSpace(models[0]))
+			}
+		}
+		if strings.Contains(modelName, "happyhorse") ||
+			(strings.HasPrefix(modelName, "wan") && (strings.Contains(modelName, "t2v") ||
+			strings.Contains(modelName, "i2v") || strings.Contains(modelName, "r2v") ||
+			strings.Contains(modelName, "kf2v") || strings.Contains(modelName, "s2v") ||
+			strings.Contains(modelName, "videoedit"))) {
+			return true
+		}
+	}
 	return false
 }
 
@@ -107,6 +124,35 @@ func buildAgentPlanVideoTestRequest(modelName string) map[string]interface{} {
 		"ratio":          "adaptive",
 		"duration":       5,
 		"watermark":      false,
+	}
+}
+
+func buildAliVideoTestRequest(modelName string) map[string]interface{} {
+	lowerModel := strings.ToLower(modelName)
+	parameters := map[string]interface{}{
+		"duration":      5,
+		"prompt_extend": true,
+		"watermark":     false,
+	}
+
+	// 根据模型类型设置分辨率或尺寸
+	if strings.Contains(lowerModel, "t2v") {
+		// 文生视频使用 size (格式: 宽*高)
+		parameters["size"] = "1280*720"
+	} else if strings.Contains(lowerModel, "i2v") || strings.Contains(lowerModel, "kf2v") || strings.Contains(lowerModel, "s2v") {
+		// 图生视频使用 resolution
+		parameters["resolution"] = "720P"
+	} else {
+		// 默认使用 size
+		parameters["size"] = "1280*720"
+	}
+
+	return map[string]interface{}{
+		"model": modelName,
+		"input": map[string]interface{}{
+			"prompt": "一只小猫在草地上奔跑，阳光明媚，镜头平稳",
+		},
+		"parameters": parameters,
 	}
 }
 
@@ -137,24 +183,34 @@ func testTaskChannel(channel *model.Channel, testUserID int, testModel string) t
 		}
 	}
 
-	// 构建一个与火山 Agent Plan 视频生成示例一致的最小有效请求。
-	testRequest := buildAgentPlanVideoTestRequest(modelName)
+	// 根据渠道类型构建不同的测试请求
+	var testRequest map[string]interface{}
+	var requestURL string
+	var additionalHeaders map[string]string
+
+	if channel.Type == constant.ChannelTypeAli {
+		// 阿里百炼视频生成请求
+		testRequest = buildAliVideoTestRequest(modelName)
+		requestURL = strings.TrimRight(strings.TrimSpace(baseURL), "/") + "/api/v1/services/aigc/video-generation/video-synthesis"
+		additionalHeaders = map[string]string{
+			"X-DashScope-Async": "enable",
+		}
+	} else {
+		// 火山 Agent Plan 视频生成请求
+		testRequest = buildAgentPlanVideoTestRequest(modelName)
+		normalizedBase := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+		if normalizedBase == "https://ark.cn-beijing.volces.com/api/plan" || normalizedBase == "https://ark.cn-beijing.volces.com/api/plan/v3" {
+			requestURL = normalizedBase + "/contents/generations/tasks"
+		} else {
+			requestURL = normalizedBase + "/api/v3/contents/generations/tasks"
+		}
+	}
 
 	reqBody, err := json.Marshal(testRequest)
 	if err != nil {
 		return testResult{
 			localErr: fmt.Errorf("failed to marshal test request: %w", err),
 		}
-	}
-
-	// 构建请求 URL
-	var requestURL string
-	// 检测是否是火山 Agent Plan 基础 URL
-	normalizedBase := strings.TrimRight(strings.TrimSpace(baseURL), "/")
-	if normalizedBase == "https://ark.cn-beijing.volces.com/api/plan" || normalizedBase == "https://ark.cn-beijing.volces.com/api/plan/v3" {
-		requestURL = normalizedBase + "/contents/generations/tasks"
-	} else {
-		requestURL = normalizedBase + "/api/v3/contents/generations/tasks"
 	}
 
 	// 创建 HTTP POST 请求
@@ -169,6 +225,11 @@ func testTaskChannel(channel *model.Channel, testUserID int, testModel string) t
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Authorization", "Bearer "+channel.Key)
+
+	// 设置额外的请求头
+	for key, value := range additionalHeaders {
+		req.Header.Set(key, value)
+	}
 
 	// 发送请求（使用较短超时）
 	client := &http.Client{
@@ -284,6 +345,16 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 			// VolcEngine ASR (SeedASR) models
 			if channel.Type == constant.ChannelTypeVolcEngine && isAudioTranscriptionModel(testModel) {
 				requestPath = "/v1/audio/transcriptions"
+			}
+
+			// 阿里百炼视频生成模型(happyhorse/wan 系列视频模型)
+			lowerTestModel := strings.ToLower(testModel)
+			if channel.Type == constant.ChannelTypeAli && (strings.Contains(lowerTestModel, "happyhorse") ||
+				(strings.HasPrefix(lowerTestModel, "wan") && (strings.Contains(lowerTestModel, "t2v") ||
+				strings.Contains(lowerTestModel, "i2v") || strings.Contains(lowerTestModel, "r2v") ||
+				strings.Contains(lowerTestModel, "kf2v") || strings.Contains(lowerTestModel, "s2v") ||
+				strings.Contains(lowerTestModel, "videoedit")))) {
+				requestPath = "/v1/video/generations"
 			}
 
 			// responses-only models
