@@ -235,6 +235,30 @@ func TryTieredSettle(relayInfo *relaycommon.RelayInfo, params billingexpr.TokenP
 	return true, tr.ActualQuotaAfterGroup, &tr
 }
 
+// applyTieredMinimumCharge lifts a tiered_expr settlement that rounded below one
+// quota unit up to the same one-quota minimum the ratio path already enforces.
+//
+// Both ratio-path settlements guard that minimum on the model ratio being
+// non-zero — calculateTextQuotaSummary and calculateAudioQuota use
+// `modelRatio * groupRatio != 0` so a genuinely free model keeps costing
+// nothing. Tiered billing carries no model ratio (modelPriceHelperTiered leaves
+// PriceData.ModelRatio at its zero value), so that guard reads every
+// expression-priced model as free and the minimum never applies: a priced
+// request whose cost rounds below one quota settles at zero. The equivalent
+// "this request carries a positive price" test for an expression is its own
+// pre-group cost, which is what this function uses instead.
+func applyTieredMinimumCharge(quota int, billable bool, groupRatio float64, result *billingexpr.TieredResult) int {
+	if quota != 0 || !billable || groupRatio == 0 {
+		return quota
+	}
+	// A nil result means the expression failed and the caller fell back to the
+	// pre-consumed hold; there is no settled price to reason about.
+	if result == nil || result.ActualQuotaBeforeGroup <= 0 {
+		return quota
+	}
+	return 1
+}
+
 // A failed evaluation retains the reservation and its estimated billing unit.
 // Successful evaluations always use the actual branch, including zero prices.
 func isFixedPriceSettlement(info *relaycommon.RelayInfo, result *billingexpr.TieredResult) bool {
