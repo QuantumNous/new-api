@@ -44,6 +44,7 @@ import { useMediaQuery } from '@/hooks'
 import { getUserGroups } from '@/lib/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
+import { getClientFamilies } from '../api'
 import { LOG_TYPE_ALL_VALUE, LOG_TYPE_FILTERS } from '../constants'
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
@@ -137,6 +138,11 @@ export function CommonLogsFilterBar<TData>(
     queryKey: ['user-groups'],
     queryFn: async () => requireServerSuccess(await getUserGroups()),
     enabled: !isAdmin,
+  })
+  const { data: clientFamilies } = useQuery({
+    queryKey: ['client-families'],
+    queryFn: getClientFamilies,
+    staleTime: 60_000,
   })
   const groupOptions = useMemo(() => {
     const groups = isAdmin
@@ -373,25 +379,16 @@ export function CommonLogsFilterBar<TData>(
       <Combobox
         aria-label={t('Client family')}
         placeholder={t('Client family')}
-        options={Object.entries({
-          codex: 'Codex',
-          claude_code: 'Claude Code',
-          pi: 'Pi',
-          opencode: 'OpenCode',
-          zcode: 'ZCode',
-          dsh: 'DeepSeek Harness (DSH)',
-          newapi: 'NewAPI',
-          openclaw: 'OpenClaw',
-          cherry_studio: 'Cherry Studio',
-          openai_sdk: 'OpenAI SDK',
-          node: 'Node',
-          bun: 'Bun',
-          python: 'Python',
-          browser: t('Browser'),
-          curl: 'curl',
-          unknown: t('Unknown client'),
-          unrecorded: t('Not recorded'),
-        }).map(([value, label]) => ({ value, label }))}
+        options={[
+          ...(Array.isArray(clientFamilies)
+            ? clientFamilies.map((item) => ({
+                ...item,
+                label: item.value === 'browser' ? t('Browser') : item.label,
+              }))
+            : []),
+          { value: 'unknown', label: t('Unknown client') },
+          { value: 'unrecorded', label: t('Not recorded') },
+        ]}
         value={filters.clientFamily || ''}
         onValueChange={(value) => handleChange('clientFamily', value ?? '')}
         className='h-8 min-w-0 text-sm'

@@ -19,6 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { Monitor } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import changzhengIcon from '@/assets/client-icons/changzheng.webp'
+import greyfieldIcon from '@/assets/client-icons/greyfield.webp'
+import taffyIcon from '@/assets/client-icons/taffyOfficial.webp'
 import { CopyButton } from '@/components/copy-button'
 import {
   Popover,
@@ -37,11 +40,15 @@ export interface ClientSnapshot {
   display_name: string
   version: string
   confidence: string
+  kind?: string
   user_agent: string
   truncated: boolean
 }
 
 const gradients: Record<string, string> = {
+  changzheng: 'from-red-500/15',
+  greyfield: 'from-slate-500/15',
+  taffyofficial: 'from-pink-500/15',
   codex: 'from-zinc-500/20 dark:from-zinc-300/15',
   claude_code: 'from-orange-500/15',
   pi: 'from-blue-500/15',
@@ -49,9 +56,28 @@ const gradients: Record<string, string> = {
   newapi: 'from-cyan-600/15',
   zcode: 'from-gray-500/15',
   dsh: 'from-blue-500/15',
+  mimocode: 'from-orange-500/15',
+  hertz: 'from-cyan-500/15',
 }
 
 function ClientIcon(props: { family: string }) {
+  const portraits: Record<string, string> = {
+    changzheng: changzhengIcon,
+    greyfield: greyfieldIcon,
+    taffyofficial: taffyIcon,
+  }
+  if (portraits[props.family]) {
+    return (
+      <img
+        src={portraits[props.family]}
+        alt=''
+        aria-hidden
+        width={28}
+        height={28}
+        className='size-7 shrink-0 rounded-md object-cover'
+      />
+    )
+  }
   const icons: Record<string, string> = {
     codex: 'Codex',
     claude_code: 'ClaudeCode',
@@ -60,6 +86,7 @@ function ClientIcon(props: { family: string }) {
     dsh: 'DeepSeek',
     openclaw: 'OpenClaw',
     cherry_studio: 'CherryStudio',
+    mimocode: 'XiaomiMiMo',
   }
   const icon = icons[props.family]
   return icon ? (
@@ -81,21 +108,34 @@ export function ClientIdentity(props: { client?: ClientSnapshot }) {
   }
   let category = client.display_name
   if (
-    ['codex', 'claude_code', 'pi', 'opencode', 'zcode', 'dsh'].includes(
-      client.family
-    )
+    [
+      'codex',
+      'claude_code',
+      'pi',
+      'opencode',
+      'zcode',
+      'dsh',
+      'mimocode',
+    ].includes(client.family)
   ) {
     category = t('Coding client')
   }
   if (client.family === 'newapi') category = t('API gateway')
   if (client.family === 'unknown') category = t('Unknown client')
+  if (client.kind === 'sdk') category = t('SDK client')
+  if (client.kind === 'transport') category = t('HTTP client or runtime')
   let confidenceLabel = t('Unknown client')
+  if (client.confidence === 'unverified') {
+    confidenceLabel = t('Parsed identifier')
+  }
   if (client.confidence === 'inferred') confidenceLabel = t('Inferred client')
   if (client.confidence === 'identified') {
     confidenceLabel = t('Recognized identifier')
   }
   const name =
-    client.family === 'unknown' ? t('Unknown client') : client.display_name
+    client.family === 'unknown' && client.confidence !== 'unverified'
+      ? t('Unknown client')
+      : client.display_name
   return (
     <Popover>
       <PopoverTrigger
@@ -107,6 +147,7 @@ export function ClientIdentity(props: { client?: ClientSnapshot }) {
       >
         <ClientIcon family={client.family} />
         <span className='truncate'>{name}</span>
+
       </PopoverTrigger>
       <PopoverContent
         align='start'

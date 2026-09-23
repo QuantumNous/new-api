@@ -6786,6 +6786,9 @@
     "Zhipu": "智谱",
     "Zhipu GLM": "智谱GLM",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Parsed identifier": "名称解析",
+    "SDK client": "SDK 客户端",
+    "HTTP client or runtime": "HTTP 客户端或运行时"
   }
 }

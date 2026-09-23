@@ -27,7 +27,9 @@ import zh from '@/i18n/locales/zh.json'
 
 import { ClientIdentity, type ClientSnapshot } from '../client-identity'
 
-vi.mock('@lobehub/icons', () => ({ Codex: undefined, NewAPI: undefined }))
+vi.mock('@/lib/lobe-icon', () => ({
+  getLobeIcon: (name: string) => <span title={name} />,
+}))
 afterEach(cleanup)
 const client: ClientSnapshot = {
   client_key: 'codex:desktop',
@@ -46,11 +48,48 @@ it('shows historical missing metadata as not recorded without guessing a client'
   expect(screen.queryByRole('button')).not.toBeInTheDocument()
 })
 
+it('shows MiMo Code with its Xiaomi MiMo brand icon', async () => {
+  render(
+    <ClientIdentity
+      client={{
+        ...client,
+        client_key: 'mimocode:desktop',
+        family: 'mimocode',
+        variant: 'desktop',
+        display_name: 'MiMo Code Desktop',
+        version: 'bdfe497',
+      }}
+    />
+  )
+  expect(
+    screen.getByRole('button', { name: 'MiMo Code Desktop' })
+  ).toBeVisible()
+  expect(await screen.findByTitle('XiaomiMiMo')).toBeInTheDocument()
+})
+
+it.each([
+  ['changzheng', 'changzheng'],
+  ['greyfield', 'greyfield'],
+  ['taffyofficial', 'taffyOfficial'],
+])('shows the dedicated portrait for %s', (family, name) => {
+  render(<ClientIdentity client={{ ...client, family, display_name: name }} />)
+  const button = screen.getByRole('button', { name })
+  const portrait = button.querySelector('img')
+  expect(portrait).toHaveAttribute(
+    'src',
+    expect.stringContaining(`${name}.webp`)
+  )
+  expect(portrait).toHaveAttribute('aria-hidden', 'true')
+  expect(portrait).toHaveAttribute('width', '28')
+})
+
 it('opens client details with keyboard, copies only UA and returns focus on escape', async () => {
   const user = userEvent.setup()
   const write = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue()
   render(<ClientIdentity client={client} />)
-  const trigger = screen.getByRole('button', { name: 'Codex Desktop' })
+  const trigger = screen.getByRole('button', {
+    name: 'Codex Desktop',
+  })
   await user.tab()
   expect(trigger).toHaveFocus()
   await user.keyboard('{Enter}')
@@ -108,4 +147,46 @@ it('updates unknown client and detail copy when the language changes', async () 
     await screen.findByRole('button', { name: '未知客户端' })
   ).toBeInTheDocument()
   expect(screen.getByText('识别来源')).toBeInTheDocument()
+})
+
+it('shows only the parsed product name and preserves its version and original UA', async () => {
+  const user = userEvent.setup()
+  render(
+    <ClientIdentity
+      client={{
+        ...client,
+        family: 'unknown',
+        display_name: 'MyTool',
+        confidence: 'unverified',
+        version: '1.2',
+        user_agent: 'MyTool/1.2',
+      }}
+    />
+  )
+  expect(screen.queryByText('Unverified client')).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: /MyTool/ }))
+  expect(screen.getByText('MyTool/1.2')).toBeVisible()
+  expect(screen.getByText('1.2')).toBeVisible()
+  expect(screen.queryByText('Recognized identifier')).not.toBeInTheDocument()
+})
+
+it('keeps a parsed name while translating its details into Chinese', async () => {
+  const instance = createInstance()
+  await instance.init({ lng: 'zh', resources: { en, zh } })
+  const user = userEvent.setup()
+  render(
+    <I18nextProvider i18n={instance}>
+      <ClientIdentity
+        client={{
+          ...client,
+          family: 'unknown',
+          confidence: 'unverified',
+          display_name: 'MyTool',
+        }}
+      />
+    </I18nextProvider>
+  )
+  await user.click(screen.getByRole('button', { name: 'MyTool' }))
+  expect(screen.getByText('名称解析')).toBeVisible()
+  expect(screen.queryByText('未验证客户端')).not.toBeInTheDocument()
 })

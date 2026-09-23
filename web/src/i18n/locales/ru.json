@@ -6786,6 +6786,9 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Parsed identifier": "Распознанное имя",
+    "SDK client": "SDK-клиент",
+    "HTTP client or runtime": "HTTP-клиент или среда выполнения"
   }
 }

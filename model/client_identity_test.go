@@ -23,22 +23,28 @@ func TestClientRecognition(t *testing.T) {
 		{"codex_cli_rs/0.1.0", "codex:cli"}, {"codex_vscode/1.2.3", "codex:vscode"}, {"codex_exec/1.0", "codex:exec"},
 		{"codex-tui/0.155.1 (Mac OS 26.5.2; arm64) Apple_Terminal/470.2 (codex-tui; 0.155.1)", "codex:tui"},
 		{"codex_sdk_ts/1.0", "codex:sdk"}, {"codex-acp/1.0", "codex:acp"},
-		{"claude-cli/2.0", "claude_code:cli"}, {"pi/1.0", "pi:cli"}, {"opencode/1.0", "opencode:cli"},
+		{"claude-cli/2.0", "claude_code:cli"}, {"claude-cli/diagnostic", "claude_code:diagnostic"}, {"pi/1.0", "pi:cli"}, {"opencode/1.0", "opencode:cli"},
 		{"ZCode/1.0", "zcode:versioned"}, {"ZCode/unknown", "zcode:unknown"},
-		{"deepseek-harness/1.0", "dsh:cli"}, {"Go-http-client/2.0", "newapi:go"},
+		{"deepseek-harness/1.0", "dsh:cli"}, {"Go-http-client/2.0", "go:http"},
 		{"OpenClaw/1.0", "openclaw:app"}, {"CherryStudio/1.0", "cherry_studio:desktop"},
-		{"OpenAI/Python 1.0", "openai_sdk:python"}, {"OpenAI/JS 1.0", "openai_sdk:javascript"},
-		{"node", "node:runtime"}, {"Bun/1.0", "bun:runtime"}, {"python-httpx/1.0", "python:httpx"},
+		{"CLI/2.63.2 CodeBuddy/2.63.2", "workbuddy:cli"}, {"CLI/2.63.2 WorkBuddy/2.63.2", "workbuddy:cli"},
+		{"WorkBuddy/1.0", "workbuddy:app"}, {"AsyncOpenAI/Python 2.24.0", "openai_sdk:python"}, {"OpenAI/Python 1.0", "openai_sdk:python"}, {"OpenAI/JS 1.0", "openai_sdk:javascript"},
+		{"tender-agent-base/0.144.3 (Debian 12.0.0; x86_64) xterm (tender-agent-base; 0.1.0)", "tender:agent-base"},
+		{"mimocode/desktop-bdfe497 ai-sdk/provider-utils/4.0.23 runtime/node.js/24", "mimocode:desktop"},
+		{"node", "node:runtime"}, {"python", "python:runtime"}, {"hertz", "hertz:http"}, {"hertz/0.10.3", "hertz:http"}, {"Bun/1.0", "bun:runtime"}, {"python-httpx/1.0", "python:httpx"}, {"python/3.12", "python:runtime"}, {"urllib3/2.2.2", "python:urllib3"},
 		{"Mozilla/5.0 (Windows NT 10.0)", "browser:browser"}, {"curl/8.0", "curl:cli"},
 	} {
 		t.Run(tc.ua, func(t *testing.T) { assert.Equal(t, tc.key, common.IdentifyClient(tc.ua).ClientKey) })
 	}
-	for _, ua := range []string{"my codex app", "gpt-5-codex", "x Codex Desktop/1.0", "\nCodex Desktop/1.0", "ZCode/foo", "codex_cli_rs/1.0evil"} {
+	for _, ua := range []string{"my codex app", "gpt-5-codex", "\nCodex Desktop/1.0", "Codex\x00 Desktop/1.0", "(Codex Desktop/1.0)", "Codex DesktopEvil/1.0"} {
 		assert.Equal(t, "unknown", common.IdentifyClient(ua).Family)
 	}
 	assert.Equal(t, common.IdentifyClient("Codex Desktop/1.0").ClientKey, common.IdentifyClient("Codex Desktop/2.0").ClientKey)
 	assert.NotEqual(t, common.IdentifyClient("ZCode/1.0").ClientKey, common.IdentifyClient("ZCode/unknown").ClientKey)
-	assert.Equal(t, "inferred", common.IdentifyClient("Go-http-client/2.0").Confidence)
+	assert.Equal(t, "Go HTTP", common.IdentifyClient("Go-http-client/2.0").DisplayName)
+	mimo := common.IdentifyClient("mimocode/desktop-bdfe497 ai-sdk/provider-utils/4.0.23 runtime/node.js/24")
+	assert.Equal(t, "MiMo Code Desktop", mimo.DisplayName)
+	assert.Equal(t, "bdfe497", mimo.Version)
 	long := strings.Repeat("界", 1000)
 	first, second := common.IdentifyClient(long+"a"), common.IdentifyClient(long+"b")
 	assert.NotEqual(t, first.ClientKey, second.ClientKey)
@@ -46,6 +52,55 @@ func TestClientRecognition(t *testing.T) {
 	assert.True(t, first.Truncated)
 	assert.True(t, utf8.ValidString(first.UserAgent))
 	assert.Equal(t, "abc", common.IdentifyClient("a\x00b\nc\u202e").UserAgent)
+}
+
+func TestGenericClientRecognition(t *testing.T) {
+	for _, tc := range []struct{ ua, key, version string }{
+		{"changzheng", "changzheng:app", ""},
+		{"changzheng/1.0", "changzheng:app", "1.0"},
+		{"greyfield", "greyfield:app", ""},
+		{"greyfield/unknown", "greyfield:app", "unknown"},
+		{"taffyOfficial", "taffyofficial:app", ""},
+		{"taffyOfficial/1.0 OpenAI/Python 2.24.0", "taffyofficial:app", "1.0"},
+		{"codex_cli_rs", "codex:cli", ""},
+		{"codex_cli_rs/", "codex:cli", ""},
+		{"codex_cli_rs/unknown", "codex:cli", "unknown"},
+		{"codex_cli_rs/bdfe497", "codex:cli", "bdfe497"},
+		{"codex_cli_rs/v1.2.3", "codex:cli", "v1.2.3"},
+		{"claude-cli/diagnostic (Windows)", "claude_code:diagnostic", ""},
+		{"OpenAI/Python 2.24.0 WorkBuddy/next", "workbuddy:app", "next"},
+		{"WorkBuddy/next claude-cli/diagnostic", "workbuddy:app", "next"},
+		{"python-httpx/0.28.1 OpenAI/Python 2.24.0", "openai_sdk:python", "2.24.0"},
+		{"Mozilla/5.0 (WorkBuddy/1.0)", "browser:browser", "5.0"},
+		{"CLI/unknown CodeBuddy/dev", "workbuddy:cli", "dev"},
+		{"mimocode/desktop-unknown", "mimocode:desktop", "unknown"},
+	} {
+		t.Run(tc.ua, func(t *testing.T) {
+			client := common.IdentifyClient(tc.ua)
+			assert.Equal(t, tc.key, client.ClientKey)
+			assert.Equal(t, tc.version, client.Version)
+		})
+	}
+	first := common.IdentifyClient("MyTool/1.2 OpenAI/Python 2.24.0")
+	second := common.IdentifyClient("MyTool/2.0")
+	assert.Equal(t, "MyTool", first.DisplayName)
+	assert.Equal(t, "1.2", first.Version)
+	assert.Equal(t, "unknown", first.Family)
+	assert.Equal(t, "unverified", first.Confidence)
+	assert.Equal(t, first.ClientKey, second.ClientKey)
+	assert.NotEqual(t, first.ClientKey, common.IdentifyClient("OtherTool/1.2").ClientKey)
+	assert.Equal(t, "Python HTTPX", common.IdentifyClient("python-httpx/0.28.1").DisplayName)
+	assert.Equal(t, "unknown", common.IdentifyClient("MyTool/"+strings.Repeat("a", 129)).Confidence)
+	families := make(map[string]string)
+	for _, option := range common.RecognizedClientFamilies() {
+		assert.NotContains(t, families, option.Value)
+		families[option.Value] = option.Label
+	}
+	assert.Equal(t, "Go HTTP", families["go"])
+	assert.Equal(t, "NewAPI (legacy)", families["newapi"])
+	for _, family := range []string{"workbuddy", "mimocode", "hertz", "tender", "changzheng", "greyfield", "taffyofficial"} {
+		assert.Contains(t, families, family)
+	}
 }
 
 func TestClientLogDatabaseMatrix(t *testing.T) {

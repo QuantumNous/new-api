@@ -10,6 +10,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func ListClientFamilies(c *gin.Context) {
+	common.ApiSuccess(c, common.RecognizedClientFamilies())
+}
+
 func GetAllLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	logType, _ := strconv.Atoi(c.Query("type"))

@@ -6786,6 +6786,9 @@
     "Zhipu": "智譜",
     "Zhipu GLM": "智譜GLM",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Parsed identifier": "名稱解析",
+    "SDK client": "SDK 用戶端",
+    "HTTP client or runtime": "HTTP 用戶端或執行階段"
   }
 }
