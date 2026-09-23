@@ -26,6 +26,20 @@ vi.mock('@lobehub/icons/es/Mistral/components/Color.js', () => {
 })
 
 describe('Lobe icons', () => {
+  it.each(['Changzheng', 'Greyfield', 'TaffyOfficial'])(
+    'renders the custom character mark %s as a themed SVG at the requested size',
+    (name) => {
+      const { container } = render(getLobeIcon(name, 18))
+      const icon = container.querySelector('svg')
+      expect(icon).toHaveAttribute('width', '18')
+      expect(icon).toHaveAttribute('height', '18')
+      expect(icon).toHaveAttribute('fill', 'currentColor')
+      expect(icon).toHaveAttribute('aria-hidden', 'true')
+      expect(container.querySelector('img')).toBeNull()
+      expect(getLobeIconNames()).toContain(name)
+    }
+  )
+
   it('loads a named variant with its configured size and accessibility props', async () => {
     render(
       getLobeIcon('Claude.Color.size={32}.role="img".aria-label="Claude icon"')

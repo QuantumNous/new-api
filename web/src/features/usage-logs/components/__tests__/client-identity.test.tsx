@@ -68,19 +68,15 @@ it('shows MiMo Code with its Xiaomi MiMo brand icon', async () => {
 })
 
 it.each([
-  ['changzheng', 'changzheng'],
-  ['greyfield', 'greyfield'],
-  ['taffyofficial', 'taffyOfficial'],
-])('shows the dedicated portrait for %s', (family, name) => {
+  ['changzheng', 'changzheng', 'Changzheng'],
+  ['greyfield', 'greyfield', 'Greyfield'],
+  ['taffyofficial', 'taffyOfficial', 'TaffyOfficial'],
+])('shows a distinct vector mark and name for %s', (family, name, icon) => {
   render(<ClientIdentity client={{ ...client, family, display_name: name }} />)
   const button = screen.getByRole('button', { name })
-  const portrait = button.querySelector('img')
-  expect(portrait).toHaveAttribute(
-    'src',
-    expect.stringContaining(`${name}.webp`)
-  )
-  expect(portrait).toHaveAttribute('aria-hidden', 'true')
-  expect(portrait).toHaveAttribute('width', '28')
+  expect(button).toBeVisible()
+  expect(button.querySelector('img')).toBeNull()
+  expect(screen.getByTitle(icon)).toBeInTheDocument()
 })
 
 it('opens client details with keyboard, copies only UA and returns focus on escape', async () => {

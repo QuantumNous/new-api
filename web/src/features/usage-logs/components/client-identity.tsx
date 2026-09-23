@@ -19,9 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { Monitor } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import changzhengIcon from '@/assets/client-icons/changzheng.webp'
-import greyfieldIcon from '@/assets/client-icons/greyfield.webp'
-import taffyIcon from '@/assets/client-icons/taffyOfficial.webp'
 import { CopyButton } from '@/components/copy-button'
 import {
   Popover,
@@ -61,24 +58,10 @@ const gradients: Record<string, string> = {
 }
 
 function ClientIcon(props: { family: string }) {
-  const portraits: Record<string, string> = {
-    changzheng: changzhengIcon,
-    greyfield: greyfieldIcon,
-    taffyofficial: taffyIcon,
-  }
-  if (portraits[props.family]) {
-    return (
-      <img
-        src={portraits[props.family]}
-        alt=''
-        aria-hidden
-        width={28}
-        height={28}
-        className='size-7 shrink-0 rounded-md object-cover'
-      />
-    )
-  }
   const icons: Record<string, string> = {
+    changzheng: 'Changzheng',
+    greyfield: 'Greyfield',
+    taffyofficial: 'TaffyOfficial',
     codex: 'Codex',
     claude_code: 'ClaudeCode',
     opencode: 'OpenCode',
@@ -147,7 +130,6 @@ export function ClientIdentity(props: { client?: ClientSnapshot }) {
       >
         <ClientIcon family={client.family} />
         <span className='truncate'>{name}</span>
-
       </PopoverTrigger>
       <PopoverContent
         align='start'
