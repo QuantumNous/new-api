@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { handleDropdownMenuItemSelect } from './dropdown-menu-events'
 
@@ -52,8 +51,8 @@ describe('DropdownMenuItem onSelect compatibility', () => {
       selected = true
     })
 
-    assert.equal(selected, true)
-    assert.equal(event.baseUIHandlerPrevented, false)
+    expect(selected).toBe(true)
+    expect(event.baseUIHandlerPrevented).toBe(false)
   })
 
   test('keeps the Base UI menu open when onSelect prevents default', () => {
@@ -63,7 +62,7 @@ describe('DropdownMenuItem onSelect compatibility', () => {
       selectEvent.preventDefault()
     })
 
-    assert.equal(event.defaultPrevented, true)
-    assert.equal(event.baseUIHandlerPrevented, true)
+    expect(event.defaultPrevented).toBe(true)
+    expect(event.baseUIHandlerPrevented).toBe(true)
   })
 })

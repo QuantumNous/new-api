@@ -62,9 +62,12 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { RelatedPolicyLink } from '@/features/system-settings/request-policies/related-policy-link'
 import { useStatus } from '@/hooks/use-status'
 import { getUserModels, getUserGroups } from '@/lib/api'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { handleServerError } from '@/lib/handle-server-error'
+import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import {
@@ -115,7 +118,7 @@ export function ApiKeysMutateDrawer({
   // Fetch models
   const { data: modelsData } = useQuery({
     queryKey: ['user-models'],
-    queryFn: getUserModels,
+    queryFn: async () => requireServerSuccess(await getUserModels()),
     enabled: open,
     staleTime: 0,
   })
@@ -127,7 +130,7 @@ export function ApiKeysMutateDrawer({
     isFetching: groupsFetching,
   } = useQuery({
     queryKey: ['user-groups'],
-    queryFn: getUserGroups,
+    queryFn: async () => requireServerSuccess(await getUserGroups()),
     enabled: open,
     staleTime: 0,
   })
@@ -138,7 +141,8 @@ export function ApiKeysMutateDrawer({
     isFetching: apiKeyFetching,
   } = useQuery({
     queryKey: ['api-key', currentRowId],
-    queryFn: () => getApiKey(currentRowId ?? 0),
+    queryFn: async () =>
+      requireServerSuccess(await getApiKey(currentRowId ?? 0)),
     enabled: open && isUpdate && currentRowId !== undefined,
     staleTime: 0,
   })
@@ -149,7 +153,7 @@ export function ApiKeysMutateDrawer({
     isFetching: autoGroupsFetching,
   } = useQuery({
     queryKey: ['token-auto-groups'],
-    queryFn: getTokenAutoGroups,
+    queryFn: async () => requireServerSuccess(await getTokenAutoGroups()),
     enabled: open,
     staleTime: 0,
   })
@@ -292,7 +296,7 @@ export function ApiKeysMutateDrawer({
           onOpenChange(false)
           triggerRefresh()
         } else {
-          toast.error(result.message || t(ERROR_MESSAGES.UPDATE_FAILED))
+          handleServerError(result, t(ERROR_MESSAGES.UPDATE_FAILED))
         }
       } else {
         // Create mode - handle batch creation
@@ -310,7 +314,7 @@ export function ApiKeysMutateDrawer({
           if (result.success) {
             successCount++
           } else {
-            toast.error(result.message || t(ERROR_MESSAGES.CREATE_FAILED))
+            handleServerError(result, t(ERROR_MESSAGES.CREATE_FAILED))
             break
           }
         }
@@ -325,8 +329,8 @@ export function ApiKeysMutateDrawer({
           triggerRefresh()
         }
       }
-    } catch {
-      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
+    } catch (error) {
+      handleServerError(error, t(ERROR_MESSAGES.UNEXPECTED))
     } finally {
       setIsSubmitting(false)
     }
@@ -497,6 +501,7 @@ export function ApiKeysMutateDrawer({
                           {t(
                             'When enabled, if channels in the current group fail, it will try channels in the next group in order.'
                           )}
+                          <RelatedPolicyLink section='routing' />
                         </FormDescription>
                       </div>
                       <FormControl>

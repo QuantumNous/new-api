@@ -1,7 +1,9 @@
 package service
 
 import (
+	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -10,7 +12,9 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
@@ -153,7 +157,12 @@ func (s *BillingSession) Reserve(targetQuota int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.settled || s.refunded || s.trusted || targetQuota <= s.preConsumedQuota {
+	imageRequest := false
+	if s.relayInfo != nil {
+		_, imageRequest = s.relayInfo.Request.(*dto.ImageRequest)
+		imageRequest = imageRequest || s.relayInfo.ImageRequestCount > 0
+	}
+	if s.settled || s.refunded || s.trusted && !imageRequest || targetQuota <= s.preConsumedQuota {
 		return nil
 	}
 
@@ -162,7 +171,7 @@ func (s *BillingSession) Reserve(targetQuota int) error {
 		return nil
 	}
 
-	if err := s.reserveFunding(delta); err != nil {
+	if err := s.reserveFunding(delta, imageRequest); err != nil {
 		return err
 	}
 	if err := s.reserveToken(delta); err != nil {
@@ -173,6 +182,9 @@ func (s *BillingSession) Reserve(targetQuota int) error {
 	s.preConsumedQuota += delta
 	s.tokenConsumed += delta
 	s.extraReserved += delta
+	if imageRequest {
+		s.trusted = false
+	}
 	s.syncRelayInfo()
 	return nil
 }
@@ -214,6 +226,16 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 			s.tokenConsumed = 0
 		}
 		// TODO: model 层应定义哨兵错误（如 ErrNoActiveSubscription），用 errors.Is 替代字符串匹配
+		if errors.Is(err, ErrInsufficientWalletQuota) {
+			userQuota, quotaErr := model.GetUserQuota(s.relayInfo.UserId, false)
+			if quotaErr != nil {
+				userQuota = 0
+			}
+			return types.NewErrorWithStatusCode(
+				fmt.Errorf("用户额度不足, 剩余额度: %s", logger.FormatQuota(userQuota)),
+				types.ErrorCodeInsufficientUserQuota, http.StatusForbidden,
+				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+		}
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "no active subscription") || strings.Contains(errMsg, "subscription quota insufficient") {
 			return types.NewErrorWithStatusCode(fmt.Errorf("订阅额度不足或未配置订阅: %s", errMsg), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
@@ -229,9 +251,20 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 	return nil
 }
 
-func (s *BillingSession) reserveFunding(delta int) error {
+func (s *BillingSession) reserveFunding(delta int, requireAvailableQuota bool) error {
 	switch funding := s.funding.(type) {
 	case *WalletFunding:
+		if requireAvailableQuota {
+			// Image quantity is known before submission, including retries and
+			// overrides. Reserve atomically instead of admitting wallet debt.
+			if err := funding.PreConsume(delta); err != nil {
+				if errors.Is(err, ErrInsufficientWalletQuota) {
+					return types.NewErrorWithStatusCode(err, types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
+				}
+				return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
+			}
+			return nil
+		}
 		// 与结算补扣（SettleBilling 正差额 → WalletFunding.Settle）语义一致：
 		// 全额无条件扣减，余额不足的部分记为欠费（余额可为负），不中断请求，
 		// 保证日志记录的预扣额度与用户余额的实际变动始终对账一致。
@@ -289,8 +322,8 @@ func (s *BillingSession) shouldTrust(c *gin.Context) bool {
 		return false
 	}
 
-	trustQuota := common.GetTrustQuota()
-	if trustQuota <= 0 {
+	trustQuota := operation_setting.GetQuotaSetting().TrustQuotaUSD * common.QuotaPerUnit
+	if trustQuota <= 0 || math.IsNaN(trustQuota) || math.IsInf(trustQuota, 0) {
 		return false
 	}
 
@@ -298,7 +331,7 @@ func (s *BillingSession) shouldTrust(c *gin.Context) bool {
 	tokenTrusted := s.relayInfo.TokenUnlimited
 	if !tokenTrusted {
 		tokenQuota := c.GetInt("token_quota")
-		tokenTrusted = tokenQuota > trustQuota
+		tokenTrusted = float64(tokenQuota) > trustQuota
 	}
 	if !tokenTrusted {
 		return false
@@ -306,7 +339,7 @@ func (s *BillingSession) shouldTrust(c *gin.Context) bool {
 
 	switch s.funding.Source() {
 	case BillingSourceWallet:
-		return s.relayInfo.UserQuota > trustQuota
+		return float64(s.relayInfo.UserQuota) > trustQuota
 	case BillingSourceSubscription:
 		// 订阅不能启用信任旁路。原因：
 		// 1. PreConsumeUserSubscription 要求 amount>0 来创建预扣记录并锁定订阅
@@ -390,7 +423,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 			funding: &SubscriptionFunding{
 				requestId: relayInfo.RequestId,
 				userId:    relayInfo.UserId,
-				modelName: relayInfo.OriginModelName,
+				modelName: relayInfo.GetBillingModelName(),
 				amount:    subConsume,
 			},
 		}

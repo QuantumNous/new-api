@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"regexp"
+	"slices"
 	"strings"
 	"sync"
 
@@ -11,18 +12,51 @@ import (
 )
 
 type ChannelSettings struct {
-	ForceFormat            bool   `json:"force_format,omitempty"`
-	ThinkingToContent      bool   `json:"thinking_to_content,omitempty"`
-	Proxy                  string `json:"proxy"`
-	PassThroughBodyEnabled bool   `json:"pass_through_body_enabled,omitempty"`
-	SystemPrompt           string `json:"system_prompt,omitempty"`
-	SystemPromptOverride   bool   `json:"system_prompt_override,omitempty"`
+	TaskPluginKey             string `json:"task_plugin_key,omitempty"`
+	ForceFormat               bool   `json:"force_format,omitempty"`
+	ThinkingToContent         bool   `json:"thinking_to_content,omitempty"`
+	Proxy                     string `json:"proxy"`
+	PassThroughBodyEnabled    bool   `json:"pass_through_body_enabled,omitempty"`
+	ResponsesWebSocketEnabled bool   `json:"responses_websocket_enabled,omitempty"`
+	SystemPrompt              string `json:"system_prompt,omitempty"`
+	SystemPromptOverride      bool   `json:"system_prompt_override,omitempty"`
+	// TaskExtendPluginKeys lists the task plugins a New API channel (type 60)
+	// is extended with. The upstream gateway may host many plugins, so the
+	// channel serves every listed plugin's models while the request still pins
+	// the executing plugin. TaskPluginKey remains the single type-61 binding
+	// and stays valid on a New API channel as well.
+	TaskExtendPluginKeys []string `json:"task_extend_plugin_keys,omitempty"`
 	// HTTPProtocol controls outbound HTTP version negotiation for this channel.
 	// Accepted values: "", "auto" (default), "http1".
 	HTTPProtocol string `json:"http_protocol,omitempty"`
 	// HTTP2ConnectionShards spreads HTTP/2 traffic across N independent transports
 	// (1-8). Zero/unset means 1. Ignored when HTTPProtocol is "http1".
 	HTTP2ConnectionShards int `json:"http2_connection_shards,omitempty"`
+}
+
+// BindsTaskPlugin reports whether the channel is bound to the task plugin,
+// either through the single binding or the New API extension list.
+func (s ChannelSettings) BindsTaskPlugin(key string) bool {
+	if key == "" {
+		return false
+	}
+	return s.TaskPluginKey == key || slices.Contains(s.TaskExtendPluginKeys, key)
+}
+
+// TaskPluginBindings returns the sorted, de-duplicated set of task plugins the
+// channel binds through either field, so callers can compare bindings as a set.
+func (s ChannelSettings) TaskPluginBindings() []string {
+	bindings := make([]string, 0, len(s.TaskExtendPluginKeys)+1)
+	if s.TaskPluginKey != "" {
+		bindings = append(bindings, s.TaskPluginKey)
+	}
+	for _, key := range s.TaskExtendPluginKeys {
+		if key != "" && !slices.Contains(bindings, key) {
+			bindings = append(bindings, key)
+		}
+	}
+	slices.Sort(bindings)
+	return bindings
 }
 
 const (
@@ -85,6 +119,14 @@ type ChannelOtherSettings struct {
 	UpstreamModelUpdateLastRemovedModels  []string              `json:"upstream_model_update_last_removed_models,omitempty"`  // 上次检测到的可删除模型
 	UpstreamModelUpdateIgnoredModels      []string              `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
 	AdvancedCustom                        *AdvancedCustomConfig `json:"advanced_custom,omitempty"`
+	// OllamaOpenAIChat routes Ollama chat completions to the OpenAI-compatible
+	// /v1/chat/completions endpoint. When unset, chat completions keep using
+	// the native /api/chat protocol.
+	OllamaOpenAIChat bool `json:"ollama_openai_chat,omitempty"`
+	// ToolLossPolicy is a channel-level opt-in for request-phase conversion
+	// rejection. Empty follows the default allow policy. Accepted values:
+	// "", "allow", "safe", "strict".
+	ToolLossPolicy string `json:"tool_loss_policy,omitempty"`
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
@@ -94,7 +136,22 @@ func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
 	return *s.OpenRouterEnterprise
 }
 
+// ValidateToolLossPolicy validates the channel-level request-phase tool-loss
+// policy. Empty keeps the default allow policy.
+func (s *ChannelOtherSettings) ValidateToolLossPolicy() error {
+	if s == nil {
+		return nil
+	}
+	switch strings.TrimSpace(s.ToolLossPolicy) {
+	case "", string(types.ConversionLossPolicyAllow), string(types.ConversionLossPolicySafe), string(types.ConversionLossPolicyStrict):
+		return nil
+	default:
+		return fmt.Errorf("invalid tool_loss_policy: %s", s.ToolLossPolicy)
+	}
+}
+
 const (
+	AdvancedCustomConverterSGLangRerank                = "jina_rerank_to_sglang"
 	advancedCustomConverterNone                        = "none"
 	advancedCustomConverterClaudeMessagesToOpenAIChat  = "anthropic_messages_to_openai_chat_completions"
 	advancedCustomConverterOpenAIChatToClaudeMessages  = "openai_chat_completions_to_anthropic_messages"
@@ -116,11 +173,22 @@ type AdvancedCustomConfig struct {
 }
 
 type AdvancedCustomRoute struct {
-	IncomingPath string                   `json:"incoming_path,omitempty"`
-	UpstreamPath string                   `json:"upstream_path,omitempty"`
-	Converter    string                   `json:"converter,omitempty"`
-	Models       []string                 `json:"models,omitempty"`
-	Auth         *AdvancedCustomRouteAuth `json:"auth,omitempty"`
+	IncomingPath           string                   `json:"incoming_path,omitempty"`
+	UpstreamPath           string                   `json:"upstream_path,omitempty"`
+	Converter              string                   `json:"converter,omitempty"`
+	Models                 []string                 `json:"models,omitempty"`
+	Auth                   *AdvancedCustomRouteAuth `json:"auth,omitempty"`
+	PassThroughBodyEnabled bool                     `json:"pass_through_body_enabled,omitempty"`
+}
+
+// SupportsPassThroughBody reports whether the route converter leaves the request body untouched.
+func (r AdvancedCustomRoute) SupportsPassThroughBody() bool {
+	switch strings.TrimSpace(r.Converter) {
+	case "", advancedCustomConverterNone, AdvancedCustomConverterSGLangRerank:
+		return true
+	default:
+		return false
+	}
 }
 
 type AdvancedCustomRouteAuth struct {
@@ -145,8 +213,20 @@ const (
 	advancedCustomEndpointPathEmbeddings             = "/v1/embeddings"
 )
 
-// AdvancedCustomModelListPath identifies the optional OpenAI Models discovery route.
-const AdvancedCustomModelListPath = "/v1/models"
+const (
+	// AdvancedCustomModelListPath identifies the optional OpenAI Models discovery route.
+	AdvancedCustomModelListPath = "/v1/models"
+	// AdvancedCustomBalancePath identifies the optional balance lookup route used by channel management.
+	AdvancedCustomBalancePath = "/v1/dashboard/billing/credit_grants"
+)
+
+// IsNative reports whether the route forwards requests without protocol
+// conversion. Validate normalizes an empty converter to none, but callers may
+// see configurations that were never saved.
+func (r AdvancedCustomRoute) IsNative() bool {
+	converter := strings.TrimSpace(r.Converter)
+	return converter == "" || converter == advancedCustomConverterNone
+}
 
 // MatchPath returns the first route whose IncomingPath matches requestPath.
 // Matching mirrors the relay adaptor: exact match, {model} placeholder, and
@@ -187,6 +267,19 @@ func (c *AdvancedCustomConfig) ModelListRoute() (AdvancedCustomRoute, bool) {
 	}
 	for _, route := range c.Routes {
 		if strings.TrimSpace(route.IncomingPath) == AdvancedCustomModelListPath {
+			return route, true
+		}
+	}
+	return AdvancedCustomRoute{}, false
+}
+
+// BalanceRoute returns the explicitly configured channel-management balance route.
+func (c *AdvancedCustomConfig) BalanceRoute() (AdvancedCustomRoute, bool) {
+	if c == nil {
+		return AdvancedCustomRoute{}, false
+	}
+	for _, route := range c.Routes {
+		if strings.TrimSpace(route.IncomingPath) == AdvancedCustomBalancePath {
 			return route, true
 		}
 	}
@@ -337,6 +430,7 @@ func matchAdvancedCustomIncomingPathTemplate(configuredPath string, requestPath 
 func IsAdvancedCustomConverterAllowed(converter string) bool {
 	switch converter {
 	case advancedCustomConverterNone,
+		AdvancedCustomConverterSGLangRerank,
 		advancedCustomConverterClaudeMessagesToOpenAIChat,
 		advancedCustomConverterOpenAIChatToClaudeMessages,
 		advancedCustomConverterOpenAIChatToOpenAIResponses,
@@ -360,6 +454,7 @@ func (c *AdvancedCustomConfig) Validate() error {
 
 	paths := make(map[string]*advancedCustomPathModelState, len(c.Routes))
 	modelListRouteIndex := -1
+	balanceRouteIndex := -1
 	for i := range c.Routes {
 		route := c.Routes[i]
 		route.IncomingPath = strings.TrimSpace(route.IncomingPath)
@@ -378,19 +473,31 @@ func (c *AdvancedCustomConfig) Validate() error {
 		if strings.Contains(route.IncomingPath, "?") {
 			return fmt.Errorf("advanced_custom.advanced_routes[%d].incoming_path must not include query", i)
 		}
-		if route.IncomingPath == AdvancedCustomModelListPath {
-			if modelListRouteIndex >= 0 {
-				return fmt.Errorf("advanced_custom.advanced_routes[%d] duplicates the /v1/models route at advanced_routes[%d]", i, modelListRouteIndex)
+		if route.IncomingPath == AdvancedCustomModelListPath || route.IncomingPath == AdvancedCustomBalancePath {
+			managementRouteName := route.IncomingPath
+			previousIndex := modelListRouteIndex
+			if route.IncomingPath == AdvancedCustomBalancePath {
+				previousIndex = balanceRouteIndex
 			}
-			modelListRouteIndex = i
+			if previousIndex >= 0 {
+				return fmt.Errorf("advanced_custom.advanced_routes[%d] duplicates the %s route at advanced_routes[%d]", i, managementRouteName, previousIndex)
+			}
+			if route.IncomingPath == AdvancedCustomModelListPath {
+				modelListRouteIndex = i
+			} else {
+				balanceRouteIndex = i
+			}
 			if len(normalizeAdvancedCustomRouteModels(route.Models)) > 0 {
-				return fmt.Errorf("advanced_custom.advanced_routes[%d].models must be empty for /v1/models", i)
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].models must be empty for %s", i, managementRouteName)
 			}
 			if route.Converter != advancedCustomConverterNone {
-				return fmt.Errorf("advanced_custom.advanced_routes[%d].converter must be none for /v1/models", i)
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].converter must be none for %s", i, managementRouteName)
 			}
 			if strings.Contains(upstreamPath, advancedCustomModelPlaceholder) {
-				return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must not contain %s for /v1/models", i, advancedCustomModelPlaceholder)
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].upstream_path must not contain %s for %s", i, advancedCustomModelPlaceholder, managementRouteName)
+			}
+			if route.PassThroughBodyEnabled {
+				return fmt.Errorf("advanced_custom.advanced_routes[%d].pass_through_body_enabled must be false for %s", i, managementRouteName)
 			}
 		}
 		if err := validateAdvancedCustomRouteModels(i, route.IncomingPath, route.Models, paths); err != nil {
@@ -409,6 +516,9 @@ func (c *AdvancedCustomConfig) Validate() error {
 		}
 		if err := validateAdvancedCustomConverterPath(i, route.IncomingPath, route.Converter); err != nil {
 			return err
+		}
+		if route.PassThroughBodyEnabled && !route.SupportsPassThroughBody() {
+			return fmt.Errorf("advanced_custom.advanced_routes[%d].pass_through_body_enabled requires converter none: %s", i, route.Converter)
 		}
 		if err := validateAdvancedCustomRouteAuth(i, route.Auth); err != nil {
 			return err
@@ -510,6 +620,9 @@ func validateAdvancedCustomUpstreamTarget(index int, upstreamPath string) error 
 }
 
 func validateAdvancedCustomConverterPath(index int, incomingPath string, converter string) error {
+	if converter == AdvancedCustomConverterSGLangRerank && (incomingPath == "/v1/rerank" || incomingPath == "/rerank") {
+		return nil
+	}
 	if incomingPath == advancedCustomEndpointPathOpenAIAlphaSearch {
 		if converter == advancedCustomConverterNone {
 			return nil

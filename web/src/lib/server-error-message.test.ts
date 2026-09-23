@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { getServerErrorMessageKey } from './server-error-message'
 
@@ -25,8 +24,8 @@ describe('server error message mapping', () => {
   test('maps the active-session limit to recovery instructions', () => {
     const message = getServerErrorMessageKey({ code: 'AUTH_SESSION_LIMIT' })
 
-    assert.match(message ?? '', /Sign out other sessions/)
-    assert.match(message ?? '', /reset your password/)
+    expect(message ?? '').toMatch(/Sign out other sessions/)
+    expect(message ?? '').toMatch(/reset your password/)
   })
 
   test('maps an Axios-shaped issuance limit to rolling-window guidance', () => {
@@ -34,8 +33,8 @@ describe('server error message mapping', () => {
       response: { data: { code: 'AUTH_SESSION_ISSUANCE_LIMIT' } },
     })
 
-    assert.match(message ?? '', /rolling window/)
-    assert.equal(getServerErrorMessageKey({ code: 'UNKNOWN_CODE' }), null)
+    expect(message ?? '').toMatch(/rolling window/)
+    expect(getServerErrorMessageKey({ code: 'UNKNOWN_CODE' })).toBe(null)
   })
 
   test('maps stable Telegram bind errors without exposing server text', () => {
@@ -55,16 +54,15 @@ describe('server error message mapping', () => {
     }
 
     for (const [code, message] of Object.entries(expected)) {
-      assert.equal(getServerErrorMessageKey({ code }), message)
+      expect(getServerErrorMessageKey({ code })).toBe(message)
     }
 
-    assert.equal(
+    expect(
       getServerErrorMessageKey({
         response: {
           data: { code: 'TELEGRAM_BIND_INTERNAL_ERROR', message: 'raw detail' },
         },
-      }),
-      expected.TELEGRAM_BIND_INTERNAL_ERROR
-    )
+      })
+    ).toBe(expected.TELEGRAM_BIND_INTERNAL_ERROR)
   })
 })

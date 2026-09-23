@@ -168,6 +168,15 @@ func TestFetchAdvancedCustomModelsRedactsQueryKeyFromTransportErrors(t *testing.
 		Err: errors.New("connection refused"),
 	}, secret)
 	require.EqualError(t, direct, "connection refused")
+
+	queryValue := "prefix-" + secret
+	queryError := sanitizeAdvancedCustomRequestError(
+		errors.New("dial "+queryValue+": connection refused"),
+		queryValue,
+		baseURL+"/v1/models?custom-token="+url.QueryEscape(queryValue),
+	)
+	require.NotContains(t, queryError.Error(), queryValue)
+	require.EqualError(t, queryError, "dial [REDACTED]: connection refused")
 }
 
 func TestFetchOrdinaryOpenAIModelsKeepsExistingEmptyDataBehavior(t *testing.T) {
@@ -525,7 +534,7 @@ func TestCollectPendingUpstreamModelChangesFromModels_WithIgnoredRegexPatterns(t
 
 func TestBuildUpstreamModelUpdateTaskNotificationContent_OmitOverflowDetails(t *testing.T) {
 	channelSummaries := make([]upstreamModelUpdateChannelSummary, 0, 12)
-	for i := 0; i < 12; i++ {
+	for i := range 12 {
 		channelSummaries = append(channelSummaries, upstreamModelUpdateChannelSummary{
 			ChannelName: "channel-" + string(rune('A'+i)),
 			AddCount:    i + 1,

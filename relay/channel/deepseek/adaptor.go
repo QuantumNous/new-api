@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/reasoning"
 	"github.com/gin-gonic/gin"
 )
@@ -98,6 +99,9 @@ func applyDeepSeekV4OpenAIThinkingSuffix(info *relaycommon.RelayInfo, request *d
 	if info != nil && info.ChannelMeta != nil && info.UpstreamModelName != "" {
 		modelName = info.UpstreamModelName
 	}
+	if model_setting.ShouldPreserveThinkingSuffix(modelName) || info != nil && model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) {
+		return nil
+	}
 	baseModel, thinkingType, effort, ok := reasoning.ParseDeepSeekV4ThinkingSuffix(modelName)
 	if !ok {
 		return nil
@@ -115,7 +119,7 @@ func applyDeepSeekV4OpenAIThinkingSuffix(info *relaycommon.RelayInfo, request *d
 		if info.ChannelMeta != nil {
 			info.UpstreamModelName = baseModel
 		}
-		info.ReasoningEffort = effort
+		info.SetReasoningEffort(effort)
 	}
 	return nil
 }
@@ -124,6 +128,9 @@ func applyDeepSeekV4ClaudeThinkingSuffix(info *relaycommon.RelayInfo, request *d
 	modelName := request.Model
 	if info != nil && info.ChannelMeta != nil && info.UpstreamModelName != "" {
 		modelName = info.UpstreamModelName
+	}
+	if model_setting.ShouldPreserveThinkingSuffix(modelName) || info != nil && model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) {
+		return nil
 	}
 	baseModel, thinkingType, effort, ok := reasoning.ParseDeepSeekV4ThinkingSuffix(modelName)
 	if !ok {
@@ -146,7 +153,7 @@ func applyDeepSeekV4ClaudeThinkingSuffix(info *relaycommon.RelayInfo, request *d
 		if info.ChannelMeta != nil {
 			info.UpstreamModelName = baseModel
 		}
-		info.ReasoningEffort = effort
+		info.SetReasoningEffort(effort)
 	}
 	return nil
 }
@@ -170,6 +177,9 @@ func applyDeepSeekV4ResponsesThinkingSuffix(info *relaycommon.RelayInfo, request
 	if info != nil && info.ChannelMeta != nil && info.UpstreamModelName != "" {
 		modelName = info.UpstreamModelName
 	}
+	if model_setting.ShouldPreserveThinkingSuffix(modelName) || info != nil && model_setting.ShouldPreserveThinkingSuffix(info.OriginModelName) {
+		return
+	}
 	baseModel, thinkingType, effort, ok := reasoning.ParseDeepSeekV4ThinkingSuffix(modelName)
 	if ok {
 		if thinkingType == "disabled" {
@@ -185,7 +195,7 @@ func applyDeepSeekV4ResponsesThinkingSuffix(info *relaycommon.RelayInfo, request
 		}
 	}
 	if info != nil && request.Reasoning != nil {
-		info.ReasoningEffort = request.Reasoning.Effort
+		info.SetReasoningEffort(request.Reasoning.Effort)
 	}
 }
 

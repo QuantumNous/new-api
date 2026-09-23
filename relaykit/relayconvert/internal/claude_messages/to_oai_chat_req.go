@@ -1,12 +1,14 @@
 package claudemessages
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 )
 
 const (
@@ -16,13 +18,13 @@ const (
 )
 
 type openRouterRequestReasoning struct {
-	Enabled   bool   `json:"enabled"`
+	Enabled   *bool  `json:"enabled,omitempty"`
 	Effort    string `json:"effort,omitempty"`
 	MaxTokens int    `json:"max_tokens,omitempty"`
 	Exclude   bool   `json:"exclude,omitempty"`
 }
 
-func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info convmeta.Meta) (*dto.GeneralOpenAIRequest, error) {
+func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.ClaudeRequest, info convmeta.Meta) (*dto.GeneralOpenAIRequest, error) {
 	openAIRequest := dto.GeneralOpenAIRequest{
 		Model:       claudeRequest.Model,
 		Temperature: claudeRequest.Temperature,
@@ -39,6 +41,10 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 	if claudeRequest.Stream != nil {
 		openAIRequest.Stream = kitutil.GetPointer(*claudeRequest.Stream)
 	}
+	reasoningIntent, effectiveEffort, err := claudeRequestReasoningIntent(ctx, &claudeRequest, info)
+	if err != nil {
+		return nil, reasoning.AsClientError(err)
+	}
 
 	isOpenRouter := convmeta.OptionsOf(info).OpenRouterDialect
 	if isOpenRouter {
@@ -46,17 +52,21 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 			effortBytes, _ := kitutil.Marshal(effort)
 			openAIRequest.Verbosity = effortBytes
 		}
-		if claudeRequest.Thinking != nil {
+		if !reasoningIntent.IsEmpty() {
 			var reasoningConfig openRouterRequestReasoning
-			if claudeRequest.Thinking.Type == "enabled" {
+			disabled := reasoningIntent.Mode == reasoning.ModeDisabled || reasoningIntent.Effort == reasoning.EffortNone
+			enabled := !disabled
+			reasoningConfig.Enabled = &enabled
+			if enabled && reasoningIntent.BudgetTokens != nil && reasoningIntent.Mode != reasoning.ModeAdaptive {
 				reasoningConfig = openRouterRequestReasoning{
-					Enabled:   true,
-					MaxTokens: claudeRequest.Thinking.GetBudgetTokens(),
+					Enabled:   &enabled,
+					MaxTokens: *reasoningIntent.BudgetTokens,
 				}
-			} else if claudeRequest.Thinking.Type == "adaptive" {
-				reasoningConfig = openRouterRequestReasoning{
-					Enabled: true,
-				}
+			} else if enabled {
+				reasoningConfig.Effort = string(reasoning.EffectiveEffort(reasoningIntent))
+			}
+			if reasoningIntent.IncludeThoughts != nil {
+				reasoningConfig.Exclude = !*reasoningIntent.IncludeThoughts
 			}
 			reasoningJSON, err := kitutil.Marshal(reasoningConfig)
 			if err != nil {
@@ -64,12 +74,23 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 			}
 			openAIRequest.Reasoning = reasoningJSON
 		}
-	} else if info != nil {
-		thinkingSuffix := "-thinking"
-		if strings.HasSuffix(info.GetOriginModelName(), thinkingSuffix) &&
-			!strings.HasSuffix(openAIRequest.Model, thinkingSuffix) {
-			openAIRequest.Model = openAIRequest.Model + thinkingSuffix
+	} else {
+		if err := reasoning.ApplyToOpenAIChat(&openAIRequest, reasoningIntent); err != nil {
+			return nil, reasoning.AsClientError(err)
 		}
+		if info != nil {
+			// Keep the outgoing -thinking suffix so a cascaded downstream
+			// new-api can recover reasoning intent from the model name. This
+			// is an emission-side policy, not converter-side suffix parsing.
+			thinkingSuffix := "-thinking"
+			if strings.HasSuffix(info.GetOriginModelName(), thinkingSuffix) &&
+				!strings.HasSuffix(openAIRequest.Model, thinkingSuffix) {
+				openAIRequest.Model = openAIRequest.Model + thinkingSuffix
+			}
+		}
+	}
+	if info != nil && effectiveEffort != "" {
+		info.SetReasoningEffort(string(effectiveEffort))
 	}
 
 	if len(claudeRequest.StopSequences) == 1 {
@@ -120,19 +141,25 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 					}
 					openAIMessage.SetMediaContent(systemMediaMessages)
 				} else {
-					systemStr := ""
+					var systemStr strings.Builder
 					for _, system := range systems {
 						if system.Text != nil {
-							systemStr += *system.Text
+							systemStr.WriteString(*system.Text)
 						}
 					}
-					openAIMessage.SetStringContent(systemStr)
+					openAIMessage.SetStringContent(systemStr.String())
 				}
 				openAIMessages = append(openAIMessages, openAIMessage)
 			}
 		}
 	}
 
+	type unnamedToolResult struct {
+		index int
+		id    string
+	}
+	toolNames := make(map[string]string)
+	var unnamedToolResults []unnamedToolResult
 	for _, claudeMessage := range claudeRequest.Messages {
 		openAIMessage := dto.Message{
 			Role: claudeMessage.Role,
@@ -148,6 +175,9 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 			mediaMessages := make([]dto.MediaContent, 0, len(content))
 
 			for _, mediaMsg := range content {
+				if _, exists := toolNames[mediaMsg.Id]; !exists {
+					toolNames[mediaMsg.Id] = mediaMsg.Name
+				}
 				switch mediaMsg.Type {
 				case "text", "input_text":
 					message := dto.MediaContent{
@@ -176,7 +206,7 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 				case "tool_result":
 					toolName := mediaMsg.Name
 					if toolName == "" {
-						toolName = claudeRequest.SearchToolNameByToolCallId(mediaMsg.ToolUseId)
+						unnamedToolResults = append(unnamedToolResults, unnamedToolResult{index: len(openAIMessages), id: mediaMsg.ToolUseId})
 					}
 					oaiToolMessage := dto.Message{
 						Role:       "tool",
@@ -186,9 +216,12 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 					if mediaMsg.IsStringContent() {
 						oaiToolMessage.SetStringContent(mediaMsg.GetStringContent())
 					} else {
-						mediaContents := mediaMsg.ParseMediaContent()
-						encodedJSON, _ := kitutil.Marshal(mediaContents)
-						oaiToolMessage.SetStringContent(string(encodedJSON))
+						content, media := claudeToolResultToChat(mediaMsg.ParseMediaContent())
+						oaiToolMessage.SetStringContent(content)
+						// A Chat tool message only carries text. Images from the tool result
+						// join the user message this Claude message becomes, which lands right
+						// after the tool batch and keeps the tool messages contiguous.
+						mediaMessages = append(mediaMessages, media...)
 					}
 					openAIMessages = append(openAIMessages, oaiToolMessage)
 				}
@@ -205,12 +238,50 @@ func ClaudeMessagesRequestToOpenAIChat(claudeRequest dto.ClaudeRequest, info con
 			openAIMessages = append(openAIMessages, openAIMessage)
 		}
 	}
+	for _, result := range unnamedToolResults {
+		*openAIMessages[result.index].Name = toolNames[result.id]
+	}
 
 	openAIRequest.Messages = openAIMessages
 	return &openAIRequest, nil
 }
 
-func requestToJSONString(v interface{}) string {
+// claudeToolResultToChat maps a structured tool_result content array onto Chat Completions,
+// where a tool message may only carry text. Text blocks stay on the tool message and image
+// blocks come back in Chat shape for the caller to place on the following user message;
+// stringifying them instead would hand base64 image data to the upstream text tokenizer.
+// Arrays holding any other block type keep the historical stringified form so nothing is lost.
+func claudeToolResultToChat(blocks []dto.ClaudeMediaMessage) (string, []dto.MediaContent) {
+	texts := make([]string, 0, len(blocks))
+	media := make([]dto.MediaContent, 0, len(blocks))
+	for _, block := range blocks {
+		switch {
+		case block.Type == "text" || block.Type == "input_text":
+			if text := block.GetText(); text != "" {
+				texts = append(texts, text)
+			}
+		case block.Type == "image" && block.Source != nil:
+			url := block.Source.Url
+			if url == "" {
+				url = fmt.Sprintf("data:%s;base64,%s", block.Source.MediaType, kitutil.Interface2String(block.Source.Data))
+			}
+			media = append(media, dto.MediaContent{Type: "image_url", ImageUrl: &dto.MessageImageUrl{Url: url}})
+		default:
+			return requestToJSONString(blocks), nil
+		}
+	}
+	switch {
+	case len(texts) == 0 && len(media) == 0:
+		return requestToJSONString(blocks), nil
+	case len(texts) == 0:
+		// Upstreams reject empty tool content; the images ride on the following user message.
+		return "[image]", media
+	default:
+		return strings.Join(texts, "\n"), media
+	}
+}
+
+func requestToJSONString(v any) string {
 	b, err := kitutil.Marshal(v)
 	if err != nil {
 		return "{}"

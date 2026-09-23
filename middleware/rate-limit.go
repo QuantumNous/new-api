@@ -49,7 +49,7 @@ func redisUserRateLimitKey(mark string, userID int) string {
 	return fmt.Sprintf("%s:user:%s:%d", redisRateLimitNamespace, mark, userID)
 }
 
-func redisReplyInteger(value interface{}) (int64, error) {
+func redisReplyInteger(value any) (int64, error) {
 	switch typed := value.(type) {
 	case int64:
 		return typed, nil
@@ -176,6 +176,17 @@ func CriticalRateLimit() func(c *gin.Context) {
 		return rateLimitFactory(common.CriticalRateLimitNum, common.CriticalRateLimitDuration, "CT")
 	}
 	return defNext
+}
+
+func UserCriticalRateLimit(scope string) func(c *gin.Context) {
+	if !common.CriticalRateLimitEnable {
+		return defNext
+	}
+	return userRateLimitFactory(
+		common.CriticalRateLimitNum,
+		common.CriticalRateLimitDuration,
+		"UC:"+scope,
+	)
 }
 
 func DownloadRateLimit() func(c *gin.Context) {

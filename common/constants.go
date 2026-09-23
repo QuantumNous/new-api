@@ -60,6 +60,7 @@ var ItemsPerPage = 10
 var MaxRecentItems = 1000
 
 var PasswordLoginEnabled = true
+var PasswordLoginEncryptionEnabled = false
 var PasswordRegisterEnabled = true
 var EmailVerificationEnabled = false
 var GitHubOAuthEnabled = false
@@ -128,6 +129,9 @@ var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
 var QuotaRemindThreshold = 1000
+
+// PreConsumedQuota is retained for old option clients; token reservations now
+// use quota_setting.pre_consume_multiplier and the estimated input cost.
 var PreConsumedQuota = 500
 
 var RetryTimes = 0
@@ -162,6 +166,16 @@ var BatchUpdateInterval int
 var RelayTimeout int // unit is second
 
 var RelayIdleConnTimeout int // unit is second
+
+// RelayResponseHeaderTimeout limits how long the relay transport waits for the
+// upstream response headers after the request has been fully written.
+// 0 disables it (previous behaviour: wait forever).
+//
+// Note this is NOT the same as RelayTimeout (http.Client.Timeout), which covers
+// the whole response read and therefore breaks legitimate long streaming calls.
+// ResponseHeaderTimeout only bounds the wait for the response headers; once the
+// headers arrive, streaming is unaffected.
+var RelayResponseHeaderTimeout int // unit is second
 var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
 

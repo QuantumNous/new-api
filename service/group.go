@@ -18,13 +18,13 @@ func GetUserUsableGroups(userGroup string) map[string]string {
 		if b {
 			// 处理特殊可用分组
 			for specialGroup, desc := range specialSettings {
-				if strings.HasPrefix(specialGroup, "-:") {
+				if after, ok := strings.CutPrefix(specialGroup, "-:"); ok {
 					// 移除分组
-					groupToRemove := strings.TrimPrefix(specialGroup, "-:")
+					groupToRemove := after
 					delete(groupsCopy, groupToRemove)
-				} else if strings.HasPrefix(specialGroup, "+:") {
+				} else if after, ok := strings.CutPrefix(specialGroup, "+:"); ok {
 					// 添加分组
-					groupToAdd := strings.TrimPrefix(specialGroup, "+:")
+					groupToAdd := after
 					groupsCopy[groupToAdd] = desc
 				} else {
 					// 直接添加分组
