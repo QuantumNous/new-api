@@ -313,18 +313,22 @@ export function readTimeTokenPricing(
 }
 
 export type TaskTier = {
+  conditionText?: string
   label: string
   conditions: { field: string; value: string }[]
   constant: number
   unitPrices: Record<string, number>
 }
 
+/** `unreachable` marks a branch on an enum value the schema no longer declares:
+ * it can never match a request, so callers skip it instead of rejecting the chain. */
 function taskConditions(
   node: ExpressionNode,
   schema: BillingUsageSchema,
   includeBoolean: boolean
-): TaskTier['conditions'] | null {
+): TaskTier['conditions'] | 'unreachable' | null {
   const conditions: TaskTier['conditions'] = []
+  let reachable = true
   for (const term of flattenBinary(node, '&&')) {
     if (
       term.kind !== 'binary' ||
@@ -342,15 +346,14 @@ function taskConditions(
     const value = term.right.value
     if (definition?.type === 'boolean') {
       if (!includeBoolean || typeof value !== 'boolean') return null
-    } else if (
-      typeof value !== 'string' ||
-      !definition?.enum?.includes(value)
-    ) {
+    } else if (typeof value !== 'string' || !definition?.enum) {
       return null
+    } else if (!definition.enum.includes(value)) {
+      reachable = false
     }
     conditions.push({ field, value: String(value) })
   }
-  return conditions
+  return reachable ? conditions : 'unreachable'
 }
 
 function taskTier(
@@ -411,7 +414,9 @@ function taskTier(
   return { label: node.args[0].value, conditions, constant, unitPrices }
 }
 
-/** Keep task summaries limited to schema-backed enum tiers and canonical scaled units. */
+/** Keep task summaries limited to schema-backed enum tiers and canonical scaled units.
+ * A branch on an enum value the schema no longer declares is unreachable and dropped,
+ * so a narrowed plugin schema keeps the remaining tiers editable. */
 export function readTaskTierChain(
   node: ExpressionNode,
   schema: BillingUsageSchema,
@@ -425,10 +430,12 @@ export function readTaskTierChain(
       schema,
       includeBoolean
     )
-    if (!conditions) return null
-    const tier = taskTier(remaining.yes, conditions, schema)
-    if (!tier) return null
-    tiers.push(tier)
+    if (conditions === null) return null
+    if (conditions !== 'unreachable') {
+      const tier = taskTier(remaining.yes, conditions, schema)
+      if (!tier) return null
+      tiers.push(tier)
+    }
     remaining = remaining.no
   }
   const fallback = taskTier(remaining, [], schema)

@@ -87,7 +87,11 @@ export function LogCostDisplay(props: LogCostDisplayProps) {
     : props.quota
   let source: string | undefined
 
-  if (props.showBillingSource && isSubscription) {
+  // A log billed to a subscription always names its funding source: that
+  // subscription may have expired since, and the viewer may hold no active
+  // plan today. Only the wallet marker is contextual and follows
+  // showBillingSource.
+  if (isSubscription) {
     source = t('Subscription')
   } else if (
     props.showBillingSource &&

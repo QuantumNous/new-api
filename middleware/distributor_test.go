@@ -290,3 +290,54 @@ func TestSharedEndpointRebindsToSelectedType61Plugin(t *testing.T) {
 	assert.Equal(t, "beta", c.GetString("expected_task_plugin_key"))
 	assert.Equal(t, "beta", c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint).Plugin.Meta.Key)
 }
+
+func TestChannelMatchesExpectedTaskPluginUsesNewAPIExtensions(t *testing.T) {
+	channel := &model.Channel{Type: constant.ChannelTypeNewAPI}
+	channel.SetSetting(dto.ChannelSettings{TaskPluginKey: "single", TaskExtendPluginKeys: []string{"ext-alpha", "ext-beta"}})
+
+	assert.True(t, channelMatchesExpectedTaskPlugin(nil, channel, "ext-alpha"))
+	assert.True(t, channelMatchesExpectedTaskPlugin(nil, channel, "single"), "the single key stays valid on a New API channel")
+	assert.False(t, channelMatchesExpectedTaskPlugin(nil, channel, "ext-gamma"))
+	assert.True(t, channelMatchesExpectedTaskPlugin(nil, channel, ""), "requests without a pinned plugin still use the gateway")
+	assert.False(t, channelMatchesExpectedTaskPlugin(nil, &model.Channel{Type: constant.ChannelTypeNewAPI}, "ext-alpha"))
+}
+
+func TestSharedEndpointRebindsToBoundNewAPIExtension(t *testing.T) {
+	registry := jsplugin.NewRegistry()
+	for _, key := range []string{"alpha", "beta"} {
+		source := strings.Replace(distributorEndpointPluginSource(key, 0), "channelTypes: [0],", "", 1)
+		_, err := registry.Register(source, jsplugin.Options{})
+		require.NoError(t, err)
+	}
+	generation := registry.Generation()
+	candidates := generation.LookupEndpointCandidates("POST", "/v1/responses", "task-model")
+	require.Len(t, candidates, 2)
+	pin := func(expected string) *gin.Context {
+		pinned := candidates[0]
+		if candidates[1].Plugin.Meta.Key == expected {
+			pinned = candidates[1]
+		}
+		c, _ := gin.CreateTestContext(nil)
+		c.Set(jsplugin.ContextKeyPinnedPlugin, jsplugin.PinnedPlugin{Generation: generation, Plugin: pinned.Plugin})
+		c.Set(jsplugin.ContextKeyPinnedEndpoint, jsplugin.PinnedEndpoint{Generation: generation, Plugin: pinned.Plugin, Protocol: pinned.Protocol, Operation: pinned.Operation, Model: "task-model", Candidates: candidates})
+		c.Set("expected_task_plugin_key", expected)
+		return c
+	}
+
+	channel := &model.Channel{Id: 3, Type: constant.ChannelTypeNewAPI}
+	channel.SetSetting(dto.ChannelSettings{TaskExtendPluginKeys: []string{"unrelated"}})
+	assert.False(t, channelMatchesExpectedTaskPlugin(pin("alpha"), channel, "alpha"))
+
+	channel.SetSetting(dto.ChannelSettings{TaskExtendPluginKeys: []string{"beta"}})
+	c := pin("alpha")
+	require.Nil(t, SetupContextForSelectedChannel(c, channel, "task-model"))
+	assert.Equal(t, "beta", c.GetString("task_plugin_key"), "the only bound candidate executes")
+	assert.Equal(t, "beta", c.GetString("expected_task_plugin_key"))
+	assert.Equal(t, "beta", c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint).Plugin.Meta.Key)
+
+	channel.SetSetting(dto.ChannelSettings{TaskExtendPluginKeys: []string{"alpha", "beta"}})
+	c = pin("beta")
+	require.Nil(t, SetupContextForSelectedChannel(c, channel, "task-model"))
+	assert.Equal(t, "alpha", c.GetString("task_plugin_key"), "the first bound candidate executes regardless of the earlier pin")
+	assert.Equal(t, "alpha", c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint).Plugin.Meta.Key)
+}

@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { ArrowExpand02Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { ChevronsUpDown, GripHorizontal, X } from 'lucide-react'
 import {
   type PointerEvent as ReactPointerEvent,
@@ -60,6 +62,8 @@ type FloatingWindowProps = {
    * key so the window reopens where and how the user left it.
    */
   storageKey?: string
+  /** A new request expands the window without resetting its position or size. */
+  expandRequest?: number
   className?: string
 }
 
@@ -88,7 +92,7 @@ const RESIZE_HANDLE_CLASS: Record<ResizeDirection, string> = {
   w: 'top-2 bottom-2 left-0 w-1.5 cursor-ew-resize',
   ne: 'top-0 right-0 size-3 cursor-nesw-resize',
   nw: 'top-0 left-0 size-3 cursor-nwse-resize',
-  se: 'bottom-0 right-0 size-3 cursor-nwse-resize',
+  se: 'bottom-0 right-0 size-8 cursor-nwse-resize',
   sw: 'bottom-0 left-0 size-3 cursor-nesw-resize',
 }
 
@@ -199,7 +203,8 @@ export function FloatingWindow(props: FloatingWindowProps) {
         size.width
       ),
       size,
-      collapsed: stored?.collapsed ?? false,
+      collapsed:
+        props.expandRequest === undefined && (stored?.collapsed ?? false),
     }
   })
   const windowRef = useRef<HTMLElement>(null)
@@ -216,6 +221,13 @@ export function FloatingWindow(props: FloatingWindowProps) {
     position: FloatingWindowPosition
     size: { width: number; height: number }
   } | null>(null)
+
+  useEffect(() => {
+    if (props.expandRequest === undefined) return
+    setState((previous) =>
+      previous.collapsed ? { ...previous, collapsed: false } : previous
+    )
+  }, [props.expandRequest])
 
   useEffect(() => {
     if (!props.storageKey) return
@@ -455,6 +467,9 @@ export function FloatingWindow(props: FloatingWindowProps) {
           {props.footer}
         </footer>
       )}
+      <div className='border-border/50 bg-muted/30 text-muted-foreground flex h-8 shrink-0 items-center justify-end border-t pr-9 pl-4 text-xs select-none'>
+        {t('Drag to resize')}
+      </div>
       {RESIZE_DIRECTIONS.map((direction) => (
         <div
           key={direction}
@@ -464,13 +479,23 @@ export function FloatingWindow(props: FloatingWindowProps) {
           aria-hidden='true'
           className={cn(
             'absolute z-10 touch-none',
-            RESIZE_HANDLE_CLASS[direction]
+            RESIZE_HANDLE_CLASS[direction],
+            direction === 'se' &&
+              'text-muted-foreground hover:bg-accent hover:text-accent-foreground flex items-center justify-center rounded-tl-md'
           )}
           onPointerDown={(event) => handleResizeStart(event, direction)}
           onPointerMove={handleResizeMove}
           onPointerUp={handleResizeEnd}
           onPointerCancel={handleResizeEnd}
-        />
+        >
+          {direction === 'se' && (
+            <HugeiconsIcon
+              icon={ArrowExpand02Icon}
+              className='pointer-events-none size-4'
+              aria-hidden='true'
+            />
+          )}
+        </div>
       ))}
     </aside>
   )

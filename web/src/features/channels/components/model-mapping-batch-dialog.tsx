@@ -16,16 +16,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ArrowRight } from 'lucide-react'
-import { type ReactNode, useId, useMemo, useState } from 'react'
+import { ArrowRight01Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
+import { useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 import {
@@ -36,8 +51,6 @@ import {
 } from '../lib'
 import { UpstreamModelSelection } from './upstream-model-selection'
 
-const PREVIEW_LIMIT = 8
-
 /** Where the selectable names come from. */
 export type ModelMappingBatchSource = 'upstream' | 'channel'
 
@@ -47,16 +60,12 @@ export type ModelMappingBatchResult = {
   syncModels: boolean
 }
 
-type RuleType = ModelMappingRule['type']
-
 type ModelMappingBatchDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** Names returned by the provider's model list; enables the upstream source. */
   upstreamModels?: string[]
   channelModels: string[]
   initialSource?: ModelMappingBatchSource
-  initialSelected?: string[]
   onApply: (result: ModelMappingBatchResult) => void
 }
 
@@ -65,153 +74,48 @@ export function ModelMappingBatchDialog(props: ModelMappingBatchDialogProps) {
   const id = useId()
   const upstreamModels = props.upstreamModels ?? []
   const hasUpstream = upstreamModels.length > 0
-  const [source, setSource] = useState<ModelMappingBatchSource>(
-    () => props.initialSource ?? (hasUpstream ? 'upstream' : 'channel')
+  const [source, setSource] = useState<ModelMappingBatchSource>(() =>
+    hasUpstream ? (props.initialSource ?? 'upstream') : 'channel'
   )
-  const [selected, setSelected] = useState<string[]>(
-    props.initialSelected ?? []
-  )
+  // Opening a batch action never opts models into a change on the user's behalf.
+  const [selected, setSelected] = useState<string[]>([])
   const [direction, setDirection] = useState<ModelMappingDirection>(
     source === 'upstream' ? 'upstream' : 'request'
   )
-  const [ruleType, setRuleType] = useState<RuleType>(
+  const [ruleType, setRuleType] = useState<ModelMappingRule['type']>(
     direction === 'upstream' ? 'strip-suffix' : 'add-suffix'
   )
-  const [stripPrefixes, setStripPrefixes] = useState('')
-  const [stripSuffixes, setStripSuffixes] = useState('')
-  const [prefix, setPrefix] = useState('')
-  const [suffix, setSuffix] = useState('')
+  const [affix, setAffix] = useState('')
   const [find, setFind] = useState('')
   const [replaceWith, setReplaceWith] = useState('')
   const [syncModels, setSyncModels] = useState(true)
-
   const candidates =
     source === 'upstream' ? upstreamModels : props.channelModels
   const rule = useMemo<ModelMappingRule>(() => {
-    if (ruleType === 'strip-prefix') {
-      return { type: 'strip-prefix', values: stripPrefixes }
+    if (ruleType === 'strip-prefix' || ruleType === 'strip-suffix') {
+      return { type: ruleType, values: affix }
     }
-    if (ruleType === 'strip-suffix') {
-      return { type: 'strip-suffix', values: stripSuffixes }
+    if (ruleType === 'add-prefix' || ruleType === 'add-suffix') {
+      return { type: ruleType, value: affix }
     }
-    if (ruleType === 'add-prefix') return { type: 'add-prefix', value: prefix }
-    if (ruleType === 'add-suffix') return { type: 'add-suffix', value: suffix }
     return { type: 'replace', find, replaceWith }
-  }, [
-    ruleType,
-    stripPrefixes,
-    stripSuffixes,
-    prefix,
-    suffix,
-    find,
-    replaceWith,
-  ])
+  }, [ruleType, affix, find, replaceWith])
   const derivation = useMemo(
     () => deriveModelMappingPairs(selected, direction, rule),
     [selected, direction, rule]
   )
-  const preview = derivation.pairs.slice(0, PREVIEW_LIMIT)
-  const remaining = derivation.pairs.length - preview.length
-
-  const changeDirection = (next: ModelMappingDirection) => {
-    setDirection(next)
-    setRuleType(next === 'upstream' ? 'strip-suffix' : 'add-suffix')
-  }
-
-  const changeSource = (next: ModelMappingBatchSource) => {
-    setSource(next)
-    setSelected([])
-    changeDirection(next === 'upstream' ? 'upstream' : 'request')
-  }
-
-  const replaceControls = (
-    <div className='grid gap-2 sm:grid-cols-2'>
-      <Input
-        aria-label={t('Find')}
-        placeholder='.'
-        value={find}
-        onChange={(event) => setFind(event.target.value)}
-        disabled={ruleType !== 'replace'}
-      />
-      <Input
-        aria-label={t('Replace with')}
-        placeholder='-'
-        value={replaceWith}
-        onChange={(event) => setReplaceWith(event.target.value)}
-        disabled={ruleType !== 'replace'}
-      />
-    </div>
-  )
-  const affixHint = t('Separate several values with commas')
-  let ruleOptions: Array<{
-    type: RuleType
-    label: string
-    control: ReactNode
-    hint?: string
-  }>
-  if (direction === 'upstream') {
-    ruleOptions = [
-      {
-        type: 'strip-suffix',
-        label: t('Strip suffix'),
-        hint: affixHint,
-        control: (
-          <Input
-            aria-label={t('Suffix')}
-            placeholder='-all, -latest'
-            value={stripSuffixes}
-            onChange={(event) => setStripSuffixes(event.target.value)}
-            disabled={ruleType !== 'strip-suffix'}
-          />
-        ),
-      },
-      {
-        type: 'strip-prefix',
-        label: t('Strip prefix'),
-        hint: affixHint,
-        control: (
-          <Input
-            aria-label={t('Prefix')}
-            placeholder='openai/, anthropic/'
-            value={stripPrefixes}
-            onChange={(event) => setStripPrefixes(event.target.value)}
-            disabled={ruleType !== 'strip-prefix'}
-          />
-        ),
-      },
-      { type: 'replace', label: t('Replace text'), control: replaceControls },
+  const hasRule =
+    ruleType === 'replace' ? find.length > 0 : affix.trim().length > 0
+  const isPrefix = ruleType === 'add-prefix' || ruleType === 'strip-prefix'
+  const isStrip = ruleType === 'strip-prefix' || ruleType === 'strip-suffix'
+  const ruleOptions: Array<{ value: ModelMappingRule['type']; label: string }> =
+    [
+      { value: 'strip-suffix', label: t('Strip suffix') },
+      { value: 'strip-prefix', label: t('Strip prefix') },
+      { value: 'add-suffix', label: t('Add suffix') },
+      { value: 'add-prefix', label: t('Add prefix') },
+      { value: 'replace', label: t('Replace text') },
     ]
-  } else {
-    ruleOptions = [
-      {
-        type: 'add-suffix',
-        label: t('Add suffix'),
-        control: (
-          <Input
-            aria-label={t('Suffix')}
-            placeholder='-all'
-            value={suffix}
-            onChange={(event) => setSuffix(event.target.value)}
-            disabled={ruleType !== 'add-suffix'}
-          />
-        ),
-      },
-      {
-        type: 'add-prefix',
-        label: t('Add prefix'),
-        control: (
-          <Input
-            aria-label={t('Prefix')}
-            placeholder='openai/'
-            value={prefix}
-            onChange={(event) => setPrefix(event.target.value)}
-            disabled={ruleType !== 'add-prefix'}
-          />
-        ),
-      },
-      { type: 'replace', label: t('Replace text'), control: replaceControls },
-    ]
-  }
 
   return (
     <Dialog
@@ -219,9 +123,10 @@ export function ModelMappingBatchDialog(props: ModelMappingBatchDialogProps) {
       onOpenChange={props.onOpenChange}
       title={t('Batch add mappings')}
       description={t(
-        'Pick models and derive the other side with a rule to create request-to-upstream mappings.'
+        'Users call the model on the left. The platform forwards the request to the upstream model on the right.'
       )}
       contentClassName='sm:max-w-4xl'
+      bodyClassName='flex flex-col gap-5'
       footer={
         <>
           <Button
@@ -233,7 +138,7 @@ export function ModelMappingBatchDialog(props: ModelMappingBatchDialogProps) {
           </Button>
           <Button
             type='button'
-            disabled={derivation.pairs.length === 0}
+            disabled={!hasRule || derivation.pairs.length === 0}
             onClick={() => {
               props.onApply({
                 pairs: derivation.pairs,
@@ -247,24 +152,102 @@ export function ModelMappingBatchDialog(props: ModelMappingBatchDialogProps) {
         </>
       }
     >
-      <div className='grid gap-6 lg:grid-cols-2'>
-        <section aria-labelledby={`${id}-models`} className='min-w-0 space-y-3'>
+      <FieldSet>
+        <FieldLegend id={`${id}-task`} variant='label'>
+          {t('What do you want to change?')}
+        </FieldLegend>
+        <RadioGroup
+          aria-labelledby={`${id}-task`}
+          value={direction}
+          className='sm:grid-cols-2'
+          onValueChange={(value) => {
+            if (value !== 'upstream' && value !== 'request') return
+            setDirection(value)
+            setRuleType(value === 'upstream' ? 'strip-suffix' : 'add-suffix')
+            setAffix('')
+            setFind('')
+            setReplaceWith('')
+          }}
+        >
+          <FieldLabel htmlFor={`${id}-aliases`}>
+            <Field orientation='horizontal'>
+              <RadioGroupItem
+                id={`${id}-aliases`}
+                value='upstream'
+                aria-labelledby={`${id}-aliases-label`}
+                aria-describedby={`${id}-aliases-hint`}
+              />
+              <div className='min-w-0'>
+                <span id={`${id}-aliases-label`}>
+                  {t('Create aliases for users')}
+                </span>
+                <FieldDescription id={`${id}-aliases-hint`}>
+                  {t('Keep upstream names; choose what users call.')}
+                </FieldDescription>
+              </div>
+            </Field>
+          </FieldLabel>
+          <FieldLabel htmlFor={`${id}-upstream`}>
+            <Field orientation='horizontal'>
+              <RadioGroupItem
+                id={`${id}-upstream`}
+                value='request'
+                aria-labelledby={`${id}-upstream-label`}
+                aria-describedby={`${id}-upstream-hint`}
+              />
+              <div className='min-w-0'>
+                <span id={`${id}-upstream-label`}>
+                  {t('Change upstream model names')}
+                </span>
+                <FieldDescription id={`${id}-upstream-hint`}>
+                  {t(
+                    'Keep the names users call; change what is sent upstream.'
+                  )}
+                </FieldDescription>
+              </div>
+            </Field>
+          </FieldLabel>
+        </RadioGroup>
+      </FieldSet>
+      <div className='grid gap-6 md:grid-cols-2'>
+        <section
+          aria-labelledby={`${id}-models`}
+          className='flex min-w-0 flex-col gap-3'
+        >
           <h3 id={`${id}-models`} className='text-sm font-semibold'>
-            {t('Select models')}
+            {direction === 'upstream'
+              ? t('1. Select upstream models')
+              : t('1. Select models users call')}
           </h3>
           {hasUpstream && (
             <Tabs
               value={source}
-              onValueChange={(value) =>
-                changeSource(value === 'channel' ? 'channel' : 'upstream')
-              }
+              onValueChange={(value) => {
+                if (value !== 'channel' && value !== 'upstream') return
+                setSource(value)
+                setSelected([])
+              }}
             >
-              <TabsList variant='line' aria-label={t('Select models')}>
-                <TabsTrigger value='upstream'>
-                  {t('Upstream model list')} ({upstreamModels.length})
+              <TabsList
+                variant='line'
+                className='grid w-full grid-cols-2 group-data-horizontal/tabs:h-auto'
+                aria-label={t('Select models')}
+              >
+                <TabsTrigger
+                  value='upstream'
+                  className='h-auto min-h-8 whitespace-normal'
+                >
+                  <span>
+                    {t('Upstream model list')} ({upstreamModels.length})
+                  </span>
                 </TabsTrigger>
-                <TabsTrigger value='channel'>
-                  {t('Channel models')} ({props.channelModels.length})
+                <TabsTrigger
+                  value='channel'
+                  className='h-auto min-h-8 whitespace-normal'
+                >
+                  <span>
+                    {t('Channel models')} ({props.channelModels.length})
+                  </span>
                 </TabsTrigger>
               </TabsList>
             </Tabs>
@@ -283,161 +266,138 @@ export function ModelMappingBatchDialog(props: ModelMappingBatchDialogProps) {
             }
           />
         </section>
-        <div className='min-w-0 space-y-5'>
-          <section aria-labelledby={`${id}-direction`} className='space-y-2'>
-            <h3 id={`${id}-direction`} className='text-sm font-semibold'>
-              {t('Selected names are')}
-            </h3>
-            <RadioGroup
-              value={direction}
-              aria-labelledby={`${id}-direction`}
-              onValueChange={(value) => {
-                if (value === 'upstream' || value === 'request') {
-                  changeDirection(value)
-                }
-              }}
-              className='gap-2'
-            >
-              <div className='flex items-start gap-3'>
-                <RadioGroupItem
-                  value='upstream'
-                  id={`${id}-direction-upstream`}
-                  className='mt-0.5'
-                />
-                <div className='min-w-0 space-y-0.5'>
-                  <Label
-                    htmlFor={`${id}-direction-upstream`}
-                    className='font-normal'
-                  >
-                    {t('Upstream names returned by the provider')}
-                  </Label>
-                  <p className='text-muted-foreground text-xs'>
-                    {t('Derives the request names your users call')}
-                  </p>
-                </div>
-              </div>
-              <div className='flex items-start gap-3'>
-                <RadioGroupItem
-                  value='request'
-                  id={`${id}-direction-request`}
-                  className='mt-0.5'
-                />
-                <div className='min-w-0 space-y-0.5'>
-                  <Label
-                    htmlFor={`${id}-direction-request`}
-                    className='font-normal'
-                  >
-                    {t('Request names your users call')}
-                  </Label>
-                  <p className='text-muted-foreground text-xs'>
-                    {t('Derives the upstream names sent to the provider')}
-                  </p>
-                </div>
-              </div>
-            </RadioGroup>
-          </section>
-          <section aria-labelledby={`${id}-rule`} className='space-y-3'>
-            <h3 id={`${id}-rule`} className='text-sm font-semibold'>
-              {t('Rule')}
-            </h3>
-            <RadioGroup
-              value={ruleType}
-              aria-labelledby={`${id}-rule`}
-              onValueChange={(value) => {
-                const option = ruleOptions.find((item) => item.type === value)
-                if (option) setRuleType(option.type)
-              }}
-              className='gap-3'
-            >
-              {ruleOptions.map((option) => (
-                <div key={option.type} className='flex items-start gap-3'>
-                  <RadioGroupItem
-                    value={option.type}
-                    id={`${id}-rule-${option.type}`}
-                    className='mt-2'
-                  />
-                  <div className='min-w-0 flex-1 space-y-2'>
-                    <Label
-                      htmlFor={`${id}-rule-${option.type}`}
-                      className='font-normal'
-                    >
+        <section
+          aria-labelledby={`${id}-naming`}
+          className='flex min-w-0 flex-col gap-3'
+        >
+          <h3 id={`${id}-naming`} className='text-sm font-semibold'>
+            {direction === 'upstream'
+              ? t('2. Set names users call')
+              : t('2. Set upstream model names')}
+          </h3>
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor={`${id}-rule`}>{t('Rule')}</FieldLabel>
+              <Select
+                items={ruleOptions}
+                value={ruleType}
+                onValueChange={(value) => {
+                  const option = ruleOptions.find(
+                    (item) => item.value === value
+                  )
+                  if (option) {
+                    setRuleType(option.value)
+                    setAffix('')
+                  }
+                }}
+              >
+                <SelectTrigger id={`${id}-rule`} className='w-full'>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ruleOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
                       {option.label}
-                    </Label>
-                    {option.control}
-                    {option.hint && ruleType === option.type && (
-                      <p className='text-muted-foreground text-xs'>
-                        {option.hint}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </RadioGroup>
-          </section>
-          {direction === 'upstream' && (
-            <div className='flex items-start gap-3 rounded-md border p-3'>
-              <Checkbox
-                id={`${id}-sync`}
-                className='mt-0.5'
-                checked={syncModels}
-                onCheckedChange={(checked) => setSyncModels(checked === true)}
-              />
-              <Label htmlFor={`${id}-sync`} className='leading-5 font-normal'>
-                {t(
-                  'Publish the request names and remove the raw upstream names from the model list'
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            {ruleType === 'replace' ? (
+              <div className='grid gap-3 sm:grid-cols-2'>
+                <Field>
+                  <FieldLabel htmlFor={`${id}-find`}>{t('Find')}</FieldLabel>
+                  <Input
+                    id={`${id}-find`}
+                    placeholder='.'
+                    value={find}
+                    onChange={(event) => setFind(event.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor={`${id}-replacement`}>
+                    {t('Replace with')}
+                  </FieldLabel>
+                  <Input
+                    id={`${id}-replacement`}
+                    placeholder='-'
+                    value={replaceWith}
+                    onChange={(event) => setReplaceWith(event.target.value)}
+                  />
+                </Field>
+              </div>
+            ) : (
+              <Field>
+                <FieldLabel htmlFor={`${id}-affix`}>
+                  {isPrefix ? t('Prefix') : t('Suffix')}
+                </FieldLabel>
+                <Input
+                  id={`${id}-affix`}
+                  placeholder={isPrefix ? 'openai/' : '-all'}
+                  value={affix}
+                  onChange={(event) => setAffix(event.target.value)}
+                />
+                {isStrip && (
+                  <FieldDescription>
+                    {t('Separate several values with commas')}
+                  </FieldDescription>
                 )}
-              </Label>
-            </div>
-          )}
-          <section aria-labelledby={`${id}-preview`} className='space-y-2'>
+              </Field>
+            )}
+          </FieldGroup>
+          <section
+            aria-labelledby={`${id}-preview`}
+            className='mt-2 flex min-w-0 flex-col gap-3 rounded-lg border p-3'
+          >
             <h3 id={`${id}-preview`} className='text-sm font-semibold'>
-              {t('Preview')}
+              {t('3. Review mappings')}
             </h3>
-            {selected.length === 0 && (
+            <div className='text-muted-foreground grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 text-xs'>
+              <span>{t('Users call')}</span>
+              <span aria-hidden='true'>→</span>
+              <span>{t('Upstream receives')}</span>
+            </div>
+            {derivation.pairs.length > 0 && hasRule && (
+              <ul
+                aria-label={t('Preview')}
+                className='flex max-h-56 flex-col gap-2 overflow-y-auto font-mono text-xs'
+              >
+                {derivation.pairs.map((pair) => (
+                  <li
+                    key={pair.from}
+                    className='grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2'
+                  >
+                    <span className='min-w-0 wrap-anywhere'>{pair.from}</span>
+                    <HugeiconsIcon
+                      icon={ArrowRight01Icon}
+                      className='size-3.5 shrink-0'
+                      aria-hidden='true'
+                    />
+                    <span className='min-w-0 wrap-anywhere'>{pair.to}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {(!hasRule || selected.length === 0) && (
               <p className='text-muted-foreground text-sm'>
-                {t('Select at least one model to preview mappings.')}
+                {selected.length === 0
+                  ? t('Select at least one model to preview mappings.')
+                  : t('Enter a rule to preview mappings.')}
               </p>
             )}
-            {derivation.pairs.length > 0 && (
-              <div className='rounded-md border p-3 font-mono text-xs'>
-                <div className='text-muted-foreground mb-2 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] gap-2 font-sans'>
-                  <span>{t('Request Model Name')}</span>
-                  <span className='w-3.5' />
-                  <span>{t('Upstream Model Name')}</span>
-                </div>
-                <ul
-                  aria-label={t('Preview')}
-                  className='max-h-56 space-y-1 overflow-y-auto'
-                >
-                  {preview.map((pair) => (
-                    <li
-                      key={pair.to}
-                      className='grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2'
-                    >
-                      <span className='min-w-0 wrap-anywhere'>{pair.from}</span>
-                      <ArrowRight
-                        className='mt-0.5 size-3.5 shrink-0'
-                        aria-hidden='true'
-                      />
-                      <span className='min-w-0 wrap-anywhere'>{pair.to}</span>
-                    </li>
-                  ))}
-                  {remaining > 0 && (
-                    <li className='text-muted-foreground'>
-                      {t('+{{count}} more', { count: remaining })}
-                    </li>
-                  )}
-                </ul>
-              </div>
+            {selected.length === 0 && (
+              <p className='text-muted-foreground text-xs'>
+                {t('Example: users call gpt-4o; upstream receives gpt-4o-all.')}
+              </p>
             )}
-            {derivation.unchanged.length > 0 && (
+            {hasRule && derivation.unchanged.length > 0 && (
               <p className='text-muted-foreground text-xs'>
                 {t('{{count}} model(s) unchanged by the rule were skipped', {
                   count: derivation.unchanged.length,
                 })}
               </p>
             )}
-            {derivation.conflicts.length > 0 && (
+            {hasRule && derivation.conflicts.length > 0 && (
               <p className='text-warning text-xs'>
                 {t(
                   '{{count}} model(s) skipped because another model derives the same request name',
@@ -446,7 +406,24 @@ export function ModelMappingBatchDialog(props: ModelMappingBatchDialogProps) {
               </p>
             )}
           </section>
-        </div>
+          {direction === 'upstream' && (
+            <Field orientation='horizontal'>
+              <Checkbox
+                id={`${id}-sync`}
+                checked={syncModels}
+                onCheckedChange={(checked) => setSyncModels(checked === true)}
+              />
+              <FieldLabel
+                htmlFor={`${id}-sync`}
+                className='leading-5 font-normal'
+              >
+                {t(
+                  'Publish the request names and remove the raw upstream names from the model list'
+                )}
+              </FieldLabel>
+            </Field>
+          )}
+        </section>
       </div>
     </Dialog>
   )

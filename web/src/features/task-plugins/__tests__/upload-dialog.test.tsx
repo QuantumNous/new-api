@@ -23,14 +23,18 @@ import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import { UploadDialog } from '../components/upload-dialog'
 import { MAX_PLUGIN_SOURCE_BYTES } from '../lib/plugin-url'
+import type { TaskPluginDetail } from '../types'
 
-const uploadTaskPlugin = vi.hoisted(() => vi.fn())
+const { uploadTaskPlugin, activateTaskPlugin } = vi.hoisted(() => ({
+  uploadTaskPlugin: vi.fn(),
+  activateTaskPlugin: vi.fn(),
+}))
 
-vi.mock('../api', () => ({ uploadTaskPlugin }))
+vi.mock('../api', () => ({ uploadTaskPlugin, activateTaskPlugin }))
 
 const queryClients: QueryClient[] = []
 
-function renderDialog(open = true) {
+function renderDialog(open = true, initialKey?: string) {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false, staleTime: Number.POSITIVE_INFINITY },
@@ -41,7 +45,11 @@ function renderDialog(open = true) {
   const onOpenChange = vi.fn()
   const view = render(
     <QueryClientProvider client={queryClient}>
-      <UploadDialog open={open} onOpenChange={onOpenChange} />
+      <UploadDialog
+        open={open}
+        onOpenChange={onOpenChange}
+        initialKey={initialKey}
+      />
     </QueryClientProvider>
   )
   return { onOpenChange, queryClient, view }
@@ -59,6 +67,43 @@ function fileInput() {
 function footerButton(name: string | RegExp) {
   const footer = document.querySelector('[data-slot=dialog-footer]')
   return within(footer as HTMLElement).getByRole('button', { name })
+}
+
+function savedPlugin(active: boolean): TaskPluginDetail {
+  return {
+    meta: {
+      key: 'demo',
+      name: 'Demo',
+      version: '2.0.0',
+      apiVersion: 1,
+      author: { name: 'Demo' },
+      models: [],
+      fetchMode: 'per_task',
+    },
+    source: 'const a = 1',
+    layer: 'override',
+    plugin: {
+      id: 2,
+      key: 'demo',
+      api_version: 1,
+      version: '2.0.0',
+      source: 'const a = 1',
+      source_hash: 'hash',
+      enabled: true,
+      active,
+      created_at: 1,
+      remark: '',
+    },
+  }
+}
+
+async function uploadSource(user: ReturnType<typeof userEvent.setup>) {
+  await user.upload(
+    fileInput(),
+    new File(['const a = 1'], 'plugin.js', { type: 'text/javascript' })
+  )
+  await waitFor(() => expect(footerButton('Upload')).toBeEnabled())
+  await user.click(footerButton('Upload'))
 }
 
 afterEach(() => {
@@ -87,7 +132,9 @@ describe('UploadDialog layout', () => {
 
     const content = document.querySelector('[data-slot=dialog-content]')
     const body = content?.querySelector(':scope > div:nth-child(2)')
-    expect(content).toHaveClass('max-h-[calc(100vh-2rem)]')
+    expect(content).toHaveClass(
+      'max-h-[var(--dialog-available-height,calc(100dvh-2rem))]'
+    )
     expect(body).toHaveClass('overflow-y-auto')
   })
 
@@ -121,7 +168,7 @@ describe('UploadDialog file selection', () => {
     ).toBeInTheDocument()
   })
 
-  test('rejects a file over the 1 MiB limit without touching the source', async () => {
+  test('rejects a file over the 8 MiB limit without touching the source', async () => {
     const user = userEvent.setup()
     renderDialog()
 
@@ -132,7 +179,7 @@ describe('UploadDialog file selection', () => {
     await user.upload(fileInput(), oversized)
 
     expect(
-      await screen.findByText('Plugin source exceeds the 1 MiB limit.')
+      await screen.findByText('Plugin source exceeds the 8 MiB limit.')
     ).toBeInTheDocument()
     expect(screen.queryByText('huge.js')).toBeNull()
     expect(footerButton('Upload')).toBeDisabled()
@@ -185,6 +232,111 @@ describe('UploadDialog URL import', () => {
 })
 
 describe('UploadDialog upload lifecycle', () => {
+  test.each([undefined, 'demo'])(
+    'offers activation after saving an inactive version from %s',
+    async (initialKey) => {
+      const user = userEvent.setup()
+      uploadTaskPlugin.mockResolvedValue(savedPlugin(false))
+      let resolveActivation!: () => void
+      activateTaskPlugin.mockImplementation(
+        () =>
+          new Promise<void>((resolve) => {
+            resolveActivation = resolve
+          })
+      )
+      const { queryClient, onOpenChange } = renderDialog(true, initialKey)
+      queryClient.setQueryData(['task-plugin', 'demo'], { cached: true })
+      queryClient.setQueryData(['task-plugin-versions', 'demo'], [])
+      queryClient.setQueryData(['task-plugins'], [])
+
+      await uploadSource(user)
+
+      expect(
+        await screen.findByText('Plugin saved, activation required')
+      ).toBeVisible()
+      expect(
+        screen.getByText(
+          'This version is saved but not active. Activate it to replace the current version, or activate it later from the Versions tab.'
+        )
+      ).toBeVisible()
+      expect(
+        screen.queryByRole('textbox', { name: 'Plugin source' })
+      ).not.toBeInTheDocument()
+      expect(activateTaskPlugin).not.toHaveBeenCalled()
+      expect(footerButton('Activate now')).toHaveFocus()
+      // Reset the cached queries so activation must invalidate them again.
+      queryClient.setQueryData(['task-plugin', 'demo'], { cached: true })
+      queryClient.setQueryData(['task-plugin-versions', 'demo'], [])
+      queryClient.setQueryData(['task-plugins'], [])
+      await user.keyboard('{Enter}')
+
+      expect(activateTaskPlugin).toHaveBeenCalledWith('demo', '2.0.0')
+      expect(footerButton('Activating...')).toBeDisabled()
+      expect(footerButton('Later')).toBeDisabled()
+      await user.keyboard('{Escape}')
+      expect(onOpenChange).not.toHaveBeenCalled()
+      resolveActivation()
+
+      expect(await screen.findByText('Plugin version activated')).toBeVisible()
+      expect(
+        screen.queryByRole('button', { name: 'Activate now' })
+      ).not.toBeInTheDocument()
+      expect(footerButton('Close')).toHaveFocus()
+      for (const queryKey of [
+        ['task-plugins'],
+        ['task-plugin', 'demo'],
+        ['task-plugin-versions', 'demo'],
+      ]) {
+        expect(queryClient.getQueryState(queryKey)?.isInvalidated).toBe(true)
+      }
+    }
+  )
+
+  test('keeps the saved version available to retry when activation fails', async () => {
+    const user = userEvent.setup()
+    uploadTaskPlugin.mockResolvedValue(savedPlugin(false))
+    activateTaskPlugin
+      .mockRejectedValueOnce(new Error('activation failed'))
+      .mockResolvedValueOnce(undefined)
+    renderDialog()
+    await uploadSource(user)
+    await user.click(
+      await screen.findByRole('button', { name: 'Activate now' })
+    )
+
+    expect(await screen.findByText('activation failed')).toBeVisible()
+    expect(screen.getByText('Plugin saved, activation required')).toBeVisible()
+    expect(footerButton('Activate now')).toBeEnabled()
+    await user.click(footerButton('Activate now'))
+    expect(await screen.findByText('Plugin version activated')).toBeVisible()
+    expect(uploadTaskPlugin).toHaveBeenCalledTimes(1)
+  })
+
+  test('allows postponing activation without changing the active version', async () => {
+    const user = userEvent.setup()
+    uploadTaskPlugin.mockResolvedValue(savedPlugin(false))
+    const { onOpenChange } = renderDialog()
+    await uploadSource(user)
+    await user.click(await screen.findByRole('button', { name: 'Later' }))
+    expect(onOpenChange).toHaveBeenCalledWith(false)
+    expect(activateTaskPlugin).not.toHaveBeenCalled()
+  })
+
+  test('shows an already active upload as activated without another activation request', async () => {
+    const user = userEvent.setup()
+    uploadTaskPlugin.mockResolvedValue(savedPlugin(true))
+    renderDialog()
+    await uploadSource(user)
+    expect(await screen.findByText('Plugin version activated')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Activate now' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /^Upload$/ })
+    ).not.toBeInTheDocument()
+    expect(activateTaskPlugin).not.toHaveBeenCalled()
+  })
+
   test('disables Upload while the source is empty and shows a pending label', async () => {
     const user = userEvent.setup()
     let resolveUpload: (value: unknown) => void = () => undefined
@@ -208,12 +360,9 @@ describe('UploadDialog upload lifecycle', () => {
     await user.click(uploadButton)
     await waitFor(() => expect(footerButton(/Uploading/)).toBeDisabled())
 
-    resolveUpload({
-      source: 'const a = 1',
-      meta: { key: 'demo', name: 'Demo', version: '1.0.0', apiVersion: 1 },
-    })
+    resolveUpload(savedPlugin(true))
     expect(
-      await screen.findByText('Parsed plugin metadata')
+      await screen.findByText('Plugin version activated')
     ).toBeInTheDocument()
   })
 

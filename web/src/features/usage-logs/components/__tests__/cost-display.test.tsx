@@ -94,31 +94,19 @@ describe('log cost display', () => {
     expect(screen.queryByText('Subscription')).not.toBeInTheDocument()
   })
 
-  test.each(['wallet', 'subscription'])(
-    'hides the %s icon when subscriptions are unavailable',
-    (source) => {
-      renderCost({
-        quota: 5000,
-        other: { billing_source: source },
-        showBillingSource: false,
-      })
-
-      expect(screen.getByText('$0.01')).toBeVisible()
-      expect(screen.queryByText('Wallet')).not.toBeInTheDocument()
-      expect(screen.queryByRole('img')).not.toBeInTheDocument()
-    }
-  )
-
-  test('keeps legacy cost visible without inventing a funding source', () => {
-    renderCost({ quota: 5000, other: null })
+  test('hides the wallet icon when subscriptions are unavailable', () => {
+    renderCost({
+      quota: 5000,
+      other: { billing_source: 'wallet' },
+      showBillingSource: false,
+    })
 
     expect(screen.getByText('$0.01')).toBeVisible()
     expect(screen.queryByText('Wallet')).not.toBeInTheDocument()
-    expect(screen.queryByText('Subscription')).not.toBeInTheDocument()
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
   })
 
-  test('keeps the subscription deduction when its source icon is hidden', () => {
+  test('keeps the subscription icon on a subscription-billed log when billing sources are hidden', () => {
     renderCost({
       quota: 5000,
       other: { billing_source: 'subscription', subscription_consumed: 12500 },
@@ -126,6 +114,16 @@ describe('log cost display', () => {
     })
 
     expect(screen.getByText('$0.025')).toBeVisible()
+    expect(screen.getByRole('img', { name: 'Subscription' })).toBeVisible()
+    expect(screen.queryByRole('img', { name: 'Wallet' })).not.toBeInTheDocument()
+  })
+
+  test('keeps legacy cost visible without inventing a funding source', () => {
+    renderCost({ quota: 5000, other: null })
+
+    expect(screen.getByText('$0.01')).toBeVisible()
+    expect(screen.queryByText('Wallet')).not.toBeInTheDocument()
+    expect(screen.queryByText('Subscription')).not.toBeInTheDocument()
     expect(screen.queryByRole('img')).not.toBeInTheDocument()
   })
 

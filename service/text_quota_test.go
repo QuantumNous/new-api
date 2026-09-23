@@ -193,7 +193,7 @@ func runFixedPriceAccountingCases(t *testing.T, db, logDB *gorm.DB) {
 				require.NoError(t, err)
 				assert.Equal(t, quota-reservation, held)
 				if tc.outboundImages > 0 {
-					reserveErr := PrepareImageBillingForRequest(ctx, info, tc.outboundImages, false)
+					reserveErr := PrepareImageBillingForRequest(ctx, info, tc.outboundImages)
 					if tc.reserveInsufficient {
 						require.NotNil(t, reserveErr)
 						assert.Equal(t, types.ErrorCodeInsufficientUserQuota, reserveErr.GetErrorCode())

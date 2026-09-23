@@ -7,11 +7,12 @@ export const meta = {
     en: "Volcengine Jimeng video generation (text-to-video, image-to-video, and first-and-last-frame)",
     zh: "火山引擎即梦视频生成（文生视频、图生视频、首尾帧）",
   },
-  version: "1.0.2",
+  version: "1.1.0",
   author: { name: "QuantumNous" },
   channelTypes: [51],
   models: ["jimeng_vgfm_t2v_l20"],
   fetchMode: "per_task",
+  upstreams: ["vendor", "new_api"],
   usageSchema: {
     // Requested video duration in seconds. S2.0 Pro is fixed at 5; 3.0 req_keys allow 5 or 10.
     seconds: {
@@ -90,6 +91,12 @@ function isRelay(apiKey) {
   return apiKey.startsWith("sk-");
 }
 
+// The host signal is authoritative on New API channels; the sk- key prefix
+// stays as the heuristic for legacy type-51 channels pointed at a gateway.
+function viaGateway(ctx) {
+  return !!(ctx.upstream && ctx.upstream.kind === "new_api") || isRelay(ctx.apiKey);
+}
+
 function imageValues(body) {
   const images = [];
   if (Array.isArray(body.image_urls)) {
@@ -153,13 +160,13 @@ function decodeNativeRequest(ctx) {
   };
 }
 
-function endpoint(baseUrl, apiKey, action) {
-  return baseUrl + (isRelay(apiKey) ? "/jimeng/" : "/") + "?Action=" + action + "&Version=2022-08-31";
+function endpoint(ctx, action) {
+  return ctx.baseUrl + (viaGateway(ctx) ? "/jimeng/" : "/") + "?Action=" + action + "&Version=2022-08-31";
 }
 
 function requestHeaders(ctx, method, url, bodyText) {
   const headers = { "Content-Type": "application/json", Accept: "application/json" };
-  if (isRelay(ctx.apiKey)) {
+  if (viaGateway(ctx)) {
     headers.Authorization = "Bearer " + ctx.apiKey;
     return headers;
   }
@@ -337,7 +344,7 @@ export function buildSubmitRequest(ctx) {
   ordered.seed = body.seed;
   if (body.aspect_ratio) ordered.aspect_ratio = body.aspect_ratio;
   if (body.frames) ordered.frames = body.frames;
-  const url = endpoint(ctx.baseUrl, ctx.apiKey, "CVSync2AsyncSubmitTask");
+  const url = endpoint(ctx, "CVSync2AsyncSubmitTask");
   const bodyText = JSON.stringify(ordered);
   return {
     url: url,
@@ -363,7 +370,7 @@ export function extractUsage(ctx) {
 
 export function buildQueryRequest(ctx) {
   const body = JSON.stringify({ req_key: queryReqKey(ctx), task_id: ctx.taskId });
-  const url = endpoint(ctx.baseUrl, ctx.apiKey, "CVSync2AsyncGetResult");
+  const url = endpoint(ctx, "CVSync2AsyncGetResult");
   return { url: url, method: "POST", headers: requestHeaders(ctx, "POST", url, body), body: body };
 }
 

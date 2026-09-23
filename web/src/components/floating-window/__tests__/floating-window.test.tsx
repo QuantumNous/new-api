@@ -76,10 +76,13 @@ function resizeHandle(direction: string) {
   return handle
 }
 
-test('dragging the bottom-right corner grows both dimensions from the rendered size and persists them', () => {
+test('the visible resize hint leads to a bottom-right grip that grows both dimensions and persists them', () => {
   renderWindow({ storageKey: 'scratch' })
   const window_ = screen.getByRole('complementary', { name: 'Scratch pad' })
   const handle = resizeHandle('se')
+  expect(screen.getByText('Drag to resize')).toBeVisible()
+  expect(handle.querySelector('svg')).toBeVisible()
+  expect(handle).toHaveClass('size-8', 'cursor-nwse-resize')
   fireEvent.pointerDown(handle, {
     button: 0,
     pointerId: 3,
@@ -145,11 +148,13 @@ test('collapses to a pill that keeps the title and reopens, and the close contro
   ).not.toBeInTheDocument()
   expect(screen.getByText('Scratch pad')).toBeVisible()
   expect(screen.queryByText('body')).not.toBeInTheDocument()
+  expect(screen.queryByText('Drag to resize')).not.toBeInTheDocument()
 
   await user.click(screen.getByRole('button', { name: 'Expand panel' }))
   expect(
     screen.getByRole('complementary', { name: 'Scratch pad' })
   ).toBeVisible()
+  expect(screen.getByText('Drag to resize')).toBeVisible()
   await user.click(screen.getByRole('button', { name: 'Close panel' }))
   expect(onClose).toHaveBeenCalledTimes(1)
 })

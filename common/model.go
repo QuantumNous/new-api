@@ -2,9 +2,6 @@ package common
 
 import "strings"
 
-// ZImagePromptExtendMultiplier is the legacy Ali image request surcharge.
-const ZImagePromptExtendMultiplier = 2
-
 var (
 	// OpenAIResponseOnlyModels is a list of models that are only available for OpenAI responses.
 	OpenAIResponseOnlyModels = []string{

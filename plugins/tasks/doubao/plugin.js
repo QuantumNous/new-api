@@ -1,27 +1,175 @@
-export const meta = {
-  apiVersion: 1,
-  key: "doubao",
-  name: "Doubao Video",
-  icon: "Doubao.Color",
-  description: {
-    en: "Volcengine Doubao Seedance video generation (text-to-video, image-to-video, and video-to-video)",
-    zh: "火山引擎豆包 Seedance 视频生成（文生视频、图生视频、视频生视频）",
+// Seedance capabilities from the Ark model list, not prices: the output
+// resolutions each model offers, whether it accepts reference video input
+// (Seedance 2.x prices video-to-video tokens separately) and whether audio
+// output is priced separately (Seedance 1.5 pro; generate_audio defaults to
+// true). Seedance 1.0 lite is no longer listed and keeps the 1.0 pro tiers.
+const VIDEO_MODELS = {
+  "doubao-seedance-1-0-pro-250528": { resolutions: ["480p", "720p", "1080p"] },
+  "doubao-seedance-1-0-lite-t2v": { resolutions: ["480p", "720p", "1080p"] },
+  "doubao-seedance-1-0-lite-i2v": { resolutions: ["480p", "720p", "1080p"] },
+  "doubao-seedance-1-5-pro-251215": { resolutions: ["480p", "720p", "1080p"], audio: true },
+  "doubao-seedance-2-0-260128": { resolutions: ["480p", "720p", "1080p", "4k"], videoInput: true },
+  "doubao-seedance-2-0-fast-260128": { resolutions: ["480p", "720p"], videoInput: true },
+  "doubao-seedance-2-0-mini-260615": { resolutions: ["480p", "720p"], videoInput: true },
+  "doubao-seedance-2-5-260628": { resolutions: ["480p", "720p", "1080p"], videoInput: true },
+};
+// Every Ark resolution tier; an endpoint ID reached through channel mapping
+// without a declared profile keeps them all.
+const SEEDANCE_RESOLUTIONS = ["480p", "720p", "1080p", "4k"];
+const DEFAULT_VIDEO_PROFILE = { resolutions: SEEDANCE_RESOLUTIONS, videoInput: true };
+
+// Protocol capabilities from the Ark image generation API reference, not prices.
+// presets: accepted `size` resolution tiers; minPixels/maxPixels bound `WxH` sizes.
+// outputFormat/tools/fastPromptMode mirror the per-model support lists in the API
+// reference and were confirmed by live 400s; background marks the models whose
+// documented transparency combination rules are enforced locally.
+const IMAGE_MODELS = {
+  "doubao-seedream-5-0-pro-260628": {
+    presets: ["1K", "1.5K", "2K"],
+    minPixels: 921600,
+    maxPixels: 4624220,
+    maxReferenceImages: 10,
+    sequential: false,
+    layers: true,
+    outputFormat: true,
+    background: true,
+    tools: false,
+    fastPromptMode: true,
   },
-  version: "1.0.2",
-  author: { name: "QuantumNous" },
-  channelTypes: [54, 45], // VolcEngine-type channels serve Ark video models with the same wire format
-  models: [
-    "doubao-seedance-1-0-pro-250528",
-    "doubao-seedance-1-0-lite-t2v",
-    "doubao-seedance-1-0-lite-i2v",
-    "doubao-seedance-1-5-pro-251215",
-    "doubao-seedance-2-0-260128",
-    "doubao-seedance-2-0-fast-260128",
-    "doubao-seedance-2-0-mini-260615",
-    "doubao-seedance-2-5-260628",
-  ],
-  fetchMode: "per_task",
-  usageSchema: {
+  "doubao-seedream-5-0-lite-260128": {
+    presets: ["2K", "3K", "4K"],
+    minPixels: 3686400,
+    maxPixels: 16777216,
+    maxReferenceImages: 14,
+    sequential: true,
+    layers: false,
+    outputFormat: true,
+    background: false,
+    tools: true,
+    fastPromptMode: false,
+  },
+  "doubao-seedream-5-0-260128": {
+    presets: ["2K", "3K", "4K"],
+    minPixels: 3686400,
+    maxPixels: 16777216,
+    maxReferenceImages: 14,
+    sequential: true,
+    layers: false,
+    outputFormat: true,
+    background: false,
+    tools: true,
+    fastPromptMode: false,
+  },
+  "doubao-seedream-4-5-251128": {
+    presets: ["2K", "4K"],
+    minPixels: 3686400,
+    maxPixels: 16777216,
+    maxReferenceImages: 14,
+    sequential: true,
+    layers: false,
+    outputFormat: false,
+    background: false,
+    tools: false,
+    fastPromptMode: false,
+  },
+  "doubao-seedream-4-0-250828": {
+    presets: ["1K", "2K", "4K"],
+    minPixels: 921600,
+    maxPixels: 16777216,
+    maxReferenceImages: 14,
+    sequential: true,
+    layers: false,
+    outputFormat: false,
+    background: false,
+    tools: false,
+    fastPromptMode: true,
+  },
+};
+const IMAGE_RESOLUTIONS = ["1K", "1.5K", "2K", "3K", "4K"];
+// Square pixel area of each preset, used only for the submit-time tier estimate.
+const IMAGE_PRESET_PIXELS = { "1K": 1048576, "1.5K": 2359296, "2K": 4194304, "3K": 9437184, "4K": 16777216 };
+// Endpoint IDs and newer models reach the image route without a profile; accept every documented option.
+const DEFAULT_IMAGE_PROFILE = {
+  presets: IMAGE_RESOLUTIONS,
+  minPixels: 921600,
+  maxPixels: 16777216,
+  maxReferenceImages: 14,
+  sequential: true,
+  layers: true,
+  outputFormat: true,
+  background: true,
+  tools: true,
+  fastPromptMode: true,
+};
+const LAYER_SIZE_PRESETS = ["1K", "1.5K", "2K"];
+const IMAGE_ACTIONS = ["text_to_image", "image_to_image"];
+// Official Seedream pricing boundary: every output image at or below 2.61
+// megapixels (1.5K and below) is priced separately from images above it.
+const IMAGE_TIER_MAX_PIXELS = 2610000;
+// Documented output ceiling: 15 images per group request, or one base image plus 16 layers.
+const MAX_IMAGE_OUTPUTS = 17;
+// Documented reference-image ceiling across Seedream models; bounds usage.input_images.
+const MAX_REFERENCE_IMAGES = 14;
+// Base64 references must be `data:image/<lowercase format>;base64,<payload>`.
+const IMAGE_DATA_URI = /^data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/]+={0,2}$/;
+// Responses fields copied verbatim into the Ark body. `background` is excluded:
+// on /v1/responses it is the host's boolean background-execution flag, not Ark's
+// string transparency option. `tools` is filtered separately.
+const IMAGE_REQUEST_KEYS = [
+  "size",
+  "seed",
+  "guidance_scale",
+  "response_format",
+  "watermark",
+  "optimize_prompt",
+  "optimize_prompt_options",
+  "sequential_image_generation",
+  "sequential_image_generation_options",
+  "output_format",
+  "layer_decomposition",
+];
+
+const IMAGE_UNIT_LABEL = { en: "image", zh: "张", "zh-TW": "張", fr: "image", ja: "枚", ru: "изображение", vi: "ảnh" };
+// Each output image is billed at its own pixel tier (official pricing bills
+// layers individually). Estimated at submit from the requested size and count;
+// settled from data[].size per successful image.
+const IMAGE_USAGE_SCHEMA = {
+  // Successful output images at or below IMAGE_TIER_MAX_PIXELS.
+  images_up_to_1_5k: {
+    type: "number",
+    unit: "count",
+    unitLabel: IMAGE_UNIT_LABEL,
+    description: { en: "Image generation unit price (1.5K and below)", zh: "图片生成单价（1.5K 及以下）" },
+  },
+  // Successful output images above IMAGE_TIER_MAX_PIXELS.
+  images_above_1_5k: {
+    type: "number",
+    unit: "count",
+    unitLabel: IMAGE_UNIT_LABEL,
+    description: { en: "Image generation unit price (above 1.5K)", zh: "图片生成单价（1.5K 以上）" },
+  },
+  // Reference images: request count at submit, usage.input_images on completion.
+  // Seedream 5.0 pro charges from the second image; the expression carries that
+  // rule, for example max(u("input_images") - 1, 0) * price.
+  input_images: {
+    type: "number",
+    unit: "count",
+    unitLabel: IMAGE_UNIT_LABEL,
+    description: { en: "Input image unit price", zh: "输入图片单价" },
+  },
+  // Layer decomposition outputs (base image plus layers) are priced per layer at their own rate.
+  layer_decomposition: {
+    type: "boolean",
+    description: { en: "Whether layer decomposition is enabled", zh: "是否开启图层拆分" },
+  },
+};
+
+// Usage facts for one Seedance capability profile: the pricing table then
+// lists only the resolutions and input kinds the model offers.
+function seedanceUsageSchema(profile) {
+  const resolutionLabels = {};
+  for (const resolution of profile.resolutions) resolutionLabels[resolution] = { en: resolution, zh: resolution };
+  const schema = {
     // Upstream billing tokens (estimated at submit, actual on completion).
     tokens: {
       type: "number",
@@ -30,41 +178,121 @@ export const meta = {
     },
     // Output video resolution; Seedance token unit price varies by resolution tier.
     resolution: {
-      enum: ["480p", "720p", "1080p", "4k"],
-      enumLabels: {
-        "480p": { en: "480p", zh: "480p" },
-        "720p": { en: "720p", zh: "720p" },
-        "1080p": { en: "1080p", zh: "1080p" },
-        "4k": { en: "4k", zh: "4k" },
-      },
+      enum: profile.resolutions,
+      enumLabels: resolutionLabels,
       description: { en: "Output video resolution", zh: "输出视频分辨率" },
     },
-    // Whether the request includes reference video input; Seedance prices video-to-video tokens at a lower unit rate.
-    video_input: {
+  };
+  // Whether the request includes reference video input; Seedance 2.x prices video-to-video tokens at a lower unit rate.
+  if (profile.videoInput) {
+    schema.video_input = {
       enum: ["none", "video"],
       enumLabels: { none: { en: "No reference video", zh: "无参考视频" }, video: { en: "With reference video", zh: "有参考视频" } },
       description: { en: "Reference video input", zh: "参考视频输入" },
-    },
+    };
+  }
+  // Seedance 1.5 pro prices videos with and without audio differently.
+  if (profile.audio) {
+    schema.generate_audio = {
+      type: "boolean",
+      description: { en: "Whether audio is generated", zh: "是否生成音频" },
+    };
+  }
+  return schema;
+}
+
+// Display examples for a token-priced profile: 5-second videos at each tier
+// from the official Ark formula tokens = (input + output seconds) × W × H ×
+// 24 / 1024 with 16:9 max-pixel sizes, cross-checked against Volcengine price
+// examples, plus the reference-video and silent variants the profile prices.
+function seedanceUsageExamples(profile) {
+  const specs = profile.resolutions.map((resolution) => ({
+    label: resolution + " · 5s" + (profile.audio ? " · 有声" : ""),
+    resolution: resolution,
+    seconds: 5,
+  }));
+  if (profile.videoInput) specs.push({ label: "720p · 5s (+4s 输入视频)", resolution: "720p", seconds: 9, video_input: "video" });
+  if (profile.audio) specs.push({ label: "720p · 5s · 无声", resolution: "720p", seconds: 5, generate_audio: false });
+  return specs.map((spec) => {
+    const facts = { tokens: Math.round(estimateTokens(spec.seconds, spec.resolution)), resolution: spec.resolution };
+    if (profile.videoInput) facts.video_input = spec.video_input || "none";
+    if (profile.audio) facts.generate_audio = spec.generate_audio !== false;
+    return { label: spec.label, facts: facts };
+  });
+}
+
+// One usage profile per distinct capability shape.
+function seedanceUsageProfiles() {
+  const profiles = [];
+  for (const model of Object.keys(VIDEO_MODELS)) {
+    const capability = VIDEO_MODELS[model];
+    const shape = capability.resolutions.join("/") + (capability.videoInput ? "+video" : "") + (capability.audio ? "+audio" : "");
+    let profile = profiles.find((entry) => entry.shape === shape);
+    if (!profile) {
+      profile = { shape: shape, models: [], schema: seedanceUsageSchema(capability), examples: seedanceUsageExamples(capability) };
+      profiles.push(profile);
+    }
+    profile.models.push(model);
+  }
+  return profiles.map((profile) => ({ models: profile.models, schema: profile.schema, examples: profile.examples }));
+}
+
+export const meta = {
+  apiVersion: 1,
+  key: "doubao",
+  name: "Doubao",
+  icon: "Doubao.Color",
+  description: {
+    en: "Volcengine Doubao Seedance video generation and Seedream image generation",
+    zh: "火山引擎豆包 Seedance 视频生成与 Seedream 图片生成",
   },
-  // Official Ark formula tokens = (input + output seconds) × W × H × 24 / 1024,
-  // 16:9 max-pixel sizes, cross-checked against Volcengine price examples.
-  usageExamples: [
-    { label: "480p · 5s", facts: { tokens: 48038, resolution: "480p", video_input: "none" } },
-    { label: "720p · 5s", facts: { tokens: 108000, resolution: "720p", video_input: "none" } },
-    { label: "1080p · 5s", facts: { tokens: 243000, resolution: "1080p", video_input: "none" } },
-    { label: "4k · 5s", facts: { tokens: 972000, resolution: "4k", video_input: "none" } },
-    { label: "720p · 10s", facts: { tokens: 216000, resolution: "720p", video_input: "none" } },
-    { label: "720p · 5s (+4s 输入视频)", facts: { tokens: 194400, resolution: "720p", video_input: "video" } },
-  ],
+  version: "1.1.0",
+  author: { name: "QuantumNous" },
+  channelTypes: [54, 45], // VolcEngine-type channels serve Ark video models with the same wire format
+  models: Object.keys(VIDEO_MODELS).concat(Object.keys(IMAGE_MODELS)),
+  fetchMode: "per_task",
+  upstreams: ["vendor", "new_api"],
+  usageSchema: seedanceUsageSchema(DEFAULT_VIDEO_PROFILE),
+  usageExamples: seedanceUsageExamples(DEFAULT_VIDEO_PROFILE),
+  usageProfiles: seedanceUsageProfiles().concat([
+    {
+      models: Object.keys(IMAGE_MODELS),
+      schema: IMAGE_USAGE_SCHEMA,
+      examples: [
+        { label: "2K · 1 张", facts: { images_up_to_1_5k: 0, images_above_1_5k: 1, input_images: 0, layer_decomposition: false } },
+        { label: "1K · 1 张 · 2 张参考图", facts: { images_up_to_1_5k: 1, images_above_1_5k: 0, input_images: 2, layer_decomposition: false } },
+        { label: "2K · 4 张组图", facts: { images_up_to_1_5k: 0, images_above_1_5k: 4, input_images: 0, layer_decomposition: false } },
+        { label: "图层拆分 · 2K 底图 + 4 层 1.5K", facts: { images_up_to_1_5k: 4, images_above_1_5k: 1, input_images: 1, layer_decomposition: true } },
+      ],
+    },
+  ]),
   routes: [
     { method: "POST", path: "/doubao/api/v3/contents/generations/tasks", type: "submit", decode: "createTask", render: "taskCreated" },
     { method: "GET", path: "/doubao/api/v3/contents/generations/tasks/:task_id", type: "query", render: "taskStatus" },
+    // The vendor image API answers synchronously and has no task to re-query;
+    // the complete response is delivered once and never persisted.
+    { method: "POST", path: "/doubao/api/v3/images/generations", type: "submit", decode: "createImage", render: "imageCreated", retainResult: false },
   ],
-  protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
+  protocols: [
+    { name: "openai_responses", supports: ["stream", "sync", "background"] },
+    { name: "openai_video", models: Object.keys(VIDEO_MODELS) },
+  ],
 };
 
 function trimmed(value) {
   return String(value || "").trim();
+}
+
+// Another New API gateway serves the Ark wire format only on this plugin's
+// prefixed native routes; Ark itself serves the unprefixed paths.
+function apiRoot(ctx) {
+  return ctx.baseUrl + (ctx.upstream && ctx.upstream.kind === "new_api" ? "/doubao" : "");
+}
+
+function objectValue(value, name) {
+  if (value === undefined || value === null) return {};
+  if (typeof value !== "object" || Array.isArray(value)) throw new Error(name + " must be an object");
+  return value;
 }
 
 function draftTaskIds(content) {
@@ -118,6 +346,32 @@ function hasVideo(content) {
   return Array.isArray(content) && content.some((item) => item && (item.type === "video_url" || Object.prototype.hasOwnProperty.call(item, "video_url")));
 }
 
+// Capability profile of the executing Seedance model. Channel mapping may send
+// a declared model to an Ark endpoint ID; the declared name still describes it.
+function videoProfile(ctx) {
+  for (const model of [ctx && ctx.upstreamModel, ctx && ctx.model].map(trimmed)) {
+    if (Object.prototype.hasOwnProperty.call(VIDEO_MODELS, model)) return VIDEO_MODELS[model];
+  }
+  return DEFAULT_VIDEO_PROFILE;
+}
+
+// Resolution tier the reservation is estimated at: the requested tier or the
+// tier of a WxH size, rejecting tiers the model does not offer. A request that
+// leaves the resolution to Ark reserves the model's highest tier up to 1080p;
+// completion overlays the delivered resolution.
+function videoResolution(ctx) {
+  const req = ctx.requestBody || {};
+  const metadata = req.metadata || {};
+  const profile = videoProfile(ctx);
+  const raw = trimmed(metadata.resolution || req.size).toLowerCase();
+  const recognized = SEEDANCE_RESOLUTIONS.includes(raw) || raw.replace("*", "x").split("x").length === 2;
+  if (!recognized) return profile.resolutions.includes("1080p") ? "1080p" : profile.resolutions[profile.resolutions.length - 1];
+  const resolution = normalizeResolution(raw);
+  if (!profile.resolutions.includes(resolution))
+    throw new Error(trimmed(ctx.upstreamModel || ctx.model) + " resolution must be one of " + profile.resolutions.join(", "));
+  return resolution;
+}
+
 // Max-pixel 16:9 dimensions per resolution tier. Used when ratio is absent or
 // adaptive so the submit-time estimate overestimates rather than underestimates.
 // Official Ark formula: tokens = seconds × width × height × 24 / 1024.
@@ -149,6 +403,213 @@ function videoInputRatio(model, resolution, content) {
   if (model === "doubao-seedance-2-0-fast-260128") return video ? 22 / 37 : 1;
   if (model === "doubao-seedance-2-0-mini-260615") return video ? 14 / 23 : 1;
   return 1;
+}
+
+// Channel model mapping may send a declared Seedream model to an Ark endpoint
+// ID; the declared name the client sent still describes that endpoint.
+function imageModelCandidates(ctx) {
+  const req = (ctx && ctx.requestBody) || {};
+  return [ctx && ctx.upstreamModel, ctx && ctx.model, req.model].map(trimmed).filter(Boolean);
+}
+
+function imageProfile(ctx) {
+  for (const model of imageModelCandidates(ctx)) {
+    if (Object.prototype.hasOwnProperty.call(IMAGE_MODELS, model)) return IMAGE_MODELS[model];
+  }
+  return DEFAULT_IMAGE_PROFILE;
+}
+
+// Image work is identified by a declared model, or by the decode action for
+// endpoint IDs that reach the image route without any declared name.
+function imageTask(ctx) {
+  return imageModelCandidates(ctx).some((model) => Object.prototype.hasOwnProperty.call(IMAGE_MODELS, model)) || IMAGE_ACTIONS.includes(ctx && ctx.action);
+}
+
+function imageSizePixels(value) {
+  const match = /^(\d+)\s*[xX×*]\s*(\d+)$/.exec(trimmed(value));
+  if (!match) return null;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0) return null;
+  return { width: width, height: height, pixels: width * height };
+}
+
+// Validates the request `size` against the documented per-model presets and
+// pixel ranges, normalizes accepted spellings (`2k` -> `2K`, `2048*2048` ->
+// `2048x2048`) and returns the pixel area used for the submit-time tier
+// estimate. `pixels` is null when the output size is unknown (`auto`), which
+// the estimate treats as the higher tier; completion overlays the real sizes.
+function imageSize(size, profile, layered) {
+  // Documented defaults: 2K / 2048x2048 for image generation, `auto` for layer decomposition.
+  if (size === undefined) return { size: undefined, pixels: layered ? null : IMAGE_PRESET_PIXELS["2K"] };
+  if (typeof size !== "string") throw new Error("size must be a string");
+  const preset = trimmed(size).toUpperCase();
+  if (preset === "AUTO") {
+    if (!layered) throw new Error("size auto is only supported with layer decomposition");
+    return { size: "auto", pixels: null };
+  }
+  if (IMAGE_RESOLUTIONS.includes(preset)) {
+    const allowed = layered ? LAYER_SIZE_PRESETS : profile.presets;
+    if (!allowed.includes(preset)) throw new Error("size must be one of " + allowed.join(", ") + (layered ? ", auto" : " or width x height pixels"));
+    return { size: preset, pixels: IMAGE_PRESET_PIXELS[preset] };
+  }
+  if (layered) throw new Error("layer decomposition sizes must be one of " + LAYER_SIZE_PRESETS.join(", ") + ", auto");
+  const dims = imageSizePixels(size);
+  if (!dims) throw new Error("size must be a resolution preset or width x height pixels");
+  const ratio = dims.width / dims.height;
+  if (dims.pixels < profile.minPixels || dims.pixels > profile.maxPixels || ratio < 1 / 16 || ratio > 16)
+    throw new Error("size is outside the model's pixel and aspect-ratio limits");
+  return { size: dims.width + "x" + dims.height, pixels: dims.pixels };
+}
+
+// Builds the upstream /api/v3/images/generations body. Unknown fields pass
+// through so the native route mirrors the official API; documented fields are
+// type-checked and model capabilities are enforced here. Live probes (2026-09)
+// confirmed Ark rejects wrong-typed seed/guidance_scale, output_format on 4.0,
+// tools on pro, sequential_image_generation on pro, and non-web_search tools,
+// and accepts `optimize_prompt_options: null` as unset.
+function convertImage(ctx) {
+  const req = ctx.requestBody || {};
+  const model = trimmed(ctx.upstreamModel || req.model);
+  if (!model) throw new Error("model is required");
+  const profile = imageProfile(ctx);
+  const body = {};
+  for (const key of Object.keys(req)) {
+    if (key === "model" || key === "stream" || req[key] === undefined) continue;
+    body[key] = req[key];
+  }
+  body.model = model;
+  for (const key of ["watermark", "optimize_prompt", "layer_decomposition"]) {
+    if (body[key] !== undefined && typeof body[key] !== "boolean") throw new Error(key + " must be a boolean");
+  }
+  const layered = body.layer_decomposition === true;
+  if (layered && !profile.layers) throw new Error("layer_decomposition is not supported by this model");
+  if (body.prompt !== undefined && typeof body.prompt !== "string") throw new Error("prompt must be a string");
+  if (!layered && !trimmed(body.prompt)) throw new Error("prompt is required");
+  const images = body.image === undefined ? [] : Array.isArray(body.image) ? body.image : [body.image];
+  for (const image of images) {
+    const value = typeof image === "string" ? trimmed(image) : "";
+    if (!/^https?:\/\//i.test(value) && !IMAGE_DATA_URI.test(value))
+      throw new Error("image must be an HTTP URL or a data:image/<format>;base64 URL with a lowercase format");
+  }
+  if (layered && images.length !== 1) throw new Error("layer decomposition requires exactly one input image");
+  if (images.length > profile.maxReferenceImages) throw new Error("at most " + profile.maxReferenceImages + " reference images are supported");
+  // The host caps the upstream JSON response and the persisted task data at
+  // 1 MiB and serves images through artifact URLs, so it cannot reliably accept
+  // or persist Base64 image payloads; this route is URL-only.
+  if (body.response_format !== undefined && body.response_format !== "url") throw new Error("response_format must be url");
+  if (body.seed !== undefined && !Number.isInteger(body.seed)) throw new Error("seed must be an integer");
+  if (body.guidance_scale !== undefined && (typeof body.guidance_scale !== "number" || !Number.isFinite(body.guidance_scale)))
+    throw new Error("guidance_scale must be a number");
+  if (body.output_format !== undefined) {
+    if (body.output_format !== "png" && body.output_format !== "jpeg") throw new Error("output_format must be png or jpeg");
+    if (!profile.outputFormat) throw new Error("output_format is not supported by this model");
+  }
+  // The API reference lists `background` for 5.0 pro only, but a live probe
+  // showed lite accepting and ignoring it, so other models forward the value
+  // and only pro's documented combination rules are enforced locally.
+  if (body.background !== undefined) {
+    if (body.background !== "opaque" && body.background !== "transparent") throw new Error("background must be opaque or transparent");
+    if (profile.background && body.background === "transparent" && images.length !== 1)
+      throw new Error("background transparent requires exactly one input image");
+    if (profile.background && body.background === "transparent" && body.output_format === "jpeg")
+      throw new Error("background transparent cannot be combined with output_format jpeg");
+  }
+  if (body.tools !== undefined) {
+    if (!Array.isArray(body.tools) || body.tools.some((tool) => !tool || typeof tool !== "object" || Array.isArray(tool) || !trimmed(tool.type)))
+      throw new Error("tools must be an array of objects with a string type");
+    if (!profile.tools) throw new Error("tools are not supported by this model");
+  }
+  // JSON null is forwarded as-is: Ark treats it as an unset object (confirmed live).
+  const promptOptions = objectValue(body.optimize_prompt_options, "optimize_prompt_options");
+  if (promptOptions.mode !== undefined) {
+    if (promptOptions.mode !== "standard" && promptOptions.mode !== "fast") throw new Error("optimize_prompt_options.mode must be standard or fast");
+    if (promptOptions.mode === "fast" && !profile.fastPromptMode) throw new Error("optimize_prompt_options.mode fast is not supported by this model");
+  }
+  const sequential = body.sequential_image_generation;
+  if (sequential !== undefined && sequential !== "auto" && sequential !== "disabled") throw new Error("sequential_image_generation must be auto or disabled");
+  if (sequential !== undefined && !profile.sequential) throw new Error("sequential_image_generation is not supported by this model");
+  const options = objectValue(body.sequential_image_generation_options, "sequential_image_generation_options");
+  let maxImages = 15;
+  if (options.max_images !== undefined) {
+    if (!Number.isInteger(options.max_images) || options.max_images < 1 || options.max_images > 15)
+      throw new Error("max_images must be an integer between 1 and 15");
+    maxImages = options.max_images;
+  }
+  const size = imageSize(body.size, profile, layered);
+  if (size.size !== undefined) body.size = size.size;
+  // Submit-time estimate; extractUsageOnComplete overlays the per-image tiers
+  // from data[].size and usage.input_images. Unknown output sizes (`auto`)
+  // reserve the higher tier.
+  let imageCount = 1;
+  if (layered) imageCount = MAX_IMAGE_OUTPUTS;
+  else if (sequential === "auto") imageCount = Math.max(1, Math.min(maxImages, 15 - images.length)); // reference + generated images ≤ 15
+  const higherTier = size.pixels === null || size.pixels > IMAGE_TIER_MAX_PIXELS;
+  return {
+    body: body,
+    action: images.length ? "image_to_image" : "text_to_image",
+    facts: {
+      images_up_to_1_5k: higherTier ? 0 : imageCount,
+      images_above_1_5k: higherTier ? imageCount : 0,
+      input_images: images.length,
+      layer_decomposition: layered,
+    },
+  };
+}
+
+// `data` is an array in the documented response; tolerate an object-shaped
+// payload from compatible upstreams by treating it as one entry.
+function imageEntries(body) {
+  const data = body && body.data;
+  if (Array.isArray(data)) return data.filter((item) => item && typeof item === "object" && !Array.isArray(item));
+  if (data && typeof data === "object") return [data];
+  return [];
+}
+
+function imageURLEntries(body) {
+  return imageEntries(body).filter((item) => trimmed(item.url));
+}
+
+// Delivered image payloads of a synchronous result. Payloads are counted,
+// never entries: failed group members carry only `error`. A
+// usage.generated_images count that is fractional, negative, oversized or
+// inconsistent with the delivered payloads means the response is not
+// understood; the host then keeps the reservation instead of settling on a guess.
+function imagePayloads(body) {
+  const payloads = imageEntries(body).filter((item) => trimmed(item.url) || trimmed(item.b64_json));
+  if (payloads.length > MAX_IMAGE_OUTPUTS) throw new Error("too many output images");
+  const count = (body.usage || {}).generated_images;
+  if (count !== undefined && (!Number.isInteger(count) || count < 0 || count > MAX_IMAGE_OUTPUTS || count !== payloads.length))
+    throw new Error("invalid upstream generated_images");
+  return payloads;
+}
+
+// Completion facts. Each successful image is counted at its own pixel tier from
+// data[].size (official pricing bills layers individually). Payloads without a
+// parseable size keep the submit-time tier estimate; usage.input_images
+// replaces the estimated reference count only when it is a bounded integer.
+function imageUsage(body) {
+  const usage = body.usage || {};
+  const payloads = imagePayloads(body);
+  const facts = {};
+  let lower = 0,
+    higher = 0,
+    sized = true;
+  for (const item of payloads) {
+    const dims = imageSizePixels(item.size);
+    if (!dims) {
+      sized = false;
+      break;
+    }
+    if (dims.pixels > IMAGE_TIER_MAX_PIXELS) higher += 1;
+    else lower += 1;
+  }
+  if (sized) {
+    facts.images_up_to_1_5k = lower;
+    facts.images_above_1_5k = higher;
+  }
+  if (Number.isInteger(usage.input_images) && usage.input_images >= 0 && usage.input_images <= MAX_REFERENCE_IMAGES) facts.input_images = usage.input_images;
+  return facts;
 }
 
 function responsesInput(req) {
@@ -197,6 +658,19 @@ function responsesVideoText(ctx) {
   return '<video controls src="' + escaped + '"></video>';
 }
 
+function responsesOutputText(ctx, task) {
+  const data = artifactData(task);
+  if (!imageTask(ctx) && !Array.isArray(data.data)) return responsesVideoText(ctx);
+  const parts = [];
+  imageURLEntries(data).forEach(function (_, index) {
+    const artifact = (ctx.artifacts || {})["image-" + (index + 1)];
+    if (!artifact || !trimmed(artifact.url)) throw new Error("image artifact is unavailable");
+    parts.push("![Image " + (index + 1) + "](<" + artifact.url + ">)");
+  });
+  if (!parts.length) throw new Error("image artifact is unavailable");
+  return parts.join("\n\n");
+}
+
 export const native = {
   createTask: function (ctx) {
     if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
@@ -241,14 +715,43 @@ export const native = {
     if (task.fail_reason) output.error = { message: task.fail_reason };
     return output;
   },
+  createImage: function (ctx) {
+    if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
+    const body = ctx.body.value;
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("request body must be an object");
+    const model = trimmed(body.model);
+    if (!model) throw new Error("model is required");
+    // The host presents one JSON response after the upstream call completes; upstream SSE is not forwarded.
+    if (body.stream !== undefined && body.stream !== false)
+      throw new Error("stream is not supported on this route; the complete JSON response is returned once all images are generated");
+    const requestBody = Object.assign({}, body, { model: model });
+    const converted = convertImage({ model: model, requestBody: requestBody });
+    return { kind: "submit", model: model, action: converted.action, requestBody: requestBody };
+  },
+  imageCreated: function (ctx, task) {
+    return task.data && typeof task.data === "object" && !Array.isArray(task.data) ? task.data : {};
+  },
   error: function (ctx, error) {
     return { error: { code: error.code, message: error.message } };
   },
 };
 
 export function buildSubmitRequest(ctx) {
+  if (imageTask(ctx)) {
+    const converted = convertImage(ctx);
+    return {
+      url: apiRoot(ctx) + "/api/v3/images/generations",
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: "Bearer " + ctx.apiKey },
+      body: converted.body,
+      action: converted.action,
+      rewriteModel: converted.body.model,
+    };
+  }
   const req = ctx.requestBody;
   const metadata = req.metadata || {};
+  // Reject output tiers the model does not offer before any quota is reserved.
+  videoResolution(ctx);
   const body = Object.assign({ model: req.model || "", content: [] }, metadata);
   const imageContent = [];
   const images = Array.isArray(req.images) ? req.images : [];
@@ -262,7 +765,7 @@ export function buildSubmitRequest(ctx) {
   if (seconds > 0) body.duration = seconds;
   body.model = ctx.upstreamModel || body.model;
   return {
-    url: ctx.baseUrl + "/api/v3/contents/generations/tasks",
+    url: apiRoot(ctx) + "/api/v3/contents/generations/tasks",
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: "Bearer " + ctx.apiKey },
     body: body,
@@ -272,11 +775,31 @@ export function buildSubmitRequest(ctx) {
 }
 
 export function parseSubmitResponse(ctx, resp) {
+  if (imageTask(ctx)) {
+    const body = resp.body;
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new Error("invalid image generation response");
+    if (body.error && typeof body.error === "object")
+      throw new Error((trimmed(body.error.code) || "upstream_error") + ": " + (trimmed(body.error.message) || "image generation failed"));
+    const urls = imageURLEntries(body);
+    if (!urls.length) throw new Error("image generation returned no images");
+    // The synchronous API has no vendor task; keep the host-issued public id.
+    const taskId = trimmed(ctx.publicTaskId);
+    if (!taskId) throw new Error("missing gateway task id");
+    return { taskId: taskId, taskData: body, immediate: { status: "SUCCESS", progress: "100%", url: trimmed(urls[0].url) } };
+  }
   if (!resp.body || !resp.body.id) throw new Error("task_id is empty");
   return { taskId: resp.body.id, taskData: resp.body };
 }
 
 export function extractUsage(ctx) {
+  if (imageTask(ctx)) {
+    const facts = convertImage(ctx).facts;
+    // Legacy per-call pricing multiplies the price by every ratio returned
+    // here, so the reservation ratio is the total requested output count
+    // alone; task expressions read the tiered facts and the reference count.
+    if (ctx.usagePurpose === "billing_ratios") return { image_count: facts.images_up_to_1_5k + facts.images_above_1_5k };
+    return facts;
+  }
   const req = ctx.requestBody || {};
   const metadata = req.metadata || {};
   if (ctx.usagePurpose === "billing_ratios") {
@@ -290,20 +813,27 @@ export function extractUsage(ctx) {
   }
   if (seconds <= 0) seconds = 5;
   seconds = Math.min(seconds, 3600);
-  const rawResolution = metadata.resolution || req.size;
-  const raw = trimmed(rawResolution).toLowerCase();
-  const recognized = ["480p", "720p", "1080p", "4k"].includes(raw) || raw.replace("*", "x").split("x").length === 2;
-  const resolution = recognized ? normalizeResolution(rawResolution) : "1080p";
-  return {
-    tokens: estimateTokens(seconds, resolution),
-    resolution: resolution,
-    video_input: hasVideo(metadata.content) ? "video" : "none",
-  };
+  const profile = videoProfile(ctx);
+  const resolution = videoResolution(ctx);
+  const facts = { tokens: estimateTokens(seconds, resolution), resolution: resolution };
+  if (profile.videoInput) facts.video_input = hasVideo(metadata.content) ? "video" : "none";
+  if (profile.audio) facts.generate_audio = metadata.generate_audio !== false;
+  return facts;
+}
+
+export function extractUsageOnSubmit(ctx, body) {
+  // Only legacy per-call pricing calls this hook, and the host multiplies the
+  // price by every ratio it returns, so a synchronous image result settles on
+  // the delivered output count alone. Task expressions settle the tiered
+  // facts through extractUsageOnComplete instead.
+  if (!imageTask(ctx)) return null;
+  const count = imagePayloads(body || {}).length;
+  return count ? { image_count: count } : {};
 }
 
 export function buildQueryRequest(ctx) {
   return {
-    url: ctx.baseUrl + "/api/v3/contents/generations/tasks/" + ctx.taskId,
+    url: apiRoot(ctx) + "/api/v3/contents/generations/tasks/" + ctx.taskId,
     method: "GET",
     headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: "Bearer " + ctx.apiKey },
   };
@@ -336,7 +866,16 @@ function artifactData(ctx) {
 
 export function listArtifacts(task) {
   if (task.status !== "SUCCESS") return [];
-  const content = artifactData(task).content || {};
+  const data = artifactData(task);
+  if (imageTask(task) || Array.isArray(data.data)) {
+    return imageURLEntries(data).map(function (item, index) {
+      const artifact = { key: "image-" + (index + 1), type: "image" };
+      if (item.output_format === "png") artifact.mimeType = "image/png";
+      else if (item.output_format === "jpeg") artifact.mimeType = "image/jpeg";
+      return artifact;
+    });
+  }
+  const content = data.content || {};
   const artifacts = [];
   if (trimmed(content.video_url)) artifacts.push({ key: "video", type: "video" });
   if (trimmed(content.last_frame_url)) artifacts.push({ key: "last_frame", type: "image", mimeType: "image/png" });
@@ -344,14 +883,25 @@ export function listArtifacts(task) {
 }
 
 export function buildContentRequest(ctx) {
-  const content = artifactData(ctx).content || {};
-  const urls = { video: content.video_url, last_frame: content.last_frame_url };
-  const url = trimmed(urls[ctx.artifactKey]);
+  const data = artifactData(ctx);
+  let url = "";
+  if (String(ctx.artifactKey || "").startsWith("image-")) {
+    const entries = imageURLEntries(data);
+    const index = entries.findIndex(function (_, position) {
+      return ctx.artifactKey === "image-" + (position + 1);
+    });
+    url = index >= 0 ? trimmed(entries[index].url) : "";
+  } else {
+    const content = data.content || {};
+    const urls = { video: content.video_url, last_frame: content.last_frame_url };
+    url = trimmed(urls[ctx.artifactKey]);
+  }
   if (!url) throw new Error("artifact_not_found");
   return { url: url, method: ctx.clientRequest.method, credentialless: true };
 }
 
 export function extractUsageOnComplete(task, taskResult, body) {
+  if (imageTask(task)) return imageUsage(body || {});
   if (!body || body.status !== "succeeded") return {};
   const facts = {};
   const usage = body.usage || {};
@@ -360,7 +910,7 @@ export function extractUsageOnComplete(task, taskResult, body) {
   if (Number.isFinite(tokens) && tokens > 0) facts.tokens = tokens;
   const content = body.content || {};
   const resolution = trimmed(content.resolution || body.resolution).toLowerCase();
-  if (["480p", "720p", "1080p", "4k"].includes(resolution)) facts.resolution = resolution;
+  if (videoProfile(task).resolutions.includes(resolution)) facts.resolution = resolution;
   return facts;
 }
 
@@ -374,9 +924,34 @@ export const protocols = {
       if (!model) throw new Error("model is required");
       if (req.input !== undefined && typeof req.input !== "string" && !Array.isArray(req.input)) throw new Error("input must be a string or array");
       if (req.images !== undefined && !Array.isArray(req.images)) throw new Error("images must be an array");
+      const input = responsesInput(req);
+      if (imageTask({ upstreamModel: ctx.upstreamModel, model: model })) {
+        const prompt = input.prompt || trimmed(req.prompt);
+        const listed = Array.isArray(req.image) ? req.image : req.image === undefined ? [] : [req.image];
+        const images = [];
+        for (const image of listed.concat(req.images || [], input.images)) {
+          if (trimmed(image) && !images.includes(trimmed(image))) images.push(trimmed(image));
+        }
+        if (!prompt && !images.length) throw new Error("input is required");
+        const requestBody = { model: model };
+        if (prompt) requestBody.prompt = prompt;
+        if (images.length) requestBody.image = images;
+        for (const key of IMAGE_REQUEST_KEYS) {
+          if (Object.prototype.hasOwnProperty.call(req, key)) requestBody[key] = req[key];
+        }
+        // Responses `background` (boolean background execution) is host-owned and never reaches Ark;
+        // Ark's string `background` transparency option is available on the native route only.
+        // Only Ark's documented web_search tool is forwarded; function and other Responses tools are dropped.
+        if (Array.isArray(req.tools)) {
+          const tools = req.tools.filter((tool) => tool && typeof tool === "object" && !Array.isArray(tool) && tool.type === "web_search");
+          if (tools.length) requestBody.tools = tools.map(() => ({ type: "web_search" }));
+        }
+        // The model may be a mapped alias; final validation runs after channel selection.
+        const converted = convertImage({ upstreamModel: ctx.upstreamModel, model: model, requestBody: requestBody });
+        return { kind: "submit", model: model, action: converted.action, requestBody: requestBody };
+      }
       if (req.metadata !== undefined && (!req.metadata || typeof req.metadata !== "object" || Array.isArray(req.metadata)))
         throw new Error("metadata must be an object");
-      const input = responsesInput(req);
       const prompt = input.prompt || trimmed(req.prompt);
       const images = [];
       for (const image of [req.image, req.input_reference].concat(req.images || [], input.images)) {
@@ -402,7 +977,7 @@ export const protocols = {
       const progress = Number.isFinite(value) && value >= 0 && value <= 100 ? value : null;
       const state = { status: status, progress: progress };
       if (status === "SUCCESS") {
-        const text = responsesVideoText(ctx);
+        const text = responsesOutputText(ctx, task);
         const events = previousState && previousState.status === status ? [] : [{ type: "output", data: text }];
         return { events: events, state: state, done: true };
       }
@@ -413,14 +988,14 @@ export const protocols = {
       if (progress !== null) event.progress = progress;
       return { events: [event], state: state, done: false };
     },
-    renderFinal: function (ctx, _task) {
+    renderFinal: function (ctx, task) {
       return {
         output: [
           {
             type: "message",
             status: "completed",
             role: "assistant",
-            content: [{ type: "output_text", text: responsesVideoText(ctx), annotations: [], logprobs: [] }],
+            content: [{ type: "output_text", text: responsesOutputText(ctx, task), annotations: [], logprobs: [] }],
           },
         ],
         metadata: { vendor: "doubao" },

@@ -205,6 +205,54 @@ it('lets users cancel or discard an unsupported expression and its request rules
   ).toHaveValue('tier("base", u("seconds") * 0)')
 })
 
+const retiredBranchExpression =
+  'u("mode") == "ultra" ? tier("ultra", u("seconds") * 1.2) : u("mode") == "pro" ? tier("pro", u("seconds") * 0.8) : tier("std", u("seconds") * 0.4)'
+
+it('opens an expression with a retired enum branch in the visual editor and keeps the remaining prices', () => {
+  const onChange = vi.fn()
+  render(
+    <TaskPricingDraft
+      expression={retiredBranchExpression}
+      onChange={onChange}
+    />
+  )
+  expect(screen.getByRole('table')).toBeVisible()
+  expect(
+    screen.getByRole('textbox', { name: 'Seconds price: mode: std' })
+  ).toHaveValue('0.4')
+  expect(
+    screen.getByRole('textbox', { name: 'Seconds price: mode: pro' })
+  ).toHaveValue('0.8')
+  expect(
+    screen.queryByText(
+      'This expression cannot be represented by the price table',
+      {
+        exact: false,
+      }
+    )
+  ).not.toBeInTheDocument()
+  expect(onChange).not.toHaveBeenCalled()
+})
+
+it('regenerates an edited expression without its retired enum branch', async () => {
+  const user = userEvent.setup()
+  const onChange = vi.fn()
+  render(
+    <TaskPricingDraft
+      expression={retiredBranchExpression}
+      onChange={onChange}
+    />
+  )
+  const price = screen.getByRole('textbox', {
+    name: 'Seconds price: mode: std',
+  })
+  await user.clear(price)
+  await user.type(price, '2')
+  expect(onChange).toHaveBeenLastCalledWith(
+    'u("mode") == "std" ? tier("std", u("seconds") * 2) : tier("pro", u("seconds") * 0.8)'
+  )
+})
+
 it('confirms regeneration of supported expressions and preserves their prices and request rules', async () => {
   const user = userEvent.setup()
   const onChange = vi.fn()

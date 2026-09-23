@@ -63,6 +63,7 @@ const plugins: TaskPluginOption[] = [
     icon: 'text:VA',
     baseUrl: 'https://a.example',
     models: ['video-a-1'],
+    upstreams: ['vendor', 'new_api'],
   },
   {
     key: 'video-b',
@@ -70,8 +71,10 @@ const plugins: TaskPluginOption[] = [
     icon: 'text:VB',
     baseUrl: 'https://b.example',
     models: ['video-b-1'],
+    upstreams: ['vendor', 'new_api'],
   },
   {
+    // Vendor-only: bindable to a Task Plugin channel, never to a New API one.
     key: 'no-address',
     name: 'No Address',
     icon: 'text:NA',
@@ -1320,7 +1323,7 @@ test('editing legacy channels retains the full provider list and saves the origi
     soraPlugin,
     {
       key: 'doubao',
-      name: 'Doubao Video',
+      name: 'Doubao',
       icon: 'text',
       models: ['doubao-video'],
     },
@@ -1336,7 +1339,7 @@ test('editing legacy channels retains the full provider list and saves the origi
     await screen.findByRole('option', { name: 'Sora Plugin sora' })
   ).toBeVisible()
   expect(
-    screen.getByRole('option', { name: 'DoubaoVideo Built-in #54' })
+    screen.getByRole('option', { name: 'Doubao Built-in #54' })
   ).toBeVisible()
   const legacy = screen.getByRole('option', { name: 'Sora Built-in #55' })
   expect(legacy).toHaveAttribute('aria-current', 'true')
@@ -2301,10 +2304,14 @@ test('redirecting a model from the model picker publishes it, adds a mapping row
 })
 
 test('fetched upstream models can be redirected in bulk with the model list synced', async () => {
+  editingChannel.models = 'custom-model,upstream-model'
   const user = userEvent.setup()
   render(<ConfigurationHarness currentRow={editingChannel} />)
   await screen.findByDisplayValue('Existing channel')
   await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
+  await user.click(
+    await screen.findByRole('tab', { name: 'Existing Models (1)' })
+  )
   await screen.findByRole('checkbox', { name: 'upstream-model' })
 
   await user.click(screen.getByRole('button', { name: 'Batch redirect' }))
@@ -2314,6 +2321,9 @@ test('fetched upstream models can be redirected in bulk with the model list sync
   expect(
     dialog.getByRole('tab', { name: /Upstream model list/ })
   ).toHaveAttribute('aria-selected', 'true')
+  expect(
+    dialog.getByRole('checkbox', { name: 'upstream-model' })
+  ).not.toBeChecked()
   await user.click(dialog.getByRole('checkbox', { name: 'upstream-model' }))
   await user.type(dialog.getByRole('textbox', { name: 'Suffix' }), '-model')
   await user.click(dialog.getByRole('button', { name: 'Add 1 mapping(s)' }))
@@ -2420,8 +2430,126 @@ test('on wide screens redirecting a fetched model opens the floating panel besid
   ).toHaveValue('upstream')
 })
 
-test('a suggested rule in the floating panel maps every matching fetched model and publishes the derived names', async () => {
+test.each(['current session', 'saved preference'])(
+  'quick redirect expands a panel collapsed in the %s and focuses the new request name',
+  async (collapsedIn) => {
+    useWideScreen()
+    editingChannel.model_mapping = '{"existing-alias":"existing-upstream"}'
+    if (collapsedIn === 'saved preference') {
+      window.localStorage.setItem(
+        'floating-window:channel-model-redirects',
+        JSON.stringify({
+          x: 1000,
+          y: 80,
+          width: 380,
+          height: 360,
+          collapsed: true,
+        })
+      )
+    }
+    const user = userEvent.setup()
+    render(<ConfigurationHarness currentRow={editingChannel} />)
+    await screen.findByDisplayValue('Existing channel')
+    await user.click(
+      screen.getByRole('button', { name: 'Fetch from Upstream' })
+    )
+    await screen.findByRole('checkbox', { name: 'upstream-model' })
+    if (collapsedIn === 'current session') {
+      await user.click(screen.getByRole('button', { name: 'Redirect panel' }))
+      await user.click(screen.getByRole('button', { name: 'Collapse panel' }))
+      expect(screen.getByRole('button', { name: 'Expand panel' })).toBeVisible()
+    }
+
+    await user.click(
+      screen.getByRole('button', { name: 'Redirect upstream-model' })
+    )
+    let panelElement = await screen.findByRole('complementary', {
+      name: 'Model redirects',
+    })
+    let panel = within(panelElement)
+    await waitFor(() =>
+      expect(panel.getByDisplayValue('upstream-model')).toBeVisible()
+    )
+    const request = panel.getAllByRole('combobox', {
+      name: 'Request Model Name',
+    })[1]
+    await waitFor(() => expect(request).toHaveFocus())
+    expect(request).toHaveValue('')
+    expect(panel.getByDisplayValue('existing-alias')).toBeVisible()
+    expect(panel.getByDisplayValue('existing-upstream')).toBeVisible()
+    expect(screen.getByText('1 model(s) redirected')).toBeVisible()
+    if (collapsedIn === 'saved preference') {
+      expect(panelElement).toHaveStyle({
+        left: '1000px',
+        top: '80px',
+        width: '380px',
+        height: '360px',
+      })
+    }
+
+    // Handling the draft must not prevent collapse or swallow the next shortcut for the same model.
+    await user.click(panel.getByRole('button', { name: 'Collapse panel' }))
+    expect(
+      screen.queryByRole('complementary', { name: 'Model redirects' })
+    ).not.toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: 'Redirect upstream-model' })
+    )
+    panelElement = await screen.findByRole('complementary', {
+      name: 'Model redirects',
+    })
+    panel = within(panelElement)
+    await waitFor(() =>
+      expect(panel.getByDisplayValue('upstream-model')).toBeVisible()
+    )
+    await waitFor(() =>
+      expect(
+        panel.getAllByRole('combobox', { name: 'Request Model Name' })[1]
+      ).toHaveFocus()
+    )
+  }
+)
+
+test('redirecting a recognized upstream name opens an empty alias draft without changing the model list', async () => {
   useWideScreen()
+  const baseGet = vi.mocked(api.get).getMockImplementation()
+  vi.spyOn(api, 'get').mockImplementation(async (url, ...rest) => {
+    if (url === '/api/channel/fetch_models/42') {
+      return { data: { success: true, data: ['gpt-4o-all'] } }
+    }
+    if (url === '/api/channel/models') {
+      return { data: { success: true, data: [{ id: 'gpt-4o' }] } }
+    }
+    return baseGet?.(url, ...rest)
+  })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
+  await user.click(
+    await screen.findByRole('button', { name: 'Redirect gpt-4o-all' })
+  )
+  const panel = within(
+    await screen.findByRole('complementary', { name: 'Model redirects' })
+  )
+  const request = panel.getByRole('combobox', { name: 'Request Model Name' })
+  await waitFor(() => expect(request).toHaveFocus())
+  expect(request).toHaveValue('')
+  expect(
+    panel.getByRole('combobox', { name: 'Upstream Model Name' })
+  ).toHaveValue('gpt-4o-all')
+  expect(screen.queryByLabelText('Published as gpt-4o')).not.toBeInTheDocument()
+  expect(
+    within(screen.getByRole('group', { name: 'Models' })).getByRole('button', {
+      name: 'custom-model',
+    })
+  ).toBeVisible()
+  expect(screen.queryByText('1 model(s) redirected')).not.toBeInTheDocument()
+})
+
+test('the redirect panel batch action starts empty and only applies explicitly selected models after preview', async () => {
+  useWideScreen()
+  editingChannel.models = 'custom-model,gpt-4o-all,o3-all'
   const baseGet = vi.mocked(api.get).getMockImplementation()
   vi.spyOn(api, 'get').mockImplementation(async (url, ...rest) => {
     if (url === '/api/channel/fetch_models/42') {
@@ -2436,22 +2564,47 @@ test('a suggested rule in the floating panel maps every matching fetched model a
   render(<ConfigurationHarness currentRow={editingChannel} />)
   await screen.findByDisplayValue('Existing channel')
   await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
+  await user.click(
+    await screen.findByRole('tab', { name: 'Existing Models (2)' })
+  )
   await screen.findByRole('checkbox', { name: 'gpt-4o-all' })
 
   await user.click(screen.getByRole('button', { name: 'Redirect panel' }))
   const panel = within(
     await screen.findByRole('complementary', { name: 'Model redirects' })
   )
-  await user.click(panel.getByRole('button', { name: /Strip -all/ }))
+  expect(panel.queryByText('Suggested rules')).not.toBeInTheDocument()
+  await user.click(panel.getByRole('button', { name: 'Batch Add' }))
+  let dialog = within(
+    screen.getByRole('dialog', { name: 'Batch add mappings' })
+  )
+  expect(dialog.getByRole('checkbox', { name: 'gpt-4o-all' })).not.toBeChecked()
+  expect(dialog.getByRole('checkbox', { name: 'o3-all' })).not.toBeChecked()
+  await user.click(dialog.getByRole('checkbox', { name: 'gpt-4o-all' }))
+  await user.type(dialog.getByRole('textbox', { name: 'Suffix' }), '-all')
+  await user.click(dialog.getByRole('button', { name: 'Cancel' }))
+  const picker = within(screen.getByRole('group', { name: 'Models' }))
+  expect(picker.getByRole('button', { name: 'gpt-4o-all' })).toBeVisible()
+  expect(
+    picker.queryByRole('button', { name: 'gpt-4o' })
+  ).not.toBeInTheDocument()
+
+  await user.click(panel.getByRole('button', { name: 'Batch Add' }))
+  dialog = within(screen.getByRole('dialog', { name: 'Batch add mappings' }))
+  expect(dialog.getByRole('checkbox', { name: 'gpt-4o-all' })).not.toBeChecked()
+  await user.click(dialog.getByRole('checkbox', { name: 'gpt-4o-all' }))
+  await user.type(dialog.getByRole('textbox', { name: 'Suffix' }), '-all')
+  expect(dialog.getByRole('list', { name: 'Preview' })).toHaveTextContent(
+    'gpt-4ogpt-4o-all'
+  )
+  await user.click(dialog.getByRole('button', { name: 'Add 1 mapping(s)' }))
   expect(
     panel.getAllByRole('combobox', { name: 'Request Model Name' })
-  ).toHaveLength(2)
-  expect(screen.getByLabelText('Published as gpt-4o')).toBeVisible()
-  expect(screen.getByLabelText('Published as o3')).toBeVisible()
-  const picker = within(screen.getByRole('group', { name: 'Models' }))
+  ).toHaveLength(1)
   expect(picker.getByRole('button', { name: 'gpt-4o' })).toBeVisible()
-  expect(picker.getByRole('button', { name: 'o3' })).toBeVisible()
-  expect(screen.getByText('2 model(s) redirected')).toBeVisible()
+  expect(picker.getByRole('button', { name: 'o3-all' })).toBeVisible()
+  expect(picker.queryByRole('button', { name: 'o3' })).not.toBeInTheDocument()
+  expect(screen.getByText('1 model(s) redirected')).toBeVisible()
 
   await user.click(panel.getByRole('button', { name: 'Collapse panel' }))
   expect(
@@ -2594,4 +2747,68 @@ test('the header override passthrough template button confirms before filling th
       { name: 'Pass Through Request Headers' }
     )
   ).toBeChecked()
+})
+
+test('a New API channel binds upstream task plugins and publishes their models', async () => {
+  const channel = channelSchema.parse({
+    ...editingChannel,
+    type: 60,
+    base_url: 'https://gateway.example',
+    models: 'gpt-5',
+    setting: JSON.stringify({ task_extend_plugin_keys: ['video-a'] }),
+  })
+  const originalGet = vi.mocked(api.get).getMockImplementation()
+  vi.mocked(api.get).mockImplementation(async (url, config) => {
+    if (url === '/api/channel/42') {
+      return { data: { success: true, data: channel } }
+    }
+    return originalGet?.(url, config)
+  })
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={channel} />)
+  const extensions = within(
+    await screen.findByRole('group', { name: 'Plugin extensions' })
+  )
+  expect(
+    extensions.getByRole('button', { name: 'Video A Selected 0 / 1' })
+  ).toBeVisible()
+  expect(
+    extensions.queryByRole('button', { name: /^Video B/ })
+  ).not.toBeInTheDocument()
+
+  const selector = screen.getByRole('combobox', {
+    name: 'Select the task plugins installed on the upstream gateway',
+  })
+  await user.click(selector)
+  expect(
+    screen.queryByRole('option', { name: /^No Address/ })
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('option', { name: /^Video B/ }))
+  await user.keyboard('{Escape}')
+  expect(
+    extensions.getByRole('button', { name: 'Video B Selected 1 / 1' })
+  ).toBeVisible()
+  expect(screen.getByRole('button', { name: 'video-b-1' })).toBeVisible()
+
+  await user.click(selector)
+  await user.click(screen.getByRole('option', { name: /^Video A/ }))
+  await user.keyboard('{Escape}')
+  expect(
+    extensions.queryByRole('button', { name: /^Video A/ })
+  ).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'gpt-5' })).toBeVisible()
+
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as {
+    setting?: string
+    models?: string
+  }
+  const setting = JSON.parse(payload.setting ?? '{}')
+  expect(setting).toMatchObject({ task_extend_plugin_keys: ['video-b'] })
+  expect(setting).not.toHaveProperty('task_plugin_key')
+  expect(payload.models?.split(',').sort()).toEqual(['gpt-5', 'video-b-1'])
 })

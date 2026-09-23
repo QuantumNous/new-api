@@ -589,6 +589,7 @@ func TestRegistryValidatesChannelTypes(t *testing.T) {
 		{name: "zero rejected", channelTypes: []int{0}, wantErr: "positive channel types"},
 		{name: "negative rejected", channelTypes: []int{-1}, wantErr: "positive channel types"},
 		{name: "task plugin type rejected", channelTypes: []int{constant.ChannelTypeTaskPlugin}, wantErr: "task plugin channel type"},
+		{name: "new api type rejected", channelTypes: []int{constant.ChannelTypeNewAPI}, wantErr: "New API channel type"},
 		{name: "duplicates rejected", channelTypes: []int{1, 1}, wantErr: "must be unique"},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -1127,6 +1128,17 @@ usageProfiles: [
 	assert.Empty(t, schema)
 	assert.Nil(t, examples)
 
+	// A channel mapping may send a declared model to an undeclared endpoint ID:
+	// the first profiled candidate wins, otherwise the defaults apply.
+	schema, examples = plugin.Meta.UsageForModels("ep-endpoint", "image")
+	assert.Equal(t, plugin.Meta.UsageProfiles[0].Schema, schema)
+	assert.Nil(t, examples)
+	schema, _ = plugin.Meta.UsageForModels("video", "image")
+	assert.Equal(t, plugin.Meta.UsageProfiles[1].Schema, schema)
+	schema, examples = plugin.Meta.UsageForModels("ep-endpoint", "default")
+	assert.Equal(t, plugin.Meta.UsageSchema, schema)
+	assert.Equal(t, plugin.Meta.UsageExamples, examples)
+
 	snapshot := registry.Snapshot()
 	require.Len(t, snapshot.Override, 1)
 	profile := &snapshot.Override[0].UsageProfiles[1]
@@ -1195,6 +1207,33 @@ usageProfiles: [{models:["image"], schema:{tokens:{type:"number", unit:"token"}}
 	assert.EqualValues(t, 1, examples[0].Facts["tokens"])
 	plugin.Meta.UsageProfiles[0].Schema = nil
 	require.ErrorContains(t, ValidateV1Meta(plugin.Meta), "schema must be an object")
+}
+
+func TestUpstreamsManifestContract(t *testing.T) {
+	for _, tc := range []struct {
+		name, metadata string
+		valid, newAPI  bool
+	}{
+		{"omitted implies vendor", "", true, false},
+		{"vendor only", `upstreams:["vendor"],`, true, false},
+		{"vendor and new api", `upstreams:["vendor","new_api"],`, true, true},
+		{"new api only still serves its vendor", `upstreams:["new_api"],`, true, true},
+		{"unknown kind", `upstreams:["gateway"],`, false, false},
+		{"duplicate", `upstreams:["new_api","new_api"],`, false, false},
+		{"null", `upstreams:null,`, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			plugin, err := CompilePlugin(routingTestPluginSource("upstreams", 0, `["model"]`, tc.metadata, ""), Options{})
+			if !tc.valid {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.NoError(t, ValidateV1Meta(plugin.Meta))
+			assert.True(t, plugin.Meta.SupportsUpstream(UpstreamKindVendor))
+			assert.Equal(t, tc.newAPI, plugin.Meta.SupportsUpstream(UpstreamKindNewAPI))
+		})
+	}
 }
 
 func TestSubmitResponseTypesContract(t *testing.T) {

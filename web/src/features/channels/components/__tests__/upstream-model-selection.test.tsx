@@ -251,3 +251,27 @@ test('models published under another name show that name as a badge next to the 
   )
   expect(screen.queryByLabelText(/Published as o3/)).not.toBeInTheDocument()
 })
+
+test('long model names remain fully labeled and selectable in a container-responsive list', async () => {
+  const user = userEvent.setup()
+  const model = 'gpt-4.1-mini-deployment-with-a-long-region-name-2025-04-14'
+  const onChange = vi.fn()
+  render(
+    <UpstreamModelSelection
+      models={[model]}
+      selected={[]}
+      existingModels={[]}
+      showChanges={false}
+      onChange={onChange}
+    />
+  )
+  const checkbox = screen.getByRole('checkbox', { name: model })
+  const category = checkbox.closest('[data-slot="collapsible"]')
+  expect(category).toHaveClass('@container')
+  const grid = checkbox.parentElement?.parentElement
+  expect(grid).toHaveClass('@lg:grid-cols-2')
+  expect(grid).not.toHaveClass('sm:grid-cols-2')
+  expect(screen.getByText(model)).toBeVisible()
+  await user.click(checkbox)
+  expect(onChange).toHaveBeenCalledWith([model])
+})

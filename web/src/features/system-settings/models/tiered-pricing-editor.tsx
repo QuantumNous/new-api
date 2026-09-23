@@ -760,6 +760,18 @@ function CostEstimator({ effectiveExpr, fullExpr, currency }: EstimatorProps) {
     [effectiveExpr, promptTokens, completionTokens, extras, tokens, billingTime]
   )
 
+  if (result.error === 'task usage') {
+    return (
+      <Alert>
+        <AlertDescription>
+          {t(
+            "Task usage data is required to estimate this expression. Check the model's task plugin configuration."
+          )}
+        </AlertDescription>
+      </Alert>
+    )
+  }
+
   return (
     <div className='bg-muted/30 space-y-3 rounded-md border p-3'>
       <div className='space-y-1'>

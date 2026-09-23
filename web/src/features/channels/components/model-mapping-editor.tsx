@@ -434,6 +434,11 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
         )}
 
         <TabsContent value='visual' className='space-y-2'>
+          <p className='text-muted-foreground text-xs'>
+            {t(
+              'Users call the model on the left. The platform forwards the request to the upstream model on the right.'
+            )}
+          </p>
           {rows.length > 0 ? (
             <div className='space-y-2'>
               {showFilter && (

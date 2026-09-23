@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 
@@ -258,13 +258,13 @@ it.each(
   )
 )(
   'groups $model under $category and displays its provider icon',
-  ({ model, category, label }) => {
+  async ({ model, category, label }) => {
     expect(getModelCategory(model)).toBe(category)
     render(<ModelBadge modelName={model} />)
     expect(screen.getByText(model.trim())).toBeVisible()
     const icon = screen.getByLabelText(label)
     expect(icon).toBeVisible()
-    expect(icon.querySelector('svg, img')).not.toBeNull()
+    await waitFor(() => expect(icon.querySelector('svg, img')).not.toBeNull())
   }
 )
 

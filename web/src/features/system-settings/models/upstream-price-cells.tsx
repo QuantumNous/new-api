@@ -34,7 +34,10 @@ import {
 } from './upstream-ratio-sync-helpers'
 import type { PricingSyncRow } from './upstream-ratio-sync-table'
 
-export function SyncPriceCell(props: { values: PricingSyncValues }) {
+export function SyncPriceCell(props: {
+  values: PricingSyncValues
+  compareTo?: PricingSyncValues
+}) {
   const { t } = useTranslation()
   const kind = getSyncPriceKind(props.values)
   if (kind === 'unset') {
@@ -73,7 +76,7 @@ export function SyncPriceCell(props: { values: PricingSyncValues }) {
               </div>
             )}
           </div>
-        ) : <code className='block text-xs! leading-relaxed break-all whitespace-pre-wrap'>{props.values.billing_expr}</code>}
+        ) : <code className='block text-xs! leading-relaxed break-all whitespace-pre-wrap'>{highlightExprDiff(String(props.values.billing_expr), props.compareTo?.billing_expr)}</code>}
       </div>
     )
   }
@@ -87,6 +90,22 @@ export function SyncPriceCell(props: { values: PricingSyncValues }) {
     )
   }
   return <SyncPriceMetrics lines={lines} />
+}
+
+// Positional word diff: only meaningful when both expressions share one shape.
+function highlightExprDiff(expr: string, base: unknown) {
+  const words = [...expr.matchAll(/\S+|\s+/g)]
+  const baseWords = typeof base === 'string' ? base.match(/\S+|\s+/g) : null
+  if (!baseWords || baseWords.length !== words.length) return expr
+  return words.map((word, i) =>
+    word[0] === baseWords[i] ? (
+      word[0]
+    ) : (
+      <mark key={word.index} className='rounded-sm bg-amber-500/25 text-inherit'>
+        {word[0]}
+      </mark>
+    )
+  )
 }
 
 function SyncPriceMetrics(props: { lines: Array<{ label: string; value: string }> }) {
@@ -186,7 +205,7 @@ export function SyncSourcePriceCell(props: {
           )}
         </div>
       )}
-      <SyncPriceCell values={values} />
+      <SyncPriceCell values={values} compareTo={props.row.prices.current} />
     </div>
   )
 }

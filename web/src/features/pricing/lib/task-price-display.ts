@@ -28,8 +28,12 @@ import type {
 } from '../types'
 import {
   splitBillingExprAndRequestRules,
+  type ParsedTaskTier,
   type TaskTierCondition,
 } from './billing-expr'
+import { formatBillingCondition } from './billing-expression/condition-display'
+import { compileBillingExpression } from './billing-expression/parser'
+import { visitExpression } from './billing-expression/types'
 import { getTaskPricingDisplayTiers } from './task-matrix-display'
 
 export function taskPriceLabel(
@@ -94,5 +98,44 @@ export function hasSimpleTaskPricing(model: PricingModel): boolean {
     split.billingExpr,
     model.billing_usage_schema
   )
-  return tiers.length === 1
+  return tiers.length === 1 && !tiers[0].conditionText
+}
+
+export function taskTierConditions(
+  tier: ParsedTaskTier,
+  schema: BillingUsageSchema | undefined,
+  language: string,
+  t: (key: string) => string
+): string {
+  const usage = taskPricingConditions(tier.conditions, schema, language, t)
+  const time = tier.conditionText
+    ? (formatBillingCondition(tier.conditionText, t, language) ??
+      tier.conditionText)
+    : ''
+  return [usage, time].filter(Boolean).join(' · ')
+}
+
+export function pricingDisplayFallbackKey(
+  expression: string,
+  schema: BillingUsageSchema | null | undefined
+): string {
+  const compiled = compileBillingExpression(expression)
+  let missingUsageMetadata = false
+  if (compiled.status === 'ready') {
+    visitExpression(compiled.ast, (node) => {
+      if (node.kind !== 'call' || node.name !== 'u') return
+      const key = node.args[0]
+      if (
+        !schema ||
+        key.kind !== 'literal' ||
+        typeof key.value !== 'string' ||
+        !Object.hasOwn(schema, key.value)
+      ) {
+        missingUsageMetadata = true
+      }
+    })
+  }
+  return missingUsageMetadata
+    ? 'Task usage metadata is unavailable. Pricing details cannot be displayed.'
+    : 'This expression cannot be expanded into a price table. View the original expression below.'
 }

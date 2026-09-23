@@ -933,7 +933,7 @@ func buildTaskPluginRouteRequest(c *gin.Context) (pluginruntime.RouteRequestCont
 			if !utf8.ValidString(field) || len(field) > maxTaskPluginFieldNameBytes {
 				return requestContext, fmt.Errorf("invalid multipart file field name")
 			}
-			for _, header := range headers {
+			for index, header := range headers {
 				if !utf8.ValidString(header.Filename) || len(header.Filename) > maxTaskPluginFilenameBytes {
 					return requestContext, fmt.Errorf("invalid multipart filename")
 				}
@@ -947,7 +947,7 @@ func buildTaskPluginRouteRequest(c *gin.Context) (pluginruntime.RouteRequestCont
 				if header.Size < 0 || header.Size > int64(fileLimitMB)<<20 {
 					return requestContext, fmt.Errorf("multipart file exceeds %d MB", fileLimitMB)
 				}
-				ref := "request_file:" + field
+				ref := pluginruntime.FileReference(field, index)
 				files = append(files, map[string]any{"ref": ref, "field": field, "filename": header.Filename, "mimeType": header.Header.Get("Content-Type"), "size": header.Size})
 			}
 		}
@@ -1166,7 +1166,7 @@ func renderTaskPluginQuery(
 	views := make([]map[string]any, 0, len(taskIDs))
 	for _, taskID := range taskIDs {
 		task := tasksByID[taskID]
-		if task == nil {
+		if task == nil || !task.ResultRetrievable() {
 			logger.LogDebug(
 				c,
 				"task_plugin subsystem=query event=lookup_failed generation=%d plugin=%q reason=task_not_found requested=%d found=%d",
@@ -1373,8 +1373,11 @@ func logTaskPluginChannelDecision(c *gin.Context, channel *model.Channel, modelN
 		return
 	}
 	identityMode := "legacy_channel_type"
-	if channel.Type == constant.ChannelTypeTaskPlugin {
+	switch channel.Type {
+	case constant.ChannelTypeTaskPlugin:
 		identityMode = "type59_setting"
+	case constant.ChannelTypeNewAPI:
+		identityMode = "type60_setting"
 	}
 	logger.LogDebug(
 		c,
