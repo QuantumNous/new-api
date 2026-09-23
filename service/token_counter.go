@@ -260,8 +260,13 @@ func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relayco
 			continue
 		}
 
-		// 如果文件类型未知且需要获取，通过 MIME 类型检测
-		if file.FileType == "" || (file.Source.IsURL() && shouldFetchFiles) {
+		// Detect MIME only when FileType is still unknown.
+		// Do not re-download known-type URL files here: stream mode sets
+		// shouldFetchFiles=true, but non-OpenAI models use fixed media token
+		// estimates and OpenAI image models fetch again in getImageToken.
+		// Re-fetching known image URLs (e.g. private/intranet hosts) trips SSRF
+		// protection and fails the whole request with count_token_failed (#7540).
+		if file.FileType == "" {
 			// 注意：这里我们直接调用 LoadFileSource 而不是 GetMimeType
 			// 因为 GetMimeType 内部可能会调用 GetFileTypeFromUrl (HEAD 请求)
 			// 而我们这里既然要计算 token，通常需要完整数据
