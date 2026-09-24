@@ -101,3 +101,90 @@ func TestSafePolicyRejectsRequestPhaseHostedToolLoss(t *testing.T) {
 	assert.True(t, hasDiagnosticCode(loss.Diagnostics, "unsupported_hosted_tool"))
 	assert.True(t, hasDiagnosticCode(diagnostics, "unsupported_hosted_tool"))
 }
+
+func codexResponsesToolsRequest(t *testing.T, toolChoice any, extraTools ...map[string]any) *dto.OpenAIResponsesRequest {
+	t.Helper()
+	tools := []map[string]any{
+		{
+			"type":        "custom",
+			"name":        "exec",
+			"description": "Run code.",
+			"format":      map[string]any{"type": "grammar", "syntax": "lark", "definition": "start: /.+/"},
+		},
+		{"type": "function", "name": "wait", "parameters": map[string]any{"type": "object"}},
+	}
+	tools = append(tools, extraTools...)
+	rawTools, err := kitutil.Marshal(tools)
+	require.NoError(t, err)
+	request := &dto.OpenAIResponsesRequest{Model: "gpt-test", Tools: rawTools}
+	if toolChoice != nil {
+		request.ToolChoice, err = kitutil.Marshal(toolChoice)
+		require.NoError(t, err)
+	}
+	return request
+}
+
+func TestResponsesCustomToolReachesChatAsStringInputFunction(t *testing.T) {
+	t.Parallel()
+
+	_, set, err := ExtractRequest(types.RelayFormatOpenAIResponses, codexResponsesToolsRequest(t, map[string]any{"type": "custom", "name": "exec"}))
+	require.NoError(t, err)
+
+	out, diagnostics, err := AttachRequest(types.RelayFormatOpenAI, &dto.GeneralOpenAIRequest{Model: "gpt-test"}, set, &convmeta.Options{ToolLossPolicy: types.ConversionLossPolicySafe})
+	require.NoError(t, err)
+	target := out.(*dto.GeneralOpenAIRequest)
+	require.Len(t, target.Tools, 2)
+	exec := target.Tools[0]
+	assert.Equal(t, "function", exec.Type)
+	assert.Equal(t, "exec", exec.Function.Name)
+	assert.Contains(t, exec.Function.Description, "Run code.")
+	assert.Contains(t, exec.Function.Description, "Lark grammar:\nstart: /.+/")
+	assert.Nil(t, exec.Function.Strict)
+	assert.Equal(t, map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"input": map[string]any{"type": "string", "description": "Raw input for the tool."},
+		},
+		"required":             []string{"input"},
+		"additionalProperties": false,
+	}, exec.Function.Parameters)
+	assert.Equal(t, "wait", target.Tools[1].Function.Name)
+	assert.Equal(t, map[string]any{"type": "function", "function": map[string]any{"name": "exec"}}, target.ToolChoice)
+	assert.True(t, hasDiagnosticCode(diagnostics, "custom_tool_as_function"))
+	assert.False(t, hasDiagnosticCode(diagnostics, "unsupported_hosted_tool"))
+	assert.False(t, hasDiagnosticCode(diagnostics, "unsupported_tool_choice"))
+	assert.Equal(t, map[string]struct{}{"exec": {}}, OpenAIChatCustomToolNames(set))
+
+	_, _, err = AttachRequest(types.RelayFormatOpenAI, &dto.GeneralOpenAIRequest{Model: "gpt-test"}, set, &convmeta.Options{ToolLossPolicy: types.ConversionLossPolicyStrict})
+	var loss *types.ConversionLossError
+	require.ErrorAs(t, err, &loss)
+	assert.True(t, hasDiagnosticCode(loss.Diagnostics, "custom_tool_as_function"))
+}
+
+func TestResponsesCustomToolNameConflictIsDropped(t *testing.T) {
+	t.Parallel()
+
+	request := codexResponsesToolsRequest(t, nil,
+		map[string]any{"type": "function", "name": "exec", "parameters": map[string]any{"type": "object"}},
+		map[string]any{"type": "custom", "name": "apply_patch"},
+		map[string]any{"type": "custom", "name": "apply_patch", "description": "duplicate"},
+	)
+	_, set, err := ExtractRequest(types.RelayFormatOpenAIResponses, request)
+	require.NoError(t, err)
+
+	out, diagnostics, err := AttachRequest(types.RelayFormatOpenAI, &dto.GeneralOpenAIRequest{Model: "gpt-test"}, set, &convmeta.Options{})
+	require.NoError(t, err)
+	target := out.(*dto.GeneralOpenAIRequest)
+	names := make([]string, 0, len(target.Tools))
+	for _, tool := range target.Tools {
+		names = append(names, tool.Function.Name)
+	}
+	assert.Equal(t, []string{"wait", "exec", "apply_patch"}, names)
+	assert.Equal(t, map[string]any{"type": "object"}, target.Tools[1].Function.Parameters)
+	assert.NotContains(t, target.Tools[2].Function.Description, "duplicate")
+	assert.True(t, hasDiagnosticCode(diagnostics, "custom_tool_name_conflict"))
+	assert.Equal(t, map[string]struct{}{"apply_patch": {}}, OpenAIChatCustomToolNames(set))
+
+	_, _, err = AttachRequest(types.RelayFormatOpenAI, &dto.GeneralOpenAIRequest{Model: "gpt-test"}, set, &convmeta.Options{ToolLossPolicy: types.ConversionLossPolicySafe})
+	require.Error(t, err)
+}
