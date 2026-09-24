@@ -75,7 +75,7 @@ func TestConvertClaudeRequestPreservesNativeClaudeCodeThinking(t *testing.T) {
 }
 
 func TestConvertClaudeRequestPreservesPerMessageEffort(t *testing.T) {
-	const body = `{"model":"claude-opus-5","max_tokens":4096,"messages":[{"role":"user","content":"Plan a migration"},{"role":"system","content":[],"output_config":{"effort":"high"}},{"role":"user","content":"Summarize it"}]}`
+	const body = `{"model":"claude-opus-5-5","max_tokens":4096,"messages":[{"role":"user","content":"Plan a migration"},{"role":"system","content":[],"output_config":{"effort":"high"}},{"role":"user","content":"Summarize it"}]}`
 	var request dto.ClaudeRequest
 	require.NoError(t, common.Unmarshal([]byte(body), &request))
 
