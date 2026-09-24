@@ -1876,6 +1876,8 @@
     "Displayed": "Отображается",
     "Displayed in": "Отображается в",
     "Displays the mobile sidebar.": "Отображает мобильную боковую панель.",
+    "Do not bill refusals without output": "Не тарифицировать отказы без вывода",
+    "Do not charge or record usage when a Messages API upstream returns stop_reason refusal without any output, matching Anthropic billing": "Не списывать квоту и не записывать использование, если upstream Messages API возвращает stop_reason refusal без какого-либо вывода, в соответствии с тарификацией Anthropic",
     "Do not keep sessions": "Не сохранять привязку",
     "Do not over-trust this feature. IP may be spoofed. Please use with nginx, CDN and other gateways.": "Не доверяйте этой функции слишком сильно. IP может быть подделан. Используйте с nginx, CDN и другими шлюзами.",
     "Do not repeat check-in; only once per day": "Не повторяйте отметку; только один раз в день",

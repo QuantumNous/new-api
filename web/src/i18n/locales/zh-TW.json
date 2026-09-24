@@ -1876,6 +1876,8 @@
     "Displayed": "正常顯示",
     "Displayed in": "顯示單位",
     "Displays the mobile sidebar.": "顯示流動側邊欄。",
+    "Do not bill refusals without output": "拒絕且無輸出時不計費",
+    "Do not charge or record usage when a Messages API upstream returns stop_reason refusal without any output, matching Anthropic billing": "Messages API 上游回傳 stop_reason 為 refusal 且未產生任何輸出時，不扣費也不記錄用量，與 Anthropic 官方計費一致",
     "Do not keep sessions": "不保持",
     "Do not over-trust this feature. IP may be spoofed. Please use with nginx, CDN and other gateways.": "請勿過度信任此功能，IP 可能被偽造，請配合 nginx 和 cdn 等閘道使用",
     "Do not repeat check-in; only once per day": "請勿重複簽到；每天僅一次",

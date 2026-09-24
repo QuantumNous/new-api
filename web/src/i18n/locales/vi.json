@@ -1876,6 +1876,8 @@
     "Displayed": "Đang hiển thị",
     "Displayed in": "Hiển thị theo",
     "Displays the mobile sidebar.": "Hiển thị thanh bên di động.",
+    "Do not bill refusals without output": "Không tính phí từ chối không có đầu ra",
+    "Do not charge or record usage when a Messages API upstream returns stop_reason refusal without any output, matching Anthropic billing": "Không tính phí và không ghi nhận mức sử dụng khi upstream Messages API trả về stop_reason refusal mà không có bất kỳ đầu ra nào, phù hợp với cách tính phí của Anthropic",
     "Do not keep sessions": "Không giữ phiên",
     "Do not over-trust this feature. IP may be spoofed. Please use with nginx, CDN and other gateways.": "Đừng tin tưởng quá mức vào tính năng này. IP có thể bị giả mạo. Hãy sử dụng cùng với nginx, CDN và các gateway khác.",
     "Do not repeat check-in; only once per day": "Không lặp lại check-in; chỉ một lần mỗi ngày",

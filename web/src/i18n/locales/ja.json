@@ -1876,6 +1876,8 @@
     "Displayed": "表示中",
     "Displayed in": "表示単位",
     "Displays the mobile sidebar.": "モバイルサイドバーを表示します。",
+    "Do not bill refusals without output": "出力なしの拒否を課金しない",
+    "Do not charge or record usage when a Messages API upstream returns stop_reason refusal without any output, matching Anthropic billing": "Messages API のアップストリームが出力なしで stop_reason refusal を返した場合、課金も使用量の記録も行いません（Anthropic の課金ルールに準拠）",
     "Do not keep sessions": "セッションを維持しない",
     "Do not over-trust this feature. IP may be spoofed. Please use with nginx, CDN and other gateways.": "この機能を過信しないでください。IPは偽装される可能性があります。nginx、CDNなどのゲートウェイと併用してください。",
     "Do not repeat check-in; only once per day": "チェックインを繰り返さないでください；1日1回のみ",
