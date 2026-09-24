@@ -408,6 +408,7 @@ func TestLogTaskConsumptionMarksInlineResultsAndDiscardedArtifacts(t *testing.T)
 			task.PrivateData.ResultDiscarded = tc.discarded
 			info := &relaycommon.RelayInfo{
 				UserId: userID, OriginModelName: "qwen-image-plus", UsingGroup: "default",
+				StartTime:     time.Now().Add(-1500 * time.Millisecond),
 				ChannelMeta:   &relaycommon.ChannelMeta{ChannelId: channelID},
 				TaskRelayInfo: &relaycommon.TaskRelayInfo{Action: "text_to_image"},
 				PriceData:     types.PriceData{ModelPrice: 0.03, Quota: 100, GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 1}},
@@ -427,8 +428,10 @@ func TestLogTaskConsumptionMarksInlineResultsAndDiscardedArtifacts(t *testing.T)
 			assert.Equal(t, true, other["is_task"])
 			if tc.wantSync {
 				assert.Equal(t, true, other["task_sync"])
+				assert.GreaterOrEqual(t, other["ut"], float64(1500))
 			} else {
 				assert.NotContains(t, other, "task_sync")
+				assert.NotContains(t, other, "ut")
 			}
 			if tc.wantKept {
 				assert.NotContains(t, other, "result_discarded")
