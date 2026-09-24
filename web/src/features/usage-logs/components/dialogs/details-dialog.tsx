@@ -17,24 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
-/*
-Copyright (C) 2023-2026 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
 import {
   Copy,
   Check,
@@ -91,6 +73,7 @@ import { USAGE_BILLING_PATH, type LogOtherData } from '../../types'
 import { ResponseModelDetails } from '../model-badge'
 import { PluginAuthorLink } from '../plugin-author-link'
 import { DetailRow, DetailSection } from './log-detail-layout'
+import { SensitiveWordAuditSection } from './sensitive-word-audit-section'
 
 // Maps a channel-update changed-field token (as recorded by the backend audit)
 // to its i18n label key for display in the audit details.
@@ -485,6 +468,12 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const isConsume = props.log.type === 2
   const isTopup = props.log.type === 1
   const isManage = props.log.type === 3
+  const sensitiveAuditId =
+    props.log.type === 8
+      ? (other?.admin_info?.keyword_filter?.audit_id ??
+        other?.keyword_filter?.audit_id ??
+        other?.audit_id)
+      : undefined
   const isSubscription = other?.billing_source === 'subscription'
   const isTieredBilling =
     isConsume &&
@@ -841,6 +830,18 @@ export function DetailsDialog(props: DetailsDialogProps) {
           >
             <p className='text-xs wrap-break-word'>{adminInfo.reject_reason}</p>
           </DetailSection>
+        )}
+
+        {props.log.type === 8 && (
+          <SensitiveWordAuditSection
+            auditId={sensitiveAuditId}
+            log={props.log}
+            other={other}
+            isAdmin={props.isAdmin}
+            open={props.open}
+            copiedText={copiedText}
+            onCopy={copyToClipboard}
+          />
         )}
 
         {/* Violation fee info */}

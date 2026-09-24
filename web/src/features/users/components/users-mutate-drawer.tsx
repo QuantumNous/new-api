@@ -62,6 +62,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import {
   ADMIN_PERMISSION_ACTIONS,
@@ -182,6 +183,20 @@ export function UsersMutateDrawer({
         currentRow?.id,
         permissionCatalog
       )
+      // Safety fields are intentionally patch-like. Sending their form defaults
+      // during an unrelated profile edit could overwrite violations recorded
+      // after this drawer loaded.
+      if (
+        isUpdate &&
+        form.formState.dirtyFields.sensitive_word_violation_count
+      ) {
+        payload.sensitive_word_violation_count =
+          data.sensitive_word_violation_count ?? 0
+      }
+      if (isUpdate && form.formState.dirtyFields.sensitive_word_whitelist) {
+        payload.sensitive_word_whitelist =
+          data.sensitive_word_whitelist === true
+      }
       const result = isUpdate
         ? await updateUser(payload as typeof payload & { id: number })
         : await createUser(payload)
@@ -229,6 +244,7 @@ export function UsersMutateDrawer({
         }}
       >
         <SheetContent
+          side='left'
           className={sideDrawerContentClassName('sm:max-w-[600px]')}
         >
           <SheetHeader className={sideDrawerHeaderClassName()}>
@@ -438,6 +454,79 @@ export function UsersMutateDrawer({
                           />
                         </FormControl>
                         <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </SideDrawerSection>
+              )}
+
+              {isUpdate && (
+                <SideDrawerSection>
+                  <h3 className='text-sm font-medium'>{t('Content Safety')}</h3>
+                  <p className='text-muted-foreground text-xs'>
+                    {t(
+                      'Whitelist users are still audited but sensitive-word matches do not block requests or increase the violation count.'
+                    )}
+                  </p>
+
+                  <FormField
+                    control={form.control}
+                    name='sensitive_word_violation_count'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Sensitive-word violations')}</FormLabel>
+                        <div className='flex gap-2'>
+                          <FormControl>
+                            <Input
+                              type='number'
+                              min={0}
+                              step={1}
+                              value={field.value ?? 0}
+                              onChange={(event) =>
+                                field.onChange(
+                                  Math.max(0, Number(event.target.value) || 0)
+                                )
+                              }
+                            />
+                          </FormControl>
+                          <Button
+                            type='button'
+                            variant='outline'
+                            onClick={() => field.onChange(0)}
+                          >
+                            {t('Clear count')}
+                          </Button>
+                        </div>
+                        <FormDescription>
+                          {t(
+                            'Enabling a banned account clears the current count but keeps historical audits, balance, and usage records.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name='sensitive_word_whitelist'
+                    render={({ field }) => (
+                      <FormItem className='flex items-center justify-between gap-4 rounded-md border p-3'>
+                        <span>
+                          <FormLabel>{t('Sensitive-word whitelist')}</FormLabel>
+                          <FormDescription>
+                            {t(
+                              'Keep recording matches without blocking or counting violations.'
+                            )}
+                          </FormDescription>
+                        </span>
+                        <FormControl>
+                          <Switch
+                            checked={field.value === true}
+                            onCheckedChange={field.onChange}
+                            aria-label={t('Sensitive-word whitelist')}
+                          />
+                        </FormControl>
                       </FormItem>
                     )}
                   />

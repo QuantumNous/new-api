@@ -47,11 +47,18 @@ import {
   defaultRequestPolicySettings,
   type RequestPolicySettings,
 } from '../defaults'
+import type {
+  SensitiveWordPolicy,
+  SensitiveWordRuleSummary,
+} from '../sensitive-words/types'
 
 type PolicyBeforeLoad = (context: { params: { section: string } }) => void
 
 let queryClient: QueryClient
 let settings: RequestPolicySettings
+let sensitiveWordPolicy: SensitiveWordPolicy
+let sensitiveWordRules: SensitiveWordRuleSummary[]
+let sensitiveWordGroups: string[]
 
 function optionsResponse() {
   return {
@@ -123,9 +130,6 @@ beforeEach(() => {
     AutomaticDisableChannelEnabled: true,
     AutomaticEnableChannelEnabled: true,
     'monitor_setting.auto_test_channel_enabled': true,
-    CheckSensitiveEnabled: true,
-    CheckSensitiveOnPromptEnabled: true,
-    SensitiveWords: 'blocked',
     'channel_affinity_setting.rules': JSON.stringify([
       {
         name: 'Existing session rule',
@@ -141,6 +145,20 @@ beforeEach(() => {
       },
     ]),
   }
+
+  sensitiveWordPolicy = {
+    id: 1,
+    enabled: true,
+    check_prompt: true,
+    retain_full_prompt: true,
+    block_message: 'Blocked by policy',
+    ban_threshold: 50,
+    full_prompt_retention_days: 180,
+    max_prompt_runes: 65536,
+    version: 1,
+  }
+  sensitiveWordRules = []
+  sensitiveWordGroups = ['default']
   vi.spyOn(api, 'patch').mockResolvedValue({
     data: {
       success: true,
@@ -164,6 +182,15 @@ beforeEach(() => {
         },
       }
     }
+    if (url === '/api/sensitive-words/policy') {
+      return { data: { success: true, data: sensitiveWordPolicy } }
+    }
+    if (url === '/api/sensitive-words/rules') {
+      return { data: { success: true, data: sensitiveWordRules } }
+    }
+    if (url === '/api/sensitive-words/groups') {
+      return { data: { success: true, data: sensitiveWordGroups } }
+    }
     return {
       data: {
         success: true,
@@ -178,7 +205,12 @@ beforeEach(() => {
       },
     }
   })
-  vi.spyOn(api, 'put').mockResolvedValue({ data: { success: true } })
+  vi.spyOn(api, 'put').mockImplementation(async (url) => {
+    if (url === '/api/sensitive-words/policy') {
+      return { data: { success: true, data: sensitiveWordPolicy } }
+    }
+    return { data: { success: true } }
+  })
 })
 
 afterEach(() => {
@@ -190,7 +222,6 @@ describe('request policy settings', () => {
   it.each([
     ['retry', 'Save Changes'],
     ['health', 'Save Changes'],
-    ['filtering', 'Save sensitive words'],
     ['affinity', 'Save Changes'],
   ])(
     'opening %s and saving unchanged values does not write options',
@@ -203,6 +234,19 @@ describe('request policy settings', () => {
       expect(api.put).not.toHaveBeenCalled()
     }
   )
+
+  it('loads and saves the independent sensitive-word policy', async () => {
+    await renderPolicies('/system-settings/request-policies/filtering')
+    const save = await screen.findByRole('button', { name: 'Save policy' })
+    await userEvent.click(save)
+    await waitFor(() =>
+      expect(api.put).toHaveBeenCalledExactlyOnceWith(
+        '/api/sensitive-words/policy',
+        sensitiveWordPolicy
+      )
+    )
+    expect(api.patch).not.toHaveBeenCalled()
+  })
 
   it.each([
     [
@@ -230,41 +274,6 @@ describe('request policy settings', () => {
       )
     }
   )
-
-  it('turning filtering off preserves the prompt switch and keyword list', async () => {
-    await renderPolicies('/system-settings/request-policies/filtering')
-    await userEvent.click(
-      await screen.findByRole('switch', { name: 'Enable filtering' })
-    )
-    const prompt = screen.getByRole('switch', { name: 'Inspect user prompts' })
-    expect(prompt).toHaveAttribute('aria-disabled', 'true')
-    expect(prompt).toBeChecked()
-    expect(
-      screen.getByRole('textbox', { name: 'Blocked keywords' })
-    ).toHaveValue('blocked')
-    await userEvent.click(
-      screen.getByRole('button', { name: 'Save sensitive words' })
-    )
-    await waitFor(() =>
-      expect(api.patch).toHaveBeenCalledExactlyOnceWith(
-        '/api/option/request_policy',
-        { options: { CheckSensitiveEnabled: 'false' } }
-      )
-    )
-  })
-
-  it('refreshing another policy keeps unsaved filter text', async () => {
-    await renderPolicies('/system-settings/request-policies/filtering')
-    const keywords = await screen.findByRole('textbox', {
-      name: 'Blocked keywords',
-    })
-    fireEvent.change(keywords, { target: { value: 'unsaved' } })
-    settings.RetryTimes = 5
-    await act(async () => {
-      await queryClient.invalidateQueries({ queryKey: ['system-options'] })
-    })
-    expect(keywords).toHaveValue('unsaved')
-  })
 
   it('invalid retry status ranges show validation and do not write options', async () => {
     await renderPolicies('/system-settings/request-policies/retry')

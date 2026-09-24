@@ -133,8 +133,36 @@ it.each([undefined, true])(
         })
       )
     )
+    expect(put).toHaveBeenCalledWith(
+      '/api/user/',
+      expect.not.objectContaining({
+        sensitive_word_violation_count: expect.anything(),
+        sensitive_word_whitelist: expect.anything(),
+      })
+    )
   }
 )
+
+it('sends a sensitive-word field only after an administrator changes it', async () => {
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  renderPermissions(100)
+  await screen.findByDisplayValue('Managed admin')
+  await userEvent.click(
+    screen.getByRole('switch', { name: 'Sensitive-word whitelist' })
+  )
+  await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+  await waitFor(() =>
+    expect(put).toHaveBeenCalledWith(
+      '/api/user/',
+      expect.objectContaining({
+        id: 2,
+        sensitive_word_whitelist: true,
+      })
+    )
+  )
+})
 
 it('admin cannot edit the audit permission even when the catalog is available', async () => {
   renderPermissions(10)
