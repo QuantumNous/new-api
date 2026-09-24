@@ -88,7 +88,16 @@ func setupResponsesWSRequestTest(t *testing.T) (*model.User, *model.Token) {
 		setting.ModelRequestRateLimitMutex.Unlock()
 		require.NoError(t, sqlDB.Close())
 	})
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Token{}))
+	// This fixture intentionally starts as a non-master node, so InitDB does
+	// not run migrations. The request path now reads the P-30 migration marker
+	// before billing; create the same schema and completed marker a replica sees
+	// after its master has migrated the shared database.
+	require.NoError(t, db.AutoMigrate(
+		&model.User{}, &model.Token{}, &model.Option{},
+		&model.SensitiveWordRule{}, &model.SensitiveWordRuleWord{}, &model.SensitiveWordRuleGroup{},
+		&model.SensitiveWordPolicy{}, &model.SensitiveWordAuditEvent{},
+	))
+	require.NoError(t, model.MigrateSensitiveWordData())
 	// The shared in-memory limiter outlives each database fixture. Give every
 	// user a separate quota bucket, including when the tests run with -count.
 	user := &model.User{Id: 5062000 + int(responsesWSTestUserSequence.Add(1)), Username: "responses-ws-user", Status: common.UserStatusEnabled, Group: "default", Quota: 1000, AuthVersion: 1}
@@ -717,6 +726,48 @@ func TestResponsesWebSocketDialsNativeResponsesChannelTypes(t *testing.T) {
 			assertResponsesWSAccounting(t, fixture, []int{1000, 1000})
 		})
 	}
+}
+
+func TestResponsesWebSocketSensitiveWordsBlockBeforeChannelSelection(t *testing.T) {
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		_, _, _ = ws.ReadMessage()
+	})
+	policy := model.GetSensitiveWordPolicy()
+	policy.Enabled = true
+	policy.CheckPrompt = true
+	require.NoError(t, model.SaveSensitiveWordPolicy(policy, 1))
+	_, err := model.UpsertSensitiveWordRuleWithMode(
+		0, "responses websocket boundary", []string{"responses-ws-sensitive-marker"},
+		model.SensitiveWordScopeGlobal, nil, 1, model.SensitiveWordModeBlock,
+	)
+	require.NoError(t, err)
+
+	payload := `{"type":"response.create","model":"ws-billing","input":[{"type":"function_call_output","call_id":"call_1","output":"responses-ws-sensitive-marker"}]}`
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(payload)))
+	event := readResponsesWSTestEvent(t, fixture.client)
+	assert.Equal(t, "error", event["type"])
+	assert.EqualValues(t, http.StatusUnprocessableEntity, event["status"])
+	errorBody, ok := event["error"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, string(types.ErrorCodeSensitiveWordsDetected), errorBody["code"])
+	assert.Zero(t, fixture.connections.Load(), "a local block must precede channel selection and the upstream handshake")
+
+	var user model.User
+	var token model.Token
+	require.NoError(t, model.DB.First(&user, fixture.user.Id).Error)
+	require.NoError(t, model.DB.First(&token, fixture.token.Id).Error)
+	assert.Equal(t, 1, user.SensitiveWordViolationCount)
+	assert.Equal(t, 100000, user.Quota)
+	assert.Zero(t, user.UsedQuota)
+	assert.Equal(t, 3000, token.RemainQuota)
+	assert.Zero(t, token.UsedQuota)
+	var auditCount, consumeCount int64
+	require.NoError(t, model.DB.Model(&model.SensitiveWordAuditEvent{}).
+		Where("request_id = ? AND user_id = ?", "responses-ws-billing-ws-0", fixture.user.Id).
+		Count(&auditCount).Error)
+	require.NoError(t, model.LOG_DB.Model(&model.Log{}).Where("type = ?", model.LogTypeConsume).Count(&consumeCount).Error)
+	assert.Equal(t, int64(1), auditCount)
+	assert.Zero(t, consumeCount)
 }
 
 func TestResponsesWebSocketDisconnectSettlesDeliveredOutputOnce(t *testing.T) {

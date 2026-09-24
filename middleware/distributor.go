@@ -97,6 +97,12 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 		}
+		// The request is now parsed and its effective group is known, but no
+		// channel has been selected. A local block must win over a missing or
+		// unavailable model so it cannot be used to bypass the policy.
+		if !CheckSensitiveWordBeforeChannelSelection(c, modelRequest.Model) {
+			return
+		}
 		if pinned || shouldSelectChannel {
 			usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 			var selectErr *service.ChannelSelectError

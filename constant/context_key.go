@@ -21,6 +21,9 @@ const (
 	ContextKeyTokenModelLimit        ContextKey = "token_model_limit"
 	ContextKeyTokenCrossGroupRetry   ContextKey = "token_cross_group_retry"
 	ContextKeyTokenAutoGroups        ContextKey = "token_auto_groups"
+	// ContextKeySensitiveWordCheckResult caches the policy decision made before
+	// channel selection so billing never repeats matching or audit writes.
+	ContextKeySensitiveWordCheckResult ContextKey = "sensitive_word_check_result"
 
 	/* channel related keys */
 	ContextKeyChannelId                ContextKey = "channel_id"

@@ -4,16 +4,16 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 )
@@ -22,7 +22,16 @@ import (
 // provide the current request body through BodyStorage or BillingRequestInput;
 // channel retries retain the resulting billing session and pricing snapshot.
 func PrepareRequestBilling(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
-	needSensitiveCheck := setting.ShouldCheckPromptSensitive()
+	policy, policyErr := model.GetSensitiveWordPolicyWithError()
+	if policyErr != nil {
+		logger.LogWarn(c, "sensitive-word policy unavailable: "+policyErr.Error())
+		return types.NewErrorWithStatusCode(
+			errors.New("敏感词审计暂时不可用，请稍后重试"),
+			types.ErrorCodeQueryDataError, http.StatusServiceUnavailable,
+			types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(),
+		)
+	}
+	needSensitiveCheck := policy.Enabled && policy.CheckPrompt
 	meta := &types.TokenCountMeta{TokenType: types.TokenTypeTokenizer}
 	if info.Request != nil && (needSensitiveCheck || constant.CountToken) {
 		meta = info.Request.GetTokenCountMeta()
@@ -41,11 +50,37 @@ func PrepareRequestBilling(c *gin.Context, info *relaycommon.RelayInfo) *types.N
 	}
 
 	if needSensitiveCheck && meta != nil {
-		if contains, words := service.CheckSensitiveText(meta.CombineText); contains {
+		result, checkedBeforeSelection := common.GetContextKeyType[*model.SensitiveCheckResult](c, constant.ContextKeySensitiveWordCheckResult)
+		if !checkedBeforeSelection {
+			candidateGroups := []string{info.UsingGroup}
+			if info.TokenGroup == "auto" {
+				candidateGroups = service.GetRequestAutoGroups(c, info.UserGroup)
+			}
+			var checkErr error
+			result, checkErr = model.CheckSensitiveRequestForGroups(model.SensitiveCheckInput{
+				RequestID: c.GetString(common.RequestIdKey), UserID: info.UserId,
+				Username: c.GetString("username"), TokenID: info.TokenId,
+				TokenName: c.GetString("token_name"), GroupName: info.UsingGroup,
+				ModelName: info.OriginModelName, Endpoint: c.Request.URL.Path,
+				Protocol: string(info.RelayFormat), Prompt: meta.CombineText,
+			}, candidateGroups)
+			if checkErr != nil {
+				logger.LogWarn(c, "sensitive-word audit failed: "+checkErr.Error())
+				return types.NewErrorWithStatusCode(
+					errors.New("敏感词审计暂时不可用，请稍后重试"),
+					types.ErrorCodeQueryDataError, http.StatusServiceUnavailable,
+					types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(),
+				)
+			}
+		}
+		if result != nil && result.Matched && result.Blocked {
 			service.RequestPolicy(c).AddEvent(service.PolicyEvent{ErrorCode: string(types.ErrorCodeSensitiveWordsDetected), ErrorSource: "local", Decision: service.PolicyDecision{Action: "stop", Reason: "local_rejection", Source: "global"}, Health: "unchanged"})
-			message := fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", "))
-			logger.LogWarn(c, message)
-			return types.NewError(errors.New(message), types.ErrorCodeSensitiveWordsDetected)
+			logger.LogWarn(c, "sensitive-word policy matched")
+			return types.NewOpenAIError(
+				errors.New(result.Message), types.ErrorCodeSensitiveWordsDetected,
+				http.StatusUnprocessableEntity,
+				types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog(),
+			)
 		}
 	}
 

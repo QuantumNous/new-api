@@ -1162,6 +1162,7 @@ type Input struct {
 	Type    string          `json:"type,omitempty"`
 	Role    string          `json:"role,omitempty"`
 	Content json.RawMessage `json:"content,omitempty"`
+	Output  json.RawMessage `json:"output,omitempty"`
 }
 
 type MediaInput struct {
@@ -1170,6 +1171,38 @@ type MediaInput struct {
 	FileUrl  string `json:"file_url,omitempty"`
 	ImageUrl string `json:"image_url,omitempty"`
 	Detail   string `json:"detail,omitempty"` // 仅 input_image 有效
+}
+
+func appendResponsesFunctionOutput(mediaInputs []MediaInput, raw json.RawMessage) []MediaInput {
+	switch kitutil.GetJsonType(raw) {
+	case "string":
+		var text string
+		if err := kitutil.Unmarshal(raw, &text); err == nil && text != "" {
+			mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: text})
+		}
+	case "object":
+		// Function-call output is commonly an arbitrary JSON object. Preserve
+		// its textual representation for content policy evaluation rather than
+		// silently omitting the tool result from the normalized request text.
+		if text := strings.TrimSpace(string(raw)); text != "" && text != "null" {
+			mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: text})
+		}
+	case "array":
+		var items []map[string]any
+		if err := kitutil.Unmarshal(raw, &items); err != nil {
+			return mediaInputs
+		}
+		for _, item := range items {
+			typeValue, _ := item["type"].(string)
+			switch typeValue {
+			case "input_text", "output_text", "text":
+				if text, ok := item["text"].(string); ok && text != "" {
+					mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: text})
+				}
+			}
+		}
+	}
+	return mediaInputs
 }
 
 // ParseInput parses the Responses API `input` field into a normalized slice of MediaInput.
@@ -1257,6 +1290,9 @@ func (r *OpenAIResponsesRequest) ParseInput() []MediaInput {
 						mediaInputs = append(mediaInputs, MediaInput{Type: "input_file", FileUrl: fileUrl})
 					}
 				}
+			}
+			if input.Type == "function_call_output" {
+				mediaInputs = appendResponsesFunctionOutput(mediaInputs, input.Output)
 			}
 		}
 	}
