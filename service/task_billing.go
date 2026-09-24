@@ -51,10 +51,9 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, task *model
 	other := model.NewLogOther()
 	other.SetPublic("is_task", true)
 	other.SetPublic("request_path", c.Request.URL.Path)
-	useTimeSeconds := 0
 	if taskDeliveredInline(c, task) {
 		other.SetPublic("task_sync", true)
-		useTimeSeconds = int(time.Now().Unix() - info.StartTime.Unix())
+		other.SetPublic("ut", time.Since(info.StartTime).Milliseconds())
 	}
 	other.SetPublic("model_price", info.PriceData.ModelPrice)
 	if info.PriceData.ModelRatio > 0 {
@@ -90,8 +89,6 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, task *model
 		TokenId:   info.TokenId,
 		Group:     info.UsingGroup,
 		Other:     other,
-
-		UseTimeSeconds: useTimeSeconds,
 	})
 	model.UpdateUserUsedQuotaAndRequestCount(info.UserId, info.PriceData.Quota)
 	model.UpdateChannelUsedQuota(info.ChannelId, info.PriceData.Quota)
