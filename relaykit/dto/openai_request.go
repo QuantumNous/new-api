@@ -242,6 +242,19 @@ func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
 						meta.FileType = types.FileTypeAudio
 					case ContentTypeFile:
 						meta.FileType = types.FileTypeFile
+						if file := m.GetFile(); file != nil {
+							mime := strings.ToLower(file.Format)
+							switch {
+							case strings.HasPrefix(mime, "video/"):
+								meta.FileType = types.FileTypeVideo
+							case strings.HasPrefix(mime, "audio/"):
+								meta.FileType = types.FileTypeAudio
+							case strings.HasPrefix(mime, "image/"):
+								meta.FileType = types.FileTypeImage
+							case looksLikeVideoMediaPath(file.FileId):
+								meta.FileType = types.FileTypeVideo
+							}
+						}
 					case ContentTypeVideoUrl:
 						meta.FileType = types.FileTypeVideo
 					}
@@ -506,12 +519,7 @@ func (m *MediaContent) GetFile() *MessageFile {
 			return m.File.(*MessageFile)
 		}
 		if itemMap, ok := m.File.(map[string]any); ok {
-			out := &MessageFile{
-				FileName: kitutil.Interface2String(itemMap["file_name"]),
-				FileData: kitutil.Interface2String(itemMap["file_data"]),
-				FileId:   kitutil.Interface2String(itemMap["file_id"]),
-			}
-			return out
+			return ParseMessageFileMap(itemMap)
 		}
 	}
 	return nil
@@ -552,10 +560,19 @@ func (m *MediaContent) ToFileSource() types.FileSource {
 		return types.NewFileSourceFromData(audio.Data, mimeType)
 	case ContentTypeFile:
 		file := m.GetFile()
-		if file == nil || file.FileData == "" {
+		if file == nil {
 			return nil
 		}
-		return types.NewFileSourceFromData(file.FileData, "")
+		if file.FileData != "" {
+			return types.NewFileSourceFromData(file.FileData, file.Format)
+		}
+		// URI-shaped file_id (http(s)/gs://) is treated as a media address for
+		// Gemini/Vertex conversion and token meta. OpenAI Files IDs (file-xxx)
+		// are not resolvable here.
+		if IsRemoteMediaURI(file.FileId) {
+			return types.NewURLFileSource(file.FileId)
+		}
+		return nil
 	case ContentTypeVideoUrl:
 		video := m.GetVideoUrl()
 		if video == nil || video.Url == "" {
@@ -582,9 +599,78 @@ type MessageInputAudio struct {
 }
 
 type MessageFile struct {
-	FileName string `json:"filename,omitempty"`
-	FileData string `json:"file_data,omitempty"`
-	FileId   string `json:"file_id,omitempty"`
+	FileName      string          `json:"filename,omitempty"`
+	FileData      string          `json:"file_data,omitempty"`
+	FileId        string          `json:"file_id,omitempty"`
+	Format        string          `json:"format,omitempty"`
+	Detail        string          `json:"detail,omitempty"`
+	VideoMetadata json.RawMessage `json:"video_metadata,omitempty"`
+}
+
+// ParseMessageFileMap builds a MessageFile from a Chat content "file" object.
+// Returns nil when both file_id and file_data are empty.
+func ParseMessageFileMap(fileData map[string]any) *MessageFile {
+	if fileData == nil {
+		return nil
+	}
+	out := &MessageFile{
+		FileName: firstNonEmptyString(
+			kitutil.Interface2String(fileData["filename"]),
+			kitutil.Interface2String(fileData["file_name"]),
+		),
+		FileData: kitutil.Interface2String(fileData["file_data"]),
+		FileId:   kitutil.Interface2String(fileData["file_id"]),
+		Format: firstNonEmptyString(
+			kitutil.Interface2String(fileData["format"]),
+			kitutil.Interface2String(fileData["mime_type"]),
+			kitutil.Interface2String(fileData["content_type"]),
+		),
+		Detail: kitutil.Interface2String(fileData["detail"]),
+	}
+	if raw, ok := fileData["video_metadata"]; ok && raw != nil {
+		switch v := raw.(type) {
+		case json.RawMessage:
+			out.VideoMetadata = v
+		case []byte:
+			out.VideoMetadata = v
+		default:
+			if encoded, err := kitutil.Marshal(v); err == nil {
+				out.VideoMetadata = encoded
+			}
+		}
+	}
+	if out.FileId == "" && out.FileData == "" {
+		return nil
+	}
+	return out
+}
+
+func firstNonEmptyString(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// IsRemoteMediaURI reports whether s is an http(s) or gs:// media address
+// (LiteLLM-style file_id extension), not an OpenAI Files API id.
+func IsRemoteMediaURI(s string) bool {
+	s = strings.TrimSpace(s)
+	return strings.HasPrefix(s, "https://") ||
+		strings.HasPrefix(s, "http://") ||
+		strings.HasPrefix(s, "gs://")
+}
+
+func looksLikeVideoMediaPath(s string) bool {
+	lower := strings.ToLower(strings.TrimSpace(s))
+	for _, ext := range []string{".mp4", ".mov", ".mpeg", ".mpg", ".avi", ".wmv", ".flv", ".webm"} {
+		if strings.Contains(lower, ext) {
+			return true
+		}
+	}
+	return false
 }
 
 type MessageVideoUrl struct {
@@ -781,26 +867,11 @@ func (m *Message) ParseContent() []MediaContent {
 			}
 		case ContentTypeFile:
 			if fileData, ok := contentItem["file"].(map[string]any); ok {
-				fileId, ok3 := fileData["file_id"].(string)
-				if ok3 {
+				if mf := ParseMessageFileMap(fileData); mf != nil {
 					contentList = append(contentList, MediaContent{
 						Type: ContentTypeFile,
-						File: &MessageFile{
-							FileId: fileId,
-						},
+						File: mf,
 					})
-				} else {
-					fileName, ok1 := fileData["filename"].(string)
-					fileDataStr, ok2 := fileData["file_data"].(string)
-					if ok1 && ok2 {
-						contentList = append(contentList, MediaContent{
-							Type: ContentTypeFile,
-							File: &MessageFile{
-								FileName: fileName,
-								FileData: fileDataStr,
-							},
-						})
-					}
 				}
 			}
 		case ContentTypeVideoUrl:
