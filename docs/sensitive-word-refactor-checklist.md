@@ -39,7 +39,7 @@
 | 2. Relay 与认证安全 | 完成 | HTTP 分发和 Responses WebSocket 都在渠道选择、估算和预扣费前检查；预检决定由计费阶段复用；阻断为 422、审计失败为 503、禁用令牌为 403 `user_banned`；状态变更后执行认证缓存、会话和令牌失效。 |
 | 3. 前端与多语言 | 完成 | 新页面、规则弹窗、左侧用户抽屉、管理员详情和七种 locale 已接入；旧安全页路由重定向保留。 |
 | 4. 数据库和文档 | 完成 | 四类实际数据库矩阵、全量 Go/web 验证、定向质量检查和桌面/移动视口检查完成；全局质量脚本的既有失败已与官方基线逐项对照。 |
-| 5. PR 复核与发布 | 进行中 | 尚待最终 `upstream` 复查、反向差异审查、分组提交、推送、Draft PR 和 GitHub CI。 |
+| 5. PR 复核与发布 | 完成 | 官方 `main` 已在发布前重新拉取并固定在 `d04c118c`；反向差异审查确认无旧入口和无 P-31/P-32 混入；基线/功能分支已推送，Draft PR #11 的后端和前端 GitHub CI 均通过。 |
 
 ## 已修正的问题
 
@@ -81,6 +81,7 @@
 | MySQL `8.2` 同三类迁移矩阵 | 通过，隔离临时数据库 |
 | PostgreSQL `15` 同三类迁移矩阵 | 通过，隔离临时数据库 |
 | ClickHouse `24.8.14.39` 类型 8 写入、管理员投影、普通用户脱敏 | 通过，隔离临时数据库 |
+| Draft PR #11 GitHub CI | 通过：后端 vet/build/test 3 分 45 秒，前端 typecheck/test 6 分 1 秒；仅有 GitHub `ubuntu-latest` 标签迁移提示。 |
 
 实际数据库命令：
 
@@ -91,8 +92,8 @@ TEST_SENSITIVE_WORD_CLICKHOUSE_DSN='clickhouse://default:***@127.0.0.1:19000/def
 go test ./model -run 'TestSensitiveWord(DatabaseMigrationMatrix|ClickHouseLogMatrix)' -count=1 -v
 ```
 
-## 最终待执行项
+## 最终复核结果
 
-- [ ] 执行最终 `git diff --check` 与逐项反向审查，确认无旧入口和无 P-31/P-32 混入。
-- [ ] 重新拉取官方 `main`；若前进则变基、复查受影响调用链并重跑完整验证。
-- [ ] 按“模型与迁移、Relay/安全集成、前端与文档”提交，推送基线/功能分支，创建 Draft PR，等待 GitHub CI 全部通过。
+- [x] 执行最终 `git diff --check` 与逐项反向审查，确认无旧入口和无 P-31/P-32 混入。
+- [x] 重新拉取官方 `main`；发布时仍为 `d04c118c`，无需变基。
+- [x] 按“模型与迁移、Relay/安全集成、前端与文档”提交，推送基线/功能分支，创建 Draft PR，并确认 GitHub CI 全部通过。
