@@ -17,9 +17,10 @@ import (
 const (
 	// systemTaskRunnerIdleInterval is the fallback poll interval used to pick up
 	// tasks created on other nodes and mark expired leases failed.
-	systemTaskRunnerIdleInterval = 15 * time.Second
-	systemTaskLockTTL            = 60 * time.Second
-	logCleanupBatchSize          = 100
+	systemTaskRunnerIdleInterval      = 15 * time.Second
+	systemTaskLockTTL                 = 60 * time.Second
+	logCleanupBatchSize               = 100
+	sensitiveWordAuditCleanupInterval = 24 * time.Hour
 
 	// systemTaskSchedulerInterval throttles how often the scheduler/stale-lock
 	// pass runs, independent of how often the runner wakes to claim tasks.
@@ -83,8 +84,51 @@ func (logCleanupHandler) Run(ctx context.Context, task *model.SystemTask, runner
 	runLogCleanupTask(ctx, task, runnerID)
 }
 
+// sensitiveWordAuditCleanupHandler clears expired full-prompt evidence. It is
+// scheduled independently from usage-log deletion so the audit decision stays
+// available after its sensitive evidence reaches the configured retention age.
+type sensitiveWordAuditCleanupHandler struct{}
+
+type SensitiveWordAuditCleanupResult struct {
+	ClearedEvidence int64 `json:"cleared_evidence"`
+}
+
+func (sensitiveWordAuditCleanupHandler) Type() string {
+	return model.SystemTaskTypeSensitiveWordAuditCleanup
+}
+
+func (sensitiveWordAuditCleanupHandler) Enabled() bool {
+	return model.GetSensitiveWordPolicy().FullPromptRetentionDays > 0
+}
+
+func (sensitiveWordAuditCleanupHandler) Interval() time.Duration {
+	return sensitiveWordAuditCleanupInterval
+}
+
+func (sensitiveWordAuditCleanupHandler) NewPayload() any { return nil }
+
+func (sensitiveWordAuditCleanupHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	select {
+	case <-ctx.Done():
+		failSystemTask(task, runnerID, ctx.Err())
+		return
+	default:
+	}
+	cleared, err := model.CleanupSensitiveWordAudits()
+	if err != nil {
+		failSystemTask(task, runnerID, err)
+		return
+	}
+	if err := model.FinishSystemTask(task.TaskID, runnerID, model.SystemTaskStatusSucceeded, SensitiveWordAuditCleanupResult{
+		ClearedEvidence: cleared,
+	}, ""); err != nil {
+		logSystemTaskLockError(ctx, task, err)
+	}
+}
+
 func init() {
 	RegisterSystemTaskHandler(logCleanupHandler{})
+	RegisterSystemTaskHandler(sensitiveWordAuditCleanupHandler{})
 }
 
 type LogCleanupPayload struct {
