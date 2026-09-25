@@ -9,20 +9,56 @@ import (
 	"gorm.io/gorm"
 )
 
-// QuotaData 柱状图数据
+// QuotaData 柱状图数据 ，添加显示名称
 type QuotaData struct {
-	Id        int    `json:"id"`
-	UserID    int    `json:"user_id" gorm:"index"`
-	Username  string `json:"username" gorm:"index:idx_qdt_model_user_name,priority:2;size:64;default:''"`
-	ModelName string `json:"model_name" gorm:"index:idx_qdt_model_user_name,priority:1;size:64;default:''"`
-	CreatedAt int64  `json:"created_at" gorm:"bigint;index:idx_qdt_created_at,priority:2"`
-	UseGroup  string `json:"use_group" gorm:"index;size:64;default:''"`
-	TokenID   int    `json:"token_id" gorm:"index;default:0"`
-	ChannelID int    `json:"channel_id" gorm:"index;default:0"`
-	NodeName  string `json:"node_name" gorm:"index;size:64;default:''"`
-	TokenUsed int    `json:"token_used" gorm:"default:0"`
-	Count     int    `json:"count" gorm:"default:0"`
-	Quota     int    `json:"quota" gorm:"default:0"`
+	Id          int    `json:"id"`
+	UserID      int    `json:"user_id" gorm:"index"`
+	Username    string `json:"username" gorm:"index:idx_qdt_model_user_name,priority:2;size:64;default:''"`
+	ModelName   string `json:"model_name" gorm:"index:idx_qdt_model_user_name,priority:1;size:64;default:''"`
+	CreatedAt   int64  `json:"created_at" gorm:"bigint;index:idx_qdt_created_at,priority:2"`
+	UseGroup    string `json:"use_group" gorm:"index;size:64;default:''"`
+	TokenID     int    `json:"token_id" gorm:"index;default:0"`
+	ChannelID   int    `json:"channel_id" gorm:"index;default:0"`
+	NodeName    string `json:"node_name" gorm:"index;size:64;default:''"`
+	TokenUsed   int    `json:"token_used" gorm:"default:0"`
+	Count       int    `json:"count" gorm:"default:0"`
+	Quota       int    `json:"quota" gorm:"default:0"`
+	DisplayName string `json:"display_name,omitempty" gorm:"-"` // 添加显示名称
+}
+
+// 添加显示名称
+func loadUserDisplayNames(userIDs []int, usernames []string) (map[int]string, map[string]string, error) {
+	byID := make(map[int]string)
+	byName := make(map[string]string)
+	if len(userIDs) == 0 && len(usernames) == 0 {
+		return byID, byName, nil
+	}
+
+	type userDisplayRow struct {
+		Id          int    `gorm:"column:id"`
+		Username    string `gorm:"column:username"`
+		DisplayName string `gorm:"column:display_name"`
+	}
+	lookups := make([]userDisplayRow, 0)
+	query := DB.Model(&User{}).Select("id, username, display_name")
+	switch {
+	case len(userIDs) > 0 && len(usernames) > 0:
+		query = query.Where("id IN ? OR username IN ?", userIDs, usernames)
+	case len(userIDs) > 0:
+		query = query.Where("id IN ?", userIDs)
+	default:
+		query = query.Where("username IN ?", usernames)
+	}
+	if err := query.Find(&lookups).Error; err != nil {
+		return nil, nil, err
+	}
+	for _, user := range lookups {
+		byID[user.Id] = user.DisplayName
+		if user.Username != "" {
+			byName[user.Username] = user.DisplayName
+		}
+	}
+	return byID, byName, nil
 }
 
 type QuotaDataLogParams struct {
@@ -163,11 +199,58 @@ func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData
 func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
 	err = DB.Table("quota_data").
-		Select("username, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
+		Select("user_id, username, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
 		Where("created_at >= ? and created_at <= ?", startTime, endTime).
-		Group("username, created_at").
+		Group("user_id, username, created_at").
 		Find(&quotaDatas).Error
-	return quotaDatas, err
+	if err != nil {
+		return quotaDatas, err
+	}
+	return quotaDatas, fillQuotaDataDisplayNames(quotaDatas) // 添加显示名称
+}
+
+// 添加显示名称
+func fillQuotaDataDisplayNames(rows []*QuotaData) error {
+	if len(rows) == 0 {
+		return nil
+	}
+
+	userIDSet := make(map[int]struct{})
+	userIDs := make([]int, 0)
+	usernameSet := make(map[string]struct{})
+	usernames := make([]string, 0)
+	for _, row := range rows {
+		if row.UserID > 0 {
+			if _, ok := userIDSet[row.UserID]; !ok {
+				userIDSet[row.UserID] = struct{}{}
+				userIDs = append(userIDs, row.UserID)
+			}
+			continue
+		}
+		if row.Username == "" {
+			continue
+		}
+		if _, ok := usernameSet[row.Username]; ok {
+			continue
+		}
+		usernameSet[row.Username] = struct{}{}
+		usernames = append(usernames, row.Username)
+	}
+
+	byID, byName, err := loadUserDisplayNames(userIDs, usernames)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if name, ok := byID[row.UserID]; ok {
+			row.DisplayName = name
+			continue
+		}
+		if name, ok := byName[row.Username]; ok {
+			row.DisplayName = name
+		}
+	}
+	return nil
 }
 
 func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
