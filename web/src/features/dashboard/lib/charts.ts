@@ -220,6 +220,8 @@ export function processChartData(
     string,
     Map<string, { quota: number; count: number; tokens: number }>
   >()
+  // Earliest timestamp of each time label, so labels sort by time, not text
+  const timeKeyStart = new Map<string, number>()
   const modelTotalsMap = new Map<
     string,
     { quota: number; count: number; tokens: number }
@@ -228,6 +230,10 @@ export function processChartData(
   data.forEach((item) => {
     const timestamp = Number(item.created_at)
     const timeKey = formatChartTime(timestamp, timeGranularity)
+    timeKeyStart.set(
+      timeKey,
+      Math.min(timeKeyStart.get(timeKey) ?? timestamp, timestamp)
+    )
     const model = item.model_name || 'Unknown'
     const quota = Number(item.quota) || 0
     const count = Number(item.count) || 0
@@ -259,7 +265,9 @@ export function processChartData(
   })
 
   const allModels = Array.from(modelTotalsMap.keys())
-  const sortedTimes = Array.from(timeModelMap.keys()).sort()
+  const sortedTimes = Array.from(timeModelMap.keys()).sort(
+    (a, b) => (timeKeyStart.get(a) ?? 0) - (timeKeyStart.get(b) ?? 0)
+  )
   const sortedModels = [...allModels].sort()
   const modelColorDomain = Array.from(new Set([...sortedModels, otherLabel]))
   const modelColorRange = getDashboardChartColors(modelColorDomain.length)
@@ -342,7 +350,6 @@ export function processChartData(
     timeData = timeData.map((item) => ({ ...item, TimeSum: timeSum }))
     lineValues.push(...timeData)
   })
-  lineValues.sort((a, b) => a.Time.localeCompare(b.Time))
 
   // Area chart: top models by quota + "Other" bucket (too many series = unreadable)
   const MAX_AREA_MODELS = 15
@@ -384,7 +391,6 @@ export function processChartData(
       })
     }
   })
-  areaValues.sort((a, b) => a.Time.localeCompare(b.Time))
 
   // Line chart: model call trend (top models + "Other" bucket)
   const MAX_TREND_MODELS = 20
@@ -428,7 +434,6 @@ export function processChartData(
     }
     modelLineValues.push(...timeData)
   })
-  modelLineValues.sort((a, b) => a.Time.localeCompare(b.Time))
 
   // Rank bar: model call count ranking (top 20 + "Other" bucket)
   const MAX_RANK_MODELS = 20
@@ -779,12 +784,13 @@ export function processUserChartData(
   )
 
   const timeUserMap = new Map<string, Map<string, number>>()
-  const allTimePoints = new Set<string>()
+  // Earliest timestamp of each time label, so labels sort by time, not text
+  const allTimePoints = new Map<string, number>()
 
   data.forEach((item) => {
     const ts = Number(item.created_at)
     const timeKey = formatChartTime(ts, timeGranularity)
-    allTimePoints.add(timeKey)
+    allTimePoints.set(timeKey, Math.min(allTimePoints.get(timeKey) ?? ts, ts))
     const user = item.username || 'unknown'
     if (!topUserSet.has(user)) return
     if (!timeUserMap.has(timeKey)) timeUserMap.set(timeKey, new Map())
@@ -792,7 +798,9 @@ export function processUserChartData(
     map.set(user, (map.get(user) || 0) + (Number(item.quota) || 0))
   })
 
-  const sortedTimePoints = Array.from(allTimePoints).sort()
+  const sortedTimePoints = Array.from(allTimePoints.keys()).sort(
+    (a, b) => (allTimePoints.get(a) ?? 0) - (allTimePoints.get(b) ?? 0)
+  )
   const trendValues: Array<{
     Time: string
     User: string
