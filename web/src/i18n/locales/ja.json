@@ -6178,6 +6178,7 @@
     "Type": "タイプ",
     "Type (common)": "タイプ（共通）",
     "Type *": "タイプ *",
+    "Type <strong>{{username}}</strong> to confirm": "確認のため <strong>{{username}}</strong> と入力してください",
     "Type a command or search...": "コマンドまたは検索を入力...",
     "Type the confirmation text here": "確認テキストをここに入力",
     "Type-Specific Settings": "タイプ固有の設定",

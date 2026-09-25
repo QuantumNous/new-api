@@ -6178,6 +6178,7 @@
     "Type": "类型",
     "Type (common)": "类型（常用）",
     "Type *": "类型 *",
+    "Type <strong>{{username}}</strong> to confirm": "输入 <strong>{{username}}</strong> 以确认",
     "Type a command or search...": "输入命令或搜索...",
     "Type the confirmation text here": "在此输入确认文本",
     "Type-Specific Settings": "特定类型设置",
