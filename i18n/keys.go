@@ -126,26 +126,29 @@ const (
 
 // Quota related messages
 const (
-	MsgQuotaNegative        = "quota.negative"
-	MsgQuotaExceedMax       = "quota.exceed_max"
-	MsgQuotaInsufficient    = "quota.insufficient"
-	MsgQuotaWarningInvalid  = "quota.warning_invalid"
-	MsgQuotaThresholdGtZero = "quota.threshold_gt_zero"
+	MsgQuotaNegative         = "quota.negative"
+	MsgQuotaExceedMax        = "quota.exceed_max"
+	MsgQuotaInsufficient     = "quota.insufficient"
+	MsgQuotaUserInsufficient = "quota.user_insufficient"
+	MsgQuotaPreConsumeFailed = "quota.pre_consume_failed"
+	MsgQuotaWarningInvalid   = "quota.warning_invalid"
+	MsgQuotaThresholdGtZero  = "quota.threshold_gt_zero"
 )
 
 // Subscription related messages
 const (
-	MsgSubscriptionNotEnabled       = "subscription.not_enabled"
-	MsgSubscriptionTitleEmpty       = "subscription.title_empty"
-	MsgSubscriptionPriceNegative    = "subscription.price_negative"
-	MsgSubscriptionPriceMax         = "subscription.price_max"
-	MsgSubscriptionPurchaseLimitNeg = "subscription.purchase_limit_negative"
-	MsgSubscriptionQuotaNegative    = "subscription.quota_negative"
-	MsgSubscriptionGroupNotExists   = "subscription.group_not_exists"
-	MsgSubscriptionResetCycleGtZero = "subscription.reset_cycle_gt_zero"
-	MsgSubscriptionPurchaseMax      = "subscription.purchase_max"
-	MsgSubscriptionInvalidId        = "subscription.invalid_id"
-	MsgSubscriptionInvalidUserId    = "subscription.invalid_user_id"
+	MsgSubscriptionNotEnabled        = "subscription.not_enabled"
+	MsgSubscriptionTitleEmpty        = "subscription.title_empty"
+	MsgSubscriptionPriceNegative     = "subscription.price_negative"
+	MsgSubscriptionPriceMax          = "subscription.price_max"
+	MsgSubscriptionPurchaseLimitNeg  = "subscription.purchase_limit_negative"
+	MsgSubscriptionQuotaNegative     = "subscription.quota_negative"
+	MsgSubscriptionQuotaInsufficient = "subscription.quota_insufficient"
+	MsgSubscriptionGroupNotExists    = "subscription.group_not_exists"
+	MsgSubscriptionResetCycleGtZero  = "subscription.reset_cycle_gt_zero"
+	MsgSubscriptionPurchaseMax       = "subscription.purchase_max"
+	MsgSubscriptionInvalidId         = "subscription.invalid_id"
+	MsgSubscriptionInvalidUserId     = "subscription.invalid_user_id"
 )
 
 // Payment related messages

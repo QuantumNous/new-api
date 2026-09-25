@@ -12,10 +12,13 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -1799,5 +1802,97 @@ func TestSettle_TokenRecalcFallsBackToCompletionTokens(t *testing.T) {
 			assert.Equal(t, testCase.wantSettled, settled)
 			assert.Equal(t, testCase.wantQuota, task.Quota)
 		})
+	}
+}
+
+func TestInsufficientQuotaErrorsFollowRequestLanguage(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	require.NoError(t, model.DB.AutoMigrate(&model.SubscriptionPreConsumeRecord{}))
+	gin.SetMode(gin.TestMode)
+
+	const userID = 61
+	type attempt func(c *gin.Context) error
+	newBilling := func(preference string, preConsumedQuota int) attempt {
+		return func(c *gin.Context) error {
+			info := &relaycommon.RelayInfo{UserId: userID, RequestId: "req-quota-i18n", IsPlayground: true}
+			info.UserSetting.BillingPreference = preference
+			_, apiErr := NewBillingSession(c, info, preConsumedQuota)
+			return apiErr
+		}
+	}
+	walletPreConsume := func(c *gin.Context) error {
+		info := &relaycommon.RelayInfo{UserId: userID, IsPlayground: true}
+		session := &BillingSession{relayInfo: info, funding: &WalletFunding{userId: userID}}
+		return session.preConsume(c, 1000)
+	}
+	subscriptionReserve := func(c *gin.Context) error {
+		info := &relaycommon.RelayInfo{UserId: userID, IsPlayground: true}
+		session := &BillingSession{relayInfo: info, funding: &SubscriptionFunding{userId: userID}}
+		return session.Reserve(c, 1000)
+	}
+
+	tests := []struct {
+		name        string
+		walletQuota int
+		run         attempt
+		en          string
+		zhCN        string
+	}{
+		{
+			name:        "wallet exhausted",
+			walletQuota: 0,
+			run:         newBilling("wallet_only", 1000),
+			en:          "Insufficient user quota, remaining quota: " + logger.FormatQuota(0),
+			zhCN:        "用户额度不足, 剩余额度: " + logger.FormatQuota(0),
+		},
+		{
+			name:        "wallet below pre-consume amount",
+			walletQuota: 500,
+			run:         newBilling("wallet_only", 1000),
+			en:          "Failed to pre-consume quota, remaining user quota: " + logger.FormatQuota(500) + ", required pre-consume quota: " + logger.FormatQuota(1000),
+			zhCN:        "预扣费额度失败, 用户剩余额度: " + logger.FormatQuota(500) + ", 需要预扣费额度: " + logger.FormatQuota(1000),
+		},
+		{
+			name:        "wallet reservation lost",
+			walletQuota: 500,
+			run:         walletPreConsume,
+			en:          "Insufficient user quota, remaining quota: " + logger.FormatQuota(500),
+			zhCN:        "用户额度不足, 剩余额度: " + logger.FormatQuota(500),
+		},
+		{
+			name:        "no active subscription",
+			walletQuota: 500,
+			run:         newBilling("subscription_only", 1000),
+			en:          "Insufficient subscription quota or no subscription configured: no active subscription",
+			zhCN:        "订阅额度不足或未配置订阅: no active subscription",
+		},
+		{
+			name:        "subscription reserve rejected",
+			walletQuota: 500,
+			run:         subscriptionReserve,
+			en:          "Insufficient subscription quota or no subscription configured: invalid userSubscriptionId",
+			zhCN:        "订阅额度不足或未配置订阅: invalid userSubscriptionId",
+		},
+	}
+
+	for _, tt := range tests {
+		for lang, want := range map[string]string{"en-US,en;q=0.9": tt.en, "zh-CN,zh;q=0.9": tt.zhCN} {
+			t.Run(tt.name+"/"+lang, func(t *testing.T) {
+				truncate(t)
+				seedUser(t, userID, tt.walletQuota)
+				c, _ := gin.CreateTestContext(httptest.NewRecorder())
+				c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+				c.Request.Header.Set("Accept-Language", lang)
+
+				err := tt.run(c)
+
+				var apiErr *relaytypes.NewAPIError
+				require.ErrorAs(t, err, &apiErr)
+				assert.Equal(t, want, apiErr.Error())
+				assert.Equal(t, relaytypes.ErrorCodeInsufficientUserQuota, apiErr.GetErrorCode())
+				assert.Equal(t, http.StatusForbidden, apiErr.StatusCode)
+				assert.True(t, relaytypes.IsSkipRetryError(apiErr))
+			})
+		}
 	}
 }

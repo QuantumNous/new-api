@@ -78,7 +78,7 @@ func PrepareImageBillingForRequest(c *gin.Context, info *relaycommon.RelayInfo, 
 	if info.Billing == nil {
 		return PreConsumeBilling(c, quota, info)
 	}
-	if err := info.Billing.Reserve(quota); err != nil {
+	if err := info.Billing.Reserve(c, quota); err != nil {
 		var apiErr *types.NewAPIError
 		if errors.As(err, &apiErr) {
 			return apiErr
