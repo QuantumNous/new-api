@@ -13,6 +13,9 @@ import (
 
 func TestLogHelper_ConcurrentRace(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+
+	origWriter := gin.DefaultWriter
+	origErrWriter := gin.DefaultErrorWriter
 	gin.DefaultWriter = io.Discard
 	gin.DefaultErrorWriter = io.Discard
 
@@ -20,7 +23,20 @@ func TestLogHelper_ConcurrentRace(t *testing.T) {
 	tmpDir := t.TempDir()
 	origLogDir := *common.LogDir
 	*common.LogDir = tmpDir
+
 	t.Cleanup(func() {
+		common.LogWriterMu.Lock()
+		gin.DefaultWriter = origWriter
+		gin.DefaultErrorWriter = origErrWriter
+		common.LogWriterMu.Unlock()
+
+		currentLogPathMu.Lock()
+		if currentLogFile != nil {
+			_ = currentLogFile.Close()
+			currentLogFile = nil
+		}
+		currentLogPathMu.Unlock()
+
 		*common.LogDir = origLogDir
 	})
 
@@ -43,10 +59,13 @@ func TestLogHelper_ConcurrentRace(t *testing.T) {
 
 	wg.Wait()
 
-	// Wait briefly for asynchronous SetupLogger to complete and reset flag
-	time.Sleep(50 * time.Millisecond)
+	// Wait for asynchronous SetupLogger to complete and reset flag
+	deadline := time.Now().Add(time.Second)
+	for setupLogWorking.Load() && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
 
 	if setupLogWorking.Load() {
-		t.Error("setupLogWorking should be false after rotation completes")
+		t.Fatal("timed out waiting for SetupLogger to complete")
 	}
 }
