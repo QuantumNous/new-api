@@ -118,7 +118,6 @@ func logHelper(ctx context.Context, level string, msg string) {
 		if setupLogWorking.CompareAndSwap(false, true) {
 			logCount.Store(0)
 			gopool.Go(func() {
-				defer setupLogWorking.Store(false)
 				SetupLogger()
 			})
 		}
