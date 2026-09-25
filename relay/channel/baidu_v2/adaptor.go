@@ -56,6 +56,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	case constant.RelayModeRerank:
 		return fmt.Sprintf("%s/v2/rerank", info.ChannelBaseUrl), nil
 	default:
+		requestPath, _, _ := strings.Cut(info.RequestURLPath, "?")
+		if requestPath == "/v1/messages" {
+			return fmt.Sprintf("%s/v2/chat/completions", info.ChannelBaseUrl), nil
+		}
 	}
 	return "", fmt.Errorf("unsupported relay mode: %d", info.RelayMode)
 }
