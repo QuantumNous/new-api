@@ -3,6 +3,7 @@ package logger
 import (
 	"context"
 	"io"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -67,5 +68,13 @@ func TestLogHelper_ConcurrentRace(t *testing.T) {
 
 	if setupLogWorking.Load() {
 		t.Fatal("timed out waiting for SetupLogger to complete")
+	}
+
+	entries, err := os.ReadDir(tmpDir)
+	if err != nil {
+		t.Fatalf("failed to read log directory: %v", err)
+	}
+	if len(entries) == 0 {
+		t.Fatal("expected concurrent logging to rotate a log file")
 	}
 }
