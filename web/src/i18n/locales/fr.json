@@ -5531,6 +5531,7 @@
     "Stay tuned though!": "Restez à l'écoute cependant !",
     "Steer behaviour with a system instruction": "Orienter le comportement via une instruction système",
     "Step": "Étape",
+    "Step {{current}} of {{total}}: {{label}}": "Étape {{current}} sur {{total}} : {{label}}",
     "Still pending addition": "Ajouts encore en attente",
     "Still pending removal": "Retraits encore en attente",
     "Stop": "Arrêter",

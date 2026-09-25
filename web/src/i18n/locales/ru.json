@@ -5531,6 +5531,7 @@
     "Stay tuned though!": "Оставайтесь на связи!",
     "Steer behaviour with a system instruction": "Управлять поведением с помощью системной инструкции",
     "Step": "Шаг",
+    "Step {{current}} of {{total}}: {{label}}": "Шаг {{current}} из {{total}}: {{label}}",
     "Still pending addition": "Ещё ожидают добавления",
     "Still pending removal": "Ещё ожидают удаления",
     "Stop": "Остановить",

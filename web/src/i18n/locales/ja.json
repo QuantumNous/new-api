@@ -5531,6 +5531,7 @@
     "Stay tuned though!": "引き続きご期待ください！",
     "Steer behaviour with a system instruction": "システム指示でモデルの挙動を制御",
     "Step": "ステップ",
+    "Step {{current}} of {{total}}: {{label}}": "ステップ {{current}}/{{total}}：{{label}}",
     "Still pending addition": "追加待ち",
     "Still pending removal": "削除待ち",
     "Stop": "停止",
