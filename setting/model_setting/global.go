@@ -43,11 +43,15 @@ type GlobalSettings struct {
 	// family whitelist but whose names already end in an effort word.
 	EffortTailModelIDs               []string                         `json:"effort_tail_model_ids"`
 	ChatCompletionsToResponsesPolicy ChatCompletionsToResponsesPolicy `json:"chat_completions_to_responses_policy"`
+	// RefusalNoOutputFree waives billing and usage recording for Messages API responses that stop
+	// with stop_reason "refusal" before producing any output, matching Anthropic's own billing.
+	RefusalNoOutputFree bool `json:"refusal_no_output_free"`
 }
 
 // 默认配置
 var defaultOpenaiSettings = GlobalSettings{
 	PassThroughRequestEnabled: false,
+	RefusalNoOutputFree:       false,
 	ThinkingModelBlacklist: []string{
 		"moonshotai/kimi-k2-thinking",
 		"kimi-k2-thinking",

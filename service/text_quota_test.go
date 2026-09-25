@@ -1500,3 +1500,134 @@ func TestAppendToolSurchargeLogInfoWritesOnlyStructuredFields(t *testing.T) {
 	assert.NotContains(t, fields, "image_generation_call")
 	assert.NotContains(t, fields, "image_generation_call_price")
 }
+
+func TestCalculateTextQuotaSummaryZeroesQuotaAndUsageWhenBillingExempt(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	usage := &dto.Usage{PromptTokens: 412, CompletionTokens: 0, TotalTokens: 412, UsageSemantic: "anthropic"}
+	newRelayInfo := func() *relaycommon.RelayInfo {
+		return &relaycommon.RelayInfo{
+			RelayFormat:             types.RelayFormatClaude,
+			FinalRequestRelayFormat: types.RelayFormatClaude,
+			OriginModelName:         "claude-fable-5-1",
+			PriceData: hosttypes.PriceData{
+				ModelRatio:      5,
+				CompletionRatio: 5,
+				GroupRatioInfo:  hosttypes.GroupRatioInfo{GroupRatio: 1},
+			},
+			StartTime: time.Now(),
+		}
+	}
+
+	billedCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	billed := calculateTextQuotaSummary(billedCtx, newRelayInfo(), usage)
+	require.Equal(t, 2060, billed.Quota)
+	require.Empty(t, billed.BillingExemptReason)
+
+	exemptCtx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(exemptCtx, constant.ContextKeyBillingExemptReason, "claude_refusal_no_output")
+	exempt := calculateTextQuotaSummary(exemptCtx, newRelayInfo(), usage)
+	assert.Equal(t, 0, exempt.Quota)
+	assert.Equal(t, "claude_refusal_no_output", exempt.BillingExemptReason)
+	assert.Equal(t, 0, exempt.PromptTokens, "informational usage must not be recorded")
+	assert.Equal(t, 0, exempt.CompletionTokens)
+	assert.Equal(t, 0, exempt.TotalTokens)
+	assert.False(t, exempt.hasBillableUsage())
+}
+
+// A billing-exempt response must fully refund the pre-consumed quota and record
+// a zero-token, zero-quota consume log that explains why nothing was charged.
+func TestPostTextConsumeQuotaBillingExemptRefundsPreConsumedQuota(t *testing.T) {
+	truncate(t)
+	gin.SetMode(gin.TestMode)
+
+	const (
+		userQuota = 100000
+		preQuota  = 3000
+	)
+
+	tests := []struct {
+		name             string
+		id               int
+		exempt           bool
+		wantQuota        int
+		wantUserQuota    int
+		wantPromptTokens int
+	}{
+		{name: "refusal without output refunds everything", id: 901, exempt: true, wantQuota: 0, wantUserQuota: userQuota, wantPromptTokens: 0},
+		{name: "regular response is charged normally", id: 902, exempt: false, wantQuota: 2060, wantUserQuota: userQuota - 2060, wantPromptTokens: 412},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NoError(t, model.DB.Create(&model.User{
+				Id:       tt.id,
+				Username: fmt.Sprintf("refusal_user_%d", tt.id),
+				AffCode:  fmt.Sprintf("ref%d", tt.id),
+				Quota:    userQuota - preQuota, // pre-consume already deducted
+				Status:   common.UserStatusEnabled,
+			}).Error)
+			tokenKey := fmt.Sprintf("sk-refusal-test-%d", tt.id)
+			seedToken(t, tt.id, tt.id, tokenKey, userQuota-preQuota)
+			seedChannel(t, tt.id)
+
+			relayInfo := &relaycommon.RelayInfo{
+				UserId:                  tt.id,
+				TokenId:                 tt.id,
+				TokenKey:                tokenKey,
+				ChannelMeta:             &relaycommon.ChannelMeta{ChannelId: tt.id, UpstreamModelName: "claude-fable-5-1"},
+				UsingGroup:              "default",
+				RelayFormat:             types.RelayFormatClaude,
+				FinalRequestRelayFormat: types.RelayFormatClaude,
+				OriginModelName:         "claude-fable-5-1",
+				FinalPreConsumedQuota:   preQuota,
+				UserQuota:               userQuota,
+				PriceData: hosttypes.PriceData{
+					ModelRatio:      5,
+					CompletionRatio: 5,
+					GroupRatioInfo:  hosttypes.GroupRatioInfo{GroupRatio: 1},
+				},
+				StartTime: time.Now(),
+			}
+			usage := &dto.Usage{PromptTokens: 412, CompletionTokens: 0, TotalTokens: 412, UsageSemantic: "anthropic"}
+
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest("POST", "/v1/messages", nil)
+			if tt.exempt {
+				common.SetContextKey(ctx, constant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
+				common.SetContextKey(ctx, constant.ContextKeyBillingExemptReason, "claude_refusal_no_output")
+			}
+
+			PostTextConsumeQuota(ctx, relayInfo, usage, nil)
+
+			var user model.User
+			require.NoError(t, model.DB.First(&user, tt.id).Error)
+			assert.Equal(t, tt.wantUserQuota, user.Quota)
+			assert.Equal(t, tt.wantQuota, user.UsedQuota)
+			assert.Equal(t, 1, user.RequestCount)
+
+			var token model.Token
+			require.NoError(t, model.DB.First(&token, tt.id).Error)
+			assert.Equal(t, tt.wantUserQuota, token.RemainQuota)
+
+			log := getLastLog(t)
+			require.NotNil(t, log)
+			assert.Equal(t, tt.id, log.UserId)
+			assert.Equal(t, tt.wantQuota, log.Quota)
+			assert.Equal(t, tt.wantPromptTokens, log.PromptTokens)
+			assert.Equal(t, 0, log.CompletionTokens)
+			other, err := common.StrToMap(log.Other)
+			require.NoError(t, err)
+			if tt.exempt {
+				assert.Contains(t, log.Content, "不计费")
+				assert.NotContains(t, log.Content, "上游没有返回计费信息")
+				assert.Equal(t, "claude_refusal_no_output", other["billing_exempt_reason"])
+				adminInfo, ok := other["admin_info"].(map[string]any)
+				require.True(t, ok, "reject_reason must stay admin-only")
+				assert.Equal(t, "claude_stop_reason=refusal", adminInfo["reject_reason"])
+			} else {
+				assert.NotContains(t, log.Content, "不计费")
+				assert.NotContains(t, other, "billing_exempt_reason")
+			}
+		})
+	}
+}

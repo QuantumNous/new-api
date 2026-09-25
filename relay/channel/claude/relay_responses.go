@@ -106,11 +106,15 @@ func ClaudeResponsesStreamHandler(c *gin.Context, resp *http.Response, info *rel
 			return
 		}
 
+		if claudeResponse.Type == "content_block_start" {
+			c.Set(claudeStreamContentBlockSeenKey, true)
+		}
+		streamHasContent := c.GetBool(claudeStreamContentBlockSeenKey)
 		if claudeResponse.StopReason != "" {
-			maybeMarkClaudeRefusal(c, info, claudeResponse.StopReason)
+			maybeMarkClaudeRefusal(c, info, claudeResponse.StopReason, streamHasContent, claudeResponse.Usage)
 		}
 		if claudeResponse.Delta != nil && claudeResponse.Delta.StopReason != nil {
-			maybeMarkClaudeRefusal(c, info, *claudeResponse.Delta.StopReason)
+			maybeMarkClaudeRefusal(c, info, *claudeResponse.Delta.StopReason, streamHasContent, claudeResponse.Usage)
 		}
 		if claudeResponse.Type == "message_stop" {
 			info.StreamStatus.MarkCompleted()
