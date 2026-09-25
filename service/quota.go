@@ -201,7 +201,7 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 	quota, clamp := calculateAudioQuota(quotaInfo)
 	noteQuotaClamp(relayInfo, clamp)
 	if tieredOk {
-		quota = tieredQuota
+		quota = applyTieredMinimumCharge(tieredQuota, usage.TotalTokens > 0, groupRatio, tieredRes)
 	}
 
 	totalTokens := usage.TotalTokens
@@ -334,7 +334,7 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 	quota, clamp := calculateAudioQuota(quotaInfo)
 	noteQuotaClamp(relayInfo, clamp)
 	if tieredOk {
-		quota = tieredQuota
+		quota = applyTieredMinimumCharge(tieredQuota, usage.TotalTokens > 0 || fixedPriceBilling, groupRatio, tieredRes)
 	}
 
 	totalTokens := usage.TotalTokens
