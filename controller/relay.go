@@ -602,7 +602,16 @@ func executeTaskSubmissionWith(
 		diagnostics.reserve("reserve_start", result.Quota)
 		if reserveErr := relayInfo.Billing.Reserve(c, result.Quota); reserveErr != nil {
 			common.SysError("reserve adjusted task billing error: " + reserveErr.Error())
-			taskErr = service.TaskErrorWrapperLocal(errors.New("insufficient quota for adjusted task cost"), string(types.ErrorCodeInsufficientUserQuota), http.StatusForbidden)
+			// A quota rejection already carries a message localized for this
+			// request, so pass it on. Any other failure (a database error, for
+			// example) keeps the generic text so internal details stay out of
+			// the response.
+			clientErr := errors.New("insufficient quota for adjusted task cost")
+			var apiErr *types.NewAPIError
+			if errors.As(reserveErr, &apiErr) && apiErr.GetErrorCode() == types.ErrorCodeInsufficientUserQuota {
+				clientErr = apiErr
+			}
+			taskErr = service.TaskErrorWrapperLocal(clientErr, string(types.ErrorCodeInsufficientUserQuota), http.StatusForbidden)
 			diagnostics.failed("reserve", "insufficient_quota", taskErr, false)
 			return nil, taskErr
 		}

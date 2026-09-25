@@ -18,6 +18,7 @@ import (
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -657,4 +658,49 @@ func TestExecuteTaskSubmissionRefundsWhenFinalReserveFails(t *testing.T) {
 	assert.Equal(t, []string{"reserve", "refund"}, events)
 	assert.Equal(t, 1, billing.refunds)
 	assert.False(t, c.Writer.Written())
+}
+
+func TestExecuteTaskSubmissionReserveFailureMessage(t *testing.T) {
+	const generic = "insufficient quota for adjusted task cost"
+	const localized = "Insufficient subscription quota or no subscription configured: no active subscription"
+	cases := []struct {
+		name        string
+		reserveErr  error
+		wantMessage string
+	}{
+		{
+			name:        "quota rejection keeps its localized message",
+			reserveErr:  relaytypes.NewErrorWithStatusCode(errors.New(localized), relaytypes.ErrorCodeInsufficientUserQuota, http.StatusForbidden, relaytypes.ErrOptionWithSkipRetry()),
+			wantMessage: localized,
+		},
+		{
+			name:        "other billing errors keep the generic text",
+			reserveErr:  relaytypes.NewError(errors.New("database is locked"), relaytypes.ErrorCodeUpdateDataError, relaytypes.ErrOptionWithSkipRetry()),
+			wantMessage: generic,
+		},
+		{
+			name:        "plain errors keep the generic text",
+			reserveErr:  errors.New("insufficient funds"),
+			wantMessage: generic,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			events := []string{}
+			setupTaskSubmissionDatabase(t, true, &events)
+			billing := &taskSubmissionTestBilling{events: &events, reserveErr: tc.reserveErr}
+			c := taskSubmissionTestContext()
+			info := taskSubmissionRelayInfo(billing)
+			outcome, taskErr := executeTaskSubmissionWith(c, info, func(*gin.Context, *relaycommon.RelayInfo) (*relay.TaskSubmitResult, *dto.TaskError) {
+				return &relay.TaskSubmitResult{Platform: "plugin", Quota: 600, Immediate: &relaycommon.TaskInfo{Status: "SUCCESS"}}, nil
+			})
+			require.Nil(t, outcome)
+			require.NotNil(t, taskErr)
+			assert.Equal(t, tc.wantMessage, taskErr.Message)
+			assert.Equal(t, string(relaytypes.ErrorCodeInsufficientUserQuota), taskErr.Code)
+			assert.Equal(t, http.StatusForbidden, taskErr.StatusCode)
+			assert.True(t, taskErr.LocalError)
+			assert.Equal(t, []string{"reserve", "refund"}, events)
+		})
+	}
 }
