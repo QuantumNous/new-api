@@ -506,6 +506,10 @@ func fetchAdvancedCustomBalance(channel *model.Channel) (channelBalanceResult, e
 }
 
 func updateChannelBalance(channel *model.Channel) (channelBalanceResult, error) {
+	if balanceScript := strings.TrimSpace(channel.GetOtherSettings().BalanceScript); balanceScript != "" &&
+		!channel.ChannelInfo.IsMultiKey {
+		return fetchScriptedBalance(channel, balanceScript)
+	}
 	if channel.Type == constant.ChannelTypeAdvancedCustom {
 		return fetchAdvancedCustomBalance(channel)
 	}
