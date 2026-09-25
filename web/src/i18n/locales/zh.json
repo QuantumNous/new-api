@@ -5531,6 +5531,7 @@
     "Stay tuned though!": "敬请期待！",
     "Steer behaviour with a system instruction": "通过系统指令引导模型行为",
     "Step": "步骤",
+    "Step {{current}} of {{total}}: {{label}}": "第 {{current}} 步，共 {{total}} 步：{{label}}",
     "Still pending addition": "仍待新增",
     "Still pending removal": "仍待移除",
     "Stop": "停止",

@@ -5531,6 +5531,7 @@
     "Stay tuned though!": "Stay tuned though!",
     "Steer behaviour with a system instruction": "Steer behaviour with a system instruction",
     "Step": "Step",
+    "Step {{current}} of {{total}}: {{label}}": "Step {{current}} of {{total}}: {{label}}",
     "Still pending addition": "Still pending addition",
     "Still pending removal": "Still pending removal",
     "Stop": "Stop",

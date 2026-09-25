@@ -5531,6 +5531,7 @@
     "Stay tuned though!": "Nhưng",
     "Steer behaviour with a system instruction": "Điều hướng hành vi bằng lệnh hệ thống",
     "Step": "Bước",
+    "Step {{current}} of {{total}}: {{label}}": "Bước {{current}}/{{total}}: {{label}}",
     "Still pending addition": "Vẫn chờ thêm",
     "Still pending removal": "Vẫn chờ xóa",
     "Stop": "Dừng lại",
