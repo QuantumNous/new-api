@@ -6,6 +6,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -16,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	hosttypes "github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -47,6 +49,7 @@ func TestPrepareResponsesRequestRetainsConvertedAdaptor(t *testing.T) {
 	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeAdvancedCustom)
 	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, server.URL)
 	common.SetContextKey(c, constant.ContextKeyChannelKey, "test-key")
+	common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{SystemPrompt: "channel rules"})
 	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{
 		AdvancedCustom: &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{{
 			IncomingPath: "/v1/responses", UpstreamPath: "/v1/chat/completions", Converter: relayconvert.ConverterOpenAIResponsesToOpenAIChat,
@@ -70,9 +73,70 @@ func TestPrepareResponsesRequestRetainsConvertedAdaptor(t *testing.T) {
 	assert.Equal(t, "/v1/chat/completions", upstream.path)
 	var upstreamRequest dto.GeneralOpenAIRequest
 	require.NoError(t, common.Unmarshal(upstream.body, &upstreamRequest))
-	require.Len(t, upstreamRequest.Messages, 1)
-	assert.Equal(t, "hello", upstreamRequest.Messages[0].StringContent())
+	require.Len(t, upstreamRequest.Messages, 2)
+	assert.Equal(t, "system", upstreamRequest.Messages[0].Role)
+	assert.Equal(t, "channel rules", upstreamRequest.Messages[0].StringContent())
+	assert.Equal(t, "hello", upstreamRequest.Messages[1].StringContent())
 	assert.Equal(t, []relaytypes.RelayFormat{relaytypes.RelayFormatOpenAIResponses, relaytypes.RelayFormatOpenAI}, info.RequestConversionChain)
+}
+
+func TestPrepareResponsesRequestSystemPrompt(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	originalPassthrough := settings.PassThroughRequestEnabled
+	settings.PassThroughRequestEnabled = false
+	t.Cleanup(func() { settings.PassThroughRequestEnabled = originalPassthrough })
+
+	tests := []struct {
+		name             string
+		mode             int
+		channelPass      bool
+		globalPass       bool
+		paramOverride    map[string]any
+		wantInstructions string
+	}{
+		{name: "native responses", mode: relayconstant.RelayModeResponses, wantInstructions: `"channel rules\nuser rules"`},
+		{name: "compact is unchanged", mode: relayconstant.RelayModeResponsesCompact, wantInstructions: `"user rules"`},
+		{name: "internal chat mode is unchanged", mode: relayconstant.RelayModeChatCompletions, wantInstructions: `"user rules"`},
+		{name: "channel passthrough is unchanged", mode: relayconstant.RelayModeResponses, channelPass: true, wantInstructions: `"user rules"`},
+		{name: "global passthrough is unchanged", mode: relayconstant.RelayModeResponses, globalPass: true, wantInstructions: `"user rules"`},
+		{name: "parameter override wins", mode: relayconstant.RelayModeResponses, paramOverride: map[string]any{"instructions": "override rules"}, wantInstructions: `"override rules"`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			settings.PassThroughRequestEnabled = tt.globalPass
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			const rawBody = `{"model":"gpt-4o","input":"hello","instructions":"user rules"}`
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(rawBody))
+			c.Request.Header.Set("Content-Type", "application/json")
+			common.SetContextKey(c, constant.ContextKeyOriginalModel, "gpt-4o")
+			common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+			common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{
+				SystemPrompt: "channel rules", SystemPromptOverride: true, PassThroughBodyEnabled: tt.channelPass,
+			})
+			common.SetContextKey(c, constant.ContextKeyChannelParamOverride, tt.paramOverride)
+			t.Cleanup(func() { common.CleanupBodyStorage(c) })
+			var request dto.OpenAIResponsesRequest
+			require.NoError(t, common.Unmarshal([]byte(rawBody), &request))
+			info := relaycommon.GenRelayInfoResponses(c, &request)
+			info.RelayMode = tt.mode
+
+			// Retries must start from the original request, not append the prompt again.
+			for range 2 {
+				_, body, closer, apiErr := PrepareResponsesRequest(c, info, &request)
+				require.Nil(t, apiErr)
+				outbound, err := io.ReadAll(body)
+				require.NoError(t, closer.Close())
+				require.NoError(t, err)
+				var prepared dto.OpenAIResponsesRequest
+				require.NoError(t, common.Unmarshal(outbound, &prepared))
+				assert.Equal(t, tt.wantInstructions, string(prepared.Instructions))
+				assert.Equal(t, `"user rules"`, string(request.Instructions))
+				if tt.channelPass || tt.globalPass {
+					assert.Equal(t, rawBody, string(outbound))
+				}
+			}
+		})
+	}
 }
 
 func TestIsResponsesEventStreamContentType(t *testing.T) {
