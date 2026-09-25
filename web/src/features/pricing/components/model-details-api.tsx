@@ -82,6 +82,9 @@ type SampleContext = {
   endpointPath: string
 }
 
+/**
+ * Builds a Chat Completions or Responses example for the selected language and endpoint.
+ */
 function buildChatSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}`
   const isResponses = ctx.endpointType === 'openai-response'
@@ -109,7 +112,7 @@ function buildChatSample(lang: Lang, ctx: SampleContext): string {
       `curl ${url} \\`,
       `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${bodyJson.replace(/\n/g, '\n     ')}'`,
+      `  -d '${bodyJson.replaceAll('\n', '\n     ')}'`,
     ].join('\n')
   }
 
@@ -158,6 +161,9 @@ function buildChatSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+/**
+ * Builds a Claude Messages example with the required version and authentication headers.
+ */
 function buildAnthropicSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}`
   const userMessage = 'Explain quantum entanglement in one paragraph.'
@@ -177,7 +183,7 @@ function buildAnthropicSample(lang: Lang, ctx: SampleContext): string {
       `  -H "x-api-key: $${ctx.apiKeyEnv}" \\`,
       `  -H "anthropic-version: 2023-06-01" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `  -d '${body.replaceAll('\n', '\n     ')}'`,
     ].join('\n')
   }
   if (lang === 'python') {
@@ -236,6 +242,9 @@ function buildAnthropicSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+/**
+ * Builds a Gemini generateContent example using the configured model and base URL.
+ */
 function buildGeminiSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}?key=$${ctx.apiKeyEnv}`
   const userMessage = 'Explain quantum entanglement in one paragraph.'
@@ -249,7 +258,7 @@ function buildGeminiSample(lang: Lang, ctx: SampleContext): string {
     return [
       `curl '${url}' \\`,
       `  -H 'Content-Type: application/json' \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `  -d '${body.replaceAll('\n', '\n     ')}'`,
     ].join('\n')
   }
   if (lang === 'python') {
@@ -289,6 +298,9 @@ function buildGeminiSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+/**
+ * Builds an embedding example that prints a short preview of the returned vector.
+ */
 function buildEmbeddingSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}`
   const text = 'The food was delicious and the waiter…'
@@ -299,7 +311,7 @@ function buildEmbeddingSample(lang: Lang, ctx: SampleContext): string {
       `curl ${url} \\`,
       `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `  -d '${body.replaceAll('\n', '\n     ')}'`,
     ].join('\n')
   }
   if (lang === 'python') {
@@ -351,6 +363,9 @@ function buildEmbeddingSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+/**
+ * Builds an image generation example that prints the first returned image URL.
+ */
 function buildImageSample(lang: Lang, ctx: SampleContext): string {
   const url = `${ctx.baseUrl}${ctx.endpointPath}`
   const prompt = 'A serene koi pond at sunset, ukiyo-e style.'
@@ -365,7 +380,7 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
       `curl ${url} \\`,
       `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
       `  -H "Content-Type: application/json" \\`,
-      `  -d '${body.replace(/\n/g, '\n     ')}'`,
+      `  -d '${body.replaceAll('\n', '\n     ')}'`,
     ].join('\n')
   }
   if (lang === 'python') {
@@ -423,15 +438,75 @@ function buildImageSample(lang: Lang, ctx: SampleContext): string {
   ].join('\n')
 }
 
+/**
+ * Builds a native decisions example with shared state and a noul question.
+ * Credentials are read from the configured environment variable.
+ */
+function buildDecisionsSample(lang: Lang, ctx: SampleContext): string {
+  const url = `${ctx.baseUrl}${ctx.endpointPath}`
+  const body = JSON.stringify(
+    {
+      model: ctx.modelName,
+      state: 'The customer needs help with a failed payment.',
+      questions: {
+        payment: { type: 'noul', instructions: 'Is this about a payment?' },
+      },
+    },
+    null,
+    2
+  )
+  if (lang === 'curl') {
+    return [
+      `curl '${url.replaceAll("'", "'\\''")}' \\`,
+      `  -H "Authorization: Bearer $${ctx.apiKeyEnv}" \\`,
+      `  -H "Content-Type: application/json" \\`,
+      `  -d '${body.replaceAll("'", "'\\''")}'`,
+    ].join('\n')
+  }
+  if (lang === 'python') {
+    return [
+      'import os',
+      'import requests',
+      '',
+      `payload = ${body}`,
+      `response = requests.post(${JSON.stringify(url)},`,
+      `    headers={"Authorization": "Bearer " + os.environ["${ctx.apiKeyEnv}"]},`,
+      '    json=payload, timeout=60)',
+      'response.raise_for_status()',
+      'print(response.json()["answers"])',
+    ].join('\n')
+  }
+  return [
+    `const payload = ${body}`,
+    `const response = await fetch(${JSON.stringify(url)}, {`,
+    `  method: 'POST',`,
+    '  headers: {',
+    `    Authorization: \`Bearer \${process.env.${ctx.apiKeyEnv}}\`,`,
+    `    'Content-Type': 'application/json',`,
+    '  },',
+    '  body: JSON.stringify(payload),',
+    '})',
+    'if (!response.ok) throw new Error(await response.text())',
+    'console.log((await response.json()).answers)',
+  ].join('\n')
+}
+
+/**
+ * Selects the protocol-specific example builder for the model endpoint.
+ */
 function buildSample(
   lang: Lang,
   endpointType: string,
   ctx: SampleContext
 ): string {
+  if (endpointType === 'typesafe-decisions') {
+    return buildDecisionsSample(lang, ctx)
+  }
   if (endpointType === 'anthropic') return buildAnthropicSample(lang, ctx)
   if (endpointType === 'gemini') return buildGeminiSample(lang, ctx)
-  if (endpointType === 'embeddings' || endpointType === 'jina-rerank')
+  if (endpointType === 'embeddings' || endpointType === 'jina-rerank') {
     return buildEmbeddingSample(lang, ctx)
+  }
   if (endpointType === 'image-generation') return buildImageSample(lang, ctx)
   return buildChatSample(lang, ctx)
 }

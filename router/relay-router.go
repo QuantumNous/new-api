@@ -12,6 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// SetRelayRouter registers relay endpoints and their authentication, rate-limit,
+// and channel-distribution middleware, including the native decisions route.
 func SetRelayRouter(router *gin.Engine) {
 	router.Use(middleware.CORS())
 	router.Use(middleware.DecompressRequestMiddleware())
@@ -137,6 +139,11 @@ func SetRelayRouter(router *gin.Engine) {
 		})
 		httpRouter.POST("/audio/speech", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIAudio)
+		})
+
+		// Native decisions.
+		httpRouter.POST("/decisions", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatDecisions)
 		})
 
 		// rerank related routes
