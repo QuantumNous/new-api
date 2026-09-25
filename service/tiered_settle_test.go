@@ -330,7 +330,7 @@ func (s *recordingBillingSettler) GetPreConsumedQuota() int {
 	return s.preConsumedQuota
 }
 
-func (s *recordingBillingSettler) Reserve(targetQuota int) error {
+func (s *recordingBillingSettler) Reserve(_ *gin.Context, targetQuota int) error {
 	s.reserveTargets = append(s.reserveTargets, targetQuota)
 	if targetQuota > s.preConsumedQuota {
 		s.preConsumedQuota = targetQuota
@@ -506,7 +506,7 @@ func TestBillingSessionReserveWalletTopUpDecrementsBalance(t *testing.T) {
 		preConsumedQuota: 50_000,
 	}
 
-	require.NoError(t, session.Reserve(100_000))
+	require.NoError(t, session.Reserve(nil, 100_000))
 
 	assert.Equal(t, 100_000, session.GetPreConsumedQuota())
 	assert.Equal(t, 100_000, relayInfo.FinalPreConsumedQuota)

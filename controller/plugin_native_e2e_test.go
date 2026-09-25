@@ -54,7 +54,7 @@ func (b *nativeRouteBilling) GetPreConsumedQuota() int {
 	return b.preConsumed
 }
 
-func (b *nativeRouteBilling) Reserve(quota int) error {
+func (b *nativeRouteBilling) Reserve(_ *gin.Context, quota int) error {
 	b.events = append(b.events, "reserve")
 	if err := model.DecreaseUserQuota(b.userID, quota, true); err != nil {
 		return err

@@ -20,5 +20,5 @@ type BillingSettler interface {
 	GetPreConsumedQuota() int
 
 	// Reserve 将预扣额度补到目标值；若目标值不高于当前预扣额度则不做任何事。
-	Reserve(targetQuota int) error
+	Reserve(c *gin.Context, targetQuota int) error
 }

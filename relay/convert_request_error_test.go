@@ -30,7 +30,7 @@ type imageReservation struct {
 	held, limit int
 }
 
-func (s *imageReservation) Reserve(quota int) error {
+func (s *imageReservation) Reserve(_ *gin.Context, quota int) error {
 	if quota > s.limit {
 		return errors.New("insufficient image quota")
 	}
