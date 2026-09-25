@@ -560,9 +560,6 @@ func TestSensitiveWordMigrationIsOneWayAndIdempotent(t *testing.T) {
 	require.NoError(t, DB.Create(&Option{Key: "SensitiveWordConfig", Value: string(legacyPolicy)}).Error)
 	require.NoError(t, DB.Create(&Option{Key: "SensitiveWords", Value: "legacy-one\nlegacy-two\nLEGACY-ONE"}).Error)
 	user := createSensitiveWordTestUser(t, 6_800_000, false)
-	require.NoError(t, DB.Migrator().CreateTable(&legacySensitiveWordWhitelist{}))
-	t.Cleanup(func() { _ = DB.Migrator().DropTable(&legacySensitiveWordWhitelist{}) })
-	require.NoError(t, DB.Create(&legacySensitiveWordWhitelist{UserID: user.Id, Enabled: true}).Error)
 
 	require.NoError(t, MigrateSensitiveWordData())
 	require.NoError(t, MigrateSensitiveWordData())
@@ -580,7 +577,7 @@ func TestSensitiveWordMigrationIsOneWayAndIdempotent(t *testing.T) {
 	require.ElementsMatch(t, []string{"legacy-one", "legacy-two"}, detail.Words)
 	var migrated User
 	require.NoError(t, DB.First(&migrated, user.Id).Error)
-	require.True(t, migrated.SensitiveWordWhitelist)
+	require.False(t, migrated.SensitiveWordWhitelist)
 	var marker Option
 	require.NoError(t, DB.Where(&Option{Key: sensitiveWordMigrationKey}).First(&marker).Error)
 	require.Equal(t, sensitiveWordMigrationValue, marker.Value)
@@ -610,11 +607,11 @@ func TestSensitiveWordMigrationLeavesMarkerUnsetForInvalidLegacyWord(t *testing.
 func TestSensitiveWordMigratesInitialP30Schema(t *testing.T) {
 	require.NoError(t, DB.Migrator().DropTable(
 		&SensitiveWordAuditEvent{}, &SensitiveWordPolicy{}, &SensitiveWordRuleWord{},
-		&SensitiveWordRuleGroup{}, &SensitiveWordRule{}, &legacySensitiveWordWhitelist{},
+		&SensitiveWordRuleGroup{}, &SensitiveWordRule{},
 	))
 	require.NoError(t, DB.AutoMigrate(
 		&Option{}, &User{}, &legacySensitiveWordV1Rule{}, &SensitiveWordRuleGroup{},
-		&legacySensitiveWordWhitelist{}, &legacySensitiveWordV1Audit{},
+		&legacySensitiveWordV1Audit{},
 	))
 	require.NoError(t, DB.Where("key IN ?", []string{
 		"SensitiveWords", "SensitiveWordConfig", sensitiveWordMigrationKey,
@@ -632,7 +629,6 @@ func TestSensitiveWordMigratesInitialP30Schema(t *testing.T) {
 		MatchedRuleIDs: "[1]", MatchedWords: `["initial-sensitive-word-rule"]`, MatchedSnippets: "[]",
 		CreatedAt: time.Now(),
 	}).Error)
-	require.NoError(t, DB.Create(&legacySensitiveWordWhitelist{UserID: user.Id, Enabled: true}).Error)
 	legacyConfig, err := common.Marshal(map[string]any{
 		"enabled": true, "audit_enabled": true, "block_message": "legacy policy",
 		"ban_threshold": 9, "full_prompt_retention_days": 30,
@@ -666,7 +662,7 @@ func TestSensitiveWordMigratesInitialP30Schema(t *testing.T) {
 
 	var migratedUser User
 	require.NoError(t, DB.First(&migratedUser, user.Id).Error)
-	require.True(t, migratedUser.SensitiveWordWhitelist)
+	require.False(t, migratedUser.SensitiveWordWhitelist)
 	var audit SensitiveWordAuditEvent
 	require.NoError(t, DB.Where("request_id = ?", "initial-sensitive-word-audit").First(&audit).Error)
 	require.Equal(t, SensitiveWordAuditPrompt("legacy audit prompt"), audit.FullPrompt)
@@ -675,7 +671,6 @@ func TestSensitiveWordMigratesInitialP30Schema(t *testing.T) {
 	require.Equal(t, sensitiveWordMigrationValue, marker.Value)
 
 	t.Cleanup(func() {
-		_ = DB.Migrator().DropTable(&legacySensitiveWordWhitelist{})
 		_ = DB.AutoMigrate(
 			&SensitiveWordRule{}, &SensitiveWordRuleWord{}, &SensitiveWordRuleGroup{},
 			&SensitiveWordPolicy{}, &SensitiveWordAuditEvent{},

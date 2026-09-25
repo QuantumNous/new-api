@@ -62,7 +62,7 @@
 
 | 命令或场景 | 结果 |
 | --- | --- |
-| `go test ./model -run 'TestSensitiveWord|TestLogOther' -count=1` | 通过 |
+| `go test ./model -run 'TestSensitiveWord\|TestLogOther' -count=1` | 通过 |
 | `go test ./relay -run TestPrepareRequestBilling -count=1` | 通过 |
 | `(cd relaykit && go test ./dto -run sensitive -count=1)` | 通过 |
 | `(cd relaykit && go vet ./dto)` | 通过 |

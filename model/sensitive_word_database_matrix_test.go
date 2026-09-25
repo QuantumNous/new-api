@@ -240,7 +240,7 @@ func TestSensitiveWordDatabaseMigrationMatrix(t *testing.T) {
 				withSensitiveWordMatrixDB(t, db, database.dialect)
 				require.NoError(t, db.AutoMigrate(
 					&Option{}, &legacySensitiveWordRC40User{}, &legacySensitiveWordV1Rule{},
-					&legacySensitiveWordWhitelist{}, &legacySensitiveWordV1Audit{},
+					&legacySensitiveWordV1Audit{},
 				))
 				require.NoError(t, db.Create(&legacySensitiveWordRC40User{
 					Id: 1, Username: "sensitive-word-user", Password: "unused", Role: common.RoleCommonUser,
@@ -256,7 +256,6 @@ func TestSensitiveWordDatabaseMigrationMatrix(t *testing.T) {
 					MatchedRuleIDs: "[1]", MatchedWords: `["initial-sensitive-word-marker"]`, MatchedSnippets: "[]",
 					CreatedAt: time.Now(),
 				}).Error)
-				require.NoError(t, db.Create(&legacySensitiveWordWhitelist{UserID: 1, Enabled: true}).Error)
 				legacyConfig, err := common.Marshal(map[string]any{
 					"enabled": true, "audit_enabled": true, "block_message": "legacy policy",
 					"ban_threshold": 9, "full_prompt_retention_days": 30,
@@ -281,7 +280,7 @@ func TestSensitiveWordDatabaseMigrationMatrix(t *testing.T) {
 				require.Len(t, rules, 2, "the legacy option must remain alongside an old global rule")
 				var user User
 				require.NoError(t, db.First(&user, 1).Error)
-				require.True(t, user.SensitiveWordWhitelist)
+				require.False(t, user.SensitiveWordWhitelist)
 				var audit SensitiveWordAuditEvent
 				require.NoError(t, db.Where("request_id = ?", "initial-sensitive-word-audit").First(&audit).Error)
 				require.Equal(t, SensitiveWordAuditPrompt("retained sensitive-word evidence"), audit.FullPrompt)

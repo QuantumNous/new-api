@@ -47,6 +47,7 @@ export function SensitiveWordsSection() {
   const [rules, setRules] = useState<SensitiveWordRuleSummary[]>([])
   const [groups, setGroups] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
@@ -61,6 +62,7 @@ export function SensitiveWordsSection() {
       setPolicy(nextPolicy)
       setRules(nextRules)
       setGroups(nextGroups)
+      setLoaded(true)
     } catch {
       setError(t('Unable to load sensitive-word settings'))
     } finally {
@@ -81,7 +83,7 @@ export function SensitiveWordsSection() {
     }
   }
 
-  if (loading) {
+  if (loading && !loaded) {
     return (
       <div className='text-muted-foreground flex min-h-32 items-center justify-center gap-2'>
         <Loader2 className='size-4 animate-spin' />
@@ -89,7 +91,7 @@ export function SensitiveWordsSection() {
       </div>
     )
   }
-  if (error) {
+  if (!loaded && error) {
     return (
       <Alert variant='destructive'>
         <AlertTitle>{t('Sensitive-word settings unavailable')}</AlertTitle>
@@ -99,14 +101,22 @@ export function SensitiveWordsSection() {
   }
 
   return (
-    <SettingsSection title={t('Sensitive words')} className='gap-6'>
-      <SensitiveWordPolicyForm policy={policy} onSaved={setPolicy} />
-      <SensitiveWordRulesTable
-        rules={rules}
-        groups={groups}
-        onReload={reload}
-        loadRule={loadRule}
-      />
-    </SettingsSection>
+    <>
+      {error ? (
+        <Alert variant='destructive' className='mb-6'>
+          <AlertTitle>{t('Sensitive-word settings unavailable')}</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      ) : null}
+      <SettingsSection title={t('Sensitive words')} className='gap-6'>
+        <SensitiveWordPolicyForm policy={policy} onSaved={setPolicy} />
+        <SensitiveWordRulesTable
+          rules={rules}
+          groups={groups}
+          onReload={reload}
+          loadRule={loadRule}
+        />
+      </SettingsSection>
+    </>
   )
 }

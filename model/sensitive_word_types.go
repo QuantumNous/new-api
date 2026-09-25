@@ -202,14 +202,6 @@ type SensitiveWordEnableResetResult struct {
 	SessionsRevoked      int64 `json:"sessions_revoked"`
 }
 
-type legacySensitiveWordWhitelist struct {
-	ID      int64 `gorm:"primaryKey"`
-	UserID  int   `gorm:"column:user_id"`
-	Enabled bool  `gorm:"column:enabled"`
-}
-
-func (legacySensitiveWordWhitelist) TableName() string { return "sensitive_word_whitelists" }
-
 type legacySensitiveWordConfig struct {
 	Enabled                 bool   `json:"enabled"`
 	CheckPrompt             *bool  `json:"check_prompt"`

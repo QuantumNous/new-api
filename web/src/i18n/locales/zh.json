@@ -6854,7 +6854,7 @@
     "Unable to read TXT file": "无法读取 TXT 文件",
     "Unable to save sensitive-word rule": "无法保存敏感词规则",
     "Violation Count": "违规次数",
-    "Whitelist bypassed": "白名单已绕过",
+    "Whitelist bypassed": "白名单豁免",
     "Whitelist users are still audited but sensitive-word matches do not block requests or increase the violation count.": "白名单用户仍会记录审计，但敏感词命中不会拦截请求或增加违规次数。",
     "{{current}} of {{total}} matches": "第 {{current}} 个，共 {{total}} 个匹配项",
     "Updated sensitive-word policy (enabled {{enabled_after}}, threshold {{ban_threshold}})": "已更新敏感词策略（启用：{{enabled_after}}，阈值：{{ban_threshold}}）",

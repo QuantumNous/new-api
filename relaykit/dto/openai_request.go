@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -1173,6 +1174,28 @@ type MediaInput struct {
 	Detail   string `json:"detail,omitempty"` // 仅 input_image 有效
 }
 
+func appendResponsesJSONStrings(texts *[]string, value any) {
+	switch value := value.(type) {
+	case string:
+		if value != "" {
+			*texts = append(*texts, value)
+		}
+	case []any:
+		for _, item := range value {
+			appendResponsesJSONStrings(texts, item)
+		}
+	case map[string]any:
+		keys := make([]string, 0, len(value))
+		for key := range value {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			appendResponsesJSONStrings(texts, value[key])
+		}
+	}
+}
+
 func appendResponsesFunctionOutput(mediaInputs []MediaInput, raw json.RawMessage) []MediaInput {
 	switch kitutil.GetJsonType(raw) {
 	case "string":
@@ -1181,10 +1204,13 @@ func appendResponsesFunctionOutput(mediaInputs []MediaInput, raw json.RawMessage
 			mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: text})
 		}
 	case "object":
-		// Function-call output is commonly an arbitrary JSON object. Preserve
-		// its textual representation for content policy evaluation rather than
-		// silently omitting the tool result from the normalized request text.
-		if text := strings.TrimSpace(string(raw)); text != "" && text != "null" {
+		var value any
+		if err := kitutil.Unmarshal(raw, &value); err != nil {
+			return mediaInputs
+		}
+		var texts []string
+		appendResponsesJSONStrings(&texts, value)
+		if text := strings.TrimSpace(strings.Join(texts, "\n")); text != "" {
 			mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: text})
 		}
 	case "array":

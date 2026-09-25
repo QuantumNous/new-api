@@ -76,9 +76,6 @@ func MigrateSensitiveWordData() (err error) {
 		return err
 	}
 	complete = complete && legacyComplete
-	if err := migrateLegacySensitiveWordWhitelist(); err != nil {
-		return err
-	}
 
 	if complete {
 		if err := DB.Save(&Option{Key: sensitiveWordMigrationKey, Value: sensitiveWordMigrationValue}).Error; err != nil {
@@ -209,21 +206,4 @@ func migrateLegacySensitiveWordOption() (bool, error) {
 		}
 	}
 	return true, nil
-}
-
-func migrateLegacySensitiveWordWhitelist() error {
-	if !DB.Migrator().HasTable(&legacySensitiveWordWhitelist{}) {
-		return nil
-	}
-	var whitelist []legacySensitiveWordWhitelist
-	if err := DB.Where("enabled = ?", true).Find(&whitelist).Error; err != nil {
-		return err
-	}
-	for _, item := range whitelist {
-		whitelisted := true
-		if err := UpdateSensitiveWordUserFields(item.UserID, nil, &whitelisted); err != nil {
-			return err
-		}
-	}
-	return nil
 }

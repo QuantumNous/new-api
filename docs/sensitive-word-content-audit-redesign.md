@@ -4,7 +4,7 @@
 
 本设计在官方 `QuantumNous/new-api` 的 `d04c118c8803f49e0c9bab74dcf5b5efeab9464a` 基线之上重建敏感词内容审计功能。它只涵盖请求进入 Relay 前的敏感词检查、审计、违规计数、阈值停用和管理员管理界面；不改变额度、已用额度、订阅、钱包、历史账务或上游重试策略。
 
-旧 `SensitiveWords`、`SensitiveWordConfig`、旧 `word/enabled` 规则列和 `sensitive_word_whitelists` 表只作为一次性迁移输入。运行时不再读取旧 Option，也不再使用旧 `RequestPolicySnapshot.CheckText/TextKeywords` 或 `service/sensitive.go`。
+旧 `SensitiveWords`、`SensitiveWordConfig` 和旧 `word/enabled` 规则列只作为一次性迁移输入。用户白名单只使用新的 `users.sensitive_word_whitelist` 字段。运行时不再读取旧 Option，也不再使用旧 `RequestPolicySnapshot.CheckText/TextKeywords` 或 `service/sensitive.go`。
 
 ## 数据流
 
@@ -75,7 +75,7 @@ OpenAI Chat、HTTP/ WebSocket Responses、Claude、Gemini 和图片请求均通�
 
 ## 单向迁移
 
-启动先自动迁移新表与用户字段，再运行 `MigrateSensitiveWordData`。迁移顺序为策略、旧规则词条、旧 Option、旧白名单，全部成功后才写入 `SensitiveWordRulesMigrationVersion=2`。所有节点都要求该标记存在才启用新运行时，避免从节点在主节点导入旧数据期间使用部分规则。标记存在后旧值永不重新成为运行时权威；不完整或失败的迁移使新运行时失效并保持 fail-open，服务本身继续启动。迁移完成后的策略或迁移标记数据库读取异常则是不可确定的安全状态，Relay 返回不可重试 `503`，不会静默绕过审计。
+启动先自动迁移新表与用户字段，再运行 `MigrateSensitiveWordData`。迁移顺序为策略、旧规则词条和旧 Option，全部成功后才写入 `SensitiveWordRulesMigrationVersion=2`。所有节点都要求该标记存在才启用新运行时，避免从节点在主节点导入旧数据期间使用部分规则。标记存在后旧值永不重新成为运行时权威；不完整或失败的迁移使新运行时失效并保持 fail-open，服务本身继续启动。迁移完成后的策略或迁移标记数据库读取异常则是不可确定的安全状态，Relay 返回不可重试 `503`，不会静默绕过审计。
 
 迁移必须在全新库、RC40 升级和旧版敏感词结构上连续执行两次。MySQL 的完整提示词列为 `MEDIUMTEXT`，PostgreSQL 与 SQLite 为 `TEXT`。
 

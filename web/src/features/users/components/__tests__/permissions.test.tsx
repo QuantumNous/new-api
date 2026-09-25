@@ -133,13 +133,9 @@ it.each([undefined, true])(
         })
       )
     )
-    expect(put).toHaveBeenCalledWith(
-      '/api/user/',
-      expect.not.objectContaining({
-        sensitive_word_violation_count: expect.anything(),
-        sensitive_word_whitelist: expect.anything(),
-      })
-    )
+    const payload = put.mock.calls[0]?.[1]
+    expect(payload).not.toHaveProperty('sensitive_word_violation_count')
+    expect(payload).not.toHaveProperty('sensitive_word_whitelist')
   }
 )
 
