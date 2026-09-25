@@ -134,10 +134,11 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		adaptor := claude.Adaptor{}
 		return adaptor.DoResponse(c, resp, info)
 	default:
-		// MiniMax text/chat endpoints may return HTTP 200 with an error body (e.g. base_resp.status_code != 0)
-		if !info.IsStream && resp != nil && resp.StatusCode == http.StatusOK {
+		// MiniMax text/chat endpoints may return HTTP 200 with an error body (e.g. base_resp.status_code != 0).
+		// This can happen for non-streaming requests or when a streaming request fails up front returning a JSON error instead of text/event-stream.
+		if resp != nil && resp.StatusCode == http.StatusOK {
 			contentType := resp.Header.Get("Content-Type")
-			if strings.Contains(contentType, "application/json") || contentType == "" {
+			if strings.Contains(contentType, "application/json") || (!info.IsStream && contentType == "") {
 				respBody, readErr := io.ReadAll(resp.Body)
 				if readErr == nil {
 					_ = resp.Body.Close()

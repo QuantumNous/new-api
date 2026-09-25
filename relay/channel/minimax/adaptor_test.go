@@ -183,4 +183,26 @@ func TestDoResponseForMiniMaxFake200Error(t *testing.T) {
 	if err2.StatusCode != http.StatusTooManyRequests {
 		t.Fatalf("expected status code %d, got %d", http.StatusTooManyRequests, err2.StatusCode)
 	}
+
+	// Fake 200 with streaming request where upstream fails immediately with application/json
+	streamInfo := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeChatCompletions,
+		RelayFormat: types.RelayFormatOpenAI,
+		IsStream:    true,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeMiniMax,
+		},
+	}
+	respStreamErr := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       ioNopCloser(`{"base_resp":{"status_code":2049,"status_msg":"invalid api key"}}`),
+	}
+	_, errStream := adaptor.DoResponse(c, respStreamErr, streamInfo)
+	if errStream == nil {
+		t.Fatalf("expected error for streaming response with base_resp error, got nil")
+	}
+	if errStream.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected status code %d, got %d", http.StatusUnauthorized, errStream.StatusCode)
+	}
 }
