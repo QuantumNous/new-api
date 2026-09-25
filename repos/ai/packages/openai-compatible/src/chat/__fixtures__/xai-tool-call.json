@@ -1,0 +1,48 @@
+{
+  "id": "acfa24c3-b556-0f2c-731e-64fb836d544b",
+  "object": "chat.completion",
+  "created": 1770772214,
+  "model": "grok-3-mini",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "",
+        "reasoning_content": "First, the user is asking about the weather in San Francisco. I have a function available called \"weather\" that retrieves the weather for a given location.\n\nThe function requires a parameter: \"location\", which is a string. The user has provided \"San Francisco\" as the location, so that's clear and inferable.\n\nI should call this function to get the weather information. The format for calling the function is specific: I need to use <function_call> tags with a JSON object like {\"action\": \"function_name\", \"action_input\": {\"parameter\": \"argument\"}}.\n\nFor this, the action is \"weather\", and the action_input should be {\"location\": \"San Francisco\"}.\n\nAfter calling the function, I might need to handle the response in subsequent turns, but for now, this is the logical next step.\n\nMy response should only include the function call if I'm deciding to make one. I shouldn't add any extra text unless necessary.\n\nThe instructions say: \"Keep your response to user clear; please do not make your response verbose!\" So, I should not add any chit-chat; just the function call.\n\nFinally, structure it as: <function_call>{\"action\": \"weather\", \"action_input\": {\"location\": \"San Francisco\"}}</function_call>",
+        "tool_calls": [
+          {
+            "id": "call_46427107",
+            "function": {
+              "name": "weather",
+              "arguments": "{\"location\":\"San Francisco\"}"
+            },
+            "type": "function"
+          }
+        ],
+        "refusal": null
+      },
+      "finish_reason": "tool_calls"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 307,
+    "completion_tokens": 26,
+    "total_tokens": 588,
+    "prompt_tokens_details": {
+      "text_tokens": 307,
+      "audio_tokens": 0,
+      "image_tokens": 0,
+      "cached_tokens": 244
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 255,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    },
+    "num_sources_used": 0,
+    "cost_in_usd_ticks": 1777000
+  },
+  "system_fingerprint": "fp_2a885414fb"
+}

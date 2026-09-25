@@ -1,0 +1,34 @@
+import { createFileRoute } from '@tanstack/vue-router'
+import axios from 'redaxios'
+
+import type { User } from '~/utils/users'
+import { NotFound } from '~/components/NotFound'
+import { UserErrorComponent } from '~/components/UserErrorComponent'
+import { basepath } from '~/utils/basepath'
+
+export const Route = createFileRoute('/users/$userId')({
+  loader: async ({ params: { userId } }) => {
+    return await axios
+      .get<User>(basepath + '/api/users/' + userId)
+      .then((r) => r.data)
+      .catch(() => {
+        throw new Error('Failed to fetch user')
+      })
+  },
+  errorComponent: UserErrorComponent,
+  component: UserComponent,
+  notFoundComponent: () => {
+    return <NotFound>User not found</NotFound>
+  },
+})
+
+function UserComponent() {
+  const user = Route.useLoaderData()
+
+  return (
+    <div class="space-y-2">
+      <h4 class="text-xl font-bold underline">{user.value.name}</h4>
+      <div class="text-sm">{user.value.email}</div>
+    </div>
+  )
+}

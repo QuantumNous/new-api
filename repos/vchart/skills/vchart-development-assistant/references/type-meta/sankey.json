@@ -1,0 +1,923 @@
+{
+  "typeName": "ISankeyChartSpec",
+  "description": "ISankeyChartSpec 配置规范的完整实现分析",
+  "inheritanceTree": {
+    "ISankeyChartSpec": {
+      "description": "ISankeyChartSpec 接口配置",
+      "directExtends": [
+        "Omit<IChartSpec, 'padding'>",
+        "IChartExtendsSeriesSpec<ISankeySeriesSpec>"
+      ],
+      "ownProperties": [
+        {
+          "name": "type",
+          "description": "type 配置",
+          "type": "'sankey'",
+          "originalType": "'sankey'",
+          "required": true,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "series",
+          "description": "series 配置",
+          "type": "ISankeySeriesSpec[]",
+          "originalType": "ISankeySeriesSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ISankeySeriesSpec"
+          ]
+        }
+      ]
+    },
+    "Omit<IChartSpec, 'padding'>": {
+      "description": "IChartSpec 的属性（排除 padding）",
+      "directExtends": [],
+      "ownProperties": [
+        {
+          "name": "type",
+          "description": "图表类型",
+          "type": "string",
+          "originalType": "string",
+          "required": true,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "data",
+          "description": "data 配置",
+          "type": "IData",
+          "originalType": "IData",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IData"
+          ]
+        },
+        {
+          "name": "width",
+          "description": "画布宽度",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "height",
+          "description": "画布高度",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "autoFit",
+          "description": "是否自适应容器大小",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "color",
+          "description": "图表色系配置",
+          "type": "string[] | Omit<IVisualSpecScale<unknown, string>, 'id'>",
+          "originalType": "string[] | Omit<IVisualSpecScale<unknown, string>, 'id'>",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IVisualSpecScale"
+          ]
+        },
+        {
+          "name": "series",
+          "description": "series 配置",
+          "type": "ISeriesSpec[]",
+          "originalType": "ISeriesSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ISeriesSpec"
+          ]
+        },
+        {
+          "name": "seriesStyle",
+          "description": "系列样式",
+          "type": "ISeriesStyle",
+          "originalType": "ISeriesStyle",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ISeriesStyle"
+          ]
+        },
+        {
+          "name": "animationThreshold",
+          "description": "自动关闭动画的阀值，对应的是单系列data的长度",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "hover",
+          "description": "hover 交互",
+          "type": "boolean | IHoverSpec",
+          "originalType": "boolean | IHoverSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IHoverSpec"
+          ]
+        },
+        {
+          "name": "select",
+          "description": "select 交互",
+          "type": "boolean | ISelectSpec",
+          "originalType": "boolean | ISelectSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ISelectSpec"
+          ]
+        },
+        {
+          "name": "region",
+          "description": "region配置",
+          "type": "RegionSpec[]",
+          "originalType": "RegionSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "RegionSpec"
+          ]
+        },
+        {
+          "name": "title",
+          "description": "图表标题配置",
+          "type": "ITitleSpec",
+          "originalType": "ITitleSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ITitleSpec"
+          ]
+        },
+        {
+          "name": "layout",
+          "description": "自定义布局函数",
+          "type": "ILayoutSpec",
+          "originalType": "ILayoutSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ILayoutSpec"
+          ]
+        },
+        {
+          "name": "legends",
+          "description": "图例配置",
+          "type": "ILegendSpec | ILegendSpec[]",
+          "originalType": "ILegendSpec | ILegendSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ILegendSpec"
+          ]
+        },
+        {
+          "name": "crosshair",
+          "description": "十字辅助线配置",
+          "type": "ICrosshairSpec | ICrosshairSpec[]",
+          "originalType": "ICrosshairSpec | ICrosshairSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ICrosshairSpec"
+          ]
+        },
+        {
+          "name": "tooltip",
+          "description": "tooltip配置",
+          "type": "ITooltipSpec",
+          "originalType": "ITooltipSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ITooltipSpec"
+          ]
+        },
+        {
+          "name": "player",
+          "description": "播放器配置",
+          "type": "IPlayer",
+          "originalType": "IPlayer",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IPlayer"
+          ]
+        },
+        {
+          "name": "dataZoom",
+          "description": "缩略轴配置",
+          "type": "IDataZoomSpec | IDataZoomSpec[]",
+          "originalType": "IDataZoomSpec | IDataZoomSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IDataZoomSpec"
+          ]
+        },
+        {
+          "name": "scrollBar",
+          "description": "滚动条配置",
+          "type": "IScrollBarSpec | IScrollBarSpec[]",
+          "originalType": "IScrollBarSpec | IScrollBarSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IScrollBarSpec"
+          ]
+        },
+        {
+          "name": "brush",
+          "description": "框选配置",
+          "type": "IBrushSpec",
+          "originalType": "IBrushSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IBrushSpec"
+          ]
+        },
+        {
+          "name": "scales",
+          "description": "全局 scale 配置",
+          "type": "IVisualSpecScale<unknown, unknown>[]",
+          "originalType": "IVisualSpecScale<unknown, unknown>[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IVisualSpecScale"
+          ]
+        },
+        {
+          "name": "customMark",
+          "description": "自定义mark",
+          "type": "ICustomMarkSpec<EnableMarkType>[]",
+          "originalType": "ICustomMarkSpec<EnableMarkType>[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ICustomMarkSpec"
+          ]
+        },
+        {
+          "name": "axes",
+          "description": "axes 配置",
+          "type": "ICommonAxisSpec[]",
+          "originalType": "ICommonAxisSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ICommonAxisSpec"
+          ]
+        },
+        {
+          "name": "theme",
+          "description": "默认主题（支持完整主题对象或者主题名称，主题名称需要提前在 `ThemeManager` 中注册）",
+          "type": "Omit<ITheme, 'name'> | string",
+          "originalType": "Omit<ITheme, 'name'> | string",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ITheme"
+          ]
+        },
+        {
+          "name": "background",
+          "description": "图表背景色配置，优先级高于构造函数中的 background 配置 自1.11.6版本支持渐变色对象的配置",
+          "type": "IBackgroundSpec",
+          "originalType": "IBackgroundSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IBackgroundSpec"
+          ]
+        },
+        {
+          "name": "stackInverse",
+          "description": "堆积时是否逆序",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "stackSort",
+          "description": "堆积时是否排序",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "media",
+          "description": "媒体查询配置",
+          "type": "IMediaQuerySpec",
+          "originalType": "IMediaQuerySpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IMediaQuerySpec"
+          ]
+        }
+      ],
+      "note": "展开自 Omit<IChartSpec, 'padding'> - 包含 29 个属性（已展开所有继承）",
+      "expandedFrom": "IChartSpec",
+      "omittedKeys": [
+        "padding"
+      ]
+    },
+    "IChartExtendsSeriesSpec<ISankeySeriesSpec>": {
+      "description": "ISankeySeriesSpec 的属性（排除 data, morph, stackValue, tooltip）",
+      "directExtends": [],
+      "ownProperties": [
+        {
+          "name": "animationAppear",
+          "description": "入场动画配置",
+          "type": "'growIn' | 'fadeIn' | IAnimationConfig",
+          "originalType": "IAnimationConfig<SankeyMark>",
+          "required": false,
+          "category": "动画配置",
+          "isSimple": false,
+          "dependencies": [
+            "IAnimationConfig"
+          ],
+          "inheritedFrom": "IAnimationSpec<SankeyMark, SankeyAppearPreset>"
+        },
+        {
+          "name": "animationEnter",
+          "description": "数据新增动画配置",
+          "type": "IAnimationConfig",
+          "originalType": "IAnimationConfig",
+          "required": false,
+          "category": "动画配置",
+          "isSimple": false,
+          "dependencies": [
+            "IAnimationConfig"
+          ],
+          "inheritedFrom": "IAnimationSpec<SankeyMark, SankeyAppearPreset>"
+        },
+        {
+          "name": "animationUpdate",
+          "description": "数据更新动画配置",
+          "type": "IAnimationConfig",
+          "originalType": "IAnimationConfig",
+          "required": false,
+          "category": "动画配置",
+          "isSimple": false,
+          "dependencies": [
+            "IAnimationConfig"
+          ],
+          "inheritedFrom": "IAnimationSpec<SankeyMark, SankeyAppearPreset>"
+        },
+        {
+          "name": "animationExit",
+          "description": "数据移除动画配置",
+          "type": "IAnimationConfig",
+          "originalType": "IAnimationConfig",
+          "required": false,
+          "category": "动画配置",
+          "isSimple": false,
+          "dependencies": [
+            "IAnimationConfig"
+          ],
+          "inheritedFrom": "IAnimationSpec<SankeyMark, SankeyAppearPreset>"
+        },
+        {
+          "name": "type",
+          "description": "type 配置",
+          "type": "'sankey'",
+          "originalType": "'sankey'",
+          "required": true,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "categoryField",
+          "description": "节点名称字段配置",
+          "type": "string",
+          "originalType": "string",
+          "required": true,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "valueField",
+          "description": "节点之间关系的权重字段",
+          "type": "string",
+          "originalType": "string",
+          "required": true,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "sourceField",
+          "description": "来源节点数据字段 层级数据不提供",
+          "type": "string",
+          "originalType": "string",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "targetField",
+          "description": "目标节点数据字段 层级数据不提供",
+          "type": "string",
+          "originalType": "string",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "direction",
+          "description": "direction 配置",
+          "type": "'default' | 'reverse'",
+          "originalType": "DirectionType",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "nodeAlign",
+          "description": "节点的对齐类型，所有深度相同的节点，采用什么对齐方式，决定了节点在第几层： - 横向布局的桑基图，用于计算节点x坐标 - 纵向布局的桑基图，用于计算节点y坐标",
+          "type": "'left' | 'right' | 'center' | 'justify' | 'start' | 'end'",
+          "originalType": "'left' | 'right' | 'center' | 'justify' | 'start' | 'end'",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "crossNodeAlign",
+          "description": "横向布局的桑基图，设置节点Y坐标的对齐方式： 'start' - '顶部对齐' 'end' - '底部对齐' 'middle' - '居中对齐' 纵向布局的桑基图，设置节点X坐标的对齐方式： 'start' - '左对齐' 'end' - '右对齐' 'middle' - '居中对齐' 'parent' - '父节点'，从1.12.14版本开始支持",
+          "type": "'start' | 'end' | 'middle' | 'parent'",
+          "originalType": "'start' | 'end' | 'middle' | 'parent'",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "inverse",
+          "description": "是否反向",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "nodeGap",
+          "description": "同一层中两个节点之间的间隙大小",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "nodeWidth",
+          "description": "nodeWidth 配置",
+          "type": "string | number | ((node: SankeyNodeElement) => number)",
+          "originalType": "string | number | ((node: SankeyNodeElement) => number)",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": []
+        },
+        {
+          "name": "linkWidth",
+          "description": "link宽度，单位px",
+          "type": "number | ((link: SankeyLinkElement) => number)",
+          "originalType": "number | ((link: SankeyLinkElement) => number)",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": []
+        },
+        {
+          "name": "minStepWidth",
+          "description": "link + node 的最小宽度",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "minNodeHeight",
+          "description": "数据不为零或空时节点的最小大小 - 这个配置可以用来避免数据太小时看不到太细的节点 - 建议小于5px",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "minLinkHeight",
+          "description": "数据不为零或空时边的最小大小 - 这个配置可以用来避免数据太小的时候看不到太细的链接 - 建议小于5px - 当同时指定 `minNodeHeight` 和 `minLinkHeight` 两个选项时，此选项应小于 `minNodeHeight`",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "maxNodeHeight",
+          "description": "数据不为零或空时节点的最大大小",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "maxLinkHeight",
+          "description": "数据不为零或空时边的最大大小 - 当同时指定 `maxNodeHeight` 和 `maxLinkHeight` 两个选项时，此选项应小于 `maxNodeHeight`",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "iterations",
+          "description": "布局的迭代次数",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "nodeKey",
+          "description": "解析node的key，defaultValue",
+          "type": "string | number | ((datum: SankeyNodeDatum) => string | number)",
+          "originalType": "string | number | ((datum: SankeyNodeDatum) => string | number)",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": []
+        },
+        {
+          "name": "linkSortBy",
+          "description": "按此funtion排序link",
+          "type": "(a: SankeyLinkElement, b: SankeyLinkElement) => number",
+          "originalType": "(a: SankeyLinkElement, b: SankeyLinkElement) => number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": []
+        },
+        {
+          "name": "nodeSortBy",
+          "description": "按此funtion排序node",
+          "type": "(a: SankeyNodeElement, b: SankeyNodeElement) => number",
+          "originalType": "(a: SankeyNodeElement, b: SankeyNodeElement) => number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": []
+        },
+        {
+          "name": "setNodeLayer",
+          "description": "自定义指定节点层",
+          "type": "(datum: SankeyNodeDatum) => number",
+          "originalType": "(datum: SankeyNodeDatum) => number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": []
+        },
+        {
+          "name": "dropIsolatedNode",
+          "description": "是否丢弃孤立的节点",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "nodeHeight",
+          "description": "set the height of node",
+          "type": "number | ((node: SankeyNodeElement) => number)",
+          "originalType": "number | ((node: SankeyNodeElement) => number)",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": []
+        },
+        {
+          "name": "linkHeight",
+          "description": "set the height of link",
+          "type": "number | ((link: SankeyLinkElement, sourceNode: SankeyNodeElement, sourceNodeHeight: number) => number)",
+          "originalType": "number | ((link: SankeyLinkElement, sourceNode: SankeyNodeElement, sourceNodeHeight: number) => number)",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": []
+        },
+        {
+          "name": "equalNodeHeight",
+          "description": "each node has same height",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "linkOverlap",
+          "description": "the layout type of link",
+          "type": "'start' | 'center' | 'end'",
+          "originalType": "'start' | 'center' | 'end'",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "node",
+          "description": "node 配置",
+          "type": "IMarkSpec<IRectMarkSpec>",
+          "originalType": "IMarkSpec<IRectMarkSpec>",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IMarkSpec",
+            "IRectMarkSpec"
+          ]
+        },
+        {
+          "name": "link",
+          "description": "link 配置",
+          "type": "IMarkSpec<ILinkPathMarkSpec>",
+          "originalType": "IMarkSpec<ILinkPathMarkSpec>",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IMarkSpec",
+            "ILinkPathMarkSpec"
+          ]
+        },
+        {
+          "name": "emphasis",
+          "description": "联动交互配置",
+          "type": "{\n        enable: boolean;\n        trigger?: 'click' | 'hover';\n        effect: 'self' | 'adjacency' | 'related';\n    }",
+          "originalType": "{\n        enable: boolean;\n        trigger?: 'click' | 'hover';\n        effect: 'self' | 'adjacency' | 'related';\n    }",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "label",
+          "description": "label 配置",
+          "type": "ISankeyLabelSpec | ISankeyLabelSpec[]",
+          "originalType": "ISankeyLabelSpec | ISankeyLabelSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ISankeyLabelSpec"
+          ]
+        },
+        {
+          "name": "overflow",
+          "description": "当制定了节点、边的宽度的时候，可以配置这个属性 当宽度大于图表region的宽度、高度大于图表resion高度的时候是否自动产生滚动条",
+          "type": "'scroll' | 'hidden' | 'scroll-x' | 'scroll-y'",
+          "originalType": "'scroll' | 'hidden' | 'scroll-x' | 'scroll-y'",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        }
+      ],
+      "note": "展开自 Omit<ISankeySeriesSpec, 'data' | 'morph' | 'stackValue' | 'tooltip'> - 包含 36 个属性（已展开所有继承）",
+      "expandedFrom": "ISankeySeriesSpec",
+      "omittedKeys": [
+        "data",
+        "morph",
+        "stackValue",
+        "tooltip"
+      ]
+    }
+  },
+  "timestamp": "2025-08-06T07:48:34.213Z",
+  "version": "1.0.0",
+  "sourceFile": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/chart/sankey/interface.d.ts",
+  "complexTypeDefinitions": {
+    "ISankeySeriesSpec": {
+      "typeName": "ISankeySeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/sankey/interface.d.ts",
+      "note": "类型 ISankeySeriesSpec 的定义位置"
+    },
+    "IData": {
+      "typeName": "IData",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/typings/spec/common.d.ts",
+      "note": "类型 IData 的定义位置"
+    },
+    "IVisualSpecScale": {
+      "typeName": "IVisualSpecScale",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/typings/visual.d.ts",
+      "note": "类型 IVisualSpecScale 的定义位置"
+    },
+    "ISeriesSpec": {
+      "typeName": "ISeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/typings/spec/common.d.ts",
+      "note": "类型 ISeriesSpec 的定义位置"
+    },
+    "ISeriesStyle": {
+      "typeName": "ISeriesStyle",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/interface/common.d.ts",
+      "note": "类型 ISeriesStyle 的定义位置"
+    },
+    "IHoverSpec": {
+      "typeName": "IHoverSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/interaction/interface/spec.d.ts",
+      "note": "类型 IHoverSpec 的定义位置"
+    },
+    "ISelectSpec": {
+      "typeName": "ISelectSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/interaction/interface/spec.d.ts",
+      "note": "类型 ISelectSpec 的定义位置"
+    },
+    "RegionSpec": {
+      "typeName": "RegionSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/region/interface.d.ts",
+      "note": "类型 RegionSpec 的定义位置"
+    },
+    "ITitleSpec": {
+      "typeName": "ITitleSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/title/interface/spec.d.ts",
+      "note": "类型 ITitleSpec 的定义位置"
+    },
+    "ILayoutSpec": {
+      "typeName": "ILayoutSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/layout/interface.d.ts",
+      "note": "类型 ILayoutSpec 的定义位置"
+    },
+    "ILegendSpec": {
+      "typeName": "ILegendSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/legend/interface.d.ts",
+      "note": "类型 ILegendSpec 的定义位置"
+    },
+    "ICrosshairSpec": {
+      "typeName": "ICrosshairSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/crosshair/interface/spec.d.ts",
+      "note": "类型 ICrosshairSpec 的定义位置"
+    },
+    "ITooltipSpec": {
+      "typeName": "ITooltipSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/tooltip/interface/spec.d.ts",
+      "note": "类型 ITooltipSpec 的定义位置"
+    },
+    "IPlayer": {
+      "typeName": "IPlayer",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/player/interface/spec.d.ts",
+      "note": "类型 IPlayer 的定义位置"
+    },
+    "IDataZoomSpec": {
+      "typeName": "IDataZoomSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/data-zoom/data-zoom/interface.d.ts",
+      "note": "类型 IDataZoomSpec 的定义位置"
+    },
+    "IScrollBarSpec": {
+      "typeName": "IScrollBarSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/data-zoom/scroll-bar/interface.d.ts",
+      "note": "类型 IScrollBarSpec 的定义位置"
+    },
+    "IBrushSpec": {
+      "typeName": "IBrushSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/brush/interface.d.ts",
+      "note": "类型 IBrushSpec 的定义位置"
+    },
+    "ICustomMarkSpec": {
+      "typeName": "ICustomMarkSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/typings/spec/common.d.ts",
+      "note": "类型 ICustomMarkSpec 的定义位置"
+    },
+    "ICommonAxisSpec": {
+      "typeName": "ICommonAxisSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/axis/interface.d.ts",
+      "note": "类型 ICommonAxisSpec 的定义位置"
+    },
+    "ITheme": {
+      "typeName": "ITheme",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/theme/interface.d.ts",
+      "note": "类型 ITheme 的定义位置"
+    },
+    "IBackgroundSpec": {
+      "typeName": "IBackgroundSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/typings/spec/common.d.ts",
+      "note": "类型 IBackgroundSpec 的定义位置"
+    },
+    "IMediaQuerySpec": {
+      "typeName": "IMediaQuerySpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/typings/spec/media-query.d.ts",
+      "note": "类型 IMediaQuerySpec 的定义位置"
+    },
+    "IAnimationConfig": {
+      "typeName": "IAnimationConfig",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart/src/typings/spec/common.ts",
+      "note": "类型 IAnimationConfig 的定义位置"
+    },
+    "IMarkSpec": {
+      "typeName": "IMarkSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/typings/spec/common.d.ts",
+      "note": "类型 IMarkSpec 的定义位置"
+    },
+    "IRectMarkSpec": {
+      "typeName": "IRectMarkSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/typings/visual.d.ts",
+      "note": "类型 IRectMarkSpec 的定义位置"
+    },
+    "ILinkPathMarkSpec": {
+      "typeName": "ILinkPathMarkSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/typings/visual.d.ts",
+      "note": "类型 ILinkPathMarkSpec 的定义位置"
+    },
+    "ISankeyLabelSpec": {
+      "typeName": "ISankeyLabelSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/sankey/interface.d.ts",
+      "note": "类型 ISankeyLabelSpec 的定义位置"
+    }
+  },
+  "statistics": {
+    "totalInterfaces": 3,
+    "totalProperties": 67,
+    "complexTypes": 27,
+    "typeFileLocations": 27,
+    "dependencyTypes": 851
+  }
+}

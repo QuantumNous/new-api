@@ -1,0 +1,7 @@
+{
+  "extends": "@scripts/config/tsconfig",
+  "compilerOptions": {
+    "verbatimModuleSyntax": true
+  },
+  "include": ["src"]
+}

@@ -1,0 +1,12 @@
+[
+  {
+    "type": "dir-section-header",
+    "name": "list",
+    "label": "插件列表"
+  },
+  {
+    "type": "dir-section-header",
+    "name": "dev",
+    "label": "开发"
+  }
+]

@@ -1,0 +1,161 @@
+---
+description: '在 Rsbuild 的开发服务器或预览服务器启动时执行初始化逻辑，例如注册自定义的中间件、执行前置任务等。'
+---
+
+# server.setup
+
+- **类型：**
+
+```ts
+type MaybePromise<T> = T | Promise<T>;
+
+type ServerSetupFn = (
+  context: ServerSetupContext,
+) => MaybePromise<(() => MaybePromise<void>) | void>;
+
+type ServerSetup = ServerSetupFn | ServerSetupFn[];
+```
+
+- **默认值：** `undefined`
+- **版本：** `>= 2.0.0`
+
+在 Rsbuild 的开发服务器或预览服务器启动时执行初始化逻辑，例如注册自定义的中间件、执行前置任务等。
+
+## 示例
+
+### 注册中间件
+
+添加一个中间件，用于在请求处理前打印日志：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    setup: ({ server }) => {
+      server.middlewares.use((req, res, next) => {
+        console.log('first');
+        next();
+      });
+    },
+  },
+};
+```
+
+### 环境区分
+
+在 `server.setup` 中，你可以根据 `context.action` 来区分当前是开发服务器还是预览服务器。
+
+例如，向开发服务器添加一个中间件：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    setup: ({ server, action }) => {
+      if (action === 'dev') {
+        server.middlewares.use((req, res, next) => {
+          console.log('dev middleware');
+          next();
+        });
+      }
+    },
+  },
+};
+```
+
+### 异步函数
+
+`server.setup` 允许你传入异步函数，例如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    setup: async ({ server, action }) => {
+      return someAsyncTask();
+    },
+  },
+};
+```
+
+## 上下文对象
+
+`server.setup` 会接收一个 `context` 对象：
+
+```ts
+type ServerSetupContext =
+  | {
+      action: 'dev';
+      server: RsbuildDevServer;
+      environments: Record<string, EnvironmentContext>;
+    }
+  | {
+      action: 'preview';
+      server: RsbuildPreviewServer;
+      environments: Record<string, EnvironmentContext>;
+    };
+```
+
+- `context.action`：`'dev'` 代表开发服务器，`'preview'` 代表预览服务器。
+- `context.server`：服务器实例，参考 [Server API](/api/javascript-api/server-api) 了解更多。
+- `context.environments`：所有环境的上下文信息。需要注意，这与 `server.environments` 不同，后者为 [Environment API](/api/javascript-api/environment-api)。
+
+## 中间件执行顺序
+
+当 `server.setup` 被调用时，Rsbuild 内置的中间件还未注册，因此你添加的中间件会早于内置中间件执行。
+
+`server.setup` 允许你返回一个回调函数，当 Rsbuild 内置的中间件注册完成后，会执行你返回的回调函数，在回调函数中注册的中间件会晚于内置中间件执行。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    setup: ({ server }) => {
+      // the returned callback will be called when the default
+      // middlewares are registered
+      return () => {
+        server.middlewares.use((req, res, next) => {
+          next();
+        });
+      };
+    },
+  },
+};
+```
+
+## Environment API
+
+在开发模式下，可以访问 Rsbuild 的 [Environment API](/api/javascript-api/environment-api)：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    setup: ({ server, action }) => {
+      if (action !== 'dev') {
+        return;
+      }
+
+      server.middlewares.use(async (_req, _res, next) => {
+        const result = await server.environments.node.loadBundle('main');
+        console.log(result);
+        next();
+      });
+    },
+  },
+};
+```
+
+## 数组形式
+
+`server.setup` 也支持传入数组来执行多个函数：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    setup: [
+      ({ server }) => {
+        server.middlewares.use(authMiddleware);
+      },
+      ({ server }) => {
+        server.middlewares.use(logMiddleware);
+      },
+    ],
+  },
+};
+```

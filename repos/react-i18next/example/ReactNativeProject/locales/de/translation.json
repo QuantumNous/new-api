@@ -1,0 +1,10 @@
+{
+  "description": {
+    "part1": "Um loszulegen, ändere <1>src/App(DE).js</1> speichern und neu laden.",
+    "part2": "Ändere die Sprachen zwischen deutsch und englisch mit Hilfe der beiden Buttons."
+  },
+  "new": {
+    "key": "Dies wird automatisch hinzugefügt"
+  },
+  "title": "Willkommen zu React"
+}

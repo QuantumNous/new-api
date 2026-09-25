@@ -1,0 +1,46 @@
+{
+  "id": "msg_01MT4gZLLHg1yg5d6eo41LJe",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-sonnet-4-20250514",
+  "content": [
+    {
+      "type": "text",
+      "text": "I'll fetch the PDF document from the URL you provided to see what it says about AI."
+    },
+    {
+      "type": "server_tool_use",
+      "id": "srvtoolu_013gia34XNKyTfwHxaPCKEVd",
+      "name": "web_fetch",
+      "input": {
+        "url": "https://raw.githubusercontent.com/vercel/ai/blob/main/examples/ai-functions/data/ai.pdf"
+      }
+    },
+    {
+      "type": "web_fetch_tool_result",
+      "tool_use_id": "srvtoolu_013gia34XNKyTfwHxaPCKEVd",
+      "content": {
+        "type": "web_fetch_tool_result_error",
+        "error_code": "unavailable"
+      }
+    },
+    {
+      "type": "text",
+      "text": "I'm unable to access the PDF document at that URL as the web_fetch tool is currently unavailable. To help you understand what the document says about AI, I would need the tool to be working or you could:\\n\\n1. Try the URL again later when the tool might be available\\n2. Share the content of the PDF directly if you have access to it\\n3. Provide a different accessible URL where the same content might be hosted\\n\\nIs there another way you'd like to proceed, or would you like to try again later?"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 1902,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 214,
+    "service_tier": "standard",
+    "server_tool_use": { "web_search_requests": 0, "web_fetch_requests": 1 }
+  }
+}

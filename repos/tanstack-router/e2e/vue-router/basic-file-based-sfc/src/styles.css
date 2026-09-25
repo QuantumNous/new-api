@@ -1,0 +1,24 @@
+@import 'tailwindcss' source('../');
+
+@source "./**/*.vue";
+@source "./**/*.ts";
+
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+html {
+  color-scheme: light dark;
+}
+* {
+  @apply border-gray-200 dark:border-gray-800;
+}
+body {
+  @apply bg-gray-50 text-gray-950 dark:bg-gray-900 dark:text-gray-200;
+}

@@ -1,0 +1,307 @@
+name: Prepare Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Skip creating the draft GitHub release
+        required: false
+        default: true
+        type: boolean
+  push:
+    tags:
+      - 'v*'
+
+env:
+  APP_NAME: tailwindcss-oxide
+  NODE_VERSION: 24
+  PNPM_VERSION: '11.9.0'
+  OXIDE_LOCATION: ./crates/node
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          # Windows
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+          # macOS
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            strip: strip -x # Must use -x on macOS. This produces larger results on linux.
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            page-size: 14
+            strip: strip -x # Must use -x on macOS. This produces larger results on linux.
+          # Android
+          - os: ubuntu-latest
+            target: aarch64-linux-android
+            strip: ${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip
+          - os: ubuntu-latest
+            target: armv7-linux-androideabi
+            strip: ${ANDROID_NDK_LATEST_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip
+          # Linux
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            strip: strip
+            build-flags: --use-napi-cross
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            strip: aarch64-linux-gnu-strip
+            build-flags: --use-napi-cross
+          - os: ubuntu-latest
+            target: armv7-unknown-linux-gnueabihf
+            strip: arm-linux-gnueabihf-strip
+            build-flags: --use-napi-cross
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            strip-zig: true
+            build-flags: -x
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            strip: strip
+            build-flags: -x
+
+    name: Build ${{ matrix.target }} (oxide)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+
+      - name: Install gcc-arm-linux-gnueabihf
+        if: ${{ matrix.target == 'armv7-unknown-linux-gnueabihf' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf -y
+
+      - name: Install binutils-aarch64-linux-gnu
+        if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install binutils-aarch64-linux-gnu -y
+
+      - uses: mlugg/setup-zig@d1434d08867e3ee9daa34448df10607b98908d29 # v2
+        if: ${{ contains(matrix.target, 'musl') }}
+        with:
+          version: 0.14.1
+          use-cache: false
+
+      - name: Install cargo-zigbuild
+        uses: taiki-e/install-action@65851e10cd6c377f11a60e600abc07cb08643468 # v2
+        if: ${{ contains(matrix.target, 'musl') }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          tool: cargo-zigbuild
+
+      - name: Setup rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Install dependencies
+        run: pnpm install --ignore-scripts --frozen-lockfile --filter=!./playgrounds/*
+
+      - name: Build release
+        run: pnpm run --filter ${{ env.OXIDE_LOCATION }} build:platform --target=${{ matrix.target }} ${{ matrix.build-flags }}
+        env:
+          RUST_TARGET: ${{ matrix.target }}
+          JEMALLOC_SYS_WITH_LG_PAGE: ${{ matrix.page-size }}
+
+      - name: Strip debug symbols # https://github.com/rust-lang/rust/issues/46034
+        if: ${{ matrix.strip || matrix.strip-zig }}
+        env:
+          STRIP_COMMAND: ${{ matrix.strip }}
+          STRIP_ZIG: ${{ matrix.strip-zig }}
+        run: |
+          if [ "$STRIP_ZIG" = "true" ]; then
+            for file in ${{ env.OXIDE_LOCATION }}/*.node; do
+              zig objcopy --strip-all "$file" "$file.stripped"
+              mv "$file.stripped" "$file"
+            done
+            exit 0
+          fi
+
+          eval "$STRIP_COMMAND ${{ env.OXIDE_LOCATION }}/*.node"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: bindings-${{ matrix.target }}
+          path: ${{ env.OXIDE_LOCATION }}/*.node
+
+  build-freebsd:
+    name: Build x86_64-unknown-freebsd (OXIDE)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+      - name: Build FreeBSD
+        uses: cross-platform-actions/action@cdc9ee69ef84a5f2e59c9058335d9c57bcb4ac86 # v0.25.0
+        env:
+          DEBUG: napi:*
+          RUSTUP_HOME: /usr/local/rustup
+          CARGO_HOME: /usr/local/cargo
+          RUSTUP_IO_THREADS: 1
+          RUST_TARGET: x86_64-unknown-freebsd
+        with:
+          operating_system: freebsd
+          version: '14.0'
+          memory: 13G
+          cpu_count: 3
+          environment_variables: 'DEBUG RUSTUP_IO_THREADS'
+          shell: bash
+          run: |
+            sudo pkg install -y -f curl node libnghttp2 npm
+            sudo npm install -g pnpm@${{ env.PNPM_VERSION }} --unsafe-perm=true
+            curl -sSf https://static.rust-lang.org/rustup/archive/1.27.1/x86_64-unknown-freebsd/rustup-init --output rustup-init
+            chmod +x rustup-init
+            ./rustup-init -y --profile minimal
+            source "$HOME/.cargo/env"
+            pnpm install --ignore-scripts --frozen-lockfile --filter=!./playgrounds/* || true
+            echo "~~~~ rustc --version ~~~~"
+            rustc --version
+            echo "~~~~ node -v ~~~~"
+            node -v
+            echo "~~~~ pnpm --version ~~~~"
+            pnpm --version
+            pnpm run --filter ${{ env.OXIDE_LOCATION }} build:platform
+            strip -x ${{ env.OXIDE_LOCATION }}/*.node
+            ls -la ${{ env.OXIDE_LOCATION }}
+      - name: Upload artifacts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: bindings-x86_64-unknown-freebsd
+          path: ${{ env.OXIDE_LOCATION }}/*.node
+
+  prepare:
+    runs-on: macos-14
+    timeout-minutes: 15
+    name: Build and release Tailwind CSS
+
+    permissions:
+      contents: write # Required for creating releases
+
+    needs:
+      - build
+      - build-freebsd
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 20
+          persist-credentials: false
+
+      - run: git fetch --tags -f
+
+      - name: Resolve version
+        id: vars
+        run: |
+          echo "TAG_NAME=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
+
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Use Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: 'https://registry.npmjs.org'
+          package-manager-cache: false
+
+      - name: Setup WASM target
+        run: rustup target add wasm32-wasip1-threads
+
+      - name: Install dependencies
+        run: pnpm --filter=!./playgrounds/* install --frozen-lockfile
+
+      - name: Download artifacts
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          path: ${{ env.OXIDE_LOCATION }}
+
+      - name: Move artifacts
+        run: |
+          cd ${{ env.OXIDE_LOCATION }}
+          cp bindings-x86_64-pc-windows-msvc/* ./npm/win32-x64-msvc/
+          cp bindings-aarch64-pc-windows-msvc/* ./npm/win32-arm64-msvc/
+          cp bindings-x86_64-apple-darwin/* ./npm/darwin-x64/
+          cp bindings-aarch64-apple-darwin/* ./npm/darwin-arm64/
+          cp bindings-aarch64-linux-android/* ./npm/android-arm64/
+          cp bindings-armv7-linux-androideabi/* ./npm/android-arm-eabi/
+          cp bindings-aarch64-unknown-linux-gnu/* ./npm/linux-arm64-gnu/
+          cp bindings-aarch64-unknown-linux-musl/* ./npm/linux-arm64-musl/
+          cp bindings-armv7-unknown-linux-gnueabihf/* ./npm/linux-arm-gnueabihf/
+          cp bindings-x86_64-unknown-linux-gnu/* ./npm/linux-x64-gnu/
+          cp bindings-x86_64-unknown-linux-musl/* ./npm/linux-x64-musl/
+          cp bindings-x86_64-unknown-freebsd/* ./npm/freebsd-x64/
+
+      - name: Build Tailwind CSS
+        run: pnpm run build
+        env:
+          FEATURES_ENV: stable
+
+      - name: Run pre-publish optimizations scripts
+        run: node ./scripts/pre-publish-optimizations.mjs
+
+      - name: Lock pre-release versions
+        run: node ./scripts/lock-pre-release-versions.mjs
+
+      - name: Get release notes
+        run: |
+          RELEASE_NOTES=$(node ./scripts/release-notes.mjs)
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
+          echo "$RELEASE_NOTES" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Upload standalone artifacts
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: tailwindcss-standalone
+          path: packages/@tailwindcss-standalone/dist/
+
+      - name: Upload npm package tarballs
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: npm-package-tarballs
+          path: dist/*.tgz
+
+      - name: Prepare GitHub Release
+        if: ${{ !inputs.dry_run }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${TAG_NAME}" \
+              --draft \
+              --title "${TAG_NAME}" \
+              --notes "${RELEASE_NOTES}" \
+              packages/@tailwindcss-standalone/dist/sha256sums.txt \
+              packages/@tailwindcss-standalone/dist/tailwindcss-linux-arm64 \
+              packages/@tailwindcss-standalone/dist/tailwindcss-linux-arm64-musl \
+              packages/@tailwindcss-standalone/dist/tailwindcss-linux-x64 \
+              packages/@tailwindcss-standalone/dist/tailwindcss-linux-x64-musl \
+              packages/@tailwindcss-standalone/dist/tailwindcss-macos-arm64 \
+              packages/@tailwindcss-standalone/dist/tailwindcss-macos-x64 \
+              packages/@tailwindcss-standalone/dist/tailwindcss-windows-x64.exe

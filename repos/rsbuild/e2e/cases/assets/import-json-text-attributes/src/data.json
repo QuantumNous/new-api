@@ -1,0 +1,4 @@
+{
+  "name": "text attributes",
+  "unused": "tree-shaking is not relevant for text imports"
+}

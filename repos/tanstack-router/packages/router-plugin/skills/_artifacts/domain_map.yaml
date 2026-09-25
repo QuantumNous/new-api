@@ -1,0 +1,62 @@
+# domain_map.yaml
+# Library: @tanstack/router-plugin
+# Version: 1.166.2
+# Date: 2026-03-08
+# Status: reviewed
+
+library:
+  name: '@tanstack/router-plugin'
+  version: '1.166.2'
+  repository: 'https://github.com/TanStack/router'
+  description: >-
+    Bundler plugin for route generation and automatic code splitting.
+    Supports Vite, Webpack, Rspack, and esbuild via unplugin.
+  primary_framework: 'framework-agnostic'
+
+domains:
+  - name: 'Bundler Integration'
+    slug: 'bundler-integration'
+    description: >-
+      Route generation and code splitting via bundler plugins.
+      Vite, Webpack, Rspack, esbuild support through unplugin.
+
+skills:
+  - name: 'Router Plugin'
+    slug: 'router-plugin'
+    domain: 'bundler-integration'
+    description: >-
+      Bundler plugin for route generation and automatic code splitting.
+      Supports Vite, Webpack, Rspack, and esbuild via unplugin.
+    type: core
+    packages:
+      - '@tanstack/router-plugin'
+    covers:
+      - TanStackRouterVite plugin
+      - TanStackRouterWebpack plugin
+      - TanStackRouterRspack plugin
+      - TanStackRouterEsbuild plugin
+      - Automatic route code generation
+      - Automatic code splitting
+      - Route tree configuration options
+    tasks:
+      - 'Configure route generation in Vite'
+      - 'Configure route generation in Webpack/Rspack'
+      - 'Enable automatic code splitting'
+    failure_modes:
+      - mistake: 'Using wrong plugin export for bundler'
+        mechanism: >-
+          Each bundler has its own export (TanStackRouterVite,
+          TanStackRouterWebpack, etc). Using the wrong one causes
+          build failures.
+        priority: HIGH
+        status: active
+
+      - mistake: 'Misconfiguring routesDirectory or generatedRouteTree'
+        mechanism: >-
+          routesDirectory must point to the actual routes folder and
+          generatedRouteTree to the desired output path. Wrong paths
+          cause missing routes or stale route trees.
+        priority: MEDIUM
+        status: active
+
+gaps: []

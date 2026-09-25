@@ -1,0 +1,11 @@
+body {
+  font-family: sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+.app-styled {
+  color: #333;
+  background-color: #f0f0f0;
+  padding: 16px;
+}

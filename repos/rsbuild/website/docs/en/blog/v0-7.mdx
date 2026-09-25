@@ -1,0 +1,217 @@
+---
+description: 'Rsbuild 0.7 adds Storybook support, faster Sass compilation, and typed CSS Modules.'
+date: 2024-05-28 18:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+  - name: 9aoy
+    avatar: 'https://github.com/9aoy.png'
+    github: '9aoy'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Announcing Rsbuild 0.7
+
+_May 28, 2024_
+
+<BlogAuthors />
+
+![](https://assets.rspack.rs/rsbuild/rsbuild-banner-v0-7.png)
+
+Rsbuild 0.7 has been released with Rspack 0.7!
+
+This is the last minor release before the Rsbuild 1.0. After this, the Rspack team will focus on the development of 1.0 and aim to launch the Rspack / Rsbuild 1.0 alpha version soon.
+
+Notable changes in Rsbuild 0.7:
+
+- [Support for Storybook](#support-for-storybook)
+- [Faster Sass Compilation](#faster-sass-compilation)
+- [Better CSS supports](#better-css-supports)
+- [Typed CSS Modules](#typed-css-modules)
+- [ESM/CJS Exports](#esmcjs-exports)
+- [Breaking Changes](#breaking-changes)
+
+## Support for Storybook
+
+Rsbuild now supports Storybook!
+
+[storybook-builder-rsbuild](https://github.com/rstackjs/storybook-rsbuild) is a Storybook builder based on Storybook v8 and Rsbuild that allows you to quickly build your components and stories.
+
+![](https://assets.rspack.rs/rsbuild/rsbuild-banner-with-storybook.png)
+
+- For projects using Rsbuild, you can now quickly integrate Storybook and reuse your existing Rsbuild config.
+- For projects using the Storybook webpack builder, you can now upgrade to Rsbuild and **get ~5x faster build performance**.
+
+We provide `storybook-react-rsbuild` and `storybook-vue3-rsbuild` to support React and Vue 3. For example, to integrate React:
+
+```js title=".storybook/main.js"
+import { StorybookConfig } from 'storybook-react-rsbuild';
+
+const config: StorybookConfig = {
+  framework: 'storybook-react-rsbuild',
+};
+
+export default config;
+```
+
+![](https://assets.rspack.rs/rsbuild/assets/storybook-rsbuild-preview.png)
+
+> For more usage, please refer to [storybook-rsbuild repository](https://github.com/rstackjs/storybook-rsbuild).
+
+## Faster Sass compilation
+
+In Rsbuild 0.7, **Sass compilation is 3~10 times faster**. The performance improvements are particularly noticeable on large projects.
+
+Comparison of build times for Rsbuild 0.6 and 0.7 when compiling Bootstrap's Sass code:
+
+![](https://assets.rspack.rs/rsbuild/assets/sass-embedded-compare.jpeg)
+
+This improvement is due to Rsbuild's default use of [sass-embedded](https://npmjs.com/package/sass-embedded), a JavaScript wrapper around the native Dart Sass executable that provides a consistent API and superior performance.
+
+Rsbuild has also enabled the latest sass-loader's [modern-compiler](https://github.com/webpack/sass-loader/releases/tag/v14.2.0) API. This can enable Sass's shared resources feature, which allows the same compiler process to be reused when compiling multiple files, improving build performance.
+
+## Better CSS supports
+
+Rsbuild now uses [CssExtractRspackPlugin](https://rspack.rs/plugins/rspack/css-extract-rspack-plugin) to extract CSS into separate files, rather than using the [experimental.css](https://v0.rspack.rs/config/experiments#experimentscss) config to do so.
+
+This allows Rsbuild to support more CSS features, including:
+
+- Support for using `<style module>` in the Vue SFC:
+
+```html title="index.vue"
+<template>
+  <p :class="$style.red">Red</p>
+</template>
+
+<style module>
+  .red {
+    color: red;
+  }
+</style>
+```
+
+- Support for complex CSS Modules `:global()` syntax
+
+```css title="style.module.css"
+:local(.parent):global(.child) > ul {
+  color: red;
+}
+```
+
+- Support for more CSS Modules options, such as [cssModules.exportGlobals](/config/output/css-modules#cssmodulesexportglobals)
+- Now you can use [tools.cssExtract](/config/tools/css-extract) to configure CssExtractRspackPlugin.
+
+## Typed CSS Modules
+
+Rsbuild 0.7 added a new [Typed CSS Modules plugin](https://github.com/rstackjs/rsbuild-plugin-typed-css-modules), which is used to generate type declaration files for CSS Modules in the project.
+
+When you use CSS Modules in a TypeScript project, the default type definition is as follows. It can only provide basic type support, and cannot accurately prompt which class names are exported by CSS Modules.
+
+```ts title="src/env.d.ts"
+declare module '*.module.css' {
+  const classes: { readonly [key: string]: string };
+  export default classes;
+}
+```
+
+After using the Typed CSS Modules plugin, Rsbuild will generate type declaration files for all CSS Modules in the project, providing accurate type hints.
+
+For example, create two files named `src/index.ts` and `src/index.module.css`:
+
+```tsx title="src/index.ts"
+import styles from './index.module.css';
+
+console.log(styles.pageHeader);
+```
+
+```css title="index.module.css"
+.page-header {
+  color: black;
+}
+```
+
+After building, Rsbuild will generate a `src/index.module.css.d.ts` type declaration file:
+
+```ts title="src/index.module.css.d.ts"
+interface CssExports {
+  'page-header': string;
+  pageHeader: string;
+}
+declare const cssExports: CssExports;
+export default cssExports;
+```
+
+Now when you open the `src/index.ts` file, you can see that the `styles` object already has an accurate type.
+
+## ESM/CJS Exports
+
+Now, all packages of Rsbuild provide exports in both ES modules and CommonJS formats, and ["type"="module"](https://nodejs.org/api/packages.html#type) has been declared in the package.json.
+
+![](https://assets.rspack.rs/rsbuild/assets/rsbuild-dual-package-example.png)
+
+This allows you to use `import` or `require` to use the JavaScript API of Rsbuild:
+
+```js
+// ES module
+import { createRsbuild } from '@rsbuild/core';
+
+// CommonJS
+const { createRsbuild } = require('@rsbuild/core');
+```
+
+ESM/CJS interop is a tricky issue, so we will provide both formats for a long time to make it easier for more users to use.
+
+## Breaking changes
+
+### Upgrade Rspack to 0.7
+
+Rsbuild has upgraded the dependent Rspack to version 0.7 and adapted to the breaking changes included in it. Typically, these breaking changes will not affect you.
+
+In the new version, Rspack supports lazy compilation, which can significantly improve the dev startup time for large projects. Please refer to [Announcing Rspack 0.7](https://rspack.rs/blog/announcing-0-7) to learn more.
+
+In Rsbuild, you can use [dev.lazyCompilation](/config/dev/lazy-compilation) to enable lazy compilation.
+
+### Sass and Less plugins
+
+Rsbuild's Sass and Less plugins are now two separate npm packages instead of being built into `@rsbuild/core` as before. This change allows users to enable Sass and Less compilation as needed.
+
+For example, projects using CSS solutions such as Tailwind CSS, CSS-in-JS, etc., no longer need to install the dependencies required for Sass and Less, **saving about 7MB of disk space**.
+
+- If your project requires compiling `.scss` or `.sass` files, please install and register the [@rsbuild/plugin-sass](/plugins/list/plugin-sass) plugin:
+
+```ts title="rsbuild.config.ts"
+import { pluginSass } from '@rsbuild/plugin-sass';
+
+export default {
+  plugins: [pluginSass()],
+};
+```
+
+- If your project requires compiling `.less` files, please install and register the [@rsbuild/plugin-less](/plugins/list/plugin-less) plugin:
+
+```ts title="rsbuild.config.ts"
+import { pluginLess } from '@rsbuild/plugin-less';
+
+export default {
+  plugins: [pluginLess()],
+};
+```
+
+### dataUriLimit defaults
+
+The default value for [output.dataUriLimit](/config/output/data-uri-limit) has been changed from `10000 (10 kB)` to `4096 (4 KiB)`.
+
+This is because more applications are currently using HTTP 2.0, so splitting assets into separate files would perform better. Meanwhile, inlining assets over 4KiB can make the JS bundle to be too large and not cache friendly.
+
+If you prefer the previous defaults, add the following config:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    dataUriLimit: 10000,
+  },
+};
+```

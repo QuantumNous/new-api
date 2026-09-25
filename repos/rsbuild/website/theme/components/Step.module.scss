@@ -1,0 +1,39 @@
+.step {
+  border: 1px solid var(--rp-c-bg-soft);
+  background-color: var(--rp-c-bg-soft);
+  transition:
+    color 0.5s,
+    background-color 0.5s;
+  padding: 28px 36px;
+  border-radius: 8px;
+  flex: 0 32%;
+  font-size: 14px;
+  font-weight: 500;
+
+  &:hover {
+    border-color: var(--rp-c-brand);
+    transition: border-color 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  }
+}
+
+@media (max-width: 768px) {
+  .step {
+    flex: 0 100%;
+    margin-bottom: 20px;
+  }
+}
+
+.title {
+  font-size: 20px;
+  line-height: 1.4;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.75em !important;
+  display: block;
+}
+
+.description {
+  margin: 0 !important;
+  line-height: 1.7 !important;
+  color: var(--rp-c-text-2);
+  transition: color 0.5s;
+}

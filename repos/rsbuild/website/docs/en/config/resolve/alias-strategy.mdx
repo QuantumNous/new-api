@@ -1,0 +1,104 @@
+---
+description: 'Set the strategy for path alias resolution, to control the priority relationship between the paths option in tsconfig.'
+---
+
+# resolve.aliasStrategy
+
+- **Type:** `'prefer-tsconfig' | 'prefer-alias'`
+- **Default:** `'prefer-tsconfig'`
+- **Version:** `>=1.1.7`
+
+Set the strategy for path alias resolution, to control the priority relationship between the `paths` option in `tsconfig.json` and the [resolve.alias](/config/resolve/alias) option of Rsbuild.
+
+:::tip
+See [Path aliases](/guide/advanced/alias) for the differences between the `paths` option in `tsconfig.json` and the `resolve.alias` option of Rsbuild.
+:::
+
+## prefer-tsconfig
+
+By default, `resolve.aliasStrategy` is set to `'prefer-tsconfig'`. In this case, both the `paths` option in `tsconfig.json` and the `alias` option in the bundler will take effect, but the `paths` option in tsconfig has a higher priority.
+
+For example, if the following configurations are set at the same time:
+
+- tsconfig paths:
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "paths": {
+      "@common/*": ["./src/common-1/*"]
+    }
+  }
+}
+```
+
+- `resolve.alias`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  resolve: {
+    alias: {
+      '@common': './src/common-2',
+      '@utils': './src/utils',
+    },
+  },
+};
+```
+
+Since the tsconfig paths have a higher priority, the following will happen:
+
+- `@common` will use the value defined in tsconfig paths, pointing to `./src/common-1`
+- `@utils` will use the value defined in `resolve.alias`, pointing to `./src/utils`
+
+## prefer-alias
+
+If the value of `resolve.aliasStrategy` is set to `prefer-alias`, the `paths` option in `tsconfig.json` will only be used to provide TypeScript type definitions and will not affect the bundling result. In this case, the bundler will only read the `alias` option as the path alias.
+
+```ts title="rsbuild.config.ts"
+export default {
+  resolve: {
+    aliasStrategy: 'prefer-alias',
+  },
+};
+```
+
+For example, if the following configurations are set at the same time:
+
+- tsconfig paths:
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "paths": {
+      "@common/*": ["./src/common-1/*"],
+      "@utils/*": ["./src/utils/*"]
+    }
+  }
+}
+```
+
+- `resolve.alias`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  resolve: {
+    alias: {
+      '@common': './src/common-2',
+    },
+  },
+};
+```
+
+Since the tsconfig paths are only used to provide types, only the `@common` alias will be effective, pointing to the `./src/common-2` directory.
+
+In most cases, you do not need to use `prefer-alias`, but you can consider using it if you need to dynamically generate some alias configurations. For example, generating the `alias` option based on environment variables:
+
+```ts title="rsbuild.config.ts"
+export default {
+  resolve: {
+    alias: {
+      '@common': process.env.NODE_ENV === 'production' ? './src/common-prod' : './src/common-dev',
+    },
+  },
+};
+```

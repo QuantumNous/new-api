@@ -1,0 +1,107 @@
+{
+  "name": "@rsbuild/core",
+  "version": "2.1.6",
+  "description": "The Rspack-based build tool.",
+  "homepage": "https://rsbuild.rs",
+  "bugs": {
+    "url": "https://github.com/web-infra-dev/rsbuild/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/web-infra-dev/rsbuild",
+    "directory": "packages/core"
+  },
+  "bin": {
+    "rsbuild": "./bin/rsbuild.js"
+  },
+  "files": [
+    "bin",
+    "dist",
+    "dist-types",
+    "static",
+    "compiled",
+    "types.d.ts"
+  ],
+  "type": "module",
+  "types": "./dist-types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist-types/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./types.d.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "rslib",
+    "dev": "rslib -w",
+    "prebundle": "prebundle"
+  },
+  "dependencies": {
+    "@rspack/core": "catalog:",
+    "@swc/helpers": "catalog:"
+  },
+  "devDependencies": {
+    "@jridgewell/remapping": "catalog:",
+    "@jridgewell/trace-mapping": "catalog:",
+    "@rslib/core": "catalog:",
+    "@rstackjs/load-config": "catalog:",
+    "@types/cors": "catalog:",
+    "@types/node": "catalog:",
+    "@types/on-finished": "catalog:",
+    "@types/range-parser": "catalog:",
+    "@types/ws": "catalog:",
+    "browserslist-load-config": "catalog:",
+    "cac": "catalog:",
+    "chokidar": "catalog:",
+    "connect-next": "catalog:",
+    "core-js": "catalog:",
+    "cors": "catalog:",
+    "css-loader": "catalog:",
+    "deepmerge": "catalog:",
+    "dotenv-expand": "catalog:",
+    "fresh-import": "catalog:",
+    "html-rspack-plugin": "catalog:",
+    "http-proxy-middleware": "catalog:",
+    "jiti": "catalog:",
+    "launch-editor-middleware": "catalog:",
+    "memfs": "catalog:",
+    "mrmime": "catalog:",
+    "on-finished": "catalog:",
+    "open": "catalog:",
+    "postcss": "catalog:",
+    "postcss-load-config": "catalog:",
+    "postcss-loader": "catalog:",
+    "prebundle": "catalog:",
+    "range-parser": "catalog:",
+    "reduce-configs": "catalog:",
+    "rslog": "catalog:",
+    "rspack-chain": "catalog:",
+    "rspack-manifest-plugin": "catalog:",
+    "rspack-merge": "catalog:",
+    "sirv": "catalog:",
+    "stacktrace-parser": "catalog:",
+    "style-loader": "catalog:",
+    "tinyglobby": "catalog:",
+    "typescript": "catalog:",
+    "ws": "catalog:"
+  },
+  "peerDependencies": {
+    "core-js": ">= 3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "core-js": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  }
+}

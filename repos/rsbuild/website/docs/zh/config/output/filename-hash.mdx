@@ -1,0 +1,115 @@
+---
+description: '配置是否在产物文件名中添加 hash 值。'
+---
+
+# output.filenameHash
+
+- **类型：**
+
+```ts
+type FilenameHash =
+  | boolean
+  | string
+  | {
+      enable?: boolean | 'always';
+      format?: string;
+    };
+```
+
+- **默认值：** `true`
+
+配置是否在产物文件名中添加 hash 值。
+
+支持以下配置格式：
+
+- `true`：JavaScript 和 CSS 文件名会在 web target 的生产模式下包含 hash，其他资源的文件名会在所有模式下包含 hash。
+- `false`：禁用文件名 hash。
+- `string`：启用文件名 hash，并自定义 hash 格式，例如 `'contenthash:16'`。
+- `object`：分别配置 `enable` 和 `format`。`enable` 用于控制是否添加文件名 hash；`format` 用于设置 hash 格式。
+
+如果配置了 [output.filename](/config/output/filename)，它的优先级高于 `output.filenameHash`。
+
+### 禁用 hash
+
+默认情况下，构建后的产物名称会包含 hash 值：
+
+```bash
+dist/static/css/index.7879e19dab.css
+dist/static/js/index.18a568e5ab.js
+```
+
+你可以将 `output.filenameHash` 设置为 false 来禁用这个行为：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    filenameHash: false,
+  },
+};
+```
+
+重新构建后，产物的名称变为：
+
+```bash
+dist/static/css/index.css
+dist/static/js/index.js
+```
+
+### hash 格式
+
+hash 的默认格式为 `contenthash:10`，即基于文件内容生成 10 位字符的 hash。
+
+你可以将 `output.filenameHash` 设置为 Rspack 支持的其他格式，并自定义长度。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    filenameHash: 'contenthash:16',
+  },
+};
+```
+
+可选的 hash 格式为：
+
+- `contenthash`（推荐）：文件内容的哈希值，只有当文件本身的内容发生变更时，哈希值才会改变
+- `chunkhash`：chunk 的哈希值，如果 chunk 内容（及其包含的模块）发生改变，哈希值才会改变
+- `fullhash`：整个编译过程的哈希值，如果任何一个文件发生变动，整个项目的所有输出文件的哈希值都会改变
+
+你也可以通过对象格式来配置 hash 格式：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    filenameHash: {
+      format: 'contenthash:16',
+    },
+  },
+};
+```
+
+### 始终启用 hash
+
+默认情况下，JavaScript 和 CSS 文件名只会在 web 产物的生产模式下包含 hash，在开发模式构建中不会包含 hash。当 `output.target` 不是 `web` 时，JavaScript bundle 文件名默认不会包含 hash，比如 Node.js 产物。
+
+如果需要让 JavaScript 和 CSS 文件名始终包含 hash，可以将 `filenameHash.enable` 设置为 `'always'`。这也会影响开发模式构建和 Node.js 产物。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    filenameHash: {
+      enable: 'always',
+    },
+  },
+};
+```
+
+:::tip
+在开发模式下启用文件名 hash 可能会导致热更新不生效，尤其是 CSS 文件。
+:::
+
+## 版本历史
+
+| 版本   | 变更内容                   |
+| ------ | -------------------------- |
+| v2.0.0 | 默认 hash 长度从 8 改为 10 |
+| v2.0.4 | 支持对象格式               |

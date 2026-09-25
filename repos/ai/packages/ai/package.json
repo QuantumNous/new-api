@@ -1,0 +1,119 @@
+{
+  "name": "ai",
+  "version": "7.0.31",
+  "type": "module",
+  "description": "AI SDK by Vercel - build apps like ChatGPT, Claude, Gemini, and more with a single interface for any model using the Vercel AI Gateway or go direct to OpenAI, Anthropic, Google, or any other model provider.",
+  "license": "Apache-2.0",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "source": "./src/index.ts",
+  "files": [
+    "dist/**/*",
+    "docs/**/*",
+    "src",
+    "!src/**/*.test.ts",
+    "!src/**/*.test-d.ts",
+    "!src/**/__snapshots__",
+    "CHANGELOG.md",
+    "internal.d.ts",
+    "README.md",
+    "test.d.ts"
+  ],
+  "directories": {
+    "doc": "./docs"
+  },
+  "scripts": {
+    "build": "pnpm clean && tsup --tsconfig tsconfig.build.json",
+    "build:watch": "pnpm clean && tsup --watch --tsconfig tsconfig.build.json",
+    "clean": "del-cli dist docs *.tsbuildinfo",
+    "prepack": "cp -r ../../content/docs ./docs",
+    "postpack": "del-cli docs",
+    "type-check": "tsc --build",
+    "test": "pnpm test:node && pnpm test:edge",
+    "test:update": "pnpm test:node -u",
+    "test:watch": "vitest --config vitest.node.config.js",
+    "test:edge": "vitest --config vitest.edge.config.js --run",
+    "test:node": "vitest --config vitest.node.config.js --run",
+    "check-bundle-size": "tsx scripts/check-bundle-size.ts"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./internal": {
+      "types": "./dist/internal/index.d.ts",
+      "import": "./dist/internal/index.js",
+      "default": "./dist/internal/index.js"
+    },
+    "./test": {
+      "types": "./dist/test/index.d.ts",
+      "import": "./dist/test/index.js",
+      "default": "./dist/test/index.js"
+    }
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "workspace:*",
+    "@ai-sdk/provider": "workspace:*",
+    "@ai-sdk/provider-utils": "workspace:*"
+  },
+  "devDependencies": {
+    "@ai-sdk/test-server": "workspace:*",
+    "@edge-runtime/vm": "^5.0.0",
+    "@types/json-schema": "7.0.15",
+    "@types/node": "22.19.19",
+    "@vercel/ai-tsconfig": "workspace:*",
+    "esbuild": "^0.28.1",
+    "tsup": "^7.2.0",
+    "tsx": "^4.22.0",
+    "typescript": "5.8.3",
+    "zod": "3.25.76"
+  },
+  "peerDependencies": {
+    "zod": "^3.25.76 || ^4.1.8"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "homepage": "https://ai-sdk.dev/docs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vercel/ai",
+    "directory": "packages/ai"
+  },
+  "bugs": {
+    "url": "https://github.com/vercel/ai/issues"
+  },
+  "keywords": [
+    "ai",
+    "vercel",
+    "sdk",
+    "llm",
+    "mcp",
+    "tool-calling",
+    "tools",
+    "structured-output",
+    "agent",
+    "agentic",
+    "generative",
+    "genai",
+    "chatbot",
+    "prompt",
+    "inference",
+    "language-model",
+    "streaming",
+    "openai",
+    "anthropic",
+    "claude",
+    "gemini",
+    "xai",
+    "grok"
+  ]
+}

@@ -1,0 +1,46 @@
+---
+description: 'Replaces variables in your code with other values or expressions at compile time. This enables different behavior between development and production builds.'
+---
+
+# source.define
+
+- **Type:** `Record<string, CodeValue>`
+- **Default:** `{}`
+
+Replaces variables in your code with other values or expressions at compile time. This enables different behavior between development and production builds.
+
+Each configuration key represents an identifier or multiple identifiers joined with `.`:
+
+- String values are used as code fragments.
+- Other types (including functions) are stringified.
+- Object values define all keys the same way.
+- Keys prefixed with `typeof` are only defined for typeof calls.
+
+> For more usage, see [Using define](/guide/advanced/env-vars#using-define) and [Rspack - DefinePlugin](https://rspack.rs/plugins/webpack/define-plugin).
+
+## Example
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    define: {
+      PRODUCTION: JSON.stringify(true),
+      VERSION: JSON.stringify('5fa3b9'),
+      BROWSER_SUPPORTS_HTML5: true,
+      TWO: '1 + 1',
+      'typeof window': JSON.stringify('object'),
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+      'import.meta.test': JSON.stringify('foo'),
+    },
+  },
+};
+```
+
+Expressions are replaced with the corresponding code fragments:
+
+```js
+const foo = TWO;
+
+// ⬇️ Turns into
+const foo = 1 + 1;
+```

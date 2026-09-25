@@ -1,0 +1,51 @@
+{
+  "name": "@tailwindcss/postcss",
+  "version": "4.3.3",
+  "description": "PostCSS plugin for Tailwind CSS, a utility-first CSS framework for rapidly building custom user interfaces",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tailwindlabs/tailwindcss.git",
+    "directory": "packages/@tailwindcss-postcss"
+  },
+  "bugs": "https://github.com/tailwindlabs/tailwindcss/issues",
+  "homepage": "https://tailwindcss.com",
+  "scripts": {
+    "lint": "tsc --noEmit",
+    "build": "tsup-node",
+    "dev": "pnpm run build -- --watch"
+  },
+  "files": [
+    "dist/"
+  ],
+  "publishConfig": {
+    "provenance": true,
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "dependencies": {
+    "@alloc/quick-lru": "^5.2.0",
+    "@tailwindcss/node": "workspace:*",
+    "@tailwindcss/oxide": "workspace:*",
+    "postcss": "catalog:",
+    "tailwindcss": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/postcss-import": "14.0.3",
+    "dedent": "catalog:",
+    "internal-example-plugin": "workspace:*",
+    "postcss-import": "^16.1.1"
+  }
+}

@@ -1,0 +1,21 @@
+# Local
+.DS_Store
+*.local
+*.log*
+
+# Dist
+node_modules
+dist/
+dist-hash/
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# E2E
+src/routeTree.gen.ts
+test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/

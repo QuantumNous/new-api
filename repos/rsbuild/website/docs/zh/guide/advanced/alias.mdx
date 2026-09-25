@@ -1,0 +1,125 @@
+---
+description: '路径别名（alias）允许开发者为模块定义别名，以便于在代码中更方便的引用它们。当你想要使用一个简短、易于记忆的名称来代替冗长复杂的路径时，这将非常有用。'
+---
+
+# 路径别名
+
+路径别名（alias）允许开发者为模块定义别名，以便于在代码中更方便的引用它们。当你想要使用一个简短、易于记忆的名称来代替冗长复杂的路径时，这将非常有用。
+
+例如，假如你在项目中经常引用 `src/common/request.ts` 模块，你可以为它定义一个别名 `@request`，然后在代码中通过 `import request from '@request'` 来引用它，而不需要每次都写出完整的相对路径。这也允许你将模块移动到不同的位置，而不需要更新代码中的所有 import 语法。
+
+```ts title="src/index.ts"
+import request from '@request'; // 解析为 `src/common/request.ts`
+```
+
+在 Rsbuild 中，可以通过多种方式来配置路径别名：
+
+- 在 tsconfig.json 或 jsconfig.json 中使用 [`paths` 字段](#typescript-paths-field)。
+- 在 package.json 中使用 [`imports` 字段](#nodejs-imports-field)。
+- 使用 Rsbuild 提供的 [resolve.alias](#alias-configuration) 配置项。
+
+## TypeScript `paths` 字段 \{#typescript-paths-field}
+
+你可以通过 `tsconfig.json` 中的 `paths` 来配置别名，这是我们在 TypeScript 项目中推荐使用的方式，因为它可以解决路径别名的 TS 类型问题。
+
+比如：
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "paths": {
+      "@common/*": ["./src/common/*"]
+    }
+  }
+}
+```
+
+以上配置完成后，如果你在代码中引用 `@common/Foo.tsx`, 则会映射到 `<project>/src/common/Foo.tsx` 路径上。
+
+:::tip
+你可以阅读 [TypeScript - paths](https://typescriptlang.org/tsconfig#paths) 文档来了解更多用法。
+:::
+
+### jsconfig.json
+
+在非 TypeScript 项目中，如果你需要通过 [jsconfig.json](https://code.visualstudio.com/docs/languages/jsconfig) 中的 `paths` 字段来设置路径别名，可以使用 [source.tsconfigPath](/config/source/tsconfig-path) 选项来设置。
+
+添加以下配置后，Rsbuild 会识别 `jsconfig.json` 中的 `paths` 字段。
+
+```js title="rsbuild.config.mjs"
+export default {
+  source: {
+    tsconfigPath: './jsconfig.json',
+  },
+};
+```
+
+## Node.js `imports` 字段 \{#nodejs-imports-field}
+
+你也可以使用 Node.js 的 [`imports` 字段](https://nodejs.org/api/packages.html#imports)，通过 `#` 前缀来定义路径别名。该方式是开箱即用的，并且不需要额外的 Rsbuild 配置。
+
+```json title="package.json"
+{
+  "type": "module",
+  "imports": {
+    "#app/*": "./src/*"
+  }
+}
+```
+
+```js title="src/index.js"
+import { message } from '#app/foo';
+```
+
+对于 TypeScript 项目，需要启用 [`resolvePackageJsonImports`](https://www.typescriptlang.org/tsconfig/#resolvePackageJsonImports)，这样 TypeScript 语言服务和编译器才能正确识别这些别名。
+
+## Alias 配置 \{#alias-configuration}
+
+Rsbuild 提供了 [resolve.alias](/config/resolve/alias) 配置项，对应 Rspack 原生的 [resolve.alias](https://rspack.rs/zh/config/resolve#resolvealias) 配置，你可以通过对象或者函数的方式来配置这个选项。
+
+### 使用场景
+
+由于 `tsconfig.json` 的 `paths` 配置是写在静态 JSON 文件里的，因此它不具备动态性。
+
+而 `resolve.alias` 则可以弥补这一不足，你可以通过 JavaScript 代码来动态设置 `resolve.alias`（比如基于环境变量来设置）。
+
+### 对象用法
+
+你可以通过对象的方式来配置 `resolve.alias`，其中的相对路径会被自动补全为绝对路径。
+
+比如：
+
+```js
+export default {
+  resolve: {
+    alias: {
+      '@common': './src/common',
+    },
+  },
+};
+```
+
+以上配置完成后，如果你在代码中引用 `@common/Foo.tsx`, 则会映射到 `<project>/src/common/Foo.tsx` 路径上。
+
+### 函数用法
+
+你也可以将 `resolve.alias` 配置为一个函数，拿到内置的 `alias` 对象，对其进行修改。
+
+比如：
+
+```js
+export default {
+  resolve: {
+    alias: (alias) => {
+      alias['@common'] = './src/common';
+      return alias;
+    },
+  },
+};
+```
+
+### 优先级
+
+`tsconfig.json` 的 `paths` 配置的优先级高于 `resolve.alias`，当一个路径同时匹配到这两者定义的规则时，会优先使用 `tsconfig.json` 的 `paths` 定义的值。
+
+你可以通过 [resolve.aliasStrategy](/config/resolve/alias-strategy) 来调整这两个选项的优先级。

@@ -1,0 +1,27 @@
+{
+  "name": "tanstack-solid-start-e2e-basic-tsr-config",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "dev:e2e": "vite dev",
+    "build": "rimraf ./count.txt && vite build && tsc --noEmit",
+    "start": "pnpx srvx --prod -s ../client dist/server/server.js",
+    "test:e2e": "rm -rf port*.txt; playwright test --project=chromium"
+  },
+  "dependencies": {
+    "@tanstack/solid-router": "workspace:^",
+    "@tanstack/solid-router-devtools": "workspace:^",
+    "@tanstack/solid-start": "workspace:^",
+    "solid-js": "^1.9.10"
+  },
+  "devDependencies": {
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "@types/node": "^22.10.2",
+    "srvx": "^0.11.9",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14",
+    "vite-plugin-solid": "^2.11.11"
+  }
+}

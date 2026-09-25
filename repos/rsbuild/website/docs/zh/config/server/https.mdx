@@ -1,0 +1,71 @@
+---
+description: '配置 HTTPS 选项以启用 HTTPS 服务器。当启用时，HTTP 服务器将被禁用。'
+---
+
+# server.https
+
+- **类型：**
+
+```ts
+import type { ServerOptions } from 'node:https';
+import type { SecureServerSessionOptions } from 'node:http2';
+
+type Https = ServerOptions | SecureServerSessionOptions;
+```
+
+- **默认值：** `undefined`
+
+配置 HTTPS 选项以启用 HTTPS 服务器。当启用时，HTTP 服务器将被禁用。
+
+开启前：
+
+```
+  ➜  Local:    http://localhost:3000
+  ➜  Network:  use --host to expose
+```
+
+开启后：
+
+```
+  ➜  Local:    https://localhost:3000
+  ➜  Network:  use --host to expose
+```
+
+:::tip
+当启用 HTTPS 时，Rsbuild 默认会启用 HTTP/2。
+:::
+
+## 设置证书
+
+你可以在 `server.https` 选项中手动传入 HTTPS 服务器所需要的证书和对应的私钥，这个参数将直接传递给 Node.js 中 http2 模块的 `createSecureServer` 方法。
+
+具体可以参考 [http2.createSecureServer](https://nodejs.org/api/http2.html#http2createsecureserveroptions-onrequesthandler)。
+
+```ts
+import fs from 'node:fs';
+
+export default {
+  server: {
+    https: {
+      key: fs.readFileSync('certificates/private.pem'),
+      cert: fs.readFileSync('certificates/public.pem'),
+    },
+  },
+};
+```
+
+:::tip
+本地开发所使用的证书通常使用 [mkcert](https://github.com/FiloSottile/mkcert) 生成，请阅读 ["如何使用 HTTPS 进行本地开发"](https://web.dev/articles/how-to-use-local-https?hl=zh-cn) 来了解如何使用。
+:::
+
+## 自签名证书
+
+对基本的配置需求，你可以添加 [@rsbuild/plugin-basic-ssl](https://github.com/rstackjs/rsbuild-plugin-basic-ssl) 插件，它会自动创建一个自签名的证书，并默认设置 `server.https` 选项。
+
+```ts
+import { pluginBasicSsl } from '@rsbuild/plugin-basic-ssl';
+
+export default {
+  plugins: [pluginBasicSsl()],
+};
+```

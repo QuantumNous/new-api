@@ -1,0 +1,770 @@
+{
+  "typeName": "ICommonChartSpec",
+  "description": "ICommonChartSpec 配置规范的完整实现分析",
+  "inheritanceTree": {
+    "ICommonChartSpec": {
+      "description": "ICommonChartSpec 接口配置",
+      "directExtends": [
+        "Omit<IChartSpec, 'series'>"
+      ],
+      "ownProperties": [
+        {
+          "name": "type",
+          "description": "type 配置",
+          "type": "'common'",
+          "originalType": "'common'",
+          "required": true,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "seriesField",
+          "description": "分组字段",
+          "type": "string",
+          "originalType": "string",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "series",
+          "description": "series 配置",
+          "type": "(IAreaSeriesSpec | ILineSeriesSpec | IBarSeriesSpec | IRangeColumnChartSpec | IRangeAreaChartSpec | IDotSeriesSpec | IMapSeriesSpec | IPieSeriesSpec | ILinkSeriesSpec | IRadarSeriesSpec | IRoseSeriesSpec | IScatterSeriesSpec | ICircularProgressSeriesSpec | ILinearProgressSeriesSpec | IWordCloudSeriesSpec | IFunnelSeriesSpec | IBoxPlotSeriesSpec | IGaugeSeriesSpec | ISankeySeriesSpec | ITreemapSeriesSpec | ISunburstSeriesSpec | ICirclePackingSeriesSpec | IWaterfallSeriesSpec | IHeatmapSeriesSpec | IGaugePointerSeriesSpec | ICorrelationSeriesSpec)[]",
+          "originalType": "(IAreaSeriesSpec | ILineSeriesSpec | IBarSeriesSpec | IRangeColumnChartSpec | IRangeAreaChartSpec | IDotSeriesSpec | IMapSeriesSpec | IPieSeriesSpec | ILinkSeriesSpec | IRadarSeriesSpec | IRoseSeriesSpec | IScatterSeriesSpec | ICircularProgressSeriesSpec | ILinearProgressSeriesSpec | IWordCloudSeriesSpec | IFunnelSeriesSpec | IBoxPlotSeriesSpec | IGaugeSeriesSpec | ISankeySeriesSpec | ITreemapSeriesSpec | ISunburstSeriesSpec | ICirclePackingSeriesSpec | IWaterfallSeriesSpec | IHeatmapSeriesSpec | IGaugePointerSeriesSpec | ICorrelationSeriesSpec)[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IAreaSeriesSpec",
+            "ILineSeriesSpec",
+            "IBarSeriesSpec",
+            "IRangeColumnChartSpec",
+            "IRangeAreaChartSpec",
+            "IDotSeriesSpec",
+            "IMapSeriesSpec",
+            "IPieSeriesSpec",
+            "ILinkSeriesSpec",
+            "IRadarSeriesSpec",
+            "IRoseSeriesSpec",
+            "IScatterSeriesSpec",
+            "ICircularProgressSeriesSpec",
+            "ILinearProgressSeriesSpec",
+            "IWordCloudSeriesSpec",
+            "IFunnelSeriesSpec",
+            "IBoxPlotSeriesSpec",
+            "IGaugeSeriesSpec",
+            "ISankeySeriesSpec",
+            "ITreemapSeriesSpec",
+            "ISunburstSeriesSpec",
+            "ICirclePackingSeriesSpec",
+            "IWaterfallSeriesSpec",
+            "IHeatmapSeriesSpec",
+            "IGaugePointerSeriesSpec",
+            "ICorrelationSeriesSpec"
+          ]
+        },
+        {
+          "name": "axes",
+          "description": "坐标轴配置",
+          "type": "ICartesianAxisSpec[] | IPolarAxisSpec[]",
+          "originalType": "ICartesianAxisSpec[] | IPolarAxisSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ICartesianAxisSpec",
+            "IPolarAxisSpec"
+          ]
+        },
+        {
+          "name": "crosshair",
+          "description": "十字辅助线配置",
+          "type": "ICartesianCrosshairSpec | ICartesianCrosshairSpec[] | IPolarCrosshairSpec | IPolarCrosshairSpec[]",
+          "originalType": "ICartesianCrosshairSpec | ICartesianCrosshairSpec[] | IPolarCrosshairSpec | IPolarCrosshairSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ICartesianCrosshairSpec",
+            "IPolarCrosshairSpec"
+          ]
+        },
+        {
+          "name": "markLine",
+          "description": "**仅适用于笛卡尔坐标系**，参考线配置",
+          "type": "IMarkLineSpec | IMarkLineSpec[]",
+          "originalType": "IMarkLineSpec | IMarkLineSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IMarkLineSpec"
+          ]
+        },
+        {
+          "name": "markArea",
+          "description": "**仅适用于笛卡尔坐标系**，参考区域配置",
+          "type": "IMarkAreaSpec | IMarkAreaSpec[]",
+          "originalType": "IMarkAreaSpec | IMarkAreaSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IMarkAreaSpec"
+          ]
+        },
+        {
+          "name": "markPoint",
+          "description": "**仅适用于笛卡尔坐标系**，参考点配置",
+          "type": "IMarkPointSpec | IMarkPointSpec[]",
+          "originalType": "IMarkPointSpec | IMarkPointSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IMarkPointSpec"
+          ]
+        },
+        {
+          "name": "autoBandSize",
+          "description": "是否开启自动 bandSize。如果开启，会根据传入的 barWidth 等配置自动计算 bandSize，从而影响轴实际长度",
+          "type": "boolean | {\n        extend: number;\n    }",
+          "originalType": "boolean | {\n        extend: number;\n    }",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        }
+      ]
+    },
+    "Omit<IChartSpec, 'series'>": {
+      "description": "IChartSpec 的属性（排除 series）",
+      "directExtends": [],
+      "ownProperties": [
+        {
+          "name": "type",
+          "description": "图表类型",
+          "type": "string",
+          "originalType": "string",
+          "required": true,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "data",
+          "description": "data 配置",
+          "type": "IData",
+          "originalType": "IData",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IData"
+          ]
+        },
+        {
+          "name": "width",
+          "description": "画布宽度",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "height",
+          "description": "画布高度",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "autoFit",
+          "description": "是否自适应容器大小",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "padding",
+          "description": "图表整体 padding 设置",
+          "type": "ILayoutPaddingSpec",
+          "originalType": "ILayoutPaddingSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ILayoutPaddingSpec"
+          ]
+        },
+        {
+          "name": "color",
+          "description": "图表色系配置",
+          "type": "string[] | Omit<IVisualSpecScale<unknown, string>, 'id'>",
+          "originalType": "string[] | Omit<IVisualSpecScale<unknown, string>, 'id'>",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IVisualSpecScale"
+          ]
+        },
+        {
+          "name": "seriesStyle",
+          "description": "系列样式",
+          "type": "ISeriesStyle",
+          "originalType": "ISeriesStyle",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ISeriesStyle"
+          ]
+        },
+        {
+          "name": "animationThreshold",
+          "description": "自动关闭动画的阀值，对应的是单系列data的长度",
+          "type": "number",
+          "originalType": "number",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "hover",
+          "description": "hover 交互",
+          "type": "boolean | IHoverSpec",
+          "originalType": "boolean | IHoverSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IHoverSpec"
+          ]
+        },
+        {
+          "name": "select",
+          "description": "select 交互",
+          "type": "boolean | ISelectSpec",
+          "originalType": "boolean | ISelectSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ISelectSpec"
+          ]
+        },
+        {
+          "name": "region",
+          "description": "region配置",
+          "type": "RegionSpec[]",
+          "originalType": "RegionSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "RegionSpec"
+          ]
+        },
+        {
+          "name": "title",
+          "description": "图表标题配置",
+          "type": "ITitleSpec",
+          "originalType": "ITitleSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ITitleSpec"
+          ]
+        },
+        {
+          "name": "layout",
+          "description": "自定义布局函数",
+          "type": "ILayoutSpec",
+          "originalType": "ILayoutSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ILayoutSpec"
+          ]
+        },
+        {
+          "name": "legends",
+          "description": "图例配置",
+          "type": "ILegendSpec | ILegendSpec[]",
+          "originalType": "ILegendSpec | ILegendSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ILegendSpec"
+          ]
+        },
+        {
+          "name": "crosshair",
+          "description": "十字辅助线配置",
+          "type": "ICrosshairSpec | ICrosshairSpec[]",
+          "originalType": "ICrosshairSpec | ICrosshairSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ICrosshairSpec"
+          ]
+        },
+        {
+          "name": "tooltip",
+          "description": "tooltip配置",
+          "type": "ITooltipSpec",
+          "originalType": "ITooltipSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ITooltipSpec"
+          ]
+        },
+        {
+          "name": "player",
+          "description": "播放器配置",
+          "type": "IPlayer",
+          "originalType": "IPlayer",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IPlayer"
+          ]
+        },
+        {
+          "name": "dataZoom",
+          "description": "缩略轴配置",
+          "type": "IDataZoomSpec | IDataZoomSpec[]",
+          "originalType": "IDataZoomSpec | IDataZoomSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IDataZoomSpec"
+          ]
+        },
+        {
+          "name": "scrollBar",
+          "description": "滚动条配置",
+          "type": "IScrollBarSpec | IScrollBarSpec[]",
+          "originalType": "IScrollBarSpec | IScrollBarSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IScrollBarSpec"
+          ]
+        },
+        {
+          "name": "brush",
+          "description": "框选配置",
+          "type": "IBrushSpec",
+          "originalType": "IBrushSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IBrushSpec"
+          ]
+        },
+        {
+          "name": "scales",
+          "description": "全局 scale 配置",
+          "type": "IVisualSpecScale<unknown, unknown>[]",
+          "originalType": "IVisualSpecScale<unknown, unknown>[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IVisualSpecScale"
+          ]
+        },
+        {
+          "name": "customMark",
+          "description": "自定义mark",
+          "type": "ICustomMarkSpec<EnableMarkType>[]",
+          "originalType": "ICustomMarkSpec<EnableMarkType>[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ICustomMarkSpec"
+          ]
+        },
+        {
+          "name": "axes",
+          "description": "axes 配置",
+          "type": "ICommonAxisSpec[]",
+          "originalType": "ICommonAxisSpec[]",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ICommonAxisSpec"
+          ]
+        },
+        {
+          "name": "theme",
+          "description": "默认主题（支持完整主题对象或者主题名称，主题名称需要提前在 `ThemeManager` 中注册）",
+          "type": "Omit<ITheme, 'name'> | string",
+          "originalType": "Omit<ITheme, 'name'> | string",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "ITheme"
+          ]
+        },
+        {
+          "name": "background",
+          "description": "图表背景色配置，优先级高于构造函数中的 background 配置 自1.11.6版本支持渐变色对象的配置",
+          "type": "IBackgroundSpec",
+          "originalType": "IBackgroundSpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IBackgroundSpec"
+          ]
+        },
+        {
+          "name": "stackInverse",
+          "description": "堆积时是否逆序",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "stackSort",
+          "description": "堆积时是否排序",
+          "type": "boolean",
+          "originalType": "boolean",
+          "required": false,
+          "category": "未分类",
+          "isSimple": true,
+          "dependencies": []
+        },
+        {
+          "name": "media",
+          "description": "媒体查询配置",
+          "type": "IMediaQuerySpec",
+          "originalType": "IMediaQuerySpec",
+          "required": false,
+          "category": "未分类",
+          "isSimple": false,
+          "dependencies": [
+            "IMediaQuerySpec"
+          ]
+        }
+      ],
+      "note": "展开自 Omit<IChartSpec, 'series'> - 包含 29 个属性（已展开所有继承）",
+      "expandedFrom": "IChartSpec",
+      "omittedKeys": [
+        "series"
+      ]
+    }
+  },
+  "timestamp": "2025-08-06T08:00:37.268Z",
+  "version": "1.0.0",
+  "sourceFile": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/chart/common/interface.d.ts",
+  "complexTypeDefinitions": {
+    "IAreaSeriesSpec": {
+      "typeName": "IAreaSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/area/interface.d.ts",
+      "note": "类型 IAreaSeriesSpec 的定义位置"
+    },
+    "ILineSeriesSpec": {
+      "typeName": "ILineSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/line/interface.d.ts",
+      "note": "类型 ILineSeriesSpec 的定义位置"
+    },
+    "IBarSeriesSpec": {
+      "typeName": "IBarSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/bar/interface.d.ts",
+      "note": "类型 IBarSeriesSpec 的定义位置"
+    },
+    "IRangeColumnChartSpec": {
+      "typeName": "IRangeColumnChartSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/chart/range-column/interface.d.ts",
+      "note": "类型 IRangeColumnChartSpec 的定义位置"
+    },
+    "IRangeAreaChartSpec": {
+      "typeName": "IRangeAreaChartSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/chart/range-area/interface.d.ts",
+      "note": "类型 IRangeAreaChartSpec 的定义位置"
+    },
+    "IDotSeriesSpec": {
+      "typeName": "IDotSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/dot/interface.d.ts",
+      "note": "类型 IDotSeriesSpec 的定义位置"
+    },
+    "IMapSeriesSpec": {
+      "typeName": "IMapSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/map/interface.d.ts",
+      "note": "类型 IMapSeriesSpec 的定义位置"
+    },
+    "IPieSeriesSpec": {
+      "typeName": "IPieSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/pie/interface.d.ts",
+      "note": "类型 IPieSeriesSpec 的定义位置"
+    },
+    "ILinkSeriesSpec": {
+      "typeName": "ILinkSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/link/interface.d.ts",
+      "note": "类型 ILinkSeriesSpec 的定义位置"
+    },
+    "IRadarSeriesSpec": {
+      "typeName": "IRadarSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/radar/interface.d.ts",
+      "note": "类型 IRadarSeriesSpec 的定义位置"
+    },
+    "IRoseSeriesSpec": {
+      "typeName": "IRoseSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/rose/interface.d.ts",
+      "note": "类型 IRoseSeriesSpec 的定义位置"
+    },
+    "IScatterSeriesSpec": {
+      "typeName": "IScatterSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/scatter/interface.d.ts",
+      "note": "类型 IScatterSeriesSpec 的定义位置"
+    },
+    "ICircularProgressSeriesSpec": {
+      "typeName": "ICircularProgressSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/progress/circular/interface.d.ts",
+      "note": "类型 ICircularProgressSeriesSpec 的定义位置"
+    },
+    "ILinearProgressSeriesSpec": {
+      "typeName": "ILinearProgressSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/progress/linear/interface.d.ts",
+      "note": "类型 ILinearProgressSeriesSpec 的定义位置"
+    },
+    "IWordCloudSeriesSpec": {
+      "typeName": "IWordCloudSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/word-cloud/interface.d.ts",
+      "note": "类型 IWordCloudSeriesSpec 的定义位置"
+    },
+    "IFunnelSeriesSpec": {
+      "typeName": "IFunnelSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/funnel/interface.d.ts",
+      "note": "类型 IFunnelSeriesSpec 的定义位置"
+    },
+    "IBoxPlotSeriesSpec": {
+      "typeName": "IBoxPlotSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/box-plot/interface.d.ts",
+      "note": "类型 IBoxPlotSeriesSpec 的定义位置"
+    },
+    "IGaugeSeriesSpec": {
+      "typeName": "IGaugeSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/gauge/interface.d.ts",
+      "note": "类型 IGaugeSeriesSpec 的定义位置"
+    },
+    "ISankeySeriesSpec": {
+      "typeName": "ISankeySeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/sankey/interface.d.ts",
+      "note": "类型 ISankeySeriesSpec 的定义位置"
+    },
+    "ITreemapSeriesSpec": {
+      "typeName": "ITreemapSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/treemap/interface.d.ts",
+      "note": "类型 ITreemapSeriesSpec 的定义位置"
+    },
+    "ISunburstSeriesSpec": {
+      "typeName": "ISunburstSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/sunburst/interface.d.ts",
+      "note": "类型 ISunburstSeriesSpec 的定义位置"
+    },
+    "ICirclePackingSeriesSpec": {
+      "typeName": "ICirclePackingSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/circle-packing/interface.d.ts",
+      "note": "类型 ICirclePackingSeriesSpec 的定义位置"
+    },
+    "IWaterfallSeriesSpec": {
+      "typeName": "IWaterfallSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/waterfall/interface.d.ts",
+      "note": "类型 IWaterfallSeriesSpec 的定义位置"
+    },
+    "IHeatmapSeriesSpec": {
+      "typeName": "IHeatmapSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/heatmap/interface.d.ts",
+      "note": "类型 IHeatmapSeriesSpec 的定义位置"
+    },
+    "IGaugePointerSeriesSpec": {
+      "typeName": "IGaugePointerSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/gauge/interface.d.ts",
+      "note": "类型 IGaugePointerSeriesSpec 的定义位置"
+    },
+    "ICorrelationSeriesSpec": {
+      "typeName": "ICorrelationSeriesSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/correlation/interface.d.ts",
+      "note": "类型 ICorrelationSeriesSpec 的定义位置"
+    },
+    "ICartesianAxisSpec": {
+      "typeName": "ICartesianAxisSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/axis/cartesian/interface/spec.d.ts",
+      "note": "类型 ICartesianAxisSpec 的定义位置"
+    },
+    "IPolarAxisSpec": {
+      "typeName": "IPolarAxisSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/axis/polar/interface/spec.d.ts",
+      "note": "类型 IPolarAxisSpec 的定义位置"
+    },
+    "ICartesianCrosshairSpec": {
+      "typeName": "ICartesianCrosshairSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/crosshair/interface/spec.d.ts",
+      "note": "类型 ICartesianCrosshairSpec 的定义位置"
+    },
+    "IPolarCrosshairSpec": {
+      "typeName": "IPolarCrosshairSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/crosshair/interface/spec.d.ts",
+      "note": "类型 IPolarCrosshairSpec 的定义位置"
+    },
+    "IMarkLineSpec": {
+      "typeName": "IMarkLineSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/marker/mark-line/interface/spec.d.ts",
+      "note": "类型 IMarkLineSpec 的定义位置"
+    },
+    "IMarkAreaSpec": {
+      "typeName": "IMarkAreaSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/marker/mark-area/interface/spec.d.ts",
+      "note": "类型 IMarkAreaSpec 的定义位置"
+    },
+    "IMarkPointSpec": {
+      "typeName": "IMarkPointSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/marker/mark-point/interface/spec.d.ts",
+      "note": "类型 IMarkPointSpec 的定义位置"
+    },
+    "IData": {
+      "typeName": "IData",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/typings/spec/common.d.ts",
+      "note": "类型 IData 的定义位置"
+    },
+    "ILayoutPaddingSpec": {
+      "typeName": "ILayoutPaddingSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/typings/layout.d.ts",
+      "note": "类型 ILayoutPaddingSpec 的定义位置"
+    },
+    "IVisualSpecScale": {
+      "typeName": "IVisualSpecScale",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/typings/visual.d.ts",
+      "note": "类型 IVisualSpecScale 的定义位置"
+    },
+    "ISeriesStyle": {
+      "typeName": "ISeriesStyle",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/series/interface/common.d.ts",
+      "note": "类型 ISeriesStyle 的定义位置"
+    },
+    "IHoverSpec": {
+      "typeName": "IHoverSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/interaction/interface/spec.d.ts",
+      "note": "类型 IHoverSpec 的定义位置"
+    },
+    "ISelectSpec": {
+      "typeName": "ISelectSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/interaction/interface/spec.d.ts",
+      "note": "类型 ISelectSpec 的定义位置"
+    },
+    "RegionSpec": {
+      "typeName": "RegionSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/region/interface.d.ts",
+      "note": "类型 RegionSpec 的定义位置"
+    },
+    "ITitleSpec": {
+      "typeName": "ITitleSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/title/interface/spec.d.ts",
+      "note": "类型 ITitleSpec 的定义位置"
+    },
+    "ILayoutSpec": {
+      "typeName": "ILayoutSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/layout/interface.d.ts",
+      "note": "类型 ILayoutSpec 的定义位置"
+    },
+    "ILegendSpec": {
+      "typeName": "ILegendSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/legend/interface.d.ts",
+      "note": "类型 ILegendSpec 的定义位置"
+    },
+    "ICrosshairSpec": {
+      "typeName": "ICrosshairSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/crosshair/interface/spec.d.ts",
+      "note": "类型 ICrosshairSpec 的定义位置"
+    },
+    "ITooltipSpec": {
+      "typeName": "ITooltipSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/tooltip/interface/spec.d.ts",
+      "note": "类型 ITooltipSpec 的定义位置"
+    },
+    "IPlayer": {
+      "typeName": "IPlayer",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/player/interface/spec.d.ts",
+      "note": "类型 IPlayer 的定义位置"
+    },
+    "IDataZoomSpec": {
+      "typeName": "IDataZoomSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/data-zoom/data-zoom/interface.d.ts",
+      "note": "类型 IDataZoomSpec 的定义位置"
+    },
+    "IScrollBarSpec": {
+      "typeName": "IScrollBarSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/data-zoom/scroll-bar/interface.d.ts",
+      "note": "类型 IScrollBarSpec 的定义位置"
+    },
+    "IBrushSpec": {
+      "typeName": "IBrushSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/brush/interface.d.ts",
+      "note": "类型 IBrushSpec 的定义位置"
+    },
+    "ICustomMarkSpec": {
+      "typeName": "ICustomMarkSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/typings/spec/common.d.ts",
+      "note": "类型 ICustomMarkSpec 的定义位置"
+    },
+    "ICommonAxisSpec": {
+      "typeName": "ICommonAxisSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/component/axis/interface.d.ts",
+      "note": "类型 ICommonAxisSpec 的定义位置"
+    },
+    "ITheme": {
+      "typeName": "ITheme",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/theme/interface.d.ts",
+      "note": "类型 ITheme 的定义位置"
+    },
+    "IBackgroundSpec": {
+      "typeName": "IBackgroundSpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/typings/spec/common.d.ts",
+      "note": "类型 IBackgroundSpec 的定义位置"
+    },
+    "IMediaQuerySpec": {
+      "typeName": "IMediaQuerySpec",
+      "filePath": "/Users/bytedance/Documents/opensource/VChart/packages/vchart-types/types/typings/spec/media-query.d.ts",
+      "note": "类型 IMediaQuerySpec 的定义位置"
+    }
+  },
+  "statistics": {
+    "totalInterfaces": 2,
+    "totalProperties": 38,
+    "complexTypes": 54,
+    "typeFileLocations": 54,
+    "dependencyTypes": 923
+  }
+}

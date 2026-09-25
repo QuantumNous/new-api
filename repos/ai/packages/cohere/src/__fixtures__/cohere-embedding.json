@@ -1,0 +1,19 @@
+{
+  "id": "f5aa3e7b-f011-4c5c-a825-f94669f760e5",
+  "texts": ["sunny day at the beach", "rainy day in the city"],
+  "embeddings": {
+    "float": [
+      [0.03302002, 0.020904541, -0.019744873, -0.0625, 0.04437256],
+      [-0.04660034, 0.00037765503, -0.061157227, -0.08239746, -0.010360718]
+    ]
+  },
+  "meta": {
+    "api_version": {
+      "version": "2"
+    },
+    "billed_units": {
+      "input_tokens": 10
+    }
+  },
+  "response_type": "embeddings_by_type"
+}

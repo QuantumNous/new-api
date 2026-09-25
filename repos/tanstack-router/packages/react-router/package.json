@@ -1,0 +1,115 @@
+{
+  "name": "@tanstack/react-router",
+  "version": "1.170.18",
+  "description": "Modern and scalable routing for React applications",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/router.git",
+    "directory": "packages/react-router"
+  },
+  "homepage": "https://tanstack.com/router",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "keywords": [
+    "react",
+    "location",
+    "router",
+    "routing",
+    "async",
+    "async router",
+    "typescript"
+  ],
+  "scripts": {
+    "clean": "rimraf ./dist && rimraf ./coverage",
+    "test:eslint": "eslint",
+    "test:types": "pnpm run \"/^test:types:ts[0-9]{2}$/\"",
+    "test:types:ts55": "node ../../node_modules/typescript55/lib/tsc.js -p tsconfig.legacy.json",
+    "test:types:ts56": "node ../../node_modules/typescript56/lib/tsc.js -p tsconfig.legacy.json",
+    "test:types:ts57": "node ../../node_modules/typescript57/lib/tsc.js -p tsconfig.legacy.json",
+    "test:types:ts58": "node ../../node_modules/typescript58/lib/tsc.js -p tsconfig.legacy.json",
+    "test:types:ts59": "node ../../node_modules/typescript59/lib/tsc.js -p tsconfig.legacy.json",
+    "test:types:ts60": "tsc -p tsconfig.legacy.json",
+    "test:unit": "vitest",
+    "test:unit:dev": "pnpm run test:unit --watch --hideSkippedTests",
+    "test:perf": "vitest bench",
+    "test:perf:dev": "pnpm run test:perf --watch --hideSkippedTests",
+    "test:build": "publint --strict && attw --ignore-rules no-resolution --pack .",
+    "build": "vite build"
+  },
+  "type": "module",
+  "types": "dist/esm/index.d.ts",
+  "main": "dist/cjs/index.cjs",
+  "module": "dist/esm/index.js",
+  "exports": {
+    ".": {
+      "react-server": {
+        "types": "./dist/esm/index.rsc.d.ts",
+        "default": "./dist/esm/index.rsc.js"
+      },
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "development": "./dist/esm/index.dev.js",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "development": "./dist/cjs/index.dev.cjs",
+        "default": "./dist/cjs/index.cjs"
+      }
+    },
+    "./ssr/server": {
+      "import": {
+        "types": "./dist/esm/ssr/server.d.ts",
+        "default": "./dist/esm/ssr/server.js"
+      },
+      "require": {
+        "types": "./dist/cjs/ssr/server.d.cts",
+        "default": "./dist/cjs/ssr/server.cjs"
+      }
+    },
+    "./ssr/client": {
+      "import": {
+        "types": "./dist/esm/ssr/client.d.ts",
+        "default": "./dist/esm/ssr/client.js"
+      },
+      "require": {
+        "types": "./dist/cjs/ssr/client.d.cts",
+        "default": "./dist/cjs/ssr/client.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "@tanstack/history": "workspace:*",
+    "@tanstack/react-store": "^0.9.3",
+    "@tanstack/router-core": "workspace:*",
+    "isbot": "^5.1.22"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
+    "@types/node": ">=20",
+    "@vitejs/plugin-react": "^4.3.4",
+    "combinate": "^1.1.11",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "vite": "*",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0 || >=19.0.0",
+    "react-dom": ">=18.0.0 || >=19.0.0"
+  }
+}

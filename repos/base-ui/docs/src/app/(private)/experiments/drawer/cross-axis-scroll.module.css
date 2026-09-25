@@ -1,0 +1,136 @@
+.Root {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  max-width: 72rem;
+}
+
+.Title {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 2rem;
+}
+
+.Description {
+  margin: 0;
+  color: var(--color-gray-600);
+}
+
+.Grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: 0.875rem;
+}
+
+.Card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.5rem;
+  background: var(--color-gray-50);
+  padding: 0.875rem;
+}
+
+.CardTitle {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
+.CardDescription {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--color-gray-700);
+}
+
+.ViewportLeft {
+  justify-content: flex-start;
+}
+
+.ViewportUp {
+  align-items: flex-start;
+}
+
+.PopupLeft {
+  margin-right: 0;
+  margin-left: calc(-1 * var(--bleed));
+  padding-right: 1.5rem;
+  padding-left: calc(1.5rem + var(--bleed));
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    transform: translateX(calc(-100% + var(--bleed) - var(--viewport-padding)));
+  }
+
+  @supports (-webkit-touch-callout: none) {
+    margin-left: 0;
+  }
+}
+
+.PopupUp {
+  --bleed: 0px;
+  margin-bottom: 0;
+  margin-top: 0;
+  border-radius: 0 0 1rem 1rem;
+  padding-top: 1rem;
+  padding-bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    transform: translateY(-100%);
+  }
+}
+
+.PopupVerticalContent {
+  padding-top: 1.5rem;
+}
+
+.ScrollRegionY {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-height: 0;
+  height: 12rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.5rem;
+  background: white;
+  padding: 0.5rem;
+}
+
+.Row {
+  border-radius: 0.375rem;
+  border: 1px solid var(--color-gray-200);
+  background: var(--color-gray-50);
+  padding: 0.5rem 0.625rem;
+  font-size: 0.875rem;
+}
+
+.ScrollRegionX {
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior: contain;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.5rem;
+  background: white;
+}
+
+.Track {
+  display: inline-flex;
+  gap: 0.5rem;
+  min-width: max-content;
+  padding: 0.625rem;
+}
+
+.Chip {
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.5rem;
+  background: var(--color-gray-50);
+  padding: 0.625rem 0.75rem;
+  font-size: 0.875rem;
+  white-space: nowrap;
+}

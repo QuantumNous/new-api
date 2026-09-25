@@ -1,0 +1,11 @@
+{
+  "name": "My Website",
+  "short_name": "Website",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+.deferredBox {
+  background-color: rgb(23, 45, 67);
+  color: rgb(255, 255, 255);
+  padding: 12px;
+}
+
+.neverBox {
+  color: rgb(45, 67, 89);
+  padding: 12px;
+}
+
+.nestedBox {
+  border-left: 5px solid rgb(67, 89, 123);
+  padding-left: 12px;
+}

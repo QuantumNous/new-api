@@ -1,0 +1,28 @@
+html {
+  font-family: sans-serif;
+  font-size: 14px;
+}
+
+body {
+  padding: 1rem;
+}
+
+.list {
+  border: 1px solid #e6e4dc;
+  max-width: 100%;
+}
+
+.list-item-even,
+.list-item-odd {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.list-item-even {
+  background-color: #e6e4dc;
+}
+
+button {
+  border: 1px solid gray;
+}

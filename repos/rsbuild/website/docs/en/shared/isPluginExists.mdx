@@ -1,0 +1,19 @@
+Determines if a plugin has been registered in the current Rsbuild instance.
+
+- If the `environment` parameter is not specified, it checks if the plugin exists in the globally registered plugins.
+- If the `environment` parameter is specified, it checks if the plugin exists in the specified environment.
+
+- **Type:**
+
+```ts
+function IsPluginExists(
+  pluginName: string,
+  options?: {
+    /**
+     * Whether it exists in the specified environment.
+     * If environment is not specified, determine whether the plugin is a global plugin.
+     */
+    environment: string;
+  },
+): boolean;
+```

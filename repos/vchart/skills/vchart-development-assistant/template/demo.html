@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VChart Demo</title>
+
+    <!-- VChart CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@visactor/vchart/build/index.min.js"></script>
+    
+    <!-- Monaco Editor CDN - 使用简化加载方式 -->
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+    <script>
+      // 配置 Monaco Editor 路径
+      require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+    </script>
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+        background-color: #f8fafc;
+        min-height: 100vh;
+        padding: 24px;
+      }
+      .page {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+      header {
+        margin-bottom: 24px;
+        text-align: center;
+      }
+      header h1 {
+        font-size: 28px;
+        font-weight: 700;
+        color: #1e293b;
+        margin-bottom: 8px;
+      }
+      header p {
+        color: #64748b;
+        font-size: 15px;
+      }
+      .editor-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+        min-height: 600px;
+      }
+      .code-panel {
+        background: #1e293b;
+        display: flex;
+        flex-direction: column;
+      }
+      .preview-panel {
+        background: #fff;
+        border-left: 1px solid #e2e8f0;
+        padding: 20px;
+        display: flex;
+        flex-direction: column;
+      }
+      .panel-header {
+        padding: 12px 20px;
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        flex-shrink: 0;
+      }
+      .code-panel .panel-header {
+        background: #0f172a;
+        color: #64748b;
+        border-bottom: 1px solid #334155;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .preview-panel .panel-header {
+        background: #f8fafc;
+        color: #64748b;
+        border-bottom: 1px solid #e2e8f0;
+        margin: -20px -20px 20px -20px;
+        padding: 12px 20px;
+      }
+      .monaco-editor-container {
+        flex: 1;
+        min-height: 550px;
+        overflow: hidden;
+      }
+      .chart-container {
+        flex: 1;
+        min-height: 520px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .info-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .info-card {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 12px 14px;
+        box-shadow: 0 2px 12px rgba(15, 23, 42, 0.04);
+      }
+      .info-card h3 {
+        font-size: 14px;
+        font-weight: 700;
+        color: #0f172a;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .info-card p {
+        color: #475569;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      .edit-hint {
+        background: rgba(96, 165, 250, 0.15);
+        color: #60a5fa;
+        font-size: 11px;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-weight: 600;
+      }
+      
+      @media (max-width: 1000px) {
+        .editor-container {
+          grid-template-columns: 1fr;
+        }
+        .preview-panel {
+          border-left: none;
+          border-top: 1px solid #e2e8f0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <h1>📊 {{REPORT_TITLE}}</h1>
+        <p>{{REPORT_DESC}}</p>
+      </header>
+
+      <div class="info-grid">
+        <div class="info-card">
+          <h3>✨ 主要功能说明</h3>
+          <p>{{FEATURE_DESC}}</p>
+        </div>
+        <div class="info-card">
+          <h3>🛠️ 编辑提示</h3>
+          <p>{{EDIT_TIPS}}</p>
+        </div>
+      </div>
+
+      <div class="editor-container">
+        <div class="code-panel">
+          <div class="panel-header">
+            <span>📝 VChart Spec</span>
+            <span class="edit-hint">✏️ 可编辑</span>
+          </div>
+          <div id="editor" class="monaco-editor-container"></div>
+        </div>
+        <div class="preview-panel">
+          <div class="panel-header">👁️ 效果预览</div>
+          <div class="chart-container" id="chart"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        // ====== SPEC_START ======
+        {{SPEC_CODE}}
+        // ====== SPEC_END ======
+
+        // Monaco Editor 初始代码
+        const initialCode = `{{INITIAL_CODE}}`;
+
+        // 初始化 Monaco Editor（需要使用 require 异步加载）
+        let chart = null;
+        
+        // 解析 spec 对象
+        function parseSpec(codeStr) {
+          try {
+            const specMatch = codeStr.match(/const\s+spec\s*=\s*({[\s\S]*});?\s*$/m);
+            if (specMatch) {
+              const specJson = specMatch[1];
+              const fn = new Function(`return ${specJson}`);
+              return fn();
+            }
+            throw new Error('无法解析 spec 对象，请确保代码格式为: const spec = {...};');
+          } catch (e) {
+            throw new Error('代码解析错误: ' + e.message);
+          }
+        }
+        
+        // 更新图表
+        function updateChart(code) {
+          const chartContainer = document.getElementById('chart');
+          
+          try {
+            const spec = parseSpec(code);
+            
+            // 销毁旧图表
+            if (chart) {
+              chart.release();
+              chart = null;
+            }
+            
+            // 清空容器
+            chartContainer.innerHTML = '';
+            
+            // 创建新图表
+            chart = new VChart.default(spec, { dom: 'chart' });
+            chart.renderSync();
+            window.vchart = chart;
+          } catch (e) {
+            chartContainer.innerHTML = `
+              <div style="color:#ef4444;padding:30px;background:#fef2f2;border-radius:12px;border:1px solid #fee2e2;max-width:500px;">
+                <div style="font-weight:600;margin-bottom:12px;font-size:15px;">⚠️ 图表渲染失败</div>
+                <div style="font-size:13px;line-height:1.8;color:#991b1b;">${e.message}</div>
+              </div>
+            `;
+          }
+        }
+        
+        // Monaco Editor 使用 AMD 模块系统，必须通过 require 异步加载
+        require(['vs/editor/editor.main'], function () {
+          const editor = monaco.editor.create(document.getElementById('editor'), {
+            value: initialCode,
+            language: 'javascript',
+            theme: 'vs-dark',
+            fontSize: 14,
+            lineNumbers: 'on',
+            minimap: { enabled: false },
+            scrollBeyondLastLine: false,
+            automaticLayout: true,
+            tabSize: 2,
+            wordWrap: 'on',
+            formatOnPaste: true,
+            formatOnType: true
+          });
+          
+          // 初始渲染
+          updateChart(initialCode);
+          
+          // 监听内容变化
+          let updateTimer = null;
+          editor.onDidChangeModelContent(() => {
+            clearTimeout(updateTimer);
+            updateTimer = setTimeout(() => {
+              updateChart(editor.getValue());
+            }, 800);
+          });
+        });
+      });
+    </script>
+  </body>
+</html>

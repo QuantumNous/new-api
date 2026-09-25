@@ -1,0 +1,101 @@
+---
+description: 'Rsbuild 的 AI 使用指南，介绍 Agent Skills、llms.txt、Markdown 文档和 AGENTS.md 的协作方式。'
+---
+
+import { PackageManagerTabs } from '@theme';
+
+# AI
+
+为了帮助 AI 更全面地了解 Rsbuild 的功能、配置与最佳实践，从而在日常开发和问题排查过程中提供更准确的帮助，Rsbuild 提供了以下能力：
+
+- [Agent Skills](#agent-skills)
+- [llms.txt](#llmstxt)
+- [Markdown 文档](#markdown-docs)
+- [AGENTS.md](#agentsmd)
+
+## Agent Skills
+
+Agent Skills 是可安装到 Agent 中的领域知识包，能够让 Agent 在特定场景下更准确、更专业地给出建议或执行操作。
+
+我们在 [rstackjs/agent-skills](https://github.com/rstackjs/agent-skills) 仓库中为 Rstack 生态提供了许多 Skills，其中关于 Rsbuild 的 Skills 包括：
+
+- [rsbuild-best-practices](https://github.com/rstackjs/agent-skills#rsbuild-best-practices)：Rsbuild 相关的最佳实践。
+- [rsbuild-v2-upgrade](https://github.com/rstackjs/agent-skills#rsbuild-v2-upgrade)：将 Rsbuild 1.x 项目升级到 v2。
+- [migrate-to-rsbuild](https://github.com/rstackjs/agent-skills#migrate-to-rsbuild)：将 webpack、Vite、Create React App 或 Vue CLI 项目迁移到 Rsbuild。
+- [storybook-rsbuild](https://github.com/rstackjs/agent-skills#storybook-rsbuild)：配置或迁移 Storybook 使用 Rsbuild builder。
+
+在支持 Skills 的 coding agent 中，可以通过以下命令使用 [skills](https://www.npmjs.com/package/skills) 包安装指定的 Skill：
+
+<PackageManagerTabs command="skills add rstackjs/agent-skills --skill migrate-to-rsbuild" dlx />
+
+安装完成后，用自然语言输入相关提示词即可触发对应 Skill，例如：
+
+```
+帮我把这个 Vite 项目迁移到 Rsbuild
+```
+
+## llms.txt
+
+[llms.txt](https://llmstxt.org/) 是一种帮助 LLM 发现和使用项目文档的标准规范。Rsbuild 遵循该规范，发布了以下两个文件：
+
+- [llms.txt](https://rsbuild.rs/llms.txt)：结构化索引文件，包含所有文档页面的标题、链接与简要描述。
+
+```
+https://rsbuild.rs/llms.txt
+```
+
+- [llms-full.txt](https://rsbuild.rs/llms-full.txt)：完整内容文件，将所有文档页面的内容合并为单个文件。
+
+```
+https://rsbuild.rs/llms-full.txt
+```
+
+你可以根据使用场景选择合适的文件：
+
+- `llms.txt` 体积较小、消耗 token 少，适合让 AI 按需获取具体页面。
+- `llms-full.txt` 包含全量文档内容，无需 AI 逐一跟随链接，适合需要 AI 全面了解 Rsbuild 的场景，但会消耗更多 token，建议在支持大上下文窗口的 AI 工具中使用。
+
+## Markdown 文档 \{#markdown-docs}
+
+Rsbuild 文档的每个页面都提供对应的 `.md` 纯文本版本，可直接作为上下文提供给 AI。你可以在文档任意页面的标题下方点击「复制 Markdown」或「复制 Markdown 链接」按钮，获取该页面对应的 Markdown 文件内容或链接。
+
+```
+https://rsbuild.rs/guide/start/index.md
+```
+
+将 Markdown 链接或内容提供给 AI，即可让其精确了解某一具体章节的内容，适合在针对性问题排查或查阅特定内容时使用。
+
+## AGENTS.md
+
+使用 [create-rsbuild](https://www.npmjs.com/package/create-rsbuild) 创建新项目时，生成的项目中会包含一个 `AGENTS.md` 文件。该文件遵循 [AGENTS.md](https://agents.md/) 规范，向 Agents 提供项目的关键信息。
+
+生成的 `AGENTS.md` 示例内容如下：
+
+```markdown wrapCode
+# AGENTS.md
+
+You are an expert in JavaScript, Rsbuild, and web application development. You write maintainable, performant, and accessible code.
+
+## Commands
+
+- `npm run dev` - Start the dev server
+- `npm run build` - Build the app for production
+- `npm run preview` - Preview the production build locally
+
+## Docs
+
+- Rsbuild: https://rsbuild.rs/llms.txt
+- Rspack: https://rspack.rs/llms.txt
+```
+
+你也可以根据项目的实际情况进行修改，添加更多关于项目结构、整体架构等多方面的信息，以便 Agents 更好地理解你的项目。
+
+::: tip
+
+如果你使用的是 Claude Code，可以创建一个 `CLAUDE.md` 文件，并在其中引用 `AGENTS.md` 文件。
+
+```markdown title="CLAUDE.md"
+@AGENTS.md
+```
+
+:::

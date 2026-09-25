@@ -1,0 +1,66 @@
+<div class="p-2">
+  <div class="h-4"></div>
+  <pre [style.min-height]="'10rem'">
+    {{ columnSizingDebugInfo() }}
+  </pre>
+  <div class="h-4"></div>
+
+  ({{ data().length }} rows)
+
+  <div class="overflow-x-auto">
+    <div
+      class="divTable"
+      [style]="columnSizeVars()"
+      [style.width.px]="table.getTotalSize()"
+    >
+      <div class="thead">
+        @for (headerGroup of table.getHeaderGroups(); track headerGroup.id) {
+          <div class="tr">
+            @for (header of headerGroup.headers; track header.id) {
+              <div class="th" [tableResizableHeader]="header.id">
+                @if (!header.isPlaceholder) {
+                  <ng-container
+                    *flexRender="
+                      header.column.columnDef.header;
+                      props: header.getContext();
+                      let header
+                    "
+                  >
+                    <div [innerHTML]="header"></div>
+                  </ng-container>
+                }
+
+                <div
+                  class="resizer"
+                  [class.isResizing]="header.column.getIsResizing()"
+                  (dblclick)="header.column.resetSize()"
+                  (mousedown)="header.getResizeHandler()($event)"
+                  (touchstart)="header.getResizeHandler()($event)"
+                ></div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+      <div class="tbody">
+        @for (row of table.getRowModel().rows; track row.id) {
+          <tr class="tr">
+            @for (cell of row.getVisibleCells(); track cell.id) {
+              <td class="td" [tableResizableCell]="cell.column.id">
+                <ng-container
+                  *flexRender="
+                    cell.column.columnDef.cell;
+                    props: cell.getContext();
+                    let cell
+                  "
+                >
+                  <div [innerHTML]="cell"></div>
+                </ng-container>
+              </td>
+            }
+          </tr>
+        }
+      </div>
+    </div>
+  </div>
+</div>
