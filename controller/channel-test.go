@@ -676,6 +676,20 @@ func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
 	if jsonBytes[0] != '{' && jsonBytes[0] != '[' {
 		return ""
 	}
+
+	// MiniMax style base_resp error handling (can return HTTP 200 with base_resp.status_code != 0)
+	baseRespVal := gjson.GetBytes(jsonBytes, "base_resp")
+	if baseRespVal.Exists() && baseRespVal.Type != gjson.Null {
+		statusCode := gjson.GetBytes(jsonBytes, "base_resp.status_code").Int()
+		if statusCode != 0 {
+			statusMsg := strings.TrimSpace(gjson.GetBytes(jsonBytes, "base_resp.status_msg").String())
+			if statusMsg == "" {
+				return fmt.Sprintf("MiniMax API error: code %d", statusCode)
+			}
+			return fmt.Sprintf("MiniMax API error (%d): %s", statusCode, statusMsg)
+		}
+	}
+
 	errVal := gjson.GetBytes(jsonBytes, "error")
 	if !errVal.Exists() || errVal.Type == gjson.Null {
 		return ""
