@@ -7,7 +7,7 @@ export const meta = {
     en: "Google Veo video generation on the Gemini API (text-to-video and image-to-video)",
     zh: "Google Veo 视频生成（文生视频、图生视频），Gemini API 版本",
   },
-  version: "1.0.2",
+  version: "1.0.3",
   author: { name: "QuantumNous" },
   channelTypes: [24],
   models: ["veo-3.0-generate-001", "veo-3.0-fast-generate-001", "veo-3.1-generate-preview", "veo-3.1-fast-generate-preview"],
@@ -119,7 +119,7 @@ function imageInput(value, files) {
         }
       }
     }
-    return { inlineData: { mimeType: mime || "application/octet-stream", data: value } };
+    return { bytesBase64Encoded: value, mimeType: mime || "application/octet-stream" };
   }
   value = String(value || "").trim();
   if (!value) return null;
@@ -127,7 +127,7 @@ function imageInput(value, files) {
     const comma = value.indexOf(",");
     if (comma < 0 || !value.slice(comma + 1)) return null;
     const mediaType = value.slice(5, comma).split(";")[0];
-    return { inlineData: { mimeType: mediaType || "application/octet-stream", data: value.slice(comma + 1) } };
+    return { bytesBase64Encoded: value.slice(comma + 1), mimeType: mediaType || "application/octet-stream" };
   }
   // Raw base64 input is accepted by the Go adaptor. The common fixtures use
   // PNG data; browser-free plugins cannot invoke net/http DetectContentType.
@@ -137,7 +137,7 @@ function imageInput(value, files) {
   else if (value.startsWith("/9j/")) mime = "image/jpeg";
   else if (value.startsWith("R0lGOD")) mime = "image/gif";
   else if (value.startsWith("UklGR")) mime = "image/webp";
-  return { inlineData: { mimeType: mime, data: value } };
+  return { bytesBase64Encoded: value, mimeType: mime };
 }
 
 function converted(ctx) {
