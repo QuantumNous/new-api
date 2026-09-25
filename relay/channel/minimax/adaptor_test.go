@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/gin-gonic/gin"
 )
@@ -134,4 +136,51 @@ func ioNopCloser(body string) nopReadCloser {
 
 func uintPtr(v uint) *uint {
 	return &v
+}
+
+func TestDoResponseForMiniMaxFake200Error(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeChatCompletions,
+		RelayFormat: types.RelayFormatOpenAI,
+		IsStream:    false,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeMiniMax,
+		},
+	}
+
+	// Fake 200 with invalid api key (status_code: 2049)
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       ioNopCloser(`{"base_resp":{"status_code":2049,"status_msg":"invalid api key"}}`),
+	}
+
+	adaptor := &Adaptor{}
+	_, err := adaptor.DoResponse(c, resp, info)
+	if err == nil {
+		t.Fatalf("expected error for base_resp.status_code != 0, got nil")
+	}
+	if err.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("expected status code %d, got %d", http.StatusUnauthorized, err.StatusCode)
+	}
+
+	// Fake 200 with quota exceeded (status_code: 2056)
+	resp2 := &http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       ioNopCloser(`{"base_resp":{"status_code":2056,"status_msg":"token plan quota exceeded"}}`),
+	}
+	_, err2 := adaptor.DoResponse(c, resp2, info)
+	if err2 == nil {
+		t.Fatalf("expected error for quota exceeded, got nil")
+	}
+	if err2.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("expected status code %d, got %d", http.StatusTooManyRequests, err2.StatusCode)
+	}
 }

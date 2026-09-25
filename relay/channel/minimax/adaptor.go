@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/relay/channel"
 	"github.com/QuantumNous/new-api/relay/channel/claude"
@@ -133,6 +134,47 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		adaptor := claude.Adaptor{}
 		return adaptor.DoResponse(c, resp, info)
 	default:
+		// MiniMax text/chat endpoints may return HTTP 200 with an error body (e.g. base_resp.status_code != 0)
+		if !info.IsStream && resp != nil && resp.StatusCode == http.StatusOK {
+			contentType := resp.Header.Get("Content-Type")
+			if strings.Contains(contentType, "application/json") || contentType == "" {
+				respBody, readErr := io.ReadAll(resp.Body)
+				if readErr == nil {
+					_ = resp.Body.Close()
+					resp.Body = io.NopCloser(bytes.NewBuffer(respBody))
+
+					var checkResp struct {
+						BaseResp *struct {
+							StatusCode int64  `json:"status_code"`
+							StatusMsg  string `json:"status_msg"`
+						} `json:"base_resp"`
+						Error any `json:"error"`
+					}
+					if jsonErr := json.Unmarshal(respBody, &checkResp); jsonErr == nil {
+						if checkResp.BaseResp != nil && checkResp.BaseResp.StatusCode != 0 {
+							errCode := fmt.Sprintf("%d", checkResp.BaseResp.StatusCode)
+							errMsg := checkResp.BaseResp.StatusMsg
+							if errMsg == "" {
+								errMsg = fmt.Sprintf("MiniMax API error: code %s", errCode)
+							}
+							openaiErr := types.OpenAIError{
+								Code:    errCode,
+								Message: errMsg,
+								Type:    "minimax_error",
+							}
+							mappedStatus := http.StatusBadRequest
+							var errOptions []types.NewAPIErrorOptions
+							if checkResp.BaseResp.StatusCode == 1004 || checkResp.BaseResp.StatusCode == 2049 {
+								mappedStatus = http.StatusUnauthorized
+							} else if checkResp.BaseResp.StatusCode == 2056 {
+								mappedStatus = http.StatusTooManyRequests
+							}
+							return nil, types.WithOpenAIError(openaiErr, mappedStatus, errOptions...)
+						}
+					}
+				}
+			}
+		}
 		adaptor := openai.Adaptor{}
 		return adaptor.DoResponse(c, resp, info)
 	}

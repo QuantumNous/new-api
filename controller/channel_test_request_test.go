@@ -234,3 +234,21 @@ func TestDirectOpenAIResponsesKeepsExistingParameters(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, body, string(encoded))
 }
+
+func TestDetectErrorMessageFromJSONBytes(t *testing.T) {
+	// Standard error format
+	stdErr := []byte(`{"error":{"message":"invalid api key","type":"invalid_request_error"}}`)
+	assert.Equal(t, "invalid api key", detectErrorMessageFromJSONBytes(stdErr))
+
+	// MiniMax base_resp error format
+	mmErr := []byte(`{"base_resp":{"status_code":2049,"status_msg":"invalid api key"}}`)
+	assert.Equal(t, "MiniMax API error (2049): invalid api key", detectErrorMessageFromJSONBytes(mmErr))
+
+	// MiniMax base_resp success format
+	mmSuccess := []byte(`{"base_resp":{"status_code":0,"status_msg":""},"choices":[{"message":{"content":"ok"}}]}`)
+	assert.Equal(t, "", detectErrorMessageFromJSONBytes(mmSuccess))
+
+	// Non-error response
+	normalResp := []byte(`{"id":"chatcmpl-123","choices":[{"message":{"content":"hello"}}]}`)
+	assert.Equal(t, "", detectErrorMessageFromJSONBytes(normalResp))
+}
