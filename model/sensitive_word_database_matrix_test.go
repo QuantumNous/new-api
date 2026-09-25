@@ -19,7 +19,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// legacySensitiveWordRC40User represents a pre-P-30 users table. The matrix
+// legacySensitiveWordRC40User represents a legacy users table. The matrix
 // uses it to prove that adding the counter and whitelist columns does not
 // require a pre-existing sensitive-word schema.
 type legacySensitiveWordRC40User struct {
@@ -235,7 +235,7 @@ func TestSensitiveWordDatabaseMigrationMatrix(t *testing.T) {
 				require.False(t, user.SensitiveWordWhitelist)
 			})
 
-			t.Run("initial_p30_upgrade", func(t *testing.T) {
+			t.Run("legacy_sensitive_word_upgrade", func(t *testing.T) {
 				db := openSensitiveWordMatrixDB(t, database.name, database.dsn)
 				withSensitiveWordMatrixDB(t, db, database.dialect)
 				require.NoError(t, db.AutoMigrate(
@@ -243,17 +243,17 @@ func TestSensitiveWordDatabaseMigrationMatrix(t *testing.T) {
 					&legacySensitiveWordWhitelist{}, &legacySensitiveWordV1Audit{},
 				))
 				require.NoError(t, db.Create(&legacySensitiveWordRC40User{
-					Id: 1, Username: "p30-user", Password: "unused", Role: common.RoleCommonUser,
-					Status: common.UserStatusEnabled, Group: "default", AffCode: "p30-aff",
+					Id: 1, Username: "sensitive-word-user", Password: "unused", Role: common.RoleCommonUser,
+					Status: common.UserStatusEnabled, Group: "default", AffCode: "sensitive-word-aff",
 				}).Error)
 				legacyRule := legacySensitiveWordV1Rule{
-					Word: "initial-p30-marker", Scope: SensitiveWordScopeGlobal, Enabled: true,
+					Word: "initial-sensitive-word-marker", Scope: SensitiveWordScopeGlobal, Enabled: true,
 					CreatedBy: 1, Version: 1, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 				}
 				require.NoError(t, db.Create(&legacyRule).Error)
 				require.NoError(t, db.Create(&legacySensitiveWordV1Audit{
-					RequestID: "initial-p30-audit", UserID: 1, FullPrompt: "retained p30 evidence",
-					MatchedRuleIDs: "[1]", MatchedWords: `["initial-p30-marker"]`, MatchedSnippets: "[]",
+					RequestID: "initial-sensitive-word-audit", UserID: 1, FullPrompt: "retained sensitive-word evidence",
+					MatchedRuleIDs: "[1]", MatchedWords: `["initial-sensitive-word-marker"]`, MatchedSnippets: "[]",
 					CreatedAt: time.Now(),
 				}).Error)
 				require.NoError(t, db.Create(&legacySensitiveWordWhitelist{UserID: 1, Enabled: true}).Error)
@@ -264,18 +264,18 @@ func TestSensitiveWordDatabaseMigrationMatrix(t *testing.T) {
 				})
 				require.NoError(t, err)
 				require.NoError(t, db.Create(&Option{Key: "SensitiveWordConfig", Value: string(legacyConfig)}).Error)
-				require.NoError(t, db.Create(&Option{Key: "SensitiveWords", Value: "initial-p30-option"}).Error)
+				require.NoError(t, db.Create(&Option{Key: "SensitiveWords", Value: "initial-sensitive-word-option"}).Error)
 
 				migrateSensitiveWordCurrentSchema(t, db)
 				require.NoError(t, MigrateSensitiveWordData())
 				require.NoError(t, MigrateSensitiveWordData())
 				policy := GetSensitiveWordPolicy()
-				require.True(t, policy.CheckPrompt, "missing first-P-30 check_prompt keeps the secure default")
+				require.True(t, policy.CheckPrompt, "missing legacy check_prompt keeps the secure default")
 				require.Equal(t, 9, policy.BanThreshold)
 				detail, err := GetSensitiveWordRuleDetail(legacyRule.ID)
 				require.NoError(t, err)
 				require.Equal(t, SensitiveWordModeBlock, detail.Mode)
-				require.Equal(t, []string{"initial-p30-marker"}, detail.Words)
+				require.Equal(t, []string{"initial-sensitive-word-marker"}, detail.Words)
 				rules, err := ListSensitiveWordRules()
 				require.NoError(t, err)
 				require.Len(t, rules, 2, "the legacy option must remain alongside an old global rule")
@@ -283,8 +283,8 @@ func TestSensitiveWordDatabaseMigrationMatrix(t *testing.T) {
 				require.NoError(t, db.First(&user, 1).Error)
 				require.True(t, user.SensitiveWordWhitelist)
 				var audit SensitiveWordAuditEvent
-				require.NoError(t, db.Where("request_id = ?", "initial-p30-audit").First(&audit).Error)
-				require.Equal(t, SensitiveWordAuditPrompt("retained p30 evidence"), audit.FullPrompt)
+				require.NoError(t, db.Where("request_id = ?", "initial-sensitive-word-audit").First(&audit).Error)
+				require.Equal(t, SensitiveWordAuditPrompt("retained sensitive-word evidence"), audit.FullPrompt)
 				var marker Option
 				require.NoError(t, db.Where(&Option{Key: sensitiveWordMigrationKey}).First(&marker).Error)
 				require.Equal(t, sensitiveWordMigrationValue, marker.Value)

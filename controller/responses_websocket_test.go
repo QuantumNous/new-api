@@ -89,7 +89,7 @@ func setupResponsesWSRequestTest(t *testing.T) (*model.User, *model.Token) {
 		require.NoError(t, sqlDB.Close())
 	})
 	// This fixture intentionally starts as a non-master node, so InitDB does
-	// not run migrations. The request path now reads the P-30 migration marker
+	// not run migrations. The request path now reads the sensitive-word migration marker
 	// before billing; create the same schema and completed marker a replica sees
 	// after its master has migrated the shared database.
 	require.NoError(t, db.AutoMigrate(

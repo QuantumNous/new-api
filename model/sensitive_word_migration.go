@@ -108,7 +108,7 @@ func migrateSensitiveWordPolicy() error {
 			return fmt.Errorf("decode legacy sensitive-word policy: %w", err)
 		}
 		policy.Enabled = config.Enabled
-		// The first P-30 schema had no check_prompt field. Keep the new
+		// The legacy schema had no check_prompt field. Keep the new
 		// policy default in that case; a present false remains an explicit
 		// administrator choice from later versions.
 		if config.CheckPrompt != nil {

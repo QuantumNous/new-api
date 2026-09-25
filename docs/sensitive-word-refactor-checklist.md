@@ -1,4 +1,4 @@
-# P-30 敏感词重构清单
+# 敏感词重构清单
 
 ## 基线与隔离
 
@@ -24,7 +24,7 @@
 | `middleware/sensitive_word.go` | 有效分组解析后、渠道选择前的协议 DTO 预检和 422/503 响应封装 |
 | `relay/request_billing.go` | 复用预检决定；未经过分发中间件时的计费前兜底和 422/503 错误边界 |
 | `relaykit/dto/openai_request.go` | Responses `function_call_output.output` 的文本提取 |
-| `controller/responses_websocket_test.go` | 非主节点 WebSocket 夹具的 P-30 已迁移 schema，以及渠道选择前阻断回归测试 |
+| `controller/responses_websocket_test.go` | 非主节点 WebSocket 夹具的敏感词已迁移 schema，以及渠道选择前阻断回归测试 |
 | `controller/sensitive_word.go`、`router/api-router.go` | AdminAuth 管理接口和审计详情接口 |
 | `web/src/features/system-settings/request-policies/sensitive-words/` | 策略表单、规则表、弹窗、TXT 导入、草稿搜索和独立 API |
 | `web/src/features/users/` | 违规次数/白名单维护与启用确认 |
@@ -39,7 +39,7 @@
 | 2. Relay 与认证安全 | 完成 | HTTP 分发和 Responses WebSocket 都在渠道选择、估算和预扣费前检查；预检决定由计费阶段复用；阻断为 422、审计失败为 503、禁用令牌为 403 `user_banned`；状态变更后执行认证缓存、会话和令牌失效。 |
 | 3. 前端与多语言 | 完成 | 新页面、规则弹窗、左侧用户抽屉、管理员详情和七种 locale 已接入；旧安全页路由重定向保留。 |
 | 4. 数据库和文档 | 完成 | 四类实际数据库矩阵、全量 Go/web 验证、定向质量检查和桌面/移动视口检查完成；全局质量脚本的既有失败已与官方基线逐项对照。 |
-| 5. PR 复核与发布 | 完成 | 官方 `main` 已在发布前重新拉取并固定在 `d04c118c`；反向差异审查确认无旧入口和无 P-31/P-32 混入；功能分支已推送，官方 Draft PR 的后端和前端 GitHub CI 均通过。 |
+| 5. PR 复核与发布 | 等待官方审批 | 官方 `main` 已在发布前重新拉取并固定在 `d04c118c`；反向差异审查确认无旧入口和无超出本功能范围的差异；功能分支已推送并创建官方 Draft PR，workflow 等待维护者批准。 |
 
 ## 已修正的问题
 
@@ -56,7 +56,7 @@
 | 旧请求策略测试错误模拟了新规则接口 | 独立 mock `/api/sensitive-words/*`，并在前端 API 层校验对象/数组响应。 |
 | 审计详情 API 的 `success:false` 会被当作空数据 | 复用统一业务响应校验，详情改为明确的加载失败状态。 |
 | Responses WebSocket 未经过 `Distribute`，可能在选择渠道后才被计费兜底检查 | 解析 `response.create` 后调用与 HTTP 共用的 DTO 预检；新增测试确认 `function_call_output.output` 命中时没有渠道握手、预扣费或额度变化。 |
-| 非主节点 WebSocket 测试夹具没有迁移表和标记 | 夹具显式建立 P-30 schema 并运行单向迁移，保留生产运行时对“已迁移后策略读取失败”返回 503 的安全边界。 |
+| 非主节点 WebSocket 测试夹具没有迁移表和标记 | 夹具显式建立敏感词 schema 并运行单向迁移，保留生产运行时对“已迁移后策略读取失败”返回 503 的安全边界。 |
 
 ## 已执行验证
 
@@ -74,14 +74,14 @@
 | 定向 Vitest（策略、草稿搜索、用户安全、日志详情） | 5 个文件、72 项通过。 |
 | `bun run test -- --maxWorkers=2` | 167 个文件、2113 项通过。 |
 | 变更文件 `oxlint`、`oxfmt --check` | 全部通过；新增 8 个策略页源码文件均有版权头。 |
-| 全局 `lint`、`format:check`、`copyright:check` | 失败项与 `d04c118c` 基线一致，且未包含 P-30 变更文件；保留为上游既有质量债务。 |
+| 全局 `lint`、`format:check`、`copyright:check` | 失败项与 `d04c118c` 基线一致，且未包含本功能变更文件；保留为上游既有质量债务。 |
 | 桌面与移动视口手工检查 | 策略页、规则弹窗/搜索、左侧用户抽屉与审计详情均无横向溢出、遮挡或缺失翻译。 |
 | `bun run test -- src/features/system-settings/request-policies/__tests__/settings.test.tsx src/features/system-settings/request-policies/sensitive-words/draft-search.test.ts` | 通过，19 项 |
-| SQLite 新库、RC40 升级、初版 P-30 升级，各连续迁移两次 | 通过 |
+| SQLite 新库、RC40 升级、旧版敏感词结构升级，各连续迁移两次 | 通过 |
 | MySQL `8.2` 同三类迁移矩阵 | 通过，隔离临时数据库 |
 | PostgreSQL `15` 同三类迁移矩阵 | 通过，隔离临时数据库 |
 | ClickHouse `24.8.14.39` 类型 8 写入、管理员投影、普通用户脱敏 | 通过，隔离临时数据库 |
-| 官方 Draft PR GitHub CI | 通过：后端 vet/build/test 3 分 45 秒，前端 typecheck/test 6 分 1 秒；仅有 GitHub `ubuntu-latest` 标签迁移提示。 |
+| 官方 Draft PR workflow | 等待维护者批准 fork PR 的 workflow；尚未执行。功能分支在 fork CI 中已通过后端 vet/build/test 与前端 typecheck/test。 |
 
 实际数据库命令：
 
@@ -94,6 +94,6 @@ go test ./model -run 'TestSensitiveWord(DatabaseMigrationMatrix|ClickHouseLogMat
 
 ## 最终复核结果
 
-- [x] 执行最终 `git diff --check` 与逐项反向审查，确认无旧入口和无 P-31/P-32 混入。
+- [x] 执行最终 `git diff --check` 与逐项反向审查，确认无旧入口和无超出本功能范围的差异。
 - [x] 重新拉取官方 `main`；发布时仍为 `d04c118c`，无需变基。
-- [x] 按“模型与迁移、Relay/安全集成、前端与文档”提交，推送基线/功能分支，创建 Draft PR，并确认 GitHub CI 全部通过。
+- [x] 按“模型与迁移、Relay/安全集成、前端与文档”提交，推送功能分支并创建官方 Draft PR；官方 workflow 等待维护者批准。

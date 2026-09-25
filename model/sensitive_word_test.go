@@ -14,7 +14,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// legacySensitiveWordV1* mirror the first P-30 tables, before rule names,
+// legacySensitiveWordV1* mirror the first sensitive-word tables, before rule names,
 // modes, rule-word rows, user columns, and the policy singleton existed.
 type legacySensitiveWordV1Rule struct {
 	ID        int64     `gorm:"primaryKey"`
@@ -623,13 +623,13 @@ func TestSensitiveWordMigratesInitialP30Schema(t *testing.T) {
 
 	user := createSensitiveWordTestUser(t, 7_100_000, false)
 	legacyRule := legacySensitiveWordV1Rule{
-		Word: "initial-p30-rule", Scope: SensitiveWordScopeGlobal, Enabled: true,
+		Word: "initial-sensitive-word-rule", Scope: SensitiveWordScopeGlobal, Enabled: true,
 		CreatedBy: 7, Version: 3, CreatedAt: time.Now(), UpdatedAt: time.Now(),
 	}
 	require.NoError(t, DB.Create(&legacyRule).Error)
 	require.NoError(t, DB.Create(&legacySensitiveWordV1Audit{
-		RequestID: "initial-p30-audit", UserID: user.Id, FullPrompt: "legacy audit prompt",
-		MatchedRuleIDs: "[1]", MatchedWords: `["initial-p30-rule"]`, MatchedSnippets: "[]",
+		RequestID: "initial-sensitive-word-audit", UserID: user.Id, FullPrompt: "legacy audit prompt",
+		MatchedRuleIDs: "[1]", MatchedWords: `["initial-sensitive-word-rule"]`, MatchedSnippets: "[]",
 		CreatedAt: time.Now(),
 	}).Error)
 	require.NoError(t, DB.Create(&legacySensitiveWordWhitelist{UserID: user.Id, Enabled: true}).Error)
@@ -640,7 +640,7 @@ func TestSensitiveWordMigratesInitialP30Schema(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, DB.Create(&Option{Key: "SensitiveWordConfig", Value: string(legacyConfig)}).Error)
-	require.NoError(t, DB.Create(&Option{Key: "SensitiveWords", Value: "initial-p30-option"}).Error)
+	require.NoError(t, DB.Create(&Option{Key: "SensitiveWords", Value: "initial-sensitive-word-option"}).Error)
 
 	// This is the same AutoMigrate phase production performs before the
 	// one-way import. In particular, old rows receive a NULL mode rather than
@@ -659,7 +659,7 @@ func TestSensitiveWordMigratesInitialP30Schema(t *testing.T) {
 	detail, err := GetSensitiveWordRuleDetail(legacyRule.ID)
 	require.NoError(t, err)
 	require.Equal(t, SensitiveWordModeBlock, detail.Mode)
-	require.Equal(t, []string{"initial-p30-rule"}, detail.Words)
+	require.Equal(t, []string{"initial-sensitive-word-rule"}, detail.Words)
 	rules, err := ListSensitiveWordRules()
 	require.NoError(t, err)
 	require.Len(t, rules, 2, "legacy global option must not disappear beside an old global rule")
@@ -668,7 +668,7 @@ func TestSensitiveWordMigratesInitialP30Schema(t *testing.T) {
 	require.NoError(t, DB.First(&migratedUser, user.Id).Error)
 	require.True(t, migratedUser.SensitiveWordWhitelist)
 	var audit SensitiveWordAuditEvent
-	require.NoError(t, DB.Where("request_id = ?", "initial-p30-audit").First(&audit).Error)
+	require.NoError(t, DB.Where("request_id = ?", "initial-sensitive-word-audit").First(&audit).Error)
 	require.Equal(t, SensitiveWordAuditPrompt("legacy audit prompt"), audit.FullPrompt)
 	var marker Option
 	require.NoError(t, DB.Where(&Option{Key: sensitiveWordMigrationKey}).First(&marker).Error)
