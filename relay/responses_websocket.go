@@ -257,6 +257,11 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	}
 	common.SetContextKey(c, appconstant.ContextKeyOriginalModel, modelName)
 	common.SetContextKey(c, appconstant.ContextKeyRequestStartTime, time.Now())
+	if apiErr = middleware.CheckSensitiveWordRequestBeforeChannelSelection(
+		c, types.RelayFormatOpenAIResponses, modelName, &create.Request,
+	); apiErr != nil {
+		return apiErr
+	}
 	service.GetChannelConstraints(c).AddFilter(appdto.ChannelFilter{Kind: appdto.FilterRequestPath, RequestPath: c.Request.URL.Path})
 
 	if s.lockedChannelID != 0 {

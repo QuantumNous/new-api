@@ -120,6 +120,50 @@ func TestManageUserDisableAdvancesAuthVersionOnceAndRevokesSession(t *testing.T)
 	assert.Equal(t, model.UserSessionStatusRevoked, session.Status)
 }
 
+func TestManageUserEnableResetsSensitiveWordStateAndPreservesResponseShape(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	now := time.Now().Unix()
+	user := model.User{
+		Username: "managed-enable-user", Password: "password", Role: common.RoleCommonUser,
+		Status: common.UserStatusDisabled, Group: "default", AuthVersion: 1,
+		SensitiveWordViolationCount: 7, Quota: 8_000, UsedQuota: 900,
+	}
+	require.NoError(t, db.Create(&user).Error)
+	require.NoError(t, db.Create(&model.UserSession{
+		SID: "managed-enable-session", UserID: user.Id, Version: 1, UserAuthVersion: 1,
+		Status: model.UserSessionStatusActive, RefreshHash: "refresh-hash", LoginMethod: "password",
+		LastActiveAt: now, ExpiresAt: now + 3600,
+	}).Error)
+
+	recorder := performManageUserRequest(t, fmt.Sprintf(`{"id":%d,"action":"enable"}`, user.Id))
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Success bool `json:"success"`
+		Data    struct {
+			Role                        int `json:"role"`
+			Status                      int `json:"status"`
+			SensitiveWordViolationCount int `json:"sensitive_word_violation_count"`
+		} `json:"data"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	require.True(t, response.Success)
+	assert.Equal(t, common.RoleCommonUser, response.Data.Role)
+	assert.Equal(t, common.UserStatusEnabled, response.Data.Status)
+	assert.Zero(t, response.Data.SensitiveWordViolationCount)
+
+	var updated model.User
+	require.NoError(t, db.First(&updated, user.Id).Error)
+	assert.Equal(t, common.UserStatusEnabled, updated.Status)
+	assert.Zero(t, updated.SensitiveWordViolationCount)
+	assert.EqualValues(t, 2, updated.AuthVersion)
+	assert.Equal(t, 8_000, updated.Quota)
+	assert.Equal(t, 900, updated.UsedQuota)
+	var session model.UserSession
+	require.NoError(t, db.First(&session, "sid = ?", "managed-enable-session").Error)
+	assert.Equal(t, model.UserSessionStatusRevoked, session.Status)
+	assert.Equal(t, "sensitive_word_enable", session.RevokedReason)
+}
+
 func TestManageUserDemoteAdvancesAuthVersionAndRevokesSessionsOnce(t *testing.T) {
 	db := setupManageUserTestDB(t)
 	previousMaster := common.IsMasterNode
