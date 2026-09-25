@@ -6777,6 +6777,19 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Attach files": "ファイルを添付",
+    "Too many attachments": "添付ファイルが多すぎます",
+    "Unsupported file type": "サポートされていないファイル形式です",
+    "File is too large": "ファイルが大きすぎます",
+    "Could not read file": "ファイルを読み取れませんでした",
+    "Attachment context is already full": "添付ファイルのコンテキストが上限に達しています",
+    "Extracted text sent as context:": "抽出されたテキストはコンテキストとして送信されます：",
+    "Sent to the model as an image.": "画像としてモデルに送信されます。",
+    "truncated": "切り詰め",
+    "Click to preview": "クリックしてプレビュー",
+    "This image format cannot be previewed in the browser.": "この画像形式はブラウザでプレビューできません。",
+    "It is still sent to the model as an image.": "モデルには画像として送信されます。",
+    "No text could be extracted from this file.": "このファイルからテキストを抽出できませんでした。"
   }
 }

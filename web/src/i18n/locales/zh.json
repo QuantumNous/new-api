@@ -6777,6 +6777,19 @@
     "Zhipu": "智谱",
     "Zhipu GLM": "智谱GLM",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Attach files": "添加附件",
+    "Too many attachments": "附件数量过多",
+    "Unsupported file type": "不支持的文件类型",
+    "File is too large": "文件过大",
+    "Could not read file": "无法读取文件",
+    "Attachment context is already full": "附件上下文已达上限",
+    "Extracted text sent as context:": "提取的文本将作为上下文发送：",
+    "Sent to the model as an image.": "将作为图片发送给模型。",
+    "truncated": "已截断",
+    "Click to preview": "点击预览",
+    "This image format cannot be previewed in the browser.": "该图片格式无法在浏览器中预览。",
+    "It is still sent to the model as an image.": "仍会作为图片发送给模型。",
+    "No text could be extracted from this file.": "未能从该文件中提取到文本。"
   }
 }

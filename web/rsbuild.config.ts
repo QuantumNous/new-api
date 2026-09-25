@@ -89,6 +89,19 @@ export default defineConfig(({ envMode }) => {
     },
     tools: {
       rspack: {
+        module: {
+          rules: [
+            {
+              // pdf.js runs its parser in a worker. Rsbuild has no built-in
+              // rule for `.mjs` assets, so without this the worker import is
+              // resolved as a module and the build fails. `resource` emits the
+              // file and yields its URL, which is what pdf.js expects for
+              // `GlobalWorkerOptions.workerSrc`.
+              test: /pdf\.worker\.min\.mjs$/,
+              type: 'asset/resource',
+            },
+          ],
+        },
         plugins: [
           tanstackRouter({
             target: 'react',

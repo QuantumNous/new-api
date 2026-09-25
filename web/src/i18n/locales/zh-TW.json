@@ -6777,6 +6777,19 @@
     "Zhipu": "智譜",
     "Zhipu GLM": "智譜GLM",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Attach files": "新增附件",
+    "Too many attachments": "附件數量過多",
+    "Unsupported file type": "不支援的檔案類型",
+    "File is too large": "檔案過大",
+    "Could not read file": "無法讀取檔案",
+    "Attachment context is already full": "附件上下文已達上限",
+    "Extracted text sent as context:": "擷取的文字將作為上下文傳送：",
+    "Sent to the model as an image.": "將作為圖片傳送給模型。",
+    "truncated": "已截斷",
+    "Click to preview": "點擊預覽",
+    "This image format cannot be previewed in the browser.": "該圖片格式無法在瀏覽器中預覽。",
+    "It is still sent to the model as an image.": "仍會作為圖片傳送給模型。",
+    "No text could be extracted from this file.": "未能從該檔案中提取文字。"
   }
 }

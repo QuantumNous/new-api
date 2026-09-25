@@ -6777,6 +6777,19 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Attach files": "Прикрепить файлы",
+    "Too many attachments": "Слишком много вложений",
+    "Unsupported file type": "Неподдерживаемый тип файла",
+    "File is too large": "Файл слишком большой",
+    "Could not read file": "Не удалось прочитать файл",
+    "Attachment context is already full": "Контекст вложений уже заполнен",
+    "Extracted text sent as context:": "Извлечённый текст отправляется как контекст:",
+    "Sent to the model as an image.": "Отправляется модели как изображение.",
+    "truncated": "обрезано",
+    "Click to preview": "Нажмите для просмотра",
+    "This image format cannot be previewed in the browser.": "Этот формат изображения нельзя просмотреть в браузере.",
+    "It is still sent to the model as an image.": "Оно всё равно отправляется модели как изображение.",
+    "No text could be extracted from this file.": "Не удалось извлечь текст из этого файла."
   }
 }

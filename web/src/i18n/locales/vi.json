@@ -6777,6 +6777,19 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Attach files": "Đính kèm tệp",
+    "Too many attachments": "Quá nhiều tệp đính kèm",
+    "Unsupported file type": "Loại tệp không được hỗ trợ",
+    "File is too large": "Tệp quá lớn",
+    "Could not read file": "Không thể đọc tệp",
+    "Attachment context is already full": "Ngữ cảnh tệp đính kèm đã đầy",
+    "Extracted text sent as context:": "Văn bản trích xuất được gửi làm ngữ cảnh:",
+    "Sent to the model as an image.": "Được gửi tới mô hình dưới dạng hình ảnh.",
+    "truncated": "đã cắt bớt",
+    "Click to preview": "Nhấn để xem trước",
+    "This image format cannot be previewed in the browser.": "Định dạng ảnh này không thể xem trước trong trình duyệt.",
+    "It is still sent to the model as an image.": "Ảnh vẫn được gửi đến mô hình dưới dạng hình ảnh.",
+    "No text could be extracted from this file.": "Không thể trích xuất văn bản từ tệp này."
   }
 }

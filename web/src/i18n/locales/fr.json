@@ -6777,6 +6777,19 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Attach files": "Joindre des fichiers",
+    "Too many attachments": "Trop de pièces jointes",
+    "Unsupported file type": "Type de fichier non pris en charge",
+    "File is too large": "Fichier trop volumineux",
+    "Could not read file": "Impossible de lire le fichier",
+    "Attachment context is already full": "Le contexte des pièces jointes est déjà plein",
+    "Extracted text sent as context:": "Texte extrait envoyé comme contexte :",
+    "Sent to the model as an image.": "Envoyé au modèle sous forme d'image.",
+    "truncated": "tronqué",
+    "Click to preview": "Cliquez pour prévisualiser",
+    "This image format cannot be previewed in the browser.": "Ce format d'image ne peut pas être prévisualisé dans le navigateur.",
+    "It is still sent to the model as an image.": "Elle est tout de même envoyée au modèle en tant qu'image.",
+    "No text could be extracted from this file.": "Aucun texte n'a pu être extrait de ce fichier."
   }
 }

@@ -17,7 +17,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { MESSAGE_STATUS, STORAGE_KEYS } from '../../constants'
-import type { PlaygroundConfig, ParameterEnabled, Message } from '../../types'
+import type {
+  PlaygroundConfig,
+  ParameterEnabled,
+  Message,
+  PlaygroundAttachment,
+} from '../../types'
 import {
   finalizeMessage,
   isAssistantMessagePending,
@@ -35,6 +40,11 @@ import {
   parameterEnabledSchema,
   playgroundConfigSchema,
 } from './storage-schema'
+import {
+  ATTACHMENT_KINDS,
+  MAX_STORED_ATTACHMENTS,
+  MAX_STORED_ATTACHMENT_PAYLOAD_CHARS,
+} from '../attachment/attachment-constants'
 
 type StoredEnvelope<T> = {
   version: number
@@ -100,8 +110,64 @@ function getMessageSize(message: Message): number {
     0
   )
   const reasoningSize = message.reasoning?.content.length ?? 0
+  const attachmentsSize = (message.attachments ?? []).reduce(
+    (total, attachment) =>
+      total + attachment.filename.length + (attachment.text?.length ?? 0),
+    0
+  )
 
-  return versionsSize + reasoningSize
+  return versionsSize + reasoningSize + attachmentsSize
+}
+
+/**
+ * Attachments are persisted as metadata plus extracted document text.
+ *
+ * Image data URLs are deliberately stripped: a single photo would blow past
+ * the localStorage write budget, and the browser cannot re-derive a File from
+ * storage anyway. Reloading a conversation therefore restores the document
+ * context but not the images, and only for the newest messages.
+ */
+function sanitizeAttachmentsForStorage(
+  message: Message,
+  budget: { remaining: number }
+): Message {
+  const attachments = message.attachments
+  if (!attachments?.length) {
+    return message
+  }
+
+  const sanitized: PlaygroundAttachment[] = []
+
+  for (const attachment of attachments.slice(-MAX_STORED_ATTACHMENTS)) {
+    const text = attachment.text?.trim() ?? ''
+    const textLength = Math.min(text.length, Math.max(0, budget.remaining))
+    budget.remaining -= textLength
+
+    const stored: PlaygroundAttachment = {
+      id: attachment.id,
+      kind: attachment.kind,
+      filename: attachment.filename,
+      mediaType: attachment.mediaType,
+      size: attachment.size,
+    }
+
+    if (textLength > 0) {
+      stored.text = text.slice(0, textLength)
+
+      if (textLength < text.length) {
+        stored.textTruncated = true
+      }
+    }
+
+    // A document that lost all of its text has nothing left to send, so it
+    // would reload as a chip that silently contributes nothing. Keep the
+    // metadata only when something survived; otherwise drop the attachment.
+    if (attachment.kind !== ATTACHMENT_KINDS.DOCUMENT || textLength > 0) {
+      sanitized.push(stored)
+    }
+  }
+
+  return { ...message, attachments: sanitized }
 }
 
 function truncateText(text: string, maxLength: number): string {
@@ -375,7 +441,15 @@ export function loadMessages(): Message[] | null {
 export function saveMessages(messages: Message[]): void {
   try {
     const trimmed = trimMessages(messages)
-    const parsed = messagesSchema.parse(trimmed) as Message[]
+    // One budget for the whole array, not per message: the limit describes how
+    // much attachment payload localStorage holds in total, and the write below
+    // stores every message at once. Per-message budgets multiplied by the
+    // number of messages would let the write exceed the limit and be rejected.
+    const budget = { remaining: MAX_STORED_ATTACHMENT_PAYLOAD_CHARS }
+    const sanitized = trimmed.map((message) =>
+      sanitizeAttachmentsForStorage(message, budget)
+    )
+    const parsed = messagesSchema.parse(sanitized) as Message[]
     writeStoredValue(STORAGE_KEYS.MESSAGES, parsed)
   } catch (error) {
     // eslint-disable-next-line no-console

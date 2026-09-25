@@ -6777,6 +6777,19 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Attach files": "Attach files",
+    "Too many attachments": "Too many attachments",
+    "Unsupported file type": "Unsupported file type",
+    "File is too large": "File is too large",
+    "Could not read file": "Could not read file",
+    "Attachment context is already full": "Attachment context is already full",
+    "Extracted text sent as context:": "Extracted text sent as context:",
+    "Sent to the model as an image.": "Sent to the model as an image.",
+    "truncated": "truncated",
+    "Click to preview": "Click to preview",
+    "This image format cannot be previewed in the browser.": "This image format cannot be previewed in the browser.",
+    "It is still sent to the model as an image.": "It is still sent to the model as an image.",
+    "No text could be extracted from this file.": "No text could be extracted from this file."
   }
 }
