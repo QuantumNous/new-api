@@ -6178,6 +6178,7 @@
     "Type": "Loại",
     "Type (common)": "Loại (phổ biến)",
     "Type *": "Nhập *",
+    "Type <strong>{{username}}</strong> to confirm": "Nhập <strong>{{username}}</strong> để xác nhận",
     "Type a command or search...": "Nhập lệnh hoặc tìm kiếm...",
     "Type the confirmation text here": "Nhập văn bản xác nhận tại đây",
     "Type-Specific Settings": "Cài đặt theo loại",

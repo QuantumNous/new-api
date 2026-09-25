@@ -6178,6 +6178,7 @@
     "Type": "Type",
     "Type (common)": "Type (commun)",
     "Type *": "Type *",
+    "Type <strong>{{username}}</strong> to confirm": "Saisissez <strong>{{username}}</strong> pour confirmer",
     "Type a command or search...": "Tapez une commande ou recherchez...",
     "Type the confirmation text here": "Saisissez ici le texte de confirmation",
     "Type-Specific Settings": "Paramètres spécifiques au type",

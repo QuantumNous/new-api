@@ -6178,6 +6178,7 @@
     "Type": "Тип",
     "Type (common)": "Тип (общий)",
     "Type *": "Тип *",
+    "Type <strong>{{username}}</strong> to confirm": "Введите <strong>{{username}}</strong> для подтверждения",
     "Type a command or search...": "Введите команду или поиск...",
     "Type the confirmation text here": "Введите текст подтверждения здесь",
     "Type-Specific Settings": "Настройки для конкретного типа",

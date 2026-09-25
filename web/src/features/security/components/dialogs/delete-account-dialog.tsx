@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useNavigate } from '@tanstack/react-router'
 import { AlertTriangle } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
@@ -98,7 +98,16 @@ export function DeleteAccountDialog(props: DeleteAccountDialogProps) {
         </Alert>
         <div className='space-y-2'>
           <Label htmlFor={confirmationId}>
-            {t('Type')} <strong>{props.username}</strong> {t('to confirm')}
+            <Trans
+              t={t}
+              i18nKey='Type <strong>{{username}}</strong> to confirm'
+              values={{ username: props.username }}
+              components={{ strong: <strong /> }}
+              // Escape the username before Trans parses the markup, then
+              // unescape it, so the name is shown exactly as it must be typed.
+              tOptions={{ interpolation: { escapeValue: true } }}
+              shouldUnescape
+            />
           </Label>
           <Input
             id={confirmationId}
