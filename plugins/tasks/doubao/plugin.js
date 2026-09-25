@@ -1031,12 +1031,15 @@ protocols.openai_video = {
       const seconds = req.seconds === undefined ? req.duration : req.seconds;
       if (seconds !== undefined && (!Number.isFinite(Number(seconds)) || Number(seconds) <= 0 || Number(seconds) > 3600))
         throw new Error("seconds must be between 1 and 3600");
-      return {
+      const intent = {
         kind: "submit",
         model: ctx.model,
         action: req.input_reference || req.image ? "image_to_video" : "text_to_video",
         requestBody: Object.assign({}, req, { model: ctx.model }),
       };
+      const originTaskIds = draftTaskIds((req.metadata || {}).content);
+      if (originTaskIds.length) intent.originTaskIds = originTaskIds;
+      return intent;
     }
     const first = function (name) {
       const values = (ctx.body.fields || {})[name] || [];
@@ -1064,12 +1067,15 @@ protocols.openai_video = {
     const seconds = req.seconds === undefined ? req.duration : req.seconds;
     if (seconds !== undefined && (!Number.isFinite(Number(seconds)) || Number(seconds) <= 0 || Number(seconds) > 3600))
       throw new Error("seconds must be between 1 and 3600");
-    return {
+    const intent = {
       kind: "submit",
       model: ctx.model,
       action: req.input_reference || req.image ? "image_to_video" : "text_to_video",
       requestBody: Object.assign({}, req, { model: ctx.model }),
     };
+    const originTaskIds = draftTaskIds((req.metadata || {}).content);
+    if (originTaskIds.length) intent.originTaskIds = originTaskIds;
+    return intent;
   },
   render: function (ctx, task) {
     return legacyRenderers.openai_video(task);
