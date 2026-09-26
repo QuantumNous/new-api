@@ -892,6 +892,113 @@ function AuthSection() {
   )
 }
 
+function SeedanceGuideSection(props: { model: PricingModel }) {
+  const { t } = useTranslation()
+  const isSeedanceModel =
+    /seedance/i.test(props.model.model_name || '') ||
+    /volcengine|doubao/i.test(props.model.vendor_name || '')
+  if (
+    !isSeedanceModel ||
+    !(props.model.supported_endpoint_types || []).includes('openai-video')
+  ) {
+    return null
+  }
+
+  const assetUpload = `curl -X POST "$NEW_API_BASE/v1/volcengine/assets" -H "Authorization: Bearer $NEW_API_KEY" -H "Content-Type: application/json" -d '{"source_url":"https://example.com/reference.jpg","asset_type":"image","name":"reference"}'`
+  const videoRequest = JSON.stringify(
+    {
+      model: props.model.model_name,
+      prompt: 'A cinematic shot of a forest at sunrise',
+      duration: 5,
+      resolution: '720p',
+      content: [
+        { type: 'text', text: 'Use this image as the first frame' },
+        {
+          type: 'image_url',
+          image_url: { url: 'asset://<LOGICAL_ASSET_ID>' },
+        },
+      ],
+    },
+    null,
+    2
+  )
+
+  return (
+    <section>
+      <SectionTitle icon={ScrollText}>
+        {t('Seedance and asset library')}
+      </SectionTitle>
+      <div className='space-y-4 rounded-xl border p-4'>
+        <div className='space-y-1 text-sm leading-relaxed'>
+          <p>
+            {t(
+              'Seedance requests use the OpenAI-compatible video task API. Submit a task, poll its status, then download the result. New-API forwards these tasks to the SLS video generations API.'
+            )}
+          </p>
+          <p className='text-muted-foreground'>
+            <code>POST /v1/videos</code>
+            {' · '}
+            <code>GET /v1/videos/{'{task_id}'}</code>
+            {' · '}
+            <code>GET /v1/videos/{'{task_id}'}/content</code>
+          </p>
+        </div>
+
+        <div>
+          <p className='mb-2 text-xs font-semibold'>
+            {t('Upload a reusable image')}
+          </p>
+          <p className='text-muted-foreground mb-2 text-xs leading-relaxed'>
+            {t(
+              'The source_url must be publicly reachable. The response includes a logical_id; use it as asset://<logical_id> in a video request.'
+            )}
+          </p>
+          <CodeBlock code={assetUpload} language='bash'>
+            <CodeBlockCopyButton />
+          </CodeBlock>
+        </div>
+
+        <div>
+          <p className='mb-2 text-xs font-semibold'>
+            {t('Generate a video with a library asset')}
+          </p>
+          <CodeBlock code={videoRequest} language='json'>
+            <CodeBlockCopyButton />
+          </CodeBlock>
+          <p className='text-muted-foreground mt-2 text-xs leading-relaxed'>
+            {t(
+              'Replace <LOGICAL_ASSET_ID> with the logical_id returned when the asset was uploaded. The API token must have access to this model and its group.'
+            )}
+          </p>
+        </div>
+
+        <div className='grid gap-2 border-t pt-3 text-xs sm:grid-cols-2'>
+          <div className='space-y-1'>
+            <p className='font-semibold'>{t('Asset library')}</p>
+            <p className='text-muted-foreground leading-relaxed'>
+              <code>POST /v1/volcengine/assets</code> ·{' '}
+              <code>GET /v1/volcengine/assets</code>
+              <br />
+              <code>GET /v1/volcengine/assets/{'{logical_id}'}</code> ·{' '}
+              <code>DELETE /v1/volcengine/assets/{'{logical_id}'}</code>
+            </p>
+          </div>
+          <div className='space-y-1'>
+            <p className='font-semibold'>{t('Person verification')}</p>
+            <p className='text-muted-foreground leading-relaxed'>
+              {t('Start verification with')}{' '}
+              <code>POST /v1/volcengine/assets/auth-sessions</code>
+              {'; '}
+              {t('after completion, resolve the group with')}{' '}
+              <code>POST /v1/volcengine/assets/groups/by-byted-token</code>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Composite API tab
 // ---------------------------------------------------------------------------
@@ -903,6 +1010,7 @@ export function ModelDetailsApi(props: {
   return (
     <div className='space-y-6'>
       <CodeSamplesSection model={props.model} endpointMap={props.endpointMap} />
+      <SeedanceGuideSection model={props.model} />
       <AuthSection />
       <SupportedParametersSection model={props.model} />
       <RateLimitsSection model={props.model} />
