@@ -22,6 +22,7 @@ func SetVideoRouter(router *gin.Engine) {
 			controller.RelayTaskPluginEndpoint(c, controller.RelayTask)
 		},
 	)
+	videoSharedRouter.GET("/video/generations", controller.ListVideoGenerations)
 
 	videoV1Router := router.Group("/v1")
 	videoV1Router.Use(middleware.RouteTag("relay"))

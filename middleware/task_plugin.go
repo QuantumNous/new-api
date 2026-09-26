@@ -31,6 +31,23 @@ import (
 
 const contextKeyTaskPluginEndpointModel = "task_plugin_endpoint_model_request"
 
+// TaskPluginChannelIdentity pins auxiliary provider APIs (such as asset
+// management) to channels bound to one task plugin. Those routes have no
+// public model field, so an internal model is supplied for ordinary routing.
+func TaskPluginChannelIdentity(pluginKey, modelName string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if strings.TrimSpace(pluginKey) == "" || strings.TrimSpace(modelName) == "" {
+			abortTaskPluginRouteErrorDetail(c, http.StatusInternalServerError, "")
+			return
+		}
+		c.Set(contextKeyTaskPluginEndpointModel, ModelRequest{Model: modelName})
+		c.Set("expected_task_plugin_key", pluginKey)
+		c.Set("task_plugin_key", pluginKey)
+		service.AppendTaskPluginIdentityFilter(c, pluginKey)
+		c.Next()
+	}
+}
+
 var errTaskPluginUnsupportedMediaType = errors.New("unsupported task plugin media type")
 
 const taskPluginInvalidRouteResult = "plugin returned an invalid route result"
