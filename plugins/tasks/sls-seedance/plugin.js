@@ -27,6 +27,10 @@ export const meta = {
       description: { en: "Output video resolution", zh: "输出视频分辨率" },
     },
   },
+  usageExamples: [
+    { label: "720p · 5s", facts: { tokens: 1080000, resolution: "720p" } },
+    { label: "1080p · 5s", facts: { tokens: 2430000, resolution: "1080p" } },
+  ],
   routes: [],
   protocols: ["openai_video"],
 };
