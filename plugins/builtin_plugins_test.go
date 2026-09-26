@@ -80,6 +80,9 @@ func TestBuiltInTaskPluginResponsesAndUsageContracts(t *testing.T) {
 	assert.Equal(t, expectedKeys, actualKeys)
 
 	for _, key := range expectedKeys {
+		if key == "sls-seedance" {
+			continue
+		}
 		t.Run(key, func(t *testing.T) {
 			_, found := generation.Get(key)
 			require.True(t, found, "factory plugin was excluded from the active generation")
@@ -124,9 +127,41 @@ func TestBuiltInTaskPluginResponsesAndUsageContracts(t *testing.T) {
 	}
 }
 
+func TestBuiltInSLSSeedancePluginDeclaresVideoProtocol(t *testing.T) {
+	source, err := Source("sls-seedance")
+	require.NoError(t, err)
+	registry := jsplugin.NewRegistry()
+	plugin, err := registry.RegisterFactory(source, jsplugin.Options{Key: "sls-seedance"})
+	require.NoError(t, err)
+	require.NotEmpty(t, plugin.Meta.UsageExamples)
+
+	claimed := false
+	for _, claim := range plugin.Meta.Protocols {
+		if claim.Name == "openai_video" {
+			claimed = true
+			break
+		}
+	}
+	require.True(t, claimed, "openai_video claim must be present")
+
+	for _, model := range plugin.Meta.Models {
+		binding, found := registry.Generation().LookupEndpoint("POST", "/v1/videos", model)
+		require.True(t, found, model)
+		assert.Same(t, plugin, binding.Plugin)
+	}
+	for _, hook := range []string{"decodeRequest", "render"} {
+		callable, err := plugin.Engine.HasCallablePath(t.Context(), "protocols", "openai_video", hook)
+		require.NoError(t, err)
+		assert.True(t, callable, hook)
+	}
+}
+
 func TestBuiltInResponsesDecodersEchoChannelMappedAlias(t *testing.T) {
 	bodyOverrides := map[string]map[string]any{}
 	for _, key := range expectedKeys {
+		if key == "sls-seedance" {
+			continue
+		}
 		t.Run(key, func(t *testing.T) {
 			source, sourceErr := Source(key)
 			require.NoError(t, sourceErr)
