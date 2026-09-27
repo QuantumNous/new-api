@@ -144,6 +144,11 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatRerank)
 		})
 
+		// mineru document parsing (file_parse)
+		httpRouter.POST("/file_parse", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatMinerU)
+		})
+
 		// gemini relay routes
 		httpRouter.POST("/engines/:model/embeddings", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatGemini)
