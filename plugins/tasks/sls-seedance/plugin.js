@@ -13,6 +13,7 @@ export const meta = {
     "doubao-seedance-2-0",
     "doubao-seedance-2-0-fast",
     "doubao-seedance-2-0-mini",
+    "doubao-seedance-2-0/mno",
     "doubao-seedance-2-5",
   ],
   fetchMode: "per_task",
