@@ -4,7 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -25,9 +27,9 @@ type Adaptor struct {
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
-// GetRequestURL 返回渠道 base_url + /file_parse。
-// 本地 MinerU:   base_url = http://mineru-api:8000
-// 上游 New-API:  base_url = https://api.playground.ai.gcable.cc/v1
+// GetRequestURL returns channel base_url + /file_parse.
+// Local MinerU:  base_url = http://mineru-api:8000
+// Upstream API:  base_url = https://gateway.example.com/v1
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	baseUrl := strings.TrimRight(info.ChannelBaseUrl, "/")
 	if baseUrl == "" {
@@ -37,11 +39,53 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
-	// multipart 透传：Content-Type（含 boundary）由 DoFormRequest 按入站请求设置
+	// Multipart passthrough: Content-Type (with boundary) is set by
+	// DoFormRequest from the incoming request.
 	if info.ApiKey != "" {
+		if err := ensureSecureCredentialTransport(info.ChannelBaseUrl); err != nil {
+			return err
+		}
 		req.Set("Authorization", fmt.Sprintf("Bearer %s", info.ApiKey))
 	}
 	return nil
+}
+
+// ensureSecureCredentialTransport refuses to send a Bearer credential over
+// cleartext http:// to a non-private target (CWE-319). Documented local
+// MinerU deployments on loopback / RFC1918 private networks / single-label
+// container hostnames (e.g. http://mineru-api:8000) remain supported;
+// any other target must use https.
+func ensureSecureCredentialTransport(baseURL string) error {
+	u, err := url.Parse(baseURL)
+	if err != nil || u.Host == "" {
+		return fmt.Errorf("invalid mineru channel base_url: %q", baseURL)
+	}
+	if strings.EqualFold(u.Scheme, "https") {
+		return nil
+	}
+	if isPrivateOrLocalHost(u.Hostname()) {
+		return nil
+	}
+	return fmt.Errorf("refusing to send Authorization over insecure %s channel base_url %q: use https or a private-network address", u.Scheme, baseURL)
+}
+
+// isPrivateOrLocalHost reports whether host points at a trusted local
+// target: "localhost", loopback, RFC1918/RFC4193 private or link-local
+// address, or a single-label hostname (container / intranet DNS name).
+func isPrivateOrLocalHost(host string) bool {
+	h := strings.ToLower(strings.TrimSpace(host))
+	if h == "" {
+		return false
+	}
+	if h == "localhost" {
+		return true
+	}
+	if ip := net.ParseIP(h); ip != nil {
+		return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
+	}
+	// Non-IP literal: single-label hostnames (no dot) are treated as
+	// container/intranet names, e.g. "mineru-api".
+	return !strings.Contains(h, ".")
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -49,7 +93,8 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
-	// 响应体已在 MinerUHelper 中原样透传，此处仅返回零 usage（按次计费）
+	// The response body is streamed back verbatim by MinerUHelper; here we
+	// only return zero usage (per-call billing).
 	return &dto.Usage{}, nil
 }
 
@@ -61,7 +106,7 @@ func (a *Adaptor) GetChannelName() string {
 	return ChannelName
 }
 
-// 以下为 channel.Adaptor 接口的占位实现（MinerU 转发不涉及）
+// Stubs required by the channel.Adaptor interface (not used by MinerU relay).
 
 func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeneralOpenAIRequest) (any, error) {
 	return nil, errors.New("not implemented")

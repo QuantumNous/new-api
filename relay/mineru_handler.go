@@ -14,11 +14,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// MinerUHelper 将 /v1/file_parse（multipart/form-data）请求转发到
-// 渠道 base_url + /file_parse，并将上游响应原样透传给客户端。
-// 渠道约定：
-//   - 本地 MinerU:  base_url = http://mineru-api:8000
-//   - 上游 New-API: base_url = https://api.playground.ai.gcable.cc/v1
+// MinerUHelper forwards /v1/file_parse (multipart/form-data) requests to
+// channel base_url + /file_parse and streams the upstream response back to
+// the client verbatim. Channel conventions:
+//   - Local MinerU:  base_url = http://mineru-api:8000
+//   - Upstream API:  base_url = https://gateway.example.com/v1
 func MinerUHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
@@ -32,7 +32,8 @@ func MinerUHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	}
 	adaptor.Init(info)
 
-	// multipart 请求体已由 controller.Relay 置为可重放的 BodyStorage，直接透传
+	// The multipart body has already been made replayable (BodyStorage) by
+	// controller.Relay; forward it as-is.
 	resp, err := adaptor.DoRequest(c, info, c.Request.Body)
 	if err != nil {
 		return types.NewOpenAIError(err, types.ErrorCodeDoRequestFailed, http.StatusInternalServerError)
@@ -44,23 +45,30 @@ func MinerUHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	defer httpResp.Body.Close()
 
 	statusCodeMappingStr := c.GetString("status_code_mapping")
-	if httpResp.StatusCode != http.StatusOK {
+	if httpResp.StatusCode < 200 || httpResp.StatusCode > 299 {
 		newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 		return newAPIError
 	}
 
-	// 原样回传响应（JSON / zip 均透传）
+	// Stream the successful response back verbatim (JSON / ZIP alike),
+	// preserving the upstream status code.
 	if contentType := httpResp.Header.Get("Content-Type"); contentType != "" {
 		c.Writer.Header().Set("Content-Type", contentType)
 	}
 	if cd := httpResp.Header.Get("Content-Disposition"); cd != "" {
 		c.Writer.Header().Set("Content-Disposition", cd)
 	}
-	c.Status(http.StatusOK)
-	_, _ = io.Copy(c.Writer, httpResp.Body)
+	c.Status(httpResp.StatusCode)
+	if _, err := io.Copy(c.Writer, httpResp.Body); err != nil {
+		// The 2xx status line is already committed and cannot be replaced;
+		// return a non-retryable error so the request is not marked
+		// successful and the reserved charge gets refunded on the existing
+		// failure path.
+		return types.NewError(err, types.ErrorCodeReadResponseBodyFailed, types.ErrOptionWithSkipRetry())
+	}
 
-	// 按次计费（mineru 为 quota_type=1 按次价格，usage 置零）
+	// Per-call billing (mineru is quota_type=1, priced per call; zero usage).
 	service.PostTextConsumeQuota(c, info, &dto.Usage{}, nil)
 	return nil
 }
