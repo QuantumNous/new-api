@@ -1,6 +1,7 @@
 package mineru
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -8,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -18,6 +20,10 @@ import (
 )
 
 const ChannelName = "mineru"
+
+// dnsResolveTimeout bounds hostname resolution during the credential
+// transport check so an unresponsive resolver cannot stall the request.
+const dnsResolveTimeout = 3 * time.Second
 
 var ModelList = []string{"mineru"}
 
@@ -41,13 +47,34 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	// Multipart passthrough: Content-Type (with boundary) is set by
 	// DoFormRequest from the incoming request.
-	if info.ApiKey != "" {
+	//
+	// The transport check must also cover channels that leave ApiKey empty
+	// and inject the credential through a channel-level Authorization
+	// header override instead: DoFormRequest applies header overrides after
+	// this hook, so an override would otherwise bypass the check.
+	if info.ApiKey != "" || hasAuthorizationOverride(info) {
 		if err := ensureSecureCredentialTransport(info.ChannelBaseUrl); err != nil {
 			return err
 		}
+	}
+	if info.ApiKey != "" {
 		req.Set("Authorization", fmt.Sprintf("Bearer %s", info.ApiKey))
 	}
 	return nil
+}
+
+// hasAuthorizationOverride reports whether the effective channel header
+// override configures a non-empty Authorization header.
+func hasAuthorizationOverride(info *relaycommon.RelayInfo) bool {
+	for key, value := range relaycommon.GetEffectiveHeaderOverride(info) {
+		if !strings.EqualFold(strings.TrimSpace(key), "authorization") {
+			continue
+		}
+		if str, ok := value.(string); ok && strings.TrimSpace(str) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // ensureSecureCredentialTransport refuses to send a Bearer credential over
@@ -70,8 +97,9 @@ func ensureSecureCredentialTransport(baseURL string) error {
 }
 
 // isPrivateOrLocalHost reports whether host points at a trusted local
-// target: "localhost", loopback, RFC1918/RFC4193 private or link-local
-// address, or a single-label hostname (container / intranet DNS name).
+// target: "localhost", a loopback / RFC1918-RFC4193 private / link-local
+// address, or a single-label hostname (container / intranet DNS name) that
+// resolves exclusively to such addresses. Resolution failures fail closed.
 func isPrivateOrLocalHost(host string) bool {
 	h := strings.ToLower(strings.TrimSpace(host))
 	if h == "" {
@@ -83,9 +111,26 @@ func isPrivateOrLocalHost(host string) bool {
 	if ip := net.ParseIP(h); ip != nil {
 		return ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast()
 	}
-	// Non-IP literal: single-label hostnames (no dot) are treated as
-	// container/intranet names, e.g. "mineru-api".
-	return !strings.Contains(h, ".")
+	// Non-IP literal: multi-label names are not trusted; single-label
+	// hostnames are trusted only when every resolved address is
+	// private/local, so a name that resolves to a public address is
+	// rejected before the credential is sent.
+	if strings.Contains(h, ".") {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), dnsResolveTimeout)
+	defer cancel()
+	addrs, err := net.DefaultResolver.LookupIPAddr(ctx, h)
+	if err != nil || len(addrs) == 0 {
+		// Fail closed: an unresolvable host never receives credentials.
+		return false
+	}
+	for _, addr := range addrs {
+		if !(addr.IP.IsLoopback() || addr.IP.IsPrivate() || addr.IP.IsLinkLocalUnicast()) {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
