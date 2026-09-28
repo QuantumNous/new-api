@@ -22,23 +22,25 @@ var videoMetadataKeyAliases = map[string]string{
 }
 
 // BuildGeminiPartFromOpenAIFile converts a Chat Completions type:file object into
-// a Gemini part. URI-shaped file_id values may be forwarded as fileData.fileUri
-// when allowRemoteFileURI is true (Vertex); otherwise http(s) sources are
-// downloaded into inlineData. OpenAI Files API ids (file-xxx) are rejected.
+// a Gemini part. Prefer file_data when present so an OpenAI Files API id
+// (file-xxx) paired with inline bytes does not send the id to the media
+// resolver. URI-shaped file_id values may be forwarded as fileData.fileUri when
+// allowRemoteFileURI is true (Vertex); otherwise http(s) sources are downloaded
+// into inlineData. Bare OpenAI Files API ids without file_data are rejected.
 func BuildGeminiPartFromOpenAIFile(ctx context.Context, file *dto.MessageFile, allowRemoteFileURI bool) (dto.GeminiPart, error) {
 	if file == nil {
 		return dto.GeminiPart{}, fmt.Errorf("messages[].content[].file is required")
 	}
 
-	passed := strings.TrimSpace(file.FileId)
+	passed := strings.TrimSpace(file.FileData)
 	if passed == "" {
-		passed = strings.TrimSpace(file.FileData)
+		passed = strings.TrimSpace(file.FileId)
 	}
 	if passed == "" {
 		return dto.GeminiPart{}, fmt.Errorf("messages[].content[].file requires file_id or file_data")
 	}
 
-	if isOpenAIFilesAPIID(passed) && strings.TrimSpace(file.FileData) == "" {
+	if isOpenAIFilesAPIID(passed) {
 		return dto.GeminiPart{}, fmt.Errorf("messages[].content[].file.file_id %q is an OpenAI Files API id; resolve it to file_data or a media URI before Gemini conversion", passed)
 	}
 

@@ -204,6 +204,43 @@ func TestOpenAIChatRequestToGeminiFileMediaRejectsOpenAIFilesID(t *testing.T) {
 	assert.Contains(t, err.Error(), "OpenAI Files API")
 }
 
+func TestOpenAIChatRequestToGeminiPrefersFileDataOverOpenAIFilesID(t *testing.T) {
+	var downloaded string
+	relaymedia.SetMediaResolver(relaymedia.MediaResolver{
+		GetBase64Data: func(c context.Context, source types.FileSource, reason ...string) (string, string, error) {
+			downloaded = source.GetIdentifier()
+			return "cGRm", "application/pdf", nil
+		},
+	})
+	info := &convmeta.Values{
+		Options: &convmeta.Options{
+			Gemini: convmeta.GeminiOptions{AllowRemoteFileURI: true},
+		},
+	}
+	req := dto.GeneralOpenAIRequest{
+		Messages: []dto.Message{{
+			Role: "user",
+			Content: []any{
+				map[string]any{
+					"type": "file",
+					"file": map[string]any{
+						"file_id":   "file-6F2ksmvXxt4VdoqmHRw6kL",
+						"file_data": "data:application/pdf;base64,cGRm",
+						"format":    "application/pdf",
+					},
+				},
+			},
+		}},
+	}
+	got, err := OpenAIChatRequestToGeminiGenerateContent(context.Background(), req, info)
+	require.NoError(t, err)
+	assert.NotContains(t, downloaded, "file-6F2ksmvXxt4VdoqmHRw6kL")
+	assert.Contains(t, downloaded, "data:application/pdf;base64,cGRm")
+	require.NotNil(t, got.Contents[0].Parts[0].InlineData)
+	assert.Equal(t, "application/pdf", got.Contents[0].Parts[0].InlineData.MimeType)
+	assert.Nil(t, got.Contents[0].Parts[0].FileData)
+}
+
 func TestOpenAIChatRequestToGeminiFileMediaRejectsEmptyFile(t *testing.T) {
 	info := &convmeta.Values{Options: &convmeta.Options{}}
 	req := dto.GeneralOpenAIRequest{
