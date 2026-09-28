@@ -77,6 +77,7 @@ func LogTaskConsumption(c *gin.Context, info *relaycommon.RelayInfo, task *model
 		setTaskImageCount(other, info.PriceData.OtherRatios()["image_count"])
 	}
 	appendTaskLogInfo(task, other)
+	AppendRelayLogAdminInfo(c, info, other)
 	attachQuotaSaturation(c, info, other)
 	model.RecordConsumeLog(c, info.UserId, model.RecordConsumeLogParams{
 		ChannelId: info.ChannelId,
@@ -178,6 +179,10 @@ func taskBillingOther(task *model.Task) *model.LogOther {
 		other.SetPublic("upstream_model_name", props.UpstreamModelName)
 	}
 	appendTaskLogInfo(task, other)
+	if task.PrivateData.ChannelIsMultiKey {
+		other.SetAdmin("is_multi_key", true)
+		other.SetAdmin("multi_key_index", task.PrivateData.ChannelMultiKeyIndex)
+	}
 	return other
 }
 
