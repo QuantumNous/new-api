@@ -114,7 +114,69 @@ export interface ToolSurchargeItem {
   price: number
 }
 
+export interface KeywordFilterLogData {
+  action?: 'blocked' | 'whitelist_bypass' | 'observe' | string
+  audit_id?: number
+  request_id?: string
+  rule_ids?: number[]
+  rule_names?: string[]
+  matched_words?: string[]
+  matched_snippets?: string[]
+  scope?: 'global' | 'group' | 'global+group' | string
+  group?: string
+  model?: string
+  endpoint?: string
+  protocol?: string
+  violation_count?: number
+  whitelist_bypassed?: boolean
+  blocked?: boolean
+  auto_banned?: boolean
+  observe_only?: boolean
+  user_status_before?: number
+  user_status_after?: number
+  balance_changed?: boolean
+  prompt_hash?: string
+  rule_version?: number
+}
+
+export interface SensitiveWordAuditEvent {
+  id: number
+  request_id?: string
+  user_id?: number
+  username_snapshot?: string
+  token_id?: number
+  token_name_snapshot?: string
+  group_name?: string
+  model_name?: string
+  endpoint?: string
+  protocol?: string
+  prompt_hash?: string
+  redacted_preview?: string
+  full_prompt?: string
+  matched_rule_ids?: string
+  matched_rule_names?: string
+  matched_words?: string
+  matched_snippets?: string
+  matched_scope?: string
+  whitelist_bypassed?: boolean
+  blocked?: boolean
+  violation_count?: number
+  auto_banned?: boolean
+  observe_only?: boolean
+  user_status_before?: number
+  user_status_after?: number
+  quota_before?: number
+  quota_after?: number
+  rule_version?: number
+  created_at?: string
+}
+
 export interface LogOtherData {
+  // New sensitive-word logs keep privileged details under keyword_filter; the
+  // top-level fields remain readable for historical administrator records.
+  action?: string
+  audit_id?: number
+  keyword_filter?: KeywordFilterLogData
   admin_info?: {
     request_policy?: PolicyEvent[]
     is_multi_key?: boolean
@@ -146,6 +208,7 @@ export interface LogOtherData {
     }
     // Reject / intercept reason (admin only)
     reject_reason?: string
+    keyword_filter?: KeywordFilterLogData
     task_plugin?: TaskPluginInfo
   }
   root_info?: {

@@ -236,6 +236,31 @@ export function useUsersColumns(): ColumnDef<User>[] {
         meta: { mobileOrder: 20 },
       },
       {
+        accessorKey: 'sensitive_word_violation_count',
+        header: t('Sensitive-word violations'),
+        cell: ({ row }) => {
+          const user = row.original
+          const count = user.sensitive_word_violation_count ?? 0
+          return (
+            <div className='flex items-center gap-1.5'>
+              <span className='tabular-nums'>{count}</span>
+              {user.sensitive_word_whitelist && (
+                <StatusBadge
+                  label={t('Whitelist')}
+                  variant='info'
+                  copyable={false}
+                  className='font-normal'
+                />
+              )}
+            </div>
+          )
+        },
+        filterFn: (row, id, value) =>
+          Number(row.getValue(id) ?? 0) >= Number(value),
+        size: 150,
+        meta: { mobileOrder: 35 },
+      },
+      {
         id: 'invite_info',
         header: t('Invite Info'),
         cell: ({ row }) => {

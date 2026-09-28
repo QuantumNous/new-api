@@ -82,14 +82,15 @@ type Log struct {
 
 // don't use iota, avoid change log type value
 const (
-	LogTypeUnknown = 0
-	LogTypeTopup   = 1
-	LogTypeConsume = 2
-	LogTypeManage  = 3
-	LogTypeSystem  = 4
-	LogTypeError   = 5
-	LogTypeRefund  = 6
-	LogTypeLogin   = 7
+	LogTypeUnknown            = 0
+	LogTypeTopup              = 1
+	LogTypeConsume            = 2
+	LogTypeManage             = 3
+	LogTypeSystem             = 4
+	LogTypeError              = 5
+	LogTypeRefund             = 6
+	LogTypeLogin              = 7
+	LogTypeSensitiveWordBlock = 8
 )
 
 func ensureLogRequestId(log *Log) {

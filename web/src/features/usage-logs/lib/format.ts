@@ -497,6 +497,18 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'option.payment_compliance': 'Confirmed payment compliance',
   'option.reset_ratio': 'Reset model ratios',
   'option.clear_affinity_cache': 'Cleared channel affinity cache',
+  // Sensitive-word policy
+  'sensitive_word.policy_update':
+    'Updated sensitive-word policy (enabled {{enabled_after}}, threshold {{ban_threshold}})',
+  'sensitive_word_rule.create':
+    'Created sensitive-word rule {{name}} (ID: {{rule_id}})',
+  'sensitive_word_rule.update':
+    'Updated sensitive-word rule {{name}} (ID: {{rule_id}})',
+  'sensitive_word_rule.mode':
+    'Changed sensitive-word rule {{rule_id}} mode to {{mode}}',
+  'sensitive_word_rule.delete': 'Deleted sensitive-word rule {{rule_id}}',
+  'sensitive_word.enable_reset':
+    'Enabled user {{target_user_id}} and reset sensitive-word violations from {{violation_count_before}} to {{violation_count_after}}',
   // Custom OAuth
   'custom_oauth.create': 'Created a custom OAuth provider',
   'custom_oauth.update': 'Updated a custom OAuth provider',

@@ -21,6 +21,8 @@ var legacySensitiveLogOtherKeys = []string{
 	"channel_name",
 	"channel_type",
 	"reject_reason",
+	"audit_id",
+	"keyword_filter",
 }
 
 type logOtherVisibility int

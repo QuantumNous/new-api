@@ -647,11 +647,42 @@ func GetUserModels(c *gin.Context) {
 }
 
 func UpdateUser(c *gin.Context) {
+	var requestData map[string]any
+	err := common.DecodeJson(c.Request.Body, &requestData)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	requestBytes, err := common.Marshal(requestData)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
 	var updatedUser model.User
-	err := common.DecodeJson(c.Request.Body, &updatedUser)
+	err = common.Unmarshal(requestBytes, &updatedUser)
 	if err != nil || updatedUser.Id == 0 {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
+	}
+	var sensitiveViolationCount *int
+	if raw, ok := requestData["sensitive_word_violation_count"]; ok {
+		var value int
+		encoded, encodeErr := common.Marshal(raw)
+		if encodeErr != nil || common.Unmarshal(encoded, &value) != nil {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		sensitiveViolationCount = &value
+	}
+	var sensitiveWhitelist *bool
+	if raw, ok := requestData["sensitive_word_whitelist"]; ok {
+		var value bool
+		encoded, encodeErr := common.Marshal(raw)
+		if encodeErr != nil || common.Unmarshal(encoded, &value) != nil {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		sensitiveWhitelist = &value
 	}
 	updatedUser.Username = strings.TrimSpace(updatedUser.Username)
 	if updatedUser.Username == "" {
@@ -681,6 +712,11 @@ func UpdateUser(c *gin.Context) {
 	authzTouched := false
 	if err := model.DB.Transaction(func(tx *gorm.DB) error {
 		if err := updatedUser.EditWithTx(tx, updatePassword); err != nil {
+			return err
+		}
+		if err := model.UpdateSensitiveWordUserFieldsWithTx(
+			tx, updatedUser.Id, sensitiveViolationCount, sensitiveWhitelist,
+		); err != nil {
 			return err
 		}
 		touched, err := updateAdminPermissionsForUserInTx(c, tx, updatedUser.Id, originUser.Role, updatedUser.AdminPermissions)
@@ -1084,7 +1120,34 @@ func ManageUser(c *gin.Context) {
 			return
 		}
 	case "enable":
-		user.Status = common.UserStatusEnabled
+		reset, err := model.EnableUserAndResetSensitiveWordViolations(user.Id)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		recordManageAuditFor(c, user.Id, "sensitive_word.enable_reset", map[string]any{
+			"target_user_id": user.Id, "username": user.Username,
+			"status_before": reset.StatusBefore, "status_after": reset.StatusAfter,
+			"violation_count_before": reset.ViolationCountBefore,
+			"violation_count_after":  reset.ViolationCountAfter,
+			"auth_version_before":    reset.AuthVersionBefore,
+			"auth_version_after":     reset.AuthVersionAfter,
+			"quota_before":           reset.QuotaBefore, "quota_after": reset.QuotaAfter,
+			"used_quota_before": reset.UsedQuotaBefore,
+			"used_quota_after":  reset.UsedQuotaAfter,
+			"status_changed":    reset.StatusChanged,
+			"sessions_revoked":  reset.SessionsRevoked,
+			"balance_changed":   false,
+		})
+		c.JSON(http.StatusOK, gin.H{
+			"success": true, "message": "",
+			"data": model.User{
+				Role:                        user.Role,
+				Status:                      common.UserStatusEnabled,
+				SensitiveWordViolationCount: 0,
+			},
+		})
+		return
 	case "delete":
 		if user.Role == common.RoleRootUser {
 			common.ApiErrorI18n(c, i18n.MsgUserCannotDeleteRootUser)

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -1162,6 +1163,7 @@ type Input struct {
 	Type    string          `json:"type,omitempty"`
 	Role    string          `json:"role,omitempty"`
 	Content json.RawMessage `json:"content,omitempty"`
+	Output  json.RawMessage `json:"output,omitempty"`
 }
 
 type MediaInput struct {
@@ -1170,6 +1172,63 @@ type MediaInput struct {
 	FileUrl  string `json:"file_url,omitempty"`
 	ImageUrl string `json:"image_url,omitempty"`
 	Detail   string `json:"detail,omitempty"` // 仅 input_image 有效
+}
+
+func appendResponsesJSONStrings(texts *[]string, value any) {
+	switch value := value.(type) {
+	case string:
+		if value != "" {
+			*texts = append(*texts, value)
+		}
+	case []any:
+		for _, item := range value {
+			appendResponsesJSONStrings(texts, item)
+		}
+	case map[string]any:
+		keys := make([]string, 0, len(value))
+		for key := range value {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			appendResponsesJSONStrings(texts, value[key])
+		}
+	}
+}
+
+func appendResponsesFunctionOutput(mediaInputs []MediaInput, raw json.RawMessage) []MediaInput {
+	switch kitutil.GetJsonType(raw) {
+	case "string":
+		var text string
+		if err := kitutil.Unmarshal(raw, &text); err == nil && text != "" {
+			mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: text})
+		}
+	case "object":
+		var value any
+		if err := kitutil.Unmarshal(raw, &value); err != nil {
+			return mediaInputs
+		}
+		var texts []string
+		appendResponsesJSONStrings(&texts, value)
+		if text := strings.TrimSpace(strings.Join(texts, "\n")); text != "" {
+			mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: text})
+		}
+	case "array":
+		var items []map[string]any
+		if err := kitutil.Unmarshal(raw, &items); err != nil {
+			return mediaInputs
+		}
+		for _, item := range items {
+			typeValue, _ := item["type"].(string)
+			switch typeValue {
+			case "input_text", "output_text", "text":
+				if text, ok := item["text"].(string); ok && text != "" {
+					mediaInputs = append(mediaInputs, MediaInput{Type: "input_text", Text: text})
+				}
+			}
+		}
+	}
+	return mediaInputs
 }
 
 // ParseInput parses the Responses API `input` field into a normalized slice of MediaInput.
@@ -1257,6 +1316,9 @@ func (r *OpenAIResponsesRequest) ParseInput() []MediaInput {
 						mediaInputs = append(mediaInputs, MediaInput{Type: "input_file", FileUrl: fileUrl})
 					}
 				}
+			}
+			if input.Type == "function_call_output" {
+				mediaInputs = appendResponsesFunctionOutput(mediaInputs, input.Output)
 			}
 		}
 	}

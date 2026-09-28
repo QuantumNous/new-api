@@ -82,3 +82,27 @@ func TestLogOtherJSONStringDoesNotMutateReceiver(t *testing.T) {
 	require.Equal(t, before, after)
 	require.Equal(t, first, second)
 }
+
+func TestSensitiveWordAuditFieldsStayAdminOnlyInLogProjection(t *testing.T) {
+	other := NewLogOther()
+	require.True(t, other.SetPublic("action", SensitiveWordLogAction))
+	require.True(t, other.SetAdmin("keyword_filter", map[string]any{
+		"audit_id":      42,
+		"matched_words": []string{"private marker"},
+	}))
+
+	userLog := &Log{Other: other.JSONString()}
+	formatUserLogs([]*Log{userLog}, 0)
+	require.JSONEq(t, `{"action":"sensitive_word_block"}`, userLog.Other)
+	assert.NotContains(t, userLog.Other, "keyword_filter")
+	assert.NotContains(t, userLog.Other, "audit_id")
+
+	adminLog := &Log{Other: other.JSONString()}
+	FormatAdminLogs([]*Log{adminLog})
+	assert.Contains(t, adminLog.Other, "keyword_filter")
+	assert.Contains(t, adminLog.Other, "private marker")
+
+	legacyLog := &Log{Other: `{"action":"sensitive_word_block","audit_id":9,"keyword_filter":{"matched_words":["legacy marker"]}}`}
+	formatUserLogs([]*Log{legacyLog}, 0)
+	require.JSONEq(t, `{"action":"sensitive_word_block"}`, legacyLog.Other)
+}

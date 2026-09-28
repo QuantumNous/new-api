@@ -164,6 +164,20 @@ func SetApiRouter(router *gin.Engine) {
 			}
 		}
 
+		sensitiveWordRoute := apiRouter.Group("/sensitive-words")
+		sensitiveWordRoute.Use(middleware.AdminAuth())
+		{
+			sensitiveWordRoute.GET("/policy", controller.GetSensitiveWordPolicy)
+			sensitiveWordRoute.PUT("/policy", middleware.RootAuth(), controller.UpdateSensitiveWordPolicy)
+			sensitiveWordRoute.GET("/groups", controller.GetSensitiveWordGroups)
+			sensitiveWordRoute.GET("/rules", controller.GetSensitiveWordRules)
+			sensitiveWordRoute.POST("/rules", controller.CreateSensitiveWordRule)
+			sensitiveWordRoute.GET("/rules/:id", controller.GetSensitiveWordRule)
+			sensitiveWordRoute.PUT("/rules/:id", controller.UpdateSensitiveWordRule)
+			sensitiveWordRoute.DELETE("/rules/:id", controller.DeleteSensitiveWordRule)
+			sensitiveWordRoute.PATCH("/rules/:id/mode", controller.SetSensitiveWordRuleMode)
+		}
+
 		// Subscription billing (plans, purchase, admin management)
 		subscriptionRoute := apiRouter.Group("/subscription")
 		subscriptionRoute.Use(middleware.UserAuth())
@@ -312,6 +326,7 @@ func SetApiRouter(router *gin.Engine) {
 		apiRouter.GET("/audit/self", middleware.DisableCache(), middleware.UserAuth(), controller.GetAuditLogs)
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
+		logRoute.GET("/sensitive-word-audit/:id", middleware.DisableCache(), middleware.AdminAuth(), middleware.RequirePermission(authz.AuditRead), controller.GetSensitiveWordAudit)
 		logRoute.GET("/stat", middleware.AdminAuth(), controller.GetLogsStat)
 		logRoute.GET("/self/stat", middleware.UserAuth(), controller.GetLogsSelfStat)
 		logRoute.GET("/channel_affinity_usage_cache", middleware.AdminAuth(), controller.GetChannelAffinityUsageCacheStats)

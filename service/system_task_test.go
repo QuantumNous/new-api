@@ -107,6 +107,50 @@ func TestSystemTaskSchedulerSkipsDisabled(t *testing.T) {
 	assert.Equal(t, int64(0), countSystemTasks(t, handler.taskType))
 }
 
+func TestSensitiveWordAuditCleanupHandlerClearsExpiredEvidence(t *testing.T) {
+	truncate(t)
+	require.NoError(t, model.DB.AutoMigrate(
+		&model.Option{}, &model.SensitiveWordPolicy{}, &model.SensitiveWordAuditEvent{},
+		&model.SensitiveWordRule{}, &model.SensitiveWordRuleWord{}, &model.SensitiveWordRuleGroup{},
+	))
+	require.NoError(t, model.DB.Exec("DELETE FROM sensitive_word_audit_events").Error)
+	require.NoError(t, model.DB.Exec("DELETE FROM sensitive_word_policy").Error)
+	require.NoError(t, model.DB.Where(&model.Option{Key: "SensitiveWordRulesMigrationVersion"}).Delete(&model.Option{}).Error)
+	t.Cleanup(func() {
+		_ = model.DB.Exec("DELETE FROM sensitive_word_audit_events").Error
+		_ = model.DB.Exec("DELETE FROM sensitive_word_policy").Error
+		_ = model.DB.Where(&model.Option{Key: "SensitiveWordRulesMigrationVersion"}).Delete(&model.Option{}).Error
+	})
+	require.NoError(t, model.MigrateSensitiveWordData())
+	policy := model.GetSensitiveWordPolicy()
+	policy.FullPromptRetentionDays = 1
+	require.NoError(t, model.SaveSensitiveWordPolicy(policy, 1))
+	event := &model.SensitiveWordAuditEvent{
+		RequestID: "service-cleanup", UserID: 1, FullPrompt: "expired prompt",
+		RedactedPreview: "expired preview", MatchedSnippets: `["expired snippet"]`,
+		CreatedAt: time.Now().Add(-48 * time.Hour),
+	}
+	require.NoError(t, model.DB.Create(event).Error)
+
+	handler := sensitiveWordAuditCleanupHandler{}
+	require.True(t, handler.Enabled())
+	task, err := model.CreateSystemTask(model.SystemTaskTypeSensitiveWordAuditCleanup, nil, nil)
+	require.NoError(t, err)
+	claimed, ok, err := model.ClaimSystemTask(task.ID, handler.Type(), "cleanup-runner", common.GetTimestamp()+60)
+	require.NoError(t, err)
+	require.True(t, ok)
+	handler.Run(context.Background(), claimed, "cleanup-runner")
+
+	var completed model.SystemTask
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&completed).Error)
+	require.Equal(t, model.SystemTaskStatusSucceeded, completed.Status)
+	var stored model.SensitiveWordAuditEvent
+	require.NoError(t, model.DB.First(&stored, event.ID).Error)
+	require.Empty(t, stored.FullPrompt)
+	require.Empty(t, stored.RedactedPreview)
+	require.Equal(t, "[]", stored.MatchedSnippets)
+}
+
 func TestSystemTaskClaimPassDispatchesByType(t *testing.T) {
 	truncate(t)
 
