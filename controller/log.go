@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -152,5 +153,66 @@ func GetLogsSelfStat(c *gin.Context) {
 			//"token": tokenNum,
 		},
 	})
+	return
+}
+
+// parseUnixBound parses an optional unix-second query parameter. An absent or
+// empty value means an open bound (0); a malformed value is a client error.
+func parseUnixBound(c *gin.Context, name string) (int64, bool) {
+	v := c.Query(name)
+	if v == "" {
+		return 0, true
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		common.ApiError(c, fmt.Errorf("invalid %s", name))
+		return 0, false
+	}
+	return n, true
+}
+
+// GetExternalBillingStat returns per-user external-channel usage for all users (admin).
+func GetExternalBillingStat(c *gin.Context) {
+	startTimestamp, ok := parseUnixBound(c, "start_timestamp")
+	if !ok {
+		return
+	}
+	endTimestamp, ok := parseUnixBound(c, "end_timestamp")
+	if !ok {
+		return
+	}
+	username := c.Query("username")
+	rows, err := model.SumExternalByUser(startTimestamp, endTimestamp, username)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if rows == nil {
+		rows = []model.ExternalBillingRow{}
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": rows})
+	return
+}
+
+// GetExternalBillingSelfStat returns the caller's own external-channel usage.
+func GetExternalBillingSelfStat(c *gin.Context) {
+	startTimestamp, ok := parseUnixBound(c, "start_timestamp")
+	if !ok {
+		return
+	}
+	endTimestamp, ok := parseUnixBound(c, "end_timestamp")
+	if !ok {
+		return
+	}
+	username := c.GetString("username")
+	rows, err := model.SumExternalByUser(startTimestamp, endTimestamp, username)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if rows == nil {
+		rows = []model.ExternalBillingRow{}
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": rows})
 	return
 }

@@ -694,6 +694,55 @@ func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	return token
 }
 
+// ExternalBillingRow per-user external (third-party) channel usage aggregation.
+type ExternalBillingRow struct {
+	Username         string `json:"username"`
+	PromptTokens     int64  `json:"prompt_tokens"`
+	CompletionTokens int64  `json:"completion_tokens"`
+	TotalTokens      int64  `json:"total_tokens"`
+	Quota            int64  `json:"quota"`
+	ModelCount       int64  `json:"model_count"`
+}
+
+// SumExternalByUser aggregates, per user, consumption on external channels
+// (channels.tag = 'external') covering all models, regardless of whether an
+// explicit configured price exists (previously restricted to the model price
+// map, which silently dropped ratio-billed models). startTimestamp/endTimestamp
+// are unix seconds (0 = open).
+func SumExternalByUser(startTimestamp int64, endTimestamp int64, username string) ([]ExternalBillingRow, error) {
+	// Resolve external channel ids through the main DB: LOG_DB may be a
+	// separate database (e.g. ClickHouse) without a channels table, so a
+	// cross-database JOIN would fail there.
+	var externalChannelIds []int64
+	if err := DB.Table("channels").Where("tag = ?", "external").Pluck("id", &externalChannelIds).Error; err != nil {
+		common.SysError("failed to resolve external channels: " + err.Error())
+		return nil, errors.New("查询外部渠道统计数据失败")
+	}
+	if len(externalChannelIds) == 0 {
+		return nil, nil
+	}
+	tx := LOG_DB.Table("logs").
+		Select("username, COALESCE(sum(prompt_tokens),0) prompt_tokens, COALESCE(sum(completion_tokens),0) completion_tokens, COALESCE(sum(prompt_tokens),0)+COALESCE(sum(completion_tokens),0) total_tokens, COALESCE(sum(quota),0) quota, count(DISTINCT model_name) model_count").
+		Where("logs.channel_id IN ?", externalChannelIds).
+		Where("logs.type = ?", LogTypeConsume)
+	if startTimestamp != 0 {
+		tx = tx.Where("logs.created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("logs.created_at <= ?", endTimestamp)
+	}
+	if username != "" {
+		tx = tx.Where("logs.username = ?", username)
+	}
+	tx = tx.Group("logs.username")
+	var rows []ExternalBillingRow
+	if err := tx.Scan(&rows).Error; err != nil {
+		common.SysError("failed to query external billing stat: " + err.Error())
+		return nil, errors.New("查询外部渠道统计数据失败")
+	}
+	return rows, nil
+}
+
 func CountOldLog(ctx context.Context, targetTimestamp int64) (int64, error) {
 	var total int64
 	if err := LOG_DB.WithContext(ctx).Model(&Log{}).Where("created_at < ?", targetTimestamp).Count(&total).Error; err != nil {
