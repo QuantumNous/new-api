@@ -106,6 +106,7 @@ type User struct {
 	DeletedAt            gorm.DeletedAt             `gorm:"index"`
 	LinuxDOId            string                     `json:"linux_do_id" gorm:"column:linux_do_id;index"`
 	Setting              string                     `json:"setting" gorm:"type:text;column:setting"`
+	AllowedModelGroups   []string                   `json:"allowed_model_groups,omitempty" gorm:"-:all"`
 	Remark               string                     `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer       string                     `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
 	CreatedAt            int64                      `json:"created_at" gorm:"autoCreateTime;column:created_at"`

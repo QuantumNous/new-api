@@ -1,15 +1,22 @@
 package controller
 
 import (
-	"maps"
-
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 )
+
+func buildUserGroupRatios(userGroup string, userSetting dto.UserSetting) map[string]float64 {
+	ratioMap := make(map[string]float64, len(ratio_setting.GetGroupRatioCopy()))
+	for groupName := range ratio_setting.GetGroupRatioCopy() {
+		ratioMap[groupName] = service.GetUserGroupRatioWithSetting(userGroup, groupName, userSetting)
+	}
+	return ratioMap
+}
 
 func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string]string) []model.Pricing {
 	if len(pricing) == 0 {
@@ -39,23 +46,19 @@ func GetPricing(c *gin.Context) {
 	pricing := model.GetPricing()
 	userId, exists := c.Get("id")
 	usableGroup := map[string]string{}
-	groupRatio := map[string]float64{}
-	maps.Copy(groupRatio, ratio_setting.GetGroupRatioCopy())
+	userSetting := dto.UserSetting{}
+	groupRatio := buildUserGroupRatios("", userSetting)
 	var group string
 	if exists {
 		user, err := model.GetUserCache(userId.(int))
 		if err == nil {
 			group = user.Group
-			for g := range groupRatio {
-				ratio, ok := ratio_setting.GetGroupGroupRatio(group, g)
-				if ok {
-					groupRatio[g] = ratio
-				}
-			}
+			userSetting = user.GetSetting()
+			groupRatio = buildUserGroupRatios(group, userSetting)
 		}
 	}
 
-	usableGroup = service.GetUserUsableGroups(group)
+	usableGroup = service.GetUserUsableGroupsWithSetting(group, userSetting)
 	pricing = filterPricingByUsableGroups(pricing, usableGroup)
 	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {
@@ -71,7 +74,7 @@ func GetPricing(c *gin.Context) {
 		"group_ratio":        groupRatio,
 		"usable_group":       usableGroup,
 		"supported_endpoint": model.GetSupportedEndpointMap(),
-		"auto_groups":        service.GetUserAutoGroup(group),
+		"auto_groups":        service.GetUserAutoGroupWithSetting(group, userSetting),
 		"pricing_version":    "a42d372ccf0b5dd13ecf71203521f9d2",
 	})
 }

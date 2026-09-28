@@ -20,7 +20,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useQuery } from '@tanstack/react-query'
 import { Pencil } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -31,6 +31,7 @@ import {
   sideDrawerFormClassName,
   sideDrawerHeaderClassName,
 } from '@/components/drawer-layout'
+import { MultiSelect } from '@/components/multi-select'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Combobox } from '@/components/ui/combobox'
@@ -159,10 +160,15 @@ export function UsersMutateDrawer({
   const currencyLabel = getCurrencyLabel()
   const tokensOnly = currencyMeta.kind === 'tokens'
 
-  const currentQuotaRaw = form.watch('quota_dollars') || 0
-  const selectedRole = form.watch('role')
+  const currentQuotaRaw = useWatch({
+    control: form.control,
+    name: 'quota_dollars',
+  }) || 0
   const canEditAdminPermissions = currentUser?.role === ROLE.SUPER_ADMIN
-  const targetIsAdmin = (selectedRole ?? currentRow?.role ?? 0) >= ROLE.ADMIN
+  const selectedAllowedGroups = useWatch({
+    control: form.control,
+    name: 'allowed_model_groups',
+  }) ?? []
 
   const onSubmit = async (data: UserFormValues) => {
     if (!isUpdate || data.password) {
@@ -385,6 +391,76 @@ export function UsersMutateDrawer({
 
                   <FormField
                     control={form.control}
+                    name='allowed_model_groups'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Allowed Model Groups')}</FormLabel>
+                        <MultiSelect
+                          options={groups.map((group) => ({
+                            value: group,
+                            label: group,
+                          }))}
+                          selected={field.value ?? []}
+                          onChange={field.onChange}
+                          placeholder={t('Select allowed model groups')}
+                        />
+                        <FormDescription>
+                          {t(
+                            'Leave empty to inherit all groups available to this user. Existing tokens and auto routing are restricted when groups are selected.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {selectedAllowedGroups.length > 0 && (
+                    <FormField
+                      control={form.control}
+                      name='group_ratio_overrides'
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>{t('Per-user group ratios')}</FormLabel>
+                          <div className='space-y-2'>
+                            {selectedAllowedGroups.map((group) => (
+                              <div
+                                key={group}
+                                className='grid grid-cols-[1fr_120px] items-center gap-2'
+                              >
+                                <Label className='truncate text-sm'>
+                                  {group}
+                                </Label>
+                                <Input
+                                  type='number'
+                                  min='0'
+                                  step='0.000001'
+                                  value={field.value?.[group] ?? ''}
+                                  placeholder={t('Default')}
+                                  onChange={(event) => {
+                                    const next = { ...field.value }
+                                    const value = event.target.value
+                                    if (value === '') {
+                                      delete next[group]
+                                    } else {
+                                      next[group] = Number(value)
+                                    }
+                                    field.onChange(next)
+                                  }}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                          <FormDescription>
+                            {t('Leave empty to use the global group ratio.')}
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  <FormField
+                    control={form.control}
                     name='quota_dollars'
                     render={({ field }) => (
                       <FormItem>
@@ -445,7 +521,6 @@ export function UsersMutateDrawer({
               )}
 
               {canEditAdminPermissions &&
-                targetIsAdmin &&
                 permissionCatalog.resources.length > 0 && (
                   <SideDrawerSection>
                     <h3 className='text-sm font-medium'>

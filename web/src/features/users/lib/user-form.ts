@@ -18,16 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
 
-import {
-  type PermissionCatalog,
-  type AdminPermissionMatrix,
-  normalizeAdminPermissions,
-} from '@/lib/admin-permissions'
+import * as adminPermissions from '@/lib/admin-permissions'
 import { quotaUnitsToDollars } from '@/lib/format'
-import { ROLE } from '@/lib/roles'
 
 import { DEFAULT_GROUP } from '../constants'
-import { type UserFormData, type User } from '../types'
+import type { User, UserFormData } from '../types'
 
 // ============================================================================
 // Form Schema
@@ -40,6 +35,8 @@ export const userFormSchema = z.object({
   role: z.number().optional(),
   quota_dollars: z.number().min(0).optional(),
   group: z.string().optional(),
+  allowed_model_groups: z.array(z.string()),
+  group_ratio_overrides: z.record(z.string(), z.number()).optional(),
   remark: z.string().optional(),
   admin_permissions: z
     .record(z.string(), z.record(z.string(), z.boolean()))
@@ -59,6 +56,8 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
   role: 1, // Default to common user
   quota_dollars: 0,
   group: DEFAULT_GROUP,
+  allowed_model_groups: [],
+  group_ratio_overrides: {},
   remark: '',
   // Filled against the backend catalog at render time; see UsersMutateDrawer.
   admin_permissions: {},
@@ -74,7 +73,7 @@ export const USER_FORM_DEFAULT_VALUES: UserFormValues = {
 export function transformFormDataToPayload(
   data: UserFormValues,
   userId?: number,
-  catalog?: PermissionCatalog
+  catalog?: adminPermissions.PermissionCatalog
 ): UserFormData & { id?: number } {
   const payload: UserFormData & { id?: number } = {
     username: data.username,
@@ -84,12 +83,11 @@ export function transformFormDataToPayload(
 
   const role = userId === undefined ? data.role || 1 : (data.role ?? 0)
 
-  // Only send the permission matrix when the target is an admin and the catalog
-  // is available; without the catalog we cannot build a full matrix, so we omit
-  // the field (the backend then leaves existing permissions untouched).
-  if (role >= ROLE.ADMIN && catalog) {
-    payload.admin_permissions = normalizeAdminPermissions(
-      data.admin_permissions as AdminPermissionMatrix | undefined,
+  if (catalog) {
+    payload.admin_permissions = adminPermissions.normalizeAdminPermissions(
+      data.admin_permissions as
+        | adminPermissions.AdminPermissionMatrix
+        | undefined,
       catalog
     )
   }
@@ -100,6 +98,18 @@ export function transformFormDataToPayload(
   } else {
     // For update: quota is adjusted atomically via /api/user/manage, not sent here
     payload.group = data.group
+    payload.allowed_model_groups = data.allowed_model_groups
+    const groupRatioOverrides = Object.fromEntries(
+      Object.entries(data.group_ratio_overrides ?? {}).filter(
+        ([group, ratio]) =>
+          data.allowed_model_groups.includes(group) &&
+          Number.isFinite(ratio) &&
+          ratio >= 0
+      )
+    )
+    payload.setting = JSON.stringify({
+      group_ratio_overrides: groupRatioOverrides,
+    })
     payload.remark = data.remark || undefined
     payload.id = userId
   }
@@ -120,6 +130,8 @@ export function transformUserToFormDefaults(user: User): UserFormValues {
     role: user.role,
     quota_dollars: quotaUnitsToDollars(user.quota),
     group: user.group || DEFAULT_GROUP,
+    allowed_model_groups: user.allowed_model_groups ?? [],
+    group_ratio_overrides: user.group_ratio_overrides ?? {},
     remark: user.remark || '',
     admin_permissions: user.admin_permissions ?? {},
   }

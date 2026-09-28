@@ -46,6 +46,8 @@ export const userSchema = z.object({
   used_quota: z.number(),
   request_count: z.number(),
   group: z.string(),
+  allowed_model_groups: z.array(z.string()).optional(),
+  group_ratio_overrides: z.record(z.string(), z.number()).optional(),
   aff_code: z.string().optional(),
   aff_count: z.number().optional(),
   aff_quota: z.number().optional(),
@@ -124,6 +126,8 @@ export interface UserFormData {
   role?: number // Only used when creating user
   quota?: number // Only used when updating user
   group?: string // Only used when updating user
+  allowed_model_groups?: string[]
+  setting?: string
   remark?: string // Only used when updating user
   admin_permissions?: AdminPermissionMatrix
 }

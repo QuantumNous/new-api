@@ -52,6 +52,8 @@ func Distribute() func(c *gin.Context) {
 		}
 		_, pinned, _ := constraints.ResolvedPin()
 		if !pinned {
+			userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
+			userSetting, _ := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting)
 			// Select a channel for the user
 			// check token model mapping
 			modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
@@ -88,12 +90,17 @@ func Distribute() func(c *gin.Context) {
 						return
 					}
 					if playgroundRequest.Group != "" {
-						if !service.GroupInUserUsableGroups(usingGroup, playgroundRequest.Group) && playgroundRequest.Group != usingGroup {
+						if !service.GroupInUserUsableGroupsWithSetting(userGroup, playgroundRequest.Group, userSetting) && playgroundRequest.Group != usingGroup {
 							abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
 							return
 						}
 						common.SetContextKey(c, constant.ContextKeyUsingGroup, playgroundRequest.Group)
 					}
+				}
+				usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+				if userGroup != "" && usingGroup != "" && !service.GroupInUserUsableGroupsWithSetting(userGroup, usingGroup, userSetting) {
+					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgDistributorGroupAccessDenied))
+					return
 				}
 			}
 		}

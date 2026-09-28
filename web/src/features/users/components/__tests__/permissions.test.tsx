@@ -43,7 +43,12 @@ const label = "View other accounts' audit logs"
 const description =
   'View audit records from user and admin roles. Root records are always excluded.'
 
-function renderPermissions(viewerRole: number, allowed?: boolean) {
+function renderPermissions(
+  viewerRole: number,
+  allowed?: boolean,
+  targetRole = target.role
+) {
+  const managedUser = { ...target, role: targetRole }
   useAuthStore
     .getState()
     .auth.setUser({ id: 1, username: 'operator', role: viewerRole })
@@ -78,7 +83,7 @@ function renderPermissions(viewerRole: number, allowed?: boolean) {
       data: {
         success: true,
         data: {
-          ...target,
+          ...managedUser,
           admin_permissions:
             allowed === undefined ? {} : { audit: { read: allowed } },
         },
@@ -94,7 +99,7 @@ function renderPermissions(viewerRole: number, allowed?: boolean) {
         <UsersMutateDrawer
           open
           onOpenChange={() => undefined}
-          currentRow={target}
+          currentRow={managedUser}
         />
       </UsersProvider>
     </QueryClientProvider>
@@ -105,6 +110,20 @@ afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
   useAuthStore.getState().auth.reset()
+})
+
+it('shows model group access controls while editing a user', async () => {
+  renderPermissions(100)
+  await screen.findByDisplayValue('Managed admin')
+  expect(screen.getByText('Allowed Model Groups')).toBeVisible()
+})
+
+it('root can edit permissions for a common user', async () => {
+  renderPermissions(100, undefined, 1)
+  await screen.findByDisplayValue('Managed admin')
+  expect(
+    await screen.findByRole('checkbox', { name: new RegExp(label) })
+  ).toBeVisible()
 })
 
 it.each([undefined, true])(
