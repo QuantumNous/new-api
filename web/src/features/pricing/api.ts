@@ -29,3 +29,35 @@ export async function getPricing(): Promise<PricingData> {
   const res = await api.get('/api/pricing')
   return res.data
 }
+
+// ----------------------------------------------------------------------------
+// Model cache stats
+// ----------------------------------------------------------------------------
+
+/** Model-level usage sums over the requested window, from quota_data. */
+export interface ModelCacheStats {
+  model_name: string
+  count: number
+  prompt_tokens: number
+  cache_tokens: number
+  cache_creation_tokens: number
+  cache_hit_count: number
+}
+
+export interface ModelCacheStatsResponse {
+  success: boolean
+  message: string
+  data: ModelCacheStats | null
+}
+
+// Get a model's site-wide cache statistics for the model square details.
+// The endpoint enforces the cache-rate visibility switches server-side.
+export async function getModelCacheStats(
+  modelName: string,
+  hours = 24
+): Promise<ModelCacheStatsResponse> {
+  const res = await api.get<ModelCacheStatsResponse>('/api/data/model-cache', {
+    params: { model: modelName, hours },
+  })
+  return res.data
+}

@@ -45,7 +45,7 @@ import type { PricingModel } from '../types'
 import { LatencyTrendChart, UptimeTrendChart } from './model-details-charts'
 import { UptimeSparkline } from './model-details-uptime-sparkline'
 
-function StatCard(props: {
+export function StatCard(props: {
   icon: React.ComponentType<{ className?: string }>
   label: string
   value: React.ReactNode
@@ -292,7 +292,7 @@ export function ModelDetailsPerformance(props: { model: PricingModel }) {
   )
 }
 
-function SectionHeader(props: {
+export function SectionHeader(props: {
   icon: React.ComponentType<{ className?: string }>
   title: string
   description?: string
