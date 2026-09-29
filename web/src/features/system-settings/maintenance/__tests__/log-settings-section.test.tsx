@@ -74,17 +74,19 @@ describe('LogSettingsSection defaultValues reset', () => {
     await user.click(consumeSwitch)
     expect(consumeSwitch).toHaveAttribute('aria-checked', 'false')
 
+    // New server values that differ from both the original defaults and the
+    // unsaved edit: the reset must overwrite the edit with the new values.
     rerender(
       <LogSettingsSection
         defaultValues={{
-          LogConsumeEnabled: false,
-          CacheRateStatsEnabled: true,
+          LogConsumeEnabled: true,
+          CacheRateStatsEnabled: false,
           CacheRateUserVisibleEnabled: true,
         }}
       />
     )
 
-    expect(getSwitches()[0]).toHaveAttribute('aria-checked', 'false')
-    expect(getSwitches()[1]).toHaveAttribute('aria-checked', 'true')
+    expect(getSwitches()[0]).toHaveAttribute('aria-checked', 'true')
+    expect(getSwitches()[1]).toHaveAttribute('aria-checked', 'false')
   })
 })
