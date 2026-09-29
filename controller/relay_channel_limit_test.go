@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	relay "github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -19,6 +21,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+// relayRpmTestId returns a channel id unique to this process run so the
+// in-process RPM window (keyed by channel id) never observes values left by
+// a previous run of the test binary (go test -count=2).
+var relayRpmTestIdSeq atomic.Int64
+
+func relayRpmTestId() int {
+	return int(960700 + relayRpmTestIdSeq.Add(1))
+}
 
 // TestGetChannelMovesToNextCandidateAfterRpmRejection covers the retry
 // behavior after the strict RPM admission rejects the distributor-selected
@@ -52,8 +63,8 @@ func TestGetChannelMovesToNextCandidateAfterRpmRejection(t *testing.T) {
 	})
 
 	const modelName = "rpm-rejection-model"
-	const distributorId = 960701
-	const fallbackId = 960702
+	distributorId := relayRpmTestId()
+	fallbackId := relayRpmTestId()
 	rpm := int64(1)
 	highPriority := int64(0)
 	lowPriority := int64(-1)
@@ -126,4 +137,42 @@ func TestGetChannelMovesToNextCandidateAfterRpmRejection(t *testing.T) {
 	assert.Equal(t, fallbackId, second.Id,
 		"after an RPM rejection the next iteration must select another candidate channel")
 	assert.Equal(t, []string{fmt.Sprintf("%d", distributorId)}, c.GetStringSlice("use_channel"))
+}
+
+// TestExecuteTaskSubmissionStopsOnLockedChannelRpmRejection pins the
+// locked-channel contract of the strict RPM admission: the rejection is
+// deterministic for the whole retry budget, so the submission stops with the
+// 429 limit error instead of re-running setup against the same channel and
+// burning every retry attempt.
+func TestExecuteTaskSubmissionStopsOnLockedChannelRpmRejection(t *testing.T) {
+	originalRetryTimes := common.RetryTimes
+	common.RetryTimes = 3
+	t.Cleanup(func() { common.RetryTimes = originalRetryTimes })
+
+	rpm := int64(1)
+	lockedId := relayRpmTestId()
+	// Saturate the locked channel's per-minute window before dispatch.
+	require.True(t, model.ChannelRpmTryConsume(&model.Channel{Id: lockedId, RpmLimit: &rpm}))
+
+	events := make([]string, 0, 3)
+	billing := &taskSubmissionTestBilling{events: &events}
+	c := taskSubmissionTestContext()
+	info := taskSubmissionRelayInfo(billing)
+	info.TaskRelayInfo.LockedChannel = &model.Channel{
+		Id: lockedId, Type: constant.ChannelTypeTaskPlugin, Name: "locked-rpm", RpmLimit: &rpm,
+	}
+	info.ChannelMeta = &relaycommon.ChannelMeta{ChannelId: lockedId, ChannelType: constant.ChannelTypeTaskPlugin}
+
+	submits := 0
+	outcome, taskErr := executeTaskSubmissionWith(c, info, func(*gin.Context, *relaycommon.RelayInfo) (*relay.TaskSubmitResult, *taskdto.TaskError) {
+		submits++
+		return nil, nil
+	})
+
+	assert.Nil(t, outcome)
+	require.NotNil(t, taskErr)
+	assert.Equal(t, string(model.ChannelLimitExceededCode), taskErr.Code)
+	assert.Zero(t, submits, "the deterministic RPM rejection must not reach the submit adaptor")
+	assert.Equal(t, []string{"refund"}, events, "the undelivered submission refunds its billing")
+	assert.Equal(t, 1, service.RequestPolicy(c).Attempts, "the rejection stops after the first dispatch attempt")
 }

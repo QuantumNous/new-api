@@ -362,6 +362,7 @@ describe('API key expiry across editing sessions', () => {
         model_limits: '',
         allow_ips: '',
         allow_user_quota_query: true,
+        rpm_limit: null,
       }
       const second = { ...first, id: 2, name: 'non-expiring', expired_time: -1 }
       let resolveDetail!: (value: { data: unknown }) => void
