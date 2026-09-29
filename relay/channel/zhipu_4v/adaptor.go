@@ -70,6 +70,10 @@ func zhipuCodingPlanAliases() []string {
 // base 别名，密钥为 zcodeJwtToken（Bearer 鉴权），随 Coding Plan 家族路由。
 const zcodeStartPlanBaseURL = "zcode-start-plan"
 
+// 风险备案（3.14.4 解包实证）：上游仅对 start-plan 模型请求要求阿里云 captcha，当前
+// 服务端 captcha.skip_model_request=true 已跳过；若翻回 false，start-plan 需
+// x-aliyun-captcha-verify-param/-region 头而本实现不生成，渠道会断。
+
 // isZhipuStartPlanBase 判定 base 是否为 StartPlan 代理：别名字面量，或
 // zcode.z.ai 的 /api/v1/zcode-plan* 自定义全 URL。
 func isZhipuStartPlanBase(baseURL string) bool {

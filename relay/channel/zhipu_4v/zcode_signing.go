@@ -21,9 +21,10 @@ package zhipu_4v
 // 仅对 ZCode 模式下发往智谱业务域（api.z.ai / *.bigmodel.cn）的请求生效；
 // zcode.z.ai 的 zcode-plan / off-peak 代理路径在 ZCode 客户端即属免签白名单。
 //
-// 版本现状：官方 3.14.3 客户端解包产物里已不存在 X-Client-Sig / X-Client-Pow /
-// X-Client-Nonce / X-Client-Version、握手路径与 KDF 常量；但上游仍按验签发放套餐
-// 权益，因此对套餐渠道默认保持签名，渠道可显式关闭。
+// 版本现状：3.14.4 解包实证 V4 签名仍在且为活路径——requiresClientRequestSigning
+// 门禁（coding-plan 域签、start-plan/off-peak 免签）接 signingManager 包裹模型请求，
+// 服务端 agent/configs codingPlanSignature.enable=true 时启用；因此对套餐渠道默认
+// 保持签名，渠道可显式关闭。
 
 import (
 	"bytes"

@@ -195,8 +195,9 @@ func TestSetupRequestHeaderAddsZCodeFingerprintForCodingPlan(t *testing.T) {
 		t.Fatalf("x-session-id is required for V4 signing")
 	}
 	// 指纹版本跟随官方解包版本，不得停留在 3.12.x。
-	if zcodeClientVersion != "3.14.3" {
-		t.Fatalf("zcodeClientVersion = %q, want the officially shipped 3.14.3", zcodeClientVersion)
+	// 指纹版本跟随官方解包版本，不得停留在旧版。
+	if zcodeClientVersion != "3.14.4" {
+		t.Fatalf("zcodeClientVersion = %q, want the officially shipped 3.14.4", zcodeClientVersion)
 	}
 	for _, name := range []string{"X-Stainless-Runtime", "X-Stainless-Package-Version", "x-app", "X-Claude-Code-Session-Id", "x-client-request-id", "anthropic-client-platform", "anthropic-client-version", "anthropic-dangerous-direct-browser-access"} {
 		if value := headers.Get(name); value != "" {

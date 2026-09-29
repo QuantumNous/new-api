@@ -14,11 +14,12 @@ import (
 	"github.com/google/uuid"
 )
 
-// zcodeClientVersion 声明的客户端版本，对齐官方解包（ZCode Desktop 3.14.3，
+// zcodeClientVersion 声明的客户端版本，对齐官方解包（ZCode Desktop 3.14.4，
 // Windows x64 安装包）的 buildZCodeSourceHeadersFromContext：User-Agent 为
-// `ZCode/<version>`，X-ZCode-App-Version 同源。服务端 forceUpdate.minimalVersion
-// 只是强制更新下限，指纹取实际客户端版本，因此这里必须跟随当前官方版本而不是下限。
-const zcodeClientVersion = "3.14.3"
+// `ZCode/<version>`，X-ZCode-App-Version 同源（官方版本串运行时注入，与已发布
+// 客户端一致）。服务端 forceUpdate.minimalVersion 只是强制更新下限，指纹取实际
+// 客户端版本，因此这里必须跟随当前官方版本而不是下限。
+const zcodeClientVersion = "3.14.4"
 
 // zcodeOsVersion 与 X-Platform=win32-x64 配套（Windows 11 24H2，对齐官方
 // os.release() 在 Windows 上的形态）；不使用宿主机 release，避免与平台指纹矛盾。
@@ -35,8 +36,10 @@ func zcodeFingerprintVersion(info *relaycommon.RelayInfo) string {
 }
 
 // zcodeLegacyTraceHeadersEnabled：旧版追踪头默认关闭。
-// 官方 3.14.3 的请求头集合只剩 x-request-id，不再发送 x-zcode-session-type /
-// x-zcode-trace-id / x-query-id / x-session-id（老版本才有）。渠道可显式打开以回退。
+// zcodeLegacyTraceHeadersEnabled：旧版追踪头默认关闭。
+// 官方 3.14.4 的请求头集合只剩 x-request-id，不再发送 x-zcode-session-type /
+// x-zcode-trace-id / x-query-id / x-session-id（老版本才有）。渠道可显式打开以回退；
+// x-session-id 在签名开启时仍会单独带上（V4 签名串依赖）。
 func zcodeLegacyTraceHeadersEnabled(info *relaycommon.RelayInfo) bool {
 	return info != nil && info.ChannelSetting.ZcodeLegacyTraceHeaders != nil &&
 		*info.ChannelSetting.ZcodeLegacyTraceHeaders

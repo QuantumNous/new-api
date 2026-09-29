@@ -28,7 +28,7 @@ const (
 	// app_version 与 relay/channel/zhipu_4v 的 zcodeClientVersion 保持一致。
 	zcodeStartPlanBaseURL    = "zcode-start-plan"
 	zcodeStartPlanBalanceURL = "https://zcode.z.ai/api/v1/zcode-plan/billing/balance"
-	zcodeStartPlanAppVersion = "3.12.3"
+	zcodeStartPlanAppVersion = "3.14.4"
 )
 
 type zhipuCodingPlanEnvelope struct {
