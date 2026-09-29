@@ -215,11 +215,12 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 }
 
 // GetQuotaDataCacheStatsByModel 汇总单个模型在时间窗内的请求数与缓存列，
-// 用于模型广场模型详情的缓存率卡片。
+// 用于模型广场模型详情的缓存率卡片。SUM 在空窗口返回 NULL，COALESCE
+// 兜底为 0，保证三方言下都扫描出零值而非依赖驱动的 NULL 行为。
 func GetQuotaDataCacheStatsByModel(modelName string, startTime int64, endTime int64) (*QuotaData, error) {
 	var row QuotaData
 	err := DB.Table("quota_data").
-		Select("sum(count) as count, sum(prompt_tokens) as prompt_tokens, sum(cache_tokens) as cache_tokens, sum(cache_creation_tokens) as cache_creation_tokens, sum(cache_hit_count) as cache_hit_count").
+		Select("COALESCE(sum(count), 0) as count, COALESCE(sum(prompt_tokens), 0) as prompt_tokens, COALESCE(sum(cache_tokens), 0) as cache_tokens, COALESCE(sum(cache_creation_tokens), 0) as cache_creation_tokens, COALESCE(sum(cache_hit_count), 0) as cache_hit_count").
 		Where("model_name = ? and created_at >= ? and created_at <= ?", modelName, startTime, endTime).
 		Take(&row).Error
 	if err != nil {

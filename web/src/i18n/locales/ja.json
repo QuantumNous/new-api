@@ -5396,6 +5396,7 @@
     "SGLang status": "SGLang の状態",
     "Share": "シェア",
     "Share of input tokens served from or written to cache": "入力トークンのうちキャッシュから読み取り、またはキャッシュに書き込んだ割合",
+    "Share of requests served from cache": "キャッシュから提供されたリクエストの割合",
     "Share your link and earn rewards": "リンクを共有して報酬を獲得",
     "Shared configuration for all payment gateways": "すべての決済ゲートウェイの共有設定",
     "Shorten": "短縮",

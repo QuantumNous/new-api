@@ -5396,6 +5396,7 @@
     "SGLang status": "État de SGLang",
     "Share": "Part",
     "Share of input tokens served from or written to cache": "Part des tokens d'entrée lue depuis ou écrite dans le cache",
+    "Share of requests served from cache": "Part des requêtes servies depuis le cache",
     "Share your link and earn rewards": "Partagez votre lien et gagnez des récompenses",
     "Shared configuration for all payment gateways": "Configuration partagée pour toutes les passerelles de paiement",
     "Shorten": "Raccourcir",

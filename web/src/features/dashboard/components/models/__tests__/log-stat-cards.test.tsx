@@ -68,9 +68,10 @@ describe('log stat cards cache rate slot', () => {
     const title = await screen.findByText('Average cache read/creation rate')
     expect(title).toBeVisible()
     // One slot: the token rates share a value line, the request-count hit
-    // rate rides along in the caption.
-    expect(screen.getByText('40.0% / 5.0%')).toBeVisible()
-    expect(screen.getByText('Read / creation · hit 60.0%')).toBeVisible()
+    // rate rides along in the caption. Both arrive after the quota request
+    // resolves, so query them asynchronously.
+    expect(await screen.findByText('40.0% / 5.0%')).toBeVisible()
+    expect(await screen.findByText('Read / creation · hit 60.0%')).toBeVisible()
   })
 
   test('shows 0 percent instead of a placeholder when the range has no usage', async () => {

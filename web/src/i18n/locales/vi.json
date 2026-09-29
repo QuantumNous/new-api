@@ -5396,6 +5396,7 @@
     "SGLang status": "Trạng thái SGLang",
     "Share": "Tỉ lệ",
     "Share of input tokens served from or written to cache": "Tỷ lệ token đầu vào được đọc từ hoặc ghi vào cache",
+    "Share of requests served from cache": "Tỷ lệ yêu cầu được phục vụ từ cache",
     "Share your link and earn rewards": "Chia sẻ liên kết của bạn và kiếm phần thưởng",
     "Shared configuration for all payment gateways": "Cấu hình chung cho tất cả các cổng thanh toán",
     "Shorten": "Rút gọn",

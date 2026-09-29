@@ -5396,6 +5396,7 @@
     "SGLang status": "Состояние SGLang",
     "Share": "Доля",
     "Share of input tokens served from or written to cache": "Доля входных токенов, прочитанных из кэша или записанных в него",
+    "Share of requests served from cache": "Доля запросов, обслуженных из кэша",
     "Share your link and earn rewards": "Поделитесь своей ссылкой и получайте вознаграждения",
     "Shared configuration for all payment gateways": "Общая конфигурация для всех платежных шлюзов",
     "Shorten": "Сократить",

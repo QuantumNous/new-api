@@ -251,7 +251,9 @@ export function CacheRateCharts(props: CacheRateChartsProps) {
           </IconBadge>
           <div className='text-sm font-semibold'>{t('Cache Rate Analytics')}</div>
           <span className='text-muted-foreground text-xs'>
-            {t('Share of input tokens served from or written to cache')}
+            {metric === 'hit'
+              ? t('Share of requests served from cache')
+              : t('Share of input tokens served from or written to cache')}
           </span>
         </div>
 

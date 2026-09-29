@@ -5396,6 +5396,7 @@
     "SGLang status": "SGLang 狀態",
     "Share": "佔比",
     "Share of input tokens served from or written to cache": "輸入 token 中讀取或寫入緩存的比例",
+    "Share of requests served from cache": "命中緩存的請求占比",
     "Share your link and earn rewards": "分享您的連結並賺取獎勵",
     "Shared configuration for all payment gateways": "所有支付閘道的共享設定",
     "Shorten": "縮詞",
