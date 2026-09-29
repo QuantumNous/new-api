@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
+// ChannelSettings holds per-channel configuration for relay behavior, authentication, and routing.
 type ChannelSettings struct {
 	TaskPluginKey             string `json:"task_plugin_key,omitempty"`
 	ForceFormat               bool   `json:"force_format,omitempty"`
@@ -32,6 +33,13 @@ type ChannelSettings struct {
 	// HTTP2ConnectionShards spreads HTTP/2 traffic across N independent transports
 	// (1-8). Zero/unset means 1. Ignored when HTTPProtocol is "http1".
 	HTTP2ConnectionShards int `json:"http2_connection_shards,omitempty"`
+	// ForceUpstreamStream makes new-api send stream=true to the upstream even
+	// when the downstream client requested non-streaming. The SSE response is
+	// aggregated server-side into a single JSON. Mutually exclusive with
+	// PassThroughBodyEnabled. Note: StreamOptions.IncludeUsage is injected
+	// only for OpenAI and Azure channels (SupportStreamOptions=true); other
+	// OpenAI-compatible channels (e.g. DeepSeek) will use estimated usage.
+	ForceUpstreamStream bool `json:"force_upstream_stream,omitempty"`
 }
 
 // BindsTaskPlugin reports whether the channel is bound to the task plugin,
@@ -85,6 +93,19 @@ func (s *ChannelSettings) ValidateHTTPTransport() error {
 	return nil
 }
 
+// ValidateForceUpstreamStream rejects configurations where ForceUpstreamStream
+// and PassThroughBodyEnabled are both enabled, since they are mutually exclusive.
+func (s *ChannelSettings) ValidateForceUpstreamStream() error {
+	if s == nil {
+		return nil
+	}
+	if s.ForceUpstreamStream && s.PassThroughBodyEnabled {
+		return fmt.Errorf("force_upstream_stream and pass_through_body_enabled are mutually exclusive")
+	}
+	return nil
+}
+
+// VertexKeyType identifies the authentication method for Google Vertex AI channels.
 type VertexKeyType string
 
 const (
@@ -92,6 +113,7 @@ const (
 	VertexKeyTypeAPIKey VertexKeyType = "api_key"
 )
 
+// AwsKeyType identifies the authentication method for AWS Bedrock channels.
 type AwsKeyType string
 
 const (
@@ -99,6 +121,7 @@ const (
 	AwsKeyTypeApiKey AwsKeyType = "api_key"
 )
 
+// ChannelOtherSettings holds supplementary channel configuration not covered by ChannelSettings.
 type ChannelOtherSettings struct {
 	AzureResponsesVersion                 string                `json:"azure_responses_version,omitempty"`
 	VertexKeyType                         VertexKeyType         `json:"vertex_key_type,omitempty"` // "json" or "api_key"
@@ -129,6 +152,7 @@ type ChannelOtherSettings struct {
 	ToolLossPolicy string `json:"tool_loss_policy,omitempty"`
 }
 
+// IsOpenRouterEnterprise returns true if the channel uses OpenRouter enterprise routing.
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
 	if s == nil || s.OpenRouterEnterprise == nil {
 		return false
@@ -168,10 +192,12 @@ const (
 	AdvancedCustomAuthTypeQuery  = "query"
 )
 
+// AdvancedCustomConfig holds advanced per-model routing and endpoint configuration.
 type AdvancedCustomConfig struct {
 	Routes []AdvancedCustomRoute `json:"advanced_routes,omitempty"`
 }
 
+// AdvancedCustomRoute defines a custom routing rule for a specific model or pattern.
 type AdvancedCustomRoute struct {
 	IncomingPath           string                   `json:"incoming_path,omitempty"`
 	UpstreamPath           string                   `json:"upstream_path,omitempty"`
@@ -191,6 +217,7 @@ func (r AdvancedCustomRoute) SupportsPassThroughBody() bool {
 	}
 }
 
+// AdvancedCustomRouteAuth holds authentication overrides for a custom route.
 type AdvancedCustomRouteAuth struct {
 	Type  string `json:"type,omitempty"`
 	Name  string `json:"name,omitempty"`
@@ -298,6 +325,7 @@ func (c *AdvancedCustomConfig) SupportsPathForModel(requestPath string, model st
 	return ok
 }
 
+// SupportedEndpointTypesForModel returns the endpoint types supported by the custom config for the given model.
 func (c *AdvancedCustomConfig) SupportedEndpointTypesForModel(model string) []types.EndpointType {
 	if c == nil {
 		return nil
@@ -444,6 +472,7 @@ func IsAdvancedCustomConverterAllowed(converter string) bool {
 	}
 }
 
+// Validate checks the advanced custom configuration for internal consistency.
 func (c *AdvancedCustomConfig) Validate() error {
 	if c == nil {
 		return fmt.Errorf("advanced_custom is required")

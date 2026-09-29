@@ -24,6 +24,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+// ThinkingContentInfo tracks thinking/reasoning content state during relay processing.
 type ThinkingContentInfo struct {
 	IsFirstThinkingContent  bool
 	SendLastThinkingContent bool
@@ -41,21 +42,25 @@ const (
 // host code and adaptors compiling unchanged.
 type ClaudeConvertInfo = convmeta.ClaudeConvertInfo
 
+// RerankerInfo holds parameters for reranker requests.
 type RerankerInfo struct {
 	Documents       []any
 	ReturnDocuments bool
 }
 
+// BuildInToolInfo holds built-in tool configuration for the relay.
 type BuildInToolInfo struct {
 	ToolName          string
 	CallCount         int
 	SearchContextSize string
 }
 
+// ResponsesUsageInfo tracks usage statistics for OpenAI Responses API requests.
 type ResponsesUsageInfo struct {
 	BuiltInTools map[string]*BuildInToolInfo
 }
 
+// ChannelMeta holds channel-level metadata used across the relay pipeline.
 type ChannelMeta struct {
 	ChannelType          int
 	ChannelId            int
@@ -76,11 +81,13 @@ type ChannelMeta struct {
 	SupportStreamOptions bool // 是否支持流式选项
 }
 
+// TokenCountMeta tracks token counting state for billing and rate limiting.
 type TokenCountMeta struct {
 	//promptTokens int
 	estimatePromptTokens int
 }
 
+// RelayInfo is the central context object passed through the relay pipeline, carrying request metadata, channel settings, and per-attempt state.
 type RelayInfo struct {
 	TokenId           int
 	TokenKey          string
@@ -94,6 +101,7 @@ type RelayInfo struct {
 	isFirstResponse   bool
 	//SendLastReasoningResponse bool
 	IsStream               bool
+	UpstreamStreamForced   bool // true when client requested non-stream but upstream was forced to stream
 	IsGeminiBatchEmbedding bool
 	IsPlayground           bool
 	UsePrice               bool
@@ -242,6 +250,7 @@ func (info *RelayInfo) RequestedImageCount() int {
 	return 1
 }
 
+// InitChannelMeta initializes channel metadata from the gin context and channel configuration.
 func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	info.ResponseModel = nil
 	info.FinalRequestRelayFormat = ""
@@ -324,6 +333,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	}
 }
 
+// ToString returns a JSON representation of RelayInfo for debugging.
 func (info *RelayInfo) ToString() string {
 	if info == nil {
 		return "RelayInfo<nil>"
@@ -727,6 +737,7 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 	return info, nil
 }
 
+// InitRequestConversionChain resets the request conversion format chain.
 func (info *RelayInfo) InitRequestConversionChain() {
 	if info == nil {
 		return
@@ -740,6 +751,7 @@ func (info *RelayInfo) InitRequestConversionChain() {
 	info.RequestConversionChain = []types.RelayFormat{info.RelayFormat}
 }
 
+// AppendRequestConversion appends a relay format to the conversion chain.
 func (info *RelayInfo) AppendRequestConversion(format types.RelayFormat) {
 	if info == nil {
 		return
@@ -758,6 +770,7 @@ func (info *RelayInfo) AppendRequestConversion(format types.RelayFormat) {
 	info.RequestConversionChain = append(info.RequestConversionChain, format)
 }
 
+// GetFinalRequestRelayFormat returns the last format in the request conversion chain.
 func (info *RelayInfo) GetFinalRequestRelayFormat() types.RelayFormat {
 	if info == nil {
 		return ""
@@ -808,6 +821,7 @@ func (info *RelayInfo) SetEstimatePromptTokens(promptTokens int) {
 	info.estimatePromptTokens = promptTokens
 }
 
+// GetEstimatePromptTokens returns the estimated prompt token count for fallback usage calculation.
 func (info *RelayInfo) GetEstimatePromptTokens() int {
 	if info == nil {
 		return 0
@@ -822,6 +836,7 @@ func (info *RelayInfo) GetEstimatePromptTokens() int {
 
 var _ convmeta.Meta = (*RelayInfo)(nil)
 
+// GetOriginModelName returns the model name as specified by the client.
 func (info *RelayInfo) GetOriginModelName() string {
 	if info == nil {
 		return ""
@@ -841,6 +856,7 @@ func (info *RelayInfo) GetBillingModelName() string {
 	return info.OriginModelName
 }
 
+// GetUpstreamModelName returns the model name sent to the upstream.
 func (info *RelayInfo) GetUpstreamModelName() string {
 	if info == nil || info.ChannelMeta == nil {
 		return ""
@@ -848,8 +864,10 @@ func (info *RelayInfo) GetUpstreamModelName() string {
 	return info.UpstreamModelName
 }
 
+// HasChannelMeta returns true if the RelayInfo has non-nil channel metadata.
 func (info *RelayInfo) HasChannelMeta() bool { return info != nil && info.ChannelMeta != nil }
 
+// GetChannelID returns the numeric channel identifier.
 func (info *RelayInfo) GetChannelID() int {
 	if info == nil || info.ChannelMeta == nil {
 		return 0
@@ -857,6 +875,7 @@ func (info *RelayInfo) GetChannelID() int {
 	return info.ChannelId
 }
 
+// GetChannelType returns the channel type constant.
 func (info *RelayInfo) GetChannelType() int {
 	if info == nil || info.ChannelMeta == nil {
 		return 0
@@ -864,10 +883,12 @@ func (info *RelayInfo) GetChannelType() int {
 	return info.ChannelType
 }
 
+// GetIsStream returns whether the current request is a streaming request.
 func (info *RelayInfo) GetIsStream() bool {
 	return info != nil && info.IsStream
 }
 
+// GetReasoningEffort returns the reasoning effort level for the request.
 func (info *RelayInfo) GetReasoningEffort() string {
 	if info == nil {
 		return ""
@@ -875,6 +896,7 @@ func (info *RelayInfo) GetReasoningEffort() string {
 	return info.ReasoningEffort
 }
 
+// SetReasoningEffort sets the reasoning effort level for the request.
 func (info *RelayInfo) SetReasoningEffort(effort string) {
 	if info == nil {
 		return
@@ -889,6 +911,7 @@ func (info *RelayInfo) ReasoningState() *dto.ReasoningConversionState {
 	return info.ReasoningConversion
 }
 
+// EnsureClaudeConvertInfo returns the Claude conversion metadata, initializing it if needed.
 func (info *RelayInfo) EnsureClaudeConvertInfo() *convmeta.ClaudeConvertInfo {
 	if info == nil {
 		return &convmeta.ClaudeConvertInfo{
@@ -903,6 +926,7 @@ func (info *RelayInfo) EnsureClaudeConvertInfo() *convmeta.ClaudeConvertInfo {
 	return info.ClaudeConvertInfo
 }
 
+// GetSendResponseCount returns the number of response chunks sent to the client.
 func (info *RelayInfo) GetSendResponseCount() int {
 	if info == nil {
 		return 0
@@ -910,6 +934,7 @@ func (info *RelayInfo) GetSendResponseCount() int {
 	return info.SendResponseCount
 }
 
+// IncrSendResponseCount increments the response chunk counter.
 func (info *RelayInfo) IncrSendResponseCount() {
 	if info == nil {
 		return
@@ -952,6 +977,7 @@ func (info *RelayInfo) ConvOptions() *convmeta.Options {
 	return options
 }
 
+// SetFirstResponseTime records the time of the first response byte.
 func (info *RelayInfo) SetFirstResponseTime() {
 	if info.isFirstResponse {
 		info.FirstResponseTime = time.Now()
@@ -959,6 +985,7 @@ func (info *RelayInfo) SetFirstResponseTime() {
 	}
 }
 
+// HasSendResponse returns true if at least one response chunk has been sent.
 func (info *RelayInfo) HasSendResponse() bool {
 	return info.FirstResponseTime.After(info.StartTime)
 }
@@ -971,6 +998,7 @@ type OriginTaskRef struct {
 	Data           []byte
 }
 
+// TaskRelayInfo holds metadata for async task relay requests.
 type TaskRelayInfo struct {
 	Action       string
 	OriginTaskID string
@@ -990,6 +1018,7 @@ type TaskRelayInfo struct {
 	LockedChannel any
 }
 
+// TaskSubmitReq represents the submission payload for async task requests.
 type TaskSubmitReq struct {
 	Prompt         string         `json:"prompt"`
 	Model          string         `json:"model,omitempty"`
@@ -1003,14 +1032,17 @@ type TaskSubmitReq struct {
 	Metadata       map[string]any `json:"metadata,omitempty"`
 }
 
+// GetPrompt returns the text prompt from the task submission.
 func (t *TaskSubmitReq) GetPrompt() string {
 	return t.Prompt
 }
 
+// HasImage returns true if the task submission contains image content.
 func (t *TaskSubmitReq) HasImage() bool {
 	return len(t.Images) > 0
 }
 
+// UnmarshalJSON implements custom JSON unmarshalling for TaskSubmitReq.
 func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	type Alias TaskSubmitReq
 	aux := &struct {
@@ -1057,6 +1089,8 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 
 	return nil
 }
+
+// UnmarshalMetadata deserializes the task metadata into the given struct.
 func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {
 	metadata := t.Metadata
 	if metadata != nil {
@@ -1072,6 +1106,7 @@ func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {
 	return nil
 }
 
+// TaskInfo holds task status and result information for async requests.
 type TaskInfo struct {
 	Code             int             `json:"code"`
 	TaskID           string          `json:"task_id"`

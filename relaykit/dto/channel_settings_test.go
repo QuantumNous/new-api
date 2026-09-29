@@ -732,3 +732,39 @@ func TestChannelOtherSettingsValidateToolLossPolicy(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tool_loss_policy")
 }
+
+func TestValidateForceUpstreamStream(t *testing.T) {
+	tests := []struct {
+		name    string
+		s       ChannelSettings
+		wantErr bool
+	}{
+		{
+			name:    "force alone is ok",
+			s:       ChannelSettings{ForceUpstreamStream: true},
+			wantErr: false,
+		},
+		{
+			name:    "passthrough alone is ok",
+			s:       ChannelSettings{PassThroughBodyEnabled: true},
+			wantErr: false,
+		},
+		{
+			name:    "both enabled is rejected",
+			s:       ChannelSettings{ForceUpstreamStream: true, PassThroughBodyEnabled: true},
+			wantErr: true,
+		},
+		{
+			name:    "neither is ok",
+			s:       ChannelSettings{},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.s.ValidateForceUpstreamStream(); (err != nil) != tt.wantErr {
+				t.Errorf("ValidateForceUpstreamStream() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
