@@ -52,6 +52,7 @@ const baseApiKey: ApiKey = {
   model_limits: '',
   allow_ips: '',
   allow_user_quota_query: false,
+  rpm_limit: 0,
 }
 
 describe('API key Auto group form mapping', () => {
@@ -179,6 +180,47 @@ describe('API key Auto group form mapping', () => {
     expect(result.error.issues[0]?.message).toBe(
       'Auto groups must not contain duplicates'
     )
+  })
+
+  test('round-trips the per-key RPM limit through the form and payload', () => {
+    const stored = transformApiKeyToFormDefaults(
+      { ...baseApiKey, rpm_limit: 45 },
+      ['default', 'vip'],
+      2
+    )
+    expect(stored.rpm_limit).toBe(45)
+    expect(transformFormDataToPayload(stored).rpm_limit).toBe(45)
+
+    const fresh = getApiKeyFormDefaultValues(true)
+    expect(fresh.rpm_limit).toBe(0)
+    expect(transformFormDataToPayload(fresh).rpm_limit).toBe(0)
+
+    const withoutLimit = transformApiKeyToFormDefaults(
+      { ...baseApiKey, rpm_limit: null },
+      ['default', 'vip'],
+      2
+    )
+    expect(withoutLimit.rpm_limit).toBe(0)
+    expect(transformFormDataToPayload(withoutLimit).rpm_limit).toBe(0)
+  })
+
+  test('rejects negative RPM limits and keeps zero the default', () => {
+    const base = {
+      ...getApiKeyFormDefaultValues(true),
+      name: 'limited token',
+    }
+
+    const negative = getApiKeyFormSchema(t).safeParse({
+      ...base,
+      rpm_limit: -1,
+    })
+    expect(negative.success).toBe(false)
+
+    const zero = getApiKeyFormSchema(t).safeParse({ ...base, rpm_limit: 0 })
+    expect(zero.success).toBe(true)
+
+    const omitted = getApiKeyFormSchema(t).safeParse(base)
+    expect(omitted.success).toBe(true)
   })
 })
 

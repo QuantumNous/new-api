@@ -40,6 +40,12 @@ const (
 	FilterTaskPluginEndpoint ChannelFilterKind = "task_plugin_endpoint"
 	FilterTaskPluginIdentity ChannelFilterKind = "task_plugin_identity"
 	FilterResponsesWebSocket ChannelFilterKind = "responses_websocket"
+	// FilterChannelLimits drops channels that are currently over their
+	// RPM, TPM, or calendar quota limits. Unlike the kinds above it is
+	// time-dependent: it evaluates live window counters instead of
+	// request-intrinsic properties, and its decision may change between
+	// retry attempts of the same request.
+	FilterChannelLimits ChannelFilterKind = "channel_limits"
 )
 
 type ChannelFilter struct {
