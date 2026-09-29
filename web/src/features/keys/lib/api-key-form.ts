@@ -45,7 +45,10 @@ export function getApiKeyFormSchema(t: TFunction, maxAutoGroups = 5) {
       auto_groups: z.array(z.string()),
       cross_group_retry: z.boolean().optional(),
       tokenCount: z.number().min(1).optional(),
-      rpm_limit: z.number().int().min(0, t('RPM limit must be zero or greater')),
+      rpm_limit: z
+        .number()
+        .int(t('RPM limit must be a whole number'))
+        .min(0, t('RPM limit must be zero or greater')),
     })
     .superRefine((data, ctx) => {
       if (data.group === 'auto') {

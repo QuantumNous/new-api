@@ -483,6 +483,7 @@ func UpdateToken(c *gin.Context) {
 			{"group", previous.Group != cleanToken.Group},
 			{"cross_group_retry", previous.CrossGroupRetry != cleanToken.CrossGroupRetry},
 			{"auto_groups", previous.AutoGroups != cleanToken.AutoGroups},
+			{"rpm_limit", previous.RpmLimit != cleanToken.RpmLimit},
 		} {
 			if field.changed {
 				changedFields = append(changedFields, field.name)

@@ -24,6 +24,7 @@ import { channelSchema } from '../../types'
 import { getChannelConfigurationState } from '../channel-configuration'
 import {
   CHANNEL_FORM_DEFAULT_VALUES,
+  channelFormSchema,
   transformChannelToFormDefaults,
   transformFormDataToCreatePayload,
   transformFormDataToUpdatePayload,
@@ -115,6 +116,40 @@ describe('channel rate and quota limit form mapping', () => {
     expect(updatePayload.monthly_quota_limit).toBe(
       parseQuotaFromDollars(quotaUnitsToDollars(7500000))
     )
+  })
+
+  test('rejects a positive quota that would convert to zero quota units', () => {
+    const result = channelFormSchema.safeParse({
+      ...baseValues,
+      models: 'custom-model',
+      daily_quota_dollars: 1e-9,
+      monthly_quota_dollars: 1e-9,
+    })
+
+    expect(result.success).toBe(false)
+    if (!result.success) {
+      expect(result.error.issues.map((issue) => issue.message)).toContain(
+        'Quota value is too small and would be saved as unlimited'
+      )
+    }
+  })
+
+  test('keeps zero and representable quota values valid', () => {
+    const zeroLimits = channelFormSchema.safeParse({
+      ...baseValues,
+      models: 'custom-model',
+      daily_quota_dollars: 0,
+      monthly_quota_dollars: 0,
+    })
+    expect(zeroLimits.success).toBe(true)
+
+    const representable = channelFormSchema.safeParse({
+      ...baseValues,
+      models: 'custom-model',
+      daily_quota_dollars: quotaUnitsToDollars(500000),
+      monthly_quota_dollars: quotaUnitsToDollars(7500000),
+    })
+    expect(representable.success).toBe(true)
   })
 
   test('sends explicit zeros when every limit is cleared', () => {

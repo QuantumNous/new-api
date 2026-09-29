@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { t } from 'i18next'
 import { z } from 'zod'
 
 import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
@@ -204,6 +205,18 @@ function addRequiredIssue(
   })
 }
 
+// A positive quota that converts to zero quota units (for example a
+// fractional dollar value under the tokens display mode) would be saved as
+// unlimited; reject it so the entered limit always reaches the backend.
+function rejectQuotaBelowOneUnit(value: number, ctx: z.RefinementCtx): void {
+  if (value > 0 && parseQuotaFromDollars(value) < 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: t('Quota value is too small and would be saved as unlimited'),
+    })
+  }
+}
+
 export const channelFormSchema = z
   .object({
     name: z.string().min(1, ERROR_MESSAGES.REQUIRED_NAME),
@@ -229,8 +242,16 @@ export const channelFormSchema = z
     // Channel-level rate and quota limits; 0 means unlimited.
     rpm_limit: z.number().int().min(0).optional(),
     tpm_limit: z.number().int().min(0).optional(),
-    daily_quota_dollars: z.number().min(0).optional(),
-    monthly_quota_dollars: z.number().min(0).optional(),
+    daily_quota_dollars: z
+      .number()
+      .min(0)
+      .superRefine(rejectQuotaBelowOneUnit)
+      .optional(),
+    monthly_quota_dollars: z
+      .number()
+      .min(0)
+      .superRefine(rejectQuotaBelowOneUnit)
+      .optional(),
     status: z.number(),
     status_code_mapping: z
       .string()

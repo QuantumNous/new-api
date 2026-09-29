@@ -56,6 +56,59 @@ func CounterIncrBy(key string, delta int64, ttl time.Duration) (int64, error) {
 	return memoryCounterIncrBy(key, delta, ttl), nil
 }
 
+// CounterDelta pairs a counter key with the signed delta to apply and the
+// key's TTL.
+type CounterDelta struct {
+	Key   string
+	Delta int64
+	TTL   time.Duration
+}
+
+// CounterMIncrBy applies every delta in one atomic step: a single Redis
+// MULTI/EXEC transaction, or one in-memory critical section, so paired
+// windows (for example the daily and monthly channel quota) cannot drift
+// apart after a partial failure.
+func CounterMIncrBy(deltas []CounterDelta) error {
+	if len(deltas) == 0 {
+		return nil
+	}
+	if RedisEnabled && RDB != nil {
+		return redisCounterMIncrBy(deltas)
+	}
+	memoryCounterMIncrBy(deltas)
+	return nil
+}
+
+func redisCounterMIncrBy(deltas []CounterDelta) error {
+	ctx := context.Background()
+	txn := RDB.TxPipeline()
+	for _, delta := range deltas {
+		txn.IncrBy(ctx, delta.Key, delta.Delta)
+		if delta.TTL > 0 {
+			txn.Expire(ctx, delta.Key, delta.TTL)
+		}
+	}
+	if _, err := txn.Exec(ctx); err != nil {
+		return err
+	}
+	return nil
+}
+
+func memoryCounterMIncrBy(deltas []CounterDelta) {
+	startWindowCounterJanitor()
+	now := time.Now()
+	windowCounters.mutex.Lock()
+	defer windowCounters.mutex.Unlock()
+	for _, delta := range deltas {
+		entry, ok := windowCounters.entries[delta.Key]
+		if !ok || now.After(entry.expiresAt) {
+			entry = windowCounterEntry{expiresAt: now.Add(delta.TTL)}
+		}
+		entry.value += delta.Delta
+		windowCounters.entries[delta.Key] = entry
+	}
+}
+
 // CounterGet returns the current value of one counter, or 0 when unset or
 // expired. Read failures fail open (value 0) after logging.
 func CounterGet(key string) int64 {

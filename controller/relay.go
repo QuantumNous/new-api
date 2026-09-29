@@ -266,6 +266,11 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+// getChannel returns the channel for the current relay attempt. When the
+// distributor has already selected a channel (ChannelMeta is nil), the full
+// cached channel replaces the context-reconstructed partial one so limit
+// admission sees the configured RpmLimit; a cache miss keeps the partial
+// channel and leaves limits enforced by the selection-side filter.
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
 	if info.ChannelMeta == nil {
 		autoBan := c.GetBool("auto_ban")
@@ -278,6 +283,9 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			Type:    c.GetInt("channel_type"),
 			Name:    c.GetString("channel_name"),
 			AutoBan: &autoBanInt,
+		}
+		if full, cacheErr := model.CacheGetChannel(channel.Id); cacheErr == nil && full != nil {
+			channel = full
 		}
 		service.RequestPolicy(c).BeginAttempt(channel, info.UsingGroup)
 		return channel, nil

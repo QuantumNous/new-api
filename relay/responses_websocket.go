@@ -586,6 +586,15 @@ func (s *responsesWSSession) restoreConnectionContext(c *gin.Context, model stri
 			return types.NewErrorWithStatusCode(errors.New("the connection channel is no longer allowed for this group and model"), types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry())
 		}
 	}
+	// Channel limits still apply on a locked connection: re-check TPM and
+	// calendar quota eligibility, then run the same atomic RPM admission
+	// as the initial selection path.
+	if !appmodel.ChannelWithinLimits(channel) {
+		return appmodel.ChannelLimitsExceededError(channel)
+	}
+	if !appmodel.ChannelRpmTryConsume(channel) {
+		return appmodel.ChannelRpmOverLimitError(channel)
+	}
 	for key, value := range s.lockedContext {
 		c.Set(string(key), value)
 	}

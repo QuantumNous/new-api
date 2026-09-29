@@ -681,11 +681,7 @@ export function ApiKeysMutateDrawer({
                         type='number'
                         min={0}
                         placeholder='0'
-                        onChange={(e) =>
-                          field.onChange(
-                            Number.parseInt(e.target.value, 10) || 0
-                          )
-                        }
+                        onChange={(e) => field.onChange(Number(e.target.value))}
                       />
                     </FormControl>
                     <FormDescription>
