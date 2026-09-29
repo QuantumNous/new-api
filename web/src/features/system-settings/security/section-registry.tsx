@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { RateLimitSection } from '../request-limits/rate-limit-section'
 import { SSRFSection } from '../request-limits/ssrf-section'
 import { TokenLimitSection } from '../request-limits/token-limit-section'
+import { IpBlacklistSection } from '../request-limits/ip-blacklist-section'
 import type { SecuritySettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
@@ -76,6 +77,11 @@ const SECURITY_SECTIONS = [
         }}
       />
     ),
+  },
+  {
+    id: 'ip-blacklist',
+    titleKey: 'API Key IP Blacklist',
+    build: (_settings: SecuritySettings) => <IpBlacklistSection />,
   },
 ] as const
 

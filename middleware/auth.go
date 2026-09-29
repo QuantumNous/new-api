@@ -287,8 +287,18 @@ func TokenOrUserAuth() func(c *gin.Context) {
 // 仍然检查用户是否被封禁。
 func TokenAuthReadOnly() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		model.EnsureIpBlacklistLoaded()
+		if model.IsIpBlacklisted(c.ClientIP()) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"success": false,
+				"message": "您的 IP 已被禁止访问",
+			})
+			c.Abort()
+			return
+		}
 		key := c.Request.Header.Get("Authorization")
 		if key == "" {
+			service.RecordInvalidKeyIPFailure(c)
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"success": false,
 				"message": common.TranslateMessage(c, i18n.MsgTokenNotProvided),
@@ -306,6 +316,7 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 		token, err := model.GetTokenByKey(key, false)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
+				service.RecordInvalidKeyIPFailure(c)
 				c.JSON(http.StatusUnauthorized, gin.H{
 					"success": false,
 					"message": common.TranslateMessage(c, i18n.MsgTokenInvalid),
@@ -360,6 +371,18 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 
 func TokenAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		model.EnsureIpBlacklistLoaded()
+		if model.IsIpBlacklisted(c.ClientIP()) {
+			c.JSON(http.StatusForbidden, gin.H{
+				"error": gin.H{
+					"message": common.MessageWithRequestId("您的 IP 已被禁止访问", c.GetString(common.RequestIdKey)),
+					"type":    "new_api_error",
+					"code":    string(types.ErrorCodeAccessDenied),
+				},
+			})
+			c.Abort()
+			return
+		}
 		// 先检测是否为ws
 		applyWebSocketSubprotocolAuthorization(c.Request.Header)
 		// 检查path包含/v1/messages 或 /v1/models
@@ -415,6 +438,7 @@ func TokenAuth() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, http.StatusInternalServerError,
 					common.TranslateMessage(c, i18n.MsgDatabaseError))
 			} else {
+				service.RecordInvalidKeyIPFailure(c)
 				abortWithOpenAiMessage(c, http.StatusUnauthorized,
 					common.TranslateMessage(c, i18n.MsgTokenInvalid))
 			}
