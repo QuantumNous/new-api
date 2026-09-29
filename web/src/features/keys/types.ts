@@ -46,6 +46,8 @@ export const apiKeySchema = z.object({
   model_limits_enabled: z.boolean(),
   model_limits: z.string().nullish().default(''),
   allow_ips: z.string().nullish().default(''),
+  // Per-key requests-per-minute limit; null or 0 means unlimited.
+  rpm_limit: z.number().nullish().default(0),
 })
 
 export type ApiKey = z.infer<typeof apiKeySchema>
@@ -94,6 +96,7 @@ export interface ApiKeyFormData {
   group: string
   auto_groups: string[]
   cross_group_retry: boolean
+  rpm_limit: number
 }
 
 export interface TokenAutoGroupsConfig {

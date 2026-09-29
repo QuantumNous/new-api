@@ -53,6 +53,8 @@ token.db_error: "Invalid token, database query error, please contact administrat
 token.auto_groups_too_many: "A token can select at most {{.Max}} Auto groups"
 token.auto_groups_duplicate: "Auto group {{.Group}} is duplicated"
 token.auto_groups_invalid: "Auto group {{.Group}} is unavailable or unauthorized"
+token.rpm_limit_reached: "This API key has reached its per-minute request limit ({{.Limit}} requests per minute). Please retry later"
+token.rpm_limit_invalid: "Requests per minute limit must be zero or greater"
 
 # Redemption messages
 redemption.name_length: "Redemption code name length must be between 1-20"
@@ -279,6 +281,7 @@ distributor.invalid_playground_request: "Invalid playground request: {{.Error}}"
 distributor.group_access_denied: "No permission to access this group"
 distributor.get_channel_failed: "Failed to get available channel for model {{.Model}} under group {{.Group}} (distributor): {{.Error}}"
 distributor.no_available_channel: "No available channel for model {{.Model}} under group {{.Group}} (distributor)"
+distributor.channels_over_limit: "All channels for model {{.Model}} under group {{.Group}} are over their rate or quota limits (distributor)"
 distributor.no_available_channel_task_plugin: "No available channel for model {{.Model}} under group {{.Group}}: the model is claimed by a task plugin, which has no enabled channel serving it (distributor)"
 distributor.invalid_midjourney_request: "Invalid Midjourney request: {{.Error}}"
 distributor.invalid_request_parse_model: "Invalid request, unable to parse model"

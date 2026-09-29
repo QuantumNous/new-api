@@ -2,9 +2,15 @@ package service
 
 import (
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -77,6 +83,41 @@ func TestPinnedTaskPluginChannelTypesIncludesSharedEndpointProviders(t *testing.
 	require.Len(t, filters, 1)
 	assert.Equal(t, []int{constant.ChannelTypeGemini, constant.ChannelTypeVertexAi}, filters[0].TaskPluginChannelTypes)
 	assert.Equal(t, []string{"gemini-select", "vertex-select"}, filters[0].TaskPluginKeys)
+}
+
+func TestSelectChannelForRequestReportsOverLimitChannels(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	const modelName = "over-limit-selection-model"
+	createChannelSelectAutoGroupsChannel(t, db, 2201, "default", modelName)
+	rpm := int64(1)
+	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 2201).Update("rpm_limit", rpm).Error)
+	model.InitChannelCache()
+
+	// Saturate the channel's RPM window through the exported dispatch
+	// admission so the test shares the production counter keys.
+	limited := &model.Channel{Id: 2201, RpmLimit: &rpm}
+	require.True(t, model.ChannelRpmTryConsume(limited), "the first dispatch fills the one-request window")
+
+	gin.SetMode(gin.TestMode)
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	common.SetContextKey(ctx, constant.ContextKeyUsingGroup, "default")
+	GetChannelConstraints(ctx).AddFilter(dto.ChannelFilter{Kind: dto.FilterChannelLimits})
+
+	retry := 0
+	param := &RetryParam{
+		Ctx:         ctx,
+		TokenGroup:  "default",
+		ModelName:   modelName,
+		RequestPath: "/v1/chat/completions",
+		Retry:       &retry,
+	}
+
+	channel, _, selectErr := SelectChannelForRequest(ctx, modelName, param)
+	assert.Nil(t, channel)
+	require.NotNil(t, selectErr, "an all-limited candidate pool must not look like a success")
+	assert.Equal(t, http.StatusTooManyRequests, selectErr.StatusCode)
+	assert.Equal(t, model.ChannelLimitExceededCode, selectErr.Code)
+	assert.Equal(t, i18n.MsgDistributorChannelsOverLimit, selectErr.MessageID)
 }
 
 func channelSelectTaskPluginSource(key string, channelType int) string {

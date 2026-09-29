@@ -301,6 +301,10 @@ func AddToken(c *gin.Context) {
 			return
 		}
 	}
+	if token.RpmLimit < 0 {
+		common.ApiErrorI18n(c, i18n.MsgTokenRpmLimitInvalid)
+		return
+	}
 	// 检查用户令牌数量是否已达上限
 	maxTokens := operation_setting.GetMaxUserTokens()
 	count, err := model.CountUserTokens(c.GetInt("id"))
@@ -344,6 +348,7 @@ func AddToken(c *gin.Context) {
 		Group:              token.Group,
 		CrossGroupRetry:    token.CrossGroupRetry,
 		AutoGroups:         token.AutoGroups,
+		RpmLimit:           token.RpmLimit,
 	}
 	err = cleanToken.Insert()
 	if err != nil {
@@ -409,6 +414,10 @@ func UpdateToken(c *gin.Context) {
 			return
 		}
 	}
+	if token.RpmLimit < 0 {
+		common.ApiErrorI18n(c, i18n.MsgTokenRpmLimitInvalid)
+		return
+	}
 	cleanToken, err := model.GetTokenByIds(token.Id, userId)
 	if err != nil {
 		common.ApiError(c, err)
@@ -439,6 +448,7 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
+		cleanToken.RpmLimit = token.RpmLimit
 		if token.Group != "auto" {
 			cleanToken.CrossGroupRetry = false
 			_ = cleanToken.SetAutoGroups(nil)

@@ -287,6 +287,10 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			if apiErr != nil {
 				return apiErr
 			}
+			if !appmodel.ChannelRpmTryConsume(channel) {
+				apiErr = appmodel.ChannelRpmOverLimitError(channel)
+				continue
+			}
 			service.AppendUsedChannel(c, channel.Id)
 			if info == nil {
 				info = relaycommon.GenRelayInfoResponses(c, &create.Request)
@@ -919,6 +923,13 @@ func selectResponsesWSChannel(c *gin.Context, modelName string, retryParam *serv
 		return filter.Kind == appdto.FilterResponsesWebSocket
 	}) {
 		constraints.AddFilter(appdto.ChannelFilter{Kind: appdto.FilterResponsesWebSocket})
+	}
+	// The Responses WebSocket path bypasses Distribute, so register the
+	// channel-limits filter here for parity with the HTTP relay.
+	if !slices.ContainsFunc(constraints.Filters, func(filter appdto.ChannelFilter) bool {
+		return filter.Kind == appdto.FilterChannelLimits
+	}) {
+		constraints.AddFilter(appdto.ChannelFilter{Kind: appdto.FilterChannelLimits})
 	}
 	channel, _, selectErr := service.SelectChannelForRequest(c, modelName, retryParam)
 	if selectErr != nil {

@@ -166,6 +166,13 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			newAPIError = channelErr
 			break
 		}
+		// Strict channel RPM admission at dispatch: a channel that just went
+		// over its budget hands the attempt to the next candidate. The error is
+		// local (never auto-bans) and the request keeps its retry budget.
+		if !model.ChannelRpmTryConsume(channel) {
+			newAPIError = model.ChannelRpmOverLimitError(channel)
+			continue
+		}
 		service.AppendUsedChannel(c, channel.Id)
 		if billingErr := service.PrepareTieredBillingForSelectedGroup(c, relayInfo); billingErr != nil {
 			newAPIError = billingErr
@@ -527,6 +534,14 @@ func executeTaskSubmissionWith(
 				taskErr = service.TaskErrorWrapperLocal(channelErr.Err, "get_channel_failed", channelErr.StatusCode)
 				break
 			}
+		}
+		// Strict channel RPM admission at dispatch: skip the attempt (and the
+		// next candidate keeps the retry budget) instead of sending the task to
+		// a channel that just exhausted its per-minute budget.
+		if !model.ChannelRpmTryConsume(channel) {
+			overLimit := model.ChannelRpmOverLimitError(channel)
+			taskErr = service.TaskErrorWrapperLocal(overLimit.Err, string(model.ChannelLimitExceededCode), overLimit.StatusCode)
+			continue
 		}
 		diagnostics.attempt(retryParam.GetRetry()+1, channel, relayInfo.LockedChannel != nil)
 

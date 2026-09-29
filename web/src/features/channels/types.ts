@@ -57,6 +57,11 @@ export const channelSchema = z.object({
   status_code_mapping: z.string().nullish(),
   priority: z.number().nullish(),
   auto_ban: z.number().nullish(),
+  // Channel-level rate and quota limits; null or 0 means unlimited.
+  rpm_limit: z.number().nullish(),
+  tpm_limit: z.number().nullish(),
+  daily_quota_limit: z.number().nullish(),
+  monthly_quota_limit: z.number().nullish(),
   other_info: z.string().default(''),
   tag: z.string().nullish(),
   setting: z.string().nullish(),

@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
 
+import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
+
 import {
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
   CHANNEL_TYPE_NEW_API,
@@ -224,6 +226,11 @@ export const channelFormSchema = z
     weight: z.number().optional(),
     test_model: z.string().optional(),
     auto_ban: z.number().optional(),
+    // Channel-level rate and quota limits; 0 means unlimited.
+    rpm_limit: z.number().int().min(0).optional(),
+    tpm_limit: z.number().int().min(0).optional(),
+    daily_quota_dollars: z.number().min(0).optional(),
+    monthly_quota_dollars: z.number().min(0).optional(),
     status: z.number(),
     status_code_mapping: z
       .string()
@@ -441,6 +448,10 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   weight: 0,
   test_model: '',
   auto_ban: 1,
+  rpm_limit: 0,
+  tpm_limit: 0,
+  daily_quota_dollars: 0,
+  monthly_quota_dollars: 0,
   status: CHANNEL_STATUS.ENABLED,
   status_code_mapping: '',
   tag: '',
@@ -601,6 +612,14 @@ export function transformChannelToFormDefaults(
     model_mapping: channel.model_mapping || '',
     priority: channel.priority || 0,
     weight: channel.weight || 0,
+    rpm_limit: channel.rpm_limit ?? 0,
+    tpm_limit: channel.tpm_limit ?? 0,
+    daily_quota_dollars: channel.daily_quota_limit
+      ? quotaUnitsToDollars(channel.daily_quota_limit)
+      : 0,
+    monthly_quota_dollars: channel.monthly_quota_limit
+      ? quotaUnitsToDollars(channel.monthly_quota_limit)
+      : 0,
     test_model: channel.test_model || '',
     auto_ban: channel.auto_ban ?? 1,
     status: channel.status,
@@ -856,6 +875,14 @@ export function transformFormDataToCreatePayload(formData: ChannelFormValues): {
     weight: formData.weight || null,
     test_model: formData.test_model || null,
     auto_ban: formData.auto_ban ?? 1,
+    rpm_limit: formData.rpm_limit ?? 0,
+    tpm_limit: formData.tpm_limit ?? 0,
+    daily_quota_limit: parseQuotaFromDollars(
+      formData.daily_quota_dollars || 0
+    ),
+    monthly_quota_limit: parseQuotaFromDollars(
+      formData.monthly_quota_dollars || 0
+    ),
     status: formData.status,
     status_code_mapping: formData.status_code_mapping || null,
     tag: formData.tag || null,
@@ -904,6 +931,14 @@ export function transformFormDataToUpdatePayload(
     weight: formData.weight ?? 0,
     test_model: formData.test_model || null,
     auto_ban: formData.auto_ban ?? 1,
+    rpm_limit: formData.rpm_limit ?? 0,
+    tpm_limit: formData.tpm_limit ?? 0,
+    daily_quota_limit: parseQuotaFromDollars(
+      formData.daily_quota_dollars || 0
+    ),
+    monthly_quota_limit: parseQuotaFromDollars(
+      formData.monthly_quota_dollars || 0
+    ),
     status_code_mapping: formData.status_code_mapping || null,
     tag: formData.tag || null,
     remark: formData.remark || '',

@@ -44,6 +44,14 @@ type Channel struct {
 	StatusCodeMapping *string `json:"status_code_mapping" gorm:"type:varchar(1024);default:''"`
 	Priority          *int64  `json:"priority" gorm:"bigint;default:0"`
 	AutoBan           *int    `json:"auto_ban" gorm:"default:1"`
+	// Channel-level rate and quota limits. Zero or nil means unlimited.
+	// RPM counts every upstream dispatch (including retries), TPM counts
+	// settled prompt+completion tokens per minute, and the quota limits cap
+	// the channel's used-quota growth per calendar day/month (server local time).
+	RpmLimit          *int64  `json:"rpm_limit" gorm:"bigint;default:0"`
+	TpmLimit          *int64  `json:"tpm_limit" gorm:"bigint;default:0"`
+	DailyQuotaLimit   *int64  `json:"daily_quota_limit" gorm:"bigint;default:0"`
+	MonthlyQuotaLimit *int64  `json:"monthly_quota_limit" gorm:"bigint;default:0"`
 	OtherInfo         string  `json:"other_info"`
 	Tag               *string `json:"tag" gorm:"index"`
 	Setting           *string `json:"setting" gorm:"type:text"` // 渠道额外设置
@@ -520,6 +528,34 @@ func (channel *Channel) GetWeight() int {
 	return int(*channel.Weight)
 }
 
+func (channel *Channel) GetRpmLimit() int64 {
+	if channel.RpmLimit == nil {
+		return 0
+	}
+	return *channel.RpmLimit
+}
+
+func (channel *Channel) GetTpmLimit() int64 {
+	if channel.TpmLimit == nil {
+		return 0
+	}
+	return *channel.TpmLimit
+}
+
+func (channel *Channel) GetDailyQuotaLimit() int64 {
+	if channel.DailyQuotaLimit == nil {
+		return 0
+	}
+	return *channel.DailyQuotaLimit
+}
+
+func (channel *Channel) GetMonthlyQuotaLimit() int64 {
+	if channel.MonthlyQuotaLimit == nil {
+		return 0
+	}
+	return *channel.MonthlyQuotaLimit
+}
+
 func (channel *Channel) GetBaseURL() string {
 	if channel.BaseURL == nil {
 		return ""
@@ -904,6 +940,9 @@ func EditChannelByTag(tag string, newTag *string, modelMapping *string, models *
 }
 
 func UpdateChannelUsedQuota(id int, quota int) {
+	// Mirror the signed used_quota delta onto the channel's calendar quota
+	// windows before the batch branch so both write paths count exactly once.
+	RecordChannelQuotaUsage(id, int64(quota))
 	if common.BatchUpdateEnabled {
 		addNewRecord(BatchUpdateTypeChannelUsedQuota, id, quota)
 		return

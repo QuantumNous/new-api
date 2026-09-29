@@ -277,4 +277,23 @@ describe('API keys mutate drawer Auto group integration', () => {
     await waitFor(() => expect(createdPayloads).toHaveLength(1))
     expect(createdPayloads[0]?.auto_groups).toEqual(['vip'])
   })
+
+  test('edits the per-key RPM limit and sends it with the created key payload', async () => {
+    const createdPayloads: Array<Record<string, unknown>> = []
+    installApiFixtures(createdPayloads)
+    await renderCreateDrawer()
+
+    const rpmInput = getControlByLabel(
+      'Requests per minute (RPM)'
+    ) as HTMLInputElement
+    expect(rpmInput.value).toBe('0')
+
+    changeInput(rpmInput, '30')
+    changeInput(getControlByLabel('Name'), 'limited')
+    fireEvent.click(findButton('Save changes', true))
+    await waitFor(() => expect(createdPayloads).toHaveLength(1))
+
+    expect(createdPayloads[0]?.name).toBe('limited')
+    expect(createdPayloads[0]?.rpm_limit).toBe(30)
+  })
 })

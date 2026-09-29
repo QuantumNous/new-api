@@ -116,51 +116,93 @@ func GetChannel(
 	if err != nil {
 		return nil, err
 	}
+	candidates := abilities
 	abilities = filterAbilitiesByConstraints(abilities, model, filters)
-	if len(abilities) > 0 {
-		priorities := make([]int64, 0)
-		seen := make(map[int64]bool)
-		for _, ability := range abilities {
-			priority := int64(0)
-			if ability.Priority != nil {
-				priority = *ability.Priority
-			}
-			if !seen[priority] {
-				seen[priority] = true
-				priorities = append(priorities, priority)
-			}
+	if len(abilities) == 0 {
+		if len(candidates) > 0 && abilitiesBlockedByChannelLimits(candidates, model, filters) {
+			return nil, ErrChannelsOverLimit
 		}
-		sort.Slice(priorities, func(i, j int) bool { return priorities[i] > priorities[j] })
-		if retry >= len(priorities) {
-			retry = len(priorities) - 1
-		}
-		targetPriority := priorities[retry]
-		abilities = lo.Filter(abilities, func(ability Ability, _ int) bool {
-			return ability.Priority == nil && targetPriority == 0 || ability.Priority != nil && *ability.Priority == targetPriority
-		})
-	}
-	channel := Channel{}
-	if len(abilities) > 0 {
-		// Randomly choose one
-		weightSum := uint(0)
-		for _, ability_ := range abilities {
-			weightSum += ability_.Weight + 10
-		}
-		// Randomly choose one
-		weight := common.GetRandomInt(int(weightSum))
-		for _, ability_ := range abilities {
-			weight -= int(ability_.Weight) + 10
-			//log.Printf("weight: %d, ability weight: %d", weight, *ability_.Weight)
-			if weight <= 0 {
-				channel.Id = ability_.ChannelId
-				break
-			}
-		}
-	} else {
 		return nil, nil
+	}
+	priorities := make([]int64, 0)
+	seen := make(map[int64]bool)
+	for _, ability := range abilities {
+		priority := int64(0)
+		if ability.Priority != nil {
+			priority = *ability.Priority
+		}
+		if !seen[priority] {
+			seen[priority] = true
+			priorities = append(priorities, priority)
+		}
+	}
+	sort.Slice(priorities, func(i, j int) bool { return priorities[i] > priorities[j] })
+	if retry >= len(priorities) {
+		retry = len(priorities) - 1
+	}
+	targetPriority := priorities[retry]
+	abilities = lo.Filter(abilities, func(ability Ability, _ int) bool {
+		return ability.Priority == nil && targetPriority == 0 || ability.Priority != nil && *ability.Priority == targetPriority
+	})
+	channel := Channel{}
+	if len(abilities) == 0 {
+		return nil, nil
+	}
+	// Randomly choose one
+	weightSum := uint(0)
+	for _, ability_ := range abilities {
+		weightSum += ability_.Weight + 10
+	}
+	// Randomly choose one
+	weight := common.GetRandomInt(int(weightSum))
+	for _, ability_ := range abilities {
+		weight -= int(ability_.Weight) + 10
+		//log.Printf("weight: %d, ability weight: %d", weight, *ability_.Weight)
+		if weight <= 0 {
+			channel.Id = ability_.ChannelId
+			break
+		}
 	}
 	err = DB.First(&channel, "id = ?", channel.Id).Error
 	return &channel, err
+}
+
+// abilitiesBlockedByChannelLimits reports whether candidates exist that pass
+// every filter except the live channel-limits filter and every one of them
+// is currently over its limits. It attributes an empty DB-mode selection to
+// rate/quota limiting so the caller can answer 429 instead of 503.
+func abilitiesBlockedByChannelLimits(candidates []Ability, modelName string, filters []dto.ChannelFilter) bool {
+	var rest []dto.ChannelFilter
+	hasLimitsFilter := false
+	for _, filter := range filters {
+		if filter.Kind == dto.FilterChannelLimits {
+			hasLimitsFilter = true
+			continue
+		}
+		rest = append(rest, filter)
+	}
+	if !hasLimitsFilter {
+		return false
+	}
+	survivors := filterAbilitiesByConstraints(candidates, modelName, rest)
+	if len(survivors) == 0 {
+		return false
+	}
+	seen := make(map[int]struct{}, len(survivors))
+	for _, ability := range survivors {
+		if _, ok := seen[ability.ChannelId]; ok {
+			continue
+		}
+		seen[ability.ChannelId] = struct{}{}
+		channel, err := GetChannelById(ability.ChannelId, true)
+		if err != nil || channel == nil {
+			return false
+		}
+		if ChannelWithinLimits(channel) {
+			return false
+		}
+	}
+	return true
 }
 
 // filterAbilitiesByConstraints applies the same ChannelSatisfiesFilters

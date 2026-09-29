@@ -491,6 +491,14 @@ export const FIELD_DESCRIPTIONS = {
   MULTI_KEY_MODE: 'How to select keys: random or sequential polling',
   BATCH_ADD: 'Create multiple channels from multiple keys',
   OPENAI_ORG: 'OpenAI Organization ID (optional)',
+  RPM_LIMIT:
+    'Max requests per minute dispatched to this channel. Set to 0 for unlimited',
+  TPM_LIMIT:
+    'Max tokens per minute settled on this channel. Set to 0 for unlimited',
+  DAILY_QUOTA_LIMIT:
+    'Max quota consumed per calendar day (server local time). Set to 0 for unlimited',
+  MONTHLY_QUOTA_LIMIT:
+    'Max quota consumed per calendar month (server local time). Set to 0 for unlimited',
 } as const
 
 // ============================================================================
