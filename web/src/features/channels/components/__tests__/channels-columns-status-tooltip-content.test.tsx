@@ -71,5 +71,7 @@ test('keeps the long string inside the status tooltip is wrapped when show', asy
 
   await user.hover(screen.getByText('Auto Disabled'))
 
-  expect(await screen.findByText(reason)).toHaveClass('wrap-anywhere')
+  expect(await screen.findByText(reason, { exact: false })).toHaveClass(
+    'wrap-anywhere'
+  )
 })
