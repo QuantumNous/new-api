@@ -6,6 +6,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/go-redis/redis/v8"
 )
 
 // Fixed-window counters shared by token RPM limits and channel rate/quota
@@ -13,9 +15,9 @@ import (
 // calendar day, or calendar month), so a window resets by rolling to the next
 // bucket and stale keys expire on their own. Redis is the authoritative store
 // for multi-node deployments; the in-memory fallback keeps single-node
-// deployments working. Values may go negative (refund deltas) and are compared
-// by callers with >= limit, which keeps net accounting consistent with the
-// channels.used_quota column.
+// deployments working. Single-key increments may go negative (rollback
+// deltas); quota-window batches clamp refunds at zero so a window never reads
+// below its real usage, while callers compare with >= limit.
 
 const windowCounterJanitorInterval = 10 * time.Minute
 
@@ -64,37 +66,63 @@ type CounterDelta struct {
 	TTL   time.Duration
 }
 
-// CounterMIncrBy applies every delta in one atomic step: a single Redis
-// MULTI/EXEC transaction, or one in-memory critical section, so paired
+// CounterQuotaMIncrBy applies every signed quota delta in one atomic step: a
+// single Redis Lua script, or one in-memory critical section, so paired
 // windows (for example the daily and monthly channel quota) cannot drift
-// apart after a partial failure.
-func CounterMIncrBy(deltas []CounterDelta) error {
+// apart after a partial failure. Positive deltas accumulate. Negative deltas
+// (refunds and task rollbacks) clamp at zero: a refund whose charge window
+// already rolled over must not loosen the new window's budget.
+func CounterQuotaMIncrBy(deltas []CounterDelta) error {
 	if len(deltas) == 0 {
 		return nil
 	}
 	if RedisEnabled && RDB != nil {
-		return redisCounterMIncrBy(deltas)
+		return redisCounterQuotaMIncrBy(deltas)
 	}
-	memoryCounterMIncrBy(deltas)
+	memoryCounterQuotaMIncrBy(deltas)
 	return nil
 }
 
-func redisCounterMIncrBy(deltas []CounterDelta) error {
+// counterQuotaMIncrByScript arms each key's TTL and clamps negative deltas at
+// zero in the same atomic execution, so Redis and the in-memory store cannot
+// disagree after a partial failure.
+var counterQuotaMIncrByScript = redis.NewScript(`local n = #KEYS
+for i = 1, n do
+	local delta = tonumber(ARGV[i])
+	if delta < 0 then
+		local raw = redis.call('GET', KEYS[i])
+		if raw then
+			local value = tonumber(raw) + delta
+			if value < 0 then
+				value = 0
+			end
+			redis.call('SET', KEYS[i], value)
+		end
+	else
+		redis.call('INCRBY', KEYS[i], delta)
+	end
+	local ttl = tonumber(ARGV[n + i])
+	if ttl > 0 then
+		redis.call('EXPIRE', KEYS[i], ttl)
+	end
+end
+return 1`)
+
+func redisCounterQuotaMIncrBy(deltas []CounterDelta) error {
 	ctx := context.Background()
-	txn := RDB.TxPipeline()
+	keys := make([]string, 0, len(deltas))
+	args := make([]any, 0, len(deltas)*2)
 	for _, delta := range deltas {
-		txn.IncrBy(ctx, delta.Key, delta.Delta)
-		if delta.TTL > 0 {
-			txn.Expire(ctx, delta.Key, delta.TTL)
-		}
+		keys = append(keys, delta.Key)
+		args = append(args, delta.Delta)
 	}
-	if _, err := txn.Exec(ctx); err != nil {
-		return err
+	for _, delta := range deltas {
+		args = append(args, int64(delta.TTL/time.Second))
 	}
-	return nil
+	return counterQuotaMIncrByScript.Run(ctx, RDB, keys, args...).Err()
 }
 
-func memoryCounterMIncrBy(deltas []CounterDelta) {
+func memoryCounterQuotaMIncrBy(deltas []CounterDelta) {
 	startWindowCounterJanitor()
 	now := time.Now()
 	windowCounters.mutex.Lock()
@@ -105,6 +133,9 @@ func memoryCounterMIncrBy(deltas []CounterDelta) {
 			entry = windowCounterEntry{expiresAt: now.Add(delta.TTL)}
 		}
 		entry.value += delta.Delta
+		if entry.value < 0 {
+			entry.value = 0
+		}
 		windowCounters.entries[delta.Key] = entry
 	}
 }

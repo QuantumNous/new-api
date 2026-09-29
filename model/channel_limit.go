@@ -21,8 +21,10 @@ import (
 //     selection because the request's token count is unknown up front.
 //   - Daily/monthly quota limits mirror the signed used_quota deltas recorded
 //     by UpdateChannelUsedQuota onto calendar windows (server local time), so
-//     refunds roll the window back and the totals stay net-consistent with the
-//     channels.used_quota column.
+//     refunds roll the window back within the same window; a refund landing
+//     after the day or month rolled over clamps at zero instead of loosening
+//     the new window, while the durable channels.used_quota column keeps the
+//     exact net total.
 
 // ErrChannelsOverLimit reports that a group/model had enabled candidate
 // channels but every one of them is currently over its RPM, TPM, or calendar
@@ -218,12 +220,13 @@ func RecordChannelTokenUsage(channelId int, tokens int64) {
 // RecordChannelQuotaUsage mirrors a signed used_quota delta onto the channel's
 // calendar day and month windows in one atomic step, so a partial write
 // failure cannot leave the day and month windows inconsistent. Negative
-// deltas (refunds and task rollbacks) flow through unchanged.
+// deltas (refunds and task rollbacks) clamp at zero: a refund whose charge
+// window already rolled over must not loosen the new window's budget.
 func RecordChannelQuotaUsage(channelId int, quota int64) {
 	if channelId <= 0 || quota == 0 {
 		return
 	}
-	if err := common.CounterMIncrBy([]common.CounterDelta{
+	if err := common.CounterQuotaMIncrBy([]common.CounterDelta{
 		{Key: channelDayQuotaKey(channelId), Delta: quota, TTL: dailyQuotaWindowTTL},
 		{Key: channelMonthQuotaKey(channelId), Delta: quota, TTL: monthlyQuotaWindowTTL},
 	}); err != nil {
