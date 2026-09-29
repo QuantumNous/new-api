@@ -57,6 +57,14 @@ func CacheStatsVisibleToUser() bool {
 	return common.CacheRateStatsEnabled && common.CacheRateUserVisibleEnabled
 }
 
+// CacheStatsEnabled reports whether the cache-rate feature is on at all,
+// read under the same option lock as CacheStatsVisibleToUser.
+func CacheStatsEnabled() bool {
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
+	return common.CacheRateStatsEnabled
+}
+
 type logOtherVisibility int
 
 const (

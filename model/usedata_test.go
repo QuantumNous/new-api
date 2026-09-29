@@ -43,6 +43,17 @@ func TestLogQuotaDataMergesCacheColumns(t *testing.T) {
 	second.CreatedAt = createdAt + 3599
 	LogQuotaData(second)
 
+	// A request with no cache read is a miss: it still bumps Count and the
+	// token columns but must not bump the cache hit count.
+	miss := base
+	miss.Quota = 5
+	miss.TokenUsed = 20
+	miss.PromptTokens = 10
+	miss.CacheTokens = 0
+	miss.CacheCreationTokens = 0
+	miss.CreatedAt = createdAt + 1800
+	LogQuotaData(miss)
+
 	CacheQuotaDataLock.Lock()
 	defer CacheQuotaDataLock.Unlock()
 	require.Len(t, CacheQuotaData, 1)
@@ -52,12 +63,13 @@ func TestLogQuotaDataMergesCacheColumns(t *testing.T) {
 		merged = entry
 	}
 	require.NotNil(t, merged)
-	assert.Equal(t, 2, merged.Count)
-	assert.Equal(t, 30, merged.Quota)
-	assert.Equal(t, 150, merged.TokenUsed)
-	assert.Equal(t, 120, merged.PromptTokens)
+	assert.Equal(t, 3, merged.Count)
+	assert.Equal(t, 35, merged.Quota)
+	assert.Equal(t, 170, merged.TokenUsed)
+	assert.Equal(t, 130, merged.PromptTokens)
 	assert.Equal(t, 90, merged.CacheTokens)
 	assert.Equal(t, 5, merged.CacheCreationTokens)
+	assert.Equal(t, 2, merged.CacheHitCount, "only requests that read cached input tokens count as cache hits")
 }
 
 // TestLogQuotaDataSeparatesDistinctHours verifies cache columns do not bleed
@@ -149,4 +161,51 @@ func TestGetQuotaDataGroupByChannelFiltersByUsername(t *testing.T) {
 	assert.Equal(t, 1, alice.Count)
 	assert.Equal(t, 80, alice.PromptTokens)
 	assert.Equal(t, 60, alice.CacheTokens)
+}
+
+// TestGetQuotaDataCacheStatsByModelAggregatesWindow verifies the model-square
+// cache stats endpoint's aggregation: sums are scoped to the requested model
+// and time window, and other models' rows never leak in.
+func TestGetQuotaDataCacheStatsByModelAggregatesWindow(t *testing.T) {
+	// Full hours far from other tests' buckets.
+	hourA := int64(1893528000)
+	hourB := hourA + 3600
+	modelName := "cache-stats-model"
+	seed := []QuotaData{
+		{UserID: 7, Username: "alice", ModelName: modelName, CreatedAt: hourA, Count: 2, Quota: 10, TokenUsed: 100, PromptTokens: 80, CacheTokens: 60, CacheCreationTokens: 5, CacheHitCount: 1},
+		{UserID: 8, Username: "bob", ModelName: modelName, CreatedAt: hourB, Count: 3, Quota: 20, TokenUsed: 50, PromptTokens: 40, CacheTokens: 0, CacheCreationTokens: 4, CacheHitCount: 0},
+		// Another model in the same window must not be aggregated.
+		{UserID: 9, Username: "carol", ModelName: "other-model", CreatedAt: hourA, Count: 5, Quota: 99, TokenUsed: 999, PromptTokens: 500, CacheTokens: 400, CacheCreationTokens: 50, CacheHitCount: 5},
+	}
+	for i := range seed {
+		require.NoError(t, DB.Create(&seed[i]).Error)
+	}
+	t.Cleanup(func() {
+		DB.Where("created_at IN ?", []int64{hourA, hourB}).Delete(&QuotaData{})
+	})
+
+	stats, err := GetQuotaDataCacheStatsByModel(modelName, hourA-1, hourB+1)
+	require.NoError(t, err)
+	require.NotNil(t, stats)
+	assert.Equal(t, modelName, stats.ModelName)
+	assert.Equal(t, 5, stats.Count)
+	assert.Equal(t, 120, stats.PromptTokens)
+	assert.Equal(t, 60, stats.CacheTokens)
+	assert.Equal(t, 9, stats.CacheCreationTokens)
+	assert.Equal(t, 1, stats.CacheHitCount)
+
+	// A window excluding the second hour drops that hour's rows entirely.
+	partial, err := GetQuotaDataCacheStatsByModel(modelName, hourA-1, hourA)
+	require.NoError(t, err)
+	require.NotNil(t, partial)
+	assert.Equal(t, 2, partial.Count)
+	assert.Equal(t, 1, partial.CacheHitCount)
+
+	// A model with no usage in the window yields zero sums, not an error.
+	empty, err := GetQuotaDataCacheStatsByModel("no-such-model", hourA-1, hourB+1)
+	require.NoError(t, err)
+	require.NotNil(t, empty)
+	assert.Equal(t, 0, empty.Count)
+	assert.Equal(t, 0, empty.PromptTokens)
+	assert.Equal(t, 0, empty.CacheHitCount)
 }
