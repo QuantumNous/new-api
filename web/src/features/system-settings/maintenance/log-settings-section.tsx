@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -179,15 +179,32 @@ export function LogSettingsSection({
     }
   }, [])
 
+  // Last values known to be persisted on the server. defaultValues comes from
+  // a query and can lag behind our own successful saves; comparing against it
+  // would silently drop a reversal saved inside that window.
+  const lastSavedRef = useRef<LogSettingsFormValues>(defaultValues)
+
   // Depend on the individual default fields, not the defaultValues object
   // identity: the parent registry rebuilds the object on every render, and an
-  // identity-keyed reset would discard unsaved toggle edits.
+  // identity-keyed reset would discard unsaved toggle edits. Skip the reset
+  // when the refresh only echoes values we already saved, so edits made while
+  // the query refetch was in flight survive.
   useEffect(() => {
-    form.reset({
+    const next: LogSettingsFormValues = {
       LogConsumeEnabled: defaultValues.LogConsumeEnabled,
       CacheRateStatsEnabled: defaultValues.CacheRateStatsEnabled,
       CacheRateUserVisibleEnabled: defaultValues.CacheRateUserVisibleEnabled,
-    })
+    }
+    const saved = lastSavedRef.current
+    if (
+      next.LogConsumeEnabled === saved.LogConsumeEnabled &&
+      next.CacheRateStatsEnabled === saved.CacheRateStatsEnabled &&
+      next.CacheRateUserVisibleEnabled === saved.CacheRateUserVisibleEnabled
+    ) {
+      return
+    }
+    lastSavedRef.current = next
+    form.reset(next)
   }, [
     defaultValues.LogConsumeEnabled,
     defaultValues.CacheRateStatsEnabled,
@@ -275,8 +292,9 @@ export function LogSettingsSection({
   }, [logCleanupActive, logCleanupTaskId, t])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
+    const lastSaved = lastSavedRef.current
     const updates = (Object.keys(values) as Array<keyof LogSettingsFormValues>)
-      .filter((key) => values[key] !== defaultValues[key])
+      .filter((key) => values[key] !== lastSaved[key])
       .map((key) => ({ key, value: values[key] }))
     if (updates.length === 0) return
     for (const update of updates) {
@@ -287,6 +305,7 @@ export function LogSettingsSection({
         // the remaining options so they keep their last saved values.
         return
       }
+      lastSavedRef.current[update.key] = update.value
     }
   }
 

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -112,6 +112,12 @@ describe('LogSettingsSection defaultValues reset', () => {
     fireEvent.submit(form as HTMLFormElement)
 
     await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledTimes(1))
+    // Let the submit chain settle before the final count, so a loop that
+    // wrongly continues after the rejection is caught.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(mocks.mutateAsync).toHaveBeenCalledTimes(1)
     expect(mocks.mutateAsync).toHaveBeenCalledWith({
       key: 'LogConsumeEnabled',
       value: false,
@@ -130,6 +136,9 @@ describe('LogSettingsSection defaultValues reset', () => {
     fireEvent.submit(form as HTMLFormElement)
 
     await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledTimes(2))
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
     expect(mocks.mutateAsync).toHaveBeenNthCalledWith(1, {
       key: 'LogConsumeEnabled',
       value: false,
@@ -138,5 +147,33 @@ describe('LogSettingsSection defaultValues reset', () => {
       key: 'CacheRateStatsEnabled',
       value: false,
     })
+  })
+
+  it('sends a reversal saved before the refreshed defaults arrive', async () => {
+    const user = userEvent.setup()
+    render(<LogSettingsSection defaultValues={defaults} />)
+
+    const switches = getSwitches()
+    const form = switches[0].closest('form') as HTMLFormElement
+
+    // Save the first toggle, then flip it back before the query refresh
+    // delivers new defaultValues (still the pre-save object here).
+    await user.click(switches[0]) // LogConsumeEnabled: true -> false
+    fireEvent.submit(form)
+    await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledTimes(1))
+
+    await user.click(switches[0]) // LogConsumeEnabled: false -> true
+    fireEvent.submit(form)
+
+    await waitFor(() =>
+      expect(mocks.mutateAsync).toHaveBeenLastCalledWith({
+        key: 'LogConsumeEnabled',
+        value: true,
+      })
+    )
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(mocks.mutateAsync).toHaveBeenCalledTimes(2)
   })
 })
