@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 
 	"github.com/gin-gonic/gin"
@@ -85,15 +86,15 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 	return relayconvert.FormatClaudeResponseInfo(claudeResponse, oaiResponse, claudeInfo)
 }
 
-func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, data string) *types.NewAPIError {
+func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, data string, checkedLen *int) (stopStream bool, apiErr *types.NewAPIError) {
 	var claudeResponse dto.ClaudeResponse
 	err := common.UnmarshalJsonStr(data, &claudeResponse)
 	if err != nil {
 		common.SysLog("error unmarshalling stream response: " + err.Error())
-		return types.NewError(err, types.ErrorCodeBadResponseBody)
+		return false, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 	if claudeError := claudeResponse.GetClaudeError(); claudeError != nil && claudeError.Type != "" {
-		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
+		return false, types.WithClaudeError(*claudeError, http.StatusInternalServerError)
 	}
 	if claudeResponse.Type == "message_start" && claudeResponse.Message != nil {
 		info.ObserveResponseModel(claudeResponse.Message.Model)
@@ -122,26 +123,35 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 				data = patchClaudeMessageDeltaUsageData(data, buildMessageDeltaPatchUsage(&claudeResponse, claudeInfo))
 			}
 		}
+		if stopClaudeStreamOnSensitive(c, info, claudeInfo, checkedLen) {
+			helper.EmitClaudeStreamSensitiveStop(c)
+			return true, nil
+		}
 		countClaudeStreamBillableTools(c, info, &claudeResponse)
 		helper.ClaudeChunkData(c, claudeResponse, data)
 	} else if info.RelayFormat == types.RelayFormatOpenAI {
 		state, err := claudeToChatStreamState(info)
 		if err != nil {
-			return types.NewError(err, types.ErrorCodeBadResponseBody)
+			return false, types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 		response, err := state.ConvertChunk(&claudeResponse)
 		if err != nil {
-			return types.NewError(err, types.ErrorCodeBadResponseBody)
+			return false, types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 
 		if !FormatClaudeResponseInfo(&claudeResponse, response, claudeInfo) {
-			return nil
+			return false, nil
+		}
+
+		if stopClaudeStreamOnSensitive(c, info, claudeInfo, checkedLen) {
+			helper.EmitOpenAIStreamSensitiveStop(c, claudeInfo.ResponseId, claudeInfo.Created, claudeInfo.Model)
+			return true, nil
 		}
 
 		countClaudeStreamBillableTools(c, info, &claudeResponse)
 
 		if response == nil {
-			return nil
+			return false, nil
 		}
 		err = helper.ObjectData(c, response)
 		if err != nil {
@@ -150,21 +160,46 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	} else if info.RelayFormat == types.RelayFormatGemini {
 		state, err := claudeToGeminiStreamState(info)
 		if err != nil {
-			return types.NewError(err, types.ErrorCodeBadResponseBody)
+			return false, types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 		results, err := service.ConvertStreamResponseChunk(c, info, state, &claudeResponse)
 		if err != nil {
-			return types.NewError(err, types.ErrorCodeBadResponseBody)
+			return false, types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 		if !FormatClaudeResponseInfo(&claudeResponse, nil, claudeInfo) {
-			return nil
+			return false, nil
+		}
+		if stopClaudeStreamOnSensitive(c, info, claudeInfo, checkedLen) {
+			helper.EmitGeminiStreamSensitiveStop(c)
+			return true, nil
 		}
 		countClaudeStreamBillableTools(c, info, &claudeResponse)
 		if sendErr := sendGeminiStreamResults(c, results); sendErr != nil {
-			return sendErr
+			return false, sendErr
 		}
 	}
-	return nil
+	return false, nil
+}
+
+func stopClaudeStreamOnSensitive(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, checkedLen *int) bool {
+	text := claudeInfo.ResponseText.String()
+	prev := 0
+	if checkedLen != nil {
+		prev = *checkedLen
+	}
+	hit, words, next := helper.CheckAccumulatedCompletionSuffix(text, prev)
+	if checkedLen != nil {
+		*checkedLen = next
+	}
+	if !hit {
+		return false
+	}
+	// Streaming cannot in-place mask already-sent chunks; only stop+replace when enabled.
+	if !setting.StopOnSensitiveEnabled {
+		return false
+	}
+	service.RecordSensitiveBlockLog(c, info, words, true)
+	return true
 }
 
 func claudeToChatStreamState(info *relaycommon.RelayInfo) (*relayconvert.ClaudeToChatStreamState, error) {
@@ -300,15 +335,30 @@ func ClaudeStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.
 		Usage:        &dto.Usage{},
 	}
 	var err *types.NewAPIError
+	sensitiveBlocked := false
+	checkedLen := 0
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
-		err = HandleStreamResponseData(c, info, claudeInfo, data)
+		var stopStream bool
+		stopStream, err = HandleStreamResponseData(c, info, claudeInfo, data, &checkedLen)
 		if err != nil {
 			sr.Stop(err)
+			return
+		}
+		if stopStream {
+			sensitiveBlocked = true
+			sr.Done()
 		}
 	})
 	info.StreamStatus.RequireTerminal()
 	if err != nil {
 		return nil, err
+	}
+	if sensitiveBlocked {
+		if claudeInfo.Usage == nil || (claudeInfo.Usage.PromptTokens == 0 && claudeInfo.Usage.CompletionTokens == 0) {
+			fallback := service.ResponseText2Usage(c, claudeInfo.ResponseText.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+			claudeInfo.Usage = fallback
+		}
+		return claudeInfo.Usage, nil
 	}
 
 	HandleStreamFinalResponse(c, info, claudeInfo)
@@ -342,6 +392,12 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
 		claudeInfo.Usage.ClaudeCacheCreation5mTokens = claudeResponse.Usage.GetCacheCreation5mTokens()
 		claudeInfo.Usage.ClaudeCacheCreation1hTokens = claudeResponse.Usage.GetCacheCreation1hTokens()
+	}
+	if helper.FilterClaudeTextCompletion(c, info, &claudeResponse) {
+		data, err = common.Marshal(claudeResponse)
+		if err != nil {
+			return types.NewError(err, types.ErrorCodeBadResponseBody)
+		}
 	}
 	var responseData []byte
 	switch info.RelayFormat {

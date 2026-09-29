@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 
 	"github.com/gin-gonic/gin"
 )
@@ -120,8 +121,13 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var secondLastStreamData string // 保留倒数第二个stream data；部分兼容网关把完整usage放在倒数第二个事件
 	seenStreamToolCalls := make(map[string]struct{})
 	var streamFunctionCallNames []string
+	sensitiveBlocked := false
+	checkedLen := 0
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		if sensitiveBlocked {
+			return
+		}
 		if lastStreamData != "" {
 			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
 				common.SysLog("error handling stream format: " + err.Error())
@@ -139,10 +145,34 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 				logger.LogError(c, "error processing stream token data: "+err.Error())
 				sr.Error(err)
 			}
+			if hit, words, nextChecked := helper.CheckAccumulatedCompletionSuffix(responseTextBuilder.String(), checkedLen); hit {
+				checkedLen = nextChecked
+				// Streaming cannot in-place mask already-sent chunks; only stop+replace when enabled.
+				if setting.StopOnSensitiveEnabled {
+					sensitiveBlocked = true
+					service.RecordSensitiveBlockLog(c, info, words, true)
+					lastStreamData = ""
+					helper.EmitOpenAIStreamSensitiveStop(c, responseId, createAt, model)
+					sr.Done()
+				}
+			} else {
+				checkedLen = nextChecked
+			}
 		}
 	})
 
 	info.StreamStatus.RequireTerminal()
+
+	if sensitiveBlocked {
+		if !containStreamUsage {
+			usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+			usage.CompletionTokens += toolCount * 7
+		}
+		for _, name := range streamFunctionCallNames {
+			info.CountBillableToolCall(dto.BuildInCallFunctionCall, name)
+		}
+		return usage, nil
+	}
 
 	// 处理最后的响应
 	shouldSendLastResp := true
@@ -321,6 +351,17 @@ func OpenaiHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 	}
 
 	applyUsagePostProcessing(info, &simpleResponse.Usage, responseBody)
+
+	if helper.FilterOpenAITextCompletion(c, info, &simpleResponse) {
+		forceFormat = true
+		var body []byte
+		var marshalErr error
+		body, marshalErr = common.Marshal(simpleResponse)
+		if marshalErr != nil {
+			return nil, types.NewError(marshalErr, types.ErrorCodeBadResponseBody)
+		}
+		responseBody = body
+	}
 
 	switch info.RelayFormat {
 	case types.RelayFormatOpenAI:

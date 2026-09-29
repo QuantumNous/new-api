@@ -139,6 +139,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}()
 
 	if newAPIError = relay.PrepareRequestBilling(c, relayInfo); newAPIError != nil {
+		if newAPIError.GetErrorCode() == types.ErrorCodeSensitiveWordsDetected {
+			words := service.GetDetectedSensitiveWords(c)
+			simulated, handleErr := relay.HandleSensitiveWordsDetected(c, relayInfo, words)
+			if handleErr != nil {
+				logger.LogError(c, fmt.Sprintf("sensitive block reply failed: %s", handleErr.Error()))
+			} else if simulated {
+				newAPIError = nil
+			}
+		}
 		return
 	}
 	defer func() {

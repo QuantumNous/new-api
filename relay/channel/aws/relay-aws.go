@@ -277,6 +277,7 @@ func awsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, a *Adaptor) (
 		Usage:        &dto.Usage{},
 	}
 
+	checkedLen := 0
 	events := stream.Events()
 streamLoop:
 	for {
@@ -294,9 +295,12 @@ streamLoop:
 			switch v := event.(type) {
 			case *bedrockruntimeTypes.ResponseStreamMemberChunk:
 				info.SetFirstResponseTime()
-				respErr := claude.HandleStreamResponseData(c, info, claudeInfo, string(v.Value.Bytes))
+				stopStream, respErr := claude.HandleStreamResponseData(c, info, claudeInfo, string(v.Value.Bytes), &checkedLen)
 				if respErr != nil {
 					return respErr, nil
+				}
+				if stopStream {
+					return nil, claudeInfo.Usage
 				}
 			case *bedrockruntimeTypes.UnknownUnionMember:
 				fmt.Println("unknown tag:", v.Tag)
