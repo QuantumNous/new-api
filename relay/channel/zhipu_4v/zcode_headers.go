@@ -42,13 +42,18 @@ func zcodeLegacyTraceHeadersEnabled(info *relaycommon.RelayInfo) bool {
 		*info.ChannelSetting.ZcodeLegacyTraceHeaders
 }
 
-// zcodeClientSigningEnabled：Client Request Signing V4 默认关闭。
-// 官方 3.14.3 客户端不再做 Ed25519 签名与 hashcash PoW（整套 X-Client-* 头与握手
-// 路径在解包产物里已不存在），默认关闭避免每次换 Key/Origin 都白跑一次握手。
-// 需要对齐老版本上游时由渠道显式打开。
+// zcodeClientSigningEnabled：Client Request Signing V4 对套餐默认开启。
+// 编码调用方的权益按上游的 ZCode 客户端验签发放，验签头缺失就拿不到套餐身份，
+// 因此默认走签名；渠道显式置 false 才关闭（例如上游已改为免签代理）。
+// 签名只在 api.z.ai / bigmodel.cn 业务域生效，zcode-plan 与 off-peak 代理路径免签。
 func zcodeClientSigningEnabled(info *relaycommon.RelayInfo) bool {
-	return info != nil && info.ChannelSetting.ZcodeClientSigningEnabled != nil &&
-		*info.ChannelSetting.ZcodeClientSigningEnabled
+	if info == nil {
+		return false
+	}
+	if info.ChannelSetting.ZcodeClientSigningEnabled == nil {
+		return true
+	}
+	return *info.ChannelSetting.ZcodeClientSigningEnabled
 }
 
 // setupZCodeTraceHeaders 清除 Claude 系客户端指纹头并写入 ZCode 请求级追踪头。
@@ -144,8 +149,10 @@ func setupZCodeCompatibilityHeaders(req *http.Header, info *relaycommon.RelayInf
 	// 官方 host 附带项：OS 版本 + 持久设备 ID。
 	req.Set("X-Os-Version", zcodeOsVersion)
 	req.Set("X-Device-Mid", zcodeDeviceMid())
-	if legacy {
-		// 旧版形态才带会话级 x-session-id，且为稳定派生值（非每请求随机）。
+	if legacy || zcodeClientSigningEnabled(info) {
+		// x-session-id 是稳定派生值（每请求随机会让签名与验签对不上）。
+		// 签名开启时必须带上：applyZCodeClientSigning 以它作为签名串的一环，
+		// 缺失就会静默跳过签名，套餐权益随之失效。
 		req.Set("x-session-id", zcodeSessionId(info))
 	}
 }

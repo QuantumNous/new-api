@@ -165,9 +165,10 @@ func TestZCodeHeadersOfficialShape(t *testing.T) {
 		t.Fatalf("X-Device-Mid 为空")
 	}
 
-	// 默认形态不带 x-session-id（官方 3.14.3 已不发该头）。
-	if got := headers.Get("x-session-id"); got != "" {
-		t.Fatalf("x-session-id = %q, want empty in the current official shape", got)
+	// 默认形态仍带 x-session-id：V4 签名的签名串依赖它，缺失就拿不到套餐权益。
+	// 旧版追踪头才是默认关闭的。
+	if headers.Get("x-session-id") == "" {
+		t.Fatalf("x-session-id 不能为空：V4 签名依赖它")
 	}
 
 	// metadata 里的会话标识必须稳定：同渠道同令牌两次一致，不同令牌不同值。

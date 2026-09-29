@@ -183,11 +183,16 @@ func TestSetupRequestHeaderAddsZCodeFingerprintForCodingPlan(t *testing.T) {
 	if headers.Get("x-request-id") == "" {
 		t.Fatalf("x-request-id is empty")
 	}
-	// 官方 3.14.3 不再发送旧版追踪头，默认形态必须不带。
-	for _, name := range []string{"x-zcode-session-type", "x-zcode-trace-id", "x-query-id", "x-session-id"} {
+	// 旧版追踪头默认不带：官方 3.14.3 只保留 x-request-id。
+	for _, name := range []string{"x-zcode-session-type", "x-zcode-trace-id", "x-query-id"} {
 		if value := headers.Get(name); value != "" {
-			t.Fatalf("%s = %q, want empty in the current official shape", name, value)
+			t.Fatalf("%s = %q, want empty unless legacy trace mode is enabled", name, value)
 		}
+	}
+	// x-session-id 仍要带：它是 V4 签名串的一环，缺失会让签名静默跳过、套餐权益失效。
+	// 它不属于旧版追踪头集合。
+	if headers.Get("x-session-id") == "" {
+		t.Fatalf("x-session-id is required for V4 signing")
 	}
 	// 指纹版本跟随官方解包版本，不得停留在 3.12.x。
 	if zcodeClientVersion != "3.14.3" {

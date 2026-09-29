@@ -22,9 +22,8 @@ package zhipu_4v
 // zcode.z.ai 的 zcode-plan / off-peak 代理路径在 ZCode 客户端即属免签白名单。
 //
 // 版本现状：官方 3.14.3 客户端解包产物里已不存在 X-Client-Sig / X-Client-Pow /
-// X-Client-Nonce / X-Client-Version、握手路径与 KDF 常量，因此本实现默认关闭
-// （渠道 zcode_client_signing_enabled=true 时才启用），仅作为对齐老版本上游的
-// 可选路径保留。
+// X-Client-Nonce / X-Client-Version、握手路径与 KDF 常量；但上游仍按验签发放套餐
+// 权益，因此对套餐渠道默认保持签名，渠道可显式关闭。
 
 import (
 	"bytes"
@@ -378,7 +377,7 @@ func applyZCodeClientSigning(c *gin.Context, req *http.Header, info *relaycommon
 	if !isZhipuZcodeMode(info) || !isZCodeSigningTargetURL(finalURL) {
 		return
 	}
-	// 官方 3.14.3 客户端已不做 V4 签名，默认关闭；只有渠道显式打开时才走握手。
+	// 套餐默认签名；渠道显式关闭才跳过（上游已改免签代理时用）。
 	if !zcodeClientSigningEnabled(info) {
 		return
 	}

@@ -467,3 +467,57 @@ func TestIsZhipuStartPlanBase(t *testing.T) {
 		}
 	}
 }
+
+func TestZCodeClientSigningDefaultsOnForPlan(t *testing.T) {
+	t.Parallel()
+
+	// 套餐默认签名：未显式配置（nil）即开启。
+	enabled := zcodeClientSigningEnabled(&relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{ChannelSetting: dto.ChannelSettings{}},
+	})
+	if !enabled {
+		t.Fatalf("套餐渠道默认应开启 V4 签名")
+	}
+	// 显式 false 才关闭。
+	off := false
+	disabled := zcodeClientSigningEnabled(&relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelSetting: dto.ChannelSettings{ZcodeClientSigningEnabled: &off},
+		},
+	})
+	if disabled {
+		t.Fatalf("显式 false 应关闭 V4 签名")
+	}
+	// 显式 true 也开启。
+	on := true
+	if !zcodeClientSigningEnabled(&relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelSetting: dto.ChannelSettings{ZcodeClientSigningEnabled: &on},
+		},
+	}) {
+		t.Fatalf("显式 true 应开启 V4 签名")
+	}
+}
+
+func TestZCodeSessionIdPresentWhenSigningEnabled(t *testing.T) {
+	t.Parallel()
+
+	headers := make(http.Header)
+	// 关闭旧版追踪头，只靠签名驱动 x-session-id。
+	info := newZCodeSigningTestInfo("glm-coding-plan", "plain-jwt-token", true)
+	legacyOff := false
+	info.ChannelSetting.ZcodeLegacyTraceHeaders = &legacyOff
+	setupZCodeCompatibilityHeaders(&headers, info)
+	if headers.Get("x-session-id") == "" {
+		t.Fatalf("签名开启时 x-session-id 必须存在，否则签名会静默跳过")
+	}
+	if headers.Get("x-zcode-session-type") != "" {
+		t.Fatalf("旧版追踪头关闭时不应带 x-zcode-session-type")
+	}
+	// 稳定派生：同一渠道同令牌两次一致。
+	headers2 := make(http.Header)
+	setupZCodeCompatibilityHeaders(&headers2, newZCodeSigningTestInfo("glm-coding-plan", "plain-jwt-token", true))
+	if headers2.Get("x-session-id") != headers.Get("x-session-id") {
+		t.Fatalf("x-session-id 应稳定: %q vs %q", headers.Get("x-session-id"), headers2.Get("x-session-id"))
+	}
+}

@@ -18,9 +18,9 @@ type ChannelSettings struct {
 	UseResponsesApi                   bool     `json:"use_responses_api,omitempty"`
 	UpstreamOpenAICompatEnabled       bool     `json:"upstream_openai_compat_enabled,omitempty"` // OpenAI Chat 入站直传上游 OpenAI 兼容端点(仅 Gemini 系渠道)
 	ZcodeModeEnabled                  bool     `json:"zcode_mode_enabled,omitempty"`             // ZCode 模式:GLM Coding Plan 仅接受 /v1/messages 入站并注入 ZCode 指纹,其余格式直接拒绝(仅智谱 Coding Plan 渠道)
-	ZcodeFingerprintVersion           string   `json:"zcode_fingerprint_version,omitempty"`       // 指纹声明的客户端版本;空=默认(对齐官方解包版本)
-	ZcodeLegacyTraceHeaders           *bool    `json:"zcode_legacy_trace_headers,omitempty"`   // 旧版 x-zcode-*/x-query-id/x-session-id 追踪头;nil=关(官方当前形态)
-	ZcodeClientSigningEnabled         *bool    `json:"zcode_client_signing_enabled,omitempty"`  // Client Request Signing V4(Ed25519+PoW);nil=关(官方当前不签名)
+	ZcodeFingerprintVersion           string   `json:"zcode_fingerprint_version,omitempty"`      // 指纹声明的客户端版本;空=默认(对齐官方解包版本)
+	ZcodeLegacyTraceHeaders           *bool    `json:"zcode_legacy_trace_headers,omitempty"`     // 旧版 x-zcode-*/x-query-id/x-session-id 追踪头;nil=关(官方当前形态)
+	ZcodeClientSigningEnabled         *bool    `json:"zcode_client_signing_enabled,omitempty"`   // Client Request Signing V4(Ed25519+PoW);nil=开(套餐默认按验签发放权益)
 	ChatCompletionsToResponsesEnabled *bool    `json:"chat_completions_to_responses_enabled,omitempty"`
 	ChatCompletionsToResponsesModels  []string `json:"chat_completions_to_responses_models,omitempty"`
 	SystemPrompt                      string   `json:"system_prompt,omitempty"`
