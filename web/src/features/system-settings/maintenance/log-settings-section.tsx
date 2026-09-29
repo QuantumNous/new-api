@@ -181,8 +181,9 @@ export function LogSettingsSection({
 
   // Last values known to be persisted on the server. defaultValues comes from
   // a query and can lag behind our own successful saves; comparing against it
-  // would silently drop a reversal saved inside that window.
-  const lastSavedRef = useRef<LogSettingsFormValues>(defaultValues)
+  // would silently drop a reversal saved inside that window. Own a copy and
+  // replace it immutably so the caller's defaults object is never mutated.
+  const lastSavedRef = useRef<LogSettingsFormValues>({ ...defaultValues })
 
   // Depend on the individual default fields, not the defaultValues object
   // identity: the parent registry rebuilds the object on every render, and an
@@ -305,7 +306,9 @@ export function LogSettingsSection({
         // the remaining options so they keep their last saved values.
         return
       }
-      lastSavedRef.current[update.key] = update.value
+      const saved = { ...lastSavedRef.current }
+      saved[update.key] = update.value
+      lastSavedRef.current = saved
     }
   }
 
