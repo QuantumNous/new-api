@@ -23,15 +23,16 @@
 
 | 渠道 | 上游端点 | 模型 ID |
 | --- | --- | --- |
-| Zen | `/v1/responses` | `gpt-6-astra`、`gpt-6-sol`、`grok-4.7`、`muse-spark-1.3` |
-| Zen | `/v1/messages` | `claude-fable-5-1`、`claude-opus-5-5`、`qwen3.8-flash` |
+| Zen | `/v1/responses` | `gpt-6-astra`、`gpt-6.1-sol`、`gpt-6-sol`、`gpt-6-luna`、`grok-4.7`、`muse-spark-1.3` |
+| Zen | `/v1/messages` | `claude-fable-5-1`、`claude-opus-5-5`、`claude-sonnet-5-5`、`claude-sonnet-4`、`qwen3.8-flash` |
 | Zen | `/v1/models/{model}:generateContent` | `gemini-3.8-flash` |
-| Zen | `/v1/chat/completions` | `deepseek-v4.1-flash`、`deepseek-v4-flash-vision-exp`、`glm-5.3-flash`、`glm-5.3`、`space-bunny-free` |
-| Go | `/v1/responses` | `grok-4.7`、`grok-4.6`、`muse-spark-1.3-contributor` |
-| Go | `/v1/messages` | `qwen3.8-flash` |
-| Go | `/v1/chat/completions` | `glm-5.3-flash`、`longcat-2.0`、`deepseek-v4.1-flash`、`deepseek-v4-flash-vision-exp`、`mimo-v2.6-flash`、`mimo-v2.6-pro`、`hy4-preview` |
+| Zen | `/v1/chat/completions` | `deepseek-v4.1-flash`、`deepseek-v4-flash-vision-exp`、`glm-5.3-flash`、`glm-5.3`、`qwen3.8-max`、`space-bunny-free`、`longcat-2.5-preview-free` |
+| Go | `/v1/responses` | `grok-4.7`、`grok-4.6`、`gpt-6-luna`、`muse-spark-1.3-contributor` |
+| Go | `/v1/messages` | `qwen3.8-flash`、`qwen3.5-plus` |
+| Go | `/v1/chat/completions` | `glm-5.3-flash`、`glm-5`、`kimi-k2.5`、`longcat-2.0`、`longcat-2.5-preview-free`、`deepseek-v4.1-flash`、`deepseek-v4-flash-vision-exp`、`deepseek-flash`、`mimo-v2.6-flash`、`mimo-v2.6-pro`、`mimo-v2-pro`、`mimo-v2-omni`、`hy4-preview`、`hy3-preview`、`omen-alpha` |
 
-Go 渠道的 `space-bunny-free` 经渠道实测仅支持 Chat；它未列入公开 `/v1/models`，仅在手动配置时应用 Chat 路由，不加入 Go 静态模型回退列表。
+Zen 已下架 `qwen3.7-max`、`qwen3.7-plus`、`hy3-free`、`x-preview-f-free`（上游返回 Model is unavailable），本站路由表同步移除；Go 仍保留 qwen3.7 系列。
+Go 渠道的 `space-bunny-free` 经渠道实测仅支持 Chat；作为 RouteOnly 例外保留 Chat 路由，不加入 Go 静态模型回退列表。
 
 Chat、Responses、Claude Messages 和 Gemini generateContent 入站均按 Zen/Go 的模型协议表选上游端点：同协议保持原生格式，异协议双向转换，优先于全局或渠道请求体透传；未登记模型保留原透传规则。模型映射后按实际上游模型名匹配。count_tokens、Responses compact 等非文本生成端点不自动转换。
 

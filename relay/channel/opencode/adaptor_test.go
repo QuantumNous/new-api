@@ -644,20 +644,28 @@ func TestOpenCodeModelInventoriesMatchCurrentRoutes(t *testing.T) {
 		"glm-5.3",
 		"glm-5.2",
 		"glm-5.1",
+		"glm-5",
 		"kimi-k3",
 		"kimi-k2.7-code",
 		"kimi-k2.6",
+		"kimi-k2.5",
 		"longcat-2.0",
+		"longcat-2.5-preview-free",
 		"deepseek-v4.1-flash",
 		"deepseek-v4-pro",
 		"deepseek-v4-flash",
 		"deepseek-v4-flash-vision-exp",
+		"deepseek-flash",
 		"mimo-v2.6-flash",
 		"mimo-v2.6-pro",
 		"mimo-v2.5",
 		"mimo-v2.5-pro",
+		"mimo-v2-pro",
+		"mimo-v2-omni",
 		"hy4-preview",
+		"hy3-preview",
 		"hy3",
+		"omen-alpha",
 	}, channelconstant.OpenCodeGoChatModels)
 	require.Contains(t, channelconstant.OpenCodeGoChatRouteOnlyModels, "space-bunny-free")
 	require.NotContains(t, StaticModelListForBase(channelconstant.OpenCodeGoBaseURLAlias), "space-bunny-free")
@@ -670,7 +678,7 @@ func TestOpenCodeModelInventoriesMatchCurrentRoutes(t *testing.T) {
 	require.Contains(t, channelconstant.OpenCodeZenChatModels, "kimi-k2.7-code")
 	require.Contains(t, channelconstant.OpenCodeZenResponsesModels, "grok-4.5")
 	require.Contains(t, channelconstant.OpenCodeGoResponsesModels, "gpt-5.6-luna")
-	require.NotContains(t, channelconstant.OpenCodeGoChatModels, "glm-5")
+	require.Contains(t, channelconstant.OpenCodeGoChatModels, "glm-5")
 	require.NotContains(t, channelconstant.OpenCodeZenClaudeModels, "claude-opus-4-1")
 }
 
