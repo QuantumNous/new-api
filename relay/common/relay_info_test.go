@@ -215,6 +215,14 @@ func TestInitChannelMetaRestoresRequestReasoningEffortForRetry(t *testing.T) {
 	assert.Equal(t, "max", info.ReasoningEffort)
 }
 
+func TestUpstreamStreamForcedField(t *testing.T) {
+	info := &RelayInfo{}
+	info.UpstreamStreamForced = true
+	if !info.UpstreamStreamForced {
+		t.Error("UpstreamStreamForced field not settable")
+	}
+}
+
 func TestInitChannelMetaAppliesAdvancedCustomRoutePassThrough(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	advancedCustom := &dto.AdvancedCustomConfig{
