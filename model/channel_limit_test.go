@@ -3,6 +3,7 @@ package model
 import (
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -20,6 +21,15 @@ import (
 
 func int64PtrForLimitTest(v int64) *int64 {
 	return &v
+}
+
+// channelLimitTestId returns a channel id unique to this process run, so the
+// exact-value counter assertions below never observe still-live in-memory
+// windows left by a previous run of the test binary (go test -count=2).
+var channelLimitTestIdSeq atomic.Int64
+
+func channelLimitTestId(base int64) int {
+	return int(base + channelLimitTestIdSeq.Add(1))
 }
 
 // seedChannelLimitCounters writes absolute window values for one channel using
@@ -132,14 +142,14 @@ func TestChannelWithinLimitsReadsWindowCounters(t *testing.T) {
 }
 
 func TestChannelRpmTryConsumeStrictAdmissionAndRollback(t *testing.T) {
-	ch := &Channel{Id: 950101, RpmLimit: int64PtrForLimitTest(2)}
+	ch := &Channel{Id: channelLimitTestId(950100), RpmLimit: int64PtrForLimitTest(2)}
 	assert.True(t, ChannelRpmTryConsume(ch))
 	assert.True(t, ChannelRpmTryConsume(ch))
 	assert.False(t, ChannelRpmTryConsume(ch), "the third dispatch within one minute must be rejected")
 	assert.Equal(t, int64(2), common.CounterGet(channelRpmKey(ch.Id)),
 		"the rejected attempt must roll its increment back so the window is not self-saturating")
 
-	unlimited := &Channel{Id: 950102}
+	unlimited := &Channel{Id: channelLimitTestId(950100)}
 	assert.True(t, ChannelRpmTryConsume(unlimited))
 	assert.Equal(t, int64(0), common.CounterGet(channelRpmKey(unlimited.Id)),
 		"channels without a limit must not consume the counter")
@@ -158,7 +168,7 @@ func TestChannelWithinLimitsBatchSplitsLimitedAndUnlimited(t *testing.T) {
 }
 
 func TestRecordChannelTokenUsageAccumulatesTpmWindow(t *testing.T) {
-	channelId := 950301
+	channelId := channelLimitTestId(950300)
 	RecordChannelTokenUsage(channelId, 120)
 	RecordChannelTokenUsage(channelId, 80)
 	assert.Equal(t, int64(200), common.CounterGet(channelTpmKey(channelId)))
@@ -173,7 +183,7 @@ func TestRecordChannelTokenUsageAccumulatesTpmWindow(t *testing.T) {
 func TestUpdateChannelUsedQuotaMirrorsQuotaWindows(t *testing.T) {
 	truncateTables(t)
 	channel := Channel{
-		Id: 950401, Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled,
+		Id: channelLimitTestId(950400), Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled,
 		Name: "quota-mirror", Models: "mirror-model", Group: "default", Key: "test-key",
 	}
 	require.NoError(t, channel.Insert())
@@ -188,8 +198,22 @@ func TestUpdateChannelUsedQuotaMirrorsQuotaWindows(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(300), updated.UsedQuota, "the lifetime column keeps its own net total")
 
+	// A refund larger than the current window (for example a task charged on a
+	// previous day and refunded after the day rolled over) clamps the windows
+	// at zero instead of loosening the new window's budget; the durable column
+	// keeps the exact net total.
+	UpdateChannelUsedQuota(channel.Id, -400)
+	assert.Equal(t, int64(0), common.CounterGet(channelDayQuotaKey(channel.Id)),
+		"an over-refund clamps the day window at zero")
+	assert.Equal(t, int64(0), common.CounterGet(channelMonthQuotaKey(channel.Id)),
+		"an over-refund clamps the month window at zero")
+
+	updated, err = GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, int64(-100), updated.UsedQuota, "the lifetime column keeps its own net total")
+
 	UpdateChannelUsedQuota(channel.Id, 0)
-	assert.Equal(t, int64(300), common.CounterGet(channelDayQuotaKey(channel.Id)),
+	assert.Equal(t, int64(0), common.CounterGet(channelDayQuotaKey(channel.Id)),
 		"zero deltas record nothing")
 }
 

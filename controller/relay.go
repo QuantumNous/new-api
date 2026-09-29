@@ -6,6 +6,8 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -167,10 +169,22 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 			break
 		}
 		// Strict channel RPM admission at dispatch: a channel that just went
-		// over its budget hands the attempt to the next candidate. The error is
-		// local (never auto-bans) and the request keeps its retry budget.
+		// over its budget hands the attempt to the next candidate. The error
+		// is local (never auto-bans), and the shared retry policy decides
+		// whether the request may move on — pinned and strict-session requests
+		// stop instead of leaking to another channel, exactly as for any
+		// other failure.
 		if !model.ChannelRpmTryConsume(channel) {
 			newAPIError = model.ChannelRpmOverLimitError(channel)
+			decision := service.DecideRelayRetry(c, newAPIError, common.RetryTimes-retryParam.GetRetry())
+			service.RecordPolicyFailure(c, channel.Id, newAPIError, decision)
+			if decision.Action != "retry" {
+				break
+			}
+			// Record the rejected channel in the use_channel trail so the
+			// next iteration enters candidate selection instead of
+			// rebuilding the same over-limit distributor channel.
+			service.AppendUsedChannel(c, channel.Id)
 			continue
 		}
 		service.AppendUsedChannel(c, channel.Id)
@@ -267,12 +281,15 @@ var upgrader = websocket.Upgrader{
 }
 
 // getChannel returns the channel for the current relay attempt. When the
-// distributor has already selected a channel (ChannelMeta is nil), the full
-// cached channel replaces the context-reconstructed partial one so limit
-// admission sees the configured RpmLimit; a cache miss keeps the partial
-// channel and leaves limits enforced by the selection-side filter.
+// distributor has already selected a channel (ChannelMeta is nil) and it has
+// not been attempted yet, the full cached channel replaces the
+// context-reconstructed partial one so limit admission sees the configured
+// RpmLimit; a cache miss keeps the partial channel and leaves limits enforced
+// by the selection-side filter. Once the distributor's channel appears in the
+// use_channel trail — including an attempt rejected by ChannelRpmTryConsume —
+// later iterations move on to candidate selection instead of rebuilding it.
 func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service.RetryParam) (*model.Channel, *types.NewAPIError) {
-	if info.ChannelMeta == nil {
+	if info.ChannelMeta == nil && !slices.Contains(c.GetStringSlice("use_channel"), strconv.Itoa(c.GetInt("channel_id"))) {
 		autoBan := c.GetBool("auto_ban")
 		autoBanInt := 1
 		if !autoBan {
@@ -543,12 +560,28 @@ func executeTaskSubmissionWith(
 				break
 			}
 		}
-		// Strict channel RPM admission at dispatch: skip the attempt (and the
-		// next candidate keeps the retry budget) instead of sending the task to
-		// a channel that just exhausted its per-minute budget.
+		// Strict channel RPM admission at dispatch: skip the attempt (and
+		// the next candidate keeps the retry budget) instead of sending the
+		// task to a channel that just exhausted its per-minute budget.
 		if !model.ChannelRpmTryConsume(channel) {
 			overLimit := model.ChannelRpmOverLimitError(channel)
 			taskErr = service.TaskErrorWrapperLocal(overLimit.Err, string(model.ChannelLimitExceededCode), overLimit.StatusCode)
+			lockedCh, locked := relayInfo.LockedChannel.(*model.Channel)
+			if !locked || lockedCh == nil {
+				// Unlocked submissions follow the shared retry policy: pinned
+				// and strict-session requests stop instead of leaking to
+				// another channel. Locked submissions retry their channel.
+				taskAPIError := taskSubmissionAPIError(taskErr)
+				decision := decideTaskRetry(c, taskErr, common.RetryTimes-retryParam.GetRetry())
+				service.RecordPolicyFailure(c, channel.Id, taskAPIError, decision)
+				if decision.Action != "retry" {
+					break
+				}
+				// Record the rejected channel in the use_channel trail so the
+				// next iteration enters candidate selection instead of
+				// rebuilding the same over-limit distributor channel.
+				service.AppendUsedChannel(c, channel.Id)
+			}
 			continue
 		}
 		diagnostics.attempt(retryParam.GetRetry()+1, channel, relayInfo.LockedChannel != nil)

@@ -289,6 +289,15 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			}
 			if !appmodel.ChannelRpmTryConsume(channel) {
 				apiErr = appmodel.ChannelRpmOverLimitError(channel)
+				// Route the rejection through the shared retry policy so
+				// pinned and strict-session requests stop instead of leaking
+				// to another channel, mirroring the HTTP relay loops.
+				decision := service.DecideRelayRetry(c, apiErr, common.RetryTimes-retry.GetRetry())
+				service.RecordPolicyFailure(c, channel.Id, apiErr, decision)
+				if decision.Action != "retry" {
+					return apiErr
+				}
+				service.AppendUsedChannel(c, channel.Id)
 				continue
 			}
 			service.AppendUsedChannel(c, channel.Id)

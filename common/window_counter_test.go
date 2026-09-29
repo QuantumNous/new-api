@@ -2,6 +2,8 @@ package common
 
 import (
 	"context"
+	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -11,6 +13,15 @@ import (
 
 	"github.com/go-redis/redis/v8"
 )
+
+// windowCounterTestBucket returns a bucket label unique to this process run,
+// so a second run of the test binary (go test -count=2) never observes
+// still-live in-memory entries left by the previous run.
+var windowCounterTestBucketSeq atomic.Int64
+
+func windowCounterTestBucket(name string) string {
+	return fmt.Sprintf("%s-%d", name, windowCounterTestBucketSeq.Add(1))
+}
 
 func useWindowCounterMiniRedis(t *testing.T) *miniredis.Miniredis {
 	t.Helper()
@@ -44,7 +55,7 @@ func useWindowCounterMemoryStore(t *testing.T) {
 func TestWindowCounterIncrByAndGetMemoryStore(t *testing.T) {
 	useWindowCounterMemoryStore(t)
 
-	key := CounterKey("testWindowCounter", 1, "bucket-1")
+	key := CounterKey("testWindowCounter", 1, windowCounterTestBucket("run"))
 	value, err := CounterIncrBy(key, 3, time.Hour)
 	require.NoError(t, err)
 	assert.Equal(t, int64(3), value)
@@ -52,16 +63,16 @@ func TestWindowCounterIncrByAndGetMemoryStore(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), value)
 	assert.Equal(t, int64(2), CounterGet(key))
-	assert.Equal(t, int64(0), CounterGet(CounterKey("testWindowCounter", 2, "bucket-1")), "unset counters read as zero")
-	assert.Equal(t, int64(0), CounterGet(CounterKey("testWindowCounter", 1, "bucket-2")), "window buckets are independent counters")
+	assert.Equal(t, int64(0), CounterGet(CounterKey("testWindowCounter", 2, windowCounterTestBucket("unset"))), "unset counters read as zero")
+	assert.Equal(t, int64(0), CounterGet(CounterKey("testWindowCounter", 1, windowCounterTestBucket("other"))), "window buckets are independent counters")
 }
 
-func TestWindowCounterMIncrByAppliesAllDeltasTogether(t *testing.T) {
+func TestWindowCounterQuotaMIncrByAppliesDeltasTogether(t *testing.T) {
 	useWindowCounterMemoryStore(t)
 
-	dayKey := CounterKey("testWindowCounterBatch", 1, "20260101")
-	monthKey := CounterKey("testWindowCounterBatch", 1, "202601")
-	err := CounterMIncrBy([]CounterDelta{
+	dayKey := CounterKey("testWindowCounterQuotaBatch", 1, windowCounterTestBucket("day"))
+	monthKey := CounterKey("testWindowCounterQuotaBatch", 1, windowCounterTestBucket("month"))
+	err := CounterQuotaMIncrBy([]CounterDelta{
 		{Key: dayKey, Delta: 5, TTL: time.Hour},
 		{Key: monthKey, Delta: 5, TTL: 2 * time.Hour},
 	})
@@ -69,21 +80,31 @@ func TestWindowCounterMIncrByAppliesAllDeltasTogether(t *testing.T) {
 	assert.Equal(t, int64(5), CounterGet(dayKey))
 	assert.Equal(t, int64(5), CounterGet(monthKey))
 
-	err = CounterMIncrBy([]CounterDelta{
+	err = CounterQuotaMIncrBy([]CounterDelta{
 		{Key: dayKey, Delta: -2, TTL: time.Hour},
 		{Key: monthKey, Delta: -2, TTL: 2 * time.Hour},
 	})
 	require.NoError(t, err)
-	assert.Equal(t, int64(3), CounterGet(dayKey), "negative deltas (refunds) flow through batch increments")
+	assert.Equal(t, int64(3), CounterGet(dayKey), "refunds roll the window back within the same window")
 	assert.Equal(t, int64(3), CounterGet(monthKey))
 
-	require.NoError(t, CounterMIncrBy(nil), "an empty batch is a no-op")
+	// A refund larger than the window's usage clamps at zero instead of
+	// going negative, which would loosen the window's budget.
+	err = CounterQuotaMIncrBy([]CounterDelta{
+		{Key: dayKey, Delta: -10, TTL: time.Hour},
+		{Key: monthKey, Delta: -10, TTL: 2 * time.Hour},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), CounterGet(dayKey), "an over-refund clamps at zero")
+	assert.Equal(t, int64(0), CounterGet(monthKey))
+
+	require.NoError(t, CounterQuotaMIncrBy(nil), "an empty batch is a no-op")
 }
 
 func TestWindowCounterMemoryStoreExpiresEntries(t *testing.T) {
 	useWindowCounterMemoryStore(t)
 
-	key := CounterKey("testWindowCounterExpiry", 3, "bucket-1")
+	key := CounterKey("testWindowCounterExpiry", 3, windowCounterTestBucket("run"))
 	_, err := CounterIncrBy(key, 5, time.Hour)
 	require.NoError(t, err)
 
@@ -102,9 +123,9 @@ func TestWindowCounterMemoryStoreExpiresEntries(t *testing.T) {
 func TestWindowCounterMGetBatchesKeys(t *testing.T) {
 	useWindowCounterMemoryStore(t)
 
-	first := CounterKey("testWindowCounterBatch", 1, "bucket-1")
-	second := CounterKey("testWindowCounterBatch", 2, "bucket-1")
-	missing := CounterKey("testWindowCounterBatch", 3, "bucket-1")
+	first := CounterKey("testWindowCounterBatch", 1, windowCounterTestBucket("first"))
+	second := CounterKey("testWindowCounterBatch", 2, windowCounterTestBucket("second"))
+	missing := CounterKey("testWindowCounterBatch", 3, windowCounterTestBucket("missing"))
 	_, err := CounterIncrBy(first, 1, time.Hour)
 	require.NoError(t, err)
 	_, err = CounterIncrBy(second, 7, time.Hour)
@@ -135,4 +156,34 @@ func TestWindowCounterRedisBackendSetsTTLAndReadsBack(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), value, "refund deltas flow through the Redis counter unchanged")
 	assert.Equal(t, int64(2), CounterGet(key))
+}
+
+func TestWindowCounterQuotaMIncrByRedisClampsRefundsAtZero(t *testing.T) {
+	redisServer := useWindowCounterMiniRedis(t)
+
+	dayKey := CounterKey("testWindowCounterQuotaRedis", 7, "20260101")
+	monthKey := CounterKey("testWindowCounterQuotaRedis", 7, "202601")
+	require.NoError(t, CounterQuotaMIncrBy([]CounterDelta{
+		{Key: dayKey, Delta: 5, TTL: time.Hour},
+		{Key: monthKey, Delta: 5, TTL: 2 * time.Hour},
+	}))
+	assert.Equal(t, int64(5), CounterGet(dayKey))
+	assert.Equal(t, int64(5), CounterGet(monthKey))
+	assert.True(t, redisServer.TTL(dayKey) > 0, "each key's TTL is armed in the same atomic step")
+	assert.True(t, redisServer.TTL(monthKey) > 0)
+
+	require.NoError(t, CounterQuotaMIncrBy([]CounterDelta{
+		{Key: dayKey, Delta: -2, TTL: time.Hour},
+		{Key: monthKey, Delta: -2, TTL: 2 * time.Hour},
+	}))
+	assert.Equal(t, int64(3), CounterGet(dayKey), "a same-window refund rolls the Redis window back")
+	assert.Equal(t, int64(3), CounterGet(monthKey))
+
+	// A refund larger than the window's usage clamps at zero on both windows.
+	require.NoError(t, CounterQuotaMIncrBy([]CounterDelta{
+		{Key: dayKey, Delta: -50, TTL: time.Hour},
+		{Key: monthKey, Delta: -50, TTL: 2 * time.Hour},
+	}))
+	assert.Equal(t, int64(0), CounterGet(dayKey), "an over-refund never loosens the Redis window below zero")
+	assert.Equal(t, int64(0), CounterGet(monthKey))
 }
