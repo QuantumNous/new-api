@@ -191,6 +191,17 @@ func ChannelRpmOverLimitError(ch *Channel) *types.NewAPIError {
 	)
 }
 
+// ChannelLimitsExceededError is the eligibility error for a channel whose TPM
+// or calendar quota windows are exhausted. It shares the HTTP 429 status and
+// channel_limit_exceeded code with ChannelRpmOverLimitError.
+func ChannelLimitsExceededError(ch *Channel) *types.NewAPIError {
+	return types.NewErrorWithStatusCode(
+		fmt.Errorf("channel #%d is over its configured rate or quota limits", ch.Id),
+		ChannelLimitExceededCode,
+		http.StatusTooManyRequests,
+	)
+}
+
 // RecordChannelTokenUsage adds settled token usage to the channel's TPM
 // window. It is invoked from consume-log recording so every billing path
 // (text, audio, realtime websocket, image, task submit, channel test) counts
@@ -205,16 +216,17 @@ func RecordChannelTokenUsage(channelId int, tokens int64) {
 }
 
 // RecordChannelQuotaUsage mirrors a signed used_quota delta onto the channel's
-// calendar day and month windows. Negative deltas (refunds and task
-// rollbacks) flow through unchanged.
+// calendar day and month windows in one atomic step, so a partial write
+// failure cannot leave the day and month windows inconsistent. Negative
+// deltas (refunds and task rollbacks) flow through unchanged.
 func RecordChannelQuotaUsage(channelId int, quota int64) {
 	if channelId <= 0 || quota == 0 {
 		return
 	}
-	if _, err := common.CounterIncrBy(channelDayQuotaKey(channelId), quota, dailyQuotaWindowTTL); err != nil {
-		common.SysError(fmt.Sprintf("failed to record channel daily quota counter: channel_id=%d, quota=%d, error=%v", channelId, quota, err))
-	}
-	if _, err := common.CounterIncrBy(channelMonthQuotaKey(channelId), quota, monthlyQuotaWindowTTL); err != nil {
-		common.SysError(fmt.Sprintf("failed to record channel monthly quota counter: channel_id=%d, quota=%d, error=%v", channelId, quota, err))
+	if err := common.CounterMIncrBy([]common.CounterDelta{
+		{Key: channelDayQuotaKey(channelId), Delta: quota, TTL: dailyQuotaWindowTTL},
+		{Key: channelMonthQuotaKey(channelId), Delta: quota, TTL: monthlyQuotaWindowTTL},
+	}); err != nil {
+		common.SysError(fmt.Sprintf("failed to record channel quota counters: channel_id=%d, quota=%d, error=%v", channelId, quota, err))
 	}
 }

@@ -533,6 +533,7 @@ func (channel *Channel) GetWeight() int {
 	return int(*channel.Weight)
 }
 
+// GetRpmLimit returns the configured RPM limit; 0 means unlimited.
 func (channel *Channel) GetRpmLimit() int64 {
 	if channel.RpmLimit == nil {
 		return 0
@@ -540,6 +541,7 @@ func (channel *Channel) GetRpmLimit() int64 {
 	return *channel.RpmLimit
 }
 
+// GetTpmLimit returns the configured TPM limit; 0 means unlimited.
 func (channel *Channel) GetTpmLimit() int64 {
 	if channel.TpmLimit == nil {
 		return 0
@@ -547,6 +549,7 @@ func (channel *Channel) GetTpmLimit() int64 {
 	return *channel.TpmLimit
 }
 
+// GetDailyQuotaLimit returns the configured daily quota limit; 0 means unlimited.
 func (channel *Channel) GetDailyQuotaLimit() int64 {
 	if channel.DailyQuotaLimit == nil {
 		return 0
@@ -554,6 +557,7 @@ func (channel *Channel) GetDailyQuotaLimit() int64 {
 	return *channel.DailyQuotaLimit
 }
 
+// GetMonthlyQuotaLimit returns the configured monthly quota limit; 0 means unlimited.
 func (channel *Channel) GetMonthlyQuotaLimit() int64 {
 	if channel.MonthlyQuotaLimit == nil {
 		return 0

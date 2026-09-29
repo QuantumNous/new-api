@@ -56,6 +56,30 @@ func TestWindowCounterIncrByAndGetMemoryStore(t *testing.T) {
 	assert.Equal(t, int64(0), CounterGet(CounterKey("testWindowCounter", 1, "bucket-2")), "window buckets are independent counters")
 }
 
+func TestWindowCounterMIncrByAppliesAllDeltasTogether(t *testing.T) {
+	useWindowCounterMemoryStore(t)
+
+	dayKey := CounterKey("testWindowCounterBatch", 1, "20260101")
+	monthKey := CounterKey("testWindowCounterBatch", 1, "202601")
+	err := CounterMIncrBy([]CounterDelta{
+		{Key: dayKey, Delta: 5, TTL: time.Hour},
+		{Key: monthKey, Delta: 5, TTL: 2 * time.Hour},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(5), CounterGet(dayKey))
+	assert.Equal(t, int64(5), CounterGet(monthKey))
+
+	err = CounterMIncrBy([]CounterDelta{
+		{Key: dayKey, Delta: -2, TTL: time.Hour},
+		{Key: monthKey, Delta: -2, TTL: 2 * time.Hour},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, int64(3), CounterGet(dayKey), "negative deltas (refunds) flow through batch increments")
+	assert.Equal(t, int64(3), CounterGet(monthKey))
+
+	require.NoError(t, CounterMIncrBy(nil), "an empty batch is a no-op")
+}
+
 func TestWindowCounterMemoryStoreExpiresEntries(t *testing.T) {
 	useWindowCounterMemoryStore(t)
 
