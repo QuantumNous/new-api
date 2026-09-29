@@ -280,7 +280,13 @@ export function LogSettingsSection({
       .map((key) => ({ key, value: values[key] }))
     if (updates.length === 0) return
     for (const update of updates) {
-      await updateOption.mutateAsync(update)
+      try {
+        await updateOption.mutateAsync(update)
+      } catch {
+        // The mutation's onError already reports the failure; stop applying
+        // the remaining options so they keep their last saved values.
+        return
+      }
     }
   }
 

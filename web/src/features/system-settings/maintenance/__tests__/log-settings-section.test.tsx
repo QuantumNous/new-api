@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { LogSettingsSection } from '../log-settings-section'
 
@@ -18,8 +18,10 @@ vi.mock('../../api', () => ({
   startLogCleanupTask: vi.fn(),
 }))
 
+const mocks = vi.hoisted(() => ({ mutateAsync: vi.fn() }))
+
 vi.mock('../../hooks/use-update-option', () => ({
-  useUpdateOption: () => ({ mutateAsync: vi.fn() }),
+  useUpdateOption: () => ({ mutateAsync: mocks.mutateAsync }),
 }))
 
 const defaults = {
@@ -36,6 +38,10 @@ function getSwitches(): HTMLElement[] {
 }
 
 describe('LogSettingsSection defaultValues reset', () => {
+  beforeEach(() => {
+    mocks.mutateAsync.mockReset()
+  })
+
   it('keeps unsaved switch edits when the parent re-renders with a new defaultValues object holding the same values', async () => {
     const user = userEvent.setup()
     const { rerender } = render(
@@ -88,5 +94,49 @@ describe('LogSettingsSection defaultValues reset', () => {
 
     expect(getSwitches()[0]).toHaveAttribute('aria-checked', 'true')
     expect(getSwitches()[1]).toHaveAttribute('aria-checked', 'false')
+  })
+
+  it('sends one option update per changed field and stops after a failed save', async () => {
+    const user = userEvent.setup()
+    render(<LogSettingsSection defaultValues={defaults} />)
+
+    const switches = getSwitches()
+    await user.click(switches[0]) // LogConsumeEnabled: true -> false
+    await user.click(switches[1]) // CacheRateStatsEnabled: true -> false
+
+    const form = switches[0].closest('form')
+    expect(form).not.toBeNull()
+
+    // First update fails: the loop must stop, so the second option is not sent.
+    mocks.mutateAsync.mockRejectedValueOnce(new Error('update failed'))
+    fireEvent.submit(form as HTMLFormElement)
+
+    await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledTimes(1))
+    expect(mocks.mutateAsync).toHaveBeenCalledWith({
+      key: 'LogConsumeEnabled',
+      value: false,
+    })
+  })
+
+  it('sends every changed field when all saves succeed', async () => {
+    const user = userEvent.setup()
+    render(<LogSettingsSection defaultValues={defaults} />)
+
+    const switches = getSwitches()
+    await user.click(switches[0]) // LogConsumeEnabled: true -> false
+    await user.click(switches[1]) // CacheRateStatsEnabled: true -> false
+
+    const form = switches[0].closest('form')
+    fireEvent.submit(form as HTMLFormElement)
+
+    await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledTimes(2))
+    expect(mocks.mutateAsync).toHaveBeenNthCalledWith(1, {
+      key: 'LogConsumeEnabled',
+      value: false,
+    })
+    expect(mocks.mutateAsync).toHaveBeenNthCalledWith(2, {
+      key: 'CacheRateStatsEnabled',
+      value: false,
+    })
   })
 })
