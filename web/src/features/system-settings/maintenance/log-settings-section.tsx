@@ -179,9 +179,21 @@ export function LogSettingsSection({
     }
   }, [])
 
+  // Depend on the individual default fields, not the defaultValues object
+  // identity: the parent registry rebuilds the object on every render, and an
+  // identity-keyed reset would discard unsaved toggle edits.
   useEffect(() => {
-    form.reset(defaultValues)
-  }, [defaultValues, form])
+    form.reset({
+      LogConsumeEnabled: defaultValues.LogConsumeEnabled,
+      CacheRateStatsEnabled: defaultValues.CacheRateStatsEnabled,
+      CacheRateUserVisibleEnabled: defaultValues.CacheRateUserVisibleEnabled,
+    })
+  }, [
+    defaultValues.LogConsumeEnabled,
+    defaultValues.CacheRateStatsEnabled,
+    defaultValues.CacheRateUserVisibleEnabled,
+    form,
+  ])
 
   useEffect(() => {
     fetchServerLogInfo()
