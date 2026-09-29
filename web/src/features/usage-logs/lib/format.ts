@@ -350,13 +350,13 @@ export interface CacheRates {
 /**
  * Compute cache read/creation rates for a single log entry.
  *
- * prompt_tokens already includes cached and cache-created input (OpenAI
- * semantics; Claude payloads are normalized to the same shape upstream), so
- * it is the single denominator. Cache write uses the 5m/1h split when
- * present, otherwise cache_creation_tokens, mirroring the backend's
- * cache_write_tokens normalization. Rates are clamped at 100% because
- * OpenRouter-Claude requests subtract cache from prompt_tokens and OpenAI
- * cache-write counts can exceed the reported prompt total.
+ * prompt_tokens is recorded by the backend as the full input total including
+ * cached and cache-created tokens on every relay path (OpenAI semantics;
+ * Claude and OpenRouter-Claude payloads are normalized upstream), so it is
+ * the single denominator. Cache write uses the 5m/1h split when present,
+ * otherwise cache_creation_tokens, mirroring the backend's
+ * cache_write_tokens normalization. The clamp at 100% is only a safety net
+ * for legacy rows recorded before the normalization.
  */
 export function computeCacheRates(
   promptTokens: number,

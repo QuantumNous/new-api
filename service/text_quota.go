@@ -37,7 +37,13 @@ func appendToolSurchargeLogInfo(other *model.LogOther, items []ToolSurchargeItem
 }
 
 type textQuotaSummary struct {
-	PromptTokens           int
+	PromptTokens int
+	// PromptTokensTotal is the full input total including cache-read and
+	// cache-creation tokens; the usage log and quota analytics record it so
+	// their prompt_tokens keeps "total input" semantics on every billing
+	// path. PromptTokens above holds the uncached input wherever the
+	// OpenRouter Claude billing path subtracts cache counts.
+	PromptTokensTotal      int
 	CompletionTokens       int
 	TotalTokens            int
 	CacheTokens            int
@@ -267,6 +273,10 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		relayInfo.ChannelType == constant.ChannelTypeOpenRouter &&
 		summary.IsClaudeUsageSemantic
 
+	// Capture the full input total before any billing-path subtraction;
+	// the log and quota analytics always record this total so cache-rate
+	// denominators stay valid.
+	summary.PromptTokensTotal = summary.PromptTokens
 	if isOpenRouterClaudeBilling {
 		summary.PromptTokens -= summary.CacheTokens
 		isUsingCustomSettings := relayInfo.PriceData.UsePrice || hasCustomModelRatio(summary.ModelName, relayInfo.PriceData.ModelRatio)
@@ -534,8 +544,11 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	attachQuotaSaturation(ctx, relayInfo, other)
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
-		ChannelId:           relayInfo.ChannelId,
-		PromptTokens:        summary.PromptTokens,
+		ChannelId: relayInfo.ChannelId,
+		// Record the full input total (cache included) so log display,
+		// SumUsedQuota and quota-data cache rates share one denominator;
+		// billing used the subtracted PromptTokens above.
+		PromptTokens:        summary.PromptTokensTotal,
 		CompletionTokens:    summary.CompletionTokens,
 		ModelName:           logModel,
 		TokenName:           summary.TokenName,

@@ -90,7 +90,7 @@ export const useSystemConfigStore = create<SystemConfigState>()(
             ...newConfig,
             currency: {
               ...state.config.currency,
-              ...newConfig.currency,
+              ...(newConfig.currency ?? {}),
             },
           },
         })),

@@ -77,7 +77,7 @@ func GetUserQuotaDates(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if c.GetInt("role") < common.RoleAdminUser && !(common.CacheRateStatsEnabled && common.CacheRateUserVisibleEnabled) {
+	if c.GetInt("role") < common.RoleAdminUser && !model.CacheStatsVisibleToUser() {
 		for _, row := range dates {
 			row.CacheTokens = 0
 			row.CacheCreationTokens = 0

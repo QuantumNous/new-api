@@ -885,6 +885,7 @@ func TestCalculateTextQuotaSummarySeparatesOpenRouterCacheReadFromPromptBilling(
 	// but billing still separates normal input from cache read tokens.
 	// quota = (2604 - 2432) + 2432*0.1 + 383 = 798.2 => 798
 	require.Equal(t, 2604, summary.PromptTokens)
+	require.Equal(t, 2604, summary.PromptTokensTotal)
 	require.Equal(t, 798, summary.Quota)
 }
 
@@ -959,6 +960,50 @@ func TestCalculateTextQuotaSummaryKeepsPrePRClaudeOpenRouterBilling(t *testing.T
 	// quota = 172 + 2432*0.1 + 383 = 798.2 => 798
 	require.True(t, summary.IsClaudeUsageSemantic)
 	require.Equal(t, 172, summary.PromptTokens)
+	require.Equal(t, 798, summary.Quota)
+}
+
+// TestCalculateTextQuotaSummaryRecordsTotalInputForOpenRouterClaude verifies
+// that the OpenRouter Claude billing path — the only path that subtracts
+// cache read/creation from summary.PromptTokens — still records the full
+// input total in PromptTokensTotal, which feeds the usage log and quota
+// analytics. Without it the recorded cache rate denominator loses the cache
+// tokens (2432/172 > 100%) instead of using the true input total (2432/2604).
+func TestCalculateTextQuotaSummaryRecordsTotalInputForOpenRouterClaude(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+
+	relayInfo := &relaycommon.RelayInfo{
+		FinalRequestRelayFormat: types.RelayFormatClaude,
+		OriginModelName:         "anthropic/claude-3.7-sonnet",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelType: constant.ChannelTypeOpenRouter,
+		},
+		PriceData: hosttypes.PriceData{
+			ModelRatio:         1,
+			CompletionRatio:    1,
+			CacheRatio:         0.1,
+			CacheCreationRatio: 1.25,
+			GroupRatioInfo:     hosttypes.GroupRatioInfo{GroupRatio: 1},
+		},
+		StartTime: time.Now(),
+	}
+
+	usage := &dto.Usage{
+		PromptTokens:     2604,
+		CompletionTokens: 383,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: 2432,
+		},
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+
+	// Billing keeps the uncached input; the recorded log total keeps the
+	// full input including cache, matching every other relay path.
+	require.Equal(t, 172, summary.PromptTokens)
+	require.Equal(t, 2604, summary.PromptTokensTotal)
 	require.Equal(t, 798, summary.Quota)
 }
 

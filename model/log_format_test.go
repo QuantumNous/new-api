@@ -1,6 +1,7 @@
 package model
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -201,8 +202,10 @@ func TestLegacyRejectReasonHandlesNullAdminInfo(t *testing.T) {
 
 // TestCacheLogOtherVisibilityFollowsSwitches verifies that cache-usage fields
 // stay visible to log owners while both cache-rate switches are on, and are
-// stripped from user projections when either switch is off. Admin and root
-// projections keep the fields regardless of the switches.
+// stripped from user projections when either switch is off. Cache-derived
+// entries nested inside the public billing_tokens map follow the same
+// stripping; unrelated billing metadata in that map survives. Admin and root
+// projections keep everything regardless of the switches.
 func TestCacheLogOtherVisibilityFollowsSwitches(t *testing.T) {
 	other := common.MapToJsonStr(map[string]any{
 		"cache_tokens":             63616,
@@ -214,6 +217,11 @@ func TestCacheLogOtherVisibilityFollowsSwitches(t *testing.T) {
 		"cache_ratio":              0.5,
 		"cache_creation_ratio":     1.25,
 		"input_tokens_total":       64324,
+		"billing_tokens": map[string]any{
+			"p": 1000, "c": 200, "len": 1200,
+			"cr": 63616, "cc": 300, "cc1h": 200,
+			"img": 4, "img_cr": 2, "img_o": 1,
+		},
 	})
 
 	restoreSwitches := func(t *testing.T) func() {
@@ -240,6 +248,20 @@ func TestCacheLogOtherVisibilityFollowsSwitches(t *testing.T) {
 		assert.Contains(t, parsed, "cache_ratio")
 		assert.Contains(t, parsed, "cache_creation_ratio")
 		assert.Contains(t, parsed, "input_tokens_total")
+
+		billingTokens, ok := parsed["billing_tokens"].(map[string]any)
+		require.True(t, ok, "billing_tokens must stay a JSON object")
+		for _, key := range userHiddenBillingTokenKeys {
+			if expectVisible {
+				assert.Contains(t, billingTokens, key)
+			} else {
+				assert.NotContains(t, billingTokens, key)
+			}
+		}
+		// Unrelated billing metadata survives in both modes.
+		for _, key := range []string{"p", "c", "len", "img", "img_o"} {
+			assert.Contains(t, billingTokens, key)
+		}
 	}
 
 	t.Run("both switches on keeps cache fields for users", func(t *testing.T) {
@@ -283,6 +305,10 @@ func TestCacheLogOtherVisibilityFollowsSwitches(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, parsed, "cache_tokens")
 		assert.Contains(t, parsed, "cache_creation_tokens_5m")
+		adminBillingTokens, ok := parsed["billing_tokens"].(map[string]any)
+		require.True(t, ok)
+		assert.Contains(t, adminBillingTokens, "cr")
+		assert.Contains(t, adminBillingTokens, "cc1h")
 
 		rootLogs := []*Log{{Other: other}}
 		FormatRootLogs(rootLogs)
@@ -290,6 +316,39 @@ func TestCacheLogOtherVisibilityFollowsSwitches(t *testing.T) {
 		require.NoError(t, err)
 		assert.Contains(t, parsed, "cache_tokens")
 	})
+}
+
+// TestCacheStatsVisibleToUserReadsUnderOptionLock is a regression test for the
+// data race between updateOptionMap (which writes both cache-rate switches
+// under OptionMapRWMutex) and visibility reads: CacheStatsVisibleToUser must
+// hold the read lock. Run with -race to make a missing lock fail.
+func TestCacheStatsVisibleToUserReadsUnderOptionLock(t *testing.T) {
+	oldStats, oldUserVisible := common.CacheRateStatsEnabled, common.CacheRateUserVisibleEnabled
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		common.CacheRateStatsEnabled = oldStats
+		common.CacheRateUserVisibleEnabled = oldUserVisible
+		common.OptionMapRWMutex.Unlock()
+	})
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for range 64 {
+			common.OptionMapRWMutex.Lock()
+			common.CacheRateStatsEnabled = !common.CacheRateStatsEnabled
+			common.CacheRateUserVisibleEnabled = !common.CacheRateUserVisibleEnabled
+			common.OptionMapRWMutex.Unlock()
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for range 64 {
+			CacheStatsVisibleToUser()
+		}
+	}()
+	wg.Wait()
 }
 
 func TestLogFormattingPreservesLargeIntegerLexemes(t *testing.T) {
