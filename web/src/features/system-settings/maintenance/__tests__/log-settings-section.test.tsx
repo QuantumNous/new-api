@@ -24,17 +24,14 @@ vi.mock('../../hooks/use-update-option', () => ({
   useUpdateOption: () => ({ mutateAsync: mocks.mutateAsync }),
 }))
 
-const defaults = {
-  LogConsumeEnabled: true,
-  CacheRateStatsEnabled: true,
-  CacheRateUserVisibleEnabled: true,
-}
+const defaults = { LogConsumeEnabled: true }
 
-// The section renders exactly three switch fields, in schema order.
-function getSwitches(): HTMLElement[] {
+// The section renders exactly one switch field (the cache-rate switches
+// moved to Monitoring & Alerts).
+function getSwitch(): HTMLElement {
   const switches = screen.getAllByRole('switch')
-  expect(switches).toHaveLength(3)
-  return switches
+  expect(switches).toHaveLength(1)
+  return switches[0]
 }
 
 describe('LogSettingsSection defaultValues reset', () => {
@@ -48,7 +45,7 @@ describe('LogSettingsSection defaultValues reset', () => {
       <LogSettingsSection defaultValues={defaults} />
     )
 
-    const consumeSwitch = getSwitches()[0]
+    const consumeSwitch = getSwitch()
     expect(consumeSwitch).toHaveAttribute('aria-checked', 'true')
 
     await user.click(consumeSwitch)
@@ -57,17 +54,9 @@ describe('LogSettingsSection defaultValues reset', () => {
     // The parent (section-registry) rebuilds the settings object on every
     // render, so the prop identity changes while the values do not. A reset
     // keyed on the object identity would discard the unsaved toggle above.
-    rerender(
-      <LogSettingsSection
-        defaultValues={{
-          LogConsumeEnabled: true,
-          CacheRateStatsEnabled: true,
-          CacheRateUserVisibleEnabled: true,
-        }}
-      />
-    )
+    rerender(<LogSettingsSection defaultValues={{ LogConsumeEnabled: true }} />)
 
-    expect(getSwitches()[0]).toHaveAttribute('aria-checked', 'false')
+    expect(getSwitch()).toHaveAttribute('aria-checked', 'false')
   })
 
   it('resets the form to the new server values when the defaults actually change', async () => {
@@ -76,44 +65,31 @@ describe('LogSettingsSection defaultValues reset', () => {
       <LogSettingsSection defaultValues={defaults} />
     )
 
-    const consumeSwitch = getSwitches()[0]
+    const consumeSwitch = getSwitch()
     await user.click(consumeSwitch)
     expect(consumeSwitch).toHaveAttribute('aria-checked', 'false')
 
     // New server values that differ from both the original defaults and the
     // unsaved edit: the reset must overwrite the edit with the new values.
     rerender(
-      <LogSettingsSection
-        defaultValues={{
-          LogConsumeEnabled: true,
-          CacheRateStatsEnabled: false,
-          CacheRateUserVisibleEnabled: true,
-        }}
-      />
+      <LogSettingsSection defaultValues={{ LogConsumeEnabled: false }} />
     )
 
-    expect(getSwitches()[0]).toHaveAttribute('aria-checked', 'true')
-    expect(getSwitches()[1]).toHaveAttribute('aria-checked', 'false')
+    expect(getSwitch()).toHaveAttribute('aria-checked', 'false')
   })
 
-  it('sends one option update per changed field and stops after a failed save', async () => {
+  it('sends the changed option and nothing else on save', async () => {
     const user = userEvent.setup()
     render(<LogSettingsSection defaultValues={defaults} />)
 
-    const switches = getSwitches()
-    await user.click(switches[0]) // LogConsumeEnabled: true -> false
-    await user.click(switches[1]) // CacheRateStatsEnabled: true -> false
+    const consumeSwitch = getSwitch()
+    await user.click(consumeSwitch) // LogConsumeEnabled: true -> false
 
-    const form = switches[0].closest('form')
+    const form = consumeSwitch.closest('form')
     expect(form).not.toBeNull()
-
-    // First update fails: the loop must stop, so the second option is not sent.
-    mocks.mutateAsync.mockRejectedValueOnce(new Error('update failed'))
     fireEvent.submit(form as HTMLFormElement)
 
     await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledTimes(1))
-    // Let the submit chain settle before the final count, so a loop that
-    // wrongly continues after the rejection is caught.
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 0))
     })
@@ -124,45 +100,20 @@ describe('LogSettingsSection defaultValues reset', () => {
     })
   })
 
-  it('sends every changed field when all saves succeed', async () => {
-    const user = userEvent.setup()
-    render(<LogSettingsSection defaultValues={defaults} />)
-
-    const switches = getSwitches()
-    await user.click(switches[0]) // LogConsumeEnabled: true -> false
-    await user.click(switches[1]) // CacheRateStatsEnabled: true -> false
-
-    const form = switches[0].closest('form')
-    fireEvent.submit(form as HTMLFormElement)
-
-    await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledTimes(2))
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    })
-    expect(mocks.mutateAsync).toHaveBeenNthCalledWith(1, {
-      key: 'LogConsumeEnabled',
-      value: false,
-    })
-    expect(mocks.mutateAsync).toHaveBeenNthCalledWith(2, {
-      key: 'CacheRateStatsEnabled',
-      value: false,
-    })
-  })
-
   it('sends a reversal saved before the refreshed defaults arrive', async () => {
     const user = userEvent.setup()
     render(<LogSettingsSection defaultValues={defaults} />)
 
-    const switches = getSwitches()
-    const form = switches[0].closest('form') as HTMLFormElement
+    const consumeSwitch = getSwitch()
+    const form = consumeSwitch.closest('form') as HTMLFormElement
 
     // Save the first toggle, then flip it back before the query refresh
     // delivers new defaultValues (still the pre-save object here).
-    await user.click(switches[0]) // LogConsumeEnabled: true -> false
+    await user.click(consumeSwitch) // LogConsumeEnabled: true -> false
     fireEvent.submit(form)
     await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledTimes(1))
 
-    await user.click(switches[0]) // LogConsumeEnabled: false -> true
+    await user.click(consumeSwitch) // LogConsumeEnabled: false -> true
     fireEvent.submit(form)
 
     await waitFor(() =>
