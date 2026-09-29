@@ -85,12 +85,14 @@ import type { LogCleanupTask } from '../types'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
+  CacheRateStatsEnabled: z.boolean(),
+  CacheRateUserVisibleEnabled: z.boolean(),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 
 type LogSettingsSectionProps = {
-  defaultEnabled: boolean
+  defaultValues: LogSettingsFormValues
 }
 
 type ServerLogInfo = {
@@ -145,15 +147,13 @@ function isActiveLogCleanupTask(task: LogCleanupTask | null) {
 }
 
 export function LogSettingsSection({
-  defaultEnabled,
+  defaultValues,
 }: LogSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const form = useForm<LogSettingsFormValues>({
     resolver: zodResolver(logSettingsSchema),
-    defaultValues: {
-      LogConsumeEnabled: defaultEnabled,
-    },
+    defaultValues,
   })
 
   const [purgeDate, setPurgeDate] = useState<Date | undefined>(() =>
@@ -180,8 +180,8 @@ export function LogSettingsSection({
   }, [])
 
   useEffect(() => {
-    form.reset({ LogConsumeEnabled: defaultEnabled })
-  }, [defaultEnabled, form])
+    form.reset(defaultValues)
+  }, [defaultValues, form])
 
   useEffect(() => {
     fetchServerLogInfo()
@@ -263,11 +263,13 @@ export function LogSettingsSection({
   }, [logCleanupActive, logCleanupTaskId, t])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
-    if (values.LogConsumeEnabled === defaultEnabled) return
-    await updateOption.mutateAsync({
-      key: 'LogConsumeEnabled',
-      value: values.LogConsumeEnabled,
-    })
+    const updates = (Object.keys(values) as Array<keyof LogSettingsFormValues>)
+      .filter((key) => values[key] !== defaultValues[key])
+      .map((key) => ({ key, value: values[key] }))
+    if (updates.length === 0) return
+    for (const update of updates) {
+      await updateOption.mutateAsync(update)
+    }
   }
 
   const handleRequestCleanLogs = () => {
@@ -340,6 +342,8 @@ export function LogSettingsSection({
     }
   }
 
+  const cacheRateStatsEnabled = form.watch('CacheRateStatsEnabled')
+
   return (
     <SettingsSection title={t('Log Maintenance')}>
       <Form {...form}>
@@ -366,6 +370,57 @@ export function LogSettingsSection({
                   <Switch
                     checked={field.value}
                     onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='CacheRateStatsEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Enable cache rate statistics')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Show cache read and creation rates in usage logs and the data dashboard.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='CacheRateUserVisibleEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>
+                    {t('Allow regular users to view cache statistics')}
+                  </FormLabel>
+                  <FormDescription>
+                    {t(
+                      'When disabled, cache token usage is hidden from regular users in their own logs and dashboard.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    disabled={!cacheRateStatsEnabled}
                   />
                 </FormControl>
                 <FormMessage />

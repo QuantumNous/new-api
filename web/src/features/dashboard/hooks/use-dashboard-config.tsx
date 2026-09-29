@@ -25,11 +25,14 @@ import {
   Flame,
   TrendingUp,
   Activity,
+  Database,
+  DatabaseZap,
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { IconBadgeTone } from '@/components/ui/icon-badge'
+import { useCacheRateStatsVisible } from '@/hooks/use-cache-rate-stats'
 import { safeDivide } from '@/features/dashboard/lib'
 
 interface StatCardConfig {
@@ -43,8 +46,9 @@ interface StatCardConfig {
 
 export function useModelStatCardsConfig(): StatCardConfig[] {
   const { t } = useTranslation()
+  const cacheRatesVisible = useCacheRateStatsVisible()
 
-  return [
+  const cards: StatCardConfig[] = [
     {
       key: 'count',
       title: t('Total Count'),
@@ -88,6 +92,30 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
         safeDivide(stat?.tpm ?? 0, timeRangeMinutes),
     },
   ]
+
+  if (!cacheRatesVisible) return cards
+
+  // -1 marks "no input tokens to compute a rate from" so the card renders
+  // a placeholder instead of a misleading 0.0%.
+  cards.push(
+    {
+      key: 'cacheReadRate',
+      title: t('Cache Read Rate'),
+      description: t('Cache hits share of input tokens'),
+      icon: Database,
+      iconTone: 'chart-3',
+      getValue: (stat) => stat?.cacheReadRate ?? -1,
+    },
+    {
+      key: 'cacheCreationRate',
+      title: t('Cache Creation Rate'),
+      description: t('Cache writes share of input tokens'),
+      icon: DatabaseZap,
+      iconTone: 'chart-1',
+      getValue: (stat) => stat?.cacheCreationRate ?? -1,
+    }
+  )
+  return cards
 }
 
 export function useSummaryCardsConfig(totals: {

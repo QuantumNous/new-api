@@ -23,6 +23,25 @@ var legacySensitiveLogOtherKeys = []string{
 	"reject_reason",
 }
 
+// userHiddenCacheLogOtherKeys are cache-usage fields normally visible to log
+// owners. When the cache-rate feature is disabled or hidden from common users
+// (CacheRateStatsEnabled / CacheRateUserVisibleEnabled), they are stripped
+// from user-scope projections only; admin/root projections keep them.
+var userHiddenCacheLogOtherKeys = []string{
+	"cache_tokens",
+	"cache_creation_tokens",
+	"cache_creation_tokens_5m",
+	"cache_creation_tokens_1h",
+	"cache_write_tokens",
+	"image_cache_tokens",
+}
+
+// cacheStatsVisibleToUser reports whether common users may see their own
+// cache-usage fields.
+func cacheStatsVisibleToUser() bool {
+	return common.CacheRateStatsEnabled && common.CacheRateUserVisibleEnabled
+}
+
 type logOtherVisibility int
 
 const (
@@ -237,6 +256,14 @@ func formatLogOtherJSON(value string, visibility logOtherVisibility) string {
 			if _, exists := values[key]; exists {
 				delete(values, key)
 				changed = true
+			}
+		}
+		if !cacheStatsVisibleToUser() {
+			for _, key := range userHiddenCacheLogOtherKeys {
+				if _, exists := values[key]; exists {
+					delete(values, key)
+					changed = true
+				}
 			}
 		}
 	} else {

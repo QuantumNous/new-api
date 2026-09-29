@@ -819,4 +819,7 @@ export const STATIC_I18N_KEYS = [
   'Vendor name and icon must not exceed 128 characters.',
   'Shown',
   'Not shown',
+  // Dashboard cache rate chart toggle labels (passed via constants).
+  'By model',
+  'By channel',
 ] as const

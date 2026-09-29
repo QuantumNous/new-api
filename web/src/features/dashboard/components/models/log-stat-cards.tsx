@@ -58,6 +58,16 @@ function formatStatNumber(value: number, locale: Intl.LocalesArgument) {
   }
 }
 
+// Cache rate values are ratios clamped to [0, 1]; -1 marks a non-computable
+// rate (no input tokens in range) and renders a placeholder.
+const CACHE_RATE_KEYS = new Set(['cacheReadRate', 'cacheCreationRate'])
+
+function formatCacheRateStat(value: number) {
+  if (value < 0) return { displayValue: '--', fullValue: '--' }
+  const percent = `${(value * 100).toFixed(1)}%`
+  return { displayValue: percent, fullValue: percent }
+}
+
 export function LogStatCards(props: LogStatCardsProps) {
   const { i18n } = useTranslation()
   const statCardsConfig = useModelStatCardsConfig()
@@ -67,6 +77,9 @@ export function LogStatCards(props: LogStatCardsProps) {
     totalQuota: number
     totalCount: number
     totalTokens: number
+    totalPromptTokens: number
+    totalCacheTokens: number
+    totalCacheCreationTokens: number
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -115,22 +128,43 @@ export function LogStatCards(props: LogStatCardsProps) {
     }
   }, [filters, isAdmin, onDataUpdate])
 
+  const cacheRates = (() => {
+    if (!stats || stats.totalPromptTokens <= 0) {
+      return { cacheReadRate: -1, cacheCreationRate: -1 }
+    }
+    return {
+      cacheReadRate: Math.min(
+        stats.totalCacheTokens / stats.totalPromptTokens,
+        1
+      ),
+      cacheCreationRate: Math.min(
+        stats.totalCacheCreationTokens / stats.totalPromptTokens,
+        1
+      ),
+    }
+  })()
+
   const adaptedStats = {
     rpm: stats?.totalCount ?? 0,
     quota: stats?.totalQuota ?? 0,
     tpm: stats?.totalTokens ?? 0,
+    ...cacheRates,
   }
 
   const items = statCardsConfig.map((config) => {
     const rawValue = config.getValue(adaptedStats, timeRangeMinutes)
     const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
-    const formatted =
-      config.key === 'quota'
-        ? {
-            displayValue: formatQuota(rawValue),
-            fullValue: formatQuota(rawValue),
-          }
-        : formatStatNumber(rawValue, locale)
+    let formatted: { displayValue: string; fullValue: string }
+    if (config.key === 'quota') {
+      formatted = {
+        displayValue: formatQuota(rawValue),
+        fullValue: formatQuota(rawValue),
+      }
+    } else if (CACHE_RATE_KEYS.has(config.key)) {
+      formatted = formatCacheRateStat(rawValue)
+    } else {
+      formatted = formatStatNumber(rawValue, locale)
+    }
 
     return {
       title: config.title,

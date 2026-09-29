@@ -61,6 +61,7 @@ import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import { BILLING_PRICING_VARS } from '@/features/pricing/lib/billing-expr'
 import { pluginUsageSchema } from '@/features/pricing/lib/plugin-pricing'
 import { PolicyDecisionRecord } from '@/features/system-settings/request-policies/decision-record'
+import { useCacheRateStatsVisible } from '@/hooks/use-cache-rate-stats'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
@@ -69,6 +70,8 @@ import { cn } from '@/lib/utils'
 import { AuditDetailFields } from '../../audit/components/audit-detail-fields'
 import type { UsageLog } from '../../data/schema'
 import {
+  computeCacheRates,
+  formatCacheRate,
   parseLogOther,
   getParamOverrideActionLabel,
   parseAuditLine,
@@ -373,6 +376,7 @@ function BillingBreakdown(props: {
 function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
   const { t } = useTranslation()
   const { log, other } = props
+  const cacheRatesVisible = useCacheRateStatsVisible()
 
   const promptTokens = log.prompt_tokens || 0
   const completionTokens = log.completion_tokens || 0
@@ -383,6 +387,14 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
   const hasTokens = promptTokens > 0 || completionTokens > 0
 
   if (!hasTokens) return null
+
+  const cacheRates = cacheRatesVisible
+    ? computeCacheRates(promptTokens, other)
+    : null
+  const cacheReadRateText = formatCacheRate(cacheRates?.readRate ?? null)
+  const cacheCreationRateText = formatCacheRate(
+    cacheRates?.creationRate ?? null
+  )
 
   const rows: Array<{ label: string; value: string }> = []
 
@@ -397,6 +409,12 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
       label: t('Cache Read'),
       value: cacheRead.toLocaleString(),
     })
+    if (cacheReadRateText) {
+      rows.push({
+        label: t('Cache Read Rate'),
+        value: cacheReadRateText,
+      })
+    }
   }
 
   if (other.image_cache_tokens !== undefined) {
@@ -424,6 +442,16 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
     rows.push({
       label: t('Cache Write (1h)'),
       value: cacheWrite1h.toLocaleString(),
+    })
+  }
+
+  if (
+    cacheCreationRateText &&
+    (cacheWrite > 0 || cacheWrite5m > 0 || cacheWrite1h > 0)
+  ) {
+    rows.push({
+      label: t('Cache Creation Rate'),
+      value: cacheCreationRateText,
     })
   }
 

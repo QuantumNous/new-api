@@ -31,10 +31,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useCacheRateStatsVisible } from '@/hooks/use-cache-rate-stats'
 import { ROLE } from '@/lib/roles'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
 
+import { useModelStatCardsConfig } from './hooks/use-dashboard-config'
 import { ModelsChartPreferences } from './components/models/models-chart-preferences'
 import { ModelsFilter } from './components/models/models-filter-dialog'
 import { OverviewDashboard } from './components/overview/overview-dashboard'
@@ -60,13 +62,6 @@ import type {
 
 const route = getRouteApi('/_authenticated/dashboard/$section')
 
-const LOG_STAT_CARD_FALLBACK_KEYS = [
-  'count',
-  'quota',
-  'tokens',
-  'average-rpm',
-  'average-tpm',
-] as const
 const PERFORMANCE_METRIC_FALLBACK_KEYS = [
   'success-rate',
   'average-latency',
@@ -86,6 +81,12 @@ const LazyLogStatCards = lazy(() =>
 const LazyModelCharts = lazy(() =>
   import('./components/models/model-charts').then((m) => ({
     default: m.ModelCharts,
+  }))
+)
+
+const LazyCacheRateCharts = lazy(() =>
+  import('./components/models/cache-rate-charts').then((m) => ({
+    default: m.CacheRateCharts,
   }))
 )
 
@@ -114,15 +115,17 @@ const LazyFlowCharts = lazy(() =>
 )
 
 function LogStatCardsFallback() {
+  const statCardsConfig = useModelStatCardsConfig()
   return (
     <div className='overflow-hidden rounded-lg border'>
       <div className='divide-border/60 grid grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-5'>
-        {LOG_STAT_CARD_FALLBACK_KEYS.map((key, index) => (
+        {statCardsConfig.map((config, index) => (
           <div
-            key={key}
+            key={config.key}
             className={cn(
               'px-2.5 py-1.5 sm:px-5 sm:py-4',
-              index === LOG_STAT_CARD_FALLBACK_KEYS.length - 1 &&
+              index === statCardsConfig.length - 1 &&
+                statCardsConfig.length % 2 !== 0 &&
                 'col-span-2 sm:col-span-1'
             )}
           >
@@ -196,6 +199,7 @@ export function Dashboard() {
   const navigate = useNavigate()
   const params = route.useParams()
   const userRole = useAuthStore((state) => state.auth.user?.role)
+  const cacheAnalyticsVisible = useCacheRateStatsVisible()
   const activeSection = (params.section ??
     DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
 
@@ -389,6 +393,21 @@ export function Dashboard() {
                   />
                 </Suspense>
               </FadeIn>
+              {cacheAnalyticsVisible && (
+                <FadeIn delay={0.2}>
+                  <Suspense fallback={<ModelChartsFallback />}>
+                    <LazyCacheRateCharts
+                      filters={modelFilters}
+                      data={modelData}
+                      loading={dataLoading}
+                      timeGranularity={
+                        modelFilters.time_granularity ||
+                        DEFAULT_TIME_GRANULARITY
+                      }
+                    />
+                  </Suspense>
+                </FadeIn>
+              )}
             </>
           )}
           {activeSection === 'users' && (

@@ -31,7 +31,35 @@ export interface QuotaDataItem {
   token_used?: number
   count?: number
   quota?: number
+  prompt_tokens?: number
+  cache_tokens?: number
+  cache_creation_tokens?: number
 }
+
+export interface ChannelQuotaDataItem {
+  channel_id: number
+  channel_name: string
+  created_at: number
+  count?: number
+  quota?: number
+  token_used?: number
+  prompt_tokens?: number
+  cache_tokens?: number
+  cache_creation_tokens?: number
+}
+
+/** Normalized cache-rate chart row: one series (model or channel) per hourly bucket. */
+export interface CacheRateChartRow {
+  series: string
+  created_at: number
+  prompt_tokens: number
+  cache_tokens: number
+  cache_creation_tokens: number
+}
+
+export type CacheRateMetric = 'read' | 'creation'
+
+export type CacheRateDimension = 'model' | 'channel'
 
 export interface FlowQuotaDataItem {
   user_id?: number
@@ -234,7 +262,7 @@ export type PingStatusMap = Record<string, PingStatus>
 // ============================================================================
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type VChartSpec = Record<string, any>
+export type VChartSpec = Record<string, any>
 
 export interface ProcessedChartData {
   spec_pie: VChartSpec

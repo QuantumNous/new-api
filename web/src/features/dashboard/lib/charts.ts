@@ -23,6 +23,9 @@ import type {
   QuotaDataItem,
   ProcessedChartData,
   ProcessedUserChartData,
+  CacheRateChartRow,
+  CacheRateMetric,
+  VChartSpec,
 } from '@/features/dashboard/types'
 import { getCurrencyDisplay } from '@/lib/currency'
 import { formatChartTime, type TimeGranularity } from '@/lib/time'
@@ -43,8 +46,9 @@ export function getDashboardChartColors(domainLength: number): string[] {
   const scheme =
     vchartDefaultDataScheme.find(
       (item) => !item.maxDomainLength || domainLength <= item.maxDomainLength
-    ) ?? vchartDefaultDataScheme[vchartDefaultDataScheme.length - 1]
+    ) ?? vchartDefaultDataScheme.at(-1)
 
+  if (!scheme) return []
   return scheme.scheme.filter(
     (color): color is string => typeof color === 'string'
   )
@@ -58,7 +62,7 @@ function renderQuotaCompat(rawQuota: number, digits = 4): string {
   const symbol = 'symbol' in meta ? meta.symbol : '$'
   const value = usd * rate
   const fixed = value.toFixed(digits)
-  if (parseFloat(fixed) === 0 && rawQuota > 0 && value > 0) {
+  if (Number.parseFloat(fixed) === 0 && rawQuota > 0 && value > 0) {
     return symbol + Math.pow(10, -digits).toFixed(digits)
   }
   return symbol + fixed
@@ -234,10 +238,11 @@ export function processChartData(
     const tokens = Number(item.token_used) || 0
 
     // Aggregate by time and model
-    if (!timeModelMap.has(timeKey)) {
-      timeModelMap.set(timeKey, new Map())
+    let modelMap = timeModelMap.get(timeKey)
+    if (!modelMap) {
+      modelMap = new Map()
+      timeModelMap.set(timeKey, modelMap)
     }
-    const modelMap = timeModelMap.get(timeKey)!
     const existing = modelMap.get(model) || { quota: 0, count: 0, tokens: 0 }
     modelMap.set(model, {
       quota: existing.quota + quota,
@@ -258,10 +263,10 @@ export function processChartData(
     })
   })
 
-  const allModels = Array.from(modelTotalsMap.keys())
-  const sortedTimes = Array.from(timeModelMap.keys()).sort()
+  const allModels = [...modelTotalsMap.keys()]
+  const sortedTimes = [...timeModelMap.keys()].sort()
   const sortedModels = [...allModels].sort()
-  const modelColorDomain = Array.from(new Set([...sortedModels, otherLabel]))
+  const modelColorDomain = [...new Set([...sortedModels, otherLabel])]
   const modelColorRange = getDashboardChartColors(modelColorDomain.length)
   const otherColor = modelColorRange[modelColorDomain.indexOf(otherLabel)]
   const otherTooltipColor =
@@ -279,12 +284,9 @@ export function processChartData(
     const lastTime = Math.max(
       ...data.map((item) => Number(item.created_at) || 0)
     )
-    const intervalSec =
-      timeGranularity === 'week'
-        ? 604800
-        : timeGranularity === 'day'
-          ? 86400
-          : 3600
+    let intervalSec = 3600
+    if (timeGranularity === 'week') intervalSec = 604800
+    else if (timeGranularity === 'day') intervalSec = 86400
     const padded = Array.from({ length: MAX_TREND_POINTS }, (_, i) =>
       formatChartTime(
         lastTime - (MAX_TREND_POINTS - 1 - i) * intervalSec,
@@ -295,17 +297,17 @@ export function processChartData(
   }
   const chartTimes = fillTimePoints(sortedTimes)
 
-  const totalTimes = Array.from(modelTotalsMap.values()).reduce(
+  const totalTimes = [...modelTotalsMap.values()].reduce(
     (sum, x) => sum + (Number(x.count) || 0),
     0
   )
-  const totalQuotaRaw = Array.from(modelTotalsMap.values()).reduce(
+  const totalQuotaRaw = [...modelTotalsMap.values()].reduce(
     (sum, x) => sum + (Number(x.quota) || 0),
     0
   )
 
   // Pie chart (model call count proportion)
-  const pieValues = Array.from(modelTotalsMap.entries())
+  const pieValues = [...modelTotalsMap.entries()]
     .map(([model, stats]) => ({
       type: model,
       value: Number(stats.count) || 0,
@@ -346,7 +348,7 @@ export function processChartData(
 
   // Area chart: top models by quota + "Other" bucket (too many series = unreadable)
   const MAX_AREA_MODELS = 15
-  const rankedQuotaModels = Array.from(modelTotalsMap.entries())
+  const rankedQuotaModels = [...modelTotalsMap.entries()]
     .map(([model, stats]) => ({
       Model: model,
       Quota: Number(stats.quota) || 0,
@@ -388,7 +390,7 @@ export function processChartData(
 
   // Line chart: model call trend (top models + "Other" bucket)
   const MAX_TREND_MODELS = 20
-  const rankedTrendModels = Array.from(modelTotalsMap.entries())
+  const rankedTrendModels = [...modelTotalsMap.entries()]
     .map(([model, stats]) => ({
       Model: model,
       Count: Number(stats.count) || 0,
@@ -432,7 +434,7 @@ export function processChartData(
 
   // Rank bar: model call count ranking (top 20 + "Other" bucket)
   const MAX_RANK_MODELS = 20
-  const allRankValues = Array.from(modelTotalsMap.entries())
+  const allRankValues = [...modelTotalsMap.entries()]
     .map(([model, stats]) => ({
       Model: model,
       Count: Number(stats.count) || 0,
@@ -688,6 +690,252 @@ export function processChartData(
   }
 }
 
+const CACHE_RATE_METRIC_TITLES: Record<CacheRateMetric, string> = {
+  read: 'Cache Read Rate',
+  creation: 'Cache Creation Rate',
+}
+
+// One line per series; more becomes unreadable. Series are ranked by input
+// token volume (the rate denominator) so the busiest models/channels stay.
+const MAX_CACHE_RATE_SERIES = 10
+
+export interface CacheRateChartOptions {
+  metric: CacheRateMetric
+  timeGranularity: TimeGranularity
+  t?: TFunction
+}
+
+/**
+ * Build a line chart spec showing the cache read/creation rate per time
+ * bucket for up to 10 series (models or channels).
+ *
+ * Rates are share-of-input-tokens (sum(cache) / sum(prompt) per bucket),
+ * clamped at 100% because OpenAI cache-write counts and OpenRouter-Claude
+ * prompt bases can make the naive ratio exceed 1.
+ */
+export function processCacheRateChartData(
+  rows: CacheRateChartRow[],
+  options: CacheRateChartOptions
+): VChartSpec {
+  const tt: TFunction = options.t ?? ((x) => x)
+  const metricTitle = tt(CACHE_RATE_METRIC_TITLES[options.metric])
+  const timeGranularity = options.timeGranularity
+  const formatRate = (value: number) => `${(Number(value) || 0).toFixed(1)}%`
+
+  const emptySpec = {
+    type: 'line',
+    data: [{ id: 'cacheRateData', values: [] }],
+    xField: 'Time',
+    yField: 'Rate',
+    seriesField: 'Series',
+    title: {
+      visible: true,
+      text: metricTitle,
+      subtext: tt('No data available'),
+    },
+    legends: { visible: true, selectMode: 'single' },
+    background: { fill: 'transparent' },
+  }
+
+  if (!rows || rows.length === 0) return emptySpec
+
+  // Aggregate per time bucket and series.
+  const timeSeriesMap = new Map<
+    string,
+    Map<string, { prompt: number; cacheRead: number; cacheWrite: number }>
+  >()
+  // All-series totals per time bucket (not limited to the top-10 series), so
+  // the tooltip "Total" row matches the stat cards' whole-range rate.
+  const timeTotalsMap = new Map<
+    string,
+    { prompt: number; cacheRead: number; cacheWrite: number }
+  >()
+  const seriesPromptTotals = new Map<string, number>()
+  const allTimePoints = new Set<string>()
+  let lastTimestamp = 0
+
+  rows.forEach((row) => {
+    const timestamp = Number(row.created_at) || 0
+    lastTimestamp = Math.max(lastTimestamp, timestamp)
+    const timeKey = formatChartTime(timestamp, timeGranularity)
+    const series = row.series || 'Unknown'
+    allTimePoints.add(timeKey)
+
+    const prompt = Number(row.prompt_tokens) || 0
+    const cacheRead = Number(row.cache_tokens) || 0
+    const cacheWrite = Number(row.cache_creation_tokens) || 0
+    seriesPromptTotals.set(series, (seriesPromptTotals.get(series) || 0) + prompt)
+
+    const timeTotals = timeTotalsMap.get(timeKey) || {
+      prompt: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+    }
+    timeTotalsMap.set(timeKey, {
+      prompt: timeTotals.prompt + prompt,
+      cacheRead: timeTotals.cacheRead + cacheRead,
+      cacheWrite: timeTotals.cacheWrite + cacheWrite,
+    })
+
+    let seriesMap = timeSeriesMap.get(timeKey)
+    if (!seriesMap) {
+      seriesMap = new Map()
+      timeSeriesMap.set(timeKey, seriesMap)
+    }
+    const existing = seriesMap.get(series) || {
+      prompt: 0,
+      cacheRead: 0,
+      cacheWrite: 0,
+    }
+    seriesMap.set(series, {
+      prompt: existing.prompt + prompt,
+      cacheRead: existing.cacheRead + cacheRead,
+      cacheWrite: existing.cacheWrite + cacheWrite,
+    })
+  })
+
+  // Pad time points when the range is short so the x-axis stays readable.
+  let chartTimes = [...allTimePoints].sort()
+  if (chartTimes.length < MAX_CHART_TREND_POINTS) {
+    let intervalSec = 3600
+    if (timeGranularity === 'week') intervalSec = 604800
+    else if (timeGranularity === 'day') intervalSec = 86400
+    chartTimes = Array.from({ length: MAX_CHART_TREND_POINTS }, (_, i) =>
+      formatChartTime(
+        lastTimestamp - (MAX_CHART_TREND_POINTS - 1 - i) * intervalSec,
+        timeGranularity
+      )
+    )
+  }
+
+  const topSeries = [...seriesPromptTotals.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_CACHE_RATE_SERIES)
+    .map(([series]) => series)
+
+  const values: Array<{
+    Time: string
+    Series: string
+    Rate: number
+    TimePrompt: number
+    TimeCache: number
+  }> = []
+  chartTimes.forEach((time) => {
+    const seriesMap = timeSeriesMap.get(time)
+    const totals = timeTotalsMap.get(time)
+    const timePrompt = totals?.prompt ?? 0
+    let timeCache = 0
+    if (totals) {
+      timeCache =
+        options.metric === 'read' ? totals.cacheRead : totals.cacheWrite
+    }
+    topSeries.forEach((series) => {
+      const agg = seriesMap?.get(series)
+      const prompt = Number(agg?.prompt) || 0
+      if (prompt <= 0 || !agg) return
+      const numerator =
+        options.metric === 'read' ? agg.cacheRead : agg.cacheWrite
+      const rate = Math.min(numerator / prompt, 1) * 100
+      values.push({
+        Time: time,
+        Series: series,
+        Rate: Math.round(rate * 10) / 10,
+        TimePrompt: timePrompt,
+        TimeCache: timeCache,
+      })
+    })
+  })
+  if (values.length === 0) return emptySpec
+
+  const colorDomain = [...topSeries].sort()
+  const colorRange = getDashboardChartColors(colorDomain.length)
+
+  return {
+    type: 'line',
+    data: [{ id: 'cacheRateData', values }],
+    xField: 'Time',
+    yField: 'Rate',
+    seriesField: 'Series',
+    stack: false,
+    legends: { visible: true, selectMode: 'single' },
+    color: {
+      type: 'ordinal',
+      domain: colorDomain,
+      range: colorRange,
+    },
+    title: {
+      visible: true,
+      text: metricTitle,
+    },
+    axes: [
+      { orient: 'bottom', type: 'band' },
+      {
+        orient: 'left',
+        type: 'linear',
+        max: 100,
+        label: {
+          formatMethod: (value: number) => `${value}%`,
+        },
+      },
+    ],
+    tooltip: {
+      mark: {
+        content: [
+          {
+            key: (datum: Record<string, unknown>) => datum?.Series,
+            value: (datum: Record<string, unknown>) =>
+              formatRate(Number(datum?.Rate) || 0),
+          },
+        ],
+      },
+      dimension: {
+        content: [
+          {
+            key: (datum: Record<string, unknown>) => datum?.Series,
+            value: (datum: Record<string, unknown>) =>
+              Number(datum?.Rate) || 0,
+          },
+        ],
+        updateContent: (
+          array: Array<{
+            key: string
+            value: string | number
+            datum?: Record<string, unknown>
+          }>
+        ) => {
+          array.sort((a, b) => (Number(b.value) || 0) - (Number(a.value) || 0))
+          for (let i = 0; i < array.length; i++) {
+            array[i].value = formatRate(Number(array[i].value) || 0)
+          }
+          if (array.length > 0) {
+            const first = array[0].datum as
+              | { TimePrompt?: number; TimeCache?: number }
+              | undefined
+            if (first && Number(first.TimePrompt) > 0) {
+              const overall =
+                (Number(first.TimeCache) || 0) / Number(first.TimePrompt)
+              array.unshift({
+                key: tt('Total:'),
+                value: formatRate(Math.min(overall, 1) * 100),
+              })
+            }
+          }
+          return array
+        },
+      },
+    },
+    line: {
+      style: {
+        lineWidth: 2,
+        curveType: 'monotone',
+      },
+    },
+    point: { visible: false },
+    background: { fill: 'transparent' },
+    animation: true,
+  }
+}
+
 const USER_COLORS = [
   '#5B8FF9',
   '#5AD8A6',
@@ -757,7 +1005,7 @@ export function processUserChartData(
     userQuotaTotal.set(username, prev + (Number(item.quota) || 0))
   })
 
-  const sorted = Array.from(userQuotaTotal.entries()).sort(
+  const sorted = [...userQuotaTotal.entries()].sort(
     (a, b) => b[1] - a[1]
   )
   const topUsers = sorted.slice(0, limit).map(([u]) => u)
@@ -787,12 +1035,15 @@ export function processUserChartData(
     allTimePoints.add(timeKey)
     const user = item.username || 'unknown'
     if (!topUserSet.has(user)) return
-    if (!timeUserMap.has(timeKey)) timeUserMap.set(timeKey, new Map())
-    const map = timeUserMap.get(timeKey)!
-    map.set(user, (map.get(user) || 0) + (Number(item.quota) || 0))
+    let userMap = timeUserMap.get(timeKey)
+    if (!userMap) {
+      userMap = new Map()
+      timeUserMap.set(timeKey, userMap)
+    }
+    userMap.set(user, (userMap.get(user) || 0) + (Number(item.quota) || 0))
   })
 
-  const sortedTimePoints = Array.from(allTimePoints).sort()
+  const sortedTimePoints = [...allTimePoints].sort()
   const trendValues: Array<{
     Time: string
     User: string

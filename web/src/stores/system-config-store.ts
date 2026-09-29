@@ -44,6 +44,10 @@ export interface SystemConfig {
   footerHtml?: string
   demoSiteEnabled?: boolean
   displayTokenStatEnabled?: boolean
+  /** Master switch for cache rate stats (logs list/details + dashboard) */
+  cacheRateStatsEnabled?: boolean
+  /** Whether common users may see their own cache stats; admins always can */
+  cacheRateUserVisibleEnabled?: boolean
   currency: CurrencyConfig
 }
 
@@ -86,7 +90,7 @@ export const useSystemConfigStore = create<SystemConfigState>()(
             ...newConfig,
             currency: {
               ...state.config.currency,
-              ...(newConfig.currency ?? {}),
+              ...newConfig.currency,
             },
           },
         })),

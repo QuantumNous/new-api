@@ -199,6 +199,99 @@ func TestLegacyRejectReasonHandlesNullAdminInfo(t *testing.T) {
 	assert.Equal(t, "legacy-value", adminInfo["reject_reason"])
 }
 
+// TestCacheLogOtherVisibilityFollowsSwitches verifies that cache-usage fields
+// stay visible to log owners while both cache-rate switches are on, and are
+// stripped from user projections when either switch is off. Admin and root
+// projections keep the fields regardless of the switches.
+func TestCacheLogOtherVisibilityFollowsSwitches(t *testing.T) {
+	other := common.MapToJsonStr(map[string]any{
+		"cache_tokens":             63616,
+		"cache_creation_tokens":    500,
+		"cache_creation_tokens_5m": 300,
+		"cache_creation_tokens_1h": 200,
+		"cache_write_tokens":       500,
+		"image_cache_tokens":       100,
+		"cache_ratio":              0.5,
+		"cache_creation_ratio":     1.25,
+		"input_tokens_total":       64324,
+	})
+
+	restoreSwitches := func(t *testing.T) func() {
+		oldStats, oldUserVisible := common.CacheRateStatsEnabled, common.CacheRateUserVisibleEnabled
+		return func() {
+			common.CacheRateStatsEnabled = oldStats
+			common.CacheRateUserVisibleEnabled = oldUserVisible
+		}
+	}
+
+	assertCacheKeys := func(t *testing.T, logs []*Log, expectVisible bool) {
+		t.Helper()
+		parsed, err := common.StrToMap(logs[0].Other)
+		require.NoError(t, err)
+		for _, key := range userHiddenCacheLogOtherKeys {
+			if expectVisible {
+				assert.Contains(t, parsed, key)
+			} else {
+				assert.NotContains(t, parsed, key)
+			}
+		}
+		// Pricing ratios and the explicit input total are pricing metadata,
+		// not cache-usage facts; they stay visible to log owners.
+		assert.Contains(t, parsed, "cache_ratio")
+		assert.Contains(t, parsed, "cache_creation_ratio")
+		assert.Contains(t, parsed, "input_tokens_total")
+	}
+
+	t.Run("both switches on keeps cache fields for users", func(t *testing.T) {
+		defer restoreSwitches(t)()
+		common.CacheRateStatsEnabled = true
+		common.CacheRateUserVisibleEnabled = true
+
+		logs := []*Log{{Other: other}}
+		formatUserLogs(logs, 0)
+		assertCacheKeys(t, logs, true)
+	})
+
+	t.Run("master switch off strips cache fields for users", func(t *testing.T) {
+		defer restoreSwitches(t)()
+		common.CacheRateStatsEnabled = false
+		common.CacheRateUserVisibleEnabled = true
+
+		logs := []*Log{{Other: other}}
+		formatUserLogs(logs, 0)
+		assertCacheKeys(t, logs, false)
+	})
+
+	t.Run("user visibility off strips cache fields for users", func(t *testing.T) {
+		defer restoreSwitches(t)()
+		common.CacheRateStatsEnabled = true
+		common.CacheRateUserVisibleEnabled = false
+
+		logs := []*Log{{Other: other}}
+		formatUserLogs(logs, 0)
+		assertCacheKeys(t, logs, false)
+	})
+
+	t.Run("admin projection keeps cache fields even when hidden from users", func(t *testing.T) {
+		defer restoreSwitches(t)()
+		common.CacheRateStatsEnabled = false
+		common.CacheRateUserVisibleEnabled = false
+
+		adminLogs := []*Log{{Other: other}}
+		FormatAdminLogs(adminLogs)
+		parsed, err := common.StrToMap(adminLogs[0].Other)
+		require.NoError(t, err)
+		assert.Contains(t, parsed, "cache_tokens")
+		assert.Contains(t, parsed, "cache_creation_tokens_5m")
+
+		rootLogs := []*Log{{Other: other}}
+		FormatRootLogs(rootLogs)
+		parsed, err = common.StrToMap(rootLogs[0].Other)
+		require.NoError(t, err)
+		assert.Contains(t, parsed, "cache_tokens")
+	})
+}
+
 func TestLogFormattingPreservesLargeIntegerLexemes(t *testing.T) {
 	const other = `{"public_id":9007199254740993,"admin_info":{"admin_id":9007199254740995},"root_info":{"generation":18446744073709551615}}`
 
