@@ -566,22 +566,26 @@ func executeTaskSubmissionWith(
 		if !model.ChannelRpmTryConsume(channel) {
 			overLimit := model.ChannelRpmOverLimitError(channel)
 			taskErr = service.TaskErrorWrapperLocal(overLimit.Err, string(model.ChannelLimitExceededCode), overLimit.StatusCode)
-			lockedCh, locked := relayInfo.LockedChannel.(*model.Channel)
-			if !locked || lockedCh == nil {
-				// Unlocked submissions follow the shared retry policy: pinned
-				// and strict-session requests stop instead of leaking to
-				// another channel. Locked submissions retry their channel.
-				taskAPIError := taskSubmissionAPIError(taskErr)
-				decision := decideTaskRetry(c, taskErr, common.RetryTimes-retryParam.GetRetry())
-				service.RecordPolicyFailure(c, channel.Id, taskAPIError, decision)
-				if decision.Action != "retry" {
-					break
-				}
-				// Record the rejected channel in the use_channel trail so the
-				// next iteration enters candidate selection instead of
-				// rebuilding the same over-limit distributor channel.
-				service.AppendUsedChannel(c, channel.Id)
+			if lockedCh, locked := relayInfo.LockedChannel.(*model.Channel); locked && lockedCh != nil {
+				// A locked channel cannot move to another candidate, and the
+				// per-minute window cannot reset within this request's retry
+				// budget: stop now instead of re-running setup for the same
+				// deterministic rejection.
+				break
 			}
+			// Unlocked submissions follow the shared retry policy: pinned
+			// and strict-session requests stop instead of leaking to
+			// another channel.
+			taskAPIError := taskSubmissionAPIError(taskErr)
+			decision := decideTaskRetry(c, taskErr, common.RetryTimes-retryParam.GetRetry())
+			service.RecordPolicyFailure(c, channel.Id, taskAPIError, decision)
+			if decision.Action != "retry" {
+				break
+			}
+			// Record the rejected channel in the use_channel trail so the
+			// next iteration enters candidate selection instead of
+			// rebuilding the same over-limit distributor channel.
+			service.AppendUsedChannel(c, channel.Id)
 			continue
 		}
 		diagnostics.attempt(retryParam.GetRetry()+1, channel, relayInfo.LockedChannel != nil)
