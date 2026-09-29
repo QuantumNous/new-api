@@ -26,7 +26,6 @@ import {
   TrendingUp,
   Activity,
   Database,
-  DatabaseZap,
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -95,26 +94,16 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
 
   if (!cacheRatesVisible) return cards
 
-  // -1 marks "no input tokens to compute a rate from" so the card renders
-  // a placeholder instead of a misleading 0.0%.
-  cards.push(
-    {
-      key: 'cacheReadRate',
-      title: t('Cache Read Rate'),
-      description: t('Cache hits share of input tokens'),
-      icon: Database,
-      iconTone: 'chart-3',
-      getValue: (stat) => stat?.cacheReadRate ?? -1,
-    },
-    {
-      key: 'cacheCreationRate',
-      title: t('Cache Creation Rate'),
-      description: t('Cache writes share of input tokens'),
-      icon: DatabaseZap,
-      iconTone: 'chart-1',
-      getValue: (stat) => stat?.cacheCreationRate ?? -1,
-    }
-  )
+  // One slot for the token-based read/creation rates plus the
+  // request-count-based hit rate; the stat card renders the composite value.
+  cards.push({
+    key: 'cacheRate',
+    title: t('Average cache read/creation rate'),
+    description: t('Cache read / creation rate'),
+    icon: Database,
+    iconTone: 'chart-3',
+    getValue: (stat) => stat?.cacheReadRate ?? 0,
+  })
   return cards
 }
 

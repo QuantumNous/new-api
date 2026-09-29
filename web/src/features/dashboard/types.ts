@@ -34,6 +34,7 @@ export interface QuotaDataItem {
   prompt_tokens?: number
   cache_tokens?: number
   cache_creation_tokens?: number
+  cache_hit_count?: number
 }
 
 export interface ChannelQuotaDataItem {
@@ -46,18 +47,23 @@ export interface ChannelQuotaDataItem {
   prompt_tokens?: number
   cache_tokens?: number
   cache_creation_tokens?: number
+  cache_hit_count?: number
 }
 
 /** Normalized cache-rate chart row: one series (model or channel) per hourly bucket. */
 export interface CacheRateChartRow {
   series: string
   created_at: number
+  /** Requests in the bucket: the hit-rate denominator. */
+  count: number
   prompt_tokens: number
   cache_tokens: number
   cache_creation_tokens: number
+  /** Requests that read cached input in the bucket: the hit-rate numerator. */
+  cache_hit_count: number
 }
 
-export type CacheRateMetric = 'read' | 'creation'
+export type CacheRateMetric = 'read' | 'creation' | 'hit'
 
 export type CacheRateDimension = 'model' | 'channel'
 

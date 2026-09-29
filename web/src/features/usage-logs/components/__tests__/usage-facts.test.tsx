@@ -184,6 +184,19 @@ describe('usage facts billing details', () => {
     expect(
       screen.queryByText('Cache Read Rate')
     ).not.toBeInTheDocument()
+    // The request-count hit indicator is cache-derived too and must follow
+    // the same visibility switch.
+    expect(screen.queryByText('Cache Hit')).not.toBeInTheDocument()
+  })
+
+  test('marks a request that read cached tokens as a cache hit', () => {
+    queryClients.push(renderDetails({ cache_tokens: 300 }, 1000))
+    expect(rowValue('Cache Hit')).toBe('Hit')
+  })
+
+  test('marks a request without cached reads as a cache miss', () => {
+    queryClients.push(renderDetails({ cache_creation_tokens: 50 }, 1000))
+    expect(rowValue('Cache Hit')).toBe('Miss')
   })
 
   beforeAll(() => {

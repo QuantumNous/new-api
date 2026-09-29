@@ -404,6 +404,16 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
     value: completionTokens.toLocaleString(),
   })
 
+  // The request-count hit indicator from #4963: a request is a cache hit
+  // when it read cached input tokens. Hidden from viewers the cache-rate
+  // visibility switches exclude.
+  if (cacheRatesVisible) {
+    rows.push({
+      label: t('Cache Hit'),
+      value: cacheRead > 0 ? t('Hit') : t('Miss'),
+    })
+  }
+
   if (cacheRead > 0) {
     rows.push({
       label: t('Cache Read'),

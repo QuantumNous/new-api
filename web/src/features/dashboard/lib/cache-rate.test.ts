@@ -29,7 +29,9 @@ function row(
   createdAt: number,
   prompt: number,
   cacheRead: number,
-  cacheWrite: number
+  cacheWrite: number,
+  count = 1,
+  hits = cacheRead > 0 ? 1 : 0
 ): CacheRateChartRow {
   return {
     series,
@@ -37,6 +39,8 @@ function row(
     prompt_tokens: prompt,
     cache_tokens: cacheRead,
     cache_creation_tokens: cacheWrite,
+    count,
+    cache_hit_count: hits,
   }
 }
 
@@ -126,6 +130,54 @@ describe('processCacheRateChartData', () => {
     )
     expect(spec.data[0].values).toEqual([])
     expect(spec.title?.subtext).toBe('No data available')
+  })
+
+  it('computes the request-count hit rate per bucket for the hit metric', () => {
+    const spec = processCacheRateChartData(
+      [
+        // 3 requests, 2 hits in the first hour; 4 requests, 1 hit in the next.
+        row('m1', base, 100, 40, 0, 3, 2),
+        row('m1', base + hour, 100, 30, 0, 4, 1),
+      ],
+      { metric: 'hit', timeGranularity: 'hour' }
+    )
+    expect(spec.title?.text).toBe('Cache Hit Rate')
+    const values = spec.data[0].values as Array<{ Rate: number }>
+    expect(values).toHaveLength(2)
+    expect(values.some((v) => v.Rate === 66.7)).toBe(true)
+    expect(values.some((v) => v.Rate === 25)).toBe(true)
+  })
+
+  it('keeps hit-rate buckets that have requests but no prompt tokens', () => {
+    const spec = processCacheRateChartData(
+      [row('m1', base, 0, 0, 0, 2, 1)],
+      { metric: 'hit', timeGranularity: 'hour' }
+    )
+    const values = spec.data[0].values as Array<{ Rate: number }>
+    expect(values).toHaveLength(1)
+    expect(values[0].Rate).toBe(50)
+  })
+
+  it('ranks series by request count for the hit metric', () => {
+    const rows: CacheRateChartRow[] = []
+    // busy-series: tiny prompt volume but the most requests; ten others with
+    // large prompt volumes and one request each.
+    rows.push(row('busy', base, 1, 0, 0, 50, 25))
+    for (let i = 0; i < 10; i++) {
+      rows.push(row(`p${i}`, base, 1000, 10, 0, 1, 1))
+    }
+    const spec = processCacheRateChartData(rows, {
+      metric: 'hit',
+      timeGranularity: 'hour',
+    })
+    const series = new Set(
+      (spec.data[0].values as Array<{ Series: string }>).map((v) => v.Series)
+    )
+    expect(series.size).toBe(10)
+    expect(series.has('busy')).toBe(true)
+    // All prompt-heavy series tie on one request, so exactly one of them is
+    // cut off; busy must survive because it ranks first by request count.
+    expect(series.has('p9') || series.has('p0')).toBe(true)
   })
 
   it('carries all-series totals in the tooltip fields even beyond the top series', () => {

@@ -693,6 +693,7 @@ export function processChartData(
 const CACHE_RATE_METRIC_TITLES: Record<CacheRateMetric, string> = {
   read: 'Cache Read Rate',
   creation: 'Cache Creation Rate',
+  hit: 'Cache Hit Rate',
 }
 
 // One line per series; more becomes unreadable. Series are ranked by input
@@ -742,15 +743,31 @@ export function processCacheRateChartData(
   // Aggregate per time bucket and series.
   const timeSeriesMap = new Map<
     string,
-    Map<string, { prompt: number; cacheRead: number; cacheWrite: number }>
+    Map<
+      string,
+      {
+        prompt: number
+        cacheRead: number
+        cacheWrite: number
+        count: number
+        hits: number
+      }
+    >
   >()
   // All-series totals per time bucket (not limited to the top-10 series), so
   // the tooltip "Total" row matches the stat cards' whole-range rate.
   const timeTotalsMap = new Map<
     string,
-    { prompt: number; cacheRead: number; cacheWrite: number }
+    {
+      prompt: number
+      cacheRead: number
+      cacheWrite: number
+      count: number
+      hits: number
+    }
   >()
-  const seriesPromptTotals = new Map<string, number>()
+  // Series ranking key: requests for the hit metric, input tokens otherwise.
+  const seriesRankTotals = new Map<string, number>()
   const allTimePoints = new Set<string>()
   let lastTimestamp = 0
 
@@ -764,17 +781,24 @@ export function processCacheRateChartData(
     const prompt = Number(row.prompt_tokens) || 0
     const cacheRead = Number(row.cache_tokens) || 0
     const cacheWrite = Number(row.cache_creation_tokens) || 0
-    seriesPromptTotals.set(series, (seriesPromptTotals.get(series) || 0) + prompt)
+    const count = Number(row.count) || 0
+    const hits = Number(row.cache_hit_count) || 0
+    const rankValue = options.metric === 'hit' ? count : prompt
+    seriesRankTotals.set(series, (seriesRankTotals.get(series) || 0) + rankValue)
 
     const timeTotals = timeTotalsMap.get(timeKey) || {
       prompt: 0,
       cacheRead: 0,
       cacheWrite: 0,
+      count: 0,
+      hits: 0,
     }
     timeTotalsMap.set(timeKey, {
       prompt: timeTotals.prompt + prompt,
       cacheRead: timeTotals.cacheRead + cacheRead,
       cacheWrite: timeTotals.cacheWrite + cacheWrite,
+      count: timeTotals.count + count,
+      hits: timeTotals.hits + hits,
     })
 
     let seriesMap = timeSeriesMap.get(timeKey)
@@ -786,11 +810,15 @@ export function processCacheRateChartData(
       prompt: 0,
       cacheRead: 0,
       cacheWrite: 0,
+      count: 0,
+      hits: 0,
     }
     seriesMap.set(series, {
       prompt: existing.prompt + prompt,
       cacheRead: existing.cacheRead + cacheRead,
       cacheWrite: existing.cacheWrite + cacheWrite,
+      count: existing.count + count,
+      hits: existing.hits + hits,
     })
   })
 
@@ -808,7 +836,7 @@ export function processCacheRateChartData(
     )
   }
 
-  const topSeries = [...seriesPromptTotals.entries()]
+  const topSeries = [...seriesRankTotals.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, MAX_CACHE_RATE_SERIES)
     .map(([series]) => series)
@@ -819,6 +847,8 @@ export function processCacheRateChartData(
     Rate: number
     TimePrompt: number
     TimeCache: number
+    TimeCount: number
+    TimeHits: number
   }> = []
   chartTimes.forEach((time) => {
     const seriesMap = timeSeriesMap.get(time)
@@ -829,10 +859,29 @@ export function processCacheRateChartData(
       timeCache =
         options.metric === 'read' ? totals.cacheRead : totals.cacheWrite
     }
+    const timeCount = totals?.count ?? 0
+    const timeHits = totals?.hits ?? 0
     topSeries.forEach((series) => {
       const agg = seriesMap?.get(series)
-      const prompt = Number(agg?.prompt) || 0
-      if (prompt <= 0 || !agg) return
+      if (!agg) return
+      if (options.metric === 'hit') {
+        // Request-count hit rate: cache-hit requests / total requests.
+        if (agg.count <= 0) return
+        const rate = Math.min(agg.hits / agg.count, 1) * 100
+        values.push({
+          Time: time,
+          Series: series,
+          Rate: Math.round(rate * 10) / 10,
+          TimePrompt: timePrompt,
+          TimeCache: timeCache,
+          TimeCount: timeCount,
+          TimeHits: timeHits,
+        })
+        return
+      }
+      // Token-based read/creation rate: cache tokens / input tokens.
+      const prompt = agg.prompt
+      if (prompt <= 0) return
       const numerator =
         options.metric === 'read' ? agg.cacheRead : agg.cacheWrite
       const rate = Math.min(numerator / prompt, 1) * 100
@@ -842,6 +891,8 @@ export function processCacheRateChartData(
         Rate: Math.round(rate * 10) / 10,
         TimePrompt: timePrompt,
         TimeCache: timeCache,
+        TimeCount: timeCount,
+        TimeHits: timeHits,
       })
     })
   })
@@ -909,9 +960,24 @@ export function processCacheRateChartData(
           }
           if (array.length > 0) {
             const first = array[0].datum as
-              | { TimePrompt?: number; TimeCache?: number }
+              | {
+                  TimePrompt?: number
+                  TimeCache?: number
+                  TimeCount?: number
+                  TimeHits?: number
+                }
               | undefined
-            if (first && Number(first.TimePrompt) > 0) {
+            if (!first) return array
+            if (options.metric === 'hit') {
+              const denominator = Number(first.TimeCount) || 0
+              if (denominator > 0) {
+                const overall = (Number(first.TimeHits) || 0) / denominator
+                array.unshift({
+                  key: tt('Total:'),
+                  value: formatRate(Math.min(overall, 1) * 100),
+                })
+              }
+            } else if (Number(first.TimePrompt) > 0) {
               const overall =
                 (Number(first.TimeCache) || 0) / Number(first.TimePrompt)
               array.unshift({

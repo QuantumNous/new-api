@@ -65,6 +65,7 @@ const METRIC_OPTIONS: Array<{
 }> = [
   { value: 'read', labelKey: 'Cache Read Rate' },
   { value: 'creation', labelKey: 'Cache Creation Rate' },
+  { value: 'hit', labelKey: 'Cache Hit Rate' },
 ]
 
 const DIMENSION_OPTIONS: Array<{
@@ -145,18 +146,22 @@ export function CacheRateCharts(props: CacheRateChartsProps) {
             ? `${name} (#${item.channel_id})`
             : name,
           created_at: Number(item.created_at) || 0,
+          count: Number(item.count) || 0,
           prompt_tokens: Number(item.prompt_tokens) || 0,
           cache_tokens: Number(item.cache_tokens) || 0,
           cache_creation_tokens: Number(item.cache_creation_tokens) || 0,
+          cache_hit_count: Number(item.cache_hit_count) || 0,
         }
       })
     }
     return props.data.map((item) => ({
       series: item.model_name || 'Unknown',
       created_at: Number(item.created_at) || 0,
+      count: Number(item.count) || 0,
       prompt_tokens: Number(item.prompt_tokens) || 0,
       cache_tokens: Number(item.cache_tokens) || 0,
       cache_creation_tokens: Number(item.cache_creation_tokens) || 0,
+      cache_hit_count: Number(item.cache_hit_count) || 0,
     }))
   }, [dimension, channelQuery.data, props.data])
 
@@ -175,7 +180,13 @@ export function CacheRateCharts(props: CacheRateChartsProps) {
     [rows, loading, metric, timeGranularity, t]
   )
 
-  const hasRatePoints = !loading && rows.some((row) => row.prompt_tokens > 0)
+  // The hit-rate chart only needs request counts in range; the token-based
+  // metrics need input tokens to divide by.
+  const hasRatePoints =
+    !loading &&
+    rows.some((row) =>
+      metric === 'hit' ? row.count > 0 : row.prompt_tokens > 0
+    )
   const channelError = dimension === 'channel' && channelQuery.isError
   let chartState = 'ready'
   if (loading) {
