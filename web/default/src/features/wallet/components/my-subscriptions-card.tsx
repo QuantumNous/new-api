@@ -56,6 +56,10 @@ import type {
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import { useSubscriptionDisplay } from '../hooks/use-subscription-display'
+import { getSubscriptionStatus } from '../lib/subscriptions'
+import { SubscriptionList } from './subscription-list'
+
 interface MySubscriptionsCardProps {
   refreshKey?: number
   compact?: boolean
@@ -79,10 +83,9 @@ function getBillingPreferenceLabel(
   }
 }
 
-function getRemainingDays(sub: UserSubscriptionRecord) {
+function getRemainingDays(sub: UserSubscriptionRecord, now: number) {
   const endTime = sub?.subscription?.end_time || 0
   if (!endTime) return 0
-  const now = Date.now() / 1000
   return Math.max(0, Math.ceil((endTime - now) / 86400))
 }
 
@@ -99,12 +102,11 @@ export function MySubscriptionsCard({
 }: MySubscriptionsCardProps) {
   const { t } = useTranslation()
   const [plans, setPlans] = useState<PlanRecord[]>([])
-  const [activeSubscriptions, setActiveSubscriptions] = useState<
-    UserSubscriptionRecord[]
-  >([])
   const [allSubscriptions, setAllSubscriptions] = useState<
     UserSubscriptionRecord[]
   >([])
+  const display = useSubscriptionDisplay(allSubscriptions)
+  const activeSubscriptions = display.active
   const [billingPreference, setBillingPreference] =
     useState('subscription_first')
   const [loading, setLoading] = useState(true)
@@ -128,7 +130,6 @@ export function MySubscriptionsCard({
         setBillingPreference(
           res.data.billing_preference || 'subscription_first'
         )
-        setActiveSubscriptions(res.data.subscriptions || [])
         setAllSubscriptions(res.data.all_subscriptions || [])
       }
     } catch {
@@ -220,7 +221,7 @@ export function MySubscriptionsCard({
     >
       <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>
         <div className='flex min-w-0 flex-wrap items-center gap-2'>
-          <span className='flex items-center gap-1.5 text-xs font-medium'>
+          <span className='flex flex-wrap items-center gap-1.5 text-xs font-medium'>
             <span
               className={cn(
                 'size-1.5 shrink-0 rounded-full',
@@ -235,14 +236,20 @@ export function MySubscriptionsCard({
             ) : (
               <span className='text-muted-foreground'>{t('No Active')}</span>
             )}
-            {allSubscriptions.length > activeSubscriptions.length && (
-              <>
-                <span className='text-muted-foreground/30'>·</span>
-                <span className='text-muted-foreground'>
-                  {allSubscriptions.length - activeSubscriptions.length}{' '}
-                  {t('expired')}
-                </span>
-              </>
+            {display.pending.length > 0 && (
+              <span className='text-muted-foreground'>
+                · {display.pending.length} {t('Pending')}
+              </span>
+            )}
+            {display.expired.length > 0 && (
+              <span className='text-muted-foreground'>
+                · {display.expired.length} {t('expired')}
+              </span>
+            )}
+            {display.cancelled.length > 0 && (
+              <span className='text-muted-foreground'>
+                · {display.cancelled.length} {t('Cancelled')}
+              </span>
             )}
           </span>
         </div>
@@ -335,29 +342,23 @@ export function MySubscriptionsCard({
       {hasAny ? (
         <>
           <Separator />
-          <div
-            className={cn(
-              'grid gap-3',
-              compact ? 'grid-cols-1' : 'lg:grid-cols-2'
-            )}
-          >
-            {allSubscriptions.map((sub) => {
+          <SubscriptionList
+            current={display.current}
+            history={display.history}
+            compact={compact}
+            renderSubscription={(sub) => {
               const subscription = sub.subscription
               const totalAmount = Number(subscription?.amount_total || 0)
               const usedAmount = Number(subscription?.amount_used || 0)
               const remainAmount =
                 totalAmount > 0 ? Math.max(0, totalAmount - usedAmount) : 0
               const planTitle = planTitleMap.get(subscription?.plan_id) || ''
-              const remainDays = getRemainingDays(sub)
+              const remainDays = getRemainingDays(sub, display.now)
               const usagePercent = getUsagePercent(sub)
-              const now = Date.now() / 1000
-              const isExpired = (subscription?.end_time || 0) < now
-              const isCancelled = subscription?.status === 'cancelled'
-              const isPending =
-                subscription?.status === 'active' &&
-                (subscription?.start_time || 0) > now
-              const isActive =
-                subscription?.status === 'active' && !isPending && !isExpired
+              const status = getSubscriptionStatus(subscription, display.now)
+              const isCancelled = status === 'cancelled'
+              const isPending = status === 'pending'
+              const isActive = status === 'active'
               let statusLabel = t('Expired')
               let statusVariant: 'success' | 'neutral' = 'neutral'
               if (isActive) {
@@ -369,7 +370,7 @@ export function MySubscriptionsCard({
                 statusLabel = t('Cancelled')
               }
               let endLabel = t('Expired at')
-              if (isActive) {
+              if (isActive || isPending) {
                 endLabel = t('Until')
               } else if (isCancelled) {
                 endLabel = t('Cancelled at')
@@ -442,8 +443,8 @@ export function MySubscriptionsCard({
                   )}
                 </div>
               )
-            })}
-          </div>
+            }}
+          />
         </>
       ) : (
         <p className='text-muted-foreground text-xs'>

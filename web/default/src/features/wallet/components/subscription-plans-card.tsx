@@ -59,7 +59,10 @@ import type {
 import { formatQuota } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
+import { useSubscriptionDisplay } from '../hooks/use-subscription-display'
+import { getSubscriptionStatus } from '../lib/subscriptions'
 import type { PaymentMethod, TopupInfo } from '../types'
+import { SubscriptionList } from './subscription-list'
 
 interface SubscriptionPlansCardProps {
   topupInfo: TopupInfo | null
@@ -105,12 +108,11 @@ export function SubscriptionPlansCard({
   const { t } = useTranslation()
 
   const [plans, setPlans] = useState<PlanRecord[]>([])
-  const [activeSubscriptions, setActiveSubscriptions] = useState<
-    UserSubscriptionRecord[]
-  >([])
   const [allSubscriptions, setAllSubscriptions] = useState<
     UserSubscriptionRecord[]
   >([])
+  const display = useSubscriptionDisplay(allSubscriptions)
+  const activeSubscriptions = display.active
   const [billingPreference, setBillingPreference] =
     useState('subscription_first')
   const [loading, setLoading] = useState(true)
@@ -146,7 +148,6 @@ export function SubscriptionPlansCard({
         setBillingPreference(
           res.data.billing_preference || 'subscription_first'
         )
-        setActiveSubscriptions(res.data.subscriptions || [])
         setAllSubscriptions(res.data.all_subscriptions || [])
       }
     } catch {
@@ -234,8 +235,7 @@ export function SubscriptionPlansCard({
   const getRemainingDays = (sub: UserSubscriptionRecord) => {
     const endTime = sub?.subscription?.end_time || 0
     if (!endTime) return 0
-    const now = Date.now() / 1000
-    return Math.max(0, Math.ceil((endTime - now) / 86400))
+    return Math.max(0, Math.ceil((endTime - display.now) / 86400))
   }
 
   const getUsagePercent = (sub: UserSubscriptionRecord) => {
@@ -284,7 +284,7 @@ export function SubscriptionPlansCard({
                 <span className='text-sm font-medium'>
                   {t('My Subscriptions')}
                 </span>
-                <span className='flex items-center gap-1.5 text-xs font-medium'>
+                <span className='flex flex-wrap items-center gap-1.5 text-xs font-medium'>
                   <span
                     className={cn(
                       'size-1.5 shrink-0 rounded-full',
@@ -301,14 +301,20 @@ export function SubscriptionPlansCard({
                       {t('No Active')}
                     </span>
                   )}
-                  {allSubscriptions.length > activeSubscriptions.length && (
-                    <>
-                      <span className='text-muted-foreground/30'>·</span>
-                      <span className='text-muted-foreground'>
-                        {allSubscriptions.length - activeSubscriptions.length}{' '}
-                        {t('expired')}
-                      </span>
-                    </>
+                  {display.pending.length > 0 && (
+                    <span className='text-muted-foreground'>
+                      · {display.pending.length} {t('Pending')}
+                    </span>
+                  )}
+                  {display.expired.length > 0 && (
+                    <span className='text-muted-foreground'>
+                      · {display.expired.length} {t('expired')}
+                    </span>
+                  )}
+                  {display.cancelled.length > 0 && (
+                    <span className='text-muted-foreground'>
+                      · {display.cancelled.length} {t('Cancelled')}
+                    </span>
                   )}
                 </span>
               </div>
@@ -407,118 +413,122 @@ export function SubscriptionPlansCard({
               <>
                 <Separator className='my-3' />
                 <div className='max-h-64 space-y-3 overflow-y-auto pr-1'>
-                  {allSubscriptions.map((sub) => {
-                    const subscription = sub.subscription
-                    const totalAmount = Number(subscription?.amount_total || 0)
-                    const usedAmount = Number(subscription?.amount_used || 0)
-                    const remainAmount =
-                      totalAmount > 0
-                        ? Math.max(0, totalAmount - usedAmount)
-                        : 0
-                    const planTitle =
-                      planTitleMap.get(subscription?.plan_id) || ''
-                    const remainDays = getRemainingDays(sub)
-                    const usagePercent = getUsagePercent(sub)
-                    const now = Date.now() / 1000
-                    const isExpired = (subscription?.end_time || 0) < now
-                    const isCancelled = subscription?.status === 'cancelled'
-                    const isPending =
-                      subscription?.status === 'active' &&
-                      (subscription?.start_time || 0) > now
-                    const isActive =
-                      subscription?.status === 'active' &&
-                      !isPending &&
-                      !isExpired
-                    let statusLabel = t('Expired')
-                    let statusVariant: 'success' | 'neutral' = 'neutral'
-                    if (isActive) {
-                      statusLabel = t('Active')
-                      statusVariant = 'success'
-                    } else if (isPending) {
-                      statusLabel = t('Pending')
-                    } else if (isCancelled) {
-                      statusLabel = t('Cancelled')
-                    }
-                    let endLabel = t('Expired at')
-                    if (isActive) {
-                      endLabel = t('Until')
-                    } else if (isCancelled) {
-                      endLabel = t('Cancelled at')
-                    }
-                    const nextResetTime = subscription?.next_reset_time ?? 0
+                  <SubscriptionList
+                    current={display.current}
+                    history={display.history}
+                    compact
+                    renderSubscription={(sub) => {
+                      const subscription = sub.subscription
+                      const totalAmount = Number(
+                        subscription?.amount_total || 0
+                      )
+                      const usedAmount = Number(subscription?.amount_used || 0)
+                      const remainAmount =
+                        totalAmount > 0
+                          ? Math.max(0, totalAmount - usedAmount)
+                          : 0
+                      const planTitle =
+                        planTitleMap.get(subscription?.plan_id) || ''
+                      const remainDays = getRemainingDays(sub)
+                      const usagePercent = getUsagePercent(sub)
+                      const status = getSubscriptionStatus(
+                        subscription,
+                        display.now
+                      )
+                      const isCancelled = status === 'cancelled'
+                      const isPending = status === 'pending'
+                      const isActive = status === 'active'
+                      let statusLabel = t('Expired')
+                      let statusVariant: 'success' | 'neutral' = 'neutral'
+                      if (isActive) {
+                        statusLabel = t('Active')
+                        statusVariant = 'success'
+                      } else if (isPending) {
+                        statusLabel = t('Pending')
+                      } else if (isCancelled) {
+                        statusLabel = t('Cancelled')
+                      }
+                      let endLabel = t('Expired at')
+                      if (isActive || isPending) {
+                        endLabel = t('Until')
+                      } else if (isCancelled) {
+                        endLabel = t('Cancelled at')
+                      }
+                      const nextResetTime = subscription?.next_reset_time ?? 0
 
-                    return (
-                      <div
-                        key={subscription?.id}
-                        className='bg-background rounded-md border p-3 text-xs'
-                      >
-                        <div className='flex items-center justify-between'>
-                          <div className='flex items-center gap-2'>
-                            <span className='font-medium'>
-                              {planTitle
-                                ? `${planTitle} · ${t('Subscription')} #${subscription?.id}`
-                                : `${t('Subscription')} #${subscription?.id}`}
-                            </span>
-                            <StatusBadge
-                              label={statusLabel}
-                              variant={statusVariant}
-                              copyable={false}
-                            />
+                      return (
+                        <div
+                          key={subscription?.id}
+                          className='bg-background rounded-md border p-3 text-xs'
+                        >
+                          <div className='flex items-center justify-between'>
+                            <div className='flex items-center gap-2'>
+                              <span className='font-medium'>
+                                {planTitle
+                                  ? `${planTitle} · ${t('Subscription')} #${subscription?.id}`
+                                  : `${t('Subscription')} #${subscription?.id}`}
+                              </span>
+                              <StatusBadge
+                                label={statusLabel}
+                                variant={statusVariant}
+                                copyable={false}
+                              />
+                            </div>
+                            {isActive && (
+                              <span className='text-muted-foreground'>
+                                {t('{{count}} days remaining', {
+                                  count: remainDays,
+                                })}
+                              </span>
+                            )}
                           </div>
-                          {isActive && (
-                            <span className='text-muted-foreground'>
-                              {t('{{count}} days remaining', {
-                                count: remainDays,
-                              })}
-                            </span>
+                          <div className='text-muted-foreground mt-1.5'>
+                            {endLabel}{' '}
+                            {new Date(
+                              (subscription?.end_time || 0) * 1000
+                            ).toLocaleString()}
+                          </div>
+                          {isActive && nextResetTime > 0 && (
+                            <div className='text-muted-foreground mt-1'>
+                              {t('Next reset')}:{' '}
+                              {new Date(nextResetTime * 1000).toLocaleString()}
+                            </div>
                           )}
-                        </div>
-                        <div className='text-muted-foreground mt-1.5'>
-                          {endLabel}{' '}
-                          {new Date(
-                            (subscription?.end_time || 0) * 1000
-                          ).toLocaleString()}
-                        </div>
-                        {isActive && nextResetTime > 0 && (
                           <div className='text-muted-foreground mt-1'>
-                            {t('Next reset')}:{' '}
-                            {new Date(nextResetTime * 1000).toLocaleString()}
+                            {t('Total Quota')}:{' '}
+                            {totalAmount > 0 ? (
+                              <Tooltip>
+                                <TooltipTrigger
+                                  render={<span className='cursor-help' />}
+                                >
+                                  {formatQuota(usedAmount)}/
+                                  {formatQuota(totalAmount)} · {t('Remaining')}{' '}
+                                  {formatQuota(remainAmount)}
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {t('Raw Quota')}: {usedAmount}/{totalAmount} ·{' '}
+                                  {t('Remaining')} {remainAmount}
+                                </TooltipContent>
+                              </Tooltip>
+                            ) : (
+                              t('Unlimited')
+                            )}
+                            {totalAmount > 0 && (
+                              <span className='ml-2'>
+                                {t('Used')} {usagePercent}%
+                              </span>
+                            )}
                           </div>
-                        )}
-                        <div className='text-muted-foreground mt-1'>
-                          {t('Total Quota')}:{' '}
-                          {totalAmount > 0 ? (
-                            <Tooltip>
-                              <TooltipTrigger
-                                render={<span className='cursor-help' />}
-                              >
-                                {formatQuota(usedAmount)}/
-                                {formatQuota(totalAmount)} · {t('Remaining')}{' '}
-                                {formatQuota(remainAmount)}
-                              </TooltipTrigger>
-                              <TooltipContent>
-                                {t('Raw Quota')}: {usedAmount}/{totalAmount} ·{' '}
-                                {t('Remaining')} {remainAmount}
-                              </TooltipContent>
-                            </Tooltip>
-                          ) : (
-                            t('Unlimited')
-                          )}
-                          {totalAmount > 0 && (
-                            <span className='ml-2'>
-                              {t('Used')} {usagePercent}%
-                            </span>
+                          {totalAmount > 0 && isActive && (
+                            <Progress
+                              value={usagePercent}
+                              className='mt-2 h-1.5'
+                            />
                           )}
                         </div>
-                        {totalAmount > 0 && isActive && (
-                          <Progress
-                            value={usagePercent}
-                            className='mt-2 h-1.5'
-                          />
-                        )}
-                      </div>
-                    )
-                  })}
+                      )
+                    }}
+                  />
                 </div>
               </>
             )}

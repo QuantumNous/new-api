@@ -6489,7 +6489,9 @@
     "Buy {{count}} subscriptions: they take effect one by one, each starting when the previous one ends.": "購入 {{count}} 件：順次有効化され、前のものが期限切れになった時点で自動的に開始します。",
     "Buy {{count}} subscriptions: they all start now and quotas stack together.": "購入 {{count}} 件：すべて即時に有効化され、クォータは合算されます。",
     "{{count}} affordable with current balance": "現在の残高で購入可能なのは {{count}} 件まで",
-    "OpenCode adds CLI-compatible headers automatically. Zen JEV models use /v1/systemone without streaming.": "OpenCode CLI 互換のヘッダーを自動補完します。Zen の JEV モデルは /v1/systemone を使用し、ストリーミングには対応しません。"
+    "OpenCode adds CLI-compatible headers automatically. Zen JEV models use /v1/systemone without streaming.": "OpenCode CLI 互換のヘッダーを自動補完します。Zen の JEV モデルは /v1/systemone を使用し、ストリーミングには対応しません。",
+    "Subscription history": "サブスクリプション履歴",
+    "No current subscriptions": "現在のサブスクリプションはありません"
   },
   "Open external link?": "外部リンクを開きますか？",
   "This link will open in a new window. Do you want to continue?": "このリンクは新しいウィンドウで開きます。続行しますか？",

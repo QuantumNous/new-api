@@ -6489,7 +6489,9 @@
     "Buy {{count}} subscriptions: they take effect one by one, each starting when the previous one ends.": "购买 {{count}} 份：依次生效，每份在前一份到期后自动接续。",
     "Buy {{count}} subscriptions: they all start now and quotas stack together.": "购买 {{count}} 份：同时生效，额度叠加使用。",
     "{{count}} affordable with current balance": "当前余额最多可购 {{count}} 份",
-    "OpenCode adds CLI-compatible headers automatically. Zen JEV models use /v1/systemone without streaming.": "自动补齐 OpenCode CLI 请求头；Zen 的 JEV 模型使用 /v1/systemone，不支持流式。"
+    "OpenCode adds CLI-compatible headers automatically. Zen JEV models use /v1/systemone without streaming.": "自动补齐 OpenCode CLI 请求头；Zen 的 JEV 模型使用 /v1/systemone，不支持流式。",
+    "Subscription history": "历史订阅",
+    "No current subscriptions": "暂无当前订阅"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",

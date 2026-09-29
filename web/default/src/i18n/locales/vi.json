@@ -6489,7 +6489,9 @@
     "Buy {{count}} subscriptions: they take effect one by one, each starting when the previous one ends.": "Mua {{count}} gói đăng ký: có hiệu lực lần lượt, gói sau bắt đầu khi gói trước hết hạn.",
     "Buy {{count}} subscriptions: they all start now and quotas stack together.": "Mua {{count}} gói đăng ký: tất cả có hiệu lực ngay và hạn mức cộng dồn.",
     "{{count}} affordable with current balance": "Số dư hiện tại đủ mua {{count}}",
-    "OpenCode adds CLI-compatible headers automatically. Zen JEV models use /v1/systemone without streaming.": "Tự động bổ sung các header tương thích với OpenCode CLI. Mô hình JEV trên Zen dùng /v1/systemone và không hỗ trợ truyền luồng."
+    "OpenCode adds CLI-compatible headers automatically. Zen JEV models use /v1/systemone without streaming.": "Tự động bổ sung các header tương thích với OpenCode CLI. Mô hình JEV trên Zen dùng /v1/systemone và không hỗ trợ truyền luồng.",
+    "Subscription history": "Lịch sử đăng ký",
+    "No current subscriptions": "Chưa có gói đăng ký hiện tại"
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

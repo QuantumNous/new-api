@@ -6489,7 +6489,9 @@
     "Buy {{count}} subscriptions: they take effect one by one, each starting when the previous one ends.": "Покупка {{count}} подписок: вступают в силу по очереди, каждая начинается после окончания предыдущей.",
     "Buy {{count}} subscriptions: they all start now and quotas stack together.": "Покупка {{count}} подписок: все начинают действовать сразу, квоты суммируются.",
     "{{count}} affordable with current balance": "На текущий баланс доступно к покупке: {{count}}",
-    "OpenCode adds CLI-compatible headers automatically. Zen JEV models use /v1/systemone without streaming.": "Заголовки, совместимые с OpenCode CLI, добавляются автоматически. Модели JEV в Zen используют /v1/systemone без потоковой передачи."
+    "OpenCode adds CLI-compatible headers automatically. Zen JEV models use /v1/systemone without streaming.": "Заголовки, совместимые с OpenCode CLI, добавляются автоматически. Модели JEV в Zen используют /v1/systemone без потоковой передачи.",
+    "Subscription history": "История подписок",
+    "No current subscriptions": "Нет текущих подписок"
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",
