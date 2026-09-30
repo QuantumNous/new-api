@@ -95,7 +95,7 @@ func InitEnv() {
 			if tr.TLSClientConfig != nil {
 				tr.TLSClientConfig.InsecureSkipVerify = true
 			} else {
-				tr.TLSClientConfig = InsecureTLSConfig
+				tr.TLSClientConfig = InsecureTLSConfig.Clone()
 			}
 		}
 	}
