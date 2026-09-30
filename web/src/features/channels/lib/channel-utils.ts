@@ -90,6 +90,7 @@ export function getChannelTypeIcon(type: number): string {
     34: 'Cohere', // Cohere
     42: 'Mistral', // Mistral
     43: 'DeepSeek', // DeepSeek
+    64: 'Stepfun', // StepFun
     48: 'XAI', // xAI
     49: 'Coze', // Coze
     40: 'SiliconCloud', // SiliconFlow

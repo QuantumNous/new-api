@@ -64,6 +64,7 @@ export const STATIC_I18N_KEYS = [
   'Access models through Google Cloud Vertex AI',
   'Connect to Mistral AI model services',
   'Connect to DeepSeek model services',
+  'Connect to StepFun model services',
   'Access model services through MokaAI',
   'Connect to Volcengine Ark model services',
   'Access Baidu Qianfan models through the V2 API',

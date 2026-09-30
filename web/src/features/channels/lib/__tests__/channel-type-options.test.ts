@@ -20,11 +20,21 @@ import { describe, expect, test } from 'vitest'
 
 import {
   CHANNEL_TYPE_OPTIONS,
+  CHANNEL_TYPE_STEPFUN,
   CHANNEL_TYPE_TASK_PLUGIN,
+  MODEL_FETCHABLE_TYPES,
   channelTypeOptionsForTaskPluginBind,
 } from '../../constants'
 
 describe('channel type options for task plugin bind', () => {
+  test('offers StepFun with upstream model discovery', () => {
+    expect(CHANNEL_TYPE_OPTIONS).toContainEqual({
+      value: CHANNEL_TYPE_STEPFUN,
+      label: 'StepFun',
+    })
+    expect(MODEL_FETCHABLE_TYPES.has(CHANNEL_TYPE_STEPFUN)).toBe(true)
+  })
+
   test('hides the task plugin type when the caller cannot bind', () => {
     const options = channelTypeOptionsForTaskPluginBind(false)
 
