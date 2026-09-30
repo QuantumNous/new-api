@@ -90,7 +90,7 @@ export function UsageStats() {
     (totals?.completion_tokens ?? 0)
 
   return (
-    <SectionPageLayout fixedContent>
+    <SectionPageLayout>
       <SectionPageLayout.Title>{t('Usage Stats')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
         <CompactDateTimeRangePicker

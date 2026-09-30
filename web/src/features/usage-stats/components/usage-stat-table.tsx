@@ -97,6 +97,15 @@ export function UsageStatTable(props: UsageStatTableProps) {
 
     return [
       nameColumn,
+      tokenColumn(
+        'total_tokens',
+        t('Total Tokens'),
+        (row) =>
+          row.prompt_tokens +
+          row.cache_tokens +
+          row.cache_creation_tokens +
+          row.completion_tokens
+      ),
       tokenColumn('cache_tokens', t('Cache Hit'), (row) => row.cache_tokens),
       {
         id: 'cache_hit_rate',
@@ -182,6 +191,7 @@ export function UsageStatTable(props: UsageStatTableProps) {
       emptyTitle={t('No usage in this time range')}
       emptyDescription={t('Try widening the time range.')}
       skeletonKeyPrefix={`usage-stat-${props.dimension}`}
+      fixedHeight={false}
     />
   )
 }
