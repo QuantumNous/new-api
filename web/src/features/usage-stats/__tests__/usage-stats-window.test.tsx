@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -84,6 +84,14 @@ function lastWindowSpan() {
   return params.end_timestamp - params.start_timestamp
 }
 
+/** Full window handed to the API by the most recent call. */
+function lastWindowParams() {
+  return getUsageStat.mock.calls.at(-1)?.[0] as {
+    start_timestamp: number
+    end_timestamp: number
+  }
+}
+
 describe('usage stats window controls', () => {
   beforeEach(() => {
     getUsageStat.mockResolvedValue({
@@ -122,6 +130,28 @@ describe('usage stats window controls', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Reset' }))
     await waitFor(() => expect(getUsageStat).toHaveBeenCalledTimes(4))
     expect(lastWindowSpan()).toBe(DAY)
+  })
+
+  it('re-anchors the rolling window to the latest moment when reset is pressed', async () => {
+    workspace()
+    await waitFor(() => expect(getUsageStat).toHaveBeenCalledTimes(1))
+    const before = lastWindowParams()
+    expect(before.end_timestamp - before.start_timestamp).toBe(DAY)
+
+    // A few minutes pass on the page, then the user asks for "now" again.
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime((before.end_timestamp + 5 * 60) * 1000)
+      fireEvent.click(screen.getByRole('button', { name: 'Reset' }))
+      await act(async () => {})
+
+      const after = lastWindowParams()
+      expect(getUsageStat).toHaveBeenCalledTimes(2)
+      expect(after.end_timestamp - after.start_timestamp).toBe(DAY)
+      expect(after.end_timestamp - before.end_timestamp).toBe(5 * 60)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('stamps the moment the numbers were fetched', async () => {
