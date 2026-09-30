@@ -168,6 +168,57 @@ describe('LogSettingsSection client info switches', () => {
     })
   })
 
+  it('keeps pending switch edits when a refresh lands between sequential saves', async () => {
+    const user = userEvent.setup()
+    // The first save resolves immediately; the second hangs until the test
+    // releases it, so the system-options refresh can land mid-save.
+    let releaseSecondSave: (() => void) | undefined
+    mocks.mutateAsync
+      .mockImplementationOnce(() => Promise.resolve())
+      .mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            releaseSecondSave = resolve
+          })
+      )
+
+    const { rerender } = render(<LogSettingsSection defaultValues={defaults} />)
+    await user.click(getSwitch(RECORD_LABEL)) // false -> true
+    await user.click(getSwitch(VISIBLE_LABEL)) // false -> true
+    submitForm(getSwitch(RECORD_LABEL))
+
+    // Save one persisted; the submit loop is now awaiting the second save.
+    await waitFor(() => expect(mocks.mutateAsync).toHaveBeenCalledTimes(2))
+    expect(mocks.mutateAsync).toHaveBeenNthCalledWith(1, {
+      key: 'LogRecordClientInfoEnabled',
+      value: true,
+    })
+
+    // The refreshed defaults echo only the first saved value; the pending
+    // visibility edit must survive this mid-save reconciliation.
+    rerender(
+      <LogSettingsSection
+        defaultValues={{
+          LogConsumeEnabled: true,
+          LogRecordClientInfoEnabled: true,
+          LogClientInfoUserVisibleEnabled: false,
+        }}
+      />
+    )
+    expect(getSwitch(RECORD_LABEL)).toHaveAttribute('aria-checked', 'true')
+    expect(getSwitch(VISIBLE_LABEL)).toHaveAttribute('aria-checked', 'true')
+
+    releaseSecondSave?.()
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+    expect(mocks.mutateAsync).toHaveBeenNthCalledWith(2, {
+      key: 'LogClientInfoUserVisibleEnabled',
+      value: true,
+    })
+    expect(getSwitch(VISIBLE_LABEL)).toHaveAttribute('aria-checked', 'true')
+  })
+
   it('sends a reversal saved before the refreshed defaults arrive', async () => {
     const user = userEvent.setup()
     render(<LogSettingsSection defaultValues={defaults} />)
