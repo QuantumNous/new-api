@@ -170,12 +170,12 @@ func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Mess
 			return nil, fmt.Errorf("invalid input array: %w", err)
 		}
 		// Chat Completions requires the tool messages answering one assistant tool_calls
-		// batch to stay contiguous, so media hoisted out of function_call_output items is
-		// held back and emitted as a single user message once the batch ends.
+		// batch to stay contiguous, so media hoisted out of tool output items is held
+		// back and emitted as a single user message once the batch ends.
 		var pendingMedia []any
 		for _, item := range items {
 			itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
-			if len(pendingMedia) > 0 && itemType != responsesInputTypeFunctionCallOutput {
+			if len(pendingMedia) > 0 && !isResponsesToolOutputItemType(itemType) {
 				messages = append(messages, dto.Message{Role: "user", Content: pendingMedia})
 				pendingMedia = nil
 			}
@@ -196,7 +196,7 @@ func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Mess
 }
 
 // responsesInputItemToChatMessages appends the Chat messages for one Responses input item.
-// The second result carries media content parts hoisted out of a function_call_output item,
+// The second result carries media content parts hoisted out of a tool output item,
 // already in Chat shape; the caller decides where that user message lands.
 func responsesInputItemToChatMessages(item map[string]any, messages []dto.Message) ([]dto.Message, []any, error) {
 	itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
@@ -213,7 +213,7 @@ func responsesInputItemToChatMessages(item map[string]any, messages []dto.Messag
 			return nil, nil, err
 		}
 		return appendToolCallToLastAssistant(messages, toolCall), nil, nil
-	case responsesInputTypeFunctionCallOutput:
+	case responsesInputTypeFunctionCallOutput, responsesInputTypeCustomToolOutput:
 		callID := strings.TrimSpace(kitutil.Interface2String(item["call_id"]))
 		content, media := responsesToolOutputToChat(item["output"])
 		return append(messages, dto.Message{Role: "tool", ToolCallId: callID, Content: content}), media, nil
@@ -228,6 +228,15 @@ func responsesInputItemToChatMessages(item map[string]any, messages []dto.Messag
 		return nil, nil, err
 	}
 	return append(messages, dto.Message{Role: role, Content: content}), nil, nil
+}
+
+func isResponsesToolOutputItemType(itemType string) bool {
+	switch itemType {
+	case responsesInputTypeFunctionCallOutput, responsesInputTypeCustomToolOutput:
+		return true
+	default:
+		return false
+	}
 }
 
 func responsesInputContentToChatContent(content any) (any, error) {
