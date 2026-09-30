@@ -6863,6 +6863,19 @@
     "Zhipu": "智譜",
     "Zhipu GLM": "智譜GLM",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Usage Stats": "用量統計",
+    "Cache Hit Rate": "緩存命中率",
+    "Cache Hit Rate (%)": "緩存命中率 (%)",
+    "By Model": "按模型",
+    "By Channel": "按渠道",
+    "Uncached Input": "未命中輸入",
+    "Cache Hit": "緩存命中",
+    "Billed at full input price": "按完整輸入價計費",
+    "Billed at the cache ratio": "按緩存倍率計費",
+    "Cache Hit ÷ (Uncached Input + Cache Hit)": "緩存命中 ÷（未命中輸入 + 緩存命中）",
+    "No usage in this time range": "該時間段沒有用量",
+    "Try widening the time range.": "試試放寬時間範圍。",
+    "Per-model and per-channel consumption, cache hit rate and cost.": "按模型與按渠道的消耗、緩存命中率與費用。"
   }
 }

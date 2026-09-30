@@ -1,9 +1,11 @@
 package model
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -692,6 +694,210 @@ func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	}
 	tx.Where("type = ?", LogTypeConsume).Scan(&token)
 	return token
+}
+
+// UsageStatItem 是「用量统计」页的一行：按模型或按渠道聚合。
+//
+// PromptTokens 只含未命中的输入——new-api 记日志前会从 prompt 里扣掉缓存命中的部分
+// （service/text_quota.go），两者不相交，所以
+// CacheHitRate = CacheTokens / (PromptTokens + CacheTokens)，取值 0~1。
+type UsageStatItem struct {
+	ModelName string `json:"model_name,omitempty"`
+	ChannelId int    `json:"channel_id,omitempty"`
+	// ChannelName 由 Go 侧补全；渠道被删除后回退成 channel-<id>
+	ChannelName         string  `json:"channel_name,omitempty"`
+	Count               int64   `json:"count"`
+	PromptTokens        int64   `json:"prompt_tokens"`
+	CacheTokens         int64   `json:"cache_tokens"`
+	CacheCreationTokens int64   `json:"cache_creation_tokens"`
+	CompletionTokens    int64   `json:"completion_tokens"`
+	Quota               int64   `json:"quota"`
+	CacheHitRate        float64 `json:"cache_hit_rate"`
+}
+
+type UsageStatResult struct {
+	ByModel   []UsageStatItem `json:"by_model"`
+	ByChannel []UsageStatItem `json:"by_channel"`
+	Totals    UsageStatItem   `json:"totals"`
+}
+
+// logCacheUsage 是 other JSON 里与缓存有关的字段子集，语义对齐 service.text_quota 的写入方。
+type logCacheUsage struct {
+	CacheTokens           int64 `json:"cache_tokens"`
+	CacheCreationTokens   int64 `json:"cache_creation_tokens"`
+	CacheCreationTokens5m int64 `json:"cache_creation_tokens_5m"`
+	CacheCreationTokens1h int64 `json:"cache_creation_tokens_1h"`
+}
+
+// cacheWriteTokens 与 service.cacheWriteTokensTotal 保持一致：有 5m/1h 拆分时
+// 取「拆分之和」与总量的较大者，否则用总量。两者相加会重复计数。
+func (u logCacheUsage) cacheWriteTokens() int64 {
+	if u.CacheCreationTokens5m > 0 || u.CacheCreationTokens1h > 0 {
+		split := u.CacheCreationTokens5m + u.CacheCreationTokens1h
+		if u.CacheCreationTokens > split {
+			return u.CacheCreationTokens
+		}
+		return split
+	}
+	return u.CacheCreationTokens
+}
+
+// SumUsageByModelAndChannel 按模型和渠道聚合消费日志。
+//
+// 缓存 token 只存在于 other 这个 JSON 字段里，而 SQL 层的 JSON 提取在本项目的三种
+// 日志库（SQLite/MySQL/ClickHouse）上写法不一致，所以这里只做 SQL 取行、在 Go 里求和：
+// 跨库成立、不用改表、也不用回填历史数据。用 Rows() 流式读取，避免把整段时间的日志
+// 一次性读进内存。
+func SumUsageByModelAndChannel(startTimestamp int64, endTimestamp int64, modelName string, channel int, group string) (result UsageStatResult, err error) {
+	tx := LOG_DB.Table("logs").
+		Select("model_name, channel_id, prompt_tokens, completion_tokens, quota, other").
+		Where("type = ?", LogTypeConsume)
+	if tx, err = applyExplicitLogTextFilter(tx, "model_name", modelName); err != nil {
+		return result, err
+	}
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+	}
+	if channel != 0 {
+		tx = tx.Where("channel_id = ?", channel)
+	}
+	if group != "" {
+		tx = tx.Where(logGroupCol+" = ?", group)
+	}
+
+	rows, err := tx.Rows()
+	if err != nil {
+		common.SysError("failed to query usage stat: " + err.Error())
+		return result, errors.New("查询用量统计失败")
+	}
+	defer rows.Close()
+
+	byModel := make(map[string]*UsageStatItem)
+	byChannel := make(map[int]*UsageStatItem)
+	var totals UsageStatItem
+
+	for rows.Next() {
+		var (
+			rowModelName        string
+			rowChannelId        int
+			rowPromptTokens     int64
+			rowCompletionTokens int64
+			rowQuota            int64
+			rowOther            string
+		)
+		if err = rows.Scan(&rowModelName, &rowChannelId, &rowPromptTokens, &rowCompletionTokens, &rowQuota, &rowOther); err != nil {
+			common.SysError("failed to scan usage stat row: " + err.Error())
+			return result, errors.New("查询用量统计失败")
+		}
+
+		var cacheUsage logCacheUsage
+		if rowOther != "" {
+			// 单条日志的 other 解析失败按「无缓存」计，不让一条脏数据毁掉整页统计
+			_ = common.UnmarshalJsonStr(rowOther, &cacheUsage)
+		}
+		cacheCreationTokens := cacheUsage.cacheWriteTokens()
+
+		modelItem := byModel[rowModelName]
+		if modelItem == nil {
+			modelItem = &UsageStatItem{ModelName: rowModelName}
+			byModel[rowModelName] = modelItem
+		}
+		channelItem := byChannel[rowChannelId]
+		if channelItem == nil {
+			channelItem = &UsageStatItem{ChannelId: rowChannelId}
+			byChannel[rowChannelId] = channelItem
+		}
+
+		accumulate := func(item *UsageStatItem) {
+			item.Count++
+			item.PromptTokens += rowPromptTokens
+			item.CacheTokens += cacheUsage.CacheTokens
+			item.CacheCreationTokens += cacheCreationTokens
+			item.CompletionTokens += rowCompletionTokens
+			item.Quota += rowQuota
+		}
+		accumulate(modelItem)
+		accumulate(channelItem)
+		accumulate(&totals)
+	}
+	if err = rows.Err(); err != nil {
+		common.SysError("failed to iterate usage stat rows: " + err.Error())
+		return result, errors.New("查询用量统计失败")
+	}
+
+	result.ByModel = make([]UsageStatItem, 0, len(byModel))
+	for _, item := range byModel {
+		result.ByModel = append(result.ByModel, *item)
+	}
+	result.ByChannel = make([]UsageStatItem, 0, len(byChannel))
+	for _, item := range byChannel {
+		result.ByChannel = append(result.ByChannel, *item)
+	}
+	fillUsageStatChannelNames(result.ByChannel)
+
+	setUsageStatHitRate := func(item *UsageStatItem) {
+		if total := item.PromptTokens + item.CacheTokens; total > 0 {
+			item.CacheHitRate = float64(item.CacheTokens) / float64(total)
+		}
+	}
+	for i := range result.ByModel {
+		setUsageStatHitRate(&result.ByModel[i])
+	}
+	for i := range result.ByChannel {
+		setUsageStatHitRate(&result.ByChannel[i])
+	}
+	result.Totals = totals
+	setUsageStatHitRate(&result.Totals)
+
+	byQuotaDesc := func(a, b UsageStatItem) int {
+		if a.Quota != b.Quota {
+			return cmp.Compare(b.Quota, a.Quota)
+		}
+		if a.ModelName != b.ModelName {
+			return cmp.Compare(a.ModelName, b.ModelName)
+		}
+		return cmp.Compare(a.ChannelId, b.ChannelId)
+	}
+	slices.SortFunc(result.ByModel, byQuotaDesc)
+	slices.SortFunc(result.ByChannel, byQuotaDesc)
+
+	return result, nil
+}
+
+// fillUsageStatChannelNames 补全渠道名；渠道记录已删除时回退成 channel-<id>，
+// 这样历史消耗不会因为删渠道而从统计里消失（与 model/usedata_flow.go 的处理一致）。
+func fillUsageStatChannelNames(items []UsageStatItem) {
+	channelIds := make([]int, 0, len(items))
+	for _, item := range items {
+		if item.ChannelId > 0 {
+			channelIds = append(channelIds, item.ChannelId)
+		}
+	}
+	channelNameById := make(map[int]string, len(channelIds))
+	if len(channelIds) > 0 {
+		var channels []struct {
+			Id   int
+			Name string
+		}
+		if err := DB.Table("channels").Select("id, name").Where("id IN ?", channelIds).Find(&channels).Error; err != nil {
+			common.SysError("failed to query channel names for usage stat: " + err.Error())
+		}
+		for _, channel := range channels {
+			channelNameById[channel.Id] = channel.Name
+		}
+	}
+	for i := range items {
+		if name := channelNameById[items[i].ChannelId]; name != "" {
+			items[i].ChannelName = name
+			continue
+		}
+		if items[i].ChannelId > 0 {
+			items[i].ChannelName = fmt.Sprintf("channel-%d", items[i].ChannelId)
+		}
+	}
 }
 
 func CountOldLog(ctx context.Context, targetTimestamp int64) (int64, error) {
