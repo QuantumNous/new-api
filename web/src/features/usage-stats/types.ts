@@ -20,9 +20,11 @@ For commercial licensing, please contact support@quantumnous.com
  * One aggregated row of the usage-stats page, grouped either by model or by
  * channel (see the backend's `GET /api/log/usage_stat`).
  *
- * `prompt_tokens` counts only the *uncached* input: new-api subtracts cached
- * tokens before writing the log, so it is disjoint from `cache_tokens` and the
- * hit rate is `cache_tokens / (prompt_tokens + cache_tokens)`.
+ * Token semantics differ per upstream, so the server normalizes them:
+ * `input_tokens` is the total input including cache hits, `miss_tokens` is the
+ * part that missed the cache, and `cache_hit_rate = cache_tokens / input_tokens`.
+ * Never rebuild the total as prompt + cache + cache_creation — for OpenAI-style
+ * upstreams (DeepSeek included) `prompt_tokens` already contains the cache hits.
  */
 export type UsageStatItem = {
   model_name?: string
@@ -35,6 +37,10 @@ export type UsageStatItem = {
   /** Normalized cache-write total (5m/1h split summed when present). */
   cache_creation_tokens: number
   completion_tokens: number
+  /** Total input, cache hits included. */
+  input_tokens: number
+  /** Input that missed the cache. */
+  miss_tokens: number
   quota: number
   /** Ratio in the 0..1 range. */
   cache_hit_rate: number

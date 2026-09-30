@@ -698,21 +698,37 @@ func SumUsedToken(logType int, startTimestamp int64, endTimestamp int64, modelNa
 
 // UsageStatItem 是「用量统计」页的一行：按模型或按渠道聚合。
 //
-// PromptTokens 只含未命中的输入——new-api 记日志前会从 prompt 里扣掉缓存命中的部分
-// （service/text_quota.go），两者不相交，所以
-// CacheHitRate = CacheTokens / (PromptTokens + CacheTokens)，取值 0~1。
+// token 口径要注意：各家上游的 prompt_tokens 含义不同
+//   - OpenAI 系（含 DeepSeek）：prompt_tokens 是「含缓存命中的总输入」，命中在它内部，
+//     计费时 service/text_quota.go 才把 cache / cache_creation 从基数里扣掉；
+//   - Claude 系（usage_semantic=anthropic）：prompt_tokens 只含未命中，命中与写入都在外面。
+//
+// 所以这里统一折算出一个总输入 InputTokens，命中率按它算：
+//
+//	OpenAI 系  InputTokens = PromptTokens
+//	Claude 系  InputTokens = PromptTokens + CacheTokens + CacheCreationTokens
+//
+// CacheHitRate = CacheTokens / InputTokens，取值 0~1。
+// （早期版本按 CacheTokens/(PromptTokens+CacheTokens) 算，OpenAI 系会把命中重复计入分母，
+// 命中率被腰斩——2026-09-30 修复：DeepSeek 当天日志算出 49.3%，实际 97.2%，官网 98.9%。）
 type UsageStatItem struct {
 	ModelName string `json:"model_name,omitempty"`
 	ChannelId int    `json:"channel_id,omitempty"`
 	// ChannelName 由 Go 侧补全；渠道被删除后回退成 channel-<id>
-	ChannelName         string  `json:"channel_name,omitempty"`
-	Count               int64   `json:"count"`
-	PromptTokens        int64   `json:"prompt_tokens"`
-	CacheTokens         int64   `json:"cache_tokens"`
-	CacheCreationTokens int64   `json:"cache_creation_tokens"`
-	CompletionTokens    int64   `json:"completion_tokens"`
-	Quota               int64   `json:"quota"`
-	CacheHitRate        float64 `json:"cache_hit_rate"`
+	ChannelName         string `json:"channel_name,omitempty"`
+	Count               int64  `json:"count"`
+	PromptTokens        int64  `json:"prompt_tokens"`
+	CacheTokens         int64  `json:"cache_tokens"`
+	CacheCreationTokens int64  `json:"cache_creation_tokens"`
+	CompletionTokens    int64  `json:"completion_tokens"`
+	// InputTokens 是折算后的总输入（含缓存），前端算「总 Token」用它，
+	// 不要再用 PromptTokens+CacheTokens+CacheCreationTokens（OpenAI 系会重复计数）。
+	InputTokens int64 `json:"input_tokens"`
+	// MissTokens 是未命中缓存的输入：OpenAI 系 = PromptTokens - CacheTokens，
+	// Claude 系 = PromptTokens（本来就是未命中）。
+	MissTokens   int64   `json:"miss_tokens"`
+	Quota        int64   `json:"quota"`
+	CacheHitRate float64 `json:"cache_hit_rate"`
 }
 
 type UsageStatResult struct {
@@ -727,6 +743,15 @@ type logCacheUsage struct {
 	CacheCreationTokens   int64 `json:"cache_creation_tokens"`
 	CacheCreationTokens5m int64 `json:"cache_creation_tokens_5m"`
 	CacheCreationTokens1h int64 `json:"cache_creation_tokens_1h"`
+	// UsageSemantic 由 service.usageSemanticFromUsage 写入（anthropic / openai）；
+	// 老日志可能只有 claude 布尔位，两个都读以兼容。
+	UsageSemantic string `json:"usage_semantic"`
+	Claude        bool   `json:"claude"`
+}
+
+// isClaudeSemantic 判定这笔日志的 prompt_tokens 是否「只含未命中」。
+func (u logCacheUsage) isClaudeSemantic() bool {
+	return u.UsageSemantic == "anthropic" || u.Claude
 }
 
 // cacheWriteTokens 与 service.cacheWriteTokensTotal 保持一致：有 5m/1h 拆分时
@@ -811,12 +836,21 @@ func SumUsageByModelAndChannel(startTimestamp int64, endTimestamp int64, modelNa
 			byChannel[rowChannelId] = channelItem
 		}
 
+		// 折算总输入：OpenAI 系（DeepSeek 等）的 prompt 已含缓存命中，
+		// Claude 系的 prompt 只含未命中，命中/写入要加上去。
+		inputTokens := rowPromptTokens
+		if cacheUsage.isClaudeSemantic() {
+			inputTokens += cacheUsage.CacheTokens + cacheCreationTokens
+		}
+
 		accumulate := func(item *UsageStatItem) {
 			item.Count++
 			item.PromptTokens += rowPromptTokens
 			item.CacheTokens += cacheUsage.CacheTokens
 			item.CacheCreationTokens += cacheCreationTokens
 			item.CompletionTokens += rowCompletionTokens
+			item.InputTokens += inputTokens
+			item.MissTokens += inputTokens - cacheUsage.CacheTokens
 			item.Quota += rowQuota
 		}
 		accumulate(modelItem)
@@ -839,8 +873,8 @@ func SumUsageByModelAndChannel(startTimestamp int64, endTimestamp int64, modelNa
 	fillUsageStatChannelNames(result.ByChannel)
 
 	setUsageStatHitRate := func(item *UsageStatItem) {
-		if total := item.PromptTokens + item.CacheTokens; total > 0 {
-			item.CacheHitRate = float64(item.CacheTokens) / float64(total)
+		if item.InputTokens > 0 {
+			item.CacheHitRate = float64(item.CacheTokens) / float64(item.InputTokens)
 		}
 	}
 	for i := range result.ByModel {

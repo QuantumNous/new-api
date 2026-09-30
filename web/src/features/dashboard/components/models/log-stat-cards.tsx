@@ -131,11 +131,9 @@ export function LogStatCards(props: LogStatCardsProps) {
             return
           }
           setTokenStats({
+            // input_tokens is server-normalized and already includes cache hits.
             totalTokensWithCache:
-              (totals.prompt_tokens ?? 0) +
-              (totals.cache_tokens ?? 0) +
-              (totals.cache_creation_tokens ?? 0) +
-              (totals.completion_tokens ?? 0),
+              (totals.input_tokens ?? 0) + (totals.completion_tokens ?? 0),
             cacheTokens: totals.cache_tokens ?? 0,
           })
         })

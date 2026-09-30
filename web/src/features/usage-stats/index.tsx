@@ -81,13 +81,9 @@ export function UsageStats() {
   const byModel = result?.by_model ?? []
   const byChannel = result?.by_channel ?? []
   const totals = result?.totals
-  // Everything the upstream billed for: uncached input, cache reads, cache
-  // writes and output. The four buckets are disjoint.
+  // Server-normalized: input_tokens already includes cache hits.
   const totalTokens =
-    (totals?.prompt_tokens ?? 0) +
-    (totals?.cache_tokens ?? 0) +
-    (totals?.cache_creation_tokens ?? 0) +
-    (totals?.completion_tokens ?? 0)
+    (totals?.input_tokens ?? 0) + (totals?.completion_tokens ?? 0)
 
   return (
     <SectionPageLayout>
@@ -136,11 +132,11 @@ export function UsageStats() {
             <SummaryCard
               label={t('Cache Hit Rate')}
               value={formatPercent((totals?.cache_hit_rate ?? 0) * 100)}
-              hint={t('Cache Hit ÷ (Uncached Input + Cache Hit)')}
+              hint={t('Cache Hit ÷ Total Input')}
             />
             <SummaryCard
               label={t('Uncached Input')}
-              value={formatTokens(totals?.prompt_tokens ?? 0)}
+              value={formatTokens(totals?.miss_tokens ?? 0)}
               hint={t('Billed at full input price')}
             />
             <SummaryCard

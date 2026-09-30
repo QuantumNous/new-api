@@ -6879,6 +6879,7 @@
     "Per-model and per-channel consumption, cache hit rate and cost.": "按模型與按渠道的消耗、緩存命中率與費用。",
     "All input + output": "全部輸入 + 輸出",
     "Billed as cache creation": "按緩存建立價計費",
-    "Relies on configured model prices": "取決於所配的模型價格"
+    "Relies on configured model prices": "取決於所配的模型價格",
+    "Cache Hit ÷ Total Input": "緩存命中 ÷ 總輸入"
   }
 }

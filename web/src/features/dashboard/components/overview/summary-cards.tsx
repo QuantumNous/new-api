@@ -185,16 +185,13 @@ export function SummaryCards() {
     enabled: isAdmin,
     staleTime: 5 * 60 * 1000,
   })
-  // Same definition as the Usage Stats page: every bucket the upstream billed
-  // for (uncached input + cache reads + cache writes + output).
+  // Same definition as the Usage Stats page: input_tokens already includes
+  // cache hits, so the total is input + output (adding cache again double counts).
   const totalTokensDisplay = useMemo(() => {
     const tokenTotals = totalTokensQuery.data?.data?.totals
     if (!tokenTotals) return '-'
     return formatTokens(
-      (tokenTotals.prompt_tokens ?? 0) +
-        (tokenTotals.cache_tokens ?? 0) +
-        (tokenTotals.cache_creation_tokens ?? 0) +
-        (tokenTotals.completion_tokens ?? 0)
+      (tokenTotals.input_tokens ?? 0) + (tokenTotals.completion_tokens ?? 0)
     )
   }, [totalTokensQuery.data])
   const cacheTokensDisplay = useMemo(() => {

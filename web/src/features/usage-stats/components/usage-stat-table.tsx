@@ -100,11 +100,7 @@ export function UsageStatTable(props: UsageStatTableProps) {
       tokenColumn(
         'total_tokens',
         t('Total Tokens'),
-        (row) =>
-          row.prompt_tokens +
-          row.cache_tokens +
-          row.cache_creation_tokens +
-          row.completion_tokens
+        (row) => row.input_tokens + row.completion_tokens
       ),
       tokenColumn('cache_tokens', t('Cache Hit'), (row) => row.cache_tokens),
       {
@@ -132,11 +128,7 @@ export function UsageStatTable(props: UsageStatTableProps) {
           )
         },
       },
-      tokenColumn(
-        'prompt_tokens',
-        t('Uncached Input'),
-        (row) => row.prompt_tokens
-      ),
+      tokenColumn('miss_tokens', t('Uncached Input'), (row) => row.miss_tokens),
       tokenColumn(
         'completion_tokens',
         t('Output'),

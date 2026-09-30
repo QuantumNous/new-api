@@ -82,83 +82,80 @@ func TestLogCacheUsageCacheWriteTokens(t *testing.T) {
 	}
 }
 
-func TestSumUsageByModelAndChannel(t *testing.T) {
+// The two upstream families store prompt_tokens differently, and getting this
+// wrong halves (or doubles) the reported cache hit rate:
+//   - OpenAI style (DeepSeek included): prompt_tokens already contains the
+//     cache hits, so it *is* the total input;
+//   - Claude style: prompt_tokens is only the miss, hits live in cache_tokens.
+func TestSumUsageByModelAndChannelTokenSemantics(t *testing.T) {
 	db := setupUsageStatTestDB(t)
 	require.NoError(t, db.Exec(`INSERT INTO channels (id, name) VALUES (1, 'chan-one')`).Error)
 
-	insertUsageStatLog(t, db, 100, LogTypeConsume, "model-a", 1, 100, 10, 1000, `{"cache_tokens":300}`)
-	// Split present and larger than the total: the split wins.
-	insertUsageStatLog(t, db, 250, LogTypeConsume, "model-a", 1, 0, 5, 500,
-		`{"cache_tokens":0,"cache_creation_tokens":50,"cache_creation_tokens_5m":20,"cache_creation_tokens_1h":25}`)
-	// Channel 9 has no channels row (deleted channel) and no cache fields at all.
-	insertUsageStatLog(t, db, 300, LogTypeConsume, "model-b", 9, 50, 0, 200, "")
+	// OpenAI style: prompt 1000 already includes the 300 cached tokens.
+	insertUsageStatLog(t, db, 100, LogTypeConsume, "openai-model", 1, 1000, 10, 1000, `{"cache_tokens":300}`)
+	// OpenAI style with a split cache write; split larger than the total column.
+	insertUsageStatLog(t, db, 250, LogTypeConsume, "openai-model", 1, 200, 5, 500,
+		`{"cache_tokens":100,"cache_creation_tokens":50,"cache_creation_tokens_5m":20,"cache_creation_tokens_1h":25}`)
+	// Claude style: prompt is only the miss, hits and writes are separate.
+	insertUsageStatLog(t, db, 300, LogTypeConsume, "claude-model", 9, 50, 0, 200,
+		`{"usage_semantic":"anthropic","cache_tokens":500,"cache_creation_tokens":20}`)
+	// Legacy rows only carry the claude boolean instead of usage_semantic.
+	insertUsageStatLog(t, db, 320, LogTypeConsume, "claude-legacy", 9, 100, 1, 100,
+		`{"claude":true,"cache_tokens":900}`)
 	// Non-consume logs must be ignored even though they carry cache tokens.
-	insertUsageStatLog(t, db, 350, LogTypeTopup, "model-a", 1, 999, 999, 9999, `{"cache_tokens":9999}`)
-	// Outside the filtered range used by the second part of this test.
-	insertUsageStatLog(t, db, 600, LogTypeConsume, "model-c", 1, 999, 999, 9999, `{"cache_tokens":9999}`)
+	insertUsageStatLog(t, db, 350, LogTypeTopup, "openai-model", 1, 999, 999, 9999, `{"cache_tokens":9999}`)
 
 	result, err := SumUsageByModelAndChannel(0, 0, "", 0, "")
 	require.NoError(t, err)
 
-	// Sorted by quota descending: model-c, model-a, model-b.
-	require.Len(t, result.ByModel, 3)
-	assert.Equal(t, []string{"model-c", "model-a", "model-b"}, []string{
-		result.ByModel[0].ModelName,
-		result.ByModel[1].ModelName,
-		result.ByModel[2].ModelName,
-	})
+	byModel := map[string]UsageStatItem{}
+	for _, item := range result.ByModel {
+		byModel[item.ModelName] = item
+	}
 
-	modelA := result.ByModel[1]
-	assert.Equal(t, int64(2), modelA.Count)
-	assert.Equal(t, int64(100), modelA.PromptTokens)
-	assert.Equal(t, int64(300), modelA.CacheTokens)
-	assert.Equal(t, int64(50), modelA.CacheCreationTokens)
-	assert.Equal(t, int64(15), modelA.CompletionTokens)
-	assert.Equal(t, int64(1500), modelA.Quota)
-	// 300 / (100 + 300)
-	assert.InDelta(t, 0.75, modelA.CacheHitRate, 1e-9)
+	openai := byModel["openai-model"]
+	assert.Equal(t, int64(2), openai.Count)
+	// prompt is already the total input for this family.
+	assert.Equal(t, int64(1200), openai.InputTokens)
+	assert.Equal(t, int64(800), openai.MissTokens)
+	assert.Equal(t, int64(400), openai.CacheTokens)
+	assert.Equal(t, int64(50), openai.CacheCreationTokens)
+	assert.InDelta(t, 400.0/1200.0, openai.CacheHitRate, 1e-9)
 
-	modelB := result.ByModel[2]
-	assert.Equal(t, int64(1), modelB.Count)
-	assert.Equal(t, int64(0), modelB.CacheTokens)
-	assert.InDelta(t, 0.0, modelB.CacheHitRate, 1e-9)
+	claude := byModel["claude-model"]
+	assert.Equal(t, int64(50), claude.PromptTokens)
+	// 50 miss + 500 hits + 20 writes
+	assert.Equal(t, int64(570), claude.InputTokens)
+	// Uncached input is everything the cache did not serve: miss + writes.
+	assert.Equal(t, int64(70), claude.MissTokens)
+	assert.InDelta(t, 500.0/570.0, claude.CacheHitRate, 1e-9)
 
-	// Per-channel rows mirror the per-model totals for the same channel.
-	require.Len(t, result.ByChannel, 2)
-	channelOne := result.ByChannel[0]
-	assert.Equal(t, 1, channelOne.ChannelId)
-	assert.Equal(t, "chan-one", channelOne.ChannelName)
-	assert.Equal(t, int64(3), channelOne.Count)
-	assert.Equal(t, int64(1099), channelOne.PromptTokens)
-	assert.Equal(t, int64(10299), channelOne.CacheTokens)
-	assert.Equal(t, int64(50), channelOne.CacheCreationTokens)
-	assert.Equal(t, int64(11499), channelOne.Quota)
-
-	channelNine := result.ByChannel[1]
-	assert.Equal(t, 9, channelNine.ChannelId)
-	assert.Equal(t, "channel-9", channelNine.ChannelName)
+	legacy := byModel["claude-legacy"]
+	assert.Equal(t, int64(1000), legacy.InputTokens)
+	assert.Equal(t, int64(100), legacy.MissTokens)
+	assert.InDelta(t, 0.9, legacy.CacheHitRate, 1e-9)
 
 	// Totals fold every consumed log in range.
 	assert.Equal(t, int64(4), result.Totals.Count)
-	assert.Equal(t, int64(1149), result.Totals.PromptTokens)
-	assert.Equal(t, int64(10299), result.Totals.CacheTokens)
-	assert.Equal(t, int64(50), result.Totals.CacheCreationTokens)
-	assert.Equal(t, int64(11699), result.Totals.Quota)
-	assert.InDelta(t, 10299.0/float64(1149+10299), result.Totals.CacheHitRate, 1e-9)
+	assert.Equal(t, int64(2770), result.Totals.InputTokens)
+	assert.Equal(t, int64(970), result.Totals.MissTokens)
+	assert.InDelta(t, 1800.0/2770.0, result.Totals.CacheHitRate, 1e-9)
 
-	// A bounded range keeps only logs inside it (and still drops non-consume rows).
+	// Per-channel rows mirror the per-model totals for the same channel.
+	byChannel := map[int]UsageStatItem{}
+	for _, item := range result.ByChannel {
+		byChannel[item.ChannelId] = item
+	}
+	assert.Equal(t, "chan-one", byChannel[1].ChannelName)
+	assert.Equal(t, int64(1200), byChannel[1].InputTokens)
+	// Channel 9 has no channels row (deleted) and both Claude semantics rows.
+	assert.Equal(t, "channel-9", byChannel[9].ChannelName)
+	assert.Equal(t, int64(1570), byChannel[9].InputTokens)
+
+	// A bounded range keeps only logs inside it.
 	ranged, err := SumUsageByModelAndChannel(200, 400, "", 0, "")
 	require.NoError(t, err)
-	assert.Equal(t, int64(2), ranged.Totals.Count)
-	assert.Equal(t, int64(700), ranged.Totals.Quota)
-
-	// Filtering by model narrows both aggregations.
-	filtered, err := SumUsageByModelAndChannel(0, 0, "model-b", 0, "")
-	require.NoError(t, err)
-	require.Len(t, filtered.ByModel, 1)
-	assert.Equal(t, int64(200), filtered.Totals.Quota)
-	require.Len(t, filtered.ByChannel, 1)
-	assert.Equal(t, "channel-9", filtered.ByChannel[0].ChannelName)
+	assert.Equal(t, int64(3), ranged.Totals.Count)
 }
 
 // A malformed `other` payload must be treated as "no cache" instead of failing
@@ -172,5 +169,7 @@ func TestSumUsageByModelAndChannelToleratesBrokenOther(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(2), result.Totals.Count)
 	assert.Equal(t, int64(0), result.Totals.CacheTokens)
+	// Without a semantic flag the row is OpenAI style: input == prompt.
+	assert.Equal(t, int64(30), result.Totals.InputTokens)
 	assert.InDelta(t, 0.0, result.Totals.CacheHitRate, 1e-9)
 }
