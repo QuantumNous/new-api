@@ -214,20 +214,18 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 	return quotaDatas, err
 }
 
-// GetQuotaDataCacheStatsByModel 汇总单个模型在时间窗内的请求数与缓存列，
-// 用于模型广场模型详情的缓存率卡片。SUM 在空窗口返回 NULL，COALESCE
-// 兜底为 0，保证三方言下都扫描出零值而非依赖驱动的 NULL 行为。
-func GetQuotaDataCacheStatsByModel(modelName string, startTime int64, endTime int64) (*QuotaData, error) {
-	var row QuotaData
+// GetQuotaDataCacheTimeseriesByModel 返回单个模型在时间窗内按小时桶
+// 聚合的用量与缓存列（quota_data 的 created_at 本身就是小时粒度），
+// 用于模型广场模型详情的缓存率折线图；同桶多用户/多渠道的行被求和。
+func GetQuotaDataCacheTimeseriesByModel(modelName string, startTime int64, endTime int64) ([]*QuotaData, error) {
+	rows := make([]*QuotaData, 0)
 	err := DB.Table("quota_data").
-		Select("COALESCE(sum(count), 0) as count, COALESCE(sum(prompt_tokens), 0) as prompt_tokens, COALESCE(sum(cache_tokens), 0) as cache_tokens, COALESCE(sum(cache_creation_tokens), 0) as cache_creation_tokens, COALESCE(sum(cache_hit_count), 0) as cache_hit_count").
+		Select("sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, sum(prompt_tokens) as prompt_tokens, sum(cache_tokens) as cache_tokens, sum(cache_creation_tokens) as cache_creation_tokens, sum(cache_hit_count) as cache_hit_count, created_at").
 		Where("model_name = ? and created_at >= ? and created_at <= ?", modelName, startTime, endTime).
-		Take(&row).Error
-	if err != nil {
-		return nil, err
-	}
-	row.ModelName = modelName
-	return &row, nil
+		Group("created_at").
+		Order("created_at asc").
+		Find(&rows).Error
+	return rows, err
 }
 
 // ChannelQuotaData 渠道维度的小时聚合，用于看板缓存率按渠道查看

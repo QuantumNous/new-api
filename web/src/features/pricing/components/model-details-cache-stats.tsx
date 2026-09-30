@@ -17,29 +17,29 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { Database, DatabaseZap, Gauge } from 'lucide-react'
+import { Database } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { useCacheRateStatsVisible } from '@/hooks/use-cache-rate-stats'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { getModelCacheStats } from '../api'
+import { sumCacheBuckets } from '../lib/model-cache-chart'
 import type { PricingModel } from '../types'
-import { SectionHeader, StatCard } from './model-details-performance'
+import { CacheRateTrendChart } from './model-details-charts'
+import { SectionHeader } from './model-details-performance'
 
 // Keep the same 24h window as the performance metrics above.
 const MODEL_CACHE_WINDOW_HOURS = 24
 
-function formatRatePercent(numerator: number, denominator: number): string {
-  if (denominator <= 0) return '0.0%'
-  return `${(Math.min(numerator / denominator, 1) * 100).toFixed(1)}%`
-}
-
 /**
- * Site-wide cache rates for one model in the model square details, next to
- * the performance tab. Rendered only when the viewer passes the cache-rate
- * visibility switches (the endpoint enforces the same rules server-side)
- * and the model had usage in the window; otherwise nothing shows.
+ * Site-wide cache rate trend for one model in the model square details,
+ * next to the performance tab. Each metric (read/creation/hit) with activity
+ * in the window gets one line; metrics the model never used get no line, and
+ * the whole section hides when the model had no usage or no cache activity.
+ * Rendered only when the viewer passes the cache-rate visibility switches
+ * (the endpoint enforces the same rules server-side).
  */
 export function ModelDetailsCacheStats(props: { model: PricingModel }) {
   const { t } = useTranslation()
@@ -55,17 +55,35 @@ export function ModelDetailsCacheStats(props: { model: PricingModel }) {
     retry: false,
   })
 
+  const buckets = useMemo(() => statsQuery.data?.data ?? [], [statsQuery.data])
+  const totals = useMemo(() => sumCacheBuckets(buckets), [buckets])
+
   if (!cacheStatsVisible) return null
+  if (statsQuery.isLoading || statsQuery.isError) return null
 
-  const stats = statsQuery.data?.data
-  if (statsQuery.isLoading || statsQuery.isError || !stats) return null
-  if ((stats.count ?? 0) <= 0) return null
+  // Only metrics with activity in the window get a line.
+  const metrics = [
+    {
+      key: 'read' as const,
+      label: t('Cache Read Rate'),
+      present: totals.cache_tokens > 0,
+    },
+    {
+      key: 'creation' as const,
+      label: t('Cache Creation Rate'),
+      present: totals.cache_creation_tokens > 0,
+    },
+    {
+      key: 'hit' as const,
+      label: t('Cache Hit Rate'),
+      present: totals.cache_hit_count > 0,
+    },
+  ]
+  const activeMetrics = metrics
+    .filter((metric) => metric.present)
+    .map((metric) => ({ key: metric.key, label: metric.label }))
 
-  const requestCount = Number(stats.count) || 0
-  const promptTokens = Number(stats.prompt_tokens) || 0
-  const cacheTokens = Number(stats.cache_tokens) || 0
-  const cacheCreationTokens = Number(stats.cache_creation_tokens) || 0
-  const cacheHitCount = Number(stats.cache_hit_count) || 0
+  if (totals.count <= 0 || activeMetrics.length === 0) return null
 
   return (
     <section className='flex flex-col gap-4'>
@@ -73,26 +91,10 @@ export function ModelDetailsCacheStats(props: { model: PricingModel }) {
         icon={Database}
         title={t('Cache rate (last 24h)')}
         description={t('Cache rates of {{count}} requests in the last 24 hours', {
-          count: requestCount,
+          count: totals.count,
         })}
       />
-      <div className='grid grid-cols-1 gap-2 sm:grid-cols-3'>
-        <StatCard
-          icon={Database}
-          label={t('Cache Read Rate')}
-          value={formatRatePercent(cacheTokens, promptTokens)}
-        />
-        <StatCard
-          icon={DatabaseZap}
-          label={t('Cache Creation Rate')}
-          value={formatRatePercent(cacheCreationTokens, promptTokens)}
-        />
-        <StatCard
-          icon={Gauge}
-          label={t('Cache Hit Rate')}
-          value={formatRatePercent(cacheHitCount, requestCount)}
-        />
-      </div>
+      <CacheRateTrendChart buckets={buckets} metrics={activeMetrics} />
     </section>
   )
 }

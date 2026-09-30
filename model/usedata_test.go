@@ -163,10 +163,11 @@ func TestGetQuotaDataGroupByChannelFiltersByUsername(t *testing.T) {
 	assert.Equal(t, 60, alice.CacheTokens)
 }
 
-// TestGetQuotaDataCacheStatsByModelAggregatesWindow verifies the model-square
-// cache stats endpoint's aggregation: sums are scoped to the requested model
-// and time window, and other models' rows never leak in.
-func TestGetQuotaDataCacheStatsByModelAggregatesWindow(t *testing.T) {
+// TestGetQuotaDataCacheTimeseriesByModelAggregatesBuckets verifies the
+// model-square cache trend endpoint's aggregation: hourly buckets are scoped
+// to the requested model and time window, same-bucket rows are summed, and
+// other models' rows never leak in.
+func TestGetQuotaDataCacheTimeseriesByModelAggregatesBuckets(t *testing.T) {
 	// Full hours far from other tests' buckets.
 	hourA := int64(1893528000)
 	hourB := hourA + 3600
@@ -174,6 +175,8 @@ func TestGetQuotaDataCacheStatsByModelAggregatesWindow(t *testing.T) {
 	seed := []QuotaData{
 		{UserID: 7, Username: "alice", ModelName: modelName, CreatedAt: hourA, Count: 2, Quota: 10, TokenUsed: 100, PromptTokens: 80, CacheTokens: 60, CacheCreationTokens: 5, CacheHitCount: 1},
 		{UserID: 8, Username: "bob", ModelName: modelName, CreatedAt: hourB, Count: 3, Quota: 20, TokenUsed: 50, PromptTokens: 40, CacheTokens: 0, CacheCreationTokens: 4, CacheHitCount: 0},
+		// Same model and hour as another seed row: must be summed into one bucket.
+		{UserID: 10, Username: "dave", ModelName: modelName, CreatedAt: hourB, Count: 4, Quota: 30, TokenUsed: 60, PromptTokens: 60, CacheTokens: 10, CacheCreationTokens: 6, CacheHitCount: 2},
 		// Another model in the same window must not be aggregated.
 		{UserID: 9, Username: "carol", ModelName: "other-model", CreatedAt: hourA, Count: 5, Quota: 99, TokenUsed: 999, PromptTokens: 500, CacheTokens: 400, CacheCreationTokens: 50, CacheHitCount: 5},
 	}
@@ -184,28 +187,29 @@ func TestGetQuotaDataCacheStatsByModelAggregatesWindow(t *testing.T) {
 		DB.Where("created_at IN ?", []int64{hourA, hourB}).Delete(&QuotaData{})
 	})
 
-	stats, err := GetQuotaDataCacheStatsByModel(modelName, hourA-1, hourB+1)
+	rows, err := GetQuotaDataCacheTimeseriesByModel(modelName, hourA-1, hourB+1)
 	require.NoError(t, err)
-	require.NotNil(t, stats)
-	assert.Equal(t, modelName, stats.ModelName)
-	assert.Equal(t, 5, stats.Count)
-	assert.Equal(t, 120, stats.PromptTokens)
-	assert.Equal(t, 60, stats.CacheTokens)
-	assert.Equal(t, 9, stats.CacheCreationTokens)
-	assert.Equal(t, 1, stats.CacheHitCount)
+	require.Len(t, rows, 2, "one row per hourly bucket, ordered by time")
+	assert.Equal(t, hourA, rows[0].CreatedAt)
+	assert.Equal(t, 2, rows[0].Count)
+	assert.Equal(t, 80, rows[0].PromptTokens)
+	assert.Equal(t, 60, rows[0].CacheTokens)
+	assert.Equal(t, hourB, rows[1].CreatedAt)
+	assert.Equal(t, 7, rows[1].Count, "same-bucket rows must be summed")
+	assert.Equal(t, 100, rows[1].PromptTokens)
+	assert.Equal(t, 10, rows[1].CacheTokens)
+	assert.Equal(t, 10, rows[1].CacheCreationTokens)
+	assert.Equal(t, 2, rows[1].CacheHitCount)
 
-	// A window excluding the second hour drops that hour's rows entirely.
-	partial, err := GetQuotaDataCacheStatsByModel(modelName, hourA-1, hourA)
+	// A window excluding the second hour drops that hour's bucket entirely.
+	partial, err := GetQuotaDataCacheTimeseriesByModel(modelName, hourA-1, hourA)
 	require.NoError(t, err)
-	require.NotNil(t, partial)
-	assert.Equal(t, 2, partial.Count)
-	assert.Equal(t, 1, partial.CacheHitCount)
+	require.Len(t, partial, 1)
+	assert.Equal(t, hourA, partial[0].CreatedAt)
+	assert.Equal(t, 2, partial[0].Count)
 
-	// A model with no usage in the window yields zero sums, not an error.
-	empty, err := GetQuotaDataCacheStatsByModel("no-such-model", hourA-1, hourB+1)
+	// A model with no usage in the window yields an empty series, not an error.
+	empty, err := GetQuotaDataCacheTimeseriesByModel("no-such-model", hourA-1, hourB+1)
 	require.NoError(t, err)
-	require.NotNil(t, empty)
-	assert.Equal(t, 0, empty.Count)
-	assert.Equal(t, 0, empty.PromptTokens)
-	assert.Equal(t, 0, empty.CacheHitCount)
+	assert.Empty(t, empty)
 }

@@ -95,9 +95,9 @@ func GetUserQuotaDates(c *gin.Context) {
 
 // GetModelCacheStats returns the site-wide cache statistics for one model
 // over the requested window (default 24 hours), powering the model square's
-// cache rate cards. Admins get it whenever the feature is enabled; regular
-// users only when user visibility is on. The response carries no channel or
-// user breakdown, only model-level sums.
+// cache rate trend chart. Admins get it whenever the feature is enabled;
+// regular users only when user visibility is on. The response carries no
+// channel or user breakdown, only model-level hourly buckets.
 func GetModelCacheStats(c *gin.Context) {
 	modelName := c.Query("model")
 	if modelName == "" {
@@ -119,7 +119,7 @@ func GetModelCacheStats(c *gin.Context) {
 	}
 	endTimestamp := time.Now().Unix()
 	startTimestamp := endTimestamp - int64(hours)*3600
-	stats, err := model.GetQuotaDataCacheStatsByModel(modelName, startTimestamp, endTimestamp)
+	rows, err := model.GetQuotaDataCacheTimeseriesByModel(modelName, startTimestamp, endTimestamp)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -127,7 +127,7 @@ func GetModelCacheStats(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
-		"data":    stats,
+		"data":    rows,
 	})
 }
 

@@ -34,9 +34,9 @@ export async function getPricing(): Promise<PricingData> {
 // Model cache stats
 // ----------------------------------------------------------------------------
 
-/** Model-level usage sums over the requested window, from quota_data. */
-export interface ModelCacheStats {
-  model_name: string
+/** Hourly model-level usage bucket, from quota_data, for the cache trend chart. */
+export interface ModelCacheStatsBucket {
+  created_at: number
   count: number
   prompt_tokens: number
   cache_tokens: number
@@ -47,7 +47,7 @@ export interface ModelCacheStats {
 export interface ModelCacheStatsResponse {
   success: boolean
   message: string
-  data: ModelCacheStats | null
+  data: ModelCacheStatsBucket[] | null
 }
 
 // Get a model's site-wide cache statistics for the model square details.

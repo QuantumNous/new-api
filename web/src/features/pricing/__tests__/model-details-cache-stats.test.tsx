@@ -27,9 +27,21 @@ import { ModelDetailsCacheStats } from '../components/model-details-cache-stats'
 import type { PricingModel } from '../types'
 
 // The component tree pulls in the performance tab's chart helpers; mock the
-// vchart packages so the test only exercises the cache stats behavior.
+// vchart packages so the test only exercises the cache stats behavior. The
+// VChart mock surfaces the rendered series names for assertions.
 vi.mock('@visactor/react-vchart', () => ({
-  VChart: () => <div data-testid='vchart-mock' />,
+  VChart: (props: {
+    spec?: { data?: Array<{ values?: Array<{ series?: string }> }> }
+  }) => {
+    const series = [
+      ...new Set(
+        (props.spec?.data?.[0]?.values ?? [])
+          .map((value) => value.series)
+          .filter((name): name is string => Boolean(name))
+      ),
+    ]
+    return <div data-testid='vchart-mock' data-series={series.join(',')} />
+  },
 }))
 vi.mock('@visactor/vchart', () => ({
   ThemeManager: { setCurrentTheme: vi.fn() },
@@ -60,10 +72,26 @@ function renderStats() {
   return queryClient
 }
 
-function mockCacheStats(data: Record<string, unknown> | null) {
+function mockCacheBuckets(...buckets: Array<Record<string, unknown>>) {
   return vi
     .spyOn(api, 'get')
-    .mockResolvedValue({ data: { success: true, data } } as never)
+    .mockResolvedValue({ data: { success: true, data: buckets } } as never)
+}
+
+function usageBucket(overrides: Record<string, unknown> = {}) {
+  return {
+    created_at: 1893528000,
+    count: 10,
+    prompt_tokens: 100,
+    cache_tokens: 40,
+    cache_creation_tokens: 5,
+    cache_hit_count: 6,
+    ...overrides,
+  }
+}
+
+function chartSeries(): string | null | undefined {
+  return screen.queryByTestId('vchart-mock')?.getAttribute('data-series')
 }
 
 describe('model details cache stats', () => {
@@ -73,27 +101,35 @@ describe('model details cache stats', () => {
     localStorage.clear()
   })
 
-  test('renders the read/creation/hit rate cards from the window stats', async () => {
-    mockCacheStats({
-      model_name: 'example-model',
-      count: 10,
-      prompt_tokens: 100,
-      cache_tokens: 40,
-      cache_creation_tokens: 5,
-      cache_hit_count: 6,
-    })
+  test('renders one trend line per metric with activity in the window', async () => {
+    mockCacheBuckets(usageBucket())
     const queryClient = renderStats()
 
     expect(await screen.findByText('Cache rate (last 24h)')).toBeVisible()
     expect(
       screen.getByText('Cache rates of 10 requests in the last 24 hours')
     ).toBeVisible()
-    expect(screen.getByText('Cache Read Rate')).toBeVisible()
-    expect(screen.getByText('40.0%')).toBeVisible()
-    expect(screen.getByText('Cache Creation Rate')).toBeVisible()
-    expect(screen.getByText('5.0%')).toBeVisible()
-    expect(screen.getByText('Cache Hit Rate')).toBeVisible()
-    expect(screen.getByText('60.0%')).toBeVisible()
+    expect(chartSeries()).toBe(
+      'Cache Read Rate,Cache Creation Rate,Cache Hit Rate'
+    )
+    queryClient.clear()
+  })
+
+  test('drops trend lines for metrics without activity in the window', async () => {
+    // Reads and hits happened, but the model never wrote cache entries.
+    mockCacheBuckets(
+      usageBucket({ cache_creation_tokens: 0, cache_hit_count: 3 }),
+      usageBucket({
+        created_at: 1893531600,
+        cache_creation_tokens: 0,
+        cache_hit_count: 0,
+        cache_tokens: 0,
+      })
+    )
+    const queryClient = renderStats()
+
+    expect(await screen.findByText('Cache rate (last 24h)')).toBeVisible()
+    expect(chartSeries()).toBe('Cache Read Rate,Cache Hit Rate')
     queryClient.clear()
   })
 
@@ -101,7 +137,7 @@ describe('model details cache stats', () => {
     useSystemConfigStore
       .getState()
       .setConfig({ cacheRateStatsEnabled: false })
-    const get = mockCacheStats(null)
+    const get = mockCacheBuckets(usageBucket())
     const queryClient = renderStats()
 
     await waitFor(() => expect(get).not.toHaveBeenCalled())
@@ -111,39 +147,57 @@ describe('model details cache stats', () => {
     queryClient.clear()
   })
 
-  test('hides the section when the model has no usage in the window', async () => {
+  test('hides the section when the model has requests but no cache activity', async () => {
     const get = vi
       .spyOn(api, 'get')
       .mockResolvedValueOnce({
-        data: {
-          success: true,
-          data: {
-            model_name: 'example-model',
-            count: 10,
-            prompt_tokens: 100,
-            cache_tokens: 40,
-            cache_creation_tokens: 5,
-            cache_hit_count: 6,
-          },
-        },
+        data: { success: true, data: [usageBucket()] },
       } as never)
+      // Requests exist, yet none of the three cache metrics ever moved.
       .mockResolvedValueOnce({
         data: {
           success: true,
-          data: {
-            model_name: 'example-model',
-            count: 0,
-            prompt_tokens: 0,
-            cache_tokens: 0,
-            cache_creation_tokens: 0,
-            cache_hit_count: 0,
-          },
+          data: [
+            usageBucket({
+              cache_tokens: 0,
+              cache_creation_tokens: 0,
+              cache_hit_count: 0,
+            }),
+          ],
         },
       } as never)
     const queryClient = renderStats()
 
     // Commit a positive render first so the removal assertion below can only
-    // pass on a real zero-count update.
+    // pass on a real no-cache-activity update.
+    expect(await screen.findByText('Cache rate (last 24h)')).toBeVisible()
+    await act(async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['model-cache-stats', 'example-model'],
+      })
+    })
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Cache rate (last 24h)')
+      ).not.toBeInTheDocument()
+    )
+    expect(get).toHaveBeenCalledTimes(2)
+    queryClient.clear()
+  })
+
+  test('hides the section when the model has no usage in the window', async () => {
+    const get = vi
+      .spyOn(api, 'get')
+      .mockResolvedValueOnce({
+        data: { success: true, data: [usageBucket()] },
+      } as never)
+      .mockResolvedValueOnce({
+        data: { success: true, data: [] },
+      } as never)
+    const queryClient = renderStats()
+
+    // Commit a positive render first so the removal assertion below can only
+    // pass on a real zero-usage update.
     expect(await screen.findByText('Cache rate (last 24h)')).toBeVisible()
     await act(async () => {
       await queryClient.invalidateQueries({
