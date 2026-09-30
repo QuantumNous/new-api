@@ -17,11 +17,19 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
+import { Loader2, RefreshCw, RotateCcw } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
+import { Button } from '@/components/ui/button'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import { CompactDateTimeRangePicker } from '@/features/usage-logs/components/compact-date-time-range-picker'
+import dayjs from '@/lib/dayjs'
 import {
   formatNumber,
   formatPercent,
@@ -35,7 +43,8 @@ import { CacheHitRateChart } from './components/cache-hit-rate-chart'
 import { UsageStatTable } from './components/usage-stat-table'
 import type { UsageStatDimension } from './types'
 
-const DEFAULT_RANGE_DAYS = 7
+const DEFAULT_RANGE_DAYS = 1
+const USAGE_STAT_QUERY_KEY = 'usage-stat'
 
 type SummaryCardProps = {
   label: string
@@ -66,6 +75,14 @@ export function UsageStats() {
   const [range, setRange] = useState(() =>
     getRollingDateRange(DEFAULT_RANGE_DAYS)
   )
+  // The default window rolls with the clock. Remember whether the user is still
+  // on it, because refreshing should re-anchor it to "now" rather than freezing
+  // the window at the moment the page happened to open.
+  const [isRolling, setIsRolling] = useState(true)
+  // Bumped by refresh/reset. It is part of the query key on purpose: two clicks
+  // inside the same second recompute identical timestamps, and without it the
+  // second click would be answered from the cache instead of hitting the API.
+  const [reloadToken, setReloadToken] = useState(0)
   const [dimension, setDimension] = useState<UsageStatDimension>('model')
 
   const params = useMemo(
@@ -73,9 +90,29 @@ export function UsageStats() {
     [range]
   )
   const query = useQuery({
-    queryKey: ['usage-stat', params.start_timestamp, params.end_timestamp],
+    queryKey: [
+      USAGE_STAT_QUERY_KEY,
+      params.start_timestamp,
+      params.end_timestamp,
+      reloadToken,
+    ],
     queryFn: () => getUsageStat(params),
+    // This page is about "what happened just now"; never serve a cached copy.
+    staleTime: 0,
   })
+
+  const handleRefresh = () => {
+    if (isRolling) {
+      setRange(getRollingDateRange(DEFAULT_RANGE_DAYS))
+    }
+    setReloadToken((token) => token + 1)
+  }
+
+  const handleReset = () => {
+    setIsRolling(true)
+    setRange(getRollingDateRange(DEFAULT_RANGE_DAYS))
+    setReloadToken((token) => token + 1)
+  }
 
   const result = query.data?.data
   const byModel = result?.by_model ?? []
@@ -108,13 +145,61 @@ export function UsageStats() {
         <CompactDateTimeRangePicker
           start={range.start}
           end={range.end}
-          onChange={(next) =>
+          onChange={(next) => {
+            setIsRolling(false)
             setRange((current) => ({
               start: next.start ?? current.start,
               end: next.end ?? current.end,
             }))
-          }
+          }}
         />
+        <div className='flex items-center gap-1.5'>
+          {query.dataUpdatedAt ? (
+            <span className='text-muted-foreground hidden text-[11px] tabular-nums sm:block'>
+              {t('Updated')} {dayjs(query.dataUpdatedAt).format('HH:mm:ss')}
+            </span>
+          ) : null}
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={handleRefresh}
+                  disabled={query.isFetching}
+                  aria-label={t('Refresh')}
+                  className='h-8 gap-1.5 px-2.5'
+                />
+              }
+            >
+              {query.isFetching ? (
+                <Loader2 className='size-3.5 animate-spin' />
+              ) : (
+                <RefreshCw className='size-3.5' />
+              )}
+              <span className='text-xs'>{t('Refresh')}</span>
+            </TooltipTrigger>
+            <TooltipContent>{t('Refresh')}</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='icon'
+                  onClick={handleReset}
+                  aria-label={t('Reset')}
+                  className='text-muted-foreground hover:text-foreground size-8'
+                />
+              }
+            >
+              <RotateCcw className='size-4' />
+            </TooltipTrigger>
+            <TooltipContent>{t('Reset to the last 24 hours')}</TooltipContent>
+          </Tooltip>
+        </div>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
         <div className='flex flex-col gap-3'>

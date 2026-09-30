@@ -6880,6 +6880,7 @@
     "All input + output": "全部輸入 + 輸出",
     "Billed as cache creation": "按緩存建立價計費",
     "Relies on configured model prices": "取決於所配的模型價格",
-    "Cache Hit ÷ Total Input": "緩存命中 ÷ 總輸入"
+    "Cache Hit ÷ Total Input": "緩存命中 ÷ 總輸入",
+    "Reset to the last 24 hours": "重置為最近 24 小時"
   }
 }

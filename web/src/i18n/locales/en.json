@@ -6880,6 +6880,7 @@
     "All input + output": "All input + output",
     "Billed as cache creation": "Billed as cache creation",
     "Relies on configured model prices": "Relies on configured model prices",
-    "Cache Hit ÷ Total Input": "Cache Hit ÷ Total Input"
+    "Cache Hit ÷ Total Input": "Cache Hit ÷ Total Input",
+    "Reset to the last 24 hours": "Reset to the last 24 hours"
   }
 }
