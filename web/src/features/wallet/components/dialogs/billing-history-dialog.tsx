@@ -226,7 +226,7 @@ export function BillingHistoryDialog({
                           </div>
                         </div>
                         <StatusBadge
-                          label={statusConfig.label}
+                          label={t(statusConfig.label)}
                           variant={statusConfig.variant}
                           showDot
                           copyable={false}

@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ColumnDef } from '@tanstack/react-table'
+import type { ColumnDef } from '@tanstack/react-table'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -115,14 +115,14 @@ export function useSubscriptionsColumns(): ColumnDef<PlanRecord>[] {
         cell: ({ row }) =>
           row.original.plan.enabled ? (
             <StatusBadge
-              label={t('Enable')}
+              label={t('Enabled')}
               variant='success'
               copyable={false}
               className='-ml-1.5'
             />
           ) : (
             <StatusBadge
-              label={t('Disable')}
+              label={t('Disabled')}
               variant='neutral'
               copyable={false}
               className='-ml-1.5'

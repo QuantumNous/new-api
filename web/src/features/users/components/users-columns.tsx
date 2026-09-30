@@ -264,7 +264,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
               )}
               {inviterId > 0 && (
                 <LongText className='text-muted-foreground'>
-                  {t('Inviter')} ID: {inviterId}
+                  {t('Inviter ID: {{id}}', { id: inviterId })}
                 </LongText>
               )}
             </div>
