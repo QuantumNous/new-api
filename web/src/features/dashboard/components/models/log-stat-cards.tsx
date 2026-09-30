@@ -45,6 +45,10 @@ interface LogStatCardsProps {
 
 const MAX_INLINE_STAT_CHARS = 9
 
+// The merged cache card key: renders the token-based read/creation rates as
+// one composite value plus the request-count-based hit rate as its caption.
+const CACHE_RATE_CARD_KEY = 'cacheRate'
+
 function formatStatNumber(value: number, locale: Intl.LocalesArgument) {
   const fullValue = formatNumber(value, locale)
   const displayValue =
@@ -58,8 +62,14 @@ function formatStatNumber(value: number, locale: Intl.LocalesArgument) {
   }
 }
 
+// Cache rate values are ratios already clamped to [0, 1]; an empty range
+// renders 0.0%, matching how the other stat cards show 0 for missing data.
+function formatRatePercent(value: number): string {
+  return `${(value * 100).toFixed(1)}%`
+}
+
 export function LogStatCards(props: LogStatCardsProps) {
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const statCardsConfig = useModelStatCardsConfig()
   const user = useAuthStore((state) => state.auth.user)
   const isAdmin = !!(user?.role && user.role >= 10)
@@ -67,6 +77,10 @@ export function LogStatCards(props: LogStatCardsProps) {
     totalQuota: number
     totalCount: number
     totalTokens: number
+    totalPromptTokens: number
+    totalCacheTokens: number
+    totalCacheCreationTokens: number
+    totalCacheHitCount: number
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
@@ -115,28 +129,73 @@ export function LogStatCards(props: LogStatCardsProps) {
     }
   }, [filters, isAdmin, onDataUpdate])
 
+  // Average over the whole selected range: token-based rates divide the
+  // period's summed cache tokens by its summed input tokens, and the hit
+  // rate divides cache-hit requests by total requests. No usage in range
+  // yields 0.0% rather than a placeholder.
+  const cacheRates = (() => {
+    if (!stats) {
+      return { cacheReadRate: 0, cacheCreationRate: 0, cacheHitRate: 0 }
+    }
+    const readRate =
+      stats.totalPromptTokens > 0
+        ? Math.min(stats.totalCacheTokens / stats.totalPromptTokens, 1)
+        : 0
+    const creationRate =
+      stats.totalPromptTokens > 0
+        ? Math.min(
+            stats.totalCacheCreationTokens / stats.totalPromptTokens,
+            1
+          )
+        : 0
+    const hitRate =
+      stats.totalCount > 0
+        ? Math.min(stats.totalCacheHitCount / stats.totalCount, 1)
+        : 0
+    return {
+      cacheReadRate: readRate,
+      cacheCreationRate: creationRate,
+      cacheHitRate: hitRate,
+    }
+  })()
+
   const adaptedStats = {
     rpm: stats?.totalCount ?? 0,
     quota: stats?.totalQuota ?? 0,
     tpm: stats?.totalTokens ?? 0,
+    ...cacheRates,
   }
 
   const items = statCardsConfig.map((config) => {
     const rawValue = config.getValue(adaptedStats, timeRangeMinutes)
     const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
-    const formatted =
-      config.key === 'quota'
-        ? {
-            displayValue: formatQuota(rawValue),
-            fullValue: formatQuota(rawValue),
-          }
-        : formatStatNumber(rawValue, locale)
+    let formatted: { displayValue: string; fullValue: string }
+    let desc = config.description
+    if (config.key === 'quota') {
+      formatted = {
+        displayValue: formatQuota(rawValue),
+        fullValue: formatQuota(rawValue),
+      }
+    } else if (config.key === CACHE_RATE_CARD_KEY) {
+      const readPct = formatRatePercent(cacheRates.cacheReadRate)
+      const creationPct = formatRatePercent(cacheRates.cacheCreationRate)
+      const hitPct = formatRatePercent(cacheRates.cacheHitRate)
+      formatted = {
+        displayValue: `${readPct} / ${creationPct}`,
+        fullValue: `${t('Cache Read Rate')} ${readPct} / ${t(
+          'Cache Creation Rate'
+        )} ${creationPct} / ${t('Cache Hit Rate')} ${hitPct}`,
+      }
+      desc = t('Read / creation · hit {{rate}}', { rate: hitPct })
+    } else {
+      formatted = formatStatNumber(rawValue, locale)
+    }
 
     return {
       title: config.title,
       value: formatted.displayValue,
       fullValue: formatted.fullValue,
-      desc: config.description,
+      desc,
       icon: config.icon,
       iconTone: config.iconTone,
     }

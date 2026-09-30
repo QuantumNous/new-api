@@ -61,6 +61,7 @@ import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import { BILLING_PRICING_VARS } from '@/features/pricing/lib/billing-expr'
 import { pluginUsageSchema } from '@/features/pricing/lib/plugin-pricing'
 import { PolicyDecisionRecord } from '@/features/system-settings/request-policies/decision-record'
+import { useCacheRateStatsVisible } from '@/hooks/use-cache-rate-stats'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
@@ -69,6 +70,8 @@ import { cn } from '@/lib/utils'
 import { AuditDetailFields } from '../../audit/components/audit-detail-fields'
 import type { UsageLog } from '../../data/schema'
 import {
+  computeCacheRates,
+  formatCacheRate,
   parseLogOther,
   getParamOverrideActionLabel,
   parseAuditLine,
@@ -373,6 +376,7 @@ function BillingBreakdown(props: {
 function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
   const { t } = useTranslation()
   const { log, other } = props
+  const cacheRatesVisible = useCacheRateStatsVisible()
 
   const promptTokens = log.prompt_tokens || 0
   const completionTokens = log.completion_tokens || 0
@@ -384,6 +388,14 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
 
   if (!hasTokens) return null
 
+  const cacheRates = cacheRatesVisible
+    ? computeCacheRates(promptTokens, other)
+    : null
+  const cacheReadRateText = formatCacheRate(cacheRates?.readRate ?? null)
+  const cacheCreationRateText = formatCacheRate(
+    cacheRates?.creationRate ?? null
+  )
+
   const rows: Array<{ label: string; value: string }> = []
 
   rows.push({ label: t('Input Tokens'), value: promptTokens.toLocaleString() })
@@ -392,11 +404,27 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
     value: completionTokens.toLocaleString(),
   })
 
+  // The request-count hit indicator from #4963: a request is a cache hit
+  // when it read cached input tokens. Hidden from viewers the cache-rate
+  // visibility switches exclude.
+  if (cacheRatesVisible) {
+    rows.push({
+      label: t('Cache Hit'),
+      value: cacheRead > 0 ? t('Hit') : t('Miss'),
+    })
+  }
+
   if (cacheRead > 0) {
     rows.push({
       label: t('Cache Read'),
       value: cacheRead.toLocaleString(),
     })
+    if (cacheReadRateText) {
+      rows.push({
+        label: t('Cache Read Rate'),
+        value: cacheReadRateText,
+      })
+    }
   }
 
   if (other.image_cache_tokens !== undefined) {
@@ -424,6 +452,16 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
     rows.push({
       label: t('Cache Write (1h)'),
       value: cacheWrite1h.toLocaleString(),
+    })
+  }
+
+  if (
+    cacheCreationRateText &&
+    (cacheWrite > 0 || cacheWrite5m > 0 || cacheWrite1h > 0)
+  ) {
+    rows.push({
+      label: t('Cache Creation Rate'),
+      value: cacheCreationRateText,
     })
   }
 

@@ -26,9 +26,11 @@ var DisplayTokenStatEnabled = true
 var DrawingEnabled = true
 var TaskEnabled = true
 var DataExportEnabled = true
-var DataExportInterval = 5         // unit: minute
-var DataExportDefaultTime = "hour" // unit: minute
-var DefaultCollapseSidebar = false // default value of collapse sidebar
+var DataExportInterval = 5             // unit: minute
+var DataExportDefaultTime = "hour"     // unit: minute
+var CacheRateStatsEnabled = true       // show cache read/creation rate stats in logs and dashboard
+var CacheRateUserVisibleEnabled = true // allow common users to see their own cache stats
+var DefaultCollapseSidebar = false     // default value of collapse sidebar
 
 // Any options with "Secret", "Token" in its key won't be return by GetOptions
 

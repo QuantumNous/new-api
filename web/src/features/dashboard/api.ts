@@ -19,7 +19,9 @@ For commercial licensing, please contact support@quantumnous.com
 import { api } from '@/lib/api'
 
 import type {
+  ChannelQuotaDataItem,
   FlowQuotaDataItem,
+  GroupQuotaDataItem,
   QuotaDataItem,
   UptimeGroupResult,
 } from './types'
@@ -58,6 +60,7 @@ export async function getUserQuotaDates(
 export async function getUserQuotaDataByUsers(params: {
   start_timestamp: number
   end_timestamp: number
+  username?: string
 }) {
   const res = await api.get<{ success: boolean; data: QuotaDataItem[] }>(
     '/api/data/users',
@@ -79,6 +82,43 @@ export async function getFlowQuotaDates(
   const res = await api.get<{
     success: boolean
     data?: FlowQuotaDataItem[]
+    message?: string
+  }>(endpoint, { params })
+  return res.data
+}
+
+// Admin-only channel-level hourly aggregation, used by the cache rate chart.
+// The optional username mirrors the dashboard's user filter so the channel
+// dimension stays consistent with the model dimension's data scope.
+export async function getChannelQuotaDates(params: {
+  start_timestamp: number
+  end_timestamp: number
+  username?: string
+}) {
+  const res = await api.get<{
+    success: boolean
+    data?: ChannelQuotaDataItem[]
+    message?: string
+  }>('/api/data/channel', { params })
+  return res.data
+}
+
+// Group-level hourly aggregation for the cache rate chart's group dimension.
+// Admins get every user's rows (optionally filtered by the dashboard's user
+// filter); regular users only get their own rows, so the username filter does
+// not apply to them.
+export async function getGroupQuotaDates(
+  params: {
+    start_timestamp: number
+    end_timestamp: number
+    username?: string
+  },
+  isAdmin = false
+) {
+  const endpoint = isAdmin ? '/api/data/group' : '/api/data/group/self'
+  const res = await api.get<{
+    success: boolean
+    data?: GroupQuotaDataItem[]
     message?: string
   }>(endpoint, { params })
   return res.data

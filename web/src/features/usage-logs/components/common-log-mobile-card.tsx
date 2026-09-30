@@ -27,12 +27,18 @@ import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge, type StatusVariant } from '@/components/status-badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { useCacheRateStatsVisible } from '@/hooks/use-cache-rate-stats'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import dayjs from '@/lib/dayjs'
 import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
 
 import type { UsageLog } from '../data/schema'
-import { formatModelName, parseLogOther } from '../lib/format'
+import {
+  computeCacheRates,
+  formatCacheRate,
+  formatModelName,
+  parseLogOther,
+} from '../lib/format'
 import {
   getLogTypeConfig,
   isDisplayableLogType,
@@ -64,6 +70,7 @@ export function CommonLogMobileCard<TData>(props: {
 }) {
   const { t } = useTranslation()
   const context = useUsageLogsContext()
+  const cacheRatesVisible = useCacheRateStatsVisible()
   const [selectedField, setSelectedField] = useState<FieldName | null>(null)
   const log = props.log
   const other = parseLogOther(log.other)
@@ -76,6 +83,13 @@ export function CommonLogMobileCard<TData>(props: {
     other?.user_group_ratio != null && other.user_group_ratio !== -1
       ? other.user_group_ratio
       : other?.group_ratio
+  const cacheRates = cacheRatesVisible
+    ? computeCacheRates(log.prompt_tokens || 0, other)
+    : null
+  const cacheReadRateText = formatCacheRate(cacheRates?.readRate ?? null)
+  const cacheCreationRateText = formatCacheRate(
+    cacheRates?.creationRate ?? null
+  )
   const fields: Record<FieldName, LogField> = {
     model: {
       label: t('Model'),
@@ -305,11 +319,13 @@ export function CommonLogMobileCard<TData>(props: {
           {cacheRead > 0 && (
             <span>
               {t('Cache')} ↓ {cacheRead.toLocaleString()}
+              {cacheReadRateText ? ` (${cacheReadRateText})` : ''}
             </span>
           )}
           {cacheWrite > 0 && (
             <span>
               {t('Cache')} ↑ {cacheWrite.toLocaleString()}
+              {cacheCreationRateText ? ` (${cacheCreationRateText})` : ''}
             </span>
           )}
         </div>

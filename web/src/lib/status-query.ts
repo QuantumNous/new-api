@@ -99,6 +99,12 @@ export function mapStatusDataToConfig(
     displayTokenStatEnabled: data.display_token_stat_enabled as
       | boolean
       | undefined,
+    cacheRateStatsEnabled: data.cache_rate_stats_enabled as
+      | boolean
+      | undefined,
+    cacheRateUserVisibleEnabled: data.cache_rate_user_visible_enabled as
+      | boolean
+      | undefined,
     currency,
   }
 }

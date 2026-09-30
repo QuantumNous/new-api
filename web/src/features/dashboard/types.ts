@@ -31,7 +31,54 @@ export interface QuotaDataItem {
   token_used?: number
   count?: number
   quota?: number
+  prompt_tokens?: number
+  cache_tokens?: number
+  cache_creation_tokens?: number
+  cache_hit_count?: number
 }
+
+export interface ChannelQuotaDataItem {
+  channel_id: number
+  channel_name: string
+  created_at: number
+  count?: number
+  quota?: number
+  token_used?: number
+  prompt_tokens?: number
+  cache_tokens?: number
+  cache_creation_tokens?: number
+  cache_hit_count?: number
+}
+
+/** Group-level hourly aggregation row (admin sees all users, self only own). */
+export interface GroupQuotaDataItem {
+  use_group: string
+  created_at: number
+  count?: number
+  quota?: number
+  token_used?: number
+  prompt_tokens?: number
+  cache_tokens?: number
+  cache_creation_tokens?: number
+  cache_hit_count?: number
+}
+
+/** Normalized cache-rate chart row: one series (model/channel/group/user) per hourly bucket. */
+export interface CacheRateChartRow {
+  series: string
+  created_at: number
+  /** Requests in the bucket: the hit-rate denominator. */
+  count: number
+  prompt_tokens: number
+  cache_tokens: number
+  cache_creation_tokens: number
+  /** Requests that read cached input in the bucket: the hit-rate numerator. */
+  cache_hit_count: number
+}
+
+export type CacheRateMetric = 'read' | 'creation' | 'hit'
+
+export type CacheRateDimension = 'model' | 'channel' | 'group' | 'user'
 
 export interface FlowQuotaDataItem {
   user_id?: number
@@ -234,7 +281,7 @@ export type PingStatusMap = Record<string, PingStatus>
 // ============================================================================
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type VChartSpec = Record<string, any>
+export type VChartSpec = Record<string, any>
 
 export interface ProcessedChartData {
   spec_pie: VChartSpec

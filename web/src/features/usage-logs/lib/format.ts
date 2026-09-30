@@ -340,6 +340,50 @@ export function hasAnyCacheTokens(
   )
 }
 
+export interface CacheRates {
+  /** cache read tokens / prompt tokens, clamped to [0, 1]; null when prompt_tokens is 0 */
+  readRate: number | null
+  /** cache creation (write) tokens / prompt tokens, clamped to [0, 1]; null when prompt_tokens is 0 */
+  creationRate: number | null
+}
+
+/**
+ * Compute cache read/creation rates for a single log entry.
+ *
+ * prompt_tokens is recorded by the backend as the full input total including
+ * cached and cache-created tokens on every relay path (OpenAI semantics;
+ * Claude and OpenRouter-Claude payloads are normalized upstream), so it is
+ * the single denominator. Cache write uses the 5m/1h split when present,
+ * otherwise cache_creation_tokens, mirroring the backend's
+ * cache_write_tokens normalization. The clamp at 100% is only a safety net
+ * for legacy rows recorded before the normalization.
+ */
+export function computeCacheRates(
+  promptTokens: number,
+  other: LogOtherData | null | undefined
+): CacheRates {
+  if (!promptTokens || promptTokens <= 0) {
+    return { readRate: null, creationRate: null }
+  }
+  const cacheRead = other?.cache_tokens || 0
+  const cacheWrite5m = other?.cache_creation_tokens_5m || 0
+  const cacheWrite1h = other?.cache_creation_tokens_1h || 0
+  const cacheWrite =
+    cacheWrite5m > 0 || cacheWrite1h > 0
+      ? cacheWrite5m + cacheWrite1h
+      : other?.cache_creation_tokens || 0
+  return {
+    readRate: Math.min(cacheRead / promptTokens, 1),
+    creationRate: Math.min(cacheWrite / promptTokens, 1),
+  }
+}
+
+/** Format a rate from computeCacheRates as a compact percentage string. */
+export function formatCacheRate(rate: number | null): string | null {
+  if (rate == null || !Number.isFinite(rate)) return null
+  return `${(rate * 100).toFixed(1)}%`
+}
+
 export function getTieredBillingSummary(
   other: LogOtherData | null
 ): TieredBillingSummary | null {

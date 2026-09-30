@@ -25,11 +25,13 @@ import {
   Flame,
   TrendingUp,
   Activity,
+  Database,
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { IconBadgeTone } from '@/components/ui/icon-badge'
+import { useCacheRateStatsVisible } from '@/hooks/use-cache-rate-stats'
 import { safeDivide } from '@/features/dashboard/lib'
 
 interface StatCardConfig {
@@ -43,8 +45,9 @@ interface StatCardConfig {
 
 export function useModelStatCardsConfig(): StatCardConfig[] {
   const { t } = useTranslation()
+  const cacheRatesVisible = useCacheRateStatsVisible()
 
-  return [
+  const cards: StatCardConfig[] = [
     {
       key: 'count',
       title: t('Total Count'),
@@ -88,6 +91,20 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
         safeDivide(stat?.tpm ?? 0, timeRangeMinutes),
     },
   ]
+
+  if (!cacheRatesVisible) return cards
+
+  // One slot for the token-based read/creation rates plus the
+  // request-count-based hit rate; the stat card renders the composite value.
+  cards.push({
+    key: 'cacheRate',
+    title: t('Average cache read/creation rate'),
+    description: t('Cache read / creation rate'),
+    icon: Database,
+    iconTone: 'chart-3',
+    getValue: (stat) => stat?.cacheReadRate ?? 0,
+  })
+  return cards
 }
 
 export function useSummaryCardsConfig(totals: {

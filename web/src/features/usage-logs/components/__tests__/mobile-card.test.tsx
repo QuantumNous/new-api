@@ -24,12 +24,22 @@ import {
 } from '@tanstack/react-table'
 import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, it, vi } from 'vitest'
+import { expect, it, vi, afterEach } from 'vitest'
+
+import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { usageLogSchema, type UsageLog } from '../../data/schema'
 import { useCommonLogsColumns } from '../columns/common-logs-columns'
 import { UsageLogsMobileList } from '../usage-logs-mobile-card'
 import { UsageLogsProvider, useUsageLogsContext } from '../usage-logs-provider'
+
+afterEach(() => {
+  useAuthStore.setState(useAuthStore.getInitialState(), true)
+  useSystemConfigStore.setState(useSystemConfigStore.getInitialState(), true)
+  localStorage.clear()
+})
 
 const longName = 'enterprise-production-failover-2026-without-any-short-alias'
 const log = usageLogSchema.parse({
@@ -223,7 +233,49 @@ it('keeps input, output and cache quantities readable without empty metric cells
   expect(screen.getByText('Input')).toBeVisible()
   expect(screen.getByText('Output')).toBeVisible()
   expect(screen.getByText(/300/)).toBeVisible()
+  expect(screen.getByText('Cache ↑ 200 (16.7%)')).toBeVisible()
+})
+
+it('appends cache read and creation rates next to the cache token counts by default', () => {
+  renderLogs()
+  // prompt=1200, cache read=300 -> 25.0%; cache write 5m=200 -> 16.7%.
+  expect(screen.getByText('Cache ↓ 300 (25.0%)')).toBeVisible()
+  expect(screen.getByText('Cache ↑ 200 (16.7%)')).toBeVisible()
+})
+
+it('hides cache rates for everyone when the cache rate stats switch is off', () => {
+  useSystemConfigStore
+    .getState()
+    .setConfig({ cacheRateStatsEnabled: false })
+  renderLogs()
+  expect(screen.getByText('Cache ↓ 300')).toBeVisible()
   expect(screen.getByText('Cache ↑ 200')).toBeVisible()
+  expect(
+    screen.queryByText(/Cache [↓↑] \d+ \(/)
+  ).not.toBeInTheDocument()
+})
+
+it('hides cache rates from regular users when user visibility is off', () => {
+  useSystemConfigStore
+    .getState()
+    .setConfig({ cacheRateUserVisibleEnabled: false })
+  renderLogs()
+  expect(screen.getByText('Cache ↓ 300')).toBeVisible()
+  expect(
+    screen.queryByText(/Cache [↓↑] \d+ \(/)
+  ).not.toBeInTheDocument()
+})
+
+it('keeps cache rates for admins when user visibility is off', () => {
+  useSystemConfigStore
+    .getState()
+    .setConfig({ cacheRateUserVisibleEnabled: false })
+  useAuthStore
+    .getState()
+    .auth.setUser({ id: 1, username: 'tester', role: ROLE.ADMIN })
+  renderLogs()
+  expect(screen.getByText('Cache ↓ 300 (25.0%)')).toBeVisible()
+  expect(screen.getByText('Cache ↑ 200 (16.7%)')).toBeVisible()
 })
 
 it('shows the established empty state when no logs exist', () => {

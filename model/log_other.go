@@ -23,6 +23,48 @@ var legacySensitiveLogOtherKeys = []string{
 	"reject_reason",
 }
 
+// userHiddenCacheLogOtherKeys are cache-usage fields normally visible to log
+// owners. When the cache-rate feature is disabled or hidden from common users
+// (CacheRateStatsEnabled / CacheRateUserVisibleEnabled), they are stripped
+// from user-scope projections only; admin/root projections keep them.
+var userHiddenCacheLogOtherKeys = []string{
+	"cache_tokens",
+	"cache_creation_tokens",
+	"cache_creation_tokens_5m",
+	"cache_creation_tokens_1h",
+	"cache_write_tokens",
+	"image_cache_tokens",
+}
+
+// userHiddenBillingTokenKeys are cache-derived entries nested inside the
+// public "billing_tokens" map (tiered billing). They follow the same
+// user-scope stripping as userHiddenCacheLogOtherKeys; unrelated billing
+// metadata in the same map stays visible.
+var userHiddenBillingTokenKeys = []string{
+	"cr",
+	"cc",
+	"cc1h",
+	"img_cr",
+}
+
+// CacheStatsVisibleToUser reports whether common users may see their own
+// cache-usage fields. updateOptionMap writes both switches under
+// OptionMapRWMutex, so reads must hold the read lock to avoid a data race
+// with concurrent option updates.
+func CacheStatsVisibleToUser() bool {
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
+	return common.CacheRateStatsEnabled && common.CacheRateUserVisibleEnabled
+}
+
+// CacheStatsEnabled reports whether the cache-rate feature is on at all,
+// read under the same option lock as CacheStatsVisibleToUser.
+func CacheStatsEnabled() bool {
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
+	return common.CacheRateStatsEnabled
+}
+
 type logOtherVisibility int
 
 const (
@@ -209,6 +251,34 @@ func normalizeLegacyRejectReason(values map[string]json.RawMessage) bool {
 	return true
 }
 
+// stripCacheDerivedBillingTokens removes cache-derived entries from the
+// nested "billing_tokens" map while keeping unrelated billing metadata. It
+// returns the stripped JSON and true when entries were removed. If the value
+// is not a JSON object there is nothing cache-derived to hide; if re-marshaling
+// fails after removal it returns nil, true so the caller drops the whole key
+// rather than leak the stripped entries.
+func stripCacheDerivedBillingTokens(raw json.RawMessage) (json.RawMessage, bool) {
+	var entries map[string]json.RawMessage
+	if err := common.UnmarshalJsonStr(string(raw), &entries); err != nil {
+		return raw, false
+	}
+	removed := false
+	for _, key := range userHiddenBillingTokenKeys {
+		if _, exists := entries[key]; exists {
+			delete(entries, key)
+			removed = true
+		}
+	}
+	if !removed {
+		return raw, false
+	}
+	stripped, err := common.Marshal(entries)
+	if err != nil {
+		return nil, true
+	}
+	return stripped, true
+}
+
 // formatLogOtherJSON applies the role projection while keeping untouched JSON
 // values as RawMessage. This preserves integers larger than JavaScript's safe
 // range instead of round-tripping them through float64.
@@ -237,6 +307,27 @@ func formatLogOtherJSON(value string, visibility logOtherVisibility) string {
 			if _, exists := values[key]; exists {
 				delete(values, key)
 				changed = true
+			}
+		}
+		if !CacheStatsVisibleToUser() {
+			for _, key := range userHiddenCacheLogOtherKeys {
+				if _, exists := values[key]; exists {
+					delete(values, key)
+					changed = true
+				}
+			}
+			// Tiered billing keeps cache counts nested inside the public
+			// billing_tokens map; hide those entries too, keeping the
+			// non-cache billing metadata intact.
+			if raw, exists := values["billing_tokens"]; exists {
+				if stripped, removed := stripCacheDerivedBillingTokens(raw); removed {
+					if stripped == nil {
+						delete(values, "billing_tokens")
+					} else {
+						values["billing_tokens"] = stripped
+					}
+					changed = true
+				}
 			}
 		}
 	} else {

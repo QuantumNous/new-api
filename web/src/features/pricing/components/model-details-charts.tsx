@@ -27,6 +27,12 @@ import { useChartTheme } from '@/lib/use-chart-theme'
 import { cn } from '@/lib/utils'
 import { VCHART_OPTION } from '@/lib/vchart'
 
+import type { ModelCacheStatsBucket } from '../api'
+import {
+  buildModelCacheRateChartData,
+  type ModelCacheRateMetric,
+  type ModelCacheRateMetricOption,
+} from '../lib/model-cache-chart'
 import type { LatencyTimePoint, UptimeDayPoint } from '../lib/mock-stats'
 
 function formatHourLabel(iso: string): string {
@@ -175,6 +181,107 @@ export function LatencyTrendChart(props: {
       {themeReady && spec && (
         <VChart
           key={`latency-${resolvedTheme}`}
+          spec={{
+            ...spec,
+            theme: resolvedTheme === 'dark' ? 'dark' : 'light',
+            background: 'transparent',
+          }}
+          option={VCHART_OPTION}
+        />
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Cache rate trend chart (24h, multi-metric line chart)
+// ---------------------------------------------------------------------------
+
+// One stable color per metric so dropping a line never recolors the others.
+const CACHE_RATE_METRIC_COLORS: Record<ModelCacheRateMetric, string> = {
+  read: '#6366f1',
+  creation: '#f59e0b',
+  hit: '#10b981',
+}
+
+const CACHE_RATE_AXIS_MAX = 100
+
+export function CacheRateTrendChart(props: {
+  buckets: ModelCacheStatsBucket[]
+  metrics: ModelCacheRateMetricOption[]
+  className?: string
+}) {
+  const { resolvedTheme, themeReady } = useChartTheme()
+  const { textColor, gridColor } = getChartThemeTokens(resolvedTheme)
+
+  const spec = useMemo(() => {
+    const values = buildModelCacheRateChartData(props.buckets, props.metrics)
+    if (values.length === 0) return null
+    const colorDomain = props.metrics.map((metric) => metric.label)
+    const colorRange = props.metrics.map(
+      (metric) => CACHE_RATE_METRIC_COLORS[metric.key]
+    )
+    return {
+      type: 'line' as const,
+      data: [{ id: 'cacheRate', values }],
+      xField: 'time',
+      yField: 'rate',
+      seriesField: 'series',
+      smooth: true,
+      point: {
+        visible: true,
+        style: { size: 4, stroke: '#ffffff', lineWidth: 1 },
+      },
+      line: {
+        style: { lineWidth: 2 },
+      },
+      legends: { visible: true },
+      color: {
+        type: 'ordinal' as const,
+        domain: colorDomain,
+        range: colorRange,
+      },
+      tooltip: {
+        mark: {
+          title: { value: (d: { time: string }) => d.time },
+          content: [
+            {
+              key: (d: { series: string }) => d.series,
+              value: (d: { rate: number }) => `${d.rate.toFixed(1)}%`,
+            },
+          ],
+        },
+      },
+      axes: [
+        {
+          orient: 'bottom',
+          label: {
+            style: { fill: textColor, fontSize: 10 },
+            autoLimit: true,
+          },
+          tick: { visible: false },
+        },
+        {
+          orient: 'left',
+          max: CACHE_RATE_AXIS_MAX,
+          label: {
+            formatMethod: (val: number | string) => `${val}%`,
+            style: { fill: textColor, fontSize: 10 },
+          },
+          grid: {
+            visible: true,
+            style: { lineDash: [3, 3], stroke: gridColor },
+          },
+        },
+      ],
+    }
+  }, [gridColor, props.buckets, props.metrics, textColor])
+
+  return (
+    <div className={cn('h-56 sm:h-64', props.className)}>
+      {themeReady && spec && (
+        <VChart
+          key={`cache-rate-${resolvedTheme}`}
           spec={{
             ...spec,
             theme: resolvedTheme === 'dark' ? 'dark' : 'light',

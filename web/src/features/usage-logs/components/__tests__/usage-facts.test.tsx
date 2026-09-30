@@ -21,6 +21,8 @@ import { render, screen, within } from '@testing-library/react'
 import i18next from 'i18next'
 import { afterEach, beforeAll, describe, expect, test } from 'vitest'
 
+import { useSystemConfigStore } from '@/stores/system-config-store'
+
 import type { UsageLog } from '../../data/schema'
 import type { LogOtherData } from '../../types'
 import { DetailsDialog } from '../dialogs/details-dialog'
@@ -163,6 +165,38 @@ describe('usage facts billing details', () => {
         .getAllByText('Cache Read')
         .some((label) => label.nextElementSibling?.textContent === '300')
     ).toBe(true)
+    expect(rowValue('Cache Read Rate')).toBe('30.0%')
+    expect(
+      screen.queryByText('Cache Creation Rate')
+    ).not.toBeInTheDocument()
+  })
+
+  test('omits cache rate rows when the cache rate stats switch is off', () => {
+    useSystemConfigStore
+      .getState()
+      .setConfig({ cacheRateStatsEnabled: false })
+    queryClients.push(renderDetails({ cache_tokens: 300 }, 1000))
+    expect(
+      screen
+        .getAllByText('Cache Read')
+        .some((label) => label.nextElementSibling?.textContent === '300')
+    ).toBe(true)
+    expect(
+      screen.queryByText('Cache Read Rate')
+    ).not.toBeInTheDocument()
+    // The request-count hit indicator is cache-derived too and must follow
+    // the same visibility switch.
+    expect(screen.queryByText('Cache Hit')).not.toBeInTheDocument()
+  })
+
+  test('marks a request that read cached tokens as a cache hit', () => {
+    queryClients.push(renderDetails({ cache_tokens: 300 }, 1000))
+    expect(rowValue('Cache Hit')).toBe('Hit')
+  })
+
+  test('marks a request without cached reads as a cache miss', () => {
+    queryClients.push(renderDetails({ cache_creation_tokens: 50 }, 1000))
+    expect(rowValue('Cache Hit')).toBe('Miss')
   })
 
   beforeAll(() => {
@@ -174,6 +208,7 @@ describe('usage facts billing details', () => {
       queryClient.clear()
     }
     queryClients.length = 0
+    useSystemConfigStore.setState(useSystemConfigStore.getInitialState(), true)
   })
 
   test('renders one raw-key row per usage fact before total cost', () => {

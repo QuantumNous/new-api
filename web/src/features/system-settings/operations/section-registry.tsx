@@ -55,6 +55,10 @@ const OPERATIONS_SECTIONS = [
             settings['perf_metrics_setting.bucket_time'] ?? 'hour',
           'perf_metrics_setting.retention_days':
             settings['perf_metrics_setting.retention_days'] ?? 0,
+          CacheRateStatsEnabled: Boolean(settings.CacheRateStatsEnabled),
+          CacheRateUserVisibleEnabled: Boolean(
+            settings.CacheRateUserVisibleEnabled
+          ),
         }}
       />
     ),
@@ -97,7 +101,9 @@ const OPERATIONS_SECTIONS = [
     titleKey: 'Log Maintenance',
     build: (settings: OperationsSettings) => (
       <LogSettingsSection
-        defaultEnabled={Boolean(settings.LogConsumeEnabled)}
+        defaultValues={{
+          LogConsumeEnabled: Boolean(settings.LogConsumeEnabled),
+        }}
       />
     ),
   },

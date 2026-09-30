@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -50,7 +50,6 @@ import {
 } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
-import { useResetForm } from '../hooks/use-reset-form'
 import { useUpdateOption } from '../hooks/use-update-option'
 import { safeNumberFieldProps } from '../utils/numeric-field'
 
@@ -68,6 +67,8 @@ const monitoringSchema = z.object({
     bucket_time: z.enum(['minute', '5min', 'hour']),
     retention_days: z.coerce.number().min(0),
   }),
+  CacheRateStatsEnabled: z.boolean(),
+  CacheRateUserVisibleEnabled: z.boolean(),
 })
 
 type MonitoringFormInput = z.input<typeof monitoringSchema>
@@ -79,6 +80,8 @@ type FlatMonitoringDefaults = {
   'perf_metrics_setting.flush_interval': number
   'perf_metrics_setting.bucket_time': 'minute' | '5min' | 'hour'
   'perf_metrics_setting.retention_days': number
+  CacheRateStatsEnabled: boolean
+  CacheRateUserVisibleEnabled: boolean
 }
 
 type MonitoringSettingsSectionProps = {
@@ -95,6 +98,8 @@ const buildFormDefaults = (
     bucket_time: defaults['perf_metrics_setting.bucket_time'],
     retention_days: defaults['perf_metrics_setting.retention_days'],
   },
+  CacheRateStatsEnabled: defaults.CacheRateStatsEnabled,
+  CacheRateUserVisibleEnabled: defaults.CacheRateUserVisibleEnabled,
 })
 
 const normalizeDefaults = (
@@ -108,6 +113,8 @@ const normalizeDefaults = (
     defaults['perf_metrics_setting.bucket_time'],
   'perf_metrics_setting.retention_days':
     defaults['perf_metrics_setting.retention_days'],
+  CacheRateStatsEnabled: defaults.CacheRateStatsEnabled,
+  CacheRateUserVisibleEnabled: defaults.CacheRateUserVisibleEnabled,
 })
 
 const normalizeFormValues = (
@@ -120,6 +127,8 @@ const normalizeFormValues = (
   'perf_metrics_setting.bucket_time': values.perf_metrics_setting.bucket_time,
   'perf_metrics_setting.retention_days':
     values.perf_metrics_setting.retention_days,
+  CacheRateStatsEnabled: values.CacheRateStatsEnabled,
+  CacheRateUserVisibleEnabled: values.CacheRateUserVisibleEnabled,
 })
 
 export function MonitoringSettingsSection({
@@ -127,40 +136,70 @@ export function MonitoringSettingsSection({
 }: MonitoringSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
-  const baselineRef = useRef<FlatMonitoringDefaults>(
-    normalizeDefaults(defaultValues)
-  )
-  const baselineSerializedRef = useRef<string>(
-    JSON.stringify(normalizeDefaults(defaultValues))
-  )
 
-  const formDefaults = useMemo(
-    () => buildFormDefaults(defaultValues),
-    [defaultValues]
+  // Flat per-field locals: the reset effect's dependency array must consist
+  // of simple identifiers, and the parent registry rebuilds the defaults
+  // object on every render, so depending on the object identity would reset
+  // away unsaved edits.
+  const {
+    QuotaRemindThreshold: quotaRemindThreshold,
+    'perf_metrics_setting.enabled': perfMetricsEnabledDefault,
+    'perf_metrics_setting.flush_interval': perfMetricsFlushIntervalDefault,
+    'perf_metrics_setting.bucket_time': perfMetricsBucketTimeDefault,
+    'perf_metrics_setting.retention_days': perfMetricsRetentionDaysDefault,
+    CacheRateStatsEnabled: cacheRateStatsEnabledDefault,
+    CacheRateUserVisibleEnabled: cacheRateUserVisibleEnabledDefault,
+  } = defaultValues
+
+  // Last values known to be persisted on the server. defaultValues comes from
+  // a query and can lag behind our own successful saves; comparing against it
+  // would silently drop a reversal saved inside that window. Own a copy and
+  // replace it immutably so the caller's defaults object is never mutated.
+  const lastSavedRef = useRef<FlatMonitoringDefaults>(
+    normalizeDefaults(defaultValues)
   )
 
   const form = useForm<MonitoringFormInput, unknown, MonitoringFormValues>({
     resolver: zodResolver(monitoringSchema),
-    defaultValues: formDefaults,
+    defaultValues: buildFormDefaults(defaultValues),
   })
 
-  useResetForm(form, formDefaults)
-
+  // Skip the reset when the refresh only echoes values we already saved, so
+  // edits made while the query refetch was in flight survive.
   useEffect(() => {
-    const normalized = normalizeDefaults(defaultValues)
-    const serialized = JSON.stringify(normalized)
-    if (serialized === baselineSerializedRef.current) return
-    baselineRef.current = normalized
-    baselineSerializedRef.current = serialized
-  }, [defaultValues])
+    const next = normalizeDefaults({
+      QuotaRemindThreshold: quotaRemindThreshold,
+      'perf_metrics_setting.enabled': perfMetricsEnabledDefault,
+      'perf_metrics_setting.flush_interval': perfMetricsFlushIntervalDefault,
+      'perf_metrics_setting.bucket_time': perfMetricsBucketTimeDefault,
+      'perf_metrics_setting.retention_days': perfMetricsRetentionDaysDefault,
+      CacheRateStatsEnabled: cacheRateStatsEnabledDefault,
+      CacheRateUserVisibleEnabled: cacheRateUserVisibleEnabledDefault,
+    })
+    if (JSON.stringify(next) === JSON.stringify(lastSavedRef.current)) {
+      return
+    }
+    lastSavedRef.current = next
+    form.reset(buildFormDefaults(next))
+  }, [
+    quotaRemindThreshold,
+    perfMetricsEnabledDefault,
+    perfMetricsFlushIntervalDefault,
+    perfMetricsBucketTimeDefault,
+    perfMetricsRetentionDaysDefault,
+    cacheRateStatsEnabledDefault,
+    cacheRateUserVisibleEnabledDefault,
+    form,
+  ])
 
   const perfMetricsEnabled = form.watch('perf_metrics_setting.enabled')
+  const cacheRateStatsEnabled = form.watch('CacheRateStatsEnabled')
 
   const onSubmit = async (values: MonitoringFormValues) => {
     const normalized = normalizeFormValues(values)
     const updates = (
       Object.keys(normalized) as Array<keyof FlatMonitoringDefaults>
-    ).filter((key) => normalized[key] !== baselineRef.current[key])
+    ).filter((key) => normalized[key] !== lastSavedRef.current[key])
 
     if (updates.length === 0) {
       toast.info(t('No changes to save'))
@@ -168,14 +207,26 @@ export function MonitoringSettingsSection({
     }
 
     for (const key of updates) {
-      await updateOption.mutateAsync({
-        key,
-        value: normalized[key],
-      })
+      try {
+        await updateOption.mutateAsync({
+          key,
+          value: normalized[key],
+        })
+      } catch {
+        // The mutation's onError already reports the failure; stop applying
+        // the remaining options so they keep their last saved values.
+        return
+      }
+      // Union-keyed writes need the widened record view; `saved` itself keeps
+      // the FlatMonitoringDefaults shape.
+      const saved = { ...lastSavedRef.current }
+      const writable = saved as Record<
+        keyof FlatMonitoringDefaults,
+        string | number | boolean
+      >
+      writable[key] = normalized[key]
+      lastSavedRef.current = saved
     }
-
-    baselineRef.current = normalized
-    baselineSerializedRef.current = JSON.stringify(normalized)
   }
 
   return (
@@ -310,6 +361,67 @@ export function MonitoringSettingsSection({
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
+              )}
+            />
+          </div>
+
+          <div>
+            <h4 className='font-medium'>{t('Cache rate statistics')}</h4>
+            <p className='text-muted-foreground mt-1 text-xs'>
+              {t(
+                'Cache read/creation rates and request-count hit rates in usage logs, the data dashboard, and the model square.'
+              )}
+            </p>
+          </div>
+
+          <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
+            <FormField
+              control={form.control}
+              name='CacheRateStatsEnabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>
+                      {t('Enable cache rate statistics')}
+                    </FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Show cache read and creation rates in usage logs and the data dashboard.'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name='CacheRateUserVisibleEnabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>
+                      {t('Allow regular users to view cache statistics')}
+                    </FormLabel>
+                    <FormDescription>
+                      {t(
+                        'When disabled, cache token usage is hidden from regular users in their own logs and dashboard.'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                      disabled={!cacheRateStatsEnabled}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
               )}
             />
           </div>
