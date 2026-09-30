@@ -229,6 +229,28 @@ test.each([true, false])(
   }
 )
 
+test('consume log shows the recorded caller IP and client identifier', async () => {
+  const preview = renderPreview({
+    model_price: 0.25,
+    client_ip: '203.0.113.8',
+    client_agent: 'OpenAI/Python 1.0',
+  })
+  fireEvent.click(preview)
+  const dialog = within(await screen.findByRole('dialog'))
+  expect(dialog.getByText('IP Address')).toBeVisible()
+  expect(dialog.getByText('203.0.113.8')).toBeVisible()
+  expect(dialog.getByText('Client Identifier')).toBeVisible()
+  expect(dialog.getByText('OpenAI/Python 1.0')).toBeVisible()
+})
+
+test('consume log without recorded client metadata omits the client rows', async () => {
+  const preview = renderPreview({ model_price: 0.25 })
+  fireEvent.click(preview)
+  const dialog = within(await screen.findByRole('dialog'))
+  expect(dialog.queryByText('Client Identifier')).not.toBeInTheDocument()
+  expect(dialog.queryByText('IP Address')).not.toBeInTheDocument()
+})
+
 test.each([
   {
     expression: 'tier("music", u("clips") * 0.25)',

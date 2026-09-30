@@ -23,6 +23,34 @@ var legacySensitiveLogOtherKeys = []string{
 	"reject_reason",
 }
 
+// userHiddenClientInfoLogOtherKeys are the caller IP and client identifier
+// recorded by the LogRecordClientInfoEnabled system switch. When
+// LogClientInfoUserVisibleEnabled is off they are stripped from user-scope
+// projections only; admin/root projections keep them.
+var userHiddenClientInfoLogOtherKeys = []string{
+	"client_ip",
+	"client_agent",
+}
+
+// ClientInfoRecordEnabled reports whether the caller IP and client identifier
+// should be recorded into usage/error log metadata. updateOptionMap writes the
+// switch under OptionMapRWMutex, so reads must hold the read lock to avoid a
+// data race with concurrent option updates.
+func ClientInfoRecordEnabled() bool {
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
+	return common.LogRecordClientInfoEnabled
+}
+
+// ClientInfoVisibleToUser reports whether common users may see the caller IP
+// and client identifier recorded on their own logs, read under the same
+// option lock as ClientInfoRecordEnabled.
+func ClientInfoVisibleToUser() bool {
+	common.OptionMapRWMutex.RLock()
+	defer common.OptionMapRWMutex.RUnlock()
+	return common.LogClientInfoUserVisibleEnabled
+}
+
 type logOtherVisibility int
 
 const (
@@ -237,6 +265,16 @@ func formatLogOtherJSON(value string, visibility logOtherVisibility) string {
 			if _, exists := values[key]; exists {
 				delete(values, key)
 				changed = true
+			}
+		}
+		// Caller IP and client identifier follow the dedicated user
+		// visibility switch; admin/root projections keep them.
+		if !ClientInfoVisibleToUser() {
+			for _, key := range userHiddenClientInfoLogOtherKeys {
+				if _, exists := values[key]; exists {
+					delete(values, key)
+					changed = true
+				}
 			}
 		}
 	} else {

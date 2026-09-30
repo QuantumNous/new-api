@@ -275,13 +275,35 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 	}
 }
 
+// withClientInfo stores the caller IP and client identifier into usage/error
+// log metadata when the LogRecordClientInfoEnabled system switch is on. The
+// fields are written to the user-visible scope; user-scope projections strip
+// them again while LogClientInfoUserVisibleEnabled is off.
+func withClientInfo(c *gin.Context, other *LogOther) *LogOther {
+	if c == nil || c.Request == nil || !ClientInfoRecordEnabled() {
+		return other
+	}
+	if other == nil {
+		other = NewLogOther()
+	}
+	// Cap the agent at 512 runes, the same budget the audit log keeps for
+	// its user_agent column.
+	agent := []rune(c.Request.UserAgent())
+	if len(agent) > 512 {
+		agent = agent[:512]
+	}
+	other.SetPublic("client_ip", c.ClientIP())
+	other.SetPublic("client_agent", string(agent))
+	return other
+}
+
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other *LogOther) {
 	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, common.LocalLogPreview(content)))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
-	otherStr := other.JSONString()
+	otherStr := withClientInfo(c, other).JSONString()
 	// 判断是否需要记录 IP
 	needRecordIp := false
 	if settingMap, err := GetUserSetting(userId, false); err == nil {
@@ -345,7 +367,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	createdAt := common.GetTimestamp()
-	otherStr := params.Other.JSONString()
+	otherStr := withClientInfo(c, params.Other).JSONString()
 	// 判断是否需要记录 IP
 	needRecordIp := false
 	if settingMap, err := GetUserSetting(userId, false); err == nil {

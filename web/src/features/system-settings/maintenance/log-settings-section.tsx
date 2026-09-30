@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
@@ -85,12 +85,14 @@ import type { LogCleanupTask } from '../types'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
+  LogRecordClientInfoEnabled: z.boolean(),
+  LogClientInfoUserVisibleEnabled: z.boolean(),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 
 type LogSettingsSectionProps = {
-  defaultEnabled: boolean
+  defaultValues: LogSettingsFormValues
 }
 
 type ServerLogInfo = {
@@ -145,15 +147,13 @@ function isActiveLogCleanupTask(task: LogCleanupTask | null) {
 }
 
 export function LogSettingsSection({
-  defaultEnabled,
+  defaultValues,
 }: LogSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
   const form = useForm<LogSettingsFormValues>({
     resolver: zodResolver(logSettingsSchema),
-    defaultValues: {
-      LogConsumeEnabled: defaultEnabled,
-    },
+    defaultValues,
   })
 
   const [purgeDate, setPurgeDate] = useState<Date | undefined>(() =>
@@ -179,9 +179,39 @@ export function LogSettingsSection({
     }
   }, [])
 
+  // Last values known to be persisted on the server. defaultValues comes from
+  // a query and can lag behind our own successful saves; comparing against it
+  // would silently drop a reversal saved inside that window. Own a copy and
+  // replace it immutably so the caller's defaults object is never mutated.
+  const lastSavedRef = useRef<LogSettingsFormValues>({ ...defaultValues })
+
+  // Depend on the individual default fields, not the defaultValues object
+  // identity: the parent registry rebuilds the object on every render, and an
+  // identity-keyed reset would discard unsaved toggle edits. Skip the reset
+  // when the refresh only echoes values we already saved, so edits made while
+  // the query refetch was in flight survive.
   useEffect(() => {
-    form.reset({ LogConsumeEnabled: defaultEnabled })
-  }, [defaultEnabled, form])
+    const next: LogSettingsFormValues = {
+      LogConsumeEnabled: defaultValues.LogConsumeEnabled,
+      LogRecordClientInfoEnabled: defaultValues.LogRecordClientInfoEnabled,
+      LogClientInfoUserVisibleEnabled: defaultValues.LogClientInfoUserVisibleEnabled,
+    }
+    const saved = lastSavedRef.current
+    if (
+      next.LogConsumeEnabled === saved.LogConsumeEnabled &&
+      next.LogRecordClientInfoEnabled === saved.LogRecordClientInfoEnabled &&
+      next.LogClientInfoUserVisibleEnabled === saved.LogClientInfoUserVisibleEnabled
+    ) {
+      return
+    }
+    lastSavedRef.current = next
+    form.reset(next)
+  }, [
+    defaultValues.LogConsumeEnabled,
+    defaultValues.LogRecordClientInfoEnabled,
+    defaultValues.LogClientInfoUserVisibleEnabled,
+    form,
+  ])
 
   useEffect(() => {
     fetchServerLogInfo()
@@ -263,11 +293,23 @@ export function LogSettingsSection({
   }, [logCleanupActive, logCleanupTaskId, t])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
-    if (values.LogConsumeEnabled === defaultEnabled) return
-    await updateOption.mutateAsync({
-      key: 'LogConsumeEnabled',
-      value: values.LogConsumeEnabled,
-    })
+    const lastSaved = lastSavedRef.current
+    const updates = (Object.keys(values) as Array<keyof LogSettingsFormValues>)
+      .filter((key) => values[key] !== lastSaved[key])
+      .map((key) => ({ key, value: values[key] }))
+    if (updates.length === 0) return
+    for (const update of updates) {
+      try {
+        await updateOption.mutateAsync(update)
+      } catch {
+        // The mutation's onError already reports the failure; stop applying
+        // the remaining options so they keep their last saved values.
+        return
+      }
+      const saved = { ...lastSavedRef.current }
+      saved[update.key] = update.value
+      lastSavedRef.current = saved
+    }
   }
 
   const handleRequestCleanLogs = () => {
@@ -359,6 +401,58 @@ export function LogSettingsSection({
                   <FormDescription>
                     {t(
                       'Track per-request consumption to power usage analytics. Keeping this on increases database writes.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='LogRecordClientInfoEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>
+                    {t('Record caller IP and client identifier')}
+                  </FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Store the caller IP address and client identifier (User-Agent) in usage and error logs for security auditing.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </SettingsSwitchItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='LogClientInfoUserVisibleEnabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>
+                    {t('Allow users to view their own IP and client identifier')}
+                  </FormLabel>
+                  <FormDescription>
+                    {t(
+                      'When enabled, users can see the caller IP and client identifier recorded on their own logs. Admins can always view this information.'
                     )}
                   </FormDescription>
                 </SettingsSwitchContent>
