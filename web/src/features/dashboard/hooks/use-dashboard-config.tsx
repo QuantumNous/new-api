@@ -94,6 +94,7 @@ export function useSummaryCardsConfig(totals: {
   todayUsageDisplay: string
   usedDisplay: string
   requestCountDisplay: string
+  totalTokensDisplay: string
   currencyLabel: string
   currencyEnabled: boolean
 }) {
@@ -124,6 +125,13 @@ export function useSummaryCardsConfig(totals: {
       value: totals.requestCountDisplay,
       description: t('Total requests made'),
       icon: Activity,
+    },
+    {
+      key: 'tokens',
+      title: t('Total Tokens'),
+      value: totals.totalTokensDisplay,
+      description: t('All input + output'),
+      icon: Hash,
     },
   ]
 }

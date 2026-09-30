@@ -81,6 +81,13 @@ export function UsageStats() {
   const byModel = result?.by_model ?? []
   const byChannel = result?.by_channel ?? []
   const totals = result?.totals
+  // Everything the upstream billed for: uncached input, cache reads, cache
+  // writes and output. The four buckets are disjoint.
+  const totalTokens =
+    (totals?.prompt_tokens ?? 0) +
+    (totals?.cache_tokens ?? 0) +
+    (totals?.cache_creation_tokens ?? 0) +
+    (totals?.completion_tokens ?? 0)
 
   return (
     <SectionPageLayout fixedContent>
@@ -99,7 +106,7 @@ export function UsageStats() {
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
         <div className='flex flex-col gap-3'>
-          <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5'>
+          <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4'>
             <SummaryCard
               label={t('Cost')}
               value={formatQuota(totals?.quota ?? 0)}
@@ -107,6 +114,15 @@ export function UsageStats() {
             <SummaryCard
               label={t('Requests')}
               value={formatNumber(totals?.count ?? 0)}
+            />
+            <SummaryCard
+              label={t('Total Tokens')}
+              value={formatTokens(totalTokens)}
+              hint={t('All input + output')}
+            />
+            <SummaryCard
+              label={t('Output')}
+              value={formatTokens(totals?.completion_tokens ?? 0)}
             />
             <SummaryCard
               label={t('Uncached Input')}
@@ -117,6 +133,11 @@ export function UsageStats() {
               label={t('Cache Hit')}
               value={formatTokens(totals?.cache_tokens ?? 0)}
               hint={t('Billed at the cache ratio')}
+            />
+            <SummaryCard
+              label={t('Cache Write')}
+              value={formatTokens(totals?.cache_creation_tokens ?? 0)}
+              hint={t('Billed as cache creation')}
             />
             <SummaryCard
               label={t('Cache Hit Rate')}

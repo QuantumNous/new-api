@@ -6876,6 +6876,8 @@
     "Cache Hit ÷ (Uncached Input + Cache Hit)": "Cache Hit ÷ (Uncached Input + Cache Hit)",
     "No usage in this time range": "No usage in this time range",
     "Try widening the time range.": "Try widening the time range.",
-    "Per-model and per-channel consumption, cache hit rate and cost.": "Per-model and per-channel consumption, cache hit rate and cost."
+    "Per-model and per-channel consumption, cache hit rate and cost.": "Per-model and per-channel consumption, cache hit rate and cost.",
+    "All input + output": "All input + output",
+    "Billed as cache creation": "Billed as cache creation"
   }
 }
