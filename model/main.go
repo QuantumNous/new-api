@@ -370,9 +370,13 @@ func migrateDB() error {
 		&SystemTaskLock{},
 		&CasbinRule{},
 		&AuthzRole{},
+		&IpBlacklist{},
 	)
 	if err != nil {
 		return err
+	}
+	if err := LoadIpBlacklistCache(); err != nil {
+		common.SysError("failed to load ip blacklist cache: " + err.Error())
 	}
 	if err := InitializeUserAuthVersions(); err != nil {
 		return err

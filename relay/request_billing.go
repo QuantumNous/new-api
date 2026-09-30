@@ -45,7 +45,8 @@ func PrepareRequestBilling(c *gin.Context, info *relaycommon.RelayInfo) *types.N
 			service.RequestPolicy(c).AddEvent(service.PolicyEvent{ErrorCode: string(types.ErrorCodeSensitiveWordsDetected), ErrorSource: "local", Decision: service.PolicyDecision{Action: "stop", Reason: "local_rejection", Source: "global"}, Health: "unchanged"})
 			message := fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", "))
 			logger.LogWarn(c, message)
-			return types.NewError(errors.New(message), types.ErrorCodeSensitiveWordsDetected)
+			service.SetDetectedSensitiveWords(c, words)
+			return types.NewError(errors.New(message), types.ErrorCodeSensitiveWordsDetected, types.ErrOptionWithSkipRetry())
 		}
 	}
 

@@ -308,6 +308,12 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.DELETE("/invalid", controller.DeleteInvalidRedemption)
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
+		ipBlacklistRoute := apiRouter.Group("/ip-blacklist")
+		ipBlacklistRoute.Use(middleware.AdminAuth())
+		{
+			ipBlacklistRoute.GET("/", controller.GetIpBlacklist)
+			ipBlacklistRoute.DELETE("/:id", controller.DeleteIpBlacklist)
+		}
 		apiRouter.GET("/audit", middleware.DisableCache(), middleware.AdminAuth(), middleware.RequirePermission(authz.AuditRead), controller.GetAuditLogs)
 		apiRouter.GET("/audit/self", middleware.DisableCache(), middleware.UserAuth(), controller.GetAuditLogs)
 		logRoute := apiRouter.Group("/log")
