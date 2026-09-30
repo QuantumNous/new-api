@@ -93,6 +93,22 @@ export function UsageStats() {
     <SectionPageLayout>
       <SectionPageLayout.Title>{t('Usage Stats')}</SectionPageLayout.Title>
       <SectionPageLayout.Actions>
+        <div className='bg-muted/60 inline-flex h-8 items-center rounded-lg border p-0.5'>
+          {(['model', 'channel'] as const).map((value) => (
+            <button
+              key={value}
+              type='button'
+              onClick={() => setDimension(value)}
+              className={`inline-flex items-center rounded-md px-3 text-xs font-medium transition-colors ${
+                dimension === value
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {value === 'model' ? t('By Model') : t('By Channel')}
+            </button>
+          ))}
+        </div>
         <CompactDateTimeRangePicker
           start={range.start}
           end={range.end}
@@ -150,29 +166,15 @@ export function UsageStats() {
           <CacheHitRateChart
             items={dimension === 'model' ? byModel : byChannel}
             dimension={dimension}
-            onDimensionChange={setDimension}
             loading={query.isLoading}
           />
 
-          <div className='flex flex-col gap-2'>
-            <div className='text-sm font-semibold'>{t('By Model')}</div>
-            <UsageStatTable
-              items={byModel}
-              dimension='model'
-              isLoading={query.isLoading}
-              isFetching={query.isFetching}
-            />
-          </div>
-
-          <div className='flex flex-col gap-2'>
-            <div className='text-sm font-semibold'>{t('By Channel')}</div>
-            <UsageStatTable
-              items={byChannel}
-              dimension='channel'
-              isLoading={query.isLoading}
-              isFetching={query.isFetching}
-            />
-          </div>
+          <UsageStatTable
+            items={dimension === 'model' ? byModel : byChannel}
+            dimension={dimension}
+            isLoading={query.isLoading}
+            isFetching={query.isFetching}
+          />
         </div>
       </SectionPageLayout.Content>
     </SectionPageLayout>

@@ -34,7 +34,6 @@ let themeManagerPromise: Promise<
 type CacheHitRateChartProps = {
   items: UsageStatItem[]
   dimension: UsageStatDimension
-  onDimensionChange: (dimension: UsageStatDimension) => void
   loading?: boolean
 }
 
@@ -115,21 +114,8 @@ export function CacheHitRateChart(props: CacheHitRateChartProps) {
           </IconBadge>
           <div className='text-sm font-semibold'>{t('Cache Hit Rate')}</div>
         </div>
-        <div className='bg-muted/60 inline-flex h-7 w-full overflow-x-auto rounded-lg border p-0.5 sm:h-8 sm:w-auto'>
-          {(['model', 'channel'] as const).map((value) => (
-            <button
-              key={value}
-              type='button'
-              onClick={() => props.onDimensionChange(value)}
-              className={`inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 text-xs font-medium transition-colors ${
-                props.dimension === value
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {value === 'model' ? t('By Model') : t('By Channel')}
-            </button>
-          ))}
+        <div className='bg-muted/60 text-muted-foreground inline-flex h-7 items-center rounded-lg border px-3 text-xs font-medium sm:h-8'>
+          {props.dimension === 'model' ? t('By Model') : t('By Channel')}
         </div>
       </div>
       <div className='h-[280px] p-1.5 sm:h-80 sm:p-2'>
