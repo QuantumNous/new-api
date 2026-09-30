@@ -6878,6 +6878,7 @@
     "Try widening the time range.": "Try widening the time range.",
     "Per-model and per-channel consumption, cache hit rate and cost.": "Per-model and per-channel consumption, cache hit rate and cost.",
     "All input + output": "All input + output",
-    "Billed as cache creation": "Billed as cache creation"
+    "Billed as cache creation": "Billed as cache creation",
+    "Relies on configured model prices": "Relies on configured model prices"
   }
 }

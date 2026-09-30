@@ -64,10 +64,20 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
     {
       key: 'tokens',
       title: t('Total Tokens'),
-      description: t('Statistical tokens'),
+      description: t('All input + output'),
       icon: Layers,
       iconTone: 'chart-4',
-      getValue: (stat) => stat?.tpm ?? 0,
+      // Prefer the cache-aware aggregate; fall back to the quota_data figure
+      // (which counts prompt + completion only) when it is unavailable.
+      getValue: (stat) => stat?.totalTokensWithCache ?? stat?.tpm ?? 0,
+    },
+    {
+      key: 'cacheTokens',
+      title: t('Cache Hit'),
+      description: t('Billed at the cache ratio'),
+      icon: Layers,
+      iconTone: 'chart-1',
+      getValue: (stat) => stat?.cacheTokens ?? 0,
     },
     {
       key: 'avgRpm',
@@ -95,6 +105,7 @@ export function useSummaryCardsConfig(totals: {
   usedDisplay: string
   requestCountDisplay: string
   totalTokensDisplay: string
+  cacheTokensDisplay: string
   currencyLabel: string
   currencyEnabled: boolean
 }) {
@@ -102,13 +113,25 @@ export function useSummaryCardsConfig(totals: {
 
   return [
     {
-      key: 'todayUsage',
-      title: t('Last 24h usage'),
-      value: totals.todayUsageDisplay,
-      description: totals.currencyEnabled
-        ? `${t('Consumed in the last 24 hours')} (${totals.currencyLabel})`
-        : t('Consumed in the last 24 hours'),
-      icon: Flame,
+      key: 'tokens',
+      title: t('Total Tokens'),
+      value: totals.totalTokensDisplay,
+      description: t('All input + output'),
+      icon: Hash,
+    },
+    {
+      key: 'cacheTokens',
+      title: t('Cache Hit'),
+      value: totals.cacheTokensDisplay,
+      description: t('Billed at the cache ratio'),
+      icon: Layers,
+    },
+    {
+      key: 'requests',
+      title: t('Request Count'),
+      value: totals.requestCountDisplay,
+      description: t('Total requests made'),
+      icon: Activity,
     },
     {
       key: 'usage',
@@ -120,18 +143,13 @@ export function useSummaryCardsConfig(totals: {
       icon: TrendingUp,
     },
     {
-      key: 'requests',
-      title: t('Request Count'),
-      value: totals.requestCountDisplay,
-      description: t('Total requests made'),
-      icon: Activity,
-    },
-    {
-      key: 'tokens',
-      title: t('Total Tokens'),
-      value: totals.totalTokensDisplay,
-      description: t('All input + output'),
-      icon: Hash,
+      key: 'todayUsage',
+      title: t('Last 24h usage'),
+      value: totals.todayUsageDisplay,
+      description: totals.currencyEnabled
+        ? `${t('Consumed in the last 24 hours')} (${totals.currencyLabel})`
+        : t('Consumed in the last 24 hours'),
+      icon: Flame,
     },
   ]
 }

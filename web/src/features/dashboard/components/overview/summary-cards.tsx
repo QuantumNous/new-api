@@ -197,6 +197,11 @@ export function SummaryCards() {
         (tokenTotals.completion_tokens ?? 0)
     )
   }, [totalTokensQuery.data])
+  const cacheTokensDisplay = useMemo(() => {
+    const tokenTotals = totalTokensQuery.data?.data?.totals
+    if (!tokenTotals) return '-'
+    return formatTokens(tokenTotals.cache_tokens ?? 0)
+  }, [totalTokensQuery.data])
 
   const currencyEnabledFromStore = isCurrencyDisplayEnabled()
   const statusCurrencyFlag =
@@ -258,6 +263,7 @@ export function SummaryCards() {
     ...summaryValues,
     todayUsageDisplay,
     totalTokensDisplay,
+    cacheTokensDisplay,
     currencyEnabled,
     currencyLabel,
   })
@@ -297,7 +303,9 @@ export function SummaryCards() {
           <StaggerContainer
             className={cn(
               'grid gap-1.5 sm:gap-3',
-              isAdmin ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'
+              isAdmin
+                ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+                : 'grid-cols-3'
             )}
           >
             {items.map((it) => (

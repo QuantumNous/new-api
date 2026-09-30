@@ -108,26 +108,9 @@ export function UsageStats() {
         <div className='flex flex-col gap-3'>
           <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4'>
             <SummaryCard
-              label={t('Cost')}
-              value={formatQuota(totals?.quota ?? 0)}
-            />
-            <SummaryCard
-              label={t('Requests')}
-              value={formatNumber(totals?.count ?? 0)}
-            />
-            <SummaryCard
               label={t('Total Tokens')}
               value={formatTokens(totalTokens)}
               hint={t('All input + output')}
-            />
-            <SummaryCard
-              label={t('Output')}
-              value={formatTokens(totals?.completion_tokens ?? 0)}
-            />
-            <SummaryCard
-              label={t('Uncached Input')}
-              value={formatTokens(totals?.prompt_tokens ?? 0)}
-              hint={t('Billed at full input price')}
             />
             <SummaryCard
               label={t('Cache Hit')}
@@ -135,14 +118,32 @@ export function UsageStats() {
               hint={t('Billed at the cache ratio')}
             />
             <SummaryCard
+              label={t('Cache Hit Rate')}
+              value={formatPercent((totals?.cache_hit_rate ?? 0) * 100)}
+              hint={t('Cache Hit ÷ (Uncached Input + Cache Hit)')}
+            />
+            <SummaryCard
+              label={t('Uncached Input')}
+              value={formatTokens(totals?.prompt_tokens ?? 0)}
+              hint={t('Billed at full input price')}
+            />
+            <SummaryCard
+              label={t('Output')}
+              value={formatTokens(totals?.completion_tokens ?? 0)}
+            />
+            <SummaryCard
               label={t('Cache Write')}
               value={formatTokens(totals?.cache_creation_tokens ?? 0)}
               hint={t('Billed as cache creation')}
             />
             <SummaryCard
-              label={t('Cache Hit Rate')}
-              value={formatPercent((totals?.cache_hit_rate ?? 0) * 100)}
-              hint={t('Cache Hit ÷ (Uncached Input + Cache Hit)')}
+              label={t('Requests')}
+              value={formatNumber(totals?.count ?? 0)}
+            />
+            <SummaryCard
+              label={t('Cost')}
+              value={formatQuota(totals?.quota ?? 0)}
+              hint={t('Relies on configured model prices')}
             />
           </div>
 

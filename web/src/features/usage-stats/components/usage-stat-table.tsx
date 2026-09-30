@@ -97,34 +97,7 @@ export function UsageStatTable(props: UsageStatTableProps) {
 
     return [
       nameColumn,
-      {
-        id: 'count',
-        accessorKey: 'count',
-        header: ({ column }) => (
-          <DataTableColumnHeader column={column} title={t('Requests')} />
-        ),
-        cell: ({ row }) => (
-          <span className='font-mono text-xs tabular-nums'>
-            {formatNumber(row.original.count)}
-          </span>
-        ),
-      },
-      tokenColumn(
-        'prompt_tokens',
-        t('Uncached Input'),
-        (row) => row.prompt_tokens
-      ),
       tokenColumn('cache_tokens', t('Cache Hit'), (row) => row.cache_tokens),
-      tokenColumn(
-        'cache_creation_tokens',
-        t('Cache Write'),
-        (row) => row.cache_creation_tokens
-      ),
-      tokenColumn(
-        'completion_tokens',
-        t('Output'),
-        (row) => row.completion_tokens
-      ),
       {
         id: 'cache_hit_rate',
         accessorKey: 'cache_hit_rate',
@@ -149,6 +122,33 @@ export function UsageStatTable(props: UsageStatTableProps) {
             </div>
           )
         },
+      },
+      tokenColumn(
+        'prompt_tokens',
+        t('Uncached Input'),
+        (row) => row.prompt_tokens
+      ),
+      tokenColumn(
+        'completion_tokens',
+        t('Output'),
+        (row) => row.completion_tokens
+      ),
+      tokenColumn(
+        'cache_creation_tokens',
+        t('Cache Write'),
+        (row) => row.cache_creation_tokens
+      ),
+      {
+        id: 'count',
+        accessorKey: 'count',
+        header: ({ column }) => (
+          <DataTableColumnHeader column={column} title={t('Requests')} />
+        ),
+        cell: ({ row }) => (
+          <span className='font-mono text-xs tabular-nums'>
+            {formatNumber(row.original.count)}
+          </span>
+        ),
       },
       {
         id: 'quota',

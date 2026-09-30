@@ -6878,6 +6878,7 @@
     "Try widening the time range.": "试试放宽时间范围。",
     "Per-model and per-channel consumption, cache hit rate and cost.": "按模型与按渠道的消耗、缓存命中率与费用。",
     "All input + output": "全部输入 + 输出",
-    "Billed as cache creation": "按缓存创建价计费"
+    "Billed as cache creation": "按缓存创建价计费",
+    "Relies on configured model prices": "取决于所配的模型价格"
   }
 }
