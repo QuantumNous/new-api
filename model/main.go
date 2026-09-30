@@ -361,6 +361,8 @@ func migrateDB() error {
 		&Setup{},
 		&TwoFA{},
 		&TwoFABackupCode{},
+		&UserSession{},
+		&AuthFlow{},
 		&Checkin{},
 		&SubscriptionOrder{},
 		&UserSubscription{},
