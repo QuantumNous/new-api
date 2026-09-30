@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import { api } from '@/lib/api'
@@ -112,29 +112,50 @@ describe('model details cache stats', () => {
   })
 
   test('hides the section when the model has no usage in the window', async () => {
-    mockCacheStats({
-      model_name: 'example-model',
-      count: 0,
-      prompt_tokens: 0,
-      cache_tokens: 0,
-      cache_creation_tokens: 0,
-      cache_hit_count: 0,
-    })
+    const get = vi
+      .spyOn(api, 'get')
+      .mockResolvedValueOnce({
+        data: {
+          success: true,
+          data: {
+            model_name: 'example-model',
+            count: 10,
+            prompt_tokens: 100,
+            cache_tokens: 40,
+            cache_creation_tokens: 5,
+            cache_hit_count: 6,
+          },
+        },
+      } as never)
+      .mockResolvedValueOnce({
+        data: {
+          success: true,
+          data: {
+            model_name: 'example-model',
+            count: 0,
+            prompt_tokens: 0,
+            cache_tokens: 0,
+            cache_creation_tokens: 0,
+            cache_hit_count: 0,
+          },
+        },
+      } as never)
     const queryClient = renderStats()
 
-    await waitFor(() =>
-      expect(api.get).toHaveBeenCalledWith(
-        '/api/data/model-cache',
-        expect.anything()
-      )
-    )
-    // Give the query-driven render a beat, then assert nothing appeared.
-    await waitFor(() => {
-      expect(vi.mocked(api.get).mock.results.length).toBeGreaterThan(0)
+    // Commit a positive render first so the removal assertion below can only
+    // pass on a real zero-count update.
+    expect(await screen.findByText('Cache rate (last 24h)')).toBeVisible()
+    await act(async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['model-cache-stats', 'example-model'],
+      })
     })
-    expect(
-      screen.queryByText('Cache rate (last 24h)')
-    ).not.toBeInTheDocument()
+    await waitFor(() =>
+      expect(
+        screen.queryByText('Cache rate (last 24h)')
+      ).not.toBeInTheDocument()
+    )
+    expect(get).toHaveBeenCalledTimes(2)
     queryClient.clear()
   })
 })
