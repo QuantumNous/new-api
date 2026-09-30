@@ -97,7 +97,13 @@ describe('cache rate charts', () => {
     expect(screen.getByText('Cache Rate Analytics')).toBeVisible()
     expect(screen.getByRole('tab', { name: 'By model' })).toBeVisible()
     expect(
+      screen.getByRole('tab', { name: 'By group' })
+    ).toBeVisible()
+    expect(
       screen.queryByRole('tab', { name: 'By channel' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('tab', { name: 'By user' })
     ).not.toBeInTheDocument()
     expect(
       screen.getByRole('tab', { name: 'Cache Read Rate' })
@@ -277,6 +283,181 @@ describe('cache rate charts', () => {
     renderCharts()
 
     await user.click(screen.getByRole('tab', { name: 'By channel' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('Failed to load cache analytics')).toBeVisible()
+    })
+    expect(screen.queryByTestId('vchart-mock')).not.toBeInTheDocument()
+    expect(
+      screen.queryByText('No cache data available')
+    ).not.toBeInTheDocument()
+  })
+
+  test('loads own-group data on the group dimension for regular users', async () => {
+    const user = userEvent.setup()
+    const get = vi
+      .spyOn(api, 'get')
+      .mockResolvedValue({
+        data: {
+          success: true,
+          data: [
+            {
+              use_group: 'vip',
+              created_at: 1767225600,
+              count: 2,
+              prompt_tokens: 100,
+              cache_tokens: 40,
+              cache_creation_tokens: 0,
+              cache_hit_count: 1,
+            },
+          ],
+        },
+      } as never)
+    renderCharts()
+
+    await user.click(screen.getByRole('tab', { name: 'By group' }))
+
+    await waitFor(() => {
+      expect(get).toHaveBeenCalledWith(
+        '/api/data/group/self',
+        expect.objectContaining({
+          params: expect.not.objectContaining({ username: expect.anything() }),
+        })
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('vchart-mock')).toBeInTheDocument()
+    })
+    const seriesNames = new Set(
+      (chartSpecs.at(-1)?.data?.[0]?.values ?? []).map(
+        (value) => value.Series
+      )
+    )
+    expect(seriesNames.has('vip')).toBe(true)
+  })
+
+  test('loads all-users group data with the username filter for admins', async () => {
+    const user = userEvent.setup()
+    useAuthStore
+      .getState()
+      .auth.setUser({ id: 1, username: 'tester', role: ROLE.ADMIN })
+    const get = vi
+      .spyOn(api, 'get')
+      .mockResolvedValue({
+        data: {
+          success: true,
+          data: [
+            {
+              use_group: 'vip',
+              created_at: 1767225600,
+              count: 1,
+              prompt_tokens: 80,
+              cache_tokens: 60,
+              cache_creation_tokens: 5,
+              cache_hit_count: 1,
+            },
+            {
+              use_group: '',
+              created_at: 1767225600,
+              count: 1,
+              prompt_tokens: 40,
+              cache_tokens: 0,
+              cache_creation_tokens: 0,
+              cache_hit_count: 0,
+            },
+          ],
+        },
+      } as never)
+    renderCharts({ filters: { username: 'alice' } })
+
+    expect(screen.getByRole('tab', { name: 'By user' })).toBeVisible()
+    await user.click(screen.getByRole('tab', { name: 'By group' }))
+
+    await waitFor(() => {
+      expect(get).toHaveBeenCalledWith(
+        '/api/data/group',
+        expect.objectContaining({
+          params: expect.objectContaining({ username: 'alice' }),
+        })
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('vchart-mock')).toBeInTheDocument()
+    })
+    const seriesNames = new Set(
+      (chartSpecs.at(-1)?.data?.[0]?.values ?? []).map(
+        (value) => value.Series
+      )
+    )
+    expect(seriesNames.has('vip')).toBe(true)
+    expect(seriesNames.has('Unknown')).toBe(true)
+  })
+
+  test('loads per-user data on the user dimension for admins', async () => {
+    const user = userEvent.setup()
+    useAuthStore
+      .getState()
+      .auth.setUser({ id: 1, username: 'tester', role: ROLE.ADMIN })
+    const get = vi
+      .spyOn(api, 'get')
+      .mockResolvedValue({
+        data: {
+          success: true,
+          data: [
+            {
+              username: 'alice',
+              created_at: 1767225600,
+              count: 1,
+              prompt_tokens: 100,
+              cache_tokens: 40,
+              cache_creation_tokens: 0,
+              cache_hit_count: 1,
+            },
+            {
+              username: 'bob',
+              created_at: 1767225600,
+              count: 2,
+              prompt_tokens: 50,
+              cache_tokens: 0,
+              cache_creation_tokens: 10,
+              cache_hit_count: 0,
+            },
+          ],
+        },
+      } as never)
+    renderCharts({ filters: { username: 'alice' } })
+
+    await user.click(screen.getByRole('tab', { name: 'By user' }))
+
+    await waitFor(() => {
+      expect(get).toHaveBeenCalledWith(
+        '/api/data/users',
+        expect.objectContaining({
+          params: expect.objectContaining({ username: 'alice' }),
+        })
+      )
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('vchart-mock')).toBeInTheDocument()
+    })
+    const seriesNames = new Set(
+      (chartSpecs.at(-1)?.data?.[0]?.values ?? []).map(
+        (value) => value.Series
+      )
+    )
+    expect(seriesNames.has('alice')).toBe(true)
+    expect(seriesNames.has('bob')).toBe(true)
+  })
+
+  test('renders an error state when the group request fails', async () => {
+    const user = userEvent.setup()
+    useAuthStore
+      .getState()
+      .auth.setUser({ id: 1, username: 'tester', role: ROLE.ADMIN })
+    vi.spyOn(api, 'get').mockRejectedValue(new Error('network down'))
+    renderCharts()
+
+    await user.click(screen.getByRole('tab', { name: 'By group' }))
 
     await waitFor(() => {
       expect(screen.getByText('Failed to load cache analytics')).toBeVisible()

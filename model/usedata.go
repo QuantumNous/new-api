@@ -192,12 +192,15 @@ func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData
 	return quotaDatas, err
 }
 
-func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+func GetQuotaDataGroupByUser(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
-	err = DB.Table("quota_data").
-		Select("username, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
-		Where("created_at >= ? and created_at <= ?", startTime, endTime).
-		Group("username, created_at").
+	query := DB.Table("quota_data").
+		Select("username, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, sum(prompt_tokens) as prompt_tokens, sum(cache_tokens) as cache_tokens, sum(cache_creation_tokens) as cache_creation_tokens, sum(cache_hit_count) as cache_hit_count").
+		Where("created_at >= ? and created_at <= ?", startTime, endTime)
+	if username != "" {
+		query = query.Where("username = ?", username)
+	}
+	err = query.Group("username, created_at").
 		Find(&quotaDatas).Error
 	return quotaDatas, err
 }
@@ -291,4 +294,23 @@ func GetQuotaDataGroupByChannel(startTime int64, endTime int64, username string)
 		return nil, err
 	}
 	return rows, nil
+}
+
+// GetQuotaDataGroupByGroup 返回分组维度（use_group）按小时桶聚合的用量与
+// 缓存列，用于看板缓存率按分组查看；username 或 userId 非空时只聚合对应
+// 范围的数据（管理员按用户名筛选，普通用户仅看自己的分组）。
+func GetQuotaDataGroupByGroup(startTime int64, endTime int64, username string, userId int) ([]*QuotaData, error) {
+	rows := make([]*QuotaData, 0)
+	query := DB.Table("quota_data").
+		Select("use_group, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, sum(prompt_tokens) as prompt_tokens, sum(cache_tokens) as cache_tokens, sum(cache_creation_tokens) as cache_creation_tokens, sum(cache_hit_count) as cache_hit_count").
+		Where("created_at >= ? and created_at <= ?", startTime, endTime)
+	if username != "" {
+		query = query.Where("username = ?", username)
+	}
+	if userId > 0 {
+		query = query.Where("user_id = ?", userId)
+	}
+	err := query.Group("use_group, created_at").
+		Find(&rows).Error
+	return rows, err
 }

@@ -49,7 +49,7 @@ func GetAllQuotaDates(c *gin.Context) {
 func GetQuotaDatesByUser(c *gin.Context) {
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	dates, err := model.GetQuotaDataGroupByUser(startTimestamp, endTimestamp)
+	dates, err := model.GetQuotaDataGroupByUser(startTimestamp, endTimestamp, c.Query("username"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -145,6 +145,56 @@ func GetChannelQuotaDates(c *gin.Context) {
 		"data":    dates,
 	})
 	return
+}
+
+// GetGroupQuotaDates 按分组（use_group）+ 小时聚合全部用户的数据看板记录，
+// 供管理员的缓存率折线图「按分组」维度使用；username 镜像看板的用户筛选。
+func GetGroupQuotaDates(c *gin.Context) {
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	dates, err := model.GetQuotaDataGroupByGroup(startTimestamp, endTimestamp, c.Query("username"), 0)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    dates,
+	})
+}
+
+// GetUserGroupQuotaDates 按分组+小时聚合当前用户自己的数据看板记录，
+// 供普通用户的缓存率折线图「按分组」维度使用；缓存列遵循与 /api/data/self
+// 相同的可见性开关（普通用户且未开启用户可见时清零缓存列）。
+func GetUserGroupQuotaDates(c *gin.Context) {
+	userId := c.GetInt("id")
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	if endTimestamp-startTimestamp > 2592000 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "时间跨度不能超过 1 个月",
+		})
+		return
+	}
+	dates, err := model.GetQuotaDataGroupByGroup(startTimestamp, endTimestamp, "", userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if c.GetInt("role") < common.RoleAdminUser && !model.CacheStatsVisibleToUser() {
+		for _, row := range dates {
+			row.CacheTokens = 0
+			row.CacheCreationTokens = 0
+			row.CacheHitCount = 0
+		}
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    dates,
+	})
 }
 
 func GetAllFlowQuotaDates(c *gin.Context) {

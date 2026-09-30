@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { VChart } from '@visactor/react-vchart'
-import { Database, DatabaseZap, Gauge } from 'lucide-react'
+import { Database, DatabaseZap, Gauge, User, Users } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -32,7 +32,11 @@ import {
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getChannelQuotaDates } from '@/features/dashboard/api'
+import {
+  getChannelQuotaDates,
+  getGroupQuotaDates,
+  getUserQuotaDataByUsers,
+} from '@/features/dashboard/api'
 import { DEFAULT_TIME_GRANULARITY } from '@/features/dashboard/constants'
 import {
   getDefaultDays,
@@ -68,6 +72,8 @@ const METRIC_OPTIONS: Array<{
   { value: 'hit', labelKey: 'Cache Hit Rate' },
 ]
 
+// The channel and user dimensions expose cross-user data, so they stay
+// admin-only; regular users get the model and their own group dimensions.
 const DIMENSION_OPTIONS: Array<{
   value: CacheRateDimension
   labelKey: string
@@ -75,6 +81,8 @@ const DIMENSION_OPTIONS: Array<{
 }> = [
   { value: 'model', labelKey: 'By model', icon: Database },
   { value: 'channel', labelKey: 'By channel', icon: DatabaseZap },
+  { value: 'group', labelKey: 'By group', icon: Users },
+  { value: 'user', labelKey: 'By user', icon: User },
 ]
 
 export function CacheRateCharts(props: CacheRateChartsProps) {
@@ -100,19 +108,19 @@ export function CacheRateCharts(props: CacheRateChartsProps) {
     [props.filters]
   )
 
-  const channelUsername = props.filters?.username
+  const filterUsername = props.filters?.username
   const channelQuery = useQuery({
     queryKey: [
       'dashboard-channel-quota-data',
       timeRange.start_timestamp,
       timeRange.end_timestamp,
-      channelUsername,
+      filterUsername,
     ],
     queryFn: async () => {
       const response = await getChannelQuotaDates({
         start_timestamp: timeRange.start_timestamp,
         end_timestamp: timeRange.end_timestamp,
-        username: channelUsername,
+        username: filterUsername,
       })
       if (!response.success) {
         throw createServerError(
@@ -123,6 +131,62 @@ export function CacheRateCharts(props: CacheRateChartsProps) {
       return response.data ?? []
     },
     enabled: isAdmin && dimension === 'channel',
+    staleTime: 60 * 1000,
+  })
+
+  // Regular users hit the self endpoint (own rows only), so the username
+  // filter is admin-only here.
+  const groupQuery = useQuery({
+    queryKey: [
+      'dashboard-group-quota-data',
+      isAdmin,
+      timeRange.start_timestamp,
+      timeRange.end_timestamp,
+      isAdmin ? filterUsername : undefined,
+    ],
+    queryFn: async () => {
+      const response = await getGroupQuotaDates(
+        {
+          start_timestamp: timeRange.start_timestamp,
+          end_timestamp: timeRange.end_timestamp,
+          ...(isAdmin && filterUsername ? { username: filterUsername } : {}),
+        },
+        isAdmin
+      )
+      if (!response.success) {
+        throw createServerError(
+          response,
+          response.message || t('Failed to load cache analytics')
+        )
+      }
+      return response.data ?? []
+    },
+    enabled: dimension === 'group',
+    staleTime: 60 * 1000,
+  })
+
+  const userQuery = useQuery({
+    queryKey: [
+      'dashboard-user-quota-data',
+      timeRange.start_timestamp,
+      timeRange.end_timestamp,
+      filterUsername,
+    ],
+    queryFn: async () => {
+      const response = await getUserQuotaDataByUsers({
+        start_timestamp: timeRange.start_timestamp,
+        end_timestamp: timeRange.end_timestamp,
+        ...(filterUsername ? { username: filterUsername } : {}),
+      })
+      if (!response.success) {
+        throw createServerError(
+          response,
+          t('Failed to load cache analytics')
+        )
+      }
+      return response.data ?? []
+    },
+    enabled: isAdmin && dimension === 'user',
     staleTime: 60 * 1000,
   })
 
@@ -154,6 +218,28 @@ export function CacheRateCharts(props: CacheRateChartsProps) {
         }
       })
     }
+    if (dimension === 'group') {
+      return (groupQuery.data ?? []).map((item) => ({
+        series: item.use_group || 'Unknown',
+        created_at: Number(item.created_at) || 0,
+        count: Number(item.count) || 0,
+        prompt_tokens: Number(item.prompt_tokens) || 0,
+        cache_tokens: Number(item.cache_tokens) || 0,
+        cache_creation_tokens: Number(item.cache_creation_tokens) || 0,
+        cache_hit_count: Number(item.cache_hit_count) || 0,
+      }))
+    }
+    if (dimension === 'user') {
+      return (userQuery.data ?? []).map((item) => ({
+        series: item.username || 'Unknown',
+        created_at: Number(item.created_at) || 0,
+        count: Number(item.count) || 0,
+        prompt_tokens: Number(item.prompt_tokens) || 0,
+        cache_tokens: Number(item.cache_tokens) || 0,
+        cache_creation_tokens: Number(item.cache_creation_tokens) || 0,
+        cache_hit_count: Number(item.cache_hit_count) || 0,
+      }))
+    }
     return props.data.map((item) => ({
       series: item.model_name || 'Unknown',
       created_at: Number(item.created_at) || 0,
@@ -163,12 +249,20 @@ export function CacheRateCharts(props: CacheRateChartsProps) {
       cache_creation_tokens: Number(item.cache_creation_tokens) || 0,
       cache_hit_count: Number(item.cache_hit_count) || 0,
     }))
-  }, [dimension, channelQuery.data, props.data])
+  }, [dimension, channelQuery.data, groupQuery.data, userQuery.data, props.data])
 
-  const loading =
-    dimension === 'channel'
-      ? channelQuery.isFetching
-      : Boolean(props.loading)
+  // The model dimension renders the parent-fetched data; every other
+  // dimension owns a query whose fetch/error state drives the chart shell.
+  let dimensionFetchState: { isFetching: boolean; isError: boolean } | undefined
+  if (dimension === 'channel') {
+    dimensionFetchState = channelQuery
+  } else if (dimension === 'group') {
+    dimensionFetchState = groupQuery
+  } else if (dimension === 'user') {
+    dimensionFetchState = userQuery
+  }
+  const loading = dimensionFetchState?.isFetching ?? Boolean(props.loading)
+  const remoteError = dimensionFetchState?.isError ?? false
 
   const spec = useMemo(
     () =>
@@ -187,11 +281,10 @@ export function CacheRateCharts(props: CacheRateChartsProps) {
     rows.some((row) =>
       metric === 'hit' ? row.count > 0 : row.prompt_tokens > 0
     )
-  const channelError = dimension === 'channel' && channelQuery.isError
   let chartState = 'ready'
   if (loading) {
     chartState = 'loading'
-  } else if (channelError) {
+  } else if (remoteError) {
     chartState = 'error'
   }
   const chartKey = [
@@ -205,7 +298,7 @@ export function CacheRateCharts(props: CacheRateChartsProps) {
   let chartBody: ReactNode = null
   if (loading) {
     chartBody = <Skeleton className='h-full w-full' />
-  } else if (channelError) {
+  } else if (remoteError) {
     chartBody = (
       <Empty className='h-full border-0 py-12'>
         <EmptyHeader>
@@ -267,7 +360,9 @@ export function CacheRateCharts(props: CacheRateChartsProps) {
           >
             <TabsList aria-label={t('Cache rate dimension')}>
               {DIMENSION_OPTIONS.filter(
-                (option) => isAdmin || option.value !== 'channel'
+                (option) =>
+                  isAdmin ||
+                  (option.value !== 'channel' && option.value !== 'user')
               ).map((option) => {
                 const Icon = option.icon
                 return (

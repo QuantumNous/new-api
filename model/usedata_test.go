@@ -163,6 +163,111 @@ func TestGetQuotaDataGroupByChannelFiltersByUsername(t *testing.T) {
 	assert.Equal(t, 60, alice.CacheTokens)
 }
 
+// TestGetQuotaDataGroupByUserAggregatesCacheColumns verifies the user
+// aggregation carries the cache columns (the cache rate chart's user
+// dimension) and honors the dashboard's username filter.
+func TestGetQuotaDataGroupByUserAggregatesCacheColumns(t *testing.T) {
+	// A full hour far from other tests' buckets.
+	createdAt := int64(1893691200)
+	seed := []QuotaData{
+		{UserID: 7, Username: "alice", ModelName: "gpt-test", CreatedAt: createdAt, Count: 1, Quota: 10, TokenUsed: 100, PromptTokens: 80, CacheTokens: 60, CacheCreationTokens: 5, CacheHitCount: 1},
+		{UserID: 8, Username: "bob", ModelName: "gpt-test", CreatedAt: createdAt, Count: 2, Quota: 20, TokenUsed: 50, PromptTokens: 40, CacheTokens: 30, CacheCreationTokens: 0, CacheHitCount: 0},
+	}
+	for i := range seed {
+		require.NoError(t, DB.Create(&seed[i]).Error)
+	}
+	t.Cleanup(func() {
+		DB.Where("created_at = ?", createdAt).Delete(&QuotaData{})
+	})
+
+	findRow := func(rows []*QuotaData, username string) *QuotaData {
+		for _, row := range rows {
+			if row.Username == username {
+				return row
+			}
+		}
+		return nil
+	}
+
+	allRows, err := GetQuotaDataGroupByUser(createdAt-1, createdAt+1, "")
+	require.NoError(t, err)
+	alice := findRow(allRows, "alice")
+	require.NotNil(t, alice)
+	assert.Equal(t, 1, alice.Count)
+	assert.Equal(t, 80, alice.PromptTokens)
+	assert.Equal(t, 60, alice.CacheTokens)
+	assert.Equal(t, 5, alice.CacheCreationTokens)
+	assert.Equal(t, 1, alice.CacheHitCount)
+	bob := findRow(allRows, "bob")
+	require.NotNil(t, bob)
+	assert.Equal(t, 40, bob.PromptTokens)
+	assert.Equal(t, 30, bob.CacheTokens)
+	assert.Zero(t, bob.CacheCreationTokens)
+
+	filtered, err := GetQuotaDataGroupByUser(createdAt-1, createdAt+1, "alice")
+	require.NoError(t, err)
+	require.NotNil(t, findRow(filtered, "alice"))
+	assert.Nil(t, findRow(filtered, "bob"), "the username filter must drop other users' rows")
+}
+
+// TestGetQuotaDataGroupByGroupAggregatesByUseGroup verifies the group
+// aggregation for the cache rate chart's group dimension: rows from different
+// users and models in the same group and hour are summed, and the username /
+// userId filters scope the aggregation (admin filter vs. regular-user self).
+func TestGetQuotaDataGroupByGroupAggregatesByUseGroup(t *testing.T) {
+	// A full hour far from other tests' buckets.
+	createdAt := int64(1893753600)
+	seed := []QuotaData{
+		{UserID: 7, Username: "alice", ModelName: "gpt-test", CreatedAt: createdAt, UseGroup: "vip", Count: 1, Quota: 10, TokenUsed: 100, PromptTokens: 80, CacheTokens: 60, CacheCreationTokens: 5, CacheHitCount: 1},
+		{UserID: 8, Username: "bob", ModelName: "claude-test", CreatedAt: createdAt, UseGroup: "vip", Count: 2, Quota: 20, TokenUsed: 50, PromptTokens: 40, CacheTokens: 30, CacheCreationTokens: 4, CacheHitCount: 1},
+		{UserID: 7, Username: "alice", ModelName: "gpt-test", CreatedAt: createdAt, UseGroup: "default", Count: 3, Quota: 30, TokenUsed: 60, PromptTokens: 60, CacheTokens: 10, CacheCreationTokens: 0, CacheHitCount: 0},
+	}
+	for i := range seed {
+		require.NoError(t, DB.Create(&seed[i]).Error)
+	}
+	t.Cleanup(func() {
+		DB.Where("created_at = ?", createdAt).Delete(&QuotaData{})
+	})
+
+	findRow := func(rows []*QuotaData, useGroup string) *QuotaData {
+		for _, row := range rows {
+			if row.UseGroup == useGroup {
+				return row
+			}
+		}
+		return nil
+	}
+
+	allRows, err := GetQuotaDataGroupByGroup(createdAt-1, createdAt+1, "", 0)
+	require.NoError(t, err)
+	vip := findRow(allRows, "vip")
+	require.NotNil(t, vip, "rows from different users and models in one group must aggregate into a single bucket")
+	assert.Equal(t, 3, vip.Count)
+	assert.Equal(t, 120, vip.PromptTokens)
+	assert.Equal(t, 90, vip.CacheTokens)
+	assert.Equal(t, 9, vip.CacheCreationTokens)
+	assert.Equal(t, 2, vip.CacheHitCount)
+	def := findRow(allRows, "default")
+	require.NotNil(t, def)
+	assert.Equal(t, 3, def.Count)
+
+	// Admin's username filter only aggregates that user's rows.
+	aliceRows, err := GetQuotaDataGroupByGroup(createdAt-1, createdAt+1, "alice", 0)
+	require.NoError(t, err)
+	aliceVip := findRow(aliceRows, "vip")
+	require.NotNil(t, aliceVip)
+	assert.Equal(t, 1, aliceVip.Count)
+	assert.Equal(t, 80, aliceVip.PromptTokens)
+	require.NotNil(t, findRow(aliceRows, "default"))
+
+	// Regular-user self scope only aggregates that user's own rows.
+	selfRows, err := GetQuotaDataGroupByGroup(createdAt-1, createdAt+1, "", 8)
+	require.NoError(t, err)
+	require.Len(t, selfRows, 1, "bob only has rows in the vip group")
+	assert.Equal(t, "vip", selfRows[0].UseGroup)
+	assert.Equal(t, 2, selfRows[0].Count)
+}
+
 // TestGetQuotaDataCacheTimeseriesByModelAggregatesBuckets verifies the
 // model-square cache trend endpoint's aggregation: hourly buckets are scoped
 // to the requested model and time window, same-bucket rows are summed, and

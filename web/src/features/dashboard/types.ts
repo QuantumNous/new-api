@@ -50,7 +50,20 @@ export interface ChannelQuotaDataItem {
   cache_hit_count?: number
 }
 
-/** Normalized cache-rate chart row: one series (model or channel) per hourly bucket. */
+/** Group-level hourly aggregation row (admin sees all users, self only own). */
+export interface GroupQuotaDataItem {
+  use_group: string
+  created_at: number
+  count?: number
+  quota?: number
+  token_used?: number
+  prompt_tokens?: number
+  cache_tokens?: number
+  cache_creation_tokens?: number
+  cache_hit_count?: number
+}
+
+/** Normalized cache-rate chart row: one series (model/channel/group/user) per hourly bucket. */
 export interface CacheRateChartRow {
   series: string
   created_at: number
@@ -65,7 +78,7 @@ export interface CacheRateChartRow {
 
 export type CacheRateMetric = 'read' | 'creation' | 'hit'
 
-export type CacheRateDimension = 'model' | 'channel'
+export type CacheRateDimension = 'model' | 'channel' | 'group' | 'user'
 
 export interface FlowQuotaDataItem {
   user_id?: number
