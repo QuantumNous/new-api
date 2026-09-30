@@ -699,3 +699,41 @@ func textRegistryResponsesResponse() *dto.OpenAIResponsesResponse {
 func respPtr[T any](value T) *T {
 	return &value
 }
+
+func TestConvertChatResponseToResponsesRestoresRecordedCustomTools(t *testing.T) {
+	info := &convmeta.Values{ResponsesTools: &convmeta.ResponsesToolState{CustomToolNames: map[string]struct{}{"exec": {}}}}
+	message := dto.Message{Role: "assistant"}
+	message.SetToolCalls([]dto.ToolCallRequest{{ID: "call_exec", Type: "function", Function: dto.FunctionRequest{Name: "exec", Arguments: `{"input":"ls"}`}}})
+
+	result, err := ConvertResponse(nil, info, types.RelayFormatOpenAIResponses, &dto.OpenAITextResponse{
+		Id:      "chatcmpl_1",
+		Model:   "gpt-test",
+		Choices: []dto.OpenAITextResponseChoice{{Message: message, FinishReason: "tool_calls"}},
+	})
+	require.NoError(t, err)
+	responses, ok := result.Value.(*dto.OpenAIResponsesResponse)
+	require.True(t, ok)
+	require.Len(t, responses.Output, 1)
+	assert.Equal(t, "custom_tool_call", responses.Output[0].Type)
+	assert.Equal(t, `"ls"`, string(responses.Output[0].Input))
+
+	state, err := NewResponseStreamState(types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses, ResponseStreamOptions{ID: "resp_1", Model: "gpt-test"})
+	require.NoError(t, err)
+	index := 0
+	chunks, err := ConvertStreamResponseChunk(nil, info, state, &dto.ChatCompletionsStreamResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.ChatCompletionsStreamResponseChoice{{Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+			ToolCalls: []dto.ToolCallResponse{{Index: &index, ID: "call_exec", Type: "function", Function: dto.FunctionResponse{Name: "exec", Arguments: `{"input":"ls"}`}}},
+		}}},
+	})
+	require.NoError(t, err)
+	var added *ChatToResponsesStreamEvent
+	for _, chunk := range chunks {
+		if event, ok := chunk.Value.(ChatToResponsesStreamEvent); ok && event.Type == "response.output_item.added" {
+			added = &event
+		}
+	}
+	require.NotNil(t, added)
+	assert.Equal(t, "custom_tool_call", added.Payload.Item.Type)
+}

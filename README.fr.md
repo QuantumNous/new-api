@@ -90,9 +90,6 @@ Utilisez-la pour partager des accès autorisés au sein d'une équipe, changer d
   --><a href="https://bda.pku.edu.cn/" target="_blank">
     <img src="./docs/images/pku.png" alt="Université de Pékin" height="80" />
   </a><!--
-  --><a href="https://www.compshare.cn/?ytag=GPU_yy_gh_newapi" target="_blank">
-    <img src="./docs/images/ucloud.png" alt="UCloud" height="80" />
-  </a><!--
   --><a href="https://www.aliyun.com/" target="_blank">
     <img src="./docs/images/aliyun.png" alt="Alibaba Cloud" height="80" />
   </a><!--

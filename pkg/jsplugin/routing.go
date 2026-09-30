@@ -290,52 +290,24 @@ type RouteRequestContext struct {
 	RequestBody any                 `json:"-"`
 }
 
+// JSValue shares the request with hooks without copying it: the engine never
+// writes JavaScript changes back into Go values, so the request must only stay
+// unchanged while a hook runs. Missing params and query still reach hooks as
+// empty objects rather than null.
 func (r RouteRequestContext) JSValue() map[string]any {
-	params := make(map[string]string, len(r.Params))
-	maps.Copy(params, r.Params)
-	query := make(map[string][]string, len(r.Query))
-	for key, values := range r.Query {
-		query[key] = append([]string(nil), values...)
+	params, query := r.Params, r.Query
+	if params == nil {
+		params = map[string]string{}
+	}
+	if query == nil {
+		query = map[string][]string{}
 	}
 	return map[string]any{
 		"path":   r.Path,
 		"method": r.Method,
 		"params": params,
 		"query":  query,
-		"body":   clonePluginRequestValue(r.Body),
-	}
-}
-
-func clonePluginRequestValue(value any) any {
-	switch typed := value.(type) {
-	case map[string]any:
-		cloned := make(map[string]any, len(typed))
-		for key, item := range typed {
-			cloned[key] = clonePluginRequestValue(item)
-		}
-		return cloned
-	case []any:
-		cloned := make([]any, len(typed))
-		for index, item := range typed {
-			cloned[index] = clonePluginRequestValue(item)
-		}
-		return cloned
-	case []string:
-		return append([]string(nil), typed...)
-	case map[string][]string:
-		cloned := make(map[string][]string, len(typed))
-		for key, values := range typed {
-			cloned[key] = append([]string(nil), values...)
-		}
-		return cloned
-	case []map[string]any:
-		cloned := make([]map[string]any, len(typed))
-		for index, item := range typed {
-			cloned[index] = clonePluginRequestValue(item).(map[string]any)
-		}
-		return cloned
-	default:
-		return value
+		"body":   r.Body,
 	}
 }
 

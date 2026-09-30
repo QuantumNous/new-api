@@ -184,10 +184,11 @@ func (a *TaskAdaptor) ExtractUsageFactsValidated(c *gin.Context, info *relaycomm
 	if !ok {
 		return nil, fmt.Errorf("plugin usage hook must return an object")
 	}
-	if _, err = a.validatedUsageRatios(facts, info.UpstreamModelName, info.OriginModelName); err != nil {
+	validated, _, err := a.validatedUsageRatios(facts, info.UpstreamModelName, info.OriginModelName)
+	if err != nil {
 		return nil, err
 	}
-	return facts, nil
+	return validated, nil
 }
 
 func (a *TaskAdaptor) AdjustBillingOnSubmit(info *relaycommon.RelayInfo, taskData []byte) map[string]float64 {
@@ -612,8 +613,8 @@ func (a *TaskAdaptor) FetchTask(baseURL, key string, task *model.Task, proxy str
 }
 
 func (a *TaskAdaptor) doFetchDescriptor(baseURL, proxy string, value any) (*http.Response, error) {
-	var descriptor requestDescriptor
-	if err := convert(value, &descriptor); err != nil {
+	descriptor, err := decodeRequestDescriptor(value)
+	if err != nil {
 		return nil, err
 	}
 	if err := pluginruntime.ValidateRequestURL(descriptor.URL, baseURL, a.plugin.Meta.AllowedHosts); err != nil {
@@ -862,7 +863,11 @@ func (a *TaskAdaptor) ConvertToOpenAIVideo(task *model.Task) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	value, err := a.plugin.Engine.CallPath(context.Background(), "protocols", []string{"openai_video", "render"}, map[string]any{"protocol": "openai_video", "operation": "retrieve"}, jsonValue(view))
+	encodedView, err := common.Marshal(view)
+	if err != nil {
+		return nil, err
+	}
+	value, err := a.plugin.Engine.CallPath(context.Background(), "protocols", []string{"openai_video", "render"}, map[string]any{"protocol": "openai_video", "operation": "retrieve"}, pluginruntime.RawJSON(encodedView))
 	if err != nil {
 		return nil, err
 	}
@@ -932,8 +937,8 @@ func (a *TaskAdaptor) BuildContentRequest(task *model.Task, artifactKey string, 
 	if err != nil {
 		return nil, err
 	}
-	var descriptor requestDescriptor
-	if err = convert(value, &descriptor); err != nil {
+	descriptor, err := decodeRequestDescriptor(value)
+	if err != nil {
 		return nil, err
 	}
 	method := strings.ToUpper(strings.TrimSpace(descriptor.Method))
@@ -1208,8 +1213,8 @@ func (a *TaskAdaptor) buildSubmit(c *gin.Context, info *relaycommon.RelayInfo) (
 		)
 		return nil, err
 	}
-	var descriptor requestDescriptor
-	if err = convert(value, &descriptor); err != nil {
+	descriptor, err := decodeRequestDescriptor(value)
+	if err != nil {
 		logger.LogDebug(
 			c,
 			"task_plugin subsystem=adaptor event=build_submit_failed plugin=%q stage=build_submit_request reason=invalid_descriptor elapsed_ms=%d",
@@ -1299,7 +1304,7 @@ func (a *TaskAdaptor) submitContext(c *gin.Context, info *relaycommon.RelayInfo)
 			}
 		}
 		if taskRequest, exists := c.Get("task_request"); exists {
-			routeRequest.RequestBody = jsonValue(taskRequest)
+			routeRequest.RequestBody = taskRequest
 		}
 		if c.Request != nil {
 			if routeRequest.Path == "" {
@@ -1340,7 +1345,11 @@ func (a *TaskAdaptor) submitContext(c *gin.Context, info *relaycommon.RelayInfo)
 		a.files = append(a.files[:0], files...)
 	}
 	ctx := routeRequest.JSValue()
-	ctx["requestBody"] = jsonValue(routeRequest.RequestBody)
+	requestBody := routeRequest.RequestBody
+	if !isPlainJSONValue(requestBody, 0) {
+		requestBody = jsonValue(requestBody)
+	}
+	ctx["requestBody"] = requestBody
 	ctx["requestHeaders"] = requestHeaders
 	ctx["files"] = files
 	ctx["action"] = info.Action
@@ -1393,7 +1402,7 @@ func (a *TaskAdaptor) usageRatios(ctx context.Context, models []string, hook str
 		logger.LogDebug(ctx, "task_plugin subsystem=adaptor event=usage_hook_failed plugin=%q hook=%q reason=result_not_object elapsed_ms=%d", a.plugin.Meta.Key, hook, time.Since(started).Milliseconds())
 		return nil, fmt.Errorf("plugin usage hook must return an object")
 	}
-	ratios, err := a.validatedUsageRatios(facts, models...)
+	_, ratios, err := a.validatedUsageRatios(facts, models...)
 	if err != nil {
 		logger.LogDebug(ctx, "task_plugin subsystem=adaptor event=usage_hook_failed plugin=%q hook=%q reason=invalid_usage elapsed_ms=%d", a.plugin.Meta.Key, hook, time.Since(started).Milliseconds())
 		return nil, err
@@ -1442,17 +1451,22 @@ func (a *TaskAdaptor) validateResolvedUsageValue(value any, usageSchema map[stri
 	return nil
 }
 
-func (a *TaskAdaptor) validatedUsageRatios(facts map[string]any, models ...string) (map[string]float64, error) {
+// validatedUsageRatios returns the normalized facts in a new map because the
+// hook result may be a host value, such as the request body, that must stay
+// unchanged.
+func (a *TaskAdaptor) validatedUsageRatios(facts map[string]any, models ...string) (map[string]any, map[string]float64, error) {
 	usageSchema, _ := a.plugin.Meta.UsageForModels(models...)
+	validated := make(map[string]any, len(facts))
 	ratios := make(map[string]float64)
 	for key, value := range facts {
+		validated[key] = value
 		if schema, declared := usageSchema[key]; declared {
 			number, err := validateUsageValue(value, schema, false)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if schema.Type == "number" {
-				facts[key] = number
+				validated[key] = number
 				if number > 0 {
 					ratios[key] = number
 				}
@@ -1471,16 +1485,16 @@ func (a *TaskAdaptor) validatedUsageRatios(facts map[string]any, models ...strin
 			limit = relaycommon.MaxTaskDurationSeconds
 		}
 		if err := validateUsageNumberLimit(number, limit); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		// Keep numeric facts usable by existing expressions even when the
 		// selected profile no longer declares that legacy extension field.
-		facts[key] = number
+		validated[key] = number
 		if number > 0 {
 			ratios[key] = number
 		}
 	}
-	return ratios, nil
+	return validated, ratios, nil
 }
 
 func (a *TaskAdaptor) validatedCompletionUsageFacts(facts any, models ...string) (map[string]any, error) {
@@ -1627,10 +1641,43 @@ func (a *TaskAdaptor) logRejectedUsage(hook string, _ error) {
 	common.SysError(fmt.Sprintf("task plugin %s rejected invalid %s billing facts", a.plugin.Meta.Key, hook))
 }
 
-func (a *TaskAdaptor) hasHook(ctx context.Context, hook string) bool {
-	has, err := a.plugin.Engine.HasExport(ctx, hook)
-	return err == nil && has
+func (a *TaskAdaptor) hasHook(_ context.Context, hook string) bool {
+	return a.plugin.Engine.HasExport(hook)
 }
+
+// decodeRequestDescriptor reads the result of a request-building hook. Fields
+// other than body keep the codec's semantics: case-insensitive names, and type
+// errors reject the descriptor. A plain JSON body is copied instead of encoded
+// and decoded again; anything else takes the codec path unchanged.
+func decodeRequestDescriptor(value any) (requestDescriptor, error) {
+	var descriptor requestDescriptor
+	fields, ok := value.(map[string]any)
+	if !ok {
+		return descriptor, convert(value, &descriptor)
+	}
+	body, plain := fields["body"]
+	for key := range fields {
+		// The codec picks among case variants by its own rule; keep it.
+		if key != "body" && strings.EqualFold(key, "body") {
+			plain = false
+			break
+		}
+	}
+	if plain {
+		body, plain = cloneJSONValue(body, 1)
+	}
+	if !plain {
+		return descriptor, convert(value, &descriptor)
+	}
+	rest := maps.Clone(fields)
+	delete(rest, "body")
+	if err := convert(rest, &descriptor); err != nil {
+		return descriptor, err
+	}
+	descriptor.Body = body
+	return descriptor, nil
+}
+
 func convert(value any, target any) error {
 	data, err := common.Marshal(value)
 	if err != nil {
@@ -1654,8 +1701,45 @@ func jsonValue(value any) any {
 	return normalized
 }
 
-// Already-parsed JSON and Sobek's plain exported values do not need another
-// encode/decode pass. Copy containers to isolate hooks, preserving the codec's
+// isPlainJSONValue reports whether hooks can take value as is: it reaches
+// JavaScript exactly as the codec's decoding of it would, and the engine never
+// writes back into it. Integers count, since hooks see the same numbers; a nil
+// slice does not, since it would reach hooks as [] instead of null.
+func isPlainJSONValue(value any, depth int) bool {
+	if depth > 64 {
+		return false
+	}
+	switch typed := value.(type) {
+	case nil, bool, int64, int:
+		return true
+	case string:
+		return utf8.ValidString(typed)
+	case float64:
+		return !math.IsNaN(typed) && !math.IsInf(typed, 0)
+	case map[string]any:
+		for key, item := range typed {
+			if !utf8.ValidString(key) || !isPlainJSONValue(item, depth+1) {
+				return false
+			}
+		}
+		return true
+	case []any:
+		if typed == nil {
+			return false
+		}
+		for _, item := range typed {
+			if !isPlainJSONValue(item, depth+1) {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+// Already-parsed JSON and the engine's plain exported values do not need another
+// encode/decode pass. Copy containers for host-side edits, preserving the codec's
 // float64 numbers and nulls. Other Go types still use the configured codec.
 func cloneJSONValue(value any, depth int) (any, bool) {
 	if depth > 64 {

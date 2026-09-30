@@ -464,36 +464,30 @@ func TestRouteRetainResultDecodeAndValidation(t *testing.T) {
 	}
 }
 
-func TestRouteRequestContextClonesFormAndMultipartValuesPerDecoder(t *testing.T) {
-	tests := []struct {
-		name   string
-		body   any
-		mutate func(map[string]any)
-	}{
-		{
-			name: "form fields",
-			body: map[string]any{"kind": "form", "fields": map[string][]string{"prompt": {"original"}}},
-			mutate: func(value map[string]any) {
-				value["body"].(map[string]any)["fields"].(map[string][]string)["prompt"][0] = "mutated"
-			},
-		},
-		{
-			name: "multipart files",
-			body: map[string]any{"kind": "multipart", "files": []map[string]any{{"ref": "request_file:image", "filename": "safe.png"}}},
-			mutate: func(value map[string]any) {
-				value["body"].(map[string]any)["files"].([]map[string]any)[0]["filename"] = "mutated.png"
-			},
-		},
+func TestRouteRequestContextKeepsFormAndMultipartValuesAcrossDecoderWrites(t *testing.T) {
+	plugin, err := CompilePlugin(routingTestPluginSource("route-request-writes", 0, `["gpt-5.5"]`, "", `
+export function decodeJob(ctx) {
+	const seen = {
+		prompt: ctx.body.fields.prompt[0],
+		filename: ctx.body.files[0].filename,
+		params: Object.keys(ctx.params).length,
+		query: Object.keys(ctx.query).length
+	};
+	ctx.body.fields.prompt[0] = "mutated";
+	ctx.body.files[0].filename = "mutated.png";
+	return seen;
+}`), Options{})
+	require.NoError(t, err)
+	fields := map[string][]string{"prompt": {"original"}}
+	files := []map[string]any{{"ref": "request_file:image", "filename": "safe.png"}}
+	request := RouteRequestContext{Body: map[string]any{"kind": "multipart", "fields": fields, "files": files}}
+	for range 2 {
+		seen, err := plugin.Engine.Call(context.Background(), "decodeJob", request.JSValue())
+		require.NoError(t, err)
+		assert.Equal(t, map[string]any{"prompt": "original", "filename": "safe.png", "params": int64(0), "query": int64(0)}, seen)
 	}
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			request := RouteRequestContext{Body: testCase.body}
-			first := request.JSValue()
-			testCase.mutate(first)
-			second := request.JSValue()
-			assert.NotEqual(t, first, second)
-		})
-	}
+	assert.Equal(t, "original", fields["prompt"][0])
+	assert.Equal(t, "safe.png", files[0]["filename"])
 }
 
 func TestRegistryNoOpMutationsKeepCurrentGeneration(t *testing.T) {

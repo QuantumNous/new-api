@@ -284,6 +284,9 @@ func executeRequestSteps(c context.Context, info convmeta.Meta, from types.Relay
 		for _, step := range steps {
 			info.AppendRequestConversion(step.To)
 		}
+		if from == types.RelayFormatOpenAIResponses {
+			info.SetResponsesToolState(responsesToolState(target, tools))
+		}
 	}
 
 	converters := make([]string, 0, len(steps))
@@ -302,6 +305,20 @@ func executeRequestSteps(c context.Context, info convmeta.Meta, from types.Relay
 		Steps:       steps,
 		Diagnostics: diagnostics,
 	}, nil
+}
+
+// responsesToolState records which Responses custom tools were sent to Chat
+// Completions as functions, so the Chat response can be restored. It returns
+// nil for other targets so a retry never reuses another channel's record.
+func responsesToolState(target types.RelayFormat, tools toolconv.Set) *convmeta.ResponsesToolState {
+	if target != types.RelayFormatOpenAI {
+		return nil
+	}
+	names := toolconv.OpenAIChatCustomToolNames(tools)
+	if len(names) == 0 {
+		return nil
+	}
+	return &convmeta.ResponsesToolState{CustomToolNames: names}
 }
 
 func expandRequestConverterSteps(spec RequestConverterSpec) ([]RequestConverterSpec, error) {

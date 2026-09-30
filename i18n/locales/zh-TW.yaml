@@ -36,6 +36,10 @@ auth.user_id_format_error: "無權進行此操作，New-Api-User 格式錯誤"
 auth.user_id_mismatch: "無權進行此操作，New-Api-User 與登入使用者不匹配"
 auth.user_banned: "使用者已被封禁"
 auth.insufficient_privilege: "無權進行此操作，權限不足"
+auth.access_token_expired: "存取權杖已過期"
+auth.legacy_access_token_retired: "舊版存取權杖已停用，請在安全設定中建立新的存取權杖"
+auth.access_token_scope_denied: "存取權杖缺少所需權限：{{.Scope}}"
+auth.access_token_limit: "最多可建立 {{.Count}} 個存取權杖"
 
 # Token messages
 token.name_too_long: "令牌名稱過長"

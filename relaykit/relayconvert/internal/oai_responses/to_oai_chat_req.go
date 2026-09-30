@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
@@ -170,12 +171,12 @@ func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Mess
 			return nil, fmt.Errorf("invalid input array: %w", err)
 		}
 		// Chat Completions requires the tool messages answering one assistant tool_calls
-		// batch to stay contiguous, so media hoisted out of function_call_output items is
+		// batch to stay contiguous, so media hoisted out of tool output items is
 		// held back and emitted as a single user message once the batch ends.
 		var pendingMedia []any
 		for _, item := range items {
 			itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
-			if len(pendingMedia) > 0 && itemType != responsesInputTypeFunctionCallOutput {
+			if len(pendingMedia) > 0 && itemType != responsesInputTypeFunctionCallOutput && itemType != responsesInputTypeCustomToolOutput {
 				messages = append(messages, dto.Message{Role: "user", Content: pendingMedia})
 				pendingMedia = nil
 			}
@@ -196,7 +197,7 @@ func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Mess
 }
 
 // responsesInputItemToChatMessages appends the Chat messages for one Responses input item.
-// The second result carries media content parts hoisted out of a function_call_output item,
+// The second result carries media content parts hoisted out of a tool output item,
 // already in Chat shape; the caller decides where that user message lands.
 func responsesInputItemToChatMessages(item map[string]any, messages []dto.Message) ([]dto.Message, []any, error) {
 	itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
@@ -213,7 +214,7 @@ func responsesInputItemToChatMessages(item map[string]any, messages []dto.Messag
 			return nil, nil, err
 		}
 		return appendToolCallToLastAssistant(messages, toolCall), nil, nil
-	case responsesInputTypeFunctionCallOutput:
+	case responsesInputTypeFunctionCallOutput, responsesInputTypeCustomToolOutput:
 		callID := strings.TrimSpace(kitutil.Interface2String(item["call_id"]))
 		content, media := responsesToolOutputToChat(item["output"])
 		return append(messages, dto.Message{Role: "tool", ToolCallId: callID, Content: content}), media, nil
@@ -324,18 +325,26 @@ func responsesFunctionCallItemToChatToolCall(item map[string]any) (dto.ToolCallR
 	}, nil
 }
 
+// responsesCustomToolCallItemToChatToolCall encodes a custom tool call the same
+// way its definition reaches Chat Completions: a function call whose arguments
+// carry the raw input under the single "input" key.
 func responsesCustomToolCallItemToChatToolCall(item map[string]any) (dto.ToolCallRequest, error) {
-	raw, err := kitutil.Marshal(item)
+	name := strings.TrimSpace(kitutil.Interface2String(item["name"]))
+	if name == "" {
+		return dto.ToolCallRequest{}, errors.New("custom_tool_call item is missing name")
+	}
+	arguments, err := kitutil.Marshal(map[string]string{
+		convmeta.CustomToolInputArgument: responsesArgumentsString(item["input"]),
+	})
 	if err != nil {
 		return dto.ToolCallRequest{}, err
 	}
 	return dto.ToolCallRequest{
-		ID:     responsesCallID(item),
-		Type:   dto.CustomType,
-		Custom: raw,
+		ID:   responsesCallID(item),
+		Type: "function",
 		Function: dto.FunctionRequest{
-			Name:      strings.TrimSpace(kitutil.Interface2String(item["name"])),
-			Arguments: responsesArgumentsString(item["input"]),
+			Name:      name,
+			Arguments: string(arguments),
 		},
 	}, nil
 }

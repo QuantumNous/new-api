@@ -52,7 +52,7 @@ func attachOpenAIChatRequest(request any, set Set) (any, []types.ConversionDiagn
 	if !ok || target == nil {
 		return nil, nil, fmt.Errorf("expected OpenAI chat completions request, got %T", request)
 	}
-	var diagnostics []types.ConversionDiagnostic
+	customTools, diagnostics := openAIChatCustomTools(set)
 	for index, definition := range set.Definitions {
 		switch definition.Kind {
 		case KindFunction:
@@ -89,6 +89,12 @@ func attachOpenAIChatRequest(request any, set Set) (any, []types.ConversionDiagn
 			}
 			target.WebSearchOptions = options
 		default:
+			if tool, handled := customTools[index]; handled {
+				if tool != nil {
+					target.Tools = append(target.Tools, tool.chatTool())
+				}
+				continue
+			}
 			diagnostics = append(diagnostics, semanticLoss(
 				fmt.Sprintf("tools[%d]", index),
 				"unsupported_hosted_tool",
@@ -97,7 +103,7 @@ func attachOpenAIChatRequest(request any, set Set) (any, []types.ConversionDiagn
 		}
 	}
 
-	normalizedChoice, allowedChoiceDiagnostics := narrowAllowedFunctionChoice(set.Choice, types.RelayFormatOpenAI)
+	normalizedChoice, allowedChoiceDiagnostics := narrowAllowedFunctionChoice(openAIChatCustomToolChoice(set.Choice, customTools), types.RelayFormatOpenAI)
 	choice, choiceDiagnostics := encodeOpenAIChatChoice(normalizedChoice)
 	target.ToolChoice = choice
 	target.ParallelTooCalls = set.ParallelAllowed
@@ -105,6 +111,149 @@ func attachOpenAIChatRequest(request any, set Set) (any, []types.ConversionDiagn
 	diagnostics = append(diagnostics, choiceDiagnostics...)
 	diagnostics = append(diagnostics, unsupportedHostedHistoryDiagnostics(types.RelayFormatOpenAI, set.History)...)
 	return target, diagnostics, nil
+}
+
+// openAIChatCustomTool is a Responses custom (freeform) tool sent to Chat
+// Completions as a function whose only argument is the raw input string.
+type openAIChatCustomTool struct {
+	name        string
+	description string
+}
+
+func (tool *openAIChatCustomTool) chatTool() dto.ToolCallRequest {
+	return dto.ToolCallRequest{
+		Type: "function",
+		Function: dto.FunctionRequest{
+			Name:        tool.name,
+			Description: tool.description,
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					convmeta.CustomToolInputArgument: map[string]any{
+						"type":        "string",
+						"description": "Raw input for the tool.",
+					},
+				},
+				"required":             []string{convmeta.CustomToolInputArgument},
+				"additionalProperties": false,
+			},
+		},
+	}
+}
+
+const responsesCustomToolType = "custom"
+
+// OpenAIChatCustomToolNames returns the Responses custom tools that
+// AttachRequest sends to Chat Completions as functions. The response side
+// restores Chat function calls with these names as custom_tool_call items.
+func OpenAIChatCustomToolNames(set Set) map[string]struct{} {
+	customTools, _ := openAIChatCustomTools(set)
+	var names map[string]struct{}
+	for _, tool := range customTools {
+		if tool == nil {
+			continue
+		}
+		if names == nil {
+			names = make(map[string]struct{}, len(customTools))
+		}
+		names[tool.name] = struct{}{}
+	}
+	return names
+}
+
+// openAIChatCustomTools selects, by definition index, the Responses custom
+// tools that Chat Completions receives as functions. A nil entry marks a
+// custom tool that was dropped with a diagnostic; indexes without an entry
+// fall back to the generic unsupported-tool loss. Request encoding and
+// OpenAIChatCustomToolNames share this selection so the restored names always
+// match the functions that were sent.
+func openAIChatCustomTools(set Set) (map[int]*openAIChatCustomTool, []types.ConversionDiagnostic) {
+	if set.Source != types.RelayFormatOpenAIResponses {
+		return nil, nil
+	}
+	functionNames := make(map[string]struct{})
+	for _, definition := range set.Definitions {
+		if definition.Kind == KindFunction && definition.Function != nil {
+			functionNames[definition.Function.Name] = struct{}{}
+		}
+	}
+	var (
+		tools       map[int]*openAIChatCustomTool
+		diagnostics []types.ConversionDiagnostic
+	)
+	for index, definition := range set.Definitions {
+		if definition.Kind != KindNative || definition.NativeType != responsesCustomToolType {
+			continue
+		}
+		tool := decodeResponsesCustomTool(definition.Raw)
+		if tool == nil {
+			continue
+		}
+		if tools == nil {
+			tools = make(map[int]*openAIChatCustomTool)
+		}
+		path := fmt.Sprintf("tools[%d]", index)
+		if _, exists := functionNames[tool.name]; exists {
+			tools[index] = nil
+			diagnostics = append(diagnostics, semanticLoss(path, "custom_tool_name_conflict",
+				fmt.Sprintf("custom tool %q shares its name with another tool, so OpenAI Chat Completions cannot tell their calls apart", tool.name)))
+			continue
+		}
+		functionNames[tool.name] = struct{}{}
+		tools[index] = tool
+		diagnostics = append(diagnostics, presentationLoss(path, "custom_tool_as_function",
+			fmt.Sprintf("OpenAI Chat Completions has no freeform tools; custom tool %q is sent as a function with one string argument and its input format becomes a description hint", tool.name)))
+	}
+	return tools, diagnostics
+}
+
+func decodeResponsesCustomTool(raw json.RawMessage) *openAIChatCustomTool {
+	var value map[string]any
+	if err := kitutil.Unmarshal(raw, &value); err != nil {
+		return nil
+	}
+	name := strings.TrimSpace(kitutil.Interface2String(value["name"]))
+	if name == "" {
+		return nil
+	}
+	parts := make([]string, 0, 3)
+	if description := strings.TrimSpace(kitutil.Interface2String(value["description"])); description != "" {
+		parts = append(parts, description)
+	}
+	parts = append(parts, `This tool takes freeform text. Put the complete raw text in the "input" argument.`)
+	if format, ok := value["format"].(map[string]any); ok && strings.TrimSpace(kitutil.Interface2String(format["type"])) == "grammar" {
+		if definition := strings.TrimSpace(kitutil.Interface2String(format["definition"])); definition != "" {
+			switch syntax := strings.TrimSpace(kitutil.Interface2String(format["syntax"])); syntax {
+			case "lark":
+				parts = append(parts, "The input must match this Lark grammar:\n"+definition)
+			case "regex":
+				parts = append(parts, "The input must match this regular expression:\n"+definition)
+			default:
+				parts = append(parts, fmt.Sprintf("The input must match this %s grammar:\n%s", syntax, definition))
+			}
+		}
+	}
+	return &openAIChatCustomTool{name: name, description: strings.Join(parts, "\n\n")}
+}
+
+// openAIChatCustomToolChoice rewrites a Responses {"type":"custom"} tool
+// choice into a named function choice when that custom tool was sent as a
+// function. Other choices are returned unchanged.
+func openAIChatCustomToolChoice(choice *Choice, customTools map[int]*openAIChatCustomTool) *Choice {
+	if choice == nil || choice.Mode != ChoiceOpaque || choice.NativeType != responsesCustomToolType {
+		return choice
+	}
+	var value map[string]any
+	if err := kitutil.Unmarshal(choice.Raw, &value); err != nil {
+		return choice
+	}
+	name := strings.TrimSpace(kitutil.Interface2String(value["name"]))
+	for _, tool := range customTools {
+		if tool != nil && tool.name == name {
+			return &Choice{Mode: ChoiceNamed, Kind: KindFunction, Name: name}
+		}
+	}
+	return choice
 }
 
 func attachOpenAIResponsesRequest(request any, set Set) (any, []types.ConversionDiagnostic, error) {

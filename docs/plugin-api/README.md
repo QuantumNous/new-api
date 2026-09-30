@@ -126,9 +126,11 @@ the plugin's declared native routes. The generic management surface remains
 
 ## Security boundary
 
-Plugins have no `fetch`, filesystem, `require`, imports, async functions, or
-environment access. The host limits execution time, concurrency, input size,
-allowed request hosts, and resolves OAuth credentials outside JavaScript.
+Plugins have no `fetch`, filesystem, `require`, imports, async functions, code
+compiled from strings (`eval` and the `Function` constructors throw an
+`EvalError`), or environment access. The host limits execution time,
+concurrency, input size, allowed request hosts, and resolves OAuth credentials
+outside JavaScript.
 Multipart files enter JavaScript only as opaque references.
 
 This is not a hard memory-isolation boundary. A plugin sees data needed for the

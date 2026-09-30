@@ -121,9 +121,7 @@ func TestBuiltInTaskPluginResponsesAndUsageContracts(t *testing.T) {
 				assert.True(t, callable, hook)
 			}
 			for _, hook := range []string{"extractUsage", "extractUsageOnComplete"} {
-				callable, callableErr := plugin.Engine.HasExport(t.Context(), hook)
-				require.NoError(t, callableErr)
-				assert.True(t, callable, hook)
+				assert.True(t, plugin.Engine.HasExport(hook), hook)
 			}
 			require.NotEmpty(t, plugin.Meta.UsageSchema)
 			for usageKey, schema := range plugin.Meta.UsageSchema {

@@ -345,11 +345,7 @@ func CompilePlugin(source string, options Options) (*LoadedPlugin, error) {
 	}
 	artifactHooks := make(map[string]bool, 2)
 	for _, hook := range []string{"listArtifacts", "buildContentRequest"} {
-		exported, exportErr := engine.HasExport(context.Background(), hook)
-		if exportErr != nil {
-			return nil, exportErr
-		}
-		if !exported {
+		if !engine.HasExport(hook) {
 			continue
 		}
 		callable, callableErr := engine.HasCallablePath(context.Background(), hook)
@@ -497,11 +493,7 @@ func CompilePlugin(source string, options Options) (*LoadedPlugin, error) {
 		}
 	}
 	for _, removed := range []string{"resolveRequest", "renderError", "renderers"} {
-		has, e := engine.HasExport(context.Background(), removed)
-		if e != nil {
-			return nil, e
-		}
-		if has {
+		if engine.HasExport(removed) {
 			return nil, fmt.Errorf("plugin %s export %q is no longer supported", meta.Key, removed)
 		}
 	}

@@ -1757,27 +1757,75 @@ func TestTaskSubmitStreamIdleTimeout(t *testing.T) {
 }
 
 func TestPluginJSONValuesPreserveCodecNormalizationAndIsolation(t *testing.T) {
-	for _, value := range []any{
-		map[string]any{"units": int64(3), "nested": []any{true, "<image> / 图像", math.Copysign(0, -1), nil}},
-		map[string]any{"empty": []any{}, "null": []any(nil), "object": map[string]any(nil)},
-		map[string]any{"large": int64(math.MaxInt64), "invalid UTF-8": string([]byte{0xff, 0xfe})},
-		map[string]any{string([]byte{0xff}): "invalid key"},
-		map[string]any{"bytes": []byte{0, 1, 255}, "number": json.Number("9007199254740993")},
-		json.RawMessage(`{"units":2,"enabled":false}`),
-		struct {
+	for _, tc := range []struct {
+		value any
+		plain bool
+	}{
+		{map[string]any{"units": int64(3), "nested": []any{true, "<image> / 图像", math.Copysign(0, -1), nil}}, true},
+		{map[string]any{"empty": []any{}, "object": map[string]any(nil)}, true},
+		{map[string]any{"null": []any(nil)}, false},
+		{map[string]any{"large": int64(math.MaxInt64), "invalid UTF-8": string([]byte{0xff, 0xfe})}, false},
+		{map[string]any{string([]byte{0xff}): "invalid key"}, false},
+		{map[string]any{"bytes": []byte{0, 1, 255}, "number": json.Number("9007199254740993")}, false},
+		{json.RawMessage(`{"units":2,"enabled":false}`), false},
+		{struct {
 			Units int `json:"units"`
-		}{Units: 0},
+		}{Units: 0}, false},
 	} {
-		encoded, err := common.Marshal(value)
+		encoded, err := common.Marshal(tc.value)
 		require.NoError(t, err)
 		var expected any
 		require.NoError(t, common.Unmarshal(encoded, &expected))
-		assert.Equal(t, expected, jsonValue(value))
+		assert.Equal(t, expected, jsonValue(tc.value))
+		assert.Equal(t, tc.plain, isPlainJSONValue(tc.value, 0))
 	}
 	source := map[string]any{"items": []any{map[string]any{"label": "original"}}}
 	copy := jsonValue(source).(map[string]any)
 	copy["items"].([]any)[0].(map[string]any)["label"] = "changed"
 	assert.Equal(t, "original", source["items"].([]any)[0].(map[string]any)["label"])
+}
+
+func TestRequestDescriptorDecodingMatchesCodec(t *testing.T) {
+	deep := any("leaf")
+	for range 70 {
+		deep = []any{deep}
+	}
+	for name, value := range map[string]any{
+		"plain body": map[string]any{"url": "https://provider.example/submit", "method": "POST", "headers": map[string]any{"X-Plugin": "submit"}, "body": map[string]any{
+			"units": int64(3), "large": int64(math.MaxInt64), "zero": math.Copysign(0, -1), "text": "<image> &   图像",
+			"items": []any{nil, true, 1.5, map[string]any(nil), []any(nil), []any{}},
+		}},
+		"string body":                  map[string]any{"url": "u", "body": `{"raw":true}`},
+		"null body":                    map[string]any{"url": "u", "body": nil},
+		"no body":                      map[string]any{"url": "u", "credentialless": true},
+		"invalid UTF-8 body":           map[string]any{"url": "u", "body": map[string]any{"text": string([]byte{0xff})}},
+		"NaN body":                     map[string]any{"url": "u", "body": map[string]any{"ratio": math.NaN()}},
+		"bytes body":                   map[string]any{"url": "u", "body": []byte{0, 1, 255}},
+		"host typed body":              map[string]any{"url": "u", "body": map[string]string{"prompt": "hello"}},
+		"deep body":                    map[string]any{"url": "u", "body": deep},
+		"capitalized body key":         map[string]any{"url": "u", "Body": map[string]any{"from": "Body"}},
+		"body and capitalized body":    map[string]any{"url": "u", "body": map[string]any{"from": "body"}, "Body": map[string]any{"from": "Body"}, "BODY": "upper"},
+		"invalid header with body":     map[string]any{"url": "u", "headers": map[string]any{"x": int64(1)}, "body": map[string]any{}},
+		"invalid parts with body":      map[string]any{"url": "u", "parts": "none", "body": map[string]any{}},
+		"unsupported field with body":  map[string]any{"url": "u", "method": math.Inf(1), "body": map[string]any{}},
+		"case-insensitive other field": map[string]any{"URL": "u", "Method": "PUT", "body": "text"},
+		"not an object":                "descriptor",
+	} {
+		var expected requestDescriptor
+		expectedErr := convert(value, &expected)
+		decoded, err := decodeRequestDescriptor(value)
+		if expectedErr != nil {
+			assert.EqualError(t, err, expectedErr.Error(), name)
+			continue
+		}
+		require.NoError(t, err, name)
+		assert.Equal(t, expected, decoded, name)
+	}
+	source := map[string]any{"url": "u", "body": map[string]any{"items": []any{map[string]any{"label": "original"}}}}
+	decoded, err := decodeRequestDescriptor(source)
+	require.NoError(t, err)
+	decoded.Body.(map[string]any)["items"].([]any)[0].(map[string]any)["label"] = "changed"
+	assert.Equal(t, "original", source["body"].(map[string]any)["items"].([]any)[0].(map[string]any)["label"])
 }
 
 func TestTaskSubmitHooksReceiveIndependentRequestSnapshots(t *testing.T) {
@@ -1809,6 +1857,39 @@ export function parseTaskResult(){return {status:"SUCCESS"};}
 	assert.JSONEq(t, `{"units":3,"nested":{"label":"built"}}`, string(encoded))
 	assert.Equal(t, int64(2), request["units"])
 	assert.Equal(t, "original", request["nested"].(map[string]any)["label"])
+}
+
+func TestTaskUsageValidationLeavesReturnedHostRequestUnchanged(t *testing.T) {
+	// Returning ctx.requestBody hands back the host request map itself, so
+	// normalized facts must be built in a new map.
+	source := `
+export const meta={apiVersion:1,key:"request-usage",name:"Request usage",version:"1.0.0",author:{name:"Test"},models:["usage"],fetchMode:"per_task",usageSchema:{units:{type:"number",unit:"count"}}};
+export function buildSubmitRequest(ctx){return {url:ctx.baseUrl+"/submit",body:ctx.requestBody};}
+export function extractUsage(ctx){return ctx.requestBody;}
+export function parseSubmitResponse(){return {taskId:"usage"};}
+export function buildQueryRequest(ctx){return {url:ctx.baseUrl+"/query"};}
+export function parseTaskResult(){return {status:"SUCCESS"};}
+`
+	plugin, err := pluginruntime.CompilePlugin(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	request := map[string]any{"units": int64(2)}
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/submit", nil)
+	c.Set("task_request", request)
+	info := &relaycommon.RelayInfo{OriginModelName: "usage", ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "usage", ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+	adaptor := New(plugin)
+	adaptor.Init(info)
+	require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+	facts, err := adaptor.ExtractUsageFactsValidated(c, info)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"units": float64(2)}, facts)
+	assert.Equal(t, int64(2), request["units"])
+	estimateRequest := map[string]any{"units": int64(2)}
+	c.Set("task_request", estimateRequest)
+	ratios, err := adaptor.EstimateBillingValidated(c, info)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]float64{"units": 2}, ratios)
+	assert.Equal(t, int64(2), estimateRequest["units"])
 }
 
 func TestTaskSubmitDeltaStreamContract(t *testing.T) {

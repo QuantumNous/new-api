@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"path"
 
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
@@ -14,6 +15,26 @@ type permissionRoute struct {
 	path       string
 	permission authz.Permission
 	handler    gin.HandlerFunc
+}
+
+// handlePermissionRoute registers a Casbin-guarded route and declares the same
+// permission as the access token scope that route requires.
+func handlePermissionRoute(group *gin.RouterGroup, method, relativePath string, permission authz.Permission, handlers ...gin.HandlerFunc) {
+	middleware.DeclareAccessTokenPermissionRoute(method, joinPaths(group.BasePath(), relativePath), permission)
+	group.Handle(method, relativePath, append([]gin.HandlerFunc{middleware.RequirePermission(permission)}, handlers...)...)
+}
+
+// joinPaths matches gin's route path joining, which keeps a trailing slash
+// from the relative path, so declared keys equal c.FullPath().
+func joinPaths(absolutePath, relativePath string) string {
+	if relativePath == "" {
+		return absolutePath
+	}
+	finalPath := path.Join(absolutePath, relativePath)
+	if relativePath[len(relativePath)-1] == '/' && finalPath[len(finalPath)-1] != '/' {
+		return finalPath + "/"
+	}
+	return finalPath
 }
 
 func registerChannelRoutes(apiRouter *gin.RouterGroup) {
@@ -29,10 +50,7 @@ func registerChannelRoutes(apiRouter *gin.RouterGroup) {
 	)
 
 	for _, route := range channelPermissionRoutes {
-		channelRoute.Handle(route.method, route.path,
-			middleware.RequirePermission(route.permission),
-			route.handler,
-		)
+		handlePermissionRoute(channelRoute, route.method, route.path, route.permission, route.handler)
 	}
 }
 

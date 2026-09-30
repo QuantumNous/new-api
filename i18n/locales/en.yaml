@@ -35,6 +35,10 @@ auth.user_id_format_error: "Unauthorized, New-Api-User header format error"
 auth.user_id_mismatch: "Unauthorized, New-Api-User does not match logged in user"
 auth.user_banned: "User has been banned"
 auth.insufficient_privilege: "Unauthorized, insufficient privileges"
+auth.access_token_expired: "Unauthorized, the access token has expired"
+auth.legacy_access_token_retired: "Legacy access tokens have been retired. Create a new access token in security settings"
+auth.access_token_scope_denied: "The access token lacks the required permission: {{.Scope}}"
+auth.access_token_limit: "You can create at most {{.Count}} access tokens"
 
 # Token messages
 token.name_too_long: "Token name is too long"

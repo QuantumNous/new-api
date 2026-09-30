@@ -213,6 +213,24 @@ describe('browser plugin source fetch', () => {
     )
   })
 
+  test('revalidates with the host instead of reusing a stale browser-cached copy', async () => {
+    // A marketplace host may serve versioned sources as immutable while the
+    // file was republished in place; the stale copy would fail the index hash.
+    const text = await fetchPluginSourceText(
+      'https://example.com/plugin.js',
+      async (_input, init) =>
+        stubResponse({
+          ok: true,
+          body: ['no-cache', 'no-store', 'reload'].includes(
+            init?.cache ?? 'default'
+          )
+            ? 'republished source'
+            : 'stale cached source',
+        })
+    )
+    assert.equal(text, 'republished source')
+  })
+
   test('accepts a body exactly at the limit', async () => {
     const text = await fetchPluginSourceText(
       'https://example.com/limit.js',

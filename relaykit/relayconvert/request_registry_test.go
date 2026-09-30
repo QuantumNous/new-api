@@ -8,6 +8,7 @@ import (
 	sharedgemini "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/gemini"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -826,4 +827,45 @@ func inputContentText(t *testing.T, item map[string]any) string {
 	text, ok := part["text"].(string)
 	require.True(t, ok)
 	return text
+}
+
+func TestConvertRequestRecordsResponsesCustomToolsForChatTarget(t *testing.T) {
+	codexRequest := func(tools ...map[string]any) *dto.OpenAIResponsesRequest {
+		return &dto.OpenAIResponsesRequest{
+			Model: "gpt-test",
+			Input: mustMarshalRequestJSON(t, "hello"),
+			Tools: mustMarshalRequestJSON(t, tools),
+		}
+	}
+	execTool := map[string]any{"type": "custom", "name": "exec", "description": "Run code", "format": map[string]any{"type": "text"}}
+	waitTool := map[string]any{"type": "function", "name": "wait", "parameters": map[string]any{"type": "object"}}
+
+	info := &convmeta.Values{}
+	result, err := ConvertRequestByID(nil, info, ConverterOpenAIResponsesToOpenAIChat, codexRequest(execTool, waitTool))
+	require.NoError(t, err)
+	chat, ok := result.Value.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	require.Len(t, chat.Tools, 2)
+	assert.Equal(t, "exec", chat.Tools[0].Function.Name)
+	require.NotNil(t, info.ResponsesTools)
+	assert.True(t, info.ResponsesTools.IsCustomTool("exec"))
+	assert.False(t, info.ResponsesTools.IsCustomTool("wait"))
+
+	_, err = ConvertRequestByID(nil, info, ConverterOpenAIResponsesToOpenAIChat, codexRequest(waitTool))
+	require.NoError(t, err)
+	assert.Nil(t, info.ResponsesTools, "a retry without custom tools must not keep the previous record")
+
+	info.ResponsesTools = &convmeta.ResponsesToolState{CustomToolNames: map[string]struct{}{"exec": {}}}
+	claudeRequest := codexRequest(execTool)
+	claudeRequest.MaxOutputTokens = lo.ToPtr(uint(64))
+	_, err = ConvertRequest(nil, info, types.RelayFormatClaude, claudeRequest)
+	require.NoError(t, err)
+	assert.Nil(t, info.ResponsesTools, "only Chat Completions targets carry custom tools as functions")
+}
+
+func mustMarshalRequestJSON(t *testing.T, value any) []byte {
+	t.Helper()
+	raw, err := kitutil.Marshal(value)
+	require.NoError(t, err)
+	return raw
 }

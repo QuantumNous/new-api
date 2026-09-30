@@ -527,13 +527,7 @@ func streamTaskPluginProtocol(
 		}
 		args := []any{rendererContext, viewValue}
 		if previous.Present {
-			previousValue, stateErr := previous.PluginValue()
-			if stateErr != nil {
-				logger.LogError(c, "decode task protocol state failed: "+stateErr.Error())
-				writeTaskPluginProtocolFailure(c, machine, lastStatus)
-				return
-			}
-			args = append(args, previousValue)
+			args = append(args, previous.PluginValue())
 		}
 		value, callErr := pinned.Plugin.Engine.CallPathWithAdmissionTimeout(observationContext, deps.admissionTimeout, "protocols", []string{pinned.Protocol, "renderEvents"}, args...)
 		hookElapsed := deps.now().Sub(hookStarted)
@@ -1166,16 +1160,14 @@ func writeTaskPluginProtocolTimeoutResponse(
 	c.JSON(http.StatusOK, response)
 }
 
-func taskPluginProtocolJSONValue(value any) (any, error) {
-	encoded, err := common.Marshal(value)
+// taskPluginProtocolJSONValue encodes a task view for a hook, which receives
+// it parsed from the text.
+func taskPluginProtocolJSONValue(view dto.TaskView) (any, error) {
+	encoded, err := common.Marshal(view)
 	if err != nil {
 		return nil, err
 	}
-	var decoded any
-	if err = common.Unmarshal(encoded, &decoded); err != nil {
-		return nil, err
-	}
-	return decoded, nil
+	return pluginruntime.RawJSON(encoded), nil
 }
 
 func taskPluginProtocolRendererContext(

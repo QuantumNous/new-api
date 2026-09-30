@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -453,6 +455,191 @@ func TestChatCompletionsStreamToResponsesReopensItemsAfterMidStreamFinishReason(
 			}
 		})
 	}
+}
+
+func execCustomToolState() *convmeta.ResponsesToolState {
+	return &convmeta.ResponsesToolState{CustomToolNames: map[string]struct{}{"exec": {}}}
+}
+
+func TestChatCompletionsResponseToResponsesRestoresCustomToolCalls(t *testing.T) {
+	message := dto.Message{Role: "assistant"}
+	message.SetToolCalls([]dto.ToolCallRequest{
+		{ID: "call_exec", Type: "function", Function: dto.FunctionRequest{Name: "exec", Arguments: `{"input":"echo \"hi\" && ls"}`}},
+		{ID: "call_wait", Type: "function", Function: dto.FunctionRequest{Name: "wait", Arguments: `{"ms":1}`}},
+	})
+	chat := &dto.OpenAITextResponse{
+		Model:   "gpt-test",
+		Choices: []dto.OpenAITextResponseChoice{{Message: message, FinishReason: "tool_calls"}},
+	}
+
+	resp, _, err := ChatCompletionsResponseToResponsesResponseWithTools(chat, "resp_1", execCustomToolState())
+	require.NoError(t, err)
+	require.Len(t, resp.Output, 2)
+	custom, err := kitutil.Marshal(resp.Output[0])
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"type":"custom_tool_call","id":"call_exec","status":"completed","call_id":"call_exec","name":"exec","input":"echo \"hi\" && ls"}`, string(custom))
+	assert.Equal(t, responsesOutputTypeFunctionCall, resp.Output[1].Type)
+	assert.Equal(t, `"{\"ms\":1}"`, string(resp.Output[1].Arguments))
+
+	plain, _, err := ChatCompletionsResponseToResponsesResponse(chat, "resp_1")
+	require.NoError(t, err)
+	assert.Equal(t, responsesOutputTypeFunctionCall, plain.Output[0].Type)
+}
+
+func TestCustomToolInputFromArguments(t *testing.T) {
+	tests := map[string]string{
+		`{"input":"ls -la"}`:          "ls -la",
+		`{"input":""}`:                "",
+		`{"input":{"cmd":"ls"}}`:      `{"cmd":"ls"}`,
+		`{"cmd":"ls"}`:                `{"cmd":"ls"}`,
+		`ls -la`:                      "ls -la",
+		``:                            "",
+		`{"input":"a","extra":true}`:  "a",
+		`{"input":"\u003cdiv\u003e"}`: "<div>",
+	}
+	for arguments, want := range tests {
+		assert.Equalf(t, want, customToolInputFromArguments(arguments), "arguments %q", arguments)
+	}
+}
+
+func TestChatCompletionsStreamToResponsesRestoresCustomToolCalls(t *testing.T) {
+	state := NewChatToResponsesStreamState("resp_1", "gpt-test")
+	state.EmitSequenceNumber = true
+	state.Tools = execCustomToolState()
+	execIndex, waitIndex := 0, 1
+
+	var events []ChatToResponsesStreamEvent
+	for _, delta := range []dto.ToolCallResponse{
+		{Index: &execIndex, ID: "call_exec", Type: "function", Function: dto.FunctionResponse{Name: "exec"}},
+		{Index: &execIndex, Function: dto.FunctionResponse{Arguments: `{"input":"echo `}},
+		{Index: &execIndex, Function: dto.FunctionResponse{Arguments: `\"hi\""}`}},
+		{Index: &waitIndex, ID: "call_wait", Type: "function", Function: dto.FunctionResponse{Name: "wait", Arguments: `{"ms":1}`}},
+	} {
+		events = append(events, mustResponsesEventsFromChatChunk(t, state, &dto.ChatCompletionsStreamResponse{
+			Choices: []dto.ChatCompletionsStreamResponseChoice{
+				{Index: 0, Delta: dto.ChatCompletionsStreamResponseChoiceDelta{ToolCalls: []dto.ToolCallResponse{delta}}},
+			},
+		})...)
+	}
+	events = append(events, FinalizeChatCompletionsStreamToResponses(state)...)
+
+	types := make([]string, 0, len(events))
+	for _, event := range events {
+		types = append(types, event.Type)
+	}
+	assert.Equal(t, []string{
+		responsesEventCreated,
+		responsesEventOutputItemAdded,
+		responsesEventOutputItemAdded,
+		responsesEventFunctionArgsDelta,
+		responsesEventCustomToolInputDelta,
+		responsesEventCustomToolInputDone,
+		responsesEventOutputItemDone,
+		responsesEventFunctionArgsDone,
+		responsesEventOutputItemDone,
+		responsesEventCompleted,
+	}, types)
+
+	added, err := kitutil.Marshal(events[1].Payload.Item)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"type":"custom_tool_call","id":"call_exec","status":"in_progress","call_id":"call_exec","name":"exec","input":""}`, string(added))
+	assert.Equal(t, `echo "hi"`, events[4].Payload.Delta)
+	assert.Equal(t, "call_exec", events[4].Payload.ItemID)
+	require.NotNil(t, events[5].Payload.Input)
+	assert.Equal(t, `echo "hi"`, *events[5].Payload.Input)
+	assert.Equal(t, responsesOutputTypeCustomToolCall, events[6].Payload.Item.Type)
+	assert.Equal(t, `"echo \"hi\""`, string(events[6].Payload.Item.Input))
+
+	output := events[len(events)-1].Payload.Response.Output
+	require.Len(t, output, 2)
+	assert.Equal(t, responsesOutputTypeCustomToolCall, output[0].Type)
+	assert.Equal(t, `"echo \"hi\""`, string(output[0].Input))
+	assert.Equal(t, responsesOutputTypeFunctionCall, output[1].Type)
+	assert.Equal(t, `"{\"ms\":1}"`, string(output[1].Arguments))
+}
+
+func TestChatCompletionsStreamToResponsesHoldsNamelessToolUntilNameArrives(t *testing.T) {
+	toolIndex := 0
+	chunk := func(call dto.ToolCallResponse) *dto.ChatCompletionsStreamResponse {
+		return &dto.ChatCompletionsStreamResponse{
+			Choices: []dto.ChatCompletionsStreamResponseChoice{
+				{Index: 0, Delta: dto.ChatCompletionsStreamResponseChoiceDelta{ToolCalls: []dto.ToolCallResponse{call}}},
+			},
+		}
+	}
+
+	t.Run("custom tool", func(t *testing.T) {
+		state := NewChatToResponsesStreamState("resp_1", "gpt-test")
+		state.Tools = execCustomToolState()
+		first := mustResponsesEventsFromChatChunk(t, state, chunk(dto.ToolCallResponse{Index: &toolIndex, ID: "call_exec", Function: dto.FunctionResponse{Arguments: `{"input":`}}))
+		for _, event := range first {
+			assert.NotEqual(t, responsesEventOutputItemAdded, event.Type)
+			assert.NotEqual(t, responsesEventFunctionArgsDelta, event.Type)
+		}
+		second := mustResponsesEventsFromChatChunk(t, state, chunk(dto.ToolCallResponse{Index: &toolIndex, Function: dto.FunctionResponse{Name: "exec", Arguments: `"ls"}`}}))
+		require.Len(t, second, 1)
+		assert.Equal(t, responsesEventOutputItemAdded, second[0].Type)
+		assert.Equal(t, responsesOutputTypeCustomToolCall, second[0].Payload.Item.Type)
+		done := FinalizeChatCompletionsStreamToResponses(state)
+		require.NotEmpty(t, done)
+		output := done[len(done)-1].Payload.Response.Output
+		require.Len(t, output, 1)
+		assert.Equal(t, `"ls"`, string(output[0].Input))
+	})
+
+	t.Run("function tool flushes held arguments", func(t *testing.T) {
+		state := NewChatToResponsesStreamState("resp_1", "gpt-test")
+		state.Tools = execCustomToolState()
+		mustResponsesEventsFromChatChunk(t, state, chunk(dto.ToolCallResponse{Index: &toolIndex, ID: "call_wait", Function: dto.FunctionResponse{Arguments: `{"ms":`}}))
+		second := mustResponsesEventsFromChatChunk(t, state, chunk(dto.ToolCallResponse{Index: &toolIndex, Function: dto.FunctionResponse{Name: "wait", Arguments: `1}`}}))
+		require.Len(t, second, 2)
+		assert.Equal(t, responsesEventOutputItemAdded, second[0].Type)
+		assert.Equal(t, responsesOutputTypeFunctionCall, second[0].Payload.Item.Type)
+		assert.Equal(t, responsesEventFunctionArgsDelta, second[1].Type)
+		assert.Equal(t, `{"ms":1}`, second[1].Payload.Delta)
+	})
+
+	t.Run("held tool takes the next output index when announced", func(t *testing.T) {
+		state := NewChatToResponsesStreamState("resp_1", "gpt-test")
+		state.Tools = execCustomToolState()
+		waitIndex := 1
+		var events []ChatToResponsesStreamEvent
+		events = append(events, mustResponsesEventsFromChatChunk(t, state, chunk(dto.ToolCallResponse{Index: &toolIndex, ID: "call_exec"}))...)
+		events = append(events, mustResponsesEventsFromChatChunk(t, state, chunk(dto.ToolCallResponse{Index: &waitIndex, ID: "call_wait", Function: dto.FunctionResponse{Name: "wait", Arguments: `{}`}}))...)
+		events = append(events, mustResponsesEventsFromChatChunk(t, state, &dto.ChatCompletionsStreamResponse{
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{Index: 0, Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Content: lo.ToPtr("done")}}},
+		})...)
+		events = append(events, mustResponsesEventsFromChatChunk(t, state, chunk(dto.ToolCallResponse{Index: &toolIndex, Function: dto.FunctionResponse{Name: "exec", Arguments: `{"input":"ls"}`}}))...)
+		events = append(events, FinalizeChatCompletionsStreamToResponses(state)...)
+
+		var addedIndexes []int
+		var addedTypes []string
+		for _, event := range events {
+			if event.Type == responsesEventOutputItemAdded {
+				addedIndexes = append(addedIndexes, lo.FromPtr(event.Payload.OutputIndex))
+				addedTypes = append(addedTypes, event.Payload.Item.Type)
+			}
+		}
+		assert.Equal(t, []int{0, 1, 2}, addedIndexes)
+		assert.Equal(t, []string{responsesOutputTypeFunctionCall, responsesOutputTypeMessage, responsesOutputTypeCustomToolCall}, addedTypes)
+		output := events[len(events)-1].Payload.Response.Output
+		require.Len(t, output, 3)
+		assert.Equal(t, addedTypes, []string{output[0].Type, output[1].Type, output[2].Type})
+	})
+
+	t.Run("name never arrives", func(t *testing.T) {
+		state := NewChatToResponsesStreamState("resp_1", "gpt-test")
+		state.Tools = execCustomToolState()
+		mustResponsesEventsFromChatChunk(t, state, chunk(dto.ToolCallResponse{Index: &toolIndex, ID: "call_x", Function: dto.FunctionResponse{Arguments: `{}`}}))
+		done := FinalizeChatCompletionsStreamToResponses(state)
+		types := make([]string, 0, len(done))
+		for _, event := range done {
+			types = append(types, event.Type)
+		}
+		assert.Equal(t, []string{responsesEventCompleted}, types)
+		require.NotNil(t, done[0].Payload.Response)
+		assert.Empty(t, done[0].Payload.Response.Output)
+	})
 }
 
 func mustResponsesEventsFromChatChunk(t *testing.T, state *ChatToResponsesStreamState, chunk *dto.ChatCompletionsStreamResponse) []ChatToResponsesStreamEvent {
