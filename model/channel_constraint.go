@@ -11,6 +11,10 @@ var filterEvalOrder = []dto.ChannelFilterKind{
 	dto.FilterRequestPath,
 	dto.FilterTaskPluginIdentity,
 	dto.FilterResponsesWebSocket,
+	// Channel limits run last: they are the only kind consulting live
+	// counters, and the cheapest request-intrinsic filters should get the
+	// chance to reject first.
+	dto.FilterChannelLimits,
 }
 
 // ChannelSatisfiesFilters reports whether ch passes every filter.
@@ -47,6 +51,17 @@ func filterCandidateIDs(ids []int, modelName string, filters []dto.ChannelFilter
 		if len(kindFilters) == 0 {
 			continue
 		}
+		if kind == dto.FilterChannelLimits {
+			// The limits filter is time-dependent, so evaluate the whole
+			// candidate set against one batched counter read instead of a
+			// lookup per candidate; the caller holds the channel cache lock.
+			next := filterCandidateIDsByChannelLimits(kept)
+			if len(kept) > 0 && len(next) == 0 {
+				return next, kind
+			}
+			kept = next
+			continue
+		}
 		next := make([]int, 0, len(kept))
 		for _, id := range kept {
 			channel, exists := channelsIDM[id]
@@ -60,6 +75,26 @@ func filterCandidateIDs(ids []int, modelName string, filters []dto.ChannelFilter
 		kept = next
 	}
 	return kept, ""
+}
+
+// filterCandidateIDsByChannelLimits applies the live channel-limits check
+// to a cached candidate id list. Caller must hold channelSyncLock (read lock).
+// A missing id in channelsIDM is dropped, matching the other non-path kinds.
+func filterCandidateIDsByChannelLimits(ids []int) []int {
+	channels := make([]*Channel, 0, len(ids))
+	for _, id := range ids {
+		if channel, ok := channelsIDM[id]; ok {
+			channels = append(channels, channel)
+		}
+	}
+	allowed := ChannelWithinLimitsBatch(channels)
+	kept := make([]int, 0, len(ids))
+	for _, id := range ids {
+		if allowed[id] {
+			kept = append(kept, id)
+		}
+	}
+	return kept
 }
 
 func filtersByKind(filters []dto.ChannelFilter, kind dto.ChannelFilterKind) []dto.ChannelFilter {
@@ -124,6 +159,8 @@ func channelMatchesFilter(ch *Channel, modelName string, filter dto.ChannelFilte
 		default:
 			return false
 		}
+	case dto.FilterChannelLimits:
+		return ChannelWithinLimits(ch)
 	default:
 		return true
 	}

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
@@ -222,4 +224,53 @@ func TestRedisFailurePolicies(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, userResponse.Code)
 	assert.Empty(t, userResponse.Body.String())
 	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/email", "192.0.2.62:12345").Code)
+}
+
+func TestTokenRateLimitEnforcesPerKeyRpmWindow(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	redisServer, _ := useRateLimitMiniRedis(t)
+	require.NoError(t, i18n.Init())
+
+	router := gin.New()
+	require.NoError(t, router.SetTrustedProxies(nil))
+	router.GET(
+		"/relay",
+		func(c *gin.Context) {
+			c.Set("token_id", 77)
+			common.SetContextKey(c, constant.ContextKeyTokenRpmLimit, 2)
+		},
+		TokenRateLimit(),
+		func(c *gin.Context) { c.Status(http.StatusNoContent) },
+	)
+	router.GET(
+		"/unlimited",
+		func(c *gin.Context) {
+			c.Set("token_id", 78)
+			common.SetContextKey(c, constant.ContextKeyTokenRpmLimit, 0)
+		},
+		TokenRateLimit(),
+		func(c *gin.Context) { c.Status(http.StatusNoContent) },
+	)
+	router.GET(
+		"/session",
+		TokenRateLimit(),
+		func(c *gin.Context) { c.Status(http.StatusNoContent) },
+	)
+
+	for range 2 {
+		assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/relay", "192.0.2.70:12345").Code)
+	}
+	limited := performRateLimitRequest(router, "/relay", "192.0.2.71:12345")
+	assert.Equal(t, http.StatusTooManyRequests, limited.Code)
+	assert.Contains(t, limited.Body.String(), "2", "the 429 body names the configured limit")
+
+	key := common.CounterKey(tokenRpmCounterPrefix, 77, common.CounterMinuteBucket())
+	count, err := redisServer.Get(key)
+	require.NoError(t, err)
+	assert.Equal(t, "2", count, "the rejected attempt must roll its increment back so the window is not self-saturating")
+
+	// Requests without a token (session-authenticated playground) or without
+	// a configured limit pass untouched.
+	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/unlimited", "192.0.2.72:12345").Code)
+	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/session", "192.0.2.73:12345").Code)
 }

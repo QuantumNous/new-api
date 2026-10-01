@@ -64,6 +64,8 @@ const (
 	MsgTokenAutoGroupsTooMany    = "token.auto_groups_too_many"
 	MsgTokenAutoGroupsDuplicate  = "token.auto_groups_duplicate"
 	MsgTokenAutoGroupsInvalid    = "token.auto_groups_invalid"
+	MsgTokenRpmLimitReached      = "token.rpm_limit_reached"
+	MsgTokenRpmLimitInvalid      = "token.rpm_limit_invalid"
 )
 
 // Redemption related messages
@@ -333,6 +335,7 @@ const (
 	MsgDistributorGetChannelFailed             = "distributor.get_channel_failed"
 	MsgDistributorNoAvailableChannel           = "distributor.no_available_channel"
 	MsgDistributorNoAvailableChannelTaskPlugin = "distributor.no_available_channel_task_plugin"
+	MsgDistributorChannelsOverLimit            = "distributor.channels_over_limit"
 	MsgDistributorInvalidMidjourney            = "distributor.invalid_midjourney_request"
 	MsgDistributorInvalidParseModel            = "distributor.invalid_request_parse_model"
 )

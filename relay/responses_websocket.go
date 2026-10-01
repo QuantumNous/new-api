@@ -287,6 +287,19 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			if apiErr != nil {
 				return apiErr
 			}
+			if !appmodel.ChannelRpmTryConsume(channel) {
+				apiErr = appmodel.ChannelRpmOverLimitError(channel)
+				// Route the rejection through the shared retry policy so
+				// pinned and strict-session requests stop instead of leaking
+				// to another channel, mirroring the HTTP relay loops.
+				decision := service.DecideRelayRetry(c, apiErr, common.RetryTimes-retry.GetRetry())
+				service.RecordPolicyFailure(c, channel.Id, apiErr, decision)
+				if decision.Action != "retry" {
+					return apiErr
+				}
+				service.AppendUsedChannel(c, channel.Id)
+				continue
+			}
 			service.AppendUsedChannel(c, channel.Id)
 			if info == nil {
 				info = relaycommon.GenRelayInfoResponses(c, &create.Request)
@@ -581,6 +594,15 @@ func (s *responsesWSSession) restoreConnectionContext(c *gin.Context, model stri
 		if !appmodel.IsChannelEnabledForGroupModel(group, model, s.lockedChannelID) {
 			return types.NewErrorWithStatusCode(errors.New("the connection channel is no longer allowed for this group and model"), types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry())
 		}
+	}
+	// Channel limits still apply on a locked connection: re-check TPM and
+	// calendar quota eligibility, then run the same atomic RPM admission
+	// as the initial selection path.
+	if !appmodel.ChannelWithinLimits(channel) {
+		return appmodel.ChannelLimitsExceededError(channel)
+	}
+	if !appmodel.ChannelRpmTryConsume(channel) {
+		return appmodel.ChannelRpmOverLimitError(channel)
 	}
 	for key, value := range s.lockedContext {
 		c.Set(string(key), value)
@@ -919,6 +941,13 @@ func selectResponsesWSChannel(c *gin.Context, modelName string, retryParam *serv
 		return filter.Kind == appdto.FilterResponsesWebSocket
 	}) {
 		constraints.AddFilter(appdto.ChannelFilter{Kind: appdto.FilterResponsesWebSocket})
+	}
+	// The Responses WebSocket path bypasses Distribute, so register the
+	// channel-limits filter here for parity with the HTTP relay.
+	if !slices.ContainsFunc(constraints.Filters, func(filter appdto.ChannelFilter) bool {
+		return filter.Kind == appdto.FilterChannelLimits
+	}) {
+		constraints.AddFilter(appdto.ChannelFilter{Kind: appdto.FilterChannelLimits})
 	}
 	channel, _, selectErr := service.SelectChannelForRequest(c, modelName, retryParam)
 	if selectErr != nil {

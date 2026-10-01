@@ -117,6 +117,10 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 	selectGroup := param.TokenGroup
 	userGroup := common.GetContextKeyString(param.Ctx, constant.ContextKeyUserGroup)
 	filters := GetChannelConstraints(param.Ctx).Filters
+	// overLimitErr remembers that at least one auto group had candidate
+	// channels but every one was over its rate/quota limits, so exhausting
+	// all groups can still answer with 429 instead of the generic 503.
+	var overLimitErr error
 
 	if param.TokenGroup == "auto" {
 		autoGroups := GetRequestAutoGroups(param.Ctx, userGroup)
@@ -147,12 +151,16 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(
+			var groupErr error
+			channel, groupErr = model.GetRandomSatisfiedChannel(
 				autoGroup,
 				param.ModelName,
 				priorityRetry,
 				filters,
 			)
+			if errors.Is(groupErr, model.ErrChannelsOverLimit) {
+				overLimitErr = groupErr
+			}
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -199,6 +207,9 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 		if err != nil {
 			return nil, param.TokenGroup, err
 		}
+	}
+	if channel == nil && overLimitErr != nil {
+		return nil, selectGroup, overLimitErr
 	}
 	return channel, selectGroup, nil
 }
@@ -350,6 +361,17 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 		var err error
 		channel, selectGroup, err = CacheGetRandomSatisfiedChannel(retry)
 		if err != nil {
+			if errors.Is(err, model.ErrChannelsOverLimit) {
+				showGroup := usingGroup
+				if usingGroup == "auto" {
+					showGroup = fmt.Sprintf("auto(%s)", selectGroup)
+				}
+				return nil, selectGroup, &ChannelSelectError{
+					StatusCode: http.StatusTooManyRequests, Code: model.ChannelLimitExceededCode,
+					MessageID: i18n.MsgDistributorChannelsOverLimit,
+					Params:    map[string]any{"Group": showGroup, "Model": modelName},
+				}
+			}
 			showGroup := usingGroup
 			if usingGroup == "auto" {
 				showGroup = fmt.Sprintf("auto(%s)", selectGroup)

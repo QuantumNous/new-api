@@ -20,6 +20,10 @@ For commercial licensing, please contact support@quantumnous.com
 // These cover dynamic labels (e.g. constants, configs) that are passed into t at runtime.
 export const STATIC_I18N_KEYS = [
   'Task usage metadata is unavailable. Pricing details cannot be displayed.',
+  'Max requests per minute dispatched to this channel. Set to 0 for unlimited',
+  'Max tokens per minute settled on this channel. Set to 0 for unlimited',
+  'Max quota consumed per calendar day (server local time). Set to 0 for unlimited',
+  'Max quota consumed per calendar month (server local time). Set to 0 for unlimited',
   'This expression cannot be expanded into a price table. View the original expression below.',
   'This operation is only supported for vLLM or SGLang channels',
   'Invalid inference server address',

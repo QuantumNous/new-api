@@ -34,6 +34,7 @@ import {
   FileText,
   Eraser,
   Eye,
+  Gauge,
   RefreshCw,
   Code,
   Route,
@@ -118,6 +119,7 @@ import {
   type ChannelConnectionInfo,
 } from '@/lib/channel-connection-info'
 import { handleServerError } from '@/lib/handle-server-error'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { ROLE } from '@/lib/roles'
 import {
   requireServerSuccess,
@@ -2258,6 +2260,140 @@ export function ChannelMutateDrawer({
           </FormItem>
         )}
       />
+    </div>
+  )
+
+  const { meta: channelLimitCurrencyMeta } = getCurrencyDisplay()
+  const channelLimitCurrencyLabel = getCurrencyLabel()
+  const dailyQuotaLimitLabel = t('Daily quota limit ({{currency}})', {
+    currency: channelLimitCurrencyLabel,
+  })
+  const monthlyQuotaLimitLabel = t('Monthly quota limit ({{currency}})', {
+    currency: channelLimitCurrencyLabel,
+  })
+  const rateLimitFields = (
+    <div
+      role='group'
+      aria-label={t('Rate & Quota Limits')}
+      className={channelConfigurationBlockClassName(
+        configuration.blocks.rateAndQuotaLimits,
+        'space-y-4'
+      )}
+    >
+      <CardHeading
+        status={configuration.blocks.rateAndQuotaLimits}
+        title={t('Rate & Quota Limits')}
+        icon={<Gauge className='h-4 w-4' />}
+        iconTone='info'
+      />
+      <fieldset
+        disabled={sensitiveLocked || isSubmitting}
+        className='space-y-4 disabled:opacity-60'
+      >
+        <div className='grid gap-4 sm:grid-cols-2'>
+          <FormField
+            control={form.control}
+            name='rpm_limit'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('RPM limit')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min={0}
+                    placeholder='0'
+                    {...field}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(FIELD_DESCRIPTIONS.RPM_LIMIT)}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='tpm_limit'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('TPM limit')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min={0}
+                    placeholder='0'
+                    {...field}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(FIELD_DESCRIPTIONS.TPM_LIMIT)}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='daily_quota_dollars'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{dailyQuotaLimitLabel}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min={0}
+                    step='any'
+                    placeholder={
+                      channelLimitCurrencyMeta.kind === 'tokens'
+                        ? t('Enter quota in tokens')
+                        : '0'
+                    }
+                    {...field}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(FIELD_DESCRIPTIONS.DAILY_QUOTA_LIMIT)}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name='monthly_quota_dollars'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{monthlyQuotaLimitLabel}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min={0}
+                    step='any'
+                    placeholder={
+                      channelLimitCurrencyMeta.kind === 'tokens'
+                        ? t('Enter quota in tokens')
+                        : '0'
+                    }
+                    {...field}
+                    onChange={(e) => field.onChange(Number(e.target.value))}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(FIELD_DESCRIPTIONS.MONTHLY_QUOTA_LIMIT)}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+      </fieldset>
     </div>
   )
 
@@ -4665,6 +4801,7 @@ export function ChannelMutateDrawer({
               </fieldset>
             </div>
             {fieldPassthroughFields}
+            {rateLimitFields}
           </>
         }
         other={

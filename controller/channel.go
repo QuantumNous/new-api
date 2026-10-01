@@ -552,6 +552,11 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	if err := channel.ValidateSettings(); err != nil {
 		return fmt.Errorf("渠道额外设置[channel setting] 格式错误：%s", err.Error())
 	}
+	// 渠道限流与额度上限必须非负，0 表示不限制。
+	if channel.GetRpmLimit() < 0 || channel.GetTpmLimit() < 0 ||
+		channel.GetDailyQuotaLimit() < 0 || channel.GetMonthlyQuotaLimit() < 0 {
+		return fmt.Errorf("channel rate and quota limits must not be negative")
+	}
 	if channel.Type == constant.ChannelTypeTaskPlugin {
 		pluginKey := strings.TrimSpace(channel.GetSetting().TaskPluginKey)
 		if pluginKey == "" {

@@ -78,6 +78,15 @@ const CONFIGURATION_BLOCKS = {
       'claude_beta_query',
     ],
   },
+  rateAndQuotaLimits: {
+    section: 'request',
+    fields: [
+      'rpm_limit',
+      'tpm_limit',
+      'daily_quota_dollars',
+      'monthly_quota_dollars',
+    ],
+  },
   extraSettings: {
     section: 'other',
     fields: [
@@ -170,6 +179,12 @@ export function getChannelConfigurationState(
       (claudePassthrough &&
         (values.allow_speed ||
           (values.type === 14 && values.claude_beta_query)))
+    ),
+    rateAndQuotaLimits: Boolean(
+      values.rpm_limit ||
+      values.tpm_limit ||
+      values.daily_quota_dollars ||
+      values.monthly_quota_dollars
     ),
     extraSettings: Boolean(
       values.proxy?.trim() ||
