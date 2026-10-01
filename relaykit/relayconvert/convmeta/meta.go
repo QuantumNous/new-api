@@ -92,14 +92,14 @@ type ClaudeStreamToolCall struct {
 // ResponsesToolState records how Responses-only tool definitions were encoded
 // for the upstream protocol, so the matching response can be restored.
 type ResponsesToolState struct {
-	// CustomToolNames lists Responses custom (freeform) tools that were sent to
-	// OpenAI Chat Completions as function tools taking one string "input"
-	// argument. Chat function calls with these names are custom tool calls.
+	// CustomToolNames lists Responses custom (freeform) tools that were sent
+	// upstream as function tools taking one string "input" argument. Function
+	// calls with these names are custom tool calls.
 	CustomToolNames map[string]struct{}
 }
 
 // CustomToolInputArgument is the single function argument that carries a
-// Responses custom tool input through OpenAI Chat Completions.
+// Responses custom tool input through an upstream function call.
 const CustomToolInputArgument = "input"
 
 // IsCustomTool reports whether name was encoded from a Responses custom tool.

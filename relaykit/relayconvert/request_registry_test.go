@@ -421,61 +421,121 @@ func TestConvertRequestViaExecutesExplicitPath(t *testing.T) {
 	assert.Equal(t, []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatOpenAIResponses}, info.ConversionChain)
 }
 
-func TestConvertRequestResponsesToGeminiAppliesResponsesPreprocess(t *testing.T) {
-	info := &convmeta.Values{
-		ConversionChain:     []types.RelayFormat{types.RelayFormatOpenAIResponses},
-		ChannelMetaAttached: true,
-		UpstreamModelName:   "gemini-test",
+// customToolInputs are custom_tool_call inputs that must reach the upstream
+// as the raw string, including ones that happen to look like JSON.
+var customToolInputs = []struct {
+	name  string
+	input string
+}{
+	{"json object", `{"a":1}`},
+	{"json array", `[1,2]`},
+	{"plain text", "*** Begin Patch\n*** End Patch"},
+}
+
+func customToolHistoryRequest(t *testing.T, items ...map[string]any) *dto.OpenAIResponsesRequest {
+	t.Helper()
+	input := append([]map[string]any{{"role": "user", "content": "apply the patch"}}, items...)
+	return &dto.OpenAIResponsesRequest{
+		Model:           "model-test",
+		MaxOutputTokens: lo.ToPtr(uint(64)),
+		Input:           mustRawMessage(t, input),
+		Tools:           mustRawMessage(t, []map[string]any{{"type": "custom", "name": "apply_patch"}}),
 	}
-	req := &dto.OpenAIResponsesRequest{
-		Model: "gemini-test",
-		Input: mustRawMessage(t, []map[string]any{
-			{
-				"role":    "user",
-				"content": "next turn",
-			},
-			{
-				"type":    "custom_tool_call",
-				"call_id": "call_custom",
-				"name":    "apply_patch",
-				"input":   "patch body",
-			},
-			{
-				"type":    "custom_tool_call_output",
-				"call_id": "call_custom",
-				"output":  "ok",
-			},
-			{
-				"type":    "function_call_output",
-				"call_id": "call_custom",
-				"output":  "legacy custom output",
-			},
-		}),
-		Tools: mustRawMessage(t, []map[string]any{
-			{"type": "custom", "name": "apply_patch"},
-		}),
+}
+
+func TestConvertRequestResponsesToClaudeKeepsCustomToolHistory(t *testing.T) {
+	for _, tc := range customToolInputs {
+		t.Run(tc.name, func(t *testing.T) {
+			req := customToolHistoryRequest(t,
+				map[string]any{"type": "custom_tool_call", "call_id": "call_custom", "name": "apply_patch", "input": tc.input},
+				map[string]any{"type": "custom_tool_call_output", "call_id": "call_custom", "output": "ok"},
+			)
+
+			result, err := ConvertRequest(nil, &convmeta.Values{}, types.RelayFormatClaude, req)
+			require.NoError(t, err)
+			claudeReq, ok := result.Value.(*dto.ClaudeRequest)
+			require.True(t, ok)
+			require.Len(t, claudeReq.Messages, 3)
+
+			assert.Equal(t, "assistant", claudeReq.Messages[1].Role)
+			toolUse, err := claudeReq.Messages[1].ParseContent()
+			require.NoError(t, err)
+			assert.Equal(t, []dto.ClaudeMediaMessage{{
+				Type:  "tool_use",
+				Id:    "call_custom",
+				Name:  "apply_patch",
+				Input: map[string]any{"input": tc.input},
+			}}, toolUse)
+
+			assert.Equal(t, "user", claudeReq.Messages[2].Role)
+			toolResult, err := claudeReq.Messages[2].ParseContent()
+			require.NoError(t, err)
+			assert.Equal(t, []dto.ClaudeMediaMessage{{Type: "tool_result", ToolUseId: "call_custom", Content: "ok"}}, toolResult)
+		})
 	}
 
-	result, err := ConvertRequest(nil, info, types.RelayFormatGemini, req)
+	t.Run("missing name", func(t *testing.T) {
+		req := customToolHistoryRequest(t, map[string]any{"type": "custom_tool_call", "call_id": "call_custom", "input": "ls"})
+		_, err := ConvertRequest(nil, &convmeta.Values{}, types.RelayFormatClaude, req)
+		require.ErrorContains(t, err, "custom_tool_call item is missing name")
+	})
+}
 
-	require.NoError(t, err)
-	geminiReq, ok := result.Value.(*dto.GeminiChatRequest)
-	require.True(t, ok)
-	assert.Empty(t, geminiReq.GetTools())
-	require.Len(t, geminiReq.Contents, 1)
-	assert.Equal(t, "user", geminiReq.Contents[0].Role)
-	require.Len(t, geminiReq.Contents[0].Parts, 1)
-	assert.Equal(t, "next turn", geminiReq.Contents[0].Parts[0].Text)
-	assert.Equal(t, ConverterOpenAIResponsesToGemini, result.Converter)
-	assert.Equal(t, RequestConverterQualityFair, result.Quality)
-	assert.Equal(t, []RequestStep{
-		{
-			Converter: ConverterOpenAIResponsesToGemini,
-			From:      types.RelayFormatOpenAIResponses,
-			To:        types.RelayFormatGemini,
-		},
-	}, result.Steps)
-	assert.Equal(t, []types.RelayFormat{types.RelayFormatOpenAIResponses, types.RelayFormatGemini}, info.ConversionChain)
+func TestConvertRequestResponsesToGeminiKeepsCustomToolHistory(t *testing.T) {
+	info := func() *convmeta.Values {
+		return &convmeta.Values{Options: &convmeta.Options{Gemini: convmeta.GeminiOptions{FunctionCallThoughtSignatureEnabled: true}}}
+	}
+	for _, tc := range customToolInputs {
+		t.Run(tc.name, func(t *testing.T) {
+			// Older Codex history may answer a custom call with function_call_output.
+			req := customToolHistoryRequest(t,
+				map[string]any{"type": "custom_tool_call", "call_id": "call_custom", "name": "apply_patch", "input": tc.input},
+				map[string]any{"type": "custom_tool_call_output", "call_id": "call_custom", "output": "ok"},
+				map[string]any{"type": "function_call_output", "call_id": "call_custom", "output": "legacy"},
+			)
+
+			result, err := ConvertRequest(nil, info(), types.RelayFormatGemini, req)
+			require.NoError(t, err)
+			geminiReq, ok := result.Value.(*dto.GeminiChatRequest)
+			require.True(t, ok)
+			tools := geminiReq.GetTools()
+			require.Len(t, tools, 1)
+			functions, err := kitutil.Any2Type[[]dto.FunctionRequest](tools[0].FunctionDeclarations)
+			require.NoError(t, err)
+			require.Len(t, functions, 1)
+			assert.Equal(t, "apply_patch", functions[0].Name)
+			require.Len(t, geminiReq.Contents, 3)
+
+			model := geminiReq.Contents[1]
+			assert.Equal(t, "model", model.Role)
+			require.Len(t, model.Parts, 1)
+			assert.Equal(t, &dto.FunctionCall{
+				ID:           "call_custom",
+				FunctionName: "apply_patch",
+				Arguments:    map[string]any{"input": tc.input},
+			}, model.Parts[0].FunctionCall)
+			var thoughtSignature string
+			require.NoError(t, kitutil.Unmarshal(model.Parts[0].ThoughtSignature, &thoughtSignature))
+			assert.Equal(t, sharedgemini.ThoughtSignatureBypassValue, thoughtSignature)
+
+			user := geminiReq.Contents[2]
+			assert.Equal(t, "user", user.Role)
+			require.Len(t, user.Parts, 2)
+			for index, output := range []string{"ok", "legacy"} {
+				assert.Equal(t, &dto.GeminiFunctionResponse{
+					Name:     "apply_patch",
+					Response: map[string]any{"content": output},
+					ID:       []byte(`"call_custom"`),
+				}, user.Parts[index].FunctionResponse)
+			}
+		})
+	}
+
+	t.Run("missing name", func(t *testing.T) {
+		req := customToolHistoryRequest(t, map[string]any{"type": "custom_tool_call", "call_id": "call_custom", "input": "ls"})
+		_, err := ConvertRequest(nil, info(), types.RelayFormatGemini, req)
+		require.ErrorContains(t, err, "custom_tool_call item is missing name")
+	})
 }
 
 func TestConvertRequestResponsesToGeminiUsesDirectConverter(t *testing.T) {
@@ -829,38 +889,32 @@ func inputContentText(t *testing.T, item map[string]any) string {
 	return text
 }
 
-func TestConvertRequestRecordsResponsesCustomToolsForChatTarget(t *testing.T) {
+func TestConvertRequestRecordsResponsesCustomToolsForEachTarget(t *testing.T) {
 	codexRequest := func(tools ...map[string]any) *dto.OpenAIResponsesRequest {
 		return &dto.OpenAIResponsesRequest{
-			Model: "gpt-test",
-			Input: mustMarshalRequestJSON(t, "hello"),
-			Tools: mustMarshalRequestJSON(t, tools),
+			Model:           "model-test",
+			MaxOutputTokens: lo.ToPtr(uint(64)),
+			Input:           mustMarshalRequestJSON(t, "hello"),
+			Tools:           mustMarshalRequestJSON(t, tools),
 		}
 	}
 	execTool := map[string]any{"type": "custom", "name": "exec", "description": "Run code", "format": map[string]any{"type": "text"}}
 	waitTool := map[string]any{"type": "function", "name": "wait", "parameters": map[string]any{"type": "object"}}
 
-	info := &convmeta.Values{}
-	result, err := ConvertRequestByID(nil, info, ConverterOpenAIResponsesToOpenAIChat, codexRequest(execTool, waitTool))
-	require.NoError(t, err)
-	chat, ok := result.Value.(*dto.GeneralOpenAIRequest)
-	require.True(t, ok)
-	require.Len(t, chat.Tools, 2)
-	assert.Equal(t, "exec", chat.Tools[0].Function.Name)
-	require.NotNil(t, info.ResponsesTools)
-	assert.True(t, info.ResponsesTools.IsCustomTool("exec"))
-	assert.False(t, info.ResponsesTools.IsCustomTool("wait"))
+	for _, target := range []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatClaude, types.RelayFormatGemini} {
+		t.Run(string(target), func(t *testing.T) {
+			info := &convmeta.Values{}
+			_, err := ConvertRequest(nil, info, target, codexRequest(execTool, waitTool))
+			require.NoError(t, err)
+			require.NotNil(t, info.ResponsesTools)
+			assert.True(t, info.ResponsesTools.IsCustomTool("exec"))
+			assert.False(t, info.ResponsesTools.IsCustomTool("wait"))
 
-	_, err = ConvertRequestByID(nil, info, ConverterOpenAIResponsesToOpenAIChat, codexRequest(waitTool))
-	require.NoError(t, err)
-	assert.Nil(t, info.ResponsesTools, "a retry without custom tools must not keep the previous record")
-
-	info.ResponsesTools = &convmeta.ResponsesToolState{CustomToolNames: map[string]struct{}{"exec": {}}}
-	claudeRequest := codexRequest(execTool)
-	claudeRequest.MaxOutputTokens = lo.ToPtr(uint(64))
-	_, err = ConvertRequest(nil, info, types.RelayFormatClaude, claudeRequest)
-	require.NoError(t, err)
-	assert.Nil(t, info.ResponsesTools, "only Chat Completions targets carry custom tools as functions")
+			_, err = ConvertRequest(nil, info, target, codexRequest(waitTool))
+			require.NoError(t, err)
+			assert.Nil(t, info.ResponsesTools, "a retry without custom tools must not keep the previous record")
+		})
+	}
 }
 
 func mustMarshalRequestJSON(t *testing.T, value any) []byte {
