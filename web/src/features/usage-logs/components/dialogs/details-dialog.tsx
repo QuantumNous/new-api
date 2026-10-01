@@ -84,6 +84,7 @@ import {
 import { buildQuotaAuditOperation } from '../../lib/quota-audit-operation'
 import {
   getLogTypeConfig,
+  getUseTimeSeconds,
   isPerCallBilling,
   isTimingLogType,
 } from '../../lib/utils'
@@ -478,6 +479,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const { t } = useTranslation()
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const other = parseLogOther(props.log.other)
+  const useTimeSec = getUseTimeSeconds(props.log.use_time, other)
   const typeConfig = getLogTypeConfig(props.log.type)
 
   const isViolation = isViolationFeeLog(other)
@@ -712,7 +714,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             />
           )}
 
-          {showTiming && props.log.use_time > 0 && (
+          {showTiming && useTimeSec > 0 && (
             <DetailRow
               label={t('Response Time')}
               value={
@@ -721,13 +723,13 @@ export function DetailsDialog(props: DetailsDialogProps) {
                     'font-medium',
                     timingTextColorClass(
                       getResponseTimeColor(
-                        props.log.use_time,
+                        useTimeSec,
                         props.log.completion_tokens
                       )
                     )
                   )}
                 >
-                  {formatUseTime(props.log.use_time)}
+                  {formatUseTime(useTimeSec)}
                   {props.log.is_stream &&
                     other?.frt != null &&
                     other.frt > 0 && (

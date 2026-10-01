@@ -35,6 +35,7 @@ import type { UsageLog } from '../data/schema'
 import { formatModelName, parseLogOther } from '../lib/format'
 import {
   getLogTypeConfig,
+  getUseTimeSeconds,
   isDisplayableLogType,
   isTimingLogType,
 } from '../lib/utils'
@@ -205,7 +206,7 @@ export function CommonLogMobileCard<TData>(props: {
               )}
               {props.cells.has('use_time') && (
                 <TimingMetricsCell
-                  useTimeSec={log.use_time}
+                  useTimeSec={getUseTimeSeconds(log.use_time, other)}
                   completionTokens={log.completion_tokens}
                   frtMs={other?.frt}
                   isStream={log.is_stream}
