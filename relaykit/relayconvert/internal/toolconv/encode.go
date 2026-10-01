@@ -52,7 +52,7 @@ func attachOpenAIChatRequest(request any, set Set) (any, []types.ConversionDiagn
 	if !ok || target == nil {
 		return nil, nil, fmt.Errorf("expected OpenAI chat completions request, got %T", request)
 	}
-	customTools, diagnostics := openAIChatCustomTools(set)
+	customTools, diagnostics := responsesCustomTools(set)
 	for index, definition := range set.Definitions {
 		switch definition.Kind {
 		case KindFunction:
@@ -103,7 +103,7 @@ func attachOpenAIChatRequest(request any, set Set) (any, []types.ConversionDiagn
 		}
 	}
 
-	normalizedChoice, allowedChoiceDiagnostics := narrowAllowedFunctionChoice(openAIChatCustomToolChoice(set.Choice, customTools), types.RelayFormatOpenAI)
+	normalizedChoice, allowedChoiceDiagnostics := narrowAllowedFunctionChoice(responsesCustomToolChoice(set.Choice, customTools), types.RelayFormatOpenAI)
 	choice, choiceDiagnostics := encodeOpenAIChatChoice(normalizedChoice)
 	target.ToolChoice = choice
 	target.ParallelTooCalls = set.ParallelAllowed
@@ -113,41 +113,47 @@ func attachOpenAIChatRequest(request any, set Set) (any, []types.ConversionDiagn
 	return target, diagnostics, nil
 }
 
-// openAIChatCustomTool is a Responses custom (freeform) tool sent to Chat
-// Completions as a function whose only argument is the raw input string.
-type openAIChatCustomTool struct {
+// responsesCustomTool is a Responses custom (freeform) tool sent upstream as
+// a function whose only argument is the raw input string.
+type responsesCustomTool struct {
 	name        string
 	description string
 }
 
-func (tool *openAIChatCustomTool) chatTool() dto.ToolCallRequest {
+// inputSchema is the parameters schema of the function that carries a custom
+// tool: a single required string argument holding the raw input.
+func (tool *responsesCustomTool) inputSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			convmeta.CustomToolInputArgument: map[string]any{
+				"type":        "string",
+				"description": "Raw input for the tool.",
+			},
+		},
+		"required":             []string{convmeta.CustomToolInputArgument},
+		"additionalProperties": false,
+	}
+}
+
+func (tool *responsesCustomTool) chatTool() dto.ToolCallRequest {
 	return dto.ToolCallRequest{
 		Type: "function",
 		Function: dto.FunctionRequest{
 			Name:        tool.name,
 			Description: tool.description,
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					convmeta.CustomToolInputArgument: map[string]any{
-						"type":        "string",
-						"description": "Raw input for the tool.",
-					},
-				},
-				"required":             []string{convmeta.CustomToolInputArgument},
-				"additionalProperties": false,
-			},
+			Parameters:  tool.inputSchema(),
 		},
 	}
 }
 
 const responsesCustomToolType = "custom"
 
-// OpenAIChatCustomToolNames returns the Responses custom tools that
-// AttachRequest sends to Chat Completions as functions. The response side
-// restores Chat function calls with these names as custom_tool_call items.
-func OpenAIChatCustomToolNames(set Set) map[string]struct{} {
-	customTools, _ := openAIChatCustomTools(set)
+// ResponsesCustomToolNames returns the Responses custom tools that
+// AttachRequest sends upstream as functions. The response side restores
+// function calls with these names as custom_tool_call items.
+func ResponsesCustomToolNames(set Set) map[string]struct{} {
+	customTools, _ := responsesCustomTools(set)
 	var names map[string]struct{}
 	for _, tool := range customTools {
 		if tool == nil {
@@ -161,13 +167,13 @@ func OpenAIChatCustomToolNames(set Set) map[string]struct{} {
 	return names
 }
 
-// openAIChatCustomTools selects, by definition index, the Responses custom
-// tools that Chat Completions receives as functions. A nil entry marks a
-// custom tool that was dropped with a diagnostic; indexes without an entry
-// fall back to the generic unsupported-tool loss. Request encoding and
-// OpenAIChatCustomToolNames share this selection so the restored names always
+// responsesCustomTools selects, by definition index, the Responses custom
+// tools that the upstream receives as functions. A nil entry marks a custom
+// tool that was dropped with a diagnostic; indexes without an entry fall back
+// to the generic unsupported-tool loss. Request encoding and
+// ResponsesCustomToolNames share this selection so the restored names always
 // match the functions that were sent.
-func openAIChatCustomTools(set Set) (map[int]*openAIChatCustomTool, []types.ConversionDiagnostic) {
+func responsesCustomTools(set Set) (map[int]*responsesCustomTool, []types.ConversionDiagnostic) {
 	if set.Source != types.RelayFormatOpenAIResponses {
 		return nil, nil
 	}
@@ -178,7 +184,7 @@ func openAIChatCustomTools(set Set) (map[int]*openAIChatCustomTool, []types.Conv
 		}
 	}
 	var (
-		tools       map[int]*openAIChatCustomTool
+		tools       map[int]*responsesCustomTool
 		diagnostics []types.ConversionDiagnostic
 	)
 	for index, definition := range set.Definitions {
@@ -190,24 +196,24 @@ func openAIChatCustomTools(set Set) (map[int]*openAIChatCustomTool, []types.Conv
 			continue
 		}
 		if tools == nil {
-			tools = make(map[int]*openAIChatCustomTool)
+			tools = make(map[int]*responsesCustomTool)
 		}
 		path := fmt.Sprintf("tools[%d]", index)
 		if _, exists := functionNames[tool.name]; exists {
 			tools[index] = nil
 			diagnostics = append(diagnostics, semanticLoss(path, "custom_tool_name_conflict",
-				fmt.Sprintf("custom tool %q shares its name with another tool, so OpenAI Chat Completions cannot tell their calls apart", tool.name)))
+				fmt.Sprintf("custom tool %q shares its name with another tool, so the target protocol cannot tell their calls apart", tool.name)))
 			continue
 		}
 		functionNames[tool.name] = struct{}{}
 		tools[index] = tool
 		diagnostics = append(diagnostics, presentationLoss(path, "custom_tool_as_function",
-			fmt.Sprintf("OpenAI Chat Completions has no freeform tools; custom tool %q is sent as a function with one string argument and its input format becomes a description hint", tool.name)))
+			fmt.Sprintf("the target protocol has no freeform tools; custom tool %q is sent as a function with one string argument and its input format becomes a description hint", tool.name)))
 	}
 	return tools, diagnostics
 }
 
-func decodeResponsesCustomTool(raw json.RawMessage) *openAIChatCustomTool {
+func decodeResponsesCustomTool(raw json.RawMessage) *responsesCustomTool {
 	var value map[string]any
 	if err := kitutil.Unmarshal(raw, &value); err != nil {
 		return nil
@@ -233,13 +239,13 @@ func decodeResponsesCustomTool(raw json.RawMessage) *openAIChatCustomTool {
 			}
 		}
 	}
-	return &openAIChatCustomTool{name: name, description: strings.Join(parts, "\n\n")}
+	return &responsesCustomTool{name: name, description: strings.Join(parts, "\n\n")}
 }
 
-// openAIChatCustomToolChoice rewrites a Responses {"type":"custom"} tool
-// choice into a named function choice when that custom tool was sent as a
-// function. Other choices are returned unchanged.
-func openAIChatCustomToolChoice(choice *Choice, customTools map[int]*openAIChatCustomTool) *Choice {
+// responsesCustomToolChoice rewrites a Responses {"type":"custom"} tool choice
+// into a named function choice when that custom tool was sent as a function.
+// Other choices are returned unchanged.
+func responsesCustomToolChoice(choice *Choice, customTools map[int]*responsesCustomTool) *Choice {
 	if choice == nil || choice.Mode != ChoiceOpaque || choice.NativeType != responsesCustomToolType {
 		return choice
 	}
@@ -363,7 +369,7 @@ func attachClaudeRequest(request any, set Set, options *convmeta.Options) (any, 
 		return nil, nil, fmt.Errorf("expected Claude Messages request, got %T", request)
 	}
 	tools := make([]any, 0, len(set.Definitions))
-	var diagnostics []types.ConversionDiagnostic
+	customTools, diagnostics := responsesCustomTools(set)
 	for index, definition := range set.Definitions {
 		switch definition.Kind {
 		case KindFunction:
@@ -434,6 +440,16 @@ func attachClaudeRequest(request any, set Set, options *convmeta.Options) (any, 
 				tools = append(tools, tool)
 				continue
 			}
+			if tool, handled := customTools[index]; handled {
+				if tool != nil {
+					tools = append(tools, &dto.Tool{
+						Name:        tool.name,
+						Description: tool.description,
+						InputSchema: tool.inputSchema(),
+					})
+				}
+				continue
+			}
 			diagnostics = append(diagnostics, semanticLoss(
 				fmt.Sprintf("tools[%d]", index),
 				"unsupported_hosted_tool",
@@ -444,7 +460,7 @@ func attachClaudeRequest(request any, set Set, options *convmeta.Options) (any, 
 	if len(tools) > 0 {
 		target.Tools = tools
 	}
-	normalizedChoice, allowedChoiceDiagnostics := narrowAllowedFunctionChoice(set.Choice, types.RelayFormatClaude)
+	normalizedChoice, allowedChoiceDiagnostics := narrowAllowedFunctionChoice(responsesCustomToolChoice(set.Choice, customTools), types.RelayFormatClaude)
 	choice, choiceDiagnostics := encodeClaudeChoice(normalizedChoice, set.ParallelAllowed, set.Source)
 	target.ToolChoice = choice
 	diagnostics = append(diagnostics, allowedChoiceDiagnostics...)
@@ -483,10 +499,10 @@ func attachGeminiRequest(request any, set Set) (any, []types.ConversionDiagnosti
 		return target, unsupportedHostedHistoryDiagnostics(types.RelayFormatGemini, set.History), nil
 	}
 	var (
-		functions   []map[string]any
-		tools       []map[string]any
-		diagnostics []types.ConversionDiagnostic
+		functions []map[string]any
+		tools     []map[string]any
 	)
+	customTools, diagnostics := responsesCustomTools(set)
 	for index, definition := range set.Definitions {
 		switch definition.Kind {
 		case KindFunction:
@@ -550,19 +566,18 @@ func attachGeminiRequest(request any, set Set) (any, []types.ConversionDiagnosti
 				tools = append(tools, tool)
 				continue
 			}
-			// The established Responses-to-Gemini compatibility path removes
-			// free-form/unknown tools together with custom call history in
-			// PrepareOpenAIResponsesRequest. Keep that explicit downgrade as a
-			// diagnostic; other opaque tools may be server-executed and remain a
-			// semantic loss under the default Safe policy.
-			if set.Source == types.RelayFormatOpenAIResponses && (definition.NativeType == "custom" || definition.NativeType == "unknown") {
-				diagnostics = append(diagnostics, presentationLoss(
-					fmt.Sprintf("tools[%d]", index),
-					"custom_tool_omitted",
-					"Gemini cannot represent this OpenAI free-form or unknown tool; its preprocessed call history and definition were omitted",
-				))
+			if tool, handled := customTools[index]; handled {
+				if tool != nil {
+					functions = append(functions, map[string]any{
+						"name":        tool.name,
+						"description": tool.description,
+						"parameters":  sharedgemini.CleanFunctionParameters(tool.inputSchema()),
+					})
+				}
 				continue
 			}
+			// Other opaque tools may be server-executed and remain a semantic
+			// loss under the default Safe policy.
 			if set.Source == types.RelayFormatOpenAIResponses && definition.Kind == KindNative {
 				diagnostics = append(diagnostics, semanticLoss(
 					fmt.Sprintf("tools[%d]", index),
@@ -588,7 +603,7 @@ func attachGeminiRequest(request any, set Set) (any, []types.ConversionDiagnosti
 		}
 		target.Tools = encoded
 	}
-	config, choiceDiagnostics := encodeGeminiChoice(set.Choice)
+	config, choiceDiagnostics := encodeGeminiChoice(responsesCustomToolChoice(set.Choice, customTools))
 	target.ToolConfig = config
 	diagnostics = append(diagnostics, choiceDiagnostics...)
 	if set.ParallelAllowed != nil && !*set.ParallelAllowed {

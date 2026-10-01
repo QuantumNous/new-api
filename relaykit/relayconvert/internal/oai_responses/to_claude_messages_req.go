@@ -94,9 +94,20 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 		itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
 		switch itemType {
 		case ResponsesInputTypeFunctionCall:
-			claudeRequest.Messages = appendClaudeToolUse(claudeRequest.Messages, responsesFunctionCallItemToClaudeToolUse(item, "arguments"))
+			claudeRequest.Messages = appendClaudeToolUse(claudeRequest.Messages, responsesFunctionCallItemToClaudeToolUse(item))
 		case ResponsesInputTypeCustomToolCall:
-			claudeRequest.Messages = appendClaudeToolUse(claudeRequest.Messages, responsesFunctionCallItemToClaudeToolUse(item, "input"))
+			name := strings.TrimSpace(kitutil.Interface2String(item["name"]))
+			if name == "" {
+				return nil, fmt.Errorf("custom_tool_call item is missing name")
+			}
+			// The custom tool is declared as a function taking one string
+			// argument, so its raw input is replayed in that shape.
+			claudeRequest.Messages = appendClaudeToolUse(claudeRequest.Messages, dto.ClaudeMediaMessage{
+				Type:  "tool_use",
+				Id:    CallID(item),
+				Name:  name,
+				Input: map[string]any{convmeta.CustomToolInputArgument: responsesArgumentsString(item["input"])},
+			})
 		case ResponsesInputTypeFunctionCallOutput, ResponsesInputTypeCustomToolOutput:
 			claudeRequest.Messages = appendClaudeToolResult(claudeRequest.Messages, responsesFunctionOutputItemToClaudeToolResult(item))
 		default:
@@ -203,12 +214,12 @@ func responsesInputContentToClaudeMediaMessages(c context.Context, content any) 
 	return parts, nil
 }
 
-func responsesFunctionCallItemToClaudeToolUse(item map[string]any, inputKey string) dto.ClaudeMediaMessage {
+func responsesFunctionCallItemToClaudeToolUse(item map[string]any) dto.ClaudeMediaMessage {
 	return dto.ClaudeMediaMessage{
 		Type:  "tool_use",
 		Id:    CallID(item),
 		Name:  strings.TrimSpace(kitutil.Interface2String(item["name"])),
-		Input: ObjectValue(item[inputKey], inputKey),
+		Input: ObjectValue(item["arguments"], "arguments"),
 	}
 }
 

@@ -247,11 +247,6 @@ func executeRequestSteps(c context.Context, info convmeta.Meta, from types.Relay
 	}
 	steps := make([]RequestStep, 0, len(specs))
 	for _, spec := range specs {
-		current, err = prepareRequestForStep(current, spec, target)
-		if err != nil {
-			return nil, err
-		}
-
 		var step RequestStep
 		current, step, err = executeRequestStep(c, info, spec, current)
 		if err != nil {
@@ -285,7 +280,7 @@ func executeRequestSteps(c context.Context, info convmeta.Meta, from types.Relay
 			info.AppendRequestConversion(step.To)
 		}
 		if from == types.RelayFormatOpenAIResponses {
-			info.SetResponsesToolState(responsesToolState(target, tools))
+			info.SetResponsesToolState(responsesToolState(tools))
 		}
 	}
 
@@ -307,14 +302,11 @@ func executeRequestSteps(c context.Context, info convmeta.Meta, from types.Relay
 	}, nil
 }
 
-// responsesToolState records which Responses custom tools were sent to Chat
-// Completions as functions, so the Chat response can be restored. It returns
-// nil for other targets so a retry never reuses another channel's record.
-func responsesToolState(target types.RelayFormat, tools toolconv.Set) *convmeta.ResponsesToolState {
-	if target != types.RelayFormatOpenAI {
-		return nil
-	}
-	names := toolconv.OpenAIChatCustomToolNames(tools)
+// responsesToolState records which Responses custom tools were sent upstream
+// as functions, so the response side can restore their calls. It returns nil
+// when none were sent so a retry never reuses another attempt's record.
+func responsesToolState(tools toolconv.Set) *convmeta.ResponsesToolState {
+	names := toolconv.ResponsesCustomToolNames(tools)
 	if len(names) == 0 {
 		return nil
 	}
@@ -368,28 +360,6 @@ func executeRequestStep(c context.Context, info convmeta.Meta, spec RequestConve
 		From:      spec.From,
 		To:        spec.To,
 	}, nil
-}
-
-func prepareRequestForStep(request any, spec RequestConverterSpec, finalTarget types.RelayFormat) (any, error) {
-	if spec.From != types.RelayFormatOpenAIResponses || finalTarget != types.RelayFormatGemini {
-		return request, nil
-	}
-
-	responsesRequest, ok := request.(*dto.OpenAIResponsesRequest)
-	if !ok {
-		if value, ok := request.(dto.OpenAIResponsesRequest); ok {
-			responsesRequest = &value
-		}
-	}
-	if responsesRequest == nil {
-		return nil, fmt.Errorf("expected OpenAI responses request, got %T", request)
-	}
-
-	prepared, err := oairesponses.PrepareOpenAIResponsesRequest(*responsesRequest)
-	if err != nil {
-		return nil, err
-	}
-	return &prepared, nil
 }
 
 func lookupRequestRoute(from types.RelayFormat, to types.RelayFormat) (RequestConverterSpec, bool) {
@@ -538,12 +508,7 @@ func convertOpenAIResponsesRequestToGeminiChat(c context.Context, info convmeta.
 	if err != nil {
 		return nil, err
 	}
-
-	prepared, err := oairesponses.PrepareOpenAIResponsesRequest(*responsesRequest)
-	if err != nil {
-		return nil, err
-	}
-	return oairesponses.OpenAIResponsesRequestToGeminiChat(c, &prepared, info)
+	return oairesponses.OpenAIResponsesRequestToGeminiChat(c, responsesRequest, info)
 }
 
 func convertResponsesRequestToChat(c context.Context, _ convmeta.Meta, request any) (any, error) {
