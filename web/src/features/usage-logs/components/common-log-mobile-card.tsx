@@ -156,7 +156,7 @@ export function CommonLogMobileCard<TData>(props: {
           </div>
         )}
         {fields.cost.visible && costCell && (
-          <div className='ml-auto max-w-full min-w-0 self-center [overflow-wrap:anywhere] [&_.inline-flex]:h-auto [&_.inline-flex]:min-h-6 [&_.inline-flex]:max-w-full [&_.inline-flex]:flex-wrap'>
+          <div className='ml-auto max-w-full min-w-0 self-center [overflow-wrap:anywhere] [&>.inline-flex]:max-w-full [&>.inline-flex]:flex-wrap [&_[data-slot=status-badge]]:h-auto [&_[data-slot=status-badge]]:min-h-6 [&_[data-slot=status-badge]]:flex-wrap'>
             {flexRender(costCell.column.columnDef.cell, costCell.getContext())}
           </div>
         )}
