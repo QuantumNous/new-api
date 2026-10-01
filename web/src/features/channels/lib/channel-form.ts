@@ -83,6 +83,23 @@ export const HTTP_PROTOCOL_AUTO = 'auto'
 export const HTTP_PROTOCOL_HTTP1 = 'http1'
 export const MAX_HTTP2_CONNECTION_SHARDS = 8
 
+/**
+ * Backend limit for balance_script source (balancescript.MaxSourceBytes in
+ * pkg/balancescript/balancescript.go). Enforced client-side too so an
+ * oversized script fails with a readable message instead of a server
+ * rejection.
+ */
+export const MAX_BALANCE_SCRIPT_SOURCE_BYTES = 32 * 1024
+
+export function balanceScriptByteLength(source: string): number {
+  return new TextEncoder().encode(source).length
+}
+
+function isValidBalanceScript(value: string | undefined): boolean {
+  if (!value?.trim()) return true
+  return balanceScriptByteLength(value) <= MAX_BALANCE_SCRIPT_SOURCE_BYTES
+}
+
 export function normalizeHttpProtocol(
   value: string | undefined | null
 ): 'auto' | 'http1' {
@@ -292,6 +309,15 @@ export const channelFormSchema = z
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
     upstream_model_update_ignored_models: z.string().optional(),
+    // Opt-in scripted balance query (stored in settings JSON). Blank means
+    // the channel keeps using its built-in balance query.
+    balance_script: z
+      .string()
+      .optional()
+      .refine(
+        isValidBalanceScript,
+        `Balance script must be ${MAX_BALANCE_SCRIPT_SOURCE_BYTES} bytes or smaller`
+      ),
   })
   .superRefine((data, ctx) => {
     if (
@@ -483,6 +509,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
   advanced_custom: '',
+  balance_script: '',
 }
 
 // ============================================================================
@@ -555,6 +582,7 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
   let advancedCustom = ''
+  let balanceScript = ''
 
   if (channel.settings) {
     try {
@@ -584,6 +612,8 @@ export function transformChannelToFormDefaults(
       if (parsed.advanced_custom) {
         advancedCustom = stringifyAdvancedCustomConfig(parsed.advanced_custom)
       }
+      balanceScript =
+        typeof parsed.balance_script === 'string' ? parsed.balance_script : ''
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to parse channel settings:', error)
@@ -636,6 +666,7 @@ export function transformChannelToFormDefaults(
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
     advanced_custom: advancedCustom,
+    balance_script: balanceScript,
   }
 }
 
@@ -821,6 +852,17 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     }
   } else if ('advanced_custom' in settingsObj) {
     delete settingsObj.advanced_custom
+  }
+
+  // Opt-in scripted balance query, available to any single-key channel.
+  // Blank means the channel keeps its built-in balance query. Trimming is
+  // only used to detect blank; the saved value preserves the original
+  // (possibly whitespace-padded) source so a later edit shows it unchanged.
+  const balanceScript = formData.balance_script || ''
+  if (balanceScript.trim()) {
+    settingsObj.balance_script = balanceScript
+  } else if ('balance_script' in settingsObj) {
+    delete settingsObj.balance_script
   }
 
   return JSON.stringify(settingsObj)
