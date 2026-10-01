@@ -500,8 +500,10 @@ export function DetailsDialog(props: DetailsDialogProps) {
   )
   const hasAudioTokens = other?.ws || other?.audio
   const showTiming = isTimingLogType(props.log.type)
-  const showAdminIp =
-    !!props.log.ip && (showTiming || (props.isAdmin && isTopup))
+  // The ip column is filled by the per-user record-ip opt-in; the
+  // client_ip metadata comes from the system-wide client-info switch.
+  const displayIp = props.log.ip || other?.client_ip || ''
+  const showIp = !!displayIp && (showTiming || (props.isAdmin && isTopup))
   const adminInfo = other?.admin_info
   const topupAuditFields =
     isTopup && props.isAdmin && adminInfo
@@ -699,15 +701,23 @@ export function DetailsDialog(props: DetailsDialogProps) {
             />
           )}
 
-          {showAdminIp && (
+          {showIp && (
             <DetailRow
               label={t('IP Address')}
               value={
                 <span className='flex items-center gap-1'>
                   <Globe className='size-3 text-amber-500' aria-hidden='true' />
-                  {props.log.ip}
+                  {displayIp}
                 </span>
               }
+              mono
+            />
+          )}
+
+          {other?.client_agent && (
+            <DetailRow
+              label={t('Client Identifier')}
+              value={other.client_agent}
               mono
             />
           )}
