@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
@@ -286,12 +287,19 @@ func TestTaskBillingOtherOmitsEmptyUsageFacts(t *testing.T) {
 	assert.NotContains(t, other, "usage_facts")
 }
 
-func callLogTaskConsumption(t *testing.T, info *relaycommon.RelayInfo, task *model.Task) *model.Log {
+func callLogTaskConsumption(t *testing.T, info *relaycommon.RelayInfo, task *model.Task, multiKeyIndex *int) *model.Log {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
 	ctx.Set("token_name", "test_token")
+	if multiKeyIndex != nil {
+		common.SetContextKey(ctx, constant.ContextKeyChannelIsMultiKey, true)
+		common.SetContextKey(ctx, constant.ContextKeyChannelMultiKeyIndex, *multiKeyIndex)
+		common.SetContextKey(ctx, constant.ContextKeyChannelKey, "sk-private-test-key")
+	} else {
+		common.SetContextKey(ctx, constant.ContextKeyChannelIsMultiKey, false)
+	}
 	LogTaskConsumption(ctx, info, task)
 	log := getLastLog(t)
 	require.NotNil(t, log)
@@ -328,7 +336,7 @@ func TestLogTaskConsumptionIncludesTieredSnapshotUsageFacts(t *testing.T) {
 		},
 	}
 
-	log := callLogTaskConsumption(t, info, task)
+	log := callLogTaskConsumption(t, info, task, nil)
 
 	var other map[string]any
 	require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
@@ -369,7 +377,7 @@ func TestLogTaskConsumptionWithoutSnapshotKeepsRatioMode(t *testing.T) {
 		PriceData:       priceData,
 	}
 
-	log := callLogTaskConsumption(t, info, task)
+	log := callLogTaskConsumption(t, info, task, nil)
 
 	var other map[string]any
 	require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
@@ -379,8 +387,118 @@ func TestLogTaskConsumptionWithoutSnapshotKeepsRatioMode(t *testing.T) {
 	assert.NotContains(t, other, "expr_b64")
 	assert.NotContains(t, other, "matched_tier")
 	assert.NotContains(t, other, "usage_facts")
+	adminInfo, ok := other["admin_info"].(map[string]any)
+	require.True(t, ok)
+	assert.NotContains(t, adminInfo, "is_multi_key")
+	assert.NotContains(t, adminInfo, "multi_key_index")
 	assert.Contains(t, log.Content, "计算参数：")
 	assert.Contains(t, log.Content, "size: 2.00")
+}
+
+func TestLogTaskConsumptionIncludesMultiKeyRouting(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		index int
+	}{
+		{name: "index_zero", index: 0},
+		{name: "nonzero_index", index: 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			truncate(t)
+			const userID, channelID = 42, 42
+			seedUser(t, userID, 10_000)
+			seedChannel(t, channelID)
+
+			task := makeTask(userID, channelID, 100, 0, BillingSourceWallet, 0)
+			info := &relaycommon.RelayInfo{
+				UserId:          userID,
+				OriginModelName: "test-model",
+				UsingGroup:      "default",
+				ChannelMeta:     &relaycommon.ChannelMeta{ChannelId: channelID},
+				TaskRelayInfo:   &relaycommon.TaskRelayInfo{Action: "GENERATE"},
+				PriceData: types.PriceData{
+					Quota:          100,
+					GroupRatioInfo: types.GroupRatioInfo{GroupRatio: 1},
+				},
+			}
+
+			log := callLogTaskConsumption(t, info, task, &tc.index)
+
+			var other map[string]any
+			require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+			adminInfo, ok := other["admin_info"].(map[string]any)
+			require.True(t, ok)
+			assert.Equal(t, true, adminInfo["is_multi_key"])
+			assert.Equal(t, float64(tc.index), adminInfo["multi_key_index"])
+			assert.NotContains(t, other, "multi_key_index")
+			assert.NotContains(t, log.Other, "sk-private-test-key")
+		})
+	}
+}
+
+func TestTaskBillingOtherRestoresSubmissionMultiKeySnapshot(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		index int
+	}{
+		{name: "index_zero", index: 0},
+		{name: "nonzero_index", index: 4},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			const apiKey = "sk-private-task-key"
+			relayInfo := &relaycommon.RelayInfo{
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelType:          constant.ChannelTypeNewAPI,
+					ChannelIsMultiKey:    true,
+					ChannelMultiKeyIndex: tc.index,
+					ApiKey:               apiKey,
+				},
+				TaskRelayInfo: &relaycommon.TaskRelayInfo{},
+			}
+			task := model.InitTask("", relayInfo)
+			require.True(t, task.PrivateData.ChannelIsMultiKey)
+			assert.Equal(t, tc.index, task.PrivateData.ChannelMultiKeyIndex)
+
+			value, err := task.PrivateData.Value()
+			require.NoError(t, err)
+			require.NotNil(t, value)
+			var persisted model.TaskPrivateData
+			require.NoError(t, persisted.Scan(value))
+			task.PrivateData = persisted
+
+			// Later channel selection may use another key; async logs must keep
+			// the index frozen when this task was submitted.
+			relayInfo.ChannelMeta.ChannelIsMultiKey = false
+			relayInfo.ChannelMeta.ChannelMultiKeyIndex = 9
+
+			other := taskBillingOther(task).Snapshot()
+			adminInfo, ok := other["admin_info"].(map[string]any)
+			require.True(t, ok)
+			assert.Equal(t, true, adminInfo["is_multi_key"])
+			assert.Equal(t, tc.index, adminInfo["multi_key_index"])
+			assert.NotContains(t, other, "multi_key_index")
+			otherJSON, err := common.Marshal(other)
+			require.NoError(t, err)
+			assert.NotContains(t, string(otherJSON), apiKey)
+		})
+	}
+}
+
+func TestTaskBillingOtherKeepsHistoricalTaskWithoutMultiKeySnapshot(t *testing.T) {
+	task := makeTask(1, 1, 100, 0, BillingSourceWallet, 0)
+	require.NoError(t, common.UnmarshalJsonStr(`{"node_name":"submit-node"}`, &task.PrivateData))
+
+	other := taskBillingOther(task).Snapshot()
+	adminInfo, ok := other["admin_info"].(map[string]any)
+	if ok {
+		assert.NotContains(t, adminInfo, "is_multi_key")
+		assert.NotContains(t, adminInfo, "multi_key_index")
+	}
+	assert.NotContains(t, other, "is_multi_key")
+	assert.NotContains(t, other, "multi_key_index")
+	rootInfo, ok := other["root_info"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "submit-node", rootInfo["node_name"])
 }
 
 // Task logs distinguish jobs the client polls from requests whose HTTP call
@@ -884,7 +1002,12 @@ func TestRefundTaskQuota_Wallet(t *testing.T) {
 	seedChargedAccounting(t, userID, channelID, tokenID, preConsumed, 1)
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.ChannelIsMultiKey = true
+	task.PrivateData.ChannelMultiKeyIndex = 0
 	require.NoError(t, model.DB.Create(task).Error)
+	var persistedTask model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&persistedTask).Error)
+	task = &persistedTask
 
 	assert.True(t, RefundTaskQuota(ctx, task, "task failed: upstream error"))
 
@@ -905,6 +1028,12 @@ func TestRefundTaskQuota_Wallet(t *testing.T) {
 	assert.Equal(t, model.LogTypeRefund, log.Type)
 	assert.Equal(t, preConsumed, log.Quota)
 	assert.Equal(t, "test-model", log.ModelName)
+	var other map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+	adminInfo, ok := other["admin_info"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, true, adminInfo["is_multi_key"])
+	assert.Equal(t, float64(0), adminInfo["multi_key_index"])
 	assert.Zero(t, task.Quota)
 	assert.Zero(t, getTaskQuota(t, task.ID))
 }
@@ -1484,6 +1613,12 @@ func TestSettle_NonPerCallBilling_AppliesAdaptorAdjustment(t *testing.T) {
 	seedChannel(t, channelID)
 
 	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.PrivateData.ChannelIsMultiKey = true
+	task.PrivateData.ChannelMultiKeyIndex = 3
+	require.NoError(t, model.DB.Create(task).Error)
+	var persistedTask model.Task
+	require.NoError(t, model.DB.Where("task_id = ?", task.TaskID).First(&persistedTask).Error)
+	task = &persistedTask
 	// PerCallBilling defaults to false
 
 	adaptor := &mockAdaptor{adjustReturn: adaptorQuota}
@@ -1500,6 +1635,12 @@ func TestSettle_NonPerCallBilling_AppliesAdaptorAdjustment(t *testing.T) {
 	log := getLastLog(t)
 	require.NotNil(t, log)
 	assert.Equal(t, model.LogTypeRefund, log.Type)
+	var other map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+	adminInfo, ok := other["admin_info"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, true, adminInfo["is_multi_key"])
+	assert.Equal(t, float64(3), adminInfo["multi_key_index"])
 }
 
 func TestSettle_TieredEvaluationFailureKeepsPreConsumedCharge(t *testing.T) {
