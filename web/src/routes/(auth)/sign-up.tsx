@@ -18,12 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
+import { redirectIfPasswordRegisterDisabled } from '@/features/auth/lib/password-register-guard'
 import { SignUp } from '@/features/auth/sign-up'
 import { useAuthStore } from '@/stores/auth-store'
 
 export const Route = createFileRoute('/(auth)/sign-up')({
   component: SignUp,
   beforeLoad: async () => {
+    // 密码注册关闭时禁止访问注册页
+    await redirectIfPasswordRegisterDisabled()
+
     const { auth } = useAuthStore.getState()
 
     // 如果已经有用户信息，说明已登录，注册页对其无意义，跳转到 dashboard
