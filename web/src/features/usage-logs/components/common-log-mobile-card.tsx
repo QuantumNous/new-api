@@ -32,7 +32,11 @@ import dayjs from '@/lib/dayjs'
 import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
 
 import type { UsageLog } from '../data/schema'
-import { formatModelName, parseLogOther } from '../lib/format'
+import {
+  formatModelName,
+  getReasoningEffortVariant,
+  parseLogOther,
+} from '../lib/format'
 import {
   getLogTypeConfig,
   isDisplayableLogType,
@@ -44,6 +48,7 @@ import { useUsageLogsContext } from './usage-logs-provider'
 
 type FieldName =
   | 'model'
+  | 'reasoning_effort'
   | 'cost'
   | 'user'
   | 'channel'
@@ -81,6 +86,14 @@ export function CommonLogMobileCard<TData>(props: {
       label: t('Model'),
       value: model.name,
       visible: displayable && props.cells.has('model_name') && !!model.name,
+    },
+    reasoning_effort: {
+      label: t('Reasoning Effort'),
+      value: other?.reasoning_effort ?? '',
+      visible:
+        displayable &&
+        props.cells.has('reasoning_effort') &&
+        !!other?.reasoning_effort,
     },
     cost: {
       label: t('Cost'),
@@ -312,6 +325,27 @@ export function CommonLogMobileCard<TData>(props: {
               {t('Cache')} ↑ {cacheWrite.toLocaleString()}
             </span>
           )}
+        </div>
+      )}
+      {fields.reasoning_effort.visible && (
+        <div className='flex min-w-0 items-center gap-2'>
+          <span className='text-muted-foreground max-w-[40%] shrink-0 text-xs [overflow-wrap:anywhere]'>
+            {fields.reasoning_effort.label}
+          </span>
+          <Button
+            variant='ghost'
+            aria-label={`${fields.reasoning_effort.label}: ${fields.reasoning_effort.value}`}
+            aria-haspopup='dialog'
+            onClick={() => setSelectedField('reasoning_effort')}
+            className='h-auto min-h-8 min-w-0 flex-1 shrink justify-start px-0 py-1 text-left text-sm font-normal'
+          >
+            <StatusBadge
+              label={fields.reasoning_effort.value}
+              variant={getReasoningEffortVariant(fields.reasoning_effort.value)}
+              size='sm'
+              copyable={false}
+            />
+          </Button>
         </div>
       )}
       {contentCell && (

@@ -58,6 +58,7 @@ import type { UsageLog } from '../../data/schema'
 import {
   formatModelName,
   decodeBillingExprB64,
+  getReasoningEffortVariant,
   getTieredBillingSummary,
   hasAnyCacheTokens,
   parseLogOther,
@@ -687,6 +688,32 @@ export function useCommonLogsColumns(
           )
         },
         meta: { mobileTitle: true },
+      },
+      {
+        id: 'reasoning_effort',
+        header: t('Reasoning Effort'),
+        accessorFn: (row) => parseLogOther(row.other)?.reasoning_effort ?? '',
+        cell: ({ row }) => {
+          const log = row.original
+          if (!isDisplayableLogType(log.type)) return null
+
+          const effort = row.getValue('reasoning_effort') as string
+          if (!effort) {
+            return <span className='text-muted-foreground/60 text-xs'>-</span>
+          }
+
+          return (
+            <StatusBadge
+              label={effort}
+              variant={getReasoningEffortVariant(effort)}
+              size='sm'
+              copyable={false}
+              className='-ml-1.5'
+            />
+          )
+        },
+        meta: { label: t('Reasoning Effort') },
+        size: 80,
       },
       {
         accessorKey: 'is_stream',
