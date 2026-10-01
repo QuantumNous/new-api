@@ -2,10 +2,12 @@ package toolconv
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSanitizeToolParameters_DropsNullRequired(t *testing.T) {
@@ -205,61 +207,69 @@ func TestSanitizeToolParameters_PreservesArrayFormDependencies(t *testing.T) {
 
 func TestSanitizeChatRequestToolsDropsNullRequired(t *testing.T) {
 	var request dto.GeneralOpenAIRequest
-	body := `{"model":"m","tools":[{"type":"function","function":{"name":"t","parameters":{"type":"object","properties":{"a":{"type":"object","required":null,"properties":{}}},"required":null,"default":{"required":null}}}}]}`
-	if err := json.Unmarshal([]byte(body), &request); err != nil {
-		t.Fatal(err)
-	}
+	body := `{"model":"m","tools":[{"type":"function","function":{"name":"t","parameters":{"type":"object","properties":{"a":{"type":"object","required":null,"properties":{}}},"required":null,"default":{"required":null}}}}],"functions":[{"name":"f","parameters":{"type":"object","required":null}}]}`
+	require.NoError(t, kitutil.Unmarshal([]byte(body), &request))
 
 	SanitizeChatRequestTools(&request)
 
-	out, err := json.Marshal(request.Tools[0].Function.Parameters)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := string(out)
-	if strings.Contains(got, `"required":null`) && !strings.Contains(got, `"default":{"required":null}`) {
-		t.Fatalf("null required survived: %s", got)
-	}
-	if strings.Count(got, `"required":null`) != 1 {
-		t.Fatalf("want only the instance data inside default to keep required:null, got %s", got)
-	}
+	parameters, err := kitutil.Marshal(request.Tools[0].Function.Parameters)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"type":"object","properties":{"a":{"type":"object","properties":{}}},"default":{"required":null}}`, string(parameters))
+	assert.JSONEq(t, `[{"name":"f","parameters":{"type":"object"}}]`, string(request.Functions))
+
+	assert.NotPanics(t, func() { SanitizeChatRequestTools(nil) })
 }
 
-func TestSanitizeChatRequestToolsHandlesLegacyFunctionsAndNil(t *testing.T) {
-	SanitizeChatRequestTools(nil)
+func TestSanitizeResponsesRequestTools(t *testing.T) {
+	tests := []struct {
+		name  string
+		tools string
+		want  string
+	}{
+		{
+			name:  "drops null required in nested schemas and namespace tools",
+			tools: `[{"type":"function","name":"t","parameters":{"type":"object","required":null,"properties":{"x":{"type":"array","items":{"type":"object","required":null}}}}},{"type":"namespace","name":"ns","tools":[{"type":"function","name":"n","parameters":{"type":"object","required":null}}]},{"type":"web_search"}]`,
+			want:  `[{"type":"function","name":"t","parameters":{"type":"object","properties":{"x":{"type":"array","items":{"type":"object"}}}}},{"type":"namespace","name":"ns","tools":[{"type":"function","name":"n","parameters":{"type":"object"}}]},{"type":"web_search"}]`,
+		},
+		{
+			name:  "keeps instance data under default and examples",
+			tools: `[{"type":"function","name":"t","parameters":{"type":"object","required":null,"default":{"required":null},"examples":[{"required":null}]}}]`,
+			want:  `[{"type":"function","name":"t","parameters":{"type":"object","default":{"required":null},"examples":[{"required":null}]}}]`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			request := dto.OpenAIResponsesRequest{Tools: json.RawMessage(tt.tools)}
 
-	request := dto.GeneralOpenAIRequest{
-		Functions: json.RawMessage(`[{"name":"f","parameters":{"type":"object","required":null}}]`),
+			SanitizeResponsesRequestTools(&request)
+
+			assert.JSONEq(t, tt.want, string(request.Tools))
+		})
 	}
-	SanitizeChatRequestTools(&request)
-	if strings.Contains(string(request.Functions), `"required":null`) {
-		t.Fatalf("legacy functions not repaired: %s", request.Functions)
-	}
+
+	assert.NotPanics(t, func() { SanitizeResponsesRequestTools(nil) })
 }
 
-func TestSanitizeResponsesRequestToolsDropsNullRequired(t *testing.T) {
+// A repair must not re-encode values it does not touch: decoding into any would
+// round large integers through float64, and 9007199254740993 would come back as
+// 9007199254740992. Byte equality on the untouched tool pins that down.
+func TestSanitizeResponsesRequestToolsPreservesUntouchedBytes(t *testing.T) {
+	untouched := `{"type":"function","name":"b","parameters":{"type":"object","properties":{"n":{"type":"integer","maximum":9007199254740993,"default":1.10}}}}`
 	request := dto.OpenAIResponsesRequest{
-		Tools: json.RawMessage(`[{"type":"function","name":"t","parameters":{"type":"object","required":null,"properties":{"x":{"type":"array","items":{"type":"object","required":null}}}}},{"type":"namespace","name":"ns","tools":[{"type":"function","name":"n","parameters":{"type":"object","required":null}}]},{"type":"web_search"}]`),
+		Tools: json.RawMessage(`[{"type":"function","name":"a","parameters":{"type":"object","required":null,"properties":{"m":{"type":"integer","const":9007199254740993}}}},` + untouched + `]`),
 	}
 
 	SanitizeResponsesRequestTools(&request)
 
-	if strings.Contains(string(request.Tools), `"required":null`) {
-		t.Fatalf("null required survived: %s", request.Tools)
-	}
-	if !strings.Contains(string(request.Tools), `"web_search"`) {
-		t.Fatalf("non-function tool was dropped: %s", request.Tools)
-	}
-}
+	var tools []json.RawMessage
+	require.NoError(t, kitutil.Unmarshal(request.Tools, &tools))
+	require.Len(t, tools, 2)
+	assert.Equal(t, untouched, string(tools[1]))
+	assert.Contains(t, string(tools[0]), `"const":9007199254740993`)
+	assert.NotContains(t, string(tools[0]), `"required"`)
 
-func TestSanitizeResponsesRequestToolsKeepsCleanBytes(t *testing.T) {
-	raw := json.RawMessage(`[{"type":"function","name":"t","parameters":{"type":"object","required":["a"]}}]`)
-	request := dto.OpenAIResponsesRequest{Tools: append(json.RawMessage(nil), raw...)}
-
+	clean := json.RawMessage(`[{"type":"function","name":"t","parameters":{"type":"object","required":["a"],"maximum":9007199254740993}}]`)
+	request = dto.OpenAIResponsesRequest{Tools: append(json.RawMessage(nil), clean...)}
 	SanitizeResponsesRequestTools(&request)
-
-	if string(request.Tools) != string(raw) {
-		t.Fatalf("clean tools were rewritten: %s", request.Tools)
-	}
-	SanitizeResponsesRequestTools(nil)
+	assert.Equal(t, string(clean), string(request.Tools))
 }

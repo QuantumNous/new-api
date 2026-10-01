@@ -180,52 +180,135 @@ func SanitizeResponsesRequestTools(request *dto.OpenAIResponsesRequest) {
 }
 
 // sanitizeRawToolList repairs a raw JSON array of tool or function
-// declarations. The input is only re-encoded when something was repaired, so
-// well-formed requests keep their original bytes.
+// declarations. It stays on json.RawMessage: only the objects on the path to a
+// repaired schema are decoded and re-encoded, and every other member keeps its
+// original bytes. Numbers in particular are never routed through float64, so
+// values such as 9007199254740993 survive exactly. A list with nothing to
+// repair is returned unchanged.
 func sanitizeRawToolList(raw json.RawMessage) (json.RawMessage, bool) {
-	if len(raw) == 0 {
+	return rewriteRawArray(raw, 0, sanitizeRawTool)
+}
+
+// sanitizeRawTool repairs one raw tool declaration.
+func sanitizeRawTool(raw json.RawMessage, depth int) (json.RawMessage, bool) {
+	return rewriteRawObject(raw, depth, repairRawToolMembers)
+}
+
+// repairRawToolMembers covers the declaration shapes the request formats use: a
+// top-level "parameters" (Responses, legacy functions), a nested
+// "function.parameters" (Chat), and a "tools" list inside namespace tools.
+func repairRawToolMembers(tool map[string]json.RawMessage, depth int) bool {
+	changed := false
+	if next, repaired := sanitizeRawSchema(tool["parameters"], 0); repaired {
+		tool["parameters"] = next
+		changed = true
+	}
+	if next, repaired := sanitizeRawTool(tool["function"], depth+1); repaired {
+		tool["function"] = next
+		changed = true
+	}
+	if next, repaired := rewriteRawArray(tool["tools"], depth+1, sanitizeRawTool); repaired {
+		tool["tools"] = next
+		changed = true
+	}
+	return changed
+}
+
+// sanitizeRawSchema is the json.RawMessage counterpart of sanitizeSchema and
+// follows the same keyword tables.
+func sanitizeRawSchema(raw json.RawMessage, depth int) (json.RawMessage, bool) {
+	return rewriteRawObject(raw, depth, repairRawSchemaMembers)
+}
+
+// repairRawSchemaMembers drops a null "required" from one schema object and
+// descends into the keywords that hold subschemas.
+func repairRawSchemaMembers(schema map[string]json.RawMessage, depth int) bool {
+	changed := false
+	if required, exists := schema["required"]; exists && kitutil.GetJsonType(required) == "null" {
+		delete(schema, "required")
+		changed = true
+	}
+	for key, child := range schema {
+		if next, repaired := sanitizeRawSubschemas(key, child, depth+1); repaired {
+			schema[key] = next
+			changed = true
+		}
+	}
+	return changed
+}
+
+// sanitizeRawSubschemas repairs the subschemas held by one schema keyword.
+// "items" accepts either a single schema or a legacy tuple, so it is tried in
+// both shapes; any keyword outside the tables is instance data and is skipped.
+func sanitizeRawSubschemas(key string, raw json.RawMessage, depth int) (json.RawMessage, bool) {
+	if _, ok := schemaSubschemaKeywords[key]; ok {
+		if next, repaired := sanitizeRawSchema(raw, depth); repaired {
+			return next, true
+		}
+	}
+	if _, ok := schemaSubschemaListKeywords[key]; ok {
+		return rewriteRawArray(raw, depth, sanitizeRawSchema)
+	}
+	if _, ok := schemaSubschemaMapKeywords[key]; ok {
+		return rewriteRawObject(raw, depth, repairRawSchemaMap)
+	}
+	return raw, false
+}
+
+// repairRawSchemaMap repairs every schema in a name-to-schema map such as
+// "properties" or "$defs".
+func repairRawSchemaMap(entries map[string]json.RawMessage, depth int) bool {
+	changed := false
+	for name, entry := range entries {
+		if next, repaired := sanitizeRawSchema(entry, depth); repaired {
+			entries[name] = next
+			changed = true
+		}
+	}
+	return changed
+}
+
+// rewriteRawObject decodes raw into raw members, lets repair edit them, and
+// re-encodes only when repair reports a change. Values that are not JSON
+// objects, or that sit beyond schemaSanitizeMaxDepth, are returned as is.
+func rewriteRawObject(raw json.RawMessage, depth int, repair func(map[string]json.RawMessage, int) bool) (json.RawMessage, bool) {
+	if depth > schemaSanitizeMaxDepth || kitutil.GetJsonType(raw) != "object" {
 		return raw, false
 	}
-	var tools []any
-	if err := kitutil.Unmarshal(raw, &tools); err != nil {
+	var object map[string]json.RawMessage
+	if err := kitutil.Unmarshal(raw, &object); err != nil || !repair(object, depth) {
 		return raw, false
 	}
-	if !sanitizeRawTools(tools, 0) {
-		return raw, false
-	}
-	encoded, err := kitutil.Marshal(tools)
+	encoded, err := kitutil.Marshal(object)
 	if err != nil {
 		return raw, false
 	}
 	return encoded, true
 }
 
-// sanitizeRawTools handles the declaration shapes the three request formats
-// use: a top-level "parameters" (Responses, legacy functions), a nested
-// "function.parameters" (Chat), and a "tools" list inside namespace tools.
-func sanitizeRawTools(tools []any, depth int) bool {
-	if depth > schemaSanitizeMaxDepth {
-		return false
+// rewriteRawArray is the array counterpart of rewriteRawObject: each element
+// goes through repair, and the array is re-encoded only if one changed.
+func rewriteRawArray(raw json.RawMessage, depth int, repair func(json.RawMessage, int) (json.RawMessage, bool)) (json.RawMessage, bool) {
+	if depth > schemaSanitizeMaxDepth || kitutil.GetJsonType(raw) != "array" {
+		return raw, false
+	}
+	var items []json.RawMessage
+	if err := kitutil.Unmarshal(raw, &items); err != nil {
+		return raw, false
 	}
 	changed := false
-	for _, item := range tools {
-		tool, ok := item.(map[string]any)
-		if !ok {
-			continue
-		}
-		if next, c := sanitizeToolParameters(tool["parameters"]); c {
-			tool["parameters"] = next
-			changed = true
-		}
-		if function, ok := tool["function"].(map[string]any); ok {
-			if next, c := sanitizeToolParameters(function["parameters"]); c {
-				function["parameters"] = next
-				changed = true
-			}
-		}
-		if nested, ok := tool["tools"].([]any); ok && sanitizeRawTools(nested, depth+1) {
+	for index, item := range items {
+		if next, repaired := repair(item, depth); repaired {
+			items[index] = next
 			changed = true
 		}
 	}
-	return changed
+	if !changed {
+		return raw, false
+	}
+	encoded, err := kitutil.Marshal(items)
+	if err != nil {
+		return raw, false
+	}
+	return encoded, true
 }
