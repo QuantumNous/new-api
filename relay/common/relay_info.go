@@ -952,6 +952,7 @@ func (info *RelayInfo) ConvOptions() *convmeta.Options {
 			ThinkingAdapterEnabled:                geminiSettings.ThinkingAdapterEnabled,
 			ThinkingAdapterBudgetTokensPercentage: geminiSettings.ThinkingAdapterBudgetTokensPercentage,
 			FunctionCallThoughtSignatureEnabled:   geminiSettings.FunctionCallThoughtSignatureEnabled,
+			AllowRemoteFileURI:                    info != nil && info.GetChannelType() == constant.ChannelTypeVertexAi,
 			SupportsImagine:                       model_setting.IsGeminiModelSupportImagine,
 			SafetySetting:                         model_setting.GetGeminiSafetySetting,
 		},
