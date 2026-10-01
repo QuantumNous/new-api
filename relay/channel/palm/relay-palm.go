@@ -51,9 +51,14 @@ func streamResponsePaLM2OpenAI(palmResponse *PaLMChatResponse) *dto.ChatCompleti
 }
 
 func palmStreamHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError, string) {
+	defer service.CloseResponseBodyGracefully(resp)
+
 	responseText := ""
 	responseId := helper.GetResponseID(c)
 	createdTime := common.GetTimestamp()
+	if err := helper.CommitEventStreamHeaders(c); err != nil {
+		return types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry()), ""
+	}
 	dataChan := make(chan string)
 	stopChan := make(chan bool)
 	go func() {
@@ -63,7 +68,6 @@ func palmStreamHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError,
 			stopChan <- true
 			return
 		}
-		service.CloseResponseBodyGracefully(resp)
 		var palmResponse PaLMChatResponse
 		err = json.Unmarshal(responseBody, &palmResponse)
 		if err != nil {
@@ -86,7 +90,6 @@ func palmStreamHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError,
 		dataChan <- string(jsonResponse)
 		stopChan <- true
 	}()
-	helper.SetEventStreamHeaders(c)
 	c.Stream(func(w io.Writer) bool {
 		select {
 		case data := <-dataChan:
@@ -97,7 +100,6 @@ func palmStreamHandler(c *gin.Context, resp *http.Response) (*types.NewAPIError,
 			return false
 		}
 	})
-	service.CloseResponseBodyGracefully(resp)
 	return nil, responseText
 }
 

@@ -50,6 +50,7 @@ func TestStreamStatus_SetEndReason_Concurrent(t *testing.T) {
 		StreamEndReasonEOF,
 		StreamEndReasonPanic,
 		StreamEndReasonPingFail,
+		StreamEndReasonWriterError,
 	}
 
 	var wg sync.WaitGroup
@@ -142,6 +143,7 @@ func TestStreamStatus_IsNormalEnd(t *testing.T) {
 		{StreamEndReasonScannerErr, false},
 		{StreamEndReasonPanic, false},
 		{StreamEndReasonPingFail, false},
+		{StreamEndReasonWriterError, false},
 		{StreamEndReasonNone, false},
 	}
 	for _, tt := range tests {
