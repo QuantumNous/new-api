@@ -1,0 +1,92 @@
+.experiment {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  max-width: 640px;
+  margin: 0 auto;
+  padding-block: 2rem;
+}
+
+.variant {
+  border: 1px solid var(--color-gray-200);
+  border-radius: 1rem;
+  padding: 1rem;
+  background-color: white;
+  box-shadow: 0 10px 25px rgb(15 23 42 / 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.variantTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-gray-900);
+}
+
+.variantSubtitle {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-gray-500);
+}
+
+.variantBody {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+}
+
+.tabs {
+  max-width: 100%;
+}
+
+.list {
+  display: flex;
+  border-radius: 0.75rem;
+  position: relative;
+  min-height: 3rem;
+  width: 100%;
+  overflow-x: auto;
+  max-width: 100%;
+  z-index: 1;
+}
+
+.tab {
+  padding-block: 0.35rem;
+  padding-inline: 0.75rem;
+  border-radius: 0.5rem;
+  border: none;
+  background: none;
+  color: var(--color-gray-800);
+  font-weight: 600;
+  font-size: inherit;
+  line-height: 1.25rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+.tab[data-active] {
+  color: white;
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--color-blue);
+  outline-offset: 2px;
+}
+
+.indicator {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  translate: var(--active-tab-left, 0) -50%;
+  width: var(--active-tab-width, 0);
+  height: var(--active-tab-height, 0);
+  border-radius: 0.25rem;
+  background-color: var(--color-gray-900);
+  transition-property: translate, width, height;
+  transition-duration: 200ms;
+  transition-timing-function: ease-in-out;
+  z-index: -1;
+}

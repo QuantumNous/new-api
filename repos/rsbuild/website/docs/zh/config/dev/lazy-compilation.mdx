@@ -1,0 +1,170 @@
+---
+description: '用于开启 lazy compilation（即按需编译），基于 Rspack 的 lazy compilation 特性实现。'
+---
+
+# dev.lazyCompilation
+
+- **类型：**
+
+```ts
+type LazyCompilationOptions =
+  | boolean
+  | {
+      /**
+       * 为 entries 启用 lazy compilation
+       */
+      entries?: boolean;
+      /**
+       * 为 dynamic imports 启用 lazy compilation
+       */
+      imports?: boolean;
+      /**
+       * 指定哪些导入的模块应该被延迟编译
+       */
+      test?: RegExp | ((m: Module) => boolean);
+      /**
+       * 指定一个自定义的运行时代码路径，用于覆盖默认的 lazy compilation client
+       */
+      client?: string;
+      /**
+       * 指定 client 需要请求的 server URL
+       */
+      serverUrl?: string;
+      /**
+       * 自定义 lazy compilation URL 的前缀
+       * @default "/lazy-compilation-using-"
+       */
+      prefix?: string;
+    };
+```
+
+- **默认值：**
+
+```js
+const defaultOptions = {
+  imports: true,
+  entries: false,
+};
+```
+
+用于开启 lazy compilation（即按需编译），基于 Rspack 的 [lazy compilation](https://rspack.rs/zh/guide/features/lazy-compilation) 特性实现。
+
+## 介绍
+
+尽管 Rspack 本身具备良好的性能，但是面对具有大量模块的应用，其整体构建时间仍然可能不够理想。这是因为应用中的模块需要经过不同 loader 的编译，包括 `postcss-loader`、`sass-loader`、`vue-loader` 等，它们都会产生额外的编译开销。
+
+Lazy compilation 是一个提升开发阶段启动性能的有效手段，它采用按需编译模块的方式，而非在启动时编译全部模块。这意味着开发者在启动 dev server 时，可以很快看到应用运行，并分次构建所需的模块。通过这种按需编译的机制，可以减少不必要的编译时间，且随着项目规模的扩大，编译时间不会显著增长，从而大幅提升开发体验。
+
+:::tip
+Lazy compilation 仅在开发阶段有效，对于生产构建不会产生影响。
+:::
+
+## 示例
+
+### 启用 Lazy compilation
+
+Rsbuild 已经默认开启了 `imports` 选项，即 lazy 编译动态引入的模块。
+
+将 `lazyCompilation` 设置为 `true` 即可开启完整的 lazy compilation 功能：
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    lazyCompilation: true,
+  },
+};
+```
+
+这等价于以下配置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    lazyCompilation: {
+      imports: true,
+      // 如果只有一个入口，则 Rsbuild 默认不启用 entries 选项
+      entries: true,
+    },
+  },
+};
+```
+
+### 禁用 Lazy compilation
+
+将 `lazyCompilation` 设置为 `false` 来禁用 lazy compilation:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    lazyCompilation: false,
+  },
+};
+```
+
+### 入口模块
+
+通过 `lazyCompilation.entries` 来控制是否延迟编译入口模块：
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    lazyCompilation: {
+      entries: true,
+    },
+  },
+};
+```
+
+在启用 `entries` 选项后，当你启动 dev server 时，Rsbuild 不会编译所有的页面，而是仅在访问特定的页面时，才对该页面进行编译。
+
+延迟编译入口模块时，有以下注意事项：
+
+- 只适用于多页应用（MPA），对单页应用（SPA）没有优化效果。
+- 当你访问一个页面时，你需要等待页面编译完成才能看到页面的内容。
+
+### 异步模块
+
+通过 `lazyCompilation.imports` 来控制是否延迟编译 [dynamic import](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import) 引入的异步模块：
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    lazyCompilation: {
+      imports: true,
+    },
+  },
+};
+```
+
+开启 `imports` 选项后，所有的异步模块只有在被请求时才触发编译。如果你的项目是一个单页应用（SPA），并通过 dynamic import 进行了路由拆分，那么 dev 启动时间会有明显提升。
+
+### Server URL
+
+通过 [lazyCompilation.serverUrl](https://rspack.rs/zh/config/lazy-compilation#lazycompilationserverurl) 可以指定 client 需要请求的 server URL。
+
+如果未配置 `lazyCompilation.serverUrl`，并且设置了 `dev.client.host` 或 `dev.client.port`，Rsbuild 会将 `dev.client` 对应的 URL 作为默认的 `serverUrl`。
+
+如果显式配置了 `lazyCompilation.serverUrl`，该配置始终优先于从 `dev.client` 推导出的默认值。
+
+示例如下：
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    lazyCompilation: {
+      serverUrl: 'http://localhost:<port>',
+    },
+  },
+};
+```
+
+:::tip
+Rsbuild 会自动将 `<port>` 占位符替换为 server 实际监听的端口号。
+:::
+
+## 版本历史
+
+| 版本   | 变更内容                                                  |
+| ------ | --------------------------------------------------------- |
+| v1.3.0 | 新增该选项                                                |
+| v1.5.0 | 默认值由 `false` 改为 `{ imports: true, entries: false }` |

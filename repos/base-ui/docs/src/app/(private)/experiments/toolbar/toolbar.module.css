@@ -1,0 +1,302 @@
+.Root {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.375rem;
+  background-color: var(--color-gray-50);
+  padding: 0.5rem 0.6rem;
+  text-wrap: nowrap;
+}
+
+.Grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 0.5rem;
+}
+
+/* disabled buttons + focusableWhenDisabled */
+.Root [type='button']:disabled,
+.Root [type='button'][data-disabled],
+.Root input[data-disabled],
+.Root button[data-disabled] {
+  color: color-mix(in srgb, currentColor 30%, transparent) !important;
+  cursor: not-allowed !important;
+}
+
+.Separator[data-orientation='vertical'] {
+  width: 1px;
+  align-self: stretch;
+  margin-block: 4px;
+  background-color: var(--color-gray-300);
+}
+
+.Separator[data-orientation='horizontal'] {
+  height: 1px;
+  align-self: stretch;
+  /*  margin-block: 2px; */
+  background-color: var(--color-gray-300);
+  margin-block: 24px;
+}
+
+.Link {
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--color-gray-900);
+  text-decoration-color: var(--color-gray-400);
+  text-decoration-thickness: 1px;
+  text-decoration-line: none;
+  text-underline-offset: 2px;
+
+  @media (hover: hover) {
+    &:hover {
+      text-decoration-line: underline;
+    }
+  }
+
+  &:focus-visible {
+    border-radius: 0.125rem;
+    outline: 2px solid var(--color-blue);
+    text-decoration-line: none;
+  }
+}
+
+.Button {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 2.5rem;
+  padding-inline: 0.875rem;
+  margin: 0;
+  outline: 0;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.375rem;
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  background-color: transparent;
+  color: var(--color-gray-900);
+  -webkit-user-select: none;
+  user-select: none;
+
+  &:focus-visible {
+    background-color: transparent;
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--color-gray-100);
+    }
+  }
+
+  &:active {
+    background-color: var(--color-gray-200);
+  }
+}
+
+/* ToggleGroup  */
+.ToggleGroup {
+  display: flex;
+  gap: 1px;
+  border-radius: 0.375rem;
+  padding: 0.125rem;
+}
+
+.Toggle {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  margin: 0;
+  outline: 0;
+  border: 0;
+  border-radius: 0.25rem;
+  background-color: transparent;
+  color: var(--color-gray-600);
+  -webkit-user-select: none;
+  user-select: none;
+
+  &:focus-visible {
+    background-color: transparent;
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+  }
+
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--color-gray-100);
+    }
+  }
+
+  &:active {
+    background-color: var(--color-gray-200);
+  }
+
+  &[data-pressed] {
+    background-color: var(--color-gray-100);
+    color: var(--color-gray-900);
+  }
+}
+
+.Icon {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Menu  */
+.More {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  height: 2.5rem;
+  padding: 0 0.875rem;
+  margin: 0;
+  outline: 0;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.375rem;
+  background-color: var(--color-gray-50);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5rem;
+  color: var(--color-gray-900);
+  -webkit-user-select: none;
+  user-select: none;
+
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--color-gray-100);
+    }
+  }
+
+  &:active {
+    background-color: var(--color-gray-100);
+  }
+
+  &[data-popup-open] {
+    background-color: var(--color-gray-100);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+  }
+}
+
+/* Select  */
+/* ArrowOuterStroke  */
+.ArrowSvg > path:nth-child(2) {
+  @media (prefers-color-scheme: light) {
+    fill: var(--color-gray-200);
+  }
+}
+
+/* Select  */
+/* ArrowInnerStroke  */
+.ArrowSvg > path:nth-child(3) {
+  @media (prefers-color-scheme: dark) {
+    fill: var(--color-gray-300);
+  }
+}
+
+/* NumberField  */
+.NumberFieldGroup {
+  --corner-radius: 0.375rem;
+  --border-radius-right: 0 var(--corner-radius) var(--corner-radius) 0;
+  --border-radius-left: var(--corner-radius) 0 0 var(--corner-radius);
+
+  & button:first-of-type {
+    border-radius: var(--border-radius-left);
+    /*    border-inline-end-color: transparent; */
+  }
+
+  & button:last-of-type {
+    border-radius: var(--border-radius-right);
+    /*    border-inline-start-color: transparent; */
+  }
+
+  & button:first-of-type:dir(rtl) {
+    border-radius: var(--border-radius-right);
+  }
+
+  & button:last-of-type:dir(rtl) {
+    border-radius: var(--border-radius-left);
+  }
+}
+
+.Input {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid var(--color-gray-200);
+  border-bottom: 1px solid var(--color-gray-200);
+  border-left: none;
+  border-right: none;
+  width: 3rem;
+  height: 2.5rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: normal;
+  background-color: transparent;
+  color: var(--color-gray-900);
+
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+
+  &:focus {
+    z-index: 1;
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+  }
+}
+
+/* Misc stuff  */
+.Textarea {
+  box-sizing: border-box;
+  padding: 0.875rem;
+  margin: 0;
+  border: 1px solid var(--color-gray-200);
+  width: 100%;
+  border-radius: 0.375rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: normal;
+  background-color: transparent;
+  color: var(--color-gray-900);
+
+  &:focus {
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+  }
+}
+
+.Wrapper {
+  min-width: 50dvw;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: self-start;
+}
+
+.h3 {
+  margin-bottom: 1rem;
+}
+
+.a {
+  color: var(--color-blue);
+  text-decoration: underline;
+  align-self: flex-start;
+}

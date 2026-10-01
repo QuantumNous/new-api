@@ -1,0 +1,16 @@
+{
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "postcss": true,
+    "minified": true,
+    "newFeature": true
+  },
+  "appid": "testAppId",
+  "projectname": "@visactor/tt-vchart",
+  "condition": {
+    "miniprogram": {
+      "current": -1
+    }
+  }
+}

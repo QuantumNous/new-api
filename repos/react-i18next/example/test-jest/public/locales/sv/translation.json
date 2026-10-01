@@ -1,0 +1,18 @@
+{
+  "title": "react-i18next Jest Test Svenska",
+  "description": {
+    "part1": "Detta är ett test för svenska översättningar i Jest.",
+    "part2": "Testerna kontrollerar att svenska språkväxling fungerar korrekt."
+  },
+  "buttons": {
+    "toggle": "Växla språk",
+    "test": "Testknappp",
+    "submit": "Skicka formulär"
+  },
+  "messages": {
+    "loading": "Laddar...",
+    "success": "Lyckades!",
+    "error": "Ett fel uppstod",
+    "welcome": "Välkommen {{name}}"
+  }
+}

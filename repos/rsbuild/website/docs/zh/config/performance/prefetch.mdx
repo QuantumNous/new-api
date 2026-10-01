@@ -1,0 +1,236 @@
+---
+description: '为 Rsbuild 构建生成的静态资源注入 link 标签。'
+---
+
+# performance.prefetch
+
+- **类型：**
+
+```ts
+type Prefetch = undefined | true | PrefetchOptions | PrefetchOptions[];
+
+interface PrefetchOptions {
+  type?: ResourceHintsIncludeType;
+  include?: ResourceHintsFilter;
+  exclude?: ResourceHintsFilter;
+}
+```
+
+- **默认值：** `undefined`
+
+为 Rsbuild 构建生成的静态资源注入 [`<link rel="prefetch">`](https://developer.mozilla.org/zh-CN/docs/Web/HTML/Attributes/rel/prefetch) 标签。
+
+## 什么是 prefetch
+
+`<link>` 元素的 rel 属性中的 prefetch 关键字是为了提示浏览器，用户未来的浏览有可能需要加载目标资源，所以浏览器有可能通过事先获取和缓存对应资源，优化用户体验。
+
+## 启用 prefetch
+
+当设置 `performance.prefetch` 为 `true` 时，Rsbuild 将使用以下默认选项，对资源进行预获取，这表示 prefetch 当前页面的所有异步资源，包含异步 JS 及其关联的 CSS、image、font 资源。
+
+```js
+const defaultOptions = {
+  type: 'async-chunks',
+};
+```
+
+在 Rsbuild 配置中启用 prefetch：
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    prefetch: true,
+  },
+};
+```
+
+比如，在入口文件中动态引入了其他模块：
+
+```js title="index.js"
+import('./foo');
+import('./bar');
+```
+
+在 HTML 中注入的标签为：
+
+```html
+<html>
+  <head>
+    <title>Rsbuild App</title>
+    <script defer src="/static/js/index.js"></script>
+    <!-- 生成的 prefetch 标签 -->
+    <link href="/static/js/async/src_bar_js.js" rel="prefetch" />
+    <link href="/static/js/async/src_foo_js.js" rel="prefetch" />
+  </head>
+</html>
+```
+
+## 手动注入
+
+`performance.prefetch` 只能为 Rsbuild 构建生成的静态资源注入 prefetch 标签，如果你需要 prefetch 其他资源，可以通过 [html.tags](/config/html/tags) 手动添加标签：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      {
+        tag: 'link',
+        attrs: {
+          rel: 'prefetch',
+          href: 'https://example.com/some-script.js',
+        },
+      },
+    ],
+  },
+};
+```
+
+注入的 HTML 标签如下：
+
+```html
+<link rel="prefetch" href="https://example.com/some-script.js" />
+```
+
+## 选项
+
+`performance.prefetch` 可以设置为一个对象或对象数组来指定选项。
+
+### prefetch.type
+
+- **类型：**
+
+```ts
+type ResourceHintsIncludeType = 'async-chunks' | 'initial' | 'all-assets' | 'all-chunks';
+```
+
+- **默认值：** `'async-chunks'`
+
+指定哪些类型的资源会被包含，目前支持的值如下：
+
+- `async-chunks`: 包含当前页面的所有异步资源，比如异步的 JS chunks，以及它关联的 CSS、image、font 资源。
+- `initial`: 包含当前页面的所有非异步资源。
+- `all-chunks`: 包含当前页面的所有异步和非异步资源。
+- `all-assets`: 包含所有页面的所有资源。
+
+例如，为了包含当前页面中所有 png 图片，可以配置为：
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    prefetch: {
+      type: 'all-chunks',
+      include: [/\.png$/],
+    },
+  },
+};
+```
+
+:::tip
+如果一个脚本已通过 HTML `<script>` 标签直接引入，则不会对其进行 prefetch。
+:::
+
+你也可以将 `performance.prefetch` 设置为数组来应用多条 prefetch 规则，匹配到的资源会被合并并去重：
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    prefetch: [
+      {
+        include: /\.js$/,
+      },
+      {
+        type: 'all-chunks',
+        include: /\.png$/,
+      },
+    ],
+  },
+};
+```
+
+### prefetch.include
+
+- **类型：**
+
+```ts
+type ResourceHintsFilter =
+  | string
+  | RegExp
+  | ((filename: string) => boolean)
+  | Array<string | RegExp | ((filename: string) => boolean)>;
+```
+
+- **默认值：** `undefined`
+
+一个额外的过滤器，用于指定哪些资源会被包含。
+
+- 当 `include` 为一个正则表达式时，它会被直接用于匹配文件名：
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    prefetch: {
+      // 匹配所有 .png 文件
+      include: /\.png$/,
+    },
+  },
+};
+```
+
+- 当 `include` 为一个字符串时，它会被转换为正则表达式来匹配文件名：
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    prefetch: {
+      include: '\\.png', // 等价于 `new RegExp('\\.png')`
+    },
+  },
+};
+```
+
+- 当 `include` 为函数时，它会被调用并传入文件名作为参数：
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    prefetch: {
+      include: (filename) => filename.endsWith('.png'),
+    },
+  },
+};
+```
+
+- 当 `include` 为一个数组时，它可以包含多个过滤器，文件名只要匹配任何一个过滤器都会被包含：
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    prefetch: {
+      include: [/\.png$/, '\\.jpg'],
+    },
+  },
+};
+```
+
+### prefetch.exclude
+
+- **类型：**
+
+```ts
+type ResourceHintsFilter =
+  | string
+  | RegExp
+  | ((filename: string) => boolean)
+  | Array<string | RegExp | ((filename: string) => boolean)>;
+```
+
+- **默认值：** `/\.(?:webmanifest|pdf|txt)$/i`
+
+一个额外的过滤器，用于指定哪些资源会被排除，用法与 `include` 类似。
+
+## 版本历史
+
+| 版本    | 变更内容                                       |
+| ------- | ---------------------------------------------- |
+| v2.1.5  | 默认排除 `.webmanifest`、`.pdf` 和 `.txt` 资源 |
+| v2.0.12 | 支持将 `performance.prefetch` 设置为数组       |

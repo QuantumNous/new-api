@@ -1,0 +1,180 @@
+{
+  "name": "zustand",
+  "description": "🐻 Bear necessities for state management in React",
+  "private": true,
+  "type": "commonjs",
+  "version": "5.0.14",
+  "main": "./index.js",
+  "types": "./index.d.ts",
+  "typesVersions": {
+    ">=4.5": {
+      "esm/*": [
+        "esm/*"
+      ],
+      "*": [
+        "*"
+      ]
+    },
+    "*": {
+      "esm/*": [
+        "ts_version_4.5_and_above_is_required.d.ts"
+      ],
+      "*": [
+        "ts_version_4.5_and_above_is_required.d.ts"
+      ]
+    }
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "react-native": {
+        "types": "./index.d.ts",
+        "default": "./index.js"
+      },
+      "import": {
+        "types": "./esm/index.d.mts",
+        "default": "./esm/index.mjs"
+      },
+      "default": {
+        "types": "./index.d.ts",
+        "default": "./index.js"
+      }
+    },
+    "./*": {
+      "react-native": {
+        "types": "./*.d.ts",
+        "default": "./*.js"
+      },
+      "import": {
+        "types": "./esm/*.d.mts",
+        "default": "./esm/*.mjs"
+      },
+      "default": {
+        "types": "./*.d.ts",
+        "default": "./*.js"
+      }
+    }
+  },
+  "files": [
+    "**"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "prebuild": "shx rm -rf dist",
+    "build": "pnpm run prebuild && pnpm run \"/^build:.*/\" && pnpm run postbuild",
+    "build-watch": "pnpm run \"/^build:.*/\" --watch",
+    "build:base": "rollup -c",
+    "build:vanilla": "rollup -c --config-vanilla",
+    "build:react": "rollup -c --config-react",
+    "build:middleware": "rollup -c --config-middleware",
+    "build:middleware:immer": "rollup -c --config-middleware_immer",
+    "build:shallow": "rollup -c --config-shallow",
+    "build:vanilla:shallow": "rollup -c --config-vanilla_shallow",
+    "build:react:shallow": "rollup -c --config-react_shallow",
+    "build:traditional": "rollup -c --config-traditional",
+    "postbuild": "pnpm run patch-d-ts && pnpm run copy && pnpm run patch-old-ts && pnpm run patch-esm-ts",
+    "fix": "pnpm run fix:lint && pnpm run fix:format",
+    "fix:format": "prettier . --write",
+    "fix:lint": "eslint . --fix",
+    "test": "pnpm run \"/^test:.*/\"",
+    "test:format": "prettier . --list-different",
+    "test:types": "tsc --noEmit",
+    "test:lint": "eslint .",
+    "test:spec": "vitest run",
+    "patch-d-ts": "node --input-type=module -e \"import { entries } from './rollup.config.mjs'; import shelljs from 'shelljs'; const { find, sed } = shelljs; find('dist/**/*.d.ts').forEach(f => { entries.forEach(({ find, replacement }) => { sed('-i', new RegExp(' from \\'' + find.source.slice(0, -1) + '\\';$'), ' from \\'' + replacement + '\\';', f); }); sed('-i', / from '(\\.[^']+)\\.ts';$/, ' from \\'\\$1\\';', f); });\"",
+    "copy": "shx cp -r dist/src/* dist/esm && shx cp -r dist/src/* dist && shx rm -rf dist/src && shx rm -rf dist/{src,tests} && shx cp package.json README.md LICENSE dist && json -I -f dist/package.json -e \"this.private=false; this.devDependencies=undefined; this.optionalDependencies=undefined; this.scripts=undefined; this.prettier=undefined;\"",
+    "patch-old-ts": "shx touch dist/ts_version_4.5_and_above_is_required.d.ts",
+    "patch-esm-ts": "node -e \"require('shelljs').find('dist/esm/**/*.d.ts').forEach(f=>{var f2=f.replace(/\\.ts$/,'.mts');require('fs').renameSync(f,f2);require('shelljs').sed('-i',/ from '(\\.[^']+)';$/,' from \\'\\$1.mjs\\';',f2);require('shelljs').sed('-i',/^declare module '(\\.[^']+)'/,'declare module \\'\\$1.mjs\\'',f2)})\""
+  },
+  "engines": {
+    "node": ">=12.20.0"
+  },
+  "prettier": {
+    "semi": false,
+    "singleQuote": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pmndrs/zustand.git"
+  },
+  "keywords": [
+    "react",
+    "state",
+    "manager",
+    "management",
+    "redux",
+    "store"
+  ],
+  "author": "Paul Henschel",
+  "contributors": [
+    "Jeremy Holcomb (https://github.com/JeremyRH)",
+    "Daishi Kato (https://github.com/dai-shi)"
+  ],
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pmndrs/zustand/issues"
+  },
+  "homepage": "https://github.com/pmndrs/zustand",
+  "devDependencies": {
+    "@eslint/js": "9.39.4",
+    "@redux-devtools/extension": "^4.0.0",
+    "@rollup/plugin-alias": "^6.0.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-replace": "^6.0.3",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^25.9.1",
+    "@types/react": "^19.2.15",
+    "@types/react-dom": "^19.2.3",
+    "@types/use-sync-external-store": "^1.5.0",
+    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/eslint-plugin": "^1.6.18",
+    "@vitest/ui": "^4.1.7",
+    "esbuild": "^0.28.0",
+    "eslint": "9.39.4",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-jest-dom": "^5.5.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-testing-library": "^7.16.2",
+    "immer": "^11.1.8",
+    "jsdom": "^29.1.1",
+    "json": "^11.0.0",
+    "prettier": "^3.8.3",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "redux": "^5.0.1",
+    "rollup": "^4.60.4",
+    "rollup-plugin-esbuild": "^6.2.1",
+    "shelljs": "^0.10.0",
+    "shx": "^0.4.0",
+    "tslib": "^2.8.1",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.60.0",
+    "use-sync-external-store": "^1.6.0",
+    "vitest": "^4.1.7"
+  },
+  "peerDependencies": {
+    "@types/react": ">=18.0.0",
+    "immer": ">=9.0.6",
+    "react": ">=18.0.0",
+    "use-sync-external-store": ">=1.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@types/react": {
+      "optional": true
+    },
+    "immer": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "use-sync-external-store": {
+      "optional": true
+    }
+  },
+  "packageManager": "pnpm@11.3.0+sha512.2c403d6594527287672b1f7056343a1f7c3634036a67ffabfcc2b3d7595d843768f8787148d1b57cf7956c90606bbd192857c363af19e96d2d0ec9ec5741d215"
+}

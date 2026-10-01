@@ -1,0 +1,219 @@
+---
+description: 'Create aliases for module paths to simplify import paths or redirect module references.'
+---
+
+# resolve.alias
+
+- **Type:**
+
+```ts
+type Alias = Record<string, string | false | (string | false)[]> | Function;
+```
+
+- **Default:**
+
+```ts
+const defaultAlias = {
+  '@swc/helpers': path.dirname(require.resolve('@swc/helpers/package.json')),
+};
+```
+
+- **Version:** `>=1.1.7`
+
+Create aliases for module paths to simplify import paths or redirect module references.
+
+For TypeScript projects, configure [compilerOptions.paths](https://typescriptlang.org/tsconfig#paths) in your `tsconfig.json` file. Rsbuild automatically recognizes these settings, so you don't need to configure `resolve.alias` separately. For more details, see [Path Aliases](/guide/advanced/alias).
+
+## Basic usage
+
+`resolve.alias` accepts an object where the `key` is the module path in your source code to replace, and the `value` is the target path for the module mapping.
+
+```ts title="rsbuild.config.ts"
+export default {
+  resolve: {
+    alias: {
+      '@common': './src/common',
+    },
+  },
+};
+```
+
+With this configuration, importing `@common/Foo.tsx` in your code maps to `<project-root>/src/common/Foo.tsx`.
+
+## Function usage
+
+`resolve.alias` can also be a function that receives the previous alias object, which you can modify:
+
+```ts title="rsbuild.config.ts"
+export default {
+  resolve: {
+    alias: (alias) => {
+      alias['@common'] = './src/common';
+    },
+  },
+};
+```
+
+To remove the built-in `@swc/helpers` alias, delete it in the function:
+
+```ts title="rsbuild.config.ts"
+export default {
+  resolve: {
+    alias: (alias) => {
+      delete alias['@swc/helpers'];
+    },
+  },
+};
+```
+
+You can also return a new object as the final result in the function, which will replace the preset alias object.
+
+```ts title="rsbuild.config.ts"
+export default {
+  resolve: {
+    alias: (alias) => {
+      return {
+        '@common': './src/common',
+      };
+    },
+  },
+};
+```
+
+## Differences with Rspack
+
+Rsbuild's `resolve.alias` is similar to Rspack's [resolve.alias](https://rspack.rs/config/resolve#resolvealias) configuration, but there are some differences:
+
+- If the value of `resolve.alias` is a relative path, Rsbuild will automatically convert it to an absolute path to ensure that the path is relative to the project root.
+
+```ts title="rsbuild.config.ts"
+export default {
+  resolve: {
+    alias: {
+      // Will be converted to `<project-root>/src/common`
+      '@common': './src/common',
+    },
+  },
+};
+```
+
+- Rsbuild additionally supports the function type.
+
+## Set by environment
+
+When you build for multiple [environments](/config/environments), you can set different alias for each environment:
+
+For example, set different alias for `web` and `node` environments:
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    web: {
+      resolve: {
+        alias: {
+          '@common': './src/web/common',
+        },
+      },
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      resolve: {
+        alias: {
+          '@common': './src/node/common',
+        },
+      },
+      output: {
+        target: 'node',
+      },
+    },
+  },
+};
+```
+
+## Exact matching
+
+By default, `resolve.alias` will automatically match sub-paths, for example, with the following configuration:
+
+```ts title="rsbuild.config.ts"
+import path from 'node:path';
+
+export default {
+  resolve: {
+    alias: {
+      '@common': './src/common',
+    },
+  },
+};
+```
+
+It will match as follows:
+
+```ts
+import a from '@common'; // resolved to `./src/common`
+import b from '@common/util'; // resolved to `./src/common/util`
+```
+
+You can add the `$` symbol to enable exact matching, which will not automatically match sub-paths.
+
+```ts title="rsbuild.config.ts"
+import path from 'node:path';
+
+export default {
+  resolve: {
+    alias: {
+      '@common$': './src/common',
+    },
+  },
+};
+```
+
+It will match as follows:
+
+```ts
+import a from '@common'; // resolved to `./src/common`
+import b from '@common/util'; // remains as `@common/util`
+```
+
+## Handling npm packages
+
+You can use `alias` to resolve an npm package to a specific directory.
+
+For example, if multiple versions of the `react` are installed in the project, you can alias `react` to the version installed in the root `node_modules` directory to avoid bundling multiple copies of the React code.
+
+```ts title="rsbuild.config.ts"
+import path from 'node:path';
+
+export default {
+  resolve: {
+    alias: {
+      react: path.resolve(__dirname, './node_modules/react'),
+    },
+  },
+};
+```
+
+When using alias to handle npm packages, please be aware of whether different major versions of the package are being used in the project.
+
+For example, if a module or npm dependency in your project uses the React 19 API, and you alias React to version 17, the module will not be able to reference the React 19 API, resulting in code exceptions.
+
+## Handling loader
+
+`resolve.alias` does not support creating aliases for loaders.
+
+To create aliases for loaders, use Rspack's [resolveLoader](https://rspack.rs/config/resolve-loader) configuration.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      resolveLoader: {
+        alias: {
+          'amazing-loader': require.resolve('path-to-your-amazing-loader'),
+        },
+      },
+    },
+  },
+};
+```

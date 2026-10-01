@@ -1,0 +1,16 @@
+.git
+/coverage
+/docs/next-env.d.ts
+/docs/.next
+/docs/export
+/docs/src/app/(private)/playground/
+/packages/react/**/*.min.*
+build
+build-tests
+node_modules
+pnpm-lock.yaml
+routeTree.gen.ts
+
+# TODO: fix lint violations and remove these ignores
+/CHANGELOG.old.md
+/CLAUDE.md

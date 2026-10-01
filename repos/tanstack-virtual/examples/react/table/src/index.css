@@ -1,0 +1,19 @@
+*,
+*:before,
+*:after {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: sans-serif;
+  font-size: 14px;
+}
+
+body {
+  padding: 1rem;
+}
+
+.container {
+  height: 600px;
+  overflow: auto;
+}

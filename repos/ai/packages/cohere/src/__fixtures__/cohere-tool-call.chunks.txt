@@ -1,0 +1,47 @@
+{"id":"2941521a-b87a-45f6-9b0d-235fd66c3025","type":"message-start","delta":{"message":{"role":"assistant","content":[],"tool_plan":"","tool_calls":[],"citations":[]}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":"I"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" will"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" use"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" the"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" weather"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" tool"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" to"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" find"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" the"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" weather"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" in"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" San"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" Francisco"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" and"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" the"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" city"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":"At"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":"tract"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":"ions"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" tool"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" to"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" find"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" attractions"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" in"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" San"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":" Francisco"}}}
+{"type":"tool-plan-delta","delta":{"message":{"tool_plan":"."}}}
+{"type":"tool-call-start","index":0,"delta":{"message":{"tool_calls":{"id":"weather_e8p4pn45zt0t","type":"function","function":{"name":"weather","arguments":""}}}}}
+{"type":"tool-call-delta","index":0,"delta":{"message":{"tool_calls":{"function":{"arguments":"{\""}}}}}
+{"type":"tool-call-delta","index":0,"delta":{"message":{"tool_calls":{"function":{"arguments":"location"}}}}}
+{"type":"tool-call-delta","index":0,"delta":{"message":{"tool_calls":{"function":{"arguments":"\":"}}}}}
+{"type":"tool-call-delta","index":0,"delta":{"message":{"tool_calls":{"function":{"arguments":" \""}}}}}
+{"type":"tool-call-delta","index":0,"delta":{"message":{"tool_calls":{"function":{"arguments":"San"}}}}}
+{"type":"tool-call-delta","index":0,"delta":{"message":{"tool_calls":{"function":{"arguments":" Francisco"}}}}}
+{"type":"tool-call-delta","index":0,"delta":{"message":{"tool_calls":{"function":{"arguments":"\"}"}}}}}
+{"type":"tool-call-end","index":0}
+{"type":"tool-call-start","index":1,"delta":{"message":{"tool_calls":{"id":"cityAttractions_pyxssbwnq9fq","type":"function","function":{"name":"cityAttractions","arguments":""}}}}}
+{"type":"tool-call-delta","index":1,"delta":{"message":{"tool_calls":{"function":{"arguments":"{\""}}}}}
+{"type":"tool-call-delta","index":1,"delta":{"message":{"tool_calls":{"function":{"arguments":"city"}}}}}
+{"type":"tool-call-delta","index":1,"delta":{"message":{"tool_calls":{"function":{"arguments":"\":"}}}}}
+{"type":"tool-call-delta","index":1,"delta":{"message":{"tool_calls":{"function":{"arguments":" \""}}}}}
+{"type":"tool-call-delta","index":1,"delta":{"message":{"tool_calls":{"function":{"arguments":"San"}}}}}
+{"type":"tool-call-delta","index":1,"delta":{"message":{"tool_calls":{"function":{"arguments":" Francisco"}}}}}
+{"type":"tool-call-delta","index":1,"delta":{"message":{"tool_calls":{"function":{"arguments":"\"}"}}}}}
+{"type":"tool-call-end","index":1}
+{"type":"message-end","delta":{"finish_reason":"TOOL_CALL","usage":{"billed_units":{"input_tokens":119,"output_tokens":44},"tokens":{"input_tokens":1549,"output_tokens":95},"cached_tokens":1504}}}

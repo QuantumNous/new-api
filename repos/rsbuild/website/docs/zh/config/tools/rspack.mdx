@@ -1,0 +1,430 @@
+---
+description: 'tools.rspack 选项用于修改 Rspack 的配置项。'
+---
+
+# tools.rspack
+
+- **类型：** `Rspack.Configuration | Function | undefined`
+- **默认值：** `undefined`
+
+`tools.rspack` 选项用于修改 [Rspack](https://rspack.rs/zh/config/index) 的配置项。
+
+:::tip
+Rsbuild 内置的 Rspack 配置会随着迭代而发生变化，这些变化不会反映在 semver 中，因此在升级 Rsbuild 时，你的自定义配置可能会失效。
+:::
+
+## Object 类型
+
+`tools.rspack` 可以配置为一个对象，这个对象将会和内置的 Rspack 配置通过 [rspack-merge](https://github.com/rstackjs/rspack-merge) 进行深层合并。
+
+比如添加 `resolve.alias` 配置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      resolve: {
+        alias: {
+          '@util': 'src/util',
+        },
+      },
+    },
+  },
+};
+```
+
+在合并配置时，`rspack-merge` 会自动合并数组，比如 `plugins`、`module.rules`、`resolve.extensions` 等配置。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      resolve: {
+        // 与内置的 resolve.extensions 合并
+        extensions: ['.foo'],
+      },
+    },
+  },
+};
+```
+
+如果你需要覆盖某个配置项，而不是与默认值合并，可以使用 `tools.rspack` 的函数类型。
+
+## Function 类型
+
+`tools.rspack` 也可以配置为一个函数，这个函数接收一个参数，即内置的 Rspack 配置对象，你可以对这个对象进行修改，然后返回一份新的配置。比如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config) => {
+      config.resolve.alias ||= {};
+      config.resolve.alias['@util'] = 'src/util';
+      return config;
+    },
+  },
+};
+```
+
+:::tip
+`tools.rspack` 函数返回的对象会直接作为最终使用的 Rspack 配置，不会再与内置的 Rspack 配置进行合并。
+:::
+
+`tools.rspack` 还可以是一个异步函数：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: async (config) => {
+      const { default: ESLintPlugin } = await import('eslint-webpack-plugin');
+      config.plugins.push(new ESLintPlugin());
+      return config;
+    },
+  },
+};
+```
+
+## 工具对象 \{#utils}
+
+这个函数的第二个参数是一个对象，包含了一些工具函数和属性，详情如下：
+
+### env
+
+- **类型：** `'development' | 'production' | 'test'`
+
+通过 env 参数可以判断当前环境为 development、production 还是 test。比如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { env }) => {
+      if (env === 'development') {
+        config.devtool = 'cheap-module-eval-source-map';
+      }
+      return config;
+    },
+  },
+};
+```
+
+### isDev
+
+- **类型：** `boolean`
+
+一个布尔值，表示当前是否为开发模式构建，当 [mode](/config/mode) 为 `development` 时，值为 `true`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { isDev }) => {
+      if (isDev) {
+        config.devtool = 'eval-cheap-source-map';
+      }
+      return config;
+    },
+  },
+};
+```
+
+### isProd
+
+- **类型：** `boolean`
+
+一个布尔值，表示当前是否为生产模式构建，当 [mode](/config/mode) 为 `production` 时，值为 `true`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { isProd }) => {
+      if (isProd) {
+        config.devtool = 'source-map';
+      }
+      return config;
+    },
+  },
+};
+```
+
+### target
+
+- **类型：** `'web' | 'node' | 'web-worker'`
+
+当前 [构建目标](/config/output/target)。
+
+你可以为不同的构建目标设置不同的 Rspack 配置，比如：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { target }) => {
+      if (target === 'node') {
+        // ...
+        config.plugins.push(new SomePluginForNode());
+        return config;
+      }
+      return config;
+    },
+  },
+};
+```
+
+### isServer
+
+- **类型：** `boolean`
+
+一个布尔值，表示当前 [构建目标](/config/output/target) 是否为 `node`，等价于 `target === 'node'`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { isServer }) => {
+      if (isServer) {
+        // ...
+      }
+      return config;
+    },
+  },
+};
+```
+
+### isWebWorker
+
+- **类型：** `boolean`
+
+一个布尔值，表示当前 [构建目标](/config/output/target) 是否为 `web-worker`，等价于 `target === 'web-worker'`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { isWebWorker }) => {
+      if (isWebWorker) {
+        // ...
+      }
+      return config;
+    },
+  },
+};
+```
+
+### rspack
+
+- **类型：** `Rspack`
+
+Rspack 实例，等价于 `import { rspack } from '@rsbuild/core'`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { rspack }) => {
+      config.plugins.push(new rspack.BannerPlugin());
+      return config;
+    },
+  },
+};
+```
+
+### environment
+
+- **类型：** [EnvironmentContext](/api/javascript-api/environment-api#environment-context)
+
+和当前环境有关的上下文信息。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { environment }) => {
+      console.log(environment);
+    },
+  },
+};
+```
+
+### environments
+
+- **类型：** `Record<string, EnvironmentContext>`
+
+所有环境的上下文信息。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { environments }) => {
+      console.log(environments);
+    },
+  },
+};
+```
+
+### HtmlPlugin
+
+- **类型：** `typeof import('html-rspack-plugin')`
+
+对应 [html-rspack-plugin](https://github.com/rstackjs/html-rspack-plugin) 插件的默认导出。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { HtmlPlugin }) => {
+      console.log(HtmlPlugin);
+    },
+  },
+};
+```
+
+### addRules
+
+- **类型：** `(rules: RuleSetRule | RuleSetRule[]) => void`
+
+添加额外的 [Rspack rules](https://rspack.rs/zh/config/module-rules) 到 Rspack rules 列表的最前面。
+
+需要注意的是，Rspack loaders 会按照从右到左的顺序执行，如果你希望你添加的 loader（Normal Phase）先于其他 loader 执行，应使用 [appendRules](#appendrules) 将该规则添加到最后面。
+
+示例：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { addRules }) => {
+      // 添加单条规则
+      addRules({
+        test: /\.foo/,
+        loader: require.resolve('foo-loader'),
+      });
+
+      // 以数组形式添加多条规则
+      addRules([
+        {
+          test: /\.foo/,
+          loader: require.resolve('foo-loader'),
+        },
+        {
+          test: /\.bar/,
+          loader: require.resolve('bar-loader'),
+        },
+      ]);
+    },
+  },
+};
+```
+
+### appendRules
+
+- **类型：** `(rules: RuleSetRule | RuleSetRule[]) => void`
+
+添加额外的 [Rspack rules](https://rspack.rs/zh/config/module-rules) 到 Rspack rules 列表的最后面。
+
+示例：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { appendRules }) => {
+      // 追加单条规则
+      appendRules({
+        test: /\.foo/,
+        loader: require.resolve('foo-loader'),
+      });
+
+      // 以数组形式追加多条规则
+      appendRules([
+        {
+          test: /\.foo/,
+          loader: require.resolve('foo-loader'),
+        },
+        {
+          test: /\.bar/,
+          loader: require.resolve('bar-loader'),
+        },
+      ]);
+    },
+  },
+};
+```
+
+### prependPlugins
+
+- **类型：**
+
+```ts
+function prependPlugins(plugins: Rspack.Plugin | Rspack.Plugin[]): void;
+```
+
+在内部 Rspack 插件数组头部添加额外的插件，数组头部的插件会优先执行。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { prependPlugins }) => {
+      // 添加单个插件
+      prependPlugins(new PluginA());
+
+      // 以数组形式添加多个插件
+      prependPlugins([new PluginA(), new PluginB()]);
+    },
+  },
+};
+```
+
+### appendPlugins
+
+- **类型：**
+
+```ts
+function appendPlugins(plugins: Rspack.Plugin | Rspack.Plugin[]): void;
+```
+
+在内部 Rspack 插件数组尾部添加额外的插件，数组尾部的插件会在最后执行。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { appendPlugins }) => {
+      // 添加单个插件
+      appendPlugins(new PluginA());
+
+      // 以数组形式添加多个插件
+      appendPlugins([new PluginA(), new PluginB()]);
+    },
+  },
+};
+```
+
+### removePlugin
+
+- **类型：** `(name: string) => void`
+
+删除内部的 Rspack 插件，参数为该插件的 `constructor.name`。
+
+例如，删除内部的 ProgressPlugin：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { removePlugin }) => {
+      removePlugin('ProgressPlugin');
+    },
+  },
+};
+```
+
+### mergeConfig
+
+- **类型：** `(...configs:Rspack.Configuration[]) =>Rspack.Configuration`
+
+用于合并多份 Rspack 配置，等价于 [rspack-merge](https://github.com/rstackjs/rspack-merge)。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: (config, { mergeConfig }) => {
+      return mergeConfig(config, {
+        devtool: 'eval',
+      });
+    },
+  },
+};
+```
+
+:::tip
+mergeConfig 方法会创建一个新的 config 对象，不会修改原始 config 对象，因此你需要 return mergeConfig 的执行结果。
+:::

@@ -1,0 +1,28 @@
+name: "Stale"
+on:
+  schedule:
+  - cron: "0 2 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  stale:
+    permissions:
+      issues: write  # for actions/stale to close stale issues
+      pull-requests: write  # for actions/stale to close stale PRs
+    runs-on: ubuntu-latest
+    env:
+      ACTIONS_STEP_DEBUG: true
+    steps:
+    - name: Close Stale Issues
+      uses: actions/stale@v8
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        stale-issue-message: "This issue has been automatically marked as stale because it has been open 360 days with no activity. Remove stale label or comment or this will be closed in 180 days"
+        days-before-stale: 360
+        days-before-close: 180
+        stale-issue-label: "status:stale"
+        exempt-issue-labels: 'type:feature,type:with reproduction steps,type:has pull request'
+        stale-pr-label: 'status:stale'
+        exempt-pr-labels: 'type:feature,type:with reproduction steps,type:has pull request'

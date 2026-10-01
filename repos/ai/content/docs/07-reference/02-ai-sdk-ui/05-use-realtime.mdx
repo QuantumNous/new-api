@@ -1,0 +1,247 @@
+---
+title: experimental_useRealtime
+description: API reference for the experimental_useRealtime hook.
+---
+
+# `experimental_useRealtime()`
+
+<Note type="warning">
+  `experimental_useRealtime` is an experimental feature.
+</Note>
+
+Creates a browser-side realtime session for bidirectional audio and text
+conversations with a realtime provider model.
+
+The hook connects to a realtime WebSocket using a short-lived token from your
+setup endpoint, returns messages as `UIMessage[]`, and provides controls for
+audio capture, playback, text input, and tool output.
+
+```tsx
+import { openai } from '@ai-sdk/openai';
+import { experimental_useRealtime } from '@ai-sdk/react';
+
+const realtime = experimental_useRealtime({
+  model: openai.experimental_realtime('gpt-realtime'),
+  api: {
+    token: '/api/realtime/setup',
+  },
+});
+```
+
+For AI Gateway, pass `gateway.experimental_realtime(...)` as the model and point
+`api.token` at a server-side setup endpoint that calls
+`gateway.experimental_realtime.getToken()`.
+
+## Import
+
+<Snippet
+  text={`import { experimental_useRealtime } from "@ai-sdk/react"`}
+  prompt={false}
+/>
+
+## API Signature
+
+### Parameters
+
+<PropertiesTable
+  content={[
+    {
+      name: 'model',
+      type: 'Experimental_RealtimeModel',
+      description: 'The realtime model to connect to.',
+    },
+    {
+      name: 'api',
+      type: '{ token: string }',
+      description:
+        'API endpoints used by the realtime session. The token endpoint is called with POST to create the realtime setup response.',
+      properties: [
+        {
+          type: 'Object',
+          parameters: [
+            {
+              name: 'token',
+              type: 'string',
+              description:
+                'The setup endpoint that returns an Experimental_RealtimeSetupResponse.',
+            },
+          ],
+        },
+      ],
+    },
+    {
+      name: 'sessionConfig',
+      type: 'Partial<Experimental_RealtimeSessionConfig>',
+      isOptional: true,
+      description:
+        'Provider-neutral session configuration, such as instructions, voice, audio formats, input audio transcription, turn detection, tools, and providerOptions.',
+    },
+    {
+      name: 'sampleRate',
+      type: 'number',
+      isOptional: true,
+      description:
+        'Default audio sample rate used when inputAudioFormat.rate or outputAudioFormat.rate is not specified. Defaults to 24000.',
+    },
+    {
+      name: 'maxEvents',
+      type: 'number',
+      isOptional: true,
+      description:
+        'Maximum number of provider events to keep in the events array. Defaults to 500.',
+    },
+    {
+      name: 'onToolCall',
+      type: '(options: { toolCall: { toolCallId: string; toolName: string; args: unknown } }) => unknown | Promise<unknown> | undefined',
+      isOptional: true,
+      description:
+        'Called when the provider requests a tool call. Return a value to automatically submit it as tool output, or return undefined and call addToolOutput manually later.',
+    },
+    {
+      name: 'onEvent',
+      type: '(event: Experimental_RealtimeServerEvent) => void',
+      isOptional: true,
+      description: 'Called for every normalized realtime server event.',
+    },
+    {
+      name: 'onError',
+      type: '(error: Error) => void',
+      isOptional: true,
+      description: 'Called when the realtime session encounters an error.',
+    },
+  ]}
+/>
+
+### Returns
+
+<PropertiesTable
+  content={[
+    {
+      name: 'status',
+      type: "'disconnected' | 'connecting' | 'connected' | 'error'",
+      description: 'The current connection status.',
+    },
+    {
+      name: 'messages',
+      type: 'UIMessage[]',
+      description:
+        'Messages assembled from realtime text, transcript, and tool events.',
+    },
+    {
+      name: 'events',
+      type: 'Experimental_RealtimeServerEvent[]',
+      description:
+        'Recent normalized provider events for inspection or debug UI.',
+    },
+    {
+      name: 'isCapturing',
+      type: 'boolean',
+      description: 'Whether microphone audio capture is active.',
+    },
+    {
+      name: 'isPlaying',
+      type: 'boolean',
+      description: 'Whether model audio playback is active.',
+    },
+    {
+      name: 'connect',
+      type: '() => Promise<void>',
+      description:
+        'Fetches the setup token and opens the provider WebSocket connection.',
+    },
+    {
+      name: 'disconnect',
+      type: '() => void',
+      description: 'Closes the provider WebSocket connection.',
+    },
+    {
+      name: 'addToolOutput',
+      type: '(callId: string, result: unknown) => void',
+      description:
+        'Submits the result for a tool call back to the realtime provider.',
+    },
+    {
+      name: 'sendEvent',
+      type: '(event: Experimental_RealtimeClientEvent) => void',
+      description: 'Sends a normalized realtime client event.',
+    },
+    {
+      name: 'sendTextMessage',
+      type: '(text: string) => void',
+      description: 'Sends a user text message and requests a response.',
+    },
+    {
+      name: 'sendAudio',
+      type: '(base64Audio: string) => void',
+      description:
+        'Sends a base64-encoded audio chunk to the provider input audio buffer.',
+    },
+    {
+      name: 'commitAudio',
+      type: '() => void',
+      description: 'Commits the provider input audio buffer.',
+    },
+    {
+      name: 'clearAudioBuffer',
+      type: '() => void',
+      description: 'Clears the provider input audio buffer.',
+    },
+    {
+      name: 'requestResponse',
+      type: '(options?: { modalities?: string[] }) => void',
+      description: 'Requests a new model response.',
+    },
+    {
+      name: 'cancelResponse',
+      type: '() => void',
+      description: 'Cancels the active model response.',
+    },
+    {
+      name: 'startAudioCapture',
+      type: '(stream: MediaStream) => void',
+      description:
+        'Starts capturing microphone audio from the provided MediaStream.',
+    },
+    {
+      name: 'stopAudioCapture',
+      type: '() => void',
+      description: 'Stops microphone audio capture.',
+    },
+    {
+      name: 'stopPlayback',
+      type: '() => void',
+      description: 'Stops queued model audio playback.',
+    },
+  ]}
+/>
+
+## Tool Calling
+
+Realtime tool execution is client-driven. Use `onToolCall` to handle tool calls
+and return the tool output:
+
+```tsx
+const realtime = experimental_useRealtime({
+  model: openai.experimental_realtime('gpt-realtime'),
+  api: {
+    token: '/api/realtime/setup',
+  },
+  onToolCall: async ({ toolCall }) => {
+    if (toolCall.toolName === 'getWeather') {
+      const response = await fetch('/api/weather', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(toolCall.args),
+      });
+
+      return response.json();
+    }
+  },
+});
+```
+
+For tools that require user interaction, return `undefined` from `onToolCall`
+and call `addToolOutput` later.
+
+See [Realtime](/docs/ai-sdk-core/realtime#tool-calling) for a complete example
+with server-backed app-specific tool endpoints.

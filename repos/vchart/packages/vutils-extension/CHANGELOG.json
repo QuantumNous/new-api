@@ -1,0 +1,67 @@
+{
+  "name": "@visactor/vutils-extension",
+  "entries": [
+    {
+      "version": "0.0.2",
+      "tag": "@visactor/vutils-extension_v0.0.2",
+      "date": "Mon, 25 Sep 2023 10:49:42 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "feat: add vchart to context in params of mark function style\n\n"
+          },
+          {
+            "comment": "refactor: split the updateSpec of life cycle to spec transform & compare\n\n"
+          },
+          {
+            "comment": "feat: increase chart stacking capabilities, provide stackValue to support independent stacking of multiple series\n\n"
+          },
+          {
+            "comment": "feat: increase chart stacking capabilities, provide stackInverse support for stacking in reverse order\n\n"
+          },
+          {
+            "comment": "feat: supports deleting all events of the corresponding type without passing through the handler when calling off\n\n"
+          },
+          {
+            "comment": "feat: fix issue about updateSpec not work with only data change, details in #912\n\n"
+          },
+          {
+            "comment": "feat: intialize visactor/vutils-extension, for code resuse"
+          },
+          {
+            "comment": "fix: chart pass-through serDataByAxis config to series\n\n"
+          },
+          {
+            "comment": "fix: fix unoff event when passing through handler\n\n"
+          },
+          {
+            "comment": "fix: fix userEvent is added multiple times\n\n"
+          },
+          {
+            "comment": "fix: fix invalidType not working after invoking updataDataSync, details in #1057\n\n"
+          },
+          {
+            "comment": "feat: remove compatibility code of threshold\n\n"
+          },
+          {
+            "comment": "refactor: use @visctor/vgrammar-core to replace @visctor/vgrammar\n\n"
+          }
+        ],
+        "none": [
+          {
+            "comment": "fix(brush): style not effect when set mark hover. fix #976"
+          },
+          {
+            "comment": "fix(marker): marker don not render after updateData. fix #882"
+          },
+          {
+            "comment": "fix(sequence): render error when dot and link data is empty. fix #1019"
+          },
+          {
+            "comment": "fix(wordcloud): fontsize renge not effect with no value field. fix #522"
+          }
+        ]
+      }
+    }
+  ]
+}

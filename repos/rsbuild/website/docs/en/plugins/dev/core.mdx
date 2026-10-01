@@ -1,0 +1,862 @@
+---
+description: 'This page explains the type definitions and usage of Rsbuild plugin APIs.'
+---
+
+# Plugin API
+
+This page explains the type definitions and usage of Rsbuild plugin APIs.
+
+## RsbuildPlugin
+
+`RsbuildPlugin` is the type of the plugin object. It includes the following properties:
+
+- `name`: The name of the plugin, a unique identifier.
+- `setup`: The setup function of the plugin, which can be async. This function runs once when the plugin is initialized. The plugin API provides context, utility functions, and lifecycle hooks. For a complete introduction to lifecycle hooks, see [Plugin hooks](/plugins/dev/hooks).
+- `apply`: Conditionally apply the plugin during serve or build, see [Conditional application](#conditional-application).
+- `enforce`: Specify the execution order of the plugin, see [enforce property](#enforce-property).
+- `pre`: Declare the names of pre-plugins, which will be executed before the current plugin, see [Pre-Plugins](#pre-plugins).
+- `post`: Declare the names of post-plugins, which will be executed after the current plugin, see [Post-Plugins](#post-plugins).
+- `remove`: Declare the plugins that need to be removed, you can pass an array of plugin names, see [Removing plugins](#removing-plugins).
+
+```ts
+type RsbuildPlugin = {
+  name: string;
+  setup: (api: RsbuildPluginAPI) => Promise<void> | void;
+  apply?: 'serve' | 'build' | Function;
+  enforce?: 'pre' | 'post';
+  pre?: string[];
+  post?: string[];
+  remove?: string[];
+};
+```
+
+You can import this type from `@rsbuild/core`:
+
+```ts title="pluginFoo.ts"
+import type { RsbuildPlugin } from '@rsbuild/core';
+
+export const pluginFoo = (): RsbuildPlugin => ({
+  name: 'plugin-foo',
+
+  setup(api) {
+    api.onAfterBuild(() => {
+      console.log('after build!');
+    });
+  },
+});
+```
+
+### Conditional application
+
+By default, plugins are applied for both the dev server and production builds. If you want a plugin to apply only in a specific scenario, you can use the `apply` property to specify when it should be activated:
+
+- `serve`: Applies when running the dev or preview server.
+- `build`: Applies when running a production build.
+
+```ts
+// This plugin only applies during serve
+const pluginServe = () => ({
+  name: 'plugin-serve',
+  apply: 'serve',
+  setup(api) {
+    // ...
+  },
+});
+
+// This plugin only applies during build
+const pluginBuild = () => ({
+  name: 'plugin-build',
+  apply: 'build',
+  setup(api) {
+    // ...
+  },
+});
+```
+
+The `apply` property can also be a function that receives two parameters: `config` and `context`.
+
+```ts
+type RsbuildPluginApplyFn = (
+  this: void,
+  // The original Rsbuild configuration object (before plugin processing)
+  config: RsbuildConfig,
+  // Context object
+  context: {
+    // The current action type
+    action: 'dev' | 'build' | 'preview';
+  },
+) => boolean;
+```
+
+The `apply` function returns `true` to apply the plugin or `false` to skip it.
+
+```ts
+const pluginBuild = () => ({
+  name: 'plugin-build',
+  apply(config, { action }) {
+    return action === 'build' && config.output?.target === 'web';
+  },
+  setup(api) {
+    // ...
+  },
+});
+```
+
+:::tip
+The `apply` property was introduced in `@rsbuild/core` v1.4.8.
+:::
+
+### `enforce` property
+
+By default, plugins are executed in the order they are added. Plugins can adjust their execution order by adding an `enforce` property:
+
+- `pre`: Execute the plugin before other plugins
+- `post`: Execute the plugin after other plugins
+
+```js
+const pluginFoo = () => ({
+  name: 'plugin-foo',
+  enforce: 'pre',
+  setup(api) {
+    // ...
+  },
+});
+
+const pluginBar = () => ({
+  name: 'plugin-bar',
+  enforce: 'post',
+  setup(api) {
+    // ...
+  },
+});
+```
+
+This affects the order in which hooks are registered, but if a hook specifies an [order](/plugins/dev/hooks#callback-order) property, the `order` takes higher precedence.
+
+:::tip
+The `enforce` property was introduced in `@rsbuild/core` v1.4.9.
+:::
+
+### Pre-Plugins
+
+By setting the `pre` property, you can force some specific plugins to execute before the current plugin. The `pre` property takes higher precedence than the `enforce` property.
+
+For example, consider the following two plugins:
+
+```ts
+const pluginFoo = {
+  name: 'plugin-foo',
+};
+
+const pluginBar = {
+  name: 'plugin-bar',
+  pre: ['plugin-foo'],
+};
+```
+
+The Bar plugin is configured with the Foo plugin in its `pre` property, so the Foo plugin will always be executed before the Bar plugin.
+
+### Post-Plugins
+
+By setting the `post` property, you can force some specific plugins to execute after the current plugin. The `post` property takes higher precedence than the `enforce` property.
+
+```ts
+const pluginFoo = {
+  name: 'plugin-foo',
+};
+
+const pluginBar = {
+  name: 'plugin-bar',
+  post: ['plugin-foo'],
+};
+```
+
+The Bar plugin is configured with the Foo plugin in its `post` property, so the Foo plugin will always be executed after the Bar plugin.
+
+### Removing plugins
+
+You can remove other plugins within a plugin using the `remove` property.
+
+```ts
+const pluginFoo = {
+  name: 'plugin-foo',
+};
+
+const pluginBar = {
+  name: 'plugin-bar',
+  remove: ['plugin-foo'],
+};
+```
+
+For example, if you register both the Foo and Bar plugins mentioned above, the Foo plugin will not take effect because the Bar plugin declares the removal of the Foo plugin.
+
+If the current plugin is registered as a [specific environment plugin](/guide/advanced/environments#plugins-specified-environment), you can only remove plugins in that environment; global plugins remain in place.
+
+## api.context
+
+`api.context` is a read-only object that provides some context information.
+
+The content of `api.context` is exactly the same as `rsbuild.context`, please refer to [rsbuild.context](/api/javascript-api/instance#rsbuildcontext).
+
+- **Example:**
+
+```ts
+const pluginFoo = () => ({
+  setup(api) {
+    console.log(api.context.distPath);
+  },
+});
+```
+
+## api.getRsbuildConfig
+
+import GetRsbuildConfig from '@en/shared/getRsbuildConfig.mdx';
+
+<GetRsbuildConfig />
+
+- **Example:**
+
+```ts
+const pluginFoo = () => ({
+  setup(api) {
+    const config = api.getRsbuildConfig();
+    console.log(config.html?.title);
+  },
+});
+```
+
+## api.getNormalizedConfig
+
+import GetNormalizedConfig from '@en/shared/getNormalizedConfig.mdx';
+
+<GetNormalizedConfig />
+
+- **Example:**
+
+```ts
+const pluginFoo = () => ({
+  setup(api) {
+    api.onBeforeBuild(({ bundlerConfigs }) => {
+      const config = api.getNormalizedConfig();
+      console.log(config.html.title);
+    });
+  },
+});
+```
+
+## api.logger
+
+A logger instance that can be used to output logs in a format consistent with Rsbuild.
+
+> See [Logging](/guide/advanced/logging) for more details.
+
+- **Version:** `>= 1.4.0`
+- **Example:**
+
+```ts
+const pluginLogging = () => ({
+  setup(api) {
+    api.logger.info('This is an info message');
+    api.logger.warn('This is a warning message');
+    api.logger.error('This is an error message');
+  },
+});
+```
+
+## api.isPluginExists
+
+import IsPluginExists from '@en/shared/isPluginExists.mdx';
+
+<IsPluginExists />
+
+- **Example:**
+
+```ts
+export default () => ({
+  setup(api) {
+    console.log(api.isPluginExists('plugin-foo'));
+  },
+});
+```
+
+Or check if a plugin exists in a specified environment:
+
+```ts
+export default () => ({
+  setup(api) {
+    console.log(api.isPluginExists('plugin-foo', { environment: 'web' }));
+  },
+});
+```
+
+## api.transform
+
+A simplified wrapper around [Rspack loaders](https://rspack.rs/guide/features/loader), `api.transform` lets you easily transform the code of specific modules during the build process.
+
+You can match files by module path, query, or other conditions, and apply custom transformations to their contents.
+
+- **Type:**
+
+```ts
+function Transform(descriptor: TransformDescriptor, handler: TransformHandler): void;
+```
+
+`api.transform` accepts two params:
+
+- `descriptor`: an object describing the module's matching conditions.
+- `handler`: a transformation function that takes the current module code and returns the transformed code.
+
+### Example
+
+For example, match modules with the `.pug` extension and transform them to JavaScript code:
+
+```js
+import pug from 'pug';
+
+const pluginPug = () => ({
+  name: 'my-pug-plugin',
+  setup(api) {
+    api.transform({ test: /\.pug$/ }, ({ code }) => {
+      const templateCode = pug.compileClient(code, {});
+      return `${templateCode}; module.exports = template;`;
+    });
+  },
+});
+```
+
+### Descriptor param
+
+The `descriptor` param is an object describing the module's matching conditions.
+
+- **Type:**
+
+```ts
+type TransformDescriptor = {
+  test?: RuleSetCondition;
+  targets?: RsbuildTarget[];
+  environments?: string[];
+  resourceQuery?: RuleSetCondition;
+  raw?: boolean;
+  layer?: string;
+  issuer?: RuleSetCondition;
+  issuerLayer?: string;
+  with?: Record<string, RuleSetCondition>;
+  mimetype?: RuleSetCondition;
+  order?: 'pre' | 'post' | 'default';
+};
+```
+
+The `descriptor` param supports the following matching conditions:
+
+- `test`: matches module's path (without query), the same as Rspack's [rules[].test](https://rspack.rs/config/module-rules#rulestest).
+
+```js
+api.transform({ test: /\.md$/ }, ({ code }) => {
+  // ...
+});
+```
+
+- `targets`: matches the Rsbuild [output.target](/config/output/target), and applies the current transform function only to the matched targets.
+
+```js
+api.transform({ test: /\.md$/, targets: ['web'] }, ({ code }) => {
+  // ...
+});
+```
+
+- `environments`: matches the Rsbuild [environment](/guide/advanced/environments) name, and applies the current transform function only to the matched environments.
+
+```js
+api.transform({ test: /\.md$/, environments: ['web'] }, ({ code }) => {
+  // ...
+});
+```
+
+- `resourceQuery`: matches module's query, the same as Rspack's [rules[].resourceQuery](https://rspack.rs/config/module-rules#rulesresourcequery).
+
+```js
+// match raw query: "foo.ext?raw"
+api.transform({ resourceQuery: /^\?raw$/ }, ({ code }) => {
+  // ...
+});
+```
+
+- `raw`: if raw is `true`, the transform handler will receive the Buffer type code instead of the string type.
+
+```js
+api.transform({ test: /\.node$/, raw: true }, ({ code }) => {
+  // ...
+});
+```
+
+- `layer`: marks the layer of the matching module, can be used to group a group of modules into one layer, the same as Rspack's [rules[].layer](https://rspack.rs/config/module-rules#ruleslayer).
+
+```js
+api.transform({ test: /\.md$/, layer: 'foo' }, ({ code }) => {
+  // ...
+});
+```
+
+- `issuerLayer`: matches the layer of the module that issues the current module, the same as Rspack's [rules[].issuerLayer](https://rspack.rs/config/module-rules#rulesissuerlayer).
+
+```js
+api.transform({ test: /\.md$/, issuerLayer: 'foo' }, ({ code }) => {
+  // ...
+});
+```
+
+- `issuer`: matches the absolute path of the module that issues the current module, the same as Rspack's [rules[].issuer](https://rspack.rs/config/module-rules#rulesissuer).
+
+```js
+api.transform({ test: /\.md$/, issuer: /\.js$/ }, ({ code }) => {
+  // ...
+});
+```
+
+- `with`: matches [import attributes](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import/with), the same as Rspack's [rules[].with](https://rspack.rs/config/module-rules#ruleswith).
+
+```js
+api.transform({ test: /\.md$/, with: { type: 'url' } }, ({ code }) => {
+  // ...
+});
+```
+
+- `mimetype`: Matches modules based on MIME type instead of file extension. It's primarily useful for data URI module (like `data:text/javascript,...`), the same as Rspack's [rules[].mimetype](https://rspack.rs/config/module-rules#rulesmimetype).
+
+```js
+api.transform({ mimetype: 'text/javascript' }, ({ code }) => {
+  // ...
+});
+```
+
+- `enforce`: Specifies the execution order of the transform function, the same as Rspack's [rules[].enforce](https://rspack.rs/config/module-rules#rulesenforce).
+  - When `enforce` is `pre`, the transform function will be executed before other transform functions (or Rspack loaders).
+  - When `enforce` is `post`, the transform function will be executed after other transform functions (or Rspack loaders).
+
+```js
+api.transform({ test: /\.md$/, enforce: 'pre' }, ({ code }) => {
+  // ...
+});
+```
+
+### Handler param
+
+The handler param is a transformation function that takes the current module code and returns the transformed code.
+
+- **Type:**
+
+```ts
+type TransformContext = {
+  code: string;
+  context: string | null;
+  resource: string;
+  resourcePath: string;
+  resourceQuery: string;
+  environment: EnvironmentContext;
+  addDependency: (file: string) => void;
+  addMissingDependency: (file: string) => void;
+  addContextDependency: (context: string) => void;
+  emitFile: Rspack.LoaderContext['emitFile'];
+  importModule: Rspack.LoaderContext['importModule'];
+  resolve: Rspack.LoaderContext['resolve'];
+};
+
+type TransformResult =
+  | string
+  | Buffer
+  | {
+      code: string | Buffer;
+      map?: string | Rspack.sources.RawSourceMap | null;
+    };
+
+type TransformHandler = (context: TransformContext) => MaybePromise<TransformResult>;
+```
+
+The `handler` function provides the following params:
+
+- `code`: The code of the module.
+- `context`: The directory path of the currently processed module. The same as Rspack loader's [this.context](https://rspack.rs/api/loader-api/context#thiscontext).
+- `resolve`: Resolve a module specifier. The same as Rspack loader's [this.resolve](https://rspack.rs/api/loader-api/context#thisresolve).
+- `resource`: The absolute path of the module, including the query. The same as Rspack loader's [this.resource](https://rspack.rs/api/loader-api/context#thisresource).
+- `resourcePath`: The absolute path of the module, without the query. The same as Rspack loader's [this.resourcePath](https://rspack.rs/api/loader-api/context#thisresourcepath).
+- `resourceQuery`: The query of the module. The same as Rspack loader's [this.resourceQuery](https://rspack.rs/api/loader-api/context#thisresourcequery).
+- `environment`: The [environment context](/api/javascript-api/environment-api#environment-context) for current build.
+- `addDependency`: Add an additional file as the dependency. The file will be watched and changes to the file will trigger rebuild. The same as Rspack loader's [this.addDependency](https://rspack.rs/api/loader-api/context#thisadddependency).
+- `addMissingDependency`: Add an non-existing file as the dependency. The file will be watched and changes to the file will trigger rebuild. The same as Rspack loader's [this.addMissingDependency](https://rspack.rs/api/loader-api/context#thisaddmissingdependency).
+- `addContextDependency`: Add an additional directory as the dependency. The directory will be watched and changes to the directory will trigger rebuild. The same as Rspack loader's [this.addContextDependency](https://rspack.rs/api/loader-api/context#thisaddcontextdependency).
+- `emitFile`: Emits a file to the build output. The same as Rspack loader's [this.emitFile](https://rspack.rs/api/loader-api/context#thisemitfile).
+- `importModule`: Compile and execute a module at the build time. The same as Rspack loader's [this.importModule](https://rspack.rs/api/loader-api/context#thisimportmodule).
+
+For example:
+
+```js
+api.transform({ test: /\.md$/ }, ({ code, resource, resourcePath, resourceQuery }) => {
+  console.log(code); // -> some code
+  console.log(resource); // -> '/home/user/project/src/template.pug?foo=123'
+  console.log(resourcePath); // -> '/home/user/project/src/template.pug'
+  console.log(resourceQuery); // -> '?foo=123'
+});
+```
+
+### Difference with loader
+
+`api.transform` can be thought of as a lightweight implementation of Rspack loader. It provides a simple, easy-to-use API and automatically calls Rspack loader at the backend to transform the code.
+
+In Rsbuild plugins, you can quickly implement code transformation functions using `api.transform`, which can handle the majority of common scenarios without having to learn how to write an Rspack loader.
+
+Note that for some complex code transformation scenarios, `api.transform` may not be sufficient. In such situations, you can implement it using the Rspack loader.
+
+### Source maps
+
+You can return a source map in the `transform` function, and Rsbuild will automatically merge the returned source map with source maps generated by other Rspack loaders or `transform` hooks, ensuring that the final source map correctly maps back to the original source code.
+
+```js
+api.transform({ test: /\.js$/ }, async ({ code }) => {
+  const { transformedCode, sourceMap } = await someTransformFunction(code);
+  return {
+    code: transformedCode,
+    map: sourceMap,
+  };
+});
+```
+
+## api.resolve
+
+Intercept and modify module request information before module resolution begins. The same as Rspack's [normalModuleFactory.hooks.resolve](https://rspack.rs/api/plugin-api/normal-module-factory-hooks#resolve) hook.
+
+- **Version:** `>= 1.0.17`
+- **Type:**
+
+```ts
+function ResolveHook(handler: ResolveHandler): void;
+```
+
+### Example
+
+- Modify the request of `a.js` file：
+
+```js
+api.resolve(({ resolveData }) => {
+  if (resolveData.request === './a.js') {
+    resolveData.request = './b.js';
+  }
+});
+```
+
+### Handler param
+
+The `handler` parameter is a callback function that receives a module require information and allows you to modify it.
+
+- **Type:**
+
+```ts
+type ResolveHandler = (context: {
+  resolveData: Rspack.ResolveData;
+  compiler: Rspack.Compiler;
+  compilation: Rspack.Compilation;
+  environment: EnvironmentContext;
+}) => Promise<void> | void;
+```
+
+The `handler` function provides the following parameters:
+
+- `resolveData`: Module request information. For details, please refer to [Rspack - resolve hook](https://rspack.rs/api/plugin-api/normal-module-factory-hooks#resolve).
+- `compiler`: The Compiler object of Rspack.
+- `compilation`: The Compilation object of Rspack.
+- `environment`: The environment context of the current build.
+
+## api.processAssets
+
+Modify assets before emitting, the same as Rspack's [compilation.hooks.processAssets](https://rspack.rs/api/plugin-api/compilation-hooks#processassets) hook.
+
+- **Version:** `>= 1.0.0`
+- **Type:**
+
+```ts
+function processAssets(descriptor: ProcessAssetsDescriptor, handler: ProcessAssetsHandler): void;
+```
+
+`api.processAssets` accepts two params:
+
+- `descriptor`: an object to describes the stage and matching conditions that trigger `processAssets`.
+- `handler`: A callback function that receives the assets object and allows you to modify it.
+
+### Example
+
+- Emit a new asset in the `additional` stage:
+
+```js
+api.processAssets({ stage: 'additional' }, ({ assets, sources, compilation }) => {
+  const source = new sources.RawSource('This is a new asset!');
+  compilation.emitAsset('new-asset.txt', source);
+});
+```
+
+- Updating an existing asset:
+
+```js
+api.processAssets({ stage: 'additions' }, ({ assets, sources, compilation }) => {
+  const asset = assets['foo.js'];
+  if (!asset) {
+    return;
+  }
+
+  const oldContent = asset.source();
+  const newContent = oldContent + '\nconsole.log("hello world!")';
+  const source = new sources.RawSource(newContent);
+
+  compilation.updateAsset(assetName, source);
+});
+```
+
+- Removing an asset:
+
+```js
+api.processAssets({ stage: 'optimize' }, ({ assets, compilation }) => {
+  const assetName = 'unwanted-script.js';
+  if (assets[assetName]) {
+    compilation.deleteAsset(assetName);
+  }
+});
+```
+
+### Descriptor param
+
+The descriptor parameter is an object to describes the stage and matching conditions that trigger `processAssets`.
+
+- **Type:**
+
+```ts
+type ProcessAssetsDescriptor = {
+  stage: ProcessAssetsStage;
+  targets?: RsbuildTarget[];
+  environments?: string[];
+};
+```
+
+The `descriptor` param supports the following properties:
+
+- `stage`: Rspack internally divides `processAssets` into multiple stages (refer to [process assets stages](#process-assets-stages)). You can choose the appropriate stage based on the operations you need to perform.
+
+```js
+api.processAssets({ stage: 'additional' }, ({ assets }) => {
+  // ...
+});
+```
+
+- `targets`: Matches the Rsbuild [output.target](/config/output/target), and applies the current processAssets function only to the matched targets.
+
+```js
+api.processAssets({ stage: 'additional', targets: ['web'] }, ({ assets }) => {
+  // ...
+});
+```
+
+- `environments`: matches the Rsbuild [environment](/guide/advanced/environments) name, and applies the current processAssets function only to the matched environments.
+
+```js
+api.processAssets({ stage: 'additional', environments: ['web'] }, ({ assets }) => {
+  // ...
+});
+```
+
+### Handler param
+
+The `handler` parameter is a callback function that receives an assets object and allows you to modify it.
+
+- **Type:**
+
+```ts
+type ProcessAssetsHandler = (context: {
+  assets: Record<string, Rspack.sources.Source>;
+  compiler: Rspack.Compiler;
+  compilation: Rspack.Compilation;
+  environment: EnvironmentContext;
+  sources: RspackSources;
+}) => Promise<void> | void;
+```
+
+The `handler` function provides the following parameters:
+
+- `assets`: An object where key is the asset's pathname, and the value is data of the asset represented by the [Source](https://github.com/webpack/webpack-sources#source).
+- `compiler`: The Compiler object of Rspack.
+- `compilation`: The Compilation object of Rspack.
+- `environment`: The [environment context](/api/javascript-api/environment-api#environment-context) of the current build.
+- `sources`: The [Rspack Sources](https://github.com/webpack/webpack-sources#source) object, which contains multiple classes which represent a Source.
+
+### Process assets stages
+
+Here's the list of supported stages. Rspack will execute these stages sequentially from top to bottom. Please select the appropriate stage based on the operation you need to perform.
+
+- `additional` — add additional assets to the compilation.
+- `pre-process` — basic preprocessing of the assets.
+- `derived` — derive new assets from the existing assets.
+- `additions` — add additional sections to the existing assets, e.g., banner or initialization code.
+- `optimize` — optimize existing assets in a general way.
+- `optimize-count` — optimize the count of existing assets, e.g., by merging them.
+- `optimize-compatibility` — optimize the compatibility of existing assets, e.g., add polyfills or vendor prefixes.
+- `optimize-size` — optimize the size of existing assets, e.g., by minimizing or omitting whitespace.
+- `dev-tooling` — add development tooling to the assets, e.g., by extracting a source map.
+- `optimize-inline` — optimize the numbers of existing assets by inlining assets into other assets.
+- `summarize` — summarize the list of existing assets.
+- `optimize-hash` — optimize the hashes of the assets, e.g., by generating real hashes of the asset content.
+- `optimize-transfer` — optimize the transfer of existing assets, e.g., by preparing a compressed (gzip) file as separate asset.
+- `analyse` — analyze the existing assets.
+- `report` — creating assets for the reporting purposes.
+
+## api.expose
+
+Used for plugin communication.
+
+`api.expose` can explicitly expose some properties or methods of the current plugin, and other plugins can get these APIs through `api.useExposed`.
+
+- **Type:**
+
+```ts
+/**
+ * @param id Unique identifier, using Symbol can avoid naming conflicts
+ * @param api Properties or methods to be exposed, it is recommended to use object format
+ * @param options Options for exposing the API
+ */
+function expose<T = any>(
+  id: string | symbol,
+  api: T,
+  options?: {
+    /**
+     * Register the exposed API for a specific environment.
+     * If omitted, the API is registered as global.
+     */
+    environment?: string;
+  },
+): void;
+```
+
+- **Example:**
+
+```ts
+const pluginParent = () => ({
+  name: 'plugin-parent',
+  setup(api) {
+    api.expose('plugin-parent', {
+      value: 1,
+      double: (val: number) => val * 2,
+    });
+  },
+});
+```
+
+:::tip
+If `api.expose` is called multiple times with the same `id` and `environment`, the latter call will overwrite the previously exposed API.
+:::
+
+### Environment scoped API
+
+You can register an exposed API for a specific Rsbuild environment (the key of `config.environments`) by setting `options.environment`.
+
+When `api.useExposed` is called in an environment plugin, Rsbuild will first resolve the exposed API registered for the same environment, then fall back to the global exposed API.
+
+```ts
+api.expose('my-api', { name: 'web' }, { environment: 'web' });
+api.expose('my-api', { name: 'node' }, { environment: 'node' });
+```
+
+If `options.environment` is omitted, the API is registered as global and can be used as a fallback by plugins in all environments.
+
+## api.useExposed
+
+Used for plugin communication.
+
+`api.useExposed` can get the properties or methods exposed by other plugins.
+
+- **Type:**
+
+```ts
+/**
+ * @param id Unique identifier
+ * @returns The properties or methods obtained
+ *
+ * If the current plugin is registered in an environment, Rsbuild will
+ * first resolve the exposed API registered for the same environment,
+ * then fall back to the global exposed API.
+ */
+function useExposed<T = any>(id: string | symbol): T | undefined;
+```
+
+- **Example:**
+
+```ts
+const pluginChild = () => ({
+  name: 'plugin-child',
+  pre: ['plugin-parent'],
+  setup(api) {
+    const parentApi = api.useExposed('plugin-parent');
+    if (parentApi) {
+      console.log(parentApi.value); // -> 1
+      console.log(parentApi.double(1)); // -> 2
+    }
+  },
+});
+```
+
+### Identifiers
+
+You can use Symbol as a unique identifier to avoid potential naming conflicts:
+
+```ts
+// pluginParent.ts
+export const PARENT_API_ID = Symbol('plugin-parent');
+
+const pluginParent = () => ({
+  name: 'plugin-parent',
+  setup(api) {
+    api.expose(PARENT_API_ID, {
+      // some api
+    });
+  },
+});
+
+// pluginChild.ts
+import { PARENT_API_ID } from './pluginParent';
+
+const pluginChild = () => ({
+  name: 'plugin-child',
+  setup(api) {
+    const parentApi = api.useExposed(PARENT_API_ID);
+    if (parentApi) {
+      console.log(parentApi);
+    }
+  },
+});
+```
+
+### Type declaration
+
+You can declare types through the generics of the function:
+
+```ts
+// pluginParent.ts
+export type ParentAPI = {
+  // ...
+};
+
+// pluginChild.ts
+import type { ParentAPI } from './pluginParent';
+
+const pluginChild = () => ({
+  name: 'plugin-child',
+  setup(api) {
+    const parentApi = api.useExposed<ParentAPI>(PARENT_API_ID);
+    if (parentApi) {
+      console.log(parentApi);
+    }
+  },
+});
+```
+
+### Execution order
+
+When communicating between plugins, you need to be aware of the order in which the plugins are executed.
+
+For example, in the above example, if `pluginParent` is not registered, or registers after `pluginChild`, then `api.useExposed('plugin-parent')` will return an `undefined`.
+
+You can use the `pre`, `post` options of the plugin object, and the `order` option of the plugin hook to ensure the order is correct.

@@ -1,0 +1,526 @@
+{
+  "$schema": "https://raw.githubusercontent.com/TanStack/tanstack.com/main/tanstack-docs-config.schema.json",
+  "docSearch": {
+    "appId": "FQ0DQ6MA3C",
+    "apiKey": "8264730bab8a9b7fa6a0c85761d7a3fe",
+    "indexName": "tanstack"
+  },
+  "sections": [
+    {
+      "label": "Getting Started",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "overview"
+        },
+        {
+          "label": "Quick Start",
+          "to": "quick-start"
+        },
+        {
+          "label": "Devtools",
+          "to": "devtools"
+        },
+        {
+          "label": "Decisions on DX",
+          "to": "decisions-on-dx"
+        },
+        {
+          "label": "Comparison",
+          "to": "comparison"
+        },
+        {
+          "label": "Frequently Asked Questions",
+          "to": "faq"
+        }
+      ],
+      "frameworks": [
+        {
+          "label": "react",
+          "children": []
+        },
+        {
+          "label": "solid",
+          "children": []
+        }
+      ]
+    },
+    {
+      "label": "Installation Guides",
+      "children": [
+        {
+          "label": "Manual Setup",
+          "to": "installation/manual"
+        },
+        {
+          "label": "Vite",
+          "to": "installation/with-vite"
+        },
+        {
+          "label": "Rspack/Rsbuild",
+          "to": "installation/with-rspack"
+        },
+        {
+          "label": "Webpack",
+          "to": "installation/with-webpack"
+        },
+        {
+          "label": "Esbuild",
+          "to": "installation/with-esbuild"
+        },
+        {
+          "label": "Router CLI",
+          "to": "installation/with-router-cli"
+        }
+      ],
+      "frameworks": [
+        {
+          "label": "react",
+          "children": [
+            {
+              "label": "Migrate from React Router",
+              "to": "installation/migrate-from-react-router"
+            },
+            {
+              "label": "Migrate from React Location",
+              "to": "installation/migrate-from-react-location"
+            }
+          ]
+        },
+        {
+          "label": "solid",
+          "children": []
+        }
+      ]
+    },
+    {
+      "label": "Routing",
+      "children": [
+        {
+          "label": "Routing Concepts",
+          "to": "routing/routing-concepts"
+        },
+        {
+          "label": "Route Trees",
+          "to": "routing/route-trees"
+        },
+        {
+          "label": "Route Matching",
+          "to": "routing/route-matching"
+        },
+        {
+          "label": "File-Based Routing",
+          "to": "routing/file-based-routing"
+        },
+        {
+          "label": "Virtual File Routes",
+          "to": "routing/virtual-file-routes"
+        },
+        {
+          "label": "Code-Based Routing",
+          "to": "routing/code-based-routing"
+        },
+        {
+          "label": "File Naming Conventions",
+          "to": "routing/file-naming-conventions"
+        }
+      ],
+      "frameworks": [
+        {
+          "label": "react",
+          "children": []
+        },
+        {
+          "label": "solid",
+          "children": []
+        }
+      ]
+    },
+    {
+      "label": "Guides",
+      "children": [
+        {
+          "label": "Code Splitting",
+          "to": "guide/code-splitting"
+        },
+        {
+          "label": "Automatic Code Splitting",
+          "to": "guide/automatic-code-splitting"
+        },
+        {
+          "label": "Creating a Router",
+          "to": "guide/creating-a-router"
+        },
+        {
+          "label": "Outlets",
+          "to": "guide/outlets"
+        },
+        {
+          "label": "Navigation",
+          "to": "guide/navigation"
+        },
+        {
+          "label": "Router Events",
+          "to": "guide/router-events"
+        },
+        {
+          "label": "Path Params",
+          "to": "guide/path-params"
+        },
+        {
+          "label": "Search Params",
+          "to": "guide/search-params"
+        },
+        {
+          "label": "Link Options",
+          "to": "guide/link-options"
+        },
+        {
+          "label": "Custom Links",
+          "to": "guide/custom-link"
+        },
+        {
+          "label": "Data Loading",
+          "to": "guide/data-loading"
+        },
+        {
+          "label": "Deferred Data Loading",
+          "to": "guide/deferred-data-loading"
+        },
+        {
+          "label": "External Data Loading",
+          "to": "guide/external-data-loading"
+        },
+        {
+          "label": "Data Mutations",
+          "to": "guide/data-mutations"
+        },
+        {
+          "label": "Type Safety",
+          "to": "guide/type-safety"
+        },
+        {
+          "label": "Type Utilities",
+          "to": "guide/type-utilities"
+        },
+        {
+          "label": "Preloading",
+          "to": "guide/preloading"
+        },
+        {
+          "label": "Document Head Management",
+          "to": "guide/document-head-management"
+        },
+        {
+          "label": "Route Masking",
+          "to": "guide/route-masking"
+        },
+        {
+          "label": "Navigation Blocking",
+          "to": "guide/navigation-blocking"
+        },
+        {
+          "label": "Custom Search Param Serialization",
+          "to": "guide/custom-search-param-serialization"
+        },
+        {
+          "label": "History Types",
+          "to": "guide/history-types"
+        },
+        {
+          "label": "Router Context",
+          "to": "guide/router-context"
+        },
+        {
+          "label": "Not Found Errors",
+          "to": "guide/not-found-errors"
+        },
+        {
+          "label": "Authenticated Routes",
+          "to": "guide/authenticated-routes"
+        },
+        {
+          "label": "Scroll Restoration",
+          "to": "guide/scroll-restoration"
+        },
+        {
+          "label": "Static Route Data",
+          "to": "guide/static-route-data"
+        },
+        {
+          "label": "SSR",
+          "to": "guide/ssr"
+        },
+        {
+          "label": "Render Optimizations",
+          "to": "guide/render-optimizations"
+        }
+      ],
+      "frameworks": [
+        {
+          "label": "react",
+          "children": []
+        },
+        {
+          "label": "solid",
+          "children": []
+        }
+      ]
+    },
+    {
+      "label": "API",
+      "children": [
+        {
+          "label": "Router",
+          "to": "api/router"
+        },
+        {
+          "label": "File-Based Routing",
+          "to": "api/file-based-routing"
+        }
+      ],
+      "frameworks": [
+        {
+          "label": "react",
+          "children": []
+        },
+        {
+          "label": "solid",
+          "children": []
+        }
+      ]
+    },
+    {
+      "label": "Integrations",
+      "children": [
+        {
+          "label": "TanStack Query",
+          "to": "integrations/query"
+        }
+      ],
+      "frameworks": [
+        {
+          "label": "react",
+          "children": []
+        },
+        {
+          "label": "solid",
+          "children": []
+        }
+      ]
+    },
+    {
+      "label": "ESLint",
+      "children": [
+        {
+          "label": "ESLint Plugin Router",
+          "to": "eslint/eslint-plugin-router"
+        },
+        {
+          "label": "Create Route Property Order",
+          "to": "eslint/create-route-property-order"
+        }
+      ]
+    },
+    {
+      "label": "Router Examples",
+      "children": [],
+      "frameworks": [
+        {
+          "label": "react",
+          "children": [
+            {
+              "label": "Quickstart (file-based)",
+              "to": "framework/react/examples/quickstart-file-based"
+            },
+            {
+              "label": "Quickstart (code-based)",
+              "to": "framework/react/examples/quickstart"
+            },
+            {
+              "label": "Basic (file-based)",
+              "to": "framework/react/examples/basic-file-based"
+            },
+            {
+              "label": "Basic (code-based)",
+              "to": "framework/react/examples/basic"
+            },
+            {
+              "label": "Basic + React Query (file-based)",
+              "to": "framework/react/examples/basic-react-query-file-based"
+            },
+            {
+              "label": "Basic + React Query (code-based)",
+              "to": "framework/react/examples/basic-react-query"
+            },
+            {
+              "label": "Basic + SSR (file-based)",
+              "to": "framework/react/examples/basic-ssr-file-based"
+            },
+            {
+              "label": "Basic + SSR Streaming (file-based)",
+              "to": "framework/react/examples/basic-ssr-streaming-file-based"
+            },
+            {
+              "label": "Kitchen Sink (file-based)",
+              "to": "framework/react/examples/kitchen-sink-file-based"
+            },
+            {
+              "label": "Kitchen Sink (code-based)",
+              "to": "framework/react/examples/kitchen-sink"
+            },
+            {
+              "label": "Kitchen Sink + React Query (file-based)",
+              "to": "framework/react/examples/kitchen-sink-react-query-file-based"
+            },
+            {
+              "label": "Kitchen Sink + React Query (code-based)",
+              "to": "framework/react/examples/kitchen-sink-react-query"
+            },
+            {
+              "label": "Location Masking",
+              "to": "framework/react/examples/location-masking"
+            },
+            {
+              "label": "Authenticated Routes",
+              "to": "framework/react/examples/authenticated-routes"
+            },
+            {
+              "label": "Scroll Restoration",
+              "to": "framework/react/examples/scroll-restoration"
+            },
+            {
+              "label": "Deferred Data",
+              "to": "framework/react/examples/deferred-data"
+            },
+            {
+              "label": "Navigation Blocking",
+              "to": "framework/react/examples/navigation-blocking"
+            },
+            {
+              "label": "View Transitions",
+              "to": "framework/react/examples/view-transitions"
+            },
+            {
+              "label": "Framer Motion",
+              "to": "framework/react/examples/with-framer-motion"
+            },
+            {
+              "label": "With tRPC",
+              "to": "framework/react/examples/with-trpc"
+            },
+            {
+              "label": "With tRPC + React Query",
+              "to": "framework/react/examples/with-trpc-react-query"
+            },
+            {
+              "label": "Monorepo basic",
+              "to": "framework/react/examples/router-monorepo-simple"
+            },
+            {
+              "label": "Monorepo basic (with lazy loading)",
+              "to": "framework/react/examples/router-monorepo-simple-lazy"
+            },
+            {
+              "label": "Monorepo with React Query",
+              "to": "framework/react/examples/router-monorepo-react-query"
+            }
+          ]
+        },
+        {
+          "label": "solid",
+          "children": [
+            {
+              "label": "Quickstart (file-based)",
+              "to": "framework/solid/examples/quickstart-file-based"
+            },
+            {
+              "label": "Quickstart (code-based)",
+              "to": "framework/solid/examples/quickstart"
+            },
+            {
+              "label": "Basic (file-based)",
+              "to": "framework/solid/examples/basic-file-based"
+            },
+            {
+              "label": "Basic + Solid Query (file-based)",
+              "to": "framework/solid/examples/basic-solid-query-file-based"
+            },
+            {
+              "label": "Basic + Solid Query (code-based)",
+              "to": "framework/solid/examples/basic-solid-query"
+            },
+            {
+              "label": "Basic + SSR (file-based)",
+              "to": "framework/solid/examples/basic-ssr-file-based"
+            },
+            {
+              "label": "Basic + SSR Streaming (file-based)",
+              "to": "framework/solid/examples/basic-ssr-streaming-file-based"
+            },
+            {
+              "label": "Kitchen Sink (code-based)",
+              "to": "framework/solid/examples/kitchen-sink"
+            },
+            {
+              "label": "Kitchen Sink (file-based)",
+              "to": "framework/solid/examples/kitchen-sink-file-based"
+            },
+            {
+              "label": "Kitchen Sink + Solid Query (file-based)",
+              "to": "framework/solid/examples/kitchen-sink-solid-query-file-based"
+            },
+            {
+              "label": "Kitchen Sink + Solid Query (code-based)",
+              "to": "framework/solid/examples/kitchen-sink-solid-query"
+            },
+            {
+              "label": "Location Masking",
+              "to": "framework/solid/examples/location-masking"
+            },
+            {
+              "label": "Authenticated Routes",
+              "to": "framework/solid/examples/authenticated-routes"
+            },
+            {
+              "label": "Scroll Restoration",
+              "to": "framework/solid/examples/scroll-restoration"
+            },
+            {
+              "label": "Deferred Data",
+              "to": "framework/solid/examples/deferred-data"
+            },
+            {
+              "label": "Navigation Blocking",
+              "to": "framework/solid/examples/navigation-blocking"
+            },
+            {
+              "label": "View Transitions",
+              "to": "framework/solid/examples/view-transitions"
+            },
+            {
+              "label": "Framer Motion",
+              "to": "framework/solid/examples/with-framer-motion"
+            },
+            {
+              "label": "With tRPC",
+              "to": "framework/solid/examples/with-trpc"
+            },
+            {
+              "label": "Monorepo basic",
+              "to": "framework/solid/examples/router-monorepo-simple"
+            },
+            {
+              "label": "Monorepo basic (with lazy loading)",
+              "to": "framework/solid/examples/router-monorepo-simple-lazy"
+            },
+            {
+              "label": "Monorepo with Solid Query",
+              "to": "framework/solid/examples/router-monorepo-solid-query"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

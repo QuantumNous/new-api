@@ -1,0 +1,172 @@
+{
+  "name": "@base-ui/react",
+  "version": "1.6.0",
+  "author": "MUI Team",
+  "description": "Base UI is a library of headless ('unstyled') React components and low-level hooks. You gain complete control over your app's CSS and accessibility features.",
+  "license": "MIT",
+  "keywords": [
+    "react",
+    "react-component",
+    "mui",
+    "unstyled",
+    "base-ui",
+    "a11y"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mui/base-ui.git",
+    "directory": "packages/react"
+  },
+  "bugs": {
+    "url": "https://github.com/mui/base-ui/issues"
+  },
+  "homepage": "https://base-ui.com",
+  "funding": {
+    "type": "opencollective",
+    "url": "https://opencollective.com/mui-org"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./accordion": "./src/accordion/index.ts",
+    "./alert-dialog": "./src/alert-dialog/index.ts",
+    "./autocomplete": "./src/autocomplete/index.ts",
+    "./avatar": "./src/avatar/index.ts",
+    "./button": "./src/button/index.ts",
+    "./checkbox": "./src/checkbox/index.ts",
+    "./checkbox-group": "./src/checkbox-group/index.ts",
+    "./collapsible": "./src/collapsible/index.ts",
+    "./combobox": "./src/combobox/index.ts",
+    "./csp-provider": "./src/csp-provider/index.ts",
+    "./context-menu": "./src/context-menu/index.ts",
+    "./dialog": "./src/dialog/index.ts",
+    "./direction-provider": "./src/direction-provider/index.ts",
+    "./drawer": "./src/drawer/index.ts",
+    "./field": "./src/field/index.ts",
+    "./fieldset": "./src/fieldset/index.ts",
+    "./form": "./src/form/index.ts",
+    "./input": "./src/input/index.ts",
+    "./menu": "./src/menu/index.ts",
+    "./menubar": "./src/menubar/index.ts",
+    "./merge-props": "./src/merge-props/index.ts",
+    "./meter": "./src/meter/index.ts",
+    "./navigation-menu": "./src/navigation-menu/index.ts",
+    "./number-field": "./src/number-field/index.ts",
+    "./otp-field": "./src/otp-field/index.ts",
+    "./popover": "./src/popover/index.ts",
+    "./preview-card": "./src/preview-card/index.ts",
+    "./progress": "./src/progress/index.ts",
+    "./radio": "./src/radio/index.ts",
+    "./radio-group": "./src/radio-group/index.ts",
+    "./scroll-area": "./src/scroll-area/index.ts",
+    "./select": "./src/select/index.ts",
+    "./separator": "./src/separator/index.ts",
+    "./slider": "./src/slider/index.ts",
+    "./switch": "./src/switch/index.ts",
+    "./tabs": "./src/tabs/index.ts",
+    "./toast": "./src/toast/index.ts",
+    "./toggle": "./src/toggle/index.ts",
+    "./toggle-group": "./src/toggle-group/index.ts",
+    "./toolbar": "./src/toolbar/index.ts",
+    "./tooltip": "./src/tooltip/index.ts",
+    "./types": "./src/types/index.ts",
+    "./unstable-use-media-query": "./src/unstable-use-media-query/index.ts",
+    "./use-render": "./src/use-render/index.ts",
+    "./internals/areArraysEqual": "./src/internals/areArraysEqual.ts",
+    "./internals/clamp": "./src/internals/clamp.ts",
+    "./internals/composite": "./src/internals/composite/index.ts",
+    "./internals/constants": "./src/internals/constants.ts",
+    "./internals/createBaseUIEventDetails": "./src/internals/createBaseUIEventDetails.ts",
+    "./internals/csp-context": "./src/internals/csp-context/index.ts",
+    "./internals/direction-context": "./src/internals/direction-context/index.ts",
+    "./internals/field-constants": "./src/internals/field-constants/index.ts",
+    "./internals/field-register-control": "./src/internals/field-register-control/index.ts",
+    "./internals/field-root-context": "./src/internals/field-root-context/index.ts",
+    "./internals/filter": "./src/internals/filter.ts",
+    "./internals/itemEquality": "./src/internals/itemEquality.ts",
+    "./internals/form-context": "./src/internals/form-context/index.ts",
+    "./internals/getStateAttributesProps": "./src/internals/getStateAttributesProps.ts",
+    "./internals/labelable-provider": "./src/internals/labelable-provider/index.ts",
+    "./internals/noop": "./src/internals/noop.ts",
+    "./internals/reasons": "./src/internals/reasons.ts",
+    "./internals/resolveValueLabel": "./src/internals/resolveValueLabel.tsx",
+    "./internals/RequestQueue": "./src/internals/RequestQueue.ts",
+    "./internals/serializeValue": "./src/internals/serializeValue.ts",
+    "./internals/shadowDom": "./src/internals/shadowDom.ts",
+    "./internals/stateAttributesMapping": "./src/internals/stateAttributesMapping.ts",
+    "./internals/temporal": "./src/internals/temporal/index.ts",
+    "./internals/temporal-adapter-date-fns": "./src/internals/temporal-adapter-date-fns/index.ts",
+    "./internals/temporal-adapter-luxon": "./src/internals/temporal-adapter-luxon/index.ts",
+    "./internals/TimeoutManager": "./src/internals/TimeoutManager.ts",
+    "./internals/types": "./src/internals/types.ts",
+    "./internals/use-button": "./src/internals/use-button/index.ts",
+    "./internals/useBaseUiId": "./src/internals/useBaseUiId.ts",
+    "./internals/useAnimationsFinished": "./src/internals/useAnimationsFinished.ts",
+    "./internals/useOpenChangeComplete": "./src/internals/useOpenChangeComplete.tsx",
+    "./internals/usePressAndHold": "./src/internals/usePressAndHold.ts",
+    "./internals/useRenderElement": "./src/internals/useRenderElement.tsx",
+    "./internals/useValueChanged": "./src/internals/useValueChanged.ts",
+    "./internals/useTransitionStatus": "./src/internals/useTransitionStatus.ts"
+  },
+  "imports": {
+    "#test-utils": "./test/index.ts",
+    "#formatErrorMessage": "@base-ui/utils/formatErrorMessage"
+  },
+  "scripts": {
+    "prebuild": "rimraf --glob build build-tests published-docs \"*.tsbuildinfo\" && node ./scripts/stagePublishedDocs.mjs",
+    "build": "code-infra build --flat --ignore \"**/*.template.js\" --copy .npmignore --copy \"published-docs/**:docs\" --tsgo",
+    "test:package": "publint --pack pnpm && attw --pack ./build --exclude-entrypoints package.json",
+    "release": "pnpm build && pnpm publish",
+    "test": "cross-env VITEST_ENV=jsdom vitest",
+    "typescript": "tsgo -b tsconfig.json"
+  },
+  "dependencies": {
+    "@babel/runtime": "^7.29.2",
+    "@base-ui/utils": "workspace:*",
+    "@floating-ui/react-dom": "^2.1.8",
+    "@floating-ui/utils": "^0.2.11",
+    "use-sync-external-store": "^1.6.0"
+  },
+  "devDependencies": {
+    "@date-fns/tz": "1.4.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
+    "@types/luxon": "3.7.1",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@types/use-sync-external-store": "1.5.0",
+    "clsx": "2.1.1",
+    "date-fns": "4.1.0",
+    "luxon": "3.7.2",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
+    "react-router": "7.15.0",
+    "typescript": "6.0.3",
+    "vitest-browser-react": "2.2.0"
+  },
+  "peerDependencies": {
+    "@date-fns/tz": "^1.2.0",
+    "@types/react": "^17 || ^18 || ^19",
+    "date-fns": "^4.0.0",
+    "react": "^17 || ^18 || ^19",
+    "react-dom": "^17 || ^18 || ^19"
+  },
+  "peerDependenciesMeta": {
+    "@date-fns/tz": {
+      "optional": true
+    },
+    "@types/react": {
+      "optional": true
+    },
+    "date-fns": {
+      "optional": true
+    }
+  },
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "directory": "build"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

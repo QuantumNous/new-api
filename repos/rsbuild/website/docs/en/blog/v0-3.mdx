@@ -1,0 +1,73 @@
+---
+description: 'Rsbuild 0.3 adds Module Federation support and updates TOML/YAML plugins, the JavaScript API, and Node target behavior.'
+date: 2024-01-10 08:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+  - name: 9aoy
+    avatar: 'https://github.com/9aoy.png'
+    github: '9aoy'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Announcing Rsbuild 0.3
+
+_January 10, 2024_
+
+<BlogAuthors />
+
+![](https://assets.rspack.rs/rsbuild/rsbuild-banner-v0-3.png)
+
+Rsbuild 0.3 version has upgraded Rspack to 0.5 and now supports Module Federation. In addition, it includes some incompatible API changes. Please refer to the current documentation for upgrading.
+
+## Rspack 0.5
+
+Bump Rspack to v0.5.0, see: [Rspack 0.5 Release Announcement](https://rspack.rs/blog/announcing-0-5)
+
+Notable changes:
+
+- [Module Federation added to Rspack](https://rspack.rs/blog/module-federation-added-to-rspack)
+- [Remove deprecated builtins options](https://rspack.rs/blog/announcing-0-5#make-swchelpers-and-react-refresh-as-peerdependencies)
+
+## TOML / YAML plugin
+
+The need to import TOML and YAML in JS is not common, so Rsbuild core will no longer support import TOML and YAML by default in v0.3.0.
+
+The TOML and YAML plugin will become an independent plugin:
+
+- TOML:
+
+```ts
+// rsbuild.config.ts
+import { pluginToml } from '@rsbuild/plugin-toml';
+
+export default {
+  plugins: [pluginToml()],
+};
+```
+
+- YAML:
+
+```ts
+// rsbuild.config.ts
+import { pluginYaml } from '@rsbuild/plugin-yaml';
+
+export default {
+  plugins: [pluginYaml()],
+};
+```
+
+## JavaScript API
+
+Some JavaScript APIs have changed:
+
+- The `printURLs` option of `rsbuild.startDevServer` is deprecated, use [server.printUrls](/config/server/print-urls) instead.
+- The `logger` option of `rsbuild.startDevServer` is deprecated, use [logger.override()](/api/javascript-api/core#logger) instead.
+
+## Node target
+
+- Adjust default browserslist for node target, from `node >= 14` to `node >= 16`.
+- The default value of `output.distPath.server` is changed from `'bundles'` to `'server'`

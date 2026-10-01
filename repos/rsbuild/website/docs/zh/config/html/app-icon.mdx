@@ -1,0 +1,220 @@
+---
+description: 'Rsbuild 的 html.app-icon 配置项参考，包含作用、默认值、配置行为和使用示例。'
+---
+
+# html.appIcon
+
+- **类型：**
+
+```ts
+type AppIconItem = {
+  src: string;
+  size: number;
+  target?: 'apple-touch-icon' | 'web-app-manifest';
+  purpose?: 'any' | 'maskable' | 'monochrome' | string;
+};
+
+type AppIcon = {
+  name?: string;
+  icons: AppIconItem[];
+  filename?: string;
+};
+```
+
+- **默认值：** `undefined`
+
+设置 Web 应用的图标，用于在添加到移动设备的主屏幕时显示：
+
+- 生成 web app manifest 文件和其中的 `icons` 字段。
+- 生成 HTML 文件中的 [apple-touch-icon](https://webhint.io/docs/user-guide/hints/hint-apple-touch-icons/) 标签和 `manifest` 标签。
+
+:::tip
+
+参考以下文档来了解更多信息：
+
+- [MDN - Web app manifests](https://developer.mozilla.org/en-US/docs/Web/Manifest)
+- [How to Favicon: Six files that fit most needs](https://evilmartians.com/chronicles/how-to-favicon-in-2021-six-files-that-fit-most-needs)
+
+:::
+
+## 示例
+
+你需要准备多个不同大小的图标，以便在不同设备上显示。
+
+最常用的图标大小是 `192x192` 和 `512x512`，你也可以根据需要来自定义图标大小和图标数量。
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    appIcon: {
+      name: 'My Website',
+      icons: [
+        { src: './src/assets/icon-192.png', size: 192 },
+        { src: './src/assets/icon-512.png', size: 512 },
+      ],
+    },
+  },
+};
+```
+
+编译后，HTML 中自动生成了以下标签：
+
+```html
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" sizes="180x180" href="/static/image/icon-192.png" />
+```
+
+其中，`manifest.webmanifest` 是一个 JSON 文件，包含了应用的名称和图标等信息。
+
+```json
+{
+  "name": "My Website",
+  "icons": [
+    {
+      "src": "/static/image/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/image/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+```
+
+:::tip 图标大小
+对于 Chrome，你至少需要提供 192x192 像素的图标和 512x512 像素的图标。如果仅提供这两种图标大小，Chrome 会自动缩放图标以适应设备大小。如果你希望缩放自己的图标，并调整图标以实现像素完美，请以 `48dp` 为增量提供图标。
+:::
+
+## name
+
+- **类型：** `string`
+- **默认值：** `undefined`
+
+应用的名称，用于在添加到移动设备的主屏幕时显示。如果未设置，则不会生成 `manifest.webmanifest` 文件。
+
+> 详见 [Web app manifests - name](https://developer.mozilla.org/en-US/docs/Web/Manifest/name)。
+
+## icons
+
+- **类型：** `AppIconItem[]`
+- **默认值：** `undefined`
+
+图标列表，其中：
+
+- `src` 是图标的路径，可以是 URL 地址、文件的绝对路径，或是相对于项目 [root](/config/root) 的相对路径。
+- `size` 是图标的大小，以像素为单位。
+- `target` 是图标的目标，可以是 `apple-touch-icon` 或 `web-app-manifest`。如果未设置 `target`，默认情况下，manifest 文件会包含所有的图标，而 `apple-touch-icon` 标签只会包含小于 `200x200` 的图标。
+- `purpose` 是一个区分大小写的字符串，用于指定浏览器或操作系统在何种场景下可以使用该图标。该字段仅在 `target` 为 `'web-app-manifest'` 时生效。更多信息请参考 [MDN - purpose](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest/Reference/icons#purpose)。
+
+### 示例
+
+`src` 可以设置为绝对路径：
+
+```js
+import path from 'node:path';
+
+export default {
+  html: {
+    appIcon: {
+      name: 'My Website',
+      icons: [
+        { src: path.resolve(__dirname, './assets/icon-192.png'), size: 192 },
+        { src: path.resolve(__dirname, './assets/icon-512.png'), size: 512 },
+      ],
+    },
+  },
+};
+```
+
+使用 `target` 选项来指定图标的目标：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    appIcon: {
+      name: 'My Website',
+      icons: [
+        {
+          src: './src/assets/icon-180.png',
+          size: 180,
+          target: 'apple-touch-icon',
+        },
+        {
+          src: './src/assets/icon-192.png',
+          size: 192,
+          target: 'web-app-manifest',
+        },
+        {
+          src: './src/assets/icon-512.png',
+          size: 512,
+          target: 'web-app-manifest',
+        },
+      ],
+    },
+  },
+};
+```
+
+### filename
+
+- **类型：** `string`
+- **默认值：** `'manifest.webmanifest'`
+
+manifest 文件的文件名。
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    appIcon: {
+      filename: 'manifest.json',
+    },
+  },
+};
+```
+
+## 添加更多 manifest 字段
+
+`html.appIcon` 用于配置 Web 应用图标。如果你需要向 Web App Manifest 添加更多字段，请在 [public 目录](/guide/basic/static-assets#public-folder)下创建 `manifest.webmanifest` 文件，而不是使用 `html.appIcon` 来生成 manifest。
+
+```json title="public/manifest.webmanifest"
+{
+  "name": "My Website",
+  "short_name": "Website",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
+```
+
+`icons` 中引用的图标文件也需要放在 `public` 目录下。例如，`/icon-192.png` 对应项目中的 `public/icon-192.png`。
+
+使用 [html.tags](/config/html/tags) 来引用 manifest 文件：
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      {
+        tag: 'link',
+        attrs: {
+          rel: 'manifest',
+          href: '/manifest.webmanifest',
+        },
+      },
+    ],
+  },
+};
+```
+
+## 版本历史
+
+| 版本   | 变更内容                    |
+| ------ | --------------------------- |
+| v1.5.5 | 新增对 `purpose` 选项的支持 |

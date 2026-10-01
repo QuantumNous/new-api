@@ -1,0 +1,36 @@
+{
+  "name": "tanstack-vue-start-e2e-custom-basepath",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "dev": "cross-env NODE_ENV=development tsx express-server.ts",
+    "build": "vite build && tsc --noEmit",
+    "preview": "vite preview",
+    "start": "tsx express-server.ts",
+    "test:e2e": "rm -rf port*.txt; playwright test --project=chromium"
+  },
+  "dependencies": {
+    "@tanstack/vue-router": "workspace:^",
+    "@tanstack/vue-router-devtools": "workspace:^",
+    "@tanstack/vue-start": "workspace:^",
+    "express": "^5.2.1",
+    "redaxios": "^0.5.1",
+    "vue": "^3.5.25"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.1",
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "@types/express": "^5.0.6",
+    "@types/node": "^22.10.2",
+    "cross-env": "^10.0.0",
+    "srvx": "^0.11.9",
+    "tailwindcss": "^4.2.2",
+    "tsx": "^4.20.3",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "@vitejs/plugin-vue-jsx": "^5.1.5"
+  }
+}

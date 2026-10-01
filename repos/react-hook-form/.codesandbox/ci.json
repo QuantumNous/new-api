@@ -1,0 +1,9 @@
+{
+  "installCommand": "csb:install",
+  "sandboxes": [
+    "react-hook-form-v7-js-template-quqov",
+    "react-hook-form-v7-ts-template-4tn8i"
+  ],
+  "node": "18",
+  "silent": true
+}

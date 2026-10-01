@@ -1,0 +1,28 @@
+name: "Close invalid questions issues"
+on:
+  schedule:
+  - cron: "*/10 * * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  stale:
+    permissions:
+      issues: write  # for actions/stale to close stale issues
+      pull-requests: write  # for actions/stale to close stale PRs
+    runs-on: ubuntu-latest
+    env:
+      ACTIONS_STEP_DEBUG: true
+    steps:
+    - name: Close Stale Issues
+      uses: actions/stale@v8
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+        stale-issue-message: "This issue has been marked as invalid question, please give more information by following the `Question` template, if you believe there is a bug of GORM, please create a pull request that could reproduce the issue on [https://github.com/go-gorm/playground](https://github.com/go-gorm/playground), the issue will be closed in 30 days if no further activity occurs. most likely your question already answered https://github.com/go-gorm/gorm/issues or described in the document https://gorm.io ✨ [Search Before Asking](https://stackoverflow.com/help/how-to-ask) ✨"
+        stale-issue-label: "status:stale"
+        days-before-stale: 0
+        days-before-close: 30
+        remove-stale-when-updated: true
+        only-labels: "type:invalid question"
+

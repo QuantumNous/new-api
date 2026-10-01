@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Zod | Documentation</title>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <meta
+      name="description"
+      content="TypeScript-first schema validation with static type inference"
+    />
+    <meta
+      name="viewport"
+      content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"
+    />
+    <meta
+      name="twitter:title"
+      content="TypeScript-first schema validation with static type inference"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@colinhacks" />
+    <meta
+      name="twitter:image:src"
+      content="https://opengraph.githubassets.com/1cac1150838995e1f7d1643c00eee51a5d884f2054f995c9d3225b07b0eddb39/colinhacks/zod"
+    />
+    <meta
+      property="og:image"
+      content="https://opengraph.githubassets.com/1cac1150838995e1f7d1643c00eee51a5d884f2054f995c9d3225b07b0eddb39/colinhacks/zod"
+    />
+    <meta
+      property="og:image:alt"
+      content="TypeScript-first schema validation with static type inference"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="600" />
+    <meta property="og:site_name" content="GitHub" />
+    <meta property="og:type" content="object" />
+    <meta
+      property="og:title"
+      content="TypeScript-first schema validation with static type inference"
+    />
+    <meta property="og:url" content="https://github.com/colinhacks/zod" />
+    <meta
+      property="og:description"
+      content="TypeScript-first schema validation with static type inference"
+    />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/static/apple-touch-icon.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="32x32"
+      href="/static/favicon-32x32.png"
+    />
+    <link
+      rel="icon"
+      type="image/png"
+      sizes="16x16"
+      href="/static/favicon-16x16.png"
+    />
+    <link rel="manifest" href="/static/site.webmanifest" />
+    <link
+      rel="mask-icon"
+      href="/static/safari-pinned-tab.svg"
+      color="#5bbad5"
+    />
+    <link rel="shortcut icon" href="/static/favicon.ico" />
+    <meta name="msapplication-TileColor" content="#da532c" />
+    <meta name="msapplication-config" content="/static/browserconfig.xml" />
+    <meta name="theme-color" content="#ffffff" />
+
+    <script
+      async
+      src="https://www.googletagmanager.com/gtag/js?id=G-FG8DDV0GBR"
+    ></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", "G-FG8DDV0GBR");
+    </script>
+
+    <link
+      rel="preload"
+      href="//cdn.jsdelivr.net/npm/docsify@4.12.2/lib/themes/vue.css"
+      type="text/css"
+      as="style"
+      onload="this.onload=null;this.rel='stylesheet';"
+    />
+
+    <style>
+      body {
+        margin: 0; /* Remove default body margin */
+        padding: 0; /* Remove default body padding */
+        font-family: Arial, sans-serif; /* Set a default font family */
+      }
+      article {
+        max-width: 700px;
+      }
+      .markdown-section {
+        /* Allow the content to stretch to the full width */
+        /* max-width: 100%;  */
+        max-width: 700px;
+        margin: 0 auto; /* Center the content on the page */
+        box-sizing: border-box; /* Include padding and border in the element's total width and height */
+        padding: 20px; /* Add padding for better readability, adjust as needed */
+      }
+
+      p > img {
+        max-width: 100%; /* Ensure images are responsive within the content */
+        height: auto;
+      }
+
+      .markdown-section h2 {
+        padding: 40px 0px 10px 0px;
+        border-bottom: 1px solid #dbdbdb;
+      }
+
+      .markdown-section h3 {
+        padding-top: 15px;
+      }
+      .markdown-section h3 code {
+        font-size: 80%;
+      }
+      .sidebar {
+        padding-top: 24px;
+      }
+
+      .sidebar::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .theme-btn {
+        position: relative;
+        left: 15px;
+        width: 24px;
+        height: 24px;
+        margin-bottom: 14px;
+        background-image: url("./static/moon.svg");
+        background-repeat: no-repeat;
+        background-size: cover;
+        background-position: center;
+        cursor: pointer;
+        z-index: 100;
+      }
+      @media only screen and (max-width: 768px) {
+        .markdown-section {
+          padding: 10px; /* Adjust padding for smaller screens */
+        }
+      }
+    </style>
+    <!-- Theme: dark -->
+    <style>
+      .dark,
+      .dark .sidebar,
+      .dark blockquote,
+      .dark .sidebar a {
+        /* background-color: #283339; */
+        background-color: #0E1116;
+        color: #d3d3d3;
+      }
+
+      .dark .sidebar::-webkit-scrollbar-thumb {
+        background: hsla(0, 0%, 88%, 0.4);
+      }
+
+      .dark .sidebar::-webkit-scrollbar-track {
+        background: hsla(0, 0%, 53%, 0.1);
+      }
+
+      .dark .sidebar-toggle {
+        background-color: hsl(201deg 18% 19% / 80%) !important;
+      }
+
+      .dark .markdown-section h1,
+      .dark .markdown-section h2,
+      .dark .markdown-section h3,
+      .dark .markdown-section h4,
+      .dark .markdown-section strong,
+      .dark .anchor span {
+        color: #fff;
+      }
+
+      .dark .markdown-section tr:nth-child(2n) {
+        background-color: #1f282d;
+      }
+
+      .dark .markdown-section td,
+      .dark .markdown-section th {
+        border-color: #495e69;
+      }
+
+      .dark .markdown-section pre,
+      .dark .markdown-section code {
+        background-color: #34434b;
+      }
+
+      .dark .markdown-section code,
+      .dark .token.keyword,
+      .dark .token.function {
+        color: #f07178;
+      }
+
+      .dark .markdown-section pre > code,
+      .dark .token.punctuation {
+        color: #f3f3f3;
+      }
+
+      .dark .token.number,
+      .dark .token.boolean {
+        color: #ffcb6b;
+      }
+
+      .dark .github-corner svg {
+        color: #283339;
+      }
+
+      .dark .theme-btn {
+        background-image: url("./static/sun.svg");
+      }
+      /* .dark .light-mode-logo {
+        display: block !important;
+      }
+      @media (prefers-color-scheme: light) {
+        .dark .light-mode-logo {
+          display: block !important;
+        }
+        .dark picture {
+          display: none;
+        }
+        .dark .light-mode-logo {
+          display: none !important;
+        }
+      } */
+    </style>
+  </head>
+
+  <body data-theme="dark">
+    <!-- <div class="theme-btn"></div> -->
+    <div id="app"></div>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/docsify/4.12.2/docsify.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/prism/1.28.0/components/prism-typescript.min.js"></script>
+    <script>
+      localStorage.removeItem("dark-theme");
+      function checkDark() {
+        return (
+          // localStorage.getItem("dark-theme") === "true" ??
+          window.matchMedia("(prefers-color-scheme: dark)").matches ?? false
+        );
+      }
+
+      let isDark = checkDark();
+      toggleDarkTheme(isDark);
+
+      window
+        .matchMedia("(prefers-color-scheme: dark)")
+        .addEventListener("change", (e) => toggleDarkTheme(e.matches()));
+
+      // document.querySelector(".theme-btn").addEventListener("click", () => {
+      //   const isDark = checkDark();
+      //   console.log("isDark", isDark);
+      //   toggleDarkTheme(!isDark);
+      // });
+
+      function toggleDarkTheme(isDark) {
+        if (isDark) {
+          document.body.classList.add("dark");
+        } else {
+          document.body.classList.remove("dark");
+        }
+
+        document.documentElement.setAttribute(
+          "data-theme",
+          isDark ? "dark" : "light"
+        );
+        // localStorage.setItem("dark-theme", isDark ? "true" : "false");
+      }
+    </script>
+
+    <script>
+      window.$docsify = {
+        subMaxLevel: 1,
+        maxLevel: 3,
+        auto2top: true,
+        repo: "colinhacks/zod",
+        routerMode: "history",
+        crossOriginLinks: [
+          "https://github.com/colinhacks/zod/actions?query=branch%3Amain",
+          "https://opensource.org/licenses/MIT",
+          "https://www.npmjs.com/package/zod",
+          "https://discord.gg/KaSRdyX2vc",
+          "https://discord.gg/RcG33DQJdf",
+          "https://github.com/colinhacks/zod/issues/new",
+          "https://twitter.com/colinhacks",
+          "https://trpc.io/",
+          "https://zod.dev/",
+          "https://deno.land/x/zod",
+          "https://zod.dev/blog/clerk-fellowship",
+          "https://go.clerk.com/hqN4rp7",
+          "https://go.clerk.com/Qgor5NQ",
+          "https://go.clerk.com/PKHrcwh"
+        ],
+        noCompileLinks: [
+          "https://github.com/colinhacks/zod/actions?query=branch%3Amain",
+          "https://opensource.org/licenses/MIT",
+          "https://www.npmjs.com/package/zod",
+          "https://discord.gg/KaSRdyX2vc",
+          "https://discord.gg/RcG33DQJdf",
+          "https://github.com/colinhacks/zod/issues/new",
+          "https://twitter.com/colinhacks",
+          "https://trpc.io/",
+          "https://zod.dev/",
+          "https://deno.land/x/zod",
+          "https://zod.dev/blog/clerk-fellowship",
+          "https://go.clerk.com/hqN4rp7",
+          "https://go.clerk.com/Qgor5NQ",
+          "https://go.clerk.com/PKHrcwh"
+        ],
+      };
+    </script>
+    <script>
+      window.onload = () => {
+        const sidebar = document.querySelector(".sidebar-nav");
+        const clerkLink = document.createElement("a");
+        clerkLink.style.display = "block";
+        clerkLink.style.padding = "14px 8px 0px 8px";
+        clerkLink.href = "https://go.clerk.com/Qgor5NQ";
+        const clerkImg = document.createElement("img");
+        clerkImg.src = "https://github.com/colinhacks/zod/assets/3084745/944665e0-113d-42a4-a340-bd6c61e25880";
+        // clerkImg.style.padding = "10px 12px 0px 12px";
+        clerkLink.appendChild(clerkImg);
+        sidebar.appendChild(clerkLink)
+      };
+      
+    </script>
+    <!-- <script>
+      window.addEventListener("DOMContentLoaded", () => {
+        document
+          .querySelector("aside")
+          .prepend(document.querySelector(".theme-btn"));
+      });
+    </script> -->
+    <script src="https://www.unpkg.com/zod/lib/index.umd.js"></script>
+  </body>
+</html>

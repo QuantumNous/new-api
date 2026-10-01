@@ -1,0 +1,11 @@
+{
+  "audio_url": "https://api.gladia.io/file/7403f025-be30-4335-ae29-20131e0adbd6",
+  "audio_metadata": {
+    "id": "7403f025-be30-4335-ae29-20131e0adbd6",
+    "filename": "audio.mp3",
+    "extension": "mp3",
+    "size": 882477,
+    "audio_duration": 36.74,
+    "number_of_channels": 1
+  }
+}

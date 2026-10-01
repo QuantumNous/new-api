@@ -1,0 +1,103 @@
+{
+  "id": "resp_015f6a6b41cacae400691daacaec1c8193aa7694e479437a70",
+  "object": "response",
+  "created_at": 1763551946,
+  "status": "completed",
+  "background": false,
+  "content_filters": null,
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-4.1-mini",
+  "output": [
+    {
+      "id": "ws_015f6a6b41cacae400691daacb83288193836c60a7c57507fd",
+      "type": "web_search_call",
+      "status": "searching",
+      "action": {
+        "type": "search",
+        "query": "top news stories November 19, 2025"
+      }
+    },
+    {
+      "id": "ws_015f6a6b41cacae400691daacdbd0081938887c66406662377",
+      "type": "web_search_call",
+      "status": "searching",
+      "action": {
+        "type": "search",
+        "query": "major news stories November 19, 2025"
+      }
+    },
+    {
+      "id": "msg_015f6a6b41cacae400691daacf3e70819397c7d2d5d05e1605",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [
+            {
+              "type": "url_citation",
+              "end_index": 576,
+              "start_index": 453,
+              "title": "While You Were Sleeping: 5 stories you might have missed, Nov 19, 2025",
+              "url": "https://www.straitstimes.com/world/while-you-were-sleeping-5-stories-you-might-have-missed-nov-19-2025"
+            }
+          ],
+          "logprobs": [],
+          "text": "Here are three major news stories from today, November 19, 2025:\n\n1. President Donald Trump hosted Saudi Crown Prince Mohammed bin Salman (MBS) at the White House. Trump defended the Saudi prince over the 2018 murder of journalist Jamal Khashoggi, dismissing it as \"things happened\" and praising MBS's human rights record. The visit included a lavish military parade and the announcement of a $1.3 trillion investment pledge by Saudi Arabia in the U.S. [The Straits Times](https://www.straitstimes.com/world/while-you-were-sleeping-5-stories-you-might-have-missed-nov-19-2025)\n\n2. The U.S. House of Representatives voted overwhelmingly (427-1) to compel the Justice Department to release all unclassified files related to Jeffrey Epstein. This followed a shift from Trump who had initially opposed the release. The resolution now moves to the Senate for consideration. [The Straits Times](https://www.straitstimes.com/world/while-you-were-sleeping-5-stories-you-might-have-missed-nov-19-2025)\n\n3. Spain pledged €817 million (approximately $1.2 billion) in military and other aid to Ukraine to help bolster Kyiv’s air defenses against ongoing Russian attacks. The aid is part of a 10-year bilateral security and defense agreement signed in 2024 and includes purchasing U.S. military equipment under NATO’s prioritization. [The Straits Times](https://www.straitstimes.com/world/while-you-were-sleeping-5-stories-you-might-have-missed-nov-19-2025)\n\nIf you want more details or other news stories, feel free to ask!"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "reasoning": {
+    "effort": null,
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "web_search_preview",
+      "search_context_size": "medium",
+      "user_location": {
+        "type": "approximate",
+        "city": null,
+        "country": "US",
+        "region": null,
+        "timezone": null
+      }
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 1,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 10188,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 405,
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "total_tokens": 10593
+  },
+  "user": null,
+  "metadata": {}
+}

@@ -1,0 +1,27 @@
+{
+  "model": "claude-haiku-4-5-20251001",
+  "id": "msg_015cSyws7w7R4ZeozELGSuET",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "text",
+      "text": "\n\nHere's a comparison of the weather in both cities:\n\n**San Francisco vs New York:**\n\n| Aspect | San Francisco | New York |\n|--------|---------------|----------|\n| **Temperature** | 72°F | 65°F |\n| **Conditions** | Sunny | Cloudy |\n\n**Summary:**\nSan Francisco is warmer than New York by 7 degrees Fahrenheit, and it has better weather conditions with sunny skies compared to New York's cloudy weather. If you're looking for warm and clear weather, San Francisco is the better choice right now!"
+    }
+  ],
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 859,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 132,
+    "service_tier": "standard",
+    "inference_geo": "not_available"
+  },
+  "context_management": { "applied_edits": [] }
+}

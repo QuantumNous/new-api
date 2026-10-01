@@ -1,0 +1,47 @@
+{
+  "id": "chatcmpl-d89ba80c-26b3-442c-ac3c-d7e94a99c484",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "message": {
+        "reasoning": "The user is asking about a \"magic number\". I see that I have access to a function called \"nonUsefulTool\" which \"returns a magic number\". This seems like exactly what the user is asking for. Let me call this function to get the magic number for them.",
+        "tool_calls": [
+          {
+            "function": {
+              "name": "nonUsefulTool",
+              "arguments": "{}"
+            },
+            "type": "function",
+            "id": "85e4fd267"
+          }
+        ],
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1779146781,
+  "model": "zai-glm-4.7",
+  "system_fingerprint": "fp_a33c042689e969567008",
+  "object": "chat.completion",
+  "usage": {
+    "total_tokens": 387,
+    "completion_tokens": 65,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0,
+      "reasoning_tokens": 58
+    },
+    "prompt_tokens": 322,
+    "prompt_tokens_details": {
+      "cached_tokens": 256
+    }
+  },
+  "time_info": {
+    "created": 1779146781.786984,
+    "queue_time": 0.002922005,
+    "prompt_time": 0.010518105,
+    "completion_time": 0.118095092,
+    "total_time": 0.13299274444580078
+  }
+}

@@ -1,0 +1,72 @@
+---
+description: 'Rsbuild uses the CssExtractRspackPlugin plugin by default to extract CSS into separate files.'
+---
+
+# tools.cssExtract
+
+- **Type:**
+
+```ts
+import type { CssExtractRspackPluginOptions, CssExtractRspackLoaderOptions } from '@rspack/core';
+
+type CSSExtractOptions = {
+  pluginOptions?: CssExtractRspackPluginOptions;
+  loaderOptions?: CssExtractRspackLoaderOptions;
+};
+```
+
+- **Default:**
+
+```js
+const defaultOptions = {
+  pluginOptions: {
+    ignoreOrder: true,
+    // The default value is determined by the output.distPath and output.filename options of Rsbuild
+    filename: 'static/css/[name].css',
+    chunkFilename: 'static/css/async/[name].css',
+  },
+  loaderOptions: {},
+};
+```
+
+- **Version:** `>= 0.7.0`
+
+Rsbuild uses the CssExtractRspackPlugin plugin by default to extract CSS into separate files.
+
+The options for [CssExtractRspackPlugin](https://rspack.rs/plugins/rspack/css-extract-rspack-plugin) can be changed through `tools.cssExtract`.
+
+## pluginOptions
+
+- **Type:** `CssExtractRspackPluginOptions`
+- **Example:**
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    cssExtract: {
+      pluginOptions: {
+        ignoreOrder: false,
+      },
+    },
+  },
+};
+```
+
+## loaderOptions
+
+- **Type:** `CssExtractRspackLoaderOptions`
+- **Example:**
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    cssExtract: {
+      loaderOptions: {
+        esModule: false,
+      },
+    },
+  },
+};
+```
+
+> Please refer to the [CssExtractRspackPlugin](https://rspack.rs/plugins/rspack/css-extract-rspack-plugin) plugin documentation to learn about all available options.

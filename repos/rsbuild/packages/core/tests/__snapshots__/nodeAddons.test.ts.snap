@@ -1,0 +1,18 @@
+// Rstest Snapshot v1
+
+exports[`plugin-node-addons > should add node addons rule properly 1`] = `
+[
+  {
+    "test": /\\\\\\.node\\$/,
+    "use": [
+      {
+        "loader": "<ROOT>/packages/core/src/transformRawLoader.mjs",
+        "options": {
+          "getEnvironment": [Function],
+          "id": "rsbuild-transform-0",
+        },
+      },
+    ],
+  },
+]
+`;

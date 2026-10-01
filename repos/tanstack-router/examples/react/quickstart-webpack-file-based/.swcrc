@@ -1,0 +1,15 @@
+{
+  "$schema": "https://swc.rs/schema.json",
+  "jsc": {
+    "target": "es2015",
+    "parser": {
+      "syntax": "typescript",
+      "tsx": true
+    },
+    "transform": {
+      "react": {
+        "runtime": "automatic"
+      }
+    }
+  }
+}

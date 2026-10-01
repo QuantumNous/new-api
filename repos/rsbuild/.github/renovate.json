@@ -1,0 +1,79 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "schedule:weekly",
+    "helpers:pinGitHubActionDigests",
+    "github>rstackjs/renovate:security"
+  ],
+  "ignorePaths": ["**/node_modules/**"],
+  "rangeStrategy": "bump",
+  "packageRules": [
+    {
+      "groupName": "Babel",
+      "groupSlug": "babel",
+      "matchPackageNames": ["/babel/"]
+    },
+    {
+      "description": "Keep Babel 7 packages on v7 until Babel 8 compatibility is handled.",
+      "matchPackageNames": ["/^@babel\\//", "/^@types\\/babel__/"],
+      "allowedVersions": ">=7.0.0 <8.0.0"
+    },
+    {
+      "description": "Keep @rsbuild/plugin-babel on reduce-configs v1 because applyUserBabelConfig is an exported synchronous API.",
+      "matchManagers": ["npm"],
+      "matchFileNames": ["packages/plugin-babel/package.json"],
+      "matchPackageNames": ["reduce-configs"],
+      "enabled": false
+    },
+    {
+      "groupName": "Rspress",
+      "groupSlug": "rspress",
+      "matchPackageNames": ["/rspress/"]
+    },
+    {
+      "groupName": "Rstest",
+      "groupSlug": "rstest",
+      "matchPackageNames": ["/rstest/"]
+    },
+    {
+      "groupName": "Sass",
+      "groupSlug": "sass",
+      "matchPackageNames": ["/sass/"]
+    },
+    {
+      "groupName": "Module Federation",
+      "groupSlug": "module-federation",
+      "matchPackageNames": ["/module-federation/"]
+    },
+    {
+      "groupName": "all patch dependencies",
+      "groupSlug": "all-patch",
+      "matchUpdateTypes": ["patch"],
+      "matchPackageNames": ["*"]
+    },
+    {
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["engines"],
+      "matchPackageNames": ["node"],
+      "enabled": false
+    },
+    {
+      "matchManagers": ["npm"],
+      "matchDepTypes": ["engines"],
+      "matchPackageNames": ["pnpm"],
+      "enabled": false
+    },
+    {
+      "description": "Keep .node-version pinned until Cloudflare Pages can install newer Node.js releases reliably.",
+      "matchManagers": ["nodenv"],
+      "matchFileNames": [".node-version"],
+      "enabled": false
+    },
+    {
+      "matchDepTypes": ["peerDependencies"],
+      "enabled": false
+    }
+  ],
+  "ignoreDeps": ["loader-utils", "@rsbuild/core-v1"]
+}

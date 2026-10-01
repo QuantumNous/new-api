@@ -1,0 +1,59 @@
+---
+description: '是否以中间件模式来创建 Rsbuild 的 server，这有助于与其他 server 集成。'
+---
+
+# server.middlewareMode
+
+- **类型：** `boolean`
+- **默认值：** `false`
+- **版本：** `>= 1.2.12`
+
+是否以中间件模式来创建 Rsbuild 的 server，这有助于与其他 server 集成。
+
+开启此选项后，Rsbuild 将不会创建 HTTP server。通常你只有在使用 Rsbuild 的 [JavaScript API](/api/start/) 时，才需要设置此选项。
+
+## 示例
+
+### 启用中间件模式
+
+```ts title="rsbuild.config.ts"
+import { createRsbuild } from '@rsbuild/core';
+
+const rsbuild = await createRsbuild({
+  config: {
+    server: {
+      middlewareMode: true,
+    },
+  },
+});
+```
+
+### 与自定义 server 集成
+
+一个典型的使用场景是，你希望将 Rsbuild 的 server 集成到自定义的 server 中。可以结合 `server.middlewareMode` 和 [rsbuild.createDevServer](/api/javascript-api/instance#rsbuildcreatedevserver) 来实现。
+
+```ts
+import { createRsbuild } from '@rsbuild/core';
+import express from 'express';
+
+async function startDevServer() {
+  // 以 middleware mode 初始化 Rsbuild
+  const rsbuild = await createRsbuild({
+    config: {
+      server: {
+        middlewareMode: true,
+      },
+    },
+  });
+
+  const app = express();
+
+  // 创建 Rsbuild dev server 实例
+  const rsbuildServer = await rsbuild.createDevServer();
+
+  // 使用 Rsbuild 的内置中间件
+  app.use(rsbuildServer.middlewares);
+}
+```
+
+> 查看 [与自定义 server 集成](/api/javascript-api/server-api#integrate-with-custom-server) 了解更多。

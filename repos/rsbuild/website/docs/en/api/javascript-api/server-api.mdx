@@ -1,0 +1,305 @@
+---
+description: 'Reference for the Rsbuild JavaScript API, covering How to use, Example, Shared API and related methods.'
+---
+
+# Server API
+
+Rsbuild provides server APIs for both dev and preview servers, available through configuration, plugin hooks, and JavaScript API.
+
+## How to use
+
+### Configuration
+
+Rsbuild provides the [server.setup](/config/server/setup) option to access dev and preview server instances.
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    setup: ({ server }) => {
+      console.log('the server is ', server);
+    },
+  },
+};
+```
+
+### Plugin hooks
+
+Plugin authors can access dev and preview server instances through the [onBeforeStartDevServer](/plugins/dev/hooks#onbeforestartdevserver) and [onBeforeStartPreviewServer](/plugins/dev/hooks#onbeforestartpreviewserver) hooks.
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeStartDevServer(({ server }) => {
+      console.log('the dev server is ', server);
+    });
+    api.onBeforeStartPreviewServer(({ server }) => {
+      console.log('the preview server is ', server);
+    });
+  },
+});
+```
+
+### JavaScript API
+
+- Create a dev server instance via [rsbuild.createDevServer](/api/javascript-api/instance#rsbuildcreatedevserver):
+
+```ts
+const devServer = await rsbuild.createDevServer();
+console.log('the dev server is ', devServer);
+```
+
+- Get the dev server instance via [rsbuild.startDevServer](/api/javascript-api/instance#rsbuildstartdevserver):
+
+```ts
+const { server } = await rsbuild.startDevServer();
+console.log('the dev server is ', server);
+```
+
+- Get the preview server instance via [rsbuild.preview](/api/javascript-api/instance#rsbuildpreview):
+
+```ts
+const { server } = await rsbuild.preview();
+console.log('the preview server is ', server);
+```
+
+## Example
+
+### Integrate with custom server
+
+Here is an example of integrating [express](https://expressjs.com/) with Rsbuild dev server:
+
+```ts
+import { createRsbuild } from '@rsbuild/core';
+import express from 'express';
+
+async function startDevServer() {
+  // Init Rsbuild
+  const rsbuild = await createRsbuild({
+    config: {
+      server: {
+        middlewareMode: true,
+      },
+    },
+  });
+  const app = express();
+
+  // Create Rsbuild dev server instance
+  const rsbuildServer = await rsbuild.createDevServer();
+
+  // Apply Rsbuild's built-in middleware
+  app.use(rsbuildServer.middlewares);
+
+  const server = app.listen(rsbuildServer.port, async () => {
+    // Notify Rsbuild that the custom server has started
+    await rsbuildServer.afterListen();
+  });
+
+  // Activate WebSocket connection
+  rsbuildServer.connectWebSocket({ server });
+}
+```
+
+For detailed usage, see:
+
+- [Example code](https://github.com/rstackjs/rstack-examples/blob/main/rsbuild/express/server.mjs).
+- [rsbuild.createDevServer](/api/javascript-api/instance#rsbuildcreatedevserver)
+- [server.middlewareMode](/config/server/middleware-mode)
+
+## Shared API
+
+Common methods and properties that are available in both dev and preview servers.
+
+### close
+
+- **Type:** `() => Promise<void>`
+
+Calling the `close()` method to perform necessary cleanup operations.
+
+In the dev server, this will also trigger the [onCloseDevServer](/plugins/dev/hooks#onclosedevserver) hook.
+
+```ts
+import { createRsbuild } from '@rsbuild/core';
+
+const rsbuild = await createRsbuild();
+const rsbuildServer = await rsbuild.createDevServer();
+
+await rsbuildServer.close();
+```
+
+### httpServer
+
+- **Type:** `import('node:http').Server | import('node:http2').Http2SecureServer | null`
+
+The Node.js HTTP server instance.
+
+- If [server.https](/config/server/https) is enabled, this is an `Http2SecureServer`.
+- If [server.middlewareMode](/config/server/middleware-mode) is enabled, this is `null`.
+
+### middlewares
+
+- **Type:** `Connect.Server`
+
+The `connect` instance. Can be used to attach custom middleware to the server.
+
+```ts
+const rsbuildServer = await rsbuild.createDevServer();
+
+rsbuildServer.middlewares.use((req, res, next) => {
+  if (req.url === '/foo') {
+    res.end('ok');
+    return;
+  }
+  next();
+});
+```
+
+> See [Middleware](/guide/basic/server#middleware) to learn more.
+
+### open
+
+- **Type:** `() => Promise<void>`
+
+Open URL in the browser after starting the server.
+
+```ts
+const { server } = await rsbuild.startDevServer();
+await server.open();
+```
+
+### port
+
+- **Type:** `number`
+
+The resolved port number.
+
+It starts from [server.port](/config/server/port) by default, and automatically increments to an available port when occupied.
+
+```ts
+const { server } = await rsbuild.startDevServer();
+console.log(server.port);
+```
+
+### printUrls
+
+- **Type:** `() => void`
+
+Print the server URLs.
+
+```ts
+const { server } = await rsbuild.startDevServer();
+server.printUrls();
+```
+
+## Dev server API
+
+Additional methods and properties that are only available in dev servers.
+
+### afterListen
+
+- **Type:** `() => Promise<void>`
+
+Notifies Rsbuild that the custom server has successfully started. Rsbuild will trigger the [onAfterStartDevServer](/plugins/dev/hooks#onafterstartdevserver) hook at this stage.
+
+For example:
+
+```ts
+import express from 'express';
+import { createRsbuild } from '@rsbuild/core';
+
+const rsbuild = await createRsbuild();
+const rsbuildServer = await rsbuild.createDevServer();
+const app = express();
+
+const server = app.listen(rsbuildServer.port, async () => {
+  await rsbuildServer.afterListen();
+});
+```
+
+### connectWebSocket
+
+- **Type:**
+
+```ts
+type ConnectWebSocket = (options: {
+  server: import('node:http').Server | import('node:http2').Http2SecureServer;
+}) => void;
+```
+
+Activates the WebSocket connection. This ensures that HMR works properly.
+
+Rsbuild has a built-in WebSocket handler to support HMR:
+
+1. When a user accesses a page through browser, a WebSocket connection request is automatically initiated to the server.
+2. After the Rsbuild dev server detects the connection request, it instructs the built-in WebSocket handler to process it.
+3. After the browser successfully establishes a connection with the Rsbuild WebSocket handler, real-time communication is possible.
+4. The Rsbuild WebSocket handler notifies the browser after each recompilation is complete. The browser then sends a `hot-update.(js|json)` request to the dev server to load the new compiled module.
+
+When you use a custom server, you may encounter HMR connection error problems. This is because the custom server does not forward WebSocket connection requests to Rsbuild's WebSocket handler.
+
+At this time, you need to use the `connectWebSocket` method to enable Rsbuild to sense and process the WebSocket connection request from the browser.
+
+```ts
+import express from 'express';
+import { createRsbuild } from '@rsbuild/core';
+
+const rsbuild = await createRsbuild();
+const rsbuildServer = await rsbuild.createDevServer();
+const app = express();
+
+const httpServer = app.listen(rsbuildServer.port);
+
+rsbuildServer.connectWebSocket({ server: httpServer });
+```
+
+### environments
+
+- **Type:** [EnvironmentAPI](/api/javascript-api/environment-api#environment-api)
+
+Provides Rsbuild's [environment API](/api/javascript-api/environment-api#environment-api), which allows you to get the build outputs information for a specific environment in the server side.
+
+```ts title="rsbuild.config.ts"
+const rsbuildServer = await rsbuild.createDevServer();
+const webStats = await rsbuildServer.environments.web.getStats();
+
+console.log(webStats.toJson({ all: false }));
+```
+
+### listen
+
+- **Type:** `() => Promise<{ port: number; urls: string[]; server: RsbuildDevServer }>`
+
+Starts the server and returns the listening result.
+
+If you are using [server.middlewareMode](/config/server/middleware-mode), you usually don't need to call this method.
+
+```ts
+const rsbuildServer = await rsbuild.createDevServer();
+const { port, urls } = await rsbuildServer.listen();
+
+console.log(port, urls);
+```
+
+### sockWrite
+
+- **Type:**
+
+```ts
+type HotSend = {
+  (type: 'full-reload', data?: { path?: string }): void;
+  (type: 'static-changed'): void;
+  (type: 'custom', data: { event: string; data?: any }): void;
+};
+```
+
+Sends some message to HMR client, and then the HMR client will take different actions depending on the message type.
+
+```ts
+const rsbuildServer = await rsbuild.createDevServer();
+if (someCondition) {
+  rsbuildServer.sockWrite('full-reload');
+}
+```
+
+:::tip
+`sockWrite` is not the recommended API for sending messages. Prefer [hot.send](/api/javascript-api/environment-api#hotsend) instead.
+:::

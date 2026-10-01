@@ -1,0 +1,69 @@
+---
+description: 'Rsdoctor is a build analyzer tailored for the Rspack ecosystem.'
+---
+
+# Use Rsdoctor
+
+[Rsdoctor](https://rsdoctor.rs/) is a build analyzer tailored for the Rspack ecosystem.
+
+Rsdoctor aims to be a one-stop, intelligent build analyzer that makes the build process transparent, predictable, and optimizable through visualization and smart analysis, helping teams pinpoint bottlenecks, improve performance, and raise engineering quality.
+
+Use Rsdoctor to debug build outputs or the build process.
+
+## Quick start
+
+In an Rsbuild project, enable Rsdoctor as follows:
+
+1. Install the Rsdoctor plugin:
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsdoctor/rspack-plugin -D" />
+
+2. Set the `RSDOCTOR=true` environment variable before running the CLI command:
+
+```json title="package.json"
+{
+  "scripts": {
+    "dev:rsdoctor": "RSDOCTOR=true rsbuild",
+    "build:rsdoctor": "RSDOCTOR=true rsbuild build"
+  }
+}
+```
+
+Because Windows does not support this syntax, you can use [cross-env](https://npmjs.com/package/cross-env) to set environment variables across different systems:
+
+```json title="package.json"
+{
+  "scripts": {
+    "dev:rsdoctor": "cross-env RSDOCTOR=true rsbuild",
+    "build:rsdoctor": "cross-env RSDOCTOR=true rsbuild build"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.0"
+  }
+}
+```
+
+After running these scripts, Rsbuild automatically registers the Rsdoctor plugin and opens the build analysis page when the build finishes. See the [Rsdoctor documentation](https://rsdoctor.rs/) for all features.
+
+## Options
+
+To configure the [options](https://rsdoctor.rs/config/options/options) exposed by the Rsdoctor plugin, manually register the plugin:
+
+```ts title="rsbuild.config.ts"
+import { RsdoctorRspackPlugin } from '@rsdoctor/rspack-plugin';
+
+export default {
+  tools: {
+    rspack: {
+      plugins: [
+        process.env.RSDOCTOR === 'true' &&
+          new RsdoctorRspackPlugin({
+            // plugin options
+          }),
+      ],
+    },
+  },
+};
+```

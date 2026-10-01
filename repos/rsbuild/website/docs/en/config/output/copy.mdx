@@ -1,0 +1,55 @@
+---
+description: 'Copies the specified file or directory to the dist directory, implemented based on rspack.CopyRspackPlugin.'
+---
+
+# output.copy
+
+- **Type:** `Rspack.CopyRspackPluginOptions | Rspack.CopyRspackPluginOptions['patterns']`
+- **Default:** `undefined`
+
+Copies the specified file or directory to the dist directory, implemented based on [rspack.CopyRspackPlugin](https://rspack.rs/plugins/rspack/copy-rspack-plugin).
+
+> Please refer to the configuration options here: [rspack.CopyRspackPlugin](https://rspack.rs/plugins/rspack/copy-rspack-plugin).
+
+## Example
+
+Copy files from `./src/assets` to the `./dist` directory:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    copy: [
+      // `./src/assets/image.png` -> `./dist/image.png`
+      { from: './src/assets' },
+    ],
+  },
+};
+```
+
+Copy files from `./src/assets` to the `./dist/assets` directory:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    copy: [
+      // `./src/assets/image.png` -> `./dist/assets/image.png`
+      { from: './src/assets', to: 'assets' },
+    ],
+  },
+};
+```
+
+When copying files from the public directory to the dist directory during a production build, the `public/someDir` directory will be ignored:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    copy: [{ from: './public', globOptions: { ignore: ['**/someDir/**'] } }],
+  },
+  server: {
+    publicDir: {
+      copyOnBuild: false,
+    },
+  },
+};
+```

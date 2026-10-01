@@ -1,0 +1,166 @@
+.Input {
+  box-sizing: border-box;
+  padding-left: 0.875rem;
+  margin: 0;
+  border: 1px solid var(--color-gray-200);
+  width: 16rem;
+  height: 2.5rem;
+  border-radius: 0.375rem;
+  font-family: inherit;
+  font-size: 1rem;
+  background-color: canvas;
+  color: var(--color-gray-900);
+
+  &:focus {
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+  }
+}
+
+.Label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-weight: 500;
+  color: var(--color-gray-900);
+  position: relative;
+}
+
+.ActionButtons {
+  --size: 1.5rem;
+  box-sizing: border-box;
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  bottom: 0;
+  height: 2.5rem;
+  right: 0.5rem;
+  border-radius: 0.25rem;
+  border: none;
+  color: var(--color-gray-600);
+  padding: 0;
+}
+
+.Trigger,
+.Clear {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--size);
+  height: 2.5rem;
+  color: var(--color-gray-600);
+  border: none;
+  padding: 0;
+  border-radius: 0.25rem;
+  background: none;
+
+  &:focus {
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+  }
+}
+
+.ClearIcon,
+.TriggerIcon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.Positioner {
+  outline: 0;
+}
+
+.Popup {
+  box-sizing: border-box;
+  padding-block: 0.5rem;
+  border-radius: 0.375rem;
+  background-color: canvas;
+  color: var(--color-gray-900);
+  width: var(--anchor-width);
+  max-height: min(var(--available-height), 23rem);
+  max-width: var(--available-width);
+  overflow-y: auto;
+  scroll-padding-block: 0.5rem;
+  overscroll-behavior: contain;
+  transition:
+    opacity 0.1s,
+    transform 0.1s;
+  transform-origin: var(--transform-origin);
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  @media (prefers-color-scheme: light) {
+    outline: 1px solid var(--color-gray-200);
+    box-shadow:
+      0 10px 15px -3px var(--color-gray-200),
+      0 4px 6px -4px var(--color-gray-200);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    outline: 1px solid var(--color-gray-300);
+    outline-offset: -1px;
+  }
+}
+
+.Item {
+  box-sizing: border-box;
+  outline: 0;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  padding-block: 0.5rem;
+  padding-left: 1rem;
+  padding-right: 2rem;
+  display: grid;
+  gap: 0.5rem;
+  align-items: center;
+  grid-template-columns: 0.75rem 1fr;
+  font-size: 1rem;
+  line-height: 1rem;
+
+  &[data-highlighted] {
+    z-index: 0;
+    position: relative;
+    color: var(--color-gray-50);
+  }
+
+  &[data-highlighted]::before {
+    content: '';
+    z-index: -1;
+    position: absolute;
+    inset-block: 0;
+    inset-inline: 0.5rem;
+    border-radius: 0.25rem;
+    background-color: var(--color-gray-900);
+  }
+}
+
+.ItemText {
+  grid-column-start: 2;
+}
+
+.ItemIndicator {
+  grid-column-start: 1;
+}
+
+.ItemIndicatorIcon {
+  display: block;
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.Empty:not(:empty) {
+  box-sizing: border-box;
+  font-size: 0.925rem;
+  line-height: 1rem;
+  color: var(--color-gray-600);
+  padding: 0.5rem 1rem;
+}

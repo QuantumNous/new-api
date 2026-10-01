@@ -1,0 +1,121 @@
+---
+description: 'splitChunks 用于配置 Rsbuild 的 chunk 拆分策略。'
+---
+
+# splitChunks
+
+- **类型：**
+
+```ts
+type SplitChunksConfig =
+  | (Rspack.OptimizationSplitChunksOptions & {
+      preset?: SplitChunksPreset;
+    })
+  | false;
+```
+
+- **默认值：** 基于 [output.target](/config/output/target)：
+  - `output.target` 为 `'web'` 时，为 `{ preset: 'default', chunks: 'all' }`
+  - `output.target` 为其他值时，为 `false`
+- **版本：** `>= 2.0.0`
+
+`splitChunks` 用于配置 Rsbuild 的 chunk 拆分策略。
+
+该选项基于 Rspack 的 [optimization.splitChunks](https://rspack.rs/zh/plugins/webpack/split-chunks-plugin) 实现，并在其基础上扩展了 `preset` 选项，用于启用 Rsbuild 提供的一组常用拆分预设。
+
+## splitChunks.preset
+
+- **类型：** `'default' | 'per-package' | 'single-vendor' | 'none' | undefined`
+- **默认值：** `output.target` 为 `'web'` 时为 `'default'`，其他值时为 `none`
+
+`preset` 用于启用 Rsbuild 内置的拆包预设，以简化常见的 chunk 拆分场景。
+
+### default
+
+Rsbuild 默认的拆包策略，包含如下规则：
+
+- 启用 [output.polyfill](/config/output/polyfill) 时，自动拆分 polyfill 代码到 `lib-polyfill.js`
+- 注册 React 插件时，自动拆分 React 相关包到独立的 chunks，详见 [React 插件 - splitChunks](/plugins/list/plugin-react#splitchunks)
+- 注册 Vue 插件时，自动拆分 Vue 相关包到独立的 chunks，详见 [Vue 插件 - splitChunks](/plugins/list/plugin-vue#splitchunks)
+
+```ts title="rsbuild.config.ts"
+export default {
+  splitChunks: {
+    preset: 'default',
+  },
+};
+```
+
+### per-package
+
+`per-package` 会按照 npm 包粒度对 `node_modules` 中的依赖进行拆分，每个包对应一个独立的 chunk，生成类似 `npm-react.js` 或 `npm-babel_runtime.js` 的 chunk 名。
+
+```ts title="rsbuild.config.ts"
+export default {
+  splitChunks: {
+    preset: 'per-package',
+  },
+};
+```
+
+### single-vendor
+
+`single-vendor` 会将 `node_modules` 中的所有第三方依赖合并到一个统一的 vendor chunk 中。
+
+```ts title="rsbuild.config.ts"
+export default {
+  splitChunks: {
+    preset: 'single-vendor',
+  },
+};
+```
+
+### none
+
+`none` 会关闭 Rsbuild 内置的预设规则。当你希望使用 Rspack 的默认行为或仅使用自定义配置时可以使用。
+
+```ts title="rsbuild.config.ts"
+export default {
+  splitChunks: {
+    preset: 'none',
+    // 其他自定义配置...
+  },
+};
+```
+
+## 其他选项
+
+除 `preset` 之外，其余配置项的行为与 Rspack 的 `optimization.splitChunks` 保持一致，详细用法请参考 [Rspack 文档](https://rspack.rs/zh/plugins/webpack/split-chunks-plugin)。
+
+```ts title="rsbuild.config.ts"
+export default {
+  splitChunks: {
+    // Rsbuild 特有选项
+    preset: 'default',
+    // Rspack 提供的选项
+    chunks: 'all',
+    minSize: 20 * 1024,
+    cacheGroups: {
+      vendors: {
+        test: /[\\/]node_modules[\\/]/,
+        name: 'vendors',
+        priority: -10,
+      },
+    },
+  },
+};
+```
+
+:::tip
+Rsbuild 会先将预设规则转换为配置对象，再与你配置的 `splitChunks` 选项进行合并，用户配置的优先级更高。
+:::
+
+## 关闭 chunk 拆分
+
+如果你希望关闭 chunk 拆分，可以将 `splitChunks` 设置为 `false`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  splitChunks: false,
+};
+```

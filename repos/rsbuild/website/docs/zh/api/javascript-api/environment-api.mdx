@@ -1,0 +1,372 @@
+---
+description: 'Rsbuild JavaScript API 参考，涵盖Environment context、Environment API等核心接口和用法。'
+---
+
+# Environment API
+
+在这里你可以找到所有与 environment 相关的 API。
+
+> 参考 [多环境构建](/guide/advanced/environments) 了解更多。
+
+## Environment context
+
+Environment context 是一个只读对象，提供一些和当前 environment 有关的上下文信息。
+
+- **类型：**
+
+```ts
+type EnvironmentContext = {
+  name: string;
+  browserslist: string[];
+  config: NormalizedEnvironmentConfig;
+  distPath: string;
+  entry: RsbuildEntry;
+  htmlPaths: Record<string, string>;
+  tsconfigPath?: string;
+  manifest?: Record<string, unknown> | ManifestData;
+};
+```
+
+Environment context 可以通过以下方式获取：
+
+1. 在 Rsbuild 的 [Plugin hooks](/plugins/dev/hooks#plugin-hooks) 中，你可以通过 `environment` 或 `environments` 入参获取 environment context 对象。
+2. 在 [Environment API](#environment-api-1) 中，可以通过 `environments.context` 获取。
+
+### name
+
+当前环境的唯一名称，用于区分和定位环境，对应于 [environments](/config/environments) 配置中的 key。
+
+- **类型：** `string`
+- **示例：**
+
+```js
+api.modifyRspackConfig((config, { environment }) => {
+  if (environment.name === 'node') {
+    // modify config for node environment
+  }
+  return config;
+});
+```
+
+### browserslist
+
+当前环境设置的目标浏览器范围。详见 [浏览器范围](/guide/advanced/browserslist)。
+
+- **类型：** `string[]`
+- **示例：**
+
+```js
+api.modifyRspackConfig((config, { environment }) => {
+  console.log(environment.browserslist);
+  return config;
+});
+```
+
+### config
+
+当前环境使用的 Rsbuild 配置（经过归一化处理）。
+
+- **类型：**
+
+```ts
+type NormalizedEnvironmentConfig = DeepReadonly<{
+  dev: NormalizedDevConfig;
+  html: NormalizedHtmlConfig;
+  tools: NormalizedToolsConfig;
+  source: NormalizedSourceConfig;
+  server: NormalizedServerConfig;
+  output: NormalizedOutputConfig;
+  plugins?: RsbuildPlugins;
+  security: NormalizedSecurityConfig;
+  performance: NormalizedPerformanceConfig;
+  moduleFederation?: ModuleFederationConfig;
+}>;
+```
+
+- **示例：**
+
+```js
+api.modifyRspackConfig((config, { environment }) => {
+  // Rspack
+  console.log(config);
+  // Rsbuild config for current environment
+  console.log(environment.config);
+  return config;
+});
+```
+
+### distPath
+
+构建产物输出目录的绝对路径，对应 Rsbuild 的 [output.distPath.root](/config/output/dist-path) 配置项。
+
+- **类型：** `string`
+- **示例：**
+
+```js
+api.modifyRspackConfig((config, { environment }) => {
+  console.log(environment.distPath);
+  return config;
+});
+```
+
+### entry
+
+构建入口对象，对应 [source.entry](/config/source/entry) 选项。
+
+- **类型：**
+
+```ts
+type RsbuildEntry = Record<string, string | string[] | EntryDescription>;
+```
+
+- **示例：**
+
+```js
+api.modifyRspackConfig((config, { environment }) => {
+  console.log(environment.entry);
+  return config;
+});
+```
+
+### htmlPaths
+
+HTML 产物的路径信息。
+
+这个值是一个对象，对象的 key 为 entry 名称，value 为 HTML 文件在产物目录下的相对路径。
+
+- **类型：**
+
+```ts
+type htmlPaths = Record<string, string>;
+```
+
+- **示例：**
+
+```js
+api.modifyRspackConfig((config, { environment }) => {
+  console.log(environment.htmlPaths);
+  return config;
+});
+```
+
+### tsconfigPath
+
+tsconfig.json 文件的绝对路径，若项目中不存在 tsconfig.json 文件，则为 `undefined`。
+
+- **类型：**
+
+```ts
+type TsconfigPath = string | undefined;
+```
+
+- **示例：**
+
+```js
+api.modifyRspackConfig((config, { environment }) => {
+  console.log(environment.tsconfigPath);
+  return config;
+});
+```
+
+### manifest
+
+manifest 文件数据。仅在 [output.manifest](/config/output/manifest) 配置被启用时才能访问。
+
+- **类型：** `Record<string, unknown> | ManifestData | undefined`
+- **示例：**
+
+```js
+api.onAfterBuild(({ environments }) => {
+  // Get the manifest data of web environment
+  console.log(environments.web.manifest);
+});
+
+api.onAfterDevCompile(({ environments }) => {
+  console.log(environments.web.manifest);
+});
+
+api.onAfterEnvironmentCompile(({ environment }) => {
+  console.log(environment.manifest);
+});
+```
+
+manifest 数据仅在构建完成后才能被访问，你可以在以下 hooks 中访问：
+
+- [onAfterBuild](/plugins/dev/hooks#onafterbuild)
+- [onAfterEnvironmentCompile](/plugins/dev/hooks#onafterenvironmentcompile)
+- [onCloseBuild](/plugins/dev/hooks#onclosebuild)
+- [onCloseDevServer](/plugins/dev/hooks#onclosedevserver)
+- [onAfterDevCompile](/plugins/dev/hooks#onafterdevcompile)
+- [onExit](/plugins/dev/hooks#onexit)
+
+### webSocketToken
+
+WebSocket 认证 token，用于认证 WebSocket 连接，防止未授权访问。
+
+仅在开发模式下可用，生产模式下为空字符串。
+
+- **类型：** `string`
+- **版本：** 添加于 v1.4.4
+
+当你需要在浏览器中建立与 Rsbuild dev server 的 WebSocket 连接时，需要使用这个 token 作为 query 参数。
+
+```js
+const { webSocketToken } = environments.web.context;
+
+const webSocketUrl = `ws://localhost:${port}${pathname}?token=${webSocketToken}`;
+```
+
+## Environment API
+
+Environment API 提供一些与多环境构建相关的 API。
+
+你可以通过 [rsbuild.createDevServer()](/api/javascript-api/instance#rsbuildcreatedevserver) 或 [server.setup](/config/server/setup) 使用 environment API，这允许你在服务端获取特定环境下的构建产物信息。
+
+```ts
+type EnvironmentAPI = {
+  [name: string]: {
+    context: EnvironmentContext;
+    getStats: () => Promise<Stats>;
+    loadBundle: <T = unknown>(entryName: string) => Promise<T>;
+    getTransformedHtml: (entryName: string) => Promise<string>;
+    hot: {
+      send: HotSend;
+    };
+  };
+};
+```
+
+### context
+
+你可以通过 Environment API 获取和当前环境有关的上下文信息。
+
+- **类型：** [EnvironmentContext](#environment-context)
+- **示例：**
+
+```ts
+const webManifest = environments.web.context.manifest;
+
+console.log(webManifest.entries);
+```
+
+### getStats
+
+获取当前环境的产物信息。
+
+- **类型：**
+
+```ts
+type GetStats = () => Promise<Stats>;
+```
+
+- **示例：**
+
+```ts
+const webStats = await environments.web.getStats();
+
+console.log(webStats.toJson({ all: false }));
+```
+
+### loadBundle
+
+用于在服务端加载并执行构建产物。调用该方法后，会返回指定入口模块导出的内容，通常用于在服务端环境中运行由 Rsbuild 构建生成的产物。
+
+`loadBundle` 会在构建完成且 [onAfterDevCompile](/plugins/dev/hooks#onafterdevcompile) hook 执行结束后返回结果。因此，无法在 `onAfterDevCompile` hook 内调用 `loadBundle`。
+
+- **类型：**
+
+```ts
+/**
+ * @param entryName - 入口名称，和 Rsbuild `source.entry` 的某一个 key 值对应
+ * @returns 入口模块的返回值
+ */
+type LoadBundle = <T = unknown>(entryName: string) => Promise<T>;
+```
+
+- **示例：**
+
+```ts
+// 加载 `main` 入口的 bundle
+const result = await environments.node.loadBundle('main');
+```
+
+### getTransformedHtml
+
+获取经过编译和转换后的 HTML 模版内容。
+
+- **类型：**
+
+```ts
+type GetTransformedHtml = (entryName: string) => Promise<string>;
+```
+
+- **示例：**
+
+```ts
+// 获取 main 入口的 HTML 内容
+const html = await environments.web.getTransformedHtml('main');
+```
+
+该方法会返回完整的 HTML 字符串，包含了所有通过 HTML 插件注入的资源和内容。
+
+### hot.send
+
+向当前 environment 对应的客户端发送 HMR 消息。
+
+它和 [server.sockWrite](/api/javascript-api/server-api#sockwrite) 的行为一致，区别是只会影响当前匹配的 environment。
+
+- **类型：**
+
+```ts
+type HotSend = {
+  (type: 'full-reload', data?: { path?: string }): void;
+  (type: 'static-changed'): void;
+  (type: 'custom', data: { event: string; data?: any }): void;
+};
+```
+
+#### full-reload
+
+如果你发送一个 `'full-reload'` 的消息，页面将会重新加载。
+
+```ts
+if (someCondition) {
+  environments.web.hot.send('full-reload');
+}
+```
+
+当传入 `path` 且它以 `.html` 结尾时，Rsbuild 只会重新加载当前 environment 中 URL 与该 HTML 路径匹配的页面。
+
+当 `path` 为 `'*'` 时，Rsbuild 会重新加载当前 environment 中的所有页面。
+
+HTML 路径应当相对于 dev server 根路径，并且不应包含 `server.base`。
+
+```ts
+environments.web.hot.send('full-reload', {
+  path: '/foo.html',
+});
+```
+
+> `'static-changed'` 是 `'full-reload'` 的一个别名。
+
+#### custom
+
+你也可以通过 `custom` 类型向浏览器发送自定义消息，并携带可选的 data，然后通过 HMR 事件进行处理：
+
+```ts
+environments.web.hot.send('custom', {
+  event: 'count',
+  data: { value: 1 },
+});
+```
+
+Rsbuild 在 Rspack 的 [import.meta.webpackHot](https://rspack.rs/api/runtime-api/hmr) 对象上扩展了 `on()` 方法，它允许你在浏览器端监听自定义事件，并处理数据：
+
+```ts title="client.js"
+if (import.meta.webpackHot) {
+  import.meta.webpackHot.on('count', (data) => {
+    console.log('count update', data.value);
+  });
+  import.meta.webpackHot.accept();
+}
+```

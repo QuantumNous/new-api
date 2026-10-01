@@ -1,0 +1,75 @@
+import { Virtualizer } from "@tanstack/virtual-core"
+import type { VirtualItem, ScrollToOptions } from "@tanstack/virtual-core"
+import { buildOptions } from "./options"
+
+export interface Input {
+  count: number
+  estimateSize?: (index: number) => number
+  overscan?: number
+  paddingStart?: number
+  paddingEnd?: number
+  scrollPaddingStart?: number
+  scrollPaddingEnd?: number
+  gap?: number
+  lanes?: number
+  content: Marko.Body<[{
+    virtualItems: VirtualItem[]
+    totalSize: number
+    measureElement: ((el: Element | null) => void) | undefined
+    scrollToIndex: (index: number, options?: ScrollToOptions) => void
+    scrollToOffset: (offset: number, options?: ScrollToOptions) => void
+  }]>
+}
+
+<let/v       = (null as Virtualizer<Window, Element> | null)/>
+<let/cleanup = (null as (() => void) | null)/>
+<let/items   = ([] as VirtualItem[])/>
+<let/size    = 0/>
+
+<lifecycle<{}>
+  onMount() {
+    const notify = () => {
+      const inst = v
+      if (!inst) return
+      items = inst.getVirtualItems()
+      size  = inst.getTotalSize()
+    }
+
+    v = new Virtualizer<Window, Element>(buildOptions(input, notify))
+    cleanup = v!._didMount()
+    v!._willUpdate()
+  }
+
+  onUpdate() {
+    const current = v
+    if (!current) return
+
+    const notify = () => {
+      const inst = v
+      if (!inst) return
+      items = inst.getVirtualItems()
+      size  = inst.getTotalSize()
+    }
+
+    current.setOptions({ ...current.options, ...buildOptions(input, notify) })
+
+    // _willUpdate() is a no-op when the scroll element is unchanged, so
+    // notify() explicitly afterwards to recompute on count/option changes.
+    current._willUpdate()
+    notify()
+  }
+
+  onDestroy() {
+    cleanup?.()
+    v = null
+    cleanup = null
+  }
+/>
+
+<${input.content}
+  virtualItems=items
+  totalSize=size
+  measureElement=v?.measureElement
+  scrollToIndex=(index: number, options?: ScrollToOptions) => v?.scrollToIndex(index, options)
+  scrollToOffset=(offset: number, options?: ScrollToOptions) => v?.scrollToOffset(offset, options)
+/>

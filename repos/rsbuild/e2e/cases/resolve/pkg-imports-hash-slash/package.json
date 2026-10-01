@@ -1,0 +1,9 @@
+{
+  "name": "@e2e/resolve-pkg-imports-hash-slash",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#/*": "./src/*.js"
+  }
+}

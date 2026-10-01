@@ -1,0 +1,66 @@
+@theme {
+  --color-fd-muted: hsl(0, 0%, 96.1%);
+  --color-fd-popover: hsl(0, 0%, 100%);
+  --color-fd-popover-foreground: hsl(0, 0%, 15.1%);
+  --color-fd-card-foreground: hsl(0, 0%, 3.9%);
+  --color-fd-border: hsl(0, 0%, 89.8%);
+  --color-fd-primary-foreground: hsl(0, 0%, 98%);
+  --color-fd-secondary-foreground: hsl(0, 0%, 9%);
+  --color-fd-accent: hsl(0, 0%, 94.1%);
+  --color-fd-ring: hsl(0, 0%, 63.9%);
+
+  --color-fd-background: hsl(0, 0%, 100%);
+  --color-fd-card: hsl(0, 0%, 100%);
+  --color-fd-foreground: hsl(240, 6%, 25%);
+  --color-fd-muted-foreground: hsl(240, 6%, 50%);
+  --color-fd-secondary: hsl(240, 6%, 97%);
+  --color-fd-accent-foreground: hsl(240, 6%, 25%);
+  --color-fd-primary: hsl(226, 55%, 45%);
+}
+
+.dark {
+  --color-fd-ring: hsl(234, 100%, 83%);
+  --color-fd-primary: hsl(234, 100%, 83%);
+  --color-fd-secondary-foreground: hsl(60, 100%, 98%);
+  --color-fd-card-foreground: hsl(60, 100%, 98%);
+  --color-fd-background: hsl(240, 7%, 11%);
+  --color-fd-foreground: hsl(60, 100%, 98%);
+  --color-fd-popover: hsl(240, 7%, 11%);
+  --color-fd-popover-foreground: hsl(60, 100%, 98%);
+  --color-fd-primary-foreground: hsl(240, 7%, 11%);
+  --color-fd-card: hsl(240, 7%, 11%);
+  --color-fd-muted: hsl(0, 0%, 13%);
+  --color-fd-border: hsl(240, 4%, 19%);
+  --color-fd-accent: hsl(0, 0%, 15%);
+  --color-fd-secondary: hsl(240, 4%, 9%);
+  --color-fd-accent-foreground: hsl(0, 0%, 100%);
+  --color-fd-muted-foreground: hsl(240, 4%, 65%);
+}
+
+.prose {
+  --tw-prose-body: color-mix(in oklab, var(--color-fd-foreground) 85%, transparent);
+  --tw-prose-headings: color-mix(in oklab, var(--color-fd-foreground) 85%, transparent);
+  --tw-prose-links: var(--color-fd-primary);
+  --tw-prose-code: var(--color-fd-primary);
+}
+
+.prose :where(code):not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+  border: none;
+  background-color: color-mix(in oklab, var(--color-fd-primary) 10%, transparent);
+}
+
+#nd-sidebar {
+  background-color: hsl(240, 6%, 97%);
+}
+
+.dark #nd-sidebar {
+  background-color: hsl(240, 4%, 9%);
+}
+
+#nd-sidebar > div {
+  border-color: transparent;
+}
+
+button[data-search-full] {
+  background-color: var(--color-fd-background);
+}

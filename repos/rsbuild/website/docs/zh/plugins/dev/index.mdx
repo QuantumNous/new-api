@@ -1,0 +1,380 @@
+---
+description: '插件系统是 Rsbuild 架构的核心，Rsbuild 的大部分功能都是通过插件实现的，这种设计让核心保持轻量，同时提供了灵活的扩展性。'
+---
+
+# 插件开发
+
+插件系统是 Rsbuild 架构的核心，Rsbuild 的大部分功能都是通过插件实现的，这种设计让核心保持轻量，同时提供了灵活的扩展性。
+
+Rsbuild 插件是一个函数，它可以在不同阶段注册钩子，监听事件并执行自定义逻辑。无论你想要修改默认行为、添加新功能，还是集成第三方工具，插件都提供了丰富的 API 来实现这些需求。
+
+## 对比其他插件
+
+在开发 Rsbuild 插件之前，你可能已经接触过 webpack、Vite、esbuild 等工具的插件系统。
+
+总体而言，Rsbuild 的插件 API 和 esbuild 相似，与 webpack 或 Rspack 插件相比，Rsbuild 的插件 API 更加简洁和容易上手。
+
+```ts
+// esbuild plugin
+const esbuildPlugin = {
+  name: 'example',
+  setup(build) {
+    build.onEnd(() => console.log('done'));
+  },
+};
+
+// Rsbuild plugin
+const rsbuildPlugin = () => ({
+  name: 'example',
+  setup(api) {
+    api.onAfterBuild(() => console.log('done'));
+  },
+});
+
+// Rspack plugin
+class RspackExamplePlugin {
+  apply(compiler) {
+    compiler.hooks.done.tap('RspackExamplePlugin', () => {
+      console.log('done');
+    });
+  }
+}
+```
+
+从功能上看，Rsbuild 的插件 API 主要围绕 Rsbuild 的运行流程和构建配置，并提供一些 hooks 用于扩展。而 Rspack 的插件 API 则更加复杂和丰富，能够修改打包过程的每一个环节。
+
+Rsbuild 插件中可以集成 Rspack 插件，如果 Rsbuild 提供的 hooks 无法满足你的需求，你也可以通过 Rspack 插件来实现功能，并在 Rsbuild 插件中注册 Rspack 插件：
+
+```ts
+const rsbuildPlugin = () => ({
+  name: 'example',
+  setup(api) {
+    api.modifyRspackConfig((config) => {
+      config.plugins.push(new RspackExamplePlugin());
+    });
+  },
+});
+```
+
+## 开发插件
+
+插件提供类似 `(options?: PluginOptions) => RsbuildPlugin` 的函数作为入口。
+
+### 插件示例
+
+```ts title="pluginFoo.ts"
+import type { RsbuildPlugin } from '@rsbuild/core';
+
+export type PluginFooOptions = {
+  message?: string;
+};
+
+export const pluginFoo = (options: PluginFooOptions = {}): RsbuildPlugin => ({
+  name: 'plugin-foo',
+
+  setup(api) {
+    api.onAfterStartDevServer(() => {
+      const msg = options.message || 'hello!';
+      console.log(msg);
+    });
+  },
+});
+```
+
+注册插件：
+
+```ts title="rsbuild.config.ts"
+import { pluginFoo } from './pluginFoo';
+
+export default {
+  plugins: [pluginFoo({ message: 'world!' })],
+};
+```
+
+### 插件结构
+
+函数形式的插件可以 **接受选项对象** 并 **返回插件实例**，并通过闭包机制管理内部状态。
+
+其中各部分的作用分别为：
+
+- `name` 属性用于标注插件名称。
+- `setup` 作为插件逻辑的主入口。
+- `api` 对象包含了各类钩子和工具函数。
+
+### 命名规范
+
+插件的命名规范如下：
+
+- 插件的函数命名为 `pluginAbc`，并通过具名导出。
+- 插件的 `name` 采用 `scope:foo-bar` 或 `plugin-foo-bar` 格式，添加 `scope:` 可以避免和其他插件产生命名冲突。
+
+下面是一个例子：
+
+```ts title="pluginFooBar.ts"
+import type { RsbuildPlugin } from '@rsbuild/core';
+
+export const pluginFooBar = (): RsbuildPlugin => ({
+  name: 'scope:foo-bar',
+  setup() {},
+});
+```
+
+:::tip
+Rsbuild 官方插件的 `name` 统一使用 `rsbuild:` 作为前缀，比如 `rsbuild:react` 对应 `@rsbuild/plugin-react`。
+:::
+
+### 模板仓库
+
+[rsbuild-plugin-template](https://github.com/rstackjs/rsbuild-plugin-template) 是一个最小的 Rsbuild 插件模板仓库，你可以基于该仓库来开发你的 Rsbuild 插件。
+
+### Environment 插件 \{#environment-plugin}
+
+Rsbuild 支持同时为多个环境构建产物，并支持某个插件[仅在指定环境下运行](/guide/advanced/environments#plugins-specified-environment)。
+
+当你希望你开发的插件支持作为 Environment 插件使用时，需要注意以下几点：
+
+1. 每个 environment 有自身的 Rsbuild 配置：
+   - 使用 [environment 上下文](/guide/advanced/environments#environment-context) 代替 `getRsbuildConfig` 获取 environment 信息。
+   - 修改特定 environment 的 Rsbuild 配置时，优先使用 [modifyEnvironmentConfig](/plugins/dev/hooks#modifyenvironmentconfig) 代替 [modifyRsbuildConfig](/plugins/dev/hooks#modifyrsbuildconfig) ，以避免对其他 environments 产生影响。
+2. 避免副作用，你的插件代码可能执行多次：
+   - 当同一个插件在不同环境下注册多次时，会被视为多个 Rsbuild 插件（哪怕它们指向同一个插件实例），这是因为它们带有不同的 Rsbuild environment 上下文。
+
+下面是一个 Environment 插件例子：
+
+```ts title="pluginFoo.ts"
+import type { RsbuildPlugin } from '@rsbuild/core';
+
+export type PluginFooOptions = {
+  title?: string;
+};
+
+export const pluginFoo = (options: PluginFooOptions = {}): RsbuildPlugin => ({
+  name: 'plugin-foo',
+
+  setup(api) {
+    api.modifyEnvironmentConfig((config) => {
+      config.html.title = options.title || 'My Default Title';
+    });
+    api.modifyBundlerChain((chain, { environment }) => {
+      chain.name(environment.config.html.title);
+    });
+  },
+});
+```
+
+### 引用其他插件
+
+Rsbuild 的 [plugins](/config/plugins) 配置项支持传入一个嵌套的数组，这意味着你可以通过这种方式在插件内部引用其他 Rsbuild 插件。
+
+例如，在 `pluginFoo` 内部引用并注册 `pluginBar`：
+
+```ts
+import { pluginBar } from 'rsbuild-plugin-bar';
+
+export const pluginFoo = (): RsbuildPlugin => {
+  const foo = {
+    name: 'plugin-foo',
+    setup(api) {
+      // ...
+    },
+  };
+  return [foo, pluginBar()];
+};
+```
+
+## 生命周期钩子
+
+Rsbuild 在内部按照约定的生命周期进行任务调度，插件可以通过注册钩子来介入工作流程的任意阶段，并实现自己的功能。
+
+Rsbuild 生命周期钩子的完整列表参考 [API 文档](/plugins/dev/hooks)。
+
+Rsbuild 不会接管底层 Rspack 的生命周期，相关生命周期钩子的使用方式见对应文档：[Rspack Plugin API](https://rspack.rs/zh/api/plugin-api)。
+
+## 迁移 Vite 插件
+
+参考 [迁移 Vite 插件](/guide/migration/vite-plugin) 了解如何迁移一个 Vite 插件到 Rsbuild 插件。
+
+## 使用配置项
+
+自行编写的插件通常使用初始化时传入函数的参数作为配置项即可，开发者可以随意定义和使用函数的入参。
+
+但某些情况下插件可能需要读取 / 修改 Rsbuild 公用的配置项，这时就需要了解 Rsbuild 内部对配置项的生产和消费流程：
+
+- 读取、解析配置并合并默认值
+- 插件通过 `api.modifyRsbuildConfig(...)` 回调修改配置项
+- 归一化配置项并提供给插件后续消费，此后无法再修改配置项
+
+整套流程可以通过这个简单的插件体现：
+
+```ts
+export const pluginUploadDist = (): RsbuildPlugin => ({
+  name: 'plugin-upload-dist',
+  setup(api) {
+    api.modifyRsbuildConfig((config) => {
+      // 关闭代码压缩
+      config.output.minify = false;
+      // 轮到其它插件修改配置...
+    });
+
+    api.onBeforeBuild(() => {
+      // 读取最终的配置
+      const config = api.getNormalizedConfig();
+      if (config.output.minify !== false) {
+        // 其它插件又启用了压缩则报错
+        throw new Error('You must disable minimize to upload readable dist files.');
+      }
+    });
+
+    api.onAfterBuild(() => {
+      const config = api.getNormalizedConfig();
+      const distRoot = config.output.distPath.root;
+
+      // 上传 `distRoot` 目录下所有产物文件...
+    });
+  },
+});
+```
+
+插件中有三种方式使用配置项对象：
+
+- `api.modifyRsbuildConfig(config => {})` 在回调中修改配置
+- `api.getRsbuildConfig()` 获取配置项
+- `api.getNormalizedConfig()` 获取归一化后的配置项
+
+归一化的配置项会再次合并默认值，并移除大部分可选类型，对于 `PluginUploadDist` 的例子，其部分类型定义为：
+
+```ts
+api.modifyRsbuildConfig((config: RsbuildConfig) => {});
+api.getRsbuildConfig() as RsbuildConfig;
+type RsbuildConfig = {
+  output?: {
+    minify?: boolean;
+    distPath?: { root?: string };
+  };
+};
+
+api.getNormalizedConfig() as NormalizedConfig;
+type NormalizedConfig = {
+  output: {
+    minify: boolean;
+    distPath: { root: string };
+  };
+};
+```
+
+`getNormalizedConfig()` 的返回值类型与 `RsbuildConfig` 的略有不同、相比文档其它地方描述的类型进行了收窄，
+在使用时无需自行判空、填充默认值。
+
+因此使用配置项的最佳方式应该是：
+
+- 通过 `api.modifyRsbuildConfig(config => {})` 来**修改配置**
+- 在其后的生命周期中读取 `api.getNormalizedConfig()` 作为插件**实际使用的配置**
+
+## 修改 Rspack 配置
+
+Rsbuild 插件允许你修改内置的 Rspack 配置，包括：
+
+- [api.modifyRspackConfig](/plugins/dev/hooks#modifyrspackconfig)：修改 Rspack 配置对象。
+- [api.modifyBundlerChain](/plugins/dev/hooks#modifybundlerchain) 通过 [rspack-chain](https://github.com/rstackjs/rspack-chain) 来修改 Rspack 配置。
+
+### 示例
+
+比如，通过 Rsbuild 插件来注册 [eslint-rspack-plugin](https://github.com/rstackjs/eslint-rspack-plugin)：
+
+```ts
+import type { RsbuildPlugin } from '@rsbuild/core';
+import ESLintRspackPlugin from 'eslint-rspack-plugin';
+
+export const pluginEslint = (options?: Options): RsbuildPlugin => ({
+  name: 'plugin-eslint',
+  setup(api) {
+    api.modifyRspackConfig((config) => {
+      config.plugins.push(
+        new ESLintRspackPlugin({
+          // plugins options
+        }),
+      );
+    });
+  },
+});
+```
+
+## 扩展插件 API
+
+当你基于 Rsbuild 的 [JavaScript API](/api/start/) 来实现自定义的工具时，可能希望在现有插件 API 的基础上，提供更多能力，例如添加工具方法或共享上下文对象。
+
+此时，你可以使用 Rsbuild 实例上的 [rsbuild.expose()](/api/javascript-api/instance#rsbuildexpose) 方法。它的作用与插件的 [api.expose()](/plugins/dev/core#apiexpose) 一致，用于向 Rsbuild 插件暴露自定义的方法或对象。
+
+例如，向插件暴露 `getState` 和 `setCount` 方法：
+
+```ts title="myToolkit.ts"
+import { createRsbuild } from '@rsbuild/core';
+
+export const MY_TOOLKIT_ID = 'my-toolkit';
+
+const rsbuild = await createRsbuild({
+  // ...
+});
+
+const state = {
+  count: 0,
+};
+
+rsbuild.expose(MY_TOOLKIT_ID, {
+  getState() {
+    return state;
+  },
+  setCount(count: number) {
+    state.count = count;
+  },
+});
+```
+
+然后，插件可以通过 [api.useExposed()](/plugins/dev/core#apiuseexposed) 方法访问这些扩展 API：
+
+```ts title="myPlugin.ts"
+import { MY_TOOLKIT_ID } from './myToolkit';
+
+const myPlugin = {
+  name: 'my-plugin',
+  setup(api) {
+    const toolkitApi = api.useExposed(MY_TOOLKIT_ID);
+    if (toolkitApi) {
+      const { count } = toolkitApi.getState();
+      toolkitApi.setCount(count + 1);
+    }
+  },
+};
+```
+
+## 依赖声明
+
+发布 Rsbuild 插件时，应该在 `package.json` 中声明 `@rsbuild/core` 的 `peerDependencies`，并在 `devDependencies` 中安装它用于开发：
+
+```json
+{
+  "peerDependencies": {
+    "@rsbuild/core": "^2.0.0"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^2.0.0"
+  }
+}
+```
+
+如果插件只引用了 `@rsbuild/core` 的类型导出，可以将其声明为 optional peer dependency：
+
+```json
+{
+  "peerDependencies": {
+    "@rsbuild/core": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@rsbuild/core": {
+      "optional": true
+    }
+  }
+}
+```
+
+这种情况下，插件在被基于 Rsbuild 的上层工具（如 Rslib 或 Rspress）使用时，不会产生不必要的 peer dependency 警告。

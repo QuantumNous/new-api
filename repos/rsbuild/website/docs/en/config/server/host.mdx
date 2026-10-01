@@ -1,0 +1,68 @@
+---
+description: 'Specify the host that the Rsbuild server listens to.'
+---
+
+# server.host
+
+- **Type:** `string | boolean`
+- **Default:** `localhost`
+
+Specify the host that the Rsbuild server listens to.
+
+By default, the Rsbuild server listens on `localhost`. You can configure it in the following ways:
+
+- `string`: specify a hostname or IP address to listen on.
+- `true`: equals to `0.0.0.0`, listen on all IPv4 interfaces.
+- `false`: equals to `localhost`.
+
+## All IPv4 interfaces
+
+To listen to all IPv4 network interfaces (including public network addresses), set it to `0.0.0.0` or `true`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    host: '0.0.0.0',
+  },
+};
+```
+
+Alternatively, you can use the [--host](/guide/basic/cli#specifying-host) CLI flag to enable network access on demand:
+
+```bash
+rsbuild --host
+```
+
+:::tip
+The priority of `--host` CLI option is higher than `server.host`.
+:::
+
+## IPv6 Support
+
+If you want the Rsbuild server to listen all IPv6 network interfaces, you can set it to:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    host: '::',
+  },
+};
+```
+
+If you want the Rsbuild server to listen a specified IPv6 host, you can set it to:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    host: '::1',
+  },
+};
+```
+
+At this point, you can access the page via `http://[::1]:3000/`.
+
+## Version history
+
+| Version | Changes                                                                             |
+| ------- | ----------------------------------------------------------------------------------- |
+| v2.0.0  | Default value changed from `0.0.0.0` to `localhost`, add support for `boolean` type |

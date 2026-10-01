@@ -1,0 +1,80 @@
+{
+  "name": "@ai-sdk/workflow",
+  "version": "1.0.31",
+  "type": "module",
+  "description": "WorkflowAgent for building AI agents with AI SDK",
+  "license": "Apache-2.0",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "source": "./src/index.ts",
+  "files": [
+    "dist/**/*",
+    "src",
+    "!src/**/*.test.ts",
+    "!src/**/*.test-d.ts",
+    "!src/**/__snapshots__",
+    "!src/**/__fixtures__",
+    "CHANGELOG.md",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "pnpm clean && tsup --tsconfig tsconfig.build.json",
+    "build:watch": "pnpm clean && tsup --watch --tsconfig tsconfig.build.json",
+    "clean": "del-cli dist *.tsbuildinfo",
+    "type-check": "tsc --build",
+    "test": "pnpm test:node && pnpm test:edge",
+    "test:update": "pnpm test:node -u",
+    "test:watch": "vitest --config vitest.node.config.js",
+    "test:edge": "vitest --config vitest.edge.config.js --run",
+    "test:integration": "vitest --config vitest.integration.config.mjs --run",
+    "test:node": "vitest --config vitest.node.config.js --run"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@ai-sdk/provider": "workspace:*",
+    "@ai-sdk/provider-utils": "workspace:*",
+    "ai": "workspace:*",
+    "ajv": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "@vercel/ai-tsconfig": "workspace:*",
+    "@workflow/vitest": "4.0.1",
+    "tsup": "^8.5.1",
+    "typescript": "5.8.3",
+    "vitest": "4.1.6",
+    "workflow": "4.2.4",
+    "zod": "3.25.76"
+  },
+  "peerDependencies": {
+    "zod": "^3.25.76 || ^4.1.8"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "homepage": "https://ai-sdk.dev/docs",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vercel/ai",
+    "directory": "packages/workflow"
+  },
+  "bugs": {
+    "url": "https://github.com/vercel/ai/issues"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "workflow"
+  ]
+}

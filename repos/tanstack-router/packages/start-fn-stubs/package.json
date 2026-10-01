@@ -1,0 +1,62 @@
+{
+  "name": "@tanstack/start-fn-stubs",
+  "version": "1.162.0",
+  "description": "Stub functions for TanStack Start isomorphic and environment-specific functions",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/router.git",
+    "directory": "packages/start-fn-stubs"
+  },
+  "homepage": "https://tanstack.com/start",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "keywords": [
+    "tanstack",
+    "start",
+    "isomorphic",
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "clean": "rimraf ./dist && rimraf ./coverage",
+    "test": "pnpm test:eslint && pnpm test:types && pnpm test:build && pnpm test:unit",
+    "test:unit": "vitest",
+    "test:unit:dev": "vitest --watch",
+    "test:eslint": "eslint ./src",
+    "test:types": "pnpm run \"/^test:types:ts[0-9]{2}$/\"",
+    "test:types:ts55": "node ../../node_modules/typescript55/lib/tsc.js",
+    "test:types:ts56": "node ../../node_modules/typescript56/lib/tsc.js",
+    "test:types:ts57": "node ../../node_modules/typescript57/lib/tsc.js",
+    "test:types:ts58": "node ../../node_modules/typescript58/lib/tsc.js",
+    "test:types:ts59": "node ../../node_modules/typescript59/lib/tsc.js",
+    "test:types:ts60": "tsc",
+    "test:build": "publint --strict && attw --ignore-rules no-resolution --pack .",
+    "build": "vite build"
+  },
+  "type": "module",
+  "types": "dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "devDependencies": {
+    "vite": "*"
+  }
+}

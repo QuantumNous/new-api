@@ -1,0 +1,12 @@
+.card {
+  background-color: rgb(254, 249, 195);
+  background-image: url('./inline-dot.svg');
+  border: 3px solid rgb(202, 138, 4);
+  border-radius: 14px;
+  padding: 20px;
+}
+
+.title {
+  color: rgb(133, 77, 14);
+  margin-top: 0;
+}

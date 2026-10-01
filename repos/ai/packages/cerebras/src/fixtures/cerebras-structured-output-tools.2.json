@@ -1,0 +1,48 @@
+{
+  "id": "chatcmpl-a6f2645e-5553-4ede-acde-612e0035b1cc",
+  "choices": [
+    {
+      "finish_reason": "tool_calls",
+      "index": 0,
+      "message": {
+        "content": "{\"result\":\"2026\"}",
+        "reasoning": "The function returned 2026 as the magic number. Now I need to return this as a JSON object matching the specified schema. The schema requires a \"result\" property of type string. So I should wrap the magic number in a string.",
+        "tool_calls": [
+          {
+            "function": {
+              "name": "nonUsefulTool",
+              "arguments": "{}"
+            },
+            "type": "function",
+            "id": "0babb4517"
+          }
+        ],
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1779146782,
+  "model": "zai-glm-4.7",
+  "system_fingerprint": "fp_a33c042689e969567008",
+  "object": "chat.completion",
+  "usage": {
+    "total_tokens": 457,
+    "completion_tokens": 63,
+    "completion_tokens_details": {
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0,
+      "reasoning_tokens": 50
+    },
+    "prompt_tokens": 394,
+    "prompt_tokens_details": {
+      "cached_tokens": 256
+    }
+  },
+  "time_info": {
+    "created": 1779146782.19271,
+    "queue_time": 0.002844976,
+    "prompt_time": 0.012194163,
+    "completion_time": 0.115990643,
+    "total_time": 0.13260841369628906
+  }
+}

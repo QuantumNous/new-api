@@ -1,0 +1,6 @@
+{
+  "message": {
+    "welcome": "Willkommen zu Razzle mit i18n"
+  },
+  "guideline": "Um zu beginnen, ändere <1>src/App.js</1> oder <3>src/Home.js</3> und speichere deine Änderungen um neu zu laden."
+}

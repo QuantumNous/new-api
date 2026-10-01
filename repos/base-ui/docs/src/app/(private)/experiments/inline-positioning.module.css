@@ -1,0 +1,171 @@
+.Experiment {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+  padding: clamp(3rem, 8vw, 6rem) 1.5rem 5rem;
+}
+
+.Section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-width: 32rem;
+}
+
+.SectionLabel {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-gray-500);
+}
+
+.Paragraph {
+  margin: 0;
+  max-width: 30rem;
+  font-size: 1rem;
+  line-height: 1.7;
+  color: var(--color-gray-900);
+  text-wrap: pretty;
+}
+
+.Link {
+  outline: 0;
+  color: var(--color-blue);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-decoration-color: color-mix(in oklab, var(--color-blue), transparent 40%);
+  text-underline-offset: 2px;
+
+  @media (hover: hover) {
+    &:hover {
+      text-decoration-color: var(--color-blue);
+    }
+  }
+
+  &[data-popup-open] {
+    text-decoration-color: var(--color-blue);
+  }
+
+  &:focus-visible {
+    border-radius: 0.125rem;
+    outline: 2px solid var(--color-blue);
+    text-decoration-line: none;
+  }
+}
+
+.PreviewPopup {
+  width: 256px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.65rem;
+  border-radius: 0.5rem;
+  background-color: canvas;
+  transform-origin: var(--transform-origin);
+  transition:
+    transform 150ms,
+    opacity 150ms;
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  @media (prefers-color-scheme: light) {
+    outline: 1px solid var(--color-gray-200);
+    box-shadow:
+      0 10px 15px -3px var(--color-gray-200),
+      0 4px 6px -4px var(--color-gray-200);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    outline: 1px solid var(--color-gray-300);
+    outline-offset: -1px;
+  }
+}
+
+.Arrow {
+  display: flex;
+
+  &[data-side='top'] {
+    bottom: -8px;
+    rotate: 180deg;
+  }
+
+  &[data-side='bottom'] {
+    top: -8px;
+    rotate: 0deg;
+  }
+
+  &[data-side='left'] {
+    right: -13px;
+    rotate: 90deg;
+  }
+
+  &[data-side='right'] {
+    left: -13px;
+    rotate: -90deg;
+  }
+}
+
+.ArrowFill {
+  fill: canvas;
+}
+
+.ArrowOuterStroke {
+  @media (prefers-color-scheme: light) {
+    fill: var(--color-gray-200);
+  }
+}
+
+.ArrowInnerStroke {
+  @media (prefers-color-scheme: dark) {
+    fill: var(--color-gray-300);
+  }
+}
+
+.Artwork {
+  min-height: 126px;
+  border-radius: 0.375rem;
+  display: flex;
+  align-items: flex-end;
+  padding: 0.75rem;
+}
+
+.ArtworkLabel {
+  display: inline-flex;
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  background-color: color-mix(in oklab, white, transparent 25%);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(24 24 27 / 0.88);
+}
+
+.CardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.CardTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.2;
+  font-weight: 600;
+  color: var(--color-gray-900);
+}
+
+.Summary {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.35;
+  color: var(--color-gray-700);
+  text-wrap: pretty;
+}

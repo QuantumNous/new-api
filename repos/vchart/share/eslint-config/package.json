@@ -1,0 +1,22 @@
+{
+  "name": "@internal/eslint-config",
+  "version": "0.0.1",
+  "description": "sharable eslint configuration settings",
+  "private": true,
+  "dependencies": {
+    "@typescript-eslint/eslint-plugin": "5.30.0",
+    "@typescript-eslint/parser": "5.30.0",
+    "eslint-config-prettier": "8.5.0",
+    "eslint-plugin-promise": "6.0.0",
+    "eslint-plugin-react": "7.30.1",
+    "eslint-plugin-react-hooks": "4.6.0"
+  },
+  "devDependencies": {
+    "eslint": "~8.18.0",
+    "typescript": "4.9.5"
+  },
+  "peerDependencies": {
+    "eslint": "~8.18.0",
+    "typescript": ">=4"
+  }
+}

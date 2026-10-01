@@ -1,0 +1,45 @@
+{
+  "name": "tanstack-react-start-e2e-rsc-deferred-hydration",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev --port 3000",
+    "dev:e2e": "vite dev",
+    "build": "vite build && tsc --noEmit",
+    "preview": "vite preview",
+    "start": "node server.js",
+    "test:e2e": "pnpm test:e2e:dev && pnpm test:e2e:prod",
+    "test:e2e:dev": "MODE=dev playwright test --project=chromium",
+    "test:e2e:prod": "MODE=prod playwright test --project=chromium"
+  },
+  "nx": {
+    "metadata": {
+      "playwrightModes": [
+        {
+          "toolchain": "vite",
+          "mode": "ssr",
+          "shards": 1
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "@tanstack/react-router": "workspace:^",
+    "@tanstack/react-start": "workspace:^",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.1",
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-rsc": "^0.5.20",
+    "srvx": "^0.11.9",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14"
+  }
+}

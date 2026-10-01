@@ -1,0 +1,77 @@
+{
+  "name": "table",
+  "namespace": "@tanstack",
+  "private": true,
+  "repository": "https://github.com/tanstack/table.git",
+  "packageManager": "pnpm@9.3.0",
+  "type": "module",
+  "scripts": {
+    "clean": "pnpm --filter \"./packages/**\" run clean",
+    "preinstall": "node -e \"if(process.env.CI == 'true') {console.log('Skipping preinstall...'); process.exit(1)}\" || npx -y only-allow pnpm",
+    "test": "pnpm run test:ci",
+    "test:pr": "nx affected --targets=test:format,test:sherif,test:knip,test:lib,test:types,build",
+    "test:ci": "nx run-many --targets=test:format,test:sherif,test:knip,test:lib,test:types,build",
+    "test:format": "pnpm run prettier --check",
+    "test:sherif": "sherif -i svelte",
+    "test:lib": "nx affected --targets=test:lib --exclude=examples/**",
+    "test:lib:dev": "pnpm test:lib && nx watch --all -- pnpm test:lib",
+    "test:types": "nx affected --targets=test:types --exclude=examples/**",
+    "test:knip": "knip",
+    "build": "nx affected --targets=build --exclude=examples/** && size-limit",
+    "build:all": "nx run-many --targets=build --exclude=examples/** && size-limit",
+    "watch": "pnpm run build:all && nx watch --all -- pnpm run build:all",
+    "dev": "pnpm run watch",
+    "prettier": "prettier --ignore-unknown '**/*'",
+    "prettier:write": "pnpm run prettier --write",
+    "cipublish": "node scripts/publish.js"
+  },
+  "nx": {
+    "includedScripts": [
+      "test:format",
+      "test:knip",
+      "test:sherif"
+    ]
+  },
+  "size-limit": [
+    {
+      "path": "packages/table-core/build/lib/index.js",
+      "limit": "16 KB"
+    },
+    {
+      "path": "packages/table-core/build/lib/index.mjs",
+      "limit": "15 KB"
+    }
+  ],
+  "devDependencies": {
+    "@babel/core": "^7.24.7",
+    "@babel/preset-env": "^7.24.7",
+    "@babel/preset-react": "^7.24.7",
+    "@babel/preset-typescript": "^7.24.7",
+    "@faker-js/faker": "^8.4.1",
+    "@rollup/plugin-babel": "^6.0.4",
+    "@rollup/plugin-commonjs": "^26.0.1",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-replace": "^5.0.7",
+    "@rollup/plugin-terser": "^0.4.4",
+    "@size-limit/preset-small-lib": "^11.1.4",
+    "@tanstack/config": "^0.13.0",
+    "@testing-library/jest-dom": "^6.4.6",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/react-hooks": "^8.0.1",
+    "@types/node": "^20.14.9",
+    "jsdom": "^24.1.0",
+    "knip": "^5.23.2",
+    "nx": "^19.3.2",
+    "prettier": "^3.3.2",
+    "prettier-plugin-svelte": "^3.2.5",
+    "rimraf": "^5.0.7",
+    "rollup": "^4.18.0",
+    "rollup-plugin-size": "^0.3.1",
+    "rollup-plugin-svelte": "^7.2.2",
+    "rollup-plugin-visualizer": "^5.12.0",
+    "sherif": "^0.9.0",
+    "size-limit": "^11.1.4",
+    "typescript": "5.4.5",
+    "vitest": "^1.6.0"
+  }
+}

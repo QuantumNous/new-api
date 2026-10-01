@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "lib": ["DOM", "ESNext"],
+    "jsx": "preserve",
+    "target": "ES2022",
+    "types": ["node"],
+    "skipLibCheck": true,
+    "useDefineForClassFields": true,
+
+    /* modules */
+    "moduleDetection": "force",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+
+    /* type checking */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "display": "Base"
+}

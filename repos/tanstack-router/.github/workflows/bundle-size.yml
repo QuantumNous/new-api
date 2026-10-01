@@ -1,0 +1,142 @@
+name: Bundle Size
+
+on:
+  # We use `pull_request` to split trust boundaries across jobs:
+  # - `benchmark-pr` checks out PR merge code and runs it as untrusted with read-only permissions.
+  # - `comment-pr` runs trusted base-repo code with limited write access to upsert the PR comment.
+  pull_request:
+    paths:
+      - 'packages/**'
+      - 'benchmarks/**'
+  push:
+    branches: [main]
+    paths:
+      - 'packages/**'
+      - 'benchmarks/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NX_NO_CLOUD: true
+jobs:
+  benchmark-pr:
+    name: Benchmark PR
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      current_json_b64: ${{ steps.capture.outputs.current_json_b64 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Tools
+        uses: TanStack/config/.github/setup@e4b48f16568324f76f467aa4c2aac2f05db632c3 # main
+
+      - name: Measure Bundle Size
+        run: pnpm nx run @benchmarks/bundle-size:build --outputStyle=stream --skipRemoteCache
+
+      - name: Capture Benchmark Outputs
+        id: capture
+        run: |
+          {
+            echo "current_json_b64=$(base64 -w 0 < benchmarks/bundle-size/results/current.json)"
+          } >> "$GITHUB_OUTPUT"
+
+  comment-pr:
+    name: Upsert PR Comment
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    needs: benchmark-pr
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Restore Benchmark Outputs
+        env:
+          CURRENT_JSON_B64: ${{ needs.benchmark-pr.outputs.current_json_b64 }}
+        run: |
+          mkdir -p benchmarks/bundle-size/results
+          node -e "const fs=require('node:fs'); fs.writeFileSync('benchmarks/bundle-size/results/current.json', Buffer.from(process.env.CURRENT_JSON_B64 || '', 'base64'))"
+
+      - name: Read Historical Data (if available)
+        run: |
+          mkdir -p benchmarks/bundle-size/results
+          if git fetch --depth=1 origin gh-pages; then
+            if git show origin/gh-pages:benchmarks/bundle-size/data.js > benchmarks/bundle-size/results/history-data.js 2>/dev/null; then
+              echo "Loaded bundle-size history from gh-pages."
+            else
+              rm -f benchmarks/bundle-size/results/history-data.js
+              echo "No bundle-size history found on gh-pages yet."
+            fi
+          fi
+
+      - name: Build PR Report
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          REPOSITORY_NAME: ${{ github.event.repository.name }}
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          node scripts/benchmarks/bundle-size/pr-report.mjs \
+            --current benchmarks/bundle-size/results/current.json \
+            --history benchmarks/bundle-size/results/history-data.js \
+            --output benchmarks/bundle-size/results/pr-comment.md \
+            --base-sha "$BASE_SHA" \
+            --dashboard-url "https://${REPOSITORY_OWNER}.github.io/${REPOSITORY_NAME}/benchmarks/bundle-size/"
+          cat benchmarks/bundle-size/results/pr-comment.md
+
+      - name: Upsert Sticky PR Comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node scripts/benchmarks/common/upsert-pr-comment.mjs \
+            --pr "${{ github.event.pull_request.number }}" \
+            --body-file benchmarks/bundle-size/results/pr-comment.md
+
+  benchmark-main:
+    name: Publish Bundle Size History
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository_owner == 'TanStack'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup Tools
+        uses: TanStack/config/.github/setup@e4b48f16568324f76f467aa4c2aac2f05db632c3 # main
+
+      - name: Measure Bundle Size
+        run: pnpm nx run @benchmarks/bundle-size:build --outputStyle=stream --skipRemoteCache
+      - name: Publish Benchmark Dashboard
+        uses: benchmark-action/github-action-benchmark@52576c92bccf6ac60c8223ec7eb2565637cae9ba # v1.22.1
+        with:
+          tool: customSmallerIsBetter
+          name: Bundle Size (gzip)
+          output-file-path: benchmarks/bundle-size/results/benchmark-action.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          gh-pages-branch: gh-pages
+          benchmark-data-dir-path: benchmarks/bundle-size
+          max-items-in-chart: 200
+          summary-always: true
+          comment-on-alert: false
+          fail-on-alert: false

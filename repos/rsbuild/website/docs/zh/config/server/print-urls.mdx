@@ -1,0 +1,191 @@
+---
+description: '控制是否以及如何打印 server 的 URL 地址。'
+---
+
+# server.printUrls
+
+- **类型：**
+
+```ts
+type Routes = Array<{
+  entryName: string;
+  pathname: string;
+}>;
+
+type PrintUrlsOptions = {
+  maxRoutes?: number;
+};
+
+type PrintUrls =
+  | boolean
+  | PrintUrlsOptions
+  | ((params: {
+      urls: string[];
+      port: number;
+      routes: Routes;
+      protocol: string;
+    }) => (string | { url: string; label?: string })[] | void);
+```
+
+- **默认值：** `true`
+
+控制是否以及如何打印 server 的 URL 地址。
+
+默认情况下，当你启动 dev server 或 preview server 后，Rsbuild 会输出以下日志信息：
+
+```
+  ➜  Local:    http://localhost:3000
+  ➜  Network:  use --host to expose
+```
+
+## 限制 entry URL 输出
+
+默认情况下，Rsbuild 最多会打印 10 个 entry URL。如果 entry 数量超过限制，Rsbuild 会打印剩余数量：
+
+```
+  ... 5 more entries, press u + enter to show all
+```
+
+你可以通过 `maxRoutes` 修改这个限制：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    printUrls: {
+      maxRoutes: 20,
+    },
+  },
+};
+```
+
+将 `maxRoutes` 设置为 `0` 时，只会打印 server URL，不会打印 entry routes。
+
+`maxRoutes` 选项只对内置 URL 输出生效。如果 `server.printUrls` 被设置为函数，Rsbuild 会保持已有的自定义日志行为。
+
+## 自定义日志
+
+`server.printUrls` 可以设置为一个函数，函数的入参包括 `port`，`protocol`、`urls` 和 `routes`。
+
+### 修改 URL
+
+如果 `printUrls` 函数返回了一组新的 URLs，那么 Rsbuild 将会把这组 URLs 按照默认格式输出到 terminal：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    printUrls({ urls }) {
+      return urls.map((url) => `${url}/base/`);
+    },
+  },
+};
+```
+
+输出为：
+
+```
+  ➜  Local:    http://localhost:3000/base/
+  ➜  Network:  use --host to expose
+```
+
+你还可以返回一个同时包含字符串和对象的数组。
+每个对象都可以包含一个可选的 `label` 属性，用于覆盖默认的 `Local:` 或 `Network:` 标签；如果未提供，则会使用默认标签。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    printUrls({ urls }) {
+      return urls.concat({ url: 'https://example.com/', label: 'Custom:' });
+    },
+  },
+};
+```
+
+输出为：
+
+```
+  ➜  Local:    http://localhost:3000/
+  ➜  Custom:   https://example.com/
+  ➜  Network:  use --host to expose
+```
+
+### 完全自定义
+
+如果 `printUrls` 函数没有返回值，Rsbuild 将不会输出 server 的 URL 地址，你可以基于入参来自定义日志内容，并自行输出到 terminal。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    printUrls({ urls, port, protocol }) {
+      console.log(urls); // ['http://localhost:3000', 'http://192.168.0.1:3000']
+      console.log(port); // 3000
+      console.log(protocol); // 'http' or 'https'
+    },
+  },
+};
+```
+
+### 多页面输出
+
+如果当前项目包含多个页面，你可以基于 `routes` 参数，为每个页面单独输出一份 URL。
+
+比如项目包含 `index` 和 `detail` 两个页面时，routes 的内容如下：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    printUrls({ routes }) {
+      /**
+       * [
+       *   { entryName: 'index', pathname: '/' },
+       *   { entryName: 'detail', pathname: '/detail' }
+       * ]
+       */
+      console.log(routes);
+    },
+  },
+};
+```
+
+## 禁用输出
+
+将 `server.printUrls` 设置为 `false`，Rsbuild 将不会输出 server 的 URL 地址。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    printUrls: false,
+  },
+};
+```
+
+### 禁用 HTML
+
+当 [tools.htmlPlugin](/config/tools/html-plugin) 被设置为 `false` 时，Rsbuild 不会生成 HTML 文件。
+
+此时，如果至少存在一个 `output.target: 'web'` 的环境，Rsbuild 会默认输出 `server.base` 对应的 URL；否则 Rsbuild 不会输出 server 的 URL 地址。
+
+你仍然可以通过 `server.printUrls` 函数来自定义输出的 URL 地址，它具有更高的优先级。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    htmlPlugin: false,
+  },
+  server: {
+    printUrls: ({ port }) => [`http://localhost:${port}`],
+  },
+};
+```
+
+输出：
+
+```
+  ➜  Local:    http://localhost:3000
+```
+
+## 版本历史
+
+| 版本    | 变更内容           |
+| ------- | ------------------ |
+| v2.0.16 | 支持 `maxRoutes`   |
+| v1.5.17 | 支持自定义 `label` |

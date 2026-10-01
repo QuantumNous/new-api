@@ -1,0 +1,154 @@
+---
+description: 'Svelte 插件提供了对 Svelte 组件（.svelte 文件）的支持，插件内部集成了 svelte-loader。'
+---
+
+# Svelte 插件
+
+import { SourceCode } from '@theme';
+
+<SourceCode href="https://github.com/web-infra-dev/rsbuild/tree/main/packages/plugin-svelte" />
+
+Svelte 插件提供了对 Svelte 组件（`.svelte` 文件）的支持，插件内部集成了 [svelte-loader](https://github.com/sveltejs/svelte-loader)。
+
+## 快速开始
+
+### 安装插件
+
+执行以下命令安装插件：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/plugin-svelte -D" />
+
+:::tip
+`@rsbuild/plugin-svelte` v2 不再支持 Rsbuild 1.x 和 Svelte 4.x。如果你的项目仍在使用这些版本，请安装 `@rsbuild/plugin-svelte@1`。
+:::
+
+### 注册插件
+
+在 Rsbuild 配置中注册插件：
+
+```ts title="rsbuild.config.ts"
+import { pluginSvelte } from '@rsbuild/plugin-svelte';
+
+export default {
+  plugins: [pluginSvelte()],
+};
+```
+
+注册后，即可在代码中引入 `*.svelte` 单文件组件。
+
+## 选项
+
+如果你需要自定义 Svelte 的编译行为，可以使用以下配置项。
+
+### svelteLoaderOptions
+
+传递给 `svelte-loader` 的选项，请查阅 [svelte-loader 文档](https://github.com/sveltejs/svelte-loader) 来了解具体用法。
+
+- **类型：** `SvelteLoaderOptions`
+- **默认值：**
+
+```js
+const defaultOptions = {
+  compilerOptions: {
+    dev: isDev,
+  },
+  preprocess: require('svelte-preprocess')(),
+  emitCss: isProd && !rsbuildConfig.output.injectStyles,
+  hotReload: isDev && rsbuildConfig.dev.hmr,
+};
+```
+
+- **示例：**
+
+```ts
+pluginSvelte({
+  svelteLoaderOptions: {
+    preprocess: null,
+  },
+});
+```
+
+### preprocessOptions
+
+传递给 `svelte-preprocess` 的选项，请查阅 [svelte-preprocess 文档](https://github.com/sveltejs/svelte-preprocess/blob/c2107e529da9438ea5b8060aa471119940896e40/docs/preprocessing.md) 来了解具体用法。
+
+- **类型：** `AutoPreprocessOptions`
+- **默认值：** `undefined`
+
+```ts
+interface AutoPreprocessOptions {
+  globalStyle: { ... },
+  replace: { ... },
+  typescript: { ... },
+  scss: { ... },
+  sass: { ... },
+  less: { ... },
+  stylus: { ... },
+  babel: { ... },
+  postcss: { ... },
+  coffeescript: { ... },
+  pug: { ... },
+}
+```
+
+- **示例：**
+
+```ts
+pluginSvelte({
+  preprocessOptions: {
+    aliases: [
+      ['potato', 'potatoLanguage'],
+      ['pot', 'potatoLanguage'],
+    ],
+    /** Add a custom language preprocessor */
+    potatoLanguage({ content, filename, attributes }) {
+      const { code, map } = require('potato-language').render(content);
+      return { code, map };
+    },
+  },
+});
+```
+
+## 注意事项
+
+目前 `svelte-loader` 暂不支持 Svelte v5 热更新，详见 [svelte-loader - Hot Reload](https://github.com/sveltejs/svelte-loader#hot-reload)。
+
+### Less/Sass 中的别名处理
+
+在 Svelte 组件中使用别名来引入 Less 或 Sass 文件时，需要手动处理别名的路径解析，否则会出现 `"file not found"` 的错误。
+
+- **示例：**
+
+```ts title="rsbuild.config.ts"
+import { pluginSvelte } from '@rsbuild/plugin-svelte';
+
+export default {
+  plugins: [
+    pluginSvelte({
+      preprocessOptions: {
+        scss: {
+          importer: [
+            // 处理 SCSS 文件的别名导入
+            (url, prev) => {
+              if (url.startsWith('@/')) {
+                return { file: url.replace('@/', 'src/') };
+              }
+              return null;
+            },
+          ],
+        },
+        less: {
+          // 推荐使用 replace 来处理别名导入，更简单
+          replace: [['@/style', 'style']],
+          // 使用 less plugin 来处理别名导入
+          plugins: [],
+        },
+      },
+    }),
+  ],
+};
+```
+
+通过配置 `preprocessOptions`，可以保证在 Svelte 组件中引入的 `@import '@/styles/variables.scss` 或者 `@import '@/styles/variables.less'` 能够被正确解析。

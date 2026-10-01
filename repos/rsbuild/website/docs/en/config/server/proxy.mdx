@@ -1,0 +1,157 @@
+---
+description: 'Configure proxy rules for the dev server or preview server, and forward requests to the specified service.'
+---
+
+# server.proxy
+
+- **Type:**
+
+```ts
+import type { Options } from 'http-proxy-middleware';
+
+type ProxyOptions = Options & { bypass?: ProxyBypass };
+
+type ProxyConfig = ProxyOptions[] | Record<string, string | ProxyOptions>;
+```
+
+- **Default:** `undefined`
+
+Configure proxy rules for the dev server or preview server, and forward requests to the specified service.
+
+## Proxy options
+
+This feature is powered by [http-proxy-middleware](https://github.com/chimurai/http-proxy-middleware). You can use [all options](https://github.com/chimurai/http-proxy-middleware#options) provided by `http-proxy-middleware`, plus the extra [bypass](#bypass) option from Rsbuild.
+
+Rsbuild sets [`changeOrigin`](https://github.com/chimurai/http-proxy-middleware#httpxy-options) to `true` by default for every proxy rule. Other proxy options follow the defaults of `http-proxy-middleware`. Set `changeOrigin: false` to override it.
+
+## Example
+
+### Basic usage
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: {
+      // http://localhost/api -> https://example.com/api
+      // http://localhost/api/foo -> https://example.com/api/foo
+      '/api': 'https://example.com',
+    },
+  },
+};
+```
+
+A request to `/api/users` will now proxy the request to `https://example.com/api/users`.
+
+You can also proxy to a local service:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: {
+      // http://localhost:3000/api -> http://localhost:3001/api
+      // http://localhost:3000/api/foo -> http://localhost:3001/api/foo
+      '/api': 'http://localhost:3001',
+    },
+  },
+};
+```
+
+### Path rewrite
+
+Use `pathRewrite` to rewrite request paths. For example, rewrite `/foo` to `/bar`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: {
+      // http://localhost:3000/foo -> https://example.com/bar
+      // http://localhost:3000/foo/baz -> https://example.com/bar/baz
+      '/foo': {
+        target: 'https://example.com',
+        pathRewrite: { '^/foo': '/bar' },
+      },
+    },
+  },
+};
+```
+
+### Proxy WebSocket
+
+To proxy WebSocket requests, set `ws` to `true`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: {
+      '/rsbuild-hmr': {
+        // Proxy to ws://localhost:3001/rsbuild-hmr
+        target: 'http://localhost:3001',
+        ws: true,
+      },
+    },
+  },
+};
+```
+
+### Path filter
+
+[pathFilter](https://github.com/chimurai/http-proxy-middleware/blob/master/recipes/pathFilter.md) is used to select which requests should be proxied. The `path` used for matching is the request URL pathname.
+
+For example, proxy requests under `/auth` and `/api` to the target service:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: [
+      {
+        pathFilter: ['/auth', '/api'],
+        target: 'https://example.com',
+      },
+    ],
+  },
+};
+```
+
+## Extra options
+
+### bypass
+
+- **Type:**
+
+```ts
+type ProxyBypass = (
+  req: IncomingMessage,
+  res: ServerResponse,
+  proxyOptions: ProxyOptions,
+) => MaybePromise<string | undefined | null | boolean>;
+```
+
+In some cases, you may not want to proxy every request. Use the `bypass` function to skip the proxy.
+
+Inside the function, you have access to the request, response, and proxy options.
+
+- Return `null` or `undefined` to continue processing the request with proxy.
+- Return `true` to skip the proxy and continue processing the request.
+- Return `false` to produce a 404 error for the request.
+- Return a specific path to replace the original request path.
+- Return a Promise to handle the request asynchronously.
+
+For example, you may want to serve HTML for browser requests, but keep proxying API requests:
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://example.com',
+        bypass(req, res, proxyOptions) {
+          if ((req.headers.accept || '').includes('html')) {
+            console.log('Skipping proxy for browser request.');
+            return '/index.html';
+          }
+        },
+      },
+    },
+  },
+};
+```

@@ -1,0 +1,71 @@
+name: Test Old TypeScript
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  test_old_typescript:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        typescript:
+          - 5.9.3
+          - 5.8.3
+          - 5.7.3
+          - 5.6.3
+          - 5.5.4
+          - 5.4.5
+          - 5.3.3
+          - 5.2.2
+          - 5.1.6
+          - 5.0.4
+          - 4.9.5
+          - 4.8.4
+          - 4.7.4
+          - 4.6.4
+          - 4.5.5
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@0e279bb959325dab635dd2c09392533439d90093 # v6.0.8
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 'lts/*'
+          cache: 'pnpm'
+      - run: pnpm install
+      - run: pnpm run build
+      - name: Patch for all TS
+        run: |
+          sed -i~ 's/"isolatedDeclarations": true,//' tsconfig.json
+      - name: Patch for v4/v3 TS
+        if: ${{ startsWith(matrix.typescript, '4.') || startsWith(matrix.typescript, '3.') }}
+        run: |
+          sed -i~ 's/"verbatimModuleSyntax": true,//' tsconfig.json
+      - name: Patch for Old TS
+        if: ${{ matrix.typescript == '5.3.3' || matrix.typescript == '5.2.2' || matrix.typescript == '5.1.6' || matrix.typescript == '5.0.4' || matrix.typescript == '4.9.5' || matrix.typescript == '4.8.4' || matrix.typescript == '4.7.4' || matrix.typescript == '4.6.4' || matrix.typescript == '4.5.5' }}
+        run: |
+          sed -i~ 's/"moduleResolution": "bundler",/"moduleResolution": "node",/' tsconfig.json
+          sed -i~ 's/"allowImportingTsExtensions": true,//' tsconfig.json
+          sed -i~ 's/"zustand": \["\.\/src\/index\.ts"\],/"zustand": [".\/dist\/index.d.ts"],/' tsconfig.json
+          sed -i~ 's/"zustand\/\*": \["\.\/src\/\*\.ts"\]/"zustand\/*": [".\/dist\/*.d.ts"]/' tsconfig.json
+          sed -i~ 's/"include": .*/"include": ["src\/types.d.ts", "dist\/**\/*", "tests\/**\/*"],/' tsconfig.json
+      - name: Patch for Older TS
+        if: ${{ matrix.typescript == '4.7.4' || matrix.typescript == '4.6.4' || matrix.typescript == '4.5.5' }}
+        run: |
+          pnpm json -I -f package.json -e "this.resolutions={}; this.resolutions['@types/node']='18.13.0';"
+          pnpm add -D @types/node@18.13.0
+          pnpm add -D vitest@3.2.4 @vitest/coverage-v8@3.2.4 @vitest/ui@3.2.4
+      - name: Install old TypeScript
+        run: pnpm add -D typescript@$TS_VER
+        env:
+          TS_VER: ${{ matrix.typescript }}
+      - name: Test ${{ matrix.typescript }}
+        run: pnpm run test:types

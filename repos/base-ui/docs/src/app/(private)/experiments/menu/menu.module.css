@@ -1,0 +1,412 @@
+.Button {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  height: 2.5rem;
+  padding: 0 0.875rem;
+  margin: 0;
+  outline: 0;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.375rem;
+  background-color: var(--color-gray-50);
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5rem;
+  color: var(--color-gray-900);
+  -webkit-user-select: none;
+  user-select: none;
+
+  @media (hover: hover) {
+    &:hover {
+      background-color: var(--color-gray-100);
+    }
+  }
+
+  &:active {
+    background-color: var(--color-gray-100);
+  }
+
+  &[data-popup-open] {
+    background-color: var(--color-gray-100);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+  }
+}
+
+.ButtonIcon {
+  margin-right: -0.25rem;
+}
+
+.TriggerRow {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.Positioner {
+  outline: 0;
+}
+
+.Popup {
+  box-sizing: border-box;
+  padding-block: 0.25rem;
+  border-radius: 0.375rem;
+  background-color: canvas;
+  color: var(--color-gray-900);
+  transform-origin: var(--transform-origin);
+  transition:
+    transform 150ms,
+    opacity 150ms;
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  @media (prefers-color-scheme: light) {
+    outline: 1px solid var(--color-gray-200);
+    box-shadow:
+      0 10px 15px -3px var(--color-gray-200),
+      0 4px 6px -4px var(--color-gray-200);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    outline: 1px solid var(--color-gray-300);
+    outline-offset: -1px;
+  }
+}
+
+.PopupNoAnimation {
+  transition: none;
+
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.Arrow {
+  display: flex;
+
+  &[data-side='top'] {
+    bottom: -8px;
+    rotate: 180deg;
+  }
+
+  &[data-side='bottom'] {
+    top: -8px;
+    rotate: 0deg;
+  }
+
+  &[data-side='inline-start'] {
+    inset-inline-end: -13px;
+    rotate: 90deg;
+  }
+
+  &[data-side='inline-end'] {
+    inset-inline-start: -13px;
+    rotate: -90deg;
+  }
+}
+
+.ArrowFill {
+  fill: canvas;
+}
+
+.ArrowOuterStroke {
+  @media (prefers-color-scheme: light) {
+    fill: var(--color-gray-200);
+  }
+}
+
+.ArrowInnerStroke {
+  @media (prefers-color-scheme: dark) {
+    fill: var(--color-gray-300);
+  }
+}
+
+.Item,
+.SubmenuTrigger {
+  outline: 0;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  padding-block: 0.5rem;
+  padding-left: 1rem;
+  padding-right: 2rem;
+  display: flex;
+  font-size: 0.875rem;
+  line-height: 1rem;
+
+  &[data-highlighted] {
+    z-index: 0;
+    position: relative;
+    color: var(--color-gray-50);
+  }
+
+  &[data-highlighted]::before {
+    content: '';
+    z-index: -1;
+    position: absolute;
+    inset-block: 0;
+    inset-inline: 0.25rem;
+    border-radius: 0.25rem;
+    background-color: var(--color-gray-900);
+  }
+
+  &[data-disabled][data-highlighted]::before {
+    background-color: var(--color-gray-300);
+  }
+
+  &[data-disabled] {
+    color: var(--color-gray-400);
+  }
+}
+
+.SubmenuTrigger {
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.PopupOpenAsHighlighted {
+  &[data-highlighted],
+  &[data-popup-open] {
+    z-index: 0;
+    position: relative;
+    color: var(--color-gray-50);
+  }
+
+  &[data-highlighted]::before,
+  &[data-popup-open]::before {
+    content: '';
+    z-index: -1;
+    position: absolute;
+    inset-block: 0;
+    inset-inline: 0.25rem;
+    border-radius: 0.25rem;
+    background-color: var(--color-gray-900);
+  }
+
+  &[data-disabled][data-highlighted]::before,
+  &[data-disabled][data-popup-open]::before {
+    background-color: var(--color-gray-300);
+  }
+}
+
+.Separator {
+  margin: 0.375rem 1rem;
+  height: 1px;
+  background-color: var(--color-gray-200);
+}
+
+.CheckboxItem,
+.RadioItem {
+  outline: 0;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  padding-block: 0.5rem;
+  padding-left: 0.625rem;
+  padding-right: 2rem;
+  font-size: 0.875rem;
+  line-height: 1rem;
+  display: grid;
+  gap: 0.5rem;
+  align-items: center;
+  grid-template-columns: 0.75rem 1fr;
+
+  &[data-highlighted] {
+    z-index: 0;
+    position: relative;
+    color: var(--color-gray-50);
+  }
+
+  &[data-highlighted]::before {
+    content: '';
+    z-index: -1;
+    position: absolute;
+    inset-block: 0;
+    inset-inline: 0.25rem;
+    border-radius: 0.25rem;
+    background-color: var(--color-gray-900);
+  }
+
+  &[data-disabled][data-highlighted]::before {
+    background-color: var(--color-gray-300);
+  }
+
+  &[data-disabled] {
+    color: var(--color-gray-400);
+  }
+}
+
+.CheckboxItemIndicator,
+.RadioItemIndicator {
+  grid-column-start: 1;
+}
+
+.CheckboxItemIndicatorIcon,
+.RadioItemIndicatorIcon {
+  display: block;
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
+.CheckboxItemText,
+.RadioItemText {
+  grid-column-start: 2;
+}
+
+.GroupLabel {
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+  padding-block: 0.5rem;
+  padding-left: 1.875rem;
+  padding-right: 2rem;
+  font-size: 0.875rem;
+  line-height: 1rem;
+  color: var(--color-gray-600);
+}
+
+.CustomAnchor {
+  margin-top: 3rem;
+  text-align: center;
+  padding: 1rem;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.25rem;
+}
+
+.ExperimentRoot {
+  padding: 2rem;
+}
+
+.ExperimentTitle {
+  margin: 0;
+  font-size: 2rem;
+  line-height: 2.5rem;
+  font-weight: 500;
+}
+
+.ExperimentDescription {
+  margin: 0 0 3rem;
+  color: var(--color-gray-600);
+}
+
+.Section {
+  margin: 0;
+}
+
+.SectionTitle {
+  margin: 0 0 1rem;
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+}
+
+.SectionDescription {
+  margin: 0 0 1rem;
+  color: var(--color-gray-600);
+}
+
+.DialogBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.5);
+}
+
+.DialogPopup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: 500px;
+  max-width: 90vw;
+  transform: translate(-50%, -50%);
+  border-radius: 0.5rem;
+  background: white;
+  padding: 1.5rem;
+  box-shadow:
+    0 20px 25px -5px rgb(0 0 0 / 0.1),
+    0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+.DialogTitle {
+  margin: 0 0 1rem;
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-weight: 600;
+}
+
+.DialogBody > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 1rem;
+}
+
+.DialogDescription {
+  margin: 0;
+  color: var(--color-gray-600);
+}
+
+.Card {
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.5rem;
+  background: var(--color-gray-50);
+  padding: 1rem;
+}
+
+.CardTitle {
+  margin: 0 0 0.75rem;
+  font-weight: 500;
+}
+
+.DialogActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.DialogActions > :not([hidden]) ~ :not([hidden]) {
+  margin-left: 0.5rem;
+}
+
+.DialogCancel,
+.DialogConfirm {
+  border-radius: 0.25rem;
+  padding: 0.5rem 1rem;
+}
+
+.DialogCancel {
+  color: var(--color-gray-600);
+}
+
+@media (hover: hover) {
+  .DialogCancel:hover {
+    background: var(--color-gray-100);
+  }
+
+  .DialogConfirm:hover {
+    background: oklch(48.8% 0.243 264.376deg);
+  }
+}
+
+.DialogConfirm {
+  background: oklch(54.6% 0.245 262.881deg);
+}
+
+.LinkItem {
+  cursor: pointer;
+}
+
+.NonFocusableText {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0 0.5rem 1.875rem;
+  font-size: 0.75rem;
+}

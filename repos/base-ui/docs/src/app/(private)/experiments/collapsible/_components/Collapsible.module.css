@@ -1,0 +1,54 @@
+.root {
+  --width: 320px;
+  --duration: 1000ms;
+  --icon-duration: 0ms;
+
+  width: var(--width);
+
+  & + .root {
+    margin-top: 2rem;
+  }
+}
+
+.trigger {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+  background-color: var(--color-gray-200);
+  color: var(--color-gray-900);
+
+  &[data-panel-open] .icon {
+    transform: rotate(90deg);
+  }
+}
+
+.icon {
+  width: 0.75rem;
+  height: 0.75rem;
+  transition: transform var(--icon-duration) ease-out;
+}
+
+.panel {
+  overflow: hidden;
+  box-sizing: border-box;
+  width: 100%;
+  height: auto;
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+  padding: 0.5rem;
+  border-radius: 0.25rem;
+  background-color: var(--color-gray-200);
+  cursor: text;
+
+  & p {
+    overflow-wrap: break-word;
+  }
+}

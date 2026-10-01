@@ -1,0 +1,861 @@
+---
+description: '本章节了介绍 Rsbuild 插件的 API 类型定义和使用方法。'
+---
+
+# 插件 API
+
+本章节了介绍 Rsbuild 插件的 API 类型定义和使用方法。
+
+## RsbuildPlugin
+
+插件对象的类型，插件对象包含以下属性：
+
+- `name`：插件的名称，唯一标识符。
+- `setup`：插件逻辑的主入口函数，可以是一个异步函数。该函数仅会在初始化插件时执行一次。插件 API 对象上挂载了提供给插件使用的上下文数据、工具函数和注册生命周期钩子的函数，关于生命周期钩子的完整介绍，请阅读 [Plugin Hooks](/plugins/dev/hooks) 章节。
+- `apply`: 控制插件在 `serve` 或 `build` 时生效，详见 [条件启用](#conditional-application)。
+- `enforce`: 指定插件的执行顺序，详见 [enforce 属性](#enforce-property)。
+- `pre`：声明前置插件的名称，这些插件会在当前插件之前执行，详见 [前置插件](#pre-plugins)。
+- `post`：声明后置插件的名称，这些插件会在当前插件之后执行，详见 [后置插件](#post-plugins)。
+- `remove`：声明需要移除的插件，可以传入插件 name 的数组，详见 [移除插件](#removing-plugins)。
+
+```ts
+type RsbuildPlugin = {
+  name: string;
+  setup: (api: RsbuildPluginAPI) => Promise<void> | void;
+  apply?: 'serve' | 'build' | Function;
+  enforce?: 'pre' | 'post';
+  pre?: string[];
+  post?: string[];
+  remove?: string[];
+};
+```
+
+你可以从 `@rsbuild/core` 中导入该类型：
+
+```ts title="pluginFoo.ts"
+import type { RsbuildPlugin } from '@rsbuild/core';
+
+export const pluginFoo = (): RsbuildPlugin => ({
+  name: 'plugin-foo',
+
+  setup(api) {
+    api.onAfterBuild(() => {
+      console.log('after build!');
+    });
+  },
+});
+```
+
+### 条件启用 \{#conditional-application}
+
+默认情况下，插件在运行开发服务器和生产构建时都会生效。如果你希望一个插件只在其中某个场景下生效，你可以通过 `apply` 属性来指定插件的生效时机：
+
+- `serve`：运行开发或预览服务器时生效
+- `build`：运行生产构建时生效
+
+```ts
+// 该插件只在 serve 时生效
+const pluginServe = () => ({
+  name: 'plugin-serve',
+  apply: 'serve',
+  setup(api) {
+    // ...
+  },
+});
+
+// 该插件只在 build 时生效
+const pluginBuild = () => ({
+  name: 'plugin-build',
+  apply: 'build',
+  setup(api) {
+    // ...
+  },
+});
+```
+
+`apply` 属性也可以是一个函数，函数接收 `config` 和 `context` 两个参数。
+
+```ts
+type RsbuildPluginApplyFn = (
+  this: void,
+  // 原始的 Rsbuild 配置对象（未经过插件处理）
+  config: RsbuildConfig,
+  // 上下文对象
+  context: {
+    // 当前操作的类型
+    action: 'dev' | 'build' | 'preview';
+  },
+) => boolean;
+```
+
+`apply` 函数返回 `true` 来应用插件，返回 `false` 来跳过插件。
+
+```ts
+const pluginBuild = () => ({
+  name: 'plugin-build',
+  apply(config, { action }) {
+    return action === 'build' && config.output?.target === 'web';
+  },
+  setup(api) {
+    // ...
+  },
+});
+```
+
+:::tip
+`apply` 属性是在 `@rsbuild/core` v1.4.8 版本中引入的。
+:::
+
+### `enforce` 属性 \{#enforce-property}
+
+默认情况下，插件会按照添加顺序依次执行，插件可以通过添加 `enforce` 属性来调整执行顺序：
+
+- `pre`：在其他插件之前执行当前插件
+- `post`：在其他插件之后执行当前插件
+
+```js
+const pluginFoo = () => ({
+  name: 'plugin-foo',
+  enforce: 'pre',
+  setup(api) {
+    // ...
+  },
+});
+
+const pluginBar = () => ({
+  name: 'plugin-bar',
+  enforce: 'post',
+  setup(api) {
+    // ...
+  },
+});
+```
+
+`enforce` 会影响钩子注册的顺序，但如果钩子指定了 [order](/plugins/dev/hooks#callback-order) 属性，则 `order` 具有更高的优先级。
+
+:::tip
+`enforce` 属性是在 `@rsbuild/core` v1.4.9 版本中引入的。
+:::
+
+### 前置插件 \{#pre-plugins}
+
+通过设置 `pre` 属性可以强制指定某些插件在当前插件之前执行，`pre` 属性的优先级高于 `enforce` 属性。
+
+比如有下面两个插件：
+
+```ts
+const pluginFoo = {
+  name: 'plugin-foo',
+};
+
+const pluginBar = {
+  name: 'plugin-bar',
+  pre: ['plugin-foo'],
+};
+```
+
+Bar 插件在 `pre` 属性中配置了 Foo 插件，因此 Foo 插件一定会在 Bar 插件之前执行。
+
+### 后置插件 \{#post-plugins}
+
+通过设置 `post` 属性可以强制指定某些插件在当前插件之后执行，`post` 属性的优先级高于 `enforce` 属性。
+
+```ts
+const pluginFoo = {
+  name: 'plugin-foo',
+};
+
+const pluginBar = {
+  name: 'plugin-bar',
+  post: ['plugin-foo'],
+};
+```
+
+Bar 插件在 `post` 属性中配置了 Foo 插件，因此 Foo 插件一定会在 Bar 插件之后执行。
+
+### 移除插件 \{#removing-plugins}
+
+通过 `remove` 属性可以在一个插件中移除其他插件。
+
+```ts
+const pluginFoo = {
+  name: 'plugin-foo',
+};
+
+const pluginBar = {
+  name: 'plugin-bar',
+  remove: ['plugin-foo'],
+};
+```
+
+比如同时注册上述的 Foo 和 Bar 插件，由于 Bar 插件声明 remove 了 Foo 插件，因此 Foo 插件不会生效。
+
+需要注意的是：如果当前插件注册为[特定环境插件](/guide/advanced/environments#plugins-specified-environment)，则仅支持移除同环境插件，不能移除全局插件。
+
+## api.context
+
+`api.context` 是一个只读对象，提供一些上下文信息。
+
+`api.context` 的内容与 `rsbuild.context` 完全一致，请参考 [rsbuild.context](/api/javascript-api/instance#rsbuildcontext)。
+
+- **示例：**
+
+```ts
+const pluginFoo = () => ({
+  setup(api) {
+    console.log(api.context.distPath);
+  },
+});
+```
+
+## api.getRsbuildConfig
+
+import GetRsbuildConfig from '@zh/shared/getRsbuildConfig.mdx';
+
+<GetRsbuildConfig />
+
+- **示例：**
+
+```ts
+const pluginFoo = () => ({
+  setup(api) {
+    const config = api.getRsbuildConfig();
+    console.log(config.html?.title);
+  },
+});
+```
+
+## api.getNormalizedConfig
+
+import GetNormalizedConfig from '@zh/shared/getNormalizedConfig.mdx';
+
+<GetNormalizedConfig />
+
+- **示例：**
+
+```ts
+const pluginFoo = () => ({
+  setup(api) {
+    api.onBeforeBuild(({ bundlerConfigs }) => {
+      const config = api.getNormalizedConfig();
+      console.log(config.html.title);
+    });
+  },
+});
+```
+
+## api.logger
+
+提供统一日志输出格式的实例，可以用于输出与 Rsbuild 一致的日志格式。
+
+> 详见 [日志](/guide/advanced/logging)。
+
+- **版本：** `>= 1.4.0`
+- **示例：**
+
+```ts
+const pluginLogging = () => ({
+  setup(api) {
+    api.logger.info('This is an info message');
+    api.logger.warn('This is a warning message');
+    api.logger.error('This is an error message');
+  },
+});
+```
+
+## api.isPluginExists
+
+import IsPluginExists from '@zh/shared/isPluginExists.mdx';
+
+<IsPluginExists />
+
+- **示例：**
+
+```ts
+export default () => ({
+  setup(api) {
+    console.log(api.isPluginExists('plugin-foo'));
+  },
+});
+```
+
+或者检查指定环境中是否存在插件：
+
+```ts
+export default () => ({
+  setup(api) {
+    console.log(api.isPluginExists('plugin-foo', { environment: 'web' }));
+  },
+});
+```
+
+## api.transform
+
+`api.transform` 是 [Rspack loader](https://rspack.rs/zh/guide/features/loader) 的简化封装，让你能够在构建过程中轻松转换特定模块的代码。
+
+你可以通过模块路径、查询参数或其他条件匹配文件，并对其内容应用自定义转换。
+
+- **类型：**
+
+```ts
+function Transform(descriptor: TransformDescriptor, handler: TransformHandler): void;
+```
+
+`api.transform` 接受两个参数：
+
+- `descriptor`：一个对象，用于描述模块的匹配条件。
+- `handler`：一个转换函数，接收模块当前的代码，并返回转换后的代码。
+
+### 示例
+
+比如匹配以 `.pug` 为后缀的模块，并转换为 JavaScript 代码：
+
+```js
+import pug from 'pug';
+
+const pluginPug = () => ({
+  name: 'my-pug-plugin',
+  setup(api) {
+    api.transform({ test: /\.pug$/ }, ({ code }) => {
+      const templateCode = pug.compileClient(code, {});
+      return `${templateCode}; module.exports = template;`;
+    });
+  },
+});
+```
+
+### descriptor 参数
+
+`descriptor` 参数是一个对象，用于描述模块的匹配条件。
+
+- **类型：**
+
+```ts
+type TransformDescriptor = {
+  test?: RuleSetCondition;
+  targets?: RsbuildTarget[];
+  environments?: string[];
+  resourceQuery?: RuleSetCondition;
+  raw?: boolean;
+  layer?: string;
+  issuer?: RuleSetCondition;
+  issuerLayer?: string;
+  with?: Record<string, RuleSetCondition>;
+  mimetype?: RuleSetCondition;
+  order?: 'pre' | 'post' | 'default';
+};
+```
+
+`descriptor` 参数支持设置以下匹配条件：
+
+- `test`：匹配模块的路径（不包含 query），等价于 Rspack 的 [rules[].test](https://rspack.rs/zh/config/module-rules#rulestest)。
+
+```js
+api.transform({ test: /\.md$/ }, ({ code }) => {
+  // ...
+});
+```
+
+- `targets`：匹配 Rsbuild [output.target](/config/output/target)，仅对匹配的 targets 应用当前 transform 函数。
+
+```js
+api.transform({ test: /\.md$/, targets: ['web'] }, ({ code }) => {
+  // ...
+});
+```
+
+- `environments`：匹配 Rsbuild [environment](/guide/advanced/environments) name，仅对匹配的 environments 应用当前 transform 函数。
+
+```js
+api.transform({ test: /\.md$/, environments: ['web'] }, ({ code }) => {
+  // ...
+});
+```
+
+- `resourceQuery`：匹配模块的 query，等价于 Rspack 的 [rules[].resourceQuery](https://rspack.rs/zh/config/module-rules#rulesresourcequery)。
+
+```js
+// 匹配 raw query: "foo.ext?raw"
+api.transform({ resourceQuery: /^\?raw$/ }, ({ code }) => {
+  // ...
+});
+```
+
+- `raw`：如果 `raw` 为 `true`，则 transform 函数将接收到 Buffer 类型的代码，而不是 string 类型。
+
+```js
+api.transform({ test: /\.node$/, raw: true }, ({ code }) => {
+  // ...
+});
+```
+
+- `layer`：标识匹配的模块的 [layer](https://rspack.rs/zh/guide/features/layer#layer)，可以将一组模块聚合到一个 layer 中，等同于 Rspack 的 [rules[].layer](https://rspack.rs/zh/config/module-rules#ruleslayer)。
+
+```js
+api.transform({ test: /\.md$/, layer: 'foo' }, ({ code }) => {
+  // ...
+});
+```
+
+- `issuerLayer`：与"引入当前模块"的模块的 [layer](https://rspack.rs/zh/guide/features/layer#layer) 进行匹配，等同于 Rspack 的 [rules[].issuerLayer](https://rspack.rs/zh/config/module-rules#rulesissuerlayer)。
+
+```js
+api.transform({ test: /\.md$/, issuerLayer: 'foo' }, ({ code }) => {
+  // ...
+});
+```
+
+- `issuer`：匹配"引入当前模块"的模块的绝对路径，等同于 Rspack 的 [rules[].issuer](https://rspack.rs/zh/config/module-rules#rulesissuer)。
+
+```js
+api.transform({ test: /\.md$/, issuer: /\.js$/ }, ({ code }) => {
+  // ...
+});
+```
+
+- `with`：匹配 [import attributes](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Statements/import/with)，等同于 Rspack 的 [rules[].with](https://rspack.rs/zh/config/module-rules#ruleswith)。
+
+```js
+api.transform({ test: /\.md$/, with: { type: 'url' } }, ({ code }) => {
+  // ...
+});
+```
+
+- `mimetype`：根据 MIME 类型（而非文件扩展名）匹配模块。主要用于 data URI 模块（例如 `data:text/javascript,...`），等同于 Rspack 的 [rules[].mimetype](https://rspack.rs/zh/config/module-rules#rulesmimetype)。
+
+```js
+api.transform({ mimetype: 'text/javascript' }, ({ code }) => {
+  // ...
+});
+```
+
+- `enforce`：指定 transform 函数的执行顺序，等同于 Rspack 的 [rules[].enforce](https://rspack.rs/zh/config/module-rules#rulesenforce)。
+  - 当 `enforce` 为 `pre` 时，transform 函数会在其他 transform 函数（或 Rspack loader）之前执行。
+  - 当 `enforce` 为 `post` 时，transform 函数会在其他 transform 函数（或 Rspack loader）之后执行。
+
+```js
+api.transform({ test: /\.md$/, enforce: 'pre' }, ({ code }) => {
+  // ...
+});
+```
+
+### handler 参数
+
+handler 参数是一个转换函数，接收模块当前的代码，并返回转换后的代码。
+
+- **类型：**
+
+```ts
+type TransformContext = {
+  code: string;
+  context: string | null;
+  resource: string;
+  resourcePath: string;
+  resourceQuery: string;
+  environment: EnvironmentContext;
+  addDependency: (file: string) => void;
+  addMissingDependency: (file: string) => void;
+  addContextDependency: (context: string) => void;
+  emitFile: Rspack.LoaderContext['emitFile'];
+  importModule: Rspack.LoaderContext['importModule'];
+  resolve: Rspack.LoaderContext['resolve'];
+};
+
+type TransformResult =
+  | string
+  | Buffer
+  | {
+      code: string | Buffer;
+      map?: string | Rspack.sources.RawSourceMap | null;
+    };
+
+type TransformHandler = (context: TransformContext) => MaybePromise<TransformResult>;
+```
+
+handler 函数提供以下参数：
+
+- `code`：模块的代码。
+- `context`：当前被处理的模块所在的目录路径，与 Rspack loader 的 [this.context](https://rspack.rs/zh/api/loader-api/context#thiscontext) 相同。
+- `resolve`：解析一个模块标识符。与 Rspack loader 的 [this.resolve](https://rspack.rs/zh/api/loader-api/context#thisresolve) 相同。
+- `resource`：模块的绝对路径，包含 query，与 Rspack loader 的 [this.resource](https://rspack.rs/zh/api/loader-api/context#thisresource) 相同。
+- `resourcePath`：模块的绝对路径，不包含 query，与 Rspack loader 的 [this.resourcePath](https://rspack.rs/zh/api/loader-api/context#thisresourcepath) 相同。
+- `resourceQuery`：模块路径上的 query，与 Rspack loader 的 [this.resourceQuery](https://rspack.rs/zh/api/loader-api/context#thisresourcequery) 相同。
+- `environment`: 当前构建的 [environment 上下文](/api/javascript-api/environment-api#environment-context).
+- `addDependency`：添加一个额外的文件作为依赖。该文件将被监听，并在发生变更时触发重新构建。与 Rspack loader 的 [this.addDependency](https://rspack.rs/zh/api/loader-api/context#thisadddependency) 相同。
+- `addMissingDependency`：添加一个不存在的文件作为依赖。该文件将被监听，并在发生变更时触发重新构建。与 Rspack loader 的 [this.addMissingDependency](https://rspack.rs/zh/api/loader-api/context#thisaddmissingdependency) 相同。
+- `addContextDependency`：添加一个额外的目录作为依赖。该目录将被监听，并在发生变更时触发重新构建。与 Rspack loader 的 [this.addContextDependency](https://rspack.rs/zh/api/loader-api/context#thisaddcontextdependency) 相同。
+- `emitFile`：将一个文件输出到构建结果中。与 Rspack loader 的 [this.emitFile](https://rspack.rs/zh/api/loader-api/context#thisemitfile) 相同。
+- `importModule`：在构建时编译并执行一个模块。与 Rspack loader 的 [this.importModule](https://rspack.rs/zh/api/loader-api/context#thisimportmodule) 相同。
+
+比如：
+
+```js
+api.transform({ test: /\.md$/ }, ({ code, resource, resourcePath, resourceQuery }) => {
+  console.log(code); // -> some code
+  console.log(resource); // -> '/home/user/project/src/template.pug?foo=123'
+  console.log(resourcePath); // -> '/home/user/project/src/template.pug'
+  console.log(resourceQuery); // -> '?foo=123'
+});
+```
+
+### 与 loader 的区别
+
+`api.transform` 可以理解为 Rspack loader 的一个轻量化实现，它提供了简单易用的 API，并在底层自动调用 Rspack loader 进行代码转换。
+
+在 Rsbuild 插件中，你可以通过 `api.transform` 快速实现代码转换功能，能够满足大部分常见场景，而无须学习 Rspack loader 的编写方法。
+
+注意，对于一些复杂的代码转换场景，`api.transform` 可能无法满足，此时你可以使用 Rspack loader 进行实现。
+
+### Source maps
+
+你可以在 `transform` 函数中返回一个 source map，Rsbuild 会自动将返回的 source map 与其他 Rspack loader 或 `transform` hook 生成的 source maps 合并，使最终的 source map 能够正确映射到原始源代码。
+
+```js
+api.transform({ test: /\.js$/ }, async ({ code }) => {
+  const { transformedCode, sourceMap } = await someTransformFunction(code);
+  return {
+    code: transformedCode,
+    map: sourceMap,
+  };
+});
+```
+
+## api.resolve
+
+在模块解析开始之前，拦截并修改模块的请求信息。等价于 Rspack 的 [normalModuleFactory.hooks.resolve](https://rspack.rs/zh/api/plugin-api/normal-module-factory-hooks#resolve) hook。
+
+- **版本：** `>= 1.0.17`
+- **类型：**
+
+```ts
+function ResolveHook(handler: ResolveHandler): void;
+```
+
+### 示例
+
+- 修改 `a.js` 文件请求：
+
+```js
+api.resolve(({ resolveData }) => {
+  if (resolveData.request === './a.js') {
+    resolveData.request = './b.js';
+  }
+});
+```
+
+### `handler` 参数
+
+handler 参数是一个回调函数，接收一个模块的请求信息，并允许你修改它。
+
+- **类型：**
+
+```ts
+type ResolveHandler = (context: {
+  resolveData: Rspack.ResolveData;
+  compiler: Rspack.Compiler;
+  compilation: Rspack.Compilation;
+  environment: EnvironmentContext;
+}) => Promise<void> | void;
+```
+
+handler 函数提供以下参数：
+
+- `resolveData`：当前模块请求信息，详情可参考 [Rspack - resolve 钩子](https://rspack.rs/zh/api/plugin-api/normal-module-factory-hooks#resolve)。
+- `compiler`：Rspack 的 Compiler 对象。
+- `compilation`：Rspack 的 Compilation 对象。
+- `environment`: 当前构建的 [environment 上下文](/api/javascript-api/environment-api#environment-context)。
+
+## api.processAssets
+
+在输出产物之前对 assets 进行修改，等价于 Rspack 的 [compilation.hooks.processAssets](https://rspack.rs/zh/api/plugin-api/compilation-hooks#processassets) hook。
+
+- **版本：** `>= 1.0.0`
+- **类型：**
+
+```ts
+function processAssets(descriptor: ProcessAssetsDescriptor, handler: ProcessAssetsHandler): void;
+```
+
+`api.processAssets` 接受两个参数：
+
+- `descriptor`：一个对象，用于描述 processAssets 触发的 stage 和匹配条件。
+- `handler`：一个回调函数，接收 assets 对象并允许你修改它。
+
+### 示例
+
+- 在 `additional` 阶段输出一个新的 asset：
+
+```js
+api.processAssets({ stage: 'additional' }, ({ assets, sources, compilation }) => {
+  const source = new sources.RawSource('This is a new asset!');
+  compilation.emitAsset('new-asset.txt', source);
+});
+```
+
+- 更新一个已经存在的 asset：
+
+```js
+api.processAssets({ stage: 'additions' }, ({ assets, sources, compilation }) => {
+  const asset = assets['foo.js'];
+  if (!asset) {
+    return;
+  }
+
+  const oldContent = asset.source();
+  const newContent = oldContent + '\nconsole.log("hello world!")';
+  const source = new sources.RawSource(newContent);
+
+  compilation.updateAsset(assetName, source);
+});
+```
+
+- 移除一个 asset：
+
+```js
+api.processAssets({ stage: 'optimize' }, ({ assets, compilation }) => {
+  const assetName = 'unwanted-script.js';
+  if (assets[assetName]) {
+    compilation.deleteAsset(assetName);
+  }
+});
+```
+
+### descriptor 参数
+
+descriptor 参数是一个对象，用于描述 processAssets 触发的 stage 和匹配条件。
+
+- **类型：**
+
+```ts
+type ProcessAssetsDescriptor = {
+  stage: ProcessAssetsStage;
+  targets?: RsbuildTarget[];
+  environments?: string[];
+};
+```
+
+descriptor 参数支持设置以下属性：
+
+- `stage`：Rspack 内部将 processAssets 划分为多个 stages（参考 [process assets stages](#process-assets-stages)，你可以根据需要进行的操作来选择合适的 stage。
+
+```js
+api.processAssets({ stage: 'additional' }, ({ assets }) => {
+  // ...
+});
+```
+
+- `targets`：匹配 Rsbuild [output.target](/config/output/target)，仅对匹配的 targets 应用当前 processAssets 函数。
+
+```js
+api.processAssets({ stage: 'additional', targets: ['web'] }, ({ assets }) => {
+  // ...
+});
+```
+
+- `environments`：匹配 Rsbuild [environment](/guide/advanced/environments) name，仅对匹配的 environments 应用当前 processAssets 函数。
+
+```js
+api.processAssets({ stage: 'additional', environments: ['web'] }, ({ assets }) => {
+  // ...
+});
+```
+
+### handler 参数
+
+handler 参数是一个回调函数，接收一个 assets 对象，并允许你修改它。
+
+- **类型：**
+
+```ts
+type ProcessAssetsHandler = (context: {
+  assets: Record<string, Rspack.sources.Source>;
+  compiler: Rspack.Compiler;
+  compilation: Rspack.Compilation;
+  environment: EnvironmentContext;
+  sources: RspackSources;
+}) => Promise<void> | void;
+```
+
+handler 函数提供以下参数：
+
+- `assets`：一个对象，其中 key 是 asset 的路径名，值是由 [Source](https://github.com/webpack/webpack-sources#source) 表示的 asset 数据。
+- `compiler`：Rspack 的 Compiler 对象。
+- `compilation`：Rspack 的 Compilation 对象。
+- `environment`: 当前构建的 [environment 上下文](/api/javascript-api/environment-api#environment-context).
+- `sources`：[Rspack Sources](https://github.com/webpack/webpack-sources#source) 对象，它包含了多种表示 Sources 的 classes。
+
+### Process assets stages
+
+下面是支持的 stage 列表，Rspack 会按由上至下的顺序依次执行这些 stages，请根据你需要进行的操作来选择合适的 stage。
+
+- `additional` — 在编译中添加额外的 asset。
+- `pre-process` — asset 进行了基础的预处理。
+- `derived` — 从现有 asset 中派生新的 asset。
+- `additions` — 为现有的 asset 添加额外的内容，例如 banner 或初始代码。
+- `optimize` — 以通用的方式优化现有 asset。
+- `optimize-count` — 优化现有 asset 的数量，例如，进行合并操作。
+- `optimize-compatibility` — 优化现有 asset 的兼容性，例如添加 polyfills 或者 vendor prefixes。
+- `optimize-size` — 优化现有 asset 的大小，例如进行压缩或者删除空格。
+- `dev-tooling` — 为 asset 添加开发者工具，例如，提取 source map。
+- `optimize-inline` — 将 asset 内联到其他 asset 中来优化现有 asset 数量。
+- `summarize` — 整理现有 asset 列表。
+- `optimize-hash` — 优化 asset 的 hash 值，例如，生成基于 asset 内容的真实 hash 值。
+- `optimize-transfer` — 优化已有 asset 的转换操作，例如对 asset 进行压缩，并作为独立的 asset。
+- `analyse` — 分析已有 asset。
+- `report` — 创建用于上报的 asset。
+
+## api.expose
+
+用于插件间通信。
+
+`api.expose` 可以显式暴露当前插件的一些属性或方法，其他插件可以通过 `api.useExposed` 来获取这些 API。
+
+- **类型：**
+
+```ts
+/**
+ * @param id 唯一标识符，使用 Symbol 可以避免命名冲突
+ * @param api 需要暴露的属性或方法，建议使用对象格式
+ * @param options 暴露 API 时使用的选项
+ */
+function expose<T = any>(
+  id: string | symbol,
+  api: T,
+  options?: {
+    /**
+     * 为指定 environment 注册暴露的 API。
+     * 如果未设置，则注册为全局 API。
+     */
+    environment?: string;
+  },
+): void;
+```
+
+- **示例：**
+
+```ts
+const pluginParent = () => ({
+  name: 'plugin-parent',
+  setup(api) {
+    api.expose('plugin-parent', {
+      value: 1,
+      double: (val: number) => val * 2,
+    });
+  },
+});
+```
+
+:::tip
+如果 `api.expose` 被多次调用且使用了相同的 `id` 和 `environment`，则后一次调用会覆盖前一次调用暴露的 API。
+:::
+
+### Environment 级别的 API
+
+你可以通过设置 `options.environment`（对应 `config.environments` 的 key）为指定 environment 注册暴露的 API。
+
+当在 environment plugin 中调用 `api.useExposed` 时，Rsbuild 会优先解析同一 environment 注册的 API，如果不存在，则回退到全局 API。
+
+```ts
+api.expose('my-api', { name: 'web' }, { environment: 'web' });
+api.expose('my-api', { name: 'node' }, { environment: 'node' });
+```
+
+如果未设置 `options.environment`，则 API 会被注册为全局 API，可以作为所有 environment 中插件的 fallback。
+
+## api.useExposed
+
+用于插件间通信。
+
+`api.useExposed` 可以获取到其他插件暴露的属性或方法。
+
+- **类型：**
+
+```ts
+/**
+ * @param id 唯一标识符
+ * @returns 获取的属性或方法
+ *
+ * 如果当前插件注册在某个 environment 中，Rsbuild 会优先解析同一
+ * environment 注册的 API，如果不存在，则回退到全局 API。
+ */
+function useExposed<T = any>(id: string | symbol): T | undefined;
+```
+
+- **示例：**
+
+```ts
+const pluginChild = () => ({
+  name: 'plugin-child',
+  pre: ['plugin-parent'],
+  setup(api) {
+    const parentApi = api.useExposed('plugin-parent');
+    if (parentApi) {
+      console.log(parentApi.value); // -> 1
+      console.log(parentApi.double(1)); // -> 2
+    }
+  },
+});
+```
+
+### 标识符
+
+你可以使用 Symbol 作为唯一标识符，从而避免潜在的命名冲突：
+
+```ts
+// pluginParent.ts
+export const PARENT_API_ID = Symbol('plugin-parent');
+
+const pluginParent = () => ({
+  name: 'plugin-parent',
+  setup(api) {
+    api.expose(PARENT_API_ID, {
+      // some api
+    });
+  },
+});
+
+// pluginChild.ts
+import { PARENT_API_ID } from './pluginParent';
+
+const pluginChild = () => ({
+  name: 'plugin-child',
+  setup(api) {
+    const parentApi = api.useExposed(PARENT_API_ID);
+    if (parentApi) {
+      console.log(parentApi);
+    }
+  },
+});
+```
+
+### 类型声明
+
+你可以通过函数的泛型来声明类型：
+
+```ts
+// pluginParent.ts
+export type ParentAPI = {
+  // ...
+};
+
+// pluginChild.ts
+import type { ParentAPI } from './pluginParent';
+
+const pluginChild = () => ({
+  name: 'plugin-child',
+  setup(api) {
+    const parentApi = api.useExposed<ParentAPI>(PARENT_API_ID);
+    if (parentApi) {
+      console.log(parentApi);
+    }
+  },
+});
+```
+
+### 执行顺序
+
+在进行插件间通信时，你需要留意插件的执行顺序。
+
+比如，在上面的示例中，如果 `pluginParent` 未注册，或者注册顺序晚于 `pluginChild`，那么 `api.useExposed('plugin-parent')` 会返回一个 `undefined`。
+
+你可以使用插件对象的 `pre`、`post` 选项，以及插件 hook 的 `order` 选项来保证顺序是正确的。

@@ -1,0 +1,86 @@
+---
+description: 'Sets the Rsbuild build mode. Each mode applies different defaults and optimizations; for example, production minifies code by default.'
+---
+
+# mode
+
+- **Type:** `'production' | 'development' | 'none'`
+- **Version:** `>= 1.0.0`
+
+Sets the Rsbuild build mode. Each mode applies different defaults and optimizations; for example, `production` minifies code by default.
+
+The Rsbuild `mode` value is also passed to Rspack's [mode](https://rspack.rs/config/mode) configuration.
+
+:::tip
+The `mode` value does not change which `.env` file loads because `.env` files resolve before the Rsbuild config file.
+
+Use the `--env-mode` option in the Rsbuild CLI to specify the env mode. See ["Env mode"](/guide/advanced/env-vars#env-mode) for details.
+:::
+
+## Default values
+
+The default value of `mode` depends on the `process.env.NODE_ENV` environment variable:
+
+- If `NODE_ENV` is `production`, the default value is `production`.
+- If `NODE_ENV` is `development`, the default value is `development`.
+- If `NODE_ENV` has any other value, the default value is `none`.
+
+If you set `mode`, the `NODE_ENV` value will be ignored.
+
+```ts title="rsbuild.config.ts"
+export default {
+  mode: 'production',
+};
+```
+
+### Command line
+
+When using the Rsbuild CLI:
+
+- `rsbuild` will set the default values of `NODE_ENV` and `mode` to `development`.
+- `rsbuild build` and `rsbuild preview` will set the default values of `NODE_ENV` and `mode` to `production`.
+
+### JavaScript API
+
+When using the Rsbuild JavaScript API:
+
+- [rsbuild.startDevServer](/api/javascript-api/instance#rsbuildstartdevserver) and [rsbuild.createDevServer](/api/javascript-api/instance#rsbuildcreatedevserver) will set the default values of `NODE_ENV` and `mode` to `development`.
+- [rsbuild.build](/api/javascript-api/instance#rsbuildbuild) and [rsbuild.preview](/api/javascript-api/instance#rsbuildpreview) will set the default values of `NODE_ENV` and `mode` to `production`.
+
+## Development mode
+
+If `mode` is `development`:
+
+- Enable HMR and register the [HotModuleReplacementPlugin](https://rspack.rs/plugins/webpack/hot-module-replacement-plugin).
+- Generate JavaScript source maps, but do not generate CSS source maps. See [output.sourceMap](/config/output/source-map) for details.
+- The `process.env.NODE_ENV` in the source code will be replaced with `'development'`.
+- The `import.meta.env.MODE` in the source code will be replaced with `'development'`.
+- The `import.meta.env.DEV` in the source code will be replaced with `true`.
+- The `import.meta.env.PROD` in the source code will be replaced with `false`.
+- Use [dev.assetPrefix](/config/dev/asset-prefix) as the URL prefix for static assets.
+
+## Production mode
+
+If `mode` is `production`:
+
+- Enable JavaScript code minification and register the [SwcJsMinimizerRspackPlugin](https://rspack.rs/plugins/rspack/swc-js-minimizer-rspack-plugin).
+- Enable CSS code minification and register the [LightningCssMinimizerRspackPlugin](https://rspack.rs/plugins/rspack/lightning-css-minimizer-rspack-plugin).
+- JavaScript and CSS filenames include hash suffixes. See [output.filenameHash](/config/output/filename-hash).
+- CSS Modules class names are shorter. See [cssModules.localIdentName](/config/output/css-modules#cssmoduleslocalidentname).
+- JavaScript and CSS source maps are disabled. See [output.sourceMap](/config/output/source-map).
+- The `process.env.NODE_ENV` in the source code will be replaced with `'production'`.
+- The `import.meta.env.MODE` in the source code will be replaced with `'production'`.
+- The `import.meta.env.DEV` in the source code will be replaced with `false`.
+- The `import.meta.env.PROD` in the source code will be replaced with `true`.
+- Use [output.assetPrefix](/config/output/asset-prefix) as the URL prefix for static assets.
+
+## None mode
+
+If `mode` is `none`:
+
+- Do not enable any optimizations.
+- The `process.env.NODE_ENV` in the source code will not be replaced.
+- The `import.meta.env.MODE` in the source code will be replaced with `'none'`.
+- The `import.meta.env.DEV` in the source code will be replaced with `false`.
+- The `import.meta.env.PROD` in the source code will be replaced with `false`.
+- Use [output.assetPrefix](/config/output/asset-prefix) as the URL prefix for static assets.

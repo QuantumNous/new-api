@@ -1,0 +1,95 @@
+.vite
+# See https://help.github.com/ignore-files/ for more about ignoring files.
+
+# dependencies
+node_modules
+package-lock.json
+yarn.lock
+
+# builds
+types
+build
+*/build
+dist
+.output
+lib
+es
+artifacts
+.rpt2_cache
+coverage
+*.tgz
+.wrangler
+
+# tests
+packages/router-generator/tests/**/*.gen.ts
+packages/router-generator/tests/**/*.gen.js
+**/port*.txt
+**/test-results/**
+
+# Playwright artifacts
+**/playwright-report/
+**/blob-report/
+
+# misc
+.DS_Store
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.next
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.history
+size-plugin.json
+stats-hydration.json
+stats-react.json
+stats.html
+.vscode/settings.json
+
+*.log
+.DS_Store
+.cache
+.pnpm-store
+ts-perf
+
+/examples/*/*/yarn.lock
+/examples/*/*/package-lock.json
+
+.netlify
+.vercel
+
+nx-cloud.env
+.nx/cache
+.nx/workspace-data
+.nx/polygraph
+.nx/self-healing
+
+gpt/db.json
+
+vite.config.timestamp-*
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+vite.config.timestamp_*
+vite.config.js.timestamp_*
+vite.config.ts.timestamp_*
+
+.idea
+*.vitest-temp.json
+
+# Handling VSCode settings
+/.vscode/
+!/examples/react/**/.vscode/settings.json
+
+**/llms
+
+**/.tanstack
+
+# eslint-plugin-start perf fixtures
+/e2e/eslint-plugin-start/src/perf/generated
+
+# local memory flame profiles
+benchmarks/memory/**/.profiles/

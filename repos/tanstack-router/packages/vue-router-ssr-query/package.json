@@ -1,0 +1,76 @@
+{
+  "name": "@tanstack/vue-router-ssr-query",
+  "version": "1.167.1",
+  "description": "Modern and scalable routing for Vue applications",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/router.git",
+    "directory": "packages/vue-router-ssr-query"
+  },
+  "homepage": "https://tanstack.com/router",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "keywords": [
+    "vue",
+    "location",
+    "router",
+    "routing",
+    "async",
+    "async router",
+    "typescript"
+  ],
+  "scripts": {
+    "clean": "rimraf ./dist && rimraf ./coverage",
+    "test:eslint": "eslint ./src",
+    "test:types": "pnpm run \"/^test:types:ts[0-9]{2}$/\"",
+    "test:types:ts55": "node ../../node_modules/typescript55/lib/tsc.js",
+    "test:types:ts56": "node ../../node_modules/typescript56/lib/tsc.js",
+    "test:types:ts57": "node ../../node_modules/typescript57/lib/tsc.js",
+    "test:types:ts58": "node ../../node_modules/typescript58/lib/tsc.js",
+    "test:types:ts59": "node ../../node_modules/typescript59/lib/tsc.js",
+    "test:types:ts60": "tsc",
+    "test:unit": "exit 0; vitest",
+    "test:unit:dev": "pnpm run test:unit --watch",
+    "test:build": "publint --strict && attw --ignore-rules no-resolution --pack .",
+    "build": "vite build"
+  },
+  "type": "module",
+  "types": "dist/esm/index.d.ts",
+  "module": "dist/esm/index.js",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "engines": {
+    "node": ">=20.19"
+  },
+  "dependencies": {
+    "@tanstack/router-ssr-query-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@tanstack/vue-router": "workspace:*",
+    "@vitejs/plugin-vue-jsx": "^4.1.2",
+    "vite": "*",
+    "vue": "^3.5.25"
+  },
+  "peerDependencies": {
+    "@tanstack/query-core": ">=5.90.0",
+    "@tanstack/vue-query": ">=5.90.0",
+    "@tanstack/vue-router": ">=1.127.0",
+    "vue": "^3.3.0"
+  }
+}

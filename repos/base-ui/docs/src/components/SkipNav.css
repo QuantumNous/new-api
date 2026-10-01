@@ -1,0 +1,38 @@
+@layer components {
+  .SkipNav {
+    clip: rect(0 0 0 0);
+    clip-path: inset(50%);
+    overflow: hidden;
+    white-space: nowrap;
+    border: 0;
+    position: absolute;
+    padding: 0;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+
+    &:focus-visible {
+      clip: auto;
+      clip-path: none;
+      height: var(--header-height);
+      overflow: visible;
+      width: auto;
+      white-space: normal;
+      left: 0;
+      z-index: 1;
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      padding-inline: 12px;
+      background-color: var(--color-background);
+      color: var(--color-blue);
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      text-decoration-thickness: 1px;
+      text-decoration-color: color-mix(in oklab, var(--color-blue), transparent);
+      outline: 2px solid var(--gray-t2);
+      outline-offset: -2px;
+      border-radius: var(--radius-4);
+    }
+  }
+}

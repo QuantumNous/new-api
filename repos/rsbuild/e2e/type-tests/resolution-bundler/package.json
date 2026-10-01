@@ -1,0 +1,5 @@
+{
+  "name": "@type-tests/resolution-bundler",
+  "private": true,
+  "type": "module"
+}

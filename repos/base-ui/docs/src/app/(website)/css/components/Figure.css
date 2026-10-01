@@ -1,0 +1,10 @@
+@layer components {
+  .Figure {
+    box-sizing: border-box;
+    margin: 0;
+    background-color: var(--gray-c1);
+    aspect-ratio: 1 / 1;
+    overflow: hidden;
+    user-select: none;
+  }
+}

@@ -1,0 +1,858 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`streamText > errors > should swallow error to prevent server crash 1`] = `[]`;
+
+exports[`streamText > options.onStart > should send correct information with text prompt 1`] = `
+{
+  "activeTools": undefined,
+  "callId": "test-telemetry-call-id",
+  "frequencyPenalty": undefined,
+  "headers": undefined,
+  "instructions": undefined,
+  "maxOutputTokens": undefined,
+  "maxRetries": 2,
+  "messages": [
+    {
+      "content": "test-input",
+      "role": "user",
+    },
+  ],
+  "modelId": "mock-model-id",
+  "operationId": "ai.streamText",
+  "output": undefined,
+  "presencePenalty": undefined,
+  "provider": "mock-provider",
+  "providerOptions": undefined,
+  "reasoning": undefined,
+  "runtimeContext": {},
+  "seed": undefined,
+  "stopSequences": undefined,
+  "temperature": undefined,
+  "timeout": undefined,
+  "toolChoice": undefined,
+  "toolOrder": undefined,
+  "tools": undefined,
+  "toolsContext": {},
+  "topK": undefined,
+  "topP": undefined,
+}
+`;
+
+exports[`streamText > programmatic tool calling > 5 steps: code_execution triggers client tool across multiple turns (dice game fixture) > step inputs > should include all previous messages in step 5 prompt (final step) 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "Play a dice game between two players.",
+        "type": "text",
+      },
+    ],
+    "providerOptions": undefined,
+    "role": "user",
+  },
+  {
+    "content": [
+      {
+        "providerOptions": undefined,
+        "text": "I'll help you simulate this game between two players where one is using a loaded die.",
+        "type": "text",
+      },
+      {
+        "input": {
+          "code": "game_loop()",
+        },
+        "providerExecuted": true,
+        "providerOptions": undefined,
+        "toolCallId": "srvtoolu_01MzSrFWsmzBdcoQkGWLyRjK",
+        "toolName": "code_execution",
+        "type": "tool-call",
+      },
+      {
+        "input": {
+          "player": "player1",
+        },
+        "providerExecuted": undefined,
+        "providerOptions": undefined,
+        "toolCallId": "toolu_019jKkXz4jAdwHweHBw92CVY",
+        "toolName": "rollDie",
+        "type": "tool-call",
+      },
+    ],
+    "providerOptions": undefined,
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "output": {
+          "type": "json",
+          "value": 6,
+        },
+        "providerOptions": undefined,
+        "toolCallId": "toolu_019jKkXz4jAdwHweHBw92CVY",
+        "toolName": "rollDie",
+        "type": "tool-result",
+      },
+    ],
+    "providerOptions": undefined,
+    "role": "tool",
+  },
+  {
+    "content": [
+      {
+        "input": {
+          "player": "player2",
+        },
+        "providerExecuted": undefined,
+        "providerOptions": undefined,
+        "toolCallId": "toolu_015dGLMbwBKv1ZRQr6KdJzeH",
+        "toolName": "rollDie",
+        "type": "tool-call",
+      },
+    ],
+    "providerOptions": undefined,
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "output": {
+          "type": "json",
+          "value": 3,
+        },
+        "providerOptions": undefined,
+        "toolCallId": "toolu_015dGLMbwBKv1ZRQr6KdJzeH",
+        "toolName": "rollDie",
+        "type": "tool-result",
+      },
+    ],
+    "providerOptions": undefined,
+    "role": "tool",
+  },
+  {
+    "content": [
+      {
+        "input": {
+          "player": "player1",
+        },
+        "providerExecuted": undefined,
+        "providerOptions": undefined,
+        "toolCallId": "toolu_01YYqBNq5mk1wMtv3PAqY44m",
+        "toolName": "rollDie",
+        "type": "tool-call",
+      },
+    ],
+    "providerOptions": undefined,
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "output": {
+          "type": "json",
+          "value": 6,
+        },
+        "providerOptions": undefined,
+        "toolCallId": "toolu_01YYqBNq5mk1wMtv3PAqY44m",
+        "toolName": "rollDie",
+        "type": "tool-result",
+      },
+    ],
+    "providerOptions": undefined,
+    "role": "tool",
+  },
+  {
+    "content": [
+      {
+        "input": {
+          "player": "player2",
+        },
+        "providerExecuted": undefined,
+        "providerOptions": undefined,
+        "toolCallId": "toolu_018WxjDkQG8h7i63poySGT2x",
+        "toolName": "rollDie",
+        "type": "tool-call",
+      },
+    ],
+    "providerOptions": undefined,
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "output": {
+          "type": "json",
+          "value": 3,
+        },
+        "providerOptions": undefined,
+        "toolCallId": "toolu_018WxjDkQG8h7i63poySGT2x",
+        "toolName": "rollDie",
+        "type": "tool-result",
+      },
+    ],
+    "providerOptions": undefined,
+    "role": "tool",
+  },
+]
+`;
+
+exports[`streamText > result.files > should contain files 1`] = `
+[
+  DefaultGeneratedFileWithType {
+    "base64Data": "Hello World",
+    "mediaType": "text/plain",
+    "type": "file",
+    "uint8ArrayData": undefined,
+  },
+  DefaultGeneratedFileWithType {
+    "base64Data": "QkFVRw==",
+    "mediaType": "image/jpeg",
+    "type": "file",
+    "uint8ArrayData": undefined,
+  },
+]
+`;
+
+exports[`streamText > result.pipeUIMessageStreamToResponse > should mask error messages by default 1`] = `
+[
+  "data: {"type":"start"}
+
+",
+  "data: {"type":"start-step"}
+
+",
+  "data: {"type":"error","errorText":"An error occurred."}
+
+",
+  "data: {"type":"finish-step"}
+
+",
+  "data: {"type":"finish","finishReason":"error"}
+
+",
+  "data: [DONE]
+
+",
+]
+`;
+
+exports[`streamText > result.pipeUIMessageStreamToResponse > should support custom error messages 1`] = `
+[
+  "data: {"type":"start"}
+
+",
+  "data: {"type":"start-step"}
+
+",
+  "data: {"type":"error","errorText":"custom error message: error"}
+
+",
+  "data: {"type":"finish-step"}
+
+",
+  "data: {"type":"finish","finishReason":"error"}
+
+",
+  "data: [DONE]
+
+",
+]
+`;
+
+exports[`streamText > result.reasoning > should contain reasoning from model response 1`] = `
+[
+  {
+    "providerMetadata": {
+      "testProvider": {
+        "signature": "1234567890",
+      },
+    },
+    "text": "I will open the conversation with witty banter.",
+    "type": "reasoning",
+  },
+  {
+    "providerMetadata": {
+      "testProvider": {
+        "redactedData": "redacted-reasoning-data",
+      },
+    },
+    "text": "",
+    "type": "reasoning",
+  },
+  {
+    "providerMetadata": {
+      "testProvider": {
+        "signature": "1234567890",
+      },
+    },
+    "text": " Once the user has relaxed, I will pry for valuable information.",
+    "type": "reasoning",
+  },
+  {
+    "providerMetadata": {
+      "testProvider": {
+        "signature": "0987654321",
+      },
+    },
+    "text": " I need to think about this problem carefully.",
+    "type": "reasoning",
+  },
+  {
+    "providerMetadata": {
+      "testProvider": {
+        "signature": "0987654321",
+      },
+    },
+    "text": " The best solution requires careful consideration of all factors.",
+    "type": "reasoning",
+  },
+]
+`;
+
+exports[`streamText > result.reasoningText > should contain reasoning text from model response 1`] = `"I will open the conversation with witty banter. Once the user has relaxed, I will pry for valuable information. I need to think about this problem carefully. The best solution requires careful consideration of all factors."`;
+
+exports[`streamText > result.sources > should contain sources 1`] = `
+[
+  {
+    "id": "123",
+    "providerMetadata": {
+      "provider": {
+        "custom": "value",
+      },
+    },
+    "sourceType": "url",
+    "title": "Example",
+    "type": "source",
+    "url": "https://example.com",
+  },
+  {
+    "id": "456",
+    "providerMetadata": {
+      "provider": {
+        "custom": "value2",
+      },
+    },
+    "sourceType": "url",
+    "title": "Example 2",
+    "type": "source",
+    "url": "https://example.com/2",
+  },
+]
+`;
+
+exports[`streamText > result.stream > should send delayed asynchronous tool results 1`] = `
+[
+  {
+    "type": "start",
+  },
+  {
+    "request": {
+      "body": undefined,
+      "messages": undefined,
+    },
+    "type": "start-step",
+    "warnings": [],
+  },
+  {
+    "input": {
+      "value": "value",
+    },
+    "providerExecuted": undefined,
+    "providerMetadata": undefined,
+    "title": "Tool 1",
+    "toolCallId": "call-1",
+    "toolName": "tool1",
+    "type": "tool-call",
+  },
+  {
+    "dynamic": false,
+    "input": {
+      "value": "value",
+    },
+    "output": "value-result",
+    "toolCallId": "call-1",
+    "toolName": "tool1",
+    "type": "tool-result",
+  },
+  {
+    "finishReason": "stop",
+    "performance": {
+      "effectiveOutputTokensPerSecond": 0,
+      "effectiveTotalTokensPerSecond": 0,
+      "inputTokensPerSecond": 0,
+      "outputTokensPerSecond": 0,
+      "responseTimeMs": 0,
+      "stepTimeMs": 60,
+      "timeBetweenOutputChunksMs": undefined,
+      "timeToFirstOutputMs": 0,
+      "toolExecutionMs": {
+        "call-1": 60,
+      },
+    },
+    "providerMetadata": undefined,
+    "rawFinishReason": "stop",
+    "response": {
+      "headers": undefined,
+      "id": "id-0",
+      "modelId": "mock-model-id",
+      "timestamp": 1970-01-01T00:00:00.000Z,
+    },
+    "type": "finish-step",
+    "usage": {
+      "inputTokenDetails": {
+        "cacheReadTokens": undefined,
+        "cacheWriteTokens": undefined,
+        "noCacheTokens": 3,
+      },
+      "inputTokens": 3,
+      "outputTokenDetails": {
+        "reasoningTokens": undefined,
+        "textTokens": 10,
+      },
+      "outputTokens": 10,
+      "raw": undefined,
+      "totalTokens": 13,
+    },
+  },
+  {
+    "finishReason": "stop",
+    "rawFinishReason": "stop",
+    "totalUsage": {
+      "inputTokenDetails": {
+        "cacheReadTokens": undefined,
+        "cacheWriteTokens": undefined,
+        "noCacheTokens": 3,
+      },
+      "inputTokens": 3,
+      "outputTokenDetails": {
+        "reasoningTokens": undefined,
+        "textTokens": 10,
+      },
+      "outputTokens": 10,
+      "totalTokens": 13,
+    },
+    "type": "finish",
+  },
+]
+`;
+
+exports[`streamText > result.stream > should send tool calls 1`] = `
+[
+  {
+    "type": "start",
+  },
+  {
+    "request": {
+      "body": undefined,
+      "messages": undefined,
+    },
+    "type": "start-step",
+    "warnings": [],
+  },
+  {
+    "input": {
+      "value": "value",
+    },
+    "providerExecuted": undefined,
+    "providerMetadata": {
+      "testProvider": {
+        "signature": "sig",
+      },
+    },
+    "title": "Tool 1",
+    "toolCallId": "call-1",
+    "toolName": "tool1",
+    "type": "tool-call",
+  },
+  {
+    "finishReason": "stop",
+    "performance": {
+      "effectiveOutputTokensPerSecond": 0,
+      "effectiveTotalTokensPerSecond": 0,
+      "inputTokensPerSecond": 0,
+      "outputTokensPerSecond": 0,
+      "responseTimeMs": 0,
+      "stepTimeMs": 0,
+      "timeBetweenOutputChunksMs": undefined,
+      "timeToFirstOutputMs": 0,
+      "toolExecutionMs": {},
+    },
+    "providerMetadata": undefined,
+    "rawFinishReason": "stop",
+    "response": {
+      "headers": undefined,
+      "id": "id-0",
+      "modelId": "mock-model-id",
+      "timestamp": 1970-01-01T00:00:00.000Z,
+    },
+    "type": "finish-step",
+    "usage": {
+      "inputTokenDetails": {
+        "cacheReadTokens": undefined,
+        "cacheWriteTokens": undefined,
+        "noCacheTokens": 3,
+      },
+      "inputTokens": 3,
+      "outputTokenDetails": {
+        "reasoningTokens": undefined,
+        "textTokens": 10,
+      },
+      "outputTokens": 10,
+      "raw": undefined,
+      "totalTokens": 13,
+    },
+  },
+  {
+    "finishReason": "stop",
+    "rawFinishReason": "stop",
+    "totalUsage": {
+      "inputTokenDetails": {
+        "cacheReadTokens": undefined,
+        "cacheWriteTokens": undefined,
+        "noCacheTokens": 3,
+      },
+      "inputTokens": 3,
+      "outputTokenDetails": {
+        "reasoningTokens": undefined,
+        "textTokens": 10,
+      },
+      "outputTokens": 10,
+      "totalTokens": 13,
+    },
+    "type": "finish",
+  },
+]
+`;
+
+exports[`streamText > result.stream > should send tool results 1`] = `
+[
+  {
+    "type": "start",
+  },
+  {
+    "request": {
+      "body": undefined,
+      "messages": undefined,
+    },
+    "type": "start-step",
+    "warnings": [],
+  },
+  {
+    "input": {
+      "value": "value",
+    },
+    "providerExecuted": undefined,
+    "providerMetadata": undefined,
+    "title": "Tool 1",
+    "toolCallId": "call-1",
+    "toolName": "tool1",
+    "type": "tool-call",
+  },
+  {
+    "dynamic": false,
+    "input": {
+      "value": "value",
+    },
+    "output": "value-result",
+    "toolCallId": "call-1",
+    "toolName": "tool1",
+    "type": "tool-result",
+  },
+  {
+    "finishReason": "stop",
+    "performance": {
+      "effectiveOutputTokensPerSecond": 0,
+      "effectiveTotalTokensPerSecond": 0,
+      "inputTokensPerSecond": 0,
+      "outputTokensPerSecond": 0,
+      "responseTimeMs": 0,
+      "stepTimeMs": 0,
+      "timeBetweenOutputChunksMs": undefined,
+      "timeToFirstOutputMs": 0,
+      "toolExecutionMs": {
+        "call-1": 0,
+      },
+    },
+    "providerMetadata": undefined,
+    "rawFinishReason": "stop",
+    "response": {
+      "headers": undefined,
+      "id": "id-0",
+      "modelId": "mock-model-id",
+      "timestamp": 1970-01-01T00:00:00.000Z,
+    },
+    "type": "finish-step",
+    "usage": {
+      "inputTokenDetails": {
+        "cacheReadTokens": undefined,
+        "cacheWriteTokens": undefined,
+        "noCacheTokens": 3,
+      },
+      "inputTokens": 3,
+      "outputTokenDetails": {
+        "reasoningTokens": undefined,
+        "textTokens": 10,
+      },
+      "outputTokens": 10,
+      "raw": undefined,
+      "totalTokens": 13,
+    },
+  },
+  {
+    "finishReason": "stop",
+    "rawFinishReason": "stop",
+    "totalUsage": {
+      "inputTokenDetails": {
+        "cacheReadTokens": undefined,
+        "cacheWriteTokens": undefined,
+        "noCacheTokens": 3,
+      },
+      "inputTokens": 3,
+      "outputTokenDetails": {
+        "reasoningTokens": undefined,
+        "textTokens": 10,
+      },
+      "outputTokens": 10,
+      "totalTokens": 13,
+    },
+    "type": "finish",
+  },
+]
+`;
+
+exports[`streamText > result.text > should resolve with full text 1`] = `"Hello, world!"`;
+
+exports[`streamText > result.textStream > should filter out empty text deltas 1`] = `
+[
+  "Hello",
+  ", ",
+  "world!",
+]
+`;
+
+exports[`streamText > result.textStream > should not include reasoning content in textStream 1`] = `
+[
+  "Hi",
+  " there!",
+]
+`;
+
+exports[`streamText > result.toUIMessageStream > should mask error messages by default 1`] = `
+[
+  {
+    "type": "start",
+  },
+  {
+    "type": "start-step",
+  },
+  {
+    "errorText": "An error occurred.",
+    "type": "error",
+  },
+  {
+    "type": "finish-step",
+  },
+  {
+    "finishReason": "error",
+    "type": "finish",
+  },
+]
+`;
+
+exports[`streamText > result.toUIMessageStream > should send tool call, tool call stream start, tool call deltas, and tool result stream parts 1`] = `
+[
+  {
+    "type": "start",
+  },
+  {
+    "type": "start-step",
+  },
+  {
+    "toolCallId": "call-1",
+    "toolName": "tool1",
+    "type": "tool-input-start",
+  },
+  {
+    "inputTextDelta": "{ "value":",
+    "toolCallId": "call-1",
+    "type": "tool-input-delta",
+  },
+  {
+    "inputTextDelta": " "value" }",
+    "toolCallId": "call-1",
+    "type": "tool-input-delta",
+  },
+  {
+    "input": {
+      "value": "value",
+    },
+    "toolCallId": "call-1",
+    "toolName": "tool1",
+    "type": "tool-input-available",
+  },
+  {
+    "output": "value-result",
+    "toolCallId": "call-1",
+    "type": "tool-output-available",
+  },
+  {
+    "type": "finish-step",
+  },
+  {
+    "finishReason": "stop",
+    "type": "finish",
+  },
+]
+`;
+
+exports[`streamText > result.toUIMessageStream > should support custom error messages 1`] = `
+[
+  {
+    "type": "start",
+  },
+  {
+    "type": "start-step",
+  },
+  {
+    "errorText": "custom error message: error",
+    "type": "error",
+  },
+  {
+    "type": "finish-step",
+  },
+  {
+    "finishReason": "error",
+    "type": "finish",
+  },
+]
+`;
+
+exports[`streamText > result.toUIMessageStreamResponse > should mask error messages by default 1`] = `
+[
+  "data: {"type":"start"}
+
+",
+  "data: {"type":"start-step"}
+
+",
+  "data: {"type":"error","errorText":"An error occurred."}
+
+",
+  "data: {"type":"finish-step"}
+
+",
+  "data: {"type":"finish","finishReason":"error"}
+
+",
+  "data: [DONE]
+
+",
+]
+`;
+
+exports[`streamText > result.toUIMessageStreamResponse > should support custom error messages 1`] = `
+[
+  "data: {"type":"start"}
+
+",
+  "data: {"type":"start-step"}
+
+",
+  "data: {"type":"error","errorText":"custom error message: error"}
+
+",
+  "data: {"type":"finish-step"}
+
+",
+  "data: {"type":"finish","finishReason":"error"}
+
+",
+  "data: [DONE]
+
+",
+]
+`;
+
+exports[`streamText > tools with custom schema > should send tool calls 1`] = `
+[
+  {
+    "type": "start",
+  },
+  {
+    "request": {
+      "body": undefined,
+      "messages": undefined,
+    },
+    "type": "start-step",
+    "warnings": [],
+  },
+  {
+    "input": {
+      "value": "value",
+    },
+    "providerExecuted": undefined,
+    "providerMetadata": undefined,
+    "title": "Tool 1",
+    "toolCallId": "call-1",
+    "toolName": "tool1",
+    "type": "tool-call",
+  },
+  {
+    "finishReason": "stop",
+    "performance": {
+      "effectiveOutputTokensPerSecond": 25,
+      "effectiveTotalTokensPerSecond": 32.5,
+      "inputTokensPerSecond": 7.5,
+      "outputTokensPerSecond": 0,
+      "responseTimeMs": 400,
+      "stepTimeMs": 500,
+      "timeBetweenOutputChunksMs": undefined,
+      "timeToFirstOutputMs": 400,
+      "toolExecutionMs": {},
+    },
+    "providerMetadata": undefined,
+    "rawFinishReason": "stop",
+    "response": {
+      "headers": undefined,
+      "id": "id-0",
+      "modelId": "mock-model-id",
+      "timestamp": 1970-01-01T00:00:00.000Z,
+    },
+    "type": "finish-step",
+    "usage": {
+      "inputTokenDetails": {
+        "cacheReadTokens": undefined,
+        "cacheWriteTokens": undefined,
+        "noCacheTokens": 3,
+      },
+      "inputTokens": 3,
+      "outputTokenDetails": {
+        "reasoningTokens": undefined,
+        "textTokens": 10,
+      },
+      "outputTokens": 10,
+      "raw": undefined,
+      "totalTokens": 13,
+    },
+  },
+  {
+    "finishReason": "stop",
+    "rawFinishReason": "stop",
+    "totalUsage": {
+      "inputTokenDetails": {
+        "cacheReadTokens": undefined,
+        "cacheWriteTokens": undefined,
+        "noCacheTokens": 3,
+      },
+      "inputTokens": 3,
+      "outputTokenDetails": {
+        "reasoningTokens": undefined,
+        "textTokens": 10,
+      },
+      "outputTokens": 10,
+      "totalTokens": 13,
+    },
+    "type": "finish",
+  },
+]
+`;

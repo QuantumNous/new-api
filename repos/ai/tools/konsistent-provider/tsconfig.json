@@ -1,0 +1,9 @@
+{
+  "extends": "./node_modules/@vercel/ai-tsconfig/ts-library.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"]
+}

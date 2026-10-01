@@ -1,0 +1,63 @@
+---
+description: '该值会被 SWC 和 Lightning CSS 等工具读取，用来确定需要转换的 JavaScript 语法特性和需要添加的 CSS 浏览器前缀。'
+---
+
+# output.overrideBrowserslist
+
+- **类型：** `string[]`
+- **默认值：** `undefined`
+
+指定项目兼容的目标浏览器范围。
+
+该值会被 [SWC](https://github.com/swc-project/swc) 和 [Lightning CSS](https://github.com/parcel-bundler/lightningcss) 等工具读取，用来确定需要转换的 JavaScript 语法特性和需要添加的 CSS 浏览器前缀。
+
+## 优先级
+
+`overrideBrowserslist` 配置的优先级高于项目中的 `.browserslistrc` 配置文件和 package.json 中的 `browserslist` 字段。
+
+大多数场景下，推荐优先使用 `.browserslistrc` 文件，而不是使用 `overrideBrowserslist` 配置。因为 `.browserslistrc` 文件是官方定义的配置文件，通用性更强，可以被社区中的其他库识别。
+
+> 详见 [浏览器范围](/guide/advanced/browserslist)。
+
+## 默认值
+
+如果项目中没有定义任何 `browserslist` 相关的配置，也没有定义 `overrideBrowserslist`，那么 Rsbuild 会使用 [默认值](/guide/advanced/browserslist#default-values)。
+
+## 示例
+
+下面是移动端 Web 应用的示例：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    overrideBrowserslist: ['iOS >= 9', 'Android >= 4.4', 'last 2 versions', '> 0.2%', 'not dead'],
+  },
+};
+```
+
+查看 [browserslist 文档](https://github.com/browserslist/browserslist) 来了解如何自定义浏览器范围。
+
+## 基于 environment 设置
+
+当你面向多个 [environments](/config/environments) 构建时，可以为每个 environment 设置不同的 browserslist：
+
+比如为 `web` 和 `node` 环境设置不同的 browserslist：
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    web: {
+      output: {
+        target: 'web',
+        overrideBrowserslist: ['iOS >= 9', 'Android >= 4.4'],
+      },
+    },
+    node: {
+      output: {
+        target: 'node',
+        overrideBrowserslist: ['node >= 20'],
+      },
+    },
+  },
+};
+```

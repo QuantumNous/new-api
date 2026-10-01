@@ -1,0 +1,13 @@
+{
+  "name": "@e2e/svelte",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "svelte": "catalog:"
+  },
+  "devDependencies": {
+    "less": "catalog:",
+    "sass": "catalog:"
+  }
+}
