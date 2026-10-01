@@ -45,23 +45,28 @@ func checkSystemPerformance() *types.NewAPIError {
 	}
 
 	status := common.GetSystemStatus()
+	// 采样过期（监控未运行或被阻塞）时不熔断，避免状态陈旧误伤流量。
+	if !common.IsSystemStatusFresh(status) {
+		return nil
+	}
 
-	// 检查 CPU
-	if config.CPUThreshold > 0 && int(status.CPUUsage) > config.CPUThreshold {
+	// 过载标记在采样侧完成：CPU / 内存按容器 cgroup 配额计算，并要求连续多次
+	// 超阈值；这样同节点其它工作负载或瞬时尖峰不会把正常 relay 流量打成 503。
+	if status.CPUOverloaded {
 		return types.NewErrorWithStatusCode(
 			fmt.Errorf("system cpu overloaded (current: %.1f%%, threshold: %d%%)", status.CPUUsage, config.CPUThreshold),
 			"system_cpu_overloaded", http.StatusServiceUnavailable)
 	}
 
 	// 检查内存
-	if config.MemoryThreshold > 0 && int(status.MemoryUsage) > config.MemoryThreshold {
+	if status.MemoryOverloaded {
 		return types.NewErrorWithStatusCode(
 			fmt.Errorf("system memory overloaded (current: %.1f%%, threshold: %d%%)", status.MemoryUsage, config.MemoryThreshold),
 			"system_memory_overloaded", http.StatusServiceUnavailable)
 	}
 
 	// 检查磁盘
-	if config.DiskThreshold > 0 && int(status.DiskUsage) > config.DiskThreshold {
+	if status.DiskOverloaded {
 		return types.NewErrorWithStatusCode(
 			fmt.Errorf("system disk overloaded (current: %.1f%%, threshold: %d%%)", status.DiskUsage, config.DiskThreshold),
 			"system_disk_overloaded", http.StatusServiceUnavailable)
