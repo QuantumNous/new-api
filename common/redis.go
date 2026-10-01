@@ -7,13 +7,14 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 	"gorm.io/gorm"
 )
 
-var RDB *redis.Client
+var RDB redis.UniversalClient
 var RedisEnabled = true
 
 func RedisKeyCacheSeconds() int {
@@ -22,9 +23,9 @@ func RedisKeyCacheSeconds() int {
 
 // InitRedisClient This function is called after init()
 func InitRedisClient() (err error) {
-	if os.Getenv("REDIS_CONN_STRING") == "" {
+	if os.Getenv("REDIS_CONN_STRING") == "" && os.Getenv("REDIS_HA_CONN_STRING") == "" {
 		RedisEnabled = false
-		SysLog("REDIS_CONN_STRING not set, Redis is not enabled")
+		SysLog("REDIS_CONN_STRING AND REDIS_HA_CONN_STRING not set, Redis is not enabled")
 		return nil
 	}
 	if os.Getenv("SYNC_FREQUENCY") == "" {
@@ -32,12 +33,7 @@ func InitRedisClient() (err error) {
 		SyncFrequency = 60
 	}
 	SysLog("Redis is enabled")
-	opt, err := redis.ParseURL(os.Getenv("REDIS_CONN_STRING"))
-	if err != nil {
-		FatalLog("failed to parse Redis connection string: " + err.Error())
-	}
-	opt.PoolSize = GetEnvOrDefault("REDIS_POOL_SIZE", 10)
-	RDB = redis.NewClient(opt)
+	addr, db := newClient()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -47,10 +43,30 @@ func InitRedisClient() (err error) {
 		FatalLog("Redis ping test failed: " + err.Error())
 	}
 	if DebugEnabled {
-		SysLog(fmt.Sprintf("Redis connected to %s", opt.Addr))
-		SysLog(fmt.Sprintf("Redis database: %d", opt.DB))
+		SysLog(fmt.Sprintf("Redis connected to %s", addr))
+		SysLog(fmt.Sprintf("Redis database: %d", db))
 	}
 	return err
+}
+
+func newClient() (string, int) {
+	// create ha connect first
+	if os.Getenv("REDIS_HA_CONN_STRING") != "" {
+		opt := &redis.UniversalOptions{}
+		opt.Addrs = strings.Split(os.Getenv("REDIS_HA_CONN_STRING"), ",")
+		opt.MasterName = GetEnvOrDefaultString("REDIS_MASTER_NAME", "")
+		opt.PoolSize = GetEnvOrDefault("REDIS_POOL_SIZE", 10)
+		RDB = redis.NewUniversalClient(opt)
+		return os.Getenv("REDIS_HA_CONN_STRING"), opt.DB
+	}
+
+	opt, err := redis.ParseURL(os.Getenv("REDIS_CONN_STRING"))
+	if err != nil {
+		FatalLog("failed to parse Redis connection string: " + err.Error())
+	}
+	opt.PoolSize = GetEnvOrDefault("REDIS_POOL_SIZE", 10)
+	RDB = redis.NewClient(opt)
+	return opt.Addr, opt.DB
 }
 
 func ParseRedisOption() *redis.Options {
