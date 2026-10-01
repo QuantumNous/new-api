@@ -67,7 +67,9 @@ export function DataTableBulkActions<TData>({
     ADMIN_PERMISSION_ACTIONS.SENSITIVE_WRITE
   )
 
-  const selectedRows = table.getFilteredSelectedRowModel().rows
+  // flatRows, not rows: in tag mode channels are subRows of tag rows, and
+  // rows only lists selected top-level rows (issue #6885).
+  const selectedRows = table.getFilteredSelectedRowModel().flatRows
   const selectedIds = selectedRows.reduce<number[]>((ids, row) => {
     const id = (row.original as Channel).id
 
