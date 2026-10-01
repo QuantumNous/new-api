@@ -263,7 +263,7 @@ func SendPasswordResetEmail(c *gin.Context) {
 		if err != nil {
 			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to send password reset email to %s: %s", email, err.Error()))
 		}
-	} else if err != nil && !errors.Is(err, model.ErrEmailNotFound) {
+	} else if !errors.Is(err, model.ErrEmailNotFound) {
 		logger.LogWarn(c.Request.Context(), fmt.Sprintf("skip password reset email for %s: %s", email, err.Error()))
 	}
 	c.JSON(http.StatusOK, gin.H{
