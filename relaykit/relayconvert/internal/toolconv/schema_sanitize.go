@@ -1,5 +1,12 @@
 package toolconv
 
+import (
+	"encoding/json"
+
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+)
+
 // JSON Schema defines "required" as an array of property names. Some clients
 // emit a bare null instead, which strict upstreams reject outright:
 //
@@ -142,4 +149,83 @@ func sanitizeDefinitions(definitions []Definition) {
 			definitions[index].Function.Parameters = next
 		}
 	}
+}
+
+// SanitizeChatRequestTools repairs tool schemas on a Chat Completions request
+// in place. Same-protocol routes never pass through ExtractRequest, so the
+// relay layer calls this directly to cover them.
+func SanitizeChatRequestTools(request *dto.GeneralOpenAIRequest) {
+	if request == nil {
+		return
+	}
+	for index := range request.Tools {
+		if next, changed := sanitizeToolParameters(request.Tools[index].Function.Parameters); changed {
+			request.Tools[index].Function.Parameters = next
+		}
+	}
+	if next, changed := sanitizeRawToolList(request.Functions); changed {
+		request.Functions = next
+	}
+}
+
+// SanitizeResponsesRequestTools repairs tool schemas on a Responses request in
+// place, for the same reason as SanitizeChatRequestTools.
+func SanitizeResponsesRequestTools(request *dto.OpenAIResponsesRequest) {
+	if request == nil {
+		return
+	}
+	if next, changed := sanitizeRawToolList(request.Tools); changed {
+		request.Tools = next
+	}
+}
+
+// sanitizeRawToolList repairs a raw JSON array of tool or function
+// declarations. The input is only re-encoded when something was repaired, so
+// well-formed requests keep their original bytes.
+func sanitizeRawToolList(raw json.RawMessage) (json.RawMessage, bool) {
+	if len(raw) == 0 {
+		return raw, false
+	}
+	var tools []any
+	if err := kitutil.Unmarshal(raw, &tools); err != nil {
+		return raw, false
+	}
+	if !sanitizeRawTools(tools, 0) {
+		return raw, false
+	}
+	encoded, err := kitutil.Marshal(tools)
+	if err != nil {
+		return raw, false
+	}
+	return encoded, true
+}
+
+// sanitizeRawTools handles the declaration shapes the three request formats
+// use: a top-level "parameters" (Responses, legacy functions), a nested
+// "function.parameters" (Chat), and a "tools" list inside namespace tools.
+func sanitizeRawTools(tools []any, depth int) bool {
+	if depth > schemaSanitizeMaxDepth {
+		return false
+	}
+	changed := false
+	for _, item := range tools {
+		tool, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if next, c := sanitizeToolParameters(tool["parameters"]); c {
+			tool["parameters"] = next
+			changed = true
+		}
+		if function, ok := tool["function"].(map[string]any); ok {
+			if next, c := sanitizeToolParameters(function["parameters"]); c {
+				function["parameters"] = next
+				changed = true
+			}
+		}
+		if nested, ok := tool["tools"].([]any); ok && sanitizeRawTools(nested, depth+1) {
+			changed = true
+		}
+	}
+	return changed
 }

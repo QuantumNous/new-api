@@ -1,7 +1,11 @@
 package toolconv
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
+
+	"github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 func TestSanitizeToolParameters_DropsNullRequired(t *testing.T) {
@@ -197,4 +201,65 @@ func TestSanitizeToolParameters_PreservesArrayFormDependencies(t *testing.T) {
 	if len(names) != 2 {
 		t.Errorf("expected the property-name list to survive, got %v", names)
 	}
+}
+
+func TestSanitizeChatRequestToolsDropsNullRequired(t *testing.T) {
+	var request dto.GeneralOpenAIRequest
+	body := `{"model":"m","tools":[{"type":"function","function":{"name":"t","parameters":{"type":"object","properties":{"a":{"type":"object","required":null,"properties":{}}},"required":null,"default":{"required":null}}}}]}`
+	if err := json.Unmarshal([]byte(body), &request); err != nil {
+		t.Fatal(err)
+	}
+
+	SanitizeChatRequestTools(&request)
+
+	out, err := json.Marshal(request.Tools[0].Function.Parameters)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(out)
+	if strings.Contains(got, `"required":null`) && !strings.Contains(got, `"default":{"required":null}`) {
+		t.Fatalf("null required survived: %s", got)
+	}
+	if strings.Count(got, `"required":null`) != 1 {
+		t.Fatalf("want only the instance data inside default to keep required:null, got %s", got)
+	}
+}
+
+func TestSanitizeChatRequestToolsHandlesLegacyFunctionsAndNil(t *testing.T) {
+	SanitizeChatRequestTools(nil)
+
+	request := dto.GeneralOpenAIRequest{
+		Functions: json.RawMessage(`[{"name":"f","parameters":{"type":"object","required":null}}]`),
+	}
+	SanitizeChatRequestTools(&request)
+	if strings.Contains(string(request.Functions), `"required":null`) {
+		t.Fatalf("legacy functions not repaired: %s", request.Functions)
+	}
+}
+
+func TestSanitizeResponsesRequestToolsDropsNullRequired(t *testing.T) {
+	request := dto.OpenAIResponsesRequest{
+		Tools: json.RawMessage(`[{"type":"function","name":"t","parameters":{"type":"object","required":null,"properties":{"x":{"type":"array","items":{"type":"object","required":null}}}}},{"type":"namespace","name":"ns","tools":[{"type":"function","name":"n","parameters":{"type":"object","required":null}}]},{"type":"web_search"}]`),
+	}
+
+	SanitizeResponsesRequestTools(&request)
+
+	if strings.Contains(string(request.Tools), `"required":null`) {
+		t.Fatalf("null required survived: %s", request.Tools)
+	}
+	if !strings.Contains(string(request.Tools), `"web_search"`) {
+		t.Fatalf("non-function tool was dropped: %s", request.Tools)
+	}
+}
+
+func TestSanitizeResponsesRequestToolsKeepsCleanBytes(t *testing.T) {
+	raw := json.RawMessage(`[{"type":"function","name":"t","parameters":{"type":"object","required":["a"]}}]`)
+	request := dto.OpenAIResponsesRequest{Tools: append(json.RawMessage(nil), raw...)}
+
+	SanitizeResponsesRequestTools(&request)
+
+	if string(request.Tools) != string(raw) {
+		t.Fatalf("clean tools were rewritten: %s", request.Tools)
+	}
+	SanitizeResponsesRequestTools(nil)
 }
