@@ -222,6 +222,12 @@ var (
 	CriticalRateLimitNum            = 20
 	CriticalRateLimitDuration int64 = 20 * 60
 
+	// Registration has its own, stricter per-IP budget so automated sign-ups
+	// cannot rely only on the more permissive budget shared by auth routes.
+	RegistrationRateLimitEnable         = true
+	RegistrationRateLimitNum            = 3
+	RegistrationRateLimitDuration int64 = 20 * 60
+
 	UploadRateLimitNum            = 10
 	UploadRateLimitDuration int64 = 60
 

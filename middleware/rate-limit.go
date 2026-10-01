@@ -178,6 +178,20 @@ func CriticalRateLimit() func(c *gin.Context) {
 	return defNext
 }
 
+// RegistrationRateLimit applies a dedicated per-IP budget to password
+// registration. Keeping it separate from CriticalRateLimit prevents login and
+// other authentication traffic from consuming the registration allowance.
+func RegistrationRateLimit() func(c *gin.Context) {
+	if common.RegistrationRateLimitEnable {
+		return rateLimitFactory(
+			common.RegistrationRateLimitNum,
+			common.RegistrationRateLimitDuration,
+			"REG",
+		)
+	}
+	return defNext
+}
+
 func UserCriticalRateLimit(scope string) func(c *gin.Context) {
 	if !common.CriticalRateLimitEnable {
 		return defNext
