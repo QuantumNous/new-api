@@ -59,3 +59,32 @@ func TestVeoParseTaskResultTreatsMissingDoneAsInProgress(t *testing.T) {
 		}
 	}
 }
+
+// Veo predictLongRunning 只接受 image.bytesBase64Encoded,inlineData 会被 Google 400 拒绝
+func TestGoogleBuildSubmitRequestUsesBytesBase64Encoded(t *testing.T) {
+	source, err := builtinplugins.Source("google")
+	require.NoError(t, err)
+	plugin, err := jsplugin.NewRegistry().RegisterFactory(source, jsplugin.Options{Key: "google"})
+	require.NoError(t, err)
+
+	ctx := map[string]any{
+		"baseUrl":       "https://generativelanguage.googleapis.com",
+		"apiKey":        "key",
+		"upstreamModel": "veo-3.1-fast-generate-preview",
+		"requestBody": map[string]any{
+			"model":  "veo-3.1-fast-generate-preview",
+			"prompt": "animate",
+			"images": []any{"data:image/png;base64,iVBORw0KGgoTEST"},
+		},
+	}
+	value, err := plugin.Engine.Call(t.Context(), "buildSubmitRequest", ctx)
+	require.NoError(t, err)
+	result := decodePluginValue(t, value)
+	assert.Equal(t, "image_to_video", result["action"])
+	instances := result["body"].(map[string]any)["instances"].([]any)
+	require.Len(t, instances, 1)
+	image := instances[0].(map[string]any)["image"].(map[string]any)
+	assert.Equal(t, "iVBORw0KGgoTEST", image["bytesBase64Encoded"])
+	assert.Equal(t, "image/png", image["mimeType"])
+	assert.NotContains(t, image, "inlineData")
+}
