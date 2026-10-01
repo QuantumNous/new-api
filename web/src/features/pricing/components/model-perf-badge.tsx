@@ -96,10 +96,10 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
           <dd
             role='img'
             aria-label={t(
-              'Recent success-rate samples; gray bars indicate missing data.'
+              'Recent success-rate samples; hollow bars indicate no data.'
             )}
             title={t(
-              'Recent success-rate samples; gray bars indicate missing data.'
+              'Recent success-rate samples; hollow bars indicate no data.'
             )}
             className='mt-1 flex h-3 w-24 items-center gap-px'
           >
@@ -116,7 +116,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
                       rate >= 0 &&
                       rate <= 100
                       ? getSuccessRateDotClass(rate)
-                      : 'bg-muted-foreground/15'
+                      : 'border border-emerald-500/40'
                   )}
                 />
               )

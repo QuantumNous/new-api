@@ -4695,7 +4695,7 @@
     "Received": "受信済み",
     "Received amount": "受け取り額",
     "Recent maintenance tasks running across instances and their execution status.": "各インスタンスで実行された最近のメンテナンスタスクとその実行状態。",
-    "Recent success-rate samples; gray bars indicate missing data.": "直近の成功率のサンプルです。灰色のバーはデータがないことを示します。",
+    "Recent success-rate samples; hollow bars indicate no data.": "直近の成功率のサンプルです。中空のバーはデータがないことを示します。",
     "Recently completed or failed system task runs.": "最近完了または失敗したシステムタスク実行です。",
     "Recently launched models": "最近リリースされたモデル",
     "Recently launched models gaining traction": "最近リリースされ勢いのあるモデル",

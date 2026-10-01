@@ -4695,7 +4695,7 @@
     "Received": "获得",
     "Received amount": "已收额度",
     "Recent maintenance tasks running across instances and their execution status.": "跨实例运行的近期维护任务及其执行状态。",
-    "Recent success-rate samples; gray bars indicate missing data.": "近期成功率采样；灰色条表示暂无数据。",
+    "Recent success-rate samples; hollow bars indicate no data.": "近期成功率采样；空心条表示暂无数据。",
     "Recently completed or failed system task runs.": "最近已完成或失败的系统任务运行记录。",
     "Recently launched models": "近期发布的模型",
     "Recently launched models gaining traction": "近期发布并快速增长的模型",

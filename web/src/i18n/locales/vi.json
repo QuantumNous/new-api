@@ -4695,7 +4695,7 @@
     "Received": "Đã nhận",
     "Received amount": "Số tiền đã nhận",
     "Recent maintenance tasks running across instances and their execution status.": "Các tác vụ bảo trì gần đây chạy trên các phiên bản và trạng thái thực thi của chúng.",
-    "Recent success-rate samples; gray bars indicate missing data.": "Các mẫu tỷ lệ thành công gần đây; vạch xám biểu thị dữ liệu chưa có.",
+    "Recent success-rate samples; hollow bars indicate no data.": "Các mẫu tỷ lệ thành công gần đây; vạch rỗng biểu thị dữ liệu chưa có.",
     "Recently completed or failed system task runs.": "Các lần chạy tác vụ hệ thống gần đây đã hoàn tất hoặc thất bại.",
     "Recently launched models": "Các mô hình ra mắt gần đây",
     "Recently launched models gaining traction": "Mô hình mới phát hành đang được ưa chuộng",
