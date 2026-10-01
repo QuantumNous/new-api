@@ -1,15 +1,19 @@
 package claude
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -399,4 +403,171 @@ func TestOpenAIChatRequestToClaudeMessages_ClaudeOpus48ThinkingUsesAdaptiveHighE
 	require.Nil(t, claudeRequest.Temperature)
 	require.Nil(t, claudeRequest.TopP)
 	require.Nil(t, claudeRequest.TopK)
+}
+
+// Anthropic does not bill a refusal that fires before any output is generated
+// (content is empty, usage still reports input tokens). These tests pin the
+// exact condition under which new-api mirrors that and marks the request as
+// billing-exempt, and make sure every other refusal shape stays billable.
+// The behaviour is opt-in via the global setting RefusalNoOutputFree.
+func TestHandleClaudeResponseDataExemptsRefusalWithoutOutput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	settings := model_setting.GetGlobalSettings()
+	originEnabled := settings.RefusalNoOutputFree
+	t.Cleanup(func() { settings.RefusalNoOutputFree = originEnabled })
+
+	tests := []struct {
+		name          string
+		body          string
+		switchOff     bool
+		wantExempt    bool
+		wantRejectSet bool
+	}{
+		{
+			name:          "refusal before any output is not billed",
+			body:          `{"type":"message","role":"assistant","content":[],"stop_reason":"refusal","stop_details":{"type":"refusal","category":"cyber"},"usage":{"input_tokens":412,"output_tokens":0}}`,
+			wantExempt:    true,
+			wantRejectSet: true,
+		},
+		{
+			name:          "refusal before any output stays billable when the global switch is off",
+			body:          `{"type":"message","role":"assistant","content":[],"stop_reason":"refusal","usage":{"input_tokens":412,"output_tokens":0}}`,
+			switchOff:     true,
+			wantExempt:    false,
+			wantRejectSet: true,
+		},
+		{
+			name:          "refusal after partial output stays billable",
+			body:          `{"type":"message","role":"assistant","content":[{"type":"text","text":"Hello.."}],"stop_reason":"refusal","usage":{"input_tokens":412,"output_tokens":3}}`,
+			wantExempt:    false,
+			wantRejectSet: true,
+		},
+		{
+			name:          "refusal with empty content but reported output tokens stays billable",
+			body:          `{"type":"message","role":"assistant","content":[],"stop_reason":"refusal","usage":{"input_tokens":412,"output_tokens":3}}`,
+			wantExempt:    false,
+			wantRejectSet: true,
+		},
+		{
+			name:          "refusal without usage stays billable",
+			body:          `{"type":"message","role":"assistant","content":[],"stop_reason":"refusal"}`,
+			wantExempt:    false,
+			wantRejectSet: true,
+		},
+		{
+			name:          "end_turn with empty content is not a refusal",
+			body:          `{"type":"message","role":"assistant","content":[],"stop_reason":"end_turn","usage":{"input_tokens":412,"output_tokens":0}}`,
+			wantExempt:    false,
+			wantRejectSet: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			settings.RefusalNoOutputFree = !tt.switchOff
+			info := &relaycommon.RelayInfo{
+				ChannelMeta:     &relaycommon.ChannelMeta{},
+				OriginModelName: "claude-fable-5-1",
+				RelayFormat:     types.RelayFormatClaude,
+			}
+			claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+
+			err := HandleClaudeResponseData(c, info, claudeInfo, nil, []byte(tt.body))
+			require.Nil(t, err)
+
+			exemptReason := common.GetContextKeyString(c, constant.ContextKeyBillingExemptReason)
+			if tt.wantExempt {
+				assert.Equal(t, claudeRefusalNoOutputExemptReason, exemptReason)
+				// upstream usage still reaches the client response untouched;
+				// zeroing for billing and logs happens in service.PostTextConsumeQuota
+				assert.Equal(t, 412, claudeInfo.Usage.PromptTokens)
+				assert.Equal(t, 0, claudeInfo.Usage.CompletionTokens)
+			} else {
+				assert.Empty(t, exemptReason)
+			}
+
+			rejectReason := common.GetContextKeyString(c, constant.ContextKeyAdminRejectReason)
+			if tt.wantRejectSet {
+				assert.Equal(t, "claude_stop_reason=refusal", rejectReason)
+				assert.True(t, info.PerformanceBusinessRejection)
+			} else {
+				assert.Empty(t, rejectReason)
+				assert.False(t, info.PerformanceBusinessRejection)
+			}
+		})
+	}
+}
+
+func TestHandleStreamResponseDataExemptsRefusalWithoutOutput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	settings := model_setting.GetGlobalSettings()
+	originEnabled := settings.RefusalNoOutputFree
+	t.Cleanup(func() { settings.RefusalNoOutputFree = originEnabled })
+
+	const (
+		messageStart       = `{"type":"message_start","message":{"id":"msg_1","type":"message","role":"assistant","model":"claude-fable-5-1","content":[],"stop_reason":null,"usage":{"input_tokens":412,"output_tokens":1}}}`
+		textBlockStart     = `{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}`
+		textDelta          = `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello.."}}`
+		refusalNoOutput    = `{"type":"message_delta","delta":{"stop_reason":"refusal","stop_sequence":null},"usage":{"output_tokens":0}}`
+		refusalAfterOutput = `{"type":"message_delta","delta":{"stop_reason":"refusal","stop_sequence":null},"usage":{"output_tokens":5}}`
+	)
+
+	tests := []struct {
+		name       string
+		events     []string
+		switchOff  bool
+		wantExempt bool
+	}{
+		{
+			name:       "refusal before any content block is not billed",
+			events:     []string{messageStart, refusalNoOutput},
+			wantExempt: true,
+		},
+		{
+			name:       "refusal before any content block stays billable when the global switch is off",
+			events:     []string{messageStart, refusalNoOutput},
+			switchOff:  true,
+			wantExempt: false,
+		},
+		{
+			name:       "refusal after streamed content stays billable",
+			events:     []string{messageStart, textBlockStart, textDelta, refusalAfterOutput},
+			wantExempt: false,
+		},
+		{
+			name:       "refusal after a content block with zero reported output stays billable",
+			events:     []string{messageStart, textBlockStart, refusalNoOutput},
+			wantExempt: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+			settings.RefusalNoOutputFree = !tt.switchOff
+			info := &relaycommon.RelayInfo{
+				ChannelMeta:     &relaycommon.ChannelMeta{},
+				OriginModelName: "claude-fable-5-1",
+				RelayFormat:     types.RelayFormatClaude,
+			}
+			claudeInfo := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+
+			for _, event := range tt.events {
+				require.Nil(t, HandleStreamResponseData(c, info, claudeInfo, event))
+			}
+
+			exemptReason := common.GetContextKeyString(c, constant.ContextKeyBillingExemptReason)
+			if tt.wantExempt {
+				assert.Equal(t, claudeRefusalNoOutputExemptReason, exemptReason)
+			} else {
+				assert.Empty(t, exemptReason)
+			}
+			assert.Equal(t, "claude_stop_reason=refusal", common.GetContextKeyString(c, constant.ContextKeyAdminRejectReason))
+			assert.Equal(t, 412, claudeInfo.Usage.PromptTokens)
+		})
+	}
 }

@@ -24,14 +24,29 @@ func stopReasonClaude2OpenAI(reason string) string {
 	return relayconvert.StopReasonClaudeToOpenAI(reason)
 }
 
-func maybeMarkClaudeRefusal(c *gin.Context, info *relaycommon.RelayInfo, stopReason string) {
-	if c == nil {
+const (
+	// claudeRefusalNoOutputExemptReason is written to ContextKeyBillingExemptReason when a refusal
+	// fired before any output was generated. Anthropic does not bill such requests even though
+	// usage still reports input tokens, so new-api must not charge the user for them either.
+	claudeRefusalNoOutputExemptReason = "claude_refusal_no_output"
+	// claudeStreamContentBlockSeenKey records that at least one content block was streamed,
+	// i.e. the upstream produced output before the message ended.
+	claudeStreamContentBlockSeenKey = "claude_stream_content_block_seen"
+)
+
+func maybeMarkClaudeRefusal(c *gin.Context, info *relaycommon.RelayInfo, stopReason string, hasContent bool, usage *dto.ClaudeUsage) {
+	if c == nil || !strings.EqualFold(stopReason, "refusal") {
 		return
 	}
-	if strings.EqualFold(stopReason, "refusal") {
-		info.PerformanceBusinessRejection = true
-		common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
+	info.PerformanceBusinessRejection = true
+	common.SetContextKey(c, constant.ContextKeyAdminRejectReason, "claude_stop_reason=refusal")
+	if !model_setting.GetGlobalSettings().RefusalNoOutputFree {
+		return
 	}
+	if hasContent || usage == nil || usage.OutputTokens != 0 {
+		return
+	}
+	common.SetContextKey(c, constant.ContextKeyBillingExemptReason, claudeRefusalNoOutputExemptReason)
 }
 
 func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCompletionsStreamResponse {
@@ -98,11 +113,15 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 	if claudeResponse.Type == "message_start" && claudeResponse.Message != nil {
 		info.ObserveResponseModel(claudeResponse.Message.Model)
 	}
+	if claudeResponse.Type == "content_block_start" {
+		c.Set(claudeStreamContentBlockSeenKey, true)
+	}
+	streamHasContent := c.GetBool(claudeStreamContentBlockSeenKey)
 	if claudeResponse.StopReason != "" {
-		maybeMarkClaudeRefusal(c, info, claudeResponse.StopReason)
+		maybeMarkClaudeRefusal(c, info, claudeResponse.StopReason, streamHasContent, claudeResponse.Usage)
 	}
 	if claudeResponse.Delta != nil && claudeResponse.Delta.StopReason != nil {
-		maybeMarkClaudeRefusal(c, info, *claudeResponse.Delta.StopReason)
+		maybeMarkClaudeRefusal(c, info, *claudeResponse.Delta.StopReason, streamHasContent, claudeResponse.Usage)
 	}
 	if claudeResponse.Type == "message_stop" {
 		info.StreamStatus.MarkCompleted()
@@ -325,7 +344,7 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		return types.WithClaudeError(*claudeError, http.StatusInternalServerError)
 	}
 	info.ObserveResponseModel(claudeResponse.Model)
-	maybeMarkClaudeRefusal(c, info, claudeResponse.StopReason)
+	maybeMarkClaudeRefusal(c, info, claudeResponse.StopReason, len(claudeResponse.Content) > 0, claudeResponse.Usage)
 	if claudeInfo.Usage == nil {
 		claudeInfo.Usage = &dto.Usage{}
 	}

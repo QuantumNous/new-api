@@ -65,6 +65,11 @@ const (
 	// It is not returned to end users, but can be persisted into consume/error logs for debugging.
 	ContextKeyAdminRejectReason ContextKey = "admin_reject_reason"
 
+	// ContextKeyBillingExemptReason marks a successful upstream response that must not be charged,
+	// e.g. a Messages API refusal that produced no output (Anthropic does not bill it and its usage
+	// numbers are informational only). Neither quota nor token usage is recorded for such a request.
+	ContextKeyBillingExemptReason ContextKey = "billing_exempt_reason"
+
 	// ContextKeyLanguage stores the user's language preference for i18n
 	ContextKeyLanguage             ContextKey = "language"
 	ContextKeyIsStream             ContextKey = "is_stream"
