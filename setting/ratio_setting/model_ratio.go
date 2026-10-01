@@ -245,8 +245,8 @@ var defaultModelRatio = map[string]float64{
 	// Perplexity online 模型对搜索额外收费，有需要应自行调整，此处不计入搜索费用
 	"llama-3-sonar-small-32k-chat":   0.2 / 1000 * USD,
 	"llama-3-sonar-small-32k-online": 0.2 / 1000 * USD,
-	"llama-3-sonar-large-32k-chat":   1 / 1000 * USD,
-	"llama-3-sonar-large-32k-online": 1 / 1000 * USD,
+	"llama-3-sonar-large-32k-chat":   1.0 / 1000 * USD,
+	"llama-3-sonar-large-32k-online": 1.0 / 1000 * USD,
 	// grok
 	"grok-3-beta":           1.5,
 	"grok-3-mini-beta":      0.15,

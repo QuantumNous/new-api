@@ -36,3 +36,15 @@ func TestRoutingMatchModelNamePreservesExemptAtName(t *testing.T) {
 	assert.Equal(t, "opaque@sha256:deadbeef", RoutingMatchModelName("opaque@sha256:deadbeef"))
 	assert.Equal(t, "kimi-k2-thinking", RoutingMatchModelName("kimi-k2-thinking"))
 }
+
+func TestSonarLargeModelRatio(t *testing.T) {
+	InitRatioSettings()
+	ratio, ok, _ := GetModelRatio("llama-3-sonar-large-32k-chat")
+	assert.True(t, ok)
+	assert.InDelta(t, 0.5, ratio, 0.0001)
+
+	ratioOnline, okOnline, _ := GetModelRatio("llama-3-sonar-large-32k-online")
+	assert.True(t, okOnline)
+	assert.InDelta(t, 0.5, ratioOnline, 0.0001)
+}
+
