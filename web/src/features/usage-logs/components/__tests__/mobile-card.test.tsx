@@ -224,6 +224,41 @@ it('keeps input, output and cache quantities readable without empty metric cells
   expect(screen.getByText('Output')).toBeVisible()
   expect(screen.getByText(/300/)).toBeVisible()
   expect(screen.getByText('Cache ↑ 200')).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: /^Reasoning Effort:/ })
+  ).not.toBeInTheDocument()
+})
+
+it('shows reasoning effort below the token summary and opens its full value', async () => {
+  const user = userEvent.setup()
+  renderLogs({
+    logs: [{ ...log, other: JSON.stringify({ reasoning_effort: 'high' }) }],
+  })
+
+  const effortButton = screen.getByRole('button', {
+    name: 'Reasoning Effort: high',
+  })
+  const tokensRow = screen.getByText('Input').parentElement as HTMLElement
+  expect(
+    tokensRow.compareDocumentPosition(effortButton) &
+      Node.DOCUMENT_POSITION_FOLLOWING
+  ).toBeTruthy()
+
+  await user.click(effortButton)
+  const dialog = await screen.findByRole('dialog', {
+    name: 'Reasoning Effort',
+  })
+  expect(within(dialog).getByText('high')).toBeVisible()
+})
+
+it('hides reasoning effort when its column is hidden', () => {
+  renderLogs({
+    logs: [{ ...log, other: JSON.stringify({ reasoning_effort: 'high' }) }],
+    visibility: { reasoning_effort: false },
+  })
+  expect(
+    screen.queryByRole('button', { name: /^Reasoning Effort:/ })
+  ).not.toBeInTheDocument()
 })
 
 it('shows the established empty state when no logs exist', () => {
