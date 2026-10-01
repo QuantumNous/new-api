@@ -1638,6 +1638,12 @@
                     "default": "json",
                     "example": "json"
                   },
+                  "stream": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "是否以 Server-Sent Events 流式返回转写结果",
+                    "example": false
+                  },
                   "temperature": {
                     "type": "number",
                     "example": 0
