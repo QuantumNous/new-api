@@ -361,9 +361,23 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 			content.Role = "model"
 		}
 		if len(content.Parts) > 0 {
-			geminiRequest.Contents = append(geminiRequest.Contents, content)
+			lastIdx := len(geminiRequest.Contents) - 1
+			if content.Role == "model" && lastIdx >= 0 && geminiRequest.Contents[lastIdx].Role == "model" {
+				last := &geminiRequest.Contents[lastIdx]
+				last.Parts = append(last.Parts, content.Parts...)
+			} else {
+				geminiRequest.Contents = append(geminiRequest.Contents, content)
+			}
 		}
 	}
+
+	for i := range geminiRequest.Contents {
+		if geminiRequest.Contents[i].Role != "model" {
+			continue
+		}
+		geminiRequest.Contents[i].Parts = compactGeminiFunctionCallsToFront(geminiRequest.Contents[i].Parts)
+	}
+	alignGeminiFunctionResponses(&geminiRequest)
 
 	if len(systemContent) > 0 {
 		geminiRequest.SystemInstructions = &dto.GeminiChatContent{
@@ -376,4 +390,122 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 	}
 
 	return &geminiRequest, nil
+}
+
+// compactGeminiFunctionCallsToFront keeps functionCall parts as a prefix so
+// cliproxy can pair functionResponse.parts[i] with functionCall.parts[i].
+// Consecutive assistant messages can otherwise merge to [FC, text, FC].
+func compactGeminiFunctionCallsToFront(parts []dto.GeminiPart) []dto.GeminiPart {
+	if len(parts) < 2 {
+		return parts
+	}
+	functionCalls := make([]dto.GeminiPart, 0, len(parts))
+	rest := make([]dto.GeminiPart, 0, len(parts))
+	for _, part := range parts {
+		if part.FunctionCall != nil {
+			functionCalls = append(functionCalls, part)
+		} else {
+			rest = append(rest, part)
+		}
+	}
+	if len(functionCalls) == 0 || len(rest) == 0 {
+		return parts
+	}
+	return append(functionCalls, rest...)
+}
+
+// alignGeminiFunctionResponses reorders functionResponse parts to match the
+// immediately preceding model functionCall ids. Cliproxy (and Gemini) pair
+// them by adjacent content and part index, not by searching ids.
+// Missing responses in a tool-result turn become conversion placeholders so
+// later results are not silently bound to the wrong call. User text with no
+// functionResponse is left unchanged.
+func alignGeminiFunctionResponses(req *dto.GeminiChatRequest) {
+	if req == nil {
+		return
+	}
+	for i := 1; i < len(req.Contents); i++ {
+		prev := &req.Contents[i-1]
+		cur := &req.Contents[i]
+		if prev.Role != "model" || cur.Role != "user" {
+			continue
+		}
+		hasFunctionResponse := false
+		for _, part := range cur.Parts {
+			if part.FunctionResponse != nil {
+				hasFunctionResponse = true
+				break
+			}
+		}
+		if !hasFunctionResponse {
+			continue
+		}
+		used := make([]bool, len(cur.Parts))
+		aligned := make([]dto.GeminiPart, 0, len(cur.Parts)+len(prev.Parts))
+		hasFunctionCall := false
+		for _, part := range prev.Parts {
+			if part.FunctionCall == nil {
+				continue
+			}
+			hasFunctionCall = true
+			id := part.FunctionCall.ID
+			matchedIdx := -1
+			if id != "" {
+				for j, respPart := range cur.Parts {
+					if used[j] || respPart.FunctionResponse == nil {
+						continue
+					}
+					if kitutil.JsonRawMessageToString(respPart.FunctionResponse.ID) != id {
+						continue
+					}
+					matchedIdx = j
+					break
+				}
+			}
+			if matchedIdx < 0 && part.FunctionCall.FunctionName != "" {
+				nameHits := 0
+				nameIdx := -1
+				for j, respPart := range cur.Parts {
+					if used[j] || respPart.FunctionResponse == nil {
+						continue
+					}
+					if kitutil.JsonRawMessageToString(respPart.FunctionResponse.ID) != "" {
+						continue
+					}
+					if respPart.FunctionResponse.Name != part.FunctionCall.FunctionName {
+						continue
+					}
+					nameHits++
+					nameIdx = j
+				}
+				if nameHits == 1 {
+					matchedIdx = nameIdx
+				}
+			}
+			if matchedIdx >= 0 {
+				aligned = append(aligned, cur.Parts[matchedIdx])
+				used[matchedIdx] = true
+				continue
+			}
+			placeholder := &dto.GeminiFunctionResponse{
+				Name:     part.FunctionCall.FunctionName,
+				Response: map[string]any{"conversion_error": "missing function response"},
+			}
+			if id != "" {
+				if idBytes, err := kitutil.Marshal(id); err == nil {
+					placeholder.ID = idBytes
+				}
+			}
+			aligned = append(aligned, dto.GeminiPart{FunctionResponse: placeholder})
+		}
+		if !hasFunctionCall {
+			continue
+		}
+		for j, part := range cur.Parts {
+			if !used[j] {
+				aligned = append(aligned, part)
+			}
+		}
+		cur.Parts = aligned
+	}
 }
