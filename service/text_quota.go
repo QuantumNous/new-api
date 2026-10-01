@@ -428,6 +428,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 			if summary.FixedPriceBilling {
 				summary.AudioInputPrice = 0
 			}
+			summary.Quota = applyTieredMinimumCharge(summary.Quota, summary.hasBillableUsage(), summary.GroupRatio, tieredRes)
 		}
 	}
 
