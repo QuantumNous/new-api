@@ -148,7 +148,7 @@ function converted(ctx) {
   if (!params.resolution && req.size) params.resolution = resolutionForSize(req.size);
   if (!params.aspectRatio && req.size) params.aspectRatio = aspectForSize(req.size);
   if (params.resolution) params.resolution = String(params.resolution).toLowerCase();
-  params.numberOfVideos = 1;
+  params.sampleCount = 1;
   const instance = { prompt: req.prompt };
   const image = imageInput((req.images || [])[0], ctx.files);
   if (image) instance.image = image;
