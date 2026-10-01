@@ -76,6 +76,7 @@ func SearchUserLogs(c *gin.Context) {
 	})
 }
 
+// GetLogByKey 根据 c 中已鉴权的 token_id 查询日志，通过 HTTP 响应返回旧版数组或分页结果，无返回值
 func GetLogByKey(c *gin.Context) {
 	tokenId := c.GetInt("token_id")
 	if tokenId == 0 {
@@ -85,12 +86,38 @@ func GetLogByKey(c *gin.Context) {
 		})
 		return
 	}
-	logs, err := model.GetLogByTokenId(tokenId)
+	// 1. 仅显式提供分页参数时启用分页，保留旧调用方的响应格式
+	query := c.Request.URL.Query()
+	paginated := query.Has("p") || query.Has("page_size") || query.Has("ps") || query.Has("size")
+	startIdx, limit := 0, common.MaxRecentItems
+	var pageInfo *common.PageInfo
+	if paginated {
+		pageInfo = common.GetPageQuery(c, 1000)
+		pageInfo.Page = max(1, pageInfo.Page)
+		if pageInfo.PageSize < 1 {
+			pageInfo.PageSize = common.ItemsPerPage
+		}
+		pageInfo.PageSize = max(1, min(1000, pageInfo.PageSize))
+		if pageInfo.Page > int(^uint(0)>>1)/pageInfo.PageSize {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "分页参数超出范围"})
+			return
+		}
+		startIdx, limit = pageInfo.GetStartIdx(), pageInfo.GetPageSize()
+	}
+
+	// 2. 查询始终限定当前令牌，分页模式同时返回总条数
+	logs, total, err := model.GetLogByTokenId(tokenId, startIdx, limit, paginated)
 	if err != nil {
 		c.JSON(200, gin.H{
 			"success": false,
 			"message": err.Error(),
 		})
+		return
+	}
+	if paginated {
+		pageInfo.SetTotal(int(total))
+		pageInfo.SetItems(logs)
+		common.ApiSuccess(c, pageInfo)
 		return
 	}
 	c.JSON(200, gin.H{

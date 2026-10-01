@@ -38,7 +38,8 @@ func (p *PageInfo) SetItems(items any) {
 	p.Items = items
 }
 
-func GetPageQuery(c *gin.Context) *PageInfo {
+// GetPageQuery 从 c 解析分页参数，maxPageSize 可选指定每页上限（默认 100），返回分页信息
+func GetPageQuery(c *gin.Context, maxPageSize ...int) *PageInfo {
 	pageInfo := &PageInfo{}
 	// 手动获取并处理每个参数
 	if page, err := strconv.Atoi(c.Query("p")); err == nil {
@@ -74,8 +75,12 @@ func GetPageQuery(c *gin.Context) *PageInfo {
 		}
 	}
 
-	if pageInfo.PageSize > 100 {
-		pageInfo.PageSize = 100
+	limit := 100
+	if len(maxPageSize) > 0 {
+		limit = max(1, maxPageSize[0])
+	}
+	if pageInfo.PageSize > limit {
+		pageInfo.PageSize = limit
 	}
 
 	return pageInfo
