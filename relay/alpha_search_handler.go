@@ -95,8 +95,20 @@ func AlphaSearchHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError
 	if contentType := httpResp.Header.Get("Content-Type"); contentType != "" {
 		c.Writer.Header().Set("Content-Type", contentType)
 	}
+	// F-65: read + mask the upstream body before relaying. /v1/alpha/search
+	// used to io.Copy the raw body to the client, bypassing the F-13/F-20
+	// masking system; an upstream that echoes the channel Authorization value
+	// in a 200 body would leak the key. (F-36 already caps body size here via
+	// DoApiRequest's LimitReader.)
+	responseBody, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
+	}
+	// F-65/F-6826: credential-only masking for successful bodies so resource
+	// URLs in search results are preserved while channel keys are masked.
+	responseBody = []byte(common.MaskSensitiveKeys(string(responseBody)))
 	c.Writer.WriteHeader(httpResp.StatusCode)
-	if _, err := io.Copy(c.Writer, httpResp.Body); err != nil {
+	if _, err := c.Writer.Write(responseBody); err != nil {
 		return types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithSkipRetry())
 	}
 
