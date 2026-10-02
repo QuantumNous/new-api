@@ -19,9 +19,11 @@ For commercial licensing, please contact support@quantumnous.com
 import type { TFunction } from 'i18next'
 
 import { loginMethodLabel } from '@/features/security/components/login-session-utils'
+import { userActionName } from '@/features/users/lib/user-actions'
+import { isPersianIntlLocale } from '@/i18n/languages'
 import type { PermissionResourceDef } from '@/lib/admin-permissions'
 import dayjs from '@/lib/dayjs'
-import { ROLE } from '@/lib/roles'
+import { ROLE, getRoleLabelKey } from '@/lib/roles'
 
 import { renderAuditContent } from '../../lib/format'
 import { buildQuotaAuditOperation } from '../../lib/quota-audit-operation'
@@ -33,6 +35,33 @@ const AUDIT_ROLE_NAMES: Record<number, string> = {
   [ROLE.USER]: 'user',
   [ROLE.ADMIN]: 'admin',
   [ROLE.SUPER_ADMIN]: 'root',
+}
+
+/**
+ * How the audit viewer shows a role: the translated role label in Persian,
+ * the raw role name (root, admin, user, guest) in every other language.
+ */
+function auditRoleName(role: number, t: TFunction, locale?: string): string {
+  if (isPersianIntlLocale(locale)) return t(getRoleLabelKey(role))
+  return AUDIT_ROLE_NAMES[role]
+}
+
+/**
+ * How the audit viewer shows a user or record with its ID: `name (ID: 1)`,
+ * as upstream shows it, in every language but Persian, where the ID label is
+ * translated and the name is isolated so a Latin name keeps its place.
+ */
+export function auditIdentity(
+  name: string,
+  id: string | number,
+  t: TFunction,
+  locale?: string
+): string {
+  if (!isPersianIntlLocale(locale)) {
+    return name ? `${name} (ID: ${id})` : `ID: ${id}`
+  }
+  if (!name) return `${t('ID')}: ${id}`
+  return `\u2068${name}\u2069 ${t('(ID: {{id}})', { id })}`
 }
 
 const TOKEN_AUDIT_OPERATIONS: Record<
@@ -72,6 +101,8 @@ export type AuditDetailField = {
 export type AuditDetailOptions = {
   // Labels for stored access token scopes; omitted until they have loaded.
   scopeResources?: PermissionResourceDef[]
+  // Interface locale (see `toIntlLocale`) for numbers, dates and labels.
+  locale?: string
 }
 
 export function isAuditDetailObject(
@@ -389,6 +420,7 @@ export function buildAuditDetails(
   t: TFunction,
   options: AuditDetailOptions = {}
 ) {
+  const locale = options.locale
   const metadata = isAuditDetailObject(entry.other) ? entry.other : {}
   const metadataUnavailable =
     entry.other != null && !isAuditDetailObject(entry.other)
@@ -405,7 +437,8 @@ export function buildAuditDetails(
     action,
     params,
     entry.success,
-    t
+    t,
+    locale
   )
   const operation = tokenOperation ?? quotaOperation
   const summaryParams: NonNullable<NonNullable<LogOtherData['op']>['params']> =
@@ -431,7 +464,7 @@ export function buildAuditDetails(
     typeof summaryParams.role === 'number' &&
     [0, 1, 10, 100].includes(summaryParams.role)
   ) {
-    summaryParams.role = AUDIT_ROLE_NAMES[summaryParams.role]
+    summaryParams.role = auditRoleName(summaryParams.role, t, locale)
   }
 
   let fallback = t('Operation audit')
@@ -450,7 +483,8 @@ export function buildAuditDetails(
           success: entry.success,
         },
       },
-      t
+      t,
+      locale
     ) || (entry.content && entry.content !== action ? entry.content : fallback)
   const admin = isAuditDetailObject(metadata.admin_info)
     ? metadata.admin_info
@@ -465,11 +499,11 @@ export function buildAuditDetails(
       : entry.user_id
   let actor = actorName
   if (actorId) {
-    actor = actorName ? `${actorName} (ID: ${actorId})` : `ID: ${actorId}`
+    actor = auditIdentity(actorName, actorId, t, locale)
   }
   let actorRole = ''
   if ([1, 10, 100].includes(entry.actor_role)) {
-    actorRole = AUDIT_ROLE_NAMES[entry.actor_role]
+    actorRole = auditRoleName(entry.actor_role, t, locale)
   }
   const authMethod =
     entry.auth_method ||
@@ -488,7 +522,7 @@ export function buildAuditDetails(
       : undefined
   let target = targetName
   if (targetId !== undefined) {
-    target = targetName ? `${targetName} (ID: ${targetId})` : `ID: ${targetId}`
+    target = auditIdentity(targetName, targetId, t, locale)
   }
   if (target) {
     delete params.id
@@ -522,7 +556,10 @@ export function buildAuditDetails(
     typeof params.role === 'number' &&
     [0, 1, 10, 100].includes(params.role)
   ) {
-    params.role = AUDIT_ROLE_NAMES[params.role]
+    params.role = auditRoleName(params.role, t, locale)
+  }
+  if (action === 'user.manage' && typeof params.action === 'string') {
+    params.action = userActionName(params.action, t, locale)
   }
   if (typeof params.method === 'string') {
     params.method = loginMethodLabel(params.method, t)

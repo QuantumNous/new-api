@@ -16,7 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type ManageUserAction } from '../types'
+import { isPersianIntlLocale } from '@/i18n/languages'
+
+import type { ManageUserAction } from '../types'
 
 // ============================================================================
 // User Action Messages
@@ -36,4 +38,28 @@ const ACTION_MESSAGES: Record<ManageUserAction, string> = {
  */
 export function getUserActionMessage(action: ManageUserAction): string {
   return ACTION_MESSAGES[action]
+}
+
+const ACTION_LABEL_KEYS: Record<string, string> = {
+  enable: 'Enable',
+  disable: 'Disable',
+  promote: 'Promote',
+  demote: 'Demote',
+  delete: 'Delete',
+}
+
+/**
+ * How a user management action is named inside a message ("Failed to
+ * {{action}} user", the audit summary): its translated button label in
+ * Persian, the recorded action (enable, promote …) in every other language,
+ * as upstream shows it. Unknown actions stay as recorded.
+ */
+export function userActionName(
+  action: string,
+  t: (key: string) => string,
+  locale?: string
+): string {
+  const labelKey = ACTION_LABEL_KEYS[action]
+  if (!labelKey || !isPersianIntlLocale(locale)) return action
+  return t(labelKey)
 }
