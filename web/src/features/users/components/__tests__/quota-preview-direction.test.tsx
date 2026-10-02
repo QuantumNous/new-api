@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { UserQuotaDialog } from '../user-quota-dialog'
 
@@ -48,6 +48,15 @@ afterEach(async () => {
 
 describe('user quota override preview', () => {
   it('in English, joins the current and new quota with a right arrow', async () => {
+    // Outside Persian the quotas use the runtime default locale (as
+    // upstream); pin it so the amounts do not depend on the machine.
+    const NumberFormat = Intl.NumberFormat
+    vi.spyOn(Intl, 'NumberFormat').mockImplementation(function (
+      locales?: Intl.LocalesArgument,
+      options?: Intl.NumberFormatOptions
+    ) {
+      return new NumberFormat(locales ?? 'en-US', options)
+    } as typeof Intl.NumberFormat)
     await i18next.changeLanguage('en')
     const preview = await renderOverridePreview()
 

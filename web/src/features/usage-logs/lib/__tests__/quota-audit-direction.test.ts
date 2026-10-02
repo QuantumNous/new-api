@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { toIntlLocale } from '@/i18n/languages'
 
@@ -32,6 +32,18 @@ const t = (key: string, options?: Record<string, unknown>): string =>
 const params = { requested_quota: 1_000_000, from: 500_000, to: 1_000_000 }
 
 describe('quota audit summary arrow', () => {
+  // Outside Persian the amounts use the runtime default locale (as upstream);
+  // pin it so the expected amounts do not depend on the machine.
+  beforeEach(() => {
+    const NumberFormat = Intl.NumberFormat
+    vi.spyOn(Intl, 'NumberFormat').mockImplementation(function (
+      locales?: Intl.LocalesArgument,
+      options?: Intl.NumberFormatOptions
+    ) {
+      return new NumberFormat(locales ?? 'en-US', options)
+    } as typeof Intl.NumberFormat)
+  })
+
   it('in English, joins the quota before and after with a right arrow', () => {
     const result = buildQuotaAuditOperation(
       'user.quota_override',
