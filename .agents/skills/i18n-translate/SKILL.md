@@ -153,7 +153,22 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 const LOCALES_DIR = path.resolve('src/i18n/locales')
-const en = JSON.parse(await fs.readFile(path.join(LOCALES_DIR, 'en.json'), 'utf8'))
+// Partial locales may start without a file and only carry translated keys.
+const PARTIAL_LOCALES = new Set(['fa'])
+
+async function readLocale(locale) {
+  const filePath = path.join(LOCALES_DIR, `${locale}.json`)
+  try {
+    return JSON.parse(await fs.readFile(filePath, 'utf8'))
+  } catch (err) {
+    if (err.code === 'ENOENT' && PARTIAL_LOCALES.has(locale)) {
+      return { translation: {} }
+    }
+    throw err
+  }
+}
+
+const en = await readLocale('en')
 const enTrans = en.translation
 
 // Brand names, URLs, technical terms — skip these
@@ -180,7 +195,7 @@ const brandNames = new Set([
 const locales = ['fr', 'ja', 'ru', 'zh', 'zh-TW', 'vi', 'fa']
 
 for (const locale of locales) {
-  const locFile = JSON.parse(await fs.readFile(path.join(LOCALES_DIR, `${locale}.json`), 'utf8'))
+  const locFile = await readLocale(locale)
   const locTrans = locFile.translation
   const untranslated = {}
 
