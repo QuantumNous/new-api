@@ -166,7 +166,7 @@ function PerformanceOverviewFallback() {
             <Skeleton className='h-4 w-16' />
           </div>
         ))}
-        <div className='ml-auto flex items-center gap-2'>
+        <div className='ms-auto flex items-center gap-2'>
           {PERFORMANCE_MODEL_FALLBACK_KEYS.map((key) => (
             <Skeleton key={key} className='h-5 w-28 rounded-full' />
           ))}

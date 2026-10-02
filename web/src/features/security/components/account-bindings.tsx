@@ -412,7 +412,7 @@ export function AccountBindings({ profile, onUpdate }: AccountBindingsProps) {
                   onClick={() => setUnbindTarget(binding)}
                   disabled={bindingsLocked}
                 >
-                  <Unlink className='mr-1 h-3 w-3' />
+                  <Unlink className='me-1 h-3 w-3' />
                   {t('Unbind')}
                 </Button>
               ) : (

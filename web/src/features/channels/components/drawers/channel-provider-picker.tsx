@@ -381,12 +381,12 @@ export function ChannelProviderPicker(props: ChannelProviderPickerProps) {
                       </span>
                     )}
                     {option.target.kind === 'builtin' && (
-                      <span className='text-muted-foreground ml-auto shrink-0 text-[11px] tabular-nums'>
+                      <span className='text-muted-foreground ms-auto shrink-0 text-[11px] tabular-nums'>
                         #{option.target.type}
                       </span>
                     )}
                     {option.plugin && (
-                      <span className='text-muted-foreground ml-auto shrink-0 text-[11px]'>
+                      <span className='text-muted-foreground ms-auto shrink-0 text-[11px]'>
                         {t('{{count}} models', {
                           count: option.plugin.models.length,
                         })}

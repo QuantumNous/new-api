@@ -125,7 +125,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
     >
       {advancedOpen ? t('Collapse') : t('Expand')}
       {activeAdvancedCount > 0 && (
-        <Badge className='ml-0.5 size-5 justify-center p-0 text-[10px]'>
+        <Badge className='ms-0.5 size-5 justify-center p-0 text-[10px]'>
           {activeAdvancedCount}
         </Badge>
       )}
@@ -164,7 +164,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
                     <Badge
                       className={cn(
                         !props.compactMobile &&
-                          'ml-0.5 size-5 justify-center p-0 text-[10px]'
+                          'ms-0.5 size-5 justify-center p-0 text-[10px]'
                       )}
                     >
                       {activeMobileFilterCount}
@@ -202,7 +202,7 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
 
         <DrawerContent className='max-h-[85dvh] p-0'>
           <div className='mx-auto flex w-full max-w-md flex-1 flex-col overflow-hidden'>
-            <DrawerHeader className='border-border/70 border-b px-4 py-3 text-left'>
+            <DrawerHeader className='border-border/70 border-b px-4 py-3 text-start'>
               <DrawerTitle>{t('Filter')}</DrawerTitle>
               <DrawerDescription>
                 {t('Adjust filters, then search to refresh the logs.')}

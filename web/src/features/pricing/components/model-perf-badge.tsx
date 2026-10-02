@@ -128,7 +128,7 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
             {t('Latency short')}
           </dt>
           <dd className='mt-1 font-mono whitespace-nowrap'>
-            {latencyText === '—' ? '—s' : latencyText}
+            <bdi dir='ltr'>{latencyText === '—' ? '—s' : latencyText}</bdi>
           </dd>
         </div>
         <div title={t('Throughput')} className='shrink-0'>
@@ -136,7 +136,9 @@ export const ModelPerfBadge = memo(function ModelPerfBadge(
             {t('Throughput short')}
           </dt>
           <dd className='mt-1 font-mono whitespace-nowrap'>
-            {throughputText === '—' ? '—t/s' : throughputText}
+            <bdi dir='ltr'>
+              {throughputText === '—' ? '—t/s' : throughputText}
+            </bdi>
           </dd>
         </div>
       </dl>

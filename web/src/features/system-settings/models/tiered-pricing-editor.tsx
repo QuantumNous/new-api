@@ -334,6 +334,7 @@ function RawExprEditor({ exprString, onChange }: RawExprEditorProps) {
         </AlertDescription>
       </Alert>
       <Textarea
+        dir='ltr'
         aria-label={t('Billing expression')}
         value={exprString}
         onChange={(event) => onChange(event.target.value)}
@@ -530,7 +531,7 @@ function RuleConditionRow({
         size='icon'
         onClick={onRemove}
         aria-label={t('Remove condition')}
-        className='ml-auto'
+        className='ms-auto'
       >
         <Trash2 className='text-destructive h-4 w-4' />
       </Button>
@@ -620,7 +621,7 @@ function RuleGroupCard({
             size='sm'
             onClick={() => handleAddCondition(false)}
           >
-            <Plus className='mr-1 h-3 w-3' />
+            <Plus className='me-1 h-3 w-3' />
             {t('Add param/header')}
           </Button>
           <Button
@@ -628,7 +629,7 @@ function RuleGroupCard({
             size='sm'
             onClick={() => handleAddCondition(true)}
           >
-            <Plus className='mr-1 h-3 w-3' />
+            <Plus className='me-1 h-3 w-3' />
             {t('Add time condition')}
           </Button>
         </div>
@@ -1001,7 +1002,7 @@ function LlmPromptHelper({ modelName }: LlmPromptHelperProps) {
           <Button variant='ghost' size='sm' className='h-7 px-2 text-xs' />
         }
       >
-        <Copy className='mr-1.5 h-3 w-3' />
+        <Copy className='me-1.5 h-3 w-3' />
         {t('LLM prompt helper')}
       </CollapsibleTrigger>
       <CollapsibleContent className='mt-2'>
@@ -1015,14 +1016,15 @@ function LlmPromptHelper({ modelName }: LlmPromptHelperProps) {
             <Button
               variant='outline'
               size='sm'
-              className='ml-3 shrink-0'
+              className='ms-3 shrink-0'
               onClick={handleCopy}
             >
-              <Copy className='mr-1.5 h-3 w-3' />
+              <Copy className='me-1.5 h-3 w-3' />
               {t('Copy prompt')}
             </Button>
           </div>
           <Textarea
+            dir='ltr'
             value={prompt}
             readOnly
             rows={8}
@@ -1294,7 +1296,7 @@ export const TieredPricingEditor = memo(function TieredPricingEditor({
                     ])
                   }
                 >
-                  <Plus className='mr-2 h-4 w-4' />
+                  <Plus className='me-2 h-4 w-4' />
                   {t('Add rule group')}
                 </Button>
               </>

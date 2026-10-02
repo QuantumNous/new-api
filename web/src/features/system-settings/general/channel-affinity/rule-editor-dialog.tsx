@@ -261,7 +261,7 @@ export function RuleEditorDialog(props: Props) {
       title={isEdit ? t('Edit Rule') : t('Add Rule')}
       contentClassName='sm:max-w-5xl'
       contentHeight='auto'
-      bodyClassName='pr-2'
+      bodyClassName='pe-2'
       footer={
         <>
           <Button
@@ -287,6 +287,7 @@ export function RuleEditorDialog(props: Props) {
             {t('Name')}
           </Label>
           <Input
+            dir='ltr'
             id='affinity-rule-name'
             placeholder='prefer-by-conversation-id'
             {...form.register('name', { required: true })}
@@ -297,6 +298,7 @@ export function RuleEditorDialog(props: Props) {
           <div className='grid gap-1.5'>
             <Label required>{t('Model Regex (one per line)')}</Label>
             <Textarea
+              dir='ltr'
               rows={4}
               placeholder={'^gpt-4o.*$\n^claude-3.*$'}
               {...form.register('model_regex_text', { required: true })}
@@ -305,6 +307,7 @@ export function RuleEditorDialog(props: Props) {
           <div className='grid gap-1.5'>
             <Label>{t('Path Regex (one per line)')}</Label>
             <Textarea
+              dir='ltr'
               rows={4}
               placeholder='/v1/chat/completions'
               {...form.register('path_regex_text')}
@@ -357,7 +360,7 @@ export function RuleEditorDialog(props: Props) {
                 setKeySources((prev) => [...prev, createKeySourceRow()])
               }
             >
-              <Plus className='mr-1 h-3 w-3' />
+              <Plus className='me-1 h-3 w-3' />
               {t('Add')}
             </Button>
           </div>
@@ -400,6 +403,7 @@ export function RuleEditorDialog(props: Props) {
                   </SelectContent>
                 </Select>
                 <Input
+                  dir='ltr'
                   className='min-w-0 flex-1'
                   placeholder={
                     src.type === 'gjson'
@@ -445,12 +449,16 @@ export function RuleEditorDialog(props: Props) {
               />
             }
           >
-            {advancedOpen ? '▼' : '▶'} {t('Advanced Settings')}
+            <span aria-hidden='true' className='inline-block rtl:-scale-x-100'>
+              {advancedOpen ? '▼' : '▶'}
+            </span>{' '}
+            {t('Advanced Settings')}
           </CollapsibleTrigger>
           <CollapsibleContent className='space-y-3 pt-2'>
             <div className='grid gap-1.5'>
               <Label>{t('User-Agent include (one per line)')}</Label>
               <Textarea
+                dir='ltr'
                 rows={3}
                 placeholder='curl&#10;PostmanRuntime'
                 {...form.register('user_agent_include_text')}
@@ -461,6 +469,7 @@ export function RuleEditorDialog(props: Props) {
               <div className='grid gap-1.5'>
                 <Label>{t('Value Regex')}</Label>
                 <Input
+                  dir='ltr'
                   placeholder='^[-0-9A-Za-z._:]{1,128}$'
                   {...form.register('value_regex')}
                 />
@@ -468,6 +477,7 @@ export function RuleEditorDialog(props: Props) {
               <div className='grid gap-1.5'>
                 <Label>{t('TTL (seconds, 0 = default)')}</Label>
                 <Input
+                  dir='ltr'
                   type='number'
                   min={0}
                   {...form.register('ttl_seconds')}

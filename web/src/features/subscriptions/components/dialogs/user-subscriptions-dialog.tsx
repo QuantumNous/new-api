@@ -270,7 +270,7 @@ export function UserSubscriptionsDialog(props: Props) {
                 onClick={handleCreate}
                 disabled={creating || !selectedPlanId}
               >
-                <Plus className='mr-1 h-4 w-4' />
+                <Plus className='me-1 h-4 w-4' />
                 {t('Add subscription')}
               </Button>
             </div>
@@ -346,8 +346,8 @@ export function UserSubscriptionsDialog(props: Props) {
                 {
                   id: 'actions',
                   header: t('Actions'),
-                  className: 'text-right',
-                  cellClassName: 'text-right',
+                  className: 'text-end',
+                  cellClassName: 'text-end',
                   cell: (record) => {
                     const sub = record.subscription
                     const now = Date.now() / 1000

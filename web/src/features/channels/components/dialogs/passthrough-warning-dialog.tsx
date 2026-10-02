@@ -88,7 +88,7 @@ export function PassthroughWarningDialog(props: PassthroughWarningDialogProps) {
         <div className='space-y-3 text-sm'>
           <p>{useCase}</p>
           <p>{intro}</p>
-          <ul className='list-disc space-y-1 pl-5'>
+          <ul className='list-disc space-y-1 ps-5'>
             {effects.map((item) => (
               <li key={item}>{item}</li>
             ))}

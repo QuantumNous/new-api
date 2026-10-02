@@ -69,6 +69,7 @@ export function RetrySection() {
               <FormLabel>{t('Auto-retry status codes')}</FormLabel>
               <FormControl>
                 <Input
+                  dir='ltr'
                   {...field}
                   placeholder={t('e.g. 401, 403, 429, 500-599')}
                 />

@@ -402,7 +402,7 @@ export function UserBindingDialog(props: Props) {
                     : t('No providers available')}
                 </p>
               ) : (
-                <div className='grid grid-cols-1 gap-2 pr-3 lg:grid-cols-2'>
+                <div className='grid grid-cols-1 gap-2 pe-3 lg:grid-cols-2'>
                   {displayedBindings.map((binding) => (
                     <div
                       key={binding.key}

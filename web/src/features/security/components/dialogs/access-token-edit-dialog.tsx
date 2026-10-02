@@ -113,7 +113,7 @@ export function AccessTokenEditDialog(props: AccessTokenEditDialogProps) {
       contentHeight='auto'
       footer={
         <>
-          <p className='text-muted-foreground text-xs sm:mr-auto sm:self-center'>
+          <p className='text-muted-foreground text-xs sm:me-auto sm:self-center'>
             {t('Saving permission changes requires security verification')}
           </p>
           <Button

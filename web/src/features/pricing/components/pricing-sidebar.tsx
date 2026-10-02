@@ -126,7 +126,7 @@ function FilterSection(props: FilterSectionProps) {
       defaultOpen
       className='border-border/70 border-b pb-3 last:border-b-0'
     >
-      <CollapsibleTrigger className='group flex w-full items-center justify-between py-2.5 text-left'>
+      <CollapsibleTrigger className='group flex w-full items-center justify-between py-2.5 text-start'>
         <span className='text-foreground text-sm font-semibold'>
           {props.title}
         </span>

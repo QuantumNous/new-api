@@ -452,6 +452,7 @@ export function OAuthSection(props: OAuthSectionProps) {
                       <FormLabel>{t('Client ID')}</FormLabel>
                       <FormControl>
                         <Input
+                          dir='ltr'
                           placeholder={t('Your GitHub OAuth Client ID')}
                           autoComplete='off'
                           value={field.value ?? ''}
@@ -543,6 +544,7 @@ export function OAuthSection(props: OAuthSectionProps) {
                       <FormLabel>{t('Client ID')}</FormLabel>
                       <FormControl>
                         <Input
+                          dir='ltr'
                           placeholder={t('Your Discord OAuth Client ID')}
                           autoComplete='off'
                           value={field.value ?? ''}
@@ -672,6 +674,7 @@ export function OAuthSection(props: OAuthSectionProps) {
                       <FormLabel>{t('Client ID')}</FormLabel>
                       <FormControl>
                         <Input
+                          dir='ltr'
                           placeholder={t('OIDC Client ID')}
                           autoComplete='off'
                           value={field.value ?? ''}
@@ -721,6 +724,7 @@ export function OAuthSection(props: OAuthSectionProps) {
                       <FormLabel>{t('Well-Known URL')}</FormLabel>
                       <FormControl>
                         <Input
+                          dir='ltr'
                           placeholder={t(
                             'https://provider.com/.well-known/openid-configuration'
                           )}
@@ -752,6 +756,7 @@ export function OAuthSection(props: OAuthSectionProps) {
                       </FormLabel>
                       <FormControl>
                         <Input
+                          dir='ltr'
                           placeholder={t('Override auto-discovered endpoint')}
                           autoComplete='off'
                           value={field.value ?? ''}
@@ -776,6 +781,7 @@ export function OAuthSection(props: OAuthSectionProps) {
                       <FormLabel>{t('Token Endpoint (Optional)')}</FormLabel>
                       <FormControl>
                         <Input
+                          dir='ltr'
                           placeholder={t('Override auto-discovered endpoint')}
                           autoComplete='off'
                           value={field.value ?? ''}
@@ -802,6 +808,7 @@ export function OAuthSection(props: OAuthSectionProps) {
                       </FormLabel>
                       <FormControl>
                         <Input
+                          dir='ltr'
                           placeholder={t('Override auto-discovered endpoint')}
                           autoComplete='off'
                           value={field.value ?? ''}
@@ -892,6 +899,7 @@ export function OAuthSection(props: OAuthSectionProps) {
                       <FormLabel>{t('Client ID')}</FormLabel>
                       <FormControl>
                         <Input
+                          dir='ltr'
                           placeholder={t(
                             'Telegram OAuth Client ID from BotFather'
                           )}
@@ -965,6 +973,7 @@ export function OAuthSection(props: OAuthSectionProps) {
                       <FormLabel>{t('Client ID')}</FormLabel>
                       <FormControl>
                         <Input
+                          dir='ltr'
                           placeholder={t('LinuxDO Client ID')}
                           autoComplete='off'
                           value={field.value ?? ''}
@@ -1064,6 +1073,7 @@ export function OAuthSection(props: OAuthSectionProps) {
                       <FormLabel>{t('Server Address')}</FormLabel>
                       <FormControl>
                         <Input
+                          dir='ltr'
                           placeholder={t('https://wechat-server.example.com')}
                           autoComplete='off'
                           value={field.value ?? ''}
@@ -1113,6 +1123,7 @@ export function OAuthSection(props: OAuthSectionProps) {
                       <FormLabel>{t('QR Code Image URL')}</FormLabel>
                       <FormControl>
                         <Input
+                          dir='ltr'
                           placeholder={t('https://example.com/qr-code.png')}
                           autoComplete='off'
                           value={field.value ?? ''}

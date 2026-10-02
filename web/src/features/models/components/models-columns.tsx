@@ -179,7 +179,7 @@ export function useModelsColumns(
           return (
             <Button
               variant='ghost'
-              className='h-auto w-full max-w-full min-w-0 justify-start px-0 py-1 text-left font-normal hover:bg-transparent'
+              className='h-auto w-full max-w-full min-w-0 justify-start px-0 py-1 text-start font-normal hover:bg-transparent'
               aria-label={t('View pricing for {{model}}', {
                 model: row.original.model_name,
               })}

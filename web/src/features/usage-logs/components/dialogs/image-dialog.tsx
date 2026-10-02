@@ -103,7 +103,10 @@ export function ImageDialog({
 
           {/* Image URL */}
           <div className='bg-muted mt-4 rounded-md p-3'>
-            <p className='text-muted-foreground font-mono text-xs break-all'>
+            <p
+              dir='ltr'
+              className='text-muted-foreground font-mono text-xs break-all'
+            >
               {imageUrl}
             </p>
           </div>

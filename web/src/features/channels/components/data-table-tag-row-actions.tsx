@@ -69,7 +69,7 @@ export function DataTableTagRowActions({ row }: DataTableTagRowActionsProps) {
   }
 
   return (
-    <div className='-ml-1.5 flex items-center gap-1'>
+    <div className='-ms-1.5 flex items-center gap-1'>
       <Tooltip>
         <TooltipTrigger
           render={
