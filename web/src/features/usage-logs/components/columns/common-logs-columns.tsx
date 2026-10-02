@@ -842,7 +842,7 @@ export function useCommonLogsColumns(
             other,
             t,
             isAdmin,
-            i18n.language,
+            i18n.resolvedLanguage || i18n.language,
             usageSchema
           )
           const primary = segments[0]
