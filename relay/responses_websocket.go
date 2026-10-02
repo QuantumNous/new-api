@@ -718,6 +718,22 @@ func (s *responsesWSSession) sendError(eventID, streamID string, apiErr *types.N
 	}
 }
 
+// closeConnWS sends a best-effort WebSocket close frame before the raw TCP
+// close. gorilla's Close() terminates the socket without a closing handshake,
+// which strict clients (RFC 6455) surface as "Connection reset without
+// closing handshake" on every normally finished session. WriteControl is safe
+// alongside a blocked data writer; a failure here is ignored so shutdown
+// always completes.
+func closeConnWS(conn *websocket.Conn) {
+	if conn == nil {
+		return
+	}
+	_ = conn.WriteControl(websocket.CloseMessage,
+		websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
+		time.Now().Add(time.Second))
+	_ = conn.Close()
+}
+
 func (s *responsesWSSession) closeTarget() {
 	s.connectionMu.Lock()
 	target, unregister := s.target, s.unregister
@@ -727,13 +743,20 @@ func (s *responsesWSSession) closeTarget() {
 		unregister()
 	}
 	if target != nil {
+		closeConnWS(target)
 		_ = target.Close()
 	}
 }
 
 func (s *responsesWSSession) shutdown() {
-	s.cancel()
+	if s.cancel != nil {
+		s.cancel()
+	}
 	s.closeTarget()
+	s.clientWriteMu.Lock()
+	client := s.client
+	s.clientWriteMu.Unlock()
+	closeConnWS(client)
 	_ = s.client.Close()
 }
 
