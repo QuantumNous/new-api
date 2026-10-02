@@ -16,10 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ChevronDown, Info } from 'lucide-react'
+import { ArrowRightLeft, ChevronDown, Info } from 'lucide-react'
 import { useId, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -58,6 +59,8 @@ type ModelCategoryProps = {
   selected: string[]
   redirectOnly: Set<string>
   onChange: (models: string[]) => void
+  onRedirectModel?: (model: string) => void
+  aliases?: Record<string, string>
 }
 
 function ModelCategory(props: ModelCategoryProps) {
@@ -71,7 +74,7 @@ function ModelCategory(props: ModelCategoryProps) {
   const allSelected = selectedCount === props.models.length
 
   return (
-    <Collapsible defaultOpen className='rounded-lg border'>
+    <Collapsible defaultOpen className='@container rounded-lg border'>
       <div className='flex items-center gap-3 px-3'>
         {props.selectionMode !== 'single' && (
           <Checkbox
@@ -114,7 +117,7 @@ function ModelCategory(props: ModelCategoryProps) {
         </CollapsibleTrigger>
       </div>
       <CollapsibleContent className='border-t px-3 py-2'>
-        <div className='grid gap-2 sm:grid-cols-2'>
+        <div className='grid gap-2 @lg:grid-cols-2'>
           {props.models.map((model) => (
             <div key={model} className='flex min-w-0 items-start gap-2'>
               {props.selectionMode === 'single' ? (
@@ -143,6 +146,20 @@ function ModelCategory(props: ModelCategoryProps) {
               >
                 {model}
               </Label>
+              {props.aliases?.[model] && (
+                <Badge
+                  variant='outline'
+                  aria-label={t('Published as {{model}}', {
+                    model: props.aliases[model],
+                  })}
+                  title={t('Published as {{model}}', {
+                    model: props.aliases[model],
+                  })}
+                  className='max-w-40 shrink-0 truncate font-normal'
+                >
+                  {props.aliases[model]}
+                </Badge>
+              )}
               {props.redirectOnly.has(normalizeModelName(model)) && (
                 <Tooltip>
                   <TooltipTrigger
@@ -155,6 +172,19 @@ function ModelCategory(props: ModelCategoryProps) {
                   </TooltipContent>
                 </Tooltip>
               )}
+              {props.onRedirectModel && (
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='icon-xs'
+                  className='text-muted-foreground hover:text-foreground -my-1 ml-auto shrink-0'
+                  aria-label={t('Redirect {{model}}', { model })}
+                  title={t('Set up redirect')}
+                  onClick={() => props.onRedirectModel?.(model)}
+                >
+                  <ArrowRightLeft aria-hidden='true' />
+                </Button>
+              )}
             </div>
           ))}
         </div>
@@ -162,6 +192,8 @@ function ModelCategory(props: ModelCategoryProps) {
     </Collapsible>
   )
 }
+
+type ChangeTab = 'new' | 'existing' | 'removed'
 
 type UpstreamModelSelectionProps = {
   models: string[]
@@ -173,6 +205,10 @@ type UpstreamModelSelectionProps = {
   showChanges?: boolean
   summaryText?: string
   selectionMode?: 'single' | 'multiple'
+  /** Renders a per-model action that starts a redirect for that model. */
+  onRedirectModel?: (model: string) => void
+  /** Upstream model name to the request name it is published under. */
+  aliases?: Record<string, string>
 }
 
 export function UpstreamModelSelection(props: UpstreamModelSelectionProps) {
@@ -232,9 +268,28 @@ export function UpstreamModelSelection(props: UpstreamModelSelectionProps) {
 
   const showChanges =
     props.selectionMode !== 'single' && (props.showChanges ?? true)
-  let defaultTab = 'existing'
-  if (categorized.added.length) defaultTab = 'new'
-  else if (categorized.removed.length) defaultTab = 'removed'
+  const counts = {
+    new: categorized.added.length,
+    existing: categorized.existing.length,
+    removed: categorized.removed.length,
+  }
+  let defaultTab: ChangeTab = 'existing'
+  if (counts.new) defaultTab = 'new'
+  else if (counts.removed) defaultTab = 'removed'
+  // A fresh upstream list resets the tab to the default; selection and alias
+  // edits keep the current tab so the user is not yanked elsewhere. Only an
+  // emptied tab falls through, preferring the rows the user was working on.
+  const [tabState, setTabState] = useState({
+    models: props.models,
+    tab: defaultTab,
+  })
+  if (tabState.models !== props.models) {
+    setTabState({ models: props.models, tab: defaultTab })
+  }
+  let fallbackTab: ChangeTab = 'new'
+  if (counts.existing) fallbackTab = 'existing'
+  else if (counts.removed) fallbackTab = 'removed'
+  const activeTab = counts[tabState.tab] > 0 ? tabState.tab : fallbackTab
 
   const modelCategories = !showChanges && (
     <div className='max-h-96 space-y-2 overflow-y-auto'>
@@ -247,6 +302,8 @@ export function UpstreamModelSelection(props: UpstreamModelSelectionProps) {
           selected={props.selected}
           redirectOnly={categorized.redirectOnly}
           onChange={props.onChange}
+          onRedirectModel={props.onRedirectModel}
+          aliases={props.aliases}
         />
       ))}
       {!categorized.filtered.length && (
@@ -302,8 +359,16 @@ export function UpstreamModelSelection(props: UpstreamModelSelectionProps) {
       )}
       {showChanges ? (
         <Tabs
-          key={`${props.models.length}-${categorized.removed.length}-${defaultTab}`}
-          defaultValue={defaultTab}
+          value={activeTab}
+          onValueChange={(value) => {
+            if (
+              value === 'new' ||
+              value === 'existing' ||
+              value === 'removed'
+            ) {
+              setTabState({ models: props.models, tab: value })
+            }
+          }}
         >
           <TabsList className='flex h-auto w-full flex-wrap'>
             <TabsTrigger value='new' disabled={!categorized.added.length}>
@@ -337,6 +402,8 @@ export function UpstreamModelSelection(props: UpstreamModelSelectionProps) {
                 selected={props.selected}
                 redirectOnly={categorized.redirectOnly}
                 onChange={props.onChange}
+                onRedirectModel={props.onRedirectModel}
+                aliases={props.aliases}
               />
             ))}
           </TabsContent>
@@ -353,6 +420,8 @@ export function UpstreamModelSelection(props: UpstreamModelSelectionProps) {
                   selected={props.selected}
                   redirectOnly={categorized.redirectOnly}
                   onChange={props.onChange}
+                  onRedirectModel={props.onRedirectModel}
+                  aliases={props.aliases}
                 />
               )
             )}
@@ -373,6 +442,8 @@ export function UpstreamModelSelection(props: UpstreamModelSelectionProps) {
                 selected={props.selected}
                 redirectOnly={categorized.redirectOnly}
                 onChange={props.onChange}
+                onRedirectModel={props.onRedirectModel}
+                aliases={props.aliases}
               />
             </TabsContent>
           )}

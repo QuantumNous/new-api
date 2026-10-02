@@ -30,12 +30,12 @@ func VerifyLogin(c *gin.Context) {
 		writeSecurityOperationError(c, service.ErrProofMethod)
 		return
 	}
-	bundle, err := service.VerifyLoginCode(request.FlowToken, request.Code, c.ClientIP(), c.Request.UserAgent())
+	bundle, migration, err := service.VerifyLoginCode(request.FlowToken, request.Code, c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
 		writeSecurityOperationError(c, err)
 		return
 	}
-	completeVerifiedLoginResponse(c, bundle, service.VerificationMethodTwoFA)
+	completeVerifiedLoginResponse(c, bundle, service.VerificationMethodTwoFA, migration)
 }
 
 func LoginPasskeyBegin(c *gin.Context) {
@@ -137,15 +137,15 @@ func LoginPasskeyFinish(c *gin.Context) {
 		writeSecurityOperationError(c, err)
 		return
 	}
-	bundle, err := service.CompleteLoginVerification(request.FlowToken, verification, service.VerificationMethodPasskey, c.ClientIP(), c.Request.UserAgent())
+	bundle, migration, err := service.CompleteLoginVerification(request.FlowToken, verification, service.VerificationMethodPasskey, c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
 		writeSecurityOperationError(c, err)
 		return
 	}
-	completeVerifiedLoginResponse(c, bundle, service.VerificationMethodPasskey)
+	completeVerifiedLoginResponse(c, bundle, service.VerificationMethodPasskey, migration)
 }
 
-func completeVerifiedLoginResponse(c *gin.Context, bundle *service.AuthBundle, method string) {
+func completeVerifiedLoginResponse(c *gin.Context, bundle *service.AuthBundle, method string, migration *service.LegacyGitHubMigration) {
 	identity, err := service.ParseAccessToken(bundle.AccessToken)
 	if err != nil {
 		writeAuthSessionError(c, err)
@@ -157,5 +157,13 @@ func completeVerifiedLoginResponse(c *gin.Context, bundle *service.AuthBundle, m
 		return
 	}
 	c.Set("login_verification_method", method)
+	if migration != nil {
+		// The legacy GitHub binding was rewritten together with this session.
+		notificationFailed := service.NotifyAccountSecurityChange(user.Email, "Login account linked: GitHub") != nil
+		recordLegacyGitHubBindingAudit(c, user, true, map[string]any{
+			"legacy_id": migration.LegacyID, "provider_user_id": migration.GitHubID,
+			"verification_method": method, "notification_failed": notificationFailed,
+		})
+	}
 	writeLoginResponse(c, user, bundle)
 }

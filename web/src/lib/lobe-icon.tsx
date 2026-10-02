@@ -25,14 +25,20 @@ For commercial licensing, please contact support@quantumnous.com
  * - Chained properties: "OpenAI.Avatar.type={'platform'}"
  * - Size parameter: getLobeIcon("OpenAI", 20)
  */
-import * as LobeIcons from '@lobehub/icons'
-import type React from 'react'
+import { toc } from '@lobehub/icons/es/toc'
+import {
+  lazy,
+  Suspense,
+  type ComponentType,
+  type LazyExoticComponent,
+  type ReactNode,
+} from 'react'
 
 import sglangLogo from '@/assets/brand-icons/sglang.svg'
 import { IconSub2api } from '@/assets/custom/icon-sub2api'
 import { IconWan } from '@/assets/custom/icon-wan'
 
-const CUSTOM_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
+const CUSTOM_ICONS: Record<string, ComponentType<{ size?: number }>> = {
   SGLang: (props) => (
     <img
       src={sglangLogo}
@@ -45,6 +51,36 @@ const CUSTOM_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
   ),
   Sub2API: IconSub2api,
   Wan: IconWan,
+}
+
+const ICON_METADATA = new Map(toc.map((icon) => [icon.id, icon]))
+const ICON_VARIANTS = {
+  Avatar: 'hasAvatar',
+  Brand: 'hasBrand',
+  BrandColor: 'hasBrandColor',
+  Color: 'hasColor',
+  Combine: 'hasCombine',
+  Text: 'hasText',
+  TextCn: 'hasTextCn',
+  TextColor: 'hasTextColor',
+} as const
+const LAZY_ICONS = new Map<
+  string,
+  LazyExoticComponent<ComponentType<Record<string, unknown>>>
+>()
+
+function renderLobeIconFallback(
+  name: string,
+  size: number | string
+): ReactNode {
+  return (
+    <div
+      className='bg-muted text-muted-foreground flex items-center justify-center rounded-full text-xs font-medium'
+      style={{ width: size, height: size }}
+    >
+      {name.charAt(0).toUpperCase() || '?'}
+    </div>
+  )
 }
 
 /**
@@ -95,70 +131,52 @@ function parseValue(raw: string | undefined | null): string | number | boolean {
 export function getLobeIcon(
   iconName: string | undefined | null,
   size: number = 20
-): React.ReactNode {
-  if (!iconName || typeof iconName !== 'string') {
-    return (
-      <div
-        className='bg-muted text-muted-foreground flex items-center justify-center rounded-full text-xs font-medium'
-        style={{ width: size, height: size }}
-      >
-        ?
-      </div>
-    )
-  }
+): ReactNode {
+  const trimmedName = typeof iconName === 'string' ? iconName.trim() : ''
+  const fallback = renderLobeIconFallback(trimmedName, size)
+  if (!trimmedName) return fallback
 
-  const trimmedName = iconName.trim()
-  if (!trimmedName) {
-    return (
-      <div
-        className='bg-muted text-muted-foreground flex items-center justify-center rounded-full text-xs font-medium'
-        style={{ width: size, height: size }}
-      >
-        ?
-      </div>
-    )
-  }
-
-  // Parse component path and chained properties
   const segments = trimmedName.split('.')
   const baseKey = segments[0]
   const CustomIcon = CUSTOM_ICONS[baseKey]
-  if (CustomIcon) {
-    return <CustomIcon size={size} />
-  }
-  const BaseIcon = (LobeIcons as Record<string, unknown>)[baseKey] as
-    | Record<string, unknown>
-    | undefined
+  if (CustomIcon) return <CustomIcon size={size} />
 
-  let IconComponent: React.ComponentType<Record<string, unknown>> | undefined
-  let propStartIndex: number
+  const metadata = ICON_METADATA.get(baseKey)
+  if (!metadata) return fallback
 
-  if (BaseIcon && segments.length > 1 && BaseIcon[segments[1]]) {
-    IconComponent = BaseIcon[segments[1]] as React.ComponentType<
-      Record<string, unknown>
-    >
-    propStartIndex = 2
-  } else {
-    IconComponent = (LobeIcons as Record<string, unknown>)[baseKey] as
-      | React.ComponentType<Record<string, unknown>>
-      | undefined
-    propStartIndex = segments.length > 1 && /^[A-Z]/.test(segments[1]) ? 2 : 1
-  }
-
-  // Fallback if icon not found
+  const variantKey = segments[1] as keyof typeof ICON_VARIANTS
+  const variantFlag = ICON_VARIANTS[variantKey]
+  let variant: string =
+    variantFlag && metadata.param[variantFlag] ? variantKey : 'Mono'
+  // These published variants are not represented by the package's toc flags.
   if (
-    !IconComponent ||
-    (typeof IconComponent !== 'function' && typeof IconComponent !== 'object')
+    (baseKey === 'Gemma' && segments[1] === 'Simple') ||
+    (baseKey === 'LobeHub' && segments[1] === 'Morden')
   ) {
-    const firstLetter = trimmedName.charAt(0).toUpperCase()
-    return (
-      <div
-        className='bg-muted text-muted-foreground flex items-center justify-center rounded-full text-xs font-medium'
-        style={{ width: size, height: size }}
-      >
-        {firstLetter}
-      </div>
+    variant = segments[1]
+  }
+  const propStartIndex =
+    segments.length > 1 && /^[A-Z]/.test(segments[1]) ? 2 : 1
+  const cacheKey = `${baseKey}.${variant}`
+  let IconComponent = LAZY_ICONS.get(cacheKey)
+  if (!IconComponent) {
+    // Load the selected SVG variant, avoiding the brand index's Avatar/UI dependencies.
+    // Rspack applies webpackInclude before normalizing Windows path separators.
+    IconComponent = lazy(() =>
+      import(
+        /* webpackInclude: /[\\/]components[\\/](Mono|Avatar|Brand|BrandColor|Color|Combine|Text|TextCn|TextColor|Simple|Morden)\.js$/ */
+        `@lobehub/icons/es/${baseKey}/components/${variant}.js`
+      ).catch(() => ({
+        default: (props: Record<string, unknown>) =>
+          renderLobeIconFallback(
+            baseKey,
+            typeof props.size === 'number' || typeof props.size === 'string'
+              ? props.size
+              : 20
+          ),
+      }))
     )
+    LAZY_ICONS.set(cacheKey, IconComponent)
   }
 
   // Parse chained properties (e.g., "type={'platform'}", "shape='square'")
@@ -184,12 +202,23 @@ export function getLobeIcon(
     props.size = size
   }
 
-  return <IconComponent {...props} />
+  return (
+    <Suspense
+      fallback={renderLobeIconFallback(
+        baseKey,
+        typeof props.size === 'number' || typeof props.size === 'string'
+          ? props.size
+          : size
+      )}
+    >
+      <IconComponent {...props} />
+    </Suspense>
+  )
 }
 
 // The selector uses the same installed icon registry as the renderer.
 export function getLobeIconNames(): string[] {
-  const names = LobeIcons.toc.flatMap((icon) =>
+  const names = toc.flatMap((icon) =>
     icon.param.hasColor ? [icon.id, `${icon.id}.Color`] : [icon.id]
   )
   return [...new Set([...names, ...Object.keys(CUSTOM_ICONS)])].sort()

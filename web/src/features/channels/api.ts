@@ -73,6 +73,7 @@ export type TaskPluginOption = {
   baseUrl?: string
   models: string[]
   channelTypes?: number[] | null
+  upstreams?: string[] | null
 }
 
 export async function getTaskPluginOptions(): Promise<TaskPluginOption[]> {
@@ -143,8 +144,13 @@ export async function getChannel(id: number): Promise<GetChannelResponse> {
 /**
  * Get channel operations summary for administrators
  */
-export async function getChannelOps(): Promise<ChannelOpsResponse> {
-  const res = await api.get('/api/channel/ops', channelActionConfig())
+export async function getChannelOps(
+  autoBan?: boolean
+): Promise<ChannelOpsResponse> {
+  const res = await api.get('/api/channel/ops', {
+    ...channelActionConfig(),
+    params: autoBan === undefined ? undefined : { auto_ban: autoBan },
+  })
   return res.data
 }
 

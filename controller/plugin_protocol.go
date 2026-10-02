@@ -42,7 +42,18 @@ type pluginProtocolBridgeDeps struct {
 	admissionTimeout   time.Duration
 	getByTaskId        func(int, string) (*model.Task, bool, error)
 	resolvePlugin      func(constant.TaskPlatform) (*pluginruntime.LoadedPlugin, *pluginruntime.RoutingGeneration, bool)
+	// imagePollInterval, pollTask and downloadImage serve the synchronous
+	// OpenAI Images protocol: an asynchronous upstream image task is polled
+	// inside the request, and b64_json responses download each image URL.
+	imagePollInterval time.Duration
+	pollTask          func(context.Context, *model.Task) error
+	downloadImage     func(url string) (mimeType string, base64Data string, err error)
 }
+
+// taskPluginImagePollInterval paces the in-request polling of asynchronous
+// image tasks. Legacy DashScope text-to-image jobs finish within tens of
+// seconds, so a short interval keeps the synchronous response prompt.
+const taskPluginImagePollInterval = 3 * time.Second
 
 func defaultPluginProtocolBridgeDeps() pluginProtocolBridgeDeps {
 	timeout := time.Duration(constant.TaskPluginProtocolTimeoutSeconds) * time.Second
@@ -78,6 +89,9 @@ func defaultPluginProtocolBridgeDeps() pluginProtocolBridgeDeps {
 		admissionTimeout:   pluginruntime.DefaultCallTimeout,
 		getByTaskId:        model.GetByTaskId,
 		resolvePlugin:      resolveTaskPluginForProtocolRetrieve,
+		imagePollInterval:  taskPluginImagePollInterval,
+		pollTask:           pollTaskPluginImageTask,
+		downloadImage:      service.GetImageFromUrl,
 	}
 }
 
@@ -127,6 +141,15 @@ func (d pluginProtocolBridgeDeps) withDefaults() pluginProtocolBridgeDeps {
 	}
 	if d.resolvePlugin == nil {
 		d.resolvePlugin = defaults.resolvePlugin
+	}
+	if d.imagePollInterval <= 0 {
+		d.imagePollInterval = defaults.imagePollInterval
+	}
+	if d.pollTask == nil {
+		d.pollTask = defaults.pollTask
+	}
+	if d.downloadImage == nil {
+		d.downloadImage = defaults.downloadImage
 	}
 	return d
 }
@@ -504,13 +527,7 @@ func streamTaskPluginProtocol(
 		}
 		args := []any{rendererContext, viewValue}
 		if previous.Present {
-			previousValue, stateErr := previous.PluginValue()
-			if stateErr != nil {
-				logger.LogError(c, "decode task protocol state failed: "+stateErr.Error())
-				writeTaskPluginProtocolFailure(c, machine, lastStatus)
-				return
-			}
-			args = append(args, previousValue)
+			args = append(args, previous.PluginValue())
 		}
 		value, callErr := pinned.Plugin.Engine.CallPathWithAdmissionTimeout(observationContext, deps.admissionTimeout, "protocols", []string{pinned.Protocol, "renderEvents"}, args...)
 		hookElapsed := deps.now().Sub(hookStarted)
@@ -948,6 +965,10 @@ func retrieveTaskPluginResponse(c *gin.Context, deps pluginProtocolBridgeDeps) {
 		writeTaskPluginResponseNotFound(c, responseID, "missing")
 		return
 	}
+	if !task.ResultRetrievable() {
+		writeTaskPluginResponseNotFound(c, responseID, "result_discarded")
+		return
+	}
 
 	plugin, generation, ok := deps.resolvePlugin(task.Platform)
 	if !ok || plugin == nil {
@@ -1139,16 +1160,14 @@ func writeTaskPluginProtocolTimeoutResponse(
 	c.JSON(http.StatusOK, response)
 }
 
-func taskPluginProtocolJSONValue(value any) (any, error) {
-	encoded, err := common.Marshal(value)
+// taskPluginProtocolJSONValue encodes a task view for a hook, which receives
+// it parsed from the text.
+func taskPluginProtocolJSONValue(view dto.TaskView) (any, error) {
+	encoded, err := common.Marshal(view)
 	if err != nil {
 		return nil, err
 	}
-	var decoded any
-	if err = common.Unmarshal(encoded, &decoded); err != nil {
-		return nil, err
-	}
-	return decoded, nil
+	return pluginruntime.RawJSON(encoded), nil
 }
 
 func taskPluginProtocolRendererContext(

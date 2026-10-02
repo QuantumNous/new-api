@@ -137,7 +137,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 		}
 	}
 
-	if err := sharedgemini.ApplyThinkingConfig(&geminiRequest, info, textRequest); err != nil {
+	if err := sharedgemini.ApplyThinkingConfig(c, &geminiRequest, info, textRequest); err != nil {
 		return nil, reasoning.AsClientError(err)
 	}
 

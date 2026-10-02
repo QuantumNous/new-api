@@ -247,11 +247,6 @@ func executeRequestSteps(c context.Context, info convmeta.Meta, from types.Relay
 	}
 	steps := make([]RequestStep, 0, len(specs))
 	for _, spec := range specs {
-		current, err = prepareRequestForStep(current, spec, target)
-		if err != nil {
-			return nil, err
-		}
-
 		var step RequestStep
 		current, step, err = executeRequestStep(c, info, spec, current)
 		if err != nil {
@@ -284,6 +279,9 @@ func executeRequestSteps(c context.Context, info convmeta.Meta, from types.Relay
 		for _, step := range steps {
 			info.AppendRequestConversion(step.To)
 		}
+		if from == types.RelayFormatOpenAIResponses {
+			info.SetResponsesToolState(responsesToolState(tools))
+		}
 	}
 
 	converters := make([]string, 0, len(steps))
@@ -302,6 +300,17 @@ func executeRequestSteps(c context.Context, info convmeta.Meta, from types.Relay
 		Steps:       steps,
 		Diagnostics: diagnostics,
 	}, nil
+}
+
+// responsesToolState records which Responses custom tools were sent upstream
+// as functions, so the response side can restore their calls. It returns nil
+// when none were sent so a retry never reuses another attempt's record.
+func responsesToolState(tools toolconv.Set) *convmeta.ResponsesToolState {
+	names := toolconv.ResponsesCustomToolNames(tools)
+	if len(names) == 0 {
+		return nil
+	}
+	return &convmeta.ResponsesToolState{CustomToolNames: names}
 }
 
 func expandRequestConverterSteps(spec RequestConverterSpec) ([]RequestConverterSpec, error) {
@@ -351,28 +360,6 @@ func executeRequestStep(c context.Context, info convmeta.Meta, spec RequestConve
 		From:      spec.From,
 		To:        spec.To,
 	}, nil
-}
-
-func prepareRequestForStep(request any, spec RequestConverterSpec, finalTarget types.RelayFormat) (any, error) {
-	if spec.From != types.RelayFormatOpenAIResponses || finalTarget != types.RelayFormatGemini {
-		return request, nil
-	}
-
-	responsesRequest, ok := request.(*dto.OpenAIResponsesRequest)
-	if !ok {
-		if value, ok := request.(dto.OpenAIResponsesRequest); ok {
-			responsesRequest = &value
-		}
-	}
-	if responsesRequest == nil {
-		return nil, fmt.Errorf("expected OpenAI responses request, got %T", request)
-	}
-
-	prepared, err := oairesponses.PrepareOpenAIResponsesRequest(*responsesRequest)
-	if err != nil {
-		return nil, err
-	}
-	return &prepared, nil
 }
 
 func lookupRequestRoute(from types.RelayFormat, to types.RelayFormat) (RequestConverterSpec, bool) {
@@ -430,7 +417,7 @@ func isNilRequest(request any) bool {
 	}
 }
 
-func convertChatRequestToResponses(_ context.Context, _ convmeta.Meta, request any) (any, error) {
+func convertChatRequestToResponses(c context.Context, _ convmeta.Meta, request any) (any, error) {
 	chatRequest, ok := request.(*dto.GeneralOpenAIRequest)
 	if !ok {
 		if value, ok := request.(dto.GeneralOpenAIRequest); ok {
@@ -440,10 +427,10 @@ func convertChatRequestToResponses(_ context.Context, _ convmeta.Meta, request a
 	if chatRequest == nil {
 		return nil, fmt.Errorf("expected OpenAI chat completions request, got %T", request)
 	}
-	return oaichat.ChatCompletionsRequestToResponsesRequest(chatRequest)
+	return oaichat.ChatCompletionsRequestToResponsesRequest(c, chatRequest)
 }
 
-func convertClaudeRequestToOpenAI(_ context.Context, info convmeta.Meta, request any) (any, error) {
+func convertClaudeRequestToOpenAI(c context.Context, info convmeta.Meta, request any) (any, error) {
 	claudeRequest, ok := request.(*dto.ClaudeRequest)
 	if !ok {
 		if value, ok := request.(dto.ClaudeRequest); ok {
@@ -453,10 +440,10 @@ func convertClaudeRequestToOpenAI(_ context.Context, info convmeta.Meta, request
 	if claudeRequest == nil {
 		return nil, fmt.Errorf("expected Anthropic Messages request, got %T", request)
 	}
-	return claudemessages.ClaudeMessagesRequestToOpenAIChat(*claudeRequest, info)
+	return claudemessages.ClaudeMessagesRequestToOpenAIChat(c, *claudeRequest, info)
 }
 
-func convertClaudeRequestToOpenAIResponses(_ context.Context, info convmeta.Meta, request any) (any, error) {
+func convertClaudeRequestToOpenAIResponses(c context.Context, info convmeta.Meta, request any) (any, error) {
 	claudeRequest, ok := request.(*dto.ClaudeRequest)
 	if !ok {
 		if value, ok := request.(dto.ClaudeRequest); ok {
@@ -466,7 +453,7 @@ func convertClaudeRequestToOpenAIResponses(_ context.Context, info convmeta.Meta
 	if claudeRequest == nil {
 		return nil, fmt.Errorf("expected Anthropic Messages request, got %T", request)
 	}
-	return claudemessages.ClaudeMessagesRequestToOpenAIResponses(*claudeRequest, info)
+	return claudemessages.ClaudeMessagesRequestToOpenAIResponses(c, *claudeRequest, info)
 }
 
 func convertOpenAIRequestToClaude(c context.Context, info convmeta.Meta, request any) (any, error) {
@@ -482,7 +469,7 @@ func convertOpenAIRequestToClaude(c context.Context, info convmeta.Meta, request
 	return oaichat.OpenAIChatRequestToClaudeMessages(c, info, *openAIRequest)
 }
 
-func convertGeminiRequestToOpenAI(_ context.Context, info convmeta.Meta, request any) (any, error) {
+func convertGeminiRequestToOpenAI(c context.Context, info convmeta.Meta, request any) (any, error) {
 	geminiRequest, ok := request.(*dto.GeminiChatRequest)
 	if !ok {
 		if value, ok := request.(dto.GeminiChatRequest); ok {
@@ -492,7 +479,7 @@ func convertGeminiRequestToOpenAI(_ context.Context, info convmeta.Meta, request
 	if geminiRequest == nil {
 		return nil, fmt.Errorf("expected Gemini generateContent request, got %T", request)
 	}
-	return geminichat.GeminiGenerateContentRequestToOpenAIChat(geminiRequest, info)
+	return geminichat.GeminiGenerateContentRequestToOpenAIChat(c, geminiRequest, info)
 }
 
 func convertOpenAIRequestToGemini(c context.Context, info convmeta.Meta, request any) (any, error) {
@@ -521,15 +508,10 @@ func convertOpenAIResponsesRequestToGeminiChat(c context.Context, info convmeta.
 	if err != nil {
 		return nil, err
 	}
-
-	prepared, err := oairesponses.PrepareOpenAIResponsesRequest(*responsesRequest)
-	if err != nil {
-		return nil, err
-	}
-	return oairesponses.OpenAIResponsesRequestToGeminiChat(c, &prepared, info)
+	return oairesponses.OpenAIResponsesRequestToGeminiChat(c, responsesRequest, info)
 }
 
-func convertResponsesRequestToChat(_ context.Context, _ convmeta.Meta, request any) (any, error) {
+func convertResponsesRequestToChat(c context.Context, _ convmeta.Meta, request any) (any, error) {
 	responsesRequest, ok := request.(*dto.OpenAIResponsesRequest)
 	if !ok {
 		if value, ok := request.(dto.OpenAIResponsesRequest); ok {
@@ -539,5 +521,5 @@ func convertResponsesRequestToChat(_ context.Context, _ convmeta.Meta, request a
 	if responsesRequest == nil {
 		return nil, fmt.Errorf("expected OpenAI responses request, got %T", request)
 	}
-	return oairesponses.ResponsesRequestToChatCompletionsRequest(responsesRequest)
+	return oairesponses.ResponsesRequestToChatCompletionsRequest(c, responsesRequest)
 }

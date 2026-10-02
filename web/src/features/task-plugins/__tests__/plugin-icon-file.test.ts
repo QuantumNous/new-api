@@ -111,6 +111,25 @@ describe('fetchPluginIconDataUri', () => {
     )
   })
 
+  test('revalidates with the host so a stale browser-cached logo does not fail the digest', async () => {
+    const result = await fetchPluginIconDataUri(
+      'https://raw.example/plugins/tasks/incho/icon.svg',
+      {
+        sha256:
+          'd4dc56669143034f31aa309635d4113d9ad76a02b1739da22c965ed2049be9e6',
+        fetchImpl: async (_input, init) =>
+          okResponse(
+            ['no-cache', 'no-store', 'reload'].includes(
+              init?.cache ?? 'default'
+            )
+              ? '<svg/>'
+              : '<svg>stale</svg>'
+          ),
+      }
+    )
+    assert.equal(result, 'data:image/svg+xml;base64,PHN2Zy8+')
+  })
+
   test('returns null for a non-image path, a failed response, or a network error', async () => {
     assert.equal(
       await fetchPluginIconDataUri('https://raw.example/icon.js', {

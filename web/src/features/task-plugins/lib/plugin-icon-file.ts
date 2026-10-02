@@ -100,7 +100,9 @@ export async function fetchPluginIconDataUri(
   const fetchImpl = options.fetchImpl ?? globalThis.fetch
   let response: Response
   try {
-    response = await fetchImpl(url)
+    // Revalidate so a logo republished in place is not read from a stale
+    // cache and dropped by the digest check.
+    response = await fetchImpl(url, { cache: 'no-cache' })
   } catch {
     return null
   }

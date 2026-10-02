@@ -8,24 +8,12 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
 	sharedgemini "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/gemini"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 )
-
-func convertOpenAIResponsesRequestToGeminiChat(c context.Context, info convmeta.Meta, request any) (any, error) {
-	responsesRequest, err := OpenAIResponsesRequestFromAny(request)
-	if err != nil {
-		return nil, err
-	}
-
-	prepared, err := PrepareOpenAIResponsesRequest(*responsesRequest)
-	if err != nil {
-		return nil, err
-	}
-	return OpenAIResponsesRequestToGeminiChat(c, &prepared, info)
-}
 
 func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIResponsesRequest, info convmeta.Meta) (*dto.GeminiChatRequest, error) {
 	opts := convmeta.OptionsOf(info)
@@ -61,17 +49,18 @@ func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIRespon
 	if err := applyResponsesTextToGemini(req.Text, geminiRequest); err != nil {
 		return nil, err
 	}
-	reasoningIntent, err := reasoning.FromOpenAIResponses(req)
+	reasoningIntent, diagnostics, err := reasoning.FromOpenAIResponses(req)
 	if err != nil {
 		return nil, reasoning.AsClientError(err)
 	}
+	convdiag.Add(c, diagnostics...)
 	var reasoningPivot dto.GeneralOpenAIRequest
 	if err := reasoning.ApplyToOpenAIChat(&reasoningPivot, reasoningIntent); err != nil {
 		return nil, reasoning.AsClientError(err)
 	}
 	reasoningPivot.Model = req.Model
 	reasoningPivot.MaxCompletionTokens = req.MaxOutputTokens
-	if err := sharedgemini.ApplyThinkingConfig(geminiRequest, info, reasoningPivot); err != nil {
+	if err := sharedgemini.ApplyThinkingConfig(c, geminiRequest, info, reasoningPivot); err != nil {
 		return nil, reasoning.AsClientError(err)
 	}
 
@@ -136,8 +125,8 @@ func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIRespon
 	for _, item := range inputItems {
 		itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
 		switch itemType {
-		case ResponsesInputTypeFunctionCall:
-			part, callID, err := responsesFunctionCallItemToGeminiPart(item)
+		case ResponsesInputTypeFunctionCall, ResponsesInputTypeCustomToolCall:
+			part, callID, err := responsesFunctionCallItemToGeminiPart(item, itemType)
 			if err != nil {
 				return nil, err
 			}
@@ -146,7 +135,7 @@ func OpenAIResponsesRequestToGeminiChat(c context.Context, req *dto.OpenAIRespon
 				callNames[callID] = part.FunctionCall.FunctionName
 			}
 			appendGeminiContentPart(geminiRequest, "model", part)
-		case ResponsesInputTypeFunctionCallOutput:
+		case ResponsesInputTypeFunctionCallOutput, ResponsesInputTypeCustomToolOutput:
 			part, err := responsesFunctionOutputItemToGeminiPart(item, callNames)
 			if err != nil {
 				return nil, err
@@ -257,17 +246,25 @@ func responsesContentPartToGeminiParts(c context.Context, part map[string]any) (
 	}
 }
 
-func responsesFunctionCallItemToGeminiPart(item map[string]any) (dto.GeminiPart, string, error) {
+func responsesFunctionCallItemToGeminiPart(item map[string]any, itemType string) (dto.GeminiPart, string, error) {
 	name := strings.TrimSpace(kitutil.Interface2String(item["name"]))
 	if name == "" {
-		return dto.GeminiPart{}, "", fmt.Errorf("function_call item is missing name")
+		return dto.GeminiPart{}, "", fmt.Errorf("%s item is missing name", itemType)
+	}
+	var arguments map[string]any
+	if itemType == ResponsesInputTypeCustomToolCall {
+		// The custom tool is declared as a function taking one string
+		// argument, so its raw input is replayed in that shape.
+		arguments = map[string]any{convmeta.CustomToolInputArgument: responsesArgumentsString(item["input"])}
+	} else {
+		arguments = ObjectValue(item["arguments"], "arguments")
 	}
 	callID := CallID(item)
 	return dto.GeminiPart{
 		FunctionCall: &dto.FunctionCall{
 			ID:           callID,
 			FunctionName: name,
-			Arguments:    ObjectValue(item["arguments"], "arguments"),
+			Arguments:    arguments,
 		},
 	}, callID, nil
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -159,4 +160,25 @@ func TestSecurityProofBindsIdentityAndOperation(t *testing.T) {
 	require.NoError(t, err)
 	_, err = ConsumeOperationProof(expired, identity, operation)
 	assert.ErrorIs(t, err, ErrAuthTokenExpired)
+}
+
+func TestSecurityProofBindsAccessTokenSession(t *testing.T) {
+	setupAuthSessionTestDB(t)
+	useTestSessionSecret(t)
+	identity := AuthIdentity{UserID: 42, SessionID: model.AccessTokenSessionID(7), UserAuthVersion: 3, SessionVersion: model.AccessTokenSessionVersion}
+	binding, err := BindVerificationOperation(VerificationOperation{Scope: VerificationScopeTwoFADisable})
+	require.NoError(t, err)
+	proof, _, err := IssueSecurityProof(identity, "password", binding)
+	require.NoError(t, err)
+
+	claims, err := verifySecurityProof(proof, identity, binding)
+	require.NoError(t, err)
+	assert.Equal(t, identity.SessionID, claims.SessionID)
+
+	for _, sessionID := range []string{model.AccessTokenSessionID(8), "session-1"} {
+		other := identity
+		other.SessionID = sessionID
+		_, err = verifySecurityProof(proof, other, binding)
+		assert.ErrorIs(t, err, ErrAuthTokenInvalid, sessionID)
+	}
 }

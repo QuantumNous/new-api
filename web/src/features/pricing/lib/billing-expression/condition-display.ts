@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { TOptions } from 'i18next'
 
+import { toIntlLocale } from '@/i18n/languages'
+
 import { flattenBinary } from './display'
 import { compileBillingExpression } from './parser'
 import { TIME_FUNCTIONS, type ExpressionNode, type TimeFunction } from './types'
@@ -102,10 +104,10 @@ function describeTimeRange(
       end: `${String(end).padStart(2, '0')}:00`,
     })
   } else if (first.name === 'weekday') {
-    const formatter = new Intl.DateTimeFormat(
-      locale === 'zhCN' ? 'zh-CN' : locale,
-      { weekday: 'short', timeZone: 'UTC' }
-    )
+    const formatter = new Intl.DateTimeFormat(toIntlLocale(locale), {
+      weekday: 'short',
+      timeZone: 'UTC',
+    })
     // 2026-01-04 is Sunday, matching Go's weekday numbering.
     const from = formatter.format(new Date(Date.UTC(2026, 0, 4 + start)))
     const to = formatter.format(new Date(Date.UTC(2026, 0, 4 + end - 1)))
@@ -159,7 +161,7 @@ function describeBillingCondition(
     const label = labels[node.left.name]
     if (!label) return null
     return {
-      text: `${t(label)} ${node.operator} ${node.right.value.toLocaleString(locale === 'zhCN' ? 'zh-CN' : locale)}`,
+      text: `${t(label)} ${node.operator} ${node.right.value.toLocaleString(toIntlLocale(locale))}`,
       kind: 'combined',
       timezone: '',
     }

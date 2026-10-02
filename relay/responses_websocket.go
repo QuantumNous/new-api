@@ -16,9 +16,10 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	appconstant "github.com/QuantumNous/new-api/constant"
 	appdto "github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	appmodel "github.com/QuantumNous/new-api/model"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/pkg/wsmanager"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -26,7 +27,6 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -40,22 +40,27 @@ const responsesWSWriteTimeout = 30 * time.Second
 type ResponsesWSRequestRunner func(*http.Request, string, func(*gin.Context) *types.NewAPIError) *types.NewAPIError
 
 type responsesWSCreateEvent struct {
-	Type    string            `json:"type"`
-	EventID string            `json:"event_id,omitempty"`
-	Request common.RawMessage `json:"response,omitempty"`
+	Type     string            `json:"type"`
+	EventID  string            `json:"event_id,omitempty"`
+	StreamID common.RawMessage `json:"stream_id,omitempty"`
+	Generate common.RawMessage `json:"generate,omitempty"`
+	Request  common.RawMessage `json:"response,omitempty"`
 }
 
 type responsesWSCreateRequest struct {
 	Request  dto.OpenAIResponsesRequest
 	Body     []byte
 	Generate common.RawMessage
+	StreamID string
 }
 
 type responsesWSErrorEvent struct {
-	Type    string             `json:"type"`
-	Status  int                `json:"status"`
-	EventID string             `json:"event_id,omitempty"`
-	Error   *types.OpenAIError `json:"error"`
+	Type       string             `json:"type"`
+	Status     int                `json:"status"`
+	EventID    string             `json:"event_id,omitempty"`
+	StreamID   string             `json:"stream_id,omitempty"`
+	ResponseID string             `json:"response_id,omitempty"`
+	Error      *types.OpenAIError `json:"error"`
 }
 
 type responsesWSMessage struct {
@@ -64,11 +69,18 @@ type responsesWSMessage struct {
 	err  error
 }
 
+// responsesWSControl is a client control event (response.cancel) whose
+// envelope the read loop already parsed.
+type responsesWSControl struct {
+	body              []byte
+	eventID, streamID string
+}
+
 // Only the request worker reads or changes billing state. Socket readers pass
 // bounded messages to it; cancellation never performs an independent refund.
 type responsesWSCallState struct {
 	inbox      chan responsesWSMessage
-	controls   chan []byte
+	controls   chan responsesWSControl
 	done       chan struct{}
 	terminal   *responsesWSMessage
 	closeAfter bool
@@ -101,6 +113,7 @@ type responsesWSSession struct {
 	lockedKey       string
 	lockedKeyIndex  int
 	lockedContext   map[appconstant.ContextKey]any
+	lockedRoute     dto.AdvancedCustomRoute
 }
 
 func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn, runner ResponsesWSRequestRunner) *types.NewAPIError {
@@ -125,9 +138,10 @@ func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn, runner Res
 		if err != nil {
 			return nil
 		}
-		eventType, err := responsesWSEventType(message)
+		envelope, streamID, err := parseResponsesWSEnvelope(message)
+		eventType := envelope.Type
 		if err != nil {
-			s.sendError("", newResponsesWSInvalidRequestError(err))
+			s.sendError(envelope.EventID, streamID, newResponsesWSInvalidRequestError(err))
 			continue
 		}
 		if eventType != responsesWSEventTypeResponseCreate {
@@ -135,32 +149,32 @@ func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn, runner Res
 			// arriving during authentication must not precede its upstream create.
 			state := s.getCurrent()
 			if eventType != "response.cancel" || state == nil {
-				s.sendError("", newResponsesWSInvalidRequestError(fmt.Errorf("unsupported websocket event %q", eventType)))
+				s.sendError(envelope.EventID, streamID, newResponsesWSInvalidRequestError(fmt.Errorf("unsupported websocket event %q", eventType)))
 				continue
 			}
 			select {
-			case state.controls <- message:
+			case state.controls <- responsesWSControl{body: message, eventID: envelope.EventID, streamID: streamID}:
 			case <-state.done:
 			case <-s.ctx.Done():
 				return nil
 			default:
-				s.sendError("", newResponsesWSInvalidRequestError(errors.New("a response control event is already pending")))
+				s.sendError(envelope.EventID, streamID, newResponsesWSInvalidRequestError(errors.New("a response control event is already pending")))
 			}
 			continue
 		}
-		state := &responsesWSCallState{inbox: make(chan responsesWSMessage), controls: make(chan []byte, 1), done: make(chan struct{})}
+		state := &responsesWSCallState{inbox: make(chan responsesWSMessage), controls: make(chan responsesWSControl, 1), done: make(chan struct{})}
 		if !s.tryReserveCurrent(state) {
-			s.sendError("", types.NewErrorWithStatusCode(errors.New("another response.create is already in progress on this websocket connection"), types.ErrorCodeInvalidRequest, http.StatusConflict, types.ErrOptionWithSkipRetry()))
+			s.sendError(envelope.EventID, streamID, types.NewErrorWithStatusCode(errors.New("another response.create is already in progress on this websocket connection"), types.ErrorCodeInvalidRequest, http.StatusConflict, types.ErrOptionWithSkipRetry()))
 			continue
 		}
 		requestID := fmt.Sprintf("%s-ws-%d", s.requestID, s.nextEventIndex)
 		s.nextEventIndex++
-		s.workers.Go(func() { s.runRequest(state, message, requestID) })
+		s.workers.Go(func() { s.runRequest(state, message, envelope, streamID, requestID) })
 	}
 }
 
-func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []byte, requestID string) {
-	var eventID string
+func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []byte, envelope responsesWSCreateEvent, streamID string, requestID string) {
+	create, parseErr := normalizeResponsesWSCreateEvent(message, envelope, streamID)
 	var apiErr *types.NewAPIError
 	defer func() {
 		if recovered := recover(); recovered != nil {
@@ -172,7 +186,7 @@ func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []b
 		// the current request's release; socket close needs neither lock.
 		outgoing := state.terminal
 		if apiErr != nil {
-			if body, err := buildResponsesWSErrorPayload(eventID, apiErr); err == nil {
+			if body, err := buildResponsesWSErrorPayload(envelope.EventID, streamID, apiErr); err == nil {
 				outgoing = &responsesWSMessage{kind: websocket.TextMessage, body: body}
 			}
 		}
@@ -198,10 +212,8 @@ func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []b
 	request.ContentLength = int64(len(message))
 	request.Header.Set("Content-Type", "application/json")
 	apiErr = s.runner(request, requestID, func(c *gin.Context) *types.NewAPIError {
-		create, id, err := normalizeResponsesWSCreateEvent(message)
-		eventID = id
-		if err != nil {
-			return newResponsesWSInvalidRequestError(err)
+		if parseErr != nil {
+			return newResponsesWSInvalidRequestError(parseErr)
 		}
 		c.Request.Body = io.NopCloser(bytes.NewReader(create.Body))
 		c.Request.ContentLength = int64(len(create.Body))
@@ -213,7 +225,9 @@ func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []b
 }
 
 func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState, create responsesWSCreateRequest) (apiErr *types.NewAPIError) {
+	policy := service.RequestPolicy(c)
 	modelName := create.Request.Model
+	started := time.Now()
 	var info *relaycommon.RelayInfo
 	billingPrepared := false
 	defer func() {
@@ -221,6 +235,13 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			apiErr = types.NewError(fmt.Errorf("responses websocket call panic: %v", recovered), types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
 			state.closeAfter = true
 		}
+		if info == nil && modelName != "" {
+			info = &relaycommon.RelayInfo{OriginModelName: modelName, UsingGroup: common.GetContextKeyString(c, appconstant.ContextKeyUsingGroup), StartTime: started}
+		}
+		perfmetrics.RecordRelayResult(c.Request.Context(), info, apiErr)
+		// Settlement already marks the request policy successful, and nothing
+		// reads a termination decision after this point on the WebSocket path,
+		// so neither policy record belongs here.
 		if info != nil && billingPrepared {
 			apiErr = RefundFailedRequestBilling(c, info, apiErr)
 		}
@@ -250,7 +271,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 		}
 		billingPrepared = true
 		var payload []byte
-		payload, apiErr = buildResponsesWSCreatePayload(c, info, create.Request, create.Generate)
+		payload, apiErr = buildResponsesWSCreatePayload(c, info, create.Request, create.Generate, create.StreamID)
 		if apiErr != nil {
 			return apiErr
 		}
@@ -266,7 +287,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			if apiErr != nil {
 				return apiErr
 			}
-			addResponsesWSUsedChannel(c, channel.Id)
+			service.AppendUsedChannel(c, channel.Id)
 			if info == nil {
 				info = relaycommon.GenRelayInfoResponses(c, &create.Request)
 				info.IsStream = true
@@ -282,21 +303,23 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				}
 			}
 			info.RetryIndex = retry.GetRetry()
+			policy.BeginAttempt(channel, info.UsingGroup)
 			var payload []byte
-			payload, apiErr = buildResponsesWSCreatePayload(c, info, create.Request, create.Generate)
+			payload, apiErr = buildResponsesWSCreatePayload(c, info, create.Request, create.Generate, create.StreamID)
 			if apiErr != nil {
 				return apiErr
 			}
 			adaptor := GetAdaptor(info.ApiType)
 			adaptor.Init(info)
-			var target *websocket.Conn
-			target, apiErr = dialResponsesWebSocketUpstream(c, adaptor, info)
-			if apiErr != nil {
-				apiErr = service.NormalizeViolationFeeError(apiErr)
+			target, dialErr := relaychannel.DoWssRequest(adaptor, c, info, nil)
+			if dialErr != nil {
+				apiErr = service.NormalizeViolationFeeError(types.NewError(dialErr, types.ErrorCodeDoRequestFailed))
 				service.ResetStatusCode(apiErr, c.GetString("status_code_mapping"))
 				info.LastError = apiErr
+				decision := service.DecideRelayRetry(c, apiErr, common.RetryTimes-retry.GetRetry())
+				service.RecordPolicyFailure(c, channel.Id, apiErr, decision)
 				service.ProcessChannelError(c, *types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, info.ApiKey, channel.GetAutoBan()), apiErr, info)
-				if service.ShouldRetryRelayError(c, apiErr, common.RetryTimes-retry.GetRetry()) {
+				if decision.Action == "retry" {
 					continue
 				}
 				return apiErr
@@ -310,6 +333,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			}
 			s.lockedModel, s.lockedChannelID, s.lockedGroup = modelName, channel.Id, info.UsingGroup
 			s.lockedKey, s.lockedKeyIndex = info.ApiKey, info.ChannelMultiKeyIndex
+			s.lockedRoute, _ = channel.GetOtherSettings().AdvancedCustom.MatchPathForModel(c.Request.URL.Path, modelName)
 			s.lockedContext = make(map[appconstant.ContextKey]any)
 			for _, key := range []appconstant.ContextKey{
 				appconstant.ContextKeyChannelId, appconstant.ContextKeyChannelName, appconstant.ContextKeyChannelType,
@@ -323,7 +347,6 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				}
 			}
 			s.registerChannelClose(channel.Id)
-			service.RecordChannelAffinity(c, channel.Id)
 			s.startTargetReader(target)
 			apiErr = nil
 			break
@@ -335,6 +358,8 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 
 	accumulator := service.NewResponsesUsageAccumulator(info)
 	info.StreamStatus = relaycommon.NewStreamStatus()
+	info.StreamStatus.RequireTerminal()
+	common.SetContextKey(c, appconstant.ContextKeyResponseStreamStatus, info.StreamStatus)
 	timeout := time.Duration(appconstant.StreamingTimeout) * time.Second
 	if timeout <= 0 {
 		timeout = 300 * time.Second
@@ -343,6 +368,8 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	defer idle.Stop()
 	accepted := false
 	var pendingControl []byte
+	var sentControl []byte
+	var responseID string
 	for {
 		select {
 		case incoming := <-state.inbox:
@@ -354,33 +381,78 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				return nil
 			}
 			info.SetFirstResponseTime()
-			var event dto.ResponsesStreamResponse
+			var event struct {
+				dto.ResponsesStreamResponse
+				StreamID string `json:"stream_id"`
+			}
 			if err := common.Unmarshal(incoming.body, &event); err != nil {
 				info.StreamStatus.RecordError("invalid upstream websocket event")
 			} else {
+				if event.Type != "error" && event.StreamID != "" && event.StreamID != create.StreamID {
+					if err := s.writeClient(incoming.kind, incoming.body); err != nil {
+						s.shutdown()
+					}
+					continue
+				}
 				// A repeated terminal from the previous response must never finish
 				// a subsequent request on this persistent connection.
 				if event.Response != nil && event.Response.ID != "" && event.Response.ID == s.lastResponseID {
 					continue
 				}
-				if event.Type == "error" && !accepted {
-					var rejection struct {
-						Status int                `json:"status"`
-						Error  *types.OpenAIError `json:"error"`
-					}
+				if event.Type == "error" {
+					var rejection responsesWSErrorEvent
 					_ = common.Unmarshal(incoming.body, &rejection)
-					if rejection.Status < 400 || rejection.Status > 599 {
-						rejection.Status = http.StatusBadRequest
+					if rejection.ResponseID != "" && rejection.ResponseID == s.lastResponseID {
+						continue
+					}
+					terminal, ambiguous, controlError := responsesWSErrorEndsRequest(rejection, create.StreamID, responseID, sentControl)
+					if !terminal {
+						if err := s.writeClient(incoming.kind, incoming.body); err != nil {
+							s.shutdown()
+						}
+						// Only a control error in this stream resolves its pending control.
+						if controlError {
+							sentControl = nil
+						}
+						continue
+					}
+					if accepted {
+						if rejection.Error != nil {
+							code := ""
+							if rejection.Error.Code != nil {
+								code = fmt.Sprint(rejection.Error.Code)
+							}
+							info.StreamStatus.MarkFailed(code, rejection.Error.Type, rejection.Status)
+						}
+						accumulator.Observe(&event.ResponsesStreamResponse)
+						info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
+						s.lastResponseID = responseID
+						state.terminal, state.closeAfter = &incoming, ambiguous
+						ConsumeResponsesQuota(c, info, accumulator.Finish())
+						return nil
 					}
 					if rejection.Error == nil {
-						rejection.Error = &types.OpenAIError{Message: event.Message, Type: "invalid_request_error", Code: event.Code}
+						// An error frame without an error object still describes the
+						// rejected request; keep the client-facing type stable.
+						rejection.Error = &types.OpenAIError{Type: "invalid_request_error", Message: event.Message, Code: event.Code}
 					}
-					return types.WithOpenAIError(*rejection.Error, rejection.Status, types.ErrOptionWithSkipRetry())
+					rejected := types.WithOpenAIError(*rejection.Error, rejection.Status, types.ErrOptionWithSkipRetry())
+					if rejected.StatusCode < 400 || rejected.StatusCode > 599 {
+						rejected.StatusCode = http.StatusBadRequest
+					}
+					return rejected
 				}
 				if strings.HasPrefix(event.Type, "response.") {
+					if !accepted {
+						// Like HTTP, bind the session only once upstream accepted the request.
+						service.RecordChannelAffinity(c, s.lockedChannelID)
+					}
 					accepted = true
+					if event.Response != nil && event.Response.ID != "" {
+						responseID = event.Response.ID
+					}
 				}
-				accumulator.Observe(&event)
+				accumulator.Observe(&event.ResponsesStreamResponse)
 			}
 			switch event.Type {
 			case "response.completed", "response.done", "response.incomplete", "response.failed", "response.cancelled", "response.canceled":
@@ -399,16 +471,22 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				if err := s.writeTarget(websocket.TextMessage, pendingControl); err != nil {
 					s.shutdown()
 				}
+				sentControl = pendingControl
 				pendingControl = nil
 			}
 		case control := <-state.controls:
-			if !accepted {
-				pendingControl = control
+			if pendingControl != nil || sentControl != nil {
+				s.sendError(control.eventID, control.streamID, newResponsesWSInvalidRequestError(errors.New("a response control event is already pending")))
 				continue
 			}
-			if err := s.writeTarget(websocket.TextMessage, control); err != nil {
+			if !accepted {
+				pendingControl = control.body
+				continue
+			}
+			if err := s.writeTarget(websocket.TextMessage, control.body); err != nil {
 				s.shutdown()
 			}
+			sentControl = control.body
 		case <-idle.C:
 			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, context.DeadlineExceeded)
 			state.closeAfter = true
@@ -422,7 +500,39 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	}
 }
 
+// A single generation is active, but a cancel can fail independently. Correlate
+// available IDs first; uncorrelated control/server errors require a bounded
+// connection close because continuing could leave the generation stuck forever.
+func responsesWSErrorEndsRequest(event responsesWSErrorEvent, streamID, responseID string, control []byte) (terminal, ambiguous, controlError bool) {
+	if len(control) > 0 {
+		var pending struct {
+			EventID    string `json:"event_id"`
+			StreamID   string `json:"stream_id"`
+			ResponseID string `json:"response_id"`
+		}
+		_ = common.Unmarshal(control, &pending)
+		if event.EventID != "" && event.EventID == pending.EventID {
+			return false, false, true
+		}
+		if event.ResponseID != "" && event.ResponseID == pending.ResponseID && event.ResponseID != responseID {
+			return false, false, true
+		}
+		if (event.StreamID == "" || event.StreamID == pending.StreamID) && event.Error != nil && event.Error.Type == "invalid_request_error" {
+			switch event.Error.Code {
+			case "response_not_found", "response_not_active", "response_already_completed":
+				return false, false, true
+			}
+		}
+	}
+	if event.StreamID != "" && event.StreamID != streamID || responseID != "" && event.ResponseID != "" && event.ResponseID != responseID {
+		return false, false, false
+	}
+	return true, len(control) > 0 && event.ResponseID == "", false
+}
+
 func (s *responsesWSSession) restoreConnectionContext(c *gin.Context, model string) *types.NewAPIError {
+	// The channel type is not rechecked: a locked channel keeps its type, and
+	// the FilterResponsesWebSocket rules were applied when it was selected.
 	channel, err := appmodel.CacheGetChannel(s.lockedChannelID)
 	if err != nil || channel == nil || channel.Status != common.ChannelStatusEnabled || !channel.GetSetting().ResponsesWebSocketEnabled {
 		return types.NewErrorWithStatusCode(errors.New("Responses WebSocket is disabled for this channel"), types.ErrorCode(appdto.FilterResponsesWebSocket), http.StatusForbidden, types.ErrOptionWithSkipRetry())
@@ -444,6 +554,16 @@ func (s *responsesWSSession) restoreConnectionContext(c *gin.Context, model stri
 	}
 	if previous, ok := s.lockedContext[appconstant.ContextKeyChannelSetting].(dto.ChannelSettings); ok && previous.Proxy != channel.GetSetting().Proxy {
 		return types.NewErrorWithStatusCode(errors.New("upstream proxy changed; reconnect required"), types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+	}
+	// An advanced custom connection was dialed through the route matched for
+	// this model. Only the fields that shape the upstream handshake force a
+	// reconnect: target path, protocol conversion and credential placement.
+	// Other channel types match the zero route on both sides.
+	route, _ := channel.GetOtherSettings().AdvancedCustom.MatchPathForModel(c.Request.URL.Path, model)
+	if strings.TrimSpace(route.UpstreamPath) != strings.TrimSpace(s.lockedRoute.UpstreamPath) ||
+		route.IsNative() != s.lockedRoute.IsNative() ||
+		!reflect.DeepEqual(route.Auth, s.lockedRoute.Auth) {
+		return types.NewErrorWithStatusCode(errors.New("upstream route changed; reconnect required"), types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry())
 	}
 	if pin, found, _ := service.GetChannelConstraints(c).ResolvedPin(); found {
 		if pin.ChannelId != s.lockedChannelID {
@@ -470,10 +590,13 @@ func (s *responsesWSSession) restoreConnectionContext(c *gin.Context, model stri
 	common.SetContextKey(c, appconstant.ContextKeyChannelParamOverride, channel.GetParamOverride())
 	common.SetContextKey(c, appconstant.ContextKeyChannelModelMapping, channel.GetModelMapping())
 	common.SetContextKey(c, appconstant.ContextKeyChannelStatusCodeMapping, channel.GetStatusCodeMapping())
+	policy := service.RequestPolicy(c)
+	policy.BeginAttempt(channel, s.lockedGroup)
+	policy.AddEvent(service.PolicyEvent{ChannelID: channel.Id, Decision: service.PolicyDecision{Action: "select", Reason: "pinned_channel", Source: "channel_constraint"}})
 	return nil
 }
 
-func buildResponsesWSCreatePayload(c *gin.Context, info *relaycommon.RelayInfo, req dto.OpenAIResponsesRequest, generate common.RawMessage) ([]byte, *types.NewAPIError) {
+func buildResponsesWSCreatePayload(c *gin.Context, info *relaycommon.RelayInfo, req dto.OpenAIResponsesRequest, generate common.RawMessage, streamID string) ([]byte, *types.NewAPIError) {
 	_, body, closer, apiErr := PrepareResponsesRequest(c, info, &req)
 	if apiErr != nil {
 		return nil, apiErr
@@ -483,7 +606,7 @@ func buildResponsesWSCreatePayload(c *gin.Context, info *relaycommon.RelayInfo, 
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeReadRequestBodyFailed, types.ErrOptionWithSkipRetry())
 	}
-	event, err := buildResponsesWSCreateEvent(jsonData, generate)
+	event, err := buildResponsesWSCreateEvent(jsonData, generate, streamID)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
@@ -585,11 +708,11 @@ func (s *responsesWSSession) writeClient(kind int, message []byte) error {
 	return s.client.WriteMessage(kind, message)
 }
 
-func (s *responsesWSSession) sendError(eventID string, apiErr *types.NewAPIError) {
+func (s *responsesWSSession) sendError(eventID, streamID string, apiErr *types.NewAPIError) {
 	if apiErr == nil {
 		return
 	}
-	payload, err := buildResponsesWSErrorPayload(eventID, apiErr)
+	payload, err := buildResponsesWSErrorPayload(eventID, streamID, apiErr)
 	if err == nil {
 		_ = s.writeClient(websocket.TextMessage, payload)
 	}
@@ -626,97 +749,98 @@ func (s *responsesWSSession) registerChannelClose(channelID int) {
 	s.connectionMu.Unlock()
 }
 
+// closeForPolicy tells both peers why the connection ends, like the realtime
+// relay does; WriteControl is safe alongside a blocked data writer.
 func (s *responsesWSSession) closeForPolicy(reason string) {
 	closeMessage := websocket.FormatCloseMessage(websocket.ClosePolicyViolation, reason)
 	deadline := time.Now().Add(time.Second)
 	_ = s.client.WriteControl(websocket.CloseMessage, closeMessage, deadline)
+	if target := s.getTarget(); target != nil {
+		_ = target.WriteControl(websocket.CloseMessage, closeMessage, deadline)
+	}
 	s.shutdown()
 }
 
-func responsesWSEventType(message []byte) (string, error) {
-	var event struct {
-		Type string `json:"type"`
-	}
+// Stream identity belongs to the WebSocket envelope. For the legacy wrapped
+// input, the top-level field takes precedence over response.stream_id.
+func parseResponsesWSEnvelope(message []byte) (responsesWSCreateEvent, string, error) {
+	var event responsesWSCreateEvent
 	if err := common.Unmarshal(message, &event); err != nil {
-		return "", fmt.Errorf("invalid websocket event json: %w", err)
+		return event, "", fmt.Errorf("invalid websocket event json: %w", err)
+	}
+	streamRaw := event.StreamID
+	if len(streamRaw) == 0 && len(event.Request) > 0 {
+		var wrapped struct {
+			StreamID common.RawMessage `json:"stream_id"`
+		}
+		if err := common.Unmarshal(event.Request, &wrapped); err == nil {
+			streamRaw = wrapped.StreamID
+		}
+	}
+	var streamID string
+	if len(streamRaw) > 0 {
+		if err := common.Unmarshal(streamRaw, &streamID); err != nil || len(streamID) < 1 || len(streamID) > 256 {
+			return event, "", errors.New("stream_id must contain 1-256 ASCII letters, digits, underscores, hyphens, or periods")
+		}
+		for _, char := range streamID {
+			if !(char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z' || char >= '0' && char <= '9' || char == '_' || char == '-' || char == '.') {
+				return event, "", errors.New("stream_id must contain only ASCII letters, digits, underscores, hyphens, or periods")
+			}
+		}
 	}
 	if strings.TrimSpace(event.Type) == "" {
-		return "", errors.New("websocket event type is required")
+		return event, streamID, errors.New("websocket event type is required")
 	}
-	return event.Type, nil
+	return event, streamID, nil
 }
 
 func newResponsesWSInvalidRequestError(err error) *types.NewAPIError {
 	return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 }
 
-func normalizeResponsesWSCreateEvent(message []byte) (responsesWSCreateRequest, string, error) {
-	var event responsesWSCreateEvent
-	if err := common.Unmarshal(message, &event); err != nil {
-		return responsesWSCreateRequest{}, "", err
+// normalizeResponsesWSCreateEvent builds the HTTP-shaped request body from a
+// response.create whose envelope the read loop already parsed and validated.
+// The message is decoded once more as a raw map (the body source) and once as
+// the typed request; the envelope is not parsed again.
+func normalizeResponsesWSCreateEvent(message []byte, event responsesWSCreateEvent, streamID string) (responsesWSCreateRequest, error) {
+	create := responsesWSCreateRequest{StreamID: streamID, Generate: event.Generate}
+	// Decode the wrapped request on its own so outer fields cannot enter the HTTP body.
+	source := message
+	if len(event.Request) > 0 {
+		source = event.Request
 	}
-	if event.Type != responsesWSEventTypeResponseCreate {
-		return responsesWSCreateRequest{}, event.EventID, fmt.Errorf("unsupported event type %q", event.Type)
-	}
-
-	var generate common.RawMessage
 	var raw map[string]common.RawMessage
-	if err := common.Unmarshal(message, &raw); err == nil {
-		if generateRaw, ok := raw["generate"]; ok {
-			generate = generateRaw
-		}
+	if err := common.Unmarshal(source, &raw); err != nil {
+		return create, err
 	}
-
-	payload := event.Request
-	if len(payload) == 0 {
-		if err := common.Unmarshal(message, &raw); err != nil {
-			return responsesWSCreateRequest{}, event.EventID, err
-		}
-		delete(raw, "type")
-		delete(raw, "event_id")
-		delete(raw, "background")
-		delete(raw, "generate")
-		delete(raw, "stream")
-		delete(raw, "stream_options")
-		var err error
-		payload, err = common.Marshal(raw)
-		if err != nil {
-			return responsesWSCreateRequest{}, event.EventID, err
+	if len(event.Request) > 0 {
+		if len(create.Generate) == 0 {
+			create.Generate = raw["generate"]
 		}
 	} else {
-		var responseMap map[string]common.RawMessage
-		if err := common.Unmarshal(payload, &responseMap); err == nil {
-			if len(generate) == 0 {
-				if generateRaw, ok := responseMap["generate"]; ok {
-					generate = generateRaw
-				}
-			}
-			if _, exists := responseMap["generate"]; exists {
-				delete(responseMap, "generate")
-				if merged, err := common.Marshal(responseMap); err == nil {
-					payload = merged
-				}
-			}
+		for _, key := range []string{"type", "event_id", "background", "stream", "stream_options"} {
+			delete(raw, key)
 		}
 	}
-
-	var req dto.OpenAIResponsesRequest
-	if err := common.Unmarshal(payload, &req); err != nil {
-		return responsesWSCreateRequest{}, event.EventID, err
+	delete(raw, "generate")
+	delete(raw, "stream_id")
+	payload, err := common.Marshal(raw)
+	if err != nil {
+		return create, err
 	}
-	if helper.ExceedsMaxTokensLimit(req.MaxOutputTokens) {
-		return responsesWSCreateRequest{}, event.EventID, errors.New("max_output_tokens is invalid")
+	if err := common.Unmarshal(payload, &create.Request); err != nil {
+		return create, err
 	}
-	req.Stream = nil
-	req.StreamOptions = nil
-	return responsesWSCreateRequest{
-		Request:  req,
-		Body:     payload,
-		Generate: generate,
-	}, event.EventID, nil
+	if helper.ExceedsMaxTokensLimit(create.Request.MaxOutputTokens) {
+		return create, errors.New("max_output_tokens is invalid")
+	}
+	create.Request.Stream = nil
+	create.Request.StreamOptions = nil
+	create.Body = payload
+	return create, nil
 }
 
-func buildResponsesWSCreateEvent(jsonData []byte, generate common.RawMessage) ([]byte, error) {
+func buildResponsesWSCreateEvent(jsonData []byte, generate common.RawMessage, streamID string) ([]byte, error) {
 	var event map[string]common.RawMessage
 	if err := common.Unmarshal(jsonData, &event); err != nil {
 		return nil, err
@@ -726,6 +850,16 @@ func buildResponsesWSCreateEvent(jsonData []byte, generate common.RawMessage) ([
 		return nil, err
 	}
 	event["type"] = typeData
+	// The normalized body never carries stream_id; a channel parameter
+	// override may inject one, and it must not shadow the envelope's value.
+	delete(event, "stream_id")
+	if streamID != "" {
+		streamData, err := common.Marshal(streamID)
+		if err != nil {
+			return nil, err
+		}
+		event["stream_id"] = streamData
+	}
 	delete(event, "event_id")
 	delete(event, "background")
 	delete(event, "stream")
@@ -736,59 +870,7 @@ func buildResponsesWSCreateEvent(jsonData []byte, generate common.RawMessage) ([
 	return common.Marshal(event)
 }
 
-func dialResponsesWebSocketUpstream(c *gin.Context, adaptor relaychannel.Adaptor, info *relaycommon.RelayInfo) (*websocket.Conn, *types.NewAPIError) {
-	fullRequestURL, err := adaptor.GetRequestURL(info)
-	if err != nil {
-		return nil, types.NewError(fmt.Errorf("get request url failed: %w", err), types.ErrorCodeDoRequestFailed)
-	}
-	fullRequestURL = toWebSocketURL(fullRequestURL)
-
-	targetHeader := http.Header{}
-	if err := adaptor.SetupRequestHeader(c, &targetHeader, info); err != nil {
-		return nil, types.NewError(fmt.Errorf("setup request header failed: %w", err), types.ErrorCodeDoRequestFailed)
-	}
-	headerOverride, err := relaychannel.ResolveHeaderOverride(info, c)
-	if err != nil {
-		return nil, types.NewError(err, types.ErrorCodeChannelHeaderOverrideInvalid)
-	}
-	for key, value := range headerOverride {
-		targetHeader.Set(key, value)
-	}
-
-	dialer := *websocket.DefaultDialer
-	if info.ChannelSetting.Proxy != "" {
-		proxyURL, _, proxyErr := common.ParseProxyURLRuntime(info.ChannelSetting.Proxy)
-		if proxyErr != nil {
-			return nil, types.NewError(proxyErr, types.ErrorCodeDoRequestFailed)
-		}
-		dialer.Proxy = http.ProxyURL(proxyURL)
-	}
-	targetConn, resp, err := dialer.DialContext(c.Request.Context(), fullRequestURL, targetHeader)
-	if err != nil {
-		statusCode := http.StatusInternalServerError
-		if resp != nil {
-			statusCode = resp.StatusCode
-			if resp.Body != nil {
-				_ = resp.Body.Close()
-			}
-		}
-		return nil, types.NewErrorWithStatusCode(fmt.Errorf("dial failed to %s: %w", relaycommon.SanitizeURLForLog(fullRequestURL), err), types.ErrorCodeDoRequestFailed, statusCode)
-	}
-	return targetConn, nil
-}
-
-func toWebSocketURL(raw string) string {
-	switch {
-	case strings.HasPrefix(raw, "https://"):
-		return "wss://" + strings.TrimPrefix(raw, "https://")
-	case strings.HasPrefix(raw, "http://"):
-		return "ws://" + strings.TrimPrefix(raw, "http://")
-	default:
-		return raw
-	}
-}
-
-func buildResponsesWSErrorPayload(eventID string, apiErr *types.NewAPIError) ([]byte, error) {
+func buildResponsesWSErrorPayload(eventID, streamID string, apiErr *types.NewAPIError) ([]byte, error) {
 	if apiErr == nil {
 		return nil, errors.New("api error is nil")
 	}
@@ -798,13 +880,18 @@ func buildResponsesWSErrorPayload(eventID string, apiErr *types.NewAPIError) ([]
 	}
 	openaiErr := apiErr.ToOpenAIError()
 	return common.Marshal(&responsesWSErrorEvent{
-		Type:    "error",
-		Status:  status,
-		EventID: eventID,
-		Error:   &openaiErr,
+		Type:     "error",
+		Status:   status,
+		EventID:  eventID,
+		StreamID: streamID,
+		Error:    &openaiErr,
 	})
 }
 
+// checkResponsesWSModelAccess applies the token model limit with the same name
+// matching as the HTTP distributor. Unlike HTTP, it also runs for requests
+// pinned to a channel: the check is stricter there on purpose, because a
+// persistent connection keeps serving the model after the pin was resolved.
 func checkResponsesWSModelAccess(c *gin.Context, modelName string) *types.NewAPIError {
 	if !common.GetContextKeyBool(c, appconstant.ContextKeyTokenModelLimitEnabled) {
 		return nil
@@ -817,13 +904,15 @@ func checkResponsesWSModelAccess(c *gin.Context, modelName string) *types.NewAPI
 	if !ok {
 		tokenModelLimit = map[string]bool{}
 	}
-	matchName := ratio_setting.FormatMatchingModelName(modelName)
-	if _, ok := tokenModelLimit[matchName]; !ok {
+	if !middleware.TokenModelLimitAllows(tokenModelLimit, modelName) {
 		return types.NewErrorWithStatusCode(fmt.Errorf("token is not allowed to use model %s", modelName), types.ErrorCodeAccessDenied, http.StatusForbidden, types.ErrOptionWithSkipRetry())
 	}
 	return nil
 }
 
+// selectResponsesWSChannel narrows the shared HTTP selection to channels that
+// speak the Responses WebSocket protocol and renders its outcome as a
+// non-retryable NewAPIError.
 func selectResponsesWSChannel(c *gin.Context, modelName string, retryParam *service.RetryParam) (*appmodel.Channel, *types.NewAPIError) {
 	constraints := service.GetChannelConstraints(c)
 	if !slices.ContainsFunc(constraints.Filters, func(filter appdto.ChannelFilter) bool {
@@ -831,80 +920,20 @@ func selectResponsesWSChannel(c *gin.Context, modelName string, retryParam *serv
 	}) {
 		constraints.AddFilter(appdto.ChannelFilter{Kind: appdto.FilterResponsesWebSocket})
 	}
-	if pin, found, overridden := constraints.ResolvedPin(); found {
-		for _, lost := range overridden {
-			logger.LogWarn(c, fmt.Sprintf("channel pin overridden: winning_source=%s winning_channel_id=%d overridden_source=%s overridden_channel_id=%d", pin.Source, pin.ChannelId, lost.Source, lost.ChannelId))
+	channel, _, selectErr := service.SelectChannelForRequest(c, modelName, retryParam)
+	if selectErr != nil {
+		message := selectErr.Message
+		if selectErr.MessageID != "" {
+			message = i18n.T(c, selectErr.MessageID, selectErr.Params)
 		}
-		channel, err := appmodel.CacheGetChannel(pin.ChannelId)
-		if err != nil {
-			return nil, types.NewErrorWithStatusCode(err, types.ErrorCodeGetChannelFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+		code := selectErr.Code
+		if code == "" {
+			code = types.ErrorCodeGetChannelFailed
 		}
-		if channel.Status != common.ChannelStatusEnabled {
-			return nil, types.NewErrorWithStatusCode(errors.New("specified channel is disabled"), types.ErrorCodeGetChannelFailed, http.StatusForbidden, types.ErrOptionWithSkipRetry())
-		}
-		if ok, kind := appmodel.ChannelSatisfiesFilters(channel, modelName, constraints.Filters); !ok {
-			return nil, types.NewErrorWithStatusCode(errors.New("specified channel does not satisfy request constraints"), types.ErrorCode(kind), http.StatusBadRequest, types.ErrOptionWithSkipRetry())
-		}
-		if err := middleware.SetupContextForSelectedChannel(c, channel, modelName); err != nil {
-			return nil, err
-		}
-		return channel, nil
-	}
-
-	usingGroup := common.GetContextKeyString(c, appconstant.ContextKeyUsingGroup)
-	if usingGroup == "" {
-		usingGroup = retryParam.TokenGroup
-	}
-
-	if retryParam.GetRetry() == 0 {
-		if preferredChannelID, found := service.GetPreferredChannelByAffinity(c, modelName, usingGroup); found {
-			preferred, err := appmodel.CacheGetChannel(preferredChannelID)
-			affinitySatisfied := false
-			if err == nil && preferred != nil && preferred.Status == common.ChannelStatusEnabled {
-				affinitySatisfied, _ = appmodel.ChannelSatisfiesFilters(preferred, modelName, constraints.Filters)
-			}
-			if affinitySatisfied {
-				if usingGroup == "auto" {
-					userGroup := common.GetContextKeyString(c, appconstant.ContextKeyUserGroup)
-					for _, g := range service.GetRequestAutoGroups(c, userGroup) {
-						if appmodel.IsChannelEnabledForGroupModel(g, modelName, preferred.Id) {
-							common.SetContextKey(c, appconstant.ContextKeyAutoGroup, g)
-							service.MarkChannelAffinityUsed(c, g, preferred.Id)
-							if err := middleware.SetupContextForSelectedChannel(c, preferred, modelName); err != nil {
-								return nil, err
-							}
-							return preferred, nil
-						}
-					}
-				} else if appmodel.IsChannelEnabledForGroupModel(usingGroup, modelName, preferred.Id) {
-					service.MarkChannelAffinityUsed(c, usingGroup, preferred.Id)
-					if err := middleware.SetupContextForSelectedChannel(c, preferred, modelName); err != nil {
-						return nil, err
-					}
-					return preferred, nil
-				}
-			}
-		}
-	}
-
-	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
-	if err != nil {
-		return nil, types.NewError(fmt.Errorf("获取分组 %s 下模型 %s 的可用渠道失败（retry）: %s", selectGroup, modelName, err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
-	}
-	if channel == nil {
-		return nil, types.NewError(fmt.Errorf("分组 %s 下模型 %s 的可用渠道不存在（retry）", selectGroup, modelName), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
-	}
-	if ok, kind := appmodel.ChannelSatisfiesFilters(channel, modelName, constraints.Filters); !ok {
-		return nil, types.NewErrorWithStatusCode(errors.New("selected channel does not support Responses WebSocket"), types.ErrorCode(kind), http.StatusServiceUnavailable, types.ErrOptionWithSkipRetry())
+		return nil, types.NewErrorWithStatusCode(errors.New(message), code, selectErr.StatusCode, types.ErrOptionWithSkipRetry())
 	}
 	if err := middleware.SetupContextForSelectedChannel(c, channel, modelName); err != nil {
 		return nil, err
 	}
 	return channel, nil
-}
-
-func addResponsesWSUsedChannel(c *gin.Context, channelId int) {
-	useChannel := c.GetStringSlice("use_channel")
-	useChannel = append(useChannel, fmt.Sprintf("%d", channelId))
-	c.Set("use_channel", useChannel)
 }

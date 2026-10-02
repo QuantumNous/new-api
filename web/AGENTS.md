@@ -70,6 +70,14 @@
   - **状态/选项的 label**：在常量中统一用 **labelKey**（字符串，即 i18n 键），组件中通过 `t(config.labelKey)` 渲染；或约定用 `label` 存与 en 一致的 key 字符串，组件用 `t(config.label)`。同一 feature 内只采用一种方式，避免混用。
   - **新增此类常量时**：同步在 `src/i18n/static-keys.ts` 中登记对应 key（若项目用其做提取），或确保文案以 `t('...')` 字面量形式出现以便扫描，避免遗漏翻译。
 
+**数字格式化与 Intl 语言参数（强制）**
+
+- 普通数字、紧凑数字展示必须优先复用 `@/lib/format` 的 `formatNumber` / `formatCompactNumber`；金额、余额与额度使用已有 `@/lib/currency` 或对应业务封装，保留精度、单位与换算语义。已有封装无法表达的格式选项才可直接使用 `Intl.NumberFormat`，不能为统一调用方式改变数值显示精度。
+- `zhCN` / `zhTW` 是项目的界面语言码，不是合法的 BCP 47 标签。来自界面语言的参数，无论直接引用、解构、变量别名或函数透传，在进入 `Intl.*`、`toLocaleString` / `toLocaleDateString` / `toLocaleTimeString` 或公共格式化函数前，必须使用 `@/i18n/languages` 的 `toIntlLocale()` 转换。禁止自行编写 `zhCN` 等语言码映射；只处理简体中文会遗漏繁体中文。
+- React 组件通过 `useTranslation()` 订阅语言，在渲染时计算 `const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)`，例如 `formatNumber(value, locale)`。不得把当前语言固定在模块常量或初始 state 中；语言切换后格式必须更新。明确使用运行环境默认语言或固定协议语言的场景，可省略 locale、传 `undefined` 或使用合法的固定标签。
+- `bun run lint` / `bun run lint:fix` 启用 **`project/intl-locale` error**，检查上述调用中的原始 `language` / `resolvedLanguage`、本地变量赋值与解构别名，以及非法固定标签；不得通过 lint-disable 绕过。静态检查不追踪跨函数或跨模块的数据流，调用方仍须遵守转换约定。
+- 修改语言转换或数字格式化时，回归测试必须覆盖 `zhCN`、`zhTW`、其余五种界面语言，以及非法语言的降级；涉及组件语言响应时还须覆盖切换语言。修改 lint 规则须验证违规代码报错且合法转换不误报，类型检查和构建通过不能替代这些验证。
+
 ### 3.2 代码风格与类型
 
 - **表达式**：禁止 2 层及以上嵌套三元表达式；改用 `if-else`、提前返回或抽取函数。单层三元可保留，但需简洁。

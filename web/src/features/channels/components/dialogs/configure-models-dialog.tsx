@@ -34,6 +34,8 @@ type ConfigureModelsDialogProps = {
   initialPluginKey?: string
   onOpenChange: (open: boolean) => void
   onApply: (models: string[]) => void
+  /** Called after the selection is applied when the user starts a redirect for a model. */
+  onRedirect?: (model: string) => void
 }
 
 export function ConfigureModelsDialog(props: ConfigureModelsDialogProps) {
@@ -54,6 +56,18 @@ export function ConfigureModelsDialog(props: ConfigureModelsDialogProps) {
         : [...initialModels, ...plugins.flatMap((item) => item.models)]
     ),
   ]
+  const onRedirect = props.onRedirect
+  // Redirecting keeps the current picks and makes sure the redirected model is
+  // published, otherwise the alias could never be called.
+  const handleRedirect = onRedirect
+    ? (model: string) => {
+        props.onApply(
+          selected.includes(model) ? selected : [...selected, model]
+        )
+        props.onOpenChange(false)
+        onRedirect(model)
+      }
+    : undefined
   const selection = (
     <UpstreamModelSelection
       key={plugin?.key ?? 'all'}
@@ -61,6 +75,7 @@ export function ConfigureModelsDialog(props: ConfigureModelsDialogProps) {
       selected={selected}
       existingModels={initialModels}
       onChange={setSelected}
+      onRedirectModel={handleRedirect}
       showChanges={false}
       summaryText={
         plugins.length > 0

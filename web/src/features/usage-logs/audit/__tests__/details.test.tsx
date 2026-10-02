@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
   render,
   screen,
@@ -25,10 +26,14 @@ import {
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
+import type { ReactElement } from 'react'
 import { I18nextProvider } from 'react-i18next'
 import { afterEach, expect, it, vi } from 'vitest'
 
 import zh from '@/i18n/locales/zh.json'
+import type { PermissionResourceDef } from '@/lib/admin-permissions'
+import { api } from '@/lib/api'
+import dayjs from '@/lib/dayjs'
 
 import type { AuditLog } from '../api'
 import { AuditLogDetailsDialog } from '../components/audit-log-details-dialog'
@@ -88,7 +93,7 @@ it.each([
       op: { action: 'channel.update', params: { id: 42, name: 'batch' } },
     },
   }
-  render(
+  renderWithQueryClient(
     <I18nextProvider i18n={i18n}>
       <AuditLogDetailsDialog entry={log} />
     </I18nextProvider>
@@ -318,8 +323,15 @@ it('renders batch IDs compactly, copies the full list and preserves an empty res
   expect(copy).toHaveBeenCalledWith('11, 11, 12')
 })
 
+function renderWithQueryClient(ui: ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>)
+}
+
 async function openDetails(log: AuditLog = entry) {
-  render(<AuditLogDetailsDialog entry={log} />)
+  renderWithQueryClient(<AuditLogDetailsDialog entry={log} />)
   const trigger = screen.getByRole('button', { name: 'Details' })
   trigger.focus()
   await userEvent.keyboard('{Enter}')
@@ -698,4 +710,251 @@ it('shows the affected count separately from requested redemption IDs', async ()
       { label: 'Requested redemption code IDs', value: [11, 12, 11, 999] },
     ])
   )
+})
+
+const scopeResources: PermissionResourceDef[] = [
+  {
+    resource: 'profile',
+    label_key: 'Profile',
+    actions: [
+      { action: 'read', label_key: 'View', description_key: '' },
+      { action: 'write', label_key: 'Edit', description_key: '' },
+    ],
+  },
+  {
+    resource: 'user',
+    label_key: 'Users',
+    actions: [
+      { action: 'read', label_key: 'View', description_key: '' },
+      { action: 'write', label_key: 'Edit', description_key: '' },
+    ],
+  },
+]
+
+function generatedToken(params: Record<string, unknown>): AuditLog {
+  return {
+    ...entry,
+    category: 'security',
+    action: 'access_token.generate',
+    route: '/api/user/access_tokens',
+    method: 'POST',
+    content: '',
+    other: { op: { action: 'access_token.generate', params } },
+  }
+}
+
+it('describes granted scopes by label and only counts unknown ones', async () => {
+  const i18n = createInstance()
+  await i18n.init({ lng: 'en', resources: {} })
+  const log = generatedToken({
+    token_id: 3,
+    name: 'deploy',
+    scopes: ['profile:read', 'profile:write', 'retired:read', 'user:read'],
+    expires_at: 1788600600,
+    token_ref: 'd'.repeat(64),
+  })
+  const detail = buildAuditDetails(log, i18n.t, { scopeResources })
+  expect(detail.summary).toBe('Created an access token')
+  expect(detail.fields).toEqual(
+    expect.arrayContaining([
+      {
+        label: 'Permissions',
+        value: {
+          Profile: 'View, Edit',
+          Users: 'View',
+          Other: '1 permissions are no longer available',
+        },
+      },
+      {
+        label: 'Expiration',
+        value: dayjs.unix(1788600600).format('YYYY-MM-DD HH:mm:ss'),
+      },
+    ])
+  )
+  expect(JSON.stringify(detail)).not.toMatch(/profile:|user:|retired/)
+
+  const unknown = buildAuditDetails(
+    generatedToken({ scopes: ['retired:read', 'retired:write'] }),
+    i18n.t,
+    { scopeResources }
+  )
+  expect(unknown.fields).toEqual([
+    { label: 'Permissions', value: '2 permissions are no longer available' },
+  ])
+
+  const unloaded = buildAuditDetails(log, i18n.t)
+  expect(unloaded.summary).toBe('Created an access token')
+  expect(unloaded.fields).toContainEqual({
+    label: 'Permissions',
+    value: '4 permissions',
+  })
+  expect(JSON.stringify(unloaded)).not.toMatch(/profile:|user:|retired/)
+})
+
+it('shows a token without expiry as never expiring', async () => {
+  const i18n = createInstance()
+  await i18n.init({ lng: 'en', resources: {} })
+  const detail = buildAuditDetails(
+    generatedToken({ scopes: ['profile:read'], expires_at: 0 }),
+    i18n.t,
+    { scopeResources }
+  )
+  expect(detail.fields).toContainEqual({
+    label: 'Expiration',
+    value: 'Never expires',
+  })
+})
+
+it('shows the previous grant next to the new one after a permission change', async () => {
+  const i18n = createInstance()
+  await i18n.init({ lng: 'en', resources: {} })
+  const detail = buildAuditDetails(
+    {
+      ...generatedToken({}),
+      action: 'access_token.update',
+      route: '/api/user/access_tokens/3',
+      method: 'PATCH',
+      other: {
+        op: {
+          action: 'access_token.update',
+          params: {
+            token_id: 3,
+            name: 'deploy',
+            scopes: ['profile:read', 'user:read'],
+            previous_scopes: ['profile:read', 'retired:read'],
+            token_ref: 'd'.repeat(64),
+          },
+        },
+      },
+    },
+    i18n.t,
+    { scopeResources }
+  )
+  expect(detail.summary).toBe('Changed access token permissions')
+  expect(detail.fields).toEqual(
+    expect.arrayContaining([
+      { label: 'Permissions', value: { Profile: 'View', Users: 'View' } },
+      {
+        label: 'Previous permissions',
+        value: {
+          Profile: 'View',
+          Other: '1 permissions are no longer available',
+        },
+      },
+    ])
+  )
+  expect(JSON.stringify(detail)).not.toMatch(/profile:|user:|retired/)
+})
+
+it('labels account operation parameters', async () => {
+  const i18n = createInstance()
+  await i18n.init({ lng: 'en', resources: {} })
+  const detail = buildAuditDetails(
+    {
+      ...entry,
+      category: 'security',
+      action: 'user.update',
+      other: {
+        op: {
+          action: 'user.update',
+          params: {
+            legacy: true,
+            revoked_access_tokens: 2,
+            verification_method: 'passkey',
+            password_reset: true,
+            admin_permissions_updated: false,
+            provider_id: 5,
+          },
+        },
+      },
+    },
+    i18n.t
+  )
+  expect(detail.fields).toEqual([
+    { label: 'Legacy token', value: true },
+    { label: 'Revoked access tokens', value: 2 },
+    { label: 'Verification method', value: 'Passkey' },
+    { label: 'Reset password', value: true },
+    { label: 'Admin permissions updated', value: false },
+    { label: 'Provider ID', value: 5 },
+  ])
+})
+
+it('loads scope labels for a generated token when its details open', async () => {
+  const get = vi.spyOn(api, 'get').mockResolvedValue({
+    data: { success: true, data: { resources: scopeResources } },
+  })
+  const i18n = createInstance()
+  await i18n.init({ lng: 'zh', resources: { zh } })
+  renderWithQueryClient(
+    <I18nextProvider i18n={i18n}>
+      <AuditLogDetailsDialog
+        entry={generatedToken({
+          token_id: 3,
+          name: 'deploy',
+          scopes: ['profile:read', 'profile:write', 'retired:read'],
+          expires_at: 0,
+        })}
+      />
+    </I18nextProvider>
+  )
+  expect(get).not.toHaveBeenCalled()
+  await userEvent.click(screen.getByRole('button', { name: '详情' }))
+  const dialog = await screen.findByRole('dialog', { name: '日志详情' })
+  expect(await within(dialog).findByText('查看, 编辑')).toBeVisible()
+  expect(get).toHaveBeenCalledWith(
+    '/api/user/access_tokens/scopes',
+    expect.anything()
+  )
+  expect(within(dialog).getByText('个人资料')).toBeVisible()
+  expect(within(dialog).getByText('1 项权限不在当前权限目录中')).toBeVisible()
+  expect(within(dialog).getByText('永不过期')).toBeVisible()
+  expect(dialog).not.toHaveTextContent(/profile:|retired/)
+})
+
+it('loads scope labels for a permission change when its details open', async () => {
+  const get = vi.spyOn(api, 'get').mockResolvedValue({
+    data: { success: true, data: { resources: scopeResources } },
+  })
+  const i18n = createInstance()
+  await i18n.init({ lng: 'zh', resources: { zh } })
+  renderWithQueryClient(
+    <I18nextProvider i18n={i18n}>
+      <AuditLogDetailsDialog
+        entry={{
+          ...generatedToken({}),
+          action: 'access_token.update',
+          route: '/api/user/access_tokens/3',
+          method: 'PATCH',
+          other: {
+            op: {
+              action: 'access_token.update',
+              params: {
+                token_id: 3,
+                name: 'deploy',
+                scopes: ['user:read'],
+                previous_scopes: ['profile:read', 'profile:write'],
+              },
+            },
+          },
+        }}
+      />
+    </I18nextProvider>
+  )
+  await userEvent.click(screen.getByRole('button', { name: '详情' }))
+  const dialog = await screen.findByRole('dialog', { name: '日志详情' })
+  expect(await within(dialog).findByText('查看, 编辑')).toBeVisible()
+  expect(get).toHaveBeenCalledWith(
+    '/api/user/access_tokens/scopes',
+    expect.anything()
+  )
+  expect(within(dialog).getByText('原权限')).toBeVisible()
+  expect(within(dialog).getByText('用户')).toBeVisible()
+  expect(dialog).not.toHaveTextContent(/profile:|user:/)
+})
+
+it('does not load scope labels for other records', async () => {
+  const get = vi.spyOn(api, 'get')
+  await openDetails()
+  expect(get).not.toHaveBeenCalled()
 })

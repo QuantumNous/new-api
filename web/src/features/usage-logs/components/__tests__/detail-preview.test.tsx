@@ -127,6 +127,22 @@ function renderPreview(other: LogOtherData, isAdmin = true) {
   return screen.getByRole('button', { name: /./ })
 }
 
+test('keeps log details open when the parent refreshes with unchanged data', async () => {
+  const other = { model_price: 0.25 }
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <I18nextProvider i18n={i18n}>
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    </I18nextProvider>
+  )
+  const { rerender } = render(<DetailPreview other={other} isAdmin />, {
+    wrapper,
+  })
+  fireEvent.click(screen.getByRole('button', { name: 'Per-call · $0.25' }))
+  expect(await screen.findByRole('dialog')).toBeVisible()
+  rerender(<DetailPreview other={other} isAdmin />)
+  expect(screen.getByRole('dialog')).toBeVisible()
+})
+
 test.each([
   {
     name: 'fixed expression zero price',

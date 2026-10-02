@@ -24,6 +24,7 @@ import (
 
 type taskPollingFetchAdaptor struct {
 	mu           sync.Mutex
+	initInfo     *relaycommon.RelayInfo
 	taskIDs      []string
 	fetched      chan string
 	blockTaskID  string
@@ -59,7 +60,19 @@ func (a *batchPollingAdaptor) ParseBatchResult(_ []*model.Task, _ *http.Response
 	return results, nil
 }
 
-func (a *taskPollingFetchAdaptor) Init(_ *relaycommon.RelayInfo) {}
+func (a *taskPollingFetchAdaptor) Init(info *relaycommon.RelayInfo) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.initInfo = info
+}
+func (a *taskPollingFetchAdaptor) initChannelMeta() *relaycommon.ChannelMeta {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.initInfo == nil {
+		return nil
+	}
+	return a.initInfo.ChannelMeta
+}
 
 func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, task *model.Task, _ string) (*http.Response, error) {
 	taskID := ""
@@ -223,6 +236,37 @@ func TestUpdateVideoTasksDefaultSleepWaitsBetweenTasks(t *testing.T) {
 
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Equal(t, 1, adaptor.fetchCount())
+}
+
+func TestPollingPassesExecutingChannelTypeToAdaptor(t *testing.T) {
+	truncate(t)
+	const channelID = 112
+	baseURL := "https://gateway.example"
+	gateway := &model.Channel{Id: channelID, Type: constant.ChannelTypeNewAPI, Name: "gateway", Key: "sk-gateway", Status: common.ChannelStatusEnabled, BaseURL: &baseURL}
+	gateway.SetOtherSettings(dto.ChannelOtherSettings{DisableTaskPollingSleep: true})
+	require.NoError(t, model.DB.Create(gateway).Error)
+	task := seedPollingTask(t, channelID, "task_gateway", "upstream_gateway")
+	taskChannels := map[int][]string{channelID: {task.GetUpstreamTaskID()}}
+	tasks := map[string]*model.Task{task.GetUpstreamTaskID(): task}
+
+	perTask := &taskPollingFetchAdaptor{}
+	previousFactory := GetTaskAdaptorFunc
+	GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return perTask }
+	t.Cleanup(func() { GetTaskAdaptorFunc = previousFactory })
+	require.NoError(t, UpdateVideoTasks(context.Background(), constant.TaskPlatform("kling"), taskChannels, tasks))
+	meta := perTask.initChannelMeta()
+	require.NotNil(t, meta, "per-task polling initializes the adaptor with channel metadata")
+	assert.Equal(t, constant.ChannelTypeNewAPI, meta.ChannelType, "the adaptor derives the upstream kind from the channel type")
+	assert.Equal(t, channelID, meta.ChannelId)
+	assert.Equal(t, baseURL, meta.ChannelBaseUrl)
+
+	batch := &batchPollingAdaptor{}
+	require.NoError(t, UpdateBatchTasks(context.Background(), batch, taskChannels, tasks))
+	meta = batch.initChannelMeta()
+	require.NotNil(t, meta, "batch polling initializes the adaptor with channel metadata")
+	assert.Equal(t, constant.ChannelTypeNewAPI, meta.ChannelType)
+	assert.Equal(t, channelID, meta.ChannelId)
+	assert.Equal(t, baseURL, meta.ChannelBaseUrl)
 }
 
 func TestDispatchPlatformUpdateUsesFetchMode(t *testing.T) {

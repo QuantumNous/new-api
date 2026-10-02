@@ -523,7 +523,7 @@ func GetUserOAuthBindingsByAdmin(c *gin.Context) {
 
 // UnbindCustomOAuth unbinds a custom OAuth provider from the current user
 func UnbindCustomOAuth(c *gin.Context) {
-	identity, ok := middleware.GetSessionAuthIdentity(c)
+	identity, ok := middleware.GetStepUpIdentity(c)
 	if !ok {
 		writeSecurityOperationError(c, service.ErrAuthTokenInvalid)
 		return
@@ -589,8 +589,12 @@ func UnbindCustomOAuthByAdmin(c *gin.Context) {
 
 	providerIdStr := c.Param("provider_id")
 	providerId, err := strconv.Atoi(providerIdStr)
-	if err != nil {
+	if err != nil || providerId <= 0 {
 		common.ApiErrorMsg(c, "invalid provider id")
+		return
+	}
+	authorization := requireAdminUserProof(c, service.VerificationScopeAdminUserBindingClear, service.AdminUserBindingContext{UserID: userId, ProviderID: providerId})
+	if authorization == nil {
 		return
 	}
 
@@ -599,6 +603,12 @@ func UnbindCustomOAuthByAdmin(c *gin.Context) {
 		return
 	}
 
+	recordManageAuditFor(c, userId, "user.binding_clear", map[string]any{
+		"bindingType":         "custom_oauth",
+		"provider_id":         providerId,
+		"username":            targetUser.Username,
+		"verification_method": authorization.Method,
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "success",

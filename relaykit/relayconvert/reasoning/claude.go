@@ -15,7 +15,10 @@ type ClaudeRender struct {
 	EffectiveEffort           Effort
 	ClearSampling             bool
 	ConstrainThinkingSampling bool
-	Diagnostics               []types.ConversionDiagnostic
+	// MaxTokens is set when manual thinking needed a larger max_tokens than
+	// the request carried; callers apply it to the outgoing request.
+	MaxTokens   *uint
+	Diagnostics []types.ConversionDiagnostic
 }
 
 type claudeCapabilities struct {
@@ -82,15 +85,18 @@ func RenderClaude(model string, intent Intent, maxTokens *uint, adapterBudgetPer
 			return ClaudeRender{}, err
 		}
 		intent.Effort = effort
-	} else {
+	}
+	diagnostics := make([]types.ConversionDiagnostic, 0, 1)
+	if !disabledWithEffort {
+		var normalizeDiagnostics []types.ConversionDiagnostic
 		var err error
-		intent, err = normalizeIntent(intent)
+		intent, normalizeDiagnostics, err = normalizeIntent(intent)
 		if err != nil {
 			return ClaudeRender{}, err
 		}
+		diagnostics = append(diagnostics, normalizeDiagnostics...)
 	}
 	capabilities := claudeCapabilitiesFor(model)
-	diagnostics := make([]types.ConversionDiagnostic, 0, 1)
 	if disabledWithEffort {
 		diagnostics = append(diagnostics, claudeReasoningDiagnostic(
 			"claude_disabled_effort_ignored",
@@ -225,13 +231,26 @@ func RenderClaude(model string, intent Intent, maxTokens *uint, adapterBudgetPer
 		}
 	}
 	if intent.Mode == ModeUnset {
-		return ClaudeRender{OutputEffort: intent.Effort, EffectiveEffort: intent.Effort}, nil
+		return ClaudeRender{OutputEffort: intent.Effort, EffectiveEffort: intent.Effort, Diagnostics: diagnostics}, nil
 	}
-	if maxTokens == nil {
-		return ClaudeRender{}, fmt.Errorf("max_tokens is required for manual Claude thinking")
-	}
-	if *maxTokens <= 1024 {
-		return ClaudeRender{}, fmt.Errorf("max_tokens must be greater than 1024 for manual Claude thinking")
+	var raisedMaxTokens *uint
+	if maxTokens == nil || *maxTokens <= 1024 {
+		// Manual thinking needs room above the 1024-token minimum budget.
+		// Raising max_tokens keeps the request usable instead of rejecting it.
+		raised := uint(1280)
+		if intent.BudgetTokens != nil && *intent.BudgetTokens >= 0 && *intent.BudgetTokens < math.MaxInt32/2 {
+			raised = max(raised, uint(*intent.BudgetTokens)+1)
+		}
+		current := "a missing max_tokens"
+		if maxTokens != nil {
+			current = fmt.Sprintf("max_tokens %d", *maxTokens)
+		}
+		diagnostics = append(diagnostics, claudeReasoningDiagnostic(
+			"claude_max_tokens_raised",
+			fmt.Sprintf("model %q requires max_tokens greater than 1024 for manual thinking; raised %s to %d", model, current, raised),
+		))
+		raisedMaxTokens = &raised
+		maxTokens = &raised
 	}
 	if uint64(*maxTokens) > uint64(math.MaxInt) {
 		return ClaudeRender{}, fmt.Errorf("max_tokens is too large for a thinking budget")
@@ -288,6 +307,7 @@ func RenderClaude(model string, intent Intent, maxTokens *uint, adapterBudgetPer
 		OutputEffort:              outputEffort,
 		EffectiveEffort:           effectiveEffort,
 		ConstrainThinkingSampling: true,
+		MaxTokens:                 raisedMaxTokens,
 		Diagnostics:               diagnostics,
 	}, nil
 }

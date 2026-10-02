@@ -121,7 +121,7 @@ func WeChatAuth(c *gin.Context) {
 		})
 		return
 	}
-	setupLogin(&user, c)
+	setupLogin(&user, nil, c)
 }
 
 type wechatBindRequest struct {
@@ -129,7 +129,7 @@ type wechatBindRequest struct {
 }
 
 func WeChatBind(c *gin.Context) {
-	identity, ok := middleware.GetSessionAuthIdentity(c)
+	identity, ok := middleware.GetStepUpIdentity(c)
 	if !ok {
 		writeSecurityOperationError(c, service.ErrAuthTokenInvalid)
 		return

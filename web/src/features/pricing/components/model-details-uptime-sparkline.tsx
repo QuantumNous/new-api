@@ -50,6 +50,7 @@ type SparklineSize = 'sm' | 'md'
 
 type UptimeSparklineProps = {
   series: UptimeDayPoint[]
+  overallSuccessRate?: number
   size?: SparklineSize
   showOverall?: boolean
   emptyLabel?: string
@@ -77,6 +78,7 @@ export function UptimeSparkline(props: UptimeSparklineProps) {
   }
 
   const overall =
+    props.overallSuccessRate ??
     props.series.reduce((s, p) => s + p.uptime_pct, 0) / props.series.length
 
   const containerHeight = size === 'sm' ? 'h-3.5' : 'h-5'
@@ -115,7 +117,7 @@ export function UptimeSparkline(props: UptimeSparklineProps) {
             </TooltipTrigger>
             <TooltipContent side='top' className='font-mono text-xs'>
               <div className='font-medium'>{day.date}</div>
-              <div>{day.uptime_pct.toFixed(2)}%</div>
+              <div>{formatUptimePct(day.uptime_pct)}</div>
               {day.outage_minutes > 0 && (
                 <div className='text-muted-foreground'>
                   {day.outage_minutes} min outage
@@ -132,7 +134,7 @@ export function UptimeSparkline(props: UptimeSparklineProps) {
             getSuccessRateTextClass(overall)
           )}
         >
-          {overall.toFixed(1)}%
+          {formatUptimePct(overall)}
         </span>
       )}
     </div>
@@ -156,30 +158,21 @@ export function UptimeStatusRow(props: {
     return 'major'
   }, [summary.uptime_pct])
 
-  const StatusIcon =
-    status === 'operational'
-      ? CheckCircle2
-      : status === 'minor'
-        ? Activity
-        : AlertCircle
-
-  const statusColour =
-    status === 'operational'
-      ? 'text-emerald-600 dark:text-emerald-400'
-      : status === 'minor'
-        ? 'text-emerald-600 dark:text-emerald-400'
-        : status === 'degraded'
-          ? 'text-amber-600 dark:text-amber-400'
-          : 'text-rose-600 dark:text-rose-400'
-
-  const statusLabel =
-    status === 'operational'
-      ? t('All systems operational')
-      : status === 'minor'
-        ? t('Minor blips in the last 30 days')
-        : status === 'degraded'
-          ? t('Degraded performance recently')
-          : t('Significant outages detected')
+  let StatusIcon = AlertCircle
+  let statusColour = 'text-rose-600 dark:text-rose-400'
+  let statusLabel = t('Significant outages detected')
+  if (status === 'operational') {
+    StatusIcon = CheckCircle2
+    statusColour = 'text-emerald-600 dark:text-emerald-400'
+    statusLabel = t('All systems operational')
+  } else if (status === 'minor') {
+    StatusIcon = Activity
+    statusColour = 'text-emerald-600 dark:text-emerald-400'
+    statusLabel = t('Minor blips in the last 30 days')
+  } else if (status === 'degraded') {
+    statusColour = 'text-amber-600 dark:text-amber-400'
+    statusLabel = t('Degraded performance recently')
+  }
 
   return (
     <div

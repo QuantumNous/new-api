@@ -40,6 +40,10 @@ const (
 	MsgAuthUserIdMismatch        = "auth.user_id_mismatch"
 	MsgAuthUserBanned            = "auth.user_banned"
 	MsgAuthInsufficientPrivilege = "auth.insufficient_privilege"
+	MsgAuthAccessTokenExpired    = "auth.access_token_expired"
+	MsgAuthLegacyTokenRetired    = "auth.legacy_access_token_retired"
+	MsgAuthAccessTokenScope      = "auth.access_token_scope_denied"
+	MsgAuthAccessTokenLimit      = "auth.access_token_limit"
 )
 
 // Token related messages
@@ -300,6 +304,7 @@ const (
 	MsgOAuthUserBanned      = "oauth.user_banned"
 	MsgOAuthBindSuccess     = "oauth.bind_success"
 	MsgOAuthAlreadyBound    = "oauth.already_bound"
+	MsgOAuthNotAutoLinked   = "oauth.not_auto_linked"
 	MsgOAuthConnectFailed   = "oauth.connect_failed"
 	MsgOAuthTokenFailed     = "oauth.token_failed"
 	MsgOAuthUserInfoEmpty   = "oauth.user_info_empty"

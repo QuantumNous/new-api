@@ -14,17 +14,30 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	appdto "github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// normalizeResponsesWSTestMessage runs the read-loop envelope parse followed by
+// request normalization, exactly as the session does for one response.create.
+func normalizeResponsesWSTestMessage(message []byte) (responsesWSCreateRequest, string, error) {
+	envelope, streamID, err := parseResponsesWSEnvelope(message)
+	if err != nil {
+		return responsesWSCreateRequest{StreamID: streamID}, envelope.EventID, err
+	}
+	create, err := normalizeResponsesWSCreateEvent(message, envelope, streamID)
+	return create, envelope.EventID, err
+}
 
 func TestNormalizeResponsesWSMaxOutputTokens(t *testing.T) {
 	for _, tc := range []struct {
@@ -44,7 +57,7 @@ func TestNormalizeResponsesWSMaxOutputTokens(t *testing.T) {
 				if wrapped {
 					payload = `{"type":"response.create","response":{` + fields + `}}`
 				}
-				create, _, err := normalizeResponsesWSCreateEvent([]byte(payload))
+				create, _, err := normalizeResponsesWSTestMessage([]byte(payload))
 				if !tc.valid {
 					require.Error(t, err)
 					assert.Equal(t, http.StatusBadRequest, newResponsesWSInvalidRequestError(err).StatusCode)
@@ -59,6 +72,7 @@ func TestNormalizeResponsesWSMaxOutputTokens(t *testing.T) {
 }
 
 func TestSelectResponsesWSChannelHonorsPinsAndFilters(t *testing.T) {
+	require.NoError(t, i18n.Init())
 	database := setupRelayChannelDB(t)
 	enabled := &model.Channel{Name: "enabled", Key: "sk-test", Status: common.ChannelStatusEnabled, Type: constant.ChannelTypeOpenAI}
 	enabled.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: true})
@@ -103,7 +117,112 @@ func TestSelectResponsesWSChannelHonorsPinsAndFilters(t *testing.T) {
 	}
 }
 
+// The WebSocket relay must admit the same model names as the HTTP distributor
+// when a token restricts models (reasoning suffixes and @modifiers included).
+func TestCheckResponsesWSModelAccessMatchesHTTPTokenLimits(t *testing.T) {
+	for _, tc := range []struct {
+		model  string
+		status int
+	}{
+		{model: "gpt-5.1"},
+		{model: "gpt-5.1-high"},
+		{model: "gpt-5.1@thinking:on"},
+		{model: "gpt-4o", status: http.StatusForbidden},
+	} {
+		t.Run(tc.model, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+			common.SetContextKey(c, constant.ContextKeyTokenModelLimitEnabled, true)
+			common.SetContextKey(c, constant.ContextKeyTokenModelLimit, map[string]bool{"gpt-5.1": true})
+			apiErr := checkResponsesWSModelAccess(c, tc.model)
+			if tc.status == 0 {
+				assert.Nil(t, apiErr)
+				return
+			}
+			require.NotNil(t, apiErr)
+			assert.Equal(t, tc.status, apiErr.StatusCode)
+			assert.False(t, service.ShouldRetryRelayError(c, apiErr, 2))
+		})
+	}
+}
+
+func TestSelectResponsesWSChannelAcceptsNativeResponsesChannelTypes(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	database := setupRelayChannelDB(t)
+	nativeRoute := &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{{IncomingPath: "/v1/responses", UpstreamPath: "/v1/responses"}}}
+	noneRoute := &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{{IncomingPath: "/v1/responses", UpstreamPath: "/v1/responses", Converter: "none"}}}
+	convertedRoute := &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{{IncomingPath: "/v1/responses", UpstreamPath: "/v1/chat/completions", Converter: "openai_responses_to_openai_chat_completions"}}}
+	chatRoute := &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{{IncomingPath: "/v1/chat/completions", UpstreamPath: "/v1/chat/completions"}}}
+	for _, tc := range []struct {
+		name        string
+		channelType int
+		advanced    *dto.AdvancedCustomConfig
+		rejectedBy  appdto.ChannelFilterKind
+	}{
+		{name: "new api", channelType: constant.ChannelTypeNewAPI},
+		{name: "sub2api", channelType: constant.ChannelTypeSub2API},
+		{name: "advanced custom native responses route", channelType: constant.ChannelTypeAdvancedCustom, advanced: nativeRoute},
+		{name: "advanced custom explicit none converter", channelType: constant.ChannelTypeAdvancedCustom, advanced: noneRoute},
+		{name: "advanced custom converter route", channelType: constant.ChannelTypeAdvancedCustom, advanced: convertedRoute, rejectedBy: appdto.FilterResponsesWebSocket},
+		{name: "advanced custom without responses route", channelType: constant.ChannelTypeAdvancedCustom, advanced: chatRoute, rejectedBy: appdto.FilterRequestPath},
+		{name: "anthropic", channelType: constant.ChannelTypeAnthropic, rejectedBy: appdto.FilterResponsesWebSocket},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			channel := &model.Channel{Name: tc.name, Key: "sk-test", Status: common.ChannelStatusEnabled, Type: tc.channelType}
+			channel.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: true})
+			channel.SetOtherSettings(dto.ChannelOtherSettings{AdvancedCustom: tc.advanced})
+			require.NoError(t, database.Create(channel).Error)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+			constraints := service.GetChannelConstraints(c)
+			constraints.AddPin(appdto.ChannelPin{ChannelId: channel.Id, Source: appdto.PinSourceToken, Rank: appdto.PinRankToken, RetryMode: appdto.PinRetrySingleAttempt})
+			constraints.AddFilter(appdto.ChannelFilter{Kind: appdto.FilterRequestPath, RequestPath: c.Request.URL.Path})
+			selected, apiErr := selectResponsesWSChannel(c, "ws-model", &service.RetryParam{Ctx: c, ModelName: "ws-model", TokenGroup: "default"})
+			if tc.rejectedBy != "" {
+				require.NotNil(t, apiErr)
+				assert.Nil(t, selected)
+				assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
+				assert.Equal(t, types.ErrorCode(tc.rejectedBy), apiErr.GetErrorCode())
+				return
+			}
+			require.Nil(t, apiErr)
+			require.NotNil(t, selected)
+			assert.Equal(t, channel.Id, selected.Id)
+		})
+	}
+}
+
+func TestRestoreConnectionContextRejectsChangedAdvancedCustomRoute(t *testing.T) {
+	database := setupRelayChannelDB(t)
+	baseURL := "http://upstream.example"
+	channel := &model.Channel{Name: "advanced", Key: "sk-test", Status: common.ChannelStatusEnabled, Type: constant.ChannelTypeAdvancedCustom, BaseURL: &baseURL}
+	channel.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: true})
+	channel.SetOtherSettings(dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{{IncomingPath: "/v1/responses", UpstreamPath: "/v1/responses"}}}})
+	require.NoError(t, database.Create(channel).Error)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+	service.GetChannelConstraints(c).AddPin(appdto.ChannelPin{ChannelId: channel.Id, Source: appdto.PinSourceToken, Rank: appdto.PinRankToken, RetryMode: appdto.PinRetrySingleAttempt})
+	route, ok := channel.GetOtherSettings().AdvancedCustom.MatchPathForModel("/v1/responses", "ws-model")
+	require.True(t, ok)
+	session := &responsesWSSession{lockedChannelID: channel.Id, lockedModel: "ws-model", lockedKey: "sk-test", lockedRoute: route,
+		lockedContext: map[constant.ContextKey]any{constant.ContextKeyChannelBaseUrl: channel.GetBaseURL(), constant.ContextKeyChannelHeaderOverride: channel.GetHeaderOverride()}}
+	require.Nil(t, session.restoreConnectionContext(c, "ws-model"))
+
+	// Request-level edits (model list, explicit none converter) keep the connection.
+	channel.SetOtherSettings(dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{{IncomingPath: "/v1/responses", UpstreamPath: "/v1/responses", Converter: "none", Models: []string{"ws-model", "other-model"}}}}})
+	require.NoError(t, database.Model(channel).Update("settings", channel.OtherSettings).Error)
+	require.Nil(t, session.restoreConnectionContext(c, "ws-model"))
+
+	channel.SetOtherSettings(dto.ChannelOtherSettings{AdvancedCustom: &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{{IncomingPath: "/v1/responses", UpstreamPath: "/v2/responses"}}}})
+	require.NoError(t, database.Model(channel).Update("settings", channel.OtherSettings).Error)
+	apiErr := session.restoreConnectionContext(c, "ws-model")
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusForbidden, apiErr.StatusCode)
+	assert.ErrorContains(t, apiErr, "upstream route changed")
+}
+
 func TestResponsesWSChannelRoutingRequiresExplicitOptIn(t *testing.T) {
+	require.NoError(t, i18n.Init())
 	database := setupRelayChannelDB(t)
 	require.NoError(t, database.AutoMigrate(&model.Ability{}))
 	legacy := &model.Channel{Name: "legacy-http", Key: "sk-test", Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled, Group: "default", Models: "ws-model", Priority: common.GetPointer(int64(10))}
@@ -150,6 +269,71 @@ func TestResponsesWSChannelRoutingRequiresExplicitOptIn(t *testing.T) {
 	assert.Nil(t, channel)
 }
 
+// Session affinity follows the HTTP distributor: a strict binding to an
+// unusable channel fails the request, a prefer binding falls back, and an
+// unusable binding is dropped from the cache either way.
+func TestSelectResponsesWSChannelHonorsStrictSessionBinding(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	database := setupRelayChannelDB(t)
+	require.NoError(t, database.AutoMigrate(&model.Ability{}))
+	bound := &model.Channel{Name: "bound", Key: "sk-test", Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusAutoDisabled, Group: "default", Models: "ws-model", Priority: common.GetPointer(int64(10))}
+	fallback := &model.Channel{Name: "fallback", Key: "sk-test", Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled, Group: "default", Models: "ws-model", Priority: common.GetPointer(int64(0))}
+	for _, channel := range []*model.Channel{bound, fallback} {
+		channel.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: true})
+		require.NoError(t, database.Create(channel).Error)
+		require.NoError(t, database.Create(&model.Ability{ChannelId: channel.Id, Model: "ws-model", Group: "default", Enabled: channel.Status == common.ChannelStatusEnabled, Priority: channel.Priority}).Error)
+	}
+	previousCache := common.MemoryCacheEnabled
+	t.Cleanup(func() {
+		defer func() { common.MemoryCacheEnabled = previousCache }()
+		ids := []int{bound.Id, fallback.Id}
+		require.NoError(t, database.Where("channel_id IN ?", ids).Delete(&model.Ability{}).Error)
+		require.NoError(t, database.Where("id IN ?", ids).Delete(&model.Channel{}).Error)
+		model.InitChannelCache()
+	})
+	common.MemoryCacheEnabled = true
+	model.InitChannelCache()
+	affinity := operation_setting.GetChannelAffinitySetting()
+	previousAffinity := *affinity
+	t.Cleanup(func() { *affinity = previousAffinity })
+	snapshot, err := model.BuildRequestPolicy(map[string]string{
+		"channel_affinity_setting.enabled":      "true",
+		"channel_affinity_setting.session_mode": "strict",
+		"channel_affinity_setting.rules":        `[{"name":"session","model_regex":[".*"],"key_sources":[{"type":"request_header","key":"X-Session"}],"session_mode":"inherit"}]`,
+	})
+	require.NoError(t, err)
+	*affinity = snapshot.Affinity
+	newSessionContext := func() *gin.Context {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+		c.Request.Header.Set("X-Session", t.Name())
+		return c
+	}
+	seed := newSessionContext()
+	_, found := service.GetPreferredChannelByAffinity(seed, "ws-model", "default")
+	require.False(t, found)
+	seed.Set("channel_id", bound.Id)
+	service.RecordChannelAffinity(seed, bound.Id)
+	t.Cleanup(func() { service.ClearCurrentChannelAffinityCache(seed) })
+
+	strict := newSessionContext()
+	channel, apiErr := selectResponsesWSChannel(strict, "ws-model", &service.RetryParam{Ctx: strict, ModelName: "ws-model", TokenGroup: "default", Retry: common.GetPointer(0)})
+	require.NotNil(t, apiErr)
+	assert.Nil(t, channel)
+	assert.Equal(t, http.StatusServiceUnavailable, apiErr.StatusCode)
+	assert.False(t, service.ShouldRetryRelayError(strict, apiErr, 2))
+	_, found = service.GetPreferredChannelByAffinity(seed, "ws-model", "default")
+	assert.False(t, found, "an unusable binding is cleared unless keep_on_channel_disabled is set")
+
+	affinity.SessionMode = "prefer"
+	service.RecordChannelAffinity(seed, bound.Id)
+	prefer := newSessionContext()
+	channel, apiErr = selectResponsesWSChannel(prefer, "ws-model", &service.RetryParam{Ctx: prefer, ModelName: "ws-model", TokenGroup: "default", Retry: common.GetPointer(0)})
+	require.Nil(t, apiErr)
+	require.NotNil(t, channel)
+	assert.Equal(t, fallback.Id, channel.Id)
+}
+
 func TestNormalizeResponsesWSCreateEventWrapper(t *testing.T) {
 	message := []byte(`{
 		"type": "response.create",
@@ -164,9 +348,9 @@ func TestNormalizeResponsesWSCreateEventWrapper(t *testing.T) {
 		}
 	}`)
 
-	create, eventID, err := normalizeResponsesWSCreateEvent(message)
+	create, eventID, err := normalizeResponsesWSTestMessage(message)
 	if err != nil {
-		t.Fatalf("normalizeResponsesWSCreateEvent() error = %v", err)
+		t.Fatalf("normalizeResponsesWSTestMessage() error = %v", err)
 	}
 	req := create.Request
 	if eventID != "evt_1" {
@@ -201,9 +385,9 @@ func TestNormalizeResponsesWSCreateEventFlat(t *testing.T) {
 		"stream_options": {"include_usage": true}
 	}`)
 
-	create, eventID, err := normalizeResponsesWSCreateEvent(message)
+	create, eventID, err := normalizeResponsesWSTestMessage(message)
 	if err != nil {
-		t.Fatalf("normalizeResponsesWSCreateEvent() error = %v", err)
+		t.Fatalf("normalizeResponsesWSTestMessage() error = %v", err)
 	}
 	req := create.Request
 	if eventID != "evt_2" {
@@ -234,7 +418,7 @@ func TestBuildResponsesWSCreateEventIsFlat(t *testing.T) {
 		"stream_options": {"include_usage": true}
 	}`)
 
-	got, err := buildResponsesWSCreateEvent(payload, common.RawMessage(`false`))
+	got, err := buildResponsesWSCreateEvent(payload, common.RawMessage(`false`), "")
 	if err != nil {
 		t.Fatalf("buildResponsesWSCreateEvent() error = %v", err)
 	}
@@ -258,26 +442,19 @@ func TestBuildResponsesWSCreateEventIsFlat(t *testing.T) {
 	}
 }
 
-func TestHTTPResponsesRequestDoesNotMarshalGenerate(t *testing.T) {
+func TestHTTPResponsesRequestOmitsWebSocketMetadata(t *testing.T) {
 	var req dto.OpenAIResponsesRequest
-	if err := common.Unmarshal([]byte(`{"model":"gpt-5.3-codex-spark","input":"hi","generate":false}`), &req); err != nil {
-		t.Fatalf("unmarshal request: %v", err)
-	}
+	require.NoError(t, common.Unmarshal([]byte(`{"model":"gpt-5.3-codex-spark","input":"hi","generate":false,"stream_id":"planner"}`), &req))
 	got, err := common.Marshal(req)
-	if err != nil {
-		t.Fatalf("marshal request: %v", err)
-	}
+	require.NoError(t, err)
 	var data map[string]any
-	if err := common.Unmarshal(got, &data); err != nil {
-		t.Fatalf("unmarshal result: %v", err)
-	}
-	if _, ok := data["generate"]; ok {
-		t.Fatalf("generate leaked into HTTP request JSON: %s", got)
-	}
+	require.NoError(t, common.Unmarshal(got, &data))
+	assert.NotContains(t, data, "stream_id")
+	assert.NotContains(t, data, "generate")
 }
 
 func TestBuildResponsesWSErrorPayloadIncludesStatus(t *testing.T) {
-	payload, err := buildResponsesWSErrorPayload("evt_err", types.NewErrorWithStatusCode(
+	payload, err := buildResponsesWSErrorPayload("evt_err", "", types.NewErrorWithStatusCode(
 		errors.New("model is required"),
 		types.ErrorCodeInvalidRequest,
 		http.StatusBadRequest,
@@ -304,7 +481,7 @@ func TestBuildResponsesWSErrorPayloadIncludesStatus(t *testing.T) {
 }
 
 func TestResponsesWSInvalidRequestErrorUsesBadRequestStatus(t *testing.T) {
-	payload, err := buildResponsesWSErrorPayload("", newResponsesWSInvalidRequestError(errors.New("bad event")))
+	payload, err := buildResponsesWSErrorPayload("", "", newResponsesWSInvalidRequestError(errors.New("bad event")))
 	if err != nil {
 		t.Fatalf("buildResponsesWSErrorPayload() error = %v", err)
 	}
@@ -316,21 +493,6 @@ func TestResponsesWSInvalidRequestErrorUsesBadRequestStatus(t *testing.T) {
 	}
 	if data.Status != http.StatusBadRequest {
 		t.Fatalf("status = %d, want %d", data.Status, http.StatusBadRequest)
-	}
-}
-
-func TestToWebSocketURL(t *testing.T) {
-	tests := map[string]string{
-		"https://api.openai.com/v1/responses":             "wss://api.openai.com/v1/responses",
-		"http://127.0.0.1:3000/v1/responses":              "ws://127.0.0.1:3000/v1/responses",
-		"wss://chatgpt.com/backend-api/codex/responses":   "wss://chatgpt.com/backend-api/codex/responses",
-		"ws://127.0.0.1:3000/backend-api/codex/responses": "ws://127.0.0.1:3000/backend-api/codex/responses",
-	}
-
-	for input, want := range tests {
-		if got := toWebSocketURL(input); got != want {
-			t.Fatalf("toWebSocketURL(%q) = %q, want %q", input, got, want)
-		}
 	}
 }
 
@@ -425,7 +587,7 @@ func TestResponsesWSShutdownInterruptsBusyWriter(t *testing.T) {
 }
 
 func TestResponsesWSPassthroughPreservesRawPricingParameters(t *testing.T) {
-	create, _, err := normalizeResponsesWSCreateEvent([]byte(`{"type":"response.create","generate":false,"response":{"model":"gpt-5.1","input":"hi","vendor":{"tier":"premium"},"stream":true}}`))
+	create, _, err := normalizeResponsesWSTestMessage([]byte(`{"type":"response.create","generate":false,"response":{"model":"gpt-5.1","input":"hi","vendor":{"tier":"premium"},"stream":true}}`))
 	require.NoError(t, err)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(string(create.Body)))
@@ -434,10 +596,87 @@ func TestResponsesWSPassthroughPreservesRawPricingParameters(t *testing.T) {
 	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
 	common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{PassThroughBodyEnabled: true})
 	info := relaycommon.GenRelayInfoResponses(c, &create.Request)
-	payload, apiErr := buildResponsesWSCreatePayload(c, info, create.Request, create.Generate)
+	payload, apiErr := buildResponsesWSCreatePayload(c, info, create.Request, create.Generate, create.StreamID)
 	require.Nil(t, apiErr)
 	assert.JSONEq(t, `{"type":"response.create","generate":false,"model":"gpt-5.1","input":"hi","vendor":{"tier":"premium"}}`, string(payload))
 	storage, err := common.GetBodyStorage(c)
 	require.NoError(t, err)
 	require.NoError(t, storage.Close())
+}
+
+func TestResponsesWSStreamIdentity(t *testing.T) {
+	for _, tc := range []struct {
+		name, fields, want string
+		invalid            bool
+	}{
+		{name: "default", fields: `"model":"gpt-4o"`},
+		{name: "named", fields: `"model":"gpt-4o","stream_id":"planner.A-1_2"`, want: "planner.A-1_2"},
+		{name: "wrapped", fields: `"response":{"model":"gpt-4o","stream_id":"wrapped"}`, want: "wrapped"},
+		{name: "top-level-wins", fields: `"stream_id":"outer","response":{"model":"gpt-4o","stream_id":"inner"}`, want: "outer"},
+		{name: "maximum", fields: `"model":"gpt-4o","stream_id":"` + strings.Repeat("a", 256) + `"`, want: strings.Repeat("a", 256)},
+		{name: "too-long", fields: `"stream_id":"` + strings.Repeat("a", 257) + `"`, invalid: true},
+		{name: "empty", fields: `"stream_id":""`, invalid: true},
+		{name: "null", fields: `"stream_id":null`, invalid: true},
+		{name: "number", fields: `"stream_id":123`, invalid: true},
+		{name: "unicode", fields: `"stream_id":"计划"`, invalid: true},
+		{name: "spaces", fields: `"stream_id":"a b"`, invalid: true},
+		{name: "invalid-top-level", fields: `"stream_id":"","response":{"stream_id":"inner"}`, invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			create, eventID, err := normalizeResponsesWSTestMessage([]byte(`{"type":"response.create","event_id":"test",` + tc.fields + `}`))
+			assert.Equal(t, "test", eventID)
+			if tc.invalid {
+				require.ErrorContains(t, err, "stream_id")
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, create.StreamID)
+			assert.NotContains(t, string(create.Body), "stream_id")
+			for _, passthrough := range []bool{false, true} {
+				c, _ := gin.CreateTestContext(httptest.NewRecorder())
+				c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", strings.NewReader(string(create.Body)))
+				common.SetContextKey(c, constant.ContextKeyOriginalModel, create.Request.Model)
+				common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
+				common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{PassThroughBodyEnabled: passthrough})
+				info := relaycommon.GenRelayInfoResponses(c, &create.Request)
+				payload, apiErr := buildResponsesWSCreatePayload(c, info, create.Request, create.Generate, create.StreamID)
+				require.Nil(t, apiErr)
+				var event map[string]any
+				require.NoError(t, common.Unmarshal(payload, &event))
+				if tc.want == "" {
+					assert.NotContains(t, event, "stream_id")
+				} else {
+					assert.Equal(t, tc.want, event["stream_id"])
+				}
+				if storage, err := common.GetBodyStorage(c); err == nil {
+					require.NoError(t, storage.Close())
+				}
+			}
+		})
+	}
+}
+
+func TestResponsesWSErrorAttribution(t *testing.T) {
+	for _, tc := range []struct {
+		name, payload, control            string
+		terminal, ambiguous, controlError bool
+	}{
+		{name: "active-server-failure", payload: `{"status":500,"error":{"type":"server_error"}}`, terminal: true},
+		{name: "other-stream", payload: `{"stream_id":"other","status":500}`},
+		{name: "previous-response", payload: `{"response_id":"previous","status":500}`},
+		{name: "cancel-event-id", payload: `{"event_id":"cancel","status":500}`, control: `{"event_id":"cancel"}`, controlError: true},
+		{name: "cancel-target", payload: `{"response_id":"missing","status":400}`, control: `{"response_id":"missing"}`, controlError: true},
+		{name: "cancel-code", payload: `{"error":{"type":"invalid_request_error","code":"response_not_found"}}`, control: `{"response_id":"missing"}`, controlError: true},
+		{name: "ambiguous-after-cancel", payload: `{"status":500}`, control: `{"response_id":"active"}`, terminal: true, ambiguous: true},
+		{name: "explicit-generation-failure", payload: `{"response_id":"active","status":500}`, control: `{"response_id":"active"}`, terminal: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var event responsesWSErrorEvent
+			require.NoError(t, common.Unmarshal([]byte(tc.payload), &event))
+			terminal, ambiguous, controlError := responsesWSErrorEndsRequest(event, "planner", "active", []byte(tc.control))
+			assert.Equal(t, tc.terminal, terminal)
+			assert.Equal(t, tc.ambiguous, ambiguous)
+			assert.Equal(t, tc.controlError, controlError)
+		})
+	}
 }

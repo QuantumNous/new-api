@@ -36,6 +36,7 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
+	info.ObserveResponseModel(responsesResponse.Model)
 	responseBody = rewriteSGLangResponsesCreatedAt(info, responseBody, "created_at", responsesResponse.CreatedAt)
 
 	// 写入新的 response body
@@ -94,6 +95,8 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		accumulator.Observe(&streamResponse)
 	})
 
+	common.SetContextKey(c, constant.ContextKeyResponseStreamStatus, info.StreamStatus)
+	info.StreamStatus.RequireTerminal()
 	return accumulator.Finish(), nil
 }
 

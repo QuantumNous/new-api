@@ -124,3 +124,90 @@ func TestProcessChannelErrorMasksDisableReasonAndNotification(t *testing.T) {
 	assert.NotContains(t, notification.Content, "review-secret")
 	assert.Equal(t, http.StatusUnauthorized, apiErr.StatusCode)
 }
+
+func TestDecideRelayRetryReasons(t *testing.T) {
+	upstream := func(status int) *types.NewAPIError {
+		return types.NewOpenAIError(errors.New("upstream"), types.ErrorCodeBadResponseStatusCode, status)
+	}
+	for _, tc := range []struct {
+		name    string
+		err     *types.NewAPIError
+		retries int
+		setup   func(*gin.Context)
+		want    PolicyDecision
+	}{
+		{name: "retry status matched", err: upstream(http.StatusTooManyRequests), retries: 1, want: PolicyDecision{Action: "retry", Reason: "retry_status_matched", Source: "global"}},
+		{name: "status outside retry rules", err: upstream(http.StatusBadRequest), retries: 1, want: PolicyDecision{Action: "stop", Reason: "status_not_retryable", Source: "global"}},
+		{name: "attempt budget exhausted", err: upstream(http.StatusTooManyRequests), retries: 0, want: PolicyDecision{Action: "stop", Reason: "attempt_budget_exhausted", Source: "global"}},
+		{name: "always skipped status", err: upstream(http.StatusGatewayTimeout), retries: 1, want: PolicyDecision{Action: "stop", Reason: "system_retry_exclusion", Source: "system"}},
+		{name: "success status never retries", err: upstream(http.StatusOK), retries: 1, want: PolicyDecision{Action: "stop", Reason: "system_retry_exclusion", Source: "system"}},
+		{name: "skip retry error", err: types.NewErrorWithStatusCode(errors.New("local"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry()), retries: 1, want: PolicyDecision{Action: "stop", Reason: "non_retryable_error", Source: "system"}},
+		{name: "channel error retries without budget", err: types.NewError(errors.New("no key"), types.ErrorCodeChannelNoAvailableKey), retries: 0, want: PolicyDecision{Action: "retry", Reason: "channel_error", Source: "system"}},
+		{name: "single attempt pin", err: upstream(http.StatusTooManyRequests), retries: 1, setup: func(c *gin.Context) {
+			GetChannelConstraints(c).AddPin(dto.ChannelPin{ChannelId: 1, Source: dto.PinSourceToken, Rank: dto.PinRankToken, RetryMode: dto.PinRetrySingleAttempt})
+		}, want: PolicyDecision{Action: "stop", Reason: "pinned_channel", Source: "channel_constraint"}},
+		{name: "strict session", err: upstream(http.StatusTooManyRequests), retries: 1, setup: func(c *gin.Context) {
+			c.Set(ginKeyChannelAffinitySkipRetry, true)
+			RequestPolicy(c).SessionModeSource = "global"
+		}, want: PolicyDecision{Action: "stop", Reason: "strict_session", Source: "global"}},
+		{name: "nil error", retries: 1, want: PolicyDecision{Action: "stop", Reason: "request_completed", Source: "system"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			if tc.setup != nil {
+				tc.setup(c)
+			}
+			decision := DecideRelayRetry(c, tc.err, tc.retries)
+			assert.Equal(t, tc.want, decision)
+			assert.Equal(t, tc.want.Action == "retry", ShouldRetryRelayError(c, tc.err, tc.retries))
+		})
+	}
+}
+
+func TestRequestPolicyEventsReachLogAdminInfo(t *testing.T) {
+	previousAutoDisable := common.AutomaticDisableChannelEnabled
+	common.AutomaticDisableChannelEnabled = true
+	t.Cleanup(func() { common.AutomaticDisableChannelEnabled = previousAutoDisable })
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	c.Set("auto_ban", true)
+	c.Set("channel_id", 7)
+	state := RequestPolicy(c)
+	state.BeginAttempt(&model.Channel{Id: 7}, "default")
+	apiErr := types.NewOpenAIError(errors.New("invalid credential"), types.ErrorCodeBadResponseStatusCode, http.StatusUnauthorized)
+	RecordPolicyFailure(c, 7, apiErr, DecideRelayRetry(c, apiErr, 0))
+
+	failed := model.NewLogOther()
+	AppendRelayLogAdminInfo(c, nil, failed)
+	events, ok := failed.Snapshot()["admin_info"].(map[string]any)["request_policy"].([]PolicyEvent)
+	require.True(t, ok, "a failed relay exposes its decision events to administrators")
+	require.Len(t, events, 3)
+	assert.Equal(t, PolicyDecision{Action: "attempt", Reason: "channel_selected", Source: "routing"}, events[0].Decision)
+	assert.Equal(t, "default", events[0].Group)
+	assert.Equal(t, PolicyDecision{Action: "failure", Reason: "upstream_failure", Source: "upstream"}, events[1].Decision)
+	assert.Equal(t, http.StatusUnauthorized, events[1].Status)
+	assert.Equal(t, PolicyDecision{Action: "stop", Reason: "attempt_budget_exhausted", Source: "global"}, events[2].Decision)
+	assert.Equal(t, "channel_disable_requested", events[2].Health, "the health entry follows the automatic disable rules")
+	common.SetContextKey(c, constant.ContextKeyChannelIsMultiKey, true)
+	RecordPolicyFailure(c, 7, apiErr, DecideRelayRetry(c, apiErr, 0))
+	assert.Equal(t, "key_disable_requested", state.Events()[4].Health)
+
+	state.BeginAttempt(&model.Channel{Id: 8}, "default")
+	c.Set("channel_id", 8)
+	MarkRequestPolicySuccess(c, nil)
+	MarkRequestPolicySuccess(c, nil)
+	succeeded := model.NewLogOther()
+	AppendRelayLogAdminInfo(c, nil, succeeded)
+	events, ok = succeeded.Snapshot()["admin_info"].(map[string]any)["request_policy"].([]PolicyEvent)
+	require.True(t, ok, "a successful relay exposes its decision events to administrators")
+	require.Len(t, events, 7, "the outcome is recorded once")
+	assert.Equal(t, PolicyDecision{Action: "success", Reason: "request_completed", Source: "upstream"}, events[6].Decision)
+	assert.Equal(t, 8, events[6].ChannelID)
+	assert.Equal(t, 2, events[6].Attempt)
+	assert.True(t, state.Successful)
+
+	untouched, _ := gin.CreateTestContext(httptest.NewRecorder())
+	other := model.NewLogOther()
+	AppendRelayLogAdminInfo(untouched, nil, other)
+	assert.NotContains(t, other.Snapshot()["admin_info"], "request_policy", "requests without decisions do not carry an empty record")
+}

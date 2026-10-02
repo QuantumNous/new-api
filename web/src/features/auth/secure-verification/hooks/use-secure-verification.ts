@@ -277,58 +277,60 @@ export function useSecureVerification() {
     [loadRequirements]
   )
 
-  const executeVerification = useCallback(async () => {
-    const current = pending.current
-    if (
-      !current ||
-      current.submitting ||
-      state.phase !== 'ready' ||
-      !state.input
-    ) {
-      return
-    }
-    current.submitting = true
-    const input = state.input
-    dispatch({ type: 'submit' })
-    try {
-      if (current.kind === 'login') {
-        const bundle = await verifyLogin(
-          input,
-          current.request.challenge,
-          current.controller.signal,
-          (domains) => {
-            if (pending.current === current) setPasskeyDomains(domains)
-          }
-        )
+  const executeVerification = useCallback(
+    async (override?: VerificationInput) => {
+      const current = pending.current
+      if (!current || current.submitting || state.phase !== 'ready') return
+      const input = override ?? state.input
+      if (!input) return
+      const available = state.requirements.methods.some(
+        (option) => option.method === input.method && option.available
+      )
+      if (!available) return
+      current.submitting = true
+      if (override) dispatch({ type: 'input', input })
+      dispatch({ type: 'submit' })
+      try {
+        if (current.kind === 'login') {
+          const bundle = await verifyLogin(
+            input,
+            current.request.challenge,
+            current.controller.signal,
+            (domains) => {
+              if (pending.current === current) setPasskeyDomains(domains)
+            }
+          )
+          if (pending.current !== current) return
+          current.resolve(bundle)
+        } else {
+          const proof = await verify(
+            input,
+            current.request,
+            state.requirements.password_encryption_enabled,
+            current.controller.signal,
+            (domains) => {
+              if (pending.current === current) setPasskeyDomains(domains)
+            }
+          )
+          if (pending.current !== current) return
+          current.resolve(proof)
+        }
+        pending.current = null
+        dispatch({ type: 'reset' })
+      } catch (error) {
         if (pending.current !== current) return
-        current.resolve(bundle)
-      } else {
-        const proof = await verify(
-          input,
-          current.request,
-          state.requirements.password_encryption_enabled,
-          current.controller.signal,
-          (domains) => {
-            if (pending.current === current) setPasskeyDomains(domains)
-          }
-        )
-        if (pending.current !== current) return
-        current.resolve(proof)
+        const failure = AuthOperationError.from(error)
+        if (failure.code === 'AUTH_CANCELLED') {
+          cancel()
+          return
+        }
+        dispatch({ type: 'error', error: failure.message })
+      } finally {
+        current.submitting = false
       }
-      pending.current = null
-      dispatch({ type: 'reset' })
-    } catch (error) {
-      if (pending.current !== current) return
-      const failure = AuthOperationError.from(error)
-      if (failure.code === 'AUTH_CANCELLED') {
-        cancel()
-        return
-      }
-      dispatch({ type: 'error', error: failure.message })
-    } finally {
-      current.submitting = false
-    }
-  }, [cancel, state])
+    },
+    [cancel, state]
+  )
 
   const retry = useCallback(() => {
     if (pending.current && state.phase === 'error') {

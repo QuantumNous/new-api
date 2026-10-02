@@ -329,7 +329,8 @@ func GetOpenAIChatCapabilities(modelName, reasoningEffort string) OpenAIChatCapa
 	}
 
 	isGPT5Model := IsOpenAIGPT5Model(modelName)
-	if !isGPT5Model && !isOpenAIModelSnapshot(modelName, "gpt-6-astra") {
+	isGPT6SolLuna := isOpenAIModelSnapshot(modelName, "gpt-6-sol") || isOpenAIModelSnapshot(modelName, "gpt-6-luna")
+	if !isGPT5Model && !isGPT6SolLuna && !isOpenAIModelSnapshot(modelName, "gpt-6-astra") {
 		return capabilities
 	}
 	capabilities.UseMaxCompletionTokens = true
@@ -337,12 +338,15 @@ func GetOpenAIChatCapabilities(modelName, reasoningEffort string) OpenAIChatCapa
 
 	// These standard GPT-5 models default to none and support sampling only
 	// without reasoning. Named variants (pro, codex, chat-latest, etc.) do not
-	// inherit this exception. GPT-6 Astra never supports these parameters.
+	// inherit this exception. GPT-6 Sol and Luna follow the same rule. GPT-6
+	// Astra never supports these parameters.
 	// https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.2
 	// https://developers.openai.com/api/docs/guides/latest-model?model=gpt-5.4
 	// https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6-astra
+	// https://developers.openai.com/api/docs/guides/latest-model?model=gpt-6-luna
 	supportsSampling := false
-	if isGPT5Model && (reasoningEffort == "" || reasoningEffort == "none") {
+	if reasoningEffort == "" || reasoningEffort == "none" {
+		supportsSampling = isGPT6SolLuna
 		for _, model := range []string{"gpt-5.1", "gpt-5.2", "gpt-5.4"} {
 			if isOpenAIModelSnapshot(modelName, model) {
 				supportsSampling = true

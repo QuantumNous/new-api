@@ -161,7 +161,8 @@ const codeMirrorTheme = EditorView.theme({
     fontFamily: 'var(--font-mono)',
     fontSize: '13px',
     lineHeight: '1.5rem',
-    padding: '1rem 1rem 1rem 0',
+    // CodeMirror already accounts for the content's vertical padding.
+    padding: '0 1rem 0 0',
   },
   '.cm-gutters:empty': {
     display: 'none',

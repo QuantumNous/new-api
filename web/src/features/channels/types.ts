@@ -81,6 +81,7 @@ export type Channel = z.infer<typeof channelSchema>
 
 export interface ChannelSettings {
   task_plugin_key?: string
+  task_extend_plugin_keys?: string[]
   force_format?: boolean
   thinking_to_content?: boolean
   proxy?: string
@@ -182,6 +183,10 @@ export interface ChannelOpsResponse {
   message?: string
   data?: {
     retry_times: number
+    request_policy?: {
+      automatic_disable: boolean
+      source: string
+    }
   }
 }
 

@@ -4,12 +4,11 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 
+	"github.com/Calcium-Ion/moejs/engine"
 	"github.com/QuantumNous/new-api/common"
-	"github.com/grafana/sobek"
 )
 
 const (
@@ -47,6 +46,8 @@ type jsonStateBudget struct {
 	ctx   context.Context
 	bytes int
 	nodes int
+	// realm reads JavaScript values; only json.clone passes them.
+	realm *engine.Realm
 }
 
 func (b *jsonStateBudget) spend(bytes, nodes int) error {
@@ -65,41 +66,58 @@ func newJSONStateNode(value any, depth int, budget *jsonStateBudget) (*jsonState
 	if depth > maxJSONToolDepth {
 		return nil, fmt.Errorf("JSON state exceeds depth limit")
 	}
-	if js, ok := value.(sobek.Value); ok {
-		if sobek.IsUndefined(js) {
+	if js, ok := value.(engine.Value); ok {
+		if js.IsUndefined() {
 			return nil, fmt.Errorf("undefined is not a JSON value")
 		}
-		if object, ok := js.(*sobek.Object); ok {
-			switch object.ClassName() {
-			case "Object":
-				keys := object.Keys()
+		if !js.IsObject() {
+			value = budget.realm.ToGo(js)
+		} else {
+			// Getters and proxy traps run while the value is read; what they
+			// throw is returned as it is, not as a JSON error.
+			object := js.AsObject()
+			switch {
+			case object.ClassName() == "Object" && !object.IsCallable():
+				keys, err := budget.realm.EnumerableOwnKeys(object)
+				if err != nil {
+					return nil, err
+				}
 				if len(keys) > budget.nodes {
 					return nil, fmt.Errorf("JSON object exceeds node limit")
 				}
 				fields := make(map[string]any, len(keys))
 				for _, key := range keys {
-					fields[key] = object.Get(key)
+					if fields[key.GoString()], err = object.GetProp(budget.realm, key); err != nil {
+						return nil, err
+					}
 				}
 				value = fields
-			case "Array":
-				length := object.Get("length").ToInteger()
-				if length < 0 || length > int64(budget.nodes) {
+			case object.ClassName() == "Array":
+				length, err := budget.realm.LengthOfArrayLike(object)
+				if err != nil {
+					return nil, err
+				}
+				if length > int64(budget.nodes) {
 					return nil, fmt.Errorf("JSON array exceeds node limit")
 				}
 				items := make([]any, int(length))
 				for index := range items {
-					item := object.Get(strconv.Itoa(index))
-					if item == nil {
+					key := engine.IndexKey(uint32(index))
+					present, err := budget.realm.HasOwn(object, key)
+					if err != nil {
+						return nil, err
+					}
+					if !present {
 						return nil, fmt.Errorf("sparse arrays are not JSON values")
 					}
-					items[index] = item
+					if items[index], err = object.GetProp(budget.realm, key); err != nil {
+						return nil, err
+					}
 				}
 				value = items
 			default:
 				return nil, fmt.Errorf("json.clone accepts only plain objects, arrays and JSON scalars")
 			}
-		} else {
-			value = js.Export()
 		}
 	}
 	beforeBytes, beforeNodes := budget.bytes, budget.nodes
@@ -397,32 +415,32 @@ func (n *jsonStateNode) value() any {
 	return n.scalar
 }
 
-// Native JS containers are essential here: wrapping Go slices in ToValue would
-// retain host-backed array mutation behavior instead of producing a JS clone.
-func (n *jsonStateNode) jsValue(runtime *sobek.Runtime) (sobek.Value, error) {
+// Native JS containers are essential here: a lazily converted Go map would
+// read as a clone, but the result must be ordinary objects a plugin owns.
+func (n *jsonStateNode) jsValue(realm *engine.Realm) (engine.Value, error) {
 	if n.object != nil {
-		result := runtime.NewObject()
+		result := realm.NewObject()
 		for key, child := range n.object {
-			value, err := child.jsValue(runtime)
+			value, err := child.jsValue(realm)
 			if err != nil {
-				return nil, err
+				return engine.Undefined(), err
 			}
-			if err = result.DefineDataProperty(key, value, sobek.FLAG_TRUE, sobek.FLAG_TRUE, sobek.FLAG_TRUE); err != nil {
-				return nil, err
+			if err = result.CreateDataPropertyOrThrow(realm, realm.KeyFromGoString(key), value); err != nil {
+				return engine.Undefined(), err
 			}
 		}
-		return result, nil
+		return engine.ObjectValue(result), nil
 	}
 	if n.array != nil {
-		items := make([]any, len(n.array))
+		items := make([]engine.Value, len(n.array))
 		for index, child := range n.array {
-			value, err := child.jsValue(runtime)
+			value, err := child.jsValue(realm)
 			if err != nil {
-				return nil, err
+				return engine.Undefined(), err
 			}
 			items[index] = value
 		}
-		return runtime.NewArray(items...), nil
+		return engine.ObjectValue(realm.NewArrayFromSlice(items)), nil
 	}
-	return runtime.ToValue(n.value()), nil
+	return realm.FromGo(n.value())
 }
