@@ -78,6 +78,19 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
+// Outside Persian, amounts use the runtime default locale (as upstream), so
+// tests that pin those amounts set the default here instead of relying on the
+// machine's locale.
+function mockBrowserNumberLocale(defaultLocale: string): void {
+  const NumberFormat = Intl.NumberFormat
+  vi.spyOn(Intl, 'NumberFormat').mockImplementation(function (
+    locales?: Intl.LocalesArgument,
+    options?: Intl.NumberFormatOptions
+  ) {
+    return new NumberFormat(locales ?? defaultLocale, options)
+  } as typeof Intl.NumberFormat)
+}
+
 describe('renderAuditContent in Persian', () => {
   test('a created user shows the Persian role label', () => {
     expect(renderAuditContent(userCreate, faI18n.t, toIntlLocale('fa'))).toBe(
@@ -139,7 +152,9 @@ describe('renderAuditContent in other languages matches upstream', () => {
     )
   })
 
-  test('in English and Chinese, quota amounts render as upstream', () => {
+  test('with an English browser default, English and Chinese quota amounts render as upstream', () => {
+    mockBrowserNumberLocale('en-US')
+
     expect(renderAuditContent(quotaAdd, enI18n.t, toIntlLocale('en'))).toBe(
       'Increase quota for user “alice” (ID: 2) · Requested quota: $1 · $0 → $1'
     )
@@ -149,13 +164,7 @@ describe('renderAuditContent in other languages matches upstream', () => {
   })
 
   test('with a German browser default, English amounts keep the browser format', () => {
-    const NumberFormat = Intl.NumberFormat
-    vi.spyOn(Intl, 'NumberFormat').mockImplementation(function (
-      locales?: Intl.LocalesArgument,
-      options?: Intl.NumberFormatOptions
-    ) {
-      return new NumberFormat(locales ?? 'de-DE', options)
-    } as typeof Intl.NumberFormat)
+    mockBrowserNumberLocale('de-DE')
 
     expect(renderAuditContent(quotaAdd, enI18n.t, toIntlLocale('en'))).toBe(
       'Increase quota for user “alice” (ID: 2) · Requested quota: 1\u00a0$ · 0\u00a0$ → 1\u00a0$'
