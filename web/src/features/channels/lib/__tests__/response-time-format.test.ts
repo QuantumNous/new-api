@@ -16,14 +16,31 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { toIntlLocale } from '@/i18n/languages'
 
 import { formatResponseTime } from '../channel-utils'
 
-const interpolate = (key: string, options?: { value?: number | string }) =>
-  key.replace('{{value}}', String(options?.value))
+const interpolate = (
+  key: string,
+  options?: { value?: number | string }
+): string => key.replace('{{value}}', String(options?.value))
+
+// An unknown interface language falls back to the runtime default locale; pin
+// it so those tests do not depend on the machine.
+function pinRuntimeDefaultLocale(): void {
+  const NumberFormat = Intl.NumberFormat
+  vi.spyOn(Intl, 'NumberFormat').mockImplementation(function (
+    locales?: Intl.LocalesArgument,
+    options?: Intl.NumberFormatOptions
+  ) {
+    // en-US stands in for the runtime default when no requested
+    // locale is supported.
+    const supported = NumberFormat.supportedLocalesOf(locales ?? [])
+    return new NumberFormat(supported.length > 0 ? supported : 'en-US', options)
+  } as typeof Intl.NumberFormat)
+}
 
 describe('formatResponseTime milliseconds', () => {
   it('writes milliseconds with Persian digits when the interface language is Persian', () => {
@@ -41,7 +58,8 @@ describe('formatResponseTime milliseconds', () => {
     }
   )
 
-  it('falls back to Latin digits for an unknown interface language', () => {
+  it('falls back to the runtime default locale for an unknown interface language', () => {
+    pinRuntimeDefaultLocale()
     expect(
       formatResponseTime(456, interpolate, toIntlLocale('xx-invalid'))
     ).toBe('456ms')
@@ -87,7 +105,8 @@ describe('formatResponseTime seconds', () => {
     }
   )
 
-  it('keeps the decimal point for an unknown interface language', () => {
+  it('falls back to the runtime default decimal point for an unknown interface language', () => {
+    pinRuntimeDefaultLocale()
     expect(
       formatResponseTime(1234, interpolate, toIntlLocale('xx-invalid'))
     ).toBe('1.23s')

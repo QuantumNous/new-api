@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { toIntlLocale } from '@/i18n/languages'
 import { formatFixed } from '@/lib/format'
@@ -53,7 +53,22 @@ describe('formatFixed', () => {
     }
   )
 
-  it('for an unknown interface language, falls back to the decimal point', () => {
+  it('for an unknown interface language, falls back to the runtime default locale', () => {
+    // Pin the runtime default so the fallback does not depend on the machine.
+    const NumberFormat = Intl.NumberFormat
+    vi.spyOn(Intl, 'NumberFormat').mockImplementation(function (
+      locales?: Intl.LocalesArgument,
+      options?: Intl.NumberFormatOptions
+    ) {
+      // en-US stands in for the runtime default when no requested
+      // locale is supported.
+      const supported = NumberFormat.supportedLocalesOf(locales ?? [])
+      return new NumberFormat(
+        supported.length > 0 ? supported : 'en-US',
+        options
+      )
+    } as typeof Intl.NumberFormat)
+
     expect(formatFixed(1.2, 2, toIntlLocale('xx-invalid'))).toBe('1.20')
   })
 })
