@@ -73,6 +73,7 @@
         "@rsbuild/core": "^2.1.4",
         "@rsbuild/plugin-react": "^2.1.0",
         "@rsbuild/plugin-tailwindcss": "^2.0.3",
+        "@tailwindcss/node": "^4.3.3",
         "@tanstack/react-query-devtools": "^5.101.2",
         "@tanstack/react-router-devtools": "^1.167.0",
         "@tanstack/router-plugin": "^1.168.19",
