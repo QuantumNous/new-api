@@ -360,6 +360,7 @@ export function BalanceCell({ channel }: { channel: Channel }) {
     digitsLarge: 2,
     digitsSmall: 4,
     abbreviate: false,
+    locale,
     showSymbol: layout !== 'card',
   } as const
   // Precise values are kept for the tooltip; long values are shown compactly inline.
@@ -368,6 +369,7 @@ export function BalanceCell({ channel }: { channel: Channel }) {
       digitsLarge: 2,
       digitsSmall: 4,
       abbreviate: true,
+      locale,
       showSymbol: layout !== 'card',
     })
   )
@@ -471,6 +473,7 @@ export function BalanceCell({ channel }: { channel: Channel }) {
               digitsLarge: 2,
               digitsSmall: 4,
               abbreviate: false,
+              locale,
             }),
           })
         )

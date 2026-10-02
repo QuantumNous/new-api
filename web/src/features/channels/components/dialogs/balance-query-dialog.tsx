@@ -143,6 +143,7 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
       digitsLarge: 2,
       digitsSmall: 4,
       abbreviate: false,
+      locale,
     })
 
   const formatDate = (timestamp: number) => {

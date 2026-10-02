@@ -167,7 +167,7 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         const quota = row.getValue('quota') as number
         return (
           <StatusBadge
-            label={formatQuota(quota)}
+            label={formatQuota(quota, locale)}
             variant='neutral'
             copyable={false}
             className='-ml-1.5'

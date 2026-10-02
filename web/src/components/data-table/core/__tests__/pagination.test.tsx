@@ -89,3 +89,25 @@ it('in Persian, writes the compact page counter with Persian digits', async () =
   render(<Fixture compact many />)
   expect(screen.getByText('۱ / ۱۲۳۴')).toBeVisible()
 })
+it.each([
+  { layout: 'compact', compact: true },
+  { layout: 'default', compact: false },
+])(
+  'in English, keeps the $layout row total grouped as before',
+  async ({ compact }) => {
+    await i18next.changeLanguage('en')
+    render(<Fixture compact={compact} many />)
+    expect(screen.getByText(/(^| )2,468$/)).toBeVisible()
+  }
+)
+it.each([
+  { layout: 'compact', compact: true },
+  { layout: 'default', compact: false },
+])(
+  'in Persian, writes the $layout row total with Persian digits',
+  async ({ compact }) => {
+    await i18next.changeLanguage('fa')
+    render(<Fixture compact={compact} many />)
+    expect(screen.getByText(/(^| )۲٬۴۶۸$/)).toBeVisible()
+  }
+)

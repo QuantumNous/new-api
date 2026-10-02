@@ -344,7 +344,7 @@ export function UserSubscriptionsDialog(props: Props) {
                     const total = Number(sub.amount_total || 0)
                     const used = Number(sub.amount_used || 0)
                     return total > 0
-                      ? `${formatQuota(used)}/${formatQuota(total)}`
+                      ? `${formatQuota(used, locale)}/${formatQuota(total, locale)}`
                       : t('Unlimited')
                   },
                 },
