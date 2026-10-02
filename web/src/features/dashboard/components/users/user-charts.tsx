@@ -40,6 +40,8 @@ import type {
   ProcessedUserChartData,
   UserChartsFilters,
 } from '@/features/dashboard/types'
+import { toIntlLocale } from '@/i18n/languages'
+import {  } from '@/lib/format'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
@@ -73,7 +75,8 @@ interface UserChartsProps {
 }
 
 export function UserCharts(props: UserChartsProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const { resolvedTheme } = useTheme()
   const [themeReady, setThemeReady] = useState(false)
   const themeManagerRef = useRef<
@@ -153,7 +156,7 @@ export function UserCharts(props: UserChartsProps) {
         t,
         topUserLimit
       ),
-    [userData, isLoading, timeGranularity, t, topUserLimit]
+    [userData, isLoading, timeGranularity, t, topUserLimit, locale]
   )
 
   return (

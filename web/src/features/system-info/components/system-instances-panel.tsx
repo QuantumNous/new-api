@@ -56,7 +56,11 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { toIntlLocale } from '@/i18n/languages'
-import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
+import {
+  formatGregorianTitle,
+  formatTimestampRelative,
+  formatTimestampToDate,
+} from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { createServerError } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
@@ -236,6 +240,7 @@ type SystemInstancesTableProps = {
 
 function SystemInstancesList(props: SystemInstancesTableProps) {
   const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
 
   return (
     <div className='overflow-x-auto rounded-md border'>
@@ -430,17 +435,28 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                     {runtimeLabel(instance)}
                   </div>
                 </TableCell>
-                <TableCell className='text-muted-foreground py-2.5 align-middle text-xs whitespace-nowrap'>
-                  {formatTimestampToDate(instance.started_at)}
+                <TableCell
+                  className='text-muted-foreground py-2.5 align-middle text-xs whitespace-nowrap'
+                  title={formatGregorianTitle(instance.started_at, locale)}
+                >
+                  {formatTimestampToDate(
+                    instance.started_at,
+                    'seconds',
+                    locale
+                  )}
                 </TableCell>
                 <TableCell
                   className='text-muted-foreground py-2.5 align-middle text-xs whitespace-nowrap'
-                  title={formatTimestampToDate(instance.last_seen_at)}
+                  title={formatTimestampToDate(
+                    instance.last_seen_at,
+                    'seconds',
+                    locale
+                  )}
                 >
                   {formatTimestampRelative(
                     instance.last_seen_at,
                     'seconds',
-                    toIntlLocale(i18n.language)
+                    locale
                   )}
                 </TableCell>
                 <TableCell className='py-2.5 pr-4 text-right align-middle'>

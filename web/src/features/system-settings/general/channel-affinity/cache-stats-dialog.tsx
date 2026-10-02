@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestampToDate } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 
@@ -44,7 +45,8 @@ interface Props {
 }
 
 export function CacheStatsDialog(props: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const [loading, setLoading] = useState(false)
   const [stats, setStats] = useState<Record<string, unknown> | null>(null)
   const seqRef = useRef(0)
@@ -118,7 +120,11 @@ export function CacheStatsDialog(props: Props) {
     if (Number(s.last_seen_at || 0) > 0) {
       data.push({
         key: t('Last Seen'),
-        value: formatTimestampToDate(s.last_seen_at as number | undefined),
+        value: formatTimestampToDate(
+          s.last_seen_at as number | undefined,
+          'seconds',
+          locale
+        ),
       })
     }
 

@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { isPersianIntlLocale } from '@/i18n/languages'
 import dayjs from '@/lib/dayjs'
 
 import {
@@ -37,6 +38,39 @@ export function formatNumber(
   return Intl.NumberFormat(locales, { maximumFractionDigits: 2 }).format(
     value as number
   )
+}
+
+/**
+ * Format a number with a fixed count of fraction digits and no grouping, in
+ * the given locale. Rounds exactly like `Number.prototype.toFixed`, so the
+ * digits match `value.toFixed(digits)`; only the digit shapes and the decimal
+ * separator follow the locale.
+ */
+export function formatFixed(
+  value: number,
+  digits: number,
+  locales?: Intl.LocalesArgument
+): string {
+  return Intl.NumberFormat(locales, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+    useGrouping: false,
+  }).format(Number(value.toFixed(digits)))
+}
+
+/**
+ * Append the percent sign of the locale to a number already formatted in that
+ * locale: `%` for most languages, `٪` for Persian. Only the sign follows the
+ * locale; it is appended with no space, as the callers wrote it before.
+ */
+export function appendPercentSign(
+  formattedNumber: string,
+  locales?: Intl.LocalesArgument
+): string {
+  const sign = Intl.NumberFormat(locales, { style: 'percent' })
+    .formatToParts(0)
+    .find((part) => part.type === 'percentSign')?.value
+  return `${formattedNumber}${sign ?? '%'}`
 }
 
 export function formatCompactNumber(
@@ -69,12 +103,18 @@ export function formatCurrencyUSD(value: number | null | undefined): string {
 /**
  * Format quota into the configured display amount.
  * Quota is stored in units where `quotaPerUnit` equals 1 USD.
+ * Pass the interface locale (see `toIntlLocale`) so digits follow the
+ * selected language instead of the browser default.
  */
-export function formatQuota(quota: number): string {
+export function formatQuota(
+  quota: number,
+  locale?: Intl.LocalesArgument
+): string {
   return formatQuotaWithCurrency(quota, {
     digitsLarge: 2,
     digitsSmall: 4,
     abbreviate: true,
+    locale,
   })
 }
 
@@ -149,30 +189,99 @@ export function getEditableQuotaStep(): number {
 // Timestamp Formatting
 // ============================================================================
 
+const DISPLAY_DATE_TOKENS = /YYYY|MM|DD|HH|mm|ss/g
+
+/**
+ * Format a date for display with a Day.js pattern built from the tokens
+ * YYYY, MM, DD, HH, mm and ss.
+ *
+ * Pass the interface locale (see `toIntlLocale`). For a Persian locale the
+ * fields come from the Solar Hijri calendar, with `/` between date fields,
+ * 24-hour time, and digits that follow the locale (`PERSIAN_INTL_LOCALE`).
+ * Any other locale, or no locale, returns `dayjs(value).format(pattern)`
+ * unchanged.
+ *
+ * Display only: values sent to the API, input values, exports and copied
+ * text stay Gregorian.
+ */
+export function formatDisplayDate(
+  value: Date | number,
+  pattern: string,
+  locale?: string
+): string {
+  if (!isPersianIntlLocale(locale)) return dayjs(value).format(pattern)
+
+  const formatter = new Intl.DateTimeFormat(locale, {
+    calendar: 'persian',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  })
+  const parts = new Map(
+    formatter.formatToParts(value).map((part) => [part.type, part.value])
+  )
+  const fields: Record<string, string | undefined> = {
+    YYYY: parts.get('year'),
+    MM: parts.get('month'),
+    DD: parts.get('day'),
+    HH: parts.get('hour'),
+    mm: parts.get('minute'),
+    ss: parts.get('second'),
+  }
+  return pattern
+    .replaceAll(/(YYYY|MM)-(?=MM|DD)/g, '$1/')
+    .replaceAll(DISPLAY_DATE_TOKENS, (token) => fields[token] ?? token)
+}
+
+/**
+ * The Gregorian `YYYY-MM-DD HH:mm:ss` text of a timestamp when the display
+ * locale is Persian, for a `title` next to a Solar Hijri date so it can be
+ * matched with invoices and server logs. `undefined` for other locales,
+ * whose displayed date is already Gregorian.
+ */
+export function formatGregorianTitle(
+  timestamp: number | undefined,
+  locale?: string,
+  unit: 'seconds' | 'milliseconds' = 'seconds'
+): string | undefined {
+  if (!isPersianIntlLocale(locale) || !timestamp || timestamp === -1) {
+    return undefined
+  }
+  return formatTimestampToDate(timestamp, unit)
+}
+
 /**
  * Format Unix timestamp (seconds) to YYYY-MM-DD HH:mm:ss
+ * (Solar Hijri for a Persian locale, see `formatDisplayDate`)
  */
-export function formatTimestamp(timestamp: number): string {
+export function formatTimestamp(timestamp: number, locale?: string): string {
   if (timestamp === -1) {
     return 'Never'
   }
-  return formatTimestampToDate(timestamp)
+  return formatTimestampToDate(timestamp, 'seconds', locale)
 }
 
 /**
  * Format timestamp to YYYY-MM-DD HH:mm:ss
+ * (Solar Hijri for a Persian locale, see `formatDisplayDate`)
  * @param timestamp - Timestamp in seconds or milliseconds
  * @param unit - Unit of the timestamp ('seconds' or 'milliseconds')
+ * @param locale - Interface locale from `toIntlLocale`
  */
 export function formatTimestampToDate(
   timestamp?: number,
-  unit: 'seconds' | 'milliseconds' = 'seconds'
+  unit: 'seconds' | 'milliseconds' = 'seconds',
+  locale?: string
 ): string {
   if (!timestamp || timestamp === -1 || timestamp === 0) {
     return '-'
   }
   const ms = unit === 'seconds' ? timestamp * 1000 : timestamp
-  return dayjs(ms).format('YYYY-MM-DD HH:mm:ss')
+  return formatDisplayDate(ms, 'YYYY-MM-DD HH:mm:ss', locale)
 }
 
 /**
@@ -215,30 +324,50 @@ export function formatTimestampRelative(
   return formatter.format(Math.round(diffSeconds / 31536000), 'year')
 }
 
-/** Format a Date object to YYYY-MM-DD HH:mm:ss */
-export function formatDateTimeStr(date: Date): string {
-  return dayjs(date).format('YYYY-MM-DD HH:mm:ss')
+/**
+ * Relative time for display, such as "a few seconds ago". Pass the interface
+ * locale (see `toIntlLocale`): Persian uses `formatTimestampRelative`
+ * (Intl.RelativeTimeFormat); other locales keep the Day.js `fromNow` text.
+ */
+export function formatFromNow(value: Date | number, locale?: string): string {
+  if (!isPersianIntlLocale(locale)) return dayjs(value).fromNow()
+  return formatTimestampRelative(
+    value instanceof Date ? value.getTime() : value,
+    'milliseconds',
+    locale
+  )
 }
 
-/** Format a Date object to YYYY-MM-DD */
-export function formatDateStr(date: Date): string {
-  return dayjs(date).format('YYYY-MM-DD')
+/** Format a Date object to YYYY-MM-DD HH:mm:ss (see `formatDisplayDate`) */
+export function formatDateTimeStr(date: Date, locale?: string): string {
+  return formatDisplayDate(date, 'YYYY-MM-DD HH:mm:ss', locale)
 }
 
-/** Format a Date object to HH:mm:ss */
-export function formatTimeStr(date: Date): string {
-  return dayjs(date).format('HH:mm:ss')
+/** Format a Date object to YYYY-MM-DD (see `formatDisplayDate`) */
+export function formatDateStr(date: Date, locale?: string): string {
+  return formatDisplayDate(date, 'YYYY-MM-DD', locale)
+}
+
+/** Format a Date object to HH:mm:ss (see `formatDisplayDate`) */
+export function formatTimeStr(date: Date, locale?: string): string {
+  return formatDisplayDate(date, 'HH:mm:ss', locale)
 }
 
 /**
  * Format quota for usage logs with higher precision
  * Uses 6 decimal places to show very small costs accurately
+ * Pass the interface locale (see `toIntlLocale`) so digits follow the
+ * selected language instead of the browser default.
  */
-export function formatLogQuota(quota: number): string {
+export function formatLogQuota(
+  quota: number,
+  locale?: Intl.LocalesArgument
+): string {
   return formatQuotaWithCurrency(quota, {
     digitsLarge: 4,
     digitsSmall: 6,
     abbreviate: false,
+    locale,
   })
 }
 

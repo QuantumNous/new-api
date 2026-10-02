@@ -28,6 +28,8 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getChannelTypeLabel } from '@/features/channels/lib'
+import {  } from '@/i18n/languages'
+import {  } from '@/lib/format'
 import { resolveLocalizedText } from '@/lib/localized-text'
 
 import {

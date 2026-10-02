@@ -51,6 +51,8 @@ export function formatQuotaShort(quota: number): string {
 /**
  * Format currency amount that is already in local currency.
  * This is used for payment amounts that have been calculated via priceRatio.
+ * Pass the interface locale (see `toIntlLocale`); it defaults to the runtime
+ * locale.
  */
 export function formatCurrency(amount: number | string): string {
   const numeric =

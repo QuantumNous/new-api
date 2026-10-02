@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { Label } from '@/components/ui/label'
+import {  } from '@/i18n/languages'
 import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -69,8 +70,8 @@ function DetailSection(props: {
   )
 }
 
-function formatTaskTimestamp(value?: number): string {
-  return value ? formatTimestampToDate(value, 'seconds') : '-'
+function formatTaskTimestamp(value?: number, locale?: string): string {
+  return value ? formatTimestampToDate(value, 'seconds', locale) : '-'
 }
 
 interface TaskDetailsDialogProps {

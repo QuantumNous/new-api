@@ -36,11 +36,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
+import { toIntlLocale } from '@/i18n/languages'
 import {
   ADMIN_PERMISSION_ACTIONS,
   ADMIN_PERMISSION_RESOURCES,
   hasPermission,
 } from '@/lib/admin-permissions'
+import { formatGregorianTitle } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -75,7 +77,8 @@ export function MultiKeyManageDialog({
   open,
   onOpenChange,
 }: MultiKeyManageDialogProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const { currentRow } = useChannels()
   const queryClient = useQueryClient()
   const currentUser = useAuthStore((s) => s.auth.user)
@@ -227,7 +230,7 @@ export function MultiKeyManageDialog({
 
   const formatKeyTimestamp = (timestamp?: number) => {
     if (!timestamp) return '-'
-    return formatTimestamp(timestamp)
+    return formatTimestamp(timestamp, locale)
   }
 
   if (!currentRow) return null
@@ -415,7 +418,13 @@ export function MultiKeyManageDialog({
                     header: t('Disabled Time'),
                     className: 'w-44',
                     cellClassName: 'text-muted-foreground text-sm',
-                    cell: (key) => formatKeyTimestamp(key.disabled_time),
+                    cell: (key) => (
+                      <span
+                        title={formatGregorianTitle(key.disabled_time, locale)}
+                      >
+                        {formatKeyTimestamp(key.disabled_time)}
+                      </span>
+                    ),
                   },
                   {
                     id: 'actions',

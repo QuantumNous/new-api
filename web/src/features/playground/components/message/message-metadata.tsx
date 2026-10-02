@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
+import {  } from '@/i18n/languages'
 import { cn } from '@/lib/utils'
 
 import type { MessageAlignment } from '../../lib'

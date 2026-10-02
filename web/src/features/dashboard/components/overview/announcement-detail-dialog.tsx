@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { Dialog } from '@/components/dialog'
 import { RichContent } from '@/components/rich-content'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatDateTimeObject } from '@/lib/time'
 
 interface AnnouncementDetailModalProps {
@@ -40,7 +41,8 @@ export function AnnouncementDetailModal({
   onOpenChange,
   announcement,
 }: AnnouncementDetailModalProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   return (
     <Dialog
       open={open}
@@ -48,7 +50,7 @@ export function AnnouncementDetailModal({
       title={t('Announcement Details')}
       description={
         announcement?.publishDate
-          ? `${t('Published:')} ${formatDateTimeObject(new Date(announcement.publishDate))}`
+          ? `${t('Published:')} ${formatDateTimeObject(new Date(announcement.publishDate), locale)}`
           : undefined
       }
       contentClassName='sm:max-w-lg'

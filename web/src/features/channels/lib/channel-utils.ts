@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { formatCurrencyFromUSD, formatQuotaWithCurrency } from '@/lib/currency'
-import { formatTimestampToDate } from '@/lib/format'
+import {  formatTimestampToDate } from '@/lib/format'
 
 import {
   CHANNEL_STATUS_CONFIG,
@@ -366,7 +366,9 @@ type TFunction = (key: string, options?: { value?: number | string }) => string
 
 /**
  * Format response time in milliseconds to human-readable.
- * Pass `t` from useTranslation() for i18n (e.g. "Not tested", "{{value}}ms", "{{value}}s").
+ * Pass `t` from useTranslation() for i18n (e.g. "Not tested", "{{value}}ms", "{{value}}s"),
+ * and the interface locale (toIntlLocale) so the number uses its digits and
+ * decimal separator.
  */
 export function formatResponseTime(timeMs: number, t?: TFunction): string {
   if (timeMs === 0) {
@@ -470,14 +472,15 @@ export function formatRelativeTime(
 
 /**
  * Format Unix timestamp to date string
+ * (Solar Hijri for a Persian `locale` from `toIntlLocale`)
  */
-export function formatTimestamp(timestamp: number): string {
+export function formatTimestamp(timestamp: number, locale?: string): string {
   if (!timestamp || timestamp === 0) {
     return 'N/A'
   }
 
   try {
-    return formatTimestampToDate(timestamp)
+    return formatTimestampToDate(timestamp, 'seconds', locale)
   } catch {
     return 'Invalid date'
   }

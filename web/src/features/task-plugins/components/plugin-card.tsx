@@ -21,6 +21,8 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
+import {  } from '@/i18n/languages'
+import {  } from '@/lib/format'
 import { resolveLocalizedText } from '@/lib/localized-text'
 
 import type { TaskPluginListItem } from '../types'

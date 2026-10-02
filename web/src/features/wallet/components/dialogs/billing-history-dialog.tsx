@@ -45,8 +45,9 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatCurrencyFromUSD } from '@/lib/currency'
-import { formatNumber } from '@/lib/format'
+import { formatGregorianTitle, formatNumber } from '@/lib/format'
 
 import { useBillingHistory } from '../../hooks/use-billing-history'
 import {
@@ -64,7 +65,8 @@ export function BillingHistoryDialog({
   open,
   onOpenChange,
 }: BillingHistoryDialogProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const {
     records,
     total,
@@ -221,8 +223,14 @@ export function BillingHistoryDialog({
                               />
                             )}
                           </div>
-                          <div className='text-muted-foreground text-xs'>
-                            {formatTimestamp(record.create_time)}
+                          <div
+                            className='text-muted-foreground text-xs'
+                            title={formatGregorianTitle(
+                              record.create_time,
+                              locale
+                            )}
+                          >
+                            {formatTimestamp(record.create_time, locale)}
                           </div>
                         </div>
                         <StatusBadge

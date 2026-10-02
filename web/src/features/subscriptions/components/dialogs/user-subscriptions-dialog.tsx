@@ -48,7 +48,8 @@ import {
   SheetDescription,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
-import { formatQuota } from '@/lib/format'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatGregorianTitle, formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 
 import {
@@ -105,7 +106,8 @@ function SubscriptionStatusBadge(props: {
 }
 
 export function UserSubscriptionsDialog(props: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const [loading, setLoading] = useState(false)
   const [creating, setCreating] = useState(false)
   const [plans, setPlans] = useState<PlanRecord[]>([])
@@ -321,11 +323,14 @@ export function UserSubscriptionsDialog(props: Props) {
 
                     return (
                       <div className='text-sm'>
-                        <div>
-                          {t('Start')}: {formatTimestamp(sub.start_time)}
+                        <div
+                          title={formatGregorianTitle(sub.start_time, locale)}
+                        >
+                          {t('Start')}:{' '}
+                          {formatTimestamp(sub.start_time, locale)}
                         </div>
-                        <div>
-                          {t('End')}: {formatTimestamp(sub.end_time)}
+                        <div title={formatGregorianTitle(sub.end_time, locale)}>
+                          {t('End')}: {formatTimestamp(sub.end_time, locale)}
                         </div>
                       </div>
                     )

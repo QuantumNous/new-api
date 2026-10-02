@@ -58,9 +58,10 @@ import {
 } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Switch } from '@/components/ui/switch'
+import { toIntlLocale } from '@/i18n/languages'
 import { api } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
-import { formatTimestampToDate } from '@/lib/format'
+import { formatDisplayDate, formatTimestampToDate } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import {
   requireServerSuccess,
@@ -147,7 +148,8 @@ function isActiveLogCleanupTask(task: LogCleanupTask | null) {
 export function LogSettingsSection({
   defaultEnabled,
 }: LogSettingsSectionProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const updateOption = useUpdateOption()
   const form = useForm<LogSettingsFormValues>({
     resolver: zodResolver(logSettingsSchema),
@@ -215,8 +217,8 @@ export function LogSettingsSection({
 
   const formattedPurgeDate = useMemo(() => {
     if (!purgeDate) return ''
-    return formatTimestampToDate(purgeDate.getTime(), 'milliseconds')
-  }, [purgeDate])
+    return formatTimestampToDate(purgeDate.getTime(), 'milliseconds', locale)
+  }, [purgeDate, locale])
 
   const logCleanupActive = isActiveLogCleanupTask(logCleanupTask)
   const logCleanupState = logCleanupTask?.state
@@ -475,8 +477,17 @@ export function LogSettingsSection({
                       <span className='text-muted-foreground'>
                         {t('Date Range')}:
                       </span>{' '}
-                      {dayjs(serverLogInfo.oldest_time).format('YYYY-MM-DD')} ~{' '}
-                      {dayjs(serverLogInfo.newest_time).format('YYYY-MM-DD')}
+                      {formatDisplayDate(
+                        dayjs(serverLogInfo.oldest_time).toDate(),
+                        'YYYY-MM-DD',
+                        locale
+                      )}{' '}
+                      ~{' '}
+                      {formatDisplayDate(
+                        dayjs(serverLogInfo.newest_time).toDate(),
+                        'YYYY-MM-DD',
+                        locale
+                      )}
                     </div>
                   )}
                 </div>

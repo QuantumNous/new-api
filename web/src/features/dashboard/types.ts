@@ -90,6 +90,8 @@ export interface FlowBuildOptions {
   // Lets the caller inject a localized string such as "Deleted (123)".
   deletedTokenLabel?: (tokenId: number) => string
   otherNodeLabel?: (kind: FlowNodeKind) => string
+  // Interface locale (toIntlLocale) for the numbers in the filter options.
+  locale?: Intl.LocalesArgument
 }
 
 export interface DashboardFlowNode {

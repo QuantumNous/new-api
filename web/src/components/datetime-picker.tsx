@@ -29,7 +29,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import dayjs from '@/lib/dayjs'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatDisplayDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 const calendarLocales = {
@@ -56,6 +57,7 @@ export function DateTimePicker({
 }: DateTimePickerProps) {
   const { t, i18n } = useTranslation()
   const placeholderText = placeholder ?? t('Select date')
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const calendarLocale =
     calendarLocales[i18n.language as keyof typeof calendarLocales] ?? enUS
   const currentYear = new Date().getFullYear()
@@ -124,7 +126,9 @@ export function DateTimePicker({
             />
           }
         >
-          {date ? dayjs(date).format('YYYY-MM-DD') : placeholderText}
+          {date
+            ? formatDisplayDate(date, 'YYYY-MM-DD', locale)
+            : placeholderText}
           <ChevronDownIcon className='h-4 w-4 opacity-50' />
         </PopoverTrigger>
         <PopoverContent className='w-auto overflow-hidden p-0' align='start'>

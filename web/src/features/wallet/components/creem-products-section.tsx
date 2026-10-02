@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import {  } from '@/i18n/languages'
 import { formatNumber } from '@/lib/format'
 
 import { formatCreemPrice } from '../lib/format'

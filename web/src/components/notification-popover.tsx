@@ -40,7 +40,9 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { toIntlLocale } from '@/i18n/languages'
 import { getAnnouncementColorClass } from '@/lib/colors'
+import { formatGregorianTitle } from '@/lib/format'
 import { formatDateTimeObject } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
@@ -67,7 +69,11 @@ interface NotificationPopoverProps {
 /**
  * Get relative time string from a date
  */
-function getRelativeTime(publishDate: string | Date, t: TFunction): string {
+function getRelativeTime(
+  publishDate: string | Date,
+  t: TFunction,
+  locale?: string
+): string {
   if (!publishDate) return ''
 
   const now = new Date()
@@ -88,7 +94,7 @@ function getRelativeTime(publishDate: string | Date, t: TFunction): string {
   const diffYears = Math.floor(diffDays / 365)
 
   // If future time, show specific date
-  if (diffMs < 0) return formatDateTimeObject(pubDate)
+  if (diffMs < 0) return formatDateTimeObject(pubDate, locale)
 
   // Return relative time based on difference
   if (diffSeconds < 60) return t('Just now')
@@ -120,7 +126,7 @@ function getRelativeTime(publishDate: string | Date, t: TFunction): string {
   if (diffYears < 2) return t('1 year ago')
 
   // Over 2 years, show specific date
-  return formatDateTimeObject(pubDate)
+  return formatDateTimeObject(pubDate, locale)
 }
 
 /**
@@ -222,6 +228,8 @@ function AnnouncementsContent({
   loading: boolean
   t: TFunction
 }) {
+  const { i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   if (loading) {
     return (
       <EmptyState
@@ -247,10 +255,10 @@ function AnnouncementsContent({
             ? new Date(item.publishDate)
             : null
           const relativeTime = publishDate
-            ? getRelativeTime(publishDate, t)
+            ? getRelativeTime(publishDate, t, locale)
             : ''
           const absoluteTime = publishDate
-            ? formatDateTimeObject(publishDate)
+            ? formatDateTimeObject(publishDate, locale)
             : ''
 
           return (
@@ -270,7 +278,14 @@ function AnnouncementsContent({
                     ) : null}
 
                     {absoluteTime ? (
-                      <div className='text-muted-foreground text-xs'>
+                      <div
+                        className='text-muted-foreground text-xs'
+                        title={formatGregorianTitle(
+                          publishDate?.getTime(),
+                          locale,
+                          'milliseconds'
+                        )}
+                      >
                         {relativeTime ? `${relativeTime} • ` : null}
                         {absoluteTime}
                       </div>

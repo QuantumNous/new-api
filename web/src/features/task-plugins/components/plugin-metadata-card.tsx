@@ -21,6 +21,8 @@ import { useTranslation } from 'react-i18next'
 import { CopyButton } from '@/components/copy-button'
 import { Badge } from '@/components/ui/badge'
 import { getChannelTypeLabel } from '@/features/channels/lib/channel-utils'
+import {  } from '@/i18n/languages'
+import {  } from '@/lib/format'
 
 import { getPluginWebsite } from '../lib/plugin-website'
 import type { TaskPluginMeta } from '../types'

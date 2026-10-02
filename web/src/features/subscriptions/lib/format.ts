@@ -18,10 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
 
-import dayjs from '@/lib/dayjs'
+import { formatDisplayDate } from '@/lib/format'
 
 import type { SubscriptionPlan } from '../types'
 
+/** Pass the interface locale (toIntlLocale) so the number uses its digits. */
 export function formatDuration(
   plan: Partial<SubscriptionPlan>,
   t: TFunction
@@ -44,6 +45,7 @@ export function formatDuration(
   return `${value} ${unitLabels[unit] || unit}`
 }
 
+/** Pass the interface locale (toIntlLocale) so the number uses its digits. */
 export function formatResetPeriod(
   plan: Partial<SubscriptionPlan>,
   t: TFunction
@@ -62,7 +64,8 @@ export function formatResetPeriod(
   return t('No Reset')
 }
 
-export function formatTimestamp(ts: number): string {
+/** Solar Hijri for a Persian locale from `toIntlLocale`, see `formatDisplayDate` */
+export function formatTimestamp(ts: number, locale?: string): string {
   if (!ts) return '-'
-  return dayjs(ts * 1000).format('YYYY-MM-DD HH:mm:ss')
+  return formatDisplayDate(ts * 1000, 'YYYY-MM-DD HH:mm:ss', locale)
 }

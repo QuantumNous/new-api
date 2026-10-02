@@ -24,6 +24,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import {  } from '@/i18n/languages'
 import { formatTimestampToDate } from '@/lib/format'
 
 import { getSystemReleaseUrl, parseSystemVersion } from './releases'

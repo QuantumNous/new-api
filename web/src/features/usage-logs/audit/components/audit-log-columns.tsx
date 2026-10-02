@@ -22,7 +22,8 @@ import { useTranslation } from 'react-i18next'
 
 import { TruncatedCell } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
-import dayjs from '@/lib/dayjs'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatGregorianTitle, formatTimestampToDate } from '@/lib/format'
 
 import type { AuditLog } from '../api'
 import { buildAuditDetails } from '../lib/audit-details'
@@ -31,7 +32,8 @@ import { AuditLogDetailsDialog } from './audit-log-details-dialog'
 export function useAuditLogColumns(
   accessOnly?: boolean
 ): ColumnDef<AuditLog>[] {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   return useMemo(() => {
     const columns: ColumnDef<AuditLog>[] = [
       {
@@ -39,8 +41,11 @@ export function useAuditLogColumns(
         header: t('Time'),
         size: 180,
         cell: ({ row }) => (
-          <span className='font-mono tabular-nums'>
-            {dayjs.unix(row.original.created_at).format('YYYY-MM-DD HH:mm:ss')}
+          <span
+            className='font-mono tabular-nums'
+            title={formatGregorianTitle(row.original.created_at, locale)}
+          >
+            {formatTimestampToDate(row.original.created_at, 'seconds', locale)}
           </span>
         ),
         meta: { label: t('Time'), mobileTitle: true },

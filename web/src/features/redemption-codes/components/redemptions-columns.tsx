@@ -28,7 +28,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { formatQuota, formatTimestampToDate } from '@/lib/format'
+import { toIntlLocale } from '@/i18n/languages'
+import {
+  formatGregorianTitle,
+  formatQuota,
+  formatTimestampToDate,
+} from '@/lib/format'
 
 import { REDEMPTION_FILTER_EXPIRED, REDEMPTION_STATUSES } from '../constants'
 import { isRedemptionExpired, isTimestampExpired } from '../lib'
@@ -36,7 +41,8 @@ import type { Redemption } from '../types'
 import { DataTableRowActions } from './data-table-row-actions'
 
 export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   return [
     {
       id: 'select',
@@ -176,8 +182,15 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
       meta: { mobileHidden: true },
       cell: ({ row }) => {
         return (
-          <div className='min-w-[160px] font-mono text-sm'>
-            {formatTimestampToDate(row.getValue('created_time'))}
+          <div
+            className='min-w-[160px] font-mono text-sm'
+            title={formatGregorianTitle(row.original.created_time, locale)}
+          >
+            {formatTimestampToDate(
+              row.getValue('created_time'),
+              'seconds',
+              locale
+            )}
           </div>
         )
       },
@@ -203,8 +216,9 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
         return (
           <div
             className={`min-w-[160px] font-mono text-sm ${isExpired ? 'text-destructive' : ''}`}
+            title={formatGregorianTitle(expiredTime, locale)}
           >
-            {formatTimestampToDate(expiredTime)}
+            {formatTimestampToDate(expiredTime, 'seconds', locale)}
           </div>
         )
       },
@@ -242,7 +256,11 @@ export function useRedemptionsColumns(): ColumnDef<Redemption>[] {
                 {redemption.redeemed_time > 0 && (
                   <div>
                     {t('Redeemed:')}{' '}
-                    {formatTimestampToDate(redemption.redeemed_time)}
+                    {formatTimestampToDate(
+                      redemption.redeemed_time,
+                      'seconds',
+                      locale
+                    )}
                   </div>
                 )}
               </div>

@@ -27,9 +27,14 @@ import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge, type StatusVariant } from '@/components/status-badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { toIntlLocale } from '@/i18n/languages'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
-import dayjs from '@/lib/dayjs'
-import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
+import {
+  formatLogQuota,
+  formatDisplayDate,
+  formatGregorianTitle,
+  formatTimestampToDate,
+} from '@/lib/format'
 
 import type { UsageLog } from '../data/schema'
 import { formatModelName, parseLogOther } from '../lib/format'
@@ -62,7 +67,8 @@ export function CommonLogMobileCard<TData>(props: {
   log: UsageLog
   cells: Map<string, Cell<TData, unknown>>
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const context = useUsageLogsContext()
   const [selectedField, setSelectedField] = useState<FieldName | null>(null)
   const log = props.log
@@ -89,7 +95,7 @@ export function CommonLogMobileCard<TData>(props: {
     },
     time: {
       label: t('Time'),
-      value: formatTimestampToDate(log.created_at),
+      value: formatTimestampToDate(log.created_at, 'seconds', locale),
       visible: props.cells.has('created_at'),
     },
     user: {
@@ -179,9 +185,14 @@ export function CommonLogMobileCard<TData>(props: {
               aria-label={`${t('Time')}: ${fields.time.value}`}
               aria-haspopup='dialog'
               onClick={() => setSelectedField('time')}
+              title={formatGregorianTitle(log.created_at, locale)}
               className='text-muted-foreground h-auto min-h-6 px-0 py-0 text-xs font-normal whitespace-normal tabular-nums'
             >
-              {dayjs.unix(log.created_at).format('MM-DD HH:mm:ss')}
+              {formatDisplayDate(
+                log.created_at * 1000,
+                'MM-DD HH:mm:ss',
+                locale
+              )}
             </Button>
           </div>
         )}
