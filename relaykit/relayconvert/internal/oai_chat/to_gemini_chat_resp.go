@@ -96,6 +96,10 @@ func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info convmeta
 			Parts: make([]dto.GeminiPart, 0),
 		}
 
+		if reasoning := choice.Message.GetReasoningContent(); reasoning != "" {
+			content.Parts = append(content.Parts, dto.GeminiPart{Text: reasoning, Thought: true})
+		}
+
 		textContent := choice.Message.StringContent()
 		if textContent != "" {
 			part := dto.GeminiPart{
@@ -129,7 +133,7 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 	hasContent := false
 	hasFinishReason := false
 	for _, choice := range openAIResponse.Choices {
-		if len(choice.Delta.GetContentString()) > 0 || (choice.Delta.ToolCalls != nil && len(choice.Delta.ToolCalls) > 0) {
+		if len(choice.Delta.GetContentString()) > 0 || len(choice.Delta.GetReasoningContent()) > 0 || (choice.Delta.ToolCalls != nil && len(choice.Delta.ToolCalls) > 0) {
 			hasContent = true
 		}
 		if choice.FinishReason != nil {
@@ -194,6 +198,10 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 		content := dto.GeminiChatContent{
 			Role:  "model",
 			Parts: make([]dto.GeminiPart, 0),
+		}
+
+		if reasoning := choice.Delta.GetReasoningContent(); reasoning != "" {
+			content.Parts = append(content.Parts, dto.GeminiPart{Text: reasoning, Thought: true})
 		}
 
 		// 处理工具调用
@@ -287,6 +295,9 @@ func (s *ChatToGeminiStreamState) ConvertChunk(openAIResponse *dto.ChatCompletio
 				Role:  "model",
 				Parts: make([]dto.GeminiPart, 0),
 			},
+		}
+		if reasoning := choice.Delta.GetReasoningContent(); reasoning != "" {
+			candidate.Content.Parts = append(candidate.Content.Parts, dto.GeminiPart{Text: reasoning, Thought: true})
 		}
 		if hasText {
 			candidate.Content.Parts = append(candidate.Content.Parts, dto.GeminiPart{Text: choice.Delta.GetContentString()})
