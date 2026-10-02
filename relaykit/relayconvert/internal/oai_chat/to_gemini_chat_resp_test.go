@@ -110,3 +110,35 @@ func TestStreamResponseOpenAI2GeminiMapsToolCallFinishReasonAndUsage(t *testing.
 func geminiRespPtr[T any](value T) *T {
 	return &value
 }
+
+func TestResponseOpenAI2GeminiPreservesReasoningAndCachedTokens(t *testing.T) {
+	t.Parallel()
+
+	resp := ResponseOpenAI2Gemini(&dto.OpenAITextResponse{
+		Choices: []dto.OpenAITextResponseChoice{
+			{
+				Index:        0,
+				FinishReason: "stop",
+				Message:      dto.Message{Role: "assistant", Content: "answer"},
+			},
+		},
+		Usage: dto.Usage{
+			PromptTokens:     100,
+			CompletionTokens: 60,
+			TotalTokens:      160,
+			PromptTokensDetails: dto.InputTokenDetails{
+				CachedTokens: 40,
+			},
+			CompletionTokenDetails: dto.OutputTokenDetails{
+				ReasoningTokens: 45,
+			},
+		},
+	}, &convmeta.Values{})
+
+	require.NotNil(t, resp)
+	assert.Equal(t, 100, resp.UsageMetadata.PromptTokenCount)
+	assert.Equal(t, 15, resp.UsageMetadata.CandidatesTokenCount)
+	assert.Equal(t, 45, resp.UsageMetadata.ThoughtsTokenCount)
+	assert.Equal(t, 40, resp.UsageMetadata.CachedContentTokenCount)
+	assert.Equal(t, 160, resp.UsageMetadata.TotalTokenCount)
+}

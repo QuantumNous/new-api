@@ -172,8 +172,8 @@ func TestMergeClaudeUsageNonZeroPreservesBillingUsage(t *testing.T) {
 	t.Parallel()
 
 	currentSidecar := NewGeminiChatBillingUsage(&GeminiUsageMetadata{
-		PromptTokenCount:    3868,
-		TotalTokenCount:     3868,
+		PromptTokenCount:        3868,
+		TotalTokenCount:         3868,
 		CachedContentTokenCount: 20,
 	})
 	incomingSidecar := NewGeminiChatBillingUsage(&GeminiUsageMetadata{
@@ -231,4 +231,26 @@ func TestMergeUsageNonZeroKeepsPositiveValuesAndTakesMaxTotal(t *testing.T) {
 	assert.Equal(t, 10, merged.PromptTokens)
 	assert.Equal(t, 5, merged.CompletionTokens)
 	assert.Equal(t, 20, merged.TotalTokens)
+}
+
+func TestMergeGeminiUsageMetadataPreservesThoughtsWhenOmittedOnCandidateChunk(t *testing.T) {
+	t.Parallel()
+
+	merged := MergeGeminiUsageMetadataNonZero(
+		&GeminiUsageMetadata{
+			PromptTokenCount:   10,
+			ThoughtsTokenCount: 100,
+			TotalTokenCount:    110,
+		},
+		&GeminiUsageMetadata{
+			PromptTokenCount:     10,
+			CandidatesTokenCount: 50,
+			ThoughtsTokenCount:   0,
+			TotalTokenCount:      160,
+		},
+	)
+	require.NotNil(t, merged)
+	assert.Equal(t, 50, merged.CandidatesTokenCount)
+	assert.Equal(t, 100, merged.ThoughtsTokenCount)
+	assert.Equal(t, 160, merged.TotalTokenCount)
 }
