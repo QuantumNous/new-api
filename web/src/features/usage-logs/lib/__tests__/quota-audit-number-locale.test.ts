@@ -16,13 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { toIntlLocale } from '@/i18n/languages'
 
 import { buildQuotaAuditOperation } from '../quota-audit-operation'
 
-const t = (key: string, options?: Record<string, unknown>) =>
+const t = (key: string, options?: Record<string, unknown>): string =>
   key.replaceAll(/\{\{(\w+)\}\}/g, (_, name) => String(options?.[name] ?? ''))
 
 // Default currency config: 500000 quota units = 1 USD.
@@ -42,6 +42,16 @@ describe('quota audit amounts', () => {
   })
 
   it('in English, keeps the amounts in the runtime default locale', () => {
+    // Pin the runtime default so the expected amount does not depend on the
+    // machine's locale.
+    const NumberFormat = Intl.NumberFormat
+    vi.spyOn(Intl, 'NumberFormat').mockImplementation(function (
+      locales?: Intl.LocalesArgument,
+      options?: Intl.NumberFormatOptions
+    ) {
+      return new NumberFormat(locales ?? 'en-US', options)
+    } as typeof Intl.NumberFormat)
+
     const result = buildQuotaAuditOperation(
       'user.quota_override',
       params,
