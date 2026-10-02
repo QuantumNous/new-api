@@ -154,6 +154,31 @@ describe('usage stats window controls', () => {
     }
   })
 
+  it('applies a day preset immediately and keeps it rolling on refresh', async () => {
+    workspace()
+    await waitFor(() => expect(getUsageStat).toHaveBeenCalledTimes(1))
+
+    await userEvent.click(screen.getByRole('button', { name: '7 days' }))
+    await waitFor(() => expect(getUsageStat).toHaveBeenCalledTimes(2))
+    expect(lastWindowSpan()).toBe(7 * DAY)
+
+    // Rolling preset: refresh re-anchors the 7 day window to "now".
+    vi.useFakeTimers()
+    try {
+      const before = lastWindowParams()
+      vi.setSystemTime((before.end_timestamp + 5 * 60) * 1000)
+      fireEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+      await act(async () => {})
+
+      const after = lastWindowParams()
+      expect(getUsageStat).toHaveBeenCalledTimes(3)
+      expect(after.end_timestamp - after.start_timestamp).toBe(7 * DAY)
+      expect(after.end_timestamp - before.end_timestamp).toBe(5 * 60)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('stamps the moment the numbers were fetched', async () => {
     workspace()
     await waitFor(() =>

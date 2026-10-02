@@ -44,6 +44,7 @@ import { UsageStatTable } from './components/usage-stat-table'
 import type { UsageStatDimension } from './types'
 
 const DEFAULT_RANGE_DAYS = 1
+const PRESET_DAYS = [1, 3, 7, 30]
 const USAGE_STAT_QUERY_KEY = 'usage-stat'
 
 type SummaryCardProps = {
@@ -75,10 +76,12 @@ export function UsageStats() {
   const [range, setRange] = useState(() =>
     getRollingDateRange(DEFAULT_RANGE_DAYS)
   )
-  // The default window rolls with the clock. Remember whether the user is still
-  // on it, because refreshing should re-anchor it to "now" rather than freezing
-  // the window at the moment the page happened to open.
-  const [isRolling, setIsRolling] = useState(true)
+  // null means the user hand-picked a range in the calendar; any number means
+  // the window is on a rolling preset, so refreshing re-anchors it to "now"
+  // instead of freezing the window at the moment it was clicked.
+  const [rollingDays, setRollingDays] = useState<number | null>(
+    DEFAULT_RANGE_DAYS
+  )
   // Bumped by refresh/reset. It is part of the query key on purpose: two clicks
   // inside the same second recompute identical timestamps, and without it the
   // second click would be answered from the cache instead of hitting the API.
@@ -86,8 +89,9 @@ export function UsageStats() {
   const [dimension, setDimension] = useState<UsageStatDimension>('model')
 
   const params = useMemo(
-    () => computeTimeRange(DEFAULT_RANGE_DAYS, range.start, range.end),
-    [range]
+    () =>
+      computeTimeRange(rollingDays ?? DEFAULT_RANGE_DAYS, range.start, range.end),
+    [range, rollingDays]
   )
   const query = useQuery({
     queryKey: [
@@ -102,14 +106,20 @@ export function UsageStats() {
   })
 
   const handleRefresh = () => {
-    if (isRolling) {
-      setRange(getRollingDateRange(DEFAULT_RANGE_DAYS))
+    if (rollingDays !== null) {
+      setRange(getRollingDateRange(rollingDays))
     }
     setReloadToken((token) => token + 1)
   }
 
+  const applyPreset = (days: number) => {
+    setRollingDays(days)
+    setRange(getRollingDateRange(days))
+    setReloadToken((token) => token + 1)
+  }
+
   const handleReset = () => {
-    setIsRolling(true)
+    setRollingDays(DEFAULT_RANGE_DAYS)
     setRange(getRollingDateRange(DEFAULT_RANGE_DAYS))
     setReloadToken((token) => token + 1)
   }
@@ -142,11 +152,27 @@ export function UsageStats() {
             </button>
           ))}
         </div>
+        <div className='bg-muted/60 inline-flex h-8 items-center rounded-lg border p-0.5'>
+          {PRESET_DAYS.map((days) => (
+            <button
+              key={days}
+              type='button'
+              onClick={() => applyPreset(days)}
+              className={`inline-flex items-center rounded-md px-2.5 text-xs font-medium transition-colors ${
+                rollingDays === days
+                  ? 'bg-background text-foreground shadow-sm'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {days === 1 ? t('1 day') : t(`${days} days`)}
+            </button>
+          ))}
+        </div>
         <CompactDateTimeRangePicker
           start={range.start}
           end={range.end}
           onChange={(next) => {
-            setIsRolling(false)
+            setRollingDays(null)
             setRange((current) => ({
               start: next.start ?? current.start,
               end: next.end ?? current.end,

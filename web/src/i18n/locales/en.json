@@ -6881,6 +6881,10 @@
     "Billed as cache creation": "Billed as cache creation",
     "Relies on configured model prices": "Relies on configured model prices",
     "Cache Hit ÷ Total Input": "Cache Hit ÷ Total Input",
-    "Reset to the last 24 hours": "Reset to the last 24 hours"
+    "Reset to the last 24 hours": "Reset to the last 24 hours",
+    "1 day": "1 day",
+    "3 days": "3 days",
+    "7 days": "7 days",
+    "30 days": "30 days"
   }
 }
