@@ -74,6 +74,7 @@ import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { toIntlLocale } from '@/i18n/languages'
 import dayjs from '@/lib/dayjs'
 import { formatDateTimeStr, formatTimestampToDate } from '@/lib/format'
 import { createServerError } from '@/lib/server-error-message'
@@ -170,12 +171,14 @@ function clampPercent(value: unknown): number {
   return Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 0
 }
 
-function formatUnixSeconds(unixSeconds: unknown): string {
+function formatUnixSeconds(unixSeconds: unknown, locale?: string): string {
   const v = Number(unixSeconds)
-  return Number.isFinite(v) && v > 0 ? formatTimestampToDate(v) : '-'
+  return Number.isFinite(v) && v > 0
+    ? formatTimestampToDate(v, 'seconds', locale)
+    : '-'
 }
 
-function formatIsoTimestamp(value: unknown): string {
+function formatIsoTimestamp(value: unknown, locale?: string): string {
   if (typeof value !== 'string' || value.trim() === '') {
     return '-'
   }
@@ -183,7 +186,7 @@ function formatIsoTimestamp(value: unknown): string {
   if (!d.isValid()) {
     return value
   }
-  return formatDateTimeStr(d.toDate())
+  return formatDateTimeStr(d.toDate(), locale)
 }
 
 function formatDurationSeconds(
@@ -452,7 +455,8 @@ type RateLimitWindowProps = {
 }
 
 function RateLimitWindow(props: RateLimitWindowProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const hasData =
     !!props.window &&
     typeof props.window === 'object' &&
@@ -505,7 +509,9 @@ function RateLimitWindow(props: RateLimitWindowProps) {
               {t('Reset at:')}
             </div>
             <div className='break-all tabular-nums'>
-              {hasData ? formatUnixSeconds(props.window?.reset_at) : '-'}
+              {hasData
+                ? formatUnixSeconds(props.window?.reset_at, locale)
+                : '-'}
             </div>
           </div>
           <div className='min-w-0 sm:text-right'>
@@ -670,7 +676,8 @@ function ResetCreditTimeField(props: {
 }
 
 function ResetCreditItem(props: { credit: CodexResetCredit; index: number }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const statusBadge = getResetCreditStatusBadge(props.credit.status, t)
   const title =
     props.credit.title?.trim() || `${t('Reset Credit')} ${props.index + 1}`
@@ -720,15 +727,15 @@ function ResetCreditItem(props: { credit: CodexResetCredit; index: number }) {
       <div className='mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3'>
         <ResetCreditTimeField
           label={t('Granted at')}
-          value={formatIsoTimestamp(props.credit.granted_at)}
+          value={formatIsoTimestamp(props.credit.granted_at, locale)}
         />
         <ResetCreditTimeField
           label={t('Expires at')}
-          value={formatIsoTimestamp(props.credit.expires_at)}
+          value={formatIsoTimestamp(props.credit.expires_at, locale)}
         />
         <ResetCreditTimeField
           label={t('Redeemed at')}
-          value={formatIsoTimestamp(props.credit.redeemed_at)}
+          value={formatIsoTimestamp(props.credit.redeemed_at, locale)}
           emphasis={Boolean(props.credit.redeemed_at)}
         />
       </div>

@@ -57,7 +57,7 @@ import type {
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
 import { isPersianIntlLocale, toIntlLocale } from '@/i18n/languages'
-import {  formatQuota, formatTimestampToDate } from '@/lib/format'
+import { formatFixed, formatQuota, formatTimestampToDate } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
@@ -501,9 +501,10 @@ export function SubscriptionPlansCard({
                             <TooltipTrigger
                               render={<span className='cursor-help' />}
                             >
-                              {formatQuota(usedAmount)}/
-                              {formatQuota(totalAmount)} · {t('Remaining')}{' '}
-                              {formatQuota(remainAmount)}
+                              {formatQuota(usedAmount, locale)}/
+                              {formatQuota(totalAmount, locale)} ·{' '}
+                              {t('Remaining')}{' '}
+                              {formatQuota(remainAmount, locale)}
                             </TooltipTrigger>
                             <TooltipContent>
                               {t('Raw Quota')}: {usedAmount}/{totalAmount} ·{' '}
@@ -543,19 +544,23 @@ export function SubscriptionPlansCard({
               const plan = p?.plan
               if (!plan) return null
               const totalAmount = Number(plan.total_amount || 0)
-              const price = Number(plan.price_amount || 0).toFixed(2)
+              const price = formatFixed(
+                Number(plan.price_amount || 0),
+                2,
+                locale
+              )
               const isPopular = index === 0 && plans.length > 1
               const limit = Number(plan.max_purchase_per_user || 0)
               const count = planPurchaseCountMap.get(plan.id) || 0
               const reached = limit > 0 && count >= limit
 
               const benefits = [
-                `${t('Validity Period')}: ${formatDuration(plan, t)}`,
-                formatResetPeriod(plan, t) !== t('No Reset')
-                  ? `${t('Quota Reset')}: ${formatResetPeriod(plan, t)}`
+                `${t('Validity Period')}: ${formatDuration(plan, t, locale)}`,
+                formatResetPeriod(plan, t, locale) !== t('No Reset')
+                  ? `${t('Quota Reset')}: ${formatResetPeriod(plan, t, locale)}`
                   : null,
                 totalAmount > 0
-                  ? `${t('Total Quota')}: ${formatQuota(totalAmount)}`
+                  ? `${t('Total Quota')}: ${formatQuota(totalAmount, locale)}`
                   : `${t('Total Quota')}: ${t('Unlimited')}`,
                 limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
                 plan.upgrade_group

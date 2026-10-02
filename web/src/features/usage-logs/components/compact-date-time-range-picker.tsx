@@ -75,7 +75,7 @@ export function CompactDateTimeRangePicker({
       ? formatDisplayDate(end, 'YYYY-MM-DD HH:mm', locale)
       : '-'
     return `${startText} ~ ${endText}`
-  }, [end, start, t])
+  }, [end, start, t, locale])
 
   const mobileLabel = useMemo(() => {
     if (!start || !end) return label
@@ -83,7 +83,7 @@ export function CompactDateTimeRangePicker({
       return `${formatDisplayDate(start, 'MM/DD HH:mm', locale)}–${formatDisplayDate(end, 'HH:mm', locale)}`
     }
     return label
-  }, [start, end, label])
+  }, [start, end, label, locale])
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {

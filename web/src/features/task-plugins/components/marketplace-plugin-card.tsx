@@ -28,8 +28,8 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { getChannelTypeLabel } from '@/features/channels/lib'
-import {  } from '@/i18n/languages'
-import {  } from '@/lib/format'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatNumber } from '@/lib/format'
 import { resolveLocalizedText } from '@/lib/localized-text'
 
 import {
@@ -54,6 +54,7 @@ type MarketplacePluginCardProps = {
 
 export function MarketplacePluginCard(props: MarketplacePluginCardProps) {
   const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const plugin = props.plugin
   const description = resolveLocalizedText(plugin.description, i18n.language)
   const channelTypes = plugin.channelTypes ?? []
@@ -115,7 +116,9 @@ export function MarketplacePluginCard(props: MarketplacePluginCardProps) {
         </div>
         <div className='min-w-0'>
           <div className={labelClass}>{t('Models')}</div>
-          <div className='truncate text-xs'>{plugin.models?.length ?? 0}</div>
+          <div className='truncate text-xs'>
+            {formatNumber(plugin.models?.length ?? 0, locale)}
+          </div>
         </div>
       </div>
 

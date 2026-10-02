@@ -64,13 +64,14 @@ export function useAuditLogColumns(
           header: t('Event'),
           size: 360,
           accessorFn: (entry) => {
-            const detail = buildAuditDetails(entry, t)
+            const detail = buildAuditDetails(entry, t, { locale })
             return [detail.summary, detail.operation?.description]
               .filter(Boolean)
               .join(' · ')
           },
           cell: ({ row, getValue }) => {
-            const operation = buildAuditDetails(row.original, t).operation
+            const operation = buildAuditDetails(row.original, t, { locale })
+              .operation
             if (!operation) {
               return (
                 <TruncatedCell className='max-w-64'>
@@ -186,5 +187,5 @@ export function useAuditLogColumns(
       }
     )
     return columns
-  }, [accessOnly, t])
+  }, [accessOnly, locale, t])
 }

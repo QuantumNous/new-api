@@ -260,6 +260,7 @@ export function BillingHistoryDialog({
                               digitsLarge: 2,
                               digitsSmall: 2,
                               abbreviate: false,
+                              locale,
                             })}
                           </div>
                         </div>
@@ -268,7 +269,7 @@ export function BillingHistoryDialog({
                             {t('Payment')}
                           </Label>
                           <div className='text-sm font-semibold text-red-600'>
-                            {formatNumber(record.money)}
+                            {formatNumber(record.money, locale)}
                           </div>
                         </div>
                       </div>

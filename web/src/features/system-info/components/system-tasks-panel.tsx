@@ -25,8 +25,8 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { listSystemTasks } from '@/features/system-settings/api'
-import {  } from '@/i18n/languages'
-import {  } from '@/lib/format'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatNumber } from '@/lib/format'
 import { createServerError } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
@@ -36,7 +36,8 @@ import { SystemTasksTable } from './system-tasks-table'
 const ACTIVE_POLL_INTERVAL_MS = 8000
 
 export function SystemTasksPanel() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const tasksQuery = useQuery({
     queryKey: ['system-info', 'system-tasks', 'active'],
     queryFn: async () => {
@@ -89,7 +90,7 @@ export function SystemTasksPanel() {
             />
             {hasActiveTasks
               ? t('Auto-refreshing every {{seconds}}s', {
-                  seconds: ACTIVE_POLL_INTERVAL_MS / 1000,
+                  seconds: formatNumber(ACTIVE_POLL_INTERVAL_MS / 1000, locale),
                 })
               : t('Live refresh pauses when no task is running')}
           </span>
@@ -144,7 +145,9 @@ export function SystemTasksPanel() {
                     {t('Tasks currently pending or running.')}
                   </p>
                 </div>
-                <Badge variant='outline'>{activeTasks.length}</Badge>
+                <Badge variant='outline'>
+                  {formatNumber(activeTasks.length, locale)}
+                </Badge>
               </div>
               {activeTasks.length > 0 ? (
                 <SystemTasksTable tasks={activeTasks} />

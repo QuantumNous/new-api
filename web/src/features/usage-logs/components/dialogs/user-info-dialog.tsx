@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
 import { Label } from '@/components/ui/label'
-import {  } from '@/i18n/languages'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatQuota, formatCompactNumber } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 
@@ -49,7 +49,8 @@ export function UserInfoDialog({
   open,
   onOpenChange,
 }: UserInfoDialogProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -112,11 +113,11 @@ export function UserInfoDialog({
           <div className='grid grid-cols-2 gap-4'>
             <InfoItem
               label={t('Balance')}
-              value={formatQuota(userInfo.quota)}
+              value={formatQuota(userInfo.quota, locale)}
             />
             <InfoItem
               label={t('Used Quota')}
-              value={formatQuota(userInfo.used_quota)}
+              value={formatQuota(userInfo.used_quota, locale)}
             />
           </div>
 
@@ -124,7 +125,7 @@ export function UserInfoDialog({
           <div className='grid grid-cols-2 gap-4'>
             <InfoItem
               label={t('Request Count')}
-              value={formatCompactNumber(userInfo.request_count)}
+              value={formatCompactNumber(userInfo.request_count, locale)}
             />
             {userInfo.group && (
               <InfoItem label={t('User Group')} value={userInfo.group} />
@@ -146,7 +147,7 @@ export function UserInfoDialog({
                 {userInfo.aff_count !== undefined && (
                   <InfoItem
                     label={t('Invited Users')}
-                    value={formatCompactNumber(userInfo.aff_count)}
+                    value={formatCompactNumber(userInfo.aff_count, locale)}
                   />
                 )}
               </div>
@@ -154,7 +155,7 @@ export function UserInfoDialog({
               {userInfo.aff_quota !== undefined && userInfo.aff_quota > 0 && (
                 <InfoItem
                   label={t('Invitation Quota')}
-                  value={formatQuota(userInfo.aff_quota)}
+                  value={formatQuota(userInfo.aff_quota, locale)}
                 />
               )}
             </>

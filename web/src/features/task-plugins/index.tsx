@@ -33,8 +33,8 @@ import {
 } from '@/components/ui/popover'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {  } from '@/i18n/languages'
-import {  } from '@/lib/format'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatNumber } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 
 import {
@@ -49,7 +49,8 @@ import { UploadDialog } from './components/upload-dialog'
 import type { TaskPluginListItem } from './types'
 
 export function TaskPlugins() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const queryClient = useQueryClient()
   const [detail, setDetail] = useState<TaskPluginListItem | null>(null)
   const [tab, setTab] = useState('installed')
@@ -188,8 +189,8 @@ export function TaskPlugins() {
                   <li key={plugin.meta.key}>
                     {plugin.meta.name} ({plugin.meta.key}):{' '}
                     {t('{{channels}} channels, {{tasks}} in-flight tasks', {
-                      channels: plugin.channel_count,
-                      tasks: plugin.in_flight_count,
+                      channels: formatNumber(plugin.channel_count, locale),
+                      tasks: formatNumber(plugin.in_flight_count, locale),
                     })}
                   </li>
                 ))}

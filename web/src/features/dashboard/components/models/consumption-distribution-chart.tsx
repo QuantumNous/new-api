@@ -106,7 +106,8 @@ export function ConsumptionDistributionChart(
         props.loading ? [] : props.data,
         timeGranularity,
         t,
-        chartRadius
+        chartRadius,
+        locale
       ),
     [props.data, props.loading, timeGranularity, t, chartRadius, locale]
   )

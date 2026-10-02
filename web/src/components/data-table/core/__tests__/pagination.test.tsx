@@ -21,18 +21,32 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { expect, it } from 'vitest'
+import i18next from 'i18next'
+import { afterEach, expect, it } from 'vitest'
 
 import { DataTablePagination } from '../pagination'
 
 const rows = [{ id: 1 }, { id: 2 }, { id: 3 }]
 const emptyRows: { id: number }[] = []
+const manyRows = Array.from({ length: 2468 }, (_, index) => ({ id: index }))
 
-function Fixture(props: { empty?: boolean; compact?: boolean }) {
+afterEach(async () => {
+  cleanup()
+  await i18next.changeLanguage('en')
+})
+
+function Fixture(props: {
+  empty?: boolean
+  compact?: boolean
+  many?: boolean
+}) {
+  let data = rows
+  if (props.empty) data = emptyRows
+  if (props.many) data = manyRows
   const table = useReactTable({
-    data: props.empty ? emptyRows : rows,
+    data,
     columns: [{ accessorKey: 'id' }],
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -64,4 +78,14 @@ it('shows a valid empty page with navigation disabled', () => {
 it('keeps page size selection available in the default layout', () => {
   render(<Fixture />)
   expect(screen.getByRole('combobox')).toBeVisible()
+})
+it('in English, keeps the compact page counter as plain digits without grouping', async () => {
+  await i18next.changeLanguage('en')
+  render(<Fixture compact many />)
+  expect(screen.getByText('1 / 1234')).toBeVisible()
+})
+it('in Persian, writes the compact page counter with Persian digits', async () => {
+  await i18next.changeLanguage('fa')
+  render(<Fixture compact many />)
+  expect(screen.getByText('۱ / ۱۲۳۴')).toBeVisible()
 })

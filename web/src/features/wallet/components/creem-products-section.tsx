@@ -20,7 +20,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
-import {  } from '@/i18n/languages'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatNumber } from '@/lib/format'
 
 import { formatCreemPrice } from '../lib/format'
@@ -37,7 +37,8 @@ export function CreemProductsSection({
   onProductSelect,
   loading,
 }: CreemProductsSectionProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
 
   if (loading) {
     return (
@@ -65,7 +66,7 @@ export function CreemProductsSection({
           <CardContent className='p-3 text-center sm:p-4'>
             <div className='mb-2 text-lg font-medium'>{product.name}</div>
             <div className='text-muted-foreground mb-2 text-sm'>
-              {t('Quota')}: {formatNumber(product.quota)}
+              {t('Quota')}: {formatNumber(product.quota, locale)}
             </div>
             <div className='text-primary text-lg font-semibold'>
               {formatCreemPrice(product.price, product.currency)}

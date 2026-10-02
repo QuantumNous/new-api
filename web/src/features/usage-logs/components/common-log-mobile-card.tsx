@@ -31,6 +31,7 @@ import { toIntlLocale } from '@/i18n/languages'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
 import {
   formatLogQuota,
+  formatNumber,
   formatDisplayDate,
   formatGregorianTitle,
   formatTimestampToDate,
@@ -90,7 +91,7 @@ export function CommonLogMobileCard<TData>(props: {
     },
     cost: {
       label: t('Cost'),
-      value: formatLogQuota(log.quota),
+      value: formatLogQuota(log.quota, locale),
       visible: displayable && props.cells.has('quota'),
     },
     time: {
@@ -304,23 +305,23 @@ export function CommonLogMobileCard<TData>(props: {
           <span>
             {t('Input')}{' '}
             <span className='text-foreground tabular-nums'>
-              {log.prompt_tokens.toLocaleString()}
+              {formatNumber(log.prompt_tokens, locale)}
             </span>
           </span>
           <span>
             {t('Output')}{' '}
             <span className='text-foreground tabular-nums'>
-              {log.completion_tokens.toLocaleString()}
+              {formatNumber(log.completion_tokens, locale)}
             </span>
           </span>
           {cacheRead > 0 && (
             <span>
-              {t('Cache')} ↓ {cacheRead.toLocaleString()}
+              {t('Cache')} ↓ {formatNumber(cacheRead, locale)}
             </span>
           )}
           {cacheWrite > 0 && (
             <span>
-              {t('Cache')} ↑ {cacheWrite.toLocaleString()}
+              {t('Cache')} ↑ {formatNumber(cacheWrite, locale)}
             </span>
           )}
         </div>

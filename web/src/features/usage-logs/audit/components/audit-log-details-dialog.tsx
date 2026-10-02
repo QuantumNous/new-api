@@ -51,6 +51,7 @@ export function AuditLogDetailsDialog(props: { entry: AuditLog }) {
   })
   const detail = buildAuditDetails(props.entry, t, {
     scopeResources: scopes.data?.resources,
+    locale,
   })
   const identifiers = [
     { label: t('Route'), value: props.entry.route },

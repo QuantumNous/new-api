@@ -273,5 +273,5 @@ export function useDrawingLogsColumns(
     )
 
     return columns
-  }, [t, isAdmin])
+  }, [t, locale, isAdmin])
 }

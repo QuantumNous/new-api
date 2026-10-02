@@ -284,5 +284,5 @@ export function useTaskLogsColumns(
     )
 
     return columns
-  }, [t, isAdmin, isRoot])
+  }, [t, locale, isAdmin, isRoot])
 }

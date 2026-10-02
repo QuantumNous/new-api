@@ -145,7 +145,7 @@ export function CacheStatsDialog(props: Props) {
     if (totalTokens > 0) data.push({ key: 'Total tokens', value: totalTokens })
 
     return data
-  }, [stats, props.target, t])
+  }, [stats, props.target, t, locale])
 
   return (
     <Dialog

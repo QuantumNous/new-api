@@ -41,7 +41,7 @@ import type {
   UserChartsFilters,
 } from '@/features/dashboard/types'
 import { toIntlLocale } from '@/i18n/languages'
-import {  } from '@/lib/format'
+import { formatNumber } from '@/lib/format'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
@@ -154,7 +154,8 @@ export function UserCharts(props: UserChartsProps) {
         isLoading ? [] : (userData ?? []),
         timeGranularity,
         t,
-        topUserLimit
+        topUserLimit,
+        locale
       ),
     [userData, isLoading, timeGranularity, t, topUserLimit, locale]
   )
@@ -215,7 +216,7 @@ export function UserCharts(props: UserChartsProps) {
                 value={String(limit)}
                 className='px-2.5 text-xs'
               >
-                {t('Top {{count}}', { count: limit })}
+                {t('Top {{count}}', { count: formatNumber(limit, locale) })}
               </TabsTrigger>
             ))}
           </TabsList>
