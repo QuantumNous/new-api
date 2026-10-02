@@ -16,7 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-// Checks the Persian locale against the typography rules in docs/i18n/fa.md.
+// Checks the Persian locale against the typography rules in
+// .agents/skills/i18n-translate/fa.md.
 //
 // Usage (from web/): node scripts/check-fa.mjs [fa.json] [--en en.json]
 //   [--src dir]

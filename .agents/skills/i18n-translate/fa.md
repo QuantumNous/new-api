@@ -1,6 +1,6 @@
 # Persian (fa) translation guide
 
-This guide applies to every Persian string in `web/src/i18n/locales/fa.json`. Follow it in every translation session, together with the i18n workflow in `.agents/skills/i18n-translate/SKILL.md`.
+This guide applies to every Persian string in `web/src/i18n/locales/fa.json`. Follow it in every translation session, together with the i18n workflow in `SKILL.md`, next to this file.
 
 ## Locale status
 
