@@ -3,7 +3,8 @@ name: i18n-translate
 description: >-
   Complete and maintain frontend i18n translations for this project. Covers
   finding missing translation keys, detecting untranslated entries, and adding
-  translations for all supported locales (en, zh, zh-TW, fr, ja, ru, vi). Use for any
+  translations for all supported locales (en, zh, zh-TW, fr, ja, ru, vi, plus
+  the optional partial locale fa). Use for any
   task involving frontend locale files, missing translation keys, untranslated
   UI text, `t(...)` keys, `useTranslation()`, static i18n keys, button/label/
   toast/dialog/placeholder/validation copy, or adding/fixing even a single
@@ -30,6 +31,7 @@ description: >-
   - Hand-editing reliably drops one or more of the seven locales (`en`, `zh`, `zh-TW`, `fr`, `ja`, `ru`, `vi`), leaving keys missing in some languages.
   - Hand-editing breaks the required alphabetical key order and introduces JSON syntax errors (trailing commas, mismatched quotes).
   - The script writes all seven files atomically with consistent sorting, so the locale set stays in sync by construction.
+- `fa` (Persian) is an optional eighth locale. See "Partial Locale: fa" below. Its values also go through the script; it is never required when adding a new key.
 - The script does not do the translation for you. You still must reason out each locale's copy and populate the script's `newKeys` object; the script only handles insertion, sorting, and writing. Do not skip the script just because the thinking happens regardless.
 
 ## Scope Checklist
@@ -43,13 +45,21 @@ Before editing files, treat the task as covered by this skill if it involves:
 
 Do not skip this workflow because the fix is "just one key".
 
+## Partial Locale: fa
+
+- `fa` is listed in `PARTIAL_INTERFACE_LANGUAGES` (`web/src/i18n/languages.ts`) and `PARTIAL_LOCALES` (`web/scripts/sync-i18n.mjs`). A key missing from `fa.json` falls back to English per key at runtime, and `bun run i18n:sync` reports it as missing without filling it with English. The seven required locales stay complete.
+- When adding a new key, fill the seven required locales. Adding `fa` is optional.
+- `fa.json` only holds keys that are actually translated. Do not add a `fa` value equal to the English value; leave the key out so it falls back.
+- Before writing Persian values, read `docs/i18n/fa.md` (glossary and typography rules) and follow it.
+- After writing Persian values, run `bun run i18n:check-fa` from `web/`. It must report no findings.
+
 ## Overview
 
-- Locale files: `web/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`
+- Locale files: `web/src/i18n/locales/{en,zh,zh-TW,fr,ja,ru,vi}.json`, plus the partial `fa.json`
 - Format: flat JSON under `"translation"` key, keys are English source strings
 - Base locale: `en.json` (most keys), fallback: `zh` (Chinese)
 - Sync script: `bun run i18n:sync` (from `web/`)
-- All `t()` calls must have corresponding keys in every locale file
+- All `t()` calls must have corresponding keys in every required locale file (all except the partial `fa`)
 
 ## Small Fix Path
 
@@ -167,7 +177,7 @@ const brandNames = new Set([
   'WeChat','Xinference','Xunfei','AI Proxy','One API',
 ])
 
-const locales = ['fr', 'ja', 'ru', 'zh', 'zh-TW', 'vi']
+const locales = ['fr', 'ja', 'ru', 'zh', 'zh-TW', 'vi', 'fa']
 
 for (const locale of locales) {
   const locFile = JSON.parse(await fs.readFile(path.join(LOCALES_DIR, `${locale}.json`), 'utf8'))
@@ -203,6 +213,8 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 const LOCALES_DIR = path.resolve('src/i18n/locales')
+// Partial locales may start without a file and only carry translated keys.
+const PARTIAL_LOCALES = new Set(['fa'])
 
 function stableStringify(obj) {
   return JSON.stringify(obj, null, 2) + '\n'
@@ -216,17 +228,34 @@ const newKeys = {
   ja: { /* "key": "日本語翻訳" */ },
   ru: { /* "key": "Русский перевод" */ },
   vi: { /* "key": "Bản dịch tiếng Việt" */ },
+  fa: { /* optional: "key": "ترجمۀ فارسی" (see docs/i18n/fa.md) */ },
+}
+
+async function readLocale(locale) {
+  const filePath = path.join(LOCALES_DIR, `${locale}.json`)
+  try {
+    return JSON.parse(await fs.readFile(filePath, 'utf8'))
+  } catch (err) {
+    if (err.code === 'ENOENT' && PARTIAL_LOCALES.has(locale)) {
+      return { translation: {} }
+    }
+    throw err
+  }
 }
 
 async function main() {
   let totalAdded = 0
+  const en = await readLocale('en')
 
   for (const [locale, trans] of Object.entries(newKeys)) {
     const filePath = path.join(LOCALES_DIR, `${locale}.json`)
-    const json = JSON.parse(await fs.readFile(filePath, 'utf8'))
+    const json = await readLocale(locale)
 
     let count = 0
     for (const [key, value] of Object.entries(trans)) {
+      if (PARTIAL_LOCALES.has(locale) && !(key in en.translation)) {
+        throw new Error(`${locale}: key not in en.json: ${key}`)
+      }
       if (!Object.prototype.hasOwnProperty.call(json.translation, key)) {
         json.translation[key] = value
         count++
@@ -253,7 +282,7 @@ async function main() {
 main().catch((err) => { console.error(err); process.exitCode = 1 })
 ```
 
-Populate the `newKeys` object with actual translations for each locale.
+Populate the `newKeys` object with actual translations for each required locale, and for `fa` when translating Persian.
 
 ### Step 5: Verify and clean up
 
@@ -262,6 +291,7 @@ cd web
 node scripts/add-missing-keys.mjs   # apply translations
 node scripts/find-missing-keys.mjs  # verify: should say "All t() keys found"
 bun run i18n:sync                   # normalize file order
+bun run i18n:check-fa               # Persian typography check (must pass)
 ```
 
 Delete temporary scripts after completion.
@@ -291,6 +321,7 @@ Delete temporary scripts after completion.
 | Japanese | ja | Use katakana for technical loanwords |
 | Russian | ru | Use formal register |
 | Vietnamese | vi | Use standard Vietnamese |
+| Persian | fa | Optional, partial, right-to-left. Follow `docs/i18n/fa.md` |
 
 **Keep as English (do not translate):**
 - Brand/product names (OpenAI, Claude, Gemini, etc.)

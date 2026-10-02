@@ -69,6 +69,7 @@
         "zustand": "^5.0.14",
       },
       "devDependencies": {
+        "@babel/parser": "^7.29.7",
         "@rsbuild/core": "^2.1.4",
         "@rsbuild/plugin-react": "^2.1.0",
         "@rsbuild/plugin-tailwindcss": "^2.0.3",

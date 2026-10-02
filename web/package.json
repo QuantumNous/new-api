@@ -21,6 +21,7 @@
     "copyright:check": "node scripts/add-copyright.mjs --check",
     "copyright": "node scripts/add-copyright.mjs",
     "i18n:sync": "node scripts/sync-i18n.mjs",
+    "i18n:check-fa": "node scripts/check-fa.mjs",
     "knip": "knip"
   },
   "dependencies": {
@@ -88,6 +89,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@babel/parser": "^7.29.7",
     "@rsbuild/core": "^2.1.4",
     "@rsbuild/plugin-react": "^2.1.0",
     "@rsbuild/plugin-tailwindcss": "^2.0.3",

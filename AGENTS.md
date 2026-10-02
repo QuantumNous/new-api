@@ -31,10 +31,11 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 
 ### Frontend (`web/src/i18n/`)
 - Library: `i18next` + `react-i18next` + `i18next-browser-languagedetector`
-- Languages: en (base), zh (fallback), zh-TW, fr, ru, ja, vi
+- Languages: en (base), zh (fallback), zh-TW, fr, ru, ja, vi, and fa (partial, right-to-left; missing keys fall back to English per key)
 - Translation files: `web/src/i18n/locales/{lang}.json` — flat JSON, keys are English source strings
 - Usage: `useTranslation()` hook, call `t('English key')` in components
-- CLI tools: `bun run i18n:sync` (from `web/`)
+- CLI tools: `bun run i18n:sync`, `bun run i18n:check-fa` (from `web/`)
+- Persian: follow the glossary and typography rules in `docs/i18n/fa.md`
 
 ## Rules
 
