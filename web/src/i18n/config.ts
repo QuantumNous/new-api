@@ -22,6 +22,7 @@ import { initReactI18next } from 'react-i18next'
 
 import { convertDetectedLanguage } from './languages'
 import en from './locales/en.json'
+import fa from './locales/fa.json'
 import fr from './locales/fr.json'
 import ja from './locales/ja.json'
 import ru from './locales/ru.json'
@@ -37,6 +38,7 @@ export const resources = {
   ja,
   vi,
   zhTW,
+  fa,
 } as const
 
 i18n
@@ -44,8 +46,10 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
+    // Partial locales (see PARTIAL_INTERFACE_LANGUAGES) rely on this per-key
+    // English fallback for keys they do not translate yet.
     fallbackLng: 'en',
-    supportedLngs: ['en', 'zhCN', 'fr', 'ru', 'ja', 'vi', 'zhTW'],
+    supportedLngs: ['en', 'zhCN', 'fr', 'ru', 'ja', 'vi', 'zhTW', 'fa'],
     load: 'currentOnly',
     nsSeparator: false, // Allow literal colons in keys (e.g., URLs, labels)
     debug: import.meta.env.DEV,
@@ -55,8 +59,9 @@ i18n
     detection: {
       order: ['localStorage', 'navigator'],
       caches: ['localStorage'],
-      // Browsers report `zh-CN`/`zh-TW`/`zh`; map them onto our `zhCN`/`zhTW`
-      // codes (non-Chinese codes pass through for normal supportedLngs matching).
+      // Browsers report `zh-CN`/`zh-TW`/`zh`/`fa-IR`; map them onto our
+      // `zhCN`/`zhTW`/`fa` codes (other codes pass through for normal
+      // supportedLngs matching).
       convertDetectedLanguage,
     },
   })

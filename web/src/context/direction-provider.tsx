@@ -17,13 +17,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { DirectionProvider as BaseDirectionProvider } from '@base-ui/react/direction-provider'
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
+import {
+  getInterfaceLanguageDirection,
+  toIntlLocale,
+  type TextDirection,
+} from '@/i18n/languages'
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
 
-export type Direction = 'ltr' | 'rtl'
+export type Direction = TextDirection
 
-const DEFAULT_DIRECTION = 'ltr'
 const DIRECTION_COOKIE_NAME = 'dir'
 const DIRECTION_COOKIE_MAX_AGE = 60 * 60 * 24 * 365 // 1 year
 
@@ -36,30 +41,58 @@ type DirectionContextType = {
 
 const DirectionContext = createContext<DirectionContextType | null>(null)
 
+function readDirectionOverride(): Direction | null {
+  const saved = getCookie(DIRECTION_COOKIE_NAME)
+  return saved === 'ltr' || saved === 'rtl' ? saved : null
+}
+
+/**
+ * The page direction follows the interface language (`fa` is right-to-left,
+ * everything else left-to-right). The manual LTR/RTL choice in the config
+ * drawer is stored as an override and cleared when the language changes.
+ */
 export function DirectionProvider({ children }: { children: React.ReactNode }) {
-  const [dir, _setDir] = useState<Direction>(
-    () => (getCookie(DIRECTION_COOKIE_NAME) as Direction) || DEFAULT_DIRECTION
+  const { i18n } = useTranslation()
+  const language = i18n.resolvedLanguage || i18n.language
+  const defaultDir = getInterfaceLanguageDirection(language)
+  const [override, setOverride] = useState<Direction | null>(
+    readDirectionOverride
   )
+  const previousLanguage = useRef(language)
+  const dir = override ?? defaultDir
+
+  useEffect(() => {
+    if (previousLanguage.current === language) return
+    previousLanguage.current = language
+    setOverride(null)
+    removeCookie(DIRECTION_COOKIE_NAME)
+  }, [language])
 
   useEffect(() => {
     const htmlElement = document.documentElement
     htmlElement.setAttribute('dir', dir)
-  }, [dir])
+    htmlElement.setAttribute('lang', toIntlLocale(language) ?? 'en')
+  }, [dir, language])
 
-  const setDir = (dir: Direction) => {
-    _setDir(dir)
-    setCookie(DIRECTION_COOKIE_NAME, dir, DIRECTION_COOKIE_MAX_AGE)
+  const setDir = (nextDir: Direction) => {
+    if (nextDir === defaultDir) {
+      setOverride(null)
+      removeCookie(DIRECTION_COOKIE_NAME)
+      return
+    }
+    setOverride(nextDir)
+    setCookie(DIRECTION_COOKIE_NAME, nextDir, DIRECTION_COOKIE_MAX_AGE)
   }
 
   const resetDir = () => {
-    _setDir(DEFAULT_DIRECTION)
+    setOverride(null)
     removeCookie(DIRECTION_COOKIE_NAME)
   }
 
   return (
     <DirectionContext
       value={{
-        defaultDir: DEFAULT_DIRECTION,
+        defaultDir,
         dir,
         setDir,
         resetDir,

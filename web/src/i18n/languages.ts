@@ -24,10 +24,41 @@ export const INTERFACE_LANGUAGE_OPTIONS = [
   { code: 'ja', label: '日本語' },
   { code: 'vi', label: 'Tiếng Việt' },
   { code: 'zhTW', label: '繁體中文' },
+  { code: 'fa', label: 'فارسی', dir: 'rtl' },
 ] as const
+
+/**
+ * Interface languages whose locale file may be incomplete. A key missing from
+ * one of these files falls back to English per key at runtime (i18next
+ * `fallbackLng`), and `i18n:sync` does not fill the gaps with English text.
+ * All other interface languages stay complete.
+ */
+export const PARTIAL_INTERFACE_LANGUAGES = ['fa'] as const
+
+/**
+ * Intl locale used for Persian. Plain `fa` keeps the Intl default for Persian,
+ * which renders Persian digits (۱۲۳). Change it to `fa-u-nu-latn` to render
+ * Latin digits (123) everywhere numbers and dates are formatted.
+ */
+export const PERSIAN_INTL_LOCALE = 'fa'
 
 export type InterfaceLanguageCode =
   (typeof INTERFACE_LANGUAGE_OPTIONS)[number]['code']
+
+export type TextDirection = 'ltr' | 'rtl'
+
+/**
+ * Text direction of an interface language. Languages without an explicit
+ * `dir` in `INTERFACE_LANGUAGE_OPTIONS` are left-to-right.
+ */
+export function getInterfaceLanguageDirection(
+  value?: string | null
+): TextDirection {
+  const code = normalizeInterfaceLanguage(value)
+  const option: { code: string; dir?: TextDirection } | undefined =
+    INTERFACE_LANGUAGE_OPTIONS.find((lang) => lang.code === code)
+  return option?.dir ?? 'ltr'
+}
 
 export function normalizeInterfaceLanguage(value?: string | null): string {
   if (!value) return 'en'
@@ -44,6 +75,9 @@ export function normalizeInterfaceLanguage(value?: string | null): string {
   if (value === 'zh-CN' || value === 'zh-Hans' || value === 'zhCN') {
     normalized = 'zhCN'
   }
+  if (normalized.startsWith('fa-')) {
+    normalized = 'fa'
+  }
 
   return INTERFACE_LANGUAGE_OPTIONS.some((lang) => lang.code === normalized)
     ? normalized
@@ -52,7 +86,7 @@ export function normalizeInterfaceLanguage(value?: string | null): string {
 
 /**
  * Map a browser-detected locale onto the interface language codes this project
- * uses with i18next (`zhCN` / `zhTW`).
+ * uses with i18next (`zhCN` / `zhTW` / `fa`).
  *
  * Browsers report standard BCP-47 tags (`zh-CN`, `zh-TW`, `zh-Hant`, `zh`, ...),
  * but `supportedLngs`/resources use the non-standard camelCase codes, so without
@@ -62,6 +96,7 @@ export function normalizeInterfaceLanguage(value?: string | null): string {
  */
 export function convertDetectedLanguage(value: string): string {
   const lower = value.trim().replaceAll('_', '-').toLowerCase()
+  if (lower === 'fa' || lower.startsWith('fa-')) return 'fa'
   if (!lower.startsWith('zh')) return value
   if (
     lower === 'zhtw' ||
@@ -91,6 +126,8 @@ export function toIntlLocale(value?: string | null): string | undefined {
       return 'zh-CN'
     case 'zhTW':
       return 'zh-TW'
+    case 'fa':
+      return PERSIAN_INTL_LOCALE
     default:
       break
   }
@@ -98,5 +135,18 @@ export function toIntlLocale(value?: string | null): string | undefined {
     return Intl.getCanonicalLocales(value)[0]
   } catch {
     return undefined
+  }
+}
+
+/**
+ * Whether an Intl locale tag (the result of `toIntlLocale`) is Persian. Dates
+ * shown in Persian use the Solar Hijri calendar; see `formatDisplayDate`.
+ */
+export function isPersianIntlLocale(locale?: string | null): boolean {
+  if (!locale) return false
+  try {
+    return new Intl.Locale(locale).language === 'fa'
+  } catch {
+    return false
   }
 }
