@@ -159,7 +159,7 @@ export function UsageStats() {
                 key={days}
                 type='button'
                 onClick={() => applyPreset(days)}
-                className={`inline-flex items-center rounded-md px-2 text-xs font-medium transition-colors ${
+                className={`inline-flex items-center whitespace-nowrap rounded-md px-2 text-xs font-medium transition-colors ${
                   rollingDays === days
                     ? 'bg-background text-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground'
