@@ -152,33 +152,35 @@ export function UsageStats() {
             </button>
           ))}
         </div>
-        <div className='bg-muted/60 inline-flex h-8 items-center rounded-lg border p-0.5'>
-          {PRESET_DAYS.map((days) => (
-            <button
-              key={days}
-              type='button'
-              onClick={() => applyPreset(days)}
-              className={`inline-flex items-center rounded-md px-2.5 text-xs font-medium transition-colors ${
-                rollingDays === days
-                  ? 'bg-background text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {days === 1 ? t('1 day') : t(`${days} days`)}
-            </button>
-          ))}
+        <div className='flex items-center gap-2'>
+          <div className='bg-muted/60 inline-flex h-8 items-center rounded-lg border p-0.5'>
+            {PRESET_DAYS.map((days) => (
+              <button
+                key={days}
+                type='button'
+                onClick={() => applyPreset(days)}
+                className={`inline-flex items-center rounded-md px-2 text-xs font-medium transition-colors ${
+                  rollingDays === days
+                    ? 'bg-background text-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                {days === 1 ? t('1 day') : t(`${days} days`)}
+              </button>
+            ))}
+          </div>
+          <CompactDateTimeRangePicker
+            start={range.start}
+            end={range.end}
+            onChange={(next) => {
+              setRollingDays(null)
+              setRange((current) => ({
+                start: next.start ?? current.start,
+                end: next.end ?? current.end,
+              }))
+            }}
+          />
         </div>
-        <CompactDateTimeRangePicker
-          start={range.start}
-          end={range.end}
-          onChange={(next) => {
-            setRollingDays(null)
-            setRange((current) => ({
-              start: next.start ?? current.start,
-              end: next.end ?? current.end,
-            }))
-          }}
-        />
         <div className='flex items-center gap-1.5'>
           {query.dataUpdatedAt ? (
             <span className='text-muted-foreground hidden text-[11px] tabular-nums sm:block'>
