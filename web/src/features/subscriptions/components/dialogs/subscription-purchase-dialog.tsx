@@ -276,7 +276,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
             </span>
             <span className='flex items-center gap-1 text-sm'>
               <Package className='h-3.5 w-3.5' />
-              {totalAmount > 0 ? formatQuota(totalAmount) : t('Unlimited')}
+              {totalAmount > 0
+                ? formatQuota(totalAmount, locale)
+                : t('Unlimited')}
             </span>
           </div>
           {plan.upgrade_group && (
@@ -306,11 +308,11 @@ export function SubscriptionPurchaseDialog(props: Props) {
         <div className='flex flex-col gap-2 rounded-md border p-3'>
           <div className='flex items-center justify-between gap-2 text-xs'>
             <span className='text-muted-foreground'>{t('Required')}</span>
-            <span>{formatQuota(balanceCost)}</span>
+            <span>{formatQuota(balanceCost, locale)}</span>
           </div>
           <div className='flex items-center justify-between gap-2 text-xs'>
             <span className='text-muted-foreground'>{t('Available')}</span>
-            <span>{formatQuota(userQuota)}</span>
+            <span>{formatQuota(userQuota, locale)}</span>
           </div>
           {!allowBalancePay ? (
             <Alert variant='destructive'>

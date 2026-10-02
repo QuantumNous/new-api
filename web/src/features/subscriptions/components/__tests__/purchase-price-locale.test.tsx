@@ -24,6 +24,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import type { PlanRecord } from '../../types'
 import { SubscriptionPurchaseDialog } from '../dialogs/subscription-purchase-dialog'
 
+// Persian currency amounts from Intl start with a left-to-right mark.
+const LRM = '\u200e'
+
 const plan = {
   plan: {
     id: 1,
@@ -32,16 +35,19 @@ const plan = {
     duration_unit: 'month',
     duration_value: 1,
     enabled: true,
+    // 500000 quota units are $1 with the default currency settings.
+    total_amount: 5_000_000,
   },
 } as unknown as PlanRecord
 
-function renderDialog() {
+function renderDialog(): void {
   render(
     <QueryClientProvider client={new QueryClient()}>
       <SubscriptionPurchaseDialog
         open
         onOpenChange={() => undefined}
         plan={plan}
+        userQuota={2_500_000}
       />
     </QueryClientProvider>
   )
@@ -63,5 +69,23 @@ describe('subscription purchase dialog price', () => {
     await i18next.changeLanguage('fa')
     renderDialog()
     expect(screen.getByText('$۹٫۹۰')).toBeInTheDocument()
+  })
+})
+
+describe('subscription purchase dialog quota amounts', () => {
+  it('in English, keeps the plan quota, required and available amounts as before', async () => {
+    await i18next.changeLanguage('en')
+    renderDialog()
+    expect(screen.getByText('$10')).toBeInTheDocument()
+    expect(screen.getByText('$9.9')).toBeInTheDocument()
+    expect(screen.getByText('$5')).toBeInTheDocument()
+  })
+
+  it('in Persian, writes the plan quota, required and available amounts with Persian digits', async () => {
+    await i18next.changeLanguage('fa')
+    renderDialog()
+    expect(screen.getByText(`${LRM}$۱۰`)).toBeInTheDocument()
+    expect(screen.getByText(`${LRM}$۹٫۹`)).toBeInTheDocument()
+    expect(screen.getByText(`${LRM}$۵`)).toBeInTheDocument()
   })
 })
