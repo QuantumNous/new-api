@@ -269,8 +269,19 @@ export function CommonLogsFilterBar<TData>(
     !!filters.upstreamRequestId
 
   const hasTypeFilter = logType !== LOG_TYPE_ALL_VALUE
+  // The default range ends at "now", so it always lags a little behind the
+  // clock. A stale or hand-picked window is exactly what Reset re-anchors,
+  // so count it as an active filter to keep the button clickable.
+  const { start: defaultStart, end: defaultEnd } = getDefaultTimeRange()
+  const hasTimeFilter =
+    filters.startTime?.getTime() !== defaultStart.getTime() ||
+    filters.endTime?.getTime() !== defaultEnd.getTime()
   const hasAdditionalFilters =
-    !!filters.model || !!filters.group || hasTypeFilter || hasExpandedFilters
+    !!filters.model ||
+    !!filters.group ||
+    hasTypeFilter ||
+    hasExpandedFilters ||
+    hasTimeFilter
 
   const expandedFilterCount = [
     filters.token,
