@@ -238,7 +238,12 @@ func MergeGeminiUsageMetadataNonZero(current *GeminiUsageMetadata, incoming *Gem
 	}
 	if incoming.CandidatesTokenCount > 0 {
 		merged.CandidatesTokenCount = incoming.CandidatesTokenCount
-		merged.ThoughtsTokenCount = incoming.ThoughtsTokenCount
+		if incoming.ThoughtsTokenCount > 0 {
+			merged.ThoughtsTokenCount = incoming.ThoughtsTokenCount
+		} else if incoming.TotalTokenCount > 0 &&
+			incoming.PromptTokenCount+incoming.ToolUsePromptTokenCount+incoming.CandidatesTokenCount >= incoming.TotalTokenCount {
+			merged.ThoughtsTokenCount = 0
+		}
 	} else if incoming.ThoughtsTokenCount > 0 {
 		merged.ThoughtsTokenCount = incoming.ThoughtsTokenCount
 	}

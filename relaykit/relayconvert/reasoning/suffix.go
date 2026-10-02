@@ -173,6 +173,10 @@ func isKnownClaudeModel(modelName string) bool {
 
 func ParseGeminiModelSuffix(modelName string, allowThinkingAlias bool) (string, Intent, bool, error) {
 	prefix, bare := splitModelNamespace(modelName)
+	if dotIdx := strings.Index(strings.ToLower(bare), ".gemini-"); dotIdx >= 0 {
+		prefix += bare[:dotIdx+1]
+		bare = bare[dotIdx+1:]
+	}
 	if !strings.HasPrefix(bare, "gemini-") {
 		return modelName, Intent{}, false, nil
 	}
@@ -191,7 +195,7 @@ func ParseKnownProviderModelSuffix(modelName string, allowThinkingAlias bool) (s
 	if strings.HasPrefix(bare, "claude-") {
 		return ParseClaudeModelSuffix(modelName, allowThinkingAlias)
 	}
-	if strings.HasPrefix(bare, "gemini-") {
+	if strings.HasPrefix(bare, "gemini-") || strings.Contains(strings.ToLower(bare), ".gemini-") {
 		return ParseGeminiModelSuffix(modelName, allowThinkingAlias)
 	}
 	return modelName, Intent{}, false, nil

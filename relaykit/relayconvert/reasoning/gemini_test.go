@@ -363,3 +363,44 @@ func TestNormalizeGeminiThinkingConfigRewritesNativeConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestGemini35AndRegionalModelSupport(t *testing.T) {
+	t.Parallel()
+
+	t.Run("gemini-3.5-pro-preview adjusts minimal to low and defaults to high", func(t *testing.T) {
+		t.Parallel()
+		rendered, err := RenderGemini("gemini-3.5-pro-preview", Intent{Mode: ModeEnabled, Effort: EffortMinimal}, nil, 0)
+		require.NoError(t, err)
+		require.NotNil(t, rendered.Config)
+		assert.Equal(t, "low", rendered.Config.ThinkingLevel)
+		assert.Equal(t, EffortLow, rendered.EffectiveEffort)
+		assert.Equal(t, []string{"gemini_level_adjusted"}, diagnosticCodes(rendered.Diagnostics))
+
+		defaultIntent := ResolveGeminiDefault("gemini-3.5-pro-preview", Intent{})
+		assert.Equal(t, EffortHigh, defaultIntent.Effort)
+	})
+
+	t.Run("regional prefix models resolve capabilities and suffixes", func(t *testing.T) {
+		t.Parallel()
+		base, intent, ok, err := ParseKnownProviderModelSuffix("au.gemini-3.5-flash-high", true)
+		require.NoError(t, err)
+		require.True(t, ok)
+		assert.Equal(t, "au.gemini-3.5-flash", base)
+		assert.Equal(t, EffortHigh, intent.Effort)
+
+		rendered, err := RenderGemini(base, intent, nil, 0)
+		require.NoError(t, err)
+		require.NotNil(t, rendered.Config)
+		assert.Equal(t, "high", rendered.Config.ThinkingLevel)
+	})
+
+	t.Run("responses summary none sets IncludeThoughts false", func(t *testing.T) {
+		t.Parallel()
+		intent, _, err := FromOpenAIResponses(&dto.OpenAIResponsesRequest{
+			Reasoning: &dto.Reasoning{Effort: "low", Summary: "none"},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, intent.IncludeThoughts)
+		assert.False(t, *intent.IncludeThoughts)
+	})
+}
