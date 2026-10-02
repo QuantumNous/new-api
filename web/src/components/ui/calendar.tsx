@@ -39,7 +39,8 @@ import { cn } from '@/lib/utils'
 
 // Solar Hijri calendar for the Persian interface. Loaded on demand so other
 // languages do not download it. @daypicker/persian is version-locked to
-// react-day-picker; upgrade them together (see docs/i18n/fa.md).
+// react-day-picker; upgrade them together (see
+// .agents/skills/i18n-translate/fa.md).
 const PersianDayPicker = React.lazy(() =>
   import('@daypicker/persian').then((module) => ({
     default: module.DayPicker,
