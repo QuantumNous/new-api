@@ -71,6 +71,7 @@ export function MaskedValueDisplay(props: MaskedValueDisplayProps) {
           <div className='space-y-2'>
             <p className='text-muted-foreground text-xs'>{props.label}</p>
             <pre
+              dir='ltr'
               className='bg-muted/50 max-h-[50vh] overflow-auto rounded-md border px-3 py-2 font-mono text-xs leading-relaxed break-all whitespace-pre-wrap'
               style={{ wordBreak: 'break-all' }}
             >

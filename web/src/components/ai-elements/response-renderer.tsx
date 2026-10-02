@@ -189,7 +189,7 @@ function renderNode(
     return (
       <input
         checked={Boolean(node.checked)}
-        className='accent-primary mr-2 size-4 align-[-0.15em]'
+        className='accent-primary me-2 size-4 align-[-0.15em]'
         disabled
         key={key}
         readOnly

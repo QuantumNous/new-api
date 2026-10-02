@@ -745,3 +745,15 @@ For commercial licensing, please contact support@quantumnous.com
     display: none;
   }
 }
+
+/* Code, keyboard keys, sample output and preformatted blocks (JSON, logs,
+ * command output) are usually left-to-right text. On a right-to-left page
+ * they would be laid out right to left, which moves the slashes and
+ * punctuation of paths, regexes and commands to the other end. `plaintext`
+ * isolates them and takes the text direction from their own content, line
+ * by line in a `pre`. `direction` is left alone, so logical insets and
+ * alignment (a key cap pinned with `end-*`, for example) keep following the
+ * page. An explicit `dir` on the element still wins. */
+[dir='rtl'] :is(code, kbd, samp, pre):not([dir]) {
+  unicode-bidi: plaintext;
+}
