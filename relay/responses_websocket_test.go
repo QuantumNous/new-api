@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -679,4 +680,46 @@ func TestResponsesWSErrorAttribution(t *testing.T) {
 			assert.Equal(t, tc.controlError, controlError)
 		})
 	}
+}
+
+// TestResponsesWSSessionShutdownSendsCloseFrame pins the RFC 6455 closing
+// handshake: a normally finished session must send a WebSocket close frame to
+// the downstream client before the TCP socket goes away. Without it, strict
+// clients report "Connection reset without closing handshake" on every
+// completed turn.
+func TestResponsesWSSessionShutdownSendsCloseFrame(t *testing.T) {
+	var wg sync.WaitGroup
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				if _, _, readErr := conn.ReadMessage(); readErr != nil {
+					return
+				}
+			}
+		}()
+		session := &responsesWSSession{client: conn}
+		session.shutdown()
+	}))
+	defer server.Close()
+	defer wg.Wait()
+
+	header := http.Header{}
+	header.Set("Authorization", "Bearer test")
+	dialURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	conn, _, err := websocket.DefaultDialer.Dial(dialURL, header)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_, _, readErr := conn.ReadMessage()
+	require.Error(t, readErr)
+	closeErr, ok := readErr.(*websocket.CloseError)
+	require.True(t, ok, "expected a WebSocket close error, got %v", readErr)
+	assert.Equal(t, websocket.CloseNormalClosure, closeErr.Code)
 }
