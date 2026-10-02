@@ -25,7 +25,7 @@ import { buildQuotaAuditOperation } from '../quota-audit-operation'
 const FSI = '⁨'
 const PDI = '⁩'
 
-const t = (key: string, options?: Record<string, unknown>) =>
+const t = (key: string, options?: Record<string, unknown>): string =>
   key.replaceAll(/\{\{(\w+)\}\}/g, (_, name) => String(options?.[name] ?? ''))
 
 // Default currency config: 500000 quota units = 1 USD.

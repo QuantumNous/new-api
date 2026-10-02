@@ -17,7 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, render, screen, within } from '@testing-library/react'
+import {
+  cleanup,
+  render,
+  screen,
+  within,
+  type BoundFunctions,
+  type queries,
+} from '@testing-library/react'
 import { createInstance } from 'i18next'
 import { I18nextProvider } from 'react-i18next'
 import { afterAll, afterEach, describe, expect, test, vi } from 'vitest'
@@ -72,7 +79,9 @@ const log: UsageLog = {
   other: JSON.stringify({ admin_info: { use_channel: ['3', '7', '12'] } }),
 }
 
-async function renderDialog(lng: string) {
+async function renderDialog(
+  lng: string
+): Promise<BoundFunctions<typeof queries>> {
   const i18n = createInstance()
   await i18n.init({
     lng,

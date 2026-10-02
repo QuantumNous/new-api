@@ -29,7 +29,7 @@ vi.mock('@/lib/lobe-icon', () => ({ getLobeIcon: () => null }))
 const FSI = '⁨'
 const PDI = '⁩'
 
-function renderUpgradeBadge() {
+function renderUpgradeBadge(): void {
   render(
     <MarketplacePluginCard
       plugin={{
@@ -48,7 +48,7 @@ function renderUpgradeBadge() {
   )
 }
 
-function renderEnumCell() {
+function renderEnumCell(): void {
   render(
     <UsageSchemaTable
       schema={{

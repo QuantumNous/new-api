@@ -26,7 +26,7 @@ import { UserQuotaDialog } from '../user-quota-dialog'
 const FSI = '⁨'
 const PDI = '⁩'
 
-async function renderOverridePreview() {
+async function renderOverridePreview(): Promise<HTMLElement> {
   render(
     <UserQuotaDialog
       open
