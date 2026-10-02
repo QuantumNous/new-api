@@ -948,12 +948,15 @@ export function useChannelsColumns(
           // Tag row: show aggregated status
           if (isTagRow) {
             const childrenCount = (row.original as TagRow).children?.length || 0
+            const enabledCount = (row.original as TagRow).children.filter(
+              (child) => child.status === 1
+            ).length
             const hasEnabled = status === 1
 
             if (hasEnabled) {
               return (
                 <StatusBadge
-                  label={`Active (${childrenCount})`}
+                  label={`Active (${enabledCount})`}
                   variant='success'
                   size='sm'
                   copyable={false}
