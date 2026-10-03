@@ -21,7 +21,7 @@ import {
   getPaginationRowModel,
   useReactTable,
 } from '@tanstack/react-table'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import { afterEach, expect, it } from 'vitest'
@@ -41,6 +41,7 @@ function Fixture(props: {
   empty?: boolean
   compact?: boolean
   many?: boolean
+  pageSize?: number
 }) {
   let data = rows
   if (props.empty) data = emptyRows
@@ -50,7 +51,9 @@ function Fixture(props: {
     columns: [{ accessorKey: 'id' }],
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    initialState: { pagination: { pageIndex: 0, pageSize: 2 } },
+    initialState: {
+      pagination: { pageIndex: 0, pageSize: props.pageSize ?? 2 },
+    },
   })
   return <DataTablePagination table={table} compact={props.compact} />
 }
@@ -111,3 +114,52 @@ it.each([
     expect(screen.getByText(/(^| )۲٬۴۶۸$/)).toBeVisible()
   }
 )
+it.each([
+  { language: 'English', lng: 'en', pages: ['1', '2', '247'] },
+  { language: 'Persian', lng: 'fa', pages: ['۱', '۲', '۲۴۷'] },
+])(
+  'in $language, writes the default layout page buttons and their screen-reader text with the same digits',
+  async ({ lng, pages }) => {
+    await i18next.changeLanguage(lng)
+    render(<Fixture many pageSize={10} />)
+    for (const page of pages) {
+      const button = screen.getByText(page, { selector: 'button' })
+      expect(button).toBeVisible()
+      expect(within(button).getByText(`Go to page ${page}`)).toBeInTheDocument()
+    }
+  }
+)
+it.each([
+  {
+    language: 'English',
+    lng: 'en',
+    sizes: ['10', '20', '30', '40', '50', '100'],
+  },
+  {
+    language: 'Persian',
+    lng: 'fa',
+    sizes: ['۱۰', '۲۰', '۳۰', '۴۰', '۵۰', '۱۰۰'],
+  },
+])(
+  'in $language, writes the selected page size and the page size options with the interface digits',
+  async ({ lng, sizes }) => {
+    const user = userEvent.setup()
+    await i18next.changeLanguage(lng)
+    render(<Fixture many pageSize={10} />)
+    const select = screen.getByRole('combobox')
+    expect(select).toHaveTextContent(sizes[0])
+    await user.click(select)
+    for (const size of sizes) {
+      expect(await screen.findByRole('option', { name: size })).toBeVisible()
+    }
+  }
+)
+it('in Persian, sets the numeric page size when a Persian page size option is chosen', async () => {
+  const user = userEvent.setup()
+  await i18next.changeLanguage('fa')
+  render(<Fixture many pageSize={10} />)
+  await user.click(screen.getByRole('combobox'))
+  await user.click(await screen.findByRole('option', { name: '۵۰' }))
+  expect(screen.getByRole('combobox')).toHaveTextContent('۵۰')
+  expect(screen.getByText('۵۰', { selector: 'button' })).toBeVisible()
+})
