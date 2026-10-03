@@ -41,6 +41,9 @@ func isGMICloudImageChatRequest(info *relaycommon.RelayInfo) bool {
 }
 
 func shouldPassThroughModelRequest(info *relaycommon.RelayInfo) bool {
+	if info != nil && info.ChannelMeta != nil && info.ChannelType == constant.ChannelTypeCohere {
+		return false
+	}
 	if isGMICloudImageChatRequest(info) {
 		return false
 	}

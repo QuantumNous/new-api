@@ -6491,7 +6491,12 @@
     "{{count}} affordable with current balance": "Số dư hiện tại đủ mua {{count}}",
     "OpenCode adds CLI-compatible headers automatically. Zen JEV models use /v1/systemone without streaming.": "Tự động bổ sung các header tương thích với OpenCode CLI. Mô hình JEV trên Zen dùng /v1/systemone và không hỗ trợ truyền luồng.",
     "Subscription history": "Lịch sử đăng ký",
-    "No current subscriptions": "Chưa có gói đăng ký hiện tại"
+    "No current subscriptions": "Chưa có gói đăng ký hiện tại",
+    "Authorization provider": "Nhà cung cấp xác thực",
+    "Z.ai (International)": "Z.ai (quốc tế)",
+    "BigModel (China)": "BigModel (Trung Quốc)",
+    "Start new authorization": "Xác thực mới",
+    "The official client has no refresh token flow. When the JWT expires, authorize again with the selected provider. The new key is saved automatically.": "Ứng dụng chính thức không tự động làm mới JWT. Khi JWT hết hạn, hãy xác thực lại với nhà cung cấp đã chọn. Khóa mới sẽ được lưu tự động."
   },
   "Open external link?": "Mở liên kết bên ngoài?",
   "This link will open in a new window. Do you want to continue?": "Liên kết này sẽ mở trong cửa sổ mới. Bạn có muốn tiếp tục không?",

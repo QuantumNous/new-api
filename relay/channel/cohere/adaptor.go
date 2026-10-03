@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/relay/channel"
@@ -40,6 +41,8 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	switch info.RelayMode {
+	case constant.RelayModeCohereNative:
+		return strings.TrimRight(info.ChannelBaseUrl, "/") + info.RequestURLPath, nil
 	case constant.RelayModeRerank:
 		return fmt.Sprintf("%s/v2/rerank", info.ChannelBaseUrl), nil
 	case constant.RelayModeEmbeddings:

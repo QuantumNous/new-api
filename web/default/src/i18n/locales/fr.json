@@ -6491,7 +6491,12 @@
     "{{count}} affordable with current balance": "Solde actuel suffisant pour {{count}}",
     "OpenCode adds CLI-compatible headers automatically. Zen JEV models use /v1/systemone without streaming.": "Les en-têtes compatibles avec la CLI OpenCode sont ajoutés automatiquement. Les modèles JEV de Zen utilisent /v1/systemone sans streaming.",
     "Subscription history": "Historique des abonnements",
-    "No current subscriptions": "Aucun abonnement en cours"
+    "No current subscriptions": "Aucun abonnement en cours",
+    "Authorization provider": "Fournisseur d’authentification",
+    "Z.ai (International)": "Z.ai (international)",
+    "BigModel (China)": "BigModel (Chine)",
+    "Start new authorization": "Nouvelle autorisation",
+    "The official client has no refresh token flow. When the JWT expires, authorize again with the selected provider. The new key is saved automatically.": "Le client officiel ne renouvelle pas automatiquement le JWT. À son expiration, autorisez à nouveau l’accès avec le fournisseur choisi. La nouvelle clé est enregistrée automatiquement."
   },
   "Open external link?": "Ouvrir le lien externe ?",
   "This link will open in a new window. Do you want to continue?": "Ce lien s’ouvrira dans une nouvelle fenêtre. Voulez-vous continuer ?",

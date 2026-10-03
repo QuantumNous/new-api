@@ -61,6 +61,11 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request = &dto.BaseRequest{}
 	case types.RelayFormatStepFunNative:
 		request = &dto.BaseRequest{}
+	case types.RelayFormatCohereNative:
+		request = &dto.CohereNativeRequest{}
+		if err = common.UnmarshalBodyReusable(c, request); err == nil && request.(*dto.CohereNativeRequest).Model == "" {
+			err = errors.New("model is required")
+		}
 	case types.RelayFormatTypeSafe:
 		request, err = GetAndValidateSystemOneRequest(c)
 	case types.RelayFormatStepFunWss:

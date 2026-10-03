@@ -494,6 +494,14 @@ func GenRelayInfoStepFunNative(c *gin.Context, request dto.Request) *RelayInfo {
 	return info
 }
 
+// GenRelayInfoCohereNative builds routing metadata for Cohere v2 passthrough.
+func GenRelayInfoCohereNative(c *gin.Context, request dto.Request) *RelayInfo {
+	info := genBaseRelayInfo(c, request)
+	info.RelayFormat = types.RelayFormatCohereNative
+	info.RelayMode = relayconstant.RelayModeCohereNative
+	return info
+}
+
 // GenRelayInfoStepFunWss 构造 StepFun WebSocket 原生端点（流式 TTS / 双向 ASR / 双向对话）的 RelayInfo。
 func GenRelayInfoStepFunWss(c *gin.Context, ws *websocket.Conn) *RelayInfo {
 	info := genBaseRelayInfo(c, nil)
@@ -669,6 +677,8 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 		info = GenRelayInfoTypeSafe(c, request)
 	case types.RelayFormatStepFunNative:
 		info = GenRelayInfoStepFunNative(c, request)
+	case types.RelayFormatCohereNative:
+		info = GenRelayInfoCohereNative(c, request)
 	case types.RelayFormatStepFunWss:
 		info = GenRelayInfoStepFunWss(c, ws)
 	case types.RelayFormatOpenAIResponses:

@@ -67,6 +67,7 @@ const (
 	RelayModeGeminiInteractions
 
 	RelayModeStepFunNative
+	RelayModeCohereNative
 
 	RelayModeTypeSafeNative
 )

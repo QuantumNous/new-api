@@ -48,6 +48,15 @@ func requestOpenAI2Cohere(textRequest dto.GeneralOpenAIRequest) (*CohereChatRequ
 	if common.CohereSafetySetting != "NONE" {
 		cohereReq.SafetyMode = common.CohereSafetySetting
 	}
+	switch textRequest.ReasoningEffort {
+	case "":
+	case "none":
+		cohereReq.Thinking = &CohereThinking{Type: "disabled"}
+	case "high":
+		cohereReq.Thinking = &CohereThinking{Type: "enabled"}
+	default:
+		return nil, fmt.Errorf("unsupported reasoning_effort %q: use none or high", textRequest.ReasoningEffort)
+	}
 	if textRequest.Seed != nil {
 		maxSeed := ^uint64(0)
 		if *textRequest.Seed < 0 || *textRequest.Seed > float64(maxSeed) {
@@ -616,6 +625,9 @@ func cohereHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Respo
 		Content: responseText,
 		Role:    "assistant",
 	}
+	if thinking := cohereResponseThinking(cohereResp.Message.Content); thinking != "" {
+		message.ReasoningContent = &thinking
+	}
 	toolCalls := convertCohereToolCallsToOpenAI(cohereResp.Message.ToolCalls)
 	if len(toolCalls) > 0 {
 		message.SetNullContent()
@@ -663,6 +675,9 @@ func cohereResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 		Content: responseText,
 		Role:    "assistant",
 	}
+	if thinking := cohereResponseThinking(cohereResp.Message.Content); thinking != "" {
+		message.ReasoningContent = &thinking
+	}
 	toolCalls := convertCohereToolCallsToOpenAI(cohereResp.Message.ToolCalls)
 	if len(toolCalls) > 0 {
 		message.SetNullContent()
@@ -704,6 +719,16 @@ func cohereResponseText(contents []CohereContentBlock) string {
 		}
 	}
 	return builder.String()
+}
+
+func cohereResponseThinking(contents []CohereContentBlock) string {
+	var thinking strings.Builder
+	for _, content := range contents {
+		if content.Type == "thinking" {
+			thinking.WriteString(content.Thinking)
+		}
+	}
+	return thinking.String()
 }
 
 func convertCohereToolCallsToOpenAI(toolCalls []CohereToolCall) []dto.ToolCallResponse {

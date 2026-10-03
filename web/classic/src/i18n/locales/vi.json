@@ -5663,7 +5663,13 @@
     "默认智谱地址": "Địa chỉ Zhipu mặc định",
     "默认测试模型": "Mô hình kiểm tra mặc định",
     "默认用户消息": "Xin chào",
-    "默认补全倍率": "Tỷ lệ hoàn thành mặc định"
+    "默认补全倍率": "Tỷ lệ hoàn thành mặc định",
+    "授权服务商": "Nhà cung cấp xác thực",
+    "Z.ai（国际版）": "Z.ai (quốc tế)",
+    "智谱 BigModel（中国版）": "BigModel (Trung Quốc)",
+    "开始授权": "Bắt đầu xác thực",
+    "重新发起授权": "Xác thực mới",
+    "官方客户端不支持自动刷新 JWT。过期后使用所选服务商重新授权，新密钥将自动保存。": "Ứng dụng chính thức không tự động làm mới JWT. Khi JWT hết hạn, hãy xác thực lại với nhà cung cấp đã chọn. Khóa mới sẽ được lưu tự động."
   },
   "RPM/并发": "RPM / Đồng thời",
   "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",

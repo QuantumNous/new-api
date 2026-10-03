@@ -423,11 +423,14 @@ export async function getZhipuCodingPlanUsage(
   return res.data
 }
 
+export type ZcodeStartPlanAuthProvider = 'zai' | 'bigmodel'
+
 export type ZcodeStartPlanAuthInitResponse = {
   success: boolean
   message?: string
   data?: {
     channel_id?: number
+    provider?: ZcodeStartPlanAuthProvider
     authorize_url?: string
     expires_at?: number
     poll_interval_sec?: number
@@ -439,6 +442,7 @@ export type ZcodeStartPlanAuthPollResponse = {
   message?: string
   data?: {
     status?: 'pending' | 'failed' | 'ready' | 'expired'
+    provider?: ZcodeStartPlanAuthProvider
     user_id?: string
     user_name?: string
     email?: string
@@ -451,11 +455,12 @@ export type ZcodeStartPlanAuthPollResponse = {
  * /api/v1/oauth/cli/init). Returns authorize_url for the admin to open.
  */
 export async function initZcodeStartPlanAuth(
-  channelId: number
+  channelId: number,
+  provider: ZcodeStartPlanAuthProvider = 'zai'
 ): Promise<ZcodeStartPlanAuthInitResponse> {
   const res = await api.post(
     `/api/channel/${channelId}/zcode/start_plan/auth/init`,
-    {},
+    { provider },
     { skipBusinessError: true, disableDuplicate: true }
   )
   return res.data

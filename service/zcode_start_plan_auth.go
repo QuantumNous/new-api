@@ -1,15 +1,6 @@
 package service
 
-// ZCode StartPlan（zcode.z.ai 免费档代理）凭据获取服务：复刻 ZCode CLI 的
-// 设备码式 OAuth 流程（zcode.cjs createZaiCliOAuthClient）。
-//
-//	POST {base}/oauth/cli/init   Authorization: Bearer {pollToken}
-//	     body {"provider":"zai"} → data{flow_id,poll_token,authorize_url,expires_at,poll_interval_sec}
-//	GET  {base}/oauth/cli/poll/{flow_id}  Authorization: Bearer {poll_token}
-//	     → data{status: pending|failed|ready, ready 时含 token(zcodeJwtToken)/user/zai}
-//
-// 官方客户端不存在 refresh_token 交换接口（桌面端过期即弹窗重登），
-// 因此 JWT 到期后的唯一恢复路径就是重跑本流程。
+// ZCode StartPlan 凭据获取：复用官方桌面端的 zai / bigmodel 设备码 OAuth。
 
 import (
 	"bytes"
@@ -31,7 +22,8 @@ const (
 	ZcodeStartPlanOAuthBaseURL  = "https://zcode.z.ai/api/v1"
 	zcodeCliOAuthInitPath       = "/oauth/cli/init"
 	zcodeCliOAuthPollPath       = "/oauth/cli/poll/"
-	zcodeCliOAuthProvider       = "zai"
+	ZcodeOAuthProviderZai       = "zai"
+	ZcodeOAuthProviderBigModel  = "bigmodel"
 	zcodeCliOAuthRespLimit      = 64 * 1024
 	zcodeCliOAuthPollTokenBytes = 32
 )
@@ -48,13 +40,14 @@ type ZcodeCliOAuthInitResult struct {
 }
 
 type ZcodeCliOAuthPollResult struct {
-	Status         string // pending | failed | ready
-	Token          string
-	UserID         string
-	Name           string
-	Email          string
-	Avatar         string
-	ZaiAccessToken string
+	Status              string // pending | failed | ready
+	Token               string
+	UserID              string
+	Name                string
+	Email               string
+	Avatar              string
+	ZaiAccessToken      string
+	BigModelAccessToken string
 }
 
 func CreateZcodeCliOAuthPollToken() (string, error) {
@@ -65,12 +58,28 @@ func CreateZcodeCliOAuthPollToken() (string, error) {
 	return fmt.Sprintf("%x", buf), nil
 }
 
-func InitZcodeCliOAuth(ctx context.Context, proxyURL string) (*ZcodeCliOAuthInitResult, error) {
+// NormalizeZcodeOAuthProvider 保留旧客户端默认的国际站授权。
+func NormalizeZcodeOAuthProvider(provider string) (string, error) {
+	provider = strings.TrimSpace(provider)
+	if provider == "" {
+		return ZcodeOAuthProviderZai, nil
+	}
+	if provider != ZcodeOAuthProviderZai && provider != ZcodeOAuthProviderBigModel {
+		return "", errors.New("unsupported zcode oauth provider")
+	}
+	return provider, nil
+}
+
+func InitZcodeCliOAuth(ctx context.Context, proxyURL, provider string) (*ZcodeCliOAuthInitResult, error) {
+	provider, err := NormalizeZcodeOAuthProvider(provider)
+	if err != nil {
+		return nil, err
+	}
 	pollToken, err := CreateZcodeCliOAuthPollToken()
 	if err != nil {
 		return nil, fmt.Errorf("generate poll token: %w", err)
 	}
-	payload, err := common.Marshal(map[string]string{"provider": zcodeCliOAuthProvider})
+	payload, err := common.Marshal(map[string]string{"provider": provider})
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +116,11 @@ func InitZcodeCliOAuth(ctx context.Context, proxyURL string) (*ZcodeCliOAuthInit
 	}, nil
 }
 
-func PollZcodeCliOAuth(ctx context.Context, proxyURL, flowID, pollToken string) (*ZcodeCliOAuthPollResult, error) {
+func PollZcodeCliOAuth(ctx context.Context, proxyURL, flowID, pollToken, provider string) (*ZcodeCliOAuthPollResult, error) {
+	provider, err := NormalizeZcodeOAuthProvider(provider)
+	if err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(flowID) == "" || strings.TrimSpace(pollToken) == "" {
 		return nil, errors.New("missing oauth flow credentials")
 	}
@@ -129,6 +142,10 @@ func PollZcodeCliOAuth(ctx context.Context, proxyURL, flowID, pollToken string) 
 		Zai *struct {
 			AccessToken string `json:"access_token"`
 		} `json:"zai"`
+		BigModel *struct {
+			AccessToken      string `json:"access_token"`
+			AccessTokenCamel string `json:"accessToken"`
+		} `json:"bigmodel"`
 	}
 	if err := common.Unmarshal(data, &parsed); err != nil {
 		return nil, fmt.Errorf("invalid oauth poll response data: %w", err)
@@ -137,19 +154,33 @@ func PollZcodeCliOAuth(ctx context.Context, proxyURL, flowID, pollToken string) 
 	case "pending", "failed":
 		return &ZcodeCliOAuthPollResult{Status: parsed.Status}, nil
 	case "ready":
-		// 与 ZCode o6o 校验一致：token/user.user_id/zai.access_token 必备。
-		if parsed.Token == "" || parsed.User == nil || parsed.User.UserID == "" ||
-			parsed.Zai == nil || parsed.Zai.AccessToken == "" {
+		var zaiAccessToken, bigModelAccessToken string
+		if parsed.Zai != nil {
+			zaiAccessToken = strings.TrimSpace(parsed.Zai.AccessToken)
+		}
+		if parsed.BigModel != nil {
+			bigModelAccessToken = strings.TrimSpace(parsed.BigModel.AccessToken)
+			if bigModelAccessToken == "" {
+				bigModelAccessToken = strings.TrimSpace(parsed.BigModel.AccessTokenCamel)
+			}
+		}
+		accessToken := zaiAccessToken
+		if provider == ZcodeOAuthProviderBigModel {
+			accessToken = bigModelAccessToken
+		}
+		if strings.TrimSpace(parsed.Token) == "" || parsed.User == nil ||
+			strings.TrimSpace(parsed.User.UserID) == "" || accessToken == "" {
 			return nil, errors.New("invalid oauth ready response data")
 		}
 		return &ZcodeCliOAuthPollResult{
-			Status:         "ready",
-			Token:          parsed.Token,
-			UserID:         parsed.User.UserID,
-			Name:           parsed.User.Name,
-			Email:          parsed.User.Email,
-			Avatar:         parsed.User.Avatar,
-			ZaiAccessToken: parsed.Zai.AccessToken,
+			Status:              "ready",
+			Token:               parsed.Token,
+			UserID:              parsed.User.UserID,
+			Name:                parsed.User.Name,
+			Email:               parsed.User.Email,
+			Avatar:              parsed.User.Avatar,
+			ZaiAccessToken:      zaiAccessToken,
+			BigModelAccessToken: bigModelAccessToken,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown oauth poll status %q", parsed.Status)

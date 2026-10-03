@@ -98,6 +98,14 @@ func SetRelayRouter(router *gin.Engine) {
 	relayV1Router.Use(middleware.ModelRequestRateLimit())
 	relayV1Router.Use(middleware.TokenRateLimit())
 	{
+		// Cohere native v2 requests retain their original path and JSON/SSE format.
+		cohereV2 := router.Group("/v2")
+		cohereV2.Use(middleware.RouteTag("relay"), middleware.SystemPerformanceCheck(), middleware.TokenAuth(), middleware.ModelRequestRateLimit(), middleware.TokenRateLimit(), middleware.Distribute(), middleware.GroupConcurrencyLimit())
+		for _, path := range []string{"/chat", "/embed", "/rerank"} {
+			cohereV2.POST(path, func(c *gin.Context) {
+				controller.Relay(c, types.RelayFormatCohereNative)
+			})
+		}
 		// WebSocket 路由（统一到 Relay）
 		wsRouter := relayV1Router.Group("")
 		wsRouter.Use(middleware.Distribute(), middleware.GroupConcurrencyLimit())

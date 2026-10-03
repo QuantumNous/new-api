@@ -57,7 +57,7 @@ func TestInitZcodeCliOAuthSuccess(t *testing.T) {
 		})
 	})
 
-	result, err := InitZcodeCliOAuth(context.Background(), "")
+	result, err := InitZcodeCliOAuth(context.Background(), "", "")
 	if err != nil {
 		t.Fatalf("InitZcodeCliOAuth returned error: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestInitZcodeCliOAuthValidatesResponse(t *testing.T) {
 			withZcodeCliOAuthTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 				writeZcodeEnvelope(t, w, 0, testCase.data)
 			})
-			if _, err := InitZcodeCliOAuth(context.Background(), ""); err == nil {
+			if _, err := InitZcodeCliOAuth(context.Background(), "", ""); err == nil {
 				t.Fatalf("expected validation error")
 			}
 		})
@@ -108,7 +108,7 @@ func TestInitZcodeCliOAuthBusinessError(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprint(w, `{"code":4290,"msg":"rate limited","data":null}`)
 	})
-	_, err := InitZcodeCliOAuth(context.Background(), "")
+	_, err := InitZcodeCliOAuth(context.Background(), "", "")
 	if err == nil || err.Error() != "rate limited" {
 		t.Fatalf("err = %v, want business msg", err)
 	}
@@ -122,7 +122,7 @@ func TestPollZcodeCliOAuthStatuses(t *testing.T) {
 		writeZcodeEnvelope(t, w, 0, map[string]any{"status": "pending"})
 	})
 
-	result, err := PollZcodeCliOAuth(context.Background(), "", "flow-9", "tok-9")
+	result, err := PollZcodeCliOAuth(context.Background(), "", "flow-9", "tok-9", "")
 	if err != nil {
 		t.Fatalf("PollZcodeCliOAuth returned error: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestPollZcodeCliOAuthReadyValidation(t *testing.T) {
 	withZcodeCliOAuthTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 		writeZcodeEnvelope(t, w, 0, readyPayload())
 	})
-	result, err := PollZcodeCliOAuth(context.Background(), "", "f", "t")
+	result, err := PollZcodeCliOAuth(context.Background(), "", "f", "t", "")
 	if err != nil {
 		t.Fatalf("ready poll returned error: %v", err)
 	}
@@ -171,9 +171,96 @@ func TestPollZcodeCliOAuthReadyValidation(t *testing.T) {
 		withZcodeCliOAuthTestServer(t, func(w http.ResponseWriter, r *http.Request) {
 			writeZcodeEnvelope(t, w, 0, payload)
 		})
-		if _, err := PollZcodeCliOAuth(context.Background(), "", "f", "t"); err == nil {
+		if _, err := PollZcodeCliOAuth(context.Background(), "", "f", "t", ""); err == nil {
 			t.Fatalf("expected validation error for mutated ready payload %+v", payload)
 		}
+	}
+}
+
+func TestZcodeCliOAuthProviderFlows(t *testing.T) {
+	for _, provider := range []string{ZcodeOAuthProviderZai, ZcodeOAuthProviderBigModel} {
+		t.Run(provider, func(t *testing.T) {
+			withZcodeCliOAuthTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPost {
+					var payload struct {
+						Provider string `json:"provider"`
+					}
+					if err := common.DecodeJson(r.Body, &payload); err != nil || payload.Provider != provider {
+						t.Errorf("init provider = %q, err = %v", payload.Provider, err)
+					}
+					writeZcodeEnvelope(t, w, 0, map[string]any{
+						"flow_id": provider + "-flow", "poll_token": "poll-token",
+						"authorize_url": "https://example.com/login", "expires_at": 1, "poll_interval_sec": 3,
+					})
+					return
+				}
+				if r.URL.Path != "/oauth/cli/poll/"+provider+"-flow" || r.Header.Get("Authorization") != "Bearer poll-token" {
+					t.Errorf("poll did not use the initialized flow")
+				}
+				writeZcodeEnvelope(t, w, 0, map[string]any{
+					"status": "ready", "token": "zcode-jwt", "user": map[string]string{"user_id": "user"},
+					provider: map[string]string{"access_token": "business-token"},
+				})
+			})
+			flow, err := InitZcodeCliOAuth(context.Background(), "", provider)
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := PollZcodeCliOAuth(context.Background(), "", flow.FlowID, flow.PollToken, provider)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Token != "zcode-jwt" {
+				t.Fatal("expected the ZCode JWT, not the business access token")
+			}
+			if provider == ZcodeOAuthProviderBigModel && result.BigModelAccessToken != "business-token" {
+				t.Fatal("missing BigModel business token")
+			}
+		})
+	}
+}
+
+func TestZcodeCliOAuthRejectsInvalidProviderBeforeRequest(t *testing.T) {
+	requests := 0
+	withZcodeCliOAuthTestServer(t, func(w http.ResponseWriter, r *http.Request) { requests++ })
+	for _, provider := range []string{"unknown", "ZAI"} {
+		if _, err := InitZcodeCliOAuth(context.Background(), "", provider); err == nil {
+			t.Fatal("accepted invalid init provider")
+		}
+		if _, err := PollZcodeCliOAuth(context.Background(), "", "flow", "poll-token", provider); err == nil {
+			t.Fatal("accepted invalid poll provider")
+		}
+	}
+	if requests != 0 {
+		t.Fatal("invalid provider reached upstream")
+	}
+}
+
+func TestZcodeCliOAuthReadyProviderValidation(t *testing.T) {
+	cases := []struct {
+		name, provider, payloadProvider, field, value string
+		valid                                         bool
+	}{
+		{"domestic snake case", "bigmodel", "bigmodel", "access_token", "token", true},
+		{"domestic camel case", "bigmodel", "bigmodel", "accessToken", "token", true},
+		{"domestic missing token", "bigmodel", "bigmodel", "access_token", "", false},
+		{"domestic blank token", "bigmodel", "bigmodel", "access_token", "  ", false},
+		{"domestic with international response", "bigmodel", "zai", "access_token", "token", false},
+		{"international with domestic response", "zai", "bigmodel", "access_token", "token", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			withZcodeCliOAuthTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+				writeZcodeEnvelope(t, w, 0, map[string]any{
+					"status": "ready", "token": "jwt", "user": map[string]string{"user_id": "u"},
+					tc.payloadProvider: map[string]string{tc.field: tc.value},
+				})
+			})
+			_, err := PollZcodeCliOAuth(context.Background(), "", "flow", "poll-token", tc.provider)
+			if (err == nil) != tc.valid {
+				t.Fatalf("valid = %v, err = %v", tc.valid, err)
+			}
+		})
 	}
 }
 

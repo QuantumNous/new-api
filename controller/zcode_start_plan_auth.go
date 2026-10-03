@@ -1,12 +1,10 @@
 package controller
 
-// ZCode StartPlan 渠道一键重授权：复刻 ZCode CLI 设备码式 OAuth
-// （POST /api/v1/oauth/cli/init + GET /api/v1/oauth/cli/poll/{flow_id}）。
-// 管理员在浏览器完成一次 z.ai 登录后，网关自动接收 zcodeJwtToken 并写回渠道密钥。
-// 官方无 refresh_token 链路，JWT 过期后重跑本流程是唯一恢复方式。
+// ZCode StartPlan 渠道授权：选择 zai / bigmodel，成功后保存 ZCode JWT。
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -58,15 +56,31 @@ func loadZcodeStartPlanChannel(c *gin.Context) (*model.Channel, bool) {
 	return ch, true
 }
 
+func parseZcodeStartPlanProvider(c *gin.Context) (string, error) {
+	var request struct {
+		Provider string `json:"provider"`
+	}
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil && err != io.EOF {
+		return "", err
+	}
+	return service.NormalizeZcodeOAuthProvider(request.Provider)
+}
+
 func InitZcodeStartPlanAuth(c *gin.Context) {
 	ch, ok := loadZcodeStartPlanChannel(c)
 	if !ok {
 		return
 	}
 
+	provider, err := parseZcodeStartPlanProvider(c)
+	if err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
-	flow, err := service.InitZcodeCliOAuth(ctx, ch.GetSetting().Proxy)
+	flow, err := service.InitZcodeCliOAuth(ctx, ch.GetSetting().Proxy, provider)
 	if err != nil {
 		common.SysError("failed to init zcode start plan oauth: " + err.Error())
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "发起授权失败，请稍后重试"})
@@ -76,6 +90,7 @@ func InitZcodeStartPlanAuth(c *gin.Context) {
 	session := sessions.Default(c)
 	session.Set(zcodeStartPlanAuthSessionKey(ch.Id, "flow_id"), flow.FlowID)
 	session.Set(zcodeStartPlanAuthSessionKey(ch.Id, "poll_token"), flow.PollToken)
+	session.Set(zcodeStartPlanAuthSessionKey(ch.Id, "provider"), provider)
 	session.Set(zcodeStartPlanAuthSessionKey(ch.Id, "expires_at"), flow.ExpiresAt)
 	session.Set(zcodeStartPlanAuthSessionKey(ch.Id, "created_at"), time.Now().Unix())
 	_ = session.Save()
@@ -85,6 +100,7 @@ func InitZcodeStartPlanAuth(c *gin.Context) {
 		"message": "",
 		"data": gin.H{
 			"channel_id":        ch.Id,
+			"provider":          provider,
 			"authorize_url":     flow.AuthorizeURL,
 			"expires_at":        flow.ExpiresAt,
 			"poll_interval_sec": flow.PollIntervalSec,
@@ -102,6 +118,12 @@ func PollZcodeStartPlanAuth(c *gin.Context) {
 	flowID, _ := session.Get(zcodeStartPlanAuthSessionKey(ch.Id, "flow_id")).(string)
 	pollToken, _ := session.Get(zcodeStartPlanAuthSessionKey(ch.Id, "poll_token")).(string)
 	createdAt, _ := session.Get(zcodeStartPlanAuthSessionKey(ch.Id, "created_at")).(int64)
+	provider, err := zcodeStartPlanSessionProvider(session, ch.Id)
+	if err != nil {
+		clearZcodeStartPlanAuthSession(c, ch.Id)
+		common.ApiErrorI18n(c, i18n.MsgOAuthFlowNotStarted)
+		return
+	}
 	if flowID == "" || pollToken == "" {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthFlowNotStarted)})
 		return
@@ -114,7 +136,7 @@ func PollZcodeStartPlanAuth(c *gin.Context) {
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 	defer cancel()
-	result, err := service.PollZcodeCliOAuth(ctx, ch.GetSetting().Proxy, flowID, pollToken)
+	result, err := service.PollZcodeCliOAuth(ctx, ch.GetSetting().Proxy, flowID, pollToken, provider)
 	if err != nil {
 		common.SysError("failed to poll zcode start plan oauth: " + err.Error())
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "查询授权状态失败，请重试"})
@@ -143,6 +165,7 @@ func PollZcodeStartPlanAuth(c *gin.Context) {
 
 		data := gin.H{
 			"status":    "ready",
+			"provider":  provider,
 			"user_id":   result.UserID,
 			"user_name": result.Name,
 			"email":     result.Email,
@@ -156,9 +179,15 @@ func PollZcodeStartPlanAuth(c *gin.Context) {
 	}
 }
 
+// 兼容升级前已开始的国际授权；provider 只取会话，不接受轮询参数覆盖。
+func zcodeStartPlanSessionProvider(session sessions.Session, channelID int) (string, error) {
+	provider, _ := session.Get(zcodeStartPlanAuthSessionKey(channelID, "provider")).(string)
+	return service.NormalizeZcodeOAuthProvider(provider)
+}
+
 func clearZcodeStartPlanAuthSession(c *gin.Context, channelID int) {
 	session := sessions.Default(c)
-	for _, field := range []string{"flow_id", "poll_token", "expires_at", "created_at"} {
+	for _, field := range []string{"flow_id", "poll_token", "provider", "expires_at", "created_at"} {
 		session.Delete(zcodeStartPlanAuthSessionKey(channelID, field))
 	}
 	_ = session.Save()

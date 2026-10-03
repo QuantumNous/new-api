@@ -6491,7 +6491,12 @@
     "{{count}} affordable with current balance": "当前余额最多可购 {{count}} 份",
     "OpenCode adds CLI-compatible headers automatically. Zen JEV models use /v1/systemone without streaming.": "自动补齐 OpenCode CLI 请求头；Zen 的 JEV 模型使用 /v1/systemone，不支持流式。",
     "Subscription history": "历史订阅",
-    "No current subscriptions": "暂无当前订阅"
+    "No current subscriptions": "暂无当前订阅",
+    "Authorization provider": "授权服务商",
+    "Z.ai (International)": "Z.ai（国际版）",
+    "BigModel (China)": "智谱 BigModel（中国版）",
+    "Start new authorization": "重新发起授权",
+    "The official client has no refresh token flow. When the JWT expires, authorize again with the selected provider. The new key is saved automatically.": "官方客户端不支持自动刷新 JWT。过期后使用所选服务商重新授权，新密钥将自动保存。"
   },
   "Open external link?": "打开外部链接？",
   "This link will open in a new window. Do you want to continue?": "此链接将在新窗口中打开。是否继续？",

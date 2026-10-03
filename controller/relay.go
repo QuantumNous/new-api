@@ -63,6 +63,8 @@ func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIErro
 		err = relay.MoarkNativeHelper(c, info)
 	case relayconstant.RelayModeStepFunNative:
 		err = relay.StepFunNativeHelper(c, info)
+	case relayconstant.RelayModeCohereNative:
+		err = relay.CohereNativeHelper(c, info)
 	case relayconstant.RelayModeTypeSafeNative:
 		err = relay.TypeSafeNativeHelper(c, info)
 	default:
@@ -349,6 +351,8 @@ func fastTokenCountMetaForPricing(request dto.Request) *types.TokenCountMeta {
 		meta.MaxTokens = int(lo.FromPtrOr(r.MaxOutputTokens, uint(0)))
 	case *dto.ClaudeRequest:
 		meta.MaxTokens = int(lo.FromPtr(r.MaxTokens))
+	case *dto.CohereNativeRequest:
+		meta.MaxTokens = int(lo.FromPtrOr(r.MaxTokens, uint(0)))
 	case *dto.ImageRequest:
 		// Pricing for image requests depends on ImagePriceRatio; safe to compute even when CountToken is disabled.
 		return r.GetTokenCountMeta()

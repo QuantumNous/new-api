@@ -6491,7 +6491,12 @@
     "{{count}} affordable with current balance": "На текущий баланс доступно к покупке: {{count}}",
     "OpenCode adds CLI-compatible headers automatically. Zen JEV models use /v1/systemone without streaming.": "Заголовки, совместимые с OpenCode CLI, добавляются автоматически. Модели JEV в Zen используют /v1/systemone без потоковой передачи.",
     "Subscription history": "История подписок",
-    "No current subscriptions": "Нет текущих подписок"
+    "No current subscriptions": "Нет текущих подписок",
+    "Authorization provider": "Провайдер авторизации",
+    "Z.ai (International)": "Z.ai (международный)",
+    "BigModel (China)": "BigModel (Китай)",
+    "Start new authorization": "Новая авторизация",
+    "The official client has no refresh token flow. When the JWT expires, authorize again with the selected provider. The new key is saved automatically.": "Официальный клиент не обновляет JWT автоматически. После истечения срока действия пройдите авторизацию снова у выбранного провайдера. Новый ключ сохранится автоматически."
   },
   "Open external link?": "Открыть внешнюю ссылку?",
   "This link will open in a new window. Do you want to continue?": "Ссылка откроется в новом окне. Продолжить?",

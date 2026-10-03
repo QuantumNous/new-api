@@ -19,9 +19,10 @@ const (
 	RelayFormatXAIRealtime                           = "xai_realtime"
 	RelayFormatMoarkNative                           = "moark_native"
 	RelayFormatStepFunNative                         = "stepfun_native"
+	RelayFormatCohereNative                          = "cohere_native"
 	RelayFormatStepFunWss                            = "stepfun_wss"
 	RelayFormatOCR                                   = "ocr"
-	RelayFormatTypeSafe                             = "typesafe"
+	RelayFormatTypeSafe                              = "typesafe"
 
 	RelayFormatTask    = "task"
 	RelayFormatMjProxy = "mj_proxy"

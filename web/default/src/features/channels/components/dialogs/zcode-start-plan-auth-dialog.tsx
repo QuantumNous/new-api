@@ -31,13 +31,22 @@ import { toast } from 'sonner'
 
 import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
+import {
+  Field,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from '@/components/ui/field'
 import { IconBadge } from '@/components/ui/icon-badge'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { formatTimestampToDate } from '@/lib/format'
 
 import {
   initZcodeStartPlanAuth,
   pollZcodeStartPlanAuth,
   type ZcodeStartPlanAuthPollResponse,
+  type ZcodeStartPlanAuthProvider,
 } from '../../api'
 import { channelsQueryKeys } from '../../lib'
 import { useChannels } from '../channels-provider'
@@ -47,7 +56,7 @@ type ZcodeStartPlanAuthDialogProps = {
   onOpenChange: (open: boolean) => void
 }
 
-type FlowPhase = 'idle' | 'starting' | 'authorizing' | 'polling' | 'ready'
+type FlowPhase = 'idle' | 'starting' | 'authorizing' | 'failed' | 'ready'
 
 const DEFAULT_POLL_INTERVAL_MS = 3000
 
@@ -59,6 +68,8 @@ export function ZcodeStartPlanAuthDialog({
   const { currentRow } = useChannels()
   const queryClient = useQueryClient()
 
+  const channelId = currentRow?.id
+  const [provider, setProvider] = useState<ZcodeStartPlanAuthProvider>('zai')
   const [phase, setPhase] = useState<FlowPhase>('idle')
   const [authorizeUrl, setAuthorizeUrl] = useState('')
   const [failure, setFailure] = useState('')
@@ -66,7 +77,9 @@ export function ZcodeStartPlanAuthDialog({
     ZcodeStartPlanAuthPollResponse['data'] | null
   >(null)
   const pollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const closedRef = useRef(false)
+  const closedRef = useRef(true)
+  const generationRef = useRef(0)
+  const busyRef = useRef(false)
 
   const clearPollTimer = () => {
     if (pollTimerRef.current) {
@@ -76,7 +89,9 @@ export function ZcodeStartPlanAuthDialog({
   }
 
   const resetState = useCallback(() => {
+    generationRef.current += 1
     clearPollTimer()
+    busyRef.current = false
     setPhase('idle')
     setAuthorizeUrl('')
     setFailure('')
@@ -84,23 +99,24 @@ export function ZcodeStartPlanAuthDialog({
   }, [])
 
   const schedulePoll = useCallback(
-    (channelId: number, delayMs: number) => {
+    (channelId: number, delayMs: number, generation: number) => {
       clearPollTimer()
       pollTimerRef.current = setTimeout(async () => {
-        if (closedRef.current) return
+        if (closedRef.current || generation !== generationRef.current) return
         try {
           const response = await pollZcodeStartPlanAuth(channelId)
-          if (closedRef.current) return
+          if (closedRef.current || generation !== generationRef.current) return
           if (!response.success) {
             // 后端会话丢失/网络抖动：提示但不终止，等待下一次轮询重试。
-            setPhase('polling')
-            schedulePoll(channelId, delayMs)
+            schedulePoll(channelId, delayMs, generation)
             return
           }
           const status = response.data?.status
           if (status === 'ready') {
+            busyRef.current = false
             setPhase('ready')
             setResult(response.data ?? null)
+            if (response.data?.provider) setProvider(response.data.provider)
             toast.success(t('Authorization succeeded, channel key updated'))
             await queryClient.invalidateQueries({
               queryKey: channelsQueryKeys.lists(),
@@ -108,19 +124,23 @@ export function ZcodeStartPlanAuthDialog({
             return
           }
           if (status === 'failed') {
-            setPhase('idle')
+            busyRef.current = false
+            setAuthorizeUrl('')
+            setPhase('failed')
             setFailure(t('Authorization failed or was cancelled'))
             return
           }
           if (status === 'expired') {
-            setPhase('idle')
+            busyRef.current = false
+            setAuthorizeUrl('')
+            setPhase('failed')
             setFailure(t('Authorization flow expired, please retry'))
             return
           }
-          schedulePoll(channelId, delayMs)
+          schedulePoll(channelId, delayMs, generation)
         } catch {
-          if (!closedRef.current) {
-            schedulePoll(channelId, delayMs)
+          if (!closedRef.current && generation === generationRef.current) {
+            schedulePoll(channelId, delayMs, generation)
           }
         }
       }, delayMs)
@@ -129,18 +149,24 @@ export function ZcodeStartPlanAuthDialog({
   )
 
   const startFlow = useCallback(async () => {
-    const channelId = currentRow?.id
-    if (!channelId) return
+    if (!channelId || closedRef.current || busyRef.current) return
+    busyRef.current = true
+    const generation = ++generationRef.current
+    clearPollTimer()
     setFailure('')
     setResult(null)
+    setAuthorizeUrl('')
     setPhase('starting')
     try {
-      const response = await initZcodeStartPlanAuth(channelId)
+      const response = await initZcodeStartPlanAuth(channelId, provider)
+      if (closedRef.current || generation !== generationRef.current) return
       if (!response.success || !response.data?.authorize_url) {
-        setPhase('idle')
+        busyRef.current = false
+        setPhase('failed')
         setFailure(response.message || t('Failed to start authorization'))
         return
       }
+      if (response.data.provider) setProvider(response.data.provider)
       setAuthorizeUrl(response.data.authorize_url)
       const intervalSec = Number(response.data.poll_interval_sec)
       const delayMs =
@@ -148,35 +174,35 @@ export function ZcodeStartPlanAuthDialog({
           ? Math.max(intervalSec * 1000, 1000)
           : DEFAULT_POLL_INTERVAL_MS
       setPhase('authorizing')
-      schedulePoll(channelId, delayMs)
+      schedulePoll(channelId, delayMs, generation)
     } catch (error: unknown) {
-      setPhase('idle')
+      if (closedRef.current || generation !== generationRef.current) return
+      busyRef.current = false
+      setPhase('failed')
       setFailure(
         error instanceof Error
           ? error.message
           : t('Failed to start authorization')
       )
     }
-  }, [currentRow, schedulePoll, t])
+  }, [channelId, provider, schedulePoll, t])
 
   useEffect(() => {
-    closedRef.current = false
-    if (open) {
-      startFlow()
-    } else {
-      resetState()
-    }
+    closedRef.current = !open
+    resetState()
+    setProvider('zai')
     return () => {
       closedRef.current = true
+      generationRef.current += 1
       clearPollTimer()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open])
+  }, [open, channelId, resetState])
 
   if (!currentRow) return null
 
   const handleClose = () => {
     closedRef.current = true
+    generationRef.current += 1
     clearPollTimer()
     onOpenChange(false)
   }
@@ -214,17 +240,48 @@ export function ZcodeStartPlanAuthDialog({
           </div>
           <div className='text-muted-foreground text-xs'>
             {t(
-              'The official client has no refresh token flow. When the JWT expires, re-run this authorization: open the page, log in to z.ai once, and the new key is saved automatically.'
+              'The official client has no refresh token flow. When the JWT expires, authorize again with the selected provider. The new key is saved automatically.'
             )}
           </div>
         </div>
 
-        {(phase === 'starting' || phase === 'polling') && (
+        <FieldSet disabled={phase !== 'idle'}>
+          <FieldLegend variant='label'>
+            {t('Authorization provider')}
+          </FieldLegend>
+          <RadioGroup
+            value={provider}
+            disabled={phase !== 'idle'}
+            onValueChange={(value) => {
+              if (
+                phase === 'idle' &&
+                (value === 'zai' || value === 'bigmodel')
+              ) {
+                setProvider(value)
+              }
+            }}
+          >
+            <FieldGroup className='gap-3'>
+              <Field orientation='horizontal' data-disabled={phase !== 'idle'}>
+                <RadioGroupItem value='zai' id='start-plan-zai' />
+                <FieldLabel htmlFor='start-plan-zai'>
+                  {t('Z.ai (International)')}
+                </FieldLabel>
+              </Field>
+              <Field orientation='horizontal' data-disabled={phase !== 'idle'}>
+                <RadioGroupItem value='bigmodel' id='start-plan-bigmodel' />
+                <FieldLabel htmlFor='start-plan-bigmodel'>
+                  {t('BigModel (China)')}
+                </FieldLabel>
+              </Field>
+            </FieldGroup>
+          </RadioGroup>
+        </FieldSet>
+
+        {phase === 'starting' && (
           <div className='text-muted-foreground flex items-center gap-2 text-sm'>
             <Loader2 className='h-4 w-4 animate-spin' />
-            {phase === 'starting'
-              ? t('Initializing authorization flow…')
-              : t('Waiting for authorization to complete…')}
+            {t('Initializing authorization flow…')}
           </div>
         )}
 
@@ -276,10 +333,15 @@ export function ZcodeStartPlanAuthDialog({
           </div>
         )}
 
-        {(phase === 'idle' || failure) && (
+        {(phase === 'idle' || phase === 'failed') && (
           <Button className='w-full' onClick={startFlow} disabled={!currentRow}>
             <RefreshCw className='mr-2 h-4 w-4' />
-            {failure ? t('Retry') : t('Start Authorization')}
+            {phase === 'failed' ? t('Retry') : t('Start Authorization')}
+          </Button>
+        )}
+        {(phase === 'failed' || phase === 'ready') && (
+          <Button className='w-full' variant='outline' onClick={resetState}>
+            {phase === 'ready' ? t('Start new authorization') : t('Back')}
           </Button>
         )}
       </div>

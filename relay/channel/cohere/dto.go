@@ -20,8 +20,13 @@ type CohereChatRequest struct {
 	Seed             *uint64               `json:"seed,omitempty"`
 	ResponseFormat   *dto.ResponseFormat   `json:"response_format,omitempty"`
 	SafetyMode       string                `json:"safety_mode,omitempty"`
+	Thinking         *CohereThinking       `json:"thinking,omitempty"`
 	Tools            []dto.ToolCallRequest `json:"tools,omitempty"`
 	ToolChoice       string                `json:"tool_choice,omitempty"`
+}
+
+type CohereThinking struct {
+	Type string `json:"type"`
 }
 
 type CohereChatMessage struct {
@@ -36,6 +41,7 @@ type CohereChatMessage struct {
 type CohereContentBlock struct {
 	Type     string                 `json:"type"`
 	Text     string                 `json:"text,omitempty"`
+	Thinking string                 `json:"thinking,omitempty"`
 	ImageURL *CohereImageURL        `json:"image_url,omitempty"`
 	Document *CohereDocumentContent `json:"document,omitempty"`
 }

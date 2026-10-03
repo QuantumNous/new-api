@@ -5257,7 +5257,14 @@
     "默认智谱地址": "Default Zhipu Address",
     "默认测试模型": "Default Test Model",
     "默认用户消息": "Default User Message",
-    "默认补全倍率": "Default completion ratio"
+    "默认补全倍率": "Default completion ratio",
+    "授权服务商": "Authorization provider",
+    "Z.ai（国际版）": "Z.ai (International)",
+    "智谱 BigModel（中国版）": "BigModel (China)",
+    "开始授权": "Start Authorization",
+    "重新发起授权": "Start new authorization",
+    "官方客户端不支持自动刷新 JWT。过期后使用所选服务商重新授权，新密钥将自动保存。": "The official client has no refresh token flow. When the JWT expires, authorize again with the selected provider. The new key is saved automatically.",
+    "返回": "Back"
   },
   "RPM/并发": "RPM / Concurrency",
   "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",

@@ -5154,7 +5154,14 @@
     "默认智谱地址": "Adresse Zhipu par défaut",
     "默认测试模型": "Modèle de test par défaut",
     "默认用户消息": "Bonjour",
-    "默认补全倍率": "Taux de complétion par défaut"
+    "默认补全倍率": "Taux de complétion par défaut",
+    "授权服务商": "Fournisseur d’authentification",
+    "Z.ai（国际版）": "Z.ai (international)",
+    "智谱 BigModel（中国版）": "BigModel (Chine)",
+    "开始授权": "Démarrer l’autorisation",
+    "重新发起授权": "Nouvelle autorisation",
+    "官方客户端不支持自动刷新 JWT。过期后使用所选服务商重新授权，新密钥将自动保存。": "Le client officiel ne renouvelle pas automatiquement le JWT. À son expiration, autorisez à nouveau l’accès avec le fournisseur choisi. La nouvelle clé est enregistrée automatiquement.",
+    "返回": "Retour"
   },
   "RPM/并发": "RPM / Concurrence",
   "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",

@@ -74,6 +74,10 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		)
 	}
 
+	if info.ChannelType == appconstant.ChannelTypeCohere && info.IsStream && len(responsesReq.Tools) > 0 && string(responsesReq.Tools) != "[]" && string(responsesReq.Tools) != "null" {
+		return types.NewErrorWithStatusCode(fmt.Errorf("streaming tool calls are not supported on this endpoint; use /v1/chat/completions"), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+	}
+
 	request, err := common.DeepCopy(responsesReq)
 	if err != nil {
 		return types.NewError(fmt.Errorf("failed to copy request to GeneralOpenAIRequest: %w", err), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
