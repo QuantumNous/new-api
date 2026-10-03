@@ -57,7 +57,12 @@ import type {
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
 import { isPersianIntlLocale, toIntlLocale } from '@/i18n/languages'
-import { formatFixed, formatQuota, formatTimestampToDate } from '@/lib/format'
+import {
+  appendPercentSign,
+  formatFixed,
+  formatQuota,
+  formatTimestampToDate,
+} from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
@@ -287,7 +292,8 @@ export function SubscriptionPlansCard({
                 />
                 {hasActive ? (
                   <span className={cn(textColorMap.success)}>
-                    {activeSubscriptions.length} {t('active')}
+                    {formatFixed(activeSubscriptions.length, 0, locale)}{' '}
+                    {t('active')}
                   </span>
                 ) : (
                   <span className='text-muted-foreground'>
@@ -298,7 +304,11 @@ export function SubscriptionPlansCard({
                   <>
                     <span className='text-muted-foreground/30'>·</span>
                     <span className='text-muted-foreground'>
-                      {allSubscriptions.length - activeSubscriptions.length}{' '}
+                      {formatFixed(
+                        allSubscriptions.length - activeSubscriptions.length,
+                        0,
+                        locale
+                      )}{' '}
                       {t('expired')}
                     </span>
                   </>
@@ -507,8 +517,11 @@ export function SubscriptionPlansCard({
                               {formatQuota(remainAmount, locale)}
                             </TooltipTrigger>
                             <TooltipContent>
-                              {t('Raw Quota')}: {usedAmount}/{totalAmount} ·{' '}
-                              {t('Remaining')} {remainAmount}
+                              {t('Raw Quota')}:{' '}
+                              {formatFixed(usedAmount, 0, locale)}/
+                              {formatFixed(totalAmount, 0, locale)} ·{' '}
+                              {t('Remaining')}{' '}
+                              {formatFixed(remainAmount, 0, locale)}
                             </TooltipContent>
                           </Tooltip>
                         ) : (
@@ -516,7 +529,11 @@ export function SubscriptionPlansCard({
                         )}
                         {totalAmount > 0 && (
                           <span className='ml-2'>
-                            {t('Used')} {usagePercent}%
+                            {t('Used')}{' '}
+                            {appendPercentSign(
+                              formatFixed(usagePercent, 0, locale),
+                              locale
+                            )}
                           </span>
                         )}
                       </div>
@@ -562,7 +579,9 @@ export function SubscriptionPlansCard({
                 totalAmount > 0
                   ? `${t('Total Quota')}: ${formatQuota(totalAmount, locale)}`
                   : `${t('Total Quota')}: ${t('Unlimited')}`,
-                limit > 0 ? `${t('Purchase Limit')}: ${limit}` : null,
+                limit > 0
+                  ? `${t('Purchase Limit')}: ${formatFixed(limit, 0, locale)}`
+                  : null,
                 plan.upgrade_group
                   ? `${t('Upgrade Group')}: ${plan.upgrade_group}`
                   : null,
@@ -626,7 +645,9 @@ export function SubscriptionPlansCard({
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          {t('Purchase limit reached')} ({count}/{limit})
+                          {t('Purchase limit reached')} (
+                          {formatFixed(count, 0, locale)}/
+                          {formatFixed(limit, 0, locale)})
                         </TooltipContent>
                       </Tooltip>
                     ) : (

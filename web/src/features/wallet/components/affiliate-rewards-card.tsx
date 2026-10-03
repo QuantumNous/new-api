@@ -26,7 +26,7 @@ import { IconBadge } from '@/components/ui/icon-badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toIntlLocale } from '@/i18n/languages'
-import { formatQuota } from '@/lib/format'
+import { formatFixed, formatQuota } from '@/lib/format'
 
 import type { UserWalletData } from '../types'
 
@@ -90,7 +90,7 @@ export function AffiliateRewardsCard({
               t('Total Earned'),
               formatQuota(user?.aff_history_quota ?? 0, locale),
             ],
-            [t('Invites'), String(user?.aff_count ?? 0)],
+            [t('Invites'), formatFixed(user?.aff_count ?? 0, 0, locale)],
           ].map(([label, value]) => (
             <div key={label}>
               <div className='text-muted-foreground truncate text-[10px] font-medium tracking-wider uppercase'>

@@ -47,7 +47,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatCurrencyFromUSD } from '@/lib/currency'
-import { formatGregorianTitle, formatNumber } from '@/lib/format'
+import { formatFixed, formatGregorianTitle, formatNumber } from '@/lib/format'
 
 import { useBillingHistory } from '../../hooks/use-billing-history'
 import {
@@ -298,8 +298,10 @@ export function BillingHistoryDialog({
           {!loading && records.length > 0 && (
             <div className='flex flex-col items-center gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between'>
               <div className='text-muted-foreground text-xs sm:text-sm'>
-                {t('Showing')} {(page - 1) * pageSize + 1}-
-                {Math.min(page * pageSize, total)} {t('of')} {total}
+                {t('Showing')}{' '}
+                {formatFixed((page - 1) * pageSize + 1, 0, locale)}-
+                {formatFixed(Math.min(page * pageSize, total), 0, locale)}{' '}
+                {t('of')} {formatFixed(total, 0, locale)}
               </div>
               <div className='flex items-center gap-2'>
                 <Button
@@ -312,9 +314,11 @@ export function BillingHistoryDialog({
                   <ChevronLeft className='h-4 w-4' />
                 </Button>
                 <div className='text-muted-foreground flex items-center gap-1 text-sm'>
-                  <span className='font-medium'>{page}</span>
+                  <span className='font-medium'>
+                    {formatFixed(page, 0, locale)}
+                  </span>
                   <span>/</span>
-                  <span>{totalPages}</span>
+                  <span>{formatFixed(totalPages, 0, locale)}</span>
                 </div>
                 <Button
                   variant='outline'

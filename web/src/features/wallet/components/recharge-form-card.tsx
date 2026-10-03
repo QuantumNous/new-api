@@ -35,7 +35,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { toIntlLocale } from '@/i18n/languages'
-import { formatNumber } from '@/lib/format'
+import { formatFixed, formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import {
@@ -307,7 +307,9 @@ export function RechargeFormCard({
                     value={localAmount}
                     onChange={(e) => handleAmountChange(e.target.value)}
                     min={minTopup}
-                    placeholder={t('Minimum {{amount}}', { amount: minTopup })}
+                    placeholder={t('Minimum {{amount}}', {
+                      amount: formatFixed(minTopup, 0, locale),
+                    })}
                     className='h-9 text-base sm:h-10 sm:text-lg'
                   />
                   <div className='bg-muted/30 flex min-h-9 items-center justify-between gap-2 rounded-md border px-3 lg:min-w-52'>
@@ -339,11 +341,11 @@ export function RechargeFormCard({
                       const disabled = minTopup > topupAmount
                       const disabledReason = disabled
                         ? t('Minimum topup amount: {{amount}}', {
-                            amount: minTopup,
+                            amount: formatFixed(minTopup, 0, locale),
                           })
                         : undefined
                       const disabledLabel = disabled
-                        ? `${t('Minimum:')} ${minTopup}`
+                        ? `${t('Minimum:')} ${formatFixed(minTopup, 0, locale)}`
                         : undefined
 
                       const button = (
@@ -422,11 +424,11 @@ export function RechargeFormCard({
                         const belowMin = waffoMin > topupAmount
                         const disabledReason = belowMin
                           ? t('Minimum topup amount: {{amount}}', {
-                              amount: waffoMin,
+                              amount: formatFixed(waffoMin, 0, locale),
                             })
                           : undefined
                         const disabledLabel = belowMin
-                          ? `${t('Minimum:')} ${waffoMin}`
+                          ? `${t('Minimum:')} ${formatFixed(waffoMin, 0, locale)}`
                           : undefined
 
                         let methodIcon = getPaymentIcon('waffo')

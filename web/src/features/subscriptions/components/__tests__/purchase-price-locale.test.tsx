@@ -40,7 +40,7 @@ const plan = {
   },
 } as unknown as PlanRecord
 
-function renderDialog(): void {
+function renderDialog(limit?: { count: number; limit: number }): void {
   render(
     <QueryClientProvider client={new QueryClient()}>
       <SubscriptionPurchaseDialog
@@ -48,6 +48,8 @@ function renderDialog(): void {
         onOpenChange={() => undefined}
         plan={plan}
         userQuota={2_500_000}
+        purchaseCount={limit?.count}
+        purchaseLimit={limit?.limit}
       />
     </QueryClientProvider>
   )
@@ -87,5 +89,23 @@ describe('subscription purchase dialog quota amounts', () => {
     expect(screen.getByText(`${LRM}$۱۰`)).toBeInTheDocument()
     expect(screen.getByText(`${LRM}$۹٫۹`)).toBeInTheDocument()
     expect(screen.getByText(`${LRM}$۵`)).toBeInTheDocument()
+  })
+})
+
+describe('subscription purchase dialog purchase limit', () => {
+  it('in English, keeps the purchase count and limit as before', async () => {
+    await i18next.changeLanguage('en')
+    renderDialog({ count: 12, limit: 12 })
+    expect(
+      screen.getByText('Purchase limit reached (12/12)')
+    ).toBeInTheDocument()
+  })
+
+  it('in Persian, writes the purchase count and limit with Persian digits like the amounts', async () => {
+    await i18next.changeLanguage('fa')
+    renderDialog({ count: 12, limit: 12 })
+    expect(
+      screen.getByText('Purchase limit reached (۱۲/۱۲)')
+    ).toBeInTheDocument()
   })
 })

@@ -299,8 +299,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
         {limitReached && (
           <Alert variant='destructive'>
             <AlertDescription>
-              {t('Purchase limit reached')} ({props.purchaseCount}/
-              {props.purchaseLimit})
+              {t('Purchase limit reached')} (
+              {formatFixed(props.purchaseCount || 0, 0, locale)}/
+              {formatFixed(props.purchaseLimit || 0, 0, locale)})
             </AlertDescription>
           </Alert>
         )}
