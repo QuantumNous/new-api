@@ -236,7 +236,7 @@ function SidebarMenuCollapsedDropdown({
           {item.badge && <NavBadge>{item.badge}</NavBadge>}
           <ChevronRight className='ms-auto size-4 shrink-0 transition-transform duration-200 group-data-[popup-open]/dropdown-trigger:rotate-90 rtl:not-group-data-[popup-open]/dropdown-trigger:rotate-180' />
         </DropdownMenuTrigger>
-        <DropdownMenuContent side='right' align='start' sideOffset={4}>
+        <DropdownMenuContent side='inline-end' align='start' sideOffset={4}>
           <DropdownMenuGroup>
             <DropdownMenuLabel>
               {item.title} {item.badge ? `(${item.badge})` : ''}

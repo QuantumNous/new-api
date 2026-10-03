@@ -562,7 +562,7 @@ function SidebarMenuButton({
     <TooltipProvider delay={0}>
       <Tooltip>
         {comp}
-        <TooltipContent side='right' align='center' {...tooltip} />
+        <TooltipContent side='inline-end' align='center' {...tooltip} />
       </Tooltip>
     </TooltipProvider>
   )
