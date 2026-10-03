@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"io"
 	"math"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -107,7 +108,13 @@ export function parseSubmitResponse(ctx,r){return {taskId:"1"}} export function 
 	require.NoError(t, err)
 	requestBytes, err := io.ReadAll(body)
 	require.NoError(t, err)
-	reader := multipart.NewReader(bytes.NewReader(requestBytes), strings.TrimPrefix(c.GetHeader("Content-Type"), "multipart/form-data; boundary="))
+	upstreamRequest := httptest.NewRequest(http.MethodPost, "https://provider.example/submit", bytes.NewReader(requestBytes))
+	require.NoError(t, adaptor.BuildRequestHeader(c, upstreamRequest, info))
+	mediaType, params, err := mime.ParseMediaType(upstreamRequest.Header.Get("Content-Type"))
+	require.NoError(t, err)
+	assert.Equal(t, "multipart/form-data", mediaType)
+	require.NotEmpty(t, params["boundary"])
+	reader := multipart.NewReader(bytes.NewReader(requestBytes), params["boundary"])
 	form, err := reader.ReadForm(1024)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"m"}, form.Value["model"])
