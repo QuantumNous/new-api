@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 
 import type { FlowQuotaDataItem } from '../types'
 import {
@@ -692,6 +692,16 @@ describe('dashboard flow data', () => {
   })
 
   test('builds Sankey spec with quota token request tooltips', () => {
+    // Without a locale the tooltip numbers use the runtime default; pin it so
+    // the expected values do not depend on the machine.
+    const NumberFormat = Intl.NumberFormat
+    vi.spyOn(Intl, 'NumberFormat').mockImplementation(function (
+      locales?: Intl.LocalesArgument,
+      options?: Intl.NumberFormatOptions
+    ) {
+      return new NumberFormat(locales ?? 'en-US', options)
+    } as typeof Intl.NumberFormat)
+
     const result = buildDashboardFlowData(rows.slice(0, 1), 'quota', {
       role: 'root',
     })
