@@ -21,6 +21,12 @@ import { describe, expect, it } from 'vitest'
 
 import { Dialog, DialogContent, DialogTitle } from '../dialog'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '../sheet'
+import {
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarProvider,
+} from '../sidebar'
 import { Switch } from '../switch'
 import {
   Table,
@@ -119,4 +125,32 @@ describe('switch thumb in right-to-left layouts', () => {
       )
     }
   )
+})
+
+// The sub-menu is shifted 1px along x and its buttons 1px back, so the two
+// cancel out. Mirroring only one of them leaves the buttons 2px off in RTL.
+describe('sidebar sub-menu buttons in right-to-left layouts', () => {
+  it('mirrors the button shift together with the sub-menu shift in RTL', () => {
+    render(
+      <div dir='rtl'>
+        <SidebarProvider>
+          <SidebarMenuSub>
+            <SidebarMenuSubItem>
+              <SidebarMenuSubButton href='/console/channel'>
+                Channels
+              </SidebarMenuSubButton>
+            </SidebarMenuSubItem>
+          </SidebarMenuSub>
+        </SidebarProvider>
+      </div>
+    )
+
+    const button = screen.getByRole('link', { name: 'Channels' })
+    expect(button.closest('[data-sidebar="menu-sub"]')).toHaveClass(
+      'ltr:translate-x-px',
+      'rtl:-translate-x-px'
+    )
+    expect(button).toHaveClass('ltr:-translate-x-px', 'rtl:translate-x-px')
+    expect(button).not.toHaveClass('-translate-x-px')
+  })
 })
