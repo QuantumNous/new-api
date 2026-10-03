@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { createInstance } from 'i18next'
 import { I18nextProvider } from 'react-i18next'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -31,7 +31,7 @@ const NOW = Date.UTC(2026, 9, 3, 12, 0, 0)
 const MINUTE = 60_000
 const HOUR = 60 * MINUTE
 
-async function renderAnnouncements(language: string, publishDate: number) {
+async function renderAnnouncements(language: string, publishDate: string) {
   const i18n = createInstance()
   await i18n.init({
     lng: language,
@@ -44,7 +44,7 @@ async function renderAnnouncements(language: string, publishDate: number) {
     {
       id: 1,
       content: 'Maintenance window',
-      publishDate: new Date(publishDate).toISOString(),
+      publishDate,
       type: 'default',
     },
   ])
@@ -76,9 +76,20 @@ describe('announcement publish date relative time', () => {
   ])(
     'shows $expected in the $language interface',
     async ({ language, ago, expected }) => {
-      await renderAnnouncements(language, NOW - ago)
+      await renderAnnouncements(language, new Date(NOW - ago).toISOString())
 
       expect(screen.getByText(expected)).toBeInTheDocument()
     }
   )
+
+  it('shows - for a stored publish date that is not a date and still renders the row', async () => {
+    await renderAnnouncements('en', 'not a date')
+
+    const publishDateColumn = screen
+      .getAllByRole('columnheader')
+      .findIndex((header) => header.textContent === 'Publish Date')
+    const row = screen.getByRole('row', { name: /Maintenance window/ })
+    const publishDateCell = within(row).getAllByRole('cell')[publishDateColumn]
+    expect(within(publishDateCell).getByText('-')).toBeInTheDocument()
+  })
 })
