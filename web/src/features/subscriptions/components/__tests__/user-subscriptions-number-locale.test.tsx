@@ -17,12 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { cleanup, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from '@/lib/api'
 
-import type { UserSubscriptionRecord } from '../../types'
+import type { PlanRecord, UserSubscriptionRecord } from '../../types'
 import { UserSubscriptionsDialog } from '../dialogs/user-subscriptions-dialog'
 
 // Persian currency amounts from Intl start with a left-to-right mark.
@@ -42,13 +43,17 @@ const subscription = {
   },
 } as unknown as UserSubscriptionRecord
 
+const plan = {
+  plan: { id: 7, title: 'Pro', price_amount: 9.9 },
+} as unknown as PlanRecord
+
 function renderDialog(): void {
-  vi.spyOn(api, 'get').mockImplementation(async (url: string) => ({
-    data: {
-      success: true,
-      data: url.endsWith('/subscriptions') ? [subscription] : [],
-    },
-  }))
+  vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
+    let data: unknown[] = []
+    if (url.endsWith('/subscriptions')) data = [subscription]
+    if (url.endsWith('/admin/plans')) data = [plan]
+    return { data: { success: true, data } }
+  })
   render(
     <UserSubscriptionsDialog
       open
@@ -60,6 +65,7 @@ function renderDialog(): void {
 
 afterEach(async () => {
   cleanup()
+  vi.restoreAllMocks()
   await i18next.changeLanguage('en')
 })
 
@@ -74,5 +80,37 @@ describe('user subscriptions quota', () => {
     await i18next.changeLanguage('fa')
     renderDialog()
     expect(await screen.findByText(`${LRM}$۲/${LRM}$۱۰`)).toBeInTheDocument()
+  })
+})
+
+describe('plan selector price', () => {
+  it.each([
+    { language: 'English', lng: 'en', label: 'Pro ($9.90)' },
+    { language: 'Persian', lng: 'fa', label: 'Pro ($۹٫۹۰)' },
+  ])(
+    'in $language, labels each plan with its price in the interface digits',
+    async ({ lng, label }) => {
+      const user = userEvent.setup()
+      await i18next.changeLanguage(lng)
+      renderDialog()
+      await user.click(screen.getByRole('combobox'))
+      expect(await screen.findByRole('option', { name: label })).toBeVisible()
+    }
+  )
+
+  it('in Persian, adds the subscription with the numeric plan id', async () => {
+    const user = userEvent.setup()
+    const post = vi
+      .spyOn(api, 'post')
+      .mockResolvedValue({ data: { success: true, data: {} } })
+    await i18next.changeLanguage('fa')
+    renderDialog()
+    await user.click(screen.getByRole('combobox'))
+    await user.click(await screen.findByRole('option', { name: 'Pro ($۹٫۹۰)' }))
+    await user.click(screen.getByRole('button', { name: 'Add subscription' }))
+    expect(post).toHaveBeenCalledWith(
+      '/api/subscription/admin/users/2/subscriptions',
+      { plan_id: 7 }
+    )
   })
 })
