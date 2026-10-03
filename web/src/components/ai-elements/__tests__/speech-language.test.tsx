@@ -63,10 +63,13 @@ afterEach(() => {
 
 describe('voice input language', () => {
   it.each([
-    { language: 'en', lang: 'en' },
-    { language: 'ru', lang: 'ru' },
+    { language: 'en', lang: 'en-US' },
     { language: 'zhCN', lang: 'zh-CN' },
     { language: 'zhTW', lang: 'zh-TW' },
+    { language: 'fr', lang: 'fr-FR' },
+    { language: 'ru', lang: 'ru-RU' },
+    { language: 'ja', lang: 'ja-JP' },
+    { language: 'vi', lang: 'vi-VN' },
   ])(
     'listens for $lang in the $language interface',
     async ({ language, lang }) => {
@@ -76,17 +79,23 @@ describe('voice input language', () => {
     }
   )
 
-  it('leaves the browser default language when the interface language is not a valid tag', async () => {
-    await renderSpeechButton('not a language')
+  it.each([
+    { case: 'is not a valid tag', language: 'not a language' },
+    { case: 'has no likely region', language: 'qaa' },
+  ])(
+    'leaves the browser default language when the interface language $case',
+    async ({ language }) => {
+      await renderSpeechButton(language)
 
-    expect(recognizers.at(-1)?.lang).toBe('')
-  })
+      expect(recognizers.at(-1)?.lang).toBe('')
+    }
+  )
 
   it('listens for the new language after the interface language changes', async () => {
     const i18n = await renderSpeechButton('en')
 
     await act(() => i18n.changeLanguage('ru'))
 
-    expect(recognizers.at(-1)?.lang).toBe('ru')
+    expect(recognizers.at(-1)?.lang).toBe('ru-RU')
   })
 })

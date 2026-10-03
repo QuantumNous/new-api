@@ -1112,7 +1112,7 @@ export const PromptInputSpeechButton = ({
   ...props
 }: PromptInputSpeechButtonProps) => {
   const { i18n } = useTranslation()
-  const lang = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const [isListening, setIsListening] = useState(false)
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null)
   const recognitionRef = useRef<SpeechRecognition | null>(null)
@@ -1128,8 +1128,17 @@ export const PromptInputSpeechButton = ({
 
       speechRecognition.continuous = true
       speechRecognition.interimResults = true
-      if (lang) {
-        speechRecognition.lang = lang
+      // Speech engines expect a language-region tag such as en-US or zh-CN.
+      // Without one, lang stays unset so the browser default applies.
+      if (locale) {
+        try {
+          const { language, region } = new Intl.Locale(locale).maximize()
+          if (region) {
+            speechRecognition.lang = `${language}-${region}`
+          }
+        } catch {
+          // Not a usable locale; keep the browser default.
+        }
       }
 
       speechRecognition.onstart = () => {
@@ -1179,7 +1188,7 @@ export const PromptInputSpeechButton = ({
         recognitionRef.current.stop()
       }
     }
-  }, [textareaRef, onTranscriptionChange, lang])
+  }, [textareaRef, onTranscriptionChange, locale])
 
   const toggleListening = useCallback(() => {
     if (!recognition) {
