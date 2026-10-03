@@ -753,7 +753,10 @@ For commercial licensing, please contact support@quantumnous.com
  * isolates them and takes the text direction from their own content, line
  * by line in a `pre`. `direction` is left alone, so logical insets and
  * alignment (a key cap pinned with `end-*`, for example) keep following the
- * page. An explicit `dir` on the element still wins. */
-[dir='rtl'] :is(code, kbd, samp, pre):not([dir]) {
+ * page. An explicit `dir` on the element or on a left-to-right ancestor
+ * still wins: the JSON editor's highlighted `pre` has to be laid out like
+ * the textarea over it. `:dir(rtl)` would say this too, but for the default
+ * browser targets the build rewrites it into `:lang()`, which ignores `dir`. */
+[dir='rtl'] :is(code, kbd, samp, pre):not([dir], [dir='ltr'] *) {
   unicode-bidi: plaintext;
 }

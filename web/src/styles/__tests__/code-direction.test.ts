@@ -98,6 +98,18 @@ describe('code direction', () => {
     expect(styleOf(root, 'pre').unicodeBidi).not.toBe('plaintext')
   })
 
+  it('leaves a preformatted block inside a left-to-right island alone', () => {
+    // The JSON editor draws its highlighted text in a `pre` under a
+    // transparent textarea. A line starting with a Persian key must be laid
+    // out left to right in both, or the caret no longer matches the text.
+    const root = renderInside(
+      'rtl',
+      '<div dir="ltr"><pre>"چت فارسی": "https://example.com"</pre></div>'
+    )
+
+    expect(styleOf(root, 'pre').unicodeBidi).not.toBe('plaintext')
+  })
+
   it('adds nothing to preformatted blocks on a left-to-right page', () => {
     const root = renderInside('ltr', '<pre>{"model": "gpt-4.1"}</pre>')
 
@@ -108,6 +120,7 @@ describe('code direction', () => {
     const root = renderInside('rtl', '<code dir="rtl">مقدار</code>')
 
     expect(styleOf(root, 'code').direction).toBe('rtl')
+    expect(styleOf(root, 'code').unicodeBidi).not.toBe('plaintext')
   })
 
   it('adds nothing on a left-to-right page', () => {
