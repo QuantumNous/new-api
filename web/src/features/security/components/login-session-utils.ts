@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { TFunction } from 'i18next'
 
 export function sessionDevice(
   userAgent: string,
@@ -44,7 +43,10 @@ export function sessionDevice(
   return system ? `${browser} · ${system}` : browser
 }
 
-export function loginMethodLabel(method: string, t: TFunction): string {
+export function loginMethodLabel(
+  method: string,
+  t: (key: string) => string
+): string {
   const normalized = method.trim().toLowerCase()
   switch (normalized) {
     case 'password':

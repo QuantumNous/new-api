@@ -46,6 +46,7 @@ export default defineConfig({
     include: [
       'src/**/*.{test,spec}.{ts,tsx}',
       'scripts/oxlint/__tests__/*.test.ts',
+      'scripts/__tests__/*.test.ts',
     ],
   },
 })

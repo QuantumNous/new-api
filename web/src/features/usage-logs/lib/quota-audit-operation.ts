@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { formatValueChange } from '@/i18n/languages'
 import { formatLogQuota } from '@/lib/format'
 
 type Translate = (key: string, opts?: Record<string, unknown>) => string
@@ -47,7 +48,8 @@ export function buildQuotaAuditOperation(
   action: string,
   params: Record<string, unknown>,
   success: boolean,
-  t: Translate
+  t: Translate,
+  locale?: string
 ) {
   const unknownMode = action === 'generic' && params.action === 'add_quota'
   const operation = unknownMode
@@ -99,7 +101,7 @@ export function buildQuotaAuditOperation(
       params.from !== '' &&
       params.from === params.to &&
       (typeof params.from === 'string' || typeof params.from === 'number')
-    let change = `${before} → ${after}`
+    let change = formatValueChange(before, after, locale)
     if (unchanged) change = `${t('Quota unchanged')} · ${change}`
     description = `${description} · ${change}`
     fields.push(

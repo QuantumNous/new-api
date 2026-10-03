@@ -21,6 +21,7 @@
     "copyright:check": "node scripts/add-copyright.mjs --check",
     "copyright": "node scripts/add-copyright.mjs",
     "i18n:sync": "node scripts/sync-i18n.mjs",
+    "i18n:check-fa": "node scripts/check-fa.mjs",
     "knip": "knip"
   },
   "dependencies": {
@@ -32,6 +33,7 @@
     "@codemirror/view": "^6.43.4",
     "@fontsource-variable/lora": "^5.2.8",
     "@fontsource-variable/public-sans": "^5.2.7",
+    "@fontsource-variable/vazirmatn": "^5.3.0",
     "@hookform/resolvers": "^5.4.0",
     "@hugeicons/core-free-icons": "^4.2.2",
     "@hugeicons/react": "^1.1.9",
@@ -87,9 +89,11 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@babel/parser": "^7.29.7",
     "@rsbuild/core": "^2.1.4",
     "@rsbuild/plugin-react": "^2.1.0",
     "@rsbuild/plugin-tailwindcss": "^2.0.3",
+    "@tailwindcss/node": "^4.3.3",
     "@tanstack/react-query-devtools": "^5.101.2",
     "@tanstack/react-router-devtools": "^1.167.0",
     "@tanstack/router-plugin": "^1.168.19",

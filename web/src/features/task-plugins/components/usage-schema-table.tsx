@@ -31,6 +31,7 @@ import {
   taskUsageUnitLabel,
 } from '@/features/pricing/lib/task-price-display'
 import type { BillingUsageSchema } from '@/features/pricing/types'
+import { formatValueChange } from '@/i18n/languages'
 import { resolveLocalizedText } from '@/lib/localized-text'
 
 type UsageSchemaTableProps = {
@@ -96,7 +97,9 @@ export function UsageSchemaTable(props: UsageSchemaTableProps) {
                       value,
                       i18n.language
                     )
-                    return label === value ? value : `${value} → ${label}`
+                    return label === value
+                      ? value
+                      : formatValueChange(value, label, i18n.language)
                   })
                   .join(', ') || '—'}
               </TableCell>
