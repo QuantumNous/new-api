@@ -200,17 +200,22 @@ export function formatTimestampRelative(
   if (absSeconds < 60) {
     return formatter.format(diffSeconds, 'second')
   }
-  if (absSeconds < 3600) {
-    return formatter.format(Math.round(diffSeconds / 60), 'minute')
+  // Pick the unit after rounding: 59.5 minutes is "1 hour", not "60 minutes".
+  const minutes = Math.round(diffSeconds / 60)
+  if (Math.abs(minutes) < 60) {
+    return formatter.format(minutes, 'minute')
   }
-  if (absSeconds < 86400) {
-    return formatter.format(Math.round(diffSeconds / 3600), 'hour')
+  const hours = Math.round(diffSeconds / 3600)
+  if (Math.abs(hours) < 24) {
+    return formatter.format(hours, 'hour')
   }
-  if (absSeconds < 2592000) {
-    return formatter.format(Math.round(diffSeconds / 86400), 'day')
+  const days = Math.round(diffSeconds / 86400)
+  if (Math.abs(days) < 30) {
+    return formatter.format(days, 'day')
   }
-  if (absSeconds < 31536000) {
-    return formatter.format(Math.round(diffSeconds / 2592000), 'month')
+  const months = Math.round(diffSeconds / 2592000)
+  if (Math.abs(months) < 12) {
+    return formatter.format(months, 'month')
   }
   return formatter.format(Math.round(diffSeconds / 31536000), 'year')
 }
