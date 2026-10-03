@@ -287,7 +287,7 @@ export function RuleEditorDialog(props: Props) {
             {t('Name')}
           </Label>
           <Input
-            dir='ltr'
+            dir='auto'
             id='affinity-rule-name'
             placeholder='prefer-by-conversation-id'
             {...form.register('name', { required: true })}
