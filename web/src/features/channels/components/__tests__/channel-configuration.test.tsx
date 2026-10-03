@@ -33,9 +33,11 @@ import {
   within,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
 import { useState } from 'react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
+import ru from '@/i18n/locales/ru.json'
 import { api } from '@/lib/api'
 import { createAppQueryClient } from '@/lib/query-client'
 import { ROLE } from '@/lib/roles'
@@ -2812,3 +2814,36 @@ test('a New API channel binds upstream task plugins and publishes their models',
   expect(setting).not.toHaveProperty('task_plugin_key')
   expect(payload.models?.split(',').sort()).toEqual(['gpt-5', 'video-b-1'])
 })
+
+test.each([
+  { language: 'en', tab: 'Other Settings' },
+  { language: 'ru', tab: 'Другие настройки' },
+])(
+  'the last upstream model check time reads YYYY-MM-DD HH:mm:ss in the $language interface',
+  async ({ language, tab }) => {
+    editingChannel = {
+      ...editingChannel,
+      settings: JSON.stringify({
+        // Local time keeps the expected text independent of the time zone.
+        upstream_model_update_last_check_time:
+          new Date(2026, 9, 3, 9, 30).getTime() / 1000,
+      }),
+    }
+    i18next.addResourceBundle('ru', 'translation', ru.translation, true, true)
+    await act(() => i18next.changeLanguage(language))
+    try {
+      const user = userEvent.setup()
+      render(<ConfigurationHarness currentRow={editingChannel} />)
+      await user.click(
+        await screen.findByRole('tab', { name: new RegExp(tab) })
+      )
+
+      expect(
+        screen.getByText('2026-10-03 09:30:00', { exact: false })
+      ).toBeInTheDocument()
+    } finally {
+      await act(() => i18next.changeLanguage('en'))
+      i18next.removeResourceBundle('ru', 'translation')
+    }
+  }
+)

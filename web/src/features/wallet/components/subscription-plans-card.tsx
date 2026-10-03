@@ -56,7 +56,7 @@ import type {
   PlanRecord,
   UserSubscriptionRecord,
 } from '@/features/subscriptions/types'
-import { formatQuota } from '@/lib/format'
+import { formatQuota, formatTimestampToDate } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
@@ -470,14 +470,12 @@ export function SubscriptionPlansCard({
                       </div>
                       <div className='text-muted-foreground mt-1.5'>
                         {endTimeLabel}{' '}
-                        {new Date(
-                          (subscription?.end_time || 0) * 1000
-                        ).toLocaleString()}
+                        {formatTimestampToDate(subscription?.end_time)}
                       </div>
                       {isActive && nextResetTime > 0 && (
                         <div className='text-muted-foreground mt-1'>
                           {t('Next reset')}:{' '}
-                          {new Date(nextResetTime * 1000).toLocaleString()}
+                          {formatTimestampToDate(nextResetTime)}
                         </div>
                       )}
                       <div className='text-muted-foreground mt-1'>
