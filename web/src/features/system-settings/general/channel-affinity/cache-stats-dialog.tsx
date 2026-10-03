@@ -21,16 +21,24 @@ import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
 import { toIntlLocale } from '@/i18n/languages'
-import { formatTimestampToDate } from '@/lib/format'
+import {
+  appendPercentSign,
+  formatFixed,
+  formatTimestampToDate,
+} from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 
 import { getAffinityUsageCache } from './api'
 
-function formatRate(hit: number, total: number): string {
+function formatRate(
+  hit: number,
+  total: number,
+  locale: string | undefined
+): string {
   if (!total || total <= 0) return '-'
   const r = (hit / total) * 100
   if (!Number.isFinite(r)) return '-'
-  return `${r.toFixed(2)}%`
+  return appendPercentSign(formatFixed(r, 2, locale), locale)
 }
 
 interface Props {
@@ -109,12 +117,15 @@ export function CacheStatsDialog(props: Props) {
       })
     }
     if (Number(s.window_seconds || 0) > 0) {
-      data.push({ key: t('TTL (seconds)'), value: s.window_seconds as number })
+      data.push({
+        key: t('TTL (seconds)'),
+        value: formatFixed(Number(s.window_seconds), 0, locale),
+      })
     }
     if (total > 0) {
       data.push({
         key: t('Hit Rate'),
-        value: `${hit}/${total} (${formatRate(hit, total)})`,
+        value: `${formatFixed(hit, 0, locale)}/${formatFixed(total, 0, locale)} (${formatRate(hit, total, locale)})`,
       })
     }
     if (Number(s.last_seen_at || 0) > 0) {
@@ -134,15 +145,29 @@ export function CacheStatsDialog(props: Props) {
     const totalTokens = Number(s.total_tokens || 0)
 
     if (promptTokens > 0) {
-      data.push({ key: 'Prompt tokens', value: promptTokens })
+      data.push({
+        key: 'Prompt tokens',
+        value: formatFixed(promptTokens, 0, locale),
+      })
     }
     if (cachedTokens > 0) {
-      data.push({ key: 'Cached tokens', value: cachedTokens })
+      data.push({
+        key: 'Cached tokens',
+        value: formatFixed(cachedTokens, 0, locale),
+      })
     }
     if (completionTokens > 0) {
-      data.push({ key: 'Completion tokens', value: completionTokens })
+      data.push({
+        key: 'Completion tokens',
+        value: formatFixed(completionTokens, 0, locale),
+      })
     }
-    if (totalTokens > 0) data.push({ key: 'Total tokens', value: totalTokens })
+    if (totalTokens > 0) {
+      data.push({
+        key: 'Total tokens',
+        value: formatFixed(totalTokens, 0, locale),
+      })
+    }
 
     return data
   }, [stats, props.target, t, locale])

@@ -61,7 +61,11 @@ import { Switch } from '@/components/ui/switch'
 import { toIntlLocale } from '@/i18n/languages'
 import { api } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
-import { formatDisplayDate, formatTimestampToDate } from '@/lib/format'
+import {
+  formatDisplayDate,
+  formatFixed,
+  formatTimestampToDate,
+} from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import {
   requireServerSuccess,
@@ -464,7 +468,7 @@ export function LogSettingsSection({
                     <span className='text-muted-foreground'>
                       {t('Log File Count')}:
                     </span>{' '}
-                    {serverLogInfo.file_count}
+                    {formatFixed(serverLogInfo.file_count, 0, locale)}
                   </div>
                   <div>
                     <span className='text-muted-foreground'>
