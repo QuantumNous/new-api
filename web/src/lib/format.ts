@@ -191,33 +191,38 @@ export function formatTimestampRelative(
   }
 
   const ms = unit === 'seconds' ? timestamp * 1000 : timestamp
-  const diffSeconds = Math.round((ms - Date.now()) / 1000)
-  const absSeconds = Math.abs(diffSeconds)
+  const diffMs = ms - Date.now()
+  // Round the magnitude, then apply the sign: Math.round(-59.5) is -59, so
+  // rounding the signed value would read 59.5 minutes ago as "59 minutes ago"
+  // but 59.5 minutes ahead as "in 1 hour". A zero magnitude keeps its sign,
+  // so a moment just past still reads "0 seconds ago".
+  const sign = diffMs < 0 ? -1 : 1
+  const absSeconds = Math.round(Math.abs(diffMs) / 1000)
   const formatter = new Intl.RelativeTimeFormat(locales, {
     numeric: 'always',
   })
 
   if (absSeconds < 60) {
-    return formatter.format(diffSeconds, 'second')
+    return formatter.format(sign * absSeconds, 'second')
   }
   // Pick the unit after rounding: 59.5 minutes is "1 hour", not "60 minutes".
-  const minutes = Math.round(diffSeconds / 60)
-  if (Math.abs(minutes) < 60) {
-    return formatter.format(minutes, 'minute')
+  const minutes = Math.round(absSeconds / 60)
+  if (minutes < 60) {
+    return formatter.format(sign * minutes, 'minute')
   }
-  const hours = Math.round(diffSeconds / 3600)
-  if (Math.abs(hours) < 24) {
-    return formatter.format(hours, 'hour')
+  const hours = Math.round(absSeconds / 3600)
+  if (hours < 24) {
+    return formatter.format(sign * hours, 'hour')
   }
-  const days = Math.round(diffSeconds / 86400)
-  if (Math.abs(days) < 30) {
-    return formatter.format(days, 'day')
+  const days = Math.round(absSeconds / 86400)
+  if (days < 30) {
+    return formatter.format(sign * days, 'day')
   }
-  const months = Math.round(diffSeconds / 2592000)
-  if (Math.abs(months) < 12) {
-    return formatter.format(months, 'month')
+  const months = Math.round(absSeconds / 2592000)
+  if (months < 12) {
+    return formatter.format(sign * months, 'month')
   }
-  return formatter.format(Math.round(diffSeconds / 31536000), 'year')
+  return formatter.format(sign * Math.round(absSeconds / 31536000), 'year')
 }
 
 /** Format a Date object to YYYY-MM-DD HH:mm:ss */
