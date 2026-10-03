@@ -27,7 +27,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { toIntlLocale } from '@/i18n/languages'
 import dayjs from '@/lib/dayjs'
+import { formatDisplayDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 interface CompactDateTimeRangePickerProps {
@@ -53,7 +55,8 @@ export function CompactDateTimeRangePicker({
   onChange,
   className,
 }: CompactDateTimeRangePickerProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const [open, setOpen] = useState(false)
   const [draftStart, setDraftStart] = useState(toInputValue(start))
   const [draftEnd, setDraftEnd] = useState(toInputValue(end))
@@ -64,18 +67,23 @@ export function CompactDateTimeRangePicker({
     // precision, so seconds are always 00 (manual pick) or 59 (preset
     // end-of-day). Hide them in the trigger label to keep the button
     // width compact while still showing the meaningful timestamp.
-    const startText = start ? dayjs(start).format('YYYY-MM-DD HH:mm') : '-'
-    const endText = end ? dayjs(end).format('YYYY-MM-DD HH:mm') : '-'
+    // Solar Hijri in Persian; the Date values and the inputs stay Gregorian.
+    const startText = start
+      ? formatDisplayDate(start, 'YYYY-MM-DD HH:mm', locale)
+      : '-'
+    const endText = end
+      ? formatDisplayDate(end, 'YYYY-MM-DD HH:mm', locale)
+      : '-'
     return `${startText} ~ ${endText}`
-  }, [end, start, t])
+  }, [end, start, t, locale])
 
   const mobileLabel = useMemo(() => {
     if (!start || !end) return label
     if (dayjs(start).isSame(end, 'day')) {
-      return `${dayjs(start).format('MM/DD HH:mm')}–${dayjs(end).format('HH:mm')}`
+      return `${formatDisplayDate(start, 'MM/DD HH:mm', locale)}–${formatDisplayDate(end, 'HH:mm', locale)}`
     }
     return label
-  }, [start, end, label])
+  }, [start, end, label, locale])
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {

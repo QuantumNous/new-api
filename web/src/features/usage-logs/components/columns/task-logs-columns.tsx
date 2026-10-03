@@ -25,8 +25,9 @@ import { useTranslation } from 'react-i18next'
 
 import { StatusBadge } from '@/components/status-badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { toIntlLocale } from '@/i18n/languages'
 import { getUserAvatarFallback, getUserAvatarStyle } from '@/lib/avatar'
-import { formatTimestampToDate } from '@/lib/format'
+import { formatGregorianTitle, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
@@ -86,7 +87,8 @@ export function useTaskLogsColumns(
   isAdmin: boolean,
   isRoot: boolean
 ): ColumnDef<TaskLog>[] {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   return useMemo(() => {
     const columns: ColumnDef<TaskLog>[] = [
       {
@@ -98,12 +100,18 @@ export function useTaskLogsColumns(
 
           return (
             <div className='flex min-w-0 flex-col gap-0.5'>
-              <span className='truncate font-mono text-xs tabular-nums'>
-                {formatTimestampToDate(submitTime, 'seconds')}
+              <span
+                className='truncate font-mono text-xs tabular-nums'
+                title={formatGregorianTitle(submitTime, locale)}
+              >
+                {formatTimestampToDate(submitTime, 'seconds', locale)}
               </span>
               {log.finish_time ? (
-                <span className='text-muted-foreground/60 truncate font-mono text-[11px] tabular-nums'>
-                  {formatTimestampToDate(log.finish_time, 'seconds')}
+                <span
+                  className='text-muted-foreground/60 truncate font-mono text-[11px] tabular-nums'
+                  title={formatGregorianTitle(log.finish_time, locale)}
+                >
+                  {formatTimestampToDate(log.finish_time, 'seconds', locale)}
                 </span>
               ) : (
                 <span className='text-muted-foreground/50 text-[11px]'>-</span>
@@ -276,5 +284,5 @@ export function useTaskLogsColumns(
     )
 
     return columns
-  }, [t, isAdmin, isRoot])
+  }, [t, locale, isAdmin, isRoot])
 }

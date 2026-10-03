@@ -23,6 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { Label } from '@/components/ui/label'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
@@ -69,8 +70,8 @@ function DetailSection(props: {
   )
 }
 
-function formatTaskTimestamp(value?: number): string {
-  return value ? formatTimestampToDate(value, 'seconds') : '-'
+function formatTaskTimestamp(value?: number, locale?: string): string {
+  return value ? formatTimestampToDate(value, 'seconds', locale) : '-'
 }
 
 interface TaskDetailsDialogProps {
@@ -82,7 +83,8 @@ interface TaskDetailsDialogProps {
 }
 
 export function TaskDetailsDialog(props: TaskDetailsDialogProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const access = resolveTaskDetailAccess(props.log, props.isAdmin, props.isRoot)
   const plugin = access.plugin
   const runtime = access.runtime
@@ -128,17 +130,17 @@ export function TaskDetailsDialog(props: TaskDetailsDialogProps) {
           />
           <DetailRow
             label={t('Submit Time')}
-            value={formatTaskTimestamp(props.log.submit_time)}
+            value={formatTaskTimestamp(props.log.submit_time, locale)}
             mono
           />
           <DetailRow
             label={t('Start Time')}
-            value={formatTaskTimestamp(props.log.start_time)}
+            value={formatTaskTimestamp(props.log.start_time, locale)}
             mono
           />
           <DetailRow
             label={t('Finish Time')}
-            value={formatTaskTimestamp(props.log.finish_time)}
+            value={formatTaskTimestamp(props.log.finish_time, locale)}
             mono
           />
           {properties?.origin_model_name ? (
@@ -183,7 +185,7 @@ export function TaskDetailsDialog(props: TaskDetailsDialogProps) {
             <DetailRow label={t('Group')} value={props.log.group || '-'} />
             <DetailRow
               label={t('Quota')}
-              value={formatLogQuota(props.log.quota)}
+              value={formatLogQuota(props.log.quota, locale)}
               mono
             />
             {props.log.admin_info?.request_id ? (

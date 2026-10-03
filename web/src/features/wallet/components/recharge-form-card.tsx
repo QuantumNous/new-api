@@ -34,7 +34,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { formatNumber } from '@/lib/format'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatFixed, formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import {
@@ -112,7 +113,8 @@ export function RechargeFormCard({
   onWaffoMethodSelect,
   enableWaffoPancakeTopup,
 }: RechargeFormCardProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
 
   useEffect(() => {
@@ -257,7 +259,7 @@ export function RechargeFormCard({
                         >
                           <div className='flex w-full items-center justify-between'>
                             <div className='text-base font-semibold sm:text-lg'>
-                              {formatNumber(displayValue)}
+                              {formatNumber(displayValue, locale)}
                             </div>
                             {hasDiscount && (
                               <div className='text-xs font-medium text-green-600'>
@@ -271,8 +273,8 @@ export function RechargeFormCard({
                                 t={t}
                                 i18nKey='Pay {{amount}} <savings>• Save {{saved}}</savings>'
                                 values={{
-                                  amount: formatCurrency(actualPrice),
-                                  saved: formatCurrency(savedAmount),
+                                  amount: formatCurrency(actualPrice, locale),
+                                  saved: formatCurrency(savedAmount, locale),
                                 }}
                                 components={{
                                   savings: <span className='text-green-600' />,
@@ -280,7 +282,7 @@ export function RechargeFormCard({
                               />
                             ) : (
                               t('Pay {{amount}}', {
-                                amount: formatCurrency(actualPrice),
+                                amount: formatCurrency(actualPrice, locale),
                               })
                             )}
                           </div>
@@ -305,7 +307,9 @@ export function RechargeFormCard({
                     value={localAmount}
                     onChange={(e) => handleAmountChange(e.target.value)}
                     min={minTopup}
-                    placeholder={t('Minimum {{amount}}', { amount: minTopup })}
+                    placeholder={t('Minimum {{amount}}', {
+                      amount: formatFixed(minTopup, 0, locale),
+                    })}
                     className='h-9 text-base sm:h-10 sm:text-lg'
                   />
                   <div className='bg-muted/30 flex min-h-9 items-center justify-between gap-2 rounded-md border px-3 lg:min-w-52'>
@@ -316,7 +320,7 @@ export function RechargeFormCard({
                       <Skeleton className='h-5 w-16' />
                     ) : (
                       <span className='text-sm font-semibold'>
-                        {formatCurrency(paymentAmount)}
+                        {formatCurrency(paymentAmount, locale)}
                       </span>
                     )}
                   </div>
@@ -337,11 +341,11 @@ export function RechargeFormCard({
                       const disabled = minTopup > topupAmount
                       const disabledReason = disabled
                         ? t('Minimum topup amount: {{amount}}', {
-                            amount: minTopup,
+                            amount: formatFixed(minTopup, 0, locale),
                           })
                         : undefined
                       const disabledLabel = disabled
-                        ? `${t('Minimum:')} ${minTopup}`
+                        ? `${t('Minimum:')} ${formatFixed(minTopup, 0, locale)}`
                         : undefined
 
                       const button = (
@@ -420,11 +424,11 @@ export function RechargeFormCard({
                         const belowMin = waffoMin > topupAmount
                         const disabledReason = belowMin
                           ? t('Minimum topup amount: {{amount}}', {
-                              amount: waffoMin,
+                              amount: formatFixed(waffoMin, 0, locale),
                             })
                           : undefined
                         const disabledLabel = belowMin
-                          ? `${t('Minimum:')} ${waffoMin}`
+                          ? `${t('Minimum:')} ${formatFixed(waffoMin, 0, locale)}`
                           : undefined
 
                         let methodIcon = getPaymentIcon('waffo')

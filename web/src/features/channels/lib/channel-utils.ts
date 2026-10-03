@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { formatCurrencyFromUSD, formatQuotaWithCurrency } from '@/lib/currency'
-import { formatTimestampToDate } from '@/lib/format'
+import { formatFixed, formatNumber, formatTimestampToDate } from '@/lib/format'
 
 import {
   CHANNEL_STATUS_CONFIG,
@@ -366,17 +366,25 @@ type TFunction = (key: string, options?: { value?: number | string }) => string
 
 /**
  * Format response time in milliseconds to human-readable.
- * Pass `t` from useTranslation() for i18n (e.g. "Not tested", "{{value}}ms", "{{value}}s").
+ * Pass `t` from useTranslation() for i18n (e.g. "Not tested", "{{value}}ms", "{{value}}s"),
+ * and the interface locale (toIntlLocale) so the number uses its digits and
+ * decimal separator.
  */
-export function formatResponseTime(timeMs: number, t?: TFunction): string {
+export function formatResponseTime(
+  timeMs: number,
+  t?: TFunction,
+  locale?: Intl.LocalesArgument
+): string {
   if (timeMs === 0) {
     return t ? t('Not tested') : 'Not tested'
   }
   if (timeMs < 1000) {
-    return t ? t('{{value}}ms', { value: timeMs }) : `${timeMs}ms`
+    return t
+      ? t('{{value}}ms', { value: formatNumber(timeMs, locale) })
+      : `${timeMs}ms`
   }
   return t
-    ? t('{{value}}s', { value: (timeMs / 1000).toFixed(2) })
+    ? t('{{value}}s', { value: formatFixed(timeMs / 1000, 2, locale) })
     : `${(timeMs / 1000).toFixed(2)}s`
 }
 
@@ -470,14 +478,15 @@ export function formatRelativeTime(
 
 /**
  * Format Unix timestamp to date string
+ * (Solar Hijri for a Persian `locale` from `toIntlLocale`)
  */
-export function formatTimestamp(timestamp: number): string {
+export function formatTimestamp(timestamp: number, locale?: string): string {
   if (!timestamp || timestamp === 0) {
     return 'N/A'
   }
 
   try {
-    return formatTimestampToDate(timestamp)
+    return formatTimestampToDate(timestamp, 'seconds', locale)
   } catch {
     return 'Invalid date'
   }

@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import type { TFunction } from 'i18next'
 import { useTranslation } from 'react-i18next'
 
+import { toIntlLocale } from '@/i18n/languages'
+import { formatFixed, formatNumber } from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import type { MessageAlignment } from '../../lib'
@@ -43,23 +45,27 @@ function formatMessageTime(timestamp?: number): string | undefined {
 
 function formatDuration(
   durationMs: number | undefined,
-  t: TFunction
+  t: TFunction,
+  locale: string | undefined
 ): string | undefined {
   if (typeof durationMs !== 'number' || !Number.isFinite(durationMs)) {
     return undefined
   }
 
   if (durationMs < 1000) {
-    return t('{{value}}ms', { value: Math.max(1, Math.round(durationMs)) })
+    return t('{{value}}ms', {
+      value: formatNumber(Math.max(1, Math.round(durationMs)), locale),
+    })
   }
 
-  return t('{{value}}s', { value: (durationMs / 1000).toFixed(2) })
+  return t('{{value}}s', { value: formatFixed(durationMs / 1000, 2, locale) })
 }
 
 export function MessageMetadata(props: MessageMetadataProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const messageTime = formatMessageTime(props.message.createdAt)
-  const duration = formatDuration(props.message.durationMs, t)
+  const duration = formatDuration(props.message.durationMs, t, locale)
 
   if (!messageTime && !duration) {
     return null

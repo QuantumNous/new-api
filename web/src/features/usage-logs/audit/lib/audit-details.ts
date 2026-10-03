@@ -20,7 +20,7 @@ import type { TFunction } from 'i18next'
 
 import { loginMethodLabel } from '@/features/security/components/login-session-utils'
 import type { PermissionResourceDef } from '@/lib/admin-permissions'
-import dayjs from '@/lib/dayjs'
+import { formatFixed, formatTimestampToDate } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
 
 import { renderAuditContent } from '../../lib/format'
@@ -72,6 +72,8 @@ export type AuditDetailField = {
 export type AuditDetailOptions = {
   // Labels for stored access token scopes; omitted until they have loaded.
   scopeResources?: PermissionResourceDef[]
+  // Interface locale (see `toIntlLocale`) for numbers, dates and labels.
+  locale?: string
 }
 
 export function isAuditDetailObject(
@@ -389,6 +391,7 @@ export function buildAuditDetails(
   t: TFunction,
   options: AuditDetailOptions = {}
 ) {
+  const locale = options.locale
   const metadata = isAuditDetailObject(entry.other) ? entry.other : {}
   const metadataUnavailable =
     entry.other != null && !isAuditDetailObject(entry.other)
@@ -548,7 +551,7 @@ export function buildAuditDetails(
     fields.push({
       label: t('Expiration'),
       value: params.expires_at
-        ? dayjs.unix(params.expires_at).format('YYYY-MM-DD HH:mm:ss')
+        ? formatTimestampToDate(params.expires_at, 'seconds', locale)
         : t('Never expires'),
     })
     delete params.expires_at
@@ -573,7 +576,7 @@ export function buildAuditDetails(
   ) {
     fields.push({
       label: t('Changed / Total'),
-      value: `${params.count} / ${params.total}`,
+      value: `${formatFixed(params.count, 0, locale)} / ${formatFixed(params.total, 0, locale)}`,
     })
     delete params.count
     delete params.total

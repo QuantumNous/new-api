@@ -29,7 +29,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
 } from '@/components/ui/dropdown-menu'
-import { formatTimestampToDate } from '@/lib/format'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatGregorianTitle, formatTimestampToDate } from '@/lib/format'
 
 import { getDeploymentStatusConfig } from '../constants'
 import {
@@ -46,7 +47,8 @@ export function useDeploymentsColumns(opts: {
   onRename: (id: string | number, currentName: string) => void
   onDelete: (deployment: Deployment) => void
 }): ColumnDef<Deployment>[] {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const STATUS = getDeploymentStatusConfig(t)
 
   return [
@@ -235,8 +237,11 @@ export function useDeploymentsColumns(opts: {
           ts = Number(row.original.created_at)
         }
         return (
-          <div className='min-w-[140px] font-mono text-sm'>
-            {formatTimestampToDate(ts)}
+          <div
+            className='min-w-[140px] font-mono text-sm'
+            title={formatGregorianTitle(ts, locale)}
+          >
+            {formatTimestampToDate(ts, 'seconds', locale)}
           </div>
         )
       },

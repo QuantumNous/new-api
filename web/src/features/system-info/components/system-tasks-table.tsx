@@ -33,7 +33,12 @@ import type {
   SystemTaskStatus,
 } from '@/features/system-settings/types'
 import { toIntlLocale } from '@/i18n/languages'
-import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
+import {
+  appendPercentSign,
+  formatNumber,
+  formatTimestampRelative,
+  formatTimestampToDate,
+} from '@/lib/format'
 import { cn } from '@/lib/utils'
 
 import { SYSTEM_TASK_TYPE_LABEL } from '../constants'
@@ -85,6 +90,7 @@ type SystemTasksTableProps = {
 
 export function SystemTasksTable(props: SystemTasksTableProps) {
   const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
 
   return (
     <StaticDataTable tableClassName='min-w-[900px]'>
@@ -145,7 +151,9 @@ export function SystemTasksTable(props: SystemTasksTableProps) {
                     className={cn('w-24', PROGRESS_BAR_CLASS_NAME[task.status])}
                   />
                   <span className='text-muted-foreground w-10 text-right text-xs tabular-nums'>
-                    {progress === null ? '-' : `${progress}%`}
+                    {progress === null
+                      ? '-'
+                      : appendPercentSign(formatNumber(progress, locale), locale)}
                   </span>
                 </div>
               </TableCell>
@@ -154,13 +162,13 @@ export function SystemTasksTable(props: SystemTasksTableProps) {
               </TableCell>
               <TableCell
                 className='text-muted-foreground py-3 align-middle text-xs whitespace-nowrap'
-                title={formatTimestampToDate(task.updated_at)}
-              >
-                {formatTimestampRelative(
+                title={formatTimestampToDate(
                   task.updated_at,
                   'seconds',
-                  toIntlLocale(i18n.language)
+                  locale
                 )}
+              >
+                {formatTimestampRelative(task.updated_at, 'seconds', locale)}
               </TableCell>
               <TableCell
                 className='text-destructive max-w-[220px] truncate py-3 pr-4 align-middle text-xs'

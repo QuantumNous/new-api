@@ -39,7 +39,8 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { StatusBadge } from '@/components/status-badge'
-import { formatTimestampToDate } from '@/lib/format'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatGregorianTitle, formatTimestampToDate } from '@/lib/format'
 
 import { MJ_TASK_TYPES } from '../../constants'
 import {
@@ -84,7 +85,8 @@ function getDrawingTypeIcon(action: string): LucideIcon {
 export function useDrawingLogsColumns(
   isAdmin: boolean
 ): ColumnDef<MidjourneyLog>[] {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   return useMemo(() => {
     const columns: ColumnDef<MidjourneyLog>[] = [
       {
@@ -96,8 +98,11 @@ export function useDrawingLogsColumns(
 
           return (
             <div className='flex min-w-0 flex-col gap-0.5'>
-              <span className='truncate font-mono text-xs tabular-nums'>
-                {formatTimestampToDate(submitTime, 'milliseconds')}
+              <span
+                className='truncate font-mono text-xs tabular-nums'
+                title={formatGregorianTitle(submitTime, locale, 'milliseconds')}
+              >
+                {formatTimestampToDate(submitTime, 'milliseconds', locale)}
               </span>
               <StatusBadge
                 label={t(mjStatusMapper.getLabel(log.status))}
@@ -268,5 +273,5 @@ export function useDrawingLogsColumns(
     )
 
     return columns
-  }, [t, isAdmin])
+  }, [t, locale, isAdmin])
 }

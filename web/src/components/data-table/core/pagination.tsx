@@ -34,6 +34,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatFixed, formatNumber } from '@/lib/format'
 import { cn, getPageNumbers } from '@/lib/utils'
 
 type DataTablePaginationProps<TData> = {
@@ -42,16 +44,13 @@ type DataTablePaginationProps<TData> = {
 }
 
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50, 100] as const
-const PAGE_SIZE_SELECT_ITEMS = PAGE_SIZE_OPTIONS.map((pageSize) => ({
-  value: `${pageSize}`,
-  label: pageSize,
-}))
 
 export function DataTablePagination<TData>({
   table,
   compact = false,
 }: DataTablePaginationProps<TData>) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const pagination = table.getState().pagination
   const currentPage = pagination.pageIndex + 1
   const pageSize = pagination.pageSize
@@ -61,6 +60,11 @@ export function DataTablePagination<TData>({
   const pageItems = pageNumbers.map((page, index) => ({
     page,
     key: page === '...' ? `gap-after-${pageNumbers[index - 1]}` : String(page),
+    label: page === '...' ? page : formatFixed(page as number, 0, locale),
+  }))
+  const pageSizeSelectItems = PAGE_SIZE_OPTIONS.map((pageSize) => ({
+    value: `${pageSize}`,
+    label: formatFixed(pageSize, 0, locale),
   }))
 
   if (compact) {
@@ -70,7 +74,7 @@ export function DataTablePagination<TData>({
         className='flex w-full min-w-0 flex-wrap items-center justify-between gap-2 text-sm'
       >
         <span className='text-muted-foreground min-w-0 [overflow-wrap:anywhere]'>
-          {t('Total:')} {totalRows.toLocaleString()}
+          {t('Total:')} {formatNumber(totalRows, locale)}
         </span>
         <div className='flex items-center gap-2'>
           <Button
@@ -84,7 +88,8 @@ export function DataTablePagination<TData>({
             <ChevronLeftIcon />
           </Button>
           <span className='tabular-nums' aria-live='polite'>
-            {currentPage} / {Math.max(1, totalPages)}
+            {formatFixed(currentPage, 0, locale)} /{' '}
+            {formatFixed(Math.max(1, totalPages), 0, locale)}
           </span>
           <Button
             variant='outline'
@@ -112,7 +117,7 @@ export function DataTablePagination<TData>({
         <div className='flex shrink-0 items-baseline gap-1.5 text-xs font-medium whitespace-nowrap sm:text-sm'>
           <span className='text-muted-foreground/80'>{t('Total:')}</span>
           <span className='text-foreground tabular-nums'>
-            {totalRows.toLocaleString()}
+            {formatNumber(totalRows, locale)}
           </span>
         </div>
 
@@ -121,20 +126,20 @@ export function DataTablePagination<TData>({
             {t('Rows per page')}
           </p>
           <Select
-            items={PAGE_SIZE_SELECT_ITEMS}
+            items={pageSizeSelectItems}
             value={`${pageSize}`}
             onValueChange={(value) => {
               table.setPageSize(Number(value))
             }}
           >
             <SelectTrigger className='text-foreground h-8 w-[64px] font-medium tabular-nums sm:w-[70px]'>
-              <SelectValue placeholder={pageSize} />
+              <SelectValue placeholder={formatFixed(pageSize, 0, locale)} />
             </SelectTrigger>
             <SelectContent side='top' alignItemWithTrigger={false}>
               <SelectGroup>
                 {PAGE_SIZE_OPTIONS.map((pageSize) => (
                   <SelectItem key={pageSize} value={`${pageSize}`}>
-                    {pageSize}
+                    {formatFixed(pageSize, 0, locale)}
                   </SelectItem>
                 ))}
               </SelectGroup>
@@ -162,7 +167,7 @@ export function DataTablePagination<TData>({
             <ChevronLeftIcon className='h-4 w-4' />
           </Button>
 
-          {pageItems.map(({ page: pageNumber, key }) => (
+          {pageItems.map(({ page: pageNumber, key, label }) => (
             <div key={key} className='flex items-center'>
               {pageNumber === '...' ? (
                 <span className='text-muted-foreground/60 px-0.5 text-sm @lg/pagination:px-1'>
@@ -180,9 +185,9 @@ export function DataTablePagination<TData>({
                   onClick={() => table.setPageIndex((pageNumber as number) - 1)}
                 >
                   <span className='sr-only'>
-                    {t('Go to page {{page}}', { page: pageNumber })}
+                    {t('Go to page {{page}}', { page: label })}
                   </span>
-                  {pageNumber}
+                  {label}
                 </Button>
               )}
             </div>

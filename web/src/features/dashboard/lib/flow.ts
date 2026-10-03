@@ -32,6 +32,7 @@ import type {
   FlowSummary,
   ProcessedFlowData,
 } from '@/features/dashboard/types'
+import { appendPercentSign, formatFixed } from '@/lib/format'
 
 import { getDashboardChartColors } from './charts'
 
@@ -828,16 +829,15 @@ function buildFlowGraph(
   }
 }
 
-function formatNumber(value: number): string {
-  return Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(
-    value
-  )
+function formatNumber(value: number, locale?: Intl.LocalesArgument): string {
+  return Intl.NumberFormat(locale, { maximumFractionDigits: 0 }).format(value)
 }
 
 function buildUserFilterOptions(
   rows: FlowQuotaDataItem[],
   metric: FlowMetric = 'quota',
-  palette?: readonly string[]
+  palette?: readonly string[],
+  locale?: Intl.LocalesArgument
 ): FlowFilterOptions['users'] {
   const users = new Map<
     string,
@@ -870,7 +870,7 @@ function buildUserFilterOptions(
     .map(([value, user]) => ({
       value,
       label: user.label,
-      valueLabel: formatNumber(user.value),
+      valueLabel: formatNumber(user.value, locale),
       valueRaw: user.value,
       color: user.color,
     }))
@@ -884,7 +884,8 @@ function buildNodeFilterOptions(
   visibleStages: FlowNodeKind[] | undefined,
   palette: readonly string[] | undefined,
   ctx: FlowPathContext,
-  selectedNodes?: readonly FlowNodeFilter[]
+  selectedNodes?: readonly FlowNodeFilter[],
+  locale?: Intl.LocalesArgument
 ): FlowFilterOptions['nodes'] {
   const stages = resolveVisibleStages(role, visibleStages)
   const stageOrder = new Map(stages.map((stage, index) => [stage, index]))
@@ -931,7 +932,7 @@ function buildNodeFilterOptions(
         kind: rank.node.kind,
         value: rank.node.id,
         label: rank.node.label,
-        valueLabel: formatNumber(rank.value),
+        valueLabel: formatNumber(rank.value, locale),
         valueRaw: rank.value,
         color: colors.get(rank.node.id) ?? colorAt(0, palette),
       })
@@ -953,10 +954,11 @@ export function buildFlowFilterOptions(
   palette?: readonly string[],
   role: FlowRole = DEFAULT_FLOW_ROLE,
   visibleStages?: FlowNodeKind[],
-  selectedNodes?: readonly FlowNodeFilter[]
+  selectedNodes?: readonly FlowNodeFilter[],
+  locale?: Intl.LocalesArgument
 ): FlowFilterOptions {
   return {
-    users: buildUserFilterOptions(rows, metric, palette),
+    users: buildUserFilterOptions(rows, metric, palette, locale),
     nodes: buildNodeFilterOptions(
       rows,
       metric,
@@ -964,7 +966,8 @@ export function buildFlowFilterOptions(
       visibleStages,
       palette,
       EMPTY_FLOW_PATH_CONTEXT,
-      selectedNodes
+      selectedNodes,
+      locale
     ),
   }
 }
@@ -1007,7 +1010,7 @@ export function buildDashboardFlowData(
       }
     ),
     filterOptions: {
-      users: buildUserFilterOptions(rows, metric, palette),
+      users: buildUserFilterOptions(rows, metric, palette, options.locale),
       nodes: buildNodeFilterOptions(
         userFilteredRows,
         metric,
@@ -1015,7 +1018,8 @@ export function buildDashboardFlowData(
         options.visibleStages,
         palette,
         ctx,
-        options.selectedNodes
+        options.selectedNodes,
+        options.locale
       ),
     },
   }
@@ -1081,12 +1085,13 @@ export function flowNodeFilterFromSankeyDatum(
 
 function tooltipMetricLines(
   valueFormatter: (value: number) => string,
-  labels: FlowSankeyLabels
+  labels: FlowSankeyLabels,
+  locale?: Intl.LocalesArgument
 ) {
   const metricValue = (datum: Record<string, unknown>, key: string) =>
     numberValue(sankeyDatumValue(datum, key))
   const formattedNumber = (datum: Record<string, unknown>, key: string) =>
-    formatNumber(metricValue(datum, key))
+    formatNumber(metricValue(datum, key), locale)
   const hasMetric = (datum: Record<string, unknown>, key: string) =>
     metricValue(datum, key) > 0
 
@@ -1109,7 +1114,10 @@ function tooltipMetricLines(
     {
       key: labels.share,
       value: (datum: Record<string, unknown>) =>
-        `${(metricValue(datum, 'share') * 100).toFixed(1)}%`,
+        appendPercentSign(
+          formatFixed(metricValue(datum, 'share') * 100, 1, locale),
+          locale
+        ),
       visible: (datum: Record<string, unknown>) => hasMetric(datum, 'share'),
     },
   ]
@@ -1119,7 +1127,8 @@ export function buildFlowSankeySpec(
   flow: DashboardFlowGraph,
   title: string,
   valueFormatter: (value: number) => string = formatNumber,
-  labels: FlowSankeyLabels = DEFAULT_FLOW_SANKEY_LABELS
+  labels: FlowSankeyLabels = DEFAULT_FLOW_SANKEY_LABELS,
+  locale?: Intl.LocalesArgument
 ): VChartSpec {
   return {
     type: 'sankey',
@@ -1326,7 +1335,7 @@ export function buildFlowSankeySpec(
             return `${sankeyDatumValue(datum, 'name') ?? sankeyDatumValue(datum, 'rawLabel') ?? ''}`
           },
         },
-        content: tooltipMetricLines(valueFormatter, labels),
+        content: tooltipMetricLines(valueFormatter, labels, locale),
       },
     },
     background: { fill: 'transparent' },

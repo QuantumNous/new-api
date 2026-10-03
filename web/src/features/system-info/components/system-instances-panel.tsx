@@ -56,7 +56,13 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { toIntlLocale } from '@/i18n/languages'
-import { formatTimestampRelative, formatTimestampToDate } from '@/lib/format'
+import {
+  appendPercentSign,
+  formatGregorianTitle,
+  formatNumber,
+  formatTimestampRelative,
+  formatTimestampToDate,
+} from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { createServerError } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
@@ -113,17 +119,24 @@ function getNodeName(instance: SystemInstance) {
   return instance.info?.node?.name || instance.node_name
 }
 
-function formatPercent(value?: number) {
+function formatPercent(
+  value: number | undefined,
+  locale: Intl.LocalesArgument
+) {
   if (typeof value !== 'number' || Number.isNaN(value)) return '-'
-  return `${new Intl.NumberFormat(undefined, {
-    maximumFractionDigits: 1,
-  }).format(value)}%`
+  return appendPercentSign(
+    new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(value),
+    locale
+  )
 }
 
-function formatBytes(bytes?: number): string {
+function formatBytes(
+  bytes: number | undefined,
+  locale: Intl.LocalesArgument
+): string {
   if (typeof bytes !== 'number' || Number.isNaN(bytes)) return '-'
-  if (bytes === 0) return '0 B'
-  if (bytes < 0) return `-${formatBytes(-bytes)}`
+  if (bytes === 0) return `${formatNumber(0, locale)} B`
+  if (bytes < 0) return `-${formatBytes(-bytes, locale)}`
 
   const units = ['B', 'KB', 'MB', 'GB', 'TB']
   const index = Math.min(
@@ -131,7 +144,7 @@ function formatBytes(bytes?: number): string {
     units.length - 1
   )
   const value = bytes / 1024 ** index
-  return `${new Intl.NumberFormat(undefined, {
+  return `${new Intl.NumberFormat(locale, {
     maximumFractionDigits: index === 0 ? 0 : 1,
   }).format(value)} ${units[index]}`
 }
@@ -200,6 +213,8 @@ type ResourceCellProps = {
 }
 
 function ResourceCell(props: ResourceCellProps) {
+  const { i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const percent =
     typeof props.value === 'number' && !Number.isNaN(props.value)
       ? Math.max(0, Math.min(100, props.value))
@@ -208,7 +223,7 @@ function ResourceCell(props: ResourceCellProps) {
     <div className='flex items-center gap-2'>
       <RingProgress percent={percent} />
       <span className='font-mono text-[11px] tabular-nums'>
-        {formatPercent(props.value)}
+        {formatPercent(props.value, locale)}
       </span>
     </div>
   )
@@ -236,6 +251,7 @@ type SystemInstancesTableProps = {
 
 function SystemInstancesList(props: SystemInstancesTableProps) {
   const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
 
   return (
     <div className='overflow-x-auto rounded-md border'>
@@ -400,19 +416,19 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                               {t('Used')}
                             </span>
                             <span className='font-mono'>
-                              {formatBytes(storage.used_bytes)}
+                              {formatBytes(storage.used_bytes, locale)}
                             </span>
                             <span className='text-muted-foreground'>
                               {t('Free')}
                             </span>
                             <span className='font-mono'>
-                              {formatBytes(storage.free_bytes)}
+                              {formatBytes(storage.free_bytes, locale)}
                             </span>
                             <span className='text-muted-foreground'>
                               {t('Total')}
                             </span>
                             <span className='font-mono'>
-                              {formatBytes(storage.total_bytes)}
+                              {formatBytes(storage.total_bytes, locale)}
                             </span>
                           </div>
                         </div>
@@ -430,17 +446,28 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
                     {runtimeLabel(instance)}
                   </div>
                 </TableCell>
-                <TableCell className='text-muted-foreground py-2.5 align-middle text-xs whitespace-nowrap'>
-                  {formatTimestampToDate(instance.started_at)}
+                <TableCell
+                  className='text-muted-foreground py-2.5 align-middle text-xs whitespace-nowrap'
+                  title={formatGregorianTitle(instance.started_at, locale)}
+                >
+                  {formatTimestampToDate(
+                    instance.started_at,
+                    'seconds',
+                    locale
+                  )}
                 </TableCell>
                 <TableCell
                   className='text-muted-foreground py-2.5 align-middle text-xs whitespace-nowrap'
-                  title={formatTimestampToDate(instance.last_seen_at)}
+                  title={formatTimestampToDate(
+                    instance.last_seen_at,
+                    'seconds',
+                    locale
+                  )}
                 >
                   {formatTimestampRelative(
                     instance.last_seen_at,
                     'seconds',
-                    toIntlLocale(i18n.language)
+                    locale
                   )}
                 </TableCell>
                 <TableCell className='py-2.5 pr-4 text-right align-middle'>
@@ -492,7 +519,8 @@ function SystemInstancesList(props: SystemInstancesTableProps) {
 }
 
 export function SystemInstancesPanel() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const queryClient = useQueryClient()
   const [deleteTarget, setDeleteTarget] = useState<SystemInstance | null>(null)
   const [deleteAllConfirmOpen, setDeleteAllConfirmOpen] = useState(false)
@@ -650,7 +678,7 @@ export function SystemInstancesPanel() {
           <div className='flex shrink-0 flex-wrap items-center gap-2 sm:justify-end'>
             <span className='text-muted-foreground text-xs' aria-live='polite'>
               {t('Auto-refreshing every {{seconds}}s', {
-                seconds: INSTANCE_POLL_INTERVAL_MS / 1000,
+                seconds: formatNumber(INSTANCE_POLL_INTERVAL_MS / 1000, locale),
               })}
             </span>
             {hasStaleInstances ? (

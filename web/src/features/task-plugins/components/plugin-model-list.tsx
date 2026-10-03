@@ -31,6 +31,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatNumber } from '@/lib/format'
 
 type PluginModelListProps = {
   models: string[]
@@ -40,7 +42,8 @@ type PluginModelListProps = {
 
 /** Model lists remain available to touch and keyboard users, even on narrow screens. */
 export function PluginModelList(props: PluginModelListProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   if (props.collapsedLabel) {
     return (
       <Popover>
@@ -92,7 +95,9 @@ export function PluginModelList(props: PluginModelListProps) {
             }
           >
             {props.collapsedLabel ??
-              t('More models ({{count}})', { count: hidden.length })}
+              t('More models ({{count}})', {
+                count: formatNumber(hidden.length, locale),
+              })}
             <ChevronDown className='size-3 shrink-0' aria-hidden='true' />
           </CollapsibleTrigger>
           <CollapsibleContent>

@@ -24,6 +24,7 @@ import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { toIntlLocale } from '@/i18n/languages'
 import {
   formatQuota,
   parseQuotaFromDollars,
@@ -49,7 +50,8 @@ export function TransferDialog({
   availableQuota,
   transferring,
 }: TransferDialogProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const currencyConfig = useSystemConfigStore((state) => state.config.currency)
   const minimumQuota = Math.ceil(
     currencyConfig.quotaPerUnit > 0
@@ -117,7 +119,7 @@ export function TransferDialog({
             {t('Available Rewards')}
           </Label>
           <div className='text-2xl font-semibold'>
-            {formatQuota(availableQuota)}
+            {formatQuota(availableQuota, locale)}
           </div>
         </div>
 
@@ -139,7 +141,7 @@ export function TransferDialog({
             className='font-mono text-lg'
           />
           <p className='text-muted-foreground text-xs'>
-            {t('Minimum:')} {formatQuota(minimumQuota)}
+            {t('Minimum:')} {formatQuota(minimumQuota, locale)}
           </p>
         </div>
       </div>

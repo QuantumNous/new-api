@@ -27,7 +27,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import dayjs from '@/lib/dayjs'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatDisplayDate } from '@/lib/format'
 
 const calendarLocales = {
   en: enUS,
@@ -51,6 +52,7 @@ export function DatePicker({
 }: DatePickerProps) {
   const { t, i18n } = useTranslation()
   const placeholderText = placeholder ?? t('Pick a date')
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const calendarLocale =
     calendarLocales[i18n.language as keyof typeof calendarLocales] ?? enUS
   return (
@@ -65,7 +67,7 @@ export function DatePicker({
         }
       >
         {selected ? (
-          dayjs(selected).format('YYYY-MM-DD')
+          formatDisplayDate(selected, 'YYYY-MM-DD', locale)
         ) : (
           <span>{placeholderText}</span>
         )}

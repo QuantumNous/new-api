@@ -20,6 +20,7 @@ import i18next from 'i18next'
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 
+import { toIntlLocale } from '@/i18n/languages'
 import { getSelf } from '@/lib/api'
 import { formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
@@ -47,7 +48,10 @@ export function useRedemption() {
         const quotaAdded = response.data
         toast.success(
           i18next.t('Redemption successful! Added: {{quota}}', {
-            quota: formatQuota(quotaAdded),
+            quota: formatQuota(
+              quotaAdded,
+              toIntlLocale(i18next.resolvedLanguage || i18next.language)
+            ),
           })
         )
         await getSelf()
