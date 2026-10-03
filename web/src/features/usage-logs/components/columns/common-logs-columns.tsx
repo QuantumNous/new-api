@@ -365,7 +365,7 @@ export function useCommonLogsColumns(
                 variant={config.color as StatusBadgeProps['variant']}
                 size='sm'
                 copyable={false}
-                className='-ml-1.5 !text-xs [&_span]:!text-xs'
+                className='-ms-1.5 !text-xs [&_span]:!text-xs'
               />
             </div>
           )
@@ -479,7 +479,7 @@ export function useCommonLogsColumns(
                       {affinity && (
                         <button
                           type='button'
-                          className='absolute -top-1 -right-1 leading-none text-amber-500'
+                          className='absolute -end-1 -top-1 leading-none text-amber-500'
                           onClick={(e) => {
                             e.stopPropagation()
                             setAffinityTarget({
@@ -559,7 +559,7 @@ export function useCommonLogsColumns(
             return (
               <button
                 type='button'
-                className='flex items-center gap-1.5 text-left'
+                className='flex items-center gap-1.5 text-start'
                 onClick={(e) => {
                   e.stopPropagation()
                   setSelectedUserId(log.user_id)
@@ -739,7 +739,10 @@ export function useCommonLogsColumns(
 
           return (
             <div className='flex flex-col gap-0.5'>
-              <span className='font-mono text-xs font-medium tabular-nums'>
+              <span
+                dir='ltr'
+                className='font-mono text-xs font-medium tabular-nums'
+              >
                 {promptTokens.toLocaleString()} /{' '}
                 {completionTokens.toLocaleString()}
               </span>
@@ -850,7 +853,7 @@ export function useCommonLogsColumns(
               >
                 {primary.text}
                 {hasMore && (
-                  <span className='text-muted-foreground/40 ml-0.5'>
+                  <span className='text-muted-foreground/40 ms-0.5'>
                     +{segments.length - 1}
                   </span>
                 )}
@@ -868,7 +871,7 @@ export function useCommonLogsColumns(
             <>
               <button
                 type='button'
-                className='group flex max-w-[200px] items-center gap-1 text-left text-xs'
+                className='group flex max-w-[200px] items-center gap-1 text-start text-xs'
                 onClick={() => setDialogOpen(true)}
                 title={t('Click to view full details')}
               >

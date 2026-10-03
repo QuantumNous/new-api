@@ -434,7 +434,7 @@ const TokensWithCost = ({
           notation: 'compact',
         }).format(tokens)}
     {costText ? (
-      <span className='text-muted-foreground ml-2'>• {costText}</span>
+      <span className='text-muted-foreground ms-2'>• {costText}</span>
     ) : null}
   </span>
 )

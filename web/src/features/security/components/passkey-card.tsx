@@ -209,7 +209,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                   disabled={!supported || registering || verification.isActive}
                 >
                   {registering && (
-                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    <Loader2 className='me-2 h-4 w-4 animate-spin' />
                   )}
                   {t('Enable Passkey')}
                 </Button>
@@ -229,9 +229,9 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
                     }
                   >
                     {removing ? (
-                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                      <Loader2 className='me-2 h-4 w-4 animate-spin' />
                     ) : (
-                      <AlertTriangle className='mr-2 h-4 w-4' />
+                      <AlertTriangle className='me-2 h-4 w-4' />
                     )}
                     {t('Remove Passkey')}
                   </AlertDialogTrigger>

@@ -107,6 +107,7 @@ export function DeleteAccountDialog(props: DeleteAccountDialogProps) {
           <Input
             id={confirmationId}
             type='text'
+            dir='auto'
             value={confirmation}
             onChange={(event) => setConfirmation(event.target.value)}
             disabled={security.pending}

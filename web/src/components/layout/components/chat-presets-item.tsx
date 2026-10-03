@@ -147,9 +147,9 @@ function DropdownPresetItem({
     >
       {preset.name}
       {loading ? (
-        <Loader2 className='ml-auto h-4 w-4 animate-spin opacity-70' />
+        <Loader2 className='ms-auto h-4 w-4 animate-spin opacity-70' />
       ) : (
-        <ExternalLink className='ml-auto h-4 w-4 opacity-70' />
+        <ExternalLink className='ms-auto h-4 w-4 opacity-70' />
       )}
     </DropdownMenuItem>
   )
@@ -239,7 +239,7 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
           >
             {item.icon && <item.icon className='h-4 w-4 shrink-0' />}
             <span className='min-w-0 flex-1 truncate'>{item.title}</span>
-            <ChevronRight className='ms-auto h-4 w-4 shrink-0 opacity-70' />
+            <ChevronRight className='ms-auto h-4 w-4 shrink-0 opacity-70 rtl:rotate-180' />
           </DropdownMenuTrigger>
           <DropdownMenuContent align='start'>
             {visiblePresets.map((preset) => (
@@ -269,7 +269,7 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
       >
         {item.icon && <item.icon className='shrink-0' />}
         <span className='min-w-0 flex-1 truncate'>{item.title}</span>
-        <ChevronRight className='ms-auto size-4 shrink-0 transition-transform duration-200 group-data-[panel-open]/collapsible-trigger:rotate-90' />
+        <ChevronRight className='ms-auto size-4 shrink-0 transition-transform duration-200 group-data-[panel-open]/collapsible-trigger:rotate-90 rtl:not-group-data-[panel-open]/collapsible-trigger:rotate-180' />
       </CollapsibleTrigger>
       <CollapsibleContent className='CollapsibleContent'>
         <SidebarMenuSub>

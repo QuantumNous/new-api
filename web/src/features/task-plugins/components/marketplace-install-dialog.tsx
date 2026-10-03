@@ -234,9 +234,9 @@ function MarketplaceInstallContent(
       initialFocus={false}
       onOpenChange={props.onOpenChange}
       contentClassName='sm:max-w-3xl'
-      headerClassName='gap-1.5 pr-6'
+      headerClassName='gap-1.5 pe-6'
       bodyClassName='space-y-3'
-      descriptionClassName='pl-12 text-xs break-words'
+      descriptionClassName='ps-12 text-xs break-words'
       title={
         <span className='flex min-w-0 items-center gap-3'>
           <PluginIcon

@@ -210,7 +210,7 @@ export function IoNetDeploymentSettingsSection({
                 <AlertTitle>{t('How to get an io.net API Key')}</AlertTitle>
                 <AlertDescription>
                   <div className='space-y-2'>
-                    <ul className='list-disc space-y-1 pl-5'>
+                    <ul className='list-disc space-y-1 ps-5'>
                       <li>{t('Open the io.net console API Keys page')}</li>
                       <li>
                         {t(

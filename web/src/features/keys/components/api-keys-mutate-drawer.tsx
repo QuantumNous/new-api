@@ -676,7 +676,7 @@ export function ApiKeysMutateDrawer({
                   render={
                     <button
                       type='button'
-                      className='hover:bg-muted/40 flex w-full items-center gap-3 rounded-md py-1.5 text-left transition-colors'
+                      className='hover:bg-muted/40 flex w-full items-center gap-3 rounded-md py-1.5 text-start transition-colors'
                     />
                   }
                 >

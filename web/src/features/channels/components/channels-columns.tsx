@@ -416,7 +416,7 @@ export function BalanceCell({ channel }: { channel: Channel }) {
                 size='sm'
                 copyable={false}
                 showDot={false}
-                className='-ml-1.5 cursor-help'
+                className='-ms-1.5 cursor-help'
               />
             }
           />
@@ -525,7 +525,7 @@ export function BalanceCell({ channel }: { channel: Channel }) {
 
   return (
     <TooltipProvider>
-      <div className='-ml-1.5 flex items-center gap-1'>
+      <div className='-ms-1.5 flex items-center gap-1'>
         <Tooltip>
           <TooltipTrigger
             render={
@@ -806,7 +806,7 @@ export function useChannelsColumns(
                 variant='blue'
                 size='sm'
                 copyable={false}
-                className='-ml-1.5'
+                className='-ms-1.5'
               />
             )
           }
@@ -957,7 +957,7 @@ export function useChannelsColumns(
                   variant='success'
                   size='sm'
                   copyable={false}
-                  className='-ml-1.5'
+                  className='-ms-1.5'
                 />
               )
             } else {
@@ -967,7 +967,7 @@ export function useChannelsColumns(
                   variant='neutral'
                   size='sm'
                   copyable={false}
-                  className='-ml-1.5'
+                  className='-ms-1.5'
                 />
               )
             }
@@ -1141,7 +1141,7 @@ export function useChannelsColumns(
               label={tag}
               autoColor={tag}
               size='sm'
-              className='-ml-1.5'
+              className='-ms-1.5'
             />
           )
         },
@@ -1191,7 +1191,7 @@ export function useChannelsColumns(
               variant={config.variant}
               size='sm'
               copyable={false}
-              className='-ml-1.5'
+              className='-ms-1.5'
             />
           )
         },
@@ -1225,7 +1225,7 @@ export function useChannelsColumns(
                       variant='neutral'
                       size='sm'
                       copyable={false}
-                      className='-ml-1.5 cursor-pointer'
+                      className='-ms-1.5 cursor-pointer'
                     />
                   }
                 />

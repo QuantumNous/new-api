@@ -171,6 +171,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
             <Input
               id='webhookUrl'
               type='url'
+              dir='ltr'
               className='h-9'
               value={settings.webhook_url}
               onChange={(e) => updateField('webhook_url', e.target.value)}
@@ -196,6 +197,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
           <Input
             id='barkUrl'
             type='url'
+            dir='ltr'
             className='h-9'
             value={settings.bark_url}
             onChange={(e) => updateField('bark_url', e.target.value)}
@@ -215,6 +217,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
             <Input
               id='gotifyUrl'
               type='url'
+              dir='ltr'
               className='h-9'
               value={settings.gotify_url}
               onChange={(e) => updateField('gotify_url', e.target.value)}
@@ -340,7 +343,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
       {/* Save Button */}
       <div className='flex justify-end'>
         <Button onClick={handleSave} disabled={loading}>
-          {loading && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+          {loading && <Loader2 className='me-2 h-4 w-4 animate-spin' />}
           {loading ? t('Saving...') : t('Save Settings')}
         </Button>
       </div>

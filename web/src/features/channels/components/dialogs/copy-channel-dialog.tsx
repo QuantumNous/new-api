@@ -91,7 +91,7 @@ export function CopyChannelDialog({
             {t('Cancel')}
           </Button>
           <Button onClick={handleCopy} disabled={isCopying}>
-            {isCopying && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+            {isCopying && <Loader2 className='me-2 h-4 w-4 animate-spin' />}
             {isCopying ? t('Copying...') : t('Copy Channel')}
           </Button>
         </>

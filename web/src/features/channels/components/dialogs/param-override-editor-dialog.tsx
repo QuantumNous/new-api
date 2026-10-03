@@ -1856,7 +1856,7 @@ export function ParamOverrideEditorDialog(
           ) : (
             <div className='flex h-full'>
               {/* Left sidebar */}
-              <div className='flex w-[280px] flex-shrink-0 flex-col border-r'>
+              <div className='flex w-[280px] flex-shrink-0 flex-col border-e'>
                 <div className='flex items-center justify-between border-b px-3 py-2'>
                   <div className='flex items-center gap-2'>
                     <span className='text-sm font-medium'>{t('Rules')}</span>
@@ -1892,12 +1892,12 @@ export function ParamOverrideEditorDialog(
 
                 <div className='px-3 py-2'>
                   <div className='relative'>
-                    <Search className='text-muted-foreground absolute top-2.5 left-2.5 h-3.5 w-3.5' />
+                    <Search className='text-muted-foreground absolute start-2.5 top-2.5 h-3.5 w-3.5' />
                     <Input
                       value={operationSearch}
                       onChange={(e) => setOperationSearch(e.target.value)}
                       placeholder={t('Search rules...')}
-                      className='h-8 pl-8 text-xs'
+                      className='h-8 ps-8 text-xs'
                     />
                   </div>
                 </div>
@@ -2161,7 +2161,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
               size='sm'
               onClick={() => ruleEditorProps.duplicateOperation(operation.id)}
             >
-              <Copy className='mr-1 h-3.5 w-3.5' />
+              <Copy className='me-1 h-3.5 w-3.5' />
               {t('Duplicate')}
             </Button>
             <Button
@@ -2171,7 +2171,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
               className='text-destructive hover:text-destructive'
               onClick={() => ruleEditorProps.removeOperation(operation.id)}
             >
-              <Trash2 className='mr-1 h-3.5 w-3.5' />
+              <Trash2 className='me-1 h-3.5 w-3.5' />
               {t('Delete')}
             </Button>
           </div>
@@ -2414,7 +2414,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                     className='h-7 text-xs'
                     onClick={ruleEditorProps.expandAllConditions}
                   >
-                    <ChevronDown className='mr-1 h-3 w-3' />
+                    <ChevronDown className='me-1 h-3 w-3' />
                     {t('Expand All')}
                   </Button>
                   <Button
@@ -2424,7 +2424,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                     className='h-7 text-xs'
                     onClick={ruleEditorProps.collapseAllConditions}
                   >
-                    <ChevronUp className='mr-1 h-3 w-3' />
+                    <ChevronUp className='me-1 h-3 w-3' />
                     {t('Collapse All')}
                   </Button>
                 </>
@@ -2436,7 +2436,7 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                 className='h-7 text-xs'
                 onClick={() => ruleEditorProps.addCondition(operation.id)}
               >
-                <Plus className='mr-1 h-3 w-3' />
+                <Plus className='me-1 h-3 w-3' />
                 {t('Add Condition')}
               </Button>
             </div>
@@ -2536,7 +2536,7 @@ function ConditionEditor(conditionEditorProps: ConditionEditorProps) {
                   )
                 }
               >
-                <Trash2 className='mr-1 h-3 w-3' />
+                <Trash2 className='me-1 h-3 w-3' />
                 {t('Delete Condition')}
               </Button>
             </div>
@@ -3009,7 +3009,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                   )
                 }
               >
-                <Plus className='mr-1 h-3 w-3' />
+                <Plus className='me-1 h-3 w-3' />
                 {t('Add Condition')}
               </Button>
             </div>
@@ -3042,7 +3042,7 @@ function PruneObjectsEditor(pruneObjectsEditorProps: PruneObjectsEditorProps) {
                           )
                         }
                       >
-                        <Trash2 className='mr-1 h-3 w-3' />
+                        <Trash2 className='me-1 h-3 w-3' />
                         {t('Delete')}
                       </Button>
                     </div>

@@ -290,12 +290,12 @@ export const ModelRatioForm = memo(function ModelRatioForm({
             <Button variant='outline' size='sm' onClick={toggleEditMode}>
               {editMode === 'visual' ? (
                 <>
-                  <Code2 className='mr-2 h-4 w-4' />
+                  <Code2 className='me-2 h-4 w-4' />
                   {t('Switch to JSON')}
                 </>
               ) : (
                 <>
-                  <Eye className='mr-2 h-4 w-4' />
+                  <Eye className='me-2 h-4 w-4' />
                   {t('Switch to Visual')}
                 </>
               )}

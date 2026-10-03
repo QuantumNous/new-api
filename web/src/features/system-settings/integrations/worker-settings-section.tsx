@@ -123,6 +123,7 @@ export function WorkerSettingsSection({
                 <FormLabel>{t('Worker URL')}</FormLabel>
                 <FormControl>
                   <Input
+                    dir='ltr'
                     type='url'
                     inputMode='url'
                     placeholder={t('https://worker.example.workers.dev')}

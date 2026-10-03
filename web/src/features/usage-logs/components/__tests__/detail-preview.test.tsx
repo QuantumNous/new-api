@@ -380,3 +380,10 @@ test.each(['missing schema', 'unsupported expression', 'unknown tier'])(
     expect(preview.textContent).toBe('Dynamic Pricing · No matching results')
   }
 )
+
+test('aligns the detail preview to the start edge so right-to-left text is clipped at its end', () => {
+  const trigger = renderPreview({ model_price: 0.25 })
+
+  expect(trigger).toHaveClass('text-start')
+  expect(trigger).not.toHaveClass('text-left')
+})

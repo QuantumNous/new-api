@@ -280,9 +280,9 @@ export function ComboboxInput({
           handleKeyDown(event)
           if (!event.defaultPrevented) onKeyDown?.(event)
         }}
-        className={cn('pr-9', className)}
+        className={cn('pe-9', className)}
       />
-      <ChevronsUpDown className='pointer-events-none absolute top-1/2 right-3 size-4 shrink-0 -translate-y-1/2 opacity-50' />
+      <ChevronsUpDown className='pointer-events-none absolute end-3 top-1/2 size-4 shrink-0 -translate-y-1/2 opacity-50' />
 
       {showDropdown &&
         dropdown &&

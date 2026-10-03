@@ -154,7 +154,7 @@ function ConditionActions(props: ConditionProps & { group: boolean }) {
     )
   }
   return (
-    <div className='ml-auto flex shrink-0 items-center gap-1 self-start'>
+    <div className='ms-auto flex shrink-0 items-center gap-1 self-start'>
       {props.group && node.kind !== 'not' && (
         <DropdownMenu>
           <DropdownMenuTrigger

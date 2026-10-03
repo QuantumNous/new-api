@@ -128,7 +128,7 @@ export function ConsumptionDistributionChart(
           </IconBadge>
           <div className='text-sm font-semibold'>{t('Quota Distribution')}</div>
           <span className='text-muted-foreground text-xs'>
-            {t('Total:')} {chartData.totalQuotaDisplay}
+            {t('Total:')} <bdi dir='ltr'>{chartData.totalQuotaDisplay}</bdi>
           </span>
         </div>
 

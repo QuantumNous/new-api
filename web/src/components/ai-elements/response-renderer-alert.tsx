@@ -159,7 +159,7 @@ export function renderBlockquote(
 
   return (
     <blockquote
-      className='border-border text-muted-foreground my-4 border-l-2 pl-4'
+      className='border-border text-muted-foreground my-4 border-s-2 ps-4'
       key={key}
     >
       {options.renderChildren(node.children)}

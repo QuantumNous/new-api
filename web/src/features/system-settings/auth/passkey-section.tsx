@@ -555,6 +555,7 @@ export function PasskeySection(props: PasskeySectionProps) {
                   <FormLabel>{t('Primary Passkey domain')}</FormLabel>
                   <FormControl>
                     <Input
+                      dir='ltr'
                       className={cn(
                         hasDomainWarning &&
                           'border-amber-500 focus-visible:border-amber-500 focus-visible:ring-amber-500/20 dark:border-amber-400 dark:focus-visible:border-amber-400'
@@ -604,6 +605,7 @@ export function PasskeySection(props: PasskeySectionProps) {
                   <FormLabel>{t('Compatible Passkey domains')}</FormLabel>
                   <FormControl>
                     <Textarea
+                      dir='ltr'
                       rows={3}
                       placeholder='www.example.com'
                       {...field}
@@ -737,6 +739,7 @@ export function PasskeySection(props: PasskeySectionProps) {
                 <FormLabel>{t('Allowed Passkey websites')}</FormLabel>
                 <FormControl>
                   <Textarea
+                    dir='ltr'
                     rows={4}
                     placeholder={currentOrigin}
                     value={field.value ?? ''}
