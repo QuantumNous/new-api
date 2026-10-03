@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { toIntlLocale } from '@/i18n/languages'
-import { formatLogQuota } from '@/lib/format'
+import { formatFixed, formatLogQuota } from '@/lib/format'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
@@ -99,12 +99,12 @@ export function CommonLogsStats() {
       />
       <StatBadge
         label={t('RPM')}
-        value={stats?.rpm || 0}
+        value={formatFixed(stats?.rpm || 0, 0, locale)}
         accent='bg-rose-500/65'
       />
       <StatBadge
         label={t('TPM')}
-        value={stats?.tpm || 0}
+        value={formatFixed(stats?.tpm || 0, 0, locale)}
         accent='bg-slate-400/70'
       />
     </div>

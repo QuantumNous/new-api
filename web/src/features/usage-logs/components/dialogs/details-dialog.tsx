@@ -65,6 +65,7 @@ import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import {
+  formatFixed,
   formatLogQuota,
   formatNumber,
   formatTokens,
@@ -117,9 +118,12 @@ function timingTextColorClass(
   return 'text-rose-600'
 }
 
-function formatRatio(ratio: number | undefined): string {
+function formatRatio(
+  ratio: number | undefined,
+  locale: string | undefined
+): string {
   if (ratio == null) return '-'
-  return ratio.toFixed(4)
+  return formatFixed(ratio, 4, locale)
 }
 
 function getUsageBillingPathLabel(
@@ -245,7 +249,7 @@ function BillingBreakdown(props: {
   if (effectiveGR != null && Number.isFinite(effectiveGR)) {
     rows.push({
       label: isUserGR ? t('User Exclusive Ratio') : t('Group Ratio'),
-      value: `${formatRatio(effectiveGR)}x`,
+      value: `${formatRatio(effectiveGR, locale)}x`,
     })
   }
 
@@ -314,14 +318,14 @@ function BillingBreakdown(props: {
   if (other.web_search && other.web_search_call_count) {
     rows.push({
       label: t('Web Search'),
-      value: `${other.web_search_call_count}x${other.web_search_price ? ` (${fmtPrice(other.web_search_price)})` : ''}`,
+      value: `${formatFixed(other.web_search_call_count, 0, locale)}x${other.web_search_price ? ` (${fmtPrice(other.web_search_price)})` : ''}`,
     })
   }
 
   if (other.file_search && other.file_search_call_count) {
     rows.push({
       label: t('File Search'),
-      value: `${other.file_search_call_count}x${other.file_search_price ? ` (${fmtPrice(other.file_search_price)})` : ''}`,
+      value: `${formatFixed(other.file_search_call_count, 0, locale)}x${other.file_search_price ? ` (${fmtPrice(other.file_search_price)})` : ''}`,
     })
   }
 

@@ -89,11 +89,17 @@ interface DetailSegment {
   danger?: boolean
 }
 
-function formatRatioCompact(ratio: number | undefined): string {
+// Up to four fraction digits without trailing zeros (`2`, `1.5`, `0.1235`),
+// in the given locale; rounds like `toFixed(4)`.
+function formatRatioCompact(
+  ratio: number | undefined,
+  locale: string | undefined
+): string {
   if (ratio == null || !Number.isFinite(ratio)) return '-'
-  return ratio % 1 === 0
-    ? String(ratio)
-    : ratio.toFixed(4).replace(/\.?0+$/, '')
+  return Intl.NumberFormat(locale, {
+    maximumFractionDigits: 4,
+    useGrouping: false,
+  }).format(Number(ratio.toFixed(4)))
 }
 
 function getGroupRatio(other: LogOtherData | null): number | null {
@@ -334,7 +340,7 @@ function buildTypeDetailSegments(
 
       if (effectiveRatio != null && Number.isFinite(effectiveRatio)) {
         segments.push({
-          text: `${ratioLabel} ${formatRatioCompact(effectiveRatio)}x`,
+          text: `${ratioLabel} ${formatRatioCompact(effectiveRatio, locale)}x`,
         })
       }
     }
@@ -672,7 +678,7 @@ export function useCommonLogsColumns(
                 {group && groupRatio != null ? ' ' : null}
                 {groupRatio != null ? (
                   <span className='text-muted-foreground/60 relative top-px align-baseline tabular-nums'>
-                    {formatRatioCompact(groupRatio)}x
+                    {formatRatioCompact(groupRatio, locale)}x
                   </span>
                 ) : null}
               </span>

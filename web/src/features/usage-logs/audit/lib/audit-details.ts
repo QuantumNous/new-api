@@ -20,7 +20,7 @@ import type { TFunction } from 'i18next'
 
 import { loginMethodLabel } from '@/features/security/components/login-session-utils'
 import type { PermissionResourceDef } from '@/lib/admin-permissions'
-import { formatTimestampToDate } from '@/lib/format'
+import { formatFixed, formatTimestampToDate } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
 
 import { renderAuditContent } from '../../lib/format'
@@ -576,7 +576,7 @@ export function buildAuditDetails(
   ) {
     fields.push({
       label: t('Changed / Total'),
-      value: `${params.count} / ${params.total}`,
+      value: `${formatFixed(params.count, 0, locale)} / ${formatFixed(params.total, 0, locale)}`,
     })
     delete params.count
     delete params.total
