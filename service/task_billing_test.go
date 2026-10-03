@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -61,6 +62,60 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(m.Run())
+}
+
+type shutdownRefundFunding struct {
+	FundingSource
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (f *shutdownRefundFunding) Refund() error {
+	close(f.entered)
+	<-f.release
+	return f.FundingSource.Refund()
+}
+
+func TestWaitBillingRefundsJoinsBalanceChanges(t *testing.T) {
+	truncate(t)
+	seedUser(t, 1, 900)
+	seedToken(t, 1, 1, "shutdown-refund-token", 900)
+	funding := &shutdownRefundFunding{
+		FundingSource: &WalletFunding{userId: 1, consumed: 100},
+		entered:       make(chan struct{}),
+		release:       make(chan struct{}),
+	}
+	var releaseOnce sync.Once
+	t.Cleanup(func() {
+		releaseOnce.Do(func() { close(funding.release) })
+		require.NoError(t, WaitBillingRefunds(context.Background()))
+	})
+	session := &BillingSession{
+		relayInfo:     &relaycommon.RelayInfo{UserId: 1, TokenId: 1, TokenKey: "shutdown-refund-token"},
+		funding:       funding,
+		tokenConsumed: 100,
+	}
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	session.Refund(c)
+	<-funding.entered
+	session.Refund(c) // Duplicate calls must not create another refund worker.
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, WaitBillingRefunds(canceled), context.Canceled)
+	var before model.User
+	require.NoError(t, model.DB.First(&before, 1).Error)
+	assert.Equal(t, 900, before.Quota)
+	releaseOnce.Do(func() { close(funding.release) })
+	ctx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+	defer stop()
+	require.NoError(t, WaitBillingRefunds(ctx))
+	var user model.User
+	var token model.Token
+	require.NoError(t, model.DB.First(&user, 1).Error)
+	require.NoError(t, model.DB.First(&token, 1).Error)
+	assert.Equal(t, 1000, user.Quota)
+	assert.Equal(t, 1000, token.RemainQuota)
 }
 
 // ---------------------------------------------------------------------------

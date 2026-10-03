@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math"
@@ -19,6 +20,27 @@ import (
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 )
+
+var billingRefundsRunning sync.WaitGroup
+
+// WaitBillingRefunds must run after HTTP handlers and system task handlers stop
+// submitting refunds, so their asynchronous balance changes reach the final flush.
+func WaitBillingRefunds(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	done := make(chan struct{})
+	go func() {
+		billingRefundsRunning.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
 
 // ---------------------------------------------------------------------------
 // BillingSession — 统一计费会话
@@ -107,7 +129,9 @@ func (s *BillingSession) Refund(c *gin.Context) {
 	subscriptionId := s.relayInfo.SubscriptionId
 	funding := s.funding
 
+	billingRefundsRunning.Add(1)
 	gopool.Go(func() {
+		defer billingRefundsRunning.Done()
 		// 1) 退还资金来源
 		if err := funding.Refund(); err != nil {
 			common.SysLog("error refunding billing source: " + err.Error())

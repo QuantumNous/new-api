@@ -238,6 +238,101 @@ func TestBatchUpdateRetryDatabaseMatrix(t *testing.T) {
 				require.NoError(t, db.First(&gotChannel, channel.Id).Error)
 				assert.EqualValues(t, 20, gotChannel.UsedQuota)
 			})
+			t.Run("shutdown_drains_pending_and_new_work", func(t *testing.T) {
+				user, token, channel := createAccountingBatchTestFixture(t)
+				injected := errors.New("pending shutdown batch")
+				const callback = "test:shutdown_batch"
+				require.NoError(t, db.Callback().Update().Before("gorm:update").Register(callback, func(tx *gorm.DB) {
+					if tx.Statement.Table == "users" {
+						tx.AddError(injected)
+					}
+				}))
+				t.Cleanup(func() { _ = db.Callback().Update().Remove(callback) })
+				addNewRecord(BatchUpdateTypeUserQuota, user.Id, -100)
+				addNewRecord(BatchUpdateTypeTokenQuota, token.Id, -100)
+				addNewRecord(BatchUpdateTypeUsedQuota, user.Id, 100)
+				addNewRecord(BatchUpdateTypeRequestCount, user.Id, 1)
+				addNewRecord(BatchUpdateTypeChannelUsedQuota, channel.Id, 100)
+				require.ErrorIs(t, batchUpdate(), injected)
+				// A refund queued after the failed tick must be drained too.
+				addNewRecord(BatchUpdateTypeUserQuota, user.Id, 100)
+				addNewRecord(BatchUpdateTypeTokenQuota, token.Id, 100)
+				addNewRecord(BatchUpdateTypeUsedQuota, user.Id, -100)
+				addNewRecord(BatchUpdateTypeChannelUsedQuota, channel.Id, -100)
+				canceled, cancel := context.WithCancel(context.Background())
+				cancel()
+				require.ErrorIs(t, FlushBatchUpdate(canceled), context.Canceled)
+				require.NoError(t, db.Callback().Update().Remove(callback))
+				ctx, stop := context.WithTimeout(context.Background(), 10*time.Second)
+				defer stop()
+				require.NoError(t, FlushBatchUpdate(ctx))
+				require.NoError(t, FlushBatchUpdate(ctx)) // No replay on a second drain.
+				var got User
+				var gotChannel Channel
+				require.NoError(t, db.First(&got, user.Id).Error)
+				require.NoError(t, db.First(&gotChannel, channel.Id).Error)
+				assert.Equal(t, 1000, got.Quota)
+				assert.Zero(t, got.UsedQuota)
+				assert.Equal(t, 1, got.RequestCount)
+				gotToken := getTokenFromDB(t, token.Id)
+				assert.Equal(t, 1000, gotToken.RemainQuota)
+				assert.Zero(t, gotToken.UsedQuota)
+				assert.Zero(t, gotChannel.UsedQuota)
+			})
+			t.Run("shutdown_cancels_sleeping_writer", func(t *testing.T) {
+				resetBatchUpdateTestState(t)
+				oldInterval := common.BatchUpdateInterval
+				common.BatchUpdateInterval = 3600
+				defer func() { common.BatchUpdateInterval = oldInterval }()
+				ctx, cancel := context.WithCancel(context.Background())
+				done := InitBatchUpdater(ctx)
+				cancel()
+				select {
+				case <-done:
+				case <-time.After(5 * time.Second):
+					t.Fatal("periodic writer did not stop on cancellation")
+				}
+				require.NoError(t, FlushBatchUpdate(context.Background()))
+			})
+			t.Run("shutdown_cancels_inflight_writer_and_retries", func(t *testing.T) {
+				user, _, _ := createAccountingBatchTestFixture(t)
+				before := getUserQuotaFromDB(t, user.Id)
+				oldInterval := common.BatchUpdateInterval
+				common.BatchUpdateInterval = 0 // Trigger immediately, without a sleep-based test.
+				defer func() { common.BatchUpdateInterval = oldInterval }()
+				entered := make(chan struct{})
+				var once sync.Once
+				const callback = "test:cancel_periodic_sql"
+				require.NoError(t, db.Callback().Update().Before("gorm:update").Register(callback, func(tx *gorm.DB) {
+					if tx.Statement.Table == "users" {
+						once.Do(func() { close(entered) })
+						<-tx.Statement.Context.Done()
+						tx.AddError(tx.Statement.Context.Err())
+					}
+				}))
+				defer func() { _ = db.Callback().Update().Remove(callback) }()
+				addNewRecord(BatchUpdateTypeUserQuota, user.Id, -10)
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				done := InitBatchUpdater(ctx)
+				select {
+				case <-entered:
+				case <-time.After(5 * time.Second):
+					t.Fatal("periodic writer did not enter SQL")
+				}
+				cancel()
+				select {
+				case <-done:
+				case <-time.After(5 * time.Second):
+					t.Fatal("in-flight periodic writer did not stop")
+				}
+				require.NoError(t, db.Callback().Update().Remove(callback))
+				addNewRecord(BatchUpdateTypeUserQuota, user.Id, 10)
+				flushCtx, stop := context.WithTimeout(context.Background(), 10*time.Second)
+				defer stop()
+				require.NoError(t, FlushBatchUpdate(flushCtx))
+				assert.Equal(t, before, getUserQuotaFromDB(t, user.Id))
+			})
 			t.Run("nonbatch_and_deleted_objects", func(t *testing.T) {
 				user, token, channel := createAccountingBatchTestFixture(t)
 				common.BatchUpdateEnabled = false

@@ -51,15 +51,55 @@ func init() {
 	}
 }
 
-func InitBatchUpdater() {
+func InitBatchUpdater(ctx context.Context) <-chan struct{} {
+	done := make(chan struct{})
 	gopool.Go(func() {
+		defer close(done)
+		timer := time.NewTimer(time.Duration(common.BatchUpdateInterval) * time.Second)
+		defer timer.Stop()
 		for {
-			time.Sleep(time.Duration(common.BatchUpdateInterval) * time.Second)
-			if err := batchUpdate(); err != nil {
-				common.SysError("batch update retained failed deltas for retry: " + err.Error())
+			select {
+			case <-ctx.Done():
+				return
+			case <-timer.C:
+				if err := batchUpdateContext(ctx); err != nil {
+					common.SysError("batch update retained failed deltas for retry: " + err.Error())
+				}
+				timer.Reset(time.Duration(common.BatchUpdateInterval) * time.Second)
 			}
 		}
 	})
+	return done
+}
+
+// FlushBatchUpdate runs after accounting producers and the periodic writer stop.
+// It resolves the old pending batch and drains newer deltas, not just one snapshot.
+// This is a graceful-shutdown flush, not recovery from SIGKILL, OOM, or host loss.
+func FlushBatchUpdate(ctx context.Context) error {
+	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		err := batchUpdateContext(ctx)
+		if err == nil {
+			hasData := false
+			for i := range BatchUpdateTypeCount {
+				batchUpdateLocks[i].Lock()
+				hasData = hasData || len(batchUpdateStores[i]) > 0
+				batchUpdateLocks[i].Unlock()
+			}
+			if !hasData {
+				return nil
+			}
+			continue
+		}
+		common.SysError("final batch update failed; pending deltas retained: " + err.Error())
+		select {
+		case <-ctx.Done():
+			return errors.Join(err, ctx.Err())
+		case <-time.After(time.Second):
+		}
+	}
 }
 
 func addNewRecord(type_ int, id int, value int) {

@@ -7,11 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -158,10 +160,14 @@ func main() {
 	controller.RegisterScheduledSystemTasks()
 	service.StartSystemTaskRunner()
 
+	var stopBatchUpdater context.CancelFunc
+	var batchUpdaterDone <-chan struct{}
 	if os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
 		common.BatchUpdateEnabled = true
 		common.SysLog("batch update enabled with interval " + strconv.Itoa(common.BatchUpdateInterval) + "s")
-		model.InitBatchUpdater()
+		var batchCtx context.Context
+		batchCtx, stopBatchUpdater = context.WithCancel(context.Background())
+		batchUpdaterDone = model.InitBatchUpdater(batchCtx)
 	}
 
 	if os.Getenv("ENABLE_PPROF") == "true" {
@@ -211,9 +217,13 @@ func main() {
 		port = strconv.Itoa(*common.Port)
 	}
 
+	handlerDrain := &httpAccountingDrain{handler: server, connections: make(map[net.Conn]int)}
 	srv := &http.Server{
 		Addr:    ":" + port,
-		Handler: server,
+		Handler: handlerDrain,
+		ConnContext: func(ctx context.Context, conn net.Conn) context.Context {
+			return context.WithValue(ctx, httpConnectionContextKey{}, conn)
+		},
 	}
 
 	go func() {
@@ -238,11 +248,109 @@ func main() {
 	if err := srv.Shutdown(ctx); err != nil {
 		common.SysError(fmt.Sprintf("server forced to shutdown: %v", err))
 	}
+	// Reserve accounting budgets independently of the HTTP/SSE timeout. Shutdown
+	// does not join hijacked WebSockets or asynchronous refunds and task handlers.
+	// The default total is 120s + 15s + 30s; the container stop grace must exceed it.
+	err = shutdownAccounting(15*time.Second, 30*time.Second, func(ctx context.Context) error {
+		var errs []error
+		errs = append(errs, handlerDrain.Drain(ctx), service.StopSystemTaskRunner(ctx), service.WaitBillingRefunds(ctx))
+		if stopBatchUpdater != nil {
+			stopBatchUpdater()
+			select {
+			case <-batchUpdaterDone:
+			case <-ctx.Done():
+				errs = append(errs, fmt.Errorf("batch updater: %w", ctx.Err()))
+			}
+		}
+		return errors.Join(errs...)
+	}, func(ctx context.Context) error {
+		if stopBatchUpdater != nil {
+			return model.FlushBatchUpdate(ctx)
+		}
+		return nil
+	})
 	// 内存中的看板数据保存入库，避免重启丢失未落库数据 (issue #5679)
 	if common.DataExportEnabled {
 		model.SaveQuotaDataCache()
 	}
-	common.SysLog("server exited")
+	if err != nil {
+		common.SysError("server exited with incomplete accounting drain: " + err.Error())
+	} else {
+		common.SysLog("server exited; accounting drain complete")
+	}
+}
+
+type httpConnectionContextKey struct{}
+
+// httpAccountingDrain tracks handler completion, including hijacked connections
+// that net/http.Shutdown deliberately does not wait for.
+type httpAccountingDrain struct {
+	handler     http.Handler
+	mu          sync.Mutex
+	closing     bool
+	connections map[net.Conn]int
+	running     sync.WaitGroup
+}
+
+func (d *httpAccountingDrain) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	conn, _ := r.Context().Value(httpConnectionContextKey{}).(net.Conn)
+	d.mu.Lock()
+	if d.closing {
+		d.mu.Unlock()
+		http.Error(w, "server shutting down", http.StatusServiceUnavailable)
+		return
+	}
+	d.running.Add(1)
+	if conn != nil {
+		d.connections[conn]++
+	}
+	d.mu.Unlock()
+	defer func() {
+		d.mu.Lock()
+		if conn != nil {
+			d.connections[conn]--
+			if d.connections[conn] == 0 {
+				delete(d.connections, conn)
+			}
+		}
+		d.mu.Unlock()
+		d.running.Done()
+	}()
+	d.handler.ServeHTTP(w, r)
+}
+
+func (d *httpAccountingDrain) Drain(ctx context.Context) error {
+	d.mu.Lock()
+	d.closing = true // No Add can race with Wait after the count reaches zero.
+	connections := make([]net.Conn, 0, len(d.connections))
+	for conn := range d.connections {
+		connections = append(connections, conn)
+	}
+	d.mu.Unlock()
+	for _, conn := range connections {
+		_ = conn.Close()
+	}
+	done := make(chan struct{})
+	go func() {
+		d.running.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("relay handlers: %w", ctx.Err())
+	}
+}
+
+// Persistence still gets a fresh deadline when producers exhaust their window.
+func shutdownAccounting(drainTimeout, persistTimeout time.Duration, drain, persist func(context.Context) error) error {
+	drainCtx, cancelDrain := context.WithTimeout(context.Background(), drainTimeout)
+	drainErr := drain(drainCtx)
+	cancelDrain()
+	persistCtx, cancelPersist := context.WithTimeout(context.Background(), persistTimeout)
+	defer cancelPersist()
+	return errors.Join(drainErr, persist(persistCtx))
 }
 
 func InjectUmamiAnalytics() {
