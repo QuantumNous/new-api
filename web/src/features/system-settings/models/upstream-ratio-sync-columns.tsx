@@ -61,7 +61,7 @@ export function useUpstreamRatioSyncColumns(
         header: t('Current Price'),
         size: upstreamNames.length === 1 ? 420 : 320,
         minSize: 280,
-        // Offset source cells' checkbox (pl-7) and ui/table's checkbox pe-0 (-mr-3).
+        // Offset source cells' checkbox (ps-7) and ui/table's checkbox pe-0 (-me-3).
         cell: ({ row }) => (
           <div className='-me-3 ps-7'>
             <SyncPriceCell values={row.original.prices.current} />
