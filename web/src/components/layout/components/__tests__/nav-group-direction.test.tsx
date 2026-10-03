@@ -90,9 +90,7 @@ describe('collapsed sidebar group menu side', () => {
       )
 
       await userEvent.click(screen.getByRole('button', { name: 'Channels' }))
-      const menu = (
-        await screen.findByRole('menuitem', { name: 'Channel list' })
-      ).closest('[role=menu]')!
+      const menu = await screen.findByRole('menu')
       const positioner = menu.parentElement as HTMLElement
       // The positioner sits at the origin until the menu has been placed.
       await waitFor(() =>
