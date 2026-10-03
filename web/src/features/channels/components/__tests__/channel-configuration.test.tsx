@@ -33,6 +33,7 @@ import {
   within,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
 import { useState } from 'react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
@@ -2812,3 +2813,31 @@ test('a New API channel binds upstream task plugins and publishes their models',
   expect(setting).not.toHaveProperty('task_plugin_key')
   expect(payload.models?.split(',').sort()).toEqual(['gpt-5', 'video-b-1'])
 })
+
+test.each(['en', 'ru'])(
+  'the last upstream model check time reads YYYY-MM-DD HH:mm:ss in the %s interface',
+  async (language) => {
+    editingChannel = {
+      ...editingChannel,
+      settings: JSON.stringify({
+        // Local time keeps the expected text independent of the time zone.
+        upstream_model_update_last_check_time:
+          new Date(2026, 9, 3, 9, 30).getTime() / 1000,
+      }),
+    }
+    await act(() => i18next.changeLanguage(language))
+    try {
+      const user = userEvent.setup()
+      render(<ConfigurationHarness currentRow={editingChannel} />)
+      await user.click(
+        await screen.findByRole('tab', { name: /Other Settings/ })
+      )
+
+      expect(
+        screen.getByText('2026-10-03 09:30:00', { exact: false })
+      ).toBeInTheDocument()
+    } finally {
+      await act(() => i18next.changeLanguage('en'))
+    }
+  }
+)
