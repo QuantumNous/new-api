@@ -391,11 +391,11 @@ func IncreaseTokenQuota(tokenId int, key string, quota int) (err error) {
 		addNewRecord(BatchUpdateTypeTokenQuota, tokenId, quota)
 		return nil
 	}
-	return increaseTokenQuota(tokenId, quota)
+	return increaseTokenQuota(DB, tokenId, quota)
 }
 
-func increaseTokenQuota(id int, quota int) (err error) {
-	err = DB.Model(&Token{}).Where("id = ?", id).Updates(
+func increaseTokenQuota(db *gorm.DB, id int, quota int) (err error) {
+	err = db.Model(&Token{}).Where("id = ?", id).Updates(
 		map[string]any{
 			"remain_quota":  gorm.Expr("remain_quota + ?", quota),
 			"used_quota":    gorm.Expr("used_quota - ?", quota),

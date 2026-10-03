@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -231,4 +232,59 @@ func TestEnqueueSystemTaskReportsCreatedAndExistingActive(t *testing.T) {
 	require.True(t, created)
 	require.NotNil(t, second)
 	assert.NotEqual(t, first.TaskID, second.TaskID)
+}
+
+func TestStopSystemTaskRunnerJoinsSettlementAndPreventsNewClaims(t *testing.T) {
+	truncate(t)
+	oldContext, oldCancel, oldDone := systemTaskRunnerContext, systemTaskRunnerCancel, systemTaskRunnerDone
+	systemTaskRunnerContext, systemTaskRunnerCancel = context.WithCancel(context.Background())
+	systemTaskRunnerDone = make(chan struct{})
+	close(systemTaskRunnerDone) // The scheduler has stopped; a claimed handler remains.
+	entered, canceled, release := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	var releaseOnce sync.Once
+	t.Cleanup(func() {
+		releaseOnce.Do(func() { close(release) })
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		require.NoError(t, StopSystemTaskRunner(ctx))
+		systemTaskRunnerContext, systemTaskRunnerCancel, systemTaskRunnerDone = oldContext, oldCancel, oldDone
+	})
+	seedUser(t, 1, 900)
+	handler := &stubScheduledHandler{taskType: "shutdown_settlement", onRun: func(ctx context.Context, task *model.SystemTask, runnerID string) {
+		close(entered)
+		<-ctx.Done()
+		close(canceled)
+		<-release
+		_ = model.IncreaseUserQuota(1, 100, false)
+		_ = model.FinishSystemTask(task.TaskID, runnerID, model.SystemTaskStatusSucceeded, nil, "")
+	}}
+	withSystemTaskRegistry(t, handler)
+	first, err := model.CreateSystemTask(handler.taskType, nil, nil)
+	require.NoError(t, err)
+	runSystemTaskClaimPass("shutdown-runner")
+	<-entered
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- StopSystemTaskRunner(ctx) }()
+	<-canceled
+	select {
+	case err := <-done:
+		t.Fatalf("stop returned before settlement: %v", err)
+	default:
+	}
+	releaseOnce.Do(func() { close(release) })
+	require.NoError(t, <-done)
+	var user model.User
+	require.NoError(t, model.DB.First(&user, 1).Error)
+	assert.Equal(t, 1000, user.Quota)
+	finished, err := model.GetSystemTaskByTaskID(first.TaskID)
+	require.NoError(t, err)
+	assert.Equal(t, model.SystemTaskStatusSucceeded, finished.Status)
+	second, err := model.CreateSystemTask(handler.taskType, nil, nil)
+	require.NoError(t, err)
+	runSystemTaskClaimPass("shutdown-runner")
+	pending, err := model.GetSystemTaskByTaskID(second.TaskID)
+	require.NoError(t, err)
+	assert.Equal(t, model.SystemTaskStatusPending, pending.Status)
 }
