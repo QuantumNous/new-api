@@ -106,7 +106,11 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
           'Enter an absolute HTTP(S) URL without credentials, query parameters, or fragments'
         ),
     }),
-    Logo: z.string().url().optional().or(z.literal('')),
+    Logo: z
+      .string()
+      .url({ error: () => t('Must be a valid URL') })
+      .optional()
+      .or(z.literal('')),
     Footer: z.string().optional(),
     About: z.string().optional(),
     HomePageContent: z.string().optional(),
