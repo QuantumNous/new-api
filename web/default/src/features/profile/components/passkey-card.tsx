@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { AlertTriangle, KeyRound, Loader2, ShieldAlert } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -44,6 +44,7 @@ import {
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { usePasskeyManagement } from '@/features/auth/passkey'
+import { PasskeyDomainSelector } from '@/features/auth/passkey/components/passkey-domain-selector'
 import {
   SecureVerificationDialog,
   useSecureVerification,
@@ -61,6 +62,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [restrictedMethod, setRestrictedMethod] =
     useState<VerificationMethod | null>(null)
+  const [selectedRPID, setSelectedRPID] = useState('')
 
   const {
     status,
@@ -74,6 +76,13 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
     remove,
   } = usePasskeyManagement()
 
+  const rpIds = useMemo(() => status?.rp_ids ?? [], [status?.rp_ids])
+
+  useEffect(() => {
+    setSelectedRPID((current) =>
+      current && rpIds.includes(current) ? current : (rpIds[0] ?? '')
+    )
+  }, [rpIds])
   const {
     open: verificationOpen,
     setOpen: setVerificationOpen,
@@ -111,19 +120,26 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
     if (!methods.has2FA) {
       // Without 2FA enabled, register directly. The browser-level Passkey prompt
       // is itself a strong proof of presence, so no extra verification is needed.
-      await register()
+      await register(selectedRPID || undefined)
       return
     }
 
     setRestrictedMethod('2fa')
-    await startVerification(register, {
+    await startVerification(() => register(selectedRPID || undefined), {
       preferredMethod: '2fa',
       title: t('Security verification'),
       description: t(
         'Confirm your identity with Two-factor Authentication before registering a Passkey.'
       ),
     })
-  }, [fetchVerificationMethods, register, startVerification, supported, t])
+  }, [
+    fetchVerificationMethods,
+    register,
+    selectedRPID,
+    startVerification,
+    supported,
+    t,
+  ])
 
   const handleRemove = useCallback(async () => {
     const methods = await fetchVerificationMethods()
@@ -271,16 +287,23 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
               </div>
 
               {!enabled && (
-                <Button
-                  className='w-full sm:w-auto xl:w-full 2xl:w-auto'
-                  onClick={handleRegister}
-                  disabled={!supported || registering}
-                >
-                  {registering && (
-                    <Loader2 className='mr-2 h-4 w-4 animate-spin' />
-                  )}
-                  {t('Enable Passkey')}
-                </Button>
+                <div className='space-y-3'>
+                  <PasskeyDomainSelector
+                    rpIds={rpIds}
+                    value={selectedRPID}
+                    onChange={setSelectedRPID}
+                  />
+                  <Button
+                    className='w-full sm:w-auto xl:w-full 2xl:w-auto'
+                    onClick={handleRegister}
+                    disabled={!supported || registering}
+                  >
+                    {registering && (
+                      <Loader2 className='mr-2 h-4 w-4 animate-spin' />
+                    )}
+                    {t('Enable Passkey')}
+                  </Button>
+                </div>
               )}
             </div>
 

@@ -45,7 +45,13 @@ import { OAuthProviders } from '@/features/auth/components/oauth-providers'
 import { loginFormSchema } from '@/features/auth/constants'
 import { useAuthRedirect } from '@/features/auth/hooks/use-auth-redirect'
 import { useTurnstile } from '@/features/auth/hooks/use-turnstile'
-import { beginPasskeyLogin, finishPasskeyLogin } from '@/features/auth/passkey'
+import {
+  beginPasskeyLogin,
+  finishPasskeyLogin,
+  getLastSuccessfulPasskeyRPID,
+  rememberSuccessfulPasskeyRPID,
+} from '@/features/auth/passkey'
+import { PasskeyDomainSelector } from '@/features/auth/passkey/components/passkey-domain-selector'
 import type { AuthFormProps } from '@/features/auth/types'
 import { useStatus } from '@/hooks/use-status'
 import {
@@ -66,6 +72,7 @@ export function UserAuthForm({
   const [agreedToLegal, setAgreedToLegal] = useState(false)
   const [passkeySupported, setPasskeySupported] = useState(false)
   const [isPasskeyLoading, setIsPasskeyLoading] = useState(false)
+  const [selectedPasskeyRPID, setSelectedPasskeyRPID] = useState('')
   const [isWeChatDialogOpen, setIsWeChatDialogOpen] = useState(false)
   const [isWeChatSubmitting, setIsWeChatSubmitting] = useState(false)
   const legalConsentErrorMessage = t('Please agree to the legal terms first')
@@ -74,6 +81,15 @@ export function UserAuthForm({
   const { status } = useStatus()
   const passkeyLoginEnabled = Boolean(
     status?.passkey_login ?? status?.data?.passkey_login
+  )
+  const passkeyRPIDs = useMemo(
+    () =>
+      Array.isArray(status?.passkey_rp_ids)
+        ? status.passkey_rp_ids.filter((value): value is string =>
+            Boolean(value)
+          )
+        : [],
+    [status?.passkey_rp_ids]
   )
   const passwordLoginEnabled =
     (status?.password_login_enabled ??
@@ -125,6 +141,14 @@ export function UserAuthForm({
       .catch(() => setPasskeySupported(false))
   }, [])
 
+  useEffect(() => {
+    const remembered = getLastSuccessfulPasskeyRPID()
+    setSelectedPasskeyRPID(
+      remembered && passkeyRPIDs.includes(remembered)
+        ? remembered
+        : (passkeyRPIDs[0] ?? '')
+    )
+  }, [passkeyRPIDs])
   const form = useForm<z.infer<typeof loginFormSchema>>({
     resolver: zodResolver(loginFormSchema),
     defaultValues: {
@@ -238,7 +262,7 @@ export function UserAuthForm({
 
     setIsPasskeyLoading(true)
     try {
-      const begin = await beginPasskeyLogin()
+      const begin = await beginPasskeyLogin(selectedPasskeyRPID || undefined)
       if (!begin.success) {
         throw new Error(begin.message || t('Failed to start Passkey login'))
       }
@@ -266,6 +290,7 @@ export function UserAuthForm({
         throw new Error(finish.message || t('Failed to complete Passkey login'))
       }
 
+      rememberSuccessfulPasskeyRPID(begin.data?.rp_id ?? selectedPasskeyRPID)
       if (!finish.data) {
         throw new Error(t('Missing user data from Passkey login response'))
       }
@@ -292,6 +317,11 @@ export function UserAuthForm({
     <>
       {passkeyLoginEnabled && (
         <div className='mt-2 space-y-1'>
+          <PasskeyDomainSelector
+            rpIds={passkeyRPIDs}
+            value={selectedPasskeyRPID}
+            onChange={setSelectedPasskeyRPID}
+          />
           <Button
             type='button'
             variant='outline'

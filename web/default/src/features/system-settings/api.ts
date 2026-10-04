@@ -35,6 +35,8 @@ import type {
   RenderedEmailTemplate,
   UpdateOptionRequest,
   UpdateOptionResponse,
+  UpdatePasskeyDomainsRequest,
+  UpdatePasskeyDomainsResponse,
   UpstreamChannelsResponse,
   UpstreamRatiosResponse,
 } from './types'
@@ -46,6 +48,16 @@ export async function getSystemOptions() {
 
 export async function updateSystemOption(request: UpdateOptionRequest) {
   const res = await api.put<UpdateOptionResponse>('/api/option/', request)
+  return res.data
+}
+
+export async function updatePasskeyDomains(
+  request: UpdatePasskeyDomainsRequest
+) {
+  const res = await api.put<UpdatePasskeyDomainsResponse>(
+    '/api/option/passkey/domains',
+    request
+  )
   return res.data
 }
 

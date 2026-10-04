@@ -25,11 +25,12 @@ export async function getPasskeyStatus(): Promise<ApiResponse<PasskeyStatus>> {
   return res.data
 }
 
-export async function beginPasskeyRegistration(): Promise<
-  ApiResponse<PasskeyOptionsPayload>
-> {
+export async function beginPasskeyRegistration(
+  rpId?: string
+): Promise<ApiResponse<PasskeyOptionsPayload>> {
   const res = await api.post<ApiResponse<PasskeyOptionsPayload>>(
-    '/api/user/passkey/register/begin'
+    '/api/user/passkey/register/begin',
+    rpId ? { rp_id: rpId } : undefined
   )
   return res.data
 }
@@ -49,11 +50,12 @@ export async function deletePasskey(): Promise<ApiResponse> {
   return res.data
 }
 
-export async function beginPasskeyLogin(): Promise<
-  ApiResponse<PasskeyOptionsPayload>
-> {
+export async function beginPasskeyLogin(
+  rpId?: string
+): Promise<ApiResponse<PasskeyOptionsPayload>> {
   const res = await api.post<ApiResponse<PasskeyOptionsPayload>>(
-    '/api/user/passkey/login/begin'
+    '/api/user/passkey/login/begin',
+    rpId ? { rp_id: rpId } : undefined
   )
   return res.data
 }
@@ -68,11 +70,12 @@ export async function finishPasskeyLogin(
   return res.data
 }
 
-export async function beginPasskeyVerification(): Promise<
-  ApiResponse<PasskeyOptionsPayload>
-> {
+export async function beginPasskeyVerification(
+  rpId?: string
+): Promise<ApiResponse<PasskeyOptionsPayload>> {
   const res = await api.post<ApiResponse<PasskeyOptionsPayload>>(
-    '/api/user/passkey/verify/begin'
+    '/api/user/passkey/verify/begin',
+    rpId ? { rp_id: rpId } : undefined
   )
   return res.data
 }

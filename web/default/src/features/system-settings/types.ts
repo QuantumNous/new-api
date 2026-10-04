@@ -39,6 +39,29 @@ export type UpdateOptionResponse = {
   message: string
 }
 
+export type PasskeyDomainValues = {
+  'passkey.rp_id': string
+  'passkey.legacy_rp_ids': string
+  'passkey.origins': string
+}
+
+export type PasskeyDomainChange = {
+  affected: number
+  unknown: number
+  removed: string[]
+  confirmation?: string
+}
+
+export type UpdatePasskeyDomainsRequest = {
+  values: PasskeyDomainValues
+  preview?: boolean
+  confirmation?: string
+}
+
+export type UpdatePasskeyDomainsResponse = UpdateOptionResponse & {
+  data?: PasskeyDomainChange
+}
+
 export type TestEmailRequest = {
   receiver: string
 }
@@ -229,6 +252,7 @@ export type AuthSettings = {
   'passkey.enabled': boolean
   'passkey.rp_display_name': string
   'passkey.rp_id': string
+  'passkey.legacy_rp_ids': string
   'passkey.origins': string
   'passkey.allow_insecure_origin': boolean
   'passkey.user_verification': 'required' | 'preferred' | 'discouraged'

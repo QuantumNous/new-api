@@ -25,6 +25,8 @@ import {
 
 import {
   beginPasskeyVerification,
+  getLastSuccessfulPasskeyRPID,
+  rememberSuccessfulPasskeyRPID,
   finishPasskeyVerification,
   getPasskeyStatus,
 } from '../passkey'
@@ -109,7 +111,9 @@ async function verifyPasskey(): Promise<void> {
   }
 
   try {
-    const beginResponse = await beginPasskeyVerification()
+    const beginResponse = await beginPasskeyVerification(
+      getLastSuccessfulPasskeyRPID() ?? undefined
+    )
     if (!beginResponse.success) {
       throw new Error(beginResponse.message || 'Failed to start verification')
     }
@@ -136,6 +140,7 @@ async function verifyPasskey(): Promise<void> {
       throw new Error(finishResponse.message || 'Passkey verification failed')
     }
 
+    rememberSuccessfulPasskeyRPID(beginResponse.data?.rp_id)
     const verifyResponse = await api.post('/api/verify', {
       method: 'passkey',
     })

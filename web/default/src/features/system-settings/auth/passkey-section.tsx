@@ -17,12 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import * as z from 'zod'
 
+import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
@@ -44,6 +45,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 
+import { updatePasskeyDomains } from '../api'
 import {
   SettingsForm,
   SettingsSwitchContent,
@@ -66,6 +68,7 @@ const passkeySchema = z.object({
     enabled: z.boolean(),
     rp_display_name: z.string(),
     rp_id: z.string(),
+    legacy_rp_ids: z.string(),
     origins: z.string(),
     allow_insecure_origin: z.boolean(),
     user_verification: z.enum(['required', 'preferred', 'discouraged']),
@@ -80,6 +83,7 @@ type FlatPasskeyDefaults = {
   'passkey.enabled': boolean
   'passkey.rp_display_name': string
   'passkey.rp_id': string
+  'passkey.legacy_rp_ids': string
   'passkey.origins': string
   'passkey.allow_insecure_origin': boolean
   'passkey.user_verification': 'required' | 'preferred' | 'discouraged'
@@ -101,6 +105,11 @@ const buildFormDefaults = (
     enabled: defaults['passkey.enabled'],
     rp_display_name: defaults['passkey.rp_display_name'] ?? '',
     rp_id: defaults['passkey.rp_id'] ?? '',
+    legacy_rp_ids: (defaults['passkey.legacy_rp_ids'] ?? '')
+      .split(/[,\n]/)
+      .map((rpId) => rpId.trim())
+      .filter(Boolean)
+      .join('\n'),
     origins: (defaults['passkey.origins'] ?? '')
       .split(',')
       .map((origin) => origin.trim())
@@ -120,6 +129,11 @@ const normalizeFormValues = (
   'passkey.enabled': values.passkey.enabled,
   'passkey.rp_display_name': values.passkey.rp_display_name,
   'passkey.rp_id': values.passkey.rp_id,
+  'passkey.legacy_rp_ids': values.passkey.legacy_rp_ids
+    .split('\n')
+    .map((rpId) => rpId.trim())
+    .filter(Boolean)
+    .join(','),
   'passkey.origins': values.passkey.origins
     .split('\n')
     .map((origin) => origin.trim())
@@ -139,6 +153,7 @@ interface PasskeySectionProps {
 export function PasskeySection(props: PasskeySectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const [isDomainSaving, setIsDomainSaving] = useState(false)
 
   const formDefaults = useMemo(
     () => buildFormDefaults(props.defaultValues),
@@ -174,16 +189,71 @@ export function PasskeySection(props: PasskeySectionProps) {
       return
     }
 
-    for (const key of changedKeys) {
-      await updateOption.mutateAsync({
-        key,
-        value: normalized[key],
-      })
+    const domainKeys = new Set([
+      'passkey.rp_id',
+      'passkey.legacy_rp_ids',
+      'passkey.origins',
+    ])
+    const changedDomainKeys = changedKeys.filter((key) => domainKeys.has(key))
+    const changedOptionKeys = changedKeys.filter((key) => !domainKeys.has(key))
+    const domainValues = {
+      'passkey.rp_id': normalized['passkey.rp_id'],
+      'passkey.legacy_rp_ids': normalized['passkey.legacy_rp_ids'],
+      'passkey.origins': normalized['passkey.origins'],
     }
 
-    baselineRef.current = normalized
-    baselineSerializedRef.current = JSON.stringify(normalized)
-    form.reset(buildFormDefaults(normalized))
+    setIsDomainSaving(true)
+    try {
+      if (changedDomainKeys.length > 0) {
+        try {
+          await updatePasskeyDomains({ values: domainValues })
+        } catch (error: unknown) {
+          const response = (
+            error as {
+              response?: {
+                status?: number
+                data?: {
+                  data?: {
+                    affected: number
+                    unknown: number
+                    removed: string[]
+                    confirmation?: string
+                  }
+                }
+              }
+            }
+          ).response
+          const change =
+            response?.status === 409 ? response.data?.data : undefined
+          if (!change?.confirmation) throw error
+
+          const confirmed = window.confirm(
+            `${t('Passkey domain removal requires confirmation')}\n${t('Affected credentials')}: ${change.affected}\n${t('Unknown legacy credentials')}: ${change.unknown}\n${change.removed.join(', ')}`
+          )
+          if (!confirmed) return
+          await updatePasskeyDomains({
+            values: domainValues,
+            confirmation: change.confirmation,
+          })
+        }
+      }
+      for (const key of changedOptionKeys) {
+        await updateOption.mutateAsync({
+          key,
+          value: normalized[key],
+        })
+      }
+
+      baselineRef.current = normalized
+      baselineSerializedRef.current = JSON.stringify(normalized)
+      form.reset(buildFormDefaults(normalized))
+    } catch (error: unknown) {
+      toast.error(
+        error instanceof Error ? error.message : t('Failed to update setting')
+      )
+    } finally {
+      setIsDomainSaving(false)
+    }
   }
 
   return (
@@ -192,7 +262,7 @@ export function PasskeySection(props: PasskeySectionProps) {
         <SettingsForm onSubmit={form.handleSubmit(onSubmit)}>
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
-            isSaving={updateOption.isPending}
+            isSaving={updateOption.isPending || isDomainSaving}
           />
           <FormField
             control={form.control}
@@ -250,8 +320,56 @@ export function PasskeySection(props: PasskeySectionProps) {
               <FormItem>
                 <FormLabel>{t('Relying Party ID')}</FormLabel>
                 <FormControl>
-                  <Input
-                    placeholder={t('e.g. example.com')}
+                  <div className='flex gap-2'>
+                    <Input
+                      placeholder={t('e.g. example.com')}
+                      value={field.value ?? ''}
+                      onChange={(event) => field.onChange(event.target.value)}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      ref={field.ref}
+                    />
+                    <Button
+                      type='button'
+                      variant='outline'
+                      onClick={() => field.onChange(window.location.hostname)}
+                    >
+                      {t('Fill current site')}
+                    </Button>
+                  </div>
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'The effective domain for Passkey registration. Must match the current domain or be its parent domain.'
+                  )}
+                </FormDescription>
+                <FormDescription>
+                  {t(
+                    'Passkeys are bound to website domains, so configure this when users access the console through multiple domains.'
+                  )}
+                </FormDescription>
+                {field.value &&
+                  typeof window !== 'undefined' &&
+                  window.location.hostname !== field.value &&
+                  !window.location.hostname.endsWith(`.${field.value}`) && (
+                    <p className='text-destructive text-sm'>
+                      {t('The RP ID does not match the current site.')}
+                    </p>
+                  )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='passkey.legacy_rp_ids'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Compatible Passkey Domains')}</FormLabel>
+                <FormControl>
+                  <Textarea
+                    rows={3}
+                    placeholder={t('old.example.com')}
                     value={field.value ?? ''}
                     onChange={(event) => field.onChange(event.target.value)}
                     name={field.name}
@@ -261,7 +379,7 @@ export function PasskeySection(props: PasskeySectionProps) {
                 </FormControl>
                 <FormDescription>
                   {t(
-                    'The effective domain for Passkey registration. Must match the current domain or be its parent domain.'
+                    'One compatible RP ID per line. Removing a domain in use requires confirmation.'
                   )}
                 </FormDescription>
                 <FormMessage />

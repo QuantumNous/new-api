@@ -24,6 +24,8 @@ export interface ApiResponse<T = unknown> {
 
 export interface PasskeyStatus {
   enabled: boolean
+  rp_id?: string
+  rp_ids?: string[]
   last_used_at?: string | null
   backup_eligible?: boolean
   backup_state?: boolean
@@ -32,6 +34,8 @@ export interface PasskeyStatus {
 
 export interface PasskeyOptionsPayload {
   options?: unknown
+  rp_id?: string
+  rp_ids?: string[]
   publicKey?: unknown
   response?: unknown
   Response?: unknown
