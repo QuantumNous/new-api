@@ -23,6 +23,7 @@
     "lucide-react": "^0.511.0",
     "marked": "^4.1.1",
     "mermaid": "^11.6.0",
+    "node-forge": "catalog:",
     "qrcode.react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",

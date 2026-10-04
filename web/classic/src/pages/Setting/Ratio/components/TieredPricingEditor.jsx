@@ -1351,6 +1351,11 @@ function RuleConditionRow({ cond, onChange, onRemove, t }) {
             />
           )}
         </div>
+        {isRange && (
+          <Text size='small' style={{ color: 'var(--semi-color-text-3)' }}>
+            {t('开始 ≤ 结束为当日区间，开始 > 结束为跨零点区间')}
+          </Text>
+        )}
         {hint && (
           <Text size='small' style={{ color: 'var(--semi-color-text-3)' }}>
             {t(hint)}

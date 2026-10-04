@@ -135,7 +135,14 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatXAIRealtime)
 		})
 		wsRouter.GET("/responses", func(c *gin.Context) {
-			controller.Relay(c, types.RelayFormatXAIRealtime)
+			// Existing xAI clients may select the native route with ?model=...;
+			// model-less connections use Responses WebSocket mode and dispatch xAI
+			// after reading the first response.create event.
+			if strings.TrimSpace(c.Query("model")) != "" {
+				controller.Relay(c, types.RelayFormatXAIRealtime)
+				return
+			}
+			controller.ResponsesWebSocket(c)
 		})
 	}
 	{

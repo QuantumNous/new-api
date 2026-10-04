@@ -39,6 +39,10 @@ interface ComboboxInputProps {
   id?: string
   allowCustomValue?: boolean
   openOnFocus?: boolean
+  onKeyDown?: React.KeyboardEventHandler<HTMLInputElement>
+  'aria-label'?: string
+  'aria-labelledby'?: string
+  'aria-invalid'?: React.AriaAttributes['aria-invalid']
 }
 
 export function ComboboxInput({
@@ -51,6 +55,10 @@ export function ComboboxInput({
   id,
   allowCustomValue = false,
   openOnFocus = true,
+  onKeyDown,
+  'aria-label': ariaLabel,
+  'aria-labelledby': ariaLabelledBy,
+  'aria-invalid': ariaInvalid,
 }: ComboboxInputProps) {
   const { t } = useTranslation()
   const [open, setOpen] = React.useState(false)
@@ -107,6 +115,9 @@ export function ComboboxInput({
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    onKeyDown?.(e)
+    if (e.defaultPrevented) return
+
     if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
       setOpen(true)
       return
@@ -165,6 +176,9 @@ export function ComboboxInput({
         id={id}
         type='text'
         role='combobox'
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
+        aria-invalid={ariaInvalid}
         aria-expanded={open}
         aria-haspopup='listbox'
         aria-autocomplete='list'

@@ -28,14 +28,51 @@ import (
 )
 
 type LoginRequest struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username          string `json:"username"`
+	Password          string `json:"password"`
+	PasswordEncrypted string `json:"password_encrypted"`
+	EncryptionKeyID   string `json:"encryption_key_id"`
 }
 
 var (
 	errUserPasswordUnset    = errors.New("user password is not set")
 	errOriginalPasswordFail = errors.New("original password is incorrect")
 )
+
+// ensurePasswordEncryptionKey lazily loads the shared key on replicas that
+// enabled encryption through option sync before the key was loaded.
+func ensurePasswordEncryptionKey() (keyID string, publicKey string, err error) {
+	keyID, publicKey = common.PasswordEncryptionPublicKey()
+	if keyID != "" && publicKey != "" {
+		return keyID, publicKey, nil
+	}
+	if err = model.InitPasswordEncryption(); err != nil {
+		return "", "", err
+	}
+	keyID, publicKey = common.PasswordEncryptionPublicKey()
+	if keyID == "" || publicKey == "" {
+		return "", "", errors.New("password encryption key is unavailable")
+	}
+	return keyID, publicKey, nil
+}
+
+func GetPasswordEncryptionKey(c *gin.Context) {
+	if !common.PasswordLoginEncryptionEnabled {
+		common.ApiSuccess(c, gin.H{"enabled": false})
+		return
+	}
+	keyID, publicKey, err := ensurePasswordEncryptionKey()
+	if err != nil {
+		common.SysError("failed to load password encryption key: " + err.Error())
+		common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+		return
+	}
+	common.ApiSuccess(c, gin.H{
+		"enabled":    true,
+		"kid":        keyID,
+		"public_key": publicKey,
+	})
+}
 
 func disabledUserMessage(c *gin.Context, user *model.User) string {
 	if user != nil && strings.TrimSpace(user.DisableReason) != "" {
@@ -162,6 +199,22 @@ func Login(c *gin.Context) {
 	}
 	username := loginRequest.Username
 	password := loginRequest.Password
+	if common.PasswordLoginEncryptionEnabled {
+		if loginRequest.PasswordEncrypted == "" || loginRequest.EncryptionKeyID == "" {
+			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+			return
+		}
+		if _, _, keyErr := ensurePasswordEncryptionKey(); keyErr != nil {
+			common.SysError("failed to load password encryption key: " + keyErr.Error())
+			common.ApiErrorI18n(c, i18n.MsgDatabaseError)
+			return
+		}
+		password, err = common.DecryptPassword(loginRequest.PasswordEncrypted, loginRequest.EncryptionKeyID)
+		if err != nil {
+			common.ApiErrorI18n(c, i18n.MsgUserUsernameOrPasswordError)
+			return
+		}
+	}
 	if username == "" || password == "" {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return

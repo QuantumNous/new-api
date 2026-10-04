@@ -273,6 +273,7 @@ func migrateDB() error {
 		&User{},
 		&PasskeyCredential{},
 		&Option{},
+		&LoginEncryptionKey{},
 		&Redemption{},
 		&OneTimeInviteCode{},
 		&Ability{},

@@ -247,6 +247,8 @@ const EditChannelModal = (props) => {
     force_format: false,
     thinking_to_content: false,
     proxy: '',
+    http_protocol: 'auto',
+    http2_connection_shards: 1,
     pass_through_body_enabled: false,
     upstream_openai_compat_enabled: false,
     zcode_mode_enabled: false,
@@ -589,6 +591,8 @@ const EditChannelModal = (props) => {
     force_format: false,
     thinking_to_content: false,
     proxy: '',
+    http_protocol: 'auto',
+    http2_connection_shards: 1,
     pass_through_body_enabled: false,
     upstream_openai_compat_enabled: false,
     zcode_mode_enabled: false,
@@ -618,6 +622,43 @@ const EditChannelModal = (props) => {
     const newSettings = { ...channelSettings, [key]: value };
     const settingsJson = JSON.stringify(newSettings);
     handleInputChange('setting', settingsJson);
+  };
+
+  const handleHttpProtocolChange = (value) => {
+    const nextProtocol = value === 'http1' ? 'http1' : 'auto';
+    setChannelSettings((prev) => {
+      const next = { ...prev, http_protocol: nextProtocol };
+      if (nextProtocol === 'http1') {
+        next.http2_connection_shards = 1;
+      }
+      return next;
+    });
+
+    setInputs((prev) => {
+      const next = { ...prev, http_protocol: nextProtocol };
+      if (nextProtocol === 'http1') {
+        next.http2_connection_shards = 1;
+      }
+      return next;
+    });
+
+    if (formApiRef.current) {
+      formApiRef.current.setValue('http_protocol', nextProtocol);
+      if (nextProtocol === 'http1') {
+        formApiRef.current.setValue('http2_connection_shards', 1);
+      }
+    }
+
+    const nextShards =
+      nextProtocol === 'http1'
+        ? 1
+        : Number(channelSettings.http2_connection_shards) || 1;
+    const newSettings = {
+      ...channelSettings,
+      http_protocol: nextProtocol,
+      http2_connection_shards: nextShards,
+    };
+    handleInputChange('setting', JSON.stringify(newSettings));
   };
 
   const handleChannelOtherSettingsChange = (key, value) => {
@@ -1044,6 +1085,18 @@ const EditChannelModal = (props) => {
           data.thinking_to_content =
             parsedSettings.thinking_to_content || false;
           data.proxy = parsedSettings.proxy || '';
+          data.http_protocol =
+            parsedSettings.http_protocol === 'http1' ? 'http1' : 'auto';
+          data.http2_connection_shards =
+            data.http_protocol === 'http1'
+              ? 1
+              : Math.min(
+                  Math.max(
+                    Number(parsedSettings.http2_connection_shards) || 1,
+                    1,
+                  ),
+                  8,
+                );
           data.pass_through_body_enabled =
             parsedSettings.pass_through_body_enabled || false;
           data.upstream_openai_compat_enabled =
@@ -1078,6 +1131,8 @@ const EditChannelModal = (props) => {
           data.force_format = false;
           data.thinking_to_content = false;
           data.proxy = '';
+          data.http_protocol = 'auto';
+          data.http2_connection_shards = 1;
           data.pass_through_body_enabled = false;
           data.use_responses_api = false;
           data.upstream_openai_compat_enabled = false;
@@ -1092,6 +1147,8 @@ const EditChannelModal = (props) => {
         data.force_format = false;
         data.thinking_to_content = false;
         data.proxy = '';
+        data.http_protocol = 'auto';
+        data.http2_connection_shards = 1;
         data.pass_through_body_enabled = false;
         data.use_responses_api = false;
         data.upstream_openai_compat_enabled = false;
@@ -1225,6 +1282,8 @@ const EditChannelModal = (props) => {
         force_format: data.force_format,
         thinking_to_content: data.thinking_to_content,
         proxy: data.proxy,
+        http_protocol: data.http_protocol || 'auto',
+        http2_connection_shards: data.http2_connection_shards || 1,
         pass_through_body_enabled: data.pass_through_body_enabled,
         upstream_openai_compat_enabled:
           data.upstream_openai_compat_enabled === true,
@@ -1273,6 +1332,8 @@ const EditChannelModal = (props) => {
         (data.priority && data.priority !== 0) ||
         (data.weight && data.weight !== 0) ||
         (data.proxy && data.proxy.trim()) ||
+        (data.http_protocol && data.http_protocol !== 'auto') ||
+        (data.http2_connection_shards && data.http2_connection_shards > 1) ||
         (data.system_prompt && data.system_prompt.trim()) ||
         data.thinking_to_content ||
         data.pass_through_body_enabled ||
@@ -1628,6 +1689,8 @@ const EditChannelModal = (props) => {
       force_format: false,
       thinking_to_content: false,
       proxy: '',
+      http_protocol: 'auto',
+      http2_connection_shards: 1,
       pass_through_body_enabled: false,
       upstream_openai_compat_enabled: false,
       zcode_mode_enabled: false,
@@ -2051,7 +2114,7 @@ const EditChannelModal = (props) => {
     const channelExtraSettings = {
       force_format: localInputs.force_format || false,
       thinking_to_content: localInputs.thinking_to_content || false,
-      proxy: localInputs.proxy || '',
+      proxy: localInputs.proxy ? localInputs.proxy.trim() : '',
       pass_through_body_enabled: localInputs.pass_through_body_enabled || false,
       upstream_openai_compat_enabled:
         localInputs.upstream_openai_compat_enabled === true,
@@ -2062,6 +2125,20 @@ const EditChannelModal = (props) => {
       plan_quota_cooldown_enabled:
         localInputs.plan_quota_cooldown_enabled === true,
     };
+    const protocol = localInputs.http_protocol === 'http1' ? 'http1' : 'auto';
+    if (protocol === 'http1') {
+      channelExtraSettings.http_protocol = 'http1';
+    }
+    const shards =
+      protocol === 'http1'
+        ? 1
+        : Math.min(
+            Math.max(Number(localInputs.http2_connection_shards) || 1, 1),
+            8,
+          );
+    if (protocol !== 'http1' && shards > 1) {
+      channelExtraSettings.http2_connection_shards = shards;
+    }
     if (localInputs.chat_completions_to_responses_mode !== 'inherit') {
       channelExtraSettings.chat_completions_to_responses_enabled =
         localInputs.chat_completions_to_responses_mode === 'enabled';
@@ -2166,6 +2243,8 @@ const EditChannelModal = (props) => {
     delete localInputs.force_format;
     delete localInputs.thinking_to_content;
     delete localInputs.proxy;
+    delete localInputs.http_protocol;
+    delete localInputs.http2_connection_shards;
     delete localInputs.pass_through_body_enabled;
     delete localInputs.upstream_openai_compat_enabled;
     delete localInputs.zcode_mode_enabled;
@@ -3191,6 +3270,50 @@ const EditChannelModal = (props) => {
                     }
                     showClear
                     extraText={t('用于配置网络代理，支持 socks5 协议')}
+                  />
+
+                  <Form.Select
+                    field='http_protocol'
+                    label={t('HTTP 协议')}
+                    optionList={[
+                      { value: 'auto', label: t('自动') },
+                      { value: 'http1', label: t('HTTP/1.1') },
+                    ]}
+                    style={{ width: '100%' }}
+                    onChange={handleHttpProtocolChange}
+                    extraText={t(
+                      '自动在可用时协商 HTTP/2。HTTP/1.1 会在并发时使用多条保持连接的连接。',
+                    )}
+                  />
+
+                  <Form.Select
+                    field='http2_connection_shards'
+                    label={t('HTTP/2 连接分片')}
+                    disabled={channelSettings.http_protocol === 'http1'}
+                    optionList={[
+                      { value: 1, label: '1' },
+                      { value: 2, label: '2' },
+                      { value: 3, label: '3' },
+                      { value: 4, label: '4' },
+                      { value: 5, label: '5' },
+                      { value: 6, label: '6' },
+                      { value: 7, label: '7' },
+                      { value: 8, label: '8' },
+                    ]}
+                    style={{ width: '100%' }}
+                    onChange={(value) =>
+                      handleChannelSettingsChange(
+                        'http2_connection_shards',
+                        Number(value) || 1,
+                      )
+                    }
+                    extraText={
+                      channelSettings.http_protocol === 'http1'
+                        ? t('选择 HTTP/1.1 时不可用 HTTP/2 连接分片。')
+                        : t(
+                            '将 HTTP/2 流量分散到同一上游源站的多条可复用连接（1-8）。',
+                          )
+                    }
                   />
 
                   <Form.TextArea

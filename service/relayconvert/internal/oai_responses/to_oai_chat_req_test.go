@@ -1,6 +1,7 @@
 package oairesponses
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -53,6 +54,38 @@ func TestResponsesRequestToChatCompletionsRequestInstructionsAndScalarInput(t *t
 	assert.Equal(t, `"user-1"`, string(got.User))
 	assert.Equal(t, `false`, string(got.Store))
 	assert.Equal(t, "abc", gjson.GetBytes(got.Metadata, "trace").String())
+}
+
+func TestResponsesRequestToChatCompletionsRequestPreservesQwenThinkingBudget(t *testing.T) {
+	tests := []struct {
+		name   string
+		budget json.RawMessage
+		want   int64
+	}{
+		{name: "positive budget", budget: json.RawMessage(`128`), want: 128},
+		{name: "zero budget", budget: json.RawMessage(`0`), want: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+				Model:          "qwen-plus",
+				Input:          mustRawMessage(t, "hello"),
+				EnableThinking: json.RawMessage(`true`),
+				ThinkingBudget: tt.budget,
+			})
+			require.NoError(t, err)
+			assert.Equal(t, tt.budget, got.ThinkingBudget)
+
+			encoded, err := common.Marshal(got)
+			require.NoError(t, err)
+
+			assert.True(t, gjson.GetBytes(encoded, "enable_thinking").Bool())
+			value := gjson.GetBytes(encoded, "thinking_budget")
+			assert.True(t, value.Exists())
+			assert.Equal(t, tt.want, value.Int())
+		})
+	}
 }
 
 func TestResponsesRequestToChatCompletionsRequestMultimodalInput(t *testing.T) {
@@ -260,6 +293,61 @@ func TestResponsesRequestToChatCompletionsRequestRejectsStatefulFields(t *testin
 			assert.Contains(t, err.Error(), "stateful fields")
 		})
 	}
+}
+
+func TestResponsesRequestToChatCompletionsRequestPreservesPenalties(t *testing.T) {
+	tests := []struct {
+		name          string
+		frequencyRaw  json.RawMessage
+		frequencyWant *float64
+		presenceRaw   json.RawMessage
+		presenceWant  *float64
+	}{
+		{
+			name:          "positive values",
+			frequencyRaw:  json.RawMessage(`0.5`),
+			frequencyWant: lo.ToPtr(0.5),
+			presenceRaw:   json.RawMessage(`1.5`),
+			presenceWant:  lo.ToPtr(1.5),
+		},
+		{
+			name:          "explicit zero values",
+			frequencyRaw:  json.RawMessage(`0.0`),
+			frequencyWant: lo.ToPtr(0.0),
+			presenceRaw:   json.RawMessage(`0.0`),
+			presenceWant:  lo.ToPtr(0.0),
+		},
+		{
+			name:         "unset stays nil",
+			frequencyRaw: nil,
+			presenceRaw:  nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+				Model:            "gpt-test",
+				Input:            mustRawMessage(t, "hello"),
+				FrequencyPenalty: tt.frequencyRaw,
+				PresencePenalty:  tt.presenceRaw,
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.frequencyWant, got.FrequencyPenalty)
+			assert.Equal(t, tt.presenceWant, got.PresencePenalty)
+		})
+	}
+}
+
+func TestResponsesRequestToChatCompletionsRequestRejectsMalformedPenalty(t *testing.T) {
+	_, err := ResponsesRequestToChatCompletionsRequest(&dto.OpenAIResponsesRequest{
+		Model:            "gpt-test",
+		Input:            mustRawMessage(t, "hello"),
+		FrequencyPenalty: json.RawMessage(`"not-a-number"`),
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "frequency_penalty")
 }
 
 func mustRawMessage(t *testing.T, value any) []byte {

@@ -1,8 +1,10 @@
 package oaichat
 
 import (
+	"encoding/json"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -37,6 +39,38 @@ func TestChatCompletionsRequestToResponsesRequestInstructionsAndTools(t *testing
 	assert.Equal(t, "function_call_output", gjson.GetBytes(got.Input, "3.type").String())
 }
 
+func TestChatCompletionsRequestToResponsesRequestPreservesPromptCacheKey(t *testing.T) {
+	t.Run("present", func(t *testing.T) {
+		key := "session-\"quoted\"\\path\n世界"
+		got, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
+			Model:          "gpt-test",
+			Messages:       []dto.Message{{Role: "user", Content: "hello"}},
+			PromptCacheKey: key,
+		})
+		require.NoError(t, err)
+
+		keyRaw, err := common.Marshal(key)
+		require.NoError(t, err)
+		assert.Equal(t, keyRaw, []byte(got.PromptCacheKey))
+
+		encoded, err := common.Marshal(got)
+		require.NoError(t, err)
+		assert.Equal(t, key, gjson.GetBytes(encoded, "prompt_cache_key").String())
+	})
+
+	t.Run("absent", func(t *testing.T) {
+		got, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
+			Model:    "gpt-test",
+			Messages: []dto.Message{{Role: "user", Content: "hello"}},
+		})
+		require.NoError(t, err)
+
+		encoded, err := common.Marshal(got)
+		require.NoError(t, err)
+		assert.False(t, gjson.GetBytes(encoded, "prompt_cache_key").Exists())
+	})
+}
+
 func TestChatCompletionsRequestToResponsesRequestRejectsMultipleChoices(t *testing.T) {
 	_, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
 		Model: "gpt-test",
@@ -44,6 +78,87 @@ func TestChatCompletionsRequestToResponsesRequestRejectsMultipleChoices(t *testi
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "n>1")
+}
+
+func TestChatCompletionsRequestToResponsesRequestPreservesPenalties(t *testing.T) {
+	tests := []struct {
+		name          string
+		frequency     *float64
+		frequencyWant json.RawMessage
+		presence      *float64
+		presenceWant  json.RawMessage
+	}{
+		{
+			name:          "positive values",
+			frequency:     lo.ToPtr(0.5),
+			frequencyWant: json.RawMessage(`0.5`),
+			presence:      lo.ToPtr(1.5),
+			presenceWant:  json.RawMessage(`1.5`),
+		},
+		{
+			name:          "explicit zero values",
+			frequency:     lo.ToPtr(0.0),
+			frequencyWant: json.RawMessage(`0`),
+			presence:      lo.ToPtr(0.0),
+			presenceWant:  json.RawMessage(`0`),
+		},
+		{
+			name:      "unset stays nil",
+			frequency: nil,
+			presence:  nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ChatCompletionsRequestToResponsesRequest(&dto.GeneralOpenAIRequest{
+				Model:            "gpt-test",
+				Messages:         []dto.Message{{Role: "user", Content: "hello"}},
+				FrequencyPenalty: tt.frequency,
+				PresencePenalty:  tt.presence,
+			})
+			require.NoError(t, err)
+
+			assert.Equal(t, tt.frequencyWant, got.FrequencyPenalty)
+			assert.Equal(t, tt.presenceWant, got.PresencePenalty)
+		})
+	}
+}
+
+func TestChatCompletionsRequestToResponsesRequestPreservesQwenThinkingBudget(t *testing.T) {
+	tests := []struct {
+		name   string
+		budget json.RawMessage
+		want   int64
+	}{
+		{name: "positive budget", budget: json.RawMessage(`128`), want: 128},
+		{name: "zero budget", budget: json.RawMessage(`0`), want: 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := &dto.GeneralOpenAIRequest{
+				Model:          "qwen-plus",
+				EnableThinking: json.RawMessage(`true`),
+				ThinkingBudget: tt.budget,
+				Messages: []dto.Message{
+					{Role: "user", Content: "hello"},
+				},
+			}
+
+			got, err := ChatCompletionsRequestToResponsesRequest(req)
+			require.NoError(t, err)
+			assert.Equal(t, tt.budget, got.ThinkingBudget)
+
+			encoded, err := common.Marshal(got)
+			require.NoError(t, err)
+
+			assert.True(t, gjson.GetBytes(encoded, "enable_thinking").Bool())
+			value := gjson.GetBytes(encoded, "thinking_budget")
+			assert.True(t, value.Exists())
+			assert.Equal(t, tt.want, value.Int())
+		})
+	}
 }
 
 func assistantMessageWithTool(content string, id string, name string, args string) dto.Message {

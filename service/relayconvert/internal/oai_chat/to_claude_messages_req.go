@@ -36,15 +36,11 @@ func OpenAIChatRequestToClaudeMessages(c *gin.Context, textRequest dto.GeneralOp
 		if tool.Type != "" && tool.Type != "function" {
 			return nil, fmt.Errorf("Claude conversion does not support OpenAI tool type %q", tool.Type)
 		}
-		params := map[string]any{"type": "object", "properties": map[string]any{}}
-		if tool.Function.Parameters != nil {
-			var err error
-			params, err = common.Any2Type[map[string]any](tool.Function.Parameters)
-			if err != nil {
-				return nil, err
-			}
-		}
-		claudeTools = append(claudeTools, &dto.Tool{Name: tool.Function.Name, Description: tool.Function.Description, InputSchema: params})
+		claudeTools = append(claudeTools, &dto.Tool{
+			Name:        tool.Function.Name,
+			Description: tool.Function.Description,
+			InputSchema: sharedclaude.FunctionParametersToInputSchema(tool.Function.Parameters),
+		})
 	}
 
 	if textRequest.WebSearchOptions != nil {
@@ -95,7 +91,9 @@ func OpenAIChatRequestToClaudeMessages(c *gin.Context, textRequest dto.GeneralOp
 		Model:         textRequest.Model,
 		StopSequences: nil,
 		Temperature:   textRequest.Temperature,
-		Tools:         claudeTools,
+	}
+	if len(claudeTools) > 0 {
+		claudeRequest.Tools = claudeTools
 	}
 	if maxTokens := textRequest.GetMaxTokens(); maxTokens > 0 {
 		claudeRequest.MaxTokens = common.GetPointer(maxTokens)

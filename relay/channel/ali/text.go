@@ -9,7 +9,15 @@ import (
 
 const EnableSearchModelSuffix = "-internet"
 
-func requestOpenAI2Ali(request dto.GeneralOpenAIRequest) *dto.GeneralOpenAIRequest {
+func requestOpenAI2Ali(request dto.GeneralOpenAIRequest, upstreamModelName string) *dto.GeneralOpenAIRequest {
+	modelName := upstreamModelName
+	if modelName == "" {
+		modelName = request.Model
+	}
+	if !dto.IsQwenThinkingBudgetModel(modelName) {
+		request.ThinkingBudget = nil
+	}
+
 	// DashScope rejects top_p at the 0 and 1 boundaries, so an explicit value is
 	// clamped into the open interval. The clamp stays at two decimals because
 	// some models on the platform reject a third decimal with

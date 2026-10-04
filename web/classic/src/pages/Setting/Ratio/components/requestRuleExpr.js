@@ -29,6 +29,24 @@ export const COMMON_TIMEZONES = [
 
 export const NUMERIC_LITERAL_REGEX = /^-?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/;
 
+export const TIME_FUNC_RANGES = {
+  hour: [0, 23],
+  minute: [0, 59],
+  weekday: [0, 6],
+  month: [1, 12],
+  day: [1, 31],
+};
+
+export function isTimeValueInRange(timeFunc, text) {
+  if (!NUMERIC_LITERAL_REGEX.test(text)) return false;
+  const value = Number(text);
+  if (!Number.isInteger(value)) return false;
+  const range = TIME_FUNC_RANGES[timeFunc];
+  if (!range) return false;
+  const [min, max] = range;
+  return value >= min && value <= max;
+}
+
 // ---------------------------------------------------------------------------
 // Condition creators (no multiplier — multiplier lives on the group)
 // ---------------------------------------------------------------------------
@@ -95,7 +113,7 @@ export function getRequestRuleMatchOptions(source, t) {
       { value: MATCH_EQ, label: t('等于') },
       { value: MATCH_GTE, label: t('大于等于') },
       { value: MATCH_LT, label: t('小于') },
-      { value: MATCH_RANGE, label: t('跨夜范围') },
+      { value: MATCH_RANGE, label: t('时间范围') },
     ];
   }
   const base = [
@@ -239,12 +257,21 @@ function buildTimeConditionExpr(cond) {
   if (mode === MATCH_RANGE) {
     const s = normalized.rangeStart.trim();
     const e = normalized.rangeEnd.trim();
-    if (!NUMERIC_LITERAL_REGEX.test(s) || !NUMERIC_LITERAL_REGEX.test(e))
+    if (!isTimeValueInRange(timeFunc, s) || !isTimeValueInRange(timeFunc, e)) {
       return '';
-    return `${fn} >= ${s} || ${fn} < ${e}`;
+    }
+    // Overnight range (start > end) crosses the day boundary, e.g. 21-6.
+    // A within-day range (start <= end), e.g. 9-12, must use && so the
+    // condition is not a tautology that always applies the multiplier.
+    const sNum = Number(s);
+    const eNum = Number(e);
+    if (sNum > eNum) {
+      return `${fn} >= ${s} || ${fn} < ${e}`;
+    }
+    return `${fn} >= ${s} && ${fn} < ${e}`;
   }
   const v = normalized.value.trim();
-  if (!NUMERIC_LITERAL_REGEX.test(v)) return '';
+  if (!isTimeValueInRange(timeFunc, v)) return '';
   const opMap = { [MATCH_EQ]: '==', [MATCH_GTE]: '>=', [MATCH_LT]: '<' };
   return `${fn} ${opMap[mode] || '=='} ${v}`;
 }
@@ -317,11 +344,21 @@ export function buildRequestRuleExpr(groups) {
 // ---------------------------------------------------------------------------
 
 function tryParseTimeCondition(expr) {
-  // Range: hour("tz") >= s || hour("tz") < e
   let m = expr.match(
-    /^(hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) \|\| \1\("\2"\) < ([\d.eE+-]+)$/,
+    /^(hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) (?:&&|\|\|) \1\("\2"\) < ([\d.eE+-]+)$/,
   );
+  if (!m) {
+    m = expr.match(
+      /^\((hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) (?:&&|\|\|) \1\("\2"\) < ([\d.eE+-]+)\)$/,
+    );
+  }
   if (m) {
+    // Reject invalid bounds at parse time too: an unparseable rule keeps the
+    // editor in raw mode, while a leniently parsed one would be silently
+    // dropped when the visual editor rebuilds the expression.
+    if (!isTimeValueInRange(m[1], m[3]) || !isTimeValueInRange(m[1], m[4])) {
+      return null;
+    }
     return {
       source: SOURCE_TIME,
       timeFunc: m[1],
@@ -332,26 +369,11 @@ function tryParseTimeCondition(expr) {
       rangeEnd: m[4],
     };
   }
-  // Wrapped range: (hour("tz") >= s || hour("tz") < e)
-  m = expr.match(
-    /^\((hour|minute|weekday|month|day)\("([^"]+)"\) >= ([\d.eE+-]+) \|\| \1\("\2"\) < ([\d.eE+-]+)\)$/,
-  );
-  if (m) {
-    return {
-      source: SOURCE_TIME,
-      timeFunc: m[1],
-      timezone: m[2],
-      mode: MATCH_RANGE,
-      value: '',
-      rangeStart: m[3],
-      rangeEnd: m[4],
-    };
-  }
-  // Simple: hour("tz") op value
   m = expr.match(
     /^(hour|minute|weekday|month|day)\("([^"]+)"\) (==|>=|<) ([\d.eE+-]+)$/,
   );
   if (m) {
+    if (!isTimeValueInRange(m[1], m[4])) return null;
     const opMap = { '==': MATCH_EQ, '>=': MATCH_GTE, '<': MATCH_LT };
     return {
       source: SOURCE_TIME,
@@ -430,23 +452,60 @@ function tryParseRequestCondition(expr) {
 // Parse a group factor: (cond1 && cond2 ? mult : 1)
 // ---------------------------------------------------------------------------
 
+function tryParseTimeRangePair(lower, upper) {
+  const a = tryParseTimeCondition(lower);
+  const b = tryParseTimeCondition(upper);
+  if (!a || !b || a.source !== SOURCE_TIME || b.source !== SOURCE_TIME)
+    return null;
+  if (a.timeFunc !== b.timeFunc || a.timezone !== b.timezone) return null;
+  if (a.mode !== MATCH_GTE || b.mode !== MATCH_LT) return null;
+  return {
+    source: SOURCE_TIME,
+    timeFunc: a.timeFunc,
+    timezone: a.timezone,
+    mode: MATCH_RANGE,
+    value: '',
+    rangeStart: a.value,
+    rangeEnd: b.value,
+  };
+}
+
+function tryParseRequestConditions(conditionStr) {
+  // A single time range like hour(tz) >= 9 && hour(tz) < 12 must stay one
+  // MATCH_RANGE condition instead of being split into two scalar conditions.
+  const wholeTimeCond = tryParseTimeCondition(conditionStr.trim());
+  if (wholeTimeCond) return [normalizeCondition(wholeTimeCond)];
+
+  const andParts = splitTopLevelAnd(conditionStr);
+  const conditions = [];
+  for (let i = 0; i < andParts.length; i += 1) {
+    const part = andParts[i].trim();
+    // Adjacent matching time bounds (fn >= X && fn < Y) form one range; merge
+    // them so the visual editor keeps a single MATCH_RANGE row even when
+    // other conditions follow in the same group.
+    const next = i + 1 < andParts.length ? andParts[i + 1].trim() : '';
+    const merged = next ? tryParseTimeRangePair(part, next) : null;
+    if (merged) {
+      conditions.push(normalizeCondition(merged));
+      i += 1;
+      continue;
+    }
+    const condition = tryParseRequestCondition(part);
+    if (!condition) return null;
+    conditions.push(normalizeCondition(condition));
+  }
+  if (conditions.length === 0) return null;
+  return conditions;
+}
+
 function tryParseRuleGroupFactor(part) {
   // Must be wrapped in ( ... ? mult : 1)
   const m = part.match(/^\((.+) \? ([\d.eE+-]+) : 1\)$/s);
   if (!m) return null;
 
-  const conditionStr = m[1];
-  const multiplier = m[2];
-
-  const andParts = splitTopLevelAnd(conditionStr);
-  const conditions = [];
-  for (const ap of andParts) {
-    const cond = tryParseRequestCondition(ap.trim());
-    if (!cond) return null;
-    conditions.push(normalizeCondition(cond));
-  }
-  if (conditions.length === 0) return null;
-  return { conditions, multiplier };
+  const conditions = tryParseRequestConditions(m[1]);
+  if (!conditions) return null;
+  return { conditions, multiplier: m[2] };
 }
 
 export function tryParseRequestRuleExpr(expr) {

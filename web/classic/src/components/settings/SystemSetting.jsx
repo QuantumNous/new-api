@@ -62,6 +62,7 @@ const SystemSetting = () => {
   const { t } = useTranslation();
   let [inputs, setInputs] = useState({
     PasswordLoginEnabled: '',
+    PasswordLoginEncryptionEnabled: '',
     PasswordRegisterEnabled: '',
     EmailVerificationEnabled: '',
     RegisterInviteCodeRequired: '',
@@ -219,6 +220,7 @@ const SystemSetting = () => {
             }
             break;
           case 'PasswordLoginEnabled':
+          case 'PasswordLoginEncryptionEnabled':
           case 'PasswordRegisterEnabled':
           case 'EmailVerificationEnabled':
           case 'RegisterInviteCodeRequired':
@@ -1231,6 +1233,28 @@ const SystemSetting = () => {
                         {t('允许通过密码进行登录')}
                       </Form.Checkbox>
                       <Form.Checkbox
+                        field='PasswordLoginEncryptionEnabled'
+                        noLabel
+                        onChange={(e) =>
+                          handleCheckboxChange(
+                            'PasswordLoginEncryptionEnabled',
+                            e,
+                          )
+                        }
+                      >
+                        {t('登录密码传输加密')}
+                      </Form.Checkbox>
+                      <div
+                        style={{
+                          color: 'var(--semi-color-text-2)',
+                          fontSize: 12,
+                          marginBottom: 12,
+                          marginTop: -4,
+                        }}
+                      >
+                        {t('开启后登录密码将以加密方式传输；不能替代 HTTPS。')}
+                      </div>
+                      <Form.Checkbox
                         field='PasswordRegisterEnabled'
                         noLabel
                         onChange={(e) =>
@@ -1710,7 +1734,9 @@ const SystemSetting = () => {
                               handleCheckboxChange('SMTPInsecureSkipVerify', e)
                             }
                           >
-                            {t('跳过 SMTP TLS 证书验证（允许自签名或主机名不匹配）')}
+                            {t(
+                              '跳过 SMTP TLS 证书验证（允许自签名或主机名不匹配）',
+                            )}
                           </Form.Checkbox>
                           <Form.Checkbox
                             field='SMTPForceAuthLogin'

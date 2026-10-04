@@ -99,6 +99,11 @@ func XAINativeWssHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIErro
 	info.TargetWs = targetWs
 	defer targetWs.Close()
 
+	if preUpgraded, ok := GetPreUpgradedWebSocket(c); ok && len(preUpgraded.Message) > 0 {
+		if err := targetWs.WriteMessage(preUpgraded.MessageType, preUpgraded.Message); err != nil {
+			return types.NewError(err, types.ErrorCodeDoRequestFailed)
+		}
+	}
 	xAINativeProxyWebSocket(c, info)
 	service.PostTextConsumeQuota(c, info, xAINativeUsage(info), []string{"xAI native WebSocket passthrough"})
 	return nil

@@ -79,6 +79,10 @@ export function UserAuthForm({
     (status?.password_login_enabled ??
       status?.data?.password_login_enabled ??
       true) !== false
+  const passwordLoginEncryptionEnabled = Boolean(
+    status?.password_login_encryption_enabled ??
+    status?.data?.password_login_encryption_enabled
+  )
   const {
     isTurnstileEnabled,
     turnstileSiteKey,
@@ -157,6 +161,7 @@ export function UserAuthForm({
         username: data.username,
         password: data.password,
         turnstile: turnstileToken,
+        passwordEncryptionEnabled: passwordLoginEncryptionEnabled,
       })
 
       if (res.success) {

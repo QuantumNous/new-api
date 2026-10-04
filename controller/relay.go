@@ -85,6 +85,12 @@ func geminiRelayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewA
 	return err
 }
 
+// RelayWithWebSocket runs the normal relay lifecycle on an already-upgraded connection.
+func RelayWithWebSocket(c *gin.Context, relayFormat types.RelayFormat, ws *websocket.Conn, firstMessageType int, firstMessage []byte) {
+	relay.SetPreUpgradedWebSocket(c, ws, firstMessageType, firstMessage)
+	Relay(c, relayFormat)
+}
+
 func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	requestId := c.GetString(common.RequestIdKey)
@@ -97,11 +103,15 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	)
 
 	if isWebSocketRelayFormat(relayFormat) {
-		var err error
-		ws, err = upgrader.Upgrade(c.Writer, c.Request, nil)
-		if err != nil {
-			helper.WssError(c, ws, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry()).ToClientOpenAIError(c))
-			return
+		if preUpgraded, ok := relay.GetPreUpgradedWebSocket(c); ok {
+			ws = preUpgraded.Conn
+		} else {
+			var err error
+			ws, err = upgrader.Upgrade(c.Writer, c.Request, nil)
+			if err != nil {
+				helper.WssError(c, ws, types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry()).ToClientOpenAIError(c))
+				return
+			}
 		}
 		defer ws.Close()
 	}

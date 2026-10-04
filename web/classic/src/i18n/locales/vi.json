@@ -5669,7 +5669,17 @@
     "智谱 BigModel（中国版）": "BigModel (Trung Quốc)",
     "开始授权": "Bắt đầu xác thực",
     "重新发起授权": "Xác thực mới",
-    "官方客户端不支持自动刷新 JWT。过期后使用所选服务商重新授权，新密钥将自动保存。": "Ứng dụng chính thức không tự động làm mới JWT. Khi JWT hết hạn, hãy xác thực lại với nhà cung cấp đã chọn. Khóa mới sẽ được lưu tự động."
+    "官方客户端不支持自动刷新 JWT。过期后使用所选服务商重新授权，新密钥将自动保存。": "Ứng dụng chính thức không tự động làm mới JWT. Khi JWT hết hạn, hãy xác thực lại với nhà cung cấp đã chọn. Khóa mới sẽ được lưu tự động.",
+    "时间范围": "Khoảng thời gian",
+    "开始 ≤ 结束为当日区间，开始 > 结束为跨零点区间": "Bắt đầu ≤ kết thúc là trong ngày; bắt đầu > kết thúc là qua đêm",
+    "登录密码传输加密": "Mã hóa truyền mật khẩu",
+    "开启后登录密码将以加密方式传输；不能替代 HTTPS。": "Khi bật, mật khẩu đăng nhập sẽ được mã hóa trong quá trình truyền tải; không thể thay thế HTTPS.",
+    "HTTP 协议": "Giao thức HTTP",
+    "HTTP/1.1": "HTTP/1.1",
+    "自动在可用时协商 HTTP/2。HTTP/1.1 会在并发时使用多条保持连接的连接。": "Tự động đàm phán HTTP/2 khi khả dụng. HTTP/1.1 buộc dùng nhiều kết nối keep-alive khi có đồng thời.",
+    "HTTP/2 连接分片": "Phân mảnh kết nối HTTP/2",
+    "选择 HTTP/1.1 时不可用 HTTP/2 连接分片。": "Không thể dùng phân mảnh kết nối HTTP/2 khi chọn HTTP/1.1.",
+    "将 HTTP/2 流量分散到同一上游源站的多条可复用连接（1-8）。": "Phân tán lưu lượng HTTP/2 trên nhiều kết nối tái sử dụng tới cùng một nguồn upstream (1-8)."
   },
   "RPM/并发": "RPM / Đồng thời",
   "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",

@@ -107,16 +107,17 @@ var (
 )
 
 var (
-	PasswordLoginEnabled     = true
-	PasswordRegisterEnabled  = true
-	EmailVerificationEnabled = false
-	GitHubOAuthEnabled       = false
-	LinuxDOOAuthEnabled      = false
-	QQOAuthEnabled           = false
-	WeChatAuthEnabled        = false
-	TelegramOAuthEnabled     = false
-	SteamOAuthEnabled        = false
-	TurnstileCheckEnabled    = false
+	PasswordLoginEnabled           = true
+	PasswordLoginEncryptionEnabled = false
+	PasswordRegisterEnabled        = true
+	EmailVerificationEnabled       = false
+	GitHubOAuthEnabled             = false
+	LinuxDOOAuthEnabled            = false
+	QQOAuthEnabled                 = false
+	WeChatAuthEnabled              = false
+	TelegramOAuthEnabled           = false
+	SteamOAuthEnabled              = false
+	TurnstileCheckEnabled          = false
 	// Turnstile 场景必须单独加开关；以后新增 Turnstile 校验入口时不要复用全局开关。
 	TurnstileLoginEnabled                     = false
 	TurnstileRegisterEnabled                  = false

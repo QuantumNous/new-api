@@ -92,6 +92,8 @@ export interface ChannelSettings {
   system_prompt?: string
   system_prompt_override?: boolean
   plan_quota_cooldown_enabled?: boolean
+  http_protocol?: 'auto' | 'http1' | string
+  http2_connection_shards?: number
 }
 
 export interface ChannelOtherSettings {

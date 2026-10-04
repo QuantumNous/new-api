@@ -41,6 +41,8 @@ import {
   prepareCredentialRequestOptions,
   buildAssertionResult,
   isPasskeySupported,
+  encryptPassword,
+  clearPasswordEncryptionCache,
 } from '../../helpers';
 import Turnstile from 'react-turnstile';
 import {
@@ -145,14 +147,14 @@ const LoginForm = () => {
     (status.custom_oauth_providers || []).length > 0;
   const hasOAuthLoginOptions = Boolean(
     status.github_oauth ||
-      status.discord_oauth ||
-      status.oidc_enabled ||
-      status.wechat_login ||
-      status.linuxdo_oauth ||
-      status.qq_oauth ||
-      status.steam_oauth ||
-      status.telegram_oauth ||
-      hasCustomOAuthProviders,
+    status.discord_oauth ||
+    status.oidc_enabled ||
+    status.wechat_login ||
+    status.linuxdo_oauth ||
+    status.qq_oauth ||
+    status.steam_oauth ||
+    status.telegram_oauth ||
+    hasCustomOAuthProviders,
   );
   const hasRegistrationOptions =
     status.register_enabled !== false &&
@@ -244,14 +246,31 @@ const LoginForm = () => {
     setLoginLoading(true);
     try {
       if (username && password) {
+        let passwordFields = { password };
+        if (status?.password_login_encryption_enabled) {
+          try {
+            const encrypted = await encryptPassword(password);
+            passwordFields = {
+              password_encrypted: encrypted.password_encrypted,
+              encryption_key_id: encrypted.encryption_key_id,
+            };
+          } catch (err) {
+            clearPasswordEncryptionCache();
+            showError('登录失败，请重试');
+            return;
+          }
+        }
         const res = await API.post(
           `/api/user/login?turnstile=${turnstileToken}`,
           {
             username,
-            password,
+            ...passwordFields,
           },
         );
         const { success, data } = res.data;
+        if (!success && status?.password_login_encryption_enabled) {
+          clearPasswordEncryptionCache();
+        }
         if (success) {
           // 检查是否需要2FA验证
           if (data && data.require_2fa) {

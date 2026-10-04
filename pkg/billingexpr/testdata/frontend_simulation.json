@@ -1,0 +1,167 @@
+[
+  {
+    "name": "versioned tokens and cache",
+    "expression": "v1:tier(\"base\", p * 2 + c * 8 + cr * 0.2)",
+    "tokens": {
+      "p": 900,
+      "c": 100,
+      "cr": 100
+    },
+    "cost": 2620,
+    "tier": "base"
+  },
+  {
+    "name": "nil false and zero",
+    "expression": "param(\"missing\") == nil && param(\"zero\") == 0 && param(\"enabled\") == false ? tier(\"ok\", 3.5) : tier(\"bad\", 99)",
+    "body": {
+      "zero": 0,
+      "enabled": false
+    },
+    "cost": 3.5,
+    "tier": "ok"
+  },
+  {
+    "name": "normalized headers and two rules",
+    "expression": "tier(\"base\", p * 2) * (header(\" X-Priority \") == \"high\" ? 2 : 1) * (param(\"service_tier\") == \"flex\" ? 0.5 : 1)",
+    "tokens": {
+      "p": 100
+    },
+    "headers": {
+      " X-Priority ": " high "
+    },
+    "body": {
+      "service_tier": "flex"
+    },
+    "cost": 200,
+    "tier": "base",
+    "multipliers": [
+      2,
+      0.5
+    ],
+    "matched": [
+      true,
+      true
+    ]
+  },
+  {
+    "name": "unmatched rule",
+    "expression": "tier(\"base\", 10) * (param(\"priority\") == true ? 2 : 1)",
+    "body": {},
+    "cost": 10,
+    "tier": "base",
+    "multipliers": [
+      2
+    ],
+    "matched": [
+      false
+    ]
+  },
+  {
+    "name": "rules skipped by short circuit",
+    "expression": "param(\"enabled\") == true ? tier(\"yes\", 10) * (header(\"tier\") == \"fast\" ? 3 : 1) : tier(\"no\", 2)",
+    "body": {},
+    "headers": {
+      "tier": "fast"
+    },
+    "cost": 2,
+    "tier": "no",
+    "multipliers": [
+      3
+    ],
+    "matched": [
+      false
+    ]
+  },
+  {
+    "name": "noncanonical factor still evaluates",
+    "expression": "tier(\"base\", 10) * (param(\"priority\") == true ? 2 : 1.5)",
+    "body": {},
+    "cost": 15,
+    "tier": "base"
+  },
+  {
+    "name": "path escapes array indices and length",
+    "expression": "param(\"a\\\\.b.items.0.price\") + param(\"a\\\\.b.items.#\")",
+    "body": {
+      "a.b": {
+        "items": [
+          {
+            "price": 4
+          },
+          {
+            "price": 8
+          }
+        ]
+      }
+    },
+    "cost": 6,
+    "tier": ""
+  },
+  {
+    "name": "literal path to constructor",
+    "expression": "param(\"constructor\") == nil ? 4 : 99",
+    "body": {},
+    "cost": 4,
+    "tier": ""
+  },
+  {
+    "name": "contains scalars and objects",
+    "expression": "has(param(\"n\"), \"12\") && has(param(\"object\"), \"map[a:1 b:[true <nil>]]\") && !has(nil, \"x\") && !has(\"abc\", \"\") ? 8 : 99",
+    "body": {
+      "n": 123,
+      "object": {
+        "b": [
+          true,
+          null
+        ],
+        "a": 1
+      }
+    },
+    "cost": 8,
+    "tier": ""
+  },
+  {
+    "name": "math and numeric division",
+    "expression": "min(10, max(2, 5)) + abs(-2) + ceil(1.1) + floor(2.9) + 5 / 2 + 7 % 3",
+    "cost": 14.5,
+    "tier": ""
+  },
+  {
+    "name": "task token scale and request rule",
+    "expression": "tier(\"base\", 0.2 + u(\"tokens\") * 10 / 1000000) * (header(\"tier\") == \"fast\" ? 2 : 1)",
+    "usage": {
+      "tokens": 500000
+    },
+    "headers": {
+      "tier": "fast"
+    },
+    "cost": 10.4,
+    "tier": "base",
+    "multipliers": [
+      2
+    ],
+    "matched": [
+      true
+    ]
+  },
+  {
+    "name": "task enum conditions",
+    "expression": "u(\"mode\") == \"pro\" ? tier(\"pro\", u(\"seconds\") * 0.8) : tier(\"std\", u(\"seconds\") * 0.4)",
+    "usage": {
+      "mode": "pro",
+      "seconds": 5
+    },
+    "cost": 4,
+    "tier": "pro"
+  },
+  {
+    "name": "scientific rates and parentheses",
+    "expression": "(tier(\"base\", (p * 2e-3 + c * 1E+1)))",
+    "tokens": {
+      "p": 1000,
+      "c": 2
+    },
+    "cost": 22,
+    "tier": "base"
+  }
+]

@@ -48,3 +48,35 @@ func WssHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.
 	service.PostWssConsumeQuota(c, info, info.UpstreamModelName, usage.(*dto.RealtimeUsage), "")
 	return nil
 }
+
+const preUpgradedWebSocketContextKey = "relay_pre_upgraded_websocket"
+
+type PreUpgradedWebSocket struct {
+	Conn        *websocket.Conn
+	MessageType int
+	Message     []byte
+}
+
+// SetPreUpgradedWebSocket lets Relay reuse a connection upgraded by a dispatcher.
+func SetPreUpgradedWebSocket(c *gin.Context, conn *websocket.Conn, messageType int, message []byte) {
+	if c == nil || conn == nil {
+		return
+	}
+	c.Set(preUpgradedWebSocketContextKey, &PreUpgradedWebSocket{
+		Conn:        conn,
+		MessageType: messageType,
+		Message:     append([]byte(nil), message...),
+	})
+}
+
+func GetPreUpgradedWebSocket(c *gin.Context) (*PreUpgradedWebSocket, bool) {
+	if c == nil {
+		return nil, false
+	}
+	value, ok := c.Get(preUpgradedWebSocketContextKey)
+	if !ok {
+		return nil, false
+	}
+	message, ok := value.(*PreUpgradedWebSocket)
+	return message, ok && message != nil && message.Conn != nil
+}

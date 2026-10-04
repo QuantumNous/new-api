@@ -22,6 +22,7 @@ import { TOKEN_UNIT_DIVISORS } from '../constants'
 import type { PricingModel, TokenUnit } from '../types'
 import {
   BILLING_PRICING_VARS,
+  getCurrentTimePricingTiers,
   parseTiersFromExpr,
   splitBillingExprAndRequestRules,
   tryParseRequestRuleExpr,
@@ -36,6 +37,7 @@ type DynamicPriceOptions = {
   priceRate?: number
   usdExchangeRate?: number
   groupRatioMultiplier?: number
+  now?: Date
 }
 
 export type DynamicPriceEntry = {
@@ -58,6 +60,7 @@ export type DynamicPricingSummary = {
   entries: DynamicPriceEntry[]
   primaryEntries: DynamicPriceEntry[]
   secondaryEntries: DynamicPriceEntry[]
+  isTimePricing?: boolean
 }
 
 const PRIMARY_DYNAMIC_FIELDS = new Set(['inputPrice', 'outputPrice'])
@@ -160,7 +163,15 @@ export function getDynamicPricingSummary(
   if (!isDynamicPricingModel(model)) return null
 
   const tiers = getDynamicPricingTiers(model)
-  const tier = tiers[0] || null
+  const baseExpression = splitBillingExprAndRequestRules(
+    model.billing_expr || ''
+  ).billingExpr
+  const timeTiers = getCurrentTimePricingTiers(
+    baseExpression,
+    options.now ?? new Date()
+  )
+  const summaryTiers = timeTiers ?? tiers
+  const tier = summaryTiers[0] || null
   const entries = getDynamicPriceEntries(tier, options)
   const rawExpression = model.billing_expr || ''
 
@@ -178,5 +189,6 @@ export function getDynamicPricingSummary(
     secondaryEntries: entries.filter(
       (entry) => !PRIMARY_DYNAMIC_FIELDS.has(entry.field)
     ),
+    isTimePricing: timeTiers !== null,
   }
 }

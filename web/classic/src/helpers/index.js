@@ -32,3 +32,4 @@ export * from './passkey';
 export * from './statusCodeRules';
 export * from './frontendTheme';
 export * from './frontend-routes';
+export * from './password-encryption';

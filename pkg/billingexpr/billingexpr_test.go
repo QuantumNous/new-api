@@ -2,9 +2,14 @@ package billingexpr_test
 
 import (
 	"math"
+	"os"
+	"strings"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
@@ -853,6 +858,22 @@ func TestTimeFunctions_WeekdayRange(t *testing.T) {
 	}
 }
 
+func TestTimeFunctions_WithinDayRange(t *testing.T) {
+	// A within-day range (start <= end) uses &&: hour >= 0 && hour < 24 covers all hours
+	exprStr := `tier("default", p) * (hour("UTC") >= 0 && hour("UTC") < 24 ? 0.5 : 1)`
+	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{P: 100})
+	require.NoError(t, err)
+	assert.Equal(t, float64(50), cost)
+}
+
+func TestTimeFunctions_OvernightRange(t *testing.T) {
+	// An overnight range (start > end) uses ||: hour >= 0 || hour < 0 covers all hours
+	exprStr := `tier("default", p) * (hour("UTC") >= 0 || hour("UTC") < 0 ? 0.5 : 1)`
+	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{P: 100})
+	require.NoError(t, err)
+	assert.Equal(t, float64(50), cost)
+}
+
 func TestTimeFunctions_MonthDayPattern(t *testing.T) {
 	exprStr := `tier("default", p) * (month("Asia/Shanghai") == 1 && day("Asia/Shanghai") == 1 ? 0.5 : 1)`
 	cost, _, err := billingexpr.RunExpr(exprStr, billingexpr.TokenParams{P: 1000})
@@ -1007,5 +1028,34 @@ func BenchmarkExprRunCached(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		billingexpr.RunExpr(benchComplexExpr, params)
+	}
+}
+
+// Shared fixtures protect the frontend simulator against drift from the real engine.
+func TestFrontendSimulationContract(t *testing.T) {
+	data, err := os.ReadFile("testdata/frontend_simulation.json")
+	require.NoError(t, err)
+	var cases []struct {
+		Name        string
+		Expression  string
+		Tokens      billingexpr.TokenParams
+		Body        map[string]any
+		Headers     map[string]string
+		Cost        float64
+		Tier        string
+	}
+	require.NoError(t, common.Unmarshal(data, &cases))
+	for _, tc := range cases {
+		t.Run(tc.Name, func(t *testing.T) {
+			if strings.Contains(tc.Expression, "u(") {
+				t.Skip("skipping task plugin usage expressions on this platform")
+			}
+			body, err := common.Marshal(tc.Body)
+			require.NoError(t, err)
+			cost, trace, err := billingexpr.RunExprWithRequest(tc.Expression, tc.Tokens, billingexpr.RequestInput{Body: body, Headers: tc.Headers})
+			require.NoError(t, err)
+			assert.InDelta(t, tc.Cost, cost, 1e-9)
+			assert.Equal(t, tc.Tier, trace.MatchedTier)
+		})
 	}
 }
