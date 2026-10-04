@@ -4,17 +4,26 @@ on:
   push:
     branches:
       - main
+    tags:
+      - v*
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  APP_NAME: new-api
 
 jobs:
   prepare:
     name: Prepare image tags
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     outputs:
       short_sha: ${{ steps.vars.outputs.short_sha }}
       sha_tag: ${{ steps.vars.outputs.sha_tag }}
+      version: ${{ steps.vars.outputs.version }}
+      commit: ${{ steps.vars.outputs.commit }}
+      build_date: ${{ steps.vars.outputs.build_date }}
     steps:
       - name: Check out
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -26,8 +35,17 @@ jobs:
         run: |
           SHORT_SHA=$(git rev-parse --short=12 HEAD)
           SHA_TAG="sha-${SHORT_SHA}"
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+          else
+            VERSION="latest"
+          fi
+          BUILD_DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
           echo "sha_tag=${SHA_TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "commit=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "build_date=${BUILD_DATE}" >> "$GITHUB_OUTPUT"
 
   build_single_arch:
     name: Build & push (${{ matrix.arch }})
@@ -57,8 +75,14 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
         with:
+          registry: docker.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Lowercase image name
+        run: |
+          IMAGE_NAME="calciumion/new-api"
+          echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
 
       - name: Build & push single-arch image
         id: build
@@ -67,16 +91,20 @@ jobs:
           context: .
           platforms: ${{ matrix.platform }}
           push: true
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
+            COMMIT=${{ needs.prepare.outputs.commit }}
+            BUILD_DATE=${{ needs.prepare.outputs.build_date }}
           tags: |
-            calciumion/new-api:latest-${{ matrix.arch }}
-            calciumion/new-api:${{ needs.prepare.outputs.sha_tag }}-${{ matrix.arch }}
+            ${{ env.IMAGE_NAME }}:latest-${{ matrix.arch }}
+            ${{ env.IMAGE_NAME }}:${{ needs.prepare.outputs.sha_tag }}-${{ matrix.arch }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Build summary
         run: |
           echo "### Single-arch image (${{ matrix.arch }})" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Image: calciumion/new-api" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image: ${IMAGE_NAME}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Commit: ${{ needs.prepare.outputs.short_sha }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Tags:" >> "$GITHUB_STEP_SUMMARY"
           echo "  - latest-${{ matrix.arch }}" >> "$GITHUB_STEP_SUMMARY"
@@ -92,36 +120,50 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
         with:
+          registry: docker.io
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Lowercase image name
+        run: |
+          IMAGE_NAME="calciumion/new-api"
+          echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
 
       - name: Create & push latest manifest
         run: |
           docker buildx imagetools create \
-            -t calciumion/new-api:latest \
-            calciumion/new-api:latest-amd64 \
-            calciumion/new-api:latest-arm64
+            --tag "${IMAGE_NAME}:latest" \
+            "${IMAGE_NAME}:latest-amd64" \
+            "${IMAGE_NAME}:latest-arm64"
 
       - name: Create & push sha manifest
         run: |
           docker buildx imagetools create \
-            -t calciumion/new-api:${{ needs.prepare.outputs.sha_tag }} \
-            calciumion/new-api:${{ needs.prepare.outputs.sha_tag }}-amd64 \
-            calciumion/new-api:${{ needs.prepare.outputs.sha_tag }}-arm64
+            --tag "${IMAGE_NAME}:${{ needs.prepare.outputs.sha_tag }}" \
+            "${IMAGE_NAME}:${{ needs.prepare.outputs.sha_tag }}-amd64" \
+            "${IMAGE_NAME}:${{ needs.prepare.outputs.sha_tag }}-arm64"
+
+      - name: Create & push version manifest
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          docker buildx imagetools create \
+            --tag "${IMAGE_NAME}:${{ needs.prepare.outputs.version }}" \
+            "${IMAGE_NAME}:${{ needs.prepare.outputs.sha_tag }}-amd64" \
+            "${IMAGE_NAME}:${{ needs.prepare.outputs.sha_tag }}-arm64"
 
       - name: Manifest summary
         run: |
           echo "### Multi-arch publish result" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Image: calciumion/new-api" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Image: ${IMAGE_NAME}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Commit: ${{ needs.prepare.outputs.short_sha }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- Tags:" >> "$GITHUB_STEP_SUMMARY"
           echo "  - latest" >> "$GITHUB_STEP_SUMMARY"
           echo "  - ${{ needs.prepare.outputs.sha_tag }}" >> "$GITHUB_STEP_SUMMARY"
           echo "- latest manifest:" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          docker buildx imagetools inspect calciumion/new-api:latest >> "$GITHUB_STEP_SUMMARY"
+          docker buildx imagetools inspect "${IMAGE_NAME}:latest" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo "- ${{ needs.prepare.outputs.sha_tag }} manifest:" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          docker buildx imagetools inspect calciumion/new-api:${{ needs.prepare.outputs.sha_tag }} >> "$GITHUB_STEP_SUMMARY"
+          docker buildx imagetools inspect "${IMAGE_NAME}:${{ needs.prepare.outputs.sha_tag }}" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
