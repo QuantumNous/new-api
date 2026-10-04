@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
@@ -23,6 +24,7 @@ var (
 type PasskeyCredential struct {
 	ID              int            `json:"id" gorm:"primaryKey"`
 	UserID          int            `json:"user_id" gorm:"uniqueIndex;not null"`
+	RPID            *string        `json:"rp_id,omitempty" gorm:"column:rp_id;type:varchar(253)"`
 	CredentialID    string         `json:"credential_id" gorm:"type:varchar(512);uniqueIndex;not null"` // base64 encoded
 	PublicKey       string         `json:"public_key" gorm:"type:text;not null"`                        // base64 encoded
 	AttestationType string         `json:"attestation_type" gorm:"type:varchar(255)"`
@@ -121,6 +123,63 @@ func NewPasskeyCredentialFromWebAuthn(userID int, credential *webauthn.Credentia
 	return passkey
 }
 
+func NewPasskeyCredentialFromWebAuthnWithRPID(userID int, credential *webauthn.Credential, rpID string) *PasskeyCredential {
+	passkey := NewPasskeyCredentialFromWebAuthn(userID, credential)
+	if passkey != nil && strings.TrimSpace(rpID) != "" {
+		rpID = strings.TrimSpace(rpID)
+		passkey.RPID = &rpID
+	}
+	return passkey
+}
+
+func BindPasskeyRPIDIfEmpty(id int, rpID string) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := validatePasskeyRPIDWithTx(tx, rpID); err != nil {
+			return err
+		}
+		return bindPasskeyRPIDIfEmptyTx(tx, id, rpID)
+	})
+}
+
+func bindPasskeyRPIDIfEmptyTx(tx *gorm.DB, id int, rpID string) error {
+	return tx.Model(&PasskeyCredential{}).Where("id = ?", id).
+		Where("rp_id IS NULL OR rp_id = ''").Update("rp_id", rpID).Error
+}
+
+// UpdateValidatedPasskeyCredential cannot resurrect a revoked or replaced credential.
+func UpdateValidatedPasskeyCredential(id int, rpID string, validated *webauthn.Credential) error {
+	if validated == nil {
+		return ErrFriendlyPasskeyNotFound
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := validatePasskeyRPIDWithTx(tx, rpID); err != nil {
+			return err
+		}
+		var stored PasskeyCredential
+		if err := lockForUpdate(tx).First(&stored, id).Error; err != nil {
+			return ErrFriendlyPasskeyNotFound
+		}
+		if stored.CredentialID != base64.StdEncoding.EncodeToString(validated.ID) {
+			return ErrFriendlyPasskeyNotFound
+		}
+		if stored.RPID != nil && *stored.RPID != "" && *stored.RPID != rpID {
+			return system_setting.ErrPasskeyRPIDUnavailable
+		}
+		if err := bindPasskeyRPIDIfEmptyTx(tx, id, rpID); err != nil {
+			return err
+		}
+		count := stored.SignCount
+		stored.ApplyValidatedCredential(validated)
+		if stored.SignCount < count {
+			stored.SignCount = count
+		}
+		stored.RPID = &rpID
+		now := time.Now()
+		stored.LastUsedAt = &now
+		return tx.Save(&stored).Error
+	})
+}
+
 func (p *PasskeyCredential) ApplyValidatedCredential(credential *webauthn.Credential) {
 	if credential == nil || p == nil {
 		return
@@ -183,7 +242,22 @@ func UpsertPasskeyCredential(credential *PasskeyCredential) error {
 		return fmt.Errorf("Passkey 保存失败，请重试")
 	}
 	return DB.Transaction(func(tx *gorm.DB) error {
-		// 使用Unscoped()进行硬删除，避免唯一索引冲突
+		if _, err := lockPasskeyDomainSettings(tx); err != nil {
+			return err
+		}
+		var existing PasskeyCredential
+		existingErr := lockForUpdate(tx).Where("user_id = ?", credential.UserID).First(&existing).Error
+		if existingErr != nil && !errors.Is(existingErr, gorm.ErrRecordNotFound) {
+			return existingErr
+		}
+		if (credential.RPID == nil || strings.TrimSpace(*credential.RPID) == "") && existingErr == nil {
+			credential.RPID = existing.RPID
+		}
+		if credential.RPID != nil && strings.TrimSpace(*credential.RPID) != "" {
+			if err := validatePasskeyRPIDWithTx(tx, *credential.RPID); err != nil {
+				return err
+			}
+		}
 		if err := tx.Unscoped().Where("user_id = ?", credential.UserID).Delete(&PasskeyCredential{}).Error; err != nil {
 			common.SysLog(fmt.Sprintf("UpsertPasskeyCredential: failed to delete existing credential for user %d: %v", credential.UserID, err))
 			return fmt.Errorf("Passkey 保存失败，请重试")

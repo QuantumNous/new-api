@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	passkeysvc "github.com/QuantumNous/new-api/service/passkey"
 	"github.com/QuantumNous/new-api/setting/system_setting"
@@ -18,8 +20,34 @@ import (
 	webauthnlib "github.com/go-webauthn/webauthn/webauthn"
 )
 
+type passkeyRPIDRequest struct {
+	RPID string `json:"rp_id"`
+}
+
+func parsePasskeyRPIDHint(c *gin.Context) (string, error) {
+	if c.Request.Body == nil || c.Request.ContentLength == 0 {
+		return "", nil
+	}
+	var request passkeyRPIDRequest
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+		return "", err
+	}
+	return request.RPID, nil
+}
+
+func apiPasskeyError(c *gin.Context, err error) {
+	if errors.Is(err, system_setting.ErrPasskeyRPIDInvalid) {
+		common.ApiErrorI18n(c, i18n.MsgPasskeyRPIDInvalid)
+		return
+	}
+	if errors.Is(err, system_setting.ErrPasskeyRPIDUnavailable) {
+		common.ApiErrorI18n(c, i18n.MsgPasskeyRPIDUnavailable)
+		return
+	}
+	common.ApiError(c, err)
+}
 func PasskeyRegisterBegin(c *gin.Context) {
-	if !system_setting.GetPasskeySettings().Enabled {
+	if !system_setting.PasskeySettingsSnapshot().Enabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "管理员未启用 Passkey 登录",
@@ -49,9 +77,14 @@ func PasskeyRegisterBegin(c *gin.Context) {
 		credential = nil
 	}
 
-	wa, err := passkeysvc.BuildWebAuthn(c.Request)
+	hint, err := parsePasskeyRPIDHint(c)
 	if err != nil {
-		common.ApiError(c, err)
+		common.ApiErrorMsg(c, "无效的 Passkey 验证请求")
+		return
+	}
+	wa, rpIDs, err := passkeysvc.BuildLoginWebAuthn(c.Request, hint, "")
+	if err != nil {
+		apiPasskeyError(c, err)
 		return
 	}
 
@@ -64,12 +97,12 @@ func PasskeyRegisterBegin(c *gin.Context) {
 
 	creation, sessionData, err := wa.BeginRegistration(waUser, options...)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
 		return
 	}
 
-	if err := passkeysvc.SaveSessionData(c, passkeysvc.RegistrationSessionKey, sessionData); err != nil {
-		common.ApiError(c, err)
+	if err := passkeysvc.SaveSessionDataWithRPID(c, passkeysvc.RegistrationSessionKey, wa.Config.RPID, sessionData); err != nil {
+		apiPasskeyError(c, err)
 		return
 	}
 
@@ -78,12 +111,14 @@ func PasskeyRegisterBegin(c *gin.Context) {
 		"message": "",
 		"data": gin.H{
 			"options": creation,
+			"rp_id":   wa.Config.RPID,
+			"rp_ids":  rpIDs,
 		},
 	})
 }
 
 func PasskeyRegisterFinish(c *gin.Context) {
-	if !system_setting.GetPasskeySettings().Enabled {
+	if !system_setting.PasskeySettingsSnapshot().Enabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "管理员未启用 Passkey 登录",
@@ -104,12 +139,6 @@ func PasskeyRegisterFinish(c *gin.Context) {
 		return
 	}
 
-	wa, err := passkeysvc.BuildWebAuthn(c.Request)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-
 	credentialRecord, err := model.GetPasskeyByUserID(user.Id)
 	if err != nil && !errors.Is(err, model.ErrPasskeyNotFound) {
 		common.ApiError(c, err)
@@ -119,27 +148,32 @@ func PasskeyRegisterFinish(c *gin.Context) {
 		credentialRecord = nil
 	}
 
-	sessionData, err := passkeysvc.PopSessionData(c, passkeysvc.RegistrationSessionKey)
+	sessionData, rpID, err := passkeysvc.PopSessionDataWithRPID(c, passkeysvc.RegistrationSessionKey)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
+		return
+	}
+	wa, err := passkeysvc.BuildWebAuthnForRPID(c.Request, rpID)
+	if err != nil {
+		apiPasskeyError(c, err)
 		return
 	}
 
 	waUser := passkeysvc.NewWebAuthnUser(user, credentialRecord)
 	credential, err := wa.FinishRegistration(waUser, *sessionData, c.Request)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
 		return
 	}
 
-	passkeyCredential := model.NewPasskeyCredentialFromWebAuthn(user.Id, credential)
+	passkeyCredential := model.NewPasskeyCredentialFromWebAuthnWithRPID(user.Id, credential, rpID)
 	if passkeyCredential == nil {
 		common.ApiErrorMsg(c, "无法创建 Passkey 凭证")
 		return
 	}
 
 	if err := model.UpsertPasskeyCredential(passkeyCredential); err != nil {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
 		return
 	}
 
@@ -193,6 +227,7 @@ func PasskeyStatus(c *gin.Context) {
 			"message": "",
 			"data": gin.H{
 				"enabled": false,
+				"rp_ids":  system_setting.PasskeySettingsSnapshot().RelyingPartyIDs(),
 			},
 		})
 		return
@@ -205,6 +240,8 @@ func PasskeyStatus(c *gin.Context) {
 	data := gin.H{
 		"enabled":      true,
 		"last_used_at": credential.LastUsedAt,
+		"rp_id":        credential.RPID,
+		"rp_ids":       system_setting.PasskeySettingsSnapshot().RelyingPartyIDs(),
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -215,7 +252,7 @@ func PasskeyStatus(c *gin.Context) {
 }
 
 func PasskeyLoginBegin(c *gin.Context) {
-	if !system_setting.GetPasskeySettings().Enabled {
+	if !system_setting.PasskeySettingsSnapshot().Enabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "管理员未启用 Passkey 登录",
@@ -223,20 +260,25 @@ func PasskeyLoginBegin(c *gin.Context) {
 		return
 	}
 
-	wa, err := passkeysvc.BuildWebAuthn(c.Request)
+	hint, err := parsePasskeyRPIDHint(c)
 	if err != nil {
-		common.ApiError(c, err)
+		common.ApiErrorMsg(c, "无效的 Passkey 验证请求")
+		return
+	}
+	wa, rpIDs, err := passkeysvc.BuildLoginWebAuthn(c.Request, hint, "")
+	if err != nil {
+		apiPasskeyError(c, err)
 		return
 	}
 
 	assertion, sessionData, err := wa.BeginDiscoverableLogin()
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
 		return
 	}
 
-	if err := passkeysvc.SaveSessionData(c, passkeysvc.LoginSessionKey, sessionData); err != nil {
-		common.ApiError(c, err)
+	if err := passkeysvc.SaveSessionDataWithRPID(c, passkeysvc.LoginSessionKey, wa.Config.RPID, sessionData); err != nil {
+		apiPasskeyError(c, err)
 		return
 	}
 
@@ -245,12 +287,14 @@ func PasskeyLoginBegin(c *gin.Context) {
 		"message": "",
 		"data": gin.H{
 			"options": assertion,
+			"rp_id":   wa.Config.RPID,
+			"rp_ids":  rpIDs,
 		},
 	})
 }
 
 func PasskeyLoginFinish(c *gin.Context) {
-	if !system_setting.GetPasskeySettings().Enabled {
+	if !system_setting.PasskeySettingsSnapshot().Enabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "管理员未启用 Passkey 登录",
@@ -258,23 +302,27 @@ func PasskeyLoginFinish(c *gin.Context) {
 		return
 	}
 
-	wa, err := passkeysvc.BuildWebAuthn(c.Request)
+	sessionData, rpID, err := passkeysvc.PopSessionDataWithRPID(c, passkeysvc.LoginSessionKey)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
+		return
+	}
+	wa, err := passkeysvc.BuildWebAuthnForRPID(c.Request, rpID)
+	if err != nil {
+		apiPasskeyError(c, err)
 		return
 	}
 
-	sessionData, err := passkeysvc.PopSessionData(c, passkeysvc.LoginSessionKey)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-
+	var storedCredential *model.PasskeyCredential
 	handler := func(rawID, userHandle []byte) (webauthnlib.User, error) {
 		// 首先通过凭证ID查找用户
 		credential, err := model.GetPasskeyByCredentialID(rawID)
 		if err != nil {
 			return nil, fmt.Errorf("未找到 Passkey 凭证: %w", err)
+		}
+		storedCredential = credential
+		if credential.RPID != nil && strings.TrimSpace(*credential.RPID) != "" && !strings.EqualFold(strings.TrimSpace(*credential.RPID), rpID) {
+			return nil, passkeysvc.ErrRPIDUnavailable
 		}
 
 		// 通过凭证获取用户
@@ -302,7 +350,7 @@ func PasskeyLoginFinish(c *gin.Context) {
 
 	waUser, credential, err := wa.FinishPasskeyLogin(handler, *sessionData, c.Request)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
 		return
 	}
 
@@ -327,15 +375,21 @@ func PasskeyLoginFinish(c *gin.Context) {
 	}
 
 	// 更新凭证信息
-	updatedCredential := model.NewPasskeyCredentialFromWebAuthn(modelUser.Id, credential)
+	updatedCredential := model.NewPasskeyCredentialFromWebAuthnWithRPID(modelUser.Id, credential, rpID)
 	if updatedCredential == nil {
 		common.ApiErrorMsg(c, "Passkey 凭证更新失败")
 		return
 	}
+	if storedCredential != nil && (storedCredential.RPID == nil || strings.TrimSpace(*storedCredential.RPID) == "") {
+		if err := model.BindPasskeyRPIDIfEmpty(storedCredential.ID, rpID); err != nil {
+			apiPasskeyError(c, err)
+			return
+		}
+	}
 	now := time.Now()
 	updatedCredential.LastUsedAt = &now
 	if err := model.UpsertPasskeyCredential(updatedCredential); err != nil {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
 		return
 	}
 
@@ -388,7 +442,7 @@ func AdminResetPasskey(c *gin.Context) {
 }
 
 func PasskeyVerifyBegin(c *gin.Context) {
-	if !system_setting.GetPasskeySettings().Enabled {
+	if !system_setting.PasskeySettingsSnapshot().Enabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "管理员未启用 Passkey 登录",
@@ -414,21 +468,30 @@ func PasskeyVerifyBegin(c *gin.Context) {
 		return
 	}
 
-	wa, err := passkeysvc.BuildWebAuthn(c.Request)
+	hint, err := parsePasskeyRPIDHint(c)
 	if err != nil {
-		common.ApiError(c, err)
+		common.ApiErrorMsg(c, "无效的 Passkey 验证请求")
+		return
+	}
+	credentialRPID := ""
+	if credential.RPID != nil {
+		credentialRPID = *credential.RPID
+	}
+	wa, rpIDs, err := passkeysvc.BuildLoginWebAuthn(c.Request, hint, credentialRPID)
+	if err != nil {
+		apiPasskeyError(c, err)
 		return
 	}
 
 	waUser := passkeysvc.NewWebAuthnUser(user, credential)
 	assertion, sessionData, err := wa.BeginLogin(waUser)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
 		return
 	}
 
-	if err := passkeysvc.SaveSessionData(c, passkeysvc.VerifySessionKey, sessionData); err != nil {
-		common.ApiError(c, err)
+	if err := passkeysvc.SaveSessionDataWithRPID(c, passkeysvc.VerifySessionKey, wa.Config.RPID, sessionData); err != nil {
+		apiPasskeyError(c, err)
 		return
 	}
 
@@ -437,12 +500,14 @@ func PasskeyVerifyBegin(c *gin.Context) {
 		"message": "",
 		"data": gin.H{
 			"options": assertion,
+			"rp_id":   wa.Config.RPID,
+			"rp_ids":  rpIDs,
 		},
 	})
 }
 
 func PasskeyVerifyFinish(c *gin.Context) {
-	if !system_setting.GetPasskeySettings().Enabled {
+	if !system_setting.PasskeySettingsSnapshot().Enabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "管理员未启用 Passkey 登录",
@@ -459,12 +524,6 @@ func PasskeyVerifyFinish(c *gin.Context) {
 		return
 	}
 
-	wa, err := passkeysvc.BuildWebAuthn(c.Request)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-
 	credential, err := model.GetPasskeyByUserID(user.Id)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{
@@ -474,19 +533,32 @@ func PasskeyVerifyFinish(c *gin.Context) {
 		return
 	}
 
-	sessionData, err := passkeysvc.PopSessionData(c, passkeysvc.VerifySessionKey)
+	sessionData, rpID, err := passkeysvc.PopSessionDataWithRPID(c, passkeysvc.VerifySessionKey)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
+		return
+	}
+	wa, err := passkeysvc.BuildWebAuthnForRPID(c.Request, rpID)
+	if err != nil {
+		apiPasskeyError(c, err)
 		return
 	}
 
 	waUser := passkeysvc.NewWebAuthnUser(user, credential)
 	_, err = wa.FinishLogin(waUser, *sessionData, c.Request)
 	if err != nil {
-		common.ApiError(c, err)
+		apiPasskeyError(c, err)
 		return
 	}
 
+	if credential.RPID == nil || strings.TrimSpace(*credential.RPID) == "" {
+		if err := model.BindPasskeyRPIDIfEmpty(credential.ID, rpID); err != nil {
+			apiPasskeyError(c, err)
+			return
+		}
+		rpID = strings.TrimSpace(rpID)
+		credential.RPID = &rpID
+	}
 	// 更新凭证的最后使用时间
 	now := time.Now()
 	credential.LastUsedAt = &now

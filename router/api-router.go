@@ -243,6 +243,7 @@ func SetApiRouter(router *gin.Engine) {
 		{
 			optionRoute.GET("/", controller.GetOptions)
 			optionRoute.PUT("/", controller.UpdateOption)
+			optionRoute.PUT("/passkey/domains", controller.UpdatePasskeyDomains)
 			optionRoute.POST("/test_email", middleware.CriticalRateLimit(), controller.TestEmailDelivery)
 			optionRoute.GET("/email_templates", controller.GetEmailTemplateCatalog)
 			optionRoute.GET("/email_templates/:event/:locale", controller.GetEmailTemplate)

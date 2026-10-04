@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -139,6 +140,49 @@ type OptionUpdateRequest struct {
 	Value any    `json:"value"`
 }
 
+func UpdatePasskeyDomains(c *gin.Context) {
+	var request struct {
+		Values       map[string]string `json:"values"`
+		Preview      bool              `json:"preview"`
+		Confirmation string            `json:"confirmation"`
+	}
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil || len(request.Values) == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	change, err := model.UpdatePasskeyDomainOptions(request.Values, request.Preview, request.Confirmation)
+	if err != nil {
+		var removal *model.PasskeyDomainRemovalError
+		if errors.As(err, &removal) {
+			c.JSON(http.StatusConflict, gin.H{
+				"success": false,
+				"code":    "PASSKEY_RP_ID_REMOVAL_CONFIRMATION_REQUIRED",
+				"message": i18n.T(c, i18n.MsgPasskeyDomainRemovalConfirmationRequired),
+				"data":    removal.Change,
+			})
+			return
+		}
+		if errors.Is(err, system_setting.ErrPasskeyRPIDUnavailable) {
+			common.ApiErrorI18n(c, i18n.MsgPasskeyRPIDUnavailable)
+			return
+		}
+		if errors.Is(err, system_setting.ErrPasskeyRPIDInvalid) {
+			common.ApiErrorI18n(c, i18n.MsgPasskeyRPIDInvalid)
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	if !request.Preview {
+		recordManageAudit(c, "option.passkey_domains_update", map[string]interface{}{
+			"rp_id":         request.Values["passkey.rp_id"],
+			"legacy_rp_ids": request.Values["passkey.legacy_rp_ids"],
+			"origins":       request.Values["passkey.origins"],
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": change})
+}
+
 func UpdateOption(c *gin.Context) {
 	var option OptionUpdateRequest
 	err := common.DecodeJson(c.Request.Body, &option)
@@ -158,6 +202,10 @@ func UpdateOption(c *gin.Context) {
 		option.Value = common.Interface2String(option.Value.(int))
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
+	}
+	if model.IsPasskeyDomainOption(option.Key) {
+		common.ApiErrorI18n(c, i18n.MsgPasskeyDomainOptionUseDedicatedAPI)
+		return
 	}
 	if strings.HasPrefix(option.Key, "fetch_setting.") {
 		if err := system_setting.ValidateFetchSettingOption(option.Key, option.Value.(string)); err != nil {

@@ -283,11 +283,15 @@ const (
 
 // Passkey related messages
 const (
-	MsgPasskeyCreateFailed  = "passkey.create_failed"
-	MsgPasskeyLoginAbnormal = "passkey.login_abnormal"
-	MsgPasskeyUpdateFailed  = "passkey.update_failed"
-	MsgPasskeyInvalidUserId = "passkey.invalid_user_id"
-	MsgPasskeyVerifyFailed  = "passkey.verify_failed"
+	MsgPasskeyCreateFailed                      = "passkey.create_failed"
+	MsgPasskeyLoginAbnormal                     = "passkey.login_abnormal"
+	MsgPasskeyUpdateFailed                      = "passkey.update_failed"
+	MsgPasskeyInvalidUserId                     = "passkey.invalid_user_id"
+	MsgPasskeyVerifyFailed                      = "passkey.verify_failed"
+	MsgPasskeyRPIDInvalid                       = "passkey.rp_id_invalid"
+	MsgPasskeyRPIDUnavailable                   = "passkey.rp_id_unavailable"
+	MsgPasskeyDomainRemovalConfirmationRequired = "passkey.domain_removal_confirmation_required"
+	MsgPasskeyDomainOptionUseDedicatedAPI       = "passkey.domain_option_use_dedicated_api"
 )
 
 // 2FA related messages
@@ -396,7 +400,7 @@ const (
 	MsgDistributorGroupAccessDenied       = "distributor.group_access_denied"
 	MsgDistributorGetChannelFailed        = "distributor.get_channel_failed"
 	MsgDistributorZCodeModeClaudeOnly     = "distributor.zcode_mode_claude_only"
-	MsgDistributorTypeSafeNativeOnly     = "distributor.typesafe_native_only"
+	MsgDistributorTypeSafeNativeOnly      = "distributor.typesafe_native_only"
 	MsgDistributorNoAvailableChannel      = "distributor.no_available_channel"
 	MsgDistributorInvalidMidjourney       = "distributor.invalid_midjourney_request"
 	MsgDistributorInvalidParseModel       = "distributor.invalid_request_parse_model"

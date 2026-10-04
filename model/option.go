@@ -269,8 +269,23 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
+	if IsPasskeyDomainOption(key) {
+		return ErrPasskeyDomainDedicatedAPI
+	}
+	var passkeyDefaults map[string]string
+	if key == "ServerAddress" {
+		passkeyOptionMutex.Lock()
+		defer passkeyOptionMutex.Unlock()
+	}
 	var changedSettings map[int]string
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if key == "ServerAddress" {
+			var err error
+			passkeyDefaults, err = preservePasskeyDefaultsTx(tx)
+			if err != nil {
+				return err
+			}
+		}
 		if err := saveOptionTx(tx, key, value); err != nil {
 			return err
 		}
@@ -283,6 +298,10 @@ func UpdateOption(key string, value string) error {
 	})
 	if err != nil {
 		return err
+	}
+	if key == "ServerAddress" {
+		passkeyDefaults[key] = value
+		return refreshPasskeyOptions(passkeyDefaults)
 	}
 	updateRecordIpLogUserSettingCaches(changedSettings)
 	// Update OptionMap
@@ -306,11 +325,28 @@ func saveOptionTx(tx *gorm.DB, key string, value string) error {
 // is touched — safe for callers that must commit a set of related options
 // atomically (e.g. payment gateway binding).
 func UpdateOptionsBulk(values map[string]string) error {
+	for key := range values {
+		if IsPasskeyDomainOption(key) {
+			return ErrPasskeyDomainDedicatedAPI
+		}
+	}
 	if len(values) == 0 {
 		return nil
 	}
+	var passkeyDefaults map[string]string
+	if _, ok := values["ServerAddress"]; ok {
+		passkeyOptionMutex.Lock()
+		defer passkeyOptionMutex.Unlock()
+	}
 	var changedSettings map[int]string
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if _, ok := values["ServerAddress"]; ok {
+			var err error
+			passkeyDefaults, err = preservePasskeyDefaultsTx(tx)
+			if err != nil {
+				return err
+			}
+		}
 		for k, v := range values {
 			if err := saveOptionTx(tx, k, v); err != nil {
 				return err
@@ -327,6 +363,12 @@ func UpdateOptionsBulk(values map[string]string) error {
 		return err
 	}
 	updateRecordIpLogUserSettingCaches(changedSettings)
+	if passkeyDefaults != nil {
+		for key, value := range values {
+			passkeyDefaults[key] = value
+		}
+		return refreshPasskeyOptions(passkeyDefaults)
+	}
 	for k, v := range values {
 		if err := updateOptionMap(k, v); err != nil {
 			return err
@@ -338,6 +380,10 @@ func UpdateOptionsBulk(values map[string]string) error {
 func updateOptionMap(key string, value string) (err error) {
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
+	return updateOptionMapLocked(key, value)
+}
+
+func updateOptionMapLocked(key, value string) (err error) {
 	common.OptionMap[key] = value
 
 	// 检查是否是模型配置 - 使用更规范的方式处理
