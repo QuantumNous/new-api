@@ -9,6 +9,101 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestStreamResponseOpenAI2ClaudePreservesAllFieldsInMixedChunks(t *testing.T) {
+	info := &convmeta.Values{
+		ClaudeConvertInfo: &convmeta.ClaudeConvertInfo{
+			LastMessagesType: convmeta.LastMessageTypeNone,
+		},
+	}
+	frames := []dto.ChatCompletionsStreamResponse{
+		{
+			Id: "chatcmpl_mixed", Model: "qwen-test",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					ReasoningContent: ptr("thinking "),
+				},
+			}},
+		},
+		{
+			Id: "chatcmpl_mixed", Model: "qwen-test",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					ReasoningContent: ptr("done.\n"),
+					Content:          ptr("\nAnswer begins"),
+				},
+			}},
+		},
+		{
+			Id: "chatcmpl_mixed", Model: "qwen-test",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					Content: ptr(" here."),
+					ToolCalls: []dto.ToolCallResponse{{
+						Index: ptr(0), ID: "call_1", Type: "function",
+						Function: dto.FunctionResponse{Name: "lookup", Arguments: `{"q":"x"}`},
+					}},
+				},
+			}},
+		},
+		{
+			Id: "chatcmpl_mixed", Model: "qwen-test",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{
+				FinishReason: ptr("tool_calls"),
+			}},
+			Usage: &dto.Usage{PromptTokens: 7, CompletionTokens: 9, TotalTokens: 16},
+		},
+	}
+
+	var events []*dto.ClaudeResponse
+	for i := range frames {
+		info.SendResponseCount = i + 1
+		events = append(events, StreamResponseOpenAI2Claude(&frames[i], info)...)
+	}
+
+	var eventTypes, blockTypes []string
+	var blockIndices []int
+	var thinking, text, toolArguments string
+	for _, event := range events {
+		eventTypes = append(eventTypes, event.Type)
+		switch event.Type {
+		case "content_block_start":
+			blockIndices = append(blockIndices, event.GetIndex())
+			blockTypes = append(blockTypes, event.ContentBlock.Type)
+		case "content_block_stop":
+			blockIndices = append(blockIndices, event.GetIndex())
+		case "content_block_delta":
+			blockIndices = append(blockIndices, event.GetIndex())
+			switch event.Delta.Type {
+			case "thinking_delta":
+				thinking += *event.Delta.Thinking
+			case "text_delta":
+				text += *event.Delta.Text
+			case "input_json_delta":
+				toolArguments += *event.Delta.PartialJson
+			}
+		}
+	}
+
+	assert.Equal(t, []string{
+		"message_start",
+		"content_block_start", "content_block_delta",
+		"content_block_delta", "content_block_stop",
+		"content_block_start", "content_block_delta",
+		"content_block_delta", "content_block_stop",
+		"content_block_start", "content_block_delta",
+		"content_block_stop", "message_delta", "message_stop",
+	}, eventTypes)
+	assert.Equal(t, []string{"thinking", "text", "tool_use"}, blockTypes)
+	assert.Equal(t, []int{0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2}, blockIndices)
+	assert.Equal(t, "thinking done.\n", thinking)
+	assert.Equal(t, "\nAnswer begins here.", text)
+	assert.Equal(t, `{"q":"x"}`, toolArguments)
+	require.NotNil(t, events[len(events)-2].Usage)
+	assert.Equal(t, 9, events[len(events)-2].Usage.OutputTokens)
+	assert.Equal(t, "tool_use", *events[len(events)-2].Delta.StopReason)
+	assert.True(t, info.ClaudeConvertInfo.Done)
+}
+
 func TestResponseOpenAI2ClaudeToolUseInputIsObject(t *testing.T) {
 	tests := []struct {
 		name string

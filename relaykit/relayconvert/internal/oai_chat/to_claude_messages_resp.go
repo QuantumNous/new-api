@@ -241,9 +241,58 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			state.FinishReason = *chosenChoice.FinishReason
 		}
 
-		var claudeResponse dto.ClaudeResponse
-		var isEmpty bool
-		claudeResponse.Type = "content_block_delta"
+		// An OpenAI delta can contain reasoning, text, and tool calls at once.
+		// Emit each part before advancing to the next Claude content block.
+		if reasoning := chosenChoice.Delta.GetReasoningContent(); reasoning != "" {
+			if state.LastMessagesType != convmeta.LastMessageTypeThinking {
+				stopOpenBlocksAndAdvance()
+				idx := state.Index
+				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+					Index: &idx,
+					Type:  "content_block_start",
+					ContentBlock: &dto.ClaudeMediaMessage{
+						Type:     "thinking",
+						Thinking: kitutil.GetPointer[string](""),
+					},
+				})
+			}
+			state.LastMessagesType = convmeta.LastMessageTypeThinking
+			idx := state.Index
+			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+				Index: &idx,
+				Type:  "content_block_delta",
+				Delta: &dto.ClaudeMediaMessage{
+					Type:     "thinking_delta",
+					Thinking: &reasoning,
+				},
+			})
+		}
+		if textContent := chosenChoice.Delta.GetContentString(); textContent != "" {
+			if state.LastMessagesType != convmeta.LastMessageTypeText {
+				stopOpenBlocksAndAdvance()
+				idx := state.Index
+				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+					Index: &idx,
+					Type:  "content_block_start",
+					ContentBlock: &dto.ClaudeMediaMessage{
+						Type: "text",
+						Text: kitutil.GetPointer[string](""),
+					},
+				})
+			}
+			state.LastMessagesType = convmeta.LastMessageTypeText
+			idx := state.Index
+			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
+				Index: &idx,
+				Type:  "content_block_delta",
+				Delta: &dto.ClaudeMediaMessage{
+					Type: "text_delta",
+					Text: &textContent,
+				},
+			})
+		}
+		appendCitationDeltas(chosenChoice.Delta.Annotations)
+
 		if len(chosenChoice.Delta.ToolCalls) > 0 {
 			toolCalls := chosenChoice.Delta.ToolCalls
 			if state.LastMessagesType != convmeta.LastMessageTypeTools {
@@ -338,57 +387,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			if len(state.ToolCalls) > 0 {
 				state.Index = state.ToolCallBaseIndex + len(state.ToolCalls) - 1
 			}
-		} else {
-			reasoning := chosenChoice.Delta.GetReasoningContent()
-			textContent := chosenChoice.Delta.GetContentString()
-			if reasoning != "" || textContent != "" {
-				if reasoning != "" {
-					if state.LastMessagesType != convmeta.LastMessageTypeThinking {
-						stopOpenBlocksAndAdvance()
-						idx := state.Index
-						claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-							Index: &idx,
-							Type:  "content_block_start",
-							ContentBlock: &dto.ClaudeMediaMessage{
-								Type:     "thinking",
-								Thinking: kitutil.GetPointer[string](""),
-							},
-						})
-					}
-					state.LastMessagesType = convmeta.LastMessageTypeThinking
-					claudeResponse.Delta = &dto.ClaudeMediaMessage{
-						Type:     "thinking_delta",
-						Thinking: &reasoning,
-					}
-				} else {
-					if state.LastMessagesType != convmeta.LastMessageTypeText {
-						stopOpenBlocksAndAdvance()
-						idx := state.Index
-						claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-							Index: &idx,
-							Type:  "content_block_start",
-							ContentBlock: &dto.ClaudeMediaMessage{
-								Type: "text",
-								Text: kitutil.GetPointer[string](""),
-							},
-						})
-					}
-					state.LastMessagesType = convmeta.LastMessageTypeText
-					claudeResponse.Delta = &dto.ClaudeMediaMessage{
-						Type: "text_delta",
-						Text: kitutil.GetPointer[string](textContent),
-					}
-				}
-			} else {
-				isEmpty = true
-			}
 		}
-
-		claudeResponse.Index = kitutil.GetPointer[int](state.Index)
-		if !isEmpty && claudeResponse.Delta != nil {
-			claudeResponses = append(claudeResponses, &claudeResponse)
-		}
-		appendCitationDeltas(chosenChoice.Delta.Annotations)
 
 		if doneChunk || state.Done {
 			oaiUsage := clientVisibleClaudeStreamUsage(state, openAIResponse.Usage)
