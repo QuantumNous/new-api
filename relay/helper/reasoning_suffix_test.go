@@ -161,6 +161,86 @@ func TestApplyReasoningModelSuffixGeminiNoThinkingWhenAdapterEnabled(t *testing.
 	assert.Equal(t, "none", info.ReasoningConversion.Effort)
 }
 
+func TestApplyReasoningModelSuffixGeminiKeepsLegacySuffixWhenAdapterDisabled(t *testing.T) {
+	settings := model_setting.GetGeminiSettings()
+	original := settings.ThinkingAdapterEnabled
+	t.Cleanup(func() { settings.ThinkingAdapterEnabled = original })
+	settings.ThinkingAdapterEnabled = false
+
+	tests := []string{
+		"gemini-3.6-flash-high",
+		"gemini-3.6-flash-low",
+		"gemini-3.6-flash-max",
+		"gemini-3.6-flash-none",
+	}
+	for _, model := range tests {
+		t.Run(model, func(t *testing.T) {
+			info := &relaycommon.RelayInfo{
+				OriginModelName: model,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					UpstreamModelName: model,
+				},
+			}
+
+			mustApplyReasoningModelSuffix(t, info)
+			assert.Equal(t, model, info.UpstreamModelName)
+			assert.Nil(t, info.ReasoningConversion)
+		})
+	}
+}
+
+func TestApplyReasoningModelSuffixGeminiKeepsLegacySuffixWithExplicitModifiersWhenAdapterDisabled(t *testing.T) {
+	settings := model_setting.GetGeminiSettings()
+	original := settings.ThinkingAdapterEnabled
+	t.Cleanup(func() { settings.ThinkingAdapterEnabled = original })
+	settings.ThinkingAdapterEnabled = false
+
+	request := &dto.GeneralOpenAIRequest{Model: "gemini-3.6-flash-high@temperature:0.2"}
+	info := &relaycommon.RelayInfo{
+		OriginModelName: request.Model,
+		Request:         request,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: request.Model,
+		},
+	}
+
+	mustApplyReasoningModelSuffix(t, info, request)
+	assert.Equal(t, "gemini-3.6-flash-high", info.UpstreamModelName)
+	assert.Equal(t, "gemini-3.6-flash-high", request.Model)
+	require.NotNil(t, request.Temperature)
+	assert.Equal(t, 0.2, *request.Temperature)
+	assert.Nil(t, info.ReasoningConversion)
+}
+
+func TestApplyReasoningModelSuffixGeminiMappedTargetKeepsSuffixWhenAdapterDisabled(t *testing.T) {
+	settings := model_setting.GetGeminiSettings()
+	original := settings.ThinkingAdapterEnabled
+	t.Cleanup(func() { settings.ThinkingAdapterEnabled = original })
+	settings.ThinkingAdapterEnabled = false
+
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	c.Set("model_mapping", `{"alias-model":"gemini-3.6-flash-high"}`)
+
+	request := &dto.GeneralOpenAIRequest{Model: "alias-model"}
+	info := &relaycommon.RelayInfo{
+		OriginModelName: request.Model,
+		Request:         request,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: request.Model,
+		},
+	}
+
+	require.NoError(t, ModelMappedHelper(c, info, request))
+	require.True(t, info.IsModelMapped)
+	assert.Equal(t, "gemini-3.6-flash-high", info.UpstreamModelName)
+	mustApplyReasoningModelSuffix(t, info, request)
+	assert.Equal(t, "gemini-3.6-flash-high", info.UpstreamModelName)
+	assert.Equal(t, "gemini-3.6-flash-high", request.Model)
+	assert.Nil(t, info.ReasoningConversion)
+}
+
 func TestApplyReasoningModelSuffixPreservesEffortTailModelID(t *testing.T) {
 	info := &relaycommon.RelayInfo{
 		OriginModelName: "qwen-max",

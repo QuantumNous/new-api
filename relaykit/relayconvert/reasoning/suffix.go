@@ -176,6 +176,9 @@ func ParseGeminiModelSuffix(modelName string, allowThinkingAlias bool) (string, 
 	if !strings.HasPrefix(bare, "gemini-") {
 		return modelName, Intent{}, false, nil
 	}
+	if !allowThinkingAlias {
+		return modelName, Intent{}, false, nil
+	}
 	base, intent, found, err := parseProviderModelSuffix(bare, "gemini-", allowThinkingAlias, true)
 	if err != nil || !found || !legacyGeminiModelPattern.MatchString(base) {
 		return modelName, Intent{}, false, err
