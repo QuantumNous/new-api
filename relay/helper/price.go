@@ -114,6 +114,9 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 			}
 		}
 		completionRatio = ratio_setting.GetCompletionRatio(billingModelName)
+		if info.ChannelMeta != nil && info.IsModelMapped {
+			completionRatio = ratio_setting.GetMappedCompletionRatio(billingModelName)
+		}
 		cacheRatio, _ = ratio_setting.GetCacheRatio(billingModelName)
 		cacheCreationRatio, _ = ratio_setting.GetCreateCacheRatio(billingModelName)
 		cacheCreationRatio5m = cacheCreationRatio

@@ -416,6 +416,66 @@ func TestModelPriceHelperHonorsCustomClaudeThinkingAlias(t *testing.T) {
 	assert.Equal(t, 3.0, priceData.ModelRatio)
 }
 
+func TestModelPriceHelperUsesConfiguredCompletionRatioForMappedClaudeAlias(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	savedModelRatios := ratio_setting.ModelRatio2JSONString()
+	savedCompletionRatios := ratio_setting.CompletionRatio2JSONString()
+	t.Cleanup(func() {
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedModelRatios))
+		require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(savedCompletionRatios))
+	})
+
+	modelRatios := ratio_setting.GetModelRatioCopy()
+	completionRatios := ratio_setting.GetCompletionRatioCopy()
+	for name, ratio := range map[string]float64{
+		"claude-sonnet-4-5": 3.375001140625,
+		"claude-opus-4-5":   3.5,
+	} {
+		modelRatios[name] = 0.1
+		completionRatios[name] = ratio
+	}
+	modelRatios["claude-haiku-4-5"] = 0.1
+	modelJSON, err := common.Marshal(modelRatios)
+	require.NoError(t, err)
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(string(modelJSON)))
+	completionJSON, err := common.Marshal(completionRatios)
+	require.NoError(t, err)
+	require.NoError(t, ratio_setting.UpdateCompletionRatioByJSONString(string(completionJSON)))
+
+	for _, tc := range []struct {
+		name   string
+		mapped bool
+		want   float64
+	}{
+		{"claude-sonnet-4-5", true, 3.375001140625},
+		{"claude-sonnet-4-5", false, 5},
+		{"claude-opus-4-5", true, 3.5},
+		{"claude-opus-4-5", false, 5},
+		{"claude-haiku-4-5", true, 5},
+	} {
+		t.Run(fmt.Sprint(tc.name, "/mapped=", tc.mapped), func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Set("group", "default")
+			if tc.mapped {
+				mappingJSON, err := common.Marshal(map[string]string{tc.name: "local-upstream-model"})
+				require.NoError(t, err)
+				ctx.Set("model_mapping", string(mappingJSON))
+			}
+			info := &relaycommon.RelayInfo{
+				OriginModelName: tc.name,
+				UserGroup:       "default",
+				UsingGroup:      "default",
+				ChannelMeta:     &relaycommon.ChannelMeta{},
+			}
+			require.NoError(t, ModelMappedHelper(ctx, info, nil))
+			assert.Equal(t, tc.mapped, info.IsModelMapped)
+			price, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{})
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, price.CompletionRatio)
+		})
+	}
+}
+
 func TestModelPriceHelperCanonicalBillingLadder(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
