@@ -25,36 +25,32 @@ func effectiveBillingUsage(usage *dto.Usage) *dto.Usage {
 }
 
 func usageBillingPathForLog(isLocalCountTokens bool, usage *dto.Usage) string {
-	if isLocalCountTokens {
-		return usageBillingPathLocal
-	}
-	if usage == nil || usage.BillingUsage == nil {
+	effectiveUsage, ok := usageFromBillingUsage(usage)
+	if !ok {
+		if isLocalCountTokens {
+			return usageBillingPathLocal
+		}
 		return usageBillingPathUpstream
 	}
-	source := strings.TrimSpace(usage.BillingUsage.Source)
-	semantic := strings.TrimSpace(usage.BillingUsage.Semantic)
-	if strings.EqualFold(source, dto.BillingUsageSourceOAIChat) ||
-		strings.EqualFold(source, dto.BillingUsageSourceOAIResponses) ||
-		strings.EqualFold(semantic, dto.BillingUsageSemanticOpenAI) {
+
+	switch effectiveUsage.UsageSemantic {
+	case dto.BillingUsageSemanticOpenAI:
 		if usage.BillingUsage.Estimated {
 			return usageBillingPathOpenAIEstimated
 		}
 		return usageBillingPathOpenAI
-	}
-	if strings.EqualFold(source, dto.BillingUsageSourceClaudeMessages) ||
-		strings.EqualFold(semantic, dto.BillingUsageSemanticAnthropic) {
+	case dto.BillingUsageSemanticAnthropic:
 		if usage.BillingUsage.Estimated {
 			return usageBillingPathAnthropicEstimated
 		}
 		return usageBillingPathAnthropic
-	}
-	if strings.EqualFold(source, dto.BillingUsageSourceGeminiChat) ||
-		strings.EqualFold(semantic, dto.BillingUsageSemanticGemini) {
+	case dto.BillingUsageSemanticGemini:
 		if usage.BillingUsage.Estimated {
 			return usageBillingPathGeminiEstimated
 		}
 		return usageBillingPathGemini
 	}
+
 	return usageBillingPathUpstream
 }
 
@@ -116,6 +112,29 @@ func usageFromOpenAIBillingUsage(billingUsage *dto.BillingUsage) *dto.Usage {
 	}
 	if usage.TotalTokens == 0 {
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+	}
+	if inputDetails := usage.InputTokensDetails; inputDetails != nil {
+		if usage.PromptTokensDetails.CachedTokens == 0 && inputDetails.CachedTokens > 0 {
+			usage.PromptTokensDetails.CachedTokens = inputDetails.CachedTokens
+		}
+		if usage.PromptTokensDetails.CachedCreationTokens == 0 && inputDetails.CachedCreationTokens > 0 {
+			usage.PromptTokensDetails.CachedCreationTokens = inputDetails.CachedCreationTokens
+		}
+		if usage.PromptTokensDetails.CacheWriteTokens == 0 && inputDetails.CacheWriteTokens > 0 {
+			usage.PromptTokensDetails.CacheWriteTokens = inputDetails.CacheWriteTokens
+		}
+		if usage.PromptTokensDetails.TextTokens == 0 && inputDetails.TextTokens > 0 {
+			usage.PromptTokensDetails.TextTokens = inputDetails.TextTokens
+		}
+		if usage.PromptTokensDetails.ImageTokens == 0 && inputDetails.ImageTokens > 0 {
+			usage.PromptTokensDetails.ImageTokens = inputDetails.ImageTokens
+		}
+		if usage.PromptTokensDetails.AudioTokens == 0 && inputDetails.AudioTokens > 0 {
+			usage.PromptTokensDetails.AudioTokens = inputDetails.AudioTokens
+		}
+	}
+	if usage.PromptTokensDetails.CachedTokens == 0 && usage.PromptCacheHitTokens > 0 {
+		usage.PromptTokensDetails.CachedTokens = usage.PromptCacheHitTokens
 	}
 	usage.UsageSemantic = dto.BillingUsageSemanticOpenAI
 	usage.UsageSource = billingUsage.Source

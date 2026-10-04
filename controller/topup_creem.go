@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/thanhpk/randstr"
 )
 
@@ -94,6 +95,10 @@ func (*CreemAdaptor) RequestPay(c *gin.Context, req *CreemPayRequest) {
 
 	if selectedProduct == nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "产品不存在"})
+		return
+	}
+	if err := validateCreditedQuota(decimal.NewFromInt(selectedProduct.Quota)); err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
 		return
 	}
 

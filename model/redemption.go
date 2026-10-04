@@ -390,6 +390,7 @@ func RedeemWithPurchaseMode(key string, userId int, purchaseMode string) (result
 	}
 	if result != nil && result.Type == RedemptionTypeQuota && result.Quota > 0 {
 		common.ResetQuotaNotificationSendLocks(userId, "wallet", 0)
+		syncCreditUserQuotaCache(userId, result.Quota, "redemption")
 	}
 	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
 	return result, nil

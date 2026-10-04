@@ -35,6 +35,8 @@ import {
   CHANNEL_TYPE_GMICLOUD,
   CHANNEL_TYPE_OPENCODE,
   CHANNEL_TYPE_QWEN_TOKEN_PLAN,
+  CHANNEL_TYPE_VLLM,
+  CHANNEL_TYPE_SGLANG,
   canFetchChannelModels,
 } from '../../../../constants';
 import {
@@ -826,6 +828,22 @@ const EditChannelModal = (props) => {
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: '',
+          }));
+          break;
+        case CHANNEL_TYPE_VLLM:
+          localModels = getChannelModels(value);
+          formApiRef.current?.setValue('base_url', 'http://localhost:8000');
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'http://localhost:8000',
+          }));
+          break;
+        case CHANNEL_TYPE_SGLANG:
+          localModels = getChannelModels(value);
+          formApiRef.current?.setValue('base_url', 'http://localhost:30000');
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'http://localhost:30000',
           }));
           break;
         default:

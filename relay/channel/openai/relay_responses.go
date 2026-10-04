@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -15,6 +16,8 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
@@ -33,6 +36,8 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
+
+	responseBody = rewriteSGLangResponsesCreatedAt(info, responseBody, "created_at", int64(responsesResponse.CreatedAt))
 
 	if responsesResponse.HasImageGenerationCall() {
 		imageLogDetails := responsesResponse.GetImageGenerationLogDetails()
@@ -93,6 +98,9 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			logger.LogError(c, "failed to unmarshal stream response: "+err.Error())
 			sr.Error(err)
 			return
+		}
+		if streamResponse.Response != nil {
+			data = string(rewriteSGLangResponsesCreatedAt(info, []byte(data), "response.created_at", int64(streamResponse.Response.CreatedAt)))
 		}
 		sendResponsesStreamData(c, streamResponse, data)
 		switch streamResponse.Type {
@@ -159,4 +167,18 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 
 	return usage, nil
+}
+
+func rewriteSGLangResponsesCreatedAt(info *relaycommon.RelayInfo, payload []byte, path string, createdAt int64) []byte {
+	if info == nil || info.ChannelType != constant.ChannelTypeSGLang {
+		return payload
+	}
+	if !gjson.GetBytes(payload, path).Exists() {
+		return payload
+	}
+	patched, err := sjson.SetBytes(payload, path, createdAt)
+	if err != nil {
+		return payload
+	}
+	return patched
 }

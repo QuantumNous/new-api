@@ -26,6 +26,24 @@ For commercial licensing, please contact support@quantumnous.com
  * - Size parameter: getLobeIcon("OpenAI", 20)
  */
 import * as LobeIcons from '@lobehub/icons'
+import type React from 'react'
+
+import sglangLogo from '@/assets/brand-icons/sglang.svg'
+import { IconSub2api } from '@/assets/custom/icon-sub2api'
+
+const CUSTOM_ICONS: Record<string, React.ComponentType<{ size?: number }>> = {
+  SGLang: (props) => (
+    <img
+      src={sglangLogo}
+      alt=''
+      aria-hidden='true'
+      width={props.size ?? 20}
+      height={props.size ?? 20}
+      className='object-contain'
+    />
+  ),
+  Sub2API: IconSub2api,
+}
 
 /**
  * Parse a property value from string to appropriate type
@@ -115,6 +133,10 @@ export function getLobeIcon(
   // Parse component path and chained properties
   const segments = trimmedName.split('.')
   const baseKey = segments[0]
+  const CustomIcon = CUSTOM_ICONS[baseKey]
+  if (CustomIcon) {
+    return <CustomIcon size={size} />
+  }
   const BaseIcon = (LobeIcons as Record<string, unknown>)[baseKey] as
     | Record<string, unknown>
     | undefined

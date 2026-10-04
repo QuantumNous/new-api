@@ -32,6 +32,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/moark"
 	"github.com/QuantumNous/new-api/relay/channel/mokaai"
 	"github.com/QuantumNous/new-api/relay/channel/moonshot"
+	"github.com/QuantumNous/new-api/relay/channel/newapi"
 	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	"github.com/QuantumNous/new-api/relay/channel/opencode"
@@ -42,6 +43,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/replicate"
 	"github.com/QuantumNous/new-api/relay/channel/siliconflow"
 	"github.com/QuantumNous/new-api/relay/channel/stepfun"
+	"github.com/QuantumNous/new-api/relay/channel/sub2api"
 	"github.com/QuantumNous/new-api/relay/channel/submodel"
 	taskagnes "github.com/QuantumNous/new-api/relay/channel/task/agnes"
 	taskali "github.com/QuantumNous/new-api/relay/channel/task/ali"
@@ -86,7 +88,7 @@ func GetAdaptor(apiType int) channel.Adaptor {
 	case constant.APITypePaLM:
 		return &palm.Adaptor{}
 	case constant.APITypeTencent:
-		return &tencent.Adaptor{}
+		return &tencent.DispatchAdaptor{}
 	case constant.APITypeXunfei:
 		return &xunfei.Adaptor{}
 	case constant.APITypeZhipu:
@@ -173,6 +175,10 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &stepfun.Adaptor{}
 	case constant.APITypeTypeSafe:
 		return &typesafe.Adaptor{}
+	case constant.APITypeSub2API:
+		return &sub2api.Adaptor{}
+	case constant.APITypeNewAPI:
+		return &newapi.Adaptor{}
 	}
 	return nil
 }

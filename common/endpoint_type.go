@@ -67,6 +67,14 @@ func GetEndpointTypesByChannelType(channelType int, modelName string) []constant
 	case constant.ChannelTypeGeminiInteractions:
 		// 独立渠道:仅 Interactions 端点(另含 OpenAI 兼容入站转换)
 		endpointTypes = []constant.EndpointType{constant.EndpointTypeGeminiInteractions, constant.EndpointTypeOpenAI}
+	case constant.ChannelTypeSub2API, constant.ChannelTypeNewAPI:
+		endpointTypes = []constant.EndpointType{
+			constant.EndpointTypeOpenAI,
+			constant.EndpointTypeOpenAIResponse,
+			constant.EndpointTypeOpenAIResponseCompact,
+			constant.EndpointTypeAnthropic,
+			constant.EndpointTypeGemini,
+		}
 	case constant.ChannelTypePoe:
 		if IsOpenAIResponseOnlyModel(modelName) {
 			endpointTypes = []constant.EndpointType{constant.EndpointTypeOpenAIResponse}

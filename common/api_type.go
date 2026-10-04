@@ -113,6 +113,12 @@ func ChannelType2APIType(channelType int) (int, bool) {
 		apiType = constant.APITypeTypeSafe
 	case constant.ChannelTypeMistralConsole:
 		apiType = constant.APITypeMistralConsole
+	case constant.ChannelTypeSub2API:
+		apiType = constant.APITypeSub2API
+	case constant.ChannelTypeNewAPI:
+		apiType = constant.APITypeNewAPI
+	case constant.ChannelTypeVLLM, constant.ChannelTypeSGLang:
+		apiType = constant.APITypeOpenAI
 	}
 	if apiType == -1 {
 		return constant.APITypeOpenAI, false

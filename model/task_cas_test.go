@@ -37,6 +37,9 @@ func TestMain(m *testing.M) {
 		&Task{},
 		&User{},
 		&Token{},
+		&PasskeyCredential{},
+		&TwoFA{},
+		&TwoFABackupCode{},
 		&Log{},
 		&Channel{},
 		&QuotaData{},
@@ -65,8 +68,12 @@ func truncateTables(t *testing.T) {
 	t.Helper()
 	t.Cleanup(func() {
 		DB.Exec("DELETE FROM tasks")
-		DB.Exec("DELETE FROM users")
+		DB.Exec("DELETE FROM passkey_credentials")
+		DB.Exec("DELETE FROM two_fa_backup_codes")
+		DB.Exec("DELETE FROM two_fas")
 		DB.Exec("DELETE FROM tokens")
+		DB.Exec("DELETE FROM user_oauth_bindings")
+		DB.Exec("DELETE FROM users")
 		DB.Exec("DELETE FROM logs")
 		DB.Exec("DELETE FROM channels")
 		DB.Exec("DELETE FROM quota_data")
@@ -78,7 +85,6 @@ func truncateTables(t *testing.T) {
 		DB.Exec("DELETE FROM subscription_pre_consume_records")
 		DB.Exec("DELETE FROM subscription_plans")
 		DB.Exec("DELETE FROM user_subscriptions")
-		DB.Exec("DELETE FROM user_oauth_bindings")
 		DB.Exec("DELETE FROM perf_metrics")
 		DB.Exec("DELETE FROM ip_bans")
 		DB.Exec("DELETE FROM system_instances")
@@ -250,4 +256,109 @@ func TestUpdateWithStatus_ConcurrentWinner(t *testing.T) {
 		}
 	}
 	assert.Equal(t, 1, winCount, "exactly one goroutine should win the CAS")
+}
+
+func TestClaimQuotaForRefund_OnlyOneClaimSucceeds(t *testing.T) {
+	truncateTables(t)
+
+	task := &Task{
+		TaskID: "task_refund_claim",
+		Status: TaskStatusFailure,
+		Quota:  1000,
+		Data:   JSONValue(`{}`),
+	}
+	insertTask(t, task)
+
+	claimed, err := ClaimQuotaForRefund(task.ID, task.Quota)
+	require.NoError(t, err)
+	assert.True(t, claimed)
+
+	claimed, err = ClaimQuotaForRefund(task.ID, task.Quota)
+	require.NoError(t, err)
+	assert.False(t, claimed)
+
+	var reloaded Task
+	require.NoError(t, DB.First(&reloaded, task.ID).Error)
+	assert.Zero(t, reloaded.Quota)
+}
+
+func TestGetUnrefundedFailedTasks_FiltersAndLimits(t *testing.T) {
+	truncateTables(t)
+
+	tasks := []*Task{
+		{TaskID: "failed_refundable_1", Status: TaskStatusFailure, Quota: 100, SubmitTime: TaskRefundLegacyCutoff, Data: JSONValue(`{}`)},
+		{TaskID: "failed_refundable_2", Status: TaskStatusFailure, Quota: 200, SubmitTime: TaskRefundLegacyCutoff + 1, Data: JSONValue(`{}`)},
+		{TaskID: "legacy_failed", Status: TaskStatusFailure, Quota: 400, SubmitTime: TaskRefundLegacyCutoff - 1, Data: JSONValue(`{}`)},
+		{TaskID: "failed_without_quota", Status: TaskStatusFailure, Quota: 0, Data: JSONValue(`{}`)},
+		{TaskID: "successful_with_quota", Status: TaskStatusSuccess, Quota: 300, Data: JSONValue(`{}`)},
+	}
+	for _, task := range tasks {
+		insertTask(t, task)
+	}
+
+	updatedBefore := time.Now().Unix() + 1
+	found := GetUnrefundedFailedTasks(updatedBefore, 1)
+	require.Len(t, found, 1)
+	assert.Equal(t, tasks[0].ID, found[0].ID)
+
+	found = GetUnrefundedFailedTasks(updatedBefore, 10)
+	require.Len(t, found, 2)
+	assert.Equal(t, []int64{tasks[0].ID, tasks[1].ID}, []int64{found[0].ID, found[1].ID})
+
+	assert.Empty(t, GetUnrefundedFailedTasks(updatedBefore, 0))
+}
+
+func TestRestoreQuotaAfterFailedRefund_OnlyRestoresClaimedMarker(t *testing.T) {
+	truncateTables(t)
+
+	task := &Task{
+		TaskID: "task_refund_restore",
+		Status: TaskStatusFailure,
+		Quota:  750,
+		Data:   JSONValue(`{}`),
+	}
+	insertTask(t, task)
+
+	claimed, err := ClaimQuotaForRefund(task.ID, task.Quota)
+	require.NoError(t, err)
+	require.True(t, claimed)
+
+	restored, err := RestoreQuotaAfterFailedRefund(task.ID, task.Quota)
+	require.NoError(t, err)
+	assert.True(t, restored)
+
+	restored, err = RestoreQuotaAfterFailedRefund(task.ID, task.Quota)
+	require.NoError(t, err)
+	assert.False(t, restored)
+
+	var reloaded Task
+	require.NoError(t, DB.First(&reloaded, task.ID).Error)
+	assert.Equal(t, task.Quota, reloaded.Quota)
+}
+
+func TestHasTaskPollingWork_IncludesOnlyRefundableFailedTasks(t *testing.T) {
+	truncateTables(t)
+	assert.False(t, HasTaskPollingWork())
+
+	legacy := &Task{
+		TaskID:     "legacy_failed_work",
+		Status:     TaskStatusFailure,
+		Progress:   "100%",
+		Quota:      500,
+		SubmitTime: TaskRefundLegacyCutoff - 1,
+		Data:       JSONValue(`{}`),
+	}
+	insertTask(t, legacy)
+	assert.False(t, HasTaskPollingWork())
+
+	refundable := &Task{
+		TaskID:     "refundable_failed_work",
+		Status:     TaskStatusFailure,
+		Progress:   "100%",
+		Quota:      500,
+		SubmitTime: TaskRefundLegacyCutoff,
+		Data:       JSONValue(`{}`),
+	}
+	insertTask(t, refundable)
+	assert.True(t, HasTaskPollingWork())
 }

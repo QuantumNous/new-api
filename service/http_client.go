@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -53,6 +54,10 @@ func ValidateSSRFProtectedFetchURL(urlStr string) error {
 	return validateURLWithCurrentFetchSetting(urlStr, true)
 }
 
+// maxTimeoutSeconds is the largest number of seconds that still converts to a
+// time.Duration without overflowing (~292 years).
+const maxTimeoutSeconds = int(math.MaxInt64 / int64(time.Second))
+
 func InitHttpClient() {
 	transport := &http.Transport{
 		MaxIdleConns:        common.RelayMaxIdleConns,
@@ -61,8 +66,26 @@ func InitHttpClient() {
 		ForceAttemptHTTP2:   true,
 		Proxy:               http.ProxyFromEnvironment, // Support HTTP_PROXY, HTTPS_PROXY, NO_PROXY env vars
 	}
+	// Bound the wait for upstream response headers. Without it, an upstream that
+	// accepts the connection but never responds (and never sends FIN/RST) parks the
+	// goroutine forever, and every buffer that request owns -- the raw body read by
+	// io.ReadAll, the decoded messages, and the re-marshalled upstream body -- stays
+	// reachable for the lifetime of the process.
+	//
+	// This only covers the wait for the headers; streaming after the headers arrive
+	// is not affected. Set RELAY_RESPONSE_HEADER_TIMEOUT=0 to restore the old
+	// unbounded behaviour.
+	if seconds := common.RelayResponseHeaderTimeout; seconds > 0 {
+		// Clamp before converting: seconds beyond maxTimeoutSeconds overflow
+		// time.Duration and can wrap into a tiny positive timeout, which would cut
+		// every relay request instead of only the stuck ones.
+		if seconds > maxTimeoutSeconds {
+			seconds = maxTimeoutSeconds
+		}
+		transport.ResponseHeaderTimeout = time.Duration(seconds) * time.Second
+	}
 	if common.TLSInsecureSkipVerify {
-		transport.TLSClientConfig = common.InsecureTLSConfig
+		transport.TLSClientConfig = common.InsecureTLSConfig.Clone()
 	}
 
 	if common.RelayTimeout == 0 {
@@ -153,6 +176,12 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 		if common.TLSInsecureSkipVerify {
 			transport.TLSClientConfig = common.InsecureTLSConfig
 		}
+		if seconds := common.RelayResponseHeaderTimeout; seconds > 0 {
+			if seconds > maxTimeoutSeconds {
+				seconds = maxTimeoutSeconds
+			}
+			transport.ResponseHeaderTimeout = time.Duration(seconds) * time.Second
+		}
 		client := &http.Client{
 			Transport:     transport,
 			CheckRedirect: checkRedirect,
@@ -194,6 +223,12 @@ func NewProxyHttpClient(proxyURL string) (*http.Client, error) {
 		}
 		if common.TLSInsecureSkipVerify {
 			transport.TLSClientConfig = common.InsecureTLSConfig
+		}
+		if seconds := common.RelayResponseHeaderTimeout; seconds > 0 {
+			if seconds > maxTimeoutSeconds {
+				seconds = maxTimeoutSeconds
+			}
+			transport.ResponseHeaderTimeout = time.Duration(seconds) * time.Second
 		}
 
 		client := &http.Client{Transport: transport, CheckRedirect: checkRedirect}

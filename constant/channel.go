@@ -74,8 +74,11 @@ const (
 	ChannelTypeGroq               = 74
 	ChannelTypeStepFun            = 75
 	ChannelTypeTypeSafe           = 76
+	ChannelTypeSub2API            = 77
+	ChannelTypeNewAPI             = 78
+	ChannelTypeVLLM               = 79
+	ChannelTypeSGLang             = 80
 	ChannelTypeDummy              // this one is only for count, do not add any channel after this
-
 )
 
 var ChannelBaseURLs = []string{
@@ -154,8 +157,12 @@ var ChannelBaseURLs = []string{
 	"https://generativelanguage.googleapis.com",      //72
 	"",                            //73
 	"https://api.groq.com/openai", //74
-	StepFunRootCNBaseURL,           //75
+	StepFunRootCNBaseURL,          //75
 	"https://api.typesafe.ai",     //76
+	"",                            //77 Sub2API
+	"",                            //78 NewAPI
+	"http://localhost:8000",       //79 vLLM
+	"http://localhost:30000",      //80 SGLang
 }
 
 var ChannelTypeNames = map[int]string{
@@ -232,6 +239,10 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeGroq:               "Groq",
 	ChannelTypeStepFun:            "StepFun",
 	ChannelTypeTypeSafe:           "TypeSafe",
+	ChannelTypeSub2API:            "Sub2API",
+	ChannelTypeNewAPI:             "New API",
+	ChannelTypeVLLM:               "vLLM",
+	ChannelTypeSGLang:             "SGLang",
 }
 
 func GetChannelTypeName(channelType int) string {

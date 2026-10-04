@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -182,9 +183,69 @@ func getMinTopup() int64 {
 	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
 		dMinTopup := decimal.NewFromInt(int64(minTopup))
 		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-		minTopup = int(dMinTopup.Mul(dQuotaPerUnit).IntPart())
+		minTopup = common.QuotaFromDecimal(dMinTopup.Mul(dQuotaPerUnit))
 	}
 	return int64(minTopup)
+}
+
+func getTopUpQuota(amount int64) (int, error) {
+	quota := decimal.NewFromInt(amount)
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		quotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+		quota = decimal.NewFromInt(quota.Div(quotaPerUnit).IntPart()).Mul(quotaPerUnit)
+	} else {
+		quota = quota.Mul(decimal.NewFromFloat(common.QuotaPerUnit))
+	}
+	return common.QuotaFromDecimalStrict(quota)
+}
+
+func getMaxTopUpAmount() int64 {
+	if common.QuotaPerUnit <= 0 {
+		return 0
+	}
+	quotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
+	maxStoredAmount := decimal.NewFromInt(common.MaxQuota - 1).
+		Div(quotaPerUnit).
+		Floor()
+	if operation_setting.GetQuotaDisplayType() == operation_setting.QuotaDisplayTypeTokens {
+		return maxStoredAmount.Add(decimal.NewFromInt(1)).
+			Mul(quotaPerUnit).
+			Ceil().
+			Sub(decimal.NewFromInt(1)).
+			IntPart()
+	}
+	return maxStoredAmount.IntPart()
+}
+
+func validateCreditedQuota(quota decimal.Decimal) error {
+	value, err := common.QuotaFromDecimalStrict(quota)
+	if err != nil {
+		return errors.New("充值额度超出系统可表示范围")
+	}
+	if value <= 0 {
+		return errors.New("充值额度必须大于 0")
+	}
+	return nil
+}
+
+func validateTopUpQuota(amount int64) error {
+	quota, err := getTopUpQuota(amount)
+	if err == nil && quota > 0 {
+		return nil
+	}
+	maxAmount := getMaxTopUpAmount()
+	if maxAmount > 0 && amount > maxAmount {
+		return fmt.Errorf("单笔充值数量不能大于 %d", maxAmount)
+	}
+	return errors.New("充值数量无效")
+}
+
+func rejectInvalidTopUpQuota(c *gin.Context, amount int64) bool {
+	if err := validateTopUpQuota(amount); err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
+		return true
+	}
+	return false
 }
 
 func RequestEpay(c *gin.Context) {
@@ -196,6 +257,9 @@ func RequestEpay(c *gin.Context) {
 	}
 	if req.Amount < getMinTopup() {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getMinTopup())})
+		return
+	}
+	if rejectInvalidTopUpQuota(c, req.Amount) {
 		return
 	}
 
@@ -417,6 +481,9 @@ func RequestAmount(c *gin.Context) {
 
 	if req.Amount < getMinTopup() {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getMinTopup())})
+		return
+	}
+	if rejectInvalidTopUpQuota(c, req.Amount) {
 		return
 	}
 	id := c.GetInt("id")

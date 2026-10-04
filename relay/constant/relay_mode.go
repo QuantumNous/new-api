@@ -70,6 +70,8 @@ const (
 	RelayModeCohereNative
 
 	RelayModeTypeSafeNative
+
+	RelayModeAlphaSearch
 )
 
 func Path2RelayMode(path string) int {
@@ -107,6 +109,8 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeXAINative
 	} else if strings.HasPrefix(path, "/v1/responses") {
 		relayMode = RelayModeResponses
+	} else if strings.HasPrefix(path, "/v1/alpha/search") {
+		relayMode = RelayModeAlphaSearch
 	} else if strings.HasPrefix(path, "/v1/chat/deferred-completion/") {
 		relayMode = RelayModeXAINative
 	} else if strings.HasPrefix(path, "/v1/audio/speech") {

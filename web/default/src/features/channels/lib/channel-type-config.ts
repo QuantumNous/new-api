@@ -16,7 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { CHANNEL_TYPES } from '../constants'
+import {
+  CHANNEL_TYPES,
+  CHANNEL_TYPE_SUB2API,
+  CHANNEL_TYPE_NEWAPI,
+  CHANNEL_TYPE_VLLM,
+  CHANNEL_TYPE_SGLANG,
+} from '../constants'
 
 // ============================================================================
 // Channel Type Configuration
@@ -308,6 +314,48 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       models: 'gpt-5.6,claude-opus-4-8,gemini-3.1-pro',
       other:
         'Native passthrough for OpenAI / OpenAI Responses / Anthropic Messages / Gemini / Gemini Interactions endpoints',
+    },
+  },
+  [CHANNEL_TYPE_SUB2API]: {
+    id: CHANNEL_TYPE_SUB2API,
+    name: CHANNEL_TYPES[CHANNEL_TYPE_SUB2API],
+    icon: 'Sub2API',
+    hints: {
+      baseUrl: 'Sub2API gateway base URL',
+      key: 'Sub2API API Key',
+      models: 'Models fetched from upstream /v1/models',
+    },
+  },
+  [CHANNEL_TYPE_NEWAPI]: {
+    id: CHANNEL_TYPE_NEWAPI,
+    name: CHANNEL_TYPES[CHANNEL_TYPE_NEWAPI],
+    icon: 'NewAPI',
+    hints: {
+      baseUrl: 'Base URL is required for this channel type',
+      key: 'Enter API key for this channel',
+      models: 'Models',
+    },
+  },
+  [CHANNEL_TYPE_VLLM]: {
+    id: CHANNEL_TYPE_VLLM,
+    name: CHANNEL_TYPES[CHANNEL_TYPE_VLLM],
+    icon: 'Vllm',
+    defaultBaseUrl: 'http://localhost:8000',
+    hints: {
+      baseUrl: 'vLLM server address, without /v1',
+      key: 'vLLM API key, or EMPTY if authentication is disabled',
+      models: 'Models fetched from upstream /v1/models',
+    },
+  },
+  [CHANNEL_TYPE_SGLANG]: {
+    id: CHANNEL_TYPE_SGLANG,
+    name: CHANNEL_TYPES[CHANNEL_TYPE_SGLANG],
+    icon: 'SGLang',
+    defaultBaseUrl: 'http://localhost:30000',
+    hints: {
+      baseUrl: 'SGLang server address, without /v1',
+      key: 'SGLang API key, or EMPTY if authentication is disabled',
+      models: 'Models fetched from upstream /v1/models',
     },
   },
 }

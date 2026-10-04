@@ -173,4 +173,3 @@ func SettleCheckinDate(date string, mode string, limit int) (int, int64, error) 
 	}
 	return settled, reclaimedTotal, nil
 }
-

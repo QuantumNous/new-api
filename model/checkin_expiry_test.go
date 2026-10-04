@@ -193,7 +193,6 @@ func TestOldestUnsettledCheckinDate(t *testing.T) {
 	require.Equal(t, d2, oldest)
 }
 
-
 func TestSettleSkipsMakeupRows(t *testing.T) {
 	// 用远离其他测试用例的独特日期，保证共享库内不串扰
 	normalDate := time.Now().AddDate(0, 0, -300).Format("2006-01-02")

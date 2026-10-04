@@ -95,13 +95,22 @@ export const CHANNEL_TYPES = {
   74: 'Groq',
   75: 'StepFun',
   76: 'TypeSafe',
+  77: 'Sub2API',
+  78: 'New API',
+  79: 'vLLM',
+  80: 'SGLang',
 } as const
+
+export const CHANNEL_TYPE_SUB2API = 77
+export const CHANNEL_TYPE_NEWAPI = 78
+export const CHANNEL_TYPE_VLLM = 79
+export const CHANNEL_TYPE_SGLANG = 80
 
 const CHANNEL_TYPE_DISPLAY_ORDER: number[] = [
   1, 14, 33, 24, 43, 68, 3, 41, 48, 42, 34, 20, 4, 40, 27, 25, 17, 69, 26, 15,
   46, 23, 18, 45, 31, 35, 49, 19, 47, 37, 38, 39, 11, 8, 67, 57, 58, 59, 22, 21,
   44, 2, 5, 36, 50, 51, 52, 53, 54, 55, 56, 60, 61, 62, 63, 64, 65, 66, 70, 71,
-  72, 73, 74, 75, 76,
+  72, 73, 74, 75, 76, 77, 78, 79, 80,
 ]
 
 export const CHANNEL_TYPE_OPTIONS: { value: number; label: string }[] = (() => {

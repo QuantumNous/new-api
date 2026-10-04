@@ -731,12 +731,8 @@ func HardDeleteUserById(id int) error {
 	if err := CloseAccountForDeletion(id); err != nil {
 		return err
 	}
-	return DB.Transaction(func(tx *gorm.DB) error {
-		if err := deleteUserOAuthBindingsByUserId(tx, id); err != nil {
-			return err
-		}
-		return tx.Unscoped().Delete(&User{}, "id = ?", id).Error
-	})
+	user := User{Id: id}
+	return user.HardDelete()
 }
 
 func inviteUser(inviterId int) (err error) {
@@ -1117,10 +1113,42 @@ func (user *User) HardDelete() error {
 	if user.Id == 0 {
 		return errors.New("id 为空！")
 	}
-	if err := DB.Unscoped().Delete(user).Error; err != nil {
+	var tokens []Token
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		if common.RedisEnabled {
+			if err := tx.Unscoped().Select("id", commonKeyCol).Where("user_id = ?", user.Id).Find(&tokens).Error; err != nil {
+				return err
+			}
+		}
+		if err := deleteUserAuthenticationData(tx, user.Id); err != nil {
+			return err
+		}
+		return tx.Unscoped().Delete(user).Error
+	})
+	if err != nil {
 		return err
 	}
-	return invalidateUserCache(user.Id)
+	if err := invalidateTokensCache(tokens); err != nil {
+		common.SysError(fmt.Sprintf("failed to invalidate token cache after hard deleting user %d: %v", user.Id, err))
+	}
+	if err := invalidateUserCache(user.Id); err != nil {
+		common.SysError(fmt.Sprintf("failed to invalidate user cache after hard deleting user %d: %v", user.Id, err))
+	}
+	return nil
+}
+
+func deleteUserAuthenticationData(tx *gorm.DB, userId int) error {
+	for _, authenticationData := range []any{
+		&TwoFABackupCode{},
+		&TwoFA{},
+		&PasskeyCredential{},
+		&Token{},
+	} {
+		if err := tx.Unscoped().Where("user_id = ?", userId).Delete(authenticationData).Error; err != nil {
+			return err
+		}
+	}
+	return deleteUserOAuthBindingsByUserId(tx, userId)
 }
 
 // ValidateAndFill check password & user status
@@ -1529,6 +1557,17 @@ func UpdateUserUsedQuotaAndRequestCount(id int, quota int) {
 		return
 	}
 	updateUserUsedQuotaAndRequestCount(id, quota, 1)
+}
+
+// UpdateUserUsedQuota adjusts accumulated usage without changing request count.
+func UpdateUserUsedQuota(id int, quota int) {
+	if common.BatchUpdateEnabled {
+		addNewRecord(BatchUpdateTypeUsedQuota, id, quota)
+		return
+	}
+	if err := DB.Model(&User{}).Where("id = ?", id).Update("used_quota", gorm.Expr("used_quota + ?", quota)).Error; err != nil {
+		common.SysLog("failed to update user used quota: " + err.Error())
+	}
 }
 
 func updateUserUsedQuotaAndRequestCount(id int, quota int, count int) {

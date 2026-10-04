@@ -34,6 +34,10 @@ export const CHANNEL_TYPE_CLIPROXYAPI = 73;
 export const CHANNEL_TYPE_GROQ = 74;
 export const CHANNEL_TYPE_STEPFUN = 75;
 export const CHANNEL_TYPE_TYPESAFE = 76;
+export const CHANNEL_TYPE_SUB2API = 77;
+export const CHANNEL_TYPE_NEWAPI = 78;
+export const CHANNEL_TYPE_VLLM = 79;
+export const CHANNEL_TYPE_SGLANG = 80;
 
 export const CHANNEL_OPTIONS = [
   { value: 1, color: 'green', label: 'OpenAI' },
@@ -278,6 +282,26 @@ export const CHANNEL_OPTIONS = [
     color: 'blue',
     label: '模力方舟',
   },
+  {
+    value: CHANNEL_TYPE_SUB2API,
+    color: 'blue',
+    label: 'Sub2API',
+  },
+  {
+    value: CHANNEL_TYPE_NEWAPI,
+    color: 'blue',
+    label: 'New API',
+  },
+  {
+    value: CHANNEL_TYPE_VLLM,
+    color: 'purple',
+    label: 'vLLM',
+  },
+  {
+    value: CHANNEL_TYPE_SGLANG,
+    color: 'orange',
+    label: 'SGLang',
+  },
 ];
 
 // Channel types that support upstream model list fetching in UI.
@@ -317,6 +341,10 @@ export const MODEL_FETCHABLE_CHANNEL_TYPES = new Set([
   CHANNEL_TYPE_GROQ,
   CHANNEL_TYPE_STEPFUN,
   CHANNEL_TYPE_TYPESAFE,
+  CHANNEL_TYPE_SUB2API,
+  CHANNEL_TYPE_NEWAPI,
+  CHANNEL_TYPE_VLLM,
+  CHANNEL_TYPE_SGLANG,
 ]);
 
 export const MODEL_TABLE_PAGE_SIZE = 10;

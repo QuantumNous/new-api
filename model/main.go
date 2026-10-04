@@ -132,27 +132,21 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, common.DatabaseType, error)
 				return nil, "", fmt.Errorf("%s does not support ClickHouse; use SQLite, MySQL, or PostgreSQL for the primary database and LOG_SQL_DSN for ClickHouse logs", envName)
 			}
 			common.SysLog("using ClickHouse as log database")
-			db, err := gorm.Open(clickhouse.Open(normalizeClickHouseDSN(dsn)), &gorm.Config{
-				PrepareStmt: false,
-			})
+			db, err := gorm.Open(clickhouse.Open(normalizeClickHouseDSN(dsn)), newGormConfig(false))
 			return db, common.DatabaseTypeClickHouse, err
 		}
 		if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
 			// Use PostgreSQL
 			common.SysLog("using PostgreSQL as database")
-			db, err := gorm.Open(postgres.New(postgres.Config{
+			db, err := gorm.Open(postgresMigrationDialector{postgres.Dialector{Config: &postgres.Config{
 				DSN:                  dsn,
 				PreferSimpleProtocol: true, // disables implicit prepared statement usage
-			}), &gorm.Config{
-				PrepareStmt: false, // 兼容 PgBouncer，避免迁移后复用失效语句
-			})
+			}}}, newGormConfig(false)) // PrepareStmt=false：兼容 PgBouncer，避免迁移后复用失效语句
 			return db, common.DatabaseTypePostgreSQL, err
 		}
 		if strings.HasPrefix(dsn, "local") {
 			common.SysLog("SQL_DSN not set, using SQLite as database")
-			db, err := gorm.Open(sqlite.Open(common.SQLitePath), &gorm.Config{
-				PrepareStmt: true, // precompile SQL
-			})
+			db, err := gorm.Open(sqlite.Open(common.SQLitePath), newGormConfig(true))
 			return db, common.DatabaseTypeSQLite, err
 		}
 		// Use MySQL
@@ -165,16 +159,12 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, common.DatabaseType, error)
 				dsn += "?parseTime=true"
 			}
 		}
-		db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
-			PrepareStmt: true, // precompile SQL
-		})
+		db, err := gorm.Open(mysqlMigrationDialector{mysql.Dialector{Config: &mysql.Config{DSN: dsn}}}, newGormConfig(true))
 		return db, common.DatabaseTypeMySQL, err
 	}
 	// Use SQLite
 	common.SysLog("SQL_DSN not set, using SQLite as database")
-	db, err := gorm.Open(sqlite.Open(common.SQLitePath), &gorm.Config{
-		PrepareStmt: true, // precompile SQL
-	})
+	db, err := gorm.Open(sqlite.Open(common.SQLitePath), newGormConfig(true))
 	return db, common.DatabaseTypeSQLite, err
 }
 
@@ -261,6 +251,15 @@ func InitLogDB() (err error) {
 }
 
 func migrateDB() error {
+	if err := migrateOptionPrimaryKey(DB); err != nil {
+		return err
+	}
+	if err := migrateTokenKeyUniqueness(DB); err != nil {
+		return err
+	}
+	if err := migratePrefillGroupUniqueness(DB); err != nil {
+		return err
+	}
 	// Migrate price_amount column from float/double to decimal for existing tables
 	migrateSubscriptionPlanPriceAmount()
 	// Migrate model_limits column from varchar to text for existing tables
@@ -338,93 +337,6 @@ func migrateDB() error {
 	if err := MigrateLoanToFundings(); err != nil {
 		return err
 	}
-	return nil
-}
-
-func migrateDBFast() error {
-
-	var wg sync.WaitGroup
-
-	migrations := []struct {
-		model interface{}
-		name  string
-	}{
-		{&Channel{}, "Channel"},
-		{&Token{}, "Token"},
-		{&User{}, "User"},
-		{&PasskeyCredential{}, "PasskeyCredential"},
-		{&Option{}, "Option"},
-		{&Redemption{}, "Redemption"},
-		{&OneTimeInviteCode{}, "OneTimeInviteCode"},
-		{&Ability{}, "Ability"},
-		{&Log{}, "Log"},
-		{&EmailLog{}, "EmailLog"},
-		{&Midjourney{}, "Midjourney"},
-		{&TopUp{}, "TopUp"},
-		{&QuotaData{}, "QuotaData"},
-		{&Task{}, "Task"},
-		{&Model{}, "Model"},
-		{&Vendor{}, "Vendor"},
-		{&PrefillGroup{}, "PrefillGroup"},
-		{&Setup{}, "Setup"},
-		{&TwoFA{}, "TwoFA"},
-		{&TwoFABackupCode{}, "TwoFABackupCode"},
-		{&Checkin{}, "Checkin"},
-		{&CheckinRiskWatch{}, "CheckinRiskWatch"},
-		{&SubscriptionOrder{}, "SubscriptionOrder"},
-		{&UserSubscription{}, "UserSubscription"},
-		{&SubscriptionPreConsumeRecord{}, "SubscriptionPreConsumeRecord"},
-		{&CustomOAuthProvider{}, "CustomOAuthProvider"},
-		{&UserOAuthBinding{}, "UserOAuthBinding"},
-		{&PerfMetric{}, "PerfMetric"},
-		{&SystemInstance{}, "SystemInstance"},
-		{&SystemTask{}, "SystemTask"},
-		{&SystemTaskLock{}, "SystemTaskLock"},
-		{&CasbinRule{}, "CasbinRule"},
-		{&AuthzRole{}, "AuthzRole"},
-		{&IPBan{}, "IPBan"},
-		{&MultiAccountEvidence{}, "MultiAccountEvidence"},
-		{&OAuthOwnershipTransfer{}, "OAuthOwnershipTransfer"},
-	}
-	// 动态计算migration数量，确保errChan缓冲区足够大
-	errChan := make(chan error, len(migrations))
-
-	for _, m := range migrations {
-		wg.Add(1)
-		go func(model interface{}, name string) {
-			defer wg.Done()
-			if err := DB.AutoMigrate(model); err != nil {
-				errChan <- fmt.Errorf("failed to migrate %s: %v", name, err)
-			}
-		}(m.model, m.name)
-	}
-
-	// Wait for all migrations to complete
-	wg.Wait()
-	close(errChan)
-
-	// Check for any errors
-	for err := range errChan {
-		if err != nil {
-			return err
-		}
-	}
-	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
-		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
-			return err
-		}
-	} else {
-		if err := DB.AutoMigrate(&SubscriptionPlan{}); err != nil {
-			return err
-		}
-	}
-	if err := MigrateRedemptionMaxRedemptionsOnce(); err != nil {
-		return err
-	}
-	if err := RefreshAllAffCodesOnce(); err != nil {
-		return err
-	}
-	common.SysLog("database migrated")
 	return nil
 }
 
