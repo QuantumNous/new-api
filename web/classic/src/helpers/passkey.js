@@ -175,3 +175,15 @@ export async function isPasskeySupported() {
   }
   return true;
 }
+
+export const PASSKEY_LAST_RP_ID_KEY = 'passkey:last-successful-rp-id';
+
+export function getLastSuccessfulPasskeyRPID() {
+  if (typeof window === 'undefined') return null;
+  return window.localStorage.getItem(PASSKEY_LAST_RP_ID_KEY);
+}
+
+export function rememberSuccessfulPasskeyRPID(rpId) {
+  if (!rpId || typeof window === 'undefined') return;
+  window.localStorage.setItem(PASSKEY_LAST_RP_ID_KEY, rpId);
+}

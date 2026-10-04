@@ -988,6 +988,11 @@ const AccountManagement = ({
                         <div className='mt-2 text-xs text-gray-500 space-y-1'>
                           <div>
                             {t('最后使用时间')}：{lastUsedLabel}
+                            {passkeyStatus?.rp_id && (
+                              <div>
+                                {t('绑定域名')}：{passkeyStatus.rp_id}
+                              </div>
+                            )}
                           </div>
                           {/*{passkeyEnabled && (*/}
                           {/*  <div>*/}

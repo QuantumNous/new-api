@@ -22,6 +22,8 @@ import {
   prepareCredentialRequestOptions,
   buildAssertionResult,
   isPasskeySupported,
+  getLastSuccessfulPasskeyRPID,
+  rememberSuccessfulPasskeyRPID,
 } from '../helpers/passkey';
 
 /**
@@ -117,7 +119,9 @@ export class SecureVerificationService {
   static async verifyPasskey() {
     try {
       // 开始Passkey验证
-      const beginResponse = await API.post('/api/user/passkey/verify/begin');
+      const beginResponse = await API.post('/api/user/passkey/verify/begin', {
+        rp_id: getLastSuccessfulPasskeyRPID(),
+      });
       if (!beginResponse.data?.success) {
         throw new Error(beginResponse.data?.message || '开始验证失败');
       }
@@ -145,6 +149,7 @@ export class SecureVerificationService {
         throw new Error(finishResponse.data?.message || '验证失败');
       }
 
+      rememberSuccessfulPasskeyRPID(beginResponse.data?.data?.rp_id);
       // 调用通用验证 API 设置 session（Passkey 验证已完成）
       const verifyResponse = await API.post('/api/verify', {
         method: 'passkey',

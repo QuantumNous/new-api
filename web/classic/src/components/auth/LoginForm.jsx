@@ -41,6 +41,8 @@ import {
   prepareCredentialRequestOptions,
   buildAssertionResult,
   isPasskeySupported,
+  getLastSuccessfulPasskeyRPID,
+  rememberSuccessfulPasskeyRPID,
   encryptPassword,
   clearPasswordEncryptionCache,
 } from '../../helpers';
@@ -53,6 +55,7 @@ import {
   Form,
   Icon,
   Modal,
+  Select,
 } from '@douyinfe/semi-ui';
 import Title from '@douyinfe/semi-ui/lib/es/typography/title';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
@@ -112,6 +115,7 @@ const LoginForm = () => {
   const [showTwoFA, setShowTwoFA] = useState(false);
   const [passkeySupported, setPasskeySupported] = useState(false);
   const [passkeyLoading, setPasskeyLoading] = useState(false);
+  const [selectedPasskeyRPID, setSelectedPasskeyRPID] = useState('');
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [hasUserAgreement, setHasUserAgreement] = useState(false);
   const [hasPrivacyPolicy, setHasPrivacyPolicy] = useState(false);
@@ -143,6 +147,18 @@ const LoginForm = () => {
       return {};
     }
   }, [statusState?.status]);
+  const passkeyRPIDs = Array.isArray(status?.passkey_rp_ids)
+    ? status.passkey_rp_ids.filter(Boolean)
+    : [];
+
+  useEffect(() => {
+    const remembered = getLastSuccessfulPasskeyRPID();
+    setSelectedPasskeyRPID(
+      remembered && passkeyRPIDs.includes(remembered)
+        ? remembered
+        : passkeyRPIDs[0] || '',
+    );
+  }, [passkeyRPIDs.join('|')]);
   const hasCustomOAuthProviders =
     (status.custom_oauth_providers || []).length > 0;
   const hasOAuthLoginOptions = Boolean(
@@ -492,7 +508,10 @@ const LoginForm = () => {
 
     setPasskeyLoading(true);
     try {
-      const beginRes = await API.post('/api/user/passkey/login/begin');
+      const beginRes = await API.post(
+        '/api/user/passkey/login/begin',
+        selectedPasskeyRPID ? { rp_id: selectedPasskeyRPID } : undefined,
+      );
       const { success, message, data } = beginRes.data;
       if (!success) {
         showError(message || '无法发起 Passkey 登录');
@@ -517,6 +536,7 @@ const LoginForm = () => {
       );
       const finish = finishRes.data;
       if (finish.success) {
+        rememberSuccessfulPasskeyRPID(data?.rp_id || selectedPasskeyRPID);
         markFeatureUpdatePromptPending();
         userDispatch({ type: 'login', payload: finish.data });
         setUserData(finish.data);
@@ -739,16 +759,32 @@ const LoginForm = () => {
                 )}
 
                 {status.passkey_login && passkeySupported && (
-                  <Button
-                    theme='outline'
-                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
-                    type='tertiary'
-                    icon={<IconKey size='large' />}
-                    onClick={handlePasskeyLogin}
-                    loading={passkeyLoading}
-                  >
-                    <span className='ml-3'>{t('使用 Passkey 登录')}</span>
-                  </Button>
+                  <>
+                    {passkeyRPIDs.length > 1 && (
+                      <Select
+                        value={selectedPasskeyRPID}
+                        onChange={setSelectedPasskeyRPID}
+                        placeholder={t('选择 Passkey 域名')}
+                        style={{ width: '100%', marginBottom: 8 }}
+                      >
+                        {passkeyRPIDs.map((rpId) => (
+                          <Select.Option value={rpId} key={rpId}>
+                            {rpId}
+                          </Select.Option>
+                        ))}
+                      </Select>
+                    )}
+                    <Button
+                      theme='outline'
+                      className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors'
+                      type='tertiary'
+                      icon={<IconKey size='large' />}
+                      onClick={handlePasskeyLogin}
+                      loading={passkeyLoading}
+                    >
+                      <span className='ml-3'>{t('使用 Passkey 登录')}</span>
+                    </Button>
+                  </>
                 )}
 
                 <Divider margin='12px' align='center'>
@@ -842,16 +878,32 @@ const LoginForm = () => {
             </div>
             <div className='px-2 py-8'>
               {status.passkey_login && passkeySupported && (
-                <Button
-                  theme='outline'
-                  type='tertiary'
-                  className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors mb-4'
-                  icon={<IconKey size='large' />}
-                  onClick={handlePasskeyLogin}
-                  loading={passkeyLoading}
-                >
-                  <span className='ml-3'>{t('使用 Passkey 登录')}</span>
-                </Button>
+                <>
+                  {passkeyRPIDs.length > 1 && (
+                    <Select
+                      value={selectedPasskeyRPID}
+                      onChange={setSelectedPasskeyRPID}
+                      placeholder={t('选择 Passkey 域名')}
+                      style={{ width: '100%', marginBottom: 8 }}
+                    >
+                      {passkeyRPIDs.map((rpId) => (
+                        <Select.Option value={rpId} key={rpId}>
+                          {rpId}
+                        </Select.Option>
+                      ))}
+                    </Select>
+                  )}
+                  <Button
+                    theme='outline'
+                    type='tertiary'
+                    className='w-full h-12 flex items-center justify-center !rounded-full border border-gray-200 hover:bg-gray-50 transition-colors mb-4'
+                    icon={<IconKey size='large' />}
+                    onClick={handlePasskeyLogin}
+                    loading={passkeyLoading}
+                  >
+                    <span className='ml-3'>{t('使用 Passkey 登录')}</span>
+                  </Button>
+                </>
               )}
               <Form className='space-y-3'>
                 <Form.Input

@@ -113,6 +113,7 @@ const SystemSetting = () => {
     'passkey.enabled': '',
     'passkey.rp_display_name': '',
     'passkey.rp_id': '',
+    'passkey.legacy_rp_ids': '',
     'passkey.origins': [],
     'passkey.allow_insecure_origin': '',
     'passkey.user_verification': 'preferred',
@@ -162,6 +163,13 @@ const SystemSetting = () => {
   const [testingEmail, setTestingEmail] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
   const formApiRef = useRef(null);
+  const currentPasskeyHost =
+    typeof window !== 'undefined' ? window.location.hostname : '';
+  const configuredPasskeyRPID = inputs['passkey.rp_id'] || '';
+  const passkeyRPIDMismatch =
+    Boolean(configuredPasskeyRPID && currentPasskeyHost) &&
+    configuredPasskeyRPID !== currentPasskeyHost &&
+    !currentPasskeyHost.endsWith(`.${configuredPasskeyRPID}`);
   const [emailDomainWhitelist, setEmailDomainWhitelist] = useState([]);
   const [showPasswordLoginConfirmModal, setShowPasswordLoginConfirmModal] =
     useState(false);
@@ -261,6 +269,7 @@ const SystemSetting = () => {
             break;
           case 'passkey.rp_display_name':
           case 'passkey.rp_id':
+          case 'passkey.legacy_rp_ids':
           case 'passkey.attachment_preference':
             // 确保字符串字段不为null/undefined
             item.value = item.value || '';
@@ -864,41 +873,64 @@ const SystemSetting = () => {
   };
 
   const submitPasskeySettings = async () => {
-    // 使用formApi直接获取当前表单值
     const formValues = formApiRef.current?.getValues() || {};
-
-    const options = [];
-
-    options.push({
-      key: 'passkey.rp_display_name',
-      value:
-        formValues['passkey.rp_display_name'] ||
-        inputs['passkey.rp_display_name'] ||
+    const options = [
+      {
+        key: 'passkey.rp_display_name',
+        value:
+          formValues['passkey.rp_display_name'] ||
+          inputs['passkey.rp_display_name'] ||
+          '',
+      },
+      {
+        key: 'passkey.user_verification',
+        value:
+          formValues['passkey.user_verification'] ||
+          inputs['passkey.user_verification'] ||
+          'preferred',
+      },
+      {
+        key: 'passkey.attachment_preference',
+        value:
+          formValues['passkey.attachment_preference'] ||
+          inputs['passkey.attachment_preference'] ||
+          '',
+      },
+    ];
+    const values = {
+      'passkey.rp_id':
+        formValues['passkey.rp_id'] || inputs['passkey.rp_id'] || '',
+      'passkey.legacy_rp_ids':
+        formValues['passkey.legacy_rp_ids'] ||
+        inputs['passkey.legacy_rp_ids'] ||
         '',
-    });
-    options.push({
-      key: 'passkey.rp_id',
-      value: formValues['passkey.rp_id'] || inputs['passkey.rp_id'] || '',
-    });
-    options.push({
-      key: 'passkey.user_verification',
-      value:
-        formValues['passkey.user_verification'] ||
-        inputs['passkey.user_verification'] ||
-        'preferred',
-    });
-    options.push({
-      key: 'passkey.attachment_preference',
-      value:
-        formValues['passkey.attachment_preference'] ||
-        inputs['passkey.attachment_preference'] ||
-        '',
-    });
-    options.push({
-      key: 'passkey.origins',
-      value: formValues['passkey.origins'] || inputs['passkey.origins'] || '',
-    });
+      'passkey.origins':
+        formValues['passkey.origins'] || inputs['passkey.origins'] || '',
+    };
 
+    try {
+      await API.put('/api/option/passkey/domains', { values });
+    } catch (error) {
+      const response = error?.response;
+      const change = response?.status === 409 ? response.data?.data : null;
+      if (!change?.confirmation) throw error;
+      await new Promise((resolve) => {
+        Modal.confirm({
+          title: t('确认删除 Passkey 域名'),
+          content: `${t('受影响凭证')}：${change.affected}，${t('未知旧凭证')}：${change.unknown}\n${change.removed?.join(', ') || ''}`,
+          okText: t('确认'),
+          cancelText: t('取消'),
+          onOk: async () => {
+            await API.put('/api/option/passkey/domains', {
+              values,
+              confirmation: change.confirmation,
+            });
+            resolve();
+          },
+          onCancel: resolve,
+        });
+      });
+    }
     await updateOptions(options);
   };
 
@@ -1447,6 +1479,42 @@ const SystemSetting = () => {
                         extraText={t(
                           '留空则默认使用服务器地址，注意不能携带http://或者https://',
                         )}
+                      />
+                    </Col>
+                  </Row>
+                  <Row style={{ marginTop: 8 }}>
+                    <Col xs={24}>
+                      <Button
+                        type='tertiary'
+                        onClick={() =>
+                          formApiRef.current?.setValue(
+                            'passkey.rp_id',
+                            currentPasskeyHost,
+                          )
+                        }
+                      >
+                        {t('填入当前网站')}
+                      </Button>
+                      {passkeyRPIDMismatch && (
+                        <Banner
+                          type='warning'
+                          description={t('网站域名与当前站点不匹配')}
+                          style={{ marginTop: 8 }}
+                        />
+                      )}
+                    </Col>
+                  </Row>
+                  <Row
+                    gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+                    style={{ marginTop: 16 }}
+                  >
+                    <Col xs={24}>
+                      <Form.TextArea
+                        field="['passkey.legacy_rp_ids']"
+                        label={t('兼容域名')}
+                        placeholder={t('每行填写一个兼容域名')}
+                        autosize={{ minRows: 3, maxRows: 6 }}
+                        extraText={t('删除仍被凭证使用的域名时需要二次确认')}
                       />
                     </Col>
                   </Row>

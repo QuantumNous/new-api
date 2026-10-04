@@ -29,6 +29,8 @@ import {
   prepareCredentialCreationOptions,
   buildRegistrationResult,
   isPasskeySupported,
+  getLastSuccessfulPasskeyRPID,
+  rememberSuccessfulPasskeyRPID,
   setUserData,
 } from '../../helpers';
 import { UserContext } from '../../context/User';
@@ -335,7 +337,11 @@ const PersonalSetting = () => {
   const registerPasskey = async () => {
     setPasskeyRegisterLoading(true);
     try {
-      const beginRes = await API.post('/api/user/passkey/register/begin');
+      const rpId = getLastSuccessfulPasskeyRPID() || passkeyStatus?.rp_ids?.[0];
+      const beginRes = await API.post(
+        '/api/user/passkey/register/begin',
+        rpId ? { rp_id: rpId } : undefined,
+      );
       const { success, message, data } = beginRes.data;
       if (!success) {
         throw new Error(message || t('无法发起 Passkey 注册'));
@@ -359,6 +365,7 @@ const PersonalSetting = () => {
           finishRes.data.message || t('Passkey 注册失败，请重试'),
         );
       }
+      rememberSuccessfulPasskeyRPID(data?.rp_id || rpId);
 
       showSuccess(t('Passkey 注册成功'));
       await loadPasskeyStatus();
