@@ -103,6 +103,10 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
       label: 'OpenAI Chat',
     },
     {
+      value: '/pg/chat/completions',
+      label: 'Playground Chat',
+    },
+    {
       value: '/v1/responses',
       label: 'OpenAI Responses',
     },
@@ -170,6 +174,7 @@ export const ADVANCED_CUSTOM_INCOMING_PATH_OPTIONS: AdvancedCustomIncomingPathOp
 
 const ADVANCED_CUSTOM_ROUTE_SUMMARY_LABELS: Record<string, string> = {
   '/v1/chat/completions': 'OpenAI Chat',
+  '/pg/chat/completions': 'Playground Chat',
   [ADVANCED_CUSTOM_MODEL_LIST_PATH]: ADVANCED_CUSTOM_MODEL_LIST_LABEL,
   [ADVANCED_CUSTOM_BALANCE_PATH]: ADVANCED_CUSTOM_BALANCE_LABEL,
 }
@@ -429,6 +434,17 @@ export function getAdvancedCustomUpstreamPathPlaceholder(
     .upstream_path
 }
 
+/**
+ * The dashboard playground calls the relay under /pg/... and the relay rewrites
+ * that prefix to /v1 before forwarding. A route still has to declare the
+ * /pg/... incoming path so request-path filtering can match it, but the
+ * upstream path must be the /v1/... one the upstream actually accepts.
+ */
+function toAdvancedCustomUpstreamPath(incomingPath: string): string {
+  if (!incomingPath.startsWith('/pg/')) return incomingPath
+  return `/v1${incomingPath.slice('/pg'.length)}`
+}
+
 export function getAdvancedCustomConverterDefaults(
   converter: AdvancedCustomConverter,
   incomingPath: string
@@ -438,7 +454,7 @@ export function getAdvancedCustomConverterDefaults(
 
   if (converter === 'none') {
     return {
-      upstream_path: normalizedIncomingPath,
+      upstream_path: toAdvancedCustomUpstreamPath(normalizedIncomingPath),
       auth: getAdvancedCustomNativeAuth(normalizedIncomingPath),
     }
   }
