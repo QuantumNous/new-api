@@ -132,3 +132,18 @@ func TestExemptAtNameIsOpaqueForBillingIdentity(t *testing.T) {
 	assert.Equal(t, "kimi-k2-thinking", BaseModelName("kimi-k2-thinking"))
 	assert.Empty(t, CanonicalBillingModelNames("kimi-k2-thinking"))
 }
+
+func TestParseLegacyModelSuffixGeminiAdapterGate(t *testing.T) {
+	base, intent, found, err := ParseLegacyModelSuffix("gemini-3.6-flash-high", true, false)
+	require.NoError(t, err)
+	assert.False(t, found)
+	assert.Equal(t, "gemini-3.6-flash-high", base)
+	assert.Equal(t, "", string(intent.Mode))
+
+	base, intent, found, err = ParseLegacyModelSuffix("gemini-2.5-flash-nothinking", true, true)
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.Equal(t, "gemini-2.5-flash", base)
+	assert.Equal(t, "disabled", string(intent.Mode))
+	assert.Equal(t, "none", string(intent.Effort))
+}

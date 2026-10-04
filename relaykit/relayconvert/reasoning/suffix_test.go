@@ -19,6 +19,27 @@ func TestParseGeminiModelSuffixNoThinkingDisablesReasoning(t *testing.T) {
 	assert.Equal(t, SourceSuffix, intent.Source)
 }
 
+func TestParseGeminiModelSuffixDisabledKeepsLegacyEffortSuffix(t *testing.T) {
+	t.Parallel()
+
+	for _, model := range []string{
+		"gemini-3.6-flash-high",
+		"gemini-3.6-flash-low",
+		"gemini-3.6-flash-max",
+		"gemini-3.6-flash-none",
+	} {
+		model := model
+		t.Run(model, func(t *testing.T) {
+			t.Parallel()
+			base, intent, found, err := ParseGeminiModelSuffix(model, false)
+			require.NoError(t, err)
+			assert.False(t, found)
+			assert.Equal(t, model, base)
+			assert.Equal(t, Intent{}, intent)
+		})
+	}
+}
+
 func TestParseKnownProviderModelSuffix(t *testing.T) {
 	t.Parallel()
 
