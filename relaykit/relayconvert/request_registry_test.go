@@ -923,3 +923,80 @@ func mustMarshalRequestJSON(t *testing.T, value any) []byte {
 	require.NoError(t, err)
 	return raw
 }
+
+func TestConvertRequestToGeminiInfersToolSchemaTypes(t *testing.T) {
+	parameters := map[string]any{
+		"properties": map[string]any{
+			"edits": map[string]any{
+				"properties": map[string]any{
+					"lines": map[string]any{"type": nil, "items": map[string]any{"type": "string"}},
+				},
+				"required": []any{"lines"},
+			},
+			"mode":     map[string]any{"enum": []any{"replace", "append"}},
+			"optional": map[string]any{"type": []any{"string", "null"}},
+			"choice": map[string]any{"anyOf": []any{
+				map[string]any{"properties": map[string]any{"value": map[string]any{"type": "integer"}}},
+				map[string]any{"items": map[string]any{"type": "boolean"}},
+			}},
+			"numericEnum": map[string]any{"enum": []any{1.0, 2.0}},
+			"mixedEnum":   map[string]any{"enum": []any{"one", 2.0}},
+			"emptyEnum":   map[string]any{"enum": []any{}},
+			"unknown":     map[string]any{"description": "An unconstrained value"},
+		},
+		"required": []any{"edits"},
+	}
+	expected := map[string]any{
+		"type": "OBJECT",
+		"properties": map[string]any{
+			"edits": map[string]any{
+				"type": "OBJECT",
+				"properties": map[string]any{
+					"lines": map[string]any{"type": "ARRAY", "items": map[string]any{"type": "STRING"}},
+				},
+				"required": []any{"lines"},
+			},
+			"mode":     map[string]any{"type": "STRING", "enum": []any{"replace", "append"}},
+			"optional": map[string]any{"type": "STRING", "nullable": true},
+			"choice": map[string]any{"anyOf": []any{
+				map[string]any{"type": "OBJECT", "properties": map[string]any{"value": map[string]any{"type": "INTEGER"}}},
+				map[string]any{"type": "ARRAY", "items": map[string]any{"type": "BOOLEAN"}},
+			}},
+			"numericEnum": map[string]any{"enum": []any{1.0, 2.0}},
+			"mixedEnum":   map[string]any{"enum": []any{"one", 2.0}},
+			"emptyEnum":   map[string]any{"enum": []any{}},
+			"unknown":     map[string]any{"description": "An unconstrained value"},
+		},
+		"required": []any{"edits"},
+	}
+
+	requests := []struct {
+		name  string
+		value any
+	}{
+		{"chat", &dto.GeneralOpenAIRequest{
+			Model: "gemini-test",
+			Tools: []dto.ToolCallRequest{{Type: "function", Function: dto.FunctionRequest{Name: "edit", Parameters: parameters}}},
+		}},
+		{"responses", &dto.OpenAIResponsesRequest{
+			Model: "gemini-test",
+			Input: mustRawMessage(t, []map[string]any{{"role": "user", "content": "edit the lines"}}),
+			Tools: mustRawMessage(t, []map[string]any{{"type": "function", "name": "edit", "parameters": parameters}}),
+		}},
+	}
+	for _, request := range requests {
+		t.Run(request.name, func(t *testing.T) {
+			result, err := ConvertRequest(nil, &convmeta.Values{}, types.RelayFormatGemini, request.value)
+			require.NoError(t, err)
+			geminiReq, ok := result.Value.(*dto.GeminiChatRequest)
+			require.True(t, ok)
+			tools := geminiReq.GetTools()
+			require.Len(t, tools, 1)
+			functions, err := kitutil.Any2Type[[]dto.FunctionRequest](tools[0].FunctionDeclarations)
+			require.NoError(t, err)
+			require.Len(t, functions, 1)
+			assert.Equal(t, "edit", functions[0].Name)
+			assert.Equal(t, expected, functions[0].Parameters)
+		})
+	}
+}

@@ -116,6 +116,23 @@ func cleanGeminiFunctionParametersShallow(params interface{}) interface{} {
 func normalizeGeminiSchemaTypeAndNullable(schema map[string]interface{}) {
 	rawType, ok := schema["type"]
 	if !ok || rawType == nil {
+		switch {
+		case schema["properties"] != nil:
+			schema["type"] = "OBJECT"
+		case schema["items"] != nil:
+			schema["type"] = "ARRAY"
+		default:
+			values, ok := schema["enum"].([]interface{})
+			if !ok || len(values) == 0 {
+				return
+			}
+			for _, value := range values {
+				if _, ok := value.(string); !ok {
+					return
+				}
+			}
+			schema["type"] = "STRING"
+		}
 		return
 	}
 
