@@ -85,6 +85,115 @@ func startPendingToolBlocks(state *convmeta.ClaudeConvertInfo) []*dto.ClaudeResp
 	return responses
 }
 
+func stopOpenBlocksAndAdvance(state *convmeta.ClaudeConvertInfo) []*dto.ClaudeResponse {
+	if state.LastMessagesType == convmeta.LastMessageTypeNone {
+		return nil
+	}
+	responses := startPendingToolBlocks(state)
+	responses = append(responses, stopOpenBlocks(state)...)
+	switch state.LastMessagesType {
+	case convmeta.LastMessageTypeTools:
+		state.Index = state.ToolCallBaseIndex + len(state.ToolCalls)
+		state.ToolCallBaseIndex = 0
+		state.ToolCallMaxIndexOffset = 0
+		state.ToolCalls = nil
+		state.ToolCallByIndex = nil
+		state.ToolCallByID = nil
+	default:
+		state.Index++
+	}
+	state.LastMessagesType = convmeta.LastMessageTypeNone
+	return responses
+}
+
+func emitNonToolDeltas(state *convmeta.ClaudeConvertInfo, delta convmeta.ClaudeStreamNonToolDelta) []*dto.ClaudeResponse {
+	var responses []*dto.ClaudeResponse
+	if delta.Reasoning != "" {
+		if state.LastMessagesType != convmeta.LastMessageTypeThinking {
+			responses = append(responses, stopOpenBlocksAndAdvance(state)...)
+			idx := state.Index
+			responses = append(responses, &dto.ClaudeResponse{
+				Index: &idx,
+				Type:  "content_block_start",
+				ContentBlock: &dto.ClaudeMediaMessage{
+					Type:     "thinking",
+					Thinking: kitutil.GetPointer[string](""),
+				},
+			})
+		}
+		state.LastMessagesType = convmeta.LastMessageTypeThinking
+		idx := state.Index
+		responses = append(responses, &dto.ClaudeResponse{
+			Index: &idx,
+			Type:  "content_block_delta",
+			Delta: &dto.ClaudeMediaMessage{
+				Type:     "thinking_delta",
+				Thinking: &delta.Reasoning,
+			},
+		})
+	}
+	if delta.Text != "" {
+		if state.LastMessagesType != convmeta.LastMessageTypeText {
+			responses = append(responses, stopOpenBlocksAndAdvance(state)...)
+			idx := state.Index
+			responses = append(responses, &dto.ClaudeResponse{
+				Index: &idx,
+				Type:  "content_block_start",
+				ContentBlock: &dto.ClaudeMediaMessage{
+					Type: "text",
+					Text: kitutil.GetPointer[string](""),
+				},
+			})
+		}
+		state.LastMessagesType = convmeta.LastMessageTypeText
+		idx := state.Index
+		responses = append(responses, &dto.ClaudeResponse{
+			Index: &idx,
+			Type:  "content_block_delta",
+			Delta: &dto.ClaudeMediaMessage{
+				Type: "text_delta",
+				Text: &delta.Text,
+			},
+		})
+	}
+	if citations := chatAnnotationsToClaude(delta.Annotations, ""); len(citations) > 0 {
+		if state.LastMessagesType != convmeta.LastMessageTypeText {
+			responses = append(responses, stopOpenBlocksAndAdvance(state)...)
+			idx := state.Index
+			responses = append(responses, &dto.ClaudeResponse{
+				Index: &idx,
+				Type:  "content_block_start",
+				ContentBlock: &dto.ClaudeMediaMessage{
+					Type: "text",
+					Text: kitutil.GetPointer[string](""),
+				},
+			})
+			state.LastMessagesType = convmeta.LastMessageTypeText
+		}
+		for _, citation := range citations {
+			idx := state.Index
+			responses = append(responses, &dto.ClaudeResponse{
+				Index: &idx,
+				Type:  "content_block_delta",
+				Delta: &dto.ClaudeMediaMessage{
+					Type:     "citations_delta",
+					Citation: citation,
+				},
+			})
+		}
+	}
+	return responses
+}
+
+func flushPendingNonToolDeltas(state *convmeta.ClaudeConvertInfo) []*dto.ClaudeResponse {
+	var responses []*dto.ClaudeResponse
+	for _, delta := range state.PendingNonToolDeltas {
+		responses = append(responses, emitNonToolDeltas(state, delta)...)
+	}
+	state.PendingNonToolDeltas = nil
+	return responses
+}
+
 func buildClaudeUsageFromOpenAIUsage(oaiUsage *dto.Usage) *dto.ClaudeUsage {
 	return sharedclaude.UsageFromOpenAI(oaiUsage)
 }
@@ -129,59 +238,6 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		claudeResponses = append(claudeResponses, startPendingToolBlocks(state)...)
 		claudeResponses = append(claudeResponses, stopOpenBlocks(state)...)
 	}
-	// stopOpenBlocksAndAdvance closes the currently open block(s) and advances the content block index
-	// to the next available slot for subsequent content_block_start events.
-	//
-	// This prevents invalid streams where a content_block_delta (e.g. thinking_delta) is emitted for an
-	// index whose active content_block type is different (the typical cause of "Mismatched content block type").
-	stopOpenBlocksAndAdvance := func() {
-		if state.LastMessagesType == convmeta.LastMessageTypeNone {
-			return
-		}
-		appendStopOpenBlocks()
-		switch state.LastMessagesType {
-		case convmeta.LastMessageTypeTools:
-			state.Index = state.ToolCallBaseIndex + len(state.ToolCalls)
-			state.ToolCallBaseIndex = 0
-			state.ToolCallMaxIndexOffset = 0
-			state.ToolCalls = nil
-			state.ToolCallByIndex = nil
-			state.ToolCallByID = nil
-		default:
-			state.Index++
-		}
-		state.LastMessagesType = convmeta.LastMessageTypeNone
-	}
-	appendCitationDeltas := func(raw []byte) {
-		citations := chatAnnotationsToClaude(raw, "")
-		if len(citations) == 0 {
-			return
-		}
-		if state.LastMessagesType != convmeta.LastMessageTypeText {
-			stopOpenBlocksAndAdvance()
-			idx := state.Index
-			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-				Index: &idx,
-				Type:  "content_block_start",
-				ContentBlock: &dto.ClaudeMediaMessage{
-					Type: "text",
-					Text: kitutil.GetPointer[string](""),
-				},
-			})
-			state.LastMessagesType = convmeta.LastMessageTypeText
-		}
-		for _, citation := range citations {
-			idx := state.Index
-			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-				Index: &idx,
-				Type:  "content_block_delta",
-				Delta: &dto.ClaudeMediaMessage{
-					Type:     "citations_delta",
-					Citation: citation,
-				},
-			})
-		}
-	}
 	if info.GetSendResponseCount() == 1 {
 		// Client-visible Claude stream usage matches billing merge: first
 		// frame records first, a later non-zero field overrides, and a later
@@ -216,6 +272,7 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 		// Some OpenAI-compatible upstreams end with a usage-only SSE chunk.
 		oaiUsage := clientVisibleClaudeStreamUsage(state, openAIResponse.Usage)
 		if oaiUsage != nil {
+			claudeResponses = append(claudeResponses, flushPendingNonToolDeltas(state)...)
 			appendStopOpenBlocks()
 			stopReason := stopReasonOpenAI2Claude(state.FinishReason)
 			if stopReason == "" {
@@ -241,62 +298,26 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			state.FinishReason = *chosenChoice.FinishReason
 		}
 
-		// An OpenAI delta can contain reasoning, text, and tool calls at once.
-		// Emit each part before advancing to the next Claude content block.
-		if reasoning := chosenChoice.Delta.GetReasoningContent(); reasoning != "" {
-			if state.LastMessagesType != convmeta.LastMessageTypeThinking {
-				stopOpenBlocksAndAdvance()
-				idx := state.Index
-				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-					Index: &idx,
-					Type:  "content_block_start",
-					ContentBlock: &dto.ClaudeMediaMessage{
-						Type:     "thinking",
-						Thinking: kitutil.GetPointer[string](""),
-					},
-				})
-			}
-			state.LastMessagesType = convmeta.LastMessageTypeThinking
-			idx := state.Index
-			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-				Index: &idx,
-				Type:  "content_block_delta",
-				Delta: &dto.ClaudeMediaMessage{
-					Type:     "thinking_delta",
-					Thinking: &reasoning,
-				},
-			})
+		// An OpenAI delta may mix text with a tool argument continuation. Claude
+		// requires a tool_use block to stay open until all argument fragments
+		// have arrived, so defer non-tool content until the finish frame.
+		nonTool := convmeta.ClaudeStreamNonToolDelta{
+			Reasoning:   chosenChoice.Delta.GetReasoningContent(),
+			Text:        chosenChoice.Delta.GetContentString(),
+			Annotations: chosenChoice.Delta.Annotations,
 		}
-		if textContent := chosenChoice.Delta.GetContentString(); textContent != "" {
-			if state.LastMessagesType != convmeta.LastMessageTypeText {
-				stopOpenBlocksAndAdvance()
-				idx := state.Index
-				claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-					Index: &idx,
-					Type:  "content_block_start",
-					ContentBlock: &dto.ClaudeMediaMessage{
-						Type: "text",
-						Text: kitutil.GetPointer[string](""),
-					},
-				})
+		if state.LastMessagesType == convmeta.LastMessageTypeTools {
+			if nonTool.Reasoning != "" || nonTool.Text != "" || len(nonTool.Annotations) > 0 {
+				state.PendingNonToolDeltas = append(state.PendingNonToolDeltas, nonTool)
 			}
-			state.LastMessagesType = convmeta.LastMessageTypeText
-			idx := state.Index
-			claudeResponses = append(claudeResponses, &dto.ClaudeResponse{
-				Index: &idx,
-				Type:  "content_block_delta",
-				Delta: &dto.ClaudeMediaMessage{
-					Type: "text_delta",
-					Text: &textContent,
-				},
-			})
+		} else {
+			claudeResponses = append(claudeResponses, emitNonToolDeltas(state, nonTool)...)
 		}
-		appendCitationDeltas(chosenChoice.Delta.Annotations)
 
 		if len(chosenChoice.Delta.ToolCalls) > 0 {
 			toolCalls := chosenChoice.Delta.ToolCalls
 			if state.LastMessagesType != convmeta.LastMessageTypeTools {
-				stopOpenBlocksAndAdvance()
+				claudeResponses = append(claudeResponses, stopOpenBlocksAndAdvance(state)...)
 				state.ToolCallBaseIndex = state.Index
 				state.ToolCallMaxIndexOffset = 0
 				state.ToolCalls = nil
@@ -388,6 +409,9 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 				state.Index = state.ToolCallBaseIndex + len(state.ToolCalls) - 1
 			}
 		}
+		if doneChunk {
+			claudeResponses = append(claudeResponses, flushPendingNonToolDeltas(state)...)
+		}
 
 		if doneChunk || state.Done {
 			oaiUsage := clientVisibleClaudeStreamUsage(state, openAIResponse.Usage)
@@ -429,7 +453,8 @@ func FinalizeStreamResponseOpenAI2Claude(info convmeta.Meta) []*dto.ClaudeRespon
 	if stopReason == "" {
 		stopReason = "end_turn"
 	}
-	responses := startPendingToolBlocks(state)
+	responses := flushPendingNonToolDeltas(state)
+	responses = append(responses, startPendingToolBlocks(state)...)
 	responses = append(responses, stopOpenBlocks(state)...)
 	responses = append(responses,
 		&dto.ClaudeResponse{
