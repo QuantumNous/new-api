@@ -5172,7 +5172,17 @@
     "自动在可用时协商 HTTP/2。HTTP/1.1 会在并发时使用多条保持连接的连接。": "Le mode Auto négocie HTTP/2 lorsque c’est disponible. HTTP/1.1 force plusieurs connexions keep-alive en concurrence.",
     "HTTP/2 连接分片": "Fragments de connexion HTTP/2",
     "选择 HTTP/1.1 时不可用 HTTP/2 连接分片。": "Les fragments de connexion HTTP/2 sont indisponibles lorsque HTTP/1.1 est sélectionné.",
-    "将 HTTP/2 流量分散到同一上游源站的多条可复用连接（1-8）。": "Répartit le trafic HTTP/2 sur plusieurs connexions réutilisables vers la même origine amont (1-8)."
+    "将 HTTP/2 流量分散到同一上游源站的多条可复用连接（1-8）。": "Répartit le trafic HTTP/2 sur plusieurs connexions réutilisables vers la même origine amont (1-8).",
+    "兼容域名": "Domaines compatibles",
+    "删除仍被凭证使用的域名时需要二次确认": "La suppression d’un domaine encore utilisé nécessite une confirmation",
+    "受影响凭证": "Identifiants concernés",
+    "未知旧凭证": "Anciens identifiants inconnus",
+    "每行填写一个兼容域名": "Saisissez un domaine compatible par ligne",
+    "确认删除 Passkey 域名": "Confirmer la suppression du domaine Passkey",
+    "绑定域名": "Domaine associé",
+    "选择 Passkey 域名": "Sélectionner le domaine Passkey",
+    "填入当前网站": "Remplir avec le site actuel",
+    "网站域名与当前站点不匹配": "Le domaine du site ne correspond pas au site actuel"
   },
   "RPM/并发": "RPM / Concurrence",
   "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",

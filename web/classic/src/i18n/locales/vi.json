@@ -5679,7 +5679,17 @@
     "自动在可用时协商 HTTP/2。HTTP/1.1 会在并发时使用多条保持连接的连接。": "Tự động đàm phán HTTP/2 khi khả dụng. HTTP/1.1 buộc dùng nhiều kết nối keep-alive khi có đồng thời.",
     "HTTP/2 连接分片": "Phân mảnh kết nối HTTP/2",
     "选择 HTTP/1.1 时不可用 HTTP/2 连接分片。": "Không thể dùng phân mảnh kết nối HTTP/2 khi chọn HTTP/1.1.",
-    "将 HTTP/2 流量分散到同一上游源站的多条可复用连接（1-8）。": "Phân tán lưu lượng HTTP/2 trên nhiều kết nối tái sử dụng tới cùng một nguồn upstream (1-8)."
+    "将 HTTP/2 流量分散到同一上游源站的多条可复用连接（1-8）。": "Phân tán lưu lượng HTTP/2 trên nhiều kết nối tái sử dụng tới cùng một nguồn upstream (1-8).",
+    "兼容域名": "Tên miền tương thích",
+    "删除仍被凭证使用的域名时需要二次确认": "Cần xác nhận khi xóa tên miền vẫn được thông tin xác thực sử dụng",
+    "受影响凭证": "Thông tin xác thực bị ảnh hưởng",
+    "未知旧凭证": "Thông tin xác thực cũ chưa biết",
+    "每行填写一个兼容域名": "Nhập mỗi tên miền tương thích trên một dòng",
+    "确认删除 Passkey 域名": "Xác nhận xóa tên miền Passkey",
+    "绑定域名": "Tên miền đã liên kết",
+    "选择 Passkey 域名": "Chọn tên miền Passkey",
+    "填入当前网站": "Điền trang hiện tại",
+    "网站域名与当前站点不匹配": "Tên miền trang web không khớp với trang hiện tại"
   },
   "RPM/并发": "RPM / Đồng thời",
   "[\"vip\", \"svip\"]": "[\"vip\", \"svip\"]",
