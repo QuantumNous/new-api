@@ -114,6 +114,48 @@ func SyncChannelCache(frequency int) {
 	}
 }
 
+// ExplainEmptyCandidates reports why no channel was selectable for group+model.
+//
+// Selection can come up empty in two very different ways: the group may have no
+// channel serving the model at all, or channels may exist but every candidate
+// was rejected by a request filter. filterCandidateIDs already computes which
+// filter emptied the candidate set, but the selection path discards that
+// attribution, so callers can only report a generic "no available channel".
+//
+// This re-derives the attribution purely for error reporting. The result is
+// advisory: it re-reads cache state that may have changed since the original
+// selection, so callers must never use it to make routing decisions. The
+// returned channel is one representative rejected candidate, included so an
+// operator-facing message can name the misconfigured channel.
+func ExplainEmptyCandidates(group, modelName string, filters []dto.ChannelFilter) (dto.ChannelFilterKind, *Channel) {
+	if !common.MemoryCacheEnabled {
+		return "", nil
+	}
+
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+
+	candidates := group2model2channels[group][modelName]
+	_, emptiedBy := filterCandidateIDs(candidates, modelName, filters)
+	if emptiedBy == "" {
+		normalizedModel := ratio_setting.RoutingMatchModelName(modelName)
+		candidates = group2model2channels[group][normalizedModel]
+		_, emptiedBy = filterCandidateIDs(candidates, modelName, filters)
+	}
+	if emptiedBy == "" {
+		// Nothing was filtered out, so the emptiness has some other cause and
+		// the generic message is already the accurate one.
+		return "", nil
+	}
+
+	for _, id := range candidates {
+		if channel, ok := channelsIDM[id]; ok && channel != nil {
+			return emptiedBy, channel
+		}
+	}
+	return emptiedBy, nil
+}
+
 func GetRandomSatisfiedChannel(
 	group string,
 	model string,

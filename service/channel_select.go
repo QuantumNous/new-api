@@ -360,9 +360,14 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 			}
 		}
 		if channel == nil {
+			// Selection discarded which filter emptied the candidate set; recover
+			// it so the distributor can explain the failure instead of reporting a
+			// bare "no available channel" that sends operators to the wrong place.
+			filterKind, rejectedChannel := model.ExplainEmptyCandidates(usingGroup, modelName, constraints.Filters)
 			return nil, selectGroup, &ChannelSelectError{
 				StatusCode: http.StatusServiceUnavailable, Code: types.ErrorCodeModelNotFound, MessageID: i18n.MsgDistributorNoAvailableChannel,
 				Params: map[string]any{"Group": usingGroup, "Model": modelName}, NoAvailableChannel: true,
+				FilterKind: filterKind, Channel: rejectedChannel,
 			}
 		}
 	}
