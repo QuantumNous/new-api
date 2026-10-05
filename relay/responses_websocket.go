@@ -129,7 +129,7 @@ func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn, runner Res
 	}
 	client.SetReadLimit(int64(maxMB) << 20)
 	defer func() {
-		s.shutdown()
+		s.shutdown(websocket.CloseNormalClosure)
 		s.workers.Wait()
 	}()
 
@@ -204,7 +204,10 @@ func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []b
 		s.stateMu.Unlock()
 		s.clientWriteMu.Unlock()
 		if state.closeAfter {
-			s.shutdown()
+			// Every closeAfter path is a failure: upstream read error, idle
+			// timeout, panic, terminal write failure, or a rejected generation.
+			// 1011 tells the client the output is truncated, not complete.
+			s.shutdown(websocket.CloseInternalServerErr)
 		}
 	}()
 	request := s.request.Clone(s.ctx)
@@ -390,7 +393,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			} else {
 				if event.Type != "error" && event.StreamID != "" && event.StreamID != create.StreamID {
 					if err := s.writeClient(incoming.kind, incoming.body); err != nil {
-						s.shutdown()
+						s.shutdown(websocket.CloseInternalServerErr)
 					}
 					continue
 				}
@@ -408,7 +411,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 					terminal, ambiguous, controlError := responsesWSErrorEndsRequest(rejection, create.StreamID, responseID, sentControl)
 					if !terminal {
 						if err := s.writeClient(incoming.kind, incoming.body); err != nil {
-							s.shutdown()
+							s.shutdown(websocket.CloseInternalServerErr)
 						}
 						// Only a control error in this stream resolves its pending control.
 						if controlError {
@@ -465,11 +468,11 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				return nil
 			}
 			if err := s.writeClient(incoming.kind, incoming.body); err != nil {
-				s.shutdown()
+				s.shutdown(websocket.CloseInternalServerErr)
 			}
 			if accepted && pendingControl != nil {
 				if err := s.writeTarget(websocket.TextMessage, pendingControl); err != nil {
-					s.shutdown()
+					s.shutdown(websocket.CloseInternalServerErr)
 				}
 				sentControl = pendingControl
 				pendingControl = nil
@@ -484,7 +487,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				continue
 			}
 			if err := s.writeTarget(websocket.TextMessage, control.body); err != nil {
-				s.shutdown()
+				s.shutdown(websocket.CloseInternalServerErr)
 			}
 			sentControl = control.body
 		case <-idle.C:
@@ -629,22 +632,22 @@ func (s *responsesWSSession) startTargetReader(target *websocket.Conn) {
 				case <-state.done:
 					if err == nil {
 						if writeErr := s.writeClient(kind, body); writeErr != nil {
-							s.shutdown()
+							s.shutdown(websocket.CloseInternalServerErr)
 							return
 						}
 					} else {
-						s.shutdown()
+						s.shutdown(websocket.CloseInternalServerErr)
 					}
 				case <-s.ctx.Done():
 					return
 				}
 			} else if err == nil {
 				if writeErr := s.writeClient(kind, body); writeErr != nil {
-					s.shutdown()
+					s.shutdown(websocket.CloseInternalServerErr)
 					return
 				}
 			} else {
-				s.shutdown()
+				s.shutdown(websocket.CloseInternalServerErr)
 			}
 			if err != nil {
 				return
@@ -723,18 +726,20 @@ func (s *responsesWSSession) sendError(eventID, streamID string, apiErr *types.N
 // which strict clients (RFC 6455) surface as "Connection reset without
 // closing handshake" on every normally finished session. WriteControl is safe
 // alongside a blocked data writer; a failure here is ignored so shutdown
-// always completes.
-func closeConnWS(conn *websocket.Conn) {
+// always completes. code tells the peer how the session ended: 1000 for
+// normal completion, 1011 when the relay aborts after a failure, 1008 for
+// policy shutdowns (via closeForPolicy).
+func closeConnWS(conn *websocket.Conn, code int) {
 	if conn == nil {
 		return
 	}
 	_ = conn.WriteControl(websocket.CloseMessage,
-		websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
+		websocket.FormatCloseMessage(code, ""),
 		time.Now().Add(time.Second))
 	_ = conn.Close()
 }
 
-func (s *responsesWSSession) closeTarget() {
+func (s *responsesWSSession) closeTarget(code int) {
 	s.connectionMu.Lock()
 	target, unregister := s.target, s.unregister
 	s.target, s.unregister = nil, nil
@@ -743,20 +748,20 @@ func (s *responsesWSSession) closeTarget() {
 		unregister()
 	}
 	if target != nil {
-		closeConnWS(target)
+		closeConnWS(target, code)
 		_ = target.Close()
 	}
 }
 
-func (s *responsesWSSession) shutdown() {
+func (s *responsesWSSession) shutdown(code int) {
 	if s.cancel != nil {
 		s.cancel()
 	}
-	s.closeTarget()
+	s.closeTarget(code)
 	s.clientWriteMu.Lock()
 	client := s.client
 	s.clientWriteMu.Unlock()
-	closeConnWS(client)
+	closeConnWS(client, code)
 	_ = s.client.Close()
 }
 
@@ -781,7 +786,7 @@ func (s *responsesWSSession) closeForPolicy(reason string) {
 	if target := s.getTarget(); target != nil {
 		_ = target.WriteControl(websocket.CloseMessage, closeMessage, deadline)
 	}
-	s.shutdown()
+	s.shutdown(websocket.ClosePolicyViolation)
 }
 
 // Stream identity belongs to the WebSocket envelope. For the legacy wrapped
