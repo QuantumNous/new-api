@@ -96,6 +96,40 @@ func TestHTTPAuditInboundParametersPrivacyAndUnchangedResponse(t *testing.T) {
 	}
 }
 
+func TestHTTPAuditCachedBodyParametersPreserveReplay(t *testing.T) {
+	for _, key := range []string{common.KeyBodyStorage, common.KeyRequestBody} {
+		t.Run(key, func(t *testing.T) {
+			router, output := httpAuditFixture(t)
+			body := []byte(`{"model":"demo","messages":[{"content":"private cached prompt"}]}`)
+			router.POST("/v1/chat/completions", func(c *gin.Context) {
+				if key == common.KeyBodyStorage {
+					storage, err := common.CreateBodyStorage(body)
+					require.NoError(t, err)
+					c.Set(key, storage)
+				} else {
+					c.Set(key, body)
+				}
+				defer common.CleanupBodyStorage(c)
+				for range 2 {
+					storage, err := common.GetBodyStorage(c)
+					require.NoError(t, err)
+					replayed, err := io.ReadAll(storage)
+					require.NoError(t, err)
+					assert.Equal(t, body, replayed)
+				}
+				c.JSON(200, gin.H{"success": true})
+			})
+			req := httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			req.Header.Set("Content-Type", "application/json")
+			router.ServeHTTP(httptest.NewRecorder(), req)
+			events := httpAuditEvents(t, output)
+			require.Len(t, events, 1)
+			assert.Equal(t, map[string]any{"model": "demo"}, events[0]["parameters"])
+			assert.NotContains(t, output.String(), "private cached prompt")
+		})
+	}
+}
+
 func TestHTTPAuditRejectedRequestsWithoutReadingBody(t *testing.T) {
 	for _, status := range []int{401, 413} {
 		t.Run(http.StatusText(status), func(t *testing.T) {

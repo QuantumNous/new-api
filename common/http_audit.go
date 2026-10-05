@@ -87,16 +87,19 @@ func ObserveHTTPAuditRequestBody(c *gin.Context, storage BodyStorage) {
 	if state == nil {
 		return
 	}
+	state.mu.Lock()
+	defer state.mu.Unlock()
+	if state.params != nil {
+		return
+	}
 	reader, err := storage.NewReader()
 	if err != nil {
 		return
 	}
 	defer reader.Close()
 	data, _ := io.ReadAll(io.LimitReader(reader, httpAuditCaptureBytes))
-	state.mu.Lock()
 	state.params = auditParameters(data, c.Request.Header.Get("Content-Type"))
 	state.paramsIncomplete = storage.Size() > httpAuditCaptureBytes
-	state.mu.Unlock()
 }
 
 // The allowlist deliberately excludes free text, arbitrary objects, URLs,

@@ -40,6 +40,7 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 			if _, err := bs.Seek(0, io.SeekStart); err != nil {
 				return nil, fmt.Errorf("failed to seek body storage: %w", err)
 			}
+			ObserveHTTPAuditRequestBody(c, bs)
 			return bs, nil
 		}
 	}
@@ -53,6 +54,7 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 				return nil, err
 			}
 			c.Set(KeyBodyStorage, bs)
+			ObserveHTTPAuditRequestBody(c, bs)
 			return bs, nil
 		}
 	}
