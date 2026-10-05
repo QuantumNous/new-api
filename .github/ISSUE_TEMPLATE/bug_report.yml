@@ -55,7 +55,7 @@ body:
       options:
         - label: "**非重复 issue:** 我已搜索现有 [Issues](https://github.com/QuantumNous/new-api/issues?q=is%3Aissue)，确认目前没有类似 issue。"
           required: true
-        - label: "**提交前必读:** 我已完整阅读上方“提交前必读”，并已查看文档 https://docs.newapi.ai/、项目 README 且向 AI 提问，确认这不是使用、配置或接入类问题。"
+        - label: "**提交前必读:** 我已完整阅读上方“提交前必读”，并已查看[文档](https://docs.newapi.ai/)、项目 README 且向 AI 提问，确认这不是使用、配置或接入类问题。"
           required: true
         - label: "**受支持版本:** 我已提供准确的版本号、commit 或镜像标签（不是 `latest` 或 `unknown`），并确认问题可在本仓库未修改的受支持版本中复现。"
           required: true
