@@ -1,0 +1,185 @@
+name: Fork release to GHCR
+
+on:
+  schedule:
+    - cron: '17,47 * * * *'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Upstream tag to build/rebuild; empty selects the next new tag'
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fork-release.yml'
+      - '.github/scripts/fork_release.py'
+      - '.github/fork-release-baseline.txt'
+    tags: ['v*']
+
+# Serial publication keeps release branches and latest from racing.
+concurrency:
+  group: fork-release-ghcr
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    if: github.repository == 'AlexeyVatolin/new-api'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.prepare.outputs.tag }}
+      sha: ${{ steps.prepare.outputs.sha }}
+      version: ${{ steps.prepare.outputs.version }}
+      image: ${{ steps.prepare.outputs.image }}
+      upstream_sha: ${{ steps.prepare.outputs.upstream_sha }}
+      main_sha: ${{ steps.prepare.outputs.main_sha }}
+      latest: ${{ steps.prepare.outputs.latest }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Fetch upstream tags and current fork branches
+        run: |
+          git fetch --no-tags origin '+refs/heads/*:refs/remotes/origin/*'
+          git fetch --no-tags https://github.com/QuantumNous/new-api.git '+refs/tags/v*:refs/upstream-tags/v*'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      - name: Verify release selection and merge behavior
+        run: python3 -m unittest discover -s .github/scripts -p 'test_fork_release.py' -v
+      - name: Merge release with fork main
+        id: prepare
+        env:
+          REQUESTED_TAG: ${{ inputs.tag || (startsWith(github.ref, 'refs/tags/') && github.ref_name) || '' }}
+        run: python3 .github/scripts/fork_release.py
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.tag != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - name: Write fork version
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: printf '%s\n' "$VERSION" > VERSION
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=${{ needs.prepare.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ needs.prepare.outputs.sha }}
+            org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
+            io.github.fork.upstream.tag=${{ needs.prepare.outputs.tag }}
+            io.github.fork.upstream.revision=${{ needs.prepare.outputs.upstream_sha }}
+            io.github.fork.main.revision=${{ needs.prepare.outputs.main_sha }}
+          cache-from: type=gha,scope=fork-${{ matrix.arch }}
+          cache-to: type=gha,scope=fork-${{ matrix.arch }},mode=max
+          provenance: mode=max
+          sbom: true
+      - name: Verify image startup and embedded version
+        env:
+          IMAGE: ${{ needs.prepare.outputs.image }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          trap 'docker logs fork-release-smoke; docker rm -f fork-release-smoke' EXIT
+          docker run -d --name fork-release-smoke -p 127.0.0.1:3000:3000 "$IMAGE@$DIGEST"
+          for attempt in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3000/api/status > /tmp/fork-status.json; then
+              jq -e --arg version "$VERSION" '.success == true and .data.version == $version' /tmp/fork-status.json
+              exit 0
+            fi
+            echo "Waiting for image startup ($attempt/30)"
+            sleep 2
+          done
+          echo '::error::Image did not become ready'
+          exit 1
+      - name: Save digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p /tmp/fork-digests
+          printf '%s\n' "$DIGEST" > "/tmp/fork-digests/$ARCH"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: fork-digest-${{ matrix.arch }}
+          path: /tmp/fork-digests/*
+          retention-days: 7
+
+  publish:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          fetch-depth: 0
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4 # v4.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: fork-digest-*
+          path: /tmp/fork-digests
+          merge-multiple: true
+      - name: Publish multi-arch image and record success
+        env:
+          IMAGE: ${{ needs.prepare.outputs.image }}
+          TAG: ${{ needs.prepare.outputs.tag }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.sha }}
+          PUBLISH_LATEST: ${{ needs.prepare.outputs.latest }}
+        run: |
+          AMD64=$(cat /tmp/fork-digests/amd64)
+          ARM64=$(cat /tmp/fork-digests/arm64)
+          docker buildx imagetools create -t "$IMAGE:$VERSION" -t "$IMAGE:$TAG" \
+            "$IMAGE@$AMD64" "$IMAGE@$ARM64"
+          if [ "$PUBLISH_LATEST" = true ]; then
+            docker buildx imagetools create -t "$IMAGE:latest" "$IMAGE:$VERSION"
+          fi
+          docker buildx imagetools inspect "$IMAGE:$VERSION" >> "$GITHUB_STEP_SUMMARY"
+          # Original upstream tags remain intact. This marker is written only after publication.
+          if ! git show-ref --verify --quiet "refs/tags/fork-built/$TAG"; then
+            git tag "fork-built/$TAG" "$SOURCE_SHA"
+            git push origin "refs/tags/fork-built/$TAG"
+          fi
