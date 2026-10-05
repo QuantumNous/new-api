@@ -78,6 +78,7 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 
 	// 缓存存储对象
 	c.Set(KeyBodyStorage, storage)
+	ObserveHTTPAuditRequestBody(c, storage)
 
 	return storage, nil
 }

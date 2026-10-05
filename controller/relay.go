@@ -88,6 +88,11 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 
 	defer func() {
 		if newAPIError != nil {
+			if common.HTTPAuditEnabled {
+				common.SetHTTPAuditResult(c.Request.Context(), map[string]any{
+					"outcome": "error", "error_code": string(newAPIError.GetErrorCode()), "error_type": string(newAPIError.GetErrorType()),
+				})
+			}
 			service.RecordRequestPolicyTermination(c, newAPIError)
 			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
@@ -132,6 +137,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		if relayFormat != types.RelayFormatOpenAIRealtime {
 			perfmetrics.RecordRelayResult(c.Request.Context(), relayInfo, resultErr)
+			if common.HTTPAuditEnabled && resultErr == nil && relayInfo.StreamStatus != nil {
+				common.SetHTTPAuditResult(c.Request.Context(), helper.HTTPAuditStreamResult(relayInfo.StreamStatus))
+			}
 		}
 		if recovered != nil {
 			panic(recovered)

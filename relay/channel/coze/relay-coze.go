@@ -222,6 +222,7 @@ func checkIfChatComplete(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo
 	if err != nil {
 		return err, false
 	}
+	req = req.WithContext(common.WithHTTPAuditContext(req.Context(), c.Request.Context(), info.ChannelId, info.ChannelType))
 	err = a.SetupRequestHeader(c, &req.Header, info)
 	if err != nil {
 		return err, false
@@ -267,6 +268,7 @@ func getChatDetail(a *Adaptor, c *gin.Context, info *relaycommon.RelayInfo) (*ht
 	if err != nil {
 		return nil, fmt.Errorf("new request failed: %w", err)
 	}
+	req = req.WithContext(common.WithHTTPAuditContext(req.Context(), c.Request.Context(), info.ChannelId, info.ChannelType))
 	err = a.SetupRequestHeader(c, &req.Header, info)
 	if err != nil {
 		return nil, fmt.Errorf("setup request header failed: %w", err)

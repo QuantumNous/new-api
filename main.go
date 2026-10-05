@@ -183,7 +183,12 @@ func main() {
 		common.FatalLog("failed to configure trusted proxies: " + err.Error())
 		return
 	}
+	server.Use(middleware.RequestId())
+	server.Use(common.HTTPAuditMiddleware())
 	server.Use(gin.CustomRecovery(func(c *gin.Context, err any) {
+		if common.HTTPAuditEnabled {
+			common.SetHTTPAuditResult(c.Request.Context(), map[string]any{"outcome": "error", "error_type": "panic"})
+		}
 		common.SysLog(fmt.Sprintf("panic detected: %v", err))
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": gin.H{
@@ -194,7 +199,6 @@ func main() {
 	}))
 	// This will cause SSE not to work!!!
 	//server.Use(gzip.Gzip(gzip.DefaultCompression))
-	server.Use(middleware.RequestId())
 	server.Use(middleware.Version())
 	server.Use(middleware.I18n())
 	middleware.SetUpLogger(server)
@@ -300,6 +304,9 @@ func InitResources() error {
 
 	// 加载环境变量
 	common.InitEnv()
+	if err := common.InitHTTPAudit(); err != nil {
+		return err
+	}
 
 	logger.SetupLogger()
 

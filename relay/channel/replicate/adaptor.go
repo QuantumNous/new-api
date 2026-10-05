@@ -475,6 +475,7 @@ func uploadFileFromForm(c *gin.Context, info *relaycommon.RelayInfo, fieldCandid
 	if err != nil {
 		return "", fmt.Errorf("replicate adaptor: create upload request failed: %w", err)
 	}
+	req = req.WithContext(common.WithHTTPAuditContext(req.Context(), c.Request.Context(), info.ChannelId, info.ChannelType))
 	req.Header.Set("Content-Type", formContentType)
 	req.Header.Set("Authorization", "Bearer "+info.ApiKey)
 

@@ -91,6 +91,7 @@ func newProtectedFetchHTTPClientWithProxy(resolver ssrfResolver, dialContext fun
 		},
 		CheckRedirect: checkProtectedFetchRedirect,
 	}
+	client.Transport = common.WrapHTTPAuditTransport(client.Transport)
 	if common.RelayTimeout != 0 {
 		client.Timeout = time.Duration(common.RelayTimeout) * time.Second
 	}

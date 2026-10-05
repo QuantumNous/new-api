@@ -94,6 +94,7 @@ func uploadDifyFile(c *gin.Context, info *relaycommon.RelayInfo, user string, me
 			return nil
 		}
 
+		req = req.WithContext(common.WithHTTPAuditContext(req.Context(), c.Request.Context(), info.ChannelId, info.ChannelType))
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", info.ApiKey))
 

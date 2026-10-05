@@ -88,6 +88,12 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 
 	// 无条件新建 StreamStatus
 	info.StreamStatus = relaycommon.NewStreamStatus()
+	if common.HTTPAuditEnabled {
+		common.BeginHTTPAuditStream(resp)
+		defer func() {
+			common.FinishHTTPAuditStream(resp, HTTPAuditStreamResult(info.StreamStatus))
+		}()
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -313,4 +319,34 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 	} else {
 		logger.LogError(c, fmt.Sprintf("stream ended: %s, received=%d", info.StreamStatus.Summary(), info.ReceivedResponseCount))
 	}
+}
+
+// Reuse the adaptor's parsed stream outcome rather than infer success from
+// HTTP 200 or EOF. EOF without a known terminal event remains unknown.
+func HTTPAuditStreamResult(status *relaycommon.StreamStatus) map[string]any {
+	result := map[string]any{"outcome": "unknown"}
+	if status == nil {
+		return result
+	}
+	snapshot := status.OutcomeSnapshot()
+	result["stream_end"] = string(snapshot.EndReason)
+	switch {
+	case snapshot.EndReason == relaycommon.StreamEndReasonClientGone || snapshot.Response == relaycommon.ResponseOutcomeCancelled:
+		result["outcome"] = "cancelled"
+	case snapshot.HasErrors || snapshot.Response == relaycommon.ResponseOutcomeFailed || snapshot.Response == relaycommon.ResponseOutcomeIncomplete:
+		result["outcome"] = "error"
+	case snapshot.EndReason == relaycommon.StreamEndReasonTimeout || snapshot.EndReason == relaycommon.StreamEndReasonScannerErr || snapshot.EndReason == relaycommon.StreamEndReasonPanic || snapshot.EndReason == relaycommon.StreamEndReasonPingFail:
+		result["outcome"] = "error"
+	case snapshot.ExpectsTerminal && snapshot.Response != relaycommon.ResponseOutcomeCompleted:
+		result["outcome"] = "error"
+	case snapshot.Response == relaycommon.ResponseOutcomeCompleted || snapshot.EndReason == relaycommon.StreamEndReasonDone:
+		result["outcome"] = "success"
+	}
+	if snapshot.ErrorCode != "" {
+		result["error_code"] = snapshot.ErrorCode
+	}
+	if snapshot.ErrorType != "" {
+		result["error_type"] = snapshot.ErrorType
+	}
+	return result
 }
