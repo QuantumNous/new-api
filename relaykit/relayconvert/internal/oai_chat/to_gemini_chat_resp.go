@@ -48,6 +48,18 @@ func NewChatToGeminiStreamState() *ChatToGeminiStreamState {
 	}
 }
 
+// geminiResponseReasoning prefers non-empty reasoning_content, falling back to
+// reasoning when compatible upstreams send both fields with the former empty.
+func geminiResponseReasoning(reasoningContent, reasoning *string) string {
+	if reasoningContent != nil && *reasoningContent != "" {
+		return *reasoningContent
+	}
+	if reasoning != nil {
+		return *reasoning
+	}
+	return ""
+}
+
 // ResponseOpenAI2Gemini 将 OpenAI 响应转换为 Gemini 格式
 func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info convmeta.Meta) *dto.GeminiChatResponse {
 	totalTokens := openAIResponse.TotalTokens
@@ -96,7 +108,7 @@ func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info convmeta
 			Parts: make([]dto.GeminiPart, 0),
 		}
 
-		if reasoning := choice.Message.GetReasoningContent(); reasoning != "" {
+		if reasoning := geminiResponseReasoning(choice.Message.ReasoningContent, choice.Message.Reasoning); reasoning != "" {
 			content.Parts = append(content.Parts, dto.GeminiPart{Text: reasoning, Thought: true})
 		}
 
@@ -133,7 +145,7 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 	hasContent := false
 	hasFinishReason := false
 	for _, choice := range openAIResponse.Choices {
-		if len(choice.Delta.GetContentString()) > 0 || len(choice.Delta.GetReasoningContent()) > 0 || (choice.Delta.ToolCalls != nil && len(choice.Delta.ToolCalls) > 0) {
+		if len(choice.Delta.GetContentString()) > 0 || geminiResponseReasoning(choice.Delta.ReasoningContent, choice.Delta.Reasoning) != "" || (choice.Delta.ToolCalls != nil && len(choice.Delta.ToolCalls) > 0) {
 			hasContent = true
 		}
 		if choice.FinishReason != nil {
@@ -200,7 +212,7 @@ func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamRespon
 			Parts: make([]dto.GeminiPart, 0),
 		}
 
-		if reasoning := choice.Delta.GetReasoningContent(); reasoning != "" {
+		if reasoning := geminiResponseReasoning(choice.Delta.ReasoningContent, choice.Delta.Reasoning); reasoning != "" {
 			content.Parts = append(content.Parts, dto.GeminiPart{Text: reasoning, Thought: true})
 		}
 
@@ -296,7 +308,7 @@ func (s *ChatToGeminiStreamState) ConvertChunk(openAIResponse *dto.ChatCompletio
 				Parts: make([]dto.GeminiPart, 0),
 			},
 		}
-		if reasoning := choice.Delta.GetReasoningContent(); reasoning != "" {
+		if reasoning := geminiResponseReasoning(choice.Delta.ReasoningContent, choice.Delta.Reasoning); reasoning != "" {
 			candidate.Content.Parts = append(candidate.Content.Parts, dto.GeminiPart{Text: reasoning, Thought: true})
 		}
 		if hasText {

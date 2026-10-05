@@ -108,73 +108,117 @@ func TestStreamResponseOpenAI2GeminiMapsToolCallFinishReasonAndUsage(t *testing.
 }
 
 func TestResponseOpenAI2GeminiEmitsReasoningAsThoughtPartBeforeText(t *testing.T) {
-	for name, message := range map[string]dto.Message{
-		"reasoning":         {Role: "assistant", Content: "answer", Reasoning: geminiRespPtr("thinking")},
-		"reasoning_content": {Role: "assistant", Content: "answer", ReasoningContent: geminiRespPtr("thinking")},
-	} {
+	for name, tc := range geminiResponseReasoningCases() {
 		t.Run(name, func(t *testing.T) {
 			resp := ResponseOpenAI2Gemini(&dto.OpenAITextResponse{
-				Choices: []dto.OpenAITextResponseChoice{{Message: message, FinishReason: "stop"}},
+				Choices: []dto.OpenAITextResponseChoice{{
+					Message: dto.Message{
+						Role: "assistant", Content: "answer",
+						ReasoningContent: tc.reasoningContent, Reasoning: tc.reasoning,
+					},
+					FinishReason: "stop",
+				}},
 			}, nil)
 
 			require.Len(t, resp.Candidates, 1)
-			parts := resp.Candidates[0].Content.Parts
-			require.Len(t, parts, 2)
-			assert.Equal(t, dto.GeminiPart{Text: "thinking", Thought: true}, parts[0])
-			assert.Equal(t, dto.GeminiPart{Text: "answer"}, parts[1])
+			want := []dto.GeminiPart{}
+			if tc.want != "" {
+				want = append(want, dto.GeminiPart{Text: tc.want, Thought: true})
+			}
+			want = append(want, dto.GeminiPart{Text: "answer"})
+			assert.Equal(t, want, resp.Candidates[0].Content.Parts)
 		})
 	}
 }
 
 func TestStreamResponseOpenAI2GeminiKeepsReasoningOnlyChunk(t *testing.T) {
-	resp := StreamResponseOpenAI2Gemini(&dto.ChatCompletionsStreamResponse{
-		Choices: []dto.ChatCompletionsStreamResponseChoice{{
-			Delta: dto.ChatCompletionsStreamResponseChoiceDelta{Reasoning: geminiRespPtr("thinking")},
-		}},
-	}, &convmeta.Values{})
+	for name, tc := range geminiResponseReasoningCases() {
+		t.Run(name, func(t *testing.T) {
+			resp := StreamResponseOpenAI2Gemini(&dto.ChatCompletionsStreamResponse{
+				Choices: []dto.ChatCompletionsStreamResponseChoice{{
+					Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+						ReasoningContent: tc.reasoningContent, Reasoning: tc.reasoning,
+					},
+				}},
+			}, &convmeta.Values{})
 
-	require.NotNil(t, resp, "a chunk that only carries reasoning must not be dropped")
-	require.Len(t, resp.Candidates, 1)
-	assert.Equal(t, []dto.GeminiPart{{Text: "thinking", Thought: true}}, resp.Candidates[0].Content.Parts)
+			if tc.want == "" {
+				assert.Nil(t, resp, "an empty chunk must still be skipped")
+				return
+			}
+			require.NotNil(t, resp, "a chunk that only carries reasoning must not be dropped")
+			require.Len(t, resp.Candidates, 1)
+			assert.Equal(t, []dto.GeminiPart{{Text: tc.want, Thought: true}}, resp.Candidates[0].Content.Parts)
+		})
+	}
 }
 
 func TestChatToGeminiStreamStateConvertsOpenRouterReasoningChunks(t *testing.T) {
-	state := NewChatToGeminiStreamState()
-	reasoningWithDetails := dto.ChatCompletionsStreamResponseChoiceDelta{
-		Content:   geminiRespPtr(""),
-		Role:      "assistant",
-		Reasoning: geminiRespPtr("thinking"),
-	}
-	textOnly := dto.ChatCompletionsStreamResponseChoiceDelta{Content: geminiRespPtr("answer")}
-	// OpenRouter closes a reasoning block with "reasoning": null before finishing.
-	finish := dto.ChatCompletionsStreamResponseChoiceDelta{Content: geminiRespPtr(""), Role: "assistant"}
+	for name, tc := range geminiResponseReasoningCases() {
+		t.Run(name, func(t *testing.T) {
+			state := NewChatToGeminiStreamState()
+			reasoningWithDetails := dto.ChatCompletionsStreamResponseChoiceDelta{
+				Content: geminiRespPtr(""), Role: "assistant",
+				ReasoningContent: tc.reasoningContent, Reasoning: tc.reasoning,
+			}
+			textOnly := dto.ChatCompletionsStreamResponseChoiceDelta{Content: geminiRespPtr("answer")}
+			// OpenRouter closes a reasoning block with "reasoning": null before finishing.
+			finish := dto.ChatCompletionsStreamResponseChoiceDelta{Content: geminiRespPtr(""), Role: "assistant"}
 
-	var parts []dto.GeminiPart
-	var finishReasons []string
-	for _, step := range []struct {
-		delta  dto.ChatCompletionsStreamResponseChoiceDelta
-		finish *string
-	}{
-		{delta: reasoningWithDetails},
-		{delta: textOnly},
-		{delta: finish, finish: geminiRespPtr("stop")},
-	} {
-		responses, err := state.ConvertChunk(&dto.ChatCompletionsStreamResponse{
-			Choices: []dto.ChatCompletionsStreamResponseChoice{{Delta: step.delta, FinishReason: step.finish}},
-		}, &convmeta.Values{})
-		require.NoError(t, err)
-		for _, response := range responses {
-			for _, candidate := range response.Candidates {
-				parts = append(parts, candidate.Content.Parts...)
-				if candidate.FinishReason != nil {
-					finishReasons = append(finishReasons, *candidate.FinishReason)
+			var parts []dto.GeminiPart
+			var finishReasons []string
+			for _, step := range []struct {
+				delta  dto.ChatCompletionsStreamResponseChoiceDelta
+				finish *string
+			}{
+				{delta: reasoningWithDetails},
+				{delta: textOnly},
+				{delta: finish, finish: geminiRespPtr("stop")},
+			} {
+				responses, err := state.ConvertChunk(&dto.ChatCompletionsStreamResponse{
+					Choices: []dto.ChatCompletionsStreamResponseChoice{{Delta: step.delta, FinishReason: step.finish}},
+				}, &convmeta.Values{})
+				require.NoError(t, err)
+				for _, response := range responses {
+					for _, candidate := range response.Candidates {
+						parts = append(parts, candidate.Content.Parts...)
+						if candidate.FinishReason != nil {
+							finishReasons = append(finishReasons, *candidate.FinishReason)
+						}
+					}
 				}
 			}
-		}
-	}
 
-	assert.Equal(t, []dto.GeminiPart{{Text: "thinking", Thought: true}, {Text: "answer"}}, parts)
-	assert.Equal(t, []string{"STOP"}, finishReasons)
+			want := []dto.GeminiPart{}
+			if tc.want != "" {
+				want = append(want, dto.GeminiPart{Text: tc.want, Thought: true})
+			}
+			want = append(want, dto.GeminiPart{Text: "answer"})
+			assert.Equal(t, want, parts)
+			assert.Equal(t, []string{"STOP"}, finishReasons)
+		})
+	}
+}
+
+func geminiResponseReasoningCases() map[string]struct {
+	reasoningContent *string
+	reasoning        *string
+	want             string
+} {
+	return map[string]struct {
+		reasoningContent *string
+		reasoning        *string
+		want             string
+	}{
+		"reasoning":                          {nil, geminiRespPtr("thinking"), "thinking"},
+		"reasoning_content":                  {geminiRespPtr("thinking"), nil, "thinking"},
+		"empty_reasoning_content_falls_back": {geminiRespPtr(""), geminiRespPtr("thinking"), "thinking"},
+		"reasoning_content_takes_precedence": {geminiRespPtr("thinking"), geminiRespPtr("other thinking"), "thinking"},
+		"whitespace_is_preserved":            {geminiRespPtr(" \n"), geminiRespPtr("thinking"), " \n"},
+		"both_absent":                        {nil, nil, ""},
+		"both_empty":                         {geminiRespPtr(""), geminiRespPtr(""), ""},
+		"empty_reasoning_content":            {geminiRespPtr(""), nil, ""},
+	}
 }
 
 func geminiRespPtr[T any](value T) *T {
