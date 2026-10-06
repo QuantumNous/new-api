@@ -411,7 +411,7 @@ func recordSubscriptionResetUserLogs(c *gin.Context, result *model.SubscriptionR
 	if result == nil || result.ResetCount == 0 {
 		return
 	}
-	content := fmt.Sprintf("管理员重置订阅套餐 %s（ID: %d）额度", result.PlanTitle, result.PlanId)
+	content := fmt.Sprintf("admin reset quota for subscription plan %s (ID: %d)", result.PlanTitle, result.PlanId)
 	for _, userId := range result.AffectedUserIds {
 		model.RecordLogWithAdminInfo(userId, model.LogTypeManage, content, adminInfo, nil, c)
 	}
