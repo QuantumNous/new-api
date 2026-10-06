@@ -16,6 +16,13 @@ func ModelMappedHelper(c *gin.Context, info *relaycommon.RelayInfo, request dto.
 		info.ChannelMeta = &relaycommon.ChannelMeta{}
 	}
 
+	responseModelTarget := ""
+	if info.ChannelSetting.ResponseModelRewrite {
+		responseModelTarget = info.OriginModelName
+		installResponseModelRewriter(c)
+	}
+	rootcommon.SetResponseModelRewriteTarget(c, responseModelTarget)
+
 	// map model name
 	modelMapping := c.GetString("model_mapping")
 	if modelMapping != "" && modelMapping != "{}" {

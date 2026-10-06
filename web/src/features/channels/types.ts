@@ -89,6 +89,7 @@ export interface ChannelSettings {
   responses_websocket_enabled?: boolean
   system_prompt?: string
   system_prompt_override?: boolean
+  response_model_rewrite?: boolean
   http_protocol?: 'auto' | 'http1' | string
   http2_connection_shards?: number
 }

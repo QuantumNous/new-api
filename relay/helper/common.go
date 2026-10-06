@@ -107,6 +107,14 @@ func StringData(c *gin.Context, str string) error {
 	return FlushWriter(c)
 }
 
+func rewriteResponseModel(c *gin.Context, payload []byte) []byte {
+	target := common.ResponseModelRewriteTarget(c)
+	if target == "" {
+		return payload
+	}
+	return common.RewriteResponseModelName(payload, target)
+}
+
 func PingData(c *gin.Context) error {
 	if c == nil || c.Writer == nil {
 		return errors.New("context or writer is nil")
@@ -143,7 +151,7 @@ func WssString(c *gin.Context, ws *websocket.Conn, str string) error {
 		return errors.New("websocket connection is nil")
 	}
 	//common.LogInfo(c, fmt.Sprintf("sending message: %s", str))
-	return ws.WriteMessage(1, []byte(str))
+	return ws.WriteMessage(1, rewriteResponseModel(c, []byte(str)))
 }
 
 func WssObject(c *gin.Context, ws *websocket.Conn, object any) error {
@@ -156,7 +164,7 @@ func WssObject(c *gin.Context, ws *websocket.Conn, object any) error {
 		return errors.New("websocket connection is nil")
 	}
 	//common.LogInfo(c, fmt.Sprintf("sending message: %s", jsonData))
-	return ws.WriteMessage(1, jsonData)
+	return ws.WriteMessage(1, rewriteResponseModel(c, jsonData))
 }
 
 func WssError(c *gin.Context, ws *websocket.Conn, openaiError types.OpenAIError) {

@@ -478,6 +478,8 @@ export const FIELD_DESCRIPTIONS = {
   GROUP: 'User groups that can access this channel. ',
   MODEL_MAPPING:
     'For this channel, map the model name in client requests to the model name sent upstream.',
+  RESPONSE_MODEL_REWRITE:
+    'Replace the model name in responses with the model name the client requested.',
   PRIORITY: 'Higher priority channels are selected first',
   WEIGHT: 'Used for load balancing. Higher weight = more requests',
   TEST_MODEL: 'Model to use when testing channel connectivity',

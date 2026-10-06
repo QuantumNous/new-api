@@ -46,6 +46,10 @@ func IOCopyBytesGracefully(c *gin.Context, src *http.Response, data []byte) {
 		return
 	}
 
+	if target := common.ResponseModelRewriteTarget(c); target != "" {
+		data = common.RewriteResponseModelName(data, target)
+	}
+
 	body := io.NopCloser(bytes.NewBuffer(data))
 
 	// We shouldn't set the header before we parse the response body, because the parse part may fail.
