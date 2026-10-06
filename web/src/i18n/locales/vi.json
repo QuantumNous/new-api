@@ -3692,6 +3692,7 @@
     "No API keys available. Create your first API key to get started.": "Không có khóa API nào khả dụng. Tạo khóa API đầu tiên của bạn để bắt đầu.",
     "No API Keys Found": "Không tìm thấy khóa API",
     "No API routes configured": "Chưa có tuyến API nào được cấu hình",
+    "No API Token": "Không có mã thông báo API",
     "No API tokens": "Không có khóa API",
     "No app usage data available for this model.": "Chưa có dữ liệu sử dụng ứng dụng cho mô hình này.",
     "No apps match the selected filters": "Không có ứng dụng phù hợp bộ lọc",
