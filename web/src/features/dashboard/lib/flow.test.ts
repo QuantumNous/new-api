@@ -156,6 +156,101 @@ describe('dashboard flow token labels', () => {
     }
   )
 
+  test.each(['forward', 'reverse'])(
+    'keeps no-token and invalid-ID traffic separate in %s row order',
+    (order) => {
+      const mixedRows: FlowQuotaDataItem[] = [
+        { ...rows[0], token_id: 0, token_name: undefined },
+        { ...rows[1], token_id: undefined, token_name: undefined },
+        {
+          ...rows[0],
+          token_id: -1,
+          token_name: undefined,
+          quota: 70,
+          token_used: 30,
+          count: 3,
+        },
+        {
+          ...rows[0],
+          token_id: Number.NaN,
+          token_name: undefined,
+          quota: 20,
+          token_used: 5,
+          count: 1,
+        },
+        {
+          ...rows[0],
+          token_id: Number.POSITIVE_INFINITY,
+          token_name: undefined,
+          quota: 10,
+          token_used: 5,
+          count: 1,
+        },
+      ]
+      if (order === 'reverse') mixedRows.reverse()
+
+      const result = buildDashboardFlowData(mixedRows)
+      const tokens = result.flow.nodes.filter((node) => node.kind === 'token')
+      expect(tokens).toHaveLength(2)
+      expect(tokens).toMatchObject([
+        {
+          id: 'token:unknown',
+          label: 'No API Token',
+          value: 150,
+          quota: 150,
+          tokens: 60,
+          requests: 3,
+        },
+        {
+          label: 'Unknown Token',
+          value: 100,
+          quota: 100,
+          tokens: 40,
+          requests: 5,
+        },
+      ])
+      expect(tokens[1].id).not.toBe(tokens[0].id)
+      expect(result.summary).toEqual({ quota: 250, tokens: 100, requests: 8 })
+      expect(
+        result.flow.links.filter((link) => link.target === 'group:vip')
+      ).toHaveLength(2)
+      expect(
+        result.filterOptions.nodes.filter((option) => option.kind === 'token')
+      ).toMatchObject([
+        { value: tokens[0].id, label: 'No API Token', valueRaw: 150 },
+        { value: tokens[1].id, label: 'Unknown Token', valueRaw: 100 },
+      ])
+
+      for (const [index, expected] of [
+        { label: 'No API Token', quota: 150, tokens: 60, requests: 3 },
+        { label: 'Unknown Token', quota: 100, tokens: 40, requests: 5 },
+      ].entries()) {
+        const selected = tokens[index]
+        const filtered = buildDashboardFlowData(mixedRows, 'quota', {
+          selectedNodes: [{ kind: 'token', id: selected.id }],
+        })
+
+        expect(filtered.summary).toEqual({
+          quota: expected.quota,
+          tokens: expected.tokens,
+          requests: expected.requests,
+        })
+        expect(
+          filtered.flow.nodes.filter((node) => node.kind === 'token')
+        ).toMatchObject([{ id: selected.id, ...expected }])
+        expect(
+          filtered.flow.links.find((link) => link.source === selected.id)
+        ).toMatchObject({
+          sourceLabel: expected.label,
+          value: expected.quota,
+          quota: expected.quota,
+          tokens: expected.tokens,
+          requests: expected.requests,
+        })
+      }
+    }
+  )
+
   test('preserves fallback and localized deleted labels for a positive unnamed token', () => {
     const deletedRows = [{ ...rows[0], token_name: undefined }]
     const fallback = buildDashboardFlowData(deletedRows)

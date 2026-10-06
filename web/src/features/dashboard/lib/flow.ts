@@ -188,9 +188,19 @@ function nodeNameNode(row: FlowQuotaDataItem): FlowPathNode {
 
 function tokenNode(row: FlowQuotaDataItem, ctx: FlowPathContext): FlowPathNode {
   const tokenID = numberValue(row.token_id)
+  let id =
+    tokenID > 0 ? `token:${tokenID}` : `token:${row.token_name || 'unknown'}`
+  if (
+    tokenID <= 0 &&
+    !row.token_name &&
+    row.token_id !== undefined &&
+    row.token_id !== 0
+  ) {
+    // Keep invalid IDs separate from no-token traffic and named token IDs.
+    id = 'invalid-token:unknown'
+  }
   return {
-    id:
-      tokenID > 0 ? `token:${tokenID}` : `token:${row.token_name || 'unknown'}`,
+    id,
     label: row.token_name || unnamedTokenLabel(row.token_id, ctx),
     kind: 'token',
   }
