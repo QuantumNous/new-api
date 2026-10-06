@@ -30,7 +30,7 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 	// Keep body for debugging consistency (like RequestCreemPay)
 	bodyBytes, err := io.ReadAll(c.Request.Body)
 	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Creem 订阅支付请求读取失败 error=%q", err.Error()))
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Creem failed to read subscription payment request error=%q", err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "read query error"})
 		return
 	}
@@ -121,7 +121,7 @@ func SubscriptionRequestCreemPay(c *gin.Context) {
 
 	checkoutUrl, err := genCreemLink(c.Request.Context(), referenceId, product, user.Email, user.Username)
 	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Creem 订阅支付链接创建失败 trade_no=%s product_id=%s error=%q", referenceId, product.ProductId, err.Error()))
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Creem failed to create subscription payment link trade_no=%s product_id=%s error=%q", referenceId, product.ProductId, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}

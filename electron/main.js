@@ -264,9 +264,9 @@ function startServer() {
     env.SQLITE_PATH = path.join(dataDir, 'new-api.db');
     
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📁 您的数据存储位置：');
+    console.log('📁 Your data storage location:');
     console.log('   ' + dataDir);
-    console.log('   💡 备份提示：复制此目录即可备份所有数据');
+    console.log('   💡 Backup tip: copy this directory to back up all data');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     const binaryPath = getBinaryPath();
@@ -357,7 +357,7 @@ function startServer() {
             });
             
             // 同时在控制台输出
-            console.log('=== 完整错误日志 ===');
+            console.log('=== Full error log ===');
             console.log(serverErrorLogs.join('\n'));
           } else {
             // 用户选择直接退出
@@ -513,7 +513,7 @@ app.whenReady().then(async () => {
             app.quit();
           });
           
-          console.log('=== 完整错误日志 ===');
+          console.log('=== Full error log ===');
           console.log(serverErrorLogs.join('\n'));
         } else {
           app.quit();
@@ -547,7 +547,7 @@ app.whenReady().then(async () => {
             app.quit();
           });
           
-          console.log('=== 完整错误日志 ===');
+          console.log('=== Full error log ===');
           console.log(serverErrorLogs.join('\n'));
         } else {
           app.quit();

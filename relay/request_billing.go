@@ -60,7 +60,7 @@ func PrepareRequestBilling(c *gin.Context, info *relaycommon.RelayInfo) *types.N
 		return types.NewError(err, types.ErrorCodeModelPriceError, types.ErrOptionWithStatusCode(http.StatusBadRequest))
 	}
 	if priceData.FreeModel {
-		logger.LogInfo(c, fmt.Sprintf("模型 %s 免费，跳过预扣费", info.OriginModelName))
+		logger.LogInfo(c, fmt.Sprintf("model %s is free, skipping pre-consumption", info.OriginModelName))
 		return nil
 	}
 	return service.PreConsumeBilling(c, priceData.QuotaToPreConsume, info)

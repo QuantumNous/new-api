@@ -605,7 +605,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 	// 转换为JSON字符串
 	configBytes, err := common.Marshal(defaultConfig)
 	if err != nil {
-		common.SysLog("生成默认边栏配置失败: " + err.Error())
+		common.SysLog("failed to generate default sidebar configuration: " + err.Error())
 		return ""
 	}
 

@@ -26,11 +26,11 @@ func shouldCloseActiveWebSocketsAfterDisable(channelId int) bool {
 
 // disable & notify
 func DisableChannel(channelError types.ChannelError, reason string) {
-	common.SysLog(fmt.Sprintf("通道「%s」（#%d）发生错误，准备禁用，原因：%s", channelError.ChannelName, channelError.ChannelId, common.LocalLogPreview(reason)))
+	common.SysLog(fmt.Sprintf("channel \"%s\" (#%d) encountered an error, disabling, reason: %s", channelError.ChannelName, channelError.ChannelId, common.LocalLogPreview(reason)))
 
 	// 检查是否启用自动禁用功能
 	if !channelError.AutoBan {
-		common.SysLog(fmt.Sprintf("通道「%s」（#%d）未启用自动禁用功能，跳过禁用操作", channelError.ChannelName, channelError.ChannelId))
+		common.SysLog(fmt.Sprintf("channel \"%s\" (#%d) has auto-disable disabled, skipping disable action", channelError.ChannelName, channelError.ChannelId))
 		return
 	}
 

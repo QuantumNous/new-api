@@ -640,7 +640,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		refreshSubscriptionUserGroupCache(logUserId, "subscription payment completion")
 	}
 	if logUserId > 0 {
-		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
+		msg := fmt.Sprintf("subscription purchased successfully, plan: %s, amount paid: %.2f, payment method: %s", logPlanTitle, logMoney, logPaymentMethod)
 		RecordLog(logUserId, LogTypeTopup, msg)
 	}
 	return nil
@@ -839,7 +839,7 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	if upgradeGroup != "" {
 		refreshSubscriptionUserGroupCache(userId, "subscription balance purchase")
 	}
-	msg := fmt.Sprintf("使用余额购买订阅成功，套餐: %s，支付金额: %.2f，扣除额度: %d", logPlanTitle, logMoney, chargedQuota)
+	msg := fmt.Sprintf("subscription purchased with balance successfully, plan: %s, amount paid: %.2f, quota deducted: %d", logPlanTitle, logMoney, chargedQuota)
 	RecordLog(userId, LogTypeTopup, msg)
 	return nil
 }

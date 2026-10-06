@@ -137,7 +137,7 @@ func ValidateToolPricesJSON(value string) error {
 func LoadToolPricesFromJSONString(value string) {
 	prices, err := decodeToolPricesJSON(value, true)
 	if err != nil {
-		common.SysError("加载工具价格失败，将使用硬编码兜底: " + err.Error())
+		common.SysError("failed to load tool pricing, falling back to hardcoded defaults: " + err.Error())
 		prices = make(map[string]float64)
 	}
 	toolPriceSetting.Prices = prices
