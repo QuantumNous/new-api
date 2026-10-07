@@ -286,26 +286,36 @@ func TestConvertRequestClaudeToResponsesDropsIncompatibleContextManagement(t *te
 }
 
 func TestConvertRequestClaudeAdaptiveThinkingPreservesEffort(t *testing.T) {
+	adaptive := &dto.Thinking{Type: "adaptive", Display: "summarized"}
 	tests := []struct {
 		name         string
+		originModel  string
+		thinking     *dto.Thinking
 		outputConfig []byte
 		wantEffort   string
 	}{
-		{name: "adaptive default", wantEffort: "high"},
-		{name: "explicit low", outputConfig: mustRawMessage(t, map[string]any{"effort": "low"}), wantEffort: "low"},
-		{name: "explicit xhigh", outputConfig: mustRawMessage(t, map[string]any{"effort": "xhigh"}), wantEffort: "xhigh"},
+		{name: "adaptive default", originModel: "gpt-5.6-sol", thinking: adaptive, wantEffort: "high"},
+		{name: "explicit low", originModel: "gpt-5.6-sol", thinking: adaptive, outputConfig: mustRawMessage(t, map[string]any{"effort": "low"}), wantEffort: "low"},
+		{name: "explicit xhigh", originModel: "gpt-5.6-sol", thinking: adaptive, outputConfig: mustRawMessage(t, map[string]any{"effort": "xhigh"}), wantEffort: "xhigh"},
+		// Claude models think by default at their own default effort: medium on
+		// Opus 5.5, high on the others.
+		{name: "opus 5.5 adaptive default", originModel: "claude-opus-5-5", thinking: adaptive, wantEffort: "medium"},
+		{name: "opus 5.5 without thinking", originModel: "claude-opus-5-5", wantEffort: "medium"},
+		{name: "opus 5.5 explicit high", originModel: "claude-opus-5-5", thinking: adaptive, outputConfig: mustRawMessage(t, map[string]any{"effort": "high"}), wantEffort: "high"},
+		{name: "opus 5 adaptive default", originModel: "claude-opus-5", thinking: adaptive, wantEffort: "high"},
+		{name: "opus 5 without thinking", originModel: "claude-opus-5", wantEffort: "high"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			info := &convmeta.Values{
-				OriginModelName: "gpt-5.6-sol",
+				OriginModelName: tt.originModel,
 				ConversionChain: []types.RelayFormat{types.RelayFormatClaude},
 			}
 			req := &dto.ClaudeRequest{
 				Model:        "gpt-5.6-sol",
 				OutputConfig: tt.outputConfig,
-				Thinking:     &dto.Thinking{Type: "adaptive", Display: "summarized"},
+				Thinking:     tt.thinking,
 				Messages: []dto.ClaudeMessage{
 					{Role: "user", Content: "hello"},
 				},
@@ -320,6 +330,39 @@ func TestConvertRequestClaudeAdaptiveThinkingPreservesEffort(t *testing.T) {
 			assert.Equal(t, tt.wantEffort, responsesReq.Reasoning.Effort)
 			assert.Equal(t, "detailed", responsesReq.Reasoning.Summary)
 			assert.Equal(t, tt.wantEffort, info.GetReasoningEffort())
+		})
+	}
+}
+
+func TestApplyClaudeThinkingModelLabelsNativeThinkingWithModelDefaultEffort(t *testing.T) {
+	tests := []struct {
+		name         string
+		model        string
+		thinkingType string
+		outputConfig []byte
+		wantEffort   string
+	}{
+		{name: "opus 5.5 adaptive", model: "claude-opus-5-5", thinkingType: "adaptive", wantEffort: "medium"},
+		{name: "opus 5.5 enabled", model: "claude-opus-5-5", thinkingType: "enabled", wantEffort: "medium"},
+		{name: "opus 5.5 explicit high", model: "claude-opus-5-5", thinkingType: "adaptive", outputConfig: mustRawMessage(t, map[string]any{"effort": "high"}), wantEffort: "high"},
+		{name: "opus 5 adaptive", model: "claude-opus-5", thinkingType: "adaptive", wantEffort: "high"},
+		{name: "sonnet 5.5 adaptive", model: "claude-sonnet-5-5", thinkingType: "adaptive", wantEffort: "high"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := &convmeta.Values{OriginModelName: tt.model, UpstreamModelName: tt.model}
+			req := &dto.ClaudeRequest{
+				Model:        tt.model,
+				Thinking:     &dto.Thinking{Type: tt.thinkingType},
+				OutputConfig: tt.outputConfig,
+				Messages:     []dto.ClaudeMessage{{Role: "user", Content: "hello"}},
+			}
+
+			require.NoError(t, ApplyClaudeThinkingModel(req, info))
+			assert.Equal(t, tt.wantEffort, info.GetReasoningEffort())
+			assert.Equal(t, tt.thinkingType, req.Thinking.Type)
+			assert.Equal(t, tt.outputConfig, []byte(req.OutputConfig))
 		})
 	}
 }

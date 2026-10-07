@@ -30,11 +30,15 @@ type claudeCapabilities struct {
 	supportsXHigh   bool
 	supportsMax     bool
 	strictSampling  bool
+	// defaultEffort is the effort the model runs at when a request sets none:
+	// medium on Claude Opus 5.5 and high on every other model
+	// (https://platform.claude.com/docs/en/build-with-claude/effort).
+	defaultEffort Effort
 }
 
 func claudeCapabilitiesFor(model string) claudeCapabilities {
 	model = strings.ToLower(model)
-	capabilities := claudeCapabilities{supportsManual: true, supportsDisable: true}
+	capabilities := claudeCapabilities{supportsManual: true, supportsDisable: true, defaultEffort: EffortHigh}
 
 	switch {
 	case strings.HasPrefix(model, "claude-fable-5"),
@@ -60,6 +64,9 @@ func claudeCapabilitiesFor(model string) claudeCapabilities {
 		capabilities.supportsManual = false
 		if strings.HasPrefix(model, "claude-opus-5") || strings.HasPrefix(model, "claude-sonnet-5") {
 			capabilities.defaultThinking = true
+		}
+		if strings.HasPrefix(model, "claude-opus-5-5") {
+			capabilities.defaultEffort = EffortMedium
 		}
 		capabilities.supportsEffort = true
 		capabilities.supportsXHigh = true
@@ -113,12 +120,12 @@ func RenderClaude(model string, intent Intent, maxTokens *uint, adapterBudgetPer
 			}
 			return ClaudeRender{
 				Thinking:        thinking,
-				EffectiveEffort: EffortHigh,
+				EffectiveEffort: capabilities.defaultEffort,
 				ClearSampling:   capabilities.strictSampling,
 			}, nil
 		}
 		if capabilities.defaultThinking {
-			return ClaudeRender{EffectiveEffort: EffortHigh, ClearSampling: capabilities.strictSampling}, nil
+			return ClaudeRender{EffectiveEffort: capabilities.defaultEffort, ClearSampling: capabilities.strictSampling}, nil
 		}
 		return ClaudeRender{ClearSampling: capabilities.strictSampling}, nil
 	}
@@ -139,7 +146,7 @@ func RenderClaude(model string, intent Intent, maxTokens *uint, adapterBudgetPer
 					}
 				}
 				outputEffort := Effort("")
-				effectiveEffort := EffortHigh
+				effectiveEffort := capabilities.defaultEffort
 				if capabilities.supportsEffort {
 					outputEffort = EffortLow
 					effectiveEffort = EffortLow
@@ -175,7 +182,7 @@ func RenderClaude(model string, intent Intent, maxTokens *uint, adapterBudgetPer
 			effort = EffortFromBudget(*intent.BudgetTokens)
 		}
 		if effort == "" && intent.Mode == ModeEnabled {
-			effort = EffortHigh
+			effort = capabilities.defaultEffort
 		}
 		normalizedEffort := normalizeClaudeEffort(effort, capabilities)
 		if effort != "" && normalizedEffort != effort {
@@ -187,7 +194,7 @@ func RenderClaude(model string, intent Intent, maxTokens *uint, adapterBudgetPer
 		effort = normalizedEffort
 		effectiveEffort := effort
 		if effectiveEffort == "" && intent.Mode == ModeAdaptive {
-			effectiveEffort = EffortHigh
+			effectiveEffort = capabilities.defaultEffort
 		}
 
 		// Claude effort can be used without enabling thinking. Preserve that
@@ -227,7 +234,7 @@ func RenderClaude(model string, intent Intent, maxTokens *uint, adapterBudgetPer
 		))
 		intent.Mode = ModeEnabled
 		if intent.Effort == "" {
-			intent.Effort = EffortHigh
+			intent.Effort = capabilities.defaultEffort
 		}
 	}
 	if intent.Mode == ModeUnset {
@@ -333,12 +340,28 @@ func IsKnownClaudeModel(model string) bool {
 	return isKnownClaudeModel(model)
 }
 
+// ClaudeDefaultEffort is the effort the model runs at when a request sets
+// none.
+func ClaudeDefaultEffort(model string) Effort {
+	return claudeCapabilitiesFor(model).defaultEffort
+}
+
+// ResolveClaudeDefault makes the Claude model's default thinking explicit for
+// a non-Claude target: no intent becomes adaptive thinking on models that
+// think by default, and thinking without a strength takes the model's
+// default effort.
 func ResolveClaudeDefault(model string, intent Intent) Intent {
-	if intent.HasStrength() || !claudeCapabilitiesFor(model).defaultThinking {
-		return intent
+	capabilities := claudeCapabilitiesFor(model)
+	switch {
+	case !intent.HasStrength():
+		if !capabilities.defaultThinking {
+			return intent
+		}
+		intent.Mode = ModeAdaptive
+		intent.Effort = capabilities.defaultEffort
+	case intent.Effort == "" && intent.BudgetTokens == nil && (intent.Mode == ModeAdaptive || intent.Mode == ModeEnabled):
+		intent.Effort = capabilities.defaultEffort
 	}
-	intent.Mode = ModeAdaptive
-	intent.Effort = EffortHigh
 	return intent
 }
 
