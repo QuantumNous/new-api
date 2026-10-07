@@ -392,6 +392,59 @@ func TestListModelsUsesAdvancedCustomEndpointTypesFromPricingCache(t *testing.T)
 	}, payload.Data[0].SupportedEndpointTypes)
 }
 
+func TestListModelsUsesAdvancedCustomChannelNameAsOwner(t *testing.T) {
+	withSelfUseModeEnabled(t)
+	db := setupModelListControllerTestDB(t)
+
+	require.NoError(t, db.Create(&model.User{
+		Id:       1004,
+		Username: "advanced-custom-owner-user",
+		Password: "password",
+		Group:    "default",
+		Status:   common.UserStatusEnabled,
+	}).Error)
+
+	require.NoError(t, db.Create(&[]model.Channel{
+		{
+			Id:     711,
+			Type:   constant.ChannelTypeAdvancedCustom,
+			Key:    "advanced-custom-alpha-key",
+			Status: common.ChannelStatusEnabled,
+			Name:   "advanced-custom-alpha",
+			Group:  "default",
+			Models: "gemini-3.5-flash",
+		},
+		{
+			Id:     712,
+			Type:   constant.ChannelTypeAdvancedCustom,
+			Key:    "advanced-custom-beta-key",
+			Status: common.ChannelStatusEnabled,
+			Name:   "advanced-custom-beta",
+			Group:  "default",
+			Models: "gemini-3.5-flash",
+		},
+	}).Error)
+
+	alphaPriority := int64(1)
+	betaPriority := int64(2)
+	require.NoError(t, db.Create(&[]model.Ability{
+		{Group: "default", Model: "gemini-3.5-flash", ChannelId: 711, Enabled: true, Priority: &alphaPriority},
+		{Group: "default", Model: "gemini-3.5-flash", ChannelId: 712, Enabled: true, Priority: &betaPriority},
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
+	ctx.Set("id", 1004)
+
+	ListModels(ctx, constant.ChannelTypeOpenAI)
+
+	payload := decodeListModelsPayload(t, recorder)
+	require.Len(t, payload.Data, 1)
+	require.Equal(t, "gemini-3.5-flash", payload.Data[0].Id)
+	require.Equal(t, "advanced-custom-beta", payload.Data[0].OwnedBy)
+}
+
 func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
 	withSelfUseModeDisabled(t)
 	withTieredBillingConfig(t, map[string]string{
