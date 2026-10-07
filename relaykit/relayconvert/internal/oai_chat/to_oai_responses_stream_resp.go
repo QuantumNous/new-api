@@ -48,6 +48,10 @@ type ChatToResponsesStreamState struct {
 	text               strings.Builder
 	annotations        []any
 	reasoning          strings.Builder
+	// usageText collects every text, reasoning, and tool argument delta sent
+	// to the client. It is the missing-usage estimate and tells whether any
+	// output reached the client.
+	usageText strings.Builder
 	// A mid-stream finish_reason closes the message and reasoning items. Deltas that
 	// arrive afterwards open a fresh item (next segment ordinal) instead of touching the
 	// closed one; the closed items are snapshotted so the final response keeps them.
@@ -55,9 +59,6 @@ type ChatToResponsesStreamState struct {
 	reasoningSegment int
 	closedMessages   []dto.ResponsesOutput
 	closedReasonings []dto.ResponsesOutput
-	// usageText mirrors every client-visible token stream (text, reasoning,
-	// tool arguments and names) so hosts can bill without upstream usage.
-	usageText strings.Builder
 }
 
 type chatToResponsesStreamTool struct {
@@ -574,6 +575,10 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 		events = append(events, s.announceTool(tool))
 		delta = tool.Arguments.String()
 	}
+	if tool.Announced {
+		// Announced calls reach the client; custom tool input at completion.
+		s.usageText.WriteString(delta)
+	}
 	// Custom tool input is unwrapped from the complete arguments at the end.
 	if tool.Announced && !tool.Custom && delta != "" {
 		events = append(events, s.event(responsesEventFunctionArgsDelta, dto.ResponsesStreamResponse{
@@ -592,12 +597,14 @@ func (s *ChatToResponsesStreamState) announceTool(tool *chatToResponsesStreamToo
 	tool.Announced = true
 	tool.OutputIndex = s.nextIndex(chatToResponsesOutputRef{Kind: "tool", ToolIndex: tool.ChatIndex})
 	tool.Custom = s.Tools.IsCustomTool(tool.Name)
+	namespace, name := s.Tools.ResponsesToolName(tool.Name)
 	item := &dto.ResponsesOutput{
 		Type:      responsesOutputTypeFunctionCall,
 		ID:        tool.ItemID,
 		Status:    "in_progress",
 		CallId:    tool.callID(),
-		Name:      tool.Name,
+		Name:      name,
+		Namespace: namespace,
 		Arguments: []byte(`""`),
 	}
 	if tool.Custom {
@@ -707,15 +714,17 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 				Input:       kitutil.GetPointer(input),
 			}))
 		} else {
-			// Responses clients rely on the final arguments payload and tool name
-			// being present on the done event regardless of sequence numbering.
+			// Responses clients rely on the final arguments payload and the
+			// custom-tool-mapped name on the done event regardless of
+			// sequence numbering.
 			argumentsDone := dto.ResponsesStreamResponse{
 				Type:        responsesEventFunctionArgsDone,
 				OutputIndex: intPtr(tool.OutputIndex),
 				ItemID:      tool.ItemID,
-				Name:        tool.Name,
-				Arguments:   kitutil.GetPointer(tool.Arguments.String()),
 			}
+			_, responsesName := s.Tools.ResponsesToolName(tool.Name)
+			argumentsDone.Name = responsesName
+			argumentsDone.Arguments = kitutil.GetPointer(tool.Arguments.String())
 			events = append(events, s.event(responsesEventFunctionArgsDone, argumentsDone))
 		}
 		events = append(events, s.event(responsesEventOutputItemDone, dto.ResponsesStreamResponse{
@@ -899,14 +908,16 @@ func (s *ChatToResponsesStreamState) reasoningOutput(status string) *dto.Respons
 }
 
 func (s *ChatToResponsesStreamState) toolOutput(tool *chatToResponsesStreamTool, status string) *dto.ResponsesOutput {
+	namespace, name := s.Tools.ResponsesToolName(tool.Name)
 	if tool.Custom {
 		return &dto.ResponsesOutput{
-			Type:   responsesOutputTypeCustomToolCall,
-			ID:     tool.ItemID,
-			Status: status,
-			CallId: tool.callID(),
-			Name:   tool.Name,
-			Input:  chatArgumentsRawMessage(customToolInputFromArguments(tool.Arguments.String())),
+			Type:      responsesOutputTypeCustomToolCall,
+			ID:        tool.ItemID,
+			Status:    status,
+			CallId:    tool.callID(),
+			Name:      name,
+			Namespace: namespace,
+			Input:     chatArgumentsRawMessage(customToolInputFromArguments(tool.Arguments.String())),
 		}
 	}
 	return &dto.ResponsesOutput{
@@ -914,7 +925,8 @@ func (s *ChatToResponsesStreamState) toolOutput(tool *chatToResponsesStreamTool,
 		ID:        tool.ItemID,
 		Status:    status,
 		CallId:    tool.callID(),
-		Name:      tool.Name,
+		Name:      name,
+		Namespace: namespace,
 		Arguments: chatArgumentsRawMessage(tool.Arguments.String()),
 	}
 }

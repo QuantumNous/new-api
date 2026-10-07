@@ -182,7 +182,8 @@ func TestClaudeToChatImageSourceHandling(t *testing.T) {
 
 		diagnostics := collector.Diagnostics()
 		require.Len(t, diagnostics, 1)
-		assert.Equal(t, "image_source_unsupported", diagnostics[0].Code)
+		assert.Equal(t, "unsupported_media_source", diagnostics[0].Code)
+		assert.Equal(t, types.ConversionDiagnosticError, diagnostics[0].Severity)
 	})
 }
 

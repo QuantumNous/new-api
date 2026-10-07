@@ -374,6 +374,7 @@ type ResponsesOutput struct {
 	Result              string                          `json:"result,omitempty"`
 	CallId              string                          `json:"call_id,omitempty"`
 	Name                string                          `json:"name,omitempty"`
+	Namespace           string                          `json:"namespace,omitempty"`
 	Arguments           json.RawMessage                 `json:"arguments,omitempty"`
 	Input               json.RawMessage                 `json:"input,omitempty"`
 	Action              json.RawMessage                 `json:"action,omitempty"`
@@ -404,13 +405,14 @@ func (r ResponsesOutput) MarshalJSON() ([]byte, error) {
 			input = json.RawMessage(`""`)
 		}
 		return kitutil.Marshal(struct {
-			Type   string          `json:"type"`
-			ID     string          `json:"id,omitempty"`
-			Status string          `json:"status,omitempty"`
-			CallID string          `json:"call_id"`
-			Name   string          `json:"name"`
-			Input  json.RawMessage `json:"input"`
-		}{Type: r.Type, ID: r.ID, Status: r.Status, CallID: r.CallId, Name: r.Name, Input: input})
+			Type      string          `json:"type"`
+			ID        string          `json:"id,omitempty"`
+			Status    string          `json:"status,omitempty"`
+			CallID    string          `json:"call_id"`
+			Name      string          `json:"name"`
+			Namespace string          `json:"namespace,omitempty"`
+			Input     json.RawMessage `json:"input"`
+		}{Type: r.Type, ID: r.ID, Status: r.Status, CallID: r.CallId, Name: r.Name, Namespace: r.Namespace, Input: input})
 	case "web_search_call":
 		return kitutil.Marshal(struct {
 			Type   string          `json:"type"`

@@ -567,9 +567,11 @@ func (m *MediaContent) ToFileSource() types.FileSource {
 }
 
 type MessageImageUrl struct {
-	Url      string `json:"url"`
-	Detail   string `json:"detail,omitempty"`
-	MimeType string
+	Url    string `json:"url"`
+	Detail string `json:"detail,omitempty"`
+	// MimeType is in-memory metadata for converters and token counting; it is
+	// not part of the Chat image_url object.
+	MimeType string `json:"-"`
 }
 
 func (m *MessageImageUrl) IsRemoteImage() bool {

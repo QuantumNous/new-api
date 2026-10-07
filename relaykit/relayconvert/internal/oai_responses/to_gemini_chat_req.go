@@ -256,7 +256,7 @@ func responsesContentPartToGeminiParts(c context.Context, part map[string]any) (
 }
 
 func responsesFunctionCallItemToGeminiPart(item map[string]any, itemType string) (dto.GeminiPart, string, error) {
-	name := strings.TrimSpace(kitutil.Interface2String(item["name"]))
+	name := responsesCallName(item)
 	if name == "" {
 		return dto.GeminiPart{}, "", fmt.Errorf("%s item is missing name", itemType)
 	}

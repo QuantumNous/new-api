@@ -254,15 +254,19 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 				}
 				pendingContent = append(pendingContent, message)
 			case "image":
-				// claudeSourceURL handles nil sources, remote URLs, and
-				// base64/data: payloads uniformly.
-				sourceURL := claudeSourceURL(mediaMsg.Source)
+				// claudeImageSourceURL rejects file references Chat cannot
+				// resolve; nil/URL/base64 sources resolve uniformly.
+				sourceURL := claudeImageSourceURL(mediaMsg.Source)
 				if sourceURL == "" {
+					sourceType := ""
+					if mediaMsg.Source != nil {
+						sourceType = mediaMsg.Source.Type
+					}
 					convdiag.Add(ctx, types.ConversionDiagnostic{
-						Code:     "image_source_unsupported",
-						Path:     fmt.Sprintf("messages[%d].content[%d]", messageIndex, blockIndex),
-						Message:  "Claude image source cannot be represented as a Chat image_url and was dropped",
-						Severity: types.ConversionDiagnosticWarning,
+						Code:     "unsupported_media_source",
+						Path:     fmt.Sprintf("messages[%d].content[%d].source", messageIndex, blockIndex),
+						Message:  fmt.Sprintf("OpenAI Chat Completions cannot reference a Claude image with source type %q; the image was omitted", sourceType),
+						Severity: types.ConversionDiagnosticError,
 						From:     types.RelayFormatClaude,
 						To:       types.RelayFormatOpenAI,
 					})
@@ -272,6 +276,37 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 				pendingContent = append(pendingContent, dto.MediaContent{
 					Type:     "image_url",
 					ImageUrl: &dto.MessageImageUrl{Url: sourceURL},
+				})
+			case "document":
+				if mediaMsg.Source != nil && mediaMsg.Source.Type == "text" {
+					// A plain-text document keeps its content as a Chat text part.
+					mergeHoistedToolResultMedia()
+					pendingContent = append(pendingContent, dto.MediaContent{Type: "text", Text: kitutil.Interface2String(mediaMsg.Source.Data)})
+					continue
+				}
+				if mediaMsg.Source == nil || mediaMsg.Source.Type != "base64" || mediaMsg.Source.MediaType != "application/pdf" {
+					sourceType, mediaType := "", ""
+					if mediaMsg.Source != nil {
+						sourceType = mediaMsg.Source.Type
+						mediaType = mediaMsg.Source.MediaType
+					}
+					convdiag.Add(ctx, types.ConversionDiagnostic{
+						Code:     "unsupported_media_source",
+						Path:     fmt.Sprintf("messages[%d].content[%d].source", messageIndex, blockIndex),
+						Message:  fmt.Sprintf("OpenAI Chat Completions cannot reference a Claude document with source type %q (media type %q); the document was omitted", sourceType, mediaType),
+						Severity: types.ConversionDiagnosticError,
+						From:     types.RelayFormatClaude,
+						To:       types.RelayFormatOpenAI,
+					})
+					continue
+				}
+				mergeHoistedToolResultMedia()
+				pendingContent = append(pendingContent, dto.MediaContent{
+					Type: "file",
+					File: map[string]any{
+						"file_data": fmt.Sprintf("data:%s;base64,%s", mediaMsg.Source.MediaType, kitutil.Interface2String(mediaMsg.Source.Data)),
+						"filename":  "document.pdf",
+					},
 				})
 			case "tool_use":
 				if _, exists := toolNames[mediaMsg.Id]; !exists {
@@ -363,6 +398,22 @@ func rawJSONFieldPresent(raw json.RawMessage) bool {
 		return false
 	}
 	return kitutil.GetJsonType(raw) != "null"
+}
+
+// claudeImageSourceURL resolves a Claude image source to a Chat image_url
+// value. File references have no Chat representation and yield "".
+func claudeImageSourceURL(source *dto.ClaudeMessageSource) string {
+	if source == nil || source.Type == "file" {
+		return ""
+	}
+	if source.Url != "" {
+		return source.Url
+	}
+	data := kitutil.Interface2String(source.Data)
+	if data == "" {
+		return ""
+	}
+	return fmt.Sprintf("data:%s;base64,%s", source.MediaType, data)
 }
 
 func requestToJSONString(v any) string {

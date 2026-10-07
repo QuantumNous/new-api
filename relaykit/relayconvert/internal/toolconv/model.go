@@ -33,6 +33,10 @@ type Function struct {
 	Description string
 	Parameters  any
 	Strict      *bool
+	// OpenAPISchema marks Parameters written in Gemini's OpenAPI schema
+	// subset (uppercase type names, nullable, propertyOrdering) rather than
+	// JSON Schema.
+	OpenAPISchema bool
 }
 
 type ApproximateLocation struct {
@@ -63,6 +67,9 @@ type Definition struct {
 	WebSearch  *WebSearch
 	Raw        json.RawMessage
 	Group      int
+	// Namespace is the Responses tool namespace the definition was declared
+	// in. Name and Function.Name already hold the flattened upstream name.
+	Namespace string
 }
 
 type ChoiceMode string
@@ -92,10 +99,13 @@ type Set struct {
 	ParallelAllowed  *bool
 	NativeToolConfig json.RawMessage
 	History          []HostedHistoryItem
+	// Diagnostics reports losses found while extracting the definitions; they
+	// are returned with the attach diagnostics.
+	Diagnostics []types.ConversionDiagnostic
 }
 
 func (s Set) Empty() bool {
-	return len(s.Definitions) == 0 && s.Choice == nil && s.ParallelAllowed == nil && len(s.NativeToolConfig) == 0 && len(s.History) == 0
+	return len(s.Definitions) == 0 && s.Choice == nil && s.ParallelAllowed == nil && len(s.NativeToolConfig) == 0 && len(s.History) == 0 && len(s.Diagnostics) == 0
 }
 
 type HostedHistoryItem struct {

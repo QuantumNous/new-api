@@ -303,14 +303,16 @@ func executeRequestSteps(c context.Context, info convmeta.Meta, from types.Relay
 }
 
 // responsesToolState records which Responses custom tools were sent upstream
-// as functions, so the response side can restore their calls. It returns nil
-// when none were sent so a retry never reuses another attempt's record.
+// as functions and which tool names were flattened from namespaces, so the
+// response side can restore their calls. It returns nil when there is nothing
+// to restore so a retry never reuses another attempt's record.
 func responsesToolState(tools toolconv.Set) *convmeta.ResponsesToolState {
 	names := toolconv.ResponsesCustomToolNames(tools)
-	if len(names) == 0 {
+	namespaces := toolconv.ResponsesToolNamespaces(tools)
+	if len(names) == 0 && len(namespaces) == 0 {
 		return nil
 	}
-	return &convmeta.ResponsesToolState{CustomToolNames: names}
+	return &convmeta.ResponsesToolState{CustomToolNames: names, Namespaces: namespaces}
 }
 
 func expandRequestConverterSteps(spec RequestConverterSpec) ([]RequestConverterSpec, error) {
