@@ -63,6 +63,14 @@ export const THEME_PRESETS = [
     swatches: ['oklch(0.5591 0.1882 25.33)', 'oklch(0.7938 0.1248 42.42)'],
   },
   {
+    // Sundowner 品牌主题：深夜霞光（夜幕底 + 霞橙主色 + 霞粉副色）。
+    // 与 sunset-glow 的差异：sundowner 显式定义夜幕/卡片/品牌弱边框，
+    // 并在 theme-presets.css 中加入 semantic surface bridge 的 opt-out 列表。
+    value: 'sundowner',
+    name: 'Sundowner',
+    swatches: ['oklch(0.72 0.17 45)', 'oklch(0.67 0.22 355)'],
+  },
+  {
     value: 'forest-whisper',
     name: 'Forest Whisper',
     swatches: ['oklch(0.5276 0.1072 182.22)', 'oklch(0.5236 0.0505 250.18)'],
@@ -116,7 +124,7 @@ export type ThemeCustomization = {
 }
 
 export const DEFAULT_THEME_CUSTOMIZATION: ThemeCustomization = {
-  preset: 'default',
+  preset: 'sundowner',
   font: 'default',
   radius: 'default',
   scale: 'default',
