@@ -93,6 +93,7 @@ type GeneralOpenAIRequest struct {
 	ThinkingBudget         json.RawMessage `json:"thinking_budget,omitempty"`
 	ChatTemplateKwargs     json.RawMessage `json:"chat_template_kwargs,omitempty"`
 	EnableSearch           json.RawMessage `json:"enable_search,omitempty"`
+	SearchOptions          json.RawMessage `json:"search_options,omitempty"`
 	// ollama Params
 	Think json.RawMessage `json:"think,omitempty"`
 	// baidu v2
@@ -407,6 +408,19 @@ type ToolCallRequest struct {
 	Type     string          `json:"type"`
 	Function FunctionRequest `json:"function"`
 	Custom   json.RawMessage `json:"custom,omitempty"`
+	// Native is a complete vendor tool object sent instead of the fields
+	// above. Function has no omitempty, so a non-function tool would
+	// otherwise carry "function":{"name":""}, which vendor schemas with
+	// additionalProperties:false reject. Never read from client JSON.
+	Native json.RawMessage `json:"-"`
+}
+
+func (t ToolCallRequest) MarshalJSON() ([]byte, error) {
+	if len(t.Native) > 0 {
+		return t.Native, nil
+	}
+	type Alias ToolCallRequest
+	return kitutil.Marshal((*Alias)(&t))
 }
 
 type FunctionRequest struct {

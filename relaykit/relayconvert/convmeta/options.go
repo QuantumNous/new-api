@@ -23,6 +23,12 @@ type Options struct {
 	// it from the channel type.
 	OpenRouterDialect bool
 
+	// WebSearch encodes hosted web search for the upstream dialect. Nil, or a
+	// nil result, keeps the default: web_search_options on Chat and the native
+	// hosted tool on Responses, Claude, and Gemini. The host sets it from the
+	// channel adaptor's Init.
+	WebSearch WebSearchEncoder
+
 	// PreserveThinkingSuffix reports models whose -thinking/-nothinking/effort
 	// suffix must be kept on the outgoing model name (host blacklist lookup).
 	// Nil means "never preserve".

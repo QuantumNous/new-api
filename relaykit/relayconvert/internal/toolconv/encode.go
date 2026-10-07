@@ -24,13 +24,13 @@ func AttachRequest(format types.RelayFormat, request any, set Set, options *conv
 	)
 	switch format {
 	case types.RelayFormatOpenAI:
-		value, diagnostics, err = attachOpenAIChatRequest(request, set)
+		value, diagnostics, err = attachOpenAIChatRequest(request, set, options)
 	case types.RelayFormatOpenAIResponses:
-		value, diagnostics, err = attachOpenAIResponsesRequest(request, set)
+		value, diagnostics, err = attachOpenAIResponsesRequest(request, set, options)
 	case types.RelayFormatClaude:
 		value, diagnostics, err = attachClaudeRequest(request, set, options)
 	case types.RelayFormatGemini:
-		value, diagnostics, err = attachGeminiRequest(request, set)
+		value, diagnostics, err = attachGeminiRequest(request, set, options)
 	default:
 		value = request
 	}
@@ -48,12 +48,16 @@ func AttachRequest(format types.RelayFormat, request any, set Set, options *conv
 	return value, diagnostics, nil
 }
 
-func attachOpenAIChatRequest(request any, set Set) (any, []types.ConversionDiagnostic, error) {
+func attachOpenAIChatRequest(request any, set Set, options *convmeta.Options) (any, []types.ConversionDiagnostic, error) {
 	target, ok := request.(*dto.GeneralOpenAIRequest)
 	if !ok || target == nil {
 		return nil, nil, fmt.Errorf("expected OpenAI chat completions request, got %T", request)
 	}
 	customTools, diagnostics := responsesCustomTools(set)
+	// chatWebSearchEncoded reports that the host encoder handled the hosted
+	// web search; it may have written a tools[] entry or top-level fields
+	// instead of web_search_options.
+	chatWebSearchEncoded := false
 	for index, definition := range set.Definitions {
 		switch definition.Kind {
 		case KindFunction:
@@ -75,22 +79,45 @@ func attachOpenAIChatRequest(request any, set Set) (any, []types.ConversionDiagn
 			if set.Source == types.RelayFormatGemini {
 				diagnostics = append(diagnostics, geminiNativeWebSearchDiagnostics(index, definition, types.RelayFormatOpenAI)...)
 			}
-			if target.WebSearchOptions != nil {
-				return nil, diagnostics, fmt.Errorf("tools[%d]: multiple hosted web-search definitions cannot be represented by Chat Completions", index)
+			if target.WebSearchOptions != nil || chatWebSearchEncoded {
+				diagnostics = append(diagnostics, semanticLoss(
+					fmt.Sprintf("tools[%d]", index),
+					"duplicate_hosted_web_search",
+					"Chat Completions carries one hosted web search; this definition was dropped",
+				))
+				continue
 			}
-			options := &dto.WebSearchOptions{}
+			call := newWebSearchCall(set, index, definition, types.RelayFormatOpenAI)
+			call.Chat = target
+			tool, encoderDiagnostics, handled, err := encodeWebSearch(call, options)
+			if err != nil {
+				return nil, diagnostics, err
+			}
+			if handled {
+				diagnostics = append(diagnostics, encoderDiagnostics...)
+				chatWebSearchEncoded = true
+				if tool != nil {
+					chatTool, ok := tool.(dto.ToolCallRequest)
+					if !ok {
+						return nil, diagnostics, fmt.Errorf("%s: Chat web-search encoder returned %T, want dto.ToolCallRequest", call.Path(), tool)
+					}
+					target.Tools = append(target.Tools, chatTool)
+				}
+				continue
+			}
+			webSearchOptions := &dto.WebSearchOptions{}
 			if definition.WebSearch != nil {
-				options.SearchContextSize = definition.WebSearch.SearchContextSize
+				webSearchOptions.SearchContextSize = definition.WebSearch.SearchContextSize
 				if definition.WebSearch.Location != nil {
 					location := map[string]any{
 						"type":        "approximate",
 						"approximate": locationMap(definition.WebSearch.Location),
 					}
-					options.UserLocation, _ = kitutil.Marshal(location)
+					webSearchOptions.UserLocation, _ = kitutil.Marshal(location)
 				}
 				diagnostics = append(diagnostics, openAIChatWebSearchDiagnostics(index, definition.WebSearch)...)
 			}
-			target.WebSearchOptions = options
+			target.WebSearchOptions = webSearchOptions
 		default:
 			if tool, handled := customTools[index]; handled {
 				if tool != nil {
@@ -107,6 +134,10 @@ func attachOpenAIChatRequest(request any, set Set) (any, []types.ConversionDiagn
 	}
 
 	diagnostics = append(diagnostics, unsupportedHostedHistoryDiagnostics(types.RelayFormatOpenAI, set.History)...)
+	if chatWebSearchEncoded && forcedWebSearch(set.Choice) {
+		// The encoder received Forced and expressed it in its own encoding.
+		set.Choice = nil
+	}
 	if len(target.Tools) == 0 {
 		return target, append(diagnostics, toolChoiceWithoutToolsDiagnostics(set)...), nil
 	}
@@ -117,6 +148,66 @@ func attachOpenAIChatRequest(request any, set Set) (any, []types.ConversionDiagn
 	diagnostics = append(diagnostics, allowedChoiceDiagnostics...)
 	diagnostics = append(diagnostics, choiceDiagnostics...)
 	return target, diagnostics, nil
+}
+
+// newWebSearchCall describes one hosted web-search definition for the host
+// encoder; the caller sets the typed target request.
+func newWebSearchCall(set Set, index int, definition Definition, target types.RelayFormat) convmeta.WebSearchCall {
+	call := convmeta.WebSearchCall{
+		Source:     set.Source,
+		Target:     target,
+		NativeType: definition.NativeType,
+		Index:      index,
+		Forced:     forcedWebSearch(set.Choice),
+	}
+	if definition.WebSearch != nil {
+		call.Spec = *definition.WebSearch
+	}
+	return call
+}
+
+func forcedWebSearch(choice *Choice) bool {
+	return choice != nil && choice.Mode == ChoiceNamed && choice.Kind == KindWebSearch
+}
+
+// encodeWebSearch runs the host web-search encoder for one definition.
+// handled is false when no encoder is set or it returned nil; the caller then
+// keeps its default encoding and default diagnostics. When handled, the
+// encoder's diagnostics replace the default ones and tool (possibly nil) is
+// what the caller appends.
+func encodeWebSearch(call convmeta.WebSearchCall, options *convmeta.Options) (tool any, diagnostics []types.ConversionDiagnostic, handled bool, err error) {
+	if options == nil || options.WebSearch == nil {
+		return nil, nil, false, nil
+	}
+	encoding, err := options.WebSearch(call)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("%s: %w", call.Path(), err)
+	}
+	if encoding == nil {
+		return nil, nil, false, nil
+	}
+	if encoding.Omitted {
+		return nil, append(encoding.Diagnostics, call.SemanticLoss(
+			"hosted_web_search_omitted",
+			"the upstream has no hosted web search for this protocol; the web search tool was omitted",
+		)), true, nil
+	}
+	return encoding.Tool, encoding.Diagnostics, true, nil
+}
+
+// appendEncodedWebSearch runs the host encoder for a Responses, Claude, or
+// Gemini target. When the encoder handled the definition, its diagnostics and
+// tool (if any) are appended and the caller skips its default encoding.
+func appendEncodedWebSearch(tools *[]any, diagnostics *[]types.ConversionDiagnostic, call convmeta.WebSearchCall, options *convmeta.Options) (bool, error) {
+	tool, encoderDiagnostics, handled, err := encodeWebSearch(call, options)
+	if err != nil || !handled {
+		return false, err
+	}
+	*diagnostics = append(*diagnostics, encoderDiagnostics...)
+	if tool != nil {
+		*tools = append(*tools, tool)
+	}
+	return true, nil
 }
 
 // toolChoiceWithoutToolsDiagnostics reports the tool_choice and
@@ -316,7 +407,7 @@ func responsesCustomToolChoice(choice *Choice, customTools map[int]*responsesCus
 	return choice
 }
 
-func attachOpenAIResponsesRequest(request any, set Set) (any, []types.ConversionDiagnostic, error) {
+func attachOpenAIResponsesRequest(request any, set Set, options *convmeta.Options) (any, []types.ConversionDiagnostic, error) {
 	target, ok := request.(*dto.OpenAIResponsesRequest)
 	if !ok || target == nil {
 		return nil, nil, fmt.Errorf("expected OpenAI Responses request, got %T", request)
@@ -345,6 +436,15 @@ func attachOpenAIResponsesRequest(request any, set Set) (any, []types.Conversion
 		case KindWebSearch:
 			if set.Source == types.RelayFormatGemini {
 				diagnostics = append(diagnostics, geminiNativeWebSearchDiagnostics(index, definition, types.RelayFormatOpenAIResponses)...)
+			}
+			call := newWebSearchCall(set, index, definition, types.RelayFormatOpenAIResponses)
+			call.Responses = target
+			handled, err := appendEncodedWebSearch(&tools, &diagnostics, call, options)
+			if err != nil {
+				return nil, diagnostics, err
+			}
+			if handled {
+				continue
 			}
 			webSearch := definition.WebSearch
 			toolType := "web_search"
@@ -449,6 +549,15 @@ func attachClaudeRequest(request any, set Set, options *convmeta.Options) (any, 
 			if set.Source == types.RelayFormatGemini {
 				diagnostics = append(diagnostics, geminiNativeWebSearchDiagnostics(index, definition, types.RelayFormatClaude)...)
 			}
+			call := newWebSearchCall(set, index, definition, types.RelayFormatClaude)
+			call.Claude = target
+			handled, err := appendEncodedWebSearch(&tools, &diagnostics, call, options)
+			if err != nil {
+				return nil, diagnostics, err
+			}
+			if handled {
+				continue
+			}
 			toolType := "web_search_20250305"
 			if set.Source == types.RelayFormatClaude && isKnownClaudeWebSearchType(definition.NativeType) {
 				toolType = definition.NativeType
@@ -542,7 +651,7 @@ func attachClaudeRequest(request any, set Set, options *convmeta.Options) (any, 
 	return target, diagnostics, nil
 }
 
-func attachGeminiRequest(request any, set Set) (any, []types.ConversionDiagnostic, error) {
+func attachGeminiRequest(request any, set Set, options *convmeta.Options) (any, []types.ConversionDiagnostic, error) {
 	target, ok := request.(*dto.GeminiChatRequest)
 	if !ok || target == nil {
 		return nil, nil, fmt.Errorf("expected Gemini generateContent request, got %T", request)
@@ -569,7 +678,7 @@ func attachGeminiRequest(request any, set Set) (any, []types.ConversionDiagnosti
 	}
 	var (
 		functions []map[string]any
-		tools     []map[string]any
+		tools     []any
 	)
 	customTools, diagnostics := responsesCustomTools(set)
 	for index, definition := range set.Definitions {
@@ -602,6 +711,15 @@ func attachGeminiRequest(request any, set Set) (any, []types.ConversionDiagnosti
 				diagnostics = append(diagnostics, presentationLoss(fmt.Sprintf("tools[%d].strict", index), "unsupported_function_strict", "Gemini does not expose OpenAI function strictness"))
 			}
 		case KindWebSearch:
+			call := newWebSearchCall(set, index, definition, types.RelayFormatGemini)
+			call.Gemini = target
+			handled, err := appendEncodedWebSearch(&tools, &diagnostics, call, options)
+			if err != nil {
+				return nil, diagnostics, err
+			}
+			if handled {
+				continue
+			}
 			if set.Source == types.RelayFormatGemini && len(definition.Raw) > 0 {
 				var tool map[string]any
 				if err := kitutil.Unmarshal(definition.Raw, &tool); err != nil {

@@ -29,7 +29,9 @@ func NewResponsesUsageAccumulator(info *relaycommon.RelayInfo) *ResponsesUsageAc
 	return &ResponsesUsageAccumulator{info: info, usage: &dto.Usage{}}
 }
 
-func (a *ResponsesUsageAccumulator) Observe(event *dto.ResponsesStreamResponse) {
+// Observe feeds one decoded stream event. raw is the same event's wire bytes;
+// the vendor tool-usage reader runs on it once, at the terminal event.
+func (a *ResponsesUsageAccumulator) Observe(event *dto.ResponsesStreamResponse, raw []byte) {
 	if a == nil || event == nil || a.finished {
 		return
 	}
@@ -47,6 +49,9 @@ func (a *ResponsesUsageAccumulator) Observe(event *dto.ResponsesStreamResponse) 
 				a.outputText.WriteString(relayconvert.ExtractOutputTextFromResponses(event.Response))
 			}
 		}
+		// Vendor counts are cumulative on the terminal event and replace the
+		// web_search_call items counted from output_item.done.
+		a.info.ApplyVendorToolUsage(raw)
 		if a.imageCommitted {
 			return
 		}
