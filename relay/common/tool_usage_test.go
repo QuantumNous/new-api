@@ -249,20 +249,6 @@ func TestImageGenerationCallCounterCompletedOutputs(t *testing.T) {
 			wantCount: 1,
 		},
 		{
-			name: "output_item.done plus incomplete equals zero",
-			observe: func(c *ImageGenerationCallCounter) {
-				idx := 0
-				c.Observe(&dto.ResponsesOutput{
-					Type:   dto.ResponsesOutputTypeImageGenerationCall,
-					ID:     "img_1",
-					Status: "completed",
-					Result: "base64-a",
-				}, &idx)
-				c.Reset()
-			},
-			wantCount: 0,
-		},
-		{
 			name: "partial event equals zero",
 			observe: func(c *ImageGenerationCallCounter) {
 				idx := 0
@@ -334,15 +320,4 @@ func TestImageGenerationCallCounterCommitDoesNotBillDeclarationsAlone(t *testing
 	}
 	(&ImageGenerationCallCounter{}).Commit(info)
 	assert.Equal(t, 0, info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration].CallCount)
-}
-
-func TestIsNonBillableResponsesStatus(t *testing.T) {
-	t.Parallel()
-
-	assert.True(t, IsNonBillableResponsesStatus([]byte(`"failed"`)))
-	assert.True(t, IsNonBillableResponsesStatus([]byte(`"incomplete"`)))
-	assert.True(t, IsNonBillableResponsesStatus([]byte(`"cancelled"`)))
-	assert.True(t, IsNonBillableResponsesStatus([]byte(`"canceled"`)))
-	assert.False(t, IsNonBillableResponsesStatus([]byte(`"completed"`)))
-	assert.False(t, IsNonBillableResponsesStatus(nil))
 }

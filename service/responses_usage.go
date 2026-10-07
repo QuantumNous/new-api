@@ -50,10 +50,10 @@ func (a *ResponsesUsageAccumulator) Observe(event *dto.ResponsesStreamResponse) 
 		if a.imageCommitted {
 			return
 		}
-		failed := event.Type != "response.completed" && event.Type != "response.done"
-		if failed || (event.Response != nil && relaycommon.IsNonBillableResponsesStatus(event.Response.Status)) {
-			a.imageCounter.Reset()
-		} else if event.Response != nil {
+		// Images that completed before any terminal, failed ones included,
+		// were delivered and stay billable; Observe still skips unfinished
+		// image items.
+		if event.Response != nil {
 			for i := range event.Response.Output {
 				a.imageCounter.Observe(&event.Response.Output[i], &i)
 			}
@@ -86,8 +86,7 @@ func (a *ResponsesUsageAccumulator) Finish() *dto.Usage {
 	}
 	a.finished = true
 	// A final image item can already have reached the client before the stream
-	// disconnects. Explicit failed/incomplete terminals reset and commit zero in
-	// Observe; otherwise retain completed tool usage even without a terminal.
+	// disconnects, so completed tool usage is retained even without a terminal.
 	if !a.imageCommitted {
 		a.imageCounter.Commit(a.info)
 		a.imageCommitted = true

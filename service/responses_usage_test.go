@@ -21,10 +21,10 @@ func TestResponsesUsageAccumulatorTerminalAccounting(t *testing.T) {
 	}{
 		{eventType: "response.completed", wantImages: 1},
 		{eventType: "response.done", wantImages: 1},
-		{eventType: "response.incomplete"},
-		{eventType: "response.failed"},
-		{eventType: "response.cancelled"},
-		{eventType: "response.canceled"},
+		{eventType: "response.incomplete", wantImages: 1},
+		{eventType: "response.failed", wantImages: 1},
+		{eventType: "response.cancelled", wantImages: 1},
+		{eventType: "response.canceled", wantImages: 1},
 	} {
 		t.Run(tc.eventType, func(t *testing.T) {
 			info := &relaycommon.RelayInfo{OriginModelName: "gpt-5.1", StreamStatus: relaycommon.NewStreamStatus()}

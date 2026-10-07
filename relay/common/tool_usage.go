@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
@@ -125,15 +124,6 @@ func (c *ImageGenerationCallCounter) Observe(item *dto.ResponsesOutput, outputIn
 	c.count++
 }
 
-// Reset clears pending observations (used when a terminal response fails).
-func (c *ImageGenerationCallCounter) Reset() {
-	if c == nil {
-		return
-	}
-	c.seen = nil
-	c.count = 0
-}
-
 // Count returns the deduplicated completed image output count before commit capping.
 func (c *ImageGenerationCallCounter) Count() int {
 	if c == nil {
@@ -172,23 +162,5 @@ func (c *ImageGenerationCallCounter) Commit(info *RelayInfo) {
 	info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration] = &BuildInToolInfo{
 		ToolName:  dto.BuildInToolImageGeneration,
 		CallCount: count,
-	}
-}
-
-// IsNonBillableResponsesStatus reports terminal response statuses that must not
-// bill pending image_generation observations.
-func IsNonBillableResponsesStatus(status []byte) bool {
-	if len(status) == 0 {
-		return false
-	}
-	var s string
-	if err := common.Unmarshal(status, &s); err != nil {
-		return false
-	}
-	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "failed", "cancelled", "canceled", "incomplete":
-		return true
-	default:
-		return false
 	}
 }
