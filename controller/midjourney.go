@@ -213,7 +213,7 @@ func runMidjourneyTaskUpdateOnce(ctx context.Context, report func(processed, tot
 			if err != nil {
 				logger.LogError(ctx, "UpdateMidjourneyTask task error: "+err.Error())
 			} else if won && shouldReturnQuota {
-				service.RefundMidjourneyQuota(ctx, task, "Midjourney task failed")
+				service.RefundMidjourneyQuota(ctx, task, "Composition failed")
 			}
 		}
 	}
