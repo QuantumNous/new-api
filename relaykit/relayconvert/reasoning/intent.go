@@ -528,7 +528,12 @@ func FromOpenAIResponses(req *dto.OpenAIResponsesRequest) (Intent, []types.Conve
 				intent.Mode = ModeDisabled
 			}
 		}
-		if req.Reasoning.Summary != "" {
+		switch strings.ToLower(strings.TrimSpace(req.Reasoning.Summary)) {
+		case "":
+		case "none", "omitted":
+			include := false
+			intent.IncludeThoughts = &include
+		default:
 			include := true
 			intent.IncludeThoughts = &include
 		}
