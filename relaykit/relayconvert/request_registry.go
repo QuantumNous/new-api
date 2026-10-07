@@ -68,9 +68,9 @@ var (
 
 const (
 	requestConverterClaudeToGemini    = "claude_messages_to_gemini_generate_content"
-	requestConverterClaudeToResponses = "claude_messages_to_openai_responses"
+	requestConverterClaudeToResponses = ConverterClaudeMessagesToOpenAIResponses
 	requestConverterGeminiToClaude    = "gemini_generate_content_to_claude_messages"
-	requestConverterGeminiToResponses = "gemini_generate_content_to_openai_responses"
+	requestConverterGeminiToResponses = ConverterGeminiContentToOpenAIResponses
 	requestConverterResponsesToClaude = ConverterOpenAIResponsesToClaudeMessages
 )
 
@@ -84,6 +84,8 @@ const (
 	ConverterOpenAIResponsesToGemini         = "openai_responses_to_gemini_generate_content"
 	ConverterGeminiContentToOpenAIChat       = "gemini_generate_content_to_openai_chat_completions"
 	ConverterOpenAIChatToGeminiContent       = "openai_chat_completions_to_gemini_generate_content"
+	ConverterClaudeMessagesToOpenAIResponses = "claude_messages_to_openai_responses"
+	ConverterGeminiContentToOpenAIResponses  = "gemini_generate_content_to_openai_responses"
 )
 
 func registerBuiltinRequestConverter(spec RequestConverterSpec) {
