@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -51,6 +53,9 @@ func Playground(c *gin.Context) {
 		Group:  relayInfo.UsingGroup,
 	}
 	_ = middleware.SetupContextForToken(c, tempToken)
+	// Playground 不经过 API 令牌：标记来源，让数据看板把这部分用量与
+	// 渠道测试 / 正常令牌流量区分开（quota_data.token_source）。
+	common.SetContextKey(c, constant.ContextKeyTokenSource, model.QuotaTokenSourcePlayground)
 
 	Relay(c, types.RelayFormatOpenAI)
 }

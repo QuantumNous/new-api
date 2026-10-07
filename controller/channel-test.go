@@ -167,6 +167,9 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	c.Set("base_url", channel.GetBaseURL())
 	group, _ := model.GetUserGroup(testUserID, false)
 	c.Set("group", group)
+	// 渠道测试不经过 API 令牌：标记来源，让数据看板把这部分用量与
+	// Playground / 正常令牌流量区分开（quota_data.token_source）。
+	common.SetContextKey(c, constant.ContextKeyTokenSource, model.QuotaTokenSourceChannelTest)
 
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, testModel)
 	if newAPIError != nil {

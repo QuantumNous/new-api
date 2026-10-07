@@ -80,4 +80,11 @@ const (
 	ContextKeyTokenAuditParams ContextKey = "token_audit_params"
 	// ContextKeyTokenAuditSucceeded disambiguates token responses that exceed the audit buffer.
 	ContextKeyTokenAuditSucceeded ContextKey = "token_audit_succeeded"
+
+	// ContextKeyTokenSource marks the origin of a request that did not go
+	// through an API token (token_id = 0), taking the model.QuotaTokenSource*
+	// enums (channel test, playground). The two tokenless entrypoints set it
+	// themselves; RecordConsumeLog reads it into quota_data.token_source so the
+	// usage dashboard can split tokenless usage by origin.
+	ContextKeyTokenSource ContextKey = "token_source"
 )

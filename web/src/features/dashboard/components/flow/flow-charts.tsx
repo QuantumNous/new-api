@@ -173,6 +173,12 @@ const FLOW_OTHER_NODE_LABEL_KEYS: Record<FlowNodeKind, string> = {
   channel: 'Other channels',
 }
 
+// token_source 枚举 → i18n 键。渠道测试沿用消费日志里的「模型测试」说法。
+const FLOW_TOKEN_SOURCE_LABEL_KEYS: Record<string, string> = {
+  channel_test: 'Model Test',
+  playground: 'Playground',
+}
+
 type FlowChartPointerEvent = EventParamsDefinition['pointerdown']
 
 function chartRecordValue(value: unknown): Record<string, unknown> | undefined {
@@ -358,6 +364,9 @@ export function FlowCharts(props: FlowChartsProps) {
         overflowMode,
         maskSensitive,
         deletedTokenLabel: (tokenId) => t('Deleted ({{id}})', { id: tokenId }),
+        noTokenLabel: t('No API Token'),
+        tokenSourceLabel: (source) =>
+          t(FLOW_TOKEN_SOURCE_LABEL_KEYS[source] ?? source),
         otherNodeLabel: (kind) => t(FLOW_OTHER_NODE_LABEL_KEYS[kind]),
       }),
     [

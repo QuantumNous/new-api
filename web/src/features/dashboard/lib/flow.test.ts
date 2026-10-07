@@ -773,4 +773,66 @@ describe('dashboard flow data', () => {
     expect(linkOpacity(dimmedLink)).toBe(0.08)
     expect(highlightedLink.zIndex > dimmedLink.zIndex).toBe(true)
   })
+
+  test('labels tokenless rows from their source enum and falls back to the no-token label', () => {
+    const sourceLabels: Record<string, string> = {
+      channel_test: '模型测试',
+      playground: 'Playground',
+    }
+    const tokenlessRows: FlowQuotaDataItem[] = [
+      {
+        user_id: 1,
+        username: 'alice',
+        use_group: 'default',
+        model_name: 'gpt-4.1',
+        token_id: 0,
+        token_source: 'channel_test',
+        channel_id: 101,
+        quota: 10,
+        token_used: 5,
+        count: 1,
+      },
+      {
+        user_id: 1,
+        username: 'alice',
+        use_group: 'default',
+        model_name: 'gpt-4.1',
+        token_id: 0,
+        token_source: 'playground',
+        channel_id: 102,
+        quota: 20,
+        token_used: 8,
+        count: 1,
+      },
+      {
+        // 升级前的历史行：没有 token_source，退回通用文案
+        user_id: 1,
+        username: 'alice',
+        use_group: 'default',
+        model_name: 'gpt-4.1',
+        token_id: 0,
+        channel_id: 103,
+        quota: 5,
+        token_used: 1,
+        count: 1,
+      },
+    ]
+
+    const result = buildDashboardFlowData(tokenlessRows, 'quota', {
+      role: 'user',
+      noTokenLabel: '无 API 令牌',
+      tokenSourceLabel: (source) => sourceLabels[source] ?? source,
+    })
+    const tokenNodes = result.flow.nodes.filter((node) => node.kind === 'token')
+    const labels = tokenNodes.map((node) => node.label)
+    const ids = tokenNodes.map((node) => node.id)
+
+    expect(labels).toContain('模型测试')
+    expect(labels).toContain('Playground')
+    expect(labels).toContain('无 API 令牌')
+    // tokenless 节点用自己的 id 命名空间，避免和 token:<id> / 溢出节点相撞
+    expect(ids).toContain('token:src:channel_test')
+    expect(ids).toContain('token:src:playground')
+    expect(ids).toContain('token:src:none')
+  })
 })

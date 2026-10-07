@@ -69,6 +69,12 @@ type FlowNodeRank = {
 
 type FlowPathContext = {
   deletedTokenLabel?: (tokenId: number) => string
+  // Label for rows without an API token (token_id = 0) whose origin enum is
+  // missing, e.g. rows written before the upgrade.
+  noTokenLabel?: string
+  // Translates a tokenless row's stable origin enum (token_source), such as
+  // "channel_test" or "playground", into a localized label.
+  tokenSourceLabel?: (source: string) => string
 }
 
 type FlowGraphOptions = {
@@ -187,16 +193,27 @@ function nodeNameNode(row: FlowQuotaDataItem): FlowPathNode {
 
 function tokenNode(row: FlowQuotaDataItem, ctx: FlowPathContext): FlowPathNode {
   const tokenID = numberValue(row.token_id)
+  if (tokenID > 0) {
+    return {
+      id: `token:${tokenID}`,
+      label: row.token_name || tokenLabelFallback(tokenID, ctx),
+      kind: 'token',
+    }
+  }
+  // token_id = 0：这次调用没有经过 API 令牌，来源由后端落库的稳定枚举给出，
+  // 这里按枚举翻译；枚举缺失（升级前的历史行）才退回通用文案。
+  const source = row.token_source || ''
   return {
-    id:
-      tokenID > 0 ? `token:${tokenID}` : `token:${row.token_name || 'unknown'}`,
-    label: row.token_name || deletedTokenLabel(tokenID, ctx),
+    id: `token:src:${source || 'none'}`,
+    label: source
+      ? (ctx.tokenSourceLabel?.(source) ?? source)
+      : tokenLabelFallback(tokenID, ctx),
     kind: 'token',
   }
 }
 
-function deletedTokenLabel(tokenID: number, ctx: FlowPathContext): string {
-  if (tokenID <= 0) return 'Unknown Token'
+function tokenLabelFallback(tokenID: number, ctx: FlowPathContext): string {
+  if (tokenID <= 0) return ctx.noTokenLabel ?? 'No API Token'
   return ctx.deletedTokenLabel?.(tokenID) ?? `token-${tokenID}`
 }
 
@@ -978,6 +995,8 @@ export function buildDashboardFlowData(
   const palette = options.colorPalette
   const ctx = {
     deletedTokenLabel: options.deletedTokenLabel,
+    noTokenLabel: options.noTokenLabel,
+    tokenSourceLabel: options.tokenSourceLabel,
   }
   const stages = resolveVisibleStages(role, options.visibleStages)
   const userFilteredRows = filterRows(rows, options)
