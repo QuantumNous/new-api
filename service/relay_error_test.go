@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -78,6 +79,11 @@ func TestShouldDisableChannelErrorCodesPreserveCompatibility(t *testing.T) {
 		{"unknown code retains custom keyword", "insufficient_user_quota", `{"error":{"code":"provider_error","message":"Legacy Provider Failure"}}`, 400, true},
 		{"known unmatched code retains keyword", "other_code", `{"error":{"code":"insufficient_user_quota","message":"用户额度不足, 剩余额度: 0"}}`, 403, true},
 		{"message mentioning a code does not match it", "insufficient_user_quota", `{"error":{"code":"other_code","message":"insufficient_user_quota"}}`, 400, false},
+		{"message-only body does not match the code new-api assigns", "bad_response_status_code", `{"message":"Unclassified failure"}`, 400, false},
+		{"missing code does not match the unknown_error fallback", "unknown_error", `{"error":{"message":"Unclassified failure","type":"server_error"}}`, 400, false},
+		{"non-JSON body does not match the code new-api assigns", "bad_response_status_code", `<html>Bad Gateway</html>`, 502, false},
+		{"Anthropic error without code does not match unknown_error", "unknown_error", `{"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}`, 529, false},
+		{"upstream's own bad_response_status_code matches", "bad_response_status_code", `{"error":{"code":"bad_response_status_code","message":"Upstream failed","type":"new_api_error"}}`, 502, true},
 		{"status rule remains effective", "", `{"error":{"code":"other_code","message":"Authentication failed"}}`, 401, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -98,6 +104,8 @@ func TestShouldDisableChannelErrorCodesPreserveCompatibility(t *testing.T) {
 	assert.Equal(t, "insufficient_user_quota", saved.Value)
 	localQuota := types.NewErrorWithStatusCode(errors.New("用户额度不足"), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry())
 	assert.False(t, ShouldDisableChannel(localQuota), "a local quota rejection must not disable an upstream")
+	overrideRejection := relaycommon.NewAPIErrorFromParamOverride(&relaycommon.ParamOverrideReturnError{Message: "Blocked by policy", StatusCode: http.StatusForbidden, Code: "insufficient_user_quota"})
+	assert.False(t, ShouldDisableChannel(overrideRejection), "a param override's configured code is not an upstream code")
 	assert.False(t, ShouldDisableChannel(nil))
 	channelError := types.NewError(errors.New("no available key"), types.ErrorCodeChannelNoAvailableKey)
 	assert.True(t, ShouldDisableChannel(channelError))
