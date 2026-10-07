@@ -441,8 +441,8 @@ func TestListModelsUsesAdvancedCustomChannelNameAsOwner(t *testing.T) {
 
 	payload := decodeListModelsPayload(t, recorder)
 	require.Len(t, payload.Data, 1)
-	require.Equal(t, "gemini-3.5-flash", payload.Data[0].Id)
-	require.Equal(t, "advanced-custom-beta", payload.Data[0].OwnedBy)
+	assert.Equal(t, "gemini-3.5-flash", payload.Data[0].Id)
+	assert.Equal(t, "advanced-custom-beta", payload.Data[0].OwnedBy)
 }
 
 func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
