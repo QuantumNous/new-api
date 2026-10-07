@@ -133,4 +133,11 @@ var channelNonSensitiveFields = map[string]struct{}{
 	"remark":              {},
 	"channel_info":        {},
 	"multi_key_mode":      {},
+	// Channel rate and quota limits are routing-tier configuration, in the
+	// same sensitivity class as priority/weight, so a ChannelWrite admin may
+	// tune them without ChannelSensitiveWrite.
+	"rpm_limit":           {},
+	"tpm_limit":           {},
+	"daily_quota_limit":   {},
+	"monthly_quota_limit": {},
 }

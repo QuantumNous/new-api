@@ -39,10 +39,19 @@ func Distribute() func(c *gin.Context) {
 				service.RecordRequestPolicyTermination(c, types.NewErrorWithStatusCode(errors.New("request rejected"), types.ErrorCodeInvalidRequest, c.Writer.Status(), types.ErrOptionWithSkipRetry()))
 			}
 		}()
+		enforceTokenRateLimit(c)
+		if c.IsAborted() {
+			return
+		}
 		constraints := service.GetChannelConstraints(c)
 		constraints.AddFilter(taskdto.ChannelFilter{
 			Kind:        taskdto.FilterRequestPath,
 			RequestPath: c.Request.URL.Path,
+		})
+		// Channel RPM/TPM/quota limiting: over-limit channels drop out of the
+		// candidate pool for every attempt of this request, including retries.
+		constraints.AddFilter(taskdto.ChannelFilter{
+			Kind: taskdto.FilterChannelLimits,
 		})
 		service.AppendTaskPluginIdentityFilter(c, c.GetString("expected_task_plugin_key"))
 		modelRequest, shouldSelectChannel, err := getModelRequest(c)

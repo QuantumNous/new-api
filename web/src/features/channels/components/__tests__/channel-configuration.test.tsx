@@ -37,6 +37,10 @@ import { useState } from 'react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
 import { api } from '@/lib/api'
+import {
+  parseQuotaFromDollars,
+  quotaUnitsToDollars,
+} from '@/lib/format'
 import { createAppQueryClient } from '@/lib/query-client'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
@@ -2811,4 +2815,98 @@ test('a New API channel binds upstream task plugins and publishes their models',
   expect(setting).toMatchObject({ task_extend_plugin_keys: ['video-b'] })
   expect(setting).not.toHaveProperty('task_plugin_key')
   expect(payload.models?.split(',').sort()).toEqual(['gpt-5', 'video-b-1'])
+})
+
+test('channel rate and quota limits render under Request & Response and save to the update payload', async () => {
+  editingChannel = {
+    ...editingChannel,
+    rpm_limit: 12,
+    tpm_limit: 3400,
+    daily_quota_limit: 500000,
+    monthly_quota_limit: 7500000,
+  }
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const requestTab = screen.getByRole('tab', { name: /Request & Response/ })
+  expect(requestTab).toHaveAccessibleName(/Configured/)
+  await user.click(requestTab)
+
+  const limits = screen.getByRole('group', { name: 'Rate & Quota Limits' })
+  expect(
+    within(limits).getByRole('spinbutton', { name: 'RPM limit' })
+  ).toHaveValue(12)
+  expect(
+    within(limits).getByRole('spinbutton', { name: 'TPM limit' })
+  ).toHaveValue(3400)
+  const daily = within(limits).getByRole('spinbutton', {
+    name: /Daily quota limit/,
+  })
+  expect(daily).toHaveValue(quotaUnitsToDollars(500000))
+  const monthly = within(limits).getByRole('spinbutton', {
+    name: /Monthly quota limit/,
+  })
+  expect(monthly).toHaveValue(quotaUnitsToDollars(7500000))
+
+  await user.clear(daily)
+  await user.type(daily, '2')
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as {
+    rpm_limit?: number
+    tpm_limit?: number
+    daily_quota_limit?: number
+    monthly_quota_limit?: number
+  }
+  expect(payload.rpm_limit).toBe(12)
+  expect(payload.tpm_limit).toBe(3400)
+  expect(payload.daily_quota_limit).toBe(parseQuotaFromDollars(2))
+  expect(payload.monthly_quota_limit).toBe(7500000)
+})
+
+test('clearing every channel limit unmarks the Request & Response tab and sends explicit zeros', async () => {
+  editingChannel = {
+    ...editingChannel,
+    rpm_limit: 5,
+    tpm_limit: 1000,
+    daily_quota_limit: 500000,
+    monthly_quota_limit: 500000,
+  }
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const requestTab = screen.getByRole('tab', { name: /Request & Response/ })
+  expect(requestTab).toHaveAccessibleName(/Configured/)
+  await user.click(requestTab)
+
+  const limits = screen.getByRole('group', { name: 'Rate & Quota Limits' })
+  const clearToZero = async (name: RegExp | string) => {
+    const input = within(limits).getByRole('spinbutton', { name })
+    await user.clear(input)
+    await user.type(input, '0')
+  }
+  await clearToZero('RPM limit')
+  await clearToZero('TPM limit')
+  await clearToZero(/Daily quota limit/)
+  await clearToZero(/Monthly quota limit/)
+  expect(requestTab).not.toHaveAccessibleName(/Configured/)
+
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as {
+    rpm_limit?: number
+    tpm_limit?: number
+    daily_quota_limit?: number
+    monthly_quota_limit?: number
+  }
+  expect(payload.rpm_limit).toBe(0)
+  expect(payload.tpm_limit).toBe(0)
+  expect(payload.daily_quota_limit).toBe(0)
+  expect(payload.monthly_quota_limit).toBe(0)
 })
