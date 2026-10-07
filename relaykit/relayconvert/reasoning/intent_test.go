@@ -273,3 +273,58 @@ func TestOpenAIPivotExplicitEffortOverridesPivotWithDiagnostic(t *testing.T) {
 	assert.Equal(t, EffortXHigh, got.Effort)
 	assert.Equal(t, []string{"explicit_fields_conflict"}, diagnosticCodes(diagnostics))
 }
+
+// Claude Opus 5.5 runs at medium effort when a request sets none; every other
+// model runs at high (https://platform.claude.com/docs/en/build-with-claude/effort).
+func TestClaudeModelDefaultEffortWhenClientSetsNone(t *testing.T) {
+	t.Parallel()
+
+	modelDefaults := map[string]Effort{"claude-opus-5-5": EffortMedium, "claude-opus-5": EffortHigh, "claude-sonnet-5-5": EffortHigh}
+	budget := 2048
+	maxTokens := uint(8192)
+	tests := []struct {
+		name         string
+		intent       Intent
+		wantThinking string
+		sendsEffort  bool
+		// wantEffort is empty when the model default applies.
+		wantEffort Effort
+	}{
+		{name: "no intent", intent: Intent{}},
+		{name: "include_thoughts only", intent: Intent{IncludeThoughts: boolPtr(true)}, wantThinking: "adaptive"},
+		{name: "adaptive without effort", intent: Intent{Mode: ModeAdaptive}, wantThinking: "adaptive"},
+		{name: "enabled without strength", intent: Intent{Mode: ModeEnabled}, wantThinking: "adaptive", sendsEffort: true},
+		{name: "explicit effort is kept", intent: Intent{Mode: ModeEnabled, Effort: EffortHigh}, wantThinking: "adaptive", sendsEffort: true, wantEffort: EffortHigh},
+		{name: "budget mapping is kept", intent: Intent{Mode: ModeEnabled, BudgetTokens: &budget}, wantThinking: "adaptive", sendsEffort: true, wantEffort: EffortMedium},
+	}
+
+	for _, tt := range tests {
+		for model, modelDefault := range modelDefaults {
+			t.Run(tt.name+"/"+model, func(t *testing.T) {
+				t.Parallel()
+				wantEffort := tt.wantEffort
+				if wantEffort == "" {
+					wantEffort = modelDefault
+				}
+				wantOutput := Effort("")
+				if tt.sendsEffort {
+					wantOutput = wantEffort
+				}
+
+				rendered, err := RenderClaude(model, tt.intent, &maxTokens, 0)
+				require.NoError(t, err)
+				if tt.wantThinking == "" {
+					assert.Nil(t, rendered.Thinking)
+				} else {
+					require.NotNil(t, rendered.Thinking)
+					assert.Equal(t, tt.wantThinking, rendered.Thinking.Type)
+				}
+				assert.Equal(t, wantOutput, rendered.OutputEffort)
+				assert.Equal(t, wantEffort, rendered.EffectiveEffort)
+
+				// A Claude client routed to an OpenAI upstream sends this effort.
+				assert.Equal(t, wantEffort, EffectiveEffort(ResolveClaudeDefault(model, tt.intent)))
+			})
+		}
+	}
+}

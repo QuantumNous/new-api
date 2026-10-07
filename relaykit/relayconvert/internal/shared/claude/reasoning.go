@@ -44,7 +44,7 @@ func ApplyReasoning(ctx context.Context, req *dto.ClaudeRequest, info convmeta.M
 				case req.Thinking.BudgetTokens != nil:
 					effort = string(reasoning.EffortFromBudget(*req.Thinking.BudgetTokens))
 				case req.Thinking.Type == "enabled" || req.Thinking.Type == "adaptive":
-					effort = string(reasoning.EffortHigh)
+					effort = string(reasoning.ClaudeDefaultEffort(req.Model))
 				}
 			}
 			info.SetReasoningEffort(effort)
