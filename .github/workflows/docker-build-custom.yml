@@ -26,6 +26,9 @@ jobs:
       - name: Write VERSION（用于打进二进制的版本号）
         run: echo "custom-$(date +'%Y%m%d')-$(git rev-parse --short HEAD)" > VERSION
 
+      - name: 生成镜像名（GHCR 要求全小写）
+        run: echo "IMAGE=${{ env.REGISTRY }}/$(echo ${GITHUB_REPOSITORY} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
@@ -40,7 +43,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository }}
+          images: ${{ env.IMAGE }}
 
       - name: Build & push (linux/amd64)
         id: build
@@ -50,8 +53,8 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ github.repository }}:custom
-            ${{ env.REGISTRY }}/${{ github.repository }}:${{ github.sha }}
+            ${{ env.IMAGE }}:custom
+            ${{ env.IMAGE }}:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -62,6 +65,6 @@ jobs:
         run: |
           echo "### 自定义镜像已推送" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          echo "${{ env.REGISTRY }}/${{ github.repository }}:custom" >> $GITHUB_STEP_SUMMARY
+          echo "${{ env.IMAGE }}:custom" >> $GITHUB_STEP_SUMMARY
           echo "${{ steps.build.outputs.digest }}" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
