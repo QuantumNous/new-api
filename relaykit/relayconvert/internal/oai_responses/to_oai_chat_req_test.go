@@ -3,10 +3,16 @@ package oairesponses
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
+	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -536,6 +542,340 @@ func TestResponsesRequestToChatCompletionsRequestHoistsToolOutputMediaAfterToolB
 		require.NotNil(t, parts[0].GetImageMedia())
 		assert.Equal(t, dataURL, parts[0].GetImageMedia().Url)
 	})
+}
+
+// useDataURLMediaResolver installs a media resolver that decodes data URLs,
+// returns raw base64 with its declared MIME type, and refuses every remote
+// URL, as the host resolver does for a blocked download.
+func useDataURLMediaResolver(t *testing.T) {
+	t.Helper()
+	relaymedia.SetMediaResolver(relaymedia.MediaResolver{
+		GetBase64Data: func(_ context.Context, source types.FileSource, _ ...string) (string, string, error) {
+			if source.IsURL() {
+				return "", "", errors.New("download blocked")
+			}
+			header, data, isDataURL := strings.Cut(source.GetRawData(), ",")
+			if !isDataURL {
+				return source.GetRawData(), source.(*types.Base64Source).MimeType, nil
+			}
+			return data, strings.TrimSuffix(strings.TrimPrefix(header, "data:"), ";base64"), nil
+		},
+	})
+	t.Cleanup(func() { relaymedia.SetMediaResolver(relaymedia.MediaResolver{}) })
+}
+
+func omittedToolMedia(message string) types.ConversionDiagnostic {
+	return types.ConversionDiagnostic{
+		Code:     "unsupported_media_type",
+		Path:     "input.output",
+		Message:  message + "; the part was omitted",
+		Severity: types.ConversionDiagnosticError,
+	}
+}
+
+// toolOutputGeminiTurn converts one call and its output and returns the user
+// turn that carries the function response.
+func toolOutputGeminiTurn(t *testing.T, ctx context.Context, model string, outputType string, output any) dto.GeminiChatContent {
+	t.Helper()
+	call := map[string]any{"type": "function_call", "call_id": "call_1", "name": "view", "arguments": "{}"}
+	if outputType == "custom_tool_call_output" {
+		call = map[string]any{"type": "custom_tool_call", "call_id": "call_1", "name": "view", "input": "screen"}
+	}
+	got, err := OpenAIResponsesRequestToGeminiChat(ctx, &dto.OpenAIResponsesRequest{
+		Model: model,
+		Input: mustRawMessage(t, []map[string]any{
+			call,
+			{"type": outputType, "call_id": "call_1", "output": output},
+		}),
+	}, &convmeta.Values{})
+	require.NoError(t, err)
+	require.Len(t, got.Contents, 2)
+	assert.Equal(t, "user", got.Contents[1].Role)
+	require.NotEmpty(t, got.Contents[1].Parts)
+	response := got.Contents[1].Parts[0].FunctionResponse
+	require.NotNil(t, response)
+	assert.Equal(t, "view", response.Name)
+	assert.JSONEq(t, `"call_1"`, string(response.ID))
+	return got.Contents[1]
+}
+
+func TestOpenAIResponsesRequestToGeminiChatToolOutputContentParts(t *testing.T) {
+	useDataURLMediaResolver(t)
+	imagePart := map[string]any{"type": "input_image", "image_url": "data:image/png;base64,iVBORw0KGgo="}
+
+	tests := []struct {
+		name            string
+		output          any
+		wantResponse    string
+		wantParts       string
+		wantDiagnostics []types.ConversionDiagnostic
+	}{
+		{
+			name:         "text and image",
+			output:       []any{map[string]any{"type": "input_text", "text": "screenshot captured"}, imagePart},
+			wantResponse: `{"content":"screenshot captured"}`,
+			wantParts:    `[{"inlineData":{"mimeType":"image/png","data":"iVBORw0KGgo="}}]`,
+		},
+		{
+			name: "text and pdf file",
+			output: []any{
+				map[string]any{"type": "input_text", "text": "report attached"},
+				map[string]any{"type": "input_file", "filename": "report.pdf", "file_data": "data:application/pdf;base64,JVBERi0xLjQ="},
+			},
+			wantResponse: `{"content":"report attached"}`,
+			wantParts:    `[{"inlineData":{"mimeType":"application/pdf","data":"JVBERi0xLjQ="}}]`,
+		},
+		{
+			name:         "image only leaves an empty response object",
+			output:       []any{imagePart},
+			wantResponse: `{}`,
+			wantParts:    `[{"inlineData":{"mimeType":"image/png","data":"iVBORw0KGgo="}}]`,
+		},
+		{
+			name: "unsupported and unloadable media are omitted",
+			output: []any{
+				map[string]any{"type": "input_text", "text": "two files"},
+				map[string]any{"type": "input_file", "file_data": "data:application/zip;base64,UEsDBA=="},
+				map[string]any{"type": "input_image", "image_url": "https://example.com/screen.png"},
+				imagePart,
+			},
+			wantResponse: `{"content":"two files"}`,
+			wantParts:    `[{"inlineData":{"mimeType":"image/png","data":"iVBORw0KGgo="}}]`,
+			wantDiagnostics: []types.ConversionDiagnostic{
+				omittedToolMedia("Gemini function responses cannot carry application/zip content"),
+				omittedToolMedia("the image could not be loaded"),
+			},
+		},
+		{
+			name: "all media omitted names the parts",
+			output: []any{
+				map[string]any{"type": "input_audio", "input_audio": map[string]any{"data": "UklGRg==", "format": "wav"}},
+				map[string]any{"type": "input_file", "file_data": "data:video/mp4;base64,AAAA"},
+			},
+			wantResponse: `{"content":"[audio] [file]"}`,
+			wantDiagnostics: []types.ConversionDiagnostic{
+				omittedToolMedia("Gemini function responses cannot carry audio content"),
+				omittedToolMedia("Gemini function responses cannot carry video/mp4 content"),
+			},
+		},
+		{
+			name: "text parts join with newline",
+			output: []any{
+				map[string]any{"type": "input_text", "text": "first"},
+				map[string]any{"type": "output_text", "text": ""},
+				map[string]any{"type": "text", "text": "second"},
+			},
+			wantResponse: `{"content":"first\nsecond"}`,
+		},
+		{
+			name:         "string is unchanged",
+			output:       "15 degrees",
+			wantResponse: `{"content":"15 degrees"}`,
+		},
+		{
+			name:         "object is unchanged",
+			output:       map[string]any{"ok": true},
+			wantResponse: `{"ok":true}`,
+		},
+		{
+			name:         "plain array is unchanged",
+			output:       []any{1, 2},
+			wantResponse: `{"result":[1,2]}`,
+		},
+		{
+			name:         "unknown part keeps the whole array",
+			output:       []any{imagePart, map[string]any{"type": "refusal", "refusal": "no"}},
+			wantResponse: `{"result":[{"type":"input_image","image_url":"data:image/png;base64,iVBORw0KGgo="},{"type":"refusal","refusal":"no"}]}`,
+		},
+	}
+
+	for _, tt := range tests {
+		for _, outputType := range []string{"function_call_output", "custom_tool_call_output"} {
+			t.Run(tt.name+"/"+outputType, func(t *testing.T) {
+				ctx, collector := convdiag.WithCollector(context.Background())
+				turn := toolOutputGeminiTurn(t, ctx, "gemini-test", outputType, tt.output)
+
+				require.Len(t, turn.Parts, 1)
+				response := turn.Parts[0].FunctionResponse
+				gotResponse, err := kitutil.Marshal(response.Response)
+				require.NoError(t, err)
+				assert.JSONEq(t, tt.wantResponse, string(gotResponse))
+				if tt.wantParts == "" {
+					assert.Empty(t, response.Parts)
+				} else {
+					assert.JSONEq(t, tt.wantParts, string(response.Parts))
+				}
+				assert.Equal(t, tt.wantDiagnostics, collector.Diagnostics())
+			})
+		}
+	}
+}
+
+// Gemini 1.x and 2.x do not document multimodal function responses; their
+// tool media go into the same user turn as ordinary parts.
+func TestOpenAIResponsesRequestToGeminiChatToolOutputMediaOnPreGemini3(t *testing.T) {
+	useDataURLMediaResolver(t)
+	imagePart := map[string]any{"type": "input_image", "image_url": "data:image/png;base64,iVBORw0KGgo="}
+
+	tests := []struct {
+		name            string
+		model           string
+		output          any
+		wantTurn        string
+		wantDiagnostics []types.ConversionDiagnostic
+	}{
+		{
+			name:   "text and image",
+			model:  "gemini-2.5-flash",
+			output: []any{map[string]any{"type": "input_text", "text": "screenshot captured"}, imagePart},
+			wantTurn: `[
+				{"functionResponse":{"name":"view","response":{"content":"screenshot captured"},"id":"call_1"}},
+				{"inlineData":{"mimeType":"image/png","data":"iVBORw0KGgo="}}
+			]`,
+		},
+		{
+			name:  "pdf only on a models/ prefixed 1.5 id",
+			model: "models/gemini-1.5-pro",
+			output: []any{
+				map[string]any{"type": "input_file", "file_data": "data:application/pdf;base64,JVBERi0xLjQ="},
+			},
+			wantTurn: `[
+				{"functionResponse":{"name":"view","response":{},"id":"call_1"}},
+				{"inlineData":{"mimeType":"application/pdf","data":"JVBERi0xLjQ="}}
+			]`,
+		},
+		{
+			name:  "audio and video are carried as ordinary parts",
+			model: "gemini-2.0-flash",
+			output: []any{
+				map[string]any{"type": "input_audio", "input_audio": map[string]any{"data": "UklGRg==", "format": "wav"}},
+				map[string]any{"type": "input_file", "file_data": "data:video/mp4;base64,AAAA"},
+				map[string]any{"type": "input_file", "file_data": "data:application/zip;base64,UEsDBA=="},
+			},
+			wantTurn: `[
+				{"functionResponse":{"name":"view","response":{},"id":"call_1"}},
+				{"inlineData":{"mimeType":"audio/wav","data":"UklGRg=="}},
+				{"inlineData":{"mimeType":"video/mp4","data":"AAAA"}}
+			]`,
+			wantDiagnostics: []types.ConversionDiagnostic{
+				omittedToolMedia("Gemini function responses cannot carry application/zip content"),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		for _, outputType := range []string{"function_call_output", "custom_tool_call_output"} {
+			t.Run(tt.name+"/"+outputType, func(t *testing.T) {
+				ctx, collector := convdiag.WithCollector(context.Background())
+				turn := toolOutputGeminiTurn(t, ctx, tt.model, outputType, tt.output)
+
+				gotTurn, err := kitutil.Marshal(turn.Parts)
+				require.NoError(t, err)
+				assert.JSONEq(t, tt.wantTurn, string(gotTurn))
+				assert.Equal(t, tt.wantDiagnostics, collector.Diagnostics())
+			})
+		}
+	}
+}
+
+// The Gemini Blob reference lists GIF, AVIF, audio/*, video/* and text
+// documents as inline data; ordinary messages carrying them must convert.
+func TestOpenAIResponsesRequestToGeminiChatInlineMimeTypes(t *testing.T) {
+	useDataURLMediaResolver(t)
+
+	for _, mimeType := range []string{"image/gif", "image/avif", "audio/ogg", "video/webm", "text/markdown"} {
+		t.Run(mimeType, func(t *testing.T) {
+			got, err := OpenAIResponsesRequestToGeminiChat(context.Background(), &dto.OpenAIResponsesRequest{
+				Model: "gemini-test",
+				Input: mustRawMessage(t, []map[string]any{{"role": "user", "content": []any{
+					map[string]any{"type": "input_file", "file_data": "data:" + mimeType + ";base64,AAAA"},
+				}}}),
+			}, &convmeta.Values{})
+			require.NoError(t, err)
+			require.Len(t, got.Contents, 1)
+			assert.Equal(t, []dto.GeminiPart{{InlineData: &dto.GeminiInlineData{MimeType: mimeType, Data: "AAAA"}}}, got.Contents[0].Parts)
+		})
+	}
+
+	_, err := OpenAIResponsesRequestToGeminiChat(context.Background(), &dto.OpenAIResponsesRequest{
+		Model: "gemini-test",
+		Input: mustRawMessage(t, []map[string]any{{"role": "user", "content": []any{
+			map[string]any{"type": "input_file", "file_data": "data:application/zip;base64,UEsDBA=="},
+		}}}),
+	}, &convmeta.Values{})
+	require.ErrorContains(t, err, "mime type is not supported by Gemini: 'application/zip'")
+}
+
+func TestOpenAIResponsesRequestToGeminiChatKeepsParallelToolOutputsInOrder(t *testing.T) {
+	useDataURLMediaResolver(t)
+	input := []map[string]any{
+		{"type": "function_call", "call_id": "call_1", "name": "screenshot", "arguments": "{}"},
+		{"type": "function_call", "call_id": "call_2", "name": "read_file", "arguments": `{"path":"note.txt"}`},
+		{"type": "function_call", "call_id": "call_3", "name": "logo", "arguments": "{}"},
+		{"type": "function_call_output", "call_id": "call_1", "output": []any{
+			map[string]any{"type": "input_text", "text": "screenshot captured"},
+			map[string]any{"type": "input_image", "image_url": "data:image/png;base64,iVBORw0KGgo="},
+		}},
+		{"type": "function_call_output", "call_id": "call_2", "output": "file contents"},
+		{"type": "function_call_output", "call_id": "call_3", "output": []any{
+			map[string]any{"type": "input_image", "image_url": "data:image/webp;base64,UklGRg=="},
+		}},
+		{"role": "user", "content": "what now?"},
+	}
+	calls := `{"role":"model","parts":[
+		{"functionCall":{"id":"call_1","name":"screenshot","args":{}}},
+		{"functionCall":{"id":"call_2","name":"read_file","args":{"path":"note.txt"}}},
+		{"functionCall":{"id":"call_3","name":"logo","args":{}}}
+	]}`
+
+	tests := []struct {
+		name         string
+		info         *convmeta.Values
+		wantContents string
+	}{
+		{
+			name: "media inside function responses",
+			info: &convmeta.Values{},
+			wantContents: `[` + calls + `,
+				{"role":"user","parts":[
+					{"functionResponse":{"name":"screenshot","response":{"content":"screenshot captured"},
+						"parts":[{"inlineData":{"mimeType":"image/png","data":"iVBORw0KGgo="}}],"id":"call_1"}},
+					{"functionResponse":{"name":"read_file","response":{"content":"file contents"},"id":"call_2"}},
+					{"functionResponse":{"name":"logo","response":{},
+						"parts":[{"inlineData":{"mimeType":"image/webp","data":"UklGRg=="}}],"id":"call_3"}}
+				]},
+				{"role":"user","parts":[{"text":"what now?"}]}
+			]`,
+		},
+		{
+			name: "media after all function responses on the mapped 2.5 upstream",
+			info: &convmeta.Values{ChannelMetaAttached: true, UpstreamModelName: "gemini-2.5-flash"},
+			wantContents: `[` + calls + `,
+				{"role":"user","parts":[
+					{"functionResponse":{"name":"screenshot","response":{"content":"screenshot captured"},"id":"call_1"}},
+					{"functionResponse":{"name":"read_file","response":{"content":"file contents"},"id":"call_2"}},
+					{"functionResponse":{"name":"logo","response":{},"id":"call_3"}},
+					{"inlineData":{"mimeType":"image/png","data":"iVBORw0KGgo="}},
+					{"inlineData":{"mimeType":"image/webp","data":"UklGRg=="}}
+				]},
+				{"role":"user","parts":[{"text":"what now?"}]}
+			]`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := OpenAIResponsesRequestToGeminiChat(context.Background(), &dto.OpenAIResponsesRequest{
+				Model: "gemini-client-alias",
+				Input: mustRawMessage(t, input),
+			}, tt.info)
+			require.NoError(t, err)
+
+			gotContents, err := kitutil.Marshal(got.Contents)
+			require.NoError(t, err)
+			assert.JSONEq(t, tt.wantContents, string(gotContents))
+		})
+	}
 }
 
 func mustRawMessage(t *testing.T, value any) []byte {
