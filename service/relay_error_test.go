@@ -1,11 +1,13 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
@@ -23,6 +26,86 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
+
+func TestShouldDisableChannelErrorCodesPreserveCompatibility(t *testing.T) {
+	previousAutoDisable := common.AutomaticDisableChannelEnabled
+	previousKeywords := operation_setting.AutomaticDisableKeywords
+	previousStatusCodes := operation_setting.AutomaticDisableStatusCodeRanges
+	previousDB := model.DB
+	previousOptionMap := common.OptionMap
+	previousOptions := model.CurrentRequestPolicy().Options
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := database.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, database.AutoMigrate(&model.Option{}))
+	model.DB = database
+	common.OptionMap = make(map[string]string)
+	t.Cleanup(func() {
+		require.NoError(t, model.UpdateRequestPolicyOptions(map[string]string{
+			"monitor_setting.auto_disable_error_codes": previousOptions["monitor_setting.auto_disable_error_codes"],
+		}))
+		common.OptionMap = previousOptionMap
+		model.DB = previousDB
+		require.NoError(t, sqlDB.Close())
+		common.AutomaticDisableChannelEnabled = previousAutoDisable
+		operation_setting.AutomaticDisableKeywords = previousKeywords
+		operation_setting.AutomaticDisableStatusCodeRanges = previousStatusCodes
+	})
+	common.AutomaticDisableChannelEnabled = true
+	operation_setting.AutomaticDisableKeywords = []string{"用户额度不足", "legacy provider failure"}
+	operation_setting.AutomaticDisableStatusCodeRanges = []operation_setting.StatusCodeRange{{Start: 401, End: 401}}
+
+	for _, tc := range []struct {
+		name   string
+		codes  string
+		body   string
+		status int
+		want   bool
+	}{
+		{"English message matches code", "insufficient_user_quota", `{"error":{"code":"insufficient_user_quota","message":"Insufficient user quota","type":"new_api_error"}}`, 403, true},
+		{"Chinese message matches code", "insufficient_user_quota", `{"error":{"code":"insufficient_user_quota","message":"余额已用完","type":"new_api_error"}}`, 403, true},
+		{"multiline codes trim whitespace", "other_code\r\n  insufficient_user_quota \r\n", `{"error":{"code":"insufficient_user_quota","message":"Quota exhausted"}}`, 403, true},
+		{"empty list preserves old behavior", "", `{"error":{"code":"insufficient_user_quota","message":"Insufficient user quota"}}`, 403, false},
+		{"code match is exact", "quota", `{"error":{"code":"insufficient_user_quota","message":"Quota exhausted"}}`, 403, false},
+		{"code match is case sensitive", "INSUFFICIENT_USER_QUOTA", `{"error":{"code":"insufficient_user_quota","message":"Quota exhausted"}}`, 403, false},
+		{"numeric provider code matches its string form", "20001", `{"error":{"code":20001,"message":"Quota exhausted"}}`, 403, true},
+		{"blank entries do not match an empty code", " \n\r\n", `{"error":{"code":"","message":"Unclassified failure"}}`, 400, false},
+		{"old upstream without code uses Chinese keyword", "insufficient_user_quota", `{"error":{"message":"用户额度不足, 剩余额度: 0"}}`, 403, true},
+		{"old upstream with empty code uses keyword", "insufficient_user_quota", `{"error":{"code":"","message":"用户额度不足, 剩余额度: 0"}}`, 403, true},
+		{"legacy message-only response uses keyword", "insufficient_user_quota", `{"message":"Legacy Provider Failure"}`, 400, true},
+		{"unknown code retains custom keyword", "insufficient_user_quota", `{"error":{"code":"provider_error","message":"Legacy Provider Failure"}}`, 400, true},
+		{"known unmatched code retains keyword", "other_code", `{"error":{"code":"insufficient_user_quota","message":"用户额度不足, 剩余额度: 0"}}`, 403, true},
+		{"message mentioning a code does not match it", "insufficient_user_quota", `{"error":{"code":"other_code","message":"insufficient_user_quota"}}`, 400, false},
+		{"status rule remains effective", "", `{"error":{"code":"other_code","message":"Authentication failed"}}`, 401, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.NoError(t, model.UpdateRequestPolicyOptions(map[string]string{"monitor_setting.auto_disable_error_codes": tc.codes}))
+			response := &http.Response{StatusCode: tc.status, Body: io.NopCloser(strings.NewReader(tc.body))}
+			apiErr := RelayErrorHandler(context.Background(), response, false)
+			require.NotNil(t, apiErr)
+			before := apiErr.ToOpenAIError()
+			assert.Equal(t, tc.want, ShouldDisableChannel(apiErr))
+			assert.Equal(t, before, apiErr.ToOpenAIError(), "older downstreams must receive the same error body")
+			assert.Equal(t, tc.status, apiErr.StatusCode)
+		})
+	}
+
+	require.NoError(t, model.UpdateRequestPolicyOptions(map[string]string{"monitor_setting.auto_disable_error_codes": "insufficient_user_quota"}))
+	var saved model.Option
+	require.NoError(t, database.Where("key = ?", "monitor_setting.auto_disable_error_codes").First(&saved).Error)
+	assert.Equal(t, "insufficient_user_quota", saved.Value)
+	localQuota := types.NewErrorWithStatusCode(errors.New("用户额度不足"), types.ErrorCodeInsufficientUserQuota, http.StatusForbidden, types.ErrOptionWithSkipRetry())
+	assert.False(t, ShouldDisableChannel(localQuota), "a local quota rejection must not disable an upstream")
+	assert.False(t, ShouldDisableChannel(nil))
+	channelError := types.NewError(errors.New("no available key"), types.ErrorCodeChannelNoAvailableKey)
+	assert.True(t, ShouldDisableChannel(channelError))
+	common.AutomaticDisableChannelEnabled = false
+	assert.False(t, ShouldDisableChannel(channelError), "global opt-out still wins")
+	upstreamQuota := types.WithOpenAIError(types.OpenAIError{Code: "insufficient_user_quota", Message: "Quota exhausted"}, http.StatusForbidden)
+	assert.False(t, ShouldDisableChannel(upstreamQuota), "configured error codes cannot override global opt-out")
+}
 
 func TestShouldRetryRelayErrorHonorsChannelPinOnChannelError(t *testing.T) {
 	err := types.NewError(errors.New("channel failed"), types.ErrorCodeChannelNoAvailableKey)

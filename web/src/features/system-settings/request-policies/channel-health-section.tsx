@@ -87,6 +87,7 @@ const createChannelHealthSchema = (
       AutomaticDisableKeywords: z.string(),
       AutomaticDisableStatusCodes: z.string(),
       monitor_setting: z.object({
+        auto_disable_error_codes: z.string(),
         auto_test_channel_enabled: z.boolean(),
         auto_test_channel_minutes: z.coerce
           .number()
@@ -136,6 +137,7 @@ type NormalizedChannelHealthValues = {
   AutomaticEnableChannelEnabled: boolean
   AutomaticDisableKeywords: string
   AutomaticDisableStatusCodes: string
+  'monitor_setting.auto_disable_error_codes': string
   'monitor_setting.auto_test_channel_enabled': boolean
   'monitor_setting.auto_test_channel_minutes': number
   'monitor_setting.channel_test_concurrency': number
@@ -160,6 +162,9 @@ const buildFormDefaults = (
   ),
   AutomaticDisableStatusCodes: defaults.AutomaticDisableStatusCodes ?? '',
   monitor_setting: {
+    auto_disable_error_codes: normalizeLineEndings(
+      defaults['monitor_setting.auto_disable_error_codes'] ?? ''
+    ),
     auto_test_channel_enabled:
       defaults['monitor_setting.auto_test_channel_enabled'],
     auto_test_channel_minutes:
@@ -184,6 +189,9 @@ const normalizeDefaults = (
   AutomaticDisableStatusCodes: parseHttpStatusCodeRules(
     defaults.AutomaticDisableStatusCodes ?? ''
   ).normalized,
+  'monitor_setting.auto_disable_error_codes': normalizeLineEndings(
+    defaults['monitor_setting.auto_disable_error_codes'] ?? ''
+  ),
   'monitor_setting.auto_test_channel_enabled':
     defaults['monitor_setting.auto_test_channel_enabled'],
   'monitor_setting.auto_test_channel_minutes':
@@ -207,6 +215,9 @@ const normalizeFormValues = (
   AutomaticDisableStatusCodes: parseHttpStatusCodeRules(
     values.AutomaticDisableStatusCodes
   ).normalized,
+  'monitor_setting.auto_disable_error_codes': normalizeLineEndings(
+    values.monitor_setting.auto_disable_error_codes
+  ),
   'monitor_setting.auto_test_channel_enabled':
     values.monitor_setting.auto_test_channel_enabled,
   'monitor_setting.auto_test_channel_minutes':
@@ -565,6 +576,29 @@ export function ChannelHealthSection({
                             {t('Normalized:')} {autoDisableParsed.normalized}
                           </span>
                         )}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name='monitor_setting.auto_disable_error_codes'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Auto-disable error codes')}</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        rows={3}
+                        placeholder='insufficient_user_quota'
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      {t(
+                        'One exact, case-sensitive error code per line. Empty by default. Status-code and failure-keyword rules still apply when no code matches.'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

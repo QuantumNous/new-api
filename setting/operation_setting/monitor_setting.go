@@ -9,6 +9,7 @@ import (
 )
 
 type MonitorSetting struct {
+	AutoDisableErrorCodes  string  `json:"auto_disable_error_codes"`
 	AutoTestChannelEnabled bool    `json:"auto_test_channel_enabled"`
 	AutoTestChannelMinutes float64 `json:"auto_test_channel_minutes"`
 	ChannelTestMode        string  `json:"channel_test_mode"`
