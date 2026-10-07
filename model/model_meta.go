@@ -447,6 +447,9 @@ type PreferredModelOwner struct {
 	ChannelName string `json:"channel_name"`
 }
 
+// GetPreferredModelOwners returns, for each model, the enabled channel that
+// routing would prefer within the given groups, together with that channel's
+// type, id and name.
 func GetPreferredModelOwners(modelNames []string, groups []string) (map[string]PreferredModelOwner, error) {
 	result := make(map[string]PreferredModelOwner)
 	modelNames = normalizeLookupValues(modelNames)
