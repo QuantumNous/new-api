@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -138,20 +139,30 @@ func channelOwnerName(channelType int) string {
 	return strings.ToLower(constant.GetChannelTypeName(channelType))
 }
 
+func preferredChannelOwnerName(owner model.PreferredModelOwner) string {
+	if constant.IsAdvancedCustomChannel(owner.ChannelType) {
+		if name := strings.TrimSpace(owner.ChannelName); name != "" {
+			return name
+		}
+		return strconv.Itoa(owner.ChannelID)
+	}
+	return channelOwnerName(owner.ChannelType)
+}
+
 func getPreferredModelOwners(modelNames []string, groups []string) map[string]string {
-	channelTypes, err := model.GetPreferredModelOwnerChannelTypes(modelNames, groups)
+	preferredOwners, err := model.GetPreferredModelOwners(modelNames, groups)
 	if err != nil {
-		common.SysLog(fmt.Sprintf("GetPreferredModelOwnerChannelTypes error: %v", err))
+		common.SysLog(fmt.Sprintf("GetPreferredModelOwners error: %v", err))
 		return map[string]string{}
 	}
 
-	ownerByChannelType := make(map[int]string)
-	owners := make(map[string]string, len(channelTypes))
-	for modelName, channelType := range channelTypes {
-		owner, ok := ownerByChannelType[channelType]
+	ownerByChannelID := make(map[int]string)
+	owners := make(map[string]string, len(preferredOwners))
+	for modelName, preferredOwner := range preferredOwners {
+		owner, ok := ownerByChannelID[preferredOwner.ChannelID]
 		if !ok {
-			owner = channelOwnerName(channelType)
-			ownerByChannelType[channelType] = owner
+			owner = preferredChannelOwnerName(preferredOwner)
+			ownerByChannelID[preferredOwner.ChannelID] = owner
 		}
 		if owner != "" {
 			owners[modelName] = owner
