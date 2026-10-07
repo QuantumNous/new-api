@@ -67,9 +67,11 @@ func ShouldDisableChannel(err *types.NewAPIError) bool {
 	if types.IsSkipRetryError(err) {
 		return false
 	}
-	// Match stable codes before inspecting human-readable text. An empty list
-	// preserves existing installations' automatic-disable policy.
-	if code := string(err.GetErrorCode()); code != "" {
+	// Match stable upstream codes before inspecting human-readable text. Codes
+	// new-api assigns itself, such as bad_response_status_code, never match.
+	// An empty list preserves existing installations' automatic-disable policy.
+	if err.HasUpstreamErrorCode() {
+		code := string(err.GetErrorCode())
 		for configured := range strings.SplitSeq(model.CurrentRequestPolicy().Options["monitor_setting.auto_disable_error_codes"], "\n") {
 			if strings.TrimSpace(configured) == code {
 				return true
