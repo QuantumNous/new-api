@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -174,6 +175,8 @@ func geminiClaudeStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 	var conversionErr error
 	var upstreamAPIError *types.NewAPIError
 	var pendingToolSignature string
+	var groundingText strings.Builder
+	sentCitations := make(map[string]struct{})
 	send := func(chunk *dto.ChatCompletionsStreamResponse, signature string) bool {
 		if c.Request.Context().Err() != nil {
 			return false
@@ -231,7 +234,7 @@ func geminiClaudeStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 					sawTerminal = true
 				}
 			}
-			for _, part := range candidate.Content.Parts {
+			for partIndex, part := range candidate.Content.Parts {
 				var signature string
 				if len(part.ThoughtSignature) > 0 {
 					if err := common.Unmarshal(part.ThoughtSignature, &signature); err != nil {
@@ -251,6 +254,16 @@ func geminiClaudeStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 					conversionErr = err
 					return false
 				}
+				var annotations []byte
+				if !part.Thought && part.Text != "" && part.FunctionCall == nil {
+					groundedPart := *single
+					groundedPart.Candidates = []dto.GeminiChatCandidate{{
+						Content:           single.Candidates[0].Content,
+						GroundingMetadata: geminiClaudePartGrounding(candidate, partIndex),
+					}}
+					chat := responseGeminiChat2OpenAI(c, &groundedPart)
+					annotations = geminiClaudeCitationAnnotations(chat.Choices[0].Message.Annotations, part.Text, sentCitations, false)
+				}
 				for _, result := range results {
 					chunk := result.Value.(*dto.ChatCompletionsStreamResponse)
 					if chunk.IsToolCall() && finishReason == types.FinishReasonStop {
@@ -262,6 +275,7 @@ func geminiClaudeStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 					}
 					for i := range chunk.Choices {
 						chunk.Choices[i].FinishReason = nil
+						chunk.Choices[i].Delta.Annotations = annotations
 					}
 					if !send(chunk, signature) {
 						return false
@@ -295,15 +309,29 @@ func geminiClaudeStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			for _, result := range results {
 				chunk := result.Value.(*dto.ChatCompletionsStreamResponse)
 				for _, choice := range chunk.Choices {
-					if len(choice.Delta.Annotations) == 0 {
-						continue
-					}
-					choice.Delta = dto.ChatCompletionsStreamResponseChoiceDelta{Annotations: choice.Delta.Annotations}
-					choice.FinishReason = nil
-					chunk.Choices = []dto.ChatCompletionsStreamResponseChoice{choice}
-					chunk.Usage = nil
-					if !send(chunk, "") {
-						return false
+					groundingText.WriteString(choice.Delta.GetContentString())
+					annotations := geminiClaudeCitationAnnotations(choice.Delta.Annotations, groundingText.String(), sentCitations, true)
+					for _, annotation := range gjson.ParseBytes(annotations).Array() {
+						// A late citation cannot target a closed block. Give it
+						// a new text block containing its actual quoted text.
+						state := info.ClaudeConvertInfo
+						if state != nil && state.LastMessagesType == relaycommon.LastMessageTypeText {
+							index := state.Index
+							if err := writeGeminiClaudeEvent(c, &dto.ClaudeResponse{Type: "content_block_stop", Index: &index}); err != nil {
+								conversionErr = err
+								return false
+							}
+							state.Index++
+							state.LastMessagesType = relaycommon.LastMessageTypeNone
+						}
+						choice.Delta = dto.ChatCompletionsStreamResponseChoiceDelta{Annotations: []byte("[" + annotation.Raw + "]")}
+						choice.Delta.SetContentString(annotation.Get("url_citation.cited_text").String())
+						choice.FinishReason = nil
+						chunk.Choices = []dto.ChatCompletionsStreamResponseChoice{choice}
+						chunk.Usage = nil
+						if !send(chunk, "") {
+							return false
+						}
 					}
 				}
 			}
@@ -351,6 +379,40 @@ func geminiClaudeStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 		}
 	}
 	return usage, nil
+}
+
+func geminiClaudeCitationAnnotations(raw []byte, text string, sent map[string]struct{}, deduplicate bool) []byte {
+	var annotations []map[string]any
+	if err := common.Unmarshal(raw, &annotations); err != nil {
+		return nil
+	}
+	runes := []rune(text)
+	selected := make([]map[string]any, 0, len(annotations))
+	for _, annotation := range annotations {
+		citation, ok := annotation["url_citation"].(map[string]any)
+		if !ok {
+			continue
+		}
+		start, startOK := citation["start_index"].(float64)
+		end, endOK := citation["end_index"].(float64)
+		if !startOK || !endOK || start < 0 || end <= start || end > float64(len(runes)) {
+			continue
+		}
+		quote := string(runes[int(start):int(end)])
+		url, _ := citation["url"].(string)
+		key := url + "\x00" + quote
+		if _, exists := sent[key]; exists && deduplicate {
+			continue
+		}
+		sent[key] = struct{}{}
+		citation["cited_text"] = quote
+		selected = append(selected, annotation)
+	}
+	if len(selected) == 0 {
+		return nil
+	}
+	encoded, _ := common.Marshal(selected)
+	return encoded
 }
 
 func writeGeminiClaudeStreamError(c *gin.Context, info *relaycommon.RelayInfo, apiError *types.NewAPIError) {

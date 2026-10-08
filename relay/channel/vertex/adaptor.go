@@ -285,7 +285,7 @@ func validateClaudeGeminiRequest(request *dto.ClaudeRequest) error {
 			path := fmt.Sprintf("messages[%d].content[%d]", messageIndex, blockIndex)
 			switch block.Type {
 			case "thinking":
-				if message.Role != "assistant" || hasContent || block.Thinking == nil {
+				if message.Role != "assistant" || block.Thinking == nil {
 					return fmt.Errorf("%s: unsupported Anthropic thinking history for Vertex Gemini", path)
 				}
 				hasThought = true

@@ -271,6 +271,25 @@ func TestVertexAnthropicNonstreamResponses(t *testing.T) {
 				assert.Equal(t, "signature-1", response.Content[0].Signature)
 				assert.Equal(t, "text", response.Content[1].Type)
 				assert.Equal(t, "signature-2", response.Content[2].Signature)
+				replay := dto.ClaudeRequest{
+					Model: info.UpstreamModelName, MaxTokens: common.GetPointer(uint(32)),
+					Messages: []dto.ClaudeMessage{
+						{Role: "user", Content: "Question"},
+						{Role: "assistant", Content: response.Content},
+						{Role: "user", Content: "Continue"},
+					},
+				}
+				value, err := adaptor.ConvertClaudeRequest(c, info, &replay)
+				require.NoError(t, err)
+				history := value.(*dto.GeminiChatRequest).Contents[1].Parts
+				require.Len(t, history, 3)
+				assert.True(t, history[0].Thought)
+				assert.Equal(t, "First", history[0].Text)
+				assert.JSONEq(t, `"signature-1"`, string(history[0].ThoughtSignature))
+				assert.Equal(t, "Answer", history[1].Text)
+				assert.True(t, history[2].Thought)
+				assert.Equal(t, "Second", history[2].Text)
+				assert.JSONEq(t, `"signature-2"`, string(history[2].ThoughtSignature))
 			case "separate signature":
 				require.Len(t, response.Content, 2)
 				assert.Equal(t, "signature-1", response.Content[0].Signature)
@@ -410,20 +429,34 @@ func TestVertexAnthropicGroundingPreservesCitations(t *testing.T) {
 			}
 			var urls []string
 			open := map[int]string{}
+			texts := map[int]string{}
 			events := vertexClaudeEvents(t, recorder)
 			for _, event := range events {
 				switch event.Type {
 				case "content_block_start":
 					open[*event.Index] = event.ContentBlock.Type
+					if event.ContentBlock.Type == "text" {
+						texts[*event.Index] = event.ContentBlock.GetText()
+					}
 				case "content_block_stop":
 					delete(open, *event.Index)
 				case "content_block_delta":
+					if event.Delta.Type == "text_delta" {
+						texts[*event.Index] += event.Delta.GetText()
+					}
 					if event.Delta.Type == "citations_delta" {
 						assert.Equal(t, "text", open[*event.Index])
 						var citation map[string]any
 						require.NoError(t, common.Unmarshal(event.Delta.Citation, &citation))
 						assert.Equal(t, "web_search_result_location", citation["type"])
 						urls = append(urls, citation["url"].(string))
+						if citation["url"] == "https://city.example" {
+							assert.Equal(t, "東京", citation["cited_text"])
+							assert.Equal(t, "東京", texts[*event.Index], "city citation must belong to its actual text block")
+						} else {
+							assert.Equal(t, "Sunny", citation["cited_text"])
+							assert.Equal(t, "Sunny", texts[*event.Index], "weather citation must belong to its actual text block")
+						}
 					}
 				}
 			}
