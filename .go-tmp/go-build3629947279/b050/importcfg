@@ -1,0 +1,5 @@
+# import config
+packagefile internal/bisect=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b051/_pkg_.a
+packagefile internal/godebugs=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b015/_pkg_.a
+packagefile sync=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b040/_pkg_.a
+packagefile sync/atomic=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b042/_pkg_.a

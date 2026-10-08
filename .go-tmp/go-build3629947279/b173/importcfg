@@ -1,0 +1,4 @@
+# import config
+packagefile crypto/subtle=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b103/_pkg_.a
+packagefile encoding/binary=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b105/_pkg_.a
+packagefile math/bits=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b023/_pkg_.a

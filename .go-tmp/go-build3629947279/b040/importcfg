@@ -1,0 +1,6 @@
+# import config
+packagefile internal/race=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b031/_pkg_.a
+packagefile internal/sync=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b041/_pkg_.a
+packagefile internal/synctest=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b043/_pkg_.a
+packagefile runtime=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b009/_pkg_.a
+packagefile sync/atomic=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b042/_pkg_.a

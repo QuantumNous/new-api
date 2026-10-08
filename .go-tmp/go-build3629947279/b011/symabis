@@ -1,0 +1,3 @@
+def internal/cpu.cpuid ABI0
+def internal/cpu.xgetbv ABI0
+def internal/cpu.getGOAMD64level ABI0

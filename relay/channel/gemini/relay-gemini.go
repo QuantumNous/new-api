@@ -303,6 +303,9 @@ func isGeminiDownstreamStop(c *gin.Context, info *relaycommon.RelayInfo) bool {
 }
 
 func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	if info.RelayFormat == types.RelayFormatClaude {
+		return geminiClaudeStreamHandler(c, info, resp)
+	}
 	id := helper.GetResponseID(c)
 	createAt := common.GetTimestamp()
 	finishReason := constant.FinishReasonStop
@@ -350,34 +353,10 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 		if info.SendResponseCount == 0 {
 			// send first response
 			emptyResponse := helper.GenerateStartEmptyResponse(id, createAt, info.UpstreamModelName, nil)
-			// Claude message_start is emitted from this first OpenAI chunk.
-			// Carry upstream usage when the current Gemini frame provided it.
 			emptyResponse.Usage = response.Usage
-			if response.IsToolCall() {
-				if len(emptyResponse.Choices) > 0 && len(response.Choices) > 0 {
-					toolCalls := response.Choices[0].Delta.ToolCalls
-					copiedToolCalls := make([]dto.ToolCallResponse, len(toolCalls))
-					for idx := range toolCalls {
-						copiedToolCalls[idx] = toolCalls[idx]
-						copiedToolCalls[idx].Function.Arguments = ""
-					}
-					emptyResponse.Choices[0].Delta.ToolCalls = copiedToolCalls
-				}
-				finishReason = constant.FinishReasonToolCalls
-				err := handleStream(c, info, emptyResponse)
-				if err != nil {
-					logger.LogError(c, err.Error())
-				}
-
-				response.ClearToolCalls()
-				if response.IsFinished() {
-					response.Choices[0].FinishReason = nil
-				}
-			} else {
-				err := handleStream(c, info, emptyResponse)
-				if err != nil {
-					logger.LogError(c, err.Error())
-				}
+			err := handleStream(c, info, emptyResponse)
+			if err != nil {
+				logger.LogError(c, err.Error())
 			}
 		}
 
@@ -416,6 +395,15 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	}
 	service.CloseResponseBodyGracefully(resp)
 	logger.LogDebug(c, "Gemini response body: %s", responseBody)
+	if info.RelayFormat == types.RelayFormatClaude {
+		if upstreamError := gjson.GetBytes(responseBody, "error"); upstreamError.Exists() && upstreamError.Type != gjson.Null {
+			status := int(upstreamError.Get("code").Int())
+			if status < 400 || status > 599 {
+				status = http.StatusBadGateway
+			}
+			return nil, types.NewOpenAIError(errors.New("Gemini upstream error: "+upstreamError.Get("message").String()), types.ErrorCodeBadResponseBody, status)
+		}
+	}
 	var geminiResponse dto.GeminiChatResponse
 	err = common.Unmarshal(responseBody, &geminiResponse)
 	if err != nil {
@@ -475,11 +463,11 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
 	case types.RelayFormatClaude:
-		convertResult, err := service.ConvertResponse(c, info, types.RelayFormatClaude, fullTextResponse)
+		claudeResponse, err := geminiClaudeResponse(c, info, &geminiResponse, &usage)
 		if err != nil {
 			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
-		claudeRespStr, err := common.Marshal(convertResult.Value)
+		claudeRespStr, err := common.Marshal(claudeResponse)
 		if err != nil {
 			return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 		}

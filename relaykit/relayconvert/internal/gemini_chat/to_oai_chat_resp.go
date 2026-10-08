@@ -85,8 +85,8 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 		Created: created,
 		Choices: make([]dto.OpenAITextResponseChoice, 0, len(response.Candidates)),
 	}
-	isToolCall := false
 	for _, candidate := range response.Candidates {
+		isToolCall := false
 		choice := dto.OpenAITextResponseChoice{
 			Index: int(candidate.Index),
 			Message: dto.Message{
@@ -175,7 +175,7 @@ func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiCha
 				choice.FinishReason = types.FinishReasonContentFilter
 			}
 		}
-		if isToolCall {
+		if isToolCall && choice.FinishReason == types.FinishReasonStop {
 			choice.FinishReason = types.FinishReasonToolCalls
 		}
 		choice.Message.Annotations = groundingAnnotationsToChat(candidate.GroundingMetadata, candidate.Content, choice.Message.StringContent())
@@ -720,7 +720,11 @@ func (s *GeminiToChatStreamState) terminalChunk(model string) *dto.ChatCompletio
 }
 
 func geminiResponseToolCall(item *dto.GeminiPart) *dto.ToolCallResponse {
-	argsBytes, err := kitutil.Marshal(item.FunctionCall.Arguments)
+	args := item.FunctionCall.Arguments
+	if args == nil {
+		args = map[string]any{}
+	}
+	argsBytes, err := kitutil.Marshal(args)
 	if err != nil {
 		return nil
 	}

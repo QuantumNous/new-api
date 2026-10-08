@@ -1,0 +1,14 @@
+# import config
+packagefile bytes=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b062/_pkg_.a
+packagefile errors=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b003/_pkg_.a
+packagefile fmt=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b066/_pkg_.a
+packagefile go/ast=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b109/_pkg_.a
+packagefile go/build/constraint=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b115/_pkg_.a
+packagefile go/internal/scannerhooks=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b111/_pkg_.a
+packagefile go/scanner=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b110/_pkg_.a
+packagefile go/token=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b112/_pkg_.a
+packagefile io=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b039/_pkg_.a
+packagefile io/fs=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b037/_pkg_.a
+packagefile os=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b002/_pkg_.a
+packagefile path/filepath=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b072/_pkg_.a
+packagefile strings=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b068/_pkg_.a

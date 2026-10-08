@@ -1,0 +1,12 @@
+def reflect.makeFuncStub ABI0
+ref no_pointers_stackmap ABI0
+ref runtime.spillArgs ABI0
+ref reflect.moveMakeFuncArgPtrs ABI0
+ref reflect.callReflect ABI0
+ref runtime.unspillArgs ABI0
+def reflect.methodValueCall ABI0
+ref no_pointers_stackmap ABI0
+ref runtime.spillArgs ABI0
+ref reflect.moveMakeFuncArgPtrs ABI0
+ref reflect.callMethod ABI0
+ref runtime.unspillArgs ABI0

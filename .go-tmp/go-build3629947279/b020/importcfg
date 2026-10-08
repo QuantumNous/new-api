@@ -1,0 +1,4 @@
+# import config
+packagefile internal/bytealg=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b010/_pkg_.a
+packagefile internal/runtime/syscall/linux=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b021/_pkg_.a
+packagefile internal/strconv=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b022/_pkg_.a

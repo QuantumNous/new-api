@@ -1,0 +1,7 @@
+# import config
+packagefile crypto/internal/boring=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b080/_pkg_.a
+packagefile crypto/internal/fips140/hmac=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b087/_pkg_.a
+packagefile crypto/internal/fips140hash=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b133/_pkg_.a
+packagefile crypto/internal/fips140only=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b101/_pkg_.a
+packagefile crypto/subtle=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b103/_pkg_.a
+packagefile hash=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b079/_pkg_.a

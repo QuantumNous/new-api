@@ -1,0 +1,6 @@
+def crypto/internal/fips140/bigmod.addMulVVW1024 ABI0
+ref crypto/internal/fips140/bigmod.supportADX ABI0
+def crypto/internal/fips140/bigmod.addMulVVW1536 ABI0
+ref crypto/internal/fips140/bigmod.supportADX ABI0
+def crypto/internal/fips140/bigmod.addMulVVW2048 ABI0
+ref crypto/internal/fips140/bigmod.supportADX ABI0

@@ -1,0 +1,5 @@
+def crypto/internal/fips140/aes/gcm.gcmAesFinish ABI0
+def crypto/internal/fips140/aes/gcm.gcmAesInit ABI0
+def crypto/internal/fips140/aes/gcm.gcmAesData ABI0
+def crypto/internal/fips140/aes/gcm.gcmAesEnc ABI0
+def crypto/internal/fips140/aes/gcm.gcmAesDec ABI0

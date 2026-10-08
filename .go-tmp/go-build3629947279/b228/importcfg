@@ -1,0 +1,8 @@
+# import config
+packagefile golang.org/x/text/internal=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b229/_pkg_.a
+packagefile golang.org/x/text/language=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b230/_pkg_.a
+packagefile golang.org/x/text/transform=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b234/_pkg_.a
+packagefile golang.org/x/text/unicode/norm=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b235/_pkg_.a
+packagefile strings=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b068/_pkg_.a
+packagefile unicode=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b060/_pkg_.a
+packagefile unicode/utf8=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b045/_pkg_.a

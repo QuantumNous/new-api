@@ -1,0 +1,7 @@
+# import config
+importmap golang.org/x/text/transform=vendor/golang.org/x/text/transform
+importmap golang.org/x/text/unicode/bidi=vendor/golang.org/x/text/unicode/bidi
+packagefile errors=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b003/_pkg_.a
+packagefile vendor/golang.org/x/text/transform=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b200/_pkg_.a
+packagefile vendor/golang.org/x/text/unicode/bidi=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b201/_pkg_.a
+packagefile unicode/utf8=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b045/_pkg_.a

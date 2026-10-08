@@ -1,0 +1,2 @@
+def crypto/sha1.blockAVX2 ABI0
+def crypto/sha1.blockSHANI ABI0

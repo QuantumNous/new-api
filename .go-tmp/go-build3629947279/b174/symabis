@@ -1,0 +1,2 @@
+def vendor/golang.org/x/sys/cpu.cpuid ABI0
+def vendor/golang.org/x/sys/cpu.xgetbv ABI0

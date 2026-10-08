@@ -1,0 +1,5 @@
+# import config
+packagefile internal/cpu=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b011/_pkg_.a
+packagefile internal/goarch=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b006/_pkg_.a
+packagefile internal/runtime/gc=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b025/_pkg_.a
+packagefile internal/runtime/sys=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b027/_pkg_.a

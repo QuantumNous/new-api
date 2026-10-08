@@ -1,0 +1,6 @@
+# import config
+packagefile crypto/internal/boring=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b080/_pkg_.a
+packagefile crypto/internal/fips140/drbg=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b097/_pkg_.a
+packagefile crypto/internal/randutil=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b137/_pkg_.a
+packagefile internal/godebug=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b050/_pkg_.a
+packagefile io=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b039/_pkg_.a

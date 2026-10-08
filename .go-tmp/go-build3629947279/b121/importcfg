@@ -1,0 +1,9 @@
+# import config
+packagefile bufio=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b070/_pkg_.a
+packagefile compress/flate=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b122/_pkg_.a
+packagefile encoding/binary=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b105/_pkg_.a
+packagefile errors=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b003/_pkg_.a
+packagefile fmt=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b066/_pkg_.a
+packagefile hash/crc32=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b123/_pkg_.a
+packagefile io=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b039/_pkg_.a
+packagefile time=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b049/_pkg_.a

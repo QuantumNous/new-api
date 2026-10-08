@@ -1,0 +1,9 @@
+def math.archMax ABI0
+def math.archMin ABI0
+def math.archExp ABI0
+ref math.useFMA ABI0
+def math.archFloor ABI0
+def math.archCeil ABI0
+def math.archTrunc ABI0
+def math.archHypot ABI0
+def math.archLog ABI0

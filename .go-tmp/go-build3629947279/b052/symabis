@@ -1,0 +1,4 @@
+def syscall.rawVforkSyscall ABI0
+def syscall.rawSyscallNoError ABI0
+def syscall.gettimeofday ABI0
+ref runtime.vdsoGettimeofdaySym ABI0

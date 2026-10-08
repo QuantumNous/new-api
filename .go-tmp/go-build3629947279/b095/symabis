@@ -1,0 +1,2 @@
+def crypto/internal/fips140/sha512.blockAVX2 ABI0
+ref crypto/internal/fips140/sha512._K ABI0

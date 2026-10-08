@@ -1,0 +1,4 @@
+# import config
+packagefile crypto=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b078/_pkg_.a
+packagefile crypto/internal/fips140/sha3=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b092/_pkg_.a
+packagefile hash=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b079/_pkg_.a

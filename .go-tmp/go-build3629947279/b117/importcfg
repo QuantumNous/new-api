@@ -1,0 +1,6 @@
+# import config
+packagefile context=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b063/_pkg_.a
+packagefile os=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b002/_pkg_.a
+packagefile slices=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b046/_pkg_.a
+packagefile sync=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b040/_pkg_.a
+packagefile syscall=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b052/_pkg_.a

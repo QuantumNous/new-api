@@ -1,0 +1,351 @@
+package vertex
+
+import (
+	"context"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/model_setting"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func vertexMessagesFixture(t *testing.T, stream bool) (*gin.Context, *httptest.ResponseRecorder, *relaycommon.RelayInfo, *Adaptor) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	info := &relaycommon.RelayInfo{
+		RelayFormat: types.RelayFormatClaude, IsStream: stream, OriginModelName: "gemini-2.5-flash",
+		ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gemini-2.5-flash"},
+	}
+	info.SetEstimatePromptTokens(99)
+	adaptor := &Adaptor{}
+	adaptor.Init(info)
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+	return c, recorder, info, adaptor
+}
+
+func TestVertexAnthropicRequestConvertsToGemini(t *testing.T) {
+	c, _, info, adaptor := vertexMessagesFixture(t, false)
+	var request dto.ClaudeRequest
+	require.NoError(t, common.UnmarshalJsonStr(`{
+		"model":"gemini-2.5-flash","max_tokens":123,"temperature":0,"top_p":0,"top_k":0,
+		"system":[{"type":"text","text":"Be precise"}],"stop_sequences":["END"],
+		"tools":[{"name":"lookup","description":"Lookup","input_schema":{"type":"object","properties":{"city":{"type":"string"}}}}],
+		"messages":[
+			{"role":"user","content":[{"type":"text","text":"Weather?"},{"type":"image","source":{"type":"base64","media_type":"image/png","data":"aGVsbG8="}}]},
+			{"role":"assistant","content":[{"type":"tool_use","id":"toolu_1","name":"lookup","input":{"city":"Paris"},"signature":"gemini-signature"}]},
+			{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"Sunny"}]}
+		]}`, &request))
+	oldRemoveIDs := model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled
+	t.Cleanup(func() { model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled = oldRemoveIDs })
+	for _, removeIDs := range []bool{true, false} {
+		model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled = removeIDs
+		value, err := adaptor.ConvertClaudeRequest(c, info, &request)
+		require.NoError(t, err)
+		geminiRequest, ok := value.(*dto.GeminiChatRequest)
+		require.True(t, ok, "must never forward an Anthropic envelope to generateContent")
+		data, err := common.Marshal(geminiRequest)
+		require.NoError(t, err)
+		var wire map[string]any
+		require.NoError(t, common.Unmarshal(data, &wire))
+		assert.NotContains(t, wire, "messages")
+		assert.NotContains(t, wire, "anthropic_version")
+		config := wire["generationConfig"].(map[string]any)
+		assert.Equal(t, float64(123), config["maxOutputTokens"])
+		assert.Equal(t, float64(0), config["temperature"])
+		assert.Equal(t, float64(0), config["topP"])
+		assert.Equal(t, float64(0), config["topK"])
+		assert.Equal(t, []any{"END"}, config["stopSequences"])
+		assert.Contains(t, string(data), "Be precise")
+		require.Len(t, geminiRequest.Contents, 3)
+		assert.Equal(t, "aGVsbG8=", geminiRequest.Contents[0].Parts[1].InlineData.Data)
+		call := geminiRequest.Contents[1].Parts[0].FunctionCall
+		assert.Equal(t, "lookup", call.FunctionName)
+		assert.JSONEq(t, `"gemini-signature"`, string(geminiRequest.Contents[1].Parts[0].ThoughtSignature))
+		result := geminiRequest.Contents[2].Parts[0].FunctionResponse
+		assert.Equal(t, "lookup", result.Name)
+		assert.Contains(t, string(data), "Sunny")
+		if removeIDs {
+			assert.Empty(t, call.ID)
+			assert.Empty(t, result.ID)
+		} else {
+			assert.Equal(t, "toolu_1", call.ID)
+			assert.JSONEq(t, `"toolu_1"`, string(result.ID))
+		}
+	}
+	request.Thinking = &dto.Thinking{Type: "enabled", BudgetTokens: common.GetPointer(1024)}
+	value, err := adaptor.ConvertClaudeRequest(c, info, &request)
+	require.NoError(t, err)
+	require.NotNil(t, value.(*dto.GeminiChatRequest).GenerationConfig.ThinkingConfig)
+	assert.Equal(t, 1024, *value.(*dto.GeminiChatRequest).GenerationConfig.ThinkingConfig.ThinkingBudget)
+
+	adaptor.RequestMode = RequestModeOpenSource
+	_, err = adaptor.ConvertClaudeRequest(c, info, &request)
+	require.ErrorContains(t, err, "unsupported")
+	adaptor.RequestMode = RequestModeClaude
+	request.Model = "claude-sonnet-4-5-20250929"
+	info.UpstreamModelName = request.Model
+	value, err = adaptor.ConvertClaudeRequest(c, info, &request)
+	require.NoError(t, err)
+	wire, err := common.Marshal(value)
+	require.NoError(t, err)
+	assert.Contains(t, string(wire), `"anthropic_version":"vertex-2023-10-16"`)
+	assert.NotContains(t, string(wire), `"contents"`)
+}
+
+func TestVertexAnthropicNonstreamResponses(t *testing.T) {
+	for _, tc := range []struct {
+		name, parts, finish, reason string
+	}{
+		{"text", `[{"text":"Hello"}]`, "STOP", "end_turn"},
+		{"tools", `[{"text":"Checking"},{"functionCall":{"name":"lookup","args":{"city":"Paris"}}},{"functionCall":{"name":"lookup","args":{"city":"London"}}}]`, "STOP", "tool_use"},
+		{"thinking", `[{"thought":true,"text":"First","thoughtSignature":"signature-1"},{"text":"Answer"},{"thought":true,"text":"Second","thoughtSignature":"signature-2"}]`, "MAX_TOKENS", "max_tokens"},
+		{"separate signature", `[{"thought":true,"text":"Reasoning"},{"thoughtSignature":"signature-1"},{"text":"Answer"}]`, "STOP", "end_turn"},
+		{"truncated tool", `[{"functionCall":{"name":"lookup","args":{}}}]`, "MAX_TOKENS", "max_tokens"},
+		{"safety", `[{"text":"Cannot answer"}]`, "SAFETY", "refusal"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, recorder, info, adaptor := vertexMessagesFixture(t, false)
+			body := `{"candidates":[{"content":{"role":"model","parts":` + tc.parts + `},"finishReason":"` + tc.finish + `"}],"usageMetadata":{"promptTokenCount":12,"candidatesTokenCount":8,"thoughtsTokenCount":2,"cachedContentTokenCount":3,"totalTokenCount":22}}`
+			usage, apiErr := adaptor.DoResponse(c, &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(body))}, info)
+			require.Nil(t, apiErr)
+			require.NotNil(t, usage)
+			var response dto.ClaudeResponse
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+			assert.Equal(t, "message", response.Type)
+			assert.Equal(t, "assistant", response.Role)
+			assert.Equal(t, "gemini-2.5-flash", response.Model)
+			assert.NotEmpty(t, response.Id)
+			assert.Equal(t, tc.reason, response.StopReason)
+			require.NotNil(t, response.Usage)
+			assert.Equal(t, 9, response.Usage.InputTokens)
+			assert.Equal(t, 3, response.Usage.CacheReadInputTokens)
+			assert.Equal(t, 10, response.Usage.OutputTokens)
+			switch tc.name {
+			case "tools":
+				require.Len(t, response.Content, 3)
+				assert.Equal(t, map[string]any{"city": "Paris"}, response.Content[1].Input)
+				assert.Equal(t, map[string]any{"city": "London"}, response.Content[2].Input)
+				assert.NotEqual(t, response.Content[1].Id, response.Content[2].Id)
+			case "thinking":
+				require.Len(t, response.Content, 3)
+				assert.Equal(t, "thinking", response.Content[0].Type)
+				assert.Equal(t, "signature-1", response.Content[0].Signature)
+				assert.Equal(t, "text", response.Content[1].Type)
+				assert.Equal(t, "signature-2", response.Content[2].Signature)
+			case "separate signature":
+				require.Len(t, response.Content, 2)
+				assert.Equal(t, "signature-1", response.Content[0].Signature)
+			}
+		})
+	}
+}
+
+func vertexClaudeEvents(t *testing.T, recorder *httptest.ResponseRecorder) []dto.ClaudeResponse {
+	t.Helper()
+	var events []dto.ClaudeResponse
+	for line := range strings.SplitSeq(recorder.Body.String(), "\n") {
+		data, ok := strings.CutPrefix(line, "data: ")
+		if !ok {
+			continue
+		}
+		var event dto.ClaudeResponse
+		require.NoError(t, common.UnmarshalJsonStr(data, &event))
+		events = append(events, event)
+	}
+	return events
+}
+
+func TestVertexAnthropicStreamBlocksAndTerminalUsage(t *testing.T) {
+	for _, tc := range []struct {
+		name, frames, reason string
+		wantTypes            []string
+		wantArgs             []string
+	}{
+		{"text", `{"candidates":[{"content":{"parts":[{"text":"Hel"}]}}],"usageMetadata":{"promptTokenCount":12,"candidatesTokenCount":1,"totalTokenCount":13}}
+{"candidates":[{"content":{"parts":[{"text":"lo"}]},"finishReason":"STOP"}]}`, "end_turn", []string{"text"}, nil},
+		{"single tool", `{"candidates":[{"content":{"parts":[{"functionCall":{"name":"lookup","args":{"city":"Paris"}}}]},"finishReason":"STOP"}]}`, "tool_use", []string{"tool_use"}, []string{`{"city":"Paris"}`}},
+		{"empty args", `{"candidates":[{"content":{"parts":[{"functionCall":{"name":"lookup"}}]},"finishReason":"STOP"}]}`, "tool_use", []string{"tool_use"}, []string{`{}`}},
+		{"multiple tools", `{"candidates":[{"content":{"parts":[{"text":"Checking"},{"functionCall":{"name":"lookup","args":{"city":"Paris"}}},{"functionCall":{"name":"lookup","args":{"city":"London"}}}]}}]}
+{"candidates":[{"finishReason":"STOP"}]}`, "tool_use", []string{"text", "tool_use", "tool_use"}, []string{`{"city":"Paris"}`, `{"city":"London"}`}},
+		{"partial args", `{"candidates":[{"content":{"parts":[{"thoughtSignature":"tool-signature","functionCall":{"name":"lookup","willContinue":true,"partialArgs":[{"jsonPath":"$.city","stringValue":"Pa"}]}}]}}]}
+{"candidates":[{"content":{"parts":[{"functionCall":{"willContinue":false,"partialArgs":[{"jsonPath":"$.city","stringValue":"ris"}]}}]},"finishReason":"STOP"}]}`, "tool_use", []string{"tool_use"}, []string{`{"city":"Paris"}`}},
+		{"mixed thinking", `{"candidates":[{"content":{"parts":[{"thought":true,"text":"Reasoning","thoughtSignature":"thought-signature"},{"text":"Answer"},{"functionCall":{"name":"lookup","args":{"city":"Paris"}}}]}}]}
+{"candidates":[{"finishReason":"STOP"}]}`, "tool_use", []string{"thinking", "text", "tool_use"}, []string{`{"city":"Paris"}`}},
+		{"separate signature", `{"candidates":[{"content":{"parts":[{"thought":true,"text":"Reasoning"},{"thoughtSignature":"thought-signature"},{"text":"Answer"}]},"finishReason":"STOP"}]}`, "end_turn", []string{"thinking", "text"}, nil},
+		{"max tokens", `{"candidates":[{"content":{"parts":[{"text":"Partial"}]},"finishReason":"MAX_TOKENS"}]}`, "max_tokens", []string{"text"}, nil},
+		{"safety", `{"candidates":[{"content":{"parts":[{"text":"Refused"}]},"finishReason":"SAFETY"}]}`, "refusal", []string{"text"}, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, recorder, info, adaptor := vertexMessagesFixture(t, true)
+			var stream strings.Builder
+			for frame := range strings.SplitSeq(tc.frames, "\n") {
+				stream.WriteString("data: " + frame + "\n\n")
+			}
+			stream.WriteString("data: " + `{"usageMetadata":{"promptTokenCount":12,"candidatesTokenCount":8,"thoughtsTokenCount":2,"totalTokenCount":22}}` + "\n\n")
+			usage, apiErr := adaptor.DoResponse(c, &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(stream.String()))}, info)
+			require.Nil(t, apiErr)
+			assert.Equal(t, 10, usage.(*dto.Usage).CompletionTokens)
+			events := vertexClaudeEvents(t, recorder)
+			require.NotEmpty(t, events)
+			assert.Equal(t, "message_start", events[0].Type)
+			assert.Equal(t, "message_stop", events[len(events)-1].Type)
+			open := map[int]string{}
+			var blockTypes, args []string
+			var messageStops int
+			for _, event := range events {
+				switch event.Type {
+				case "content_block_start":
+					require.NotContains(t, open, *event.Index)
+					open[*event.Index] = event.ContentBlock.Type
+					blockTypes = append(blockTypes, event.ContentBlock.Type)
+					if tc.name == "partial args" && event.ContentBlock.Type == "tool_use" {
+						assert.Equal(t, "tool-signature", event.ContentBlock.Signature)
+					}
+				case "content_block_delta":
+					require.Contains(t, open, *event.Index)
+					switch event.Delta.Type {
+					case "input_json_delta":
+						assert.Equal(t, "tool_use", open[*event.Index])
+						args = append(args, *event.Delta.PartialJson)
+					case "signature_delta":
+						assert.Equal(t, "thinking", open[*event.Index])
+						assert.Equal(t, "thought-signature", event.Delta.Signature)
+					case "text_delta":
+						assert.Equal(t, "text", open[*event.Index])
+					case "thinking_delta":
+						assert.Equal(t, "thinking", open[*event.Index])
+					}
+				case "content_block_stop":
+					require.Contains(t, open, *event.Index)
+					delete(open, *event.Index)
+				case "message_delta":
+					assert.Equal(t, tc.reason, *event.Delta.StopReason)
+					assert.Equal(t, 12, event.Usage.InputTokens)
+					assert.Equal(t, 10, event.Usage.OutputTokens)
+				case "message_stop":
+					messageStops++
+				}
+			}
+			assert.Empty(t, open)
+			assert.Equal(t, 1, messageStops)
+			assert.Equal(t, tc.wantTypes, blockTypes)
+			assert.Equal(t, tc.wantArgs, args)
+		})
+	}
+}
+
+type vertexBrokenStream struct {
+	io.Reader
+}
+
+func (r vertexBrokenStream) Read(p []byte) (int, error) {
+	n, err := r.Reader.Read(p)
+	if err == io.EOF {
+		err = errors.New("interrupted upstream")
+	}
+	return n, err
+}
+
+func TestVertexAnthropicFailedStreamsNeverStopSuccessfully(t *testing.T) {
+	first := `data: {"candidates":[{"content":{"parts":[{"text":"Hello"}]}}],"usageMetadata":{"promptTokenCount":12,"candidatesTokenCount":8,"totalTokenCount":20}}` + "\n\n"
+	for _, tc := range []struct {
+		name, suffix      string
+		broken, cancelled bool
+	}{
+		{"malformed", "data: {broken\n\n", false, false},
+		{"upstream error", "data: " + `{"error":{"code":503,"status":"UNAVAILABLE","message":"Try later"}}` + "\n\n", false, false},
+		{"prompt blocked", "data: " + `{"promptFeedback":{"blockReason":"SAFETY"}}` + "\n\n", false, false},
+		{"error after terminal", "data: " + `{"candidates":[{"finishReason":"STOP"}]}` + "\n\n" + "data: " + `{"error":{"code":500,"message":"Failed"}}` + "\n\n", false, false},
+		{"truncated", "", false, false},
+		{"interrupted", "", true, false},
+		{"cancelled", "", false, true},
+		{"unfinished partial call", "data: " + `{"candidates":[{"content":{"parts":[{"functionCall":{"name":"lookup","willContinue":true,"partialArgs":[{"jsonPath":"$.city","stringValue":"Pa"}]}}]},"finishReason":"STOP"}]}` + "\n\n", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, recorder, info, adaptor := vertexMessagesFixture(t, true)
+			var reader io.Reader = strings.NewReader(first + tc.suffix)
+			if tc.broken {
+				reader = vertexBrokenStream{reader}
+			}
+			if tc.cancelled {
+				ctx, cancel := context.WithCancel(c.Request.Context())
+				cancel()
+				c.Request = c.Request.WithContext(ctx)
+			}
+			_, apiErr := adaptor.DoResponse(c, &http.Response{StatusCode: 200, Body: io.NopCloser(reader)}, info)
+			if !tc.cancelled {
+				require.NotNil(t, apiErr)
+			}
+			switch tc.name {
+			case "upstream error":
+				assert.Equal(t, 503, apiErr.StatusCode)
+			case "prompt blocked":
+				assert.Equal(t, 400, apiErr.StatusCode)
+			}
+			assert.NotContains(t, recorder.Body.String(), "message_stop")
+		})
+	}
+}
+
+func TestVertexAnthropicNonstreamErrorsAndOpenAIEntry(t *testing.T) {
+	for _, body := range []string{`{broken`, `{"error":{"code":503,"message":"Unavailable"}}`} {
+		c, recorder, info, adaptor := vertexMessagesFixture(t, false)
+		_, apiErr := adaptor.DoResponse(c, &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, info)
+		require.NotNil(t, apiErr)
+		assert.NotContains(t, recorder.Body.String(), `"type":"message"`)
+	}
+	c, recorder, info, adaptor := vertexMessagesFixture(t, false)
+	info.RelayFormat = types.RelayFormatOpenAI
+	request := &dto.GeneralOpenAIRequest{Model: "gemini-2.5-flash", Messages: []dto.Message{{Role: "user", Content: "Hi"}}}
+	value, err := adaptor.ConvertOpenAIRequest(c, info, request)
+	require.NoError(t, err)
+	assert.IsType(t, &dto.GeminiChatRequest{}, value)
+	_, apiErr := adaptor.DoResponse(c, &http.Response{StatusCode: 200, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(
+		`{"candidates":[{"content":{"parts":[{"text":"Hello"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":12,"candidatesTokenCount":8,"totalTokenCount":20}}`))}, info)
+	require.Nil(t, apiErr)
+	assert.Contains(t, recorder.Body.String(), `"object":"chat.completion"`)
+	assert.Contains(t, recorder.Body.String(), `"content":"Hello"`)
+	for _, parts := range []string{`[{"text":"Hello"}]`, `[{"functionCall":{"name":"lookup","args":{"city":"Paris"}}}]`} {
+		c, recorder, info, adaptor := vertexMessagesFixture(t, true)
+		info.RelayFormat = types.RelayFormatOpenAI
+		stream := `data: {"candidates":[{"content":{"parts":` + parts + `},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":12,"candidatesTokenCount":8,"totalTokenCount":20}}` + "\n\n"
+		_, apiErr := adaptor.DoResponse(c, &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(stream))}, info)
+		require.Nil(t, apiErr)
+		assert.Contains(t, recorder.Body.String(), "[DONE]")
+		var calls []dto.ToolCallResponse
+		for line := range strings.SplitSeq(recorder.Body.String(), "\n") {
+			data, ok := strings.CutPrefix(line, "data: ")
+			if !ok || data == "[DONE]" {
+				continue
+			}
+			var chunk dto.ChatCompletionsStreamResponse
+			require.NoError(t, common.UnmarshalJsonStr(data, &chunk))
+			for _, choice := range chunk.Choices {
+				calls = append(calls, choice.Delta.ToolCalls...)
+			}
+		}
+		if strings.Contains(parts, "functionCall") {
+			require.Len(t, calls, 1)
+			assert.Equal(t, "lookup", calls[0].Function.Name)
+			assert.JSONEq(t, `{"city":"Paris"}`, calls[0].Function.Arguments)
+		} else {
+			assert.Contains(t, recorder.Body.String(), `"content":"Hello"`)
+		}
+	}
+}

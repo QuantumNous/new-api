@@ -94,6 +94,56 @@ func removeFunctionCallIDs(request *dto.GeminiChatRequest) {
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	if request == nil {
+		return nil, errors.New("request is nil")
+	}
+	switch a.RequestMode {
+	case RequestModeGemini:
+		result, err := service.ConvertRequest(c, info, types.RelayFormatGemini, request)
+		if err != nil {
+			return nil, err
+		}
+		geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
+		if !ok {
+			return nil, fmt.Errorf("expected Gemini generateContent request, got %T", result.Value)
+		}
+		// Tool signatures returned by Gemini are carried on the Anthropic
+		// tool_use extension and must survive the next tool-result turn.
+		signatures := make(map[string]string)
+		for _, message := range request.Messages {
+			if message.Role != "assistant" || message.IsStringContent() {
+				continue
+			}
+			blocks, err := message.ParseContent()
+			if err != nil {
+				return nil, err
+			}
+			for _, block := range blocks {
+				if block.Type == "tool_use" && block.Signature != "" {
+					signatures[block.Id] = block.Signature
+				}
+			}
+		}
+		for i := range geminiRequest.Contents {
+			for j := range geminiRequest.Contents[i].Parts {
+				part := &geminiRequest.Contents[i].Parts[j]
+				if part.FunctionCall != nil {
+					if signature := signatures[part.FunctionCall.ID]; signature != "" {
+						part.ThoughtSignature, err = common.Marshal(signature)
+						if err != nil {
+							return nil, err
+						}
+					}
+				}
+			}
+		}
+		c.Set("request_model", info.UpstreamModelName)
+		return a.ConvertGeminiRequest(c, info, geminiRequest)
+	case RequestModeClaude:
+		// Keep the native Vertex Anthropic envelope for Claude models.
+	default:
+		return nil, errors.New("Anthropic Messages is unsupported for this Vertex request mode")
+	}
 	claudeAdaptor := claude.Adaptor{}
 	if _, err := claudeAdaptor.ConvertClaudeRequest(c, info, request); err != nil {
 		return nil, err

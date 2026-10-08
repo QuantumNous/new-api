@@ -1,0 +1,5 @@
+# import config
+packagefile crypto=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b078/_pkg_.a
+packagefile crypto/internal/boring=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b080/_pkg_.a
+packagefile crypto/internal/fips140/sha512=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b095/_pkg_.a
+packagefile hash=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b079/_pkg_.a

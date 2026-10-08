@@ -1,0 +1,4 @@
+def vendor/golang.org/x/crypto/chacha20poly1305.chacha20Poly1305Open ABI0
+ref vendor/golang.org/x/crypto/chacha20poly1305.useAVX2 ABI0
+def vendor/golang.org/x/crypto/chacha20poly1305.chacha20Poly1305Seal ABI0
+ref vendor/golang.org/x/crypto/chacha20poly1305.useAVX2 ABI0

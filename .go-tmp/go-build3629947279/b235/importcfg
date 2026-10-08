@@ -1,0 +1,7 @@
+# import config
+packagefile encoding/binary=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b105/_pkg_.a
+packagefile fmt=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b066/_pkg_.a
+packagefile golang.org/x/text/transform=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b234/_pkg_.a
+packagefile io=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b039/_pkg_.a
+packagefile sync=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b040/_pkg_.a
+packagefile unicode/utf8=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b045/_pkg_.a

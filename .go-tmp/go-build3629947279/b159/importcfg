@@ -1,0 +1,14 @@
+# import config
+packagefile bytes=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b062/_pkg_.a
+packagefile errors=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b003/_pkg_.a
+packagefile fmt=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b066/_pkg_.a
+packagefile internal/saferio=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b160/_pkg_.a
+packagefile math=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b058/_pkg_.a
+packagefile math/big=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b139/_pkg_.a
+packagefile reflect=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b057/_pkg_.a
+packagefile slices=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b046/_pkg_.a
+packagefile strconv=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b059/_pkg_.a
+packagefile strings=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b068/_pkg_.a
+packagefile time=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b049/_pkg_.a
+packagefile unicode/utf16=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b108/_pkg_.a
+packagefile unicode/utf8=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b045/_pkg_.a

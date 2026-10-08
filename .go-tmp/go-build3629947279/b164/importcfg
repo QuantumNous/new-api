@@ -1,0 +1,8 @@
+# import config
+packagefile crypto/internal/constanttime=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b094/_pkg_.a
+packagefile crypto/internal/fips140/check=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b086/_pkg_.a
+packagefile crypto/internal/fips140/edwards25519/field=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b151/_pkg_.a
+packagefile crypto/internal/fips140deps/byteorder=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b089/_pkg_.a
+packagefile errors=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b003/_pkg_.a
+packagefile math/bits=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b023/_pkg_.a
+packagefile sync=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b040/_pkg_.a

@@ -1,0 +1,4 @@
+# import config
+packagefile internal/godebugs=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b015/_pkg_.a
+packagefile math=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b058/_pkg_.a
+packagefile runtime=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b009/_pkg_.a

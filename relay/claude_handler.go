@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/relay/channel/vertex"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -86,7 +87,12 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 	}
 
 	var requestBody io.Reader
-	if model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled {
+	passThrough := model_setting.GetGlobalSettings().PassThroughRequestEnabled || info.ChannelSetting.PassThroughBodyEnabled
+	if vertexAdaptor, ok := adaptor.(*vertex.Adaptor); ok && vertexAdaptor.RequestMode != vertex.RequestModeClaude {
+		// Anthropic JSON is not a valid body for Vertex's Google/OpenAI endpoints.
+		passThrough = false
+	}
+	if passThrough {
 		storage, err := common.GetBodyStorage(c)
 		if err != nil {
 			return types.NewErrorWithStatusCode(err, types.ErrorCodeReadRequestBodyFailed, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
@@ -141,6 +147,28 @@ func ClaudeHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *typ
 			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 			// reset status code 重置状态码
 			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			if vertexAdaptor, ok := adaptor.(*vertex.Adaptor); ok && vertexAdaptor.RequestMode == vertex.RequestModeGemini {
+				errorType := "api_error"
+				switch newAPIError.StatusCode {
+				case http.StatusBadRequest, http.StatusUnprocessableEntity:
+					errorType = "invalid_request_error"
+				case http.StatusUnauthorized:
+					errorType = "authentication_error"
+				case http.StatusForbidden:
+					errorType = "permission_error"
+				case http.StatusNotFound:
+					errorType = "not_found_error"
+				case http.StatusRequestEntityTooLarge:
+					errorType = "request_too_large"
+				case http.StatusTooManyRequests:
+					errorType = "rate_limit_error"
+				case http.StatusServiceUnavailable, 529:
+					errorType = "overloaded_error"
+				}
+				newAPIError = types.WithClaudeError(types.ClaudeError{
+					Type: errorType, Message: newAPIError.Error(),
+				}, newAPIError.StatusCode)
+			}
 			return newAPIError
 		}
 	}

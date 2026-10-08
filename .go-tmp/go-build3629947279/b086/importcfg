@@ -1,0 +1,7 @@
+# import config
+packagefile crypto/internal/fips140=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b083/_pkg_.a
+packagefile crypto/internal/fips140/hmac=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b087/_pkg_.a
+packagefile crypto/internal/fips140/sha256=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b088/_pkg_.a
+packagefile crypto/internal/fips140deps/byteorder=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b089/_pkg_.a
+packagefile crypto/internal/fips140deps/godebug=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b084/_pkg_.a
+packagefile io=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b039/_pkg_.a

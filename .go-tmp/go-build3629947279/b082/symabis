@@ -1,0 +1,7 @@
+def crypto/internal/fips140/aes.encryptBlockAsm ABI0
+def crypto/internal/fips140/aes.decryptBlockAsm ABI0
+def crypto/internal/fips140/aes.expandKeyAsm ABI0
+def crypto/internal/fips140/aes.ctrBlocks1Asm ABI0
+def crypto/internal/fips140/aes.ctrBlocks2Asm ABI0
+def crypto/internal/fips140/aes.ctrBlocks4Asm ABI0
+def crypto/internal/fips140/aes.ctrBlocks8Asm ABI0

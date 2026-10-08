@@ -1,0 +1,2 @@
+def crypto/internal/fips140/sha256.blockAVX2 ABI0
+def crypto/internal/fips140/sha256.blockSHANI ABI0

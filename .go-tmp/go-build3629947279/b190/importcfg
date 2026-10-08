@@ -1,0 +1,9 @@
+# import config
+packagefile cmp=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b047/_pkg_.a
+packagefile errors=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b003/_pkg_.a
+packagefile internal/bytealg=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b010/_pkg_.a
+packagefile internal/byteorder=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b012/_pkg_.a
+packagefile math=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b058/_pkg_.a
+packagefile math/bits=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b023/_pkg_.a
+packagefile strconv=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b059/_pkg_.a
+packagefile unique=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b191/_pkg_.a

@@ -1,0 +1,25 @@
+# import config
+packagefile bufio=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b070/_pkg_.a
+packagefile bytes=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b062/_pkg_.a
+packagefile cmp=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b047/_pkg_.a
+packagefile compress/gzip=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b121/_pkg_.a
+packagefile context=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b063/_pkg_.a
+packagefile encoding/binary=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b105/_pkg_.a
+packagefile errors=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b003/_pkg_.a
+packagefile fmt=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b066/_pkg_.a
+packagefile internal/abi=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b005/_pkg_.a
+packagefile internal/goexperiment=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b016/_pkg_.a
+packagefile internal/profilerecord=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b018/_pkg_.a
+packagefile internal/runtime/pprof/label=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b033/_pkg_.a
+packagefile io=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b039/_pkg_.a
+packagefile math=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b058/_pkg_.a
+packagefile os=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b002/_pkg_.a
+packagefile runtime=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b009/_pkg_.a
+packagefile slices=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b046/_pkg_.a
+packagefile sort=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b113/_pkg_.a
+packagefile strconv=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b059/_pkg_.a
+packagefile strings=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b068/_pkg_.a
+packagefile sync=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b040/_pkg_.a
+packagefile syscall=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b052/_pkg_.a
+packagefile text/tabwriter=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b124/_pkg_.a
+packagefile time=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b049/_pkg_.a

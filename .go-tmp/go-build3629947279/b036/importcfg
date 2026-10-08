@@ -1,0 +1,6 @@
+# import config
+packagefile errors=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b003/_pkg_.a
+packagefile internal/bytealg=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b010/_pkg_.a
+packagefile internal/stringslite=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b034/_pkg_.a
+packagefile io/fs=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b037/_pkg_.a
+packagefile slices=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b046/_pkg_.a

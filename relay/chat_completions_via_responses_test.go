@@ -2,10 +2,12 @@ package relay
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -16,11 +18,101 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	hosttypes "github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestClaudeVertexGeminiNeverPassesThroughAnthropicBody(t *testing.T) {
+	settings := model_setting.GetGlobalSettings()
+	originalPassThrough := settings.PassThroughRequestEnabled
+	t.Cleanup(func() { settings.PassThroughRequestEnabled = originalPassThrough })
+
+	for _, tc := range []struct {
+		name      string
+		global    bool
+		channel   bool
+		status    int
+		errorType string
+	}{
+		{name: "conversion"},
+		{name: "global passthrough", global: true},
+		{name: "channel passthrough", channel: true},
+		{name: "both passthrough", global: true, channel: true},
+		{name: "unauthorized", status: http.StatusUnauthorized, errorType: "authentication_error"},
+		{name: "forbidden", status: http.StatusForbidden, errorType: "permission_error"},
+		{name: "not found", status: http.StatusNotFound, errorType: "not_found_error"},
+		{name: "too large", status: http.StatusRequestEntityTooLarge, errorType: "request_too_large"},
+		{name: "rate limited", status: http.StatusTooManyRequests, errorType: "rate_limit_error"},
+		{name: "overloaded", status: http.StatusServiceUnavailable, errorType: "overloaded_error"},
+		{name: "server error", status: http.StatusInternalServerError, errorType: "api_error"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			settings.PassThroughRequestEnabled = tc.global
+			status, errorType := tc.status, tc.errorType
+			if status == 0 {
+				status, errorType = http.StatusBadRequest, "invalid_request_error"
+			}
+			captured := make(chan []byte, 1)
+			paths := make(chan string, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				body, err := io.ReadAll(r.Body)
+				if err != nil {
+					http.Error(w, err.Error(), http.StatusBadRequest)
+					return
+				}
+				captured <- body
+				paths <- r.URL.Path
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(status)
+				_, _ = fmt.Fprintf(w, `{"error":{"code":%d,"message":"mock upstream rejection"}}`, status)
+			}))
+			defer server.Close()
+
+			raw := `{"model":"client-claude","max_tokens":128,"system":"be concise","messages":[{"role":"user","content":"hello"}]}`
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader(raw))
+			c.Request.Header.Set("Content-Type", "application/json")
+			common.SetContextKey(c, constant.ContextKeyOriginalModel, "client-claude")
+			common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeVertexAi)
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, server.URL)
+			common.SetContextKey(c, constant.ContextKeyChannelKey, "mock-key")
+			common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{VertexKeyType: dto.VertexKeyTypeAPIKey})
+			common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{PassThroughBodyEnabled: tc.channel})
+			c.Set("model_mapping", `{"client-claude":"gemini-2.5-flash"}`)
+			var request dto.ClaudeRequest
+			require.NoError(t, common.Unmarshal([]byte(raw), &request))
+			info := relaycommon.GenRelayInfoClaude(c, &request)
+
+			apiErr := ClaudeHelper(c, info)
+			require.NotNil(t, apiErr)
+			assert.Equal(t, status, apiErr.StatusCode)
+			assert.Contains(t, apiErr.Error(), "mock upstream rejection")
+			assert.Equal(t, errorType, apiErr.ToClaudeError().Type)
+			select {
+			case body := <-captured:
+				var payload map[string]any
+				require.NoError(t, common.Unmarshal(body, &payload))
+				assert.NotContains(t, payload, "messages")
+				assert.NotContains(t, payload, "max_tokens")
+				assert.NotContains(t, payload, "anthropic_version")
+				var geminiRequest dto.GeminiChatRequest
+				require.NoError(t, common.Unmarshal(body, &geminiRequest))
+				require.Len(t, geminiRequest.Contents, 1)
+				require.Len(t, geminiRequest.Contents[0].Parts, 1)
+				assert.Equal(t, "hello", geminiRequest.Contents[0].Parts[0].Text)
+				require.NotNil(t, geminiRequest.GenerationConfig.MaxOutputTokens)
+				assert.EqualValues(t, 128, *geminiRequest.GenerationConfig.MaxOutputTokens)
+				assert.Equal(t, "/v1/publishers/google/models/gemini-2.5-flash:generateContent", <-paths)
+			default:
+				require.FailNow(t, "request did not reach mock upstream", "%v", apiErr)
+			}
+		})
+	}
+}
 
 func TestPrepareResponsesRequestRetainsConvertedAdaptor(t *testing.T) {
 	type capturedRequest struct {

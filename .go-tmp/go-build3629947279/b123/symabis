@@ -1,0 +1,3 @@
+def hash/crc32.castagnoliSSE42 ABI0
+def hash/crc32.castagnoliSSE42Triple ABI0
+def hash/crc32.ieeeCLMUL ABI0

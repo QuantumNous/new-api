@@ -1,0 +1,7 @@
+def math/big.addVV ABI0
+def math/big.subVV ABI0
+def math/big.lshVU ABI0
+def math/big.rshVU ABI0
+def math/big.mulAddVWW ABI0
+def math/big.addMulVVWW ABI0
+ref math/big.hasADX ABI0
