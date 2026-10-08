@@ -1,8 +1,0 @@
-# import config
-packagefile context=/home/runner/.cache/go-build/33/33b28b31d60c607c09e0267c66200866cfe32756fa9c262d6e20d0406e79aca1-d
-packagefile errors=/home/runner/.cache/go-build/17/178cdb4b26c79a9aa6bba32ea9d29477d7e696d695ff211494ed5e603f823fdc-d
-packagefile github.com/jackc/puddle/v2/internal/genstack=/home/runner/.cache/go-build/55/5548390b692e1a00f2284a357bfe3838d561cc803e02361e125460d53cd70560-d
-packagefile golang.org/x/sync/semaphore=/home/runner/work/new-api/new-api/.go-tmp/go-build4074996906/b591/_pkg_.a
-packagefile sync=/home/runner/.cache/go-build/aa/aac0c2b176fd47a87c8300dc51bd6fface7817bd2aac804b8c0b49271192ac8b-d
-packagefile sync/atomic=/home/runner/.cache/go-build/e9/e9e3754e62685916433c075c4902af359edde9c2a5d93c14c6f7f20c784fb62f-d
-packagefile time=/home/runner/.cache/go-build/dd/dd949dd7f19ecb4f31286ce67cde88f02a131f1f91e1d779d320a88b8d6fd805-d

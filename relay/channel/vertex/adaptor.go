@@ -99,42 +99,121 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	}
 	switch a.RequestMode {
 	case RequestModeGemini:
+		if err := validateClaudeGeminiRequest(request); err != nil {
+			return nil, err
+		}
 		result, err := service.ConvertRequest(c, info, types.RelayFormatGemini, request)
 		if err != nil {
+			return nil, err
+		}
+		if err := types.RejectConversionLoss(types.ConversionLossPolicySafe, result.Diagnostics); err != nil {
 			return nil, err
 		}
 		geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
 		if !ok {
 			return nil, fmt.Errorf("expected Gemini generateContent request, got %T", result.Value)
 		}
-		// Tool signatures returned by Gemini are carried on the Anthropic
-		// tool_use extension and must survive the next tool-result turn.
-		signatures := make(map[string]string)
+		// Rebuild assistant history in source order: the Chat bridge groups
+		// tool calls and omits accompanying text and signed thinking.
+		modelIndex := 0
+		toolResults := make(map[string][]bool)
 		for _, message := range request.Messages {
-			if message.Role != "assistant" || message.IsStringContent() {
+			if message.Role != "assistant" {
+				if !message.IsStringContent() {
+					blocks, err := message.ParseContent()
+					if err != nil {
+						return nil, err
+					}
+					for _, block := range blocks {
+						if block.Type == "tool_result" {
+							failed := block.IsError != nil && *block.IsError
+							toolResults[block.ToolUseId] = append(toolResults[block.ToolUseId], failed)
+						}
+					}
+				}
+				continue
+			}
+			for modelIndex < len(geminiRequest.Contents) && geminiRequest.Contents[modelIndex].Role != "model" {
+				modelIndex++
+			}
+			if message.IsStringContent() {
+				if message.GetStringContent() != "" {
+					modelIndex++
+				}
 				continue
 			}
 			blocks, err := message.ParseContent()
 			if err != nil {
 				return nil, err
 			}
-			for _, block := range blocks {
-				if block.Type == "tool_use" && block.Signature != "" {
-					signatures[block.Id] = block.Signature
-				}
+			if len(blocks) == 0 {
+				continue
 			}
-		}
-		for i := range geminiRequest.Contents {
-			for j := range geminiRequest.Contents[i].Parts {
-				part := &geminiRequest.Contents[i].Parts[j]
-				if part.FunctionCall != nil {
-					if signature := signatures[part.FunctionCall.ID]; signature != "" {
-						part.ThoughtSignature, err = common.Marshal(signature)
+			if modelIndex >= len(geminiRequest.Contents) {
+				return nil, errors.New("unsupported Anthropic assistant history for Vertex Gemini")
+			}
+			var parts []dto.GeminiPart
+			for _, block := range blocks {
+				if block.Type == "thinking" && block.Thinking != nil {
+					part := dto.GeminiPart{Thought: true, Text: *block.Thinking}
+					if block.Signature != "" {
+						part.ThoughtSignature, err = common.Marshal(block.Signature)
 						if err != nil {
 							return nil, err
 						}
 					}
+					parts = append(parts, part)
+					continue
 				}
+				blockRequest := *request
+				blockRequest.Messages = []dto.ClaudeMessage{{Role: "assistant", Content: []dto.ClaudeMediaMessage{block}}}
+				converted, err := service.ConvertRequest(c, info, types.RelayFormatGemini, &blockRequest)
+				if err != nil {
+					return nil, err
+				}
+				if err := types.RejectConversionLoss(types.ConversionLossPolicySafe, converted.Diagnostics); err != nil {
+					return nil, err
+				}
+				for _, content := range converted.Value.(*dto.GeminiChatRequest).Contents {
+					for _, part := range content.Parts {
+						if content.Role != "model" {
+							return nil, errors.New("unsupported Anthropic assistant content for Vertex Gemini")
+						}
+						if part.FunctionCall != nil && block.Signature != "" {
+							part.ThoughtSignature, err = common.Marshal(block.Signature)
+							if err != nil {
+								return nil, err
+							}
+						}
+						parts = append(parts, part)
+					}
+				}
+			}
+			geminiRequest.Contents[modelIndex].Parts = parts
+			modelIndex++
+		}
+		for i := range geminiRequest.Contents {
+			for j := range geminiRequest.Contents[i].Parts {
+				response := geminiRequest.Contents[i].Parts[j].FunctionResponse
+				if response == nil {
+					continue
+				}
+				var id string
+				if len(response.ID) > 0 {
+					if err := common.Unmarshal(response.ID, &id); err != nil {
+						return nil, err
+					}
+				}
+				results := toolResults[id]
+				if len(results) == 0 {
+					continue
+				}
+				key := "output"
+				if results[0] {
+					key = "error"
+				}
+				response.Response = map[string]any{key: response.Response}
+				toolResults[id] = results[1:]
 			}
 		}
 		c.Set("request_model", info.UpstreamModelName)
@@ -155,6 +234,81 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	}
 	vertexClaudeReq := copyRequest(request, anthropicVersion)
 	return vertexClaudeReq, nil
+}
+
+func validateClaudeGeminiRequest(request *dto.ClaudeRequest) error {
+	for _, field := range []struct {
+		name    string
+		present bool
+	}{
+		{"prompt", request.Prompt != ""},
+		{"max_tokens_to_sample", request.MaxTokensToSample != nil},
+		{"inference_geo", request.InferenceGeo != ""},
+		{"safeguards", len(request.Safeguards) > 0},
+		{"context_management", len(request.ContextManagement) > 0},
+		{"output_format", len(request.OutputFormat) > 0},
+		{"container", len(request.Container) > 0},
+		{"mcp_servers", len(request.McpServers) > 0},
+	} {
+		if field.present {
+			return fmt.Errorf("Anthropic %s is unsupported for Vertex Gemini", field.name)
+		}
+	}
+	if len(request.OutputConfig) > 0 {
+		var config map[string]any
+		if err := common.Unmarshal(request.OutputConfig, &config); err != nil {
+			return err
+		}
+		for name := range config {
+			if name != "effort" {
+				return fmt.Errorf("Anthropic output_config.%s is unsupported for Vertex Gemini", name)
+			}
+		}
+	}
+	if request.System != nil && !request.IsStringSystem() {
+		for _, block := range request.ParseSystem() {
+			if block.Type != "text" {
+				return errors.New("Anthropic non-text system blocks are unsupported for Vertex Gemini")
+			}
+		}
+	}
+	for messageIndex, message := range request.Messages {
+		if message.IsStringContent() {
+			continue
+		}
+		blocks, err := message.ParseContent()
+		if err != nil {
+			return err
+		}
+		var hasThought, hasContent bool
+		for blockIndex, block := range blocks {
+			path := fmt.Sprintf("messages[%d].content[%d]", messageIndex, blockIndex)
+			switch block.Type {
+			case "thinking":
+				if message.Role != "assistant" || hasContent || block.Thinking == nil {
+					return fmt.Errorf("%s: unsupported Anthropic thinking history for Vertex Gemini", path)
+				}
+				hasThought = true
+			case "text", "input_text", "image", "document", "tool_use":
+				hasContent = true
+			case "tool_result":
+				hasContent = true
+				if !block.IsStringContent() {
+					for _, part := range block.ParseMediaContent() {
+						if part.Type != "text" && part.Type != "input_text" && part.Type != "image" {
+							return fmt.Errorf("%s: unsupported Anthropic tool-result block %q for Vertex Gemini", path, part.Type)
+						}
+					}
+				}
+			default:
+				return fmt.Errorf("%s: unsupported Anthropic content block %q for Vertex Gemini", path, block.Type)
+			}
+		}
+		if hasThought && !hasContent {
+			return fmt.Errorf("messages[%d]: thinking-only history is unsupported for Vertex Gemini", messageIndex)
+		}
+	}
+	return nil
 }
 
 func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {

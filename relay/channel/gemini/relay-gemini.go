@@ -258,7 +258,13 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		}
 
 		if !callback(data, &geminiResponse) {
-			if isGeminiDownstreamStop(c, info) {
+			downstreamStopped := c.Request.Context().Err() != nil
+			// The scanner still owns EndReason while callbacks run. Claude
+			// writes report errors directly, so cancellation only needs context.
+			if info.RelayFormat != types.RelayFormatClaude && !downstreamStopped {
+				downstreamStopped = isGeminiDownstreamStop(c, info)
+			}
+			if downstreamStopped {
 				sr.Stop(nil)
 				return
 			}
@@ -304,7 +310,8 @@ func isGeminiDownstreamStop(c *gin.Context, info *relaycommon.RelayInfo) bool {
 
 func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	if info.RelayFormat == types.RelayFormatClaude {
-		return geminiClaudeStreamHandler(c, info, resp)
+		usage, apiError := geminiClaudeStreamHandler(c, info, resp)
+		return usage, geminiToClaudeError(apiError)
 	}
 	id := helper.GetResponseID(c)
 	createAt := common.GetTimestamp()
@@ -388,7 +395,12 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 	return usage, nil
 }
 
-func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (usageResult *dto.Usage, apiError *types.NewAPIError) {
+	if info.RelayFormat == types.RelayFormatClaude {
+		defer func() {
+			apiError = geminiToClaudeError(apiError)
+		}()
+	}
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
@@ -439,6 +451,7 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 
 		switch info.RelayFormat {
 		case types.RelayFormatClaude:
+			newAPIError = geminiToClaudeError(newAPIError)
 			c.JSON(newAPIError.StatusCode, gin.H{
 				"type":  "error",
 				"error": newAPIError.ToClaudeError(),

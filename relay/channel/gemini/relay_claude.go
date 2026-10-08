@@ -16,6 +16,43 @@ import (
 	"github.com/tidwall/gjson"
 )
 
+// geminiToClaudeError preserves the upstream status and retry policy while
+// translating Google's numeric error codes into Anthropic error types.
+func geminiToClaudeError(apiError *types.NewAPIError) *types.NewAPIError {
+	if apiError == nil {
+		return nil
+	}
+	errorType := "api_error"
+	switch apiError.StatusCode {
+	case http.StatusUnauthorized:
+		errorType = "authentication_error"
+	case http.StatusForbidden:
+		errorType = "permission_error"
+	case http.StatusNotFound:
+		errorType = "not_found_error"
+	case http.StatusRequestEntityTooLarge:
+		errorType = "request_too_large"
+	case http.StatusTooManyRequests:
+		errorType = "rate_limit_error"
+	case http.StatusServiceUnavailable, 529:
+		errorType = "overloaded_error"
+	default:
+		if apiError.StatusCode >= 400 && apiError.StatusCode < 500 {
+			errorType = "invalid_request_error"
+		}
+	}
+	mapped := types.WithClaudeError(types.ClaudeError{Type: errorType, Message: apiError.Error()}, apiError.StatusCode)
+	mapped.Err = apiError.Err
+	mapped.Metadata = apiError.Metadata
+	if types.IsSkipRetryError(apiError) {
+		types.ErrOptionWithSkipRetry()(mapped)
+	}
+	if !types.IsRecordErrorLog(apiError) {
+		types.ErrOptionWithNoRecordErrorLog()(mapped)
+	}
+	return mapped
+}
+
 func geminiClaudeResponse(c *gin.Context, info *relaycommon.RelayInfo, response *dto.GeminiChatResponse, usage *dto.Usage) (*dto.ClaudeResponse, error) {
 	chat := responseGeminiChat2OpenAI(c, response)
 	chat.Model = info.UpstreamModelName
@@ -29,7 +66,7 @@ func geminiClaudeResponse(c *gin.Context, info *relaycommon.RelayInfo, response 
 	// text and loses their original ordering and Gemini thought signatures.
 	content := make([]dto.ClaudeMediaMessage, 0)
 	for _, candidate := range response.Candidates {
-		for _, part := range candidate.Content.Parts {
+		for partIndex, part := range candidate.Content.Parts {
 			if part.Text == "" && part.FunctionCall == nil && part.InlineData == nil &&
 				part.ExecutableCode == nil && part.CodeExecutionResult == nil && len(part.ThoughtSignature) > 0 {
 				var signature string
@@ -42,7 +79,8 @@ func geminiClaudeResponse(c *gin.Context, info *relaycommon.RelayInfo, response 
 				continue
 			}
 			single := &dto.GeminiChatResponse{Candidates: []dto.GeminiChatCandidate{{
-				Content: dto.GeminiChatContent{Role: "model", Parts: []dto.GeminiPart{part}},
+				Content:           dto.GeminiChatContent{Role: "model", Parts: []dto.GeminiPart{part}},
+				GroundingMetadata: geminiClaudePartGrounding(candidate, partIndex),
 			}}}
 			converted, err := service.ConvertResponse(c, info, types.RelayFormatClaude, responseGeminiChat2OpenAI(c, single))
 			if err != nil {
@@ -67,9 +105,63 @@ func geminiClaudeResponse(c *gin.Context, info *relaycommon.RelayInfo, response 
 	return claude, nil
 }
 
+func geminiClaudePartGrounding(candidate dto.GeminiChatCandidate, partIndex int) *dto.GeminiGroundingMetadata {
+	if candidate.GroundingMetadata == nil || candidate.Content.Parts[partIndex].Thought {
+		return nil
+	}
+	var supports []map[string]any
+	if err := common.Unmarshal(candidate.GroundingMetadata.GroundingSupports, &supports); err != nil {
+		return nil
+	}
+	soleTextPart := -1
+	for i, part := range candidate.Content.Parts {
+		if part.Thought || part.Text == "" {
+			continue
+		}
+		if soleTextPart >= 0 {
+			soleTextPart = -1
+			break
+		}
+		soleTextPart = i
+	}
+	selected := make([]map[string]any, 0, len(supports))
+	for _, support := range supports {
+		segment, ok := support["segment"].(map[string]any)
+		if !ok {
+			continue
+		}
+		index := soleTextPart
+		if value, exists := segment["partIndex"]; exists {
+			number, ok := value.(float64)
+			if !ok || number != float64(partIndex) {
+				continue
+			}
+			index = partIndex
+		}
+		if index != partIndex {
+			continue
+		}
+		segment["partIndex"] = 0
+		selected = append(selected, support)
+	}
+	metadata := *candidate.GroundingMetadata
+	var err error
+	metadata.GroundingSupports, err = common.Marshal(selected)
+	if err != nil {
+		return nil
+	}
+	return &metadata
+}
+
 func geminiClaudeStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
 	options := relayconvert.ResponseStreamOptions{ID: helper.GetResponseID(c), Model: info.UpstreamModelName, Created: common.GetTimestamp()}
 	geminiState, err := relayconvert.NewResponseStreamState(types.RelayFormatGemini, types.RelayFormatOpenAI, options)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
+	}
+	// Grounding offsets refer to the original candidate part indexes, not
+	// the one-part chunks used to preserve text/thinking/tool block order.
+	groundingState, err := relayconvert.NewResponseStreamState(types.RelayFormatGemini, types.RelayFormatOpenAI, options)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
@@ -175,7 +267,7 @@ func geminiClaudeStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 						return false
 					}
 				}
-				if len(part.ThoughtSignature) > 0 && info.ClaudeConvertInfo != nil &&
+				if part.FunctionCall == nil && len(part.ThoughtSignature) > 0 && info.ClaudeConvertInfo != nil &&
 					info.ClaudeConvertInfo.LastMessagesType == relaycommon.LastMessageTypeThinking {
 					index := info.ClaudeConvertInfo.Index
 					event := dto.ClaudeResponse{Type: "content_block_delta", Index: &index,
@@ -186,40 +278,93 @@ func geminiClaudeStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 					}
 				}
 			}
+			grounded := candidate
+			grounded.FinishReason = nil
+			grounded.Content.Parts = make([]dto.GeminiPart, len(candidate.Content.Parts))
+			for i, part := range candidate.Content.Parts {
+				if !part.Thought && part.Text != "" {
+					grounded.Content.Parts[i].Text = part.Text
+				}
+			}
+			results, err := service.ConvertStreamResponseChunk(c, info, groundingState,
+				&dto.GeminiChatResponse{Candidates: []dto.GeminiChatCandidate{grounded}})
+			if err != nil {
+				conversionErr = err
+				return false
+			}
+			for _, result := range results {
+				chunk := result.Value.(*dto.ChatCompletionsStreamResponse)
+				for _, choice := range chunk.Choices {
+					if len(choice.Delta.Annotations) == 0 {
+						continue
+					}
+					choice.Delta = dto.ChatCompletionsStreamResponseChoiceDelta{Annotations: choice.Delta.Annotations}
+					choice.FinishReason = nil
+					chunk.Choices = []dto.ChatCompletionsStreamResponseChoice{choice}
+					chunk.Usage = nil
+					if !send(chunk, "") {
+						return false
+					}
+				}
+			}
 		}
 		return true
 	})
 	if isGeminiDownstreamStop(c, info) {
+		info.StreamStatus.MarkCancelled()
 		return usage, nil
 	}
 	if upstreamAPIError != nil {
-		return usage, upstreamAPIError
+		writeGeminiClaudeStreamError(c, info, upstreamAPIError)
+		return usage, nil
 	}
 	if conversionErr != nil {
 		info.StreamStatus.MarkFailed("bad_response_body", "upstream_error", http.StatusBadGateway)
-		return usage, types.NewOpenAIError(conversionErr, types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+		writeGeminiClaudeStreamError(c, info, types.NewOpenAIError(conversionErr, types.ErrorCodeBadResponseBody, http.StatusBadGateway))
+		return usage, nil
 	}
 	if streamErr != nil {
 		info.StreamStatus.MarkFailed("bad_response_body", "upstream_error", streamErr.StatusCode)
-		return usage, streamErr
+		writeGeminiClaudeStreamError(c, info, streamErr)
+		return usage, nil
 	}
 	if !info.StreamStatus.IsNormalEnd() ||
 		(!sawTerminal && info.StreamStatus.EndReason != relaycommon.StreamEndReasonDone) {
 		info.StreamStatus.MarkIncomplete("missing_terminal")
-		return usage, types.NewOpenAIError(errors.New("Gemini stream ended without a terminal response"), types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+		writeGeminiClaudeStreamError(c, info, types.NewOpenAIError(errors.New("Gemini stream ended without a terminal response"), types.ErrorCodeBadResponseBody, http.StatusBadGateway))
+		return usage, nil
 	}
 	// Finalize the Gemini state first to reject unfinished partialArgs before
 	// emitting any successful Anthropic terminal event.
 	if _, err := service.FinalizeStreamResponse(c, info, geminiState); err != nil {
 		info.StreamStatus.MarkFailed("bad_response_body", "upstream_error", http.StatusBadGateway)
-		return usage, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+		writeGeminiClaudeStreamError(c, info, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusBadGateway))
+		return usage, nil
 	}
 	final := helper.GenerateStopResponse(options.ID, options.Created, options.Model, finishReason)
 	final.Usage = usage
-	if !send(final, "") && conversionErr != nil {
-		return usage, types.NewOpenAIError(conversionErr, types.ErrorCodeBadResponseBody, http.StatusBadGateway)
+	if !send(final, "") {
+		if conversionErr != nil {
+			writeGeminiClaudeStreamError(c, info, types.NewOpenAIError(conversionErr, types.ErrorCodeBadResponseBody, http.StatusBadGateway))
+		} else {
+			info.StreamStatus.MarkCancelled()
+		}
 	}
 	return usage, nil
+}
+
+func writeGeminiClaudeStreamError(c *gin.Context, info *relaycommon.RelayInfo, apiError *types.NewAPIError) {
+	if isGeminiDownstreamStop(c, info) {
+		info.StreamStatus.MarkCancelled()
+		return
+	}
+	claudeError := geminiToClaudeError(apiError).ToClaudeError()
+	info.StreamStatus.MarkFailed("", claudeError.Type, apiError.StatusCode)
+	// The stream owns its terminal error; returning it would trigger a retry
+	// or append the controller's non-SSE JSON error after these events.
+	if err := writeGeminiClaudeEvent(c, &dto.ClaudeResponse{Type: "error", Error: claudeError}); err != nil {
+		info.StreamStatus.RecordError("write Anthropic stream error: " + err.Error())
+	}
 }
 
 func writeGeminiClaudeEvent(c *gin.Context, event *dto.ClaudeResponse) error {

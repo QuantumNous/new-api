@@ -3,6 +3,7 @@ package vertex
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -93,6 +94,29 @@ func TestVertexAnthropicRequestConvertsToGemini(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, value.(*dto.GeminiChatRequest).GenerationConfig.ThinkingConfig)
 	assert.Equal(t, 1024, *value.(*dto.GeminiChatRequest).GenerationConfig.ThinkingConfig.ThinkingBudget)
+	var assistant dto.ClaudeMessage
+	require.NoError(t, common.UnmarshalJsonStr(`{"role":"assistant","content":[
+		{"type":"thinking","thinking":"Looking up the forecast","signature":"thought-signature"},
+		{"type":"text","text":"Checking the weather"},
+		{"type":"tool_use","id":"toolu_1","name":"lookup","input":{"city":"Paris"},"signature":"gemini-signature"},
+		{"type":"text","text":"Waiting for the result"}]}`, &assistant))
+	request.Messages[1] = assistant
+	request.ToolChoice = map[string]any{"type": "tool", "name": "lookup"}
+	value, err = adaptor.ConvertClaudeRequest(c, info, &request)
+	require.NoError(t, err)
+	geminiRequest := value.(*dto.GeminiChatRequest)
+	require.Len(t, geminiRequest.Contents[1].Parts, 4)
+	assert.True(t, geminiRequest.Contents[1].Parts[0].Thought)
+	assert.Equal(t, "Looking up the forecast", geminiRequest.Contents[1].Parts[0].Text)
+	assert.JSONEq(t, `"thought-signature"`, string(geminiRequest.Contents[1].Parts[0].ThoughtSignature))
+	assert.Equal(t, "Checking the weather", geminiRequest.Contents[1].Parts[1].Text)
+	assert.Equal(t, "lookup", geminiRequest.Contents[1].Parts[2].FunctionCall.FunctionName)
+	assert.JSONEq(t, `"gemini-signature"`, string(geminiRequest.Contents[1].Parts[2].ThoughtSignature))
+	assert.Equal(t, "Waiting for the result", geminiRequest.Contents[1].Parts[3].Text)
+	assert.Equal(t, "lookup", geminiRequest.Contents[2].Parts[0].FunctionResponse.Name)
+	assert.Equal(t, map[string]any{"output": map[string]any{"content": "Sunny"}}, geminiRequest.Contents[2].Parts[0].FunctionResponse.Response)
+	assert.Equal(t, dto.FunctionCallingConfigMode("ANY"), geminiRequest.ToolConfig.FunctionCallingConfig.Mode)
+	assert.Equal(t, []string{"lookup"}, geminiRequest.ToolConfig.FunctionCallingConfig.AllowedFunctionNames)
 
 	adaptor.RequestMode = RequestModeOpenSource
 	_, err = adaptor.ConvertClaudeRequest(c, info, &request)
@@ -106,6 +130,105 @@ func TestVertexAnthropicRequestConvertsToGemini(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(wire), `"anthropic_version":"vertex-2023-10-16"`)
 	assert.NotContains(t, string(wire), `"contents"`)
+}
+
+func TestVertexAnthropicRejectsUnsupportedGeminiSemantics(t *testing.T) {
+	for _, tc := range []struct {
+		name, extra, messages string
+	}{
+		{"container", `"container":{"id":"session"}`, ""},
+		{"context management", `"context_management":{"edits":[]}`, ""},
+		{"output schema", `"output_config":{"format":{"type":"json_schema"}}`, ""},
+		{"parallel tool restriction", `"tools":[{"name":"lookup","input_schema":{"type":"object"}}],"tool_choice":{"type":"auto","disable_parallel_tool_use":true}`, ""},
+		{"image reference", "", `[{"role":"user","content":[{"type":"image","source":{"type":"file","file_id":"file_1"}}]}]`},
+		{"audio block", "", `[{"role":"user","content":[{"type":"audio","data":"aGVsbG8="}]}]`},
+		{"redacted thinking", "", `[{"role":"assistant","content":[{"type":"redacted_thinking","data":"opaque"},{"type":"text","text":"Answer"}]}]`},
+		{"thinking only", "", `[{"role":"assistant","content":[{"type":"thinking","thinking":"Reasoning","signature":"opaque"}]}]`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _, info, adaptor := vertexMessagesFixture(t, false)
+			messages := tc.messages
+			if messages == "" {
+				messages = `[{"role":"user","content":"Hello"}]`
+			}
+			body := `{"model":"gemini-2.5-flash","max_tokens":32,"messages":` + messages
+			if tc.extra != "" {
+				body += "," + tc.extra
+			}
+			body += "}"
+			var request dto.ClaudeRequest
+			require.NoError(t, common.UnmarshalJsonStr(body, &request))
+			value, err := adaptor.ConvertClaudeRequest(c, info, &request)
+			require.Error(t, err, "must reject features that would be silently discarded")
+			assert.Nil(t, value)
+		})
+	}
+}
+
+func TestVertexAnthropicClaudeCodeCacheHintsAndToolErrors(t *testing.T) {
+	c, _, info, adaptor := vertexMessagesFixture(t, false)
+	var request dto.ClaudeRequest
+	require.NoError(t, common.UnmarshalJsonStr(`{
+		"model":"gemini-2.5-flash","max_tokens":1024,"temperature":0,
+		"cache_control":{"type":"ephemeral"},"service_tier":"auto",
+		"system":[{"type":"text","text":"You are a coding assistant","cache_control":{"type":"ephemeral","ttl":"1h"}}],
+		"tools":[
+			{"name":"Bash","input_schema":{"type":"object","properties":{"command":{"type":"string"}}},"cache_control":{"type":"ephemeral"}},
+			{"name":"Read","input_schema":{"type":"object","properties":{"file_path":{"type":"string"}}},"cache_control":{"type":"ephemeral"}}
+		],
+		"messages":[
+			{"role":"user","content":[{"type":"text","text":"Inspect the project","cache_control":{"type":"ephemeral"}}]},
+			{"role":"assistant","content":[
+				{"type":"thinking","thinking":"Inspect files first","signature":"thought-signature"},
+				{"type":"text","text":"Checking the project","cache_control":{"type":"ephemeral"},"citations":[{"type":"web_search_result_location","url":"https://reference.example","cited_text":"Project guidance"}]},
+				{"type":"tool_use","id":"call_bash","name":"Bash","input":{"command":"ls"},"signature":"bash-signature"},
+				{"type":"text","text":"Then read the file"},
+				{"type":"tool_use","id":"call_read","name":"Read","input":{"file_path":"missing.go"},"signature":"read-signature"}
+			]},
+			{"role":"user","content":[
+				{"type":"tool_result","tool_use_id":"call_read","is_error":true,"content":[{"type":"text","text":"File not found"}],"cache_control":{"type":"ephemeral"}},
+				{"type":"tool_result","tool_use_id":"call_bash","is_error":false,"content":"main.go"}
+			]}
+		]}`, &request))
+	oldRemoveIDs := model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled
+	t.Cleanup(func() { model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled = oldRemoveIDs })
+	for _, removeIDs := range []bool{false, true} {
+		model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled = removeIDs
+		value, err := adaptor.ConvertClaudeRequest(c, info, &request)
+		require.NoError(t, err)
+		geminiRequest := value.(*dto.GeminiChatRequest)
+		require.Len(t, geminiRequest.Contents, 3)
+		parts := geminiRequest.Contents[1].Parts
+		require.Len(t, parts, 5)
+		assert.True(t, parts[0].Thought)
+		assert.Equal(t, "Inspect files first", parts[0].Text)
+		assert.JSONEq(t, `"thought-signature"`, string(parts[0].ThoughtSignature))
+		assert.Equal(t, "Checking the project", parts[1].Text)
+		assert.Equal(t, "Bash", parts[2].FunctionCall.FunctionName)
+		assert.JSONEq(t, `"bash-signature"`, string(parts[2].ThoughtSignature))
+		assert.Equal(t, "Then read the file", parts[3].Text)
+		assert.Equal(t, "Read", parts[4].FunctionCall.FunctionName)
+		assert.JSONEq(t, `"read-signature"`, string(parts[4].ThoughtSignature))
+		responses := geminiRequest.Contents[2].Parts
+		require.Len(t, responses, 2)
+		assert.Equal(t, "Read", responses[0].FunctionResponse.Name)
+		assert.Equal(t, map[string]any{"error": map[string]any{"content": "File not found"}}, responses[0].FunctionResponse.Response)
+		assert.Equal(t, "Bash", responses[1].FunctionResponse.Name)
+		assert.Equal(t, map[string]any{"output": map[string]any{"content": "main.go"}}, responses[1].FunctionResponse.Response)
+		if removeIDs {
+			assert.Empty(t, parts[2].FunctionCall.ID)
+			assert.Empty(t, responses[0].FunctionResponse.ID)
+		} else {
+			assert.Equal(t, "call_bash", parts[2].FunctionCall.ID)
+			assert.JSONEq(t, `"call_read"`, string(responses[0].FunctionResponse.ID))
+		}
+		wire, err := common.Marshal(geminiRequest)
+		require.NoError(t, err)
+		assert.Contains(t, string(wire), "You are a coding assistant")
+		assert.NotContains(t, string(wire), `"cache_control"`)
+		assert.NotContains(t, string(wire), `"citations"`)
+		assert.NotContains(t, string(wire), `"is_error"`)
+	}
 }
 
 func TestVertexAnthropicNonstreamResponses(t *testing.T) {
@@ -185,6 +308,8 @@ func TestVertexAnthropicStreamBlocksAndTerminalUsage(t *testing.T) {
 {"candidates":[{"finishReason":"STOP"}]}`, "tool_use", []string{"text", "tool_use", "tool_use"}, []string{`{"city":"Paris"}`, `{"city":"London"}`}},
 		{"partial args", `{"candidates":[{"content":{"parts":[{"thoughtSignature":"tool-signature","functionCall":{"name":"lookup","willContinue":true,"partialArgs":[{"jsonPath":"$.city","stringValue":"Pa"}]}}]}}]}
 {"candidates":[{"content":{"parts":[{"functionCall":{"willContinue":false,"partialArgs":[{"jsonPath":"$.city","stringValue":"ris"}]}}]},"finishReason":"STOP"}]}`, "tool_use", []string{"tool_use"}, []string{`{"city":"Paris"}`}},
+		{"thinking + partial args", `{"candidates":[{"content":{"parts":[{"thought":true,"text":"Reasoning","thoughtSignature":"thought-signature"},{"thoughtSignature":"tool-signature","functionCall":{"name":"lookup","willContinue":true,"partialArgs":[{"jsonPath":"$.city","stringValue":"Pa"}]}}]}}]}
+{"candidates":[{"content":{"parts":[{"functionCall":{"willContinue":false,"partialArgs":[{"jsonPath":"$.city","stringValue":"ris"}]}}]},"finishReason":"STOP"}]}`, "tool_use", []string{"thinking", "tool_use"}, []string{`{"city":"Paris"}`}},
 		{"mixed thinking", `{"candidates":[{"content":{"parts":[{"thought":true,"text":"Reasoning","thoughtSignature":"thought-signature"},{"text":"Answer"},{"functionCall":{"name":"lookup","args":{"city":"Paris"}}}]}}]}
 {"candidates":[{"finishReason":"STOP"}]}`, "tool_use", []string{"thinking", "text", "tool_use"}, []string{`{"city":"Paris"}`}},
 		{"separate signature", `{"candidates":[{"content":{"parts":[{"thought":true,"text":"Reasoning"},{"thoughtSignature":"thought-signature"},{"text":"Answer"}]},"finishReason":"STOP"}]}`, "end_turn", []string{"thinking", "text"}, nil},
@@ -214,7 +339,7 @@ func TestVertexAnthropicStreamBlocksAndTerminalUsage(t *testing.T) {
 					require.NotContains(t, open, *event.Index)
 					open[*event.Index] = event.ContentBlock.Type
 					blockTypes = append(blockTypes, event.ContentBlock.Type)
-					if tc.name == "partial args" && event.ContentBlock.Type == "tool_use" {
+					if strings.Contains(tc.name, "partial args") && event.ContentBlock.Type == "tool_use" {
 						assert.Equal(t, "tool-signature", event.ContentBlock.Signature)
 					}
 				case "content_block_delta":
@@ -250,6 +375,64 @@ func TestVertexAnthropicStreamBlocksAndTerminalUsage(t *testing.T) {
 	}
 }
 
+func TestVertexAnthropicGroundingPreservesCitations(t *testing.T) {
+	parts := `[{"thought":true,"text":"Reasoning","thoughtSignature":"thought-signature"},{"text":"東京"},{"functionCall":{"name":"lookup","args":{}}},{"text":"Sunny"}]`
+	metadata := `{"webSearchQueries":["weather"," weather ","forecast"],"groundingChunks":[{"web":{"uri":"https://city.example","title":"City"}},{"web":{"uri":"https://weather.example","title":"Weather"}}],"groundingSupports":[{"segment":{"partIndex":1,"startIndex":0,"endIndex":6,"text":"東京"},"groundingChunkIndices":[0]},{"segment":{"partIndex":3,"startIndex":0,"endIndex":5,"text":"Sunny"},"groundingChunkIndices":[1]}]}`
+	tokens := `"usageMetadata":{"promptTokenCount":12,"candidatesTokenCount":8,"totalTokenCount":20}`
+	for _, mode := range []string{"nonstream", "combined stream", "delayed stream"} {
+		t.Run(mode, func(t *testing.T) {
+			c, recorder, info, adaptor := vertexMessagesFixture(t, mode != "nonstream")
+			body := `{"candidates":[{"content":{"role":"model","parts":` + parts + `},"finishReason":"STOP","groundingMetadata":` + metadata + `}],` + tokens + `}`
+			if mode == "combined stream" {
+				body = "data: " + body + "\n\n"
+			} else if mode == "delayed stream" {
+				body = "data: " + `{"candidates":[{"content":{"parts":` + parts + `}}],` + tokens + `}` + "\n\n" +
+					"data: " + `{"candidates":[{"finishReason":"STOP","groundingMetadata":` + metadata + `}]}` + "\n\n" +
+					"data: " + `{"candidates":[{"groundingMetadata":` + metadata + `}]}` + "\n\n"
+			}
+			usage, apiError := adaptor.DoResponse(c, &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, info)
+			require.Nil(t, apiError)
+			assert.Equal(t, 12, usage.(*dto.Usage).PromptTokens)
+			assert.Equal(t, 8, usage.(*dto.Usage).CompletionTokens)
+			require.NotNil(t, info.ResponsesUsageInfo)
+			require.Contains(t, info.ResponsesUsageInfo.BuiltInTools, dto.BuildInToolGoogleSearch)
+			assert.Equal(t, 2, info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolGoogleSearch].CallCount)
+			assert.Equal(t, 1, info.ResponsesUsageInfo.BuiltInTools[relaycommon.GoogleSearchGroundedPromptTool].CallCount)
+			if mode == "nonstream" {
+				var response dto.ClaudeResponse
+				require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+				require.Len(t, response.Content, 4)
+				assert.Equal(t, "thinking", response.Content[0].Type)
+				assert.JSONEq(t, `[{"type":"web_search_result_location","url":"https://city.example","title":"City","cited_text":"東京"}]`, string(response.Content[1].Citations))
+				assert.Equal(t, "tool_use", response.Content[2].Type)
+				assert.JSONEq(t, `[{"type":"web_search_result_location","url":"https://weather.example","title":"Weather","cited_text":"Sunny"}]`, string(response.Content[3].Citations))
+				return
+			}
+			var urls []string
+			open := map[int]string{}
+			events := vertexClaudeEvents(t, recorder)
+			for _, event := range events {
+				switch event.Type {
+				case "content_block_start":
+					open[*event.Index] = event.ContentBlock.Type
+				case "content_block_stop":
+					delete(open, *event.Index)
+				case "content_block_delta":
+					if event.Delta.Type == "citations_delta" {
+						assert.Equal(t, "text", open[*event.Index])
+						var citation map[string]any
+						require.NoError(t, common.Unmarshal(event.Delta.Citation, &citation))
+						assert.Equal(t, "web_search_result_location", citation["type"])
+						urls = append(urls, citation["url"].(string))
+					}
+				}
+			}
+			assert.Equal(t, []string{"https://city.example", "https://weather.example"}, urls)
+			assert.Equal(t, "message_stop", events[len(events)-1].Type)
+		})
+	}
+}
+
 type vertexBrokenStream struct {
 	io.Reader
 }
@@ -258,6 +441,19 @@ func (r vertexBrokenStream) Read(p []byte) (int, error) {
 	n, err := r.Reader.Read(p)
 	if err == io.EOF {
 		err = errors.New("interrupted upstream")
+	}
+	return n, err
+}
+
+type vertexCancelStreamWriter struct {
+	gin.ResponseWriter
+	cancel context.CancelFunc
+}
+
+func (w vertexCancelStreamWriter) Write(data []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(data)
+	if strings.Contains(string(data), "event: content_block_delta\n") {
+		w.cancel()
 	}
 	return n, err
 }
@@ -275,6 +471,7 @@ func TestVertexAnthropicFailedStreamsNeverStopSuccessfully(t *testing.T) {
 		{"truncated", "", false, false},
 		{"interrupted", "", true, false},
 		{"cancelled", "", false, true},
+		{"cancelled after content", "", false, true},
 		{"unfinished partial call", "data: " + `{"candidates":[{"content":{"parts":[{"functionCall":{"name":"lookup","willContinue":true,"partialArgs":[{"jsonPath":"$.city","stringValue":"Pa"}]}}]},"finishReason":"STOP"}]}` + "\n\n", false, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -285,21 +482,104 @@ func TestVertexAnthropicFailedStreamsNeverStopSuccessfully(t *testing.T) {
 			}
 			if tc.cancelled {
 				ctx, cancel := context.WithCancel(c.Request.Context())
-				cancel()
+				t.Cleanup(cancel)
 				c.Request = c.Request.WithContext(ctx)
+				if tc.name == "cancelled after content" {
+					c.Writer = vertexCancelStreamWriter{ResponseWriter: c.Writer, cancel: cancel}
+				} else {
+					cancel()
+				}
 			}
-			_, apiErr := adaptor.DoResponse(c, &http.Response{StatusCode: 200, Body: io.NopCloser(reader)}, info)
-			if !tc.cancelled {
-				require.NotNil(t, apiErr)
-			}
-			switch tc.name {
-			case "upstream error":
-				assert.Equal(t, 503, apiErr.StatusCode)
-			case "prompt blocked":
-				assert.Equal(t, 400, apiErr.StatusCode)
-			}
+			usage, apiErr := adaptor.DoResponse(c, &http.Response{StatusCode: 200, Body: io.NopCloser(reader)}, info)
+			require.Nil(t, apiErr, "handled SSE failures must not trigger controller JSON or retries")
 			assert.NotContains(t, recorder.Body.String(), "message_stop")
+			if tc.cancelled {
+				assert.NotContains(t, recorder.Body.String(), "event: error")
+				assert.Equal(t, string(relaycommon.ResponseOutcomeCancelled), info.StreamStatus.ResponseOutcome())
+				if tc.name == "cancelled after content" {
+					assert.Contains(t, recorder.Body.String(), `"text":"Hello"`)
+				}
+				return
+			}
+			assert.Equal(t, 12, usage.(*dto.Usage).PromptTokens)
+			assert.Equal(t, 8, usage.(*dto.Usage).CompletionTokens)
+			require.True(t, info.StreamStatus.ResponseFailed())
+			events := vertexClaudeEvents(t, recorder)
+			require.NotEmpty(t, events)
+			assert.Equal(t, "error", events[len(events)-1].Type)
+			var errorEvents int
+			for _, event := range events {
+				if event.Type == "error" {
+					errorEvents++
+					claudeError := event.GetClaudeError()
+					require.NotNil(t, claudeError)
+					assert.NotEmpty(t, claudeError.Message)
+					switch tc.name {
+					case "upstream error":
+						assert.Equal(t, "overloaded_error", claudeError.Type)
+						assert.Equal(t, 503, info.StreamStatus.OutcomeSnapshot().ErrorStatus)
+					case "prompt blocked":
+						assert.Equal(t, "invalid_request_error", claudeError.Type)
+						assert.Equal(t, 400, info.StreamStatus.OutcomeSnapshot().ErrorStatus)
+					default:
+						assert.Equal(t, "api_error", claudeError.Type)
+					}
+				}
+			}
+			assert.Equal(t, 1, errorEvents)
+			for frame := range strings.SplitSeq(strings.TrimSpace(recorder.Body.String()), "\n\n") {
+				event, data, ok := strings.Cut(frame, "\n")
+				require.True(t, ok)
+				assert.True(t, strings.HasPrefix(event, "event: "))
+				assert.True(t, strings.HasPrefix(data, "data: "), "must not append raw controller JSON")
+			}
 		})
+	}
+}
+
+func TestVertexGeminiErrorsUseAnthropicTypes(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		want   string
+	}{
+		{400, "invalid_request_error"},
+		{401, "authentication_error"},
+		{403, "permission_error"},
+		{404, "not_found_error"},
+		{413, "request_too_large"},
+		{429, "rate_limit_error"},
+		{500, "api_error"},
+		{503, "overloaded_error"},
+		{529, "overloaded_error"},
+	} {
+		for _, stream := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%d/stream=%t", tc.status, stream), func(t *testing.T) {
+				c, recorder, info, adaptor := vertexMessagesFixture(t, stream)
+				body := fmt.Sprintf(`{"error":{"code":%d,"message":"Upstream failed"}}`, tc.status)
+				if stream {
+					body = "data: " + body + "\n\n"
+				}
+				_, apiError := adaptor.DoResponse(c, &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body))}, info)
+				if !stream {
+					require.NotNil(t, apiError)
+					assert.Equal(t, tc.want, apiError.ToClaudeError().Type)
+					assert.Contains(t, apiError.ToClaudeError().Message, "Upstream failed")
+					assert.Equal(t, tc.status, apiError.StatusCode)
+					return
+				}
+				require.Nil(t, apiError)
+				events := vertexClaudeEvents(t, recorder)
+				require.Len(t, events, 1)
+				assert.Equal(t, "error", events[0].Type)
+				claudeError := events[0].GetClaudeError()
+				require.NotNil(t, claudeError)
+				assert.Equal(t, tc.want, claudeError.Type)
+				assert.Contains(t, claudeError.Message, "Upstream failed")
+				assert.Equal(t, tc.status, info.StreamStatus.OutcomeSnapshot().ErrorStatus)
+				assert.True(t, info.StreamStatus.ResponseFailed())
+				assert.Contains(t, recorder.Body.String(), "event: error\n")
+			})
+		}
 	}
 }
 
