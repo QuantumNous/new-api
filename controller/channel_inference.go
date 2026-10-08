@@ -187,10 +187,15 @@ func fetchInferenceStatus(ctx context.Context, channel *model.Channel) (*inferen
 			switch path {
 			case "/health":
 				if channel.Type == constant.ChannelTypeTensorFold {
+					// Legacy CUDA servers use {"ok":true}; MLX and native servers use {"status":"ok"}.
 					var health struct {
-						Status string `json:"status"`
+						Status *string `json:"status"`
+						OK     *bool   `json:"ok"`
 					}
-					if err := common.Unmarshal(result.body, &health); err != nil || health.Status != "ok" {
+					if err := common.Unmarshal(result.body, &health); err != nil ||
+						(health.Status == nil && health.OK == nil) ||
+						(health.Status != nil && *health.Status != "ok") ||
+						(health.OK != nil && !*health.OK) {
 						result.Error = "invalid_response"
 					}
 				}

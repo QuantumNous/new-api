@@ -163,6 +163,11 @@ vllm:num_requests_running 99
 		metricsError  string
 	}{
 		{name: "authenticated minimal health", key: "test-key", health: `{"status":"ok"}`, metrics: metrics, metricsStatus: 200},
+		{name: "legacy CUDA health", key: "EMPTY", health: `{"ok":true}`, metrics: metrics, metricsStatus: 200},
+		{name: "legacy CUDA unhealthy", key: "EMPTY", health: `{"ok":false}`, metrics: metrics, metricsStatus: 200, healthError: "invalid_response"},
+		{name: "invalid legacy health type", key: "EMPTY", health: `{"ok":"true"}`, metrics: metrics, metricsStatus: 200, healthError: "invalid_response"},
+		{name: "conflicting status health", key: "EMPTY", health: `{"status":"error","ok":true}`, metrics: metrics, metricsStatus: 200, healthError: "invalid_response"},
+		{name: "conflicting legacy health", key: "EMPTY", health: `{"status":"ok","ok":false}`, metrics: metrics, metricsStatus: 200, healthError: "invalid_response"},
 		{name: "open health details stay private", key: "EMPTY", health: `{"status":"ok","model":"private-model","live":{"private":"private-state"}}`, metrics: metrics, metricsStatus: 200},
 		{name: "metrics unavailable", key: "test-key", health: `{"status":"ok"}`, metrics: "test-key upstream error", metricsStatus: 403, metricsError: "http_error"},
 		{name: "invalid health", key: "test-key", health: `{}`, metrics: metrics, metricsStatus: 200, healthError: "invalid_response"},
