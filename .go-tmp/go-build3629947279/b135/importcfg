@@ -1,8 +1,0 @@
-# import config
-packagefile crypto/internal/boring=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b080/_pkg_.a
-packagefile crypto/internal/fips140/drbg=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b097/_pkg_.a
-packagefile crypto/internal/fips140only=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b101/_pkg_.a
-packagefile crypto/internal/rand=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b136/_pkg_.a
-packagefile errors=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b003/_pkg_.a
-packagefile io=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b039/_pkg_.a
-packagefile math/big=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b139/_pkg_.a

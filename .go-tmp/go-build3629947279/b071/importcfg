@@ -1,5 +1,0 @@
-# import config
-packagefile internal/godebug=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b050/_pkg_.a
-packagefile math=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b058/_pkg_.a
-packagefile sync=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b040/_pkg_.a
-packagefile sync/atomic=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b042/_pkg_.a

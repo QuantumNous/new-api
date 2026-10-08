@@ -1,9 +1,0 @@
-# import config
-importmap golang.org/x/crypto/cryptobyte/asn1=vendor/golang.org/x/crypto/cryptobyte/asn1
-packagefile encoding/asn1=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b159/_pkg_.a
-packagefile errors=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b003/_pkg_.a
-packagefile fmt=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b066/_pkg_.a
-packagefile vendor/golang.org/x/crypto/cryptobyte/asn1=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b161/_pkg_.a
-packagefile math/big=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b139/_pkg_.a
-packagefile reflect=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b057/_pkg_.a
-packagefile time=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b049/_pkg_.a

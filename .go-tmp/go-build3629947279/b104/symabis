@@ -1,3 +1,0 @@
-def crypto/internal/boring/sig.BoringCrypto ABI0
-def crypto/internal/boring/sig.StandardCrypto ABI0
-def crypto/internal/boring/sig.FIPSOnly ABI0

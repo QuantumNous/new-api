@@ -1,5 +1,0 @@
-# import config
-packagefile crypto/cipher=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b081/_pkg_.a
-packagefile crypto/internal/boring=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b080/_pkg_.a
-packagefile crypto/internal/fips140/aes=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b082/_pkg_.a
-packagefile strconv=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b059/_pkg_.a

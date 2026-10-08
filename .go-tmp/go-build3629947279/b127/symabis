@@ -1,5 +1,0 @@
-def runtime/cgo.set_crosscall2 ABI0
-ref _crosscall2_ptr ABI0
-ref crosscall2 ABI0
-def crosscall2 ABI0
-ref runtime.cgocallback ABI0

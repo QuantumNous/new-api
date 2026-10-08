@@ -1,4 +1,0 @@
-# import config
-packagefile crypto/internal/fips140=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b083/_pkg_.a
-packagefile crypto/internal/fips140/check=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b086/_pkg_.a
-packagefile internal/godebug=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b050/_pkg_.a

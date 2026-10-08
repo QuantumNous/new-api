@@ -1,8 +1,0 @@
-# import config
-packagefile internal/abi=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b005/_pkg_.a
-packagefile internal/asan=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b029/_pkg_.a
-packagefile internal/goarch=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b006/_pkg_.a
-packagefile internal/msan=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b030/_pkg_.a
-packagefile internal/race=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b031/_pkg_.a
-packagefile internal/runtime/math=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b032/_pkg_.a
-packagefile internal/runtime/sys=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b027/_pkg_.a

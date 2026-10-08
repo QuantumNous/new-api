@@ -1,6 +1,0 @@
-# import config
-packagefile crypto/internal/fips140/nistec=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b149/_pkg_.a
-packagefile errors=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b003/_pkg_.a
-packagefile io=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b039/_pkg_.a
-packagefile math/big=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b139/_pkg_.a
-packagefile sync=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b040/_pkg_.a

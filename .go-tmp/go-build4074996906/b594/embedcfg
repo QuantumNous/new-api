@@ -1,0 +1,14 @@
+{
+	"Patterns": {
+		"locales/*.yaml": [
+			"locales/en.yaml",
+			"locales/zh-CN.yaml",
+			"locales/zh-TW.yaml"
+		]
+	},
+	"Files": {
+		"locales/en.yaml": "/home/runner/work/new-api/new-api/i18n/locales/en.yaml",
+		"locales/zh-CN.yaml": "/home/runner/work/new-api/new-api/i18n/locales/zh-CN.yaml",
+		"locales/zh-TW.yaml": "/home/runner/work/new-api/new-api/i18n/locales/zh-TW.yaml"
+	}
+}

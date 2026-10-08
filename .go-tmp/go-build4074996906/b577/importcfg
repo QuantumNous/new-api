@@ -1,0 +1,4 @@
+# import config
+packagefile golang.org/x/text/transform=/home/runner/.cache/go-build/f1/f114f450bee193d5241cca20686d91e5846971721825c846f7b84744e5345bf1-d
+packagefile unicode=/home/runner/.cache/go-build/57/57addc4171a26b5b02a52a122b80b60b16df09167b42a32c8328b04d1bb90343-d
+packagefile unicode/utf8=/home/runner/.cache/go-build/e8/e87696e607f997b1879f2956b1659e36b13991daa48d30c79d9c926627fd9c9b-d

@@ -1,9 +1,0 @@
-# import config
-packagefile bufio=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b070/_pkg_.a
-packagefile errors=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b003/_pkg_.a
-packagefile image/color=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b221/_pkg_.a
-packagefile io=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b039/_pkg_.a
-packagefile math/bits=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b023/_pkg_.a
-packagefile strconv=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b059/_pkg_.a
-packagefile sync=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b040/_pkg_.a
-packagefile sync/atomic=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b042/_pkg_.a

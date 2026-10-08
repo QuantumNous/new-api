@@ -1,0 +1,4 @@
+# import config
+packagefile crypto/sha256=/home/runner/.cache/go-build/61/6114cbb350f99b1e2b8b44877020c12d1bc388571b288fdd873d538e73ec250e-d
+packagefile encoding/hex=/home/runner/.cache/go-build/6b/6b4b739ed1dd9787db24944a755a529bd05bdabde54ed75ca77c762e46fb5b75-d
+packagefile github.com/jackc/pgx/v5/pgconn=/home/runner/work/new-api/new-api/.go-tmp/go-build4074996906/b565/_pkg_.a

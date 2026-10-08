@@ -1,6 +1,0 @@
-# import config
-packagefile encoding/asn1=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b159/_pkg_.a
-packagefile encoding/hex=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b183/_pkg_.a
-packagefile fmt=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b066/_pkg_.a
-packagefile math/big=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b139/_pkg_.a
-packagefile time=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b049/_pkg_.a

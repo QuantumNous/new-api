@@ -1,6 +1,0 @@
-# import config
-packagefile crypto/internal/fips140/hkdf=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b166/_pkg_.a
-packagefile crypto/internal/fips140hash=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b133/_pkg_.a
-packagefile crypto/internal/fips140only=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b101/_pkg_.a
-packagefile errors=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b003/_pkg_.a
-packagefile hash=/home/runner/work/new-api/new-api/.go-tmp/go-build3629947279/b079/_pkg_.a

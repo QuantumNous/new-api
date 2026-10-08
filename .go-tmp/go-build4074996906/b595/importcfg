@@ -1,0 +1,13 @@
+# import config
+packagefile encoding/json=/home/runner/.cache/go-build/0f/0f3afaed004b4395c56fa27a8e6aecf4bc5a055a72be2280ae7ae4c49f9ec622-d
+packagefile errors=/home/runner/.cache/go-build/17/178cdb4b26c79a9aa6bba32ea9d29477d7e696d695ff211494ed5e603f823fdc-d
+packagefile fmt=/home/runner/.cache/go-build/05/0555458c03f236ffd51f9dcc7fe4ea8f71346546ba6ac667f5f3849f91d197d9-d
+packagefile github.com/nicksnyder/go-i18n/v2/i18n/template=/home/runner/work/new-api/new-api/.go-tmp/go-build4074996906/b596/_pkg_.a
+packagefile github.com/nicksnyder/go-i18n/v2/internal=/home/runner/work/new-api/new-api/.go-tmp/go-build4074996906/b597/_pkg_.a
+packagefile github.com/nicksnyder/go-i18n/v2/internal/plural=/home/runner/work/new-api/new-api/.go-tmp/go-build4074996906/b598/_pkg_.a
+packagefile golang.org/x/text/language=/home/runner/.cache/go-build/3d/3deb4dc07959cba5ed2af7ffdae50882936d9d528c37bbdfc5d1d2cfb97c58e2-d
+packagefile io/fs=/home/runner/.cache/go-build/e2/e23f4d4987060ee819880c3d3da9bdaf8abee7c6578bf56e0f5a0d6cd9be0eb6-d
+packagefile os=/home/runner/.cache/go-build/1f/1f033c627ad3a25a2baee0112b461b1ad512d7c4e8804ce9607405b7688a863a-d
+packagefile sort=/home/runner/.cache/go-build/d1/d18981b5c7eadef6e4f18555338228c84435697802cb44966081241ab4e5cb45-d
+packagefile strings=/home/runner/.cache/go-build/b4/b4a19ea5f617fb1b45caaa931d258466c90484b020ebe2f31c2c2e49e09effb2-d
+packagefile text/template=/home/runner/.cache/go-build/00/0086a638d72c3050dfbde7ef0ff9d38b76cb3837eb8c5874971ab5d2bb8657bd-d

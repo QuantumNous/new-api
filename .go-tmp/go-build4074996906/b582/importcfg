@@ -1,0 +1,17 @@
+# import config
+packagefile context=/home/runner/.cache/go-build/33/33b28b31d60c607c09e0267c66200866cfe32756fa9c262d6e20d0406e79aca1-d
+packagefile database/sql=/home/runner/.cache/go-build/ac/ac9a36e73c0d4a34503b89a2a7ca43ccbda22ea2a54d42725fc18f1d94e432d8-d
+packagefile fmt=/home/runner/.cache/go-build/05/0555458c03f236ffd51f9dcc7fe4ea8f71346546ba6ac667f5f3849f91d197d9-d
+packagefile github.com/go-sql-driver/mysql=/home/runner/.cache/go-build/9b/9bacc57122078d2ae2da8ef0cd87bb7d6b5f3d8bf087b526b0693cde299f371f-d
+packagefile gorm.io/gorm=/home/runner/.cache/go-build/f3/f34fa580a3dd5bbd949534338e4129bf19cb35f6869d1ca881782a1e83a3722d-d
+packagefile gorm.io/gorm/callbacks=/home/runner/.cache/go-build/ce/cecc744fd2cd85b435e219ecebd3f80d37c2873f6fbc5a5782267dd662925291-d
+packagefile gorm.io/gorm/clause=/home/runner/.cache/go-build/59/59b3998acbdb3b60b92e03df67e04102d76de1c011517b64b8c390e5fff0846d-d
+packagefile gorm.io/gorm/logger=/home/runner/.cache/go-build/5f/5f6c3e9bc6e8aca26805e0c26bf29f857c5c77fd48a252ea001d94aef9ca614b-d
+packagefile gorm.io/gorm/migrator=/home/runner/.cache/go-build/ad/adf30642fe204153eb6d18e04061e61d16eaa70b7d71ee65844f89e3fb4a50d0-d
+packagefile gorm.io/gorm/schema=/home/runner/.cache/go-build/1b/1b747548f124c93214f7f4b4dee7a7889b4218644e5a4d9425289cfc649ece29-d
+packagefile gorm.io/gorm/utils=/home/runner/.cache/go-build/8e/8ed0b1fa5f79f6e343896a8ff15046432937106377c44ea0029c338430f6ce12-d
+packagefile math=/home/runner/.cache/go-build/f7/f7267e67219ceb5e4491145bd72dea211851b2fc9bd26adbacfb1a4a1db31921-d
+packagefile regexp=/home/runner/.cache/go-build/90/9071b79dea94db77402ab7b41370b11dce8a24f00258f60bd0f2f48b77480cf5-d
+packagefile strconv=/home/runner/.cache/go-build/77/77259d90fcc7375084211240a54068616e3775cef8b6d3d07599346c7c6154c5-d
+packagefile strings=/home/runner/.cache/go-build/b4/b4a19ea5f617fb1b45caaa931d258466c90484b020ebe2f31c2c2e49e09effb2-d
+packagefile time=/home/runner/.cache/go-build/dd/dd949dd7f19ecb4f31286ce67cde88f02a131f1f91e1d779d320a88b8d6fd805-d

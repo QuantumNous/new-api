@@ -1,0 +1,21 @@
+# import config
+packagefile bytes=/home/runner/.cache/go-build/29/292cff19a337f9699c0b55cd5247d0f8bc9ced34aa0d55e37dbb9c5c999cc8c7-d
+packagefile context=/home/runner/.cache/go-build/33/33b28b31d60c607c09e0267c66200866cfe32756fa9c262d6e20d0406e79aca1-d
+packagefile crypto/sha256=/home/runner/.cache/go-build/61/6114cbb350f99b1e2b8b44877020c12d1bc388571b288fdd873d538e73ec250e-d
+packagefile database/sql=/home/runner/.cache/go-build/ac/ac9a36e73c0d4a34503b89a2a7ca43ccbda22ea2a54d42725fc18f1d94e432d8-d
+packagefile encoding/hex=/home/runner/.cache/go-build/6b/6b4b739ed1dd9787db24944a755a529bd05bdabde54ed75ca77c762e46fb5b75-d
+packagefile errors=/home/runner/.cache/go-build/17/178cdb4b26c79a9aa6bba32ea9d29477d7e696d695ff211494ed5e603f823fdc-d
+packagefile fmt=/home/runner/.cache/go-build/05/0555458c03f236ffd51f9dcc7fe4ea8f71346546ba6ac667f5f3849f91d197d9-d
+packagefile github.com/jackc/pgx/v5/internal/pgio=/home/runner/.cache/go-build/1f/1fc93276dc3d49f62e898f99494dc49f1f61dfb9ff654c5318469a400b17b431-d
+packagefile github.com/jackc/pgx/v5/internal/sanitize=/home/runner/work/new-api/new-api/.go-tmp/go-build4074996906/b585/_pkg_.a
+packagefile github.com/jackc/pgx/v5/internal/stmtcache=/home/runner/work/new-api/new-api/.go-tmp/go-build4074996906/b586/_pkg_.a
+packagefile github.com/jackc/pgx/v5/pgconn=/home/runner/work/new-api/new-api/.go-tmp/go-build4074996906/b565/_pkg_.a
+packagefile github.com/jackc/pgx/v5/pgtype=/home/runner/work/new-api/new-api/.go-tmp/go-build4074996906/b575/_pkg_.a
+packagefile io=/home/runner/.cache/go-build/76/7632dc5a1a61ba9116cd8663e8d792dad6d8075b391b9e30fbbc2d974e632f06-d
+packagefile reflect=/home/runner/.cache/go-build/f4/f416cd923a9cc01131d59c150fc3e012b1c352fd2ef1aa051a70a12c2eaeb402-d
+packagefile regexp=/home/runner/.cache/go-build/90/9071b79dea94db77402ab7b41370b11dce8a24f00258f60bd0f2f48b77480cf5-d
+packagefile strconv=/home/runner/.cache/go-build/77/77259d90fcc7375084211240a54068616e3775cef8b6d3d07599346c7c6154c5-d
+packagefile strings=/home/runner/.cache/go-build/b4/b4a19ea5f617fb1b45caaa931d258466c90484b020ebe2f31c2c2e49e09effb2-d
+packagefile sync=/home/runner/.cache/go-build/aa/aac0c2b176fd47a87c8300dc51bd6fface7817bd2aac804b8c0b49271192ac8b-d
+packagefile time=/home/runner/.cache/go-build/dd/dd949dd7f19ecb4f31286ce67cde88f02a131f1f91e1d779d320a88b8d6fd805-d
+packagefile unicode/utf8=/home/runner/.cache/go-build/e8/e87696e607f997b1879f2956b1659e36b13991daa48d30c79d9c926627fd9c9b-d
