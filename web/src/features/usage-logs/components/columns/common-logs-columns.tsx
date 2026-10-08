@@ -264,7 +264,9 @@ function buildTypeDetailSegments(
       }
     } else {
       segments.push({
-        text: `${t('Dynamic Pricing')} · ${t('No matching results')}`,
+        // Display parsing can fail for valid expressions. Preserve the
+        // recorded tier without guessing its unit prices.
+        text: `${t('Dynamic Pricing')} · ${other.matched_tier || t('Special billing expression')}`,
         muted: true,
       })
     }

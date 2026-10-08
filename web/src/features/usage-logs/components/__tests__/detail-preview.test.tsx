@@ -192,6 +192,31 @@ test.each([
   expect(preview.textContent).toBe(expected)
 })
 
+test.each(['standard', 'long_context'])(
+  'nested token pricing preserves the recorded %s tier when unit prices cannot be summarized',
+  (matchedTier) => {
+    const preview = renderPreview({
+      billing_mode: 'tiered_expr',
+      billing_unit: 'token',
+      matched_tier: matchedTier,
+      expr_b64: btoa(
+        'len <= 272000 ? (c > 5 ? tier("standard", p * 2 + c * 10 + cr * 0.1 + cc * 2.5) : tier("free_small_output", fixed(0))) : (c > 5 ? tier("long_context", p * 5 + c * 22.5 + cr * 0.5) : tier("free_small_output", fixed(0)))'
+      ),
+    })
+    expect(preview.textContent).toBe(`Dynamic Pricing · ${matchedTier}`)
+  }
+)
+
+test('token pricing without a recorded tier does not invent a match for an unsupported expression', () => {
+  const preview = renderPreview({
+    billing_mode: 'tiered_expr',
+    expr_b64: btoa('tier("custom", max(p, 1) * 2)'),
+  })
+  expect(preview.textContent).toBe(
+    'Dynamic Pricing · Special billing expression'
+  )
+})
+
 test('quota saturation remains first and only billing adds to the counter', () => {
   const preview = renderPreview({
     model_price: 0.25,
