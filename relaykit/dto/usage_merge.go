@@ -264,23 +264,28 @@ func normalizeGeminiModality(modality string) string {
 	return strings.ToUpper(strings.TrimSpace(modality))
 }
 
+// mergeGeminiTokenDetails overlays per-modality counts the same way as the
+// scalar counts: every stream frame carries a cumulative snapshot, so a
+// modality the incoming frame reports replaces all earlier entries for it,
+// and a modality it omits keeps its earlier value. Duplicate entries inside
+// one snapshot are kept as-is; settlement sums them.
 func mergeGeminiTokenDetails(current []GeminiPromptTokensDetails, incoming []GeminiPromptTokensDetails) []GeminiPromptTokensDetails {
-	merged := append([]GeminiPromptTokensDetails{}, current...)
-	indexes := make(map[string]int, len(merged))
-	for index, detail := range merged {
-		indexes[normalizeGeminiModality(detail.Modality)] = index
+	reported := make(map[string]bool, len(incoming))
+	for _, detail := range incoming {
+		if detail.TokenCount > 0 {
+			reported[normalizeGeminiModality(detail.Modality)] = true
+		}
+	}
+	merged := make([]GeminiPromptTokensDetails, 0, len(current)+len(incoming))
+	for _, detail := range current {
+		if !reported[normalizeGeminiModality(detail.Modality)] {
+			merged = append(merged, detail)
+		}
 	}
 	for _, detail := range incoming {
-		if detail.TokenCount <= 0 {
-			continue
+		if detail.TokenCount > 0 {
+			merged = append(merged, detail)
 		}
-		key := normalizeGeminiModality(detail.Modality)
-		if index, ok := indexes[key]; ok {
-			merged[index].TokenCount += detail.TokenCount
-			continue
-		}
-		indexes[key] = len(merged)
-		merged = append(merged, detail)
 	}
 	return merged
 }

@@ -308,8 +308,6 @@ func InitResources() error {
 
 	service.InitHttpClient()
 
-	service.InitTokenEncoders()
-
 	// Initialize SQL Database
 	err = model.InitDB()
 	if err != nil {

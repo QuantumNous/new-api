@@ -3,6 +3,7 @@ package oairesponses
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -12,6 +13,7 @@ import (
 	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 func convertOpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Meta, request any) (any, error) {
@@ -96,7 +98,7 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 		case ResponsesInputTypeFunctionCall:
 			claudeRequest.Messages = appendClaudeToolUse(claudeRequest.Messages, responsesFunctionCallItemToClaudeToolUse(item))
 		case ResponsesInputTypeCustomToolCall:
-			name := strings.TrimSpace(kitutil.Interface2String(item["name"]))
+			name := responsesCallName(item)
 			if name == "" {
 				return nil, fmt.Errorf("custom_tool_call item is missing name")
 			}
@@ -109,7 +111,11 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 				Input: map[string]any{convmeta.CustomToolInputArgument: responsesArgumentsString(item["input"])},
 			})
 		case ResponsesInputTypeFunctionCallOutput, ResponsesInputTypeCustomToolOutput:
-			claudeRequest.Messages = appendClaudeToolResult(claudeRequest.Messages, responsesFunctionOutputItemToClaudeToolResult(item))
+			claudeRequest.Messages = appendClaudeToolResult(claudeRequest.Messages, dto.ClaudeMediaMessage{
+				Type:      "tool_result",
+				ToolUseId: CallID(item),
+				Content:   responsesToolOutputToClaude(c, item["output"]),
+			})
 		default:
 			sourceRole := strings.TrimSpace(kitutil.Interface2String(item["role"]))
 			role := responsesClaudeRole(sourceRole)
@@ -192,23 +198,27 @@ func responsesInputContentToClaudeMediaMessages(c context.Context, content any) 
 			if source == nil {
 				continue
 			}
-			base64Data, mimeType, err := relaymedia.ResolveBase64Data(c, source, "formatting Responses input for Claude")
-			if err != nil {
-				return nil, fmt.Errorf("get file data failed: %s", err.Error())
+			// Claude content blocks carry images, PDF documents, and text
+			// documents; audio and video have no Claude block.
+			reason := fmt.Sprintf("Claude Messages cannot carry %s content", partType)
+			var block dto.ClaudeMediaMessage
+			if partType == "input_image" || partType == "input_file" {
+				base64Data, mimeType, err := relaymedia.ResolveBase64Data(c, source, "formatting Responses input for Claude")
+				if err != nil {
+					return nil, fmt.Errorf("get file data failed: %s", err.Error())
+				}
+				block, reason = sharedclaude.MediaBlock(base64Data, mimeType, partType == "input_image")
 			}
-			claudePart := dto.ClaudeMediaMessage{
-				Source: &dto.ClaudeMessageSource{
-					Type:      "base64",
-					MediaType: mimeType,
-					Data:      base64Data,
-				},
+			if reason != "" {
+				convdiag.Add(c, types.ConversionDiagnostic{
+					Code:     "unsupported_media_type",
+					Path:     "input.content",
+					Message:  reason + "; the part was omitted",
+					Severity: types.ConversionDiagnosticError,
+				})
+				continue
 			}
-			if strings.HasPrefix(mimeType, "application/pdf") {
-				claudePart.Type = "document"
-			} else {
-				claudePart.Type = "image"
-			}
-			parts = append(parts, claudePart)
+			parts = append(parts, block)
 		}
 	}
 	return parts, nil
@@ -218,24 +228,51 @@ func responsesFunctionCallItemToClaudeToolUse(item map[string]any) dto.ClaudeMed
 	return dto.ClaudeMediaMessage{
 		Type:  "tool_use",
 		Id:    CallID(item),
-		Name:  strings.TrimSpace(kitutil.Interface2String(item["name"])),
+		Name:  responsesCallName(item),
 		Input: ObjectValue(item["arguments"], "arguments"),
 	}
 }
 
-func responsesFunctionOutputItemToClaudeToolResult(item map[string]any) dto.ClaudeMediaMessage {
-	return dto.ClaudeMediaMessage{
-		Type:      "tool_result",
-		ToolUseId: CallID(item),
-		Content:   responsesToolOutputValue(item["output"]),
+// responsesToolOutputToClaude maps a function_call_output payload onto Claude
+// tool_result content. A Responses content-part array becomes the text, image,
+// and document blocks tool_result accepts; stringifying it instead would hand
+// base64 media to the upstream text tokenizer. An array holding any other part
+// type, or media that cannot be resolved, keeps the stringified form, and other
+// payload shapes pass through unchanged.
+func responsesToolOutputToClaude(c context.Context, value any) any {
+	rawParts, ok := value.([]any)
+	if !ok || len(rawParts) == 0 {
+		if value == nil {
+			return ""
+		}
+		return value
 	}
-}
-
-func responsesToolOutputValue(value any) any {
-	if value == nil {
-		return ""
+	labels := make([]string, 0, len(rawParts))
+	for _, rawPart := range rawParts {
+		part, isMap := rawPart.(map[string]any)
+		if !isMap {
+			return responseToolOutputToChatContent(value)
+		}
+		switch partType := strings.TrimSpace(kitutil.Interface2String(part["type"])); partType {
+		case "input_text", "output_text", "text":
+		case "input_image", "input_file", "input_audio", "input_video":
+			if label := "[" + strings.TrimPrefix(partType, "input_") + "]"; !slices.Contains(labels, label) {
+				labels = append(labels, label)
+			}
+		default:
+			return responseToolOutputToChatContent(value)
+		}
 	}
-	return value
+	blocks, err := responsesInputContentToClaudeMediaMessages(c, rawParts)
+	if err != nil {
+		return responseToolOutputToChatContent(value)
+	}
+	if len(blocks) == 0 {
+		// Every media part was omitted with a diagnostic; name what was there
+		// instead of sending the payload as text.
+		return strings.Join(labels, " ")
+	}
+	return blocks
 }
 
 func appendClaudeToolUse(messages []dto.ClaudeMessage, toolUse dto.ClaudeMediaMessage) []dto.ClaudeMessage {
