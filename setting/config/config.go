@@ -12,7 +12,7 @@ import (
 
 // ConfigManager 统一管理所有配置
 type ConfigManager struct {
-	configs map[string]interface{}
+	configs map[string]any
 	mutex   sync.RWMutex
 }
 
@@ -20,19 +20,19 @@ var GlobalConfig = NewConfigManager()
 
 func NewConfigManager() *ConfigManager {
 	return &ConfigManager{
-		configs: make(map[string]interface{}),
+		configs: make(map[string]any),
 	}
 }
 
 // Register 注册一个配置模块
-func (cm *ConfigManager) Register(name string, config interface{}) {
+func (cm *ConfigManager) Register(name string, config any) {
 	cm.mutex.Lock()
 	defer cm.mutex.Unlock()
 	cm.configs[name] = config
 }
 
 // Get 获取指定配置模块
-func (cm *ConfigManager) Get(name string) interface{} {
+func (cm *ConfigManager) Get(name string) any {
 	cm.mutex.RLock()
 	defer cm.mutex.RUnlock()
 	return cm.configs[name]
@@ -49,8 +49,8 @@ func (cm *ConfigManager) LoadFromDB(options map[string]string) error {
 
 		// 收集属于此配置的所有选项
 		for key, value := range options {
-			if strings.HasPrefix(key, prefix) {
-				configKey := strings.TrimPrefix(key, prefix)
+			if after, ok := strings.CutPrefix(key, prefix); ok {
+				configKey := after
 				configMap[configKey] = value
 			}
 		}
@@ -90,11 +90,11 @@ func (cm *ConfigManager) SaveToDB(updateFunc func(key, value string) error) erro
 }
 
 // 辅助函数：将配置对象转换为map
-func configToMap(config interface{}) (map[string]string, error) {
+func configToMap(config any) (map[string]string, error) {
 	result := make(map[string]string)
 
 	val := reflect.ValueOf(config)
-	if val.Kind() == reflect.Ptr {
+	if val.Kind() == reflect.Pointer {
 		val = val.Elem()
 	}
 
@@ -131,7 +131,7 @@ func configToMap(config interface{}) (map[string]string, error) {
 			strValue = strconv.FormatUint(field.Uint(), 10)
 		case reflect.Float32, reflect.Float64:
 			strValue = strconv.FormatFloat(field.Float(), 'f', -1, 64)
-		case reflect.Ptr:
+		case reflect.Pointer:
 			// 处理指针类型：如果非 nil，序列化指向的值
 			if !field.IsNil() {
 				bytes, err := json.Marshal(field.Interface())
@@ -162,9 +162,9 @@ func configToMap(config interface{}) (map[string]string, error) {
 }
 
 // 辅助函数：从map更新配置对象
-func updateConfigFromMap(config interface{}, configMap map[string]string) error {
+func updateConfigFromMap(config any, configMap map[string]string) error {
 	val := reflect.ValueOf(config)
-	if val.Kind() != reflect.Ptr {
+	if val.Kind() != reflect.Pointer {
 		return nil
 	}
 	val = val.Elem()
@@ -237,7 +237,7 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 				continue
 			}
 			field.SetFloat(floatValue)
-		case reflect.Ptr:
+		case reflect.Pointer:
 			// 处理指针类型
 			if strValue == "null" {
 				field.Set(reflect.Zero(field.Type()))
@@ -273,12 +273,12 @@ func updateConfigFromMap(config interface{}, configMap map[string]string) error 
 }
 
 // ConfigToMap 将配置对象转换为map（导出函数）
-func ConfigToMap(config interface{}) (map[string]string, error) {
+func ConfigToMap(config any) (map[string]string, error) {
 	return configToMap(config)
 }
 
 // UpdateConfigFromMap 从map更新配置对象（导出函数）
-func UpdateConfigFromMap(config interface{}, configMap map[string]string) error {
+func UpdateConfigFromMap(config any, configMap map[string]string) error {
 	return updateConfigFromMap(config, configMap)
 }
 

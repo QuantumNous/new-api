@@ -1,6 +1,7 @@
 package ratio_setting
 
 import (
+	"maps"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -26,9 +27,7 @@ func InvalidateExposedDataCache() {
 
 func cloneGinH(src gin.H) gin.H {
 	dst := make(gin.H, len(src))
-	for k, v := range src {
-		dst[k] = v
-	}
+	maps.Copy(dst, src)
 	return dst
 }
 

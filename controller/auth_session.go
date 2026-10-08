@@ -179,7 +179,12 @@ func setAuthNoStore(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
 }
 
+// authRotationData is empty when the change came through an access token,
+// which has no browser session to rotate.
 func authRotationData(bundle *service.AuthBundle) gin.H {
+	if bundle == nil {
+		return gin.H{}
+	}
 	return gin.H{
 		"access_token":      bundle.AccessToken,
 		"token_type":        bundle.TokenType,

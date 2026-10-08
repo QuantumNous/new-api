@@ -432,7 +432,7 @@ func TestListActiveUserSessionsKeepsCurrentAndBoundsOtherSessions(t *testing.T) 
 	current.UserAuthVersion = 7
 	rows := make([]UserSession, 0, 107)
 	rows = append(rows, *current)
-	for i := 0; i < 105; i++ {
+	for i := range 105 {
 		session := newTestUserSession(fmt.Sprintf("list-other-%03d", i), 1007, now-int64(i))
 		session.UserAuthVersion = 7
 		rows = append(rows, *session)
@@ -461,7 +461,7 @@ func TestRevokeUserSessionsReturnsCumulativeProgressAndSupportsRetry(t *testing.
 	now := time.Now().Unix()
 	createUserSessionTestUser(t, 1008, 1)
 	rows := make([]UserSession, 0, userSessionRevokeBatchSize+1)
-	for i := 0; i < userSessionRevokeBatchSize+1; i++ {
+	for i := range userSessionRevokeBatchSize + 1 {
 		rows = append(rows, *newTestUserSession(fmt.Sprintf("batch-revoke-%03d", i), 1008, now))
 	}
 	require.NoError(t, DB.CreateInBatches(rows, 100).Error)
@@ -509,7 +509,7 @@ func TestDeleteExpiredUserSessionsLoopsInChunksAndRechecksPredicate(t *testing.T
 	race.CreatedAt = oldCreatedAt
 	race.ExpiresAt = now - 1000
 	rows = append(rows, *race)
-	for i := 0; i < userSessionCleanupScanLimit+1; i++ {
+	for i := range userSessionCleanupScanLimit + 1 {
 		session := newTestUserSession(fmt.Sprintf("cleanup-expired-%04d", i), 1009, now-100)
 		session.CreatedAt = oldCreatedAt - int64(i)
 		session.ExpiresAt = now - 100

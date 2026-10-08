@@ -199,6 +199,9 @@ meta := &convmeta.Values{
 - OpenAI Chat 或 OpenAI Responses 转 Claude 时，Claude 请求必须具有 `max_tokens`。源请求未提供时，需要配置 `Claude.DefaultMaxTokens`，否则转换会返回错误。
 - RelayKit 不负责选择渠道或映射模型名。调用转换前，应将请求中的 `Model` 设置为目标上游使用的模型名。
 - 自定义 `convmeta.Meta` 的指针实现必须保证所有方法对 nil receiver 安全，完整约束见 `convmeta.Meta` 的接口注释。
+- 工具损耗策略默认是 `allow`：跨协议转换会成功，损耗以诊断形式返回。`safe` / `strict` 只在请求阶段 opt-in 拒绝；响应和流式转换无论策略如何都不会因损耗失败。
+- `ThinkingAdapterEnabled` 只控制是否把已解析的推理意图渲染到 Claude / Gemini 请求上。`-thinking` / `-nothinking` / effort 尾缀等命名约定不再由转换器自动解释。
+- 若你的入口仍使用这些模型名后缀，请在调用转换前自行调用 `relayconvert/reasoning` 的 `Parse*` 帮助函数，把结果写成 `dto.ReasoningConversionState`，并通过 `convmeta.Meta.ReasoningState()`（`convmeta.Values.ReasoningConversion`）传入。同时把发给上游的模型名裁成无后缀基础名。
 
 ## 多模态内容
 

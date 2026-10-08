@@ -9,7 +9,6 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
 func FetchCodexChannelModels(channel *model.Channel) ([]string, error) {
@@ -34,7 +33,7 @@ func FetchCodexChannelModels(channel *model.Channel) ([]string, error) {
 
 	baseURL := channel.GetBaseURL()
 	if baseURL == "" {
-		baseURL = constant.ChannelBaseURLs[constant.ChannelTypeCodex]
+		baseURL = constant.GetChannelBaseURL(constant.ChannelTypeCodex)
 	}
 	return fetchCodexChannelModels(ctx, channel, baseURL, client, clientVersion)
 }
@@ -78,13 +77,5 @@ func fetchCodexChannelModels(
 	if statusCode < http.StatusOK || statusCode >= http.StatusMultipleChoices {
 		return nil, fmt.Errorf("upstream status: %d", statusCode)
 	}
-	modelVariants := make([]string, 0, len(models)*2)
-	modelVariants = append(modelVariants, models...)
-	for _, modelName := range models {
-		if modelName == "codex-auto-review" {
-			continue
-		}
-		modelVariants = append(modelVariants, ratio_setting.WithCompactModelSuffix(modelName))
-	}
-	return modelVariants, nil
+	return models, nil
 }

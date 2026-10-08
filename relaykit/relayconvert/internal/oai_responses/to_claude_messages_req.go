@@ -1,15 +1,19 @@
 package oairesponses
 
 import (
+	"context"
 	"fmt"
+	"slices"
 	"strings"
 
-	"context"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
 	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 func convertOpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Meta, request any) (any, error) {
@@ -40,13 +44,6 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 	if req.MaxOutputTokens != nil && *req.MaxOutputTokens > 0 {
 		claudeRequest.MaxTokens = kitutil.GetPointer(*req.MaxOutputTokens)
 	}
-	if claudeRequest.MaxTokens == nil || *claudeRequest.MaxTokens == 0 {
-		if defaultMaxTokens, configured := convmeta.OptionsOf(info).Claude.DefaultMaxTokensFor(req.Model); configured {
-			value := uint(defaultMaxTokens)
-			claudeRequest.MaxTokens = &value
-		}
-	}
-
 	functions, err := RequestFunctionDeclarations(req.Tools)
 	if err != nil {
 		return nil, err
@@ -62,7 +59,20 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 	if toolChoice != nil || RawJSONPresent(req.ParallelToolCalls) {
 		claudeRequest.ToolChoice = sharedclaude.MapOpenAIToolChoice(toolChoice, ParallelToolCalls(req.ParallelToolCalls))
 	}
-	applyResponsesReasoningToClaude(req, claudeRequest)
+	sourceReasoning, diagnostics, err := reasoning.FromOpenAIResponses(req)
+	if err != nil {
+		return nil, reasoning.AsClientError(err)
+	}
+	convdiag.Add(c, diagnostics...)
+	if err := sharedclaude.ApplyReasoning(c, claudeRequest, info, sourceReasoning, true); err != nil {
+		return nil, reasoning.AsClientError(err)
+	}
+	if claudeRequest.MaxTokens == nil {
+		if defaultMaxTokens, configured := convmeta.OptionsOf(info).Claude.DefaultMaxTokensFor(claudeRequest.Model); configured {
+			value := uint(defaultMaxTokens)
+			claudeRequest.MaxTokens = &value
+		}
+	}
 
 	systemMessages := make([]dto.ClaudeMediaMessage, 0)
 	if RawJSONPresent(req.Instructions) {
@@ -86,19 +96,42 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 		itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
 		switch itemType {
 		case ResponsesInputTypeFunctionCall:
-			claudeRequest.Messages = appendClaudeToolUse(claudeRequest.Messages, responsesFunctionCallItemToClaudeToolUse(item, "arguments"))
+			claudeRequest.Messages = appendClaudeToolUse(claudeRequest.Messages, responsesFunctionCallItemToClaudeToolUse(item))
 		case ResponsesInputTypeCustomToolCall:
-			claudeRequest.Messages = appendClaudeToolUse(claudeRequest.Messages, responsesFunctionCallItemToClaudeToolUse(item, "input"))
+			name := responsesCallName(item)
+			if name == "" {
+				return nil, fmt.Errorf("custom_tool_call item is missing name")
+			}
+			// The custom tool is declared as a function taking one string
+			// argument, so its raw input is replayed in that shape.
+			claudeRequest.Messages = appendClaudeToolUse(claudeRequest.Messages, dto.ClaudeMediaMessage{
+				Type:  "tool_use",
+				Id:    CallID(item),
+				Name:  name,
+				Input: map[string]any{convmeta.CustomToolInputArgument: responsesArgumentsString(item["input"])},
+			})
 		case ResponsesInputTypeFunctionCallOutput, ResponsesInputTypeCustomToolOutput:
-			claudeRequest.Messages = appendClaudeToolResult(claudeRequest.Messages, responsesFunctionOutputItemToClaudeToolResult(item))
+			claudeRequest.Messages = appendClaudeToolResult(claudeRequest.Messages, dto.ClaudeMediaMessage{
+				Type:      "tool_result",
+				ToolUseId: CallID(item),
+				Content:   responsesToolOutputToClaude(c, item["output"]),
+			})
 		default:
-			role := responsesClaudeRole(item)
+			sourceRole := strings.TrimSpace(kitutil.Interface2String(item["role"]))
+			role := responsesClaudeRole(sourceRole)
 			parts, err := responsesInputContentToClaudeMediaMessages(c, item["content"])
 			if err != nil {
 				return nil, err
 			}
+			if sourceRole == "" && len(parts) == 0 {
+				continue
+			}
 			if role == "system" {
-				systemMessages = append(systemMessages, parts...)
+				for _, part := range parts {
+					if part.Type == "text" {
+						systemMessages = append(systemMessages, part)
+					}
+				}
 				continue
 			}
 			if len(parts) == 0 {
@@ -119,7 +152,9 @@ func OpenAIResponsesRequestToClaudeMessages(c context.Context, info convmeta.Met
 	if len(systemMessages) > 0 {
 		claudeRequest.System = systemMessages
 	}
-	claudeRequest.Messages = ensureClaudeMessagesStartWithUser(claudeRequest.Messages)
+	if len(claudeRequest.Messages) > 0 || len(systemMessages) > 0 {
+		claudeRequest.Messages = ensureClaudeMessagesStartWithUser(claudeRequest.Messages)
+	}
 	// Checked last so every injection path has had its chance to satisfy the
 	// required field.
 	if claudeRequest.MaxTokens == nil {
@@ -134,51 +169,10 @@ func responsesFunctionDeclarationsToClaudeTools(functions []dto.FunctionRequest)
 		tools = append(tools, &dto.Tool{
 			Name:        function.Name,
 			Description: function.Description,
-			InputSchema: responsesFunctionParametersToClaudeInputSchema(function.Parameters),
+			InputSchema: sharedclaude.FunctionParametersToInputSchema(function.Parameters),
 		})
 	}
 	return tools
-}
-
-func responsesFunctionParametersToClaudeInputSchema(parameters any) map[string]interface{} {
-	if params, ok := parameters.(map[string]any); ok {
-		schema := make(map[string]interface{}, len(params))
-		for key, value := range params {
-			schema[key] = value
-		}
-		if schema["type"] == nil {
-			schema["type"] = "object"
-		}
-		if schema["properties"] == nil {
-			schema["properties"] = map[string]interface{}{}
-		}
-		return schema
-	}
-	return map[string]interface{}{
-		"type":       "object",
-		"properties": map[string]interface{}{},
-	}
-}
-
-func applyResponsesReasoningToClaude(req *dto.OpenAIResponsesRequest, claudeRequest *dto.ClaudeRequest) {
-	effort := ReasoningEffort(req)
-	switch effort {
-	case "low":
-		claudeRequest.Thinking = &dto.Thinking{
-			Type:         "enabled",
-			BudgetTokens: kitutil.GetPointer(1280),
-		}
-	case "medium":
-		claudeRequest.Thinking = &dto.Thinking{
-			Type:         "enabled",
-			BudgetTokens: kitutil.GetPointer(2048),
-		}
-	case "high":
-		claudeRequest.Thinking = &dto.Thinking{
-			Type:         "enabled",
-			BudgetTokens: kitutil.GetPointer(4096),
-		}
-	}
 }
 
 func responsesInputContentToClaudeMediaMessages(c context.Context, content any) ([]dto.ClaudeMediaMessage, error) {
@@ -204,50 +198,81 @@ func responsesInputContentToClaudeMediaMessages(c context.Context, content any) 
 			if source == nil {
 				continue
 			}
-			base64Data, mimeType, err := relaymedia.ResolveBase64Data(c, source, "formatting Responses input for Claude")
-			if err != nil {
-				return nil, fmt.Errorf("get file data failed: %s", err.Error())
+			// Claude content blocks carry images, PDF documents, and text
+			// documents; audio and video have no Claude block.
+			reason := fmt.Sprintf("Claude Messages cannot carry %s content", partType)
+			var block dto.ClaudeMediaMessage
+			if partType == "input_image" || partType == "input_file" {
+				base64Data, mimeType, err := relaymedia.ResolveBase64Data(c, source, "formatting Responses input for Claude")
+				if err != nil {
+					return nil, fmt.Errorf("get file data failed: %s", err.Error())
+				}
+				block, reason = sharedclaude.MediaBlock(base64Data, mimeType, partType == "input_image")
 			}
-			claudePart := dto.ClaudeMediaMessage{
-				Source: &dto.ClaudeMessageSource{
-					Type:      "base64",
-					MediaType: mimeType,
-					Data:      base64Data,
-				},
+			if reason != "" {
+				convdiag.Add(c, types.ConversionDiagnostic{
+					Code:     "unsupported_media_type",
+					Path:     "input.content",
+					Message:  reason + "; the part was omitted",
+					Severity: types.ConversionDiagnosticError,
+				})
+				continue
 			}
-			if strings.HasPrefix(mimeType, "application/pdf") {
-				claudePart.Type = "document"
-			} else {
-				claudePart.Type = "image"
-			}
-			parts = append(parts, claudePart)
+			parts = append(parts, block)
 		}
 	}
 	return parts, nil
 }
 
-func responsesFunctionCallItemToClaudeToolUse(item map[string]any, inputKey string) dto.ClaudeMediaMessage {
+func responsesFunctionCallItemToClaudeToolUse(item map[string]any) dto.ClaudeMediaMessage {
 	return dto.ClaudeMediaMessage{
 		Type:  "tool_use",
 		Id:    CallID(item),
-		Name:  strings.TrimSpace(kitutil.Interface2String(item["name"])),
-		Input: ObjectValue(item[inputKey], inputKey),
+		Name:  responsesCallName(item),
+		Input: ObjectValue(item["arguments"], "arguments"),
 	}
 }
 
-func responsesFunctionOutputItemToClaudeToolResult(item map[string]any) dto.ClaudeMediaMessage {
-	return dto.ClaudeMediaMessage{
-		Type:      "tool_result",
-		ToolUseId: CallID(item),
-		Content:   responsesToolOutputValue(item["output"]),
+// responsesToolOutputToClaude maps a function_call_output payload onto Claude
+// tool_result content. A Responses content-part array becomes the text, image,
+// and document blocks tool_result accepts; stringifying it instead would hand
+// base64 media to the upstream text tokenizer. An array holding any other part
+// type, or media that cannot be resolved, keeps the stringified form, and other
+// payload shapes pass through unchanged.
+func responsesToolOutputToClaude(c context.Context, value any) any {
+	rawParts, ok := value.([]any)
+	if !ok || len(rawParts) == 0 {
+		if value == nil {
+			return ""
+		}
+		return value
 	}
-}
-
-func responsesToolOutputValue(value any) any {
-	if value == nil {
-		return ""
+	labels := make([]string, 0, len(rawParts))
+	for _, rawPart := range rawParts {
+		part, isMap := rawPart.(map[string]any)
+		if !isMap {
+			return responseToolOutputToChatContent(value)
+		}
+		switch partType := strings.TrimSpace(kitutil.Interface2String(part["type"])); partType {
+		case "input_text", "output_text", "text":
+		case "input_image", "input_file", "input_audio", "input_video":
+			if label := "[" + strings.TrimPrefix(partType, "input_") + "]"; !slices.Contains(labels, label) {
+				labels = append(labels, label)
+			}
+		default:
+			return responseToolOutputToChatContent(value)
+		}
 	}
-	return value
+	blocks, err := responsesInputContentToClaudeMediaMessages(c, rawParts)
+	if err != nil {
+		return responseToolOutputToChatContent(value)
+	}
+	if len(blocks) == 0 {
+		// Every media part was omitted with a diagnostic; name what was there
+		// instead of sending the payload as text.
+		return strings.Join(labels, " ")
+	}
+	return blocks
 }
 
 func appendClaudeToolUse(messages []dto.ClaudeMessage, toolUse dto.ClaudeMediaMessage) []dto.ClaudeMessage {
@@ -300,8 +325,8 @@ func claudeMessageContentParts(content any) []dto.ClaudeMediaMessage {
 	}
 }
 
-func responsesClaudeRole(item map[string]any) string {
-	switch strings.TrimSpace(kitutil.Interface2String(item["role"])) {
+func responsesClaudeRole(role string) string {
+	switch role {
 	case "assistant":
 		return "assistant"
 	case "system", "developer":
@@ -312,7 +337,7 @@ func responsesClaudeRole(item map[string]any) string {
 }
 
 func ensureClaudeMessagesStartWithUser(messages []dto.ClaudeMessage) []dto.ClaudeMessage {
-	if len(messages) == 0 || messages[0].Role == "user" {
+	if len(messages) > 0 && messages[0].Role == "user" {
 		return messages
 	}
 	return append([]dto.ClaudeMessage{

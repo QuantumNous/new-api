@@ -89,7 +89,8 @@ export function chatLinkRequiresApiKey(url: string): boolean {
     url.includes('{key}') ||
     url.includes('{cherryConfig}') ||
     url.includes('{aionuiConfig}') ||
-    url.includes('{deepchatConfig}')
+    url.includes('{deepchatConfig}') ||
+    url.includes('{aqbotConfig}')
   )
 }
 
@@ -187,6 +188,16 @@ export function resolveChatUrl({
     }
     const encoded = encodeURIComponent(toBase64(JSON.stringify(payload)))
     return replaceToken(url, '{deepchatConfig}', encoded)
+  }
+
+  if (url.includes('{aqbotConfig}')) {
+    const query = [
+      `name=${encodeURIComponent('New API')}`,
+      `baseurl=${encodeURIComponent(safeServerAddress)}`,
+      `apikey=${encodeURIComponent(safeApiKey)}`,
+      'type=openai',
+    ].join('&')
+    return replaceToken(url, '{aqbotConfig}', query)
   }
 
   if (safeServerAddress) {

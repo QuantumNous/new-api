@@ -191,22 +191,30 @@ export type ReasoningContentProps = ComponentProps<
 }
 
 export const ReasoningContent = memo(
-  ({ className, children, ...props }: ReasoningContentProps) => (
-    <CollapsibleContent
-      className={cn(
-        'CollapsibleContent group/reasoning-content border-border/70 mt-2 ml-1.5 border-l pl-3 text-sm leading-5',
-        'text-muted-foreground outline-none',
-        className
-      )}
-      {...props}
-    >
-      <div className='transition-[opacity,transform] duration-200 ease-out group-data-[closed]/reasoning-content:-translate-y-1 group-data-[closed]/reasoning-content:opacity-0 group-data-[open]/reasoning-content:translate-y-0 group-data-[open]/reasoning-content:opacity-100 motion-reduce:transition-none'>
-        <Response className='grid gap-1.5 [&_li]:my-0.5 [&_ol]:my-1.5 [&_p]:my-1.5 [&_p]:leading-5 [&_ul]:my-1.5'>
-          {children}
-        </Response>
-      </div>
-    </CollapsibleContent>
-  )
+  ({ className, children, ...props }: ReasoningContentProps) => {
+    const { isStreaming } = useReasoning()
+
+    return (
+      <CollapsibleContent
+        className={cn(
+          'CollapsibleContent group/reasoning-content border-border/70 mt-2 ml-1.5 border-l pl-3 text-sm leading-5',
+          'text-muted-foreground outline-none',
+          className
+        )}
+        {...props}
+      >
+        <div className='transition-[opacity,transform] duration-200 ease-out group-data-[closed]/reasoning-content:-translate-y-1 group-data-[closed]/reasoning-content:opacity-0 group-data-[open]/reasoning-content:translate-y-0 group-data-[open]/reasoning-content:opacity-100 motion-reduce:transition-none'>
+          <Response
+            className='grid gap-1.5 [&_li]:my-0.5 [&_ol]:my-1.5 [&_p]:my-1.5 [&_p]:leading-5 [&_ul]:my-1.5'
+            final={!isStreaming}
+            parserId='new-api-reasoning'
+          >
+            {children}
+          </Response>
+        </div>
+      </CollapsibleContent>
+    )
+  }
 )
 
 Reasoning.displayName = 'Reasoning'

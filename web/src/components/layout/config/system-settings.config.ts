@@ -16,9 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type TFunction } from 'i18next'
+import type { TFunction } from 'i18next'
 import {
   Box,
+  Route,
   CreditCard,
   Layout,
   Settings,
@@ -32,6 +33,7 @@ import { getBillingSectionNavItems } from '@/features/system-settings/billing/se
 import { getContentSectionNavItems } from '@/features/system-settings/content/section-registry.tsx'
 import { getModelsSectionNavItems } from '@/features/system-settings/models/section-registry.tsx'
 import { getOperationsSectionNavItems } from '@/features/system-settings/operations/section-registry.tsx'
+import { getPolicySectionNavItems } from '@/features/system-settings/request-policies/section-registry'
 import { getSecuritySectionNavItems } from '@/features/system-settings/security/section-registry.tsx'
 import { getSiteSectionNavItems } from '@/features/system-settings/site/section-registry.tsx'
 
@@ -66,9 +68,14 @@ function getSystemSettingsNavGroups(t: TFunction): NavGroup[] {
           items: getBillingSectionNavItems(t),
         },
         {
-          title: t('Models & Routing'),
+          title: t('Models'),
           icon: Box,
           items: getModelsSectionNavItems(t),
+        },
+        {
+          title: t('Request policies'),
+          icon: Route,
+          items: getPolicySectionNavItems(t),
         },
         {
           title: t('Security & Limits'),

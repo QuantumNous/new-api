@@ -1,4 +1,4 @@
-FROM oven/bun:1@sha256:0733e50325078969732ebe3b15ce4c4be5082f18c4ac1a0f0ca4839c2e4e42a7 AS builder
+FROM oven/bun:1.4.0@sha256:5ff609364c049b54eb0ff560ec96319729a972078ef2c755d758f0c6ef89c2d6 AS builder
 
 WORKDIR /build/web
 COPY web/package.json web/bun.lock ./
@@ -18,9 +18,10 @@ ENV GOEXPERIMENT=greenteagc
 WORKDIR /build
 
 ADD go.mod go.sum ./
-# relaykit is a local submodule referenced via replace; its go.mod must be
-# present for go mod download to resolve the main module graph.
+# relaykit and tokenkit are local submodules referenced via replace; their
+# go.mod files must be present for go mod download to resolve the main module graph.
 ADD relaykit/go.mod ./relaykit/go.mod
+ADD tokenkit/go.mod ./tokenkit/go.mod
 RUN go mod download
 
 COPY . .

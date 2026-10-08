@@ -17,8 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import * as React from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { StatusBadgeList } from '@/components/status-badge'
+import { Button } from '@/components/ui/button'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Tooltip,
   TooltipContent,
@@ -30,6 +37,8 @@ interface BadgeListCellProps {
   items: React.ReactNode[]
   max?: number
   tooltipClassName?: string
+  expandable?: boolean
+  expandLabel?: string
 }
 
 /**
@@ -41,12 +50,44 @@ export function BadgeListCell({
   items,
   max = 2,
   tooltipClassName,
+  expandable = false,
+  expandLabel,
 }: BadgeListCellProps) {
+  const { t } = useTranslation()
   if (items.length === 0) {
     return <span className='text-muted-foreground text-xs'>-</span>
   }
 
   const showTooltip = items.length > max
+
+  if (expandable && showTooltip) {
+    return (
+      <div className='flex min-w-0 items-center gap-1'>
+        <StatusBadgeList
+          items={items.slice(0, max)}
+          max={max}
+          renderItem={(item) => item}
+        />
+        <Popover>
+          <PopoverTrigger
+            render={
+              <Button
+                variant='ghost'
+                size='sm'
+                className='h-6 shrink-0 px-1'
+                aria-label={expandLabel ?? t('Show all tags')}
+              />
+            }
+          >
+            +{items.length - max}
+          </PopoverTrigger>
+          <PopoverContent className='max-h-64 overflow-auto'>
+            <div className='flex flex-wrap gap-2'>{items}</div>
+          </PopoverContent>
+        </Popover>
+      </div>
+    )
+  }
 
   return (
     <TooltipProvider>

@@ -63,8 +63,8 @@ func InitSessionCookieSettings() error {
 		return fmt.Errorf("SESSION_COOKIE_SECURE=true requires SESSION_COOKIE_TRUSTED_URL")
 	}
 
-	trustedURLs := strings.Split(trustedURLsRaw, ",")
-	for _, trustedURL := range trustedURLs {
+	trustedURLs := strings.SplitSeq(trustedURLsRaw, ",")
+	for trustedURL := range trustedURLs {
 		trustedURL = strings.TrimSpace(trustedURL)
 		if trustedURL == "" {
 			return fmt.Errorf("SESSION_COOKIE_TRUSTED_URL contains an empty URL")

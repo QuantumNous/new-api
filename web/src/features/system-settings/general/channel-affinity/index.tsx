@@ -16,35 +16,43 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Edit, FileText, Plus, RefreshCw, Trash2, X } from 'lucide-react'
-import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import {
+  Braces,
+  Database,
+  FileText,
+  ListFilter,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
-import { StaticDataTable } from '@/components/data-table'
-import { Dialog } from '@/components/dialog'
+import { ConfirmDialog } from '@/components/confirm-dialog'
 import { JsonCodeEditor } from '@/components/json-code-editor'
-import { StatusBadge, StatusBadgeList } from '@/components/status-badge'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatNumber } from '@/lib/format'
+import { handleServerError } from '@/lib/handle-server-error'
+import { cn } from '@/lib/utils'
 
-import { SettingsSwitchField } from '../../components/settings-form-layout'
-import { SettingsPageActionsPortal } from '../../components/settings-page-context'
-import { SettingsSection } from '../../components/settings-section'
-import { useUpdateOption } from '../../hooks/use-update-option'
 import { getCacheStats, clearAllCache, clearRuleCache } from './api'
 import { RULE_TEMPLATES, cloneTemplate, makeUniqueName } from './constants'
 import { RuleEditorDialog } from './rule-editor-dialog'
-import type { AffinityRule, CacheStats, ChannelAffinitySettings } from './types'
+import { SessionRulesTable } from './session-rules-table'
+import type { AffinityRule, CacheStats, SessionMode } from './types'
 
 function parseRules(jsonStr: string): AffinityRule[] {
   try {
@@ -59,152 +67,51 @@ function parseRules(jsonStr: string): AffinityRule[] {
   }
 }
 
-function RuleBadgeList(props: { items: string[] }) {
-  return (
-    <StatusBadgeList
-      items={props.items}
-      max={2}
-      getKey={(item) => item}
-      renderItem={(item) => (
-        <StatusBadge
-          label={item}
-          variant='neutral'
-          size='sm'
-          copyable={false}
-        />
-      )}
-    />
-  )
-}
-
-function ChannelAffinityConfirmDialog(props: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  title: ReactNode
-  desc: ReactNode
-  handleConfirm: () => void
-  destructive?: boolean
-}) {
-  const { t } = useTranslation()
-
-  return (
-    <Dialog
-      open={props.open}
-      onOpenChange={props.onOpenChange}
-      title={props.title}
-      contentClassName='sm:max-w-md'
-      contentHeight='auto'
-      bodyClassName='flex items-start'
-      footer={
-        <>
-          <Button variant='outline' onClick={() => props.onOpenChange(false)}>
-            {t('Cancel')}
-          </Button>
-          <Button
-            variant={props.destructive ? 'destructive' : 'default'}
-            onClick={props.handleConfirm}
-          >
-            {t('Continue')}
-          </Button>
-        </>
-      }
-    >
-      <div className='text-muted-foreground text-sm'>{props.desc}</div>
-    </Dialog>
-  )
-}
-
 function serializeRules(rules: AffinityRule[]): string {
   return JSON.stringify(rules.map(({ id: _, ...rest }) => rest))
 }
 
 interface Props {
-  defaultValues: ChannelAffinitySettings
+  rulesJson: string
+  onRulesChange: (rules: string) => void
+  enabled?: boolean
+  globalSessionMode?: SessionMode | ''
 }
 
 export function ChannelAffinitySection(props: Props) {
-  const { t } = useTranslation()
-  const updateOption = useUpdateOption()
-
-  const [enabled, setEnabled] = useState(
-    props.defaultValues['channel_affinity_setting.enabled']
-  )
-  const [switchOnSuccess, setSwitchOnSuccess] = useState(
-    props.defaultValues['channel_affinity_setting.switch_on_success']
-  )
-  const [keepOnChannelDisabled, setKeepOnChannelDisabled] = useState(
-    props.defaultValues['channel_affinity_setting.keep_on_channel_disabled']
-  )
-  const [maxEntries, setMaxEntries] = useState(
-    props.defaultValues['channel_affinity_setting.max_entries']
-  )
-  const [defaultTtl, setDefaultTtl] = useState(
-    props.defaultValues['channel_affinity_setting.default_ttl_seconds']
-  )
-  const [rules, setRules] = useState<AffinityRule[]>(() =>
-    parseRules(props.defaultValues['channel_affinity_setting.rules'])
-  )
-
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const rules = useMemo(() => parseRules(props.rulesJson), [props.rulesJson])
   const [editMode, setEditMode] = useState<'visual' | 'json'>('visual')
-  const [jsonText, setJsonText] = useState(() =>
-    JSON.stringify(
-      parseRules(props.defaultValues['channel_affinity_setting.rules']).map(
-        ({ id: _, ...r }) => r
-      ),
-      null,
-      2
-    )
-  )
   const [cacheStats, setCacheStats] = useState<CacheStats | null>(null)
   const [cacheLoading, setCacheLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
 
   const [ruleEditorOpen, setRuleEditorOpen] = useState(false)
   const [editingRule, setEditingRule] = useState<AffinityRule | null>(null)
   const [ruleTemplateKey, setRuleTemplateKey] = useState<string | null>(null)
+  const [deletingRule, setDeletingRule] = useState<AffinityRule | null>(null)
   const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false)
   const [clearRuleName, setClearRuleName] = useState<string | null>(null)
   const [fillTemplateDialogOpen, setFillTemplateDialogOpen] = useState(false)
-
-  useEffect(() => {
-    setEnabled(props.defaultValues['channel_affinity_setting.enabled'])
-    setSwitchOnSuccess(
-      props.defaultValues['channel_affinity_setting.switch_on_success']
-    )
-    setKeepOnChannelDisabled(
-      props.defaultValues['channel_affinity_setting.keep_on_channel_disabled']
-    )
-    setMaxEntries(props.defaultValues['channel_affinity_setting.max_entries'])
-    setDefaultTtl(
-      props.defaultValues['channel_affinity_setting.default_ttl_seconds']
-    )
-    const parsed = parseRules(
-      props.defaultValues['channel_affinity_setting.rules']
-    )
-    setRules(parsed)
-    setJsonText(
-      JSON.stringify(
-        parsed.map(({ id: _, ...r }) => r),
-        null,
-        2
-      )
-    )
-  }, [props.defaultValues])
 
   const refreshCache = useCallback(async () => {
     setCacheLoading(true)
     try {
       const res = await getCacheStats()
-      if (res.success) setCacheStats(res.data || null)
-    } catch {
-      toast.error(t('Failed to refresh cache stats'))
+      if (res.success) {
+        setCacheStats(res.data || null)
+      } else {
+        handleServerError(res)
+      }
+    } catch (error) {
+      handleServerError(error, t('Failed to refresh cache stats'))
     } finally {
       setCacheLoading(false)
     }
   }, [t])
 
   useEffect(() => {
-    refreshCache()
+    void refreshCache()
   }, [refreshCache])
 
   const appendCliTemplates = () => {
@@ -219,9 +126,7 @@ export function ChannelAffinitySection(props: Props) {
       return { ...base, name }
     })
 
-    setRules((prev) =>
-      [...prev, ...templates].map((r, idx) => ({ ...r, id: idx }))
-    )
+    props.onRulesChange(serializeRules([...rules, ...templates]))
     toast.success(t('Templates appended'))
     setFillTemplateDialogOpen(false)
   }
@@ -234,145 +139,48 @@ export function ChannelAffinitySection(props: Props) {
     }
   }
 
-  const handleSave = async () => {
-    let rulesJson: string
-    if (editMode === 'json') {
-      try {
-        const parsed = JSON.parse(jsonText)
-        if (!Array.isArray(parsed)) {
-          toast.error(t('Rules JSON must be an array'))
-          return
-        }
-        rulesJson = JSON.stringify(parsed)
-      } catch {
-        toast.error(t('Invalid rules JSON format'))
-        return
-      }
-    } else {
-      rulesJson = serializeRules(rules)
-    }
-
-    setSaving(true)
-    try {
-      const updates: { key: string; value: string }[] = []
-
-      if (enabled !== props.defaultValues['channel_affinity_setting.enabled']) {
-        updates.push({
-          key: 'channel_affinity_setting.enabled',
-          value: String(enabled),
-        })
-      }
-      if (
-        switchOnSuccess !==
-        props.defaultValues['channel_affinity_setting.switch_on_success']
-      ) {
-        updates.push({
-          key: 'channel_affinity_setting.switch_on_success',
-          value: String(switchOnSuccess),
-        })
-      }
-      if (
-        keepOnChannelDisabled !==
-        props.defaultValues['channel_affinity_setting.keep_on_channel_disabled']
-      ) {
-        updates.push({
-          key: 'channel_affinity_setting.keep_on_channel_disabled',
-          value: String(keepOnChannelDisabled),
-        })
-      }
-      if (
-        maxEntries !==
-        props.defaultValues['channel_affinity_setting.max_entries']
-      ) {
-        updates.push({
-          key: 'channel_affinity_setting.max_entries',
-          value: String(maxEntries),
-        })
-      }
-      if (
-        defaultTtl !==
-        props.defaultValues['channel_affinity_setting.default_ttl_seconds']
-      ) {
-        updates.push({
-          key: 'channel_affinity_setting.default_ttl_seconds',
-          value: String(defaultTtl),
-        })
-      }
-
-      const origRules = props.defaultValues['channel_affinity_setting.rules']
-      const origSerialized = (() => {
-        try {
-          return JSON.stringify(JSON.parse(origRules || '[]'))
-        } catch {
-          return '[]'
-        }
-      })()
-      if (rulesJson !== origSerialized) {
-        updates.push({
-          key: 'channel_affinity_setting.rules',
-          value: rulesJson,
-        })
-      }
-
-      if (updates.length === 0) {
-        toast.info(t('No changes'))
-        return
-      }
-
-      for (const u of updates) {
-        await updateOption.mutateAsync(u)
-      }
-      toast.success(t('Saved successfully'))
-    } catch {
-      toast.error(t('Failed to save'))
-    } finally {
-      setSaving(false)
-    }
-  }
-
   const handleRuleSave = (rule: AffinityRule) => {
-    setRules((prev) => {
-      const existIdx = prev.findIndex(
-        (r) => r.id === rule.id || (rule.name && r.name === editingRule?.name)
-      )
-      if (existIdx >= 0) {
-        const next = [...prev]
-        next[existIdx] = { ...rule, id: existIdx }
-        return next
-      }
-      return [...prev, { ...rule, id: prev.length }]
-    })
+    const index = rules.findIndex((item) => item.id === editingRule?.id)
+    const next = [...rules]
+    if (index >= 0) next[index] = rule
+    else next.push(rule)
+    props.onRulesChange(serializeRules(next))
     setEditingRule(null)
   }
 
-  const handleDeleteRule = (idx: number) => {
-    setRules((prev) =>
-      prev.filter((_, i) => i !== idx).map((r, i) => ({ ...r, id: i }))
-    )
-    toast.success(t('Deleted successfully'))
-  }
-
   const handleClearAll = async () => {
-    const res = await clearAllCache()
-    if (res.success) {
-      toast.success(t('Cleared'))
-      refreshCache()
+    try {
+      const res = await clearAllCache()
+      if (res.success) {
+        toast.success(t('Cleared'))
+        refreshCache()
+      } else {
+        handleServerError(res)
+      }
+      setClearAllDialogOpen(false)
+    } catch (error) {
+      handleServerError(error)
     }
-    setClearAllDialogOpen(false)
   }
 
   const handleClearRule = async () => {
     if (!clearRuleName) return
-    const res = await clearRuleCache(clearRuleName)
-    if (res.success) {
-      toast.success(t('Cleared'))
-      refreshCache()
+    try {
+      const res = await clearRuleCache(clearRuleName)
+      if (res.success) {
+        toast.success(t('Cleared'))
+        refreshCache()
+      } else {
+        handleServerError(res)
+      }
+      setClearRuleName(null)
+    } catch (error) {
+      handleServerError(error)
     }
-    setClearRuleName(null)
   }
 
   const switchToJsonMode = () => {
-    setJsonText(
+    props.onRulesChange(
       JSON.stringify(
         rules.map(({ id: _, ...r }) => r),
         null,
@@ -384,17 +192,11 @@ export function ChannelAffinitySection(props: Props) {
 
   const switchToVisualMode = () => {
     try {
-      const parsed = JSON.parse(jsonText)
+      const parsed: unknown = JSON.parse(props.rulesJson)
       if (!Array.isArray(parsed)) {
         toast.error(t('Rules JSON must be an array'))
         return
       }
-      setRules(
-        parsed.map(
-          (r: Record<string, unknown>, i: number) =>
-            ({ id: i, ...r }) as AffinityRule
-        )
-      )
       setEditMode('visual')
     } catch {
       toast.error(t('Invalid rules JSON format'))
@@ -403,276 +205,197 @@ export function ChannelAffinitySection(props: Props) {
 
   return (
     <>
-      <SettingsSection title={t('Channel Affinity')}>
-        <Alert>
-          <AlertDescription className='text-xs'>
-            {t(
-              'Channel affinity reuses the last successful channel based on keys extracted from the request context or JSON body.'
-            )}
-          </AlertDescription>
-        </Alert>
-
-        {/* Basic Settings */}
-        <div className='grid grid-cols-1 gap-4 md:grid-cols-3'>
-          <SettingsSwitchField
-            checked={enabled}
-            onCheckedChange={setEnabled}
-            label={t('Enable')}
-            className='py-0'
-          />
-          <div className='grid gap-1.5'>
-            <Label>{t('Max Entries')}</Label>
-            <Input
-              type='number'
-              min={0}
-              value={maxEntries}
-              onChange={(e) => setMaxEntries(Number(e.target.value))}
-            />
+      <section
+        aria-label={t('Session rules')}
+        className='bg-card min-w-0 overflow-hidden rounded-xl border'
+      >
+        <div className='flex flex-col gap-1.5 px-4 pt-5 sm:px-5'>
+          <div className='flex items-center gap-2'>
+            <h3 className='text-base font-semibold'>{t('Session rules')}</h3>
+            <Badge variant='secondary' className='tabular-nums'>
+              {rules.length}
+            </Badge>
           </div>
-          <div className='grid gap-1.5'>
-            <Label>{t('Default TTL (seconds)')}</Label>
-            <Input
-              type='number'
-              min={0}
-              value={defaultTtl}
-              onChange={(e) => setDefaultTtl(Number(e.target.value))}
-            />
-          </div>
+          <p className='text-muted-foreground text-sm'>
+            {t('How a session is identified and which channel it keeps.')}
+          </p>
         </div>
-
-        <SettingsSwitchField
-          checked={switchOnSuccess}
-          onCheckedChange={setSwitchOnSuccess}
-          label={t('Switch affinity on success')}
-          description={t(
-            'If the affinity channel fails and retry succeeds on another channel, update affinity to the successful channel.'
-          )}
-        />
-        <SettingsSwitchField
-          checked={keepOnChannelDisabled}
-          onCheckedChange={setKeepOnChannelDisabled}
-          label={t('Keep affinity when channel is disabled')}
-          description={t(
-            'When enabled, keep the affinity entry even if the affinity channel is disabled or no longer usable for the current group/model. Leave it off to delete the entry and select another channel.'
-          )}
-        />
-
-        <Separator />
-
-        <SettingsPageActionsPortal>
-          <Button
-            variant={editMode === 'visual' ? 'default' : 'outline'}
-            size='sm'
-            onClick={editMode === 'json' ? switchToVisualMode : undefined}
-          >
-            {t('Visual')}
-          </Button>
-          <Button
-            variant={editMode === 'json' ? 'default' : 'outline'}
-            size='sm'
-            onClick={editMode === 'visual' ? switchToJsonMode : undefined}
-          >
-            JSON
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={<Button variant='outline' size='sm' />}
-            >
-              <Plus className='mr-1 h-3 w-3' />
-              {t('Add Rule')}
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem
-                onClick={() => {
-                  setEditingRule(null)
-                  setRuleTemplateKey(null)
-                  setRuleEditorOpen(true)
-                }}
+        <Tabs
+          value={editMode}
+          onValueChange={(value) => {
+            if (value === 'json') switchToJsonMode()
+            else switchToVisualMode()
+          }}
+          className='gap-0'
+        >
+          <div className='flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5'>
+            <TabsList aria-label={t('Rule editor mode')}>
+              <TabsTrigger value='visual' className='px-3'>
+                <ListFilter aria-hidden='true' />
+                {t('Visual')}
+              </TabsTrigger>
+              <TabsTrigger value='json' className='px-3'>
+                <Braces aria-hidden='true' />
+                JSON
+              </TabsTrigger>
+            </TabsList>
+            <div className='flex flex-wrap items-center gap-2'>
+              <Button
+                variant='outline'
+                onClick={handleFillTemplates}
+                disabled={editMode === 'json'}
               >
-                {t('Blank Rule')}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  setEditingRule(null)
-                  setRuleTemplateKey('codexCli')
-                  setRuleEditorOpen(true)
-                }}
-              >
-                Codex CLI
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  setEditingRule(null)
-                  setRuleTemplateKey('claudeCli')
-                  setRuleEditorOpen(true)
-                }}
-              >
-                Claude CLI
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <Button variant='outline' size='sm' onClick={handleFillTemplates}>
-            <FileText className='mr-1 h-3 w-3' />
-            {t('Fill Templates')}
-          </Button>
-          <Button size='sm' onClick={handleSave} disabled={saving}>
-            {saving ? t('Saving...') : t('Save')}
-          </Button>
-          <Button
-            variant='outline'
-            size='sm'
-            onClick={refreshCache}
-            disabled={cacheLoading}
-          >
-            <RefreshCw
-              className={`mr-1 h-3 w-3 ${cacheLoading ? 'animate-spin' : ''}`}
-            />
-            {t('Refresh Cache')}
-          </Button>
-          <Button
-            variant='destructive'
-            size='sm'
-            onClick={() => setClearAllDialogOpen(true)}
-          >
-            {t('Clear All Cache')}
-          </Button>
-          {cacheStats && (
-            <span className='text-muted-foreground text-xs'>
-              {t('Cache Entries')}: {cacheStats.total} /{' '}
-              {cacheStats.cache_capacity}
-            </span>
-          )}
-        </SettingsPageActionsPortal>
-
-        {/* Rules Table or JSON Editor */}
-        {editMode === 'visual' ? (
-          <StaticDataTable
-            tableClassName='min-w-max'
-            data={rules}
-            emptyClassName='text-muted-foreground py-8'
-            emptyContent={t('No rules yet')}
-            columns={[
-              {
-                id: 'name',
-                header: t('Name'),
-                cellClassName: 'font-medium',
-                cell: (rule) => rule.name || '-',
-              },
-              {
-                id: 'model-regex',
-                header: t('Model Regex'),
-                cell: (rule) => (
-                  <RuleBadgeList items={rule.model_regex || []} />
-                ),
-              },
-              {
-                id: 'key-sources',
-                header: t('Key Sources'),
-                cell: (rule) => (
-                  <RuleBadgeList
-                    items={(rule.key_sources || []).map(
-                      (src) =>
-                        `${src.type}:${src.type === 'gjson' ? src.path : src.key}`
-                    )}
-                  />
-                ),
-              },
-              {
-                id: 'ttl',
-                header: t('TTL'),
-                cell: (rule) => rule.ttl_seconds || '-',
-              },
-              {
-                id: 'retry',
-                header: t('Retry'),
-                cell: (rule) => (
-                  <StatusBadge
-                    label={
-                      rule.skip_retry_on_failure ? t('No Retry') : t('Retry')
-                    }
-                    variant={rule.skip_retry_on_failure ? 'danger' : 'neutral'}
-                    copyable={false}
-                  />
-                ),
-              },
-              {
-                id: 'scope',
-                header: t('Scope'),
-                cell: (rule) => {
-                  const scopeItems = [
-                    rule.include_using_group && t('Group'),
-                    rule.include_model_name && t('Model'),
-                    rule.include_rule_name && t('Rule'),
-                  ].filter(Boolean) as string[]
-                  if (scopeItems.length === 0) return '-'
-                  return <RuleBadgeList items={scopeItems} />
-                },
-              },
-              {
-                id: 'cache',
-                header: t('Cache'),
-                cell: (rule) =>
-                  rule.include_rule_name && cacheStats?.by_rule_name
-                    ? cacheStats.by_rule_name[rule.name] || 0
-                    : 'N/A',
-              },
-              {
-                id: 'actions',
-                header: t('Actions'),
-                className: 'text-right',
-                cellClassName: 'text-right',
-                cell: (rule, idx) => (
-                  <div className='flex justify-end gap-1'>
-                    {rule.include_rule_name && (
-                      <Button
-                        variant='ghost'
-                        size='icon'
-                        className='h-7 w-7'
-                        onClick={() => setClearRuleName(rule.name)}
-                        title={t('Clear cache for this rule')}
-                      >
-                        <X className='h-3 w-3' />
-                      </Button>
-                    )}
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      className='h-7 w-7'
+                <FileText aria-hidden='true' data-icon='inline-start' />
+                {t('Fill Templates')}
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={<Button disabled={editMode === 'json'} />}
+                >
+                  <Plus aria-hidden='true' data-icon='inline-start' />
+                  {t('Add Rule')}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end'>
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem
                       onClick={() => {
-                        setEditingRule(rule)
+                        setEditingRule(null)
                         setRuleTemplateKey(null)
                         setRuleEditorOpen(true)
                       }}
                     >
-                      <Edit className='h-3 w-3' />
-                    </Button>
-                    <Button
-                      variant='ghost'
-                      size='icon'
-                      className='h-7 w-7'
-                      onClick={() => handleDeleteRule(idx)}
+                      {t('Blank Rule')}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setEditingRule(null)
+                        setRuleTemplateKey('codexCli')
+                        setRuleEditorOpen(true)
+                      }}
                     >
-                      <Trash2 className='h-3 w-3' />
-                    </Button>
-                  </div>
-                ),
-              },
-            ]}
-          />
-        ) : (
-          <div className='grid gap-1.5'>
-            <Label htmlFor='channel-affinity-rules-json'>
-              {t('Rules JSON')}
-            </Label>
-            <JsonCodeEditor
-              id='channel-affinity-rules-json'
-              value={jsonText}
-              onChange={setJsonText}
-              heightClassName='h-[300px] min-h-[300px] max-h-[300px]'
-            />
+                      Codex CLI
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => {
+                        setEditingRule(null)
+                        setRuleTemplateKey('claudeCli')
+                        setRuleEditorOpen(true)
+                      }}
+                    >
+                      Claude CLI
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
-        )}
-      </SettingsSection>
+          <Separator />
+          <TabsContent value='visual' className='min-w-0'>
+            <SessionRulesTable
+              rules={rules}
+              cacheStats={cacheStats}
+              enabled={props.enabled}
+              globalSessionMode={props.globalSessionMode}
+              onEdit={(rule) => {
+                setEditingRule(rule)
+                setRuleTemplateKey(null)
+                setRuleEditorOpen(true)
+              }}
+              onDelete={setDeletingRule}
+              onClearCache={setClearRuleName}
+              onFillTemplates={handleFillTemplates}
+            />
+          </TabsContent>
+          <TabsContent value='json' className='min-w-0'>
+            <div className='grid gap-2 p-4 sm:p-5'>
+              <Label htmlFor='channel-affinity-rules-json'>
+                {t('Rules JSON')}
+              </Label>
+              <p className='text-muted-foreground text-xs'>
+                {t('Switch to visual mode to add rules or apply templates.')}
+              </p>
+              <JsonCodeEditor
+                id='channel-affinity-rules-json'
+                value={props.rulesJson}
+                onChange={props.onRulesChange}
+                heightClassName='h-[300px] min-h-[300px] max-h-[300px]'
+              />
+            </div>
+          </TabsContent>
+        </Tabs>
+        <Separator />
+        <div className='bg-muted/25 flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-5'>
+          <div
+            role='status'
+            className='flex min-w-0 items-center gap-2 text-sm'
+          >
+            <Database
+              aria-hidden='true'
+              className='text-muted-foreground size-4 shrink-0'
+            />
+            <span className='text-muted-foreground'>{t('Cache Entries')}</span>
+            {cacheStats ? (
+              <span className='flex flex-wrap items-baseline gap-1 font-medium tabular-nums'>
+                {formatNumber(cacheStats.total, locale)}
+                <span className='text-muted-foreground font-normal'>
+                  / {formatNumber(cacheStats.cache_capacity, locale)}
+                </span>
+              </span>
+            ) : (
+              <span className='text-muted-foreground'>
+                {cacheLoading ? t('Loading...') : t('Unavailable')}
+              </span>
+            )}
+          </div>
+          <div className='flex flex-wrap items-center gap-1'>
+            <Button
+              variant='ghost'
+              size='sm'
+              onClick={refreshCache}
+              disabled={cacheLoading}
+              aria-busy={cacheLoading}
+            >
+              <RefreshCw
+                aria-hidden='true'
+                className={cn(
+                  cacheLoading && 'animate-spin motion-reduce:animate-none'
+                )}
+              />
+              {t('Refresh Cache')}
+            </Button>
+            <Button
+              variant='ghost'
+              size='sm'
+              onClick={() => setClearAllDialogOpen(true)}
+            >
+              <Trash2 aria-hidden='true' />
+              {t('Clear All Cache')}
+            </Button>
+          </div>
+        </div>
+      </section>
+
+      {deletingRule !== null && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setDeletingRule(null)}
+          title={t('Delete Rule')}
+          desc={t(
+            'Delete session rule “{{name}}”? Save your changes to apply the removal.',
+            { name: deletingRule.name }
+          )}
+          confirmText={t('Delete Rule')}
+          handleConfirm={() => {
+            props.onRulesChange(
+              serializeRules(
+                rules.filter((rule) => rule.id !== deletingRule.id)
+              )
+            )
+            setDeletingRule(null)
+          }}
+          destructive
+        />
+      )}
 
       <RuleEditorDialog
         open={ruleEditorOpen}
@@ -680,9 +403,10 @@ export function ChannelAffinitySection(props: Props) {
         rule={editingRule}
         onSave={handleRuleSave}
         templateKey={ruleTemplateKey}
+        globalSessionMode={props.globalSessionMode}
       />
 
-      <ChannelAffinityConfirmDialog
+      <ConfirmDialog
         open={clearAllDialogOpen}
         onOpenChange={setClearAllDialogOpen}
         title={t('Confirm clearing all channel affinity cache')}
@@ -694,7 +418,7 @@ export function ChannelAffinitySection(props: Props) {
       />
 
       {clearRuleName !== null && (
-        <ChannelAffinityConfirmDialog
+        <ConfirmDialog
           open
           onOpenChange={(v) => !v && setClearRuleName(null)}
           title={t('Confirm clearing cache for this rule')}
@@ -704,7 +428,7 @@ export function ChannelAffinitySection(props: Props) {
         />
       )}
 
-      <ChannelAffinityConfirmDialog
+      <ConfirmDialog
         open={fillTemplateDialogOpen}
         onOpenChange={setFillTemplateDialogOpen}
         title={t('Fill Codex CLI / Claude CLI Templates')}

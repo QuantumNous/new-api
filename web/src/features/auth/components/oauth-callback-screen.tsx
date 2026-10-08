@@ -25,7 +25,7 @@ import { AuthLayout } from '../auth-layout'
 
 type OAuthCallbackScreenProps = {
   provider: string
-  mode: 'login' | 'bind'
+  mode: 'login' | 'bind' | 'verify'
 }
 
 type ProviderMeta = {
@@ -72,23 +72,30 @@ export function OAuthCallbackScreen({
   }, [provider])
 
   const providerLabel = t(label)
-  const isBindMode = mode === 'bind'
-
-  const headline = isBindMode
-    ? t('Binding your {{provider}} account', { provider: providerLabel })
-    : t('Signing you in with {{provider}}', { provider: providerLabel })
-
-  const description = isBindMode
-    ? t('Hang tight while we securely link this account to your profile.')
-    : t('Hang tight while we finish connecting your account.')
-
-  const secondaryNote = isBindMode
-    ? t(
-        'You can close this tab once the binding completes or a success message appears in the original window.'
-      )
-    : t(
-        "You'll be redirected automatically. You can return to the previous page if nothing happens after a few seconds."
-      )
+  let headline = t('Signing you in with {{provider}}', {
+    provider: providerLabel,
+  })
+  let description = t('Hang tight while we finish connecting your account.')
+  let secondaryNote = t(
+    "You'll be redirected automatically. You can return to the previous page if nothing happens after a few seconds."
+  )
+  if (mode === 'bind') {
+    headline = t('Binding your {{provider}} account', {
+      provider: providerLabel,
+    })
+    description = t(
+      'Hang tight while we securely link this account to your profile.'
+    )
+  }
+  if (mode === 'verify') {
+    headline = t('Verifying your {{provider}} account', {
+      provider: providerLabel,
+    })
+    description = t('Confirming the account linked to your profile.')
+  }
+  if (mode !== 'login') {
+    secondaryNote = t('Return to the original window to continue.')
+  }
 
   return (
     <AuthLayout>

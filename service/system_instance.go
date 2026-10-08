@@ -26,7 +26,7 @@ type SystemInstanceInfo struct {
 	Role          SystemInstanceRoleInfo    `json:"role"`
 	Runtime       SystemInstanceRuntimeInfo `json:"runtime"`
 	Host          SystemInstanceHostInfo    `json:"host"`
-	Resources     SystemInstanceResources   `json:"resources,omitempty"`
+	Resources     SystemInstanceResources   `json:"resources"`
 	Extra         map[string]any            `json:"extra,omitempty"`
 }
 

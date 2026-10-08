@@ -16,165 +16,98 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { after, describe, test } from 'node:test'
+import { fireEvent, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, test, vi } from 'vitest'
 
-import { Window } from 'happy-dom'
-
-const domWindow = new Window()
-const domGlobals = [
-  'window',
-  'document',
-  'navigator',
-  'HTMLElement',
-  'HTMLTextAreaElement',
-  'Node',
-  'Element',
-  'Event',
-  'CustomEvent',
-  'MutationObserver',
-  'requestAnimationFrame',
-  'cancelAnimationFrame',
-  'getComputedStyle',
-] as const
-
-for (const key of domGlobals) {
-  Object.defineProperty(globalThis, key, {
-    configurable: true,
-    value: domWindow[key],
-  })
-}
-
-const { act } = await import('react')
-const { createRoot } = await import('react-dom/client')
-const i18next = (await import('i18next')).default
-const { initReactI18next } = await import('react-i18next')
-await i18next.use(initReactI18next).init({
-  lng: 'en',
-  resources: {
-    en: {
-      translation: {
-        JSON: 'JSON',
-        'Invalid JSON': 'Invalid JSON',
-        'Copied to clipboard': 'Copied to clipboard',
-        'Failed to copy': 'Failed to copy',
-        'Format JSON': 'Format JSON',
-      },
-    },
-  },
-})
-const { JsonCodeEditor } = await import('../../json-code-editor')
-const reactTestGlobals = globalThis as typeof globalThis & {
-  IS_REACT_ACT_ENVIRONMENT?: boolean
-}
-reactTestGlobals.IS_REACT_ACT_ENVIRONMENT = true
-
-type RenderedEditor = {
-  container: HTMLDivElement
-  root: ReturnType<typeof createRoot>
-}
-
-async function renderEditor(
-  props: React.ComponentProps<typeof JsonCodeEditor>
-): Promise<RenderedEditor> {
-  const container = document.createElement('div')
-  document.body.append(container)
-  const root = createRoot(container)
-
-  await act(async () => {
-    root.render(<JsonCodeEditor {...props} />)
-  })
-
-  return { container, root }
-}
-
-async function unmountEditor(rendered: RenderedEditor) {
-  await act(async () => rendered.root.unmount())
-  rendered.container.remove()
-}
+import { JsonCodeEditor } from '../../json-code-editor'
 
 describe('JsonCodeEditor component', () => {
-  after(() => {
-    domWindow.close()
+  test('forwards form attributes and the textarea ref', () => {
+    const textareaRef = vi.fn()
+    const rendered = render(
+      <JsonCodeEditor
+        value='{"model":"gpt"}'
+        onChange={() => undefined}
+        id='json-input'
+        name='model_config'
+        placeholder='{"model":"gpt"}'
+        disabled
+        ariaLabel='Model configuration'
+        aria-describedby='model-help'
+        aria-invalid
+        data-form-root='settings-form'
+        textareaRef={textareaRef}
+      />
+    )
+    const textarea = screen.getByRole('textbox', {
+      name: 'Model configuration',
+    })
+
+    expect(textarea).toHaveAttribute('id', 'json-input')
+    expect(textarea).toHaveAttribute('name', 'model_config')
+    expect(textarea).toHaveAttribute('placeholder', '{"model":"gpt"}')
+    expect(textarea).toBeDisabled()
+    expect(textarea).toHaveAttribute('aria-describedby', 'model-help')
+    expect(textarea).toHaveAttribute('aria-invalid', 'true')
+    expect(textarea).toHaveAttribute('data-form-root', 'settings-form')
+    expect(textareaRef).toHaveBeenCalledWith(textarea)
+
+    rendered.unmount()
+    expect(textareaRef).toHaveBeenLastCalledWith(null)
   })
 
-  test('forwards form attributes and lifecycle callbacks to the textarea', async () => {
-    const blurCalls: number[] = []
-    const refValues: Array<HTMLTextAreaElement | null> = []
-    const rendered = await renderEditor({
-      value: '{"model":"gpt"}',
-      onChange: () => undefined,
-      id: 'json-input',
-      name: 'model_config',
-      placeholder: '{"model":"gpt"}',
-      disabled: true,
-      'aria-describedby': 'model-help',
-      'aria-invalid': true,
-      'data-form-root': 'settings-form',
-      onBlur: () => blurCalls.push(1),
-      textareaRef: (element) => refValues.push(element),
-    })
-    const textarea = rendered.container.querySelector('textarea')
+  test('calls onBlur when focus leaves the editor', () => {
+    const onBlur = vi.fn()
+    render(
+      <JsonCodeEditor
+        value='{}'
+        onChange={() => undefined}
+        onBlur={onBlur}
+        ariaLabel='Model configuration'
+      />
+    )
 
-    assert.ok(textarea)
-    assert.equal(textarea.id, 'json-input')
-    assert.equal(textarea.name, 'model_config')
-    assert.equal(textarea.placeholder, '{"model":"gpt"}')
-    assert.equal(textarea.disabled, true)
-    assert.equal(textarea.getAttribute('aria-describedby'), 'model-help')
-    assert.equal(textarea.getAttribute('aria-invalid'), 'true')
-    assert.equal(textarea.getAttribute('data-form-root'), 'settings-form')
+    fireEvent.blur(screen.getByRole('textbox', { name: 'Model configuration' }))
 
-    await act(async () => textarea.dispatchEvent(new Event('blur')))
-    assert.deepEqual(blurCalls, [1])
-    assert.equal(refValues[0], textarea)
-
-    await unmountEditor(rendered)
-    assert.equal(refValues.at(-1), null)
+    expect(onBlur).toHaveBeenCalledOnce()
   })
 
-  test('emits user edits and synchronizes a controlled value', async () => {
-    const changes: string[] = []
-    const rendered = await renderEditor({
-      value: '{"count":1}',
-      onChange: (value) => changes.push(value),
+  test('emits user edits and synchronizes a controlled value', () => {
+    const onChange = vi.fn()
+    const rendered = render(
+      <JsonCodeEditor
+        value='{"count":1}'
+        onChange={onChange}
+        ariaLabel='Model configuration'
+      />
+    )
+    const textarea = screen.getByRole('textbox', {
+      name: 'Model configuration',
     })
-    const textarea = rendered.container.querySelector('textarea')
 
-    assert.ok(textarea)
-    await act(async () => {
-      textarea.value = '{"count":2}'
-      textarea.dispatchEvent(new Event('input', { bubbles: true }))
-    })
-    assert.deepEqual(changes, ['{"count":2}'])
+    fireEvent.input(textarea, { target: { value: '{"count":2}' } })
+    expect(onChange).toHaveBeenCalledWith('{"count":2}')
 
-    await act(async () => {
-      rendered.root.render(
-        <JsonCodeEditor
-          value='{"count":3}'
-          onChange={(value) => changes.push(value)}
-        />
-      )
-    })
-    assert.equal(textarea.value, '{"count":3}')
-
-    await unmountEditor(rendered)
+    rendered.rerender(
+      <JsonCodeEditor
+        value='{"count":3}'
+        onChange={onChange}
+        ariaLabel='Model configuration'
+      />
+    )
+    expect(textarea).toHaveValue('{"count":3}')
   })
 
   test('formats valid JSON through the public toolbar action', async () => {
-    const changes: string[] = []
-    const rendered = await renderEditor({
-      value: '{"model":{"ratio":2}}',
-      onChange: (value) => changes.push(value),
-    })
-    const formatButton = [
-      ...rendered.container.querySelectorAll('button'),
-    ].find((button) => button.textContent?.includes('Format JSON'))
+    const user = userEvent.setup()
+    const onChange = vi.fn()
+    render(<JsonCodeEditor value='{"model":{"ratio":2}}' onChange={onChange} />)
 
-    assert.ok(formatButton)
-    await act(async () => formatButton.click())
-    assert.deepEqual(changes, ['{\n  "model": {\n    "ratio": 2\n  }\n}'])
+    await user.click(screen.getByRole('button', { name: 'Format JSON' }))
 
-    await unmountEditor(rendered)
+    expect(onChange).toHaveBeenCalledWith(
+      '{\n  "model": {\n    "ratio": 2\n  }\n}'
+    )
   })
 })

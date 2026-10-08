@@ -1,6 +1,7 @@
 package common
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -21,6 +22,7 @@ func TestQuotaFromFloat(t *testing.T) {
 	assert.Equal(t, 42, QuotaFromFloat(42.4))
 	assert.Equal(t, 42, QuotaFromFloat(42.9))
 	assert.Equal(t, -42, QuotaFromFloat(-42.9))
+	assert.Equal(t, MaxQuota, QuotaFromFloat(float64(math.MaxInt32)+42))
 	assert.Equal(t, MaxQuota, QuotaFromFloat(overflowingProduct))
 	assert.Equal(t, MinQuota, QuotaFromFloat(-overflowingProduct))
 	assert.Equal(t, MaxQuota, QuotaFromFloat(math.Inf(1)))
@@ -34,6 +36,7 @@ func TestQuotaRound(t *testing.T) {
 	assert.Equal(t, 42, QuotaRound(41.5))
 	assert.Equal(t, 43, QuotaRound(42.5))
 	assert.Equal(t, -43, QuotaRound(-42.5))
+	assert.Equal(t, MaxQuota, QuotaRound(float64(math.MaxInt32)+0.5))
 	assert.Equal(t, MaxQuota, QuotaRound(overflowingProduct))
 	assert.Equal(t, MinQuota, QuotaRound(-overflowingProduct))
 	assert.Equal(t, 0, QuotaRound(math.NaN()))
@@ -93,7 +96,7 @@ func TestQuotaFromFloatStrictReturnsTypedClampError(t *testing.T) {
 	assert.ErrorContains(t, err, "QuotaFromFloat")
 	assert.ErrorContains(t, err, "overflow")
 	assert.ErrorContains(t, err, "original=")
-	assert.ErrorContains(t, err, "clamped=2147483647")
+	assert.ErrorContains(t, err, fmt.Sprintf("clamped=%d", MaxQuota))
 }
 
 // TestQuotaRoundChecked verifies the rounding entry point reports clamps the
@@ -123,4 +126,21 @@ func TestQuotaFromDecimalChecked(t *testing.T) {
 		assert.Equal(t, "QuotaFromDecimal", clamp.Op)
 		assert.Equal(t, QuotaClampOverflow, clamp.Kind)
 	}
+}
+
+func TestWalletQuotaFromDecimalStrict(t *testing.T) {
+	quota, err := WalletQuotaFromDecimalStrict(decimal.NewFromInt(4_294_500_000))
+	require.NoError(t, err)
+	assert.Equal(t, 4_294_500_000, quota)
+
+	quota, err = WalletQuotaFromDecimalStrict(decimal.NewFromInt(MaxWalletQuota))
+	require.NoError(t, err)
+	assert.Equal(t, MaxWalletQuota, quota)
+
+	quota, err = WalletQuotaFromDecimalStrict(decimal.NewFromInt(MaxWalletQuota + 1))
+	assert.Zero(t, quota)
+	var clamp *QuotaClamp
+	require.ErrorAs(t, err, &clamp)
+	assert.Equal(t, "WalletQuotaFromDecimal", clamp.Op)
+	assert.Equal(t, QuotaClampOverflow, clamp.Kind)
 }

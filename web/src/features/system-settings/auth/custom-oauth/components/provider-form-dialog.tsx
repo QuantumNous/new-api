@@ -63,6 +63,10 @@ import {
   type CustomOAuthProvider,
   type CustomOAuthFormValues,
 } from '../types'
+import {
+  ACCESS_DENIED_MESSAGE_TEMPLATES,
+  ACCESS_POLICY_TEMPLATES,
+} from './access-policy-templates'
 import { DiscoveryButton } from './discovery-button'
 import { PresetSelector } from './preset-selector'
 
@@ -197,7 +201,7 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
           ? t('Update the configuration for this custom OAuth provider.')
           : t('Configure a new custom OAuth provider for user authentication.')
       }
-      contentClassName='max-h-[85vh] overflow-y-auto sm:max-w-2xl'
+      contentClassName='max-h-[min(85dvh,var(--dialog-available-height))] overflow-y-auto sm:max-w-2xl'
       contentHeight='auto'
       bodyClassName='space-y-4'
       footer={
@@ -603,6 +607,11 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>{t('Access Policy (JSON)')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Evaluate fields from the provider user info response. Conditions and nested groups use and/or logic.'
+                    )}
+                  </FormDescription>
                   <FormControl>
                     <JsonCodeEditor
                       value={field.value || ''}
@@ -618,9 +627,39 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   </FormControl>
                   <FormDescription>
                     {t(
-                      'JSON-based access control rules. Leave empty to allow all users.'
+                      'Supported operators: eq, ne, gt, gte, lt, lte, in, not_in, contains, not_contains, exists, not_exists. Leave empty to allow all users.'
                     )}
                   </FormDescription>
+                  <div className='flex flex-wrap gap-2'>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='xs'
+                      onClick={() =>
+                        form.setValue(
+                          'access_policy',
+                          ACCESS_POLICY_TEMPLATES.levelAndActive,
+                          { shouldDirty: true, shouldValidate: true }
+                        )
+                      }
+                    >
+                      {t('Fill template: level and active')}
+                    </Button>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='xs'
+                      onClick={() =>
+                        form.setValue(
+                          'access_policy',
+                          ACCESS_POLICY_TEMPLATES.orgOrRole,
+                          { shouldDirty: true, shouldValidate: true }
+                        )
+                      }
+                    >
+                      {t('Fill template: organization or role')}
+                    </Button>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -635,11 +674,46 @@ export function ProviderFormDialog(props: ProviderFormDialogProps) {
                   <FormControl>
                     <Input
                       placeholder={t(
-                        'Custom message shown when access is denied'
+                        'e.g. Requires level {{required}}; your current level is {{current}}'
                       )}
                       {...field}
                     />
                   </FormControl>
+                  <FormDescription>
+                    {t(
+                      'Available variables: {{provider}}, {{field}}, {{op}}, {{required}}, {{current}}, and paths such as {{current.roles}}.'
+                    )}
+                  </FormDescription>
+                  <div className='flex flex-wrap gap-2'>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='xs'
+                      onClick={() =>
+                        form.setValue(
+                          'access_denied_message',
+                          ACCESS_DENIED_MESSAGE_TEMPLATES.level,
+                          { shouldDirty: true }
+                        )
+                      }
+                    >
+                      {t('Fill template: level message')}
+                    </Button>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='xs'
+                      onClick={() =>
+                        form.setValue(
+                          'access_denied_message',
+                          ACCESS_DENIED_MESSAGE_TEMPLATES.org,
+                          { shouldDirty: true }
+                        )
+                      }
+                    >
+                      {t('Fill template: organization message')}
+                    </Button>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}

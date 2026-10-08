@@ -24,7 +24,9 @@ export type AdminPermissionMatrix = Record<string, Record<string, boolean>>
 export type AdminCapabilities = AdminPermissionMatrix
 
 export const ADMIN_PERMISSION_RESOURCES = {
+  AUDIT: 'audit',
   CHANNEL: 'channel',
+  TASK_PLUGIN: 'task_plugin',
 } as const
 
 export const ADMIN_PERMISSION_ACTIONS = {
@@ -33,6 +35,7 @@ export const ADMIN_PERMISSION_ACTIONS = {
   WRITE: 'write',
   SENSITIVE_WRITE: 'sensitive_write',
   SECRET_VIEW: 'secret_view',
+  BIND: 'bind',
 } as const
 
 // The role whose baseline grants are used as defaults in the permission editor.
@@ -109,4 +112,34 @@ export function normalizeAdminPermissions(
     normalized[resource.resource] = actions
   }
   return normalized
+}
+
+// permissionMatrixToScopes lists the granted cells of a matrix as sorted
+// `resource:action` scope keys.
+export function permissionMatrixToScopes(
+  matrix: AdminPermissionMatrix
+): string[] {
+  const scopes: string[] = []
+  for (const [resource, actions] of Object.entries(matrix)) {
+    for (const [action, granted] of Object.entries(actions)) {
+      if (granted) scopes.push(`${resource}:${action}`)
+    }
+  }
+  return scopes.sort()
+}
+
+// scopesToPermissionMatrix is the inverse of permissionMatrixToScopes; keys
+// without a separator are ignored.
+export function scopesToPermissionMatrix(
+  scopes: readonly string[]
+): AdminPermissionMatrix {
+  const matrix: AdminPermissionMatrix = {}
+  for (const scope of scopes) {
+    const separator = scope.indexOf(':')
+    if (separator <= 0) continue
+    const resource = scope.slice(0, separator)
+    const action = scope.slice(separator + 1)
+    matrix[resource] = { ...matrix[resource], [action]: true }
+  }
+  return matrix
 }
