@@ -234,14 +234,10 @@ func (a *TaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, _ *r
 	for name, value := range a.submit.Headers {
 		req.Header.Set(name, value)
 	}
-	if a.submit.BodyType == "multipart" && c != nil && c.Request != nil {
-		contentType := c.Request.Header.Get("Content-Type")
-		mediaType, params, err := mime.ParseMediaType(contentType)
-		if err == nil &&
-			strings.EqualFold(mediaType, "multipart/form-data") &&
-			params["boundary"] != "" {
-			req.Header.Set("Content-Type", contentType)
-		}
+	// BuildRequestBody rebuilt the multipart body with a new boundary and put its
+	// Content-Type on the client request; a plugin's own Content-Type cannot match it.
+	if a.submit.BodyType == "multipart" {
+		req.Header.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	}
 	return nil
 }
