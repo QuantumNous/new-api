@@ -129,6 +129,62 @@ func TestResponsesRequestToChatCompletionsRequestMultimodalInput(t *testing.T) {
 	assert.Equal(t, "https://example.test/v.mp4", parts[4].GetVideoUrl().Url)
 }
 
+// Assert the serialized wire shape: ParseContent accepts bare strings too,
+// so checking GetImageMedia alone cannot catch invalid Chat image payloads.
+func TestResponsesRequestToChatCompletionsRequestImageURLWireShape(t *testing.T) {
+	tests := []struct {
+		name string
+		part map[string]any
+		want string
+	}{
+		{
+			name: "URL string preserves top-level detail",
+			part: map[string]any{"type": "input_image", "image_url": "https://example.test/a.png", "detail": "low"},
+			want: `{"type":"image_url","image_url":{"url":"https://example.test/a.png","detail":"low"}}`,
+		},
+		{
+			name: "data URL string does not invent detail",
+			part: map[string]any{"type": "input_image", "image_url": "data:image/png;base64,AAAA"},
+			want: `{"type":"image_url","image_url":{"url":"data:image/png;base64,AAAA"}}`,
+		},
+		{
+			name: "existing object stays unnested",
+			part: map[string]any{"type": "input_image", "image_url": map[string]any{"url": "https://example.test/a.png", "detail": "high"}, "detail": "low"},
+			want: `{"type":"image_url","image_url":{"url":"https://example.test/a.png","detail":"high"}}`,
+		},
+		{
+			name: "legacy file ID fallback is preserved",
+			part: map[string]any{"type": "input_image", "file_id": "file_1", "detail": "auto"},
+			want: `{"type":"image_url","image_url":{"file_id":"file_1","detail":"auto"}}`,
+		},
+		{
+			name: "legacy top-level URL is preserved",
+			part: map[string]any{"type": "input_image", "url": "https://example.test/a.png", "detail": "auto"},
+			want: `{"type":"image_url","image_url":{"url":"https://example.test/a.png","detail":"auto"}}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			original, err := kitutil.Marshal(tt.part)
+			require.NoError(t, err)
+			_, err = responsesInputContentToChatContent(context.Background(), []any{tt.part})
+			require.NoError(t, err)
+			after, err := kitutil.Marshal(tt.part)
+			require.NoError(t, err)
+			assert.JSONEq(t, string(original), string(after), "conversion must not mutate the input image part")
+
+			got, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
+				Model: "gpt-test",
+				Input: mustRawMessage(t, []map[string]any{{"role": "user", "content": []any{tt.part}}}),
+			})
+			require.NoError(t, err)
+			encoded, err := kitutil.Marshal(got)
+			require.NoError(t, err)
+			assert.JSONEq(t, tt.want, gjson.GetBytes(encoded, "messages.0.content.0").Raw)
+		})
+	}
+}
+
 func TestResponsesRequestToChatCompletionsRequestAssistantTextAndFunctionCallCoexist(t *testing.T) {
 	got, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
 		Model: "gpt-test",
@@ -472,6 +528,9 @@ func TestResponsesRequestToChatCompletionsRequestToolOutputContentParts(t *testi
 			}
 			require.NotNil(t, parts[0].GetImageMedia())
 			assert.Equal(t, dataURL, parts[0].GetImageMedia().Url)
+			encoded, err := kitutil.Marshal(got)
+			require.NoError(t, err)
+			assert.JSONEq(t, `{"url":"`+dataURL+`"}`, gjson.GetBytes(encoded, "messages.2.content.0.image_url").Raw)
 		})
 	}
 }

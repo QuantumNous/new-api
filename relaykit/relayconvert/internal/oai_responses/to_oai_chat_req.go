@@ -484,6 +484,13 @@ func RequestTextToChatResponseFormat(raw json.RawMessage) (*dto.ResponseFormat, 
 
 func responsesImagePartToChatImageURL(part map[string]any) any {
 	if imageURL, ok := part["image_url"]; ok {
+		if url, ok := imageURL.(string); ok {
+			image := map[string]any{"url": url}
+			if detail, ok := part["detail"]; ok {
+				image["detail"] = detail
+			}
+			return image
+		}
 		return imageURL
 	}
 	imageURL := map[string]any{}
