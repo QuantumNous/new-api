@@ -23,8 +23,9 @@ import {
   CHANNEL_TYPE_NEW_API,
   CHANNEL_TYPE_OLLAMA,
   CHANNEL_TYPE_TASK_PLUGIN,
-  CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_TENSORFOLD,
+  CHANNEL_TYPE_VLLM,
   CHANNEL_STATUS,
   ERROR_MESSAGES,
   FIELD_PASSTHROUGH_TYPES,
@@ -304,6 +305,7 @@ export const channelFormSchema = z
         CHANNEL_TYPE_TASK_PLUGIN,
         CHANNEL_TYPE_VLLM,
         CHANNEL_TYPE_SGLANG,
+        CHANNEL_TYPE_TENSORFOLD,
       ].includes(data.type) &&
       !data.base_url?.trim()
     ) {

@@ -20,7 +20,7 @@ import { getGroups as getUserGroups } from '@/features/users/api'
 import { api, type ApiRequestConfig } from '@/lib/api'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
-import type { InferenceStatus } from './lib/inference-status'
+import type { InferenceProvider, InferenceStatus } from './lib/inference-status'
 import type {
   AddChannelRequest,
   BatchDeleteParams,
@@ -52,7 +52,7 @@ const channelActionConfig = (
 
 export async function getInferenceStatus(
   channelId: number,
-  provider: 'vllm' | 'sglang',
+  provider: InferenceProvider,
   signal?: AbortSignal
 ): Promise<InferenceStatus> {
   const response = await api.get<{ success: boolean; data: InferenceStatus }>(

@@ -61,6 +61,7 @@ const (
 	ChannelTypeTaskPlugin     = 61
 	ChannelTypeVLLM           = 62
 	ChannelTypeSGLang         = 63
+	ChannelTypeTensorFold     = 64
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -132,6 +133,7 @@ var ChannelBaseURLs = []string{
 	"",                                          //61
 	"",                                          //62
 	"",                                          //63
+	"",                                          //64
 }
 
 func GetChannelBaseURL(channelType int) string {
@@ -202,6 +204,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeTaskPlugin:     "Task Plugin",
 	ChannelTypeVLLM:           "vLLM",
 	ChannelTypeSGLang:         "SGLang",
+	ChannelTypeTensorFold:     "TensorFold",
 }
 
 func GetChannelTypeName(channelType int) string {
@@ -238,7 +241,7 @@ var ChannelSpecialBases = map[string]ChannelSpecialBase{
 // IsAdvancedCustomChannel includes named channels backed by route presets.
 func IsAdvancedCustomChannel(channelType int) bool {
 	switch channelType {
-	case ChannelTypeAdvancedCustom, ChannelTypeVLLM, ChannelTypeSGLang:
+	case ChannelTypeAdvancedCustom, ChannelTypeVLLM, ChannelTypeSGLang, ChannelTypeTensorFold:
 		return true
 	default:
 		return false

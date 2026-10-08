@@ -56,13 +56,8 @@ func TestVLLMStatusPartialFailureAndCredentials(t *testing.T) {
 	assert.NotContains(t, string(body), channel.Key)
 }
 
-func TestVLLMStatusRejectsInvalidTargetsAndRedirects(t *testing.T) {
+func TestInferenceStatusRejectsInvalidTargetsAndRedirects(t *testing.T) {
 	service.InitHttpClient()
-	for _, base := range []string{"", "file:///etc/passwd", "http://user:secret@localhost", "http://localhost?key=secret"} {
-		_, err := fetchInferenceStatus(context.Background(), &model.Channel{Type: constant.ChannelTypeVLLM, BaseURL: &base})
-		require.Error(t, err)
-		assert.NotContains(t, err.Error(), "secret")
-	}
 	_, err := fetchInferenceStatus(context.Background(), &model.Channel{Type: constant.ChannelTypeOllama})
 	require.Error(t, err)
 	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -74,10 +69,19 @@ func TestVLLMStatusRejectsInvalidTargetsAndRedirects(t *testing.T) {
 		http.Redirect(w, r, target.URL, http.StatusFound)
 	}))
 	defer upstream.Close()
-	status, err := fetchInferenceStatus(context.Background(), &model.Channel{Type: constant.ChannelTypeVLLM, BaseURL: &upstream.URL, Key: "EMPTY"})
-	require.NoError(t, err)
-	for _, endpoint := range status.Endpoints {
-		assert.Equal(t, inferenceEndpointStatus{Status: 302, Error: "http_error"}, endpoint)
+	for _, channelType := range []int{constant.ChannelTypeVLLM, constant.ChannelTypeSGLang, constant.ChannelTypeTensorFold} {
+		t.Run(constant.GetChannelTypeName(channelType), func(t *testing.T) {
+			for _, base := range []string{"", "file:///etc/passwd", "http://user:secret@localhost", "http://localhost?key=secret"} {
+				_, err := fetchInferenceStatus(context.Background(), &model.Channel{Type: channelType, BaseURL: &base})
+				require.Error(t, err)
+				assert.NotContains(t, err.Error(), "secret")
+			}
+			status, err := fetchInferenceStatus(context.Background(), &model.Channel{Type: channelType, BaseURL: &upstream.URL, Key: "EMPTY"})
+			require.NoError(t, err)
+			for _, endpoint := range status.Endpoints {
+				assert.Equal(t, inferenceEndpointStatus{Status: 302, Error: "http_error"}, endpoint)
+			}
+		})
 	}
 }
 
@@ -134,6 +138,88 @@ unrelated_metric 123
 	}, metrics)
 	_, err = parseInferenceMetrics("vllm:broken{engine=oops} 1\n", "vllm:")
 	require.Error(t, err)
+}
+
+func TestTensorFoldStatusUsesNativeEndpointsAndPreservesPartialResults(t *testing.T) {
+	service.InitHttpClient()
+	const metrics = `# TYPE tensorfold:requests_running gauge
+tensorfold:requests_running 0
+# TYPE tensorfold:kv_cache_usage_ratio gauge
+tensorfold:kv_cache_usage_ratio{pool="0"} 0.25
+tensorfold:kv_cache_usage_ratio{pool="1"} 0.5
+# TYPE tensorfold:request_latency_seconds histogram
+tensorfold:request_latency_seconds_bucket{le="+Inf"} 2
+tensorfold:request_latency_seconds_sum 6
+tensorfold:request_latency_seconds_count 2
+vllm:num_requests_running 99
+`
+	for _, test := range []struct {
+		name          string
+		key           string
+		health        string
+		metrics       string
+		metricsStatus int
+		healthError   string
+		metricsError  string
+	}{
+		{name: "authenticated minimal health", key: "test-key", health: `{"status":"ok"}`, metrics: metrics, metricsStatus: 200},
+		{name: "open health details stay private", key: "EMPTY", health: `{"status":"ok","model":"private-model","live":{"private":"private-state"}}`, metrics: metrics, metricsStatus: 200},
+		{name: "metrics unavailable", key: "test-key", health: `{"status":"ok"}`, metrics: "test-key upstream error", metricsStatus: 403, metricsError: "http_error"},
+		{name: "invalid health", key: "test-key", health: `{}`, metrics: metrics, metricsStatus: 200, healthError: "invalid_response"},
+		{name: "invalid metrics", key: "test-key", health: `{"status":"ok"}`, metrics: `tensorfold:broken{pool=oops} 1`, metricsStatus: 200, metricsError: "invalid_response"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, http.MethodGet, r.Method)
+				if test.key == "EMPTY" {
+					assert.Empty(t, r.Header.Get("Authorization"))
+				} else {
+					assert.Equal(t, "Bearer "+test.key, r.Header.Get("Authorization"))
+				}
+				switch r.URL.Path {
+				case "/prefix/health":
+					_, _ = w.Write([]byte(test.health))
+				case "/prefix/v1/models":
+					_, _ = w.Write([]byte(`{"data":[{"id":"served-model","owned_by":"tensorfold"}]}`))
+				case "/prefix/metrics":
+					w.WriteHeader(test.metricsStatus)
+					_, _ = w.Write([]byte(test.metrics))
+				default:
+					t.Errorf("unexpected TensorFold path: %s", r.URL.Path)
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			t.Cleanup(upstream.Close)
+			channel := &model.Channel{Type: constant.ChannelTypeTensorFold, BaseURL: common.GetPointer(upstream.URL + "/prefix/"), Key: test.key}
+			status, err := fetchInferenceStatus(context.Background(), channel)
+			require.NoError(t, err)
+			assert.Equal(t, map[string]inferenceEndpointStatus{
+				"/health":    {Status: 200, Error: test.healthError},
+				"/v1/models": {Status: 200},
+				"/metrics":   {Status: test.metricsStatus, Error: test.metricsError},
+			}, status.Endpoints)
+			assert.Empty(t, status.Version)
+			assert.Equal(t, []inferenceModel{{ID: "served-model"}}, status.Models)
+			if test.metricsError != "" {
+				assert.Empty(t, status.Metrics)
+				assert.Empty(t, status.RawMetrics)
+			} else {
+				assert.Equal(t, metrics, status.RawMetrics)
+				assert.ElementsMatch(t, []inferenceMetric{
+					{Name: "tensorfold:requests_running", Labels: map[string]string{}, Value: 0},
+					{Name: "tensorfold:kv_cache_usage_ratio", Labels: map[string]string{"pool": "0"}, Value: 0.25},
+					{Name: "tensorfold:kv_cache_usage_ratio", Labels: map[string]string{"pool": "1"}, Value: 0.5},
+					{Name: "tensorfold:request_latency_seconds_sum", Labels: map[string]string{}, Value: 6},
+					{Name: "tensorfold:request_latency_seconds_count", Labels: map[string]string{}, Value: 2},
+				}, status.Metrics)
+			}
+			encoded, err := common.Marshal(status)
+			require.NoError(t, err)
+			for _, secret := range []string{"test-key", "private-model", "private-state"} {
+				assert.NotContains(t, string(encoded), secret)
+			}
+		})
+	}
 }
 
 // Opt-in verification against an operator-provided instance; credentials stay in the environment.

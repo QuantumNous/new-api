@@ -21,10 +21,14 @@ import { describe, expect, test } from 'vitest'
 import type { TaskPluginOption } from '../../api'
 import {
   CHANNEL_TYPE_NEW_API,
-  CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_TENSORFOLD,
+  CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_OPTIONS,
+  CLAUDE_FIELD_PASSTHROUGH_TYPES,
+  FIELD_PASSTHROUGH_TYPES,
   MODEL_FETCHABLE_TYPES,
+  OPENAI_FIELD_PASSTHROUGH_TYPES,
 } from '../../constants'
 import { channelSchema } from '../../types'
 import {
@@ -105,15 +109,37 @@ describe('New API channel', () => {
 })
 
 describe.each([
-  { type: CHANNEL_TYPE_VLLM, name: 'vLLM', icon: 'Vllm' },
-  { type: CHANNEL_TYPE_SGLANG, name: 'SGLang', icon: 'SGLang' },
-])('$name channel', ({ type, name, icon }) => {
+  {
+    type: CHANNEL_TYPE_VLLM,
+    name: 'vLLM',
+    icon: 'Vllm',
+    baseUrl: 'http://vllm:8000/',
+    baseUrlMessage: 'Base URL is required for this channel type',
+  },
+  {
+    type: CHANNEL_TYPE_SGLANG,
+    name: 'SGLang',
+    icon: 'SGLang',
+    baseUrl: 'http://sglang:30000/',
+    baseUrlMessage: 'Base URL is required for this channel type',
+  },
+  {
+    type: CHANNEL_TYPE_TENSORFOLD,
+    name: 'TensorFold',
+    icon: 'TensorFold',
+    baseUrl: 'http://tensorfold:8080/',
+    baseUrlMessage: 'Base URL is required for this channel type',
+  },
+])('$name channel', ({ type, name, icon, baseUrl, baseUrlMessage }) => {
   test('can be selected and discover served models', () => {
     expect(CHANNEL_TYPE_OPTIONS).toContainEqual({
       value: type,
       label: name,
     })
     expect(MODEL_FETCHABLE_TYPES.has(type)).toBe(true)
+    expect(FIELD_PASSTHROUGH_TYPES.has(type)).toBe(true)
+    expect(OPENAI_FIELD_PASSTHROUGH_TYPES.has(type)).toBe(true)
+    expect(CLAUDE_FIELD_PASSTHROUGH_TYPES.has(type)).toBe(true)
     expect(getChannelTypeIcon(type)).toBe(icon)
     expect(getChannelTypeConfig(type).icon).toBe(icon)
     expect(getKeyPromptForType(type)).toBe(
@@ -135,19 +161,19 @@ describe.each([
         expect.arrayContaining([
           expect.objectContaining({
             path: ['base_url'],
-            message: 'Base URL is required for this channel type',
+            message: baseUrlMessage,
           }),
         ])
       )
     }
     const parsed = channelFormSchema.parse({
       ...form,
-      base_url: 'http://vllm:8000/',
+      base_url: baseUrl,
     })
     const payload = transformFormDataToCreatePayload(parsed)
     expect(payload.channel).toMatchObject({
       type,
-      base_url: 'http://vllm:8000',
+      base_url: baseUrl.replace(/\/+$/, ''),
       models: 'deepseek-v4-flash-vision-exp',
       key: 'EMPTY',
     })

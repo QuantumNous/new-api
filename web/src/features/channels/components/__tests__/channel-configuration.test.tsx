@@ -45,6 +45,7 @@ import type { TaskPluginOption } from '../../api'
 import {
   CHANNEL_TYPE_OLLAMA,
   CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_TENSORFOLD,
   CHANNEL_TYPE_VLLM,
 } from '../../constants'
 import { channelSchema, type Channel } from '../../types'
@@ -289,6 +290,12 @@ test.each([
     url: 'SGLang server address, without /v1',
     savedUrl: 'http://localhost:30000',
   },
+  {
+    type: CHANNEL_TYPE_TENSORFOLD,
+    label: /^Base URL/,
+    url: 'TensorFold server address, without /v1',
+    savedUrl: 'http://localhost:8080',
+  },
 ])(
   'editing type $type keeps the URL placeholder out of the saved address',
   async ({ type, label, url, savedUrl }) => {
@@ -316,6 +323,64 @@ test.each([
     expect(put.mock.calls[0]?.[1]).toMatchObject({ id: 42, base_url: savedUrl })
   }
 )
+
+test('TensorFold creation requires its upstream URL and supports model discovery and field passthrough options', async () => {
+  const post = vi
+    .spyOn(api, 'post')
+    .mockResolvedValue({ data: { success: true, data: ['tf-model'] } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness />)
+  await user.click(
+    await screen.findByRole('option', { name: 'TensorFold Built-in #64' })
+  )
+  expect(screen.getByLabelText(/^Base URL/)).toHaveAttribute(
+    'placeholder',
+    'TensorFold server address, without /v1'
+  )
+  expect(screen.getByLabelText('API Key *')).toHaveAttribute(
+    'placeholder',
+    'TensorFold API key, or EMPTY if authentication is disabled'
+  )
+  fireEvent.change(screen.getByLabelText('API Key *'), {
+    target: { value: 'EMPTY' },
+  })
+  await user.type(
+    screen.getByRole('combobox', { name: 'Select models or add custom ones' }),
+    'manual-model,'
+  )
+  await user.keyboard('{Escape}')
+  await user.click(screen.getByRole('button', { name: 'Create Channel' }))
+  expect(
+    await screen.findByText('Base URL is required for this channel type')
+  ).toBeVisible()
+  expect(post).not.toHaveBeenCalled()
+
+  fireEvent.change(screen.getByLabelText(/^Base URL/), {
+    target: { value: 'http://tensorfold:8080' },
+  })
+  await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
+  await screen.findByRole('checkbox', { name: 'tf-model' })
+  expect(post).toHaveBeenCalledWith(
+    '/api/channel/fetch_models',
+    expect.objectContaining({
+      type: CHANNEL_TYPE_TENSORFOLD,
+      base_url: 'http://tensorfold:8080',
+      key: 'EMPTY',
+    }),
+    expect.anything()
+  )
+
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  expect(
+    screen.getByRole('switch', { name: 'Allow service_tier passthrough' })
+  ).toBeVisible()
+  expect(
+    screen.getByRole('switch', { name: 'Disable store passthrough' })
+  ).toBeVisible()
+  expect(
+    screen.getByRole('switch', { name: 'Allow speed passthrough' })
+  ).toBeVisible()
+})
 
 test('an unavailable default URL endpoint keeps the fallback placeholder and allows saving a custom address', async () => {
   const onInternalServerError = vi.fn()

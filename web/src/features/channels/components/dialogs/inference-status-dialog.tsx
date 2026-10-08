@@ -33,6 +33,7 @@ import {
   ADMIN_PERMISSION_RESOURCES,
   hasPermission,
 } from '@/lib/admin-permissions'
+import { formatNumber } from '@/lib/format'
 import { getServerErrorMessage } from '@/lib/server-error-message'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -43,6 +44,7 @@ import {
   metricRatio,
   recentMetrics,
   type InferenceStatus,
+  type InferenceProvider,
 } from '../../lib/inference-status'
 
 type MetricRow = {
@@ -52,8 +54,32 @@ type MetricRow = {
   unit?: 'percent' | 'seconds' | 'rate'
 }
 
+const providerMetricNames = {
+  vllm: {
+    running: 'vllm:num_requests_running',
+    waiting: 'vllm:num_requests_waiting',
+    cache: 'vllm:kv_cache_usage_perc',
+    requests: 'vllm:request_success_total',
+    latency: 'vllm:e2e_request_latency_seconds',
+  },
+  sglang: {
+    running: 'sglang:num_running_reqs',
+    waiting: 'sglang:num_queue_reqs',
+    cache: 'sglang:token_usage',
+    requests: 'sglang:num_requests_total',
+    latency: 'sglang:e2e_request_latency_seconds',
+  },
+  tensorfold: {
+    running: 'tensorfold:requests_running',
+    waiting: 'tensorfold:requests_waiting',
+    cache: 'tensorfold:kv_cache_usage_ratio',
+    requests: 'tensorfold:requests_total',
+    latency: 'tensorfold:request_latency_seconds',
+  },
+}
+
 type InferenceStatusDialogProps = {
-  provider: 'vllm' | 'sglang'
+  provider: InferenceProvider
   channelId: number
   channelName: string
   onClose: () => void
@@ -65,6 +91,29 @@ type InferenceStatusDialogProps = {
 export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
   const { t, i18n } = useTranslation()
   const isSGLang = props.provider === 'sglang'
+  const isTensorFold = props.provider === 'tensorfold'
+  const metricNames = providerMetricNames[props.provider]
+  const acceptedMetric = isTensorFold
+    ? 'tensorfold:mtp_accepted_total'
+    : 'vllm:spec_decode_num_accepted_tokens_total'
+  const draftedMetric = isTensorFold
+    ? 'tensorfold:mtp_drafted_total'
+    : 'vllm:spec_decode_num_draft_tokens_total'
+  const queueMetric = isSGLang
+    ? 'sglang:queue_time_seconds'
+    : 'vllm:request_queue_time_seconds'
+  let title = t('vLLM status')
+  let errorTitle = t('Failed to load vLLM status')
+  let requestsLabel = t('Finished requests')
+  if (isSGLang) {
+    title = t('SGLang status')
+    errorTitle = t('Failed to load SGLang status')
+    requestsLabel = t('Processed requests')
+  } else if (isTensorFold) {
+    title = t('TensorFold status')
+    errorTitle = t('Failed to load TensorFold status')
+    requestsLabel = t('HTTP responses')
+  }
   const [autoRefresh, setAutoRefresh] = useState(true)
   const autoRefreshId = useId()
   const previous = useRef<
@@ -116,10 +165,12 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
   const snapshot = query.data?.snapshot
   const metrics = snapshot?.metrics ?? []
   const recent = query.data?.recent
+  const cacheUsage =
+    metricValue(metrics, metricNames.cache, {}, 'max') ??
+    (props.provider === 'vllm'
+      ? metricValue(metrics, 'vllm:gpu_cache_usage_perc', {}, 'max')
+      : undefined)
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
-  const number = new Intl.NumberFormat(locale, {
-    maximumFractionDigits: 2,
-  })
   const percent = new Intl.NumberFormat(locale, {
     style: 'percent',
     maximumFractionDigits: 2,
@@ -135,26 +186,17 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
       rows: [
         {
           label: t('Running requests'),
-          value: metricValue(
-            metrics,
-            isSGLang ? 'sglang:num_running_reqs' : 'vllm:num_requests_running'
-          ),
+          value: metricValue(metrics, metricNames.running),
         },
         {
           label: t('Waiting requests'),
-          value: metricValue(
-            metrics,
-            isSGLang ? 'sglang:num_queue_reqs' : 'vllm:num_requests_waiting'
-          ),
+          value: metricValue(metrics, metricNames.waiting),
         },
         {
           label: isSGLang
             ? t('Peak token pool usage')
             : t('Peak KV cache usage'),
-          value: isSGLang
-            ? metricValue(metrics, 'sglang:token_usage', {}, 'max')
-            : (metricValue(metrics, 'vllm:kv_cache_usage_perc', {}, 'max') ??
-              metricValue(metrics, 'vllm:gpu_cache_usage_perc', {}, 'max')),
+          value: cacheUsage,
           unit: 'percent',
         },
         ...(isSGLang
@@ -165,14 +207,28 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
                 unit: 'rate' as const,
               },
             ]
-          : [
+          : []),
+        ...(props.provider === 'vllm'
+          ? [
               {
                 label: t('Awake engines'),
                 value: metricValue(metrics, 'vllm:engine_sleep_state', {
                   sleep_state: 'awake',
                 }),
               },
-            ]),
+            ]
+          : []),
+        ...(isTensorFold
+          ? [
+              {
+                label: t('Live output tokens'),
+                value: metricValue(
+                  metrics,
+                  'tensorfold:generation_tokens_running'
+                ),
+              },
+            ]
+          : []),
       ],
     },
     {
@@ -182,13 +238,8 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
       ),
       rows: [
         {
-          label: isSGLang ? t('Processed requests') : t('Finished requests'),
-          value: metricValue(
-            metrics,
-            isSGLang
-              ? 'sglang:num_requests_total'
-              : 'vllm:request_success_total'
-          ),
+          label: requestsLabel,
+          value: metricValue(metrics, metricNames.requests),
         },
         {
           label: t('Input tokens'),
@@ -208,7 +259,9 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
                 value: metricValue(metrics, 'sglang:cached_tokens_total'),
               },
             ]
-          : [
+          : []),
+        ...(props.provider === 'vllm'
+          ? [
               {
                 label: t('Prefix cache hit rate'),
                 value: metricRatio(
@@ -217,21 +270,20 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
                 ),
                 unit: 'percent' as const,
               },
+            ]
+          : []),
+        ...(!isSGLang
+          ? [
               {
                 label: t('Speculative decoding acceptance rate'),
                 value: metricRatio(
-                  metricValue(
-                    metrics,
-                    'vllm:spec_decode_num_accepted_tokens_total'
-                  ),
-                  metricValue(
-                    metrics,
-                    'vllm:spec_decode_num_draft_tokens_total'
-                  )
+                  metricValue(metrics, acceptedMetric),
+                  metricValue(metrics, draftedMetric)
                 ),
                 unit: 'percent' as const,
               },
-            ]),
+            ]
+          : []),
         {
           label: t('Mean time to first token'),
           value: metricMean(
@@ -242,28 +294,39 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
         },
         {
           label: t('Mean request latency'),
-          value: metricMean(
-            metrics,
-            `${props.provider}:e2e_request_latency_seconds`
-          ),
+          value: metricMean(metrics, metricNames.latency),
           unit: 'seconds',
         },
-        {
-          label: t('Mean queue time'),
-          value: metricMean(
-            metrics,
-            isSGLang
-              ? 'sglang:queue_time_seconds'
-              : 'vllm:request_queue_time_seconds'
-          ),
-          unit: 'seconds',
-        },
+        ...(!isTensorFold
+          ? [
+              {
+                label: t('Mean queue time'),
+                value: metricMean(metrics, queueMetric),
+                unit: 'seconds' as const,
+              },
+            ]
+          : []),
+        ...(isTensorFold
+          ? [
+              {
+                label: t('Mean prefill time'),
+                value: metricMean(
+                  metrics,
+                  'tensorfold:request_prefill_seconds'
+                ),
+                unit: 'seconds' as const,
+              },
+            ]
+          : []),
         {
           label: t('Mean time per output token'),
           value: isSGLang
             ? (metricMean(metrics, 'sglang:inter_token_latency_seconds') ??
               metricMean(metrics, 'sglang:time_per_output_token_seconds'))
-            : metricMean(metrics, 'vllm:request_time_per_output_token_seconds'),
+            : metricMean(
+                metrics,
+                `${props.provider}:request_time_per_output_token_seconds`
+              ),
           unit: 'seconds',
         },
       ],
@@ -272,7 +335,7 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
       title: t('Since previous sample'),
       hint: recent
         ? t('Sample interval: {{seconds}} seconds', {
-            seconds: number.format(recent.seconds),
+            seconds: formatNumber(recent.seconds, locale),
           })
         : t(
             'Waiting for two comparable samples. Counter resets restart the sampling window.'
@@ -310,10 +373,7 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
         },
         {
           label: t('Mean request latency'),
-          value: metricMean(
-            recent?.metrics ?? [],
-            `${props.provider}:e2e_request_latency_seconds`
-          ),
+          value: metricMean(recent?.metrics ?? [], metricNames.latency),
           unit: 'seconds',
         },
       ],
@@ -361,7 +421,7 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
       onOpenChange={(open) => {
         if (!open) props.onClose()
       }}
-      title={isSGLang ? t('SGLang status') : t('vLLM status')}
+      title={title}
       description={props.channelName}
       contentClassName='sm:max-w-3xl'
       bodyClassName='space-y-5'
@@ -417,11 +477,7 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
       {query.isPending && <LoadingState />}
       {query.isError && !snapshot && (
         <ErrorState
-          title={
-            isSGLang
-              ? t('Failed to load SGLang status')
-              : t('Failed to load vLLM status')
-          }
+          title={errorTitle}
           description={getServerErrorMessage(query.error)}
           onRetry={() => void query.refetch()}
         />
@@ -488,7 +544,7 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
                   {t('Max context tokens')}:{' '}
                   {model.max_model_len == null
                     ? t('Unavailable')
-                    : number.format(model.max_model_len)}
+                    : formatNumber(model.max_model_len, locale)}
                 </p>
               </div>
             ))}
@@ -507,7 +563,7 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
                 {group.rows.map((row) => {
                   let value = t('Unavailable')
                   if (row.value !== undefined) {
-                    value = number.format(row.value)
+                    value = formatNumber(row.value, locale)
                     if (row.unit === 'percent') {
                       value = percent.format(row.value)
                     }
@@ -516,7 +572,7 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
                     }
                     if (row.unit === 'rate') {
                       value = t('{{value}} tokens/s', {
-                        value: number.format(row.value),
+                        value: formatNumber(row.value, locale),
                       })
                     }
                   }
@@ -532,7 +588,7 @@ export function InferenceStatusDialog(props: InferenceStatusDialogProps) {
                         {value}
                       </dd>
                       {row.details && (
-                        <dd className='text-muted-foreground col-span-2 break-all text-xs'>
+                        <dd className='text-muted-foreground col-span-2 text-xs break-all'>
                           {row.details}
                         </dd>
                       )}

@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+export type InferenceProvider = 'vllm' | 'sglang' | 'tensorfold'
+
 export type InferenceMetric = {
   name: string
   labels: Record<string, string>

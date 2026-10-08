@@ -131,12 +131,18 @@ describe('Lobe icons', () => {
       'width',
       '24'
     )
+    rerender(getLobeIcon('TensorFold', 28))
+    expect(screen.getByRole('presentation', { hidden: true })).toHaveAttribute(
+      'width',
+      '28'
+    )
     expect(getLobeIconNames()).toEqual(
       expect.arrayContaining([
         'OpenAI',
         'Claude.Color',
         'SGLang',
         'Sub2API',
+        'TensorFold',
         'Wan',
       ])
     )

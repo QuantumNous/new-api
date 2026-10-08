@@ -40,8 +40,15 @@ import { api } from '@/lib/api'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { CHANNEL_TYPE_VLLM, CHANNEL_TYPE_SGLANG } from '../../constants'
-import type { InferenceStatus } from '../../lib/inference-status'
+import {
+  CHANNEL_TYPE_VLLM,
+  CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_TENSORFOLD,
+} from '../../constants'
+import type {
+  InferenceProvider,
+  InferenceStatus,
+} from '../../lib/inference-status'
 import { channelSchema } from '../../types'
 import { ChannelRowActionsLayoutContext } from '../channel-row-actions-context'
 import { BalanceCell } from '../channels-columns'
@@ -80,12 +87,13 @@ function panel(
     onClose: vi.fn(),
     onSyncModels: vi.fn(),
     onTestChannel: vi.fn(),
-  }
+  },
+  provider: InferenceProvider = 'vllm'
 ) {
   return (
     <QueryClientProvider client={client}>
       <InferenceStatusDialog
-        provider='vllm'
+        provider={provider}
         key={channelId}
         channelId={channelId}
         channelName='Test vLLM'
@@ -142,6 +150,20 @@ it.each([
     name: 'SGLang',
     type: CHANNEL_TYPE_SGLANG,
   },
+  {
+    layout: 'table' as const,
+    action: 'click',
+    provider: 'tensorfold',
+    name: 'TensorFold',
+    type: CHANNEL_TYPE_TENSORFOLD,
+  },
+  {
+    layout: 'card' as const,
+    action: 'Enter',
+    provider: 'tensorfold',
+    name: 'TensorFold',
+    type: CHANNEL_TYPE_TENSORFOLD,
+  },
 ])(
   'opens $name status from the balance cell in $layout view using $action',
   async ({ layout, action, provider, name, type }) => {
@@ -194,6 +216,12 @@ it.each([
 it.each([
   { language: 'zhCN', locale: 'zh-CN' },
   { language: 'zhTW', locale: 'zh-TW' },
+  { language: 'en', locale: 'en' },
+  { language: 'fr', locale: 'fr' },
+  { language: 'ru', locale: 'ru' },
+  { language: 'ja', locale: 'ja' },
+  { language: 'vi', locale: 'vi' },
+  { language: 'not_a_locale', locale: undefined },
 ])(
   'formats status numbers and timestamps for $language',
   async ({ language, locale }) => {
@@ -212,13 +240,22 @@ it.each([
     render(<I18nextProvider i18n={i18n}>{panel()}</I18nextProvider>)
 
     expect(
-      await screen.findByText('Max context tokens: 1,048,576')
+      await screen.findByText(
+        `Max context tokens: ${new Intl.NumberFormat(locale).format(1048576)}`,
+        { collapseWhitespace: false }
+      )
     ).toBeInTheDocument()
     expect(
       screen.getByText(
         `Last updated: ${new Date(data.sampled_at).toLocaleString(locale)}`,
         { collapseWhitespace: false }
       )
+    ).toBeInTheDocument()
+    await act(async () => {
+      await i18n.changeLanguage('en')
+    })
+    expect(
+      screen.getByText('Max context tokens: 1,048,576')
     ).toBeInTheDocument()
   }
 )
@@ -250,43 +287,52 @@ it('shows zero load, unavailable optional metrics, model details and existing ch
   expect(callbacks.onClose).toHaveBeenCalledOnce()
 })
 
-it('keeps healthy model information when metrics are unavailable', async () => {
-  const data = fixture()
-  data.endpoints['/metrics'] = { status: 404, error: 'http_error' }
-  data.metrics = []
-  vi.spyOn(api, 'get').mockResolvedValue({ data: { success: true, data } })
-  render(panel())
-  expect(await screen.findByText('served-model')).toBeInTheDocument()
-  expect(screen.getByText('Unavailable · HTTP 404')).toBeInTheDocument()
-  expect(
-    within(screen.getByRole('region', { name: 'Current load' })).getAllByText(
-      'Unavailable'
-    )
-  ).toHaveLength(4)
-})
+it.each(['vllm', 'tensorfold'] as const)(
+  'keeps $0 model information when metrics are unavailable',
+  async (provider) => {
+    const data = provider === 'tensorfold' ? tensorFoldFixture() : fixture()
+    data.endpoints['/metrics'] = { status: 404, error: 'http_error' }
+    data.metrics = []
+    vi.spyOn(api, 'get').mockResolvedValue({ data: { success: true, data } })
+    render(panel(42, undefined, provider))
+    expect(await screen.findByText('served-model')).toBeInTheDocument()
+    expect(screen.getByText('Unavailable · HTTP 404')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('region', { name: 'Current load' })).getAllByText(
+        'Unavailable'
+      )
+    ).toHaveLength(4)
+  }
+)
 
-it('shows errors, retries on demand and labels preserved data after a failed refresh', async () => {
-  const get = vi
-    .spyOn(api, 'get')
-    .mockRejectedValueOnce(new Error('Connection unavailable'))
-  const user = userEvent.setup()
-  render(panel())
-  expect(
-    await screen.findByText('Failed to load vLLM status')
-  ).toBeInTheDocument()
-  expect(screen.getByText('Connection unavailable')).toBeInTheDocument()
-  get.mockResolvedValueOnce({ data: { success: true, data: fixture() } })
-  await user.click(screen.getByRole('button', { name: 'Retry' }))
-  expect(await screen.findByText('served-model')).toBeInTheDocument()
-  get.mockRejectedValueOnce(new Error('Connection unavailable'))
-  await user.click(screen.getByRole('button', { name: 'Refresh' }))
-  expect(
-    await screen.findByText(
-      'Refresh failed. Showing the last successful snapshot.'
-    )
-  ).toBeInTheDocument()
-  expect(screen.getByText('served-model')).toBeInTheDocument()
-})
+it.each([
+  { provider: 'vllm' as const, name: 'vLLM' },
+  { provider: 'tensorfold' as const, name: 'TensorFold' },
+])(
+  'shows $name errors, retries and preserves the snapshot after a failed refresh',
+  async ({ provider, name }) => {
+    const get = vi
+      .spyOn(api, 'get')
+      .mockRejectedValueOnce(new Error('Connection unavailable'))
+    const user = userEvent.setup()
+    render(panel(42, undefined, provider))
+    expect(
+      await screen.findByText(`Failed to load ${name} status`)
+    ).toBeInTheDocument()
+    expect(screen.getByText('Connection unavailable')).toBeInTheDocument()
+    get.mockResolvedValueOnce({ data: { success: true, data: fixture() } })
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(await screen.findByText('served-model')).toBeInTheDocument()
+    get.mockRejectedValueOnce(new Error('Connection unavailable'))
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+    expect(
+      await screen.findByText(
+        'Refresh failed. Showing the last successful snapshot.'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByText('served-model')).toBeInTheDocument()
+  }
+)
 
 it('polls while enabled and stops after disabling auto refresh or closing the panel', async () => {
   vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
@@ -349,26 +395,187 @@ it('cancels requests on channel changes and ignores late results from the previo
   expect(screen.queryByText('0.25.2-test')).not.toBeInTheDocument()
 })
 
-it('disables channel mutations and tests for a read-only operator', async () => {
-  useAuthStore.setState({
-    auth: {
-      ...originalAuth,
-      user: {
-        id: 2,
-        username: 'reader',
-        role: ROLE.ADMIN,
-        permissions: { admin_permissions: { channel: { read: true } } },
+it.each(['vllm', 'tensorfold'] as const)(
+  'disables $0 mutations and tests for a read-only operator',
+  async (provider) => {
+    useAuthStore.setState({
+      auth: {
+        ...originalAuth,
+        user: {
+          id: 2,
+          username: 'reader',
+          role: ROLE.ADMIN,
+          permissions: { admin_permissions: { channel: { read: true } } },
+        },
       },
+    })
+    vi.spyOn(api, 'get').mockResolvedValue({
+      data: { success: true, data: fixture() },
+    })
+    render(panel(42, undefined, provider))
+    await screen.findByText('served-model')
+    expect(screen.getByRole('button', { name: 'Sync models' })).toBeDisabled()
+    expect(
+      screen.getByRole('button', { name: 'Test Connection' })
+    ).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled()
+  }
+)
+
+function tensorFoldFixture(): InferenceStatus {
+  return {
+    ...fixture(),
+    version: '',
+    endpoints: {
+      '/health': { status: 200 },
+      '/v1/models': { status: 200 },
+      '/metrics': { status: 200 },
     },
-  })
-  vi.spyOn(api, 'get').mockResolvedValue({
-    data: { success: true, data: fixture() },
-  })
-  render(panel())
+    metrics: [
+      { name: 'tensorfold:requests_running', labels: {}, value: 0 },
+      { name: 'tensorfold:num_requests_running', labels: {}, value: 0 },
+      { name: 'tensorfold:requests_waiting', labels: {}, value: 2 },
+      { name: 'tensorfold:num_requests_waiting', labels: {}, value: 2 },
+      {
+        name: 'tensorfold:kv_cache_usage_ratio',
+        labels: { pool: '0' },
+        value: 0.25,
+      },
+      {
+        name: 'tensorfold:kv_cache_usage_ratio',
+        labels: { pool: '1' },
+        value: 0.5,
+      },
+      {
+        name: 'tensorfold:kv_cache_usage_perc',
+        labels: { stream: '0' },
+        value: 0.25,
+      },
+      {
+        name: 'tensorfold:kv_cache_usage_perc',
+        labels: { stream: '1' },
+        value: 0.5,
+      },
+      {
+        name: 'tensorfold:requests_total',
+        labels: { status: '200' },
+        value: 4,
+      },
+      {
+        name: 'tensorfold:requests_total',
+        labels: { status: '500' },
+        value: 1,
+      },
+      { name: 'tensorfold:prompt_tokens_total', labels: {}, value: 100 },
+      { name: 'tensorfold:generation_tokens_total', labels: {}, value: 40 },
+      { name: 'tensorfold:generation_tokens_running', labels: {}, value: 7 },
+      { name: 'tensorfold:mtp_accepted_total', labels: {}, value: 3 },
+      { name: 'tensorfold:mtp_drafted_total', labels: {}, value: 4 },
+      { name: 'tensorfold:request_latency_seconds_sum', labels: {}, value: 6 },
+      {
+        name: 'tensorfold:request_latency_seconds_count',
+        labels: {},
+        value: 2,
+      },
+      { name: 'tensorfold:request_prefill_seconds_sum', labels: {}, value: 1 },
+      {
+        name: 'tensorfold:request_prefill_seconds_count',
+        labels: {},
+        value: 2,
+      },
+    ],
+  }
+}
+
+it('shows native TensorFold metrics without double-counting aliases or inventing missing values', async () => {
+  const data = tensorFoldFixture()
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { success: true, data } })
+  render(panel(64, undefined, 'tensorfold'))
   await screen.findByText('served-model')
-  expect(screen.getByRole('button', { name: 'Sync models' })).toBeDisabled()
-  expect(screen.getByRole('button', { name: 'Test Connection' })).toBeDisabled()
-  expect(screen.getByRole('button', { name: 'Refresh' })).toBeEnabled()
+  const load = within(screen.getByRole('region', { name: 'Current load' }))
+  expect(
+    load.getByText('Running requests').nextElementSibling
+  ).toHaveTextContent(/^0$/)
+  expect(
+    load.getByText('Waiting requests').nextElementSibling
+  ).toHaveTextContent(/^2$/)
+  expect(
+    load.getByText('Peak KV cache usage').nextElementSibling
+  ).toHaveTextContent('50%')
+  expect(
+    load.getByText('Live output tokens').nextElementSibling
+  ).toHaveTextContent(/^7$/)
+  const usage = within(screen.getByRole('region', { name: 'Cumulative usage' }))
+  expect(
+    usage.getByText('HTTP responses').nextElementSibling
+  ).toHaveTextContent(/^5$/)
+  expect(usage.getByText('Output tokens').nextElementSibling).toHaveTextContent(
+    /^40$/
+  )
+  expect(
+    usage.getByText('Speculative decoding acceptance rate').nextElementSibling
+  ).toHaveTextContent('75%')
+  expect(
+    usage.getByText('Mean request latency').nextElementSibling
+  ).toHaveTextContent('3 sec')
+  expect(
+    usage.getByText('Mean prefill time').nextElementSibling
+  ).toHaveTextContent('0.5 sec')
+  expect(
+    usage.getByText('Mean time to first token').nextElementSibling
+  ).toHaveTextContent('Unavailable')
+  expect(screen.queryByText('Awake engines')).not.toBeInTheDocument()
+  expect(screen.queryByText('Prefix cache hit rate')).not.toBeInTheDocument()
+  expect(screen.queryByText('Mean queue time')).not.toBeInTheDocument()
+  expect(screen.queryByText('/version')).not.toBeInTheDocument()
+  const recent = within(
+    screen.getByRole('region', { name: 'Since previous sample' })
+  )
+  expect(
+    recent.getByText('Output token rate').nextElementSibling
+  ).toHaveTextContent('Unavailable')
+})
+
+it('computes TensorFold output rates from finished tokens and resets the window after a counter reset', async () => {
+  const data = tensorFoldFixture()
+  const get = vi
+    .spyOn(api, 'get')
+    .mockResolvedValue({ data: { success: true, data } })
+  const user = userEvent.setup()
+  render(panel(64, undefined, 'tensorfold'))
+  await screen.findByText('served-model')
+  const recent = within(
+    screen.getByRole('region', { name: 'Since previous sample' })
+  )
+  const second = {
+    ...data,
+    sampled_at: 6000,
+    metrics: data.metrics.map((metric) => {
+      if (metric.name === 'tensorfold:generation_tokens_total') {
+        return { ...metric, value: 60 }
+      }
+      if (metric.name === 'tensorfold:generation_tokens_running') {
+        return { ...metric, value: 0 }
+      }
+      return metric
+    }),
+  }
+  get.mockResolvedValue({ data: { success: true, data: second } })
+  await user.click(screen.getByRole('button', { name: 'Refresh' }))
+  await waitFor(() =>
+    expect(
+      recent.getByText('Output token rate').nextElementSibling
+    ).toHaveTextContent('4 tokens/s')
+  )
+  get.mockResolvedValue({
+    data: { success: true, data: { ...data, sampled_at: 11000 } },
+  })
+  await user.click(screen.getByRole('button', { name: 'Refresh' }))
+  await waitFor(() =>
+    expect(
+      recent.getByText('Output token rate').nextElementSibling
+    ).toHaveTextContent('Unavailable')
+  )
 })
 
 it('keeps SGLang worker values separate and wraps long labels below them', async () => {
