@@ -88,7 +88,7 @@ func buildLogEndpoint(deploymentID, containerID string, opts *GetLogsOptions) (s
 		return "", fmt.Errorf("container ID cannot be empty")
 	}
 
-	params := make(map[string]interface{})
+	params := make(map[string]any)
 
 	if opts != nil {
 		if opts.Level != "" {
@@ -278,7 +278,7 @@ func (c *Client) ExecuteInContainer(deploymentID, containerID string, command []
 		return "", fmt.Errorf("command cannot be empty")
 	}
 
-	reqBody := map[string]interface{}{
+	reqBody := map[string]any{
 		"command": command,
 	}
 
@@ -289,7 +289,7 @@ func (c *Client) ExecuteInContainer(deploymentID, containerID string, command []
 		return "", fmt.Errorf("failed to execute command in container: %w", err)
 	}
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.Unmarshal(resp.Body, &result); err != nil {
 		return "", fmt.Errorf("failed to parse execution result: %w", err)
 	}

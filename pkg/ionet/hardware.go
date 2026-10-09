@@ -17,7 +17,7 @@ func (c *Client) GetAvailableReplicas(hardwareID int, gpuCount int) (*AvailableR
 		return nil, fmt.Errorf("gpu_count must be at least 1")
 	}
 
-	params := map[string]interface{}{
+	params := map[string]any{
 		"hardware_id":  hardwareID,
 		"hardware_qty": gpuCount,
 	}

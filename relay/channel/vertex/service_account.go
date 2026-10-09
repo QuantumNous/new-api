@@ -32,7 +32,7 @@ var Cache = asynccache.NewAsyncCache(asynccache.Options{
 	RefreshDuration: time.Minute * 35,
 	EnableExpire:    true,
 	ExpireDuration:  time.Minute * 30,
-	Fetcher: func(key string) (interface{}, error) {
+	Fetcher: func(key string) (any, error) {
 		return nil, errors.New("not found")
 	},
 })
@@ -122,7 +122,7 @@ func exchangeJwtForAccessToken(signedJWT string, info *relaycommon.RelayInfo) (s
 	}
 	defer resp.Body.Close()
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", err
 	}
@@ -165,7 +165,7 @@ func exchangeJwtForAccessTokenWithProxy(signedJWT string, proxy string) (string,
 	}
 	defer resp.Body.Close()
 
-	var result map[string]interface{}
+	var result map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", err
 	}
