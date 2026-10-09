@@ -747,6 +747,20 @@ export const native = {
         .join("\n"),
       metadata: body,
     };
+    // duration = -1 is Volcengine's "smart duration" sentinel (the task length
+    // follows the input). The host rejects negative canonical duration facts
+    // before hooks run, so the sentinel travels as the same boolean marker the
+    // alibaba wan3.0 plugin uses, and buildSubmitRequest restores it.
+    const nativeMetadata = Object.assign({}, body.metadata || {});
+    let smartDuration = Number(body.duration) === -1;
+    if (Number(nativeMetadata.duration) === -1) {
+      smartDuration = true;
+      delete nativeMetadata.duration;
+    }
+    const nativeBody = Object.assign({}, body, { metadata: nativeMetadata });
+    if (smartDuration) delete nativeBody.duration;
+    if (smartDuration) requestBody.metadata = nativeBody;
+    if (smartDuration) requestBody.auto_duration = true;
     const seconds = Number(body.duration);
     if (Number.isFinite(seconds) && seconds > 0) requestBody.seconds = seconds;
     const intent = { kind: "submit", model: model, action: hasReference ? "image_to_video" : "text_to_video", requestBody: requestBody };
@@ -813,6 +827,11 @@ export function buildSubmitRequest(ctx) {
   if (Array.isArray(body.content)) body.content = rewriteDraftTaskContent(body.content, ctx.originTasks);
   const seconds = Number.parseInt(req.seconds || "", 10);
   if (seconds > 0) body.duration = seconds;
+  if (req.auto_duration === true) {
+    // Restore Volcengine's smart duration sentinel after the fact has traveled
+    // past host validation as the auto_duration marker.
+    body.metadata = Object.assign({}, body.metadata || {}, { duration: -1 });
+  }
   body.model = ctx.upstreamModel || body.model;
   return {
     url: apiRoot(ctx) + "/api/v3/contents/generations/tasks",
@@ -856,12 +875,20 @@ export function extractUsage(ctx) {
     const ratio = videoInputRatio(ctx.upstreamModel || ctx.model, metadata.resolution, metadata.content);
     return ratio === 1 ? null : { video_input_ratio: ratio };
   }
-  let seconds = Number(req.seconds || req.duration || metadata.duration || 0);
-  if (!Number.isFinite(seconds) || seconds <= 0) {
-    const frames = Number(metadata.frames);
-    seconds = Number.isFinite(frames) && frames > 0 ? Math.floor(frames / 24) : 15;
+  let seconds;
+  if (req.auto_duration === true) {
+    // Smart duration: reserve the same 30s the alibaba wan3.0 plugin reserves
+    // at submit time; extractUsageOnComplete settles the final bill from the
+    // actual usage Volcengine reports.
+    seconds = 30;
+  } else {
+    seconds = Number(req.seconds || req.duration || metadata.duration || 0);
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+      const frames = Number(metadata.frames);
+      seconds = Number.isFinite(frames) && frames > 0 ? Math.floor(frames / 24) : 15;
+    }
+    if (seconds <= 0) seconds = 5;
   }
-  if (seconds <= 0) seconds = 5;
   seconds = Math.min(seconds, 3600);
   const profile = videoProfile(ctx);
   const resolution = videoResolution(ctx);
@@ -1016,8 +1043,15 @@ export const protocols = {
       else if (req.size && !metadata.resolution) metadata.resolution = normalizeResolution(req.size);
       const requestBody = { model: model, prompt: prompt, metadata: metadata };
       if (images.length) requestBody.images = images;
-      if (Object.prototype.hasOwnProperty.call(req, "seconds")) requestBody.seconds = req.seconds;
-      else if (Object.prototype.hasOwnProperty.call(req, "duration")) requestBody.seconds = req.duration;
+      // duration = -1 (smart duration) travels as the auto_duration marker; see
+      // native.createTask.
+      if (Object.prototype.hasOwnProperty.call(req, "seconds")) {
+        if (Number(req.seconds) === -1) requestBody.auto_duration = true;
+        else requestBody.seconds = req.seconds;
+      } else if (Object.prototype.hasOwnProperty.call(req, "duration")) {
+        if (Number(req.duration) === -1) requestBody.auto_duration = true;
+        else requestBody.seconds = req.duration;
+      }
       if (Object.prototype.hasOwnProperty.call(req, "size")) requestBody.size = req.size;
       const intent = { kind: "submit", model: model, action: images.length ? "image_to_video" : "text_to_video", requestBody: requestBody };
       const originTaskIds = draftTaskIds(metadata.content);

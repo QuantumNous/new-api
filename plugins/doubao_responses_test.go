@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	builtinplugins "github.com/QuantumNous/new-api/plugins"
@@ -950,4 +951,96 @@ func TestDoubaoImageEndpointMappingKeepsDeclaredModel(t *testing.T) {
 			assert.Equal(t, map[string]any{"images_up_to_1_5k": float64(0), "images_above_1_5k": float64(1), "input_images": float64(0), "layer_decomposition": false}, alibabaObject(t, facts))
 		})
 	}
+}
+
+func decodeDoubaoNativeVideo(t *testing.T, registry *jsplugin.Registry, plugin *jsplugin.LoadedPlugin, body map[string]any) map[string]any {
+	t.Helper()
+	binding, found := registry.Generation().LookupDeclaredRoute(http.MethodPost, "/doubao/api/v3/contents/generations/tasks")
+	require.True(t, found)
+	require.Equal(t, jsplugin.RouteTypeSubmit, binding.Route.Type)
+	value, err := plugin.Engine.CallPath(t.Context(), "native", []string{binding.Route.Decode}, map[string]any{
+		"path": "/doubao/api/v3/contents/generations/tasks", "body": map[string]any{"kind": "json", "value": body},
+	})
+	require.NoError(t, err)
+	return alibabaObject(t, value)
+}
+
+// Runs the production host validation, body conversion and usage extraction
+// for one normalized Seedance video request without contacting Volcengine.
+func runDoubaoVideo(t *testing.T, plugin *jsplugin.LoadedPlugin, request map[string]any) (validateErr *dto.TaskError, body map[string]any, facts map[string]any) {
+	t.Helper()
+	modelName := request["model"].(string)
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:     &relaycommon.ChannelMeta{ChannelBaseUrl: doubaoBaseURL, UpstreamModelName: modelName},
+		OriginModelName: modelName,
+		TaskRelayInfo:   &relaycommon.TaskRelayInfo{PublicTaskID: "task_public"},
+	}
+	adaptor := taskplugin.New(plugin)
+	adaptor.Init(info)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/doubao/api/v3/contents/generations/tasks", nil)
+	c.Set("task_request", request)
+	validateErr = adaptor.ValidateRequestAndSetAction(c, info)
+	if validateErr != nil {
+		return validateErr, nil, nil
+	}
+	reader, err := adaptor.BuildRequestBody(c, info)
+	require.NoError(t, err)
+	encoded, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.NoError(t, common.Unmarshal(encoded, &body))
+	extracted, err := adaptor.ExtractUsageFactsValidated(c, info)
+	require.NoError(t, err)
+	return nil, body, alibabaObject(t, extracted)
+}
+
+func TestDoubaoSeedanceSmartDuration(t *testing.T) {
+	registry, plugin := newDoubaoPlugin(t)
+	const model = "doubao-seedance-2-5-260628"
+
+	nativeBody := func(metadata map[string]any) map[string]any {
+		return map[string]any{
+			"model":  model,
+			"prompt": "仙侠风",
+			"content": []any{map[string]any{
+				"type":      "video_url",
+				"video_url": map[string]any{"url": "https://cdn.example/reference.mp4"},
+				"role":      "reference_video",
+			}},
+			"metadata": metadata,
+		}
+	}
+
+	// duration: -1 means smart duration and must reach Volcengine untouched.
+	resolved := decodeDoubaoNativeVideo(t, registry, plugin, nativeBody(map[string]any{
+		"return_last_frame": true,
+		"resolution":        "720p",
+		"ratio":             "adaptive",
+		"duration":          -1,
+		"generate_audio":    true,
+	}))
+	require.Equal(t, "submit", resolved["kind"])
+	request := resolved["requestBody"].(map[string]any)
+
+	validateErr, body, facts := runDoubaoVideo(t, plugin, request)
+	require.Nil(t, validateErr)
+
+	arkMetadata := body["metadata"].(map[string]any)
+	assert.Equal(t, float64(-1), arkMetadata["duration"])
+	assert.Equal(t, "720p", arkMetadata["resolution"])
+	assert.Nil(t, arkMetadata["auto_duration"])
+
+	// Smart duration reserves the same 30s quota as an otherwise identical
+	// native request asking for an explicit 30s duration; the final bill is
+	// settled from actual usage on completion.
+	explicitResolved := decodeDoubaoNativeVideo(t, registry, plugin, map[string]any{
+		"model":    model,
+		"prompt":   "仙侠风",
+		"content":  []any{map[string]any{"type": "video_url", "video_url": map[string]any{"url": "https://cdn.example/reference.mp4"}, "role": "reference_video"}},
+		"metadata": map[string]any{"resolution": "720p"},
+		"duration": float64(30),
+	})
+	validateErr, _, explicitFacts := runDoubaoVideo(t, plugin, explicitResolved["requestBody"].(map[string]any))
+	require.Nil(t, validateErr)
+	assert.Equal(t, explicitFacts["tokens"], facts["tokens"], "smart duration should reserve 30s of tokens")
 }
