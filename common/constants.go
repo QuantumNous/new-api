@@ -93,6 +93,16 @@ var MemoryCacheEnabled bool
 
 var LogConsumeEnabled = true
 
+// LogRecordClientInfoEnabled records the caller IP and client identifier
+// (User-Agent) of every relay request into usage/error log metadata. It is
+// off by default because the data is only needed for abuse investigation.
+var LogRecordClientInfoEnabled = false
+
+// LogClientInfoUserVisibleEnabled controls whether common users may see the
+// caller IP and client identifier recorded on their own logs. Admin and root
+// views are never affected by this switch.
+var LogClientInfoUserVisibleEnabled = false
+
 var TLSInsecureSkipVerify bool
 var InsecureTLSConfig = &tls.Config{InsecureSkipVerify: true}
 

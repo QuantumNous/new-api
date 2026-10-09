@@ -171,6 +171,11 @@ export interface LogOtherData {
   // Login audit fields (type=7); visible to the log owner
   login_method?: string
   user_agent?: string
+  // Caller IP and client identifier recorded on usage/error logs by the
+  // LogRecordClientInfoEnabled system switch; stripped from user views while
+  // LogClientInfoUserVisibleEnabled is off.
+  client_ip?: string
+  client_agent?: string
   request_path?: string
   request_conversion?: string[]
   ws?: boolean
