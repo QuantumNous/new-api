@@ -44,7 +44,7 @@ func (a *gormAdapter) LoadPolicy(m casbinmodel.Model) error {
 			// the stored rule for review and deny this permission in memory.
 			// Skipping a per-user rule would expose the admin role baseline.
 			effect = EffectDeny
-			common.SysLog(fmt.Sprintf("authorization policy %d has an unsupported legacy scope; loaded as deny; review the stored policy before granting access", rule.Id))
+			common.SysLog(common.LogText("authorization policy %d has an unsupported legacy scope; loaded as deny; review the stored policy before granting access", rule.Id))
 		}
 		if err := persist.LoadPolicyArray([]string{rule.Ptype, rule.V0, rule.V1, rule.V2, effect}, m); err != nil {
 			return err

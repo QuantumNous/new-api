@@ -293,7 +293,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	//// 创建一个用于日志的 info 副本，移除 ApiKey
 	//logInfo := info
 	//logInfo.ApiKey = ""
-	common.SysLog(fmt.Sprintf("testing channel %d with model %s , info %+v ", channel.Id, testModel, info.ToString()))
+	common.SysLog(common.LogText("testing channel %d with model %s , info %+v ", channel.Id, testModel, info.ToString()))
 
 	priceData, err := helper.ModelPriceHelper(c, info, 0, request.GetTokenCountMeta())
 	if err != nil {
@@ -447,7 +447,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
 			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
-			common.SysError(fmt.Sprintf(
+			common.SysError(common.LogText(
 				"channel test bad response: channel_id=%d name=%s type=%d model=%s endpoint_type=%s status=%d err=%v",
 				channel.Id,
 				channel.Name,
@@ -508,7 +508,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		PromptTokens:     usage.PromptTokens,
 		CompletionTokens: usage.CompletionTokens,
 		ModelName:        info.OriginModelName,
-		TokenName:        "模型测试",
+		TokenName:        "Model test",
 		Quota:            quota,
 		Content:          []*common.Message{common.NewMessage("Model test")},
 		UseTimeSeconds:   int(consumedTime),
@@ -516,7 +516,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		Group:            info.UsingGroup,
 		Other:            other,
 	})
-	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
+	common.SysLog(common.LogText("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
 	return testResult{
 		context:     c,
 		localErr:    nil,
@@ -938,7 +938,12 @@ func testChannelForHealthCheck(ctx context.Context, channel *model.Channel, test
 
 	if common.AutomaticDisableChannelEnabled && !shouldBanChannel {
 		if milliseconds > disableThreshold {
-			err := fmt.Errorf("response time %.2fs exceeds the threshold of %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
+			// The reason is stored with the channel and sent in the disable
+			// notice; no request states a language here.
+			err := errors.New(i18n.Translate("", i18n.MsgChannelResponseTimeExceeded, map[string]any{
+				"Seconds":   fmt.Sprintf("%.2f", float64(milliseconds)/1000.0),
+				"Threshold": fmt.Sprintf("%.2f", float64(disableThreshold)/1000.0),
+			}))
 			newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
 			shouldBanChannel = true
 		}

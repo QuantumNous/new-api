@@ -786,7 +786,7 @@ func syncTaskPluginsOnceContext(ctx context.Context) error {
 				}
 			}
 			taskPluginSyncState.errors[plugin.Key] = compileErr.Error()
-			common.SysError(fmt.Sprintf("compile task plugin %s@%s: %v", plugin.Key, plugin.Version, compileErr))
+			common.SysError(common.LogText("compile task plugin %s@%s: %v", plugin.Key, plugin.Version, compileErr))
 			logger.LogDebug(
 				ctx,
 				"task_plugin subsystem=sync event=plugin plugin=%q version=%q action=compile_failed retained_incumbent=%t",

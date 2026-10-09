@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 )
@@ -83,7 +84,11 @@ func (o *LogOther) setContent(parts []*common.Message) string {
 		return ""
 	}
 	o.SetPublic(logOtherContentPartsKey, parts)
-	return common.JoinMessages(parts)
+	texts := make([]string, 0, len(parts))
+	for _, part := range parts {
+		texts = append(texts, part.Error())
+	}
+	return strings.Join(texts, ", ")
 }
 
 func (o *LogOther) SetAdmin(key string, value any) bool {
@@ -171,7 +176,7 @@ func (o *LogOther) jsonString() string {
 	}
 	data, err := common.Marshal(o.toMap())
 	if err != nil {
-		common.SysError("failed to marshal log other: " + err.Error())
+		common.SysError(common.LogText("failed to marshal log other: %s", err.Error()))
 		return ""
 	}
 	return string(data)

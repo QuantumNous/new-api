@@ -134,7 +134,7 @@ func increaseQuotaData(quotaData *QuotaData) {
 			"token_used": gorm.Expr("token_used + ?", quotaData.TokenUsed),
 		}).Error
 	if err != nil {
-		common.SysLog(fmt.Sprintf("increaseQuotaData error: %s", err))
+		common.SysLog(common.LogText("increaseQuotaData error: %s", err))
 	}
 }
 

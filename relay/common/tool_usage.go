@@ -67,7 +67,7 @@ func (info *RelayInfo) SetBillableToolCount(name string, count int) {
 		return
 	}
 	if count < 0 {
-		common.SysError(fmt.Sprintf("billable tool count ignored: tool=%s count=%d", name, count))
+		common.SysError(common.LogText("billable tool count ignored: tool=%s count=%d", name, count))
 		return
 	}
 	info.ensureBuiltInTools()

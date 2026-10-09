@@ -24,6 +24,7 @@ import {
   splitBillingExprAndRequestRules,
   type ParsedTier,
 } from '@/features/pricing/lib/billing-expr'
+import { translateServerText } from '@/lib/server-error-message'
 
 import type { UsageLog } from '../data/schema'
 import type { LogOtherData } from '../types'
@@ -578,6 +579,19 @@ export function renderLogContent(
   const parts = other?.content_parts
   if (!Array.isArray(parts) || parts.length === 0) return null
   return parts.map((part) => t(part.key, part.params)).join(', ')
+}
+
+/**
+ * The token name to show for a log. A log written without a token, such as a
+ * channel test, carries a name the gateway stored as an English source key.
+ */
+export function logTokenName(
+  log: Pick<UsageLog, 'token_id' | 'token_name'>,
+  t: (key: string, opts?: Record<string, unknown>) => string
+): string {
+  return log.token_id === 0
+    ? translateServerText(t, log.token_name)
+    : log.token_name
 }
 
 /**

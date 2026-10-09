@@ -21,7 +21,7 @@ func GetCodexChannelUsage(c *gin.Context) {
 	fetchCodexChannelWhamData(
 		c,
 		service.FetchCodexWhamUsage,
-		"failed to fetch codex usage",
+		common.LogText("failed to fetch codex usage"),
 		"Failed to fetch usage. Please try again later",
 	)
 }
@@ -30,7 +30,7 @@ func GetCodexChannelRateLimitResetCredits(c *gin.Context) {
 	fetchCodexChannelWhamData(
 		c,
 		service.FetchCodexWhamRateLimitResetCredits,
-		"failed to fetch codex reset credits",
+		common.LogText("failed to fetch codex reset credits"),
 		"Failed to fetch reset credit details. Please try again later",
 	)
 }
@@ -39,7 +39,7 @@ func ResetCodexChannelUsage(c *gin.Context) {
 	fetchCodexChannelWhamData(
 		c,
 		service.ConsumeCodexWhamRateLimitResetCredit,
-		"failed to reset codex usage",
+		common.LogText("failed to reset codex usage"),
 		"Failed to reset usage. Please try again later",
 	)
 }
@@ -84,7 +84,7 @@ func fetchCodexChannelWhamData(
 
 	oauthKey, err := codex.ParseOAuthKey(strings.TrimSpace(ch.Key))
 	if err != nil {
-		common.SysError("failed to parse oauth key: " + err.Error())
+		common.SysError(common.LogText("failed to parse oauth key: %s", err.Error()))
 		common.ApiErrorT(c, "Failed to parse credentials. Please check the channel configuration")
 		return
 	}
@@ -139,7 +139,7 @@ func fetchCodexChannelWhamData(
 			defer cancel2()
 			statusCode, body, err = fetch(ctx2, client, ch.GetBaseURL(), oauthKey.AccessToken, accountID)
 			if err != nil {
-				common.SysError(logPrefix + " after refresh: " + err.Error())
+				common.SysError(common.LogText("%s after refresh: %s", logPrefix, err.Error()))
 				common.ApiErrorT(c, userMessage)
 				return
 			}

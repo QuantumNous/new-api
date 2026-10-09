@@ -12,7 +12,7 @@ import (
 //go:embed log_text.zh-CN.json
 var logTextZhCN []byte
 
-// logTexts is the translation table LOG_LANGUAGE selected; nil prints English.
+// logTexts is the translation table DEFAULT_LANGUAGE selected; nil prints English.
 var logTexts map[string]string
 
 // SetLogLanguage selects the language of server log lines. A language that
@@ -22,12 +22,10 @@ func SetLogLanguage(language string) {
 	if !strings.HasPrefix(strings.ToLower(strings.TrimSpace(language)), "zh") {
 		return
 	}
-	if err := Unmarshal(logTextZhCN, &logTexts); err != nil {
-		SysError("failed to load the Chinese log texts: " + err.Error())
-	}
+	_ = Unmarshal(logTextZhCN, &logTexts)
 }
 
-// LogText formats a server log line in the language of LOG_LANGUAGE. format is
+// LogText formats a server log line in the language of DEFAULT_LANGUAGE. format is
 // the English text and the key of its translation in log_text.zh-CN.json.
 func LogText(format string, args ...any) string {
 	if translated, ok := logTexts[format]; ok {

@@ -211,7 +211,7 @@ func modelPricingSyncValues(data map[string]any, name string) map[string]any {
 func FetchUpstreamRatios(c *gin.Context) {
 	var req dto.UpstreamRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		common.SysError("failed to bind upstream request: " + err.Error())
+		common.SysError(common.LogText("failed to bind upstream request: %s", err.Error()))
 		msg := common.NewMessage("Invalid request parameter format")
 		body := msg.Fields()
 		body["success"] = false
@@ -243,7 +243,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 		}
 		dbChannels, err := model.GetChannelsByIds(intIds)
 		if err != nil {
-			logger.LogError(c.Request.Context(), "failed to query channels: "+err.Error())
+			logger.LogError(c.Request.Context(), common.LogText("failed to query channels: %s", err.Error()))
 			msg := common.NewMessage("Failed to query channels")
 			body := msg.Fields()
 			body["success"] = false
@@ -330,7 +330,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 
 			httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
 			if err != nil {
-				logger.LogWarn(c.Request.Context(), "build request failed: "+err.Error())
+				logger.LogWarn(c.Request.Context(), common.LogText("build request failed: %s", err.Error()))
 				ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
 				return
 			}
@@ -368,25 +368,25 @@ func FetchUpstreamRatios(c *gin.Context) {
 				time.Sleep(time.Duration(200*(1<<attempt)) * time.Millisecond)
 			}
 			if lastErr != nil {
-				logger.LogWarn(c.Request.Context(), "http error on "+chItem.Name+": "+lastErr.Error())
+				logger.LogWarn(c.Request.Context(), common.LogText("http error on %s: %s", chItem.Name, lastErr.Error()))
 				ch <- upstreamResult{Name: uniqueName, Err: lastErr.Error()}
 				return
 			}
 			defer resp.Body.Close()
 			if resp.StatusCode != http.StatusOK {
-				logger.LogWarn(c.Request.Context(), "non-200 from "+chItem.Name+": "+resp.Status)
+				logger.LogWarn(c.Request.Context(), common.LogText("non-200 from %s: %s", chItem.Name, resp.Status))
 				ch <- upstreamResult{Name: uniqueName, Err: resp.Status}
 				return
 			}
 
 			// Content-Type 和响应体大小校验
 			if ct := resp.Header.Get("Content-Type"); ct != "" && !strings.Contains(strings.ToLower(ct), "application/json") {
-				logger.LogWarn(c.Request.Context(), "unexpected content-type from "+chItem.Name+": "+ct)
+				logger.LogWarn(c.Request.Context(), common.LogText("unexpected content-type from %s: %s", chItem.Name, ct))
 			}
 			limited := io.LimitReader(resp.Body, maxRatioConfigBytes)
 			bodyBytes, err := io.ReadAll(limited)
 			if err != nil {
-				logger.LogWarn(c.Request.Context(), "read response failed from "+chItem.Name+": "+err.Error())
+				logger.LogWarn(c.Request.Context(), common.LogText("read response failed from %s: %s", chItem.Name, err.Error()))
 				ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
 				return
 			}
@@ -395,7 +395,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			if isOpenRouter {
 				converted, err := convertOpenRouterToRatioData(bytes.NewReader(bodyBytes))
 				if err != nil {
-					logger.LogWarn(c.Request.Context(), "OpenRouter parse failed from "+chItem.Name+": "+err.Error())
+					logger.LogWarn(c.Request.Context(), common.LogText("OpenRouter parse failed from %s: %s", chItem.Name, err.Error()))
 					ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
 					return
 				}
@@ -407,7 +407,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			if isModelsDev {
 				converted, err := convertModelsDevToRatioData(bytes.NewReader(bodyBytes))
 				if err != nil {
-					logger.LogWarn(c.Request.Context(), "models.dev parse failed from "+chItem.Name+": "+err.Error())
+					logger.LogWarn(c.Request.Context(), common.LogText("models.dev parse failed from %s: %s", chItem.Name, err.Error()))
 					ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
 					return
 				}
@@ -425,7 +425,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			}
 
 			if err := common.DecodeJson(bytes.NewReader(bodyBytes), &body); err != nil {
-				logger.LogWarn(c.Request.Context(), "json decode failed from "+chItem.Name+": "+err.Error())
+				logger.LogWarn(c.Request.Context(), common.LogText("json decode failed from %s: %s", chItem.Name, err.Error()))
 				ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
 				return
 			}
@@ -470,7 +470,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 				BillingExpr          string   `json:"billing_expr"`
 			}
 			if err := common.Unmarshal(body.Data, &pricingItems); err != nil {
-				logger.LogWarn(c.Request.Context(), "unrecognized data format from "+chItem.Name+": "+err.Error())
+				logger.LogWarn(c.Request.Context(), common.LogText("unrecognized data format from %s: %s", chItem.Name, err.Error()))
 				ch <- upstreamResult{Name: uniqueName, Err: "failed to parse the upstream response"}
 				return
 			}

@@ -177,10 +177,10 @@ func Redeem(key string, userId int) (quota int, err error) {
 		return creditTopUpQuota(tx, userId, redemption.Quota, nil)
 	})
 	if err != nil {
-		common.SysError("redemption failed: " + err.Error())
+		common.SysError(common.LogText("redemption failed: %s", err.Error()))
 		return 0, ErrRedeemFailed
 	}
-	syncCreditUserQuotaCache(userId, redemption.Quota, "redemption")
+	syncCreditUserQuotaCache(userId, redemption.Quota, common.LogText("redemption"))
 	RecordLog(userId, LogTypeTopup, common.NewMessage("Topped up {{quota}} with a redemption code, code ID {{id}}", map[string]any{"quota": logger.FormatQuota(redemption.Quota), "id": redemption.Id}))
 	return redemption.Quota, nil
 }

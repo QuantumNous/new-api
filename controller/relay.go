@@ -90,7 +90,7 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	defer func() {
 		if newAPIError != nil {
 			service.RecordRequestPolicyTermination(c, newAPIError)
-			logger.LogError(c, fmt.Sprintf("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
+			logger.LogError(c, common.LogText("relay error: %s", common.LocalLogPreview(newAPIError.Error())))
 			newAPIError.SetMessage(common.MessageWithRequestId(newAPIError.Error(), requestId))
 			switch relayFormat {
 			case types.RelayFormatOpenAIRealtime:
@@ -344,7 +344,7 @@ func RelayMidjourney(c *gin.Context) {
 			"code":        mjErr.Code,
 		})
 		channelId := c.GetInt("channel_id")
-		logger.LogError(c, fmt.Sprintf("relay error (channel #%d, status code %d): %s", channelId, statusCode, fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result)))
+		logger.LogError(c, common.LogText("relay error (channel #%d, status code %d): %s", channelId, statusCode, fmt.Sprintf("%s %s", mjErr.Description, mjErr.Result)))
 	}
 }
 
@@ -602,7 +602,7 @@ func executeTaskSubmissionWith(
 		stage = "reserve"
 		diagnostics.reserve("reserve_start", result.Quota)
 		if reserveErr := relayInfo.Billing.Reserve(result.Quota); reserveErr != nil {
-			common.SysError("reserve adjusted task billing error: " + reserveErr.Error())
+			common.SysError(common.LogText("reserve adjusted task billing error: %s", reserveErr.Error()))
 			taskErr = service.TaskErrorWrapperLocal(errors.New("insufficient quota for adjusted task cost"), string(types.ErrorCodeInsufficientUserQuota), http.StatusForbidden)
 			diagnostics.failed("reserve", "insufficient_quota", taskErr, false)
 			return nil, taskErr
@@ -669,7 +669,7 @@ func executeTaskSubmissionWith(
 				task.PrivateData.ResultDiscarded = true
 				insertOmits = append(insertOmits, "data")
 			} else {
-				logger.LogWarn(c, fmt.Sprintf("task plugin route %s %s declares retainResult: false but returned an asynchronous result; retaining task %s", pinned.Route.Method, pinned.Route.Path, task.TaskID))
+				logger.LogWarn(c, common.LogText("task plugin route %s %s declares retainResult: false but returned an asynchronous result; retaining task %s", pinned.Route.Method, pinned.Route.Path, task.TaskID))
 			}
 		}
 	}
@@ -681,7 +681,7 @@ func executeTaskSubmissionWith(
 	}
 	diagnostics.insertStart(task)
 	if insertErr := task.InsertWithContext(c.Request.Context(), insertOmits...); insertErr != nil {
-		common.SysError("insert task error: " + insertErr.Error())
+		common.SysError(common.LogText("insert task error: %s", insertErr.Error()))
 		taskErr = service.TaskErrorWrapperLocal(errors.New("failed to persist task"), "task_insert_failed", http.StatusInternalServerError)
 		diagnostics.failed("insert", "database_error", taskErr, false)
 		return nil, taskErr
@@ -692,7 +692,7 @@ func executeTaskSubmissionWith(
 	diagnostics.settleStart(task, result.Quota)
 
 	if settleErr := service.SettleBilling(c, relayInfo, result.Quota); settleErr != nil {
-		common.SysError("settle task billing error: " + settleErr.Error())
+		common.SysError(common.LogText("settle task billing error: %s", settleErr.Error()))
 		taskErr = service.TaskErrorWrapperLocal(errors.New("failed to settle task billing"), "task_billing_settlement_failed", http.StatusInternalServerError)
 		diagnostics.failed("settle", "billing_error", taskErr, true)
 		return nil, taskErr
@@ -730,13 +730,13 @@ func presentTaskSubmission(c *gin.Context, outcome *taskSubmissionOutcome) {
 						c.JSON(http.StatusOK, body)
 						return
 					} else {
-						logger.LogError(c, "task plugin native submit presenter failed: "+callErr.Error())
+						logger.LogError(c, common.LogText("task plugin native submit presenter failed: %s", callErr.Error()))
 					}
 				} else {
-					logger.LogError(c, "encode task plugin native submit view failed: "+valueErr.Error())
+					logger.LogError(c, common.LogText("encode task plugin native submit view failed: %s", valueErr.Error()))
 				}
 			} else {
-				logger.LogError(c, "build task plugin native submit view failed: "+err.Error())
+				logger.LogError(c, common.LogText("build task plugin native submit view failed: %s", err.Error()))
 			}
 		}
 	}

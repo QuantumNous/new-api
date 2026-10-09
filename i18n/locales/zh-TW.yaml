@@ -64,6 +64,7 @@ channel.notify_enabled_subject: "管道「{{.Name}}」（#{{.Id}}）已被啟用
 channel.notify_enabled_content: "管道「{{.Name}}」（#{{.Id}}）已被啟用"
 channel.test_completed_subject: "管道測試完成"
 channel.test_completed_content: "所有管道測試已完成"
+channel.response_time_exceeded: "回應時間 {{.Seconds}}s 超過閾值 {{.Threshold}}s"
 channel.upstream_update_notify_subject: "上游模型巡檢通知"
 channel.upstream_update_summary: "上游模型巡檢摘要：檢測管道 {{.Checked}} 個，發現變更 {{.Changed}} 個，新增 {{.Added}} 個，刪除 {{.Removed}} 個，自動同步新增 {{.AutoAdded}} 個，失敗 {{.Failed}} 個。"
 channel.upstream_update_changed_channels: "變更管道明細（顯示 {{.Shown}}/{{.Total}}）："

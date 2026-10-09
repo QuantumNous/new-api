@@ -80,6 +80,7 @@ import {
   getFirstResponseTimeColor,
   getResponseTimeColor,
   getReasoningEffortVariant,
+  logTokenName,
   renderAuditContent,
   renderLogContent,
 } from '../../lib/format'
@@ -694,7 +695,11 @@ export function DetailsDialog(props: DetailsDialogProps) {
           )}
 
           {props.log.token_name && (
-            <DetailRow label={t('Token')} value={props.log.token_name} mono />
+            <DetailRow
+              label={t('Token')}
+              value={logTokenName(props.log, t)}
+              mono
+            />
           )}
 
           {(props.log.group || other?.group) && (

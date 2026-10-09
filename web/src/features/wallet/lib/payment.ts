@@ -31,19 +31,19 @@ import type { PaymentMethod, PresetAmount, TopupInfo } from '../types'
 // ============================================================================
 
 /**
- * Payment endpoints answer errors as {"message": "error", "data": text}, or
- * as {"success": false, "message": text}. Prefer the translated message_key,
- * then the text the response carries.
+ * Payment endpoints answer errors as {"message": "error", "data": text}. When
+ * the response also carries a message_key, this is its translation; callers
+ * fall back to the text they already read.
  */
-export function getPaymentErrorMessage(response: unknown): string | undefined {
+export function getPaymentErrorTranslation(
+  response: unknown
+): string | undefined {
   if (!response || typeof response !== 'object') return undefined
   const body = response as Record<string, unknown>
-  if (typeof body.message_key === 'string' && body.message_key) {
-    return getServerMessage(body)
+  if (typeof body.message_key !== 'string' || !body.message_key) {
+    return undefined
   }
-  if (typeof body.data === 'string' && body.data.trim()) return body.data
-  const message = getServerMessage(body)
-  return message === 'error' ? undefined : message
+  return getServerMessage(body)
 }
 
 /**

@@ -128,7 +128,7 @@ func writeSecurityOperationError(c *gin.Context, err error) {
 		}
 		// Protocol details can contain challenges and client-controlled data.
 		// Only fixed categories and the server-selected public RP ID are logged.
-		logger.LogWarn(c.Request.Context(), "passkey verification rejected: code=%s reason=%s rp_id=%q", code, reason, c.GetString("passkey_rp_id"))
+		logger.LogWarn(c.Request.Context(), common.LogText("passkey verification rejected: code=%s reason=%s rp_id=%q", code, reason, c.GetString("passkey_rp_id")))
 	}
 	// Every message above is fixed English text, so it is also the key the web
 	// console translates.

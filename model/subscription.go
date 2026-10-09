@@ -559,7 +559,7 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 
 func refreshSubscriptionUserGroupCache(userId int, operation string) {
 	if err := RefreshUserGroupCache(userId); err != nil {
-		common.SysError(fmt.Sprintf("failed to refresh user group cache after %s for user %d: %v", operation, userId, err))
+		common.SysError(common.LogText("failed to refresh user group cache after %s for user %d: %v", operation, userId, err))
 	}
 }
 
@@ -637,7 +637,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		return err
 	}
 	if upgradeGroup != "" && logUserId > 0 {
-		refreshSubscriptionUserGroupCache(logUserId, "subscription payment completion")
+		refreshSubscriptionUserGroupCache(logUserId, common.LogText("subscription payment completion"))
 	}
 	if logUserId > 0 {
 		RecordLog(logUserId, LogTypeTopup, common.NewMessage("Subscription purchased, plan: {{plan}}, payment amount: {{amount}}, payment method: {{method}}", map[string]any{
@@ -736,7 +736,7 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (*common.M
 		return nil, err
 	}
 	if groupChanged {
-		refreshSubscriptionUserGroupCache(userId, "admin subscription creation")
+		refreshSubscriptionUserGroupCache(userId, common.LogText("admin subscription creation"))
 		return common.NewMessage("User group will be upgraded to {{group}}", map[string]any{"group": plan.UpgradeGroup}), nil
 	}
 	return nil, nil
@@ -836,11 +836,11 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 
 	if chargedQuota > 0 {
 		if err := cacheDecrUserQuota(userId, int64(chargedQuota)); err != nil {
-			common.SysLog("failed to decrease user quota cache after subscription balance purchase: " + err.Error())
+			common.SysLog(common.LogText("failed to decrease user quota cache after subscription balance purchase: %s", err.Error()))
 		}
 	}
 	if upgradeGroup != "" {
-		refreshSubscriptionUserGroupCache(userId, "subscription balance purchase")
+		refreshSubscriptionUserGroupCache(userId, common.LogText("subscription balance purchase"))
 	}
 	RecordLog(userId, LogTypeTopup, common.NewMessage("Subscription purchased with balance, plan: {{plan}}, payment amount: {{amount}}, quota deducted: {{quota}}", map[string]any{
 		"plan":   logPlanTitle,
@@ -966,7 +966,7 @@ func AdminInvalidateUserSubscription(userSubscriptionId int) (*common.Message, e
 		return nil, err
 	}
 	if cacheGroup != "" && userId > 0 {
-		refreshSubscriptionUserGroupCache(userId, "admin subscription update")
+		refreshSubscriptionUserGroupCache(userId, common.LogText("admin subscription update"))
 	}
 	if downgradeGroup != "" {
 		return common.NewMessage("User group will be reverted to {{group}}", map[string]any{"group": downgradeGroup}), nil
@@ -1007,7 +1007,7 @@ func AdminDeleteUserSubscription(userSubscriptionId int) (*common.Message, error
 		return nil, err
 	}
 	if cacheGroup != "" && userId > 0 {
-		refreshSubscriptionUserGroupCache(userId, "admin subscription deletion")
+		refreshSubscriptionUserGroupCache(userId, common.LogText("admin subscription deletion"))
 	}
 	if downgradeGroup != "" {
 		return common.NewMessage("User group will be reverted to {{group}}", map[string]any{"group": downgradeGroup}), nil
@@ -1234,7 +1234,7 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 			return expiredCount, err
 		}
 		if cacheGroup != "" {
-			refreshSubscriptionUserGroupCache(userId, "subscription expiration")
+			refreshSubscriptionUserGroupCache(userId, common.LogText("subscription expiration"))
 		}
 	}
 	return expiredCount, nil

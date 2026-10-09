@@ -86,7 +86,7 @@ func Login(c *gin.Context) {
 	if err != nil {
 		switch {
 		case errors.Is(err, model.ErrDatabase):
-			common.SysLog(fmt.Sprintf("Login database error for user %s: %v", username, err))
+			common.SysLog(common.LogText("Login database error for user %s: %v", username, err))
 			common.ApiErrorT(c, "Database error, please contact the administrator")
 		case errors.Is(err, model.ErrUserEmptyCredentials):
 			common.ApiErrorT(c, "Invalid parameters")
@@ -264,7 +264,7 @@ func Register(c *gin.Context) {
 	exist, err := model.CheckUserExistOrDeleted(user.Username, emailForExistCheck)
 	if err != nil {
 		common.ApiErrorT(c, "Database error, please contact the administrator")
-		common.SysLog(fmt.Sprintf("CheckUserExistOrDeleted error: %v", err))
+		common.SysLog(common.LogText("CheckUserExistOrDeleted error: %v", err))
 		return
 	}
 	if exist {
@@ -303,7 +303,7 @@ func Register(c *gin.Context) {
 		key, err := common.GenerateKey()
 		if err != nil {
 			common.ApiErrorT(c, "Failed to generate default token")
-			common.SysLog("failed to generate token key: " + err.Error())
+			common.SysLog(common.LogText("failed to generate token key: %s", err.Error()))
 			return
 		}
 		// 生成默认令牌
@@ -1140,7 +1140,7 @@ func ManageUser(c *gin.Context) {
 		// 删除用户后，强制清理 Redis 中所有该用户令牌的缓存，
 		// 避免已缓存的令牌在 TTL 过期前仍能通过 TokenAuth 校验。
 		if err := model.InvalidateUserTokensCache(user.Id); err != nil {
-			common.SysLog(fmt.Sprintf("failed to invalidate tokens cache for user %d: %s", user.Id, err.Error()))
+			common.SysLog(common.LogText("failed to invalidate tokens cache for user %d: %s", user.Id, err.Error()))
 		}
 		recordManageAuditFor(c, user.Id, "user.manage", map[string]any{
 			"action":                req.Action,
@@ -1216,7 +1216,7 @@ func ManageUser(c *gin.Context) {
 	// explicit invalidation; deleting the user hash here would discard the
 	// freshly published auth-version floor.
 	if err := model.InvalidateUserTokensCache(user.Id); err != nil {
-		common.SysLog(fmt.Sprintf("failed to invalidate tokens cache for user %d: %s", user.Id, err.Error()))
+		common.SysLog(common.LogText("failed to invalidate tokens cache for user %d: %s", user.Id, err.Error()))
 	}
 	recordManageAuditFor(c, user.Id, "user.manage", map[string]any{
 		"action":              req.Action,
@@ -1304,7 +1304,7 @@ func TopUp(c *gin.Context) {
 	if err != nil {
 		// 不向用户暴露兑换失败的细分原因，避免攻击者根据错误类型判断兑换码状态。
 		common.ApiErrorT(c, "Redemption failed, please try again later")
-		logger.LogError(c, fmt.Sprintf("failed to redeem key %s for user %d: %s", req.Key, id, err.Error()))
+		logger.LogError(c, common.LogText("failed to redeem key %s for user %d: %s", req.Key, id, err.Error()))
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{

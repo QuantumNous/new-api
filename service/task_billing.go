@@ -156,7 +156,7 @@ func taskBillingOther(task *model.Task) *model.LogOther {
 		if priceData := taskBillingContextPriceData(bc); priceData != nil {
 			for k, v := range priceData.OtherRatios() {
 				if !other.SetPublic(k, v) {
-					common.SysError("task billing other ratio key rejected: " + k)
+					common.SysError(common.LogText("task billing other ratio key rejected: %s", k))
 				}
 			}
 		}

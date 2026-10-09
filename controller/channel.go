@@ -212,13 +212,13 @@ func GetAllChannels(c *gin.Context) {
 	if enableTagMode {
 		tags, err := model.GetPaginatedChannelTags(buildChannelListQuery(groupFilter, statusFilter, typeFilter), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 		if err != nil {
-			common.SysError("failed to get paginated tags: " + err.Error())
+			common.SysError(common.LogText("failed to get paginated tags: %s", err.Error()))
 			common.ApiErrorT(c, "Failed to fetch tags. Please try again later")
 			return
 		}
 		total, err = model.CountChannelTags(buildChannelListQuery(groupFilter, statusFilter, typeFilter))
 		if err != nil {
-			common.SysError("failed to count tags: " + err.Error())
+			common.SysError(common.LogText("failed to count tags: %s", err.Error()))
 			common.ApiErrorT(c, "Failed to count tags. Please try again later")
 			return
 		}
@@ -231,7 +231,7 @@ func GetAllChannels(c *gin.Context) {
 				Omit("key").
 				Find(&tagChannels).Error
 			if err != nil {
-				common.SysError("failed to get channels by tag: " + err.Error())
+				common.SysError(common.LogText("failed to get channels by tag: %s", err.Error()))
 				common.ApiErrorT(c, "Failed to fetch channels with this tag. Please try again later")
 				return
 			}
@@ -239,7 +239,7 @@ func GetAllChannels(c *gin.Context) {
 		}
 	} else {
 		if err := buildChannelListQuery(groupFilter, statusFilter, typeFilter).Count(&total).Error; err != nil {
-			common.SysError("failed to count channels: " + err.Error())
+			common.SysError(common.LogText("failed to count channels: %s", err.Error()))
 			common.ApiErrorT(c, "Failed to count channels. Please try again later")
 			return
 		}
@@ -250,7 +250,7 @@ func GetAllChannels(c *gin.Context) {
 			Omit("key").
 			Find(&channelData).Error
 		if err != nil {
-			common.SysError("failed to get channels: " + err.Error())
+			common.SysError(common.LogText("failed to get channels: %s", err.Error()))
 			common.ApiErrorT(c, "Failed to fetch channels. Please try again later")
 			return
 		}
@@ -266,7 +266,7 @@ func GetAllChannels(c *gin.Context) {
 		Count int64
 	}
 	if err := countQuery.Select("type, count(*) as count").Group("type").Find(&results).Error; err != nil {
-		common.SysError("failed to count channel types: " + err.Error())
+		common.SysError(common.LogText("failed to count channel types: %s", err.Error()))
 		common.ApiErrorT(c, "Failed to count channel types. Please try again later")
 		return
 	}
@@ -670,7 +670,7 @@ func RefreshCodexChannelCredential(c *gin.Context) {
 
 	oauthKey, ch, err := service.RefreshCodexChannelCredential(ctx, channelId, service.CodexCredentialRefreshOptions{ResetCaches: true})
 	if err != nil {
-		common.SysError("failed to refresh codex channel credential: " + err.Error())
+		common.SysError(common.LogText("failed to refresh codex channel credential: %s", err.Error()))
 		common.ApiErrorT(c, "Failed to refresh credentials. Please try again later")
 		return
 	}
@@ -1564,7 +1564,7 @@ func CopyChannel(c *gin.Context) {
 	// fetch original channel with key
 	origin, err := model.GetChannelById(id, true)
 	if err != nil {
-		common.SysError("failed to get channel by id: " + err.Error())
+		common.SysError(common.LogText("failed to get channel by id: %s", err.Error()))
 		common.ApiErrorT(c, "Failed to fetch channel. Please try again later")
 		return
 	}
@@ -1587,14 +1587,14 @@ func CopyChannel(c *gin.Context) {
 	}
 
 	if err := clone.ValidateSettings(); err != nil {
-		common.SysError("failed to validate cloned channel: " + err.Error())
+		common.SysError(common.LogText("failed to validate cloned channel: %s", err.Error()))
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "Failed to copy channel: invalid channel settings"})
 		return
 	}
 
 	// insert
 	if err := clone.Insert(); err != nil {
-		common.SysError("failed to clone channel: " + err.Error())
+		common.SysError(common.LogText("failed to clone channel: %s", err.Error()))
 		common.ApiErrorT(c, "Failed to copy channel. Please try again later")
 		return
 	}

@@ -85,7 +85,7 @@ func ClaudeResponsesStreamHandler(c *gin.Context, resp *http.Response, info *rel
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		var claudeResponse dto.ClaudeResponse
 		if err := common.UnmarshalJsonStr(data, &claudeResponse); err != nil {
-			logger.LogError(c, "failed to unmarshal Claude stream event: "+err.Error())
+			logger.LogError(c, common.LogText("failed to unmarshal Claude stream event: %s", err.Error()))
 			if failResponsesStream(err) {
 				// A nil streamErr here is intentional: the protocol-level failure
 				// event was delivered, so only the scanner needs to stop.

@@ -81,6 +81,7 @@ const (
 	MsgChannelNotifyEnabledContent  = "channel.notify_enabled_content"
 	MsgChannelTestCompletedSubject  = "channel.test_completed_subject"
 	MsgChannelTestCompletedContent  = "channel.test_completed_content"
+	MsgChannelResponseTimeExceeded  = "channel.response_time_exceeded"
 
 	MsgChannelUpstreamUpdateNotifySubject   = "channel.upstream_update_notify_subject"
 	MsgChannelUpstreamUpdateSummary         = "channel.upstream_update_summary"
@@ -91,31 +92,3 @@ const (
 	MsgChannelUpstreamUpdateFailedChannels  = "channel.upstream_update_failed_channels"
 	MsgChannelUpstreamUpdateMoreOmitted     = "channel.upstream_update_more_omitted"
 )
-
-// Before the backend translated them, these messages were Chinese for every
-// reader, and other gateways match their text, for example to disable a channel
-// whose upstream account ran out of quota. They stay Chinese for a reader who
-// states no language. Keys added later are not listed here and use DefaultLang.
-var chineseByDefault = []string{
-	MsgAuthClientIPUnresolved, MsgAuthTokenIPNotAllowed, MsgAuthTokenGroupForbidden,
-	MsgAuthTokenGroupDeprecated, MsgAuthChannelSelectForbidden,
-	MsgRateLimitReached, MsgRateLimitTotalReached,
-	MsgQuotaUserInsufficient, MsgQuotaPreConsumeInsufficient, MsgQuotaSubscriptionInsufficient,
-	MsgRelayModelPriceNotConfigured, MsgRelayModelPriceNotConfiguredAdmin,
-	MsgRelayTaskChannelDisabled, MsgRelayGroupSaturated, MsgRelayGroupUpstreamSaturated,
-	MsgRelayRetryGetChannelFailed, MsgRelayRetryNoAvailableChannel, MsgRelayAccessTokenUnsupported,
-	MsgUserDefaultTokenName,
-	MsgEmailVerificationSubject, MsgEmailVerificationGreeting, MsgEmailVerificationCode,
-	MsgEmailVerificationValidity,
-	MsgEmailPasswordResetSubject, MsgEmailPasswordResetGreeting, MsgEmailPasswordResetLink,
-	MsgEmailPasswordResetLinkFallback, MsgEmailPasswordResetValidity,
-	MsgNotifyQuotaLowTitle, MsgNotifySubscriptionQuotaLowTitle, MsgNotifyQuotaLowBark,
-	MsgNotifyQuotaLowGotify, MsgNotifyQuotaLowEmail,
-	MsgChannelNotifyDisabledSubject, MsgChannelNotifyDisabledContent,
-	MsgChannelNotifyEnabledSubject, MsgChannelNotifyEnabledContent,
-	MsgChannelTestCompletedSubject, MsgChannelTestCompletedContent,
-	MsgChannelUpstreamUpdateNotifySubject, MsgChannelUpstreamUpdateSummary,
-	MsgChannelUpstreamUpdateChangedChannels, MsgChannelUpstreamUpdateMoreChannels,
-	MsgChannelUpstreamUpdateAddedModels, MsgChannelUpstreamUpdateRemovedModels,
-	MsgChannelUpstreamUpdateFailedChannels, MsgChannelUpstreamUpdateMoreOmitted,
-}

@@ -23,7 +23,7 @@ import { toast } from 'sonner'
 import { handleServerError } from '@/lib/handle-server-error'
 
 import { requestWaffoPancakePayment, isApiSuccess } from '../api'
-import { getPaymentErrorMessage } from '../lib'
+import { getPaymentErrorTranslation } from '../lib'
 
 function getCheckoutUrl(data: unknown): string | null {
   if (!data || typeof data !== 'object') {
@@ -52,6 +52,17 @@ function isSafeHttpCheckoutUrl(value: string): boolean {
   } catch {
     return false
   }
+}
+
+function getErrorMessage(message: string | undefined, data: unknown): string {
+  if (typeof data === 'string' && data.trim()) {
+    return data
+  }
+
+  return (
+    (message && message !== 'success' ? message : undefined) ||
+    i18next.t('Payment request failed')
+  )
 }
 
 /**
@@ -88,8 +99,8 @@ export function useWaffoPancakePayment() {
 
         handleServerError(response, undefined, {
           title:
-            getPaymentErrorMessage(response) ??
-            i18next.t('Payment request failed'),
+            getPaymentErrorTranslation(response) ??
+            getErrorMessage(response.message, response.data),
         })
         return false
       } catch (_error) {

@@ -23,7 +23,6 @@ import { toast } from 'sonner'
 import { handleServerError } from '@/lib/handle-server-error'
 
 import { requestCreemPayment, isApiSuccess } from '../api'
-import { getPaymentErrorMessage } from '../lib'
 
 /**
  * Hook for handling Creem payment processing
@@ -45,11 +44,7 @@ export function useCreemPayment() {
         return true
       }
 
-      handleServerError(response, undefined, {
-        title:
-          getPaymentErrorMessage(response) ??
-          i18next.t('Payment request failed'),
-      })
+      handleServerError(response, i18next.t('Payment request failed'))
       return false
     } catch (_error) {
       handleServerError(_error, i18next.t('Payment request failed'))

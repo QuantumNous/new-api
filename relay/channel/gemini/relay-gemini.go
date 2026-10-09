@@ -288,7 +288,7 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 		return usage, types.NewOpenAIError(streamErr, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 	if info.StreamStatus != nil && !info.StreamStatus.IsNormalEnd() {
-		logger.LogWarn(c, fmt.Sprintf("Gemini stream ended unexpectedly: %s", info.StreamStatus.Summary()))
+		logger.LogWarn(c, common.LogText("Gemini stream ended unexpectedly: %s", info.StreamStatus.Summary()))
 	}
 
 	return usage, nil
@@ -404,7 +404,7 @@ func GeminiChatStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *
 	}
 	handleErr := handleFinalStream(c, info, response)
 	if handleErr != nil {
-		common.SysLog("send final response failed: " + handleErr.Error())
+		common.SysLog(common.LogText("send final response failed: %s", handleErr.Error()))
 	}
 	return usage, nil
 }

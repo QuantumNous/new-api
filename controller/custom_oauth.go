@@ -412,7 +412,7 @@ func DeleteCustomOAuthProvider(c *gin.Context) {
 	// Check if there are any user bindings
 	count, err := model.GetBindingCountByProviderId(id)
 	if err != nil {
-		common.SysError("Failed to get binding count for provider " + strconv.Itoa(id) + ": " + err.Error())
+		common.SysError(common.LogText("Failed to get binding count for provider %s: %s", strconv.Itoa(id), err.Error()))
 		common.ApiErrorT(c, "Failed to check user bindings, please try again later")
 		return
 	}

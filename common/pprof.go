@@ -17,7 +17,7 @@ func Monitor() {
 			panic(err)
 		}
 		if percent[0] > 80 {
-			fmt.Println("cpu usage too high")
+			fmt.Println(LogText("cpu usage too high"))
 			// write pprof file
 			if _, err := os.Stat("./pprof"); os.IsNotExist(err) {
 				err := os.Mkdir("./pprof", os.ModePerm)

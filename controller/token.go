@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -61,7 +60,7 @@ func buildMaskedTokenResponse(token *model.Token) *tokenResponse {
 	maskedToken.Key = token.GetMaskedKey()
 	autoGroups, err := token.GetAutoGroups()
 	if err != nil {
-		common.SysError(fmt.Sprintf("failed to parse auto groups for token %d: %v", token.Id, err))
+		common.SysError(common.LogText("failed to parse auto groups for token %d: %v", token.Id, err))
 		autoGroups = nil
 	}
 	if len(autoGroups) == 0 {
@@ -249,7 +248,7 @@ func GetTokenUsage(c *gin.Context) {
 
 	token, err := model.GetTokenByKey(strings.TrimPrefix(tokenKey, "sk-"), false)
 	if err != nil {
-		common.SysError("failed to get token by key: " + err.Error())
+		common.SysError(common.LogText("failed to get token by key: %s", err.Error()))
 		common.ApiErrorI18n(c, i18n.MsgTokenGetInfoFailed)
 		return
 	}
@@ -324,7 +323,7 @@ func AddToken(c *gin.Context) {
 	key, err := common.GenerateKey()
 	if err != nil {
 		common.ApiErrorT(c, "Failed to generate token")
-		common.SysLog("failed to generate token key: " + err.Error())
+		common.SysLog(common.LogText("failed to generate token key: %s", err.Error()))
 		return
 	}
 	cleanToken := model.Token{

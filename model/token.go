@@ -175,7 +175,7 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 	if hasFuzzy {
 		count, err := CountUserTokens(userId)
 		if err != nil {
-			common.SysLog("failed to count user tokens: " + err.Error())
+			common.SysLog(common.LogText("failed to count user tokens: %s", err.Error()))
 			return nil, 0, common.NewMessage("Failed to get the token count")
 		}
 		if int(count) > maxTokens {
@@ -204,14 +204,14 @@ func SearchUserTokens(userId int, keyword string, token string, offset int, limi
 	// 先查匹配总数（用于分页，受 maxTokens 上限保护，避免全表 COUNT）
 	err = baseQuery.Limit(maxTokens).Count(&total).Error
 	if err != nil {
-		common.SysError("failed to count search tokens: " + err.Error())
+		common.SysError(common.LogText("failed to count search tokens: %s", err.Error()))
 		return nil, 0, common.NewMessage("Failed to search tokens")
 	}
 
 	// 再分页查数据
 	err = baseQuery.Order("id desc").Offset(offset).Limit(limit).Find(&tokens).Error
 	if err != nil {
-		common.SysError("failed to search tokens: " + err.Error())
+		common.SysError(common.LogText("failed to search tokens: %s", err.Error()))
 		return nil, 0, common.NewMessage("Failed to search tokens")
 	}
 	return tokens, total, nil
@@ -233,7 +233,7 @@ func ValidateUserToken(key string) (token *Token, err error) {
 				token.Status = common.TokenStatusExpired
 				err := token.SelectUpdate()
 				if err != nil {
-					common.SysLog("failed to update token status" + err.Error())
+					common.SysLog(common.LogText("failed to update token status%s", err.Error()))
 				}
 			}
 			return token, ErrTokenInvalid
@@ -243,14 +243,14 @@ func ValidateUserToken(key string) (token *Token, err error) {
 				token.Status = common.TokenStatusExhausted
 				err := token.SelectUpdate()
 				if err != nil {
-					common.SysLog("failed to update token status" + err.Error())
+					common.SysLog(common.LogText("failed to update token status%s", err.Error()))
 				}
 			}
 			return token, ErrTokenInvalid
 		}
 		return token, nil
 	}
-	common.SysLog("ValidateUserToken: failed to get token: " + err.Error())
+	common.SysLog(common.LogText("ValidateUserToken: failed to get token: %s", err.Error()))
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, ErrTokenInvalid
 	}
@@ -294,7 +294,7 @@ func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
 		// 冷缓存时用数据库快照初始化；已存在的哈希只刷新 TTL，
 		// 避免快照覆盖 Redis 中已被原子预扣的余额。初始化失败不影响本次读取。
 		if _, cacheErr := cacheInitToken(*token); cacheErr != nil {
-			common.SysLog("failed to init token cache: " + cacheErr.Error())
+			common.SysLog(common.LogText("failed to init token cache: %s", cacheErr.Error()))
 		}
 	}
 	return token, nil
@@ -310,7 +310,7 @@ func (token *Token) Insert() error {
 func (token *Token) Update() (err error) {
 	// 写库前失效缓存并设置 fence，防止并发读者把过期快照重新写回缓存。
 	if cacheErr := invalidateTokenCacheForMutation(token.Key); cacheErr != nil {
-		common.SysLog("failed to invalidate token cache before update: " + cacheErr.Error())
+		common.SysLog(common.LogText("failed to invalidate token cache before update: %s", cacheErr.Error()))
 	}
 	return DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
 		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry", "auto_groups").Updates(token).Error
@@ -318,7 +318,7 @@ func (token *Token) Update() (err error) {
 
 func (token *Token) SelectUpdate() (err error) {
 	if cacheErr := invalidateTokenCacheForMutation(token.Key); cacheErr != nil {
-		common.SysLog("failed to invalidate token cache before status update: " + cacheErr.Error())
+		common.SysLog(common.LogText("failed to invalidate token cache before status update: %s", cacheErr.Error()))
 	}
 	// This can update zero values
 	return DB.Model(token).Select("accessed_time", "status").Updates(token).Error
@@ -326,7 +326,7 @@ func (token *Token) SelectUpdate() (err error) {
 
 func (token *Token) Delete() (err error) {
 	if cacheErr := invalidateTokenCacheForMutation(token.Key); cacheErr != nil {
-		common.SysLog("failed to invalidate token cache before delete: " + cacheErr.Error())
+		common.SysLog(common.LogText("failed to invalidate token cache before delete: %s", cacheErr.Error()))
 	}
 	return DB.Delete(token).Error
 }
@@ -383,7 +383,7 @@ func IncreaseTokenQuota(tokenId int, key string, quota int) (err error) {
 			// 守卫式增量：哈希不存在时跳过，由下次读取从数据库水合，
 			// 绝不创建只有配额字段的残缺哈希。
 			if _, err := cacheApplyTokenQuotaDelta(tokenId, key, int64(quota)); err != nil {
-				common.SysLog("failed to increase token quota: " + err.Error())
+				common.SysLog(common.LogText("failed to increase token quota: %s", err.Error()))
 			}
 		})
 	}
@@ -412,7 +412,7 @@ func DecreaseTokenQuota(id int, key string, quota int) (err error) {
 	if common.RedisEnabled {
 		gopool.Go(func() {
 			if _, err := cacheApplyTokenQuotaDelta(id, key, int64(-quota)); err != nil {
-				common.SysLog("failed to decrease token quota: " + err.Error())
+				common.SysLog(common.LogText("failed to decrease token quota: %s", err.Error()))
 			}
 		})
 	}
@@ -455,7 +455,7 @@ func BatchDeleteTokens(ids []int, userId int) (int, error) {
 		return 0, err
 	}
 	if err := invalidateTokensCache(tokens); err != nil {
-		common.SysLog("failed to invalidate token cache before batch delete: " + err.Error())
+		common.SysLog(common.LogText("failed to invalidate token cache before batch delete: %s", err.Error()))
 	}
 
 	if err := tx.Where("user_id = ? AND id IN (?)", userId, ids).Delete(&Token{}).Error; err != nil {

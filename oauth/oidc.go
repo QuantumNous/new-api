@@ -76,7 +76,7 @@ func (p *OIDCProvider) ExchangeToken(ctx context.Context, code string, c *gin.Co
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-OIDC] ExchangeToken error: %s", err.Error()))
+		logger.LogError(ctx, common.LogText("[OAuth-OIDC] ExchangeToken error: %s", err.Error()))
 		return nil, NewOAuthErrorWithRaw(common.NewMessage(msgConnectFailed, map[string]any{"provider": "OIDC"}), err.Error())
 	}
 	defer res.Body.Close()
@@ -86,12 +86,12 @@ func (p *OIDCProvider) ExchangeToken(ctx context.Context, code string, c *gin.Co
 	var oidcResponse oidcOAuthResponse
 	err = json.NewDecoder(res.Body).Decode(&oidcResponse)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-OIDC] ExchangeToken decode error: %s", err.Error()))
+		logger.LogError(ctx, common.LogText("[OAuth-OIDC] ExchangeToken decode error: %s", err.Error()))
 		return nil, err
 	}
 
 	if oidcResponse.AccessToken == "" {
-		logger.LogError(ctx, "[OAuth-OIDC] ExchangeToken failed: empty access token")
+		logger.LogError(ctx, common.LogText("[OAuth-OIDC] ExchangeToken failed: empty access token"))
 		return nil, NewOAuthError(common.NewMessage(msgTokenFailed, map[string]any{"provider": "OIDC"}))
 	}
 
@@ -123,7 +123,7 @@ func (p *OIDCProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*OAu
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-OIDC] GetUserInfo error: %s", err.Error()))
+		logger.LogError(ctx, common.LogText("[OAuth-OIDC] GetUserInfo error: %s", err.Error()))
 		return nil, NewOAuthErrorWithRaw(common.NewMessage(msgConnectFailed, map[string]any{"provider": "OIDC"}), err.Error())
 	}
 	defer res.Body.Close()
@@ -131,19 +131,19 @@ func (p *OIDCProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*OAu
 	logger.LogDebug(ctx, "[OAuth-OIDC] GetUserInfo response status: %d", res.StatusCode)
 
 	if res.StatusCode != http.StatusOK {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-OIDC] GetUserInfo failed: status=%d", res.StatusCode))
+		logger.LogError(ctx, common.LogText("[OAuth-OIDC] GetUserInfo failed: status=%d", res.StatusCode))
 		return nil, NewOAuthError(common.NewMessage(msgGetUserFailed))
 	}
 
 	var oidcUser oidcUser
 	err = json.NewDecoder(res.Body).Decode(&oidcUser)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-OIDC] GetUserInfo decode error: %s", err.Error()))
+		logger.LogError(ctx, common.LogText("[OAuth-OIDC] GetUserInfo decode error: %s", err.Error()))
 		return nil, err
 	}
 
 	if oidcUser.OpenID == "" || oidcUser.Email == "" {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-OIDC] GetUserInfo failed: empty fields (sub=%s, email=%s)", oidcUser.OpenID, oidcUser.Email))
+		logger.LogError(ctx, common.LogText("[OAuth-OIDC] GetUserInfo failed: empty fields (sub=%s, email=%s)", oidcUser.OpenID, oidcUser.Email))
 		return nil, NewOAuthError(common.NewMessage(msgUserInfoEmpty, map[string]any{"provider": "OIDC"}))
 	}
 

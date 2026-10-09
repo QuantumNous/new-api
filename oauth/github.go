@@ -76,7 +76,7 @@ func (p *GitHubProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] ExchangeToken error: %s", err.Error()))
+		logger.LogError(ctx, common.LogText("[OAuth-GitHub] ExchangeToken error: %s", err.Error()))
 		return nil, NewOAuthErrorWithRaw(common.NewMessage(msgConnectFailed, map[string]any{"provider": "GitHub"}), err.Error())
 	}
 	defer res.Body.Close()
@@ -86,12 +86,12 @@ func (p *GitHubProvider) ExchangeToken(ctx context.Context, code string, c *gin.
 	var oAuthResponse gitHubOAuthResponse
 	err = json.NewDecoder(res.Body).Decode(&oAuthResponse)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] ExchangeToken decode error: %s", err.Error()))
+		logger.LogError(ctx, common.LogText("[OAuth-GitHub] ExchangeToken decode error: %s", err.Error()))
 		return nil, err
 	}
 
 	if oAuthResponse.AccessToken == "" {
-		logger.LogError(ctx, "[OAuth-GitHub] ExchangeToken failed: empty access token")
+		logger.LogError(ctx, common.LogText("[OAuth-GitHub] ExchangeToken failed: empty access token"))
 		return nil, NewOAuthError(common.NewMessage(msgTokenFailed, map[string]any{"provider": "GitHub"}))
 	}
 
@@ -118,7 +118,7 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetUserInfo error: %s", err.Error()))
+		logger.LogError(ctx, common.LogText("[OAuth-GitHub] GetUserInfo error: %s", err.Error()))
 		return nil, NewOAuthErrorWithRaw(common.NewMessage(msgConnectFailed, map[string]any{"provider": "GitHub"}), err.Error())
 	}
 	defer res.Body.Close()
@@ -132,19 +132,19 @@ func (p *GitHubProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 		if len(bodyStr) > 500 {
 			bodyStr = bodyStr[:500] + "..."
 		}
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetUserInfo failed: status=%d, body=%s", res.StatusCode, bodyStr))
+		logger.LogError(ctx, common.LogText("[OAuth-GitHub] GetUserInfo failed: status=%d, body=%s", res.StatusCode, bodyStr))
 		return nil, NewOAuthErrorWithRaw(common.NewMessage(msgGetUserFailed), fmt.Sprintf("status %d", res.StatusCode))
 	}
 
 	var githubUser gitHubUser
 	err = json.NewDecoder(res.Body).Decode(&githubUser)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetUserInfo decode error: %s", err.Error()))
+		logger.LogError(ctx, common.LogText("[OAuth-GitHub] GetUserInfo decode error: %s", err.Error()))
 		return nil, err
 	}
 
 	if githubUser.Id == 0 || githubUser.Login == "" {
-		logger.LogError(ctx, "[OAuth-GitHub] GetUserInfo failed: empty id or login field")
+		logger.LogError(ctx, common.LogText("[OAuth-GitHub] GetUserInfo failed: empty id or login field"))
 		return nil, NewOAuthError(common.NewMessage(msgUserInfoEmpty, map[string]any{"provider": "GitHub"}))
 	}
 
@@ -178,19 +178,19 @@ func (p *GitHubProvider) GetVerifiedEmails(ctx context.Context, token *OAuthToke
 	}
 	res, err := client.Do(req)
 	if err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetVerifiedEmails error: %s", err.Error()))
+		logger.LogError(ctx, common.LogText("[OAuth-GitHub] GetVerifiedEmails error: %s", err.Error()))
 		return nil, NewOAuthErrorWithRaw(common.NewMessage(msgConnectFailed, map[string]any{"provider": "GitHub"}), err.Error())
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetVerifiedEmails failed: status=%d", res.StatusCode))
+		logger.LogError(ctx, common.LogText("[OAuth-GitHub] GetVerifiedEmails failed: status=%d", res.StatusCode))
 		return nil, NewOAuthErrorWithRaw(common.NewMessage(msgGetUserFailed), fmt.Sprintf("status %d", res.StatusCode))
 	}
 
 	var emails []gitHubEmail
 	if err := common.DecodeJson(res.Body, &emails); err != nil {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-GitHub] GetVerifiedEmails decode error: %s", err.Error()))
+		logger.LogError(ctx, common.LogText("[OAuth-GitHub] GetVerifiedEmails decode error: %s", err.Error()))
 		return nil, err
 	}
 	verified := make([]string, 0, len(emails))

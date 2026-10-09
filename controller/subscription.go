@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -503,7 +502,7 @@ func AdminResetPlanSubscriptions(c *gin.Context) {
 		return
 	}
 	recordSubscriptionResetUserLogs(c, result, auditOperatorInfo(c))
-	common.SysLog(fmt.Sprintf("admin reset subscription plan %d quota: reset_count=%d user_count=%d advance_reset_time=%t",
+	common.SysLog(common.LogText("admin reset subscription plan %d quota: reset_count=%d user_count=%d advance_reset_time=%t",
 		result.PlanId, result.ResetCount, result.UserCount, result.AdvanceResetTime))
 	recordManageAudit(c, "subscription.plan_reset", map[string]any{
 		"plan_id":            result.PlanId,

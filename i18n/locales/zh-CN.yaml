@@ -64,6 +64,7 @@ channel.notify_enabled_subject: "通道「{{.Name}}」（#{{.Id}}）已被启用
 channel.notify_enabled_content: "通道「{{.Name}}」（#{{.Id}}）已被启用"
 channel.test_completed_subject: "通道测试完成"
 channel.test_completed_content: "所有通道测试已完成"
+channel.response_time_exceeded: "响应时间 {{.Seconds}}s 超过阈值 {{.Threshold}}s"
 channel.upstream_update_notify_subject: "上游模型巡检通知"
 channel.upstream_update_summary: "上游模型巡检摘要：检测渠道 {{.Checked}} 个，发现变更 {{.Changed}} 个，新增 {{.Added}} 个，删除 {{.Removed}} 个，自动同步新增 {{.AutoAdded}} 个，失败 {{.Failed}} 个。"
 channel.upstream_update_changed_channels: "变更渠道明细（展示 {{.Shown}}/{{.Total}}）："

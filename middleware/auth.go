@@ -297,7 +297,7 @@ func enforceAccessTokenRoute(c *gin.Context, lookup *accessTokenLookup, abort bo
 	case lookup.legacy:
 		return true
 	case !declared:
-		common.SysError("access token route is not declared: " + key)
+		common.SysError(common.LogText("access token route is not declared: %s", key))
 		code, reason, message = "ACCESS_TOKEN_ROUTE_UNDECLARED", "route_undeclared", common.NewMessage("Unauthorized, insufficient privileges")
 	case rule.kind == accessTokenRuleAny, service.AccessTokenScopeGranted(lookup.token.GetScopes(), rule.scope):
 		return true
@@ -338,7 +338,7 @@ func setAccessTokenContext(c *gin.Context, lookup *accessTokenLookup) {
 		return
 	}
 	if err := model.TouchUserAccessToken(lookup.token.Id, c.ClientIP(), common.GetTimestamp()); err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("access token last-use update failed (token_id=%d): %v", lookup.token.Id, err))
+		logger.LogError(c.Request.Context(), common.LogText("access token last-use update failed (token_id=%d): %v", lookup.token.Id, err))
 	}
 }
 
@@ -404,7 +404,7 @@ func writeDashboardAuthError(c *gin.Context, err error) {
 		abortWithWebMessage(c, http.StatusUnauthorized, "AUTH_UNAUTHORIZED", common.NewMessage("Unauthorized, invalid access token"))
 		return
 	}
-	common.SysLog("dashboard authentication error: " + err.Error())
+	common.SysLog(common.LogText("dashboard authentication error: %s", err.Error()))
 	abortWithWebMessage(c, http.StatusInternalServerError, "AUTH_INTERNAL_ERROR", common.NewMessage("Database error, please contact the administrator"))
 }
 
@@ -476,7 +476,7 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				abortWithWebMessage(c, http.StatusUnauthorized, "", common.NewMessage("Invalid token"))
 			} else {
-				common.SysLog("TokenAuthReadOnly GetTokenByKey database error: " + err.Error())
+				common.SysLog(common.LogText("TokenAuthReadOnly GetTokenByKey database error: %s", err.Error()))
 				abortWithWebMessage(c, http.StatusInternalServerError, "", common.NewMessage("Database error, please contact the administrator"))
 			}
 			return
@@ -491,7 +491,7 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 
 		userCache, err := model.GetUserCache(token.UserId)
 		if err != nil {
-			common.SysLog(fmt.Sprintf("TokenAuthReadOnly GetUserCache error for user %d: %v", token.UserId, err))
+			common.SysLog(common.LogText("TokenAuthReadOnly GetUserCache error for user %d: %v", token.UserId, err))
 			abortWithWebMessage(c, http.StatusInternalServerError, "", common.NewMessage("Database error, please contact the administrator"))
 			return
 		}
@@ -560,7 +560,7 @@ func TokenAuth() func(c *gin.Context) {
 		}
 		if err != nil {
 			if errors.Is(err, model.ErrDatabase) {
-				common.SysLog("TokenAuth ValidateUserToken database error: " + err.Error())
+				common.SysLog(common.LogText("TokenAuth ValidateUserToken database error: %s", err.Error()))
 				abortWithOpenAiMessage(c, http.StatusInternalServerError,
 					common.TranslateMessage(c, i18n.MsgDatabaseError))
 			} else {
@@ -588,7 +588,7 @@ func TokenAuth() func(c *gin.Context) {
 
 		userCache, err := model.GetUserCache(token.UserId)
 		if err != nil {
-			common.SysLog(fmt.Sprintf("TokenAuth GetUserCache error for user %d: %v", token.UserId, err))
+			common.SysLog(common.LogText("TokenAuth GetUserCache error for user %d: %v", token.UserId, err))
 			abortWithOpenAiMessage(c, http.StatusInternalServerError,
 				common.TranslateMessage(c, i18n.MsgDatabaseError))
 			return
@@ -675,7 +675,7 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 	if token.AutoGroups != "" {
 		autoGroups, err := token.GetAutoGroups()
 		if err != nil {
-			common.SysError(fmt.Sprintf("failed to parse auto groups for token %d: %v", token.Id, err))
+			common.SysError(common.LogText("failed to parse auto groups for token %d: %v", token.Id, err))
 			autoGroups = []string{}
 			common.SetContextKey(c, constant.ContextKeyTokenAutoGroups, autoGroups)
 		} else if len(autoGroups) > 0 {

@@ -36,7 +36,7 @@ services:
       - ERROR_LOG_ENABLED=true # 是否启用错误日志记录 (Whether to enable error log recording)
       - BATCH_UPDATE_ENABLED=true  # 是否启用批量更新 (Whether to enable batch update)
       - NODE_NAME=new-api-node-1  # 节点名称，用于审计日志中标识节点身份；多节点/容器部署时建议设置 (Node name used in audit logs; recommended when running multiple instances or in containers)
-#      - LOG_LANGUAGE=zh-CN  # 控制台和日志文件的输出语言，默认英文；设为 zh-CN 时，有中文文本的日志输出中文 (Language of console and log file output; English by default, zh-CN prints the Chinese text of the lines that have one)
+#      - DEFAULT_LANGUAGE=zh-CN  # 默认语言：日志输出，以及对方没有指定语言时返回的提示、邮件和通知；可选 en、zh-CN、zh-TW，不设置为 en (Default language of logs and of messages, emails and notifications when the reader states none: en, zh-CN or zh-TW; en if unset)
 #      - STREAMING_TIMEOUT=300  # 流模式无响应超时时间，单位秒，默认120秒，如果出现空补全可以尝试改为更大值 （Streaming timeout in seconds, default is 120s. Increase if experiencing empty completions）
 #      - RELAY_IDLE_CONN_TIMEOUT=90  # Relay HTTP 客户端空闲连接超时时间，单位秒，默认跟随 Go 标准库，设置为0表示不限制 (Relay HTTP client idle keep-alive timeout in seconds, defaults to Go standard library; set 0 to disable)
 #      - SESSION_SECRET=random_string  # 多机部署时设置，必须修改这个随机字符串！！ （multi-node deployment, set this to a random string!!!!!!!）

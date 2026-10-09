@@ -109,7 +109,7 @@ func AddRedemption(c *gin.Context) {
 		}
 		err = cleanRedemption.Insert()
 		if err != nil {
-			common.SysError("failed to insert redemption: " + err.Error())
+			common.SysError(common.LogText("failed to insert redemption: %s", err.Error()))
 			msg := common.NewMessage("Failed to create redemption code, please try again later")
 			body := msg.Fields()
 			body["success"] = false

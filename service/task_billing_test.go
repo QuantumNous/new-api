@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
@@ -44,6 +45,9 @@ func TestMain(m *testing.M) {
 	common.RedisEnabled = false
 	common.BatchUpdateEnabled = false
 	common.LogConsumeEnabled = true
+	if err := i18n.Init(); err != nil {
+		panic("failed to load locales: " + err.Error())
+	}
 
 	if err := db.AutoMigrate(
 		&model.Task{},

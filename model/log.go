@@ -2,7 +2,6 @@ package model
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -162,7 +161,7 @@ func RecordLog(userId int, logType int, content *common.Message) {
 	}
 	err := createLog(log)
 	if err != nil {
-		common.SysLog("failed to record log: " + err.Error())
+		common.SysLog(common.LogText("failed to record log: %s", err.Error()))
 	}
 }
 
@@ -198,13 +197,13 @@ func RecordLogWithAdminInfo(userId int, logType int, content string, adminInfo *
 	if adminInfo != nil || operation != nil {
 		data, err := common.Marshal(AuditOther{AdminInfo: adminInfo, Op: operation})
 		if err != nil {
-			common.SysError("failed to encode log admin info: " + err.Error())
+			common.SysError(common.LogText("failed to encode log admin info: %s", err.Error()))
 			return
 		}
 		log.Other = string(data)
 	}
 	if err := createLog(log); err != nil {
-		common.SysLog("failed to record log: " + err.Error())
+		common.SysLog(common.LogText("failed to record log: %s", err.Error()))
 	}
 }
 
@@ -272,13 +271,13 @@ func RecordTopupLog(userId int, content *common.Message, callerIp string, paymen
 	}
 	err := createLog(log)
 	if err != nil {
-		common.SysLog("failed to record topup log: " + err.Error())
+		common.SysLog(common.LogText("failed to record topup log: %s", err.Error()))
 	}
 }
 
 func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
 	isStream bool, group string, other *LogOther) {
-	logger.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, common.LocalLogPreview(content)))
+	logger.LogInfo(c, common.LogText("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, common.LocalLogPreview(content)))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
@@ -318,7 +317,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	}
 	err := createLog(log)
 	if err != nil {
-		logger.LogError(c, "failed to record log: "+err.Error())
+		logger.LogError(c, common.LogText("failed to record log: %s", err.Error()))
 	}
 }
 
@@ -341,15 +340,12 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	if !common.LogConsumeEnabled {
 		return
 	}
-	logger.LogInfo(c, fmt.Sprintf("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
+	logger.LogInfo(c, common.LogText("record consume log: userId=%d, params=%s", userId, common.GetJsonString(params)))
 	username := c.GetString("username")
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	createdAt := common.GetTimestamp()
 	other := params.Other
-	if other == nil && len(params.Content) > 0 {
-		other = NewLogOther()
-	}
 	content := other.setContent(params.Content)
 	otherStr := other.JSONString()
 	// 判断是否需要记录 IP
@@ -387,7 +383,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	}
 	err := createLog(log)
 	if err != nil {
-		logger.LogError(c, "failed to record log: "+err.Error())
+		logger.LogError(c, common.LogText("failed to record log: %s", err.Error()))
 	}
 	if common.DataExportEnabled {
 		LogQuotaData(QuotaDataLogParams{
@@ -431,9 +427,6 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 	createdAt := common.GetTimestamp()
 	other := params.Other
-	if other == nil && len(params.Content) > 0 {
-		other = NewLogOther()
-	}
 	log := &Log{
 		UserId:    params.UserId,
 		Username:  username,
@@ -450,7 +443,7 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 	}
 	err := createLog(log)
 	if err != nil {
-		common.SysLog("failed to record task billing log: " + err.Error())
+		common.SysLog(common.LogText("failed to record task billing log: %s", err.Error()))
 	}
 	if params.LogType == LogTypeConsume && common.DataExportEnabled {
 		nodeName := params.NodeName
@@ -598,7 +591,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	}
 	err = tx.Model(&Log{}).Limit(logSearchCountLimit).Count(&total).Error
 	if err != nil {
-		common.SysError("failed to count user logs: " + err.Error())
+		common.SysError(common.LogText("failed to count user logs: %s", err.Error()))
 		return nil, 0, common.NewMessage("Failed to query logs")
 	}
 	order := "logs.id desc"
@@ -607,7 +600,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	}
 	err = tx.Order(order).Limit(num).Offset(startIdx).Find(&logs).Error
 	if err != nil {
-		common.SysError("failed to search user logs: " + err.Error())
+		common.SysError(common.LogText("failed to search user logs: %s", err.Error()))
 		return nil, 0, common.NewMessage("Failed to query logs")
 	}
 
@@ -666,7 +659,7 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 
 	// 执行查询
 	if err := tx.Scan(&stat).Error; err != nil {
-		common.SysError("failed to query log stat: " + err.Error())
+		common.SysError(common.LogText("failed to query log stat: %s", err.Error()))
 		return stat, common.NewMessage("Failed to query statistics")
 	}
 	var rateStat struct {
@@ -674,7 +667,7 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 		Tpm int
 	}
 	if err := rpmTpmQuery.Scan(&rateStat).Error; err != nil {
-		common.SysError("failed to query rpm/tpm stat: " + err.Error())
+		common.SysError(common.LogText("failed to query rpm/tpm stat: %s", err.Error()))
 		return stat, common.NewMessage("Failed to query statistics")
 	}
 	stat.Rpm = rateStat.Rpm

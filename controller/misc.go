@@ -274,10 +274,10 @@ func SendPasswordResetEmail(c *gin.Context) {
 			i18n.Translate(lang, i18n.MsgEmailPasswordResetValidity, map[string]any{"Minutes": common.VerificationValidMinutes}))
 		err := common.SendEmail(subject, email, content)
 		if err != nil {
-			logger.LogError(c.Request.Context(), fmt.Sprintf("failed to send password reset email to %s: %s", email, err.Error()))
+			logger.LogError(c.Request.Context(), common.LogText("failed to send password reset email to %s: %s", email, err.Error()))
 		}
 	} else if err != nil && !errors.Is(err, model.ErrEmailNotFound) {
-		logger.LogWarn(c.Request.Context(), fmt.Sprintf("skip password reset email for %s: %s", email, err.Error()))
+		logger.LogWarn(c.Request.Context(), common.LogText("skip password reset email for %s: %s", email, err.Error()))
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

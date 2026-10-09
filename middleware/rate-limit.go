@@ -115,7 +115,7 @@ func redisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark st
 		duration,
 	)
 	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("rate limit check failed (mark=%s): %v", mark, err))
+		logger.LogError(c.Request.Context(), common.LogText("rate limit check failed (mark=%s): %v", mark, err))
 		c.Status(http.StatusInternalServerError)
 		c.Abort()
 		return
@@ -250,7 +250,7 @@ func userRateLimitFactory(maxRequestNum int, duration int64, mark string) func(c
 func userRedisRateLimiter(c *gin.Context, maxRequestNum int, duration int64, key string) {
 	allowed, _, ttlSeconds, err := redisFixedWindowTake(c.Request.Context(), key, maxRequestNum, duration)
 	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("rate limit check failed (key=%s): %v", key, err))
+		logger.LogError(c.Request.Context(), common.LogText("rate limit check failed (key=%s): %v", key, err))
 		c.Status(http.StatusInternalServerError)
 		c.Abort()
 		return

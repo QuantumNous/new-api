@@ -62,6 +62,7 @@ import {
   hasAnyCacheTokens,
   parseLogOther,
   isViolationFeeLog,
+  logTokenName,
   renderAuditContent,
   renderLogContent,
 } from '../../lib/format'
@@ -613,7 +614,7 @@ export function useCommonLogsColumns(
         const log = row.original
         if (!isDisplayableLogType(log.type)) return null
 
-        const tokenName = log.token_name
+        const tokenName = logTokenName(log, t)
         if (!tokenName) return null
 
         const other = parseLogOther(log.other)
@@ -630,7 +631,7 @@ export function useCommonLogsColumns(
                   <StatusBadge
                     label={displayName}
                     icon={KeyRound}
-                    copyText={sensitiveVisible ? tokenName : undefined}
+                    copyText={sensitiveVisible ? log.token_name : undefined}
                     size='sm'
                     showDot={false}
                     className='border-border/60 bg-muted/30 text-foreground h-6 max-w-full gap-1.5 overflow-hidden rounded-md border px-2 py-0.5 [font-family:var(--font-body)]'

@@ -19,7 +19,7 @@ type Message struct {
 
 func NewMessage(key string, params ...map[string]any) *Message {
 	message := &Message{Key: key}
-	if len(params) > 0 && len(params[0]) > 0 {
+	if len(params) > 0 {
 		message.Params = params[0]
 	}
 	return message
@@ -47,14 +47,4 @@ func (m *Message) Fields() gin.H {
 		fields["message_params"] = m.Params
 	}
 	return fields
-}
-
-// JoinMessages renders messages as one English line, the fallback stored next
-// to structured log content.
-func JoinMessages(messages []*Message) string {
-	texts := make([]string, 0, len(messages))
-	for _, message := range messages {
-		texts = append(texts, message.Error())
-	}
-	return strings.Join(texts, ", ")
 }

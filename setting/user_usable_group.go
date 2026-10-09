@@ -31,7 +31,7 @@ func UserUsableGroups2JSONString() string {
 
 	jsonBytes, err := json.Marshal(userUsableGroups)
 	if err != nil {
-		common.SysLog("error marshalling user groups: " + err.Error())
+		common.SysLog(common.LogText("error marshalling user groups: %s", err.Error()))
 	}
 	return string(jsonBytes)
 }

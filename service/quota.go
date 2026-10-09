@@ -150,7 +150,7 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	if err != nil {
 		return err
 	}
-	logger.LogInfo(ctx, "realtime streaming consume quota success, quota: "+fmt.Sprintf("%d", quota))
+	logger.LogInfo(ctx, common.LogText("realtime streaming consume quota success, quota: %d", quota))
 	return nil
 }
 
@@ -228,15 +228,15 @@ func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, mod
 		// we cannot just return, because we may have to return the pre-consumed quota
 		quota = 0
 		logContent = append(logContent, common.NewMessage("Possibly an upstream timeout"))
-		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, "+
-			"tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, modelName, relayInfo.FinalPreConsumedQuota))
+		logger.LogError(ctx, common.LogText("total tokens is 0, cannot consume quota, userId %d, channelId %d, tokenId %d, model %s， pre-consumed quota %d",
+			relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, modelName, relayInfo.FinalPreConsumedQuota))
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
 	}
 
 	if err := SettleBilling(ctx, relayInfo, quota); err != nil {
-		logger.LogError(ctx, "error settling billing: "+err.Error())
+		logger.LogError(ctx, common.LogText("error settling billing: %s", err.Error()))
 	}
 
 	logModel := modelName
@@ -367,15 +367,15 @@ func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, u
 		// we cannot just return, because we may have to return the pre-consumed quota
 		quota = 0
 		logContent = append(logContent, common.NewMessage("Possibly an upstream timeout"))
-		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, "+
-			"tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, billingModelName, relayInfo.FinalPreConsumedQuota))
+		logger.LogError(ctx, common.LogText("total tokens is 0, cannot consume quota, userId %d, channelId %d, tokenId %d, model %s， pre-consumed quota %d",
+			relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, billingModelName, relayInfo.FinalPreConsumedQuota))
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, quota)
 	}
 
 	if err := SettleBilling(ctx, relayInfo, quota); err != nil {
-		logger.LogError(ctx, "error settling billing: "+err.Error())
+		logger.LogError(ctx, common.LogText("error settling billing: %s", err.Error()))
 	}
 
 	logModel := billingModelName
@@ -503,7 +503,7 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 			content, values := quotaNotifyContent(lang, userSetting.NotifyType, prompt, logger.FormatQuota(relayInfo.UserQuota))
 			err := NotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, dto.NewNotify(dto.NotifyTypeQuotaExceed, prompt, content, values))
 			if err != nil {
-				common.SysError(fmt.Sprintf("failed to send quota notify to user %d: %s", relayInfo.UserId, err.Error()))
+				common.SysError(common.LogText("failed to send quota notify to user %d: %s", relayInfo.UserId, err.Error()))
 			}
 		}
 	})
@@ -534,7 +534,7 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 		prompt := i18n.Translate(lang, i18n.MsgNotifySubscriptionQuotaLowTitle)
 		content, values := quotaNotifyContent(lang, userSetting.NotifyType, prompt, logger.FormatQuota(int(remaining)))
 		if err := NotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, dto.NewNotify(dto.NotifyTypeQuotaExceed, prompt, content, values)); err != nil {
-			common.SysError(fmt.Sprintf("failed to send subscription quota notify to user %d: %s", relayInfo.UserId, err.Error()))
+			common.SysError(common.LogText("failed to send subscription quota notify to user %d: %s", relayInfo.UserId, err.Error()))
 		}
 	})
 }

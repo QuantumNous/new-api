@@ -63,9 +63,6 @@ func Init() error {
 
 // GetLocalizer returns a localizer for the specified language
 func GetLocalizer(lang string) *i18n.Localizer {
-	// The locale files are embedded, so a caller that runs before startup
-	// initialization loads them here.
-	_ = Init()
 	lang = normalizeLang(lang)
 
 	mu.RLock()
@@ -96,14 +93,10 @@ func T(c *gin.Context, key string, args ...map[string]any) string {
 }
 
 // Translate translates a message key for the specified language. An empty
-// language means the reader stated none: text that was Chinese before the
-// backend translated it stays Chinese, other text is in DefaultLang.
+// language means the reader stated none and gets common.DefaultLanguage.
 func Translate(lang, key string, args ...map[string]any) string {
 	if lang == "" {
-		lang = DefaultLang
-		if slices.Contains(chineseByDefault, key) {
-			lang = LangZhCN
-		}
+		lang = common.DefaultLanguage
 	}
 	loc := GetLocalizer(lang)
 
@@ -177,9 +170,6 @@ func StatedLang(c *gin.Context) string {
 	}
 
 	// 4. Try Accept-Language header directly (fallback if middleware didn't run)
-	if c.Request == nil {
-		return ""
-	}
 	return ParseAcceptLanguage(c.GetHeader("Accept-Language"))
 }
 

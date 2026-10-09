@@ -1,7 +1,6 @@
 package service
 
 import (
-	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -132,7 +131,7 @@ func mergeToolSurchargeItems(items []ToolSurchargeItem) []ToolSurchargeItem {
 			merged[lastIndex].Name == item.Name &&
 			merged[lastIndex].Price == item.Price {
 			if item.Count > math.MaxInt-merged[lastIndex].Count {
-				common.SysError("tool surcharge call count overflow for " + item.Name)
+				common.SysError(common.LogText("tool surcharge call count overflow for %s", item.Name))
 				merged[lastIndex].Count = math.MaxInt
 			} else {
 				merged[lastIndex].Count += item.Count
@@ -157,7 +156,7 @@ func calculateTextToolCallSurcharge(ctx *gin.Context, relayInfo *relaycommon.Rel
 			}
 			count := tool.CallCount
 			if count > relaycommon.MaxBillableToolCallCount {
-				logger.LogWarn(ctx, "tool surcharge call count clamped: tool=%s count=%d", name, count)
+				logger.LogWarn(ctx, common.LogText("tool surcharge call count clamped: tool=%s count=%d", name, count))
 				count = relaycommon.MaxBillableToolCallCount
 			}
 			items = collectToolSurchargeItem(items, name, count, summary.ModelName)
@@ -444,14 +443,14 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 
 	if !summary.hasBillableUsage() {
 		extraContent = append(extraContent, common.NewMessage("Upstream returned no usage, so nothing was charged (possibly an upstream timeout)"))
-		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %d, channelId %d, tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, relayInfo.FinalPreConsumedQuota))
+		logger.LogError(ctx, common.LogText("total tokens is 0, cannot consume quota, userId %d, channelId %d, tokenId %d, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, relayInfo.FinalPreConsumedQuota))
 	} else {
 		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, summary.Quota)
 	}
 
 	if err := SettleBilling(ctx, relayInfo, summary.Quota); err != nil {
-		logger.LogError(ctx, "error settling billing: "+err.Error())
+		logger.LogError(ctx, common.LogText("error settling billing: %s", err.Error()))
 	}
 
 	logModel := summary.ModelName

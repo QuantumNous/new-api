@@ -32,7 +32,6 @@ import {
   isApiSuccess,
 } from '../api'
 import {
-  getPaymentErrorMessage,
   isStripePayment,
   isWaffoPayment,
   isWaffoPancakePayment,
@@ -128,11 +127,7 @@ export function usePayment() {
             })
 
         if (!isApiSuccess(response)) {
-          handleServerError(response, undefined, {
-            title:
-              getPaymentErrorMessage(response) ??
-              i18next.t('Payment request failed'),
-          })
+          handleServerError(response, i18next.t('Payment request failed'))
           return false
         }
 

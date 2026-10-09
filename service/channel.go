@@ -19,7 +19,7 @@ func formatNotifyType(channelId int, status int) string {
 func shouldCloseActiveWebSocketsAfterDisable(channelId int) bool {
 	channel, err := model.GetChannelById(channelId, true)
 	if err != nil {
-		common.SysLog(fmt.Sprintf("failed to check channel status before closing active websockets: channel_id=%d, error=%v", channelId, err))
+		common.SysLog(common.LogText("failed to check channel status before closing active websockets: channel_id=%d, error=%v", channelId, err))
 		return true
 	}
 	return channel.Status != common.ChannelStatusEnabled

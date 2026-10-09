@@ -72,7 +72,7 @@ func (s *BillingSession) Settle(actualQuota int) error {
 		}
 		if tokenErr != nil {
 			// 资金来源已提交，令牌调整失败只能记录日志；标记 settled 防止 Refund 误退资金
-			common.SysLog(fmt.Sprintf("error adjusting token quota after funding settled (userId=%d, tokenId=%d, delta=%d): %s",
+			common.SysLog(common.LogText("error adjusting token quota after funding settled (userId=%d, tokenId=%d, delta=%d): %s",
 				s.relayInfo.UserId, s.relayInfo.TokenId, delta, tokenErr.Error()))
 		}
 	}
@@ -112,17 +112,17 @@ func (s *BillingSession) Refund(c *gin.Context) {
 	gopool.Go(func() {
 		// 1) 退还资金来源
 		if err := funding.Refund(); err != nil {
-			common.SysLog("error refunding billing source: " + err.Error())
+			common.SysLog(common.LogText("error refunding billing source: %s", err.Error()))
 		}
 		if extraReserved > 0 && funding.Source() == BillingSourceSubscription && subscriptionId > 0 {
 			if err := model.PostConsumeUserSubscriptionDelta(subscriptionId, -int64(extraReserved)); err != nil {
-				common.SysLog("error refunding subscription extra reserved quota: " + err.Error())
+				common.SysLog(common.LogText("error refunding subscription extra reserved quota: %s", err.Error()))
 			}
 		}
 		// 2) 退还令牌额度
 		if tokenConsumed > 0 && !isPlayground {
 			if err := model.IncreaseTokenQuota(tokenId, tokenKey, tokenConsumed); err != nil {
-				common.SysLog("error refunding token quota: " + err.Error())
+				common.SysLog(common.LogText("error refunding token quota: %s", err.Error()))
 			}
 		}
 	})
@@ -222,7 +222,7 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 		// 预扣费失败，回滚令牌额度
 		if s.tokenConsumed > 0 && !s.relayInfo.IsPlayground {
 			if rollbackErr := model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, s.tokenConsumed); rollbackErr != nil {
-				common.SysLog(fmt.Sprintf("error rolling back token quota (userId=%d, tokenId=%d, amount=%d, fundingErr=%s): %s",
+				common.SysLog(common.LogText("error rolling back token quota (userId=%d, tokenId=%d, amount=%d, fundingErr=%s): %s",
 					s.relayInfo.UserId, s.relayInfo.TokenId, s.tokenConsumed, err.Error(), rollbackErr.Error()))
 			}
 			s.tokenConsumed = 0
@@ -296,13 +296,13 @@ func (s *BillingSession) rollbackFundingReserve(delta int) {
 	switch funding := s.funding.(type) {
 	case *WalletFunding:
 		if err := model.IncreaseUserQuota(funding.userId, delta, false); err != nil {
-			common.SysLog("error rolling back wallet funding reserve: " + err.Error())
+			common.SysLog(common.LogText("error rolling back wallet funding reserve: %s", err.Error()))
 		} else {
 			funding.consumed -= delta
 		}
 	case *SubscriptionFunding:
 		if err := model.PostConsumeUserSubscriptionDelta(funding.subscriptionId, -int64(delta)); err != nil {
-			common.SysLog("error rolling back subscription funding reserve: " + err.Error())
+			common.SysLog(common.LogText("error rolling back subscription funding reserve: %s", err.Error()))
 		}
 	}
 }

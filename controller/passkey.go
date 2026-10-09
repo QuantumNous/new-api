@@ -379,7 +379,7 @@ func PasskeyLoginFinish(c *gin.Context) {
 			userID, parseErr := strconv.Atoi(string(userHandle))
 			if parseErr != nil {
 				// 记录异常但继续验证，因为某些客户端可能使用非数字格式
-				common.SysLog(fmt.Sprintf("PasskeyLogin: userHandle parse error for credential, length: %d", len(userHandle)))
+				common.SysLog(common.LogText("PasskeyLogin: userHandle parse error for credential, length: %d", len(userHandle)))
 			} else if userID != user.Id {
 				return nil, errors.New("user handle does not match the credential")
 			}

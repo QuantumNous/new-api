@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -64,7 +63,7 @@ func ConfirmPaymentCompliance(c *gin.Context) {
 		}
 	}
 
-	logger.LogInfo(c.Request.Context(), fmt.Sprintf(
+	logger.LogInfo(c.Request.Context(), common.LogText(
 		"payment compliance confirmed user_id=%d ip=%s terms_version=%s confirmed_at=%d",
 		userId,
 		clientIP,

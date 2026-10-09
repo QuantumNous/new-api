@@ -46,7 +46,7 @@ func SetupLogger() {
 	if *common.LogDir != "" {
 		ok := setupLogLock.TryLock()
 		if !ok {
-			log.Println("setup log is already working")
+			log.Println(common.LogText("setup log is already working"))
 			return
 		}
 		defer func() {
@@ -55,7 +55,7 @@ func SetupLogger() {
 		logPath := filepath.Join(*common.LogDir, fmt.Sprintf("oneapi-%s.log", time.Now().Format("20060102150405")))
 		fd, err := os.OpenFile(logPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 		if err != nil {
-			log.Fatal("failed to open log file")
+			log.Fatal(common.LogText("failed to open log file"))
 		}
 		currentLogPathMu.Lock()
 		oldFile := currentLogFile
@@ -88,12 +88,11 @@ func LogError(ctx context.Context, msg string) {
 	logHelper(ctx, loggerError, msg)
 }
 
+// LogDebug formats msg with common.LogText only when debug logging is on, so
+// callers pass the format and its arguments instead of a formatted string.
 func LogDebug(ctx context.Context, msg string, args ...any) {
 	if common.DebugEnabled {
-		if len(args) > 0 {
-			msg = fmt.Sprintf(msg, args...)
-		}
-		logHelper(ctx, loggerDebug, msg)
+		logHelper(ctx, loggerDebug, common.LogText(msg, args...))
 	}
 }
 
@@ -183,7 +182,7 @@ func LogJson(ctx context.Context, msg string, obj any) {
 	}
 	jsonStr, err := common.Marshal(obj)
 	if err != nil {
-		LogError(ctx, fmt.Sprintf("json marshal failed: %s", err.Error()))
+		LogError(ctx, common.LogText("json marshal failed: %s", err.Error()))
 		return
 	}
 	LogDebug(ctx, "%s | %s", msg, jsonStr)

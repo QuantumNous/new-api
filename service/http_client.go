@@ -176,7 +176,7 @@ func warnLegacyProxyURLOnce(config *proxyURLConfig) {
 	}
 	logger.LogWarn(
 		context.Background(),
-		fmt.Sprintf(
+		common.LogText(
 			"legacy proxy URL suffix ignored at runtime: scheme=%s host=%s; update the channel proxy setting",
 			config.parsedURL.Scheme,
 			config.parsedURL.Host,
