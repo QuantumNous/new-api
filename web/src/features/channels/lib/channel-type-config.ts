@@ -18,8 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import {
   CHANNEL_TYPES,
-  CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_TENSORFOLD,
+  CHANNEL_TYPE_VLLM,
 } from '../constants'
 
 // ============================================================================
@@ -66,6 +67,16 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
     hints: {
       baseUrl: 'vLLM server address, without /v1',
       key: 'vLLM API key, or EMPTY if authentication is disabled',
+      models: 'Models fetched from upstream /v1/models',
+    },
+  },
+  [CHANNEL_TYPE_TENSORFOLD]: {
+    id: CHANNEL_TYPE_TENSORFOLD,
+    name: CHANNEL_TYPES[CHANNEL_TYPE_TENSORFOLD],
+    icon: 'TensorFold',
+    hints: {
+      baseUrl: 'TensorFold server address, without /v1',
+      key: 'TensorFold API key, or EMPTY if authentication is disabled',
       models: 'Models fetched from upstream /v1/models',
     },
   },

@@ -54,6 +54,10 @@ func GetSGLangChannelStatus(c *gin.Context) {
 	getInferenceChannelStatus(c, constant.ChannelTypeSGLang)
 }
 
+func GetTensorFoldChannelStatus(c *gin.Context) {
+	getInferenceChannelStatus(c, constant.ChannelTypeTensorFold)
+}
+
 func getInferenceChannelStatus(c *gin.Context, channelType int) {
 	c.Header("Cache-Control", "no-store")
 	id, err := strconv.Atoi(c.Param("id"))
@@ -81,8 +85,10 @@ func getInferenceChannelStatus(c *gin.Context, channelType int) {
 // fetchInferenceStatus reads only fixed paths on an operator-configured channel.
 // Each endpoint can fail independently; upstream errors never echo credentials.
 func fetchInferenceStatus(ctx context.Context, channel *model.Channel) (*inferenceStatus, error) {
-	if channel.Type != constant.ChannelTypeVLLM && channel.Type != constant.ChannelTypeSGLang {
-		return nil, errors.New("This operation is only supported for vLLM or SGLang channels")
+	switch channel.Type {
+	case constant.ChannelTypeVLLM, constant.ChannelTypeSGLang, constant.ChannelTypeTensorFold:
+	default:
+		return nil, errors.New("This operation is only supported for vLLM, SGLang or TensorFold channels")
 	}
 	baseURL := strings.TrimRight(strings.TrimSpace(channel.GetBaseURL()), "/")
 	parsedURL, err := url.Parse(baseURL)
@@ -113,10 +119,17 @@ func fetchInferenceStatus(ctx context.Context, channel *model.Channel) (*inferen
 	defer cancel()
 
 	versionPath, metricPrefix := "/version", "vllm:"
-	if channel.Type == constant.ChannelTypeSGLang {
+	switch channel.Type {
+	case constant.ChannelTypeSGLang:
 		versionPath, metricPrefix = "/server_info", "sglang:"
+	case constant.ChannelTypeTensorFold:
+		// TensorFold has no version endpoint; /health can return only {"status":"ok"}.
+		versionPath, metricPrefix = "", "tensorfold:"
 	}
-	paths := []string{"/health", versionPath, "/v1/models", "/metrics"}
+	paths := []string{"/health", "/v1/models", "/metrics"}
+	if versionPath != "" {
+		paths = append(paths, versionPath)
+	}
 	results := make([]struct {
 		inferenceEndpointStatus
 		body []byte
@@ -172,6 +185,20 @@ func fetchInferenceStatus(ctx context.Context, channel *model.Channel) (*inferen
 		result := &results[i]
 		if result.Error == "" {
 			switch path {
+			case "/health":
+				if channel.Type == constant.ChannelTypeTensorFold {
+					// Legacy CUDA servers use {"ok":true}; MLX and native servers use {"status":"ok"}.
+					var health struct {
+						Status *string `json:"status"`
+						OK     *bool   `json:"ok"`
+					}
+					if err := common.Unmarshal(result.body, &health); err != nil ||
+						(health.Status == nil && health.OK == nil) ||
+						(health.Status != nil && *health.Status != "ok") ||
+						(health.OK != nil && !*health.OK) {
+						result.Error = "invalid_response"
+					}
+				}
 			case versionPath:
 				// /server_info includes the launch configuration. Decode only the
 				// version so API keys and other server settings never reach the browser.

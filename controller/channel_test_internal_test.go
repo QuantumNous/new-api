@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
@@ -122,6 +123,91 @@ func TestNewAPIChannelRegistration(t *testing.T) {
 	assert.Equal(t, "New API", constant.GetChannelTypeName(constant.ChannelTypeNewAPI))
 	require.Greater(t, len(constant.ChannelBaseURLs), constant.ChannelTypeNewAPI)
 	assert.Empty(t, constant.ChannelBaseURLs[constant.ChannelTypeNewAPI])
+}
+
+func TestValidateTensorFoldChannelRequiresBaseURL(t *testing.T) {
+	for _, isAdd := range []bool{true, false} {
+		for _, test := range []struct {
+			name    string
+			baseURL *string
+			wantErr bool
+		}{
+			{name: "missing", wantErr: true},
+			{name: "empty", baseURL: common.GetPointer(""), wantErr: true},
+			{name: "blank", baseURL: common.GetPointer("  "), wantErr: true},
+			{name: "configured", baseURL: common.GetPointer("http://localhost:8080")},
+		} {
+			t.Run(fmt.Sprintf("add=%t/%s", isAdd, test.name), func(t *testing.T) {
+				channel := &model.Channel{Type: constant.ChannelTypeTensorFold, BaseURL: test.baseURL, Key: "EMPTY", Models: "served-model"}
+				err := validateChannel(channel, isAdd)
+				if test.wantErr {
+					require.ErrorContains(t, err, "TensorFold channel base URL cannot be empty")
+					return
+				}
+				require.NoError(t, err)
+			})
+		}
+	}
+}
+
+func TestTensorFoldChannelRelayDefaults(t *testing.T) {
+	channel := &model.Channel{Type: constant.ChannelTypeTensorFold}
+	assert.Equal(t, "TensorFold", constant.GetChannelTypeName(channel.Type))
+	assert.ElementsMatch(t, []constant.EndpointType{
+		constant.EndpointTypeOpenAI,
+		constant.EndpointTypeOpenAIResponse,
+		constant.EndpointTypeAnthropic,
+	}, common.GetEndpointTypesByChannelType(channel.Type, "served-model"))
+
+	for _, path := range []string{"/v1/chat/completions", "/v1/completions", "/v1/responses", "/v1/messages", "/v1/embeddings", "/v1/rerank", "/v1/responses/compact", "/v1beta/models/test:generateContent"} {
+		t.Run(path, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, path, nil)
+			common.SetContextKey(c, constant.ContextKeyChannelType, channel.Type)
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, "https://inference.example/prefix")
+			common.SetContextKey(c, constant.ContextKeyChannelKey, "test-key")
+			common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, channel.GetOtherSettings())
+			info := &relaycommon.RelayInfo{RequestURLPath: path, OriginModelName: "served-model"}
+			info.InitChannelMeta(c)
+			assert.True(t, info.SupportStreamOptions)
+			adaptor := relay.GetAdaptor(info.ApiType)
+			require.NotNil(t, adaptor)
+			adaptor.Init(info)
+			url, err := adaptor.GetRequestURL(info)
+			switch path {
+			case "/v1/chat/completions", "/v1/completions", "/v1/responses", "/v1/messages":
+				require.NoError(t, err)
+				assert.Equal(t, "https://inference.example/prefix"+path, url)
+				headers := http.Header{}
+				require.NoError(t, adaptor.SetupRequestHeader(c, &headers, info))
+				assert.Equal(t, "Bearer test-key", headers.Get("Authorization"))
+			default:
+				require.Error(t, err)
+				assert.Empty(t, url)
+			}
+		})
+	}
+}
+
+func TestTensorFoldChannelFetchModels(t *testing.T) {
+	for _, key := range []string{"test-key", "EMPTY"} {
+		t.Run(key, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, http.MethodGet, r.Method)
+				assert.Equal(t, "/prefix/v1/models", r.URL.Path)
+				assert.Equal(t, "Bearer "+key, r.Header.Get("Authorization"))
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"object":"list","data":[{"id":"served-model"},{"id":"served-alias"}]}`))
+			}))
+			t.Cleanup(server.Close)
+			channel := &model.Channel{
+				Type: constant.ChannelTypeTensorFold, BaseURL: common.GetPointer(server.URL + "/prefix/"), Key: key,
+			}
+			models, err := fetchChannelUpstreamModelIDs(channel)
+			require.NoError(t, err)
+			assert.Equal(t, []string{"served-model", "served-alias"}, models)
+		})
+	}
 }
 
 func TestResponsesCompactChannelSupport(t *testing.T) {

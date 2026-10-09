@@ -63,6 +63,7 @@ import {
   CHANNEL_TYPE_TASK_PLUGIN,
   CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_TENSORFOLD,
   MODEL_FETCHABLE_TYPES,
 } from '../constants'
 import {
@@ -430,10 +431,17 @@ export function BalanceCell({ channel }: { channel: Channel }) {
 
   // Regular channel row: show used and remaining with click to update
   const variant = getBalanceVariant(balance)
-  const isInferenceChannel =
-    channel.type === CHANNEL_TYPE_VLLM || channel.type === CHANNEL_TYPE_SGLANG
-  const inferenceStatusLabel =
-    channel.type === CHANNEL_TYPE_SGLANG ? t('SGLang status') : t('vLLM status')
+  const isInferenceChannel = [
+    CHANNEL_TYPE_VLLM,
+    CHANNEL_TYPE_SGLANG,
+    CHANNEL_TYPE_TENSORFOLD,
+  ].includes(channel.type)
+  let inferenceStatusLabel = t('vLLM status')
+  if (channel.type === CHANNEL_TYPE_SGLANG) {
+    inferenceStatusLabel = t('SGLang status')
+  } else if (channel.type === CHANNEL_TYPE_TENSORFOLD) {
+    inferenceStatusLabel = t('TensorFold status')
+  }
 
   const handleClickUpdate = async () => {
     if (isInferenceChannel) {

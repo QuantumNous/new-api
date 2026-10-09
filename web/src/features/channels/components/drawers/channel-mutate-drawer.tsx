@@ -144,8 +144,9 @@ import {
   CHANNEL_TYPE_OLLAMA,
   CHANNEL_TYPE_OPTIONS,
   CHANNEL_TYPE_TASK_PLUGIN,
-  CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_TENSORFOLD,
+  CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_WARNINGS,
   ERROR_MESSAGES,
   FIELD_PASSTHROUGH_TYPES,
@@ -580,9 +581,11 @@ export function ChannelMutateDrawer({
   const keyMode = formValues.key_mode
   const currentGroups = formValues.group
   const currentType = formValues.type
-  const baseUrlPlaceholder = [CHANNEL_TYPE_VLLM, CHANNEL_TYPE_SGLANG].includes(
-    currentType
-  )
+  const baseUrlPlaceholder = [
+    CHANNEL_TYPE_VLLM,
+    CHANNEL_TYPE_SGLANG,
+    CHANNEL_TYPE_TENSORFOLD,
+  ].includes(currentType)
     ? t(
         getChannelTypeConfig(currentType).hints?.baseUrl ||
           FIELD_PLACEHOLDERS.BASE_URL
@@ -4096,7 +4099,8 @@ export function ChannelMutateDrawer({
                       required={
                         currentType === CHANNEL_TYPE_TASK_PLUGIN ||
                         currentType === CHANNEL_TYPE_VLLM ||
-                        currentType === CHANNEL_TYPE_SGLANG
+                        currentType === CHANNEL_TYPE_SGLANG ||
+                        currentType === CHANNEL_TYPE_TENSORFOLD
                       }
                     >
                       {t('Base URL')}

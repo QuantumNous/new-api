@@ -16,7 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { CHANNEL_TYPE_VLLM, CHANNEL_TYPE_SGLANG } from '../constants'
+import {
+  CHANNEL_TYPE_VLLM,
+  CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_TENSORFOLD,
+} from '../constants'
+import type { InferenceProvider } from '../lib/inference-status'
 import { useChannels } from './channels-provider'
 import { BalanceQueryDialog } from './dialogs/balance-query-dialog'
 import { ChannelTestDialog } from './dialogs/channel-test-dialog'
@@ -32,17 +37,25 @@ import { ChannelMutateDrawer } from './drawers/channel-mutate-drawer'
 
 export function ChannelsDialogs() {
   const { open, setOpen, currentRow, upstream } = useChannels()
+  let inferenceProvider: InferenceProvider = 'vllm'
+  if (currentRow?.type === CHANNEL_TYPE_SGLANG) {
+    inferenceProvider = 'sglang'
+  } else if (currentRow?.type === CHANNEL_TYPE_TENSORFOLD) {
+    inferenceProvider = 'tensorfold'
+  }
 
   return (
     <>
       {open === 'inference-status' &&
         currentRow &&
-        [CHANNEL_TYPE_VLLM, CHANNEL_TYPE_SGLANG].includes(currentRow.type) && (
+        [
+          CHANNEL_TYPE_VLLM,
+          CHANNEL_TYPE_SGLANG,
+          CHANNEL_TYPE_TENSORFOLD,
+        ].includes(currentRow.type) && (
           <InferenceStatusDialog
             key={currentRow.id}
-            provider={
-              currentRow.type === CHANNEL_TYPE_SGLANG ? 'sglang' : 'vllm'
-            }
+            provider={inferenceProvider}
             channelId={currentRow.id}
             channelName={currentRow.name}
             onClose={() => setOpen(null)}
