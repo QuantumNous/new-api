@@ -63,6 +63,7 @@ import {
   parseLogOther,
   isViolationFeeLog,
   renderAuditContent,
+  renderLogContent,
 } from '../../lib/format'
 import {
   isDisplayableLogType,
@@ -137,7 +138,7 @@ function buildTypeDetailSegments(
 ): DetailSegment[] {
   // Top-up, audit, and login logs can carry a localized operation descriptor.
   if (log.type === 1 || log.type === 3 || log.type === 7) {
-    const text = renderAuditContent(other, t)
+    const text = renderAuditContent(other, t) ?? renderLogContent(other, t)
     return text ? [{ text }] : []
   }
 
@@ -859,7 +860,7 @@ export function useCommonLogsColumns(
           } else if (log.content) {
             detailPreview = (
               <span className='text-muted-foreground truncate group-hover:underline'>
-                {log.content}
+                {renderLogContent(other, t) ?? log.content}
               </span>
             )
           }

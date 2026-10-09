@@ -635,10 +635,11 @@ func TestSecurityEnrollmentRejectsMissingProofBeforeCreatingCredentials(t *testi
 }
 
 type securityEnrollmentResponse struct {
-	Success bool            `json:"success"`
-	Message string          `json:"message"`
-	Code    string          `json:"code"`
-	Data    json.RawMessage `json:"data"`
+	Success    bool            `json:"success"`
+	Message    string          `json:"message"`
+	MessageKey string          `json:"message_key"`
+	Code       string          `json:"code"`
+	Data       json.RawMessage `json:"data"`
 }
 
 func TestSecurityEnrollmentMethodPolicy(t *testing.T) {
@@ -1399,7 +1400,7 @@ func TestSecurityEnrollmentTwoFAFailureAccountingAndStorageErrors(t *testing.T) 
 		require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
 		assert.False(t, body.Success, endpoint.path)
 		if endpoint.path == "/api/user/login/2fa" {
-			assert.Equal(t, "参数错误", body.Message, endpoint.path)
+			assert.Equal(t, "Invalid parameters", body.Message, endpoint.path)
 		} else {
 			assert.Equal(t, "SECURITY_PROOF_REQUIRED", body.Code, endpoint.path)
 		}
@@ -1766,23 +1767,21 @@ func TestSecurityEnrollmentMissingTargetsAreBusinessErrors(t *testing.T) {
 	_, identity := setupSecurityEnrollmentTest(t)
 	require.NoError(t, model.DB.AutoMigrate(&model.Channel{}))
 	for _, target := range []struct {
-		path, key string
-		handler   gin.HandlerFunc
+		path, message string
+		handler       gin.HandlerFunc
 	}{
-		{"/api/channel/999/key", i18n.MsgChannelNotExists, GetChannelKey},
-		{"/api/user/999/2fa", i18n.MsgUserNotExists, AdminDisable2FA},
+		{"/api/channel/999/key", "Channel does not exist", GetChannelKey},
+		{"/api/user/999/2fa", "User does not exist", AdminDisable2FA},
 	} {
-		var expectedMessage string
 		response := securityEnrollmentRequest("POST", target.path, "", "", identity, func(c *gin.Context) {
 			c.Params = gin.Params{{Key: "id", Value: "999"}}
-			expectedMessage = i18n.T(c, target.key)
 			target.handler(c)
 		})
 		assert.Equal(t, http.StatusOK, response.Code)
 		var body securityEnrollmentResponse
 		require.NoError(t, common.Unmarshal(response.Body.Bytes(), &body))
 		assert.False(t, body.Success)
-		assert.Equal(t, expectedMessage, body.Message)
+		assert.Equal(t, target.message, body.Message)
 		assert.NotEqual(t, "AUTH_UNAUTHORIZED", body.Code)
 		for _, id := range []string{"invalid", "0", "-1"} {
 			invalid := securityEnrollmentRequest("POST", target.path, "", "", identity, func(c *gin.Context) {

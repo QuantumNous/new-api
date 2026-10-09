@@ -28,7 +28,8 @@ This is an AI API gateway/proxy built with Go. It aggregates 40+ upstream AI pro
 
 ### Backend (`i18n/`)
 - Library: `nicksnyder/go-i18n/v2`
-- Languages: en, zh
+- Languages: en, zh-CN, zh-TW
+- Scope: text with no web console in between (errors returned to AI clients, emails, notifications). Web console messages are English source keys that the frontend translates; see **User-facing text (mandatory read gate)**
 
 ### Frontend (`web/src/i18n/`)
 - Library: `i18next` + `react-i18next` + `i18next-browser-languagedetector`
@@ -132,6 +133,15 @@ Inside `relaykit/`, use `kitutil.*` from `relaykit/relayconvert/kitutil/json.go`
 - Adds or changes model prices, or numeric `usageSchema` / `usageProfiles[].schema` fields in a task plugin.
 
 Tasks that touch none of these (for example unrelated frontend work, authentication, database migrations, or protocol conversion that leaves usage untouched) do not need to read it.
+
+**User-facing text (mandatory read gate):** `.agents/rules/i18n.md` holds the conventions for text a person reads (who translates what, web console message keys, stored log content, server logs). If a task touches user-facing text as defined below, you MUST read that file in full with your file-read tool — not a grep, a partial skim, memory, or a summary — before planning, coding, or reviewing, and then follow every rule in it. A task touches user-facing text when it meets any of these:
+
+- Adds or changes a message in an API response, or an error that can reach one, in `controller/`, `middleware/`, `model/`, `service/`, `relay/`, `setting/`, or `oauth/`.
+- Writes log content, a task fail reason, or a refund reason that the web console shows later (`model.RecordLog`, `RecordTopupLog`, `RecordConsumeLog`, `RecordTaskBillingLog`, audit logs).
+- Adds or changes an email, a notification, or a server log line.
+- Edits `common/message.go`, `i18n/`, or the code in `web/` that reads `message_key`, `content_parts`, or backend fail reasons.
+
+Tasks that touch none of these do not need to read it.
 
 **Backend test quality:** Backend tests must protect real behavior, API contracts, billing/accounting invariants, data compatibility, or regression paths.
 

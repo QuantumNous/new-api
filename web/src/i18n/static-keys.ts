@@ -896,4 +896,18 @@ export const STATIC_I18N_KEYS = [
   'Verification method',
   'Admin permissions updated',
   'Provider ID',
+  // Text the backend stores or sends as an English source key: task fail
+  // reasons, refund reasons and built-in group descriptions.
+  // Keys of common.NewMessage / ApiErrorT / ApiSuccessT are not listed here;
+  // the Go test TestWebConsoleMessageKeysAreTranslated requires them.
+  'Task timed out',
+  'Task timed out (a task left by the old system is not refunded; contact the administrator)',
+  'Upstream task timed out (over 1 hour)',
+  'Failed to get the channel information. Please contact the administrator',
+  'Composition failed',
+  'Insufficient balance',
+  'User group',
+  'Default group',
+  'VIP group',
+  'Administrator reset the quota of subscription plan {{plan_title}} (ID: {{plan_id}})',
 ] as const

@@ -25,6 +25,7 @@ import {
   prepareCredentialCreationOptions,
 } from '@/lib/passkey'
 import { AuthOperationError } from '@/lib/secure-verification'
+import { getServerMessage } from '@/lib/server-error-message'
 
 import {
   beginPasskeyRegistration,
@@ -50,7 +51,7 @@ export function usePasskeyManagement() {
       const response = await getPasskeyStatus()
       if (!response.success || !response.data) {
         throw new AuthOperationError(
-          response.message || 'Failed to load Passkey status'
+          getServerMessage(response) || 'Failed to load Passkey status'
         )
       }
       if (!mounted.current) return

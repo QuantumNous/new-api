@@ -215,12 +215,12 @@ func ClearChannelAffinityCacheAll() int {
 func ClearChannelAffinityCacheByRuleName(ruleName string) (int, error) {
 	ruleName = strings.TrimSpace(ruleName)
 	if ruleName == "" {
-		return 0, fmt.Errorf("rule_name 不能为空")
+		return 0, common.NewMessage("rule_name cannot be empty")
 	}
 
 	setting := operation_setting.GetChannelAffinitySetting()
 	if setting == nil {
-		return 0, fmt.Errorf("channel_affinity_setting 未初始化")
+		return 0, common.NewMessage("Channel affinity settings are not initialized")
 	}
 
 	var matchedRule *operation_setting.ChannelAffinityRule
@@ -233,10 +233,10 @@ func ClearChannelAffinityCacheByRuleName(ruleName string) (int, error) {
 		break
 	}
 	if matchedRule == nil {
-		return 0, fmt.Errorf("未知规则名称")
+		return 0, common.NewMessage("Unknown rule name")
 	}
 	if !matchedRule.IncludeRuleName {
-		return 0, fmt.Errorf("该规则未启用 include_rule_name，无法按规则清空缓存")
+		return 0, common.NewMessage("This rule does not have include_rule_name enabled, so its cache cannot be cleared by rule")
 	}
 
 	cache := getChannelAffinityCache()

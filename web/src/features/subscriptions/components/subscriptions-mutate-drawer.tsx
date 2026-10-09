@@ -62,6 +62,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import { getPaymentErrorMessage } from '@/features/wallet/lib/payment'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { handleServerError } from '@/lib/handle-server-error'
 
@@ -239,8 +240,8 @@ export function SubscriptionsMutateDrawer({
           `${t('Waffo Pancake product created')}: ${created.product_id}`
         )
       } else {
-        const reason = typeof res.data === 'string' ? res.data : undefined
-        handleServerError(res.data, undefined, {
+        const reason = getPaymentErrorMessage(res)
+        handleServerError(res, undefined, {
           title: reason
             ? `${t('Waffo Pancake product creation failed')}: ${reason}`
             : t('Waffo Pancake product creation failed'),

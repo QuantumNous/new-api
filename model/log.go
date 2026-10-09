@@ -2,7 +2,6 @@ package model
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -147,17 +146,19 @@ func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
 	return logs, err
 }
 
-func RecordLog(userId int, logType int, content string) {
+func RecordLog(userId int, logType int, content *common.Message) {
 	if logType == LogTypeConsume && !common.LogConsumeEnabled {
 		return
 	}
 	username, _ := GetUsernameById(userId, false)
+	other := NewLogOther()
 	log := &Log{
 		UserId:    userId,
 		Username:  username,
 		CreatedAt: common.GetTimestamp(),
 		Type:      logType,
-		Content:   content,
+		Content:   other.setContent([]*common.Message{content}),
+		Other:     other.JSONString(),
 	}
 	err := createLog(log)
 	if err != nil {
@@ -249,7 +250,7 @@ func RecordOperationAuditLog(logUserId, actorRole int, content string, ip string
 	RecordAuditLog(c, AuditLog{UserId: logUserId, Username: username, ActorRole: actorRole, Category: category, Action: action, Content: content, Ip: ip, Status: status, Success: success, Other: other})
 }
 
-func RecordTopupLog(userId int, content string, callerIp string, paymentMethod string, callbackPaymentMethod string) {
+func RecordTopupLog(userId int, content *common.Message, callerIp string, paymentMethod string, callbackPaymentMethod string) {
 	username, _ := GetUsernameById(userId, false)
 	other := NewLogOther()
 	other.MergeAdmin(map[string]any{
@@ -265,7 +266,7 @@ func RecordTopupLog(userId int, content string, callerIp string, paymentMethod s
 		Username:  username,
 		CreatedAt: common.GetTimestamp(),
 		Type:      LogTypeTopup,
-		Content:   content,
+		Content:   other.setContent([]*common.Message{content}),
 		Ip:        callerIp,
 		Other:     other.JSONString(),
 	}
@@ -322,18 +323,18 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 }
 
 type RecordConsumeLogParams struct {
-	ChannelId        int       `json:"channel_id"`
-	PromptTokens     int       `json:"prompt_tokens"`
-	CompletionTokens int       `json:"completion_tokens"`
-	ModelName        string    `json:"model_name"`
-	TokenName        string    `json:"token_name"`
-	Quota            int       `json:"quota"`
-	Content          string    `json:"content"`
-	TokenId          int       `json:"token_id"`
-	UseTimeSeconds   int       `json:"use_time_seconds"`
-	IsStream         bool      `json:"is_stream"`
-	Group            string    `json:"group"`
-	Other            *LogOther `json:"other"`
+	ChannelId        int               `json:"channel_id"`
+	PromptTokens     int               `json:"prompt_tokens"`
+	CompletionTokens int               `json:"completion_tokens"`
+	ModelName        string            `json:"model_name"`
+	TokenName        string            `json:"token_name"`
+	Quota            int               `json:"quota"`
+	Content          []*common.Message `json:"content"`
+	TokenId          int               `json:"token_id"`
+	UseTimeSeconds   int               `json:"use_time_seconds"`
+	IsStream         bool              `json:"is_stream"`
+	Group            string            `json:"group"`
+	Other            *LogOther         `json:"other"`
 }
 
 func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
@@ -345,7 +346,12 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 	requestId := c.GetString(common.RequestIdKey)
 	upstreamRequestId := c.GetString(common.UpstreamRequestIdKey)
 	createdAt := common.GetTimestamp()
-	otherStr := params.Other.JSONString()
+	other := params.Other
+	if other == nil && len(params.Content) > 0 {
+		other = NewLogOther()
+	}
+	content := other.setContent(params.Content)
+	otherStr := other.JSONString()
 	// 判断是否需要记录 IP
 	needRecordIp := false
 	if settingMap, err := GetUserSetting(userId, false); err == nil {
@@ -358,7 +364,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		Username:         username,
 		CreatedAt:        createdAt,
 		Type:             LogTypeConsume,
-		Content:          params.Content,
+		Content:          content,
 		PromptTokens:     params.PromptTokens,
 		CompletionTokens: params.CompletionTokens,
 		TokenName:        params.TokenName,
@@ -402,7 +408,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 type RecordTaskBillingLogParams struct {
 	UserId    int
 	LogType   int
-	Content   string
+	Content   []*common.Message
 	ChannelId int
 	ModelName string
 	Quota     int
@@ -424,19 +430,23 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 		}
 	}
 	createdAt := common.GetTimestamp()
+	other := params.Other
+	if other == nil && len(params.Content) > 0 {
+		other = NewLogOther()
+	}
 	log := &Log{
 		UserId:    params.UserId,
 		Username:  username,
 		CreatedAt: createdAt,
 		Type:      params.LogType,
-		Content:   params.Content,
+		Content:   other.setContent(params.Content),
 		TokenName: tokenName,
 		ModelName: params.ModelName,
 		Quota:     params.Quota,
 		ChannelId: params.ChannelId,
 		TokenId:   params.TokenId,
 		Group:     params.Group,
-		Other:     params.Other.JSONString(),
+		Other:     other.JSONString(),
 	}
 	err := createLog(log)
 	if err != nil {
@@ -589,7 +599,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	err = tx.Model(&Log{}).Limit(logSearchCountLimit).Count(&total).Error
 	if err != nil {
 		common.SysError("failed to count user logs: " + err.Error())
-		return nil, 0, errors.New("查询日志失败")
+		return nil, 0, common.NewMessage("Failed to query logs")
 	}
 	order := "logs.id desc"
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
@@ -598,7 +608,7 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	err = tx.Order(order).Limit(num).Offset(startIdx).Find(&logs).Error
 	if err != nil {
 		common.SysError("failed to search user logs: " + err.Error())
-		return nil, 0, errors.New("查询日志失败")
+		return nil, 0, common.NewMessage("Failed to query logs")
 	}
 
 	formatUserLogs(logs, startIdx)
@@ -657,7 +667,7 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	// 执行查询
 	if err := tx.Scan(&stat).Error; err != nil {
 		common.SysError("failed to query log stat: " + err.Error())
-		return stat, errors.New("查询统计数据失败")
+		return stat, common.NewMessage("Failed to query statistics")
 	}
 	var rateStat struct {
 		Rpm int
@@ -665,7 +675,7 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	}
 	if err := rpmTpmQuery.Scan(&rateStat).Error; err != nil {
 		common.SysError("failed to query rpm/tpm stat: " + err.Error())
-		return stat, errors.New("查询统计数据失败")
+		return stat, common.NewMessage("Failed to query statistics")
 	}
 	stat.Rpm = rateStat.Rpm
 	stat.Tpm = rateStat.Tpm

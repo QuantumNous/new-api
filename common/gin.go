@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"maps"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -196,11 +197,36 @@ func GetContextKeyType[T any](c *gin.Context, key constant.ContextKey) (T, bool)
 	return t, false
 }
 
+// ApiError responds with err's text. When err is or wraps a *Message, the
+// response also carries message_key and message_params for the web console.
 func ApiError(c *gin.Context, err error) {
-	c.JSON(http.StatusOK, gin.H{
+	body := gin.H{
 		"success": false,
 		"message": err.Error(),
-	})
+	}
+	var message *Message
+	if errors.As(err, &message) {
+		maps.Copy(body, message.Fields())
+	}
+	c.JSON(http.StatusOK, body)
+}
+
+// ApiErrorT responds with a web console message; key is the English source
+// text, which the web console translates with params.
+func ApiErrorT(c *gin.Context, key string, params ...map[string]any) {
+	ApiError(c, NewMessage(key, params...))
+}
+
+// ApiSuccessT is the success counterpart of ApiErrorT.
+func ApiSuccessT(c *gin.Context, key string, data any, params ...map[string]any) {
+	message := NewMessage(key, params...)
+	body := gin.H{
+		"success": true,
+		"message": message.Error(),
+		"data":    data,
+	}
+	maps.Copy(body, message.Fields())
+	c.JSON(http.StatusOK, body)
 }
 
 func ApiErrorMsg(c *gin.Context, msg string) {
