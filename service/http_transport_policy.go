@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 )
@@ -78,7 +79,7 @@ func warnHTTPTransportPolicyOnce(field, value string) {
 	}
 	logger.LogWarn(
 		context.Background(),
-		fmt.Sprintf("invalid channel http transport setting clamped: %s=%q", field, value),
+		common.LogText("invalid channel http transport setting clamped: %s=%q", field, value),
 	)
 }
 

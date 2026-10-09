@@ -59,11 +59,11 @@ func authHelper(c *gin.Context, minRole int) {
 		return
 	}
 	if user.Status != common.UserStatusEnabled {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "code": "AUTH_USER_DISABLED", "message": common.TranslateMessage(c, i18n.MsgAuthUserBanned)})
+		abortWithWebMessage(c, http.StatusUnauthorized, "AUTH_USER_DISABLED", common.NewMessage("User has been banned"))
 		return
 	}
 	if user.Role < minRole {
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"success": false, "code": "AUTH_INSUFFICIENT_PRIVILEGE", "message": common.TranslateMessage(c, i18n.MsgAuthInsufficientPrivilege)})
+		abortWithWebMessage(c, http.StatusForbidden, "AUTH_INSUFFICIENT_PRIVILEGE", common.NewMessage("Unauthorized, insufficient privileges"))
 		return
 	}
 	var lookup *accessTokenLookup
@@ -74,7 +74,7 @@ func authHelper(c *gin.Context, minRole int) {
 		}
 	}
 	if !validUserInfo(user.Username, user.Role) {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "code": "AUTH_USER_INVALID", "message": common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid)})
+		abortWithWebMessage(c, http.StatusUnauthorized, "AUTH_USER_INVALID", common.NewMessage("Unauthorized, invalid user info"))
 		return
 	}
 	setDashboardAuthContext(c, user, identity, useAccessToken)
@@ -289,26 +289,27 @@ func requestAccessTokenLookup(c *gin.Context) *accessTokenLookup {
 func enforceAccessTokenRoute(c *gin.Context, lookup *accessTokenLookup, abort bool) bool {
 	key := c.Request.Method + " " + c.FullPath()
 	rule, declared := AccessTokenRouteRule(key)
-	code, reason, message := "", "", ""
+	code, reason := "", ""
+	var message *common.Message
 	switch {
 	case declared && rule.kind == accessTokenRuleSession:
-		code, reason, message = "AUTH_SESSION_REQUIRED", "session_required", accessTokenSessionRequiredMsg
+		code, reason, message = "AUTH_SESSION_REQUIRED", "session_required", common.NewMessage(accessTokenSessionRequiredMsg)
 	case lookup.legacy:
 		return true
 	case !declared:
-		common.SysError("access token route is not declared: " + key)
-		code, reason, message = "ACCESS_TOKEN_ROUTE_UNDECLARED", "route_undeclared", common.TranslateMessage(c, i18n.MsgAuthInsufficientPrivilege)
+		common.SysError(common.LogText("access token route is not declared: %s", key))
+		code, reason, message = "ACCESS_TOKEN_ROUTE_UNDECLARED", "route_undeclared", common.NewMessage("Unauthorized, insufficient privileges")
 	case rule.kind == accessTokenRuleAny, service.AccessTokenScopeGranted(lookup.token.GetScopes(), rule.scope):
 		return true
 	default:
-		code, reason, message = "ACCESS_TOKEN_SCOPE_DENIED", "scope_denied", common.TranslateMessage(c, i18n.MsgAuthAccessTokenScope, map[string]any{"Scope": rule.scope})
+		code, reason, message = "ACCESS_TOKEN_SCOPE_DENIED", "scope_denied", common.NewMessage("The access token lacks the required permission: {{scope}}", map[string]any{"scope": rule.scope})
 		if abort {
 			setAccessTokenAuditParam(c, "required_scope", rule.scope)
 		}
 	}
 	if abort {
 		setAccessTokenAuditParam(c, "failure_reason", reason)
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"success": false, "code": code, "message": message})
+		abortWithWebMessage(c, http.StatusForbidden, code, message)
 	}
 	return false
 }
@@ -337,7 +338,7 @@ func setAccessTokenContext(c *gin.Context, lookup *accessTokenLookup) {
 		return
 	}
 	if err := model.TouchUserAccessToken(lookup.token.Id, c.ClientIP(), common.GetTimestamp()); err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("access token last-use update failed (token_id=%d): %v", lookup.token.Id, err))
+		logger.LogError(c.Request.Context(), common.LogText("access token last-use update failed (token_id=%d): %v", lookup.token.Id, err))
 	}
 }
 
@@ -370,29 +371,40 @@ func setDashboardAuthContext(c *gin.Context, user *model.UserBase, identity serv
 	user.WriteContext(c)
 }
 
+// abortWithWebMessage answers a web console request; the web console
+// translates the message, and code, when set, stays a stable error code.
+func abortWithWebMessage(c *gin.Context, status int, code string, message *common.Message) {
+	var fields []gin.H
+	if code != "" {
+		fields = append(fields, gin.H{"code": code})
+	}
+	common.ApiErrorStatus(c, status, message, fields...)
+	c.Abort()
+}
+
 func writeDashboardAuthError(c *gin.Context, err error) {
 	if errors.Is(err, model.ErrAccessTokenExpired) {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "code": "ACCESS_TOKEN_EXPIRED", "message": common.TranslateMessage(c, i18n.MsgAuthAccessTokenExpired)})
+		abortWithWebMessage(c, http.StatusUnauthorized, "ACCESS_TOKEN_EXPIRED", common.NewMessage("Unauthorized, the access token has expired"))
 		return
 	}
 	if errors.Is(err, model.ErrLegacyAccessTokenRetired) {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "code": "ACCESS_TOKEN_LEGACY_RETIRED", "message": common.TranslateMessage(c, i18n.MsgAuthLegacyTokenRetired)})
+		abortWithWebMessage(c, http.StatusUnauthorized, "ACCESS_TOKEN_LEGACY_RETIRED", common.NewMessage("Legacy access tokens have been retired. Create a new access token in security settings"))
 		return
 	}
 	if errors.Is(err, service.ErrAuthTokenExpired) {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "code": "AUTH_TOKEN_EXPIRED", "message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn)})
+		abortWithWebMessage(c, http.StatusUnauthorized, "AUTH_TOKEN_EXPIRED", common.NewMessage("Unauthorized, not logged in and no access token provided"))
 		return
 	}
 	if errors.Is(err, service.ErrLoginSessionRevoked) || errors.Is(err, gorm.ErrRecordNotFound) {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "code": "AUTH_SESSION_REVOKED", "message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn)})
+		abortWithWebMessage(c, http.StatusUnauthorized, "AUTH_SESSION_REVOKED", common.NewMessage("Unauthorized, not logged in and no access token provided"))
 		return
 	}
 	if errors.Is(err, service.ErrAuthTokenInvalid) {
-		c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "code": "AUTH_UNAUTHORIZED", "message": common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid)})
+		abortWithWebMessage(c, http.StatusUnauthorized, "AUTH_UNAUTHORIZED", common.NewMessage("Unauthorized, invalid access token"))
 		return
 	}
-	common.SysLog("dashboard authentication error: " + err.Error())
-	c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"success": false, "code": "AUTH_INTERNAL_ERROR", "message": common.TranslateMessage(c, i18n.MsgDatabaseError)})
+	common.SysLog(common.LogText("dashboard authentication error: %s", err.Error()))
+	abortWithWebMessage(c, http.StatusInternalServerError, "AUTH_INTERNAL_ERROR", common.NewMessage("Database error, please contact the administrator"))
 }
 
 func RequirePermission(permission authz.Permission) func(c *gin.Context) {
@@ -403,11 +415,7 @@ func RequirePermission(permission authz.Permission) func(c *gin.Context) {
 			c.Next()
 			return
 		}
-		c.JSON(http.StatusForbidden, gin.H{
-			"success": false,
-			"message": common.TranslateMessage(c, i18n.MsgAuthInsufficientPrivilege),
-		})
-		c.Abort()
+		abortWithWebMessage(c, http.StatusForbidden, "", common.NewMessage("Unauthorized, insufficient privileges"))
 	}
 }
 
@@ -452,10 +460,7 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		key := c.Request.Header.Get("Authorization")
 		if key == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"message": common.TranslateMessage(c, i18n.MsgTokenNotProvided),
-			})
+			common.ApiErrorStatus(c, http.StatusUnauthorized, errors.New(common.TranslateMessage(c, i18n.MsgTokenNotProvided)))
 			c.Abort()
 			return
 		}
@@ -469,16 +474,10 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 		token, err := model.GetTokenByKey(key, false)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				c.JSON(http.StatusUnauthorized, gin.H{
-					"success": false,
-					"message": common.TranslateMessage(c, i18n.MsgTokenInvalid),
-				})
+				common.ApiErrorStatus(c, http.StatusUnauthorized, errors.New(common.TranslateMessage(c, i18n.MsgTokenInvalid)))
 			} else {
-				common.SysLog("TokenAuthReadOnly GetTokenByKey database error: " + err.Error())
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"success": false,
-					"message": common.TranslateMessage(c, i18n.MsgDatabaseError),
-				})
+				common.SysLog(common.LogText("TokenAuthReadOnly GetTokenByKey database error: %s", err.Error()))
+				common.ApiErrorStatus(c, http.StatusInternalServerError, errors.New(common.TranslateMessage(c, i18n.MsgDatabaseError)))
 			}
 			c.Abort()
 			return
@@ -487,29 +486,20 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 		// TokenAuthReadOnly must keep allowing other token states to query read-only
 		// data, such as token usage logs; only explicitly disabled tokens are denied.
 		if token.Status == common.TokenStatusDisabled {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"success": false,
-				"message": common.TranslateMessage(c, i18n.MsgTokenStatusUnavailable),
-			})
+			common.ApiErrorStatus(c, http.StatusUnauthorized, errors.New(common.TranslateMessage(c, i18n.MsgTokenStatusUnavailable)))
 			c.Abort()
 			return
 		}
 
 		userCache, err := model.GetUserCache(token.UserId)
 		if err != nil {
-			common.SysLog(fmt.Sprintf("TokenAuthReadOnly GetUserCache error for user %d: %v", token.UserId, err))
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"success": false,
-				"message": common.TranslateMessage(c, i18n.MsgDatabaseError),
-			})
+			common.SysLog(common.LogText("TokenAuthReadOnly GetUserCache error for user %d: %v", token.UserId, err))
+			common.ApiErrorStatus(c, http.StatusInternalServerError, errors.New(common.TranslateMessage(c, i18n.MsgDatabaseError)))
 			c.Abort()
 			return
 		}
 		if userCache.Status != common.UserStatusEnabled {
-			c.JSON(http.StatusForbidden, gin.H{
-				"success": false,
-				"message": common.TranslateMessage(c, i18n.MsgAuthUserBanned),
-			})
+			common.ApiErrorStatus(c, http.StatusForbidden, errors.New(common.TranslateMessage(c, i18n.MsgAuthUserBanned)))
 			c.Abort()
 			return
 		}
@@ -574,7 +564,7 @@ func TokenAuth() func(c *gin.Context) {
 		}
 		if err != nil {
 			if errors.Is(err, model.ErrDatabase) {
-				common.SysLog("TokenAuth ValidateUserToken database error: " + err.Error())
+				common.SysLog(common.LogText("TokenAuth ValidateUserToken database error: %s", err.Error()))
 				abortWithOpenAiMessage(c, http.StatusInternalServerError,
 					common.TranslateMessage(c, i18n.MsgDatabaseError))
 			} else {
@@ -590,11 +580,11 @@ func TokenAuth() func(c *gin.Context) {
 			logger.LogDebug(c, "Token has IP restrictions, checking client IP %s", clientIp)
 			ip := net.ParseIP(clientIp)
 			if ip == nil {
-				abortWithOpenAiMessage(c, http.StatusForbidden, "无法解析客户端 IP 地址")
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgAuthClientIPUnresolved))
 				return
 			}
 			if common.IsIpInCIDRList(ip, allowIps) == false {
-				abortWithOpenAiMessage(c, http.StatusForbidden, "您的 IP 不在令牌允许访问的列表中", types.ErrorCodeAccessDenied)
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgAuthTokenIPNotAllowed), types.ErrorCodeAccessDenied)
 				return
 			}
 			logger.LogDebug(c, "Client IP %s passed the token IP restrictions check", clientIp)
@@ -602,7 +592,7 @@ func TokenAuth() func(c *gin.Context) {
 
 		userCache, err := model.GetUserCache(token.UserId)
 		if err != nil {
-			common.SysLog(fmt.Sprintf("TokenAuth GetUserCache error for user %d: %v", token.UserId, err))
+			common.SysLog(common.LogText("TokenAuth GetUserCache error for user %d: %v", token.UserId, err))
 			abortWithOpenAiMessage(c, http.StatusInternalServerError,
 				common.TranslateMessage(c, i18n.MsgDatabaseError))
 			return
@@ -620,13 +610,13 @@ func TokenAuth() func(c *gin.Context) {
 		if tokenGroup != "" {
 			// check common.UserUsableGroups[userGroup]
 			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
-				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问 %s 分组", tokenGroup))
+				abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgAuthTokenGroupForbidden, map[string]any{"Group": tokenGroup}))
 				return
 			}
 			// check group in common.GroupRatio
 			if !ratio_setting.ContainsGroupRatio(tokenGroup) {
 				if tokenGroup != "auto" {
-					abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("分组 %s 已被弃用", tokenGroup))
+					abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgAuthTokenGroupDeprecated, map[string]any{"Group": tokenGroup}))
 					return
 				}
 			}
@@ -689,7 +679,7 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 	if token.AutoGroups != "" {
 		autoGroups, err := token.GetAutoGroups()
 		if err != nil {
-			common.SysError(fmt.Sprintf("failed to parse auto groups for token %d: %v", token.Id, err))
+			common.SysError(common.LogText("failed to parse auto groups for token %d: %v", token.Id, err))
 			autoGroups = []string{}
 			common.SetContextKey(c, constant.ContextKeyTokenAutoGroups, autoGroups)
 		} else if len(autoGroups) > 0 {
@@ -711,8 +701,8 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 			})
 		} else {
 			c.Header("specific_channel_version", "701e3ae1dc3f7975556d354e0675168d004891c8")
-			abortWithOpenAiMessage(c, http.StatusForbidden, "普通用户不支持指定渠道")
-			return fmt.Errorf("普通用户不支持指定渠道")
+			abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgAuthChannelSelectForbidden))
+			return errors.New("regular users cannot specify a channel")
 		}
 	}
 	return nil

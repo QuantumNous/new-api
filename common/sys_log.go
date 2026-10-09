@@ -50,20 +50,20 @@ func LogStartupSuccess(startTime time.Time, port string) {
 		// Warn when the local HTTP compatibility mode disables cookie transport
 		// security and refresh/logout Origin validation.
 		fmt.Fprintf(gin.DefaultWriter, "\n")
-		fmt.Fprintf(gin.DefaultWriter, "  \033[33mWarning: Refresh cookie is not secure and refresh/logout Origin validation is disabled. Please set SESSION_COOKIE_SECURE=true in production.\033[0m\n")
+		fmt.Fprintf(gin.DefaultWriter, "  \033[33m%s\033[0m\n", LogText("Warning: Refresh cookie is not secure and refresh/logout Origin validation is disabled. Please set SESSION_COOKIE_SECURE=true in production."))
 		fmt.Fprintf(gin.DefaultWriter, "\n")
 	}
 
 	fmt.Fprintf(gin.DefaultWriter, "\n")
-	fmt.Fprintf(gin.DefaultWriter, "  \033[32m%s %s\033[0m  ready in %d ms\n", SystemName, Version, durationMs)
+	fmt.Fprintf(gin.DefaultWriter, "  \033[32m%s %s\033[0m  %s\n", SystemName, Version, LogText("ready in %d ms", durationMs))
 	fmt.Fprintf(gin.DefaultWriter, "\n")
 
 	if !IsRunningInContainer() {
-		fmt.Fprintf(gin.DefaultWriter, "  ➜  \033[1mLocal:\033[0m   http://localhost:%s/\n", port)
+		fmt.Fprintf(gin.DefaultWriter, "  ➜  \033[1m%-8s\033[0m http://localhost:%s/\n", LogText("Local:"), port)
 	}
 
 	for _, ip := range networkIps {
-		fmt.Fprintf(gin.DefaultWriter, "  ➜  \033[1mNetwork:\033[0m http://%s:%s/\n", ip, port)
+		fmt.Fprintf(gin.DefaultWriter, "  ➜  \033[1m%-8s\033[0m http://%s:%s/\n", LogText("Network:"), ip, port)
 	}
 
 	fmt.Fprintf(gin.DefaultWriter, "\n")

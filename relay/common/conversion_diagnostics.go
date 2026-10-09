@@ -2,8 +2,8 @@ package common
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
@@ -46,13 +46,13 @@ func (info *RelayInfo) RecordConversionDiagnostics(ctx context.Context, diagnost
 		if len(info.conversionDiagnostics) >= maxConversionDiagnostics {
 			if !info.conversionDiagnosticsTruncated {
 				info.conversionDiagnosticsTruncated = true
-				logger.LogWarn(ctx, fmt.Sprintf("conversion diagnostics truncated after %d distinct entries", maxConversionDiagnostics))
+				logger.LogWarn(ctx, common.LogText("conversion diagnostics truncated after %d distinct entries", maxConversionDiagnostics))
 			}
 			continue
 		}
 		info.conversionDiagnosticKeys[key] = struct{}{}
 		info.conversionDiagnostics = append(info.conversionDiagnostics, diagnostic)
-		logger.LogWarn(ctx, fmt.Sprintf(
+		logger.LogWarn(ctx, common.LogText(
 			"conversion diagnostic: code=%q severity=%q from=%q to=%q path=%q message=%q",
 			diagnostic.Code, diagnostic.Severity, diagnostic.From, diagnostic.To, diagnostic.Path, diagnostic.Message,
 		))

@@ -13,7 +13,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/plugins"
@@ -983,37 +982,29 @@ func TestUploadTaskPluginPreflightConflict(t *testing.T) {
 	}
 }
 
-func TestUploadTaskPluginLocalizesUnknownMetaField(t *testing.T) {
-	require.NoError(t, i18n.Init())
+func TestUploadTaskPluginReportsUnknownMetaField(t *testing.T) {
 	body, err := common.Marshal(map[string]any{
 		"source": `export const meta = { futureField: true };`,
 	})
 	require.NoError(t, err)
-	for _, tc := range []struct {
-		language string
-		message  string
-	}{
-		{"en", `Plugin metadata contains an unknown field "futureField". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.`},
-		{"zh-CN", "插件元数据包含未知字段“futureField”。如果插件来自官方市场，可能需要更高版本的 new-api。请尝试更新 new-api 后重新安装插件。"},
-		{"zh-TW", "外掛中繼資料包含未知欄位「futureField」。如果外掛來自官方市集，可能需要較新版本的 new-api。請嘗試更新 new-api 後重新安裝外掛。"},
-	} {
-		t.Run(tc.language, func(t *testing.T) {
-			recorder := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(recorder)
-			c.Request = httptest.NewRequest(http.MethodPost, "/api/plugin/task", bytes.NewReader(body))
-			c.Request.Header.Set("Content-Type", "application/json")
-			c.Request.Header.Set("Accept-Language", tc.language)
-			UploadTaskPlugin(c)
-			require.Equal(t, http.StatusOK, recorder.Code)
-			var response struct {
-				Success bool   `json:"success"`
-				Message string `json:"message"`
-			}
-			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
-			assert.False(t, response.Success)
-			assert.Equal(t, tc.message, response.Message)
-		})
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/api/plugin/task", bytes.NewReader(body))
+	c.Request.Header.Set("Content-Type", "application/json")
+	c.Request.Header.Set("Accept-Language", "zh-CN")
+	UploadTaskPlugin(c)
+	require.Equal(t, http.StatusOK, recorder.Code)
+	var response struct {
+		Success       bool           `json:"success"`
+		Message       string         `json:"message"`
+		MessageKey    string         `json:"message_key"`
+		MessageParams map[string]any `json:"message_params"`
 	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.False(t, response.Success)
+	assert.Equal(t, `Plugin metadata contains an unknown field "futureField". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.`, response.Message)
+	assert.Equal(t, `Plugin metadata contains an unknown field "{{field}}". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.`, response.MessageKey)
+	assert.Equal(t, map[string]any{"field": "futureField"}, response.MessageParams)
 }
 
 func TestUploadTaskPluginRejectsMetaViolatingV1Schema(t *testing.T) {

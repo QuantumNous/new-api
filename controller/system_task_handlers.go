@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -158,6 +157,6 @@ func finishSystemTaskHandler(task *model.SystemTask, runnerID string, status mod
 		errorMessage = runErr.Error()
 	}
 	if err := model.FinishSystemTask(task.TaskID, runnerID, status, result, errorMessage); err != nil {
-		common.SysLog(fmt.Sprintf("system task %s failed to persist result: %v", task.TaskID, err))
+		common.SysLog(common.LogText("system task %s failed to persist result: %v", task.TaskID, err))
 	}
 }

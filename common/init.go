@@ -47,12 +47,14 @@ func InitEnv() {
 		os.Exit(0)
 	}
 
+	DefaultLanguage = os.Getenv("DEFAULT_LANGUAGE")
+	SetLogLanguage(DefaultLanguage)
+
 	if os.Getenv("SESSION_SECRET") != "" {
 		ss := os.Getenv("SESSION_SECRET")
 		if ss == "random_string" {
-			log.Println("WARNING: SESSION_SECRET is set to the default value 'random_string', please change it to a random string.")
-			log.Println("警告：SESSION_SECRET被设置为默认值'random_string'，请修改为随机字符串。")
-			log.Fatal("Please set SESSION_SECRET to a random string.")
+			log.Println(LogText("WARNING: SESSION_SECRET is set to the default value 'random_string', please change it to a random string."))
+			log.Fatal(LogText("Please set SESSION_SECRET to a random string."))
 		} else {
 			SessionSecret = ss
 		}
@@ -151,7 +153,7 @@ func initUserSessionSettings() {
 
 	const secondsPerDay = 24 * 60 * 60
 	if int64(UserSessionRevokedRetentionDays) > math.MaxInt64/secondsPerDay {
-		SysError(fmt.Sprintf(
+		SysError(LogText(
 			"USER_SESSION_REVOKED_RETENTION_DAYS is too large, using default value: %d",
 			DefaultUserSessionRevokedRetentionDays,
 		))
@@ -161,7 +163,7 @@ func initUserSessionSettings() {
 	if UserSessionIssuanceWindowSeconds > retentionSeconds {
 		configuredWindow := UserSessionIssuanceWindowSeconds
 		UserSessionIssuanceWindowSeconds = retentionSeconds
-		SysError(fmt.Sprintf(
+		SysError(LogText(
 			"USER_SESSION_ISSUANCE_WINDOW_SECONDS exceeds revoked retention; configured_window_seconds=%d revoked_retention_seconds=%d effective_window_seconds=%d",
 			configuredWindow,
 			retentionSeconds,
@@ -173,7 +175,7 @@ func initUserSessionSettings() {
 func positiveUserSessionEnv(name string, fallback int) int {
 	value := GetEnvOrDefault(name, fallback)
 	if value <= 0 {
-		SysError(fmt.Sprintf("%s must be positive, using default value: %d", name, fallback))
+		SysError(LogText("%s must be positive, using default value: %d", name, fallback))
 		return fallback
 	}
 	return value

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/gin-gonic/gin"
 )
@@ -45,7 +46,7 @@ func SetPayloadHash(c *gin.Context, req any) error {
 	if err != nil {
 		return err
 	}
-	logger.LogInfo(c, fmt.Sprintf("SetPayloadHash body: %s", body))
+	logger.LogInfo(c, common.LogText("SetPayloadHash body: %s", body))
 	payloadHash := sha256.Sum256(body)
 	hexPayloadHash := hex.EncodeToString(payloadHash[:])
 	c.Set(HexPayloadHashKey, hexPayloadHash)

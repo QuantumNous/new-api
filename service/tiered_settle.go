@@ -63,7 +63,7 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 				cr -= imgCR
 				img -= imgCR
 			} else {
-				common.SysError("invalid image cache token breakdown; using aggregate cache billing")
+				common.SysError(common.LogText("invalid image cache token breakdown; using aggregate cache billing"))
 			}
 		}
 	}

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"math"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -83,9 +84,10 @@ func TestTaskAdaptorRejectsDeprecatedClientResponse(t *testing.T) {
 }
 
 func TestTaskAdaptorBuildsMultipartFromOpaqueFileReference(t *testing.T) {
+	// The plugin forwards the client's Content-Type, whose boundary is not the one of the rebuilt body.
 	source := `
 export const meta = {apiVersion:1,key:"multipart",name:"Multipart",version:"1.0.0",author:{name:"Test"},models:["m"],fetchMode:"per_task"};
-export function buildSubmitRequest(ctx) { return {url:ctx.baseUrl+"/submit",bodyType:"multipart",parts:[{name:"model",value:"m"},{name:"input_reference",fileRef:ctx.files[0].ref}]}; }
+export function buildSubmitRequest(ctx) { return {url:ctx.baseUrl+"/submit",headers:{"Content-Type":ctx.requestHeaders["Content-Type"]},bodyType:"multipart",parts:[{name:"model",value:"m"},{name:"input_reference",fileRef:ctx.files[0].ref}]}; }
 export function parseSubmitResponse(ctx,r){return {taskId:"1"}} export function buildQueryRequest(){return {url:"https://example.com"}} export function parseTaskResult(){return {status:"SUCCESS"}}
 `
 	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
@@ -108,7 +110,13 @@ export function parseSubmitResponse(ctx,r){return {taskId:"1"}} export function 
 	require.NoError(t, err)
 	requestBytes, err := io.ReadAll(body)
 	require.NoError(t, err)
-	reader := multipart.NewReader(bytes.NewReader(requestBytes), strings.TrimPrefix(c.GetHeader("Content-Type"), "multipart/form-data; boundary="))
+	upstreamRequest := httptest.NewRequest(http.MethodPost, "https://provider.example/submit", bytes.NewReader(requestBytes))
+	require.NoError(t, adaptor.BuildRequestHeader(c, upstreamRequest, info))
+	mediaType, params, err := mime.ParseMediaType(upstreamRequest.Header.Get("Content-Type"))
+	require.NoError(t, err)
+	assert.Equal(t, "multipart/form-data", mediaType)
+	require.NotEmpty(t, params["boundary"])
+	reader := multipart.NewReader(bytes.NewReader(requestBytes), params["boundary"])
 	form, err := reader.ReadForm(1024)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"m"}, form.Value["model"])
