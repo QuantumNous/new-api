@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/pkg/balancescript"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 
@@ -1010,6 +1011,9 @@ func (channel *Channel) ValidateSettings() error {
 		}
 	}
 	if err := channelOtherSettings.ValidateToolLossPolicy(); err != nil {
+		return err
+	}
+	if err := balancescript.Validate(channelOtherSettings.BalanceScript); err != nil {
 		return err
 	}
 	if preset := common.GetAdvancedCustomPreset(channel.Type); preset != nil {

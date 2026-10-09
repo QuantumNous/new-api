@@ -61,6 +61,7 @@ import {
   sideDrawerHeaderClassName,
   sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
+import { CodeBlockEditor } from '@/components/ai-elements/code-block'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { JsonCodeEditor } from '@/components/json-code-editor'
@@ -165,11 +166,13 @@ import {
   useRedirectPanelPlacement,
 } from '../../hooks/use-redirect-panel-placement'
 import {
+  balanceScriptByteLength,
   CHANNEL_FORM_DEFAULT_VALUES,
   CHANNEL_TYPE_ADVANCED_CUSTOM,
   channelFormSchema,
   channelsQueryKeys,
   getAdvancedCustomStats,
+  MAX_BALANCE_SCRIPT_SOURCE_BYTES,
   transformChannelToFormDefaults,
   type ChannelFormValues,
   deduplicateKeys,
@@ -315,6 +318,7 @@ const SENSITIVE_FORM_FIELDS = [
   'upstream_model_update_check_enabled',
   'upstream_model_update_auto_sync_enabled',
   'upstream_model_update_ignored_models',
+  'balance_script',
 ] satisfies (keyof ChannelFormValues)[]
 
 function parseSettingsRecord(
@@ -1809,6 +1813,60 @@ export function ChannelMutateDrawer({
               'Network proxy for this channel (supports HTTP, HTTPS, SOCKS5, and SOCKS5H)'
             )}
           </FormDescription>
+          <FormMessage />
+        </FormItem>
+      )}
+    />
+  )
+
+  const currentBalanceScript = formValues.balance_script
+
+  const balanceScriptFields = (
+    <FormField
+      control={form.control}
+      name='balance_script'
+      render={({ field }) => (
+        <FormItem className='space-y-3'>
+          <div className='space-y-1'>
+            <FormLabel>{t('Balance Query Script')}</FormLabel>
+            <FormDescription>
+              {t(
+                "Optional JavaScript that queries this channel's remaining balance. Leave blank to use the built-in balance query for this channel type."
+              )}
+            </FormDescription>
+          </div>
+          <FormControl>
+            <CodeBlockEditor
+              actions={
+                <span className='text-muted-foreground font-mono text-[11px]'>
+                  {t('{{bytes}} bytes', {
+                    bytes: balanceScriptByteLength(field.value || ''),
+                  })}
+                </span>
+              }
+              ariaLabel={t('Balance Query Script')}
+              autoFocus={false}
+              className='my-0'
+              language='javascript'
+              onChange={field.onChange}
+              placeholder={t(
+                'export function buildBalanceRequest(ctx) { ... }\nexport function parseBalanceResponse(ctx, response) { ... }'
+              )}
+              rows={10}
+              title={t('Balance Query Script')}
+              value={field.value || ''}
+            />
+          </FormControl>
+          {balanceScriptByteLength(currentBalanceScript || '') >
+            MAX_BALANCE_SCRIPT_SOURCE_BYTES && (
+            <Alert variant='destructive'>
+              <AlertDescription>
+                {t('Balance script exceeds {{max}} bytes', {
+                  max: MAX_BALANCE_SCRIPT_SOURCE_BYTES,
+                })}
+              </AlertDescription>
+            </Alert>
+          )}
           <FormMessage />
         </FormItem>
       )}
@@ -4690,6 +4748,7 @@ export function ChannelMutateDrawer({
                 {proxyFields}
                 {httpProtocolFields}
                 {httpShardsFields}
+                {balanceScriptFields}
               </fieldset>
             </div>
             {upstreamModelDetectionFields}
