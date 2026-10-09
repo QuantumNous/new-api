@@ -31,11 +31,3 @@ func detectLanguage(c *gin.Context) string {
 	// 2. Parse Accept-Language header
 	return i18n.ParseAcceptLanguage(c.GetHeader("Accept-Language"))
 }
-
-// GetLanguage returns the current language from gin context
-func GetLanguage(c *gin.Context) string {
-	if lang := c.GetString(string(constant.ContextKeyLanguage)); lang != "" {
-		return lang
-	}
-	return i18n.DefaultLang
-}

@@ -12,11 +12,7 @@ import (
 
 func GetRatioConfig(c *gin.Context) {
 	if !ratio_setting.IsExposeRatioEnabled() {
-		msg := common.NewMessage("The ratio config API is not enabled")
-		body := msg.Fields()
-		body["success"] = false
-		body["message"] = msg.Error()
-		c.JSON(http.StatusForbidden, body)
+		common.ApiErrorStatus(c, http.StatusForbidden, common.NewMessage("The ratio config API is not enabled"))
 		return
 	}
 

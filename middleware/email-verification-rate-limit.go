@@ -35,11 +35,7 @@ func redisEmailVerificationRateLimiter(c *gin.Context) {
 		waitSeconds = ttlSeconds
 	}
 
-	msg := common.NewMessage("Please wait {{seconds}} seconds before requesting another verification code.", map[string]any{"seconds": waitSeconds})
-	body := msg.Fields()
-	body["success"] = false
-	body["message"] = msg.Error()
-	c.JSON(http.StatusTooManyRequests, body)
+	common.ApiErrorStatus(c, http.StatusTooManyRequests, common.NewMessage("Please wait {{seconds}} seconds before requesting another verification code.", map[string]any{"seconds": waitSeconds}))
 	c.Abort()
 }
 
@@ -47,11 +43,7 @@ func memoryEmailVerificationRateLimiter(c *gin.Context) {
 	key := EmailVerificationRateLimitMark + ":" + c.ClientIP()
 
 	if !inMemoryRateLimiter.Request(key, EmailVerificationMaxRequests, EmailVerificationDuration) {
-		msg := common.NewMessage("Please wait before requesting another verification code.")
-		body := msg.Fields()
-		body["success"] = false
-		body["message"] = msg.Error()
-		c.JSON(http.StatusTooManyRequests, body)
+		common.ApiErrorStatus(c, http.StatusTooManyRequests, common.NewMessage("Please wait before requesting another verification code."))
 		c.Abort()
 		return
 	}

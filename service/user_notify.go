@@ -21,7 +21,10 @@ func NotifyRootUser(t string, subject string, content string) {
 	}
 }
 
-func NotifyUpstreamModelUpdateWatchers(subject string, content string) {
+// NotifyUpstreamModelUpdateWatchers sends the upstream model update notice to
+// every administrator who enabled it. render builds the subject and content in
+// the recipient's saved language; an empty language means DEFAULT_LANGUAGE.
+func NotifyUpstreamModelUpdateWatchers(render func(lang string) (subject string, content string)) {
 	var users []model.User
 	if err := model.DB.
 		Select("id", "email", "role", "status", "setting").
@@ -31,14 +34,14 @@ func NotifyUpstreamModelUpdateWatchers(subject string, content string) {
 		return
 	}
 
-	notification := dto.NewNotify(dto.NotifyTypeChannelUpdate, subject, content, nil)
 	sentCount := 0
 	for _, user := range users {
 		userSetting := user.GetSetting()
 		if !userSetting.UpstreamModelUpdateNotifyEnabled {
 			continue
 		}
-		if err := NotifyUser(user.Id, user.Email, userSetting, notification); err != nil {
+		subject, content := render(userSetting.Language)
+		if err := NotifyUser(user.Id, user.Email, userSetting, dto.NewNotify(dto.NotifyTypeChannelUpdate, subject, content, nil)); err != nil {
 			common.SysLog(common.LogText("failed to notify user %d for upstream model update: %s", user.Id, err.Error()))
 			continue
 		}

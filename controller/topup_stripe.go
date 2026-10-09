@@ -75,37 +75,21 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		return
 	}
 	if req.Amount < getStripeMinTopup() {
-		msg := common.NewMessage("Top-up amount cannot be less than {{min}}", map[string]any{"min": getStripeMinTopup()})
-		body := msg.Fields()
-		body["message"] = msg.Error()
-		body["data"] = 10
-		c.JSON(http.StatusOK, body)
+		common.ApiErrorStatus(c, http.StatusOK, common.NewMessage("Top-up amount cannot be less than {{min}}", map[string]any{"min": getStripeMinTopup()}), gin.H{"data": 10})
 		return
 	}
 	if req.Amount > 10000 {
-		msg := common.NewMessage("Top-up amount cannot exceed {{max}}", map[string]any{"max": 10000})
-		body := msg.Fields()
-		body["message"] = msg.Error()
-		body["data"] = 10
-		c.JSON(http.StatusOK, body)
+		common.ApiErrorStatus(c, http.StatusOK, common.NewMessage("Top-up amount cannot exceed {{max}}", map[string]any{"max": 10000}), gin.H{"data": 10})
 		return
 	}
 
 	if req.SuccessURL != "" && common.ValidateRedirectURL(req.SuccessURL) != nil {
-		msg := common.NewMessage("Payment success redirect URL is not in the trusted domain list")
-		body := msg.Fields()
-		body["message"] = msg.Error()
-		body["data"] = ""
-		c.JSON(http.StatusBadRequest, body)
+		common.ApiErrorStatus(c, http.StatusBadRequest, common.NewMessage("Payment success redirect URL is not in the trusted domain list"), gin.H{"data": ""})
 		return
 	}
 
 	if req.CancelURL != "" && common.ValidateRedirectURL(req.CancelURL) != nil {
-		msg := common.NewMessage("Payment cancel redirect URL is not in the trusted domain list")
-		body := msg.Fields()
-		body["message"] = msg.Error()
-		body["data"] = ""
-		c.JSON(http.StatusBadRequest, body)
+		common.ApiErrorStatus(c, http.StatusBadRequest, common.NewMessage("Payment cancel redirect URL is not in the trusted domain list"), gin.H{"data": ""})
 		return
 	}
 

@@ -128,7 +128,7 @@ func SetUserLangLoader(loader func(userId int) string) {
 // StatedLang returns the language the reader of a request stated, or "" when
 // there is none. It checks multiple sources in priority order:
 // 1. User settings (ContextKeyUserSetting) - if already loaded (e.g., by TokenAuth)
-// 2. Lazy load user language from cache/DB using user ID
+// 2. Lazy load user language from cache/DB using user ID, when step 1 found no settings
 // 3. Language set by middleware (ContextKeyLanguage) - from Accept-Language header
 // 4. The Accept-Language header
 func StatedLang(c *gin.Context) string {
@@ -137,17 +137,18 @@ func StatedLang(c *gin.Context) string {
 	}
 
 	// 1. Try to get language from user settings (if already loaded by TokenAuth or other middleware)
-	if userSetting, ok := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting); ok {
-		if userSetting.Language != "" {
-			normalized := normalizeLang(userSetting.Language)
-			if IsSupported(normalized) {
-				return normalized
-			}
+	userSetting, settingLoaded := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting)
+	if settingLoaded && userSetting.Language != "" {
+		normalized := normalizeLang(userSetting.Language)
+		if IsSupported(normalized) {
+			return normalized
 		}
 	}
 
-	// 2. Lazy load user language using user ID (for session-based auth where full settings aren't loaded)
-	if userLangLoaderFunc != nil {
+	// 2. Lazy load user language using user ID (for session-based auth where full settings aren't loaded).
+	// Loaded settings without a language mean the user saved none; loading the user again would cost
+	// a cache or database read on every relay request.
+	if !settingLoaded && userLangLoaderFunc != nil {
 		if userId, exists := c.Get("id"); exists {
 			if uid, ok := userId.(int); ok && uid > 0 {
 				lang := userLangLoaderFunc(uid)
@@ -187,7 +188,7 @@ func ParseAcceptLanguage(header string) string {
 
 // normalizeLang normalizes language code to supported format
 func normalizeLang(lang string) string {
-	lang = strings.ToLower(strings.TrimSpace(lang))
+	lang = strings.ToLower(strings.ReplaceAll(strings.TrimSpace(lang), "_", "-"))
 
 	// Handle common variations. The web console saves its own codes zhCN and
 	// zhTW, and maps zh-HK, zh-MO and zh-Hant to Traditional Chinese.

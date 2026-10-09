@@ -32,6 +32,8 @@ func TestLanguageFromUserSetting(t *testing.T) {
 		{"zhCN", LangZhCN},
 		{"zhTW", LangZhTW},
 		{"zh-HK", LangZhTW},
+		{"zh_TW", LangZhTW},
+		{"zh_HK", LangZhTW},
 		{"zh-Hant-TW", LangZhTW},
 		{"zh", LangZhCN},
 		{"en", LangEn},
@@ -43,6 +45,32 @@ func TestLanguageFromUserSetting(t *testing.T) {
 		c.Set(string(constant.ContextKeyUserSetting), dto.UserSetting{Language: tc.saved})
 		assert.Equal(t, tc.want, StatedLang(c), tc.saved)
 	}
+}
+
+// TokenAuth puts the user's settings into the request. A user who saved no
+// language must not be loaded again, which would cost a cache or database read
+// on every relay request; a request without loaded settings still loads them.
+func TestStatedLangLoadsTheUserOnlyWithoutLoadedSettings(t *testing.T) {
+	previous := userLangLoaderFunc
+	t.Cleanup(func() { userLangLoaderFunc = previous })
+	loads := 0
+	SetUserLangLoader(func(int) string {
+		loads++
+		return "zhTW"
+	})
+
+	relay, _ := gin.CreateTestContext(httptest.NewRecorder())
+	relay.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	relay.Set("id", 7)
+	relay.Set(string(constant.ContextKeyUserSetting), dto.UserSetting{})
+	assert.Equal(t, "", StatedLang(relay))
+	assert.Zero(t, loads)
+
+	dashboard, _ := gin.CreateTestContext(httptest.NewRecorder())
+	dashboard.Request = httptest.NewRequest("GET", "/api/user/self", nil)
+	dashboard.Set("id", 7)
+	assert.Equal(t, LangZhTW, StatedLang(dashboard))
+	assert.Equal(t, 1, loads)
 }
 
 // A saved language or an Accept-Language header selects the language of a

@@ -45,12 +45,7 @@ func newAccessTokenItem(token *model.UserAccessToken) accessTokenItem {
 
 // writeAccessTokenError responds with a stable code and a web console message.
 func writeAccessTokenError(c *gin.Context, status int, code, key string, params ...map[string]any) {
-	msg := common.NewMessage(key, params...)
-	body := msg.Fields()
-	body["success"] = false
-	body["code"] = code
-	body["message"] = msg.Error()
-	c.JSON(status, body)
+	common.ApiErrorStatus(c, status, common.NewMessage(key, params...), gin.H{"code": code})
 }
 
 // normalizeAccessTokenName returns the trimmed name, or false when it is empty

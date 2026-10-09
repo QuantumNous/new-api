@@ -1501,11 +1501,7 @@ func BatchSetChannelTag(c *gin.Context) {
 func GetTagModels(c *gin.Context) {
 	tag := c.Query("tag")
 	if tag == "" {
-		msg := common.NewMessage("Tag cannot be empty")
-		body := msg.Fields()
-		body["success"] = false
-		body["message"] = msg.Error()
-		c.JSON(http.StatusBadRequest, body)
+		common.ApiErrorStatus(c, http.StatusBadRequest, common.NewMessage("Tag cannot be empty"))
 		return
 	}
 

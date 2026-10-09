@@ -374,13 +374,12 @@ func setDashboardAuthContext(c *gin.Context, user *model.UserBase, identity serv
 // abortWithWebMessage answers a web console request; the web console
 // translates the message, and code, when set, stays a stable error code.
 func abortWithWebMessage(c *gin.Context, status int, code string, message *common.Message) {
-	body := message.Fields()
-	body["success"] = false
-	body["message"] = message.Error()
+	var fields []gin.H
 	if code != "" {
-		body["code"] = code
+		fields = append(fields, gin.H{"code": code})
 	}
-	c.AbortWithStatusJSON(status, body)
+	common.ApiErrorStatus(c, status, message, fields...)
+	c.Abort()
 }
 
 func writeDashboardAuthError(c *gin.Context, err error) {
@@ -461,7 +460,8 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		key := c.Request.Header.Get("Authorization")
 		if key == "" {
-			abortWithWebMessage(c, http.StatusUnauthorized, "", common.NewMessage("Token not provided"))
+			common.ApiErrorStatus(c, http.StatusUnauthorized, errors.New(common.TranslateMessage(c, i18n.MsgTokenNotProvided)))
+			c.Abort()
 			return
 		}
 		if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
@@ -474,29 +474,33 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 		token, err := model.GetTokenByKey(key, false)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				abortWithWebMessage(c, http.StatusUnauthorized, "", common.NewMessage("Invalid token"))
+				common.ApiErrorStatus(c, http.StatusUnauthorized, errors.New(common.TranslateMessage(c, i18n.MsgTokenInvalid)))
 			} else {
 				common.SysLog(common.LogText("TokenAuthReadOnly GetTokenByKey database error: %s", err.Error()))
-				abortWithWebMessage(c, http.StatusInternalServerError, "", common.NewMessage("Database error, please contact the administrator"))
+				common.ApiErrorStatus(c, http.StatusInternalServerError, errors.New(common.TranslateMessage(c, i18n.MsgDatabaseError)))
 			}
+			c.Abort()
 			return
 		}
 
 		// TokenAuthReadOnly must keep allowing other token states to query read-only
 		// data, such as token usage logs; only explicitly disabled tokens are denied.
 		if token.Status == common.TokenStatusDisabled {
-			abortWithWebMessage(c, http.StatusUnauthorized, "", common.NewMessage("This token status is unavailable"))
+			common.ApiErrorStatus(c, http.StatusUnauthorized, errors.New(common.TranslateMessage(c, i18n.MsgTokenStatusUnavailable)))
+			c.Abort()
 			return
 		}
 
 		userCache, err := model.GetUserCache(token.UserId)
 		if err != nil {
 			common.SysLog(common.LogText("TokenAuthReadOnly GetUserCache error for user %d: %v", token.UserId, err))
-			abortWithWebMessage(c, http.StatusInternalServerError, "", common.NewMessage("Database error, please contact the administrator"))
+			common.ApiErrorStatus(c, http.StatusInternalServerError, errors.New(common.TranslateMessage(c, i18n.MsgDatabaseError)))
+			c.Abort()
 			return
 		}
 		if userCache.Status != common.UserStatusEnabled {
-			abortWithWebMessage(c, http.StatusForbidden, "", common.NewMessage("User has been banned"))
+			common.ApiErrorStatus(c, http.StatusForbidden, errors.New(common.TranslateMessage(c, i18n.MsgAuthUserBanned)))
+			c.Abort()
 			return
 		}
 

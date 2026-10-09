@@ -110,12 +110,7 @@ func AddRedemption(c *gin.Context) {
 		err = cleanRedemption.Insert()
 		if err != nil {
 			common.SysError(common.LogText("failed to insert redemption: %s", err.Error()))
-			msg := common.NewMessage("Failed to create redemption code, please try again later")
-			body := msg.Fields()
-			body["success"] = false
-			body["message"] = msg.Error()
-			body["data"] = keys
-			c.JSON(http.StatusOK, body)
+			common.ApiErrorStatus(c, http.StatusOK, common.NewMessage("Failed to create redemption code, please try again later"), gin.H{"data": keys})
 			return
 		}
 		keys = append(keys, key)

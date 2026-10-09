@@ -331,11 +331,7 @@ func CleanupLogFiles(c *gin.Context) {
 			"failed": len(failedFiles),
 			"total":  len(toDelete),
 		})
-		body := msg.Fields()
-		body["success"] = false
-		body["message"] = msg.Error()
-		body["data"] = result
-		c.JSON(http.StatusOK, body)
+		common.ApiErrorStatus(c, http.StatusOK, msg, gin.H{"data": result})
 		return
 	}
 

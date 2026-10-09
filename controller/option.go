@@ -166,13 +166,10 @@ func UpdatePasskeyDomains(c *gin.Context) {
 func writePasskeyDomainSettingsError(c *gin.Context, err error) {
 	var removal *model.PasskeyDomainRemovalError
 	if errors.As(err, &removal) {
-		msg := common.NewMessage("Review the affected Passkeys and confirm the domain removal. If the settings or impact have changed, confirmation is required again.")
-		body := msg.Fields()
-		body["success"] = false
-		body["code"] = "PASSKEY_RP_ID_REMOVAL_CONFIRMATION_REQUIRED"
-		body["message"] = msg.Error()
-		body["data"] = removal.Change
-		c.JSON(http.StatusConflict, body)
+		common.ApiErrorStatus(c, http.StatusConflict, common.NewMessage("Review the affected Passkeys and confirm the domain removal. If the settings or impact have changed, confirmation is required again."), gin.H{
+			"code": "PASSKEY_RP_ID_REMOVAL_CONFIRMATION_REQUIRED",
+			"data": removal.Change,
+		})
 		return
 	}
 	if errors.Is(err, system_setting.ErrPasskeyRPIDInvalid) {
@@ -186,11 +183,7 @@ func UpdateOption(c *gin.Context) {
 	var option OptionUpdateRequest
 	err := common.DecodeJson(c.Request.Body, &option)
 	if err != nil {
-		msg := common.NewMessage("Invalid parameters")
-		body := msg.Fields()
-		body["success"] = false
-		body["message"] = msg.Error()
-		c.JSON(http.StatusBadRequest, body)
+		common.ApiErrorStatus(c, http.StatusBadRequest, common.NewMessage("Invalid parameters"))
 		return
 	}
 	switch option.Value.(type) {

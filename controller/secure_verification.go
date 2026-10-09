@@ -132,21 +132,13 @@ func writeSecurityOperationError(c *gin.Context, err error) {
 	}
 	// Every message above is fixed English text, so it is also the key the web
 	// console translates.
-	body := common.NewMessage(message).Fields()
-	body["success"] = false
-	body["code"] = code
-	body["message"] = message
-	c.JSON(status, body)
+	common.ApiErrorStatus(c, status, common.NewMessage(message), gin.H{"code": code})
 }
 
 // writeAccountStatusError responds with a web console message under a non-200
 // status.
 func writeAccountStatusError(c *gin.Context, status int, key string) {
-	msg := common.NewMessage(key)
-	body := msg.Fields()
-	body["success"] = false
-	body["message"] = msg.Error()
-	c.JSON(status, body)
+	common.ApiErrorStatus(c, status, common.NewMessage(key))
 }
 
 // requireAdminUserProof consumes the step-up proof for an administrative user

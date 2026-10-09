@@ -212,11 +212,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 	var req dto.UpstreamRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.SysError(common.LogText("failed to bind upstream request: %s", err.Error()))
-		msg := common.NewMessage("Invalid request parameter format")
-		body := msg.Fields()
-		body["success"] = false
-		body["message"] = msg.Error()
-		c.JSON(http.StatusBadRequest, body)
+		common.ApiErrorStatus(c, http.StatusBadRequest, common.NewMessage("Invalid request parameter format"))
 		return
 	}
 
@@ -244,11 +240,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 		dbChannels, err := model.GetChannelsByIds(intIds)
 		if err != nil {
 			logger.LogError(c.Request.Context(), common.LogText("failed to query channels: %s", err.Error()))
-			msg := common.NewMessage("Failed to query channels")
-			body := msg.Fields()
-			body["success"] = false
-			body["message"] = msg.Error()
-			c.JSON(http.StatusInternalServerError, body)
+			common.ApiErrorStatus(c, http.StatusInternalServerError, common.NewMessage("Failed to query channels"))
 			return
 		}
 		for _, ch := range dbChannels {

@@ -853,22 +853,21 @@ scanLoop:
 			))
 			return summary
 		}
-		lang := service.RootUserLanguage()
-		service.NotifyUpstreamModelUpdateWatchers(
-			i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateNotifySubject),
-			buildUpstreamModelUpdateTaskNotificationContent(
-				lang,
-				checkedChannels,
-				changedChannels,
-				detectedAddModels,
-				detectedRemoveModels,
-				autoAddedModels,
-				failedChannelIDs,
-				channelSummaries,
-				addModelSamples,
-				removeModelSamples,
-			),
-		)
+		service.NotifyUpstreamModelUpdateWatchers(func(lang string) (string, string) {
+			return i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateNotifySubject),
+				buildUpstreamModelUpdateTaskNotificationContent(
+					lang,
+					checkedChannels,
+					changedChannels,
+					detectedAddModels,
+					detectedRemoveModels,
+					autoAddedModels,
+					failedChannelIDs,
+					channelSummaries,
+					addModelSamples,
+					removeModelSamples,
+				)
+		})
 	}
 	return summary
 }
@@ -1138,15 +1137,11 @@ func DetectAllChannelUpstreamModelUpdates(c *gin.Context) {
 	}
 	if !created {
 		msg := common.NewMessage("A model update task is already running or queued. Cannot start this manual task")
-		body := msg.Fields()
-		body["success"] = false
-		body["message"] = msg.Error()
-		body["data"] = gin.H{
+		common.ApiErrorStatus(c, http.StatusConflict, msg, gin.H{"data": gin.H{
 			"task_id": task.TaskID,
 			"status":  task.Status,
 			"type":    task.Type,
-		}
-		c.JSON(http.StatusConflict, body)
+		}})
 		return
 	}
 

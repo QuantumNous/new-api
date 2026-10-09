@@ -32,7 +32,7 @@ func RootUserLanguage() string {
 	if root == nil {
 		return ""
 	}
-	return model.GetUserLanguage(root.Id)
+	return root.GetSetting().Language
 }
 
 // disable & notify
