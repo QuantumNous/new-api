@@ -8,11 +8,17 @@ import (
 )
 
 type FlowQuotaData struct {
-	UserID      int    `json:"user_id,omitempty" gorm:"column:user_id"`
-	Username    string `json:"username,omitempty" gorm:"column:username"`
-	NodeName    string `json:"node_name,omitempty" gorm:"column:node_name"`
-	TokenID     int    `json:"token_id,omitempty" gorm:"column:token_id"`
-	TokenName   string `json:"token_name,omitempty" gorm:"-"`
+	UserID   int    `json:"user_id,omitempty" gorm:"column:user_id"`
+	Username string `json:"username,omitempty" gorm:"column:username"`
+	NodeName string `json:"node_name,omitempty" gorm:"column:node_name"`
+	TokenID  int    `json:"token_id,omitempty" gorm:"column:token_id"`
+	// TokenName 对 token_id > 0 的行由 fillFlowTokenNames 用 tokens 表实时解析，
+	// 不落库（改名后立即生效，不固化历史名）。
+	TokenName string `json:"token_name,omitempty" gorm:"-"`
+	// TokenSource 是 quota_data 落库的"没有经过 API 令牌"来源枚举
+	// （QuotaTokenSourceChannelTest / QuotaTokenSourcePlayground），仅对
+	// token_id = 0 的行有值，前端据此把渠道测试和 Playground 拆成不同节点。
+	TokenSource string `json:"token_source,omitempty" gorm:"column:token_source"`
 	UseGroup    string `json:"use_group" gorm:"column:use_group"`
 	ChannelID   int    `json:"channel_id,omitempty" gorm:"column:channel_id"`
 	ChannelName string `json:"channel_name,omitempty" gorm:"-"`
@@ -43,9 +49,9 @@ func flowQuotaBaseQuery(startTime int64, endTime int64) *gorm.DB {
 func getSelfFlowQuotaData(startTime int64, endTime int64, userID int) ([]*FlowQuotaData, error) {
 	rows := make([]*FlowQuotaData, 0)
 	err := flowQuotaBaseQuery(startTime, endTime).
-		Select("token_id, use_group, model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
+		Select("token_id, token_source, use_group, model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
 		Where("user_id = ?", userID).
-		Group("token_id, use_group, model_name").
+		Group("token_id, token_source, use_group, model_name").
 		Order("quota DESC").
 		Find(&rows).Error
 	if err != nil {
@@ -74,12 +80,12 @@ func getAdminFlowQuotaData(startTime int64, endTime int64, username string) ([]*
 func getRootFlowQuotaData(startTime int64, endTime int64, username string) ([]*FlowQuotaData, error) {
 	rows := make([]*FlowQuotaData, 0)
 	query := flowQuotaBaseQuery(startTime, endTime).
-		Select("user_id, username, node_name, token_id, use_group, model_name, channel_id, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used")
+		Select("user_id, username, node_name, token_id, token_source, use_group, model_name, channel_id, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used")
 	if username != "" {
 		query = query.Where("username = ?", username)
 	}
 	err := query.
-		Group("user_id, username, node_name, token_id, use_group, model_name, channel_id").
+		Group("user_id, username, node_name, token_id, token_source, use_group, model_name, channel_id").
 		Order("quota DESC").
 		Find(&rows).Error
 	if err != nil {
@@ -121,6 +127,8 @@ func fillFlowTokenNames(rows []*FlowQuotaData) error {
 	}
 	// Deleted tokens are intentionally not resolved here: leave TokenName empty
 	// so the frontend can render a localized "deleted (id)" label instead.
+	// Rows with TokenID == 0 carry their origin in TokenSource instead; the
+	// frontend translates that enum, so nothing is resolved for them here.
 	for _, row := range rows {
 		if name := tokenNameByID[row.TokenID]; name != "" {
 			row.TokenName = name

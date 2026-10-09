@@ -40,6 +40,9 @@ export interface FlowQuotaDataItem {
   use_group?: string
   token_id?: number
   token_name?: string
+  // Stable origin enum for rows without an API token (token_id = 0), e.g.
+  // "channel_test" or "playground". Only set on those rows.
+  token_source?: string
   channel_id?: number
   channel_name?: string
   model_name?: string
@@ -89,6 +92,12 @@ export interface FlowBuildOptions {
   // Resolves the label for a token whose record no longer exists (deleted).
   // Lets the caller inject a localized string such as "Deleted (123)".
   deletedTokenLabel?: (tokenId: number) => string
+  // Resolves the label for rows that did not go through an API token
+  // (token_id = 0), such as channel tests or the dashboard playground.
+  noTokenLabel?: string
+  // Resolves the localized label for a tokenless row's stable origin enum
+  // (token_source). Lets the caller translate "channel_test" / "playground".
+  tokenSourceLabel?: (source: string) => string
   otherNodeLabel?: (kind: FlowNodeKind) => string
 }
 

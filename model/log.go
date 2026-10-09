@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 
@@ -384,17 +385,20 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 		logger.LogError(c, "failed to record log: "+err.Error())
 	}
 	if common.DataExportEnabled {
+		// 展示文案进 logs.token_name；quota_data 只落稳定来源枚举，
+		// 由各 tokenless 入口（渠道测试 / Playground）通过 context 标记。
 		LogQuotaData(QuotaDataLogParams{
-			UserID:    userId,
-			Username:  username,
-			ModelName: params.ModelName,
-			Quota:     params.Quota,
-			CreatedAt: createdAt,
-			TokenUsed: params.PromptTokens + params.CompletionTokens,
-			UseGroup:  params.Group,
-			TokenID:   params.TokenId,
-			ChannelID: params.ChannelId,
-			NodeName:  common.NodeName,
+			UserID:      userId,
+			Username:    username,
+			ModelName:   params.ModelName,
+			Quota:       params.Quota,
+			CreatedAt:   createdAt,
+			TokenUsed:   params.PromptTokens + params.CompletionTokens,
+			UseGroup:    params.Group,
+			TokenID:     params.TokenId,
+			TokenSource: common.GetContextKeyString(c, constant.ContextKeyTokenSource),
+			ChannelID:   params.ChannelId,
+			NodeName:    common.NodeName,
 		})
 	}
 }

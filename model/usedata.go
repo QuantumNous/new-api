@@ -10,6 +10,15 @@ import (
 )
 
 // QuotaData 柱状图数据
+//
+// quota_data 聚合表的"没有经过 API 令牌"（token_id = 0）来源枚举。
+// 通过 constant.ContextKeyTokenSource 传递，由各 tokenless 入口自行标记：
+// 前端按枚举键翻译展示文案，避免把 UI 文案固化进聚合数据。
+const (
+	QuotaTokenSourceChannelTest = "channel_test" // 渠道测试 / 模型测试
+	QuotaTokenSourcePlayground  = "playground"   // 控制台 Playground
+)
+
 type QuotaData struct {
 	Id        int    `json:"id"`
 	UserID    int    `json:"user_id" gorm:"index"`
@@ -18,24 +27,30 @@ type QuotaData struct {
 	CreatedAt int64  `json:"created_at" gorm:"bigint;index:idx_qdt_created_at,priority:2"`
 	UseGroup  string `json:"use_group" gorm:"index;size:64;default:''"`
 	TokenID   int    `json:"token_id" gorm:"index;default:0"`
-	ChannelID int    `json:"channel_id" gorm:"index;default:0"`
-	NodeName  string `json:"node_name" gorm:"index;size:64;default:''"`
-	TokenUsed int    `json:"token_used" gorm:"default:0"`
-	Count     int    `json:"count" gorm:"default:0"`
-	Quota     int    `json:"quota" gorm:"default:0"`
+	// TokenSource 是"没有经过 API 令牌"（token_id = 0）时这条用量的稳定来源标记，
+	// 取 constant.QuotaTokenSource* 枚举（如 "channel_test" / "playground"）。
+	// 按来源拆分聚合键靠它完成；展示文案由前端按枚举键翻译，避免把 UI 文案固化进聚合数据。
+	// token_id > 0 时恒为空串，与升级前的旧行保持一致，不改变既有聚合语义。
+	TokenSource string `json:"token_source" gorm:"size:32;default:''"`
+	ChannelID   int    `json:"channel_id" gorm:"index;default:0"`
+	NodeName    string `json:"node_name" gorm:"index;size:64;default:''"`
+	TokenUsed   int    `json:"token_used" gorm:"default:0"`
+	Count       int    `json:"count" gorm:"default:0"`
+	Quota       int    `json:"quota" gorm:"default:0"`
 }
 
 type QuotaDataLogParams struct {
-	UserID    int
-	Username  string
-	ModelName string
-	Quota     int
-	CreatedAt int64
-	TokenUsed int
-	UseGroup  string
-	TokenID   int
-	ChannelID int
-	NodeName  string
+	UserID      int
+	Username    string
+	ModelName   string
+	Quota       int
+	CreatedAt   int64
+	TokenUsed   int
+	UseGroup    string
+	TokenID     int
+	TokenSource string
+	ChannelID   int
+	NodeName    string
 }
 
 func UpdateQuotaData() {
@@ -52,13 +67,14 @@ var CacheQuotaData = make(map[string]*QuotaData)
 var CacheQuotaDataLock = sync.Mutex{}
 
 func logQuotaDataCache(quotaData *QuotaData) {
-	key := fmt.Sprintf("%d\x00%s\x00%s\x00%d\x00%s\x00%d\x00%d\x00%s",
+	key := fmt.Sprintf("%d\x00%s\x00%s\x00%d\x00%s\x00%d\x00%s\x00%d\x00%s",
 		quotaData.UserID,
 		quotaData.Username,
 		quotaData.ModelName,
 		quotaData.CreatedAt,
 		quotaData.UseGroup,
 		quotaData.TokenID,
+		quotaData.TokenSource,
 		quotaData.ChannelID,
 		quotaData.NodeName,
 	)
@@ -78,18 +94,26 @@ func logQuotaDataCache(quotaData *QuotaData) {
 func LogQuotaData(params QuotaDataLogParams) {
 	// 只精确到小时
 	createdAt := params.CreatedAt - (params.CreatedAt % 3600)
+	// token_source 只对"没有经过 API 令牌"的调用有意义（token_id = 0）。
+	// token_id > 0 时令牌名由 tokens 表实时解析，这里固定为空：
+	// 与升级前的旧行保持一致，不改变既有聚合键语义。
+	tokenSource := ""
+	if params.TokenID == 0 {
+		tokenSource = params.TokenSource
+	}
 	quotaData := &QuotaData{
-		UserID:    params.UserID,
-		Username:  params.Username,
-		ModelName: params.ModelName,
-		CreatedAt: createdAt,
-		UseGroup:  params.UseGroup,
-		TokenID:   params.TokenID,
-		ChannelID: params.ChannelID,
-		NodeName:  params.NodeName,
-		Count:     1,
-		Quota:     params.Quota,
-		TokenUsed: params.TokenUsed,
+		UserID:      params.UserID,
+		Username:    params.Username,
+		ModelName:   params.ModelName,
+		CreatedAt:   createdAt,
+		UseGroup:    params.UseGroup,
+		TokenID:     params.TokenID,
+		TokenSource: tokenSource,
+		ChannelID:   params.ChannelID,
+		NodeName:    params.NodeName,
+		Count:       1,
+		Quota:       params.Quota,
+		TokenUsed:   params.TokenUsed,
 	}
 
 	CacheQuotaDataLock.Lock()
@@ -108,8 +132,8 @@ func SaveQuotaDataCache() {
 	for _, quotaData := range CacheQuotaData {
 		quotaDataDB := &QuotaData{}
 		DB.Table("quota_data").
-			Where("user_id = ? and username = ? and model_name = ? and created_at = ? and use_group = ? and token_id = ? and channel_id = ? and node_name = ?",
-				quotaData.UserID, quotaData.Username, quotaData.ModelName, quotaData.CreatedAt, quotaData.UseGroup, quotaData.TokenID, quotaData.ChannelID, quotaData.NodeName).
+			Where("user_id = ? and username = ? and model_name = ? and created_at = ? and use_group = ? and token_id = ? and token_source = ? and channel_id = ? and node_name = ?",
+				quotaData.UserID, quotaData.Username, quotaData.ModelName, quotaData.CreatedAt, quotaData.UseGroup, quotaData.TokenID, quotaData.TokenSource, quotaData.ChannelID, quotaData.NodeName).
 			First(quotaDataDB)
 		if quotaDataDB.Id > 0 {
 			//quotaDataDB.Count += quotaData.Count
@@ -117,7 +141,9 @@ func SaveQuotaDataCache() {
 			//DB.Table("quota_data").Save(quotaDataDB)
 			increaseQuotaData(quotaData)
 		} else {
-			DB.Table("quota_data").Create(quotaData)
+			if err := DB.Table("quota_data").Create(quotaData).Error; err != nil {
+				common.SysLog(fmt.Sprintf("create quota_data error: %s", err))
+			}
 		}
 	}
 	CacheQuotaData = make(map[string]*QuotaData)
@@ -126,8 +152,8 @@ func SaveQuotaDataCache() {
 
 func increaseQuotaData(quotaData *QuotaData) {
 	err := DB.Table("quota_data").
-		Where("user_id = ? and username = ? and model_name = ? and created_at = ? and use_group = ? and token_id = ? and channel_id = ? and node_name = ?",
-			quotaData.UserID, quotaData.Username, quotaData.ModelName, quotaData.CreatedAt, quotaData.UseGroup, quotaData.TokenID, quotaData.ChannelID, quotaData.NodeName).
+		Where("user_id = ? and username = ? and model_name = ? and created_at = ? and use_group = ? and token_id = ? and token_source = ? and channel_id = ? and node_name = ?",
+			quotaData.UserID, quotaData.Username, quotaData.ModelName, quotaData.CreatedAt, quotaData.UseGroup, quotaData.TokenID, quotaData.TokenSource, quotaData.ChannelID, quotaData.NodeName).
 		Updates(map[string]any{
 			"count":      gorm.Expr("count + ?", quotaData.Count),
 			"quota":      gorm.Expr("quota + ?", quotaData.Quota),
