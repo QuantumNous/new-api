@@ -1,0 +1,92 @@
+name: Branch CI
+
+# 推送到分支时自动做编译与类型检查。
+# 与 ci.yml（仅 pull_request）互补，二者互不影响。
+#
+# 设计取舍：
+#  1. 只做校验，不构建/不推送 Docker 镜像 —— 镜像发布仍由 tag 触发的
+#     docker-build.yml / release.yml 负责，避免每次推分支都往 registry 推镜像。
+#  2. 阻塞项只用 `go build` / `bun run build`。该 fork 存在既有基线损坏：
+#     后端多个包的 _test.go 引用了已删除/已迁移的符号（oauth/oidc_test.go 的
+#     settings.DisplayName、relay/channel/task/ali 的 TaskAdaptor、
+#     operation_setting.SetToolPriceForTest），前端 access-token-card.test.tsx 等
+#     测试文件也报 TS2339。`go vet` 与 `bun run typecheck` 都编译测试文件，
+#     因此必然失败，用 continue-on-error 标记为非阻塞。
+#     build 不编译测试文件，能真实反映业务代码与产物是否可生成。
+#     待基线修复后，可把 vet / typecheck 去掉 continue-on-error 恢复为强校验。
+on:
+  push:
+    branches:
+      - 'deploy/**'
+      - 'main'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: branch-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GOWORK: 'off'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            relaykit/go.sum
+
+      - name: Create frontend embed placeholder
+        run: |
+          mkdir -p web/dist
+          touch web/dist/index.html
+
+      - name: Build root module
+        run: go build ./...
+
+      - name: Build relaykit independently
+        working-directory: relaykit
+        run: go build ./...
+
+      - name: Vet root module (non-fatal, see workflow comment)
+        continue-on-error: true
+        run: go vet ./...
+
+  frontend:
+    name: Frontend typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: web
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.0'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck (non-fatal, see workflow comment)
+        continue-on-error: true
+        run: bun run typecheck
+
+      - name: Build frontend bundle
+        run: bun run build
