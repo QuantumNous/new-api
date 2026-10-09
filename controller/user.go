@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -696,17 +697,34 @@ func UpdateUser(c *gin.Context) {
 	}
 	if updatedUser.AllowedModelGroups != nil {
 		updatedUser.AllowedModelGroups = service.NormalizeAllowedModelGroups(updatedUser.AllowedModelGroups)
+		// 一次性收集全部未配置的分组再报错，避免用户逐个试错。
+		// 注意：这里校验的是「分组倍率」配置（GroupRatio），而非渠道标签。
+		var unconfigured []string
 		for _, group := range updatedUser.AllowedModelGroups {
 			if !ratio_setting.ContainsGroupRatio(group) {
-				common.ApiErrorI18n(c, i18n.MsgInvalidParams)
-				return
+				unconfigured = append(unconfigured, group)
 			}
+		}
+		if len(unconfigured) > 0 {
+			common.ApiErrorI18n(c, i18n.MsgUserAllowedGroupsNotConfigured,
+				map[string]any{"Groups": strings.Join(unconfigured, ", ")})
+			return
 		}
 	}
 	updatedSetting := updatedUser.GetSetting()
-	if updatedSetting.GroupRatioOverrides != nil && !service.ValidateGroupRatioOverrides(updatedSetting.GroupRatioOverrides) {
-		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
-		return
+	if updatedSetting.GroupRatioOverrides != nil {
+		var invalid []string
+		for group := range updatedSetting.GroupRatioOverrides {
+			if !ratio_setting.ContainsGroupRatio(strings.TrimSpace(group)) {
+				invalid = append(invalid, group)
+			}
+		}
+		if len(invalid) > 0 || !service.ValidateGroupRatioOverrides(updatedSetting.GroupRatioOverrides) {
+			sort.Strings(invalid)
+			common.ApiErrorI18n(c, i18n.MsgUserGroupRatioInvalid,
+				map[string]any{"Groups": strings.Join(invalid, ", ")})
+			return
+		}
 	}
 	if updatedUser.Role != common.RoleGuestUser && updatedUser.Role != originUser.Role {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)

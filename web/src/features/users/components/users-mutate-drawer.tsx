@@ -181,6 +181,27 @@ export function UsersMutateDrawer({
       }
     }
 
+    // 提交前拦截：勾选的分组若不在 Group Ratio 配置中，后端会拒绝保存
+    // （ContainsGroupRatio 只查分组倍率）。在这里给出即时提示，避免用户
+    // 提交后才看到笼统的「无效的参数」。
+    // groups 来自 /api/group/（即 GroupRatio），正常情况下二者一致；
+    // 出现差异说明配置在服务重启或并发修改后已变化，仍以本地列表为准拦截。
+    if (isUpdate && groups.length > 0 && data.allowed_model_groups.length > 0) {
+      const missing = data.allowed_model_groups.filter(
+        (group) => !groups.includes(group)
+      )
+      if (missing.length > 0) {
+        form.setError('allowed_model_groups', {
+          type: 'manual',
+          message: t(
+            'These groups are not configured in Group Ratio settings, so they cannot be saved: {{groups}}. Please configure them in System Settings first.',
+            { groups: missing.join(', ') }
+          ),
+        })
+        return
+      }
+    }
+
     setIsSubmitting(true)
     try {
       const payload = transformFormDataToPayload(

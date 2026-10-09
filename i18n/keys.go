@@ -95,6 +95,8 @@ const (
 	MsgUserPasswordUnset             = "user.password_unset"
 	MsgUserPasswordResetLinkInvalid  = "user.password_reset_link_invalid"
 	MsgUserInputInvalid              = "user.input_invalid"
+	MsgUserAllowedGroupsNotConfigured = "user.allowed_groups_not_configured"
+	MsgUserGroupRatioInvalid          = "user.group_ratio_invalid"
 	MsgUserNoPermissionSameLevel     = "user.no_permission_same_level"
 	MsgUserNoPermissionHigherLevel   = "user.no_permission_higher_level"
 	MsgUserCannotCreateHigherLevel   = "user.cannot_create_higher_level"
