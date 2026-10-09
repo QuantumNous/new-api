@@ -6865,6 +6865,24 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Usage Stats": "Usage Stats",
+    "Cache Hit Rate": "Cache Hit Rate",
+    "Cache Hit Rate (%)": "Cache Hit Rate (%)",
+    "By Model": "By Model",
+    "By Channel": "By Channel",
+    "Uncached Input": "Uncached Input",
+    "Cache Hit": "Cache Hit",
+    "Billed at full input price": "Billed at full input price",
+    "Billed at the cache ratio": "Billed at the cache ratio",
+    "Cache Hit ÷ (Uncached Input + Cache Hit)": "Cache Hit ÷ (Uncached Input + Cache Hit)",
+    "No usage in this time range": "No usage in this time range",
+    "Try widening the time range.": "Try widening the time range.",
+    "Per-model and per-channel consumption, cache hit rate and cost.": "Per-model and per-channel consumption, cache hit rate and cost.",
+    "All input + output": "All input + output",
+    "Billed as cache creation": "Billed as cache creation",
+    "Relies on configured model prices": "Relies on configured model prices",
+    "Cache Hit ÷ Total Input": "Cache Hit ÷ Total Input",
+    "Reset to the last 24 hours": "Reset to the last 24 hours"
   }
 }

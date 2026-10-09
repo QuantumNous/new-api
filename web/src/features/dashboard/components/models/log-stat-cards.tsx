@@ -32,6 +32,7 @@ import type {
   QuotaDataItem,
   DashboardFilters,
 } from '@/features/dashboard/types'
+import { getUsageStat } from '@/features/usage-stats/api'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatCompactNumber, formatNumber, formatQuota } from '@/lib/format'
 import { computeTimeRange } from '@/lib/time'
@@ -70,6 +71,12 @@ export function LogStatCards(props: LogStatCardsProps) {
   } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(false)
+  // Cache-aware token totals. The quota_data based figure above counts prompt +
+  // completion only, so cached traffic is invisible without this.
+  const [tokenStats, setTokenStats] = useState<{
+    totalTokensWithCache: number
+    cacheTokens: number
+  } | null>(null)
 
   const [timeRangeMinutes, setTimeRangeMinutes] = useState(0)
 
@@ -110,15 +117,50 @@ export function LogStatCards(props: LogStatCardsProps) {
         }
       })
 
+    // Same aggregate the Usage Stats page uses, over the same range.
+    if (isAdmin) {
+      void getUsageStat({
+        start_timestamp: timeRange.start_timestamp,
+        end_timestamp: timeRange.end_timestamp,
+      })
+        .then((res) => {
+          if (abortController.signal.aborted) return
+          const totals = res?.data?.totals
+          if (!totals) {
+            setTokenStats(null)
+            return
+          }
+          setTokenStats({
+            // input_tokens is server-normalized and already includes cache hits.
+            totalTokensWithCache:
+              (totals.input_tokens ?? 0) + (totals.completion_tokens ?? 0),
+            cacheTokens: totals.cache_tokens ?? 0,
+          })
+        })
+        .catch(() => {
+          if (!abortController.signal.aborted) setTokenStats(null)
+        })
+    } else {
+      setTokenStats(null)
+    }
+
     return () => {
       abortController.abort()
     }
   }, [filters, isAdmin, onDataUpdate])
 
-  const adaptedStats = {
+  // A missing cache-aware total must stay absent (not 0) so getValue can fall
+  // back to the quota_data figure for non-admins or on error.
+  const adaptedStats: Record<string, number> = {
     rpm: stats?.totalCount ?? 0,
     quota: stats?.totalQuota ?? 0,
     tpm: stats?.totalTokens ?? 0,
+    ...(tokenStats
+      ? {
+          totalTokensWithCache: tokenStats.totalTokensWithCache,
+          cacheTokens: tokenStats.cacheTokens,
+        }
+      : {}),
   }
 
   const items = statCardsConfig.map((config) => {
@@ -144,7 +186,7 @@ export function LogStatCards(props: LogStatCardsProps) {
 
   return (
     <div className='overflow-hidden rounded-lg border'>
-      <div className='divide-border/60 grid min-w-0 grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-5'>
+      <div className='divide-border/60 grid min-w-0 grid-cols-2 divide-x sm:grid-cols-3 lg:grid-cols-3'>
         {items.map((it, idx) => {
           const Icon = it.icon
           let valueContent

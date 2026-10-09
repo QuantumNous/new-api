@@ -27,9 +27,11 @@ import { Button } from '@/components/ui/button'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import type { QuotaDataItem } from '@/features/dashboard/types'
+import { getUsageStat } from '@/features/usage-stats/api'
 import { useStatus } from '@/hooks/use-status'
 import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
-import { formatNumber, formatQuota } from '@/lib/format'
+import { formatNumber, formatQuota, formatTokens } from '@/lib/format'
+import { ROLE } from '@/lib/roles'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { computeTimeRange } from '@/lib/time'
 import { cn } from '@/lib/utils'
@@ -173,6 +175,31 @@ export function SummaryCards() {
     }
   }, [requestCount, usedQuota])
 
+  // Token totals live outside the user record, so they come from the same
+  // aggregate the Usage Stats page uses. That endpoint is admin-only, hence the
+  // gate (and the matching filter on the card list below).
+  const isAdmin = (user?.role ?? 0) >= ROLE.ADMIN
+  const totalTokensQuery = useQuery({
+    queryKey: ['dashboard', 'overview', 'total-tokens'],
+    queryFn: () => getUsageStat({ start_timestamp: 0, end_timestamp: 0 }),
+    enabled: isAdmin,
+    staleTime: 5 * 60 * 1000,
+  })
+  // Same definition as the Usage Stats page: input_tokens already includes
+  // cache hits, so the total is input + output (adding cache again double counts).
+  const totalTokensDisplay = useMemo(() => {
+    const tokenTotals = totalTokensQuery.data?.data?.totals
+    if (!tokenTotals) return '-'
+    return formatTokens(
+      (tokenTotals.input_tokens ?? 0) + (tokenTotals.completion_tokens ?? 0)
+    )
+  }, [totalTokensQuery.data])
+  const cacheTokensDisplay = useMemo(() => {
+    const tokenTotals = totalTokensQuery.data?.data?.totals
+    if (!tokenTotals) return '-'
+    return formatTokens(tokenTotals.cache_tokens ?? 0)
+  }, [totalTokensQuery.data])
+
   const currencyEnabledFromStore = isCurrencyDisplayEnabled()
   const statusCurrencyFlag =
     typeof status?.display_in_currency === 'boolean'
@@ -232,25 +259,29 @@ export function SummaryCards() {
   const items = useSummaryCardsConfig({
     ...summaryValues,
     todayUsageDisplay,
+    totalTokensDisplay,
+    cacheTokensDisplay,
     currencyEnabled,
     currencyLabel,
-  }).map((config, index) => {
-    const tones = ['accent-1', 'accent-2', 'accent-3'] as const
-
-    return {
-      key: config.key,
-      title: config.title,
-      value: config.value,
-      desc: config.description,
-      icon: config.icon,
-      tone: tones[index] ?? 'accent-3',
-      sparkline:
-        config.key === 'todayUsage'
-          ? sparklineData.usage
-          : getSummarySparkline(config.key, sparklineData),
-      sparklineVariant: 'line' as const,
-    }
   })
+    .filter((config) => isAdmin || config.key !== 'tokens')
+    .map((config, index) => {
+      const tones = ['accent-1', 'accent-2', 'accent-3'] as const
+
+      return {
+        key: config.key,
+        title: config.title,
+        value: config.value,
+        desc: config.description,
+        icon: config.icon,
+        tone: tones[index] ?? 'accent-3',
+        sparkline:
+          config.key === 'todayUsage'
+            ? sparklineData.usage
+            : getSummarySparkline(config.key, sparklineData),
+        sparklineVariant: 'line' as const,
+      }
+    })
 
   return (
     <div className='bg-card overflow-hidden rounded-2xl border shadow-xs'>
@@ -266,7 +297,14 @@ export function SummaryCards() {
               </p>
             </div>
           </div>
-          <StaggerContainer className='grid grid-cols-3 gap-1.5 sm:gap-3'>
+          <StaggerContainer
+            className={cn(
+              'grid gap-1.5 sm:gap-3',
+              isAdmin
+                ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'
+                : 'grid-cols-3'
+            )}
+          >
             {items.map((it) => (
               <StaggerItem
                 key={it.key}

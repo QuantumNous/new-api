@@ -146,6 +146,12 @@ export function SidebarModulesSection({
         title: t('Models'),
         description: t('Manage catalog visibility and pricing.'),
       },
+      usageStats: {
+        title: t('Usage Stats'),
+        description: t(
+          'Per-model and per-channel consumption, cache hit rate and cost.'
+        ),
+      },
       redemption: {
         title: t('Redeem codes'),
         description: t('Create and review invite or credit codes.'),
