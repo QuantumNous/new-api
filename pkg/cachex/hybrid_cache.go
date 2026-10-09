@@ -21,7 +21,7 @@ type HybridCacheConfig[V any] struct {
 	Namespace Namespace
 
 	// Redis is used when RedisEnabled returns true (or RedisEnabled is nil) and Redis is not nil.
-	Redis        *redis.Client
+	Redis        redis.UniversalClient
 	RedisCodec   ValueCodec[V]
 	RedisEnabled func() bool
 
@@ -33,7 +33,7 @@ type HybridCacheConfig[V any] struct {
 type HybridCache[V any] struct {
 	ns Namespace
 
-	redis        *redis.Client
+	redis        redis.UniversalClient
 	redisCodec   ValueCodec[V]
 	redisEnabled func() bool
 
