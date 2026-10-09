@@ -43,7 +43,7 @@ func runMidjourneyTaskUpdateOnce(ctx context.Context, report func(processed, tot
 	}
 	summary.UnfinishedTasks = len(tasks)
 
-	logger.LogInfo(ctx, fmt.Sprintf("unfinished tasks found: %v", len(tasks)))
+	logger.LogInfo(ctx, common.LogText("unfinished tasks found: %v", len(tasks)))
 	taskChannelM := make(map[int][]string)
 	taskM := make(map[string]*model.Midjourney)
 	nullTaskIds := make([]int, 0)
@@ -83,7 +83,7 @@ func runMidjourneyTaskUpdateOnce(ctx context.Context, report func(processed, tot
 		}
 		processedChannels++
 		summary.ChannelsScanned++
-		logger.LogInfo(ctx, fmt.Sprintf("channel #%d has %d unfinished tasks", channelId, len(taskIds)))
+		logger.LogInfo(ctx, common.LogText("channel #%d has %d unfinished tasks", channelId, len(taskIds)))
 		if len(taskIds) == 0 {
 			continue
 		}
@@ -192,7 +192,7 @@ func runMidjourneyTaskUpdateOnce(ctx context.Context, report func(processed, tot
 			if responseItem.VideoUrls != nil && len(responseItem.VideoUrls) > 0 {
 				videoUrlsStr, err := common.Marshal(responseItem.VideoUrls)
 				if err != nil {
-					logger.LogError(ctx, fmt.Sprintf("failed to serialize VideoUrls: %v", err))
+					logger.LogError(ctx, common.LogText("failed to serialize VideoUrls: %v", err))
 					task.VideoUrls = "[]" // 失败时设置为空数组
 				} else {
 					task.VideoUrls = string(videoUrlsStr)
@@ -203,7 +203,7 @@ func runMidjourneyTaskUpdateOnce(ctx context.Context, report func(processed, tot
 
 			shouldReturnQuota := false
 			if (task.Progress != "100%" && responseItem.FailReason != "") || (task.Progress == "100%" && task.Status == "FAILURE") {
-				logger.LogInfo(ctx, task.MjId+" failed: "+task.FailReason)
+				logger.LogInfo(ctx, common.LogText("%s failed: %s", task.MjId, task.FailReason))
 				task.Progress = "100%"
 				if task.Quota != 0 {
 					shouldReturnQuota = true

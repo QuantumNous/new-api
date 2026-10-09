@@ -191,7 +191,7 @@ func ValidateToolPricesJSON(value string) error {
 func LoadToolPricesFromJSONString(value string) {
 	prices, err := decodeToolPricesJSON(value, true)
 	if err != nil {
-		common.SysError("failed to load tool prices, using hardcoded fallbacks: " + err.Error())
+		common.SysError(common.LogText("failed to load tool prices, using hardcoded fallbacks: %s", err.Error()))
 		prices = make(map[string]float64)
 	}
 	toolPriceSetting.Prices = prices

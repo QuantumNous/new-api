@@ -100,7 +100,7 @@ func RefundMidjourneyQuota(ctx context.Context, task *model.Midjourney, reason s
 	}
 
 	if err := model.IncreaseUserQuota(task.UserId, quota, false); err != nil {
-		logger.LogWarn(ctx, fmt.Sprintf("failed to refund Midjourney user quota, task %s: %s", task.MjId, err.Error()))
+		logger.LogWarn(ctx, common.LogText("failed to refund Midjourney user quota, task %s: %s", task.MjId, err.Error()))
 		return false
 	}
 
@@ -108,7 +108,7 @@ func RefundMidjourneyQuota(ctx context.Context, task *model.Midjourney, reason s
 		tokenKey := resolveTokenKey(ctx, task.TokenId, task.MjId)
 		if tokenKey != "" {
 			if err := model.IncreaseTokenQuota(task.TokenId, tokenKey, quota); err != nil {
-				logger.LogWarn(ctx, fmt.Sprintf("failed to refund Midjourney token quota, task %s: %s", task.MjId, err.Error()))
+				logger.LogWarn(ctx, common.LogText("failed to refund Midjourney token quota, task %s: %s", task.MjId, err.Error()))
 			}
 		}
 	}
@@ -131,7 +131,7 @@ func RefundMidjourneyQuota(ctx context.Context, task *model.Midjourney, reason s
 
 	task.Quota = 0
 	if err := task.UpdateBillingState(); err != nil {
-		logger.LogError(ctx, fmt.Sprintf("Midjourney refund succeeded but clearing the quota failed, task %s: %s", task.MjId, err.Error()))
+		logger.LogError(ctx, common.LogText("Midjourney refund succeeded but clearing the quota failed, task %s: %s", task.MjId, err.Error()))
 	}
 	return true
 }

@@ -207,7 +207,6 @@ func repoGoFiles(t *testing.T) (*token.FileSet, map[string]*ast.File) {
 // files listed here hold data that must stay as written.
 func TestGoStringLiteralsAreEnglish(t *testing.T) {
 	dataFiles := []string{
-		"common/init.go",                                   // SESSION_SECRET startup warning, printed in English and Chinese
 		"controller/channel-test.go",                       // token name stored with channel test logs
 		"controller/ratio_sync.go",                         // preset names matched by the web console
 		"dto/video.go",                                     // API example
@@ -376,4 +375,79 @@ func TestWebConsoleMessageKeysAreTranslated(t *testing.T) {
 		})
 	}
 	assert.NotZero(t, checked)
+}
+
+// Server log lines are English, and LOG_LANGUAGE=zh-CN prints the Chinese text
+// of the lines listed in common/log_text.zh-CN.json. An entry whose key is no
+// longer the format of a common.LogText call, or whose verbs differ from its
+// key, would print the wrong text or "%!" noise.
+func TestServerLogTexts(t *testing.T) {
+	data, err := os.ReadFile("../common/log_text.zh-CN.json")
+	require.NoError(t, err)
+	var chinese map[string]string
+	require.NoError(t, common.Unmarshal(data, &chinese))
+
+	// verbs lists the verbs of a format by argument, so a translation may
+	// reorder them with explicit indexes such as %[2]s. %s, %q and %v take the
+	// same argument and count as one verb.
+	verb := regexp.MustCompile(`%([-+# 0]*\d*(?:\.\d+)?)(?:\[(\d+)\])?([a-zA-Z])`)
+	verbs := func(format string) []string {
+		var found []string
+		next := 1
+		for _, match := range verb.FindAllStringSubmatch(strings.ReplaceAll(format, "%%", ""), -1) {
+			if match[2] != "" {
+				next, _ = strconv.Atoi(match[2])
+			}
+			letter := strings.NewReplacer("q", "s", "v", "s").Replace(match[3])
+			found = append(found, fmt.Sprintf("%d:%%%s%s", next, match[1], letter))
+			next++
+		}
+		slices.Sort(found)
+		return found
+	}
+
+	var formats []string
+	_, files := repoGoFiles(t)
+	for path, file := range files {
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok || len(call.Args) == 0 {
+				return true
+			}
+			name := ""
+			switch fun := call.Fun.(type) {
+			case *ast.Ident:
+				if filepath.Dir(path) == "common" {
+					name = fun.Name
+				}
+			case *ast.SelectorExpr:
+				if pkg, ok := fun.X.(*ast.Ident); ok && pkg.Name == "common" {
+					name = fun.Sel.Name
+				}
+			}
+			if literal, ok := call.Args[0].(*ast.BasicLit); ok && name == "LogText" {
+				format, err := strconv.Unquote(literal.Value)
+				require.NoError(t, err)
+				formats = append(formats, format)
+			}
+			return true
+		})
+	}
+	require.NotEmpty(t, chinese)
+	for english, text := range chinese {
+		assert.Contains(t, formats, english, "no common.LogText call uses this format")
+		assert.Equal(t, verbs(english), verbs(text), "verbs of the Chinese text of %q", english)
+	}
+
+	t.Cleanup(func() { common.SetLogLanguage("") })
+	assert.Equal(t, verbs("%s of %d"), verbs("%[2]d 个中的 %[1]q"))
+	assert.NotEqual(t, verbs("%s of %d"), verbs("%d 个中的 %s"))
+	const line = "channel #%d has %d unfinished tasks"
+	const untranslated = "a line without a Chinese text: %s"
+	assert.Equal(t, "channel #7 has 2 unfinished tasks", common.LogText(line, 7, 2))
+	common.SetLogLanguage("zh-CN")
+	assert.Equal(t, "渠道 #7 未完成的任务有: 2", common.LogText(line, 7, 2))
+	assert.Equal(t, "a line without a Chinese text: x", common.LogText(untranslated, "x"))
+	common.SetLogLanguage("en")
+	assert.Equal(t, "channel #7 has 2 unfinished tasks", common.LogText(line, 7, 2))
 }

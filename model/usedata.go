@@ -41,7 +41,7 @@ type QuotaDataLogParams struct {
 func UpdateQuotaData() {
 	for {
 		if common.DataExportEnabled {
-			common.SysLog("updating dashboard data...")
+			common.SysLog(common.LogText("updating dashboard data..."))
 			SaveQuotaDataCache()
 		}
 		time.Sleep(time.Duration(common.DataExportInterval) * time.Minute)
@@ -121,7 +121,7 @@ func SaveQuotaDataCache() {
 		}
 	}
 	CacheQuotaData = make(map[string]*QuotaData)
-	common.SysLog(fmt.Sprintf("saved dashboard data, %d records", size))
+	common.SysLog(common.LogText("saved dashboard data, %d records", size))
 }
 
 func increaseQuotaData(quotaData *QuotaData) {

@@ -22,18 +22,18 @@ func Monitor() {
 			if _, err := os.Stat("./pprof"); os.IsNotExist(err) {
 				err := os.Mkdir("./pprof", os.ModePerm)
 				if err != nil {
-					SysLog("failed to create the pprof directory: " + err.Error())
+					SysLog(LogText("failed to create the pprof directory: %s", err.Error()))
 					continue
 				}
 			}
 			f, err := os.Create("./pprof/" + fmt.Sprintf("cpu-%s.pprof", time.Now().Format("20060102150405")))
 			if err != nil {
-				SysLog("failed to create the pprof file: " + err.Error())
+				SysLog(LogText("failed to create the pprof file: %s", err.Error()))
 				continue
 			}
 			err = pprof.StartCPUProfile(f)
 			if err != nil {
-				SysLog("failed to start pprof: " + err.Error())
+				SysLog(LogText("failed to start pprof: %s", err.Error()))
 				continue
 			}
 			time.Sleep(10 * time.Second) // profile for 30 seconds

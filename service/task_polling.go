@@ -140,7 +140,7 @@ func RunTaskPollingOnce(ctx context.Context, report func(processed, total int)) 
 		ctx = context.Background()
 	}
 
-	common.SysLog("task progress polling started")
+	common.SysLog(common.LogText("task progress polling started"))
 	sweepTimedOutTasks(ctx)
 	allTasks := model.GetAllUnFinishSyncTasks(constant.TaskQueryLimit)
 	summary.UnfinishedTasks = len(allTasks)
@@ -197,7 +197,7 @@ func RunTaskPollingOnce(ctx context.Context, report func(processed, total int)) 
 	if report != nil && ctx.Err() == nil {
 		report(totalPlatforms, totalPlatforms)
 	}
-	common.SysLog("task progress polling finished")
+	common.SysLog(common.LogText("task progress polling finished"))
 	return summary
 }
 
@@ -229,14 +229,14 @@ func UpdateBatchTasks(ctx context.Context, adaptor BatchTaskPollingAdaptor, task
 		}
 		err := updateBatchTasks(ctx, adaptor, channelId, taskIds, taskM)
 		if err != nil {
-			logger.LogError(ctx, fmt.Sprintf("channel #%d failed to update async tasks: %s", channelId, err.Error()))
+			logger.LogError(ctx, common.LogText("channel #%d failed to update async tasks: %s", channelId, err.Error()))
 		}
 	}
 	return nil
 }
 
 func updateBatchTasks(ctx context.Context, adaptor BatchTaskPollingAdaptor, channelId int, taskIds []string, taskM map[string]*model.Task) error {
-	logger.LogInfo(ctx, fmt.Sprintf("channel #%d has %d unfinished tasks", channelId, len(taskIds)))
+	logger.LogInfo(ctx, common.LogText("channel #%d has %d unfinished tasks", channelId, len(taskIds)))
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
@@ -343,7 +343,7 @@ func updateBatchTasks(ctx context.Context, adaptor BatchTaskPollingAdaptor, chan
 			task.Progress = responseItem.TaskInfo.Progress
 		}
 		if responseItem.TaskInfo.Reason != "" || task.Status == model.TaskStatusFailure {
-			logger.LogInfo(ctx, task.TaskID+" failed: "+task.FailReason)
+			logger.LogInfo(ctx, common.LogText("%s failed: %s", task.TaskID, task.FailReason))
 			task.Status = model.TaskStatusFailure
 			task.Progress = "100%"
 		}
@@ -678,11 +678,11 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 		}
 		result, usageFacts, err := EvaluateTaskCompletionUsage(bc.TieredSnapshot, taskResult.UsageFacts)
 		if err != nil {
-			logger.LogWarn(ctx, fmt.Sprintf("task %s expression settlement failed, keeping the pre-consumed quota: %v", task.TaskID, err))
+			logger.LogWarn(ctx, common.LogText("task %s expression settlement failed, keeping the pre-consumed quota: %v", task.TaskID, err))
 			return true
 		}
 		if result.Clamp != nil {
-			logger.LogWarn(ctx, fmt.Sprintf("task %s expression settlement quota was clamped: %+v", task.TaskID, result.Clamp))
+			logger.LogWarn(ctx, common.LogText("task %s expression settlement quota was clamped: %+v", task.TaskID, result.Clamp))
 		}
 		bc.TieredSnapshot.UsageFacts = usageFacts
 		bc.TieredSnapshot.EstimatedTier = result.MatchedTier
@@ -691,7 +691,7 @@ func settleTaskBillingOnComplete(ctx context.Context, adaptor TaskPollingAdaptor
 	}
 	// 按次计费的成功任务保持预扣；失败任务由调用方全额退款。
 	if bc := task.PrivateData.BillingContext; bc != nil && bc.PerCallBilling {
-		logger.LogInfo(ctx, fmt.Sprintf("task %s is billed per request, skipping difference settlement", task.TaskID))
+		logger.LogInfo(ctx, common.LogText("task %s is billed per request, skipping difference settlement", task.TaskID))
 		return false
 	}
 	// 优先让 adaptor 决定最终额度。

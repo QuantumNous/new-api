@@ -276,7 +276,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 	// 转换为JSON字符串
 	configBytes, err := common.Marshal(defaultConfig)
 	if err != nil {
-		common.SysLog("failed to generate the default sidebar config: " + err.Error())
+		common.SysLog(common.LogText("failed to generate the default sidebar config: %s", err.Error()))
 		return ""
 	}
 
@@ -710,7 +710,7 @@ func (user *User) finishInsert(inviterId int) {
 			currentSetting.SidebarModules = defaultSidebarConfig
 			createdUser.SetSetting(currentSetting)
 			createdUser.Update(false)
-			common.SysLog(fmt.Sprintf("initialized the sidebar config for new user %s (role: %d)", createdUser.Username, createdUser.Role))
+			common.SysLog(common.LogText("initialized the sidebar config for new user %s (role: %d)", createdUser.Username, createdUser.Role))
 		}
 	}
 
@@ -767,7 +767,7 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 			currentSetting.SidebarModules = defaultSidebarConfig
 			createdUser.SetSetting(currentSetting)
 			createdUser.Update(false)
-			common.SysLog(fmt.Sprintf("initialized the sidebar config for new user %s (role: %d)", createdUser.Username, createdUser.Role))
+			common.SysLog(common.LogText("initialized the sidebar config for new user %s (role: %d)", createdUser.Username, createdUser.Role))
 		}
 	}
 

@@ -122,6 +122,7 @@ func logHelper(ctx context.Context, level string, msg string) {
 	}
 }
 
+// LogQuota formats a quota for a server log line.
 func LogQuota(quota int) string {
 	// 新逻辑：根据额度展示类型输出
 	q := float64(quota)
@@ -129,7 +130,7 @@ func LogQuota(quota int) string {
 	case operation_setting.QuotaDisplayTypeCNY:
 		usd := q / common.QuotaPerUnit
 		cny := usd * operation_setting.USDExchangeRate
-		return fmt.Sprintf("¥%.6f quota", cny)
+		return common.LogText("¥%.6f quota", cny)
 	case operation_setting.QuotaDisplayTypeCustom:
 		usd := q / common.QuotaPerUnit
 		rate := operation_setting.GetGeneralSetting().CustomCurrencyExchangeRate
@@ -141,11 +142,11 @@ func LogQuota(quota int) string {
 			rate = 1
 		}
 		v := usd * rate
-		return fmt.Sprintf("%s%.6f quota", symbol, v)
+		return common.LogText("%s%.6f quota", symbol, v)
 	case operation_setting.QuotaDisplayTypeTokens:
-		return fmt.Sprintf("%d quota points", quota)
+		return common.LogText("%d quota points", quota)
 	default: // USD
-		return fmt.Sprintf("＄%.6f quota", q/common.QuotaPerUnit)
+		return common.LogText("＄%.6f quota", q/common.QuotaPerUnit)
 	}
 }
 
