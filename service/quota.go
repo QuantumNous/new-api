@@ -103,20 +103,22 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	textOutTokens := usage.OutputTokenDetails.TextTokens
 	audioInputTokens := usage.InputTokenDetails.AudioTokens
 	audioOutTokens := usage.OutputTokenDetails.AudioTokens
-	groupRatio := ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
 	modelRatio, _, _ := ratio_setting.GetModelRatio(modelName)
 
 	autoGroup, exists := common.GetContextKey(ctx, constant.ContextKeyAutoGroup)
 	if exists {
-		groupRatio = ratio_setting.GetGroupRatio(autoGroup.(string))
-		logger.LogDebug(ctx, "final group ratio: %f", groupRatio)
 		relayInfo.UsingGroup = autoGroup.(string)
 	}
 
-	actualGroupRatio := groupRatio
-	userGroupRatio, ok := ratio_setting.GetGroupGroupRatio(relayInfo.UserGroup, relayInfo.UsingGroup)
-	if ok {
-		actualGroupRatio = userGroupRatio
+	// 统一倍率解析：用户专属倍率 > 全局组间倍率 > 全局分组倍率。
+	// 必须在 auto 分组改写 UsingGroup 之后调用，否则会按错误的分组计费。
+	// 与 relay/helper/price.go 的预扣费使用同一入口，保证预扣与实扣一致。
+	actualGroupRatio, hasSpecialRatio := ResolveGroupRatioForBilling(
+		relayInfo.UserGroup, relayInfo.UsingGroup, relayInfo.UserSetting)
+	logger.LogDebug(ctx, "final group ratio: %f (special=%t)", actualGroupRatio, hasSpecialRatio)
+	if hasSpecialRatio {
+		relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio = actualGroupRatio
+		relayInfo.PriceData.GroupRatioInfo.HasSpecialRatio = true
 	}
 
 	quotaInfo := QuotaInfo{

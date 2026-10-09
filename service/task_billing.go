@@ -404,14 +404,23 @@ func RecalculateTaskQuotaByTokens(ctx context.Context, task *model.Task, totalTo
 		return false
 	}
 
-	groupRatio := ratio_setting.GetGroupRatio(group)
-	userGroupRatio, hasUserGroupRatio := ratio_setting.GetGroupGroupRatio(group, group)
-
-	var finalGroupRatio float64
-	if hasUserGroupRatio {
-		finalGroupRatio = userGroupRatio
+	// 优先使用任务创建时快照的分组倍率。
+	// 快照来自 PriceData.GroupRatioInfo.GroupRatio，已包含用户专属倍率
+	// （见 controller/relay.go 建任务时写入），因此差额结算必须复用它，
+	// 否则预扣按专属倍率、结算按全局倍率，会导致退款金额错误。
+	finalGroupRatio := 0.0
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.GroupRatio > 0 {
+		finalGroupRatio = bc.GroupRatio
 	} else {
-		finalGroupRatio = groupRatio
+		// 兜底：老任务没有快照，或快照缺失时按用户当前设置实时解析，
+		// 保证用户专属倍率对历史任务同样生效。
+		userSetting := dto.UserSetting{}
+		userGroup := group
+		if user, err := model.GetUserById(task.UserId, false); err == nil {
+			userGroup = user.Group
+			userSetting = user.GetSetting()
+		}
+		finalGroupRatio, _ = ResolveGroupRatioForBilling(userGroup, group, userSetting)
 	}
 
 	// 计算 OtherRatios 乘积（视频折扣、时长等）

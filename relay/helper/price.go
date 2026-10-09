@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -53,16 +54,14 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) hostty
 		relayInfo.UsingGroup = autoGroup.(string)
 	}
 
-	// check user group special ratio
-	userGroupRatio, ok := ratio_setting.GetGroupGroupRatio(relayInfo.UserGroup, relayInfo.UsingGroup)
-	if ok {
-		// user group special ratio
-		groupRatioInfo.GroupSpecialRatio = userGroupRatio
-		groupRatioInfo.GroupRatio = userGroupRatio
-		groupRatioInfo.HasSpecialRatio = true
-	} else {
-		// normal group ratio
-		groupRatioInfo.GroupRatio = ratio_setting.GetGroupRatio(relayInfo.UsingGroup)
+	// 统一倍率解析：用户专属倍率 > 全局组间倍率 > 全局分组倍率。
+	// 必须与 service/quota.go 的后扣费使用同一入口，否则预扣与实扣不一致会吞余额。
+	groupRatio, hasSpecialRatio := service.ResolveGroupRatioForBilling(
+		relayInfo.UserGroup, relayInfo.UsingGroup, relayInfo.UserSetting)
+	groupRatioInfo.GroupRatio = groupRatio
+	groupRatioInfo.HasSpecialRatio = hasSpecialRatio
+	if hasSpecialRatio {
+		groupRatioInfo.GroupSpecialRatio = groupRatio
 	}
 
 	return groupRatioInfo
