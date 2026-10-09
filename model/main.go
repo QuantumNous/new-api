@@ -213,6 +213,14 @@ func InitDB() (err error) {
 		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
 
 		if !common.IsMasterNode {
+			// Roll out a migrated master before batch-enabled slaves. Never fall
+			// back to retrying increments without the durable receipt schema.
+			if os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
+				var receipts []BatchUpdateReceipt
+				if err := DB.Limit(1).Find(&receipts).Error; err != nil {
+					return fmt.Errorf("batch accounting requires master database migration: %w", err)
+				}
+			}
 			// Only the master node migrates. A node that cannot read the deadline
 			// keeps rejecting legacy access tokens instead of refusing to start.
 			if err := EnsureLegacyAccessTokenRetireAt(common.GetTimestamp()); err != nil {
@@ -355,6 +363,7 @@ func migrateDB() error {
 		&Midjourney{},
 		&TopUp{},
 		&QuotaData{},
+		&BatchUpdateReceipt{},
 		&Task{},
 		&TaskPlugin{},
 		&Model{},

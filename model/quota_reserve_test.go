@@ -57,6 +57,9 @@ func getTokenFromDB(t *testing.T, id int) Token {
 
 func resetBatchUpdateTestState(t *testing.T) {
 	t.Helper()
+	require.NoError(t, DB.AutoMigrate(&BatchUpdateReceipt{}))
+	pendingBatchStores = nil
+	pendingBatchID = ""
 	oldBatchEnabled := common.BatchUpdateEnabled
 	common.BatchUpdateEnabled = false
 	for i := range BatchUpdateTypeCount {
@@ -65,6 +68,8 @@ func resetBatchUpdateTestState(t *testing.T) {
 		batchUpdateLocks[i].Unlock()
 	}
 	t.Cleanup(func() {
+		pendingBatchStores = nil
+		pendingBatchID = ""
 		common.BatchUpdateEnabled = oldBatchEnabled
 		for i := range BatchUpdateTypeCount {
 			batchUpdateLocks[i].Lock()
