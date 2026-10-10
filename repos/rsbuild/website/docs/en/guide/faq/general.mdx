@@ -1,0 +1,23 @@
+---
+description: 'Frequently asked questions about Rsbuild, focused on core concepts, ecosystem positioning, and basic usage.'
+---
+
+# General FAQ
+
+### What is the relationship between Rsbuild and Rspack?
+
+Rspack is the underlying bundler for Rsbuild. The goal of Rsbuild is to provide out-of-the-box build capabilities for Rspack users, so developers can start a web project with zero configuration.
+
+The main differences between Rspack and Rsbuild are:
+
+- Rspack projects need to be configured from scratch, while Rsbuild provides default best practice configurations and supports extending Rspack configurations.
+- Rspack projects require integration with loaders and plugins from the community to support different scenarios, while Rsbuild provides official plugins and default support for common frontend frameworks and build capabilities.
+- The capabilities of the Rspack CLI are comparable to the webpack CLI but more streamlined, while Rsbuild provides a more powerful CLI and a more complete dev server.
+
+---
+
+### Can Rsbuild be used to build libraries or UI components?
+
+Rsbuild is designed for building web applications out of the box.
+
+For libraries and UI components, we recommend using [Rslib](https://github.com/web-infra-dev/rslib), a library development tool based on Rsbuild that reuses Rsbuild's configuration and plugins.

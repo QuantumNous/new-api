@@ -1,0 +1,14 @@
+A callback function that is triggered before the Rspack Compiler instance is created. This hook is called when you run `rsbuild.startDevServer`, `rsbuild.build`, or `rsbuild.createCompiler`.
+
+You can access the Rspack configuration array through the `bundlerConfigs` parameter. The array may contain one or more [Rspack configurations](https://rspack.rs/config/). It depends on whether multiple [environments](/config/environments) are configured.
+
+- **Type:**
+
+```ts
+function OnBeforeCreateCompiler(
+  callback: (params: {
+    bundlerConfigs: Rspack.Configuration[];
+    environments: Record<string, EnvironmentContext>;
+  }) => Promise<void> | void,
+): void;
+```

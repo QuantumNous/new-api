@@ -1,0 +1,41 @@
+name: Slack Team Review Notification
+
+on:
+  pull_request:
+    types: [review_requested]
+
+permissions:
+  contents: read
+
+jobs:
+  notify-slack:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: debug
+        run: cat $GITHUB_EVENT_PATH
+      - name: Check if ai-sdk team was requested
+        id: check_team
+        run: |
+          echo "Checking requested teams..."
+          teams='${{ toJson(github.event.pull_request.requested_teams) }}'
+
+          # Check if ai-sdk team is in the requested teams
+          if echo "$teams" | jq -e '.[] | select(.slug == "ai-sdk")' > /dev/null; then
+            echo "ai_sdk_requested=true" >> $GITHUB_OUTPUT
+            echo "✅ ai-sdk team was requested for review"
+          else
+            echo "ai_sdk_requested=false" >> $GITHUB_OUTPUT
+            echo "❌ ai-sdk team was not requested for review"
+          fi
+
+      - name: Send Slack notification
+        if: steps.check_team.outputs.ai_sdk_requested == 'true'
+        run: |
+          curl ${{ env.SLACK_PR_REVIEW_REQUEST_URL }} -X POST -H "Content-Type: application/json" -d '{"channel_id": "${{ env.CHANNEL_ID }}", "number": "${{ env.NUMBER }}", "title": ${{ toJson(env.TITLE) }}, "url": "${{ env.URL }}"}'
+        env:
+          SLACK_PR_REVIEW_REQUEST_URL: ${{ secrets.SLACK_PR_REVIEW_REQUEST_URL }}
+          CHANNEL_ID: 'C050WU03V3N'
+          NUMBER: ${{ github.event.pull_request.number }}
+          TITLE: ${{ github.event.pull_request.title }}
+          URL: ${{ github.event.pull_request.html_url }}

@@ -1,0 +1,32 @@
+{
+  "id": "945bb10c-9bf3-47ff-a2a2-43bbe9705c72",
+  "object": "chat.completion",
+  "created": 1764660903,
+  "model": "deepseek-reasoner",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "The word \"strawberry\" contains three instances of the letter \"r\": one after the \"t\" and two before the \"y\".",
+        "reasoning_content": "We are asked: \"How many 'r's are in the word 'strawberry'?\" We need to count the occurrences of the letter 'r' in the word \"strawberry\". Let's write the word: s-t-r-a-w-b-e-r-r-y. Let's count: positions: 1: s, 2: t, 3: r, 4: a, 5: w, 6: b, 7: e, 8: r, 9: r, 10: y. So there are three 'r's? Wait: at position 3: r, position 8: r, position 9: r. That's three. But sometimes people might think it's two because of pronunciation? But strictly counting letters, it's three. However, let's double-check spelling: \"strawberry\" is spelled S-T-R-A-W-B-E-R-R-Y. Yes, it has two 'r's at the end? Actually, after 'b' comes 'e', then 'r', then 'r', then 'y'. So indeed three 'r's total. But wait, the initial 'r' is the first one? The word starts with 's', then 't', then 'r'. So that's one, then later two consecutive 'r's. So total three. So answer is 3.\n\nBut the question is phrased: \"How many 'r's are in the word 'strawberry'?\" So answer is 3."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 18,
+    "completion_tokens": 345,
+    "total_tokens": 363,
+    "prompt_tokens_details": {
+      "cached_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 315
+    },
+    "prompt_cache_hit_tokens": 0,
+    "prompt_cache_miss_tokens": 18
+  },
+  "system_fingerprint": "fp_eaab8d114b_prod0820_fp8_kvcache"
+}

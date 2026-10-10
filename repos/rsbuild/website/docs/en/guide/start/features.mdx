@@ -1,0 +1,118 @@
+---
+description: 'Overview of the main features supported by Rsbuild.'
+---
+
+# Features
+
+Overview of the main features supported by Rsbuild.
+
+## JavaScript
+
+| Features             | Description                                                                                               | Links                                                                                                                               |
+| -------------------- | --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Rspack               | Use Rspack as the bundler by default                                                                      | <ul><li>[Configure Rspack](/guide/configuration/rspack)</li></ul>                                                                   |
+| SWC compilation      | Transform and minify JavaScript and TypeScript code using SWC by default                                  | <ul><li>[Configure SWC](/guide/configuration/swc)</li></ul>                                                                         |
+| TS compilation       | TypeScript files are compiled using SWC by default                                                        | <ul><li>[TypeScript compilation](/guide/basic/typescript#typescript-transformation)</li></ul>                                       |
+| Code minification    | Code minification is enabled by default in production mode                                                | <ul><li>[output.minify](/config/output/minify)</li></ul>                                                                            |
+| Polyfill injection   | Optional feature, inject core-js and other polyfills                                                      | <ul><li>[Browser compatibility](/guide/advanced/browser-compatibility)</li><li>[output.polyfill](/config/output/polyfill)</li></ul> |
+| SourceMap generation | Source maps are generated in development mode by default                                                  | <ul><li>[output.sourceMap](/config/output/source-map)</li></ul>                                                                     |
+| Alias                | Optional feature, set import alias                                                                        | <ul><li>[resolve.alias](/config/resolve/alias)</li></ul>                                                                            |
+| Babel compilation    | Optional feature, use Babel to transform JavaScript and TypeScript code                                   | <ul><li>[Babel plugin](/plugins/list/plugin-babel)</li></ul>                                                                        |
+| Node outputs         | Optional feature, build bundles that run in Node.js environment                                           | <ul><li>[Node target](/config/output/target#node-target)</li></ul>                                                                  |
+| Web Workers          | Optional feature, use Web Workers                                                                         | <ul><li>[Web Workers](/guide/basic/web-workers)</li></ul>                                                                           |
+| Glob import          | Optional feature, import multiple modules using `import.meta.glob`                                        | <ul><li>[import.meta.glob](https://rspack.rs/api/runtime-api/module-variables#importmetaglob)</li></ul>                             |
+| JSON import          | JSON files can be imported by default, and YAML/TOML can be imported with plugins                         | <ul><li>[JSON](/guide/basic/json-files)</li></ul>                                                                                   |
+| Browserslist         | Optional feature, use browserslist to specify which browsers should be supported in your web application. | <ul><li>[Browserslist](/guide/advanced/browserslist)</li></ul>                                                                      |
+| Compatibility check  | Optional feature, scan build outputs for advanced syntax that isn't supported by the target browsers      | <ul><li>[@rsbuild/plugin-check-syntax](https://github.com/rstackjs/rsbuild-plugin-check-syntax)</li></ul>                           |
+| Environment variable | Optional feature, inject environment variables or expressions into the code                               | <ul><li>[Environment variables](/guide/advanced/env-vars)</li></ul>                                                                 |
+| Node polyfill        | Optional feature, inject polyfills for Node core modules on the browser side                              | <ul><li>[Node polyfill plugin](https://github.com/rstackjs/rsbuild-plugin-node-polyfill)</li></ul>                                  |
+| Type check           | Optional feature, run type checker to check for type issues in code                                       | <ul><li>[Type checking](/guide/basic/typescript#type-checking)</li></ul>                                                            |
+| Module Federation    | Optional feature, dynamically load modules and share dependencies                                         | <ul><li>[Module Federation](/guide/advanced/module-federation)</li></ul>                                                            |
+
+## CSS
+
+| Features                | Description                                                | Links                                                                                                                        |
+| ----------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Lightning CSS           | Use Lightning CSS to downgrade CSS syntax by default       | <ul><li>[CSS](/guide/styling/css-usage)</li></ul>                                                                            |
+| PostCSS transformation  | Optional feature, use PostCSS to transform CSS files       | <ul><li>[CSS](/guide/styling/css-usage)</li><li>[tools.postcss](/config/tools/postcss)</li></ul>                             |
+| Tailwind CSS            | Optional feature, use Tailwind CSS                         | <ul><li>[Tailwind CSS](/guide/styling/tailwindcss)</li></ul>                                                                 |
+| UnoCSS                  | Optional feature, use UnoCSS                               | <ul><li>[UnoCSS](/guide/styling/unocss)</li></ul>                                                                            |
+| Sass preprocessing      | Optional feature, compile Sass/Scss files                  | <ul><li>[CSS](/guide/styling/css-usage)</li><li>[Sass plugin](/plugins/list/plugin-sass)</li></ul>                           |
+| Less preprocessing      | Optional feature, compile Less files                       | <ul><li>[CSS](/guide/styling/css-usage)</li><li>[Less plugin](/plugins/list/plugin-less)</li></ul>                           |
+| Stylus preprocessing    | Optional feature, compile Stylus files                     | <ul><li>[CSS](/guide/styling/css-usage)</li><li>[Stylus plugin](https://github.com/rstackjs/rsbuild-plugin-stylus)</li></ul> |
+| CSS Modules compilation | Support compiling `*.module.*` files by default            | <ul><li>[CSS Modules](/guide/styling/css-modules)</li><li>[tools.cssLoader](/config/tools/css-loader)</li></ul>              |
+| CSS Modules type        | Optional feature, generate type definition for CSS Modules | <ul><li>[Typed CSS Modules plugin](https://github.com/rstackjs/rsbuild-plugin-typed-css-modules)</li></ul>                   |
+| CSS minification        | CSS minification is enabled by default in production build | <ul><li>[CSS](/guide/styling/css-usage)</li></ul>                                                                            |
+| Inline CSS into JS      | Optional feature, inline CSS files to JavaScript files     | <ul><li>[CSS](/guide/styling/css-usage)</li><li>[output.injectStyles](/config/output/inject-styles)</li></ul>                |
+
+## HTML
+
+| Features            | Description                                  | Links                                                                                                                                     |
+| ------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| Set title           | Set HTML `<title>` tag                       | <ul><li>[Set page title](/guide/basic/html-template#set-page-title)</li><li>[html.title](/config/html/title)</li></ul>                    |
+| Set meta            | Set HTML `<meta>` tag                        | <ul><li>[Set meta tags](/guide/basic/html-template#set-meta-tags)</li><li>[html.meta](/config/html/meta)</li></ul>                        |
+| Set favicon         | Set favicon                                  | <ul><li>[Set page icon](/guide/basic/html-template#set-page-icon)</li><li>[html.favicon](/config/html/favicon)</li></ul>                  |
+| Set app icon        | Set web application icons                    | <ul><li>[Set page icon](/guide/basic/html-template#set-page-icon)</li><li>[html.appIcon](/config/html/app-icon)</li></ul>                 |
+| EJS template engine | Optional feature, use EJS template engine    | <ul><li>[HTML template - EJS](/guide/basic/html-template#ejs)</li></ul>                                                                   |
+| Pug template engine | Optional feature, use pug template engine    | <ul><li>[Pug plugin](https://github.com/rstackjs/rsbuild-plugin-pug)</li></ul>                                                            |
+| Inline JS files     | Optional feature, inline JS files into HTML  | <ul><li>[Inline static assets](/guide/optimization/inline-assets)</li><li>[output.inlineScripts](/config/output/inline-scripts)</li></ul> |
+| Inline CSS files    | Optional feature, inline CSS files into HTML | <ul><li>[Inline static assets](/guide/optimization/inline-assets)</li><li>[output.inlineStyles](/config/output/inline-styles)</li></ul>   |
+
+## Server
+
+| Features          | Description                                                               | Links                                                                                              |
+| ----------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| Public dir        | Serves public assets from the `public` directory by default               | <ul><li>[server.publicDir](/config/server/public-dir)</li></ul>                                    |
+| HMR               | HMR is enabled by default in development mode                             | <ul><li>[Hot module replacement](/guide/advanced/hmr)</li><li>[dev.hmr](/config/dev/hmr)</li></ul> |
+| Watch files       | Optional feature, watch files and trigger page reloads or server restarts | <ul><li>[dev.watchFiles](/config/dev/watch-files)</li></ul>                                        |
+| SSR               | Optional feature, implement server-side rendering                         | <ul><li>[SSR](/guide/advanced/ssr)</li></ul>                                                       |
+| Proxy             | Optional feature, proxy requests to the specified service                 | <ul><li>[server.proxy](/config/server/proxy)</li></ul>                                             |
+| Open page         | Optional feature, automatically open page in browser when starting server | <ul><li>[server.open](/config/server/open)</li></ul>                                               |
+| HTTPS             | Optional feature, enable HTTPS server                                     | <ul><li>[server.https](/config/server/https)</li></ul>                                             |
+| Custom middleware | Optional feature, use custom middleware                                   | <ul><li>[Middleware](/guide/basic/server#middleware)</li></ul>                                     |
+
+## UI framework
+
+| Features      | Description                                                                | Links                                                                                              |
+| ------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| React         | Optional feature, enable compilation of React JSX                          | <ul><li>[React plugin](/plugins/list/plugin-react)</li></ul>                                       |
+| React Refresh | Optional feature, enable React Refresh                                     | <ul><li>[Hot module replacement](/guide/advanced/hmr)</li><li>[dev.hmr](/config/dev/hmr)</li></ul> |
+| SVGR          | Optional feature, transform SVG to React component                         | <ul><li>[SVGR plugin](/plugins/list/plugin-svgr)</li></ul>                                         |
+| Vue 3 SFC     | Optional feature, enable compilation of Vue 3 SFC (Single File Components) | <ul><li>[Vue plugin](/plugins/list/plugin-vue)</li></ul>                                           |
+| Vue 3 JSX     | Optional feature, enable compilation of Vue 3 JSX syntax                   | <ul><li>[Vue JSX plugin](https://github.com/rstackjs/rsbuild-plugin-vue-jsx)</li></ul>             |
+| Vue 2 SFC     | Optional feature, enable compilation of Vue 2 SFC (Single File Components) | <ul><li>[Vue 2 plugin](https://github.com/rstackjs/rsbuild-plugin-vue2)</li></ul>                  |
+| Vue 2 JSX     | Optional feature, enable compilation of Vue 2 JSX syntax                   | <ul><li>[Vue 2 JSX plugin](https://github.com/rstackjs/rsbuild-plugin-vue2-jsx)</li></ul>          |
+| Svelte        | Optional feature, enable compilation of Svelte component                   | <ul><li>[Svelte plugin](/plugins/list/plugin-svelte)</li></ul>                                     |
+| Solid         | Optional feature, enable compilation of Solid JSX                          | <ul><li>[Solid plugin](/plugins/list/plugin-solid)</li></ul>                                       |
+
+## Static assets
+
+| Features               | Description                                                                  | Links                                                                                                                                    |
+| ---------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Image assets           | Support importing image assets in code                                       | <ul><li>[Static assets](/guide/basic/static-assets)</li></ul>                                                                            |
+| Font assets            | Support importing font assets in code                                        | <ul><li>[Static assets](/guide/basic/static-assets)</li></ul>                                                                            |
+| Video assets           | Support importing video assets in code                                       | <ul><li>[Static assets](/guide/basic/static-assets)</li></ul>                                                                            |
+| Wasm assets            | Support importing WebAssembly assets in code                                 | <ul><li>[Static assets](/guide/basic/static-assets)</li></ul>                                                                            |
+| Node addons            | Support importing Node.js addons in code                                     | <ul><li>[Static assets](/guide/basic/static-assets)</li></ul>                                                                            |
+| Inline static assets   | Small assets are inlined into JavaScript bundles by default                  | <ul><li>[Inline static assets](/guide/optimization/inline-assets)</li><li>[output.dataUriLimit](/config/output/data-uri-limit)</li></ul> |
+| Clean up static assets | Automatically clean up static assets in the dist directory before each build | <ul><li>[output.cleanDistPath](/config/output/clean-dist-path)</li ></ul>                                                                |
+| Copy static assets     | Optional feature, copy static assets to the dist directory                   | <ul><li>[output.copy](/config/output/copy)</li></ul>                                                                                     |
+| Generate manifest file | Optional feature, generate `manifest.json` file                              | <ul><li>[output.manifest](/config/output/manifest)</li></ul>                                                                             |
+
+## Performance and debugging
+
+| Features                   | Description                                                                                                                  | Links                                                                                                |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Chunk splitting            | A variety of chunk splitting strategies are built into Rsbuild to automatically split the bundle into files of moderate size | <ul><li>[Code splitting](/guide/optimization/code-splitting)</li></ul>                               |
+| Print file size            | After the production build, all bundle sizes are displayed by default                                                        | <ul><li>[performance.printFileSize](/config/performance/print-file-size)</li></ul>                   |
+| Analyze build process      | Optional feature, use Rsdoctor to analyze build process                                                                      | <ul><li>[Use Rsdoctor](/guide/debug/rsdoctor)</li></ul>                                              |
+| Analyze bundle size        | Optional feature, analyze bundle size through Rsdoctor                                                                       | <ul><li>[Use Rsdoctor](/guide/debug/rsdoctor)</li></ul>                                              |
+| Lazy compilation           | Compile entry or async modules on demand in development for faster startup                                                   | <ul><li>[dev.lazyCompilation](/config/dev/lazy-compilation)</li></ul>                                |
+| Remove console             | Optional feature, remove `console.[methodName]` in code                                                                      | <ul><li>[performance.removeConsole](/config/performance/remove-console)</li ></ul>                   |
+| Dedupe packages            | Optional feature, remove duplicate npm packages                                                                              | <ul><li>[resolve.dedupe](/config/resolve/dedupe)</li></ul>                                           |
+| Component on-demand import | Optional feature, selectively import code and styles from component libraries                                                | <ul><li>[source.transformImport](/config/source/transform-import)</li></ul>                          |
+| Image compression          | Optional feature, compress used image resources                                                                              | <ul><li>[Image compress plugin](https://github.com/rstackjs/rsbuild-plugin-image-compress)</li></ul> |
+| Preload                    | Optional feature, fetches and caches a resource ahead of the current navigation                                              | <ul><li>[performance.preload](/config/performance/preload)</li></ul>                                 |
+| Prefetch                   | Optional feature, fetches and caches a resource for an upcoming navigation                                                   | <ul><li>[performance.prefetch](/config/performance/prefetch)</li></ul>                               |
+| Preconnect                 | Optional feature, opens a connection to the resource's origin before it's needed                                             | <ul><li>[performance.preconnect](/config/performance/preconnect)</li></ul>                           |
+| DNS prefetch               | Optional feature, preemptively perform DNS resolution for the target resource's origin                                       | <ul><li>[performance.dnsPrefetch](/config/performance/dns-prefetch)</li></ul>                        |

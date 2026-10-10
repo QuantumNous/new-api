@@ -1,0 +1,33 @@
+{
+  "name": "tanstack-solid-start-e2e-start-manifest",
+  "private": true,
+  "sideEffects": false,
+  "type": "module",
+  "scripts": {
+    "build": "vite build && tsc --noEmit",
+    "preview": "vite preview",
+    "start": "pnpx srvx --prod -s ../client dist/server/server.js",
+    "test:e2e": "playwright test --project=chromium"
+  },
+  "dependencies": {
+    "@tanstack/solid-router": "workspace:^",
+    "@tanstack/solid-start": "workspace:^",
+    "solid-js": "^1.9.10"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.1",
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "@types/node": "^22.10.2",
+    "srvx": "^0.11.9",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14",
+    "vite-plugin-solid": "^2.11.11"
+  },
+  "nx": {
+    "targets": {
+      "test:e2e": {
+        "parallelism": false
+      }
+    }
+  }
+}

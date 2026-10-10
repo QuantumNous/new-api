@@ -1,0 +1,39 @@
+---
+description: 'Rsbuild 的 html.output-structure 配置项参考，包含作用、默认值、配置行为和使用示例。'
+---
+
+# html.outputStructure
+
+- **Type:** `'flat' | 'nested'`
+- **Default:** `'flat'`
+
+用于定义 HTML 产物文件的目录结构。
+
+## 示例
+
+默认情况下，HTML 产物在 `dist` 目录下的结构为 `flat`：
+
+```bash
+/dist
+ └── [name].html
+```
+
+你可以将 `html.outputStructure` 配置为 `nested`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    outputStructure: 'nested',
+  },
+};
+```
+
+重新构建后，HTML 产物的目录结构如下：
+
+```bash
+/dist
+ └── [name]
+     └── index.html
+```
+
+> 如果你需要设置 HTML 文件在 dist 目录中的父级路径，请使用 [output.distPath.html](/config/output/dist-path) 配置。

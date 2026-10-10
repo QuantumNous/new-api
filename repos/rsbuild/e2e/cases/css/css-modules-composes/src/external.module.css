@@ -1,0 +1,4 @@
+.subClass2 {
+  composes: className from './other.module.css';
+  background: green;
+}

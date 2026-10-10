@@ -1,0 +1,86 @@
+---
+description: '如果你希望了解不同装饰器版本的区别，可以参考：How does this proposal compare to other versions of decorators?'
+---
+
+# source.decorators
+
+- **类型：**
+
+```ts
+type Decorators = {
+  version?: 'legacy' | '2022-03' | '2023-11';
+};
+```
+
+用于配置装饰器语法。
+
+## decorators.version
+
+- **类型：** `'legacy' | '2022-03' | '2023-11'`
+- **默认值：** `'2023-11'`
+
+指定需要使用的装饰器语法版本。
+
+大多数情况下，推荐使用 `2023-11`：
+
+- `2023-11`：最新的 Stage 3 装饰器提案，也是 Rsbuild 的默认值。
+- `2022-03`：较早的 Stage 3 装饰器提案。
+- `legacy`：旧版 Stage 1 装饰器提案，主要用于仍依赖 TypeScript 的 `experimentalDecorators` 语义的项目。
+
+如果你希望了解不同装饰器版本的区别，可以参考：[How does this proposal compare to other versions of decorators?](https://github.com/tc39/proposal-decorators#how-does-this-proposal-compare-to-other-versions-of-decorators)
+
+### 2023-11
+
+`2023-11` 对应 2023 年 11 月版本的 Stage 3 装饰器提案。
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    decorators: {
+      version: '2023-11',
+    },
+  },
+};
+```
+
+> 参考：[tc39/proposal-decorators](https://github.com/tc39/proposal-decorators)、[@babel/plugin-proposal-decorators](https://babeljs.io/docs/babel-plugin-proposal-decorators)。
+
+### 2022-03
+
+`2022-03` 对应装饰器 Stage 3 提案，等价于 TypeScript 5.0 默认支持的装饰器语法。
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    decorators: {
+      version: '2022-03',
+    },
+  },
+};
+```
+
+> 参考：[JavaScript meta programming with the 2022-03 decorators API](https://2ality.com/2022/10/javascript-decorators.html)、[TypeScript 5.0 Decorators](https://typescriptlang.org/docs/handbook/release-notes/typescript-5-0.html#decorators)。
+
+### legacy
+
+等价于 TypeScript 的 `experimentalDecorators: true`。
+
+它基于旧版的 Stage 1 装饰器提案，不会再引入新的特性更新，并且在一些边界场景下 Babel 与 TypeScript 的行为可能存在差异。建议在条件允许时迁移到 `2023-11`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    decorators: {
+      version: 'legacy',
+    },
+  },
+};
+```
+
+> 参考：[A Complete Guide to TypeScript Decorators](https://mirone.me/a-complete-guide-to-typescript-decorator/)、[TypeScript Decorators](https://typescriptlang.org/docs/handbook/decorators.html)。
+
+## 版本历史
+
+| 版本   | 变更内容                                               |
+| ------ | ------------------------------------------------------ |
+| v2.0.0 | 新增 `2023-11` 版本，默认值从 `2022-03` 改为 `2023-11` |

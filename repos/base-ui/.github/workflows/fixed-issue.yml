@@ -1,0 +1,143 @@
+name: Comment on fixed issues
+
+on:
+  issues:
+    types: [closed]
+
+permissions: {}
+
+jobs:
+  add-comment:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Get associated PRs
+        id: get-prs
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            const issue_number = context.payload.issue.number;
+
+            console.log(`Processing issue #${issue_number}`);
+
+            // Use GraphQL to find PRs that close this issue
+            const query = `
+              query($owner:String!, $repo:String!, $issueNumber:Int!) {
+                repository(owner: $owner, name: $repo) {
+                  issue(number: $issueNumber) {
+                    timelineItems(last: 100, itemTypes: [CONNECTED_EVENT, CROSS_REFERENCED_EVENT]) {
+                      nodes {
+                        __typename
+                        ... on ConnectedEvent {
+                          subject {
+                            ... on PullRequest {
+                              number
+                              merged
+                              mergedAt
+                            }
+                          }
+                        }
+                        ... on CrossReferencedEvent {
+                          source {
+                            ... on PullRequest {
+                              number
+                              merged
+                              mergedAt
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            `;
+
+            const variables = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issueNumber: parseInt(issue_number)
+            };
+
+            try {
+              const result = await github.graphql(query, variables);
+              console.log('GraphQL query completed successfully');
+
+              // Extract all merged PRs that are linked to this issue
+              const relatedPRs = [];
+              if (result.repository.issue) {
+                const timelineItems = result.repository.issue.timelineItems.nodes;
+
+                for (const item of timelineItems) {
+                  let pr = null;
+
+                  if (item.__typename === 'ConnectedEvent' && item.subject) {
+                    pr = item.subject;
+                  } else if (item.__typename === 'CrossReferencedEvent' && item.source) {
+                    pr = item.source;
+                  }
+
+                  if (pr && pr.merged) {
+                    relatedPRs.push({
+                      number: pr.number,
+                      mergedAt: pr.mergedAt
+                    });
+                  }
+                }
+              }
+
+              // Sort by merge date (newest first) and take the first one
+              relatedPRs.sort((a, b) => new Date(b.mergedAt) - new Date(a.mergedAt));
+
+              if (relatedPRs.length === 0) {
+                console.log('No merged PRs found for this issue');
+                return;
+              }
+
+              const prNumber = relatedPRs[0].number;
+              console.log(`Found merged PR #${prNumber} associated with issue #${issue_number}`);
+
+              // Set output for the next step
+              core.setOutput('pr_number', prNumber);
+              core.setOutput('has_pr', 'true');
+
+            } catch (error) {
+              console.error('Error fetching related PRs:', error);
+            }
+
+      - name: Add comment to issue
+        if: steps.get-prs.outputs.has_pr == 'true'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            // Get PR number from the previous step's output
+            const prNumber = '${{ steps.get-prs.outputs.pr_number }}';
+            const issueNumber = context.payload.issue.number;
+
+            // Get issue labels
+            const issue = context.payload.issue;
+            const labels = issue.labels.map(label => label.name);
+
+            // Check if this is a bug/regression or a feature
+            const isNewFeature = labels.some(label => label.includes('new feature'));
+
+            const typeText = isNewFeature ? 'feature' : 'fix';
+
+            const commentBody = `This ${typeText} will be available in the next npm release of Base UI.
+
+            In the meantime, you can try it out on our Canary release channel:
+
+            \`\`\`sh
+            npm i https://pkg.pr.new/@base-ui/react@${prNumber}
+            \`\`\``;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issueNumber,
+              body: commentBody
+            });
+
+            console.log(`Added comment to issue #${issueNumber}`);

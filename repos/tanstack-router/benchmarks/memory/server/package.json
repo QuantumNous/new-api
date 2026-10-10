@@ -1,0 +1,269 @@
+{
+  "name": "@benchmarks/memory-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "clean:profiles": "rm -rf scenarios/*/*/.profiles"
+  },
+  "imports": {
+    "#memory-server/benchmark": "./benchmark.ts",
+    "#memory-server/bench-utils": "./bench-utils.ts",
+    "#memory-server/flame-runner": "./flame-runner.ts"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "workspace:*",
+    "@tanstack/react-start": "workspace:*",
+    "@tanstack/solid-router": "workspace:*",
+    "@tanstack/solid-start": "workspace:*",
+    "@tanstack/vue-router": "workspace:*",
+    "@tanstack/vue-start": "workspace:*",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "solid-js": "^1.9.10",
+    "vue": "^3.5.16"
+  },
+  "devDependencies": {
+    "@codspeed/vitest-plugin": "^5.5.0",
+    "@datadog/pprof": "^5.13.2",
+    "@platformatic/flame": "^1.6.0",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-vue-jsx": "^5.1.5",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14",
+    "vite-plugin-solid": "^2.11.11",
+    "vitest": "^4.1.4"
+  },
+  "nx": {
+    "targets": {
+      "build:react": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-server-request-churn-react",
+              "@benchmarks/memory-server-server-fn-churn-react",
+              "@benchmarks/memory-server-error-paths-react",
+              "@benchmarks/memory-server-aborted-requests-react",
+              "@benchmarks/memory-server-peak-large-page-react",
+              "@benchmarks/memory-server-streaming-peak-react",
+              "@benchmarks/memory-server-serialization-payload-react"
+            ],
+            "target": "build:ssr"
+          }
+        ]
+      },
+      "build:solid": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-server-request-churn-solid",
+              "@benchmarks/memory-server-server-fn-churn-solid",
+              "@benchmarks/memory-server-error-paths-solid",
+              "@benchmarks/memory-server-aborted-requests-solid",
+              "@benchmarks/memory-server-peak-large-page-solid",
+              "@benchmarks/memory-server-streaming-peak-solid",
+              "@benchmarks/memory-server-serialization-payload-solid"
+            ],
+            "target": "build:ssr"
+          }
+        ]
+      },
+      "build:vue": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-server-request-churn-vue",
+              "@benchmarks/memory-server-server-fn-churn-vue",
+              "@benchmarks/memory-server-error-paths-vue",
+              "@benchmarks/memory-server-aborted-requests-vue",
+              "@benchmarks/memory-server-peak-large-page-vue",
+              "@benchmarks/memory-server-streaming-peak-vue",
+              "@benchmarks/memory-server-serialization-payload-vue"
+            ],
+            "target": "build:ssr"
+          }
+        ]
+      },
+      "build:react:flame": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-server-request-churn-react",
+              "@benchmarks/memory-server-server-fn-churn-react",
+              "@benchmarks/memory-server-error-paths-react",
+              "@benchmarks/memory-server-aborted-requests-react",
+              "@benchmarks/memory-server-peak-large-page-react",
+              "@benchmarks/memory-server-streaming-peak-react",
+              "@benchmarks/memory-server-serialization-payload-react"
+            ],
+            "target": "build:ssr:flame"
+          }
+        ]
+      },
+      "build:solid:flame": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-server-request-churn-solid",
+              "@benchmarks/memory-server-server-fn-churn-solid",
+              "@benchmarks/memory-server-error-paths-solid",
+              "@benchmarks/memory-server-aborted-requests-solid",
+              "@benchmarks/memory-server-peak-large-page-solid",
+              "@benchmarks/memory-server-streaming-peak-solid",
+              "@benchmarks/memory-server-serialization-payload-solid"
+            ],
+            "target": "build:ssr:flame"
+          }
+        ]
+      },
+      "build:vue:flame": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-server-request-churn-vue",
+              "@benchmarks/memory-server-server-fn-churn-vue",
+              "@benchmarks/memory-server-error-paths-vue",
+              "@benchmarks/memory-server-aborted-requests-vue",
+              "@benchmarks/memory-server-peak-large-page-vue",
+              "@benchmarks/memory-server-streaming-peak-vue",
+              "@benchmarks/memory-server-serialization-payload-vue"
+            ],
+            "target": "build:ssr:flame"
+          }
+        ]
+      },
+      "test:flame:react": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-server-request-churn-react",
+              "@benchmarks/memory-server-server-fn-churn-react",
+              "@benchmarks/memory-server-error-paths-react",
+              "@benchmarks/memory-server-aborted-requests-react",
+              "@benchmarks/memory-server-peak-large-page-react",
+              "@benchmarks/memory-server-streaming-peak-react",
+              "@benchmarks/memory-server-serialization-payload-react"
+            ],
+            "target": "test:flame"
+          }
+        ]
+      },
+      "test:flame:solid": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-server-request-churn-solid",
+              "@benchmarks/memory-server-server-fn-churn-solid",
+              "@benchmarks/memory-server-error-paths-solid",
+              "@benchmarks/memory-server-aborted-requests-solid",
+              "@benchmarks/memory-server-peak-large-page-solid",
+              "@benchmarks/memory-server-streaming-peak-solid",
+              "@benchmarks/memory-server-serialization-payload-solid"
+            ],
+            "target": "test:flame"
+          }
+        ]
+      },
+      "test:flame:vue": {
+        "executor": "nx:noop",
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-server-request-churn-vue",
+              "@benchmarks/memory-server-server-fn-churn-vue",
+              "@benchmarks/memory-server-error-paths-vue",
+              "@benchmarks/memory-server-aborted-requests-vue",
+              "@benchmarks/memory-server-peak-large-page-vue",
+              "@benchmarks/memory-server-streaming-peak-vue",
+              "@benchmarks/memory-server-serialization-payload-vue"
+            ],
+            "target": "test:flame"
+          }
+        ]
+      },
+      "test:perf:react": {
+        "executor": "nx:run-commands",
+        "parallelism": false,
+        "cache": false,
+        "dependsOn": [
+          "build:react"
+        ],
+        "options": {
+          "command": "NODE_ENV=production vitest bench --config ./vitest.react.config.ts",
+          "cwd": "benchmarks/memory/server"
+        }
+      },
+      "test:perf:solid": {
+        "executor": "nx:run-commands",
+        "parallelism": false,
+        "cache": false,
+        "dependsOn": [
+          "build:solid"
+        ],
+        "options": {
+          "command": "NODE_ENV=production vitest bench --config ./vitest.solid.config.ts",
+          "cwd": "benchmarks/memory/server"
+        }
+      },
+      "test:perf:vue": {
+        "executor": "nx:run-commands",
+        "parallelism": false,
+        "cache": false,
+        "dependsOn": [
+          "build:vue"
+        ],
+        "options": {
+          "command": "NODE_ENV=production vitest bench --config ./vitest.vue.config.ts",
+          "cwd": "benchmarks/memory/server"
+        }
+      },
+      "test:types": {
+        "executor": "nx:noop",
+        "dependsOn": [
+          {
+            "projects": [
+              "@benchmarks/memory-server-request-churn-react",
+              "@benchmarks/memory-server-server-fn-churn-react",
+              "@benchmarks/memory-server-error-paths-react",
+              "@benchmarks/memory-server-aborted-requests-react",
+              "@benchmarks/memory-server-peak-large-page-react",
+              "@benchmarks/memory-server-streaming-peak-react",
+              "@benchmarks/memory-server-serialization-payload-react",
+              "@benchmarks/memory-server-request-churn-solid",
+              "@benchmarks/memory-server-server-fn-churn-solid",
+              "@benchmarks/memory-server-error-paths-solid",
+              "@benchmarks/memory-server-aborted-requests-solid",
+              "@benchmarks/memory-server-peak-large-page-solid",
+              "@benchmarks/memory-server-streaming-peak-solid",
+              "@benchmarks/memory-server-serialization-payload-solid",
+              "@benchmarks/memory-server-request-churn-vue",
+              "@benchmarks/memory-server-server-fn-churn-vue",
+              "@benchmarks/memory-server-error-paths-vue",
+              "@benchmarks/memory-server-aborted-requests-vue",
+              "@benchmarks/memory-server-peak-large-page-vue",
+              "@benchmarks/memory-server-streaming-peak-vue",
+              "@benchmarks/memory-server-serialization-payload-vue"
+            ],
+            "target": "test:types:ssr"
+          }
+        ]
+      }
+    }
+  }
+}

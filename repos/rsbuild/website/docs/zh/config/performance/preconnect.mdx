@@ -1,0 +1,99 @@
+---
+description: 'link 元素的 rel 属性的 preconnect 关键字是对浏览器的一种提示，即用户很可能需要来自目标来源的资源，因此浏览器很可能通过抢先启动与该源的连接来改善用户体验。通过抢先执行部分或全部握手（HTTP 为 DNS+TCP，HTTPS 为 DNS+TCP+TLS），预连接可加快未来从给定源加载的速度。'
+---
+
+# performance.preconnect
+
+- **类型：**
+
+```ts
+type Preconnect =
+  | Array<
+      | string
+      | {
+          href: string;
+          crossorigin?: boolean;
+        }
+    >
+  | undefined;
+```
+
+- **默认值：** `undefined`
+
+注入 [`<link rel="preconnect">`](https://developer.mozilla.org/zh-CN/docs/Web/HTML/Attributes/rel/preconnect) 标签到 HTML 文件中。
+
+## 何时使用
+
+`<link>` 元素的 rel 属性的 `preconnect` 关键字是对浏览器的一种提示，即用户很可能需要来自目标来源的资源，因此浏览器很可能通过抢先启动与该源的连接来改善用户体验。通过抢先执行部分或全部握手（HTTP 为 DNS+TCP，HTTPS 为 DNS+TCP+TLS），预连接可加快未来从给定源加载的速度。
+
+`<link rel="preconnect">` 将为未来的跨源 HTTP 请求、导航或子资源带来好处。它对同源请求没有好处，因为连接已经打开。
+
+如果一个页面需要与许多第三方域建立连接，将它们全部预连接可能会适得其反。`<link rel="preconnect">` 提示最好只用于最关键的连接。对于其他连接，只需使用 [`<link rel="dns-prefetch">`](/config/performance/dns-prefetch)，以节省第一步 DNS 查询的时间。
+
+## 示例
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    preconnect: ['https://example.com/'],
+  },
+};
+```
+
+生成的 HTML 标签如下：
+
+```html
+<link ref="preconnect" href="https://example.com" />
+```
+
+## 选项
+
+### href
+
+- **类型：** `string`
+- **默认值：** `undefined`
+
+指定要预连接的 URL。
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    // 等价于 `preconnect: ['https://example.com/'],`
+    preconnect: [
+      {
+        href: 'https://example.com/',
+      },
+    ],
+  },
+};
+```
+
+### crossorigin
+
+- **类型：** `boolean`
+- **默认值：** `false`
+
+指定是否添加 `crossorigin` 属性。
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    preconnect: [
+      {
+        href: 'https://example.com/',
+        crossorigin: true,
+      },
+    ],
+  },
+};
+```
+
+生成的 HTML 标签如下：
+
+```html
+<link rel="preconnect" href="https://example.com" crossorigin />
+```
+
+:::tip
+参考该 [链接](https://webmasters.stackexchange.com/questions/89466/when-should-i-use-the-crossorigin-attribute-on-a-preconnect-link) 了解 `crossorigin` 属性的使用场景。
+:::

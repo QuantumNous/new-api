@@ -1,0 +1,13 @@
+[
+  "index",
+  "plugin-react",
+  "plugin-svgr",
+  "plugin-vue",
+  "plugin-preact",
+  "plugin-svelte",
+  "plugin-solid",
+  "plugin-babel",
+  "plugin-tailwindcss",
+  "plugin-sass",
+  "plugin-less"
+]

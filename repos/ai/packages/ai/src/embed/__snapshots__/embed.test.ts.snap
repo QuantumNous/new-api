@@ -1,0 +1,40 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`options.onEnd > should send correct event information 1`] = `
+{
+  "callId": "test-call-id",
+  "embedding": [
+    0.1,
+    0.2,
+    0.3,
+  ],
+  "modelId": "mock-model-id",
+  "operationId": "ai.embed",
+  "provider": "mock-provider",
+  "providerMetadata": undefined,
+  "response": {
+    "body": {},
+    "headers": {},
+  },
+  "usage": {
+    "tokens": 10,
+  },
+  "value": "sunny day at the beach",
+  "warnings": [],
+}
+`;
+
+exports[`options.onStart > should send correct event information 1`] = `
+{
+  "callId": "test-call-id",
+  "headers": {
+    "user-agent": "ai/0.0.0-test",
+  },
+  "maxRetries": 2,
+  "modelId": "mock-model-id",
+  "operationId": "ai.embed",
+  "provider": "mock-provider",
+  "providerOptions": undefined,
+  "value": "sunny day at the beach",
+}
+`;

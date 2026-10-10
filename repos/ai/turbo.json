@@ -1,0 +1,110 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "globalEnv": ["CI", "PORT"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "env": [
+        "AI_GATEWAY_API_KEY",
+        "AI_SDK_DEVTOOLS_PORT",
+        "ALIBABA_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_BASE_URL",
+        "ANTHROPIC_MICROSOFT_RESOURCE_NAME",
+        "ANTHROPIC_MICROSOFT_API_KEY",
+        "ARK_API_KEY",
+        "ASSISTANT_ID",
+        "AWS_REGION",
+        "AWS_ACCESS_KEY_ID",
+        "AWS_SECRET_ACCESS_KEY",
+        "AZURE_RESOURCE_NAME",
+        "AZURE_API_KEY",
+        "BASETEN_API_KEY",
+        "CEREBRAS_API_KEY",
+        "COHERE_API_KEY",
+        "DEEPINFRA_API_KEY",
+        "DEEPSEEK_API_KEY",
+        "ELEVENLABS_API_KEY",
+        "FAL_KEY",
+        "FAL_API_KEY",
+        "FIREWORKS_API_KEY",
+        "GOOGLE_API_KEY",
+        "GOOGLE_APPLICATION_CREDENTIALS",
+        "GOOGLE_CLIENT_EMAIL",
+        "GOOGLE_GENERATIVE_AI_API_KEY",
+        "GOOGLE_PRIVATE_KEY",
+        "GOOGLE_PRIVATE_KEY_ID",
+        "GOOGLE_VERTEX_API_KEY",
+        "GOOGLE_VERTEX_LOCATION",
+        "GOOGLE_VERTEX_PROJECT",
+        "GROQ_API_KEY",
+        "KLINGAI_ACCESS_KEY",
+        "KLINGAI_SECRET_KEY",
+        "LUMA_API_KEY",
+        "MISTRAL_API_KEY",
+        "NEXT_RUNTIME",
+        "NIM_API_KEY",
+        "NODE_ENV",
+        "OPENAI_API_KEY",
+        "OPENAI_API_BASE",
+        "OPENAI_BASE_URL",
+        "PERPLEXITY_API_KEY",
+        "REPLICATE_API_TOKEN",
+        "SENTRY_AUTH_TOKEN",
+        "SENTRY_ORG",
+        "SENTRY_PROJECT",
+        "TOGETHER_API_KEY",
+        "TOGETHER_AI_API_KEY",
+        "VERCEL_API_KEY",
+        "VERCEL_DEPLOYMENT_ID",
+        "VERCEL_ENV",
+        "VERCEL_OIDC_TOKEN",
+        "VERCEL_REGION",
+        "VERCEL_URL",
+        "XAI_API_KEY"
+      ],
+      "outputs": [
+        "dist/**",
+        ".next/**",
+        "!.next/cache/**",
+        ".nuxt/**",
+        ".svelte-kit/**",
+        ".vinxi/**"
+      ]
+    },
+    "type-check": {
+      "dependsOn": ["^build", "build"]
+    },
+    "test": {
+      "dependsOn": ["^build", "build"],
+      "env": ["SKIP_RSC_E2E"]
+    },
+    "test:e2e:ci": {
+      "env": ["SKIP_RSC_E2E"]
+    },
+    "test:update": {
+      "dependsOn": ["^build", "build"]
+    },
+    "publint": {
+      "dependsOn": ["^build", "build"]
+    },
+    "clean": {
+      "dependsOn": ["^clean"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    "integration-test": {
+      "dependsOn": ["^build", "build"]
+    },
+    "//#konsistent:check": {
+      "dependsOn": ["konsistent-provider#build"],
+      "cache": false
+    },
+    "//#konsistent:validate": {
+      "dependsOn": ["konsistent-provider#build"],
+      "cache": false
+    }
+  }
+}

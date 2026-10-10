@@ -1,0 +1,114 @@
+{
+  "id": "resp_09d58369f84fca7901693cb8381f608196acdaff061ff8de58",
+  "object": "response",
+  "created_at": 1765587000,
+  "status": "completed",
+  "background": false,
+  "content_filters": null,
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-5-mini",
+  "output": [
+    {
+      "id": "rs_09d58369f84fca7901693cb838c60c81968c2e61898eec89c7",
+      "type": "reasoning",
+      "encrypted_content": "gAAAAABpPLg7YtHo-XROa4SQaGVDHn0JzkSOrg5lJcLFlex18wO9qm_qKFKaHh2m09jkyfNbQrD5lkcDupkwuuRs9EkPfjpbn42juiStvKBpjp-jucgoLqoXBRAAhoNg5rekRiKw5mCYfE0ycsFbYRIhbk_fpRek9AR3rrh1eWVtRfCuKb_dErh4bUeAP53K4AWB9KE8MrG3Lyf3ngCvzQcPSx6y2JAaKBG0RyDXshdp_4ObIN3dOCyeMnuYGXyVSY2COxXcE99JHu8ASBsoNFtGF-7Hl7GSthu-49Avaw3SQv-WUGDk1mr_eOGMiQwiwu8-KBkSSmlgtqYkMOtZSH6_qcChocDTzjj5PNBF0tr1484LNsadlnqY1h_JiaDkxv2YCowUEdupGdz9L-cdFM0Jl_HzOL_ib8658F3Wq3pLyF8wuk1aDaCRTch6cydu4_4YaHlUg8IL2UR12pPnrSTAf9-v0D6W4nnpxH9eM6bT78D7mOF-qsMJtJFsfj20wEStYmrytxdIiGpKIQBZyUMfhLrd0ks0AP4zgu0PEtA6NF7rxUeO8KA2bGC_T7WSKu6yLXofRfxfwK0dosWLFTVPpPKjV47If3sMEoKqLIRhUYvgCIAckJYRqBC-IV7ojqeZIaXHW9JB_zwZp_d3NzHCSkS0b5YrxOArtBDh67-ty5kBRf5QOfCXKRBu1iek_ShCmzree480gC-cPxWw4T8b4p3S3LVZXt3G2UhrATRvOw0YeaT8EQrPS7sizgw_kBbC5gqc-HEwcrW9FfdNYCOfO_nbuiWL6IfIinTLTlx-M8H7eGwYV2V_9WiqGYuToxCuL9t4-oHT_oZeMphemkU7HRtYXy4zOyOrP_vUATNw_e7tD9WE2QNm6OodqEf46toPMyYdCpjlk6IOJo2QoffwoH_q0XU-F5wVC3BLx8tAr738vpnW8al6iV4FvhZzRjgJfsFcGtkQJrI52xoZYFmzk3NiFYTedknX1GAmFgmsoA06Gb_YIih2kImZIqI_Evfkr9T1FVtmWcELjvlPc2Vc6_5sKTuv2PI77lgmM3w_wjiNu0r2WrcHvZ3YERuszapCQ7gD2JTmZ0c_x4P_c6OufS_7Gf3gaEKRaJVk8o6vwkNrDu2pedkBJh-EN_FHChv-3C6wM2ImXTh3eJKoKKtfJEvWr7lB2LSGWadvFp3cGsL9S6HNM5-DWM4SDSb8TOEQVO1GJy--GYWxr3LTZzoELikNDibX7y09m_QLKFNZ_ZRThamtmAb5HpMlGAt-jRMaB_LIT2UluJxDsAQXMwCCBu8BnA1VEPvQyDCJkQRqrUxV8OWNP49sfvSWFP579Y9SHeEyMqimazRvCyPkW5UCL7MDBTMRGQ==",
+      "summary": [
+        {
+          "type": "summary_text",
+          "text": "**Compiling final result**\n\nI need to present the final result, which is 570. The user wanted me to perform each arithmetic step separately and report it clearly. So, I've done the necessary tool calls and now I'm summarizing the steps, which are: (12 + 7) = 19, then 19 * 3 = 57, and finally 57 * 10 = 570. I’ll keep it concise and straightforward without heavy formatting. The final result is 570!"
+        }
+      ]
+    },
+    {
+      "id": "msg_09d58369f84fca7901693cb83b12388196b17d2b310fe6c361",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "(12 + 7) = 19\n19 × 3 = 57\n57 × 10 = 570\n\nFinal result: 570"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": "high",
+    "summary": "detailed"
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": false,
+  "temperature": 1,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "function",
+      "description": "A minimal calculator for basic arithmetic. Call it once per step.",
+      "name": "calculator",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "type": "number",
+            "description": "First operand."
+          },
+          "b": {
+            "type": "number",
+            "description": "Second operand."
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "subtract",
+              "multiply",
+              "divide"
+            ],
+            "default": "add",
+            "description": "Arithmetic operation to perform."
+          }
+        },
+        "required": [
+          "a",
+          "b",
+          "op"
+        ],
+        "additionalProperties": false
+      },
+      "strict": true
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 1,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 564,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 101,
+    "output_tokens_details": {
+      "reasoning_tokens": 64
+    },
+    "total_tokens": 665
+  },
+  "user": null,
+  "metadata": {}
+}

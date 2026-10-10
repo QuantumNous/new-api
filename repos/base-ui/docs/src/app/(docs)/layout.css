@@ -1,0 +1,89 @@
+@import 'docs/src/css/custom-media.css';
+
+@layer base {
+  /* Scope body styles to only apply when docs layout is present */
+  body {
+    position: relative; /* iOS 26 `position: absolute` backdrops */
+    min-width: 320px;
+    line-height: 1.5;
+    /* It's also the iOS footer overscroll background */
+    background-color: var(--color-content);
+    color: var(--color-foreground);
+  }
+}
+
+@layer components {
+  .RootLayout {
+    z-index: 0;
+    position: relative;
+
+    --root-layout-padding-x: 0rem;
+    padding-inline: var(--root-layout-padding-x);
+
+    @media (--show-side-nav) {
+      --root-layout-padding-x: 3rem;
+    }
+  }
+
+  .RootLayoutContainer {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    margin-inline: auto;
+    min-height: 100dvh;
+    max-width: calc(var(--breakpoint-max-layout-width) - var(--root-layout-padding-x) * 2);
+
+    @media (--show-side-nav) {
+      padding-block: var(--header-height);
+      padding-bottom: 0;
+    }
+  }
+
+  .RootLayoutContent {
+    display: flex;
+    flex-grow: 1;
+    flex-direction: column;
+    background-color: var(--color-content);
+  }
+
+  .ContentLayoutRoot {
+    --sidebar-width: 17.5rem;
+
+    display: grid;
+    align-items: start;
+    padding-top: var(--header-height);
+    padding-inline: 1.5rem;
+    grid-template-columns: 1fr;
+
+    @media (--sm) {
+      padding-inline: 2.5rem;
+    }
+
+    @media (--show-side-nav) {
+      padding-top: 0;
+      padding-inline: 0;
+      grid-template-columns: var(--sidebar-width) 1fr 3rem;
+    }
+
+    @media (--show-quick-nav) {
+      grid-template-columns: var(--sidebar-width) 1fr var(--sidebar-width);
+    }
+  }
+
+  .ContentLayoutMain {
+    min-width: 0;
+    max-width: 48rem;
+    width: 100%;
+
+    margin: 0 auto;
+
+    @media (--show-side-nav) {
+      margin: 0;
+      grid-column: 2;
+    }
+
+    @media (--show-quick-nav) {
+      margin: 0;
+    }
+  }
+}

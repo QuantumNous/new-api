@@ -1,0 +1,132 @@
+---
+description: 'Rsbuild supports multiple build targets for running in different environments.'
+---
+
+# output.target
+
+- **Type:**
+
+```ts
+type RsbuildTarget = 'web' | 'node' | 'web-worker';
+```
+
+- **Default:** `'web'`
+- **Version:** `>= 1.0.0`
+
+Sets the build target for Rsbuild.
+
+Rsbuild supports multiple build targets for running in different environments. After setting the target type, Rsbuild's default configuration will change accordingly.
+
+## Default target
+
+The target is `'web'` by default, building outputs for browsers.
+
+Rsbuild reads the [Browserslist config](https://github.com/browserslist/browserslist) in the project to determine the range of supported browsers.
+
+## Optional values
+
+In addition to `'web'`, `target` can also be set to the following values:
+
+- `'node'`: Build for Node.js environment, usually used in SSR or other scenarios.
+- `'web-worker'`: Build for Web Workers environment.
+
+For example, to build for the Node.js environment:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+  },
+};
+```
+
+## Parallel builds
+
+You can use [environments](/config/environments) to build multiple targets in parallel.
+
+To build `web` and `node` outputs simultaneously, use [environments](/config/environments):
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    web: {
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      output: {
+        target: 'node',
+        distPath: {
+          root: 'dist/server',
+        },
+      },
+    },
+  },
+};
+```
+
+## Node target
+
+Refers to the build target for running in the Node.js environment, usually used in scenarios such as SSR.
+
+When `target` is set to `'node'`, Rsbuild will:
+
+- Set Rspack's [target](https://rspack.rs/config/target) to `'node'`.
+- No HTML files will be generated, and HTML-related logic will not be executed, since HTML is not required in the Node.js environment.
+- The default code split strategy will be disabled, but dynamic import can still work.
+- Disable HMR.
+- Set the default value of Browserslist to `['node >= 20']`.
+- Set the default value of [output.emitCss](/config/output/emit-css) to `false`. This means CSS code will not be extracted to separate files, but CSS Modules id information will be included in the bundle.
+
+### Node addons
+
+When `target` is set to `'node'`, Rsbuild allows you to import Node.js [Addons](https://nodejs.org/api/addons.html) in JavaScript files.
+
+For example:
+
+```js title="src/index.js"
+import addon from './addon.node';
+
+addon.doSomething();
+```
+
+The referenced addons file will be output to the `dist` directory:
+
+```
+dist/index.js
+dist/addon.node
+```
+
+## Web Workers target
+
+Refers to the build target for running in the [Web Worker](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API) environment.
+
+When `target` is set to `'web-worker'`, Rsbuild will:
+
+- Set Rspack's [target](https://rspack.rs/config/target) to `'webworker'`.
+- No HTML files will be generated, and HTML-related logic will not be executed, since HTML is not required in the Web Worker environment.
+- CSS code will not be bundled or extracted, but CSS Modules id information will be included in the bundle (the default value of [output.emitCss](/config/output/emit-css) is `false`).
+- The default code split strategy will be disabled, and **dynamic import cannot work**, because Web Workers only run a single JavaScript file.
+- Set the default value of [output.emitCss](/config/output/emit-css) to `false`. This means CSS code will not be extracted to separate files, but CSS Modules id information will be included in the bundle.
+- Disable HMR.
+
+For more information, see [Using Web Workers](/guide/basic/web-workers).
+
+## Other targets
+
+[Rspack](https://rspack.rs/config/target) supports other target types, such as `electron-main` and `electron-renderer`.
+
+Rsbuild currently does not support these targets. You can configure these targets using [tools.rspack](/config/tools/rspack).
+
+For example, setting the `target` to `'electron-main'` will override the default `'web'` set by Rsbuild.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      target: 'electron-main',
+    },
+  },
+};
+```

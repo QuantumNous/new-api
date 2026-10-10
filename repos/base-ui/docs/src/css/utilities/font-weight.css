@@ -1,0 +1,9 @@
+@layer utilities {
+  .bui-fw-1 {
+    font-weight: var(--font-weight-400);
+  }
+
+  .bui-fw-2 {
+    font-weight: var(--font-weight-700);
+  }
+}

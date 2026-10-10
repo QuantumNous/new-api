@@ -1,0 +1,57 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`assistant messages > should add prefix true to trailing assistant messages 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "Hello",
+        "type": "text",
+      },
+    ],
+    "role": "user",
+  },
+  {
+    "content": "Hello!",
+    "prefix": true,
+    "role": "assistant",
+    "tool_calls": undefined,
+  },
+]
+`;
+
+exports[`user messages > should convert messages with PDF file parts using URL 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "Please analyze this document",
+        "type": "text",
+      },
+      {
+        "document_url": "https://example.com/document.pdf",
+        "type": "document_url",
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`user messages > should convert messages with image parts 1`] = `
+[
+  {
+    "content": [
+      {
+        "text": "Hello",
+        "type": "text",
+      },
+      {
+        "image_url": "data:image/png;base64,AAECAw==",
+        "type": "image_url",
+      },
+    ],
+    "role": "user",
+  },
+]
+`;

@@ -1,0 +1,215 @@
+---
+title: Get started with DeepSeek V3.2
+description: Get started with DeepSeek V3.2 using the AI SDK.
+tags: ['getting-started', 'agents']
+---
+
+# Get started with DeepSeek V3.2
+
+With the [release of DeepSeek V3.2](https://api-docs.deepseek.com/news/news251201), there has never been a better time to start building AI applications that require advanced reasoning and agentic capabilities.
+
+The [AI SDK](/) is a powerful TypeScript toolkit for building AI applications with large language models (LLMs) like DeepSeek V3.2 alongside popular frameworks like React, Next.js, Vue, Svelte, Node.js, and more.
+
+## DeepSeek V3.2
+
+DeepSeek V3.2 is a frontier model that harmonizes high computational efficiency with superior reasoning and agent performance. It introduces several key technical breakthroughs that enable it to perform comparably to GPT-5 while remaining open-source.
+
+The series includes two primary variants:
+
+- **DeepSeek V3.2**: The official successor to V3.2-Exp. A balanced model optimized for both reasoning and inference efficiency, delivering GPT-5 level performance.
+- **DeepSeek V3.2-Speciale**: A high-compute variant with maxed-out reasoning capabilities that rivals Gemini-3.0-Pro. Achieves gold-medal performance in IMO 2025, CMO 2025, ICPC World Finals 2025, and IOI 2025. As of release, it does not support tool-use.
+
+### Benchmarks
+
+DeepSeek V3.2 models excel in both reasoning and agentic tasks, delivering competitive performance across key benchmarks:
+
+**Reasoning Capabilities**
+
+- **AIME 2025 (Pass@1)**: 96.0% (Speciale)
+- **HMMT 2025 (Pass@1)**: 99.2% (Speciale)
+- **HLE (Pass@1)**: 30.6%
+- **Codeforces (Rating)**: 2701 (Speciale)
+
+**Agentic Capabilities**
+
+- **SWE Verified (Resolved)**: 73.1%
+- **Terminal Bench 2.0 (Acc)**: 46.4%
+- **τ2 Bench (Pass@1)**: 80.3%
+- **Tool Decathlon (Pass@1)**: 35.2%
+
+[Source](https://huggingface.co/deepseek-ai/DeepSeek-V3.2/resolve/main/assets/paper.pdf)
+
+### Model Options
+
+When using DeepSeek V3.2 with the AI SDK, you have two model options:
+
+| Model Alias         | Model Version                     | Description                                    |
+| ------------------- | --------------------------------- | ---------------------------------------------- |
+| `deepseek-chat`     | DeepSeek-V3.2 (Non-thinking Mode) | Standard chat model                            |
+| `deepseek-reasoner` | DeepSeek-V3.2 (Thinking Mode)     | Enhanced reasoning for complex problem-solving |
+
+## Getting Started with the AI SDK
+
+The AI SDK is the TypeScript toolkit designed to help developers build AI-powered applications with React, Next.js, Vue, Svelte, Node.js, and more. Integrating LLMs into applications is complicated and heavily dependent on the specific model provider you use.
+
+The AI SDK abstracts away the differences between model providers, eliminates boilerplate code for building agents, and allows you to go beyond text output to generate rich, interactive components.
+
+At the center of the AI SDK is [AI SDK Core](/docs/ai-sdk-core/overview), which provides a unified API to call any LLM. The code snippet below is all you need to call DeepSeek V3.2 with the AI SDK:
+
+```ts
+import { deepSeek } from '@ai-sdk/deepseek';
+import { generateText } from 'ai';
+
+const { text } = await generateText({
+  model: deepSeek('deepseek-chat'),
+  prompt: 'Explain the concept of sparse attention in transformers.',
+});
+```
+
+### Building Interactive Interfaces
+
+AI SDK Core can be paired with [AI SDK UI](/docs/ai-sdk-ui/overview), another powerful component of the AI SDK, to streamline the process of building chat, completion, and assistant interfaces with popular frameworks like Next.js, Nuxt, and SvelteKit.
+
+AI SDK UI provides robust abstractions that simplify the complex tasks of managing chat streams and UI updates on the frontend, enabling you to develop dynamic AI-driven interfaces more efficiently.
+
+With three main hooks — [`useChat`](/docs/reference/ai-sdk-ui/use-chat), [`useCompletion`](/docs/reference/ai-sdk-ui/use-completion), and [`useObject`](/docs/reference/ai-sdk-ui/use-object) — you can incorporate real-time chat capabilities, text completions, streamed JSON, and interactive assistant features into your app.
+
+Let's explore building an agent with [Next.js](https://nextjs.org), the AI SDK, and DeepSeek V3.2:
+
+In a new Next.js application, first install the AI SDK and the DeepSeek provider:
+
+<Snippet text="pnpm install ai @ai-sdk/deepseek @ai-sdk/react" />
+
+Then, create a route handler for the chat endpoint:
+
+```tsx filename="app/api/chat/route.ts"
+import { deepSeek } from '@ai-sdk/deepseek';
+import {
+  convertToModelMessages,
+  createUIMessageStreamResponse,
+  streamText,
+  toUIMessageStream,
+  UIMessage,
+} from 'ai';
+
+export async function POST(req: Request) {
+  const { messages }: { messages: UIMessage[] } = await req.json();
+
+  const result = streamText({
+    model: deepSeek('deepseek-reasoner'),
+    messages: await convertToModelMessages(messages),
+  });
+
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream({ stream: result.stream, sendReasoning: true }),
+  });
+}
+```
+
+Finally, update the root page (`app/page.tsx`) to use the `useChat` hook:
+
+```tsx filename="app/page.tsx"
+'use client';
+
+import { useChat } from '@ai-sdk/react';
+import { useState } from 'react';
+
+export default function Page() {
+  const [input, setInput] = useState('');
+  const { messages, sendMessage } = useChat();
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (input.trim()) {
+      sendMessage({ text: input });
+      setInput('');
+    }
+  };
+
+  return (
+    <>
+      {messages.map(message => (
+        <div key={message.id}>
+          {message.role === 'user' ? 'User: ' : 'AI: '}
+          {message.parts.map((part, index) => {
+            if (part.type === 'text' || part.type === 'reasoning') {
+              return <div key={index}>{part.text}</div>;
+            }
+            return null;
+          })}
+        </div>
+      ))}
+      <form onSubmit={handleSubmit}>
+        <input
+          name="prompt"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+        />
+        <button type="submit">Submit</button>
+      </form>
+    </>
+  );
+}
+```
+
+The useChat hook on your root page (`app/page.tsx`) will make a request to your AI provider endpoint (`app/api/chat/route.ts`) whenever the user submits a message. The messages are then displayed in the chat UI.
+
+## Enhance Your Agent with Tools
+
+One of the key strengths of DeepSeek V3.2 is its agentic capabilities. You can extend your agent's functionality by adding tools that allow the model to perform specific actions or retrieve information.
+
+### Update Your Route Handler
+
+Let's add a weather tool to your agent. Update your route handler at `app/api/chat/route.ts`:
+
+```tsx filename="app/api/chat/route.ts"
+import { deepSeek } from '@ai-sdk/deepseek';
+import {
+  convertToModelMessages,
+  createUIMessageStreamResponse,
+  isStepCount,
+  streamText,
+  tool,
+  toUIMessageStream,
+  UIMessage,
+} from 'ai';
+import { z } from 'zod';
+
+export async function POST(req: Request) {
+  const { messages }: { messages: UIMessage[] } = await req.json();
+
+  const result = streamText({
+    model: deepSeek('deepseek-reasoner'),
+    messages: await convertToModelMessages(messages),
+    tools: {
+      weather: tool({
+        description: 'Get the weather in a location',
+        inputSchema: z.object({
+          location: z.string().describe('The location to get the weather for'),
+        }),
+        execute: async ({ location }) => ({
+          location,
+          temperature: 72,
+          unit: 'fahrenheit',
+        }),
+      }),
+    },
+    stopWhen: isStepCount(5),
+  });
+
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream({ stream: result.stream, sendReasoning: true }),
+  });
+}
+```
+
+This adds a weather tool that the model can call when needed. The `stopWhen: isStepCount(5)` parameter allows the agent to continue executing for multiple steps (up to 5), enabling it to use tools and reason iteratively before stopping. Learn more about [loop control](/docs/agents/loop-control) to customize when and how your agent stops execution.
+
+## Get Started
+
+Ready to dive in? Here's how you can begin:
+
+1. Explore the documentation at [ai-sdk.dev/docs](/docs) to understand the capabilities of the AI SDK.
+2. Check out practical examples at [ai-sdk.dev/examples](/examples) to see the SDK in action.
+3. Dive deeper with advanced guides on topics like Retrieval-Augmented Generation (RAG) at [ai-sdk.dev/docs/guides](/cookbook/guides).
+4. Use ready-to-deploy AI templates at [vercel.com/templates?type=ai](https://vercel.com/templates?type=ai).

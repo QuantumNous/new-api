@@ -1,0 +1,230 @@
+---
+title: Tools
+description: Use tools with AI SDK harnesses.
+---
+
+# Harness Tools
+
+Harnesses have two tool surfaces:
+
+- Built-in tools exposed by the underlying harness runtime, such as file reads,
+  edits, shell commands, and web search.
+- AI SDK tools that you pass to `HarnessAgent` with the `tools` setting.
+
+This page covers harness-specific behavior. For general AI SDK tool concepts,
+schemas, tool results, and `tool()` usage, see [Tools](/docs/foundations/tools).
+
+## Built-in Tools
+
+Each adapter declares the built-in tools its runtime can call natively.
+`HarnessAgent` merges those built-ins with your host-defined tools and exposes
+the combined tool set through `agent.tools`.
+
+```ts
+const agent = new HarnessAgent({
+  harness: claudeCode,
+  sandbox: createVercelSandbox({
+    runtime: 'node24',
+    ports: [4000],
+  }),
+});
+
+agent.tools.bash;
+agent.tools.read;
+agent.tools.write;
+```
+
+Built-in calls are executed by the harness runtime, not by your application
+process. Stream parts use `providerExecuted: true` when the runtime already
+performed the call.
+
+Adapters use common names where possible:
+
+- `read`
+- `write`
+- `edit`
+- `bash`
+- `grep`
+- `glob`
+- `webSearch`
+
+Some runtimes also expose native tools without a common cross-harness name.
+Those appear under their native names.
+
+## Host-Executed Tools
+
+Pass AI SDK tools to `HarnessAgent` the same way you do for a `ToolLoopAgent`:
+
+```ts
+import { HarnessAgent } from '@ai-sdk/harness/agent';
+import { claudeCode } from '@ai-sdk/harness-claude-code';
+import { createVercelSandbox } from '@ai-sdk/sandbox-vercel';
+import { tool } from 'ai';
+import { z } from 'zod';
+
+const weather = tool({
+  description: 'Get the current temperature for a city.',
+  inputSchema: z.object({
+    city: z.string(),
+  }),
+  execute: async ({ city }) => {
+    const temperatures: Record<string, number> = {
+      Paris: 12,
+      Tokyo: 18,
+      Reykjavik: 3,
+    };
+
+    return { city, celsius: temperatures[city] ?? 20 };
+  },
+});
+
+const agent = new HarnessAgent({
+  harness: claudeCode,
+  sandbox: createVercelSandbox({
+    runtime: 'node24',
+    ports: [4000],
+  }),
+  tools: { weather },
+});
+```
+
+When the harness calls `weather`, `HarnessAgent` executes the tool in your host
+process, then submits the result back to the harness runtime.
+
+## Tool Filtering
+
+Use `activeTools` or `inactiveTools` on `HarnessAgent` to control which tools the
+harness can call. Both settings accept tool names from the combined tool set:
+the built-in tools declared by the harness adapter and the AI SDK tools passed
+with `tools`.
+
+`activeTools` is an allowlist:
+
+```ts
+const agent = new HarnessAgent({
+  harness: claudeCode,
+  sandbox: createVercelSandbox({
+    runtime: 'node24',
+    ports: [4000],
+  }),
+  tools: { weather },
+  activeTools: ['weather'],
+});
+```
+
+`inactiveTools` is a denylist:
+
+```ts
+const agent = new HarnessAgent({
+  harness: claudeCode,
+  sandbox: createVercelSandbox({
+    runtime: 'node24',
+    ports: [4000],
+  }),
+  tools: { weather },
+  inactiveTools: ['bash', 'write'],
+});
+```
+
+Pass either `activeTools` or `inactiveTools`, not both. The TypeScript settings
+type prevents combining them, and `HarnessAgent` also throws at runtime when
+both are specified.
+
+For host-executed tools, inactive tools are not passed to the underlying
+harness runtime. If the runtime still attempts to call one, `HarnessAgent`
+returns an execution-denied tool result.
+
+For built-in tools, support depends on the harness adapter. Some adapters can
+filter built-ins natively. Others enforce filtering through their built-in tool
+approval mechanism by denying inactive built-in calls before they execute,
+without emitting approval request or response stream parts. Adapters that
+support neither mechanism throw when you filter built-in tools.
+
+## Sandbox in Tool Execution
+
+Host-executed tools receive the session sandbox through the same
+`experimental_sandbox` execution option used by AI SDK tools elsewhere. The
+value is a restricted sandbox session, so tools can read, write, and run
+commands without being able to stop the network sandbox or change its network
+policy.
+
+```ts
+const inspectFile = tool({
+  description: 'Read a file from the harness workspace.',
+  inputSchema: z.object({
+    path: z.string(),
+  }),
+  execute: async ({ path }, { experimental_sandbox }) => {
+    return {
+      content: await experimental_sandbox?.readTextFile({ path }),
+    };
+  },
+});
+```
+
+## Tool Approvals
+
+Harnesses distinguish built-in tool permissions from host-executed tool
+approvals.
+
+Use `permissionMode` for adapter-native built-ins:
+
+```ts
+const agent = new HarnessAgent({
+  harness: pi,
+  sandbox: createVercelSandbox({ runtime: 'node24' }),
+  permissionMode: 'allow-edits',
+});
+```
+
+Available values are:
+
+- `allow-all`: allow built-in reads, edits, and shell commands. This is the
+  default.
+- `allow-edits`: allow reads and edits, but request approval for shell commands
+  when the adapter supports built-in approvals.
+- `allow-reads`: allow reads, but request approval for edits and shell commands
+  when the adapter supports built-in approvals.
+
+Use `toolApproval` for host-executed tools:
+
+```ts
+const agent = new HarnessAgent({
+  harness: claudeCode,
+  sandbox: createVercelSandbox({
+    runtime: 'node24',
+    ports: [4000],
+  }),
+  tools: { weather },
+  toolApproval: {
+    weather: 'user-approval',
+  },
+});
+```
+
+`toolApproval` accepts the same status values as AI SDK tool approval status
+objects: `not-applicable`, `approved`, `user-approval`, and `denied`.
+
+When approval is required, the stream pauses after a `tool-approval-request`.
+Continue the same session by sending a tool approval response message. In UI
+flows, `useChat` sends those messages for you when you add the approval result.
+In direct agent code, pass the approval response as `messages` on the next
+`stream()` or `generate()` call.
+
+## Built-in Approval Support
+
+Most adapters can pause built-in tool calls for approval. Adapters that do not
+support it will error if an unsupported tool approval mode is specified.
+
+Host-executed tool approvals are handled by `HarnessAgent`, so they work across
+adapters.
+
+## File Changes and Compaction
+
+Some harness events are not ordinary tool calls. For UI compatibility,
+`HarnessAgent` projects them as dynamic, provider-executed tool parts:
+
+- `fileChange`: emitted for opaque workspace file mutations.
+- `compaction`: emitted when the runtime compacts context.
+
+Check `part.dynamic` before assuming a tool part belongs to your typed tool set.

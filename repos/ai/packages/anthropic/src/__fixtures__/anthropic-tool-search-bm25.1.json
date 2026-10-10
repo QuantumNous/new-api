@@ -1,0 +1,67 @@
+{
+    "model": "claude-sonnet-4-5-20250929",
+    "id": "msg_01UT62y3tNACWwnL9oJ9rzUG",
+    "type": "message",
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "I'll search for a weather-related tool to help you get the current weather in San Francisco."
+      },
+      {
+        "type": "server_tool_use",
+        "id": "srvtoolu_011Jcb838xqvZyWwDt7bWqAz",
+        "name": "tool_search_tool_bm25",
+        "input": {
+          "query": "weather current conditions San Francisco"
+        },
+        "caller": {
+          "type": "direct"
+        }
+      },
+      {
+        "type": "tool_search_tool_result",
+        "tool_use_id": "srvtoolu_011Jcb838xqvZyWwDt7bWqAz",
+        "content": {
+          "type": "tool_search_tool_search_result",
+          "tool_references": [
+            {
+              "type": "tool_reference",
+              "tool_name": "get_weather"
+            }
+          ]
+        }
+      },
+      {
+        "type": "text",
+        "text": "Great! I found a weather tool. Let me get the current weather in San Francisco for you."
+      },
+      {
+        "type": "tool_use",
+        "id": "toolu_01PFQG18bVLaXcEaCxTZtX4G",
+        "name": "get_weather",
+        "input": {
+          "location": "San Francisco, CA"
+        },
+        "caller": {
+          "type": "direct"
+        }
+      }
+    ],
+    "stop_reason": "tool_use",
+    "stop_sequence": null,
+    "usage": {
+      "input_tokens": 1631,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "cache_creation": {
+        "ephemeral_5m_input_tokens": 0,
+        "ephemeral_1h_input_tokens": 0
+      },
+      "output_tokens": 161,
+      "service_tier": "standard",
+      "server_tool_use": {
+        "web_search_requests": 0
+      }
+    }
+}

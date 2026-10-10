@@ -1,0 +1,23 @@
+.Container {
+  width: 32rem;
+  margin: 0 auto;
+}
+
+.Heading {
+  margin-bottom: 1rem;
+  font-size: 1.125rem;
+  line-height: 1.75rem;
+}
+
+.Row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 4rem;
+  align-items: baseline;
+}
+
+.Button {
+  border: 1px solid var(--color-gray-300);
+  border-radius: 0.25rem;
+  padding: 0.25rem 1rem;
+}

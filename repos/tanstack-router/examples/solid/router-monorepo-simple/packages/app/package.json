@@ -1,0 +1,34 @@
+{
+  "name": "@router-solid-mono-simple/app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port=3001",
+    "build": "vite build && tsc --noEmit",
+    "preview": "vite preview",
+    "start": "vite"
+  },
+  "dependencies": {
+    "@router-solid-mono-simple/post-feature": "workspace:*",
+    "@router-solid-mono-simple/router": "workspace:*",
+    "solid-js": "^1.9.10"
+  },
+  "devDependencies": {
+    "vite-plugin-solid": "^2.11.11",
+    "typescript": "^6.0.2",
+    "@tanstack/solid-router-devtools": "^1.167.0",
+    "vite": "^8.0.14",
+    "tailwindcss": "^4.2.2",
+    "vite-plugin-dts": "^4.5.4",
+    "@tailwindcss/vite": "^4.2.2"
+  },
+  "nx": {
+    "targets": {
+      "dev": {
+        "dependsOn": [
+          "^build"
+        ]
+      }
+    }
+  }
+}

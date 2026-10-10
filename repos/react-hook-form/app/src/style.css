@@ -1,0 +1,63 @@
+body {
+  padding: 20px;
+  background: #081229;
+  color: white;
+}
+
+select,
+input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  border-radius: 4px;
+  border: 1px solid white;
+  padding: 10px 15px;
+  margin-bottom: 15px;
+  font-size: 14px;
+  max-width: 600px;
+}
+
+label {
+  display: block;
+  margin-bottom: 8px;
+}
+
+button,
+input[type='submit'],
+.button {
+  position: relative;
+  background: #ec5990;
+  color: white;
+  text-transform: uppercase;
+  border: none;
+  margin-top: 20px;
+  padding: 20px;
+  font-size: 16px;
+  letter-spacing: 10px;
+  display: block;
+  appearance: none;
+  border-radius: 4px;
+  width: 100%;
+  font-weight: lighter;
+  transition: 0.3s all;
+  max-width: 600px;
+}
+
+button[type='button'] {
+  background: #516391;
+  color: white;
+  text-transform: none;
+  padding: 10px;
+  letter-spacing: 2px;
+}
+
+input[type='submit']:hover,
+button[type='button']:hover {
+  background: #bf1650;
+  color: white;
+}
+
+input[type='submit']:active {
+  transition: 0.3s all;
+  top: 2px;
+}

@@ -1,0 +1,23 @@
+library:
+  name: '@tanstack/start-server-core'
+  version: '1.166.2'
+  repository: 'https://github.com/TanStack/router'
+  description: >-
+    Server-side runtime for TanStack Start: createStartHandler,
+    request/response utilities, cookie/session management,
+    three-phase request handling, AsyncLocalStorage context.
+generated_at: '2026-03-08'
+skills:
+  - name: 'Start Server Core'
+    slug: 'start-server-core'
+    type: 'core'
+    domain: 'server-runtime'
+    path: 'skills/start-server-core/SKILL.md'
+    package: 'packages/start-server-core'
+    description: >-
+      Server-side runtime for TanStack Start: createStartHandler,
+      request/response utilities, cookie/session management,
+      three-phase request handling, AsyncLocalStorage context.
+    sources:
+      - 'TanStack/router:packages/start-server-core/src'
+      - 'TanStack/router:docs/start/framework/react/guide/server-entry-point.md'

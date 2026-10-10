@@ -1,0 +1,83 @@
+---
+description: 'Rsbuild provides a debug mode to troubleshoot problems. Add the DEBUG=rsbuild environment variable when you run a build to enable it.'
+---
+
+# Debug mode
+
+Rsbuild provides a debug mode to troubleshoot problems. Add the `DEBUG=rsbuild` environment variable when you run a build to enable it.
+
+```bash
+# Debug in development mode
+DEBUG=rsbuild pnpm dev
+
+# Debug in production mode
+DEBUG=rsbuild pnpm build
+```
+
+In debug mode, Rsbuild prints additional log information and writes the Rsbuild and Rspack configs to the `dist` directory so you can inspect them.
+
+## Log information
+
+In debug mode, the terminal shows logs that start with `rsbuild`, including internal operations and the Rspack version in use.
+
+```bash
+$ DEBUG=rsbuild pnpm dev
+
+  ...
+  rsbuild 10:00:00 configuration loaded from: /path/to/...
+  rsbuild 10:00:00 registering default plugins
+  rsbuild 10:00:00 default plugins registered
+  ...
+```
+
+Rsbuild also prints the following message to indicate that it has written the generated build configurations to disk. Open these files to review the contents.
+
+```bash
+config inspection completed, generated files:
+
+   - Rsbuild config: /Project/demo/dist/.rsbuild/rsbuild.config.mjs
+   - Rspack config (web): /Project/demo/dist/.rsbuild/rspack.config.web.mjs
+```
+
+## Rsbuild config file
+
+In debug mode, Rsbuild automatically generates a `dist/.rsbuild/rsbuild.config.mjs` file that contains the final Rsbuild config after the framework finishes processing your settings.
+
+The structure of the file is as follows:
+
+```js title="rsbuild.config.mjs"
+export default {
+  dev: {
+    // some configs...
+  },
+  source: {
+    // some configs...
+  },
+  // other configs...
+};
+```
+
+For a complete introduction to Rsbuild config, please see the [Configure Rsbuild](/guide/configuration/rsbuild) chapter.
+
+## Rspack config file
+
+Rsbuild also creates a `dist/.rsbuild/rspack.config.web.mjs` file with the final Rspack config that Rsbuild passes to Rspack.
+
+The structure of the file is as follows:
+
+```js title="rspack.config.web.mjs"
+export default {
+  resolve: {
+    // some resolve configs...
+  },
+  module: {
+    // some Rspack loaders...
+  },
+  plugins: [
+    // some Rspack plugins...
+  ],
+  // other configs...
+};
+```
+
+For a complete introduction to Rspack configs, please see [Rspack official documentation](https://rspack.rs/config/).

@@ -1,0 +1,21 @@
+:root {
+  --rp-c-brand: #ff5e00;
+  --rp-c-brand-dark: var(--rp-c-brand);
+  --rp-c-brand-darker: #ff704d;
+  --rp-c-brand-light: #ff7524;
+  --rp-c-brand-lighter: #ff7524;
+  --rp-c-link: var(--rp-c-brand);
+  --rp-c-brand-tint: rgba(255, 94, 0, 0.07);
+}
+
+.dark {
+  --rp-c-link: var(--rp-c-brand-light);
+}
+
+/* Simulate the centering behavior when sidebar: false  */
+/* Avoid having the visual center too far to the right */
+@media (min-width: 1280px) {
+  .rp-doc-layout__sidebar-placeholder {
+    width: 10vw !important;
+  }
+}

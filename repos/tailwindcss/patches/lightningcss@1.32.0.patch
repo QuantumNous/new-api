@@ -1,0 +1,62 @@
+diff --git a/node/index.js b/node/index.js
+index 6fe25aef457aa5448f9ee6204da1e253f5534800..742be0229b94450b631b6e069ffc372d2b35df47 100644
+--- a/node/index.js
++++ b/node/index.js
+@@ -1,25 +1,40 @@
+-let parts = [process.platform, process.arch];
+-if (process.platform === 'linux') {
+-  const { MUSL, familySync } = require('detect-libc');
+-  const family = familySync();
+-  if (family === MUSL) {
+-    parts.push('musl');
+-  } else if (process.arch === 'arm') {
+-    parts.push('gnueabihf');
++// We need to take the `process.env.PLATFORM_LIBC` into account, and we also
++// need static analysis, so we can't make use of the `parts.push(…)` approach.
++function loadPackage() {
++  if (process.platform === 'linux') {
++    if (process.env.PLATFORM_LIBC === 'musl') {
++      return require(`lightningcss-${process.platform}-${process.arch}-musl`)
++    } else if (process.env.PLATFORM_LIBC === 'glibc') {
++      if (process.arch === 'arm') {
++        return require(`lightningcss-${process.platform}-${process.arch}-gnueabihf`)
++      } else {
++        return require(`lightningcss-${process.platform}-${process.arch}-gnu`)
++      }
++    } else {
++      let { MUSL, GLIBC, familySync } = require('detect-libc')
++      let family = familySync()
++
++      if (family === MUSL) {
++        return require(`lightningcss-${process.platform}-${process.arch}-musl`)
++      } else if (family === GLIBC) {
++        if (process.arch === 'arm') {
++          return require(`lightningcss-${process.platform}-${process.arch}-gnueabihf`)
++        } else {
++          return require(`lightningcss-${process.platform}-${process.arch}-gnu`)
++        }
++      } else {
++        throw new Error(`Unsupported libc on: ${process.platform}-${process.arch}`)
++      }
++    }
++  } else if (process.platform === 'win32') {
++    return require(`lightningcss-${process.platform}-${process.arch}-msvc`)
+   } else {
+-    parts.push('gnu');
++    return require(`lightningcss-${process.platform}-${process.arch}`)
+   }
+-} else if (process.platform === 'win32') {
+-  parts.push('msvc');
+ }
+ 
+-let native;
+-try {
+-  native = require(`lightningcss-${parts.join('-')}`);
+-} catch (err) {
+-  native = require(`../lightningcss.${parts.join('-')}.node`);
+-}
+ 
++let native = loadPackage();
+ module.exports.transform = wrap(native.transform);
+ module.exports.transformStyleAttribute = wrap(native.transformStyleAttribute);
+ module.exports.bundle = wrap(native.bundle);

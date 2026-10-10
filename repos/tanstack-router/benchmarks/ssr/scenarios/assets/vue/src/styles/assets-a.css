@@ -1,0 +1,8 @@
+.assets-level-a {
+  color: #1f2937;
+  background-image: url('/asset-bg-a.svg');
+}
+
+.assets-level-a::before {
+  content: 'assets-level-a-css';
+}

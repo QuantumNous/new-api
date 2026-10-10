@@ -1,0 +1,14 @@
+{
+  "name": "ai-core-e2e-next-server",
+  "private": true,
+  "scripts": {
+    "dev": "next"
+  },
+  "dependencies": {
+    "next": "15.5.18",
+    "react": "rc",
+    "react-dom": "rc",
+    "ai": "workspace:*"
+  },
+  "version": "0.0.0"
+}

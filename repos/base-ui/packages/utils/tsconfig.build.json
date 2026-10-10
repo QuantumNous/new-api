@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  // This config is for emitting declarations (.d.ts) only.
+  // TS source files are transpiled to JS by Babel.
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "noEmit": false,
+    "rootDir": "./src",
+    "outDir": "build",
+    "lib": ["ES2022", "DOM"],
+    "types": ["@mui/internal-code-infra/build-env"]
+  },
+  "include": ["src/**/*.ts*", "src/**/*.tsx"],
+  "exclude": ["src/**/*.spec.ts*", "src/**/*.test.ts*"]
+}

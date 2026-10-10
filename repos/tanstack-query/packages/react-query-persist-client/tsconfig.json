@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist-ts",
+    "rootDir": ".",
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "src",
+    "test-setup.ts",
+    "*.config.ts",
+    "*.config.js",
+    "package.json"
+  ],
+  "references": [
+    { "path": "../query-persist-client-core" },
+    { "path": "../react-query" }
+  ]
+}

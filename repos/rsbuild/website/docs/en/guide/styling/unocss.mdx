@@ -1,0 +1,79 @@
+---
+description: 'UnoCSS is the instant atomic CSS engine, which is designed to be flexible and extensible.'
+---
+
+# UnoCSS
+
+[UnoCSS](https://unocss.dev/) is the instant atomic CSS engine, which is designed to be flexible and extensible. The core is un-opinionated, and all the CSS utilities are provided via presets.
+
+You can integrate UnoCSS in Rsbuild via PostCSS plugins.
+
+## Installing UnoCSS
+
+You need to install `unocss` and `@unocss/postcss` first.
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add unocss @unocss/postcss -D" />
+
+## Configuring PostCSS
+
+You can register the `unocss` PostCSS plugin through [postcss.config.mjs](https://github.com/webpack/postcss-loader#config) or [tools.postcss](/config/tools/postcss).
+
+```js title="postcss.config.mjs"
+import UnoCSS from '@unocss/postcss';
+
+export default {
+  plugins: [UnoCSS()],
+};
+```
+
+Rsbuild uses [Lightning CSS](/guide/styling/css-usage#lightning-css) to add vendor prefixes by default, so you only need to register the `UnoCSS` plugin.
+
+## Configuring UnoCSS
+
+Create a `uno.config.ts` file in the root directory of your project and add the following content:
+
+```js title="uno.config.ts"
+import { defineConfig, presetUno } from 'unocss';
+
+export default defineConfig({
+  content: {
+    filesystem: ['./src/**/*.{html,js,ts,jsx,tsx}'],
+  },
+  presets: [presetUno()],
+});
+```
+
+:::tip
+The above configuration is for reference only and can be modified to suit the needs of your project.
+:::
+
+## Importing CSS
+
+Add the `@unocss` directives in your CSS entry file:
+
+```css title="main.css"
+@unocss preflights;
+@unocss default;
+```
+
+Depending on your needs, you can selectively import the CSS styles provided by UnoCSS. Please refer to the [unocss documentation](https://unocss.dev/integrations/postcss#usage) for detailed usage of the UnoCSS.
+
+## Done
+
+You have now completed all the steps to integrate UnoCSS in Rsbuild!
+
+You can use UnoCSS's utility classes in any component or HTML, such as:
+
+```html
+<h1 class="px-2 items-center justify-between">Hello world!</h1>
+```
+
+For more usage details, refer to the [UnoCSS documentation](https://unocss.dev/).
+
+## VS Code extension
+
+UnoCSS provides a [VS Code Extension](https://unocss.dev/integrations/vscode) plugin for VS Code to decoration and tooltip for matched utilities.
+
+You can install this plugin in VS Code to enable more intelligent features.

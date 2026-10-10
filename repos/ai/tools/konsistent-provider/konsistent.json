@@ -1,0 +1,39 @@
+{
+  "version": "v1",
+  "conventionSources": {
+    "aisdk": "./dist/conventions.json"
+  },
+  "conventions": [
+    {
+      "name": "package-dir-must-have-required-files",
+      "description": "Every package directory must contain a specific minimum set of files.",
+      "paths": ["."],
+      "must": [
+        "aisdk/package-must-have-package-and-docs-files",
+        "aisdk/package-must-have-index"
+      ]
+    },
+    {
+      "name": "provider-package-must-export-required-symbols",
+      "description": "Every provider package must have specific files that export a specific set of symbols.",
+      "paths": ["src/index.ts"],
+      "must": [
+        "aisdk/provider-package-must-export-provider-creator-and-settings",
+        "aisdk/provider-package-must-export-instance-case-1",
+        "aisdk/provider-package-must-export-instance-case-2",
+        "aisdk/provider-file-must-export-provider-class-and-settings-type",
+        "aisdk/provider-file-must-export-provider-instance-case-1",
+        "aisdk/provider-file-must-export-provider-instance-case-2",
+        {
+          "use": "aisdk/provider-model-file-must-export-model-class",
+          "excludeFiles": ["${providerId}-video-model.ts"]
+        },
+        "aisdk/provider-model-file-with-subtype-must-export-model-class",
+        "aisdk/provider-video-model-file-must-export-model-class",
+        "aisdk/provider-language-model-file-must-import-workflow-serialization",
+        "aisdk/provider-model-options-file-must-export-model-options-type",
+        "aisdk/provider-model-options-file-with-subtype-must-export-model-options-type"
+      ]
+    }
+  ]
+}

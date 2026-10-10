@@ -1,0 +1,41 @@
+{
+  "id": "msg_01FallbackExampleAbcdefghij",
+  "type": "message",
+  "role": "assistant",
+  "model": "claude-opus-4-8",
+  "content": [
+    {
+      "type": "fallback",
+      "from": { "model": "claude-fable-5" },
+      "to": { "model": "claude-opus-4-8" }
+    },
+    { "type": "text", "text": "The printing press was invented by Johannes Gutenberg around 1440." }
+  ],
+  "stop_reason": "end_turn",
+  "stop_details": null,
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 412,
+    "output_tokens": 264,
+    "cache_read_input_tokens": 0,
+    "cache_creation_input_tokens": 0,
+    "iterations": [
+      {
+        "type": "message",
+        "model": "claude-fable-5",
+        "input_tokens": 408,
+        "output_tokens": 0,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0
+      },
+      {
+        "type": "fallback_message",
+        "model": "claude-opus-4-8",
+        "input_tokens": 412,
+        "output_tokens": 264,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0
+      }
+    ]
+  }
+}

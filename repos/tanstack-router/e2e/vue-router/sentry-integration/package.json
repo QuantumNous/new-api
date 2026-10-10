@@ -1,0 +1,32 @@
+{
+  "name": "tanstack-vue-router-e2e-sentry-integration",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000",
+    "dev:e2e": "vite",
+    "build": "vite build && tsc --noEmit",
+    "preview": "vite preview",
+    "start": "vite",
+    "test:e2e": "rm -rf port*.txt; playwright test --project=chromium"
+  },
+  "dependencies": {
+    "@sentry/vue": "^10.32.0",
+    "@sentry/tracing": "^7.120.4",
+    "@sentry/vite-plugin": "^4.6.1",
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/vue-router": "workspace:^",
+    "@tanstack/vue-router-devtools": "workspace:^",
+    "redaxios": "^0.5.1",
+    "tailwindcss": "^4.2.2",
+    "vue": "^3.5.16"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.1",
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "@vitejs/plugin-vue-jsx": "^5.1.5",
+    "typescript": "~5.8.3",
+    "vite": "^8.0.14",
+    "vue-tsc": "^3.1.5"
+  }
+}

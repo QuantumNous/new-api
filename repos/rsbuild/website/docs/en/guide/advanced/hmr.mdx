@@ -1,0 +1,77 @@
+---
+description: 'Hot module replacement guide covering key concepts, configuration, and practical usage in Rsbuild.'
+---
+
+# Hot module replacement
+
+Hot Module Replacement (HMR) exchanges, adds, or removes modules while an application is running, without a full page reload. This significantly speeds up development in several ways:
+
+- Preserves application state that would be lost during a full reload.
+- Saves valuable development time by updating only what changed.
+- Instantly updates the browser when modifying CSS/JS in source code, similar to changing styles directly in the browser's dev tools.
+
+## HMR toggle
+
+Rsbuild has built-in support for HMR, which is enabled by default in development mode.
+
+If you don't need HMR, set [dev.hmr](/config/dev/hmr) to `false`. This disables HMR and React Refresh, and Rsbuild falls back to [dev.liveReload](/config/dev/live-reload).
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    hmr: false,
+  },
+};
+```
+
+To disable both HMR and live reload, set [dev.hmr](/config/dev/hmr) and [dev.liveReload](/config/dev/live-reload) to `false`. This prevents WebSocket requests to the dev server, and the page won't refresh automatically when files change.
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    hmr: false,
+    liveReload: false,
+  },
+};
+```
+
+## Specify HMR URL
+
+By default, Rsbuild uses the host and port number of the current page to construct the WebSocket URL for HMR.
+
+If the HMR connection fails, specify the WebSocket URL using the [dev.client](/config/dev/client) config.
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    client: {
+      host: 'localhost',
+      protocol: 'ws',
+    },
+  },
+};
+```
+
+## File watching
+
+By default, Rsbuild doesn't watch files in the `.git/` and `node_modules/` directories. Changes to these files won't trigger a rebuild, which reduces memory usage and improves build performance.
+
+To watch these directories, configure Rspack's [watchOptions.ignored](https://rspack.rs/config/watch#watchoptionsignored) to override the default behavior.
+
+For example, to watch the `node_modules/` directory while ignoring `.git/`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      watchOptions: {
+        ignored: /\.git/,
+      },
+    },
+  },
+};
+```
+
+## FAQ
+
+Refer to [HMR FAQ](/guide/faq/hmr).

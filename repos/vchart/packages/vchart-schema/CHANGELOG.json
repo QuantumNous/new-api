@@ -1,0 +1,49 @@
+{
+  "name": "@visactor/vchart-schema",
+  "entries": [
+    {
+      "version": "1.2.1",
+      "tag": "@visactor/vchart-schema_v1.2.1",
+      "date": "Tue, 15 Aug 2023 07:25:04 GMT",
+      "comments": {
+        "patch": [
+          {
+            "comment": "feat: the api updateViewBox adds the relayout parameter, which supports not redrawing the chart immediately after updateViewbox, details in #497\n\n"
+          },
+          {
+            "comment": "fix(axis-layout): fix the problem that the axis-component cannot take effect after configuring minWidth and maxWidth, details are in #379\n\n"
+          },
+          {
+            "comment": "fix(axis-layout): fix the issue of axis move slighty when manual legend filtering, details are in #426\n\n"
+          },
+          {
+            "comment": "fix: fix the issue about when axis.label is autoLimit, the chart layout can not work as expect after resize, details in #429\n\n"
+          }
+        ]
+      }
+    },
+    {
+      "version": "1.2.0",
+      "tag": "@visactor/vchart-schema_v1.2.0",
+      "date": "Thu, 10 Aug 2023 05:23:25 GMT",
+      "comments": {
+        "none": [
+          {
+            "comment": "feat(marker): marker support formatMethod. fix #288, fix #298"
+          }
+        ],
+        "patch": [
+          {
+            "comment": "feat: supplement sync methods in vchart instance\n\n"
+          },
+          {
+            "comment": "perf(axis-tick): optimize the calculation times of axis ticks, optimize the discrete axis sampling algorithm\n\n"
+          },
+          {
+            "comment": "perf(data): remove redundant data statistics calculations\n\n"
+          }
+        ]
+      }
+    }
+  ]
+}

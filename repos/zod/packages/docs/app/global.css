@@ -1,0 +1,102 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/preset.css";
+
+/* theme */
+@import "fumadocs-ui/css/black.css";
+
+@source '../node_modules/fumadocs-ui/dist/**/*.js';
+
+button {
+  cursor: pointer;
+}
+
+body {
+  --color-fd-primary: var(--ui-color);
+}
+
+:root {
+  /* --ui-color: hsl(221, 98%, 59%); */
+  --ui-color: hsl(320, 80%, 40%);
+  --color-fd-foreground: hsl(0, 0%, 3.9%);
+  --color-fd-headings: hsl(0, 0%, 3.9%);
+  --color-fd-popover-foreground: hsl(0, 0%, 3.9%);
+  --color-fd-muted: hsl(0, 0%, 89%);
+}
+.dark {
+  --ui-color: hsl(320, 100%, 76%);
+  --color-fd-foreground: hsl(0, 0%, 80%);
+  --color-fd-headings: hsl(0, 0%, 94%);
+  --color-fd-popover-foreground: hsl(0, 0%, 70%);
+  --color-fd-muted: hsl(0, 0%, 15%);
+}
+
+aside {
+  button[data-search-full] {
+    font-weight: 200;
+  }
+}
+
+/* #nd-toc .prose { 
+  @apply font-normal;
+}
+*/
+
+#nd-toc .prose {
+  code {
+    padding: 2px 5px;
+  }
+  a {
+    line-height: 24px;
+  }
+}
+h1 {
+  @apply border-b py-3;
+  border-color: var(--color-fd-border);
+  color: var(--color-fd-headings);
+}
+
+html .prose {
+  @apply font-normal;
+
+  h2 {
+    border-color: var(--color-fd-border);
+    color: var(--color-fd-headings);
+    @apply border-b py-3 mt-12;
+  }
+  & > h3 {
+    @apply mt-8;
+  }
+
+  p {
+    /* @apply text-gray-700; */
+    /* @apply font-light; */
+  }
+  code {
+    @apply font-light;
+    @apply border-none px-1.5;
+    /* margin-top: -4px; */
+  }
+
+  button[role="tab"] {
+    @apply font-medium;
+    @apply font-mono text-xs;
+  }
+
+  td > p:first-child {
+    margin-top: 0;
+  }
+
+  td > p:last-child {
+    margin-bottom: 0;
+  }
+
+  ul ul li {
+    @apply mt-0;
+  }
+}
+
+h3.not-prose button {
+  /* color: red; */
+  color: var(--color-fd-popover-foreground);
+  @apply font-light;
+}

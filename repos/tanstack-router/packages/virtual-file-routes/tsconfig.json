@@ -1,0 +1,8 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "target": "ESNext",
+    "moduleResolution": "Bundler"
+  },
+  "include": ["src", "tests", "vite.config.ts"]
+}

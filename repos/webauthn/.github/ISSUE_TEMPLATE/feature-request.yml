@@ -1,0 +1,30 @@
+---
+name: Feature Request
+description: Request a feature
+labels:
+  - type/feature-request
+  - status/needs-triage
+  - priority/normal
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Provide a description of the feature
+    validations:
+      required: true
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Use Case
+      description: Provide a use case if applicable
+    validations:
+      required: false
+  - type: textarea
+    id: documentation
+    attributes:
+      label: Documentation
+      description: Provide any relevant specification or other documentation if applicable
+    validations:
+      required: false
+...

@@ -1,0 +1,10 @@
+{
+  "text": "Hello from the Versal AISDK.",
+  "chunks": [
+    {
+      "timestamp": [0, 2.508],
+      "text": "Hello from the Versal AISDK."
+    }
+  ],
+  "languages": ["en"]
+}

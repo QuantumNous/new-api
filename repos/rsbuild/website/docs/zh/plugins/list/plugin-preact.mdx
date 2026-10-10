@@ -1,0 +1,111 @@
+---
+description: 'Preact 插件提供了对 Preact 的支持，插件内部集成了 JSX 编译、React aliasing 等功能。'
+---
+
+# Preact 插件
+
+import { SourceCode } from '@theme';
+
+<SourceCode href="https://github.com/web-infra-dev/rsbuild/tree/main/packages/plugin-preact" />
+
+Preact 插件提供了对 Preact 的支持，插件内部集成了 JSX 编译、React aliasing 等功能。
+
+## 快速开始
+
+### 安装插件
+
+执行以下命令安装插件：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/plugin-preact -D" />
+
+:::tip
+`@rsbuild/plugin-preact` v2 不再支持 Rsbuild 1.x。如果你的项目仍在使用 Rsbuild 1.x，请安装 `@rsbuild/plugin-preact@1`。
+:::
+
+### 注册插件
+
+在 Rsbuild 配置中注册插件：
+
+```ts title="rsbuild.config.ts"
+import { pluginPreact } from '@rsbuild/plugin-preact';
+
+export default {
+  plugins: [pluginPreact()],
+};
+```
+
+注册后，即可进行 Preact 开发。
+
+## 选项
+
+### reactAliasesEnabled
+
+是否将 `react`、`react-dom` 通过 alias 指向 `preact/compat`。
+
+- **类型：** `boolean`
+- **默认值：** `true`
+- **示例：** 禁用别名。
+
+```ts
+pluginPreact({
+  reactAliasesEnabled: false,
+});
+```
+
+### prefreshEnabled
+
+是否注入 [Prefresh](https://github.com/preactjs/prefresh) 用于 HMR。
+
+- **类型：** `boolean`
+- **默认值：** `true`
+- **版本：** `>= v1.1.0`
+- **示例：** 禁用 Prefresh。
+
+```ts
+pluginPreact({
+  prefreshEnabled: false,
+});
+```
+
+### preactRefreshOptions
+
+设置 [@rspack/plugin-preact-refresh](https://github.com/rstackjs/rspack-plugin-preact-refresh) 的选项。该值会传递给 Rspack 插件，其中 `preactPath` 会由 Rsbuild 自动配置。
+
+- **类型：**
+
+```ts
+type PreactRefreshOptions = {
+  // @link https://rspack.rs/zh/config/module-rules#condition
+  test?: Rspack.RuleSetCondition;
+  include?: Rspack.RuleSetCondition | null;
+  exclude?: Rspack.RuleSetCondition | null;
+  overlay?: {
+    module: string;
+  };
+};
+```
+
+- **默认值：**
+
+默认值与 `@rspack/plugin-preact-refresh` 保持一致：
+
+```js
+const defaultOptions = {
+  test: /\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/,
+  exclude: /node_modules/,
+};
+```
+
+- **示例：**
+
+```ts
+pluginPreact({
+  preactRefreshOptions: {
+    test: /\.(?:jsx|tsx)$/,
+    include: /src/,
+    exclude: /node_modules/,
+  },
+});
+```

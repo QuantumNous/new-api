@@ -1,0 +1,220 @@
+---
+description: 'Reference for the Rsbuild html.app-icon option, including behavior, defaults, configuration details, and usage examples.'
+---
+
+# html.appIcon
+
+- **Type:**
+
+```ts
+type AppIconItem = {
+  src: string;
+  size: number;
+  target?: 'apple-touch-icon' | 'web-app-manifest';
+  purpose?: 'any' | 'maskable' | 'monochrome' | string;
+};
+
+type AppIcon = {
+  name?: string;
+  icons: AppIconItem[];
+  filename?: string;
+};
+```
+
+- **Default:** `undefined`
+
+Set the web application icons to display when added to the home screen of a mobile device:
+
+- Generate the web app manifest file and its `icons` field.
+- Generate the [apple-touch-icon](https://webhint.io/docs/user-guide/hints/hint-apple-touch-icons/) and `manifest` tags in the HTML file.
+
+:::tip
+
+Refer to the following documents for more information:
+
+- [MDN - Web app manifests](https://developer.mozilla.org/en-US/docs/Web/Manifest)
+- [How to Favicon: Six files that fit most needs](https://evilmartians.com/chronicles/how-to-favicon-in-2021-six-files-that-fit-most-needs)
+
+:::
+
+## Example
+
+For display on different devices, you will need to prepare several icons of different sizes.
+
+The most commonly used icon sizes are `192x192` and `512x512`, and you can customize the icon sizes and quantities to suit your needs.
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    appIcon: {
+      name: 'My Website',
+      icons: [
+        { src: './src/assets/icon-192.png', size: 192 },
+        { src: './src/assets/icon-512.png', size: 512 },
+      ],
+    },
+  },
+};
+```
+
+After compilation, the following tags will be automatically generated in the HTML:
+
+```html
+<link rel="manifest" href="/manifest.webmanifest" />
+<link rel="apple-touch-icon" sizes="180x180" href="/static/image/icon-192.png" />
+```
+
+Here, `manifest.webmanifest` is a JSON file that contains information about the application's name, icons, and other details.
+
+```json
+{
+  "name": "My Website",
+  "icons": [
+    {
+      "src": "/static/image/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/static/image/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
+```
+
+:::tip Icon size
+For Chromium, you must provide at least a 192x192 pixel icon and a 512x512 pixel icon. If only those two icon sizes are provided, Chrome automatically scales the icons to fit the device. If you'd prefer to scale your own icons, and adjust them for pixel-perfection, provide icons in increments of `48dp`.
+:::
+
+## name
+
+- **Type:** `string`
+- **Default:** `undefined`
+
+The name of the application that will be displayed when it is added to the home screen of the mobile device. If not set, the `manifest.webmanifest` file will not be generated.
+
+> For more details, see [Web app manifests - name](https://developer.mozilla.org/en-US/docs/Web/Manifest/name).
+
+## icons
+
+- **Type:** `AppIconItem[]`
+- **Default:** `undefined`
+
+The list of icons:
+
+- `src` is the path of the icon, which can be a URL, an absolute file path, or a relative path to the project [root](/config/root).
+- `size` is the size of the icon in pixels.
+- `target` refers to the intended target for the icon, which can be either `apple-touch-icon` or `web-app-manifest`. If `target` is not set, by default, the manifest file will include all icons, while the `apple-touch-icon` tags will only include icons smaller than `200x200`.
+- `purpose` is a case-sensitive keyword string that specifies one or more contexts in which the icon can be used by the browser or operating system. This field is only effective when the `target` is `'web-app-manifest'`. See [MDN - purpose](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Manifest/Reference/icons#purpose) for more details.
+
+### Example
+
+`src` can be set to an absolute path:
+
+```js
+import path from 'node:path';
+
+export default {
+  html: {
+    appIcon: {
+      name: 'My Website',
+      icons: [
+        { src: path.resolve(__dirname, './assets/icon-192.png'), size: 192 },
+        { src: path.resolve(__dirname, './assets/icon-512.png'), size: 512 },
+      ],
+    },
+  },
+};
+```
+
+Use `target` to specify the target for the icon:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    appIcon: {
+      name: 'My Website',
+      icons: [
+        {
+          src: './src/assets/icon-180.png',
+          size: 180,
+          target: 'apple-touch-icon',
+        },
+        {
+          src: './src/assets/icon-192.png',
+          size: 192,
+          target: 'web-app-manifest',
+        },
+        {
+          src: './src/assets/icon-512.png',
+          size: 512,
+          target: 'web-app-manifest',
+        },
+      ],
+    },
+  },
+};
+```
+
+### filename
+
+- **Type:** `string`
+- **Default:** `'manifest.webmanifest'`
+
+The filename of the manifest file.
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    appIcon: {
+      filename: 'manifest.json',
+    },
+  },
+};
+```
+
+## Adding more manifest fields
+
+`html.appIcon` is designed for configuring web application icons. If you need to add more fields to the web app manifest, create a `manifest.webmanifest` file in the [public folder](/guide/basic/static-assets#public-folder) instead of using `html.appIcon` to generate the manifest.
+
+```json title="public/manifest.webmanifest"
+{
+  "name": "My Website",
+  "short_name": "Website",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
+```
+
+Icon files referenced in `icons` should also be placed in the `public` folder. For example, `/icon-192.png` maps to `public/icon-192.png`.
+
+Use [html.tags](/config/html/tags) to reference the manifest file:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    tags: [
+      {
+        tag: 'link',
+        attrs: {
+          rel: 'manifest',
+          href: '/manifest.webmanifest',
+        },
+      },
+    ],
+  },
+};
+```
+
+## Version history
+
+| Version | Changes                            |
+| ------- | ---------------------------------- |
+| v1.5.5  | Added support for `purpose` option |

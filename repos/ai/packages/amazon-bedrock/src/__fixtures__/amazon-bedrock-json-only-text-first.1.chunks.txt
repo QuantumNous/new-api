@@ -1,0 +1,7 @@
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":"Here is your data:"}}}
+{"contentBlockStop":{"contentBlockIndex":0}}
+{"contentBlockStart":{"contentBlockIndex":1,"start":{"toolUse":{"toolUseId":"json-tool-1","name":"json"}}}}
+{"contentBlockDelta":{"contentBlockIndex":1,"delta":{"toolUse":{"input":"{\"name\":\"John\"}"}}}}
+{"contentBlockStop":{"contentBlockIndex":1}}
+{"metadata":{"usage":{"inputTokens":100,"outputTokens":20,"totalTokens":120}}}
+{"messageStop":{"stopReason":"tool_use"}}

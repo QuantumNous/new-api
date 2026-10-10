@@ -1,0 +1,7 @@
+node_modules
+dist
+dist-vite-*
+dist-rsbuild-*
+test-results
+playwright-report
+port*.txt

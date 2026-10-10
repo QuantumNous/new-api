@@ -1,0 +1,54 @@
+{
+  "extends": "@internal/ts-config/tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["jest", "offscreencanvas", "node"],
+    "lib": ["DOM", "ESNext"],
+    "baseUrl": "./",
+    "composite": true,
+    "isolatedModules": false,
+    "sourceMap": false,
+    "removeComments": false,
+    "paths": {
+      "eventemitter3": ["./node_modules/eventemitter3"]
+    }
+  },
+  "ts-node": {
+    "transpileOnly": true,
+    "compilerOptions": {
+      "module": "commonjs"
+    }
+  },
+  "references": [
+    {
+      "path": "../vutils-extension"
+    }
+  ],
+  "include": [
+    "src/animation/spec.ts",
+    "src/animation/interface.ts",
+    "src/typings/",
+    "src/chart/*/interface.ts",
+    "src/chart/*/*/interface.ts",
+    "src/chart/interface/",
+    "src/compile/*/interface.ts",
+    "src/compile/interface/",
+    "src/component/**/interface/",
+    "src/component/**/interface.ts",
+    "src/core/interface.ts",
+    "src/data/transforms/**/interface.ts",
+    "src/event/**/interface.ts",
+    "src/interaction/**/interface.ts",
+    "src/layout/interface.ts",
+    "src/mark/interface",
+    "src/model/interface.ts",
+    "src/plugin/**/interface.ts",
+    "src/plugin/components/tooltip-handler/interface/",
+    "src/region/interface.ts",
+    "src/scale/interface.ts",
+    "src/series/**/interface.ts",
+    "src/series/interface/",
+    "src/theme/interface.ts",
+    "src/theme/**/interface.ts",
+    "src/constant/event.ts"
+  ]
+}

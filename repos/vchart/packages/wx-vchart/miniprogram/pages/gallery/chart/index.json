@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "Gallary",
+  "usingComponents": {
+    "vchart": "../../../src/index"
+  }
+}

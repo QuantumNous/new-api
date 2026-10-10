@@ -1,0 +1,239 @@
+.Trigger {
+  font-family: 'IBM Plex Sans', sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-radius: 5px;
+  background-color: black;
+  color: white;
+  border: none;
+  font-size: 100%;
+  line-height: 1.5;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+
+  &:hover {
+    background-color: #0072e6;
+  }
+
+  &:focus-visible {
+    outline: 2px solid black;
+    outline-offset: 2px;
+  }
+}
+
+.SelectDropdownArrow {
+  margin-left: 6px;
+  font-size: 10px;
+  line-height: 1;
+  height: 6px;
+}
+
+.Positioner {
+  z-index: 2001;
+
+  &:focus-visible {
+    outline: 0;
+  }
+}
+
+.SelectPopup {
+  overflow-y: auto;
+  background-color: white;
+  padding: 6px;
+  border-radius: 5px;
+  box-shadow:
+    0 2px 4px rgb(0 0 0 / 0.1),
+    0 0 0 1px rgb(0 0 0 / 0.1);
+  max-height: var(--available-height);
+  min-width: min(calc(var(--available-width) - 12px), calc(var(--anchor-width) + 20px));
+  scroll-padding: 4px;
+
+  &[data-side='none'] {
+    scroll-padding: 15px;
+  }
+
+  --padding: 6px;
+  --icon-size: 16px;
+  --icon-margin: 4px;
+}
+
+.SelectItem {
+  outline: 0;
+  cursor: default;
+  border-radius: 4px;
+  -webkit-user-select: none;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  line-height: 1.5;
+  padding-block: var(--padding);
+  padding-inline: calc(var(--padding) + var(--icon-margin) + var(--icon-size));
+
+  &[data-selected] {
+    padding-left: var(--padding);
+  }
+
+  &[data-disabled] {
+    opacity: 0.5;
+  }
+
+  &[data-highlighted] {
+    background-color: black;
+    color: white;
+  }
+}
+
+.SelectItemIndicator {
+  margin-right: var(--icon-margin);
+  visibility: hidden;
+  width: var(--icon-size);
+  height: var(--icon-size);
+
+  &[data-selected] {
+    visibility: visible;
+  }
+}
+
+.MenuPopup {
+  position: relative;
+  font-family: 'IBM Plex Sans', sans-serif;
+  font-size: 0.875rem;
+  box-sizing: border-box;
+  padding: 6px;
+  min-width: 200px;
+  border-radius: 12px;
+  outline: 0;
+  background: #fff;
+  border: 1px solid var(--color-gray-200);
+  color: var(--color-gray-900);
+  box-shadow: 0 4px 30px var(--color-gray-200);
+  z-index: 1;
+  transform-origin: var(--transform-origin);
+  opacity: 1;
+  transform: scale(1, 1);
+  transition:
+    opacity 100ms ease-in,
+    transform 100ms ease-in;
+
+  @starting-style {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+
+  &[data-exiting] {
+    opacity: 0;
+    transform: scale(0.8);
+    transition:
+      opacity 200ms ease-in,
+      transform 200ms ease-in;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    background: var(--color-gray-900);
+    border: 1px solid var(--color-gray-700);
+    color: var(--color-gray-300);
+    box-shadow: 0 4px 30px var(--color-gray-900);
+  }
+}
+
+.MenuItem {
+  list-style: none;
+  padding: 8px;
+  border-radius: 8px;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+
+  &:last-of-type {
+    border-bottom: none;
+  }
+
+  &:focus {
+    outline: 3px solid var(--color-blue);
+    background-color: var(--color-gray-100);
+    color: var(--color-gray-900);
+  }
+
+  &[data-disabled] {
+    color: var(--color-gray-400);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    &:focus {
+      outline: 3px solid var(--color-blue);
+      background-color: var(--color-gray-800);
+      color: var(--color-gray-300);
+    }
+
+    &[data-disabled] {
+      color: var(--color-gray-700);
+    }
+  }
+}
+
+.DialogPopup {
+  background: var(--color-gray-50);
+  border: 1px solid var(--color-gray-100);
+  min-width: 400px;
+  border-radius: 4px;
+  box-shadow: rgb(0 0 0 / 0.2) 0 18px 50px -10px;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  font-family: 'IBM Plex Sans', sans-serif;
+  transform: translate(-50%, -50%);
+  padding: 16px;
+  z-index: 2100;
+
+  @media (prefers-color-scheme: dark) {
+    background: var(--color-gray-900);
+    border: 1px solid var(--color-gray-700);
+  }
+}
+
+.DialogControls {
+  display: flex;
+  flex-direction: row-reverse;
+  background: var(--color-gray-100);
+  gap: 8px;
+  padding: 16px;
+  margin: 32px -16px -16px;
+
+  @media (prefers-color-scheme: dark) {
+    background: var(--color-gray-800);
+  }
+}
+
+.DialogCloseButton {
+  background-color: transparent;
+  border: 1px solid var(--color-gray-500);
+  color: var(--color-gray-900);
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-family: 'IBM Plex Sans', sans-serif;
+  min-width: 80px;
+
+  &:hover {
+    background-color: var(--color-gray-200);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    border: 1px solid var(--color-gray-300);
+    color: var(--color-gray-50);
+
+    &:hover {
+      background-color: var(--color-gray-700);
+    }
+  }
+}
+
+.Backdrop {
+  background: rgb(0 0 0 / 0.35);
+  position: fixed;
+  inset: 0;
+  backdrop-filter: blur(4px);
+  z-index: 2000;
+}

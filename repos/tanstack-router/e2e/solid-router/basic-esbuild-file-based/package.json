@@ -1,0 +1,26 @@
+{
+  "name": "tanstack-router-e2e-solid-basic-esbuild-file-based",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "esbuild src/main.tsx --jsx=preserve --jsx-import-source=solid-js --serve=5601 --bundle --outfile=dist/main.js --watch --servedir=.",
+    "build": "esbuild src/main.tsx --jsx=preserve --jsx-import-source=solid-js --bundle --outfile=dist/main.js && tsc --noEmit",
+    "serve": "esbuild src/main.tsx --jsx=preserve --jsx-import-source=solid-js --bundle --outfile=dist/main.js --servedir=.",
+    "start": "dev",
+    "test:e2e": "rm -rf port*.txt; playwright test --project=chromium"
+  },
+  "dependencies": {
+    "@tanstack/router-plugin": "workspace:^",
+    "@tanstack/solid-router": "workspace:^",
+    "@tanstack/solid-router-devtools": "workspace:^",
+    "redaxios": "^0.5.1",
+    "solid-js": "^1.9.10",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.1",
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "esbuild": "^0.27.4",
+    "esbuild-plugin-solid": "^0.6.0"
+  }
+}

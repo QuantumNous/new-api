@@ -1,0 +1,22 @@
+# .github/workflows/auto-close.yml
+name: Auto-close labeled issues
+on:
+  schedule:
+    - cron: '0 0 * * *'     # every day at midnight UTC
+  workflow_dispatch:
+permissions:
+  issues: write
+jobs:
+  auto-close:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9               # Close stale issues & PRs :contentReference[oaicite:0]{index=0}
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          stale-issue-label: 'needs-info'     # label you’ll add to trigger closing
+          days-before-stale: -1               # don't mark things with needs-info 
+          days-before-close: 5              # replace 7 with your X days
+          only-labels: 'needs-info'           # ignore all other issues
+          remove-stale-when-updated: false
+          stale-issue-message: ''
+          close-issue-message: ''

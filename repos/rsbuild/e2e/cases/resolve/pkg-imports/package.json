@@ -1,0 +1,10 @@
+{
+  "name": "@e2e/resolve-pkg-imports",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "imports": {
+    "#foo": "./src/foo.js",
+    "#common/*": "./src/common/*.js"
+  }
+}

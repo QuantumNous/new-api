@@ -1,0 +1,13 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`flatten should flatten form values into flat form data 1`] = `
+{
+  "array.0.test": "1",
+  "array.0.test2": "2",
+  "array.0.test3": null,
+  "hey": "test",
+  "test.nested.test": "bill",
+  "test.nested.test3": null,
+  "test1": null,
+}
+`;

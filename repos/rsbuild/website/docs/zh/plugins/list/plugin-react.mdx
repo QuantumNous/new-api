@@ -1,0 +1,356 @@
+---
+description: 'React 插件提供了对 React 的支持，插件内部集成了 JSX 编译、React Refresh 等功能。'
+---
+
+# React 插件
+
+import { SourceCode } from '@theme';
+
+<SourceCode href="https://github.com/web-infra-dev/rsbuild/tree/main/packages/plugin-react" />
+
+React 插件提供了对 React 的支持，插件内部集成了 JSX 编译、React Refresh 等功能。
+
+## 快速开始
+
+### 安装插件
+
+执行以下命令安装插件：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/plugin-react -D" />
+
+### 注册插件
+
+在 Rsbuild 配置中注册插件：
+
+```ts title="rsbuild.config.ts"
+import { pluginReact } from '@rsbuild/plugin-react';
+
+export default {
+  plugins: [pluginReact()],
+};
+```
+
+注册后，即可进行 React 开发。
+
+## 选项
+
+### swcReactOptions
+
+用于配置 SWC 转换 React 代码的行为，等价于 SWC 的 [jsc.transform.react](https://swc.rs/docs/configuration/compilation#jsctransformreact) 选项。
+
+- **类型：**
+
+```ts
+interface ReactConfig {
+  pragma?: string;
+  pragmaFrag?: string;
+  throwIfNamespace?: boolean;
+  development?: boolean;
+  refresh?:
+    | boolean
+    | {
+        refreshReg?: string;
+        refreshSig?: string;
+        emitFullSignatures?: boolean;
+      };
+  runtime?: 'automatic' | 'classic' | 'preserve';
+  importSource?: string;
+}
+```
+
+- **默认值：**
+
+```ts
+const isDev = process.env.NODE_ENV === 'development';
+const defaultOptions = {
+  development: isDev,
+  refresh: isDev,
+  runtime: 'automatic',
+};
+```
+
+### swcReactOptions.runtime
+
+设置在转换 JSX 时使用哪种运行时。
+
+- **类型：** `'automatic' | 'classic' | 'preserve'`
+- **默认值：** `'automatic'`
+
+#### automatic
+
+默认情况下，Rsbuild 使用 `runtime: 'automatic'` 来利用 React 17 中引入的 [新版 JSX 转换](https://legacy.reactjs.org/blog/2020/09/22/introducing-the-new-jsx-transform.html)。
+
+采用这种方式时，无需在每个 JSX 文件中手动导入 React。
+
+:::tip
+React 16.14.0 及更高版本支持新版 JSX 运行时。
+:::
+
+#### classic
+
+对于 React 16.14.0 之前的版本，将 `runtime` 设置为 `'classic'`：
+
+```ts
+pluginReact({
+  swcReactOptions: {
+    runtime: 'classic',
+  },
+});
+```
+
+当使用经典 JSX 运行时的时候，你必须在代码中手动导入 React：
+
+```jsx title="App.jsx"
+import React from 'react';
+
+function App() {
+  return <h1>Hello World</h1>;
+}
+```
+
+#### preserve
+
+使用 `runtime: 'preserve'` 可以保持 JSX 语法原样，不做任何转换，这在开发需要保留 JSX 代码的库时非常有用。
+
+```ts
+pluginReact({
+  swcReactOptions: {
+    runtime: 'preserve',
+  },
+});
+```
+
+### swcReactOptions.importSource
+
+当 `runtime` 为 `'automatic'` 时，你可以通过 `importSource` 来指定 JSX runtime 的引入路径。
+
+- **类型：** `string`
+- **默认值：** `'react'`
+
+比如，在使用 [Emotion](https://emotion.sh/) 时，你可以将 `importSource` 设置为 `'@emotion/react'`：
+
+```ts
+pluginReact({
+  swcReactOptions: {
+    importSource: '@emotion/react',
+  },
+});
+```
+
+> 参考 [自定义 JSX](/guide/framework/react#customize-jsx) 了解更多。
+
+### swcReactOptions.refresh
+
+- **类型：** `boolean`
+- **默认值：** 基于 [fastRefresh](#fastrefresh) 和 [dev.hmr](/config/dev/hmr)
+
+是否启用 [React Fast Refresh](https://npmjs.com/package/react-refresh)。
+
+大多数情况下，你应该使用插件的 [fastRefresh](#fastrefresh) 选项来启用或禁用 Fast Refresh。
+
+### reactCompiler
+
+启用或配置 [React Compiler](https://react.dev/learn/react-compiler)，Rsbuild 会将该选项传递给 Rspack 的 [`builtin:swc-loader`](https://rspack.rs/zh/guide/tech/react#%E4%BD%BF%E7%94%A8-builtinswc-loader)，对应 `jsc.transform.reactCompiler` 配置。
+
+:::tip
+该选项仅在 `@rsbuild/core` v2.1.0 及以上版本中支持。
+:::
+
+- **类型：**
+
+```ts
+type ReactCompiler =
+  | boolean
+  | {
+      compilationMode?: 'infer' | 'syntax' | 'annotation' | 'all';
+      panicThreshold?: 'none' | 'critical_errors' | 'all_errors';
+      target?: '17' | '18' | '19';
+      noEmit?: boolean;
+      outputMode?: 'client' | 'ssr' | 'lint';
+      ignoreUseNoForget?: boolean;
+      flowSuppressions?: boolean;
+      enableReanimated?: boolean;
+      isDev?: boolean;
+      eslintSuppressionRules?: string[];
+      customOptOutDirectives?: string[];
+      gating?: {
+        source: string;
+        importSpecifierName: string;
+      };
+      dynamicGating?: {
+        source: string;
+      };
+    };
+```
+
+- **默认值：** `undefined`
+
+将 `reactCompiler` 设置为 `true`，即可使用默认选项启用 React Compiler：
+
+```ts
+pluginReact({
+  reactCompiler: true,
+});
+```
+
+对于 React 17 和 18 项目，需要安装 [`react-compiler-runtime`](https://npmjs.com/package/react-compiler-runtime)，并设置编译目标：
+
+```ts
+pluginReact({
+  reactCompiler: {
+    target: '18',
+  },
+});
+```
+
+`reactCompiler` 的选项与 React Compiler 配置对齐。例如，你可以通过 [`compilationMode`](https://react.dev/reference/react-compiler/compilationMode) 控制哪些函数会被编译：
+
+```ts
+pluginReact({
+  reactCompiler: {
+    compilationMode: 'annotation',
+  },
+});
+```
+
+更多选项请参考官方 [React Compiler 配置说明](https://react.dev/reference/react-compiler/configuration)。
+
+### splitChunks
+
+当使用 Rsbuild 的 [默认拆包 preset](/config/split-chunks#default) 时，该插件会将与 `react` 和 `react-router` 相关的包拆分到独立的 chunk 中。
+
+- `lib-react.js`：包含 `react`、`react-dom`，以及它们的子依赖（`scheduler`）。在开发环境下，它还会包含 React Fast Refresh 运行时包（`react-refresh`、`@rspack/plugin-react-refresh`）。
+- `lib-router.js`：包含 `react-router`、`react-router-dom`，以及它们的子依赖（`history`，`@remix-run/router`）。
+
+该选项用于控制这一行为，决定是否需要将 `react` 和 `router` 相关的包拆分为单独的 chunk。
+
+- **类型：**
+
+```ts
+type SplitChunks =
+  | boolean
+  | {
+      react?: boolean;
+      router?: boolean;
+    };
+```
+
+- **默认值：** `true`（等价于 `{ react: true, router: true }`）
+
+例如，禁用所有 chunks 拆分：
+
+```ts
+pluginReact({ splitChunks: false });
+```
+
+或是仅禁用 `router` chunk 拆分：
+
+```ts
+pluginReact({
+  splitChunks: {
+    react: true,
+    router: false,
+  },
+});
+```
+
+### enableProfiler
+
+- **类型：** `boolean`
+- **默认值：** `false`
+
+当设置为 `true` 时，在生产构建中启用 React 性能分析器以用于性能分析。需要搭配 React DevTools 来检查分析结果并识别潜在的性能优化方案。分析会增加一些额外开销，因此出于性能考虑，在生产模式中默认是禁用的。
+
+```ts title="rsbuild.config.ts"
+pluginReact({
+  // 仅在 REACT_PROFILER 为 true 时启用性能分析器
+  // 因为该选项会增加构建时间并产生一些额外开销
+  enableProfiler: process.env.REACT_PROFILER === 'true',
+});
+```
+
+执行构建脚本时，设置 `REACT_PROFILER=true` 即可：
+
+```json title="package.json"
+{
+  "scripts": {
+    "build:profiler": "REACT_PROFILER=true rsbuild build"
+  }
+}
+```
+
+由于 Windows 不支持上述用法，你也可以使用 [cross-env](https://npmjs.com/package/cross-env) 来设置环境变量，这可以确保在不同的操作系统中都能正常使用：
+
+```json title="package.json"
+{
+  "scripts": {
+    "build:profiler": "cross-env REACT_PROFILER=true rsbuild build"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.0"
+  }
+}
+```
+
+> 关于使用 React DevTools 进行性能分析的详细信息，请参见 [React 文档](https://legacy.reactjs.org/docs/optimizing-performance.html#profiling-components-with-the-devtools-profiler)。
+
+### reactRefreshOptions
+
+- **类型：**
+
+```ts
+type ReactRefreshOptions = {
+  // @link https://rspack.rs/zh/config/module-rules#condition
+  test?: Rspack.RuleSetCondition;
+  include?: Rspack.RuleSetCondition;
+  exclude?: Rspack.RuleSetCondition;
+  library?: string;
+  forceEnable?: boolean;
+};
+```
+
+- **默认值：**
+
+```js
+const defaultOptions = {
+  test: [/\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/],
+  include: [
+    // Same as Rsbuild's `source.include` configuration
+  ],
+  exclude: [
+    // Same as Rsbuild's `source.exclude` configuration
+  ],
+  resourceQuery: { not: /^\?raw$/ },
+};
+```
+
+设置 [@rspack/plugin-react-refresh](https://github.com/rstackjs/rspack-plugin-react-refresh) 的选项，传入的值会与默认值进行浅合并。
+
+- **示例：**
+
+```js
+pluginReact({
+  reactRefreshOptions: {
+    exclude: [/some-module-to-exclude/, /[\\/]node_modules[\\/]/],
+  },
+});
+```
+
+### fastRefresh
+
+- **类型：** `boolean`
+- **默认值：** `true`
+
+是否在开发模式下启用 [React Fast Refresh](https://npmjs.com/package/react-refresh)。
+
+当 `fastRefresh` 设置为 `true` 时，`@rsbuild/plugin-react` 会自动注册 [@rspack/plugin-react-refresh](https://github.com/rstackjs/rspack-plugin-react-refresh) 插件。
+
+如果你需要禁用 Fast Refresh，可以将其设置为 `false`：
+
+```ts
+pluginReact({
+  fastRefresh: false,
+});
+```

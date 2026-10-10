@@ -1,0 +1,8 @@
+{"contentBlockStart":{"contentBlockIndex":0,"start":{}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":"I'll update the issue list for you."}}}
+{"contentBlockStop":{"contentBlockIndex":0}}
+{"contentBlockStart":{"contentBlockIndex":1,"start":{"toolUse":{"toolUseId":"tool-use-id","name":"updateIssueList"}}}}
+{"contentBlockDelta":{"contentBlockIndex":1,"delta":{"toolUse":{"input":""}}}}
+{"contentBlockStop":{"contentBlockIndex":1}}
+{"metadata":{"usage":{"inputTokens":100,"outputTokens":25,"totalTokens":125},"metrics":{"latencyMs":150}}}
+{"messageStop":{"stopReason":"tool_use"}}

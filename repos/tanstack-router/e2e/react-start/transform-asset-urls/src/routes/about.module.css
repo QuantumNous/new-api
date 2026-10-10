@@ -1,0 +1,14 @@
+.aboutCard {
+  background-color: #fff3c4;
+  border: 1px solid #e6d38b;
+  border-left: 6px solid #111;
+  padding: 12px 14px;
+}
+
+.title {
+  margin: 0 0 6px;
+}
+
+.content {
+  margin: 0;
+}

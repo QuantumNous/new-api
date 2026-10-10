@@ -1,0 +1,10 @@
+.mixin-container {
+  // Use the center mixin, which is included in app.scss
+  // This works for the client build, but not for the dev server styles.css build
+  @include center-mixin;
+  background-color: #a855f7; /* purple-500 */
+  padding: 24px;
+  border-radius: 12px;
+  color: white;
+  min-height: 100px;
+}

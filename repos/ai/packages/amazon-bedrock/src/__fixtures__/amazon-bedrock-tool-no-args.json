@@ -1,0 +1,25 @@
+{
+  "output": {
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "text": "I'll update the issue list for you."
+        },
+        {
+          "toolUse": {
+            "toolUseId": "tool-use-id",
+            "name": "updateIssueList",
+            "input": {}
+          }
+        }
+      ]
+    }
+  },
+  "usage": {
+    "inputTokens": 100,
+    "outputTokens": 25,
+    "totalTokens": 125
+  },
+  "stopReason": "tool_use"
+}

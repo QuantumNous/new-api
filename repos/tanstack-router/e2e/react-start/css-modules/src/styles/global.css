@@ -1,0 +1,19 @@
+/* Global styles for testing CSS collection in dev mode */
+
+.global-container {
+  background-color: #3b82f6; /* blue-500 */
+  padding: 24px;
+  border-radius: 12px;
+  color: white;
+}
+
+.global-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 16px;
+}
+
+.global-description {
+  font-size: 16px;
+  opacity: 0.9;
+}

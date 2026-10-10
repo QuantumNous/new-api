@@ -1,0 +1,114 @@
+---
+description: 'Use output.externals to specify which modules should not be bundled by Rsbuild, and instead use implementations provided by the external environment.'
+---
+
+# output.externals
+
+- **Type:**
+
+```ts
+type Externals = string | object | function | RegExp | Array<string | object | function | RegExp>;
+```
+
+- **Default:** `undefined`
+
+Use this option to specify which modules should not be bundled by Rsbuild, and instead use implementations provided by the external environment.
+
+For example, if your page already loads React from a CDN, or if you're building a library and want consumers to install `react` themselves, you can declare it as an external. This reduces bundle size and avoids including the same dependency twice.
+
+This is commonly used in library development, and is also useful in app scenarios such as loading dependencies from a CDN or relying on dependencies injected by the host environment.
+
+> For more details, see the Rspack [Externals](https://rspack.rs/config/externals) documentation.
+
+## Examples
+
+### Basic usage
+
+For example, you can exclude `react-dom` from the output bundle and access the module at runtime through the global `ReactDOM` variable:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    externals: {
+      'react-dom': 'ReactDOM',
+      'react-dom/client': 'ReactDOM',
+    },
+  },
+};
+```
+
+Note that string matching for module names is exact. That means you need to explicitly declare subpath imports such as `react-dom/client`.
+
+If you need to match a group of similar import patterns, use [regular expressions](#regular-expressions) or a function for more flexible matching logic.
+
+### Array format
+
+Use an array to define multiple external configurations:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    externals: [
+      {
+        react: 'React',
+        'react-dom': 'ReactDOM',
+      },
+      'lodash',
+    ],
+  },
+};
+```
+
+### Using with CDN
+
+A common use case is to load libraries from CDN and exclude them from your bundle, then use [html.tags](/config/html/tags) to include them in your HTML.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    externals: {
+      axios: 'axios',
+    },
+  },
+  html: {
+    tags: [
+      {
+        tag: 'script',
+        append: false,
+        attrs: {
+          defer: true,
+          crossorigin: true,
+          src: 'https://unpkg.com/axios@1/dist/axios.min.js',
+        },
+      },
+    ],
+  },
+};
+```
+
+Then you can use the external libraries in your source code:
+
+```js title="src/api.js"
+const response = await window.axios.get('/api/users');
+```
+
+### Regular expressions
+
+Use regular expressions to match multiple modules with a pattern:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    externals: [
+      // Externalize all @babel packages
+      /^@babel\/.+$/,
+      // Externalize all lodash sub-modules
+      /^lodash\/.+$/,
+    ],
+  },
+};
+```
+
+:::tip
+If [output.target](/config/output/target) is `web-worker`, externals will not take effect. This is because the Web Worker environment cannot access global variables.
+:::

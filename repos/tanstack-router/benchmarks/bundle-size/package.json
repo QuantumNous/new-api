@@ -1,0 +1,54 @@
+{
+  "name": "@benchmarks/bundle-size",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node ../../scripts/benchmarks/bundle-size/measure.mjs --skip-package-builds"
+  },
+  "nx": {
+    "targets": {
+      "build": {
+        "cache": false,
+        "dependsOn": [
+          {
+            "projects": [
+              "@tanstack/react-router",
+              "@tanstack/react-start",
+              "@tanstack/router-plugin",
+              "@tanstack/solid-router",
+              "@tanstack/solid-start",
+              "@tanstack/vue-router",
+              "@tanstack/vue-start"
+            ],
+            "target": "build"
+          }
+        ]
+      }
+    }
+  },
+  "dependencies": {
+    "@tanstack/react-router": "workspace:^",
+    "@tanstack/solid-router": "workspace:^",
+    "@tanstack/vue-router": "workspace:^",
+    "@tanstack/react-start": "workspace:^",
+    "@tanstack/solid-start": "workspace:^",
+    "@tanstack/vue-start": "workspace:^",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "solid-js": "^1.9.10",
+    "vue": "^3.5.16"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^2.0.11",
+    "@rsbuild/plugin-react": "^2.0.0",
+    "@tanstack/router-plugin": "workspace:^",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "@vitejs/plugin-vue-jsx": "^5.1.5",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14",
+    "vite-plugin-solid": "^2.11.11"
+  }
+}

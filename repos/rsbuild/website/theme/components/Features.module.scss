@@ -1,0 +1,12 @@
+:global {
+  .max-w-6xl.flex.m-auto {
+    max-width: 1200px;
+  }
+  html.dark {
+    --rp-home-feature-bg: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0),
+      rgba(255, 255, 255, 0.03)
+    );
+  }
+}

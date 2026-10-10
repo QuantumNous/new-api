@@ -1,0 +1,245 @@
+---
+description: 'Use output.autoExternal to automatically externalize dependencies declared in package.json.'
+---
+
+# output.autoExternal
+
+- **Type:**
+
+```ts
+type AutoExternal =
+  | boolean
+  | {
+      dependencies?: boolean;
+      optionalDependencies?: boolean;
+      devDependencies?: boolean;
+      peerDependencies?: boolean;
+      packageJson?: string | string[];
+      exclude?: string | RegExp | (string | RegExp)[];
+    };
+```
+
+- **Default:** `false`
+
+Automatically externalize dependencies declared in `package.json`. When enabled, Rsbuild reads the dependency fields from `<root>/package.json` by default and converts the matched package names into [output.externals](/config/output/externals) rules.
+
+This is useful for Node.js or SSR bundles where some dependencies should be loaded by the runtime instead of being bundled, such as observability SDKs, native addons, or dependencies that rely on runtime instrumentation.
+
+## When to use
+
+Use `output.autoExternal` when the build output can load external dependencies directly at runtime:
+
+- Use it for ESM output, such as `output.module: true`. Externalized dependencies stay as `import` statements, so they can be provided by the host environment.
+- Use it for CommonJS output. Externalized dependencies become `require()` calls, so they can be loaded by Node.js or a CommonJS library runtime.
+- Avoid using it for the default web output. Rsbuild emits an IIFE bundle by default, and IIFE externals need explicit browser global variable names. `output.autoExternal` only reads package names from `package.json`, so it cannot infer those globals reliably.
+
+For web apps that use the default IIFE output, configure [output.externals](/config/output/externals) manually so you can set the browser global name explicitly. This is especially important for scoped packages and subpath imports such as `@scope/pkg/button` or `react-dom/client`.
+
+## Default behavior
+
+When `output.autoExternal` is `true`, the following dependency types are externalized by default:
+
+- `dependencies`
+- `optionalDependencies`
+- `peerDependencies`
+
+The following dependency type is not externalized by default:
+
+- `devDependencies`
+
+This is equivalent to the following configuration:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    autoExternal: {
+      dependencies: true,
+      optionalDependencies: true,
+      peerDependencies: true,
+      devDependencies: false,
+    },
+  },
+};
+```
+
+## Subpath imports
+
+When `output.autoExternal` is applied, Rsbuild also externalizes subpath imports of matched dependencies. For example, if `react` is declared in `dependencies`, both of the following imports will be externalized:
+
+```ts
+import React from 'react';
+import { jsx } from 'react/jsx-runtime';
+```
+
+## Examples
+
+### Enable auto externalization
+
+Set `autoExternal` to `true` to externalize the default dependency types from `package.json`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+    autoExternal: true,
+  },
+};
+```
+
+### Customize dependency types
+
+Use object syntax to decide which dependency fields should be externalized.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+    autoExternal: {
+      dependencies: true,
+      optionalDependencies: true,
+      peerDependencies: true,
+      devDependencies: true,
+    },
+  },
+};
+```
+
+### Disable a dependency type
+
+Set a dependency field to `false` to keep packages from that field bundled.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+    autoExternal: {
+      peerDependencies: false,
+    },
+  },
+};
+```
+
+## Options
+
+When `output.autoExternal` is configured as an object, omitted options use the same defaults as `autoExternal: true`.
+
+### dependencies
+
+- **Type:** `boolean`
+- **Default:** `true`
+
+Whether to automatically externalize packages declared in the `dependencies` field of the configured `package.json` file(s).
+
+When this option is `true`, Rsbuild converts each package name in `dependencies` into an externalization rule. Subpath imports of these packages are also externalized.
+
+### optionalDependencies
+
+- **Type:** `boolean`
+- **Default:** `true`
+
+Whether to automatically externalize packages declared in the `optionalDependencies` field of the configured `package.json` file(s).
+
+This is useful when optional dependencies are installed and loaded by the runtime environment instead of being bundled into the output.
+
+### devDependencies
+
+- **Type:** `boolean`
+- **Default:** `false`
+
+Whether to automatically externalize packages declared in the `devDependencies` field of the configured `package.json` file(s).
+
+`devDependencies` are not externalized by default because they are usually only needed during local development, testing, or build-time tooling. Enable this option only when the build output needs to load packages from `devDependencies` at runtime.
+
+### peerDependencies
+
+- **Type:** `boolean`
+- **Default:** `true`
+
+Whether to automatically externalize packages declared in the `peerDependencies` field of the configured `package.json` file(s).
+
+This is useful for library-like or framework-integrated bundles where peer dependencies are expected to be provided by the host application or runtime.
+
+### packageJson
+
+- **Type:**
+
+```ts
+type PackageJson = string | string[];
+```
+
+- **Default:** `'<root>/package.json'`
+
+Specify the `package.json` file path(s) used to collect dependencies. Relative paths are resolved from the Rsbuild root directory.
+
+When multiple files are specified, Rsbuild merges their dependency fields and de-duplicates package names.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+    autoExternal: {
+      packageJson: ['./package.json', './apps/server/package.json'],
+    },
+  },
+};
+```
+
+### exclude
+
+- **Type:**
+
+```ts
+type Exclude = string | RegExp | (string | RegExp)[];
+```
+
+- **Default:** `undefined`
+
+Use `exclude` to exclude packages from the auto externalization rules generated by `output.autoExternal`. It accepts package names, regular expressions, or an array of both. String values match package names exactly; if a package is excluded, its subpath imports are also not externalized.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+    autoExternal: {
+      exclude: ['react', /^@scope\//],
+    },
+  },
+};
+```
+
+> `autoExternal.exclude` only filters the rules generated by `output.autoExternal`. It does not override `output.externals`; packages matched by `output.externals` will still be externalized.
+
+## Relationship with output.externals
+
+`output.externals` has higher priority than `output.autoExternal`. You can use `output.externals` to manually customize the external format for specific packages, and use `output.autoExternal` to handle the remaining dependencies from `package.json`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+    externals: {
+      react: 'react-18',
+    },
+    autoExternal: true,
+  },
+};
+```
+
+In the example above, `react` follows the manual `output.externals` configuration instead of the automatically generated rule.
+
+When `output.externals` is configured as an object, Rsbuild skips the auto externalization rules for package names that appear as object keys. For example, if you configure `react` in `output.externals`, Rsbuild will not generate auto externalization rules for `react` or its subpath imports, such as `react/jsx-runtime`. If you want these subpath imports to remain externalized, you need to add them to `output.externals` as well.
+
+For more complex `output.externals` configurations, such as arrays, functions, or regular expressions, Rsbuild merges them with the rules generated by `output.autoExternal`. If the final behavior does not match your expectation, you can use `DEBUG=rsbuild` or `rsbuild inspect` to view the effective externals configuration.
+
+:::tip
+
+If [output.target](/config/output/target) is `web-worker`, Rsbuild removes the `externals` configuration, so `output.autoExternal` will not take effect. This is because a Web Worker runs in an isolated global scope and cannot access global variables injected into `window` by CDN scripts or the host page.
+
+:::
+
+## Version history
+
+| Version | Changes                                   |
+| ------- | ----------------------------------------- |
+| v2.0.7  | Added `output.autoExternal` option        |
+| v2.0.8  | Added `exclude` and `packageJson` options |

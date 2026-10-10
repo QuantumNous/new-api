@@ -1,0 +1,19 @@
+{
+  "id": "cmpl-D8ZFHlGItjM5Nghki1LmZIRscBz2P",
+  "object": "text_completion",
+  "created": 1770934479,
+  "model": "gpt-3.5-turbo-instruct:20230824-v2",
+  "choices": [
+    {
+      "text": "The new holiday is called \"Gratitude Day\" and it celebrates the importance of",
+      "index": 0,
+      "logprobs": null,
+      "finish_reason": "length"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 14,
+    "completion_tokens": 16,
+    "total_tokens": 30
+  }
+}

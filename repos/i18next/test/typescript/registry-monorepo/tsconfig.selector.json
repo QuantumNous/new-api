@@ -1,0 +1,4 @@
+{
+  "extends": "../../../tsconfig.json",
+  "include": ["./package-*.d.ts", "./t-selector.test.ts"]
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "configMigration": true,
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    "group:allNonMajor",
+    "schedule:weekly",
+    ":approveMajorUpdates",
+    ":automergeMinor",
+    ":disablePeerDependencies",
+    ":maintainLockFilesMonthly",
+    ":semanticCommits",
+    ":semanticCommitTypeAll(chore)"
+  ],
+  "ignorePresets": [":ignoreModulesAndTests"],
+  "labels": ["dependencies"],
+  "rangeStrategy": "bump",
+  "postUpdateOptions": ["pnpmDedupe"],
+  "ignoreDeps": [
+    "@types/node",
+    "@types/react",
+    "@types/react-dom",
+    "h3",
+    "node",
+    "react",
+    "react-dom",
+    "react-server-dom-webpack",
+    "temp-react",
+    "temp-react-dom",
+    "typescript",
+    "typescript52",
+    "typescript53",
+    "typescript54",
+    "typescript55",
+    "typescript56",
+    "unplugin",
+    "use-sync-external-store",
+    "waku"
+  ]
+}

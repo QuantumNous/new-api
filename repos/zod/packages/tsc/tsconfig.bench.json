@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "declaration": true,
+    "noEmit": false,
+    "extendedDiagnostics": true,
+    "skipLibCheck": true,
+    "customConditions": []
+  },
+  "files": ["src/index.ts"]
+}
