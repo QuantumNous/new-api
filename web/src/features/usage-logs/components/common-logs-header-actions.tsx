@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Eye, EyeOff } from 'lucide-react'
+import { Download, Eye, EyeOff } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -27,7 +28,7 @@ import {
 } from '@/components/ui/tooltip'
 
 import { CommonLogsStats } from './common-logs-stats'
-import { useUsageLogsContext } from './usage-logs-provider'
+import { useLogsViewScope, useUsageLogsContext } from './usage-logs-provider'
 
 /**
  * Page-header actions for the Common Logs view: live usage stats plus a
@@ -39,10 +40,38 @@ import { useUsageLogsContext } from './usage-logs-provider'
 export function CommonLogsHeaderActions() {
   const { t } = useTranslation()
   const { sensitiveVisible, setSensitiveVisible } = useUsageLogsContext()
+  const { isAdminView } = useLogsViewScope()
+
+  const handleExport = () => {
+    const searchParams = new URLSearchParams(window.location.search)
+    const exportPath = isAdminView
+      ? '/api/log/export'
+      : '/api/log/self/export'
+    window.open(`${exportPath}?${searchParams.toString()}`, '_blank')
+    toast.success(t('Log data is being exported to CSV file'))
+  }
 
   return (
     <div className='flex flex-wrap items-center gap-2'>
       <CommonLogsStats />
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon'
+              onClick={handleExport}
+              aria-label={t('Export')}
+              className='text-muted-foreground hover:text-foreground size-7'
+            />
+          }
+        >
+          <Download />
+        </TooltipTrigger>
+        <TooltipContent>
+          {t('Export to CSV')}
+        </TooltipContent>
+      </Tooltip>
       <Tooltip>
         <TooltipTrigger
           render={
