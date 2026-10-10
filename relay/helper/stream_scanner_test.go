@@ -283,6 +283,132 @@ func TestStreamScannerHandler_ClientCancelAbortsUpstreamAndReturns(t *testing.T)
 	assert.NotContains(t, body, "second")
 }
 
+// TestStreamScannerHandler_ClientGoneDrainsUntilFinalUsage pins the new
+// disconnect contract when CLIENT_GONE_DRAIN_TIMEOUT > 0: after the client
+// disconnects, the scanner keeps reading upstream until [DONE]/EOF so the
+// final usage can be collected instead of falling back to local estimates.
+func TestStreamScannerHandler_ClientGoneDrainsUntilFinalUsage(t *testing.T) {
+	oldDrain := constant.ClientGoneDrainTimeout
+	constant.ClientGoneDrainTimeout = 1
+	t.Cleanup(func() { constant.ClientGoneDrainTimeout = oldDrain })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	pr, pw := io.Pipe()
+	t.Cleanup(func() {
+		_ = pr.Close()
+		_ = pw.Close()
+	})
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil).WithContext(ctx)
+
+	resp := &http.Response{Body: pr}
+	info := &relaycommon.RelayInfo{
+		DisablePing: true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	var count atomic.Int64
+	firstHandled := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+			count.Add(1)
+			if data == "first" {
+				close(firstHandled)
+			}
+		})
+		close(done)
+	}()
+
+	_, err := fmt.Fprint(pw, "data: first\n")
+	require.NoError(t, err)
+
+	select {
+	case <-firstHandled:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for first chunk")
+	}
+
+	cancel()
+
+	// Upstream is allowed to finish after the disconnect; the scanner should
+	// still consume the terminal event so the caller can settle with real usage.
+	_, err = fmt.Fprint(pw, "data: final-usage\n")
+	require.NoError(t, err)
+	_, err = fmt.Fprint(pw, "data: [DONE]\n")
+	require.NoError(t, err)
+	_ = pw.Close()
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("handler did not finish after drain reached [DONE]")
+	}
+
+	assert.Equal(t, int64(2), count.Load(), "data after disconnect should be drained until [DONE]")
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+}
+
+// TestStreamScannerHandler_ClientGoneDrainTimeoutClosesUpstream ensures the
+// drain is bounded: if the upstream never terminates, the handler still returns
+// after the configured drain timeout and closes the upstream body.
+func TestStreamScannerHandler_ClientGoneDrainTimeoutClosesUpstream(t *testing.T) {
+	oldDrain := constant.ClientGoneDrainTimeout
+	constant.ClientGoneDrainTimeout = 1
+	t.Cleanup(func() { constant.ClientGoneDrainTimeout = oldDrain })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	pr, pw := io.Pipe()
+	t.Cleanup(func() {
+		_ = pr.Close()
+		_ = pw.Close()
+	})
+
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil).WithContext(ctx)
+
+	resp := &http.Response{Body: pr}
+	info := &relaycommon.RelayInfo{
+		DisablePing: true,
+		ChannelMeta: &relaycommon.ChannelMeta{},
+	}
+
+	var count atomic.Int64
+	done := make(chan struct{})
+	go func() {
+		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+			count.Add(1)
+		})
+		close(done)
+	}()
+
+	_, err := fmt.Fprint(pw, "data: first\n")
+	require.NoError(t, err)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("handler did not return after drain timeout")
+	}
+
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonClientGone, info.StreamStatus.EndReason)
+
+	// The upstream body must be closed once the drain timeout fires.
+	_, err = fmt.Fprint(pw, "data: second\n")
+	require.ErrorIs(t, err, io.ErrClosedPipe, "upstream body should be closed after drain timeout")
+	assert.Equal(t, int64(1), count.Load(), "no chunk after drain timeout should be processed")
+}
+
 // ---------- Ping tests ----------
 
 func TestStreamScannerHandler_PingSentDuringSlowUpstream(t *testing.T) {
