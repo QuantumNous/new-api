@@ -156,9 +156,14 @@ func streamMetaResponseZhipu2OpenAI(zhipuResponse *ZhipuStreamMetaResponse) (*dt
 }
 
 func zhipuStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	defer service.CloseResponseBodyGracefully(resp)
+
 	var usage *dto.Usage
 	scanner := helper.NewStreamScanner(resp.Body)
 	scanner.Split(bufio.ScanLines)
+	if err := helper.CommitEventStreamHeaders(c); err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
+	}
 	dataChan := make(chan string)
 	metaChan := make(chan string)
 	stopChan := make(chan bool)
@@ -185,7 +190,6 @@ func zhipuStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		}
 		stopChan <- true
 	}()
-	helper.SetEventStreamHeaders(c)
 	c.Stream(func(w io.Writer) bool {
 		select {
 		case data := <-dataChan:
@@ -218,7 +222,6 @@ func zhipuStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 			return false
 		}
 	})
-	service.CloseResponseBodyGracefully(resp)
 	return usage, nil
 }
 

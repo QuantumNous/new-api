@@ -280,7 +280,9 @@ func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 
 	info.UpdateImageCount(openaiImageResponseCount(responseBody))
 
-	helper.SetEventStreamHeaders(c)
+	if err := helper.CommitEventStreamHeaders(c); err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
+	}
 	c.Status(http.StatusOK)
 
 	created := gjson.GetBytes(responseBody, "created").Int()

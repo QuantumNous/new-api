@@ -41,8 +41,6 @@ func xAIStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var toolCount int
 	var containStreamUsage bool
 
-	helper.SetEventStreamHeaders(c)
-
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		var xAIResp *dto.ChatCompletionsStreamResponse
 		if err := common.UnmarshalJsonStr(data, &xAIResp); err != nil {

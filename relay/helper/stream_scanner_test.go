@@ -55,7 +55,96 @@ func buildSSEBody(n int) string {
 	return b.String()
 }
 
+type flushSignalRecorder struct {
+	*httptest.ResponseRecorder
+	flushed chan struct{}
+	once    sync.Once
+}
+
+func newFlushSignalRecorder() *flushSignalRecorder {
+	return &flushSignalRecorder{
+		ResponseRecorder: httptest.NewRecorder(),
+		flushed:          make(chan struct{}),
+	}
+}
+
+func (r *flushSignalRecorder) Flush() {
+	r.ResponseRecorder.Flush()
+	r.once.Do(func() {
+		close(r.flushed)
+	})
+}
+
 // ---------- Basic correctness ----------
+
+func TestStreamScannerHandler_CommitsHeadersBeforeFirstFrame(t *testing.T) {
+	setting := operation_setting.GetGeneralSetting()
+	oldEnabled := setting.PingIntervalEnabled
+	setting.PingIntervalEnabled = false
+	t.Cleanup(func() {
+		setting.PingIntervalEnabled = oldEnabled
+	})
+
+	bodyReader, bodyWriter := io.Pipe()
+	recorder := newFlushSignalRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	resp := &http.Response{Body: bodyReader}
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	handled := make(chan string, 1)
+	done := make(chan struct{})
+
+	go func() {
+		StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+			handled <- data
+		})
+		close(done)
+	}()
+
+	select {
+	case <-recorder.flushed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for SSE headers to be flushed")
+	}
+
+	assert.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+	assert.Equal(t, "no", recorder.Header().Get("X-Accel-Buffering"))
+	select {
+	case data := <-handled:
+		t.Fatalf("received data handler call before upstream frame: %q", data)
+	default:
+	}
+
+	_, err := io.WriteString(bodyWriter, "data: first\ndata: [DONE]\n")
+	require.NoError(t, err)
+	require.NoError(t, bodyWriter.Close())
+
+	select {
+	case data := <-handled:
+		assert.Equal(t, "first", data)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for the first upstream frame")
+	}
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for stream handler to finish")
+	}
+}
+
+func TestCommitEventStreamHeaders_AfterEarlyPing(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	SetEventStreamHeaders(c)
+	require.NoError(t, PingData(c))
+	require.NoError(t, CommitEventStreamHeaders(c))
+
+	assert.True(t, recorder.Flushed)
+	assert.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+	assert.Contains(t, recorder.Body.String(), ": PING")
+}
 
 func TestStreamScannerHandler_NilInputs(t *testing.T) {
 	t.Parallel()
