@@ -7250,6 +7250,15 @@
     "Zhipu": "智谱",
     "Zhipu GLM": "智谱GLM",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Last 7 days": "近 7 天",
+    "Last 30 days": "近 30 天",
+    "Last year": "近一年",
+    "Daily token usage by model across the last 7 days": "近 7 天内各模型的每日 Token 用量",
+    "Daily token usage by model across the last 30 days": "近 30 天内各模型的每日 Token 用量",
+    "Weekly token usage by model across the last year": "近一年内各模型的每周 Token 用量",
+    "Token share by model author across the last 7 days": "近 7 天内各模型作者的 Token 占比",
+    "Token share by model author across the last 30 days": "近 30 天内各模型作者的 Token 占比",
+    "Token share by model author across the last year": "近一年内各模型作者的 Token 占比"
   }
 }

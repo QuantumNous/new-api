@@ -7250,6 +7250,15 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Last 7 days": "7 ngày qua",
+    "Last 30 days": "30 ngày qua",
+    "Last year": "Năm qua",
+    "Daily token usage by model across the last 7 days": "Sử dụng token theo ngày của các mô hình trong 7 ngày qua",
+    "Daily token usage by model across the last 30 days": "Sử dụng token theo ngày của các mô hình trong 30 ngày qua",
+    "Weekly token usage by model across the last year": "Sử dụng token theo tuần của các mô hình trong năm qua",
+    "Token share by model author across the last 7 days": "Tỷ lệ token theo tác giả mô hình trong 7 ngày qua",
+    "Token share by model author across the last 30 days": "Tỷ lệ token theo tác giả mô hình trong 30 ngày qua",
+    "Token share by model author across the last year": "Tỷ lệ token theo tác giả mô hình trong năm qua"
   }
 }
