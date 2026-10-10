@@ -8,7 +8,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -49,7 +48,6 @@ func SystemOneHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
 	}
-	logger.LogDebug(c, "systemone request body: %s", jsonData)
 	body, closer, err := relaycommon.NewOutboundJSONBody(jsonData)
 	if err != nil {
 		return types.NewError(err, types.ErrorCodeConvertRequestFailed, types.ErrOptionWithSkipRetry())
@@ -66,7 +64,7 @@ func SystemOneHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	if !ok || httpResp == nil {
 		return types.NewError(errors.New("systemone upstream returned no response"), types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
 	}
-	if httpResp.StatusCode != http.StatusOK {
+	if httpResp.StatusCode < http.StatusOK || httpResp.StatusCode >= http.StatusMultipleChoices {
 		newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 		return newAPIError
@@ -77,22 +75,22 @@ func SystemOneHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	if err != nil {
 		return types.NewOpenAIError(err, types.ErrorCodeReadResponseBodyFailed, http.StatusInternalServerError)
 	}
-	logger.LogDebug(c, "systemone response body: %s", responseBody)
 
 	// The billable quantity is the upstream-reported input token count. A
-	// missing usage field must fail the request rather than bill zero.
+	// missing, null, or invalid usage field must fail the request rather than
+	// settle on zero.
 	parsed := &dto.SystemOneResponse{}
 	if err := common.Unmarshal(responseBody, parsed); err != nil {
 		return types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
-	if parsed.Usage.InputTokens < 0 {
-		return types.NewOpenAIError(errors.New("systemone response has invalid input token usage"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
+	if parsed.Usage.InputTokens == nil || *parsed.Usage.InputTokens < 0 {
+		return types.NewOpenAIError(errors.New("systemone response is missing valid input token usage"), types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
 
 	c.Data(httpResp.StatusCode, "application/json", responseBody)
 	usage := &dto.Usage{
-		PromptTokens: parsed.Usage.InputTokens,
-		TotalTokens:  parsed.Usage.InputTokens,
+		PromptTokens: *parsed.Usage.InputTokens,
+		TotalTokens:  *parsed.Usage.InputTokens,
 	}
 	service.PostTextConsumeQuota(c, info, usage, nil)
 	return nil

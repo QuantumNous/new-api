@@ -17,7 +17,9 @@ type SystemOneRequest struct {
 	State     json.RawMessage `json:"state,omitempty"`
 	Questions json.RawMessage `json:"questions,omitempty"`
 	Images    []string        `json:"images,omitempty"`
-	KeepAlive string          `json:"keep_alive,omitempty"`
+	// Ollama accepts keep_alive as a number of seconds or a duration string;
+	// raw JSON forwards both forms unchanged.
+	KeepAlive json.RawMessage `json:"keep_alive,omitempty"`
 	// The decision endpoint returns a single JSON object; stream is kept only
 	// so an explicit client request produces a clear validation error.
 	Stream *bool `json:"stream,omitempty"`
@@ -47,10 +49,12 @@ func (r *SystemOneRequest) SetModelName(modelName string) {
 }
 
 // SystemOneResponse carries only what the gateway needs from the upstream
-// answer; the body itself is forwarded to the client verbatim.
+// answer; the body itself is forwarded to the client verbatim. InputTokens is
+// a pointer so a missing or null usage field is distinguishable from a
+// reported zero and can be rejected instead of billed as zero.
 type SystemOneResponse struct {
 	Usage struct {
-		InputTokens  int `json:"input_tokens"`
-		OutputTokens int `json:"output_tokens"`
+		InputTokens  *int `json:"input_tokens"`
+		OutputTokens int  `json:"output_tokens"`
 	} `json:"usage"`
 }
