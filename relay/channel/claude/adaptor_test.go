@@ -1,6 +1,8 @@
 package claude
 
 import (
+	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"testing"
 
@@ -154,6 +156,86 @@ func TestConvertClaudeRequestDoesNotOverwriteTrimmedUpstreamModelName(t *testing
 	_, err := (&Adaptor{}).ConvertClaudeRequest(nil, info, req)
 	require.NoError(t, err)
 	assert.Equal(t, "claude-3-7-sonnet", info.UpstreamModelName)
+}
+
+func TestConvertClaudeRequestForwardsThinkingBlockBinding(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tests := []struct {
+		name         string
+		model        string
+		thinking     string
+		wantThinking string
+	}{
+		{
+			name:         "native request keeps every thinking field",
+			model:        "claude-opus-5-5",
+			thinking:     `{"type":"adaptive","display":"summarized","block_binding":{"prefix_mismatch_behavior":"drop_block"},"future_field":{"a":1}}`,
+			wantThinking: `{"type":"adaptive","display":"summarized","block_binding":{"prefix_mismatch_behavior":"drop_block"},"future_field":{"a":1}}`,
+		},
+		{
+			name:         "effort suffix re-renders adaptive and keeps block_binding",
+			model:        "claude-opus-5-5-high",
+			thinking:     `{"type":"adaptive","block_binding":{"prefix_mismatch_behavior":"drop_block"}}`,
+			wantThinking: `{"type":"adaptive","display":"summarized","block_binding":{"prefix_mismatch_behavior":"drop_block"}}`,
+		},
+		{
+			name:         "suffix rendering between_tools does not carry block_binding",
+			model:        "claude-sonnet-5-5-none",
+			thinking:     `{"type":"adaptive","block_binding":{"prefix_mismatch_behavior":"drop_block"}}`,
+			wantThinking: `{"type":"between_tools"}`,
+		},
+		{
+			name:         "request without block_binding gets none",
+			model:        "claude-opus-5-5-high",
+			thinking:     `{"type":"adaptive"}`,
+			wantThinking: `{"type":"adaptive","display":"summarized"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			body := `{"model":"` + tt.model + `","max_tokens":1024,"thinking":` + tt.thinking +
+				`,"messages":[{"role":"user","content":"hi"}]}`
+			var original dto.ClaudeRequest
+			require.NoError(t, common.UnmarshalJsonStr(body, &original))
+			info := &relaycommon.RelayInfo{
+				OriginModelName: tt.model,
+				Request:         &original,
+				ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: tt.model},
+			}
+			// Same steps as the Claude handler before the adaptor converts.
+			outbound, err := common.DeepCopy(&original)
+			require.NoError(t, err)
+			require.NoError(t, helper.ModelMappedHelper(c, info, outbound))
+			require.NoError(t, helper.ApplyReasoningModelSuffix(nil, info, outbound))
+
+			out, err := (&Adaptor{}).ConvertClaudeRequest(c, info, outbound)
+			require.NoError(t, err)
+			encoded, err := common.Marshal(out)
+			require.NoError(t, err)
+			var upstream struct {
+				Thinking json.RawMessage `json:"thinking"`
+			}
+			require.NoError(t, common.Unmarshal(encoded, &upstream))
+			assert.JSONEq(t, tt.wantThinking, string(upstream.Thinking))
+		})
+	}
+}
+
+func TestSetupRequestHeaderForwardsEveryAnthropicBetaValue(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	c.Request.Header.Add("anthropic-beta", "fast-mode-2026-02-01")
+	c.Request.Header.Add("anthropic-beta", "thinking-binding-controls-2026-08-01")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "claude-opus-5-5",
+		ChannelMeta:     &relaycommon.ChannelMeta{ApiKey: "sk-test"},
+	}
+
+	header := http.Header{}
+	require.NoError(t, (&Adaptor{}).SetupRequestHeader(c, &header, info))
+	assert.Equal(t, []string{"fast-mode-2026-02-01,thinking-binding-controls-2026-08-01"}, header.Values("anthropic-beta"))
 }
 
 func geminiToClaudeInfo() *relaycommon.RelayInfo {
