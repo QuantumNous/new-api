@@ -37,6 +37,13 @@ func TestModelPricingConversionAcceptsDeclaredEndpointArray(t *testing.T) {
 			model.PricingValues{"ModelRatio": 0.17875, "CompletionRatio": 120}, false},
 		{"map-endpoints-image", `{"image-generation": {"path": "/v1/images/generations", "method": "POST"}}`,
 			model.PricingValues{"ModelPrice": 1}, true},
+		// Endpoint names must be trimmed before the switch matches them: a
+		// padded name would otherwise match nothing and silently downgrade a
+		// fixed-price image model to per-request billing.
+		{"array-endpoints-image-padded", `[" image-generation ","openai"]`,
+			model.PricingValues{"ModelPrice": 1}, true},
+		{"map-endpoints-image-padded", `{"image-generation ": {"path": "/v1/images/generations", "method": "POST"}}`,
+			model.PricingValues{"ModelPrice": 1}, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			require.NoError(t, db.Create(&model.Model{

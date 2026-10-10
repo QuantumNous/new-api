@@ -154,12 +154,19 @@ func declaredEndpointNames(raw string) ([]string, error) {
 	if err := common.UnmarshalJsonStr(raw, &value); err != nil {
 		return nil, err
 	}
+	// Normalize whitespace here: the callers match these names against the
+	// endpoint switch, so a padded value such as "image-generation " would
+	// silently fall through and drop the image-count settlement rule.
 	switch endpoints := value.(type) {
 	case []any:
 		names := make([]string, 0, len(endpoints))
 		for _, endpoint := range endpoints {
 			text, ok := endpoint.(string)
-			if !ok || strings.TrimSpace(text) == "" {
+			if !ok {
+				return nil, errors.New("invalid endpoint type")
+			}
+			text = strings.TrimSpace(text)
+			if text == "" {
 				return nil, errors.New("invalid endpoint type")
 			}
 			names = append(names, text)
@@ -168,6 +175,10 @@ func declaredEndpointNames(raw string) ([]string, error) {
 	case map[string]any:
 		names := make([]string, 0, len(endpoints))
 		for endpoint := range endpoints {
+			endpoint = strings.TrimSpace(endpoint)
+			if endpoint == "" {
+				continue
+			}
 			names = append(names, endpoint)
 		}
 		return names, nil
