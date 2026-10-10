@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import type { GroupOption, ModelOption } from '../../types'
 
 type InputControlStateOptions = {
+  /** Attachments act as content, so they can unblock submit on their own. */
+  attachmentCount?: number
   disabled?: boolean
   groups: GroupOption[]
   hasStopHandler: boolean
@@ -40,16 +42,24 @@ type SubmittableInputMessage = {
 
 export function getSubmittableInputText(
   message: SubmittableInputMessage,
-  disabled?: boolean
+  disabled?: boolean,
+  hasAttachments = false
 ): string | null {
-  if (disabled || !message.text?.trim()) {
+  if (disabled) {
     return null
+  }
+
+  // Attachments are content on their own, so an empty textarea must not block
+  // the send; it simply sends no prompt text alongside the files.
+  if (!message.text?.trim()) {
+    return hasAttachments ? '' : null
   }
 
   return message.text
 }
 
 export function getInputControlState({
+  attachmentCount = 0,
   disabled,
   groups,
   hasStopHandler,
@@ -61,7 +71,12 @@ export function getInputControlState({
   const hasModels = models.length > 0
 
   return {
-    canSubmit: !disabled && hasModels && text.trim().length > 0,
+    // An attachment is content on its own, so a message with files and no
+    // typed text is still submittable.
+    canSubmit:
+      !disabled &&
+      hasModels &&
+      (text.trim().length > 0 || attachmentCount > 0),
     isSelectorDisabled: disabled || isModelLoading || groups.length === 0,
     shouldShowStop: Boolean(isGenerating && hasStopHandler),
   }
