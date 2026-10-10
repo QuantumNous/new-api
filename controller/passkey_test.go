@@ -665,27 +665,28 @@ func TestPasskeyDomainFailuresDoNotLogCredentials(t *testing.T) {
 	}
 }
 
-func TestPasskeyDomainErrorsRespectRequestLanguage(t *testing.T) {
+// The web console translates message_key, so every request language gets the
+// same English source text.
+func TestPasskeyDomainErrorsReturnMessageKeys(t *testing.T) {
 	user, _ := setupSecurityEnrollmentTest(t)
 	setupPasskeyDomainOptions(t)
 	system_setting.GetPasskeySettings().LegacyRPIDs = "www.example.com"
 	require.NoError(t, model.DB.Create(&model.PasskeyCredential{UserID: user.Id, CredentialID: "unknown-domain", PublicKey: "key"}).Error)
-	for _, locale := range []struct {
-		language, invalid, unavailable, removal string
-	}{
-		{"zh-CN", "通行密钥域名无效。请填写域名，不包含协议、端口、路径或通配符。", "此通行密钥域名无法在当前网站使用。请前往原网站或选择其他验证方式。", "请核对受影响的通行密钥并确认删除域名。配置或影响范围发生变化后，需要重新确认。"},
-		{"zh-TW", "通行金鑰網域無效。請填寫網域，不包含通訊協定、連接埠、路徑或萬用字元。", "此通行金鑰網域無法在目前網站使用。請前往原網站或選擇其他驗證方式。", "請核對受影響的通行金鑰並確認刪除網域。設定或影響範圍變更後，需要重新確認。"},
-		{"en", "Invalid Passkey domain. Enter a domain without a scheme, port, path or wildcard.", "This Passkey domain is not available on this website. Use its original website or another verification method.", "Review the affected Passkeys and confirm the domain removal. If the settings or impact have changed, confirmation is required again."},
-	} {
-		t.Run(locale.language, func(t *testing.T) {
+	const (
+		invalid     = "Invalid Passkey domain. Enter a domain without a scheme, port, path or wildcard."
+		unavailable = "This Passkey domain is not available on this website. Use its original website or another verification method."
+		removal     = "Review the affected Passkeys and confirm the domain removal. If the settings or impact have changed, confirmation is required again."
+	)
+	for _, language := range []string{"zh-CN", "zh-TW", "en"} {
+		t.Run(language, func(t *testing.T) {
 			for _, request := range []struct {
 				path, body, code, message string
 				handler                   gin.HandlerFunc
 			}{
-				{"/api/option/", `{"key":"passkey.rp_id","value":"localhost:3000"}`, "PASSKEY_RP_ID_INVALID", locale.invalid, UpdateOption},
-				{"/api/option/", `{"key":"passkey.legacy_rp_ids","value":"localhost:3001"}`, "PASSKEY_RP_ID_INVALID", locale.invalid, UpdateOption},
-				{"/api/option/", `{"key":"passkey.legacy_rp_ids","value":""}`, "PASSKEY_RP_ID_REMOVAL_CONFIRMATION_REQUIRED", locale.removal, UpdateOption},
-				{"/api/user/passkey/login/begin", `{"rp_id":"unconfigured.example.com"}`, "PASSKEY_RP_ID_UNAVAILABLE", locale.unavailable, PasskeyLoginBegin},
+				{"/api/option/", `{"key":"passkey.rp_id","value":"localhost:3000"}`, "PASSKEY_RP_ID_INVALID", invalid, UpdateOption},
+				{"/api/option/", `{"key":"passkey.legacy_rp_ids","value":"localhost:3001"}`, "PASSKEY_RP_ID_INVALID", invalid, UpdateOption},
+				{"/api/option/", `{"key":"passkey.legacy_rp_ids","value":""}`, "PASSKEY_RP_ID_REMOVAL_CONFIRMATION_REQUIRED", removal, UpdateOption},
+				{"/api/user/passkey/login/begin", `{"rp_id":"unconfigured.example.com"}`, "PASSKEY_RP_ID_UNAVAILABLE", unavailable, PasskeyLoginBegin},
 			} {
 				response := httptest.NewRecorder()
 				c, _ := gin.CreateTestContext(response)
@@ -694,7 +695,7 @@ func TestPasskeyDomainErrorsRespectRequestLanguage(t *testing.T) {
 					method = http.MethodPut
 				}
 				c.Request = httptest.NewRequest(method, request.path, strings.NewReader(request.body))
-				c.Request.Header.Set("Accept-Language", locale.language)
+				c.Request.Header.Set("Accept-Language", language)
 				c.Request.Header.Set("Origin", "https://example.com")
 				c.Set("id", user.Id)
 				c.Set("role", common.RoleRootUser)
@@ -709,6 +710,7 @@ func TestPasskeyDomainErrorsRespectRequestLanguage(t *testing.T) {
 				assert.False(t, result.Success)
 				assert.Equal(t, request.code, result.Code)
 				assert.Equal(t, request.message, result.Message)
+				assert.Equal(t, request.message, result.MessageKey)
 			}
 		})
 	}

@@ -4,14 +4,16 @@ import (
 	"encoding/json"
 	"maps"
 	"slices"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 )
 
 const (
-	logOtherAdminInfoKey = "admin_info"
-	logOtherRootInfoKey  = "root_info"
-	logOtherAuditInfoKey = "audit_info"
+	logOtherAdminInfoKey    = "admin_info"
+	logOtherRootInfoKey     = "root_info"
+	logOtherAuditInfoKey    = "audit_info"
+	logOtherContentPartsKey = "content_parts"
 )
 
 // legacySensitiveLogOtherKeys are historical top-level fields that must never
@@ -72,6 +74,21 @@ func (o *LogOther) MergePublic(values map[string]any) {
 	for key, value := range values {
 		o.SetPublic(key, value)
 	}
+}
+
+// setContent stores structured content under content_parts, which the web
+// console renders in the viewer's language, and returns the English text kept
+// in the content column for exports and API callers.
+func (o *LogOther) setContent(parts []*common.Message) string {
+	if len(parts) == 0 {
+		return ""
+	}
+	o.SetPublic(logOtherContentPartsKey, parts)
+	texts := make([]string, 0, len(parts))
+	for _, part := range parts {
+		texts = append(texts, part.Error())
+	}
+	return strings.Join(texts, ", ")
 }
 
 func (o *LogOther) SetAdmin(key string, value any) bool {
@@ -159,7 +176,7 @@ func (o *LogOther) jsonString() string {
 	}
 	data, err := common.Marshal(o.toMap())
 	if err != nil {
-		common.SysError("failed to marshal log other: " + err.Error())
+		common.SysError(common.LogText("failed to marshal log other: %s", err.Error()))
 		return ""
 	}
 	return string(data)

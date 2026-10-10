@@ -237,10 +237,20 @@ func ChatCompletionsRequestToResponsesRequest(ctx context.Context, req *dto.Gene
 					"input_audio": part.InputAudio,
 				})
 			case dto.ContentTypeFile:
-				contentParts = append(contentParts, map[string]any{
-					"type": "input_file",
-					"file": part.File,
-				})
+				// Responses carries the file fields on the input_file part itself.
+				inputFile := map[string]any{"type": "input_file"}
+				if file := part.GetFile(); file != nil {
+					if file.FileName != "" {
+						inputFile["filename"] = file.FileName
+					}
+					if file.FileData != "" {
+						inputFile["file_data"] = file.FileData
+					}
+					if file.FileId != "" {
+						inputFile["file_id"] = file.FileId
+					}
+				}
+				contentParts = append(contentParts, inputFile)
 			case dto.ContentTypeVideoUrl:
 				contentParts = append(contentParts, map[string]any{
 					"type":      "input_video",

@@ -34,6 +34,7 @@ jobs:
           cache-dependency-path: |
             go.sum
             relaykit/go.sum
+            tokenkit/go.sum
 
       - name: Create frontend embed placeholder
         run: |
@@ -47,6 +48,10 @@ jobs:
         working-directory: relaykit
         run: go vet ./...
 
+      - name: Vet tokenkit independently
+        working-directory: tokenkit
+        run: go vet ./...
+
       - name: Build root module
         run: go build ./...
 
@@ -54,7 +59,11 @@ jobs:
         working-directory: relaykit
         run: go build ./...
 
-      - name: Test root and relaykit modules
+      - name: Build tokenkit independently
+        working-directory: tokenkit
+        run: go build ./...
+
+      - name: Test root, relaykit, and tokenkit modules
         run: make test
 
   frontend:

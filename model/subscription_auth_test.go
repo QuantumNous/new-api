@@ -138,7 +138,8 @@ func TestSubscriptionGroupCacheRefreshFailureDoesNotChangeCommittedResult(t *tes
 
 	message, err := AdminBindSubscription(user.Id, plan.Id, "test")
 	require.NoError(t, err)
-	assert.Contains(t, message, "pro")
+	require.NotNil(t, message)
+	assert.Equal(t, "pro", message.Params["group"])
 
 	var updated User
 	require.NoError(t, DB.First(&updated, user.Id).Error)

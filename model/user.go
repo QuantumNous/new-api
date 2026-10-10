@@ -167,7 +167,7 @@ func (user *User) GetSetting() dto.UserSetting {
 	if user.Setting != "" {
 		err := common.Unmarshal([]byte(user.Setting), &setting)
 		if err != nil {
-			common.SysLog("failed to unmarshal setting: " + err.Error())
+			common.SysLog(common.LogText("failed to unmarshal setting: %s", err.Error()))
 		}
 	}
 	return setting
@@ -176,7 +176,7 @@ func (user *User) GetSetting() dto.UserSetting {
 func (user *User) SetSetting(setting dto.UserSetting) {
 	settingBytes, err := common.Marshal(setting)
 	if err != nil {
-		common.SysLog("failed to marshal setting: " + err.Error())
+		common.SysLog(common.LogText("failed to marshal setting: %s", err.Error()))
 		return
 	}
 	user.Setting = string(settingBytes)
@@ -184,7 +184,7 @@ func (user *User) SetSetting(setting dto.UserSetting) {
 
 func UpdateUserSetting(userId int, setting dto.UserSetting) error {
 	if userId == 0 {
-		return errors.New("id 为空！")
+		return common.NewMessage("ID is empty!")
 	}
 	settingBytes, err := common.Marshal(setting)
 	if err != nil {
@@ -213,7 +213,7 @@ var userBindColumns = map[string]bool{
 // 角色、状态、分组只允许通过各自带锁/CAS 的专用方法修改。
 func UpdateUserBindColumn(userId int, column string, value string) error {
 	if userId <= 0 {
-		return errors.New("id 为空！")
+		return common.NewMessage("ID is empty!")
 	}
 	if !userBindColumns[column] {
 		return fmt.Errorf("invalid user bind column: %s", column)
@@ -276,7 +276,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 	// 转换为JSON字符串
 	configBytes, err := common.Marshal(defaultConfig)
 	if err != nil {
-		common.SysLog("生成默认边栏配置失败: " + err.Error())
+		common.SysLog(common.LogText("failed to generate the default sidebar config: %s", err.Error()))
 		return ""
 	}
 
@@ -506,7 +506,7 @@ func SearchUsers(keyword string, group string, role *int, status *int, startIdx 
 
 func GetUserById(id int, selectAll bool) (*User, error) {
 	if id == 0 {
-		return nil, errors.New("id 为空！")
+		return nil, common.NewMessage("ID is empty!")
 	}
 	user := User{Id: id}
 	var err error = nil
@@ -522,7 +522,7 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 // query. The password hash and management access token are never selected.
 func GetSelfUserById(id int) (*User, error) {
 	if id == 0 {
-		return nil, errors.New("id 为空！")
+		return nil, common.NewMessage("ID is empty!")
 	}
 	var profile struct {
 		User
@@ -542,7 +542,7 @@ func GetSelfUserById(id int) (*User, error) {
 
 func GetUserIdByAffCode(affCode string) (int, error) {
 	if affCode == "" {
-		return 0, errors.New("affCode 为空！")
+		return 0, errors.New("affiliate code is empty")
 	}
 	var user User
 	err := DB.Select("id").First(&user, "aff_code = ?", affCode).Error
@@ -553,7 +553,7 @@ func GetUserIdByAffCode(affCode string) (int, error) {
 // were deleted with it.
 func DeleteUserById(id int) (int64, error) {
 	if id == 0 {
-		return 0, errors.New("id 为空！")
+		return 0, common.NewMessage("ID is empty!")
 	}
 	user := User{Id: id}
 	return user.Delete()
@@ -563,7 +563,7 @@ func DeleteUserById(id int) (int64, error) {
 // access tokens were deleted with it.
 func HardDeleteUserById(id int) (int64, error) {
 	if id == 0 {
-		return 0, errors.New("id 为空！")
+		return 0, common.NewMessage("ID is empty!")
 	}
 	user := User{Id: id}
 	return user.HardDelete()
@@ -587,7 +587,7 @@ func inviteUser(inviterId int) error {
 func (user *User) TransferAffQuotaToQuota(quota int) error {
 	// 检查quota是否小于最小额度
 	if float64(quota) < common.QuotaPerUnit {
-		return fmt.Errorf("转移额度最小为%s！", logger.LogQuota(common.QuotaFromFloat(common.QuotaPerUnit)))
+		return common.NewMessage("Minimum transfer quota is {{min}}!", map[string]any{"min": logger.FormatQuota(common.QuotaFromFloat(common.QuotaPerUnit))})
 	}
 
 	// 开始数据库事务
@@ -605,7 +605,7 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 
 	// 再次检查用户的AffQuota是否足够
 	if user.AffQuota < quota {
-		return errors.New("邀请额度不足！")
+		return common.NewMessage("Invitation quota is insufficient!")
 	}
 
 	// 更新用户额度
@@ -710,21 +710,21 @@ func (user *User) finishInsert(inviterId int) {
 			currentSetting.SidebarModules = defaultSidebarConfig
 			createdUser.SetSetting(currentSetting)
 			createdUser.Update(false)
-			common.SysLog(fmt.Sprintf("为新用户 %s (角色: %d) 初始化边栏配置", createdUser.Username, createdUser.Role))
+			common.SysLog(common.LogText("initialized the sidebar config for new user %s (role: %d)", createdUser.Username, createdUser.Role))
 		}
 	}
 
 	if common.QuotaForNewUser > 0 {
-		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
+		RecordLog(user.Id, LogTypeSystem, common.NewMessage("New user sign-up bonus {{quota}}", map[string]any{"quota": logger.FormatQuota(common.QuotaForNewUser)}))
 	}
 	if inviterId != 0 && operation_setting.IsPaymentComplianceConfirmed() {
 		if common.QuotaForInvitee > 0 {
 			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+			RecordLog(user.Id, LogTypeSystem, common.NewMessage("Invitation code bonus {{quota}}", map[string]any{"quota": logger.FormatQuota(common.QuotaForInvitee)}))
 		}
 		if common.QuotaForInviter > 0 {
 			//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+			RecordLog(inviterId, LogTypeSystem, common.NewMessage("Bonus for inviting a user {{quota}}", map[string]any{"quota": logger.FormatQuota(common.QuotaForInviter)}))
 			_ = inviteUser(inviterId)
 		}
 	}
@@ -767,20 +767,20 @@ func (user *User) FinalizeOAuthUserCreation(inviterId int) {
 			currentSetting.SidebarModules = defaultSidebarConfig
 			createdUser.SetSetting(currentSetting)
 			createdUser.Update(false)
-			common.SysLog(fmt.Sprintf("为新用户 %s (角色: %d) 初始化边栏配置", createdUser.Username, createdUser.Role))
+			common.SysLog(common.LogText("initialized the sidebar config for new user %s (role: %d)", createdUser.Username, createdUser.Role))
 		}
 	}
 
 	if common.QuotaForNewUser > 0 {
-		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
+		RecordLog(user.Id, LogTypeSystem, common.NewMessage("New user sign-up bonus {{quota}}", map[string]any{"quota": logger.FormatQuota(common.QuotaForNewUser)}))
 	}
 	if inviterId != 0 && operation_setting.IsPaymentComplianceConfirmed() {
 		if common.QuotaForInvitee > 0 {
 			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+			RecordLog(user.Id, LogTypeSystem, common.NewMessage("Invitation code bonus {{quota}}", map[string]any{"quota": logger.FormatQuota(common.QuotaForInvitee)}))
 		}
 		if common.QuotaForInviter > 0 {
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+			RecordLog(inviterId, LogTypeSystem, common.NewMessage("Bonus for inviting a user {{quota}}", map[string]any{"quota": logger.FormatQuota(common.QuotaForInviter)}))
 			_ = inviteUser(inviterId)
 		}
 	}
@@ -954,7 +954,7 @@ func DeleteUserForSession(identity AuthSessionIdentity) (int64, error) {
 
 func (user *User) delete(identity *AuthSessionIdentity) (int64, error) {
 	if user.Id == 0 {
-		return 0, errors.New("id 为空！")
+		return 0, common.NewMessage("ID is empty!")
 	}
 	var nextAuthVersion int64
 	var revokedAccessTokens int64
@@ -995,7 +995,7 @@ func (user *User) delete(identity *AuthSessionIdentity) (int64, error) {
 
 func (user *User) HardDelete() (int64, error) {
 	if user.Id == 0 {
-		return 0, errors.New("id 为空！")
+		return 0, common.NewMessage("ID is empty!")
 	}
 	var tokens []Token
 	var deletedAuthVersion int64
@@ -1024,13 +1024,13 @@ func (user *User) HardDelete() (int64, error) {
 		return 0, err
 	}
 	if err := publishCommittedUserAuthVersion(user.Id, deletedAuthVersion); err != nil {
-		common.SysError(fmt.Sprintf("failed to publish auth tombstone after hard deleting user %d: %v", user.Id, err))
+		common.SysError(common.LogText("failed to publish auth tombstone after hard deleting user %d: %v", user.Id, err))
 	}
 	if err := invalidateTokensCache(tokens); err != nil {
-		common.SysError(fmt.Sprintf("failed to invalidate token cache after hard deleting user %d: %v", user.Id, err))
+		common.SysError(common.LogText("failed to invalidate token cache after hard deleting user %d: %v", user.Id, err))
 	}
 	if err := invalidateUserCache(user.Id); err != nil {
-		common.SysError(fmt.Sprintf("failed to invalidate user cache after hard deleting user %d: %v", user.Id, err))
+		common.SysError(common.LogText("failed to invalidate user cache after hard deleting user %d: %v", user.Id, err))
 	}
 	return revokedAccessTokens, nil
 }
@@ -1084,7 +1084,7 @@ func (user *User) ValidateAndFill() (err error) {
 
 func (user *User) FillUserById() error {
 	if user.Id == 0 {
-		return errors.New("id 为空！")
+		return common.NewMessage("ID is empty!")
 	}
 	DB.Where(User{Id: user.Id}).First(user)
 	return nil
@@ -1092,7 +1092,7 @@ func (user *User) FillUserById() error {
 
 func (user *User) FillUserByEmail() error {
 	if user.Email == "" {
-		return errors.New("email 为空！")
+		return common.NewMessage("Email is empty!")
 	}
 	DB.Where(User{Email: user.Email}).First(user)
 	return nil
@@ -1100,7 +1100,7 @@ func (user *User) FillUserByEmail() error {
 
 func (user *User) FillUserByGitHubId() error {
 	if user.GitHubId == "" {
-		return errors.New("GitHub id 为空！")
+		return common.NewMessage("GitHub ID is empty!")
 	}
 	DB.Where(User{GitHubId: user.GitHubId}).First(user)
 	return nil
@@ -1108,7 +1108,7 @@ func (user *User) FillUserByGitHubId() error {
 
 func (user *User) FillUserByDiscordId() error {
 	if user.DiscordId == "" {
-		return errors.New("discord id 为空！")
+		return common.NewMessage("Discord ID is empty!")
 	}
 	DB.Where(User{DiscordId: user.DiscordId}).First(user)
 	return nil
@@ -1116,7 +1116,7 @@ func (user *User) FillUserByDiscordId() error {
 
 func (user *User) FillUserByOidcId() error {
 	if user.OidcId == "" {
-		return errors.New("oidc id 为空！")
+		return common.NewMessage("OIDC ID is empty!")
 	}
 	DB.Where(User{OidcId: user.OidcId}).First(user)
 	return nil
@@ -1124,7 +1124,7 @@ func (user *User) FillUserByOidcId() error {
 
 func (user *User) FillUserByWeChatId() error {
 	if user.WeChatId == "" {
-		return errors.New("WeChat id 为空！")
+		return common.NewMessage("WeChat ID is empty!")
 	}
 	DB.Where(User{WeChatId: user.WeChatId}).First(user)
 	return nil
@@ -1132,11 +1132,11 @@ func (user *User) FillUserByWeChatId() error {
 
 func (user *User) FillUserByTelegramId() error {
 	if user.TelegramId == "" {
-		return errors.New("Telegram id 为空！")
+		return common.NewMessage("Telegram ID is empty!")
 	}
 	err := DB.Where(User{TelegramId: user.TelegramId}).First(user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return errors.New("该 Telegram 账户未绑定")
+		return common.NewMessage("This Telegram account is not linked. Sign in using another method and link it first.")
 	}
 	return nil
 }
@@ -1187,7 +1187,7 @@ func IsTelegramIdAlreadyTaken(telegramId string) bool {
 
 func ResetUserPasswordByEmail(email string, password string) error {
 	if email == "" || password == "" {
-		return errors.New("邮箱地址或密码为空！")
+		return common.NewMessage("Email or password is empty!")
 	}
 	user, err := GetUniqueUserByEmail(email)
 	if err != nil {
@@ -1219,7 +1219,7 @@ func IsAdmin(userId int) bool {
 	var user User
 	err := DB.Where("id = ?", userId).Select("role").Find(&user).Error
 	if err != nil {
-		common.SysLog("no such user " + err.Error())
+		common.SysLog(common.LogText("no such user %s", err.Error()))
 		return false
 	}
 	return user.Role >= common.RoleAdminUser
@@ -1278,7 +1278,7 @@ func GetUserGroup(id int, fromDB bool) (group string, err error) {
 		if shouldUpdateRedis(fromDB, err) {
 			gopool.Go(func() {
 				if err := RefreshUserGroupCache(id); err != nil {
-					common.SysLog("failed to update user group cache: " + err.Error())
+					common.SysLog(common.LogText("failed to update user group cache: %s", err.Error()))
 				}
 			})
 		}
@@ -1307,7 +1307,7 @@ func GetUserSetting(id int, fromDB bool) (settingMap dto.UserSetting, err error)
 		if shouldUpdateRedis(fromDB, err) {
 			gopool.Go(func() {
 				if err := updateUserSettingCache(id, setting); err != nil {
-					common.SysLog("failed to update user setting cache: " + err.Error())
+					common.SysLog(common.LogText("failed to update user setting cache: %s", err.Error()))
 				}
 			})
 		}
@@ -1339,7 +1339,7 @@ func GetUserSetting(id int, fromDB bool) (settingMap dto.UserSetting, err error)
 
 func IncreaseUserQuota(id int, quota int, db bool) (err error) {
 	if quota < 0 {
-		return errors.New("quota 不能为负数！")
+		return errors.New("quota cannot be negative")
 	}
 	if err := common.ValidateWalletQuota(quota); err != nil {
 		return err
@@ -1348,7 +1348,7 @@ func IncreaseUserQuota(id int, quota int, db bool) (err error) {
 		addNewRecord(BatchUpdateTypeUserQuota, id, quota)
 		gopool.Go(func() {
 			if err := cacheIncrUserQuota(id, int64(quota)); err != nil {
-				common.SysLog("failed to increase user quota: " + err.Error())
+				common.SysLog(common.LogText("failed to increase user quota: %s", err.Error()))
 			}
 		})
 		return nil
@@ -1358,7 +1358,7 @@ func IncreaseUserQuota(id int, quota int, db bool) (err error) {
 	}
 	gopool.Go(func() {
 		if err := cacheIncrUserQuota(id, int64(quota)); err != nil {
-			common.SysLog("failed to increase user quota: " + err.Error())
+			common.SysLog(common.LogText("failed to increase user quota: %s", err.Error()))
 		}
 	})
 	return nil
@@ -1386,12 +1386,12 @@ func increaseUserQuota(id int, quota int) (err error) {
 
 func DecreaseUserQuota(id int, quota int, db bool) (err error) {
 	if quota < 0 {
-		return errors.New("quota 不能为负数！")
+		return errors.New("quota cannot be negative")
 	}
 	gopool.Go(func() {
 		err := cacheDecrUserQuota(id, int64(quota))
 		if err != nil {
-			common.SysLog("failed to decrease user quota: " + err.Error())
+			common.SysLog(common.LogText("failed to decrease user quota: %s", err.Error()))
 		}
 	})
 	if !db && common.BatchUpdateEnabled {
@@ -1432,7 +1432,7 @@ func GetRootUser() (user *User) {
 
 func UpdateUserLastLoginAt(id int) {
 	if err := DB.Model(&User{}).Where("id = ?", id).Update("last_login_at", common.GetTimestamp()).Error; err != nil {
-		common.SysLog("failed to update user last_login_at: " + err.Error())
+		common.SysLog(common.LogText("failed to update user last_login_at: %s", err.Error()))
 	}
 }
 
@@ -1452,7 +1452,7 @@ func UpdateUserUsedQuota(id int, quota int) {
 		return
 	}
 	if err := DB.Model(&User{}).Where("id = ?", id).Update("used_quota", gorm.Expr("used_quota + ?", quota)).Error; err != nil {
-		common.SysLog("failed to update user used quota: " + err.Error())
+		common.SysLog(common.LogText("failed to update user used quota: %s", err.Error()))
 	}
 }
 
@@ -1464,7 +1464,7 @@ func updateUserUsedQuotaAndRequestCount(id int, quota int, count int) {
 		},
 	).Error
 	if err != nil {
-		common.SysLog("failed to update user used quota and request count: " + err.Error())
+		common.SysLog(common.LogText("failed to update user used quota and request count: %s", err.Error()))
 		return
 	}
 
@@ -1487,7 +1487,7 @@ func updateUserQuotaUsedQuotaAndRequestCount(id int, quota int, usedQuota int, r
 		},
 	).Error
 	if err != nil {
-		common.SysLog("failed to batch update user quota, used quota and request count: " + err.Error())
+		common.SysLog(common.LogText("failed to batch update user quota, used quota and request count: %s", err.Error()))
 	}
 }
 
@@ -1498,7 +1498,7 @@ func GetUsernameById(id int, fromDB bool) (username string, err error) {
 		if shouldUpdateRedis(fromDB, err) {
 			gopool.Go(func() {
 				if err := updateUserNameCache(id, username); err != nil {
-					common.SysLog("failed to update user name cache: " + err.Error())
+					common.SysLog(common.LogText("failed to update user name cache: %s", err.Error()))
 				}
 			})
 		}

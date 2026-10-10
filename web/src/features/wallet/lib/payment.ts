@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { getServerMessage } from '@/lib/server-error-message'
+
 import {
   PAYMENT_TYPES,
   DEFAULT_PRESET_MULTIPLIERS,
@@ -27,6 +29,22 @@ import type { PaymentMethod, PresetAmount, TopupInfo } from '../types'
 // ============================================================================
 // Payment Processing Functions
 // ============================================================================
+
+/**
+ * Payment endpoints answer errors as {"message": "error", "data": text}. When
+ * the response also carries a message_key, this is its translation; callers
+ * fall back to the text they already read.
+ */
+export function getPaymentErrorTranslation(
+  response: unknown
+): string | undefined {
+  if (!response || typeof response !== 'object') return undefined
+  const body = response as Record<string, unknown>
+  if (typeof body.message_key !== 'string' || !body.message_key) {
+    return undefined
+  }
+  return getServerMessage(body)
+}
 
 /**
  * Check if browser is Safari

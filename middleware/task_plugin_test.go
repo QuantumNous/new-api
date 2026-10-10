@@ -3,6 +3,7 @@ package middleware
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -95,6 +96,85 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 
 	assert.True(t, reachedSubmit)
 	assert.Equal(t, http.StatusNoContent, recorder.Code)
+}
+
+// Native routes and the generic submit entry hand a plugin declaring
+// json-order@1 the client's member order and keep its decoded requestBody as
+// ordered JSON text beside the Go value; other plugins see sorted members.
+func TestTaskPluginEntriesKeepJSONOrderForDeclaringPlugins(t *testing.T) {
+	source := `
+export const meta = {
+  apiVersion: 1, key: "route-order-test", name: "Order", version: "1.0.0", author: {name: "Test"},
+  models: ["m"], fetchMode: "per_task", requiredCapabilities: ["json-order@1"],
+  routes: [{method: "POST", path: "/vendor/eval", type: "submit", decode: "decodeEval", render: "evalDone"}],
+};
+export const native = {
+decodeEval: function(ctx) {
+  const state = ctx.body.value.state;
+  return {kind: "submit", model: ctx.body.value.model, requestBody: {keys: Object.keys(state), state: state}};
+},
+evalDone: function(ctx, task) { return task; },
+};
+export function buildSubmitRequest() { return {url: "https://example.com"}; }
+export function parseSubmitResponse() { return {taskId: "one"}; }
+export function buildQueryRequest() { return {url: "https://example.com"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }
+`
+	cases := []struct {
+		name     string
+		source   string
+		wantText string
+		wantKeys []any
+	}{
+		{name: "declared", source: source, wantText: `{"keys":["zeta","alpha"],"state":{"zeta":1,"alpha":2}}`, wantKeys: []any{"zeta", "alpha"}},
+		{name: "undeclared", source: strings.Replace(source, `requiredCapabilities: ["json-order@1"],`, "", 1), wantKeys: []any{"alpha", "zeta"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			plugin := compileTaskRoutePlugin(t, tc.source)
+			router := gin.New()
+			reached := false
+			router.POST("/vendor/eval", pinTaskPluginRoute(plugin, 0), PrepareTaskPluginRoute(), func(c *gin.Context) {
+				reached = true
+				request, ok := c.MustGet("task_request").(map[string]any)
+				require.True(t, ok)
+				assert.Equal(t, tc.wantKeys, request["keys"])
+				text, exists := c.Get(jsplugin.ContextKeyRequestBodyText)
+				if tc.wantText == "" {
+					assert.False(t, exists)
+				} else {
+					assert.Equal(t, json.RawMessage(tc.wantText), text)
+				}
+				c.Status(http.StatusNoContent)
+			})
+			request := httptest.NewRequest(http.MethodPost, "/vendor/eval", strings.NewReader(`{"model":"m","state":{"zeta":1,"alpha":2}}`))
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, request)
+
+			assert.True(t, reached, recorder.Body.String())
+		})
+	}
+
+	t.Run("generic submit entry", func(t *testing.T) {
+		declaring := strings.Replace(genericTaskPluginSource, `fetchMode: "per_task"`, `fetchMode: "per_task", requiredCapabilities: ["json-order@1"]`, 1)
+		_, err := jsplugin.DefaultRegistry.Register(declaring, jsplugin.Options{})
+		require.NoError(t, err)
+		t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister("generic-entry-test") })
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Params = gin.Params{{Key: "key", Value: "generic-entry-test"}}
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/tasks/generic-entry-test", strings.NewReader(`{"model":"doc","zeta":1,"alpha":2}`))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		PrepareTaskPluginSubmit()(c)
+
+		require.False(t, c.IsAborted(), recorder.Body.String())
+		text, exists := c.Get(jsplugin.ContextKeyRequestBodyText)
+		require.True(t, exists)
+		assert.Equal(t, json.RawMessage(`{"model":"doc","zeta":1,"alpha":2}`), text)
+	})
 }
 
 func TestPrepareTaskPluginNativeRouteRejectsMultipartBeforeDecoder(t *testing.T) {

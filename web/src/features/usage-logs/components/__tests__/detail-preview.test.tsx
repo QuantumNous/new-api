@@ -47,12 +47,12 @@ vi.hoisted(() => {
 })
 afterAll(() => vi.unstubAllGlobals())
 
-function makeLog(other: LogOtherData): UsageLog {
+function makeLog(other: LogOtherData, type = 2): UsageLog {
   return {
     id: 1,
     user_id: 1,
     created_at: 1,
-    type: 2,
+    type,
     content: '',
     username: 'user',
     token_name: 'token',
@@ -73,9 +73,13 @@ function makeLog(other: LogOtherData): UsageLog {
   }
 }
 
-function DetailPreview(props: { other: LogOtherData; isAdmin: boolean }) {
+function DetailPreview(props: {
+  other: LogOtherData
+  isAdmin: boolean
+  type?: number
+}) {
   const table = useReactTable({
-    data: [makeLog(props.other)],
+    data: [makeLog(props.other, props.type)],
     columns: useCommonLogsColumns(props.isAdmin, false),
     getCoreRowModel: getCoreRowModel(),
   })
@@ -116,11 +120,11 @@ afterEach(() => {
   client.clear()
   useSystemConfigStore.getState().setConfig(previousConfig)
 })
-function renderPreview(other: LogOtherData, isAdmin = true) {
+function renderPreview(other: LogOtherData, isAdmin = true, type?: number) {
   render(
     <I18nextProvider i18n={i18n}>
       <QueryClientProvider client={client}>
-        <DetailPreview other={other} isAdmin={isAdmin} />
+        <DetailPreview other={other} isAdmin={isAdmin} type={type} />
       </QueryClientProvider>
     </I18nextProvider>
   )
@@ -190,6 +194,29 @@ test.each([
     admin_info: { task_plugin: plugin },
   })
   expect(preview.textContent).toBe(expected)
+})
+
+test('top-up content_parts render in the viewer language', async () => {
+  i18n.addResourceBundle('zh', 'translation', {
+    'Online top-up succeeded, amount added: {{quota}}, payment amount: {{amount}}':
+      '在线充值成功，充值额度：{{quota}}，支付金额：{{amount}}',
+  })
+  await i18n.changeLanguage('zh')
+  const preview = renderPreview(
+    {
+      content_parts: [
+        {
+          key: 'Online top-up succeeded, amount added: {{quota}}, payment amount: {{amount}}',
+          params: { quota: '$10.000000', amount: '10.00' },
+        },
+      ],
+    },
+    false,
+    1
+  )
+  expect(preview.textContent).toBe(
+    '在线充值成功，充值额度：$10.000000，支付金额：10.00'
+  )
 })
 
 test('quota saturation remains first and only billing adds to the counter', () => {

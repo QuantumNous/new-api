@@ -23,6 +23,12 @@ type Options struct {
 	// it from the channel type.
 	OpenRouterDialect bool
 
+	// WebSearch encodes hosted web search for the upstream dialect. Nil, or a
+	// nil result, keeps the default: web_search_options on Chat and the native
+	// hosted tool on Responses, Claude, and Gemini. The host sets it from the
+	// channel adaptor's Init.
+	WebSearch WebSearchEncoder
+
 	// PreserveThinkingSuffix reports models whose -thinking/-nothinking/effort
 	// suffix must be kept on the outgoing model name (host blacklist lookup).
 	// Nil means "never preserve".
@@ -34,9 +40,13 @@ type Options struct {
 }
 
 type ClaudeOptions struct {
-	// ThinkingAdapterEnabled controls whether suffix-derived reasoning intent
-	// is rendered onto Claude thinking / output_config. Suffix parsing itself
-	// is the host entry layer's job (standalone users call Parse* themselves).
+	// ThinkingAdapterEnabled is the host thinking-suffix adapter toggle. The
+	// host passes it to reasoning.ParseClaudeModelSuffix, so -thinking,
+	// -nothinking, -thinking-<budget>, and effort tails such as -high on
+	// claude-* names become reasoning intent only while it is on; when off the
+	// model name is sent verbatim. Explicit @ modifiers are unaffected. Suffix
+	// parsing itself is the host entry layer's job (standalone users call
+	// Parse* themselves).
 	ThinkingAdapterEnabled bool
 	// ThinkingAdapterBudgetTokensPercentage sizes thinking budget_tokens as a
 	// fraction of max_tokens when the adapter fires.
@@ -57,9 +67,12 @@ type ClaudeOptions struct {
 }
 
 type GeminiOptions struct {
-	// ThinkingAdapterEnabled controls whether suffix-derived reasoning intent
-	// is rendered onto Gemini thinkingConfig. Suffix parsing itself is the
-	// host entry layer's job (standalone users call Parse* themselves).
+	// ThinkingAdapterEnabled is the host thinking-suffix adapter toggle. The
+	// host and gemini_chat request conversion pass it to
+	// reasoning.ParseGeminiModelSuffix, so -thinking, -nothinking,
+	// -thinking-<budget>, and effort tails such as -high on gemini-* names
+	// become reasoning intent only while it is on; when off the model name is
+	// sent verbatim. Explicit @ modifiers are unaffected.
 	ThinkingAdapterEnabled bool
 	// ThinkingAdapterBudgetTokensPercentage sizes thinkingBudget as a fraction
 	// of maxOutputTokens when the adapter fires.

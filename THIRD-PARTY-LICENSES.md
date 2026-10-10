@@ -11,7 +11,7 @@ Transitive dependencies should be audited before a final external release.
 | Area     | Scope       | Ecosystem | Dependency                                            | Version                              | License                                            |
 |----------|-------------|-----------|-------------------------------------------------------|--------------------------------------|----------------------------------------------------|
 | backend  | production  | Go        | `github.com/Calcium-Ion/go-epay`                      | `v0.0.4`                             | Proprietary/Internal - owned by project maintainer |
-| backend  | production  | Go        | `github.com/Calcium-Ion/moejs`                        | `v0.1.0-alpha.3`                     | Apache-2.0                                         |
+| backend  | production  | Go        | `github.com/Calcium-Ion/moejs`                        | `v0.1.0-alpha.5`                     | Apache-2.0                                         |
 | backend  | production  | Go        | `github.com/abema/go-mp4`                             | `v1.4.1`                             | MIT                                                |
 | backend  | test        | Go        | `github.com/alicebob/miniredis/v2`                    | `v2.38.0`                            | MIT                                                |
 | backend  | production  | Go        | `github.com/andybalholm/brotli`                       | `v1.1.1`                             | MIT                                                |

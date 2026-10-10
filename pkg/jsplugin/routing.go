@@ -1,6 +1,7 @@
 package jsplugin
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"net/http"
@@ -218,6 +219,10 @@ const (
 	ContextKeyPinnedEndpoint  = "task_plugin_pinned_endpoint"
 	ContextKeyRouteRequest    = "task_plugin_route_request"
 	ContextKeyProtocolRequest = "task_plugin_protocol_request"
+	// ContextKeyRequestBodyText holds, for a plugin that preserves JSON
+	// order, the decoded requestBody as JSON text (json.RawMessage) beside
+	// the Go value in task_request.
+	ContextKeyRequestBodyText = "task_plugin_request_body_text"
 )
 
 type PinnedPlugin struct {
@@ -288,6 +293,11 @@ type RouteRequestContext struct {
 	Body        any                 `json:"body"`
 	Files       []map[string]any    `json:"-"`
 	RequestBody any                 `json:"-"`
+	// BodyText is the JSON body as the client sent it, which JSValueFor
+	// gives to plugins that preserve JSON order; Body stays the Go value the
+	// host reads. Body storage never changes these bytes, which the engine
+	// parses in place.
+	BodyText json.RawMessage `json:"-"`
 }
 
 // JSValue shares the request with hooks without copying it: the engine never
@@ -311,6 +321,18 @@ func (r RouteRequestContext) JSValue() map[string]any {
 	}
 }
 
+// JSValueFor is JSValue for the decode hooks of the plugin meta describes. A
+// plugin that preserves JSON order receives a JSON body as its text, which the
+// engine parses in place, members in the client's order: a decoder reads the
+// body, so it is parsed for every call.
+func (r RouteRequestContext) JSValueFor(meta Meta) map[string]any {
+	value := r.JSValue()
+	if len(r.BodyText) > 0 && meta.PreservesJSONOrder() {
+		value["body"] = map[string]any{"kind": string(BodyJSON), "value": RawJSON(r.BodyText)}
+	}
+	return value
+}
+
 type ProtocolRequestContext struct {
 	RouteRequestContext
 	Protocol  string `json:"protocol"`
@@ -324,7 +346,15 @@ type ProtocolRequestContext struct {
 }
 
 func (p ProtocolRequestContext) JSValue() map[string]any {
-	value := p.RouteRequestContext.JSValue()
+	return p.withProtocol(p.RouteRequestContext.JSValue())
+}
+
+// JSValueFor is RouteRequestContext.JSValueFor with the protocol fields.
+func (p ProtocolRequestContext) JSValueFor(meta Meta) map[string]any {
+	return p.withProtocol(p.RouteRequestContext.JSValueFor(meta))
+}
+
+func (p ProtocolRequestContext) withProtocol(value map[string]any) map[string]any {
 	value["protocol"] = p.Protocol
 	value["operation"] = p.Operation
 	value["model"] = p.Model

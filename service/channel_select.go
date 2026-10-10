@@ -284,7 +284,7 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 	constraints := GetChannelConstraints(c)
 	if pin, found, overridden := constraints.ResolvedPin(); found {
 		for _, lost := range overridden {
-			logger.LogWarn(c, fmt.Sprintf(
+			logger.LogWarn(c, common.LogText(
 				"channel pin overridden: winning_source=%s winning_channel_id=%d overridden_source=%s overridden_channel_id=%d",
 				pin.Source, pin.ChannelId, lost.Source, lost.ChannelId,
 			))

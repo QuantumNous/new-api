@@ -741,7 +741,7 @@ func TestSecurityAndOperationEventsUseAuditTable(t *testing.T) {
 	recordManageAudit(c, "option.update", map[string]any{"key": "safe"})
 	recordSubscriptionResetUserLogs(c, &model.SubscriptionResetResult{ResetCount: 1, PlanId: 1, PlanTitle: "Plan", AffectedUserIds: []int{user.Id}}, &model.AuditAdminInfo{AdminID: user.Id})
 	for _, typ := range []int{model.LogTypeTopup, model.LogTypeConsume, model.LogTypeRefund, model.LogTypeSystem} {
-		model.RecordLog(user.Id, typ, "business entry")
+		model.RecordLog(user.Id, typ, common.NewMessage("business entry"))
 	}
 	var audits []model.AuditLog
 	require.NoError(t, model.LOG_DB.Find(&audits).Error)
@@ -1206,7 +1206,7 @@ func TestIndependentAuditLogStores(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, status.LastUsedAt)
 				assert.Equal(t, "192.0.2.8", status.LastUsedIp)
-				model.RecordLog(1, model.LogTypeTopup, "independent business")
+				model.RecordLog(1, model.LogTypeTopup, common.NewMessage("independent business"))
 				_, err = model.DeleteOldLogBatch(context.Background(), time.Now().Unix()+1, 100)
 				require.NoError(t, err)
 				_, total, err = model.GetAuditLogs(model.AuditLogFilter{UserId: 1}, 0, 20, 1)

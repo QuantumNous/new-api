@@ -8,7 +8,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -44,8 +43,9 @@ func newAccessTokenItem(token *model.UserAccessToken) accessTokenItem {
 	return accessTokenItem{UserAccessToken: *token, Scopes: scopes}
 }
 
-func writeAccessTokenError(c *gin.Context, status int, code, message string) {
-	c.JSON(status, gin.H{"success": false, "code": code, "message": message})
+// writeAccessTokenError responds with a stable code and a web console message.
+func writeAccessTokenError(c *gin.Context, status int, code, key string, params ...map[string]any) {
+	common.ApiErrorStatus(c, status, common.NewMessage(key, params...), gin.H{"code": code})
 }
 
 // normalizeAccessTokenName returns the trimmed name, or false when it is empty
@@ -170,7 +170,7 @@ func CreateAccessToken(c *gin.Context) {
 	}
 	if err := model.CreateUserAccessToken(identity.UserID, token, service.AccessTokenMaxPerUser); err != nil {
 		if errors.Is(err, model.ErrAccessTokenLimit) {
-			writeAccessTokenError(c, http.StatusBadRequest, "ACCESS_TOKEN_LIMIT", common.TranslateMessage(c, i18n.MsgAuthAccessTokenLimit, map[string]any{"Count": service.AccessTokenMaxPerUser}))
+			writeAccessTokenError(c, http.StatusBadRequest, "ACCESS_TOKEN_LIMIT", "You can create at most {{count}} access tokens", map[string]any{"count": service.AccessTokenMaxPerUser})
 			return
 		}
 		writeSecurityOperationError(c, err)

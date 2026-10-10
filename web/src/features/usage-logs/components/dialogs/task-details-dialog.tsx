@@ -25,6 +25,7 @@ import { StatusBadge } from '@/components/status-badge'
 import { Label } from '@/components/ui/label'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatLogQuota, formatTimestampToDate } from '@/lib/format'
+import { translateServerText } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import { taskActionMapper, taskStatusMapper } from '../../lib/mappers'
@@ -158,7 +159,10 @@ export function TaskDetailsDialog(props: TaskDetailsDialogProps) {
             />
           ) : null}
           {props.log.fail_reason ? (
-            <DetailRow label={t('Fail Reason')} value={props.log.fail_reason} />
+            <DetailRow
+              label={t('Fail Reason')}
+              value={translateServerText(t, props.log.fail_reason)}
+            />
           ) : null}
         </DetailSection>
 

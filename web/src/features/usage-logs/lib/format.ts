@@ -24,6 +24,7 @@ import {
   splitBillingExprAndRequestRules,
   type ParsedTier,
 } from '@/features/pricing/lib/billing-expr'
+import { translateServerText } from '@/lib/server-error-message'
 
 import type { UsageLog } from '../data/schema'
 import type { LogOtherData } from '../types'
@@ -556,11 +557,41 @@ const AUDIT_TEMPLATES: Record<string, string> = {
   'subscription.plan_create': 'Created a subscription plan',
   'subscription.plan_update': 'Updated a subscription plan',
   'subscription.bind': 'Bound a subscription',
+  'subscription.user_quota_reset':
+    'Administrator reset the quota of subscription plan {{plan_title}} (ID: {{plan_id}})',
   // Logs
   'log.clear': 'Cleared historical logs',
   'log.cleanup_start': 'Log cleanup task started.',
   // Generic middleware fallback
   generic: '{{method}} {{route}}',
+}
+
+/**
+ * Render a log's `other.content_parts`, which the backend stores as English
+ * source keys plus params so the text follows the viewer's language. Returns
+ * null for logs written before structured content, letting callers fall back
+ * to the raw `content` field.
+ */
+export function renderLogContent(
+  other: LogOtherData | null | undefined,
+  t: (key: string, opts?: Record<string, unknown>) => string
+): string | null {
+  const parts = other?.content_parts
+  if (!Array.isArray(parts) || parts.length === 0) return null
+  return parts.map((part) => t(part.key, part.params)).join(', ')
+}
+
+/**
+ * The token name to show for a log. A log written without a token, such as a
+ * channel test, carries a name the gateway stored as an English source key.
+ */
+export function logTokenName(
+  log: Pick<UsageLog, 'token_id' | 'token_name'>,
+  t: (key: string, opts?: Record<string, unknown>) => string
+): string {
+  return log.token_id === 0
+    ? translateServerText(t, log.token_name)
+    : log.token_name
 }
 
 /**

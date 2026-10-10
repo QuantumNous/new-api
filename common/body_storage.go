@@ -294,7 +294,7 @@ func CreateBodyStorage(data []byte) (BodyStorage, error) {
 		storage, err := newDiskStorage(data, GetDiskCachePath())
 		if err != nil {
 			// 如果磁盘存储失败，回退到内存存储
-			SysError(fmt.Sprintf("failed to create disk storage, falling back to memory: %v", err))
+			SysError(LogText("failed to create disk storage, falling back to memory: %v", err))
 			return newMemoryStorage(data), nil
 		}
 		return storage, nil
