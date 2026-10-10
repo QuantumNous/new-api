@@ -1,25 +1,18 @@
 package ali
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"strings"
-	"sync/atomic"
 	"testing"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	rootconstant "github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	relayhelper "github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
-	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/setting/system_setting"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -138,111 +131,208 @@ func TestConvertOpenAIRequestPreservesExplicitZeroForMappedQwenModel(t *testing.
 	assert.Equal(t, int64(0), value.Int())
 }
 
-func TestMappedAliImageModelUsesUpstreamProtocol(t *testing.T) {
-	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
-
-	info := &relaycommon.RelayInfo{
-		RelayMode:       constant.RelayModeImagesGenerations,
-		OriginModelName: "customer-image-model",
-		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelBaseUrl:    "https://dashscope.aliyuncs.com",
-			UpstreamModelName: "qwen-image-3.0-pro",
-		},
+// Image models the alibaba task plugin does not claim reach this adaptor only
+// through a channel misconfiguration. The rejection is a client error that
+// skips channel retries; a retryable 500 would be re-attempted on unrelated
+// channels and still end as a 500 for the client.
+func TestConvertImageRequestRejectsUnclaimedModelWithoutRetry(t *testing.T) {
+	for _, name := range []string{"wanx-style-repaint-v1", "custom-image-model"} {
+		info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: name}}
+		_, err := (&Adaptor{}).ConvertImageRequest(nil, info, dto.ImageRequest{Model: name, Prompt: "a cat"})
+		var apiErr *types.NewAPIError
+		require.ErrorAs(t, err, &apiErr, name)
+		assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode, name)
+		assert.True(t, types.IsSkipRetryError(apiErr), name)
+		assert.Contains(t, apiErr.Error(), name)
 	}
-
-	adaptor := &Adaptor{}
-	url, err := adaptor.GetRequestURL(info)
-	require.NoError(t, err)
-	assert.Equal(t, "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation", url)
-
-	header := http.Header{}
-	require.NoError(t, adaptor.SetupRequestHeader(c, &header, info))
-	assert.Empty(t, header.Get("X-DashScope-Async"))
-
-	converted, err := adaptor.ConvertImageRequest(c, info, dto.ImageRequest{
-		Model:  info.UpstreamModelName,
-		Prompt: "poster",
-	})
-	require.NoError(t, err)
-	assert.True(t, adaptor.IsSyncImageModel)
-	assert.IsType(t, &AliImageRequest{}, converted)
 }
 
-func TestAliImageHandlerHonorsRequestResponseFormat(t *testing.T) {
-	imageBytes := []byte("ali-image")
-	var downloads atomic.Int32
-	imageServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		downloads.Add(1)
-		w.Header().Set("Content-Type", "image/png")
-		_, _ = w.Write(imageBytes)
-	}))
-	t.Cleanup(imageServer.Close)
-
-	fetchSetting := system_setting.GetFetchSetting()
-	require.NotNil(t, fetchSetting)
-	originalFetchSetting := *fetchSetting
-	fetchSetting.EnableSSRFProtection = false
-	t.Cleanup(func() {
-		*fetchSetting = originalFetchSetting
-	})
-	originalMaxFileDownloadMB := rootconstant.MaxFileDownloadMB
-	rootconstant.MaxFileDownloadMB = 1
-	t.Cleanup(func() {
-		rootconstant.MaxFileDownloadMB = originalMaxFileDownloadMB
-	})
-	service.InitHttpClient()
+// Claude clients reach DashScope two ways: models on the Anthropic-compatible
+// list keep Claude Messages and get the cc_entrypoint marker block (block
+// form verified live 2026-10-05; a plain string system did not search) and
+// the agent billing key; other models are converted to compatible-mode Chat,
+// where hosted web search becomes enable_search / search_options and a forced
+// search is billed as one turbo call.
+func TestConvertClaudeRequestWebSearch(t *testing.T) {
+	t.Setenv(aliAnthropicMessagesModelsEnv, defaultAliAnthropicMessagesModels)
+	const (
+		chatModel      = "llama-4-scout"
+		anthropicModel = "qwen3.8-flash"
+		marker         = `{"type":"text","text":"x-anthropic-billing-header: cc_entrypoint=cli;"}`
+		messages       = `"messages":[{"role":"user","content":"Weather?"}]`
+		searchTool     = `{"type":"web_search_20250305","name":"web_search"}`
+		forcedChoice   = `"tool_choice":{"type":"tool","name":"web_search"},`
+	)
+	domains := make([]string, 26)
+	for i := range domains {
+		domains[i] = fmt.Sprintf("d%d.example", i)
+	}
+	tooManyDomains, err := common.Marshal(domains)
+	require.NoError(t, err)
 
 	tests := []struct {
-		name           string
-		responseFormat string
-		wantBase64     string
-		wantDownloads  int32
+		name      string
+		model     string
+		body      string            // Claude request fields after model and max_tokens
+		want      map[string]string // gjson path -> raw JSON; "" means absent
+		wantCodes []string
+		noCodes   []string
+		wantTurbo int
 	}{
 		{
-			name:           "base64",
-			responseFormat: "b64_json",
-			wantBase64:     base64.StdEncoding.EncodeToString(imageBytes),
-			wantDownloads:  1,
+			name:  "auto search on Chat",
+			model: chatModel,
+			body:  messages + `,"tools":[` + searchTool + `]`,
+			want:  map[string]string{"enable_search": "true", "search_options": "", "tool_choice": "", "web_search_options": ""},
 		},
 		{
-			name:           "url",
-			responseFormat: "url",
+			name:      "forced search on Chat",
+			model:     chatModel,
+			body:      forcedChoice + messages + `,"tools":[` + searchTool + `]`,
+			want:      map[string]string{"enable_search": "true", "search_options": `{"forced_search":true}`, "tool_choice": "", "web_search_options": ""},
+			wantTurbo: 1,
 		},
 		{
-			name: "default",
+			name:    "allowed domains become assigned_site_list",
+			model:   chatModel,
+			body:    messages + `,"tools":[{"type":"web_search_20250305","name":"web_search","allowed_domains":["a.example","b.example"]}]`,
+			want:    map[string]string{"search_options": `{"assigned_site_list":["a.example","b.example"]}`},
+			noCodes: []string{"unsupported_domain_filter"},
+		},
+		{
+			name:      "more than 25 allowed domains are dropped",
+			model:     chatModel,
+			body:      messages + `,"tools":[{"type":"web_search_20250305","name":"web_search","allowed_domains":` + string(tooManyDomains) + `}]`,
+			want:      map[string]string{"enable_search": "true", "search_options": ""},
+			wantCodes: []string{"unsupported_domain_filter"},
+		},
+		{
+			name:      "search limits and excluded domains are semantic loss",
+			model:     chatModel,
+			body:      messages + `,"tools":[{"type":"web_search_20250305","name":"web_search","max_uses":2,"blocked_domains":["a.example"]}]`,
+			want:      map[string]string{"enable_search": "true"},
+			wantCodes: []string{"unsupported_search_limit", "unsupported_domain_filter"},
+		},
+		{
+			name:      "user location is presentation loss",
+			model:     chatModel,
+			body:      messages + `,"tools":[{"type":"web_search_20250305","name":"web_search","user_location":{"type":"approximate","city":"Paris"}}]`,
+			want:      map[string]string{"enable_search": "true", "search_options": ""},
+			wantCodes: []string{"unsupported_search_tuning"},
+		},
+		{
+			name:  "marker without system",
+			model: anthropicModel,
+			body:  messages + `,"tools":[` + searchTool + `]`,
+			want:  map[string]string{"system": `[` + marker + `]`},
+		},
+		{
+			name:  "marker before string system",
+			model: anthropicModel,
+			body:  `"system":"Be brief.",` + messages + `,"tools":[` + searchTool + `]`,
+			want:  map[string]string{"system": `[` + marker + `,{"type":"text","text":"Be brief."}]`},
+		},
+		{
+			name:  "marker before array system",
+			model: anthropicModel,
+			body:  `"system":[{"type":"text","text":"Be brief."}],` + messages + `,"tools":[` + searchTool + `]`,
+			want:  map[string]string{"system": `[` + marker + `,{"type":"text","text":"Be brief."}]`},
+		},
+		{
+			name:  "marker for empty array system",
+			model: anthropicModel,
+			body:  `"system":[],` + messages + `,"tools":[` + searchTool + `]`,
+			want:  map[string]string{"system": `[` + marker + `]`},
+		},
+		{
+			name:  "marker already sent by the client",
+			model: anthropicModel,
+			body:  `"system":"x-anthropic-billing-header: cc_version=2.1; cc_entrypoint=cli;",` + messages + `,"tools":[` + searchTool + `]`,
+			want:  map[string]string{"system": `"x-anthropic-billing-header: cc_version=2.1; cc_entrypoint=cli;"`},
+		},
+		{
+			name:  "no marker without a search tool",
+			model: anthropicModel,
+			body:  `"system":"Be brief.",` + messages + `,"tools":[{"name":"f","input_schema":{"type":"object"}}]`,
+			want:  map[string]string{"system": `"Be brief."`},
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			downloads.Store(0)
-			recorder := httptest.NewRecorder()
-			c, _ := gin.CreateTestContext(recorder)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 			info := &relaycommon.RelayInfo{
-				RelayMode: constant.RelayModeImagesGenerations,
-				StartTime: time.Unix(1, 0),
-				Request: &dto.ImageRequest{
-					ResponseFormat: tt.responseFormat,
-				},
+				RelayFormat:     types.RelayFormatClaude,
+				OriginModelName: tt.model,
+				ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: tt.model},
 			}
-			responseBody := fmt.Sprintf(`{"output":{"results":[{"url":%q}]}}`, imageServer.URL)
-			resp := &http.Response{
-				StatusCode: http.StatusOK,
-				Header:     http.Header{},
-				Body:       io.NopCloser(strings.NewReader(responseBody)),
+			adaptor := &Adaptor{}
+			adaptor.Init(info)
+			var request dto.ClaudeRequest
+			require.NoError(t, common.UnmarshalJsonStr(`{"model":"`+tt.model+`","max_tokens":64,`+tt.body+`}`, &request))
+			var converted any
+			for range 2 { // converting the same request twice adds one marker
+				converted, err = adaptor.ConvertClaudeRequest(c, info, &request)
+				require.NoError(t, err)
 			}
-
-			newAPIError, usage := aliImageHandler(&Adaptor{IsSyncImageModel: true}, c, resp, info)
-			require.Nil(t, newAPIError)
-			require.NotNil(t, usage)
-
-			var imageResponse dto.ImageResponse
-			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &imageResponse))
-			require.Len(t, imageResponse.Data, 1)
-			assert.Equal(t, imageServer.URL, imageResponse.Data[0].Url)
-			assert.Equal(t, tt.wantBase64, imageResponse.Data[0].B64Json)
-			assert.Equal(t, tt.wantDownloads, downloads.Load())
+			wire, err := common.Marshal(converted)
+			require.NoError(t, err)
+			for path, want := range tt.want {
+				value := gjson.GetBytes(wire, path)
+				if want == "" {
+					assert.False(t, value.Exists(), "%s in %s", path, wire)
+					continue
+				}
+				assert.JSONEq(t, want, value.Raw, path)
+			}
+			var codes []string
+			for _, diagnostic := range info.ConversionDiagnostics() {
+				codes = append(codes, diagnostic.Code)
+			}
+			for _, code := range tt.wantCodes {
+				assert.Contains(t, codes, code)
+			}
+			for _, code := range tt.noCodes {
+				assert.NotContains(t, codes, code)
+			}
+			turbo := 0
+			if info.ResponsesUsageInfo != nil && info.ResponsesUsageInfo.BuiltInTools[aliSearchTurboKey] != nil {
+				turbo = info.ResponsesUsageInfo.BuiltInTools[aliSearchTurboKey].CallCount
+			}
+			assert.Equal(t, tt.wantTurbo, turbo)
+			wantKey := ""
+			if tt.model == anthropicModel {
+				wantKey = aliSearchAgentKey
+			}
+			assert.Equal(t, wantKey, info.WebSearchBillingKey)
 		})
+	}
+}
+
+// DashScope Responses bills web search like the agent strategy and reports
+// the count in usage.x_tools; it replaces the web_search_call items counted
+// under the protocol keys.
+func TestAliResponsesWebSearchUsage(t *testing.T) {
+	for _, raw := range []string{
+		`{"status":"completed","usage":{"x_tools":{"web_search":{"count":2}}}}`,
+		`{"type":"response.completed","response":{"usage":{"x_tools":{"web_search":{"count":2}}}}}`,
+	} {
+		info := &relaycommon.RelayInfo{
+			RelayMode:   constant.RelayModeResponses,
+			RelayFormat: types.RelayFormatOpenAIResponses,
+			ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://dashscope.invalid"},
+		}
+		adaptor := &Adaptor{}
+		adaptor.Init(info)
+		url, err := adaptor.GetRequestURL(info)
+		require.NoError(t, err)
+		assert.Equal(t, "https://dashscope.invalid/compatible-mode/v1/responses", url)
+
+		info.CountBillableToolCall(dto.BuildInCallWebSearchCall, "")
+		info.ApplyVendorToolUsage([]byte(raw))
+		counts := map[string]int{}
+		for name, tool := range info.ResponsesUsageInfo.BuiltInTools {
+			counts[name] = tool.CallCount
+		}
+		assert.Equal(t, map[string]int{aliSearchAgentKey: 2, dto.BuildInToolWebSearch: 0, dto.BuildInToolWebSearchPreview: 0}, counts, raw)
 	}
 }

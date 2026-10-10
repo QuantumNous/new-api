@@ -25,6 +25,7 @@ import { resolveLocalizedText } from '@/lib/localized-text'
 
 import type { TaskPluginListItem } from '../types'
 import { PluginIcon } from './plugin-icon'
+import { PluginWebsiteLink } from './plugin-website-link'
 
 /**
  * A card is one grid cell, so the model list has to stay a fixed number of
@@ -40,7 +41,7 @@ const MAX_VISIBLE_MODELS = 4
  * and the actions menu.
  *
  * The card answers "which plugin is this and is it live" — identity, source,
- * runtime state, the versions, the models it binds, and the enable toggle.
+ * runtime state, the plugin version, the models it binds, and the enable toggle.
  * Manifest detail (billing parameters, endpoints, source) belongs to the detail
  * sheet: rendering it here made every card a different height and buried the
  * plugin's own description under its parameter descriptions.
@@ -71,7 +72,10 @@ function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
       <div className='flex items-start justify-between gap-2'>
         <div className='flex min-w-0 flex-1 items-center gap-2.5'>
           <span className='mt-0.5 shrink-0'>
-            <PluginIcon plugin={row.original.meta} size={20} />
+            <PluginIcon
+              plugin={{ ...row.original.meta, hasIcon: row.original.has_icon }}
+              size={20}
+            />
           </span>
           <div className='min-w-0'>
             <div className='truncate text-sm font-medium'>
@@ -87,9 +91,9 @@ function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
         </div>
       </div>
 
-      {/* Row 2: source + runtime badges next to the version pills, all wrapping
-        freely. The versions read as pills rather than labelled stats because
-        `v1.2.3` and `API v1` already name themselves. */}
+      <PluginWebsiteLink website={row.original.meta.website} />
+
+      {/* Row 2: source, runtime, and plugin version badges wrap freely. */}
       <div className='flex flex-wrap items-center gap-1.5'>
         {renderCell('source')}
         {renderCell('runtime')}
@@ -99,13 +103,6 @@ function PluginCardComponent({ row }: { row: Row<TaskPluginListItem> }) {
           aria-label={`${t('Active version')} ${row.original.meta.version}`}
         >
           {row.original.meta.version ? `v${row.original.meta.version}` : '—'}
-        </Badge>
-        <Badge
-          variant='secondary'
-          className='font-mono font-normal'
-          aria-label={`${t('API version')} v${row.original.meta.apiVersion}`}
-        >
-          API v{row.original.meta.apiVersion}
         </Badge>
       </div>
 

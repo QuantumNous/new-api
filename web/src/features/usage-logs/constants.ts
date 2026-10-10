@@ -106,11 +106,14 @@ export const LOG_TYPES = [
  * must not expose the display-only "Unknown" label for that value.
  */
 export const LOG_TYPE_FILTERS = [
-  { label: 'All Types', value: LOG_TYPE_ALL_VALUE },
+  { label: 'All Types', value: LOG_TYPE_ALL_VALUE, deprecated: false },
   ...LOG_TYPES.filter((type) => type.value !== LOG_TYPE_ENUM.UNKNOWN).map(
     (type) => ({
       label: type.label,
       value: String(type.value),
+      deprecated:
+        type.value === LOG_TYPE_ENUM.MANAGE ||
+        type.value === LOG_TYPE_ENUM.LOGIN,
     })
   ),
 ] as const

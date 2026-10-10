@@ -82,7 +82,7 @@ func TestSaveStatusStateFromSingleKeySnapshotPreservesUnownedColumns(t *testing.
 	}).Error)
 
 	stale.Status = common.ChannelStatusManuallyDisabled
-	stale.SetOtherInfo(map[string]interface{}{
+	stale.SetOtherInfo(map[string]any{
 		"status_reason": "manual operation",
 		"status_time":   int64(1234),
 	})

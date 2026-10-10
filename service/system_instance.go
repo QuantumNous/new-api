@@ -26,7 +26,7 @@ type SystemInstanceInfo struct {
 	Role          SystemInstanceRoleInfo    `json:"role"`
 	Runtime       SystemInstanceRuntimeInfo `json:"runtime"`
 	Host          SystemInstanceHostInfo    `json:"host"`
-	Resources     SystemInstanceResources   `json:"resources,omitempty"`
+	Resources     SystemInstanceResources   `json:"resources"`
 	Extra         map[string]any            `json:"extra,omitempty"`
 }
 
@@ -125,6 +125,6 @@ func ReportCurrentSystemInstance() error {
 
 func reportSystemInstanceWithLog() {
 	if err := ReportCurrentSystemInstance(); err != nil {
-		logger.LogWarn(context.Background(), fmt.Sprintf("system instance report failed: %v", err))
+		logger.LogWarn(context.Background(), common.LogText("system instance report failed: %v", err))
 	}
 }

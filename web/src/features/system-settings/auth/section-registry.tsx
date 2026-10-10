@@ -65,8 +65,8 @@ const AUTH_SECTIONS = [
           'oidc.token_endpoint': settings['oidc.token_endpoint'],
           'oidc.user_info_endpoint': settings['oidc.user_info_endpoint'],
           TelegramOAuthEnabled: settings.TelegramOAuthEnabled,
-          TelegramBotToken: settings.TelegramBotToken,
-          TelegramBotName: settings.TelegramBotName,
+          'telegram.client_id': settings['telegram.client_id'],
+          'telegram.client_secret': settings['telegram.client_secret'],
           LinuxDOOAuthEnabled: settings.LinuxDOOAuthEnabled,
           LinuxDOClientId: settings.LinuxDOClientId,
           LinuxDOClientSecret: settings.LinuxDOClientSecret,
@@ -88,6 +88,7 @@ const AUTH_SECTIONS = [
           'passkey.enabled': settings['passkey.enabled'],
           'passkey.rp_display_name': settings['passkey.rp_display_name'],
           'passkey.rp_id': settings['passkey.rp_id'],
+          'passkey.legacy_rp_ids': settings['passkey.legacy_rp_ids'],
           'passkey.origins': settings['passkey.origins'],
           'passkey.allow_insecure_origin':
             settings['passkey.allow_insecure_origin'],

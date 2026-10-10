@@ -16,8 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { render, screen } from '@testing-library/react'
-import { describe, expect, test } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
+import i18next from 'i18next'
+import { afterEach, describe, expect, test } from 'vitest'
 
 import type { BillingUsageSchema } from '@/features/pricing/types'
 
@@ -36,6 +37,30 @@ const schema: BillingUsageSchema = {
 }
 
 describe('UsageSchemaTable layout', () => {
+  afterEach(async () => {
+    await act(() => i18next.changeLanguage('en'))
+  })
+
+  test('uses localized count unit labels while preserving legacy unit names', async () => {
+    render(
+      <UsageSchemaTable
+        schema={{
+          images: {
+            type: 'number',
+            unit: 'count',
+            unitLabel: { en: 'image', zh: '张' },
+          },
+          legacy: { type: 'number', unit: 'count' },
+        }}
+      />
+    )
+    expect(screen.getByRole('cell', { name: 'image' })).toBeVisible()
+    expect(screen.getByRole('cell', { name: 'Count' })).toBeVisible()
+    await act(() => i18next.changeLanguage('zhCN'))
+    expect(screen.getByRole('cell', { name: '张' })).toBeVisible()
+    expect(screen.getByRole('cell', { name: i18next.t('Count') })).toBeVisible()
+  })
+
   test('given a usage schema, every declaration renders as a five-column table row', () => {
     render(<UsageSchemaTable schema={schema} />)
 

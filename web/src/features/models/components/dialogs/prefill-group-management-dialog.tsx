@@ -52,6 +52,8 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { handleServerError } from '@/lib/handle-server-error'
+import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import { deletePrefillGroup, getPrefillGroups } from '../../api'
@@ -93,7 +95,7 @@ export function PrefillGroupManagementDialog({
     refetch: refetchGroups,
   } = useQuery({
     queryKey: prefillGroupsQueryKeys.list(),
-    queryFn: () => getPrefillGroups(),
+    queryFn: async () => requireServerSuccess(await getPrefillGroups()),
     enabled: open,
   })
 
@@ -149,10 +151,10 @@ export function PrefillGroupManagementDialog({
         })
         setDeleteState({ open: false, group: null })
       } else {
-        toast.error(response.message || t('Failed to delete group'))
+        handleServerError(response, t('Failed to delete group'))
       }
     } catch (err: unknown) {
-      toast.error((err as Error)?.message || t('Failed to delete group'))
+      handleServerError(err, t('Failed to delete group'))
     } finally {
       setIsDeleting(false)
     }

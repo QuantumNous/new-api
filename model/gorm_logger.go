@@ -32,7 +32,7 @@ func newGormConfig(prepareStmt bool) *gorm.Config {
 func newGormLogger(w io.Writer) logger.Interface {
 	slowThresholdMs := common.GetEnvOrDefault("SQL_SLOW_THRESHOLD_MS", defaultSlowThresholdMs)
 	if slowThresholdMs < 0 || slowThresholdMs > maxSlowThresholdMs {
-		common.SysError(fmt.Sprintf("invalid SQL_SLOW_THRESHOLD_MS %d (allowed 0-%d, 0 disables slow query log), using default %d", slowThresholdMs, maxSlowThresholdMs, defaultSlowThresholdMs))
+		common.SysError(common.LogText("invalid SQL_SLOW_THRESHOLD_MS %d (allowed 0-%d, 0 disables slow query log), using default %d", slowThresholdMs, maxSlowThresholdMs, defaultSlowThresholdMs))
 		slowThresholdMs = defaultSlowThresholdMs
 	}
 	// 在 Writer 层脱敏而非包装 logger.Interface:后者会让 gorm 的 FileWithLineNum
@@ -52,7 +52,7 @@ type sanitizedLogWriter struct {
 	delegate *log.Logger
 }
 
-func (s *sanitizedLogWriter) Printf(format string, args ...interface{}) {
+func (s *sanitizedLogWriter) Printf(format string, args ...any) {
 	if !common.DebugEnabled {
 		for i, arg := range args {
 			if err, ok := arg.(error); ok {

@@ -16,6 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
 import {
   Mail,
   Globe,
@@ -44,8 +45,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { api } from '@/lib/api'
+import { handleServerError } from '@/lib/handle-server-error'
 import { indexCustomOAuthBindings, type CustomOAuthBinding } from '@/lib/oauth'
+import { AuthOperationError } from '@/lib/secure-verification'
+import { requireServerSuccess } from '@/lib/server-error-message'
+import { statusQueryOptions } from '@/lib/status-query'
 
 import {
   getUser,
@@ -54,6 +58,7 @@ import {
   adminUnbindCustomOAuth,
 } from '../../api'
 import type { User } from '../../types'
+import { useUsers } from '../users-provider'
 
 interface Props {
   open: boolean
@@ -161,43 +166,38 @@ function CustomProviderIcon(props: { iconUrl?: string }) {
 
 export function UserBindingDialog(props: Props) {
   const { t } = useTranslation()
+  const { requestVerification, verificationActive } = useUsers()
   const [user, setUser] = useState<User | null>(null)
   const [oauthBindings, setOauthBindings] = useState<CustomOAuthBinding[]>([])
-  const [statusInfo, setStatusInfo] = useState<StatusInfo>({})
   const [loading, setLoading] = useState(false)
   const [showBoundOnly, setShowBoundOnly] = useState(true)
   const [unbindTarget, setUnbindTarget] = useState<BindingItem | null>(null)
   const [unbinding, setUnbinding] = useState(false)
+  const { data: statusInfo, isLoading: statusLoading } = useQuery({
+    ...statusQueryOptions,
+    enabled: props.open && !!props.userId,
+  })
 
   const fetchData = useCallback(async () => {
     if (!props.userId) return
     setLoading(true)
     try {
-      const [userRes, oauthRes, statusRes] = await Promise.all([
+      const [userRes, oauthRes] = await Promise.all([
         getUser(props.userId),
         getUserOAuthBindings(props.userId).catch(() => ({
           success: false,
           data: [],
         })),
-        api
-          .get('/api/status')
-          .then((r) => r.data)
-          .catch(() => ({
-            success: false,
-            data: {},
-          })),
       ])
+      requireServerSuccess(userRes)
       if (userRes.success && userRes.data) {
         setUser(userRes.data)
       }
       if (oauthRes.success && oauthRes.data) {
         setOauthBindings(oauthRes.data)
       }
-      if (statusRes.success && statusRes.data) {
-        setStatusInfo(statusRes.data as StatusInfo)
-      }
-    } catch {
-      toast.error(t('Failed to load'))
+    } catch (error) {
+      handleServerError(error, t('Failed to load'))
     } finally {
       setLoading(false)
     }
@@ -210,12 +210,12 @@ export function UserBindingDialog(props: Props) {
     } else {
       setUser(null)
       setOauthBindings([])
-      setStatusInfo({})
     }
   }, [props.open, props.userId, fetchData])
 
   const allBindings = useMemo<BindingItem[]>(() => {
     const items: BindingItem[] = []
+    const status = statusInfo as StatusInfo | undefined
 
     for (const field of BUILTIN_BINDINGS) {
       const value = user
@@ -223,7 +223,7 @@ export function UserBindingDialog(props: Props) {
         : ''
       const isBound = !!value
       const isEnabled =
-        field.statusKey == null ? true : Boolean(statusInfo[field.statusKey])
+        field.statusKey == null ? true : Boolean(status?.[field.statusKey])
 
       items.push({
         key: field.key,
@@ -238,7 +238,7 @@ export function UserBindingDialog(props: Props) {
 
     const oauthBindingMap = indexCustomOAuthBindings(oauthBindings)
 
-    const customProviders = statusInfo.custom_oauth_providers || []
+    const customProviders = status?.custom_oauth_providers || []
     const seenProviderIds = new Set<number>()
 
     for (const provider of customProviders) {
@@ -284,13 +284,37 @@ export function UserBindingDialog(props: Props) {
     if (!unbindTarget || !props.userId) return
     setUnbinding(true)
     try {
+      const userId = props.userId
+      const verification = {
+        scope: 'admin.user.binding.clear',
+        title: t('Verify to unbind account'),
+        description: t(
+          'Confirm your identity before unbinding {{provider}} from this user.',
+          { provider: unbindTarget.label }
+        ),
+      } as const
       let res
       if (unbindTarget.type === 'builtin') {
-        res = await adminClearUserBinding(props.userId, unbindTarget.key)
+        const proof = await requestVerification({
+          ...verification,
+          context: { user_id: userId, binding_type: unbindTarget.key },
+        })
+        if (!proof) return
+        res = await adminClearUserBinding(
+          userId,
+          unbindTarget.key,
+          proof.proof_token
+        )
       } else if (unbindTarget.providerId) {
+        const proof = await requestVerification({
+          ...verification,
+          context: { user_id: userId, provider_id: unbindTarget.providerId },
+        })
+        if (!proof) return
         res = await adminUnbindCustomOAuth(
-          props.userId,
-          unbindTarget.providerId
+          userId,
+          unbindTarget.providerId,
+          proof.proof_token
         )
       }
       if (res?.success) {
@@ -300,10 +324,10 @@ export function UserBindingDialog(props: Props) {
         await fetchData()
         props.onUnbindSuccess?.()
       } else {
-        toast.error(res?.message || t('Unbind failed'))
+        handleServerError(res, t('Unbind failed'))
       }
-    } catch {
-      toast.error(t('Unbind failed'))
+    } catch (error) {
+      handleServerError(AuthOperationError.from(error), t('Unbind failed'))
     } finally {
       setUnbinding(false)
       setUnbindTarget(null)
@@ -328,7 +352,7 @@ export function UserBindingDialog(props: Props) {
         contentHeight='auto'
         bodyClassName='space-y-4'
       >
-        {loading ? (
+        {loading || statusLoading ? (
           <div className='flex items-center justify-center py-8'>
             <Loader2 className='text-muted-foreground h-6 w-6 animate-spin' />
           </div>
@@ -433,7 +457,7 @@ export function UserBindingDialog(props: Props) {
       </Dialog>
 
       <ConfirmDialog
-        open={!!unbindTarget}
+        open={!!unbindTarget && !verificationActive}
         onOpenChange={(open) => !open && setUnbindTarget(null)}
         title={t('Confirm Unbind')}
         desc={t(

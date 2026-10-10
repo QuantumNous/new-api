@@ -59,14 +59,14 @@ func resetBatchUpdateTestState(t *testing.T) {
 	t.Helper()
 	oldBatchEnabled := common.BatchUpdateEnabled
 	common.BatchUpdateEnabled = false
-	for i := 0; i < BatchUpdateTypeCount; i++ {
+	for i := range BatchUpdateTypeCount {
 		batchUpdateLocks[i].Lock()
 		batchUpdateStores[i] = make(map[int]int)
 		batchUpdateLocks[i].Unlock()
 	}
 	t.Cleanup(func() {
 		common.BatchUpdateEnabled = oldBatchEnabled
-		for i := 0; i < BatchUpdateTypeCount; i++ {
+		for i := range BatchUpdateTypeCount {
 			batchUpdateLocks[i].Lock()
 			batchUpdateStores[i] = make(map[int]int)
 			batchUpdateLocks[i].Unlock()

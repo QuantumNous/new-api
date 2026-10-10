@@ -2,6 +2,7 @@ package setting
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"sync/atomic"
 
@@ -23,12 +24,7 @@ func init() {
 }
 
 func ContainsAutoGroup(group string) bool {
-	for _, autoGroup := range autoGroups {
-		if autoGroup == group {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(autoGroups, group)
 }
 
 func UpdateAutoGroupsByJsonString(jsonString string) error {

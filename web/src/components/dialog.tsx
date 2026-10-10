@@ -71,7 +71,7 @@ export function Dialog({
       {trigger ? <DialogTrigger render={trigger} /> : null}
       <DialogContent
         className={cn(
-          'flex max-h-[calc(100vh-2rem)] w-full flex-col gap-4 overflow-hidden p-4 sm:max-w-2xl sm:p-6',
+          'flex w-full flex-col gap-4 overflow-x-hidden overflow-y-auto p-4 sm:max-w-2xl sm:p-6',
           contentClassName,
           dialogContentMotionClassName
         )}
@@ -97,7 +97,7 @@ export function Dialog({
         <div
           className={cn(
             '-mx-1 min-h-0 overflow-x-hidden overflow-y-auto overscroll-contain',
-            'h-[var(--dialog-content-height)] max-h-[calc(100vh-14rem)]'
+            'h-[var(--dialog-content-height)]'
           )}
         >
           <div

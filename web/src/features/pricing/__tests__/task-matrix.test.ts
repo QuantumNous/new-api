@@ -17,9 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import assert from 'node:assert/strict'
+
 import { describe, test } from 'vitest'
 
 import { parseTaskTiersFromExpr } from '../lib/billing-expr'
+import { evaluateBillingExpression } from '../lib/billing-expression/runtime'
 import {
   createDefaultTaskMatrixConfig,
   createDefaultTaskVisualConfig,
@@ -305,7 +307,7 @@ describe('task matrix recognition rejection matrix', () => {
     )
   })
 
-  test('rejects undeclared usage fields and enum values', () => {
+  test('rejects a tier priced only by undeclared usage fields', () => {
     assert.equal(
       tryParseTaskMatrixConfig(
         'tier("base", u("unknown") * 0.4)',
@@ -315,14 +317,120 @@ describe('task matrix recognition rejection matrix', () => {
     )
     assert.equal(
       tryParseTaskMatrixConfig(
-        'u("mode") == "ultra" ? tier("ultra", u("seconds") * 0.8) : tier("base", u("seconds") * 0.4)',
+        'u("unknown") == 1 ? tier("one", u("seconds") * 0.8) : tier("base", u("seconds") * 0.4)',
         singleEnumSchema
       ),
       null
     )
   })
 
-  test('rejects a tier condition that omits an enum field', () => {
+  test('drops the price of a count the narrowed profile no longer declares', () => {
+    // Seedream 4.5 now declares only images above 1.5K; plugins keep reporting the dropped count as zero.
+    const schema: BillingUsageSchema = {
+      images_above_1_5k: { type: 'number', unit: 'count' },
+      input_images: { type: 'number', unit: 'count' },
+    }
+    const expression =
+      'tier("base", u("images_up_to_1_5k") * 0.2 + u("images_above_1_5k") * 0.22 + u("input_images") * 0)'
+    const matrix = tryParseTaskMatrixConfig(expression, schema)
+    assert.deepEqual(
+      matrix?.rows.map((row) => row.unitPrices),
+      [{ images_above_1_5k: 0.22, input_images: 0 }]
+    )
+  })
+
+  test('skips a tier that requires a dropped boolean fact to be true', () => {
+    const matrix = tryParseTaskMatrixConfig(
+      'u("layer_decomposition") == true ? tier("layers", u("seconds") * 0.8) : tier("base", u("seconds") * 0.4)',
+      singleEnumSchema
+    )
+    assert.deepEqual(
+      matrix?.rows.map((row) => row.unitPrices.seconds),
+      [0.4, 0.4]
+    )
+  })
+
+  test('keeps the first tier per remaining combination when the profile drops an enum', () => {
+    // Seedance 1.0 pro no longer declares video_input; the plugin keeps reporting "none".
+    const schema: BillingUsageSchema = {
+      tokens: { type: 'number', unit: 'token' },
+      resolution: { enum: ['480p', '720p', '1080p'] },
+    }
+    const expression = [
+      'u("resolution") == "480p" && u("video_input") == "none" ? tier("480p·none", u("tokens") * 2 / 1000000)',
+      'u("resolution") == "480p" && u("video_input") == "video" ? tier("480p·video", u("tokens") * 3 / 1000000)',
+      'u("resolution") == "720p" && u("video_input") == "none" ? tier("720p·none", u("tokens") * 4 / 1000000)',
+      'u("resolution") == "720p" && u("video_input") == "video" ? tier("720p·video", u("tokens") * 5 / 1000000)',
+      'u("resolution") == "1080p" && u("video_input") == "none" ? tier("1080p·none", u("tokens") * 6 / 1000000)',
+      'u("resolution") == "1080p" && u("video_input") == "video" ? tier("1080p·video", u("tokens") * 7 / 1000000)',
+      'u("resolution") == "4k" && u("video_input") == "none" ? tier("4k·none", u("tokens") * 8 / 1000000)',
+      'tier("4k·video", u("tokens") * 9 / 1000000)',
+    ].join(' : ')
+    const matrix = tryParseTaskMatrixConfig(expression, schema)
+    assert.ok(matrix)
+    assert.deepEqual(
+      matrix.rows.map((row) => [
+        row.combination.resolution,
+        row.unitPrices.tokens,
+      ]),
+      [
+        ['480p', 2],
+        ['720p', 4],
+        ['1080p', 6],
+      ]
+    )
+    const generated = generateTaskExprFromConfig(
+      { tiers: taskMatrixToTiers(matrix, schema) },
+      schema
+    )
+    for (const resolution of ['480p', '720p', '1080p']) {
+      const saved = evaluateBillingExpression(expression, {
+        usage: { tokens: 1000000, resolution, video_input: 'none' },
+      })
+      const resaved = evaluateBillingExpression(generated, {
+        usage: { tokens: 1000000, resolution },
+      })
+      assert.ok(saved.status === 'success' && resaved.status === 'success')
+      assert.equal(resaved.cost, saved.cost)
+    }
+  })
+
+  test('skips tiers on enum values the schema no longer declares and keeps the reachable prices', () => {
+    // Seedance 2.0 mini now declares 480p/720p only; the saved expression still prices 1080p and 4k.
+    const miniSchema: BillingUsageSchema = {
+      tokens: { type: 'number', unit: 'token' },
+      resolution: { enum: ['480p', '720p'] },
+      video_input: { enum: ['none', 'video'] },
+    }
+    const matrix = tryParseTaskMatrixConfig(
+      'u("resolution") == "4k" && u("video_input") == "video" ? tier("4k_video", u("tokens") * 16 / 1000000) : u("resolution") == "4k" ? tier("4k", u("tokens") * 26 / 1000000) : u("resolution") == "1080p" && u("video_input") == "video" ? tier("1080p_video", u("tokens") * 31 / 1000000) : u("resolution") == "1080p" ? tier("1080p", u("tokens") * 51 / 1000000) : u("video_input") == "video" ? tier("video", u("tokens") * 28 / 1000000) : tier("base", u("tokens") * 46 / 1000000)',
+      miniSchema
+    )
+    assert.ok(matrix)
+    assert.deepEqual(
+      matrix.rows.map((row) => [
+        row.combination.resolution,
+        row.combination.video_input,
+        row.unitPrices.tokens,
+      ]),
+      [
+        ['480p', 'none', 46],
+        ['480p', 'video', 28],
+        ['720p', 'none', 46],
+        ['720p', 'video', 28],
+      ]
+    )
+    const onlyRetired = tryParseTaskMatrixConfig(
+      'u("mode") == "ultra" ? tier("ultra", u("seconds") * 0.8) : tier("base", u("seconds") * 0.4)',
+      singleEnumSchema
+    )
+    assert.deepEqual(
+      onlyRetired?.rows.map((row) => row.unitPrices.seconds),
+      [0.4, 0.4]
+    )
+  })
+
+  test('expands a tier condition that omits an enum field', () => {
     const schema: BillingUsageSchema = {
       seconds: { type: 'number', unit: 'second' },
       mode: { enum: ['std', 'pro'] },
@@ -331,7 +439,12 @@ describe('task matrix recognition rejection matrix', () => {
     const expression =
       'u("mode") == "std" ? tier("std", u("seconds") * 0.4) : tier("pro", u("seconds") * 0.8)'
 
-    assert.equal(tryParseTaskMatrixConfig(expression, schema), null)
+    assert.deepEqual(
+      tryParseTaskMatrixConfig(expression, schema)?.rows.map(
+        (row) => row.unitPrices
+      ),
+      [{ seconds: 0.4 }, { seconds: 0.8 }]
+    )
   })
 
   test('rejects duplicate conditions for one enum field in a tier', () => {
@@ -346,7 +459,7 @@ describe('task matrix recognition rejection matrix', () => {
     assert.equal(tryParseTaskMatrixConfig(expression, schema), null)
   })
 
-  test('rejects duplicate combinations across tiers', () => {
+  test('preserves first-match precedence for duplicate combinations', () => {
     const schema: BillingUsageSchema = {
       seconds: { type: 'number', unit: 'second' },
       mode: { enum: ['std', 'pro', 'ultra'] },
@@ -354,10 +467,15 @@ describe('task matrix recognition rejection matrix', () => {
     const expression =
       'u("mode") == "std" ? tier("one", u("seconds") * 0.4) : u("mode") == "std" ? tier("two", u("seconds") * 0.6) : tier("base", u("seconds") * 0.8)'
 
-    assert.equal(tryParseTaskMatrixConfig(expression, schema), null)
+    assert.deepEqual(
+      tryParseTaskMatrixConfig(expression, schema)?.rows.map(
+        (row) => row.unitPrices
+      ),
+      [{ seconds: 0.4 }, { seconds: 0.8 }, { seconds: 0.8 }]
+    )
   })
 
-  test('rejects tier counts below or above the combination count', () => {
+  test('expands fallbacks over multiple combinations and permits unused fallbacks', () => {
     const threeValueSchema: BillingUsageSchema = {
       seconds: { type: 'number', unit: 'second' },
       mode: { enum: ['std', 'pro', 'ultra'] },
@@ -367,13 +485,17 @@ describe('task matrix recognition rejection matrix', () => {
     const excessExpression =
       'u("mode") == "std" ? tier("std", u("seconds") * 0.4) : u("mode") == "pro" ? tier("pro", u("seconds") * 0.6) : tier("extra", u("seconds") * 0.8)'
 
-    assert.equal(
-      tryParseTaskMatrixConfig(partialExpression, threeValueSchema),
-      null
+    assert.deepEqual(
+      tryParseTaskMatrixConfig(partialExpression, threeValueSchema)?.rows.map(
+        (row) => row.unitPrices
+      ),
+      [{ seconds: 0.4 }, { seconds: 0.8 }, { seconds: 0.8 }]
     )
-    assert.equal(
-      tryParseTaskMatrixConfig(excessExpression, singleEnumSchema),
-      null
+    assert.deepEqual(
+      tryParseTaskMatrixConfig(excessExpression, singleEnumSchema)?.rows.map(
+        (row) => row.unitPrices
+      ),
+      [{ seconds: 0.4 }, { seconds: 0.6 }]
     )
   })
 
@@ -383,11 +505,16 @@ describe('task matrix recognition rejection matrix', () => {
     assert.equal(tryParseTaskMatrixConfig(expression, singleEnumSchema), null)
   })
 
-  test('rejects multiple tiers when the schema has no enum fields', () => {
+  test('keeps the first tier when the profile drops every enum field', () => {
     const expression =
       'u("mode") == "std" ? tier("std", u("seconds") * 0.4) : tier("base", u("seconds") * 0.8)'
 
-    assert.equal(tryParseTaskMatrixConfig(expression, numberOnlySchema), null)
+    assert.deepEqual(
+      tryParseTaskMatrixConfig(expression, numberOnlySchema)?.rows.map(
+        (row) => row.unitPrices
+      ),
+      [{ seconds: 0.4 }]
+    )
   })
 })
 
@@ -462,4 +589,45 @@ describe('uniform task matrix preview highlighting', () => {
     assert.equal(matchedRowIndex, 3)
     assert.equal(taskMatrixRowLabel(combinations[matchedRowIndex]), 'pro·low')
   })
+})
+
+test('expands Seedance video-input pricing over all resolutions with equal charges', () => {
+  const schema: BillingUsageSchema = {
+    tokens: { type: 'number', unit: 'token' },
+    resolution: { enum: ['480p', '720p', '1080p', '4k'] },
+    video_input: { enum: ['none', 'video'] },
+  }
+  const expression =
+    'u("video_input") == "none" ? tier("no-video", u("tokens") * 70 / 1000000) : tier("video", u("tokens") * 42 / 1000000)'
+  const matrix = tryParseTaskMatrixConfig(expression, schema)
+  assert.ok(matrix)
+  assert.equal(matrix.rows.length, 8)
+  assert.deepEqual(
+    matrix.rows.map((row) => row.unitPrices.tokens),
+    [70, 42, 70, 42, 70, 42, 70, 42]
+  )
+  const generated = generateTaskExprFromConfig(
+    { tiers: taskMatrixToTiers(matrix, schema) },
+    schema
+  )
+  for (const row of matrix.rows) {
+    const input = { usage: { ...row.combination, tokens: 1500000 } }
+    const expected = row.combination.video_input === 'none' ? 105 : 63
+    for (const candidate of [expression, generated]) {
+      const result = evaluateBillingExpression(candidate, input)
+      assert.ok(result.status === 'success')
+      assert.equal(result.cost, expected)
+    }
+  }
+})
+
+test('matches specific and shared conditions in their original order', () => {
+  const expression =
+    'u("mode") == "std" && u("quality") == "high" ? tier("special", u("seconds") * 0.2) : u("mode") == "std" ? tier("standard", u("seconds") * 0.4) : tier("fallback", u("seconds") * 0.8)'
+  assert.deepEqual(
+    tryParseTaskMatrixConfig(expression, doubleEnumSchema)?.rows.map(
+      (row) => row.unitPrices.seconds
+    ),
+    [0.2, 0.4, 0.8, 0.8]
+  )
 })

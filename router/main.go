@@ -23,7 +23,7 @@ func SetRouter(router *gin.Engine, assets WebAssets) {
 	frontendBaseUrl := os.Getenv("FRONTEND_BASE_URL")
 	if common.IsMasterNode && frontendBaseUrl != "" {
 		frontendBaseUrl = ""
-		common.SysLog("FRONTEND_BASE_URL is ignored on master node")
+		common.SysLog(common.LogText("FRONTEND_BASE_URL is ignored on master node"))
 	}
 	if frontendBaseUrl == "" {
 		SetWebRouter(router, assets, pluginDispatcher)
@@ -32,6 +32,7 @@ func SetRouter(router *gin.Engine, assets WebAssets) {
 		router.NoRoute(
 			pluginDispatcher,
 			middleware.RouteTag("web"),
+			middleware.AccessTokenAudit(),
 			func(c *gin.Context) {
 				c.Redirect(http.StatusMovedPermanently, fmt.Sprintf("%s%s", frontendBaseUrl, c.Request.RequestURI))
 			},

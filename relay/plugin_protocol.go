@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
 	"sort"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
+	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 )
 
 const (
@@ -100,15 +102,13 @@ type ProtocolState struct {
 	Value   json.RawMessage
 }
 
-func (s ProtocolState) PluginValue() (any, error) {
+// PluginValue returns the state as a hook argument: nil when it is absent or
+// null, otherwise its JSON text for the hook to receive parsed.
+func (s ProtocolState) PluginValue() any {
 	if !s.Present || s.Null {
-		return nil, nil
+		return nil
 	}
-	var value any
-	if err := common.Unmarshal(s.Value, &value); err != nil {
-		return nil, err
-	}
-	return value, nil
+	return pluginruntime.RawJSON(s.Value)
 }
 
 type ProtocolSemanticEvent struct {
@@ -835,9 +835,7 @@ func (m *PluginResponsesMachine) finalMetadata(pluginValue any) map[string]strin
 			metadata[key] = value
 		}
 	}
-	for key, value := range m.metadata {
-		metadata[key] = value
-	}
+	maps.Copy(metadata, m.metadata)
 	return metadata
 }
 
@@ -1003,9 +1001,7 @@ func (m *PluginResponsesMachine) event(event dto.PluginResponsesStreamEvent) dto
 
 func (m *PluginResponsesMachine) responseSnapshot(responseError *dto.PluginResponsesError) *dto.PluginResponsesResponse {
 	metadata := make(map[string]string, len(m.metadata))
-	for key, value := range m.metadata {
-		metadata[key] = value
-	}
+	maps.Copy(metadata, m.metadata)
 	outputs := make([]dto.PluginResponsesOutput, len(m.outputs))
 	for index, output := range m.outputs {
 		outputs[index] = output

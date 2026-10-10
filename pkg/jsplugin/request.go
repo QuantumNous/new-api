@@ -5,6 +5,8 @@ import (
 	"net"
 	"net/url"
 	"strings"
+
+	"golang.org/x/net/http/httpguts"
 )
 
 // ValidateRequestURL prevents plugins from directing a channel credential to
@@ -23,12 +25,38 @@ func ValidateRequestURL(requestURL, baseURL string, allowedHosts []string) error
 		return nil
 	}
 	for _, allowed := range allowedHosts {
-		allowedURL, parseErr := url.Parse("https://" + strings.TrimSpace(allowed))
+		// Parse with the request scheme so "host:443" matches an https request
+		// the same way an explicit default port on the request URL does.
+		allowedURL, parseErr := url.Parse(request.Scheme + "://" + strings.TrimSpace(allowed))
 		if parseErr == nil && requestHost == canonicalHost(allowedURL) {
 			return nil
 		}
 	}
 	return fmt.Errorf("plugin request host %q is not allowed", request.Host)
+}
+
+// ValidateRequestHeaders rejects plugin-chosen headers that the host
+// transport owns or that change how a request is framed or proxied, and
+// bounds their number and size.
+func ValidateRequestHeaders(headers map[string]string) error {
+	if len(headers) > 64 {
+		return fmt.Errorf("at most 64 request headers are allowed")
+	}
+	for name, value := range headers {
+		name = strings.TrimSpace(name)
+		if !httpguts.ValidHeaderFieldName(name) {
+			return fmt.Errorf("request header name %q is invalid", name)
+		}
+		if !httpguts.ValidHeaderFieldValue(value) || len(value) > 8192 {
+			return fmt.Errorf("request header %q has an invalid or oversized value", name)
+		}
+		switch strings.ToLower(name) {
+		case "host", "content-length", "accept-encoding", "connection", "proxy-connection", "keep-alive",
+			"proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade":
+			return fmt.Errorf("request header %q is not allowed", name)
+		}
+	}
+	return nil
 }
 
 func canonicalHost(value *url.URL) string {

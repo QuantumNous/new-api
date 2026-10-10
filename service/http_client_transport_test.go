@@ -6,6 +6,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -52,13 +53,13 @@ func TestShardedRoundTripperPerOriginRotation(t *testing.T) {
 	originB := "https://b.example:443"
 
 	gotA := make([]uint32, 0, 8)
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		gotA = append(gotA, s.pickShard(originA))
 	}
 	assert.Equal(t, []uint32{0, 1, 2, 3, 0, 1, 2, 3}, gotA)
 
 	gotB := make([]uint32, 0, 4)
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		gotB = append(gotB, s.pickShard(originB))
 	}
 	assert.Equal(t, []uint32{0, 1, 2, 3}, gotB, "independent origins must have independent counters")
@@ -68,10 +69,10 @@ func TestShardedRoundTripperPerOriginRotation(t *testing.T) {
 	const perWorker = 50
 	var badShardCount atomic.Uint32
 	wg.Add(workers)
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go func() {
 			defer wg.Done()
-			for j := 0; j < perWorker; j++ {
+			for range perWorker {
 				idx := s.pickShard(originA)
 				if idx >= 4 {
 					badShardCount.Add(1)
@@ -132,7 +133,7 @@ func TestAutoOneShardNegotiatesHTTP2SingleConnection(t *testing.T) {
 	}))
 
 	client := newHTTPClientWithPolicyAndTLS(defaultHTTPTransportPolicy(), testTLSClientConfig(t, server))
-	for i := 0; i < 4; i++ {
+	for range 4 {
 		resp, err := client.Get(server.URL)
 		require.NoError(t, err)
 		assert.Equal(t, 2, resp.ProtoMajor)
@@ -165,7 +166,7 @@ func TestFourShardHTTP2ReusesExactlyFourConnections(t *testing.T) {
 
 	policy := HTTPTransportPolicy{Protocol: dto.HTTPProtocolAuto, Shards: 4}
 	client := newHTTPClientWithPolicyAndTLS(policy, testTLSClientConfig(t, server))
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		resp, err := client.Get(server.URL)
 		require.NoError(t, err)
 		assert.Equal(t, 2, resp.ProtoMajor)
@@ -233,7 +234,7 @@ func TestForcedHTTP1ConcurrentDistinctConnections(t *testing.T) {
 	client := newHTTPClientWithPolicyAndTLS(policy, testTLSClientConfig(t, server))
 
 	errCh := make(chan error, k)
-	for i := 0; i < k; i++ {
+	for range k {
 		go func() {
 			resp, err := client.Get(server.URL)
 			if err != nil {
@@ -251,7 +252,7 @@ func TestForcedHTTP1ConcurrentDistinctConnections(t *testing.T) {
 		}()
 	}
 
-	for i := 0; i < k; i++ {
+	for range k {
 		<-arrived
 	}
 	mu.Lock()
@@ -259,7 +260,7 @@ func TestForcedHTTP1ConcurrentDistinctConnections(t *testing.T) {
 	mu.Unlock()
 	close(release)
 
-	for i := 0; i < k; i++ {
+	for range k {
 		require.NoError(t, <-errCh)
 	}
 	assert.Equal(t, uint32(0), nonHTTP1Count.Load())
@@ -297,6 +298,75 @@ func TestHTTPClientCachePolicyAndCompatibility(t *testing.T) {
 	proxyHTTP1, err := GetHttpClientWithProxySettings(proxyA, dto.ChannelSettings{HTTPProtocol: dto.HTTPProtocolHTTP1})
 	require.NoError(t, err)
 	assert.NotSame(t, clientA, proxyHTTP1)
+
+	insecure, err := GetHttpClientWithProxySettings("", dto.ChannelSettings{TLSInsecureSkipVerify: true})
+	require.NoError(t, err)
+	assert.NotSame(t, aware, insecure, "skip-verify channels must not share the verifying client")
+	insecureHTTP1, err := GetHttpClientWithProxySettings("", dto.ChannelSettings{HTTPProtocol: dto.HTTPProtocolHTTP1, TLSInsecureSkipVerify: true})
+	require.NoError(t, err)
+	assert.NotSame(t, http1, insecureHTTP1)
+	proxyInsecure, err := GetHttpClientWithProxySettings(proxyA, dto.ChannelSettings{TLSInsecureSkipVerify: true})
+	require.NoError(t, err)
+	assert.NotSame(t, clientA, proxyInsecure)
+}
+
+func TestChannelTLSInsecureSkipVerifyAcceptsUntrustedUpstream(t *testing.T) {
+	initDefaultHTTPClientFixture(t)
+	upstream := startHTTP2TLSServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	connectProxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodConnect {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		target, err := net.Dial("tcp", r.Host)
+		if err != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			return
+		}
+		defer target.Close()
+		conn, _, err := http.NewResponseController(w).Hijack()
+		if err != nil {
+			return
+		}
+		defer conn.Close()
+		_, _ = conn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
+		go func() { _, _ = io.Copy(target, conn) }()
+		_, _ = io.Copy(conn, target)
+	}))
+	t.Cleanup(connectProxy.Close)
+
+	skip := dto.ChannelSettings{TLSInsecureSkipVerify: true}
+	testCases := []struct {
+		name      string
+		proxy     string
+		settings  dto.ChannelSettings
+		wantProto int // zero means certificate verification must fail
+	}{
+		{name: "default direct verifies", settings: dto.ChannelSettings{}},
+		{name: "default proxy verifies", proxy: connectProxy.URL, settings: dto.ChannelSettings{}},
+		{name: "http1 verifies", settings: dto.ChannelSettings{HTTPProtocol: dto.HTTPProtocolHTTP1}},
+		{name: "skip direct", settings: skip, wantProto: 2},
+		{name: "skip proxy", proxy: connectProxy.URL, settings: skip, wantProto: 2},
+		{name: "skip http1", settings: dto.ChannelSettings{HTTPProtocol: dto.HTTPProtocolHTTP1, TLSInsecureSkipVerify: true}, wantProto: 1},
+		{name: "skip sharded", settings: dto.ChannelSettings{HTTP2ConnectionShards: 3, TLSInsecureSkipVerify: true}, wantProto: 2},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client, err := GetHttpClientWithProxySettings(tc.proxy, tc.settings)
+			require.NoError(t, err)
+			resp, err := client.Get(upstream.URL)
+			if tc.wantProto == 0 {
+				var verifyErr *tls.CertificateVerificationError
+				require.ErrorAs(t, err, &verifyErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantProto, resp.ProtoMajor)
+			drainClose(t, resp)
+		})
+	}
 }
 
 func TestHTTPClientCacheConcurrentGetOrCreate(t *testing.T) {
@@ -308,7 +378,7 @@ func TestHTTPClientCacheConcurrentGetOrCreate(t *testing.T) {
 	errs := make([]error, workers)
 	var wg sync.WaitGroup
 	wg.Add(workers)
-	for i := 0; i < workers; i++ {
+	for i := range workers {
 		i := i
 		go func() {
 			defer wg.Done()
@@ -318,7 +388,7 @@ func TestHTTPClientCacheConcurrentGetOrCreate(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	for i := 0; i < workers; i++ {
+	for i := range workers {
 		require.NoError(t, errs[i])
 	}
 	for i := 1; i < workers; i++ {
@@ -366,6 +436,8 @@ func TestInvalidateProxyClientClosesAllPolicyVariants(t *testing.T) {
 	require.NoError(t, err)
 	shardedClient, err := GetHttpClientWithProxySettings(proxyURL, dto.ChannelSettings{HTTP2ConnectionShards: 2})
 	require.NoError(t, err)
+	insecureClient, err := GetHttpClientWithProxySettings(proxyURL, dto.ChannelSettings{TLSInsecureSkipVerify: true})
+	require.NoError(t, err)
 
 	InvalidateProxyClient(proxyURL)
 
@@ -375,10 +447,13 @@ func TestInvalidateProxyClientClosesAllPolicyVariants(t *testing.T) {
 	require.NoError(t, err)
 	afterSharded, err := GetHttpClientWithProxySettings(proxyURL, dto.ChannelSettings{HTTP2ConnectionShards: 2})
 	require.NoError(t, err)
+	afterInsecure, err := GetHttpClientWithProxySettings(proxyURL, dto.ChannelSettings{TLSInsecureSkipVerify: true})
+	require.NoError(t, err)
 
 	assert.NotSame(t, defaultClient, afterDefault)
 	assert.NotSame(t, http1Client, afterHTTP1)
 	assert.NotSame(t, shardedClient, afterSharded)
+	assert.NotSame(t, insecureClient, afterInsecure)
 }
 
 func TestResetProxyClientCacheKeepsDefaultPointerAndRecreatesVariants(t *testing.T) {
@@ -389,6 +464,8 @@ func TestResetProxyClientCacheKeepsDefaultPointerAndRecreatesVariants(t *testing
 	shardedClient, err := GetHttpClientWithProxySettings("", dto.ChannelSettings{HTTP2ConnectionShards: 3})
 	require.NoError(t, err)
 	proxyClient, err := GetHttpClientWithProxy("http://reset-proxy.example:8080")
+	require.NoError(t, err)
+	insecureClient, err := GetHttpClientWithProxySettings("", dto.ChannelSettings{TLSInsecureSkipVerify: true})
 	require.NoError(t, err)
 
 	ResetProxyClientCache()
@@ -404,9 +481,12 @@ func TestResetProxyClientCacheKeepsDefaultPointerAndRecreatesVariants(t *testing
 	require.NoError(t, err)
 	afterProxy, err := GetHttpClientWithProxy("http://reset-proxy.example:8080")
 	require.NoError(t, err)
+	afterInsecure, err := GetHttpClientWithProxySettings("", dto.ChannelSettings{TLSInsecureSkipVerify: true})
+	require.NoError(t, err)
 	assert.NotSame(t, http1Client, afterHTTP1)
 	assert.NotSame(t, shardedClient, afterSharded)
 	assert.NotSame(t, proxyClient, afterProxy)
+	assert.NotSame(t, insecureClient, afterInsecure)
 }
 
 func TestResetProxyClientCacheClosesDefaultIdlePool(t *testing.T) {
@@ -433,7 +513,7 @@ func TestResetProxyClientCacheConcurrentWithGetHttpClient(t *testing.T) {
 	const workers = 64
 	var wg sync.WaitGroup
 	wg.Add(workers * 2)
-	for i := 0; i < workers; i++ {
+	for range workers {
 		go func() {
 			defer wg.Done()
 			_ = GetHttpClient()

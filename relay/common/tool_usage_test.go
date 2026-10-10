@@ -1,11 +1,13 @@
 package common
 
 import (
+	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,19 +52,103 @@ func TestCountBillableToolCallFunctionCallRequiresPrice(t *testing.T) {
 	assert.NotContains(t, info.ResponsesUsageInfo.BuiltInTools, "unpriced_fn")
 }
 
+// Hosted-tool price keys bill hosted tools only: a client function or
+// tool_use with the same name is never counted, even when the operator prices
+// that name. The reserved set is the built-in price seed plus the hosted
+// tools without a built-in price; an operator price alone reserves nothing.
 func TestCountBillableToolCallFunctionCallSkipsReservedNames(t *testing.T) {
-	info := &RelayInfo{OriginModelName: "gpt-5.1"}
+	wantBilled := map[string]bool{
+		dto.BuildInToolWebSearchPreview: false,
+		dto.BuildInToolFileSearch:       false,
+		dto.BuildInToolGoogleSearch:     false,
+		dto.BuildInToolImageGeneration:  false,
+		"bing_web_search":               false, // built-in vendor price
+		GoogleSearchGroundedPromptTool:  false, // built-in only for gemini-2.5* and older
+		"web_fetch":                     false, // Anthropic server tool, no built-in price
+		"lookup_order":                  true,  // operator-priced client function
+	}
+	for name := range wantBilled {
+		operation_setting.SetToolPriceForTest(name, 7)
+	}
+	t.Cleanup(func() {
+		for name := range wantBilled {
+			operation_setting.DeleteToolPriceForTest(name)
+		}
+	})
 
-	info.CountBillableToolCall(dto.BuildInCallFunctionCall, dto.BuildInToolWebSearchPreview)
-	info.CountBillableToolCall(dto.BuildInCallFunctionCall, dto.BuildInToolFileSearch)
-	info.CountBillableToolCall(dto.BuildInCallFunctionCall, dto.BuildInToolGoogleSearch)
-	info.CountBillableToolCall(dto.BuildInCallFunctionCall, dto.BuildInToolImageGeneration)
+	for name, billed := range wantBilled {
+		info := &RelayInfo{OriginModelName: "gpt-5.1"}
+		info.CountBillableToolCall(dto.BuildInCallFunctionCall, name)
+		info.CountBillableToolCall(dto.BuildInCallToolUse, name)
+		if billed {
+			require.Contains(t, info.ResponsesUsageInfo.BuiltInTools, name)
+			assert.Equal(t, 2, info.ResponsesUsageInfo.BuiltInTools[name].CallCount, name)
+			continue
+		}
+		assert.NotContains(t, info.ResponsesUsageInfo.BuiltInTools, name)
+	}
+}
 
-	if info.ResponsesUsageInfo != nil {
-		assert.NotContains(t, info.ResponsesUsageInfo.BuiltInTools, dto.BuildInToolWebSearchPreview)
-		assert.NotContains(t, info.ResponsesUsageInfo.BuiltInTools, dto.BuildInToolFileSearch)
-		assert.NotContains(t, info.ResponsesUsageInfo.BuiltInTools, dto.BuildInToolGoogleSearch)
-		assert.NotContains(t, info.ResponsesUsageInfo.BuiltInTools, dto.BuildInToolImageGeneration)
+// Upstream-reported counts replace per-item counts for the same key (an
+// explicit zero silences them) and ignore negatives; a count the request
+// itself proved belongs to one channel attempt, and a retry on another
+// channel drops it together with the vendor billing hooks.
+func TestBillableToolCountSources(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	tests := []struct {
+		name           string
+		record         func(c *gin.Context, info *RelayInfo)
+		want           map[string]int
+		wantVendorHook bool
+		wantBillingKey string
+	}{
+		{
+			name: "negative upstream count is ignored",
+			record: func(_ *gin.Context, info *RelayInfo) {
+				info.SetBillableToolCount(dto.BuildInToolWebSearch, 3)
+				info.SetBillableToolCount(dto.BuildInToolWebSearch, -5)
+			},
+			want: map[string]int{dto.BuildInToolWebSearch: 3},
+		},
+		{
+			name: "vendor zero replaces protocol items",
+			record: func(_ *gin.Context, info *RelayInfo) {
+				info.CountBillableToolCall(dto.BuildInCallWebSearchCall, "")
+				info.CountBillableToolCall(dto.BuildInCallWebSearchCall, "")
+				info.VendorToolUsage = func([]byte) map[string]int {
+					return map[string]int{"bing_web_search": 5, dto.BuildInToolWebSearchPreview: 0}
+				}
+				info.ApplyVendorToolUsage([]byte(`{}`))
+			},
+			want:           map[string]int{"bing_web_search": 5, dto.BuildInToolWebSearchPreview: 0},
+			wantVendorHook: true,
+		},
+		{
+			name: "channel retry drops the request-inferred call and vendor hooks",
+			record: func(c *gin.Context, info *RelayInfo) {
+				info.SetBillableToolCount(dto.BuildInToolWebSearch, 2)
+				info.RecordRequestInferredToolCall("search_strategy_turbo")
+				info.VendorToolUsage = func([]byte) map[string]int { return nil }
+				info.WebSearchBillingKey = "search_strategy_agent"
+				info.InitChannelMeta(c)
+			},
+			want: map[string]int{dto.BuildInToolWebSearch: 2},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			info := &RelayInfo{OriginModelName: "gpt-5.1"}
+			tt.record(c, info)
+			counts := map[string]int{}
+			for name, tool := range info.ResponsesUsageInfo.BuiltInTools {
+				counts[name] = tool.CallCount
+			}
+			assert.Equal(t, tt.want, counts)
+			assert.Equal(t, tt.wantVendorHook, info.VendorToolUsage != nil)
+			assert.Equal(t, tt.wantBillingKey, info.WebSearchBillingKey)
+		})
 	}
 }
 
@@ -249,20 +335,6 @@ func TestImageGenerationCallCounterCompletedOutputs(t *testing.T) {
 			wantCount: 1,
 		},
 		{
-			name: "output_item.done plus incomplete equals zero",
-			observe: func(c *ImageGenerationCallCounter) {
-				idx := 0
-				c.Observe(&dto.ResponsesOutput{
-					Type:   dto.ResponsesOutputTypeImageGenerationCall,
-					ID:     "img_1",
-					Status: "completed",
-					Result: "base64-a",
-				}, &idx)
-				c.Reset()
-			},
-			wantCount: 0,
-		},
-		{
 			name: "partial event equals zero",
 			observe: func(c *ImageGenerationCallCounter) {
 				idx := 0
@@ -303,7 +375,7 @@ func TestImageGenerationCallCounterCommitCapsAtMaxImageN(t *testing.T) {
 	t.Parallel()
 
 	counter := &ImageGenerationCallCounter{}
-	for i := 0; i < dto.MaxImageN+3; i++ {
+	for i := range dto.MaxImageN + 3 {
 		idx := i
 		counter.Observe(&dto.ResponsesOutput{
 			Type:   dto.ResponsesOutputTypeImageGenerationCall,
@@ -334,15 +406,4 @@ func TestImageGenerationCallCounterCommitDoesNotBillDeclarationsAlone(t *testing
 	}
 	(&ImageGenerationCallCounter{}).Commit(info)
 	assert.Equal(t, 0, info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolImageGeneration].CallCount)
-}
-
-func TestIsNonBillableResponsesStatus(t *testing.T) {
-	t.Parallel()
-
-	assert.True(t, IsNonBillableResponsesStatus([]byte(`"failed"`)))
-	assert.True(t, IsNonBillableResponsesStatus([]byte(`"incomplete"`)))
-	assert.True(t, IsNonBillableResponsesStatus([]byte(`"cancelled"`)))
-	assert.True(t, IsNonBillableResponsesStatus([]byte(`"canceled"`)))
-	assert.False(t, IsNonBillableResponsesStatus([]byte(`"completed"`)))
-	assert.False(t, IsNonBillableResponsesStatus(nil))
 }

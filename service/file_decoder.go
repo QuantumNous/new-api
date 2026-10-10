@@ -23,13 +23,13 @@ import (
 func GetFileTypeFromUrl(c *gin.Context, url string, reason ...string) (string, error) {
 	response, err := DoDownloadRequest(url, []string{"get_mime_type", strings.Join(reason, ", ")}...)
 	if err != nil {
-		common.SysLog(fmt.Sprintf("fail to get file type from url: %s, error: %s", url, err.Error()))
+		common.SysLog(common.LogText("fail to get file type from url: %s, error: %s", url, err.Error()))
 		return "", err
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != 200 {
-		logger.LogError(c, fmt.Sprintf("failed to download file from %s, status code: %d", url, response.StatusCode))
+		logger.LogError(c, common.LogText("failed to download file from %s, status code: %d", url, response.StatusCode))
 		return "", fmt.Errorf("failed to download file, status code: %d", response.StatusCode)
 	}
 
@@ -43,8 +43,8 @@ func GetFileTypeFromUrl(c *gin.Context, url string, reason ...string) (string, e
 	}
 
 	if cd := response.Header.Get("Content-Disposition"); cd != "" {
-		parts := strings.Split(cd, ";")
-		for _, part := range parts {
+		parts := strings.SplitSeq(cd, ";")
+		for part := range parts {
 			part = strings.TrimSpace(part)
 			if strings.HasPrefix(strings.ToLower(part), "filename=") {
 				name := strings.TrimSpace(strings.TrimPrefix(part, "filename="))

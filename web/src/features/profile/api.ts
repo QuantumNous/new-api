@@ -18,16 +18,19 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
 import type { CustomOAuthBinding } from '@/lib/oauth'
+import { authRequestOptions, authResult } from '@/lib/secure-verification'
 import type { LoginSession } from '@/stores/auth-store'
 
+import { normalizeUserSettings } from './lib/user-settings'
 import type {
   ApiResponse,
   UserProfile,
   UpdateUserRequest,
   UpdateUserSettingsRequest,
-  DeleteAccountRequest,
   CheckinStatusResponse,
   CheckinResponse,
+  AccountSecurityResult,
+  EmailBindingFlow,
 } from './types'
 
 // ============================================================================
@@ -54,13 +57,34 @@ export async function updateUserProfile(
   return res.data
 }
 
+export function changeAccountPassword(
+  data: UpdateUserRequest,
+  proofToken: string,
+  signal: AbortSignal
+): Promise<AccountSecurityResult & { has_password: boolean }> {
+  return authResult(
+    api.put('/api/user/self', data, {
+      ...authRequestOptions,
+      headers: { 'X-Security-Proof': proofToken },
+      acceptAuthRotation: true,
+      singleUseAuthorization: true,
+      signal,
+    })
+  )
+}
+
 /**
  * Update user settings
  */
 export async function updateUserSettings(
   data: UpdateUserSettingsRequest
 ): Promise<ApiResponse> {
-  const res = await api.put('/api/user/setting', data)
+  const profile = await getUserProfile()
+  if (!profile.success || !profile.data) {
+    return { success: false, message: profile.message }
+  }
+  const settings = normalizeUserSettings(profile.data.setting)
+  const res = await api.put('/api/user/setting', { ...settings, ...data })
   return res.data
 }
 
@@ -77,19 +101,19 @@ export async function updateUserLanguage(
 /**
  * Delete user account
  */
-export async function deleteUserAccount(
-  data?: DeleteAccountRequest
-): Promise<ApiResponse> {
-  const res = await api.delete('/api/user/self', { data })
-  return res.data
-}
-
-/**
- * Generate/regenerate system access token
- */
-export async function generateAccessToken(): Promise<ApiResponse<string>> {
-  const res = await api.get('/api/user/token')
-  return res.data
+export function deleteUserAccount(
+  proof: string,
+  signal: AbortSignal
+): Promise<AccountSecurityResult> {
+  return authResult(
+    api.delete('/api/user/self', {
+      ...authRequestOptions,
+      headers: { 'X-Security-Proof': proof },
+      singleUseAuthorization: true,
+      signal,
+    }),
+    'Failed to delete account'
+  )
 }
 
 // ============================================================================
@@ -114,27 +138,81 @@ export async function sendEmailVerification(
 /**
  * Bind email account
  */
-export async function bindEmail(
+export function startEmailBinding(
   email: string,
-  code: string
-): Promise<ApiResponse> {
-  const res = await api.post('/api/oauth/email/bind', {
-    email,
-    code,
-  })
-  return res.data
+  proofToken: string,
+  signal: AbortSignal
+): Promise<EmailBindingFlow> {
+  return authResult(
+    api.post(
+      '/api/oauth/email/bind/start',
+      { email },
+      {
+        ...authRequestOptions,
+        headers: { 'X-Security-Proof': proofToken },
+        singleUseAuthorization: true,
+        signal,
+      }
+    )
+  )
+}
+
+export function resendEmailBinding(
+  flowToken: string,
+  signal: AbortSignal
+): Promise<EmailBindingFlow> {
+  return authResult(
+    api.post(
+      '/api/oauth/email/bind/resend',
+      { flow_token: flowToken },
+      {
+        ...authRequestOptions,
+        singleUseAuthorization: true,
+        signal,
+      }
+    )
+  )
+}
+
+export function bindEmail(
+  flowToken: string,
+  newCode: string,
+  oldCode: string,
+  signal: AbortSignal
+): Promise<AccountSecurityResult> {
+  return authResult(
+    api.post(
+      '/api/oauth/email/bind',
+      { flow_token: flowToken, new_code: newCode, old_code: oldCode },
+      {
+        ...authRequestOptions,
+        singleUseAuthorization: true,
+        signal,
+      }
+    )
+  )
 }
 
 /**
  * Bind WeChat account
  */
-export async function bindWeChat(code: string): Promise<ApiResponse> {
-  const res = await api.post(
-    '/api/oauth/wechat/bind',
-    { code },
-    { skipBusinessError: true, skipErrorHandler: true }
+export function bindWeChat(
+  code: string,
+  proofToken: string,
+  signal: AbortSignal
+): Promise<AccountSecurityResult> {
+  return authResult(
+    api.post(
+      '/api/oauth/wechat/bind',
+      { code },
+      {
+        ...authRequestOptions,
+        headers: { 'X-Security-Proof': proofToken },
+        singleUseAuthorization: true,
+        signal,
+      }
+    )
   )
-  return res.data
 }
 
 export interface TelegramBindFlow {
@@ -186,11 +264,19 @@ export async function getSelfOAuthBindings(): Promise<
 /**
  * Unbind a custom OAuth provider for current user
  */
-export async function unbindCustomOAuth(
-  providerId: number
-): Promise<ApiResponse> {
-  const res = await api.delete(`/api/user/oauth/bindings/${providerId}`)
-  return res.data
+export function unbindCustomOAuth(
+  providerId: number,
+  proofToken: string,
+  signal: AbortSignal
+): Promise<AccountSecurityResult> {
+  return authResult(
+    api.delete(`/api/user/oauth/bindings/${providerId}`, {
+      ...authRequestOptions,
+      headers: { 'X-Security-Proof': proofToken },
+      singleUseAuthorization: true,
+      signal,
+    })
+  )
 }
 
 // ============================================================================

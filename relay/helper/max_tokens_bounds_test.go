@@ -70,3 +70,25 @@ func TestMaxTokensBounds(t *testing.T) {
 		require.Contains(t, err.Error(), "max_output_tokens is invalid")
 	})
 }
+
+func TestSGLangMinTokensBounds(t *testing.T) {
+	for _, tc := range []struct {
+		value string
+		valid bool
+	}{
+		{"0", true}, {"8192", true}, {"-1", false}, {"18446744073686646784", false},
+	} {
+		t.Run(tc.value, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", bytes.NewBufferString(`{"model":"served-model","messages":[{"role":"user","content":"hi"}],"min_tokens":`+tc.value+`}`))
+			c.Request.Header.Set("Content-Type", "application/json")
+			request, err := GetAndValidateTextRequest(c, relayconstant.RelayModeChatCompletions)
+			if !tc.valid {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, request.MinTokens)
+		})
+	}
+}

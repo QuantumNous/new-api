@@ -41,7 +41,7 @@ type QuotaDataLogParams struct {
 func UpdateQuotaData() {
 	for {
 		if common.DataExportEnabled {
-			common.SysLog("正在更新数据看板数据...")
+			common.SysLog(common.LogText("updating dashboard data..."))
 			SaveQuotaDataCache()
 		}
 		time.Sleep(time.Duration(common.DataExportInterval) * time.Minute)
@@ -121,20 +121,20 @@ func SaveQuotaDataCache() {
 		}
 	}
 	CacheQuotaData = make(map[string]*QuotaData)
-	common.SysLog(fmt.Sprintf("保存数据看板数据成功，共保存%d条数据", size))
+	common.SysLog(common.LogText("saved dashboard data, %d records", size))
 }
 
 func increaseQuotaData(quotaData *QuotaData) {
 	err := DB.Table("quota_data").
 		Where("user_id = ? and username = ? and model_name = ? and created_at = ? and use_group = ? and token_id = ? and channel_id = ? and node_name = ?",
 			quotaData.UserID, quotaData.Username, quotaData.ModelName, quotaData.CreatedAt, quotaData.UseGroup, quotaData.TokenID, quotaData.ChannelID, quotaData.NodeName).
-		Updates(map[string]interface{}{
+		Updates(map[string]any{
 			"count":      gorm.Expr("count + ?", quotaData.Count),
 			"quota":      gorm.Expr("quota + ?", quotaData.Quota),
 			"token_used": gorm.Expr("token_used + ?", quotaData.TokenUsed),
 		}).Error
 	if err != nil {
-		common.SysLog(fmt.Sprintf("increaseQuotaData error: %s", err))
+		common.SysLog(common.LogText("increaseQuotaData error: %s", err))
 	}
 }
 

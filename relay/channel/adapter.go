@@ -1,6 +1,7 @@
 package channel
 
 import (
+	"context"
 	"io"
 	"net/http"
 
@@ -76,8 +77,8 @@ type TaskAdaptor interface {
 
 	// ── Polling ──────────────────────────────────────────────────────
 
-	FetchTask(baseUrl, key string, body map[string]any, proxy string) (*http.Response, error)
-	ParseTaskResult(respBody []byte) (*relaycommon.TaskInfo, error)
+	FetchTask(baseUrl, key string, task *model.Task, proxy string) (*http.Response, error)
+	ParseTaskResult(task *model.Task, resp *http.Response, respBody []byte) (*relaycommon.TaskInfo, error)
 }
 
 // TaskSubmitResponse is the transport-independent result of parsing an
@@ -87,6 +88,7 @@ type TaskSubmitResponse struct {
 	TaskData       []byte
 	ClientResponse any
 	Immediate      *relaycommon.TaskInfo
+	PluginState    []byte
 }
 
 type OpenAIVideoConverter interface {
@@ -113,7 +115,7 @@ type TaskContentRequest struct {
 }
 
 type TaskContentRequestProvider interface {
-	BuildContentRequest(task *model.Task, artifactKey string, clientRequest TaskArtifactClientRequest) (*TaskContentRequest, error)
+	BuildContentRequest(ctx context.Context, task *model.Task, artifactKey string, clientRequest TaskArtifactClientRequest) (*TaskContentRequest, error)
 }
 
 type TaskUsageFactsProvider interface {

@@ -63,12 +63,12 @@ func LoadTaskArtifactStoreConfig() TaskArtifactStoreConfig {
 		S3PresignTTLSeconds: common.GetEnvOrDefault(TaskArtifactStoreS3PresignTTLEnv, DefaultTaskArtifactStorePresignTTLSeconds),
 	}
 	if err := ValidateTaskArtifactStoreConfig(config); err != nil {
-		common.SysError("invalid task artifact store configuration: " + err.Error() + "; using upstream mode")
+		common.SysError(common.LogText("invalid task artifact store configuration: %s; using upstream mode", err.Error()))
 		config.Mode = TaskArtifactStoreModeUpstream
 		return config
 	}
 	if config.Mode == TaskArtifactStoreModeS3 {
-		common.SysError("task artifact S3 storage is not implemented; using upstream mode")
+		common.SysError(common.LogText("task artifact S3 storage is not implemented; using upstream mode"))
 		config.Mode = TaskArtifactStoreModeUpstream
 	}
 	return config
@@ -132,7 +132,7 @@ func ValidateTaskArtifactStoreConfig(config TaskArtifactStoreConfig) error {
 			strings.HasPrefix(config.S3Prefix, "/") || strings.Contains(config.S3Prefix, "\\") {
 			return errors.New("S3 prefix syntax is invalid")
 		}
-		for _, part := range strings.Split(config.S3Prefix, "/") {
+		for part := range strings.SplitSeq(config.S3Prefix, "/") {
 			if part == "." || part == ".." {
 				return errors.New("S3 prefix must not contain dot segments")
 			}

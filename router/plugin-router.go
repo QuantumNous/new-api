@@ -55,12 +55,12 @@ func SetPluginRouter(outer *gin.Engine) gin.HandlerFunc {
 	trustedProxies, _, err := common.ResolveTrustedProxies(os.Getenv("TRUSTED_PROXIES"))
 	dispatcher := &pluginRouteDispatcher{registry: jsplugin.DefaultRegistry}
 	if err != nil {
-		common.SysError("configure plugin router trusted proxies: " + err.Error())
+		common.SysError(common.LogText("configure plugin router trusted proxies: %s", err.Error()))
 		return dispatcher.dispatch
 	}
 	builder := newPluginGenerationBuilder(outer.Routes(), trustedProxies, productionPluginRouteHandlers)
 	if err = jsplugin.DefaultRegistry.SetGenerationPreparer(builder.prepare); err != nil {
-		common.SysError("build initial plugin router: " + err.Error())
+		common.SysError(common.LogText("build initial plugin router: %s", err.Error()))
 	}
 	return dispatcher.dispatch
 }
@@ -331,7 +331,7 @@ func pluginRouteRecovery() gin.HandlerFunc {
 			if recover() == nil {
 				return
 			}
-			common.SysError("panic recovered in plugin route")
+			common.SysError(common.LogText("panic recovered in plugin route"))
 			if pinnedValue, exists := c.Get(jsplugin.ContextKeyPinnedRoute); exists {
 				if pinned, ok := pinnedValue.(jsplugin.PinnedRoute); ok && pinned.Plugin != nil && pinned.Generation != nil {
 					logger.LogDebug(
@@ -542,11 +542,8 @@ func routePatternsIntersect(leftPath, rightPath string) bool {
 func routesGinCompatible(leftPath, rightPath string) bool {
 	left := parseRoutePattern(leftPath)
 	right := parseRoutePattern(rightPath)
-	limit := len(left)
-	if len(right) < limit {
-		limit = len(right)
-	}
-	for index := 0; index < limit; index++ {
+	limit := min(len(right), len(left))
+	for index := range limit {
 		leftSegment := left[index]
 		rightSegment := right[index]
 		if !leftSegment.dynamic && !rightSegment.dynamic {

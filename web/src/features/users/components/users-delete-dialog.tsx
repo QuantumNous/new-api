@@ -21,6 +21,8 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { handleServerError } from '@/lib/handle-server-error'
+import { AuthOperationError } from '@/lib/secure-verification'
 
 import { deleteUser } from '../api'
 import { ERROR_MESSAGES } from '../constants'
@@ -29,7 +31,14 @@ import { useUsers } from './users-provider'
 
 export function UsersDeleteDialog() {
   const { t } = useTranslation()
-  const { open, setOpen, currentRow, triggerRefresh } = useUsers()
+  const {
+    open,
+    setOpen,
+    currentRow,
+    triggerRefresh,
+    requestVerification,
+    verificationActive,
+  } = useUsers()
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
@@ -37,16 +46,29 @@ export function UsersDeleteDialog() {
 
     setIsDeleting(true)
     try {
-      const result = await deleteUser(currentRow.id)
+      const proof = await requestVerification({
+        scope: 'admin.user.delete',
+        context: { user_id: currentRow.id },
+        title: t('Verify to delete user'),
+        description: t(
+          'Confirm your identity before permanently deleting the account {{username}}.',
+          { username: currentRow.username }
+        ),
+      })
+      if (!proof) return
+      const result = await deleteUser(currentRow.id, proof.proof_token)
       if (result.success) {
         toast.success(t(getUserActionMessage('delete')))
         setOpen(null)
         triggerRefresh()
       } else {
-        toast.error(result.message || t(ERROR_MESSAGES.DELETE_FAILED))
+        handleServerError(result, t(ERROR_MESSAGES.DELETE_FAILED))
       }
-    } catch {
-      toast.error(t(ERROR_MESSAGES.UNEXPECTED))
+    } catch (error) {
+      handleServerError(
+        AuthOperationError.from(error),
+        t(ERROR_MESSAGES.UNEXPECTED)
+      )
     } finally {
       setIsDeleting(false)
     }
@@ -54,7 +76,7 @@ export function UsersDeleteDialog() {
 
   return (
     <ConfirmDialog
-      open={open === 'delete'}
+      open={open === 'delete' && !verificationActive}
       onOpenChange={(open) => !open && setOpen(null)}
       title={t('Are you sure?')}
       desc={

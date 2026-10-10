@@ -16,7 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import type { BillingUsageSchema } from '@/features/pricing/types'
+import type {
+  BillingUsageSchema,
+  BillingUsageExample,
+} from '@/features/pricing/types'
 
 export type TaskPluginProtocolClaim =
   | string
@@ -39,6 +42,8 @@ export type TaskPluginRoute = {
 }
 
 export type TaskPluginMeta = {
+  sortPriority?: number
+  website?: string
   apiVersion: number
   key: string
   name: string
@@ -49,12 +54,18 @@ export type TaskPluginMeta = {
     name: string
     url?: string
   }
+  baseUrl?: string
   channelTypes?: number[] | null
   models: string[] | null
   fetchMode: string
   routes?: TaskPluginRoute[]
   protocols?: TaskPluginProtocolClaim[]
   usageSchema?: BillingUsageSchema
+  usageProfiles?: {
+    models: string[]
+    schema: BillingUsageSchema
+    examples?: BillingUsageExample[]
+  }[]
 }
 
 export type TaskPluginRecord = {
@@ -76,6 +87,7 @@ export type TaskPluginListItem = {
   enabled: boolean
   active: boolean
   source_hash: string
+  has_icon?: boolean
   remark: string
   runtime_status:
     | 'registered'
@@ -99,6 +111,7 @@ export type TaskPluginDetail = {
   meta: TaskPluginMeta
   source: string
   layer: 'factory' | 'override'
+  has_icon?: boolean
 }
 
 export type ApiResponse<T> = {
@@ -119,9 +132,10 @@ export type MarketplaceSource = {
 }
 
 /**
- * A single installable version from a marketplace index. `allowedHosts`, `auth`
- * and `sha256` are optional: older or hand-rolled indexes may omit them, and
- * the confirmation dialog degrades to a warning rather than refusing to render.
+ * A single installable version from a marketplace index. `allowedHosts`,
+ * `baseUrl`, `auth` and `sha256` are optional: older or hand-rolled indexes may
+ * omit them, and the confirmation dialog degrades to a warning rather than
+ * refusing to render.
  */
 export type MarketplaceIndexVersion = {
   version: string
@@ -130,13 +144,25 @@ export type MarketplaceIndexVersion = {
   minApiVersion?: number
   kind?: string
   allowedHosts?: string[]
+  baseUrl?: string
   auth?: string
 }
 
+export type MarketplacePluginIcon = {
+  /** Index-relative path of the sidecar icon.svg / icon.png, resolved like `path`. */
+  path: string
+  sha256?: string
+}
+
 export type MarketplacePlugin = {
+  protocols?: TaskPluginProtocolClaim[]
+  sortPriority?: number
+  website?: string
   key: string
   name: string
   icon?: string
+  /** Sidecar logo published by the index; rendered from the source repository. */
+  iconFile?: MarketplacePluginIcon
   description?: string | Record<string, string>
   channelTypes?: number[]
   models?: string[]
@@ -148,4 +174,29 @@ export type MarketplaceIndex = {
   indexVersion: number
   name: string
   plugins: MarketplacePlugin[]
+}
+
+/** A missing source property is distinct from an empty value or an unreadable expression. */
+export type PluginPreviewField<T> =
+  | { state: 'value'; value: T; origin: 'source' | 'index' }
+  | { state: 'missing'; origin: 'source' }
+  | { state: 'unknown' }
+
+export type PluginPreviewValues = {
+  models: string[]
+  protocols: TaskPluginProtocolClaim[]
+  routes: TaskPluginRoute[]
+  channelTypes: number[]
+  baseUrl: string
+  allowedHosts: string[]
+  auth: string
+}
+
+export type PluginMetaPreview = {
+  status: 'parsed' | 'partial' | 'unavailable'
+  fields: {
+    [Key in keyof PluginPreviewValues]: PluginPreviewField<
+      PluginPreviewValues[Key]
+    >
+  }
 }

@@ -139,7 +139,7 @@ func popTaskArtifactAccessQuery(request *http.Request) (string, bool, bool) {
 	count := 0
 	invalid := false
 	kept := make([]string, 0)
-	for _, part := range strings.Split(request.URL.RawQuery, "&") {
+	for part := range strings.SplitSeq(request.URL.RawQuery, "&") {
 		rawKey, rawValue, _ := strings.Cut(part, "=")
 		key, err := url.QueryUnescape(rawKey)
 		if err != nil || key != service.TaskArtifactAccessQueryParameter {

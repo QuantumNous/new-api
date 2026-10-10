@@ -27,11 +27,6 @@ var legacyTaskActionAliases = map[string]string{
 // When disabled, factory and override plugins both stop serving.
 var TaskPluginEnabled = true
 
-// TaskPluginOverrideEnabled controls whether the database override layer is
-// active. When disabled, uploaded plugins are ignored and factory plugins are
-// used instead; the factory layer is unaffected.
-var TaskPluginOverrideEnabled = true
-
 // NormalizeTaskAction maps persisted legacy action names to the canonical task
 // action vocabulary. Unknown platform-specific actions pass through unchanged.
 func NormalizeTaskAction(action string) string {

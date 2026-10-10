@@ -59,11 +59,11 @@ func (c *QuotaClamp) Error() string {
 // AuditMap renders the clamp as the marker stored under a log's
 // admin_info.quota_saturation. Centralized here so every billing path (consume
 // logs, task billing logs, task compensation logs) records the same shape.
-func (c *QuotaClamp) AuditMap() map[string]interface{} {
+func (c *QuotaClamp) AuditMap() map[string]any {
 	if c == nil {
 		return nil
 	}
-	return map[string]interface{}{
+	return map[string]any{
 		"op":       c.Op,
 		"kind":     c.Kind,
 		"original": c.Original,

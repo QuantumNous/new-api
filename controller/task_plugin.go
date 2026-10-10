@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"net/http"
 	"net/url"
 	"sort"
 	"strings"
@@ -23,7 +25,16 @@ import (
 	"gorm.io/gorm"
 )
 
-const maxTaskPluginSourceBytes = 1024 * 1024
+const maxTaskPluginSourceBytes = 8 << 20
+
+func taskPluginCompileError(c *gin.Context, err error) {
+	var unknownField *jsplugin.UnknownMetaFieldError
+	if errors.As(err, &unknownField) {
+		common.ApiErrorT(c, "Plugin metadata contains an unknown field \"{{field}}\". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.", map[string]any{"field": unknownField.Field})
+		return
+	}
+	common.ApiError(c, err)
+}
 
 type taskPluginUploadRequest struct {
 	Source       string `json:"source" binding:"required"`
@@ -31,6 +42,9 @@ type taskPluginUploadRequest struct {
 	Remark       string `json:"remark"`
 	Force        bool   `json:"force"`
 	SourceSha256 string `json:"sourceSha256"`
+	// Icon carries the sidecar icon.svg / icon.png as a data URI. It is optional
+	// and stored separately from the source so the JavaScript stays readable.
+	Icon string `json:"icon"`
 }
 
 func UploadTaskPlugin(c *gin.Context) {
@@ -40,7 +54,7 @@ func UploadTaskPlugin(c *gin.Context) {
 		return
 	}
 	if len(request.Source) > maxTaskPluginSourceBytes {
-		common.ApiErrorMsg(c, "plugin source exceeds 1 MiB")
+		common.ApiErrorMsg(c, "plugin source exceeds 8 MiB")
 		return
 	}
 	if expected := strings.TrimSpace(request.SourceSha256); expected != "" {
@@ -53,12 +67,19 @@ func UploadTaskPlugin(c *gin.Context) {
 	temporary := jsplugin.NewRegistry()
 	loaded, err := temporary.Register(request.Source, jsplugin.Options{})
 	if err != nil {
-		common.ApiErrorMsg(c, err.Error())
+		taskPluginCompileError(c, err)
 		return
 	}
 	if err = jsplugin.ValidateV1Meta(loaded.Meta); err != nil {
 		common.ApiErrorMsg(c, err.Error())
 		return
+	}
+	icon := strings.TrimSpace(request.Icon)
+	if icon != "" {
+		if _, _, err = jsplugin.DecodeIconDataURI(icon); err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
+		}
 	}
 	enabled := true
 	if request.Enabled != nil {
@@ -72,8 +93,8 @@ func UploadTaskPlugin(c *gin.Context) {
 	}
 	plugin := model.TaskPlugin{
 		Key: loaded.Meta.Key, APIVersion: loaded.Meta.APIVersion, Version: loaded.Meta.Version,
-		Source: request.Source, SourceHash: fmt.Sprintf("%x", sha256.Sum256([]byte(request.Source))),
-		Enabled: enabled, Remark: request.Remark,
+		Source: model.LongText(request.Source), SourceHash: fmt.Sprintf("%x", sha256.Sum256([]byte(request.Source))),
+		Icon: model.LongText(icon), Enabled: enabled, Remark: request.Remark,
 	}
 	if err = model.SaveTaskPlugin(&plugin); err != nil {
 		common.ApiError(c, err)
@@ -83,7 +104,7 @@ func UploadTaskPlugin(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, taskPluginDetail{Plugin: &plugin, Meta: loaded.Meta, Source: plugin.Source, Layer: "override"})
+	common.ApiSuccess(c, taskPluginDetail{Plugin: &plugin, Meta: loaded.Meta, Source: string(plugin.Source), Layer: "override", HasIcon: plugin.HasIcon()})
 }
 
 func GetTaskPluginVersions(c *gin.Context) {
@@ -101,6 +122,7 @@ type taskPluginListItem struct {
 	Enabled       bool           `json:"enabled"`
 	Active        bool           `json:"active"`
 	SourceHash    string         `json:"source_hash"`
+	HasIcon       bool           `json:"has_icon"`
 	Remark        string         `json:"remark"`
 	RuntimeStatus string         `json:"runtime_status"`
 	RuntimeError  string         `json:"runtime_error,omitempty"`
@@ -156,9 +178,7 @@ func ListTaskPlugins(c *gin.Context) {
 
 	runtimeErrors := jsplugin.DefaultRegistry.RoutingErrors()
 	taskPluginSyncState.Lock()
-	for key, message := range taskPluginSyncState.errors {
-		runtimeErrors[key] = message
-	}
+	maps.Copy(runtimeErrors, taskPluginSyncState.errors)
 	taskPluginSyncState.Unlock()
 
 	items := make([]taskPluginListItem, 0, len(keys))
@@ -174,16 +194,15 @@ func ListTaskPlugins(c *gin.Context) {
 				item.FactoryMeta = &factoryCopy
 			}
 			item.Meta = jsplugin.Meta{Key: row.Key, Version: row.Version, APIVersion: row.APIVersion}
-			if compiled, compileErr := jsplugin.NewRegistry().Register(row.Source, jsplugin.Options{Key: row.Key, Version: row.Version}); compileErr == nil {
+			if compiled, compileErr := jsplugin.NewRegistry().Register(string(row.Source), jsplugin.Options{Key: row.Key, Version: row.Version}); compileErr == nil {
 				item.Meta = compiled.Meta
 			}
 			item.Enabled = row.Enabled
 			item.Active = row.Active
 			item.SourceHash = row.SourceHash
+			item.HasIcon = row.HasIcon()
 			item.Remark = row.Remark
-			if !constant.TaskPluginOverrideEnabled {
-				item.RuntimeStatus = "disabled_fallback"
-			} else if message := runtimeErrors[key]; message != "" {
+			if message := runtimeErrors[key]; message != "" {
 				item.RuntimeStatus = "compile_failed"
 				item.RuntimeError = message
 			} else if runtimeMeta, ok := override[key]; ok {
@@ -193,10 +212,16 @@ func ListTaskPlugins(c *gin.Context) {
 			} else {
 				item.RuntimeStatus = "not_registered"
 			}
+			// "disabled_fallback" promises that the built-in still serves. When
+			// the factory layer is suppressed as well, nothing serves this key.
+			if item.RuntimeStatus == "disabled_fallback" && hasFactory && setting.IsTaskPluginFactoryDisabled(key) {
+				item.RuntimeStatus = "disabled"
+			}
 		} else {
 			item.Source = "factory"
 			item.Meta = factoryMeta
 			item.Enabled = !setting.IsTaskPluginFactoryDisabled(key)
+			_, _, item.HasIcon = plugins.Icon(key)
 			source, sourceErr := plugins.Source(key)
 			if sourceErr == nil {
 				item.SourceHash = fmt.Sprintf("%x", sha256.Sum256([]byte(source)))
@@ -219,7 +244,12 @@ func ListTaskPlugins(c *gin.Context) {
 		}
 		items = append(items, item)
 	}
-	sort.Slice(items, func(i, j int) bool { return items[i].Meta.Key < items[j].Meta.Key })
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].Meta.SortPriority != items[j].Meta.SortPriority {
+			return items[i].Meta.SortPriority > items[j].Meta.SortPriority
+		}
+		return items[i].Meta.Key < items[j].Meta.Key
+	})
 	common.ApiSuccess(c, items)
 }
 
@@ -228,9 +258,7 @@ func GetTaskPluginRuntime(c *gin.Context) {
 	pluginErrors := routingStatus.Errors
 
 	taskPluginSyncState.Lock()
-	for key, message := range taskPluginSyncState.errors {
-		pluginErrors[key] = message
-	}
+	maps.Copy(pluginErrors, taskPluginSyncState.errors)
 	lastRebuild := taskPluginSyncState.lastRebuild
 	lastDatabaseRevision := lastRebuild.DatabaseRevision
 	taskPluginSyncState.Unlock()
@@ -271,10 +299,43 @@ func GetTaskPluginRuntime(c *gin.Context) {
 }
 
 type taskPluginDetail struct {
-	Plugin *model.TaskPlugin `json:"plugin,omitempty"`
-	Meta   jsplugin.Meta     `json:"meta"`
-	Source string            `json:"source"`
-	Layer  string            `json:"layer"`
+	Plugin  *model.TaskPlugin `json:"plugin,omitempty"`
+	Meta    jsplugin.Meta     `json:"meta"`
+	Source  string            `json:"source"`
+	Layer   string            `json:"layer"`
+	HasIcon bool              `json:"has_icon"`
+}
+
+// GetTaskPluginIcon serves a plugin logo as an image. The active override wins
+// (or the requested ?version=), then the factory sidecar. Data icons are only
+// ever drawn through <img>, and the nosniff header keeps a browser from
+// treating an SVG response as a document.
+func GetTaskPluginIcon(c *gin.Context) {
+	key := c.Param("key")
+	icon := ""
+	plugin, err := model.GetTaskPluginVersion(key, c.Query("version"))
+	if err == nil {
+		icon = string(plugin.Icon)
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		common.ApiError(c, err)
+		return
+	}
+	if icon == "" && c.Query("version") == "" {
+		icon = plugins.IconDataURI(key)
+	}
+	if icon == "" {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	mediaType, data, err := jsplugin.DecodeIconDataURI(icon)
+	if err != nil {
+		c.AbortWithStatus(http.StatusNotFound)
+		return
+	}
+	c.Header("Cache-Control", "private, max-age=3600")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+	c.Data(http.StatusOK, mediaType, data)
 }
 
 func GetTaskPlugin(c *gin.Context) {
@@ -282,12 +343,12 @@ func GetTaskPlugin(c *gin.Context) {
 	version := c.Query("version")
 	plugin, err := model.GetTaskPluginVersion(key, version)
 	if err == nil {
-		loaded, compileErr := jsplugin.NewRegistry().Register(plugin.Source, jsplugin.Options{Key: plugin.Key, Version: plugin.Version})
+		loaded, compileErr := jsplugin.NewRegistry().Register(string(plugin.Source), jsplugin.Options{Key: plugin.Key, Version: plugin.Version})
 		if compileErr != nil {
-			common.ApiErrorMsg(c, compileErr.Error())
+			taskPluginCompileError(c, compileErr)
 			return
 		}
-		common.ApiSuccess(c, taskPluginDetail{Plugin: plugin, Meta: loaded.Meta, Source: plugin.Source, Layer: "override"})
+		common.ApiSuccess(c, taskPluginDetail{Plugin: plugin, Meta: loaded.Meta, Source: string(plugin.Source), Layer: "override", HasIcon: plugin.HasIcon()})
 		return
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) || version != "" {
@@ -301,10 +362,11 @@ func GetTaskPlugin(c *gin.Context) {
 	}
 	loaded, err := jsplugin.NewRegistry().RegisterFactory(source, jsplugin.Options{Key: key})
 	if err != nil {
-		common.ApiError(c, err)
+		taskPluginCompileError(c, err)
 		return
 	}
-	common.ApiSuccess(c, taskPluginDetail{Meta: loaded.Meta, Source: source, Layer: "factory"})
+	_, _, hasIcon := plugins.Icon(key)
+	common.ApiSuccess(c, taskPluginDetail{Meta: loaded.Meta, Source: source, Layer: "factory", HasIcon: hasIcon})
 }
 
 type taskPluginDryRunRequest struct {
@@ -322,7 +384,7 @@ func DryRunTaskPlugin(c *gin.Context) {
 	detailSource := ""
 	plugin, err := model.GetTaskPluginVersion(c.Param("key"), "")
 	if err == nil {
-		detailSource = plugin.Source
+		detailSource = string(plugin.Source)
 	} else if errors.Is(err, gorm.ErrRecordNotFound) {
 		detailSource, err = plugins.Source(c.Param("key"))
 	}
@@ -332,7 +394,7 @@ func DryRunTaskPlugin(c *gin.Context) {
 	}
 	loaded, err := jsplugin.NewRegistry().Register(detailSource, jsplugin.Options{Key: c.Param("key")})
 	if err != nil {
-		common.ApiErrorMsg(c, err.Error())
+		taskPluginCompileError(c, err)
 		return
 	}
 	args := make([]any, len(request.Args))
@@ -420,8 +482,8 @@ func ActivateTaskPlugin(c *gin.Context) {
 		common.ApiErrorMsg(c, "plugin version not found")
 		return
 	}
-	if _, err = jsplugin.NewRegistry().Register(target.Source, jsplugin.Options{Key: target.Key, Version: target.Version}); err != nil {
-		common.ApiErrorMsg(c, err.Error())
+	if _, err = jsplugin.NewRegistry().Register(string(target.Source), jsplugin.Options{Key: target.Key, Version: target.Version}); err != nil {
+		taskPluginCompileError(c, err)
 		return
 	}
 	if err = model.ActivateTaskPlugin(target.Key, target.Version); err != nil {
@@ -447,6 +509,7 @@ func SetTaskPluginStatus(c *gin.Context) {
 	}
 	key := c.Param("key")
 	disabledChannels := 0
+	unboundChannels := 0
 	if !*request.Enabled {
 		channels, inFlight, usageErr := model.GetTaskPluginUsage(key)
 		if usageErr != nil {
@@ -461,9 +524,25 @@ func SetTaskPluginStatus(c *gin.Context) {
 		}
 		if cascade {
 			for _, channel := range channels {
+				if channel.Type == constant.ChannelTypeNewAPI {
+					// A gateway channel also carries ordinary traffic, so the
+					// cascade only drops this plugin from its bindings.
+					unbound, unbindErr := model.UnbindTaskPlugin(channel.Id, key)
+					if unbindErr != nil {
+						common.ApiError(c, unbindErr)
+						return
+					}
+					if unbound {
+						unboundChannels++
+					}
+					continue
+				}
 				if model.UpdateChannelStatus(channel.Id, "", common.ChannelStatusManuallyDisabled, "task plugin disabled") {
 					disabledChannels++
 				}
+			}
+			if unboundChannels > 0 {
+				model.InitChannelCache()
 			}
 		}
 	}
@@ -473,9 +552,12 @@ func SetTaskPluginStatus(c *gin.Context) {
 		common.ApiError(c, lookupErr)
 		return
 	}
-	// The disabled set suppresses only the factory fallback layer. An enabled
-	// override for the same key keeps serving and is toggled independently.
-	if taskPluginHasFactory(key) && !hasActiveOverride {
+	// Switching a key off must silence every layer that can serve it. The
+	// factory built-in goes into the disabled set even when an override row
+	// exists; otherwise the built-in would keep routing the same models (and
+	// blocking same-model uploads) right after the administrator disabled the
+	// plugin. Switching on reverses both layers.
+	if taskPluginHasFactory(key) {
 		keys := setting.GetTaskPluginDisabledFactoryKeys()
 		if *request.Enabled {
 			next := make([]string, 0, len(keys))
@@ -501,8 +583,10 @@ func SetTaskPluginStatus(c *gin.Context) {
 			common.ApiError(c, err)
 			return
 		}
-		common.ApiSuccess(c, gin.H{"plugin_enabled": *request.Enabled, "disabled_channels": disabledChannels})
-		return
+		if !hasActiveOverride {
+			common.ApiSuccess(c, gin.H{"plugin_enabled": *request.Enabled, "disabled_channels": disabledChannels, "unbound_channels": unboundChannels})
+			return
+		}
 	}
 	if err := model.SetTaskPluginEnabled(key, *request.Enabled); err != nil {
 		common.ApiError(c, err)
@@ -512,7 +596,7 @@ func SetTaskPluginStatus(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, gin.H{"plugin_enabled": *request.Enabled, "disabled_channels": disabledChannels})
+	common.ApiSuccess(c, gin.H{"plugin_enabled": *request.Enabled, "disabled_channels": disabledChannels, "unbound_channels": unboundChannels})
 }
 
 func taskPluginHasFactory(key string) bool {
@@ -583,15 +667,38 @@ func GetTaskPluginOptions(c *gin.Context) {
 				continue
 			}
 			seen[meta.Key] = true
+			hasIcon := false
+			if layer == 0 {
+				if row, rowErr := model.GetTaskPluginVersion(meta.Key, ""); rowErr == nil {
+					hasIcon = row.HasIcon()
+				}
+			} else {
+				_, _, hasIcon = plugins.Icon(meta.Key)
+			}
 			options = append(options, gin.H{
-				"key":         meta.Key,
-				"name":        meta.Name,
-				"models":      meta.Models,
-				"usageSchema": meta.UsageSchema,
+				"key":           meta.Key,
+				"name":          meta.Name,
+				"description":   meta.Description,
+				"icon":          meta.Icon,
+				"hasIcon":       hasIcon,
+				"baseUrl":       meta.BaseURL,
+				"sortPriority":  meta.SortPriority,
+				"website":       meta.Website,
+				"models":        meta.Models,
+				"channelTypes":  meta.ChannelTypes,
+				"upstreams":     meta.Upstreams,
+				"usageSchema":   meta.UsageSchema,
+				"usageProfiles": meta.UsageProfiles,
 			})
 		}
 	}
-	sort.Slice(options, func(i, j int) bool { return options[i]["key"].(string) < options[j]["key"].(string) })
+	sort.Slice(options, func(i, j int) bool {
+		left, right := options[i]["sortPriority"].(int), options[j]["sortPriority"].(int)
+		if left != right {
+			return left > right
+		}
+		return options[i]["key"].(string) < options[j]["key"].(string)
+	})
 	common.ApiSuccess(c, options)
 }
 
@@ -662,7 +769,13 @@ func syncTaskPluginsOnceContext(ctx context.Context) error {
 			plugin.Key,
 			plugin.Version,
 		)
-		compiled, compileErr := jsplugin.CompilePlugin(plugin.Source, jsplugin.Options{Key: plugin.Key, Version: plugin.Version})
+		var compiled *jsplugin.LoadedPlugin
+		source, compileErr := model.GetTaskPluginSource(plugin.Id)
+		if compileErr != nil {
+			compileErr = fmt.Errorf("load source: %w", compileErr)
+		} else {
+			compiled, compileErr = jsplugin.CompilePlugin(string(source), jsplugin.Options{Key: plugin.Key, Version: plugin.Version})
+		}
 		if compileErr != nil {
 			retainedIncumbent := false
 			if current := currentOverrides[plugin.Key]; current != nil {
@@ -673,7 +786,7 @@ func syncTaskPluginsOnceContext(ctx context.Context) error {
 				}
 			}
 			taskPluginSyncState.errors[plugin.Key] = compileErr.Error()
-			common.SysError(fmt.Sprintf("compile task plugin %s@%s: %v", plugin.Key, plugin.Version, compileErr))
+			common.SysError(common.LogText("compile task plugin %s@%s: %v", plugin.Key, plugin.Version, compileErr))
 			logger.LogDebug(
 				ctx,
 				"task_plugin subsystem=sync event=plugin plugin=%q version=%q action=compile_failed retained_incumbent=%t",
@@ -718,9 +831,7 @@ func syncTaskPluginsOnceContext(ctx context.Context) error {
 		}
 	}
 	pluginErrors := jsplugin.DefaultRegistry.RoutingErrors()
-	for key, message := range taskPluginSyncState.errors {
-		pluginErrors[key] = message
-	}
+	maps.Copy(pluginErrors, taskPluginSyncState.errors)
 	pluginErrorCount := len(pluginErrors)
 	status := "success"
 	if pluginErrorCount > 0 {

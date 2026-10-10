@@ -21,7 +21,10 @@ import { ChevronDown, Loader2 } from 'lucide-react'
 import { useState, type ComponentProps, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { DataTableViewOptions } from '@/components/data-table'
+import {
+  DataTableMobileFilterPanel,
+  DataTableViewOptions,
+} from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -41,6 +44,7 @@ interface LogsFilterToolbarProps<TData> {
   table: Table<TData>
   primaryFilters: ReactNode
   advancedFilters?: ReactNode
+  compactMobile?: boolean
   mobilePinnedFilters?: ReactNode
   mobileFilters?: ReactNode
   mobileFilterCount?: number
@@ -89,7 +93,6 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
   const { t } = useTranslation()
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
-  const [mobilePanelCollapsed, setMobilePanelCollapsed] = useState(false)
   const isMobile = useMediaQuery('(max-width: 640px)')
 
   const hasAdvancedFilters = props.advancedFilters != null
@@ -138,53 +141,32 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
   if (isMobile && props.mobilePinnedFilters != null) {
     return (
       <Drawer open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
-        <div
-          className={cn('bg-card/50 rounded-lg border p-2.5', props.className)}
-        >
-          {!mobilePanelCollapsed && (
-            <div className='grid gap-2'>{props.mobilePinnedFilters}</div>
-          )}
-
-          <div
-            className={cn(
-              'flex flex-col gap-2',
-              !mobilePanelCollapsed && 'mt-2'
-            )}
-          >
-            {!mobilePanelCollapsed && props.stats}
-            <div className='flex items-center justify-end gap-1.5'>
-              <Button
-                type='button'
-                variant='ghost'
-                size='icon'
-                onClick={() =>
-                  setMobilePanelCollapsed((collapsed) => !collapsed)
-                }
-                aria-expanded={!mobilePanelCollapsed}
-                aria-label={mobilePanelCollapsed ? t('Expand') : t('Collapse')}
-                className='text-muted-foreground hover:text-foreground mr-auto size-7'
-              >
-                <ChevronDown
-                  className={cn(
-                    'size-3.5 transition-transform duration-200',
-                    !mobilePanelCollapsed && 'rotate-180'
-                  )}
-                />
-              </Button>
+        <DataTableMobileFilterPanel
+          compact={props.compactMobile}
+          className={props.className}
+          actions={
+            <>
               {props.actionStart}
               <DrawerTrigger asChild>
                 <Button
                   type='button'
                   variant='ghost'
+                  aria-label={t('Filter')}
                   className={cn(
                     'text-muted-foreground hover:text-foreground gap-1 px-2',
+                    props.compactMobile && 'min-h-9 gap-1.5',
                     activeMobileFilterCount > 0 &&
                       'text-primary hover:text-primary'
                   )}
                 >
                   {t('Filter')}
                   {activeMobileFilterCount > 0 && (
-                    <Badge className='ml-0.5 size-5 justify-center p-0 text-[10px]'>
+                    <Badge
+                      className={cn(
+                        !props.compactMobile &&
+                          'ml-0.5 size-5 justify-center p-0 text-[10px]'
+                      )}
+                    >
                       {activeMobileFilterCount}
                     </Badge>
                   )}
@@ -194,14 +176,29 @@ export function LogsFilterToolbar<TData>(props: LogsFilterToolbarProps<TData>) {
                 type='button'
                 onClick={props.onSearch}
                 disabled={props.searchLoading}
+                aria-busy={props.searchLoading}
               >
                 {props.searchLoading && <Loader2 className='animate-spin' />}
                 {t('Search')}
               </Button>
               <DataTableViewOptions table={props.table} />
+            </>
+          }
+        >
+          {props.compactMobile ? (
+            <div className='flex min-w-0 flex-col gap-2.5'>
+              {props.stats}
+              <div className='w-full min-w-0 [&_button]:min-h-9'>
+                {props.mobilePinnedFilters}
+              </div>
             </div>
-          </div>
-        </div>
+          ) : (
+            <div className='grid gap-2'>
+              <div className='grid gap-2'>{props.mobilePinnedFilters}</div>
+              {props.stats}
+            </div>
+          )}
+        </DataTableMobileFilterPanel>
 
         <DrawerContent className='max-h-[85dvh] p-0'>
           <div className='mx-auto flex w-full max-w-md flex-1 flex-col overflow-hidden'>

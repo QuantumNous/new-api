@@ -74,9 +74,14 @@ export function MarketplacePanel() {
     queryKey: ['task-plugin-marketplace', selectedSource?.index_url],
     enabled: Boolean(selectedSource),
     retry: false,
+    meta: { errorToast: false },
     queryFn: async (): Promise<MarketplaceIndex> => {
       if (!selectedSource) throw new Error('marketplace source is not selected')
-      const response = await fetch(selectedSource.index_url)
+      // Revalidate so the hashes checked at install time are the host's
+      // current ones rather than a copy cached before a republish.
+      const response = await fetch(selectedSource.index_url, {
+        cache: 'no-cache',
+      })
       if (!response.ok) {
         throw new Error(
           t('Index request failed with HTTP {{status}}', {
@@ -259,6 +264,7 @@ function MarketplaceSourceSection(props: MarketplaceSourceSectionProps) {
               <MarketplacePluginCard
                 key={plugin.key}
                 plugin={plugin}
+                indexUrl={props.source.index_url}
                 installState={installState}
                 installed={props.installed.find(
                   (item) => item.meta.key === plugin.key

@@ -17,7 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { BillingUsageSchema } from '../types'
-import type { ParsedTaskTier } from './billing-expr'
+import {
+  parseTaskTiersFromExpr,
+  splitBillingExprAndRequestRules,
+  type ParsedTaskTier,
+  type TaskTierCondition,
+} from './billing-expr'
+import { readConditionalTaskPricing } from './billing-expression/task-display'
 import {
   getTaskEnumFields,
   taskMatrixRowLabel,
@@ -48,4 +54,54 @@ export function getTaskMatrixDisplayTiers(
     constant: row.constant,
     unitPrices: { ...row.unitPrices },
   }))
+}
+
+/** Display explicit conditions for a fallback only when its complement is unique.
+ * Unlike the editor matrix, unrelated schema fields do not expand the price table.
+ */
+export function getTaskPricingDisplayTiers(
+  expression: string | null | undefined,
+  schema: BillingUsageSchema | null | undefined
+): ParsedTaskTier[] {
+  const tiers = parseTaskTiersFromExpr(expression || '', schema, true)
+  if (tiers.length === 0 && expression && schema) {
+    const { billingExpr } = splitBillingExprAndRequestRules(expression)
+    return readConditionalTaskPricing(billingExpr, schema) ?? []
+  }
+  const fallback = tiers.at(-1)
+  if (!schema || tiers.length < 2 || !fallback) return tiers
+  const previous = tiers.slice(0, -1)
+  const fields = [
+    ...new Set(
+      previous.flatMap((tier) =>
+        tier.conditions.map((condition) => condition.field)
+      )
+    ),
+  ].sort()
+  let combinations: TaskTierCondition[][] = [[]]
+  for (const field of fields) {
+    const definition = schema[field]
+    const values =
+      definition?.type === 'boolean' ? ['false', 'true'] : definition?.enum
+    // Avoid expanding large plugin schemas merely to name a fallback row.
+    if (!values?.length || combinations.length * values.length > 256) {
+      return tiers
+    }
+    combinations = combinations.flatMap((combination) =>
+      values.map((value) => [...combination, { field, value }])
+    )
+  }
+  const remaining = combinations.filter(
+    (combination) =>
+      !previous.some((tier) =>
+        tier.conditions.every((condition) =>
+          combination.some(
+            (value) =>
+              value.field === condition.field && value.value === condition.value
+          )
+        )
+      )
+  )
+  if (remaining.length !== 1) return tiers
+  return [...previous, { ...fallback, conditions: remaining[0] }]
 }

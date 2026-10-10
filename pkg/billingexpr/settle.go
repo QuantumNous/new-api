@@ -1,6 +1,10 @@
 package billingexpr
 
-import "github.com/QuantumNous/new-api/common"
+import (
+	"fmt"
+
+	"github.com/QuantumNous/new-api/common"
+)
 
 // quotaConversion converts raw expression output to quota based on the
 // expression version. This is the central dispatch point for future versions
@@ -22,6 +26,9 @@ func ComputeTieredQuota(snap *BillingSnapshot, params TokenParams) (TieredResult
 }
 
 func ComputeTieredQuotaWithRequest(snap *BillingSnapshot, params TokenParams, request RequestInput) (TieredResult, error) {
+	if snap.TaskUsageBilling && UsesFixedPricingByHash(snap.ExprString, snap.ExprHash) {
+		return TieredResult{}, fmt.Errorf("fixed pricing is not supported for task usage expressions")
+	}
 	cost, trace, err := RunExprByHashWithRequest(snap.ExprString, snap.ExprHash, params, request)
 	if err != nil {
 		return TieredResult{}, err
@@ -31,12 +38,19 @@ func ComputeTieredQuotaWithRequest(snap *BillingSnapshot, params TokenParams, re
 	afterGroup, clamp := common.QuotaRoundChecked(quotaBeforeGroup * snap.GroupRatio)
 	crossed := trace.MatchedTier != snap.EstimatedTier
 
-	return TieredResult{
+	result := TieredResult{
+		ImageCount:             trace.ImageCount,
+		BillingUnit:            trace.BillingUnit,
+		FixedPrice:             trace.FixedPrice,
 		ActualQuotaBeforeGroup: quotaBeforeGroup,
 		ActualQuotaAfterGroup:  afterGroup,
 		MatchedTier:            trace.MatchedTier,
 		RequestRules:           trace.RequestRules,
 		CrossedTier:            crossed,
 		Clamp:                  clamp,
-	}, nil
+	}
+	if trace.BillingUnit == BillingUnitToken && UsedVarsByHash(snap.ExprString, snap.ExprHash)["img_cr"] {
+		result.BillingTokens = &params
+	}
+	return result, nil
 }

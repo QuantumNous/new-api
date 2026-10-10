@@ -25,6 +25,7 @@ import { toast } from 'sonner'
 import { useActiveChatKey } from '@/features/chat/hooks/use-active-chat-key'
 import { useChatPresets } from '@/features/chat/hooks/use-chat-presets'
 import { resolveChatUrl } from '@/features/chat/lib/chat-links'
+import { handleServerError } from '@/lib/handle-server-error'
 
 export const Route = createFileRoute('/_authenticated/chat2link')({
   component: Chat2LinkPage,
@@ -59,7 +60,7 @@ function Chat2LinkPage() {
         keyError instanceof Error
           ? keyError.message
           : t('No enabled tokens available')
-      toast.error(message)
+      handleServerError(keyError, message)
       navigate({ to: '/keys' })
       return
     }

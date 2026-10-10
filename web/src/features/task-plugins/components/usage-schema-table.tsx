@@ -26,6 +26,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import {
+  taskEnumLabel,
+  taskUsageUnitLabel,
+} from '@/features/pricing/lib/task-price-display'
 import type { BillingUsageSchema } from '@/features/pricing/types'
 import { resolveLocalizedText } from '@/lib/localized-text'
 
@@ -73,13 +77,30 @@ export function UsageSchemaTable(props: UsageSchemaTableProps) {
         <TableBody>
           {entries.map(([name, definition]) => (
             <TableRow key={name}>
-              <TableCell className='font-mono'>{name}</TableCell>
-              <TableCell>{t(getUsageTypeLabelKey(definition.type))}</TableCell>
-              <TableCell>{formatUsageUnit(definition.unit, t)}</TableCell>
-              <TableCell className='font-mono'>
-                {definition.enum?.join(', ') || '—'}
+              <TableCell className='max-w-64 font-mono text-xs break-words whitespace-normal'>
+                {name}
               </TableCell>
-              <TableCell className='min-w-48 whitespace-normal'>
+              <TableCell>{t(getUsageTypeLabelKey(definition.type))}</TableCell>
+              <TableCell>
+                {taskUsageUnitLabel(
+                  definition,
+                  i18n.language,
+                  formatUsageUnit(definition.unit, t)
+                )}
+              </TableCell>
+              <TableCell className='max-w-64 font-mono text-xs break-words whitespace-normal'>
+                {definition.enum
+                  ?.map((value) => {
+                    const label = taskEnumLabel(
+                      definition,
+                      value,
+                      i18n.language
+                    )
+                    return label === value ? value : `${value} → ${label}`
+                  })
+                  .join(', ') || '—'}
+              </TableCell>
+              <TableCell className='min-w-48 break-words whitespace-normal'>
                 {resolveLocalizedText(definition.description, i18n.language) ||
                   '—'}
               </TableCell>

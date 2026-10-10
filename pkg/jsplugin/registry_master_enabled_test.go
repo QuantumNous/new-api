@@ -121,15 +121,9 @@ func TestRegistrySetEnabledNoOpDoesNotBumpGeneration(t *testing.T) {
 func TestRegistryMasterSwitchIsOrthogonalToLayerFlags(t *testing.T) {
 	registry := NewRegistry()
 	require.NoError(t, registerTestPlugin(registry, "1.0.0-factory", true))
-	require.NoError(t, registerTestPlugin(registry, "1.0.0-override", false))
-
-	registry.SetOverrideEnabled(false)
-	plugin, ok := registry.Get("test")
-	require.True(t, ok)
-	assert.Equal(t, "1.0.0-factory", plugin.Meta.Version)
 
 	registry.SetDisabledFactoryKeys([]string{"test"})
-	_, ok = registry.Get("test")
+	_, ok := registry.Get("test")
 	assert.False(t, ok)
 
 	registry.SetEnabled(false)
@@ -141,7 +135,7 @@ func TestRegistryMasterSwitchIsOrthogonalToLayerFlags(t *testing.T) {
 	assert.False(t, ok)
 
 	registry.SetDisabledFactoryKeys(nil)
-	plugin, ok = registry.Get("test")
+	plugin, ok := registry.Get("test")
 	require.True(t, ok)
 	assert.Equal(t, "1.0.0-factory", plugin.Meta.Version)
 }

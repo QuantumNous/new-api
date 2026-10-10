@@ -35,6 +35,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
+import { handleServerError } from '@/lib/handle-server-error'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { deleteDeployment, listDeployments, searchDeployments } from '../api'
 import { getDeploymentStatusOptions } from '../constants'
@@ -123,18 +125,22 @@ export function DeploymentsTable() {
     }),
     queryFn: async () => {
       if (keyword.trim()) {
-        return searchDeployments({
-          keyword,
+        return requireServerSuccess(
+          await searchDeployments({
+            keyword,
+            status: activeStatus,
+            p: pagination.pageIndex + 1,
+            page_size: pagination.pageSize,
+          })
+        )
+      }
+      return requireServerSuccess(
+        await listDeployments({
           status: activeStatus,
           p: pagination.pageIndex + 1,
           page_size: pagination.pageSize,
         })
-      }
-      return listDeployments({
-        status: activeStatus,
-        p: pagination.pageIndex + 1,
-        page_size: pagination.pageSize,
-      })
+      )
     },
     placeholderData: (prev) => prev,
   })
@@ -153,10 +159,10 @@ export function DeploymentsTable() {
           queryKey: deploymentsQueryKeys.lists(),
         })
       } else {
-        toast.error(res?.message || t('Delete failed'))
+        handleServerError(res, t('Delete failed'))
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t('Delete failed'))
+      handleServerError(err, t('Delete failed'))
     } finally {
       setIsDeleting(false)
       setDeleteOpen(false)

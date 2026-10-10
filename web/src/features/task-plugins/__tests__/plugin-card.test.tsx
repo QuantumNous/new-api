@@ -22,8 +22,10 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, test, vi } from 'vitest'
 
+import { MarketplacePluginCard } from '../components/marketplace-plugin-card'
 import { PluginCard } from '../components/plugin-card'
 import type { TaskPluginListItem } from '../types'
 
@@ -78,23 +80,21 @@ function PluginCardHarness({ item }: { item: TaskPluginListItem }) {
 }
 
 describe('PluginCard layout', () => {
-  test('given a plugin, the versions read as pills beside the source and runtime badges', () => {
+  test('given a plugin, the plugin version reads as a pill beside the source and runtime badges', () => {
     render(<PluginCardHarness item={makeItem()} />)
 
     const version = screen.getByText('v1.2.3')
-    const apiVersion = screen.getByText('API v1')
     const badgeRow = version.parentElement
-    expect(badgeRow).toBe(apiVersion.parentElement)
+    expect(screen.queryByText('API v1')).not.toBeInTheDocument()
     expect(badgeRow).toHaveClass('flex-wrap')
     expect(badgeRow?.textContent).toContain('source-badge')
     expect(badgeRow?.textContent).toContain('runtime-badge')
   })
 
-  test('given a plugin, the version pills carry labelled accessible names', () => {
+  test('given a plugin, the plugin version carries a labelled accessible name', () => {
     render(<PluginCardHarness item={makeItem()} />)
 
     expect(screen.getByLabelText('Active version 1.2.3')).toBeInTheDocument()
-    expect(screen.getByLabelText('API version v1')).toBeInTheDocument()
   })
 
   test('given a description, it is clamped to two lines', () => {
@@ -160,3 +160,55 @@ describe('PluginCard layout', () => {
     expect(screen.getByText('enabled-switch')).toBeInTheDocument()
   })
 })
+
+describe('PluginCard website', () => {
+  test('shows an HTTPS website with safe new-tab attributes', () => {
+    const item = makeItem()
+    item.meta.website = 'https://example.com/docs'
+    render(<PluginCardHarness item={item} />)
+    const link = screen.getByRole('link', { name: 'Plugin website' })
+    expect(link).toHaveAttribute('href', item.meta.website)
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+  test.each([undefined, 'http://example.com', 'javascript:alert(1)'])(
+    'hides website %s',
+    (website) => {
+      const item = makeItem()
+      item.meta.website = website
+      render(<PluginCardHarness item={item} />)
+      expect(
+        screen.queryByRole('link', { name: 'Plugin website' })
+      ).not.toBeInTheDocument()
+    }
+  )
+})
+
+test.each(['override', 'factory', 'override_over_factory'] as const)(
+  'marketplace entry for %s offers installation',
+  async (source) => {
+    const user = userEvent.setup()
+    const onInstall = vi.fn()
+    render(
+      <MarketplacePluginCard
+        plugin={{
+          key: 'kling',
+          name: 'Kling',
+          latest: '1.2.3',
+          versions: [{ version: '1.2.3', path: 'plugin.js' }],
+        }}
+        installed={makeItem({ source })}
+        installState={{ status: 'up_to_date', installedVersion: '1.2.3' }}
+        onInstall={onInstall}
+      />
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Select version' })
+    ).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Install' }))
+    expect(onInstall).toHaveBeenCalledOnce()
+    expect(
+      screen.queryByText('Updates with the system')
+    ).not.toBeInTheDocument()
+  }
+)

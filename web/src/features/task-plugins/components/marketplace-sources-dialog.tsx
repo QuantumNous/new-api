@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { listMarketplaceSources, updateMarketplaceSources } from '../api'
 import { isDefaultMarketplaceSource } from '../lib/marketplace'
@@ -85,7 +86,7 @@ export function MarketplaceSourcesDialog(props: MarketplaceSourcesDialogProps) {
       toast.success(t('Marketplace sources updated'))
       props.onOpenChange(false)
     },
-    onError: (error) => toast.error(error.message),
+    onError: (error) => handleServerError(error),
   })
 
   const updateRow = (index: number, patch: Partial<MarketplaceSource>) => {

@@ -62,3 +62,49 @@ func TestBuildTaskPluginViewRewritesOnlyStructuredTaskIDFields(t *testing.T) {
 	assert.Equal(t, privateTaskID, nested[1])
 
 }
+
+func TestBuildTaskPluginViewOmitsPrivatePollState(t *testing.T) {
+	task := &model.Task{
+		TaskID: "task_public_view",
+		Data:   []byte(`{"ok":true}`),
+		PrivateData: model.TaskPrivateData{
+			PluginState:  []byte(`{"req_key":"secret"}`),
+			PollFailures: 7,
+		},
+	}
+
+	view, err := BuildTaskPluginView(task)
+	require.NoError(t, err)
+	encoded, err := common.Marshal(view)
+	require.NoError(t, err)
+	var payload map[string]any
+	require.NoError(t, common.Unmarshal(encoded, &payload))
+	assert.NotContains(t, payload, "plugin_state")
+	assert.NotContains(t, payload, "poll_failures")
+	assert.NotContains(t, payload, "private_data")
+}
+
+func TestBuildTaskPluginViewEncodesKeysInMapOrder(t *testing.T) {
+	task := &model.Task{
+		TaskID:     "task_public_order",
+		Platform:   "fixture",
+		Status:     model.TaskStatusSuccess,
+		Progress:   "100%",
+		FailReason: "none",
+		CreatedAt:  1700000000,
+		UpdatedAt:  1700000100,
+		FinishTime: 1700000200,
+		Data:       []byte(`{"b":1,"a":{"10":true,"2":false}}`),
+	}
+
+	view, err := BuildTaskPluginView(task)
+	require.NoError(t, err)
+	encoded, err := common.Marshal(view)
+	require.NoError(t, err)
+	var payload map[string]any
+	require.NoError(t, common.Unmarshal(encoded, &payload))
+	require.Len(t, payload, 9)
+	reencoded, err := common.Marshal(payload)
+	require.NoError(t, err)
+	assert.Equal(t, string(reencoded), string(encoded))
+}

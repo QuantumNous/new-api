@@ -21,7 +21,7 @@ import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { GroupBadge } from '@/components/group-badge'
-import { cn } from '@/lib/utils'
+import { StatusBadgeTypeContext } from '@/components/status-badge'
 
 import { CHANNEL_STATUS } from '../constants'
 import { isTagAggregateRow, parseGroupsList } from '../lib'
@@ -59,12 +59,6 @@ function ChannelCardComponent({
     return flexRender(cell.column.columnDef.cell, cell.getContext())
   }
 
-  const fieldLabels: Record<string, string> = {
-    balance: t('Used / Remaining'),
-    response_time: t('Response'),
-    test_time: t('Last Tested'),
-  }
-
   const groups = parseGroupsList(row.original.group ?? '')
 
   const selectCell = renderCell('select')
@@ -92,7 +86,7 @@ function ChannelCardComponent({
     <ChannelRowActionsLayoutContext.Provider value='card'>
       <div
         data-state={isSelected ? 'selected' : undefined}
-        className='flex flex-col gap-3'
+        className='flex min-w-0 flex-col gap-3'
       >
         {/* Row 1: selection + type, with status badge + actions menu */}
         <div className='flex items-center justify-between gap-2'>
@@ -108,12 +102,11 @@ function ChannelCardComponent({
           </div>
         </div>
 
-        {/* Body: left column (id/name + balance) paired with a right-aligned
-          column (priority/weight + response/test time). */}
-        <div className='flex items-start justify-between gap-3'>
-          {/* Left column */}
-          <div className='flex min-w-0 flex-1 flex-col gap-3 overflow-hidden'>
-            <div className='min-w-0 text-sm'>
+        {/* Both rows share their columns: identity/balance on the left,
+          priority/response and weight/last tested on the right. */}
+        <StatusBadgeTypeContext.Provider value='text'>
+          <div className='grid grid-cols-[minmax(0,1fr)_auto_auto] items-start gap-3'>
+            <div className='min-w-0 overflow-hidden text-sm'>
               {!isTagRow && (
                 <div className={labelClass}>
                   #{sensitiveVisible ? row.original.id : SENSITIVE_MASK}
@@ -121,45 +114,45 @@ function ChannelCardComponent({
               )}
               {nameCell}
             </div>
-            <div className='min-w-0'>
-              <div className={cn('mb-1', labelClass)}>
-                {fieldLabels.balance}
+            <div className='flex min-w-0 flex-col gap-1'>
+              <span className={labelClass}>{t('Priority')}</span>
+              {priorityCell}
+            </div>
+            <div className='flex min-w-0 flex-col gap-1'>
+              <span className={labelClass}>{t('Weight')}</span>
+              {weightCell}
+            </div>
+            <dl className='col-span-3 grid grid-cols-subgrid gap-y-1'>
+              <div className='row-span-2 grid min-w-0 grid-rows-subgrid'>
+                <dt className={labelClass}>{t('Used / Remaining')}</dt>
+                <dd className='min-w-0 text-sm tabular-nums [&_[data-slot=status-badge]]:!ml-0 [&>div]:ml-0 [&>div]:flex-wrap [&>div]:gap-x-3'>
+                  {balanceCell ?? (
+                    <span className='text-muted-foreground'>-</span>
+                  )}
+                </dd>
               </div>
-              <div className='min-w-0 overflow-hidden text-sm'>
-                {balanceCell ?? (
-                  <span className='text-muted-foreground'>-</span>
-                )}
+              <div className='row-span-2 grid min-w-0 grid-rows-subgrid'>
+                <dt className={labelClass}>{t('Response')}</dt>
+                <dd className='min-w-0 text-sm tabular-nums [&_[data-slot=status-badge]]:!ml-0'>
+                  {responseCell ?? (
+                    <span className='text-muted-foreground'>-</span>
+                  )}
+                </dd>
               </div>
-            </div>
+              <div className='row-span-2 grid min-w-0 grid-rows-subgrid'>
+                <dt className={labelClass}>{t('Last Tested')}</dt>
+                <dd className='min-w-0 text-sm [&_[data-slot=status-badge]]:!ml-0'>
+                  {testCell ?? <span className='text-muted-foreground'>-</span>}
+                </dd>
+              </div>
+            </dl>
           </div>
+        </StatusBadgeTypeContext.Provider>
 
-          {/* Right column (sits on the right, content left-aligned). A single
-            grid with content-sized columns keeps Priority/Weight and
-            Response/Last Tested aligned without wasting horizontal space. */}
-          <div className='grid shrink-0 grid-cols-[auto_auto] items-center gap-x-3 gap-y-1'>
-            <span className={labelClass}>{t('Priority')}</span>
-            <span className={labelClass}>{t('Weight')}</span>
-            <div className='flex justify-start'>{priorityCell}</div>
-            <div className='flex justify-start'>{weightCell}</div>
-            <span className={cn('mt-2', labelClass)}>
-              {fieldLabels.response_time}
-            </span>
-            <span className={cn('mt-2', labelClass)}>
-              {fieldLabels.test_time}
-            </span>
-            <div className='overflow-hidden text-sm'>
-              {responseCell ?? <span className='text-muted-foreground'>-</span>}
-            </div>
-            <div className='overflow-hidden text-sm'>
-              {testCell ?? <span className='text-muted-foreground'>-</span>}
-            </div>
-          </div>
-        </div>
-
-        {/* Last row: groups span the full width, showing every group (no label) */}
+        {/* Groups retain their compact, full-width footer. */}
         <div className='min-w-0'>
           {groups.length > 0 ? (
-            <div className='-ml-1.5 flex flex-wrap gap-1'>
+            <div className='-ml-1.5 flex min-w-0 flex-wrap gap-1'>
               {groups.map((g) => (
                 <GroupBadge
                   key={g}
