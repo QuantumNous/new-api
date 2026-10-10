@@ -7250,6 +7250,15 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Last 7 days": "Last 7 days",
+    "Last 30 days": "Last 30 days",
+    "Last year": "Last year",
+    "Daily token usage by model across the last 7 days": "Daily token usage by model across the last 7 days",
+    "Daily token usage by model across the last 30 days": "Daily token usage by model across the last 30 days",
+    "Weekly token usage by model across the last year": "Weekly token usage by model across the last year",
+    "Token share by model author across the last 7 days": "Token share by model author across the last 7 days",
+    "Token share by model author across the last 30 days": "Token share by model author across the last 30 days",
+    "Token share by model author across the last year": "Token share by model author across the last year"
   }
 }

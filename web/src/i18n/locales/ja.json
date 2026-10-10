@@ -7250,6 +7250,15 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Last 7 days": "過去7日間",
+    "Last 30 days": "過去30日間",
+    "Last year": "過去1年",
+    "Daily token usage by model across the last 7 days": "過去7日間のモデル別日別トークン使用量",
+    "Daily token usage by model across the last 30 days": "過去30日間のモデル別日別トークン使用量",
+    "Weekly token usage by model across the last year": "過去1年のモデル別週別トークン使用量",
+    "Token share by model author across the last 7 days": "過去7日間のモデル作者別トークンシェア",
+    "Token share by model author across the last 30 days": "過去30日間のモデル作者別トークンシェア",
+    "Token share by model author across the last year": "過去1年のモデル作者別トークンシェア"
   }
 }
