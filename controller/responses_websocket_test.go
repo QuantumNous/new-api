@@ -229,7 +229,9 @@ func TestResponsesWSRequestRunnerRejectsRevokedCredentials(t *testing.T) {
 	}
 }
 
+// TestResponsesWSRequestRunnerUsesExistingMemoryRateLimit checks the shared limit and its error message.
 func TestResponsesWSRequestRunnerUsesExistingMemoryRateLimit(t *testing.T) {
+	require.NoError(t, i18n.Init())
 	_, token := setupResponsesWSRequestTest(t)
 	setting.ModelRequestRateLimitEnabled = true
 	setting.ModelRequestRateLimitDurationMinutes = 1
@@ -242,7 +244,11 @@ func TestResponsesWSRequestRunnerUsesExistingMemoryRateLimit(t *testing.T) {
 	apiError := runner(httptest.NewRequest(http.MethodPost, "/v1/responses", nil), "limited", handle)
 	require.NotNil(t, apiError)
 	assert.Equal(t, http.StatusTooManyRequests, apiError.StatusCode)
-	assert.Equal(t, http.StatusText(http.StatusTooManyRequests), apiError.Error())
+	expectedMessage := i18n.Translate("", i18n.MsgRateLimitTotalReached, map[string]any{
+		"Minutes": setting.ModelRequestRateLimitDurationMinutes,
+		"Max":     setting.ModelRequestRateLimitCount,
+	})
+	assert.Equal(t, common.MessageWithRequestId(expectedMessage, "limited"), apiError.Error())
 	assert.Equal(t, 1, called)
 }
 

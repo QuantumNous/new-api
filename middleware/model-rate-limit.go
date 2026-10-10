@@ -133,7 +133,7 @@ func redisRateLimitHandler(duration int64, totalMaxCount, successMaxCount int) g
 	}
 }
 
-// 内存限流处理器
+// memoryRateLimitHandler limits model requests in memory and returns localized rejection messages.
 func memoryRateLimitHandler(duration int64, totalMaxCount, successMaxCount int) gin.HandlerFunc {
 	inMemoryRateLimiter.Init(time.Duration(setting.ModelRequestRateLimitDurationMinutes) * time.Minute)
 
