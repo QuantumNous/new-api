@@ -35,7 +35,10 @@ func DecodeBase64AudioData(audioBase64 string) (string, error) {
 	// 检查并移除 data:audio/xxx;base64, 前缀
 	idx := strings.Index(audioBase64, ",")
 	if idx != -1 {
-		audioBase64 = audioBase64[idx+1:]
+		prefix := strings.ToLower(strings.TrimSpace(audioBase64[:idx]))
+		if strings.HasPrefix(prefix, "data:") && strings.Contains(prefix, ";base64") {
+			audioBase64 = audioBase64[idx+1:]
+		}
 	}
 
 	// 解码 Base64 数据
