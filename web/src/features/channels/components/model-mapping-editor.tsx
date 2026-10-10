@@ -24,6 +24,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -59,6 +60,10 @@ type ModelMappingEditorProps = {
   disabled?: boolean
   sourceModelOptions?: string[]
   targetModelOptions?: string[]
+  renderTargetPicker?: (
+    value: string,
+    onSelect: (model: string) => void
+  ) => ReactNode
   /** Shows the batch button; the caller owns the batch dialog. */
   onBatchAdd?: () => void
   /**
@@ -107,7 +112,7 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
   const [jsonError, setJsonError] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
   const nextRowIdRef = useRef(0)
-  const lastEmittedRef = useRef(props.value)
+  const lastEmittedRef = useRef<string | null>(null)
   const pendingRowFocusRef = useRef<{
     rowId: string
     field: MappingField
@@ -197,13 +202,15 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
   }
 
   const syncExternalValue = useEffectEvent(() => {
+    // Keep incomplete visual rows when the form echoes our own JSON update.
+    if (props.value === lastEmittedRef.current) return
     lastEmittedRef.current = props.value
     setJsonValue(props.value)
     parseJsonToRows(props.value)
   })
 
   const commit = () => {
-    props.onCommit?.(lastEmittedRef.current)
+    props.onCommit?.(lastEmittedRef.current ?? props.value)
   }
 
   // Only replace the draft when the external value changes, not on language changes.
@@ -482,19 +489,30 @@ export function ModelMappingEditor(props: ModelMappingEditorProps) {
                     disabled={props.disabled}
                     aria-label={t('Request Model Name')}
                   />
-                  <ComboboxInput
-                    id={rowInputId(row.id, 'to')}
-                    options={targetOptions}
-                    value={row.to}
-                    onValueChange={(value) =>
-                      handleRowChange(row.id, 'to', value)
-                    }
-                    placeholder='gpt-3.5-turbo-0125'
-                    emptyText='No matching items'
-                    allowCustomValue
-                    disabled={props.disabled}
+                  <div
+                    role='group'
                     aria-label={t('Upstream Model Name')}
-                  />
+                    className='flex min-w-0 items-center gap-1'
+                  >
+                    <div className='min-w-0 flex-1'>
+                      <ComboboxInput
+                        id={rowInputId(row.id, 'to')}
+                        options={targetOptions}
+                        value={row.to}
+                        onValueChange={(value) =>
+                          handleRowChange(row.id, 'to', value)
+                        }
+                        placeholder='gpt-3.5-turbo-0125'
+                        emptyText='No matching items'
+                        allowCustomValue
+                        disabled={props.disabled}
+                        aria-label={t('Upstream Model Name')}
+                      />
+                    </div>
+                    {props.renderTargetPicker?.(row.to, (model) =>
+                      handleRowChange(row.id, 'to', model)
+                    )}
+                  </div>
                   <Button
                     type='button'
                     variant='ghost'
