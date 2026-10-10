@@ -797,6 +797,7 @@
     "Back to Home": "Back to Home",
     "Back to login": "Back to login",
     "Back to Models": "Back to Models",
+    "Back to top": "Back to top",
     "Backed up": "Backed up",
     "Billing expressions must be a JSON object mapping models to expressions: {{error}}": "Billing expressions must be a JSON object mapping models to expressions: {{error}}",
     "Background": "Background",

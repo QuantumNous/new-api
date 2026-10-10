@@ -797,6 +797,7 @@
     "Back to Home": "返回主页",
     "Back to login": "返回登录",
     "Back to Models": "返回模型",
+    "Back to top": "返回顶部",
     "Backed up": "已备份",
     "Billing expressions must be a JSON object mapping models to expressions: {{error}}": "计费表达式配置必须是模型到表达式的 JSON 对象：{{error}}",
     "Background": "后台执行",

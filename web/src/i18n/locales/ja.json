@@ -797,6 +797,7 @@
     "Back to Home": "ホームに戻る",
     "Back to login": "ログインに戻る",
     "Back to Models": "モデルに戻る",
+    "Back to top": "トップへ戻る",
     "Backed up": "バックアップ済み",
     "Billing expressions must be a JSON object mapping models to expressions: {{error}}": "課金式の設定は、モデルと式を対応付ける JSON オブジェクトである必要があります：{{error}}",
     "Background": "バックグラウンド",

@@ -797,6 +797,7 @@
     "Back to Home": "Вернуться на главную",
     "Back to login": "Вернуться к входу",
     "Back to Models": "Вернуться к моделям",
+    "Back to top": "Наверх",
     "Backed up": "Резервная копия создана",
     "Billing expressions must be a JSON object mapping models to expressions: {{error}}": "Выражения тарификации должны быть JSON-объектом, сопоставляющим модели с выражениями: {{error}}",
     "Background": "В фоновом режиме",

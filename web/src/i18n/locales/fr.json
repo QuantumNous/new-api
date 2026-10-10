@@ -797,6 +797,7 @@
     "Back to Home": "Retour à l'accueil",
     "Back to login": "Retour à la connexion",
     "Back to Models": "Retour aux modèles",
+    "Back to top": "Retour en haut",
     "Backed up": "Sauvegardé",
     "Billing expressions must be a JSON object mapping models to expressions: {{error}}": "Les expressions de facturation doivent être un objet JSON associant les modèles aux expressions : {{error}}",
     "Background": "En arrière-plan",

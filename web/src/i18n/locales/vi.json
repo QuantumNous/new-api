@@ -797,6 +797,7 @@
     "Back to Home": "Trở về Trang chủ",
     "Back to login": "Quay lại đăng nhập",
     "Back to Models": "Quay lại Mô hình",
+    "Back to top": "Lên đầu trang",
     "Backed up": "Đã sao lưu",
     "Billing expressions must be a JSON object mapping models to expressions: {{error}}": "Biểu thức tính phí phải là đối tượng JSON ánh xạ mô hình sang biểu thức: {{error}}",
     "Background": "Chạy nền",
