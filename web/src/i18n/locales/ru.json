@@ -4968,7 +4968,7 @@
     "Regular administrators cannot promote other users to administrator": "Обычные администраторы не могут назначать других пользователей администраторами",
     "Received amount": "Полученная сумма",
     "Recent maintenance tasks running across instances and their execution status.": "Недавние задачи обслуживания, выполняемые на всех экземплярах, и их статус выполнения.",
-    "Recent success-rate samples; gray bars indicate missing data.": "Последние замеры успешности запросов; серые полоски означают отсутствие данных.",
+    "Recent success-rate samples; hollow bars indicate no data.": "Последние замеры успешности запросов; пустые полоски означают отсутствие данных.",
     "Recently completed or failed system task runs.": "Недавние запуски системных задач, завершенные или завершившиеся с ошибкой.",
     "Recently launched models": "Недавно запущенные модели",
     "Recently launched models gaining traction": "Недавно вышедшие модели, набирающие популярность",

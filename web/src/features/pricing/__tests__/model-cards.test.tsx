@@ -167,7 +167,7 @@ describe('model cards', () => {
     expect(within(metrics).queryByText(/100/)).not.toBeInTheDocument()
     expect(
       within(metrics).getByRole('img', {
-        name: 'Recent success-rate samples; gray bars indicate missing data.',
+        name: 'Recent success-rate samples; hollow bars indicate no data.',
       })
     ).toBeVisible()
     expect(screen.getByText('No description available.')).toBeVisible()
@@ -177,7 +177,7 @@ describe('model cards', () => {
   it('uses fixed spacing between hourly status bars', () => {
     render(<ModelCard model={pricingModel()} onClick={vi.fn()} />)
     const statusStrip = screen.getByRole('img', {
-      name: 'Recent success-rate samples; gray bars indicate missing data.',
+      name: 'Recent success-rate samples; hollow bars indicate no data.',
     })
     expect(statusStrip).toHaveClass('gap-px')
     expect(statusStrip).not.toHaveClass('justify-between')
@@ -513,16 +513,16 @@ describe('model cards', () => {
 
     const spans = [
       ...screen.getByRole('img', {
-        name: 'Recent success-rate samples; gray bars indicate missing data.',
+        name: 'Recent success-rate samples; hollow bars indicate no data.',
       }).children,
     ]
     expect(spans).toHaveLength(24)
     spans.forEach((slot, index) => {
       if (index === 18 || index === 23) {
-        expect(slot.classList.contains('bg-muted-foreground/15')).toBe(false)
+        expect(slot.classList.contains('border-emerald-500/40')).toBe(false)
         return
       }
-      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
+      expect(slot.classList.contains('border-emerald-500/40')).toBe(true)
     })
     vi.useRealTimers()
   })
@@ -550,12 +550,12 @@ describe('model cards', () => {
 
     const spans = [
       ...screen.getByRole('img', {
-        name: 'Recent success-rate samples; gray bars indicate missing data.',
+        name: 'Recent success-rate samples; hollow bars indicate no data.',
       }).children,
     ]
     expect(spans).toHaveLength(24)
     spans.forEach((slot) => {
-      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
+      expect(slot.classList.contains('border-emerald-500/40')).toBe(true)
     })
     vi.useRealTimers()
   })
@@ -571,12 +571,12 @@ describe('model cards', () => {
 
     const spans = [
       ...screen.getByRole('img', {
-        name: 'Recent success-rate samples; gray bars indicate missing data.',
+        name: 'Recent success-rate samples; hollow bars indicate no data.',
       }).children,
     ]
     expect(spans).toHaveLength(24)
     spans.forEach((slot) => {
-      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
+      expect(slot.classList.contains('border-emerald-500/40')).toBe(true)
     })
   })
 
@@ -603,16 +603,16 @@ describe('model cards', () => {
 
     const spans = [
       ...screen.getByRole('img', {
-        name: 'Recent success-rate samples; gray bars indicate missing data.',
+        name: 'Recent success-rate samples; hollow bars indicate no data.',
       }).children,
     ]
     expect(spans).toHaveLength(24)
     spans.forEach((slot, index) => {
       if (index === 18) {
-        expect(slot.classList.contains('bg-muted-foreground/15')).toBe(false)
+        expect(slot.classList.contains('border-emerald-500/40')).toBe(false)
         return
       }
-      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
+      expect(slot.classList.contains('border-emerald-500/40')).toBe(true)
     })
     vi.useRealTimers()
   })

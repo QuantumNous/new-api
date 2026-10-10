@@ -4968,7 +4968,7 @@
     "Regular administrators cannot promote other users to administrator": "Les administrateurs ordinaires ne peuvent pas promouvoir d’autres utilisateurs administrateurs",
     "Received amount": "Montant reçu",
     "Recent maintenance tasks running across instances and their execution status.": "Tâches de maintenance récentes exécutées sur les instances et leur état d'exécution.",
-    "Recent success-rate samples; gray bars indicate missing data.": "Échantillons récents du taux de réussite ; les barres grises indiquent des données manquantes.",
+    "Recent success-rate samples; hollow bars indicate no data.": "Échantillons récents du taux de réussite ; les barres creuses indiquent des données manquantes.",
     "Recently completed or failed system task runs.": "Exécutions de tâches système récemment terminées ou échouées.",
     "Recently launched models": "Modèles récemment lancés",
     "Recently launched models gaining traction": "Modèles récemment publiés et en forte progression",

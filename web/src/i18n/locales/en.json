@@ -4968,7 +4968,7 @@
     "Regular administrators cannot promote other users to administrator": "Regular administrators cannot promote other users to administrator",
     "Received amount": "Received amount",
     "Recent maintenance tasks running across instances and their execution status.": "Recent maintenance tasks running across instances and their execution status.",
-    "Recent success-rate samples; gray bars indicate missing data.": "Recent success-rate samples; gray bars indicate missing data.",
+    "Recent success-rate samples; hollow bars indicate no data.": "Recent success-rate samples; hollow bars indicate no data.",
     "Recently completed or failed system task runs.": "Recently completed or failed system task runs.",
     "Recently launched models": "Recently launched models",
     "Recently launched models gaining traction": "Recently launched models gaining traction",
