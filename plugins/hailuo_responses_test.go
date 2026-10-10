@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel"
 	taskplugin "github.com/QuantumNous/new-api/relay/channel/task/jsplugin"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -111,33 +112,55 @@ func TestHailuoUsageProfilesPerModel(t *testing.T) {
 	})
 }
 
+// MiniMax serves v1 videos only through the signed download_url of
+// /v1/files/retrieve; that link is signed for GET, so HEAD clients get GET too.
 func TestHailuoArtifactContentProxy(t *testing.T) {
-	source, err := builtinplugins.Source("hailuo")
-	require.NoError(t, err)
-	plugin, err := jsplugin.NewRegistry().RegisterFactory(source, jsplugin.Options{Key: "hailuo"})
-	require.NoError(t, err)
-	adaptor := taskplugin.New(plugin)
+	service.InitHttpClient()
+	const signedURL = "https://bucket.oss-cn-wulanchabu.aliyuncs.com/video.mp4?Expires=1&OSSAccessKeyId=key&Signature=sig"
+	retrieveBodies := map[string]string{
+		"file/with space": `{"file":{"file_id":1,"download_url":"` + signedURL + `"},"base_resp":{"status_code":0,"status_msg":"success"}}`,
+		"login":           `{"base_resp":{"status_code":1004,"status_msg":"login fail"}}`,
+		"missing":         `{"file":{"file_id":3},"base_resp":{"status_code":0,"status_msg":"success"}}`,
+		"html":            `<html>gateway error</html>`,
+	}
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, "/v1/files/retrieve", r.URL.Path)
+		assert.Equal(t, "Bearer test-ak", r.Header.Get("Authorization"))
+		_, _ = w.Write([]byte(retrieveBodies[r.URL.Query().Get("file_id")]))
+	}))
+	defer upstream.Close()
+	adaptor := taskplugin.New(loadHailuoPlugin(t))
 	adaptor.Init(&relaycommon.RelayInfo{
-		ChannelMeta: &relaycommon.ChannelMeta{
-			ApiKey:         "test-ak",
-			ChannelBaseUrl: "https://api.minimax.example",
-		},
+		ChannelMeta: &relaycommon.ChannelMeta{ApiKey: "test-ak", ChannelBaseUrl: upstream.URL},
 	})
-	data, err := common.Marshal(map[string]any{"file_id": "file/with space"})
-	require.NoError(t, err)
-	task := &model.Task{TaskID: "task-public", Status: model.TaskStatusSuccess, Data: data}
 
-	artifacts, err := adaptor.ListArtifacts(task)
-	require.NoError(t, err)
-	assert.Equal(t, []channel.TaskArtifact{{Key: "video", Type: "video", MimeType: "video/mp4"}}, artifacts)
+	for _, tc := range []struct {
+		fileID  string
+		wantErr string
+	}{
+		{fileID: "file/with space"},
+		{fileID: "login", wantErr: "MiniMax file retrieve failed: login fail"},
+		{fileID: "missing", wantErr: "artifact_not_found"},
+		{fileID: "html", wantErr: "MiniMax file retrieve returned an unexpected response: HTTP 200"},
+	} {
+		t.Run(tc.fileID, func(t *testing.T) {
+			data, err := common.Marshal(map[string]any{"file_id": tc.fileID})
+			require.NoError(t, err)
+			task := &model.Task{TaskID: "task-public", Status: model.TaskStatusSuccess, Data: data}
+			artifacts, err := adaptor.ListArtifacts(task)
+			require.NoError(t, err)
+			assert.Equal(t, []channel.TaskArtifact{{Key: "video", Type: "video", MimeType: "video/mp4"}}, artifacts)
 
-	descriptor, err := adaptor.BuildContentRequest(task, "video", channel.TaskArtifactClientRequest{Method: http.MethodHead})
-	require.NoError(t, err)
-	require.NotNil(t, descriptor)
-	assert.Equal(t, "https://api.minimax.example/v1/files/download?file_id=file%2Fwith%20space", descriptor.URL)
-	assert.Equal(t, http.MethodHead, descriptor.Method)
-	assert.Equal(t, map[string]string{"Accept": "video/*", "Authorization": "Bearer test-ak"}, descriptor.Headers)
-	assert.False(t, descriptor.Credentialless)
+			descriptor, err := adaptor.BuildContentRequest(t.Context(), task, "video", channel.TaskArtifactClientRequest{Method: http.MethodHead})
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, &channel.TaskContentRequest{URL: signedURL, Method: http.MethodGet, Credentialless: true}, descriptor)
+		})
+	}
 }
 
 func loadHailuoPlugin(t *testing.T) *jsplugin.LoadedPlugin {
@@ -554,7 +577,7 @@ func TestHailuoH3ArtifactContentProxy(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []channel.TaskArtifact{{Key: "video", Type: "video", MimeType: "video/mp4"}}, artifacts)
 
-	descriptor, err := adaptor.BuildContentRequest(task, "video", channel.TaskArtifactClientRequest{Method: http.MethodGet})
+	descriptor, err := adaptor.BuildContentRequest(t.Context(), task, "video", channel.TaskArtifactClientRequest{Method: http.MethodGet})
 	require.NoError(t, err)
 	require.NotNil(t, descriptor)
 	assert.Equal(t, "https://cdn.example/h3.mp4", descriptor.URL)

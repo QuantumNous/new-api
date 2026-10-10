@@ -14,8 +14,9 @@ import (
 // HTTPTransportPolicy is the runtime-normalized outbound HTTP transport policy
 // for a channel. Unknown or out-of-range stored values are clamped safely.
 type HTTPTransportPolicy struct {
-	Protocol string // dto.HTTPProtocolAuto or dto.HTTPProtocolHTTP1
-	Shards   int    // 1..dto.MaxHTTP2ConnectionShards
+	Protocol              string // dto.HTTPProtocolAuto or dto.HTTPProtocolHTTP1
+	Shards                int    // 1..dto.MaxHTTP2ConnectionShards
+	TLSInsecureSkipVerify bool
 }
 
 var httpTransportPolicyWarnings sync.Map
@@ -31,6 +32,7 @@ func defaultHTTPTransportPolicy() HTTPTransportPolicy {
 // Invalid stored values never panic; they clamp to defaults and warn once per bad value.
 func NormalizeHTTPTransportPolicy(settings dto.ChannelSettings) HTTPTransportPolicy {
 	policy := defaultHTTPTransportPolicy()
+	policy.TLSInsecureSkipVerify = settings.TLSInsecureSkipVerify
 
 	protocol := strings.ToLower(strings.TrimSpace(settings.HTTPProtocol))
 	switch protocol {
@@ -84,7 +86,7 @@ func warnHTTPTransportPolicyOnce(field, value string) {
 }
 
 func (p HTTPTransportPolicy) cacheKeyPart() string {
-	return fmt.Sprintf("%s|%d", p.Protocol, p.Shards)
+	return fmt.Sprintf("%s|%d|%t", p.Protocol, p.Shards, p.TLSInsecureSkipVerify)
 }
 
 func (p HTTPTransportPolicy) String() string {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
-	"slices"
 	"strings"
 	"time"
 
@@ -37,7 +36,7 @@ func (a *TaskAdaptor) readSubmitEvents(parent context.Context, resp *http.Respon
 	scanner := helper.NewStreamScanner(resp.Body, maxTaskPluginPersistedJSONBytes+1)
 	hook := "parseSubmitEvent"
 	var accumulated *pluginruntime.JSONState
-	if slices.Contains(a.plugin.Meta.RequiredCapabilities, pluginruntime.CapabilitySubmitSSEDelta) {
+	if pluginruntime.UsesSubmitEventDelta(a.plugin.Meta, a.plugin.Engine) {
 		hook = "parseSubmitEventDelta"
 		accumulated = pluginruntime.NewJSONState(maxTaskPluginPersistedJSONBytes)
 	}

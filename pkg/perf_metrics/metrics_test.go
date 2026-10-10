@@ -109,6 +109,11 @@ func TestHourlySuccessSeriesWeightsSmallerBuckets(t *testing.T) {
 	assert.Equal(t, []SuccessRatePoint{{Ts: 3600, SuccessRate: 99.01}, {Ts: 7200, SuccessRate: 100}}, points)
 }
 
+func TestRecentHistoryRejectsOversizedModelLists(t *testing.T) {
+	_, err := QuerySummaryAll(24, nil, make([]string, 51)...)
+	require.EqualError(t, err, "Invalid parameters")
+}
+
 // Terminal task sampling: success/failure counts, end-to-end latency, and
 // token throughput only for successful tasks that report tokens.
 func TestRecordTaskResultSamplesTerminalTasks(t *testing.T) {
@@ -181,6 +186,13 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 			t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
 			require.NoError(t, db.Migrator().DropTable(&model.PerfMetric{}))
 			require.NoError(t, db.AutoMigrate(&model.PerfMetric{}))
+			versionQuery := "SELECT version()"
+			if dialect.name == "sqlite" {
+				versionQuery = "SELECT sqlite_version()"
+			}
+			var version string
+			require.NoError(t, db.Raw(versionQuery).Scan(&version).Error)
+			t.Logf("database version: %s", version)
 
 			now := time.Now()
 			start, _ := queryWindow(now, 24)
@@ -249,6 +261,87 @@ func TestPerformanceAggregationAndFlush(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, 98.04, combined.Summary.SuccessRate)
 			assert.Equal(t, 99.01, combined.Models[0].SuccessRate)
+
+			t.Run("recent history does not change window summaries", func(t *testing.T) {
+				for i := range 26 {
+					require.NoError(t, model.UpsertPerfMetric(&model.PerfMetric{
+						ModelName: "history-model", Group: "a", BucketTs: hour - int64(i+1)*6*3600,
+						RequestCount: 1, SuccessCount: 1,
+					}))
+				}
+				for _, row := range []model.PerfMetric{
+					{ModelName: "history-model", Group: "a", BucketTs: hour + 60, RequestCount: 100, SuccessCount: 100},
+					{ModelName: "history-model", Group: "inactive", BucketTs: hour + 120, RequestCount: 100},
+					{ModelName: "history-model", Group: "a", BucketTs: hour + 2*3600, RequestCount: 1},
+					{ModelName: "history-idle", Group: "a", BucketTs: hour - 3*24*3600, RequestCount: 1},
+					{ModelName: "history-hidden", Group: "inactive", BucketTs: hour - 3*24*3600, RequestCount: 1},
+				} {
+					require.NoError(t, model.UpsertPerfMetric(&row))
+				}
+				require.NoError(t, db.Create(&model.PerfMetric{ModelName: "history-model", Group: "a", BucketTs: hour - 3600}).Error)
+				hotFailure := &atomicBucket{}
+				hotFailure.add(Sample{})
+				hotBuckets.Store(bucketKey{model: "history-model", group: "b", bucketTs: hour + 120}, hotFailure)
+				hotSuccess := &atomicBucket{}
+				hotSuccess.add(Sample{Success: true})
+				hotBuckets.Store(bucketKey{model: "history-hot", group: "a", bucketTs: hour}, hotSuccess)
+				hiddenFailure := &atomicBucket{}
+				hiddenFailure.add(Sample{})
+				hotBuckets.Store(bucketKey{model: "history-hidden", group: "inactive", bucketTs: hour}, hiddenFailure)
+
+				window, err := QuerySummaryAll(24, groups)
+				require.NoError(t, err)
+				history, err := QuerySummaryAll(24, groups, "history-model", "history-idle", "history-hidden", "history-hot", "missing")
+				require.NoError(t, err)
+				assert.Equal(t, window.Summary, history.Summary)
+				assert.ElementsMatch(t, window.Models, history.Models)
+				assert.Equal(t, window.WindowStart, history.WindowStart)
+				points := history.RecentSuccessSeries["history-model"]
+				require.Len(t, points, 24)
+				expected := make([]SuccessRatePoint, 0, 24)
+				for i := 23; i > 0; i-- {
+					expected = append(expected, SuccessRatePoint{Ts: hour - int64(i)*6*3600, SuccessRate: 100})
+				}
+				expected = append(expected, SuccessRatePoint{Ts: hour, SuccessRate: 99.01})
+				assert.Equal(t, expected, points)
+				assert.Equal(t, []SuccessRatePoint{{Ts: hour - 3*24*3600, SuccessRate: 0}}, history.RecentSuccessSeries["history-idle"])
+				assert.Equal(t, []SuccessRatePoint{{Ts: hour, SuccessRate: 100}}, history.RecentSuccessSeries["history-hot"])
+				assert.Empty(t, history.RecentSuccessSeries["history-hidden"])
+				assert.Empty(t, history.RecentSuccessSeries["missing"])
+
+				denied, err := QuerySummaryAll(24, []string{}, "history-model", "history-hidden")
+				require.NoError(t, err)
+				assert.Empty(t, denied.RecentSuccessSeries)
+				flushCompletedBuckets()
+				persisted, err := QuerySummaryAll(24, groups, "history-model", "history-hot")
+				require.NoError(t, err)
+				assert.Equal(t, points, persisted.RecentSuccessSeries["history-model"])
+				assert.Equal(t, history.RecentSuccessSeries["history-hot"], persisted.RecentSuccessSeries["history-hot"])
+			})
+
+			t.Run("recent history stops at the 7 day boundary even with fewer than 24 samples", func(t *testing.T) {
+				historyStart, _ := queryWindow(now, 7*24)
+				for _, row := range []model.PerfMetric{
+					{ModelName: "history-boundary", Group: "a", BucketTs: historyStart, RequestCount: 1, SuccessCount: 1},
+					{ModelName: "history-boundary", Group: "a", BucketTs: historyStart - 3600, RequestCount: 1},
+					{ModelName: "history-expired", Group: "a", BucketTs: historyStart - 3600, RequestCount: 1},
+				} {
+					require.NoError(t, model.UpsertPerfMetric(&row))
+				}
+				hotExpired := &atomicBucket{}
+				hotExpired.add(Sample{Success: true})
+				hotBuckets.Store(bucketKey{model: "history-hot-expired", group: "a", bucketTs: historyStart - 3600}, hotExpired)
+				hotBoundary := &atomicBucket{}
+				hotBoundary.add(Sample{Success: true})
+				hotBuckets.Store(bucketKey{model: "history-hot-boundary", group: "a", bucketTs: historyStart}, hotBoundary)
+
+				history, err := QuerySummaryAll(24, groups, "history-boundary", "history-expired", "history-hot-expired", "history-hot-boundary")
+				require.NoError(t, err)
+				assert.Equal(t, []SuccessRatePoint{{Ts: historyStart, SuccessRate: 100}}, history.RecentSuccessSeries["history-boundary"])
+				assert.Equal(t, []SuccessRatePoint{{Ts: historyStart, SuccessRate: 100}}, history.RecentSuccessSeries["history-hot-boundary"])
+				assert.Empty(t, history.RecentSuccessSeries["history-expired"])
+				assert.Empty(t, history.RecentSuccessSeries["history-hot-expired"])
+			})
 		})
 	}
 }

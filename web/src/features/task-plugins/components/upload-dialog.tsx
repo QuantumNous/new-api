@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CircleCheck, Power, Upload } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useDeferredValue, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -46,6 +46,7 @@ import {
   pluginSourceByteLength,
 } from '../lib/plugin-url'
 import type { TaskPluginDetail } from '../types'
+import { MarketplaceCapabilities } from './marketplace-capabilities'
 import { PluginIcon } from './plugin-icon'
 import { PluginSourcePicker } from './plugin-source-picker'
 import { PluginUrlImportField } from './plugin-url-import-field'
@@ -68,6 +69,8 @@ export function UploadDialog(props: UploadDialogProps) {
   const [result, setResult] = useState<TaskPluginDetail | null>(null)
   const [importUrl, setImportUrl] = useState('')
   const [importError, setImportError] = useState('')
+  // The declaration preview re-parses the whole source; let typing go first.
+  const deferredSource = useDeferredValue(source)
   const primaryActionRef = useRef<HTMLButtonElement>(null)
   const mutation = useMutation({
     mutationFn: () => uploadTaskPlugin(source, remark, icon),
@@ -316,6 +319,10 @@ export function UploadDialog(props: UploadDialogProps) {
           title={t('Plugin source')}
           value={source}
         />
+
+        {deferredSource.trim() ? (
+          <MarketplaceCapabilities source={deferredSource} />
+        ) : null}
 
         <Field>
           <FieldLabel htmlFor='task-plugin-icon'>{t('Plugin icon')}</FieldLabel>

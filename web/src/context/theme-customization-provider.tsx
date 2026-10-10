@@ -134,12 +134,8 @@ export function ThemeCustomizationProvider(props: {
     )
   }, [preset])
 
-  // Font is the one axis where we resolve before writing the attribute:
-  // the persisted preference may be `default`, but CSS works in terms of
-  // the concrete `sans`/`serif` choice that should drive the cascade.
-  // Resolving here (instead of in CSS via `:not()` selectors) keeps the
-  // stylesheet to one simple `[data-theme-font='serif']` selector and lets
-  // future presets opt into typography via `PRESET_DEFAULT_FONT` alone.
+  // Resolve Auto into the preset font or the browser's sans-serif while
+  // keeping an explicit Sans choice distinct from that browser fallback.
   useEffect(() => {
     applyAttribute('data-theme-font', resolveThemeFont(font, preset))
   }, [font, preset])

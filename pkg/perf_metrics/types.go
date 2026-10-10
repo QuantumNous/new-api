@@ -80,6 +80,9 @@ type SummaryAllResult struct {
 	WindowStart int64          `json:"window_start"`
 	WindowEnd   int64          `json:"window_end"`
 	Models      []ModelSummary `json:"models"`
+	// RecentSuccessSeries contains up to 24 nonempty hours from the last 7 days,
+	// including requested models with no traffic in the summary window.
+	RecentSuccessSeries map[string][]SuccessRatePoint `json:"recent_success_series,omitempty"`
 }
 
 type bucketKey struct {

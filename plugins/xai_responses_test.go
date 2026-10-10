@@ -1,9 +1,13 @@
 package plugins_test
 
 import (
+	"bytes"
+	"encoding/binary"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -188,7 +192,7 @@ func TestXAIModeratedVideoKeepsItsCharge(t *testing.T) {
 				return
 			}
 			assert.Equal(t, []channel.TaskArtifact{{Key: "video", Type: "video", MimeType: "video/mp4"}}, artifacts)
-			content, err := adaptor.BuildContentRequest(task, "video", channel.TaskArtifactClientRequest{Method: http.MethodGet})
+			content, err := adaptor.BuildContentRequest(t.Context(), task, "video", channel.TaskArtifactClientRequest{Method: http.MethodGet})
 			require.NoError(t, err)
 			assert.Equal(t, "https://vidgen.x.ai/v.mp4", content.URL)
 		})
@@ -234,7 +238,7 @@ func TestXAIVideoRequests(t *testing.T) {
 			wantModel: "grok-imagine-video",
 			wantPath:  "/v1/videos/edits",
 			wantBody:  map[string]any{"model": "grok-imagine-video", "prompt": "make it snow", "video": inputVideo},
-			wantFacts: map[string]any{"seconds": float64(9), "resolution": "source", "input_images": float64(0), "input_video_seconds": float64(9), "moderated": false},
+			wantFacts: map[string]any{"seconds": float64(9), "resolution": "720p", "input_images": float64(0), "input_video_seconds": float64(9), "moderated": false},
 		},
 		{
 			name:    "extension bills the added seconds",
@@ -245,7 +249,7 @@ func TestXAIVideoRequests(t *testing.T) {
 			wantModel: "grok-imagine-video",
 			wantPath:  "/v1/videos/extensions",
 			wantBody:  map[string]any{"model": "grok-imagine-video", "prompt": "keep walking", "video": inputVideo, "duration": float64(4)},
-			wantFacts: map[string]any{"seconds": float64(4), "resolution": "source", "input_images": float64(0), "input_video_seconds": float64(15), "moderated": false},
+			wantFacts: map[string]any{"seconds": float64(4), "resolution": "720p", "input_images": float64(0), "input_video_seconds": float64(15), "moderated": false},
 		},
 		{
 			name:    "OpenAI multipart upload becomes the first frame",
@@ -367,4 +371,114 @@ func TestXAIModeratedTaskPresentation(t *testing.T) {
 	encoded, err := common.Marshal(final["output"])
 	require.NoError(t, err)
 	assert.Contains(t, string(encoded), "blocked by content moderation", "renderFinal explains the missing video instead of failing on the absent artifact")
+}
+
+// An edit or extension keeps its source's resolution, which xAI never
+// reports, so the plugin reserves the 720p cap and reads the output file's
+// MP4 header to settle on the resolution xAI bills.
+func TestXAIEditSettlesOnOutputResolution(t *testing.T) {
+	service.InitHttpClient()
+	plugin := newXAIPlugin(t)
+	const videoModel = "grok-imagine-video"
+	box := func(kind string, payload ...[]byte) []byte {
+		body := bytes.Join(payload, nil)
+		header := make([]byte, 8)
+		binary.BigEndian.PutUint32(header, uint32(8+len(body)))
+		copy(header[4:], kind)
+		return append(header, body...)
+	}
+	tkhd := func(version byte, width, height uint16) []byte {
+		fields := 72
+		if version == 1 {
+			fields = 84
+		}
+		payload := make([]byte, 4+fields+8)
+		payload[0] = version
+		binary.BigEndian.PutUint16(payload[4+fields:], width)
+		binary.BigEndian.PutUint16(payload[4+fields+4:], height)
+		return box("tkhd", payload)
+	}
+	ftyp := box("ftyp", []byte("isom\x00\x00\x02\x00isomiso2mp41"))
+	// moov first, as in a streaming-friendly file; the audio track has no size.
+	faststart := bytes.Join([][]byte{ftyp, box("moov", box("mvhd", make([]byte, 100)), box("trak", tkhd(0, 0, 0)), box("trak", tkhd(1, 1280, 720))), box("mdat", make([]byte, 1000))}, nil)
+	// moov after a media box longer than the first read.
+	mdat := box("mdat", make([]byte, 300<<10))
+	tail := bytes.Join([][]byte{ftyp, mdat, box("moov", box("trak", tkhd(0, 854, 480)))}, nil)
+	var ranges []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/faststart.mp4": // ignores Range
+			_, _ = w.Write(faststart)
+		case "/tail.mp4":
+			ranges = append(ranges, r.Header.Get("Range"))
+			http.ServeContent(w, r, "tail.mp4", time.Time{}, bytes.NewReader(tail))
+		case "/text.mp4":
+			_, _ = w.Write([]byte("not a video"))
+		default:
+			w.WriteHeader(http.StatusForbidden)
+		}
+	}))
+	defer server.Close()
+
+	const expression = `u("resolution") == "720p" ? tier("720p", u("seconds") * 0.07 + u("input_video_seconds") * 0.01) : ` +
+		`tier("480p", u("seconds") * 0.05 + u("input_video_seconds") * 0.01)`
+	schema, _ := plugin.Meta.UsageForModel(videoModel)
+	require.NoError(t, billing_setting.SmokeTestTaskExpr(expression, schema))
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:     &relaycommon.ChannelMeta{ChannelBaseUrl: server.URL, ApiKey: "xai-key", UpstreamModelName: videoModel},
+		OriginModelName: videoModel,
+		TaskRelayInfo:   &relaycommon.TaskRelayInfo{PublicTaskID: "task_public", Action: "video_extension"},
+	}
+	adaptor := taskplugin.New(plugin)
+	adaptor.Init(info)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/xai/v1/videos/extensions", nil)
+	c.Set("task_request", map[string]any{"model": videoModel, "prompt": "keep walking", "video": map[string]any{"url": "https://cdn.example/in.mp4"}, "duration": 6})
+	require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+	reserved, err := adaptor.ExtractUsageFactsValidated(c, info)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"seconds": float64(6), "resolution": "720p", "input_images": float64(0), "input_video_seconds": float64(15), "moderated": false}, reserved)
+	snapshot := &billingexpr.BillingSnapshot{
+		BillingMode: billing_setting.BillingModeTieredExpr, ModelName: videoModel, ExprString: expression, ExprHash: billingexpr.ExprHashString(expression),
+		GroupRatio: 1, QuotaPerUnit: 500000, ExprVersion: billingexpr.ExprVersion(expression), TaskUsageBilling: true, UsageFacts: reserved,
+	}
+
+	for _, tc := range []struct {
+		name           string
+		path           string
+		wantResolution string
+		wantTier       string
+		wantQuota      int
+	}{
+		{name: "a file served whole settles on its 720p track", path: "/faststart.mp4", wantResolution: "720p", wantTier: "720p", wantQuota: 250000},
+		{name: "a moov after the media is read by Range", path: "/tail.mp4", wantResolution: "480p", wantTier: "480p", wantQuota: 190000},
+		{name: "a file that is not MP4 keeps the reserved cap", path: "/text.mp4", wantTier: "720p", wantQuota: 250000},
+		{name: "an unreadable file keeps the reserved cap", path: "/missing.mp4", wantTier: "720p", wantQuota: 250000},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := `{"status":"done","progress":100,"video":{"url":"` + server.URL + tc.path + `","duration":14,"respect_moderation":true}}`
+			task := &model.Task{
+				TaskID: "task_public", Action: "video_extension", Data: []byte(body),
+				Properties:  model.Properties{OriginModelName: videoModel, UpstreamModelName: videoModel},
+				PrivateData: model.TaskPrivateData{PluginState: []byte(`{"extension_seconds":6}`)},
+			}
+			result, err := adaptor.ParseTaskResult(task, &http.Response{StatusCode: http.StatusOK, Header: make(http.Header)}, []byte(body))
+			require.NoError(t, err)
+			assert.Equal(t, "SUCCESS", result.Status)
+			wantFacts := map[string]any{"input_video_seconds": float64(8)}
+			if tc.wantResolution == "" {
+				assert.Empty(t, result.PluginState)
+			} else {
+				wantFacts["resolution"] = tc.wantResolution
+				assert.JSONEq(t, `{"extension_seconds":6,"output_resolution":"`+tc.wantResolution+`"}`, string(result.PluginState))
+			}
+			assert.Equal(t, wantFacts, result.UsageFacts)
+			settled, _, err := service.EvaluateTaskCompletionUsage(snapshot, result.UsageFacts)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantTier, settled.MatchedTier)
+			assert.Equal(t, tc.wantQuota, settled.ActualQuotaAfterGroup)
+		})
+	}
+	moov := len(ftyp) + len(mdat)
+	assert.Equal(t, []string{"bytes=0-65535", fmt.Sprintf("bytes=%d-%d", moov, moov+65535)}, ranges, "the file is read in pieces, never whole")
 }

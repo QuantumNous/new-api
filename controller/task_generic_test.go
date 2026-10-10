@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -399,6 +400,87 @@ func TestDisabledArtifactStorePreservesPluginUpstreamContent(t *testing.T) {
 	assert.Equal(t, "artifact-bytes", recorder.Body.String())
 	assert.Equal(t, "video/mp4", recorder.Header().Get("Content-Type"))
 	assert.Equal(t, "bytes 0-13/14", recorder.Header().Get("Content-Range"))
+}
+
+// hailuo looks the MiniMax download link up with utils.fetch; the signed OSS
+// link then gets a plain GET without the channel key, even for HEAD clients.
+func TestTaskArtifactContentFollowsHailuoRetrieveLink(t *testing.T) {
+	task := setupGenericTaskTest(t)
+	var mu sync.Mutex
+	var ossRequests []string
+	var upstream *httptest.Server
+	upstream = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/files/retrieve":
+			assert.Equal(t, "Bearer provider-key", r.Header.Get("Authorization"))
+			if r.URL.Query().Get("file_id") == "login-fail" {
+				_, _ = w.Write([]byte(`{"base_resp":{"status_code":1004,"status_msg":"login fail"}}`))
+				return
+			}
+			_, _ = w.Write([]byte(`{"file":{"download_url":"` + upstream.URL + `/oss/video.mp4?Expires=1&Signature=sig"},"base_resp":{"status_code":0}}`))
+		case "/oss/video.mp4":
+			mu.Lock()
+			ossRequests = append(ossRequests, r.Method+" range="+r.Header.Get("Range")+" authorization="+r.Header.Get("Authorization"))
+			mu.Unlock()
+			w.Header().Set("Content-Type", "video/mp4")
+			if r.Header.Get("Range") != "" {
+				w.Header().Set("Content-Range", "bytes 0-3/10")
+				w.WriteHeader(http.StatusPartialContent)
+				_, _ = w.Write([]byte("mp4!"))
+				return
+			}
+			_, _ = w.Write([]byte("mp4!video!"))
+		default:
+			t.Errorf("unexpected upstream request %s", r.URL.Path)
+		}
+	}))
+	defer upstream.Close()
+	allowPrivateTaskMediaTest(t)
+	previousMemoryCache := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = false
+	t.Cleanup(func() { common.MemoryCacheEnabled = previousMemoryCache })
+
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", task.ChannelId).Updates(map[string]any{
+		"type":     constant.ChannelTypeMiniMax,
+		"key":      "provider-key",
+		"base_url": upstream.URL,
+	}).Error)
+	task.Platform = constant.TaskPlatform("hailuo")
+	task.PrivateData.Execution = &model.TaskExecutionSnapshot{TaskPlugin: &model.TaskPluginSnapshot{
+		Key: "hailuo", Name: "Hailuo", Version: "1.2.0", APIVersion: 1,
+	}}
+	request := func(method, fileID string) *httptest.ResponseRecorder {
+		task.SetData(map[string]any{"file_id": fileID})
+		require.NoError(t, model.DB.Save(task).Error)
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Set("id", 7)
+		c.Params = gin.Params{{Key: "key", Value: task.TaskID}, {Key: "artifact_key", Value: "video"}}
+		c.Request = httptest.NewRequest(method, "/v1/tasks/"+task.TaskID+"/artifacts/video/content", nil)
+		if method == http.MethodGet {
+			c.Request.Header.Set("Range", "bytes=0-3")
+		}
+		TaskArtifactContent(c)
+		return recorder
+	}
+
+	ranged := request(http.MethodGet, "file-1")
+	assert.Equal(t, http.StatusPartialContent, ranged.Code)
+	assert.Equal(t, "mp4!", ranged.Body.String())
+	assert.Equal(t, "bytes 0-3/10", ranged.Header().Get("Content-Range"))
+
+	head := request(http.MethodHead, "file-1")
+	assert.Equal(t, http.StatusOK, head.Code)
+	assert.Empty(t, head.Body.String())
+	assert.Equal(t, "video/mp4", head.Header().Get("Content-Type"))
+
+	failed := request(http.MethodGet, "login-fail")
+	assert.Equal(t, http.StatusInternalServerError, failed.Code)
+	assert.Contains(t, failed.Body.String(), "artifact_plugin_error")
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, []string{"GET range=bytes=0-3 authorization=", "GET range= authorization="}, ossRequests)
 }
 
 func TestProjectedTaskArtifactValidationRejectsAmbiguousIdentity(t *testing.T) {

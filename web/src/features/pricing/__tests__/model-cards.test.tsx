@@ -156,31 +156,103 @@ describe('model cards', () => {
     expect(onClick).toHaveBeenCalledWith(name)
   })
 
-  it('retains a neutral health strip and missing values when metrics are unavailable', () => {
+  it('shows missing values without placeholder bars when metrics are unavailable', () => {
     render(<ModelCard model={pricingModel()} onClick={vi.fn()} />)
     const metrics = screen.getByLabelText(
       'Performance metrics for the last 24 hours'
     )
-    expect(within(metrics).getByText('—')).toBeVisible()
+    expect(within(metrics).getAllByText('—')).toHaveLength(2)
     expect(within(metrics).getByText('—s')).toBeVisible()
     expect(within(metrics).getByText('—t/s')).toBeVisible()
     expect(within(metrics).queryByText(/100/)).not.toBeInTheDocument()
-    expect(
-      within(metrics).getByRole('img', {
-        name: 'Recent success-rate samples; gray bars indicate missing data.',
-      })
-    ).toBeVisible()
+    const statusStrip = within(metrics).getByRole('img', {
+      name: 'No performance data available',
+    })
+    expect(statusStrip).toHaveTextContent('—')
+    expect(statusStrip.querySelectorAll('[aria-hidden]')).toHaveLength(0)
     expect(screen.getByText('No description available.')).toBeVisible()
     expect(screen.getByRole('button', { name: 'Details' })).toBeEnabled()
   })
 
-  it('uses fixed spacing between hourly status bars', () => {
-    render(<ModelCard model={pricingModel()} onClick={vi.fn()} />)
+  it('uses fixed spacing between available status samples', () => {
+    render(
+      <ModelCard
+        model={pricingModel()}
+        onClick={vi.fn()}
+        perf={{
+          avg_latency_ms: 1200,
+          avg_tps: 42,
+          success_rate: 50,
+          recent_success_series: [
+            { ts: 3600, success_rate: 100 },
+            { ts: 18000, success_rate: 0 },
+          ],
+        }}
+      />
+    )
     const statusStrip = screen.getByRole('img', {
-      name: 'Recent success-rate samples; gray bars indicate missing data.',
+      name: 'Success rate',
     })
     expect(statusStrip).toHaveClass('gap-px')
     expect(statusStrip).not.toHaveClass('justify-between')
+  })
+
+  it('shows server history for idle models while preserving the current window metrics', async () => {
+    const request = vi.spyOn(api, 'get').mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          models: [
+            {
+              model_name: 'active-model',
+              avg_latency_ms: 1200,
+              avg_tps: 42,
+              success_rate: 99.8,
+              recent_success_series: [{ ts: 7200, success_rate: 0 }],
+            },
+          ],
+          recent_success_series: {
+            'active-model': [{ ts: 3600, success_rate: 100 }],
+            'idle-model': [
+              { ts: 3600, success_rate: 0 },
+              { ts: 7200, success_rate: 100 },
+            ],
+          },
+        },
+      },
+    })
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ModelCardGrid
+          models={[
+            pricingModel({ model_name: 'active-model' }),
+            pricingModel({ id: 2, model_name: 'idle-model' }),
+          ]}
+          onModelClick={vi.fn()}
+        />
+      </QueryClientProvider>
+    )
+    await screen.findByText('99.80%')
+    expect(request).toHaveBeenCalledWith('/api/perf-metrics/summary', {
+      params: { hours: 24, recent_model: ['active-model', 'idle-model'] },
+      paramsSerializer: { indexes: null },
+    })
+    const [active, idle] = screen.getAllByLabelText(
+      'Performance metrics for the last 24 hours'
+    )
+    expect(within(active).getByText('1.20s')).toBeVisible()
+    expect(
+      within(active).getByRole('img', { name: 'Success rate' }).children[0]
+    ).toHaveClass('bg-emerald-500')
+    const samples = within(idle).getByRole('img', {
+      name: 'Success rate',
+    }).children
+    expect(samples).toHaveLength(2)
+    expect(samples[0]).toHaveClass('bg-red-500')
+    expect(samples[1]).toHaveClass('bg-emerald-500')
+    expect(within(idle).getByText('—')).toBeVisible()
+    expect(within(idle).getByText('—s')).toBeVisible()
+    expect(within(idle).getByText('—t/s')).toBeVisible()
   })
 
   it('keeps group, endpoint and tag overflow counts with their own metadata', () => {
@@ -262,7 +334,7 @@ describe('model cards', () => {
       const metrics = screen.getByLabelText(
         'Performance metrics for the last 24 hours'
       )
-      expect(within(metrics).getByText(expected)).toBeVisible()
+      expect(within(metrics).getAllByText(expected)[0]).toBeVisible()
       expect(within(metrics).getByText('Status')).toBeVisible()
       expect(within(metrics).getByText('1.20s')).toBeVisible()
       expect(within(metrics).getByText('42.0t/s')).toBeVisible()
@@ -419,7 +491,7 @@ describe('model cards', () => {
     expect(screen.getByText(expression)).toBeVisible()
   })
 
-  it('keeps browsing and neutral health placeholders available after the metrics request fails', async () => {
+  it('keeps browsing and missing metric values available after the metrics request fails', async () => {
     const request = vi
       .spyOn(api, 'get')
       .mockRejectedValue(new Error('metrics unavailable'))
@@ -431,26 +503,30 @@ describe('model cards', () => {
     )
     await waitFor(() =>
       expect(
-        queryClient.getQueryState(['perf-metrics-summary', 24])?.status
+        queryClient.getQueryState([
+          'perf-metrics-summary',
+          24,
+          ['example-model'],
+        ])?.status
       ).toBe('error')
     )
     expect(request).toHaveBeenCalledWith('/api/perf-metrics/summary', {
-      params: { hours: 24 },
+      params: { hours: 24, recent_model: ['example-model'] },
+      paramsSerializer: { indexes: null },
     })
     expect(
       within(
         screen.getByLabelText('Performance metrics for the last 24 hours')
       ).getAllByText(/^—/)
-    ).toHaveLength(3)
+    ).toHaveLength(4)
     const user = userEvent.setup()
     await user.click(screen.getByRole('button', { name: 'Details' }))
     expect(onModelClick).toHaveBeenCalledWith('example-model')
   })
 
   it('paginates the model cards and disables navigation at both boundaries', async () => {
-    queryClient.setQueryData(['perf-metrics-summary', 24], {
-      success: true,
-      data: { models: [] },
+    const request = vi.spyOn(api, 'get').mockResolvedValue({
+      data: { success: true, data: { models: [] } },
     })
     const models = Array.from({ length: 21 }, (_, index) =>
       pricingModel({ id: index + 1, model_name: `model-${index + 1}` })
@@ -463,16 +539,27 @@ describe('model cards', () => {
     )
     expect(screen.getByRole('button', { name: 'Previous page' })).toBeDisabled()
     expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(20)
+    expect(request).toHaveBeenCalledWith('/api/perf-metrics/summary', {
+      params: {
+        hours: 24,
+        recent_model: models.slice(0, 20).map((model) => model.model_name),
+      },
+      paramsSerializer: { indexes: null },
+    })
     await user.click(screen.getByRole('button', { name: 'Next page' }))
     expect(screen.getAllByRole('heading', { level: 3 })).toHaveLength(1)
     expect(screen.getByRole('heading', { name: 'model-21' })).toBeVisible()
+    expect(request).toHaveBeenLastCalledWith('/api/perf-metrics/summary', {
+      params: { hours: 24, recent_model: ['model-21'] },
+      paramsSerializer: { indexes: null },
+    })
     expect(screen.getByRole('button', { name: 'Next page' })).toBeDisabled()
     await user.click(screen.getByRole('button', { name: 'Previous page' }))
     expect(screen.getByRole('heading', { name: 'model-1' })).toBeVisible()
   })
 
   it('switches the card grid to three columns at the xl breakpoint instead of 2xl', () => {
-    queryClient.setQueryData(['perf-metrics-summary', 24], {
+    queryClient.setQueryData(['perf-metrics-summary', 24, ['example-model']], {
       success: true,
       data: { models: [] },
     })
@@ -489,7 +576,7 @@ describe('model cards', () => {
     expect(grid).not.toHaveClass('min-[1440px]:grid-cols-3')
   })
 
-  it('lights slots 23 and 18 when series has the current hour and five hours earlier', () => {
+  it('shows only sparse valid samples in chronological order without placeholder bars', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-07T12:00:00.000Z'))
     const currentHourStart = Math.floor(Date.now() / 1000 / 3600) * 3600
@@ -506,6 +593,7 @@ describe('model cards', () => {
           recent_success_series: [
             { ts: currentHourStart, success_rate: 100 },
             { ts: currentHourStart - 5 * 3600, success_rate: 80 },
+            { ts: currentHourStart - 3 * 3600, success_rate: 0 },
           ],
         }}
       />
@@ -513,25 +601,63 @@ describe('model cards', () => {
 
     const spans = [
       ...screen.getByRole('img', {
-        name: 'Recent success-rate samples; gray bars indicate missing data.',
+        name: 'Success rate',
       }).children,
     ]
-    expect(spans).toHaveLength(24)
-    spans.forEach((slot, index) => {
-      if (index === 18 || index === 23) {
-        expect(slot.classList.contains('bg-muted-foreground/15')).toBe(false)
-        return
-      }
-      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
-    })
+    expect(spans).toHaveLength(3)
+    expect(spans[0]).toHaveClass('bg-amber-500')
+    expect(spans[1]).toHaveClass('bg-red-500')
+    expect(spans[2]).toHaveClass('bg-emerald-500')
     vi.useRealTimers()
   })
 
-  it('keeps all 24 slots gray when a series point is 24 hours before the current hour', () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-09-07T12:00:00.000Z'))
-    const currentHourStart = Math.floor(Date.now() / 1000 / 3600) * 3600
+  it('skips invalid samples without inserting gaps or dropping a zero success rate', () => {
+    const windowStart = Date.parse('2026-09-07T00:00:00.000Z') / 1000
+    render(
+      <ModelCard
+        model={pricingModel()}
+        onClick={vi.fn()}
+        perf={{
+          avg_latency_ms: 1200,
+          avg_tps: 42,
+          success_rate: 50,
+          window_start: windowStart,
+          recent_success_series: [
+            { ts: windowStart, success_rate: 100 },
+            { ts: windowStart + 3600, success_rate: Number.NaN },
+            { ts: windowStart + 2 * 3600, success_rate: -1 },
+            { ts: windowStart + 3 * 3600, success_rate: 101 },
+            {
+              ts: windowStart + 4 * 3600,
+              success_rate: Number.POSITIVE_INFINITY,
+            },
+            { ts: windowStart + 5 * 3600, success_rate: 0 },
+            { ts: Number.NaN, success_rate: 100 },
+          ],
+        }}
+      />
+    )
 
+    const spans = [
+      ...screen.getByRole('img', {
+        name: 'Success rate',
+      }).children,
+    ]
+    expect(spans).toHaveLength(2)
+    expect(spans[0]).toHaveClass('bg-emerald-500')
+    expect(spans[1]).toHaveClass('bg-red-500')
+  })
+
+  it('shows the latest 24 valid samples without requiring hourly window metadata or mutating the series', () => {
+    const recentSeries = [
+      { ts: 0, success_rate: 0 },
+      ...Array.from({ length: 24 }, (_, index) => ({
+        ts: (index + 1) * 7200,
+        success_rate: 100,
+      })),
+      { ts: 25 * 7200, success_rate: Number.NaN },
+    ].reverse()
+    const originalSeries = [...recentSeries]
     render(
       <ModelCard
         model={pricingModel()}
@@ -540,47 +666,48 @@ describe('model cards', () => {
           avg_latency_ms: 1200,
           avg_tps: 42,
           success_rate: 100,
-          window_start: currentHourStart - 23 * 3600,
-          recent_success_series: [
-            { ts: currentHourStart - 24 * 3600, success_rate: 100 },
-          ],
+          recent_success_series: recentSeries,
         }}
       />
     )
 
     const spans = [
       ...screen.getByRole('img', {
-        name: 'Recent success-rate samples; gray bars indicate missing data.',
+        name: 'Success rate',
       }).children,
     ]
     expect(spans).toHaveLength(24)
-    spans.forEach((slot) => {
-      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
+    spans.forEach((sample) => {
+      expect(sample).toHaveClass('bg-emerald-500')
     })
-    vi.useRealTimers()
+    expect(recentSeries).toEqual(originalSeries)
   })
 
-  it('keeps all 24 slots gray when recent_success_series is undefined', () => {
-    render(
-      <ModelCard
-        model={pricingModel()}
-        onClick={vi.fn()}
-        perf={{ avg_latency_ms: 1200, avg_tps: 42, success_rate: 100 }}
-      />
-    )
+  it.each([undefined, [], [{ ts: 3600, success_rate: Number.NaN }]])(
+    'shows an empty state without bars when the series has no valid samples: %j',
+    (series) => {
+      render(
+        <ModelCard
+          model={pricingModel()}
+          onClick={vi.fn()}
+          perf={{
+            avg_latency_ms: 1200,
+            avg_tps: 42,
+            success_rate: 100,
+            recent_success_series: series,
+          }}
+        />
+      )
 
-    const spans = [
-      ...screen.getByRole('img', {
-        name: 'Recent success-rate samples; gray bars indicate missing data.',
-      }).children,
-    ]
-    expect(spans).toHaveLength(24)
-    spans.forEach((slot) => {
-      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
-    })
-  })
+      const statusStrip = screen.getByRole('img', {
+        name: 'No performance data available',
+      })
+      expect(statusStrip).toHaveTextContent('—')
+      expect(statusStrip.querySelectorAll('[aria-hidden]')).toHaveLength(0)
+    }
+  )
 
-  it('uses the server window even when the browser clock is a day ahead', () => {
+  it('shows a single server sample without padding when the browser clock is a day ahead', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-07T12:37:00.000Z'))
     const currentHourStart = Math.floor(Date.now() / 1000 / 3600) * 3600
@@ -603,17 +730,11 @@ describe('model cards', () => {
 
     const spans = [
       ...screen.getByRole('img', {
-        name: 'Recent success-rate samples; gray bars indicate missing data.',
+        name: 'Success rate',
       }).children,
     ]
-    expect(spans).toHaveLength(24)
-    spans.forEach((slot, index) => {
-      if (index === 18) {
-        expect(slot.classList.contains('bg-muted-foreground/15')).toBe(false)
-        return
-      }
-      expect(slot.classList.contains('bg-muted-foreground/15')).toBe(true)
-    })
+    expect(spans).toHaveLength(1)
+    expect(spans[0]).toHaveClass('bg-amber-500')
     vi.useRealTimers()
   })
 })
