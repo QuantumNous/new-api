@@ -9,6 +9,11 @@ type OpenAIModels struct {
 	Created                int                  `json:"created"`
 	OwnedBy                string               `json:"owned_by"`
 	SupportedEndpointTypes []types.EndpointType `json:"supported_endpoint_types"`
+	// MaxModelLen is the maximum context window advertised by the upstream
+	// serving engine (vLLM/SGLang report it as max_model_len). Zero means
+	// unknown and is omitted from the JSON payload so non-probing channels
+	// keep the exact same response shape as before.
+	MaxModelLen int64 `json:"max_model_len,omitempty"`
 }
 
 type AnthropicModel struct {
