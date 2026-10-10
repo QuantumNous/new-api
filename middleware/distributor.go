@@ -441,6 +441,13 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			modelRequest.Model = modelName
 		}
 		c.Set("relay_mode", relayMode)
+	} else if strings.HasPrefix(c.Request.URL.Path, "/v1/file_parse") {
+		// MinerU document parsing: multipart form, model optional (defaults to mineru)
+		if req, err := getModelFromRequest(c); err == nil && req.Model != "" {
+			modelRequest.Model = req.Model
+		}
+		modelRequest.Model = common.GetStringIfEmpty(modelRequest.Model, "mineru")
+		c.Set("relay_mode", relayconstant.RelayModeMinerU)
 	} else if !strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") && !strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
 		req, err := getModelFromRequest(c)
 		if err != nil {
