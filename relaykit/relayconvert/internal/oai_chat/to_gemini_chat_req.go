@@ -329,6 +329,12 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 						Text: part.Text,
 					})
 				}
+			} else if part.Type == dto.ContentTypeFile {
+				filePart, err := sharedgemini.BuildGeminiPartFromOpenAIFile(c, part.GetFile(), opts.Gemini.AllowRemoteFileURI)
+				if err != nil {
+					return nil, err
+				}
+				parts = append(parts, filePart)
 			} else {
 				source := part.ToFileSource()
 				if source == nil {

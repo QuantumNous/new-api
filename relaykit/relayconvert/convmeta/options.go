@@ -80,6 +80,10 @@ type GeminiOptions struct {
 	// FunctionCallThoughtSignatureEnabled attaches thoughtSignature bypass
 	// values to function-call parts.
 	FunctionCallThoughtSignatureEnabled bool
+	// AllowRemoteFileURI controls whether Chat type:file http(s)/gs:// addresses
+	// are forwarded as Gemini fileData.fileUri without downloading. Vertex AI
+	// typically sets this true; Google AI Studio defaults to false (inline).
+	AllowRemoteFileURI bool
 	// SupportsImagine reports whether the model supports image generation
 	// (switches response modalities). Nil means "never".
 	SupportsImagine func(modelName string) bool
