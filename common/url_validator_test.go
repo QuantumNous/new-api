@@ -48,6 +48,18 @@ func TestValidateRedirectURL(t *testing.T) {
 			trustedDomains: []string{"example.com"},
 			wantErr:        false,
 		},
+		{
+			name:           "root dot URL domain",
+			url:            "https://example.com./success",
+			trustedDomains: []string{"example.com"},
+			wantErr:        false,
+		},
+		{
+			name:           "root dot trusted domain",
+			url:            "https://sub.example.com/success",
+			trustedDomains: []string{"example.com."},
+			wantErr:        false,
+		},
 
 		// Invalid cases - untrusted domain
 		{
