@@ -68,6 +68,7 @@ type FlowNodeRank = {
 }
 
 type FlowPathContext = {
+  noApiTokenLabel?: string
   deletedTokenLabel?: (tokenId: number) => string
 }
 
@@ -187,15 +188,33 @@ function nodeNameNode(row: FlowQuotaDataItem): FlowPathNode {
 
 function tokenNode(row: FlowQuotaDataItem, ctx: FlowPathContext): FlowPathNode {
   const tokenID = numberValue(row.token_id)
+  let id =
+    tokenID > 0 ? `token:${tokenID}` : `token:${row.token_name || 'unknown'}`
+  if (
+    tokenID <= 0 &&
+    !row.token_name &&
+    row.token_id !== undefined &&
+    row.token_id !== 0
+  ) {
+    // Keep invalid IDs separate from no-token traffic and named token IDs.
+    id = 'invalid-token:unknown'
+  }
   return {
-    id:
-      tokenID > 0 ? `token:${tokenID}` : `token:${row.token_name || 'unknown'}`,
-    label: row.token_name || deletedTokenLabel(tokenID, ctx),
+    id,
+    label: row.token_name || unnamedTokenLabel(row.token_id, ctx),
     kind: 'token',
   }
 }
 
-function deletedTokenLabel(tokenID: number, ctx: FlowPathContext): string {
+function unnamedTokenLabel(
+  tokenID: number | undefined,
+  ctx: FlowPathContext
+): string {
+  // The flow API omits zero token IDs via omitempty.
+  if (tokenID === undefined || tokenID === 0) {
+    return ctx.noApiTokenLabel ?? 'No API Token'
+  }
+  tokenID = numberValue(tokenID)
   if (tokenID <= 0) return 'Unknown Token'
   return ctx.deletedTokenLabel?.(tokenID) ?? `token-${tokenID}`
 }
@@ -977,6 +996,7 @@ export function buildDashboardFlowData(
   const role = options.role ?? DEFAULT_FLOW_ROLE
   const palette = options.colorPalette
   const ctx = {
+    noApiTokenLabel: options.noApiTokenLabel,
     deletedTokenLabel: options.deletedTokenLabel,
   }
   const stages = resolveVisibleStages(role, options.visibleStages)

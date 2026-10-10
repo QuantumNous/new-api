@@ -3919,6 +3919,7 @@
     "No API keys available. Create your first API key to get started.": "沒有可用的 API 金鑰。建立您的第一個 API 金鑰即可開始使用。",
     "No API Keys Found": "未找到 API 金鑰",
     "No API routes configured": "未設定 API 路由",
+    "No API Token": "無 API 權杖",
     "No API tokens": "無 API 金鑰",
     "No app usage data available for this model.": "該模型暫無套用使用數據。",
     "No apps match the selected filters": "沒有匹配篩選條件的套用",

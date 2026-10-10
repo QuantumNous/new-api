@@ -3919,6 +3919,7 @@
     "No API keys available. Create your first API key to get started.": "Нет доступных ключей API. Создайте свой первый ключ API, чтобы начать.",
     "No API Keys Found": "Ключи API не найдены",
     "No API routes configured": "Нет настроенных маршрутов API",
+    "No API Token": "Без API-токена",
     "No API tokens": "Нет API-ключей",
     "No app usage data available for this model.": "Данные об использовании приложений для этой модели пока недоступны.",
     "No apps match the selected filters": "Нет приложений, соответствующих фильтрам",
