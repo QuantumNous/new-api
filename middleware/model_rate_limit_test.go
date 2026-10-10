@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -43,6 +44,7 @@ func TestModelRedisRateLimitUsesUTCRegardlessOfLocalTimezone(t *testing.T) {
 var modelRateLimitTestUsers atomic.Int64
 
 func TestModelRateLimitStreamFailuresDoNotConsumeSuccessLimit(t *testing.T) {
+	require.NoError(t, i18n.Init())
 	for _, backend := range []string{"memory", "redis"} {
 		for _, totalLimit := range []int{0, 2} {
 			t.Run(fmt.Sprintf("%s/total=%d", backend, totalLimit), func(t *testing.T) {
@@ -76,6 +78,7 @@ func TestModelRateLimitStreamFailuresDoNotConsumeSuccessLimit(t *testing.T) {
 }
 
 func TestModelMemoryRateLimitReservesConcurrentSuccessAdmission(t *testing.T) {
+	require.NoError(t, i18n.Init())
 	userID := 7200000 + int(modelRateLimitTestUsers.Add(1))
 	entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	router := gin.New()
@@ -99,4 +102,27 @@ func TestModelMemoryRateLimitReservesConcurrentSuccessAdmission(t *testing.T) {
 	<-finished
 	assert.Equal(t, http.StatusOK, performRateLimitRequest(router, "/completed", "127.0.0.1:1000").Code)
 	assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/completed", "127.0.0.1:1000").Code)
+}
+
+func TestModelMemoryRateLimitRejectionsReturnErrorMessage(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	for _, tc := range []struct {
+		name                     string
+		totalLimit, successLimit int
+	}{
+		{name: "total", totalLimit: 1, successLimit: 0},
+		{name: "success", totalLimit: 0, successLimit: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			userID := 7200000 + int(modelRateLimitTestUsers.Add(1))
+			router := gin.New()
+			router.GET("/", func(c *gin.Context) { c.Set("id", userID) }, memoryRateLimitHandler(60, tc.totalLimit, tc.successLimit), func(c *gin.Context) {
+				c.Status(http.StatusOK)
+			})
+			require.Equal(t, http.StatusOK, performRateLimitRequest(router, "/", "127.0.0.1:1000").Code)
+			resp := performRateLimitRequest(router, "/", "127.0.0.1:1000")
+			assert.Equal(t, http.StatusTooManyRequests, resp.Code)
+			assert.Contains(t, resp.Body.String(), `"error"`)
+		})
+	}
 }
