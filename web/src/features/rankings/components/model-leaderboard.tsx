@@ -79,7 +79,7 @@ function ModelList(props: {
               : 'flex items-center gap-3 py-2.5'
           }
         >
-          <span className='text-muted-foreground/80 w-6 shrink-0 text-right font-mono text-xs tabular-nums'>
+          <span className='text-muted-foreground/80 w-6 shrink-0 text-end font-mono text-xs tabular-nums'>
             {row.rank}.
           </span>
           <span className='shrink-0'>
@@ -109,7 +109,7 @@ function ModelList(props: {
               </VendorLink>
             </p>
           </div>
-          <div className='shrink-0 text-right'>
+          <div className='shrink-0 text-end'>
             <div
               className={
                 compact

@@ -51,7 +51,7 @@ export function PromptDialog({
       contentHeight='auto'
       bodyClassName='space-y-4'
     >
-      <ScrollArea className='max-h-[500px] pr-4'>
+      <ScrollArea className='max-h-[500px] pe-4'>
         <div className='space-y-4 py-4'>
           {/* Original Prompt */}
           <div className='space-y-2'>
@@ -60,7 +60,7 @@ export function PromptDialog({
               <Button
                 variant='ghost'
                 size='sm'
-                className='absolute top-2 right-2 h-8 w-8 p-0'
+                className='absolute end-2 top-2 h-8 w-8 p-0'
                 onClick={() => copyToClipboard(prompt)}
                 title={t('Copy to clipboard')}
               >
@@ -70,7 +70,7 @@ export function PromptDialog({
                   <Copy className='size-4' />
                 )}
               </Button>
-              <p className='pr-10 text-sm leading-relaxed break-words whitespace-pre-wrap'>
+              <p className='pe-10 text-sm leading-relaxed break-words whitespace-pre-wrap'>
                 {prompt || '-'}
               </p>
             </div>
@@ -86,7 +86,7 @@ export function PromptDialog({
                 <Button
                   variant='ghost'
                   size='sm'
-                  className='absolute top-2 right-2 h-8 w-8 p-0'
+                  className='absolute end-2 top-2 h-8 w-8 p-0'
                   onClick={() => copyToClipboard(promptEn)}
                   title={t('Copy to clipboard')}
                 >
@@ -96,7 +96,7 @@ export function PromptDialog({
                     <Copy className='size-4' />
                   )}
                 </Button>
-                <p className='pr-10 text-sm leading-relaxed break-words whitespace-pre-wrap'>
+                <p className='pe-10 text-sm leading-relaxed break-words whitespace-pre-wrap'>
                   {promptEn}
                 </p>
               </div>

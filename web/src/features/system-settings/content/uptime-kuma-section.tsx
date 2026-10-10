@@ -244,7 +244,7 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
             <Button onClick={handleAdd} size='sm'>
-              <Plus className='mr-2 h-4 w-4' />
+              <Plus className='me-2 h-4 w-4' />
               {t('Add Group')}
             </Button>
             <Button
@@ -253,7 +253,7 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
               variant='destructive'
               disabled={selectedIds.length === 0}
             >
-              <Trash2 className='mr-2 h-4 w-4' />
+              <Trash2 className='me-2 h-4 w-4' />
               {t('Delete (')}
               {selectedIds.length})
             </Button>
@@ -263,7 +263,7 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
               variant='secondary'
               disabled={!hasChanges || updateOption.isPending}
             >
-              <Save className='mr-2 h-4 w-4' />
+              <Save className='me-2 h-4 w-4' />
               {updateOption.isPending ? t('Saving...') : t('Save Settings')}
             </Button>
           </div>
@@ -400,6 +400,7 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
                   <FormLabel>{t('Uptime Kuma URL')}</FormLabel>
                   <FormControl>
                     <Input
+                      dir='ltr'
                       placeholder={t('https://status.example.com')}
                       {...field}
                     />
@@ -418,7 +419,7 @@ export function UptimeKumaSection({ enabled, data }: UptimeKumaSectionProps) {
                 <FormItem>
                   <FormLabel>{t('Status Page Slug')}</FormLabel>
                   <FormControl>
-                    <Input placeholder={t('my-status')} {...field} />
+                    <Input dir='ltr' placeholder={t('my-status')} {...field} />
                   </FormControl>
                   <FormDescription>
                     {t('The slug is appended to the URL:')} {'{url}'}

@@ -141,8 +141,14 @@ export function CompactDateTimeRangePicker({
         }
       >
         <CalendarDays className='text-muted-foreground size-4 shrink-0' />
-        <span className='hidden truncate sm:block'>{label}</span>
-        <span className='min-w-0 [overflow-wrap:anywhere] whitespace-normal sm:hidden'>
+        {/* dir='auto' keeps a digits-only range in reading order inside RTL. */}
+        <span dir='auto' className='hidden truncate sm:block'>
+          {label}
+        </span>
+        <span
+          dir='auto'
+          className='min-w-0 [overflow-wrap:anywhere] whitespace-normal sm:hidden'
+        >
           {mobileLabel}
         </span>
       </PopoverTrigger>

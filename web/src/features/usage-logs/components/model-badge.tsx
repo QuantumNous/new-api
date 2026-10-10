@@ -120,7 +120,7 @@ export function ModelBadge(props: ModelBadgeProps) {
           aria-label={modelLabel}
           size='sm'
           iconClassName='hidden'
-          className='h-auto min-h-8 max-w-full min-w-0 justify-start px-0 py-0 text-left font-normal whitespace-normal'
+          className='h-auto min-h-8 max-w-full min-w-0 justify-start px-0 py-0 text-start font-normal whitespace-normal'
         >
           <ModelBadgeContent {...props} copyable={false} />
         </CopyButton>
@@ -156,7 +156,7 @@ export function ModelBadge(props: ModelBadgeProps) {
         aria-label={modelLabel}
         aria-haspopup='dialog'
         onClick={props.onInspect}
-        className='h-auto min-h-8 max-w-full min-w-0 flex-wrap justify-start gap-1 px-0 py-0 text-left font-normal whitespace-normal'
+        className='h-auto min-h-8 max-w-full min-w-0 flex-wrap justify-start gap-1 px-0 py-0 text-start font-normal whitespace-normal'
       >
         {content}
       </Button>

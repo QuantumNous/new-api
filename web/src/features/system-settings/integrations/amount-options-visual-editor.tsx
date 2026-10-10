@@ -159,7 +159,7 @@ export function AmountOptionsVisualEditor({
           disabled={!newAmount || parseFloat(newAmount) <= 0}
           className='w-full sm:w-auto'
         >
-          <Plus className='h-4 w-4 sm:mr-2' />
+          <Plus className='h-4 w-4 sm:me-2' />
           <span className='sm:inline'>{t('Add')}</span>
         </Button>
       </div>

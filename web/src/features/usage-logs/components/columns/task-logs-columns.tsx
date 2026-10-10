@@ -135,7 +135,7 @@ export function useTaskLogsColumns(
             return (
               <button
                 type='button'
-                className='flex items-center gap-1.5 text-left'
+                className='flex items-center gap-1.5 text-start'
                 onClick={(e) => {
                   e.stopPropagation()
                   setSelectedUserId(log.user_id)
@@ -245,7 +245,7 @@ export function useTaskLogsColumns(
               variant={taskStatusMapper.getVariant(status)}
               size='sm'
               copyable={false}
-              className='-ml-1.5'
+              className='-ms-1.5'
             />
           )
         },

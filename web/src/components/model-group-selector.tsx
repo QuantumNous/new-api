@@ -329,7 +329,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = React.memo(
         </DrawerTrigger>
         <DrawerContent className='flex max-h-[80vh] min-h-[60vh] flex-col'>
           <DrawerHeader className='flex-shrink-0 pb-4'>
-            <DrawerTitle className='flex items-center gap-2 text-left text-lg font-medium'>
+            <DrawerTitle className='flex items-center gap-2 text-start text-lg font-medium'>
               {t('Select Model')}
             </DrawerTitle>
           </DrawerHeader>
@@ -434,7 +434,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                   'data-[selected=true]:bg-accent'
                 )}
               >
-                <div className='flex min-w-0 flex-1 items-center gap-2 pr-4'>
+                <div className='flex min-w-0 flex-1 items-center gap-2 pe-4'>
                   <div className='flex min-w-0 flex-1 flex-col'>
                     <span className='text-foreground truncate text-[11px] font-medium'>
                       {group.label}
@@ -448,7 +448,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                 </div>
                 <Check
                   className={cn(
-                    'ml-auto h-4 w-4',
+                    'ms-auto h-4 w-4',
                     selectedGroup === group.value ? 'opacity-100' : 'opacity-0'
                   )}
                 />
@@ -470,7 +470,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
           />
         </DrawerTrigger>
         <DrawerContent className='max-h-[80vh]'>
-          <DrawerHeader className='pb-4 text-left'>
+          <DrawerHeader className='pb-4 text-start'>
             <DrawerTitle>{t('Choose Group')}</DrawerTitle>
           </DrawerHeader>
           <div className='max-h-[calc(80vh-100px)] overflow-y-auto px-4 pb-6'>
@@ -481,7 +481,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                   variant='outline'
                   onClick={() => handleGroupChange(group.value)}
                   className={cn(
-                    'flex h-auto w-full items-center justify-between rounded-lg p-4 text-left whitespace-normal',
+                    'flex h-auto w-full items-center justify-between rounded-lg p-4 text-start whitespace-normal',
                     'border-border hover:bg-accent',
                     selectedGroup === group.value
                       ? 'bg-accent border-primary/20'
@@ -502,7 +502,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                   </div>
                   <Check
                     className={cn(
-                      'ml-3 h-5 w-5 shrink-0',
+                      'ms-3 h-5 w-5 shrink-0',
                       selectedGroup === group.value
                         ? 'opacity-100'
                         : 'opacity-0'
@@ -666,7 +666,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
       <span className='bg-muted text-muted-foreground hidden max-w-20 shrink-0 rounded px-1.5 py-0.5 text-[10px] sm:inline-flex'>
         {currentGroup?.label || t('Group')}
       </span>
-      <ChevronsUpDown className='text-muted-foreground ml-auto size-3.5 shrink-0 opacity-60' />
+      <ChevronsUpDown className='text-muted-foreground ms-auto size-3.5 shrink-0 opacity-60' />
     </Button>
   )
 
@@ -693,7 +693,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
           return (
             <button
               className={cn(
-                'flex min-w-0 items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-[12px] leading-4 transition-colors',
+                'flex min-w-0 items-center justify-between gap-2 rounded-md px-2.5 py-2 text-start text-[12px] leading-4 transition-colors',
                 isSelected
                   ? 'bg-primary/10 text-foreground'
                   : 'text-muted-foreground hover:bg-accent hover:text-foreground'
@@ -811,7 +811,7 @@ export const ModelGroupSelector: React.FC<ModelGroupSelectorProps> = ({
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>{renderTrigger()}</DrawerTrigger>
       <DrawerContent className='flex max-h-[80vh] min-h-[60vh] flex-col'>
-        <DrawerHeader className='pb-3 text-left'>
+        <DrawerHeader className='pb-3 text-start'>
           <DrawerTitle>{t('Select Model')}</DrawerTitle>
         </DrawerHeader>
         <div className='min-h-0 flex-1 overflow-y-auto px-4 pb-5'>

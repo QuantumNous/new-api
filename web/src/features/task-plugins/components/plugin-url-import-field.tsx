@@ -100,6 +100,7 @@ export function PluginUrlImportField(props: PluginUrlImportFieldProps) {
         <InputGroupInput
           id='task-plugin-url'
           type='url'
+          dir='ltr'
           inputMode='url'
           value={props.value}
           placeholder='https://github.com/owner/repo/blob/main/plugin.js'

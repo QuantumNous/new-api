@@ -156,7 +156,7 @@ export function CommonLogMobileCard<TData>(props: {
           </div>
         )}
         {fields.cost.visible && costCell && (
-          <div className='ml-auto max-w-full min-w-0 self-center [overflow-wrap:anywhere] [&_.inline-flex]:h-auto [&_.inline-flex]:min-h-6 [&_.inline-flex]:max-w-full [&_.inline-flex]:flex-wrap'>
+          <div className='ms-auto max-w-full min-w-0 self-center [overflow-wrap:anywhere] [&_.inline-flex]:h-auto [&_.inline-flex]:min-h-6 [&_.inline-flex]:max-w-full [&_.inline-flex]:flex-wrap'>
             {flexRender(costCell.column.columnDef.cell, costCell.getContext())}
           </div>
         )}
@@ -268,7 +268,7 @@ export function CommonLogMobileCard<TData>(props: {
                     aria-label={`${field.label}: ${field.value}`}
                     aria-haspopup='dialog'
                     onClick={() => setSelectedField(id)}
-                    className='text-foreground h-auto min-h-8 min-w-0 flex-1 shrink justify-start px-0 py-1 text-left text-sm font-normal'
+                    className='text-foreground h-auto min-h-8 min-w-0 flex-1 shrink justify-start px-0 py-1 text-start text-sm font-normal'
                   >
                     {fieldContent}
                   </Button>
@@ -315,14 +315,14 @@ export function CommonLogMobileCard<TData>(props: {
         </div>
       )}
       {contentCell && (
-        <div className='relative min-w-0 border-t pt-2 [&_button]:min-h-8 [&_button]:w-full [&_button]:max-w-full [&_button]:pr-5 [&_button]:text-sm [&_button>span]:line-clamp-2 [&_button>span]:[overflow-wrap:anywhere] [&_button>span]:whitespace-normal'>
+        <div className='relative min-w-0 border-t pt-2 [&_button]:min-h-8 [&_button]:w-full [&_button]:max-w-full [&_button]:pe-5 [&_button]:text-sm [&_button>span]:line-clamp-2 [&_button>span]:[overflow-wrap:anywhere] [&_button>span]:whitespace-normal'>
           {flexRender(
             contentCell.column.columnDef.cell,
             contentCell.getContext()
           )}
           <ChevronRight
             aria-hidden='true'
-            className='text-primary pointer-events-none absolute top-4 right-0 size-4'
+            className='text-primary pointer-events-none absolute end-0 top-4 size-4 rtl:rotate-180'
           />
         </div>
       )}

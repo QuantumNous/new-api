@@ -428,6 +428,7 @@ export function PerformanceSection(props: Props) {
                   <FormLabel>{t('Cache Directory')}</FormLabel>
                   <FormControl>
                     <Input
+                      dir='ltr'
                       placeholder={t(
                         'Leave empty to use system temp directory'
                       )}
@@ -701,7 +702,7 @@ export function PerformanceSection(props: Props) {
                     <span className='text-muted-foreground'>
                       {t('Cache Directory')}:
                     </span>{' '}
-                    <span className='font-mono'>
+                    <span dir='ltr' className='font-mono'>
                       {stats.disk_cache_info.path}
                     </span>
                   </div>

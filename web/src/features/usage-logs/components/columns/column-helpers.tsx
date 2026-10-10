@@ -227,7 +227,7 @@ export function createFailReasonColumn<T>(config: {
         <>
           <button
             type='button'
-            className='group flex max-w-[200px] items-center gap-1 text-left text-xs'
+            className='group flex max-w-[200px] items-center gap-1 text-start text-xs'
             onClick={() => setDialogOpen(true)}
             title={cellTitle}
           >

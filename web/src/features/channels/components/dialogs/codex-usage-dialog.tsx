@@ -474,7 +474,7 @@ function RateLimitWindow(props: RateLimitWindowProps) {
                 : '-'}
             </CardDescription>
           </div>
-          <div className='shrink-0 text-right'>
+          <div className='shrink-0 text-end'>
             <div
               className={cn(
                 'text-xl leading-none font-semibold tabular-nums',
@@ -508,7 +508,7 @@ function RateLimitWindow(props: RateLimitWindowProps) {
               {hasData ? formatUnixSeconds(props.window?.reset_at) : '-'}
             </div>
           </div>
-          <div className='min-w-0 sm:text-right'>
+          <div className='min-w-0 sm:text-end'>
             <div className='text-muted-foreground text-[11px]'>
               {t('Resets in:')}
             </div>
@@ -703,7 +703,7 @@ function ResetCreditItem(props: { credit: CodexResetCredit; index: number }) {
             </div>
           ) : null}
         </div>
-        <div className='shrink-0 text-right'>
+        <div className='shrink-0 text-end'>
           <div className='text-muted-foreground text-[11px] font-medium'>
             {t('Expires in')}
           </div>
@@ -1187,7 +1187,7 @@ export function CodexUsageDialog({
             render={
               <button
                 type='button'
-                className='hover:bg-muted/40 flex w-full items-start justify-between gap-3 p-3 text-left transition-colors'
+                className='hover:bg-muted/40 flex w-full items-start justify-between gap-3 p-3 text-start transition-colors'
                 aria-expanded={showResetCredits}
               />
             }

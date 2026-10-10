@@ -269,7 +269,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
             <Button onClick={handleAdd} size='sm'>
-              <Plus className='mr-2 h-4 w-4' />
+              <Plus className='me-2 h-4 w-4' />
               {t('Add API')}
             </Button>
             <Button
@@ -278,7 +278,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
               variant='destructive'
               disabled={selectedIds.length === 0}
             >
-              <Trash2 className='mr-2 h-4 w-4' />
+              <Trash2 className='me-2 h-4 w-4' />
               {t('Delete (')}
               {selectedIds.length})
             </Button>
@@ -288,7 +288,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
               variant='secondary'
               disabled={!hasChanges || updateOption.isPending}
             >
-              <Save className='mr-2 h-4 w-4' />
+              <Save className='me-2 h-4 w-4' />
               {updateOption.isPending ? t('Saving...') : t('Save Settings')}
             </Button>
           </div>
@@ -424,6 +424,7 @@ export function ApiInfoSection({ enabled, data }: ApiInfoSectionProps) {
                   <FormLabel>{t('API URL')}</FormLabel>
                   <FormControl>
                     <Input
+                      dir='ltr'
                       placeholder={t('https://api.example.com')}
                       {...field}
                     />

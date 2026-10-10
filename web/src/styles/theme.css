@@ -17,6 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 @custom-variant dark (&:is(.dark *));
+/* Tailwind's own ltr: and rtl: use :dir(), which the build rewrites into
+ * :lang() checks for the default browser targets, so they followed the
+ * interface language instead of the page direction. These key on the dir
+ * attribute only. Inside a dir='ltr' island on a right-to-left page both
+ * match and rtl: wins, as it is defined after ltr:. */
+@custom-variant ltr (&:where([dir='ltr'], [dir='ltr'] *));
+@custom-variant rtl (&:where([dir='rtl'], [dir='rtl'] *));
 
 @theme inline {
   --font-sans: 'Public Sans Variable', 'Public Sans', sans-serif;

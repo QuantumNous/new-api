@@ -465,7 +465,7 @@ export function UsersMutateDrawer({
                             variant='outline'
                             onClick={() => setQuotaDialogOpen(true)}
                           >
-                            <Pencil className='mr-1 h-4 w-4' />
+                            <Pencil className='me-1 h-4 w-4' />
                             {t('Adjust Quota')}
                           </Button>
                         </div>

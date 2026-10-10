@@ -1,0 +1,149 @@
+[
+  {
+    "file": "components/ai-elements/chain-of-thought.tsx",
+    "classes": ["left-1/2"],
+    "reason": "Centred connector line (left-1/2 with -mx-px); symmetric in both directions."
+  },
+  {
+    "file": "components/ai-elements/code-block.tsx",
+    "classes": ["right-2"],
+    "reason": "Overlay on the dir='ltr' code body; it stays at the end of the left-to-right lines instead of covering their start."
+  },
+  {
+    "file": "components/ai-elements/conversation.tsx",
+    "classes": ["left-[50%]"],
+    "reason": "Centred with translate-x-[-50%]; symmetric in both directions."
+  },
+  {
+    "file": "components/ai-elements/web-preview.tsx",
+    "classes": ["text-left"],
+    "reason": "Not converted yet: the component is unused, and its file carries upstream lint errors (the iframe sandbox allows scripts together with same-origin; an index key) that need a security decision, not a layout change. Convert with that fix."
+  },
+  {
+    "file": "components/config-drawer.tsx",
+    "classes": ["left-2.5", "border-l-[1.5px]"],
+    "reason": "Radius preview that draws a top-left corner together with the inline borderTopLeftRadius style."
+  },
+  {
+    "file": "components/data-table/toolbar/bulk-actions.tsx",
+    "classes": ["left-1/2"],
+    "reason": "Floating bar centred with -translate-x-1/2; symmetric in both directions."
+  },
+  {
+    "file": "components/floating-window.tsx",
+    "classes": [
+      "left-2",
+      "right-2",
+      "left-2",
+      "right-2",
+      "right-0",
+      "left-0",
+      "right-0",
+      "left-0",
+      "right-0",
+      "left-0",
+      "pr-9",
+      "pl-4",
+      "rounded-tl-md"
+    ],
+    "reason": "Window geometry is physical: the resize handles are named by compass side (n, e, se ...) and resized from pointer clientX, so the se grip stays bottom-right; the footer padding (pr-9) and the grip corner (rounded-tl-md) follow that grip."
+  },
+  {
+    "file": "components/json-code-editor.tsx",
+    "classes": ["pl-2"],
+    "reason": "On the dir='ltr' editor element itself; code stays left to right."
+  },
+  {
+    "file": "components/layout/components/glow.tsx",
+    "classes": ["left-1/2", "left-1/2"],
+    "reason": "Centred glows (left-1/2 with -translate-x-1/2); symmetric in both directions."
+  },
+  {
+    "file": "components/ui/alert-dialog.tsx",
+    "classes": ["left-1/2"],
+    "reason": "Dialog centred with -translate-x-1/2; symmetric in both directions."
+  },
+  {
+    "file": "components/ui/carousel.tsx",
+    "classes": ["left-1/2", "left-1/2"],
+    "reason": "Vertical carousel buttons centred with -translate-x-1/2; symmetric in both directions."
+  },
+  {
+    "file": "components/ui/dialog.tsx",
+    "classes": ["left-1/2"],
+    "reason": "Dialog centred with -translate-x-1/2; symmetric in both directions."
+  },
+  {
+    "file": "components/ui/drawer.tsx",
+    "classes": [
+      "data-[vaul-drawer-direction=left]:left-0",
+      "data-[vaul-drawer-direction=left]:rounded-r-xl",
+      "data-[vaul-drawer-direction=left]:border-r",
+      "data-[vaul-drawer-direction=right]:right-0",
+      "data-[vaul-drawer-direction=right]:rounded-l-xl",
+      "data-[vaul-drawer-direction=right]:border-l"
+    ],
+    "reason": "Keyed to vaul's direction prop, which names a physical side (and drives vaul's physical drag gesture)."
+  },
+  {
+    "file": "components/ui/navigation-menu.tsx",
+    "classes": [
+      "data-[side=bottom]:before:right-0",
+      "data-[side=bottom]:before:left-0",
+      "rounded-tl-sm"
+    ],
+    "reason": "The before: pair spans the full width (symmetric); rounded-tl-sm rounds the upward tip of the square rotated 45 degrees."
+  },
+  {
+    "file": "components/ui/radio-group.tsx",
+    "classes": ["left-1/2"],
+    "reason": "Dot centred with -translate-x-1/2; symmetric in both directions."
+  },
+  {
+    "file": "components/ui/resizable.tsx",
+    "classes": ["after:left-1/2", "aria-[orientation=horizontal]:after:left-0"],
+    "reason": "Centred hit area (with after:-translate-x-1/2), and full-width hit area (with after:w-full); symmetric in both directions."
+  },
+  {
+    "file": "components/ui/sheet.tsx",
+    "classes": ["right-0", "border-l", "left-0", "border-r"],
+    "reason": "Keyed to the side prop, which names a physical side; callers choose the side (the mobile sidebar picks it from the page direction)."
+  },
+  {
+    "file": "components/ui/sidebar.tsx",
+    "classes": [
+      "data-[side=left]:left-0",
+      "data-[side=left]:group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]",
+      "data-[side=right]:right-0",
+      "data-[side=right]:group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
+      "group-data-[side=left]:border-r",
+      "group-data-[side=right]:border-l",
+      "group-data-[side=left]:-right-4",
+      "group-data-[side=right]:left-0",
+      "group-data-[collapsible=offcanvas]:after:left-full",
+      "[[data-side=left][data-collapsible=offcanvas]_&]:-right-2",
+      "[[data-side=right][data-collapsible=offcanvas]_&]:-left-2"
+    ],
+    "reason": "Keyed to the side prop, which names a physical side; app-sidebar sets side from the page direction (right in RTL)."
+  },
+  {
+    "file": "components/ui/tooltip.tsx",
+    "classes": ["data-[side=left]:-right-1", "data-[side=right]:-left-1"],
+    "reason": "Arrow for the physical left/right sides that Base UI reports; the inline-start/inline-end sides use logical classes."
+  },
+  {
+    "file": "features/home/components/gateway-card.tsx",
+    "classes": ["left-[10%]", "left-1/2"],
+    "reason": "Centred decorations (left-[10%] with w-[80%], left-1/2 with -translate-x-1/2); symmetric in both directions."
+  },
+  {
+    "file": "features/home/components/hero-terminal-demo.tsx",
+    "classes": ["ml-auto", "pr-2", "sm:pr-3"],
+    "reason": "Inside the dir='ltr' terminal demo; a terminal stays left to right."
+  },
+  {
+    "file": "features/home/components/icon-card.tsx",
+    "classes": ["left-1/2"],
+    "reason": "Centred glow with -translate-x-1/2; symmetric in both directions."
+  }
+]

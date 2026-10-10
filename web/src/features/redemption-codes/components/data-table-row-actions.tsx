@@ -83,7 +83,7 @@ export function DataTableRowActions<TData>({
   const canToggle = !isUsed && !isExpired
 
   return (
-    <div className='-ml-1.5 flex items-center gap-1'>
+    <div className='-ms-1.5 flex items-center gap-1'>
       <Tooltip>
         <TooltipTrigger
           render={

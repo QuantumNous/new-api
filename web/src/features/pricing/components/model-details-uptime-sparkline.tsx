@@ -186,7 +186,7 @@ export function UptimeStatusRow(props: {
         <span className='text-sm font-medium'>{t('Last 30 days uptime')}</span>
       </div>
 
-      <UptimeSparkline series={props.series} className='ml-auto' />
+      <UptimeSparkline series={props.series} className='ms-auto' />
 
       <div className='flex items-center gap-3 text-xs'>
         <span className={cn('font-medium', statusColour)}>{statusLabel}</span>

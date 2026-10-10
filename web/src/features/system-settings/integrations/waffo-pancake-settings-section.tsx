@@ -425,6 +425,7 @@ export function WaffoPancakeSettingsSection({
         <div className='grid gap-1.5'>
           <Label>{t('Merchant ID')}</Label>
           <Input
+            dir='ltr'
             placeholder='MER_xxx'
             autoComplete='off'
             value={values.WaffoPancakeMerchantID}
@@ -505,6 +506,7 @@ export function WaffoPancakeSettingsSection({
             <Label>{t('Payment return URL')}</Label>
             <div className='flex gap-2'>
               <Input
+                dir='ltr'
                 placeholder='https://example.com/wallet'
                 value={returnURL}
                 onChange={(event) =>

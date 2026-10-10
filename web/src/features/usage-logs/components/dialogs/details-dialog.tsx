@@ -652,7 +652,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
       titleClassName='flex items-center gap-2 text-base'
       descriptionClassName='sr-only'
       contentHeight='min(72dvh, 720px)'
-      bodyClassName='pr-2 sm:pr-4'
+      bodyClassName='pe-2 sm:pe-4'
     >
       <div className='w-full max-w-full min-w-0 space-y-2.5 overflow-x-hidden py-1 sm:space-y-3'>
         {/* Overview section - key identifiers */}
@@ -767,7 +767,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
               <Button
                 variant='ghost'
                 size='sm'
-                className='absolute top-0 right-0 h-5 w-5 p-0'
+                className='absolute end-0 top-0 h-5 w-5 p-0'
                 onClick={() => copyToClipboard(conversionLabel)}
                 title={t('Copy to clipboard')}
                 aria-label={t('Copy to clipboard')}
@@ -778,7 +778,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   <Copy className='size-3' />
                 )}
               </Button>
-              <div className='min-w-0 space-y-1 pr-6'>
+              <div className='min-w-0 space-y-1 pe-6'>
                 {other?.request_path && (
                   <DetailRow
                     label={t('Path')}
@@ -1258,7 +1258,10 @@ export function DetailsDialog(props: DetailsDialogProps) {
             )}
             {Array.isArray(other.stream_status.errors) &&
               other.stream_status.errors.length > 0 && (
-                <pre className='bg-background/60 mt-1 max-h-32 overflow-y-auto rounded border p-2 font-mono text-[11px] leading-relaxed wrap-break-word whitespace-pre-wrap'>
+                <pre
+                  dir='ltr'
+                  className='bg-background/60 mt-1 max-h-32 overflow-y-auto rounded border p-2 font-mono text-[11px] leading-relaxed wrap-break-word whitespace-pre-wrap'
+                >
                   {other.stream_status.errors.join('\n')}
                 </pre>
               )}
@@ -1351,7 +1354,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
               <Button
                 variant='ghost'
                 size='sm'
-                className='absolute top-1.5 right-1.5 h-5 w-5 p-0'
+                className='absolute end-1.5 top-1.5 h-5 w-5 p-0'
                 onClick={() => copyToClipboard(details)}
                 title={t('Copy to clipboard')}
                 aria-label={t('Copy to clipboard')}
@@ -1362,7 +1365,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
                   <Copy className='size-3' />
                 )}
               </Button>
-              <p className='min-w-0 pr-6 text-xs leading-relaxed break-all whitespace-pre-wrap sm:wrap-break-word'>
+              <p className='min-w-0 pe-6 text-xs leading-relaxed break-all whitespace-pre-wrap sm:wrap-break-word'>
                 {details}
               </p>
             </div>

@@ -313,6 +313,7 @@ export function QuotaSettingsSection({
                   <FormLabel>{t('Top-Up Link')}</FormLabel>
                   <FormControl>
                     <Input
+                      dir='ltr'
                       placeholder={t('https://example.com/topup')}
                       {...field}
                     />

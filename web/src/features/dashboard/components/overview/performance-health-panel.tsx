@@ -67,7 +67,7 @@ export function PerformanceHealthPanel() {
           <HeartPulse />
         </IconBadge>
         <h3 className='text-sm font-semibold'>{t('Performance health')}</h3>
-        <span className='text-muted-foreground ml-auto text-xs'>
+        <span className='text-muted-foreground ms-auto text-xs'>
           {t('Performance metrics for the last 24 hours')}
         </span>
       </div>
