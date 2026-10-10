@@ -62,12 +62,14 @@ import { BILLING_PRICING_VARS } from '@/features/pricing/lib/billing-expr'
 import { pluginUsageSchema } from '@/features/pricing/lib/plugin-pricing'
 import { PolicyDecisionRecord } from '@/features/system-settings/request-policies/decision-record'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { formatValueChain, toIntlLocale } from '@/i18n/languages'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
 import { translateServerText } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import { AuditDetailFields } from '../../audit/components/audit-detail-fields'
+import { auditIdentity } from '../../audit/lib/audit-details'
 import type { UsageLog } from '../../data/schema'
 import {
   parseLogOther,
@@ -478,7 +480,8 @@ interface DetailsDialogProps {
 }
 
 export function DetailsDialog(props: DetailsDialogProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const other = parseLogOther(props.log.other)
   const typeConfig = getLogTypeConfig(props.log.type)
@@ -547,9 +550,13 @@ export function DetailsDialog(props: DetailsDialogProps) {
     const hasUsername = username != null && String(username).trim() !== ''
     const hasId = id != null && String(id).trim() !== ''
     if (!hasUsername && !hasId) return null
-    if (hasUsername && hasId) return `${username} (ID: ${id})`
-    if (hasUsername) return String(username)
-    return `ID: ${id}`
+    if (hasUsername && !hasId) return String(username)
+    return auditIdentity(
+      hasUsername ? String(username) : '',
+      String(id),
+      t,
+      locale
+    )
   })()
   const authMethodLabel = (() => {
     if (!isManage || !props.isAdmin || !adminInfo?.auth_method) return ''
@@ -564,10 +571,11 @@ export function DetailsDialog(props: DetailsDialogProps) {
         other?.op?.action ?? '',
         other?.op?.params ?? {},
         true,
-        t
+        t,
+        locale
       )
     : null
-  const operationText = renderAuditContent(other, t)
+  const operationText = renderAuditContent(other, t, locale)
   const details =
     (isTopup ? operationText : null) ??
     renderLogContent(other, t) ??
@@ -622,7 +630,9 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
   const useChannel = other?.admin_info?.use_channel
   const channelChain =
-    useChannel && useChannel.length > 0 ? useChannel.join(' → ') : undefined
+    useChannel && useChannel.length > 0
+      ? formatValueChain(useChannel.map(String), locale)
+      : undefined
   const reasoningEffortVariant = getReasoningEffortVariant(
     other?.reasoning_effort
   )

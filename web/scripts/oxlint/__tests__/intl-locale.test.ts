@@ -93,7 +93,7 @@ const cases = [
   ],
   [
     'standard-locales',
-    'new Intl.NumberFormat(["en", "zh-CN", "zh-TW", "fr", "ru", "ja", "vi"])',
+    'new Intl.NumberFormat(["en", "zh-CN", "zh-TW", "fr", "ru", "ja", "vi", "fa"])',
     false,
   ],
   [
