@@ -180,6 +180,166 @@ For commercial licensing, please contact support@quantumnous.com
   --sidebar-ring: oklch(0.6387 0.1822 23.51);
 }
 
+/* ── Sundowner ──────────────────────────────────────────────────────────
+ * Sundowner 品牌主题：深夜霞光。
+ *
+ * 暗模式为默认（夜幕 + 霞橙主色 + 霞粉副色 + 点缀金），亮模式为暖白。
+ *
+ * 与 sunset-glow 的差异：sunset-glow 是"彩色预设"风格（依赖 semantic
+ * surface bridge 用 color-mix 派生卡片/边框）；sundowner 是品牌主题，
+ * 显式定义夜幕底、提亮卡片、品牌色弱边框，因此加入 bridge 的 opt-out
+ * 列表，避免卡片被再次染色。
+ *
+ * 品牌渐变（135°，橙→粉）只允许 4 处：Logo、主按钮、hero 光晕、
+ * hero 标题。其余界面仅靠主色 + 弱边框维持识别度。
+ */
+[data-theme-preset='sundowner'] {
+  /* 亮模式：暖白画布 + 降饱和橙粉（保证对比度）。 */
+  --background: oklch(0.975 0.008 75); /* ≈ #FBF7F2 暖白 */
+  --foreground: oklch(0.21 0.005 60); /* ≈ #1C1917 正文 */
+  --card: oklch(1 0 0); /* ≈ #FFFFFF 卡片 */
+  --card-foreground: oklch(0.21 0.005 60);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.005 60);
+
+  --primary: oklch(0.6 0.16 40); /* ≈ #D9662C 霞橙（亮模式降饱和） */
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.56 0.21 355); /* ≈ #D9467E 霞粉 */
+  --secondary-foreground: oklch(1 0 0);
+
+  --muted: oklch(0.94 0.012 75);
+  --muted-foreground: oklch(0.51 0.01 60);
+  --accent: oklch(0.6 0.16 40 / 12%);
+  --accent-foreground: oklch(0.21 0.005 60);
+
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.596 0.145 163.225);
+  --success-foreground: oklch(0.985 0 0);
+  --warning: oklch(0.681 0.162 75.834);
+  --warning-foreground: oklch(0.21 0.005 60);
+  --info: oklch(0.588 0.158 241.966);
+  --info-foreground: oklch(0.985 0 0);
+  --neutral: oklch(0.51 0.01 60);
+  --neutral-foreground: oklch(1 0 0);
+
+  /* 品牌弱边框：霞橙 10% 透明度，让卡片在暖白底上有轮廓。 */
+  --border: oklch(0.6 0.16 40 / 10%);
+  --input: oklch(0.6 0.16 40 / 12%);
+  --ring: oklch(0.6 0.16 40);
+
+  /* 霞光色阶：橙→粉→金→深珊瑚→浅桃。 */
+  --chart-1: oklch(0.6 0.16 40);
+  --chart-2: oklch(0.56 0.21 355);
+  --chart-3: oklch(0.51 0.13 75);
+  --chart-4: oklch(0.52 0.15 28);
+  --chart-5: oklch(0.68 0.12 355);
+
+  --sidebar: oklch(0.96 0.01 75);
+  --sidebar-foreground: oklch(0.21 0.005 60);
+  --sidebar-primary: oklch(0.6 0.16 40);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.93 0.015 75);
+  --sidebar-accent-foreground: oklch(0.21 0.005 60);
+  --sidebar-border: oklch(0.6 0.16 40 / 12%);
+  --sidebar-ring: oklch(0.6 0.16 40);
+
+  --skeleton-base: oklch(0.93 0.012 75);
+  --skeleton-highlight: oklch(0.97 0.008 75);
+
+  --radius: 1rem;
+}
+.dark [data-theme-preset='sundowner'] {
+  /* 暗模式（默认）：夜幕底 + 提亮卡片 + 霞橙弱边框。 */
+  --background: oklch(0.17 0.025 295); /* ≈ #150F1E 夜幕 */
+  --foreground: oklch(0.92 0 0); /* ≈ #E5E5E5 正文 */
+  --card: oklch(0.24 0.035 295); /* ≈ #241B30 提亮卡片 */
+  --card-foreground: oklch(0.92 0 0);
+  --popover: oklch(0.26 0.038 295);
+  --popover-foreground: oklch(0.92 0 0);
+
+  --primary: oklch(0.72 0.17 45); /* ≈ #FF8A4C 霞橙 */
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.67 0.22 355); /* ≈ #F2689E 霞粉 */
+  --secondary-foreground: oklch(1 0 0);
+
+  --muted: oklch(0.28 0.04 295);
+  --muted-foreground: oklch(0.71 0.01 286); /* ≈ #A1A1AA 弱化文本 */
+  --accent: oklch(0.72 0.17 45 / 18%);
+  --accent-foreground: oklch(0.92 0 0);
+
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.696 0.17 162.48);
+  --success-foreground: oklch(0.145 0 0);
+  --warning: oklch(0.769 0.188 70.08);
+  --warning-foreground: oklch(0.145 0 0);
+  --info: oklch(0.613 0.14 239.919);
+  --info-foreground: oklch(0.145 0 0);
+  --neutral: oklch(0.71 0.01 286);
+  --neutral-foreground: oklch(0.145 0 0);
+
+  /* 品牌弱边框：霞橙 6% 透明度，勾勒卡片层次但不喧宾夺主。 */
+  --border: oklch(0.72 0.17 45 / 6%);
+  --input: oklch(0.72 0.17 45 / 8%);
+  --ring: oklch(0.72 0.17 45);
+
+  /* 霞光色阶（暗模式提亮版）。 */
+  --chart-1: oklch(0.72 0.17 45);
+  --chart-2: oklch(0.67 0.22 355);
+  --chart-3: oklch(0.84 0.16 78);
+  --chart-4: oklch(0.62 0.18 30);
+  --chart-5: oklch(0.78 0.1 355);
+
+  --sidebar: oklch(0.14 0.02 295);
+  --sidebar-foreground: oklch(0.92 0 0);
+  --sidebar-primary: oklch(0.72 0.17 45);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.28 0.04 295);
+  --sidebar-accent-foreground: oklch(0.92 0 0);
+  --sidebar-border: oklch(0.72 0.17 45 / 8%);
+  --sidebar-ring: oklch(0.72 0.17 45);
+
+  --skeleton-base: oklch(0.28 0.04 295);
+  --skeleton-highlight: oklch(0.35 0.05 295);
+}
+
+/* ── Sundowner 后台侧边栏 ───────────────────────────────────────────────
+ * 激活项霞光渐变指示条 + hover 微光。仅 sundowner 预设生效，
+ * 通过 data-slot 定位 sidebar 组件的菜单按钮，不改通用组件。 */
+[data-theme-preset='sundowner'] [data-slot='sidebar-menu-button'][data-active],
+[data-theme-preset='sundowner']
+  [data-slot='sidebar-menu-sub-button'][data-active] {
+  position: relative;
+}
+
+[data-theme-preset='sundowner'] [data-slot='sidebar-menu-button'][data-active]::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 15%;
+  height: 70%;
+  width: 3px;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, var(--primary), var(--secondary));
+}
+
+[data-theme-preset='sundowner'] [data-slot='sidebar-menu-sub-button'][data-active]::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  height: 60%;
+  width: 2px;
+  border-radius: 9999px;
+  background: var(--primary);
+}
+
+[data-theme-preset='sundowner'] [data-slot='sidebar-menu-button']:hover,
+[data-theme-preset='sundowner'] [data-slot='sidebar-menu-sub-button']:hover {
+  box-shadow: 0 0 10px 0 color-mix(in oklch, var(--primary) 12%, transparent);
+}
+
 /* ── Forest Whisper ───────────────────────────────────────────────────── */
 [data-theme-preset='forest-whisper'] {
   --primary: oklch(0.5276 0.1072 182.22);
@@ -426,10 +586,12 @@ For commercial licensing, please contact support@quantumnous.com
  *   - `anthropic`: warm cream surfaces are a brand choice, NOT a primary-mix
  *     derivation (the Anthropic system deliberately uses warm neutrals for
  *     cards/borders rather than tinting them with the clay accent).
- *   - `simple-large`: keeps intentionally neutral, high-contrast surfaces. */
+ *   - `simple-large`: keeps intentionally neutral, high-contrast surfaces.
+ *   - `sundowner`: bespoke deep-dusk surfaces (night-sky background, lifted
+ *     card, brand-tinted border) are explicit, not primary-mix derivatives. */
 [data-theme-preset]:not([data-theme-preset='default']):not(
   [data-theme-preset='anthropic']
-):not([data-theme-preset='simple-large']) {
+):not([data-theme-preset='simple-large']):not([data-theme-preset='sundowner']) {
   --card: color-mix(in oklch, var(--primary) 3%, var(--background));
   --popover: color-mix(in oklch, var(--primary) 5%, var(--background));
   --muted: color-mix(in oklch, var(--primary) 7%, var(--background));
@@ -454,7 +616,9 @@ For commercial licensing, please contact support@quantumnous.com
 .dark
   [data-theme-preset]:not([data-theme-preset='default']):not(
     [data-theme-preset='anthropic']
-  ):not([data-theme-preset='simple-large']) {
+  ):not([data-theme-preset='simple-large']):not(
+    [data-theme-preset='sundowner']
+  ) {
   --card: color-mix(in oklch, var(--primary) 8%, var(--background));
   --popover: color-mix(in oklch, var(--primary) 12%, var(--background));
   --muted: color-mix(in oklch, var(--primary) 12%, var(--background));

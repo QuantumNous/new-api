@@ -130,7 +130,7 @@ export function ThemeCustomizationProvider(props: {
   useEffect(() => {
     applyAttribute(
       'data-theme-preset',
-      preset === DEFAULT_THEME_CUSTOMIZATION.preset ? null : preset
+      preset === 'default' ? null : preset
     )
   }, [preset])
 
@@ -166,7 +166,7 @@ export function ThemeCustomizationProvider(props: {
     _setPreset(value)
     writeThemePreference(
       THEME_STORAGE_KEYS.preset,
-      value === DEFAULT_THEME_CUSTOMIZATION.preset ? null : value
+      value === 'default' ? null : value
     )
   }, [])
 
