@@ -30,6 +30,7 @@ import { Dialog } from '@/components/dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { IconBadge } from '@/components/ui/icon-badge'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatCurrencyFromUSD } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
@@ -50,7 +51,8 @@ type BalanceQueryDialogProps = {
 }
 
 export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const { currentRow, setCurrentRow } = useChannels()
   const queryClient = useQueryClient()
   const [isQuerying, setIsQuerying] = useState(false)
@@ -141,11 +143,12 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
       digitsLarge: 2,
       digitsSmall: 4,
       abbreviate: false,
+      locale,
     })
 
   const formatDate = (timestamp: number) => {
     if (!timestamp) return 'Never'
-    return formatTimestampToDate(timestamp)
+    return formatTimestampToDate(timestamp, 'seconds', locale)
   }
 
   if (isCodex) {

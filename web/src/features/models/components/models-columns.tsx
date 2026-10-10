@@ -36,7 +36,8 @@ import {
 } from '@/features/model-pricing/api'
 import { modelPricingDisplay } from '@/features/model-pricing/pricing'
 import { ModelPriceCell } from '@/features/pricing/components/model-price-cell'
-import { formatTimestampToDate } from '@/lib/format'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatGregorianTitle, formatTimestampToDate } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
 
 import { getNameRuleConfig } from '../constants'
@@ -55,7 +56,8 @@ export function useModelsColumns(
   pricing?: ModelPricingConfig,
   pricingState?: 'loading' | 'error'
 ): ColumnDef<Model>[] {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const canPrice = useCanEditModelPricing()
   const { setCurrentRow, setOpen } = useModels()
   const vendorMap = useMemo(
@@ -363,9 +365,19 @@ export function useModelsColumns(
         header: t('Created'),
         size: 160,
         cell: ({ row }) =>
-          row.original.id
-            ? formatTimestampToDate(row.original.created_time)
-            : '—',
+          row.original.id ? (
+            <span
+              title={formatGregorianTitle(row.original.created_time, locale)}
+            >
+              {formatTimestampToDate(
+                row.original.created_time,
+                'seconds',
+                locale
+              )}
+            </span>
+          ) : (
+            '—'
+          ),
         meta: { mobileHidden: true },
       },
       {
@@ -373,11 +385,30 @@ export function useModelsColumns(
         header: t('Updated'),
         size: 160,
         cell: ({ row }) =>
-          row.original.id
-            ? formatTimestampToDate(row.original.updated_time)
-            : '—',
+          row.original.id ? (
+            <span
+              title={formatGregorianTitle(row.original.updated_time, locale)}
+            >
+              {formatTimestampToDate(
+                row.original.updated_time,
+                'seconds',
+                locale
+              )}
+            </span>
+          ) : (
+            '—'
+          ),
         meta: { mobileHidden: true },
       },
     ]
-  }, [t, canPrice, vendorMap, priceMap, pricingState, setCurrentRow, setOpen])
+  }, [
+    t,
+    locale,
+    canPrice,
+    vendorMap,
+    priceMap,
+    pricingState,
+    setCurrentRow,
+    setOpen,
+  ])
 }

@@ -25,7 +25,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAnnouncements } from '@/features/dashboard/hooks/use-status-data'
 import { getPreviewText } from '@/features/dashboard/lib'
 import type { AnnouncementItem } from '@/features/dashboard/types'
+import { toIntlLocale } from '@/i18n/languages'
 import { getAnnouncementColorClass } from '@/lib/colors'
+import { formatGregorianTitle } from '@/lib/format'
 import { formatDateTimeObject } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
@@ -46,7 +48,8 @@ const AnnouncementStatusDot = memo(function AnnouncementStatusDot(props: {
 })
 
 export function AnnouncementsPanel() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const { items: list, loading } = useAnnouncements()
   const [selectedAnnouncement, setSelectedAnnouncement] =
     useState<AnnouncementItem | null>(null)
@@ -96,8 +99,18 @@ export function AnnouncementsPanel() {
                     </p>
                     <div className='flex items-center justify-between'>
                       {item.publishDate && (
-                        <time className='text-muted-foreground/60 text-xs'>
-                          {formatDateTimeObject(new Date(item.publishDate))}
+                        <time
+                          className='text-muted-foreground/60 text-xs'
+                          title={formatGregorianTitle(
+                            new Date(item.publishDate).getTime(),
+                            locale,
+                            'milliseconds'
+                          )}
+                        >
+                          {formatDateTimeObject(
+                            new Date(item.publishDate),
+                            locale
+                          )}
                         </time>
                       )}
                       <span className='text-muted-foreground/40 text-xs opacity-0 transition-opacity group-hover:opacity-100'>

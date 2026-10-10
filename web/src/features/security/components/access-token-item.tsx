@@ -26,6 +26,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
 } from '@/components/ui/dropdown-menu'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatGregorianTitle } from '@/lib/format'
 
 import type { AccessTokenItem as AccessToken } from '../api'
 
@@ -46,7 +48,8 @@ interface AccessTokenItemProps {
 }
 
 export function AccessTokenItem(props: AccessTokenItemProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const token = props.token
   const resources = [
     ...new Set(token.scopes.map((scope) => scope.split(':', 1)[0])),
@@ -59,7 +62,7 @@ export function AccessTokenItem(props: AccessTokenItemProps) {
   const hiddenCount =
     resources.length - Math.min(labels.length, VISIBLE_RESOURCE_BADGES)
   let expiry = (
-    <span>
+    <span title={formatGregorianTitle(token.expires_at, locale)}>
       {t('Expires {{time}}', { time: props.formatTime(token.expires_at) })}
     </span>
   )
@@ -94,13 +97,18 @@ export function AccessTokenItem(props: AccessTokenItemProps) {
           {hiddenCount > 0 && <Badge variant='outline'>+{hiddenCount}</Badge>}
         </div>
         <p className='text-muted-foreground flex flex-wrap gap-x-3 gap-y-1 text-xs'>
-          <span>
+          <span title={formatGregorianTitle(token.created_at, locale)}>
             {t('Created {{time}}', {
               time: props.formatTime(token.created_at),
             })}
           </span>
           {expiry}
-          <span className='break-all'>{lastUsed}</span>
+          <span
+            className='break-all'
+            title={formatGregorianTitle(token.last_used_at, locale)}
+          >
+            {lastUsed}
+          </span>
         </p>
       </div>
       <DataTableRowActionMenu ariaLabel={t('Open menu')}>

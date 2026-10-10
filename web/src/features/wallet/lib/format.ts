@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
 
+import { formatFixed } from '@/lib/format'
+
 import { DEFAULT_DISCOUNT_RATE } from '../constants'
 
 // ============================================================================
@@ -25,14 +27,17 @@ import { DEFAULT_DISCOUNT_RATE } from '../constants'
 // ============================================================================
 
 /**
- * Format Creem price with currency symbol (USD/EUR)
+ * Format Creem price with currency symbol (USD/EUR). Pass the interface locale
+ * (see `toIntlLocale`) for its digits and decimal separator; without one it
+ * keeps the fixed `$9.90` form.
  */
 export function formatCreemPrice(
   price: number,
-  currency: 'USD' | 'EUR'
+  currency: 'USD' | 'EUR',
+  locale: Intl.LocalesArgument = 'en-US'
 ): string {
   const symbol = currency === 'EUR' ? '€' : '$'
-  return `${symbol}${price.toFixed(2)}`
+  return `${symbol}${formatFixed(price, 2, locale)}`
 }
 
 /**
@@ -51,13 +56,18 @@ export function formatQuotaShort(quota: number): string {
 /**
  * Format currency amount that is already in local currency.
  * This is used for payment amounts that have been calculated via priceRatio.
+ * Pass the interface locale (see `toIntlLocale`); it defaults to the runtime
+ * locale.
  */
-export function formatCurrency(amount: number | string): string {
+export function formatCurrency(
+  amount: number | string,
+  locale?: Intl.LocalesArgument
+): string {
   const numeric =
     typeof amount === 'number' ? amount : Number.parseFloat(String(amount))
   if (!Number.isFinite(numeric)) return '-'
 
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(locale, {
     minimumFractionDigits: 0,
     maximumFractionDigits: Math.abs(numeric) >= 1 ? 2 : 4,
   }).format(numeric)

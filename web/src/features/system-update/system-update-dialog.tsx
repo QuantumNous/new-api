@@ -24,6 +24,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestampToDate } from '@/lib/format'
 
 import { getSystemReleaseUrl, parseSystemVersion } from './releases'
@@ -46,7 +47,8 @@ type SystemUpdateDialogProps = {
 }
 
 export function SystemUpdateDialog(props: SystemUpdateDialogProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const update = props.update
   const release = update.release
   const snapshot = update.snapshot
@@ -145,7 +147,8 @@ export function SystemUpdateDialog(props: SystemUpdateDialogProps) {
             <dd>
               {formatTimestampToDate(
                 Date.parse(release.published_at),
-                'milliseconds'
+                'milliseconds',
+                locale
               )}
             </dd>
           </div>

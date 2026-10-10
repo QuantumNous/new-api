@@ -29,10 +29,11 @@ import type { NameRule, Model } from '../types'
 
 /**
  * Format timestamp to standard date string (YYYY-MM-DD HH:mm:ss)
+ * (Solar Hijri for a Persian `locale` from `toIntlLocale`)
  */
-export function formatTimestamp(timestamp: number): string {
+export function formatTimestamp(timestamp: number, locale?: string): string {
   if (!timestamp || timestamp === 0) return '-'
-  return formatTimestampToDate(timestamp)
+  return formatTimestampToDate(timestamp, 'seconds', locale)
 }
 
 /**

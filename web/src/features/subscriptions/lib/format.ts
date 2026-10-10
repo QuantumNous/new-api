@@ -18,14 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
 
-import dayjs from '@/lib/dayjs'
+import { formatDisplayDate, formatFixed } from '@/lib/format'
 
 import type { SubscriptionPlan } from '../types'
 
+/** Pass the interface locale (toIntlLocale) so the number uses its digits. */
 export function formatDuration(
   plan: Partial<SubscriptionPlan>,
-  t: TFunction
+  t: TFunction,
+  locale?: Intl.LocalesArgument
 ): string {
+  const count = (value: number) => formatFixed(value, 0, locale)
   const unit = plan?.duration_unit || 'month'
   const value = plan?.duration_value || 1
   const unitLabels: Record<string, string> = {
@@ -37,32 +40,46 @@ export function formatDuration(
   }
   if (unit === 'custom') {
     const seconds = plan?.custom_seconds || 0
-    if (seconds >= 86400) return `${Math.floor(seconds / 86400)} ${t('days')}`
-    if (seconds >= 3600) return `${Math.floor(seconds / 3600)} ${t('hours')}`
-    return `${seconds} ${t('seconds')}`
+    if (seconds >= 86400) {
+      return `${count(Math.floor(seconds / 86400))} ${t('days')}`
+    }
+    if (seconds >= 3600) {
+      return `${count(Math.floor(seconds / 3600))} ${t('hours')}`
+    }
+    return `${count(seconds)} ${t('seconds')}`
   }
-  return `${value} ${unitLabels[unit] || unit}`
+  return `${count(value)} ${unitLabels[unit] || unit}`
 }
 
+/** Pass the interface locale (toIntlLocale) so the number uses its digits. */
 export function formatResetPeriod(
   plan: Partial<SubscriptionPlan>,
-  t: TFunction
+  t: TFunction,
+  locale?: Intl.LocalesArgument
 ): string {
+  const count = (value: number) => formatFixed(value, 0, locale)
   const period = plan?.quota_reset_period || 'never'
   if (period === 'daily') return t('Daily')
   if (period === 'weekly') return t('Weekly')
   if (period === 'monthly') return t('Monthly')
   if (period === 'custom') {
     const seconds = Number(plan?.quota_reset_custom_seconds || 0)
-    if (seconds >= 86400) return `${Math.floor(seconds / 86400)} ${t('days')}`
-    if (seconds >= 3600) return `${Math.floor(seconds / 3600)} ${t('hours')}`
-    if (seconds >= 60) return `${Math.floor(seconds / 60)} ${t('minutes')}`
-    return `${seconds} ${t('seconds')}`
+    if (seconds >= 86400) {
+      return `${count(Math.floor(seconds / 86400))} ${t('days')}`
+    }
+    if (seconds >= 3600) {
+      return `${count(Math.floor(seconds / 3600))} ${t('hours')}`
+    }
+    if (seconds >= 60) {
+      return `${count(Math.floor(seconds / 60))} ${t('minutes')}`
+    }
+    return `${count(seconds)} ${t('seconds')}`
   }
   return t('No Reset')
 }
 
-export function formatTimestamp(ts: number): string {
+/** Solar Hijri for a Persian locale from `toIntlLocale`, see `formatDisplayDate` */
+export function formatTimestamp(ts: number, locale?: string): string {
   if (!ts) return '-'
-  return dayjs(ts * 1000).format('YYYY-MM-DD HH:mm:ss')
+  return formatDisplayDate(ts * 1000, 'YYYY-MM-DD HH:mm:ss', locale)
 }

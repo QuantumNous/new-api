@@ -62,8 +62,15 @@ import { BILLING_PRICING_VARS } from '@/features/pricing/lib/billing-expr'
 import { pluginUsageSchema } from '@/features/pricing/lib/plugin-pricing'
 import { PolicyDecisionRecord } from '@/features/system-settings/request-policies/decision-record'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatBillingCurrencyFromUSD } from '@/lib/currency'
-import { formatLogQuota, formatTokens, formatUseTime } from '@/lib/format'
+import {
+  formatFixed,
+  formatLogQuota,
+  formatNumber,
+  formatTokens,
+  formatUseTime,
+} from '@/lib/format'
 import { translateServerText } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
@@ -114,9 +121,12 @@ function timingTextColorClass(
   return 'text-rose-600'
 }
 
-function formatRatio(ratio: number | undefined): string {
+function formatRatio(
+  ratio: number | undefined,
+  locale: string | undefined
+): string {
   if (ratio == null) return '-'
-  return ratio.toFixed(4)
+  return formatFixed(ratio, 4, locale)
 }
 
 function getUsageBillingPathLabel(
@@ -170,7 +180,8 @@ function BillingBreakdown(props: {
   other: LogOtherData
   isAdmin: boolean
 }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const { log, other, isAdmin } = props
   const isPerCall = isPerCallBilling(other.model_price)
   const isClaude = other.claude === true
@@ -178,7 +189,12 @@ function BillingBreakdown(props: {
   const tieredSummary = getTieredBillingSummary(other)
 
   const rows: Array<{ label: string; value: string }> = []
-  const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
+  const priceOpts = {
+    digitsLarge: 4,
+    digitsSmall: 6,
+    abbreviate: false,
+    locale,
+  }
   const fmtPrice = (usd: number) => formatBillingCurrencyFromUSD(usd, priceOpts)
   const baseInputUSD = other.model_ratio != null ? other.model_ratio * 2.0 : 0
 
@@ -236,7 +252,7 @@ function BillingBreakdown(props: {
   if (effectiveGR != null && Number.isFinite(effectiveGR)) {
     rows.push({
       label: isUserGR ? t('User Exclusive Ratio') : t('Group Ratio'),
-      value: `${formatRatio(effectiveGR)}x`,
+      value: `${formatRatio(effectiveGR, locale)}x`,
     })
   }
 
@@ -305,14 +321,14 @@ function BillingBreakdown(props: {
   if (other.web_search && other.web_search_call_count) {
     rows.push({
       label: t('Web Search'),
-      value: `${other.web_search_call_count}x${other.web_search_price ? ` (${fmtPrice(other.web_search_price)})` : ''}`,
+      value: `${formatFixed(other.web_search_call_count, 0, locale)}x${other.web_search_price ? ` (${fmtPrice(other.web_search_price)})` : ''}`,
     })
   }
 
   if (other.file_search && other.file_search_call_count) {
     rows.push({
       label: t('File Search'),
-      value: `${other.file_search_call_count}x${other.file_search_price ? ` (${fmtPrice(other.file_search_price)})` : ''}`,
+      value: `${formatFixed(other.file_search_call_count, 0, locale)}x${other.file_search_price ? ` (${fmtPrice(other.file_search_price)})` : ''}`,
     })
   }
 
@@ -366,7 +382,7 @@ function BillingBreakdown(props: {
       )}
       <DetailRow
         label={t('Total Cost')}
-        value={formatLogQuota(log.quota)}
+        value={formatLogQuota(log.quota, locale)}
         mono
       />
     </DetailSection>
@@ -374,7 +390,8 @@ function BillingBreakdown(props: {
 }
 
 function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const { log, other } = props
 
   const promptTokens = log.prompt_tokens || 0
@@ -389,51 +406,54 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
 
   const rows: Array<{ label: string; value: string }> = []
 
-  rows.push({ label: t('Input Tokens'), value: promptTokens.toLocaleString() })
+  rows.push({
+    label: t('Input Tokens'),
+    value: formatNumber(promptTokens, locale),
+  })
   rows.push({
     label: t('Output Tokens'),
-    value: completionTokens.toLocaleString(),
+    value: formatNumber(completionTokens, locale),
   })
 
   if (cacheRead > 0) {
     rows.push({
       label: t('Cache Read'),
-      value: cacheRead.toLocaleString(),
+      value: formatNumber(cacheRead, locale),
     })
   }
 
   if (other.image_cache_tokens !== undefined) {
     rows.push({
       label: t('Image Cache'),
-      value: other.image_cache_tokens.toLocaleString(),
+      value: formatNumber(other.image_cache_tokens, locale),
     })
   }
 
   if (cacheWrite > 0 && cacheWrite5m === 0 && cacheWrite1h === 0) {
     rows.push({
       label: t('Cache Write'),
-      value: cacheWrite.toLocaleString(),
+      value: formatNumber(cacheWrite, locale),
     })
   }
 
   if (cacheWrite5m > 0) {
     rows.push({
       label: t('Cache Write (5m)'),
-      value: cacheWrite5m.toLocaleString(),
+      value: formatNumber(cacheWrite5m, locale),
     })
   }
 
   if (cacheWrite1h > 0) {
     rows.push({
       label: t('Cache Write (1h)'),
-      value: cacheWrite1h.toLocaleString(),
+      value: formatNumber(cacheWrite1h, locale),
     })
   }
 
   if (other.image && other.image_output) {
     rows.push({
       label: t('Image Tokens'),
-      value: other.image_output.toLocaleString(),
+      value: formatNumber(other.image_output, locale),
     })
   }
 
@@ -458,7 +478,7 @@ function TokenBreakdown(props: { log: UsageLog; other: LogOtherData }) {
               <DetailRow
                 key={variable.key}
                 label={t(variable.shortLabel)}
-                value={count.toLocaleString()}
+                value={formatNumber(count, locale)}
                 mono
               />
             )
@@ -478,7 +498,8 @@ interface DetailsDialogProps {
 }
 
 export function DetailsDialog(props: DetailsDialogProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const { copiedText, copyToClipboard } = useCopyToClipboard({ notify: false })
   const other = parseLogOther(props.log.other)
   const typeConfig = getLogTypeConfig(props.log.type)
@@ -564,7 +585,8 @@ export function DetailsDialog(props: DetailsDialogProps) {
         other?.op?.action ?? '',
         other?.op?.params ?? {},
         true,
-        t
+        t,
+        locale
       )
     : null
   const operationText = renderAuditContent(other, t)
@@ -876,7 +898,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             )}
             <DetailRow
               label={t('Fee Amount')}
-              value={formatLogQuota(other.fee_quota ?? props.log.quota)}
+              value={formatLogQuota(other.fee_quota ?? props.log.quota, locale)}
               mono
             />
           </DetailSection>
@@ -1284,7 +1306,7 @@ export function DetailsDialog(props: DetailsDialogProps) {
             {other.subscription_pre_consumed != null && (
               <DetailRow
                 label={t('Pre-consumed')}
-                value={formatLogQuota(other.subscription_pre_consumed)}
+                value={formatLogQuota(other.subscription_pre_consumed, locale)}
                 mono
               />
             )}
@@ -1292,21 +1314,21 @@ export function DetailsDialog(props: DetailsDialogProps) {
               other.subscription_post_delta !== 0 && (
                 <DetailRow
                   label={t('Post Delta')}
-                  value={formatLogQuota(other.subscription_post_delta)}
+                  value={formatLogQuota(other.subscription_post_delta, locale)}
                   mono
                 />
               )}
             {other.subscription_consumed != null && (
               <DetailRow
                 label={t('Final Consumed')}
-                value={formatLogQuota(other.subscription_consumed)}
+                value={formatLogQuota(other.subscription_consumed, locale)}
                 mono
               />
             )}
             {other.subscription_remain != null && (
               <DetailRow
                 label={t('Remaining')}
-                value={`${formatLogQuota(other.subscription_remain)}${other.subscription_total != null ? ` / ${formatLogQuota(other.subscription_total)}` : ''}`}
+                value={`${formatLogQuota(other.subscription_remain, locale)}${other.subscription_total != null ? ` / ${formatLogQuota(other.subscription_total, locale)}` : ''}`}
                 mono
               />
             )}

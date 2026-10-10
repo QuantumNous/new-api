@@ -41,8 +41,10 @@ import {
   TooltipTrigger,
   TooltipProvider,
 } from '@/components/ui/tooltip'
+import { toIntlLocale } from '@/i18n/languages'
 import { formatQuotaWithCurrency } from '@/lib/currency'
 import dayjs from '@/lib/dayjs'
+import { formatFixed } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { createServerError } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
@@ -61,7 +63,8 @@ export function CheckinCalendarCard({
   turnstileEnabled,
   turnstileSiteKey,
 }: CheckinCalendarCardProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date()
     return new Date(now.getFullYear(), now.getMonth(), 1)
@@ -147,7 +150,7 @@ export function CheckinCalendarCard({
         const res = await performCheckin(token)
         if (res.success && res.data) {
           toast.success(
-            `${t('Check-in successful! Received')} ${formatQuotaWithCurrency(res.data.quota_awarded)}`
+            `${t('Check-in successful! Received')} ${formatQuotaWithCurrency(res.data.quota_awarded, { locale })}`
           )
           refetch()
           setTurnstileModalVisible(false)
@@ -171,7 +174,7 @@ export function CheckinCalendarCard({
         setCheckinLoading(false)
       }
     },
-    [refetch, shouldTriggerTurnstile, t, turnstileSiteKey]
+    [locale, refetch, shouldTriggerTurnstile, t, turnstileSiteKey]
   )
 
   const handlePrevMonth = () => {
@@ -319,7 +322,7 @@ export function CheckinCalendarCard({
                 </div>
                 <p className='text-muted-foreground mt-1 line-clamp-2 text-xs sm:text-sm'>
                   {checkedToday && todayAward !== undefined
-                    ? `${t('Today')} +${formatQuotaWithCurrency(todayAward)}`
+                    ? `${t('Today')} +${formatQuotaWithCurrency(todayAward, { locale })}`
                     : t('Check in daily to receive random quota rewards')}
                 </p>
               </div>
@@ -341,7 +344,11 @@ export function CheckinCalendarCard({
             <div className='grid grid-cols-3 gap-px border-b'>
               <div className='bg-card p-3 text-center sm:p-5'>
                 <div className='text-xl font-semibold tracking-tight tabular-nums sm:text-2xl'>
-                  {checkinData?.stats?.total_checkins || 0}
+                  {formatFixed(
+                    checkinData?.stats?.total_checkins || 0,
+                    0,
+                    locale
+                  )}
                 </div>
                 <div className='text-muted-foreground mt-0.5 text-[10px] font-medium sm:mt-1 sm:text-xs'>
                   {t('Total check-ins')}
@@ -349,7 +356,10 @@ export function CheckinCalendarCard({
               </div>
               <div className='bg-card p-3 text-center sm:p-5'>
                 <div className='text-xl font-semibold tracking-tight tabular-nums sm:text-2xl'>
-                  {formatQuotaWithCurrency(monthlyQuota, { digitsLarge: 0 })}
+                  {formatQuotaWithCurrency(monthlyQuota, {
+                    digitsLarge: 0,
+                    locale,
+                  })}
                 </div>
                 <div className='text-muted-foreground mt-0.5 text-[10px] font-medium sm:mt-1 sm:text-xs'>
                   {t('This month')}
@@ -361,6 +371,7 @@ export function CheckinCalendarCard({
                     checkinData?.stats?.total_quota || 0,
                     {
                       digitsLarge: 0,
+                      locale,
                     }
                   )}
                 </div>
@@ -451,7 +462,10 @@ export function CheckinCalendarCard({
                                 {t('Checked in')}
                               </div>
                               <div className='text-muted-foreground mt-0.5'>
-                                +{formatQuotaWithCurrency(quotaAwarded)}
+                                +
+                                {formatQuotaWithCurrency(quotaAwarded, {
+                                  locale,
+                                })}
                               </div>
                             </div>
                           </TooltipContent>
