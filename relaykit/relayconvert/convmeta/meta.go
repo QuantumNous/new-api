@@ -78,6 +78,15 @@ type ClaudeConvertInfo struct {
 	ToolCalls              []*ClaudeStreamToolCall
 	ToolCallByIndex        map[int]*ClaudeStreamToolCall
 	ToolCallByID           map[string]*ClaudeStreamToolCall
+	PendingNonToolDeltas   []ClaudeStreamNonToolDelta
+}
+
+// ClaudeStreamNonToolDelta is deferred while a tool_use block is open so a
+// later OpenAI frame can still append arguments to that same tool call.
+type ClaudeStreamNonToolDelta struct {
+	Reasoning   string
+	Text        string
+	Annotations []byte
 }
 
 // ClaudeStreamToolCall tracks one OpenAI tool_calls entry while it is encoded

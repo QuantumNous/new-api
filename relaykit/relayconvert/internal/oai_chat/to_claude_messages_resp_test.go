@@ -9,6 +9,245 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestStreamResponseOpenAI2ClaudePreservesAllFieldsInMixedChunks(t *testing.T) {
+	info := &convmeta.Values{
+		ClaudeConvertInfo: &convmeta.ClaudeConvertInfo{
+			LastMessagesType: convmeta.LastMessageTypeNone,
+		},
+	}
+	frames := []dto.ChatCompletionsStreamResponse{
+		{
+			Id: "chatcmpl_mixed", Model: "qwen-test",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					ReasoningContent: ptr("thinking "),
+				},
+			}},
+		},
+		{
+			Id: "chatcmpl_mixed", Model: "qwen-test",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					ReasoningContent: ptr("done.\n"),
+					Content:          ptr("\nAnswer begins"),
+				},
+			}},
+		},
+		{
+			Id: "chatcmpl_mixed", Model: "qwen-test",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					Content: ptr(" here."),
+					ToolCalls: []dto.ToolCallResponse{{
+						Index: ptr(0), ID: "call_1", Type: "function",
+						Function: dto.FunctionResponse{Name: "lookup", Arguments: `{"q":"x"}`},
+					}},
+				},
+			}},
+		},
+		{
+			Id: "chatcmpl_mixed", Model: "qwen-test",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{
+				FinishReason: ptr("tool_calls"),
+			}},
+			Usage: &dto.Usage{PromptTokens: 7, CompletionTokens: 9, TotalTokens: 16},
+		},
+	}
+
+	var events []*dto.ClaudeResponse
+	for i := range frames {
+		info.SendResponseCount = i + 1
+		events = append(events, StreamResponseOpenAI2Claude(&frames[i], info)...)
+	}
+
+	var eventTypes, blockTypes []string
+	var blockIndices []int
+	var thinking, text, toolArguments string
+	for _, event := range events {
+		eventTypes = append(eventTypes, event.Type)
+		switch event.Type {
+		case "content_block_start":
+			blockIndices = append(blockIndices, event.GetIndex())
+			blockTypes = append(blockTypes, event.ContentBlock.Type)
+		case "content_block_stop":
+			blockIndices = append(blockIndices, event.GetIndex())
+		case "content_block_delta":
+			blockIndices = append(blockIndices, event.GetIndex())
+			switch event.Delta.Type {
+			case "thinking_delta":
+				thinking += *event.Delta.Thinking
+			case "text_delta":
+				text += *event.Delta.Text
+			case "input_json_delta":
+				toolArguments += *event.Delta.PartialJson
+			}
+		}
+	}
+
+	assert.Equal(t, []string{
+		"message_start",
+		"content_block_start", "content_block_delta",
+		"content_block_delta", "content_block_stop",
+		"content_block_start", "content_block_delta",
+		"content_block_delta", "content_block_stop",
+		"content_block_start", "content_block_delta",
+		"content_block_stop", "message_delta", "message_stop",
+	}, eventTypes)
+	assert.Equal(t, []string{"thinking", "text", "tool_use"}, blockTypes)
+	assert.Equal(t, []int{0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2}, blockIndices)
+	assert.Equal(t, "thinking done.\n", thinking)
+	assert.Equal(t, "\nAnswer begins here.", text)
+	assert.Equal(t, `{"q":"x"}`, toolArguments)
+	require.NotNil(t, events[len(events)-2].Usage)
+	assert.Equal(t, 9, events[len(events)-2].Usage.OutputTokens)
+	assert.Equal(t, "tool_use", *events[len(events)-2].Delta.StopReason)
+	assert.True(t, info.ClaudeConvertInfo.Done)
+}
+
+func TestStreamResponseOpenAI2ClaudeKeepsToolArgumentsAcrossMixedFrame(t *testing.T) {
+	info := &convmeta.Values{}
+	frames := []dto.ChatCompletionsStreamResponse{
+		{
+			Id: "chatcmpl_split_tool", Model: "qwen-test",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					ToolCalls: []dto.ToolCallResponse{{
+						Index: ptr(0), ID: "call_1", Type: "function",
+						Function: dto.FunctionResponse{Name: "lookup", Arguments: `{"q":"`},
+					}},
+				},
+			}},
+		},
+		{
+			Id: "chatcmpl_split_tool", Model: "qwen-test",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					Content: ptr("Looking it up."),
+					ToolCalls: []dto.ToolCallResponse{{
+						Index: ptr(0), Function: dto.FunctionResponse{Arguments: `ab`},
+					}},
+				},
+			}},
+		},
+		{
+			Id: "chatcmpl_split_tool", Model: "qwen-test",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{
+				Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+					ToolCalls: []dto.ToolCallResponse{{
+						Index: ptr(0), Function: dto.FunctionResponse{Arguments: `c"}`},
+					}},
+				},
+			}},
+		},
+		{
+			Id: "chatcmpl_split_tool", Model: "qwen-test",
+			Choices: []dto.ChatCompletionsStreamResponseChoice{{FinishReason: ptr("tool_calls")}},
+			Usage:   &dto.Usage{PromptTokens: 7, CompletionTokens: 9, TotalTokens: 16},
+		},
+	}
+
+	var events []*dto.ClaudeResponse
+	for i := range frames {
+		info.SendResponseCount = i + 1
+		events = append(events, StreamResponseOpenAI2Claude(&frames[i], info)...)
+	}
+
+	var eventTypes []string
+	var arguments, text string
+	for _, event := range events {
+		eventTypes = append(eventTypes, event.Type)
+		if event.Type != "content_block_delta" {
+			continue
+		}
+		switch event.Delta.Type {
+		case "input_json_delta":
+			arguments += *event.Delta.PartialJson
+		case "text_delta":
+			text += *event.Delta.Text
+		}
+	}
+	assert.Equal(t, []string{
+		"message_start", "content_block_start", "content_block_delta",
+		"content_block_delta", "content_block_delta", "content_block_stop",
+		"content_block_start", "content_block_delta", "content_block_stop",
+		"message_delta", "message_stop",
+	}, eventTypes)
+	assert.Equal(t, `{"q":"abc"}`, arguments)
+	assert.Equal(t, "Looking it up.", text)
+	assert.Equal(t, 0, events[3].GetIndex())
+	assert.Equal(t, 0, events[4].GetIndex())
+	assert.Equal(t, 0, events[5].GetIndex())
+	assert.Equal(t, 1, events[6].GetIndex())
+	assert.True(t, info.ClaudeConvertInfo.Done)
+}
+
+func TestStreamResponseOpenAI2ClaudeFlushesDeferredTextAtTerminal(t *testing.T) {
+	for _, terminal := range []string{"usage-only", "EOF"} {
+		t.Run(terminal, func(t *testing.T) {
+			info := &convmeta.Values{}
+			frames := []dto.ChatCompletionsStreamResponse{
+				{
+					Id: "chatcmpl_terminal", Model: "qwen-test",
+					Choices: []dto.ChatCompletionsStreamResponseChoice{{
+						Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+							ToolCalls: []dto.ToolCallResponse{{
+								Index: ptr(0), ID: "call_1", Type: "function",
+								Function: dto.FunctionResponse{Name: "lookup", Arguments: `{"q":"`},
+							}},
+						},
+					}},
+				},
+				{
+					Id: "chatcmpl_terminal", Model: "qwen-test",
+					Choices: []dto.ChatCompletionsStreamResponseChoice{{
+						Delta: dto.ChatCompletionsStreamResponseChoiceDelta{
+							Content: ptr("Looking it up."),
+							ToolCalls: []dto.ToolCallResponse{{
+								Index: ptr(0), Function: dto.FunctionResponse{Arguments: `abc"}`},
+							}},
+						},
+					}},
+				},
+			}
+			var events []*dto.ClaudeResponse
+			for i := range frames {
+				info.SendResponseCount = i + 1
+				events = append(events, StreamResponseOpenAI2Claude(&frames[i], info)...)
+			}
+			if terminal == "usage-only" {
+				info.SendResponseCount++
+				events = append(events, StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
+					Usage: &dto.Usage{PromptTokens: 7, CompletionTokens: 9},
+				}, info)...)
+			} else {
+				events = append(events, FinalizeStreamResponseOpenAI2Claude(info)...)
+			}
+			var arguments, text string
+			var eventTypes []string
+			for _, event := range events {
+				eventTypes = append(eventTypes, event.Type)
+				if event.Type != "content_block_delta" {
+					continue
+				}
+				switch event.Delta.Type {
+				case "input_json_delta":
+					arguments += *event.Delta.PartialJson
+				case "text_delta":
+					text += *event.Delta.Text
+				}
+			}
+			assert.Equal(t, `{"q":"abc"}`, arguments)
+			assert.Equal(t, "Looking it up.", text)
+			assert.Equal(t, []string{
+				"message_start", "content_block_start", "content_block_delta",
+				"content_block_delta", "content_block_stop", "content_block_start",
+				"content_block_delta", "content_block_stop", "message_delta", "message_stop",
+			}, eventTypes)
+			assert.True(t, info.ClaudeConvertInfo.Done)
+		})
+	}
+}
+
 func TestResponseOpenAI2ClaudeToolUseInputIsObject(t *testing.T) {
 	tests := []struct {
 		name string

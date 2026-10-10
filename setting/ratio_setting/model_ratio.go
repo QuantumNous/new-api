@@ -437,6 +437,17 @@ func GetCompletionRatio(name string) float64 {
 	return GetCompletionRatioInfo(name).Ratio
 }
 
+// GetMappedCompletionRatio honors an explicit ratio for a channel-mapped model.
+// Its public name can match a locked provider model while the upstream and
+// output price belong to a different model.
+func GetMappedCompletionRatio(name string) float64 {
+	name = FormatMatchingModelName(name)
+	if ratio, ok := completionRatioMap.Get(name); ok {
+		return ratio
+	}
+	return GetCompletionRatio(name)
+}
+
 type CompletionRatioInfo struct {
 	Ratio  float64 `json:"ratio"`
 	Locked bool    `json:"locked"`
