@@ -309,7 +309,7 @@ type GeminiToChatStreamState struct {
 type geminiPartialToolCall struct {
 	id        string
 	name      string
-	arguments map[string]interface{}
+	arguments map[string]any
 }
 
 type geminiPartialArgPathSegment struct {
@@ -499,7 +499,7 @@ func (s *GeminiToChatStreamState) preparePartialFunctionCalls(response *dto.Gemi
 func (s *GeminiToChatStreamState) appendPartialFunctionCall(candidateIndex int64, call *dto.FunctionCall) (*dto.FunctionCall, bool, error) {
 	current := s.partialToolByCandidate[candidateIndex]
 	if current == nil {
-		current = &geminiPartialToolCall{arguments: make(map[string]interface{})}
+		current = &geminiPartialToolCall{arguments: make(map[string]any)}
 		s.partialToolByCandidate[candidateIndex] = current
 	}
 	if id := strings.TrimSpace(call.ID); id != "" {
@@ -527,7 +527,7 @@ func (s *GeminiToChatStreamState) appendPartialFunctionCall(candidateIndex int64
 		if err != nil {
 			return nil, false, fmt.Errorf("set partial argument %q: %w", partial.JSONPath, err)
 		}
-		arguments, ok := updated.(map[string]interface{})
+		arguments, ok := updated.(map[string]any)
 		if !ok {
 			return nil, false, fmt.Errorf("partial argument path %q replaced the arguments object", partial.JSONPath)
 		}
@@ -661,14 +661,14 @@ func setGeminiPartialArgValue(current any, path []geminiPartialArgPathSegment, v
 	}
 	segment := path[0]
 	if segment.isIndex {
-		var array []interface{}
+		var array []any
 		switch typed := current.(type) {
 		case nil:
-			array = make([]interface{}, segment.index+1)
-		case []interface{}:
+			array = make([]any, segment.index+1)
+		case []any:
 			array = typed
 			if len(array) <= segment.index {
-				array = append(array, make([]interface{}, segment.index-len(array)+1)...)
+				array = append(array, make([]any, segment.index-len(array)+1)...)
 			}
 		default:
 			return nil, fmt.Errorf("array index %d traverses %T", segment.index, current)
@@ -681,11 +681,11 @@ func setGeminiPartialArgValue(current any, path []geminiPartialArgPathSegment, v
 		return array, nil
 	}
 
-	var object map[string]interface{}
+	var object map[string]any
 	switch typed := current.(type) {
 	case nil:
-		object = make(map[string]interface{})
-	case map[string]interface{}:
+		object = make(map[string]any)
+	case map[string]any:
 		object = typed
 	default:
 		return nil, fmt.Errorf("member %q traverses %T", segment.member, current)

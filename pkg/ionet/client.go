@@ -96,7 +96,7 @@ func NewClientWithConfig(apiKey, baseURL string, httpClient HTTPClient) *Client 
 }
 
 // makeRequest performs an HTTP request and handles common response processing
-func (c *Client) makeRequest(method, endpoint string, body interface{}) (*HTTPResponse, error) {
+func (c *Client) makeRequest(method, endpoint string, body any) (*HTTPResponse, error) {
 	var reqBody []byte
 	var err error
 
@@ -158,7 +158,7 @@ func (c *Client) makeRequest(method, endpoint string, body interface{}) (*HTTPRe
 }
 
 // buildQueryParams builds query parameters for GET requests
-func buildQueryParams(params map[string]interface{}) string {
+func buildQueryParams(params map[string]any) string {
 	if len(params) == 0 {
 		return ""
 	}
