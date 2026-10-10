@@ -57,7 +57,8 @@ import { getTaskPricingDisplayTiers } from '../lib/task-matrix-display'
 import {
   taskPriceLabel,
   taskUsageUnitLabel,
-  taskPricingConditions,
+  taskTierConditions,
+  pricingDisplayFallbackKey,
 } from '../lib/task-price-display'
 import type { BillingUsageSchema, BillingUsageUnit } from '../types'
 
@@ -188,7 +189,7 @@ function formatBreakdownConditionSummary(
     return formatConditionSummary(tier.conditions, t)
   }
   return (
-    taskPricingConditions(tier.conditions, schema, language, t) ||
+    taskTierConditions(tier, schema, language, t) ||
     t(tierCount > 1 ? 'Other cases' : 'All requests')
   )
 }
@@ -352,7 +353,7 @@ export function DynamicPricingBreakdown({
                 {t('Special billing expression')}
               </div>
               <div className='text-muted-foreground text-xs'>
-                {t('Unable to parse structured pricing')}
+                {t(pricingDisplayFallbackKey(expr, usageSchema))}
               </div>
             </div>
           </div>

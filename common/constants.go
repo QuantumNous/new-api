@@ -35,6 +35,11 @@ var DefaultCollapseSidebar = false // default value of collapse sidebar
 var SessionSecret = uuid.New().String()
 var CryptoSecret = uuid.New().String()
 var SessionCookieSecure = false
+
+// DefaultLanguage is the DEFAULT_LANGUAGE environment variable: the language of
+// server log lines and of text for a reader who states no language: en, zh-CN
+// or zh-TW. English when empty.
+var DefaultLanguage string
 var SessionCookieTrustedURLs []string
 
 const (
@@ -129,6 +134,9 @@ var ChannelDisableThreshold = 5.0
 var AutomaticDisableChannelEnabled = false
 var AutomaticEnableChannelEnabled = false
 var QuotaRemindThreshold = 1000
+
+// PreConsumedQuota is retained for old option clients; token reservations now
+// use quota_setting.pre_consume_multiplier and the estimated input cost.
 var PreConsumedQuota = 500
 
 var RetryTimes = 0
@@ -214,6 +222,10 @@ var (
 	GlobalWebRateLimitEnable   bool
 	GlobalWebRateLimitNum      int
 	GlobalWebRateLimitDuration int64
+
+	GlobalStaticRateLimitEnable   bool
+	GlobalStaticRateLimitNum      int
+	GlobalStaticRateLimitDuration int64
 
 	CriticalRateLimitEnable   bool
 	CriticalRateLimitNum            = 20

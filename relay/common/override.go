@@ -56,10 +56,14 @@ type paramOverrideAuditRecorder struct {
 
 type ConditionOperation struct {
 	Path           string `json:"path"`             // JSON路径
-	Mode           string `json:"mode"`             // full, prefix, suffix, contains, gt, gte, lt, lte
+	Mode           string `json:"mode"`             // full, prefix, suffix, contains, regex, gt, gte, lt, lte
 	Value          any    `json:"value"`            // 匹配的值
 	Invert         bool   `json:"invert"`           // 反选功能，true表示取反结果
 	PassMissingKey bool   `json:"pass_missing_key"` // 未获取到json key时的行为
+
+	// Conditions are parsed per request. Reuse the lazily compiled pattern when
+	// pruning multiple objects; never compile before a matching key exists.
+	regex *regexp.Regexp
 }
 
 type ParamOperation struct {
@@ -633,8 +637,8 @@ func checkConditions(data []byte, contextJSON string, conditions []ConditionOper
 		return true, nil // 没有条件，直接通过
 	}
 	results := make([]bool, len(conditions))
-	for i, condition := range conditions {
-		result, err := checkSingleCondition(data, contextJSON, condition)
+	for i := range conditions {
+		result, err := checkSingleCondition(data, contextJSON, &conditions[i])
 		if err != nil {
 			return false, err
 		}
@@ -647,7 +651,7 @@ func checkConditions(data []byte, contextJSON string, conditions []ConditionOper
 	return lo.SomeBy(results, func(item bool) bool { return item }), nil
 }
 
-func checkSingleCondition(data []byte, contextJSON string, condition ConditionOperation) (bool, error) {
+func checkSingleCondition(data []byte, contextJSON string, condition *ConditionOperation) (bool, error) {
 	// 处理负数索引
 	path := processNegativeIndex(data, condition.Path)
 	value := gjson.GetBytes(data, path)
@@ -668,7 +672,7 @@ func checkSingleCondition(data []byte, contextJSON string, condition ConditionOp
 	}
 	targetValue := gjson.ParseBytes(targetBytes)
 
-	result, err := compareGjsonValues(value, targetValue, strings.ToLower(condition.Mode))
+	result, err := condition.compareGjsonValues(value, targetValue)
 	if err != nil {
 		return false, fmt.Errorf("comparison failed for path %s: %v", condition.Path, err)
 	}
@@ -710,7 +714,8 @@ func processNegativeIndex(data []byte, path string) string {
 }
 
 // compareGjsonValues 直接比较两个gjson.Result，支持所有比较模式
-func compareGjsonValues(jsonValue, targetValue gjson.Result, mode string) (bool, error) {
+func (condition *ConditionOperation) compareGjsonValues(jsonValue, targetValue gjson.Result) (bool, error) {
+	mode := strings.ToLower(condition.Mode)
 	switch mode {
 	case "full":
 		return compareEqual(jsonValue, targetValue)
@@ -720,6 +725,18 @@ func compareGjsonValues(jsonValue, targetValue gjson.Result, mode string) (bool,
 		return strings.HasSuffix(jsonValue.String(), targetValue.String()), nil
 	case "contains":
 		return strings.Contains(jsonValue.String(), targetValue.String()), nil
+	case "regex":
+		if targetValue.Type != gjson.String {
+			return false, fmt.Errorf("regex pattern must be a string")
+		}
+		if condition.regex == nil {
+			re, err := regexp.Compile(targetValue.String())
+			if err != nil {
+				return false, fmt.Errorf("invalid regex pattern: %w", err)
+			}
+			condition.regex = re
+		}
+		return condition.regex.MatchString(jsonValue.String()), nil
 	case "gt":
 		return compareNumeric(jsonValue, targetValue, "gt")
 	case "gte":

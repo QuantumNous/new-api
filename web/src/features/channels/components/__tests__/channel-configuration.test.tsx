@@ -18,6 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  createRouter,
+  createRootRoute,
+  createMemoryHistory,
+  RouterContextProvider,
+} from '@tanstack/react-router'
+import {
   act,
   cleanup,
   fireEvent,
@@ -36,6 +42,11 @@ import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 import type { TaskPluginOption } from '../../api'
+import {
+  CHANNEL_TYPE_OLLAMA,
+  CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_VLLM,
+} from '../../constants'
 import { channelSchema, type Channel } from '../../types'
 import { ChannelPluginExtensions } from '../channel-plugin-extensions'
 import { ChannelsProvider } from '../channels-provider'
@@ -52,6 +63,7 @@ const plugins: TaskPluginOption[] = [
     icon: 'text:VA',
     baseUrl: 'https://a.example',
     models: ['video-a-1'],
+    upstreams: ['vendor', 'new_api'],
   },
   {
     key: 'video-b',
@@ -59,8 +71,10 @@ const plugins: TaskPluginOption[] = [
     icon: 'text:VB',
     baseUrl: 'https://b.example',
     models: ['video-b-1'],
+    upstreams: ['vendor', 'new_api'],
   },
   {
+    // Vendor-only: bindable to a Task Plugin channel, never to a New API one.
     key: 'no-address',
     name: 'No Address',
     icon: 'text:NA',
@@ -90,18 +104,28 @@ function ConfigurationHarness(props: {
   clearRowOnClose?: boolean
 }) {
   const [open, setOpen] = useState(props.initialOpen ?? true)
+  const [router] = useState(() =>
+    createRouter({
+      routeTree: createRootRoute(),
+      history: createMemoryHistory({ initialEntries: ['/'] }),
+    })
+  )
   return (
     <QueryClientProvider client={client}>
-      <ChannelsProvider>
-        <button type='button' onClick={() => setOpen(true)}>
-          Open channel
-        </button>
-        <ChannelMutateDrawer
-          open={open}
-          onOpenChange={setOpen}
-          currentRow={open || !props.clearRowOnClose ? props.currentRow : null}
-        />
-      </ChannelsProvider>
+      <RouterContextProvider router={router}>
+        <ChannelsProvider>
+          <button type='button' onClick={() => setOpen(true)}>
+            Open channel
+          </button>
+          <ChannelMutateDrawer
+            open={open}
+            onOpenChange={setOpen}
+            currentRow={
+              open || !props.clearRowOnClose ? props.currentRow : null
+            }
+          />
+        </ChannelsProvider>
+      </RouterContextProvider>
     </QueryClientProvider>
   )
 }
@@ -172,7 +196,34 @@ afterEach(() => {
   client.clear()
   useAuthStore.setState({ auth: originalAuth })
   vi.restoreAllMocks()
+  window.localStorage.clear()
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    writable: true,
+    value: 1024,
+  })
 })
+
+// Editing opens the sheet on the left, so the sheet spans x = 0..900 and the
+// free space for the floating panel is on its right.
+function useWideScreen() {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    writable: true,
+    value: 1920,
+  })
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({
+    x: 0,
+    y: 0,
+    left: 0,
+    top: 0,
+    right: 900,
+    bottom: 900,
+    width: 900,
+    height: 900,
+    toJSON: () => ({}),
+  } as DOMRect)
+}
 
 test('changing built-in providers updates server-provided URL placeholders without replacing the draft address', async () => {
   const user = userEvent.setup()
@@ -226,8 +277,20 @@ test.each([
     url: 'https://volcengine.server.example',
     savedUrl: 'https://custom.example',
   },
+  {
+    type: CHANNEL_TYPE_VLLM,
+    label: /^Base URL/,
+    url: 'vLLM server address, without /v1',
+    savedUrl: 'http://localhost:8000',
+  },
+  {
+    type: CHANNEL_TYPE_SGLANG,
+    label: /^Base URL/,
+    url: 'SGLang server address, without /v1',
+    savedUrl: 'http://localhost:30000',
+  },
 ])(
-  'editing type $type keeps the server URL placeholder out of the saved address',
+  'editing type $type keeps the URL placeholder out of the saved address',
   async ({ type, label, url, savedUrl }) => {
     editingChannel.type = type
     const put = vi
@@ -1077,6 +1140,136 @@ test('model discovery reports failures inline and allows an empty result to fall
   expect(screen.getByRole('button', { name: 'custom-model' })).toBeVisible()
 })
 
+test('quick options and detailed settings share changes across tabs and save the same configuration', async () => {
+  editingChannel.setting = JSON.stringify({
+    pass_through_body_enabled: true,
+    responses_websocket_enabled: true,
+  })
+  editingChannel.settings = JSON.stringify({
+    upstream_model_update_check_enabled: true,
+    upstream_model_update_auto_sync_enabled: true,
+  })
+  editingChannel.auto_ban = 0
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const quick = within(screen.getByRole('group', { name: 'Quick options' }))
+  for (const name of [
+    'Pass Through Body',
+    'Detect model updates',
+    'Responses WebSocket',
+  ]) {
+    const toggle = quick.getByRole('switch', { name })
+    expect(toggle).toBeChecked()
+    toggle.focus()
+    await user.keyboard(' ')
+    expect(toggle).not.toBeChecked()
+  }
+  await user.click(quick.getByRole('switch', { name: 'Auto-disable channel' }))
+
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  expect(
+    screen.getByRole('switch', { name: 'Enable Responses WebSocket' })
+  ).not.toBeChecked()
+  const passthrough = screen.getByRole('switch', { name: 'Pass Through Body' })
+  expect(passthrough).not.toBeChecked()
+  await user.click(passthrough)
+  expect(passthrough).not.toBeChecked()
+  await user.click(
+    await screen.findByRole('button', { name: 'Enable passthrough' })
+  )
+  expect(passthrough).toBeChecked()
+  expect(screen.getByRole('switch', { name: 'Force Format' })).toBeVisible()
+  expect(
+    screen.getByRole('switch', { name: 'Allow service_tier passthrough' })
+  ).toBeVisible()
+
+  await user.click(screen.getByRole('tab', { name: /Other Settings/ }))
+  const modelCheck = screen.getByRole('switch', {
+    name: 'Upstream Model Update Check',
+  })
+  expect(modelCheck).not.toBeChecked()
+  expect(
+    screen.getByRole('switch', { name: 'Auto Sync Upstream Models' })
+  ).toHaveAttribute('aria-disabled', 'true')
+  await user.click(modelCheck)
+  expect(
+    screen.getByRole('switch', { name: 'Auto Sync Upstream Models' })
+  ).toBeChecked()
+
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  expect(screen.getByRole('switch', { name: 'Auto Ban' })).toBeChecked()
+  await user.click(screen.getByRole('switch', { name: 'Auto Ban' }))
+  await user.click(screen.getByRole('tab', { name: /Connection & Models/ }))
+  expect(quick.getByRole('switch', { name: 'Pass Through Body' })).toBeChecked()
+  expect(
+    quick.getByRole('switch', { name: 'Detect model updates' })
+  ).toBeChecked()
+  expect(
+    quick.getByRole('switch', { name: 'Auto-disable channel' })
+  ).not.toBeChecked()
+  expect(
+    quick.getByRole('switch', { name: 'Responses WebSocket' })
+  ).not.toBeChecked()
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as {
+    auto_ban: number
+    setting: string
+    settings: string
+  }
+  expect(payload.auto_ban).toBe(0)
+  expect(JSON.parse(payload.setting)).toMatchObject({
+    pass_through_body_enabled: true,
+    responses_websocket_enabled: false,
+  })
+  expect(JSON.parse(payload.settings)).toMatchObject({
+    upstream_model_update_check_enabled: true,
+    upstream_model_update_auto_sync_enabled: true,
+  })
+})
+
+test('quick options show only applicable shortcuts when the provider changes', async () => {
+  const user = userEvent.setup()
+  render(<ConfigurationHarness />)
+  await user.click(screen.getByRole('option', { name: 'OpenAI Built-in #1' }))
+  let quick = within(screen.getByRole('group', { name: 'Quick options' }))
+  expect(quick.getAllByRole('switch')).toHaveLength(5)
+  expect(
+    quick.queryByRole('switch', { name: 'Force Format' })
+  ).not.toBeInTheDocument()
+  expect(
+    quick.queryByRole('switch', { name: 'Thinking to Content' })
+  ).not.toBeInTheDocument()
+  await user.click(quick.getByRole('switch', { name: 'Pass Through Body' }))
+  await user.click(
+    await screen.findByRole('button', { name: 'Enable passthrough' })
+  )
+  expect(
+    screen.getByRole('tab', { name: /Connection & Models/ })
+  ).toHaveAccessibleName(/Incomplete/)
+
+  await user.click(screen.getByRole('button', { name: 'Change provider' }))
+  await user.click(screen.getByRole('option', { name: /^DeepSeek / }))
+  quick = within(screen.getByRole('group', { name: 'Quick options' }))
+  expect(quick.getAllByRole('switch')).toHaveLength(4)
+  expect(
+    quick.queryByRole('switch', { name: 'Responses WebSocket' })
+  ).not.toBeInTheDocument()
+  expect(quick.getByRole('switch', { name: 'Pass Through Body' })).toBeChecked()
+
+  await user.click(screen.getByRole('button', { name: 'Change provider' }))
+  await user.click(screen.getByRole('option', { name: /Video A/ }))
+  quick = within(screen.getByRole('group', { name: 'Quick options' }))
+  expect(quick.getAllByRole('switch')).toHaveLength(1)
+  expect(
+    quick.getByRole('switch', { name: 'Auto-disable channel' })
+  ).toBeChecked()
+})
+
 test('editing opens the shared configuration and omits an unchanged key on update', async () => {
   const channel = channelSchema.parse({
     id: 42,
@@ -1130,7 +1323,7 @@ test('editing legacy channels retains the full provider list and saves the origi
     soraPlugin,
     {
       key: 'doubao',
-      name: 'Doubao Video',
+      name: 'Doubao',
       icon: 'text',
       models: ['doubao-video'],
     },
@@ -1146,7 +1339,7 @@ test('editing legacy channels retains the full provider list and saves the origi
     await screen.findByRole('option', { name: 'Sora Plugin sora' })
   ).toBeVisible()
   expect(
-    screen.getByRole('option', { name: 'DoubaoVideo Built-in #54' })
+    screen.getByRole('option', { name: 'Doubao Built-in #54' })
   ).toBeVisible()
   const legacy = screen.getByRole('option', { name: 'Sora Built-in #55' })
   expect(legacy).toHaveAttribute('aria-current', 'true')
@@ -1312,13 +1505,66 @@ test('request processing configuration does not mark the network category as con
   ).not.toHaveAccessibleName(/Configured/)
 })
 
+test.each([1, 57, 58, 59, 60])(
+  'provider %s marks a saved Responses WebSocket setting in Request & Response and clears the mark when disabled',
+  async (type) => {
+    editingChannel = {
+      ...editingChannel,
+      type,
+      setting: '{"responses_websocket_enabled":true}',
+    }
+    const user = userEvent.setup()
+    render(<ConfigurationHarness currentRow={editingChannel} />)
+    await screen.findByDisplayValue('Existing channel')
+    const requestTab = screen.getByRole('tab', { name: /Request & Response/ })
+    expect(requestTab).toHaveAccessibleName(/Configured/)
+    expect(
+      screen.getByRole('tab', { name: /Other Settings/ })
+    ).not.toHaveAccessibleName(/Configured/)
+    await user.click(requestTab)
+    const toggle = screen.getByRole('switch', {
+      name: 'Enable Responses WebSocket',
+    })
+    expect(toggle).toBeChecked()
+    await user.click(toggle)
+    expect(toggle).not.toBeChecked()
+    expect(requestTab).not.toHaveAccessibleName(/Configured/)
+  }
+)
+
+test.each([
+  [58, true],
+  [1, false],
+])(
+  'provider %s explains the native-route limit under the Responses WebSocket toggle: %s',
+  async (type, shown) => {
+    editingChannel = { ...editingChannel, type }
+    const user = userEvent.setup()
+    render(<ConfigurationHarness currentRow={editingChannel} />)
+    await screen.findByDisplayValue('Existing channel')
+    await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+    expect(
+      screen.getByRole('switch', { name: 'Enable Responses WebSocket' })
+    ).toBeVisible()
+    const note = screen.queryByText(
+      /applies only to \/v1\/responses routes without protocol conversion/
+    )
+    if (shown) {
+      expect(note).toBeVisible()
+    } else {
+      expect(note).not.toBeInTheDocument()
+    }
+  }
+)
+
 test('configuration from fields unsupported by the selected provider stays unmarked', async () => {
   editingChannel = {
     ...editingChannel,
     type: 61,
-    setting: '{"task_plugin_key":"video-a","force_format":true}',
+    setting:
+      '{"task_plugin_key":"video-a","force_format":true,"responses_websocket_enabled":true}',
     settings:
-      '{"allow_speed":true,"allow_service_tier":true,"upstream_model_update_check_enabled":true}',
+      '{"allow_speed":true,"allow_service_tier":true,"upstream_model_update_check_enabled":true,"ollama_openai_chat":true}',
   }
   render(<ConfigurationHarness currentRow={editingChannel} />)
   await screen.findByDisplayValue('Existing channel')
@@ -1328,6 +1574,41 @@ test('configuration from fields unsupported by the selected provider stays unmar
   expect(
     screen.getByRole('tab', { name: /Other Settings/ })
   ).not.toHaveAccessibleName(/Configured/)
+  expect(
+    screen.queryByRole('switch', {
+      name: 'Use OpenAI-compatible Ollama chat API',
+    })
+  ).not.toBeInTheDocument()
+})
+
+test('an Ollama channel marks a saved OpenAI-compatible chat setting in Request & Response and saves the toggled value', async () => {
+  editingChannel = {
+    ...editingChannel,
+    type: CHANNEL_TYPE_OLLAMA,
+    settings: '{"ollama_openai_chat":true}',
+  }
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const requestTab = screen.getByRole('tab', { name: /Request & Response/ })
+  expect(requestTab).toHaveAccessibleName(/Configured/)
+  await user.click(requestTab)
+  const toggle = screen.getByRole('switch', {
+    name: 'Use OpenAI-compatible Ollama chat API',
+  })
+  expect(toggle).toBeChecked()
+  await user.click(toggle)
+  expect(toggle).not.toBeChecked()
+  expect(requestTab).not.toHaveAccessibleName(/Configured/)
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as { settings: string }
+  expect(JSON.parse(payload.settings)).toMatchObject({
+    ollama_openai_chat: false,
+  })
 })
 
 test('an invalid edit switches categories and replaces configured styling with the field error', async () => {
@@ -1683,6 +1964,20 @@ test('an operator without sensitive write permission can discover saved models a
   await screen.findByDisplayValue('Existing channel')
   expect(screen.getByRole('button', { name: 'Change provider' })).toBeDisabled()
   expect(screen.getByLabelText('API Key *')).toBeDisabled()
+  const quick = within(screen.getByRole('group', { name: 'Quick options' }))
+  for (const name of [
+    'Pass Through Body',
+    'Detect model updates',
+    'Responses WebSocket',
+  ]) {
+    const toggle = quick.getByRole('switch', { name })
+    expect(toggle).toHaveAttribute('aria-disabled', 'true')
+    await user.click(toggle)
+    expect(toggle).not.toBeChecked()
+  }
+  expect(
+    quick.getByRole('switch', { name: 'Auto-disable channel' })
+  ).not.toHaveAttribute('aria-disabled', 'true')
   await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
   expect(
     await screen.findByRole('checkbox', { name: 'upstream-model' })
@@ -1923,4 +2218,597 @@ test('closing an edited channel retains its left exit direction after the parent
       Reflect.deleteProperty(HTMLElement.prototype, 'getAnimations')
     }
   }
+})
+
+test('the model list summarizes redirects, counts them on the routing tab, and jumps to the mapping editor', async () => {
+  editingChannel = {
+    ...editingChannel,
+    model_mapping: '{"custom-model":"upstream-model"}',
+  }
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  expect(screen.getByText('1 model(s) redirected')).toBeVisible()
+  const tab = screen.getByRole('tab', { name: /Routing & Mapping/ })
+  expect(tab).toHaveAccessibleName(/^Routing & Mapping\s?1 model mapping\(s\)$/)
+  expect(
+    within(tab).queryByRole('img', { name: 'Configured' })
+  ).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole('button', { name: 'Edit mapping' }))
+  expect(tab).toHaveAttribute('aria-selected', 'true')
+  expect(
+    screen.getByRole('combobox', { name: 'Request Model Name' })
+  ).toHaveValue('custom-model')
+})
+
+test('without mappings the model list offers to set up redirects and the routing tab shows no count', async () => {
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const tab = screen.getByRole('tab', { name: /Routing & Mapping/ })
+  expect(tab).toHaveAccessibleName('Routing & Mapping')
+  expect(screen.queryByText(/model\(s\) redirected/)).not.toBeInTheDocument()
+  await user.click(
+    screen.getByRole('button', { name: 'Set up model redirects' })
+  )
+  expect(tab).toHaveAttribute('aria-selected', 'true')
+  expect(screen.getByRole('button', { name: 'Add Mapping' })).toBeVisible()
+})
+
+test('mapping guardrail alerts link to the tab that holds the fix', async () => {
+  editingChannel = {
+    ...editingChannel,
+    model_mapping: '{"alias":"custom-model"}',
+  }
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const routingTab = screen.getByRole('tab', { name: /Routing & Mapping/ })
+  const connectionTab = screen.getByRole('tab', {
+    name: /Connection & Models/,
+  })
+  await user.click(screen.getByRole('button', { name: 'View mapping' }))
+  expect(routingTab).toHaveAttribute('aria-selected', 'true')
+  await user.click(screen.getByRole('button', { name: 'View models' }))
+  expect(connectionTab).toHaveAttribute('aria-selected', 'true')
+})
+
+test('redirecting a model from the model picker publishes it, adds a mapping row, and focuses its upstream field', async () => {
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('button', { name: 'Configure Models' }))
+  const dialog = within(
+    screen.getByRole('dialog', { name: 'Configure Models' })
+  )
+  await user.click(
+    dialog.getByRole('button', { name: 'Redirect custom-model' })
+  )
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', { name: 'Configure Models' })
+    ).not.toBeInTheDocument()
+  )
+  expect(
+    screen.getByRole('tab', { name: /Routing & Mapping/ })
+  ).toHaveAttribute('aria-selected', 'true')
+  expect(
+    screen.getByRole('combobox', { name: 'Request Model Name' })
+  ).toHaveValue('custom-model')
+  await waitFor(() =>
+    expect(
+      screen.getByRole('combobox', { name: 'Upstream Model Name' })
+    ).toHaveFocus()
+  )
+})
+
+test('fetched upstream models can be redirected in bulk with the model list synced', async () => {
+  editingChannel.models = 'custom-model,upstream-model'
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
+  await user.click(
+    await screen.findByRole('tab', { name: 'Existing Models (1)' })
+  )
+  await screen.findByRole('checkbox', { name: 'upstream-model' })
+
+  await user.click(screen.getByRole('button', { name: 'Batch redirect' }))
+  const dialog = within(
+    screen.getByRole('dialog', { name: 'Batch add mappings' })
+  )
+  expect(
+    dialog.getByRole('tab', { name: /Upstream model list/ })
+  ).toHaveAttribute('aria-selected', 'true')
+  expect(
+    dialog.getByRole('checkbox', { name: 'upstream-model' })
+  ).not.toBeChecked()
+  await user.click(dialog.getByRole('checkbox', { name: 'upstream-model' }))
+  await user.type(dialog.getByRole('textbox', { name: 'Suffix' }), '-model')
+  await user.click(dialog.getByRole('button', { name: 'Add 1 mapping(s)' }))
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('dialog', { name: 'Batch add mappings' })
+    ).not.toBeInTheDocument()
+  )
+
+  expect(screen.getByText('1 model(s) redirected')).toBeVisible()
+  expect(screen.getByRole('button', { name: 'upstream' })).toBeVisible()
+  expect(
+    screen.queryByRole('button', { name: 'upstream-model' })
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  expect(
+    screen.getByRole('combobox', { name: 'Request Model Name' })
+  ).toHaveValue('upstream')
+  expect(
+    screen.getByRole('combobox', { name: 'Upstream Model Name' })
+  ).toHaveValue('upstream-model')
+})
+
+test('a fetched upstream model can be given a request name from its own row', async () => {
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
+  await screen.findByRole('checkbox', { name: 'upstream-model' })
+
+  await user.click(
+    screen.getByRole('button', { name: 'Redirect upstream-model' })
+  )
+  expect(
+    screen.getByRole('tab', { name: /Routing & Mapping/ })
+  ).toHaveAttribute('aria-selected', 'true')
+  await waitFor(() =>
+    expect(
+      screen.getByRole('combobox', { name: 'Request Model Name' })
+    ).toHaveFocus()
+  )
+  expect(
+    screen.getByRole('combobox', { name: 'Upstream Model Name' })
+  ).toHaveValue('upstream-model')
+})
+
+test('on wide screens redirecting a fetched model opens the floating panel beside the drawer and syncs the model list as the alias is typed', async () => {
+  useWideScreen()
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
+  await screen.findByRole('checkbox', { name: 'upstream-model' })
+
+  await user.click(
+    screen.getByRole('button', { name: 'Redirect upstream-model' })
+  )
+  const panelElement = await screen.findByRole('complementary', {
+    name: 'Model redirects',
+  })
+  const panel = within(panelElement)
+  expect(panelElement).toHaveStyle({
+    position: 'fixed',
+    left: '916px',
+    top: '16px',
+    width: '420px',
+  })
+  // The window floats; the sheet keeps its full width.
+  expect(document.querySelector('[data-slot="sheet-content"]')).toHaveClass(
+    'sm:max-w-7xl'
+  )
+  expect(
+    screen.getByRole('tab', { name: /Connection & Models/ })
+  ).toHaveAttribute('aria-selected', 'true')
+  const request = panel.getByRole('combobox', { name: 'Request Model Name' })
+  await waitFor(() => expect(request).toHaveFocus())
+  expect(
+    panel.getByRole('combobox', { name: 'Upstream Model Name' })
+  ).toHaveValue('upstream-model')
+
+  await user.type(request, 'upstream')
+  const picker = within(screen.getByRole('group', { name: 'Models' }))
+  expect(
+    picker.queryByRole('button', { name: 'upstream' })
+  ).not.toBeInTheDocument()
+  await user.keyboard('{Enter}')
+  expect(screen.getByLabelText('Published as upstream')).toBeVisible()
+  expect(picker.getByRole('button', { name: 'upstream' })).toBeVisible()
+  expect(picker.getByRole('button', { name: 'custom-model' })).toBeVisible()
+  expect(picker.queryByRole('button', { name: 'ups' })).not.toBeInTheDocument()
+
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  expect(
+    screen.getByText('Model mappings are being edited in the floating panel.')
+  ).toBeVisible()
+  await user.click(
+    screen.getByRole('button', { name: 'Close the panel to edit here' })
+  )
+  expect(
+    screen.queryByRole('complementary', { name: 'Model redirects' })
+  ).not.toBeInTheDocument()
+  expect(
+    screen.getByRole('combobox', { name: 'Request Model Name' })
+  ).toHaveValue('upstream')
+})
+
+test.each(['current session', 'saved preference'])(
+  'quick redirect expands a panel collapsed in the %s and focuses the new request name',
+  async (collapsedIn) => {
+    useWideScreen()
+    editingChannel.model_mapping = '{"existing-alias":"existing-upstream"}'
+    if (collapsedIn === 'saved preference') {
+      window.localStorage.setItem(
+        'floating-window:channel-model-redirects',
+        JSON.stringify({
+          x: 1000,
+          y: 80,
+          width: 380,
+          height: 360,
+          collapsed: true,
+        })
+      )
+    }
+    const user = userEvent.setup()
+    render(<ConfigurationHarness currentRow={editingChannel} />)
+    await screen.findByDisplayValue('Existing channel')
+    await user.click(
+      screen.getByRole('button', { name: 'Fetch from Upstream' })
+    )
+    await screen.findByRole('checkbox', { name: 'upstream-model' })
+    if (collapsedIn === 'current session') {
+      await user.click(screen.getByRole('button', { name: 'Redirect panel' }))
+      await user.click(screen.getByRole('button', { name: 'Collapse panel' }))
+      expect(screen.getByRole('button', { name: 'Expand panel' })).toBeVisible()
+    }
+
+    await user.click(
+      screen.getByRole('button', { name: 'Redirect upstream-model' })
+    )
+    let panelElement = await screen.findByRole('complementary', {
+      name: 'Model redirects',
+    })
+    let panel = within(panelElement)
+    await waitFor(() =>
+      expect(panel.getByDisplayValue('upstream-model')).toBeVisible()
+    )
+    const request = panel.getAllByRole('combobox', {
+      name: 'Request Model Name',
+    })[1]
+    await waitFor(() => expect(request).toHaveFocus())
+    expect(request).toHaveValue('')
+    expect(panel.getByDisplayValue('existing-alias')).toBeVisible()
+    expect(panel.getByDisplayValue('existing-upstream')).toBeVisible()
+    expect(screen.getByText('1 model(s) redirected')).toBeVisible()
+    if (collapsedIn === 'saved preference') {
+      expect(panelElement).toHaveStyle({
+        left: '1000px',
+        top: '80px',
+        width: '380px',
+        height: '360px',
+      })
+    }
+
+    // Handling the draft must not prevent collapse or swallow the next shortcut for the same model.
+    await user.click(panel.getByRole('button', { name: 'Collapse panel' }))
+    expect(
+      screen.queryByRole('complementary', { name: 'Model redirects' })
+    ).not.toBeInTheDocument()
+    await user.click(
+      screen.getByRole('button', { name: 'Redirect upstream-model' })
+    )
+    panelElement = await screen.findByRole('complementary', {
+      name: 'Model redirects',
+    })
+    panel = within(panelElement)
+    await waitFor(() =>
+      expect(panel.getByDisplayValue('upstream-model')).toBeVisible()
+    )
+    await waitFor(() =>
+      expect(
+        panel.getAllByRole('combobox', { name: 'Request Model Name' })[1]
+      ).toHaveFocus()
+    )
+  }
+)
+
+test('redirecting a recognized upstream name opens an empty alias draft without changing the model list', async () => {
+  useWideScreen()
+  const baseGet = vi.mocked(api.get).getMockImplementation()
+  vi.spyOn(api, 'get').mockImplementation(async (url, ...rest) => {
+    if (url === '/api/channel/fetch_models/42') {
+      return { data: { success: true, data: ['gpt-4o-all'] } }
+    }
+    if (url === '/api/channel/models') {
+      return { data: { success: true, data: [{ id: 'gpt-4o' }] } }
+    }
+    return baseGet?.(url, ...rest)
+  })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
+  await user.click(
+    await screen.findByRole('button', { name: 'Redirect gpt-4o-all' })
+  )
+  const panel = within(
+    await screen.findByRole('complementary', { name: 'Model redirects' })
+  )
+  const request = panel.getByRole('combobox', { name: 'Request Model Name' })
+  await waitFor(() => expect(request).toHaveFocus())
+  expect(request).toHaveValue('')
+  expect(
+    panel.getByRole('combobox', { name: 'Upstream Model Name' })
+  ).toHaveValue('gpt-4o-all')
+  expect(screen.queryByLabelText('Published as gpt-4o')).not.toBeInTheDocument()
+  expect(
+    within(screen.getByRole('group', { name: 'Models' })).getByRole('button', {
+      name: 'custom-model',
+    })
+  ).toBeVisible()
+  expect(screen.queryByText('1 model(s) redirected')).not.toBeInTheDocument()
+})
+
+test('the redirect panel batch action starts empty and only applies explicitly selected models after preview', async () => {
+  useWideScreen()
+  editingChannel.models = 'custom-model,gpt-4o-all,o3-all'
+  const baseGet = vi.mocked(api.get).getMockImplementation()
+  vi.spyOn(api, 'get').mockImplementation(async (url, ...rest) => {
+    if (url === '/api/channel/fetch_models/42') {
+      return { data: { success: true, data: ['gpt-4o-all', 'o3-all'] } }
+    }
+    if (url === '/api/channel/models') {
+      return { data: { success: true, data: [{ id: 'gpt-4o' }] } }
+    }
+    return baseGet?.(url, ...rest)
+  })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('button', { name: 'Fetch from Upstream' }))
+  await user.click(
+    await screen.findByRole('tab', { name: 'Existing Models (2)' })
+  )
+  await screen.findByRole('checkbox', { name: 'gpt-4o-all' })
+
+  await user.click(screen.getByRole('button', { name: 'Redirect panel' }))
+  const panel = within(
+    await screen.findByRole('complementary', { name: 'Model redirects' })
+  )
+  expect(panel.queryByText('Suggested rules')).not.toBeInTheDocument()
+  await user.click(panel.getByRole('button', { name: 'Batch Add' }))
+  let dialog = within(
+    screen.getByRole('dialog', { name: 'Batch add mappings' })
+  )
+  expect(dialog.getByRole('checkbox', { name: 'gpt-4o-all' })).not.toBeChecked()
+  expect(dialog.getByRole('checkbox', { name: 'o3-all' })).not.toBeChecked()
+  await user.click(dialog.getByRole('checkbox', { name: 'gpt-4o-all' }))
+  await user.type(dialog.getByRole('textbox', { name: 'Suffix' }), '-all')
+  await user.click(dialog.getByRole('button', { name: 'Cancel' }))
+  const picker = within(screen.getByRole('group', { name: 'Models' }))
+  expect(picker.getByRole('button', { name: 'gpt-4o-all' })).toBeVisible()
+  expect(
+    picker.queryByRole('button', { name: 'gpt-4o' })
+  ).not.toBeInTheDocument()
+
+  await user.click(panel.getByRole('button', { name: 'Batch Add' }))
+  dialog = within(screen.getByRole('dialog', { name: 'Batch add mappings' }))
+  expect(dialog.getByRole('checkbox', { name: 'gpt-4o-all' })).not.toBeChecked()
+  await user.click(dialog.getByRole('checkbox', { name: 'gpt-4o-all' }))
+  await user.type(dialog.getByRole('textbox', { name: 'Suffix' }), '-all')
+  expect(dialog.getByRole('list', { name: 'Preview' })).toHaveTextContent(
+    'gpt-4ogpt-4o-all'
+  )
+  await user.click(dialog.getByRole('button', { name: 'Add 1 mapping(s)' }))
+  expect(
+    panel.getAllByRole('combobox', { name: 'Request Model Name' })
+  ).toHaveLength(1)
+  expect(picker.getByRole('button', { name: 'gpt-4o' })).toBeVisible()
+  expect(picker.getByRole('button', { name: 'o3-all' })).toBeVisible()
+  expect(picker.queryByRole('button', { name: 'o3' })).not.toBeInTheDocument()
+  expect(screen.getByText('1 model(s) redirected')).toBeVisible()
+
+  await user.click(panel.getByRole('button', { name: 'Collapse panel' }))
+  expect(
+    screen.queryByRole('complementary', { name: 'Model redirects' })
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('button', { name: 'Expand panel' }))
+  expect(
+    screen.getByRole('complementary', { name: 'Model redirects' })
+  ).toBeVisible()
+})
+
+test('on wide screens the quick options move into the header as a compact toggle strip and leave the form', async () => {
+  useWideScreen()
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const quick = screen.getByRole('group', { name: 'Quick options' })
+  expect(quick.closest('[data-slot="sheet-header"]')).not.toBeNull()
+  expect(within(quick).getAllByRole('switch')).toHaveLength(5)
+  // Second header row: status badge and description on the left, toggles right.
+  const statusRow = quick.parentElement
+  if (!statusRow) throw new Error('status row missing')
+  expect(within(statusRow).getByText('Enabled')).toBeVisible()
+  expect(
+    within(statusRow).queryByRole('heading', { name: /Edit Channel/ })
+  ).not.toBeInTheDocument()
+  expect(
+    screen.queryByText(
+      'Preserve upstream-specific fields when API formats match; bypasses model redirect, parameter override and format conversion'
+    )
+  ).not.toBeInTheDocument()
+  expect(screen.queryByText('Quick actions')).toBeVisible()
+
+  const passthrough = within(quick).getByRole('switch', {
+    name: 'Pass Through Body',
+  })
+  expect(passthrough).toHaveAttribute('data-size', 'sm')
+  expect(passthrough).not.toBeChecked()
+  await user.click(passthrough)
+  expect(passthrough).not.toBeChecked()
+  await user.click(
+    await screen.findByRole('button', { name: 'Enable passthrough' })
+  )
+  expect(passthrough).toBeChecked()
+
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  const all = screen.getAllByRole('switch', { name: 'Pass Through Body' })
+  expect(all).toHaveLength(2)
+  for (const toggle of all) expect(toggle).toBeChecked()
+})
+
+test('header passthrough quick option confirms before writing the wildcard rule and clears it without asking', async () => {
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const quick = within(screen.getByRole('group', { name: 'Quick options' }))
+  const headers = quick.getByRole('switch', {
+    name: 'Pass Through Request Headers',
+  })
+  expect(headers).not.toBeChecked()
+
+  await user.click(headers)
+  const dialog = await screen.findByRole('alertdialog', {
+    name: 'Enable request header passthrough?',
+  })
+  expect(dialog).toHaveTextContent(
+    'Entries configured in Request Header Override still take priority'
+  )
+  await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+  await waitFor(() =>
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  )
+  expect(headers).not.toBeChecked()
+
+  await user.click(headers)
+  await user.click(
+    await screen.findByRole('button', { name: 'Enable passthrough' })
+  )
+  expect(headers).toBeChecked()
+
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  const editor = screen.getByLabelText(
+    'Request Header Override'
+  ) as HTMLTextAreaElement
+  expect(JSON.parse(editor.value)).toEqual({ '*': true })
+
+  await user.click(screen.getByRole('tab', { name: /Connection & Models/ }))
+  await user.click(
+    quick.getByRole('switch', { name: 'Pass Through Request Headers' })
+  )
+  expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  expect(
+    quick.getByRole('switch', { name: 'Pass Through Request Headers' })
+  ).not.toBeChecked()
+
+  await user.click(
+    quick.getByRole('switch', { name: 'Pass Through Request Headers' })
+  )
+  await user.click(
+    await screen.findByRole('button', { name: 'Enable passthrough' })
+  )
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as { header_override: string }
+  expect(JSON.parse(payload.header_override)).toEqual({ '*': true })
+})
+
+test('the header override passthrough template button confirms before filling the wildcard rule', async () => {
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Request & Response/ }))
+  const editor = screen.getByLabelText(
+    'Request Header Override'
+  ) as HTMLTextAreaElement
+  expect(editor.value).toBe('')
+
+  await user.click(screen.getByRole('button', { name: 'Passthrough Template' }))
+  const dialog = await screen.findByRole('alertdialog', {
+    name: 'Enable request header passthrough?',
+  })
+  await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+  await waitFor(() =>
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+  )
+  expect(editor.value).toBe('')
+
+  await user.click(screen.getByRole('button', { name: 'Passthrough Template' }))
+  await user.click(
+    await screen.findByRole('button', { name: 'Enable passthrough' })
+  )
+  await waitFor(() => expect(JSON.parse(editor.value)).toEqual({ '*': true }))
+  await user.click(screen.getByRole('tab', { name: /Connection & Models/ }))
+  expect(
+    within(screen.getByRole('group', { name: 'Quick options' })).getByRole(
+      'switch',
+      { name: 'Pass Through Request Headers' }
+    )
+  ).toBeChecked()
+})
+
+test('a New API channel binds upstream task plugins and publishes their models', async () => {
+  const channel = channelSchema.parse({
+    ...editingChannel,
+    type: 60,
+    base_url: 'https://gateway.example',
+    models: 'gpt-5',
+    setting: JSON.stringify({ task_extend_plugin_keys: ['video-a'] }),
+  })
+  const originalGet = vi.mocked(api.get).getMockImplementation()
+  vi.mocked(api.get).mockImplementation(async (url, config) => {
+    if (url === '/api/channel/42') {
+      return { data: { success: true, data: channel } }
+    }
+    return originalGet?.(url, config)
+  })
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={channel} />)
+  const extensions = within(
+    await screen.findByRole('group', { name: 'Plugin extensions' })
+  )
+  expect(
+    extensions.getByRole('button', { name: 'Video A Selected 0 / 1' })
+  ).toBeVisible()
+  expect(
+    extensions.queryByRole('button', { name: /^Video B/ })
+  ).not.toBeInTheDocument()
+
+  const selector = screen.getByRole('combobox', {
+    name: 'Select the task plugins installed on the upstream gateway',
+  })
+  await user.click(selector)
+  expect(
+    screen.queryByRole('option', { name: /^No Address/ })
+  ).not.toBeInTheDocument()
+  await user.click(screen.getByRole('option', { name: /^Video B/ }))
+  await user.keyboard('{Escape}')
+  expect(
+    extensions.getByRole('button', { name: 'Video B Selected 1 / 1' })
+  ).toBeVisible()
+  expect(screen.getByRole('button', { name: 'video-b-1' })).toBeVisible()
+
+  await user.click(selector)
+  await user.click(screen.getByRole('option', { name: /^Video A/ }))
+  await user.keyboard('{Escape}')
+  expect(
+    extensions.queryByRole('button', { name: /^Video A/ })
+  ).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'gpt-5' })).toBeVisible()
+
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as {
+    setting?: string
+    models?: string
+  }
+  const setting = JSON.parse(payload.setting ?? '{}')
+  expect(setting).toMatchObject({ task_extend_plugin_keys: ['video-b'] })
+  expect(setting).not.toHaveProperty('task_plugin_key')
+  expect(payload.models?.split(',').sort()).toEqual(['gpt-5', 'video-b-1'])
 })

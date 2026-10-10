@@ -3,11 +3,13 @@ package openai
 import (
 	"testing"
 
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestCollectStreamFunctionCallNamesDedupesSameIndex(t *testing.T) {
+func TestObserveStreamChoicesDedupesFunctionCallNames(t *testing.T) {
+	info := &relaycommon.RelayInfo{StreamStatus: relaycommon.NewStreamStatus()}
 	seen := make(map[string]struct{})
 	var names []string
 
@@ -19,9 +21,18 @@ func TestCollectStreamFunctionCallNamesDedupesSameIndex(t *testing.T) {
 		`{"choices":[{"index":0,"delta":{"tool_calls":[{"index":1,"function":{"arguments":"{}"}}]}}]}`,
 	}
 	for _, chunk := range chunks {
-		collectStreamFunctionCallNames(chunk, seen, &names)
+		observeStreamChoices(info, chunk, seen, &names)
 	}
 
 	require.Len(t, names, 2)
 	assert.Equal(t, []string{"get_weather", "get_time"}, names)
+	assert.Empty(t, info.StreamStatus.ResponseOutcome(), "tool call deltas carry no finish reason")
+
+	observeStreamChoices(info, `{"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}`, seen, &names)
+	assert.Equal(t, "completed", info.StreamStatus.ResponseOutcome())
+	assert.False(t, info.PerformanceBusinessRejection)
+
+	filtered := &relaycommon.RelayInfo{StreamStatus: relaycommon.NewStreamStatus()}
+	observeStreamChoices(filtered, `{"choices":[{"index":0,"delta":{},"finish_reason":"content_filter"}]}`, map[string]struct{}{}, &names)
+	assert.True(t, filtered.PerformanceBusinessRejection)
 }

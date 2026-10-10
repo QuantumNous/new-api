@@ -1,17 +1,21 @@
 package geminichat
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/jsonutil"
+	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
-func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatRequest, info convmeta.Meta) (*dto.GeneralOpenAIRequest, error) {
+func GeminiGenerateContentRequestToOpenAIChat(ctx context.Context, geminiRequest *dto.GeminiChatRequest, info convmeta.Meta) (*dto.GeneralOpenAIRequest, error) {
 	modelName := ""
 	isStream := false
 	if info != nil {
@@ -22,29 +26,41 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 		Model:  modelName,
 		Stream: kitutil.GetPointer(isStream),
 	}
-	reasoningIntent, err := reasoning.FromGemini(geminiRequest)
-	if err != nil {
-		return nil, reasoning.AsClientError(err)
-	}
 	sourceModelName := modelName
 	if info != nil && info.GetOriginModelName() != "" {
 		sourceModelName = info.GetOriginModelName()
 	}
-	baseSourceModel := sourceModelName
 	opts := convmeta.OptionsOf(info)
 	preserveSuffix := opts.ShouldPreserveThinkingSuffix(sourceModelName)
+	// Capability lookups need the unsuffixed Gemini model the client addressed.
+	// The host already folded any alias into ReasoningState; mirror its parser
+	// so gemini-pro-latest-thinking still resolves to gemini-pro-latest.
+	baseSourceModel := sourceModelName
 	if !preserveSuffix {
-		if suffix := reasoning.IntentFromState(convmeta.ReasoningStateOf(info)); !suffix.IsEmpty() {
-			reasoningIntent, err = reasoning.MergeExplicitAndSuffix(reasoningIntent, suffix, sourceModelName)
-			if err != nil {
-				return nil, reasoning.AsClientError(err)
-			}
+		baseSourceModel = reasoning.ParseModelModifiers(sourceModelName).Base
+		if base, _, found, err := reasoning.ParseGeminiModelSuffix(baseSourceModel, opts.Gemini.ThinkingAdapterEnabled); err == nil && found {
+			baseSourceModel = base
 		}
 	}
 	if baseSourceModel != "" && geminiRequest.GenerationConfig.ThinkingConfig != nil {
-		_, err = reasoning.ValidateGeminiThinkingConfig(baseSourceModel, geminiRequest.GenerationConfig.ThinkingConfig)
+		_, diagnostics, err := reasoning.NormalizeGeminiThinkingConfig(baseSourceModel, &geminiRequest.GenerationConfig)
 		if err != nil {
 			return nil, reasoning.AsClientError(err)
+		}
+		convdiag.Add(ctx, diagnostics...)
+	}
+	reasoningIntent, diagnostics, err := reasoning.FromGemini(geminiRequest)
+	if err != nil {
+		return nil, reasoning.AsClientError(err)
+	}
+	convdiag.Add(ctx, diagnostics...)
+	if !preserveSuffix {
+		if suffix := reasoning.IntentFromState(convmeta.ReasoningStateOf(info)); !suffix.IsEmpty() {
+			reasoningIntent, diagnostics, err = reasoning.MergeExplicitAndSuffix(reasoningIntent, suffix, sourceModelName)
+			if err != nil {
+				return nil, reasoning.AsClientError(err)
+			}
+			convdiag.Add(ctx, diagnostics...)
 		}
 	}
 	reasoningIntent = reasoning.ResolveGeminiDefault(baseSourceModel, reasoningIntent)
@@ -58,7 +74,7 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 
 	callHistory := newGeminiFunctionCallHistory(geminiRequest.Contents)
 	var messages []dto.Message
-	for _, content := range geminiRequest.Contents {
+	for contentIndex, content := range geminiRequest.Contents {
 		message := dto.Message{
 			Role: convertGeminiRoleToOpenAI(content.Role),
 		}
@@ -66,7 +82,7 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 		var mediaContents []dto.MediaContent
 		var toolCalls []dto.ToolCallRequest
 		var reasoningTexts []string
-		for _, part := range content.Parts {
+		for partIndex, part := range content.Parts {
 			if part.Text != "" {
 				if part.Thought {
 					reasoningTexts = append(reasoningTexts, part.Text)
@@ -77,24 +93,20 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 					Text: part.Text,
 				}
 				mediaContents = append(mediaContents, mediaContent)
-			} else if part.InlineData != nil {
-				mediaContent := dto.MediaContent{
-					Type: "image_url",
-					ImageUrl: &dto.MessageImageUrl{
-						Url:      fmt.Sprintf("data:%s;base64,%s", part.InlineData.MimeType, part.InlineData.Data),
-						Detail:   "auto",
-						MimeType: part.InlineData.MimeType,
-					},
-				}
-				mediaContents = append(mediaContents, mediaContent)
-			} else if part.FileData != nil {
-				mediaContent := dto.MediaContent{
-					Type: "image_url",
-					ImageUrl: &dto.MessageImageUrl{
-						Url:      part.FileData.FileUri,
-						Detail:   "auto",
-						MimeType: part.FileData.MimeType,
-					},
+			} else if part.InlineData != nil || part.FileData != nil {
+				mediaContent, reason := geminiMediaToChatContent(part.InlineData, part.FileData)
+				if reason != "" {
+					kind := "inlineData"
+					if part.InlineData == nil {
+						kind = "fileData"
+					}
+					convdiag.Add(ctx, types.ConversionDiagnostic{
+						Code:     "unsupported_media_type",
+						Path:     fmt.Sprintf("contents[%d].parts[%d].%s", contentIndex, partIndex, kind),
+						Message:  reason + "; the part was omitted",
+						Severity: types.ConversionDiagnosticError,
+					})
+					continue
 				}
 				mediaContents = append(mediaContents, mediaContent)
 			} else if part.FunctionCall != nil {
@@ -192,6 +204,71 @@ func GeminiGenerateContentRequestToOpenAIChat(geminiRequest *dto.GeminiChatReque
 	}
 
 	return openaiRequest, nil
+}
+
+// chatImageMediaTypes are the image formats Chat Completions accepts.
+var chatImageMediaTypes = map[string]struct{}{
+	"image/png":  {},
+	"image/jpeg": {},
+	"image/webp": {},
+	"image/gif":  {},
+}
+
+// geminiMediaToChatContent maps Gemini inlineData or fileData onto the Chat
+// content part for its MIME type: PNG, JPEG, WebP, or GIF images inline or by
+// URL, PDF as an inline file, text files as text, and WAV or MP3 as inline
+// audio. Whether the model accepts the part is left to the upstream. A
+// non-empty reason means the media has no Chat content part.
+func geminiMediaToChatContent(inlineData *dto.GeminiInlineData, fileData *dto.GeminiFileData) (dto.MediaContent, string) {
+	if inlineData == nil {
+		mimeType := strings.ToLower(strings.TrimSpace(fileData.MimeType))
+		if mimeType == "image/jpg" {
+			mimeType = "image/jpeg"
+		}
+		if _, supported := chatImageMediaTypes[mimeType]; mimeType != "" && !supported {
+			return dto.MediaContent{}, fmt.Sprintf("Chat Completions content cannot reference a Gemini file of MIME type %q", fileData.MimeType)
+		}
+		return dto.MediaContent{
+			Type:     dto.ContentTypeImageURL,
+			ImageUrl: &dto.MessageImageUrl{Url: fileData.FileUri, Detail: "auto", MimeType: mimeType},
+		}, ""
+	}
+	mimeType := strings.ToLower(strings.TrimSpace(inlineData.MimeType))
+	if mimeType == "image/jpg" {
+		mimeType = "image/jpeg"
+	}
+	if _, supported := chatImageMediaTypes[mimeType]; supported {
+		return dto.MediaContent{
+			Type:     dto.ContentTypeImageURL,
+			ImageUrl: &dto.MessageImageUrl{Url: fmt.Sprintf("data:%s;base64,%s", mimeType, inlineData.Data), Detail: "auto", MimeType: mimeType},
+		}, ""
+	}
+	switch {
+	case strings.HasPrefix(mimeType, "image/"):
+		return dto.MediaContent{}, fmt.Sprintf("Chat Completions content accepts only PNG, JPEG, WebP, and GIF images, not %q", inlineData.MimeType)
+	case mimeType == "application/pdf":
+		return dto.MediaContent{
+			Type: dto.ContentTypeFile,
+			File: &dto.MessageFile{FileName: "document.pdf", FileData: "data:application/pdf;base64," + inlineData.Data},
+		}, ""
+	case relaymedia.IsTextMimeType(mimeType):
+		text, ok := relaymedia.DecodeText(inlineData.Data)
+		if !ok {
+			return dto.MediaContent{}, fmt.Sprintf("Gemini inlineData of MIME type %q could not be decoded as UTF-8 text", inlineData.MimeType)
+		}
+		return dto.MediaContent{Type: dto.ContentTypeText, Text: text}, ""
+	case mimeType == "audio/wav" || mimeType == "audio/x-wav" || mimeType == "audio/wave":
+		return dto.MediaContent{
+			Type:       dto.ContentTypeInputAudio,
+			InputAudio: &dto.MessageInputAudio{Data: inlineData.Data, Format: "wav"},
+		}, ""
+	case mimeType == "audio/mp3" || mimeType == "audio/mpeg":
+		return dto.MediaContent{
+			Type:       dto.ContentTypeInputAudio,
+			InputAudio: &dto.MessageInputAudio{Data: inlineData.Data, Format: "mp3"},
+		}, ""
+	}
+	return dto.MediaContent{}, fmt.Sprintf("Gemini inlineData of MIME type %q has no Chat Completions content part", inlineData.MimeType)
 }
 
 type geminiPendingFunctionCall struct {

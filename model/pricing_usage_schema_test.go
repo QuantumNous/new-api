@@ -211,10 +211,23 @@ export function parseTaskResult(){return {};}
 	require.ErrorContains(t, ValidateModelPricing("profile-image", PricingValues{"billing_setting.billing_expr": `u("seconds")`}), "not declared")
 	require.ErrorContains(t, ValidateModelPricing("video-alias", PricingValues{"billing_setting.billing_expr": `u("image_count")`}), "not declared")
 
+	saved := config.GlobalConfig.ExportAllConfigs()
+	t.Cleanup(func() { require.NoError(t, config.GlobalConfig.LoadFromDB(saved)) })
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_expr":          `{"profile-image":"u(\"image_count\")"}`,
+		billing_setting.PluginBillingExprOption: `{"pricing-profiles::profile-image":"u(\"image_count\") * 2"}`,
+	}))
 	updated := strings.Replace(source, `version:"1.0.0"`, `version:"1.1.0"`, 1)
 	updated = strings.Replace(updated, `image_count:{type:"number",unit:"count"}`, `images:{type:"number",unit:"count"}`, 1)
 	_, err = jsplugin.DefaultRegistry.Register(updated, jsplugin.Options{})
 	require.NoError(t, err)
+	// Stored prices that read a fact the narrowed profile dropped stay saveable
+	// while unchanged; edited ones must follow the new profile.
+	stored := PricingValues{"billing_setting.billing_expr": `u("image_count")`, billing_setting.PluginBillingExprOption: map[string]any{key: `u("image_count") * 2`}}
+	require.NoError(t, ValidateModelPricing("profile-image", stored))
+	require.ErrorContains(t, ValidateModelPricing("profile-image", PricingValues{"billing_setting.billing_expr": `u("image_count") * 3`}), "not declared")
+	stored[billing_setting.PluginBillingExprOption] = map[string]any{key: `u("image_count") * 3`}
+	require.ErrorContains(t, ValidateModelPricing("profile-image", stored), "not declared")
 	InvalidatePricingCache()
 	refreshed := pricingByModel(GetPricing())
 	assert.Equal(t, map[string]jsplugin.UsageFieldSchema{"images": {Type: "number", Unit: "count"}}, refreshed["image-alias"].BillingUsageSchema)

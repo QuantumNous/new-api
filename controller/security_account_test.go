@@ -130,7 +130,7 @@ func TestSecurityAccountDeletionAcceptsEitherFactorAndRevokesSessions(t *testing
 			}
 			otherSession, err := service.CreateLoginSession(user.Id, "password", "127.0.0.1", "second-session")
 			require.NoError(t, err)
-			require.NoError(t, model.UpdateUserAccessToken(user.Id, "account-delete-access-token"))
+			require.NoError(t, model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("access_token", "account-delete-access-token").Error)
 			response := securityEnrollmentRequest("DELETE", "/api/user/self", "", proof, identity, DeleteSelf)
 			var result securityEnrollmentResponse
 			require.NoError(t, common.Unmarshal(response.Body.Bytes(), &result))
@@ -195,7 +195,8 @@ func TestSecurityAccountDeletionRechecksTransactionAndConsumesFailedProof(t *tes
 				assert.Contains(t, response.Body.String(), "SECURITY_PROOF_CONSUMED")
 			}
 			if scenario != "write failure" {
-				assert.Error(t, model.DeleteUserForSession(identity))
+				_, err := model.DeleteUserForSession(identity)
+				assert.Error(t, err)
 			}
 			_, err := model.GetUserById(user.Id, false)
 			require.NoError(t, err)

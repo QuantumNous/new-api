@@ -26,7 +26,7 @@ type TaskArtifactAccessLimits struct {
 func positiveTaskArtifactLimit(env string, defaultValue int) int {
 	value := common.GetEnvOrDefault(env, defaultValue)
 	if value <= 0 {
-		common.SysError(env + " must be positive; using default")
+		common.SysError(common.LogText("%s must be positive; using default", env))
 		return defaultValue
 	}
 	return value

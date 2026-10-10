@@ -2,16 +2,17 @@ package oaichat
 
 import (
 	"fmt"
-	"strings"
 
 	"context"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
 	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, textRequest dto.GeneralOpenAIRequest) (*dto.ClaudeRequest, error) {
@@ -94,10 +95,11 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 		}
 	}
 
-	sourceReasoning, err := reasoning.FromOpenAIChat(&textRequest)
+	sourceReasoning, diagnostics, err := reasoning.FromOpenAIChat(&textRequest)
 	if err != nil {
 		return nil, reasoning.AsClientError(err)
 	}
+	convdiag.Add(c, diagnostics...)
 	if err := sharedclaude.ApplyReasoning(c, &claudeRequest, info, sourceReasoning, true); err != nil {
 		return nil, reasoning.AsClientError(err)
 	}
@@ -263,24 +265,27 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 					if source == nil {
 						continue
 					}
-					base64Data, mimeType, err := relaymedia.ResolveBase64Data(c, source, "formatting image for Claude")
-					if err != nil {
-						return nil, fmt.Errorf("get file data failed: %s", err.Error())
+					// Claude content blocks carry images, PDF documents, and text
+					// documents; audio and video have no Claude block.
+					reason := fmt.Sprintf("Claude Messages cannot carry %s content", mediaMessage.Type)
+					var block dto.ClaudeMediaMessage
+					if mediaMessage.Type != dto.ContentTypeInputAudio && mediaMessage.Type != dto.ContentTypeVideoUrl {
+						base64Data, mimeType, err := relaymedia.ResolveBase64Data(c, source, "formatting image for Claude")
+						if err != nil {
+							return nil, fmt.Errorf("get file data failed: %s", err.Error())
+						}
+						block, reason = sharedclaude.MediaBlock(base64Data, mimeType, mediaMessage.Type == dto.ContentTypeImageURL)
 					}
-					claudeMediaMessage := dto.ClaudeMediaMessage{
-						Source: &dto.ClaudeMessageSource{
-							Type: "base64",
-						},
+					if reason != "" {
+						convdiag.Add(c, types.ConversionDiagnostic{
+							Code:     "unsupported_media_type",
+							Path:     "messages.content",
+							Message:  reason + "; the part was omitted",
+							Severity: types.ConversionDiagnosticError,
+						})
+						continue
 					}
-					if strings.HasPrefix(mimeType, "application/pdf") {
-						claudeMediaMessage.Type = "document"
-					} else {
-						claudeMediaMessage.Type = "image"
-					}
-
-					claudeMediaMessage.Source.MediaType = mimeType
-					claudeMediaMessage.Source.Data = base64Data
-					claudeMediaMessages = append(claudeMediaMessages, claudeMediaMessage)
+					claudeMediaMessages = append(claudeMediaMessages, block)
 					continue
 				}
 			}
@@ -300,6 +305,10 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 						Input: inputObj,
 					})
 				}
+			}
+			if len(claudeMediaMessages) == 0 {
+				// Every part was omitted; Claude rejects an empty content array.
+				claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{Type: "text", Text: kitutil.GetPointer("...")})
 			}
 			claudeMessage.Content = claudeMediaMessages
 		}

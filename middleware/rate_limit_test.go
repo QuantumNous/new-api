@@ -4,6 +4,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -11,6 +13,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/alicebob/miniredis/v2"
+	"github.com/gin-contrib/static"
 	"github.com/gin-gonic/gin"
 	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
@@ -108,7 +111,7 @@ func TestRedisEmailVerificationRateLimiterPreservesResponseAndTTL(t *testing.T) 
 	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/verify", remoteAddr).Code)
 	response := performRateLimitRequest(router, "/verify", remoteAddr)
 	assert.Equal(t, http.StatusTooManyRequests, response.Code)
-	assert.JSONEq(t, `{"success":false,"message":"发送过于频繁，请等待 30 秒后再试"}`, response.Body.String())
+	assert.JSONEq(t, `{"success":false,"message":"Please wait 30 seconds before requesting another verification code.","message_key":"Please wait {{seconds}} seconds before requesting another verification code.","message_params":{"seconds":30}}`, response.Body.String())
 
 	key := redisIPRateLimitKey(EmailVerificationRateLimitMark, "192.0.2.30")
 	assert.True(t, redisServer.Exists(key))
@@ -222,4 +225,68 @@ func TestRedisFailurePolicies(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, userResponse.Code)
 	assert.Empty(t, userResponse.Body.String())
 	assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/email", "192.0.2.62:12345").Code)
+}
+
+func TestGlobalWebRateLimitCountsFrontendFilesInStaticBucket(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	previousWebEnable, previousWebNum, previousWebDuration := common.GlobalWebRateLimitEnable, common.GlobalWebRateLimitNum, common.GlobalWebRateLimitDuration
+	previousStaticEnable, previousStaticNum, previousStaticDuration := common.GlobalStaticRateLimitEnable, common.GlobalStaticRateLimitNum, common.GlobalStaticRateLimitDuration
+	t.Cleanup(func() {
+		common.GlobalWebRateLimitEnable, common.GlobalWebRateLimitNum, common.GlobalWebRateLimitDuration = previousWebEnable, previousWebNum, previousWebDuration
+		common.GlobalStaticRateLimitEnable, common.GlobalStaticRateLimitNum, common.GlobalStaticRateLimitDuration = previousStaticEnable, previousStaticNum, previousStaticDuration
+	})
+	common.GlobalWebRateLimitEnable, common.GlobalWebRateLimitNum, common.GlobalWebRateLimitDuration = true, 2, 41
+	common.GlobalStaticRateLimitNum, common.GlobalStaticRateLimitDuration = 2, 43
+
+	frontendDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(frontendDir, "static", "js"), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(frontendDir, "static", "js", "app.js"), []byte("app"), 0o644))
+	frontendFS := static.LocalFile(frontendDir, false)
+
+	const clientIP = "192.0.2.70"
+	const remoteAddr = clientIP + ":12345"
+
+	t.Run("static limiter disabled by default", func(t *testing.T) {
+		redisServer, _ := useRateLimitMiniRedis(t)
+		common.GlobalStaticRateLimitEnable = false
+		router := gin.New()
+		require.NoError(t, router.SetTrustedProxies(nil))
+		router.NoRoute(GlobalWebRateLimit(frontendFS), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+		for range 5 {
+			assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/static/js/app.js", remoteAddr).Code)
+		}
+		assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/channels", remoteAddr).Code)
+		assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/static/js/missing.js", remoteAddr).Code)
+		pageResponse := performRateLimitRequest(router, "/channels", remoteAddr)
+		assert.Equal(t, http.StatusTooManyRequests, pageResponse.Code)
+		assert.Equal(t, "41", pageResponse.Header().Get("Retry-After"))
+
+		webCount, err := redisServer.Get(redisIPRateLimitKey("GW", clientIP))
+		require.NoError(t, err)
+		assert.Equal(t, "3", webCount)
+		assert.False(t, redisServer.Exists(redisIPRateLimitKey("GS", clientIP)))
+	})
+
+	t.Run("static limiter enabled uses its own bucket", func(t *testing.T) {
+		redisServer, _ := useRateLimitMiniRedis(t)
+		common.GlobalStaticRateLimitEnable = true
+		router := gin.New()
+		require.NoError(t, router.SetTrustedProxies(nil))
+		router.NoRoute(GlobalWebRateLimit(frontendFS), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+		assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/static/js/app.js", remoteAddr).Code)
+		assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/static/js/app.js", remoteAddr).Code)
+		staticResponse := performRateLimitRequest(router, "/static/js/app.js", remoteAddr)
+		assert.Equal(t, http.StatusTooManyRequests, staticResponse.Code)
+		assert.Equal(t, "43", staticResponse.Header().Get("Retry-After"))
+		assert.Equal(t, http.StatusNoContent, performRateLimitRequest(router, "/channels", remoteAddr).Code)
+
+		staticCount, err := redisServer.Get(redisIPRateLimitKey("GS", clientIP))
+		require.NoError(t, err)
+		assert.Equal(t, "3", staticCount)
+		webCount, err := redisServer.Get(redisIPRateLimitKey("GW", clientIP))
+		require.NoError(t, err)
+		assert.Equal(t, "1", webCount)
+	})
 }

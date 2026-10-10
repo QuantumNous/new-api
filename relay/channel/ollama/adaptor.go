@@ -38,6 +38,9 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
+	// OpenAI-compatible chat responses are handled by the OpenAI adaptor, which
+	// relies on the thinking-to-content state initialized here.
+	(&openai.Adaptor{}).Init(info)
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
@@ -55,6 +58,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		case relayconstant.RelayModeCompletions:
 			return fmt.Sprintf("%s/api/generate", info.ChannelBaseUrl), nil
 		default:
+			if info.ChannelOtherSettings.OllamaOpenAIChat {
+				return fmt.Sprintf("%s/v1/chat/completions", info.ChannelBaseUrl), nil
+			}
 			return fmt.Sprintf("%s/api/chat", info.ChannelBaseUrl), nil
 		}
 	}
@@ -83,6 +89,9 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	case relayconstant.RelayModeCompletions:
 		return openAIToGenerate(c, request)
 	default:
+		if info.ChannelOtherSettings.OllamaOpenAIChat {
+			return (&openai.Adaptor{}).ConvertOpenAIRequest(c, info, request)
+		}
 		return openAIChatToOllamaChat(c, request)
 	}
 }
@@ -117,6 +126,11 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 			adaptor := openai.Adaptor{}
 			return adaptor.DoResponse(c, resp, info)
 		default:
+			// /api/generate always returns native NDJSON; chat follows the channel setting.
+			if info.RelayMode != relayconstant.RelayModeCompletions && info.ChannelOtherSettings.OllamaOpenAIChat {
+				adaptor := openai.Adaptor{}
+				return adaptor.DoResponse(c, resp, info)
+			}
 			if info.IsStream {
 				return ollamaStreamHandler(c, info, resp)
 			}

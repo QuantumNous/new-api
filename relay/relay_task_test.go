@@ -3,11 +3,14 @@ package relay
 import (
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
@@ -16,9 +19,81 @@ import (
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
+
+func setupRelayChannelDB(t *testing.T) *gorm.DB {
+	t.Helper()
+	previousDB := model.DB
+	previousType := common.MainDatabaseType()
+	previousCache := common.MemoryCacheEnabled
+	database, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	sqlDB, err := database.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	require.NoError(t, database.AutoMigrate(&model.Channel{}))
+	model.DB = database
+	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
+	common.MemoryCacheEnabled = false
+	t.Cleanup(func() {
+		model.DB = previousDB
+		common.SetMainDatabaseType(previousType)
+		common.MemoryCacheEnabled = previousCache
+		require.NoError(t, sqlDB.Close())
+	})
+	return database
+}
+
+func TestApplyChannelPinPreservesOriginTasksAndRetryMode(t *testing.T) {
+	database := setupRelayChannelDB(t)
+	channel := &model.Channel{Name: "origin-channel", Key: "sk-test", Status: common.ChannelStatusEnabled, Type: constant.ChannelTypeDoubaoVideo}
+	require.NoError(t, database.Create(channel).Error)
+	originTask := &model.Task{
+		TaskID: "task-lock", ChannelId: channel.Id, Action: "text_to_video", Status: model.TaskStatusSuccess,
+		PrivateData: model.TaskPrivateData{UpstreamTaskID: "upstream-task-lock"},
+		Data:        []byte(`{"id":"upstream-task-lock"}`),
+	}
+
+	for _, tc := range []struct {
+		name     string
+		tokenPin bool
+		apply    func(*gin.Context, *relaycommon.RelayInfo) *dto.TaskError
+	}{
+		{name: "origin affinity", apply: ApplyOriginTaskAffinity},
+		{name: "same channel retry", apply: ApplyChannelPin},
+		{name: "token pin suppresses channel lock", tokenPin: true, apply: ApplyChannelPin},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			common.SetContextKey(c, constant.ContextKeyOriginTasks, []*model.Task{originTask})
+			constraints := service.GetChannelConstraints(c)
+			constraints.AddPin(dto.ChannelPin{ChannelId: channel.Id, Source: dto.PinSourceOriginTask, Rank: dto.PinRankOriginTask, RetryMode: dto.PinRetrySameChannel})
+			if tc.tokenPin {
+				constraints.AddPin(dto.ChannelPin{ChannelId: channel.Id, Source: dto.PinSourceToken, Rank: dto.PinRankToken, RetryMode: dto.PinRetrySingleAttempt})
+			}
+			info := &relaycommon.RelayInfo{TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+			require.Nil(t, tc.apply(c, info))
+			if tc.tokenPin {
+				assert.Nil(t, info.LockedChannel)
+			} else {
+				locked, ok := info.LockedChannel.(*model.Channel)
+				require.True(t, ok)
+				require.NotNil(t, locked)
+				assert.Equal(t, channel.Id, locked.Id)
+			}
+			require.Len(t, info.OriginTasks, 1)
+			assert.Equal(t, "task-lock", info.OriginTasks[0].TaskID)
+			assert.Equal(t, "upstream-task-lock", info.OriginTasks[0].UpstreamTaskID)
+			assert.Equal(t, "text_to_video", info.OriginTasks[0].Action)
+			assert.Equal(t, string(model.TaskStatusSuccess), info.OriginTasks[0].Status)
+			assert.Equal(t, []byte(originTask.Data), info.OriginTasks[0].Data)
+		})
+	}
+}
 
 func TestTaskModel2DtoNormalizesLegacyAction(t *testing.T) {
 	task := &model.Task{Action: "firstTailGenerate"}
@@ -58,6 +133,7 @@ func pinMappingOrderPlugin(t *testing.T, c *gin.Context, source string) {
 
 func newTaskSubmitContext(t *testing.T, originalModel, mapping string) (*gin.Context, *relaycommon.RelayInfo) {
 	t.Helper()
+	require.NoError(t, i18n.Init())
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
@@ -259,7 +335,7 @@ func TestSharedTaskBillingExpressionSelectionAndFrozenSettlement(t *testing.T) {
 	for _, tc := range []struct {
 		name, plugin, model, mapping, modelExpr, mode, wantExpr string
 		variants                                                map[string]string
-		wantPriceError                                          bool
+		wantPriceError, profiled                                bool
 	}{
 		{name: "executing plugin override", plugin: "billing-beta", model: "declared-model", modelExpr: baseExpr, mode: "tiered_expr", variants: map[string]string{"billing-alpha::declared-model": alphaExpr, "billing-beta::declared-model": betaExpr}, wantExpr: betaExpr},
 		{name: "override ignores model mode", plugin: "billing-beta", model: "declared-model", modelExpr: baseExpr, mode: "ratio", variants: map[string]string{"billing-beta::declared-model": betaExpr}, wantExpr: betaExpr},
@@ -269,13 +345,19 @@ func TestSharedTaskBillingExpressionSelectionAndFrozenSettlement(t *testing.T) {
 		{name: "unconfigured plugin cannot use another schema", plugin: "billing-beta", model: "declared-model", modelExpr: baseExpr, mode: "tiered_expr", wantPriceError: true},
 		{name: "missing usage in skipped branch remains incompatible", plugin: "billing-beta", model: "declared-model", modelExpr: `true ? tier("free", 0) : tier("missing", u("seconds"))`, mode: "tiered_expr", wantPriceError: true},
 		{name: "fixed pricing is still rejected", plugin: "billing-beta", model: "declared-model", variants: map[string]string{"billing-beta::declared-model": `tier("fixed", fixed(1))`}, wantPriceError: true},
+		{name: "endpoint mapping keeps the declared profile", plugin: "billing-beta", model: "declared-model", mapping: `{"declared-model":"ep-endpoint"}`, modelExpr: baseExpr, mode: "tiered_expr", variants: map[string]string{"billing-beta::declared-model": betaExpr}, wantExpr: betaExpr, profiled: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			saveBillingConfig(t)
 			registry := pluginruntime.NewRegistry()
 			for _, spec := range []struct{ key, field, unit string }{{"billing-alpha", "seconds", "second"}, {"billing-beta", "credits", "credit"}} {
 				source := strings.ReplaceAll(billingFallbackPlugin, "bill-fallback", spec.key)
-				source = strings.Replace(source, `fetchMode:"per_task"`, `fetchMode:"per_task",usageSchema:{`+spec.field+`:{type:"number",unit:"`+spec.unit+`"}}`, 1)
+				schema := `usageSchema:{` + spec.field + `:{type:"number",unit:"` + spec.unit + `"}}`
+				if tc.profiled && spec.key == "billing-beta" {
+					// The endpoint ID is undeclared, so only the declared model's profile carries this schema.
+					schema = `usageSchema:{seconds:{type:"number",unit:"second"}},usageProfiles:[{models:["declared-model"],schema:{` + spec.field + `:{type:"number",unit:"` + spec.unit + `"}}}]`
+				}
+				source = strings.Replace(source, `fetchMode:"per_task"`, `fetchMode:"per_task",`+schema, 1)
 				source += `export function extractUsage(){return {` + spec.field + `:2};}`
 				_, err := registry.Register(source, pluginruntime.Options{})
 				require.NoError(t, err)
@@ -323,6 +405,67 @@ func TestSharedTaskBillingExpressionSelectionAndFrozenSettlement(t *testing.T) {
 			assert.Equal(t, float64(2), info.TieredBillingSnapshot.UsageFacts[field])
 			assert.Equal(t, 2*info.TieredBillingSnapshot.EstimatedQuotaAfterGroup, result.ActualQuotaAfterGroup)
 			assert.Equal(t, tc.wantExpr, info.TieredBillingSnapshot.ExprString)
+		})
+	}
+}
+
+// Issue #7478: task APIs answer 201 Created or 202 Accepted on submission.
+// Every 2xx must reach parseSubmitResponse; only other statuses are upstream
+// failures that keep the upstream status and body.
+func TestRelayTaskSubmitAcceptsAnySuccessfulUpstreamStatus(t *testing.T) {
+	service.InitHttpClient()
+	const source = `
+export const meta = {apiVersion:1,key:"status-echo",name:"Status Echo",version:"1.0.0",author:{name:"Test"},models:["declared-model"],fetchMode:"per_task"};
+export function buildSubmitRequest(ctx) { return {url: ctx.baseUrl+"/submit", method:"POST", body:{model: ctx.model}, action:"text_to_video"}; }
+export function parseSubmitResponse(ctx, response) { return {taskId: response.body.id, taskData: {status: response.statusCode}}; }
+export function buildQueryRequest(ctx) { return {url: ctx.baseUrl+"/query"}; }
+export function parseTaskResult() { return {status:"SUCCESS"}; }
+`
+	for _, tc := range []struct {
+		status   int
+		wantCode string
+	}{
+		{status: http.StatusOK},
+		{status: http.StatusCreated},
+		{status: http.StatusAccepted},
+		{status: http.StatusBadRequest, wantCode: "fail_to_fetch_task"},
+		{status: http.StatusBadGateway, wantCode: "fail_to_fetch_task"},
+	} {
+		t.Run(strconv.Itoa(tc.status), func(t *testing.T) {
+			saveBillingConfig(t)
+			require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+				"billing_setting.billing_mode": `{"declared-model":"tiered_expr"}`,
+				"billing_setting.billing_expr": `{"declared-model":"tier(\"flat\", 3)"}`,
+			}))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(`{"id":"job-42","message":"upstream body"}`))
+			}))
+			defer server.Close()
+
+			c, info := newTaskSubmitContext(t, "declared-model", "")
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, server.URL)
+			c.Set("group", "default")
+			info.UserGroup, info.UsingGroup = "default", "default"
+			info.OriginModelName = "declared-model"
+			// An existing reservation skips pre-consume so the fixture reaches the upstream call.
+			info.Billing = &imageReservation{limit: 1 << 30}
+			pinMappingOrderPlugin(t, c, source)
+
+			result, taskErr := RelayTaskSubmit(c, info)
+			if tc.wantCode != "" {
+				require.NotNil(t, taskErr)
+				assert.Equal(t, tc.wantCode, taskErr.Code)
+				assert.Equal(t, tc.status, taskErr.StatusCode)
+				assert.Contains(t, taskErr.Message, "upstream body")
+				assert.Nil(t, result)
+				return
+			}
+			require.Nil(t, taskErr, "submission error: %+v", taskErr)
+			require.NotNil(t, result)
+			assert.Equal(t, "job-42", result.UpstreamTaskID)
+			assert.JSONEq(t, `{"status":`+strconv.Itoa(tc.status)+`}`, string(result.TaskData))
 		})
 	}
 }

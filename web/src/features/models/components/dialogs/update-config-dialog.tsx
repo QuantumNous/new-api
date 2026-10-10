@@ -219,7 +219,7 @@ export function UpdateConfigDialog({
       open={open}
       onOpenChange={onOpenChange}
       title={title}
-      contentClassName='max-h-[calc(100dvh-2rem)] overflow-hidden max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:max-w-3xl'
+      contentClassName='max-h-(--dialog-available-height) overflow-y-auto max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:max-w-3xl'
       contentHeight='auto'
       bodyClassName='space-y-4'
       footer={

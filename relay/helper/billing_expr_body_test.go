@@ -18,30 +18,45 @@ import (
 // can assert that it was not read at all rather than only that the result was
 // discarded.
 type countingStorage struct {
-	data      []byte
-	reader    *bytes.Reader
-	bytesCals int
+	data       []byte
+	reader     *bytes.Reader
+	bytesCalls int
 }
 
+// newCountingStorage returns storage that records body reads.
 func newCountingStorage(data []byte) *countingStorage {
 	return &countingStorage{data: data, reader: bytes.NewReader(data)}
 }
 
+// Read reads from the stored body.
 func (s *countingStorage) Read(p []byte) (int, error) { return s.reader.Read(p) }
+
+// Seek changes the read position.
 func (s *countingStorage) Seek(offset int64, whence int) (int64, error) {
 	return s.reader.Seek(offset, whence)
 }
+
+// Close releases no resources for this test storage.
 func (s *countingStorage) Close() error { return nil }
+
+// Bytes records the read and returns the body.
 func (s *countingStorage) Bytes() ([]byte, error) {
-	s.bytesCals++
+	s.bytesCalls++
 	return s.data, nil
 }
-func (s *countingStorage) Size() int64  { return int64(len(s.data)) }
+
+// Size returns the body length.
+func (s *countingStorage) Size() int64 { return int64(len(s.data)) }
+
+// IsDisk models a body cached on disk.
 func (s *countingStorage) IsDisk() bool { return true }
+
+// NewReader returns an independent body reader.
 func (s *countingStorage) NewReader() (io.ReadCloser, error) {
 	return io.NopCloser(bytes.NewReader(s.data)), nil
 }
 
+// newRequestContextWithStorage attaches test storage to a JSON request.
 func newRequestContextWithStorage(t *testing.T, storage common.BodyStorage) *gin.Context {
 	t.Helper()
 	gin.SetMode(gin.TestMode)
@@ -68,7 +83,7 @@ func TestResolveIncomingBillingExprRequestInput_BodyReadIsGated(t *testing.T) {
 		require.NoError(t, err)
 		// The read itself is what costs memory, so assert on it first: a body
 		// that is fetched and then dropped would still have been materialised.
-		require.Zero(t, storage.bytesCals, "body storage must not be read when the expression has no param()")
+		require.Zero(t, storage.bytesCalls, "body storage must not be read when the expression has no param()")
 		require.Nil(t, input.Body)
 		require.Equal(t, "application/json", input.Headers["Content-Type"], "headers are still needed by header()")
 	})
@@ -81,7 +96,7 @@ func TestResolveIncomingBillingExprRequestInput_BodyReadIsGated(t *testing.T) {
 		input, err := ResolveIncomingBillingExprRequestInput(ctx, info, true)
 		require.NoError(t, err)
 		require.Equal(t, body, input.Body)
-		require.Equal(t, 1, storage.bytesCals)
+		require.Equal(t, 1, storage.bytesCalls)
 	})
 }
 
@@ -110,6 +125,7 @@ func TestResolveIncomingBillingExprRequestInput_FrozenInputHonoursGate(t *testin
 	require.NotNil(t, frozen.Body, "the caller's input must not be mutated")
 }
 
+// TestBillingExprNeedsRequestBody checks the gate and its compile-failure fallback.
 func TestBillingExprNeedsRequestBody(t *testing.T) {
 	require.True(t, BillingExprNeedsRequestBody(nil), "nil means the expression did not compile: provide the body rather than silently omit it")
 	require.False(t, BillingExprNeedsRequestBody(map[string]bool{}))

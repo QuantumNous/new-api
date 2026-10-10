@@ -26,8 +26,12 @@ import {
   within,
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { createInstance } from 'i18next'
+import { I18nextProvider, initReactI18next } from 'react-i18next'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
+import en from '@/i18n/locales/en.json'
+import zh from '@/i18n/locales/zh.json'
 import { api } from '@/lib/api'
 import { STATUS_QUERY_KEY } from '@/lib/status-query'
 import { useAuthStore } from '@/stores/auth-store'
@@ -37,6 +41,7 @@ import { DeleteAccountDialog } from '../components/dialogs/delete-account-dialog
 import { EmailBindDialog } from '../components/dialogs/email-bind-dialog'
 import { TwoFABackupDialog } from '../components/dialogs/two-fa-backup-dialog'
 import { TwoFADisableDialog } from '../components/dialogs/two-fa-disable-dialog'
+import { TwoFASetupDialog } from '../components/dialogs/two-fa-setup-dialog'
 
 const { navigate } = vi.hoisted(() => ({ navigate: vi.fn() }))
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
@@ -749,4 +754,72 @@ it('confirms both email addresses after identity verification and freezes the su
     { flow_token: 'email-flow', new_code: '123456', old_code: '654321' },
     expect.objectContaining({ singleUseAuthorization: true })
   )
+})
+
+it('translates the delete confirmation as a sentence and preserves the literal username on language change', async () => {
+  const i18n = createInstance()
+  await i18n.use(initReactI18next).init({
+    lng: 'zh',
+    fallbackLng: false,
+    nsSeparator: false,
+    resources: { en, zh },
+    interpolation: { escapeValue: false },
+  })
+  const username = 'admin <b>name</b>'
+  render(
+    <I18nextProvider i18n={i18n}>
+      <DeleteAccountDialog open username={username} onOpenChange={vi.fn()} />
+    </I18nextProvider>
+  )
+  expect(
+    screen.getByRole('textbox', { name: `输入 ${username} 以确认` })
+  ).toBeVisible()
+  await act(() => i18n.changeLanguage('en'))
+  expect(
+    screen.getByRole('textbox', { name: `Type ${username} to confirm` })
+  ).toBeVisible()
+  expect(screen.getByRole('button', { name: 'Delete Account' })).toBeDisabled()
+})
+
+it('shows complete translated 2FA step descriptions and updates every step on language change', async () => {
+  const i18n = createInstance()
+  await i18n.use(initReactI18next).init({
+    lng: 'zh',
+    fallbackLng: false,
+    nsSeparator: false,
+    resources: { en, zh },
+    interpolation: { escapeValue: false },
+  })
+  const user = userEvent.setup()
+  render(
+    <I18nextProvider i18n={i18n}>
+      <TwoFASetupDialog
+        open
+        setupData={{
+          secret: 'EXAMPLE',
+          qr_code_data: 'otpauth://totp/example',
+          backup_codes: ['EXAMPLE-CODE'],
+          flow_token: 'example-flow',
+          expires_at: 1234567890,
+        }}
+        loading={false}
+        initializing={false}
+        onCancel={vi.fn()}
+        onEnable={vi.fn()}
+      />
+    </I18nextProvider>
+  )
+  const descriptions = [
+    ['第 1 步，共 3 步：扫描二维码', 'Step 1 of 3: Scan QR Code'],
+    ['第 2 步，共 3 步：保存备份代码', 'Step 2 of 3: Save Backup Codes'],
+    ['第 3 步，共 3 步：验证设置', 'Step 3 of 3: Verify Setup'],
+  ]
+  for (const [chinese, english] of descriptions) {
+    await act(() => i18n.changeLanguage('zh'))
+    expect(screen.getByRole('dialog')).toHaveAccessibleDescription(chinese)
+    await act(() => i18n.changeLanguage('en'))
+    expect(screen.getByRole('dialog')).toHaveAccessibleDescription(english)
+    const next = screen.queryByRole('button', { name: 'Next' })
+    if (next) await user.click(next)
+  }
 })

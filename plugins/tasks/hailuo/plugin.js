@@ -1,3 +1,58 @@
+// Billable dimensions differ per model family: only MiniMax-H3 charges for
+// input media, and each family renders its own set of output resolutions.
+const VIDEO_SECONDS_FIELD = {
+  type: "number",
+  unit: "second",
+  description: { en: "Video generation unit price", zh: "视频生成单价" },
+};
+
+const RESOLUTION_DESCRIPTION = { en: "Output video resolution", zh: "输出视频分辨率" };
+
+// MiniMax-H3 allows duration 4 to 15 and renders 768P or 2K.
+const H3_USAGE_SCHEMA = {
+  seconds: VIDEO_SECONDS_FIELD,
+  resolution: {
+    enum: ["768P", "2K"],
+    description: RESOLUTION_DESCRIPTION,
+  },
+  // Input image count (estimated at submit, actual on completion).
+  input_images: {
+    type: "number",
+    unit: "count",
+    description: { en: "Input image unit price", zh: "输入图片单价" },
+  },
+  // Input video duration in seconds (reserved at the request maximum, actual on completion).
+  input_video_seconds: {
+    type: "number",
+    unit: "second",
+    description: { en: "Input video unit price", zh: "输入视频单价" },
+  },
+};
+
+// Hailuo 2.3 and 2.3-Fast allow duration 6 or 10 at 768P or 1080P.
+const HAILUO_23_USAGE_SCHEMA = {
+  seconds: VIDEO_SECONDS_FIELD,
+  resolution: {
+    enum: ["768P", "1080P"],
+    description: RESOLUTION_DESCRIPTION,
+  },
+};
+
+// Hailuo 02 keeps the 2.3 durations and adds 512P.
+const HAILUO_02_USAGE_SCHEMA = {
+  seconds: VIDEO_SECONDS_FIELD,
+  resolution: {
+    enum: ["512P", "768P", "1080P"],
+    description: RESOLUTION_DESCRIPTION,
+  },
+};
+
+// The 01 series renders 720P only, at a fixed duration of 6 seconds, so no
+// other dimension can change its price.
+const HAILUO_01_USAGE_SCHEMA = {
+  seconds: VIDEO_SECONDS_FIELD,
+};
+
 export const meta = {
   apiVersion: 1,
   key: "hailuo",
@@ -7,7 +62,7 @@ export const meta = {
     en: "MiniMax Hailuo video generation (text-to-video, image-to-video, and MiniMax-H3 multimodal reference)",
     zh: "MiniMax 海螺视频生成（文生视频、图生视频、MiniMax-H3 多模态参考生视频）",
   },
-  version: "1.1.3",
+  version: "1.2.0",
   author: { name: "QuantumNous" },
   channelTypes: [35],
   models: [
@@ -23,38 +78,14 @@ export const meta = {
     "S2V-01",
   ],
   fetchMode: "per_task",
-  usageSchema: {
-    // Requested video duration in seconds. MiniMax-H3 allows 4 to 15; Hailuo 2.3/02/2.3-Fast allow 6 or 10; 01-series allow 6.
-    seconds: {
-      type: "number",
-      unit: "second",
-      description: { en: "Video generation unit price", zh: "视频生成单价" },
-    },
-    // Requested output video resolution.
+  // Fallback for a channel alias that resolves to more than one model: the
+  // union of every family's fields and resolutions.
+  usageSchema: Object.assign({}, H3_USAGE_SCHEMA, {
     resolution: {
       enum: ["512P", "768P", "720P", "1080P", "2K"],
-      enumLabels: {
-        "512P": { en: "512P", zh: "512P" },
-        "768P": { en: "768P", zh: "768P" },
-        "720P": { en: "720P", zh: "720P" },
-        "1080P": { en: "1080P", zh: "1080P" },
-        "2K": { en: "2K", zh: "2K" },
-      },
-      description: { en: "Output video resolution", zh: "输出视频分辨率" },
+      description: RESOLUTION_DESCRIPTION,
     },
-    // H3 input image count (estimated at submit, actual on completion).
-    input_images: {
-      type: "number",
-      unit: "count",
-      description: { en: "Input image unit price", zh: "输入图片单价" },
-    },
-    // H3 input video duration in seconds (reserved at the request maximum, actual on completion).
-    input_video_seconds: {
-      type: "number",
-      unit: "second",
-      description: { en: "Input video unit price", zh: "输入视频单价" },
-    },
-  },
+  }),
   usageExamples: [
     { label: "2.3/02 768P 6s", facts: { seconds: 6, resolution: "768P", input_images: 0, input_video_seconds: 0 } },
     { label: "2.3/02 768P 10s", facts: { seconds: 10, resolution: "768P", input_images: 0, input_video_seconds: 0 } },
@@ -65,6 +96,43 @@ export const meta = {
     { label: "H3 768P 5s", facts: { seconds: 5, resolution: "768P", input_images: 0, input_video_seconds: 0 } },
     { label: "H3 2K 5s · 9 images", facts: { seconds: 5, resolution: "2K", input_images: 9, input_video_seconds: 0 } },
     { label: "H3 2K 5s · input video", facts: { seconds: 5, resolution: "2K", input_images: 0, input_video_seconds: 15 } },
+  ],
+  usageProfiles: [
+    {
+      models: ["MiniMax-H3"],
+      schema: H3_USAGE_SCHEMA,
+      examples: [
+        { label: "H3 768P 5s", facts: { seconds: 5, resolution: "768P", input_images: 0, input_video_seconds: 0 } },
+        { label: "H3 2K 5s", facts: { seconds: 5, resolution: "2K", input_images: 0, input_video_seconds: 0 } },
+        { label: "H3 2K 5s · 9 images", facts: { seconds: 5, resolution: "2K", input_images: 9, input_video_seconds: 0 } },
+        { label: "H3 2K 5s · input video", facts: { seconds: 5, resolution: "2K", input_images: 0, input_video_seconds: 15 } },
+      ],
+    },
+    {
+      models: ["MiniMax-Hailuo-2.3", "MiniMax-Hailuo-2.3-Fast"],
+      schema: HAILUO_23_USAGE_SCHEMA,
+      examples: [
+        { label: "2.3 768P 6s", facts: { seconds: 6, resolution: "768P" } },
+        { label: "2.3 768P 10s", facts: { seconds: 10, resolution: "768P" } },
+        { label: "2.3 1080P 6s", facts: { seconds: 6, resolution: "1080P" } },
+      ],
+    },
+    {
+      models: ["MiniMax-Hailuo-02"],
+      schema: HAILUO_02_USAGE_SCHEMA,
+      examples: [
+        { label: "02 512P 6s", facts: { seconds: 6, resolution: "512P" } },
+        { label: "02 512P 10s", facts: { seconds: 10, resolution: "512P" } },
+        { label: "02 768P 6s", facts: { seconds: 6, resolution: "768P" } },
+        { label: "02 768P 10s", facts: { seconds: 10, resolution: "768P" } },
+        { label: "02 1080P 6s", facts: { seconds: 6, resolution: "1080P" } },
+      ],
+    },
+    {
+      models: ["T2V-01-Director", "T2V-01", "I2V-01-Director", "I2V-01-live", "I2V-01", "S2V-01"],
+      schema: HAILUO_01_USAGE_SCHEMA,
+      examples: [{ label: "01-series 720P 6s", facts: { seconds: 6 } }],
+    },
   ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
 };

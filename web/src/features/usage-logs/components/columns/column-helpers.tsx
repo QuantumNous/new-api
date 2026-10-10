@@ -20,6 +20,7 @@ import type { ColumnDef } from '@tanstack/react-table'
 import { Zap } from 'lucide-react'
 /* eslint-disable react-refresh/only-export-components */
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { DataTableColumnHeader } from '@/components/data-table'
 import { StatusBadge } from '@/components/status-badge'
@@ -30,6 +31,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { formatTimestampToDate, formatTokens } from '@/lib/format'
+import { translateServerText } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
 
 import { formatDuration } from '../../lib/format'
@@ -210,7 +212,11 @@ export function createFailReasonColumn<T>(config: {
       <DataTableColumnHeader column={column} title={headerLabel} />
     ),
     cell: function FailReasonCell({ row }) {
-      const failReason = row.getValue(accessorKey) as string
+      const { t } = useTranslation()
+      const failReason = translateServerText(
+        t,
+        row.getValue(accessorKey) as string
+      )
       const [dialogOpen, setDialogOpen] = useState(false)
 
       if (!failReason) {

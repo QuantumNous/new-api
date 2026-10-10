@@ -307,3 +307,23 @@ func TestGeneralOpenAIRequestPreserveMessageLevelTools(t *testing.T) {
 	assert.Contains(t, meta.CombineText, "Get the current time of a city")
 	assert.Contains(t, meta.CombineText, "lookup_order")
 }
+
+func TestSGLangRequestExtensionsRoundTrip(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		raw     string
+		request any
+	}{
+		{"chat", `{"model":"served-model","min_tokens":0,"top_k":-1,"min_p":0,"repetition_penalty":1,"separate_reasoning":false,"stream_reasoning":false,"regex":"[0-9]+","ebnf":"root ::= \"yes\"","stop_token_ids":[0],"stop_regex":["END$"],"no_stop_trim":false,"ignore_eos":false,"skip_special_tokens":false,"continue_final_message":false,"cache_salt":"tenant","chat_template_kwargs":{"enable_thinking":false}}`, &GeneralOpenAIRequest{}},
+		{"responses", `{"model":"served-model","input":"hi","top_k":-1,"min_p":0,"repetition_penalty":1,"frequency_penalty":0,"presence_penalty":0,"stop":["END"],"cache_salt":"tenant","chat_template_kwargs":{"enable_thinking":false}}`, &OpenAIResponsesRequest{}},
+		{"chat omitted", `{"model":"served-model"}`, &GeneralOpenAIRequest{}},
+		{"responses omitted", `{"model":"served-model"}`, &OpenAIResponsesRequest{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.NoError(t, kitutil.Unmarshal([]byte(tc.raw), tc.request))
+			encoded, err := kitutil.Marshal(tc.request)
+			require.NoError(t, err)
+			assert.JSONEq(t, tc.raw, string(encoded))
+		})
+	}
+}

@@ -15,6 +15,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relay/channel/advancedcustom"
@@ -388,7 +389,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 	if channel.Type == constant.ChannelTypeGemini {
 		key, _, apiErr := channel.GetNextEnabledKey()
 		if apiErr != nil {
-			return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
+			return nil, fmt.Errorf("failed to get channel key: %w", apiErr)
 		}
 		key = strings.TrimSpace(key)
 		models, err := gemini.FetchGeminiModels(baseURL, key, channel.GetSetting().Proxy)
@@ -398,7 +399,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return normalizeModelNames(models), nil
 	}
 
-	if channel.Type == constant.ChannelTypeAdvancedCustom {
+	if constant.IsAdvancedCustomChannel(channel.Type) {
 		return fetchAdvancedCustomUpstreamModelIDs(channel, baseURL)
 	}
 
@@ -437,7 +438,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 
 	key, _, apiErr := channel.GetNextEnabledKey()
 	if apiErr != nil {
-		return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
+		return nil, fmt.Errorf("failed to get channel key: %w", apiErr)
 	}
 	key = strings.TrimSpace(key)
 
@@ -467,7 +468,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string) ([]string, error) {
 	key, _, apiErr := channel.GetNextEnabledKey()
 	if apiErr != nil {
-		return nil, fmt.Errorf("获取渠道密钥失败: %w", apiErr)
+		return nil, fmt.Errorf("failed to get channel key: %w", apiErr)
 	}
 	key = strings.TrimSpace(key)
 
@@ -476,7 +477,7 @@ func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string)
 		RelayMode:      relayconstant.RelayModeUnknown,
 		RequestURLPath: dto.AdvancedCustomModelListPath,
 		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelType:          constant.ChannelTypeAdvancedCustom,
+			ChannelType:          channel.Type,
 			ChannelBaseUrl:       baseURL,
 			ApiKey:               key,
 			ChannelOtherSettings: channel.GetOtherSettings(),
@@ -564,7 +565,7 @@ func refreshChannelRuntimeCache() {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					common.SysLog(fmt.Sprintf("InitChannelCache panic: %v", r))
+					common.SysLog(common.LogText("InitChannelCache panic: %v", r))
 				}
 			}()
 			model.InitChannelCache()
@@ -594,6 +595,7 @@ func shouldSendUpstreamModelUpdateNotification(now int64, changedChannels int, f
 }
 
 func buildUpstreamModelUpdateTaskNotificationContent(
+	lang string,
 	checkedChannels int,
 	changedChannels int,
 	detectedAddModels int,
@@ -606,50 +608,62 @@ func buildUpstreamModelUpdateTaskNotificationContent(
 ) string {
 	var builder strings.Builder
 	failedChannels := len(failedChannelIDs)
-	builder.WriteString(fmt.Sprintf(
-		"上游模型巡检摘要：检测渠道 %d 个，发现变更 %d 个，新增 %d 个，删除 %d 个，自动同步新增 %d 个，失败 %d 个。",
-		checkedChannels,
-		changedChannels,
-		detectedAddModels,
-		detectedRemoveModels,
-		autoAddedModels,
-		failedChannels,
-	))
+	builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateSummary, map[string]any{
+		"Checked":   checkedChannels,
+		"Changed":   changedChannels,
+		"Added":     detectedAddModels,
+		"Removed":   detectedRemoveModels,
+		"AutoAdded": autoAddedModels,
+		"Failed":    failedChannels,
+	}))
 
 	if len(channelSummaries) > 0 {
 		displayCount := min(len(channelSummaries), channelUpstreamModelUpdateNotifyMaxChannelDetails)
-		builder.WriteString(fmt.Sprintf("\n\n变更渠道明细（展示 %d/%d）：", displayCount, len(channelSummaries)))
+		builder.WriteString("\n\n")
+		builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateChangedChannels, map[string]any{
+			"Shown": displayCount,
+			"Total": len(channelSummaries),
+		}))
 		for _, summary := range channelSummaries[:displayCount] {
 			builder.WriteString(fmt.Sprintf("\n- %s (+%d / -%d)", summary.ChannelName, summary.AddCount, summary.RemoveCount))
 		}
 		if len(channelSummaries) > displayCount {
-			builder.WriteString(fmt.Sprintf("\n- 其余 %d 个渠道已省略", len(channelSummaries)-displayCount))
+			builder.WriteString("\n- ")
+			builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateMoreChannels, map[string]any{
+				"Count": len(channelSummaries) - displayCount,
+			}))
 		}
 	}
 
 	normalizedAddModelSamples := normalizeModelNames(addModelSamples)
 	if len(normalizedAddModelSamples) > 0 {
 		displayCount := min(len(normalizedAddModelSamples), channelUpstreamModelUpdateNotifyMaxModelDetails)
-		builder.WriteString(fmt.Sprintf("\n\n新增模型示例（展示 %d/%d）：%s",
-			displayCount,
-			len(normalizedAddModelSamples),
-			strings.Join(normalizedAddModelSamples[:displayCount], ", "),
-		))
+		builder.WriteString("\n\n")
+		builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateAddedModels, map[string]any{
+			"Shown":  displayCount,
+			"Total":  len(normalizedAddModelSamples),
+			"Models": strings.Join(normalizedAddModelSamples[:displayCount], ", "),
+		}))
 		if len(normalizedAddModelSamples) > displayCount {
-			builder.WriteString(fmt.Sprintf("（其余 %d 个已省略）", len(normalizedAddModelSamples)-displayCount))
+			builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateMoreOmitted, map[string]any{
+				"Count": len(normalizedAddModelSamples) - displayCount,
+			}))
 		}
 	}
 
 	normalizedRemoveModelSamples := normalizeModelNames(removeModelSamples)
 	if len(normalizedRemoveModelSamples) > 0 {
 		displayCount := min(len(normalizedRemoveModelSamples), channelUpstreamModelUpdateNotifyMaxModelDetails)
-		builder.WriteString(fmt.Sprintf("\n\n删除模型示例（展示 %d/%d）：%s",
-			displayCount,
-			len(normalizedRemoveModelSamples),
-			strings.Join(normalizedRemoveModelSamples[:displayCount], ", "),
-		))
+		builder.WriteString("\n\n")
+		builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateRemovedModels, map[string]any{
+			"Shown":  displayCount,
+			"Total":  len(normalizedRemoveModelSamples),
+			"Models": strings.Join(normalizedRemoveModelSamples[:displayCount], ", "),
+		}))
 		if len(normalizedRemoveModelSamples) > displayCount {
-			builder.WriteString(fmt.Sprintf("（其余 %d 个已省略）", len(normalizedRemoveModelSamples)-displayCount))
+			builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateMoreOmitted, map[string]any{
+				"Count": len(normalizedRemoveModelSamples) - displayCount,
+			}))
 		}
 	}
 
@@ -658,14 +672,16 @@ func buildUpstreamModelUpdateTaskNotificationContent(
 		displayIDs := lo.Map(failedChannelIDs[:displayCount], func(channelID int, _ int) string {
 			return fmt.Sprintf("%d", channelID)
 		})
-		builder.WriteString(fmt.Sprintf(
-			"\n\n失败渠道 ID（展示 %d/%d）：%s",
-			displayCount,
-			failedChannels,
-			strings.Join(displayIDs, ", "),
-		))
+		builder.WriteString("\n\n")
+		builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateFailedChannels, map[string]any{
+			"Shown": displayCount,
+			"Total": failedChannels,
+			"Ids":   strings.Join(displayIDs, ", "),
+		}))
 		if failedChannels > displayCount {
-			builder.WriteString(fmt.Sprintf("（其余 %d 个已省略）", failedChannels-displayCount))
+			builder.WriteString(i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateMoreOmitted, map[string]any{
+				"Count": failedChannels - displayCount,
+			}))
 		}
 	}
 	return builder.String()
@@ -726,7 +742,7 @@ scanLoop:
 		}
 		err := query.Find(&channels).Error
 		if err != nil {
-			common.SysLog(fmt.Sprintf("upstream model update task query failed: %v", err))
+			common.SysLog(common.LogText("upstream model update task query failed: %v", err))
 			break
 		}
 		if len(channels) == 0 {
@@ -757,7 +773,7 @@ scanLoop:
 			if err != nil {
 				failedChannels++
 				failedChannelIDs = append(failedChannelIDs, channel.Id)
-				common.SysLog(fmt.Sprintf("upstream model update check failed: channel_id=%d channel_name=%s err=%v", channel.Id, channel.Name, err))
+				common.SysLog(common.LogText("upstream model update check failed: channel_id=%d channel_name=%s err=%v", channel.Id, channel.Name, err))
 				continue
 			}
 			currentAddModels := normalizeModelNames(settings.UpstreamModelUpdateLastDetectedModels)
@@ -817,7 +833,7 @@ scanLoop:
 	}
 
 	if checkedChannels > 0 || common.DebugEnabled {
-		common.SysLog(fmt.Sprintf(
+		common.SysLog(common.LogText(
 			"upstream model update task done: checked_channels=%d changed_channels=%d detected_add_models=%d detected_remove_models=%d failed_channels=%d auto_added_models=%d",
 			checkedChannels,
 			changedChannels,
@@ -830,27 +846,28 @@ scanLoop:
 	if changedChannels > 0 || failedChannels > 0 {
 		now := common.GetTimestamp()
 		if !shouldSendUpstreamModelUpdateNotification(now, changedChannels, failedChannels) {
-			common.SysLog(fmt.Sprintf(
+			common.SysLog(common.LogText(
 				"upstream model update notification skipped in 24h window: changed_channels=%d failed_channels=%d",
 				changedChannels,
 				failedChannels,
 			))
 			return summary
 		}
-		service.NotifyUpstreamModelUpdateWatchers(
-			"上游模型巡检通知",
-			buildUpstreamModelUpdateTaskNotificationContent(
-				checkedChannels,
-				changedChannels,
-				detectedAddModels,
-				detectedRemoveModels,
-				autoAddedModels,
-				failedChannelIDs,
-				channelSummaries,
-				addModelSamples,
-				removeModelSamples,
-			),
-		)
+		service.NotifyUpstreamModelUpdateWatchers(func(lang string) (string, string) {
+			return i18n.Translate(lang, i18n.MsgChannelUpstreamUpdateNotifySubject),
+				buildUpstreamModelUpdateTaskNotificationContent(
+					lang,
+					checkedChannels,
+					changedChannels,
+					detectedAddModels,
+					detectedRemoveModels,
+					autoAddedModels,
+					failedChannelIDs,
+					channelSummaries,
+					addModelSamples,
+					removeModelSamples,
+				)
+		})
 	}
 	return summary
 }
@@ -1119,15 +1136,12 @@ func DetectAllChannelUpstreamModelUpdates(c *gin.Context) {
 		return
 	}
 	if !created {
-		c.JSON(http.StatusConflict, gin.H{
-			"success": false,
-			"message": "已有模型更新任务正在运行或等待中，不能启动本次手动任务",
-			"data": gin.H{
-				"task_id": task.TaskID,
-				"status":  task.Status,
-				"type":    task.Type,
-			},
-		})
+		msg := common.NewMessage("A model update task is already running or queued. Cannot start this manual task")
+		common.ApiErrorStatus(c, http.StatusConflict, msg, gin.H{"data": gin.H{
+			"task_id": task.TaskID,
+			"status":  task.Status,
+			"type":    task.Type,
+		}})
 		return
 	}
 

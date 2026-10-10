@@ -11,7 +11,9 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -265,6 +267,59 @@ func TestOaiChatToResponsesStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {
 		`event: response.output_text.done`,
 		`event: response.function_call_arguments.done`,
 		`event: response.completed`,
+	)
+}
+
+func TestOaiChatToResponsesStreamHandlerRestoresCodexCustomToolCall(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_exec","type":"function","function":{"name":"exec","arguments":"{\"input\":"}}]},"finish_reason":null}]}`,
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\"ls -la\"}"}}]},"finish_reason":null}]}`,
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	tools, marshalErr := common.Marshal([]map[string]any{
+		{"type": "custom", "name": "exec", "description": "Run a shell command", "format": map[string]any{"type": "text"}},
+	})
+	require.NoError(t, marshalErr)
+	converted, convertErr := service.ConvertRequestByID(c, info, relayconvert.ConverterOpenAIResponsesToOpenAIChat, &dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: []byte(`"list files"`),
+		Tools: tools,
+	})
+	require.NoError(t, convertErr)
+	chatRequest, ok := converted.Value.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	require.Len(t, chatRequest.Tools, 1)
+	assert.Equal(t, "function", chatRequest.Tools[0].Type)
+	assert.Equal(t, "exec", chatRequest.Tools[0].Function.Name)
+
+	_, err := OaiChatToResponsesStreamHandler(c, info, resp)
+	require.Nil(t, err)
+
+	got := recorder.Body.String()
+	assert.NotContains(t, got, `event: response.function_call_arguments`)
+	assert.Contains(t, got, `"delta":"ls -la"`)
+	assert.Contains(t, got, `"input":"ls -la"`)
+	requireOrderedSubstrings(t, got,
+		`event: response.output_item.added`,
+		`"type":"custom_tool_call"`,
+		`event: response.custom_tool_call_input.delta`,
+		`event: response.custom_tool_call_input.done`,
+		`event: response.output_item.done`,
+		`event: response.completed`,
+		`"type":"custom_tool_call"`,
 	)
 }
 

@@ -43,6 +43,9 @@ export default defineConfig({
     testTimeout: 20000,
     clearMocks: true,
     restoreMocks: true,
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    include: [
+      'src/**/*.{test,spec}.{ts,tsx}',
+      'scripts/oxlint/__tests__/*.test.ts',
+    ],
   },
 })

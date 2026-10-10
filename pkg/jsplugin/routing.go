@@ -1,12 +1,14 @@
 package jsplugin
 
 import (
+	"encoding/json"
 	"fmt"
 	"maps"
 	"net/http"
 	"regexp"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +31,11 @@ type Route struct {
 	Decode      string    `json:"decode,omitempty"`
 	Render      string    `json:"render,omitempty"`
 	TaskIDParam string    `json:"taskIdParam,omitempty"`
+	// RetainResult, when explicitly false on a submit or dynamic route, tells
+	// the host not to persist the upstream snapshot of an immediate terminal
+	// result and to treat the task as not found on every retrieval surface
+	// afterwards. nil means the route did not declare it (retain).
+	RetainResult *bool `json:"retainResult,omitempty"`
 	// Models restricts this route to the listed models. The host matches the
 	// canonical top-level "model" body field before any JS hook runs; empty
 	// means unrestricted. Must be a subset of meta.models.
@@ -88,7 +95,18 @@ var hostProtocols = []HostProtocolDefinition{
 		{Name: "retrieve", Methods: []string{http.MethodGet}, Path: "/v1/videos/:task_id", BodyKinds: []BodyKind{BodyNone}, RequiredProtocolMembers: []string{"render"}},
 		{Name: "content", Methods: []string{http.MethodGet, http.MethodHead}, Path: "/v1/videos/:task_id/content", BodyKinds: []BodyKind{BodyNone}, RequiredDriverHooks: []string{"listArtifacts", "buildContentRequest"}},
 	}},
+	// The OpenAI Images API is synchronous: both operations create a task and
+	// the host answers with the rendered image response once the task is
+	// terminal, so there is no retrieve operation and no request modes.
+	{Name: ProtocolOpenAIImage, Operations: []HostProtocolOperation{
+		{Name: "generate", Methods: []string{http.MethodPost}, Path: "/v1/images/generations", BodyKinds: []BodyKind{BodyJSON}, ModelField: "model", RequiredProtocolMembers: []string{"decodeRequest", "render"}},
+		{Name: "edit", Methods: []string{http.MethodPost}, Path: "/v1/images/edits", BodyKinds: []BodyKind{BodyJSON, BodyMultipart}, ModelField: "model", RequiredProtocolMembers: []string{"decodeRequest", "render"}},
+	}},
 }
+
+// ProtocolOpenAIImage is the host protocol that serves the OpenAI Images API
+// (`POST /v1/images/generations` and `POST /v1/images/edits`) from a plugin.
+const ProtocolOpenAIImage = "openai_image"
 
 func HostProtocol(name string) (HostProtocolDefinition, bool) {
 	for _, definition := range hostProtocols {
@@ -201,6 +219,10 @@ const (
 	ContextKeyPinnedEndpoint  = "task_plugin_pinned_endpoint"
 	ContextKeyRouteRequest    = "task_plugin_route_request"
 	ContextKeyProtocolRequest = "task_plugin_protocol_request"
+	// ContextKeyRequestBodyText holds, for a plugin that preserves JSON
+	// order, the decoded requestBody as JSON text (json.RawMessage) beside
+	// the Go value in task_request.
+	ContextKeyRequestBodyText = "task_plugin_request_body_text"
 )
 
 type PinnedPlugin struct {
@@ -228,6 +250,38 @@ type PinnedEndpoint struct {
 	Candidates  []ProtocolBinding
 }
 
+// FileReference returns the opaque ref of the index-th uploaded file in a
+// multipart field. The first file keeps the historical `request_file:<field>`
+// spelling; later files in the same repeated field (`image[]`, `image[]`)
+// append `#<index>` so a plugin can address each of them.
+func FileReference(field string, index int) string {
+	if index <= 0 {
+		return "request_file:" + field
+	}
+	return "request_file:" + field + "#" + strconv.Itoa(index)
+}
+
+// ParseFileReference resolves a ref produced by FileReference back to the
+// multipart field and the zero-based file index within that field.
+func ParseFileReference(ref string) (field string, index int, ok bool) {
+	rest, found := strings.CutPrefix(ref, "request_file:")
+	if !found || rest == "" {
+		return "", 0, false
+	}
+	field, suffix, hasIndex := strings.Cut(rest, "#")
+	if field == "" {
+		return "", 0, false
+	}
+	if !hasIndex {
+		return field, 0, true
+	}
+	parsed, err := strconv.Atoi(suffix)
+	if err != nil || parsed < 0 || strconv.Itoa(parsed) != suffix {
+		return "", 0, false
+	}
+	return field, parsed, true
+}
+
 // RouteRequestContext is the canonical request view exposed to declarative
 // routing hooks. RequestBody contains decoded JSON or multipart text fields;
 // raw binary and multipart file bytes remain host-owned.
@@ -239,55 +293,44 @@ type RouteRequestContext struct {
 	Body        any                 `json:"body"`
 	Files       []map[string]any    `json:"-"`
 	RequestBody any                 `json:"-"`
+	// BodyText is the JSON body as the client sent it, which JSValueFor
+	// gives to plugins that preserve JSON order; Body stays the Go value the
+	// host reads. Body storage never changes these bytes, which the engine
+	// parses in place.
+	BodyText json.RawMessage `json:"-"`
 }
 
+// JSValue shares the request with hooks without copying it: the engine never
+// writes JavaScript changes back into Go values, so the request must only stay
+// unchanged while a hook runs. Missing params and query still reach hooks as
+// empty objects rather than null.
 func (r RouteRequestContext) JSValue() map[string]any {
-	params := make(map[string]string, len(r.Params))
-	maps.Copy(params, r.Params)
-	query := make(map[string][]string, len(r.Query))
-	for key, values := range r.Query {
-		query[key] = append([]string(nil), values...)
+	params, query := r.Params, r.Query
+	if params == nil {
+		params = map[string]string{}
+	}
+	if query == nil {
+		query = map[string][]string{}
 	}
 	return map[string]any{
 		"path":   r.Path,
 		"method": r.Method,
 		"params": params,
 		"query":  query,
-		"body":   clonePluginRequestValue(r.Body),
+		"body":   r.Body,
 	}
 }
 
-func clonePluginRequestValue(value any) any {
-	switch typed := value.(type) {
-	case map[string]any:
-		cloned := make(map[string]any, len(typed))
-		for key, item := range typed {
-			cloned[key] = clonePluginRequestValue(item)
-		}
-		return cloned
-	case []any:
-		cloned := make([]any, len(typed))
-		for index, item := range typed {
-			cloned[index] = clonePluginRequestValue(item)
-		}
-		return cloned
-	case []string:
-		return append([]string(nil), typed...)
-	case map[string][]string:
-		cloned := make(map[string][]string, len(typed))
-		for key, values := range typed {
-			cloned[key] = append([]string(nil), values...)
-		}
-		return cloned
-	case []map[string]any:
-		cloned := make([]map[string]any, len(typed))
-		for index, item := range typed {
-			cloned[index] = clonePluginRequestValue(item).(map[string]any)
-		}
-		return cloned
-	default:
-		return value
+// JSValueFor is JSValue for the decode hooks of the plugin meta describes. A
+// plugin that preserves JSON order receives a JSON body as its text, which the
+// engine parses in place, members in the client's order: a decoder reads the
+// body, so it is parsed for every call.
+func (r RouteRequestContext) JSValueFor(meta Meta) map[string]any {
+	value := r.JSValue()
+	if len(r.BodyText) > 0 && meta.PreservesJSONOrder() {
+		value["body"] = map[string]any{"kind": string(BodyJSON), "value": RawJSON(r.BodyText)}
 	}
+	return value
 }
 
 type ProtocolRequestContext struct {
@@ -303,7 +346,15 @@ type ProtocolRequestContext struct {
 }
 
 func (p ProtocolRequestContext) JSValue() map[string]any {
-	value := p.RouteRequestContext.JSValue()
+	return p.withProtocol(p.RouteRequestContext.JSValue())
+}
+
+// JSValueFor is RouteRequestContext.JSValueFor with the protocol fields.
+func (p ProtocolRequestContext) JSValueFor(meta Meta) map[string]any {
+	return p.withProtocol(p.RouteRequestContext.JSValueFor(meta))
+}
+
+func (p ProtocolRequestContext) withProtocol(value map[string]any) map[string]any {
 	value["protocol"] = p.Protocol
 	value["operation"] = p.Operation
 	value["model"] = p.Model
@@ -711,6 +762,9 @@ func validateRoute(route *Route) error {
 		}
 		if route.Action != "" {
 			return fmt.Errorf("query route %s %s must not declare action", route.Method, route.Path)
+		}
+		if route.RetainResult != nil {
+			return fmt.Errorf("query route %s %s must not declare retainResult", route.Method, route.Path)
 		}
 		if route.TaskIDParam == "" {
 			route.TaskIDParam = "task_id"

@@ -24,16 +24,17 @@ func AttachRequest(format types.RelayFormat, request any, set Set, options *conv
 	)
 	switch format {
 	case types.RelayFormatOpenAI:
-		value, diagnostics, err = attachOpenAIChatRequest(request, set)
+		value, diagnostics, err = attachOpenAIChatRequest(request, set, options)
 	case types.RelayFormatOpenAIResponses:
-		value, diagnostics, err = attachOpenAIResponsesRequest(request, set)
+		value, diagnostics, err = attachOpenAIResponsesRequest(request, set, options)
 	case types.RelayFormatClaude:
 		value, diagnostics, err = attachClaudeRequest(request, set, options)
 	case types.RelayFormatGemini:
-		value, diagnostics, err = attachGeminiRequest(request, set)
+		value, diagnostics, err = attachGeminiRequest(request, set, options)
 	default:
 		value = request
 	}
+	diagnostics = append(set.Diagnostics, diagnostics...)
 	if err != nil {
 		return nil, diagnostics, err
 	}
@@ -47,24 +48,30 @@ func AttachRequest(format types.RelayFormat, request any, set Set, options *conv
 	return value, diagnostics, nil
 }
 
-func attachOpenAIChatRequest(request any, set Set) (any, []types.ConversionDiagnostic, error) {
+func attachOpenAIChatRequest(request any, set Set, options *convmeta.Options) (any, []types.ConversionDiagnostic, error) {
 	target, ok := request.(*dto.GeneralOpenAIRequest)
 	if !ok || target == nil {
 		return nil, nil, fmt.Errorf("expected OpenAI chat completions request, got %T", request)
 	}
-	var diagnostics []types.ConversionDiagnostic
+	customTools, diagnostics := responsesCustomTools(set)
+	// chatWebSearchEncoded reports that the host encoder handled the hosted
+	// web search; it may have written a tools[] entry or top-level fields
+	// instead of web_search_options.
+	chatWebSearchEncoded := false
 	for index, definition := range set.Definitions {
 		switch definition.Kind {
 		case KindFunction:
 			if definition.Function == nil {
 				continue
 			}
+			parameters, schemaDiagnostics := jsonSchemaParameters(index, definition.Function)
+			diagnostics = append(diagnostics, schemaDiagnostics...)
 			target.Tools = append(target.Tools, dto.ToolCallRequest{
 				Type: "function",
 				Function: dto.FunctionRequest{
 					Name:        definition.Function.Name,
 					Description: definition.Function.Description,
-					Parameters:  definition.Function.Parameters,
+					Parameters:  parameters,
 					Strict:      definition.Function.Strict,
 				},
 			})
@@ -72,23 +79,52 @@ func attachOpenAIChatRequest(request any, set Set) (any, []types.ConversionDiagn
 			if set.Source == types.RelayFormatGemini {
 				diagnostics = append(diagnostics, geminiNativeWebSearchDiagnostics(index, definition, types.RelayFormatOpenAI)...)
 			}
-			if target.WebSearchOptions != nil {
-				return nil, diagnostics, fmt.Errorf("tools[%d]: multiple hosted web-search definitions cannot be represented by Chat Completions", index)
+			if target.WebSearchOptions != nil || chatWebSearchEncoded {
+				diagnostics = append(diagnostics, semanticLoss(
+					fmt.Sprintf("tools[%d]", index),
+					"duplicate_hosted_web_search",
+					"Chat Completions carries one hosted web search; this definition was dropped",
+				))
+				continue
 			}
-			options := &dto.WebSearchOptions{}
+			call := newWebSearchCall(set, index, definition, types.RelayFormatOpenAI)
+			call.Chat = target
+			tool, encoderDiagnostics, handled, err := encodeWebSearch(call, options)
+			if err != nil {
+				return nil, diagnostics, err
+			}
+			if handled {
+				diagnostics = append(diagnostics, encoderDiagnostics...)
+				chatWebSearchEncoded = true
+				if tool != nil {
+					chatTool, ok := tool.(dto.ToolCallRequest)
+					if !ok {
+						return nil, diagnostics, fmt.Errorf("%s: Chat web-search encoder returned %T, want dto.ToolCallRequest", call.Path(), tool)
+					}
+					target.Tools = append(target.Tools, chatTool)
+				}
+				continue
+			}
+			webSearchOptions := &dto.WebSearchOptions{}
 			if definition.WebSearch != nil {
-				options.SearchContextSize = definition.WebSearch.SearchContextSize
+				webSearchOptions.SearchContextSize = definition.WebSearch.SearchContextSize
 				if definition.WebSearch.Location != nil {
 					location := map[string]any{
 						"type":        "approximate",
 						"approximate": locationMap(definition.WebSearch.Location),
 					}
-					options.UserLocation, _ = kitutil.Marshal(location)
+					webSearchOptions.UserLocation, _ = kitutil.Marshal(location)
 				}
 				diagnostics = append(diagnostics, openAIChatWebSearchDiagnostics(index, definition.WebSearch)...)
 			}
-			target.WebSearchOptions = options
+			target.WebSearchOptions = webSearchOptions
 		default:
+			if tool, handled := customTools[index]; handled {
+				if tool != nil {
+					target.Tools = append(target.Tools, tool.chatTool())
+				}
+				continue
+			}
 			diagnostics = append(diagnostics, semanticLoss(
 				fmt.Sprintf("tools[%d]", index),
 				"unsupported_hosted_tool",
@@ -97,17 +133,281 @@ func attachOpenAIChatRequest(request any, set Set) (any, []types.ConversionDiagn
 		}
 	}
 
-	normalizedChoice, allowedChoiceDiagnostics := narrowAllowedFunctionChoice(set.Choice, types.RelayFormatOpenAI)
+	diagnostics = append(diagnostics, unsupportedHostedHistoryDiagnostics(types.RelayFormatOpenAI, set.History)...)
+	if chatWebSearchEncoded && forcedWebSearch(set.Choice) {
+		// The encoder received Forced and expressed it in its own encoding.
+		set.Choice = nil
+	}
+	if len(target.Tools) == 0 {
+		return target, append(diagnostics, toolChoiceWithoutToolsDiagnostics(set)...), nil
+	}
+	normalizedChoice, allowedChoiceDiagnostics := narrowAllowedFunctionChoice(responsesCustomToolChoice(set.Choice, customTools), types.RelayFormatOpenAI)
 	choice, choiceDiagnostics := encodeOpenAIChatChoice(normalizedChoice)
 	target.ToolChoice = choice
 	target.ParallelTooCalls = set.ParallelAllowed
 	diagnostics = append(diagnostics, allowedChoiceDiagnostics...)
 	diagnostics = append(diagnostics, choiceDiagnostics...)
-	diagnostics = append(diagnostics, unsupportedHostedHistoryDiagnostics(types.RelayFormatOpenAI, set.History)...)
 	return target, diagnostics, nil
 }
 
-func attachOpenAIResponsesRequest(request any, set Set) (any, []types.ConversionDiagnostic, error) {
+// newWebSearchCall describes one hosted web-search definition for the host
+// encoder; the caller sets the typed target request.
+func newWebSearchCall(set Set, index int, definition Definition, target types.RelayFormat) convmeta.WebSearchCall {
+	call := convmeta.WebSearchCall{
+		Source:     set.Source,
+		Target:     target,
+		NativeType: definition.NativeType,
+		Index:      index,
+		Forced:     forcedWebSearch(set.Choice),
+	}
+	if definition.WebSearch != nil {
+		call.Spec = *definition.WebSearch
+	}
+	return call
+}
+
+func forcedWebSearch(choice *Choice) bool {
+	return choice != nil && choice.Mode == ChoiceNamed && choice.Kind == KindWebSearch
+}
+
+// encodeWebSearch runs the host web-search encoder for one definition.
+// handled is false when no encoder is set or it returned nil; the caller then
+// keeps its default encoding and default diagnostics. When handled, the
+// encoder's diagnostics replace the default ones and tool (possibly nil) is
+// what the caller appends.
+func encodeWebSearch(call convmeta.WebSearchCall, options *convmeta.Options) (tool any, diagnostics []types.ConversionDiagnostic, handled bool, err error) {
+	if options == nil || options.WebSearch == nil {
+		return nil, nil, false, nil
+	}
+	encoding, err := options.WebSearch(call)
+	if err != nil {
+		return nil, nil, false, fmt.Errorf("%s: %w", call.Path(), err)
+	}
+	if encoding == nil {
+		return nil, nil, false, nil
+	}
+	if encoding.Omitted {
+		return nil, append(encoding.Diagnostics, call.SemanticLoss(
+			"hosted_web_search_omitted",
+			"the upstream has no hosted web search for this protocol; the web search tool was omitted",
+		)), true, nil
+	}
+	return encoding.Tool, encoding.Diagnostics, true, nil
+}
+
+// appendEncodedWebSearch runs the host encoder for a Responses, Claude, or
+// Gemini target. When the encoder handled the definition, its diagnostics and
+// tool (if any) are appended and the caller skips its default encoding.
+func appendEncodedWebSearch(tools *[]any, diagnostics *[]types.ConversionDiagnostic, call convmeta.WebSearchCall, options *convmeta.Options) (bool, error) {
+	tool, encoderDiagnostics, handled, err := encodeWebSearch(call, options)
+	if err != nil || !handled {
+		return false, err
+	}
+	*diagnostics = append(*diagnostics, encoderDiagnostics...)
+	if tool != nil {
+		*tools = append(*tools, tool)
+	}
+	return true, nil
+}
+
+// toolChoiceWithoutToolsDiagnostics reports the tool_choice and
+// parallel_tool_calls controls omitted because no tool reached the target;
+// upstreams reject either control in a request without tools.
+func toolChoiceWithoutToolsDiagnostics(set Set) []types.ConversionDiagnostic {
+	if set.Choice == nil && set.ParallelAllowed == nil {
+		return nil
+	}
+	return []types.ConversionDiagnostic{presentationLoss("tool_choice", "tool_choice_without_tools",
+		"the target request has no function tools, so tool_choice and parallel_tool_calls were omitted")}
+}
+
+// jsonSchemaParameters returns function parameters as JSON Schema for a
+// non-Gemini target, rewriting Gemini's OpenAPI schema subset.
+func jsonSchemaParameters(index int, function *Function) (any, []types.ConversionDiagnostic) {
+	if !function.OpenAPISchema {
+		return function.Parameters, nil
+	}
+	parameters, dropped := sharedgemini.OpenAPISchemaToJSONSchema(function.Parameters)
+	if len(dropped) == 0 {
+		return parameters, nil
+	}
+	return parameters, []types.ConversionDiagnostic{presentationLoss(
+		fmt.Sprintf("tools[%d]", index),
+		"gemini_schema_keyword_dropped",
+		fmt.Sprintf("JSON Schema has no equivalent for Gemini schema keywords %s; they were dropped", strings.Join(dropped, ", ")),
+	)}
+}
+
+// responsesCustomTool is a Responses custom (freeform) tool sent upstream as
+// a function whose only argument is the raw input string.
+type responsesCustomTool struct {
+	name        string
+	description string
+}
+
+// inputSchema is the parameters schema of the function that carries a custom
+// tool: a single required string argument holding the raw input.
+func (tool *responsesCustomTool) inputSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			convmeta.CustomToolInputArgument: map[string]any{
+				"type":        "string",
+				"description": "Raw input for the tool.",
+			},
+		},
+		"required":             []string{convmeta.CustomToolInputArgument},
+		"additionalProperties": false,
+	}
+}
+
+func (tool *responsesCustomTool) chatTool() dto.ToolCallRequest {
+	return dto.ToolCallRequest{
+		Type: "function",
+		Function: dto.FunctionRequest{
+			Name:        tool.name,
+			Description: tool.description,
+			Parameters:  tool.inputSchema(),
+		},
+	}
+}
+
+const responsesCustomToolType = "custom"
+
+// ResponsesCustomToolNames returns the Responses custom tools that
+// AttachRequest sends upstream as functions. The response side restores
+// function calls with these names as custom_tool_call items.
+func ResponsesCustomToolNames(set Set) map[string]struct{} {
+	customTools, _ := responsesCustomTools(set)
+	var names map[string]struct{}
+	for _, tool := range customTools {
+		if tool == nil {
+			continue
+		}
+		if names == nil {
+			names = make(map[string]struct{}, len(customTools))
+		}
+		names[tool.name] = struct{}{}
+	}
+	return names
+}
+
+// ResponsesToolNamespaces maps the upstream name of every tool flattened
+// from a non-default Responses tool namespace to that namespace. The response
+// side restores the namespace on calls to these tools.
+func ResponsesToolNamespaces(set Set) map[string]string {
+	if set.Source != types.RelayFormatOpenAIResponses {
+		return nil
+	}
+	var namespaces map[string]string
+	for _, definition := range set.Definitions {
+		if definition.Namespace == "" || definition.Namespace == convmeta.DefaultResponsesToolNamespace || definition.Name == "" {
+			continue
+		}
+		if namespaces == nil {
+			namespaces = make(map[string]string)
+		}
+		namespaces[definition.Name] = definition.Namespace
+	}
+	return namespaces
+}
+
+// responsesCustomTools selects, by definition index, the Responses custom
+// tools that the upstream receives as functions. A nil entry marks a custom
+// tool that was dropped with a diagnostic; indexes without an entry fall back
+// to the generic unsupported-tool loss. Request encoding and
+// ResponsesCustomToolNames share this selection so the restored names always
+// match the functions that were sent.
+func responsesCustomTools(set Set) (map[int]*responsesCustomTool, []types.ConversionDiagnostic) {
+	if set.Source != types.RelayFormatOpenAIResponses {
+		return nil, nil
+	}
+	functionNames := make(map[string]struct{})
+	for _, definition := range set.Definitions {
+		if definition.Kind == KindFunction && definition.Function != nil {
+			functionNames[definition.Function.Name] = struct{}{}
+		}
+	}
+	var (
+		tools       map[int]*responsesCustomTool
+		diagnostics []types.ConversionDiagnostic
+	)
+	for index, definition := range set.Definitions {
+		if definition.Kind != KindNative || definition.NativeType != responsesCustomToolType {
+			continue
+		}
+		tool := decodeResponsesCustomTool(definition.Raw)
+		if tool == nil {
+			continue
+		}
+		if tools == nil {
+			tools = make(map[int]*responsesCustomTool)
+		}
+		path := fmt.Sprintf("tools[%d]", index)
+		if _, exists := functionNames[tool.name]; exists {
+			tools[index] = nil
+			diagnostics = append(diagnostics, semanticLoss(path, "custom_tool_name_conflict",
+				fmt.Sprintf("custom tool %q shares its name with another tool, so the target protocol cannot tell their calls apart", tool.name)))
+			continue
+		}
+		functionNames[tool.name] = struct{}{}
+		tools[index] = tool
+		diagnostics = append(diagnostics, presentationLoss(path, "custom_tool_as_function",
+			fmt.Sprintf("the target protocol has no freeform tools; custom tool %q is sent as a function with one string argument and its input format becomes a description hint", tool.name)))
+	}
+	return tools, diagnostics
+}
+
+func decodeResponsesCustomTool(raw json.RawMessage) *responsesCustomTool {
+	var value map[string]any
+	if err := kitutil.Unmarshal(raw, &value); err != nil {
+		return nil
+	}
+	name := strings.TrimSpace(kitutil.Interface2String(value["name"]))
+	if name == "" {
+		return nil
+	}
+	parts := make([]string, 0, 3)
+	if description := strings.TrimSpace(kitutil.Interface2String(value["description"])); description != "" {
+		parts = append(parts, description)
+	}
+	parts = append(parts, `This tool takes freeform text. Put the complete raw text in the "input" argument.`)
+	if format, ok := value["format"].(map[string]any); ok && strings.TrimSpace(kitutil.Interface2String(format["type"])) == "grammar" {
+		if definition := strings.TrimSpace(kitutil.Interface2String(format["definition"])); definition != "" {
+			switch syntax := strings.TrimSpace(kitutil.Interface2String(format["syntax"])); syntax {
+			case "lark":
+				parts = append(parts, "The input must match this Lark grammar:\n"+definition)
+			case "regex":
+				parts = append(parts, "The input must match this regular expression:\n"+definition)
+			default:
+				parts = append(parts, fmt.Sprintf("The input must match this %s grammar:\n%s", syntax, definition))
+			}
+		}
+	}
+	return &responsesCustomTool{name: name, description: strings.Join(parts, "\n\n")}
+}
+
+// responsesCustomToolChoice rewrites a Responses {"type":"custom"} tool choice
+// into a named function choice when that custom tool was sent as a function.
+// Other choices are returned unchanged.
+func responsesCustomToolChoice(choice *Choice, customTools map[int]*responsesCustomTool) *Choice {
+	if choice == nil || choice.Mode != ChoiceOpaque || choice.NativeType != responsesCustomToolType {
+		return choice
+	}
+	var value map[string]any
+	if err := kitutil.Unmarshal(choice.Raw, &value); err != nil {
+		return choice
+	}
+	name := convmeta.NamespacedToolName(strings.TrimSpace(kitutil.Interface2String(value["namespace"])), strings.TrimSpace(kitutil.Interface2String(value["name"])))
+	for _, tool := range customTools {
+		if tool != nil && tool.name == name {
+			return &Choice{Mode: ChoiceNamed, Kind: KindFunction, Name: name}
+		}
+	}
+	return choice
+}
+
+func attachOpenAIResponsesRequest(request any, set Set, options *convmeta.Options) (any, []types.ConversionDiagnostic, error) {
 	target, ok := request.(*dto.OpenAIResponsesRequest)
 	if !ok || target == nil {
 		return nil, nil, fmt.Errorf("expected OpenAI Responses request, got %T", request)
@@ -120,11 +420,13 @@ func attachOpenAIResponsesRequest(request any, set Set) (any, []types.Conversion
 			if definition.Function == nil {
 				continue
 			}
+			parameters, schemaDiagnostics := jsonSchemaParameters(index, definition.Function)
+			diagnostics = append(diagnostics, schemaDiagnostics...)
 			tool := map[string]any{
 				"type":        "function",
 				"name":        definition.Function.Name,
 				"description": definition.Function.Description,
-				"parameters":  definition.Function.Parameters,
+				"parameters":  parameters,
 			}
 			if definition.Function.Strict != nil {
 				tool["strict"] = *definition.Function.Strict
@@ -134,6 +436,15 @@ func attachOpenAIResponsesRequest(request any, set Set) (any, []types.Conversion
 		case KindWebSearch:
 			if set.Source == types.RelayFormatGemini {
 				diagnostics = append(diagnostics, geminiNativeWebSearchDiagnostics(index, definition, types.RelayFormatOpenAIResponses)...)
+			}
+			call := newWebSearchCall(set, index, definition, types.RelayFormatOpenAIResponses)
+			call.Responses = target
+			handled, err := appendEncodedWebSearch(&tools, &diagnostics, call, options)
+			if err != nil {
+				return nil, diagnostics, err
+			}
+			if handled {
+				continue
 			}
 			webSearch := definition.WebSearch
 			toolType := "web_search"
@@ -182,13 +493,19 @@ func attachOpenAIResponsesRequest(request any, set Set) (any, []types.Conversion
 			))
 		}
 	}
-	if len(tools) > 0 {
-		encoded, err := kitutil.Marshal(tools)
-		if err != nil {
-			return nil, diagnostics, err
-		}
-		target.Tools = encoded
+	historyDiagnostics, err := appendHostedHistoryToOpenAIResponses(target, set)
+	if err != nil {
+		return nil, diagnostics, err
 	}
+	diagnostics = append(diagnostics, historyDiagnostics...)
+	if len(tools) == 0 {
+		return target, append(diagnostics, toolChoiceWithoutToolsDiagnostics(set)...), nil
+	}
+	encoded, err := kitutil.Marshal(tools)
+	if err != nil {
+		return nil, diagnostics, err
+	}
+	target.Tools = encoded
 	normalizedChoice, allowedChoiceDiagnostics := narrowAllowedFunctionChoice(set.Choice, types.RelayFormatOpenAIResponses)
 	choice, choiceDiagnostics, err := encodeOpenAIResponsesChoice(normalizedChoice, set.Source)
 	if err != nil {
@@ -200,11 +517,6 @@ func attachOpenAIResponsesRequest(request any, set Set) (any, []types.Conversion
 	}
 	diagnostics = append(diagnostics, allowedChoiceDiagnostics...)
 	diagnostics = append(diagnostics, choiceDiagnostics...)
-	historyDiagnostics, err := appendHostedHistoryToOpenAIResponses(target, set)
-	if err != nil {
-		return nil, diagnostics, err
-	}
-	diagnostics = append(diagnostics, historyDiagnostics...)
 	return target, diagnostics, nil
 }
 
@@ -214,14 +526,16 @@ func attachClaudeRequest(request any, set Set, options *convmeta.Options) (any, 
 		return nil, nil, fmt.Errorf("expected Claude Messages request, got %T", request)
 	}
 	tools := make([]any, 0, len(set.Definitions))
-	var diagnostics []types.ConversionDiagnostic
+	customTools, diagnostics := responsesCustomTools(set)
 	for index, definition := range set.Definitions {
 		switch definition.Kind {
 		case KindFunction:
 			if definition.Function == nil {
 				continue
 			}
-			inputSchema, err := functionParametersMap(definition.Function.Parameters)
+			parameters, schemaDiagnostics := jsonSchemaParameters(index, definition.Function)
+			diagnostics = append(diagnostics, schemaDiagnostics...)
+			inputSchema, err := functionParametersMap(parameters)
 			if err != nil {
 				return nil, diagnostics, fmt.Errorf("tools[%d].input_schema: %w", index, err)
 			}
@@ -234,6 +548,15 @@ func attachClaudeRequest(request any, set Set, options *convmeta.Options) (any, 
 		case KindWebSearch:
 			if set.Source == types.RelayFormatGemini {
 				diagnostics = append(diagnostics, geminiNativeWebSearchDiagnostics(index, definition, types.RelayFormatClaude)...)
+			}
+			call := newWebSearchCall(set, index, definition, types.RelayFormatClaude)
+			call.Claude = target
+			handled, err := appendEncodedWebSearch(&tools, &diagnostics, call, options)
+			if err != nil {
+				return nil, diagnostics, err
+			}
+			if handled {
+				continue
 			}
 			toolType := "web_search_20250305"
 			if set.Source == types.RelayFormatClaude && isKnownClaudeWebSearchType(definition.NativeType) {
@@ -285,6 +608,16 @@ func attachClaudeRequest(request any, set Set, options *convmeta.Options) (any, 
 				tools = append(tools, tool)
 				continue
 			}
+			if tool, handled := customTools[index]; handled {
+				if tool != nil {
+					tools = append(tools, &dto.Tool{
+						Name:        tool.name,
+						Description: tool.description,
+						InputSchema: tool.inputSchema(),
+					})
+				}
+				continue
+			}
 			diagnostics = append(diagnostics, semanticLoss(
 				fmt.Sprintf("tools[%d]", index),
 				"unsupported_hosted_tool",
@@ -292,23 +625,33 @@ func attachClaudeRequest(request any, set Set, options *convmeta.Options) (any, 
 			))
 		}
 	}
-	if len(tools) > 0 {
-		target.Tools = tools
-	}
-	normalizedChoice, allowedChoiceDiagnostics := narrowAllowedFunctionChoice(set.Choice, types.RelayFormatClaude)
-	choice, choiceDiagnostics := encodeClaudeChoice(normalizedChoice, set.ParallelAllowed, set.Source)
-	target.ToolChoice = choice
-	diagnostics = append(diagnostics, allowedChoiceDiagnostics...)
-	diagnostics = append(diagnostics, choiceDiagnostics...)
 	historyDiagnostics, err := appendHostedHistoryToClaude(target, set)
 	if err != nil {
 		return nil, diagnostics, err
 	}
 	diagnostics = append(diagnostics, historyDiagnostics...)
+	if len(tools) == 0 {
+		return target, append(diagnostics, toolChoiceWithoutToolsDiagnostics(set)...), nil
+	}
+	target.Tools = tools
+	normalizedChoice, allowedChoiceDiagnostics := narrowAllowedFunctionChoice(responsesCustomToolChoice(set.Choice, customTools), types.RelayFormatClaude)
+	diagnostics = append(diagnostics, allowedChoiceDiagnostics...)
+	forced := normalizedChoice != nil && (normalizedChoice.Mode == ChoiceRequired || normalizedChoice.Mode == ChoiceNamed)
+	manualThinking := target.Thinking != nil && target.Thinking.Type == "enabled"
+	if forced && manualThinking && set.Source != types.RelayFormatClaude {
+		downgraded := *normalizedChoice
+		downgraded.Mode = ChoiceAuto
+		normalizedChoice = &downgraded
+		diagnostics = append(diagnostics, semanticLoss("tool_choice", "forced_tool_choice_downgraded",
+			"Claude rejects forced tool use while manual extended thinking is enabled; tool_choice was sent as auto, so the model may answer without calling a tool"))
+	}
+	choice, choiceDiagnostics := encodeClaudeChoice(normalizedChoice, set.ParallelAllowed, set.Source)
+	target.ToolChoice = choice
+	diagnostics = append(diagnostics, choiceDiagnostics...)
 	return target, diagnostics, nil
 }
 
-func attachGeminiRequest(request any, set Set) (any, []types.ConversionDiagnostic, error) {
+func attachGeminiRequest(request any, set Set, options *convmeta.Options) (any, []types.ConversionDiagnostic, error) {
 	target, ok := request.(*dto.GeminiChatRequest)
 	if !ok || target == nil {
 		return nil, nil, fmt.Errorf("expected Gemini generateContent request, got %T", request)
@@ -334,10 +677,10 @@ func attachGeminiRequest(request any, set Set) (any, []types.ConversionDiagnosti
 		return target, unsupportedHostedHistoryDiagnostics(types.RelayFormatGemini, set.History), nil
 	}
 	var (
-		functions   []map[string]any
-		tools       []map[string]any
-		diagnostics []types.ConversionDiagnostic
+		functions []map[string]any
+		tools     []any
 	)
+	customTools, diagnostics := responsesCustomTools(set)
 	for index, definition := range set.Definitions {
 		switch definition.Kind {
 		case KindFunction:
@@ -368,6 +711,15 @@ func attachGeminiRequest(request any, set Set) (any, []types.ConversionDiagnosti
 				diagnostics = append(diagnostics, presentationLoss(fmt.Sprintf("tools[%d].strict", index), "unsupported_function_strict", "Gemini does not expose OpenAI function strictness"))
 			}
 		case KindWebSearch:
+			call := newWebSearchCall(set, index, definition, types.RelayFormatGemini)
+			call.Gemini = target
+			handled, err := appendEncodedWebSearch(&tools, &diagnostics, call, options)
+			if err != nil {
+				return nil, diagnostics, err
+			}
+			if handled {
+				continue
+			}
 			if set.Source == types.RelayFormatGemini && len(definition.Raw) > 0 {
 				var tool map[string]any
 				if err := kitutil.Unmarshal(definition.Raw, &tool); err != nil {
@@ -401,19 +753,18 @@ func attachGeminiRequest(request any, set Set) (any, []types.ConversionDiagnosti
 				tools = append(tools, tool)
 				continue
 			}
-			// The established Responses-to-Gemini compatibility path removes
-			// free-form/unknown tools together with custom call history in
-			// PrepareOpenAIResponsesRequest. Keep that explicit downgrade as a
-			// diagnostic; other opaque tools may be server-executed and remain a
-			// semantic loss under the default Safe policy.
-			if set.Source == types.RelayFormatOpenAIResponses && (definition.NativeType == "custom" || definition.NativeType == "unknown") {
-				diagnostics = append(diagnostics, presentationLoss(
-					fmt.Sprintf("tools[%d]", index),
-					"custom_tool_omitted",
-					"Gemini cannot represent this OpenAI free-form or unknown tool; its preprocessed call history and definition were omitted",
-				))
+			if tool, handled := customTools[index]; handled {
+				if tool != nil {
+					functions = append(functions, map[string]any{
+						"name":        tool.name,
+						"description": tool.description,
+						"parameters":  sharedgemini.CleanFunctionParameters(tool.inputSchema()),
+					})
+				}
 				continue
 			}
+			// Other opaque tools may be server-executed and remain a semantic
+			// loss under the default Safe policy.
 			if set.Source == types.RelayFormatOpenAIResponses && definition.Kind == KindNative {
 				diagnostics = append(diagnostics, semanticLoss(
 					fmt.Sprintf("tools[%d]", index),
@@ -439,7 +790,11 @@ func attachGeminiRequest(request any, set Set) (any, []types.ConversionDiagnosti
 		}
 		target.Tools = encoded
 	}
-	config, choiceDiagnostics := encodeGeminiChoice(set.Choice)
+	if len(functions) == 0 {
+		diagnostics = append(diagnostics, unsupportedHostedHistoryDiagnostics(types.RelayFormatGemini, set.History)...)
+		return target, append(diagnostics, toolChoiceWithoutToolsDiagnostics(set)...), nil
+	}
+	config, choiceDiagnostics := encodeGeminiChoice(responsesCustomToolChoice(set.Choice, customTools))
 	target.ToolConfig = config
 	diagnostics = append(diagnostics, choiceDiagnostics...)
 	if set.ParallelAllowed != nil && !*set.ParallelAllowed {

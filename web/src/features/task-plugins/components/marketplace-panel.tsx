@@ -77,7 +77,11 @@ export function MarketplacePanel() {
     meta: { errorToast: false },
     queryFn: async (): Promise<MarketplaceIndex> => {
       if (!selectedSource) throw new Error('marketplace source is not selected')
-      const response = await fetch(selectedSource.index_url)
+      // Revalidate so the hashes checked at install time are the host's
+      // current ones rather than a copy cached before a republish.
+      const response = await fetch(selectedSource.index_url, {
+        cache: 'no-cache',
+      })
       if (!response.ok) {
         throw new Error(
           t('Index request failed with HTTP {{status}}', {

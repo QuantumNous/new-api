@@ -135,6 +135,9 @@ type ClaudeMessageSource struct {
 type ClaudeMessage struct {
 	Role    string `json:"role"`
 	Content any    `json:"content"`
+	// OutputConfig carries per-message effort (beta): an effort-only system
+	// message has empty content and the new level in output_config.effort.
+	OutputConfig json.RawMessage `json:"output_config,omitempty"`
 }
 
 func (c *ClaudeMessage) IsStringContent() bool {
@@ -238,6 +241,7 @@ type ClaudeRequest struct {
 	TopK              *int            `json:"top_k,omitempty"`
 	Stream            *bool           `json:"stream,omitempty"`
 	Tools             any             `json:"tools,omitempty"`
+	Safeguards        json.RawMessage `json:"safeguards,omitempty"`
 	ContextManagement json.RawMessage `json:"context_management,omitempty"`
 	OutputConfig      json.RawMessage `json:"output_config,omitempty"`
 	OutputFormat      json.RawMessage `json:"output_format,omitempty"`
@@ -246,6 +250,8 @@ type ClaudeRequest struct {
 	Thinking          *Thinking       `json:"thinking,omitempty"`
 	McpServers        json.RawMessage `json:"mcp_servers,omitempty"`
 	Metadata          json.RawMessage `json:"metadata,omitempty"`
+	// vLLM Messages extension; forwarded verbatim when present.
+	ChatTemplateKwargs json.RawMessage `json:"chat_template_kwargs,omitempty"`
 	// Speed specifies the Claude inference speed mode.
 	// This field is filtered by default and can be enabled via channel setting allow_speed.
 	Speed json.RawMessage `json:"speed,omitempty"`
@@ -330,9 +336,25 @@ func (c *ClaudeRequest) GetTokenCountMeta() *types.TokenCountMeta {
 					texts = append(texts, string(b))
 				}
 			case "tool_result":
-				if media.Content != nil {
-					b, _ := kitutil.Marshal(media.Content)
-					texts = append(texts, string(b))
+				// Count tool output as the text the model reads; JSON-encoding it
+				// would escape newlines and quotes and count image base64 as text.
+				if media.IsStringContent() {
+					texts = append(texts, media.GetStringContent())
+					break
+				}
+				for _, part := range media.ParseMediaContent() {
+					if source := part.ToFileSource(); source != nil {
+						fileType := types.FileTypeFile
+						if part.Type == "image" {
+							fileType = types.FileTypeImage
+						}
+						fileMeta = append(fileMeta, &types.FileMeta{FileType: fileType, Source: source})
+					} else if part.Type == "text" {
+						texts = append(texts, part.GetText())
+					} else {
+						b, _ := kitutil.Marshal(part)
+						texts = append(texts, string(b))
+					}
 				}
 			}
 		}
@@ -389,18 +411,6 @@ func (c *ClaudeRequest) SetModelName(modelName string) {
 	}
 }
 
-func (c *ClaudeRequest) SearchToolNameByToolCallId(toolCallId string) string {
-	for _, message := range c.Messages {
-		content, _ := message.ParseContent()
-		for _, mediaMessage := range content {
-			if mediaMessage.Id == toolCallId {
-				return mediaMessage.Name
-			}
-		}
-	}
-	return ""
-}
-
 // AddTool 添加工具到请求中
 func (c *ClaudeRequest) AddTool(tool any) {
 	if c.Tools == nil {
@@ -454,6 +464,18 @@ func ProcessTools(tools []any) ([]*Tool, []*ClaudeWebSearchTool) {
 			normalTools = append(normalTools, &t)
 		case ClaudeWebSearchTool:
 			webSearchTools = append(webSearchTools, &t)
+		case map[string]any:
+			// Tools decoded from client JSON arrive as maps.
+			toolType, _ := t["type"].(string)
+			if strings.HasPrefix(toolType, "web_search") {
+				if webSearchTool, err := kitutil.Any2Type[ClaudeWebSearchTool](t); err == nil {
+					webSearchTools = append(webSearchTools, &webSearchTool)
+				}
+				continue
+			}
+			if normalTool, err := kitutil.Any2Type[Tool](t); err == nil {
+				normalTools = append(normalTools, &normalTool)
+			}
 		default:
 			// 未知类型，跳过
 			continue

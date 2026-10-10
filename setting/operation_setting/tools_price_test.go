@@ -24,18 +24,42 @@ func TestToolPriceHardcodedFallbacksSurviveMissingOperatorConfig(t *testing.T) {
 	toolPriceSetting.Prices = map[string]float64{}
 	RebuildToolPriceIndex()
 
-	expectedDefaults := map[string]float64{
-		"web_search":         10,
-		"web_search_preview": 10,
-		"file_search":        2.5,
-		"google_search":      14,
-		"image_generation":   150,
+	tests := []struct {
+		tool  string
+		model string
+		want  float64
+	}{
+		{"web_search", "", 10},
+		{"web_search_preview", "", 10},
+		{"file_search", "", 2.5},
+		{"google_search", "", 14},
+		{"image_generation", "", 150},
+		{"web_search_preview", "gpt-4o-2024-11-20", 25},
+		{"web_search_preview", "gpt-4.1-mini", 25},
+		// Gemini 3 bills each search query; 2.5 and older bill the grounded prompt.
+		{"google_search", "gemini-3.7-flash", 14},
+		{"google_search_grounded_prompt", "gemini-3.7-flash", 0},
+		{"google_search", "gemini-2.5-flash", 0},
+		{"google_search_grounded_prompt", "gemini-2.5-flash", 35},
+		// Vendor search tiers in the vendor's list currency.
+		{"search_std", "", 10},
+		{"search_pro", "", 30},
+		{"search_pro_sogou", "", 50},
+		{"search_pro_quark", "", 50},
+		{"search_strategy_turbo", "", 3},
+		{"search_strategy_max", "", 4},
+		{"search_strategy_agent", "", 4},
+		{"search_strategy_agent_max", "", 4},
+		{"bing_web_search", "", 14},
+		{"web_search", "grok-4", 5},
+		{"x_search_posts", "", 5},
+		{"x_search_profiles", "", 10},
 	}
-	for name, expected := range expectedDefaults {
-		assert.Equal(t, expected, GetToolPrice(name), name)
+	for _, tt := range tests {
+		assert.Equal(t, tt.want, GetToolPriceForModel(tt.tool, tt.model), "%s for %q", tt.tool, tt.model)
 	}
-	assert.Equal(t, 25.0, GetToolPriceForModel("web_search_preview", "gpt-4o-2024-11-20"))
-	assert.Equal(t, 25.0, GetToolPriceForModel("web_search_preview", "gpt-4.1-mini"))
+	assert.True(t, IsBuiltInToolPriceKey("bing_web_search"))
+	assert.True(t, IsBuiltInToolPriceKey("google_search_grounded_prompt"), "seeded only for model prefixes")
 }
 
 func TestToolPriceOperatorOverridePrecedenceAndExplicitZero(t *testing.T) {
@@ -77,6 +101,7 @@ func TestToolPriceCustomFunctionHasNoHardcodedFallback(t *testing.T) {
 	toolPriceSetting.Prices["lookup_customer"] = 5
 	RebuildToolPriceIndex()
 	assert.Equal(t, 5.0, GetToolPrice("lookup_customer"))
+	assert.False(t, IsBuiltInToolPriceKey("lookup_customer"), "an operator price is not a built-in key")
 
 	toolPriceSetting.Prices["lookup_customer"] = 0
 	RebuildToolPriceIndex()

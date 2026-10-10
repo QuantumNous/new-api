@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
@@ -66,7 +68,9 @@ func TestRelayInfoMetaTypedNilReceiver(t *testing.T) {
 		meta.SetReasoningEffort("high")
 		meta.IncrSendResponseCount()
 		meta.AppendRequestConversion(types.RelayFormatClaude)
+		meta.SetResponsesToolState(&convmeta.ResponsesToolState{})
 	})
+	assert.Nil(t, meta.ResponsesToolState())
 
 	firstState := meta.EnsureClaudeConvertInfo()
 	secondState := meta.EnsureClaudeConvertInfo()
@@ -85,6 +89,19 @@ func TestRelayInfoMetaTypedNilReceiver(t *testing.T) {
 	assert.NotNil(t, firstOptions.Gemini.SafetySetting)
 	assert.NotNil(t, firstOptions.PreserveThinkingSuffix)
 	assert.NotNil(t, firstOptions.PreserveEffortTail)
+}
+
+func TestRelayInfoResponsesToolStateRoundTrip(t *testing.T) {
+	info := &RelayInfo{}
+	state := &convmeta.ResponsesToolState{CustomToolNames: map[string]struct{}{"exec": {}}}
+
+	info.SetResponsesToolState(state)
+	assert.Same(t, state, info.ResponsesToolState())
+	assert.True(t, convmeta.ResponsesToolStateOf(info).IsCustomTool("exec"))
+
+	info.SetResponsesToolState(nil)
+	assert.Nil(t, info.ResponsesToolState())
+	assert.False(t, convmeta.ResponsesToolStateOf(info).IsCustomTool("exec"))
 }
 
 func TestGenRelayInfoCapturesRequestReasoningEffort(t *testing.T) {
@@ -147,6 +164,24 @@ func TestGenRelayInfoCapturesRequestReasoningEffort(t *testing.T) {
 			}},
 			expected: "low",
 		},
+		{
+			name:        "Gemini uppercase enum thinking level is canonicalized",
+			path:        "/v1beta/models/gemini-3.7-flash:generateContent",
+			relayFormat: types.RelayFormatGemini,
+			request: &dto.GeminiChatRequest{GenerationConfig: dto.GeminiChatGenerationConfig{
+				ThinkingConfig: &dto.GeminiThinkingConfig{ThinkingLevel: " MEDIUM "},
+			}},
+			expected: "medium",
+		},
+		{
+			name:        "Gemini unknown thinking level is recorded as sent",
+			path:        "/v1beta/models/gemini-3.7-flash:generateContent",
+			relayFormat: types.RelayFormatGemini,
+			request: &dto.GeminiChatRequest{GenerationConfig: dto.GeminiChatGenerationConfig{
+				ThinkingConfig: &dto.GeminiThinkingConfig{ThinkingLevel: "ULTRA"},
+			}},
+			expected: "ULTRA",
+		},
 	}
 
 	for _, tt := range tests {
@@ -193,6 +228,84 @@ func TestInitChannelMetaRestoresRequestReasoningEffortForRetry(t *testing.T) {
 	info.SetReasoningEffort("low")
 	info.InitChannelMeta(ctx)
 	assert.Equal(t, "max", info.ReasoningEffort)
+}
+
+func TestInitChannelMetaAppliesAdvancedCustomRoutePassThrough(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	advancedCustom := &dto.AdvancedCustomConfig{
+		Routes: []dto.AdvancedCustomRoute{
+			{
+				IncomingPath:           "/v1/chat/completions",
+				UpstreamPath:           "/v1/chat/completions",
+				Models:                 []string{"native-model"},
+				PassThroughBodyEnabled: true,
+			},
+			{
+				IncomingPath: "/v1/chat/completions",
+				UpstreamPath: "/v1/messages",
+				Converter:    relayconvert.ConverterOpenAIChatToClaudeMessages,
+			},
+		},
+	}
+	require.NoError(t, advancedCustom.Validate())
+
+	tests := []struct {
+		name            string
+		channelType     int
+		channelSetting  dto.ChannelSettings
+		model           string
+		wantPassThrough bool
+		wantEffort      string
+	}{
+		{
+			name:            "matched route enables pass-through and drops reasoning effort",
+			channelType:     constant.ChannelTypeAdvancedCustom,
+			model:           "native-model",
+			wantPassThrough: true,
+			wantEffort:      "",
+		},
+		{
+			name:            "fallback converter route keeps conversion",
+			channelType:     constant.ChannelTypeAdvancedCustom,
+			model:           "other-model",
+			wantPassThrough: false,
+			wantEffort:      "high",
+		},
+		{
+			name:            "channel-level pass-through still applies to converter route",
+			channelType:     constant.ChannelTypeAdvancedCustom,
+			channelSetting:  dto.ChannelSettings{PassThroughBodyEnabled: true},
+			model:           "other-model",
+			wantPassThrough: true,
+			wantEffort:      "",
+		},
+		{
+			name:            "route flag is ignored for other channel types",
+			channelType:     constant.ChannelTypeOpenAI,
+			model:           "native-model",
+			wantPassThrough: false,
+			wantEffort:      "high",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			ctx.Set("original_model", tt.model)
+			common.SetContextKey(ctx, constant.ContextKeyChannelType, tt.channelType)
+			common.SetContextKey(ctx, constant.ContextKeyChannelSetting, tt.channelSetting)
+			common.SetContextKey(ctx, constant.ContextKeyChannelOtherSetting, dto.ChannelOtherSettings{AdvancedCustom: advancedCustom})
+
+			info, err := GenRelayInfo(ctx, types.RelayFormatOpenAI, &dto.GeneralOpenAIRequest{Model: tt.model, ReasoningEffort: "high"}, nil)
+			require.NoError(t, err)
+
+			info.InitChannelMeta(ctx)
+
+			assert.Equal(t, tt.wantPassThrough, info.ChannelSetting.PassThroughBodyEnabled)
+			assert.Equal(t, tt.wantEffort, info.ReasoningEffort)
+		})
+	}
 }
 
 func TestInitChannelMetaResetsPerAttemptStreamStateAndPreservesRequestState(t *testing.T) {
