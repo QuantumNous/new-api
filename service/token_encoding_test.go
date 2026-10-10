@@ -39,7 +39,8 @@ func TestTokenCountWireEncoding(t *testing.T) {
 // TestTokenCountPreservesLiteralEscape checks that ordinary text is not decoded twice.
 func TestTokenCountPreservesLiteralEscape(t *testing.T) {
 	var request dto.GeneralOpenAIRequest
-	require.NoError(t, common.Unmarshal([]byte(`{"messages":[{"role":"user","content":"\\u4e2d"}]}`), &request))
+	wire := `{"messages":[{"role":"user","content":"` + string([]rune{92, 92}) + `u4e2d"}]}`
+	require.NoError(t, common.Unmarshal([]byte(wire), &request))
 	text := request.GetTokenCountMeta().CombineText
 	require.Contains(t, text, string(rune(92))+"u4e2d")
 	require.NotContains(t, text, "中")
