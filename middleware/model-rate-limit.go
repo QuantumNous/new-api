@@ -133,7 +133,7 @@ func redisRateLimitHandler(duration int64, totalMaxCount, successMaxCount int) g
 	}
 }
 
-// 内存限流处理器
+// memoryRateLimitHandler limits model requests in memory and returns localized rejection messages.
 func memoryRateLimitHandler(duration int64, totalMaxCount, successMaxCount int) gin.HandlerFunc {
 	inMemoryRateLimiter.Init(time.Duration(setting.ModelRequestRateLimitDurationMinutes) * time.Minute)
 
@@ -144,8 +144,7 @@ func memoryRateLimitHandler(duration int64, totalMaxCount, successMaxCount int) 
 
 		// 1. 检查总请求数限制（当totalMaxCount为0时跳过）
 		if totalMaxCount > 0 && !inMemoryRateLimiter.Request(totalKey, totalMaxCount, duration) {
-			c.Status(http.StatusTooManyRequests)
-			c.Abort()
+			abortWithOpenAiMessage(c, http.StatusTooManyRequests, i18n.T(c, i18n.MsgRateLimitTotalReached, map[string]any{"Minutes": setting.ModelRequestRateLimitDurationMinutes, "Max": totalMaxCount}))
 			return
 		}
 
@@ -153,7 +152,7 @@ func memoryRateLimitHandler(duration int64, totalMaxCount, successMaxCount int) 
 		if successMaxCount > 0 {
 			reservation = inMemoryRateLimiter.Reserve(successKey, successMaxCount, duration)
 			if reservation == nil {
-				c.AbortWithStatus(http.StatusTooManyRequests)
+				abortWithOpenAiMessage(c, http.StatusTooManyRequests, i18n.T(c, i18n.MsgRateLimitReached, map[string]any{"Minutes": setting.ModelRequestRateLimitDurationMinutes, "Max": successMaxCount}))
 				return
 			}
 			defer reservation.Complete(false)

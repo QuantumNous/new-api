@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sync/atomic"
@@ -10,7 +11,9 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +45,9 @@ func TestModelRedisRateLimitUsesUTCRegardlessOfLocalTimezone(t *testing.T) {
 
 var modelRateLimitTestUsers atomic.Int64
 
+// TestModelRateLimitStreamFailuresDoNotConsumeSuccessLimit checks that failed streams release success capacity.
 func TestModelRateLimitStreamFailuresDoNotConsumeSuccessLimit(t *testing.T) {
+	require.NoError(t, i18n.Init())
 	for _, backend := range []string{"memory", "redis"} {
 		for _, totalLimit := range []int{0, 2} {
 			t.Run(fmt.Sprintf("%s/total=%d", backend, totalLimit), func(t *testing.T) {
@@ -75,7 +80,9 @@ func TestModelRateLimitStreamFailuresDoNotConsumeSuccessLimit(t *testing.T) {
 	}
 }
 
+// TestModelMemoryRateLimitReservesConcurrentSuccessAdmission checks reservations while a request is active.
 func TestModelMemoryRateLimitReservesConcurrentSuccessAdmission(t *testing.T) {
+	require.NoError(t, i18n.Init())
 	userID := 7200000 + int(modelRateLimitTestUsers.Add(1))
 	entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	router := gin.New()
@@ -99,4 +106,46 @@ func TestModelMemoryRateLimitReservesConcurrentSuccessAdmission(t *testing.T) {
 	<-finished
 	assert.Equal(t, http.StatusOK, performRateLimitRequest(router, "/completed", "127.0.0.1:1000").Code)
 	assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/completed", "127.0.0.1:1000").Code)
+}
+
+// TestModelMemoryRateLimitRejectionsReturnErrorMessage checks both localized rejection messages.
+func TestModelMemoryRateLimitRejectionsReturnErrorMessage(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	for _, tc := range []struct {
+		name                     string
+		totalLimit, successLimit int
+	}{
+		{name: "total", totalLimit: 1, successLimit: 0},
+		{name: "success", totalLimit: 0, successLimit: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			userID := 7200000 + int(modelRateLimitTestUsers.Add(1))
+			router := gin.New()
+			var expectedMessage string
+			router.GET("/", func(c *gin.Context) {
+				c.Set("id", userID)
+				messageKey, max := i18n.MsgRateLimitTotalReached, tc.totalLimit
+				if tc.successLimit > 0 {
+					messageKey, max = i18n.MsgRateLimitReached, tc.successLimit
+				}
+				expectedMessage = i18n.T(c, messageKey, map[string]any{
+					"Minutes": setting.ModelRequestRateLimitDurationMinutes,
+					"Max":     max,
+				})
+			}, memoryRateLimitHandler(60, tc.totalLimit, tc.successLimit), func(c *gin.Context) {
+				c.Status(http.StatusOK)
+			})
+			require.Equal(t, http.StatusOK, performRateLimitRequest(router, "/", "127.0.0.1:1000").Code)
+			resp := performRateLimitRequest(router, "/", "127.0.0.1:1000")
+			assert.Equal(t, http.StatusTooManyRequests, resp.Code)
+			var body struct {
+				Error struct {
+					Message string `json:"message"`
+				} `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal(resp.Body.Bytes(), &body))
+			require.NotEmpty(t, expectedMessage)
+			assert.Equal(t, common.MessageWithRequestId(expectedMessage, ""), body.Error.Message)
+		})
+	}
 }
