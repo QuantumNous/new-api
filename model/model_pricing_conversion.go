@@ -141,6 +141,40 @@ func ResolveCacheWriteMode(name string, configured PricingValues) CacheWriteMode
 	return CacheWriteNone
 }
 
+// declaredEndpointNames resolves the endpoint types declared by one model
+// metadata row. Model metadata accepts two shapes — the map form (custom paths)
+// and the type-array form (declared protocols) — and conversion must honour
+// both. Reading only the map form made array-form metadata look like a broken
+// routing configuration and blocked an otherwise convertible model.
+func declaredEndpointNames(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	var value any
+	if err := common.UnmarshalJsonStr(raw, &value); err != nil {
+		return nil, err
+	}
+	switch endpoints := value.(type) {
+	case []any:
+		names := make([]string, 0, len(endpoints))
+		for _, endpoint := range endpoints {
+			text, ok := endpoint.(string)
+			if !ok || strings.TrimSpace(text) == "" {
+				return nil, errors.New("invalid endpoint type")
+			}
+			names = append(names, text)
+		}
+		return names, nil
+	case map[string]any:
+		names := make([]string, 0, len(endpoints))
+		for endpoint := range endpoints {
+			names = append(names, endpoint)
+		}
+		return names, nil
+	}
+	return nil, errors.New("invalid endpoints")
+}
+
 func PreviewModelPricingConversion(name string, draft PricingValues) (*ModelPricingConversion, error) {
 	if draft == nil {
 		return nil, errors.New("pricing draft is required")
@@ -249,11 +283,11 @@ func PreviewModelPricingConversion(name string, draft PricingValues) (*ModelPric
 		if entry.Endpoints == "" || !slices.ContainsFunc(names, entry.MatchesName) {
 			continue
 		}
-		var endpoints map[string]any
-		if err := common.UnmarshalJsonStr(entry.Endpoints, &endpoints); err != nil {
+		endpoints, err := declaredEndpointNames(entry.Endpoints)
+		if err != nil {
 			return &ModelPricingConversion{UnsupportedReason: "The model routing configuration could not be verified."}, nil
 		}
-		for endpoint := range endpoints {
+		for _, endpoint := range endpoints {
 			switch constant.EndpointType(endpoint) {
 			case constant.EndpointTypeImageGeneration:
 				if fixedPrice {
