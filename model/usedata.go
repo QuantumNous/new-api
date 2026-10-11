@@ -191,8 +191,8 @@ func upsertQuotaDataDimension(quotaData *QuotaData) {
 // the table may be missing rows written before this table existed.
 func BackfillQuotaDataDimensions() (int64, error) {
 	res := DB.Exec(`
-INSERT INTO quota_data_dimensions (user_id, token_name, model_name, last_seen_at, token_name_id, created_at)
-SELECT q.user_id, COALESCE(t.name, ''), q.model_name, MAX(q.created_at), MAX(q.token_id), MAX(q.created_at)
+INSERT INTO quota_data_dimensions (user_id, token_name, model_name, last_seen_at, token_name_id)
+SELECT q.user_id, COALESCE(t.name, ''), q.model_name, MAX(q.created_at), MAX(q.token_id)
 FROM quota_data q
 LEFT JOIN tokens t ON t.id = q.token_id
 WHERE q.token_id > 0
