@@ -134,22 +134,14 @@ export function ConsumptionDistributionChart(
       ),
     [props.data, props.loading, timeGranularity, t, chartRadius]
   )
-  const toSeconds = (value?: Date) =>
-    value ? Math.floor(value.getTime() / 1000) : 0
-  const dimsParams = useMemo(
-    () => ({
-      start_timestamp: toSeconds(inlineFilters?.start_timestamp),
-      end_timestamp: toSeconds(inlineFilters?.end_timestamp),
-    }),
-    [inlineFilters?.start_timestamp, inlineFilters?.end_timestamp]
-  )
   const dimsQuery = useQuery({
-    queryKey: ['quota-data-dimensions', isAdmin, dimsParams],
-    enabled: canFilterInline && dimsParams.start_timestamp > 0,
+    queryKey: ['quota-data-dimensions', isAdmin],
+    enabled: canFilterInline,
     queryFn: async () => {
-      const result = await getQuotaDataDimensions(dimsParams, isAdmin)
+      const result = await getQuotaDataDimensions(undefined, isAdmin)
       return result.data || { keys: [], models: [] }
     },
+    staleTime: 60_000,
     placeholderData: (previous) => previous,
   })
   const setInlineDimension = (key: 'token_name' | 'model_name', value: string) => {

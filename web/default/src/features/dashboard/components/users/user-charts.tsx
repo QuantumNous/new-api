@@ -169,8 +169,8 @@ export function UserCharts(props: UserChartsProps) {
   })
 
   const dimsQuery = useQuery({
-    queryKey: ['quota-data-dimensions', true, timeRange],
-    queryFn: () => getQuotaDataDimensions(timeRange, true),
+    queryKey: ['quota-data-dimensions', true],
+    queryFn: () => getQuotaDataDimensions(undefined, true),
     select: (res) => res.data || { keys: [], models: [] },
     staleTime: 60_000,
   })
