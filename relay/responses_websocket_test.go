@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -571,7 +572,7 @@ func TestResponsesWSShutdownInterruptsBusyWriter(t *testing.T) {
 	s.targetWriteMu.Lock()
 	defer s.targetWriteMu.Unlock()
 	done := make(chan struct{})
-	go func() { s.shutdown(); close(done) }()
+	go func() { s.shutdown(websocket.CloseNormalClosure); close(done) }()
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
@@ -584,6 +585,55 @@ func TestResponsesWSShutdownInterruptsBusyWriter(t *testing.T) {
 	_, _, err = client.ReadMessage()
 	assert.Error(t, err)
 	assert.Nil(t, s.getTarget())
+}
+
+func readResponsesWSCloseCode(t *testing.T, conn *websocket.Conn) int {
+	t.Helper()
+	require.NoError(t, conn.SetReadDeadline(time.Now().Add(5*time.Second)))
+	_, _, err := conn.ReadMessage()
+	var closeErr *websocket.CloseError
+	require.ErrorAs(t, err, &closeErr, "expected a close frame, got: %v", err)
+	return closeErr.Code
+}
+
+func TestResponsesWSShutdownCloseCodes(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		code int
+	}{
+		{"normal completion", websocket.CloseNormalClosure},
+		{"upstream failure", websocket.CloseInternalServerErr},
+		{"policy", websocket.ClosePolicyViolation},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			client, server, cleanupClient := newTestWebSocketPair(t)
+			defer cleanupClient()
+			target, peer, cleanupTarget := newTestWebSocketPair(t)
+			defer cleanupTarget()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			s := &responsesWSSession{ctx: ctx, cancel: cancel, client: server, target: target}
+			s.shutdown(tc.code)
+			assert.Equal(t, tc.code, readResponsesWSCloseCode(t, client))
+			assert.Equal(t, tc.code, readResponsesWSCloseCode(t, peer))
+		})
+	}
+}
+
+func TestResponsesWSUpstreamReadFailureClosesClientWithInternalError(t *testing.T) {
+	client, server, cleanupClient := newTestWebSocketPair(t)
+	defer cleanupClient()
+	target, peer, cleanupTarget := newTestWebSocketPair(t)
+	defer cleanupTarget()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	s := &responsesWSSession{ctx: ctx, cancel: cancel, client: server, target: target}
+	s.startTargetReader(target)
+	// The upstream vanishes with no request in flight. The reader must tear
+	// the session down with 1011 so a client can never mistake a truncated
+	// connection for one that completed normally.
+	_ = peer.Close()
+	assert.Equal(t, websocket.CloseInternalServerErr, readResponsesWSCloseCode(t, client))
 }
 
 func TestResponsesWSPassthroughPreservesRawPricingParameters(t *testing.T) {
@@ -679,4 +729,46 @@ func TestResponsesWSErrorAttribution(t *testing.T) {
 			assert.Equal(t, tc.controlError, controlError)
 		})
 	}
+}
+
+// TestResponsesWSSessionShutdownSendsCloseFrame pins the RFC 6455 closing
+// handshake: a normally finished session must send a WebSocket close frame to
+// the downstream client before the TCP socket goes away. Without it, strict
+// clients report "Connection reset without closing handshake" on every
+// completed turn.
+func TestResponsesWSSessionShutdownSendsCloseFrame(t *testing.T) {
+	var wg sync.WaitGroup
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				if _, _, readErr := conn.ReadMessage(); readErr != nil {
+					return
+				}
+			}
+		}()
+		session := &responsesWSSession{client: conn}
+		session.shutdown(websocket.CloseNormalClosure)
+	}))
+	defer server.Close()
+	defer wg.Wait()
+
+	header := http.Header{}
+	header.Set("Authorization", "Bearer test")
+	dialURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	conn, _, err := websocket.DefaultDialer.Dial(dialURL, header)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_, _, readErr := conn.ReadMessage()
+	require.Error(t, readErr)
+	closeErr, ok := readErr.(*websocket.CloseError)
+	require.True(t, ok, "expected a WebSocket close error, got %v", readErr)
+	assert.Equal(t, websocket.CloseNormalClosure, closeErr.Code)
 }
