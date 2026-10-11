@@ -94,13 +94,32 @@ func TestUpdateChannelSub2APIBalanceInvalidKey(t *testing.T) {
 	setupSub2APIBalanceTest(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"balance": 0, "isValid": false}`))
+		_, _ = w.Write([]byte(`{"isValid": false}`))
 	}))
 	defer server.Close()
 
 	channel := newSub2APITestChannel(t, server.URL)
 	_, err := updateChannelSub2APIBalance(channel)
-	require.Error(t, err)
+	require.EqualError(t, err, "Sub2API key is invalid (isValid=false)")
+}
+
+func TestUpdateChannelSub2APIBalanceUnlimitedSubscription(t *testing.T) {
+	setupSub2APIBalanceTest(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"remaining": -1, "isValid": true, "mode": "unrestricted"}`))
+	}))
+	defer server.Close()
+
+	channel := newSub2APITestChannel(t, server.URL)
+	require.NoError(t, model.DB.Model(channel).Update("balance", 12.5).Error)
+
+	_, err := updateChannelSub2APIBalance(channel)
+	require.EqualError(t, err, "Sub2API /v1/usage reports an unlimited subscription without a finite balance")
+
+	stored := model.Channel{}
+	require.NoError(t, model.DB.First(&stored, channel.Id).Error)
+	assert.InDelta(t, 12.5, stored.Balance, 1e-9)
 }
 
 func TestUpdateChannelSub2APIBalanceMissingBaseURL(t *testing.T) {

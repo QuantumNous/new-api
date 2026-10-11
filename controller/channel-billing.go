@@ -441,6 +441,9 @@ func updateChannelSub2APIBalance(channel *model.Channel) (float64, error) {
 	if err := common.Unmarshal(body, &usage); err != nil {
 		return 0, err
 	}
+	if usage.IsValid != nil && !*usage.IsValid {
+		return 0, errors.New("Sub2API key is invalid (isValid=false)")
+	}
 
 	balance := usage.Remaining
 	if balance == nil {
@@ -449,8 +452,8 @@ func updateChannelSub2APIBalance(channel *model.Channel) (float64, error) {
 	if balance == nil {
 		return 0, errors.New("Sub2API /v1/usage response is missing remaining and balance fields (the key may belong to a subscription group without an available balance)")
 	}
-	if usage.IsValid != nil && !*usage.IsValid {
-		return 0, errors.New("Sub2API key is invalid (isValid=false)")
+	if *balance == -1 {
+		return 0, errors.New("Sub2API /v1/usage reports an unlimited subscription without a finite balance")
 	}
 	channel.UpdateBalance(*balance)
 	return *balance, nil
