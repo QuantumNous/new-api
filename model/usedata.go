@@ -211,13 +211,16 @@ func GetQuotaDataDimensionsFast(userId int) (dims QuotaDataDimensions, err error
 	tokenNames := []string{}
 	// Only keys that are currently active are offered in the pickers; keys
 	// disabled/expired/exhausted stay in the data but drop out of the lists.
+	// Columns must be table-qualified: the JOIN below brings tokens.user_id
+	// into scope, and a bare user_id is an ambiguous reference on Postgres
+	// (SQLSTATE 42702), which broke the per-user pickers entirely.
 	tx := DB.Table("quota_data_dimensions").
-		Select("DISTINCT token_name").
+		Select("DISTINCT quota_data_dimensions.token_name").
 		Joins("JOIN tokens ON tokens.id = quota_data_dimensions.token_name_id AND tokens.status = 1 AND tokens.name = quota_data_dimensions.token_name")
 	if userId != 0 {
-		tx = tx.Where("user_id = ?", userId)
+		tx = tx.Where("quota_data_dimensions.user_id = ?", userId)
 	}
-	if err = tx.Where("token_name != ''").Order("token_name").Pluck("token_name", &tokenNames).Error; err != nil {
+	if err = tx.Where("quota_data_dimensions.token_name != ''").Order("quota_data_dimensions.token_name").Pluck("quota_data_dimensions.token_name", &tokenNames).Error; err != nil {
 		return dims, err
 	}
 	dims.Keys = tokenNames
