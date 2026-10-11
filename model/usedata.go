@@ -202,13 +202,14 @@ func GetQuotaDataByUserId(userId int, startTime int64, endTime int64, tokenName 
 	return quotaDatas, err
 }
 
-func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+func GetQuotaDataGroupByUser(startTime int64, endTime int64, tokenName string, modelName string) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
-	err = DB.Table("quota_data").
+	tx := DB.Table("quota_data").
 		Select("username, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
 		Where("created_at >= ? and created_at <= ?", startTime, endTime).
-		Group("username, created_at").
-		Find(&quotaDatas).Error
+		Group("username, created_at")
+	tx = quotaDataFilteredBy(tx, tokenName, modelName)
+	err = tx.Find(&quotaDatas).Error
 	return quotaDatas, err
 }
 
@@ -239,4 +240,52 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string, tokenName
 	//err = DB.Table("quota_data").Where("created_at >= ? and created_at <= ?", startTime, endTime).Find(&quotaDatas).Error
 	err = DB.Table("quota_data").Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, sum(cache_read_tokens) as cache_read_tokens, sum(input_tokens_total) as input_tokens_total, created_at").Where("created_at >= ? and created_at <= ?", startTime, endTime).Group("model_name, created_at").Find(&quotaDatas).Error
 	return quotaDatas, err
+}
+
+// QuotaDataDimensions lists the key names and models that actually have
+// consumption rows in the window, for the dashboard's quick-filter dropdowns.
+// Key names resolve from token ids the same way the name-filter query does,
+// so renamed or deleted keys never reappear as stale options.
+type QuotaDataDimensions struct {
+	Keys   []string `json:"keys"`
+	Models []string `json:"models"`
+}
+
+func GetQuotaDataDimensions(startTime int64, endTime int64, userId int) (dims QuotaDataDimensions, err error) {
+	tokenIDs := []int{}
+	idTx := DB.Table("quota_data").Select("DISTINCT token_id")
+	if userId != 0 {
+		idTx = idTx.Where("user_id = ?", userId)
+	}
+	if err = idTx.Where("created_at >= ? and created_at <= ?", startTime, endTime).Pluck("token_id", &tokenIDs).Error; err != nil {
+		return dims, err
+	}
+	if len(tokenIDs) > 0 {
+		tokenNames := []string{}
+		if err = DB.Table("tokens").Where("id IN (?)", tokenIDs).Order("name").Pluck("name", &tokenNames).Error; err != nil {
+			return dims, err
+		}
+		dims.Keys = tokenNames
+	} else {
+		dims.Keys = []string{}
+	}
+
+	modelTx := DB.Table("quota_data").Select("DISTINCT model_name").Order("model_name")
+	if userId != 0 {
+		modelTx = modelTx.Where("user_id = ?", userId)
+	}
+	models := []string{}
+	if err = modelTx.Where("created_at >= ? and created_at <= ?", startTime, endTime).Pluck("model_name", &models).Error; err != nil {
+		return dims, err
+	}
+	// The rollup writes an empty model_name for traffic it could not
+	// attribute; such a blank entry is noise in a picker.
+	filteredModels := make([]string, 0, len(models))
+	for _, m := range models {
+		if m != "" {
+			filteredModels = append(filteredModels, m)
+		}
+	}
+	dims.Models = filteredModels
+	return dims, nil
 }

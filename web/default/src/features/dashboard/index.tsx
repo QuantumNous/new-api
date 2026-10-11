@@ -402,6 +402,8 @@ export function Dashboard() {
                   <LazyConsumptionDistributionChart
                     data={modelData}
                     loading={dataLoading}
+                    filters={modelFilters}
+                    onFilterChange={handleFilterChange}
                     defaultChartType={
                       chartPreferences.consumptionDistributionChart
                     }

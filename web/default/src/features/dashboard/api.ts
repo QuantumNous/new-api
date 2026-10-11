@@ -100,6 +100,26 @@ export async function getUserQuotaDates(
   return res.data
 }
 
+// Distinct key names / models that have consumption rows in the window. Used
+// by the consumption chart's inline quick filters.
+export async function getQuotaDataDimensions(
+  params: { start_timestamp: number; end_timestamp: number },
+  isAdmin = false
+): Promise<{
+  success: boolean
+  data?: { keys: string[]; models: string[] }
+}> {
+  const endpoint = isAdmin
+    ? '/api/data/dimensions'
+    : '/api/data/self/dimensions'
+  const res = await api.get<{
+    success: boolean
+    data?: { keys: string[]; models: string[] }
+    message?: string
+  }>(endpoint, { params })
+  return res.data
+}
+
 // ----------------------------------------------------------------------------
 // Realtime Throughput
 // ----------------------------------------------------------------------------

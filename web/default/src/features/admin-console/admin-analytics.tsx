@@ -43,7 +43,7 @@ interface AdminAnalyticsProps {
 export function AdminAnalytics(props: AdminAnalyticsProps) {
   const [modelData, setModelData] = useState<QuotaDataItem[]>([])
   const [dataLoading, setDataLoading] = useState(false)
-  const [modelFilters] = useState<DashboardFilters>(() =>
+  const [modelFilters, setModelFilters] = useState<DashboardFilters>(() =>
     buildDefaultDashboardFilters()
   )
   const [userChartsFilters, setUserChartsFilters] = useState<UserChartsFilters>(
@@ -78,6 +78,8 @@ export function AdminAnalytics(props: AdminAnalyticsProps) {
           <ConsumptionDistributionChart
             data={modelData}
             loading={dataLoading}
+            filters={modelFilters}
+            onFilterChange={setModelFilters}
             timeGranularity={
               modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
             }

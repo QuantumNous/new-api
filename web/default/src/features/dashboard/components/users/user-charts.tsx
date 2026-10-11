@@ -23,10 +23,21 @@ import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { IconBadge } from '@/components/ui/icon-badge'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useTheme } from '@/context/theme-provider'
-import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
+import {
+  getQuotaDataDimensions,
+  getUserQuotaDataByUsers,
+} from '@/features/dashboard/api'
 import {
   TIME_GRANULARITY_OPTIONS,
   TIME_RANGE_PRESETS,
@@ -65,6 +76,7 @@ const USER_CHARTS: {
 ]
 
 const TOP_USER_LIMIT_OPTIONS = [5, 10, 20, 50]
+const ALL_DIMENSION = '__all__'
 
 interface UserChartsProps {
   filters: UserChartsFilters
@@ -75,6 +87,8 @@ export function UserCharts(props: UserChartsProps) {
   const { t } = useTranslation()
   const { resolvedTheme } = useTheme()
   const [themeReady, setThemeReady] = useState(false)
+  const [tokenNameFilter, setTokenNameFilter] = useState('')
+  const [modelNameFilter, setModelNameFilter] = useState('')
   const themeManagerRef = useRef<
     (typeof import('@visactor/vchart'))['ThemeManager'] | null
   >(null)
@@ -137,9 +151,27 @@ export function UserCharts(props: UserChartsProps) {
   }, [resolvedTheme])
 
   const { data: userData, isLoading } = useQuery({
-    queryKey: ['dashboard', 'user-quota', timeRange],
-    queryFn: () => getUserQuotaDataByUsers(timeRange),
+    queryKey: [
+      'dashboard',
+      'user-quota',
+      timeRange,
+      tokenNameFilter,
+      modelNameFilter,
+    ],
+    queryFn: () =>
+      getUserQuotaDataByUsers({
+        ...timeRange,
+        token_name: tokenNameFilter || undefined,
+        model_name: modelNameFilter || undefined,
+      }),
     select: (res) => (res.success ? res.data : []),
+    staleTime: 60_000,
+  })
+
+  const dimsQuery = useQuery({
+    queryKey: ['quota-data-dimensions', true, timeRange],
+    queryFn: () => getQuotaDataDimensions(timeRange, true),
+    select: (res) => res.data || { keys: [], models: [] },
     staleTime: 60_000,
   })
 
@@ -157,6 +189,68 @@ export function UserCharts(props: UserChartsProps) {
   return (
     <div className='space-y-3'>
       <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
+        <Select
+          items={[
+            { value: ALL_DIMENSION, label: t('All keys') },
+            ...(dimsQuery.data?.keys ?? []).map((name) => ({
+              value: name,
+              label: name,
+            })),
+          ]}
+          value={tokenNameFilter || ALL_DIMENSION}
+          onValueChange={(value) =>
+            setTokenNameFilter(value === ALL_DIMENSION ? '' : value)
+          }
+        >
+          <SelectTrigger size='sm' className='max-w-[200px]'>
+            <span className='text-muted-foreground shrink-0 text-xs'>
+              {t('Key')}:
+            </span>
+            <SelectValue placeholder={t('All keys')} />
+          </SelectTrigger>
+          <SelectContent alignItemWithTrigger={false}>
+            <SelectGroup>
+              <SelectItem value={ALL_DIMENSION}>{t('All keys')}</SelectItem>
+              {(dimsQuery.data?.keys ?? []).map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+
+        <Select
+          items={[
+            { value: ALL_DIMENSION, label: t('All models') },
+            ...(dimsQuery.data?.models ?? []).map((name) => ({
+              value: name,
+              label: name,
+            })),
+          ]}
+          value={modelNameFilter || ALL_DIMENSION}
+          onValueChange={(value) =>
+            setModelNameFilter(value === ALL_DIMENSION ? '' : value)
+          }
+        >
+          <SelectTrigger size='sm' className='max-w-[200px]'>
+            <span className='text-muted-foreground shrink-0 text-xs'>
+              {t('Model')}:
+            </span>
+            <SelectValue placeholder={t('All models')} />
+          </SelectTrigger>
+          <SelectContent alignItemWithTrigger={false}>
+            <SelectGroup>
+              <SelectItem value={ALL_DIMENSION}>{t('All models')}</SelectItem>
+              {(dimsQuery.data?.models ?? []).map((name) => (
+                <SelectItem key={name} value={name}>
+                  {name}
+                </SelectItem>
+              ))}
+            </SelectGroup>
+          </SelectContent>
+        </Select>
+
         <Tabs
           value={String(selectedRange)}
           onValueChange={(value) => handleRangeChange(Number(value))}
