@@ -59,6 +59,7 @@ import { PluginIcon } from '@/features/task-plugins/components/plugin-icon'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
+import { getVendorDisplayName } from '@/lib/vendor-name'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { DEFAULT_TOKEN_UNIT } from '../constants'
@@ -529,7 +530,9 @@ function ModelBackendProviderSection(props: { model: PricingModel }) {
   if (model.vendor_name) {
     cells.push(
       <CatalogInfoCell key='provider' label={t('Provider')}>
-        <CatalogTextValue>{model.vendor_name}</CatalogTextValue>
+        <CatalogTextValue>
+          {getVendorDisplayName(model.vendor_name, t)}
+        </CatalogTextValue>
       </CatalogInfoCell>
     )
   }
@@ -623,7 +626,9 @@ function ModelHeader(props: { model: PricingModel }) {
       </div>
       <div className='mt-1 flex flex-wrap items-center gap-1.5 text-xs'>
         {model.vendor_name && (
-          <span className='text-muted-foreground'>{model.vendor_name}</span>
+          <span className='text-muted-foreground'>
+            {getVendorDisplayName(model.vendor_name, t)}
+          </span>
         )}
         <span className='text-muted-foreground/30'>·</span>
         <ModelBillingModeBadge model={model} />

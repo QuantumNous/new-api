@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
+import { getVendorDisplayName } from '@/lib/vendor-name'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { DEFAULT_TOKEN_UNIT } from '../constants'
@@ -276,9 +277,9 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
           {props.model.vendor_name && (
             <p
               className='text-muted-foreground mt-1 truncate text-xs'
-              title={props.model.vendor_name}
+              title={getVendorDisplayName(props.model.vendor_name, t)}
             >
-              {props.model.vendor_name}
+              {getVendorDisplayName(props.model.vendor_name, t)}
             </p>
           )}
         </div>

@@ -17,13 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { Receipt } from 'lucide-react'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
 import { SectionPageLayout } from '@/components/layout'
-import { Button } from '@/components/ui/button'
 import { SubscriptionPurchaseDialog } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
 import type { PlanRecord } from '@/features/subscriptions/types'
 import { useStatus } from '@/hooks/use-status'
@@ -32,7 +30,6 @@ import { getSelf } from '@/lib/api'
 
 import { getAlipayOrderStatus } from './api'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
-import { BillingHistoryDialog } from './components/dialogs/billing-history-dialog'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
 import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
@@ -67,11 +64,7 @@ import type {
   WaffoPayMethod,
 } from './types'
 
-interface WalletProps {
-  initialShowHistory?: boolean
-}
-
-export function Wallet(props: WalletProps) {
+export function Wallet() {
   const { t } = useTranslation()
   const [pendingAlipayOrder, setPendingAlipayOrder] = useState(() => {
     try {
@@ -114,7 +107,6 @@ export function Wallet(props: WalletProps) {
   ] = useState(0)
   const [subscriptionRefreshKey, setSubscriptionRefreshKey] = useState(0)
   const [transferDialogOpen, setTransferDialogOpen] = useState(false)
-  const [billingDialogOpen, setBillingDialogOpen] = useState(false)
   const [redemptionCode, setRedemptionCode] = useState('')
   const [creemDialogOpen, setCreemDialogOpen] = useState(false)
   const [selectedCreemProduct, setSelectedCreemProduct] =
@@ -183,13 +175,6 @@ export function Wallet(props: WalletProps) {
   }, [fetchUser])
 
   useEffect(() => {
-    if (props.initialShowHistory) {
-      setBillingDialogOpen(true)
-      window.history.replaceState({}, '', window.location.pathname)
-    }
-  }, [props.initialShowHistory])
-
-  useEffect(() => {
     const status = alipayOrder.data?.data?.status
     if (!pendingAlipayOrder || !['success', 'expired'].includes(status || '')) {
       return
@@ -202,7 +187,6 @@ export function Wallet(props: WalletProps) {
     setPendingAlipayOrder('')
     if (status === 'success') {
       void fetchUser()
-      setBillingDialogOpen(true)
     }
   }, [alipayOrder.data, pendingAlipayOrder, fetchUser])
 
@@ -377,18 +361,6 @@ export function Wallet(props: WalletProps) {
       />
       <SectionPageLayout>
         <SectionPageLayout.Title>{t('Wallet')}</SectionPageLayout.Title>
-        <SectionPageLayout.Actions>
-          <Button
-            type='button'
-            variant='outline'
-            size='sm'
-            className='inline-flex items-center gap-2'
-            onClick={() => setBillingDialogOpen(true)}
-          >
-            <Receipt className='size-4' />
-            {t('Order History')}
-          </Button>
-        </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
           <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
             <div
@@ -462,11 +434,6 @@ export function Wallet(props: WalletProps) {
         onConfirm={handleTransfer}
         availableQuota={user?.aff_quota ?? 0}
         transferring={transferring}
-      />
-
-      <BillingHistoryDialog
-        open={billingDialogOpen}
-        onOpenChange={setBillingDialogOpen}
       />
 
       <CreemConfirmDialog

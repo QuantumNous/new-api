@@ -174,6 +174,10 @@ func SubscriptionEpayNotify(c *gin.Context) {
 		return
 	}
 
+	if err := model.RecordPaymentReceipt(verifyInfo.ServiceTradeNo, model.PaymentProviderEpay, verifyInfo.TradeNo, "CNY", verifyInfo.Money, true); err != nil {
+		c.String(http.StatusInternalServerError, "fail")
+		return
+	}
 	_, _ = c.Writer.Write([]byte("success"))
 }
 

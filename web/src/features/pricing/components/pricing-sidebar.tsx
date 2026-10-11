@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/collapsible'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
+import { getVendorDisplayName } from '@/lib/vendor-name'
 
 import {
   ENDPOINT_TYPES,
@@ -166,10 +167,10 @@ export const PricingSidebar = memo(function PricingSidebar(
     const endpoints = new Map<string, number>()
     const quotas = { token: 0, request: 0, task: 0 }
     for (const model of props.models) {
-      if (model.vendor_name) {
+      if (model.vendor_id) {
         vendors.set(
-          model.vendor_name,
-          (vendors.get(model.vendor_name) ?? 0) + 1
+          String(model.vendor_id),
+          (vendors.get(String(model.vendor_id)) ?? 0) + 1
         )
       }
       for (const tag of new Set(
@@ -201,9 +202,9 @@ export const PricingSidebar = memo(function PricingSidebar(
     },
     ...props.vendors
       .map((vendor) => ({
-        value: vendor.name,
-        label: vendor.name,
-        count: counts.vendors.get(vendor.name) ?? 0,
+        value: String(vendor.id),
+        label: getVendorDisplayName(vendor.name, t),
+        count: counts.vendors.get(String(vendor.id)) ?? 0,
         icon: vendor.icon ? getLobeIcon(vendor.icon, 14) : undefined,
       }))
       .filter((vendor) => vendor.count > 0),
@@ -312,7 +313,10 @@ export const PricingSidebar = memo(function PricingSidebar(
         />
         <FilterSection
           title={t('All Vendors')}
-          value={props.vendorFilter}
+          value={String(
+            props.vendors.find((vendor) => vendor.name === props.vendorFilter)
+              ?.id ?? props.vendorFilter
+          )}
           options={vendorOptions}
           onChange={props.onVendorChange}
         />

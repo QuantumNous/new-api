@@ -63,9 +63,10 @@ type FooterColumn struct {
 }
 
 type FooterConfig struct {
-	Description string             `json:"description"`
-	SocialLinks []FooterSocialLink `json:"socialLinks"`
-	Columns     []FooterColumn     `json:"columns"`
+	Registrations []FooterSocialLink `json:"registrations,omitempty"`
+	Description   string             `json:"description"`
+	SocialLinks   []FooterSocialLink `json:"socialLinks"`
+	Columns       []FooterColumn     `json:"columns"`
 }
 
 type WalletPromotionConfig struct {
@@ -238,6 +239,28 @@ func validateFooterConfig(settingsStr string) error {
 	}
 	if len(footer.Columns) > 6 {
 		return fmt.Errorf("主页页脚分栏不能超过6个")
+	}
+
+	if len(footer.Registrations) > 10 {
+		return fmt.Errorf("备案信息不能超过10条")
+	}
+	registrationIDs := make(map[string]bool)
+	for index, record := range footer.Registrations {
+		location := fmt.Sprintf("第%d条备案信息", index+1)
+		if err := validateFooterLink(record.ID, record.Label, record.URL, location); err != nil {
+			return err
+		}
+		parsed, err := url.Parse(record.URL)
+		if err != nil || parsed.User != nil || !(parsed.Scheme == "https" || parsed.Scheme == "http") || parsed.Host == "" {
+			return fmt.Errorf("%s必须使用HTTP或HTTPS链接", location)
+		}
+		if registrationIDs[record.ID] {
+			return fmt.Errorf("%s的ID重复", location)
+		}
+		registrationIDs[record.ID] = true
+		if record.Icon != "" && !validateUploadedSupportIcon(record.Icon) {
+			return fmt.Errorf("%s的图标无效或超过100KB", location)
+		}
 	}
 
 	socialIDs := make(map[string]bool)

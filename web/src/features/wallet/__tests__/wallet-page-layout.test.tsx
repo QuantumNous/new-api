@@ -18,7 +18,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { render, screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { describe, expect, test, vi } from 'vitest'
 
@@ -108,9 +107,7 @@ vi.mock('../components/wallet-subscription-overview', () => ({
 }))
 
 describe('wallet page layout', () => {
-  test('places order history in the page header and opens it on click', async () => {
-    const user = userEvent.setup()
-
+  test('does not show the retired order history entry or dialog', () => {
     render(
       <QueryClientProvider
         client={
@@ -121,23 +118,13 @@ describe('wallet page layout', () => {
       </QueryClientProvider>
     )
 
-    const heading = screen.getByRole('heading', { name: 'Wallet' })
-    const pageHeader = heading.parentElement?.parentElement
-    expect(pageHeader).not.toBeNull()
-
-    const orderHistory = within(pageHeader as HTMLElement).getByRole('button', {
-      name: 'Order History',
-    })
-    expect(orderHistory).toBeVisible()
-    expect(screen.getByTestId('billing-history-state')).toHaveTextContent(
-      'false'
-    )
-
-    await user.click(orderHistory)
-
-    expect(screen.getByTestId('billing-history-state')).toHaveTextContent(
-      'true'
-    )
+    expect(screen.getByRole('heading', { name: 'Wallet' })).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Order History' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByTestId('billing-history-state')
+    ).not.toBeInTheDocument()
   })
 
   test('places wallet promotion between balance stats and payment actions', () => {

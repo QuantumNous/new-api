@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useSearch } from '@tanstack/react-router'
 import { useMemo, useCallback, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { useDebounce } from '@/hooks/use-debounce'
 
@@ -54,6 +55,7 @@ function normalizeViewMode(value: unknown): ViewMode {
 }
 
 export function useFilters(models: PricingModel[]) {
+  const { t } = useTranslation()
   const search = useSearch({ from: '/pricing/' })
   const [filterState, setFilterState] = useState<FilterState>(() => ({
     search: search.search,
@@ -149,16 +151,21 @@ export function useFilters(models: PricingModel[]) {
   const filteredModels = useMemo(() => {
     if (!models || models.length === 0) return []
 
-    return filterAndSortModels(models, {
-      search: debouncedSearchInput,
-      vendor: vendorFilter,
-      group: groupFilter,
-      quotaType: quotaTypeFilter,
-      endpointType: endpointTypeFilter,
-      tag: tagFilter,
-      sortBy,
-    })
+    return filterAndSortModels(
+      models,
+      {
+        search: debouncedSearchInput,
+        vendor: vendorFilter,
+        group: groupFilter,
+        quotaType: quotaTypeFilter,
+        endpointType: endpointTypeFilter,
+        tag: tagFilter,
+        sortBy,
+      },
+      t
+    )
   }, [
+    t,
     models,
     debouncedSearchInput,
     vendorFilter,

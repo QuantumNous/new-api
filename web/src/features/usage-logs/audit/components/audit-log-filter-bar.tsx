@@ -61,7 +61,6 @@ export function AuditLogFilterBar(props: {
   currentTokenRef?: string
   onTokenScopeChange: (value: string) => void
   isFetching: boolean
-  onSearch: () => void
   onReset: () => void
 }) {
   const { t } = useTranslation()
@@ -150,8 +149,8 @@ export function AuditLogFilterBar(props: {
                 aria-label={t('Token identifier')}
                 placeholder={t('Token identifier')}
                 value={props.filters.token_ref ?? ''}
-                onChange={(event) =>
-                  props.onChange({ token_ref: event.target.value || undefined })
+                onValueChange={(value) =>
+                  props.onChange({ token_ref: value || undefined })
                 }
               />
             </LogsFilterField>
@@ -160,9 +159,9 @@ export function AuditLogFilterBar(props: {
                 aria-label={t('Request ID')}
                 placeholder={t('Request ID')}
                 value={props.filters.request_id ?? ''}
-                onChange={(event) =>
+                onValueChange={(value) =>
                   props.onChange({
-                    request_id: event.target.value || undefined,
+                    request_id: value || undefined,
                   })
                 }
               />
@@ -175,8 +174,8 @@ export function AuditLogFilterBar(props: {
               aria-label={t('Username')}
               placeholder={t('Username')}
               value={props.filters.username ?? ''}
-              onChange={(event) =>
-                props.onChange({ username: event.target.value || undefined })
+              onValueChange={(value) =>
+                props.onChange({ username: value || undefined })
               }
             />
           </LogsFilterField>
@@ -221,7 +220,6 @@ export function AuditLogFilterBar(props: {
       hasActiveFilters={hasFilters}
       hasAdvancedActiveFilters={advancedCount > 0}
       searchLoading={props.isFetching}
-      onSearch={props.onSearch}
       onReset={props.onReset}
     />
   )

@@ -23,6 +23,7 @@ import {
   createRoute,
   createRouter,
   RouterProvider,
+  useParams,
 } from '@tanstack/react-router'
 import { getCoreRowModel, useReactTable } from '@tanstack/react-table'
 import {
@@ -43,7 +44,7 @@ import { api } from '@/lib/api'
 
 import { CommonLogsFilterBar } from '../common-logs-filter-bar'
 import { CompactDateTimeRangePicker } from '../compact-date-time-range-picker'
-import { LogsFilterToolbar } from '../logs-filter-toolbar'
+import { TaskLogsFilterBar } from '../task-logs-filter-bar'
 import { UsageLogsProvider } from '../usage-logs-provider'
 
 const captureDescriptor = Object.getOwnPropertyDescriptor(
@@ -59,6 +60,7 @@ beforeEach(() => {
 })
 
 function Fixture() {
+  const { section } = useParams({ strict: false })
   const table = useReactTable({
     data: [],
     columns: [],
@@ -66,11 +68,17 @@ function Fixture() {
   })
   return (
     <UsageLogsProvider>
-      <CommonLogsFilterBar table={table} />
+      {section === 'task' ? (
+        <TaskLogsFilterBar table={table} logCategory='task' />
+      ) : (
+        <CommonLogsFilterBar table={table} />
+      )}
     </UsageLogsProvider>
   )
 }
-async function renderMobileFilter() {
+async function renderMobileFilter(
+  initialEntry = '/usage-logs/common?page=3&type=%5B%222%22%5D&group=default'
+) {
   const original = window.matchMedia
   vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
     ...original(query),
@@ -93,9 +101,7 @@ async function renderMobileFilter() {
   const router = createRouter({
     routeTree: root.addChildren([auth.addChildren([logs])]),
     history: createMemoryHistory({
-      initialEntries: [
-        '/usage-logs/common?page=3&type=%5B%222%22%5D&group=default',
-      ],
+      initialEntries: [initialEntry],
     }),
   })
   render(
@@ -146,7 +152,7 @@ it('applies the selected mobile date range directly and resets pagination while 
   )
 })
 
-it('applies mobile drawer filters only when Search is pressed', async () => {
+it('automatically applies mobile drawer input without a search button', async () => {
   const router = await renderMobileFilter()
   const user = userEvent.setup()
   await user.click(screen.getByRole('button', { name: 'Filter' }))
@@ -156,75 +162,33 @@ it('applies mobile drawer filters only when Search is pressed', async () => {
     'gemini-3.7-flash'
   )
   expect(router.state.location.search).not.toHaveProperty('model')
-  await user.click(within(dialog).getByRole('button', { name: 'Search' }))
+  expect(
+    within(dialog).queryByRole('button', { name: 'Search' })
+  ).not.toBeInTheDocument()
   await waitFor(() =>
     expect(router.state.location.search).toMatchObject({
       page: 1,
       model: 'gemini-3.7-flash',
     })
   )
-  await waitFor(() =>
-    expect(
-      screen.queryByRole('dialog', { name: 'Filter' })
-    ).not.toBeInTheDocument()
-  )
+  await user.click(within(dialog).getByRole('button', { name: 'Close' }))
+  await waitFor(() => expect(dialog).toHaveAttribute('data-state', 'closed'))
 })
 
 it('keeps all quick actions visible without opening a menu', async () => {
   await renderMobileFilter()
   const user = userEvent.setup()
-  for (const name of ['Hide', 'Filter', 'Search', 'View']) {
+  for (const name of ['Hide', 'Filter', 'View']) {
     expect(screen.getByRole('button', { name })).toBeVisible()
   }
   expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Hide' }))
   expect(screen.getByRole('button', { name: 'Show' })).toBeVisible()
   screen.getByRole('button', { name: 'Show' }).focus()
-  for (const name of ['Filter', 'Search', 'View']) {
+  for (const name of ['Filter', 'View']) {
     await user.tab()
     expect(screen.getByRole('button', { name })).toHaveFocus()
   }
-})
-
-function LoadingFixture(props: { loading: boolean; onSearch: () => void }) {
-  const table = useReactTable({
-    data: [],
-    columns: [],
-    getCoreRowModel: getCoreRowModel(),
-  })
-  return (
-    <LogsFilterToolbar
-      table={table}
-      compactMobile
-      mobilePinnedFilters={<span>Date Range</span>}
-      primaryFilters={null}
-      hasActiveFilters={false}
-      onReset={() => {}}
-      onSearch={props.onSearch}
-      searchLoading={props.loading}
-    />
-  )
-}
-
-it('keeps Search visible while loading and prevents repeated searches', async () => {
-  const original = window.matchMedia
-  vi.spyOn(window, 'matchMedia').mockImplementation((query) => ({
-    ...original(query),
-    matches: query === '(max-width: 640px)',
-  }))
-  const onSearch = vi.fn()
-  const user = userEvent.setup()
-  const view = render(<LoadingFixture loading onSearch={onSearch} />)
-  const search = screen.getByRole('button', { name: 'Search' })
-  expect(search).toBeVisible()
-  expect(search).toBeDisabled()
-  expect(search).toHaveAttribute('aria-busy', 'true')
-  await user.click(search)
-  expect(onSearch).not.toHaveBeenCalled()
-  view.rerender(<LoadingFixture loading={false} onSearch={onSearch} />)
-  expect(search).toBeEnabled()
-  await user.click(search)
-  expect(onSearch).toHaveBeenCalledTimes(1)
 })
 
 it('collapses only date and statistics while keeping the right-hand quick actions visible', async () => {
@@ -243,7 +207,7 @@ it('collapses only date and statistics while keeping the right-hand quick action
   expect(screen.queryByRole('button', { name: date })).not.toBeInTheDocument()
   expect(screen.queryByText('Usage')).not.toBeInTheDocument()
   const actions = screen.getByRole('group', { name: 'Actions' })
-  for (const name of ['Hide', 'Filter', 'Search', 'View']) {
+  for (const name of ['Hide', 'Filter', 'View']) {
     expect(within(actions).getByRole('button', { name })).toBeVisible()
   }
   expect(
@@ -287,3 +251,18 @@ it.each([
     })
   }
 )
+
+it('task ID input automatically filters and resets pagination', async () => {
+  const router = await renderMobileFilter('/usage-logs/task?page=3')
+  await userEvent.click(screen.getByRole('button', { name: 'Filter' }))
+  await userEvent.type(
+    await screen.findByRole('textbox', { name: 'Task ID' }),
+    'task-123'
+  )
+  await waitFor(() =>
+    expect(router.state.location.search).toMatchObject({
+      filter: 'task-123',
+      page: 1,
+    })
+  )
+})

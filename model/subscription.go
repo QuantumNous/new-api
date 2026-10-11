@@ -213,10 +213,11 @@ func (p *SubscriptionPlan) NormalizeDefaults() {
 
 // Subscription order (payment -> webhook -> create UserSubscription)
 type SubscriptionOrder struct {
-	Id     int     `json:"id"`
-	UserId int     `json:"user_id" gorm:"index"`
-	PlanId int     `json:"plan_id" gorm:"index"`
-	Money  float64 `json:"money"`
+	PaymentReceipt PaymentReceipt `json:"-" gorm:"embedded"`
+	Id             int            `json:"id"`
+	UserId         int            `json:"user_id" gorm:"index"`
+	PlanId         int            `json:"plan_id" gorm:"index"`
+	Money          float64        `json:"money"`
 
 	TradeNo         string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
 	PaymentMethod   string `json:"payment_method" gorm:"type:varchar(50)"`
@@ -870,6 +871,7 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 			TradeNo:         tradeNo,
 			PaymentMethod:   PaymentMethodBalance,
 			PaymentProvider: PaymentProviderBalance,
+			PaymentReceipt:  PaymentReceipt{ReceiptCurrency: plan.Currency, ReceiptAmount: decimal.NewFromFloat(plan.PriceAmount).String()},
 			Status:          common.TopUpStatusSuccess,
 			CreateTime:      now,
 			CompleteTime:    now,

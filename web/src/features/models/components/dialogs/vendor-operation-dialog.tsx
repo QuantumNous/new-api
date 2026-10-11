@@ -30,6 +30,7 @@ import { Combobox } from '@/components/ui/combobox'
 import { Label } from '@/components/ui/label'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { createServerError } from '@/lib/server-error-message'
+import { getVendorDisplayName } from '@/lib/vendor-name'
 
 import { getVendors } from '../../api'
 import { vendorsQueryKeys } from '../../lib'
@@ -67,7 +68,7 @@ export function VendorOperationDialog(props: {
   const vendorOptions = (vendorsQuery.data?.data?.items ?? []).map(
     (vendor) => ({
       value: String(vendor.id),
-      label: vendor.name,
+      label: getVendorDisplayName(vendor.name, t),
       icon: getLobeIcon(vendor.icon, 18),
     })
   )

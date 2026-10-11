@@ -502,6 +502,10 @@ func WaffoPancakeWebhook(c *gin.Context) {
 			c.String(http.StatusInternalServerError, "retry")
 			return
 		}
+		if err := model.RecordPaymentReceipt(tradeNo, model.PaymentProviderWaffoPancake, event.Data.OrderID, event.Data.Currency, event.Data.Amount, true); err != nil {
+			c.String(http.StatusInternalServerError, "retry")
+			return
+		}
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo Pancake 订阅完成 trade_no=%s event_id=%s order_id=%s client_ip=%s", tradeNo, event.ID, event.Data.OrderID, c.ClientIP()))
 		c.String(http.StatusOK, "OK")
 		return
@@ -529,6 +533,10 @@ func WaffoPancakeWebhook(c *gin.Context) {
 		return
 	}
 
+	if err := model.RecordPaymentReceipt(tradeNo, model.PaymentProviderWaffoPancake, event.Data.OrderID, event.Data.Currency, event.Data.Amount, false); err != nil {
+		c.String(http.StatusInternalServerError, "retry")
+		return
+	}
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo Pancake 充值成功 trade_no=%s event_id=%s order_id=%s client_ip=%s", tradeNo, event.ID, event.Data.OrderID, c.ClientIP()))
 	c.String(http.StatusOK, "OK")
 }

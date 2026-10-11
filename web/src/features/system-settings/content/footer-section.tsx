@@ -66,6 +66,7 @@ import {
   FooterLinkDialog,
   type FooterLinkFormValues,
 } from './footer-link-dialog'
+import { FooterRegistrationEditor } from './footer-registration-editor'
 
 type FooterSectionProps = {
   data: string
@@ -294,6 +295,14 @@ export function FooterSection(props: FooterSectionProps) {
             </FieldDescription>
           </Field>
         </FieldGroup>
+
+        <FooterRegistrationEditor
+          value={config.registrations ?? []}
+          onChange={(registrations) => {
+            setConfig((current) => ({ ...current, registrations }))
+            setHasChanges(true)
+          }}
+        />
 
         <Separator />
 

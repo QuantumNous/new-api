@@ -16,15 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { createInstance } from 'i18next'
+import { I18nextProvider, initReactI18next } from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
+
+import { getVendorDisplayName, matchesVendorName } from '@/lib/vendor-name'
 
 import { PricingSidebar } from '../components/pricing-sidebar'
 import {
   PricingToolbar,
   type PricingToolbarProps,
 } from '../components/pricing-toolbar'
+import { filterBySearch, filterByVendor } from '../lib/filters'
 import type { PricingModel } from '../types'
 
 function toolbarProps(): PricingToolbarProps {
@@ -67,6 +72,7 @@ describe('pricing controls', () => {
       id: 1,
       model_name: 'text-model',
       vendor_name: 'Vendor A',
+      vendor_id: 1,
       quota_type: 0,
       model_ratio: 1,
       completion_ratio: 1,
@@ -88,7 +94,10 @@ describe('pricing controls', () => {
         ...base,
         id: 3,
         model_name: 'task-model',
+        quota_type: 1,
+        billing_unit: 'second',
         vendor_name: 'Vendor B',
+        vendor_id: 2,
         tags: 'Video',
         supported_endpoint_types: ['openai-video'],
         billing_usage_schema: { seconds: { type: 'number', unit: 'second' } },
@@ -120,7 +129,7 @@ describe('pricing controls', () => {
       screen.getByRole('button', { name: /^Per Request\s*1$/ })
     ).toBeVisible()
     expect(
-      screen.getByRole('button', { name: /^Task billing\s*1$/ })
+      screen.getByRole('button', { name: /^Per Second\s*1$/ })
     ).toBeVisible()
 
     rerender(<PricingSidebar {...sidebarProps} models={[models[1]]} />)
@@ -135,7 +144,7 @@ describe('pricing controls', () => {
       screen.getByRole('button', { name: /^Token-based\s*0$/ })
     ).toBeVisible()
     expect(
-      screen.getByRole('button', { name: /^Task billing\s*0$/ })
+      screen.getByRole('button', { name: /^Per Second\s*0$/ })
     ).toBeVisible()
   })
 
@@ -223,4 +232,100 @@ describe('pricing controls', () => {
     await user.keyboard('{Escape}')
     expect(await screen.findByRole('button', { name: /Filter/ })).toHaveFocus()
   })
+})
+
+describe('localized vendor names', () => {
+  it('uses stable vendor IDs when switching language and preserves custom names', async () => {
+    const translation = createInstance()
+    await translation.use(initReactI18next).init({
+      lng: 'en',
+      fallbackLng: 'en',
+      resources: {
+        en: { translation: { Baidu: 'Baidu' } },
+        zh: { translation: { Baidu: '百度' } },
+      },
+    })
+    const model: PricingModel = {
+      id: 1,
+      model_name: 'embedding-model',
+      vendor_id: 8,
+      vendor_name: '百度',
+      quota_type: 0,
+      model_ratio: 1,
+      completion_ratio: 1,
+      enable_groups: ['default'],
+    }
+    const props = {
+      ...toolbarProps(),
+      vendorFilter: '8',
+      vendors: [
+        { id: 8, name: '百度' },
+        { id: 9, name: 'Baidu Custom' },
+      ],
+      models: [
+        model,
+        { ...model, id: 2, vendor_id: 9, vendor_name: 'Baidu Custom' },
+      ],
+    }
+    render(
+      <I18nextProvider i18n={translation}>
+        <PricingSidebar {...props} />
+      </I18nextProvider>
+    )
+    const vendor = screen.getByRole('button', { name: /^Baidu\s*1$/ })
+    expect(vendor).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(vendor)
+    expect(props.onVendorChange).toHaveBeenCalledWith('8')
+    await act(() => translation.changeLanguage('zh'))
+    expect(screen.getByRole('button', { name: /^百度\s*1$/ })).toHaveAttribute(
+      'aria-pressed',
+      'true'
+    )
+    expect(
+      screen.getByRole('button', { name: /^Baidu Custom\s*1$/ })
+    ).toBeVisible()
+    expect(filterByVendor(props.models, '8')).toEqual([model])
+    expect(filterByVendor(props.models, '百度')).toEqual([model])
+    expect(filterBySearch(props.models, 'baidu', translation.t)).toHaveLength(2)
+    expect(filterBySearch([model], '百度', translation.t)).toEqual([model])
+  })
+
+  it.each(['en', 'zh', 'zh-TW', 'fr', 'ja', 'ru', 'vi'])(
+    'uses the %s locale catalog and keeps unknown vendor names unchanged',
+    async (language) => {
+      const messages = await import(`../../../i18n/locales/${language}.json`)
+      const translation = createInstance()
+      await translation.init({
+        lng: language,
+        resources: { [language]: messages.default },
+      })
+      for (const [source, key] of [
+        ['百度', 'Baidu'],
+        ['阿里巴巴', 'Alibaba'],
+        ['腾讯', 'Tencent'],
+        ['智谱', 'Zhipu'],
+        ['零一万物', '01.AI'],
+        ['月之暗面', 'Moonshot'],
+      ]) {
+        expect(getVendorDisplayName(source, translation.t)).toBe(
+          messages.default.translation[key]
+        )
+        expect(matchesVendorName(source, key, translation.t)).toBe(true)
+        expect(
+          matchesVendorName(
+            source,
+            messages.default.translation[key],
+            translation.t
+          )
+        ).toBe(true)
+      }
+      expect(getVendorDisplayName('  Custom Supplier  ', translation.t)).toBe(
+        '  Custom Supplier  '
+      )
+      expect(getVendorDisplayName('OpenAI', translation.t)).toBe('OpenAI')
+      expect(getVendorDisplayName('Baidu Custom', translation.t)).toBe(
+        'Baidu Custom'
+      )
+    }
+  )
 })

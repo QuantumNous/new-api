@@ -69,6 +69,7 @@ import {
   createServerError,
   getServerErrorMessage,
 } from '@/lib/server-error-message'
+import { getVendorDisplayName } from '@/lib/vendor-name'
 
 import { createModel, updateModel, getModel, getVendors } from '../../api'
 import { getNameRuleOptions, ENDPOINT_TEMPLATES } from '../../constants'
@@ -397,7 +398,7 @@ export function ModelMutateDrawer(props: {
                               <Combobox
                                 options={vendors.map((vendor) => ({
                                   value: String(vendor.id),
-                                  label: vendor.name,
+                                  label: getVendorDisplayName(vendor.name, t),
                                 }))}
                                 onValueChange={(value) =>
                                   field.onChange(

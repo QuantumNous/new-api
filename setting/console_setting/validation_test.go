@@ -233,3 +233,24 @@ func TestValidateDefaultLanguage(t *testing.T) {
 		t.Run("reject_"+language, func(t *testing.T) { require.Error(t, ValidateDefaultLanguage(language)) })
 	}
 }
+
+func TestFooterRegistrationValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name, records string
+		valid         bool
+	}{
+		{"multiple", `[{"id":"icp","label":"京ICP备123号","url":"https://beian.miit.gov.cn/","icon":""},{"id":"police","label":"公安备案","url":"https://beian.mps.gov.cn/","icon":""}]`, true},
+		{"unsafe URL", `[{"id":"icp","label":"备案","url":"javascript:alert(1)","icon":""}]`, false},
+		{"unsafe icon", `[{"id":"icp","label":"备案","url":"https://beian.miit.gov.cn/","icon":"data:image/svg+xml;base64,PHN2Zz4="}]`, false},
+		{"duplicate", `[{"id":"a","label":"备案","url":"https://example.com","icon":""},{"id":"a","label":"备案2","url":"https://example.com","icon":""}]`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			err := ValidateConsoleSettings(`{"description":"","socialLinks":[],"columns":[],"registrations":`+tc.records+`}`, "Footer")
+			if tc.valid {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+			}
+		})
+	}
+}

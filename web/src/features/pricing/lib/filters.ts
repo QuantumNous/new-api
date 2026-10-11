@@ -16,6 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type { TFunction } from 'i18next'
+
+import { matchesVendorName } from '@/lib/vendor-name'
+
 import {
   SORT_OPTIONS,
   FILTER_ALL,
@@ -35,7 +39,8 @@ import { isPerSecondModel } from './model-helpers'
  */
 export function filterBySearch(
   models: PricingModel[],
-  query: string
+  query: string,
+  t?: TFunction
 ): PricingModel[] {
   if (!query) return models
 
@@ -45,7 +50,7 @@ export function filterBySearch(
       m.model_name?.toLowerCase().includes(lowerQuery) ||
       m.description?.toLowerCase().includes(lowerQuery) ||
       m.tags?.toLowerCase().includes(lowerQuery) ||
-      m.vendor_name?.toLowerCase().includes(lowerQuery)
+      matchesVendorName(m.vendor_name ?? '', lowerQuery, t)
   )
 }
 
@@ -57,7 +62,9 @@ export function filterByVendor(
   vendor: string
 ): PricingModel[] {
   if (vendor === FILTER_ALL) return models
-  return models.filter((m) => m.vendor_name === vendor)
+  return models.filter(
+    (m) => String(m.vendor_id) === vendor || m.vendor_name === vendor
+  )
 }
 
 /**
@@ -152,9 +159,10 @@ export function filterAndSortModels(
     endpointType: string
     tag: string
     sortBy: string
-  }
+  },
+  t?: TFunction
 ): PricingModel[] {
-  let result = filterBySearch(models, filters.search)
+  let result = filterBySearch(models, filters.search, t)
   result = filterByVendor(result, filters.vendor)
   result = filterByGroup(result, filters.group)
   result = filterByQuotaType(result, filters.quotaType)

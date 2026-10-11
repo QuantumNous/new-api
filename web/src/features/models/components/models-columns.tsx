@@ -38,6 +38,7 @@ import { modelPricingDisplay } from '@/features/model-pricing/pricing'
 import { ModelPriceCell } from '@/features/pricing/components/model-price-cell'
 import { formatTimestampToDate } from '@/lib/format'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { getVendorDisplayName } from '@/lib/vendor-name'
 
 import { getNameRuleConfig } from '../constants'
 import { parseModelTags, formatEndpointsDisplay } from '../lib'
@@ -103,6 +104,10 @@ export function useModelsColumns(
         cell: ({ row }) => {
           const model = row.original
           const vendor = vendorMap.get(model.vendor_id ?? 0)
+          let vendorLabel = vendor
+            ? getVendorDisplayName(vendor.name, t)
+            : t('No vendor')
+          if (model.id <= 0) vendorLabel = t('Missing metadata')
           const iconKey = model.icon || vendor?.icon || model.model_name[0]
           return (
             <div className='flex max-w-[320px] min-w-0 items-start gap-2.5 py-1'>
@@ -128,10 +133,13 @@ export function useModelsColumns(
                   />
                 </div>
                 <div className='text-muted-foreground mt-1 flex min-w-0 items-center gap-2 text-xs'>
-                  <span className='truncate' title={vendor?.name}>
-                    {model.id > 0
-                      ? (vendor?.name ?? t('No vendor'))
-                      : t('Missing metadata')}
+                  <span
+                    className='truncate'
+                    title={
+                      vendor ? getVendorDisplayName(vendor.name, t) : undefined
+                    }
+                  >
+                    {vendorLabel}
                   </span>
                   {model.name_rule !== 0 && (
                     <span className='shrink-0'>
@@ -309,7 +317,10 @@ export function useModelsColumns(
         enableSorting: false,
         cell: ({ row }) => (
           <TruncatedCell>
-            {vendorMap.get(row.original.vendor_id ?? 0)?.name ?? '—'}
+            {getVendorDisplayName(
+              vendorMap.get(row.original.vendor_id ?? 0)?.name ?? '—',
+              t
+            )}
           </TruncatedCell>
         ),
         meta: { mobileHidden: true },

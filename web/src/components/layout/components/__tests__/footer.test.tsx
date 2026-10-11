@@ -93,3 +93,58 @@ describe('Footer', () => {
     ).toHaveAttribute('href', '/status')
   })
 })
+
+test.each(['', '<p>Custom footer</p>'])(
+  'shows multiple registration links with either footer layout (%s)',
+  (footerHtml) => {
+    vi.mocked(useSystemConfig).mockReturnValue({
+      systemName: 'Gateway',
+      logo: '/logo.png',
+      footerHtml,
+    } as ReturnType<typeof useSystemConfig>)
+    vi.mocked(useStatus).mockReturnValue({
+      status: {
+        footer_config: {
+          description: '',
+          socialLinks: [],
+          columns: [],
+          registrations: [
+            {
+              id: 'icp',
+              label: '京ICP备123号',
+              url: 'https://beian.miit.gov.cn/',
+              icon: 'data:image/png;base64,iVBORw0KGgo=',
+            },
+            {
+              id: 'police',
+              label: '京公网安备456号',
+              url: 'https://beian.mps.gov.cn/',
+              icon: '',
+            },
+          ],
+        },
+      },
+    } as unknown as ReturnType<typeof useStatus>)
+    render(<Footer />)
+    expect(screen.getByRole('link', { name: '京ICP备123号' })).toHaveAttribute(
+      'href',
+      'https://beian.miit.gov.cn/'
+    )
+    expect(
+      screen.getByRole('link', { name: '京公网安备456号' })
+    ).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(
+      screen.getByRole('link', { name: '京ICP备123号' }).querySelector('img')
+    ).toHaveAttribute('alt', '')
+    const registration = screen.getByRole('link', { name: '京ICP备123号' })
+    expect(registration.closest('[data-slot="footer-legal"]')).not.toBeNull()
+    expect(registration.parentElement).toHaveClass(
+      'flex-wrap',
+      'text-xs',
+      'text-muted-foreground',
+      'font-medium'
+    )
+    expect(registration.querySelector('img')).toHaveClass('size-5')
+    expect(registration.parentElement).not.toHaveClass('py-4')
+  }
+)

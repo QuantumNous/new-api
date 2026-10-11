@@ -16,10 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useQueryClient, useIsFetching } from '@tanstack/react-query'
+import { useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
-import { type Table } from '@tanstack/react-table'
-import { useState, useEffect, useCallback } from 'react'
+import type { Table } from '@tanstack/react-table'
 import { useTranslation } from 'react-i18next'
 
 import { buildSearchParams } from '../lib/filter'
@@ -67,97 +66,43 @@ function setFilterValue(
 export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
   const { t } = useTranslation()
   const navigate = useNavigate()
-  const queryClient = useQueryClient()
   const searchParams = route.useSearch()
   const { isAdminView: isAdmin } = useLogsViewScope()
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
 
-  const [filters, setFilters] = useState<TaskLogsFilters>(() => {
-    const { start, end } = getDefaultTimeRange()
-    return { startTime: start, endTime: end }
-  })
-
-  useEffect(() => {
-    const { start, end } = getDefaultTimeRange()
-    const baseFilters = {
-      startTime: searchParams.startTime
-        ? new Date(searchParams.startTime)
-        : start,
-      endTime: searchParams.endTime ? new Date(searchParams.endTime) : end,
-      ...(searchParams.channel
-        ? { channel: String(searchParams.channel) }
-        : {}),
-    }
-    const next: TaskLogsFilters =
-      props.logCategory === 'drawing'
-        ? {
-            ...baseFilters,
-            ...(searchParams.filter ? { mjId: searchParams.filter } : {}),
-          }
-        : {
-            ...baseFilters,
-            ...(searchParams.filter ? { taskId: searchParams.filter } : {}),
-          }
-
-    setFilters(next)
-  }, [
-    props.logCategory,
-    searchParams.startTime,
-    searchParams.endTime,
-    searchParams.channel,
-    searchParams.filter,
-  ])
-
-  const handleChange = useCallback(
-    (field: keyof TaskLogsFilters, value: Date | string | undefined) => {
-      setFilters((prev) => ({ ...prev, [field]: value }))
-    },
-    []
-  )
-
-  const handleApply = useCallback(() => {
-    const filterParams = buildSearchParams(filters, props.logCategory)
-    navigate({
+  const { start, end } = getDefaultTimeRange()
+  const baseFilters = {
+    startTime: searchParams.startTime
+      ? new Date(searchParams.startTime)
+      : start,
+    endTime: searchParams.endTime ? new Date(searchParams.endTime) : end,
+    channel: searchParams.channel ? String(searchParams.channel) : undefined,
+  }
+  const filters: TaskLogsFilters =
+    props.logCategory === 'drawing'
+      ? { ...baseFilters, mjId: searchParams.filter || '' }
+      : { ...baseFilters, taskId: searchParams.filter || '' }
+  const applyFilters = (next: TaskLogsFilters) => {
+    void navigate({
       to: '/usage-logs/$section',
       params: { section: props.logCategory },
-      search: {
-        ...filterParams,
-        page: 1,
-      },
+      replace: true,
+      search: { ...buildSearchParams(next, props.logCategory), page: 1 },
     })
-    queryClient.invalidateQueries({ queryKey: ['logs'] })
-  }, [filters, navigate, props.logCategory, queryClient])
-
-  const handleReset = useCallback(() => {
-    const { start, end } = getDefaultTimeRange()
-    const resetFilters: TaskLogsFilters = { startTime: start, endTime: end }
-    setFilters(resetFilters)
-
-    navigate({
-      to: '/usage-logs/$section',
-      params: { section: props.logCategory },
-      search: {
-        page: 1,
-        startTime: start.getTime(),
-        endTime: end.getTime(),
-      },
-    })
-    queryClient.invalidateQueries({ queryKey: ['logs'] })
-  }, [navigate, props.logCategory, queryClient])
-
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter') handleApply()
-    },
-    [handleApply]
-  )
-
-  const handleFilterChange = useCallback(
-    (value: string) => {
-      setFilters((prev) => setFilterValue(prev, props.logCategory, value))
-    },
-    [props.logCategory]
-  )
+  }
+  const handleChange = (
+    field: keyof TaskLogsFilters,
+    value: Date | string | undefined
+  ) => {
+    applyFilters({ ...filters, [field]: value })
+  }
+  const handleFilterChange = (value: string) => {
+    applyFilters(setFilterValue(filters, props.logCategory, value))
+  }
+  const handleReset = () => {
+    const range = getDefaultTimeRange()
+    applyFilters({ startTime: range.start, endTime: range.end })
+  }
 
   const filterValue = getFilterValue(filters, props.logCategory)
   const placeholder =
@@ -171,8 +116,7 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
         start={filters.startTime}
         end={filters.endTime}
         onChange={({ start, end }) => {
-          handleChange('startTime', start)
-          handleChange('endTime', end)
+          applyFilters({ ...filters, startTime: start, endTime: end })
         }}
       />
     </LogsFilterField>
@@ -183,8 +127,7 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
         aria-label={t('Task ID')}
         placeholder={placeholder}
         value={filterValue}
-        onChange={(e) => handleFilterChange(e.target.value)}
-        onKeyDown={handleKeyDown}
+        onValueChange={(value) => handleFilterChange(value)}
       />
     </LogsFilterField>
   )
@@ -193,8 +136,7 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
       <LogsFilterInput
         placeholder={t('Channel ID')}
         value={filters.channel || ''}
-        onChange={(e) => handleChange('channel', e.target.value)}
-        onKeyDown={handleKeyDown}
+        onValueChange={(value) => handleChange('channel', value)}
       />
     </LogsFilterField>
   ) : null
@@ -218,7 +160,6 @@ export function TaskLogsFilterBar<TData>(props: TaskLogsFilterBarProps<TData>) {
       }
       mobileFilterCount={[filterValue, filters.channel].filter(Boolean).length}
       hasActiveFilters={hasAdditionalFilters}
-      onSearch={handleApply}
       searchLoading={fetchingLogs > 0}
       onReset={handleReset}
     />

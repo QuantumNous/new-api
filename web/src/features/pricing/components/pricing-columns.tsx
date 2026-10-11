@@ -27,6 +27,7 @@ import {
 import { GroupBadge } from '@/components/group-badge'
 import { StatusBadge } from '@/components/status-badge'
 import { getLobeIcon } from '@/lib/lobe-icon'
+import { getVendorDisplayName } from '@/lib/vendor-name'
 
 import { DEFAULT_TOKEN_UNIT } from '../constants'
 import {
@@ -247,29 +248,58 @@ export function usePricingColumns(
           showRechargePrice,
           priceRate,
           usdExchangeRate,
-          groupRatioMultiplier: getDynamicDisplayGroupRatio(model, selectedGroup),
+          groupRatioMultiplier: getDynamicDisplayGroupRatio(
+            model,
+            selectedGroup
+          ),
         })
         if (dynamicSummary) {
           if (dynamicSummary.isSpecialExpression) {
-            return <span className='text-muted-foreground/50 text-xs'>{t('Special billing expression')}</span>
+            return (
+              <span className='text-muted-foreground/50 text-xs'>
+                {t('Special billing expression')}
+              </span>
+            )
           }
-          const cacheEntry = dynamicSummary.entries.find((entry) => entry.field === 'cacheReadPrice')
-          if (!cacheEntry) return <span className='text-muted-foreground/30 text-xs'>-</span>
+          const cacheEntry = dynamicSummary.entries.find(
+            (entry) => entry.field === 'cacheReadPrice'
+          )
+          if (!cacheEntry) {
+            return <span className='text-muted-foreground/30 text-xs'>-</span>
+          }
           return (
             <div className='max-w-full min-w-0'>
-              <span className='font-mono text-sm tabular-nums'>{stripTrailingZeros(cacheEntry.formatted)}</span>
-              <div className='text-muted-foreground/50 text-[10px]'>/ {tokenUnitLabel}</div>
+              <span className='font-mono text-sm tabular-nums'>
+                {stripTrailingZeros(cacheEntry.formatted)}
+              </span>
+              <div className='text-muted-foreground/50 text-[10px]'>
+                / {tokenUnitLabel}
+              </div>
             </div>
           )
         }
         if (!isTokenBasedModel(model) || model.cache_ratio == null) {
           return <span className='text-muted-foreground/30 text-xs'>-</span>
         }
-        const cachedPrice = stripTrailingZeros(formatPrice(model, 'cache', tokenUnit, showRechargePrice, priceRate, usdExchangeRate, selectedGroup))
+        const cachedPrice = stripTrailingZeros(
+          formatPrice(
+            model,
+            'cache',
+            tokenUnit,
+            showRechargePrice,
+            priceRate,
+            usdExchangeRate,
+            selectedGroup
+          )
+        )
         return (
           <div className='max-w-full min-w-0'>
-            <span className='font-mono text-sm tabular-nums'>{cachedPrice}</span>
-            <div className='text-muted-foreground/50 text-[10px]'>/ {tokenUnitLabel}</div>
+            <span className='font-mono text-sm tabular-nums'>
+              {cachedPrice}
+            </span>
+            <div className='text-muted-foreground/50 text-[10px]'>
+              / {tokenUnitLabel}
+            </div>
           </div>
         )
       },
@@ -293,7 +323,7 @@ export function usePricingColumns(
           <BadgeCell className='gap-1.5'>
             {vendorIcon}
             <StatusBadge
-              label={model.vendor_name}
+              label={getVendorDisplayName(model.vendor_name, t)}
               autoColor={model.vendor_name}
               size='sm'
               copyable={false}

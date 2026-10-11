@@ -35,6 +35,7 @@ import (
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/stripe/stripe-go/v81"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -76,7 +77,7 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 			model.LOG_DB = db
 			common.RedisEnabled = false
 			common.SetMainDatabaseType(common.DatabaseType(dialect))
-			tables := []any{&model.WechatPayConfig{}, &model.WechatPayOrder{}, &model.AlipayOrder{}, &model.AlipayConfig{}, &model.TopUp{}, &model.User{}, &model.Log{}}
+			tables := []any{&model.WechatPayConfig{}, &model.WechatPayOrder{}, &model.AlipayOrder{}, &model.AlipayConfig{}, &model.TopUp{}, &model.SubscriptionOrder{}, &model.User{}, &model.Log{}}
 			t.Cleanup(func() {
 				require.NoError(t, db.Migrator().DropTable(tables...))
 				model.DB = oldDB
@@ -85,8 +86,52 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 				common.RedisEnabled = oldRedis
 				require.NoError(t, sqlDB.Close())
 			})
+			// Exercise upgrading representative pre-receipt schemas and records.
+			legacyTopUp := struct {
+				Id              int
+				UserId          int `gorm:"index"`
+				Amount          int64
+				Money           float64
+				TradeNo         string `gorm:"unique;type:varchar(255);index"`
+				PaymentMethod   string `gorm:"type:varchar(50)"`
+				PaymentProvider string `gorm:"type:varchar(50);default:''"`
+				CreateTime      int64
+				CompleteTime    int64
+				Status          string
+			}{TradeNo: "legacy-receipt-topup", Money: 12.5}
+			legacySub := struct {
+				Id              int
+				UserId          int `gorm:"index"`
+				PlanId          int `gorm:"index"`
+				Money           float64
+				TradeNo         string `gorm:"unique;type:varchar(255);index"`
+				PaymentMethod   string `gorm:"type:varchar(50)"`
+				PaymentProvider string `gorm:"type:varchar(50);default:''"`
+				Status          string
+				CreateTime      int64
+				CompleteTime    int64
+				ProviderPayload string `gorm:"type:text"`
+			}{TradeNo: "legacy-receipt-subscription", Money: 7.5, ProviderPayload: "preserved"}
+			require.NoError(t, db.Table(db.NamingStrategy.TableName("TopUp")).AutoMigrate(&legacyTopUp))
+			require.NoError(t, db.Table(db.NamingStrategy.TableName("SubscriptionOrder")).AutoMigrate(&legacySub))
+			require.NoError(t, db.Table(db.NamingStrategy.TableName("TopUp")).Create(&legacyTopUp).Error)
+			require.NoError(t, db.Table(db.NamingStrategy.TableName("SubscriptionOrder")).Create(&legacySub).Error)
 			require.NoError(t, db.AutoMigrate(tables...))
+			require.NoError(t, db.Table("audit_logs").AutoMigrate(&model.AuditLog{}))
+			t.Cleanup(func() { require.NoError(t, db.Migrator().DropTable("audit_logs")) })
 			require.NoError(t, db.AutoMigrate(tables...))
+			var migratedTopUp model.TopUp
+			var migratedSub model.SubscriptionOrder
+			require.NoError(t, db.First(&migratedTopUp, legacyTopUp.Id).Error)
+			require.NoError(t, db.First(&migratedSub, legacySub.Id).Error)
+			assert.Equal(t, 12.5, migratedTopUp.Money)
+			assert.Equal(t, "preserved", migratedSub.ProviderPayload)
+			assert.Empty(t, migratedTopUp.PaymentReceipt.ReceiptCurrency)
+			assert.Empty(t, migratedSub.PaymentReceipt.ReceiptCurrency)
+			duplicateLegacy := model.TopUp{TradeNo: legacyTopUp.TradeNo}
+			assert.Error(t, db.Create(&duplicateLegacy).Error)
+			require.NoError(t, db.Delete(&migratedTopUp).Error)
+			require.NoError(t, db.Delete(&migratedSub).Error)
 			var version string
 			query := "SELECT version()"
 			if dialect == "sqlite" {
@@ -351,6 +396,266 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 			c.Params = gin.Params{{Key: "trade_no", Value: wxOrder.TradeNo}}
 			GetWechatPayOrderStatus(c)
 			assert.Equal(t, 404, w.Code)
+
+			t.Run("unified orders include all subscription states without duplicate history", func(t *testing.T) {
+				owner := model.User{Username: "unified-orders", AffCode: "unified-orders", AuthVersion: 1}
+				require.NoError(t, db.Create(&owner).Error)
+				for _, status := range []string{"pending", "success", "expired", "failed"} {
+					sub := model.SubscriptionOrder{UserId: owner.Id, TradeNo: "SUB-" + status, PaymentProvider: model.PaymentProviderStripe, Status: status, Money: 12}
+					require.NoError(t, db.Create(&sub).Error)
+					if status == "success" {
+						require.NoError(t, db.Create(&model.TopUp{UserId: owner.Id, TradeNo: sub.TradeNo, PaymentProvider: sub.PaymentProvider, Status: status}).Error)
+					}
+				}
+				for _, tc := range []struct{ currency, minor, expected string }{
+					{"USD", "1050", "10.5"}, {"JPY", "1050", "1050"}, {"KWD", "1050", "1.05"},
+				} {
+					payment := model.TopUp{UserId: owner.Id, TradeNo: "stripe-" + tc.currency, PaymentProvider: model.PaymentProviderStripe, Status: "success"}
+					require.NoError(t, db.Create(&payment).Error)
+					event := stripe.Event{Data: &stripe.EventData{Object: map[string]any{"currency": tc.currency, "amount_total": tc.minor, "payment_intent": "pi_" + tc.currency}}}
+					require.NoError(t, recordStripeReceipt(event, payment.TradeNo, false))
+					require.NoError(t, db.First(&payment, payment.Id).Error)
+					assert.Equal(t, tc.expected, payment.PaymentReceipt.ReceiptAmount)
+					require.NoError(t, db.Delete(&payment).Error)
+				}
+				paid := model.TopUp{UserId: owner.Id, TradeNo: "receipt-stripe", PaymentProvider: model.PaymentProviderStripe, Status: "success"}
+				require.NoError(t, db.Create(&paid).Error)
+				require.NoError(t, model.RecordPaymentReceipt(paid.TradeNo, paid.PaymentProvider, "pi_verified", "usd", "10.50", false))
+				require.NoError(t, model.RecordPaymentReceipt(paid.TradeNo, paid.PaymentProvider, "pi_verified", "USD", "10.5", false))
+				require.Error(t, model.RecordPaymentReceipt(paid.TradeNo, model.PaymentProviderCreem, "other", "USD", "10.5", false))
+				require.Error(t, model.RecordPaymentReceipt(paid.TradeNo, paid.PaymentProvider, "pi_changed", "USD", "10.5", false))
+				receiptOrders, count, err := model.ListSiteOrders(model.SiteOrderFilter{OwnerID: owner.Id, Keyword: "pi_verified", Page: 1, PageSize: 20})
+				require.NoError(t, err)
+				require.EqualValues(t, 1, count)
+				require.Len(t, receiptOrders, 1)
+				assert.Equal(t, "USD", receiptOrders[0].Currency)
+				assert.Equal(t, "10.5", receiptOrders[0].PaymentAmount)
+				require.Error(t, model.RecordPaymentReceipt(paid.TradeNo, paid.PaymentProvider, "pi_verified", "USD", "1e999999", false))
+				unpaid := model.TopUp{UserId: owner.Id, TradeNo: "receipt-pending", PaymentProvider: model.PaymentProviderStripe, Status: "pending"}
+				require.NoError(t, db.Create(&unpaid).Error)
+				require.Error(t, model.RecordPaymentReceipt(unpaid.TradeNo, unpaid.PaymentProvider, "pi_unpaid", "USD", "1", false))
+				require.NoError(t, db.Delete(&unpaid).Error)
+				require.NoError(t, db.Delete(&paid).Error)
+				balance := model.SubscriptionOrder{UserId: owner.Id, TradeNo: "SUB-balance", PaymentProvider: model.PaymentProviderBalance, Status: "success", Money: 5}
+				require.NoError(t, db.Create(&balance).Error)
+				items, total, err := model.ListSiteOrders(model.SiteOrderFilter{OwnerID: owner.Id, Page: 1, PageSize: 20})
+				require.NoError(t, err)
+				assert.EqualValues(t, 5, total)
+				require.Len(t, items, 5)
+				for _, item := range items {
+					assert.Equal(t, "subscription", item.OrderType)
+					assert.Negative(t, item.Id)
+				}
+				_, total, err = model.ListSiteOrders(model.SiteOrderFilter{OwnerID: owner.Id, Status: "failed", Page: 1, PageSize: 20})
+				require.NoError(t, err)
+				assert.EqualValues(t, 1, total)
+				for _, viewer := range []int{owner.Id, localUser.Id} {
+					rec := httptest.NewRecorder()
+					ctx, _ := gin.CreateTestContext(rec)
+					ctx.Set("id", viewer)
+					ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(-balance.Id)}}
+					ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/self/orders/"+strconv.Itoa(-balance.Id), nil)
+					GetPersonalOrder(ctx)
+					if viewer == owner.Id {
+						assert.Equal(t, http.StatusOK, rec.Code)
+						assert.Contains(t, rec.Body.String(), "SUB-balance")
+					} else {
+						assert.Equal(t, http.StatusNotFound, rec.Code)
+					}
+				}
+			})
+
+			// Personal list/detail scope cannot be widened by user-controlled IDs.
+			stranger := model.User{Username: "other-order-owner", AffCode: "other-owner", AuthVersion: 1}
+			require.NoError(t, db.Create(&stranger).Error)
+			strangerOrder := model.TopUp{UserId: stranger.Id, TradeNo: "PRIVATE_ORDER", Status: common.TopUpStatusSuccess}
+			require.NoError(t, db.Create(&strangerOrder).Error)
+			for _, tc := range []struct {
+				name, query        string
+				viewer, id, status int
+				total              int64
+			}{
+				{name: "own list ignores forged ownership", query: "?user=" + stranger.Username + "&owner_id=" + strconv.Itoa(stranger.Id), viewer: localUser.Id, status: 200, total: -1},
+				{name: "another owner list", viewer: stranger.Id, status: 200, total: 1},
+				{name: "foreign order search", query: "?keyword=PRIVATE_ORDER", viewer: localUser.Id, status: 200, total: 0},
+				{name: "own detail", viewer: stranger.Id, id: strangerOrder.Id, status: 200, total: -1},
+				{name: "foreign detail", viewer: localUser.Id, id: strangerOrder.Id, status: 404},
+				{name: "missing detail", viewer: localUser.Id, id: strangerOrder.Id + 10000, status: 404},
+				{name: "anonymous list", status: 401},
+				{name: "anonymous detail", id: strangerOrder.Id, status: 401},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					rec := httptest.NewRecorder()
+					ctx, _ := gin.CreateTestContext(rec)
+					ctx.Set("id", tc.viewer)
+					ctx.Set("role", common.RoleCommonUser)
+					ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/self/orders"+tc.query, nil)
+					if tc.id > 0 {
+						ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(tc.id)}}
+						GetPersonalOrder(ctx)
+					} else {
+						GetPersonalOrders(ctx)
+					}
+					require.Equal(t, tc.status, rec.Code)
+					if tc.status != 200 {
+						return
+					}
+					var response struct {
+						Success bool `json:"success"`
+						Data    struct {
+							Total int64 `json:"total"`
+						} `json:"data"`
+					}
+					require.NoError(t, common.Unmarshal(rec.Body.Bytes(), &response))
+					require.True(t, response.Success)
+					if tc.id == 0 && tc.total >= 0 {
+						assert.Equal(t, tc.total, response.Data.Total)
+					}
+					if tc.viewer == localUser.Id {
+						assert.NotContains(t, rec.Body.String(), "PRIVATE_ORDER")
+					}
+					for _, field := range []string{"last_error", "last_check_at", "cache_pending", "user_id", "private_key"} {
+						assert.NotContains(t, rec.Body.String(), `"`+field+`"`)
+					}
+				})
+			}
+
+			// Administrative projection preserves verified payment state and frozen amounts.
+			rows, total, err := model.ListSiteOrders(model.SiteOrderFilter{Keyword: "420000000002", Status: "paid", Provider: "wechatpay", User: localUser.Username, Page: 1, PageSize: 20})
+			require.NoError(t, err)
+			require.EqualValues(t, 1, total)
+			require.Len(t, rows, 1)
+			assert.Equal(t, "paid", rows[0].OrderStatus)
+			require.NotNil(t, rows[0].AmountFen)
+			assert.EqualValues(t, 9000, *rows[0].AmountFen)
+			detail, err := model.GetSiteOrder(overflowWX.Id)
+			require.NoError(t, err)
+			assert.Equal(t, "credit_pending", detail.LastError)
+			payload, err := common.Marshal(detail)
+			require.NoError(t, err)
+			assert.NotContains(t, string(payload), "private_key")
+			assert.NotContains(t, string(payload), wxConfig.APIv3Key)
+			rows, total, err = model.ListSiteOrders(model.SiteOrderFilter{Keyword: "' OR 1=1 --", Page: 1, PageSize: 20})
+			require.NoError(t, err)
+			assert.Zero(t, total)
+			assert.Empty(t, rows)
+			rows, total, err = model.ListSiteOrders(model.SiteOrderFilter{Page: 2, PageSize: 1})
+			require.NoError(t, err)
+			require.Len(t, rows, 1)
+			assert.Greater(t, total, int64(1))
+			for _, role := range []int{common.RoleCommonUser, common.RoleAdminUser} {
+				recorder := httptest.NewRecorder()
+				ctx, _ := gin.CreateTestContext(recorder)
+				ctx.Set("role", role)
+				ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(wxTopup.Id)}}
+				RecheckSiteOrder(ctx)
+				assert.Equal(t, http.StatusForbidden, recorder.Code)
+			}
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/orders/1/recheck", nil)
+			ctx.Set("role", common.RoleRootUser)
+			ctx.Set("id", user.Id)
+			ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(wxTopup.Id)}}
+			RecheckSiteOrder(ctx)
+			assert.Contains(t, recorder.Body.String(), `"success":true`)
+			detail, err = model.GetSiteOrder(wxTopup.Id)
+			require.NoError(t, err)
+			require.NotNil(t, detail.LastCheckSuccess)
+			assert.True(t, *detail.LastCheckSuccess)
+			assert.Positive(t, detail.LastCheckAt)
+
+			denied := httptest.NewRecorder()
+			tokenCtx, _ := gin.CreateTestContext(denied)
+			tokenCtx.Set("role", common.RoleRootUser)
+			tokenCtx.Set("use_access_token", true)
+			RecheckSiteOrder(tokenCtx)
+			assert.Equal(t, http.StatusForbidden, denied.Code)
+			denied = httptest.NewRecorder()
+			userCtx, _ := gin.CreateTestContext(denied)
+			userCtx.Set("role", common.RoleCommonUser)
+			GetSiteOrders(userCtx)
+			assert.Equal(t, http.StatusForbidden, denied.Code)
+			denied = httptest.NewRecorder()
+			userCtx, _ = gin.CreateTestContext(denied)
+			GetSiteOrder(userCtx)
+			assert.Equal(t, http.StatusForbidden, denied.Code)
+			failureRecorder := httptest.NewRecorder()
+			failureCtx, _ := gin.CreateTestContext(failureRecorder)
+			failureCtx.Request = httptest.NewRequest(http.MethodPost, "/api/user/orders/1/recheck", nil)
+			failureCtx.Set("id", user.Id)
+			failureCtx.Set("role", common.RoleRootUser)
+			failureCtx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(overflowWX.Id)}}
+			RecheckSiteOrder(failureCtx)
+			assert.Contains(t, failureRecorder.Body.String(), `"success":false`)
+			detail, err = model.GetSiteOrder(overflowWX.Id)
+			require.NoError(t, err)
+			require.NotNil(t, detail.LastCheckSuccess)
+			assert.False(t, *detail.LastCheckSuccess)
+			assert.Equal(t, "paid", detail.OrderStatus)
+
+			for _, query := range []string{"p=-1", "page_size=101", "start=20&end=10", "status=invalid"} {
+				recorder := httptest.NewRecorder()
+				ctx, _ := gin.CreateTestContext(recorder)
+				ctx.Request = httptest.NewRequest(http.MethodGet, "/api/user/orders?"+query, nil)
+				ctx.Set("role", common.RoleAdminUser)
+				GetSiteOrders(ctx)
+				assert.Equal(t, http.StatusBadRequest, recorder.Code)
+			}
+
+			recoveryTopup := model.TopUp{UserId: localUser.Id, TradeNo: "WXrecovery", PaymentProvider: model.PaymentProviderWechatPay, Status: common.TopUpStatusPending}
+			recoveryOrder := model.WechatPayOrder{TradeNo: recoveryTopup.TradeNo, ConfigID: wxConfig.ID, UserID: localUser.Id, AmountFen: 100, CreditedQuota: 100, Status: common.TopUpStatusPending}
+			require.NoError(t, model.CreateWechatPayOrder(&recoveryTopup, &recoveryOrder))
+			require.NoError(t, model.RecordWechatPayPayment(recoveryOrder.TradeNo, "recovery-provider", 100))
+
+			for _, tc := range []struct {
+				name, reason, result string
+				id, role             int
+			}{
+				{"credit verified payment", "Retry missing callback", "credited", recoveryTopup.Id, common.RoleRootUser},
+				{"retry same recovery", "Retry missing callback", "already_credited", recoveryTopup.Id, common.RoleRootUser},
+				{"already credited", "Retry missing callback", "already_credited", wxTopup.Id, common.RoleRootUser},
+				{"wallet capacity", "Retry failed credit", "credit_pending", overflowWX.Id, common.RoleRootUser},
+				{"blank reason", "   ", "", wxTopup.Id, common.RoleRootUser},
+				{"admin denied", "Retry missing callback", "", wxTopup.Id, common.RoleAdminUser},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					body, marshalErr := common.Marshal(map[string]string{"reason": tc.reason})
+					require.NoError(t, marshalErr)
+					rec := httptest.NewRecorder()
+					ctx, _ := gin.CreateTestContext(rec)
+					ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/orders/1/recover", strings.NewReader(string(body)))
+					ctx.Request.Header.Set("Content-Type", "application/json")
+					ctx.Set("role", tc.role)
+					ctx.Set("id", user.Id)
+					ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(tc.id)}}
+					RecoverSiteOrder(ctx)
+					if tc.role != common.RoleRootUser {
+						assert.Equal(t, 403, rec.Code)
+						return
+					}
+					if tc.result == "" {
+						assert.Contains(t, rec.Body.String(), `"success":false`)
+						return
+					}
+					assert.Contains(t, rec.Body.String(), `"result":"`+tc.result+`"`)
+					var audit model.AuditLog
+					require.NoError(t, db.Table("audit_logs").Where("action = ?", "payment.order.recover").Order("id DESC").First(&audit).Error)
+					encoded, e := common.Marshal(audit.Other.Op.Params)
+					require.NoError(t, e)
+					var saved struct {
+						Reason string `json:"reason"`
+						Result string `json:"result"`
+					}
+					require.NoError(t, common.Unmarshal(encoded, &saved))
+					assert.Equal(t, tc.reason, saved.Reason)
+					assert.Equal(t, tc.result, saved.Result)
+				})
+			}
+
+			require.NoError(t, db.First(&localUser, localUser.Id).Error)
+			assert.Equal(t, 14285814, localUser.Quota)
+
 			configJSON, err := common.Marshal(wxConfig)
 			require.NoError(t, err)
 			assert.NotContains(t, string(configJSON), wxConfig.APIv3Key)

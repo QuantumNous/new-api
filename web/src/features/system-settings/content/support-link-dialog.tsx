@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { footerRegistrationSchema } from '@/features/footer/types'
 import { SupportIcon } from '@/features/support/components/support-icon'
 import {
   isUploadedSupportIcon,
@@ -55,6 +56,7 @@ export type SupportLinkFormValues = {
 }
 
 type SupportLinkDialogProps = {
+  mode?: 'support' | 'registration'
   open: boolean
   onOpenChange: (open: boolean) => void
   link: SupportLink | null
@@ -81,17 +83,22 @@ export function SupportLinkDialog(props: SupportLinkDialogProps) {
         url: z
           .url(t('Enter a valid URL'))
           .refine(
-            (value) => /^https?:\/\//i.test(value),
+            (value) =>
+              props.mode === 'registration'
+                ? footerRegistrationSchema.shape.url.safeParse(value).success
+                : /^https?:\/\//i.test(value),
             t('Only HTTP and HTTPS links are allowed')
           ),
         icon: z
           .string()
           .refine(
-            (value) => isUploadedSupportIcon(value),
+            (value) =>
+              (props.mode === 'registration' && value === '') ||
+              isUploadedSupportIcon(value),
             t('Please upload an icon')
           ),
       }),
-    [t]
+    [t, props.mode]
   )
   const form = useForm<SupportLinkFormValues>({
     resolver: zodResolver(schema),
@@ -153,14 +160,23 @@ export function SupportLinkDialog(props: SupportLinkDialogProps) {
     reader.readAsDataURL(file)
   }
 
+  let title = props.link ? t('Edit support link') : t('Add support link')
+  if (props.mode === 'registration') title = t('Registration information')
+
   return (
     <Dialog
       open={props.open}
       onOpenChange={props.onOpenChange}
-      title={props.link ? t('Edit support link') : t('Add support link')}
-      description={t(
-        'Configure the destination and the information displayed on its card.'
-      )}
+      title={title}
+      description={
+        props.mode === 'registration'
+          ? t(
+              'Display registration text and an optional icon in the homepage footer.'
+            )
+          : t(
+              'Configure the destination and the information displayed on its card.'
+            )
+      }
       footer={
         <>
           <Button variant='outline' onClick={() => props.onOpenChange(false)}>
@@ -183,7 +199,11 @@ export function SupportLinkDialog(props: SupportLinkDialogProps) {
             name='title'
             render={({ field }) => (
               <FormItem>
-                <FormLabel>{t('Link title')}</FormLabel>
+                <FormLabel>
+                  {props.mode === 'registration'
+                    ? t('Registration text')
+                    : t('Link title')}
+                </FormLabel>
                 <FormControl>
                   <Input placeholder='GitHub' maxLength={80} {...field} />
                 </FormControl>
@@ -191,22 +211,24 @@ export function SupportLinkDialog(props: SupportLinkDialogProps) {
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name='label'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('Account or label')}</FormLabel>
-                <FormControl>
-                  <Input placeholder='@example' maxLength={120} {...field} />
-                </FormControl>
-                <FormDescription>
-                  {t('Optional highlighted text shown below the title')}
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {props.mode !== 'registration' && (
+            <FormField
+              control={form.control}
+              name='label'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Account or label')}</FormLabel>
+                  <FormControl>
+                    <Input placeholder='@example' maxLength={120} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Optional highlighted text shown below the title')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
           <FormField
             control={form.control}
             name='url'
@@ -292,22 +314,24 @@ export function SupportLinkDialog(props: SupportLinkDialogProps) {
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name='description'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>{t('Link description')}</FormLabel>
-                <FormControl>
-                  <Textarea rows={3} maxLength={240} {...field} />
-                </FormControl>
-                <FormDescription>
-                  {t('Optional, up to 240 characters')}
-                </FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          {props.mode !== 'registration' && (
+            <FormField
+              control={form.control}
+              name='description'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Link description')}</FormLabel>
+                  <FormControl>
+                    <Textarea rows={3} maxLength={240} {...field} />
+                  </FormControl>
+                  <FormDescription>
+                    {t('Optional, up to 240 characters')}
+                  </FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          )}
         </form>
       </Form>
     </Dialog>

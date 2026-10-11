@@ -18,6 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { z } from 'zod'
 
+import { isUploadedSupportIcon } from '@/features/support/types'
+
 export const FOOTER_SOCIAL_ICON_OPTIONS = [
   'github',
   'documentation',
@@ -70,7 +72,28 @@ export const footerColumnSchema = z.object({
   links: z.array(footerLinkSchema).max(10),
 })
 
+export const footerRegistrationSchema = footerLinkSchema.extend({
+  url: z.string().refine((value) => {
+    if (!isFooterLinkUrl(value)) return false
+    try {
+      const url = new URL(value)
+      return (
+        ['http:', 'https:'].includes(url.protocol) &&
+        !url.username &&
+        !url.password
+      )
+    } catch {
+      return false
+    }
+  }),
+  icon: z
+    .string()
+    .refine((value) => value === '' || isUploadedSupportIcon(value)),
+})
+export type FooterRegistration = z.infer<typeof footerRegistrationSchema>
+
 export const footerConfigSchema = z.object({
+  registrations: z.array(footerRegistrationSchema).max(10).optional(),
   description: z.string().max(240),
   socialLinks: z.array(footerSocialLinkSchema).max(8),
   columns: z.array(footerColumnSchema).max(6),

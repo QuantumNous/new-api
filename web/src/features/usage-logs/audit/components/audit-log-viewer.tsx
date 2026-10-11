@@ -140,9 +140,6 @@ export function AuditLogViewer(props: {
                 update({})
               }}
               isFetching={query.isFetching}
-              onSearch={() => {
-                if (!invalidRange && canQuery) void query.refetch()
-              }}
               onReset={() => {
                 setTokenScope(defaultTokenScope)
                 setFilters({ p: 1, page_size: filters.page_size })

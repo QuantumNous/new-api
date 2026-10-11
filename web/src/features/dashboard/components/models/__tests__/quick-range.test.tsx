@@ -141,7 +141,10 @@ test('opening and applying advanced filters preserves the shortcut range', async
   await user.click(screen.getByRole('button', { name: 'Today' }))
   await user.click(screen.getByRole('button', { name: /^Filter$/ }))
   expect(await screen.findByRole('dialog')).toBeVisible()
-  await user.click(screen.getByRole('button', { name: 'Apply Filters' }))
+  expect(
+    screen.queryByRole('button', { name: 'Apply Filters' })
+  ).not.toBeInTheDocument()
+  await user.keyboard('{Escape}')
   expect(onChange).toHaveBeenLastCalledWith({
     username: 'alice',
     start_timestamp: new Date(2026, 9, 8),

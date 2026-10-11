@@ -491,6 +491,10 @@ func EpayNotify(c *gin.Context) {
 			}
 			return
 		}
+		if err := model.RecordPaymentReceipt(verifyInfo.ServiceTradeNo, model.PaymentProviderEpay, verifyInfo.TradeNo, "CNY", verifyInfo.Money, false); err != nil {
+			c.String(http.StatusInternalServerError, "fail")
+			return
+		}
 		if alreadyDone {
 			logger.LogInfo(c.Request.Context(), fmt.Sprintf("易支付 重复回调幂等忽略 trade_no=%s callback_type=%s client_ip=%s", verifyInfo.ServiceTradeNo, verifyInfo.Type, c.ClientIP()))
 		} else {

@@ -114,3 +114,97 @@ describe('FooterSection', () => {
     })
   }, 10_000)
 })
+
+test('adds multiple registrations with an uploaded icon, reorders and saves them', async () => {
+  const mutateAsync = vi.fn().mockResolvedValue({ success: true })
+  vi.mocked(useUpdateOption).mockReturnValue({
+    mutateAsync,
+    isPending: false,
+  } as unknown as ReturnType<typeof useUpdateOption>)
+  const user = userEvent.setup()
+  render(<FooterSection data={JSON.stringify(initialConfig)} />)
+  await user.click(screen.getByRole('button', { name: 'Add registration' }))
+  let dialog = await screen.findByRole('dialog')
+  await user.type(
+    within(dialog).getByLabelText('Registration text'),
+    '京ICP备123号'
+  )
+  await user.type(
+    within(dialog).getByLabelText('Destination URL'),
+    'https://beian.miit.gov.cn/'
+  )
+  const file = new File(
+    [new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])],
+    'icp.png',
+    { type: 'image/png' }
+  )
+  await user.upload(within(dialog).getByLabelText('Icon'), file)
+  await within(dialog).findByRole('button', { name: 'Clear' })
+  await user.click(within(dialog).getByRole('button', { name: 'Add' }))
+  await user.click(screen.getByRole('button', { name: 'Add registration' }))
+  dialog = await screen.findByRole('dialog')
+  await user.type(
+    within(dialog).getByLabelText('Registration text'),
+    '京公网安备456号'
+  )
+  await user.type(
+    within(dialog).getByLabelText('Destination URL'),
+    'https://beian.mps.gov.cn/'
+  )
+  await user.click(within(dialog).getByRole('button', { name: 'Add' }))
+  const region = screen.getByRole('region', {
+    name: 'Registration information',
+  })
+  await user.click(
+    within(region).getAllByRole('button', { name: 'Move up' })[1]
+  )
+  await user.click(screen.getByRole('button', { name: 'Save settings' }))
+  const saved = JSON.parse(mutateAsync.mock.calls[0][0].value)
+  expect(saved.registrations.map((x: { label: string }) => x.label)).toEqual([
+    '京公网安备456号',
+    '京ICP备123号',
+  ])
+  expect(saved.registrations[1].icon).toMatch(/^data:image\/png;base64,/)
+  expect(saved.columns).toEqual(initialConfig.columns)
+})
+
+test('edits and removes registration entries without changing other footer content', async () => {
+  const mutateAsync = vi.fn().mockResolvedValue({ success: true })
+  vi.mocked(useUpdateOption).mockReturnValue({
+    mutateAsync,
+    isPending: false,
+  } as unknown as ReturnType<typeof useUpdateOption>)
+  const user = userEvent.setup()
+  render(
+    <FooterSection
+      data={JSON.stringify({
+        ...initialConfig,
+        registrations: [
+          {
+            id: 'icp',
+            label: 'Old registration',
+            url: 'https://example.com',
+            icon: '',
+          },
+        ],
+      })}
+    />
+  )
+  const region = screen.getByRole('region', {
+    name: 'Registration information',
+  })
+  await user.click(within(region).getByRole('button', { name: 'Edit' }))
+  const dialog = await screen.findByRole('dialog')
+  const label = within(dialog).getByLabelText('Registration text')
+  await user.clear(label)
+  await user.type(label, 'Updated registration')
+  await user.click(within(dialog).getByRole('button', { name: 'Update' }))
+  expect(within(region).getByText('Updated registration')).toBeVisible()
+  await user.click(within(region).getByRole('button', { name: 'Delete' }))
+  const confirm = await screen.findByRole('alertdialog')
+  await user.click(within(confirm).getByRole('button', { name: 'Delete' }))
+  await user.click(screen.getByRole('button', { name: 'Save settings' }))
+  const saved = JSON.parse(mutateAsync.mock.calls[0][0].value)
+  expect(saved.registrations).toEqual([])
+  expect(saved.socialLinks).toEqual(initialConfig.socialLinks)
+})

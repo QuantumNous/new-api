@@ -118,6 +118,11 @@ export function useSidebarData(): SidebarData {
             icon: Wallet,
           },
           {
+            title: t('My orders'),
+            url: '/my-orders',
+            icon: ClipboardList,
+          },
+          {
             title: t('Profile'),
             url: '/profile',
             icon: User,
@@ -152,6 +157,12 @@ export function useSidebarData(): SidebarData {
             title: t('Users'),
             url: '/users',
             icon: Users,
+          },
+          {
+            title: t('Site orders'),
+            url: '/site-orders',
+            icon: ClipboardList,
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('Redemption Codes'),

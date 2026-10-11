@@ -16,14 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Filter, RotateCcw, Calendar, Search } from 'lucide-react'
+import { Filter, RotateCcw, Calendar } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DateTimePicker } from '@/components/datetime-picker'
 import { Dialog } from '@/components/dialog'
+import { FilterInput } from '@/components/filter-input'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
@@ -39,10 +39,7 @@ import {
   TIME_GRANULARITY_OPTIONS,
   TIME_RANGE_PRESETS,
 } from '@/features/dashboard/constants'
-import {
-  buildDefaultDashboardFilters,
-  cleanFilters,
-} from '@/features/dashboard/lib'
+import { cleanFilters } from '@/features/dashboard/lib'
 import type {
   DashboardChartPreferences,
   DashboardFilters,
@@ -57,8 +54,7 @@ import { useAuthStore } from '@/stores/auth-store'
 
 interface ModelsFilterProps {
   preferences: DashboardChartPreferences
-  // The filters currently applied to the dashboard. The dialog edits a copy of
-  // these so reopening it never discards a manually picked range.
+  // Applied filters also drive the dialog; every edit is applied automatically.
   currentFilters: DashboardFilters
   onFilterChange: (filters: DashboardFilters) => void
   onReset: () => void
@@ -108,44 +104,17 @@ export function ModelsFilter(props: ModelsFilterProps) {
   const isAdmin = user?.role && user.role >= 10
 
   const [open, setOpen] = useState(false)
-  const [filters, setFilters] = useState<DashboardFilters>(
-    () =>
-      props.currentFilters ?? buildDefaultDashboardFilters(props.preferences)
-  )
-  const [selectedRange, setSelectedRange] = useState<number | null>(() =>
-    detectQuickRangeDays(props.currentFilters)
-  )
-
-  const handleOpenChange = (nextOpen: boolean) => {
-    // Sync the editing state from the applied filters every time the dialog
-    // opens so a previously applied manual range is preserved.
-    if (nextOpen) {
-      const applied =
-        props.currentFilters ?? buildDefaultDashboardFilters(props.preferences)
-      setFilters(applied)
-      setSelectedRange(detectQuickRangeDays(applied))
-    }
-    setOpen(nextOpen)
-  }
-
-  const handleApply = () => {
+  const filters = props.currentFilters
+  const selectedRange = detectQuickRangeDays(filters)
+  const applyFilters = (next: DashboardFilters) => {
     props.onFilterChange(
       cleanFilters(
-        filters as unknown as Record<string, unknown>
-      ) as typeof filters
+        next as unknown as Record<string, unknown>
+      ) as DashboardFilters
     )
-    setOpen(false)
   }
 
   const handleReset = () => {
-    const days = props.preferences.defaultTimeRangeDays
-    const { start, end } = getRollingDateRange(days)
-    setFilters({
-      ...buildDefaultDashboardFilters(props.preferences),
-      start_timestamp: start,
-      end_timestamp: end,
-    })
-    setSelectedRange(days)
     props.onReset()
     setOpen(false)
   }
@@ -154,22 +123,18 @@ export function ModelsFilter(props: ModelsFilterProps) {
     field: keyof DashboardFilters,
     value: Date | string | undefined
   ) => {
-    setFilters((prev) => ({ ...prev, [field]: value }))
-    if (field === 'start_timestamp' || field === 'end_timestamp') {
-      setSelectedRange(null)
-    }
+    applyFilters({ ...filters, [field]: value })
   }
 
   const handleQuickRange = (days: number) => {
     const { start, end } = getRollingDateRange(days)
 
-    setFilters((prev) => ({
-      ...prev,
+    applyFilters({
+      ...filters,
       start_timestamp: start,
       end_timestamp: end,
       time_granularity: granularityForRangeDays(days),
-    }))
-    setSelectedRange(days)
+    })
   }
 
   const appliedDays = detectQuickRangeDays(props.currentFilters)
@@ -213,7 +178,7 @@ export function ModelsFilter(props: ModelsFilterProps) {
       </ToggleGroup>
       <Dialog
         open={open}
-        onOpenChange={handleOpenChange}
+        onOpenChange={setOpen}
         trigger={
           <Button variant='outline' size='sm'>
             <Filter className='mr-2 h-4 w-4' />
@@ -227,18 +192,12 @@ export function ModelsFilter(props: ModelsFilterProps) {
         )}
         contentClassName='max-sm:h-dvh max-sm:w-screen max-sm:max-w-none max-sm:rounded-none max-sm:p-4 sm:max-w-lg'
         contentHeight='min(48vh, 460px)'
-        footerClassName='grid grid-cols-2 gap-2 sm:flex'
+        footerClassName='flex'
         footer={
-          <>
-            <Button onClick={handleReset} variant='outline' type='button'>
-              <RotateCcw className='mr-2 h-4 w-4' />
-              {t('Reset')}
-            </Button>
-            <Button onClick={handleApply} type='submit'>
-              <Search className='mr-2 h-4 w-4' />
-              {t('Apply Filters')}
-            </Button>
-          </>
+          <Button onClick={handleReset} variant='outline' type='button'>
+            <RotateCcw className='mr-2 h-4 w-4' />
+            {t('Reset')}
+          </Button>
         }
       >
         <ScrollArea className='h-full pr-3 sm:pr-4'>
@@ -334,11 +293,11 @@ export function ModelsFilter(props: ModelsFilterProps) {
 
                 <div className='grid gap-2'>
                   <Label htmlFor='username'>{t('Username')}</Label>
-                  <Input
+                  <FilterInput
                     id='username'
                     placeholder={t('Filter by username')}
-                    value={filters.username}
-                    onChange={(e) => handleChange('username', e.target.value)}
+                    value={filters.username || ''}
+                    onValueChange={(value) => handleChange('username', value)}
                   />
                 </div>
               </>

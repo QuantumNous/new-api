@@ -27,6 +27,7 @@ import { useModelPricing } from '@/features/model-pricing/api'
 import { useMediaQuery } from '@/hooks'
 import { useTableUrlState } from '@/hooks/use-table-url-state'
 import { requireServerSuccess } from '@/lib/server-error-message'
+import { getVendorDisplayName } from '@/lib/vendor-name'
 
 import { getModels, searchModels, getVendors } from '../api'
 import { DEFAULT_PAGE_SIZE } from '../constants'
@@ -96,10 +97,10 @@ export function ModelsTable() {
 
   const vendorOptions = useMemo(() => {
     return vendors.map((v) => ({
-      label: v.name,
+      label: getVendorDisplayName(v.name, t),
       value: String(v.id),
     }))
-  }, [vendors])
+  }, [vendors, t])
 
   // Apply selected vendor from context or filter
   const activeVendorFilter =

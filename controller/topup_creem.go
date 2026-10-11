@@ -312,6 +312,10 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 	LockOrder(referenceId)
 	defer UnlockOrder(referenceId)
 	if err := model.CompleteSubscriptionOrder(referenceId, common.GetJsonString(event), model.PaymentProviderCreem, ""); err == nil {
+		if err := model.RecordPaymentReceipt(referenceId, model.PaymentProviderCreem, event.Object.Order.Id, event.Object.Order.Currency, decimal.NewFromInt(int64(event.Object.Order.AmountPaid)).Div(decimal.NewFromInt(100)).String(), true); err != nil {
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf("Creem 订阅订单处理成功 trade_no=%s creem_order_id=%s", referenceId, event.Object.Order.Id))
 		c.Status(http.StatusOK)
 		return
@@ -338,6 +342,12 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 		return
 	}
 
+	if topUp.Status == common.TopUpStatusSuccess {
+		if err := model.RecordPaymentReceipt(referenceId, model.PaymentProviderCreem, event.Object.Order.Id, event.Object.Order.Currency, decimal.NewFromInt(int64(event.Object.Order.AmountPaid)).Div(decimal.NewFromInt(100)).String(), false); err != nil {
+			c.AbortWithStatus(http.StatusInternalServerError)
+			return
+		}
+	}
 	if topUp.Status != common.TopUpStatusPending {
 		logger.LogInfo(c.Request.Context(), fmt.Sprintf("Creem 充值订单状态非 pending，忽略处理 trade_no=%s status=%s creem_order_id=%s", referenceId, topUp.Status, event.Object.Order.Id))
 		c.Status(http.StatusOK) // 已处理过的订单，返回成功避免重复处理
@@ -357,6 +367,9 @@ func handleCheckoutCompleted(c *gin.Context, event *CreemWebhookEvent) {
 	}
 
 	err := model.RechargeCreem(referenceId, customerEmail, customerName, c.ClientIP())
+	if err == nil {
+		err = model.RecordPaymentReceipt(referenceId, model.PaymentProviderCreem, event.Object.Order.Id, event.Object.Order.Currency, decimal.NewFromInt(int64(event.Object.Order.AmountPaid)).Div(decimal.NewFromInt(100)).String(), false)
+	}
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Creem 充值处理失败 trade_no=%s creem_order_id=%s client_ip=%s error=%q", referenceId, event.Object.Order.Id, c.ClientIP(), err.Error()))
 		c.AbortWithStatus(http.StatusInternalServerError)

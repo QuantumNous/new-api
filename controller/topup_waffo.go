@@ -417,6 +417,10 @@ func handleWaffoPayment(c *gin.Context, wh *core.WebhookHandler, result *core.Pa
 		return
 	}
 
+	if err := model.RecordPaymentReceipt(merchantOrderId, model.PaymentProviderWaffo, result.AcquiringOrderID, result.OrderCurrency, result.OrderAmount, false); err != nil {
+		sendWaffoWebhookResponse(c, wh, false, "receipt persistence failed")
+		return
+	}
 	logger.LogInfo(c.Request.Context(), fmt.Sprintf("Waffo 充值成功 trade_no=%s client_ip=%s", merchantOrderId, c.ClientIP()))
 	sendWaffoWebhookResponse(c, wh, true, "")
 }

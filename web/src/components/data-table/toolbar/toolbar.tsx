@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { Table } from '@tanstack/react-table'
-import { ChevronDown, Loader2, X as Cross2Icon } from 'lucide-react'
+import { ChevronDown, X as Cross2Icon } from 'lucide-react'
 import * as React from 'react'
 import { useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -56,7 +56,7 @@ export type DataTableToolbarProps<TData> = {
    */
   searchPlaceholder?: string
   /**
-   * Delay committing the default search input. Defaults to immediate updates.
+   * Delay committing the default search input. Defaults to 400 ms.
    */
   searchDebounceMs?: number
   /**
@@ -105,19 +105,9 @@ export type DataTableToolbarProps<TData> = {
   hasExpandedActiveFilters?: boolean
   /**
    * Custom action buttons rendered BEFORE the built-in
-   * Reset / Search / View buttons.
+   * Reset / View buttons.
    */
   preActions?: ReactNode
-  /**
-   * Explicit "Search" / "Apply" callback. When provided the toolbar
-   * shows a primary Search button. Filters are committed only on click
-   * (form-mode workflow).
-   */
-  onSearch?: () => void
-  /**
-   * Loading state for the explicit Search button.
-   */
-  searchLoading?: boolean
   /**
    * Hide the View Options (column visibility) dropdown.
    */
@@ -133,7 +123,7 @@ export type DataTableToolbarProps<TData> = {
    * provided the toolbar splits into two visual rows:
    *   Row 1: search inputs / filter chips …… Expand
    *   Row 2: expanded filters
-   *   Row 3: leftActions …… Reset / Search / ViewOptions
+   *   Row 3: leftActions …… Reset / ViewOptions
    */
   leftActions?: ReactNode
   /**
@@ -148,7 +138,7 @@ export type DataTableToolbarProps<TData> = {
  * Layout (single flex-wrap row):
  * - Filters (search input + additional inputs + filter chips + expandable
  *   inputs) flow horizontally and wrap as needed.
- * - The action cluster (Reset / Search / View / Expand) hugs the right
+ * - The action cluster (Reset / View / Expand) hugs the right
  *   edge via `ms-auto`. When filters fill a row, the cluster naturally
  *   wraps to the next line — still right-aligned — matching the
  *   collapsed/expanded states from the user's reference design.
@@ -164,7 +154,6 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
 
   const filters = props.filters ?? []
   const hasExpandable = props.expandable != null
-  const hasSearch = props.onSearch != null
 
   const isFiltered =
     props.table.getState().columnFilters.length > 0 ||
@@ -184,7 +173,7 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
       ? searchDraft
       : null
   const searchValue = activeSearchDraft?.value ?? currentSearchValue
-  const searchDebounceMs = Math.max(0, props.searchDebounceMs ?? 0)
+  const searchDebounceMs = Math.max(0, props.searchDebounceMs ?? 400)
   const debouncedSearchValue = useDebounce(searchValue, searchDebounceMs)
 
   const commitSearchValue = React.useCallback(
@@ -287,17 +276,8 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
     props.onReset?.()
   }
 
-  // Reset: outline text-only for form mode (always visible, disabled when
-  // nothing to reset); ghost text + X for filter-as-you-type mode (only
-  // visible when active filters exist).
   let resetButton: ReactNode = null
-  if (hasSearch) {
-    resetButton = (
-      <Button variant='outline' onClick={handleReset} disabled={!isFiltered}>
-        {t('Reset')}
-      </Button>
-    )
-  } else if (isFiltered) {
+  if (isFiltered) {
     resetButton = (
       <Button
         variant='ghost'
@@ -309,13 +289,6 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
       </Button>
     )
   }
-
-  const searchButton = hasSearch ? (
-    <Button onClick={props.onSearch} disabled={props.searchLoading}>
-      {props.searchLoading && <Loader2 className='animate-spin' />}
-      {t('Search')}
-    </Button>
-  ) : null
 
   const viewOptionsNode = !props.hideViewOptions ? (
     <DataTableViewOptions table={props.table} />
@@ -357,7 +330,6 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
             {props.leftActions}
             {props.preActions}
             {resetButton}
-            {searchButton}
             {viewToggleNode}
             {viewOptionsNode}
           </>
@@ -397,7 +369,6 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
           <div className='ms-auto flex shrink-0 items-center gap-1.5 sm:gap-2'>
             {props.preActions}
             {resetButton}
-            {searchButton}
             {viewToggleNode}
             {viewOptionsNode}
           </div>
@@ -421,7 +392,6 @@ export function DataTableToolbar<TData>(props: DataTableToolbarProps<TData>) {
       <div className='ms-auto flex shrink-0 items-center gap-1.5 sm:gap-2'>
         {props.preActions}
         {resetButton}
-        {searchButton}
         {viewToggleNode}
         {viewOptionsNode}
         {expandToggle}

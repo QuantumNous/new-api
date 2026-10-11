@@ -24,6 +24,7 @@ import { FooterSocialIcon } from '@/features/footer/components/footer-social-ico
 import {
   parseFooterConfig,
   type FooterSocialIconName,
+  type FooterRegistration,
 } from '@/features/footer/types'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
@@ -221,6 +222,32 @@ function ProjectAttribution(props: { currentYear: number; inline?: boolean }) {
   )
 }
 
+function RegistrationLinks(props: { records: FooterRegistration[] }) {
+  if (props.records.length === 0) return null
+  return (
+    <div className='text-muted-foreground flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs font-medium sm:justify-start'>
+      {props.records.map((record) => (
+        <a
+          key={record.id}
+          href={record.url}
+          target='_blank'
+          rel='noopener noreferrer'
+          className='hover:text-foreground inline-flex max-w-full items-center gap-2'
+        >
+          {record.icon && (
+            <img
+              src={record.icon}
+              alt=''
+              className='size-5 shrink-0 object-contain'
+            />
+          )}
+          <span className='break-words'>{record.label}</span>
+        </a>
+      ))}
+    </div>
+  )
+}
+
 export function Footer(props: FooterProps) {
   const { t } = useTranslation()
   const { systemName, logo: systemLogo, footerHtml } = useSystemConfig()
@@ -361,12 +388,18 @@ export function Footer(props: FooterProps) {
               dangerouslySetInnerHTML={{ __html: footerHtml }}
             />
             <FooterSocialLinks links={footerSocialLinks} />
-            <div className='border-border/60 text-muted-foreground/45 flex w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t pt-4 text-xs sm:w-auto sm:justify-end sm:border-t-0 sm:border-l sm:pt-0 sm:pl-5'>
+            <div
+              data-slot='footer-legal'
+              className='border-border/60 text-muted-foreground/45 flex w-full flex-wrap items-center justify-center gap-x-3 gap-y-1 border-t pt-4 text-xs sm:w-auto sm:justify-end sm:border-t-0 sm:border-l sm:pt-0 sm:pl-5'
+            >
               <LegalLinks
                 userAgreementEnabled={status?.user_agreement_enabled}
                 privacyPolicyEnabled={status?.privacy_policy_enabled}
               />
               <ProjectAttribution currentYear={currentYear} inline />
+              <RegistrationLinks
+                records={configuredFooter?.registrations ?? []}
+              />
             </div>
           </div>
         </div>
@@ -426,16 +459,24 @@ export function Footer(props: FooterProps) {
 
         {/* Copyright + optional legal links inline on the left, project
             attribution on the right; wraps on narrow screens. */}
-        <div className='border-border/30 mt-12 flex flex-col items-center justify-between gap-x-3 gap-y-2 border-t pt-6 sm:flex-row'>
-          <div className='text-muted-foreground/40 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs sm:justify-start'>
-            <span>
-              &copy; {currentYear} {displayName}.{' '}
-              {props.copyright ?? t('footer.defaultCopyright')}
-            </span>
-            <LegalLinks
-              leadingSeparator
-              userAgreementEnabled={status?.user_agreement_enabled}
-              privacyPolicyEnabled={status?.privacy_policy_enabled}
+        <div
+          data-slot='footer-legal'
+          className='border-border/30 mt-12 flex flex-col items-center justify-between gap-x-3 gap-y-2 border-t pt-6 sm:flex-row'
+        >
+          <div className='min-w-0 space-y-2'>
+            <div className='text-muted-foreground/40 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs sm:justify-start'>
+              <span>
+                &copy; {currentYear} {displayName}.{' '}
+                {props.copyright ?? t('footer.defaultCopyright')}
+              </span>
+              <LegalLinks
+                leadingSeparator
+                userAgreementEnabled={status?.user_agreement_enabled}
+                privacyPolicyEnabled={status?.privacy_policy_enabled}
+              />
+            </div>
+            <RegistrationLinks
+              records={configuredFooter?.registrations ?? []}
             />
           </div>
           <ProjectAttribution currentYear={currentYear} />

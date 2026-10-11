@@ -49,3 +49,32 @@ describe('footer config', () => {
     expect(isFooterLinkUrl(url)).toBe(true)
   })
 })
+
+test('preserves multiple registration records and rejects unsafe destinations', () => {
+  const config = {
+    ...createDefaultFooterConfig(),
+    registrations: [
+      {
+        id: 'icp',
+        label: '京ICP备123号',
+        url: 'https://beian.miit.gov.cn/',
+        icon: '',
+      },
+      {
+        id: 'police',
+        label: '京公网安备456号',
+        url: 'https://beian.mps.gov.cn/',
+        icon: '',
+      },
+    ],
+  }
+  expect(parseFooterConfig(config)).toEqual(config)
+  expect(
+    parseFooterConfig({
+      ...config,
+      registrations: [
+        { ...config.registrations[0], url: 'javascript:alert(1)' },
+      ],
+    })
+  ).toBeNull()
+})
