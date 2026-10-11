@@ -87,7 +87,7 @@
   "Failed to load rate limit script: %v": "加载限流脚本失败: %v",
   "Failed to project plugin video for task %s": "读取任务 %s 的制品列表失败",
   "Failed to query task %s: %s": "查询任务 %s 失败: %s",
-  "Failed to resolve plugin video content for task %s": "任务 %s: 生成视频内容的下载请求失败",
+  "Failed to resolve plugin video content for task %s: %v": "任务 %s: 生成视频内容的下载请求失败: %v",
   "Failed to stream image: %v": "向客户端转发图片失败: %v",
   "Failed to stream task media: %v": "向客户端转发任务媒体文件失败: %v",
   "Failed to update task %s: %s": "更新任务 %s 失败: %s",

@@ -864,12 +864,12 @@ func TestAlibabaImageResults(t *testing.T) {
 			require.Len(t, artifacts, 2)
 			assert.Equal(t, "image-2", artifacts[1].Key)
 			assert.Equal(t, "image", artifacts[1].Type)
-			content, err := adaptor.BuildContentRequest(task, "image-2", relaychannel.TaskArtifactClientRequest{Method: http.MethodGet})
+			content, err := adaptor.BuildContentRequest(t.Context(), task, "image-2", relaychannel.TaskArtifactClientRequest{Method: http.MethodGet})
 			require.NoError(t, err)
 			assert.Equal(t, second, content.URL)
 			assert.True(t, content.Credentialless)
 			assert.Empty(t, content.Headers)
-			_, err = adaptor.BuildContentRequest(task, "image-3", relaychannel.TaskArtifactClientRequest{Method: http.MethodGet})
+			_, err = adaptor.BuildContentRequest(t.Context(), task, "image-3", relaychannel.TaskArtifactClientRequest{Method: http.MethodGet})
 			require.Error(t, err)
 			value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_responses", "renderFinal"}, map[string]any{
 				"artifacts": map[string]any{"image-1": map[string]any{"url": "/v1/tasks/task_public/artifacts/image-1/content"}, "image-2": map[string]any{"url": "/v1/tasks/task_public/artifacts/image-2/content"}},

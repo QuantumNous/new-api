@@ -1246,6 +1246,9 @@ func TestSubmitResponseTypesContract(t *testing.T) {
 		{"host JSON utility", `requiredCapabilities:["json-clone@1"],`, "", true},
 		{"SSE delta", `submitResponseTypes:["sse"],requiredCapabilities:["submit-sse-delta@1"],`, `export function parseSubmitEventDelta(){return {changes:[],state:null,done:true};}`, true},
 		{"SSE delta missing hook", `submitResponseTypes:["sse"],requiredCapabilities:["submit-sse-delta@1"],`, `export function parseSubmitEvent(){return {state:null,done:true};}`, false},
+		{"SSE delta hook without declaration", `submitResponseTypes:["sse"],`, `export function parseSubmitEventDelta(){return {changes:[],state:null,done:true};}`, true},
+		{"SSE snapshot and delta hooks", `submitResponseTypes:["sse"],`, `export function parseSubmitEvent(){return {state:null,done:true};}
+export function parseSubmitEventDelta(){return {changes:[],state:null,done:true};}`, true},
 		{"delta requires SSE", `requiredCapabilities:["submit-sse-delta@1"],`, "", false},
 		{"unsupported capability version", `requiredCapabilities:["json-clone@2"],`, "", false},
 		{"duplicate capability", `requiredCapabilities:["json-clone@1","json-clone@1"],`, "", false},

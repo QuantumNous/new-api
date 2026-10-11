@@ -1611,6 +1611,56 @@ test('an Ollama channel marks a saved OpenAI-compatible chat setting in Request 
   })
 })
 
+test('a saved upstream TLS verification skip marks Other Settings and turning it off saves the setting without it', async () => {
+  editingChannel = {
+    ...editingChannel,
+    setting: '{"tls_insecure_skip_verify":true}',
+  }
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const otherTab = screen.getByRole('tab', { name: /Other Settings/ })
+  expect(otherTab).toHaveAccessibleName(/Configured/)
+  await user.click(otherTab)
+  const toggle = screen.getByRole('switch', {
+    name: 'Skip Upstream TLS Verification',
+  })
+  expect(toggle).toBeChecked()
+  await user.click(toggle)
+  expect(toggle).not.toBeChecked()
+  expect(otherTab).not.toHaveAccessibleName(/Configured/)
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as { setting: string }
+  expect(JSON.parse(payload.setting)).not.toHaveProperty(
+    'tls_insecure_skip_verify'
+  )
+})
+
+test('turning on the upstream TLS verification skip saves it in the channel setting', async () => {
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Other Settings/ }))
+  const toggle = screen.getByRole('switch', {
+    name: 'Skip Upstream TLS Verification',
+  })
+  expect(toggle).not.toBeChecked()
+  await user.click(toggle)
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as { setting: string }
+  expect(JSON.parse(payload.setting)).toMatchObject({
+    tls_insecure_skip_verify: true,
+  })
+})
+
 test('an invalid edit switches categories and replaces configured styling with the field error', async () => {
   const user = userEvent.setup()
   render(<ConfigurationHarness currentRow={editingChannel} />)

@@ -140,7 +140,7 @@ export function buildContentRequest(ctx){return {url:ctx.baseUrl+"/content/"+ctx
 				assert.Equal(t, tc.wantAuthHeader, ctx["auth"].(map[string]any)["authHeader"], name)
 			}
 
-			content, err := adaptor.BuildContentRequest(task, "video", channel.TaskArtifactClientRequest{Method: http.MethodGet})
+			content, err := adaptor.BuildContentRequest(t.Context(), task, "video", channel.TaskArtifactClientRequest{Method: http.MethodGet})
 			require.NoError(t, err)
 			assert.Equal(t, base+"/content/"+tc.wantKind, content.URL)
 			assert.Equal(t, tc.wantAuthHeader, content.Headers["Authorization"])

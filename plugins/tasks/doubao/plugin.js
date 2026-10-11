@@ -1,22 +1,24 @@
 // Seedance capabilities from the Ark model list, not prices: the output
-// resolutions each model offers, whether it accepts reference video input
-// (Seedance 2.x prices video-to-video tokens separately) and whether audio
-// output is priced separately (Seedance 1.5 pro; generate_audio defaults to
-// true). Seedance 1.0 lite is no longer listed and keeps the 1.0 pro tiers.
+// resolutions each model offers, the longest output duration in seconds
+// (duration -1 lets Seedance 1.5 pro and 2.x pick a length up to it), whether
+// it accepts reference video input (Seedance 2.x prices video-to-video tokens
+// separately) and whether audio output is priced separately (Seedance 1.5 pro;
+// generate_audio defaults to true). Seedance 1.0 lite is no longer listed and
+// keeps the 1.0 pro tiers.
 const VIDEO_MODELS = {
-  "doubao-seedance-1-0-pro-250528": { resolutions: ["480p", "720p", "1080p"] },
-  "doubao-seedance-1-0-lite-t2v": { resolutions: ["480p", "720p", "1080p"] },
-  "doubao-seedance-1-0-lite-i2v": { resolutions: ["480p", "720p", "1080p"] },
-  "doubao-seedance-1-5-pro-251215": { resolutions: ["480p", "720p", "1080p"], audio: true },
-  "doubao-seedance-2-0-260128": { resolutions: ["480p", "720p", "1080p", "4k"], videoInput: true },
-  "doubao-seedance-2-0-fast-260128": { resolutions: ["480p", "720p"], videoInput: true },
-  "doubao-seedance-2-0-mini-260615": { resolutions: ["480p", "720p"], videoInput: true },
-  "doubao-seedance-2-5-260628": { resolutions: ["480p", "720p", "1080p"], videoInput: true },
+  "doubao-seedance-1-0-pro-250528": { resolutions: ["480p", "720p", "1080p"], maxDuration: 12 },
+  "doubao-seedance-1-0-lite-t2v": { resolutions: ["480p", "720p", "1080p"], maxDuration: 12 },
+  "doubao-seedance-1-0-lite-i2v": { resolutions: ["480p", "720p", "1080p"], maxDuration: 12 },
+  "doubao-seedance-1-5-pro-251215": { resolutions: ["480p", "720p", "1080p"], maxDuration: 12, audio: true },
+  "doubao-seedance-2-0-260128": { resolutions: ["480p", "720p", "1080p", "4k"], maxDuration: 15, videoInput: true },
+  "doubao-seedance-2-0-fast-260128": { resolutions: ["480p", "720p"], maxDuration: 15, videoInput: true },
+  "doubao-seedance-2-0-mini-260615": { resolutions: ["480p", "720p"], maxDuration: 15, videoInput: true },
+  "doubao-seedance-2-5-260628": { resolutions: ["480p", "720p", "1080p"], maxDuration: 30, videoInput: true },
 };
 // Every Ark resolution tier; an endpoint ID reached through channel mapping
-// without a declared profile keeps them all.
+// without a declared profile keeps them all and the longest Seedance duration.
 const SEEDANCE_RESOLUTIONS = ["480p", "720p", "1080p", "4k"];
-const DEFAULT_VIDEO_PROFILE = { resolutions: SEEDANCE_RESOLUTIONS, videoInput: true };
+const DEFAULT_VIDEO_PROFILE = { resolutions: SEEDANCE_RESOLUTIONS, maxDuration: 30, videoInput: true };
 
 // Protocol capabilities from the Ark image generation API reference, not prices.
 // presets: accepted `size` resolution tiers; minPixels/maxPixels bound `WxH` sizes.
@@ -301,12 +303,13 @@ export const meta = {
     en: "Volcengine Doubao Seedance video generation and Seedream image generation",
     zh: "火山引擎豆包 Seedance 视频生成与 Seedream 图片生成",
   },
-  version: "1.2.1",
+  version: "1.3.0",
   author: { name: "QuantumNous" },
   channelTypes: [54, 45], // VolcEngine-type channels serve Ark video models with the same wire format
   models: Object.keys(VIDEO_MODELS).concat(Object.keys(IMAGE_MODELS)),
   fetchMode: "per_task",
   upstreams: ["vendor", "new_api"],
+  requiredCapabilities: ["duration-auto@1"],
   usageSchema: seedanceUsageSchema(DEFAULT_VIDEO_PROFILE),
   usageExamples: seedanceUsageExamples(DEFAULT_VIDEO_PROFILE),
   usageProfiles: capabilityUsageProfiles(VIDEO_MODELS, seedanceUsageSchema, seedanceUsageExamples).concat(
@@ -811,8 +814,9 @@ export function buildSubmitRequest(ctx) {
   const hasReference = body.content.length > 0;
   if (trimmed(req.prompt) || !hasReference) body.content.push({ type: "text", text: req.prompt || "" });
   if (Array.isArray(body.content)) body.content = rewriteDraftTaskContent(body.content, ctx.originTasks);
+  // -1 lets the model pick the length; extractUsage reserves the longest one.
   const seconds = Number.parseInt(req.seconds || "", 10);
-  if (seconds > 0) body.duration = seconds;
+  if (seconds > 0 || seconds === -1) body.duration = seconds;
   body.model = ctx.upstreamModel || body.model;
   return {
     url: apiRoot(ctx) + "/api/v3/contents/generations/tasks",
@@ -856,14 +860,16 @@ export function extractUsage(ctx) {
     const ratio = videoInputRatio(ctx.upstreamModel || ctx.model, metadata.resolution, metadata.content);
     return ratio === 1 ? null : { video_input_ratio: ratio };
   }
+  const profile = videoProfile(ctx);
+  // A missing duration or -1 (the model picks the length; Seedance 2.5
+  // defaults to it) reserves the longest duration the model can produce.
   let seconds = Number(req.seconds || req.duration || metadata.duration || 0);
   if (!Number.isFinite(seconds) || seconds <= 0) {
     const frames = Number(metadata.frames);
-    seconds = Number.isFinite(frames) && frames > 0 ? Math.floor(frames / 24) : 15;
+    seconds = Number.isFinite(frames) && frames > 0 ? Math.floor(frames / 24) : profile.maxDuration;
   }
   if (seconds <= 0) seconds = 5;
   seconds = Math.min(seconds, 3600);
-  const profile = videoProfile(ctx);
   const resolution = videoResolution(ctx);
   const facts = { tokens: estimateTokens(seconds, resolution), resolution: resolution };
   // Every model reports video_input, including those whose profile omits it:
@@ -1154,13 +1160,16 @@ protocols.openai_video = {
       if (!ctx.body.value || Array.isArray(ctx.body.value)) throw new Error("JSON object required");
       const req = ctx.body.value;
       const seconds = req.seconds === undefined ? req.duration : req.seconds;
-      if (seconds !== undefined && (!Number.isFinite(Number(seconds)) || Number(seconds) <= 0 || Number(seconds) > 3600))
-        throw new Error("seconds must be between 1 and 3600");
+      if (seconds !== undefined && Number(seconds) !== -1 && (!Number.isFinite(Number(seconds)) || Number(seconds) <= 0 || Number(seconds) > 3600))
+        throw new Error("seconds must be -1 or between 1 and 3600");
+      const requestBody = Object.assign({}, req, { model: ctx.model });
+      // buildSubmitRequest reads seconds; duration is accepted as its alias.
+      if (seconds !== undefined) requestBody.seconds = seconds;
       return {
         kind: "submit",
         model: ctx.model,
         action: req.input_reference || req.image ? "image_to_video" : "text_to_video",
-        requestBody: Object.assign({}, req, { model: ctx.model }),
+        requestBody: requestBody,
       };
     }
     const first = function (name) {
@@ -1187,8 +1196,8 @@ protocols.openai_video = {
     if (req.seconds !== undefined) req.seconds = Number(req.seconds);
     else if (req.duration !== undefined) req.seconds = Number(req.duration);
     const seconds = req.seconds === undefined ? req.duration : req.seconds;
-    if (seconds !== undefined && (!Number.isFinite(Number(seconds)) || Number(seconds) <= 0 || Number(seconds) > 3600))
-      throw new Error("seconds must be between 1 and 3600");
+    if (seconds !== undefined && Number(seconds) !== -1 && (!Number.isFinite(Number(seconds)) || Number(seconds) <= 0 || Number(seconds) > 3600))
+      throw new Error("seconds must be -1 or between 1 and 3600");
     return {
       kind: "submit",
       model: ctx.model,

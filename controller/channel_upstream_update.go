@@ -347,7 +347,8 @@ func getFetchModelsResponseBody(method string, requestURL string, channel *model
 			request.Host = headers.Get(name)
 		}
 	}
-	client, err := service.NewProxyHttpClient(channel.GetSetting().Proxy)
+	setting := channel.GetSetting()
+	client, err := service.GetHttpClientWithProxySettings(setting.Proxy, setting)
 	if err != nil {
 		return nil, err
 	}
@@ -392,7 +393,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 			return nil, fmt.Errorf("failed to get channel key: %w", apiErr)
 		}
 		key = strings.TrimSpace(key)
-		models, err := gemini.FetchGeminiModels(baseURL, key, channel.GetSetting().Proxy)
+		models, err := gemini.FetchGeminiModels(baseURL, key, channel.GetSetting())
 		if err != nil {
 			return nil, err
 		}

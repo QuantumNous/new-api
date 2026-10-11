@@ -62,7 +62,7 @@ export const meta = {
     en: "MiniMax Hailuo video generation (text-to-video, image-to-video, and MiniMax-H3 multimodal reference)",
     zh: "MiniMax 海螺视频生成（文生视频、图生视频、MiniMax-H3 多模态参考生视频）",
   },
-  version: "1.2.0",
+  version: "1.2.1",
   author: { name: "QuantumNous" },
   channelTypes: [35],
   models: [
@@ -600,11 +600,23 @@ export function buildContentRequest(ctx) {
     if (!url) throw new Error("artifact_not_found");
     return { url: url, method: ctx.clientRequest.method, credentialless: true };
   }
-  return {
-    url: ctx.baseUrl + "/v1/files/download?file_id=" + encodeURIComponent(fileID),
-    method: ctx.clientRequest.method,
-    headers: { Accept: "video/*", Authorization: "Bearer " + ctx.apiKey },
-  };
+  // MiniMax serves v1 videos only through the signed download_url that
+  // /v1/files/retrieve returns. The link is signed for GET, so a HEAD client
+  // is served with GET as well; the host sends that client the headers only.
+  const response = utils.fetch({
+    url: ctx.baseUrl + "/v1/files/retrieve?file_id=" + encodeURIComponent(fileID),
+    headers: { Accept: "application/json", Authorization: "Bearer " + ctx.apiKey },
+  });
+  if (!response.body || typeof response.body !== "object") {
+    throw new Error("MiniMax file retrieve returned an unexpected response: HTTP " + response.status);
+  }
+  const base = response.body.base_resp || {};
+  if (response.status !== 200 || base.status_code) {
+    throw new Error("MiniMax file retrieve failed: " + (base.status_msg || "HTTP " + response.status));
+  }
+  const url = trimmed(response.body.file && response.body.file.download_url);
+  if (!url) throw new Error("artifact_not_found");
+  return { url: url, method: "GET", credentialless: true };
 }
 
 export function extractUsageOnComplete(_task, _taskResult, body) {

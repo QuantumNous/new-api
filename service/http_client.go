@@ -333,6 +333,9 @@ func newTransportFactory(proxyURL *url.URL, tlsConfig *tls.Config) (func() *http
 }
 
 func newHTTPClientFromPolicy(policy HTTPTransportPolicy, proxyURL *url.URL, tlsConfig *tls.Config) (*http.Client, error) {
+	if policy.TLSInsecureSkipVerify {
+		tlsConfig = common.InsecureTLSConfig
+	}
 	factory, err := newTransportFactory(proxyURL, tlsConfig)
 	if err != nil {
 		return nil, err

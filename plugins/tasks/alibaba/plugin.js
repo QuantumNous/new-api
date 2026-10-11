@@ -222,7 +222,7 @@ export const meta = {
     en: "Alibaba Cloud Bailian image and video generation (Wan, Qwen-Image, Z-Image)",
     zh: "阿里云百炼图片与视频生成（万相、千问图像、Z-Image）",
   },
-  version: "1.4.1",
+  version: "1.4.2",
   author: { name: "QuantumNous" },
   channelTypes: [17],
   // Literal metadata also supports the dashboard's static script preview.
@@ -277,7 +277,7 @@ export const meta = {
   fetchMode: "per_task",
   upstreams: ["vendor", "new_api"],
   submitResponseTypes: ["json", "sse"],
-  requiredCapabilities: ["json-clone@1", "submit-sse-delta@1"],
+  requiredCapabilities: ["duration-auto@1"],
   usageSchema: { ...WAN_IMAGE_USAGE_SCHEMA, ...wanVideoUsageSchema(WAN_VIDEO_RESOLUTIONS, false) },
   usageProfiles: [
     {
@@ -703,8 +703,9 @@ function objectValue(value, name) {
   return value;
 }
 
-// The host rejects negative canonical duration/seconds facts before any hook
-// runs, so wan3.0's "-1 = smart duration" sentinel travels as a boolean marker.
+// Decoders fold wan3.0's "-1 = smart duration" sentinel, wherever the client
+// put it, into one boolean marker; convert sends -1 upstream and extractUsage
+// reserves 30 seconds, the longest wan3.0 output, for it.
 function normalizeRequest(value) {
   const req = Object.assign({}, value);
   const metadata = objectValue(req.metadata, "metadata");

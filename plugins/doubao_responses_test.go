@@ -393,6 +393,67 @@ func TestDoubaoSeedanceUsageFacts(t *testing.T) {
 		})
 	}
 
+	// Ark reads duration -1 as "the model picks the length" (Seedance 1.5 pro
+	// and 2.x; 2.5 also defaults to it). The reservation covers the longest
+	// output: 720p is 1280 × 720 × 24 / 1024 = 21,600 tokens per second.
+	t.Run("duration -1 reaches Ark and reserves the longest duration", func(t *testing.T) {
+		for _, tc := range []struct {
+			name         string
+			model        string
+			request      any
+			wantDuration any
+			wantTokens   float64
+		}{
+			{"2.5 metadata on /v1/video/generations", v25, relaycommon.TaskSubmitReq{
+				Model: v25, Prompt: "a cat", Metadata: map[string]any{"duration": -1, "resolution": "720p"},
+			}, float64(-1), 30 * 21600},
+			{"2.5 without a duration keeps the Ark default", v25, map[string]any{
+				"model": v25, "prompt": "a cat", "metadata": map[string]any{"resolution": "720p"},
+			}, nil, 30 * 21600},
+			{"2.0 seconds from Responses or /v1/videos", v20, map[string]any{
+				"model": v20, "prompt": "a cat", "seconds": -1, "metadata": map[string]any{"resolution": "720p"},
+			}, float64(-1), 15 * 21600},
+			{"1.5 pro", pro15, map[string]any{
+				"model": pro15, "prompt": "a cat", "metadata": map[string]any{"duration": -1, "resolution": "720p"},
+			}, float64(-1), 12 * 21600},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				info := &relaycommon.RelayInfo{
+					ChannelMeta:     &relaycommon.ChannelMeta{ChannelBaseUrl: doubaoBaseURL, UpstreamModelName: tc.model},
+					OriginModelName: tc.model,
+					TaskRelayInfo:   &relaycommon.TaskRelayInfo{PublicTaskID: "task_public", Action: "text_to_video"},
+				}
+				adaptor := taskplugin.New(plugin)
+				adaptor.Init(info)
+				c, _ := gin.CreateTestContext(httptest.NewRecorder())
+				c.Request = httptest.NewRequest(http.MethodPost, "/v1/video/generations", nil)
+				c.Set("task_request", tc.request)
+				require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+				reader, err := adaptor.BuildRequestBody(c, info)
+				require.NoError(t, err)
+				encoded, err := io.ReadAll(reader)
+				require.NoError(t, err)
+				var body map[string]any
+				require.NoError(t, common.Unmarshal(encoded, &body))
+				assert.Equal(t, tc.wantDuration, body["duration"])
+				facts, err := adaptor.ExtractUsageFactsValidated(c, info)
+				require.NoError(t, err)
+				assert.Equal(t, tc.wantTokens, facts["tokens"])
+			})
+		}
+
+		decode := func(body map[string]any) (any, error) {
+			return plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_video", "decodeRequest"}, map[string]any{
+				"model": v20, "body": map[string]any{"kind": "json", "value": body},
+			})
+		}
+		value, err := decode(map[string]any{"model": v20, "prompt": "a cat", "duration": -1})
+		require.NoError(t, err)
+		assert.Equal(t, float64(-1), alibabaObject(t, value)["requestBody"].(map[string]any)["seconds"])
+		_, err = decode(map[string]any{"model": v20, "prompt": "a cat", "seconds": -2})
+		require.ErrorContains(t, err, "seconds must be -1 or between 1 and 3600")
+	})
+
 	t.Run("completion overlays only resolutions the model offers", func(t *testing.T) {
 		for _, tc := range []struct {
 			model      string

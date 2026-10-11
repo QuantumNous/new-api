@@ -32,6 +32,9 @@ type ChannelSettings struct {
 	// HTTP2ConnectionShards spreads HTTP/2 traffic across N independent transports
 	// (1-8). Zero/unset means 1. Ignored when HTTPProtocol is "http1".
 	HTTP2ConnectionShards int `json:"http2_connection_shards,omitempty"`
+	// TLSInsecureSkipVerify accepts upstream certificates that fail
+	// verification, such as self-signed ones, for this channel only.
+	TLSInsecureSkipVerify bool `json:"tls_insecure_skip_verify,omitempty"`
 }
 
 // BindsTaskPlugin reports whether the channel is bound to the task plugin,
