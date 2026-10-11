@@ -421,6 +421,41 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 	return availableBalanceUsd, nil
 }
 
+func updateChannelSub2APIBalance(channel *model.Channel) (float64, error) {
+	baseURL := channel.GetBaseURL()
+	if baseURL == "" {
+		return 0, errors.New("Sub2API channel is missing base_url")
+	}
+	url := fmt.Sprintf("%s/v1/usage", strings.TrimRight(baseURL, "/"))
+	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	if err != nil {
+		return 0, err
+	}
+
+	type sub2apiUsageResponse struct {
+		Balance   *float64 `json:"balance"`
+		Remaining *float64 `json:"remaining"`
+		IsValid   *bool    `json:"isValid"`
+	}
+	usage := sub2apiUsageResponse{}
+	if err := common.Unmarshal(body, &usage); err != nil {
+		return 0, err
+	}
+
+	balance := usage.Remaining
+	if balance == nil {
+		balance = usage.Balance
+	}
+	if balance == nil {
+		return 0, errors.New("Sub2API /v1/usage response is missing remaining and balance fields (the key may belong to a subscription group without an available balance)")
+	}
+	if usage.IsValid != nil && !*usage.IsValid {
+		return 0, errors.New("Sub2API key is invalid (isValid=false)")
+	}
+	channel.UpdateBalance(*balance)
+	return *balance, nil
+}
+
 func fetchAdvancedCustomBalance(channel *model.Channel) (channelBalanceResult, error) {
 	key := strings.TrimSpace(channel.Key)
 	info := &relaycommon.RelayInfo{
@@ -545,6 +580,8 @@ func updateStandardChannelBalance(channel *model.Channel) (float64, error) {
 		return updateChannelOpenRouterBalance(channel)
 	case constant.ChannelTypeMoonshot:
 		return updateChannelMoonshotBalance(channel)
+	case constant.ChannelTypeSub2API:
+		return updateChannelSub2APIBalance(channel)
 	default:
 		return 0, common.NewMessage("Not implemented yet")
 	}
