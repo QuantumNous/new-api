@@ -103,7 +103,7 @@ export async function getUserQuotaDates(
 // Distinct key names / models that have consumption rows in the window. Used
 // by the consumption chart's inline quick filters.
 export async function getQuotaDataDimensions(
-  params: { start_timestamp: number; end_timestamp: number },
+  params?: { start_timestamp?: number; end_timestamp?: number },
   isAdmin = false
 ): Promise<{
   success: boolean

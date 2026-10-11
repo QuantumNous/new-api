@@ -47,6 +47,20 @@ type QuotaDataLogParams struct {
 	InputTokensTotal int
 }
 
+// QuotaDataDimension is one pre-aggregated (user, key, model) triple that has
+// consumption. The dashboard's quick-filter dropdowns read this small table
+// instead of running DISTINCT scans over quota_data, which is what made the
+// dashboard time out on large datasets. It is maintained incrementally by
+// SaveQuotaDataCache and backfilled from history on startup/migration.
+type QuotaDataDimension struct {
+	ID          int    `json:"id" gorm:"primaryKey"`
+	UserID      int    `json:"user_id" gorm:"uniqueIndex:idx_qdd_user_key_model,priority:1"`
+	TokenName   string `json:"token_name" gorm:"uniqueIndex:idx_qdd_user_key_model,priority:2;size:64;default:''"`
+	ModelName   string `json:"model_name" gorm:"uniqueIndex:idx_qdd_user_key_model,priority:3;size:64;default:''"`
+	LastSeenAt  int64  `json:"last_seen_at" gorm:"bigint"`
+	TokenNameID int    `json:"token_id" gorm:"index;default:0"`
+}
+
 func UpdateQuotaData() {
 	for {
 		if common.DataExportEnabled {
@@ -134,9 +148,86 @@ func SaveQuotaDataCache() {
 		} else {
 			DB.Table("quota_data").Create(quotaData)
 		}
+		upsertQuotaDataDimension(quotaData)
 	}
 	CacheQuotaData = make(map[string]*QuotaData)
 	common.SysLog(fmt.Sprintf("保存数据看板数据成功，共保存%d条数据", size))
+}
+
+// upsertQuotaDataDimension keeps the pre-aggregated dimension table in sync
+// with the flushed quota_data rows. A token's display name is resolved once
+// per flush here (not per dropdown read); unknown token ids are stored with
+// an empty name and refreshed by the next backfill after the token appears.
+func upsertQuotaDataDimension(quotaData *QuotaData) {
+	tokenName := ""
+	if quotaData.TokenID != 0 {
+		token := &Token{}
+		if err := DB.Select("name").Where("id = ?", quotaData.TokenID).First(token).Error; err == nil {
+			tokenName = token.Name
+		}
+	}
+	now := time.Now().Unix()
+	var existing QuotaDataDimension
+	err := DB.Where("user_id = ? AND token_name = ? AND model_name = ?",
+		quotaData.UserID, tokenName, quotaData.ModelName).First(&existing).Error
+	if err == nil {
+		if existing.LastSeenAt < now {
+			DB.Model(&existing).Update("last_seen_at", now)
+		}
+		return
+	}
+	DB.Create(&QuotaDataDimension{
+		UserID:      quotaData.UserID,
+		TokenName:   tokenName,
+		ModelName:   quotaData.ModelName,
+		LastSeenAt:  now,
+		TokenNameID: quotaData.TokenID,
+	})
+}
+
+// BackfillQuotaDataDimensions rebuilds the dimension table from historical
+// quota_data rows. It is idempotent: existing triples keep their newest
+// last_seen_at, new ones are inserted. Intended for startup/migration, where
+// the table may be missing rows written before this table existed.
+func BackfillQuotaDataDimensions() (int64, error) {
+	res := DB.Exec(`
+INSERT INTO quota_data_dimensions (user_id, token_name, model_name, last_seen_at, token_name_id)
+SELECT q.user_id, COALESCE(t.name, ''), q.model_name, MAX(q.created_at), MAX(q.token_id)
+FROM quota_data q
+LEFT JOIN tokens t ON t.id = q.token_id
+WHERE q.token_id > 0
+GROUP BY q.user_id, COALESCE(t.name, ''), q.model_name
+ON CONFLICT (user_id, token_name, model_name)
+DO UPDATE SET last_seen_at = GREATEST(quota_data_dimensions.last_seen_at, EXCLUDED.last_seen_at)
+`)
+	return res.RowsAffected, res.Error
+}
+
+// GetQuotaDataDimensionsFast reads the pre-aggregated table. user_id=0 means
+// all users (admin view). The time-range parameters of the old live-scan API
+// are intentionally gone: the table represents dimensions that have any
+// consumption, which is what the pickers want.
+func GetQuotaDataDimensionsFast(userId int) (dims QuotaDataDimensions, err error) {
+	tokenNames := []string{}
+	tx := DB.Table("quota_data_dimensions").Select("DISTINCT token_name")
+	if userId != 0 {
+		tx = tx.Where("user_id = ?", userId)
+	}
+	if err = tx.Where("token_name != ''").Order("token_name").Pluck("token_name", &tokenNames).Error; err != nil {
+		return dims, err
+	}
+	dims.Keys = tokenNames
+
+	modelTx := DB.Table("quota_data_dimensions").Select("DISTINCT model_name")
+	if userId != 0 {
+		modelTx = modelTx.Where("user_id = ?", userId)
+	}
+	models := []string{}
+	if err = modelTx.Where("model_name != ''").Order("model_name").Pluck("model_name", &models).Error; err != nil {
+		return dims, err
+	}
+	dims.Models = models
+	return dims, nil
 }
 
 func increaseQuotaData(quotaData *QuotaData) {
