@@ -352,6 +352,14 @@ func migrateDB() error {
 	if err := removeLegacyChannelMonitorAvailabilityColumns(); err != nil {
 		return err
 	}
+	// Pre-aggregate dashboard filter dimensions once per boot; incremental
+	// upkeep happens in SaveQuotaDataCache afterwards. Rows written before
+	// this table existed are picked up here.
+	if n, err := BackfillQuotaDataDimensions(); err != nil {
+		common.SysLog("quota_data_dimensions backfill failed: " + err.Error())
+	} else if n > 0 {
+		common.SysLog(fmt.Sprintf("quota_data_dimensions backfill touched %d rows", n))
+	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
 			return err
@@ -476,14 +484,6 @@ func migrateDBFast() error {
 	}
 	if err := removeLegacyChannelMonitorAvailabilityColumns(); err != nil {
 		return err
-	}
-	// Pre-aggregate dashboard filter dimensions once per boot; incremental
-	// upkeep happens in SaveQuotaDataCache afterwards. Rows written before
-	// this table existed are picked up here.
-	if n, err := BackfillQuotaDataDimensions(); err != nil {
-		common.SysLog("quota_data_dimensions backfill failed: " + err.Error())
-	} else if n > 0 {
-		common.SysLog(fmt.Sprintf("quota_data_dimensions backfill touched %d rows", n))
 	}
 	common.SysLog("database migrated")
 	if err := EnsureDefaultUserGroup(); err != nil {
