@@ -81,6 +81,16 @@ func ApplyReasoning(ctx context.Context, req *dto.ClaudeRequest, info convmeta.M
 			intent.Effort = reasoning.EffortHigh
 		}
 	}
+	requestEffort, err := reasoning.ParseEffort(req.GetEfforts())
+	if err != nil {
+		return err
+	}
+	if knownClaudeModel && intent.Mode == reasoning.ModeDisabled && (intent.Effort == "" || intent.Effort == reasoning.EffortNone) &&
+		requestEffort != "" && requestEffort != reasoning.EffortNone {
+		// Effort works without thinking, so the request's own effort is
+		// rendered for the thinking-off state rather than left unchecked.
+		intent.Effort = requestEffort
+	}
 	if req.MaxTokens == nil && intent.HasStrength() {
 		// Adapter-provided defaults may be raised to accommodate an exact
 		// cross-protocol budget. Values too small for manual thinking are
@@ -117,7 +127,14 @@ func ApplyReasoning(ctx context.Context, req *dto.ClaudeRequest, info convmeta.M
 	if rendered.Thinking != nil {
 		req.Thinking = rendered.Thinking
 	}
-	if rendered.OutputEffort != "" {
+	outputEffort := rendered.OutputEffort
+	// An effort the request still carries reaches a known model only at a
+	// level it accepts, and is removed where the model takes none.
+	rewriteRequestEffort := outputEffort == "" && knownClaudeModel && requestEffort != ""
+	if rewriteRequestEffort {
+		outputEffort = reasoning.ClaudeEffort(capabilityModel, requestEffort)
+	}
+	if outputEffort != "" || rewriteRequestEffort {
 		outputConfig := make(map[string]any)
 		if len(req.OutputConfig) > 0 {
 			if kitutil.GetJsonType(req.OutputConfig) != "object" {
@@ -130,12 +147,20 @@ func ApplyReasoning(ctx context.Context, req *dto.ClaudeRequest, info convmeta.M
 				outputConfig = make(map[string]any)
 			}
 		}
-		outputConfig["effort"] = string(rendered.OutputEffort)
-		encoded, err := kitutil.Marshal(outputConfig)
-		if err != nil {
-			return fmt.Errorf("failed to marshal Claude output_config: %w", err)
+		if outputEffort != "" {
+			outputConfig["effort"] = string(outputEffort)
+		} else {
+			delete(outputConfig, "effort")
 		}
-		req.OutputConfig = encoded
+		if len(outputConfig) == 0 {
+			req.OutputConfig = nil
+		} else {
+			encoded, err := kitutil.Marshal(outputConfig)
+			if err != nil {
+				return fmt.Errorf("failed to marshal Claude output_config: %w", err)
+			}
+			req.OutputConfig = encoded
+		}
 	}
 	if rendered.ClearSampling {
 		if req.Temperature != nil || req.TopP != nil || req.TopK != nil {
