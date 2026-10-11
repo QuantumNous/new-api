@@ -27,6 +27,7 @@ func TestDesktopV2ConnectCodeRoutesRequireExpectedAuthority(t *testing.T) {
 	issueReq.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(issue, issueReq)
 	assert.Equal(t, http.StatusUnauthorized, issue.Code)
+	assert.Contains(t, issue.Body.String(), "session_required")
 
 	exchange := httptest.NewRecorder()
 	exchangeReq := httptest.NewRequest(http.MethodPost, "/api/desktop/v2/connect-codes/exchange", strings.NewReader(`{"code":"`+strings.Repeat("a", 48)+`"}`))

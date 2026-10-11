@@ -476,6 +476,6 @@ func registerDesktopRoutes(apiRouter *gin.RouterGroup) {
 	desktopV2Route.POST("/sessions/refresh", middleware.CriticalRateLimit(), middleware.DisableCache(), middleware.AnonymousRequestBodyLimit(), controller.RefreshDesktopSession)
 	desktopV2Route.DELETE("/sessions/current", middleware.UserAuth(), middleware.CriticalRateLimit(), middleware.DisableCache(), controller.RevokeCurrentDesktopSession)
 	desktopV2Route.GET("/notices", middleware.UserAuth(), middleware.DisableCache(), controller.GetDesktopNotices)
-	desktopV2Route.POST("/connect-codes", middleware.UserAuth(), middleware.CriticalRateLimit(), middleware.DisableCache(), controller.IssueDesktopConnectCode)
+	desktopV2Route.POST("/connect-codes", middleware.TryUserAuth(), middleware.CriticalRateLimit(), middleware.DisableCache(), controller.IssueDesktopConnectCode)
 	desktopV2Route.POST("/connect-codes/exchange", middleware.CriticalRateLimit(), middleware.DisableCache(), middleware.AnonymousRequestBodyLimit(), controller.ExchangeDesktopConnectCode)
 }

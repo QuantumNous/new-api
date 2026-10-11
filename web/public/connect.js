@@ -2,6 +2,24 @@
   "use strict";
   const CONNECT_CODES_ISSUE_PATH = "/api/desktop/v2/connect-codes";
   const DEFAULT_DOWNLOAD_URL = "https://yeschoy.com/download";
+  const SESSION_REQUIRED_CODES = new Set([
+    "session_required",
+    "AUTH_UNAUTHORIZED",
+    "AUTH_TOKEN_EXPIRED",
+    "AUTH_SESSION_REVOKED"
+  ]);
+  function normalizeConnectIssueReasonCode(code, httpStatus) {
+    const normalized = typeof code === "string" ? code.trim() : "";
+    if (SESSION_REQUIRED_CODES.has(normalized)) {
+      return "session_required";
+    }
+    if (httpStatus === 401) {
+      if (!normalized || normalized.startsWith("AUTH_")) {
+        return "session_required";
+      }
+    }
+    return normalized || "issue_failed";
+  }
   class YeschoyConnectError extends Error {
     constructor(reasonCode, httpStatus) {
       super(reasonCode);
@@ -33,14 +51,20 @@
     try {
       body = await response.json();
     } catch {
-      throw new YeschoyConnectError("issue_invalid_response", response.status);
+      throw new YeschoyConnectError(
+        normalizeConnectIssueReasonCode("", response.status),
+        response.status
+      );
     }
     if (!body || typeof body !== "object" || !("success" in body)) {
       throw new YeschoyConnectError("issue_invalid_response", response.status);
     }
     const envelope = body;
     if (!envelope.success) {
-      throw new YeschoyConnectError(envelope.code ?? "issue_failed", response.status);
+      throw new YeschoyConnectError(
+        normalizeConnectIssueReasonCode(envelope.code, response.status),
+        response.status
+      );
     }
     const data = envelope.data;
     if (!data || typeof data !== "object") {
@@ -120,6 +144,7 @@
     return {
       issuePath,
       downloadUrl,
+      normalizeIssueReasonCode: normalizeConnectIssueReasonCode,
       open,
       bindAuto
     };

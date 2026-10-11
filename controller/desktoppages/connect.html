@@ -175,7 +175,9 @@
         ? {
             issuing: "正在申请连接…",
             opening: "正在打开桌面助手…",
-            session_required: "请先登录本站，再重试。",
+            session_required: "请先登录本站，再连接桌面助手。",
+            sign_in: "登录本站",
+            connect: "打开桌面助手",
             connect_origin_not_https: "此页面须通过 HTTPS 访问。",
             issue_failed: "暂时无法连接，请稍后重试。",
             generic: "连接未完成，请重试。",
@@ -183,22 +185,78 @@
         : {
             issuing: "Requesting connection…",
             opening: "Opening the desktop app…",
-            session_required: "Sign in on this site first, then try again.",
+            session_required: "Sign in on this site before connecting the desktop app.",
+            sign_in: "Sign in",
+            connect: "Open YesChoy desktop",
             connect_origin_not_https: "This page must be served over HTTPS.",
             issue_failed: "Could not connect right now. Try again shortly.",
             generic: "Connection did not finish. Try again.",
           };
 
-      btn.addEventListener("click", function () {
-        setStatus(messages.issuing, false);
-        btn.disabled = true;
-      });
+      var loginMode = false;
+      var connectApi = null;
+
+      function buildConnectReturnPath() {
+        return window.location.pathname + window.location.search;
+      }
+
+      function buildSignInUrl() {
+        var redirect = encodeURIComponent(buildConnectReturnPath());
+        return "/sign-in?redirect=" + redirect;
+      }
+
+      function normalizeReasonCode(err) {
+        if (!err) return "issue_failed";
+        var code = err.reasonCode ? String(err.reasonCode) : "issue_failed";
+        if (
+          connectApi &&
+          typeof connectApi.normalizeIssueReasonCode === "function"
+        ) {
+          return connectApi.normalizeIssueReasonCode(
+            code,
+            err.httpStatus || 0
+          );
+        }
+        return code;
+      }
+
+      function enterLoginRequiredMode() {
+        loginMode = true;
+        btn.textContent = messages.sign_in;
+        btn.disabled = false;
+        setStatus(messages.session_required, true);
+      }
+
+      function enterConnectMode() {
+        loginMode = false;
+        btn.textContent = messages.connect;
+        btn.disabled = false;
+        setStatus("", false);
+      }
+
+      btn.addEventListener(
+        "click",
+        function (event) {
+          if (loginMode) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            window.location.assign(buildSignInUrl());
+            return;
+          }
+          setStatus(messages.issuing, false);
+          btn.disabled = true;
+        },
+        true
+      );
 
       btn.addEventListener("yeschoy-connect-error", function (event) {
         btn.disabled = false;
         var err = event.detail;
-        var code =
-          err && err.reasonCode ? String(err.reasonCode) : "issue_failed";
+        var code = normalizeReasonCode(err);
+        if (code === "session_required") {
+          enterLoginRequiredMode();
+          return;
+        }
         var text = messages[code] || messages.generic;
         setStatus(text, true);
       });
@@ -208,6 +266,45 @@
           setStatus(messages.opening, false);
         }
       });
+
+      function shouldAutoConnect() {
+        return new URLSearchParams(window.location.search).get("auto") === "1";
+      }
+
+      function probeBrowserSession() {
+        return fetch("/api/user/self", {
+          method: "GET",
+          credentials: "include",
+        }).then(function (response) {
+          if (response.status === 401) {
+            enterLoginRequiredMode();
+            return false;
+          }
+          if (!response.ok) {
+            return false;
+          }
+          enterConnectMode();
+          return true;
+        });
+      }
+
+      function initConnectPage() {
+        connectApi = window.YeschoyConnect;
+        if (!connectApi) return;
+        window.setTimeout(function () {
+          probeBrowserSession().then(function (signedIn) {
+            if (signedIn && shouldAutoConnect()) {
+              btn.click();
+            }
+          });
+        }, 0);
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initConnectPage);
+      } else {
+        initConnectPage();
+      }
     })();
   </script>
 </body>
