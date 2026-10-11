@@ -209,7 +209,11 @@ DO UPDATE SET last_seen_at = GREATEST(quota_data_dimensions.last_seen_at, EXCLUD
 // consumption, which is what the pickers want.
 func GetQuotaDataDimensionsFast(userId int) (dims QuotaDataDimensions, err error) {
 	tokenNames := []string{}
-	tx := DB.Table("quota_data_dimensions").Select("DISTINCT token_name")
+	// Only keys that are currently active are offered in the pickers; keys
+	// disabled/expired/exhausted stay in the data but drop out of the lists.
+	tx := DB.Table("quota_data_dimensions").
+		Select("DISTINCT token_name").
+		Joins("JOIN tokens ON tokens.id = quota_data_dimensions.token_name_id AND tokens.status = 1 AND tokens.name = quota_data_dimensions.token_name")
 	if userId != 0 {
 		tx = tx.Where("user_id = ?", userId)
 	}
