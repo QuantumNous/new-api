@@ -297,6 +297,28 @@ export function ModelsFilter(props: ModelsFilterProps) {
               </div>
             </>
           )}
+
+          <SectionDivider label={t('Dimension Filters')} />
+
+          <div className='grid gap-2'>
+            <Label htmlFor='token_name'>{t('Key Name')}</Label>
+            <Input
+              id='token_name'
+              placeholder={t('Filter by key name, e.g. jesu-gpt')}
+              value={filters.token_name}
+              onChange={(e) => handleChange('token_name', e.target.value)}
+            />
+          </div>
+
+          <div className='grid gap-2'>
+            <Label htmlFor='model_name'>{t('Model Name')}</Label>
+            <Input
+              id='model_name'
+              placeholder={t('Filter by model, e.g. gpt-5.6-sol')}
+              value={filters.model_name}
+              onChange={(e) => handleChange('model_name', e.target.value)}
+            />
+          </div>
         </div>
       </ScrollArea>
     </Dialog>

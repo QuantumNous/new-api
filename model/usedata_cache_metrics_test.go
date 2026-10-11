@@ -100,7 +100,7 @@ func TestQuotaDataCacheSumRoundTripsThroughDatabase(t *testing.T) {
 		InputTokensTotal: 200,
 	}).Error)
 
-	rows, err := GetQuotaDataByUserId(42, 1_779_999_999, 1_780_000_100)
+	rows, err := GetQuotaDataByUserId(42, 1_779_999_999, 1_780_000_100, "", "")
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	require.Equal(t, 800, rows[0].CacheReadTokens)

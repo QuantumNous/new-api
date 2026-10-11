@@ -37,7 +37,7 @@ func TestQuotaDataMigrationAddsCacheColumnsToLegacyTable(t *testing.T) {
 	require.True(t, DB.Migrator().HasColumn(&QuotaData{}, "cache_read_tokens"))
 	require.True(t, DB.Migrator().HasColumn(&QuotaData{}, "input_tokens_total"))
 
-	rows, err := GetQuotaDataByUserId(5, 1_699_999_999, 1_700_000_100)
+	rows, err := GetQuotaDataByUserId(5, 1_699_999_999, 1_700_000_100, "", "")
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 

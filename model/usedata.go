@@ -166,14 +166,39 @@ func GetQuotaDataByUsername(username string, startTime int64, endTime int64) (qu
 	return quotaDatas, err
 }
 
-func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+// quotaDataTokenNameJoin narrows quota_data rows to tokens whose name matches
+// the dashboard's key filter. quota_data stores token ids only, so the name is
+// resolved through the tokens table at read time; unknown or renamed keys
+// simply match nothing.
+func quotaDataTokenNameJoin(tx *gorm.DB, tokenName string) *gorm.DB {
+	if tokenName == "" {
+		return tx
+	}
+	return tx.Where("token_id IN (?)",
+		DB.Table("tokens").Select("id").Where("name = ?", tokenName),
+	)
+}
+
+// quotaDataFilteredBy applies the dashboard's optional key-name and model
+// name filters to a quota_data query. Both are exact matches, mirroring how
+// the username filter behaves.
+func quotaDataFilteredBy(tx *gorm.DB, tokenName string, modelName string) *gorm.DB {
+	tx = quotaDataTokenNameJoin(tx, tokenName)
+	if modelName != "" {
+		tx = tx.Where("model_name = ?", modelName)
+	}
+	return tx
+}
+
+func GetQuotaDataByUserId(userId int, startTime int64, endTime int64, tokenName string, modelName string) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
 	// 从quota_data表中查询数据
-	err = DB.Table("quota_data").
+	tx := DB.Table("quota_data").
 		Select("user_id, username, model_name, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, sum(cache_read_tokens) as cache_read_tokens, sum(input_tokens_total) as input_tokens_total").
 		Where("user_id = ? and created_at >= ? and created_at <= ?", userId, startTime, endTime).
-		Group("user_id, username, model_name, created_at").
-		Find(&quotaDatas).Error
+		Group("user_id, username, model_name, created_at")
+	tx = quotaDataFilteredBy(tx, tokenName, modelName)
+	err = tx.Find(&quotaDatas).Error
 	return quotaDatas, err
 }
 
@@ -187,9 +212,26 @@ func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*Quota
 	return quotaDatas, err
 }
 
-func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {
+func GetAllQuotaDates(startTime int64, endTime int64, username string, tokenName string, modelName string) (quotaData []*QuotaData, err error) {
 	if username != "" {
-		return GetQuotaDataByUsername(username, startTime, endTime)
+		var filtered []*QuotaData
+		tx := DB.Table("quota_data").
+			Select("user_id, username, model_name, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, sum(cache_read_tokens) as cache_read_tokens, sum(input_tokens_total) as input_tokens_total").
+			Where("username = ? and created_at >= ? and created_at <= ?", username, startTime, endTime).
+			Group("user_id, username, model_name, created_at")
+		tx = quotaDataFilteredBy(tx, tokenName, modelName)
+		err = tx.Find(&filtered).Error
+		return filtered, err
+	}
+	if tokenName != "" || modelName != "" {
+		var filtered []*QuotaData
+		tx := DB.Table("quota_data").
+			Select("model_name, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, sum(cache_read_tokens) as cache_read_tokens, sum(input_tokens_total) as input_tokens_total, created_at").
+			Where("created_at >= ? and created_at <= ?", startTime, endTime).
+			Group("model_name, created_at")
+		tx = quotaDataFilteredBy(tx, tokenName, modelName)
+		err = tx.Find(&filtered).Error
+		return filtered, err
 	}
 	var quotaDatas []*QuotaData
 	// 从quota_data表中查询数据
