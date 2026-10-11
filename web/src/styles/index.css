@@ -59,7 +59,21 @@ html:lang(fa) .font-sans {
     U+08E3-08FF, U+200C-200D, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
 }
 
+/* The same face goes first in the theme's sans and serif stacks, because some
+ * text sets `font-family: var(--font-body)` directly instead of inheriting the
+ * body's font (tables, with their empty states, do), and neither theme face
+ * has Persian glyphs. The rest of each stack is theme.css's, unchanged. */
 html:lang(fa) {
+  --font-sans:
+    'Vazirmatn Persian Script', 'Public Sans Variable', 'Public Sans',
+    sans-serif;
+  --font-serif:
+    'Vazirmatn Persian Script', 'Lora Variable', 'Lora', 'Source Serif Pro',
+    'Source Serif 4', 'Noto Serif SC', 'Noto Serif TC', 'Noto Serif JP',
+    'Noto Serif KR', 'Source Han Serif SC', 'Source Han Serif TC',
+    'Source Han Serif', 'Songti SC', 'STSong', 'STSongti-SC-Regular',
+    'PingFang SC', 'SimSun', 'NSimSun', '宋体', 'FangSong', '仿宋', 'KaiTi',
+    '楷体', Georgia, 'Times New Roman', Cambria, 'Liberation Serif', serif;
   --font-mono:
     'Vazirmatn Persian Script', ui-monospace, SFMono-Regular, Menlo, Monaco,
     Consolas, 'Liberation Mono', 'Courier New', monospace;

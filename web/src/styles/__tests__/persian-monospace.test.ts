@@ -24,7 +24,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 // Monospace fonts such as DejaVu Sans Mono, Menlo and Courier New carry
 // fixed-width Arabic glyphs, so Persian text inside `font-mono` or <code>
-// rendered spaced out ("نا مشخص"). The browser picks a face per character:
+// rendered spaced out ("نا مشخص"). The theme's sans and serif faces carry no
+// Persian at all, so text that uses them directly (tables set
+// `font-family: var(--font-body)`) fell back to whatever the OS has, a
+// monospace face on some systems. The browser picks a face per character:
 // the first family in the stack whose @font-face unicode-range covers it,
 // otherwise a system font. These tests resolve that choice against the
 // stylesheet compiled by Tailwind, the same way the build does.
@@ -47,9 +50,9 @@ function parseUnicodeRange(value: string): Array<[number, number]> {
   })
 }
 
-function monoFaceFor(char: string): string {
+function faceFor(fontVariable: string, char: string): string {
   const stack = getComputedStyle(document.documentElement)
-    .getPropertyValue('--font-mono')
+    .getPropertyValue(fontVariable)
     .split(',')
     .map((family) => family.trim().replaceAll(/^["']|["']$/g, ''))
   const codePoint = char.codePointAt(0) ?? 0
@@ -72,7 +75,7 @@ beforeAll(async () => {
     base: path.dirname(STYLESHEET),
     onDependency: () => {},
   })
-  const css = compiler.build(['font-mono'])
+  const css = compiler.build(['font-mono', 'font-sans', 'font-serif'])
   fontFaces = Array.from(
     css.matchAll(/@font-face\s*\{([^}]*)\}/g),
     (match) => ({
@@ -97,7 +100,7 @@ describe('Persian text in monospace contexts', () => {
     const faces = new Set(
       [...`نسخۀ نامشخص ۱۲۳ ی ک${ZWNJ}`]
         .filter((c) => c !== ' ')
-        .map(monoFaceFor)
+        .map((char) => faceFor('--font-mono', char))
     )
 
     expect(faces.size).toBe(1)
@@ -107,7 +110,11 @@ describe('Persian text in monospace contexts', () => {
   it('keeps version strings, code and keys on the system monospace font when lang is fa', () => {
     document.documentElement.lang = 'fa'
 
-    const faces = new Set([...'v1.2.3-rc_key sk-AbZ09{}'].map(monoFaceFor))
+    const faces = new Set(
+      [...'v1.2.3-rc_key sk-AbZ09{}'].map((char) =>
+        faceFor('--font-mono', char)
+      )
+    )
 
     expect([...faces]).toEqual([SYSTEM_FONT])
   })
@@ -115,7 +122,52 @@ describe('Persian text in monospace contexts', () => {
   it('leaves the monospace stack unchanged for other languages', () => {
     document.documentElement.lang = 'en'
 
-    expect(monoFaceFor('ن')).toBe(SYSTEM_FONT)
-    expect(monoFaceFor('v')).toBe(SYSTEM_FONT)
+    expect(faceFor('--font-mono', 'ن')).toBe(SYSTEM_FONT)
+    expect(faceFor('--font-mono', 'v')).toBe(SYSTEM_FONT)
   })
+})
+
+describe('Persian text in the theme sans and serif faces', () => {
+  it.each(['--font-sans', '--font-serif'])(
+    'renders Persian letters, digits and ZWNJ in %s with a Persian face when lang is fa',
+    (fontVariable) => {
+      document.documentElement.lang = 'fa'
+
+      const faces = new Set(
+        [...`گزارش${ZWNJ}ها یافت نشد ۱۲۳ ی ک`]
+          .filter((c) => c !== ' ')
+          .map((char) => faceFor(fontVariable, char))
+      )
+
+      expect(faces.size).toBe(1)
+      expect([...faces][0]).toMatch(/vazirmatn/i)
+    }
+  )
+
+  it.each([
+    ['--font-sans', 'Public Sans Variable'],
+    ['--font-serif', 'Lora Variable'],
+  ])(
+    'keeps Latin text in %s on the theme face when lang is fa',
+    (fontVariable, themeFace) => {
+      document.documentElement.lang = 'fa'
+
+      const faces = new Set(
+        [...'API default sk']
+          .filter((c) => c !== ' ')
+          .map((char) => faceFor(fontVariable, char))
+      )
+
+      expect([...faces]).toEqual([themeFace])
+    }
+  )
+
+  it.each(['--font-sans', '--font-serif'])(
+    'does not give Persian in %s the Persian face for other languages',
+    (fontVariable) => {
+      document.documentElement.lang = 'en'
+
+      expect(faceFor(fontVariable, 'ن')).not.toMatch(/vazirmatn/i)
+    }
+  )
 })
