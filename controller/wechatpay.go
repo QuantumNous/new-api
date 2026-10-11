@@ -120,6 +120,7 @@ func WechatPayQuote(c *gin.Context) {
 
 func RequestWechatPayPay(c *gin.Context) {
 	var req struct {
+		PlanID         int    `json:"plan_id"`
 		Amount         int64  `json:"amount"`
 		Mobile         bool   `json:"mobile"`
 		ExpectedAmount string `json:"expected_amount"`
@@ -128,20 +129,32 @@ func RequestWechatPayPay(c *gin.Context) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
+	if c.FullPath() == "/api/subscription/wechatpay/pay" && req.PlanID <= 0 {
+		common.ApiErrorMsg(c, "请选择订阅套餐")
+		return
+	}
 	config, err := model.CurrentWechatPayConfig()
 	if err != nil || !config.Enabled || !operation_setting.IsPaymentComplianceConfirmed() {
 		common.ApiErrorMsg(c, "微信支付支付未启用")
 		return
 	}
 	userID := c.GetInt("id")
-	group, err := model.GetUserGroup(userID, true)
-	if err != nil {
-		common.ApiErrorMsg(c, "获取用户分组失败")
-		return
-	}
-	fen, quota, err := service.QuoteCNYTopUp(config.MinTopUp, req.Amount, group)
-	if err == nil {
-		err = model.ValidateTopUpQuotaCapacity(userID, quota)
+	var plan *model.SubscriptionPlan
+	var fen int64
+	var quota int
+	if req.PlanID > 0 {
+		plan, fen, err = quoteDirectSubscription(req.PlanID)
+	} else {
+		var group string
+		group, err = model.GetUserGroup(userID, true)
+		if err != nil {
+			common.ApiErrorMsg(c, "获取用户分组失败")
+			return
+		}
+		fen, quota, err = service.QuoteCNYTopUp(config.MinTopUp, req.Amount, group)
+		if err == nil {
+			err = model.ValidateTopUpQuotaCapacity(userID, quota)
+		}
 	}
 	if err != nil {
 		common.ApiError(c, err)
@@ -153,12 +166,21 @@ func RequestWechatPayPay(c *gin.Context) {
 		return
 	}
 	tradeNo := "WX" + randstr.Hex(14)
+	if plan != nil {
+		tradeNo = "SUBWX" + randstr.Hex(12)
+	}
 	now := common.GetTimestamp()
 	money := decimal.NewFromInt(fen).Div(decimal.NewFromInt(100))
-	order := model.WechatPayOrder{TradeNo: tradeNo, ConfigID: config.ID, UserID: userID, AmountFen: fen, CreditedQuota: quota, Status: common.TopUpStatusPending, ExpiresAt: now + 1800, NextCheckAt: now + 60}
+	order := model.WechatPayOrder{TradeNo: tradeNo, ConfigID: config.ID, UserID: userID, AmountFen: fen, CreditedQuota: quota, Status: common.TopUpStatusPending, ExpiresAt: now + 300, NextCheckAt: now + 60}
 	units := decimal.NewFromInt(int64(quota)).Div(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()
 	topup := model.TopUp{UserId: userID, Amount: units, Money: money.InexactFloat64(), TradeNo: tradeNo, PaymentMethod: model.PaymentMethodWechatPay, PaymentProvider: model.PaymentProviderWechatPay, CreateTime: now, Status: common.TopUpStatusPending}
-	if err := model.CreateWechatPayOrder(&topup, &order); err != nil {
+	if plan != nil {
+		sub := &model.SubscriptionOrder{UserId: userID, PlanId: plan.Id, Money: money.InexactFloat64(), TradeNo: tradeNo, PaymentMethod: topup.PaymentMethod, PaymentProvider: topup.PaymentProvider, CreateTime: now, Status: common.TopUpStatusPending}
+		err = model.CreateDirectSubscriptionOrder(sub, plan, &order)
+	} else {
+		err = model.CreateWechatPayOrder(&topup, &order)
+	}
+	if err != nil {
 		common.ApiErrorMsg(c, "创建订单失败")
 		return
 	}
@@ -168,6 +190,10 @@ func RequestWechatPayPay(c *gin.Context) {
 		return
 	}
 
+	if err := model.DB.Model(&model.WechatPayOrder{}).Where("id = ?", order.ID).Update("checkout_url", codeURL).Error; err != nil {
+		common.ApiErrorMsg(c, "保存支付二维码失败，请从我的订单继续支付")
+		return
+	}
 	common.ApiSuccess(c, gin.H{"code_url": codeURL, "trade_no": tradeNo, "amount": money.StringFixed(2), "currency": "CNY", "expires_at": order.ExpiresAt})
 }
 

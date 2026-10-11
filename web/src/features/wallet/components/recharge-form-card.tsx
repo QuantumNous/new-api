@@ -17,20 +17,24 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { ArrowRight, Loader2, WalletCards } from 'lucide-react'
-import { useState, useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
+import { useState, useEffect, type ReactNode } from 'react'
+import { Trans, useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from '@/components/ui/input-group'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
 import {
-  formatBillingCurrencyFromUSD,
   getCurrencyLabel,
+  getCurrencyDisplay,
   formatLocalCurrencyAmount,
 } from '@/lib/currency'
 import { cn } from '@/lib/utils'
@@ -40,6 +44,7 @@ import {
   getDiscountPercentage,
   formatDirectTopUpAmount,
   getPaymentIcon,
+  getPaymentBrandClassName,
   getMinTopupAmount,
   calculatePresetPricing,
 } from '../lib'
@@ -51,9 +56,11 @@ import type {
   WaffoPayMethod,
 } from '../types'
 import { CreemProductsSection } from './creem-products-section'
+import { PaymentMethodLabel } from './payment-method-label'
 import { RedemptionCodeCard } from './redemption-code-card'
 
 interface RechargeFormCardProps {
+  pendingOrderNotice?: ReactNode
   topupInfo: TopupInfo | null
   presetAmounts: PresetAmount[]
   selectedPreset: number | null
@@ -87,6 +94,7 @@ interface RechargeFormCardProps {
 }
 
 export function RechargeFormCard({
+  pendingOrderNotice,
   topupInfo,
   presetAmounts,
   selectedPreset,
@@ -119,6 +127,16 @@ export function RechargeFormCard({
   showRedemption = true,
 }: RechargeFormCardProps) {
   const { t } = useTranslation()
+  const currencyMeta = getCurrencyDisplay().meta
+  let inputCurrencySymbol = '$'
+  if (
+    ['alipay_direct', 'wechatpay_native'].includes(
+      selectedPaymentMethod?.type || ''
+    )
+  ) {
+    inputCurrencySymbol =
+      currencyMeta.kind === 'tokens' ? getCurrencyLabel() : currencyMeta.symbol
+  }
   const [localAmount, setLocalAmount] = useState(topupAmount.toString())
 
   useEffect(() => {
@@ -129,6 +147,7 @@ export function RechargeFormCard({
   }, [topupAmount])
 
   const handleAmountChange = (value: string) => {
+    if (!/^\d*$/.test(value)) return
     setLocalAmount(value)
     const numValue = Number.parseInt(value) || 0
     if (numValue >= 0) {
@@ -172,6 +191,56 @@ export function RechargeFormCard({
     !!selectedPaymentMethod &&
     (selectedPaymentMethod.type !== PAYMENT_TYPES.WAFFO ||
       selectedWaffoMethodIndex !== null)
+  let paymentButtonLabel: ReactNode = t('Please select a payment method')
+  if (hasSelectedPaymentMethod && selectedPaymentMethod) {
+    let methodName = t(selectedPaymentMethod.name)
+    let methodIcon = selectedPaymentMethod.icon
+    let payableAmount = formatLocalCurrencyAmount(paymentAmount, {
+      digitsLarge: 2,
+      digitsSmall: 2,
+      abbreviate: false,
+    })
+    if (
+      ['alipay_direct', 'wechatpay_native'].includes(selectedPaymentMethod.type)
+    ) {
+      methodName =
+        selectedPaymentMethod.type === 'alipay_direct'
+          ? t('Alipay')
+          : t('WeChat Pay')
+      payableAmount = `¥${formatLocalCurrencyAmount(paymentAmount, {
+        showSymbol: false,
+        digitsLarge: 2,
+        digitsSmall: 2,
+        abbreviate: false,
+      })}`
+    } else if (
+      selectedPaymentMethod.type === PAYMENT_TYPES.WAFFO &&
+      selectedWaffoMethodIndex != null
+    ) {
+      methodName =
+        waffoPayMethods?.[selectedWaffoMethodIndex]?.name ?? methodName
+      methodIcon = waffoPayMethods?.[selectedWaffoMethodIndex]?.icon
+    }
+    paymentButtonLabel = (
+      <span className='inline-flex min-w-0 flex-wrap items-center justify-center gap-1.5'>
+        <Trans
+          i18nKey='Pay {{amount}} with <method/>'
+          values={{ amount: payableAmount }}
+          components={{
+            method: (
+              <PaymentMethodLabel
+                method={selectedPaymentMethod.type}
+                name={methodName}
+                icon={methodIcon}
+                className='bg-background rounded px-1.5 py-0.5'
+              />
+            ),
+          }}
+        />
+      </span>
+    )
+    if (calculating) paymentButtonLabel = t('Calculating...')
+  }
   const discount =
     topupInfo?.discount?.[topupAmount] ||
     presetAmounts.find((preset) => preset.value === topupAmount)?.discount ||
@@ -258,7 +327,7 @@ export function RechargeFormCard({
   return (
     <TitledCard
       embedded={embedded}
-      title={t('Add Funds')}
+      title={t('Balance Top-up')}
       description={t('Choose an amount and payment method')}
       icon={<WalletCards className='h-4 w-4' />}
       iconTone='success'
@@ -270,6 +339,100 @@ export function RechargeFormCard({
         <div className='space-y-4 sm:space-y-6'>
           {hasConfigurableTopup && (
             <>
+              <div
+                role='group'
+                aria-label={t('Amount')}
+                className='space-y-2.5 sm:space-y-3'
+              >
+                <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
+                  {t('Amount')}
+                </Label>
+                <div className='grid grid-cols-2 gap-1.5 sm:grid-cols-3 sm:gap-3'>
+                  {presetAmounts.map((preset) => {
+                    const discount =
+                      preset.discount ||
+                      topupInfo?.discount?.[preset.value] ||
+                      1.0
+                    const { originalPrice, actualPrice, hasDiscount } =
+                      calculatePresetPricing(
+                        preset.value,
+                        priceRatio,
+                        discount,
+                        usdExchangeRate
+                      )
+                    return (
+                      <Button
+                        key={preset.value}
+                        variant='outline'
+                        className={cn(
+                          'flex h-auto min-h-[76px] min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-3 py-2.5 text-center whitespace-normal shadow-xs hover:border-foreground/40 sm:p-3',
+                          selectedPreset === preset.value
+                            ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                            : 'border-border'
+                        )}
+                        onClick={() => onSelectPreset(preset)}
+                      >
+                        <div className='flex w-full min-w-0 flex-col items-center justify-center gap-1'>
+                          <div className='flex min-w-0 flex-wrap items-baseline justify-center gap-x-2'>
+                            <span className='min-w-0 truncate text-base font-semibold sm:text-lg'>
+                              {['alipay_direct', 'wechatpay_native'].includes(
+                                selectedPaymentMethod?.type || ''
+                              )
+                                ? formatDirectTopUpAmount(preset.value)
+                                : formatLocalCurrencyAmount(actualPrice)}
+                            </span>
+                            {hasDiscount &&
+                              !['alipay_direct', 'wechatpay_native'].includes(
+                                selectedPaymentMethod?.type || ''
+                              ) && (
+                                <span className='text-muted-foreground text-xs line-through'>
+                                  {formatLocalCurrencyAmount(originalPrice)}
+                                </span>
+                              )}
+                          </div>
+                          {hasDiscount && (
+                            <Badge
+                              variant='outline'
+                              className='border-success/30 bg-success/10 text-success'
+                            >
+                              {t('{{percent}}% off', {
+                                percent: getDiscountPercentage(discount),
+                              })}
+                            </Badge>
+                          )}
+                        </div>
+                      </Button>
+                    )
+                  })}
+                  <InputGroup
+                    className={cn(
+                      'h-[76px] min-w-0 justify-center gap-1.5 rounded-lg px-3 shadow-xs [&>input]:pl-0',
+                      selectedPreset === null
+                        ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
+                        : 'border-border'
+                    )}
+                  >
+                    <InputGroupAddon
+                      className='text-foreground pl-0 text-base font-semibold sm:text-lg'
+                      aria-hidden='true'
+                    >
+                      {inputCurrencySymbol}
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      id='topup-amount'
+                      type='text'
+                      inputMode='numeric'
+                      pattern='[0-9]*'
+                      aria-label={t('Custom Amount')}
+                      value={selectedPreset === null ? localAmount : ''}
+                      onChange={(e) => handleAmountChange(e.target.value)}
+                      placeholder={t('Custom')}
+                      className='field-sizing-content h-full w-auto max-w-[calc(100%-2rem)] min-w-0 flex-none px-0 text-center text-base font-semibold sm:text-lg'
+                    />
+                  </InputGroup>
+                </div>
+              </div>
+
               {hasPaymentMethods && (
                 <div className='space-y-2.5 sm:space-y-3'>
                   <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
@@ -322,7 +485,12 @@ export function RechargeFormCard({
                             method.icon,
                             method.name
                           )}
-                          <span className='truncate'>
+                          <span
+                            className={cn(
+                              'truncate',
+                              getPaymentBrandClassName(method.type)
+                            )}
+                          >
                             {method.type === 'alipay_direct'
                               ? t('Alipay')
                               : t(method.name)}
@@ -388,122 +556,7 @@ export function RechargeFormCard({
                 </div>
               )}
 
-              {presetAmounts.length > 0 && (
-                <div className='space-y-2.5 sm:space-y-3'>
-                  <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-                    {t('Amount')}
-                  </Label>
-                  <div className='grid grid-cols-2 gap-1.5 sm:grid-cols-3 sm:gap-3'>
-                    {presetAmounts.map((preset) => {
-                      const discount =
-                        preset.discount ||
-                        topupInfo?.discount?.[preset.value] ||
-                        1.0
-                      const { originalPrice, actualPrice, hasDiscount } =
-                        calculatePresetPricing(
-                          preset.value,
-                          priceRatio,
-                          discount,
-                          usdExchangeRate
-                        )
-                      return (
-                        <Button
-                          key={preset.value}
-                          variant='outline'
-                          className={cn(
-                            'flex h-[76px] min-w-0 flex-col items-start rounded-lg px-3 py-2.5 text-left whitespace-normal shadow-xs hover:border-foreground/40 sm:p-3',
-                            selectedPreset === preset.value
-                              ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-                              : 'border-border'
-                          )}
-                          onClick={() => onSelectPreset(preset)}
-                        >
-                          <div className='flex w-full min-w-0 items-center justify-between gap-2'>
-                            <div className='min-w-0 truncate text-base font-semibold sm:text-lg'>
-                              {['alipay_direct', 'wechatpay_native'].includes(
-                                selectedPaymentMethod?.type || ''
-                              )
-                                ? formatDirectTopUpAmount(preset.value)
-                                : formatBillingCurrencyFromUSD(preset.value)}
-                            </div>
-                            {hasDiscount && (
-                              <Badge
-                                variant='outline'
-                                className='border-success/30 bg-success/10 text-success'
-                              >
-                                {t('{{percent}}% off', {
-                                  percent: getDiscountPercentage(discount),
-                                })}
-                              </Badge>
-                            )}
-                          </div>
-                          {!['alipay_direct', 'wechatpay_native'].includes(
-                            selectedPaymentMethod?.type || ''
-                          ) && (
-                            <div className='mt-1.5 flex w-full min-w-0 items-baseline gap-2 text-xs sm:mt-2'>
-                              <span className='min-w-0 truncate font-medium'>
-                                {t('Pay {{amount}}', {
-                                  amount:
-                                    formatLocalCurrencyAmount(actualPrice),
-                                })}
-                              </span>
-                              {hasDiscount && (
-                                <span
-                                  aria-hidden='true'
-                                  className='text-muted-foreground shrink-0 line-through'
-                                >
-                                  {formatLocalCurrencyAmount(originalPrice)}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </Button>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <div className='space-y-2.5 sm:space-y-3'>
-                <Label
-                  htmlFor='topup-amount'
-                  className='text-muted-foreground text-xs font-medium tracking-wider uppercase'
-                >
-                  {t('Custom Amount')}
-                  {['alipay_direct', 'wechatpay_native'].includes(
-                    selectedPaymentMethod?.type || ''
-                  ) && ` (${getCurrencyLabel()})`}
-                </Label>
-                <div className='grid grid-cols-[minmax(0,1fr)_minmax(110px,0.55fr)] gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center'>
-                  <Input
-                    id='topup-amount'
-                    type='number'
-                    value={localAmount}
-                    onChange={(e) => handleAmountChange(e.target.value)}
-                    min={selectedMethodMinimum}
-                    placeholder={t('Minimum {{amount}}', {
-                      amount: selectedMethodMinimum,
-                    })}
-                    className='h-9 text-base sm:h-10 sm:text-lg'
-                  />
-                  <div className='bg-muted/30 flex min-h-9 items-center justify-between gap-2 rounded-md border px-3 lg:min-w-52'>
-                    <span className='text-muted-foreground truncate text-xs'>
-                      {t('Amount to pay:')}
-                    </span>
-                    {calculating ? (
-                      <Skeleton className='h-5 w-16' />
-                    ) : (
-                      <span className='text-sm font-semibold'>
-                        {['alipay_direct', 'wechatpay_native'].includes(
-                          selectedPaymentMethod?.type || ''
-                        )
-                          ? `CNY ${formatLocalCurrencyAmount(paymentAmount, { showSymbol: false, digitsLarge: 2, digitsSmall: 2, abbreviate: false })}`
-                          : formatLocalCurrencyAmount(paymentAmount)}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
+              {pendingOrderNotice}
 
               {!hasPaymentMethods && (
                 <Alert>
@@ -516,11 +569,14 @@ export function RechargeFormCard({
               )}
 
               {hasPaymentMethods && (
-                <>
+                <div className='relative pt-2'>
                   {hasDiscount && (
-                    <p className='text-success flex items-center gap-2 text-sm font-semibold'>
-                      {t('You save')}: {discountPercent}%
-                    </p>
+                    <Badge
+                      variant='outline'
+                      className='border-success/30 bg-background text-success pointer-events-none absolute top-0 right-3 z-10 -rotate-6 shadow-xs'
+                    >
+                      {t('Save {{percent}}%', { percent: discountPercent })}
+                    </Badge>
                   )}
                   <Button
                     type='button'
@@ -536,10 +592,10 @@ export function RechargeFormCard({
                     {calculating && (
                       <Loader2 className='h-4 w-4 animate-spin' />
                     )}
-                    {t('Continue')}
+                    {paymentButtonLabel}
                     {!calculating && <ArrowRight className='h-4 w-4' />}
                   </Button>
-                </>
+                </div>
               )}
             </>
           )}
@@ -553,6 +609,8 @@ export function RechargeFormCard({
           </AlertDescription>
         </Alert>
       )}
+
+      {!hasConfigurableTopup && pendingOrderNotice}
 
       {/* Creem Products Section */}
       {enableCreemTopup &&

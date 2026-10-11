@@ -31,11 +31,13 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatLocalCurrencyAmount } from '@/lib/currency'
+import { cn } from '@/lib/utils'
 
 import { DEFAULT_DISCOUNT_RATE } from '../../constants'
 import {
   formatCurrency,
   getPaymentIcon,
+  getPaymentBrandClassName,
   formatDirectTopUpAmount,
 } from '../../lib'
 import type { PaymentMethod } from '../../types'
@@ -152,7 +154,12 @@ export function PaymentConfirmDialog({
                   paymentMethod?.icon,
                   paymentMethod?.name
                 )}
-                <span className='font-medium'>
+                <span
+                  className={cn(
+                    'font-medium',
+                    getPaymentBrandClassName(paymentMethod?.type)
+                  )}
+                >
                   {['alipay_direct', 'wechatpay_native'].includes(
                     paymentMethod?.type || ''
                   )

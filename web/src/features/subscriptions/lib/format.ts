@@ -18,7 +18,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
 
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import dayjs from '@/lib/dayjs'
+import { formatNumber } from '@/lib/format'
 
 import type { SubscriptionPlan } from '../types'
 
@@ -65,4 +67,13 @@ export function formatResetPeriod(
 export function formatTimestamp(ts: number): string {
   if (!ts) return '-'
   return dayjs(ts * 1000).format('YYYY-MM-DD HH:mm:ss')
+}
+
+export function formatSubscriptionPrice(
+  plan: Pick<SubscriptionPlan, 'price_amount' | 'currency'>
+): string {
+  if (plan.currency === 'CNY') {
+    return `¥${formatNumber(plan.price_amount)}`
+  }
+  return formatBillingCurrencyFromUSD(plan.price_amount)
 }

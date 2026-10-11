@@ -37,6 +37,7 @@ import {
   SelectContent,
   SelectItem,
 } from '@/components/ui/select'
+import { PaymentMethodLabel } from '@/features/wallet/components/payment-method-label'
 import { getPaymentMethodName } from '@/features/wallet/lib/billing'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatTimestampToDate, formatNumber } from '@/lib/format'
@@ -51,6 +52,7 @@ import {
 import { OrderDetail } from './order-detail'
 import { OrderStatus } from './order-status'
 import { paymentAmount } from './presentation'
+import { canPayOrder, useOrderPayment } from './use-order-payment'
 
 const emptyFilters: OrderFilters = {
   keyword: '',
@@ -64,6 +66,7 @@ const emptyOrders: SiteOrder[] = []
 export function SiteOrders(props: { scope?: OrderScope }) {
   const scope = props.scope ?? 'site'
   const personal = scope === 'personal'
+  const payment = useOrderPayment()
   const { t, i18n } = useTranslation()
   const userId = useAuthStore((state) => state.auth.user?.id)
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
@@ -78,6 +81,7 @@ export function SiteOrders(props: { scope?: OrderScope }) {
     queryKey: ['site-orders', scope, userId, 'list', filters, pagination],
     queryFn: () =>
       getOrders(filters, pagination.pageIndex + 1, pagination.pageSize, scope),
+    refetchInterval: personal ? 5000 : false,
   })
   const columns: ColumnDef<SiteOrder>[] = [
     {
@@ -124,7 +128,7 @@ export function SiteOrders(props: { scope?: OrderScope }) {
       header: t('Payment Method'),
       cell: ({ row }) => (
         <>
-          {getPaymentMethodName(row.original.payment_method, t)}
+          <PaymentMethodLabel method={row.original.payment_method} />
           {row.original.sandbox && (
             <span className='ml-2 text-amber-600'>{t('Sandbox')}</span>
           )}
@@ -170,13 +174,35 @@ export function SiteOrders(props: { scope?: OrderScope }) {
       id: 'actions',
       header: t('Actions'),
       cell: ({ row }) => (
-        <Button
-          variant='outline'
-          size='sm'
-          onClick={() => setSelected(row.original.id)}
-        >
-          {t('Details')}
-        </Button>
+        <div className='flex items-center justify-end gap-2'>
+          {personal && canPayOrder(row.original) ? (
+            <>
+              <Button
+                size='sm'
+                disabled={payment.busy}
+                onClick={() => payment.pay(row.original)}
+              >
+                {t('Pay')}
+              </Button>
+              <Button
+                variant='outline'
+                size='sm'
+                disabled={payment.busy}
+                onClick={() => payment.requestCancel(row.original)}
+              >
+                {t('Cancel')}
+              </Button>
+            </>
+          ) : (
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => setSelected(row.original.id)}
+            >
+              {t('Details')}
+            </Button>
+          )}
+        </div>
       ),
     },
   ]
@@ -221,7 +247,7 @@ export function SiteOrders(props: { scope?: OrderScope }) {
     })),
   ]
   const statusOptions = [
-    { value: 'all', label: t('All') },
+    { value: 'all', label: personal ? t('Excluding closed orders') : t('All') },
     { value: 'pending', label: t('Awaiting payment') },
     { value: 'paid', label: t('Paid, awaiting credit') },
     { value: 'success', label: t('Completed') },
@@ -327,6 +353,7 @@ export function SiteOrders(props: { scope?: OrderScope }) {
               />
             )}
           </div>
+          {payment.dialogs}
           <OrderDetail
             key={selected}
             id={selected}

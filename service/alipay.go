@@ -180,10 +180,18 @@ func VerifyAlipayNotification(config *model.AlipayConfig, values url.Values) (*a
 	return notification, nil
 }
 
-func ReconcileAlipayOrder(ctx context.Context, tradeNo string) error {
+func ReconcileAlipayOrder(ctx context.Context, tradeNo string) (resultErr error) {
 	order, config, err := model.GetAlipayOrder(tradeNo)
 	if err != nil {
 		return err
+	}
+	defer func() {
+		resultErr = errors.Join(resultErr, model.RecordDirectOrderCheck(tradeNo, model.PaymentProviderAlipay, resultErr))
+	}()
+	if common.GetTimestamp() >= order.ExpiresAt && order.CloseRequestedAt == 0 && order.Status == common.TopUpStatusPending {
+		if err := model.DB.Model(&model.AlipayOrder{}).Where("id = ? AND (close_requested_at = 0 OR close_requested_at IS NULL)", order.ID).Updates(map[string]any{"close_requested_at": common.GetTimestamp(), "close_reason": "expired"}).Error; err != nil {
+			return err
+		}
 	}
 	if order.Status == common.TopUpStatusSuccess {
 		return model.SyncAlipayQuotaCache(order)
@@ -191,7 +199,7 @@ func ReconcileAlipayOrder(ctx context.Context, tradeNo string) error {
 	if order.Status == "paid" {
 		return model.CompleteAlipayTopUp(tradeNo)
 	}
-	if order.Status != common.TopUpStatusPending {
+	if order.Status != common.TopUpStatusPending && order.Status != common.TopUpStatusExpired {
 		return nil
 	}
 	client, err := AlipayClient(config)
@@ -206,10 +214,16 @@ func ReconcileAlipayOrder(ctx context.Context, tradeNo string) error {
 		return errors.New("支付宝查单无响应")
 	}
 	if rsp.Code != alipay.CodeSuccess {
-		// Page-pay requests can still be submitted after a local query. Do not
-		// expire an unseen order before its absolute upstream expiry plus grace.
-		if rsp.SubCode == "ACQ.TRADE_NOT_EXIST" && common.GetTimestamp() > order.ExpiresAt+24*3600 {
-			return model.CloseAlipayOrder(tradeNo)
+		// Previously issued links remain usable until their absolute expiry.
+		// Retain an unseen trade after a short clock-skew grace.
+		if rsp.SubCode == "ACQ.TRADE_NOT_EXIST" {
+			if err := model.DB.Model(&model.AlipayOrder{}).Where("id = ?", order.ID).Update("gateway_status", "NOT_FOUND").Error; err != nil {
+				return err
+			}
+			if common.GetTimestamp() > order.ExpiresAt+30 {
+				return model.ConfirmDirectOrderClosed(tradeNo, model.PaymentProviderAlipay)
+			}
+			return nil
 		}
 		return errors.New("支付宝交易尚未确认")
 	}
@@ -220,6 +234,9 @@ func ReconcileAlipayOrder(ctx context.Context, tradeNo string) error {
 	if err != nil || fen != order.AmountFen {
 		return errors.New("Alipay amount mismatch")
 	}
+	if err := model.DB.Model(&model.AlipayOrder{}).Where("id = ?", order.ID).Update("gateway_status", string(rsp.TradeStatus)).Error; err != nil {
+		return err
+	}
 	switch rsp.TradeStatus {
 	case alipay.TradeStatusSuccess, alipay.TradeStatusFinished:
 		if err := model.RecordAlipayPayment(tradeNo, rsp.TradeNo, fen); err != nil {
@@ -227,16 +244,30 @@ func ReconcileAlipayOrder(ctx context.Context, tradeNo string) error {
 		}
 		return model.CompleteAlipayTopUp(tradeNo)
 	case alipay.TradeStatusClosed:
-		return model.CloseAlipayOrder(tradeNo)
+		// TRADE_CLOSED also represents a full refund. Never erase payment evidence.
+		paid, amountErr := decimal.NewFromString(rsp.BuyerPayAmount)
+		if rsp.SendPayDate != "" || (rsp.BuyerPayAmount != "" && (amountErr != nil || !paid.IsZero())) {
+			if err := model.DB.Model(&model.AlipayOrder{}).Where("id = ?", order.ID).Update("review_required", true).Error; err != nil {
+				return err
+			}
+			return model.ErrPaymentReviewRequired
+		}
+		if order.ClosedAt == 0 {
+			if err := model.DB.Model(&model.AlipayOrder{}).Where("id = ?", order.ID).Update("review_required", true).Error; err != nil {
+				return err
+			}
+			return model.ErrPaymentReviewRequired
+		}
+		return model.ConfirmDirectOrderClosed(tradeNo, model.PaymentProviderAlipay)
 	case alipay.TradeStatusWaitBuyerPay:
-		if common.GetTimestamp() <= order.ExpiresAt {
+		if common.GetTimestamp() < order.ExpiresAt && !order.CancelRequested && order.Status != common.TopUpStatusExpired {
 			return nil
 		}
 		closed, err := client.TradeClose(ctx, alipay.TradeClose{OutTradeNo: tradeNo})
-		if err != nil || closed == nil || closed.Code != alipay.CodeSuccess {
+		if err != nil || closed == nil || closed.Code != alipay.CodeSuccess || closed.OutTradeNo != tradeNo {
 			return errors.New("支付宝关单尚未确认")
 		}
-		return model.CloseAlipayOrder(tradeNo)
+		return model.ConfirmDirectOrderClosed(tradeNo, model.PaymentProviderAlipay)
 	}
 	return errors.New("unknown Alipay trade status")
 }
@@ -246,7 +277,7 @@ func ReconcileAlipayOrder(ctx context.Context, tradeNo string) error {
 func RunAlipayReconciliation(ctx context.Context) error {
 	var orders []model.AlipayOrder
 	now := common.GetTimestamp()
-	err := model.DB.Where("(status IN ? OR cache_pending = ?) AND next_check_at <= ?", []string{common.TopUpStatusPending, "paid"}, true, now).Order("next_check_at, id").Limit(30).Find(&orders).Error
+	err := model.DB.Where("(status IN ? OR (status = ? AND (closed_at = 0 OR closed_at IS NULL)) OR cache_pending = ?) AND (review_required = ? OR review_required IS NULL) AND next_check_at <= ?", []string{common.TopUpStatusPending, "paid"}, common.TopUpStatusExpired, true, false, now).Order("next_check_at, id").Limit(30).Find(&orders).Error
 	if err != nil {
 		return errors.New("Alipay reconciliation database unavailable")
 	}
@@ -255,7 +286,7 @@ func RunAlipayReconciliation(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		claimed := model.DB.Model(&model.AlipayOrder{}).Where("id = ? AND next_check_at = ?", order.ID, order.NextCheckAt).Update("next_check_at", common.GetTimestamp()+300)
+		claimed := model.DB.Model(&model.AlipayOrder{}).Where("id = ? AND next_check_at = ?", order.ID, order.NextCheckAt).Update("next_check_at", common.GetTimestamp()+120)
 		if claimed.Error != nil {
 			failures = append(failures, errors.New("Alipay claim failed"))
 			continue
@@ -268,4 +299,36 @@ func RunAlipayReconciliation(ctx context.Context) error {
 		}
 	}
 	return errors.Join(failures...)
+}
+
+// CreateAlipayCheckout reuses the frozen amount, merchant revision and absolute expiry.
+func CreateAlipayCheckout(config *model.AlipayConfig, order *model.AlipayOrder, mobile bool) (string, error) {
+	client, err := AlipayClient(config)
+	if err != nil {
+		return "", err
+	}
+	trade := alipay.Trade{OutTradeNo: order.TradeNo, Subject: "账户充值", TotalAmount: decimal.NewFromInt(order.AmountFen).Div(decimal.NewFromInt(100)).StringFixed(2), SellerId: config.SellerID, NotifyURL: config.NotifyBaseURL + "/api/user/alipay/notify", ReturnURL: config.ReturnURL, TimeExpire: time.Unix(order.ExpiresAt, 0).In(time.FixedZone("CST", 8*3600)).Format("2006-01-02 15:04:05")}
+	if strings.HasPrefix(order.TradeNo, "SUBALI") {
+		trade.Subject = "订阅套餐"
+	}
+	var payURL string
+	if (mobile && config.WapPay) || !config.PagePay {
+		trade.ProductCode = "QUICK_WAP_WAY"
+		u, e := client.TradeWapPay(alipay.TradeWapPay{Trade: trade, TimeExpire: trade.TimeExpire})
+		err = e
+		if u != nil {
+			payURL = u.String()
+		}
+	} else {
+		trade.ProductCode = "FAST_INSTANT_TRADE_PAY"
+		u, e := client.TradePagePay(alipay.TradePagePay{Trade: trade})
+		err = e
+		if u != nil {
+			payURL = u.String()
+		}
+	}
+	if err != nil || payURL == "" {
+		return "", errors.New("创建支付宝支付链接失败")
+	}
+	return payURL, nil
 }

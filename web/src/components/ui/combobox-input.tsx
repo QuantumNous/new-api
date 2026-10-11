@@ -82,6 +82,7 @@ export function ComboboxInput({
   // from treating option clicks as outside presses.
   const [dropdown, setDropdown] = React.useState<{
     container: HTMLElement
+    position: 'absolute' | 'fixed'
     top: number
     left: number
     width: number
@@ -140,11 +141,33 @@ export function ComboboxInput({
       input.closest<HTMLElement>('[role="dialog"]') ?? document.body
     const measure = () => {
       const rect = input.getBoundingClientRect()
+      const inDialog = container !== document.body
+      const containerRect = container.getBoundingClientRect()
+      // A translated/scaled dialog establishes the positioning context.
+      // Convert viewport measurements to its local coordinates, including scroll.
+      const scaleX =
+        inDialog && container.offsetWidth
+          ? containerRect.width / container.offsetWidth
+          : 1
+      const scaleY =
+        inDialog && container.offsetHeight
+          ? containerRect.height / container.offsetHeight
+          : 1
       setDropdown({
         container,
-        top: rect.bottom + 4,
-        left: rect.left,
-        width: rect.width,
+        position: inDialog ? 'absolute' : 'fixed',
+        top: inDialog
+          ? (rect.bottom - containerRect.top) / scaleY +
+            container.scrollTop -
+            container.clientTop +
+            4
+          : rect.bottom + 4,
+        left: inDialog
+          ? (rect.left - containerRect.left) / scaleX +
+            container.scrollLeft -
+            container.clientLeft
+          : rect.left,
+        width: rect.width / scaleX,
       })
     }
     measure()
@@ -290,7 +313,7 @@ export function ComboboxInput({
           <div
             ref={dropdownRef}
             style={{
-              position: 'fixed',
+              position: dropdown.position,
               top: dropdown.top,
               left: dropdown.left,
               width: dropdown.width,

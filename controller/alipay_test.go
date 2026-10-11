@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"bytes"
 	"context"
 	"crypto"
 	"crypto/aes"
@@ -11,6 +12,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/wechatpay-apiv3/wechatpay-go/core"
@@ -77,7 +79,7 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 			model.LOG_DB = db
 			common.RedisEnabled = false
 			common.SetMainDatabaseType(common.DatabaseType(dialect))
-			tables := []any{&model.WechatPayConfig{}, &model.WechatPayOrder{}, &model.AlipayOrder{}, &model.AlipayConfig{}, &model.TopUp{}, &model.SubscriptionOrder{}, &model.User{}, &model.Log{}}
+			tables := []any{&model.WechatPayConfig{}, &model.WechatPayOrder{}, &model.AlipayOrder{}, &model.AlipayConfig{}, &model.TopUp{}, &model.SubscriptionOrder{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.User{}, &model.Log{}}
 			t.Cleanup(func() {
 				require.NoError(t, db.Migrator().DropTable(tables...))
 				model.DB = oldDB
@@ -116,10 +118,45 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 			require.NoError(t, db.Table(db.NamingStrategy.TableName("SubscriptionOrder")).AutoMigrate(&legacySub))
 			require.NoError(t, db.Table(db.NamingStrategy.TableName("TopUp")).Create(&legacyTopUp).Error)
 			require.NoError(t, db.Table(db.NamingStrategy.TableName("SubscriptionOrder")).Create(&legacySub).Error)
+			// Create the released provider schemas without the lifecycle additions.
+			for _, name := range []string{"AlipayOrder", "WechatPayOrder"} {
+				legacy := struct {
+					ID              int
+					TradeNo         string `gorm:"type:varchar(64);uniqueIndex"`
+					ConfigID        int    `gorm:"index"`
+					UserID          int    `gorm:"index"`
+					AmountFen       int64
+					CreditedQuota   int
+					ProviderTradeNo *string `gorm:"type:varchar(64);uniqueIndex"`
+					Status          string  `gorm:"type:varchar(24);index"`
+					ExpiresAt       int64
+					NextCheckAt     int64 `gorm:"index"`
+					CachePending    bool
+					CreditSequence  int64
+					LastError       string `gorm:"type:varchar(64)"`
+				}{TradeNo: "legacy-lifecycle", Status: "pending", AmountFen: 123, ExpiresAt: 1234567890}
+				require.NoError(t, db.Table(db.NamingStrategy.TableName(name)).AutoMigrate(&legacy))
+				require.NoError(t, db.Table(db.NamingStrategy.TableName(name)).Create(&legacy).Error)
+			}
+
 			require.NoError(t, db.AutoMigrate(tables...))
 			require.NoError(t, db.Table("audit_logs").AutoMigrate(&model.AuditLog{}))
 			t.Cleanup(func() { require.NoError(t, db.Migrator().DropTable("audit_logs")) })
 			require.NoError(t, db.AutoMigrate(tables...))
+			for _, target := range []any{&model.AlipayOrder{}, &model.WechatPayOrder{}} {
+				var preserved struct {
+					TradeNo         string
+					AmountFen       int64
+					ExpiresAt       int64
+					CancelRequested bool
+				}
+				require.NoError(t, db.Model(target).Where("trade_no = ?", "legacy-lifecycle").First(&preserved).Error)
+				assert.EqualValues(t, 123, preserved.AmountFen)
+				assert.EqualValues(t, 1234567890, preserved.ExpiresAt)
+				assert.False(t, preserved.CancelRequested)
+				require.NoError(t, db.Where("trade_no = ?", "legacy-lifecycle").Delete(target).Error)
+			}
+
 			var migratedTopUp model.TopUp
 			var migratedSub model.SubscriptionOrder
 			require.NoError(t, db.First(&migratedTopUp, legacyTopUp.Id).Error)
@@ -397,6 +434,149 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 			GetWechatPayOrderStatus(c)
 			assert.Equal(t, 404, w.Code)
 
+			t.Run("CNY subscription admin pricing and balance", func(t *testing.T) {
+				settings := operation_setting.GetPaymentSetting()
+				oldSettings := *settings
+				oldRate, oldQuota := operation_setting.USDExchangeRate, common.QuotaPerUnit
+				t.Cleanup(func() {
+					*settings = oldSettings
+					operation_setting.USDExchangeRate = oldRate
+					common.QuotaPerUnit = oldQuota
+				})
+				settings.ComplianceConfirmed = true
+				settings.ComplianceTermsVersion = operation_setting.CurrentComplianceTermsVersion
+				operation_setting.USDExchangeRate = 7
+				common.QuotaPerUnit = 500000
+				plan := model.SubscriptionPlan{Title: "CNY month", Currency: "CNY", PriceAmount: 7, Enabled: true, DurationUnit: "month", DurationValue: 1}
+				payload, err := common.Marshal(AdminUpsertSubscriptionPlanRequest{Plan: plan})
+				require.NoError(t, err)
+				w := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(w)
+				c.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(string(payload)))
+				c.Request.Header.Set("Content-Type", "application/json")
+				AdminCreateSubscriptionPlan(c)
+				var response struct {
+					Success bool
+					Data    model.SubscriptionPlan
+				}
+				require.NoError(t, common.Unmarshal(w.Body.Bytes(), &response))
+				require.True(t, response.Success, w.Body.String())
+				require.Equal(t, "CNY", response.Data.Currency)
+				// The update endpoint must persist the selected currency as well.
+				plan = response.Data
+				plan.Currency = "USD"
+				require.NoError(t, db.Model(&model.SubscriptionPlan{}).Where("id = ?", plan.Id).Update("currency", "USD").Error)
+				plan.Currency = "CNY"
+				payload, err = common.Marshal(AdminUpsertSubscriptionPlanRequest{Plan: plan})
+				require.NoError(t, err)
+				w = httptest.NewRecorder()
+				c, _ = gin.CreateTestContext(w)
+				c.Params = gin.Params{{Key: "id", Value: strconv.Itoa(plan.Id)}}
+				c.Request = httptest.NewRequest(http.MethodPut, "/", strings.NewReader(string(payload)))
+				c.Request.Header.Set("Content-Type", "application/json")
+				AdminUpdateSubscriptionPlan(c)
+				require.NoError(t, common.Unmarshal(w.Body.Bytes(), &response))
+				require.True(t, response.Success, w.Body.String())
+				require.NoError(t, db.First(&plan, plan.Id).Error)
+				require.Equal(t, "CNY", plan.Currency)
+				_, fen, err := quoteDirectSubscription(plan.Id)
+				require.NoError(t, err)
+				assert.Equal(t, int64(700), fen)
+				operation_setting.USDExchangeRate = 8
+				_, fen, err = quoteDirectSubscription(plan.Id)
+				require.NoError(t, err)
+				assert.Equal(t, int64(700), fen)
+				operation_setting.USDExchangeRate = 7
+				user := model.User{Username: "cny-balance", AffCode: "cny-bal", Quota: 1000000}
+				require.NoError(t, db.Create(&user).Error)
+				require.NoError(t, model.PurchaseSubscriptionWithBalance(user.Id, plan.Id))
+				require.NoError(t, db.First(&user, user.Id).Error)
+				assert.Equal(t, 500000, user.Quota)
+				var order model.SubscriptionOrder
+				require.NoError(t, db.Where("user_id = ?", user.Id).First(&order).Error)
+				assert.Equal(t, "CNY", order.PaymentReceipt.ReceiptCurrency)
+				assert.Equal(t, "7", order.PaymentReceipt.ReceiptAmount)
+			})
+
+			for _, provider := range []string{model.PaymentProviderAlipay, model.PaymentProviderWechatPay} {
+				for _, late := range []bool{false, true} {
+					suffix := fmt.Sprintf("-%t", late)
+					t.Run("one-time subscription "+provider+suffix, func(t *testing.T) {
+						user := model.User{Username: "sub-direct-" + provider + suffix, AffCode: "sd-" + provider + suffix, Quota: 12345}
+						require.NoError(t, db.Create(&user).Error)
+						plan := model.SubscriptionPlan{Title: "Frozen month", PriceAmount: 10, Currency: "CNY", DurationUnit: "month", DurationValue: 1, Enabled: true, TotalAmount: 500000, QuotaResetPeriod: "never", MaxPurchasePerUser: 1}
+						require.NoError(t, db.Create(&plan).Error)
+						_, fen, err := quoteDirectSubscription(plan.Id)
+						require.NoError(t, err)
+						assert.Equal(t, int64(1000), fen)
+						tradeNo, method := "SUBALI-test"+suffix, model.PaymentMethodAlipayDirect
+						var payment any
+						record := model.RecordAlipayPayment
+						complete := model.CompleteAlipayTopUp
+						closeOrder := model.CloseAlipayOrder
+						if provider == model.PaymentProviderWechatPay {
+							tradeNo, method = "SUBWX-test"+suffix, model.PaymentMethodWechatPay
+							record, complete, closeOrder = model.RecordWechatPayPayment, model.CompleteWechatPayTopUp, model.CloseWechatPayOrder
+							payment = &model.WechatPayOrder{ConfigID: wxConfig.ID, TradeNo: tradeNo, UserID: user.Id, AmountFen: fen, Status: "pending"}
+						} else {
+							payment = &model.AlipayOrder{ConfigID: cfg.ID, TradeNo: tradeNo, UserID: user.Id, AmountFen: fen, Status: "pending"}
+						}
+						order := model.SubscriptionOrder{UserId: user.Id, PlanId: plan.Id, Money: 10, TradeNo: tradeNo, PaymentProvider: provider, PaymentMethod: method, Status: "pending"}
+						require.NoError(t, model.CreateDirectSubscriptionOrder(&order, &plan, payment))
+						duplicate := order
+						duplicate.Id = 0
+						duplicate.TradeNo += "-other"
+						require.Error(t, model.CreateDirectSubscriptionOrder(&duplicate, &plan, payment))
+						if late {
+							require.NoError(t, closeOrder(tradeNo))
+							require.NoError(t, db.First(&order, order.Id).Error)
+							require.Equal(t, "expired", order.Status)
+						}
+						require.Error(t, complete(tradeNo))
+						require.Error(t, record(tradeNo, "sub-tx-"+provider+suffix, fen-1))
+						require.NoError(t, db.Model(&plan).Updates(map[string]any{"duration_value": 12, "total_amount": 99, "price_amount": 999}).Error)
+						if provider == model.PaymentProviderAlipay {
+							notification := url.Values{"app_id": {cfg.AppID}, "seller_id": {cfg.SellerID}, "out_trade_no": {tradeNo}, "trade_no": {"sub-tx-" + provider + suffix}, "trade_status": {"TRADE_SUCCESS"}, "total_amount": {"10.00"}, "sign_type": {"RSA2"}}
+							sign(notification)
+							require.Equal(t, http.StatusOK, notify(notification).Code)
+						} else {
+							paid := transaction
+							paid.OutTradeNo = core.String(tradeNo)
+							paid.TransactionId = core.String("sub-tx-" + provider + suffix)
+							paid.Amount = &payments.TransactionAmount{Total: core.Int64(fen), Currency: core.String("CNY")}
+							req := wechatNotifyFixture(t, key, wxConfig, &paid, time.Now().Unix())
+							w := httptest.NewRecorder()
+							c, _ := gin.CreateTestContext(w)
+							c.Request = req
+							c.Params = gin.Params{{Key: "config_id", Value: strconv.Itoa(wxConfig.ID)}}
+							WechatPayNotify(c)
+							c.Writer.WriteHeaderNow()
+							require.Equal(t, http.StatusNoContent, w.Code)
+						}
+						require.NoError(t, complete(tradeNo))
+						require.NoError(t, complete(tradeNo))
+						require.NoError(t, record(tradeNo, "sub-tx-"+provider+suffix, fen))
+						require.Error(t, record(tradeNo, "different-tx", fen))
+						require.NoError(t, closeOrder(tradeNo))
+						var subs []model.UserSubscription
+						require.NoError(t, db.Where("user_id = ?", user.Id).Find(&subs).Error)
+						require.Len(t, subs, 1)
+						assert.Equal(t, int64(500000), subs[0].AmountTotal)
+						assert.Equal(t, time.Unix(subs[0].StartTime, 0).AddDate(0, 1, 0).Unix(), subs[0].EndTime)
+						require.NoError(t, db.First(&user, user.Id).Error)
+						assert.Equal(t, 12345, user.Quota)
+						require.NoError(t, db.First(&order, order.Id).Error)
+						assert.Equal(t, "success", order.Status)
+						assert.Equal(t, "CNY", order.PaymentReceipt.ReceiptCurrency)
+						assert.Equal(t, "10.00", order.PaymentReceipt.ReceiptAmount)
+						orders, total, err := model.ListSiteOrders(model.SiteOrderFilter{OwnerID: user.Id, Page: 1, PageSize: 20})
+						require.NoError(t, err)
+						require.Equal(t, int64(1), total)
+						assert.Equal(t, "subscription", orders[0].OrderType)
+						assert.Equal(t, "sub-tx-"+provider+suffix, orders[0].ProviderTradeNo)
+					})
+				}
+			}
 			t.Run("unified orders include all subscription states without duplicate history", func(t *testing.T) {
 				owner := model.User{Username: "unified-orders", AffCode: "unified-orders", AuthVersion: 1}
 				require.NoError(t, db.Create(&owner).Error)
@@ -656,10 +836,289 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 			require.NoError(t, db.First(&localUser, localUser.Id).Error)
 			assert.Equal(t, 14285814, localUser.Quota)
 
+			t.Run("pending order lifecycle", func(t *testing.T) {
+				transport := http.DefaultTransport
+				t.Cleanup(func() { http.DefaultTransport = transport })
+				for _, provider := range []string{model.PaymentProviderAlipay, model.PaymentProviderWechatPay} {
+					t.Run(provider, func(t *testing.T) {
+						trade := "lifecycle-" + provider
+						expires := common.GetTimestamp() + 300
+						topup := model.TopUp{UserId: user.Id, TradeNo: trade, Status: "pending", PaymentProvider: provider}
+						var target any
+						if provider == model.PaymentProviderAlipay {
+							target = &model.AlipayOrder{TradeNo: trade, UserID: user.Id, ConfigID: cfg.ID, AmountFen: 123, Status: "pending", ExpiresAt: expires}
+						} else {
+							target = &model.WechatPayOrder{TradeNo: trade, UserID: user.Id, ConfigID: wxConfig.ID, AmountFen: 123, Status: "pending", ExpiresAt: expires, CheckoutURL: "weixin://wxpay/bizpayurl?pr=original"}
+						}
+						require.NoError(t, db.Create(&topup).Error)
+						require.NoError(t, db.Create(target).Error)
+						for range 2 {
+							checkout, err := service.ResumeDirectOrder(context.Background(), user.Id, trade, provider, false)
+							require.NoError(t, err)
+							assert.Equal(t, "1.23", checkout.Amount)
+							assert.Equal(t, expires, checkout.ExpiresAt)
+							if provider == model.PaymentProviderAlipay {
+								link, err := url.Parse(checkout.PayLink)
+								require.NoError(t, err)
+								var content map[string]any
+								require.NoError(t, common.UnmarshalJsonStr(link.Query().Get("biz_content"), &content))
+								assert.Equal(t, "1.23", content["total_amount"])
+								assert.Equal(t, trade, content["out_trade_no"])
+								assert.Equal(t, time.Unix(expires, 0).In(time.FixedZone("CST", 8*3600)).Format("2006-01-02 15:04:05"), content["time_expire"])
+							} else {
+								assert.Equal(t, "weixin://wxpay/bizpayurl?pr=original", checkout.CodeURL)
+							}
+						}
+						_, err := service.ResumeDirectOrder(context.Background(), user.Id+1000, trade, provider, false)
+						require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+						for _, action := range []string{"pay", "cancel"} {
+							rec := httptest.NewRecorder()
+							ctx, _ := gin.CreateTestContext(rec)
+							ctx.Request = httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{}`))
+							ctx.Request.Header.Set("Content-Type", "application/json")
+							ctx.Set("id", user.Id+1000)
+							ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(topup.Id)}, {Key: "action", Value: action}}
+							PersonalOrderPayment(ctx)
+							assert.Equal(t, 404, rec.Code)
+						}
+						// A provider outage accepts a durable cancellation, but must not delete.
+						http.DefaultTransport = wechatFixtureTransport(func(req *http.Request) (*http.Response, error) { return nil, errors.New("offline") })
+						status, err := service.RequestDirectOrderCancellation(context.Background(), user.Id, trade, provider)
+						require.NoError(t, err)
+						assert.Equal(t, "closing", status)
+						_, err = service.ResumeDirectOrder(context.Background(), user.Id, trade, provider, false)
+						require.Error(t, err)
+						var lifecycle struct {
+							Status          string
+							CancelRequested bool
+							model.DirectPaymentLifecycle
+							NextCheckAt int64
+						}
+						require.NoError(t, db.Model(target).Where("trade_no = ?", trade).First(&lifecycle).Error)
+						assert.True(t, lifecycle.CancelRequested)
+						assert.Positive(t, lifecycle.CloseRequestedAt)
+						assert.Equal(t, 1, lifecycle.RetryCount)
+						firstRetry := lifecycle.NextCheckAt
+						require.NoError(t, model.RecordDirectOrderCheck(trade, provider, errors.New("offline")))
+						require.NoError(t, db.Model(target).Where("trade_no = ?", trade).First(&lifecycle).Error)
+						assert.Equal(t, 2, lifecycle.RetryCount)
+						assert.Greater(t, lifecycle.NextCheckAt, firstRetry)
+						require.NoError(t, model.ConfirmDirectOrderClosed(trade, provider))
+						require.NoError(t, model.ConfirmDirectOrderClosed(trade, provider))
+						require.NoError(t, db.First(&topup, topup.Id).Error)
+						assert.Equal(t, "expired", topup.Status)
+						hidden, total, err := model.ListSiteOrders(model.SiteOrderFilter{OwnerID: user.Id, ID: topup.Id, ExcludeClosed: true, Page: 1, PageSize: 20})
+						require.NoError(t, err)
+						assert.Empty(t, hidden)
+						assert.Zero(t, total)
+						history, total, err := model.ListSiteOrders(model.SiteOrderFilter{OwnerID: user.Id, ID: topup.Id, Status: "expired", Page: 1, PageSize: 20})
+						require.NoError(t, err)
+						require.Len(t, history, 1)
+						assert.EqualValues(t, 1, total)
+						assert.Positive(t, history[0].ClosedAt)
+						// The newest cancelled order must not mask an older payable one.
+						olderTrade := "older-" + provider
+						older := model.TopUp{UserId: user.Id, TradeNo: olderTrade, PaymentProvider: provider, Status: "pending", CreateTime: 1}
+						require.NoError(t, db.Create(&older).Error)
+						if provider == model.PaymentProviderAlipay {
+							require.NoError(t, db.Create(&model.AlipayOrder{TradeNo: olderTrade, UserID: user.Id, Status: "pending", ExpiresAt: expires}).Error)
+						} else {
+							require.NoError(t, db.Create(&model.WechatPayOrder{TradeNo: olderTrade, UserID: user.Id, Status: "pending", ExpiresAt: expires}).Error)
+						}
+						actionable, _, err := model.ListSiteOrders(model.SiteOrderFilter{OwnerID: user.Id, Provider: provider, Actionable: true, Page: 1, PageSize: 1})
+						require.NoError(t, err)
+						require.Len(t, actionable, 1)
+						assert.Equal(t, olderTrade, actionable[0].TradeNo)
+
+						// Retained evidence permits late success, but never duplicate credit.
+						require.NoError(t, db.Model(target).Where("trade_no = ?", trade).Update("credited_quota", 123).Error)
+						var before model.User
+						require.NoError(t, db.First(&before, user.Id).Error)
+						for range 2 {
+							if provider == model.PaymentProviderAlipay {
+								require.NoError(t, model.RecordAlipayPayment(trade, "late-"+trade, 123))
+								require.NoError(t, model.CompleteAlipayTopUp(trade))
+							} else {
+								require.NoError(t, model.RecordWechatPayPayment(trade, "late-"+trade, 123))
+								require.NoError(t, model.CompleteWechatPayTopUp(trade))
+							}
+						}
+						var after model.User
+						require.NoError(t, db.First(&after, user.Id).Error)
+						assert.Equal(t, before.Quota+123, after.Quota)
+						require.NoError(t, db.Model(target).Where("trade_no = ?", trade).First(&lifecycle).Error)
+						assert.Positive(t, lifecycle.ClosedAt)
+						assert.Equal(t, "success", lifecycle.Status)
+
+					})
+				}
+			})
+
+			t.Run("verified gateway closure and payment race", func(t *testing.T) {
+				transport := http.DefaultTransport
+				t.Cleanup(func() { http.DefaultTransport = transport })
+				for _, provider := range []string{model.PaymentProviderAlipay, model.PaymentProviderWechatPay} {
+					for _, scenario := range []string{"timeout", "cancel", "paid", "not-found-before-expiry", "not-found-after-expiry", "subscription", "refunded"} {
+						t.Run(provider+"/"+scenario, func(t *testing.T) {
+							trade := "gate-" + provider + "-" + scenario
+							if scenario == "subscription" {
+								if provider == model.PaymentProviderAlipay {
+									trade = "SUBALI" + trade
+								} else {
+									trade = "SUBWX" + trade
+								}
+							}
+							expires := common.GetTimestamp() + 300
+							if scenario == "timeout" || scenario == "not-found-after-expiry" {
+								expires = common.GetTimestamp() - 60
+							}
+							var target any
+							if provider == model.PaymentProviderAlipay {
+								target = &model.AlipayOrder{TradeNo: trade, UserID: user.Id, ConfigID: cfg.ID, AmountFen: 100, CreditedQuota: 100, Status: "pending", ExpiresAt: expires}
+							} else {
+								target = &model.WechatPayOrder{TradeNo: trade, UserID: user.Id, ConfigID: wxConfig.ID, AmountFen: 100, CreditedQuota: 100, Status: "pending", ExpiresAt: expires}
+							}
+							var business any = &model.TopUp{UserId: user.Id, TradeNo: trade, Status: "pending", PaymentProvider: provider}
+							if scenario == "subscription" {
+								business = &model.SubscriptionOrder{UserId: user.Id, TradeNo: trade, Status: "pending", PaymentProvider: provider}
+							}
+							require.NoError(t, db.Create(business).Error)
+							require.NoError(t, db.Create(target).Error)
+							closed := false
+							http.DefaultTransport = wechatFixtureTransport(func(req *http.Request) (*http.Response, error) {
+								statusCode := 200
+								header := http.Header{}
+								var body []byte
+								if provider == model.PaymentProviderAlipay {
+									require.NoError(t, req.ParseForm())
+									method := req.Form.Get("method")
+									payload := map[string]any{"code": "10000", "msg": "Success", "out_trade_no": trade, "trade_no": "tx-" + trade, "total_amount": "1.00", "trade_status": "WAIT_BUYER_PAY"}
+									if method == "alipay.trade.close" {
+										closed = true
+									}
+									if scenario == "paid" {
+										payload["trade_status"] = "TRADE_SUCCESS"
+									}
+									if scenario == "refunded" {
+										payload["trade_status"] = "TRADE_CLOSED"
+										payload["send_pay_date"] = "2026-10-11 12:00:00"
+									}
+									if strings.HasPrefix(scenario, "not-found") {
+										payload["code"] = "40004"
+										payload["sub_code"] = "ACQ.TRADE_NOT_EXIST"
+									}
+									data, err := common.Marshal(payload)
+									require.NoError(t, err)
+									digest := sha256.Sum256(data)
+									sig, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, digest[:])
+									require.NoError(t, err)
+									body = []byte(fmt.Sprintf(`{"%s_response":%s,"sign":"%s"}`, strings.ReplaceAll(method, ".", "_"), data, base64.StdEncoding.EncodeToString(sig)))
+								} else {
+									if strings.HasSuffix(req.URL.Path, "/close") {
+										closed = true
+										statusCode = 204
+										body = []byte{}
+									} else {
+										state := "NOTPAY"
+										if scenario == "paid" {
+											state = "SUCCESS"
+										}
+										if scenario == "refunded" {
+											state = "REFUND"
+										}
+										payload := map[string]any{"appid": wxConfig.AppID, "mchid": wxConfig.MchID, "out_trade_no": trade, "transaction_id": "tx-" + trade, "trade_state": state, "trade_type": "NATIVE", "amount": map[string]any{"total": 100, "currency": "CNY"}}
+										if strings.HasPrefix(scenario, "not-found") {
+											statusCode = 404
+											payload = map[string]any{"code": "ORDER_NOT_EXIST", "message": "missing"}
+										}
+										var err error
+										body, err = common.Marshal(payload)
+										require.NoError(t, err)
+									}
+									timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+									digest := sha256.Sum256([]byte(timestamp + "\nnonce\n" + string(body) + "\n"))
+									sig, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, digest[:])
+									require.NoError(t, err)
+									header.Set("Wechatpay-Serial", wxConfig.PublicKeyID)
+									header.Set("Wechatpay-Timestamp", timestamp)
+									header.Set("Wechatpay-Nonce", "nonce")
+									header.Set("Wechatpay-Signature", base64.StdEncoding.EncodeToString(sig))
+								}
+								return &http.Response{StatusCode: statusCode, Header: header, Body: io.NopCloser(bytes.NewReader(body)), Request: req}, nil
+							})
+							if scenario == "timeout" || scenario == "not-found-after-expiry" {
+								var err error
+								if provider == model.PaymentProviderAlipay {
+									err = service.ReconcileAlipayOrder(context.Background(), trade)
+								} else {
+									err = service.ReconcileWechatPayOrder(context.Background(), trade)
+								}
+								require.NoError(t, err)
+							} else {
+								status, err := service.RequestDirectOrderCancellation(context.Background(), user.Id, trade, provider)
+								require.NoError(t, err)
+								expected := "closed"
+								if scenario == "paid" {
+									expected = "paid"
+								}
+								if scenario == "not-found-before-expiry" || scenario == "refunded" {
+									expected = "closing"
+								}
+								assert.Equal(t, expected, status)
+							}
+							var count int64
+							require.NoError(t, db.Model(target).Where("trade_no = ?", trade).Count(&count).Error)
+							if scenario == "paid" || scenario == "not-found-before-expiry" || scenario == "refunded" {
+								assert.EqualValues(t, 1, count)
+								assert.False(t, closed)
+								if scenario == "not-found-before-expiry" {
+									var waiting struct {
+										LastError string
+										model.DirectPaymentLifecycle
+									}
+									require.NoError(t, db.Model(target).Where("trade_no = ?", trade).First(&waiting).Error)
+									assert.Empty(t, waiting.LastError)
+									assert.Zero(t, waiting.RetryCount)
+									assert.Equal(t, "NOT_FOUND", waiting.GatewayStatus)
+								}
+								if scenario == "refunded" {
+									var retained struct{ model.DirectPaymentLifecycle }
+									require.NoError(t, db.Model(target).Where("trade_no = ?", trade).First(&retained).Error)
+									assert.True(t, retained.ReviewRequired)
+									if provider == model.PaymentProviderAlipay {
+										require.NoError(t, model.RecordAlipayPayment(trade, "tx-"+trade, 100))
+										require.ErrorIs(t, model.CompleteAlipayTopUp(trade), model.ErrPaymentReviewRequired)
+									} else {
+										require.NoError(t, model.RecordWechatPayPayment(trade, "tx-"+trade, 100))
+										require.ErrorIs(t, model.CompleteWechatPayTopUp(trade), model.ErrPaymentReviewRequired)
+									}
+								}
+							} else {
+								assert.EqualValues(t, 1, count)
+								require.NoError(t, db.Model(business).Where("trade_no = ?", trade).Count(&count).Error)
+								assert.EqualValues(t, 1, count)
+								var retained struct {
+									Status string
+									model.DirectPaymentLifecycle
+								}
+								require.NoError(t, db.Model(target).Where("trade_no = ?", trade).First(&retained).Error)
+								assert.Equal(t, "expired", retained.Status)
+								assert.Positive(t, retained.ClosedAt)
+								assert.Equal(t, scenario != "not-found-after-expiry", closed)
+							}
+						})
+					}
+				}
+			})
+
 			configJSON, err := common.Marshal(wxConfig)
 			require.NoError(t, err)
 			assert.NotContains(t, string(configJSON), wxConfig.APIv3Key)
 			assert.NotContains(t, string(configJSON), "PRIVATE KEY")
+			// Also exercise clean installs and repeated startup migration.
+			require.NoError(t, db.Migrator().DropTable(tables...))
+			require.NoError(t, db.AutoMigrate(tables...))
+			require.NoError(t, db.AutoMigrate(tables...))
 
 		})
 	}

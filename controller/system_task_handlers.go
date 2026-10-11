@@ -170,9 +170,9 @@ type alipayReconcileHandler struct{}
 func (alipayReconcileHandler) Type() string { return "alipay_reconcile" }
 func (alipayReconcileHandler) Enabled() bool {
 	var count int64
-	return model.DB.Model(&model.AlipayOrder{}).Where("status IN ? OR cache_pending = ?", []string{common.TopUpStatusPending, "paid"}, true).Limit(1).Count(&count).Error == nil && count > 0
+	return model.DB.Model(&model.AlipayOrder{}).Where("(status IN ? OR (status = ? AND (closed_at = 0 OR closed_at IS NULL)) OR cache_pending = ?) AND (review_required = ? OR review_required IS NULL)", []string{common.TopUpStatusPending, "paid"}, common.TopUpStatusExpired, true, false).Limit(1).Count(&count).Error == nil && count > 0
 }
-func (alipayReconcileHandler) Interval() time.Duration { return time.Minute }
+func (alipayReconcileHandler) Interval() time.Duration { return 15 * time.Second }
 func (alipayReconcileHandler) NewPayload() any         { return nil }
 func (alipayReconcileHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
 	if err := service.RunAlipayReconciliation(ctx); err != nil {
@@ -188,9 +188,9 @@ type wechatpayReconcileHandler struct{}
 func (wechatpayReconcileHandler) Type() string { return "wechatpay_reconcile" }
 func (wechatpayReconcileHandler) Enabled() bool {
 	var count int64
-	return model.DB.Model(&model.WechatPayOrder{}).Where("status IN ? OR cache_pending = ?", []string{common.TopUpStatusPending, "paid"}, true).Limit(1).Count(&count).Error == nil && count > 0
+	return model.DB.Model(&model.WechatPayOrder{}).Where("(status IN ? OR (status = ? AND (closed_at = 0 OR closed_at IS NULL)) OR cache_pending = ?) AND (review_required = ? OR review_required IS NULL)", []string{common.TopUpStatusPending, "paid"}, common.TopUpStatusExpired, true, false).Limit(1).Count(&count).Error == nil && count > 0
 }
-func (wechatpayReconcileHandler) Interval() time.Duration { return time.Minute }
+func (wechatpayReconcileHandler) Interval() time.Duration { return 15 * time.Second }
 func (wechatpayReconcileHandler) NewPayload() any         { return nil }
 func (wechatpayReconcileHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
 	if err := service.RunWechatPayReconciliation(ctx); err != nil {

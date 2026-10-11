@@ -41,6 +41,28 @@ func accessTokenScopeRule(scope string) accessTokenRouteRule {
 // Casbin-guarded routes declare themselves through
 // DeclareAccessTokenPermissionRoute when they are registered.
 var accessTokenRouteRules = map[string]accessTokenRouteRule{
+	// Direct payments and order management retain their existing session-only access.
+	"GET /api/option/alipay":                  accessTokenSessionRule,
+	"GET /api/option/wechatpay":               accessTokenSessionRule,
+	"GET /api/user/alipay/order/:trade_no":    accessTokenSessionRule,
+	"GET /api/user/orders":                    accessTokenSessionRule,
+	"GET /api/user/orders/:id":                accessTokenSessionRule,
+	"GET /api/user/self/orders":               accessTokenSessionRule,
+	"GET /api/user/self/orders/:id":           accessTokenSessionRule,
+	"GET /api/user/wechatpay/order/:trade_no": accessTokenSessionRule,
+	"POST /api/option/alipay/recheck":         accessTokenSessionRule,
+	"POST /api/option/wechatpay/recheck":      accessTokenSessionRule,
+	"POST /api/subscription/alipay/pay":       accessTokenSessionRule,
+	"POST /api/subscription/direct/quote":     accessTokenSessionRule,
+	"POST /api/subscription/wechatpay/pay":    accessTokenSessionRule,
+	"POST /api/user/alipay/amount":            accessTokenSessionRule,
+	"POST /api/user/alipay/pay":               accessTokenSessionRule,
+	"POST /api/user/orders/:id/recheck":       accessTokenSessionRule,
+	"POST /api/user/orders/:id/recover":       accessTokenSessionRule,
+	"POST /api/user/wechatpay/amount":         accessTokenSessionRule,
+	"POST /api/user/wechatpay/pay":            accessTokenSessionRule,
+	"PUT /api/option/alipay":                  accessTokenSessionRule,
+	"PUT /api/option/wechatpay":               accessTokenSessionRule,
 	// router/api-router.go: top level
 	"GET /api/models":                     accessTokenScopeRule("profile:read"),
 	"GET /api/status/test":                accessTokenScopeRule("log:read"),
@@ -60,6 +82,7 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"POST /api/verify":                    accessTokenAnyRule,
 
 	// router/api-router.go: /api/user (self)
+	"POST /api/user/self/orders/:id/:action":       accessTokenSessionRule,
 	"GET /api/user/sessions":                       accessTokenSessionRule,
 	"DELETE /api/user/sessions/:sid":               accessTokenSessionRule,
 	"POST /api/user/sessions/revoke-others":        accessTokenSessionRule,

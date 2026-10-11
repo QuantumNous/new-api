@@ -240,8 +240,9 @@ func ListWaffoPancakeCatalog(c *gin.Context) {
 }
 
 type createWaffoPancakeSubscriptionProductRequest struct {
-	Name   string `json:"name"`
-	Amount string `json:"amount"`
+	Currency string `json:"currency"`
+	Name     string `json:"name"`
+	Amount   string `json:"amount"`
 }
 
 // CreateWaffoPancakeSubscriptionProduct mints an OnetimeProduct (not
@@ -271,13 +272,23 @@ func CreateWaffoPancakeSubscriptionProduct(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Waffo Pancake 未完成配置，请先在支付设置中完成网关绑定"})
 		return
 	}
+	amount, err := decimal.NewFromString(req.Amount)
+	if err != nil {
+		common.ApiErrorMsg(c, "套餐价格无效")
+		return
+	}
+	amountUSD, err := model.SubscriptionPriceUSD(amount.InexactFloat64(), req.Currency)
+	if err != nil || !amountUSD.Round(2).IsPositive() {
+		common.ApiErrorMsg(c, "套餐价格或汇率无效")
+		return
+	}
 	productID, err := service.CreateWaffoPancakeProductForPlan(
 		c.Request.Context(),
 		merchantID,
 		privateKey,
 		storeID,
 		req.Name,
-		req.Amount,
+		amountUSD.StringFixed(2),
 		setting.WaffoPancakeReturnURL,
 	)
 	if err != nil {

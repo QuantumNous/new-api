@@ -38,6 +38,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from '@/components/ui/sheet'
+import { PaymentMethodLabel } from '@/features/wallet/components/payment-method-label'
 import { getPaymentMethodName } from '@/features/wallet/lib/billing'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatQuotaWithCurrency } from '@/lib/currency'
@@ -150,6 +151,41 @@ export function OrderDetail(props: {
         ],
       ]
     : []
+  if (
+    order &&
+    !personal &&
+    ['alipay', 'wechatpay'].includes(order.payment_provider)
+  ) {
+    const closeReasons: Record<string, string> = {
+      user_cancelled: t('Cancelled by user'),
+      expired: t('Payment window expired'),
+      gateway_closed: t('Closed by payment provider'),
+    }
+    fields.push(
+      [t('Close reason'), closeReasons[order.close_reason ?? ''] ?? '—'],
+      [
+        t('Close requested at'),
+        order.close_requested_at
+          ? formatTimestampToDate(order.close_requested_at)
+          : '—',
+      ],
+      [
+        t('Closure confirmed at'),
+        order.closed_at ? formatTimestampToDate(order.closed_at) : '—',
+      ],
+      [t('Payment provider status'), order.gateway_status || '—'],
+      [
+        t('Last automatic check'),
+        order.checked_at ? formatTimestampToDate(order.checked_at) : '—',
+      ],
+      [
+        t('Next retry'),
+        order.next_check_at ? formatTimestampToDate(order.next_check_at) : '—',
+      ],
+      [t('Consecutive failures'), formatNumber(order.retry_count ?? 0, locale)],
+      [t('Manual review required'), t(order.review_required ? 'Yes' : 'No')]
+    )
+  }
   return (
     <Sheet
       open={props.id !== null}
@@ -205,7 +241,13 @@ export function OrderDetail(props: {
                   .map(([label, value]) => (
                     <div key={label} className='grid grid-cols-2 gap-3'>
                       <dt className='text-muted-foreground'>{label}</dt>
-                      <dd className='break-all'>{value}</dd>
+                      <dd className='break-all'>
+                        {label === t('Payment Method') ? (
+                          <PaymentMethodLabel method={order.payment_method} />
+                        ) : (
+                          value
+                        )}
+                      </dd>
                     </div>
                   ))}
               </dl>

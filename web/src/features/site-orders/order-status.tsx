@@ -31,6 +31,12 @@ export function OrderStatus(props: { order: SiteOrder }) {
     expired: t('Closed'),
     failed: t('Failed'),
   }
+  if (
+    props.order.order_status === 'pending' &&
+    (props.order.cancel_requested || props.order.close_requested_at)
+  ) {
+    labels.pending = t('Closing order')
+  }
   let variant: 'success' | 'warning' | 'danger' = 'warning'
   if (props.order.order_status === 'success') variant = 'success'
   if (props.order.order_status === 'failed') variant = 'danger'
@@ -48,9 +54,9 @@ export function OrderStatus(props: { order: SiteOrder }) {
           copyable={false}
         />
       )}
-      {props.order.last_error && (
+      {(props.order.last_error || props.order.review_required) && (
         <StatusBadge
-          label={t('Credit requires attention')}
+          label={t('Payment requires attention')}
           variant='danger'
           copyable={false}
         />

@@ -35,6 +35,24 @@ function renderCheckout(expiresAt = checkout.expires_at) {
 }
 
 describe('WeChat payment status', () => {
+  test('shows the supplied brand image with an accessible title and responsive QR', async () => {
+    vi.mocked(getWechatPayOrderStatus).mockResolvedValue({
+      success: true,
+      data: { status: 'pending' },
+    })
+    const { onClose } = renderCheckout()
+    expect(screen.getByRole('dialog', { name: 'WeChat Pay' })).toBeVisible()
+    expect(screen.getByRole('img', { name: 'WeChat Pay' })).toHaveAttribute(
+      'src',
+      '/wechat-pay.png'
+    )
+    expect(screen.getByTitle('WeChat Pay QR code').closest('svg')).toHaveClass(
+      'h-auto',
+      'w-full'
+    )
+    await userEvent.keyboard('{Escape}')
+    expect(onClose).toHaveBeenCalledOnce()
+  })
   test('shows CNY quote and QR while pending, then refreshes balance only after verified success', async () => {
     vi.mocked(getWechatPayOrderStatus)
       .mockResolvedValueOnce({ success: true, data: { status: 'pending' } })

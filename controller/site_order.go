@@ -124,7 +124,11 @@ func reconcileSiteOrder(c *gin.Context, reason string) {
 
 	result := "verification_failed"
 	updated, readErr := model.GetSiteOrder(id)
-	if readErr == nil {
+	if err == nil && errors.Is(readErr, gorm.ErrRecordNotFound) {
+		result = "closed"
+		readErr = nil
+	}
+	if readErr == nil && updated != nil {
 		switch updated.OrderStatus {
 		case common.TopUpStatusSuccess:
 			result = "credited"
@@ -182,7 +186,7 @@ func personalOrderView(order model.SiteOrder) gin.H {
 		"payment_provider": order.PaymentProvider, "payment_method": order.PaymentMethod,
 		"order_status": order.OrderStatus, "amount_fen": order.AmountFen, "frozen_quota": order.FrozenQuota,
 		"money": order.Money, "create_time": order.CreateTime, "complete_time": order.CompleteTime,
-		"expires_at": order.ExpiresAt, "sandbox": order.Sandbox,
+		"expires_at": order.ExpiresAt, "sandbox": order.Sandbox, "cancel_requested": order.CancelRequested, "close_requested_at": order.CloseRequestedAt, "closed_at": order.ClosedAt, "review_required": order.ReviewRequired,
 	}
 }
 
@@ -199,6 +203,7 @@ func GetPersonalOrders(c *gin.Context) {
 	}
 	// Ownership always comes from authentication, never a query parameter.
 	filter.OwnerID = userID
+	filter.ExcludeClosed = filter.Status == ""
 	filter.User = ""
 	orders, total, err := model.ListSiteOrders(filter)
 	if err != nil {

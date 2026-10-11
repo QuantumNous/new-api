@@ -46,6 +46,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PaymentMethodLabel } from '@/features/wallet/components/payment-method-label'
 import { handleServerError } from '@/lib/handle-server-error'
 import { cn } from '@/lib/utils'
 
@@ -881,15 +882,29 @@ export function PaymentSettingsSection({
           />
           <Tabs defaultValue='general' className='min-w-0'>
             <div className='overflow-x-auto pb-1'>
-              <TabsList className='grid min-w-[50rem] grid-cols-7'>
+              <TabsList className='flex w-max min-w-full'>
                 <TabsTrigger value='general'>{t('General')}</TabsTrigger>
-                <TabsTrigger value='alipay'>{t('Alipay')}</TabsTrigger>
-                <TabsTrigger value='wechatpay'>{t('WeChat Pay')}</TabsTrigger>
-                <TabsTrigger value='epay'>Epay</TabsTrigger>
-                <TabsTrigger value='stripe'>{t('Stripe')}</TabsTrigger>
-                <TabsTrigger value='creem'>Creem</TabsTrigger>
-                <TabsTrigger value='waffo-pancake'>Waffo Pancake</TabsTrigger>
-                <TabsTrigger value='waffo'>Waffo</TabsTrigger>
+                <TabsTrigger value='alipay'>
+                  <PaymentMethodLabel method='alipay_direct' />
+                </TabsTrigger>
+                <TabsTrigger value='wechatpay'>
+                  <PaymentMethodLabel method='wechatpay_native' />
+                </TabsTrigger>
+                <TabsTrigger value='epay'>
+                  <PaymentMethodLabel method='epay' />
+                </TabsTrigger>
+                <TabsTrigger value='stripe'>
+                  <PaymentMethodLabel method='stripe' />
+                </TabsTrigger>
+                <TabsTrigger value='creem'>
+                  <PaymentMethodLabel method='creem' />
+                </TabsTrigger>
+                <TabsTrigger value='waffo-pancake'>
+                  <PaymentMethodLabel method='waffo_pancake' />
+                </TabsTrigger>
+                <TabsTrigger value='waffo'>
+                  <PaymentMethodLabel method='waffo' />
+                </TabsTrigger>
               </TabsList>
             </div>
 

@@ -16,14 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { render, screen } from '@testing-library/react'
-import { describe, expect, test, vi } from 'vitest'
+import { act, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 
 import {
   getPublicPlans,
   getSelfSubscriptionFull,
 } from '@/features/subscriptions/api'
 import type { PlanRecord } from '@/features/subscriptions/types'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { SubscriptionPlansCard } from '../subscription-plans-card'
 
@@ -55,7 +56,139 @@ const plan: PlanRecord = {
   },
 }
 
+const originalCurrency = useSystemConfigStore.getState().config.currency
+
+afterEach(() => {
+  useSystemConfigStore.getState().setConfig({ currency: originalCurrency })
+})
+
 describe('subscription plans card', () => {
+  test('shows the converted yuan price and reacts to display currency changes', async () => {
+    useSystemConfigStore.getState().setConfig({
+      currency: {
+        ...originalCurrency,
+        quotaDisplayType: 'CNY',
+        usdExchangeRate: 7,
+      },
+    })
+    vi.mocked(getPublicPlans).mockResolvedValue({ success: true, data: [plan] })
+    vi.mocked(getSelfSubscriptionFull).mockResolvedValue({
+      success: true,
+      data: {
+        subscriptions: [],
+        all_subscriptions: [],
+        billing_preference: 'wallet_first',
+      },
+    })
+    render(
+      <SubscriptionPlansCard embedded showOverview={false} topupInfo={null} />
+    )
+    expect(await screen.findByText('¥140')).toBeVisible()
+    act(() => {
+      useSystemConfigStore.getState().setConfig({
+        currency: { ...originalCurrency, quotaDisplayType: 'USD' },
+      })
+    })
+    expect(screen.getByText('$20')).toBeVisible()
+    expect(screen.queryByText('¥140')).not.toBeInTheDocument()
+  })
+
+  test('keeps a CNY plan price fixed when the exchange rate changes', async () => {
+    useSystemConfigStore.getState().setConfig({
+      currency: {
+        ...originalCurrency,
+        quotaDisplayType: 'CNY',
+        usdExchangeRate: 7,
+      },
+    })
+    vi.mocked(getPublicPlans).mockResolvedValue({
+      success: true,
+      data: [{ plan: { ...plan.plan, price_amount: 10, currency: 'CNY' } }],
+    })
+    vi.mocked(getSelfSubscriptionFull).mockResolvedValue({
+      success: true,
+      data: {
+        subscriptions: [],
+        all_subscriptions: [],
+        billing_preference: 'wallet_first',
+      },
+    })
+    render(
+      <SubscriptionPlansCard embedded showOverview={false} topupInfo={null} />
+    )
+    expect(await screen.findByText('¥10')).toBeVisible()
+    act(() => {
+      useSystemConfigStore.getState().setConfig({
+        currency: {
+          ...originalCurrency,
+          quotaDisplayType: 'CNY',
+          usdExchangeRate: 8,
+        },
+      })
+    })
+    expect(screen.getByText('¥10')).toBeVisible()
+  })
+
+  test('arranges available plans side by side on wider screens with a narrow-screen fallback', async () => {
+    vi.mocked(getPublicPlans).mockResolvedValue({
+      success: true,
+      data: [plan, { plan: { ...plan.plan, id: 2, title: 'Starter' } }],
+    })
+    vi.mocked(getSelfSubscriptionFull).mockResolvedValue({
+      success: true,
+      data: {
+        subscriptions: [],
+        all_subscriptions: [],
+        billing_preference: 'wallet_first',
+      },
+    })
+    render(
+      <SubscriptionPlansCard embedded showOverview={false} topupInfo={null} />
+    )
+    await screen.findByText('Professional')
+    const grid = screen.getByTestId('subscription-plans-grid')
+    expect(grid).toHaveClass('grid', 'grid-cols-1', 'sm:grid-cols-2')
+    expect(grid).toContainElement(screen.getByText('Professional'))
+    expect(grid).toContainElement(screen.getByText('Starter'))
+  })
+
+  test('reports unavailable without public plans even when subscription history exists and overview is hidden', async () => {
+    vi.mocked(getPublicPlans).mockResolvedValue({ success: true, data: [] })
+    vi.mocked(getSelfSubscriptionFull).mockResolvedValue({
+      success: true,
+      data: {
+        subscriptions: [],
+        all_subscriptions: [
+          {
+            subscription: {
+              id: 1,
+              user_id: 1,
+              plan_id: 1,
+              status: 'expired',
+              start_time: 1,
+              end_time: 2,
+              amount_total: 100,
+              amount_used: 100,
+            },
+          },
+        ],
+        billing_preference: 'wallet_first',
+      },
+    })
+    const onAvailabilityChange = vi.fn()
+    const { container } = render(
+      <SubscriptionPlansCard
+        showOverview={false}
+        topupInfo={null}
+        onAvailabilityChange={onAvailabilityChange}
+      />
+    )
+    await waitFor(() =>
+      expect(onAvailabilityChange).toHaveBeenLastCalledWith(false)
+    )
+    expect(container).toBeEmptyDOMElement()
+  })
+
   test('keeps a long plan subtitle visible as a prominent, wrapping explanation', async () => {
     vi.mocked(getPublicPlans).mockResolvedValue({
       success: true,

@@ -68,7 +68,11 @@ func CreateWechatPayCheckout(ctx context.Context, config *model.WechatPayConfig,
 		return "", err
 	}
 	svc := native.NativeApiService{Client: client}
-	rsp, _, err := svc.Prepay(ctx, native.PrepayRequest{Appid: core.String(config.AppID), Mchid: core.String(config.MchID), Description: core.String("账户充值"), OutTradeNo: core.String(order.TradeNo), TimeExpire: core.Time(time.Unix(order.ExpiresAt, 0)), NotifyUrl: core.String(fmt.Sprintf("%s/api/user/wechatpay/notify/%d", config.NotifyBaseURL, config.ID)), Amount: &native.Amount{Total: core.Int64(order.AmountFen), Currency: core.String("CNY")}})
+	description := "账户充值"
+	if strings.HasPrefix(order.TradeNo, "SUBWX") {
+		description = "订阅套餐"
+	}
+	rsp, _, err := svc.Prepay(ctx, native.PrepayRequest{Appid: core.String(config.AppID), Mchid: core.String(config.MchID), Description: core.String(description), OutTradeNo: core.String(order.TradeNo), TimeExpire: core.Time(time.Unix(order.ExpiresAt, 0)), NotifyUrl: core.String(fmt.Sprintf("%s/api/user/wechatpay/notify/%d", config.NotifyBaseURL, config.ID)), Amount: &native.Amount{Total: core.Int64(order.AmountFen), Currency: core.String("CNY")}})
 	if err != nil || rsp == nil || rsp.CodeUrl == nil || !strings.HasPrefix(*rsp.CodeUrl, "weixin://wxpay/bizpayurl?") {
 		return "", errors.New("WeChat Pay prepay failed")
 	}
@@ -120,10 +124,18 @@ func ValidateWechatPayTransaction(config *model.WechatPayConfig, order *model.We
 	return nil
 }
 
-func ReconcileWechatPayOrder(ctx context.Context, tradeNo string) error {
+func ReconcileWechatPayOrder(ctx context.Context, tradeNo string) (resultErr error) {
 	order, config, err := model.GetWechatPayOrder(tradeNo)
 	if err != nil {
 		return err
+	}
+	defer func() {
+		resultErr = errors.Join(resultErr, model.RecordDirectOrderCheck(tradeNo, model.PaymentProviderWechatPay, resultErr))
+	}()
+	if common.GetTimestamp() >= order.ExpiresAt && order.CloseRequestedAt == 0 && order.Status == common.TopUpStatusPending {
+		if err := model.DB.Model(&model.WechatPayOrder{}).Where("id = ? AND (close_requested_at = 0 OR close_requested_at IS NULL)", order.ID).Updates(map[string]any{"close_requested_at": common.GetTimestamp(), "close_reason": "expired"}).Error; err != nil {
+			return err
+		}
 	}
 	if order.Status == common.TopUpStatusSuccess {
 		return model.SyncWechatPayQuotaCache(order)
@@ -131,7 +143,7 @@ func ReconcileWechatPayOrder(ctx context.Context, tradeNo string) error {
 	if order.Status == "paid" {
 		return model.CompleteWechatPayTopUp(tradeNo)
 	}
-	if order.Status != common.TopUpStatusPending {
+	if order.Status != common.TopUpStatusPending && order.Status != common.TopUpStatusExpired {
 		return nil
 	}
 	client, err := WechatPayClient(config)
@@ -141,12 +153,24 @@ func ReconcileWechatPayOrder(ctx context.Context, tradeNo string) error {
 	svc := native.NativeApiService{Client: client}
 	tx, _, err := svc.QueryOrderByOutTradeNo(ctx, native.QueryOrderByOutTradeNoRequest{Mchid: core.String(config.MchID), OutTradeNo: core.String(tradeNo)})
 	if err != nil {
-		if core.IsAPIError(err, "ORDER_NOT_EXIST") && common.GetTimestamp() > order.ExpiresAt+86400 {
-			return model.CloseWechatPayOrder(tradeNo)
+		if core.IsAPIError(err, "ORDER_NOT_EXIST") {
+			if err := model.DB.Model(&model.WechatPayOrder{}).Where("id = ?", order.ID).Update("gateway_status", "NOT_FOUND").Error; err != nil {
+				return err
+			}
+			if common.GetTimestamp() > order.ExpiresAt+30 {
+				return model.ConfirmDirectOrderClosed(tradeNo, model.PaymentProviderWechatPay)
+			}
+			return nil
 		}
 		return errors.New("微信支付查单失败")
 	}
 	if err = ValidateWechatPayTransaction(config, order, tx); err != nil {
+		return err
+	}
+	if len(*tx.TradeState) > 32 {
+		return errors.New("invalid WeChat Pay state")
+	}
+	if err := model.DB.Model(&model.WechatPayOrder{}).Where("id = ?", order.ID).Update("gateway_status", *tx.TradeState).Error; err != nil {
 		return err
 	}
 	switch *tx.TradeState {
@@ -158,23 +182,34 @@ func ReconcileWechatPayOrder(ctx context.Context, tradeNo string) error {
 			return err
 		}
 		return model.CompleteWechatPayTopUp(tradeNo)
-	case "CLOSED", "REVOKED":
-		return model.CloseWechatPayOrder(tradeNo)
+	case "CLOSED":
+		if tx.SuccessTime != nil && *tx.SuccessTime != "" {
+			if err := model.DB.Model(&model.WechatPayOrder{}).Where("id = ?", order.ID).Update("review_required", true).Error; err != nil {
+				return err
+			}
+			return model.ErrPaymentReviewRequired
+		}
+		return model.ConfirmDirectOrderClosed(tradeNo, model.PaymentProviderWechatPay)
+	case "REFUND", "REVOKED":
+		if err := model.DB.Model(&model.WechatPayOrder{}).Where("id = ?", order.ID).Update("review_required", true).Error; err != nil {
+			return err
+		}
+		return model.ErrPaymentReviewRequired
 	case "NOTPAY":
-		if common.GetTimestamp() <= order.ExpiresAt {
+		if common.GetTimestamp() < order.ExpiresAt && !order.CancelRequested && order.Status != common.TopUpStatusExpired {
 			return nil
 		}
 		if _, err = svc.CloseOrder(ctx, native.CloseOrderRequest{Mchid: core.String(config.MchID), OutTradeNo: core.String(tradeNo)}); err != nil {
 			return errors.New("微信支付关单尚未确认")
 		}
-		return model.CloseWechatPayOrder(tradeNo)
+		return model.ConfirmDirectOrderClosed(tradeNo, model.PaymentProviderWechatPay)
 	}
 	return errors.New("微信支付交易尚未确认")
 }
 
 func RunWechatPayReconciliation(ctx context.Context) error {
 	var orders []model.WechatPayOrder
-	if err := model.DB.Where("(status IN ? OR cache_pending = ?) AND next_check_at <= ?", []string{common.TopUpStatusPending, "paid"}, true, common.GetTimestamp()).Order("next_check_at, id").Limit(30).Find(&orders).Error; err != nil {
+	if err := model.DB.Where("(status IN ? OR (status = ? AND (closed_at = 0 OR closed_at IS NULL)) OR cache_pending = ?) AND (review_required = ? OR review_required IS NULL) AND next_check_at <= ?", []string{common.TopUpStatusPending, "paid"}, common.TopUpStatusExpired, true, false, common.GetTimestamp()).Order("next_check_at, id").Limit(30).Find(&orders).Error; err != nil {
 		return errors.New("WeChat Pay reconciliation database unavailable")
 	}
 	var failures []error
@@ -182,7 +217,7 @@ func RunWechatPayReconciliation(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		claimed := model.DB.Model(&model.WechatPayOrder{}).Where("id = ? AND next_check_at = ?", order.ID, order.NextCheckAt).Update("next_check_at", common.GetTimestamp()+300)
+		claimed := model.DB.Model(&model.WechatPayOrder{}).Where("id = ? AND next_check_at = ?", order.ID, order.NextCheckAt).Update("next_check_at", common.GetTimestamp()+120)
 		if claimed.Error != nil {
 			failures = append(failures, errors.New("WeChat Pay claim failed"))
 			continue

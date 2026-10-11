@@ -16,9 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import i18next from 'i18next'
 import { CreditCard, Landmark } from 'lucide-react'
-import { type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si'
 
 import { ReactIconByName } from '@/components/react-icon-by-name'
@@ -28,6 +27,28 @@ import { PAYMENT_TYPES, PAYMENT_ICON_COLORS } from '../constants'
 // ============================================================================
 // UI Helper Functions
 // ============================================================================
+
+export function getPaymentBrandClassName(paymentType?: string): string {
+  switch (paymentType) {
+    case PAYMENT_TYPES.ALIPAY:
+    case PAYMENT_TYPES.ALIPAY_DIRECT:
+      return 'text-blue-600 dark:text-blue-400'
+    case PAYMENT_TYPES.WECHAT:
+    case 'wechatpay_native':
+      return 'text-green-700 dark:text-green-400'
+    case PAYMENT_TYPES.STRIPE:
+      return 'text-violet-600 dark:text-violet-400'
+    case PAYMENT_TYPES.CREEM:
+      return 'text-indigo-600 dark:text-indigo-400'
+    case PAYMENT_TYPES.WAFFO_PANCAKE:
+      return 'text-orange-700 dark:text-orange-400'
+    case PAYMENT_TYPES.WAFFO:
+    case 'epay':
+      return 'text-blue-600 dark:text-blue-400'
+    default:
+      return ''
+  }
+}
 
 /**
  * Resolves a backend-provided image URL to https only. Rejects http:,
@@ -68,6 +89,20 @@ export function getPaymentIcon(
   icon?: string,
   altName?: string
 ): ReactNode {
+  let brandColor: string | undefined =
+    PAYMENT_ICON_COLORS[paymentType as keyof typeof PAYMENT_ICON_COLORS]
+  if (
+    paymentType === PAYMENT_TYPES.ALIPAY ||
+    paymentType === PAYMENT_TYPES.ALIPAY_DIRECT
+  ) {
+    brandColor = PAYMENT_ICON_COLORS[PAYMENT_TYPES.ALIPAY]
+  } else if (
+    paymentType === PAYMENT_TYPES.WECHAT ||
+    paymentType === 'wechatpay_native'
+  ) {
+    brandColor = PAYMENT_ICON_COLORS[PAYMENT_TYPES.WECHAT]
+  }
+  if (paymentType === 'epay') brandColor = '#2563EB'
   const iconValue = icon?.trim()
   const safeIconUrl = normalizeHttpIconUrl(iconValue)
   if (safeIconUrl) {
@@ -89,6 +124,7 @@ export function getPaymentIcon(
         name={iconValue}
         className={className}
         title={altName || paymentType || iconValue}
+        style={{ color: brandColor }}
       />
     )
   }
@@ -99,6 +135,7 @@ export function getPaymentIcon(
 
   switch (paymentType) {
     case PAYMENT_TYPES.ALIPAY:
+    case PAYMENT_TYPES.ALIPAY_DIRECT:
       return (
         <SiAlipay
           className={className}
@@ -106,6 +143,7 @@ export function getPaymentIcon(
         />
       )
     case PAYMENT_TYPES.WECHAT:
+    case 'wechatpay_native':
       return (
         <SiWechat
           className={className}
@@ -127,6 +165,7 @@ export function getPaymentIcon(
         />
       )
     case PAYMENT_TYPES.WAFFO:
+    case 'epay':
       return (
         <CreditCard
           className={className}
@@ -134,25 +173,18 @@ export function getPaymentIcon(
         />
       )
     case PAYMENT_TYPES.WAFFO_PANCAKE:
-      // The W glyph fills only ~40% of its viewBox vertically (wide and
-      // short letterform); scale(2) brings its rendered height in line
-      // with Stripe's S and Creem's Landmark.
       return (
         <span
-          className={`inline-flex items-center justify-center leading-none ${className}`}
-          style={{ transform: 'scale(2)' }}
-        >
-          <img
-            src='/waffo-logo-light.svg'
-            alt={i18next.t('Waffo')}
-            className='block h-full w-full object-contain dark:hidden'
-          />
-          <img
-            src='/waffo-logo-dark.svg'
-            alt={i18next.t('Waffo')}
-            className='hidden h-full w-full object-contain dark:block'
-          />
-        </span>
+          aria-hidden='true'
+          className={`inline-block shrink-0 bg-current text-orange-700 dark:text-orange-400 ${className}`}
+          style={{
+            maskImage: 'url(/waffo-logo-light.svg)',
+            maskSize: 'contain',
+            maskRepeat: 'no-repeat',
+            maskPosition: 'center',
+            transform: 'scale(2)',
+          }}
+        />
       )
     default:
       return <CreditCard className={className} />

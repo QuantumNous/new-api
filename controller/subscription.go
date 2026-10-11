@@ -164,7 +164,10 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.Currency == "" {
 		req.Plan.Currency = "USD"
 	}
-	req.Plan.Currency = "USD"
+	if req.Plan.Currency != "USD" && req.Plan.Currency != "CNY" {
+		common.ApiErrorMsg(c, "套餐币种仅支持 USD 或 CNY")
+		return
+	}
 	if req.Plan.AllowBalancePay == nil {
 		req.Plan.AllowBalancePay = common.GetPointer(true)
 	}
@@ -244,7 +247,10 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 	if req.Plan.Currency == "" {
 		req.Plan.Currency = "USD"
 	}
-	req.Plan.Currency = "USD"
+	if req.Plan.Currency != "USD" && req.Plan.Currency != "CNY" {
+		common.ApiErrorMsg(c, "套餐币种仅支持 USD 或 CNY")
+		return
+	}
 	if req.Plan.DurationUnit == "" {
 		req.Plan.DurationUnit = model.SubscriptionDurationMonth
 	}

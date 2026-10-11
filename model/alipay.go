@@ -34,6 +34,7 @@ type AlipayConfig struct {
 }
 
 type AlipayOrder struct {
+	DirectPaymentLifecycle
 	ID            int    `json:"id"`
 	TradeNo       string `json:"trade_no" gorm:"type:varchar(64);uniqueIndex"`
 	ConfigID      int    `json:"-" gorm:"index"`
@@ -43,6 +44,7 @@ type AlipayOrder struct {
 	// NULL permits multiple unpaid orders on every supported database.
 	ProviderTradeNo *string `json:"provider_trade_no,omitempty" gorm:"type:varchar(64);uniqueIndex"`
 	Status          string  `json:"status" gorm:"type:varchar(24);index"`
+	CancelRequested bool    `json:"cancel_requested"`
 	ExpiresAt       int64   `json:"expires_at"`
 	NextCheckAt     int64   `json:"-" gorm:"index"`
 	CachePending    bool    `json:"-"`
@@ -100,10 +102,10 @@ func RecordAlipayPayment(tradeNo, providerTradeNo string, amountFen int64) error
 		if order.Status == common.TopUpStatusSuccess || order.Status == "paid" {
 			return nil
 		}
-		if order.Status != common.TopUpStatusPending {
+		if order.Status != common.TopUpStatusPending && order.Status != common.TopUpStatusExpired {
 			return ErrTopUpStatusInvalid
 		}
-		result := tx.Model(&AlipayOrder{}).Where("id = ? AND status = ?", order.ID, common.TopUpStatusPending).
+		result := tx.Model(&AlipayOrder{}).Where("id = ? AND status = ?", order.ID, order.Status).
 			Updates(map[string]any{"status": "paid", "provider_trade_no": providerTradeNo, "next_check_at": 0})
 		if result.Error != nil {
 			return result.Error
@@ -125,6 +127,9 @@ func SyncAlipayQuotaCache(order *AlipayOrder) error {
 }
 
 func CompleteAlipayTopUp(tradeNo string) error {
+	if isDirectSubscriptionOrder(tradeNo) {
+		return completeDirectSubscriptionPayment(tradeNo, PaymentProviderAlipay)
+	}
 	var order AlipayOrder
 	completed := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
@@ -133,6 +138,9 @@ func CompleteAlipayTopUp(tradeNo string) error {
 		}
 		if order.Status == common.TopUpStatusSuccess {
 			return nil
+		}
+		if order.ReviewRequired {
+			return ErrPaymentReviewRequired
 		}
 		if order.Status != "paid" || order.ProviderTradeNo == nil {
 			return ErrTopUpStatusInvalid
@@ -144,7 +152,7 @@ func CompleteAlipayTopUp(tradeNo string) error {
 		if topUp.PaymentProvider != PaymentProviderAlipay || topUp.UserId != order.UserID {
 			return ErrPaymentMethodMismatch
 		}
-		if topUp.Status != common.TopUpStatusPending {
+		if (topUp.Status != common.TopUpStatusPending && topUp.Status != common.TopUpStatusExpired) || topUp.CompleteTime != 0 || topUp.PaymentReceipt.ReceiptTradeNo != "" || topUp.PaymentReceipt.ReceiptAmount != "" || topUp.PaymentReceipt.ReceiptCurrency != "" {
 			return ErrTopUpStatusInvalid
 		}
 		var user User
@@ -183,13 +191,7 @@ func CompleteAlipayTopUp(tradeNo string) error {
 }
 
 func CloseAlipayOrder(tradeNo string) error {
-	return DB.Transaction(func(tx *gorm.DB) error {
-		result := tx.Model(&AlipayOrder{}).Where("trade_no = ? AND status = ?", tradeNo, common.TopUpStatusPending).Update("status", common.TopUpStatusExpired)
-		if result.Error != nil || result.RowsAffected == 0 {
-			return result.Error
-		}
-		return tx.Model(&TopUp{}).Where("trade_no = ? AND payment_provider = ? AND status = ?", tradeNo, PaymentProviderAlipay, common.TopUpStatusPending).Update("status", common.TopUpStatusExpired).Error
-	})
+	return ConfirmDirectOrderClosed(tradeNo, PaymentProviderAlipay)
 }
 
 // PopulateAlipayTopUpQuotas exposes the immutable credit rather than the legacy

@@ -8,7 +8,6 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/middleware"
@@ -118,6 +117,7 @@ func AlipayQuote(c *gin.Context) {
 
 func RequestAlipayPay(c *gin.Context) {
 	var req struct {
+		PlanID         int    `json:"plan_id"`
 		Amount         int64  `json:"amount"`
 		Mobile         bool   `json:"mobile"`
 		ExpectedAmount string `json:"expected_amount"`
@@ -126,20 +126,32 @@ func RequestAlipayPay(c *gin.Context) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
+	if c.FullPath() == "/api/subscription/alipay/pay" && req.PlanID <= 0 {
+		common.ApiErrorMsg(c, "请选择订阅套餐")
+		return
+	}
 	config, err := model.CurrentAlipayConfig()
 	if err != nil || !config.Enabled || !operation_setting.IsPaymentComplianceConfirmed() {
 		common.ApiErrorMsg(c, "支付宝支付未启用")
 		return
 	}
 	userID := c.GetInt("id")
-	group, err := model.GetUserGroup(userID, true)
-	if err != nil {
-		common.ApiErrorMsg(c, "获取用户分组失败")
-		return
-	}
-	fen, quota, err := service.QuoteAlipay(config, req.Amount, group)
-	if err == nil {
-		err = model.ValidateTopUpQuotaCapacity(userID, quota)
+	var plan *model.SubscriptionPlan
+	var fen int64
+	var quota int
+	if req.PlanID > 0 {
+		plan, fen, err = quoteDirectSubscription(req.PlanID)
+	} else {
+		var group string
+		group, err = model.GetUserGroup(userID, true)
+		if err != nil {
+			common.ApiErrorMsg(c, "获取用户分组失败")
+			return
+		}
+		fen, quota, err = service.QuoteAlipay(config, req.Amount, group)
+		if err == nil {
+			err = model.ValidateTopUpQuotaCapacity(userID, quota)
+		}
 	}
 	if err != nil {
 		common.ApiError(c, err)
@@ -150,43 +162,31 @@ func RequestAlipayPay(c *gin.Context) {
 		common.ApiErrorMsg(c, "支付金额已变化，请重新确认")
 		return
 	}
-	client, err := service.AlipayClient(config)
-	if err != nil {
-		common.ApiErrorMsg(c, "支付宝配置无效")
-		return
-	}
 	tradeNo := "ALI" + randstr.Hex(16)
+	if plan != nil {
+		tradeNo = "SUBALI" + randstr.Hex(12)
+	}
 	now := common.GetTimestamp()
 	money := decimal.NewFromInt(fen).Div(decimal.NewFromInt(100))
-	order := model.AlipayOrder{TradeNo: tradeNo, ConfigID: config.ID, UserID: userID, AmountFen: fen, CreditedQuota: quota, Status: common.TopUpStatusPending, ExpiresAt: now + 1800, NextCheckAt: now + 60}
-	trade := alipay.Trade{OutTradeNo: tradeNo, Subject: "账户充值", TotalAmount: money.StringFixed(2), SellerId: config.SellerID, NotifyURL: config.NotifyBaseURL + "/api/user/alipay/notify", ReturnURL: config.ReturnURL, TimeExpire: time.Unix(order.ExpiresAt, 0).In(time.FixedZone("CST", 8*3600)).Format("2006-01-02 15:04:05")}
-	var payURL string
-	if (req.Mobile && config.WapPay) || !config.PagePay {
-		trade.ProductCode = "QUICK_WAP_WAY"
-		u, e := client.TradeWapPay(alipay.TradeWapPay{Trade: trade, TimeExpire: trade.TimeExpire})
-		err = e
-		if u != nil {
-			payURL = u.String()
-		}
-	} else {
-		trade.ProductCode = "FAST_INSTANT_TRADE_PAY"
-		u, e := client.TradePagePay(alipay.TradePagePay{Trade: trade})
-		err = e
-		if u != nil {
-			payURL = u.String()
-		}
-	}
-	if err != nil || payURL == "" {
-		common.ApiErrorMsg(c, "创建支付宝支付链接失败")
+	order := model.AlipayOrder{TradeNo: tradeNo, ConfigID: config.ID, UserID: userID, AmountFen: fen, CreditedQuota: quota, Status: common.TopUpStatusPending, ExpiresAt: now + 300, NextCheckAt: now + 60}
+	payURL, err := service.CreateAlipayCheckout(config, &order, req.Mobile)
+	if err != nil {
+		common.ApiError(c, err)
 		return
 	}
 	units := decimal.NewFromInt(int64(quota)).Div(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart()
 	topup := model.TopUp{UserId: userID, Amount: units, Money: money.InexactFloat64(), TradeNo: tradeNo, PaymentMethod: model.PaymentMethodAlipayDirect, PaymentProvider: model.PaymentProviderAlipay, CreateTime: now, Status: common.TopUpStatusPending}
-	if err := model.CreateAlipayOrder(&topup, &order); err != nil {
+	if plan != nil {
+		sub := &model.SubscriptionOrder{UserId: userID, PlanId: plan.Id, Money: money.InexactFloat64(), TradeNo: tradeNo, PaymentMethod: topup.PaymentMethod, PaymentProvider: topup.PaymentProvider, CreateTime: now, Status: common.TopUpStatusPending}
+		err = model.CreateDirectSubscriptionOrder(sub, plan, &order)
+	} else {
+		err = model.CreateAlipayOrder(&topup, &order)
+	}
+	if err != nil {
 		common.ApiErrorMsg(c, "创建订单失败")
 		return
 	}
-	common.ApiSuccess(c, gin.H{"pay_link": payURL, "trade_no": tradeNo, "amount": money.StringFixed(2), "currency": "CNY"})
+	common.ApiSuccess(c, gin.H{"pay_link": payURL, "trade_no": tradeNo, "amount": money.StringFixed(2), "currency": "CNY", "expires_at": order.ExpiresAt})
 }
 
 func AlipayNotify(c *gin.Context) {

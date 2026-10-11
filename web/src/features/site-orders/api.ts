@@ -39,6 +39,15 @@ export interface SiteOrder {
   create_time: number
   complete_time: number
   expires_at: number
+  close_requested_at?: number
+  closed_at?: number
+  close_reason?: string
+  gateway_status?: string
+  checked_at?: number
+  next_check_at?: number
+  retry_count?: number
+  review_required?: boolean
+  cancel_requested?: boolean
   sandbox: boolean
   cache_pending?: boolean
   last_error?: string
@@ -46,6 +55,7 @@ export interface SiteOrder {
   last_check_success?: boolean | null
 }
 export interface OrderFilters {
+  actionable?: boolean
   keyword: string
   user: string
   provider: string
@@ -95,4 +105,59 @@ export async function recoverOrder(id: number, reason: string) {
     data: { result: string }
   }>(`/api/user/orders/${id}/recover`, { reason })
   return requireServerSuccess(response.data).data
+}
+
+export interface DirectOrderCheckout {
+  payment_provider: 'alipay' | 'wechatpay'
+  trade_no: string
+  amount: string
+  currency: 'CNY'
+  expires_at: number
+  pay_link?: string
+  code_url?: string
+}
+
+export async function resumeOrder(id: number) {
+  const response = await api.post<{
+    success: boolean
+    data: DirectOrderCheckout
+  }>(`/api/user/self/orders/${id}/pay`, {
+    mobile: /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent),
+  })
+  return requireServerSuccess(response.data).data
+}
+
+export async function cancelOrder(id: number) {
+  const response = await api.post<{
+    success: boolean
+    data: { status: 'closed' | 'closing' | 'paid' }
+  }>(`/api/user/self/orders/${id}/cancel`, {})
+  return requireServerSuccess(response.data).data
+}
+
+export async function getPendingDirectOrders() {
+  const lists = await Promise.all(
+    ['alipay', 'wechatpay'].map((provider) =>
+      getOrders(
+        {
+          actionable: true,
+          keyword: '',
+          user: '',
+          provider,
+          status: 'pending',
+          start: '',
+          end: '',
+        },
+        1,
+        1,
+        'personal'
+      )
+    )
+  )
+  return {
+    total: lists.reduce((sum, list) => sum + list.total, 0),
+    order: lists
+      .flatMap((list) => list.items)
+      .sort((a, b) => b.create_time - a.create_time)[0],
+  }
 }

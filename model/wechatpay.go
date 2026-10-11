@@ -31,6 +31,7 @@ type WechatPayConfig struct {
 }
 
 type WechatPayOrder struct {
+	DirectPaymentLifecycle
 	ID            int    `json:"id"`
 	TradeNo       string `json:"trade_no" gorm:"type:varchar(64);uniqueIndex"`
 	ConfigID      int    `json:"-" gorm:"index"`
@@ -40,6 +41,8 @@ type WechatPayOrder struct {
 	// NULL permits multiple unpaid orders on every supported database.
 	ProviderTradeNo *string `json:"provider_trade_no,omitempty" gorm:"type:varchar(64);uniqueIndex"`
 	Status          string  `json:"status" gorm:"type:varchar(24);index"`
+	CheckoutURL     string  `json:"-" gorm:"type:text"`
+	CancelRequested bool    `json:"cancel_requested"`
 	ExpiresAt       int64   `json:"expires_at"`
 	NextCheckAt     int64   `json:"-" gorm:"index"`
 	CachePending    bool    `json:"-"`
@@ -97,10 +100,10 @@ func RecordWechatPayPayment(tradeNo, providerTradeNo string, amountFen int64) er
 		if order.Status == common.TopUpStatusSuccess || order.Status == "paid" {
 			return nil
 		}
-		if order.Status != common.TopUpStatusPending {
+		if order.Status != common.TopUpStatusPending && order.Status != common.TopUpStatusExpired {
 			return ErrTopUpStatusInvalid
 		}
-		result := tx.Model(&WechatPayOrder{}).Where("id = ? AND status = ?", order.ID, common.TopUpStatusPending).
+		result := tx.Model(&WechatPayOrder{}).Where("id = ? AND status = ?", order.ID, order.Status).
 			Updates(map[string]any{"status": "paid", "provider_trade_no": providerTradeNo, "next_check_at": 0})
 		if result.Error != nil {
 			return result.Error
@@ -122,6 +125,9 @@ func SyncWechatPayQuotaCache(order *WechatPayOrder) error {
 }
 
 func CompleteWechatPayTopUp(tradeNo string) error {
+	if isDirectSubscriptionOrder(tradeNo) {
+		return completeDirectSubscriptionPayment(tradeNo, PaymentProviderWechatPay)
+	}
 	var order WechatPayOrder
 	completed := false
 	err := DB.Transaction(func(tx *gorm.DB) error {
@@ -130,6 +136,9 @@ func CompleteWechatPayTopUp(tradeNo string) error {
 		}
 		if order.Status == common.TopUpStatusSuccess {
 			return nil
+		}
+		if order.ReviewRequired {
+			return ErrPaymentReviewRequired
 		}
 		if order.Status != "paid" || order.ProviderTradeNo == nil {
 			return ErrTopUpStatusInvalid
@@ -141,7 +150,7 @@ func CompleteWechatPayTopUp(tradeNo string) error {
 		if topUp.PaymentProvider != PaymentProviderWechatPay || topUp.UserId != order.UserID {
 			return ErrPaymentMethodMismatch
 		}
-		if topUp.Status != common.TopUpStatusPending {
+		if (topUp.Status != common.TopUpStatusPending && topUp.Status != common.TopUpStatusExpired) || topUp.CompleteTime != 0 || topUp.PaymentReceipt.ReceiptTradeNo != "" || topUp.PaymentReceipt.ReceiptAmount != "" || topUp.PaymentReceipt.ReceiptCurrency != "" {
 			return ErrTopUpStatusInvalid
 		}
 		var user User
@@ -180,13 +189,7 @@ func CompleteWechatPayTopUp(tradeNo string) error {
 }
 
 func CloseWechatPayOrder(tradeNo string) error {
-	return DB.Transaction(func(tx *gorm.DB) error {
-		result := tx.Model(&WechatPayOrder{}).Where("trade_no = ? AND status = ?", tradeNo, common.TopUpStatusPending).Update("status", common.TopUpStatusExpired)
-		if result.Error != nil || result.RowsAffected == 0 {
-			return result.Error
-		}
-		return tx.Model(&TopUp{}).Where("trade_no = ? AND payment_provider = ? AND status = ?", tradeNo, PaymentProviderWechatPay, common.TopUpStatusPending).Update("status", common.TopUpStatusExpired).Error
-	})
+	return ConfirmDirectOrderClosed(tradeNo, PaymentProviderWechatPay)
 }
 
 // PopulateWechatPayTopUpQuotas exposes the immutable credit rather than the legacy

@@ -3,6 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/cachex"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/samber/hot"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -800,14 +802,35 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 	return "", nil
 }
 
-func calcSubscriptionBalanceQuota(priceAmount float64) (int, error) {
-	if priceAmount <= 0 {
-		return 0, nil
+func SubscriptionPriceUSD(priceAmount float64, currency string) (decimal.Decimal, error) {
+	if math.IsNaN(priceAmount) || math.IsInf(priceAmount, 0) || priceAmount < 0 {
+		return decimal.Zero, errors.New("套餐价格无效")
 	}
+	amount := decimal.NewFromFloat(priceAmount)
+	switch currency {
+	case "", "USD":
+	case "CNY":
+		rate := operation_setting.USDExchangeRate
+		if rate <= 0 || math.IsNaN(rate) || math.IsInf(rate, 0) {
+			return decimal.Zero, errors.New("人民币汇率无效")
+		}
+		amount = amount.Div(decimal.NewFromFloat(rate))
+	default:
+		return decimal.Zero, errors.New("套餐币种不支持换算")
+	}
+	return amount, nil
+}
+
+func calcSubscriptionBalanceQuota(priceAmount float64, currency string) (int, error) {
+	amount, err := SubscriptionPriceUSD(priceAmount, currency)
+	if err != nil {
+		return 0, err
+	}
+
 	if common.QuotaPerUnit <= 0 {
 		return 0, errors.New("额度单位配置错误")
 	}
-	quota := decimal.NewFromFloat(priceAmount).
+	quota := amount.
 		Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
 		Ceil()
 	return common.WalletQuotaFromDecimalStrict(quota)
@@ -838,7 +861,7 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 			return errors.New("该套餐不允许使用余额兑换")
 		}
 
-		requiredQuota, err := calcSubscriptionBalanceQuota(plan.PriceAmount)
+		requiredQuota, err := calcSubscriptionBalanceQuota(plan.PriceAmount, plan.Currency)
 		if err != nil {
 			return err
 		}

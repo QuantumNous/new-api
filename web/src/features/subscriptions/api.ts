@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api, type ApiRequestConfig } from '@/lib/api'
+
 import type {
   ApiResponse,
   PlanRecord,
@@ -166,6 +167,7 @@ export async function paySubscriptionBalance(
 export async function createWaffoPancakeSubscriptionProduct(data: {
   name: string
   amount: string
+  currency?: 'CNY' | 'USD'
 }): Promise<
   ApiResponse<{ product_id: string; product_name: string; store_id: string }>
 > {
@@ -236,5 +238,33 @@ export async function updateBillingPreference(
 
 export async function getGroups(): Promise<ApiResponse<string[]>> {
   const res = await api.get('/api/group')
+  return res.data
+}
+
+export async function quoteSubscriptionDirect(
+  planID: number,
+  paymentMethod: string
+): Promise<ApiResponse<string>> {
+  const res = await api.post('/api/subscription/direct/quote', {
+    plan_id: planID,
+    payment_method: paymentMethod,
+  })
+  return res.data
+}
+
+export async function paySubscriptionDirect(
+  provider: 'alipay' | 'wechatpay',
+  data: { plan_id: number; expected_amount: string; mobile: boolean }
+): Promise<
+  ApiResponse<{
+    pay_link?: string
+    code_url?: string
+    trade_no: string
+    amount: string
+    currency: 'CNY'
+    expires_at: number
+  }>
+> {
+  const res = await api.post(`/api/subscription/${provider}/pay`, data)
   return res.data
 }

@@ -64,6 +64,7 @@ import {
 import { Switch } from '@/components/ui/switch'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { handleServerError } from '@/lib/handle-server-error'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import {
   createPlan,
@@ -95,6 +96,9 @@ export function SubscriptionsMutateDrawer({
   currentRow,
 }: Props) {
   const { t } = useTranslation()
+  const priceDisplayType = useSystemConfigStore(
+    (state) => state.config.currency.quotaDisplayType
+  )
   const isEdit = !!currentRow?.plan?.id
   const { triggerRefresh } = useSubscriptions()
   const { meta: currencyMeta } = getCurrencyDisplay()
@@ -118,7 +122,10 @@ export function SubscriptionsMutateDrawer({
       if (currentRow?.plan) {
         form.reset(planToFormValues(currentRow.plan))
       } else {
-        form.reset(PLAN_FORM_DEFAULTS)
+        form.reset({
+          ...PLAN_FORM_DEFAULTS,
+          currency: priceDisplayType === 'CNY' ? 'CNY' : 'USD',
+        })
       }
       getGroups()
         .then((res) => {
@@ -147,7 +154,7 @@ export function SubscriptionsMutateDrawer({
         })
         .catch(() => setPancakeProducts([]))
     }
-  }, [open, currentRow, form])
+  }, [open, currentRow, form, priceDisplayType])
 
   const durationUnit = form.watch('duration_unit')
   const resetPeriod = form.watch('quota_reset_period')
@@ -208,6 +215,7 @@ export function SubscriptionsMutateDrawer({
       const res = await createWaffoPancakeSubscriptionProduct({
         name: title,
         amount: priceAmount.toFixed(2),
+        currency: form.getValues('currency'),
       })
       if (
         res.message === 'success' &&
@@ -328,13 +336,36 @@ export function SubscriptionsMutateDrawer({
                 )}
               />
 
+              <FormField
+                control={form.control}
+                name='currency'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t('Currency')}</FormLabel>
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value='CNY'>CNY (¥)</SelectItem>
+                        <SelectItem value='USD'>USD ($)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
               <div className='grid grid-cols-1 gap-3 sm:grid-cols-2'>
                 <FormField
                   control={form.control}
                   name='price_amount'
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>{t('Plan Price')}</FormLabel>
+                      <FormLabel>
+                        {t('Plan Price')} ({form.watch('currency')})
+                      </FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -350,7 +381,7 @@ export function SubscriptionsMutateDrawer({
                       </FormControl>
                       <FormDescription>
                         {t(
-                          'Amount the user pays to purchase this plan; the actual currency depends on the payment gateway.'
+                          'The plan price is charged in the selected currency.'
                         )}
                       </FormDescription>
                       <FormMessage />

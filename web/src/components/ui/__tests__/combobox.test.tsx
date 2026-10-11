@@ -277,3 +277,57 @@ describe('selected option icons', () => {
     expect(screen.queryByAltText('')).not.toBeInTheDocument()
   })
 })
+
+it('anchors custom-value options to dialog coordinates instead of viewport coordinates', async () => {
+  render(
+    <Dialog open title='Payment method'>
+      <Combobox
+        allowCustomValue
+        openOnFocus={false}
+        options={options}
+        value='custom'
+        onValueChange={vi.fn()}
+        aria-label='Payment type'
+      />
+    </Dialog>
+  )
+  const dialog = screen.getByRole('dialog')
+  const input = screen.getByRole('combobox', { name: 'Payment type' })
+  const dialogRect = vi.spyOn(dialog, 'getBoundingClientRect').mockReturnValue({
+    x: 400,
+    y: 150,
+    left: 400,
+    top: 150,
+    right: 900,
+    bottom: 650,
+    width: 500,
+    height: 500,
+    toJSON() {},
+  })
+  const inputRect = vi.spyOn(input, 'getBoundingClientRect').mockReturnValue({
+    x: 424,
+    y: 200,
+    left: 424,
+    top: 200,
+    right: 876,
+    bottom: 232,
+    width: 452,
+    height: 32,
+    toJSON() {},
+  })
+  try {
+    await userEvent.click(input)
+    const popup = screen.getByRole('listbox').parentElement
+    expect(popup).toHaveStyle({
+      position: 'absolute',
+      left: '24px',
+      top: '86px',
+      width: '452px',
+    })
+    await userEvent.click(screen.getByRole('option', { name: 'Google' }))
+    expect(screen.getByRole('dialog')).toBeVisible()
+  } finally {
+    dialogRect.mockRestore()
+    inputRect.mockRestore()
+  }
+})

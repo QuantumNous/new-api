@@ -54,6 +54,7 @@ import {
 } from '@/features/subscriptions/api'
 import { SubscriptionPurchaseDialog } from '@/features/subscriptions/components/dialogs/subscription-purchase-dialog'
 import { formatDuration, formatResetPeriod } from '@/features/subscriptions/lib'
+import { formatSubscriptionPrice } from '@/features/subscriptions/lib/format'
 import type {
   PlanRecord,
   UserSubscriptionRecord,
@@ -62,6 +63,7 @@ import { formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { cn } from '@/lib/utils'
+import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import type { PaymentMethod, TopupInfo } from '../types'
 
@@ -111,6 +113,7 @@ export function SubscriptionPlansCard({
   showOverview = true,
 }: SubscriptionPlansCardProps) {
   const { t } = useTranslation()
+  useSystemConfigStore((state) => state.config.currency)
 
   const [plans, setPlans] = useState<PlanRecord[]>([])
   const [activeSubscriptions, setActiveSubscriptions] = useState<
@@ -202,7 +205,7 @@ export function SubscriptionPlansCard({
 
   const hasActive = activeSubscriptions.length > 0
   const hasAny = allSubscriptions.length > 0
-  const isAvailable = loading || plans.length > 0 || hasAny
+  const isAvailable = loading || plans.length > 0 || (showOverview && hasAny)
   const disablePref = !hasActive
   const isSubPref =
     billingPreference === 'subscription_first' ||
@@ -269,7 +272,7 @@ export function SubscriptionPlansCard({
         </CardHeader>
         <CardContent className='space-y-4 p-3 sm:p-5'>
           {showOverview ? <Skeleton className='h-20 w-full' /> : null}
-          <div className='grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3'>
+          <div className='grid grid-cols-1 gap-4 sm:grid-cols-2'>
             {['first', 'second', 'third'].map((key) => (
               <Skeleton key={key} className='h-48 w-full' />
             ))}
@@ -279,7 +282,7 @@ export function SubscriptionPlansCard({
     )
   }
 
-  if (plans.length === 0 && !hasAny) {
+  if (!isAvailable) {
     return null
   }
 
@@ -557,12 +560,15 @@ export function SubscriptionPlansCard({
 
         {/* Available plans grid */}
         {plans.length > 0 ? (
-          <div className='grid grid-cols-1 gap-3 2xl:grid-cols-2 2xl:gap-4'>
+          <div
+            data-testid='subscription-plans-grid'
+            className='grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:gap-4'
+          >
             {plans.map((p, index) => {
               const plan = p?.plan
               if (!plan) return null
               const totalAmount = Number(plan.total_amount || 0)
-              const price = Number(plan.price_amount || 0).toFixed(2)
+              const price = formatSubscriptionPrice(plan)
               const isPopular = index === 0 && plans.length > 1
               const limit = Number(plan.max_purchase_per_user || 0)
               const count = planPurchaseCountMap.get(plan.id) || 0
@@ -594,21 +600,6 @@ export function SubscriptionPlansCard({
                         <h4 className='truncate font-semibold'>
                           {plan.title || t('Subscription Plans')}
                         </h4>
-                        {plan.subtitle && (
-                          <div
-                            role='note'
-                            className='border-primary/50 bg-primary/5 mt-2 flex items-start gap-2 border-l-2 px-2.5 py-2'
-                          >
-                            <HugeiconsIcon
-                              icon={InformationCircleIcon}
-                              aria-hidden='true'
-                              className='text-primary mt-0.5 size-4 shrink-0'
-                            />
-                            <p className='text-foreground min-w-0 text-sm leading-5 break-words'>
-                              {plan.subtitle}
-                            </p>
-                          </div>
-                        )}
                       </div>
                       {isPopular && (
                         <StatusBadge
@@ -622,9 +613,25 @@ export function SubscriptionPlansCard({
                       )}
                     </div>
 
+                    {plan.subtitle && (
+                      <div
+                        role='note'
+                        className='border-primary/50 bg-primary/5 mt-2 flex items-start gap-2 border-l-2 px-2.5 py-2'
+                      >
+                        <HugeiconsIcon
+                          icon={InformationCircleIcon}
+                          aria-hidden='true'
+                          className='text-primary mt-0.5 size-4 shrink-0'
+                        />
+                        <p className='text-foreground min-w-0 text-sm leading-5 break-words'>
+                          {plan.subtitle}
+                        </p>
+                      </div>
+                    )}
+
                     <div className='py-2'>
                       <span className='text-primary text-2xl font-bold'>
-                        ${price}
+                        {price}
                       </span>
                     </div>
 
@@ -691,6 +698,8 @@ export function SubscriptionPlansCard({
             }
           }}
           plan={selectedPlan}
+          enableAlipay={!!topupInfo?.enable_alipay_topup}
+          enableWechatPay={!!topupInfo?.enable_wechatpay_topup}
           enableStripe={enableStripe}
           enableCreem={enableCreem}
           enableWaffoPancake={enableWaffoPancake}
