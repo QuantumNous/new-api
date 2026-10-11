@@ -175,7 +175,7 @@ const MODEL_PROVIDER_RULES: readonly ModelProviderRule[] = [
     name: 'Meta',
     icon: 'Meta.Color',
     fallbackKeywords: ['meta-'],
-    keywords: ['meta-llama', 'llama-', 'llama2', 'llama3'],
+    keywords: ['meta-llama', 'meta/', 'muse-', 'llama-', 'llama2', 'llama3'],
   },
   {
     name: 'Cohere',
