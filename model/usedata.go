@@ -209,14 +209,18 @@ DO UPDATE SET last_seen_at = GREATEST(quota_data_dimensions.last_seen_at, EXCLUD
 // consumption, which is what the pickers want.
 func GetQuotaDataDimensionsFast(userId int) (dims QuotaDataDimensions, err error) {
 	tokenNames := []string{}
-	// Only keys that are currently active are offered in the pickers; keys
-	// disabled/expired/exhausted stay in the data but drop out of the lists.
+	// Only keys that currently exist and are active are offered in the
+	// pickers: disabled/expired/exhausted keys stay in the data but drop out
+	// of the lists, and so do soft-deleted ones — status stays 1 on deletion,
+	// so the deleted_at check below is what actually removes them.
 	// Columns must be table-qualified: the JOIN below brings tokens.user_id
 	// into scope, and a bare user_id is an ambiguous reference on Postgres
-	// (SQLSTATE 42702), which broke the per-user pickers entirely.
+	// (SQLSTATE 42702), which broke the per-user pickers entirely. The raw
+	// JOIN also bypasses GORM's soft-delete scope, hence the explicit
+	// deleted_at condition.
 	tx := DB.Table("quota_data_dimensions").
 		Select("DISTINCT quota_data_dimensions.token_name").
-		Joins("JOIN tokens ON tokens.id = quota_data_dimensions.token_name_id AND tokens.status = 1 AND tokens.name = quota_data_dimensions.token_name")
+		Joins("JOIN tokens ON tokens.id = quota_data_dimensions.token_name_id AND tokens.status = 1 AND tokens.deleted_at IS NULL AND tokens.name = quota_data_dimensions.token_name")
 	if userId != 0 {
 		tx = tx.Where("quota_data_dimensions.user_id = ?", userId)
 	}
@@ -267,13 +271,14 @@ func GetQuotaDataByUsername(username string, startTime int64, endTime int64) (qu
 // quotaDataTokenNameJoin narrows quota_data rows to tokens whose name matches
 // the dashboard's key filter. quota_data stores token ids only, so the name is
 // resolved through the tokens table at read time; unknown or renamed keys
-// simply match nothing.
+// simply match nothing. Soft-deleted keys are excluded as well: the pickers no
+// longer offer them, so filtering by hand-typed names must agree with that.
 func quotaDataTokenNameJoin(tx *gorm.DB, tokenName string) *gorm.DB {
 	if tokenName == "" {
 		return tx
 	}
 	return tx.Where("token_id IN (?)",
-		DB.Table("tokens").Select("id").Where("name = ?", tokenName),
+		DB.Table("tokens").Select("id").Where("name = ? AND deleted_at IS NULL", tokenName),
 	)
 }
 
