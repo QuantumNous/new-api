@@ -107,7 +107,36 @@ v2 为官方桌面助手补齐网页登录授权和桌面会话，同时复用 N
 
 退出会立即把当前 `user_sessions` 记录标记为撤销。它不影响用户在浏览器或其他电脑上的会话。
 
-## 4. 公告
+## 4. 站点深链一键连接（station connect）
+
+用户在桌面端输入站点 HTTPS 域名后，会打开 `{origin}/desktop/connect`。已登录浏览器会话申请一次性连接码，桌面端在同一 origin 上兑换为 `desktop_device` 会话（与设备码授权相同的安全边界）。
+
+### 连接页
+
+- 方法：`GET`
+- 路径：`/desktop/connect`（固定、区分大小写）
+- 页面加载同源 `/connect.js`（亦可改为托管在 `https://yeschoy.com/connect.js`）
+
+### 签发连接码（浏览器）
+
+- 方法：`POST`
+- 路径：`/api/desktop/v2/connect-codes`
+- 鉴权：网站浏览器会话 Cookie（`credentials: include`）；未登录返回 `session_required`（401）
+- 请求体（可选）：`{"origin":"https://your-station.example"}`；省略时可用 `Origin` 请求头或由 `Host` 推导 canonical HTTPS origin
+- TTL：300 秒，单次使用；响应 `data` 含 `code`、`origin`、`expiresAt`、`ttlSeconds`
+
+需要 Redis；未启用时返回 `temporarily_unavailable`（503）。
+
+### 兑换会话（桌面端）
+
+- 方法：`POST`
+- 路径：`/api/desktop/v2/connect-codes/exchange`
+- 鉴权：不需要；请求 Host 必须与签发时绑定的 `origin` 一致
+- 请求体（camelCase）：`code`（必填）、`deviceId`、`platform`、`clientVersion`（审计用，可选）
+- 成功 `data`（camelCase）：`accessToken`、`tokenType`、`refreshToken`、`sessionId`、`accessExpiresAt`、`refreshExpiresAt`
+- 错误码：`connect_code_expired`（400）、`connect_code_already_used`（409）、`connect_origin_mismatch`（403）
+
+## 5. 公告
 
 - 方法：`GET`
 - 路径：`/api/desktop/v2/notices`（启动握手中的 `announcements_path`）
@@ -140,7 +169,7 @@ v2 为官方桌面助手补齐网页登录授权和桌面会话，同时复用 N
 
 服务端按配置顺序返回，去掉 `expiresAtEpochMs` 非 0 且早于当前时间的条目，最多 30 条。配置为空或无法解析时返回空列表而不是 500；单条无法解析或缺少 `title` 的条目会被跳过。
 
-## 5. 复用的现有接口
+## 6. 复用的现有接口
 
 桌面端登录后使用 Bearer 访问：
 
@@ -156,13 +185,13 @@ v2 为官方桌面助手补齐网页登录授权和桌面会话，同时复用 N
 
 价格对比必须使用同一批实际用量：以用量记录中的模型、输入/输出 token、缓存和倍率计算野菜API实际费用，再以相同用量乘对应官网单价并按固定汇率 `6.75` 换算。不得拿不同时间段或不同模型估算“节省金额”。
 
-## 6. 部署检查清单
+## 7. 部署检查清单
 
 本次代码不修改部署环境。技术人员上线时只需确认：
 
 1. `ServerAddress` 为公开站点 `https://yeschoy.com`，用于生成授权页和充值页地址。
 2. Redis 已启用且可写；否则账户、用量等接口仍可用，但桌面网页登录会被关闭。
-3. 反向代理允许 `/api/desktop/v2/*` 和 `/desktop-authorize`，并保留 HTTPS。
+3. 反向代理允许 `/api/desktop/v2/*`、`/desktop/connect`、`/connect.js` 和 `/desktop-authorize`，并保留 HTTPS。
 4. 发布包含更新后的前端静态资源。
 5. 先在测试账号完成“同意、拒绝、过期、重复兑换、刷新、退出”全流程，再开放最低版本为 `0.2.0` 的桌面客户端。
 
