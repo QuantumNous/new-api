@@ -28,13 +28,13 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 状态 | `adapted`；2026-09-21 合并 `bf9f4111f` 后核验，继续保留 OpenRouter 修复 `104902b51`；本轮无需新增适配 |
+| 状态 | `adapted`；2026-10-12 合并 `7ce439e81` 后核验，继续保留 OpenRouter 修复 `104902b51`；本轮无需新增适配 |
 | 原始提交 | `4add2c53afe574d0a26038ac51c9e2668d7bab1d` |
 | 后续修复 | `104902b51371345fead518d9e702a967983675b4`，保留 OpenRouter 输入总数，处理 aggregate/split cache write 不一致 |
 | 实现 | [service/text_quota.go](../service/text_quota.go) |
 | 回归 | [service/text_quota_test.go](../service/text_quota_test.go)、[service/text_quota_consume_log_test.go](../service/text_quota_consume_log_test.go) |
 | 必要性 | Anthropic 风格 fresh-only 输入计数在写 consume log 时需加回 cache read/write，使统计采用总输入 token |
-| 上游跟踪 | 目标 `9a0be8750` 尚未包含等价实现，仍直接记录 `summary.PromptTokens`；未登记 PR 状态 |
+| 上游跟踪 | 目标 `633b4c5b1` 仍无等价实现：写日志处仍是 `PromptTokens: summary.PromptTokens`，`PromptTokensExcludeCache` / `consumeLogPromptTokens` 在该 SHA 不存在。上游 open PR [#7305](https://github.com/QuantumNous/new-api/pull/7305)（本 fork 提交，head = 合并前 `d82cfd646`，2026-10-12 状态 OPEN / REVIEW_REQUIRED / blocked）与 [#7291](https://github.com/QuantumNous/new-api/pull/7291)（TomJKS，目标相同）均未合并 |
 
 必须保持的行为：
 
@@ -400,6 +400,69 @@ GitHub legacy binding 增量要求 verified account evidence 或既有 MFA，相
 `test-summary.json`、独立审查摘要、overlay fixture 与 cleanup 回执；均为本地持久证据，不随 push 共享。
 专用数据库容器及其匿名 volume、上游对照 worktree 已清理；无其他运行容器时将 OrbStack 恢复到初始 stopped 状态，保留恢复引用。
 merge 后目标 ancestry 成立，相对目标仅剩 3 个 PATCH-001 业务/测试文件和 2 个维护资产；维护记录另作独立 docs commit。
+
+### 2026-10-12：同步 112 个上游提交并复核三数据库与启动 migration
+
+| 字段 | 记录 |
+| --- | --- |
+| 执行环境 | macOS darwin/arm64（Darwin 27.0.0），日期按 Asia/Shanghai |
+| 维护分支 / 合并前 | `fix/anthropic-consume-log-cache-tokens` / `d82cfd64672de9eb4534eb5426ccebfb8a2e28d9` |
+| 固定上游目标 | `origin/main` → `633b4c5b190dc1af99a2814391354d86948e7943`，新增 112 个提交、663 个文件（+36272 / −9732） |
+| fork fetch | `d82cfd646`，与本地相同，无远端独有提交 |
+| 恢复引用 | `codex/backup/anthropic-cache-2026-10-12T144745Z-upstream-633b4c5b1` → `d82cfd646` |
+| merge commit | `7ce439e8118169a8fb4f160ec2a1bc8911d5810f` |
+| 冲突 | 无文本冲突；`service/text_quota.go`、`service/text_quota_test.go` 自动合并，未修改业务实现或测试断言 |
+| PATCH-001 | `adapted`，契约回归在三库全部通过；上游等价实现仍不存在（见补丁清单“上游跟踪”） |
+| 工具 | Go 1.27.2 darwin/arm64、Bun 1.3.9、Node 26.11.1；`go.mod` 本轮由 `go 1.25.1` 升到 `go 1.26`，CI 用 `go-version-file` 与 Bun 1.4.0（本地 Bun 低于 CI，未改 lockfile） |
+| 前端 | frozen-lockfile 安装、typecheck、真实 build（`web/dist` 重建后再构建 root）通过；完整测试 187 文件 / 2250 用例全通过 |
+| 前端 lint | 195 个本轮变更 TS/JS 文件 oxlint 报 9 error + warning（3 个文件）；固定 `633b4c5b1` 隔离 worktree 用同一 node_modules 复现完全相同的文件与数量，属上游既有 lint 债 |
+| root | `CGO_ENABLED=0 GOWORK=off go vet/build` 通过；全量 `go test -json ./...` 无缓存 exit 0：4793 pass、0 fail、52 个 test-level SKIP（数据库/外部服务），数据库类 SKIP 已由下方 focused matrix 逐项覆盖 |
+| relaykit | 独立 `GOWORK=off` vet/build/test 通过；9 个有测试的 package、539 个 pass event、无 test-level SKIP（另 8 个 package 无测试文件） |
+| 数据库 | SQLite 3.50.4（modernc.org/sqlite v1.40.1）、MySQL 8.4.11、PostgreSQL 16.15（OrbStack 容器，专用可销毁库） |
+| 同步与验收状态 | 固定上游已纳入历史；PATCH-001 已验证；本轮适用检查无失败项，未验证项见下 |
+| 推送状态（文档提交前） | 用户本轮只授权合并，未授权 push；此条写入时未推送，本地 HEAD 为紧随其后的 docs commit |
+
+源码核对确认，上游在 `service/text_quota.go` 的增量只涉及 i18n 消息（`extraContent` 改为 `[]*common.Message`）、tool surcharge 调用次数上限钳制（`relaycommon.MaxBillableToolCallCount`）与 web search 计费调整；写 consume log 处仍是 `summary.PromptTokens`，`PromptTokensExcludeCache`、`consumeLogPromptTokens` 在 TARGET 不存在。
+合并后相对 TARGET 的 tree diff 仍只有 3 个 PATCH-001 文件与 2 个维护资产（`.agents/prompts/maintain-fork.md`、本文件）。
+
+本轮上游增量内容：scoped access token（新增 `middleware/access_token_routes.go`、`model/user_access_token.go`，`middleware/auth.go` 路由级 scope 与 step-up 身份）、安全登记与审计、日志导出、后端 i18n、tokenkit 模块、relaykit 多项修复，以及 Go/前端依赖升级（`go-epay` 0.0.5、`testify` 1.12.1、`gorilla/websocket` 1.5.3、`@lobehub/icons`、`ai` 7.0.136、`katex` 0.18.2、`dompurify` 3.4.16 等）。GORM 与数据库 driver 版本未变。
+
+#### 检查命令与三数据库结果
+
+前端：`bun install --frozen-lockfile`、`bun run typecheck`、`bun run build`、`bun run test`；lint 使用 `bun x --no-install oxlint -c .oxlintrc.json <本轮变更文件>`。
+后端 focused 命令统一带 `CGO_ENABLED=0 GOWORK=off` 与 `-json -count=1`，全部按首个失败即记录、复跑保留：
+
+| package / `-run` | 设置与实际覆盖 | 结果 |
+| --- | --- | --- |
+| `./model` / `Test(MigrationSchemaStability\|RequestPolicyDatabaseMatrix\|InferencePresetSettingsAndDatabaseRoundTrip\|SystemTaskHistoryDatabaseMatrix\|MigratePrefillGroupUniqueness.*\|MigrateTokenKeyUniqueness.*\|UserSessionPreviousRefreshHash.*)` | `TEST_MYSQL_DSN`、`TEST_POSTGRES_DSN` | 62 pass / 0 fail / 0 SKIP |
+| `./service` / `Test(CalculateTextQuotaSummary\|ConsumeLogPromptTokens\|FixedPriceBillingDatabaseMatrix)` | `TEST_FIXED_{MYSQL,POSTGRES}_DSN` 及各自 `_LOG_DSN` | 114 pass / 0 fail / 0 SKIP（每方言 25 个叶子用例） |
+| `./controller` / `Test(PreConsumePolicyDatabaseMatrix\|ModelPricingConversionDatabaseMatrix\|ModelManagementDatabaseMatrix\|SharedModelPluginPricingDatabaseMatrix\|VendorManagementDatabaseMatrix\|ModelDeletionDatabaseMatrix\|RequestPolicyRoutingDatabaseMatrix\|AuditDatabaseMatrix\|LogExportDatabaseMatrix)` | `TEST_{MYSQL,POSTGRES}_DSN`；审计类用 `AUDIT_*` | 341 pass / 0 fail（首轮 5 个 SKIP，补 `AUDIT_*` 后 15 pass、仅 `clickhouse` 1 SKIP） |
+| `./controller` / `Test(APITokenAuditDatabaseMatrix\|DeleteRedemptionBatch\|IndependentAuditLogStores\|TokenMigrationFromChar48ToVarchar128.*)` | `TEST_{MYSQL,POSTGRES}_DSN` + `_LOG_DSN`、`AUDIT_*` | 224 pass / 0 fail（`clickhouse` 2 SKIP） |
+| `./controller` / `Test(ExecuteTaskSubmissionHonorsRouteRetainResult\|ImmediateTaskSettlementDatabase\|TaskListsOmitPersistedSnapshot)` | `TEST_TASK_DB_DIALECT=sqlite/mysql/postgres` 分别运行 | 每库 15 pass / 0 SKIP |
+| `./controller` / `Test(SecurityLogin\|OAuthLogin\|OAuthBind\|GenerateOAuthCode\|PasskeyRPIDMigrationPreservesExistingCredentials\|AccessTokenAudit\|AccessTokenLifecycle)` | `TEST_SECURITY_DIALECT=sqlite/mysql/postgres` 分别运行 | 每库 72 pass / 0 SKIP |
+| `./controller` / `^TestMultiKeyEnableRestoresOnlyExhaustedChannels$` | `TEST_CHANNEL_SQL_DSN` 分别指向三库 | 每库 18 pass / 0 SKIP |
+| `./pkg/perf_metrics` / `^TestPerformanceAggregationAndFlush$` | `TEST_PERF_MYSQL_DSN`、`TEST_PERF_POSTGRES_DSN` | 11 pass / 0 SKIP |
+
+启动 migration 幂等性（真实二进制两次启动，MySQL 与 PostgreSQL 各一轮）：`startup-migration-twice.sh` 首次启动 → 插入 sentinel 行 `users(migration-sentinel)` → 第二次启动 → 对比 `information_schema`/`pg_indexes` 快照。
+两库结果一致：`columns identical`、`indexes identical`（两库均 37 张表）、sentinel 行保留、新表 `user_access_tokens` 存在。
+
+#### 首轮失败、纠正与复跑
+
+1. `./model` 三库矩阵首轮 3 个 fail：PostgreSQL DSN 用了 keyword/value 形式，而 `model/main.go` 的 `chooseDB` 只在 `postgres://` / `postgresql://` 前缀时才走 PostgreSQL 分支，于是被当作 MySQL 打开并报 `default addr for network ... unknown`。改用 URL 形式 DSN 后复跑通过；首轮日志保留为 `model-db-matrix-first-dsn-format-fail.jsonl`。
+2. 启动 migration 首轮（MySQL）sentinel 插入语句包含不存在的 `updated_at` 列而失败；同一轮 PostgreSQL 的 schema 快照查询漏了 `-d newapi_startup`，两次快照都是空文件，"identical" 无意义。修正脚本后两库完整重跑，结果如上；首轮产物另存为 `startup-run1-*`。
+3. 全量 root 测试本轮一次通过（无上一轮的 WebSocket 预扣断言失败与 `SQLITE_BUSY` 抖动），未做复跑。
+
+#### 认证与其他专项
+
+本轮上游引入路由级 scoped access token 与 step-up 身份（`middleware/access_token_routes.go`、`middleware/auth.go`、`model/user_access_token.go`、`service/security_verification.go`）。
+`TEST_SECURITY_DIALECT` 三库安全矩阵（含 OAuth login 流程绑定、Passkey 迁移、access token 生命周期与审计）全部通过。
+本轮只做了入口级静态核对（未新增 ASVS 判定）：上一轮记录的两项边界（以 `10.1.2` 计的 OAuth login 发起浏览器服务端绑定缺失、GitHub 跨用户并发认领唯一性未验证）本轮没有针对性验证，状态不变，仍不作为合规结论。
+真实 provider、双浏览器攻击复现与 GitHub 并发声明测试仍未执行。
+
+本轮证据：`/Users/andy/AI/GitHub/new-api/.git/maintenance-evidence/2026-10-12T144745Z-upstream-633b4c5b1/`。
+包含 baseline/环境、前端安装/typecheck/build/test/lint 与 TARGET lint 对照、root vet/build/test、relaykit、全部三库 matrix 的 JSONL 与状态、启动 migration 脚本与两轮快照、首轮失败与修正记录；均为本地持久证据，不随 push 共享。
+
+未验证项 / 阻塞：ClickHouse 日志库与审计存储（无实例，`LogExportDatabaseMatrix/clickhouse`、`IndependentAuditLogStores/clickhouse` 保持 SKIP）；`TestVLLMStatusLive`（外部服务）；上节 OWASP 两项边界仍待验证。这些缺口不因其余检查全绿而消失。
 
 ### 新轮次记录模板
 
