@@ -3410,6 +3410,8 @@
     "Leave empty to disband the tag": "Оставьте пустым, чтобы удалить тег",
     "Leave empty to keep existing key": "Оставьте пустым, чтобы сохранить существующий ключ",
     "Leave empty to keep unchanged": "Оставьте пустым, чтобы сохранить без изменений",
+    "Log recording": "Запись журналов",
+    "Log search and export": "Поиск и экспорт журналов",
     "Leave empty to match all models": "Оставьте пустым, чтобы сопоставлять все модели",
     "Leave empty to use account email": "Оставьте пустым, чтобы использовать электронную почту учетной записи",
     "Leave empty to use default": "Оставьте пустым для использования по умолчанию",

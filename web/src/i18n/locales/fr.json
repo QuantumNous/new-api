@@ -3410,6 +3410,8 @@
     "Leave empty to disband the tag": "Laissez vide pour dissoudre l'étiquette",
     "Leave empty to keep existing key": "Laissez vide pour conserver la clé existante",
     "Leave empty to keep unchanged": "Laissez vide pour conserver inchangé",
+    "Log recording": "Enregistrement des journaux",
+    "Log search and export": "Recherche et exportation des journaux",
     "Leave empty to match all models": "Laisser vide pour correspondre à tous les modèles",
     "Leave empty to use account email": "Laissez vide pour utiliser l'e-mail du compte",
     "Leave empty to use default": "Laisser vide pour utiliser la valeur par défaut",

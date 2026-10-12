@@ -3410,6 +3410,8 @@
     "Leave empty to disband the tag": "タグを解散するには空のままにしてください",
     "Leave empty to keep existing key": "空欄のままにすると既存のキーを保持します",
     "Leave empty to keep unchanged": "変更しない場合は空欄のまま",
+    "Log recording": "ログの記録",
+    "Log search and export": "ログの検索とエクスポート",
     "Leave empty to match all models": "空欄の場合はすべてのモデルに一致",
     "Leave empty to use account email": "アカウントのメールアドレスを使用するには空のままにしてください",
     "Leave empty to use default": "デフォルトを使用する場合は空欄にしてください",

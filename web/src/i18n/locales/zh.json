@@ -3410,6 +3410,8 @@
     "Leave empty to disband the tag": "留空以解散标签",
     "Leave empty to keep existing key": "留空以保留现有密钥",
     "Leave empty to keep unchanged": "留空以保持不变",
+    "Log recording": "日志记录",
+    "Log search and export": "日志查询与导出",
     "Leave empty to match all models": "留空匹配所有模型",
     "Leave empty to use account email": "留空以使用账户邮箱",
     "Leave empty to use default": "留空使用默认",
