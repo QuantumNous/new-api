@@ -89,10 +89,11 @@ it('editing a row and toggling restrictions saves the option and invalidates cus
   await user.type(name, ' Status page ')
   await user.click(screen.getByRole('switch', { name: 'Admins only' }))
   await user.click(screen.getByRole('switch', { name: 'Highlight in sidebar' }))
-  await user.selectOptions(
-    screen.getByRole('combobox', { name: 'Highlight color' }),
-    'purple'
-  )
+  const color = screen.getByRole('combobox', { name: 'Highlight color' })
+  await user.click(color)
+  expect(color).toHaveAttribute('aria-expanded', 'true')
+  await user.click(await screen.findByRole('option', { name: 'Purple' }))
+  expect(color).toHaveTextContent('Purple')
   await user.click(screen.getByRole('button', { name: 'Save Changes' }))
   await waitFor(() =>
     expect(api.put).toHaveBeenCalledWith('/api/option/', {
@@ -115,10 +116,10 @@ it('disabling highlight retains the selected color for re-enabling', async () =>
   const user = userEvent.setup()
   renderSettings([{ ...page, highlight: true, highlightColor: 'green' }])
   const color = screen.getByRole('combobox', { name: 'Highlight color' })
-  expect(color).toHaveValue('green')
+  expect(color).toHaveTextContent('Green')
   await user.click(screen.getByRole('switch', { name: 'Highlight in sidebar' }))
   expect(color).toBeDisabled()
-  expect(color).toHaveValue('green')
+  expect(color).toHaveTextContent('Green')
   await user.click(screen.getByRole('button', { name: 'Save Changes' }))
   await waitFor(() =>
     expect(api.put).toHaveBeenCalledWith('/api/option/', {
@@ -133,8 +134,29 @@ it('disabling highlight retains the selected color for re-enabling', async () =>
   expect(
     screen.getByRole('combobox', { name: 'Highlight color' })
   ).toBeEnabled()
-  expect(screen.getByRole('combobox', { name: 'Highlight color' })).toHaveValue(
-    'green'
+  expect(
+    screen.getByRole('combobox', { name: 'Highlight color' })
+  ).toHaveTextContent('Green')
+})
+
+it('the color dropdown supports keyboard selection and returning to the theme default', async () => {
+  const user = userEvent.setup()
+  renderSettings([{ ...page, highlight: true }])
+  const color = screen.getByRole('combobox', { name: 'Highlight color' })
+  color.focus()
+  await user.keyboard('{ArrowDown}')
+  expect(await screen.findByRole('listbox')).toBeVisible()
+  await user.keyboard('{End}{Enter}')
+  expect(color).toHaveTextContent('Red')
+  await user.click(color)
+  await user.click(await screen.findByRole('option', { name: 'Follow theme' }))
+  expect(color).toHaveTextContent('Follow theme')
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+  await waitFor(() =>
+    expect(api.put).toHaveBeenCalledWith('/api/option/', {
+      key: 'CustomPages',
+      value: JSON.stringify([{ ...page, highlight: true }]),
+    })
   )
 })
 
