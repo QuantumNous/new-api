@@ -71,6 +71,17 @@ function formatChargeUSD(micros: number): string {
   return `$${(micros / 1_000_000).toFixed(4)}`
 }
 
+// usdToCNYRate is a fixed display-only conversion for showing a CNY figure
+// next to the real USD settlement. It is not the exact per-request rate the
+// billing path used (that can vary by request and isn't carried in this
+// aggregate) — it is close enough for a reference number next to the dollar
+// amount, the same way a price tag shows "approx. ¥X" next to "$Y".
+const usdToCNYRate = 7.1
+
+function formatChargeCNY(micros: number): string {
+  return `¥${((micros / 1_000_000) * usdToCNYRate).toFixed(4)}`
+}
+
 // Per-key spend table plus a realtime "who is spending right now" ranking.
 // The backend aggregates quota per (token_id, user_id) for the historical
 // total, and splits the in-memory realtime rings per key for the live
@@ -153,6 +164,13 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
     () => spendRows.some((row) => row.charge_usd_micros > 0),
     [spendRows]
   )
+  // Before-discount USD, scaled from the real paid USD by the same
+  // raw_quota/quota ratio already used for the quota column — keeps the two
+  // "before discount" figures (quota and USD) consistent with each other.
+  const totalRawChargeUSDMicros = useMemo(() => {
+    if (totalQuota <= 0) return 0
+    return (totalChargeUSDMicros * totalRawQuota) / totalQuota
+  }, [totalChargeUSDMicros, totalRawQuota, totalQuota])
   // Only show the "before discount" column/total when at least one row
   // actually has the data — most deployments will have it for every row
   // going forward, but historical rows predating the column should not make
@@ -270,6 +288,12 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
                 <span className='text-foreground font-medium line-through decoration-muted-foreground/50'>
                   {formatQuota(totalRawQuota)}
                 </span>
+                {totalRawChargeUSDMicros > 0 && (
+                  <span className='text-muted-foreground ml-1 text-xs line-through decoration-muted-foreground/50'>
+                    ({formatChargeUSD(totalRawChargeUSDMicros)} /{' '}
+                    {formatChargeCNY(totalRawChargeUSDMicros)})
+                  </span>
+                )}
               </span>
             )}
             <span>
@@ -279,7 +303,8 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
               </span>
               {hasAnyChargeUSD && (
                 <span className='text-muted-foreground ml-1 text-xs'>
-                  (≈ {formatChargeUSD(totalChargeUSDMicros)})
+                  (≈ {formatChargeUSD(totalChargeUSDMicros)} /{' '}
+                  {formatChargeCNY(totalChargeUSDMicros)})
                 </span>
               )}
             </span>
@@ -351,14 +376,32 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
                   </TableCell>
                   {hasAnyRawQuota && (
                     <TableCell className='text-muted-foreground text-right whitespace-nowrap tabular-nums'>
-                      {row.raw_quota > 0 ? formatQuota(row.raw_quota) : '--'}
+                      {row.raw_quota > 0 ? (
+                        <>
+                          {formatQuota(row.raw_quota)}
+                          {row.quota > 0 && (
+                            <div className='text-xs'>
+                              {formatChargeUSD(
+                                (row.charge_usd_micros * row.raw_quota) / row.quota
+                              )}{' '}
+                              /{' '}
+                              {formatChargeCNY(
+                                (row.charge_usd_micros * row.raw_quota) / row.quota
+                              )}
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        '--'
+                      )}
                     </TableCell>
                   )}
                   <TableCell className='pr-3 text-right font-semibold whitespace-nowrap tabular-nums sm:pr-5'>
                     {formatQuota(row.quota)}
                     {row.charge_usd_micros > 0 && (
                       <div className='text-muted-foreground text-xs font-normal'>
-                        {formatChargeUSD(row.charge_usd_micros)}
+                        {formatChargeUSD(row.charge_usd_micros)} /{' '}
+                        {formatChargeCNY(row.charge_usd_micros)}
                       </div>
                     )}
                   </TableCell>
