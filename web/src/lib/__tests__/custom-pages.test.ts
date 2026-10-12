@@ -61,6 +61,23 @@ describe('custom page links', () => {
 })
 
 describe('custom page options', () => {
+  it('colors round-trip through options while legacy pages retain the theme default', () => {
+    const colored = { ...page, highlightColor: 'purple' as const }
+    expect(
+      parseCustomPagesOption(
+        serializeCustomPages([page, { ...colored, name: 'Other' }])
+      )
+    ).toEqual([page, { ...colored, name: 'Other' }])
+    expect(
+      normalizeCustomPages([{ ...page, highlightColor: 'invalid' }])
+    ).toEqual([])
+    expect(customPagesSchema.safeParse({ pages: [colored] }).success).toBe(true)
+    expect(
+      customPagesSchema.safeParse({
+        pages: [{ ...page, highlightColor: '#ffffff' }],
+      }).success
+    ).toBe(false)
+  })
   it('normalization trims values, defaults flags and removes unsafe or malformed entries', () => {
     expect(
       normalizeCustomPages([

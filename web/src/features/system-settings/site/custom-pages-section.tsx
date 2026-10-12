@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Plus, Trash2 } from 'lucide-react'
 import { useMemo } from 'react'
-import { useFieldArray } from 'react-hook-form'
+import { useFieldArray, useWatch } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
 import { EmptyState } from '@/components/empty-state'
@@ -33,6 +33,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import {
   customPagesSchema,
   type CustomPagesFormValues,
@@ -74,6 +75,7 @@ export function CustomPagesSection(props: { defaultValue: string }) {
     control: settings.form.control,
     name: 'pages',
   })
+  const pages = useWatch({ control: settings.form.control, name: 'pages' })
   const save = () => {
     void settings.handleSubmit().catch(() => {})
   }
@@ -174,6 +176,43 @@ export function CustomPagesSection(props: { defaultValue: string }) {
                     )}
                   />
                 </div>
+                <FormField
+                  control={settings.form.control}
+                  name={`pages.${index}.highlightColor`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Highlight color')}</FormLabel>
+                      <FormControl>
+                        <NativeSelect
+                          {...field}
+                          value={field.value ?? ''}
+                          disabled={!pages[index]?.highlight}
+                          className='w-full sm:w-48'
+                        >
+                          <NativeSelectOption value=''>
+                            {t('Follow theme')}
+                          </NativeSelectOption>
+                          <NativeSelectOption value='blue'>
+                            {t('Blue')}
+                          </NativeSelectOption>
+                          <NativeSelectOption value='green'>
+                            {t('Green')}
+                          </NativeSelectOption>
+                          <NativeSelectOption value='purple'>
+                            {t('Purple')}
+                          </NativeSelectOption>
+                          <NativeSelectOption value='orange'>
+                            {t('Orange')}
+                          </NativeSelectOption>
+                          <NativeSelectOption value='red'>
+                            {t('Red')}
+                          </NativeSelectOption>
+                        </NativeSelect>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 <Button
                   type='button'
                   variant='ghost'

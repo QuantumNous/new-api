@@ -141,6 +141,7 @@ export function useSidebarData(): SidebarData {
                 url: page.href,
                 icon: PanelsTopLeft,
                 highlight: page.highlight,
+                highlightColor: page.highlightColor,
                 requiredRole: page.adminOnly ? ROLE.ADMIN : undefined,
               })),
             },

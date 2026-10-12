@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import * as z from 'zod'
 
 import {
+  CUSTOM_PAGE_HIGHLIGHT_COLORS,
   isCustomPageURL,
   MAX_CUSTOM_PAGES,
   MAX_CUSTOM_PAGE_NAME_LENGTH,
@@ -53,6 +54,11 @@ export const customPagesSchema = z
             .refine(isCustomPageURL, 'URL must start with http:// or https://'),
           adminOnly: z.boolean(),
           highlight: z.boolean(),
+          highlightColor: z
+            .enum(CUSTOM_PAGE_HIGHLIGHT_COLORS, {
+              error: 'Unsupported highlight color',
+            })
+            .optional(),
         })
       )
       .max(MAX_CUSTOM_PAGES, 'At most 20 pages are supported'),

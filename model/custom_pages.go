@@ -18,10 +18,11 @@ const (
 )
 
 type CustomPage struct {
-	Name      string `json:"name"`
-	URL       string `json:"url"`
-	AdminOnly bool   `json:"adminOnly"`
-	Highlight bool   `json:"highlight"`
+	Name           string `json:"name"`
+	URL            string `json:"url"`
+	AdminOnly      bool   `json:"adminOnly"`
+	Highlight      bool   `json:"highlight"`
+	HighlightColor string `json:"highlightColor,omitempty"`
 }
 
 func normalizeNavLabel(kind, name string, maxLen int) (string, error) {
@@ -66,6 +67,11 @@ func ParseCustomPages(raw string) ([]CustomPage, error) {
 	}
 	names := make(map[string]bool, len(pages))
 	for i := range pages {
+		switch pages[i].HighlightColor {
+		case "", "blue", "green", "purple", "orange", "red":
+		default:
+			return nil, fmt.Errorf("Unsupported highlight color")
+		}
 		var err error
 		pages[i].Name, err = normalizeNavLabel("Page", pages[i].Name, MaxCustomPageNameLength)
 		if err != nil {

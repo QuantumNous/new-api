@@ -29,6 +29,7 @@ func TestParseCustomPages(t *testing.T) {
 		{"object", `{}`, "Custom pages must be a JSON array"},
 		{"null", `null`, "Custom pages must be a JSON array"},
 		{"invalid flag", `[{"name":"Bad","url":"https://example.com","adminOnly":"false"}]`, "Custom pages must be a JSON array"},
+		{"invalid color", `[{"name":"Bad","url":"https://example.com","highlightColor":"url(https://example.com)"}]`, "Unsupported highlight color"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -49,6 +50,12 @@ func TestParseCustomPages(t *testing.T) {
 				assert.Empty(t, pages)
 			}
 		})
+	}
+	for _, color := range []string{"", "blue", "green", "purple", "orange", "red"} {
+		pages, err := ParseCustomPages(`[{"name":"Status","url":"https://example.com","highlight":true,"highlightColor":"` + color + `"}]`)
+		require.NoError(t, err)
+		require.Len(t, pages, 1)
+		assert.Equal(t, color, pages[0].HighlightColor)
 	}
 	pages := make([]CustomPage, MaxCustomPages)
 	for i := range pages {
