@@ -32,6 +32,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/fxamacker/cbor/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/assert"
@@ -54,7 +55,17 @@ func setupSecurityEnrollmentTest(t *testing.T) (*model.User, service.AuthIdentit
 		dialect = "sqlite"
 	}
 	dsn := os.Getenv("TEST_" + strings.ToUpper(dialect) + "_DSN")
-	db, _ := newAuditTestDatabase(t, dialect, dsn)
+	var db *gorm.DB
+	if dialect == "sqlite" {
+		// Match common.SQLitePath: take the writer lock before transaction reads.
+		// Deferred transactions can fail to upgrade their read lock when concurrent
+		// proof consumption overlaps account deletion or session revocation.
+		var err error
+		db, err = gorm.Open(sqlite.Open(t.TempDir()+"/security.db?_pragma=busy_timeout(30000)&_pragma=journal_mode(WAL)&_txlock=immediate"), &gorm.Config{})
+		require.NoError(t, err)
+	} else {
+		db, _ = newAuditTestDatabase(t, dialect, dsn)
+	}
 	logDB, _ := newAuditTestDatabase(t, dialect, dsn)
 	db.Logger = logger.Default.LogMode(logger.Silent)
 	logDB.Logger = logger.Default.LogMode(logger.Silent)

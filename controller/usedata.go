@@ -64,9 +64,9 @@ func GetUserQuotaDates(c *gin.Context) {
 	userId := c.GetInt("id")
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	// 判断时间跨度是否超过 1 个月
-	if endTimestamp-startTimestamp > 2592000 {
-		common.ApiErrorT(c, "The time range cannot exceed 1 month")
+	startTimestamp, err := limitLogTimeRange(startTimestamp, endTimestamp)
+	if err != nil {
+		common.ApiError(c, err)
 		return
 	}
 	dates, err := model.GetQuotaDataByUserId(userId, startTimestamp, endTimestamp)
@@ -107,8 +107,8 @@ func GetUserFlowQuotaDates(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if endTimestamp-startTimestamp > 2592000 {
-		common.ApiErrorT(c, "The time range cannot exceed 1 month")
+	if _, err := limitLogTimeRange(startTimestamp, endTimestamp); err != nil {
+		common.ApiError(c, err)
 		return
 	}
 	dates, err := model.GetFlowQuotaData(startTimestamp, endTimestamp, "", userId, common.RoleCommonUser)

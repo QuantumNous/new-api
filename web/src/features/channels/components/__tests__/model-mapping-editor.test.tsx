@@ -190,15 +190,15 @@ test('a draft request with only the upstream name focuses the request field, and
       draftRequest={{ from: '', to: 'up-1', token: 1 }}
     />
   )
-  await waitFor(() =>
-    expect(
-      screen.getAllByRole('combobox', { name: 'Request Model Name' })
-    ).toHaveLength(2)
-  )
+  // The row is committed before its passive effect moves focus.
+  await waitFor(() => {
+    const requestFields = screen.getAllByRole('combobox', {
+      name: 'Request Model Name',
+    })
+    expect(requestFields).toHaveLength(2)
+    expect(requestFields[1]).toHaveFocus()
+  })
   expect(screen.getByDisplayValue('up-1')).toBeVisible()
-  expect(
-    screen.getAllByRole('combobox', { name: 'Request Model Name' })[1]
-  ).toHaveFocus()
 
   view.rerender(
     <ModelMappingEditor

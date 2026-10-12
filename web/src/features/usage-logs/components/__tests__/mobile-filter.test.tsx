@@ -173,14 +173,14 @@ it('applies mobile drawer filters only when Search is pressed', async () => {
 it('keeps all quick actions visible without opening a menu', async () => {
   await renderMobileFilter()
   const user = userEvent.setup()
-  for (const name of ['Hide', 'Filter', 'Search', 'View']) {
+  for (const name of ['Hide', 'Filter', 'Search', 'Export', 'View']) {
     expect(screen.getByRole('button', { name })).toBeVisible()
   }
   expect(screen.queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
   await user.click(screen.getByRole('button', { name: 'Hide' }))
   expect(screen.getByRole('button', { name: 'Show' })).toBeVisible()
   screen.getByRole('button', { name: 'Show' }).focus()
-  for (const name of ['Filter', 'Search', 'View']) {
+  for (const name of ['Filter', 'Search', 'Export', 'View']) {
     await user.tab()
     expect(screen.getByRole('button', { name })).toHaveFocus()
   }
@@ -227,6 +227,31 @@ it('keeps Search visible while loading and prevents repeated searches', async ()
   expect(onSearch).toHaveBeenCalledTimes(1)
 })
 
+it('places the end action between Search and View on desktop', () => {
+  function DesktopFixture() {
+    const table = useReactTable({
+      data: [],
+      columns: [],
+      getCoreRowModel: getCoreRowModel(),
+    })
+    return (
+      <LogsFilterToolbar
+        table={table}
+        primaryFilters={null}
+        actionEnd={<button type='button'>Export</button>}
+        hasActiveFilters={false}
+        onReset={() => {}}
+        onSearch={() => {}}
+      />
+    )
+  }
+  render(<DesktopFixture />)
+  const names = screen
+    .getAllByRole('button')
+    .map((button) => button.textContent)
+  expect(names.slice(-4)).toEqual(['Reset', 'Search', 'Export', 'View'])
+})
+
 it('collapses only date and statistics while keeping the right-hand quick actions visible', async () => {
   await renderMobileFilter()
   const user = userEvent.setup()
@@ -243,7 +268,7 @@ it('collapses only date and statistics while keeping the right-hand quick action
   expect(screen.queryByRole('button', { name: date })).not.toBeInTheDocument()
   expect(screen.queryByText('Usage')).not.toBeInTheDocument()
   const actions = screen.getByRole('group', { name: 'Actions' })
-  for (const name of ['Hide', 'Filter', 'Search', 'View']) {
+  for (const name of ['Hide', 'Filter', 'Search', 'Export', 'View']) {
     expect(within(actions).getByRole('button', { name })).toBeVisible()
   }
   expect(

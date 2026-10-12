@@ -234,6 +234,11 @@ func TestSecurityAccountDeletionConcurrentRequestsHaveOneWinner(t *testing.T) {
 	require.NoError(t, model.DB.Unscoped().First(&deleted, user.Id).Error)
 	assert.True(t, deleted.DeletedAt.Valid)
 	assert.Equal(t, identity.UserAuthVersion+1, deleted.AuthVersion)
+	_, _, err := service.ValidateLoginSession(identity)
+	assert.Error(t, err)
+	count, err := model.CountActiveUserSessions(user.Id, time.Now().Unix())
+	require.NoError(t, err)
+	assert.Zero(t, count)
 }
 
 type securityMailbox struct {
