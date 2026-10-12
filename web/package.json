@@ -105,7 +105,7 @@
     "embla-carousel-react": "^8.6.0",
     "jsdom": "^29.1.1",
     "knip": "^6.24.0",
-    "oxfmt": "^0.57.0",
+    "oxfmt": "^0.72.0",
     "oxlint": "^1.72.0",
     "shadcn": "^4.12.0",
     "vitest": "^4.1.10"
