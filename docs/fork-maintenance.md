@@ -419,7 +419,7 @@ merge 后目标 ancestry 成立，相对目标仅剩 3 个 PATCH-001 业务/测�
 | root | `CGO_ENABLED=0 GOWORK=off go vet/build` 通过；全量 `go test -json ./...` 无缓存 exit 0：4793 pass、0 fail、52 个 test-level SKIP（数据库/外部服务），数据库类 SKIP 已由下方 focused matrix 逐项覆盖 |
 | relaykit | 独立 `GOWORK=off` vet/build/test 通过；9 个有测试的 package、539 个 pass event、无 test-level SKIP（另 8 个 package 无测试文件） |
 | 数据库 | SQLite 3.50.4（modernc.org/sqlite v1.40.1）、MySQL 8.4.11、PostgreSQL 16.15（OrbStack 容器，专用可销毁库） |
-| 同步与验收状态 | 固定上游已纳入历史；PATCH-001 已验证；本轮适用检查无失败项，未验证项见下 |
+| 同步与验收状态 | 固定上游已纳入历史；PATCH-001 已验证；本轮适用检查通过（含 rc.39 升级路径与两次启动幂等），另有 1 个已复现的上游既有 fixture 失败（`^TestManageUser`）与下方未验证项 |
 | 推送状态（文档提交前） | 用户本轮只授权合并，未授权 push；此条写入时未推送，本地 HEAD 为紧随其后的 docs commit |
 
 源码核对确认，上游在 `service/text_quota.go` 的增量只涉及 i18n 消息（`extraContent` 改为 `[]*common.Message`）、tool surcharge 调用次数上限钳制（`relaycommon.MaxBillableToolCallCount`）与 web search 计费调整；写 consume log 处仍是 `summary.PromptTokens`，`PromptTokensExcludeCache`、`consumeLogPromptTokens` 在 TARGET 不存在。
@@ -452,6 +452,26 @@ merge 后目标 ancestry 成立，相对目标仅剩 3 个 PATCH-001 业务/测�
 2. 启动 migration 首轮（MySQL）sentinel 插入语句包含不存在的 `updated_at` 列而失败；同一轮 PostgreSQL 的 schema 快照查询漏了 `-d newapi_startup`，两次快照都是空文件，"identical" 无意义。修正脚本后两库完整重跑，结果如上；首轮产物另存为 `startup-run1-*`。
 3. 全量 root 测试本轮一次通过（无上一轮的 WebSocket 预扣断言失败与 `SQLITE_BUSY` 抖动），未做复跑。
 
+#### 升级路径与补充矩阵（独立审查后补验）
+
+独立只读审查（补丁契约、认证、数据库三路）指出两处首轮未覆盖项，本轮已补验：
+
+1. `task_plugins.source/icon` 由 `TEXT/MEDIUMTEXT` 升为 `LongText`：`controller` 的 `^TestTaskPluginSourceAboveMySQLTextLimitRoundTrips$` 在 `TEST_TASK_DB_DIALECT=sqlite/mysql/postgres` 三库分别运行，各 2 pass / 0 fail / 0 SKIP。
+2. `^TestManageUser` 在 `TEST_MANAGE_USER_DIALECT=sqlite/mysql/postgres` 三库各 43 pass；其中 `TestManageUserQuotaMiddlewareKeepsOneOperationPerRequest` 三库一致失败（期望 200，实际 401 `ACCESS_TOKEN_LEGACY_RETIRED`：dialect 路径的 fixture 未初始化 legacy token 的 30 天退役选项，fail-closed 生效）。在固定 `633b4c5b1` 的隔离 worktree 用相同环境复现同一失败，判定为上游既有的 fixture 缺口，非本轮合并引入；按维护规则不在本轮顺手修改上游实现或断言，也未改动该测试。
+
+升级路径（`upgrade-from-rc43.sh`，参数化 binary 与库名）：最新发布 tag `v1.0.0-rc.44` 就是本轮目标 `633b4c5b1`，而 `v1.0.0-rc.43` 已包含新表，因此真正有意义的升级基线取 `v1.0.0-rc.39`（`9978ee1e2`，2026-09-20，上一轮维护基线所在发布版）。用 rc.39 二进制在全新库建立“已发布版本 schema”（MySQL/PG 各 36 张表），插入 sentinel 行后再用本轮合并二进制启动升级：
+
+| 检查 | MySQL 8.4.11 | PostgreSQL 16.15 |
+| --- | --- | --- |
+| 启动日志错误 | 无 | 无 |
+| schema 差异 | 仅 `task_plugins.source` `text→longtext`、`icon` `mediumtext→longtext`，新增 `user_access_tokens`（10 列） | 仅 `task_plugins.icon` `varchar→text`，新增 `user_access_tokens`（10 列） |
+| 表数 / 列数 | 36→37 / 440→450 | 36→37 / 440→450 |
+| sentinel 行 | 保留 | 保留 |
+| `LegacyAccessTokenRetireAt` option | 0→1 | 0→1 |
+| 升级后再次启动 | schema 快照完全一致、无重复 ALTER | 同上 |
+
+另用 rc.43 → 合并结果各跑一轮（MySQL）：`user_access_tokens`、`longtext`、option 行在 rc.43 已存在，升级后 sentinel 保留、无错误，作为相邻发布版的回归数据点。
+
 #### 认证与其他专项
 
 本轮上游引入路由级 scoped access token 与 step-up 身份（`middleware/access_token_routes.go`、`middleware/auth.go`、`model/user_access_token.go`、`service/security_verification.go`）。
@@ -462,7 +482,7 @@ merge 后目标 ancestry 成立，相对目标仅剩 3 个 PATCH-001 业务/测�
 本轮证据：`/Users/andy/AI/GitHub/new-api/.git/maintenance-evidence/2026-10-12T144745Z-upstream-633b4c5b1/`。
 包含 baseline/环境、前端安装/typecheck/build/test/lint 与 TARGET lint 对照、root vet/build/test、relaykit、全部三库 matrix 的 JSONL 与状态、启动 migration 脚本与两轮快照、首轮失败与修正记录；均为本地持久证据，不随 push 共享。
 
-未验证项 / 阻塞：ClickHouse 日志库与审计存储（无实例，`LogExportDatabaseMatrix/clickhouse`、`IndependentAuditLogStores/clickhouse` 保持 SKIP）；`TestVLLMStatusLive`（外部服务）；上节 OWASP 两项边界仍待验证。这些缺口不因其余检查全绿而消失。
+未验证项 / 阻塞：ClickHouse 日志库与审计存储（无实例，`LogExportDatabaseMatrix/clickhouse`、`IndependentAuditLogStores/clickhouse` 保持 SKIP）；`TestVLLMStatusLive`（外部服务）；上节 OWASP 两项边界仍待验证；`^TestManageUser` 的 fixture 缺口为已复现的上游既有失败（非环境阻塞）。这些缺口不因其余检查全绿而消失。
 
 ### 新轮次记录模板
 
