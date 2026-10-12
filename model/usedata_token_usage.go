@@ -30,8 +30,20 @@ type TokenUsageRow struct {
 	// derived from Quota, which is in an internal unit that bakes in a CNY
 	// rate that can drift over the range. 0 means unknown, the same
 	// convention as RawQuota, for rows predating this column.
-	ChargeUSDMicros  int64 `json:"charge_usd_micros"`
-	TokenUsed        int64 `json:"token_used"`
+	ChargeUSDMicros int64 `json:"charge_usd_micros"`
+	// ChargeCNYMicros is ChargeUSDMicros converted at a fixed display-only
+	// USD->CNY rate (not the exact per-request rate, which isn't carried in
+	// this aggregate) — a reference figure next to the dollar amount, same
+	// convention as the dashboard card.
+	ChargeCNYMicros int64 `json:"charge_cny_micros"`
+	// RawChargeUSDMicros / RawChargeCNYMicros are the sticker-price USD/CNY —
+	// what the paid charge would be at group ratio 1.0, scaled from
+	// ChargeUSDMicros by the same RawQuota/Quota ratio already used for the
+	// quota column, so the two "before discount" figures stay consistent
+	// with each other. 0 when Quota is 0 (nothing to scale from).
+	RawChargeUSDMicros int64 `json:"raw_charge_usd_micros"`
+	RawChargeCNYMicros int64 `json:"raw_charge_cny_micros"`
+	TokenUsed          int64 `json:"token_used"`
 	CacheReadTokens  int64 `json:"cache_read_tokens"`
 	InputTokensTotal int64 `json:"input_tokens_total"`
 	LastUsed         int64 `json:"last_used"`
@@ -79,7 +91,30 @@ func GetTokenUsageRanking(startTime int64, endTime int64, userId int, username s
 		return nil, err
 	}
 	resolveTokenUsageNames(rows)
+	fillTokenUsageMoneyFields(rows)
 	return rows, nil
+}
+
+// usdToCNYRate is a fixed display-only conversion, matching the dashboard
+// card's own constant. It is not the exact rate each underlying request was
+// actually billed at (that can vary by request and by day, and isn't
+// meaningfully summable across a range) — close enough for a reference
+// figure next to the dollar amount.
+const usdToCNYRate = 7.1
+
+// fillTokenUsageMoneyFields derives the CNY and before-discount money fields
+// from what the query already summed, so callers get ready-to-use numbers
+// instead of redoing this arithmetic client-side.
+func fillTokenUsageMoneyFields(rows []TokenUsageRow) {
+	for i := range rows {
+		row := &rows[i]
+		row.ChargeCNYMicros = int64(float64(row.ChargeUSDMicros)*usdToCNYRate + 0.5)
+		if row.Quota <= 0 {
+			continue
+		}
+		row.RawChargeUSDMicros = int64(float64(row.ChargeUSDMicros)*float64(row.RawQuota)/float64(row.Quota) + 0.5)
+		row.RawChargeCNYMicros = int64(float64(row.RawChargeUSDMicros)*usdToCNYRate + 0.5)
+	}
 }
 
 // resolveTokenUsageNames fills in display names for the ranked keys.

@@ -80,6 +80,16 @@ export interface TokenUsageItem {
   // rate that can drift over the range. Divide by 1_000_000 for dollars.
   // 0 means unknown for rows predating this column.
   charge_usd_micros: number
+  // charge_cny_micros is charge_usd_micros converted at the backend's fixed
+  // display-only USD->CNY rate — a reference figure, not the exact
+  // per-request rate. Divide by 1_000_000 for yuan.
+  charge_cny_micros: number
+  // raw_charge_usd_micros / raw_charge_cny_micros are the sticker-price
+  // USD/CNY before the key's group discount — the money counterpart to
+  // raw_quota, scaled from charge_usd_micros by the same raw_quota/quota
+  // ratio. 0 when quota is 0 (nothing to scale from).
+  raw_charge_usd_micros: number
+  raw_charge_cny_micros: number
   token_used: number
   cache_read_tokens: number
   input_tokens_total: number

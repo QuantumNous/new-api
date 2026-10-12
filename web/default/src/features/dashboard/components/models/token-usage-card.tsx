@@ -71,15 +71,10 @@ function formatChargeUSD(micros: number): string {
   return `$${(micros / 1_000_000).toFixed(4)}`
 }
 
-// usdToCNYRate is a fixed display-only conversion for showing a CNY figure
-// next to the real USD settlement. It is not the exact per-request rate the
-// billing path used (that can vary by request and isn't carried in this
-// aggregate) — it is close enough for a reference number next to the dollar
-// amount, the same way a price tag shows "approx. ¥X" next to "$Y".
-const usdToCNYRate = 7.1
-
+// formatChargeCNY renders a backend-computed CNY micros total (already
+// converted at the backend's fixed display rate) as a yuan string.
 function formatChargeCNY(micros: number): string {
-  return `¥${((micros / 1_000_000) * usdToCNYRate).toFixed(4)}`
+  return `¥${(micros / 1_000_000).toFixed(4)}`
 }
 
 // Per-key spend table plus a realtime "who is spending right now" ranking.
@@ -154,23 +149,31 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
     () => spendRows.reduce((sum, row) => sum + (row.raw_quota || 0), 0),
     [spendRows]
   )
-  // Sum of every row's own real USD settlement — the number to show as "$",
-  // not quota/quotaPerUnit (an internal unit whose CNY rate can drift).
+  // Sum of every row's own real USD/CNY settlement — the backend already
+  // computed charge_cny_micros from charge_usd_micros at its display rate, so
+  // this is just a sum, not a re-derivation.
   const totalChargeUSDMicros = useMemo(
     () => spendRows.reduce((sum, row) => sum + (row.charge_usd_micros || 0), 0),
+    [spendRows]
+  )
+  const totalChargeCNYMicros = useMemo(
+    () => spendRows.reduce((sum, row) => sum + (row.charge_cny_micros || 0), 0),
     [spendRows]
   )
   const hasAnyChargeUSD = useMemo(
     () => spendRows.some((row) => row.charge_usd_micros > 0),
     [spendRows]
   )
-  // Before-discount USD, scaled from the real paid USD by the same
-  // raw_quota/quota ratio already used for the quota column — keeps the two
-  // "before discount" figures (quota and USD) consistent with each other.
-  const totalRawChargeUSDMicros = useMemo(() => {
-    if (totalQuota <= 0) return 0
-    return (totalChargeUSDMicros * totalRawQuota) / totalQuota
-  }, [totalChargeUSDMicros, totalRawQuota, totalQuota])
+  // Before-discount USD/CNY: sums of the backend-computed per-row figures,
+  // which are already scaled from the paid charge by raw_quota/quota.
+  const totalRawChargeUSDMicros = useMemo(
+    () => spendRows.reduce((sum, row) => sum + (row.raw_charge_usd_micros || 0), 0),
+    [spendRows]
+  )
+  const totalRawChargeCNYMicros = useMemo(
+    () => spendRows.reduce((sum, row) => sum + (row.raw_charge_cny_micros || 0), 0),
+    [spendRows]
+  )
   // Only show the "before discount" column/total when at least one row
   // actually has the data — most deployments will have it for every row
   // going forward, but historical rows predating the column should not make
@@ -291,7 +294,7 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
                 {totalRawChargeUSDMicros > 0 && (
                   <span className='text-muted-foreground ml-1 text-xs line-through decoration-muted-foreground/50'>
                     ({formatChargeUSD(totalRawChargeUSDMicros)} /{' '}
-                    {formatChargeCNY(totalRawChargeUSDMicros)})
+                    {formatChargeCNY(totalRawChargeCNYMicros)})
                   </span>
                 )}
               </span>
@@ -304,7 +307,7 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
               {hasAnyChargeUSD && (
                 <span className='text-muted-foreground ml-1 text-xs'>
                   (≈ {formatChargeUSD(totalChargeUSDMicros)} /{' '}
-                  {formatChargeCNY(totalChargeUSDMicros)})
+                  {formatChargeCNY(totalChargeCNYMicros)})
                 </span>
               )}
             </span>
@@ -379,15 +382,10 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
                       {row.raw_quota > 0 ? (
                         <>
                           {formatQuota(row.raw_quota)}
-                          {row.quota > 0 && (
+                          {row.raw_charge_usd_micros > 0 && (
                             <div className='text-xs'>
-                              {formatChargeUSD(
-                                (row.charge_usd_micros * row.raw_quota) / row.quota
-                              )}{' '}
-                              /{' '}
-                              {formatChargeCNY(
-                                (row.charge_usd_micros * row.raw_quota) / row.quota
-                              )}
+                              {formatChargeUSD(row.raw_charge_usd_micros)} /{' '}
+                              {formatChargeCNY(row.raw_charge_cny_micros)}
                             </div>
                           )}
                         </>
@@ -401,7 +399,7 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
                     {row.charge_usd_micros > 0 && (
                       <div className='text-muted-foreground text-xs font-normal'>
                         {formatChargeUSD(row.charge_usd_micros)} /{' '}
-                        {formatChargeCNY(row.charge_usd_micros)}
+                        {formatChargeCNY(row.charge_cny_micros)}
                       </div>
                     )}
                   </TableCell>

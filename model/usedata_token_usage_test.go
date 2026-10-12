@@ -81,6 +81,12 @@ func TestTokenUsageRankingOrdersSumsAndScopes(t *testing.T) {
 	// contributes, the pre-column row's zero does not force a USD figure to
 	// equal Quota's internal-unit full value.
 	require.Equal(t, int64(90), rows[2].ChargeUSDMicros)
+	// ChargeCNYMicros is ChargeUSDMicros at the fixed display rate; the
+	// before-discount USD/CNY are ChargeUSDMicros scaled by RawQuota/Quota
+	// (600/400 = 1.5x), matching what the dashboard card itself computes.
+	require.Equal(t, int64(639), rows[2].ChargeCNYMicros)    // round(90*7.1)
+	require.Equal(t, int64(135), rows[2].RawChargeUSDMicros) // round(90*600/400)
+	require.Equal(t, int64(959), rows[2].RawChargeCNYMicros) // round(135*7.1)
 	require.Equal(t, int64(3), rows[2].Count)
 	require.Equal(t, int64(500), rows[2].TokenUsed)
 	require.Equal(t, int64(150), rows[2].CacheReadTokens)
@@ -128,4 +134,30 @@ func TestTokenUsageRankingFiltersByNameAndModel(t *testing.T) {
 	none, err := GetTokenUsageRanking(now-1000, now, 0, "", "", "claude-x", 0)
 	require.NoError(t, err)
 	require.Empty(t, none)
+}
+
+func TestFillTokenUsageMoneyFields(t *testing.T) {
+	rows := []TokenUsageRow{
+		// Normal case: discount and charge both known.
+		{Quota: 400, RawQuota: 600, ChargeUSDMicros: 90},
+		// Quota == 0 (e.g. a free-model row): nothing to scale the
+		// before-discount figures from, must not divide by zero.
+		{Quota: 0, RawQuota: 0, ChargeUSDMicros: 0},
+		// ChargeUSDMicros == 0 (legacy row predating the column): CNY stays 0
+		// too, not some nonzero artifact of the rate multiplication.
+		{Quota: 100, RawQuota: 100, ChargeUSDMicros: 0},
+	}
+	fillTokenUsageMoneyFields(rows)
+
+	require.Equal(t, int64(639), rows[0].ChargeCNYMicros)
+	require.Equal(t, int64(135), rows[0].RawChargeUSDMicros)
+	require.Equal(t, int64(959), rows[0].RawChargeCNYMicros)
+
+	require.Equal(t, int64(0), rows[1].ChargeCNYMicros)
+	require.Equal(t, int64(0), rows[1].RawChargeUSDMicros)
+	require.Equal(t, int64(0), rows[1].RawChargeCNYMicros)
+
+	require.Equal(t, int64(0), rows[2].ChargeCNYMicros)
+	require.Equal(t, int64(0), rows[2].RawChargeUSDMicros)
+	require.Equal(t, int64(0), rows[2].RawChargeCNYMicros)
 }
