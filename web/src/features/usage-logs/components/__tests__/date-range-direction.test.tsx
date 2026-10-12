@@ -33,7 +33,7 @@ describe('CompactDateTimeRangePicker direction', () => {
       </div>
     )
 
-    const label = screen.getByText('2026-09-25 00:00 ~ 2026-09-25 11:35')
+    const label = screen.getByText('2026-09-25 00:00:00 ~ 2026-09-25 11:35:00')
     expect(label).toHaveAttribute('dir', 'auto')
   })
 
