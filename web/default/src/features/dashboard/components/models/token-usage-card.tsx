@@ -30,21 +30,29 @@ import {
 } from '@/components/ui/empty'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import { getTokenUsage } from '@/features/dashboard/api'
 import { getDefaultDays } from '@/features/dashboard/lib'
 import type { DashboardFilters } from '@/features/dashboard/types'
 import { formatCompactNumber, formatQuota } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
-import { computeTimeRange } from '@/lib/time'
+import { computeTimeRange, formatDate } from '@/lib/time'
 import { useAuthStore } from '@/stores/auth-store'
 
 interface TokenUsageCardProps {
   filters: DashboardFilters
 }
 
-// Per-key spend ranking for the section's current time range and filters.
-// The backend aggregates quota per (token_id, user_id) and ranks by spend;
-// this card renders the wallet view of the same data the stat cards read.
+// Per-key spend table for the section's current time range and filters. The
+// backend aggregates quota per (token_id, user_id) and ranks by spend; this
+// card is the wallet view of the same data the stat cards read.
 export function TokenUsageCard(props: TokenUsageCardProps) {
   const { t } = useTranslation()
   const userRole = useAuthStore((state) => state.auth.user?.role)
@@ -57,7 +65,11 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
         props.filters?.start_timestamp,
         props.filters?.end_timestamp
       ),
-    [props.filters?.time_granularity, props.filters?.start_timestamp, props.filters?.end_timestamp]
+    [
+      props.filters?.time_granularity,
+      props.filters?.start_timestamp,
+      props.filters?.end_timestamp,
+    ]
   )
 
   const query = useQuery({
@@ -89,10 +101,6 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
     () => rows.reduce((sum, row) => sum + (row.quota || 0), 0),
     [rows]
   )
-  const maxQuota = useMemo(
-    () => rows.reduce((max, row) => Math.max(max, row.quota || 0), 0),
-    [rows]
-  )
 
   return (
     <div className='overflow-hidden rounded-lg border'>
@@ -102,8 +110,11 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
         </IconBadge>
         <div className='text-sm font-semibold'>{t('Key spend')}</div>
         {rows.length > 0 && (
-          <div className='text-muted-foreground ml-auto text-sm font-medium'>
-            {formatQuota(totalQuota)}
+          <div className='text-muted-foreground ml-auto text-sm'>
+            <span className='mr-1'>{t('Total')}:</span>
+            <span className='text-foreground font-semibold'>
+              {formatQuota(totalQuota)}
+            </span>
           </div>
         )}
       </div>
@@ -127,46 +138,54 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
           </EmptyHeader>
         </Empty>
       ) : (
-        <ul className='divide-border/60 divide-y'>
-          {rows.map((row, index) => (
-            <li
-              key={`${row.user_id}-${row.token_id}`}
-              className='relative flex items-center gap-2 px-3 py-2 sm:gap-3 sm:px-5'
-            >
-              {/* Spend-proportional backdrop, kept behind the row content. */}
-              <div
-                className='bg-primary/8 absolute inset-y-0 left-0'
-                style={{
-                  width: maxQuota > 0 ? `${Math.max((row.quota / maxQuota) * 100, 2)}%` : '0%',
-                }}
-              />
-              <span className='text-muted-foreground w-5 shrink-0 text-right text-xs tabular-nums'>
-                {index + 1}
-              </span>
-              <div className='relative min-w-0 flex-1'>
-                <div className='flex min-w-0 items-center gap-2'>
-                  <span className='truncate text-sm font-medium'>
+        <Table>
+          <TableHeader>
+            <TableRow className='hover:bg-transparent'>
+              <TableHead className='w-10 pl-3 sm:pl-5'>#</TableHead>
+              <TableHead>{t('Key')}</TableHead>
+              {isAdmin && <TableHead>{t('User')}</TableHead>}
+              <TableHead className='text-right'>{t('Requests')}</TableHead>
+              <TableHead className='text-right'>Tokens</TableHead>
+              <TableHead className='text-right'>{t('Last used')}</TableHead>
+              <TableHead className='pr-3 text-right sm:pr-5'>
+                {t('Spend')}
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row, index) => (
+              <TableRow key={`${row.user_id}-${row.token_id}`}>
+                <TableCell className='text-muted-foreground pl-3 tabular-nums sm:pl-5'>
+                  {index + 1}
+                </TableCell>
+                <TableCell className='max-w-[220px] font-medium'>
+                  <span className='block truncate' title={row.token_name}>
                     {row.token_name || `#${row.token_id}`}
                   </span>
-                  {isAdmin && row.username && (
-                    <span className='text-muted-foreground shrink-0 text-xs'>
-                      {row.username}
+                </TableCell>
+                {isAdmin && (
+                  <TableCell className='text-muted-foreground max-w-[140px]'>
+                    <span className='block truncate' title={row.username}>
+                      {row.username || '--'}
                     </span>
-                  )}
-                </div>
-                <div className='text-muted-foreground mt-0.5 flex items-center gap-3 text-xs'>
-                  <span>
-                    {formatCompactNumber(row.count)} {t('requests')}
-                  </span>
-                  <span>{formatCompactNumber(row.token_used)} tok</span>
-                </div>
-              </div>
-              <div className='relative shrink-0 text-sm font-semibold tabular-nums'>
-                {formatQuota(row.quota)}
-              </div>
-            </li>
-          ))}
-        </ul>
+                  </TableCell>
+                )}
+                <TableCell className='text-right tabular-nums'>
+                  {formatCompactNumber(row.count)}
+                </TableCell>
+                <TableCell className='text-right tabular-nums'>
+                  {formatCompactNumber(row.token_used)}
+                </TableCell>
+                <TableCell className='text-muted-foreground text-right whitespace-nowrap tabular-nums'>
+                  {row.last_used > 0 ? formatDate(row.last_used) : '--'}
+                </TableCell>
+                <TableCell className='pr-3 text-right font-semibold whitespace-nowrap tabular-nums sm:pr-5'>
+                  {formatQuota(row.quota)}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
     </div>
   )
