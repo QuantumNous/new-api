@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import axios from 'axios'
+import { t } from 'i18next'
 
 import { api, refreshAuthentication, type RefreshOutcome } from '@/lib/api'
 import { AuthOperationError } from '@/lib/secure-verification'
