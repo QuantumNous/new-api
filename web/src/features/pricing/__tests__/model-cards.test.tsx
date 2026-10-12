@@ -458,6 +458,23 @@ describe('model cards', () => {
     expect(screen.getAllByText('Cache Read')).toHaveLength(1)
   })
 
+  it('shows the cache read price of an expression model that prices nothing else', () => {
+    render(
+      <ModelCard
+        model={pricingModel({
+          billing_mode: 'tiered_expr',
+          billing_expr: 'tier("base", cr * 0.5)',
+        })}
+        onClick={vi.fn()}
+        tokenUnit='M'
+        selectedGroup='default'
+      />
+    )
+    expect(screen.getByText('Cache Read').parentElement).toHaveTextContent(
+      /\$0.5\s*\/\s*1M/
+    )
+  })
+
   it('keeps task price ranges in their actual usage unit instead of the selected token unit', () => {
     render(
       <ModelCard
