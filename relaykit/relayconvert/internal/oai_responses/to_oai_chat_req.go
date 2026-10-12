@@ -484,6 +484,12 @@ func RequestTextToChatResponseFormat(raw json.RawMessage) (*dto.ResponseFormat, 
 
 func responsesImagePartToChatImageURL(part map[string]any) any {
 	if imageURL, ok := part["image_url"]; ok {
+		// Chat Completions takes the URL inside an object. detail is left out:
+		// Chat upstreams that validate it with older OpenAI SDKs reject newer
+		// values such as "original".
+		if url, ok := imageURL.(string); ok {
+			return map[string]any{"url": url}
+		}
 		return imageURL
 	}
 	imageURL := map[string]any{}

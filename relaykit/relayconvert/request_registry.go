@@ -257,6 +257,7 @@ func executeRequestSteps(c context.Context, info convmeta.Meta, from types.Relay
 		steps = append(steps, step)
 	}
 
+	tools.Model = convmeta.UpstreamModelName(info)
 	current, toolDiagnostics, err := toolconv.AttachRequest(target, current, tools, convmeta.OptionsOf(info))
 	diagnostics := append(diagnosticCollector.Diagnostics(), toolDiagnostics...)
 	for i := range diagnostics {

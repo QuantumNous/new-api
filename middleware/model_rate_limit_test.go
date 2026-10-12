@@ -10,7 +10,9 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -43,6 +45,7 @@ func TestModelRedisRateLimitUsesUTCRegardlessOfLocalTimezone(t *testing.T) {
 var modelRateLimitTestUsers atomic.Int64
 
 func TestModelRateLimitStreamFailuresDoNotConsumeSuccessLimit(t *testing.T) {
+	require.NoError(t, i18n.Init())
 	for _, backend := range []string{"memory", "redis"} {
 		for _, totalLimit := range []int{0, 2} {
 			t.Run(fmt.Sprintf("%s/total=%d", backend, totalLimit), func(t *testing.T) {
@@ -76,6 +79,7 @@ func TestModelRateLimitStreamFailuresDoNotConsumeSuccessLimit(t *testing.T) {
 }
 
 func TestModelMemoryRateLimitReservesConcurrentSuccessAdmission(t *testing.T) {
+	require.NoError(t, i18n.Init())
 	userID := 7200000 + int(modelRateLimitTestUsers.Add(1))
 	entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	router := gin.New()
@@ -99,4 +103,41 @@ func TestModelMemoryRateLimitReservesConcurrentSuccessAdmission(t *testing.T) {
 	<-finished
 	assert.Equal(t, http.StatusOK, performRateLimitRequest(router, "/completed", "127.0.0.1:1000").Code)
 	assert.Equal(t, http.StatusTooManyRequests, performRateLimitRequest(router, "/completed", "127.0.0.1:1000").Code)
+}
+
+// The memory limiter answers like the Redis limiter: an OpenAI error body
+// naming the limit that was reached, not an empty 429.
+func TestModelMemoryRateLimitRejectionsReturnOpenAIError(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	for _, tc := range []struct {
+		name                     string
+		totalLimit, successLimit int
+		messageKey               string
+	}{
+		{name: "total", totalLimit: 1, messageKey: i18n.MsgRateLimitTotalReached},
+		{name: "success", successLimit: 1, messageKey: i18n.MsgRateLimitReached},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			userID := 7200000 + int(modelRateLimitTestUsers.Add(1))
+			router := gin.New()
+			router.GET("/", func(c *gin.Context) {
+				c.Set("id", userID)
+				c.Set(common.RequestIdKey, "req-limited")
+			}, memoryRateLimitHandler(60, tc.totalLimit, tc.successLimit), func(c *gin.Context) {
+				c.Status(http.StatusOK)
+			})
+			require.Equal(t, http.StatusOK, performRateLimitRequest(router, "/", "127.0.0.1:1000").Code)
+
+			resp := performRateLimitRequest(router, "/", "127.0.0.1:1000")
+			assert.Equal(t, http.StatusTooManyRequests, resp.Code)
+			message := i18n.Translate("", tc.messageKey, map[string]any{"Minutes": setting.ModelRequestRateLimitDurationMinutes, "Max": 1})
+			want, err := common.Marshal(gin.H{"error": gin.H{
+				"message": common.MessageWithRequestId(message, "req-limited"),
+				"type":    "new_api_error",
+				"code":    "",
+			}})
+			require.NoError(t, err)
+			assert.JSONEq(t, string(want), resp.Body.String())
+		})
+	}
 }

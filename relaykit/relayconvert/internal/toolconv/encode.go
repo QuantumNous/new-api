@@ -680,6 +680,7 @@ func attachGeminiRequest(request any, set Set, options *convmeta.Options) (any, 
 		functions []map[string]any
 		tools     []any
 	)
+	jsonSchema := options != nil && options.Gemini.SupportsJSONSchemaModel(set.Model)
 	customTools, diagnostics := responsesCustomTools(set)
 	for index, definition := range set.Definitions {
 		switch definition.Kind {
@@ -687,23 +688,23 @@ func attachGeminiRequest(request any, set Set, options *convmeta.Options) (any, 
 			if definition.Function == nil {
 				continue
 			}
-			parameters := definition.Function.Parameters
+			parametersField, parameters := "parameters", definition.Function.Parameters
 			if parameters != nil {
 				cloned, err := kitutil.Any2Type[any](parameters)
 				if err != nil {
 					return nil, diagnostics, fmt.Errorf("tools[%d].parameters: %w", index, err)
 				}
-				if params, ok := cloned.(map[string]any); ok {
-					if properties, exists := params["properties"].(map[string]any); exists && len(properties) == 0 {
-						cloned = nil
-					}
+				var misfits []string
+				parametersField, parameters, misfits = sharedgemini.FunctionParameters(cloned, jsonSchema)
+				if len(misfits) > 0 {
+					diagnostics = append(diagnostics, presentationLoss(fmt.Sprintf("tools[%d].parameters", index), "gemini_schema_keyword_dropped",
+						fmt.Sprintf("Gemini function parameters cannot carry %s", strings.Join(misfits, ", "))))
 				}
-				parameters = sharedgemini.CleanFunctionParameters(cloned)
 			}
 			function := map[string]any{
-				"name":        definition.Function.Name,
-				"description": definition.Function.Description,
-				"parameters":  parameters,
+				"name":          definition.Function.Name,
+				"description":   definition.Function.Description,
+				parametersField: parameters,
 			}
 			deleteEmptyStrings(function)
 			functions = append(functions, function)
