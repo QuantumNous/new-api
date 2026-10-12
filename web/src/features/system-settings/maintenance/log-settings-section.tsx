@@ -42,6 +42,7 @@ import {
   FormControl,
   FormDescription,
   FormField,
+  FormItem,
   FormLabel,
   FormMessage,
 } from '@/components/ui/form'
@@ -82,15 +83,24 @@ import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
 import { useUpdateOption } from '../hooks/use-update-option'
 import type { LogCleanupTask } from '../types'
+import { safeNumberFieldProps } from '../utils/numeric-field'
 
 const logSettingsSchema = z.object({
   LogConsumeEnabled: z.boolean(),
+  log_setting: z.object({
+    user_export_enabled: z.boolean(),
+    max_range_days: z.number().int().min(1),
+  }),
 })
 
 type LogSettingsFormValues = z.infer<typeof logSettingsSchema>
 
 type LogSettingsSectionProps = {
-  defaultEnabled: boolean
+  defaultValues: {
+    LogConsumeEnabled: boolean
+    'log_setting.user_export_enabled': boolean
+    'log_setting.max_range_days': number
+  }
 }
 
 type ServerLogInfo = {
@@ -144,16 +154,23 @@ function isActiveLogCleanupTask(task: LogCleanupTask | null) {
   return task?.status === 'pending' || task?.status === 'running'
 }
 
-export function LogSettingsSection({
-  defaultEnabled,
-}: LogSettingsSectionProps) {
+export function LogSettingsSection(props: LogSettingsSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const formDefaults = useMemo<LogSettingsFormValues>(
+    () => ({
+      LogConsumeEnabled: props.defaultValues.LogConsumeEnabled,
+      log_setting: {
+        user_export_enabled:
+          props.defaultValues['log_setting.user_export_enabled'],
+        max_range_days: props.defaultValues['log_setting.max_range_days'],
+      },
+    }),
+    [props.defaultValues]
+  )
   const form = useForm<LogSettingsFormValues>({
     resolver: zodResolver(logSettingsSchema),
-    defaultValues: {
-      LogConsumeEnabled: defaultEnabled,
-    },
+    defaultValues: formDefaults,
   })
 
   const [purgeDate, setPurgeDate] = useState<Date | undefined>(() =>
@@ -180,8 +197,8 @@ export function LogSettingsSection({
   }, [])
 
   useEffect(() => {
-    form.reset({ LogConsumeEnabled: defaultEnabled })
-  }, [defaultEnabled, form])
+    form.reset(formDefaults)
+  }, [formDefaults, form])
 
   useEffect(() => {
     fetchServerLogInfo()
@@ -263,11 +280,18 @@ export function LogSettingsSection({
   }, [logCleanupActive, logCleanupTaskId, t])
 
   const onSubmit = async (values: LogSettingsFormValues) => {
-    if (values.LogConsumeEnabled === defaultEnabled) return
-    await updateOption.mutateAsync({
-      key: 'LogConsumeEnabled',
-      value: values.LogConsumeEnabled,
-    })
+    const changes = [
+      ['LogConsumeEnabled', values.LogConsumeEnabled],
+      [
+        'log_setting.user_export_enabled',
+        values.log_setting.user_export_enabled,
+      ],
+      ['log_setting.max_range_days', values.log_setting.max_range_days],
+    ] as const
+    for (const [key, value] of changes) {
+      if (value === props.defaultValues[key]) continue
+      await updateOption.mutateAsync({ key, value })
+    }
   }
 
   const handleRequestCleanLogs = () => {
@@ -370,6 +394,52 @@ export function LogSettingsSection({
                 </FormControl>
                 <FormMessage />
               </SettingsSwitchItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='log_setting.user_export_enabled'
+            render={({ field }) => (
+              <SettingsSwitchItem>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('Allow users to export logs')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Users can download their own logs from the usage log page. Administrators can always export.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <FormMessage />
+              </SettingsSwitchItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='log_setting.max_range_days'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t('Longest log time range (days)')}</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    min={1}
+                    step={1}
+                    {...safeNumberFieldProps(field)}
+                  />
+                </FormControl>
+                <FormDescription>
+                  {t(
+                    'The longest time range a user can search at once, and the longest range any export can cover.'
+                  )}
+                </FormDescription>
+                <FormMessage />
+              </FormItem>
             )}
           />
 
