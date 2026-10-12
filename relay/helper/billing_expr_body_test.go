@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -62,7 +63,7 @@ func newRequestContextWithStorage(t *testing.T, storage common.BodyStorage) *gin
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	ctx.Request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/chat/completions", nil)
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	ctx.Set(common.KeyBodyStorage, storage)
 	return ctx
@@ -83,9 +84,9 @@ func TestResolveIncomingBillingExprRequestInput_BodyReadIsGated(t *testing.T) {
 		require.NoError(t, err)
 		// The read itself is what costs memory, so assert on it first: a body
 		// that is fetched and then dropped would still have been materialised.
-		require.Zero(t, storage.bytesCalls, "body storage must not be read when the expression has no param()")
-		require.Nil(t, input.Body)
-		require.Equal(t, "application/json", input.Headers["Content-Type"], "headers are still needed by header()")
+		assert.Zero(t, storage.bytesCalls, "body storage must not be read when the expression has no param()")
+		assert.Nil(t, input.Body)
+		assert.Equal(t, "application/json", input.Headers["Content-Type"], "headers are still needed by header()")
 	})
 
 	t.Run("needed: read exactly as before", func(t *testing.T) {
@@ -95,8 +96,8 @@ func TestResolveIncomingBillingExprRequestInput_BodyReadIsGated(t *testing.T) {
 
 		input, err := ResolveIncomingBillingExprRequestInput(ctx, info, true)
 		require.NoError(t, err)
-		require.Equal(t, body, input.Body)
-		require.Equal(t, 1, storage.bytesCalls)
+		assert.Equal(t, body, input.Body)
+		assert.Equal(t, 1, storage.bytesCalls)
 	})
 }
 
@@ -115,22 +116,22 @@ func TestResolveIncomingBillingExprRequestInput_FrozenInputHonoursGate(t *testin
 
 	skipped, err := ResolveIncomingBillingExprRequestInput(ctx, info, false)
 	require.NoError(t, err)
-	require.Nil(t, skipped.Body)
-	require.Equal(t, "1", skipped.Headers["X-Frozen"])
+	assert.Nil(t, skipped.Body)
+	assert.Equal(t, "1", skipped.Headers["X-Frozen"])
 
 	kept, err := ResolveIncomingBillingExprRequestInput(ctx, info, true)
 	require.NoError(t, err)
-	require.Equal(t, frozen.Body, kept.Body)
+	assert.Equal(t, frozen.Body, kept.Body)
 
-	require.NotNil(t, frozen.Body, "the caller's input must not be mutated")
+	assert.NotNil(t, frozen.Body, "the caller's input must not be mutated")
 }
 
 // TestBillingExprNeedsRequestBody checks the gate and its compile-failure fallback.
 func TestBillingExprNeedsRequestBody(t *testing.T) {
-	require.True(t, BillingExprNeedsRequestBody(nil), "nil means the expression did not compile: provide the body rather than silently omit it")
-	require.False(t, BillingExprNeedsRequestBody(map[string]bool{}))
-	require.True(t, BillingExprNeedsRequestBody(map[string]bool{"param": true}))
-	require.False(t, BillingExprNeedsRequestBody(map[string]bool{"header": true, "hour": true}))
+	assert.True(t, BillingExprNeedsRequestBody(nil), "nil means the expression did not compile: provide the body rather than silently omit it")
+	assert.False(t, BillingExprNeedsRequestBody(map[string]bool{}))
+	assert.True(t, BillingExprNeedsRequestBody(map[string]bool{"param": true}))
+	assert.False(t, BillingExprNeedsRequestBody(map[string]bool{"header": true, "hour": true}))
 }
 
 // Tie the gate to the compiler rather than to a hand-written list, so the two
@@ -176,7 +177,7 @@ func TestBillingExprNeedsRequestBody_AgreesWithCompiler(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			usedVars := billingexpr.UsedVars(tc.expr)
 			require.NotNil(t, usedVars, "expression must compile for this test to mean anything")
-			require.Equal(t, tc.want, BillingExprNeedsRequestBody(usedVars))
+			assert.Equal(t, tc.want, BillingExprNeedsRequestBody(usedVars))
 		})
 	}
 }
