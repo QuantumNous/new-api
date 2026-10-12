@@ -74,7 +74,7 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
     {
       key: 'cacheRead',
       title: t('Cache Read'),
-      description: t('Cache Read Tokens'),
+      description: t('Statistical tokens'),
       icon: Download,
       iconTone: 'chart-3',
       getValue: (stat) => stat?.cacheRead ?? 0,
@@ -82,7 +82,7 @@ export function useModelStatCardsConfig(): StatCardConfig[] {
     {
       key: 'cacheCreation',
       title: t('Cache Write'),
-      description: t('Cache Write Tokens'),
+      description: t('Statistical tokens'),
       icon: Upload,
       iconTone: 'chart-5',
       getValue: (stat) => stat?.cacheCreation ?? 0,
