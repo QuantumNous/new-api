@@ -17,11 +17,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, renderHook } from '@testing-library/react'
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+  RouterProvider,
+} from '@tanstack/react-router'
+import {
+  act,
+  cleanup,
+  render,
+  renderHook,
+  screen,
+} from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { NavGroup } from '@/components/layout/components/nav-group'
 import { checkIsActive } from '@/components/layout/lib/url-utils'
+import { SidebarProvider } from '@/components/ui/sidebar'
 import {
   parseSidebarModulesAdmin,
   serializeSidebarModulesAdmin,
@@ -30,6 +44,7 @@ import { useAuthStore } from '@/stores/auth-store'
 
 import { useSidebarConfig } from '../use-sidebar-config'
 import { useSidebarData } from '../use-sidebar-data'
+import { useSidebarView } from '../use-sidebar-view'
 
 beforeEach(() => {
   vi.stubGlobal('localStorage', {
@@ -49,6 +64,7 @@ function sidebarFor(admin?: object, user?: object, canConfigure = true) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
+  client.setQueryData(['custom-pages'], [])
   client.setQueryData(['status'], {
     SidebarModulesAdmin: admin ? JSON.stringify(admin) : '',
   })
@@ -179,4 +195,105 @@ describe('audit log sidebar entry', () => {
     expect(titles).not.toContain('Usage Logs')
     expect(titles).toContain('Audit Logs')
   })
+})
+
+describe('custom page sidebar groups', () => {
+  it.each([
+    { pages: [] },
+    {
+      pages: [
+        {
+          name: 'Status',
+          url: 'https://status.example.com',
+          adminOnly: false,
+          highlight: true,
+        },
+        {
+          name: 'Private',
+          url: 'https://private.example.com',
+          adminOnly: true,
+          highlight: false,
+        },
+      ],
+    },
+  ])('custom group appears only for configured pages (%j)', ({ pages }) => {
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    client.setQueryData(['custom-pages'], pages)
+    useAuthStore.getState().auth.setUser({ id: 1, username: 'admin', role: 10 })
+    function Wrapper(props: { children: ReactNode }) {
+      return (
+        <QueryClientProvider client={client}>
+          {props.children}
+        </QueryClientProvider>
+      )
+    }
+    const { result } = renderHook(useSidebarData, { wrapper: Wrapper })
+    const group = result.current.navGroups.find(
+      (entry) => entry.id === 'custom-pages'
+    )
+    if (pages.length === 0) {
+      expect(group).toBeUndefined()
+    } else {
+      expect(group?.items).toMatchObject([
+        { title: 'Status', url: '/embed/status', highlight: true },
+        { title: 'Private', url: '/embed/private', requiredRole: 10 },
+      ])
+      const ids = result.current.navGroups.map((entry) => entry.id)
+      expect(ids.indexOf('custom-pages')).toBe(ids.indexOf('admin') - 1)
+    }
+    client.clear()
+  })
+})
+
+it('cached administrator-only entries disappear after a role downgrade, including an empty group', async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  client.setQueryData(
+    ['custom-pages'],
+    [
+      {
+        name: 'Private',
+        url: 'https://private.example.com',
+        adminOnly: true,
+        highlight: true,
+      },
+    ]
+  )
+  client.setQueryData(['status'], {})
+  useAuthStore.getState().auth.setUser({ id: 1, username: 'admin', role: 10 })
+  function SidebarFixture() {
+    const view = useSidebarView()
+    return (
+      <SidebarProvider>
+        {view.navGroups
+          .filter((group) => group.id === 'custom-pages')
+          .map((group) => (
+            <NavGroup key={group.id} {...group} />
+          ))}
+      </SidebarProvider>
+    )
+  }
+  const router = createRouter({
+    routeTree: createRootRoute({ component: SidebarFixture }),
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+  })
+  render(
+    <QueryClientProvider client={client}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  )
+  const link = await screen.findByRole('link', { name: 'Private' })
+  expect(link).toHaveAttribute('href', '/embed/private')
+  expect(link).toHaveClass('bg-primary/10')
+  act(() =>
+    useAuthStore.getState().auth.setUser({ id: 1, username: 'user', role: 1 })
+  )
+  expect(
+    screen.queryByRole('link', { name: 'Private' })
+  ).not.toBeInTheDocument()
+  expect(screen.queryByText('Custom Pages')).not.toBeInTheDocument()
+  client.clear()
 })

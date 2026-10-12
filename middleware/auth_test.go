@@ -325,6 +325,7 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 	ok := func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"id": c.GetInt("id")}) }
 	router := gin.New()
 	router.GET("/api/user/self", UserAuth(), ok)
+	router.GET("/api/custom-pages", UserAuth(), ok)
 	router.GET("/api/user/access_tokens", UserAuth(), ok)
 	router.GET("/api/undeclared", UserAuth(), ok)
 	router.GET("/api/channel/", AdminAuth(), RequirePermission(authz.ChannelRead), ok)
@@ -334,6 +335,9 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 		name, path, token, code, reason string
 		status                          int
 	}{
+		{name: "custom pages with read scope", path: "/api/custom-pages", token: profile, status: http.StatusOK},
+		{name: "custom pages without read scope", path: "/api/custom-pages", token: channel, status: http.StatusForbidden, code: "ACCESS_TOKEN_SCOPE_DENIED", reason: "scope_denied"},
+		{name: "custom pages with expired token", path: "/api/custom-pages", token: expired, status: http.StatusUnauthorized, code: "ACCESS_TOKEN_EXPIRED", reason: "expired"},
 		{name: "granted scope on a never expiring token", path: "/api/user/self", token: profile, status: http.StatusOK},
 		{name: "missing scope", path: "/api/user/self", token: channel, status: http.StatusForbidden, code: "ACCESS_TOKEN_SCOPE_DENIED", reason: "scope_denied"},
 		{name: "undeclared route", path: "/api/undeclared", token: profile, status: http.StatusForbidden, code: "ACCESS_TOKEN_ROUTE_UNDECLARED", reason: "route_undeclared"},

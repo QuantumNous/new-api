@@ -46,6 +46,7 @@ import {
   SidebarMenuSubItem,
   useSidebar,
 } from '@/components/ui/sidebar'
+import { cn } from '@/lib/utils'
 
 import { checkIsActive } from '../lib/url-utils'
 import type {
@@ -126,6 +127,9 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
     <SidebarMenuItem>
       <SidebarMenuButton
         isActive={checkIsActive(href, item)}
+        className={cn(
+          item.highlight && 'text-primary bg-primary/10 font-semibold'
+        )}
         tooltip={item.title}
         render={
           <Link

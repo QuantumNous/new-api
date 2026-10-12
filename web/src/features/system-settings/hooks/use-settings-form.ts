@@ -83,6 +83,12 @@ function collectDirtyValues<TFieldValues extends FieldValues>(
     return result
   }
 
+  // Arrays are a single option value, including when the last row is removed.
+  if (Array.isArray(values) && parentKey) {
+    result[parentKey] = values
+    return result
+  }
+
   Object.entries(dirtyFields).forEach(([key, value]) => {
     const nextKey = parentKey ? `${parentKey}.${key}` : key
     const source =
