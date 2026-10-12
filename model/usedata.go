@@ -32,6 +32,15 @@ type QuotaData struct {
 	// Rows written before this column existed have RawQuota 0; readers must
 	// treat 0 as "unknown", not "free", the same way the cache counters do.
 	RawQuota int `json:"raw_quota" gorm:"default:0"`
+	// ChargeUSDMicros is the sum of each request's own real USD settlement
+	// snapshot (cost_reconciliation.user_charge_usd_micros, already written
+	// into every consume log). It is read back here rather than re-derived
+	// from Quota, because Quota is in an internal unit that bakes in a CNY
+	// exchange rate that can change over time — summing raw quota and
+	// dividing by one rate afterwards would silently misprice any row whose
+	// rate differed from today's. 0 means unknown for rows predating this
+	// column, the same convention as RawQuota.
+	ChargeUSDMicros int64 `json:"charge_usd_micros" gorm:"default:0"`
 	// CacheReadTokens / InputTokensTotal accumulate cache billing counters so the
 	// dashboard can derive a cache hit rate. Both stay zero for rows written
 	// before these columns existed, and InputTokensTotal only accumulates for
@@ -55,7 +64,11 @@ type QuotaDataLogParams struct {
 	// GroupRatio is the discount/markup factor already baked into Quota. 0
 	// means "unknown" (e.g. a billing path that never computed one), in which
 	// case LogQuotaData leaves RawQuota at 0 rather than guessing a ratio.
-	GroupRatio       float64
+	GroupRatio float64
+	// ChargeUSDMicros is this one request's real USD settlement, already
+	// computed by the billing path and read back from the log here. 0 means
+	// unknown, never "free".
+	ChargeUSDMicros  int64
 	CacheReadTokens  int
 	InputTokensTotal int
 }
@@ -112,6 +125,7 @@ func logQuotaDataCache(quotaData *QuotaData) {
 	count := quotaData.Count
 	quota := quotaData.Quota
 	rawQuota := quotaData.RawQuota
+	chargeUSDMicros := quotaData.ChargeUSDMicros
 	tokenUsed := quotaData.TokenUsed
 	cacheReadTokens := quotaData.CacheReadTokens
 	inputTokensTotal := quotaData.InputTokensTotal
@@ -120,6 +134,7 @@ func logQuotaDataCache(quotaData *QuotaData) {
 		cachedQuotaData.Count += count
 		cachedQuotaData.Quota += quota
 		cachedQuotaData.RawQuota += rawQuota
+		cachedQuotaData.ChargeUSDMicros += chargeUSDMicros
 		cachedQuotaData.TokenUsed += tokenUsed
 		cachedQuotaData.CacheReadTokens += cacheReadTokens
 		cachedQuotaData.InputTokensTotal += inputTokensTotal
@@ -143,6 +158,7 @@ func LogQuotaData(params QuotaDataLogParams) {
 		Count:            1,
 		Quota:            params.Quota,
 		RawQuota:         rawQuotaFromGroupRatio(params.Quota, params.GroupRatio),
+		ChargeUSDMicros:  params.ChargeUSDMicros,
 		TokenUsed:        params.TokenUsed,
 		CacheReadTokens:  params.CacheReadTokens,
 		InputTokensTotal: params.InputTokensTotal,
@@ -276,6 +292,7 @@ func increaseQuotaData(quotaData *QuotaData) {
 			"count":              gorm.Expr("count + ?", quotaData.Count),
 			"quota":              gorm.Expr("quota + ?", quotaData.Quota),
 			"raw_quota":          gorm.Expr("raw_quota + ?", quotaData.RawQuota),
+			"charge_usd_micros":  gorm.Expr("charge_usd_micros + ?", quotaData.ChargeUSDMicros),
 			"token_used":         gorm.Expr("token_used + ?", quotaData.TokenUsed),
 			"cache_read_tokens":  gorm.Expr("cache_read_tokens + ?", quotaData.CacheReadTokens),
 			"input_tokens_total": gorm.Expr("input_tokens_total + ?", quotaData.InputTokensTotal),

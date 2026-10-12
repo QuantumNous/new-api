@@ -180,3 +180,33 @@ func TestRawQuotaUnknownWhenGroupRatioMissing(t *testing.T) {
 	}
 }
 
+func TestLogQuotaDataAccumulatesChargeUSDMicros(t *testing.T) {
+	CacheQuotaDataLock.Lock()
+	CacheQuotaData = make(map[string]*QuotaData)
+	CacheQuotaDataLock.Unlock()
+
+	base := QuotaDataLogParams{
+		UserID:          10,
+		Username:        "usd-user",
+		ModelName:       "claude-sonnet",
+		Quota:           6310,
+		CreatedAt:       1_780_000_000,
+		ChargeUSDMicros: 1875, // $0.001875, matching the billing path's own snapshot
+	}
+	LogQuotaData(base)
+
+	second := base
+	second.CreatedAt += 10 // still the same hour bucket
+	second.Quota = 3000
+	second.ChargeUSDMicros = 900
+	LogQuotaData(second)
+
+	CacheQuotaDataLock.Lock()
+	defer CacheQuotaDataLock.Unlock()
+	require.Len(t, CacheQuotaData, 1)
+	for _, cached := range CacheQuotaData {
+		require.Equal(t, 2, cached.Count)
+		require.Equal(t, int64(2775), cached.ChargeUSDMicros)
+	}
+}
+

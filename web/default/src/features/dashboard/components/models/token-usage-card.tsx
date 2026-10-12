@@ -63,6 +63,14 @@ const realtimeRankingWindowSeconds = 300
 // widgets on the dashboard so every current-traffic panel updates in step.
 const realtimeRefetchIntervalMs = 10_000
 
+// formatChargeUSD renders a billing-path-reported USD micros total as a
+// dollar string. This is not quota/quotaPerUnit — that internal unit bakes in
+// a CNY exchange rate that can drift over a range, so this value is the
+// billing path's own settlement, summed as-is.
+function formatChargeUSD(micros: number): string {
+  return `$${(micros / 1_000_000).toFixed(4)}`
+}
+
 // Per-key spend table plus a realtime "who is spending right now" ranking.
 // The backend aggregates quota per (token_id, user_id) for the historical
 // total, and splits the in-memory realtime rings per key for the live
@@ -133,6 +141,16 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
   // not "fully discounted away".
   const totalRawQuota = useMemo(
     () => spendRows.reduce((sum, row) => sum + (row.raw_quota || 0), 0),
+    [spendRows]
+  )
+  // Sum of every row's own real USD settlement — the number to show as "$",
+  // not quota/quotaPerUnit (an internal unit whose CNY rate can drift).
+  const totalChargeUSDMicros = useMemo(
+    () => spendRows.reduce((sum, row) => sum + (row.charge_usd_micros || 0), 0),
+    [spendRows]
+  )
+  const hasAnyChargeUSD = useMemo(
+    () => spendRows.some((row) => row.charge_usd_micros > 0),
     [spendRows]
   )
   // Only show the "before discount" column/total when at least one row
@@ -259,6 +277,11 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
               <span className='text-foreground text-base font-bold'>
                 {formatQuota(totalQuota)}
               </span>
+              {hasAnyChargeUSD && (
+                <span className='text-muted-foreground ml-1 text-xs'>
+                  (≈ {formatChargeUSD(totalChargeUSDMicros)})
+                </span>
+              )}
             </span>
           </div>
         </div>
@@ -333,6 +356,11 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
                   )}
                   <TableCell className='pr-3 text-right font-semibold whitespace-nowrap tabular-nums sm:pr-5'>
                     {formatQuota(row.quota)}
+                    {row.charge_usd_micros > 0 && (
+                      <div className='text-muted-foreground text-xs font-normal'>
+                        {formatChargeUSD(row.charge_usd_micros)}
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

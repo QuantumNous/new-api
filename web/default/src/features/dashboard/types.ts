@@ -74,6 +74,12 @@ export interface TokenUsageItem {
   // "unknown" for rows predating this column or billed through a path that
   // never recorded a group ratio, not "no discount applied".
   raw_quota: number
+  // charge_usd_micros is the sum of each request's own real USD settlement
+  // (millionths of a dollar), already computed by the billing path — not
+  // derived from quota, which is in an internal unit that bakes in a CNY
+  // rate that can drift over the range. Divide by 1_000_000 for dollars.
+  // 0 means unknown for rows predating this column.
+  charge_usd_micros: number
   token_used: number
   cache_read_tokens: number
   input_tokens_total: number

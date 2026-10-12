@@ -23,7 +23,14 @@ type TokenUsageRow struct {
 	// mixed into the range. RawQuota is 0 for a row whenever none of its
 	// underlying requests recorded a group ratio, which the frontend must
 	// treat as "no discount data" rather than "no discount applied".
-	RawQuota         int64 `json:"raw_quota"`
+	RawQuota int64 `json:"raw_quota"`
+	// ChargeUSDMicros sums each underlying request's own real USD settlement
+	// (micros = millionths of a dollar), already computed by the billing path
+	// and frozen into the log. This is the number to show as "$" — it is not
+	// derived from Quota, which is in an internal unit that bakes in a CNY
+	// rate that can drift over the range. 0 means unknown, the same
+	// convention as RawQuota, for rows predating this column.
+	ChargeUSDMicros  int64 `json:"charge_usd_micros"`
 	TokenUsed        int64 `json:"token_used"`
 	CacheReadTokens  int64 `json:"cache_read_tokens"`
 	InputTokensTotal int64 `json:"input_tokens_total"`
@@ -51,7 +58,7 @@ func GetTokenUsageRanking(startTime int64, endTime int64, userId int, username s
 		limit = tokenUsageMaxRows
 	}
 	tx := DB.Table("quota_data").
-		Select("token_id, user_id, max(username) as username, sum(count) as count, sum(quota) as quota, sum(raw_quota) as raw_quota, sum(token_used) as token_used, sum(cache_read_tokens) as cache_read_tokens, sum(input_tokens_total) as input_tokens_total, max(created_at) as last_used").
+		Select("token_id, user_id, max(username) as username, sum(count) as count, sum(quota) as quota, sum(raw_quota) as raw_quota, sum(charge_usd_micros) as charge_usd_micros, sum(token_used) as token_used, sum(cache_read_tokens) as cache_read_tokens, sum(input_tokens_total) as input_tokens_total, max(created_at) as last_used").
 		Where("token_id > 0 AND created_at >= ? AND created_at <= ?", startTime, endTime)
 	if userId > 0 {
 		tx = tx.Where("user_id = ?", userId)
