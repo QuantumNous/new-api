@@ -371,6 +371,10 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/self/dimensions", middleware.UserAuth(), controller.GetSelfQuotaDataDimensions)
 		dataRoute.GET("/flow", middleware.AdminAuth(), controller.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", middleware.UserAuth(), controller.GetUserFlowQuotaDates)
+		// Per-key spend ranking over a time range. The self variant scopes to
+		// the session account; the admin variant covers everyone.
+		dataRoute.GET("/token-usage", middleware.AdminAuth(), controller.GetAdminTokenUsage)
+		dataRoute.GET("/self/token-usage", middleware.UserAuth(), controller.GetSelfTokenUsage)
 		// Realtime throughput reads in-process counters only. The self route
 		// takes the user id from the session so it can never be pointed at
 		// another account; the admin routes are the only way to read everyone.

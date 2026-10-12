@@ -103,6 +103,12 @@ const LazyPerformanceOverview = lazy(() =>
   }))
 )
 
+const LazyTokenUsageCard = lazy(() =>
+  import('./components/models/token-usage-card').then((m) => ({
+    default: m.TokenUsageCard,
+  }))
+)
+
 const LazyRealtimeMetricsPanel = lazy(() =>
   import('./components/models/realtime-metrics-panel').then((m) => ({
     default: m.RealtimeMetricsPanel,

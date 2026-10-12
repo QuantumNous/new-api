@@ -25,6 +25,7 @@ import type {
   RealtimeDimensions,
   RealtimeSnapshot,
   RealtimeUsersResponse,
+  TokenUsageItem,
   UptimeGroupResult,
   UsageStatsResult,
 } from './types'
@@ -227,6 +228,31 @@ export async function getFlowQuotaDates(
   const res = await api.get<{
     success: boolean
     data?: FlowQuotaDataItem[]
+    message?: string
+  }>(endpoint, { params })
+  return res.data
+}
+
+// Per-key spend ranking over a time range. The admin endpoint aggregates
+// across all users (username filter optional); the self variant is scoped to
+// the session account and capped at one month server-side.
+export async function getTokenUsage(
+  params: {
+    start_timestamp: number
+    end_timestamp: number
+    username?: string
+    token_name?: string
+    model_name?: string
+    limit?: number
+  },
+  isAdmin = false
+) {
+  const endpoint = isAdmin
+    ? '/api/data/token-usage'
+    : '/api/data/self/token-usage'
+  const res = await api.get<{
+    success: boolean
+    data?: TokenUsageItem[]
     message?: string
   }>(endpoint, { params })
   return res.data

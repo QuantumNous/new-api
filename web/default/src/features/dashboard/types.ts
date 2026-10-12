@@ -59,6 +59,22 @@ export interface FlowQuotaDataItem {
 
 export type FlowMetric = 'quota' | 'tokens' | 'requests'
 
+// One key's aggregated spend over the ranking's time range. Quota uses the
+// platform billing unit, formatted with the same formatter as the stat
+// cards; token_name may be empty for keys whose row was hard-deleted.
+export interface TokenUsageItem {
+  token_id: number
+  token_name?: string
+  user_id: number
+  username?: string
+  count: number
+  quota: number
+  token_used: number
+  cache_read_tokens: number
+  input_tokens_total: number
+  last_used: number
+}
+
 // ----------------------------------------------------------------------------
 // Realtime throughput
 //
