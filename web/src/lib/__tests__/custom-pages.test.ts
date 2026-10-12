@@ -127,7 +127,7 @@ describe('custom page options', () => {
       customPagesSchema.safeParse({ pages: [{ ...page, url }] }).success
     ).toBe(false)
   })
-  it('schema rejects duplicate names, line breaks, long URLs and over 20 pages', () => {
+  it('schema rejects duplicate names, line breaks and long URLs', () => {
     expect(
       customPagesSchema.safeParse({
         pages: [page, { ...page, name: ' status ' }],
@@ -142,13 +142,14 @@ describe('custom page options', () => {
         pages: [{ ...page, url: page.url + '/'.repeat(500) }],
       }).success
     ).toBe(false)
-    expect(
-      customPagesSchema.safeParse({
-        pages: Array.from({ length: 21 }, (_, i) => ({
-          ...page,
-          name: `Page ${i}`,
-        })),
-      }).success
-    ).toBe(false)
+  })
+  it('more than 20 pages are accepted and preserved through options and menu links', () => {
+    const pages = Array.from({ length: 21 }, (_, i) => ({
+      ...page,
+      name: `Page ${i}`,
+    }))
+    expect(customPagesSchema.safeParse({ pages }).success).toBe(true)
+    expect(parseCustomPagesOption(serializeCustomPages(pages))).toEqual(pages)
+    expect(buildCustomPageLinks(pages)).toHaveLength(21)
   })
 })

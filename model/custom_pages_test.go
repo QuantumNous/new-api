@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -57,17 +58,16 @@ func TestParseCustomPages(t *testing.T) {
 		require.Len(t, pages, 1)
 		assert.Equal(t, color, pages[0].HighlightColor)
 	}
-	pages := make([]CustomPage, MaxCustomPages)
+	pages := make([]CustomPage, 21)
 	for i := range pages {
-		pages[i] = CustomPage{Name: strings.Repeat("页", i+1), URL: "http://example.com"}
+		pages[i] = CustomPage{Name: fmt.Sprintf("Page %d", i), URL: "http://example.com"}
 	}
 	raw, err := common.Marshal(pages)
 	require.NoError(t, err)
 	require.NoError(t, ValidateCustomPagesOption(string(raw)))
-	pages = append(pages, CustomPage{Name: "Extra", URL: "https://example.com"})
-	raw, err = common.Marshal(pages)
+	parsed, err := ParseCustomPages(string(raw))
 	require.NoError(t, err)
-	assert.EqualError(t, ValidateCustomPagesOption(string(raw)), "At most 20 pages are supported")
+	assert.Equal(t, pages, parsed)
 }
 
 func TestGetCustomPagesForRole(t *testing.T) {

@@ -46,7 +46,6 @@ import {
   type CustomPagesFormValues,
 } from '@/features/custom-pages/lib/schema'
 import {
-  MAX_CUSTOM_PAGES,
   parseCustomPagesOption,
   serializeCustomPages,
 } from '@/lib/custom-pages'
@@ -248,7 +247,6 @@ export function CustomPagesSection(props: { defaultValue: string }) {
               type='button'
               variant='outline'
               className='justify-self-start'
-              disabled={fields.fields.length >= MAX_CUSTOM_PAGES}
               onClick={() =>
                 fields.append({
                   name: '',
@@ -264,8 +262,7 @@ export function CustomPagesSection(props: { defaultValue: string }) {
           </fieldset>
           <p className='text-muted-foreground text-sm'>
             {t(
-              'Maximum {{count}} pages. Menu names must be unique; the page URL stays on the server for admin-only entries.',
-              { count: MAX_CUSTOM_PAGES }
+              'Menu names must be unique; the page URL stays on the server for admin-only entries.'
             )}
           </p>
         </SettingsForm>
