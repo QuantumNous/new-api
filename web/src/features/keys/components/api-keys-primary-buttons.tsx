@@ -89,7 +89,7 @@ export function ApiKeysPrimaryButtons() {
                     <ItemTitle className='line-clamp-none break-all'>
                       {address.route}
                     </ItemTitle>
-                    <code className='text-xs break-all select-text'>
+                    <code dir='ltr' className='text-xs break-all select-text'>
                       {address.url}
                     </code>
                     {address.description && (

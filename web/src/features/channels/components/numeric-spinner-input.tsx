@@ -138,7 +138,7 @@ export function NumericSpinnerInput({
   return (
     <div className={cn('inline-flex items-center', className)}>
       {label && (
-        <Label className='text-muted-foreground mr-1.5 text-xs'>{label}</Label>
+        <Label className='text-muted-foreground me-1.5 text-xs'>{label}</Label>
       )}
       <div
         onBlur={handleControlBlur}
@@ -155,7 +155,7 @@ export function NumericSpinnerInput({
           onClick={handleDecrement}
           disabled={disabled || atMin}
           className={cn(
-            'text-muted-foreground/0 group-hover/spinner:text-muted-foreground flex h-7 w-6 shrink-0 items-center justify-center rounded-l-md transition-colors',
+            'text-muted-foreground/0 group-hover/spinner:text-muted-foreground flex h-7 w-6 shrink-0 items-center justify-center rounded-s-md transition-colors',
             !disabled &&
               !atMin &&
               'group-hover/spinner:hover:text-foreground group-hover/spinner:hover:bg-muted',
@@ -198,7 +198,7 @@ export function NumericSpinnerInput({
           onClick={handleIncrement}
           disabled={disabled || atMax}
           className={cn(
-            'text-muted-foreground/0 group-hover/spinner:text-muted-foreground flex h-7 w-6 shrink-0 items-center justify-center rounded-r-md transition-colors',
+            'text-muted-foreground/0 group-hover/spinner:text-muted-foreground flex h-7 w-6 shrink-0 items-center justify-center rounded-e-md transition-colors',
             !disabled &&
               !atMax &&
               'group-hover/spinner:hover:text-foreground group-hover/spinner:hover:bg-muted',

@@ -151,6 +151,14 @@ afterEach(() => {
     .setConfig({ currency: { ...DEFAULT_CURRENCY_CONFIG } })
 })
 
+// The values grid flips in RTL. Physical text-left/text-right then pushed
+// remaining and used against each other in the middle of the cell ("۵ ۲").
+function quotaGridCell(trigger: HTMLElement, text: string) {
+  return within(trigger)
+    .getByText(text)
+    .closest('[data-slot="api-key-quota-values"] > *')
+}
+
 it('shows desktop remaining and used amounts side by side without labels, with the currency only in the header', () => {
   renderQuota()
   expect(
@@ -164,8 +172,8 @@ it('shows desktop remaining and used amounts side by side without labels, with t
   expect(
     trigger.querySelector('[data-slot="api-key-quota-values"]')
   ).toHaveClass('grid-cols-2')
-  expect(within(trigger).getByText('80')).toHaveClass('text-left')
-  expect(within(trigger).getByText('120')).toHaveClass('text-right')
+  expect(quotaGridCell(trigger, '80')).toHaveClass('text-start')
+  expect(quotaGridCell(trigger, '120')).toHaveClass('text-end')
   expect(trigger.parentElement).toHaveClass('max-w-45')
   expect(trigger).not.toHaveTextContent('$')
   expect(trigger.querySelector('svg')).toBeNull()
@@ -190,11 +198,34 @@ it.each([
     if (color) expect(progress).toHaveClass(color)
     if (remaining < 0) {
       expect(
-        within(button).getByText(remaining === -500000 ? '-1' : '-0.1')
+        quotaGridCell(button, remaining === -500000 ? '-1' : '-0.1')
       ).toHaveClass('text-destructive')
     }
   }
 )
+
+it('keeps remaining and used amounts at opposite inline edges in right-to-left layouts', () => {
+  renderQuota()
+  const trigger = screen.getByRole('button')
+
+  expect(quotaGridCell(trigger, '80')).toHaveClass('text-start')
+  expect(quotaGridCell(trigger, '80')).not.toHaveClass('text-left')
+  expect(quotaGridCell(trigger, '120')).toHaveClass('text-end')
+  expect(quotaGridCell(trigger, '120')).not.toHaveClass('text-right')
+})
+
+it('isolates a negative token amount left to right so its minus sign stays in front in right-to-left layouts', async () => {
+  useSystemConfigStore.getState().setConfig({
+    currency: { ...DEFAULT_CURRENCY_CONFIG, quotaDisplayType: 'TOKENS' },
+  })
+  renderQuota({ ...key, remain_quota: -1_500, used_quota: 2_500 })
+  const trigger = screen.getByRole('button')
+
+  expect(within(trigger).getByText('-1.5k')).toHaveAttribute('dir', 'ltr')
+  await userEvent.click(trigger)
+  const detail = await screen.findByRole('dialog')
+  expect(within(detail).getByText('-1.5k')).toHaveAttribute('dir', 'ltr')
+})
 
 it('shows unlimited with cumulative usage and explains it on demand', async () => {
   renderQuota({ ...key, unlimited_quota: true })
@@ -202,7 +233,7 @@ it('shows unlimited with cumulative usage and explains it on demand', async () =
   expect(button).toHaveTextContent('Unlimited')
   expect(button).toHaveTextContent('Unlimited120')
   expect(button).not.toHaveTextContent(/Remaining|Used amount/)
-  expect(within(button).getByText('Unlimited')).toHaveClass('text-left')
+  expect(within(button).getByText('Unlimited')).toHaveClass('text-start')
   expect(screen.queryByRole('progressbar')).not.toBeInTheDocument()
   await userEvent.click(button)
   const detail = await screen.findByRole('dialog')
@@ -287,7 +318,7 @@ it('keeps a long amount within its column while showing the full amount in detai
   renderQuota({ ...key, remain_quota: 123456789000000, used_quota: 0 })
   const button = screen.getByRole('button')
   expect(button).toHaveClass('w-full', 'min-w-0')
-  expect(within(button).getByText('246,913,578')).toHaveClass('truncate')
+  expect(quotaGridCell(button, '246,913,578')).toHaveClass('truncate')
   await userEvent.click(button)
   expect(
     within(await screen.findByRole('dialog')).getAllByText('246,913,578')
@@ -503,15 +534,15 @@ it('keeps mobile quota readable and opens complete model and IP restrictions by 
     'grid-cols-[auto_minmax(0,1fr)]'
   )
   expect(within(quota).getByText('Unlimited')).toHaveClass(
-    'text-right',
+    'text-end',
     'text-sm',
     'font-normal'
   )
-  expect(within(quota).getByText('4,490.16')).toHaveClass(
+  expect(quotaGridCell(quota, '4,490.16')).toHaveClass(
     'tabular-nums',
     'text-sm',
     'font-normal',
-    'text-right'
+    'text-end'
   )
   await userEvent.click(screen.getByRole('button', { name: /Models: 2 model/ }))
   let details = await screen.findByRole('dialog')

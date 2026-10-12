@@ -374,7 +374,7 @@ export function FloatingWindow(props: FloatingWindowProps) {
         {...dragHandleProps}
         style={style}
         className={cn(
-          'bg-background border-border z-50 flex cursor-move touch-none items-center gap-2 rounded-full border py-1 pr-1 pl-3 shadow-lg select-none',
+          'bg-background border-border z-50 flex cursor-move touch-none items-center gap-2 rounded-full border py-1 pe-1 ps-3 shadow-lg select-none',
           props.className
         )}
       >
@@ -436,7 +436,7 @@ export function FloatingWindow(props: FloatingWindowProps) {
           {props.title}
         </h3>
         {props.badge}
-        <div className='ml-auto flex items-center gap-1'>
+        <div className='ms-auto flex items-center gap-1'>
           <Button
             type='button'
             variant='ghost'

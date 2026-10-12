@@ -978,7 +978,7 @@ function ChannelTestDialogContent({
           </Button>
         }
       >
-        <div className='max-h-[78vh] space-y-4 overflow-y-auto py-4 pr-1'>
+        <div className='max-h-[78vh] space-y-4 overflow-y-auto py-4 pe-1'>
           <div className='grid gap-4 md:grid-cols-2'>
             <div className='grid gap-2'>
               <Label htmlFor='endpoint-type'>{t('Endpoint Type')}</Label>
@@ -1259,7 +1259,7 @@ function FailureResultContent({
               window.open('/system-settings/billing/model-pricing', '_blank')
             }
           >
-            <Settings className='mr-1 h-3 w-3 shrink-0' />
+            <Settings className='me-1 h-3 w-3 shrink-0' />
             {t('Go to Settings')}
           </Button>
         )}
@@ -1271,7 +1271,7 @@ function FailureResultContent({
             aria-haspopup='dialog'
             onClick={() => onOpenDetails({ model, summary, details })}
           >
-            <Info className='mr-1 h-3 w-3 shrink-0' />
+            <Info className='me-1 h-3 w-3 shrink-0' />
             {t('Details')}
           </Button>
         )}
@@ -1304,8 +1304,8 @@ function FailureDetailsSheet({
         {details && (
           <>
             <SheetHeader className={sideDrawerHeaderClassName('sm:px-5')}>
-              <SheetTitle className='pr-10'>{t('Details')}</SheetTitle>
-              <SheetDescription className='pr-10 wrap-break-word'>
+              <SheetTitle className='pe-10'>{t('Details')}</SheetTitle>
+              <SheetDescription className='pe-10 wrap-break-word'>
                 {details.model}
               </SheetDescription>
             </SheetHeader>
@@ -1340,9 +1340,9 @@ function FailureDetailsSheet({
                 onClick={() => copyToClipboard(details.details)}
               >
                 {copiedText === details.details ? (
-                  <Check className='mr-2 h-4 w-4 text-green-600' />
+                  <Check className='me-2 h-4 w-4 text-green-600' />
                 ) : (
-                  <Copy className='mr-2 h-4 w-4' />
+                  <Copy className='me-2 h-4 w-4' />
                 )}
                 {t('Copy')}
               </Button>

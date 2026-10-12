@@ -46,7 +46,9 @@ function EndpointRow(props: {
         {props.method}
       </Badge>
       <div className='min-w-0 space-y-1.5 pt-1'>
-        <span className='block font-mono text-xs break-all'>{props.path}</span>
+        <span dir='ltr' className='block font-mono text-xs break-all'>
+          {props.path}
+        </span>
         <div className='flex flex-wrap items-center gap-1.5'>
           {props.children}
         </div>

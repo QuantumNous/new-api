@@ -125,18 +125,18 @@ export const GroupRatioForm = memo(function GroupRatioForm({
             size='sm'
             onClick={() => setGuideOpen(true)}
           >
-            <HelpCircle className='mr-2 h-4 w-4' />
+            <HelpCircle className='me-2 h-4 w-4' />
             {t('Usage guide')}
           </Button>
           <Button variant='outline' size='sm' onClick={toggleEditMode}>
             {editMode === 'visual' ? (
               <>
-                <Code2 className='mr-2 h-4 w-4' />
+                <Code2 className='me-2 h-4 w-4' />
                 {t('Switch to JSON')}
               </>
             ) : (
               <>
-                <Eye className='mr-2 h-4 w-4' />
+                <Eye className='me-2 h-4 w-4' />
                 {t('Switch to Visual')}
               </>
             )}
@@ -525,7 +525,7 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
             <h3 className='text-sm font-semibold'>
               {t('How a call is priced')}
             </h3>
-            <ol className='text-muted-foreground list-decimal space-y-2 pl-5 text-sm leading-6'>
+            <ol className='text-muted-foreground list-decimal space-y-2 ps-5 text-sm leading-6'>
               <li>
                 <span className='text-foreground font-medium'>
                   {t('Find the billing group.')}
@@ -573,10 +573,10 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
               <table className='w-full text-sm'>
                 <thead>
                   <tr className='text-muted-foreground border-b text-xs'>
-                    <th className='px-3 py-1.5 text-left font-medium'>
+                    <th className='px-3 py-1.5 text-start font-medium'>
                       {t('Group name')}
                     </th>
-                    <th className='px-3 py-1.5 text-right font-medium'>
+                    <th className='px-3 py-1.5 text-end font-medium'>
                       {t('Ratio')}
                     </th>
                   </tr>
@@ -584,15 +584,15 @@ function GroupPricingGuide({ open, onOpenChange }: GroupPricingGuideProps) {
                 <tbody>
                   <tr className='border-b'>
                     <td className='px-3 py-1.5'>default</td>
-                    <td className='px-3 py-1.5 text-right'>1.0</td>
+                    <td className='px-3 py-1.5 text-end'>1.0</td>
                   </tr>
                   <tr className='border-b'>
                     <td className='px-3 py-1.5'>premium</td>
-                    <td className='px-3 py-1.5 text-right'>0.5</td>
+                    <td className='px-3 py-1.5 text-end'>0.5</td>
                   </tr>
                   <tr>
                     <td className='px-3 py-1.5'>vip</td>
-                    <td className='px-3 py-1.5 text-right'>0.8</td>
+                    <td className='px-3 py-1.5 text-end'>0.8</td>
                   </tr>
                 </tbody>
               </table>

@@ -120,6 +120,7 @@ export function PresetSelector(props: PresetSelectorProps) {
         <div className='space-y-1.5'>
           <Label>{t('Base URL')}</Label>
           <Input
+            dir='ltr'
             placeholder={t('https://your-server.example.com')}
             value={baseUrl}
             onChange={(e) => handleBaseUrlChange(e.target.value)}

@@ -102,7 +102,7 @@ function ModelCategory(props: ModelCategoryProps) {
           <span className='truncate'>
             {categoryName} ({props.models.length})
           </span>
-          <span className='text-muted-foreground ml-auto text-xs'>
+          <span className='text-muted-foreground ms-auto text-xs'>
             {selectedCount} / {props.models.length}
           </span>
           <ChevronDown className='size-4' aria-hidden='true' />
@@ -161,7 +161,7 @@ function ModelCategory(props: ModelCategoryProps) {
                   type='button'
                   variant='ghost'
                   size='icon-xs'
-                  className='text-muted-foreground hover:text-foreground -my-1 ml-auto shrink-0'
+                  className='text-muted-foreground hover:text-foreground -my-1 ms-auto shrink-0'
                   aria-label={t('Redirect {{model}}', { model })}
                   title={t('Set up redirect')}
                   onClick={() => props.onRedirectModel?.(model)}

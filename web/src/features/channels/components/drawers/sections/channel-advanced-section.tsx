@@ -61,7 +61,7 @@ export function ChannelAdvancedSection(props: ChannelAdvancedSectionProps) {
         render={
           <button
             type='button'
-            className='hover:bg-muted/40 border-border/60 flex w-full items-center justify-between rounded-lg border px-3 py-3 text-left transition-colors'
+            className='hover:bg-muted/40 border-border/60 flex w-full items-center justify-between rounded-lg border px-3 py-3 text-start transition-colors'
             aria-expanded={props.open}
           />
         }

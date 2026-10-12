@@ -891,6 +891,7 @@ export const ModelPricingEditorPanel = forwardRef<
                         <FormLabel>{t('Model name')}</FormLabel>
                         <FormControl>
                           <Input
+                            dir='ltr'
                             placeholder={t('gpt-4')}
                             {...field}
                             disabled={isEditMode}

@@ -75,6 +75,7 @@ export function SourceDiff(props: SourceDiffProps) {
   const lines = diffLines(props.before, props.after)
   return (
     <div
+      dir='ltr'
       className={cn(
         'max-h-96 overflow-auto rounded-md border font-mono text-xs',
         props.className

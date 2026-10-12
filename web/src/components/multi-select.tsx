@@ -459,7 +459,7 @@ export function MultiSelect(props: MultiSelectProps) {
                       {hint && (
                         <span
                           aria-hidden='true'
-                          className='text-muted-foreground ml-auto max-w-40 shrink-0 truncate text-xs'
+                          className='text-muted-foreground ms-auto max-w-40 shrink-0 truncate text-xs'
                         >
                           {hint}
                         </span>

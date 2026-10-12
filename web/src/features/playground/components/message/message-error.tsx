@@ -91,7 +91,7 @@ export function MessageError({
               size='sm'
               onClick={() => window.open(MODEL_PRICING_SETTINGS_PATH, '_blank')}
             >
-              <Settings className='mr-1 h-3.5 w-3.5' />
+              <Settings className='me-1 h-3.5 w-3.5' />
               {t('Go to Settings')}
             </Button>
           )}

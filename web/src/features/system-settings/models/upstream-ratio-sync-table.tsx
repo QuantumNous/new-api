@@ -182,7 +182,7 @@ export function UpstreamRatioSyncTable(props: UpstreamRatioSyncTableProps) {
         containerClassName='min-h-0 flex-1 rounded-md'
         tableContainerClassName='h-full min-h-0'
         tableHeaderClassName='[background-color:var(--table-header)]'
-          tableBodyClassName='[&>tr]:h-14'
+        tableBodyClassName='[&>tr]:h-14'
         splitHeaderScrollClassName='h-full'
         bodyContainerClassName='[scrollbar-gutter:stable]'
         splitHeader
@@ -212,7 +212,7 @@ export function UpstreamRatioSyncTable(props: UpstreamRatioSyncTableProps) {
           {props.toolbar}
           <div className='relative min-w-40 flex-1 sm:max-w-72'>
             <Search
-              className='text-muted-foreground absolute top-1/2 left-2 size-4 -translate-y-1/2'
+              className='text-muted-foreground absolute start-2 top-1/2 size-4 -translate-y-1/2'
               aria-hidden
             />
             <Input
@@ -249,7 +249,7 @@ export function UpstreamRatioSyncTable(props: UpstreamRatioSyncTableProps) {
               ))}
             </SelectContent>
           </Select>
-          <span className='text-muted-foreground text-xs sm:ml-auto'>
+          <span className='text-muted-foreground text-xs sm:ms-auto'>
             USD / {t('1M token')}
           </span>
         </div>

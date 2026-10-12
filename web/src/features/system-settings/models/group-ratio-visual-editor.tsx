@@ -230,7 +230,7 @@ function UnknownGroupBadge() {
   const { t } = useTranslation()
   return (
     <StatusBadge variant='danger' copyable={false}>
-      <AlertTriangle className='mr-1 h-3 w-3' />
+      <AlertTriangle className='me-1 h-3 w-3' />
       {t('Not in pricing table')}
     </StatusBadge>
   )
@@ -596,7 +596,7 @@ function GroupPricingTable({
             </CardDescription>
           </div>
           <Button onClick={addRow} size='sm' className='sm:self-start'>
-            <Plus className='mr-2 h-4 w-4' />
+            <Plus className='me-2 h-4 w-4' />
             {t('Add group')}
           </Button>
         </div>
@@ -742,8 +742,8 @@ function GroupPricingTable({
               {
                 id: 'actions',
                 header: t('Actions'),
-                className: 'text-right',
-                cellClassName: 'text-right',
+                className: 'text-end',
+                cellClassName: 'text-end',
                 cell: (row) => (
                   <div className='flex justify-end gap-1'>
                     <Button
@@ -922,7 +922,7 @@ function GroupOverrideRules({
             }}
             size='sm'
           >
-            <Plus className='mr-2 h-4 w-4' />
+            <Plus className='me-2 h-4 w-4' />
             {t('Add user group')}
           </Button>
           {groupGroupRatioList.length === 0 && (
@@ -1051,8 +1051,8 @@ function GroupOverrideRules({
                               {
                                 id: 'actions',
                                 header: t('Actions'),
-                                className: 'text-right',
-                                cellClassName: 'text-right',
+                                className: 'text-end',
+                                cellClassName: 'text-end',
                                 cell: (override) => (
                                   <StaticRowActions
                                     editLabel={t('Edit')}
@@ -1394,7 +1394,7 @@ function GroupDetailSheet(props: GroupDetailSheetProps) {
                     <dt className='text-muted-foreground'>
                       {t('Description')}
                     </dt>
-                    <dd className='text-right font-medium'>
+                    <dd className='text-end font-medium'>
                       {detail.description}
                     </dd>
                   </div>

@@ -103,9 +103,9 @@ export function PermissionMatrix(props: PermissionMatrixProps) {
           <section key={group.key} aria-label={label}>
             <Collapsible defaultOpen>
               <div className='flex items-center gap-2 px-3 py-2'>
-                <CollapsibleTrigger className='group/trigger flex flex-1 items-center gap-2 text-left text-sm font-medium'>
+                <CollapsibleTrigger className='group/trigger flex flex-1 items-center gap-2 text-start text-sm font-medium'>
                   <ChevronDown
-                    className='text-muted-foreground size-4 -rotate-90 transition-transform group-data-[panel-open]/trigger:rotate-0'
+                    className='text-muted-foreground size-4 -rotate-90 transition-transform group-data-[panel-open]/trigger:rotate-0 rtl:rotate-90 rtl:group-data-[panel-open]/trigger:rotate-0'
                     aria-hidden='true'
                   />
                   {label}
@@ -147,7 +147,7 @@ export function PermissionMatrix(props: PermissionMatrixProps) {
                       value={props.value}
                       onChange={props.onChange}
                       disabled={props.disabled}
-                      className='pr-3 pl-9'
+                      className='ps-9 pe-3'
                     />
                   ))}
                 </div>
@@ -184,7 +184,7 @@ function PermissionResourceRow(props: PermissionResourceRowProps) {
           >
             <Info className='size-3.5' aria-hidden='true' />
           </TooltipTrigger>
-          <TooltipContent className='block max-w-sm py-2 text-left'>
+          <TooltipContent className='block max-w-sm py-2 text-start'>
             <dl className='space-y-1.5'>
               {resource.actions.map((option) => (
                 <div key={option.action}>

@@ -235,12 +235,12 @@ export function PaymentMethodsVisualEditor({
     <div className='space-y-4'>
       <div className='flex flex-col gap-3 sm:flex-row sm:items-center'>
         <div className='relative flex-1'>
-          <Search className='text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4' />
+          <Search className='text-muted-foreground absolute start-2.5 top-2.5 h-4 w-4' />
           <Input
             placeholder={t('Search payment methods...')}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            className='pl-9'
+            className='ps-9'
           />
         </div>
         <div className='flex gap-2'>
@@ -250,7 +250,7 @@ export function PaymentMethodsVisualEditor({
                 <Button variant='outline' className='flex-1 sm:flex-none' />
               }
             >
-              <Lightbulb className='h-4 w-4 sm:mr-2' />
+              <Lightbulb className='h-4 w-4 sm:me-2' />
               <span className='sm:inline'>{t('Templates')}</span>
             </PopoverTrigger>
             <PopoverContent className='w-60'>
@@ -271,7 +271,7 @@ export function PaymentMethodsVisualEditor({
                         handleInsertTemplate(item.template)
                       }}
                     >
-                      <Plus className='mr-2 h-3 w-3' />
+                      <Plus className='me-2 h-3 w-3' />
                       {item.name}
                     </Button>
                   ))}
@@ -288,7 +288,7 @@ export function PaymentMethodsVisualEditor({
             }}
             className='flex-1 sm:flex-none'
           >
-            <Plus className='h-4 w-4 sm:mr-2' />
+            <Plus className='h-4 w-4 sm:me-2' />
             <span className='sm:inline'>{t('Add method')}</span>
           </Button>
         </div>
@@ -362,8 +362,8 @@ export function PaymentMethodsVisualEditor({
               {
                 id: 'actions',
                 header: t('Actions'),
-                className: 'text-right',
-                cellClassName: 'text-right',
+                className: 'text-end',
+                cellClassName: 'text-end',
                 cell: (method) => (
                   <StaticRowActions
                     editLabel={t('Edit')}

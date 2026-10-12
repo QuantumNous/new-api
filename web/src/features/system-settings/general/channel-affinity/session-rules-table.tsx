@@ -231,8 +231,8 @@ export function SessionRulesTable(props: SessionRulesTableProps) {
         {
           id: 'cache',
           header: t('Cache'),
-          className: 'w-16 text-right',
-          cellClassName: 'text-right tabular-nums',
+          className: 'w-16 text-end',
+          cellClassName: 'text-end tabular-nums',
           cell: (rule) => {
             if (!rule.include_rule_name) return t('N/A')
             if (!props.cacheStats) return '—'
@@ -245,7 +245,7 @@ export function SessionRulesTable(props: SessionRulesTableProps) {
         {
           id: 'actions',
           header: t('Actions'),
-          className: 'w-24 text-right',
+          className: 'w-24 text-end',
           cell: (rule) => (
             <div
               role='group'

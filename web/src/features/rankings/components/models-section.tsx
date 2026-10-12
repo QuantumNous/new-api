@@ -176,7 +176,7 @@ export function ModelsSection(props: ModelsSectionProps) {
             {t(PERIOD_DESCRIPTIONS[props.period])}
           </p>
         </div>
-        <div className='shrink-0 text-right'>
+        <div className='shrink-0 text-end'>
           <div className='text-foreground font-mono text-2xl font-semibold tabular-nums'>
             {formatTokens(totalTokens)}
           </div>

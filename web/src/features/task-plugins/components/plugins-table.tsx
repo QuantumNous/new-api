@@ -218,7 +218,7 @@ export function PluginsTable(props: PluginsTableProps) {
           return (
             <span className='text-xs'>
               {t(getChannelTypeLabel(channelTypes[0]))}
-              <span className='text-muted-foreground ml-1'>
+              <span className='text-muted-foreground ms-1'>
                 {channelTypes.map((type) => `#${type}`).join(' ')}
               </span>
             </span>
@@ -347,7 +347,7 @@ export function PluginsTable(props: PluginsTableProps) {
         )}
       </p>
       {blockedUsage.channels.length > 0 && (
-        <ul className='list-disc pl-5'>
+        <ul className='list-disc ps-5'>
           {blockedUsage.channels.map((channel) => (
             <li key={channel.id}>
               #{channel.id} {channel.name}

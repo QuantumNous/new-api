@@ -111,12 +111,12 @@ export function BillingHistoryDialog({
           {/* Search and Filter Bar */}
           <div className='flex items-center gap-2'>
             <div className='relative flex-1'>
-              <Search className='text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2' />
+              <Search className='text-muted-foreground absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2' />
               <Input
                 placeholder={t('Search by order number...')}
                 value={keyword}
                 onChange={(e) => handleSearch(e.target.value)}
-                className='h-9 pl-10'
+                className='h-9 ps-10'
               />
             </div>
             <Select
@@ -146,7 +146,7 @@ export function BillingHistoryDialog({
           </div>
 
           {/* Records List */}
-          <div className='max-h-[min(54vh,520px)] overflow-y-auto pr-1'>
+          <div className='max-h-[min(54vh,520px)] overflow-y-auto pe-1'>
             {loading && (
               <div className='space-y-3'>
                 {['first', 'second', 'third', 'fourth', 'fifth'].map(
@@ -197,7 +197,10 @@ export function BillingHistoryDialog({
                       <div className='flex items-start justify-between gap-2'>
                         <div className='flex-1 space-y-1'>
                           <div className='flex min-w-0 items-center gap-2'>
-                            <code className='text-foreground truncate font-mono text-sm'>
+                            <code
+                              dir='ltr'
+                              className='text-foreground truncate font-mono text-sm'
+                            >
                               {record.trade_no}
                             </code>
                             <Button
@@ -300,7 +303,7 @@ export function BillingHistoryDialog({
                   disabled={page <= 1}
                   className='h-8 w-8 p-0'
                 >
-                  <ChevronLeft className='h-4 w-4' />
+                  <ChevronLeft className='h-4 w-4 rtl:rotate-180' />
                 </Button>
                 <div className='text-muted-foreground flex items-center gap-1 text-sm'>
                   <span className='font-medium'>{page}</span>
@@ -314,7 +317,7 @@ export function BillingHistoryDialog({
                   disabled={page >= totalPages}
                   className='h-8 w-8 p-0'
                 >
-                  <ChevronRight className='h-4 w-4' />
+                  <ChevronRight className='h-4 w-4 rtl:rotate-180' />
                 </Button>
               </div>
             </div>

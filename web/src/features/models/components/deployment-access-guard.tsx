@@ -159,7 +159,7 @@ export function DeploymentAccessGuard({
             </AlertDescription>
           </Alert>
           <Button onClick={handleGoToSettings} className='w-full'>
-            <Settings className='mr-2 h-4 w-4' />
+            <Settings className='me-2 h-4 w-4' />
             {t('Go to settings')}
           </Button>
         </div>
@@ -190,7 +190,7 @@ export function DeploymentAccessGuard({
               {t('Retry')}
             </Button>
             <Button onClick={handleGoToSettings} className='flex-1'>
-              <Settings className='mr-2 h-4 w-4' />
+              <Settings className='me-2 h-4 w-4' />
               {t('Go to settings')}
             </Button>
           </div>
@@ -199,5 +199,5 @@ export function DeploymentAccessGuard({
     )
   }
 
-  return <>{children}</>
+  return children
 }

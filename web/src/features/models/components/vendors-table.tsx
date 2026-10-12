@@ -127,7 +127,7 @@ export function VendorsTable() {
           </span>
           <Button
             variant='link'
-            className='text-foreground h-auto min-w-0 justify-start p-0 text-left'
+            className='text-foreground h-auto min-w-0 justify-start p-0 text-start'
             title={row.original.name}
             onClick={() => {
               setCurrentVendor(row.original)

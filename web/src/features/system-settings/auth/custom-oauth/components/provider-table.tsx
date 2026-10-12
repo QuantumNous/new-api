@@ -56,7 +56,7 @@ export function ProviderTable(props: ProviderTableProps) {
           {t('Manage custom OAuth providers for user authentication')}
         </p>
         <Button size='sm' onClick={props.onCreate}>
-          <Plus className='mr-1.5 h-4 w-4' />
+          <Plus className='me-1.5 h-4 w-4' />
           {t('Add Provider')}
         </Button>
       </div>
@@ -119,8 +119,8 @@ export function ProviderTable(props: ProviderTableProps) {
           {
             id: 'actions',
             header: t('Actions'),
-            className: 'text-right',
-            cellClassName: 'text-right',
+            className: 'text-end',
+            cellClassName: 'text-end',
             cell: (provider) => (
               <StaticRowActions
                 editLabel={t('Edit')}

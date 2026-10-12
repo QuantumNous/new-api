@@ -99,7 +99,7 @@ export function PricingToolbar(props: PricingToolbarProps) {
             <Filter className='size-4' />
             {t('Filter')}
             {props.activeFilterCount > 0 && (
-              <Badge className='ml-0.5 size-5 justify-center p-0 text-[10px]'>
+              <Badge className='ms-0.5 size-5 justify-center p-0 text-[10px]'>
                 {props.activeFilterCount}
               </Badge>
             )}
@@ -145,8 +145,12 @@ export function PricingToolbar(props: PricingToolbarProps) {
             size='sm'
             aria-label={t('Token unit')}
           >
-            <ToggleGroupItem value='M'>/1M</ToggleGroupItem>
-            <ToggleGroupItem value='K'>/1K</ToggleGroupItem>
+            <ToggleGroupItem value='M'>
+              <bdi dir='ltr'>/1M</bdi>
+            </ToggleGroupItem>
+            <ToggleGroupItem value='K'>
+              <bdi dir='ltr'>/1K</bdi>
+            </ToggleGroupItem>
           </ToggleGroup>
 
           <DropdownMenu modal={false}>

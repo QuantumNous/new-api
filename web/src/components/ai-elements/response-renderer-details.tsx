@@ -41,7 +41,7 @@ export function renderDetails(
       <summary className='text-foreground cursor-pointer text-sm font-semibold'>
         {summary}
       </summary>
-      <div className='border-border/70 mt-3 border-l pl-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0'>
+      <div className='border-border/70 mt-3 border-s ps-4 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0'>
         {options.renderChildren(contentNodes)}
       </div>
     </details>

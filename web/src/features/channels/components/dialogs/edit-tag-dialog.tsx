@@ -234,19 +234,19 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
             {t('Cancel')}
           </Button>
           <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting && <Loader2 className='mr-2 h-4 w-4 animate-spin' />}
+            {isSubmitting && <Loader2 className='me-2 h-4 w-4 animate-spin' />}
             {t('Save Changes')}
           </Button>
         </>
       }
     >
-      <ScrollArea className='max-h-[60vh] pr-4'>
+      <ScrollArea className='max-h-[60vh] pe-4'>
         <div className='space-y-6'>
           {/* Tag Name */}
           <div className='space-y-2'>
             <Label htmlFor='new-tag'>
               {t('Tag Name')}
-              <span className='text-muted-foreground ml-2 text-xs'>
+              <span className='text-muted-foreground ms-2 text-xs'>
                 {t('(Leave empty to dissolve tag)')}
               </span>
             </Label>
@@ -264,7 +264,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
           <div className='space-y-2'>
             <Label>
               {t('Models')}
-              <span className='text-muted-foreground ml-2 text-xs'>
+              <span className='text-muted-foreground ms-2 text-xs'>
                 {t("(Override all channels' models)")}
               </span>
             </Label>
@@ -345,7 +345,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
           <div className='space-y-2'>
             <Label htmlFor='model-mapping'>
               {t('Model Mapping (JSON)')}
-              <span className='text-muted-foreground ml-2 text-xs'>
+              <span className='text-muted-foreground ms-2 text-xs'>
                 {t('(Optional: redirect model names)')}
               </span>
             </Label>
@@ -398,7 +398,7 @@ export function EditTagDialog({ open, onOpenChange }: EditTagDialogProps) {
           <div className='space-y-2'>
             <Label>
               {t('Groups')}
-              <span className='text-muted-foreground ml-2 text-xs'>
+              <span className='text-muted-foreground ms-2 text-xs'>
                 {t("(Override all channels' groups)")}
               </span>
             </Label>

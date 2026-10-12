@@ -122,7 +122,7 @@ export function PlaygroundInputTools({
                   key={action}
                   onClick={() => handleFileAction(action)}
                 >
-                  <Icon className='mr-2' size={16} />
+                  <Icon className='me-2' size={16} />
                   {t(label)}
                 </DropdownMenuItem>
               ))}

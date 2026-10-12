@@ -27,15 +27,17 @@ import type { BlockRendererOptions } from './response-types'
 function getTableCellAlignClass(
   align: TableCellNode['align'] | undefined
 ): string {
+  // The parser reports an unaligned column as 'left', so alignment is taken
+  // relative to the reading side of the page.
   if (align === 'right') {
-    return 'text-right'
+    return 'text-end'
   }
 
   if (align === 'center') {
     return 'text-center'
   }
 
-  return 'text-left'
+  return 'text-start'
 }
 
 function renderTableCell(

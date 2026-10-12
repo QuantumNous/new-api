@@ -161,6 +161,7 @@ export function MarketplaceSourcesDialog(props: MarketplaceSourcesDialogProps) {
               <Input
                 id={`marketplace-source-url-${row.rowId}`}
                 type='url'
+                dir='ltr'
                 inputMode='url'
                 value={row.index_url}
                 placeholder='https://example.com/index.json'

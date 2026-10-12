@@ -836,7 +836,7 @@ export function AdvancedCustomEditorDialog({
                   render={
                     <button
                       type='button'
-                      className='hover:bg-muted/50 focus-visible:ring-ring/50 flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-left outline-none focus-visible:ring-3'
+                      className='hover:bg-muted/50 focus-visible:ring-ring/50 flex min-h-11 w-full items-center gap-3 rounded-md px-3 py-2 text-start outline-none focus-visible:ring-3'
                     />
                   }
                 >
@@ -1262,7 +1262,7 @@ function RouteGroupEditor({
           {t('Pass-through')}
           <PassThroughHelpPopover />
         </span>
-        <span className='text-right'>{t('Actions')}</span>
+        <span className='text-end'>{t('Actions')}</span>
       </div>
 
       <div className='divide-y'>

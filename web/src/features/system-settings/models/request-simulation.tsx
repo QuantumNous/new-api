@@ -330,6 +330,7 @@ export function RequestSimulation(props: RequestSimulationProps) {
           </Select>
           {timeMode === 'fixed' && (
             <Input
+              dir='ltr'
               aria-label={t('Specified time')}
               value={fixedTime}
               onChange={(event) => setFixedTime(event.target.value)}

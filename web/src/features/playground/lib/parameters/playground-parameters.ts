@@ -90,7 +90,7 @@ export const PLAYGROUND_PARAMETER_CONTROLS = [
 ] as const satisfies readonly PlaygroundParameterControl[]
 
 export const PLAYGROUND_PARAMETER_PANEL_SCROLL_CLASS =
-  'max-h-[min(28rem,calc(100vh-10rem))] overflow-y-auto pr-1'
+  'max-h-[min(28rem,calc(100vh-10rem))] overflow-y-auto pe-1'
 
 export function normalizeParameterNumberValue(
   key: PlaygroundParameterKey,

@@ -285,7 +285,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
           {editMode === 'visual' ? (
             <>
               <Button variant='outline' size='sm' onClick={addRow}>
-                <Plus className='mr-2 h-4 w-4' />
+                <Plus className='me-2 h-4 w-4' />
                 {t('Add')}
               </Button>
               <Button variant='ghost' size='sm' onClick={resetToDefault}>
@@ -295,7 +295,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
           ) : (
             <>
               <Button variant='ghost' size='sm' onClick={handleCopyJson}>
-                <Copy className='mr-2 h-4 w-4' />
+                <Copy className='me-2 h-4 w-4' />
                 {t('Copy')}
               </Button>
               <Button variant='ghost' size='sm' onClick={resetToDefault}>
@@ -307,12 +307,12 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
         <Button variant='outline' size='sm' onClick={toggleEditMode}>
           {editMode === 'visual' ? (
             <>
-              <Code2 className='mr-2 h-4 w-4' />
+              <Code2 className='me-2 h-4 w-4' />
               {t('Switch to JSON')}
             </>
           ) : (
             <>
-              <Eye className='mr-2 h-4 w-4' />
+              <Eye className='me-2 h-4 w-4' />
               {t('Switch to Visual')}
             </>
           )}
@@ -331,6 +331,7 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
               header: t('Tool identifier'),
               cell: (row) => (
                 <Input
+                  dir='ltr'
                   value={row.key}
                   placeholder='web_search_preview:gpt-4o*'
                   onChange={(e) => updateRow(row.id, 'key', e.target.value)}
@@ -368,8 +369,8 @@ export const ToolPriceSettings = memo(function ToolPriceSettings({
             {
               id: 'actions',
               header: t('Actions'),
-              className: 'text-right',
-              cellClassName: 'text-right',
+              className: 'text-end',
+              cellClassName: 'text-end',
               cell: (row) => (
                 <Button
                   variant='ghost'

@@ -266,6 +266,7 @@ export function PaymentMethodDialog({
                 <FormControl>
                   <div className='flex items-center gap-2'>
                     <Input
+                      dir='ltr'
                       placeholder={t('e.g., SiAlipay')}
                       {...field}
                       className='flex-1'

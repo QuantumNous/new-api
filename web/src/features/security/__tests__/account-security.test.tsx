@@ -781,6 +781,18 @@ it('translates the delete confirmation as a sentence and preserves the literal u
   expect(screen.getByRole('button', { name: 'Delete Account' })).toBeDisabled()
 })
 
+// Usernames are not limited to Latin letters, so the confirmation field takes
+// its direction from what is typed instead of forcing left to right.
+it('lays out a Persian username typed into the delete confirmation right to left', async () => {
+  const user = userEvent.setup()
+  render(<DeleteAccountDialog open username='کاربر' onOpenChange={vi.fn()} />)
+
+  const field = screen.getByRole('textbox')
+  await user.type(field, 'کاربر')
+
+  expect(field.matches(':dir(rtl)')).toBe(true)
+})
+
 it('shows complete translated 2FA step descriptions and updates every step on language change', async () => {
   const i18n = createInstance()
   await i18n.use(initReactI18next).init({

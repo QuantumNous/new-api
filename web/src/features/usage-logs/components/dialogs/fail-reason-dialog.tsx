@@ -49,7 +49,7 @@ export function FailReasonDialog({
       contentHeight='auto'
       bodyClassName='space-y-4'
     >
-      <ScrollArea className='max-h-[500px] pr-4'>
+      <ScrollArea className='max-h-[500px] pe-4'>
         <div className='space-y-4 py-4'>
           <div className='space-y-2'>
             <Label className='text-sm font-semibold'>
@@ -59,7 +59,7 @@ export function FailReasonDialog({
               <Button
                 variant='ghost'
                 size='sm'
-                className='absolute top-2 right-2 h-8 w-8 p-0'
+                className='absolute end-2 top-2 h-8 w-8 p-0'
                 onClick={() => copyToClipboard(failReason)}
                 title={t('Copy to clipboard')}
               >
@@ -69,7 +69,7 @@ export function FailReasonDialog({
                   <Copy className='size-4' />
                 )}
               </Button>
-              <p className='overflow-wrap-anywhere pr-10 text-sm leading-relaxed break-all whitespace-pre-wrap text-red-600'>
+              <p className='overflow-wrap-anywhere pe-10 text-sm leading-relaxed break-all whitespace-pre-wrap text-red-600'>
                 {failReason || '-'}
               </p>
             </div>

@@ -197,7 +197,7 @@ export const ReasoningContent = memo(
     return (
       <CollapsibleContent
         className={cn(
-          'CollapsibleContent group/reasoning-content border-border/70 mt-2 ml-1.5 border-l pl-3 text-sm leading-5',
+          'CollapsibleContent group/reasoning-content border-border/70 mt-2 ms-1.5 border-s ps-3 text-sm leading-5',
           'text-muted-foreground outline-none',
           className
         )}

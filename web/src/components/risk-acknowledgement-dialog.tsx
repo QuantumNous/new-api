@@ -42,6 +42,7 @@ type RequiredTextPart = {
 
 type NormalizedRequiredTextPart = RequiredTextPart & {
   inputIndex?: number
+  key: string
 }
 
 type RiskAcknowledgementDialogProps = {
@@ -65,7 +66,7 @@ type RiskAcknowledgementDialogProps = {
 }
 
 function getRequiredTextRows(text: string) {
-  return Math.max(1, Math.ceil(Array.from(text).length / 42))
+  return Math.max(1, Math.ceil([...text].length / 42))
 }
 
 export function RiskAcknowledgementDialog({
@@ -101,10 +102,12 @@ export function RiskAcknowledgementDialog({
     }>(
       (acc, part) => {
         if (part.type !== 'input') {
-          return { ...acc, parts: [...acc.parts, part] }
+          const key = `static-${acc.parts.length}`
+          return { ...acc, parts: [...acc.parts, { ...part, key }] }
         }
+        const key = `input-${acc.parts.length}`
         return {
-          parts: [...acc.parts, { ...part, inputIndex: acc.inputIndex }],
+          parts: [...acc.parts, { ...part, inputIndex: acc.inputIndex, key }],
           inputIndex: acc.inputIndex + 1,
         }
       },
@@ -187,12 +190,12 @@ export function RiskAcknowledgementDialog({
           className
         )}
       >
-        <AlertDialogHeader className='shrink-0 px-4 pt-4 pb-3 text-left sm:px-6 sm:pt-6'>
+        <AlertDialogHeader className='shrink-0 px-4 pt-4 pb-3 text-start sm:px-6 sm:pt-6'>
           <AlertDialogTitle>{title}</AlertDialogTitle>
           {description ? (
             <AlertDialogDescription
               render={<div />}
-              className='mt-1 text-left leading-5'
+              className='mt-1 text-start leading-5'
             >
               {description}
             </AlertDialogDescription>
@@ -201,7 +204,7 @@ export function RiskAcknowledgementDialog({
 
         <div className='min-h-0 flex-1 space-y-4 overflow-y-auto px-4 pb-4 sm:px-6'>
           {items.length > 0 ? (
-            <ol className='border-border/70 bg-muted/30 text-foreground list-decimal space-y-2 rounded-lg border px-4 py-3 pl-8 text-sm leading-6 sm:px-5 sm:py-4 sm:pl-9'>
+            <ol className='border-border/70 bg-muted/30 text-foreground list-decimal space-y-2 rounded-lg border px-4 py-3 ps-8 text-sm leading-6 sm:px-5 sm:py-4 sm:ps-9'>
               {items.map((item) => (
                 <li key={item}>{item}</li>
               ))}
@@ -244,17 +247,17 @@ export function RiskAcknowledgementDialog({
               </div>
               {hasSegmentedRequiredText ? (
                 <div className='flex flex-col gap-2'>
-                  {normalizedRequiredTextParts.map((part, index) =>
+                  {normalizedRequiredTextParts.map((part) =>
                     part.type === 'static' ? (
                       <span
-                        key={`static-${index}`}
+                        key={part.key}
                         className='text-muted-foreground bg-background/70 border-border w-fit rounded-md border px-2 py-1.5 font-mono text-sm select-none'
                       >
                         {part.text}
                       </span>
                     ) : (
                       <Textarea
-                        key={`input-${index}`}
+                        key={part.key}
                         value={typedTextParts[part.inputIndex ?? 0] ?? ''}
                         onChange={(event) =>
                           handleTextPartChange(

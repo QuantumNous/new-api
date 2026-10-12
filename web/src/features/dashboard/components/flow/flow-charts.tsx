@@ -698,7 +698,7 @@ export function FlowCharts(props: FlowChartsProps) {
                 return (
                   <Fragment key={stage}>
                     {index > 0 && (
-                      <ChevronRight className='text-muted-foreground/40 size-3.5 shrink-0' />
+                      <ChevronRight className='text-muted-foreground/40 size-3.5 shrink-0 rtl:rotate-180' />
                     )}
                     <Tooltip>
                       <TooltipTrigger

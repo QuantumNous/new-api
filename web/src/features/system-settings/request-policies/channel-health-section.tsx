@@ -549,6 +549,7 @@ export function ChannelHealthSection({
                     <FormLabel>{t('Auto-disable status codes')}</FormLabel>
                     <FormControl>
                       <Input
+                        dir='ltr'
                         placeholder={t('e.g. 401, 403, 429, 500-599')}
                         value={field.value}
                         onChange={(event) => field.onChange(event.target.value)}

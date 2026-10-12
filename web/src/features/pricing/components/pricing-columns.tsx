@@ -75,7 +75,7 @@ export function usePricingColumns(
       accessorKey: 'quota_type',
       header: t('Type'),
       cell: ({ row }) => (
-        <ModelBillingModeBadge model={row.original} className='-ml-1.5' />
+        <ModelBillingModeBadge model={row.original} className='-ms-1.5' />
       ),
       size: 110,
       enableSorting: false,

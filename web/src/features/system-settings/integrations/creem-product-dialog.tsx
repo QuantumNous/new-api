@@ -170,6 +170,7 @@ export function CreemProductDialog({
                 <FormLabel>{t('Product ID')}</FormLabel>
                 <FormControl>
                   <Input
+                    dir='ltr'
                     placeholder={t('e.g., prod_xxx')}
                     disabled={isEditMode}
                     {...field}

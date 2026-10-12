@@ -148,12 +148,12 @@ export function CreemProductsVisualEditor({
     <div className='space-y-4'>
       <div className='flex flex-col gap-3 sm:flex-row sm:items-center'>
         <div className='relative flex-1'>
-          <Search className='text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4' />
+          <Search className='text-muted-foreground absolute start-2.5 top-2.5 h-4 w-4' />
           <Input
             placeholder={t('Search products...')}
             value={searchText}
             onChange={(e) => setSearchText(e.target.value)}
-            className='pl-9'
+            className='ps-9'
           />
         </div>
         <Button
@@ -165,7 +165,7 @@ export function CreemProductsVisualEditor({
           }}
           className='flex-1 sm:flex-none'
         >
-          <Plus className='h-4 w-4 sm:mr-2' />
+          <Plus className='h-4 w-4 sm:me-2' />
           <span className='sm:inline'>{t('Add product')}</span>
         </Button>
       </div>
@@ -220,8 +220,8 @@ export function CreemProductsVisualEditor({
               {
                 id: 'actions',
                 header: t('Actions'),
-                className: 'text-right',
-                cellClassName: 'text-right',
+                className: 'text-end',
+                cellClassName: 'text-end',
                 cell: (product) => (
                   <StaticRowActions
                     editLabel={t('Edit')}

@@ -106,7 +106,10 @@ export function TimingMetricsCell(props: TimingMetricsCellProps) {
           <span className='text-muted-foreground shrink-0'>
             {t('First token')}
           </span>
-          <span className={cn('tabular-nums', textColorMap[firstTokenVariant])}>
+          <span
+            dir='ltr'
+            className={cn('tabular-nums', textColorMap[firstTokenVariant])}
+          >
             {firstTokenLabel}
           </span>
         </div>
@@ -122,7 +125,10 @@ export function TimingMetricsCell(props: TimingMetricsCellProps) {
           />
         )}
         <span className='text-muted-foreground shrink-0'>{t('Duration')}</span>
-        <span className={cn('tabular-nums', textColorMap[totalTimeVariant])}>
+        <span
+          dir='ltr'
+          className={cn('tabular-nums', textColorMap[totalTimeVariant])}
+        >
           {totalTimeLabel}
         </span>
       </div>
@@ -221,7 +227,10 @@ export function StreamTpsCell(props: StreamTpsCellProps) {
       </span>
       {(!props.compact ||
         (props.isStream && props.tokensPerSecond != null)) && (
-        <span className='text-muted-foreground/60 px-0.5 tabular-nums'>
+        <span
+          dir='ltr'
+          className='text-muted-foreground/60 px-0.5 tabular-nums'
+        >
           {tpsLabel}
         </span>
       )}

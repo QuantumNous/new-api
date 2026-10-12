@@ -306,7 +306,7 @@ export function AnnouncementsSection({
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-2'>
             <Button onClick={handleAdd} size='sm'>
-              <Plus className='mr-2 h-4 w-4' />
+              <Plus className='me-2 h-4 w-4' />
               {t('Add Announcement')}
             </Button>
             <Button
@@ -315,7 +315,7 @@ export function AnnouncementsSection({
               variant='destructive'
               disabled={selectedIds.length === 0}
             >
-              <Trash2 className='mr-2 h-4 w-4' />
+              <Trash2 className='me-2 h-4 w-4' />
               {t('Delete (')}
               {selectedIds.length})
             </Button>
@@ -325,7 +325,7 @@ export function AnnouncementsSection({
               variant='secondary'
               disabled={!hasChanges || updateOption.isPending}
             >
-              <Save className='mr-2 h-4 w-4' />
+              <Save className='me-2 h-4 w-4' />
               {updateOption.isPending ? t('Saving...') : t('Save Settings')}
             </Button>
           </div>

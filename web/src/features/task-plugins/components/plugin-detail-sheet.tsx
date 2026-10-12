@@ -166,14 +166,14 @@ function PluginDetailContent(props: { plugin: TaskPluginListItem }) {
           <Button
             variant='ghost'
             size='icon-sm'
-            className='absolute top-3 right-3'
+            className='absolute end-3 top-3'
             aria-label={t('Close')}
           />
         }
       >
         <X aria-hidden='true' />
       </SheetClose>
-      <SheetHeader className='shrink-0 gap-2 border-b p-4 pr-12 sm:p-6 sm:pr-14'>
+      <SheetHeader className='shrink-0 gap-2 border-b p-4 pe-12 sm:p-6 sm:pe-14'>
         <SheetTitle className='flex min-w-0 items-start gap-3'>
           <span className='shrink-0'>
             <PluginIcon
@@ -200,7 +200,7 @@ function PluginDetailContent(props: { plugin: TaskPluginListItem }) {
           />
           <Badge
             variant='secondary'
-            className='ml-auto h-auto max-w-[35%] shrink-0 font-mono break-all whitespace-normal'
+            className='ms-auto h-auto max-w-[35%] shrink-0 font-mono break-all whitespace-normal'
           >
             {detail?.meta.version ?? props.plugin.meta.version}
           </Badge>
@@ -283,7 +283,7 @@ function PluginDetailContent(props: { plugin: TaskPluginListItem }) {
                   <TableHead>{t('Version')}</TableHead>
                   <TableHead>{t('Remark')}</TableHead>
                   <TableHead>{t('Status')}</TableHead>
-                  <TableHead className='text-right'>{t('Actions')}</TableHead>
+                  <TableHead className='text-end'>{t('Actions')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -296,7 +296,7 @@ function PluginDetailContent(props: { plugin: TaskPluginListItem }) {
                     <TableCell>
                       {version.active ? <Badge>{t('Active')}</Badge> : '—'}
                     </TableCell>
-                    <TableCell className='text-right'>
+                    <TableCell className='text-end'>
                       <Button
                         size='sm'
                         variant='outline'

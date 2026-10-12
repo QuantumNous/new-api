@@ -145,7 +145,7 @@ export function VendorMutateDialog(props: {
       <Sheet open={props.open} onOpenChange={close}>
         <SheetContent className={sideDrawerContentClassName('sm:max-w-3xl')}>
           <SheetHeader className={sideDrawerHeaderClassName()}>
-            <SheetTitle className='pr-6 break-all'>
+            <SheetTitle className='pe-6 break-all'>
               {id ? props.currentVendor?.name : t('Create Vendor')}
             </SheetTitle>
             <SheetDescription>

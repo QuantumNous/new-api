@@ -79,7 +79,7 @@ export function UserQuotaCell(props: UserQuotaCellProps) {
           label={t('No Quota')}
           variant='neutral'
           copyable={false}
-          className='-ml-1.5 font-normal'
+          className='-ms-1.5 font-normal'
         />
       )}
     </QuotaDetailsPopover>

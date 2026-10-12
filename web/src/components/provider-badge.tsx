@@ -54,7 +54,7 @@ export function ProviderBadge({
         autoColor={colorText ? label : undefined}
         variant={colorText ? undefined : 'neutral'}
         size='sm'
-        className={cn('min-w-0 shrink overflow-hidden', !icon && 'pl-0')}
+        className={cn('min-w-0 shrink overflow-hidden', !icon && 'ps-0')}
         {...badgeProps}
       />
     </div>

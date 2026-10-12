@@ -99,7 +99,7 @@ function UpstreamUpdateSession(props: UpstreamUpdateDialogProps) {
         }
         description={<span className='break-all'>{channelLabel}</span>}
         bodyClassName='space-y-4'
-        titleClassName='pr-6 leading-snug'
+        titleClassName='pe-6 leading-snug'
         footerClassName='sm:flex-wrap'
         footer={
           <>

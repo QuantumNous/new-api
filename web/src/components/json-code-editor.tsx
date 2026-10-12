@@ -302,7 +302,7 @@ export function JsonCodeEditor({
             onClick={handleCopy}
             disabled={disabled || !value}
           >
-            <Copy className='mr-1 h-3.5 w-3.5' aria-hidden='true' />
+            <Copy className='me-1 h-3.5 w-3.5' aria-hidden='true' />
             {t('Copy')}
           </Button>
           <Button
@@ -313,12 +313,14 @@ export function JsonCodeEditor({
             onClick={formatJson}
             disabled={disabled || !jsonStatus.isValid || !value.trim()}
           >
-            <Code2 className='mr-1 h-3.5 w-3.5' aria-hidden='true' />
+            <Code2 className='me-1 h-3.5 w-3.5' aria-hidden='true' />
             {t('Format JSON')}
           </Button>
         </div>
       </div>
+      {/* JSON is left-to-right code, also on a right-to-left page. */}
       <div
+        dir='ltr'
         className={cn(
           'bg-background relative overflow-hidden pl-2',
           'has-[textarea:disabled]:bg-input/30 has-[textarea:disabled]:opacity-70',
