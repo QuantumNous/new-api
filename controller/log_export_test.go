@@ -51,7 +51,7 @@ func exportedRequestIds(lines []map[string]any) []any {
 }
 
 // seedExportLogs stores logs of two users: three in the last hour and one
-// from 40 days ago.
+// from 400 days ago.
 func seedExportLogs(t *testing.T, mainDB *gorm.DB, logDB *gorm.DB, now int64) {
 	t.Helper()
 	require.NoError(t, mainDB.Create(&model.Channel{Id: 9, Name: "primary"}).Error)
@@ -59,7 +59,7 @@ func seedExportLogs(t *testing.T, mainDB *gorm.DB, logDB *gorm.DB, now int64) {
 		{UserId: 1, Username: "alice", CreatedAt: now - 3600, Type: model.LogTypeConsume, ModelName: "gpt-a", ChannelId: 9, Quota: 10, RequestId: "a-1", Other: `{"admin_info":{"use_channel":["9"]}}`},
 		{UserId: 2, Username: "bob", CreatedAt: now - 1800, Type: model.LogTypeConsume, ModelName: "gpt-b", ChannelId: 9, Quota: 20, RequestId: "b-1"},
 		{UserId: 1, Username: "alice", CreatedAt: now - 60, Type: model.LogTypeError, ModelName: "gpt-a", RequestId: "a-2"},
-		{UserId: 1, Username: "alice", CreatedAt: now - 40*24*3600, Type: model.LogTypeConsume, ModelName: "gpt-a", RequestId: "a-old"},
+		{UserId: 1, Username: "alice", CreatedAt: now - 400*24*3600, Type: model.LogTypeConsume, ModelName: "gpt-a", RequestId: "a-old"},
 	}
 	for i := range logs {
 		require.NoError(t, logDB.Create(&logs[i]).Error)
@@ -154,32 +154,39 @@ func TestLogExportRules(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db, _ := newAuditTestDatabase(t, "sqlite", "")
 	useLogExportDatabases(t, db, db, common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
-	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Log{}))
+	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Log{}, &model.QuotaData{}))
 	now := time.Now().Unix()
 	seedExportLogs(t, db, db, now)
 	logSetting := operation_setting.GetLogSetting()
 	previousSetting := *logSetting
 	t.Cleanup(func() { *logSetting = previousSetting })
 	recent := fmt.Sprintf("start_timestamp=%d&end_timestamp=%d", now-2*24*3600, now)
-	tooLong := fmt.Sprintf("start_timestamp=%d&end_timestamp=%d", now-31*24*3600, now)
+	tooLong := fmt.Sprintf("start_timestamp=%d&end_timestamp=%d", now-366*24*3600, now)
 
 	t.Run("time range", func(t *testing.T) {
 		rejected := callLogHandler(t, ExportAllLogs, 3, common.RoleAdminUser, tooLong)
 		require.Len(t, rejected, 1)
 		assert.Equal(t, false, rejected[0]["success"])
 		assert.Equal(t, "The time range cannot exceed {{days}} days", rejected[0]["message_key"])
-		assert.Equal(t, map[string]any{"days": float64(30)}, rejected[0]["message_params"])
+		assert.Equal(t, map[string]any{"days": float64(365)}, rejected[0]["message_params"])
 
 		assert.Equal(t, false, callLogHandler(t, GetUserLogs, 1, common.RoleCommonUser, tooLong)[0]["success"])
 		assert.Equal(t, false, callLogHandler(t, GetLogsSelfStat, 1, common.RoleCommonUser, tooLong)[0]["success"])
 		assert.Equal(t, true, callLogHandler(t, GetUserLogs, 3, common.RoleAdminUser, tooLong)[0]["success"], "administrators search their own logs without a limit")
+
+		// The dashboard follows the same range instead of its old one-month limit.
+		fortyDays := fmt.Sprintf("start_timestamp=%d&end_timestamp=%d", now-40*24*3600, now)
+		for _, handler := range []gin.HandlerFunc{GetUserQuotaDates, GetUserFlowQuotaDates} {
+			assert.Equal(t, "The time range cannot exceed {{days}} days", callLogHandler(t, handler, 1, common.RoleCommonUser, tooLong)[0]["message_key"])
+			assert.Equal(t, true, callLogHandler(t, handler, 1, common.RoleCommonUser, fortyDays)[0]["success"])
+		}
 
 		// Without a start, a user's search reaches back the whole range.
 		listed := callLogHandler(t, GetUserLogs, 1, common.RoleCommonUser, "")[0]
 		assert.Equal(t, true, listed["success"])
 		assert.EqualValues(t, 2, listed["data"].(map[string]any)["total"])
 
-		logSetting.MaxRangeDays = 45
+		logSetting.MaxRangeDays = 400
 		assert.Equal(t, true, callLogHandler(t, GetUserLogs, 1, common.RoleCommonUser, tooLong)[0]["success"])
 		logSetting.MaxRangeDays = previousSetting.MaxRangeDays
 	})

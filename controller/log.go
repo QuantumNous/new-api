@@ -36,9 +36,9 @@ func logFilterFromQuery(c *gin.Context, admin bool) model.LogFilter {
 	return filter
 }
 
-// limitLogTimeRange returns the start of a log search kept within the longest
-// log time range. A missing start reaches back the whole range, and time after
-// now does not count toward it.
+// limitLogTimeRange returns the start of a log or dashboard search kept within
+// the longest log time range. A missing start reaches back the whole range, and
+// time after now does not count toward it.
 func limitLogTimeRange(startTimestamp int64, endTimestamp int64) (int64, error) {
 	maxRange := operation_setting.GetLogSetting().MaxRangeSeconds()
 	end := common.GetTimestamp()

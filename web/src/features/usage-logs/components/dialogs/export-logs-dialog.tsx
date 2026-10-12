@@ -41,7 +41,7 @@ import { useLogsViewScope } from '../usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 const DAY_MS = 24 * 60 * 60 * 1000
-const DEFAULT_MAX_RANGE_DAYS = 30
+const DEFAULT_MAX_RANGE_DAYS = 365
 
 /**
  * Export button for the common logs page. It asks for the time range, then

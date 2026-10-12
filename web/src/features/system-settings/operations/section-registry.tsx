@@ -102,7 +102,7 @@ const OPERATIONS_SECTIONS = [
           'log_setting.user_export_enabled':
             settings['log_setting.user_export_enabled'] ?? true,
           'log_setting.max_range_days':
-            settings['log_setting.max_range_days'] ?? 30,
+            settings['log_setting.max_range_days'] ?? 365,
         }}
       />
     ),
