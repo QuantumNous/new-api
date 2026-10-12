@@ -388,6 +388,11 @@ export function Dashboard() {
                   <LazyRealtimeMetricsPanel />
                 </Suspense>
               </FadeIn>
+              <FadeIn delay={0.03}>
+                <Suspense fallback={<ModelChartsFallback />}>
+                  <LazyTokenUsageCard filters={modelFilters} />
+                </Suspense>
+              </FadeIn>
               <FadeIn delay={0.05}>
                 <Suspense fallback={<LogStatCardsFallback />}>
                   <LazyLogStatCards
