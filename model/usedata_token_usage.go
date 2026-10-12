@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 )
 
 // TokenUsageRow is one key's aggregated spend over a time range. Quota is the
@@ -31,10 +32,11 @@ type TokenUsageRow struct {
 	// rate that can drift over the range. 0 means unknown, the same
 	// convention as RawQuota, for rows predating this column.
 	ChargeUSDMicros int64 `json:"charge_usd_micros"`
-	// ChargeCNYMicros is ChargeUSDMicros converted at a fixed display-only
-	// USD->CNY rate (not the exact per-request rate, which isn't carried in
-	// this aggregate) — a reference figure next to the dollar amount, same
-	// convention as the dashboard card.
+	// ChargeCNYMicros is ChargeUSDMicros converted at the admin-configured
+	// billing exchange rate (operation_setting.GetBillingUSDToCNYRate, same
+	// setting the relay path itself uses) — not the exact per-request rate,
+	// which isn't carried in this aggregate, but the live configured rate
+	// rather than a hardcoded constant.
 	ChargeCNYMicros int64 `json:"charge_cny_micros"`
 	// RawChargeUSDMicros / RawChargeCNYMicros are the sticker-price USD/CNY —
 	// what the paid charge would be at group ratio 1.0, scaled from
@@ -95,25 +97,29 @@ func GetTokenUsageRanking(startTime int64, endTime int64, userId int, username s
 	return rows, nil
 }
 
-// usdToCNYRate is a fixed display-only conversion, matching the dashboard
-// card's own constant. It is not the exact rate each underlying request was
-// actually billed at (that can vary by request and by day, and isn't
-// meaningfully summable across a range) — close enough for a reference
-// figure next to the dollar amount.
-const usdToCNYRate = 7.1
+// usdToCNYRate reads the admin-configured billing exchange rate (系统设置 ->
+// 货币与展示 -> 计费汇率), the same value the relay path itself uses to turn
+// USD cost into CNY quota. Falls back to 1 the same way GetBillingUSDToCNYRate
+// does when unset/invalid — this is a display conversion, not the exact
+// per-request rate (which can differ if the admin changes the setting over
+// the range), but it is the live rate rather than a hardcoded guess.
+func usdToCNYRate() float64 {
+	return operation_setting.GetBillingUSDToCNYRate()
+}
 
 // fillTokenUsageMoneyFields derives the CNY and before-discount money fields
 // from what the query already summed, so callers get ready-to-use numbers
 // instead of redoing this arithmetic client-side.
 func fillTokenUsageMoneyFields(rows []TokenUsageRow) {
+	rate := usdToCNYRate()
 	for i := range rows {
 		row := &rows[i]
-		row.ChargeCNYMicros = int64(float64(row.ChargeUSDMicros)*usdToCNYRate + 0.5)
+		row.ChargeCNYMicros = int64(float64(row.ChargeUSDMicros)*rate + 0.5)
 		if row.Quota <= 0 {
 			continue
 		}
 		row.RawChargeUSDMicros = int64(float64(row.ChargeUSDMicros)*float64(row.RawQuota)/float64(row.Quota) + 0.5)
-		row.RawChargeCNYMicros = int64(float64(row.RawChargeUSDMicros)*usdToCNYRate + 0.5)
+		row.RawChargeCNYMicros = int64(float64(row.RawChargeUSDMicros)*rate + 0.5)
 	}
 }
 

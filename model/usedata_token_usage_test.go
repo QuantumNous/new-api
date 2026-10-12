@@ -4,8 +4,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/stretchr/testify/require"
 )
+
+// withBillingRate sets the admin-configured billing exchange rate for the
+// duration of a test and restores it afterwards, so these tests do not leak
+// state into others relying on the default rate.
+func withBillingRate(t *testing.T, rate float64) {
+	t.Helper()
+	original := operation_setting.BillingUSDToCNYRate
+	operation_setting.BillingUSDToCNYRate = rate
+	t.Cleanup(func() { operation_setting.BillingUSDToCNYRate = original })
+}
 
 // Tests for the per-key spend ranking behind /api/data/token-usage and
 // /api/data/self/token-usage.
@@ -50,6 +61,7 @@ func seedTokenUsageData(t *testing.T, now int64) {
 }
 
 func TestTokenUsageRankingOrdersSumsAndScopes(t *testing.T) {
+	withBillingRate(t, 7.1)
 	now := time.Now().Unix()
 	seedTokenUsageData(t, now)
 
@@ -81,9 +93,10 @@ func TestTokenUsageRankingOrdersSumsAndScopes(t *testing.T) {
 	// contributes, the pre-column row's zero does not force a USD figure to
 	// equal Quota's internal-unit full value.
 	require.Equal(t, int64(90), rows[2].ChargeUSDMicros)
-	// ChargeCNYMicros is ChargeUSDMicros at the fixed display rate; the
-	// before-discount USD/CNY are ChargeUSDMicros scaled by RawQuota/Quota
-	// (600/400 = 1.5x), matching what the dashboard card itself computes.
+	// ChargeCNYMicros is ChargeUSDMicros at the admin-configured billing rate
+	// (set to 7.1 for this test); the before-discount USD/CNY are
+	// ChargeUSDMicros scaled by RawQuota/Quota (600/400 = 1.5x), matching
+	// what the dashboard card itself displays.
 	require.Equal(t, int64(639), rows[2].ChargeCNYMicros)    // round(90*7.1)
 	require.Equal(t, int64(135), rows[2].RawChargeUSDMicros) // round(90*600/400)
 	require.Equal(t, int64(959), rows[2].RawChargeCNYMicros) // round(135*7.1)
@@ -137,6 +150,7 @@ func TestTokenUsageRankingFiltersByNameAndModel(t *testing.T) {
 }
 
 func TestFillTokenUsageMoneyFields(t *testing.T) {
+	withBillingRate(t, 7.1)
 	rows := []TokenUsageRow{
 		// Normal case: discount and charge both known.
 		{Quota: 400, RawQuota: 600, ChargeUSDMicros: 90},

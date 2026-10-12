@@ -80,9 +80,10 @@ export interface TokenUsageItem {
   // rate that can drift over the range. Divide by 1_000_000 for dollars.
   // 0 means unknown for rows predating this column.
   charge_usd_micros: number
-  // charge_cny_micros is charge_usd_micros converted at the backend's fixed
-  // display-only USD->CNY rate — a reference figure, not the exact
-  // per-request rate. Divide by 1_000_000 for yuan.
+  // charge_cny_micros is charge_usd_micros converted at the admin-configured
+  // billing exchange rate (系统设置 -> 货币与展示 -> 计费汇率) — the same
+  // rate the relay path itself uses, not a hardcoded constant. Divide by
+  // 1_000_000 for yuan.
   charge_cny_micros: number
   // raw_charge_usd_micros / raw_charge_cny_micros are the sticker-price
   // USD/CNY before the key's group discount — the money counterpart to
