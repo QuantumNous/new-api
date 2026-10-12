@@ -19,6 +19,7 @@ const (
 	KindURLContext    Kind = "url_context"
 	KindMCP           Kind = "mcp"
 	KindImage         Kind = "image_generation"
+	KindToolSearch    Kind = "tool_search"
 	KindNative        Kind = "native"
 )
 
@@ -47,6 +48,16 @@ type (
 	WebSearch           = convmeta.WebSearch
 )
 
+// ToolSearch is a Responses tool_search declaration. OpenAI's own protocol
+// carries client-executed searches as tool_search_call/tool_search_output
+// items; other protocols only have client function calls, so the definition
+// travels as a function tool and its calls are restored on the response side.
+type ToolSearch struct {
+	Name        string
+	Description string
+	Parameters  any
+}
+
 type Definition struct {
 	Kind       Kind
 	Execution  Execution
@@ -54,6 +65,7 @@ type Definition struct {
 	Name       string
 	Function   *Function
 	WebSearch  *WebSearch
+	ToolSearch *ToolSearch
 	Raw        json.RawMessage
 	Group      int
 	// Namespace is the Responses tool namespace the definition was declared

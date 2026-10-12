@@ -1,6 +1,7 @@
 package oaichat
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -33,6 +34,7 @@ const (
 	responsesEventReasoningSummaryPartDone  = "response.reasoning_summary_part.done"
 	responsesOutputTypeFunctionCall         = "function_call"
 	responsesOutputTypeCustomToolCall       = "custom_tool_call"
+	responsesOutputTypeToolSearchCall       = "tool_search_call"
 	responsesOutputTypeMessage              = "message"
 	responsesOutputTypeReasoning            = "reasoning"
 	responsesIncompleteReasonContentFilter  = "content_filter"
@@ -235,6 +237,17 @@ func chatToolCallToResponsesOutput(toolCall dto.ToolCallRequest, responseID stri
 				Input:     chatArgumentsRawMessage(customToolInputFromArguments(toolCall.Function.Arguments)),
 			}, nil
 		}
+		if tools.IsToolSearchTool(toolCall.Function.Name) {
+			// A client-executed tool search travels upstream as a function
+			// call; restore the Responses item the caller expects to answer.
+			return dto.ResponsesOutput{
+				Type:      responsesOutputTypeToolSearchCall,
+				ID:        callID,
+				Status:    status,
+				CallId:    callID,
+				Arguments: chatArgumentsToToolSearchArguments(toolCall.Function.Arguments),
+			}, nil
+		}
 		return dto.ResponsesOutput{
 			Type:      responsesOutputTypeFunctionCall,
 			ID:        callID,
@@ -257,6 +270,18 @@ func chatToolCallToResponsesOutput(toolCall dto.ToolCallRequest, responseID stri
 // customToolInputFromArguments unwraps the raw custom tool input from the
 // {"input": ...} arguments a Chat function call carries. Arguments of any other
 // shape are returned unchanged so the model's output is never dropped.
+// chatArgumentsToToolSearchArguments converts the JSON string a Chat function
+// call carries into the JSON object a Responses tool_search_call requires.
+// Arguments that are not a JSON object become an empty object so the restored
+// item still satisfies the protocol shape.
+func chatArgumentsToToolSearchArguments(arguments string) json.RawMessage {
+	trimmed := strings.TrimSpace(arguments)
+	if trimmed == "" || kitutil.GetJsonType(json.RawMessage(trimmed)) != "object" {
+		return json.RawMessage(`{}`)
+	}
+	return json.RawMessage(trimmed)
+}
+
 func customToolInputFromArguments(arguments string) string {
 	var value map[string]any
 	if err := kitutil.UnmarshalJsonStr(arguments, &value); err != nil {

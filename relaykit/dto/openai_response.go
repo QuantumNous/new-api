@@ -420,6 +420,19 @@ func (r ResponsesOutput) MarshalJSON() ([]byte, error) {
 			Status string          `json:"status,omitempty"`
 			Action json.RawMessage `json:"action,omitempty"`
 		}{Type: r.Type, ID: r.ID, Status: r.Status, Action: r.Action})
+	case "tool_search_call":
+		arguments := r.Arguments
+		if len(arguments) == 0 {
+			arguments = json.RawMessage(`{}`)
+		}
+		return kitutil.Marshal(struct {
+			Type      string          `json:"type"`
+			ID        string          `json:"id,omitempty"`
+			Execution string          `json:"execution"`
+			Status    string          `json:"status,omitempty"`
+			CallID    string          `json:"call_id,omitempty"`
+			Arguments json.RawMessage `json:"arguments"`
+		}{Type: r.Type, ID: r.ID, Execution: "client", Status: r.Status, CallID: r.CallId, Arguments: arguments})
 	case "mcp_call":
 		return kitutil.Marshal(struct {
 			Type              string          `json:"type"`
