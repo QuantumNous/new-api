@@ -138,6 +138,22 @@ export interface RealtimeDimensions {
   truncated: boolean
 }
 
+// One key's realtime throughput, the same window metrics as RealtimeSnapshot
+// but scoped to a single key. Backs the "current consumption" ranking.
+export interface RealtimeKeyBreakdown {
+  token_id: number
+  token_name?: string
+  windows: RealtimeWindow[]
+}
+
+export interface RealtimeKeyBreakdowns {
+  user_id: number
+  now: number
+  node_name: string
+  truncated: boolean
+  keys: RealtimeKeyBreakdown[]
+}
+
 // ----------------------------------------------------------------------------
 // Historical usage
 //

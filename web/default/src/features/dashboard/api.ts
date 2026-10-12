@@ -23,6 +23,7 @@ import type {
   FlowQuotaDataItem,
   QuotaDataItem,
   RealtimeDimensions,
+  RealtimeKeyBreakdowns,
   RealtimeSnapshot,
   RealtimeUsersResponse,
   TokenUsageItem,
@@ -153,6 +154,16 @@ export async function getSelfRealtimeDimensions(windowSeconds = 3600) {
   const res = await api.get<{ success: boolean; data: RealtimeDimensions }>(
     '/api/data/realtime/self/dimensions',
     { params: { window_seconds: windowSeconds } }
+  )
+  return res.data
+}
+
+// Split the calling user's realtime snapshot by key — the "which key is
+// burning quota right now" ranking. Only keys with traffic inside the
+// retention window appear.
+export async function getSelfRealtimeKeyBreakdown() {
+  const res = await api.get<{ success: boolean; data: RealtimeKeyBreakdowns }>(
+    '/api/data/realtime/self/keys'
   )
   return res.data
 }

@@ -69,6 +69,19 @@ func GetSelfRealtimeDimensions(c *gin.Context) {
 	})
 }
 
+// GetSelfRealtimeKeyBreakdown splits the calling user's realtime snapshot by
+// key, the session-authenticated counterpart to the API-key route the relay
+// client curls (/api/usage/realtime/keys). The dashboard runs on session auth,
+// so it needs its own entry point into the same model function.
+func GetSelfRealtimeKeyBreakdown(c *gin.Context) {
+	userId := c.GetInt("id")
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    model.GetRealtimeKeyBreakdowns(userId),
+	})
+}
+
 // parseRealtimeFilter reads the optional key / model filter from the query.
 // It reports false after writing an error response when a value is malformed.
 func parseRealtimeFilter(c *gin.Context) (model.RealtimeFilter, bool) {

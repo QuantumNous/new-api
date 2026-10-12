@@ -449,21 +449,14 @@ export function Dashboard() {
             </FadeIn>
           )}
           {activeSection === 'flow' && (
-            <>
-              <FadeIn>
-                <Suspense fallback={<ModelChartsFallback />}>
-                  <LazyFlowCharts
-                    filters={modelFilters}
-                    sensitiveVisible={flowSensitiveVisible}
-                  />
-                </Suspense>
-              </FadeIn>
-              <FadeIn delay={0.1}>
-                <Suspense fallback={<ModelChartsFallback />}>
-                  <LazyTokenUsageCard filters={modelFilters} />
-                </Suspense>
-              </FadeIn>
-            </>
+            <FadeIn>
+              <Suspense fallback={<ModelChartsFallback />}>
+                <LazyFlowCharts
+                  filters={modelFilters}
+                  sensitiveVisible={flowSensitiveVisible}
+                />
+              </Suspense>
+            </FadeIn>
           )}
         </div>
       </SectionPageLayout.Content>

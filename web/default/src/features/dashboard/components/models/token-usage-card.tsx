@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import { Wallet } from 'lucide-react'
+import { Activity, Wallet } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -38,7 +38,10 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { getTokenUsage } from '@/features/dashboard/api'
+import {
+  getSelfRealtimeKeyBreakdown,
+  getTokenUsage,
+} from '@/features/dashboard/api'
 import { getDefaultDays } from '@/features/dashboard/lib'
 import type { DashboardFilters } from '@/features/dashboard/types'
 import { formatCompactNumber, formatQuota } from '@/lib/format'
@@ -50,9 +53,21 @@ interface TokenUsageCardProps {
   filters: DashboardFilters
 }
 
-// Per-key spend table for the section's current time range and filters. The
-// backend aggregates quota per (token_id, user_id) and ranks by spend; this
-// card is the wallet view of the same data the stat cards read.
+// realtimeRankingWindowSeconds picks which trailing window the "current
+// consumption" ranking sorts by. 300s (5 minutes) is long enough to survive a
+// gap between requests without going empty, short enough to still mean
+// "right now" rather than "today".
+const realtimeRankingWindowSeconds = 300
+
+// How often the realtime ranking refetches. Matches the other realtime
+// widgets on the dashboard so every current-traffic panel updates in step.
+const realtimeRefetchIntervalMs = 10_000
+
+// Per-key spend table plus a realtime "who is spending right now" ranking.
+// The backend aggregates quota per (token_id, user_id) for the historical
+// total, and splits the in-memory realtime rings per key for the live
+// ranking — two different data sources because only quota_data remembers
+// money, and only the rings know what is happening in the current window.
 export function TokenUsageCard(props: TokenUsageCardProps) {
   const { t } = useTranslation()
   const userRole = useAuthStore((state) => state.auth.user?.role)
@@ -72,7 +87,7 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
     ]
   )
 
-  const query = useQuery({
+  const spendQuery = useQuery({
     queryKey: [
       'dashboard',
       'token-usage',
@@ -96,97 +111,201 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
     staleTime: 60_000,
   })
 
-  const rows = query.data ?? []
+  // Realtime ranking is always "my own keys" — the breakdown comes from the
+  // in-process rings scoped to the session user, so there is no admin/other
+  // user variant the way the historical spend table has one.
+  const realtimeQuery = useQuery({
+    queryKey: ['dashboard', 'token-usage-realtime'],
+    queryFn: () => getSelfRealtimeKeyBreakdown(),
+    select: (res) => (res.success ? (res.data?.keys ?? []) : []),
+    refetchInterval: realtimeRefetchIntervalMs,
+    staleTime: 5_000,
+  })
+
+  const spendRows = spendQuery.data ?? []
   const totalQuota = useMemo(
-    () => rows.reduce((sum, row) => sum + (row.quota || 0), 0),
-    [rows]
+    () => spendRows.reduce((sum, row) => sum + (row.quota || 0), 0),
+    [spendRows]
   )
 
+  const realtimeRows = useMemo(() => {
+    const keys = realtimeQuery.data ?? []
+    return keys
+      .map((key) => {
+        const window = key.windows.find(
+          (w) => w.window_seconds === realtimeRankingWindowSeconds
+        )
+        return {
+          token_id: key.token_id,
+          token_name: key.token_name,
+          requests: window?.requests ?? 0,
+          tokens: window?.tokens ?? 0,
+          rpm: window?.rpm ?? 0,
+          tpm: window?.tpm ?? 0,
+        }
+      })
+      .filter((row) => row.requests > 0 || row.tokens > 0)
+      .sort((a, b) => b.tokens - a.tokens)
+  }, [realtimeQuery.data])
+
   return (
-    <div className='overflow-hidden rounded-lg border'>
-      <div className='flex items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
-        <IconBadge tone='info' size='sm'>
-          <Wallet />
-        </IconBadge>
-        <div className='text-sm font-semibold'>{t('Key spend')}</div>
-        {rows.length > 0 && (
-          <div className='text-muted-foreground ml-auto text-sm'>
-            <span className='mr-1'>{t('Total')}:</span>
-            <span className='text-foreground font-semibold'>
-              {formatQuota(totalQuota)}
-            </span>
+    <div className='space-y-4'>
+      {/* Current consumption ranking: live, per key, from the realtime rings. */}
+      <div className='overflow-hidden rounded-lg border'>
+        <div className='flex items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
+          <IconBadge tone='success' size='sm'>
+            <Activity />
+          </IconBadge>
+          <div className='text-sm font-semibold'>{t('Current key consumption')}</div>
+          <div className='text-muted-foreground ml-auto text-xs'>
+            {t('Last 5 minutes')}
           </div>
+        </div>
+
+        {realtimeQuery.isLoading ? (
+          <div className='space-y-2 p-3 sm:p-4'>
+            {[0, 1, 2].map((index) => (
+              <Skeleton key={index} className='h-9 w-full' />
+            ))}
+          </div>
+        ) : realtimeRows.length === 0 ? (
+          <Empty className='py-8'>
+            <EmptyHeader>
+              <EmptyMedia>
+                <Activity />
+              </EmptyMedia>
+              <EmptyTitle>{t('No active key traffic right now')}</EmptyTitle>
+              <EmptyDescription>
+                {t('Keys appear here once they serve a request in the last 5 minutes')}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className='hover:bg-transparent'>
+                <TableHead className='w-10 pl-3 sm:pl-5'>#</TableHead>
+                <TableHead>{t('Key')}</TableHead>
+                <TableHead className='text-right'>{t('Requests')}</TableHead>
+                <TableHead className='text-right'>Tokens</TableHead>
+                <TableHead className='text-right'>RPM</TableHead>
+                <TableHead className='pr-3 text-right sm:pr-5'>TPM</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {realtimeRows.map((row, index) => (
+                <TableRow key={row.token_id}>
+                  <TableCell className='text-muted-foreground pl-3 tabular-nums sm:pl-5'>
+                    {index + 1}
+                  </TableCell>
+                  <TableCell className='max-w-[220px] font-medium'>
+                    <span className='block truncate' title={row.token_name}>
+                      {row.token_name || `#${row.token_id}`}
+                    </span>
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {formatCompactNumber(row.requests)}
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {formatCompactNumber(row.tokens)}
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {row.rpm.toFixed(1)}
+                  </TableCell>
+                  <TableCell className='pr-3 text-right tabular-nums sm:pr-5'>
+                    {row.tpm.toFixed(1)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         )}
       </div>
 
-      {query.isLoading ? (
-        <div className='space-y-2 p-3 sm:p-4'>
-          {[0, 1, 2, 3].map((index) => (
-            <Skeleton key={index} className='h-9 w-full' />
-          ))}
+      {/* Historical spend: the money total the realtime ring cannot report. */}
+      <div className='overflow-hidden rounded-lg border'>
+        <div className='flex items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
+          <IconBadge tone='info' size='sm'>
+            <Wallet />
+          </IconBadge>
+          <div className='text-sm font-semibold'>{t('Key spend')}</div>
+          <div className='text-muted-foreground ml-auto text-sm'>
+            <span className='mr-1'>{t('Total spend in range')}:</span>
+            <span className='text-foreground text-base font-bold'>
+              {formatQuota(totalQuota)}
+            </span>
+          </div>
         </div>
-      ) : rows.length === 0 ? (
-        <Empty className='py-8'>
-          <EmptyHeader>
-            <EmptyMedia>
-              <Wallet />
-            </EmptyMedia>
-            <EmptyTitle>{t('No key spend in this range')}</EmptyTitle>
-            <EmptyDescription>
-              {t('Key spend appears once keys consume quota in the selected range')}
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow className='hover:bg-transparent'>
-              <TableHead className='w-10 pl-3 sm:pl-5'>#</TableHead>
-              <TableHead>{t('Key')}</TableHead>
-              {isAdmin && <TableHead>{t('User')}</TableHead>}
-              <TableHead className='text-right'>{t('Requests')}</TableHead>
-              <TableHead className='text-right'>Tokens</TableHead>
-              <TableHead className='text-right'>{t('Last used')}</TableHead>
-              <TableHead className='pr-3 text-right sm:pr-5'>
-                {t('Spend')}
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((row, index) => (
-              <TableRow key={`${row.user_id}-${row.token_id}`}>
-                <TableCell className='text-muted-foreground pl-3 tabular-nums sm:pl-5'>
-                  {index + 1}
-                </TableCell>
-                <TableCell className='max-w-[220px] font-medium'>
-                  <span className='block truncate' title={row.token_name}>
-                    {row.token_name || `#${row.token_id}`}
-                  </span>
-                </TableCell>
-                {isAdmin && (
-                  <TableCell className='text-muted-foreground max-w-[140px]'>
-                    <span className='block truncate' title={row.username}>
-                      {row.username || '--'}
+
+        {spendQuery.isLoading ? (
+          <div className='space-y-2 p-3 sm:p-4'>
+            {[0, 1, 2, 3].map((index) => (
+              <Skeleton key={index} className='h-9 w-full' />
+            ))}
+          </div>
+        ) : spendRows.length === 0 ? (
+          <Empty className='py-8'>
+            <EmptyHeader>
+              <EmptyMedia>
+                <Wallet />
+              </EmptyMedia>
+              <EmptyTitle>{t('No key spend in this range')}</EmptyTitle>
+              <EmptyDescription>
+                {t('Key spend appears once keys consume quota in the selected range')}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className='hover:bg-transparent'>
+                <TableHead className='w-10 pl-3 sm:pl-5'>#</TableHead>
+                <TableHead>{t('Key')}</TableHead>
+                {isAdmin && <TableHead>{t('User')}</TableHead>}
+                <TableHead className='text-right'>{t('Requests')}</TableHead>
+                <TableHead className='text-right'>Tokens</TableHead>
+                <TableHead className='text-right'>{t('Last used')}</TableHead>
+                <TableHead className='pr-3 text-right sm:pr-5'>
+                  {t('Spend')}
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {spendRows.map((row, index) => (
+                <TableRow key={`${row.user_id}-${row.token_id}`}>
+                  <TableCell className='text-muted-foreground pl-3 tabular-nums sm:pl-5'>
+                    {index + 1}
+                  </TableCell>
+                  <TableCell className='max-w-[220px] font-medium'>
+                    <span className='block truncate' title={row.token_name}>
+                      {row.token_name || `#${row.token_id}`}
                     </span>
                   </TableCell>
-                )}
-                <TableCell className='text-right tabular-nums'>
-                  {formatCompactNumber(row.count)}
-                </TableCell>
-                <TableCell className='text-right tabular-nums'>
-                  {formatCompactNumber(row.token_used)}
-                </TableCell>
-                <TableCell className='text-muted-foreground text-right whitespace-nowrap tabular-nums'>
-                  {row.last_used > 0 ? formatDate(row.last_used) : '--'}
-                </TableCell>
-                <TableCell className='pr-3 text-right font-semibold whitespace-nowrap tabular-nums sm:pr-5'>
-                  {formatQuota(row.quota)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+                  {isAdmin && (
+                    <TableCell className='text-muted-foreground max-w-[140px]'>
+                      <span className='block truncate' title={row.username}>
+                        {row.username || '--'}
+                      </span>
+                    </TableCell>
+                  )}
+                  <TableCell className='text-right tabular-nums'>
+                    {formatCompactNumber(row.count)}
+                  </TableCell>
+                  <TableCell className='text-right tabular-nums'>
+                    {formatCompactNumber(row.token_used)}
+                  </TableCell>
+                  <TableCell className='text-muted-foreground text-right whitespace-nowrap tabular-nums'>
+                    {row.last_used > 0 ? formatDate(row.last_used) : '--'}
+                  </TableCell>
+                  <TableCell className='pr-3 text-right font-semibold whitespace-nowrap tabular-nums sm:pr-5'>
+                    {formatQuota(row.quota)}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
     </div>
   )
 }
