@@ -127,6 +127,22 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
     () => spendRows.reduce((sum, row) => sum + (row.quota || 0), 0),
     [spendRows]
   )
+  // Sum only rows that actually recorded a group ratio (raw_quota > 0 or the
+  // row is a genuine 0-spend row); rows predating the column contribute 0,
+  // so a totalRawQuota of exactly 0 with nonzero totalQuota means "unknown",
+  // not "fully discounted away".
+  const totalRawQuota = useMemo(
+    () => spendRows.reduce((sum, row) => sum + (row.raw_quota || 0), 0),
+    [spendRows]
+  )
+  // Only show the "before discount" column/total when at least one row
+  // actually has the data — most deployments will have it for every row
+  // going forward, but historical rows predating the column should not make
+  // the column look broken (all dashes) for a range that mixes old and new.
+  const hasAnyRawQuota = useMemo(
+    () => spendRows.some((row) => row.raw_quota > 0),
+    [spendRows]
+  )
 
   const realtimeRows = useMemo(() => {
     const keys = realtimeQuery.data ?? []
@@ -224,15 +240,25 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
 
       {/* Historical spend: the money total the realtime ring cannot report. */}
       <div className='overflow-hidden rounded-lg border'>
-        <div className='flex items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
+        <div className='flex flex-wrap items-center gap-2 border-b px-3 py-2 sm:px-5 sm:py-3'>
           <IconBadge tone='info' size='sm'>
             <Wallet />
           </IconBadge>
           <div className='text-sm font-semibold'>{t('Key spend')}</div>
-          <div className='text-muted-foreground ml-auto text-sm'>
-            <span className='mr-1'>{t('Total spend in range')}:</span>
-            <span className='text-foreground text-base font-bold'>
-              {formatQuota(totalQuota)}
+          <div className='text-muted-foreground ml-auto flex flex-wrap items-baseline gap-x-4 gap-y-0.5 text-sm'>
+            {totalRawQuota > 0 && (
+              <span>
+                <span className='mr-1'>{t('Before discount')}:</span>
+                <span className='text-foreground font-medium line-through decoration-muted-foreground/50'>
+                  {formatQuota(totalRawQuota)}
+                </span>
+              </span>
+            )}
+            <span>
+              <span className='mr-1'>{t('Total spend in range')}:</span>
+              <span className='text-foreground text-base font-bold'>
+                {formatQuota(totalQuota)}
+              </span>
             </span>
           </div>
         </div>
@@ -265,6 +291,9 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
                 <TableHead className='text-right'>{t('Requests')}</TableHead>
                 <TableHead className='text-right'>Tokens</TableHead>
                 <TableHead className='text-right'>{t('Last used')}</TableHead>
+                {hasAnyRawQuota && (
+                  <TableHead className='text-right'>{t('Before discount')}</TableHead>
+                )}
                 <TableHead className='pr-3 text-right sm:pr-5'>
                   {t('Spend')}
                 </TableHead>
@@ -297,6 +326,11 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
                   <TableCell className='text-muted-foreground text-right whitespace-nowrap tabular-nums'>
                     {row.last_used > 0 ? formatDate(row.last_used) : '--'}
                   </TableCell>
+                  {hasAnyRawQuota && (
+                    <TableCell className='text-muted-foreground text-right whitespace-nowrap tabular-nums'>
+                      {row.raw_quota > 0 ? formatQuota(row.raw_quota) : '--'}
+                    </TableCell>
+                  )}
                   <TableCell className='pr-3 text-right font-semibold whitespace-nowrap tabular-nums sm:pr-5'>
                     {formatQuota(row.quota)}
                   </TableCell>

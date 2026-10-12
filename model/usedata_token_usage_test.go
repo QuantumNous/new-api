@@ -28,8 +28,10 @@ func seedTokenUsageData(t *testing.T, now int64) {
 	}).Error)
 
 	rows := []QuotaData{
-		// User 1, alive key: two rows in range that must sum up.
-		{UserID: 1, Username: "alice", TokenID: 11, UseGroup: "default", ModelName: "gpt-a", ChannelID: 1, CreatedAt: now - 100, Count: 2, Quota: 300, TokenUsed: 400, CacheReadTokens: 100, InputTokensTotal: 200},
+		// User 1, alive key: two rows in range that must sum up. One row
+		// predates the RawQuota column (RawQuota left at its zero value),
+		// mirroring real historical data mixed with new rows.
+		{UserID: 1, Username: "alice", TokenID: 11, UseGroup: "default", ModelName: "gpt-a", ChannelID: 1, CreatedAt: now - 100, Count: 2, Quota: 300, RawQuota: 600, TokenUsed: 400, CacheReadTokens: 100, InputTokensTotal: 200},
 		{UserID: 1, Username: "alice", TokenID: 11, UseGroup: "default", ModelName: "gpt-a", ChannelID: 1, CreatedAt: now - 50, Count: 1, Quota: 100, TokenUsed: 100, CacheReadTokens: 50, InputTokensTotal: 80},
 		// User 1, soft-deleted key: spend stays visible, name still resolves.
 		{UserID: 1, Username: "alice", TokenID: 12, UseGroup: "default", ModelName: "gpt-a", ChannelID: 1, CreatedAt: now - 40, Count: 1, Quota: 500, TokenUsed: 500, CacheReadTokens: 0, InputTokensTotal: 0},
@@ -71,6 +73,10 @@ func TestTokenUsageRankingOrdersSumsAndScopes(t *testing.T) {
 	require.Equal(t, 11, rows[2].TokenID)
 	require.Equal(t, "active-key", rows[2].TokenName)
 	require.Equal(t, int64(400), rows[2].Quota)
+	// RawQuota sums what is known (600) and silently treats the pre-column
+	// row's zero as "unknown" rather than "free" — it is not forced to equal
+	// Quota's full 400 since the second row never recorded a group ratio.
+	require.Equal(t, int64(600), rows[2].RawQuota)
 	require.Equal(t, int64(3), rows[2].Count)
 	require.Equal(t, int64(500), rows[2].TokenUsed)
 	require.Equal(t, int64(150), rows[2].CacheReadTokens)

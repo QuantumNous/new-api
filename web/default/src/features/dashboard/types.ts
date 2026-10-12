@@ -69,6 +69,11 @@ export interface TokenUsageItem {
   username?: string
   count: number
   quota: number
+  // raw_quota is the sticker price before the key's group discount/markup —
+  // what the same requests would have cost at group ratio 1.0. 0 means
+  // "unknown" for rows predating this column or billed through a path that
+  // never recorded a group ratio, not "no discount applied".
+  raw_quota: number
   token_used: number
   cache_read_tokens: number
   input_tokens_total: number

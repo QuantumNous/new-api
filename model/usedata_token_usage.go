@@ -10,16 +10,24 @@ import (
 // billing unit the rest of the dashboard reports (quota_per_unit per dollar),
 // so the frontend formats it with the same formatter as the stat cards.
 type TokenUsageRow struct {
-	TokenID          int    `json:"token_id"`
-	TokenName        string `json:"token_name"`
-	UserID           int    `json:"user_id"`
-	Username         string `json:"username"`
-	Count            int64  `json:"count"`
-	Quota            int64  `json:"quota"`
-	TokenUsed        int64  `json:"token_used"`
-	CacheReadTokens  int64  `json:"cache_read_tokens"`
-	InputTokensTotal int64  `json:"input_tokens_total"`
-	LastUsed         int64  `json:"last_used"`
+	TokenID   int    `json:"token_id"`
+	TokenName string `json:"token_name"`
+	UserID    int    `json:"user_id"`
+	Username  string `json:"username"`
+	Count     int64  `json:"count"`
+	Quota     int64  `json:"quota"`
+	// RawQuota is the sticker price before the key's group discount/markup —
+	// what the same requests would have cost at group ratio 1.0. Summed from
+	// rows where it is known; rows written before the column existed
+	// contribute 0, so RawQuota can read slightly low for very old data
+	// mixed into the range. RawQuota is 0 for a row whenever none of its
+	// underlying requests recorded a group ratio, which the frontend must
+	// treat as "no discount data" rather than "no discount applied".
+	RawQuota         int64 `json:"raw_quota"`
+	TokenUsed        int64 `json:"token_used"`
+	CacheReadTokens  int64 `json:"cache_read_tokens"`
+	InputTokensTotal int64 `json:"input_tokens_total"`
+	LastUsed         int64 `json:"last_used"`
 }
 
 // tokenUsageMaxRows caps the ranking payload. A deployment with thousands of
@@ -43,7 +51,7 @@ func GetTokenUsageRanking(startTime int64, endTime int64, userId int, username s
 		limit = tokenUsageMaxRows
 	}
 	tx := DB.Table("quota_data").
-		Select("token_id, user_id, max(username) as username, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, sum(cache_read_tokens) as cache_read_tokens, sum(input_tokens_total) as input_tokens_total, max(created_at) as last_used").
+		Select("token_id, user_id, max(username) as username, sum(count) as count, sum(quota) as quota, sum(raw_quota) as raw_quota, sum(token_used) as token_used, sum(cache_read_tokens) as cache_read_tokens, sum(input_tokens_total) as input_tokens_total, max(created_at) as last_used").
 		Where("token_id > 0 AND created_at >= ? AND created_at <= ?", startTime, endTime)
 	if userId > 0 {
 		tx = tx.Where("user_id = ?", userId)
