@@ -107,7 +107,7 @@ func TestUpdateChannelSub2APIBalanceUnlimitedSubscription(t *testing.T) {
 	setupSub2APIBalanceTest(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"remaining": -1, "isValid": true, "mode": "unrestricted"}`))
+		_, _ = w.Write([]byte(`{"remaining": -1, "isValid": true, "mode": "unrestricted", "subscription": {"daily_limit_usd": null, "weekly_limit_usd": null, "monthly_limit_usd": null}}`))
 	}))
 	defer server.Close()
 
@@ -120,6 +120,20 @@ func TestUpdateChannelSub2APIBalanceUnlimitedSubscription(t *testing.T) {
 	stored := model.Channel{}
 	require.NoError(t, model.DB.First(&stored, channel.Id).Error)
 	assert.InDelta(t, 12.5, stored.Balance, 1e-9)
+}
+
+func TestUpdateChannelSub2APIBalanceNegativeWalletBalance(t *testing.T) {
+	setupSub2APIBalanceTest(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"balance": -1, "remaining": -1, "isValid": true, "mode": "unrestricted", "unit": "USD"}`))
+	}))
+	defer server.Close()
+
+	channel := newSub2APITestChannel(t, server.URL)
+	balance, err := updateChannelSub2APIBalance(channel)
+	require.NoError(t, err)
+	assert.InDelta(t, -1, balance, 1e-9)
 }
 
 func TestUpdateChannelSub2APIBalanceMissingBaseURL(t *testing.T) {

@@ -433,9 +433,14 @@ func updateChannelSub2APIBalance(channel *model.Channel) (float64, error) {
 	}
 
 	type sub2apiUsageResponse struct {
-		Balance   *float64 `json:"balance"`
-		Remaining *float64 `json:"remaining"`
-		IsValid   *bool    `json:"isValid"`
+		Balance      *float64 `json:"balance"`
+		Remaining    *float64 `json:"remaining"`
+		IsValid      *bool    `json:"isValid"`
+		Subscription *struct {
+			DailyLimitUSD   *float64 `json:"daily_limit_usd"`
+			WeeklyLimitUSD  *float64 `json:"weekly_limit_usd"`
+			MonthlyLimitUSD *float64 `json:"monthly_limit_usd"`
+		} `json:"subscription"`
 	}
 	usage := sub2apiUsageResponse{}
 	if err := common.Unmarshal(body, &usage); err != nil {
@@ -452,7 +457,11 @@ func updateChannelSub2APIBalance(channel *model.Channel) (float64, error) {
 	if balance == nil {
 		return 0, errors.New("Sub2API /v1/usage response is missing remaining and balance fields (the key may belong to a subscription group without an available balance)")
 	}
-	if *balance == -1 {
+	// Sub2API reports remaining=-1 for a subscription group with no daily, weekly,
+	// or monthly limit. A wallet balance can legitimately be negative, so detect
+	// the unlimited case from the subscription limits rather than the value.
+	subscription := usage.Subscription
+	if subscription != nil && subscription.DailyLimitUSD == nil && subscription.WeeklyLimitUSD == nil && subscription.MonthlyLimitUSD == nil {
 		return 0, errors.New("Sub2API /v1/usage reports an unlimited subscription without a finite balance")
 	}
 	channel.UpdateBalance(*balance)
