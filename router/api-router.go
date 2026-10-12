@@ -316,7 +316,12 @@ func SetApiRouter(router *gin.Engine) {
 			realtimeUsageRoute := usageRoute.Group("/realtime")
 			realtimeUsageRoute.Use(middleware.TokenAuthReadOnly())
 			{
+				// The empty path serves the bare /api/usage/realtime URL;
+				// registering it alongside "/" spares script callers the
+				// trailing-slash redirect.
+				realtimeUsageRoute.GET("", controller.GetTokenRealtimeMetrics)
 				realtimeUsageRoute.GET("/", controller.GetTokenRealtimeMetrics)
+				realtimeUsageRoute.GET("/keys", controller.GetTokenRealtimeKeyBreakdown)
 			}
 		}
 

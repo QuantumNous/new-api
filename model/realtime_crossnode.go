@@ -378,3 +378,103 @@ func mergeFromRedis(userId int, filter RealtimeFilter, window int64, localResult
 
 	return merged
 }
+
+// realtimeRemotePerToken folds every OTHER node's published dimension fields
+// for this user into per-token, per-window results.
+//
+// The per-key breakdown needs remote contributions for every key at once.
+// Calling mergeFromRedis per key would HGETALL each node's hash once per key
+// per window; this walks each node's hash exactly once instead, so the
+// breakdown's Redis cost is flat no matter how many keys have traffic.
+// Token ids found only on remote nodes are discovered here too — without
+// that, a key whose traffic never reached the answering node would silently
+// vanish from the breakdown while the account snapshot still counted it.
+func realtimeRemotePerToken(userId int, windows []int64) map[int]map[int64]realtimeWindowResult {
+	if !crossnodeEnabled || !common.RedisEnabled || common.RDB == nil {
+		return nil
+	}
+
+	ctx := context.Background()
+	pattern := realtimeCrossnodeHashPrefix + "*"
+	localNodeKey := realtimeCrossnodeHashPrefix + common.NodeName
+
+	merged := make(map[int]map[int64]realtimeWindowResult)
+	fold := func(field string, val string) {
+		tokenId, ok := parseRealtimeDimensionToken(field, userId)
+		if !ok {
+			return
+		}
+		var summary realtimeNodeSummary
+		if err := json.Unmarshal([]byte(val), &summary); err != nil {
+			return
+		}
+		byToken := merged[tokenId]
+		if byToken == nil {
+			byToken = make(map[int64]realtimeWindowResult, len(windows))
+			merged[tokenId] = byToken
+		}
+		for _, window := range windows {
+			remote, ok := summary.Windows[int(window)]
+			if !ok {
+				continue
+			}
+			result := byToken[window]
+			result.Requests += remote.Requests
+			result.Tokens += remote.Tokens
+			result.CacheReadTokens += remote.CacheReadTokens
+			result.InputTokensTotal += remote.InputTokensTotal
+			result.BusySeconds += remote.BusySeconds
+			byToken[window] = result
+		}
+	}
+
+	var cursor uint64
+	for {
+		keys, nextCursor, err := common.RDB.Scan(ctx, cursor, pattern, 100).Result()
+		if err != nil {
+			break
+		}
+		for _, key := range keys {
+			if key == localNodeKey {
+				// Local contributions are already in the caller's slot sums.
+				continue
+			}
+			all, err := common.RDB.HGetAll(ctx, key).Result()
+			if err != nil {
+				continue
+			}
+			for field, val := range all {
+				fold(field, val)
+			}
+		}
+		cursor = nextCursor
+		if cursor == 0 {
+			break
+		}
+	}
+
+	return merged
+}
+
+// parseRealtimeDimensionToken extracts the token id from a published
+// dimension field name ("d:<userId>:<tokenId>:<model>") when the field
+// belongs to the given user. Account-level fields do not parse.
+func parseRealtimeDimensionToken(field string, userId int) (int, bool) {
+	rest, ok := strings.CutPrefix(field, realtimeDimensionFieldPrefix)
+	if !ok {
+		return 0, false
+	}
+	parts := strings.SplitN(rest, ":", 3)
+	if len(parts) != 3 {
+		return 0, false
+	}
+	fieldUserId, err := strconv.Atoi(parts[0])
+	if err != nil || fieldUserId != userId {
+		return 0, false
+	}
+	tokenId, err := strconv.Atoi(parts[1])
+	if err != nil || tokenId <= 0 {
+		return 0, false
+	}
+	return tokenId, true
+}

@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"sort"
 	"sync"
 	"time"
@@ -324,5 +325,141 @@ func fillRealtimeTokenNames(options []RealtimeDimensionOption) {
 	}
 	for i := range options {
 		options[i].TokenName = names[options[i].TokenID]
+	}
+}
+
+// RealtimeKeyBreakdown is one key's realtime throughput: the same window
+// metrics the account snapshot reports, scoped to a single key.
+type RealtimeKeyBreakdown struct {
+	TokenID   int              `json:"token_id"`
+	TokenName string           `json:"token_name,omitempty"`
+	Windows   []RealtimeWindow `json:"windows"`
+}
+
+// RealtimeKeyBreakdowns is the per-key payload behind the API-key realtime
+// endpoint: the account snapshot's numbers split by the key that served them.
+type RealtimeKeyBreakdowns struct {
+	UserID   int    `json:"user_id"`
+	Now      int64  `json:"now"`
+	NodeName string `json:"node_name"`
+	// Truncated reports that the breakdown hit its ring cap, so some keys
+	// are missing from this list even though their traffic is still counted
+	// in the account totals.
+	Truncated bool                   `json:"truncated"`
+	Keys      []RealtimeKeyBreakdown `json:"keys"`
+}
+
+// GetRealtimeKeyBreakdowns splits the account's realtime snapshot by key.
+//
+// Only keys with traffic inside the retention window appear — an idle key's
+// row would be all zeroes and only invite misreading, mirroring
+// GetRealtimeDimensions. Cross-node contributions are folded in per key, and
+// keys whose traffic lives only on other nodes are discovered there, so the
+// split always reconciles with the unfiltered account snapshot.
+func GetRealtimeKeyBreakdowns(userId int) RealtimeKeyBreakdowns {
+	now := realtimeNow()
+	longest := realtimeWindows[len(realtimeWindows)-1]
+
+	// One pass over the dimension rings, grouped by token.
+	localSlots := make(map[int][]realtimeSlot)
+	realtimeDimensionRegistry.mu.RLock()
+	for key, ring := range realtimeDimensionRegistry.rings {
+		if key.UserID != userId {
+			continue
+		}
+		ring.mu.Lock()
+		slots := ring.snapshot(now, longest)
+		ring.mu.Unlock()
+		localSlots[key.TokenID] = append(localSlots[key.TokenID], slots...)
+	}
+	truncated := realtimeDimensionRegistry.capped
+	realtimeDimensionRegistry.mu.RUnlock()
+
+	remote := realtimeRemotePerToken(userId, realtimeWindows)
+
+	breakdowns := make([]RealtimeKeyBreakdown, 0, len(localSlots)+len(remote))
+	appendKey := func(tokenId int, slots []realtimeSlot) {
+		windows := make([]RealtimeWindow, 0, len(realtimeWindows))
+		for _, window := range realtimeWindows {
+			result := sumSlots(slots, now, window)
+			if remoteResults, ok := remote[tokenId]; ok {
+				result.Requests += remoteResults[window].Requests
+				result.Tokens += remoteResults[window].Tokens
+				result.CacheReadTokens += remoteResults[window].CacheReadTokens
+				result.InputTokensTotal += remoteResults[window].InputTokensTotal
+				result.BusySeconds += remoteResults[window].BusySeconds
+			}
+			windows = append(windows, buildWindow(window, result))
+		}
+		breakdowns = append(breakdowns, RealtimeKeyBreakdown{TokenID: tokenId, Windows: windows})
+	}
+	for tokenId, slots := range localSlots {
+		appendKey(tokenId, slots)
+	}
+	// A key with no local ring still counts if other nodes served it.
+	for tokenId := range remote {
+		if _, ok := localSlots[tokenId]; !ok {
+			appendKey(tokenId, nil)
+		}
+	}
+	// Drop keys whose merged traffic is zero everywhere: a ring can outlive
+	// its traffic (retention window rolled past, or an idle sweep hasn't run
+	// yet), and an all-zero row only invites misreading.
+	kept := breakdowns[:0]
+	for _, breakdown := range breakdowns {
+		if breakdown.Windows[len(breakdown.Windows)-1].Requests > 0 {
+			kept = append(kept, breakdown)
+		}
+	}
+	breakdowns = kept
+
+	resolveRealtimeTokenNames(breakdowns)
+
+	// Busiest first by the longest window, then by id so equal-traffic keys
+	// keep a stable order across polls.
+	sort.Slice(breakdowns, func(i, j int) bool {
+		left := breakdowns[i].Windows[len(breakdowns[i].Windows)-1]
+		right := breakdowns[j].Windows[len(breakdowns[j].Windows)-1]
+		if left.Requests != right.Requests {
+			return left.Requests > right.Requests
+		}
+		return breakdowns[i].TokenID < breakdowns[j].TokenID
+	})
+
+	return RealtimeKeyBreakdowns{
+		UserID:    userId,
+		Now:       now,
+		NodeName:  common.NodeName,
+		Truncated: truncated,
+		Keys:      breakdowns,
+	}
+}
+
+// resolveRealtimeTokenNames fills in each key's display name. The lookup is
+// one primary-key IN query per response; a key that no longer exists keeps an
+// empty name, which omitempty drops from the payload rather than showing a
+// stale label.
+func resolveRealtimeTokenNames(breakdowns []RealtimeKeyBreakdown) {
+	if len(breakdowns) == 0 {
+		return
+	}
+	ids := make([]int, 0, len(breakdowns))
+	for i := range breakdowns {
+		ids = append(ids, breakdowns[i].TokenID)
+	}
+	rows := []struct {
+		Id   int
+		Name string
+	}{}
+	if err := DB.Table("tokens").Select("id, name").Where("id IN ?", ids).Scan(&rows).Error; err != nil {
+		common.SysLog(fmt.Sprintf("realtime key breakdown name lookup failed: %s", err))
+		return
+	}
+	names := make(map[int]string, len(rows))
+	for _, row := range rows {
+		names[row.Id] = row.Name
+	}
+	for i := range breakdowns {
+		breakdowns[i].TokenName = names[breakdowns[i].TokenID]
 	}
 }
