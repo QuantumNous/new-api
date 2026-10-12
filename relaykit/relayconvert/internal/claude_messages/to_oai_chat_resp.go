@@ -19,6 +19,8 @@ type ClaudeResponseInfo struct {
 	Created      int64
 	Model        string
 	ResponseText strings.Builder
+	// ToolUseCount counts streamed tool_use blocks for the output-token fallback.
+	ToolUseCount int
 	Usage        *dto.Usage
 	Done         bool
 
@@ -524,6 +526,9 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 			if claudeResponse.Delta.Thinking != nil {
 				claudeInfo.ResponseText.WriteString(*claudeResponse.Delta.Thinking)
 			}
+			if claudeResponse.Delta.PartialJson != nil {
+				claudeInfo.ResponseText.WriteString(*claudeResponse.Delta.PartialJson)
+			}
 		}
 	} else if claudeResponse.Type == "message_delta" {
 		if claudeResponse.Usage != nil {
@@ -552,6 +557,11 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 
 		claudeInfo.Done = true
 	} else if claudeResponse.Type == "content_block_start" {
+		// Tool calls are most of an agent turn's output; count them for usage fallback.
+		if block := claudeResponse.ContentBlock; block != nil && block.Type == "tool_use" {
+			claudeInfo.ResponseText.WriteString(block.Name)
+			claudeInfo.ToolUseCount++
+		}
 	} else {
 		return false
 	}

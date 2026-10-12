@@ -98,7 +98,11 @@ type AuthFlowAuthorization struct {
 
 // ValidateAuthSessionWithTx rechecks the authoritative identity while holding the
 // user/session locks until the caller's credential change or flow consumption commits.
+// Token-bound identities (pat:<id>) are checked against user_access_tokens instead.
 func ValidateAuthSessionWithTx(tx *gorm.DB, identity AuthSessionIdentity) error {
+	if tokenID, ok := ParseAccessTokenSessionID(identity.SessionID); ok {
+		return validateAccessTokenIdentityWithTx(tx, tokenID, identity)
+	}
 	if identity.UserID <= 0 || identity.SessionID == "" || identity.UserAuthVersion <= 0 || identity.SessionVersion <= 0 {
 		return ErrUserSessionInactive
 	}

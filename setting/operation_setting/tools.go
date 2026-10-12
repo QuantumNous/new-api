@@ -2,7 +2,6 @@ package operation_setting
 
 import (
 	"encoding/json"
-	"fmt"
 	"math"
 	"sort"
 	"strings"
@@ -23,6 +22,8 @@ import (
 // Effective index: hardcoded defaults → hardcoded model overrides → valid
 // operator values. Lookup uses the longest model prefix before the tool
 // default, and a matched numeric zero is terminal.
+//
+// Built-in keys are written in the vendor's list currency.
 // ---------------------------------------------------------------------------
 
 const ToolPriceOptionKey = "tool_price_setting.prices"
@@ -49,6 +50,41 @@ func seedHardcodedToolPrices(prices map[string]float64) {
 	prices["web_search_preview:gpt-4.1*"] = defaultSearchPreviewModelPrice
 	prices["web_search_preview:gpt-4o-mini*"] = defaultSearchPreviewModelPrice
 	prices["web_search_preview:gpt-4.1-mini*"] = defaultSearchPreviewModelPrice
+
+	// Google Search grounding (USD per 1K, ai.google.dev/gemini-api/docs/pricing
+	// and cloud.google.com/vertex-ai/generative-ai/pricing): Gemini 3 bills each
+	// search query at $14 (the google_search default); Gemini 2.5 and older bill
+	// $35 per grounded prompt, so their query count is free and the grounded
+	// prompt carries the price.
+	prices["google_search:gemini-2.5*"] = 0
+	prices["google_search:gemini-2.0*"] = 0
+	prices["google_search:gemini-1.5*"] = 0
+	prices["google_search_grounded_prompt:gemini-2.5*"] = 35
+	prices["google_search_grounded_prompt:gemini-2.0*"] = 35
+	prices["google_search_grounded_prompt:gemini-1.5*"] = 35
+
+	// Vendor search tiers, verbatim in the vendor's list currency per 1K
+	// calls. CNY: Zhipu search engines, 0.01/0.03/0.05 CNY per call
+	// (https://docs.bigmodel.cn/cn/guide/tools/web-search), and Alibaba Model
+	// Studio search strategies at Beijing prices
+	// (https://help.aliyun.com/zh/model-studio/web-search); the Singapore
+	// agent price (73.392381 CNY) is set by the operator. USD: Azure
+	// Responses web search, billed as Bing transactions at $14 per 1,000
+	// (https://www.microsoft.com/en-us/bing/apis), and xAI web search $5 per
+	// 1K calls, x_search $5 per 1K posts and $10 per 1K profiles
+	// (https://docs.x.ai/developers/pricing).
+	prices["search_std"] = 10
+	prices["search_pro"] = 30
+	prices["search_pro_sogou"] = 50
+	prices["search_pro_quark"] = 50
+	prices["search_strategy_turbo"] = 3
+	prices["search_strategy_max"] = 4
+	prices["search_strategy_agent"] = 4
+	prices["search_strategy_agent_max"] = 4
+	prices["bing_web_search"] = 14
+	prices["web_search:grok*"] = 5
+	prices["x_search_posts"] = 5
+	prices["x_search_profiles"] = 10
 }
 
 // ToolPriceSetting is managed by config.GlobalConfig.Register.
@@ -61,9 +97,27 @@ var toolPriceSetting = ToolPriceSetting{
 	Prices: make(map[string]float64),
 }
 
+// builtInToolNames are the tool names (the part before ":") that
+// seedHardcodedToolPrices prices, built once from the constant seed and never
+// from operator configuration.
+var builtInToolNames = make(map[string]struct{})
+
 func init() {
 	config.GlobalConfig.Register("tool_price_setting", &toolPriceSetting)
+	seed := make(map[string]float64)
+	seedHardcodedToolPrices(seed)
+	for key := range seed {
+		name, _, _ := strings.Cut(key, ":")
+		builtInToolNames[name] = struct{}{}
+	}
 	RebuildToolPriceIndex()
+}
+
+// IsBuiltInToolPriceKey reports whether the built-in price seed prices the
+// tool name, as a default or for a model prefix. Operator prices never count.
+func IsBuiltInToolPriceKey(name string) bool {
+	_, ok := builtInToolNames[name]
+	return ok
 }
 
 // ---------------------------------------------------------------------------
@@ -89,25 +143,25 @@ func isValidToolPrice(price float64) bool {
 func decodeToolPricesJSON(value string, ignoreInvalidEntries bool) (map[string]float64, error) {
 	rawValue := json.RawMessage(strings.TrimSpace(value))
 	if common.GetJsonType(rawValue) != "object" {
-		return nil, fmt.Errorf("工具价格必须是 JSON 对象")
+		return nil, common.NewMessage("Tool prices must be a JSON object")
 	}
 
 	var rawPrices map[string]json.RawMessage
 	if err := common.Unmarshal(rawValue, &rawPrices); err != nil {
-		return nil, fmt.Errorf("解析工具价格失败: %w", err)
+		return nil, common.NewMessage("Failed to parse tool prices: {{error}}", map[string]any{"error": err.Error()})
 	}
 
 	prices := make(map[string]float64, len(rawPrices))
 	for name, rawPrice := range rawPrices {
 		var entryErr error
 		if common.GetJsonType(rawPrice) != "number" {
-			entryErr = fmt.Errorf("工具价格 %q 必须是非负数字", name)
+			entryErr = common.NewMessage(`Tool price "{{name}}" must be a non-negative number`, map[string]any{"name": name})
 		} else {
 			var price float64
 			if err := common.Unmarshal(rawPrice, &price); err != nil {
-				entryErr = fmt.Errorf("解析工具价格 %q 失败: %w", name, err)
+				entryErr = common.NewMessage(`Failed to parse tool price "{{name}}": {{error}}`, map[string]any{"name": name, "error": err.Error()})
 			} else if !isValidToolPrice(price) {
-				entryErr = fmt.Errorf("工具价格 %q 必须是有限的非负数字", name)
+				entryErr = common.NewMessage(`Tool price "{{name}}" must be a finite non-negative number`, map[string]any{"name": name})
 			} else {
 				prices[name] = price
 			}
@@ -137,7 +191,7 @@ func ValidateToolPricesJSON(value string) error {
 func LoadToolPricesFromJSONString(value string) {
 	prices, err := decodeToolPricesJSON(value, true)
 	if err != nil {
-		common.SysError("加载工具价格失败，将使用硬编码兜底: " + err.Error())
+		common.SysError(common.LogText("failed to load tool prices, using hardcoded fallbacks: %s", err.Error()))
 		prices = make(map[string]float64)
 	}
 	toolPriceSetting.Prices = prices

@@ -864,12 +864,12 @@ func TestAlibabaImageResults(t *testing.T) {
 			require.Len(t, artifacts, 2)
 			assert.Equal(t, "image-2", artifacts[1].Key)
 			assert.Equal(t, "image", artifacts[1].Type)
-			content, err := adaptor.BuildContentRequest(task, "image-2", relaychannel.TaskArtifactClientRequest{Method: http.MethodGet})
+			content, err := adaptor.BuildContentRequest(t.Context(), task, "image-2", relaychannel.TaskArtifactClientRequest{Method: http.MethodGet})
 			require.NoError(t, err)
 			assert.Equal(t, second, content.URL)
 			assert.True(t, content.Credentialless)
 			assert.Empty(t, content.Headers)
-			_, err = adaptor.BuildContentRequest(task, "image-3", relaychannel.TaskArtifactClientRequest{Method: http.MethodGet})
+			_, err = adaptor.BuildContentRequest(t.Context(), task, "image-3", relaychannel.TaskArtifactClientRequest{Method: http.MethodGet})
 			require.Error(t, err)
 			value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_responses", "renderFinal"}, map[string]any{
 				"artifacts": map[string]any{"image-1": map[string]any{"url": "/v1/tasks/task_public/artifacts/image-1/content"}, "image-2": map[string]any{"url": "/v1/tasks/task_public/artifacts/image-2/content"}},
@@ -1378,9 +1378,12 @@ func TestAlibabaOpenAIImageCountDerivationAndRender(t *testing.T) {
 		body := map[string]any{"output": map[string]any{"task_status": "SUCCEEDED", "results": []any{map[string]any{"url": first}, map[string]any{"code": "DataInspectionFailed"}, map[string]any{"url": "data:image/png;base64,QUFB"}}}, "usage": map[string]any{"image_count": 2}}
 		value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_image", "render"}, map[string]any{}, map[string]any{"status": "SUCCESS", "created_at": 1, "data": body})
 		require.NoError(t, err)
-		data := alibabaObject(t, value)["data"].([]any)
+		rendered := alibabaObject(t, value)
+		data := rendered["data"].([]any)
 		require.Len(t, data, 2)
 		assert.Equal(t, map[string]any{"url": first}, data[0])
 		assert.Equal(t, map[string]any{"b64_json": "QUFB"}, data[1])
+		// metadata keeps the upstream body so clients still see DashScope usage.
+		assert.Equal(t, float64(2), rendered["metadata"].(map[string]any)["usage"].(map[string]any)["image_count"])
 	})
 }

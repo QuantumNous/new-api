@@ -200,6 +200,9 @@ const providers = [
       'llama2',
       'llama3',
       'meta-custom',
+      'meta/muse-spark-1.3-contributor',
+      'muse-spark-1.3',
+      'meta/muse-spark-1.2',
     ],
   },
   {
