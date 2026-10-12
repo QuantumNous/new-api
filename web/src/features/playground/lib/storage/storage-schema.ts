@@ -71,6 +71,17 @@ const reasoningSchema = z.object({
   durationMs: z.number().optional(),
 })
 
+const attachmentSchema = z.object({
+  id: z.string(),
+  kind: z.enum(['image', 'document']),
+  filename: z.string(),
+  mediaType: z.string(),
+  size: z.number(),
+  dataUrl: z.string().optional(),
+  text: z.string().optional(),
+  textTruncated: z.boolean().optional(),
+})
+
 const messageSchema = z.object({
   key: z.string(),
   from: messageRoleSchema,
@@ -79,6 +90,7 @@ const messageSchema = z.object({
   startedAt: z.number().optional(),
   completedAt: z.number().optional(),
   durationMs: z.number().optional(),
+  attachments: z.array(attachmentSchema).optional(),
   sources: z.array(sourceSchema).optional(),
   reasoning: reasoningSchema.optional(),
   isReasoningStreaming: z.boolean().optional(),

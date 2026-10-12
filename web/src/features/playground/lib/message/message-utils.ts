@@ -19,11 +19,13 @@ For commercial licensing, please contact support@quantumnous.com
 import { nanoid } from 'nanoid'
 
 import { MESSAGE_ROLES, MESSAGE_STATUS } from '../../constants'
+import { buildAttachedMessageContent } from '../attachment/attachment-context'
 import type {
   Message,
   MessageVersion,
   ChatCompletionMessage,
   ContentPart,
+  PlaygroundAttachment,
 } from '../../types'
 
 /**
@@ -76,13 +78,15 @@ export function updateCurrentVersionContent(
  */
 export function createUserMessage(
   content: string,
-  createdAt: number = Date.now()
+  createdAt: number = Date.now(),
+  attachments: PlaygroundAttachment[] = []
 ): Message {
   return {
     key: nanoid(),
     from: MESSAGE_ROLES.USER,
     versions: [createMessageVersion(content)],
     createdAt,
+    ...(attachments.length > 0 ? { attachments } : {}),
   }
 }
 
@@ -107,30 +111,13 @@ export function createLoadingAssistantMessage(
 }
 
 /**
- * Build message content with optional images
+ * Build message content with optional images and document attachments.
  */
 export function buildMessageContent(
   text: string,
-  imageUrls: string[] = []
+  attachments: PlaygroundAttachment[] = []
 ): string | ContentPart[] {
-  const validImages = imageUrls.filter((url) => url.trim() !== '')
-
-  if (validImages.length === 0) {
-    return text
-  }
-
-  const parts: ContentPart[] = [
-    {
-      type: 'text',
-      text: text || '',
-    },
-    ...validImages.map((url) => ({
-      type: 'image_url' as const,
-      image_url: { url: url.trim() },
-    })),
-  ]
-
-  return parts
+  return buildAttachedMessageContent(text, attachments)
 }
 
 /**
@@ -156,7 +143,10 @@ export function formatMessageForAPI(message: Message): ChatCompletionMessage {
   const currentVersion = getCurrentVersion(message)
   return {
     role: message.from,
-    content: currentVersion.content,
+    content: buildMessageContent(
+      currentVersion.content,
+      message.attachments ?? []
+    ),
   }
 }
 
@@ -169,6 +159,11 @@ export function isValidMessage(message: Message): boolean {
 
   // Exclude empty assistant messages (loading/streaming placeholders)
   if (message.from === MESSAGE_ROLES.ASSISTANT && !hasMessageContent(message)) {
+    return false
+  }
+
+  // A message whose only payload is an attachment is still worth sending.
+  if (!hasMessageContent(message) && !message.attachments?.length) {
     return false
   }
 

@@ -27,6 +27,7 @@ import { getInputControlState } from '../../lib'
 import type { GroupOption, ModelOption } from '../../types'
 
 type PlaygroundInputControlsProps = {
+  attachmentCount?: number
   disabled?: boolean
   groups: GroupOption[]
   groupValue: string
@@ -42,6 +43,7 @@ type PlaygroundInputControlsProps = {
 }
 
 export function PlaygroundInputControls({
+  attachmentCount,
   disabled,
   groups,
   groupValue,
@@ -58,6 +60,7 @@ export function PlaygroundInputControls({
   const { t } = useTranslation()
   const { canSubmit, isSelectorDisabled, shouldShowStop } =
     getInputControlState({
+      attachmentCount,
       disabled,
       groups,
       hasStopHandler: Boolean(onStop),

@@ -28,6 +28,27 @@ export interface MessageVersion {
   content: string
 }
 
+// Attachment types
+export type AttachmentKind = 'image' | 'document'
+
+/**
+ * A file the user attached to a message.
+ *
+ * `dataUrl` (images) and `text` (documents) are the payload that gets sent to
+ * the upstream model. Storage drops payloads from old messages, so a loaded
+ * attachment may carry only its metadata.
+ */
+export interface PlaygroundAttachment {
+  id: string
+  kind: AttachmentKind
+  filename: string
+  mediaType: string
+  size: number
+  dataUrl?: string
+  text?: string
+  textTruncated?: boolean
+}
+
 export interface Message {
   key: string
   from: MessageRole
@@ -36,6 +57,7 @@ export interface Message {
   startedAt?: number
   completedAt?: number
   durationMs?: number
+  attachments?: PlaygroundAttachment[]
   sources?: { href: string; title: string }[]
   reasoning?: {
     content: string

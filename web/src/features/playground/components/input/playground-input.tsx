@@ -16,12 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   PromptInput,
   PromptInputFooter,
+  PromptInputHeader,
   PromptInputTextarea,
   type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
@@ -31,14 +32,20 @@ import type {
   ModelOption,
   GroupOption,
   ParameterEnabled,
+  PlaygroundAttachment,
   PlaygroundConfig,
 } from '../../types'
+import {
+  PlaygroundAttachmentList,
+  PlaygroundAttachButton,
+} from './playground-attachments'
+import { usePlaygroundAttachments } from '@/features/playground/hooks/use-playground-attachments'
 import { PlaygroundInputControls } from './playground-input-controls'
 import { PlaygroundInputTools } from './playground-input-tools'
 
 interface PlaygroundInputProps {
   config: PlaygroundConfig
-  onSubmit: (text: string) => void
+  onSubmit: (text: string, attachments: PlaygroundAttachment[]) => void
   onStop?: () => void
   disabled?: boolean
   isGenerating?: boolean
@@ -83,14 +90,33 @@ export function PlaygroundInput({
 }: PlaygroundInputProps) {
   const { t } = useTranslation()
   const [text, setText] = useState('')
+  const {
+    attachments,
+    addFiles,
+    clearAttachments,
+    inputRef,
+    isParsing,
+    openFilePicker,
+    removeAttachment,
+  } = usePlaygroundAttachments()
 
   const handleSubmit = (message: PromptInputMessage) => {
-    const submittableText = getSubmittableInputText(message, disabled)
+    const submittableText = getSubmittableInputText(
+      message,
+      disabled,
+      attachments.length > 0
+    )
 
-    if (!submittableText) return
-    onSubmit(submittableText)
+    if (submittableText === null) return
+
+    onSubmit(submittableText, attachments)
     setText('')
+    clearAttachments()
   }
+
+  const handleStop = useCallback(() => {
+    onStop?.()
+  }, [onStop])
 
   return (
     <div className='grid shrink-0 gap-4 px-1 md:pb-4'>
@@ -99,6 +125,15 @@ export function PlaygroundInput({
         groupClassName='bg-background/95 dark:bg-background/80 border-border/70 shadow-[0_18px_60px_-32px_rgba(0,0,0,0.65)] ring-1 ring-foreground/5 rounded-xl overflow-hidden transition-all duration-200 focus-within:border-primary/45 focus-within:ring-primary/15 focus-within:shadow-[0_22px_70px_-34px_rgba(0,0,0,0.75)]'
         onSubmit={handleSubmit}
       >
+        {attachments.length > 0 && (
+          <PromptInputHeader className='p-0'>
+            <PlaygroundAttachmentList
+              attachments={attachments}
+              onRemove={removeAttachment}
+            />
+          </PromptInputHeader>
+        )}
+
         <PromptInputTextarea
           autoComplete='off'
           autoCorrect='off'
@@ -113,6 +148,7 @@ export function PlaygroundInput({
 
         <PromptInputFooter className='border-border/60 bg-muted/20 dark:bg-muted/10 border-t px-3 py-2.5 backdrop-blur'>
           <PlaygroundInputControls
+            attachmentCount={attachments.length}
             disabled={disabled}
             groups={groups}
             groupValue={groupValue}
@@ -122,10 +158,19 @@ export function PlaygroundInput({
             modelValue={modelValue}
             onGroupChange={onGroupChange}
             onModelChange={onModelChange}
-            onStop={onStop}
+            onStop={handleStop}
             text={text}
             tools={
               <PlaygroundInputTools
+                attachButton={
+                  <PlaygroundAttachButton
+                    disabled={disabled}
+                    inputRef={inputRef}
+                    isParsing={isParsing}
+                    onFiles={addFiles}
+                    onOpen={openFilePicker}
+                  />
+                }
                 config={config}
                 disabled={disabled}
                 hasMessages={hasMessages}

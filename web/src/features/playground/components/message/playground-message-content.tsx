@@ -49,6 +49,7 @@ import {
 } from '../../lib'
 import { getMessageContentStyles } from '../../lib/message/message-styles'
 import type { Message } from '../../types'
+import { MessageAttachmentList } from '../attachment/attachment-preview'
 import { MessageError } from './message-error'
 import { MessageMetadata } from './message-metadata'
 
@@ -83,6 +84,7 @@ export function PlaygroundMessageContent({
   const isMessageFinal =
     message.status !== MESSAGE_STATUS.LOADING &&
     message.status !== MESSAGE_STATUS.STREAMING
+  const attachments = message.attachments ?? []
 
   return (
     <div
@@ -91,6 +93,8 @@ export function PlaygroundMessageContent({
         getMessageAlignmentClass(alignment)
       )}
     >
+      <MessageAttachmentList attachments={attachments} />
+
       {hasSources && (
         <Sources>
           <SourcesTrigger count={sources.length} />
