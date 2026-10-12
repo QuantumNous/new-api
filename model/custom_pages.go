@@ -12,7 +12,6 @@ import (
 
 const (
 	CustomPagesOptionKey    = "CustomPages"
-	MaxCustomPages          = 20
 	MaxCustomPageNameLength = 30
 	MaxCustomPageURLLength  = 500
 )
@@ -61,9 +60,6 @@ func ParseCustomPages(raw string) ([]CustomPage, error) {
 	}
 	if err := common.UnmarshalJsonStr(raw, &pages); err != nil || pages == nil {
 		return nil, fmt.Errorf("Custom pages must be a JSON array")
-	}
-	if len(pages) > MaxCustomPages {
-		return nil, fmt.Errorf("At most 20 pages are supported")
 	}
 	names := make(map[string]bool, len(pages))
 	for i := range pages {

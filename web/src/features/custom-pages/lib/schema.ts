@@ -21,47 +21,44 @@ import * as z from 'zod'
 import {
   CUSTOM_PAGE_HIGHLIGHT_COLORS,
   isCustomPageURL,
-  MAX_CUSTOM_PAGES,
   MAX_CUSTOM_PAGE_NAME_LENGTH,
   MAX_CUSTOM_PAGE_URL_LENGTH,
 } from '@/lib/custom-pages'
 
 export const customPagesSchema = z
   .object({
-    pages: z
-      .array(
-        z.object({
-          name: z
-            .string()
-            .refine(
-              (name) => !/[\r\n\t]/.test(name),
-              'Name cannot contain newlines or tabs'
-            )
-            .trim()
-            .min(1, 'Name is required')
-            .refine(
-              (name) => [...name].length <= MAX_CUSTOM_PAGE_NAME_LENGTH,
-              'Name cannot exceed 30 characters'
-            ),
-          url: z
-            .string()
-            .trim()
-            .min(1, 'URL is required')
-            .refine(
-              (url) => [...url].length <= MAX_CUSTOM_PAGE_URL_LENGTH,
-              'URL cannot exceed 500 characters'
-            )
-            .refine(isCustomPageURL, 'URL must start with http:// or https://'),
-          adminOnly: z.boolean(),
-          highlight: z.boolean(),
-          highlightColor: z
-            .enum(CUSTOM_PAGE_HIGHLIGHT_COLORS, {
-              error: 'Unsupported highlight color',
-            })
-            .optional(),
-        })
-      )
-      .max(MAX_CUSTOM_PAGES, 'At most 20 pages are supported'),
+    pages: z.array(
+      z.object({
+        name: z
+          .string()
+          .refine(
+            (name) => !/[\r\n\t]/.test(name),
+            'Name cannot contain newlines or tabs'
+          )
+          .trim()
+          .min(1, 'Name is required')
+          .refine(
+            (name) => [...name].length <= MAX_CUSTOM_PAGE_NAME_LENGTH,
+            'Name cannot exceed 30 characters'
+          ),
+        url: z
+          .string()
+          .trim()
+          .min(1, 'URL is required')
+          .refine(
+            (url) => [...url].length <= MAX_CUSTOM_PAGE_URL_LENGTH,
+            'URL cannot exceed 500 characters'
+          )
+          .refine(isCustomPageURL, 'URL must start with http:// or https://'),
+        adminOnly: z.boolean(),
+        highlight: z.boolean(),
+        highlightColor: z
+          .enum(CUSTOM_PAGE_HIGHLIGHT_COLORS, {
+            error: 'Unsupported highlight color',
+          })
+          .optional(),
+      })
+    ),
   })
   .superRefine((values, ctx) => {
     const names = new Set<string>()

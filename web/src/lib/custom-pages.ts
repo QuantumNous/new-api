@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-export const MAX_CUSTOM_PAGES = 20
 export const MAX_CUSTOM_PAGE_NAME_LENGTH = 30
 export const MAX_CUSTOM_PAGE_URL_LENGTH = 500
 
@@ -95,7 +94,6 @@ export function normalizeCustomPages(value: unknown): CustomPage[] {
       highlight: entry.highlight ?? false,
       ...(entry.highlightColor ? { highlightColor: entry.highlightColor } : {}),
     })
-    if (pages.length === MAX_CUSTOM_PAGES) break
   }
   return pages
 }

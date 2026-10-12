@@ -191,14 +191,26 @@ it('duplicate names differing only in case cannot be saved', async () => {
   expect(api.put).not.toHaveBeenCalled()
 })
 
-it('20 pages disable adding until a page is removed', async () => {
+it('adding and saving the twenty-first page succeeds', async () => {
   const user = userEvent.setup()
-  renderSettings(
-    Array.from({ length: 20 }, (_, i) => ({ ...page, name: `Page ${i}` }))
-  )
-  expect(screen.getByRole('button', { name: 'Add page' })).toBeDisabled()
-  await user.click(screen.getAllByRole('button', { name: 'Remove page' })[0])
+  const pages = Array.from({ length: 20 }, (_, i) => ({
+    ...page,
+    name: `Page ${i}`,
+  }))
+  renderSettings(pages)
+  await user.click(screen.getByRole('button', { name: 'Add page' }))
+  const names = screen.getAllByRole('textbox', { name: 'Menu name' })
+  expect(names).toHaveLength(21)
+  await user.type(names[20], 'Extra')
+  await user.type(screen.getAllByRole('textbox', { name: 'URL' })[20], page.url)
   expect(screen.getByRole('button', { name: 'Add page' })).toBeEnabled()
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+  await waitFor(() =>
+    expect(api.put).toHaveBeenCalledWith('/api/option/', {
+      key: 'CustomPages',
+      value: JSON.stringify([...pages, { ...page, name: 'Extra' }]),
+    })
+  )
 })
 
 it('failed saves preserve edits and leave the custom-page cache valid', async () => {
