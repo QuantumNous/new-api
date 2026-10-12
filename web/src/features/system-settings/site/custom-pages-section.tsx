@@ -33,7 +33,14 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   customPagesSchema,
   type CustomPagesFormValues,
@@ -56,6 +63,14 @@ import { useUpdateOption } from '../hooks/use-update-option'
 
 export function CustomPagesSection(props: { defaultValue: string }) {
   const { t } = useTranslation()
+  const colorOptions = [
+    { value: '', label: t('Follow theme') },
+    { value: 'blue', label: t('Blue') },
+    { value: 'green', label: t('Green') },
+    { value: 'purple', label: t('Purple') },
+    { value: 'orange', label: t('Orange') },
+    { value: 'red', label: t('Red') },
+  ]
   const updateOption = useUpdateOption()
   const defaultValues = useMemo(
     () => ({ pages: parseCustomPagesOption(props.defaultValue) }),
@@ -182,33 +197,37 @@ export function CustomPagesSection(props: { defaultValue: string }) {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Highlight color')}</FormLabel>
-                      <FormControl>
-                        <NativeSelect
-                          {...field}
-                          value={field.value ?? ''}
-                          disabled={!pages[index]?.highlight}
-                          className='w-full sm:w-48'
-                        >
-                          <NativeSelectOption value=''>
-                            {t('Follow theme')}
-                          </NativeSelectOption>
-                          <NativeSelectOption value='blue'>
-                            {t('Blue')}
-                          </NativeSelectOption>
-                          <NativeSelectOption value='green'>
-                            {t('Green')}
-                          </NativeSelectOption>
-                          <NativeSelectOption value='purple'>
-                            {t('Purple')}
-                          </NativeSelectOption>
-                          <NativeSelectOption value='orange'>
-                            {t('Orange')}
-                          </NativeSelectOption>
-                          <NativeSelectOption value='red'>
-                            {t('Red')}
-                          </NativeSelectOption>
-                        </NativeSelect>
-                      </FormControl>
+                      <Select
+                        items={colorOptions}
+                        name={field.name}
+                        value={field.value ?? ''}
+                        onValueChange={field.onChange}
+                        disabled={
+                          !pages[index]?.highlight || settings.isSubmitting
+                        }
+                      >
+                        <FormControl>
+                          <SelectTrigger
+                            ref={field.ref}
+                            onBlur={field.onBlur}
+                            className='w-full sm:w-48'
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent alignItemWithTrigger={false}>
+                          <SelectGroup>
+                            {colorOptions.map((option) => (
+                              <SelectItem
+                                key={option.value}
+                                value={option.value}
+                              >
+                                {option.label}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}
