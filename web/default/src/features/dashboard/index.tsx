@@ -388,11 +388,6 @@ export function Dashboard() {
                   <LazyRealtimeMetricsPanel />
                 </Suspense>
               </FadeIn>
-              <FadeIn delay={0.03}>
-                <Suspense fallback={<ModelChartsFallback />}>
-                  <LazyTokenUsageCard filters={modelFilters} />
-                </Suspense>
-              </FadeIn>
               <FadeIn delay={0.05}>
                 <Suspense fallback={<LogStatCardsFallback />}>
                   <LazyLogStatCards
@@ -434,6 +429,11 @@ export function Dashboard() {
                       modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
                     }
                   />
+                </Suspense>
+              </FadeIn>
+              <FadeIn delay={0.25}>
+                <Suspense fallback={<ModelChartsFallback />}>
+                  <LazyTokenUsageCard filters={modelFilters} />
                 </Suspense>
               </FadeIn>
             </>
