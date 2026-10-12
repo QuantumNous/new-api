@@ -20,11 +20,23 @@ export const MAX_CUSTOM_PAGES = 20
 export const MAX_CUSTOM_PAGE_NAME_LENGTH = 30
 export const MAX_CUSTOM_PAGE_URL_LENGTH = 500
 
+export const CUSTOM_PAGE_HIGHLIGHT_COLORS = [
+  '',
+  'blue',
+  'green',
+  'purple',
+  'orange',
+  'red',
+] as const
+export type CustomPageHighlightColor =
+  (typeof CUSTOM_PAGE_HIGHLIGHT_COLORS)[number]
+
 export type CustomPage = {
   name: string
   url: string
   adminOnly: boolean
   highlight: boolean
+  highlightColor?: CustomPageHighlightColor
 }
 
 export type CustomPageLink = CustomPage & { slug: string; href: string }
@@ -57,7 +69,9 @@ export function normalizeCustomPages(value: unknown): CustomPage[] {
     }
     if (
       (entry.adminOnly !== undefined && typeof entry.adminOnly !== 'boolean') ||
-      (entry.highlight !== undefined && typeof entry.highlight !== 'boolean')
+      (entry.highlight !== undefined && typeof entry.highlight !== 'boolean') ||
+      (entry.highlightColor !== undefined &&
+        !CUSTOM_PAGE_HIGHLIGHT_COLORS.includes(entry.highlightColor))
     ) {
       continue
     }
@@ -79,6 +93,7 @@ export function normalizeCustomPages(value: unknown): CustomPage[] {
       url,
       adminOnly: entry.adminOnly ?? false,
       highlight: entry.highlight ?? false,
+      ...(entry.highlightColor ? { highlightColor: entry.highlightColor } : {}),
     })
     if (pages.length === MAX_CUSTOM_PAGES) break
   }
@@ -123,6 +138,7 @@ export function serializeCustomPages(pages: CustomPage[]): string {
       url: page.url.trim(),
       adminOnly: page.adminOnly,
       highlight: page.highlight,
+      ...(page.highlightColor ? { highlightColor: page.highlightColor } : {}),
     }))
   )
 }

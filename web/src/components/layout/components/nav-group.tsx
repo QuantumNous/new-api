@@ -57,6 +57,17 @@ import type {
 } from '../types'
 import { ChatPresetsItem } from './chat-presets-item'
 
+const highlightColors = {
+  blue: 'bg-blue-500/10 text-blue-700 hover:bg-blue-500/15 hover:text-blue-700 data-active:bg-blue-500/20 data-active:text-blue-700 data-active:hover:bg-blue-500/20 data-active:hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-300 dark:data-active:text-blue-300 dark:data-active:hover:text-blue-300',
+  green:
+    'bg-green-500/10 text-green-700 hover:bg-green-500/15 hover:text-green-700 data-active:bg-green-500/20 data-active:text-green-700 data-active:hover:bg-green-500/20 data-active:hover:text-green-700 dark:text-green-300 dark:hover:text-green-300 dark:data-active:text-green-300 dark:data-active:hover:text-green-300',
+  purple:
+    'bg-purple-500/10 text-purple-700 hover:bg-purple-500/15 hover:text-purple-700 data-active:bg-purple-500/20 data-active:text-purple-700 data-active:hover:bg-purple-500/20 data-active:hover:text-purple-700 dark:text-purple-300 dark:hover:text-purple-300 dark:data-active:text-purple-300 dark:data-active:hover:text-purple-300',
+  orange:
+    'bg-orange-500/10 text-orange-700 hover:bg-orange-500/15 hover:text-orange-700 data-active:bg-orange-500/20 data-active:text-orange-700 data-active:hover:bg-orange-500/20 data-active:hover:text-orange-700 dark:text-orange-300 dark:hover:text-orange-300 dark:data-active:text-orange-300 dark:data-active:hover:text-orange-300',
+  red: 'bg-red-500/10 text-red-700 hover:bg-red-500/15 hover:text-red-700 data-active:bg-red-500/20 data-active:text-red-700 data-active:hover:bg-red-500/20 data-active:hover:text-red-700 dark:text-red-300 dark:hover:text-red-300 dark:data-active:text-red-300 dark:data-active:hover:text-red-300',
+}
+
 /**
  * Sidebar navigation group component
  * Renders a group of navigation items, supporting regular links and collapsible submenus
@@ -128,7 +139,11 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
       <SidebarMenuButton
         isActive={checkIsActive(href, item)}
         className={cn(
-          item.highlight && 'text-primary bg-primary/10 font-semibold'
+          item.highlight && 'font-semibold',
+          item.highlight &&
+            (item.highlightColor
+              ? highlightColors[item.highlightColor]
+              : 'text-primary bg-primary/10')
         )}
         tooltip={item.title}
         render={

@@ -25,6 +25,7 @@ export const STATIC_I18N_KEYS = [
   'URL must start with http:// or https://',
   'Name cannot exceed 30 characters',
   'At most 20 pages are supported',
+  'Unsupported highlight color',
   'Name cannot contain newlines or tabs',
   'URL cannot exceed 500 characters',
   'Menu names must be unique',

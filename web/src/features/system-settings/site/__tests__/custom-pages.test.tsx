@@ -89,16 +89,53 @@ it('editing a row and toggling restrictions saves the option and invalidates cus
   await user.type(name, ' Status page ')
   await user.click(screen.getByRole('switch', { name: 'Admins only' }))
   await user.click(screen.getByRole('switch', { name: 'Highlight in sidebar' }))
+  await user.selectOptions(
+    screen.getByRole('combobox', { name: 'Highlight color' }),
+    'purple'
+  )
   await user.click(screen.getByRole('button', { name: 'Save Changes' }))
   await waitFor(() =>
     expect(api.put).toHaveBeenCalledWith('/api/option/', {
       key: 'CustomPages',
       value: JSON.stringify([
-        { ...page, name: 'Status page', adminOnly: true, highlight: true },
+        {
+          ...page,
+          name: 'Status page',
+          adminOnly: true,
+          highlight: true,
+          highlightColor: 'purple',
+        },
       ]),
     })
   )
   expect(client.getQueryState(['custom-pages'])?.isInvalidated).toBe(true)
+})
+
+it('disabling highlight retains the selected color for re-enabling', async () => {
+  const user = userEvent.setup()
+  renderSettings([{ ...page, highlight: true, highlightColor: 'green' }])
+  const color = screen.getByRole('combobox', { name: 'Highlight color' })
+  expect(color).toHaveValue('green')
+  await user.click(screen.getByRole('switch', { name: 'Highlight in sidebar' }))
+  expect(color).toBeDisabled()
+  expect(color).toHaveValue('green')
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+  await waitFor(() =>
+    expect(api.put).toHaveBeenCalledWith('/api/option/', {
+      key: 'CustomPages',
+      value: JSON.stringify([{ ...page, highlightColor: 'green' }]),
+    })
+  )
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: 'Save Changes' })).toBeEnabled()
+  )
+  await user.click(screen.getByRole('switch', { name: 'Highlight in sidebar' }))
+  expect(
+    screen.getByRole('combobox', { name: 'Highlight color' })
+  ).toBeEnabled()
+  expect(screen.getByRole('combobox', { name: 'Highlight color' })).toHaveValue(
+    'green'
+  )
 })
 
 it.each([
