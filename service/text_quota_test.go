@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -28,6 +29,38 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+func TestCalculateTextQuotaSummaryRoundsDurationUp(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		name    string
+		elapsed time.Duration
+		seconds int64
+	}{
+		{"zero", 0, 0},
+		{"sub_second", 250 * time.Millisecond, 1},
+		{"exact_second", time.Second, 1},
+		{"over_second", time.Second + time.Nanosecond, 2},
+		{"issue_7751", 1750 * time.Millisecond, 2},
+		{"exact_two_seconds", 2 * time.Second, 2},
+	} {
+		for _, phase := range []time.Duration{50 * time.Millisecond, 950 * time.Millisecond} {
+			t.Run(fmt.Sprintf("%s/phase_%s", tc.name, phase), func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					// Advance the bubble's virtual clock; this does not sleep in real time.
+					time.Sleep(phase)
+					ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+					relayInfo := &relaycommon.RelayInfo{
+						OriginModelName: "gpt-4o-mini",
+						StartTime:       time.Now().Add(-tc.elapsed),
+					}
+					summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+					assert.Equal(t, tc.seconds, summary.UseTimeSeconds)
+				})
+			})
+		}
+	}
+}
 
 // The configured DSNs must point at isolated test databases. Each dialect runs
 // the real reservation, settlement and log paths with the same billing cases.
