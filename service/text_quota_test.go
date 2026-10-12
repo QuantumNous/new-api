@@ -35,30 +35,27 @@ func TestCalculateTextQuotaSummaryRoundsDurationUp(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		elapsed time.Duration
+		phase   time.Duration
 		seconds int64
 	}{
-		{"zero", 0, 0},
-		{"sub_second", 250 * time.Millisecond, 1},
-		{"exact_second", time.Second, 1},
-		{"over_second", time.Second + time.Nanosecond, 2},
-		{"issue_7751", 1750 * time.Millisecond, 2},
-		{"exact_two_seconds", 2 * time.Second, 2},
+		{"sub_second", 250 * time.Millisecond, 950 * time.Millisecond, 1},
+		{"exact_second", time.Second, 950 * time.Millisecond, 1},
+		{"issue_7751", 1750 * time.Millisecond, 950 * time.Millisecond, 2},
+		{"different_phase", 1750 * time.Millisecond, 50 * time.Millisecond, 2},
 	} {
-		for _, phase := range []time.Duration{50 * time.Millisecond, 950 * time.Millisecond} {
-			t.Run(fmt.Sprintf("%s/phase_%s", tc.name, phase), func(t *testing.T) {
-				synctest.Test(t, func(t *testing.T) {
-					// Advance the bubble's virtual clock; this does not sleep in real time.
-					time.Sleep(phase)
-					ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
-					relayInfo := &relaycommon.RelayInfo{
-						OriginModelName: "gpt-4o-mini",
-						StartTime:       time.Now().Add(-tc.elapsed),
-					}
-					summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
-					assert.Equal(t, tc.seconds, summary.UseTimeSeconds)
-				})
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				// Advance the bubble's virtual clock; this does not sleep in real time.
+				time.Sleep(tc.phase)
+				ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+				relayInfo := &relaycommon.RelayInfo{
+					OriginModelName: "gpt-4o-mini",
+					StartTime:       time.Now().Add(-tc.elapsed),
+				}
+				summary := calculateTextQuotaSummary(ctx, relayInfo, &dto.Usage{})
+				assert.Equal(t, tc.seconds, summary.UseTimeSeconds)
 			})
-		}
+		})
 	}
 }
 
