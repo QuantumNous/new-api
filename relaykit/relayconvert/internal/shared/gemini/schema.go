@@ -63,7 +63,7 @@ func cleanGeminiFunctionParametersWithDepth(params interface{}, depth int) inter
 			}
 		}
 
-		normalizeGeminiSchemaTypeAndNullable(cleanedMap)
+		normalizeGeminiSchemaTypeAndNullable(cleanedMap, depth)
 		sanitizeGeminiEnum(cleanedMap)
 
 		if props, ok := cleanedMap["properties"].(map[string]interface{}); ok && props != nil {
@@ -110,7 +110,7 @@ func cleanGeminiFunctionParametersShallow(params interface{}) interface{} {
 				cleanedMap[key] = val
 			}
 		}
-		normalizeGeminiSchemaTypeAndNullable(cleanedMap)
+		normalizeGeminiSchemaTypeAndNullable(cleanedMap, geminiFunctionSchemaMaxDepth)
 		sanitizeGeminiEnum(cleanedMap)
 		delete(cleanedMap, "properties")
 		delete(cleanedMap, "items")
@@ -147,9 +147,37 @@ func sanitizeGeminiEnum(schema map[string]interface{}) {
 	}
 }
 
-func normalizeGeminiSchemaTypeAndNullable(schema map[string]interface{}) {
+func normalizeGeminiSchemaTypeAndNullable(schema map[string]interface{}, depth int) {
 	rawType, ok := schema["type"]
 	if !ok || rawType == nil {
+		if _, hasProperties := schema["properties"]; hasProperties {
+			schema["type"] = "OBJECT"
+			return
+		}
+		if _, hasItems := schema["items"]; hasItems {
+			schema["type"] = "ARRAY"
+			return
+		}
+		if enum, ok := schema["enum"].([]interface{}); ok && len(enum) > 0 {
+			schema["type"] = geminiSchemaTypeOfValue(enum[0])
+			return
+		}
+		if example, exists := schema["default"]; exists {
+			schema["type"] = geminiSchemaTypeOfValue(example)
+			return
+		}
+		if example, exists := schema["example"]; exists {
+			schema["type"] = geminiSchemaTypeOfValue(example)
+			return
+		}
+		if depth == 0 {
+			schema["type"] = "OBJECT"
+		} else {
+			// Vertex's typed function Schema requires a concrete type. For a
+			// leaf property with no usable type hint, STRING is the least
+			// surprising fallback for common tool arguments such as IDs.
+			schema["type"] = "STRING"
+		}
 		return
 	}
 
@@ -206,6 +234,27 @@ func normalizeGeminiSchemaTypeAndNullable(schema map[string]interface{}) {
 		} else {
 			delete(schema, "type")
 		}
+	}
+}
+
+func geminiSchemaTypeOfValue(value interface{}) string {
+	switch value.(type) {
+	case nil:
+		return "STRING"
+	case string:
+		return "STRING"
+	case bool:
+		return "BOOLEAN"
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		return "INTEGER"
+	case float32, float64:
+		return "NUMBER"
+	case []interface{}:
+		return "ARRAY"
+	case map[string]interface{}:
+		return "OBJECT"
+	default:
+		return "STRING"
 	}
 }
 
