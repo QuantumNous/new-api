@@ -251,13 +251,15 @@ export function PartnerOAuthClients() {
   }
 
   return (
-    <SectionPageLayout>
-      <SectionPageLayout.Title>
-        {t('Partner OAuth Clients')}
-      </SectionPageLayout.Title>
-      <SectionPageLayout.Content>
-        <div className='mx-auto w-full max-w-7xl space-y-4'>{content}</div>
-      </SectionPageLayout.Content>
+    <>
+      <SectionPageLayout>
+        <SectionPageLayout.Title>
+          {t('Partner OAuth Clients')}
+        </SectionPageLayout.Title>
+        <SectionPageLayout.Content>
+          <div className='mx-auto w-full max-w-7xl space-y-4'>{content}</div>
+        </SectionPageLayout.Content>
+      </SectionPageLayout>
       <PartnerOAuthClientFormDialog
         open={formOpen}
         client={editing}
@@ -314,6 +316,6 @@ export function PartnerOAuthClients() {
         isLoading={deleteMutation.isPending}
       />
       <SecureVerificationDialog {...verification.dialogProps} />
-    </SectionPageLayout>
+    </>
   )
 }
