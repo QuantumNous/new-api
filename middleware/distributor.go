@@ -113,7 +113,7 @@ func Distribute() func(c *gin.Context) {
 				}
 				message := selectErr.Message
 				if selectErr.NoAvailableChannel {
-					message = noAvailableChannelMessage(c, usingGroup, modelRequest.Model)
+					message = noAvailableChannelMessage(c, selectErr, usingGroup, modelRequest.Model)
 				} else if selectErr.MessageID != "" {
 					message = i18n.T(c, selectErr.MessageID, selectErr.Params)
 				}
@@ -130,10 +130,17 @@ func Distribute() func(c *gin.Context) {
 	}
 }
 
-// noAvailableChannelMessage explains a 503 for a task-plugin-claimed model.
-// The response tells the caller the model is plugin-claimed without naming the
-// plugin; the candidate plugin keys go to the server log under the request id.
-func noAvailableChannelMessage(c *gin.Context, group, modelName string) string {
+// noAvailableChannelMessage explains a 503 for a model with no usable channel.
+//
+// Two situations share that status. One is a model claimed by a task plugin
+// with no eligible channel: the response says so without naming the plugin, and
+// the candidate plugin keys go to the server log under the request id. The
+// other is every candidate channel being rejected by a request filter, which is
+// otherwise indistinguishable from "this group has no channel for this model"
+// and sends operators looking at groups, keys and abilities instead of at the
+// channel that actually refused the request. When the selection error carries a
+// filter attribution, name the filter that rejected the candidates.
+func noAvailableChannelMessage(c *gin.Context, selectErr *service.ChannelSelectError, group, modelName string) string {
 	value, exists := c.Get(jsplugin.ContextKeyPinnedPlugin)
 	pinned, ok := value.(jsplugin.PinnedPlugin)
 	if exists && ok && pinned.Plugin != nil {
@@ -150,6 +157,19 @@ func noAvailableChannelMessage(c *gin.Context, group, modelName string) string {
 		}
 		logger.LogWarn(c, common.LogText("task_plugin subsystem=distribution event=no_available_channel group=%q model=%q plugins=%q reason=no_eligible_channel", group, modelName, strings.Join(keys, ",")))
 		return i18n.T(c, i18n.MsgDistributorNoAvailableChannelTaskPlugin, map[string]any{"Group": group, "Model": modelName})
+	}
+	if selectErr != nil && selectErr.FilterKind == taskdto.FilterRequestPath {
+		channelName := ""
+		if selectErr.Channel != nil {
+			channelName = selectErr.Channel.Name
+		}
+		logger.LogWarn(c, "distributor subsystem=selection event=no_available_channel group=%q model=%q request_path=%q filter=%q channel=%q", group, modelName, c.Request.URL.Path, string(selectErr.FilterKind), channelName)
+		return i18n.T(c, i18n.MsgDistributorNoChannelForRequestPath, map[string]any{
+			"Group":       group,
+			"Model":       modelName,
+			"RequestPath": c.Request.URL.Path,
+			"Channel":     channelName,
+		})
 	}
 	return i18n.T(c, i18n.MsgDistributorNoAvailableChannel, map[string]any{"Group": group, "Model": modelName})
 }

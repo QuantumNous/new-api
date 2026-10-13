@@ -10,10 +10,12 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
@@ -262,9 +264,27 @@ func TestNoAvailableChannelMessageWithoutPlugin(t *testing.T) {
 	plain, _ := gin.CreateTestContext(nil)
 	plain.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
 	plain.Request.Header.Set("Accept-Language", "en")
-	generic := noAvailableChannelMessage(plain, "default", "gpt-4o")
+	generic := noAvailableChannelMessage(plain, nil, "default", "gpt-4o")
 	assert.NotContains(t, generic, "task plugin")
 	assert.Contains(t, generic, "gpt-4o")
+}
+
+// A path rejection is indistinguishable from "this group has no channel for
+// this model" in the generic message, so the response must name the path and
+// the channel that refused it.
+func TestNoAvailableChannelMessageNamesRejectedRequestPath(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	c, _ := gin.CreateTestContext(nil)
+	c.Request = httptest.NewRequest(http.MethodPost, "/pg/chat/completions", nil)
+	c.Request.Header.Set("Accept-Language", "en")
+
+	message := noAvailableChannelMessage(c, &service.ChannelSelectError{
+		FilterKind: taskdto.FilterRequestPath,
+		Channel:    &model.Channel{Id: 1, Name: "intern"},
+	}, "default", "intern-latest")
+
+	assert.Contains(t, message, "/pg/chat/completions")
+	assert.Contains(t, message, "candidate channel intern")
 }
 
 func TestSharedEndpointRebindsToSelectedType61Plugin(t *testing.T) {
