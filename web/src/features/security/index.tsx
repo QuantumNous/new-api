@@ -35,6 +35,7 @@ import { useProfile } from '@/features/profile/hooks/use-profile'
 import { AccessTokenCard } from './components/access-token-card'
 import { AccountActionCard } from './components/account-action-card'
 import { AccountBindings } from './components/account-bindings'
+import { AuthorizedAppsCard } from './components/authorized-apps-card'
 import { LoginSessionsCard } from './components/login-sessions-card'
 import { PasskeyCard } from './components/passkey-card'
 import { PrivacyCard } from './components/privacy-card'
@@ -105,6 +106,7 @@ export function Security() {
               {t('Sessions & Access')}
             </h3>
             <LoginSessionsCard />
+            <AuthorizedAppsCard />
             <AccessTokenCard />
           </section>
           <section aria-labelledby='security-account' className='space-y-4'>

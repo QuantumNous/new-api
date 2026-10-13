@@ -27,6 +27,7 @@ export const ADMIN_PERMISSION_RESOURCES = {
   AUDIT: 'audit',
   CHANNEL: 'channel',
   TASK_PLUGIN: 'task_plugin',
+  PARTNER_OAUTH_CLIENT: 'partner_oauth_client',
 } as const
 
 export const ADMIN_PERMISSION_ACTIONS = {
@@ -83,6 +84,30 @@ export function hasPermission(
   if (!user) return false
   if (user.role === ROLE.SUPER_ADMIN) return true
   return user.permissions?.admin_permissions?.[resource]?.[action] === true
+}
+
+export function navItemVisibleToUser(
+  user: AuthUser | null | undefined,
+  item: {
+    requiredRole?: number
+    requiredPermission?: { resource: string; action: string }
+  }
+): boolean {
+  const role = user?.role ?? ROLE.GUEST
+  if (item.requiredRole !== undefined && role < item.requiredRole) {
+    return false
+  }
+  if (
+    item.requiredPermission &&
+    !hasPermission(
+      user,
+      item.requiredPermission.resource,
+      item.requiredPermission.action
+    )
+  ) {
+    return false
+  }
+  return true
 }
 
 // roleGrants returns the baseline grant matrix for the given role key.

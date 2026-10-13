@@ -1,0 +1,574 @@
+package controller
+
+import (
+	"encoding/base64"
+	"encoding/json"
+	"html"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"unicode/utf8"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/gin-gonic/gin"
+)
+
+const partnerOAuthFormMediaType = "application/x-www-form-urlencoded"
+
+func partnerOAuthHostOK(c *gin.Context) bool {
+	customOK := false
+	if common.CustomDomainEnabled {
+		context, found := middleware.GetCustomDomainContext(c)
+		customOK = found && context.Kind == service.CustomDomainKindMain && context.IsCallbackHost
+	}
+	return service.PartnerOAuthHostAllowed(c.Request.Host, common.CustomDomainEnabled, customOK)
+}
+
+func ensurePartnerOAuthHost(c *gin.Context) bool {
+	if _, err := service.PartnerOAuthIssuer(); err != nil {
+		writePartnerOAuthError(c, err)
+		return false
+	}
+	if !partnerOAuthHostOK(c) {
+		c.Status(http.StatusNotFound)
+		return false
+	}
+	return true
+}
+
+func writePartnerOAuthError(c *gin.Context, err error) {
+	typed := service.AsPartnerOAuthError(err)
+	if typed == nil {
+		_ = c.Error(err)
+		c.Header("Cache-Control", "no-store")
+		c.Header("Pragma", "no-cache")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":             "server_error",
+			"error_description": "please try again later",
+		})
+		return
+	}
+	if typed.WWWAuth != "" {
+		c.Header("WWW-Authenticate", typed.WWWAuth)
+	}
+	c.Header("Cache-Control", "no-store")
+	c.Header("Pragma", "no-cache")
+	c.JSON(typed.Status, gin.H{
+		"error":             typed.Code,
+		"error_description": typed.Description,
+	})
+}
+
+func writePartnerIntegrationAPIError(c *gin.Context, err error) {
+	typed := service.AsPartnerOAuthError(err)
+	if typed == nil {
+		_ = c.Error(err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error":      gin.H{"code": "server_error", "message": "please try again later"},
+			"request_id": c.GetString(common.RequestIdKey),
+		})
+		return
+	}
+	if typed.WWWAuth != "" {
+		c.Header("WWW-Authenticate", typed.WWWAuth)
+	}
+	c.JSON(typed.Status, gin.H{
+		"error":      gin.H{"code": typed.Code, "message": typed.Description},
+		"request_id": c.GetString(common.RequestIdKey),
+	})
+}
+
+func recordPartnerOAuthAudit(c *gin.Context, userID int, action string, success bool, params model.AuditFields) {
+	role := c.GetInt("role")
+	if role == 0 {
+		role = common.RoleCommonUser
+	}
+	model.RecordAuditLog(c, model.AuditLog{
+		UserId:    userID,
+		ActorRole: role,
+		Category:  model.AuditCategorySecurity,
+		Action:    action,
+		Success:   success,
+		Other: model.AuditOther{
+			Op: &model.AuditOperation{Action: action, Params: params},
+		},
+	})
+}
+
+func PartnerOAuthAuthorize(c *gin.Context) {
+	if !ensurePartnerOAuthHost(c) {
+		return
+	}
+	c.Header("Referrer-Policy", "no-referrer")
+	c.Header("Cache-Control", "no-store")
+	params, err := parsePartnerOAuthQuery(c)
+	if err != nil {
+		writePartnerOAuthAuthorizeRedirectOrPage(c, params, err)
+		return
+	}
+	if params["response_type"] != "" && params["response_type"] != "code" {
+		writePartnerOAuthAuthorizeRedirectOrPage(c, params, service.AsPartnerOAuthError(partnerOAuthRequestErr("unsupported_response_type", "response_type must be code")))
+		return
+	}
+	requestToken, nonce, consentURL, err := service.BeginPartnerOAuthAuthorization(
+		params["client_id"],
+		params["redirect_uri"],
+		params["scope"],
+		params["state"],
+		params["code_challenge"],
+		params["code_challenge_method"],
+	)
+	if err != nil {
+		writePartnerOAuthAuthorizeRedirectOrPage(c, params, err)
+		return
+	}
+	setPartnerOAuthRequestCookie(c, nonce)
+	c.Header("Referrer-Policy", "no-referrer")
+	c.Redirect(http.StatusSeeOther, consentURL)
+	_ = requestToken
+}
+
+func writePartnerOAuthAuthorizeRedirectOrPage(c *gin.Context, params map[string]string, err error) {
+	typed := service.AsPartnerOAuthError(err)
+	if typed == nil {
+		writePartnerOAuthHTMLError(c, http.StatusInternalServerError, "server_error")
+		return
+	}
+	if typed.Code == "invalid_client" || typed.Code == "invalid_redirect" {
+		writePartnerOAuthHTMLError(c, http.StatusBadRequest, typed.Code)
+		return
+	}
+	issuer, issuerErr := service.PartnerOAuthIssuer()
+	if issuerErr != nil || params["redirect_uri"] == "" {
+		writePartnerOAuthHTMLError(c, typed.Status, typed.Code)
+		return
+	}
+	state := params["state"]
+	if service.ValidatePartnerOAuthState(state) != nil {
+		state = ""
+	}
+	values := url.Values{}
+	values.Set("error", typed.Code)
+	target, appendErr := service.AppendPartnerOAuthCallback(params["redirect_uri"], state, issuer, values)
+	if appendErr != nil {
+		writePartnerOAuthHTMLError(c, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	c.Header("Referrer-Policy", "no-referrer")
+	c.Redirect(http.StatusFound, target)
+}
+
+func partnerOAuthRequestErr(code, description string) error {
+	return &service.PartnerOAuthError{Status: http.StatusBadRequest, Code: code, Description: description}
+}
+
+func parsePartnerOAuthQuery(c *gin.Context) (map[string]string, error) {
+	raw := c.Request.URL.RawQuery
+	values, err := url.ParseQuery(raw)
+	if err != nil {
+		return map[string]string{}, partnerOAuthRequestErr("invalid_request", "query is invalid")
+	}
+	keys := []string{"response_type", "client_id", "redirect_uri", "scope", "state", "code_challenge", "code_challenge_method"}
+	out := make(map[string]string, len(keys))
+	for _, key := range keys {
+		items := values[key]
+		if len(items) > 1 {
+			return out, partnerOAuthRequestErr("invalid_request", "parameter is repeated")
+		}
+		if len(items) == 1 {
+			out[key] = items[0]
+		}
+	}
+	return out, nil
+}
+
+func writePartnerOAuthHTMLError(c *gin.Context, status int, code string) {
+	if !service.IsPrintablePartnerOAuthErrorCode(code) {
+		code = "invalid_request"
+	}
+	title := i18n.T(c, "partner_oauth.error."+code+".title")
+	description := i18n.T(c, "partner_oauth.error."+code+".description")
+	lang := i18n.GetLangFromContext(c)
+	page := "<!DOCTYPE html><html lang=\"" + html.EscapeString(lang) + "\"><head><meta charset=\"utf-8\">" +
+		"<meta name=\"referrer\" content=\"no-referrer\">" +
+		"<title>" + html.EscapeString(title) + "</title></head><body><h1>" + html.EscapeString(title) +
+		"</h1><p>" + html.EscapeString(description) + "</p></body></html>"
+	c.Header("Cache-Control", "no-store")
+	c.Header("Pragma", "no-cache")
+	c.Header("Referrer-Policy", "no-referrer")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Security-Policy", "default-src 'none'")
+	c.Data(status, "text/html; charset=utf-8", []byte(page))
+}
+
+func setPartnerOAuthRequestCookie(c *gin.Context, nonce string) {
+	secure := !service.PartnerOAuthIssuerIsHTTP()
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     service.PartnerOAuthCookieName,
+		Value:    nonce,
+		Path:     service.PartnerOAuthCookiePath,
+		MaxAge:   service.PartnerOAuthCookieMaxAge,
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func clearPartnerOAuthRequestCookie(c *gin.Context) {
+	secure := !service.PartnerOAuthIssuerIsHTTP()
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     service.PartnerOAuthCookieName,
+		Value:    "",
+		Path:     service.PartnerOAuthCookiePath,
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func partnerOAuthRequestCookie(c *gin.Context) string {
+	cookie, err := c.Request.Cookie(service.PartnerOAuthCookieName)
+	if err != nil {
+		return ""
+	}
+	return cookie.Value
+}
+
+func PartnerOAuthInspectAuthorization(c *gin.Context) {
+	if !ensurePartnerOAuthHost(c) {
+		return
+	}
+	identity, ok := middleware.GetBrowserSessionAuthIdentity(c)
+	if !ok {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "a browser session is required"})
+		return
+	}
+	view, err := service.InspectPartnerOAuthAuthorizationForUser(c.Query("request"), partnerOAuthRequestCookie(c), identity.UserID)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": view})
+}
+
+func PartnerOAuthDecideAuthorization(c *gin.Context) {
+	if !ensurePartnerOAuthHost(c) {
+		return
+	}
+	identity, ok := middleware.GetBrowserSessionAuthIdentity(c)
+	if !ok {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "a browser session is required"})
+		return
+	}
+	var body struct {
+		Request  string `json:"request"`
+		Decision string `json:"decision"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid request"})
+		return
+	}
+	if body.Decision != "approve" && body.Decision != "deny" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "decision must be approve or deny"})
+		return
+	}
+	user, err := model.GetUserById(identity.UserID, false)
+	if err != nil {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "account is unavailable"})
+		return
+	}
+	redirectTo, err := service.DecidePartnerOAuthAuthorization(body.Request, partnerOAuthRequestCookie(c), body.Decision, user)
+	clearPartnerOAuthRequestCookie(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+	action := "partner_oauth.consent.deny"
+	if body.Decision == "approve" {
+		action = "partner_oauth.consent.approve"
+	}
+	recordPartnerOAuthAudit(c, user.Id, action, true, model.AuditFields{"client_id": ""})
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"redirect_to": redirectTo}})
+}
+
+func PartnerOAuthToken(c *gin.Context) {
+	if !ensurePartnerOAuthHost(c) {
+		return
+	}
+	form, err := parsePartnerOAuthForm(c)
+	if err != nil {
+		writePartnerOAuthError(c, err)
+		return
+	}
+	client, authErr := authenticatePartnerOAuthClient(c, form)
+	if c.IsAborted() {
+		return
+	}
+	if authErr != nil {
+		writePartnerOAuthError(c, authErr)
+		return
+	}
+	switch form["grant_type"] {
+	case "authorization_code":
+		issued, exchangeErr := service.ExchangePartnerOAuthCode(client, form["code"], form["redirect_uri"], form["code_verifier"])
+		if exchangeErr != nil {
+			writePartnerOAuthError(c, exchangeErr)
+			return
+		}
+		recordPartnerOAuthAudit(c, 0, "partner_oauth.token.issue", true, model.AuditFields{"client_id": client.ClientId, "binding_id": issued.BindingID})
+		c.JSON(http.StatusOK, issued)
+	case "refresh_token":
+		issued, refreshErr := service.RefreshPartnerOAuthToken(client, form["refresh_token"], form["scope"])
+		if refreshErr != nil {
+			if service.AsPartnerOAuthError(refreshErr) != nil && service.AsPartnerOAuthError(refreshErr).Code == "invalid_grant" {
+				recordPartnerOAuthAudit(c, 0, "partner_oauth.refresh.reuse_detected", true, model.AuditFields{"client_id": client.ClientId})
+			}
+			writePartnerOAuthError(c, refreshErr)
+			return
+		}
+		c.JSON(http.StatusOK, issued)
+	default:
+		writePartnerOAuthError(c, partnerOAuthRequestErr("unsupported_grant_type", "unsupported grant_type"))
+	}
+}
+
+func PartnerOAuthRevoke(c *gin.Context) {
+	if !ensurePartnerOAuthHost(c) {
+		return
+	}
+	form, err := parsePartnerOAuthForm(c)
+	if err != nil {
+		writePartnerOAuthError(c, err)
+		return
+	}
+	client, authErr := authenticatePartnerOAuthClient(c, form)
+	if c.IsAborted() {
+		return
+	}
+	if authErr != nil {
+		writePartnerOAuthError(c, authErr)
+		return
+	}
+	if err := service.RevokePartnerOAuthToken(client, form["token"]); err != nil {
+		writePartnerOAuthError(c, err)
+		return
+	}
+	recordPartnerOAuthAudit(c, 0, "partner_oauth.binding.revoke", true, model.AuditFields{"client_id": client.ClientId, "reason": "revoked"})
+	c.Status(http.StatusOK)
+}
+
+func PartnerOAuthAccount(c *gin.Context) {
+	if !ensurePartnerOAuthHost(c) {
+		return
+	}
+	if c.Request.URL.RawQuery != "" {
+		writePartnerIntegrationAPIError(c, &service.PartnerOAuthError{Status: http.StatusBadRequest, Code: "invalid_request", Description: "query parameters are not allowed"})
+		return
+	}
+	principal := middleware.PartnerOAuthPrincipal(c)
+	account, err := service.BuildPartnerOAuthAccount(principal)
+	if err != nil {
+		writePartnerIntegrationAPIError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, account)
+}
+
+func PartnerOAuthCredential(c *gin.Context) {
+	if !ensurePartnerOAuthHost(c) {
+		return
+	}
+	if c.Request.URL.RawQuery != "" {
+		writePartnerIntegrationAPIError(c, &service.PartnerOAuthError{Status: http.StatusBadRequest, Code: "invalid_request", Description: "query parameters are not allowed"})
+		return
+	}
+	if c.Request.URL.Query().Has("access_token") {
+		writePartnerIntegrationAPIError(c, &service.PartnerOAuthError{Status: http.StatusBadRequest, Code: "invalid_request", Description: "access_token must not be sent in the query"})
+		return
+	}
+	media := strings.ToLower(strings.TrimSpace(strings.Split(c.GetHeader("Content-Type"), ";")[0]))
+	if media != "application/json" {
+		writePartnerIntegrationAPIError(c, &service.PartnerOAuthError{Status: http.StatusUnsupportedMediaType, Code: "unsupported_media_type", Description: "content type must be application/json"})
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, service.PartnerOAuthJSONLimit)
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		writePartnerIntegrationAPIError(c, &service.PartnerOAuthError{Status: http.StatusBadRequest, Code: "invalid_request", Description: "request body is invalid"})
+		return
+	}
+	if strings.Contains(string(body), "access_token") {
+		writePartnerIntegrationAPIError(c, &service.PartnerOAuthError{Status: http.StatusBadRequest, Code: "invalid_request", Description: "access_token must not be sent in the body"})
+		return
+	}
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(body, &object); err != nil || len(object) != 0 {
+		writePartnerIntegrationAPIError(c, &service.PartnerOAuthError{Status: http.StatusBadRequest, Code: "invalid_request", Description: "request body must be an empty object"})
+		return
+	}
+	principal := middleware.PartnerOAuthPrincipal(c)
+	issued, err := service.IssuePartnerOAuthCredential(principal)
+	if err != nil {
+		writePartnerIntegrationAPIError(c, err)
+		return
+	}
+	if strings.HasPrefix(issued.APIKey, "sk-") {
+		recordPartnerOAuthAudit(c, principal.User.Id, "partner_oauth.credential.issue", true, model.AuditFields{
+			"client_id":  principal.Client.ClientId,
+			"binding_id": principal.Binding.BindingId,
+			"key_id":     issued.KeyID,
+		})
+	}
+	c.JSON(http.StatusOK, issued)
+}
+
+func GetUserPartnerOAuthBindings(c *gin.Context) {
+	identity, ok := middleware.GetAuthIdentity(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "unauthorized"})
+		return
+	}
+	bindings, err := service.ListUserPartnerOAuthBindings(identity.UserID)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": bindings})
+}
+
+func DeleteUserPartnerOAuthBinding(c *gin.Context) {
+	identity, ok := requireBrowserSession(c)
+	if !ok {
+		return
+	}
+	if _, ok := middleware.GetBrowserSessionAuthIdentity(c); !ok {
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "code": "AUTH_SESSION_REQUIRED", "message": "a dashboard login session is required"})
+		return
+	}
+	err := service.RevokeUserPartnerOAuthBinding(identity.UserID, c.Param("binding_id"))
+	if err != nil {
+		if typed := service.AsPartnerOAuthError(err); typed != nil && typed.Status == http.StatusNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "code": typed.Code, "message": typed.Description})
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	recordPartnerOAuthAudit(c, identity.UserID, "partner_oauth.binding.revoke", true, model.AuditFields{
+		"binding_id": c.Param("binding_id"),
+		"reason":     "user_revoked",
+	})
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func parsePartnerOAuthForm(c *gin.Context) (map[string]string, error) {
+	if c.Request.URL.RawQuery != "" {
+		return nil, partnerOAuthRequestErr("invalid_request", "query parameters are not allowed")
+	}
+	media := strings.ToLower(strings.TrimSpace(c.GetHeader("Content-Type")))
+	mediaType, _, _ := strings.Cut(media, ";")
+	mediaType = strings.TrimSpace(mediaType)
+	if mediaType != partnerOAuthFormMediaType {
+		return nil, partnerOAuthRequestErr("invalid_request", "content type must be application/x-www-form-urlencoded")
+	}
+	if strings.Contains(media, "charset=") && !strings.Contains(media, "charset=utf-8") && !strings.Contains(media, `charset="utf-8"`) {
+		return nil, partnerOAuthRequestErr("invalid_request", "form charset must be utf-8")
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, service.PartnerOAuthFormLimit)
+	body, err := io.ReadAll(c.Request.Body)
+	if err != nil {
+		return nil, partnerOAuthRequestErr("invalid_request", "request body is too large or invalid")
+	}
+	if !utf8.Valid(body) {
+		return nil, partnerOAuthRequestErr("invalid_request", "request body must be utf-8")
+	}
+	values, err := url.ParseQuery(string(body))
+	if err != nil {
+		return nil, partnerOAuthRequestErr("invalid_request", "form is invalid")
+	}
+	out := make(map[string]string, len(values))
+	for key, items := range values {
+		if len(items) > 1 {
+			return nil, partnerOAuthRequestErr("invalid_request", "parameter is repeated")
+		}
+		if len(items) == 1 {
+			out[key] = items[0]
+		}
+	}
+	return out, nil
+}
+
+func authenticatePartnerOAuthClient(c *gin.Context, form map[string]string) (*model.PartnerOAuthClient, error) {
+	header := strings.TrimSpace(c.GetHeader("Authorization"))
+	if header != "" {
+		scheme, encoded, ok := strings.Cut(header, " ")
+		if !ok || !strings.EqualFold(scheme, "Basic") || encoded == "" {
+			c.Header("WWW-Authenticate", `Basic realm="oauth"`)
+			return nil, &service.PartnerOAuthError{Status: http.StatusUnauthorized, Code: "invalid_client", Description: "client authentication failed", WWWAuth: `Basic realm="oauth"`}
+		}
+		decoded, err := base64.StdEncoding.DecodeString(encoded)
+		if err != nil {
+			c.Header("WWW-Authenticate", `Basic realm="oauth"`)
+			return nil, &service.PartnerOAuthError{Status: http.StatusUnauthorized, Code: "invalid_client", Description: "client authentication failed", WWWAuth: `Basic realm="oauth"`}
+		}
+		id, secret, ok := strings.Cut(string(decoded), ":")
+		if !ok {
+			c.Header("WWW-Authenticate", `Basic realm="oauth"`)
+			return nil, &service.PartnerOAuthError{Status: http.StatusUnauthorized, Code: "invalid_client", Description: "client authentication failed", WWWAuth: `Basic realm="oauth"`}
+		}
+		id, _ = url.QueryUnescape(id)
+		secret, _ = url.QueryUnescape(secret)
+		if _, hasSecret := form["client_secret"]; hasSecret {
+			return nil, partnerOAuthRequestErr("invalid_request", "client_secret must not be sent in the form")
+		}
+		if formID, ok := form["client_id"]; ok && formID != id {
+			c.Header("WWW-Authenticate", `Basic realm="oauth"`)
+			return nil, &service.PartnerOAuthError{Status: http.StatusUnauthorized, Code: "invalid_client", Description: "client authentication failed", WWWAuth: `Basic realm="oauth"`}
+		}
+		client, _ := model.GetPartnerOAuthClientByClientID(id)
+		matched := service.VerifyPartnerOAuthClientSecret(client, secret)
+		if !matched || client == nil || client.Status != model.PartnerOAuthClientStatusEnabled {
+			if middleware.PartnerOAuthClientAuthLimited(c, id) {
+				return nil, &service.PartnerOAuthError{Status: http.StatusTooManyRequests, Code: "rate_limited", Description: "too many requests"}
+			}
+			c.Header("WWW-Authenticate", `Basic realm="oauth"`)
+			return nil, &service.PartnerOAuthError{Status: http.StatusUnauthorized, Code: "invalid_client", Description: "client authentication failed", WWWAuth: `Basic realm="oauth"`}
+		}
+		return client, nil
+	}
+	if _, hasSecret := form["client_secret"]; hasSecret {
+		return nil, &service.PartnerOAuthError{Status: http.StatusBadRequest, Code: "invalid_client", Description: "client authentication failed"}
+	}
+	clientID := form["client_id"]
+	if clientID == "" {
+		return nil, partnerOAuthRequestErr("invalid_request", "client_id is required")
+	}
+	client, err := model.GetPartnerOAuthClientByClientID(clientID)
+	if err != nil || client.Status != model.PartnerOAuthClientStatusEnabled {
+		if middleware.PartnerOAuthClientAuthLimited(c, clientID) {
+			return nil, &service.PartnerOAuthError{Status: http.StatusTooManyRequests, Code: "rate_limited", Description: "too many requests"}
+		}
+		return nil, &service.PartnerOAuthError{Status: http.StatusBadRequest, Code: "invalid_client", Description: "client authentication failed"}
+	}
+	if client.TokenAuthMethod == model.PartnerOAuthTokenAuthMethodBasic {
+		c.Header("WWW-Authenticate", `Basic realm="oauth"`)
+		return nil, &service.PartnerOAuthError{Status: http.StatusUnauthorized, Code: "invalid_client", Description: "client authentication failed", WWWAuth: `Basic realm="oauth"`}
+	}
+	return client, nil
+}
+
+func ServePartnerAuthorizePage(indexPage []byte) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Header("X-Frame-Options", "DENY")
+		c.Header("Content-Security-Policy", "frame-ancestors 'none'")
+		c.Header("Referrer-Policy", "no-referrer")
+		c.Header("Cache-Control", "no-store")
+		c.Data(http.StatusOK, "text/html; charset=utf-8", indexPage)
+	}
+}

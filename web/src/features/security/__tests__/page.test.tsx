@@ -103,6 +103,9 @@ beforeEach(() => {
     if (url === '/api/user/sessions') {
       return { data: { success: true, data: [] } }
     }
+    if (url === '/api/user/partner-oauth/bindings') {
+      return { data: { success: true, data: [] } }
+    }
     throw new Error(`Unexpected GET ${url}`)
   })
 })
@@ -199,6 +202,9 @@ describe('security page migration', () => {
     ).toBeVisible()
     expect(
       await within(access).findByText('No active login sessions')
+    ).toBeVisible()
+    expect(
+      await within(access).findByText('No authorized applications')
     ).toBeVisible()
     expect(
       screen.getByRole('switch', { name: 'Record IP Address' })

@@ -96,6 +96,39 @@ export function setup2FA(
   )
 }
 
+export interface PartnerOAuthBindingKey {
+  id: number
+  name: string
+  status: number
+}
+
+export interface PartnerOAuthBinding {
+  binding_id: string
+  client_id: string
+  client_name: string
+  scopes: string[]
+  created_at: number
+  expires_at: number
+  key: PartnerOAuthBindingKey | null
+}
+
+export function getPartnerOAuthBindings(): Promise<{
+  success: boolean
+  message?: string
+  data?: PartnerOAuthBinding[]
+}> {
+  return api.get('/api/user/partner-oauth/bindings').then((res) => res.data)
+}
+
+export function revokePartnerOAuthBinding(bindingId: string): Promise<{
+  success: boolean
+  message?: string
+}> {
+  return api
+    .delete(`/api/user/partner-oauth/bindings/${bindingId}`)
+    .then((res) => res.data)
+}
+
 export function enable2FA(
   code: string,
   flowToken: string,

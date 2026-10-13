@@ -892,4 +892,13 @@ export const STATIC_I18N_KEYS = [
   'Vendor name and icon must not exceed 128 characters.',
   'Shown',
   'Not shown',
+
+  // Partner OAuth authz catalog
+  'Partner OAuth Clients',
+  'Read partner OAuth clients',
+  'View registered partner OAuth clients without secrets.',
+  'Operate partner OAuth clients',
+  'Enable or disable partner OAuth clients.',
+  'Edit partner OAuth clients',
+  'Create, update, rotate secrets, or delete partner OAuth clients.',
 ] as const

@@ -1,0 +1,9 @@
+{"file": "AGENTS.md", "reason": "Project rules to verify against (DB matrix, JSON wrappers, test quality, OWASP reporting)"}
+{"file": ".trellis/tasks/10-10-partner-oauth-integration/research/source-relay-partner-api-v0.2.md", "reason": "Verify every endpoint, status code, error code and header against the protocol"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify three-database Docker verification was actually run"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend quality checklist"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality checklist"}
+{"file": "web/AGENTS.md", "reason": "Frontend component reuse, i18n, formatting checks"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Cross-layer consistency review"}
+{"file": ".trellis/tasks/10-10-partner-oauth-integration/research/security-threat-model.md", "reason": "Verify each security control and ASVS mapping"}
+{"file": "service/authz/resources_channel.go", "reason": "Verify authz resource shape and admin default grants"}

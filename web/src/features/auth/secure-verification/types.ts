@@ -38,6 +38,7 @@ export type SecurityProofScope =
   | 'account.password.set'
   | 'account.password.change'
   | 'account.delete'
+  | 'partner_oauth.client.sensitive_write'
 
 export type VerificationOperation =
   | { scope: 'channel.key.read'; context: { channel_id: number } }
@@ -47,9 +48,18 @@ export type VerificationOperation =
     }
   | { scope: 'account.binding.unbind'; context: { provider_id: number } }
   | {
+      scope: 'partner_oauth.client.sensitive_write'
+      context:
+        | { action: 'create' }
+        | { action: 'update' | 'rotate_secret' | 'delete'; client_id: string }
+    }
+  | {
       scope: Exclude<
         SecurityProofScope,
-        'channel.key.read' | 'account.binding.bind' | 'account.binding.unbind'
+        | 'channel.key.read'
+        | 'account.binding.bind'
+        | 'account.binding.unbind'
+        | 'partner_oauth.client.sensitive_write'
       >
       context?: Record<string, never>
     }

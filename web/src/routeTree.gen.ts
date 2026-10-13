@@ -43,6 +43,8 @@ import { Route as AuthenticatedChatChatIdRouteImport } from './routes/_authentic
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
 import { Route as AuthenticatedDashboardSectionRouteImport } from './routes/_authenticated/dashboard/$section'
 import { Route as AuthenticatedDesktopAuthorizeIndexRouteImport } from './routes/_authenticated/desktop-authorize/index'
+import { Route as AuthenticatedPartnerAuthorizeIndexRouteImport } from './routes/_authenticated/partner-authorize/index'
+import { Route as AuthenticatedPartnerOauthClientsIndexRouteImport } from './routes/_authenticated/partner-oauth-clients/index'
 import { Route as AuthenticatedErrorsErrorRouteImport } from './routes/_authenticated/errors/$error'
 import { Route as AuthenticatedGuideIndexRouteImport } from './routes/_authenticated/guide/index'
 import { Route as AuthenticatedGuideSlugRouteImport } from './routes/_authenticated/guide/$slug'
@@ -253,6 +255,18 @@ const AuthenticatedDesktopAuthorizeIndexRoute =
   AuthenticatedDesktopAuthorizeIndexRouteImport.update({
     id: '/desktop-authorize/',
     path: '/desktop-authorize/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPartnerAuthorizeIndexRoute =
+  AuthenticatedPartnerAuthorizeIndexRouteImport.update({
+    id: '/partner-authorize/',
+    path: '/partner-authorize/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
+const AuthenticatedPartnerOauthClientsIndexRoute =
+  AuthenticatedPartnerOauthClientsIndexRouteImport.update({
+    id: '/partner-oauth-clients/',
+    path: '/partner-oauth-clients/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
 const AuthenticatedErrorsErrorRoute =
@@ -505,6 +519,8 @@ export interface FileRoutesByFullPath {
   '/channels/': typeof AuthenticatedChannelsIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/desktop-authorize/': typeof AuthenticatedDesktopAuthorizeIndexRoute
+  '/partner-authorize/': typeof AuthenticatedPartnerAuthorizeIndexRoute
+  '/partner-oauth-clients/': typeof AuthenticatedPartnerOauthClientsIndexRoute
   '/guide/': typeof AuthenticatedGuideIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
   '/models/': typeof AuthenticatedModelsIndexRoute
@@ -574,6 +590,8 @@ export interface FileRoutesByTo {
   '/channels': typeof AuthenticatedChannelsIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/desktop-authorize': typeof AuthenticatedDesktopAuthorizeIndexRoute
+  '/partner-authorize': typeof AuthenticatedPartnerAuthorizeIndexRoute
+  '/partner-oauth-clients': typeof AuthenticatedPartnerOauthClientsIndexRoute
   '/guide': typeof AuthenticatedGuideIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
   '/models': typeof AuthenticatedModelsIndexRoute
@@ -647,6 +665,8 @@ export interface FileRoutesById {
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/desktop-authorize/': typeof AuthenticatedDesktopAuthorizeIndexRoute
+  '/_authenticated/partner-authorize/': typeof AuthenticatedPartnerAuthorizeIndexRoute
+  '/_authenticated/partner-oauth-clients/': typeof AuthenticatedPartnerOauthClientsIndexRoute
   '/_authenticated/guide/': typeof AuthenticatedGuideIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
   '/_authenticated/models/': typeof AuthenticatedModelsIndexRoute
@@ -719,6 +739,8 @@ export interface FileRouteTypes {
     | '/channels/'
     | '/dashboard/'
     | '/desktop-authorize/'
+    | '/partner-authorize/'
+    | '/partner-oauth-clients/'
     | '/guide/'
     | '/keys/'
     | '/models/'
@@ -788,6 +810,8 @@ export interface FileRouteTypes {
     | '/channels'
     | '/dashboard'
     | '/desktop-authorize'
+    | '/partner-authorize'
+    | '/partner-oauth-clients'
     | '/guide'
     | '/keys'
     | '/models'
@@ -860,6 +884,8 @@ export interface FileRouteTypes {
     | '/_authenticated/channels/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/desktop-authorize/'
+    | '/_authenticated/partner-authorize/'
+    | '/_authenticated/partner-oauth-clients/'
     | '/_authenticated/guide/'
     | '/_authenticated/keys/'
     | '/_authenticated/models/'
@@ -1152,6 +1178,20 @@ declare module '@tanstack/react-router' {
       path: '/desktop-authorize'
       fullPath: '/desktop-authorize/'
       preLoaderRoute: typeof AuthenticatedDesktopAuthorizeIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/partner-authorize/': {
+      id: '/_authenticated/partner-authorize/'
+      path: '/partner-authorize'
+      fullPath: '/partner-authorize/'
+      preLoaderRoute: typeof AuthenticatedPartnerAuthorizeIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/partner-oauth-clients/': {
+      id: '/_authenticated/partner-oauth-clients/'
+      path: '/partner-oauth-clients'
+      fullPath: '/partner-oauth-clients/'
+      preLoaderRoute: typeof AuthenticatedPartnerOauthClientsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/errors/$error': {
@@ -1513,6 +1553,8 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedDesktopAuthorizeIndexRoute: typeof AuthenticatedDesktopAuthorizeIndexRoute
+  AuthenticatedPartnerAuthorizeIndexRoute: typeof AuthenticatedPartnerAuthorizeIndexRoute
+  AuthenticatedPartnerOauthClientsIndexRoute: typeof AuthenticatedPartnerOauthClientsIndexRoute
   AuthenticatedGuideIndexRoute: typeof AuthenticatedGuideIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
   AuthenticatedModelsIndexRoute: typeof AuthenticatedModelsIndexRoute
@@ -1545,6 +1587,10 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   AuthenticatedDesktopAuthorizeIndexRoute:
     AuthenticatedDesktopAuthorizeIndexRoute,
+  AuthenticatedPartnerAuthorizeIndexRoute:
+    AuthenticatedPartnerAuthorizeIndexRoute,
+  AuthenticatedPartnerOauthClientsIndexRoute:
+    AuthenticatedPartnerOauthClientsIndexRoute,
   AuthenticatedGuideIndexRoute: AuthenticatedGuideIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,
   AuthenticatedModelsIndexRoute: AuthenticatedModelsIndexRoute,

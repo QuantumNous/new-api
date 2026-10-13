@@ -134,8 +134,29 @@ it('retains administrator tools without granting super-admin-only tools', async 
   expect(screen.getByRole('link', { name: 'Channels' })).toBeVisible()
   expect(screen.getByRole('link', { name: 'System Settings' })).toBeVisible()
   expect(
+    screen.queryByRole('link', { name: 'Partner OAuth Clients' })
+  ).not.toBeInTheDocument()
+  expect(
     screen.queryByRole('link', { name: 'System Info' })
   ).not.toBeInTheDocument()
+})
+
+it('shows Partner OAuth Clients when the admin has read permission', async () => {
+  const bundle = createTestAuthBundle()
+  useAuthStore.getState().auth.setBundle({
+    ...bundle,
+    user: {
+      ...bundle.user,
+      role: ROLE.ADMIN,
+      permissions: {
+        admin_permissions: { partner_oauth_client: { read: true } },
+      },
+    },
+  })
+  await renderApp(<NavigationProbe />, client)
+  expect(
+    screen.getByRole('link', { name: 'Partner OAuth Clients' })
+  ).toHaveAttribute('href', '/partner-oauth-clients')
 })
 
 it('honors the site model-catalog switch for the new developer destination', async () => {

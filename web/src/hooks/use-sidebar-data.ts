@@ -43,7 +43,13 @@ import { useTranslation } from 'react-i18next'
 
 import type { SidebarData } from '@/components/layout/types'
 import { useConsoleMode } from '@/hooks/use-console-mode'
+import {
+  ADMIN_PERMISSION_ACTIONS,
+  ADMIN_PERMISSION_RESOURCES,
+  navItemVisibleToUser,
+} from '@/lib/admin-permissions'
 import { ROLE } from '@/lib/roles'
+import { useAuthStore } from '@/stores/auth-store'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -54,6 +60,7 @@ import { ROLE } from '@/lib/roles'
 export function useSidebarData(): SidebarData {
   const { t } = useTranslation()
   const mode = useConsoleMode()
+  const user = useAuthStore((state) => state.auth.user)
 
   if (mode === 'easy') {
     return {
@@ -98,7 +105,7 @@ export function useSidebarData(): SidebarData {
     }
   }
 
-  return {
+  const data: SidebarData = {
     navGroups: [
       {
         id: 'workspace',
@@ -231,6 +238,15 @@ export function useSidebarData(): SidebarData {
             icon: HandCoins,
           },
           {
+            title: t('Partner OAuth Clients'),
+            url: '/partner-oauth-clients',
+            icon: Key,
+            requiredPermission: {
+              resource: ADMIN_PERMISSION_RESOURCES.PARTNER_OAUTH_CLIENT,
+              action: ADMIN_PERMISSION_ACTIONS.READ,
+            },
+          },
+          {
             title: t('System Info'),
             url: '/system-info',
             icon: ServerCog,
@@ -251,5 +267,12 @@ export function useSidebarData(): SidebarData {
         ],
       },
     ],
+  }
+
+  return {
+    navGroups: data.navGroups.map((group) => ({
+      ...group,
+      items: group.items.filter((item) => navItemVisibleToUser(user, item)),
+    })),
   }
 }

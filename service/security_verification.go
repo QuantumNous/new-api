@@ -15,25 +15,26 @@ import (
 )
 
 const (
-	VerificationMethodTwoFA              = "2fa"
-	VerificationMethodPasskey            = "passkey"
-	VerificationMethodPassword           = "password"
-	VerificationMethodOAuth              = "oauth"
-	VerificationMethodSession            = "session"
-	VerificationScopeChannelKeyRead      = "channel.key.read"
-	VerificationScopePasskeyRegister     = "passkey.register"
-	VerificationScopePasskeyDelete       = "passkey.delete"
-	VerificationScopeTwoFASetup          = "2fa.setup"
-	VerificationScopeTwoFADisable        = "2fa.disable"
-	VerificationScopeTwoFABackupCodes    = "2fa.backup_codes.regenerate"
-	VerificationScopeLogin               = "auth.login"
-	VerificationScopeAccessTokenGenerate = "access_token.generate"
-	VerificationScopeAccessTokenRevoke   = "access_token.revoke"
-	VerificationScopeAccountBind         = "account.binding.bind"
-	VerificationScopeAccountUnbind       = "account.binding.unbind"
-	VerificationScopePasswordSet         = "account.password.set"
-	VerificationScopePasswordChange      = "account.password.change"
-	VerificationScopeAccountDelete       = "account.delete"
+	VerificationMethodTwoFA                           = "2fa"
+	VerificationMethodPasskey                         = "passkey"
+	VerificationMethodPassword                        = "password"
+	VerificationMethodOAuth                           = "oauth"
+	VerificationMethodSession                         = "session"
+	VerificationScopeChannelKeyRead                   = "channel.key.read"
+	VerificationScopePasskeyRegister                  = "passkey.register"
+	VerificationScopePasskeyDelete                    = "passkey.delete"
+	VerificationScopeTwoFASetup                       = "2fa.setup"
+	VerificationScopeTwoFADisable                     = "2fa.disable"
+	VerificationScopeTwoFABackupCodes                 = "2fa.backup_codes.regenerate"
+	VerificationScopeLogin                            = "auth.login"
+	VerificationScopeAccessTokenGenerate              = "access_token.generate"
+	VerificationScopeAccessTokenRevoke                = "access_token.revoke"
+	VerificationScopeAccountBind                      = "account.binding.bind"
+	VerificationScopeAccountUnbind                    = "account.binding.unbind"
+	VerificationScopePasswordSet                      = "account.password.set"
+	VerificationScopePasswordChange                   = "account.password.change"
+	VerificationScopeAccountDelete                    = "account.delete"
+	VerificationScopePartnerOAuthClientSensitiveWrite = "partner_oauth.client.sensitive_write"
 )
 
 var (
@@ -64,6 +65,11 @@ type AccountBindingContext struct {
 
 type AccountUnbindingContext struct {
 	ProviderID int `json:"provider_id"`
+}
+
+type PartnerOAuthClientSensitiveWriteContext struct {
+	Action   string `json:"action"`
+	ClientID string `json:"client_id,omitempty"`
 }
 
 // VerificationBinding contains no original operation parameters. It can safely
@@ -114,6 +120,26 @@ func BindVerificationOperation(operation VerificationOperation) (VerificationBin
 	case VerificationScopeAccountUnbind:
 		var context AccountUnbindingContext
 		if len(fields) != 1 || common.Unmarshal(fields["provider_id"], &context.ProviderID) != nil || context.ProviderID <= 0 {
+			return VerificationBinding{}, ErrVerificationContextInvalid
+		}
+		normalized = context
+	case VerificationScopePartnerOAuthClientSensitiveWrite:
+		var context PartnerOAuthClientSensitiveWriteContext
+		if common.Unmarshal(operation.Context, &context) != nil {
+			return VerificationBinding{}, ErrVerificationContextInvalid
+		}
+		context.Action = strings.TrimSpace(context.Action)
+		context.ClientID = strings.TrimSpace(context.ClientID)
+		switch context.Action {
+		case "create":
+			if len(fields) != 1 || context.ClientID != "" {
+				return VerificationBinding{}, ErrVerificationContextInvalid
+			}
+		case "update", "rotate_secret", "delete":
+			if len(fields) != 2 || !validPartnerOAuthClientID(context.ClientID) {
+				return VerificationBinding{}, ErrVerificationContextInvalid
+			}
+		default:
 			return VerificationBinding{}, ErrVerificationContextInvalid
 		}
 		normalized = context
@@ -179,6 +205,14 @@ func securityVerificationPolicy(scope string, state model.UserVerificationState)
 	}
 	switch scope {
 	case VerificationScopeChannelKeyRead, VerificationScopePasskeyDelete, VerificationScopeLogin:
+	case VerificationScopePartnerOAuthClientSensitiveWrite:
+		if len(methods) == 0 {
+			if state.HasPassword {
+				methods = []string{VerificationMethodPassword}
+			} else {
+				methods = []string{VerificationMethodOAuth}
+			}
+		}
 	case VerificationScopeTwoFADisable, VerificationScopeTwoFABackupCodes:
 		if !state.HasTwoFA {
 			return nil, model.ErrTwoFANotEnabled

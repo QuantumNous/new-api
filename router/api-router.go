@@ -148,6 +148,8 @@ func SetApiRouter(router *gin.Engine) {
 				// Custom OAuth bindings
 				selfRoute.GET("/oauth/bindings", controller.GetUserOAuthBindings)
 				selfRoute.DELETE("/oauth/bindings/:provider_id", controller.UnbindCustomOAuth)
+				selfRoute.GET("/partner-oauth/bindings", controller.GetUserPartnerOAuthBindings)
+				selfRoute.DELETE("/partner-oauth/bindings/:binding_id", middleware.CriticalRateLimit(), controller.DeleteUserPartnerOAuthBinding)
 			}
 
 			adminRoute := userRoute.Group("/")
@@ -255,6 +257,17 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.POST("/waffo-pancake/save", controller.SaveWaffoPancake)
 			optionRoute.POST("/waffo-pancake/subscription-product", controller.CreateWaffoPancakeSubscriptionProduct)
 			optionRoute.GET("/waffo-pancake/subscription-product-options", controller.ListWaffoPancakeSubscriptionProductOptions)
+		}
+
+		partnerOAuthClientRoute := apiRouter.Group("/partner-oauth/clients")
+		partnerOAuthClientRoute.Use(middleware.AdminAuth())
+		{
+			partnerOAuthClientRoute.GET("", middleware.RequirePermission(authz.PartnerOAuthClientRead), controller.GetPartnerOAuthClients)
+			partnerOAuthClientRoute.POST("", middleware.RequirePermission(authz.PartnerOAuthClientSensitiveWrite), controller.CreatePartnerOAuthClient)
+			partnerOAuthClientRoute.PUT("/:id", middleware.RequirePermission(authz.PartnerOAuthClientSensitiveWrite), controller.UpdatePartnerOAuthClient)
+			partnerOAuthClientRoute.POST("/:id/secret", middleware.RequirePermission(authz.PartnerOAuthClientSensitiveWrite), controller.RotatePartnerOAuthClientSecret)
+			partnerOAuthClientRoute.POST("/:id/status", middleware.RequirePermission(authz.PartnerOAuthClientOperate), controller.UpdatePartnerOAuthClientStatus)
+			partnerOAuthClientRoute.DELETE("/:id", middleware.RequirePermission(authz.PartnerOAuthClientSensitiveWrite), controller.DeletePartnerOAuthClient)
 		}
 
 		// Custom OAuth provider management (root only)
