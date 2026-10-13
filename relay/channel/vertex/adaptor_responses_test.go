@@ -117,13 +117,55 @@ func TestVertexResponsesRequestRejectsUnresolvedImageFileID(t *testing.T) {
 	require.ErrorContains(t, err, "input_image requires image_url")
 }
 
+func TestVertexResponsesRequestAddsMissingFunctionParameterType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	request := dto.OpenAIResponsesRequest{
+		Model: "gemini-test",
+		Input: json.RawMessage(`"move this thread"`),
+		Tools: json.RawMessage(`[{
+			"type":"function",
+			"name":"move_thread_to_project",
+			"parameters":{
+				"type":"object",
+				"properties":{"projectId":{"description":"Project identifier"}}
+			}
+		}]`),
+	}
+	got, err := (&Adaptor{RequestMode: RequestModeGemini}).ConvertOpenAIResponsesRequest(c, newVertexResponsesRelayInfo(false), request)
+	require.NoError(t, err)
+
+	geminiRequest, ok := got.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+	var upstream struct {
+		Tools []struct {
+			FunctionDeclarations []struct {
+				Parameters struct {
+					Properties map[string]struct {
+						Type string `json:"type"`
+					} `json:"properties"`
+				} `json:"parameters"`
+			} `json:"functionDeclarations"`
+		} `json:"tools"`
+	}
+	body, err := common.Marshal(geminiRequest)
+	require.NoError(t, err)
+	require.NoError(t, common.Unmarshal(body, &upstream))
+	require.Len(t, upstream.Tools, 1)
+	require.Len(t, upstream.Tools[0].FunctionDeclarations, 1)
+	assert.Equal(t, "STRING", upstream.Tools[0].FunctionDeclarations[0].Parameters.Properties["projectId"].Type)
+}
+
 func newVertexResponsesRelayInfo(isStream bool) *relaycommon.RelayInfo {
 	return &relaycommon.RelayInfo{
-		IsStream:       isStream,
-		RelayMode:      relayconstant.RelayModeResponses,
-		RelayFormat:    types.RelayFormatOpenAIResponses,
-		RequestURLPath: "/v1/responses",
-		DisablePing:    true,
+		IsStream:        isStream,
+		RelayMode:       relayconstant.RelayModeResponses,
+		RelayFormat:     types.RelayFormatOpenAIResponses,
+		RequestURLPath:  "/v1/responses",
+		DisablePing:     true,
 		OriginModelName: "gemini-test",
 		ChannelMeta: &relaycommon.ChannelMeta{
 			UpstreamModelName: "gemini-test",
