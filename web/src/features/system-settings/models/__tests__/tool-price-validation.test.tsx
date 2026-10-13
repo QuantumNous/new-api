@@ -59,6 +59,23 @@ describe('tool price validation', () => {
     expect(priceInput).toHaveAttribute('aria-invalid', 'false')
     expect(saveButton).toBeEnabled()
 
+    fireEvent.change(priceInput, { target: { value: '0.04' } })
+
+    expect(priceInput).toHaveValue(0.04)
+    expect(priceInput).toBeValid()
+    expect(saveButton).toBeEnabled()
+
+    fireEvent.change(priceInput, { target: { value: '0.0001' } })
+    expect(priceInput).toBeValid()
+
+    fireEvent.change(priceInput, { target: { value: '0.00001' } })
+    expect((priceInput as HTMLInputElement).validity.stepMismatch).toBe(true)
+
+    fireEvent.change(priceInput, { target: { value: '-0.04' } })
+
+    expect(priceInput).toHaveAttribute('aria-invalid', 'true')
+    expect(saveButton).toBeDisabled()
+
     queryClient.clear()
   })
 })

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -8,9 +9,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,7 +31,7 @@ func TestApplyChannelAffinityOverrideTemplate_NoTemplate(t *testing.T) {
 	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
 		RuleName: "rule-no-template",
 	})
-	base := map[string]interface{}{
+	base := map[string]any{
 		"temperature": 0.7,
 	}
 
@@ -37,7 +43,7 @@ func TestApplyChannelAffinityOverrideTemplate_NoTemplate(t *testing.T) {
 func TestApplyChannelAffinityOverrideTemplate_MergeTemplate(t *testing.T) {
 	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
 		RuleName: "rule-with-template",
-		ParamTemplate: map[string]interface{}{
+		ParamTemplate: map[string]any{
 			"temperature": 0.2,
 			"top_p":       0.95,
 		},
@@ -49,7 +55,7 @@ func TestApplyChannelAffinityOverrideTemplate_MergeTemplate(t *testing.T) {
 		KeyHint:        "abcd...wxyz",
 		KeyFingerprint: "abcd1234",
 	})
-	base := map[string]interface{}{
+	base := map[string]any{
 		"temperature": 0.7,
 		"max_tokens":  2000,
 	}
@@ -63,11 +69,11 @@ func TestApplyChannelAffinityOverrideTemplate_MergeTemplate(t *testing.T) {
 
 	anyInfo, ok := ctx.Get(ginKeyChannelAffinityLogInfo)
 	require.True(t, ok)
-	info, ok := anyInfo.(map[string]interface{})
+	info, ok := anyInfo.(map[string]any)
 	require.True(t, ok)
 	overrideInfoAny, ok := info["override_template"]
 	require.True(t, ok)
-	overrideInfo, ok := overrideInfoAny.(map[string]interface{})
+	overrideInfo, ok := overrideInfoAny.(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, true, overrideInfo["applied"])
 	require.Equal(t, "rule-with-template", overrideInfo["rule_name"])
@@ -77,8 +83,8 @@ func TestApplyChannelAffinityOverrideTemplate_MergeTemplate(t *testing.T) {
 func TestApplyChannelAffinityOverrideTemplate_MergeOperations(t *testing.T) {
 	ctx := buildChannelAffinityTemplateContextForTest(channelAffinityMeta{
 		RuleName: "rule-with-ops-template",
-		ParamTemplate: map[string]interface{}{
-			"operations": []map[string]interface{}{
+		ParamTemplate: map[string]any{
+			"operations": []map[string]any{
 				{
 					"mode":  "pass_headers",
 					"value": []string{"Originator"},
@@ -86,9 +92,9 @@ func TestApplyChannelAffinityOverrideTemplate_MergeOperations(t *testing.T) {
 			},
 		},
 	})
-	base := map[string]interface{}{
+	base := map[string]any{
 		"temperature": 0.7,
-		"operations": []map[string]interface{}{
+		"operations": []map[string]any{
 			{
 				"path":  "model",
 				"mode":  "trim_prefix",
@@ -103,15 +109,15 @@ func TestApplyChannelAffinityOverrideTemplate_MergeOperations(t *testing.T) {
 
 	opsAny, ok := merged["operations"]
 	require.True(t, ok)
-	ops, ok := opsAny.([]interface{})
+	ops, ok := opsAny.([]any)
 	require.True(t, ok)
 	require.Len(t, ops, 2)
 
-	firstOp, ok := ops[0].(map[string]interface{})
+	firstOp, ok := ops[0].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "pass_headers", firstOp["mode"])
 
-	secondOp, ok := ops[1].(map[string]interface{})
+	secondOp, ok := ops[1].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "trim_prefix", secondOp["mode"])
 }
@@ -297,7 +303,7 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	require.True(t, found)
 	require.Equal(t, 9527, channelID)
 
-	baseOverride := map[string]interface{}{
+	baseOverride := map[string]any{
 		"temperature": 0.2,
 	}
 	mergedOverride, applied := ApplyChannelAffinityOverrideTemplate(ctx, baseOverride)
@@ -312,7 +318,7 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 		},
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ParamOverride: mergedOverride,
-			HeadersOverride: map[string]interface{}{
+			HeadersOverride: map[string]any{
 				"X-Static": "legacy-static",
 			},
 		},
@@ -331,4 +337,131 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	require.False(t, exists)
 	_, exists = info.RuntimeHeadersOverride["x-codex-turn-metadata"]
 	require.False(t, exists)
+}
+
+func TestMidjourneyPolicyAcceptance(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		status     int
+		code       int
+		properties map[string]any
+		requestErr error
+		accepted   bool
+		reason     string
+	}{
+		{name: "submitted", status: 200, code: 1, accepted: true},
+		{name: "existing task", status: 200, code: 21, accepted: true},
+		{name: "queued", status: 200, code: 22, accepted: true},
+		{name: "HTTP 200 with rejected prompt", status: 200, code: 24, reason: "non_retryable_error"},
+		{name: "failed existing task", status: 200, code: 21, properties: map[string]any{"status": "FAILURE"}, reason: "task_accepted"},
+		{name: "HTTP failure", status: 502, code: 1, reason: "non_retryable_error"},
+		{name: "ambiguous transport failure", status: 502, requestErr: errors.New("connection reset"), reason: "non_retryable_error"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/mj/submit/imagine", strings.NewReader(`{}`))
+			ctx.Set("channel_id", 7)
+			state := RequestPolicy(ctx)
+			state.BeginAttempt(&model.Channel{Id: 7}, "default")
+			response := &dto.MidjourneyResponseWithStatusCode{StatusCode: tc.status, Response: dto.MidjourneyResponse{Code: tc.code, Properties: tc.properties}}
+			accepted := RecordMidjourneyPolicyResponse(ctx, response, tc.requestErr)
+			assert.Equal(t, tc.accepted, accepted)
+			assert.False(t, state.Successful, "acceptance alone must not bind before local processing finishes")
+			if accepted {
+				MarkRequestPolicySuccess(ctx, nil)
+				assert.True(t, state.Successful)
+				return
+			}
+			events := state.Events()
+			require.Len(t, events, 3)
+			assert.Equal(t, PolicyDecision{Action: "failure", Reason: "upstream_failure", Source: "upstream"}, events[1].Decision)
+			assert.Equal(t, tc.status, events[1].Status)
+			assert.Equal(t, PolicyDecision{Action: "stop", Reason: tc.reason, Source: "system"}, events[2].Decision, "submissions are never replayed")
+		})
+	}
+}
+
+func TestSessionRulesInheritOrOverrideGlobalDefault(t *testing.T) {
+	setting := operation_setting.GetChannelAffinitySetting()
+	previous := *setting
+	t.Cleanup(func() { *setting = previous })
+	for _, globalMode := range []string{"", "off", "prefer", "strict"} {
+		for _, tc := range []struct {
+			name, mode, expected string
+			skipRetry            bool
+		}{
+			{name: "inherit", mode: "inherit", expected: globalMode},
+			{name: "override-strict", mode: "strict", expected: "strict"},
+			{name: "override-prefer", mode: "prefer", expected: "prefer", skipRetry: true},
+			{name: "override-off", mode: "off", expected: "off", skipRetry: true},
+			{name: "legacy-strict", expected: "strict", skipRetry: true},
+			{name: "legacy-prefer", expected: "prefer"},
+		} {
+			t.Run(globalMode+"/"+tc.name, func(t *testing.T) {
+				expected := tc.expected
+				if expected == "" {
+					expected = "prefer"
+				}
+				source := "session_rule"
+				if tc.mode == "inherit" {
+					source = "global"
+				}
+				rule := operation_setting.ChannelAffinityRule{
+					Name: tc.name, ModelRegex: []string{"^test-model$"},
+					KeySources:  []operation_setting.ChannelAffinityKeySource{{Type: "request_header", Key: "X-Session"}},
+					SessionMode: tc.mode, SkipRetryOnFailure: tc.skipRetry,
+					ParamOverrideTemplate: map[string]any{"temperature": 0}, IncludeRuleName: true,
+				}
+				encoded, err := common.Marshal([]operation_setting.ChannelAffinityRule{rule})
+				require.NoError(t, err)
+				snapshot, err := model.BuildRequestPolicy(map[string]string{"RetryTimes": "2", "channel_affinity_setting.enabled": "true", "channel_affinity_setting.session_mode": globalMode, "channel_affinity_setting.rules": string(encoded)})
+				require.NoError(t, err)
+				*setting = snapshot.Affinity
+				key := t.Name()
+				cacheKey := buildChannelAffinityCacheKeySuffix(rule, "test-model", "default", key)
+				cache := getChannelAffinityCache()
+				require.NoError(t, cache.SetWithTTL(cacheKey, 1, time.Minute))
+				t.Cleanup(func() { _, err := cache.DeleteMany([]string{cacheKey}); assert.NoError(t, err) })
+				ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+				ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+				ctx.Request.Header.Set("X-Session", key)
+				state := RequestPolicy(ctx)
+				channelID, found := GetPreferredChannelByAffinity(ctx, "test-model", "default")
+				assert.Equal(t, expected != "off", found)
+				if found {
+					assert.Equal(t, 1, channelID)
+				}
+				assert.Equal(t, expected, state.SessionMode)
+				assert.Equal(t, source, state.SessionModeSource)
+				assert.Equal(t, expected == "strict", ShouldSkipRetryAfterChannelAffinityFailure(ctx))
+				decision := DecideRelayRetry(ctx, types.NewOpenAIError(errors.New("upstream"), types.ErrorCodeBadResponseStatusCode, http.StatusTooManyRequests), 2)
+				if expected == "strict" {
+					assert.Equal(t, PolicyDecision{Action: "stop", Reason: "strict_session", Source: source}, decision)
+				} else {
+					assert.Equal(t, "retry", decision.Action)
+				}
+				events := state.Events()
+				require.Len(t, events, 1)
+				assert.Equal(t, PolicyDecision{Action: "match", Reason: "session_rule_matched", Source: "session_rule"}, events[0].Decision)
+				assert.Equal(t, tc.name, events[0].Rule)
+				transformed, applied := ApplyChannelAffinityOverrideTemplate(ctx, nil)
+				assert.True(t, applied, "session behavior does not disable request transforms")
+				assert.EqualValues(t, 0, transformed["temperature"])
+				if expected == "off" {
+					ctx.Set("channel_id", 9)
+					RecordChannelAffinity(ctx, 9)
+					cached, found, err := cache.Get(cacheKey)
+					require.NoError(t, err)
+					assert.True(t, found)
+					assert.Equal(t, 1, cached, "off does not refresh session bindings")
+					_, err = cache.DeleteMany([]string{cacheKey})
+					require.NoError(t, err)
+					RecordChannelAffinity(ctx, 9)
+					_, found, err = cache.Get(cacheKey)
+					require.NoError(t, err)
+					assert.False(t, found, "off does not establish session bindings")
+				}
+			})
+		}
+	}
 }

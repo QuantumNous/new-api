@@ -74,7 +74,9 @@ export const customOAuthFormSchema = z.object({
   email_field: z.string().optional().default(''),
   well_known: z.string().optional().default(''),
   auth_style: z.number().int().min(0).max(2).default(0),
-  auto_link_policy: z.enum(['none', 'email_verified', 'username']).default('none'),
+  auto_link_policy: z
+    .enum(['none', 'email_verified', 'username'])
+    .default('none'),
   access_policy: z.string().optional().default(''),
   access_denied_message: z.string().optional().default(''),
 })

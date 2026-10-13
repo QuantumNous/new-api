@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type Table } from '@tanstack/react-table'
+import type { Table } from '@tanstack/react-table'
 import { X } from 'lucide-react'
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,6 +33,7 @@ import { cn } from '@/lib/utils'
 
 type DataTableBulkActionsProps<TData> = {
   table: Table<TData>
+  placement?: 'floating' | 'inline'
   entityName: string
   children: React.ReactNode
 }
@@ -50,23 +51,29 @@ type DataTableBulkActionsProps<TData> = {
 export function DataTableBulkActions<TData>({
   table,
   entityName,
+  placement = 'floating',
   children,
 }: DataTableBulkActionsProps<TData>): React.ReactNode | null {
   const { t } = useTranslation()
   const selectedRows = table.getFilteredSelectedRowModel().rows
   const selectedCount = selectedRows.length
   const toolbarRef = useRef<HTMLDivElement>(null)
-  const buttonsRef = useRef<NodeListOf<HTMLButtonElement> | null>(null)
+  const buttonsRef = useRef<HTMLButtonElement[]>([])
   const [announcement, setAnnouncement] = useState('')
 
   useLayoutEffect(() => {
-    buttonsRef.current = toolbarRef.current?.querySelectorAll('button') ?? null
+    buttonsRef.current = toolbarRef.current
+      ? [...toolbarRef.current.querySelectorAll('button')]
+      : []
   })
 
   // Announce selection changes to screen readers
   useEffect(() => {
     if (selectedCount > 0) {
-      const message = `${selectedCount} ${entityName}${selectedCount > 1 ? 's' : ''} selected. Bulk actions toolbar is available.`
+      const message = t(
+        '{{count}} records selected. Bulk actions are available.',
+        { count: selectedCount }
+      )
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setAnnouncement(message)
 
@@ -74,7 +81,7 @@ export function DataTableBulkActions<TData>({
       const timer = setTimeout(() => setAnnouncement(''), 3000)
       return () => clearTimeout(timer)
     }
-  }, [selectedCount, entityName])
+  }, [selectedCount, entityName, t])
 
   const handleClearSelection = () => {
     table.resetRowSelection()
@@ -82,10 +89,10 @@ export function DataTableBulkActions<TData>({
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
     const buttons = buttonsRef.current
-    if (!buttons) return
+    if (buttons.length === 0) return
 
-    const currentIndex = Array.from(buttons).findIndex(
-      (button) => button === document.activeElement
+    const currentIndex = buttons.indexOf(
+      document.activeElement as HTMLButtonElement
     )
 
     switch (event.key) {
@@ -108,7 +115,7 @@ export function DataTableBulkActions<TData>({
         break
       case 'End':
         event.preventDefault()
-        buttons[buttons.length - 1]?.focus()
+        buttons.at(-1)?.focus()
         break
       case 'Escape': {
         // Check if the Escape key came from a dropdown trigger or content
@@ -161,13 +168,16 @@ export function DataTableBulkActions<TData>({
       <div
         ref={toolbarRef}
         role='toolbar'
-        aria-label={`Bulk actions for ${selectedCount} selected ${entityName}${selectedCount > 1 ? 's' : ''}`}
+        aria-label={t('Bulk actions for {{count}} selected records', {
+          count: selectedCount,
+        })}
         aria-describedby='bulk-actions-description'
         tabIndex={-1}
         onKeyDown={handleKeyDown}
         className={cn(
-          'fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-xl',
-          'transition-all delay-100 duration-300 ease-out hover:scale-105',
+          placement === 'floating'
+            ? 'fixed bottom-6 left-1/2 z-50 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-xl transition-all delay-100 duration-300 ease-out hover:scale-105'
+            : 'shrink-0 rounded-xl',
           'focus-visible:ring-ring/50 focus-visible:ring-2 focus-visible:outline-none'
         )}
       >
@@ -176,7 +186,7 @@ export function DataTableBulkActions<TData>({
             'p-2 shadow-xl',
             'rounded-xl border',
             'bg-background/95 supports-[backdrop-filter]:bg-background/60 backdrop-blur-lg',
-            'flex items-center gap-x-2'
+            'flex flex-wrap items-center gap-2'
           )}
         >
           <Tooltip>
@@ -213,13 +223,13 @@ export function DataTableBulkActions<TData>({
             <Badge
               variant='default'
               className='min-w-8 rounded-lg'
-              aria-label={`${selectedCount} selected`}
+              aria-label={t('{{count}} selected', { count: selectedCount })}
             >
               {selectedCount}
             </Badge>{' '}
             <span className='hidden sm:inline'>
               {entityName}
-              {selectedCount > 1 ? 's' : ''}
+              {selectedCount > 1 && /^[a-z]+$/i.test(entityName) ? 's' : ''}
             </span>{' '}
             {t('selected')}
           </div>

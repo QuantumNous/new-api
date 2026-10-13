@@ -106,6 +106,9 @@ func CreateWaffoPancakeCheckoutSession(ctx context.Context, params *WaffoPancake
 	if strings.TrimSpace(params.OrderMerchantExternalID) == "" {
 		return nil, fmt.Errorf("missing order merchant external id")
 	}
+	if strings.TrimSpace(setting.WaffoPancakeStoreID) == "" {
+		return nil, fmt.Errorf("missing Waffo Pancake store id")
+	}
 	client, err := newWaffoPancakeClient()
 	if err != nil {
 		return nil, fmt.Errorf("build Waffo Pancake client: %w", err)
@@ -165,6 +168,9 @@ func VerifyConfiguredWaffoPancakeWebhook(payload string, signatureHeader string)
 	evt, err := pancake.VerifyWebhookTyped[pancake.WebhookEventData](payload, signatureHeader, nil)
 	if err != nil {
 		return nil, err
+	}
+	if storeID := strings.TrimSpace(setting.WaffoPancakeStoreID); storeID == "" || evt.StoreID != storeID {
+		return nil, fmt.Errorf("Waffo Pancake webhook store mismatch")
 	}
 	identity := ""
 	if evt.Data.MerchantProvidedBuyerIdentity != nil {

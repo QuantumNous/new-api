@@ -24,6 +24,7 @@ import { PublicLayout } from '@/components/layout'
 import { RichContent } from '@/components/rich-content'
 import { Skeleton } from '@/components/ui/skeleton'
 import { isHttpUrl, isLikelyHtml } from '@/lib/content-format'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { getAboutContent } from './api'
 
@@ -116,7 +117,7 @@ export function About() {
   const { t } = useTranslation()
   const { data, isLoading } = useQuery({
     queryKey: ['about-content'],
-    queryFn: getAboutContent,
+    queryFn: async () => requireServerSuccess(await getAboutContent()),
   })
 
   const rawContent = data?.data?.trim() ?? ''

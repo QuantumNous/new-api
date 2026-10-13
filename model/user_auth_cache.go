@@ -38,10 +38,7 @@ func getUserAuthVersionKey(userId int) string {
 // recover without an operator repairing Redis.
 func userAuthFenceTTLSeconds() int {
 	cacheTTL := userCacheTTLSeconds()
-	extra := cacheTTL
-	if extra < 60 {
-		extra = 60
-	}
+	extra := max(cacheTTL, 60)
 	return cacheTTL + extra
 }
 
@@ -186,10 +183,7 @@ func IncrementUserAuthVersionWithTx(tx *gorm.DB, userId int) (int64, error) {
 		if err := lockForUpdate(tx.Unscoped()).Select("id", "auth_version").Where("id = ?", userId).First(&user).Error; err != nil {
 			return 0, err
 		}
-		current := user.AuthVersion
-		if current < 1 {
-			current = 1
-		}
+		current := max(user.AuthVersion, 1)
 		next := current + 1
 		if err := SetUserAuthVersionFence(userId, next); err != nil {
 			return 0, err
@@ -240,7 +234,7 @@ func InitializeUserAuthVersions() error {
 	return DB.Model(&User{}).Where("auth_version IS NULL OR auth_version < ?", 1).Update("auth_version", 1).Error
 }
 
-func updateUserCacheFieldAtVersion(userId int, field string, value interface{}, authVersion int64) error {
+func updateUserCacheFieldAtVersion(userId int, field string, value any, authVersion int64) error {
 	if !common.RedisEnabled {
 		return nil
 	}

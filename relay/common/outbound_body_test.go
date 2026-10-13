@@ -27,7 +27,7 @@ func TestNewOutboundJSONBody_GetBodyReplaysFullBody(t *testing.T) {
 
 	// GetBody must hand out the complete body again — and repeatedly, since the
 	// transport may need more than one retry.
-	for i := 0; i < 2; i++ {
+	for i := range 2 {
 		rc, err := body.NewReader()
 		require.NoError(t, err)
 		replay, err := io.ReadAll(rc)

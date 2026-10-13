@@ -5,6 +5,8 @@
 package convmeta
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
@@ -28,6 +30,10 @@ type Meta interface {
 	// SetReasoningEffort records the effort level a converter derived from a
 	// model-name suffix so downstream billing/logging can see it.
 	SetReasoningEffort(effort string)
+	// ReasoningState returns the suffix-derived reasoning intent attached at
+	// the host entry layer. Standalone callers that do not set it receive nil;
+	// converters then use only explicit request fields.
+	ReasoningState() *dto.ReasoningConversionState
 	GetEstimatePromptTokens() int
 
 	// EnsureClaudeConvertInfo lazily creates and returns the mutable
@@ -35,6 +41,15 @@ type Meta interface {
 	// instance must be returned for the lifetime of one streaming session; a
 	// nil receiver may return a temporary initialized state.
 	EnsureClaudeConvertInfo() *ClaudeConvertInfo
+
+	// ResponsesToolState returns the Responses tool encoding recorded by the
+	// latest request conversion, or nil when none was recorded. Response
+	// converters read it to restore Responses-only tool call shapes.
+	ResponsesToolState() *ResponsesToolState
+	// SetResponsesToolState replaces that record; nil clears it. Request
+	// conversion calls it on every attempt so retries never inherit a record
+	// from another channel.
+	SetResponsesToolState(state *ResponsesToolState)
 
 	// GetSendResponseCount / IncrSendResponseCount expose the shared
 	// downstream-chunk counter (the host may also increment it).
@@ -60,6 +75,74 @@ type ClaudeConvertInfo struct {
 
 	ToolCallBaseIndex      int
 	ToolCallMaxIndexOffset int
+	ToolCalls              []*ClaudeStreamToolCall
+	ToolCallByIndex        map[int]*ClaudeStreamToolCall
+	ToolCallByID           map[string]*ClaudeStreamToolCall
+}
+
+// ClaudeStreamToolCall tracks one OpenAI tool_calls entry while it is encoded
+// as a Claude tool_use content block. Chat tool indexes and Claude content
+// block indexes are separate domains, so the mapping must remain explicit.
+type ClaudeStreamToolCall struct {
+	BlockIndex       int
+	ID               string
+	Name             string
+	PendingArguments string
+	Started          bool
+}
+
+// ResponsesToolState records how Responses-only tool definitions were encoded
+// for the upstream protocol, so the matching response can be restored.
+type ResponsesToolState struct {
+	// CustomToolNames lists Responses custom (freeform) tools that were sent
+	// upstream as function tools taking one string "input" argument. Function
+	// calls with these names are custom tool calls.
+	CustomToolNames map[string]struct{}
+	// Namespaces maps an upstream function name to the Responses tool
+	// namespace it was flattened from; see NamespacedToolName.
+	Namespaces map[string]string
+}
+
+// CustomToolInputArgument is the single function argument that carries a
+// Responses custom tool input through an upstream function call.
+const CustomToolInputArgument = "input"
+
+// DefaultResponsesToolNamespace is the namespace Codex declares its ordinary
+// tools in. OpenAI returns calls to its tools by bare name without a
+// namespace field, so its tools keep their names upstream.
+const DefaultResponsesToolNamespace = "functions"
+
+// NamespacedToolName is the upstream function name of a tool declared in a
+// Responses tool namespace: "<namespace>__<name>", or the bare name for the
+// default namespace.
+func NamespacedToolName(namespace string, name string) string {
+	if namespace == "" || namespace == DefaultResponsesToolNamespace {
+		return name
+	}
+	return namespace + "__" + name
+}
+
+// IsCustomTool reports whether name was encoded from a Responses custom tool.
+func (s *ResponsesToolState) IsCustomTool(name string) bool {
+	if s == nil {
+		return false
+	}
+	_, ok := s.CustomToolNames[name]
+	return ok
+}
+
+// ResponsesToolName restores the Responses namespace and tool name of an
+// upstream function name. Names that were not flattened from a namespace
+// return an empty namespace and the name unchanged.
+func (s *ResponsesToolState) ResponsesToolName(upstreamName string) (string, string) {
+	if s == nil {
+		return "", upstreamName
+	}
+	namespace, ok := s.Namespaces[upstreamName]
+	if !ok {
+		return "", upstreamName
+	}
+	return namespace, strings.TrimPrefix(upstreamName, namespace+"__")
 }
 
 const (
@@ -79,9 +162,11 @@ type Values struct {
 	ChannelType          int
 	IsStream             bool
 	ReasoningEffort      string
+	ReasoningConversion  *dto.ReasoningConversionState
 	EstimatePromptTokens int
 
 	ClaudeConvertInfo *ClaudeConvertInfo
+	ResponsesTools    *ResponsesToolState
 	SendResponseCount int
 	ConversionChain   []types.RelayFormat
 
@@ -139,6 +224,13 @@ func (v *Values) SetReasoningEffort(effort string) {
 	}
 }
 
+func (v *Values) ReasoningState() *dto.ReasoningConversionState {
+	if v == nil {
+		return nil
+	}
+	return v.ReasoningConversion
+}
+
 func (v *Values) GetEstimatePromptTokens() int {
 	if v == nil {
 		return 0
@@ -154,6 +246,19 @@ func (v *Values) EnsureClaudeConvertInfo() *ClaudeConvertInfo {
 		v.ClaudeConvertInfo = &ClaudeConvertInfo{LastMessagesType: LastMessageTypeNone}
 	}
 	return v.ClaudeConvertInfo
+}
+
+func (v *Values) ResponsesToolState() *ResponsesToolState {
+	if v == nil {
+		return nil
+	}
+	return v.ResponsesTools
+}
+
+func (v *Values) SetResponsesToolState(state *ResponsesToolState) {
+	if v != nil {
+		v.ResponsesTools = state
+	}
 }
 
 func (v *Values) GetSendResponseCount() int {
@@ -212,4 +317,20 @@ func OptionsOf(m Meta) *Options {
 		return &Options{}
 	}
 	return m.ConvOptions()
+}
+
+// ResponsesToolStateOf is a nil-safe reader for Meta.ResponsesToolState.
+func ResponsesToolStateOf(m Meta) *ResponsesToolState {
+	if m == nil {
+		return nil
+	}
+	return m.ResponsesToolState()
+}
+
+// ReasoningStateOf is a nil-safe reader for Meta.ReasoningState.
+func ReasoningStateOf(m Meta) *dto.ReasoningConversionState {
+	if m == nil {
+		return nil
+	}
+	return m.ReasoningState()
 }

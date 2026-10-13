@@ -16,12 +16,75 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, test } from 'vitest'
+import { act, renderHook } from '@testing-library/react'
+import { toast } from 'sonner'
+import { afterEach, describe, expect, test, vi } from 'vitest'
 
-import type { RefreshOutcome } from '@/lib/api'
+import { api, type RefreshOutcome } from '@/lib/api'
 import type { AuthBundle } from '@/stores/auth-store'
 
 import { executeLogout } from './api'
+import { useOAuthLogin } from './hooks/use-oauth-login'
+import { consumeOAuthLoginRedirect } from './lib/oauth-callback-mode'
+
+afterEach(() => vi.restoreAllMocks())
+
+test.each([true, false])(
+  'starts Telegram OAuth only when configuration is ready: %s',
+  async (configured) => {
+    vi.spyOn(window, 'localStorage', 'get').mockReturnValue(
+      window.sessionStorage
+    )
+    const post = vi.spyOn(api, 'post').mockImplementation(async (url) => {
+      if (url === '/api/oauth/state') {
+        return {
+          data: {
+            success: true,
+            data: {
+              flow_token: 'telegram-state',
+              authorization_url: 'https://oauth.telegram.org/auth?server=pkce',
+            },
+          },
+        }
+      }
+      if (url === '/api/user/auth/logout') return { data: { success: true } }
+      throw new Error(`Unexpected POST ${url}`)
+    })
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    const error = vi.spyOn(toast, 'error')
+    const { result } = renderHook(() =>
+      useOAuthLogin(
+        { telegram_oauth: true, telegram_oauth_configured: configured },
+        '/console/personal'
+      )
+    )
+    await act(() => result.current.handleTelegramLogin())
+    if (configured) {
+      expect(post.mock.calls.map(([url]) => url)).toEqual([
+        '/api/oauth/state',
+        '/api/user/auth/logout',
+      ])
+      expect(post).toHaveBeenCalledWith(
+        '/api/oauth/state',
+        expect.objectContaining({ provider: 'telegram', intent: 'login' }),
+        expect.anything()
+      )
+      expect(open).toHaveBeenCalledWith(
+        'https://oauth.telegram.org/auth?server=pkce',
+        '_self'
+      )
+      expect(consumeOAuthLoginRedirect('telegram-state')).toBe(
+        '/console/personal'
+      )
+    } else {
+      expect(post).not.toHaveBeenCalled()
+      expect(open).not.toHaveBeenCalled()
+      expect(error).toHaveBeenCalledWith(
+        'Telegram OAuth is not configured or enabled. Please contact your administrator.'
+      )
+    }
+  }
+)
 
 const bundle: AuthBundle = {
   access_token: 'access-token',

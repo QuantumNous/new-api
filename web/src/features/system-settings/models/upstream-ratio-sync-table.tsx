@@ -16,308 +16,248 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Loader2, Search } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { Search } from 'lucide-react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
   DataTablePagination,
   DataTableView,
+  MobileCardList,
   useDataTable,
 } from '@/components/data-table'
+import { EmptyState } from '@/components/empty-state'
+import { LoadingState } from '@/components/loading-state'
 import { Input } from '@/components/ui/input'
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
 import { useDebounce } from '@/hooks/use-debounce'
+import { useMediaQuery } from '@/hooks/use-media-query'
 
-import type { DifferencesMap, RatioType } from '../types'
-import { RATIO_TYPE_OPTIONS } from './constants'
+import type { DifferencesMap, PricingSyncModels } from '../types'
+import { SyncSourceHeader } from './upstream-price-cells'
 import { useUpstreamRatioSyncColumns } from './upstream-ratio-sync-columns'
 import {
-  getAlignedRatioTypes,
-  getEffectiveResolutionSelections,
-  getOrderedRatioTypes,
-  getUpstreamDisplayName,
-  isSelectedResolutionValue,
-  isSelectableUpstreamValue,
-  RATIO_SYNC_FIELDS,
-  type ModelRow,
-  type ResolutionRemovalPlan,
-  type ResolutionSelection,
-  type ResolutionsMap,
+  getSyncPriceKind,
+  sameSyncPrice,
+  SyncPriceContext,
+  type PricingSourceSelection,
+  type PricingSourceSelections,
 } from './upstream-ratio-sync-helpers'
 
+export type PricingSyncRow = {
+  model: string
+  prices: PricingSyncModels[string]
+  differences: DifferencesMap[string]
+}
 type UpstreamRatioSyncTableProps = {
+  prices: PricingSyncModels
+  toolbar?: ReactNode
   differences: DifferencesMap
-  resolutions: ResolutionsMap
+  selectedSources: PricingSourceSelections
   isDisabled: boolean
   isSyncing: boolean
-  onSelectValue: (
-    model: string,
-    ratioType: RatioType,
-    value: number | string,
-    sourceName: string
-  ) => void
-  onSelectValues: (selections: ResolutionSelection[]) => void
-  onUnselectValue: (model: string, ratioType: RatioType) => void
-  onUnselectValues: (plan: ResolutionRemovalPlan) => void
+  onSelectPrices: (selections: PricingSourceSelection[]) => void
+  onUnselectPrices: (models: string[]) => void
 }
-
-export type UpstreamBulkSelectState = {
-  displayName: string
-  selections: ResolutionSelection[]
-  removalPlan: ResolutionRemovalPlan
-  selectableCount: number
-  selectedCount: number
-}
-
-export function UpstreamRatioSyncTable({
-  differences,
-  resolutions,
-  isDisabled,
-  isSyncing,
-  onSelectValue,
-  onSelectValues,
-  onUnselectValue,
-  onUnselectValues,
-}: UpstreamRatioSyncTableProps) {
+export function UpstreamRatioSyncTable(props: UpstreamRatioSyncTableProps) {
   const { t } = useTranslation()
+  const isMobile = useMediaQuery('(max-width: 640px)')
   const [search, setSearch] = useState('')
+  const [kind, setKind] = useState('__all__')
   const debouncedSearch = useDebounce(search, 250)
-  const [ratioTypeFilter, setRatioTypeFilter] = useState<string>('')
-
-  const dataSource = useMemo<ModelRow[]>(() => {
-    return Object.entries(differences).map(([model, ratioTypes]) => {
-      const hasPrice = 'model_price' in ratioTypes
-      const hasOtherRatio = RATIO_SYNC_FIELDS.some((rt) => rt in ratioTypes)
-      return {
-        key: model,
-        model,
-        ratioTypes,
-        billingConflict: hasPrice && hasOtherRatio,
-      }
-    })
-  }, [differences])
-
-  const filteredData = useMemo(() => {
-    let data = dataSource
-
-    if (debouncedSearch.trim()) {
-      const lower = debouncedSearch.toLowerCase()
-      data = data.filter((row) => row.model.toLowerCase().includes(lower))
-    }
-
-    if (ratioTypeFilter && ratioTypeFilter !== '__all__') {
-      data = data.filter((row) => ratioTypeFilter in row.ratioTypes)
-    }
-
-    return data
-  }, [dataSource, debouncedSearch, ratioTypeFilter])
-
-  const upstreamNames = useMemo(() => {
-    const set = new Set<string>()
-    filteredData.forEach((row) => {
-      getOrderedRatioTypes(row.ratioTypes, ratioTypeFilter).forEach(
-        (ratioType) => {
-          Object.keys(row.ratioTypes[ratioType]?.upstreams || {}).forEach(
-            (name) => set.add(name)
+  const rows = useMemo(
+    () =>
+      Object.entries(props.prices)
+        .filter(([, values]) =>
+          Object.values(values.upstreams).some(
+            (candidate) => !sameSyncPrice(values.current, candidate)
           )
-        }
-      )
-    })
-    return [...set]
-  }, [filteredData, ratioTypeFilter])
-
-  const bulkSelectStateByUpstream = useMemo<
-    Record<string, UpstreamBulkSelectState>
-  >(() => {
-    return upstreamNames.reduce<Record<string, UpstreamBulkSelectState>>(
-      (states, upstreamName) => {
-        const selections: ResolutionSelection[] = []
-        const removalPlan: ResolutionRemovalPlan = new Map()
-
-        filteredData.forEach((row) => {
-          getAlignedRatioTypes(
-            row.ratioTypes,
-            [upstreamName],
-            ratioTypeFilter
-          ).forEach((ratioType) => {
-            const upstreamVal =
-              row.ratioTypes[ratioType]?.upstreams?.[upstreamName]
-            if (isSelectableUpstreamValue(upstreamVal)) {
-              selections.push({
-                model: row.model,
-                ratioType,
-                value: upstreamVal as number | string,
-                sourceName: upstreamName,
-              })
-              const removalRatioTypes = removalPlan.get(row.model)
-              if (removalRatioTypes) {
-                removalRatioTypes.add(ratioType)
-              } else {
-                removalPlan.set(row.model, new Set([ratioType]))
-              }
-            }
-          })
-        })
-
-        const effectiveSelections = getEffectiveResolutionSelections(
-          differences,
-          selections
         )
-        const selectedCount = effectiveSelections.filter((selection) =>
-          isSelectedResolutionValue(
-            resolutions,
-            selection.model,
-            selection.ratioType,
-            selection.value
-          )
-        ).length
-
-        states[upstreamName] = {
-          displayName: getUpstreamDisplayName(upstreamName),
-          selections: effectiveSelections,
-          removalPlan,
-          selectableCount: effectiveSelections.length,
-          selectedCount,
-        }
-        return states
-      },
-      {}
-    )
-  }, [differences, filteredData, ratioTypeFilter, resolutions, upstreamNames])
-
-  const handleBulkSelect = useCallback(
-    (upstream: string) => {
-      const selections = bulkSelectStateByUpstream[upstream]?.selections ?? []
-      onSelectValues(selections)
-    },
-    [bulkSelectStateByUpstream, onSelectValues]
+        .map(([model, prices]) => ({
+          model,
+          prices,
+          differences: props.differences[model],
+        }))
+        .sort((a, b) => a.model.localeCompare(b.model)),
+    [props.prices, props.differences]
   )
-
-  const handleBulkUnselect = useCallback(
-    (upstream: string) => {
-      const removalPlan =
-        bulkSelectStateByUpstream[upstream]?.removalPlan ?? new Map()
-      onUnselectValues(removalPlan)
-    },
-    [bulkSelectStateByUpstream, onUnselectValues]
+  const filteredRows = useMemo(
+    () =>
+      rows.filter(
+        (row) =>
+          row.model
+            .toLowerCase()
+            .includes(debouncedSearch.trim().toLowerCase()) &&
+          (kind === '__all__' ||
+            Object.values(row.prices.upstreams).some(
+              (price) => getSyncPriceKind(price) === kind
+            ))
+      ),
+    [rows, debouncedSearch, kind]
   )
-
-  const columns = useUpstreamRatioSyncColumns(
-    upstreamNames,
-    bulkSelectStateByUpstream,
-    resolutions,
-    ratioTypeFilter,
-    isDisabled,
-    onSelectValue,
-    onUnselectValue,
-    handleBulkSelect,
-    handleBulkUnselect
+  const sourceNames = useMemo(
+    () =>
+      [
+        ...new Set(rows.flatMap((row) => Object.keys(row.prices.upstreams))),
+      ].sort(),
+    [rows]
   )
-
+  const bulkStates = useMemo(
+    () =>
+      Object.fromEntries(
+        sourceNames.map((source) => {
+          const selections = filteredRows
+            .filter(
+              (row) =>
+                row.prices.upstreams[source] &&
+                !sameSyncPrice(row.prices.current, row.prices.upstreams[source])
+            )
+            .map((row) => ({ model: row.model, source }))
+          return [
+            source,
+            {
+              selections,
+              selectedModels: selections
+                .filter(
+                  (selection) =>
+                    props.selectedSources[selection.model] === source
+                )
+                .map((selection) => selection.model),
+            },
+          ]
+        })
+      ),
+    [filteredRows, sourceNames, props.selectedSources]
+  )
+  const columns = useUpstreamRatioSyncColumns(sourceNames, isMobile)
   const { table } = useDataTable({
-    data: filteredData,
+    data: filteredRows,
     columns,
-    getRowId: (row) => row.key,
+    getRowId: (row) => row.model,
     initialPagination: { pageIndex: 0, pageSize: 10 },
     withFilteredRowModel: false,
-    withSortedRowModel: false,
+    withSortedRowModel: true,
     withFacetedRowModel: false,
   })
-
-  if (dataSource.length === 0) {
-    if (isSyncing) {
-      return (
-        <div className='flex h-64 flex-col items-center justify-center gap-3 rounded-md border'>
-          <Loader2 className='text-muted-foreground h-8 w-8 animate-spin' />
-          <p className='text-muted-foreground text-sm'>
-            {t('Fetching upstream prices...')}
-          </p>
-        </div>
-      )
-    }
-
-    return (
-      <div className='flex h-64 items-center justify-center rounded-md border'>
-        <div className='text-center'>
-          <p className='text-muted-foreground text-sm'>
-            {t('No upstream price differences found')}
-          </p>
-          <p className='text-muted-foreground mt-1 text-xs'>
-            {t('Select sync channels to compare prices')}
-          </p>
-        </div>
-      </div>
+  const types = [
+    { value: '__all__', label: t('All Types') },
+    { value: 'expression', label: t('Expression pricing') },
+    { value: 'token', label: t('Per-token') },
+    { value: 'request', label: t('Per-request') },
+  ]
+  let content: ReactNode
+  if (props.isSyncing) {
+    content = <LoadingState message={t('Fetching upstream prices...')} />
+  } else if (rows.length === 0) {
+    content = (
+      <EmptyState
+        title={t('No upstream price differences found')}
+        bordered
+        className='min-h-48 flex-1'
+      />
     )
-  }
-
-  return (
-    <div className='flex h-full min-h-[520px] flex-col gap-4'>
-      <div className='flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center'>
-        <div className='relative flex-1'>
-          <Search className='text-muted-foreground absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2' />
-          <Input
-            placeholder={t('Search model name...')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            disabled={isDisabled}
-            className='ps-8'
-          />
+  } else if (isMobile) {
+    content = (
+      <>
+        <div className='shrink-0 space-y-2 rounded-md border px-3 py-2'>
+          {sourceNames.map((source) => (
+            <SyncSourceHeader key={source} source={source} />
+          ))}
         </div>
-        <Select
-          items={[
-            { value: '__all__', label: t('All Types') },
-            ...RATIO_TYPE_OPTIONS.map((option) => ({
-              value: option.value,
-              label: t(option.label),
-            })),
-          ]}
-          value={ratioTypeFilter}
-          onValueChange={(v) => v !== null && setRatioTypeFilter(v)}
-          disabled={isDisabled}
-        >
-          <SelectTrigger className='w-full sm:w-56'>
-            <SelectValue placeholder={t('Filter by price field')} />
-          </SelectTrigger>
-          <SelectContent alignItemWithTrigger={false}>
-            <SelectGroup>
-              <SelectItem value='__all__'>{t('All Types')}</SelectItem>
-              {RATIO_TYPE_OPTIONS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {t(option.label)}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
-      </div>
-
+        <div className='min-h-0 flex-1 overflow-y-auto'>
+          <MobileCardList table={table} emptyTitle={t('No results found')} />
+        </div>
+      </>
+    )
+  } else {
+    content = (
       <DataTableView
         table={table}
         containerClassName='min-h-0 flex-1 rounded-md'
         tableContainerClassName='h-full min-h-0'
         tableHeaderClassName='[background-color:var(--table-header)]'
+          tableBodyClassName='[&>tr]:h-14'
         splitHeaderScrollClassName='h-full'
         bodyContainerClassName='[scrollbar-gutter:stable]'
         splitHeader
         getColumnClassName={(_, part) =>
-          part === 'header' ? 'h-11 align-middle' : 'align-top'
+          part === 'header'
+            ? 'h-11 px-3 align-middle'
+            : 'h-14 px-3 py-2 align-middle'
         }
-        getRowClassName={() => 'align-top'}
+        getRowClassName={() => 'align-middle'}
         emptyContent={t('No results found')}
         emptyCellClassName='h-24 text-center'
       />
-
-      <div className='shrink-0'>
-        <DataTablePagination table={table} />
+    )
+  }
+  return (
+    <SyncPriceContext.Provider
+      value={{
+        bulkStates,
+        selectedSources: props.selectedSources,
+        isDisabled: props.isDisabled,
+        onSelectPrices: props.onSelectPrices,
+        onUnselectPrices: props.onUnselectPrices,
+      }}
+    >
+      <div className='flex h-full min-h-0 flex-col gap-3'>
+        <div className='flex shrink-0 flex-wrap items-center gap-2'>
+          {props.toolbar}
+          <div className='relative min-w-40 flex-1 sm:max-w-72'>
+            <Search
+              className='text-muted-foreground absolute top-1/2 left-2 size-4 -translate-y-1/2'
+              aria-hidden
+            />
+            <Input
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value)
+                table.setPageIndex(0)
+              }}
+              placeholder={t('Search model name...')}
+              aria-label={t('Search models')}
+              className='ps-8'
+              disabled={props.isDisabled}
+            />
+          </div>
+          <Select
+            value={kind}
+            items={types}
+            onValueChange={(value) => {
+              if (value) {
+                setKind(value)
+                table.setPageIndex(0)
+              }
+            }}
+            disabled={props.isDisabled}
+          >
+            <SelectTrigger className='w-36' aria-label={t('Billing Mode')}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent alignItemWithTrigger={false}>
+              {types.map((type) => (
+                <SelectItem value={type.value} key={type.value}>
+                  {type.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <span className='text-muted-foreground text-xs sm:ml-auto'>
+            USD / {t('1M token')}
+          </span>
+        </div>
+        {content}
+        <div className='shrink-0'>
+          <DataTablePagination table={table} />
+        </div>
       </div>
-    </div>
+    </SyncPriceContext.Provider>
   )
 }
