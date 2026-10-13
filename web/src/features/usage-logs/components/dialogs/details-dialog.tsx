@@ -93,6 +93,7 @@ import {
 import { USAGE_BILLING_PATH, type LogOtherData } from '../../types'
 import { ResponseModelDetails } from '../model-badge'
 import { PluginAuthorLink } from '../plugin-author-link'
+import { TaskLogReference } from '../task-log-reference'
 import { DetailRow, DetailSection } from './log-detail-layout'
 
 // Maps a channel-update changed-field token (as recorded by the backend audit)
@@ -664,6 +665,12 @@ export function DetailsDialog(props: DetailsDialogProps) {
               mono
             />
           )}
+          {other?.task_id && (
+            <DetailRow
+              label={t('Task ID')}
+              value={<TaskLogReference taskId={other.task_id} />}
+            />
+          )}
           {props.log.upstream_request_id && (
             <DetailRow
               label={t('Upstream Request ID')}
@@ -883,11 +890,8 @@ export function DetailsDialog(props: DetailsDialogProps) {
         )}
 
         {/* Refund details (type=6) */}
-        {isRefund && other && (other.task_id || other.reason) && (
+        {isRefund && other?.reason && (
           <DetailSection label={t('Refund Details')}>
-            {other.task_id && (
-              <DetailRow label={t('Task ID')} value={other.task_id} mono />
-            )}
             {other.reason && (
               <DetailRow
                 label={t('Reason')}
