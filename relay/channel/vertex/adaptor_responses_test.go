@@ -79,6 +79,44 @@ func TestVertexResponsesAdaptorReturnsOpenAIResponsesJSON(t *testing.T) {
 	assert.NotContains(t, got, "\"choices\"")
 }
 
+func TestVertexResponsesRequestConvertsInputImageToGeminiInlineData(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+	request := dto.OpenAIResponsesRequest{
+		Model: "gemini-test",
+		Input: json.RawMessage(`[{"role":"user","content":[{"type":"input_image","image_url":"data:image/png;base64,` + imageData + `"}]}]`),
+	}
+	got, err := (&Adaptor{RequestMode: RequestModeGemini}).ConvertOpenAIResponsesRequest(c, newVertexResponsesRelayInfo(false), request)
+	require.NoError(t, err)
+
+	geminiRequest, ok := got.(*dto.GeminiChatRequest)
+	require.True(t, ok)
+	require.Len(t, geminiRequest.Contents, 1)
+	require.Len(t, geminiRequest.Contents[0].Parts, 1)
+	inlineData := geminiRequest.Contents[0].Parts[0].InlineData
+	require.NotNil(t, inlineData)
+	assert.Equal(t, "image/png", inlineData.MimeType)
+	assert.Equal(t, imageData, inlineData.Data)
+}
+
+func TestVertexResponsesRequestRejectsUnresolvedImageFileID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	request := dto.OpenAIResponsesRequest{
+		Model: "gemini-test",
+		Input: json.RawMessage(`[{"role":"user","content":[{"type":"input_image","file_id":"file-123"}]}]`),
+	}
+	_, err := (&Adaptor{RequestMode: RequestModeGemini}).ConvertOpenAIResponsesRequest(c, newVertexResponsesRelayInfo(false), request)
+	require.ErrorContains(t, err, "input_image requires image_url")
+}
+
 func newVertexResponsesRelayInfo(isStream bool) *relaycommon.RelayInfo {
 	return &relaycommon.RelayInfo{
 		IsStream:       isStream,
