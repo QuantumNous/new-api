@@ -63,20 +63,6 @@ const realtimeRankingWindowSeconds = 300
 // widgets on the dashboard so every current-traffic panel updates in step.
 const realtimeRefetchIntervalMs = 10_000
 
-// formatChargeUSD renders a billing-path-reported USD micros total as a
-// dollar string. This is not quota/quotaPerUnit — that internal unit bakes in
-// a CNY exchange rate that can drift over a range, so this value is the
-// billing path's own settlement, summed as-is.
-function formatChargeUSD(micros: number): string {
-  return `$${(micros / 1_000_000).toFixed(4)}`
-}
-
-// formatChargeCNY renders a backend-computed CNY micros total (already
-// converted at the backend's fixed display rate) as a yuan string.
-function formatChargeCNY(micros: number): string {
-  return `¥${(micros / 1_000_000).toFixed(4)}`
-}
-
 // Per-key spend table plus a realtime "who is spending right now" ranking.
 // The backend aggregates quota per (token_id, user_id) for the historical
 // total, and splits the in-memory realtime rings per key for the live
@@ -147,31 +133,6 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
   // not "fully discounted away".
   const totalRawQuota = useMemo(
     () => spendRows.reduce((sum, row) => sum + (row.raw_quota || 0), 0),
-    [spendRows]
-  )
-  // Sum of every row's own real USD/CNY settlement — the backend already
-  // computed charge_cny_micros from charge_usd_micros at its display rate, so
-  // this is just a sum, not a re-derivation.
-  const totalChargeUSDMicros = useMemo(
-    () => spendRows.reduce((sum, row) => sum + (row.charge_usd_micros || 0), 0),
-    [spendRows]
-  )
-  const totalChargeCNYMicros = useMemo(
-    () => spendRows.reduce((sum, row) => sum + (row.charge_cny_micros || 0), 0),
-    [spendRows]
-  )
-  const hasAnyChargeUSD = useMemo(
-    () => spendRows.some((row) => row.charge_usd_micros > 0),
-    [spendRows]
-  )
-  // Before-discount USD/CNY: sums of the backend-computed per-row figures,
-  // which are already scaled from the paid charge by raw_quota/quota.
-  const totalRawChargeUSDMicros = useMemo(
-    () => spendRows.reduce((sum, row) => sum + (row.raw_charge_usd_micros || 0), 0),
-    [spendRows]
-  )
-  const totalRawChargeCNYMicros = useMemo(
-    () => spendRows.reduce((sum, row) => sum + (row.raw_charge_cny_micros || 0), 0),
     [spendRows]
   )
   // Only show the "before discount" column/total when at least one row
@@ -291,12 +252,6 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
                 <span className='text-foreground font-medium line-through decoration-muted-foreground/50'>
                   {formatQuota(totalRawQuota)}
                 </span>
-                {totalRawChargeUSDMicros > 0 && (
-                  <span className='text-muted-foreground ml-1 text-xs line-through decoration-muted-foreground/50'>
-                    ({formatChargeUSD(totalRawChargeUSDMicros)} /{' '}
-                    {formatChargeCNY(totalRawChargeCNYMicros)})
-                  </span>
-                )}
               </span>
             )}
             <span>
@@ -304,12 +259,6 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
               <span className='text-foreground text-base font-bold'>
                 {formatQuota(totalQuota)}
               </span>
-              {hasAnyChargeUSD && (
-                <span className='text-muted-foreground ml-1 text-xs'>
-                  (≈ {formatChargeUSD(totalChargeUSDMicros)} /{' '}
-                  {formatChargeCNY(totalChargeCNYMicros)})
-                </span>
-              )}
             </span>
           </div>
         </div>
@@ -379,29 +328,11 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
                   </TableCell>
                   {hasAnyRawQuota && (
                     <TableCell className='text-muted-foreground text-right whitespace-nowrap tabular-nums'>
-                      {row.raw_quota > 0 ? (
-                        <>
-                          {formatQuota(row.raw_quota)}
-                          {row.raw_charge_usd_micros > 0 && (
-                            <div className='text-xs'>
-                              {formatChargeUSD(row.raw_charge_usd_micros)} /{' '}
-                              {formatChargeCNY(row.raw_charge_cny_micros)}
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        '--'
-                      )}
+                      {row.raw_quota > 0 ? formatQuota(row.raw_quota) : '--'}
                     </TableCell>
                   )}
                   <TableCell className='pr-3 text-right font-semibold whitespace-nowrap tabular-nums sm:pr-5'>
                     {formatQuota(row.quota)}
-                    {row.charge_usd_micros > 0 && (
-                      <div className='text-muted-foreground text-xs font-normal'>
-                        {formatChargeUSD(row.charge_usd_micros)} /{' '}
-                        {formatChargeCNY(row.charge_cny_micros)}
-                      </div>
-                    )}
                   </TableCell>
                 </TableRow>
               ))}
