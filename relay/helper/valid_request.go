@@ -41,6 +41,13 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request, err = GetAndValidateResponsesCompactionRequest(c)
 	case types.RelayFormatOpenAIAlphaSearch:
 		request, err = GetAndValidateAlphaSearchRequest(c)
+	case types.RelayFormatOpenAIDecisions:
+		decisions := &dto.OpenAIDecisionsRequest{}
+		err = common.UnmarshalBodyReusable(c, decisions)
+		if err == nil {
+			err = decisions.Validate()
+		}
+		request = decisions
 
 	case types.RelayFormatOpenAIImage:
 		request, err = GetAndValidOpenAIImageRequest(c, relayMode)

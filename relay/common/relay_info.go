@@ -722,6 +722,14 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 			return GenRelayInfoAlphaSearch(c, request), nil
 		}
 		return nil, errors.New("request is not a AlphaSearchRequest")
+	case types.RelayFormatOpenAIDecisions:
+		if request, ok := request.(*dto.OpenAIDecisionsRequest); ok {
+			info = genBaseRelayInfo(c, request)
+			info.RelayMode = relayconstant.RelayModeDecisions
+			info.RelayFormat = types.RelayFormatOpenAIDecisions
+			break
+		}
+		err = errors.New("request is not an OpenAIDecisionsRequest")
 	case types.RelayFormatTask:
 		info = genBaseRelayInfo(c, nil)
 		info.TaskRelayInfo = &TaskRelayInfo{}

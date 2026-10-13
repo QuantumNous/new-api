@@ -3,6 +3,11 @@ package billing_setting
 // Built-in token prices use actual USD per million tokens. Keep new model
 // defaults here instead of splitting them across the legacy ratio tables.
 var builtinBillingExpr = map[string]string{
+	// https://developers.openai.com/api/docs/guides/decisions (2026-10-14).
+	// Cache reads, cache writes, and output are free. len includes all input
+	// categories for the model's long-context threshold. Regional premiums
+	// can be configured through an administrator expression override.
+	"gpt-6-luna-decisions": `len <= 272000 ? tier("standard", p * 0.1 + cr * 0 + cc * 0) : tier("long_context", p * 0.2 + cr * 0 + cc * 0)`,
 	// https://developers.openai.com/api/docs/pricing (Standard, 2026-09-09).
 	// The Images API reports image output in output_tokens, normalized to c.
 	"gpt-image-2":            `tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 2 + c * 30)`,
