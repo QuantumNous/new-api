@@ -6581,6 +6581,8 @@
     "Keys appear here once they serve a request in the last 5 minutes": "密钥在最近5分钟内有请求后即在此展示",
     "No key spend in this range": "该时间段内没有密钥消耗",
     "Key spend appears once keys consume quota in the selected range": "所选时间范围内有密钥消耗后即在此展示",
+    "partial data": "数据不全",
+    "Some rows in this range were recorded before this column existed, so this total undercounts the true before-discount amount — it can look smaller than the spend total even though it never actually is": "该时间段内部分记录是在“打折前”这一列功能上线前写入的，这里的小计因此低估了真实的打折前金额——可能看起来比花费小，但实际打折前金额不会小于花费",
     "All models": "全部模型",
     "Partial breakdown": "明细不完整",
     "Too many key and model combinations are active to break them all down. Totals remain complete.": "活跃的密钥与模型组合过多，无法全部细分展示；总计数据仍然完整。",
