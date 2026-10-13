@@ -175,3 +175,28 @@ func TestFillTokenUsageMoneyFields(t *testing.T) {
 	require.Equal(t, int64(0), rows[2].RawChargeUSDMicros)
 	require.Equal(t, int64(0), rows[2].RawChargeCNYMicros)
 }
+
+func TestTokenUsageRankingAlignsToHourlyBuckets(t *testing.T) {
+	// quota_data.created_at is always floor(ts/3600)*3600, but a rolling window
+	// such as "now-3600" can start mid-hour (e.g., 09:04 when current time is
+	// 10:04). Without hour-boundary alignment, the 09:00 bucket (which holds the
+	// entire 09:00-10:00 hour's data) would be excluded since 09:00 < 09:04. This
+	// test seeds one row at the hour start and verifies that a startTime 4 seconds
+	// into the hour still captures it.
+	now := time.Now().Unix()
+	hourStart := now - (now % 3600)
+	truncateTables(t)
+	require.NoError(t, DB.Create(&Token{Id: 20, UserId: 1, Key: "sk-hour", Name: "hour-key", Status: 1}).Error)
+	require.NoError(t, DB.Create(&QuotaData{
+		UserID: 1, Username: "alice", TokenID: 20, UseGroup: "default", ModelName: "gpt-x",
+		ChannelID: 1, CreatedAt: hourStart, Count: 1, Quota: 1000, TokenUsed: 100,
+	}).Error)
+
+	// Rolling window starting 4 seconds into the hour — before the fix, the hourStart
+	// bucket would be excluded since hourStart < hourStart+4.
+	rows, err := GetTokenUsageRanking(hourStart+4, now, 0, "", "", "", 0)
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "hourly bucket at hour start must be included when rolling window starts mid-hour")
+	require.Equal(t, 20, rows[0].TokenID)
+	require.Equal(t, int64(1000), rows[0].Quota)
+}

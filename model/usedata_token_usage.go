@@ -71,6 +71,11 @@ func GetTokenUsageRanking(startTime int64, endTime int64, userId int, username s
 	if limit <= 0 || limit > tokenUsageMaxRows {
 		limit = tokenUsageMaxRows
 	}
+	// quota_data.created_at is always floor(ts/3600)*3600 (the hour-bucket start).
+	// A rolling window such as "now-3600" starts mid-hour and would exclude that
+	// hour's completed bucket entirely. Floor startTime to the same boundary so
+	// the bucket containing startTime is always included.
+	startTime = startTime - (startTime % 3600)
 	tx := DB.Table("quota_data").
 		Select("token_id, user_id, max(username) as username, sum(count) as count, sum(quota) as quota, sum(raw_quota) as raw_quota, sum(charge_usd_micros) as charge_usd_micros, sum(token_used) as token_used, sum(cache_read_tokens) as cache_read_tokens, sum(input_tokens_total) as input_tokens_total, max(created_at) as last_used").
 		Where("token_id > 0 AND created_at >= ? AND created_at <= ?", startTime, endTime)
