@@ -235,11 +235,31 @@ func (o *SubscriptionOrder) Insert() error {
 	if o.CreateTime == 0 {
 		o.CreateTime = common.GetTimestamp()
 	}
-	return DB.Create(o).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockSubscriptionBuyer(tx, o.UserId); err != nil {
+			return err
+		}
+		plan, err := getSubscriptionPlanByIdTx(tx, o.PlanId)
+		if err != nil {
+			return err
+		}
+		if err := checkSubscriptionEligibilityTx(tx, o.UserId, plan); err != nil {
+			return err
+		}
+		if err := checkSubscriptionReservationTx(tx, o.UserId, plan); err != nil {
+			return err
+		}
+		payload, err := common.Marshal(plan)
+		if err != nil {
+			return err
+		}
+		o.ProviderPayload = string(payload)
+		return tx.Create(o).Error
+	})
 }
 
 func (o *SubscriptionOrder) Update() error {
-	return DB.Save(o).Error
+	return DB.Model(&SubscriptionOrder{}).Where("id = ? AND status = ?", o.Id, common.TopUpStatusPending).Update("status", o.Status).Error
 }
 
 func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {
@@ -432,7 +452,7 @@ func CountUserSubscriptionsByPlan(userId int, planId int) (int64, error) {
 // the level identifier; plans without one fall back to their own plan ID so
 // unrelated plans without group upgrades do not block each other. Payment entry
 // points use this for early rejection; balance and admin creation also enforce
-// the limit transactionally. Provider-confirmed orders are always settled.
+// the limit transactionally. Conflicting paid orders require manual review.
 func HasActiveUserSubscriptionByPlan(userId int, planId int) (bool, error) {
 	if userId <= 0 || planId <= 0 {
 		return false, errors.New("invalid userId or planId")
@@ -464,11 +484,11 @@ func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
 	if tx == nil {
 		tx = DB
 	}
-	var group string
-	if err := lockForUpdate(tx).Model(&User{}).Where("id = ?", userId).Select(commonGroupCol).Find(&group).Error; err != nil {
+	var user User
+	if err := lockForUpdate(tx).Select("group").Where("id = ?", userId).Take(&user).Error; err != nil {
 		return "", err
 	}
-	return group, nil
+	return user.Group, nil
 }
 
 func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now int64) (string, error) {
@@ -516,10 +536,28 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 }
 
 func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
-	return createUserSubscriptionFromPlanTx(tx, userId, plan, source, true)
+	var sub *UserSubscription
+	if tx == nil {
+		return nil, errors.New("tx is nil")
+	}
+	err := tx.Transaction(func(tx *gorm.DB) error {
+		if err := lockSubscriptionBuyer(tx, userId); err != nil {
+			return err
+		}
+		if plan == nil || plan.Id <= 0 {
+			return errors.New("invalid plan")
+		}
+		if err := checkSubscriptionReservationTx(tx, userId, plan); err != nil {
+			return err
+		}
+		var err error
+		sub, err = createUserSubscriptionFromPlanTx(tx, userId, plan, source)
+		return err
+	})
+	return sub, err
 }
 
-func createUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string, enforceActiveLimit bool) (*UserSubscription, error) {
+func createUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}
@@ -531,32 +569,8 @@ func createUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	}
 	nowUnix := getDBTimestamp(tx)
 	upgradeGroup := strings.TrimSpace(plan.UpgradeGroup)
-	if enforceActiveLimit {
-		var activeCount int64
-		activeQuery := tx.Model(&UserSubscription{}).
-			Where("user_id = ? AND status = ? AND end_time > ?", userId, "active", nowUnix)
-		if upgradeGroup == "" {
-			activeQuery = activeQuery.Where("plan_id = ?", plan.Id)
-		} else {
-			activeQuery = activeQuery.Where("plan_id = ? OR upgrade_group = ?", plan.Id, upgradeGroup)
-		}
-		if err := activeQuery.Count(&activeCount).Error; err != nil {
-			return nil, err
-		}
-		if activeCount > 0 {
-			return nil, ErrActiveSubscriptionExists
-		}
-	}
-	if plan.MaxPurchasePerUser > 0 {
-		var count int64
-		if err := tx.Model(&UserSubscription{}).
-			Where("user_id = ? AND plan_id = ?", userId, plan.Id).
-			Count(&count).Error; err != nil {
-			return nil, err
-		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			return nil, errors.New("已达到该套餐购买上限")
-		}
+	if err := checkSubscriptionEligibilityTx(tx, userId, plan); err != nil {
+		return nil, err
 	}
 	now := time.Unix(nowUnix, 0)
 	endUnix, err := calcPlanEndTime(now, plan)
@@ -628,12 +642,20 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	if common.UsingMainDatabase(common.DatabaseTypePostgreSQL) {
 		refCol = `"trade_no"`
 	}
+	var reviewUserID int
 	var logUserId int
 	var logPlanTitle string
 	var logMoney float64
 	var logPaymentMethod string
 	var upgradeGroup string
+	var owner SubscriptionOrder
+	if err := DB.Select("user_id").Where("trade_no = ?", tradeNo).Take(&owner).Error; err != nil {
+		return ErrSubscriptionOrderNotFound
+	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockSubscriptionBuyer(tx, owner.UserId); err != nil {
+			return err
+		}
 		var order SubscriptionOrder
 		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
 			return ErrSubscriptionOrderNotFound
@@ -641,29 +663,39 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
 			return ErrPaymentMethodMismatch
 		}
-		if order.Status == common.TopUpStatusSuccess {
+		if order.Status == common.TopUpStatusSuccess || order.Status == SubscriptionOrderPaidReview {
 			return nil
 		}
 		if order.Status != common.TopUpStatusPending {
 			return ErrSubscriptionOrderStatusInvalid
 		}
-		plan, err := getSubscriptionPlanByIdTx(tx, order.PlanId)
-		if err != nil {
-			return err
+		var snapshot SubscriptionPlan
+		plan := &snapshot
+		if order.ProviderPayload == "" || common.UnmarshalJsonStr(order.ProviderPayload, plan) != nil || plan.Id != order.PlanId {
+			var err error
+			plan, err = getSubscriptionPlanByIdTx(tx, order.PlanId)
+			if err != nil {
+				return err
+			}
 		}
-		if !plan.Enabled {
-			// still allow completion for already purchased orders
+		if err := checkSubscriptionEligibilityTx(tx, order.UserId, plan); err != nil {
+			if !errors.Is(err, ErrActiveSubscriptionExists) && !errors.Is(err, ErrSubscriptionPurchaseLimit) {
+				return err
+			}
+			order.Status = SubscriptionOrderPaidReview
+			if actualPaymentMethod != "" {
+				order.PaymentMethod = actualPaymentMethod
+			}
+			if providerPayload != "" {
+				order.ProviderPayload = providerPayload
+			}
+			if err := tx.Save(&order).Error; err != nil {
+				return err
+			}
+			reviewUserID = order.UserId
+			return nil
 		}
-		// 锁定用户行：并发完成同一用户的不同订单（包括多实例部署下）时，
-		// 使 CreateUserSubscriptionFromPlanTx 的 MaxPurchasePerUser 检查按用户串行。
-		var userRow User
-		if err := lockForUpdate(tx).Select("id").Where("id = ?", order.UserId).First(&userRow).Error; err != nil {
-			return err
-		}
-		// The purchase endpoints reject an already-active subscription before
-		// checkout. Once the provider confirms payment, settlement must not fail
-		// merely because another subscription became active in the meantime.
-		subscription, err := createUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order", false)
+		subscription, err := createUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
 		if err != nil {
 			return err
 		}
@@ -692,6 +724,9 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	})
 	if err != nil {
 		return err
+	}
+	if reviewUserID > 0 {
+		RecordLog(reviewUserID, LogTypeSystem, fmt.Sprintf("订阅订单已付款，因购买限制冲突待人工处理，未发放权益，订单: %s", tradeNo))
 	}
 	if upgradeGroup != "" && logUserId > 0 {
 		refreshSubscriptionUserGroupCache(logUserId, "subscription payment completion")
@@ -781,6 +816,9 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 	}
 	groupChanged := false
 	err = DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockSubscriptionBuyer(tx, userId); err != nil {
+			return err
+		}
 		// 与 CompleteSubscriptionOrder 一致：先锁用户行，再做购买次数检查。
 		var userRow User
 		if err := lockForUpdate(tx).Select("id").Where("id = ?", userId).First(&userRow).Error; err != nil {
@@ -847,6 +885,9 @@ func PurchaseSubscriptionWithBalance(userId int, planId int) error {
 	var chargedQuota int
 	var upgradeGroup string
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockSubscriptionBuyer(tx, userId); err != nil {
+			return err
+		}
 		plan, err := getSubscriptionPlanByIdTx(tx, planId)
 		if err != nil {
 			return err

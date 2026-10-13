@@ -177,7 +177,7 @@ func TestCompleteSubscriptionOrderCopiesPaymentProviderToBillingHistory(t *testi
 	assert.Equal(t, common.TopUpStatusSuccess, topUp.Status)
 }
 
-func TestCompleteSubscriptionOrderSettlesWhenSameLevelBecameActiveAfterCheckout(t *testing.T) {
+func TestCompleteSubscriptionOrderHoldsPaymentWhenSameLevelBecameActiveAfterCheckout(t *testing.T) {
 	truncateTables(t)
 
 	insertUserForPaymentGuardTest(t, 204, 0)
@@ -186,22 +186,25 @@ func TestCompleteSubscriptionOrderSettlesWhenSameLevelBecameActiveAfterCheckout(
 	require.NoError(t, DB.Save(plan).Error)
 	_, err := CreateUserSubscriptionFromPlanTx(DB, 204, plan, "existing")
 	require.NoError(t, err)
-	insertSubscriptionOrderForPaymentGuardTest(t, "sub-paid-active-race", 204, plan.Id, PaymentProviderStripe)
+	// Legacy checkout issued before the competing subscription became active.
+	require.NoError(t, DB.Create(&SubscriptionOrder{UserId: 204, PlanId: plan.Id, TradeNo: "sub-paid-active-race", PaymentProvider: PaymentProviderStripe, Status: common.TopUpStatusPending, Money: 9.99}).Error)
 
 	err = CompleteSubscriptionOrder("sub-paid-active-race", `{"provider":"stripe"}`, PaymentProviderStripe, "")
 	require.NoError(t, err)
 
 	order := GetSubscriptionOrderByTradeNo("sub-paid-active-race")
 	require.NotNil(t, order)
-	assert.Equal(t, common.TopUpStatusSuccess, order.Status)
-	assert.EqualValues(t, 2, countUserSubscriptionsForPaymentGuardTest(t, 204))
+	assert.Equal(t, SubscriptionOrderPaidReview, order.Status)
+	assert.EqualValues(t, 1, countUserSubscriptionsForPaymentGuardTest(t, 204))
 
 	topUp := GetTopUpByTradeNo("sub-paid-active-race")
-	require.NotNil(t, topUp)
-	assert.Equal(t, common.TopUpStatusSuccess, topUp.Status)
+	require.Nil(t, topUp)
+	assert.Zero(t, order.CompleteTime)
+	require.NoError(t, RecordPaymentReceipt(order.TradeNo, PaymentProviderStripe, "held-transaction", "USD", "9.99", true))
+	assert.Error(t, RecordPaymentReceipt(order.TradeNo, PaymentProviderStripe, "different-transaction", "USD", "9.99", true))
 
 	require.NoError(t, CompleteSubscriptionOrder("sub-paid-active-race", `{"provider":"stripe"}`, PaymentProviderStripe, ""))
-	assert.EqualValues(t, 2, countUserSubscriptionsForPaymentGuardTest(t, 204))
+	assert.EqualValues(t, 1, countUserSubscriptionsForPaymentGuardTest(t, 204))
 }
 
 func TestExpireSubscriptionOrder_RejectsMismatchedPaymentProvider(t *testing.T) {

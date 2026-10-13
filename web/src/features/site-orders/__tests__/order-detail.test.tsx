@@ -1,4 +1,3 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
 import {
   createRootRoute,
   createRouter,
@@ -76,6 +77,29 @@ function showOrder() {
   )
 }
 describe('Site order detail', () => {
+  test('held subscription payment is shown as paid awaiting review, not completed', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          ...order,
+          order_type: 'subscription',
+          order_status: 'paid_review',
+          review_required: true,
+          last_error: 'subscription_conflict',
+        },
+      },
+    })
+    showOrder()
+    expect(
+      await screen.findByText('Paid, awaiting manual review')
+    ).toBeVisible()
+    expect(screen.queryByText('Completed')).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Verify and recover order' })
+    ).not.toBeInTheDocument()
+  })
+
   test.each([
     ['alipay', 'Alipay transaction number', 'transaction-1'],
     ['wechatpay', 'WeChat Pay transaction ID', 'wechat-transaction-1'],
@@ -108,7 +132,7 @@ describe('Site order detail', () => {
     showOrder()
     expect(await screen.findByText('Paid, awaiting credit')).toBeVisible()
     expect(screen.getAllByText('CNY 123.45')).toHaveLength(2)
-    expect(screen.getByText('Credit requires attention')).toBeVisible()
+    expect(screen.getByText('Payment requires attention')).toBeVisible()
     expect(screen.getByText('Sandbox')).toBeVisible()
     expect(screen.getByText('Frozen quota')).toBeVisible()
     expect(screen.getByText('Equivalent at current display rate')).toBeVisible()

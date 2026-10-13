@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/middleware"
@@ -183,6 +184,10 @@ func RequestAlipayPay(c *gin.Context) {
 		err = model.CreateAlipayOrder(&topup, &order)
 	}
 	if err != nil {
+		if errors.Is(err, model.ErrSubscriptionPurchasePending) || errors.Is(err, model.ErrActiveSubscriptionExists) || errors.Is(err, model.ErrSubscriptionPurchaseLimit) {
+			common.ApiError(c, err)
+			return
+		}
 		common.ApiErrorMsg(c, "创建订单失败")
 		return
 	}
@@ -243,6 +248,9 @@ func GetAlipayOrderStatus(c *gin.Context) {
 	if err != nil || order.UserID != c.GetInt("id") {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
+	}
+	if order.Status == "paid" && order.ReviewRequired && strings.HasPrefix(order.TradeNo, "SUB") {
+		order.Status = model.SubscriptionOrderPaidReview
 	}
 	common.ApiSuccess(c, order)
 }

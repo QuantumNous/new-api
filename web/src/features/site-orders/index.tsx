@@ -250,6 +250,7 @@ export function SiteOrders(props: { scope?: OrderScope }) {
     { value: 'all', label: personal ? t('Excluding closed orders') : t('All') },
     { value: 'pending', label: t('Awaiting payment') },
     { value: 'paid', label: t('Paid, awaiting credit') },
+    { value: 'paid_review', label: t('Paid, awaiting manual review') },
     { value: 'success', label: t('Completed') },
     { value: 'expired', label: t('Closed') },
     { value: 'failed', label: t('Failed') },

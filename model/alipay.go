@@ -16,21 +16,22 @@ const PaymentMethodAlipayDirect = "alipay_direct"
 // Immutable revisions retain credentials for pending orders after rotation.
 // PrivateKey is deliberately excluded from every JSON response.
 type AlipayConfig struct {
-	PreviousID    int    `json:"-" gorm:"uniqueIndex"`
-	ID            int    `json:"id"`
-	Enabled       bool   `json:"enabled"`
-	Sandbox       bool   `json:"sandbox"`
-	AppID         string `json:"app_id" gorm:"type:varchar(32)"`
-	SellerID      string `json:"seller_id" gorm:"type:varchar(32)"`
-	PrivateKey    string `json:"-" gorm:"type:text"`
-	PublicKey     string `json:"public_key" gorm:"type:text"`
-	NotifyBaseURL string `json:"notify_base_url" gorm:"type:text"`
-	ReturnURL     string `json:"return_url" gorm:"type:text"`
-	UnitPrice     string `json:"unit_price" gorm:"type:varchar(32)"`
-	MinTopUp      int64  `json:"min_topup"`
-	PagePay       bool   `json:"page_pay"`
-	WapPay        bool   `json:"wap_pay"`
-	CreatedAt     int64  `json:"created_at"`
+	PreviousID           int    `json:"-" gorm:"uniqueIndex"`
+	ID                   int    `json:"id"`
+	Enabled              bool   `json:"enabled"`
+	Sandbox              bool   `json:"sandbox"`
+	AppID                string `json:"app_id" gorm:"type:varchar(32)"`
+	SellerID             string `json:"seller_id" gorm:"type:varchar(32)"`
+	PrivateKey           string `json:"-" gorm:"-"`
+	PrivateKeyCiphertext string `json:"-" gorm:"column:private_key;type:text"`
+	PublicKey            string `json:"public_key" gorm:"type:text"`
+	NotifyBaseURL        string `json:"notify_base_url" gorm:"type:text"`
+	ReturnURL            string `json:"return_url" gorm:"type:text"`
+	UnitPrice            string `json:"unit_price" gorm:"type:varchar(32)"`
+	MinTopUp             int64  `json:"min_topup"`
+	PagePay              bool   `json:"page_pay"`
+	WapPay               bool   `json:"wap_pay"`
+	CreatedAt            int64  `json:"created_at"`
 }
 
 type AlipayOrder struct {

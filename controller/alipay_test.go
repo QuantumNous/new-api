@@ -14,6 +14,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/QuantumNous/new-api/pkg/paymentsecret"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/wechatpay-apiv3/wechatpay-go/core"
 	"github.com/wechatpay-apiv3/wechatpay-go/services/payments"
@@ -23,6 +24,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -46,6 +48,10 @@ import (
 )
 
 func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
+	keyFile := filepath.Join(t.TempDir(), "payment-keys.json")
+	require.NoError(t, paymentsecret.GenerateFile(keyFile))
+	t.Setenv("PAYMENT_SECRET_KEY_FILE", keyFile)
+	t.Setenv("PAYMENT_SECRET_MIGRATE", "")
 	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
 	pub, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
@@ -57,7 +63,7 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 			var driver gorm.Dialector
 			switch dialect {
 			case "sqlite":
-				driver = sqlite.Open(":memory:")
+				driver = sqlite.Open(filepath.Join(t.TempDir(), "payments.db") + "?_pragma=busy_timeout(10000)&_pragma=journal_mode(WAL)")
 			case "mysql":
 				if os.Getenv("TEST_MYSQL_DSN") == "" {
 					t.Skip("TEST_MYSQL_DSN not configured")
@@ -176,9 +182,14 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 			}
 			require.NoError(t, db.Raw(query).Scan(&version).Error)
 			t.Log(version)
+			t.Run("encrypted-payment-storage", func(t *testing.T) { verifyPaymentSecretStorage(t, db, config) })
 			cfg := config
 			cfg.ID = 0
 			require.NoError(t, db.Create(&cfg).Error)
+			var storedKey struct{ PrivateKey string }
+			require.NoError(t, db.Model(&model.AlipayConfig{}).Select("private_key").Where("id = ?", cfg.ID).Take(&storedKey).Error)
+			assert.True(t, strings.HasPrefix(storedKey.PrivateKey, paymentsecret.Prefix))
+			assert.NotContains(t, storedKey.PrivateKey, "PRIVATE KEY")
 			user := model.User{Username: "alipay-test", Quota: 100, AuthVersion: 1}
 			require.NoError(t, db.Create(&user).Error)
 			topup := model.TopUp{UserId: user.Id, TradeNo: "ALIverified", PaymentProvider: model.PaymentProviderAlipay, PaymentMethod: model.PaymentMethodAlipayDirect, Status: common.TopUpStatusPending}
@@ -577,6 +588,151 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 					})
 				}
 			}
+			t.Run("subscription purchase exclusivity", func(t *testing.T) {
+				user := model.User{Username: "exclusive-sub", AffCode: "exclusive-sub", Quota: 50000000}
+				require.NoError(t, db.Create(&user).Error)
+				plan := model.SubscriptionPlan{Title: "Exclusive", PriceAmount: 1, Currency: "CNY", DurationUnit: "month", DurationValue: 1, Enabled: true, UpgradeGroup: "exclusive-level", TotalAmount: 100, QuotaResetPeriod: "never"}
+				require.NoError(t, db.Create(&plan).Error)
+				order := model.SubscriptionOrder{UserId: user.Id, PlanId: plan.Id, Money: 1, TradeNo: "SUBALI-exclusive", PaymentProvider: model.PaymentProviderAlipay, PaymentMethod: model.PaymentMethodAlipayDirect, Status: "pending"}
+				payment := model.AlipayOrder{ConfigID: cfg.ID, TradeNo: order.TradeNo, UserID: user.Id, AmountFen: 100, Status: "pending", ExpiresAt: common.GetTimestamp() + 300}
+				require.NoError(t, model.CreateDirectSubscriptionOrder(&order, &plan, &payment))
+				otherPlan := plan
+				otherPlan.Id = 0
+				require.NoError(t, db.Create(&otherPlan).Error)
+				duplicate := model.SubscriptionOrder{UserId: user.Id, PlanId: otherPlan.Id, Money: 1, TradeNo: "SUBWX-exclusive", PaymentProvider: model.PaymentProviderWechatPay, PaymentMethod: model.PaymentMethodWechatPay, Status: "pending"}
+				wx := model.WechatPayOrder{ConfigID: wxConfig.ID, TradeNo: duplicate.TradeNo, UserID: user.Id, AmountFen: 100, Status: "pending"}
+				require.Error(t, model.CreateDirectSubscriptionOrder(&duplicate, &otherPlan, &wx), "unlimited purchases must not allow overlapping checkouts at the same level")
+				require.Error(t, model.PurchaseSubscriptionWithBalance(user.Id, plan.Id))
+				require.NoError(t, db.First(&user, user.Id).Error)
+				assert.Equal(t, 50000000, user.Quota, "rejected balance purchase must roll back deductions")
+				_, err := model.AdminBindSubscription(user.Id, otherPlan.Id, "")
+				require.Error(t, err)
+				// Model an already-issued legacy checkout. Both payments are real,
+				// but only one may activate an entitlement.
+				duplicate.Id, wx.ID = 0, 0
+				payload, err := common.Marshal(otherPlan)
+				require.NoError(t, err)
+				duplicate.ProviderPayload = string(payload)
+				require.NoError(t, db.Create(&duplicate).Error)
+				require.NoError(t, db.Create(&wx).Error)
+				require.NoError(t, model.RecordAlipayPayment(order.TradeNo, "exclusive-ali-tx", 100))
+				require.NoError(t, model.CompleteAlipayTopUp(order.TradeNo))
+				paid := transaction
+				paid.OutTradeNo = core.String(duplicate.TradeNo)
+				paid.TransactionId = core.String("exclusive-wx-tx")
+				paid.Amount = &payments.TransactionAmount{Total: core.Int64(100), Currency: core.String("CNY")}
+				response := httptest.NewRecorder()
+				ctx, _ := gin.CreateTestContext(response)
+				ctx.Request = wechatNotifyFixture(t, key, wxConfig, &paid, time.Now().Unix())
+				ctx.Params = gin.Params{{Key: "config_id", Value: strconv.Itoa(wxConfig.ID)}}
+				WechatPayNotify(ctx)
+				ctx.Writer.WriteHeaderNow()
+				require.Equal(t, http.StatusNoContent, response.Code, "persisted held payment must acknowledge the verified callback")
+				require.NoError(t, model.CompleteWechatPayTopUp(duplicate.TradeNo))
+				var active int64
+				require.NoError(t, db.Model(&model.UserSubscription{}).Where("user_id = ? AND status = ?", user.Id, "active").Count(&active).Error)
+				assert.Equal(t, int64(1), active)
+				require.NoError(t, db.First(&duplicate, duplicate.Id).Error)
+				assert.Equal(t, "paid_review", duplicate.Status)
+				assert.Equal(t, "exclusive-wx-tx", duplicate.PaymentReceipt.ReceiptTradeNo)
+				assert.Zero(t, duplicate.CompleteTime)
+				require.NoError(t, db.First(&wx, wx.ID).Error)
+				assert.True(t, wx.ReviewRequired)
+				assert.Equal(t, "paid", wx.Status)
+				rows, total, err := model.ListSiteOrders(model.SiteOrderFilter{OwnerID: user.Id, Status: "paid_review", Page: 1, PageSize: 20})
+				require.NoError(t, err)
+				require.Equal(t, int64(1), total)
+				assert.True(t, rows[0].ReviewRequired)
+				assert.Equal(t, "exclusive-wx-tx", rows[0].ProviderTradeNo)
+
+				// Replayed callbacks cannot grant the held payment later even after expiry.
+				require.NoError(t, db.Model(&model.UserSubscription{}).Where("user_id = ?", user.Id).Update("end_time", 1).Error)
+				require.NoError(t, model.CompleteWechatPayTopUp(duplicate.TradeNo))
+				require.NoError(t, db.Model(&model.UserSubscription{}).Where("user_id = ?", user.Id).Count(&active).Error)
+				assert.Equal(t, int64(1), active)
+			})
+			t.Run("subscription reservation survives local expiry until channel closure", func(t *testing.T) {
+				for _, provider := range []string{model.PaymentProviderAlipay, model.PaymentProviderWechatPay} {
+					user := model.User{Username: "sub-close-" + provider, AffCode: "sub-close-" + provider}
+					require.NoError(t, db.Create(&user).Error)
+					plan := model.SubscriptionPlan{Title: "Closure", PriceAmount: 1, Currency: "CNY", DurationUnit: "month", DurationValue: 1, Enabled: true, TotalAmount: 100}
+					require.NoError(t, db.Create(&plan).Error)
+					trade := "SUBALI-reservation-close"
+					var payment any = &model.AlipayOrder{ConfigID: cfg.ID, TradeNo: trade, UserID: user.Id, AmountFen: 100, Status: "pending", CancelRequested: true, ExpiresAt: 1}
+					if provider == model.PaymentProviderWechatPay {
+						trade = "SUBWX-reservation-close"
+						payment = &model.WechatPayOrder{ConfigID: wxConfig.ID, TradeNo: trade, UserID: user.Id, AmountFen: 100, Status: "pending", CancelRequested: true, ExpiresAt: 1}
+					}
+					order := model.SubscriptionOrder{UserId: user.Id, PlanId: plan.Id, TradeNo: trade, PaymentProvider: provider, Status: "pending"}
+					require.NoError(t, model.CreateDirectSubscriptionOrder(&order, &plan, payment))
+					other := model.SubscriptionOrder{UserId: user.Id, PlanId: plan.Id, TradeNo: trade + "-new", PaymentProvider: model.PaymentProviderStripe, Status: "pending"}
+					require.ErrorIs(t, other.Insert(), model.ErrSubscriptionPurchasePending)
+					require.NoError(t, db.Model(&order).Update("status", "expired").Error)
+					require.NoError(t, db.Model(payment).Update("status", "expired").Error)
+					require.ErrorIs(t, other.Insert(), model.ErrSubscriptionPurchasePending)
+					require.NoError(t, model.ConfirmDirectOrderClosed(trade, provider))
+					require.NoError(t, other.Insert())
+					// A different channel now owns the reservation; direct pay cannot bypass it.
+					blocked := model.SubscriptionOrder{UserId: user.Id, PlanId: plan.Id, TradeNo: trade + "-blocked", PaymentProvider: provider, Status: "pending"}
+					require.ErrorIs(t, model.CreateDirectSubscriptionOrder(&blocked, &plan, payment), model.ErrSubscriptionPurchasePending)
+				}
+			})
+			t.Run("concurrent subscription reservations and settlement", func(t *testing.T) {
+				sqlDB.SetMaxOpenConns(4)
+				defer sqlDB.SetMaxOpenConns(1)
+				user := model.User{Username: "concurrent-sub", AffCode: "concurrent-sub"}
+				require.NoError(t, db.Create(&user).Error)
+				plan := model.SubscriptionPlan{Title: "Concurrent", PriceAmount: 1, Currency: "CNY", DurationUnit: "month", DurationValue: 1, Enabled: true, TotalAmount: 100, QuotaResetPeriod: "never"}
+				require.NoError(t, db.Create(&plan).Error)
+				orders := []model.SubscriptionOrder{
+					{UserId: user.Id, PlanId: plan.Id, Money: 1, TradeNo: "SUBALI-concurrent-a", PaymentProvider: model.PaymentProviderAlipay, PaymentMethod: model.PaymentMethodAlipayDirect, Status: "pending"},
+					{UserId: user.Id, PlanId: plan.Id, Money: 1, TradeNo: "SUBALI-concurrent-b", PaymentProvider: model.PaymentProviderAlipay, PaymentMethod: model.PaymentMethodAlipayDirect, Status: "pending"},
+				}
+				start := make(chan struct{})
+				results := make(chan error, 2)
+				for i := range 2 {
+					go func() {
+						<-start
+						payment := model.AlipayOrder{ConfigID: cfg.ID, TradeNo: orders[i].TradeNo, UserID: user.Id, AmountFen: 100, Status: "pending", ExpiresAt: common.GetTimestamp() + 300}
+						results <- model.CreateDirectSubscriptionOrder(&orders[i], &plan, &payment)
+					}()
+				}
+				close(start)
+				succeeded := 0
+				for range 2 {
+					if <-results == nil {
+						succeeded++
+					}
+				}
+				require.Equal(t, 1, succeeded)
+				var count int64
+				require.NoError(t, db.Model(&model.SubscriptionOrder{}).Where("user_id = ?", user.Id).Count(&count).Error)
+				require.Equal(t, int64(1), count)
+				// Import the losing checkout as a legacy order, then race two
+				// verified settlements on independent database connections.
+				for i := range orders {
+					if orders[i].Id == 0 {
+						payload, err := common.Marshal(plan)
+						require.NoError(t, err)
+						orders[i].ProviderPayload = string(payload)
+						require.NoError(t, db.Create(&orders[i]).Error)
+						require.NoError(t, db.Create(&model.AlipayOrder{ConfigID: cfg.ID, TradeNo: orders[i].TradeNo, UserID: user.Id, AmountFen: 100, Status: "pending"}).Error)
+					}
+					require.NoError(t, model.RecordAlipayPayment(orders[i].TradeNo, orders[i].TradeNo+"-tx", 100))
+				}
+				start = make(chan struct{})
+				for i := range 2 {
+					go func() { <-start; results <- model.CompleteAlipayTopUp(orders[i].TradeNo) }()
+				}
+				close(start)
+				for range 2 {
+					require.NoError(t, <-results)
+				}
+				require.NoError(t, db.Model(&model.UserSubscription{}).Where("user_id = ?", user.Id).Count(&count).Error)
+				assert.Equal(t, int64(1), count)
+				require.NoError(t, db.Model(&model.SubscriptionOrder{}).Where("user_id = ? AND status = ?", user.Id, "paid_review").Count(&count).Error)
+				assert.Equal(t, int64(1), count)
+			})
 			t.Run("unified orders include all subscription states without duplicate history", func(t *testing.T) {
 				owner := model.User{Username: "unified-orders", AffCode: "unified-orders", AuthVersion: 1}
 				require.NoError(t, db.Create(&owner).Error)
@@ -1027,6 +1183,9 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 											state = "REFUND"
 										}
 										payload := map[string]any{"appid": wxConfig.AppID, "mchid": wxConfig.MchID, "out_trade_no": trade, "transaction_id": "tx-" + trade, "trade_state": state, "trade_type": "NATIVE", "amount": map[string]any{"total": 100, "currency": "CNY"}}
+										if state == "NOTPAY" {
+											delete(payload, "trade_type")
+										}
 										if strings.HasPrefix(scenario, "not-found") {
 											statusCode = 404
 											payload = map[string]any{"code": "ORDER_NOT_EXIST", "message": "missing"}
@@ -1208,3 +1367,198 @@ func wechatNotifyFixture(t *testing.T, key *rsa.PrivateKey, config model.WechatP
 type wechatFixtureTransport func(*http.Request) (*http.Response, error)
 
 func (f wechatFixtureTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestWechatPayTransactionOptionalTradeType(t *testing.T) {
+	config := &model.WechatPayConfig{AppID: "app", MchID: "merchant"}
+	order := &model.WechatPayOrder{TradeNo: "WX-test", AmountFen: 100}
+	for _, tc := range []struct {
+		name      string
+		state     string
+		tradeType *string
+		valid     bool
+	}{
+		{"unpaid missing type", "NOTPAY", nil, true},
+		{"unpaid native", "NOTPAY", core.String("NATIVE"), true},
+		{"unpaid wrong type", "NOTPAY", core.String("JSAPI"), false},
+		{"unpaid empty type", "NOTPAY", core.String(""), false},
+		{"paid missing type", "SUCCESS", nil, false},
+		{"paid wrong type", "SUCCESS", core.String("JSAPI"), false},
+		{"paid native", "SUCCESS", core.String("NATIVE"), true},
+		{"unknown missing type", "UNKNOWN", nil, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			tx := &payments.Transaction{Appid: core.String(config.AppID), Mchid: core.String(config.MchID), OutTradeNo: core.String(order.TradeNo), TradeState: core.String(tc.state), TradeType: tc.tradeType, Amount: &payments.TransactionAmount{Total: core.Int64(100), Currency: core.String("CNY")}}
+			err := service.ValidateWechatPayTransaction(config, order, tx)
+			if !tc.valid {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			for _, field := range []string{"appid", "mchid", "order", "amount", "currency", "state"} {
+				t.Run(field, func(t *testing.T) {
+					bad := *tx
+					amount := *tx.Amount
+					bad.Amount = &amount
+					switch field {
+					case "appid":
+						bad.Appid = core.String("wrong")
+					case "mchid":
+						bad.Mchid = core.String("wrong")
+					case "order":
+						bad.OutTradeNo = core.String("wrong")
+					case "amount":
+						bad.Amount.Total = core.Int64(101)
+					case "currency":
+						bad.Amount.Currency = core.String("USD")
+					case "state":
+						bad.TradeState = nil
+					}
+					assert.Error(t, service.ValidateWechatPayTransaction(config, order, &bad))
+				})
+			}
+		})
+	}
+}
+
+func verifyPaymentSecretStorage(t *testing.T, db *gorm.DB, config model.AlipayConfig) {
+	t.Helper()
+	ring, err := paymentsecret.Load()
+	require.NoError(t, err)
+	originalFile := os.Getenv("PAYMENT_SECRET_KEY_FILE")
+	// Model the released plaintext columns without going through new write hooks.
+	legacy := config
+	legacy.ID, legacy.PreviousID = 90001, 90000
+	legacy.PrivateKeyCiphertext = config.PrivateKey
+	require.NoError(t, db.Session(&gorm.Session{SkipHooks: true}).Create(&legacy).Error)
+	wx := model.WechatPayConfig{ID: 90002, PreviousID: 90001, PrivateKeyCiphertext: config.PrivateKey, APIv3KeyCiphertext: strings.Repeat("a", 32)}
+	require.NoError(t, db.Session(&gorm.Session{SkipHooks: true}).Create(&wx).Error)
+	defer func() { require.NoError(t, db.Delete(&legacy).Error); require.NoError(t, db.Delete(&wx).Error) }()
+	status := model.InspectPaymentSecrets(db)
+	assert.Equal(t, "error", status.Alipay)
+	assert.Equal(t, "error", status.WechatPay)
+	assert.Error(t, model.InitializePaymentSecrets(db))
+	var read model.AlipayConfig
+	assert.Error(t, db.First(&read, legacy.ID).Error)
+	t.Setenv("PAYMENT_SECRET_MIGRATE", "1")
+	require.NoError(t, model.InitializePaymentSecrets(db))
+	require.NoError(t, model.InitializePaymentSecrets(db))
+	t.Setenv("PAYMENT_SECRET_MIGRATE", "")
+	require.NoError(t, model.InitializePaymentSecrets(db))
+	status = model.InspectPaymentSecrets(db)
+	assert.Equal(t, "ready", status.KeyFileStatus)
+	assert.Equal(t, "verified", status.Alipay)
+	assert.Equal(t, "verified", status.WechatPay)
+	assert.Equal(t, ring.ActiveKeyID, status.ActiveKeyID)
+	response := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(response)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/option/payment-security", nil)
+	GetPaymentSecurityStatus(ctx)
+	assert.Equal(t, "no-store", response.Header().Get("Cache-Control"))
+	assert.Contains(t, response.Body.String(), `"alipay":"verified"`)
+	assert.NotContains(t, response.Body.String(), originalFile)
+	assert.NotContains(t, response.Body.String(), config.PrivateKey)
+	for _, key := range ring.Keys {
+		assert.NotContains(t, response.Body.String(), key)
+	}
+	require.NoError(t, db.First(&read, legacy.ID).Error)
+	assert.Equal(t, config.PrivateKey, read.PrivateKey)
+	assert.True(t, strings.HasPrefix(read.PrivateKeyCiphertext, paymentsecret.Prefix))
+	var readWX model.WechatPayConfig
+	require.NoError(t, db.First(&readWX, wx.ID).Error)
+	assert.Equal(t, config.PrivateKey, readWX.PrivateKey)
+	assert.Equal(t, strings.Repeat("a", 32), readWX.APIv3Key)
+	raw, err := common.Marshal(readWX)
+	require.NoError(t, err)
+	assert.NotContains(t, string(raw), readWX.APIv3Key)
+	assert.NotContains(t, string(raw), "PRIVATE KEY")
+	assert.NotContains(t, string(raw), paymentsecret.Prefix)
+	assert.Error(t, db.Model(&read).Update("private_key", "unprotected").Error)
+	// Swapping ciphertext between records/fields must fail authentication.
+	_, err = ring.Open(read.PrivateKeyCiphertext, "alipay/90002/private_key")
+	assert.Error(t, err)
+	_, err = ring.Open(readWX.APIv3KeyCiphertext, "wechatpay/90002/private_key")
+	assert.Error(t, err)
+	// Rotation keeps historical configurations readable, then removes dependence
+	// on the old key only after the explicit migration has re-encrypted every row.
+	rotatedFile := filepath.Join(t.TempDir(), "rotated.json")
+	require.NoError(t, paymentsecret.GenerateFile(rotatedFile))
+	t.Setenv("PAYMENT_SECRET_KEY_FILE", rotatedFile)
+	status = model.InspectPaymentSecrets(db)
+	assert.Equal(t, "error", status.Alipay)
+	assert.Equal(t, "error", status.WechatPay)
+	fresh, err := paymentsecret.Load()
+	require.NoError(t, err)
+	assert.Error(t, model.InitializePaymentSecrets(db))
+	merged := paymentsecret.Keyring{ActiveKeyID: fresh.ActiveKeyID, Keys: map[string]string{}}
+	for id, key := range ring.Keys {
+		merged.Keys[id] = key
+	}
+	for id, key := range fresh.Keys {
+		merged.Keys[id] = key
+	}
+	payload, err := common.Marshal(merged)
+	require.NoError(t, err)
+	require.NoError(t, os.Chmod(rotatedFile, 0600))
+	require.NoError(t, os.WriteFile(rotatedFile, payload, 0600))
+	require.NoError(t, model.InitializePaymentSecrets(db))
+	t.Setenv("PAYMENT_SECRET_MIGRATE", "1")
+	require.NoError(t, model.InitializePaymentSecrets(db))
+	t.Setenv("PAYMENT_SECRET_MIGRATE", "")
+	payload, err = common.Marshal(fresh)
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(rotatedFile, payload, 0600))
+	require.NoError(t, model.InitializePaymentSecrets(db))
+	require.NoError(t, db.First(&readWX, wx.ID).Error)
+	assert.Equal(t, config.PrivateKey, readWX.PrivateKey)
+	t.Setenv("PAYMENT_SECRET_KEY_FILE", "")
+	assert.Error(t, model.InitializePaymentSecrets(db))
+	status = model.InspectPaymentSecrets(db)
+	assert.Equal(t, "unconfigured", status.KeyFileStatus)
+	assert.Empty(t, status.ActiveKeyID)
+	assert.Equal(t, "unknown", status.Alipay)
+	t.Setenv("PAYMENT_SECRET_KEY_FILE", filepath.Join(t.TempDir(), "missing"))
+	assert.Equal(t, "error", model.InspectPaymentSecrets(db).KeyFileStatus)
+	t.Setenv("PAYMENT_SECRET_KEY_FILE", "")
+	unavailable := model.AlipayConfig{PreviousID: 98765, PrivateKey: config.PrivateKey}
+	assert.Error(t, db.Create(&unavailable).Error)
+	var count int64
+	require.NoError(t, db.Model(&model.AlipayConfig{}).Where("previous_id = ?", 98765).Count(&count).Error)
+	assert.Zero(t, count)
+	t.Setenv("PAYMENT_SECRET_KEY_FILE", originalFile)
+}
+
+func TestPaymentSecretKeyring(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "keys.json")
+	require.NoError(t, paymentsecret.GenerateFile(path))
+	assert.Error(t, paymentsecret.GenerateFile(path))
+	t.Setenv("PAYMENT_SECRET_KEY_FILE", path)
+	ring, err := paymentsecret.Load()
+	require.NoError(t, err)
+	encrypted, err := ring.Seal("sensitive-value", "alipay/1/private_key")
+	require.NoError(t, err)
+	next, err := ring.Seal("sensitive-value", "alipay/1/private_key")
+	require.NoError(t, err)
+	assert.NotEqual(t, encrypted, next)
+	plain, err := ring.Open(encrypted, "alipay/1/private_key")
+	require.NoError(t, err)
+	assert.Equal(t, "sensitive-value", plain)
+	for _, value := range []string{"plaintext", encrypted + "x", strings.Replace(encrypted, ring.ActiveKeyID, "missing", 1), "payenc:v2:bad"} {
+		_, err = ring.Open(value, "alipay/1/private_key")
+		assert.Error(t, err)
+	}
+	_, err = ring.Open(encrypted, "wechatpay/1/private_key")
+	assert.Error(t, err)
+	rotatedPath := filepath.Join(t.TempDir(), "next.json")
+	require.NoError(t, paymentsecret.RotateFile(rotatedPath))
+	t.Setenv("PAYMENT_SECRET_KEY_FILE", rotatedPath)
+	rotated, err := paymentsecret.Load()
+	require.NoError(t, err)
+	assert.NotEqual(t, ring.ActiveKeyID, rotated.ActiveKeyID)
+	plain, err = rotated.Open(encrypted, "alipay/1/private_key")
+	require.NoError(t, err)
+	assert.Equal(t, "sensitive-value", plain)
+	t.Setenv("PAYMENT_SECRET_KEY_FILE", path)
+	require.NoError(t, os.Chmod(path, 0644))
+	_, err = paymentsecret.Load()
+	assert.Error(t, err)
+}

@@ -244,6 +244,7 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.GET("/channel_affinity_cache", controller.GetChannelAffinityCacheStats)
 			optionRoute.DELETE("/channel_affinity_cache", controller.ClearChannelAffinityCache)
 			optionRoute.POST("/rest_model_ratio", controller.ResetModelRatio)
+			optionRoute.GET("/payment-security", middleware.DisableCache(), controller.GetPaymentSecurityStatus)
 			optionRoute.GET("/alipay", middleware.DisableCache(), controller.GetAlipayConfig)
 			optionRoute.GET("/wechatpay", middleware.DisableCache(), controller.GetWechatPayConfig)
 			optionRoute.PUT("/alipay", middleware.SessionCookieOriginGuard(), middleware.CriticalRateLimit(), controller.SaveAlipayConfig)

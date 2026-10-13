@@ -44,6 +44,7 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	// Direct payments and order management retain their existing session-only access.
 	"GET /api/option/alipay":                  accessTokenSessionRule,
 	"GET /api/option/wechatpay":               accessTokenSessionRule,
+	"GET /api/option/payment-security":        accessTokenSessionRule,
 	"GET /api/user/alipay/order/:trade_no":    accessTokenSessionRule,
 	"GET /api/user/orders":                    accessTokenSessionRule,
 	"GET /api/user/orders/:id":                accessTokenSessionRule,

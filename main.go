@@ -24,6 +24,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"github.com/QuantumNous/new-api/pkg/paymentsecret"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/pkg/wsmanager"
 	"github.com/QuantumNous/new-api/relay"
@@ -48,6 +49,25 @@ var buildFS embed.FS
 var indexPage []byte
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "payment-key" {
+		if len(os.Args) != 4 || (os.Args[2] != "generate" && os.Args[2] != "rotate") {
+			fmt.Fprintln(os.Stderr, "Usage: new-api payment-key generate|rotate /absolute/path/new-keyring.json")
+			os.Exit(2)
+		}
+		var err error
+		if os.Args[2] == "rotate" {
+			err = paymentsecret.RotateFile(os.Args[3])
+		} else {
+			err = paymentsecret.GenerateFile(os.Args[3])
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Println("Payment key file created. Back it up separately from the database.")
+		return
+	}
+
 	if len(os.Args) > 1 && os.Args[1] == "plugin" {
 		os.Exit(jsplugin.RunCLI(os.Args[2:], os.Stdout, os.Stderr))
 	}
@@ -315,6 +335,9 @@ func InitResources() error {
 	if err != nil {
 		common.FatalLog("failed to initialize database: " + err.Error())
 		return err
+	}
+	if err = model.InitializePaymentSecrets(model.DB); err != nil {
+		return fmt.Errorf("payment credential storage: %w", err)
 	}
 	if err = authz.Init(model.DB); err != nil {
 		common.FatalLog("failed to initialize authorization: " + err.Error())

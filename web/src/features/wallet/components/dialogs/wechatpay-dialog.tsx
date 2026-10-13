@@ -41,11 +41,12 @@ export function WechatPayDialog(props: {
     retry: false,
     refetchInterval: (q) =>
       q.state.error ||
-      ['success', 'expired'].includes(q.state.data?.status || '')
+      ['success', 'expired', 'paid_review'].includes(q.state.data?.status || '')
         ? false
         : 5000,
   })
   const paid = query.data?.status === 'success'
+  const review = query.data?.status === 'paid_review'
   useEffect(() => {
     if (!checkout) return
     const timer = window.setInterval(() => setNow(Date.now()), 1000)
@@ -94,7 +95,12 @@ export function WechatPayDialog(props: {
             {t('Payment successful')}
           </p>
         )}
-        {!paid && (expired || query.data?.status === 'expired') && (
+        {review && (
+          <p role='status' className='text-warning text-center text-sm'>
+            {t('Paid, awaiting manual review')}
+          </p>
+        )}
+        {!paid && !review && (expired || query.data?.status === 'expired') && (
           <p
             className='bg-muted text-muted-foreground w-full rounded-xl p-5 text-center text-sm leading-relaxed'
             role='status'
@@ -102,17 +108,21 @@ export function WechatPayDialog(props: {
             {t('Payment QR code expired. Please create a new order.')}
           </p>
         )}
-        {checkout && !paid && !expired && query.data?.status !== 'expired' && (
-          <div className='w-full max-w-64 rounded-2xl border border-black/5 bg-white p-4 shadow-sm ring-4 ring-green-500/5'>
-            <QRCodeSVG
-              value={checkout.code_url}
-              size={224}
-              className='h-auto w-full'
-              marginSize={2}
-              title={t('WeChat Pay QR code')}
-            />
-          </div>
-        )}
+        {checkout &&
+          !paid &&
+          !review &&
+          !expired &&
+          query.data?.status !== 'expired' && (
+            <div className='w-full max-w-64 rounded-2xl border border-black/5 bg-white p-4 shadow-sm ring-4 ring-green-500/5'>
+              <QRCodeSVG
+                value={checkout.code_url}
+                size={224}
+                className='h-auto w-full'
+                marginSize={2}
+                title={t('WeChat Pay QR code')}
+              />
+            </div>
+          )}
         {query.isError && (
           <p
             className='text-destructive text-center text-sm leading-relaxed'
@@ -123,7 +133,7 @@ export function WechatPayDialog(props: {
             )}
           </p>
         )}
-        {!paid && (
+        {!paid && !review && (
           <Button
             type='button'
             variant='outline'

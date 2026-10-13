@@ -35,6 +35,20 @@ function renderCheckout(expiresAt = checkout.expires_at) {
 }
 
 describe('WeChat payment status', () => {
+  test('held payment removes QR and does not report subscription activation', async () => {
+    vi.mocked(getWechatPayOrderStatus).mockResolvedValue({
+      success: true,
+      data: { status: 'paid_review' },
+    })
+    const { onPaid } = renderCheckout()
+    expect(
+      await screen.findByText('Paid, awaiting manual review')
+    ).toBeVisible()
+    expect(screen.queryByTitle('WeChat Pay QR code')).not.toBeInTheDocument()
+    expect(screen.queryByText('Payment successful')).not.toBeInTheDocument()
+    expect(onPaid).not.toHaveBeenCalled()
+  })
+
   test('shows the supplied brand image with an accessible title and responsive QR', async () => {
     vi.mocked(getWechatPayOrderStatus).mockResolvedValue({
       success: true,

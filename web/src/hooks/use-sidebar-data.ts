@@ -159,7 +159,7 @@ export function useSidebarData(): SidebarData {
             icon: Users,
           },
           {
-            title: t('Site orders'),
+            title: t('Orders'),
             url: '/site-orders',
             icon: ClipboardList,
             requiredRole: ROLE.ADMIN,

@@ -15,19 +15,21 @@ const PaymentMethodWechatPay = "wechatpay_native"
 // Immutable revisions retain credentials for pending orders after rotation.
 // PrivateKey is deliberately excluded from every JSON response.
 type WechatPayConfig struct {
-	PreviousID    int    `json:"-" gorm:"uniqueIndex"`
-	ID            int    `json:"id"`
-	Enabled       bool   `json:"enabled"`
-	AppID         string `json:"app_id" gorm:"type:varchar(32)"`
-	MchID         string `json:"mch_id" gorm:"type:varchar(32)"`
-	SerialNo      string `json:"serial_no" gorm:"type:varchar(64)"`
-	PrivateKey    string `json:"-" gorm:"type:text"`
-	APIv3Key      string `json:"-" gorm:"type:text"`
-	PublicKeyID   string `json:"public_key_id" gorm:"type:varchar(64)"`
-	PublicKey     string `json:"public_key" gorm:"type:text"`
-	NotifyBaseURL string `json:"notify_base_url" gorm:"type:text"`
-	MinTopUp      int64  `json:"min_topup"`
-	CreatedAt     int64  `json:"created_at"`
+	PreviousID           int    `json:"-" gorm:"uniqueIndex"`
+	ID                   int    `json:"id"`
+	Enabled              bool   `json:"enabled"`
+	AppID                string `json:"app_id" gorm:"type:varchar(32)"`
+	MchID                string `json:"mch_id" gorm:"type:varchar(32)"`
+	SerialNo             string `json:"serial_no" gorm:"type:varchar(64)"`
+	PrivateKey           string `json:"-" gorm:"-"`
+	PrivateKeyCiphertext string `json:"-" gorm:"column:private_key;type:text"`
+	APIv3Key             string `json:"-" gorm:"-"`
+	APIv3KeyCiphertext   string `json:"-" gorm:"column:apiv3_key;type:text"`
+	PublicKeyID          string `json:"public_key_id" gorm:"type:varchar(64)"`
+	PublicKey            string `json:"public_key" gorm:"type:text"`
+	NotifyBaseURL        string `json:"notify_base_url" gorm:"type:text"`
+	MinTopUp             int64  `json:"min_topup"`
+	CreatedAt            int64  `json:"created_at"`
 }
 
 type WechatPayOrder struct {

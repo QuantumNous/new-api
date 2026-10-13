@@ -27,6 +27,7 @@ export function OrderStatus(props: { order: SiteOrder }) {
   const labels: Record<string, string> = {
     pending: t('Awaiting payment'),
     paid: t('Paid, awaiting credit'),
+    paid_review: t('Paid, awaiting manual review'),
     success: t('Completed'),
     expired: t('Closed'),
     failed: t('Failed'),

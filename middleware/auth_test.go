@@ -297,6 +297,10 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 	profile, _ := createMiddlewareScopedToken(t, admin.Id, 0, "profile:read")
 	channel, _ := createMiddlewareScopedToken(t, admin.Id, time.Now().Unix()+3600, "channel:read")
 	expired, _ := createMiddlewareScopedToken(t, admin.Id, time.Now().Unix()-1, "profile:read")
+	rootLegacy := "middleware-root-legacy-token"
+	root := createMiddlewarePATUser(t, "route-rule-root", rootLegacy)
+	require.NoError(t, model.DB.Model(root).Update("role", common.RoleRootUser).Error)
+	rootScoped, _ := createMiddlewareScopedToken(t, root.Id, 0, "profile:read")
 
 	ok := func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"id": c.GetInt("id")}) }
 	router := gin.New()
@@ -306,6 +310,7 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 	router.GET("/api/channel/", AdminAuth(), RequirePermission(authz.ChannelRead), ok)
 	router.GET("/api/pricing", TryUserAuth(), ok)
 	router.GET("/api/support", UserAuth(), ok)
+	router.GET("/api/option/payment-security", RootAuth(), ok)
 
 	for _, test := range []struct {
 		name, path, token, code, reason string
@@ -322,6 +327,8 @@ func TestUserAuthAppliesAccessTokenRouteRules(t *testing.T) {
 		{name: "expired token", path: "/api/user/self", token: expired, status: http.StatusUnauthorized, code: "ACCESS_TOKEN_EXPIRED", reason: "expired"},
 		{name: "legacy token before the deadline", path: "/api/user/self", token: legacy, status: http.StatusOK},
 		{name: "legacy token on a session route", path: "/api/user/access_tokens", token: legacy, status: http.StatusForbidden, code: "AUTH_SESSION_REQUIRED", reason: "session_required"},
+		{name: "payment security rejects root scoped token", path: "/api/option/payment-security", token: rootScoped, status: http.StatusForbidden, code: "AUTH_SESSION_REQUIRED", reason: "session_required"},
+		{name: "payment security rejects root legacy token", path: "/api/option/payment-security", token: rootLegacy, status: http.StatusForbidden, code: "AUTH_SESSION_REQUIRED", reason: "session_required"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			response := middlewareBearerRequest(router, test.path, test.token)

@@ -118,7 +118,16 @@ func VerifyWechatPayNotification(config *model.WechatPayConfig, request *http.Re
 
 // ValidateWechatPayTransaction binds verified evidence to the merchant and frozen order.
 func ValidateWechatPayTransaction(config *model.WechatPayConfig, order *model.WechatPayOrder, tx *payments.Transaction) error {
-	if tx == nil || tx.Appid == nil || *tx.Appid != config.AppID || tx.Mchid == nil || *tx.Mchid != config.MchID || tx.OutTradeNo == nil || *tx.OutTradeNo != order.TradeNo || tx.TradeType == nil || *tx.TradeType != "NATIVE" || tx.Amount == nil || tx.Amount.Total == nil || *tx.Amount.Total != order.AmountFen || tx.Amount.Currency == nil || *tx.Amount.Currency != "CNY" || tx.TradeState == nil {
+	if tx == nil || tx.Appid == nil || *tx.Appid != config.AppID || tx.Mchid == nil || *tx.Mchid != config.MchID || tx.OutTradeNo == nil || *tx.OutTradeNo != order.TradeNo || tx.Amount == nil || tx.Amount.Total == nil || *tx.Amount.Total != order.AmountFen || tx.Amount.Currency == nil || *tx.Amount.Currency != "CNY" || tx.TradeState == nil {
+		return errors.New("WeChat Pay transaction mismatch")
+	}
+	// Unpaid query responses may omit trade_type. An explicit type must still
+	// match Native, and all other states (especially SUCCESS) require it.
+	if tx.TradeType == nil {
+		if *tx.TradeState != "NOTPAY" {
+			return errors.New("WeChat Pay transaction mismatch")
+		}
+	} else if *tx.TradeType != "NATIVE" {
 		return errors.New("WeChat Pay transaction mismatch")
 	}
 	return nil

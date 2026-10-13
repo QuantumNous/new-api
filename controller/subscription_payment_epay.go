@@ -226,6 +226,11 @@ func SubscriptionEpayReturn(c *gin.Context) {
 			c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=fail"))
 			return
 		}
+		order := model.GetSubscriptionOrderByTradeNo(verifyInfo.ServiceTradeNo)
+		if order != nil && order.Status == model.SubscriptionOrderPaidReview {
+			c.Redirect(http.StatusFound, paymentReturnPath("/my-orders"))
+			return
+		}
 		c.Redirect(http.StatusFound, paymentReturnPath("/wallet?pay=success"))
 		return
 	}

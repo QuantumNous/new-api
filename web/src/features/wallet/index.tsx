@@ -20,6 +20,7 @@ import { useQuery } from '@tanstack/react-query'
 import { isAxiosError } from 'axios'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { SectionPageLayout } from '@/components/layout'
 import { PendingOrderNotice } from '@/features/site-orders/pending-order-notice'
@@ -92,7 +93,9 @@ export function Wallet() {
     retry: false,
     refetchInterval: (query) =>
       query.state.error ||
-      ['success', 'expired'].includes(query.state.data?.data?.status || '')
+      ['success', 'expired', 'paid_review'].includes(
+        query.state.data?.data?.status || ''
+      )
         ? false
         : 5000,
   })
@@ -187,7 +190,10 @@ export function Wallet() {
 
   useEffect(() => {
     const status = alipayOrder.data?.data?.status
-    if (!pendingAlipayOrder || !['success', 'expired'].includes(status || '')) {
+    if (
+      !pendingAlipayOrder ||
+      !['success', 'expired', 'paid_review'].includes(status || '')
+    ) {
       return
     }
     try {
@@ -196,10 +202,13 @@ export function Wallet() {
       /* Storage may be unavailable. */
     }
     setPendingAlipayOrder('')
+    if (status === 'paid_review') {
+      toast.info(t('Paid, awaiting manual review'))
+    }
     if (status === 'success') {
       void fetchUser()
     }
-  }, [alipayOrder.data, pendingAlipayOrder, fetchUser])
+  }, [alipayOrder.data, pendingAlipayOrder, fetchUser, t])
 
   // Initialize topup amount when topup info is loaded
   const topupAmountInitializedRef = useRef(false)

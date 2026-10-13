@@ -19,28 +19,14 @@ func CreateDirectSubscriptionOrder(order *SubscriptionOrder, plan *SubscriptionP
 	}
 	order.ProviderPayload = string(payload)
 	return DB.Transaction(func(tx *gorm.DB) error {
-		var user User
-		if err := lockForUpdate(tx).Select("id").First(&user, order.UserId).Error; err != nil {
+		if err := lockSubscriptionBuyer(tx, order.UserId); err != nil {
 			return err
 		}
-		var active int64
-		if err := tx.Model(&UserSubscription{}).Where("user_id = ? AND plan_id = ? AND status = ? AND end_time > ?", order.UserId, plan.Id, "active", getDBTimestamp(tx)).Count(&active).Error; err != nil {
+		if err := checkSubscriptionEligibilityTx(tx, order.UserId, plan); err != nil {
 			return err
 		}
-		if active > 0 {
-			return ErrActiveSubscriptionExists
-		}
-		if plan.MaxPurchasePerUser > 0 {
-			var purchased, pending int64
-			if err := tx.Model(&UserSubscription{}).Where("user_id = ? AND plan_id = ?", order.UserId, plan.Id).Count(&purchased).Error; err != nil {
-				return err
-			}
-			if err := tx.Model(&SubscriptionOrder{}).Where("user_id = ? AND plan_id = ? AND status = ?", order.UserId, plan.Id, common.TopUpStatusPending).Count(&pending).Error; err != nil {
-				return err
-			}
-			if purchased+pending >= int64(plan.MaxPurchasePerUser) {
-				return errors.New("已达到该套餐购买上限或存在待支付订单")
-			}
+		if err := checkSubscriptionReservationTx(tx, order.UserId, plan); err != nil {
+			return err
 		}
 		if err := tx.Create(order).Error; err != nil {
 			return err
@@ -52,7 +38,15 @@ func CreateDirectSubscriptionOrder(order *SubscriptionOrder, plan *SubscriptionP
 func completeDirectSubscriptionPayment(tradeNo, provider string) error {
 	var userID int
 	completed := false
+	reviewed := false
+	var owner SubscriptionOrder
+	if err := DB.Select("user_id").Where("trade_no = ?", tradeNo).Take(&owner).Error; err != nil {
+		return err
+	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockSubscriptionBuyer(tx, owner.UserId); err != nil {
+			return err
+		}
 		var payment any
 		var status string
 		var providerTradeNo *string
@@ -86,6 +80,9 @@ func completeDirectSubscriptionPayment(tradeNo, provider string) error {
 		if status == common.TopUpStatusSuccess && order.Status == common.TopUpStatusSuccess {
 			return nil
 		}
+		if order.Status == SubscriptionOrderPaidReview && status == "paid" && providerTradeNo != nil {
+			return nil
+		}
 		if reviewRequired {
 			return ErrPaymentReviewRequired
 		}
@@ -99,14 +96,22 @@ func completeDirectSubscriptionPayment(tradeNo, provider string) error {
 		if plan.Id != order.PlanId {
 			return errors.New("invalid subscription snapshot")
 		}
-		var user User
-		if err := lockForUpdate(tx).Select("id").First(&user, userID).Error; err != nil {
-			return err
+		if err := checkSubscriptionEligibilityTx(tx, userID, &plan); err != nil {
+			if !errors.Is(err, ErrActiveSubscriptionExists) && !errors.Is(err, ErrSubscriptionPurchaseLimit) {
+				return err
+			}
+			order.Status = SubscriptionOrderPaidReview
+			order.PaymentReceipt = PaymentReceipt{ReceiptCurrency: "CNY", ReceiptAmount: decimal.NewFromInt(amountFen).Div(decimal.NewFromInt(100)).StringFixed(2), ReceiptTradeNo: *providerTradeNo}
+			if err := tx.Save(&order).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(payment).Updates(map[string]any{"review_required": true, "last_error": "subscription_conflict", "next_check_at": 0, "checked_at": common.GetTimestamp()}).Error; err != nil {
+				return err
+			}
+			reviewed = true
+			return nil
 		}
-		// Purchase limits were checked while creating the payable order. A verified
-		// payment must be fulfilled even if another purchase completed meanwhile.
-		plan.MaxPurchasePerUser = 0
-		if _, err := createUserSubscriptionFromPlanTx(tx, userID, &plan, "order", false); err != nil {
+		if _, err := createUserSubscriptionFromPlanTx(tx, userID, &plan, "order"); err != nil {
 			return err
 		}
 		order.Status = common.TopUpStatusSuccess
@@ -126,6 +131,9 @@ func completeDirectSubscriptionPayment(tradeNo, provider string) error {
 	}
 	if userID > 0 {
 		refreshSubscriptionUserGroupCache(userID, "direct subscription payment")
+	}
+	if reviewed {
+		RecordLog(userID, LogTypeSystem, fmt.Sprintf("订阅订单已付款，因购买限制冲突待人工处理，未发放权益，订单: %s，支付方式: %s", tradeNo, provider))
 	}
 	if completed {
 		RecordLog(userID, LogTypeTopup, fmt.Sprintf("订阅购买成功，订单: %s，支付方式: %s", tradeNo, provider))
