@@ -3,6 +3,7 @@ package controller
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"html"
 	"io"
 	"net/http"
@@ -284,7 +285,7 @@ func PartnerOAuthDecideAuthorization(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "account is unavailable"})
 		return
 	}
-	redirectTo, err := service.DecidePartnerOAuthAuthorization(body.Request, partnerOAuthRequestCookie(c), body.Decision, user)
+	redirectTo, clientID, err := service.DecidePartnerOAuthAuthorization(body.Request, partnerOAuthRequestCookie(c), body.Decision, user)
 	clearPartnerOAuthRequestCookie(c)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
@@ -294,7 +295,7 @@ func PartnerOAuthDecideAuthorization(c *gin.Context) {
 	if body.Decision == "approve" {
 		action = "partner_oauth.consent.approve"
 	}
-	recordPartnerOAuthAudit(c, user.Id, action, true, model.AuditFields{"client_id": ""})
+	recordPartnerOAuthAudit(c, user.Id, action, true, model.AuditFields{"client_id": clientID})
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"redirect_to": redirectTo}})
 }
 
@@ -327,7 +328,7 @@ func PartnerOAuthToken(c *gin.Context) {
 	case "refresh_token":
 		issued, refreshErr := service.RefreshPartnerOAuthToken(client, form["refresh_token"], form["scope"])
 		if refreshErr != nil {
-			if service.AsPartnerOAuthError(refreshErr) != nil && service.AsPartnerOAuthError(refreshErr).Code == "invalid_grant" {
+			if errors.Is(refreshErr, service.ErrPartnerOAuthRefreshReuse) {
 				recordPartnerOAuthAudit(c, 0, "partner_oauth.refresh.reuse_detected", true, model.AuditFields{"client_id": client.ClientId})
 			}
 			writePartnerOAuthError(c, refreshErr)
@@ -356,11 +357,18 @@ func PartnerOAuthRevoke(c *gin.Context) {
 		writePartnerOAuthError(c, authErr)
 		return
 	}
-	if err := service.RevokePartnerOAuthToken(client, form["token"]); err != nil {
+	bindingID, err := service.RevokePartnerOAuthToken(client, form["token"])
+	if err != nil {
 		writePartnerOAuthError(c, err)
 		return
 	}
-	recordPartnerOAuthAudit(c, 0, "partner_oauth.binding.revoke", true, model.AuditFields{"client_id": client.ClientId, "reason": "revoked"})
+	if bindingID != "" {
+		recordPartnerOAuthAudit(c, 0, "partner_oauth.binding.revoke", true, model.AuditFields{
+			"client_id":  client.ClientId,
+			"binding_id": bindingID,
+			"reason":     "revoked",
+		})
+	}
 	c.Status(http.StatusOK)
 }
 

@@ -54,6 +54,8 @@ var (
 	partnerOAuthClientIDPattern  = regexp.MustCompile(`^pc_[0-9a-f]{32}$`)
 )
 
+var ErrPartnerOAuthRefreshReuse = errors.New("partner oauth refresh token reuse detected")
+
 type PartnerOAuthError struct {
 	Status      int
 	Code        string
@@ -548,22 +550,22 @@ func InspectPartnerOAuthAuthorizationForUser(requestToken, nonce string, userID 
 	return view, nil
 }
 
-func DecidePartnerOAuthAuthorization(requestToken, nonce, decision string, user *model.User) (redirectTo string, err error) {
+func DecidePartnerOAuthAuthorization(requestToken, nonce, decision string, user *model.User) (redirectTo string, clientID string, err error) {
 	payload, err := loadPartnerOAuthRequest(requestToken, nonce)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	issuer, err := PartnerOAuthIssuer()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	client, err := model.GetPartnerOAuthClientByClientID(payload.ClientID)
 	if err != nil || client.Status != model.PartnerOAuthClientStatusEnabled {
-		return "", partnerOAuthErr(http.StatusBadRequest, "access_denied", "authorization request is no longer valid")
+		return "", "", partnerOAuthErr(http.StatusBadRequest, "access_denied", "authorization request is no longer valid")
 	}
 	uris, err := ParsePartnerOAuthRedirectURIs(client.RedirectURIs)
 	if err != nil || !MatchPartnerOAuthRedirectURI(uris, payload.RedirectURI, client.TokenAuthMethod == model.PartnerOAuthTokenAuthMethodNone) {
-		return "", partnerOAuthErr(http.StatusBadRequest, "access_denied", "authorization request is no longer valid")
+		return "", "", partnerOAuthErr(http.StatusBadRequest, "access_denied", "authorization request is no longer valid")
 	}
 	var codeToken string
 	_, err = model.ConsumeAuthFlowWithAction(requestToken, model.AuthFlowMatch{
@@ -607,23 +609,27 @@ func DecidePartnerOAuthAuthorization(requestToken, nonce, decision string, user 
 	})
 	if err != nil {
 		if typed := AsPartnerOAuthError(err); typed != nil {
-			return "", typed
+			return "", "", typed
 		}
 		if errors.Is(err, model.ErrAuthFlowConsumed) || errors.Is(err, model.ErrAuthFlowExpired) || errors.Is(err, model.ErrAuthFlowInvalid) {
-			return "", partnerOAuthErr(http.StatusBadRequest, "access_denied", "authorization request is no longer valid")
+			return "", "", partnerOAuthErr(http.StatusBadRequest, "access_denied", "authorization request is no longer valid")
 		}
-		return "", err
+		return "", "", err
 	}
 	values := url.Values{}
 	if decision == "approve" {
 		if codeToken == "" {
-			return "", partnerOAuthErr(http.StatusInternalServerError, "server_error", "authorization code was not issued")
+			return "", "", partnerOAuthErr(http.StatusInternalServerError, "server_error", "authorization code was not issued")
 		}
 		values.Set("code", codeToken)
 	} else {
 		values.Set("error", "access_denied")
 	}
-	return AppendPartnerOAuthCallback(payload.RedirectURI, payload.State, issuer, values)
+	redirectTo, err = AppendPartnerOAuthCallback(payload.RedirectURI, payload.State, issuer, values)
+	if err != nil {
+		return "", "", err
+	}
+	return redirectTo, payload.ClientID, nil
 }
 
 func loadPartnerOAuthRequest(requestToken, nonce string) (*PartnerOAuthRequestPayload, error) {
@@ -857,7 +863,7 @@ func RefreshPartnerOAuthToken(client *model.PartnerOAuthClient, refreshToken, re
 				return model.RevokePartnerOAuthBindingWithTx(tx, token.BindingId, "refresh_reuse")
 			})
 		}
-		return nil, partnerOAuthErr(http.StatusBadRequest, "invalid_grant", "refresh token is invalid")
+		return nil, fmt.Errorf("%w: %w", partnerOAuthErr(http.StatusBadRequest, "invalid_grant", "refresh token is invalid"), ErrPartnerOAuthRefreshReuse)
 	}
 	if typed := AsPartnerOAuthError(err); typed != nil {
 		return nil, typed
@@ -871,21 +877,27 @@ func RefreshPartnerOAuthToken(client *model.PartnerOAuthClient, refreshToken, re
 	return response, nil
 }
 
-func RevokePartnerOAuthToken(client *model.PartnerOAuthClient, rawToken string) error {
+// RevokePartnerOAuthToken returns the revoked binding ID, or "" when the token
+// matched no active binding of this client (still a successful RFC 7009 revoke).
+func RevokePartnerOAuthToken(client *model.PartnerOAuthClient, rawToken string) (string, error) {
 	if client == nil || rawToken == "" {
-		return nil
+		return "", nil
 	}
 	token, err := model.FindPartnerOAuthToken(model.HashPartnerOAuthToken(rawToken))
 	if err != nil {
-		return nil
+		return "", nil
 	}
 	binding, err := model.GetPartnerOAuthBindingByBindingID(token.BindingId)
 	if err != nil || binding.ClientId != client.ClientId || binding.Status != model.PartnerOAuthBindingStatusActive {
-		return nil
+		return "", nil
 	}
-	return model.DB.Transaction(func(tx *gorm.DB) error {
+	err = model.DB.Transaction(func(tx *gorm.DB) error {
 		return model.RevokePartnerOAuthBindingWithTx(tx, binding.BindingId, "revoked")
 	})
+	if err != nil {
+		return "", err
+	}
+	return binding.BindingId, nil
 }
 
 type PartnerOAuthAccessPrincipal struct {

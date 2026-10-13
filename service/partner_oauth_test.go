@@ -213,6 +213,7 @@ func TestPartnerOAuthRefreshRotationAndReplay(t *testing.T) {
 	_, err = RefreshPartnerOAuthToken(client, first.RefreshToken, "")
 	require.Error(t, err)
 	assert.Equal(t, "invalid_grant", AsPartnerOAuthError(err).Code)
+	assert.ErrorIs(t, err, ErrPartnerOAuthRefreshReuse)
 	binding, err := model.GetPartnerOAuthBindingByBindingID(first.BindingID)
 	require.NoError(t, err)
 	assert.Equal(t, model.PartnerOAuthBindingStatusRevoked, binding.Status)
@@ -227,6 +228,7 @@ func TestPartnerOAuthAuthVersionChangeInvalidatesRefresh(t *testing.T) {
 	_, err := RefreshPartnerOAuthToken(client, issued.RefreshToken, "")
 	require.Error(t, err)
 	assert.Equal(t, "invalid_grant", AsPartnerOAuthError(err).Code)
+	assert.NotErrorIs(t, err, ErrPartnerOAuthRefreshReuse)
 }
 
 func TestPartnerOAuthRevokeSemantics(t *testing.T) {
@@ -235,14 +237,25 @@ func TestPartnerOAuthRevokeSemantics(t *testing.T) {
 	client, _ := seedPartnerClient(t, model.PartnerOAuthTokenAuthMethodBasic, []string{"https://assistant.example.com/oauth/callback"})
 	other, _ := seedPartnerClient(t, model.PartnerOAuthTokenAuthMethodNone, []string{"http://127.0.0.1/cb"})
 	issued := issueOfflineBinding(t, client, user)
-	require.NoError(t, RevokePartnerOAuthToken(other, issued.RefreshToken))
-	_, err := AuthenticatePartnerOAuthAccessToken(issued.AccessToken, PartnerOAuthScopeAccountRead)
+	revoked, err := RevokePartnerOAuthToken(other, issued.RefreshToken)
 	require.NoError(t, err)
-	require.NoError(t, RevokePartnerOAuthToken(client, issued.RefreshToken))
+	assert.Empty(t, revoked)
+	_, err = AuthenticatePartnerOAuthAccessToken(issued.AccessToken, PartnerOAuthScopeAccountRead)
+	require.NoError(t, err)
+
+	revoked, err = RevokePartnerOAuthToken(client, issued.RefreshToken)
+	require.NoError(t, err)
+	assert.Equal(t, issued.BindingID, revoked)
 	_, err = AuthenticatePartnerOAuthAccessToken(issued.AccessToken, PartnerOAuthScopeAccountRead)
 	require.Error(t, err)
 	assert.Equal(t, "invalid_token", AsPartnerOAuthError(err).Code)
-	require.NoError(t, RevokePartnerOAuthToken(client, "or_unknown"))
+
+	revoked, err = RevokePartnerOAuthToken(client, issued.RefreshToken)
+	require.NoError(t, err)
+	assert.Empty(t, revoked, "an already revoked binding must not be reported as revoked again")
+	revoked, err = RevokePartnerOAuthToken(client, "or_unknown")
+	require.NoError(t, err)
+	assert.Empty(t, revoked)
 }
 
 func TestPartnerOAuthOfflineAccessOptional(t *testing.T) {
