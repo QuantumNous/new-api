@@ -52,6 +52,8 @@ const (
 	RelayModeDecisions
 )
 
+// Path2RelayMode maps an API request path to its relay operation, returning
+// RelayModeUnknown when no supported path pattern matches.
 func Path2RelayMode(path string) int {
 	relayMode := RelayModeUnknown
 	if strings.HasPrefix(path, "/v1/chat/completions") || strings.HasPrefix(path, "/pg/chat/completions") {

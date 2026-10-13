@@ -16,6 +16,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// DecisionsHelper relays one non-streaming Decisions attempt through a supported
+// channel, applying model mapping and parameter overrides. It validates the
+// response and usage before settling quota and forwarding the original JSON;
+// errors are returned to the caller for retry or refund handling.
 func DecisionsHelper(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
 	info.InitChannelMeta(c)
 	switch info.ChannelType {

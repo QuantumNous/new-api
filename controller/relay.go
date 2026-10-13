@@ -31,6 +31,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// relayHandler dispatches one upstream attempt to the handler for the request's
+// relay mode and returns its error to the caller's retry and refund flow.
 func relayHandler(c *gin.Context, info *relaycommon.RelayInfo) *types.NewAPIError {
 	var err *types.NewAPIError
 	switch info.RelayMode {

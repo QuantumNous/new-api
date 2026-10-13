@@ -36,6 +36,8 @@ const decisionAnswers = `[
 	{"type":"refusal","name":"refused"}
 ]`
 
+// TestDecisionsValidation checks native question types, text and image inputs,
+// request limits, and token-estimation metadata for accepted requests.
 func TestDecisionsValidation(t *testing.T) {
 	valid := `{"model":"gpt-6-luna","input":"broken screen","questions":` + decisionQuestions + `}`
 	for _, tc := range []struct{ name, body, want string }{
@@ -71,6 +73,8 @@ func TestDecisionsValidation(t *testing.T) {
 	}
 }
 
+// TestDecisionsRelay exercises routing, access checks, model mapping, endpoint
+// pricing, retry settlement, and failure refunds against a simulated upstream.
 func TestDecisionsRelay(t *testing.T) {
 	require.NoError(t, i18n.Init())
 	setupRelayRouterTestDB(t)

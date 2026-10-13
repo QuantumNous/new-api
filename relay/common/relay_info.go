@@ -682,6 +682,9 @@ func cloneRequestHeaders(c *gin.Context) map[string]string {
 	return headers
 }
 
+// GenRelayInfo builds format-specific relay metadata from the request context,
+// parsed request, and optional WebSocket connection. It rejects unsupported
+// formats or mismatched request types that require a concrete DTO.
 func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Request, ws *websocket.Conn) (*RelayInfo, error) {
 	var info *RelayInfo
 	var err error

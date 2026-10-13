@@ -19,6 +19,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GetAndValidateRequest selects the request decoder and validator for the relay
+// format and URL path. It returns the typed request and any decoding or validation
+// error, and rejects unsupported relay formats.
 func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dto.Request, err error) {
 	relayMode := relayconstant.Path2RelayMode(c.Request.URL.Path)
 

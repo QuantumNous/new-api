@@ -42,6 +42,8 @@ type DecisionLevel struct {
 	Description *string `json:"description,omitempty"`
 }
 
+// Validate checks required fields, input shapes, and question-specific constraints
+// for a non-streaming Decisions request, returning the first validation error.
 func (r *OpenAIDecisionsRequest) Validate() error {
 	if r.Model == "" {
 		return errors.New("model is required")
@@ -103,6 +105,9 @@ func (r *OpenAIDecisionsRequest) Validate() error {
 	return nil
 }
 
+// validateDecisionInput accepts text or user messages containing text and image
+// references, enforcing the image count and metadata constraints. It checks image
+// URL syntax without fetching URLs or decoding the image payloads.
 func validateDecisionInput(input json.RawMessage) error {
 	if kitutil.GetJsonType(input) == "string" {
 		return nil
@@ -167,6 +172,8 @@ func validateDecisionInput(input json.RawMessage) error {
 	return nil
 }
 
+// GetTokenCountMeta builds token-estimation metadata for the text and image input,
+// including serialized questions in the text passed to the tokenizer.
 func (r *OpenAIDecisionsRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	meta := (&OpenAIResponsesRequest{Input: r.Input}).GetTokenCountMeta()
 	questions, _ := kitutil.Marshal(r.Questions)
@@ -175,8 +182,10 @@ func (r *OpenAIDecisionsRequest) GetTokenCountMeta() *types.TokenCountMeta {
 	return meta
 }
 
+// IsStream returns false because Decisions only supports non-streaming responses.
 func (r *OpenAIDecisionsRequest) IsStream(_ *http.Request) bool { return false }
 
+// SetModelName updates the request model for upstream channel model mapping.
 func (r *OpenAIDecisionsRequest) SetModelName(model string) { r.Model = model }
 
 // DecodeDecisionUsage validates billing quantities before any response is
