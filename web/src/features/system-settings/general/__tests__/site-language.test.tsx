@@ -119,3 +119,37 @@ test.each([
     client.clear()
   }
 )
+
+test('saves the domestic globe filter through the existing settings API', async () => {
+  const user = userEvent.setup()
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  const router = createRouter({
+    routeTree: createRootRoute({
+      component: () => <Fixture initialLanguage='auto' />,
+    }),
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+  })
+  render(
+    <QueryClientProvider client={client}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  )
+  const toggle = await screen.findByRole('switch', {
+    name: 'Show only Chinese models on the homepage globe',
+  })
+  expect(toggle).not.toBeChecked()
+  await user.click(toggle)
+  await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+  await waitFor(() =>
+    expect(put).toHaveBeenCalledWith('/api/option/', {
+      key: 'console_setting.home_globe_domestic_only',
+      value: 'true',
+    })
+  )
+  client.clear()
+})

@@ -138,13 +138,14 @@ export function Home() {
 
   return (
     <PublicLayout showMainContainer={false} navLinks={homeNavLinks}>
-      <Hero isAuthenticated={isAuthenticated} />
-      <Stats />
-      <Features />
-      <SubscriptionPlansPreview isAuthenticated={isAuthenticated} />
-      <HowItWorks />
-      <CTA isAuthenticated={isAuthenticated} />
-      <Footer />
+      <Hero>
+        <Stats />
+        <Features />
+        <SubscriptionPlansPreview isAuthenticated={isAuthenticated} />
+        <HowItWorks />
+        <CTA isAuthenticated={isAuthenticated} />
+        <Footer />
+      </Hero>
     </PublicLayout>
   )
 }

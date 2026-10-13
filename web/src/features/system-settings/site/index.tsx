@@ -25,6 +25,7 @@ import {
 } from './section-registry.tsx'
 
 const defaultSiteSettings: SiteSettings = {
+  'console_setting.home_globe_domestic_only': false,
   'console_setting.default_language': 'auto',
   Notice: '',
   SystemName: 'New API',

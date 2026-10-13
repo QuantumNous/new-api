@@ -32,6 +32,7 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { INTERFACE_LANGUAGE_OPTIONS } from '@/i18n/languages'
 
@@ -41,6 +42,8 @@ import {
   SettingsForm,
   SettingsFormGrid,
   SettingsFormGridItem,
+  SettingsSwitchContent,
+  SettingsSwitchItem,
 } from '../components/settings-form-layout'
 import { SettingsPageFormActions } from '../components/settings-page-context'
 import { SettingsSection } from '../components/settings-section'
@@ -50,6 +53,7 @@ import { isValidTaskPublicAddress } from './task-public-address'
 
 const _systemInfoSchema = z.object({
   console_setting: z.object({
+    home_globe_domestic_only: z.boolean().optional(),
     default_language: z.enum([
       'auto',
       'en',
@@ -94,6 +98,8 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
 
   const normalizedDefaults: SystemInfoFormValues = {
     console_setting: {
+      home_globe_domestic_only:
+        defaultValues.console_setting?.home_globe_domestic_only === true,
       default_language:
         defaultValues.console_setting?.default_language || 'auto',
     },
@@ -208,6 +214,31 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='console_setting.home_globe_domestic_only'
+                render={({ field }) => (
+                  <SettingsSwitchItem>
+                    <SettingsSwitchContent>
+                      <FormLabel>
+                        {t('Show only Chinese models on the homepage globe')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Only filters the homepage globe display; available models and routing are unchanged.'
+                        )}
+                      </FormDescription>
+                    </SettingsSwitchContent>
+                    <FormControl>
+                      <Switch
+                        checked={!!field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={isSubmitting}
+                      />
+                    </FormControl>
+                  </SettingsSwitchItem>
                 )}
               />
               <FormField

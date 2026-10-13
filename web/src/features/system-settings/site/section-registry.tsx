@@ -38,6 +38,8 @@ const SITE_SECTIONS = [
         defaultValues={{
           SystemName: settings.SystemName,
           console_setting: {
+            home_globe_domestic_only:
+              settings['console_setting.home_globe_domestic_only'],
             default_language: settings['console_setting.default_language'],
           },
           Logo: settings.Logo,

@@ -48,6 +48,7 @@ const STATUS_RELATED_KEYS = new Set([
   'oidc.display_name',
   'ServerAddress',
   'console_setting.default_language',
+  'console_setting.home_globe_domestic_only',
   'passkey.enabled',
   'passkey.rp_id',
   'passkey.legacy_rp_ids',

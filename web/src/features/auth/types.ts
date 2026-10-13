@@ -88,6 +88,7 @@ export interface ApiResponse<T = unknown> {
 // ============================================================================
 
 export interface SystemStatus {
+  home_globe_domestic_only?: boolean
   success?: boolean
   message?: string
   data?: {
