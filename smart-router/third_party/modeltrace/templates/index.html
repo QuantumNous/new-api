@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ModelTrace</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='repository-link.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="product-name"><span class="product-mark">MT</span><strong>ModelTrace</strong></div>
+    <div class="topbar-actions">
+      <div class="topbar-status"><span id="topbar-bank-count">{{ unified.model_count }} 个候选模型</span></div>
+      <a class="topbar-github" href="https://github.com/xqy2006/ModelTrace" target="_blank" rel="noopener noreferrer" aria-label="在新标签页打开 ModelTrace 的 GitHub 仓库" title="GitHub 仓库">
+        <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="sidebar">
+      <nav aria-label="工作区">
+        <button class="nav-button active" data-workspace="test" type="button"><span class="nav-icon">01</span><span><strong>模型测试</strong></span></button>
+        <button class="nav-button" data-workspace="library" type="button"><span class="nav-icon">02</span><span><strong>指纹库管理</strong></span></button>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <section id="workspace-test" class="workspace active">
+        <div class="page-header"><h1>模型测试</h1><div id="active-bank-badge" class="privacy-badge">{{ unified.model_count }} 个候选模型</div></div>
+
+        <div class="mode-tabs" role="tablist" aria-label="测试方式">
+          <button class="mode-tab active" data-test-mode="manual" type="button">手动测试</button>
+          <button class="mode-tab" data-test-mode="api" type="button">API 自动测试</button>
+        </div>
+
+        <section id="test-manual" class="mode-panel active">
+          <div class="panel-toolbar"><strong>三次挑战</strong><button id="regenerate" class="button secondary" type="button">重新生成</button></div>
+          <div id="challenge-list" class="challenge-list" aria-live="polite"></div>
+          <div class="action-row"><button id="analyze" class="button primary" type="button">计算归因概率</button></div>
+        </section>
+
+        <section id="test-api" class="mode-panel">
+          <form id="api-test-form" class="form-panel">
+            <div class="form-grid two">
+              <label><span>Base URL</span><input id="test-api-base" required placeholder="https://example.com/v1"></label>
+              <label><span>接口模型名</span><input id="test-api-model" required placeholder="模型名"></label>
+              <label><span>API Key</span><input id="test-api-key" type="password" required autocomplete="off"></label>
+              <label><span>温度（可选）</span><input id="test-temperature" type="number" min="0" max="2" step="0.1" placeholder="接口默认"></label>
+            </div>
+            <div class="form-footer"><button class="button primary" type="submit">开始测试</button></div>
+          </form>
+          <section id="api-test-progress" class="progress-panel" hidden aria-live="polite">
+            <div class="progress-heading"><strong id="api-progress-status">准备测试</strong><span id="api-progress-count">有效 0/3 · 已尝试 0/6</span></div>
+            <div class="progress-track"><i id="api-progress-fill"></i></div>
+            <div id="api-progress-steps" class="progress-steps"></div>
+          </section>
+        </section>
+
+        <div id="test-message" class="message" hidden></div>
+        <section id="result" class="result-panel" hidden aria-live="polite"></section>
+      </section>
+
+      <section id="workspace-library" class="workspace">
+        <div class="page-header">
+          <h1>指纹库管理</h1>
+          <div class="library-actions">
+            <label class="bank-picker"><span>指纹库</span><select id="bank-select">{% for bank_id, item in banks.items() %}<option value="{{ bank_id }}"{% if bank_id == default_bank_id %} selected{% endif %}>{{ item.label }}</option>{% endfor %}</select></label>
+            <button id="show-create-bank" class="button secondary" type="button">新建指纹库</button>
+          </div>
+        </div>
+
+        <form id="create-bank-form" class="form-panel compact-form" hidden>
+          <label><span>指纹库名称</span><input id="new-bank-name" required placeholder="例如 Llama"></label>
+          <button class="button primary" type="submit">创建</button>
+        </form>
+
+        <section class="inventory-panel simple-inventory">
+          <div class="form-heading"><strong id="selected-bank-name">{{ bank.label }}</strong></div>
+          <div id="bank-inventory" class="fingerprint-list"></div>
+        </section>
+
+        <form id="auto-enrollment" class="form-panel">
+          <div class="form-heading"><strong>新建指纹</strong></div>
+          <div class="form-grid two">
+            <label><span>Base URL</span><input id="api-base" required placeholder="https://example.com/v1"></label>
+            <label><span>接口模型名</span><input id="api-model" required placeholder="实际请求使用的模型名"></label>
+            <label><span>API Key</span><input id="api-key" type="password" required autocomplete="off"></label>
+            <label><span>指纹名称</span><input id="auto-model" list="model-options" required placeholder="例如 model-version-name"></label>
+            <label><span>采集回答数</span><input id="sample-count" type="number" min="3" max="36" value="36" required></label>
+            <label><span>温度（可选）</span><input id="temperature" type="number" min="0" max="2" step="0.1" placeholder="接口默认"></label>
+          </div>
+          <div class="form-footer"><button class="button primary" type="submit">自动采集并建立指纹</button></div>
+        </form>
+
+        <div id="enrollment-message" class="message" hidden></div>
+      </section>
+    </main>
+  </div>
+
+  <datalist id="model-options">{% for model in bank.models %}<option value="{{ model.id }}">{% endfor %}</datalist>
+  <script>window.BANK_SUMMARIES = {{ banks | tojson }}; window.UNIFIED_SUMMARY = {{ unified | tojson }}; window.DEFAULT_BANK_ID = {{ default_bank_id | tojson }};</script>
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

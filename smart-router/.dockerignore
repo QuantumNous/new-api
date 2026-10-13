@@ -1,0 +1,8 @@
+.git
+.trae
+bin
+coverage
+*.db
+*.log
+FINAL-MANIFEST.md
+SHA256SUMS

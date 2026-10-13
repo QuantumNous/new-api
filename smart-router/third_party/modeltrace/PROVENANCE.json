@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "source": {
+    "url": "https://github.com/xqy2006/ModelTrace.git",
+    "commit": "6cd4a8ff0f3f4e49d6d6969dd2fbadfa1569fde2"
+  },
+  "license": {
+    "identity": "MIT License",
+    "spdx_id": "MIT",
+    "file": "LICENSE",
+    "sha256": "238afb57e498990742f84b9ce6167b4e256ac06104a9938ce953bc41c14bea51"
+  },
+  "archive": {
+    "file": "upstream-source.tar.gz",
+    "format": "git archive --format=tar.gz",
+    "commit": "6cd4a8ff0f3f4e49d6d6969dd2fbadfa1569fde2",
+    "optional_guard": {
+      "path": "codex-plugin/modeltrace-guard/",
+      "distribution": "archive-only",
+      "installed": false
+    }
+  },
+  "coverage": {
+    "algorithm": "SHA-256",
+    "payload_file_count": 26,
+    "manifest": {
+      "included": "Every regular file in this distribution except PROVENANCE.json and SHA256SUMS.",
+      "excluded": {
+        "PROVENANCE.json": "Excluded because a manifest cannot contain its own stable digest.",
+        "SHA256SUMS": "Excluded to keep the manifest and checksum index independent of recursive metadata."
+      }
+    },
+    "sha256sums": {
+      "included": "Every regular file in this distribution except PROVENANCE.json and SHA256SUMS.",
+      "excluded": {
+        "PROVENANCE.json": "Excluded to avoid a checksum/manifest recursion.",
+        "SHA256SUMS": "Excluded because a checksum index cannot contain its own stable digest."
+      },
+      "format": "<sha256><two spaces>./<relative path>",
+      "order": "C-locale lexicographic order by ./<relative path>"
+    }
+  },
+  "distribution_policy": {
+    "runtime_state_included": false,
+    "symlinks": "forbidden",
+    "git_metadata": "forbidden",
+    "caches_and_virtual_environments": "forbidden"
+  },
+  "files": {
+    "LICENSE": "238afb57e498990742f84b9ce6167b4e256ac06104a9938ce953bc41c14bea51",
+    "README.md": "f01130b5d4d842785f1632f1b1eba3b22ae32a4b4f89eb038003f73c5c08b0fc",
+    "app.py": "f3798aa2ac97b7e89e68f04aa359af4a49f502f5f174424bf7c2bd686420c5e4",
+    "bank_builder.py": "d30664990e69cdf54766197701cf28669cf3d8aa61457191bb2d6aa0745f4e36",
+    "challenge_suite.py": "aeebf20878ce11864c5cb7b1f6c0c7c2cf6dcfbb934244ff868b369e08a15032",
+    "data/claude_bank.json": "f62260d976199b5b0b1a650a72c170102313aa3964f295e7a6dd81cfaaa8aff9",
+    "data/claude_reference.jsonl": "13e5a9b266fefb96282e9857a53e3b408146dade66ca6220fa593fdff270d8a8",
+    "data/gpt_bank.json": "94229c6601429c916011b1ce45ac1a87d6ad0d6914368038d0d069effe7201a1",
+    "data/gpt_reference.jsonl": "b87e5630286308fdcec0893b89873635bf274b64a5269f41039eb46e66d3793f",
+    "data/unified_bank.json": "f267d0513aa06981d024ec5394746fceddf44e4e8a75fa6bf8304255f4b32d6d",
+    "enrollment.py": "915386ada7779526f497aca09670503e1dfe67aa9cd20816333087b0f5b60c5e",
+    "fingerprint.py": "387fe5c44cc5f859995432267b0d3b462fc26e82419fc22e3ee7f36cc2502d98",
+    "rebuild_unified_bank.py": "13b5e29d3b7f3684a015eccf0bc030a280d63db1420babf79dac927486f0b804",
+    "requirements.txt": "38d609dd7835a049b513d67a49c19d1e3642041e79630ad68d6470db13c59ea7",
+    "start.py": "6c2ffad5457b31795860b4d078f2e69c04bb7128b4c559884dfd85026769d3e4",
+    "static/.nojekyll": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "static/app.js": "09d4213573e2f8d33c97c2d899e53531db01841fd5c08331cfb652e8283c9eae",
+    "static/challenge-browser.js": "4a3868c9fe237cabde92f0d2bffaf32118f558f7a43fcc336874fecd2bf6be39",
+    "static/data/unified_bank.json": "f267d0513aa06981d024ec5394746fceddf44e4e8a75fa6bf8304255f4b32d6d",
+    "static/fingerprint-core.js": "83fa5bd611e18f8339122582335123c8ea168ed242298bb31f4e363abeeb6e4a",
+    "static/index.html": "d924bf903a44b8edeb002b10f6ecd1f7dc610c4d1fb52371ee149ba373acf33d",
+    "static/pages-app.js": "760dd3e11400d2933482354d0a8b87e925cce523871f974c291293dfb6a09f05",
+    "static/repository-link.css": "6bd0792a1fea67b12547fdb5d62cca2084167db0ad0fedc19e7c3b6a7d83fe15",
+    "static/styles.css": "f2fc3c41835f63249dde330e8841fdee95e9e7ff588ff2013a9b68e7ff385c85",
+    "templates/index.html": "ce89852329fbdde555db565abea4d16e93c82405caa305fc99a34cfd7dca998f",
+    "upstream-source.tar.gz": "1a3f10f8ac72b4e6750194637dce2c38d3976f9d883799c96243c42910725b19"
+  }
+}

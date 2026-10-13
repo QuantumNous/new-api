@@ -1,0 +1,51 @@
+apiVersion: smart-router.integration/v1
+kind: FutureHostHooks
+status: not-integrated
+ownership:
+  router_database: standalone
+  host_database_access: forbidden
+  provider_credentials: host-only
+  provider_response_bodies: host-only
+hooks:
+  - name: request_route
+    direction: host-to-router
+    transport: http
+    method: POST
+    path: /v1/route
+    request_contract: route_request
+    response_contract: route_response
+  - name: report_attempt_outcome
+    direction: host-to-router
+    transport: http
+    method: POST
+    path: /v1/outcomes
+    request_contract: attempt_outcome
+    response_contract: empty-204-or-error
+  - name: fetch_signed_snapshot
+    direction: host-to-router
+    transport: http
+    method: GET
+    path: /v1/snapshot
+    response_contract: signed_snapshot
+  - name: resolve_opaque_binding
+    direction: host-internal
+    transport: none
+    input: binding_id
+    output: host-owned-provider-configuration
+    router_visibility: none
+host_requirements:
+  verify_signatures: true
+  reject_expired_routes_with_injected_clock: true
+  enforce_max_attempts: 5
+  terminal_outcomes:
+    - auth_401
+    - client_4xx
+    - write_unknown
+    - response_committed
+  retryable_outcomes:
+    - rate_limited_429
+    - upstream_5xx
+    - transport_pre_write
+  honor_retry_after_ms: true
+  maximum_retry_after_ms: 86400000
+  invalid_retry_after_policy: fail-closed
