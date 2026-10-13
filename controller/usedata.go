@@ -167,3 +167,83 @@ func GetUserFlowQuotaDates(c *gin.Context) {
 	})
 	return
 }
+
+// tokenUsageMaxSpanSeconds bounds how far back the per-key spend listing can
+// reach. The ranking is meant for dashboards (month-to-date, last N days); an
+// unbounded range would let one request scan the whole quota_data table.
+const tokenUsageMaxSpanSeconds = int64(366 * 86400)
+
+// parseTokenUsageRange validates the ranking's time window.
+func parseTokenUsageRange(c *gin.Context) (int64, int64, bool) {
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	if startTimestamp <= 0 || endTimestamp <= 0 || endTimestamp < startTimestamp {
+		common.ApiErrorMsg(c, "invalid time range")
+		return 0, 0, false
+	}
+	if endTimestamp-startTimestamp > tokenUsageMaxSpanSeconds {
+		common.ApiErrorMsg(c, "time span too large")
+		return 0, 0, false
+	}
+	return startTimestamp, endTimestamp, true
+}
+
+// parseTokenUsageLimit reads the optional row cap, clamped to sane values.
+func parseTokenUsageLimit(c *gin.Context) int {
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	if limit <= 0 || limit > 500 {
+		return 100
+	}
+	return limit
+}
+
+// GetAdminTokenUsage serves the dashboard's per-key spend ranking across all
+// users. username/token_name/model_name narrow it like every other /api/data
+// query; rows are ordered by spend and capped.
+func GetAdminTokenUsage(c *gin.Context) {
+	startTimestamp, endTimestamp, ok := parseTokenUsageRange(c)
+	if !ok {
+		return
+	}
+	rows, err := model.GetTokenUsageRanking(startTimestamp, endTimestamp, 0,
+		c.Query("username"), c.Query("token_name"), c.Query("model_name"),
+		parseTokenUsageLimit(c))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    rows,
+	})
+}
+
+// GetSelfTokenUsage is the per-key spend ranking for the session account.
+// Like the other self data routes the user id comes from the session, never
+// from a parameter.
+func GetSelfTokenUsage(c *gin.Context) {
+	startTimestamp, endTimestamp, ok := parseTokenUsageRange(c)
+	if !ok {
+		return
+	}
+	if endTimestamp-startTimestamp > 2592000 {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "时间跨度不能超过 1 个月",
+		})
+		return
+	}
+	rows, err := model.GetTokenUsageRanking(startTimestamp, endTimestamp, c.GetInt("id"),
+		"", c.Query("token_name"), c.Query("model_name"),
+		parseTokenUsageLimit(c))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    rows,
+	})
+}

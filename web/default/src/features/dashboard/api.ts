@@ -23,8 +23,10 @@ import type {
   FlowQuotaDataItem,
   QuotaDataItem,
   RealtimeDimensions,
+  RealtimeKeyBreakdowns,
   RealtimeSnapshot,
   RealtimeUsersResponse,
+  TokenUsageItem,
   UptimeGroupResult,
   UsageStatsResult,
 } from './types'
@@ -156,6 +158,16 @@ export async function getSelfRealtimeDimensions(windowSeconds = 3600) {
   return res.data
 }
 
+// Split the calling user's realtime snapshot by key — the "which key is
+// burning quota right now" ranking. Only keys with traffic inside the
+// retention window appear.
+export async function getSelfRealtimeKeyBreakdown() {
+  const res = await api.get<{ success: boolean; data: RealtimeKeyBreakdowns }>(
+    '/api/data/realtime/self/keys'
+  )
+  return res.data
+}
+
 // Get the calling user's historical usage, including spend, over an arbitrary
 // range. This reads the hourly rollup rather than the in-memory rings, so it
 // can answer for a month but cannot resolve finer than an hour.
@@ -227,6 +239,31 @@ export async function getFlowQuotaDates(
   const res = await api.get<{
     success: boolean
     data?: FlowQuotaDataItem[]
+    message?: string
+  }>(endpoint, { params })
+  return res.data
+}
+
+// Per-key spend ranking over a time range. The admin endpoint aggregates
+// across all users (username filter optional); the self variant is scoped to
+// the session account and capped at one month server-side.
+export async function getTokenUsage(
+  params: {
+    start_timestamp: number
+    end_timestamp: number
+    username?: string
+    token_name?: string
+    model_name?: string
+    limit?: number
+  },
+  isAdmin = false
+) {
+  const endpoint = isAdmin
+    ? '/api/data/token-usage'
+    : '/api/data/self/token-usage'
+  const res = await api.get<{
+    success: boolean
+    data?: TokenUsageItem[]
     message?: string
   }>(endpoint, { params })
   return res.data

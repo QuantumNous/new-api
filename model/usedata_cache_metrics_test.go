@@ -106,3 +106,107 @@ func TestQuotaDataCacheSumRoundTripsThroughDatabase(t *testing.T) {
 	require.Equal(t, 800, rows[0].CacheReadTokens)
 	require.Equal(t, 1200, rows[0].InputTokensTotal)
 }
+
+func TestRawQuotaFromGroupRatio(t *testing.T) {
+	// A caller who never computed a group ratio (task-billing paths that bill
+	// a fixed Quota directly) must report unknown, not "no discount applied".
+	require.Equal(t, 0, rawQuotaFromGroupRatio(500, 0))
+	require.Equal(t, 0, rawQuotaFromGroupRatio(500, -1))
+
+	// Ratio 1.0 (no discount/markup): raw quota equals paid quota.
+	require.Equal(t, 100, rawQuotaFromGroupRatio(100, 1))
+
+	// A 0.5 group ratio means the caller paid half price: raw quota is double.
+	require.Equal(t, 200, rawQuotaFromGroupRatio(100, 0.5))
+
+	// A markup group (ratio > 1) still derives correctly, rounding to the
+	// nearest int rather than truncating.
+	require.Equal(t, 80, rawQuotaFromGroupRatio(100, 1.25))
+}
+
+func TestLogQuotaDataAccumulatesRawQuota(t *testing.T) {
+	CacheQuotaDataLock.Lock()
+	CacheQuotaData = make(map[string]*QuotaData)
+	CacheQuotaDataLock.Unlock()
+
+	base := QuotaDataLogParams{
+		UserID:     8,
+		Username:   "discount-user",
+		ModelName:  "claude-sonnet",
+		Quota:      50,
+		CreatedAt:  1_780_000_000,
+		GroupRatio: 0.5, // paid half price: raw quota should be 100
+	}
+	LogQuotaData(base)
+
+	second := base
+	second.CreatedAt += 10 // still the same hour bucket
+	second.Quota = 30
+	second.GroupRatio = 1 // no discount this time: raw quota should be 30
+	LogQuotaData(second)
+
+	CacheQuotaDataLock.Lock()
+	defer CacheQuotaDataLock.Unlock()
+	require.Len(t, CacheQuotaData, 1)
+
+	for _, cached := range CacheQuotaData {
+		require.Equal(t, 2, cached.Count)
+		require.Equal(t, 80, cached.Quota)
+		require.Equal(t, 130, cached.RawQuota)
+	}
+}
+
+func TestRawQuotaUnknownWhenGroupRatioMissing(t *testing.T) {
+	CacheQuotaDataLock.Lock()
+	CacheQuotaData = make(map[string]*QuotaData)
+	CacheQuotaDataLock.Unlock()
+
+	// A billing path that never records a group ratio (e.g. a fixed-price task
+	// log) must leave RawQuota at 0 — "unknown", not "free" or "no discount".
+	LogQuotaData(QuotaDataLogParams{
+		UserID:    9,
+		Username:  "no-ratio-user",
+		ModelName: "mj-fast",
+		Quota:     40,
+		CreatedAt: 1_780_000_000,
+	})
+
+	CacheQuotaDataLock.Lock()
+	defer CacheQuotaDataLock.Unlock()
+	require.Len(t, CacheQuotaData, 1)
+	for _, cached := range CacheQuotaData {
+		require.Equal(t, 40, cached.Quota)
+		require.Equal(t, 0, cached.RawQuota)
+	}
+}
+
+func TestLogQuotaDataAccumulatesChargeUSDMicros(t *testing.T) {
+	CacheQuotaDataLock.Lock()
+	CacheQuotaData = make(map[string]*QuotaData)
+	CacheQuotaDataLock.Unlock()
+
+	base := QuotaDataLogParams{
+		UserID:          10,
+		Username:        "usd-user",
+		ModelName:       "claude-sonnet",
+		Quota:           6310,
+		CreatedAt:       1_780_000_000,
+		ChargeUSDMicros: 1875, // $0.001875, matching the billing path's own snapshot
+	}
+	LogQuotaData(base)
+
+	second := base
+	second.CreatedAt += 10 // still the same hour bucket
+	second.Quota = 3000
+	second.ChargeUSDMicros = 900
+	LogQuotaData(second)
+
+	CacheQuotaDataLock.Lock()
+	defer CacheQuotaDataLock.Unlock()
+	require.Len(t, CacheQuotaData, 1)
+	for _, cached := range CacheQuotaData {
+		require.Equal(t, 2, cached.Count)
+		require.Equal(t, int64(2775), cached.ChargeUSDMicros)
+	}
+}
+

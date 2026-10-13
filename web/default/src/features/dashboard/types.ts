@@ -59,6 +59,44 @@ export interface FlowQuotaDataItem {
 
 export type FlowMetric = 'quota' | 'tokens' | 'requests'
 
+// One key's aggregated spend over the ranking's time range. Quota uses the
+// platform billing unit, formatted with the same formatter as the stat
+// cards; token_name may be empty for keys whose row was hard-deleted.
+export interface TokenUsageItem {
+  token_id: number
+  token_name?: string
+  user_id: number
+  username?: string
+  count: number
+  quota: number
+  // raw_quota is the sticker price before the key's group discount/markup —
+  // what the same requests would have cost at group ratio 1.0. 0 means
+  // "unknown" for rows predating this column or billed through a path that
+  // never recorded a group ratio, not "no discount applied".
+  raw_quota: number
+  // charge_usd_micros is the sum of each request's own real USD settlement
+  // (millionths of a dollar), already computed by the billing path — not
+  // derived from quota, which is in an internal unit that bakes in a CNY
+  // rate that can drift over the range. Divide by 1_000_000 for dollars.
+  // 0 means unknown for rows predating this column.
+  charge_usd_micros: number
+  // charge_cny_micros is charge_usd_micros converted at the admin-configured
+  // billing exchange rate (系统设置 -> 货币与展示 -> 计费汇率) — the same
+  // rate the relay path itself uses, not a hardcoded constant. Divide by
+  // 1_000_000 for yuan.
+  charge_cny_micros: number
+  // raw_charge_usd_micros / raw_charge_cny_micros are the sticker-price
+  // USD/CNY before the key's group discount — the money counterpart to
+  // raw_quota, scaled from charge_usd_micros by the same raw_quota/quota
+  // ratio. 0 when quota is 0 (nothing to scale from).
+  raw_charge_usd_micros: number
+  raw_charge_cny_micros: number
+  token_used: number
+  cache_read_tokens: number
+  input_tokens_total: number
+  last_used: number
+}
+
 // ----------------------------------------------------------------------------
 // Realtime throughput
 //
@@ -120,6 +158,22 @@ export interface RealtimeDimensions {
   // The breakdown hit its ring cap, so some combinations are missing from
   // these lists even though their traffic is still counted in the totals.
   truncated: boolean
+}
+
+// One key's realtime throughput, the same window metrics as RealtimeSnapshot
+// but scoped to a single key. Backs the "current consumption" ranking.
+export interface RealtimeKeyBreakdown {
+  token_id: number
+  token_name?: string
+  windows: RealtimeWindow[]
+}
+
+export interface RealtimeKeyBreakdowns {
+  user_id: number
+  now: number
+  node_name: string
+  truncated: boolean
+  keys: RealtimeKeyBreakdown[]
 }
 
 // ----------------------------------------------------------------------------

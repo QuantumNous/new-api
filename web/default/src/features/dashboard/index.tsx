@@ -103,6 +103,12 @@ const LazyPerformanceOverview = lazy(() =>
   }))
 )
 
+const LazyTokenUsageCard = lazy(() =>
+  import('./components/models/token-usage-card').then((m) => ({
+    default: m.TokenUsageCard,
+  }))
+)
+
 const LazyRealtimeMetricsPanel = lazy(() =>
   import('./components/models/realtime-metrics-panel').then((m) => ({
     default: m.RealtimeMetricsPanel,
@@ -423,6 +429,11 @@ export function Dashboard() {
                       modelFilters.time_granularity || DEFAULT_TIME_GRANULARITY
                     }
                   />
+                </Suspense>
+              </FadeIn>
+              <FadeIn delay={0.25}>
+                <Suspense fallback={<ModelChartsFallback />}>
+                  <LazyTokenUsageCard filters={modelFilters} />
                 </Suspense>
               </FadeIn>
             </>

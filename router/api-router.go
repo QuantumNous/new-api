@@ -316,7 +316,12 @@ func SetApiRouter(router *gin.Engine) {
 			realtimeUsageRoute := usageRoute.Group("/realtime")
 			realtimeUsageRoute.Use(middleware.TokenAuthReadOnly())
 			{
+				// The empty path serves the bare /api/usage/realtime URL;
+				// registering it alongside "/" spares script callers the
+				// trailing-slash redirect.
+				realtimeUsageRoute.GET("", controller.GetTokenRealtimeMetrics)
 				realtimeUsageRoute.GET("/", controller.GetTokenRealtimeMetrics)
+				realtimeUsageRoute.GET("/keys", controller.GetTokenRealtimeKeyBreakdown)
 			}
 		}
 
@@ -366,11 +371,16 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/self/dimensions", middleware.UserAuth(), controller.GetSelfQuotaDataDimensions)
 		dataRoute.GET("/flow", middleware.AdminAuth(), controller.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", middleware.UserAuth(), controller.GetUserFlowQuotaDates)
+		// Per-key spend ranking over a time range. The self variant scopes to
+		// the session account; the admin variant covers everyone.
+		dataRoute.GET("/token-usage", middleware.AdminAuth(), controller.GetAdminTokenUsage)
+		dataRoute.GET("/self/token-usage", middleware.UserAuth(), controller.GetSelfTokenUsage)
 		// Realtime throughput reads in-process counters only. The self route
 		// takes the user id from the session so it can never be pointed at
 		// another account; the admin routes are the only way to read everyone.
 		dataRoute.GET("/realtime/self", middleware.UserAuth(), controller.GetSelfRealtimeMetrics)
 		dataRoute.GET("/realtime/self/dimensions", middleware.UserAuth(), controller.GetSelfRealtimeDimensions)
+		dataRoute.GET("/realtime/self/keys", middleware.UserAuth(), controller.GetSelfRealtimeKeyBreakdown)
 		// Historical counterpart to /realtime/self: unbounded range and spend,
 		// at the hourly resolution quota_data actually stores.
 		dataRoute.GET("/usage/self", middleware.UserAuth(), controller.GetSelfUsageStats)

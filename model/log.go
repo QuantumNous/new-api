@@ -533,12 +533,69 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 			TokenID:   params.TokenId,
 			ChannelID: params.ChannelId,
 			NodeName:  common.NodeName,
+			// group_ratio was already written into Other by the caller's
+			// GenerateXOtherInfo helper for the "other" log column; reading it
+			// back here avoids widening RecordConsumeLogParams on every one of
+			// its eight call sites just to carry the same number twice.
+			GroupRatio: groupRatioFromOther(params.Other),
+			// cost_reconciliation.user_charge_usd_micros is the billing path's
+			// own real USD settlement for this one request, computed once and
+			// already frozen into the log; reading it back avoids a second,
+			// potentially-diverging USD computation here.
+			ChargeUSDMicros: chargeUSDMicrosFromOther(params.Other),
 			// Only feed the cache counters when the upstream actually reported
 			// cache metadata. Requests without it must not enter the hit-rate
 			// denominator, otherwise unknown responses would be counted as misses.
 			CacheReadTokens:  cacheReadTokensForQuotaData(params),
 			InputTokensTotal: inputTokensTotalForQuotaData(params),
 		})
+	}
+}
+
+// groupRatioFromOther reads the group_ratio value billing already wrote into
+// the consume log's "other" column, so LogQuotaData does not need its own
+// copy threaded through every RecordConsumeLog call site. Missing or
+// non-numeric values report 0 (unknown), never a guessed ratio.
+func groupRatioFromOther(other map[string]interface{}) float64 {
+	if other == nil {
+		return 0
+	}
+	switch v := other["group_ratio"].(type) {
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int:
+		return float64(v)
+	default:
+		return 0
+	}
+}
+
+// chargeUSDMicrosFromOther reads this request's real USD settlement back out
+// of other.cost_reconciliation.user_charge_usd_micros, where
+// BuildCostReconciliationSnapshot already wrote it. Reusing that value keeps
+// the dashboard's USD total identical to what the billing path itself
+// computed, rather than re-deriving a figure that could diverge if a future
+// billing change is not mirrored here. Missing/non-numeric values (including
+// a snapshot whose provider cost basis was unavailable) report 0 (unknown).
+func chargeUSDMicrosFromOther(other map[string]interface{}) int64 {
+	if other == nil {
+		return 0
+	}
+	reconciliation, ok := other["cost_reconciliation"].(map[string]interface{})
+	if !ok {
+		return 0
+	}
+	switch v := reconciliation["user_charge_usd_micros"].(type) {
+	case int64:
+		return v
+	case int:
+		return int64(v)
+	case float64:
+		return int64(v)
+	default:
+		return 0
 	}
 }
 
@@ -610,15 +667,17 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 			nodeName = common.NodeName
 		}
 		LogQuotaData(QuotaDataLogParams{
-			UserID:    params.UserId,
-			Username:  username,
-			ModelName: params.ModelName,
-			Quota:     params.Quota,
-			CreatedAt: createdAt,
-			UseGroup:  params.Group,
-			TokenID:   params.TokenId,
-			ChannelID: params.ChannelId,
-			NodeName:  nodeName,
+			UserID:          params.UserId,
+			Username:        username,
+			ModelName:       params.ModelName,
+			Quota:           params.Quota,
+			CreatedAt:       createdAt,
+			UseGroup:        params.Group,
+			TokenID:         params.TokenId,
+			ChannelID:       params.ChannelId,
+			NodeName:        nodeName,
+			GroupRatio:      groupRatioFromOther(params.Other),
+			ChargeUSDMicros: chargeUSDMicrosFromOther(params.Other),
 		})
 	}
 }

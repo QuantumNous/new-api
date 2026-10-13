@@ -71,3 +71,21 @@ func GetTokenRealtimeMetrics(c *gin.Context) {
 		"data":    snapshot,
 	})
 }
+
+// GetTokenRealtimeKeyBreakdown reports the account's realtime throughput
+// split by key: the same windows the snapshot endpoint returns, one row per
+// key with live traffic in the retention window. Auth, expiry and exhaustion
+// checks are identical to the snapshot endpoint, and the breakdown only ever
+// covers the caller's own account because TokenAuthReadOnly derives the user
+// id from the key itself.
+func GetTokenRealtimeKeyBreakdown(c *gin.Context) {
+	userId := c.GetInt("id")
+	if tokenRealtimeDenied(c) {
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    model.GetRealtimeKeyBreakdowns(userId),
+	})
+}
