@@ -35,6 +35,7 @@ func TestGeminiResponsesHandlerReturnsOpenAIResponsesJSON(t *testing.T) {
 					Role: "model",
 					Parts: []dto.GeminiPart{
 						{Text: "hello"},
+						{InlineData: &dto.GeminiInlineData{MimeType: "image/png", Data: "aGVsbG8="}},
 					},
 				},
 			},
@@ -61,6 +62,9 @@ func TestGeminiResponsesHandlerReturnsOpenAIResponsesJSON(t *testing.T) {
 	assert.Contains(t, got, `"status":"completed"`)
 	assert.Contains(t, got, `"type":"output_text"`)
 	assert.Contains(t, got, `"text":"hello"`)
+	assert.Contains(t, got, `"type":"image_generation_call"`)
+	assert.Contains(t, got, `"result":"aGVsbG8="`)
+	assert.NotContains(t, got, "data:image/png;base64")
 	assert.Contains(t, got, `"input_tokens":2`)
 	assert.Contains(t, got, `"output_tokens":3`)
 	assert.NotContains(t, got, `"choices"`)
@@ -202,4 +206,25 @@ func requireOrderedGeminiResponsesSubstrings(t *testing.T, s string, parts ...st
 		require.NotEqualf(t, -1, idx, "missing %q after byte offset %d", part, offset)
 		offset += idx + len(part)
 	}
+}
+
+func TestGeminiImagesToResponsesOutput(t *testing.T) {
+	output := []dto.ResponsesOutput{{
+		Type: "message",
+		ID:   "resp_1_msg_0",
+		Role: "assistant",
+		Content: []dto.ResponsesOutputContent{{
+			Type: "output_text",
+			Text: "before\n![image](data:image/png;base64,aGVsbG8=)\nafter",
+		}},
+	}}
+
+	got := geminiImagesToResponsesOutput("resp_1", output)
+	require.Len(t, got, 3)
+	assert.Equal(t, "before", got[0].Content[0].Text)
+	assert.Equal(t, dto.ResponsesOutputTypeImageGenerationCall, got[1].Type)
+	assert.Equal(t, "completed", got[1].Status)
+	assert.Equal(t, "aGVsbG8=", got[1].Result)
+	assert.Equal(t, "after", got[2].Content[0].Text)
+	assert.NotEqual(t, got[0].ID, got[2].ID)
 }
