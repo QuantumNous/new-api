@@ -143,6 +143,17 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
     () => spendRows.some((row) => row.raw_quota > 0),
     [spendRows]
   )
+  // raw_quota is 0 for any row written before this column existed (unknown,
+  // not "no discount" — see TokenUsageItem), so totalRawQuota only ever sums
+  // the rows that happen to have it. A range mixing old and new rows for the
+  // same key can therefore show a "before discount" total smaller than the
+  // "spend" total (which sums every row), looking like the discount math is
+  // backwards when it is really just an incomplete sum. Flag that instead of
+  // presenting it as a complete figure.
+  const hasIncompleteRawQuotaCoverage = useMemo(
+    () => spendRows.some((row) => row.quota > 0 && row.raw_quota <= 0),
+    [spendRows]
+  )
 
   const realtimeRows = useMemo(() => {
     const keys = realtimeQuery.data ?? []
@@ -252,6 +263,16 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
                 <span className='text-foreground font-medium line-through decoration-muted-foreground/50'>
                   {formatQuota(totalRawQuota)}
                 </span>
+                {hasIncompleteRawQuotaCoverage && (
+                  <span
+                    className='text-amber-600 dark:text-amber-500 ml-1 text-xs'
+                    title={t(
+                      'Some rows in this range were recorded before this column existed, so this total undercounts the true before-discount amount — it can look smaller than the spend total even though it never actually is'
+                    )}
+                  >
+                    {t('partial data')}
+                  </span>
+                )}
               </span>
             )}
             <span>
