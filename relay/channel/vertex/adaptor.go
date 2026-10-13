@@ -320,8 +320,23 @@ func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.Rela
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
-	// TODO implement me
-	return nil, errors.New("not implemented")
+	if a.RequestMode != RequestModeGemini {
+		return nil, errors.New("OpenAI Responses API is only supported for Gemini models on Vertex AI")
+	}
+
+	result, err := service.ConvertRequest(c, info, types.RelayFormatGemini, &request)
+	if err != nil {
+		return nil, err
+	}
+	geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
+	if !ok {
+		return nil, fmt.Errorf("expected Gemini generateContent request, got %T", result.Value)
+	}
+	if model_setting.GetGeminiSettings().RemoveFunctionResponseIdEnabled {
+		removeFunctionCallIDs(geminiRequest)
+	}
+	c.Set("request_model", request.Model)
+	return geminiRequest, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -335,6 +350,12 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		case RequestModeClaude:
 			return claudeAdaptor.DoResponse(c, resp, info)
 		case RequestModeGemini:
+			if info.RelayMode == constant.RelayModeResponses {
+				if info.IsStream {
+					return gemini.GeminiResponsesStreamHandler(c, info, resp)
+				}
+				return gemini.GeminiResponsesHandler(c, info, resp)
+			}
 			if info.RelayMode == constant.RelayModeGemini {
 				return gemini.GeminiTextGenerationStreamHandler(c, info, resp)
 			} else {
