@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -71,6 +73,7 @@ func GeminiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	}
 	responsesResp.Model = info.UpstreamModelName
 	responsesResp.Usage = relayconvert.UsageFromChatUsage(&usage)
+	responsesResp.Output = geminiImagesToResponsesOutput(responsesResp.ID, responsesResp.Output)
 
 	responseBody, err = common.Marshal(responsesResp)
 	if err != nil {
@@ -78,6 +81,60 @@ func GeminiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	}
 	service.IOCopyBytesGracefully(c, resp, responseBody)
 	return &usage, nil
+}
+
+var geminiResponseImagePattern = regexp.MustCompile(`!\[image\]\(data:([^;]+);base64,([A-Za-z0-9+/=]+)\)`)
+
+// geminiImagesToResponsesOutput preserves generated images as Responses image
+// generation items instead of embedding their base64 payload in output_text.
+func geminiImagesToResponsesOutput(responseID string, output []dto.ResponsesOutput) []dto.ResponsesOutput {
+	converted := make([]dto.ResponsesOutput, 0, len(output))
+	imageIndex := 0
+	for _, item := range output {
+		if item.Type != "message" {
+			converted = append(converted, item)
+			continue
+		}
+		var replacement []dto.ResponsesOutput
+		textIndex := 0
+		appendText := func(text string, content dto.ResponsesOutputContent) {
+			text = strings.TrimSpace(text)
+			if text == "" {
+				return
+			}
+			textIndex++
+			id := item.ID
+			if textIndex > 1 {
+				id = fmt.Sprintf("%s_part_%d", item.ID, textIndex)
+			}
+			replacement = append(replacement, dto.ResponsesOutput{
+				Type: item.Type, ID: id, Status: item.Status, Role: item.Role,
+				Content: []dto.ResponsesOutputContent{{Type: "output_text", Text: text, Annotations: content.Annotations}},
+			})
+		}
+		for _, content := range item.Content {
+			matches := geminiResponseImagePattern.FindAllStringSubmatchIndex(content.Text, -1)
+			if len(matches) == 0 {
+				appendText(content.Text, content)
+				continue
+			}
+			last := 0
+			for _, match := range matches {
+				appendText(content.Text[last:match[0]], content)
+				imageIndex++
+				replacement = append(replacement, dto.ResponsesOutput{
+					Type:   dto.ResponsesOutputTypeImageGenerationCall,
+					ID:     fmt.Sprintf("%s_image_%d", responseID, imageIndex),
+					Status: "completed",
+					Result: content.Text[match[4]:match[5]],
+				})
+				last = match[1]
+			}
+			appendText(content.Text[last:], content)
+		}
+		converted = append(converted, replacement...)
+	}
+	return converted
 }
 
 func GeminiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
