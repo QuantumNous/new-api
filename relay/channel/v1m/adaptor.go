@@ -1,15 +1,19 @@
 package v1m
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relay/channel"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,9 +22,9 @@ type Adaptor struct{}
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {}
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	baseUrl := info.BaseUrl
+	baseUrl := info.ChannelBaseUrl
 	if baseUrl == "" {
-		baseUrl = "https://v1m.ir/v1/systemone"
+		baseUrl = "https://v1m.ir/v1"
 	}
 	baseUrl = strings.TrimSuffix(baseUrl, "/")
 	if !strings.HasSuffix(baseUrl, "/systemone") {
@@ -29,10 +33,10 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	return baseUrl, nil
 }
 
-func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
-	channel.SetupCommonRequestHeader(c, req, info)
-	req.Header.Set("Authorization", "Bearer "+info.ApiKey)
-	req.Header.Set("User-Agent", "NewAPI-v1m-Adaptor/1.0")
+func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
+	channel.SetupApiRequestHeader(info, c, req)
+	req.Set("Authorization", fmt.Sprintf("Bearer %s", info.ApiKey))
+	req.Set("User-Agent", "NewAPI-v1m-Adaptor/1.0")
 	return nil
 }
 
@@ -44,7 +48,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	state := "General Context State"
 	prompt := "Evaluate probability and criteria."
 
-	for [, m := range request.Messages {
+	for _, m := range request.Messages {
 		if m.Role == "system" {
 			state = fmt.Sprintf("%v", m.Content)
 		} else if m.Role == "user" {
@@ -69,12 +73,73 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	}, nil
 }
 
-func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (*http.Response, error) {
+func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.ClaudeRequest) (any, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
 	return channel.DoApiRequest(a, c, info, requestBody)
 }
 
-func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage *dto.Usage, err *dto.OpenAIErrorWithStatusCode) {
-	return nil, nil
+func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if resp == nil {
+		return nil, types.NewError(errors.New("upstream response is nil"), types.ErrorCodeBadResponseBody)
+	}
+	defer service.CloseResponseBodyGracefully(resp)
+
+	responseBody, readErr := io.ReadAll	esp.Body)
+	if readErr != nil {
+		return nil, types.NewError(readErr, types.ErrorCodeBadResponseBody)
+	}
+
+	var raw map[string]any
+	if unmarshalErr := json.Unmarshal(responseBody, &raw); unmarshalErr != nil {
+		return nil, types.NewError(unmarshalErr, types.ErrorCodeBadResponseBody)
+	}
+
+	valsBytes, _ := json.Marshal(raw["evaluations"])
+	var openaiResp dto.TextResponse
+	openaiResp.Id = fmt.Sprintf("v1m-%d", common.GetTimestamp())
+	openaiResp.Created = common.GetTimestamp()
+	openaiResp.Object = "chat.completion"
+	openaiResp.Model = info.UpstreamModelName
+	openaiResp.Choices = []dto.OpenAITextResponseChoice{
+		{
+			Index: 0,
+			Message: dto.Message{
+				Role:    "assistant",
+			Content: string(evalsBytes),
+			},
+			FinishReason: "stop",
+		},
+	}
+
+	c.JSON(http.StatusOK, openaiResp)
+	return raw["usage"], nil
 }
 
 func (a *Adaptor) GetModelList() []string {
