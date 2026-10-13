@@ -234,6 +234,9 @@ func responsesContentPartToGeminiParts(c context.Context, part map[string]any) (
 	case "input_image", "input_file", "input_audio", "input_video":
 		source := ContentPartToFileSource(part)
 		if source == nil {
+			if partType == "input_image" {
+				return nil, fmt.Errorf("input_image requires image_url; file_id references are not supported by Gemini conversion")
+			}
 			return nil, nil
 		}
 		base64Data, mimeType, err := relaymedia.ResolveBase64Data(c, source, "formatting Responses input for Gemini")
