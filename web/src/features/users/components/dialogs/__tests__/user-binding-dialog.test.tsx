@@ -145,6 +145,8 @@ describe('UserBindingDialog built-in bindings', () => {
           return { data: { success: true, data: user } }
         case '/api/user/7/oauth/bindings':
           return { data: { success: true, data: [] } }
+        case '/api/user/7/partner-oauth/bindings':
+          return { data: { success: true, data: [] } }
         case '/api/status':
           return {
             data: {
@@ -200,6 +202,59 @@ describe('UserBindingDialog built-in bindings', () => {
   })
 })
 
+describe('UserBindingDialog partner applications', () => {
+  test('lists an authorized client and revokes its dedicated key', async () => {
+    const deletedUrls: string[] = []
+    apiClient.get = async (url) => {
+      if (url === '/api/user/7') return { data: { success: true, data: user } }
+      if (url === '/api/user/7/oauth/bindings') {
+        return { data: { success: true, data: [] } }
+      }
+      if (url === '/api/user/7/partner-oauth/bindings') {
+        return {
+          data: {
+            success: true,
+            data: [
+              {
+                binding_id: 'bnd_example',
+                client_id: 'pc_example',
+                client_name: 'Example Assistant',
+                scopes: ['account:read', 'credential:read'],
+                created_at: 1,
+                expires_at: 1_800_000_000,
+              },
+            ],
+          },
+        }
+      }
+      if (url === '/api/status') {
+        return { data: { success: true, data: {} } }
+      }
+      throw new Error(`Unexpected GET ${url}`)
+    }
+    apiClient.delete = async (url) => {
+      deletedUrls.push(url)
+      return { data: { success: true } }
+    }
+
+    renderWithQueryClient(
+      <UserBindingDialog open userId={7} onOpenChange={() => undefined} />
+    )
+
+    await screen.findByText('Example Assistant')
+    expect(screen.getByText('Read your account profile')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Revoke authorization' })
+    )
+    await waitFor(() => {
+      expect(deletedUrls).toEqual([
+        '/api/user/7/partner-oauth/bindings/bnd_example',
+      ])
+    })
+  })
+})
+
 describe('UserBindingDialog shared status updates', () => {
   test('updates provider availability and the provider list after a background refresh', async () => {
     const queryClient = createQueryClient()
@@ -216,6 +271,9 @@ describe('UserBindingDialog shared status updates', () => {
       if (url === '/api/status') return response
       if (url === '/api/user/7') return { data: { success: true, data: user } }
       if (url === '/api/user/7/oauth/bindings') {
+        return { data: { success: true, data: [] } }
+      }
+      if (url === '/api/user/7/partner-oauth/bindings') {
         return { data: { success: true, data: [] } }
       }
       throw new Error(`Unexpected GET ${url}`)
@@ -263,6 +321,9 @@ describe('UserBindingDialog shared status updates', () => {
         if (url === '/api/user/7/oauth/bindings') {
           return { data: { success: true, data: [] } }
         }
+        if (url === '/api/user/7/partner-oauth/bindings') {
+          return { data: { success: true, data: [] } }
+        }
         throw new Error(`Unexpected GET ${url}`)
       })
       apiClient.get = get
@@ -294,6 +355,9 @@ describe('UserBindingDialog shared status updates', () => {
       if (url === '/api/status') throw new Error('Status unavailable')
       if (url === '/api/user/7') return { data: { success: true, data: user } }
       if (url === '/api/user/7/oauth/bindings') {
+        return { data: { success: true, data: [] } }
+      }
+      if (url === '/api/user/7/partner-oauth/bindings') {
         return { data: { success: true, data: [] } }
       }
       throw new Error(`Unexpected GET ${url}`)

@@ -214,3 +214,29 @@ export async function adminUnbindCustomOAuth(
   )
   return res.data
 }
+
+export interface UserPartnerOAuthBinding {
+  binding_id: string
+  client_id: string
+  client_name: string
+  scopes: string[]
+  created_at: number
+  expires_at: number
+}
+
+export async function getUserPartnerOAuthBindings(
+  userId: number
+): Promise<ApiResponse<UserPartnerOAuthBinding[]>> {
+  const res = await api.get(`/api/user/${userId}/partner-oauth/bindings`)
+  return res.data
+}
+
+export async function adminRevokeUserPartnerOAuthBinding(
+  userId: number,
+  bindingId: string
+): Promise<ApiResponse> {
+  const res = await api.delete(
+    `/api/user/${userId}/partner-oauth/bindings/${bindingId}`
+  )
+  return res.data
+}

@@ -161,6 +161,8 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.GET("/search", controller.SearchUsers)
 				adminRoute.GET("/:id/oauth/bindings", controller.GetUserOAuthBindingsByAdmin)
 				adminRoute.DELETE("/:id/oauth/bindings/:provider_id", controller.UnbindCustomOAuthByAdmin)
+				adminRoute.GET("/:id/partner-oauth/bindings", controller.GetUserPartnerOAuthBindingsByAdmin)
+				adminRoute.DELETE("/:id/partner-oauth/bindings/:binding_id", middleware.CriticalRateLimit(), controller.DeleteUserPartnerOAuthBindingByAdmin)
 				adminRoute.DELETE("/:id/bindings/:binding_type", controller.AdminClearUserBinding)
 				adminRoute.GET("/:id", controller.GetUser)
 				adminRoute.POST("/", controller.CreateUser)

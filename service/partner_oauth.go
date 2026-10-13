@@ -1030,13 +1030,21 @@ func ListUserPartnerOAuthBindings(userID int) ([]PartnerOAuthBindingView, error)
 	return views, nil
 }
 
-func RevokeUserPartnerOAuthBinding(userID int, bindingID string) error {
+const (
+	PartnerOAuthRevokeReasonUser  = "user_revoked"
+	PartnerOAuthRevokeReasonAdmin = "admin_revoked"
+)
+
+func RevokeUserPartnerOAuthBinding(userID int, bindingID, reason string) error {
+	if reason != PartnerOAuthRevokeReasonUser && reason != PartnerOAuthRevokeReasonAdmin {
+		return partnerOAuthErr(http.StatusBadRequest, "invalid_request", "revoke reason is invalid")
+	}
 	binding, err := model.GetPartnerOAuthBindingByBindingID(bindingID)
 	if err != nil || binding.UserId != userID || binding.Status != model.PartnerOAuthBindingStatusActive {
 		return partnerOAuthErr(http.StatusNotFound, "PARTNER_OAUTH_BINDING_NOT_FOUND", "binding not found")
 	}
 	return model.DB.Transaction(func(tx *gorm.DB) error {
-		return model.RevokePartnerOAuthBindingWithTx(tx, binding.BindingId, "user_revoked")
+		return model.RevokePartnerOAuthBindingWithTx(tx, binding.BindingId, reason)
 	})
 }
 

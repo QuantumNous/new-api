@@ -403,6 +403,381 @@ func TestPartnerOAuthPublicClientToken(t *testing.T) {
 	_ = io.Discard
 }
 
+func TestPartnerOAuthPKCEEndToEndFromAuthorizeToCredential(t *testing.T) {
+	engine := setupPartnerOAuthBrowserFlow(t)
+	user := createPartnerBrowserUser(t, "pkce-user")
+	client, secret := createPartnerTestClient(t, model.PartnerOAuthTokenAuthMethodBasic, []string{"https://assistant.example.com/oauth/callback"})
+
+	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	challenge := service.PartnerOAuthPKCEChallengeS256(verifier)
+	state := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	redirectURI := "https://assistant.example.com/oauth/callback"
+	scope := "account:read credential:read offline_access"
+
+	authURL := "/oauth/authorize?response_type=code&client_id=" + client.ClientId +
+		"&redirect_uri=" + url.QueryEscape(redirectURI) +
+		"&scope=" + url.QueryEscape(scope) +
+		"&state=" + state +
+		"&code_challenge=" + challenge +
+		"&code_challenge_method=S256"
+	authReq := httptest.NewRequest(http.MethodGet, authURL, nil)
+	authReq.Host = "localhost:3000"
+	authRec := httptest.NewRecorder()
+	engine.ServeHTTP(authRec, authReq)
+	require.Equal(t, http.StatusSeeOther, authRec.Code, "status=%d location=%s body=%s", authRec.Code, authRec.Header().Get("Location"), authRec.Body.String())
+	location := authRec.Header().Get("Location")
+	require.True(t, strings.HasPrefix(location, "/partner-authorize?request="))
+	requestToken := strings.TrimPrefix(location, "/partner-authorize?request=")
+	require.NotEmpty(t, requestToken)
+	var nonce string
+	for _, cookie := range authRec.Result().Cookies() {
+		if cookie.Name == service.PartnerOAuthCookieName {
+			nonce = cookie.Value
+			assert.True(t, cookie.HttpOnly)
+			assert.Equal(t, service.PartnerOAuthCookiePath, cookie.Path)
+		}
+	}
+	require.NotEmpty(t, nonce)
+
+	inspectReq := httptest.NewRequest(http.MethodGet, "/api/partner-oauth/authorization?request="+url.QueryEscape(requestToken), nil)
+	inspectReq.Host = "localhost:3000"
+	inspectReq.Header.Set("Authorization", "Bearer "+user.token)
+	inspectReq.AddCookie(&http.Cookie{Name: service.PartnerOAuthCookieName, Value: nonce})
+	inspectRec := httptest.NewRecorder()
+	engine.ServeHTTP(inspectRec, inspectReq)
+	require.Equal(t, http.StatusOK, inspectRec.Code, inspectRec.Body.String())
+	var inspect struct {
+		Success bool `json:"success"`
+		Data    struct {
+			ClientName   string   `json:"client_name"`
+			Scopes       []string `json:"scopes"`
+			RedirectHost string   `json:"redirect_host"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(inspectRec.Body.Bytes(), &inspect))
+	require.True(t, inspect.Success)
+	assert.Equal(t, "Example Assistant", inspect.Data.ClientName)
+	assert.Equal(t, "assistant.example.com", inspect.Data.RedirectHost)
+	assert.Contains(t, inspect.Data.Scopes, "account:read")
+
+	decisionBody := `{"request":` + mustJSON(requestToken) + `,"decision":"approve"}`
+	decideReq := httptest.NewRequest(http.MethodPost, "/api/partner-oauth/authorization/decision", strings.NewReader(decisionBody))
+	decideReq.Host = "localhost:3000"
+	decideReq.Header.Set("Authorization", "Bearer "+user.token)
+	decideReq.Header.Set("Content-Type", "application/json")
+	decideReq.AddCookie(&http.Cookie{Name: service.PartnerOAuthCookieName, Value: nonce})
+	decideRec := httptest.NewRecorder()
+	engine.ServeHTTP(decideRec, decideReq)
+	require.Equal(t, http.StatusOK, decideRec.Code, decideRec.Body.String())
+	var decided struct {
+		Success bool `json:"success"`
+		Data    struct {
+			RedirectTo string `json:"redirect_to"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(decideRec.Body.Bytes(), &decided))
+	require.True(t, decided.Success)
+	callback, err := url.Parse(decided.Data.RedirectTo)
+	require.NoError(t, err)
+	assert.Equal(t, redirectURI, callback.Scheme+"://"+callback.Host+callback.Path)
+	assert.Equal(t, state, callback.Query().Get("state"))
+	assert.Equal(t, "http://localhost:3000", callback.Query().Get("iss"))
+	code := callback.Query().Get("code")
+	require.NotEmpty(t, code)
+
+	form := url.Values{}
+	form.Set("grant_type", "authorization_code")
+	form.Set("code", code)
+	form.Set("redirect_uri", redirectURI)
+	form.Set("code_verifier", verifier)
+	tokenReq := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	tokenReq.Host = "localhost:3000"
+	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	tokenReq.SetBasicAuth(client.ClientId, secret)
+	tokenRec := httptest.NewRecorder()
+	engine.ServeHTTP(tokenRec, tokenReq)
+	require.Equal(t, http.StatusOK, tokenRec.Code, tokenRec.Body.String())
+	var issued service.PartnerOAuthTokenResponse
+	require.NoError(t, json.Unmarshal(tokenRec.Body.Bytes(), &issued))
+	require.NotEmpty(t, issued.AccessToken)
+	require.NotEmpty(t, issued.RefreshToken)
+	require.NotEmpty(t, issued.BindingID)
+	assert.Equal(t, "Bearer", issued.TokenType)
+	assert.Contains(t, issued.Scope, "account:read")
+	assert.True(t, strings.HasPrefix(issued.AccessToken, "oa_"))
+	assert.True(t, strings.HasPrefix(issued.RefreshToken, "or_"))
+
+	accountReq := httptest.NewRequest(http.MethodGet, "/api/integrations/v1/account", nil)
+	accountReq.Host = "localhost:3000"
+	accountReq.Header.Set("Authorization", "Bearer "+issued.AccessToken)
+	accountRec := httptest.NewRecorder()
+	engine.ServeHTTP(accountRec, accountReq)
+	require.Equal(t, http.StatusOK, accountRec.Code, accountRec.Body.String())
+	var account service.PartnerOAuthAccountResponse
+	require.NoError(t, json.Unmarshal(accountRec.Body.Bytes(), &account))
+	assert.Equal(t, "http://localhost:3000", account.Issuer)
+	assert.Equal(t, issued.BindingID, account.BindingID)
+	assert.Equal(t, model.PartnerOAuthAccountID(user.user.Id), account.AccountID)
+
+	credReq := httptest.NewRequest(http.MethodPost, "/api/integrations/v1/credential", strings.NewReader("{}"))
+	credReq.Host = "localhost:3000"
+	credReq.Header.Set("Authorization", "Bearer "+issued.AccessToken)
+	credReq.Header.Set("Content-Type", "application/json")
+	credRec := httptest.NewRecorder()
+	engine.ServeHTTP(credRec, credReq)
+	require.Equal(t, http.StatusOK, credRec.Code, credRec.Body.String())
+	var cred service.PartnerOAuthCredentialResponse
+	require.NoError(t, json.Unmarshal(credRec.Body.Bytes(), &cred))
+	assert.Equal(t, issued.BindingID, cred.BindingID)
+	assert.True(t, strings.HasPrefix(cred.APIKey, "sk-"))
+	assert.Equal(t, "http://localhost:3000/v1", cred.BaseURL)
+
+	refresh := url.Values{}
+	refresh.Set("grant_type", "refresh_token")
+	refresh.Set("refresh_token", issued.RefreshToken)
+	refreshReq := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(refresh.Encode()))
+	refreshReq.Host = "localhost:3000"
+	refreshReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	refreshReq.SetBasicAuth(client.ClientId, secret)
+	refreshRec := httptest.NewRecorder()
+	engine.ServeHTTP(refreshRec, refreshReq)
+	require.Equal(t, http.StatusOK, refreshRec.Code, refreshRec.Body.String())
+	var rotated service.PartnerOAuthTokenResponse
+	require.NoError(t, json.Unmarshal(refreshRec.Body.Bytes(), &rotated))
+	assert.Equal(t, issued.BindingID, rotated.BindingID)
+	assert.NotEqual(t, issued.AccessToken, rotated.AccessToken)
+	assert.NotEqual(t, issued.RefreshToken, rotated.RefreshToken)
+
+	reuse := url.Values{}
+	reuse.Set("grant_type", "refresh_token")
+	reuse.Set("refresh_token", issued.RefreshToken)
+	reuseReq := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(reuse.Encode()))
+	reuseReq.Host = "localhost:3000"
+	reuseReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	reuseReq.SetBasicAuth(client.ClientId, secret)
+	reuseRec := httptest.NewRecorder()
+	engine.ServeHTTP(reuseRec, reuseReq)
+	require.Equal(t, http.StatusBadRequest, reuseRec.Code)
+	assert.Contains(t, reuseRec.Body.String(), `"invalid_grant"`)
+
+	replayReq := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	replayReq.Host = "localhost:3000"
+	replayReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	replayReq.SetBasicAuth(client.ClientId, secret)
+	replayRec := httptest.NewRecorder()
+	engine.ServeHTTP(replayRec, replayReq)
+	require.Equal(t, http.StatusBadRequest, replayRec.Code)
+	assert.Contains(t, replayRec.Body.String(), `"invalid_grant"`)
+
+	deadReq := httptest.NewRequest(http.MethodGet, "/api/integrations/v1/account", nil)
+	deadReq.Host = "localhost:3000"
+	deadReq.Header.Set("Authorization", "Bearer "+rotated.AccessToken)
+	deadRec := httptest.NewRecorder()
+	engine.ServeHTTP(deadRec, deadReq)
+	require.Equal(t, http.StatusUnauthorized, deadRec.Code)
+	assert.Contains(t, deadRec.Body.String(), `"invalid_token"`)
+}
+
+func TestPartnerOAuthPublicClientPKCEBrowserConsentFlow(t *testing.T) {
+	engine := setupPartnerOAuthBrowserFlow(t)
+	user := createPartnerBrowserUser(t, "pkce-native")
+	client, _ := createPartnerTestClient(t, model.PartnerOAuthTokenAuthMethodNone, []string{"http://127.0.0.1/oauth/callback"})
+	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	challenge := service.PartnerOAuthPKCEChallengeS256(verifier)
+	state := "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	redirectURI := "http://127.0.0.1:43721/oauth/callback"
+
+	authURL := "/oauth/authorize?response_type=code&client_id=" + client.ClientId +
+		"&redirect_uri=" + url.QueryEscape(redirectURI) +
+		"&scope=" + url.QueryEscape("account:read credential:read") +
+		"&state=" + state +
+		"&code_challenge=" + challenge +
+		"&code_challenge_method=S256"
+	authReq := httptest.NewRequest(http.MethodGet, authURL, nil)
+	authReq.Host = "localhost:3000"
+	authRec := httptest.NewRecorder()
+	engine.ServeHTTP(authRec, authReq)
+	require.Equal(t, http.StatusSeeOther, authRec.Code)
+	requestToken := strings.TrimPrefix(authRec.Header().Get("Location"), "/partner-authorize?request=")
+	var nonce string
+	for _, cookie := range authRec.Result().Cookies() {
+		if cookie.Name == service.PartnerOAuthCookieName {
+			nonce = cookie.Value
+		}
+	}
+	require.NotEmpty(t, nonce)
+
+	decisionBody := `{"request":` + mustJSON(requestToken) + `,"decision":"approve"}`
+	decideReq := httptest.NewRequest(http.MethodPost, "/api/partner-oauth/authorization/decision", strings.NewReader(decisionBody))
+	decideReq.Host = "localhost:3000"
+	decideReq.Header.Set("Authorization", "Bearer "+user.token)
+	decideReq.Header.Set("Content-Type", "application/json")
+	decideReq.AddCookie(&http.Cookie{Name: service.PartnerOAuthCookieName, Value: nonce})
+	decideRec := httptest.NewRecorder()
+	engine.ServeHTTP(decideRec, decideReq)
+	require.Equal(t, http.StatusOK, decideRec.Code, decideRec.Body.String())
+	var decided struct {
+		Data struct {
+			RedirectTo string `json:"redirect_to"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(decideRec.Body.Bytes(), &decided))
+	callback, err := url.Parse(decided.Data.RedirectTo)
+	require.NoError(t, err)
+	assert.Equal(t, "43721", callback.Port())
+	code := callback.Query().Get("code")
+	require.NotEmpty(t, code)
+
+	form := url.Values{}
+	form.Set("grant_type", "authorization_code")
+	form.Set("code", code)
+	form.Set("redirect_uri", redirectURI)
+	form.Set("code_verifier", verifier)
+	form.Set("client_id", client.ClientId)
+	tokenReq := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(form.Encode()))
+	tokenReq.Host = "localhost:3000"
+	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	tokenRec := httptest.NewRecorder()
+	engine.ServeHTTP(tokenRec, tokenReq)
+	require.Equal(t, http.StatusOK, tokenRec.Code, tokenRec.Body.String())
+	var issued service.PartnerOAuthTokenResponse
+	require.NoError(t, json.Unmarshal(tokenRec.Body.Bytes(), &issued))
+	assert.Empty(t, issued.RefreshToken)
+	assert.NotEmpty(t, issued.AccessToken)
+}
+
+func TestPartnerOAuthWrongPKCEBurnsAuthorizationCode(t *testing.T) {
+	engine := setupPartnerOAuthBrowserFlow(t)
+	user := createPartnerBrowserUser(t, "pkce-burn")
+	client, secret := createPartnerTestClient(t, model.PartnerOAuthTokenAuthMethodBasic, []string{"https://assistant.example.com/oauth/callback"})
+	verifier := "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"
+	challenge := service.PartnerOAuthPKCEChallengeS256(verifier)
+	redirectURI := "https://assistant.example.com/oauth/callback"
+	authURL := "/oauth/authorize?response_type=code&client_id=" + client.ClientId +
+		"&redirect_uri=" + url.QueryEscape(redirectURI) +
+		"&scope=" + url.QueryEscape("account:read credential:read") +
+		"&state=cccccccccccccccccccccccccccccccc" +
+		"&code_challenge=" + challenge +
+		"&code_challenge_method=S256"
+	authReq := httptest.NewRequest(http.MethodGet, authURL, nil)
+	authReq.Host = "localhost:3000"
+	authRec := httptest.NewRecorder()
+	engine.ServeHTTP(authRec, authReq)
+	require.Equal(t, http.StatusSeeOther, authRec.Code, "status=%d location=%s body=%s", authRec.Code, authRec.Header().Get("Location"), authRec.Body.String())
+	requestToken := strings.TrimPrefix(authRec.Header().Get("Location"), "/partner-authorize?request=")
+	var nonce string
+	for _, cookie := range authRec.Result().Cookies() {
+		if cookie.Name == service.PartnerOAuthCookieName {
+			nonce = cookie.Value
+		}
+	}
+	decisionBody := `{"request":` + mustJSON(requestToken) + `,"decision":"approve"}`
+	decideReq := httptest.NewRequest(http.MethodPost, "/api/partner-oauth/authorization/decision", strings.NewReader(decisionBody))
+	decideReq.Host = "localhost:3000"
+	decideReq.Header.Set("Authorization", "Bearer "+user.token)
+	decideReq.Header.Set("Content-Type", "application/json")
+	decideReq.AddCookie(&http.Cookie{Name: service.PartnerOAuthCookieName, Value: nonce})
+	decideRec := httptest.NewRecorder()
+	engine.ServeHTTP(decideRec, decideReq)
+	require.Equal(t, http.StatusOK, decideRec.Code, decideRec.Body.String())
+	var decided struct {
+		Data struct {
+			RedirectTo string `json:"redirect_to"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(decideRec.Body.Bytes(), &decided))
+	callback, err := url.Parse(decided.Data.RedirectTo)
+	require.NoError(t, err)
+	code := callback.Query().Get("code")
+	require.NotEmpty(t, code)
+
+	wrong := url.Values{}
+	wrong.Set("grant_type", "authorization_code")
+	wrong.Set("code", code)
+	wrong.Set("redirect_uri", redirectURI)
+	wrong.Set("code_verifier", "this-verifier-does-not-match-the-challenge-xxxx")
+	wrongReq := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(wrong.Encode()))
+	wrongReq.Host = "localhost:3000"
+	wrongReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	wrongReq.SetBasicAuth(client.ClientId, secret)
+	wrongRec := httptest.NewRecorder()
+	engine.ServeHTTP(wrongRec, wrongReq)
+	require.Equal(t, http.StatusBadRequest, wrongRec.Code)
+	assert.Contains(t, wrongRec.Body.String(), `"invalid_grant"`)
+
+	retry := url.Values{}
+	retry.Set("grant_type", "authorization_code")
+	retry.Set("code", code)
+	retry.Set("redirect_uri", redirectURI)
+	retry.Set("code_verifier", verifier)
+	retryReq := httptest.NewRequest(http.MethodPost, "/oauth/token", strings.NewReader(retry.Encode()))
+	retryReq.Host = "localhost:3000"
+	retryReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	retryReq.SetBasicAuth(client.ClientId, secret)
+	retryRec := httptest.NewRecorder()
+	engine.ServeHTTP(retryRec, retryReq)
+	require.Equal(t, http.StatusBadRequest, retryRec.Code)
+	assert.Contains(t, retryRec.Body.String(), `"invalid_grant"`)
+}
+
+func setupPartnerOAuthBrowserFlow(t *testing.T) *gin.Engine {
+	t.Helper()
+	engine := setupPartnerOAuthController(t)
+	consent := engine.Group("/api/partner-oauth")
+	consent.Use(middleware.UserAuth())
+	{
+		consent.GET("/authorization", PartnerOAuthInspectAuthorization)
+		consent.POST("/authorization/decision", PartnerOAuthDecideAuthorization)
+	}
+	return engine
+}
+
+func createPartnerBrowserUser(t *testing.T, username string) partnerOAuthAdminActor {
+	t.Helper()
+	user := &model.User{
+		Username:    username,
+		Password:    "placeholder-password",
+		Role:        common.RoleCommonUser,
+		Status:      common.UserStatusEnabled,
+		Group:       "default",
+		AuthVersion: 1,
+		DisplayName: "PKCE User",
+		AffCode:     username,
+	}
+	require.NoError(t, model.DB.Create(user).Error)
+	now := time.Now().Unix()
+	session := &model.UserSession{
+		SID:             username + "-session",
+		UserID:          user.Id,
+		Version:         1,
+		UserAuthVersion: 1,
+		Status:          model.UserSessionStatusActive,
+		RefreshHash:     username + "-refresh",
+		LoginMethod:     "password",
+		LastActiveAt:    now,
+		ExpiresAt:       now + 3600,
+	}
+	require.NoError(t, model.CreateUserSession(session))
+	identity := service.AuthIdentity{
+		UserID:          user.Id,
+		SessionID:       session.SID,
+		UserAuthVersion: 1,
+		SessionVersion:  1,
+		LoginMethod:     "password",
+	}
+	token, _, err := service.IssueAccessToken(identity)
+	require.NoError(t, err)
+	return partnerOAuthAdminActor{user: user, identity: identity, token: token}
+}
+
+func mustJSON(value string) string {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		panic(err)
+	}
+	return string(encoded)
+}
+
 type partnerOAuthAdminActor struct {
 	user     *model.User
 	identity service.AuthIdentity
@@ -460,6 +835,12 @@ func setupPartnerOAuthAdminController(t *testing.T) *gin.Engine {
 		clients.POST("/:id/secret", middleware.RequirePermission(authz.PartnerOAuthClientSensitiveWrite), RotatePartnerOAuthClientSecret)
 		clients.POST("/:id/status", middleware.RequirePermission(authz.PartnerOAuthClientOperate), UpdatePartnerOAuthClientStatus)
 		clients.DELETE("/:id", middleware.RequirePermission(authz.PartnerOAuthClientSensitiveWrite), DeletePartnerOAuthClient)
+	}
+	users := engine.Group("/api/user")
+	users.Use(middleware.AdminAuth())
+	{
+		users.GET("/:id/partner-oauth/bindings", GetUserPartnerOAuthBindingsByAdmin)
+		users.DELETE("/:id/partner-oauth/bindings/:binding_id", middleware.CriticalRateLimit(), DeleteUserPartnerOAuthBindingByAdmin)
 	}
 	return engine
 }
@@ -566,6 +947,104 @@ func TestPartnerOAuthAdminAuthzMatrix(t *testing.T) {
 	root := createPartnerOAuthAdminActor(t, "poa-root", common.RoleRootUser)
 	rootCreate := partnerOAuthAdminRequest(engine, http.MethodPost, "/api/partner-oauth/clients", root.token, issuePartnerOAuthAdminProof(t, root, `{"action":"create"}`), createBody)
 	require.Equal(t, http.StatusOK, rootCreate.Code)
+}
+
+func seedPartnerBindingWithKey(t *testing.T, user *model.User, client *model.PartnerOAuthClient, key string) string {
+	t.Helper()
+	token := &model.Token{
+		UserId:         user.Id,
+		Name:           client.Name,
+		Key:            key,
+		Status:         common.TokenStatusEnabled,
+		ExpiredTime:    time.Now().Add(24 * time.Hour).Unix(),
+		UnlimitedQuota: true,
+	}
+	require.NoError(t, model.DB.Create(token).Error)
+	var bindingID string
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		binding, err := model.CreatePartnerOAuthBindingWithTx(tx, model.PartnerOAuthBindingCreate{
+			ClientId:        client.ClientId,
+			UserId:          user.Id,
+			UserAuthVersion: user.AuthVersion,
+			Scope:           "account:read credential:read",
+			ExpiresAt:       time.Now().Add(24 * time.Hour).Unix(),
+			AccessTokenHash: model.HashPartnerOAuthToken("oa_" + key),
+			AccessExpiresAt: time.Now().Add(time.Hour).Unix(),
+		})
+		if err != nil {
+			return err
+		}
+		bindingID = binding.BindingId
+		return tx.Model(binding).Update("token_id", token.Id).Error
+	}))
+	return bindingID
+}
+
+func TestPartnerOAuthAdminManagesUserClientBindings(t *testing.T) {
+	engine := setupPartnerOAuthAdminController(t)
+	client, _ := createPartnerTestClient(t, model.PartnerOAuthTokenAuthMethodBasic, []string{"https://assistant.example.com/oauth/callback"})
+	owner := createPartnerOAuthAdminActor(t, "poa-owner", common.RoleCommonUser)
+	other := createPartnerOAuthAdminActor(t, "poa-other", common.RoleCommonUser)
+	ownerBinding := seedPartnerBindingWithKey(t, owner.user, client, "partner-key-owner-secret")
+	otherBinding := seedPartnerBindingWithKey(t, other.user, client, "partner-key-other-secret")
+	admin := createPartnerOAuthAdminActor(t, "poa-binding-admin", common.RoleAdminUser)
+	peer := createPartnerOAuthAdminActor(t, "poa-binding-peer", common.RoleAdminUser)
+
+	forbidden := partnerOAuthAdminRequest(engine, http.MethodGet, "/api/user/"+itoa(int64(owner.user.Id))+"/partner-oauth/bindings", owner.token, "", "")
+	assert.Equal(t, http.StatusForbidden, forbidden.Code)
+
+	peerList := partnerOAuthAdminRequest(engine, http.MethodGet, "/api/user/"+itoa(int64(peer.user.Id))+"/partner-oauth/bindings", admin.token, "", "")
+	assert.Equal(t, http.StatusOK, peerList.Code)
+	assert.Contains(t, peerList.Body.String(), `"success":false`)
+	assert.Contains(t, peerList.Body.String(), "no permission")
+
+	listed := partnerOAuthAdminRequest(engine, http.MethodGet, "/api/user/"+itoa(int64(owner.user.Id))+"/partner-oauth/bindings", admin.token, "", "")
+	require.Equal(t, http.StatusOK, listed.Code)
+	assert.Contains(t, listed.Body.String(), ownerBinding)
+	assert.Contains(t, listed.Body.String(), client.Name)
+	assert.NotContains(t, listed.Body.String(), otherBinding)
+	assert.NotContains(t, listed.Body.String(), "partner-key-owner-secret")
+
+	wrongUser := partnerOAuthAdminRequest(engine, http.MethodDelete, "/api/user/"+itoa(int64(other.user.Id))+"/partner-oauth/bindings/"+ownerBinding, admin.token, "", "")
+	assert.Equal(t, http.StatusNotFound, wrongUser.Code)
+	stored, err := model.GetPartnerOAuthBindingByBindingID(ownerBinding)
+	require.NoError(t, err)
+	assert.Equal(t, model.PartnerOAuthBindingStatusActive, stored.Status)
+
+	revoked := partnerOAuthAdminRequest(engine, http.MethodDelete, "/api/user/"+itoa(int64(owner.user.Id))+"/partner-oauth/bindings/"+ownerBinding, admin.token, "", "")
+	require.Equal(t, http.StatusOK, revoked.Code)
+	assert.Contains(t, revoked.Body.String(), `"success":true`)
+
+	stored, err = model.GetPartnerOAuthBindingByBindingID(ownerBinding)
+	require.NoError(t, err)
+	assert.Equal(t, model.PartnerOAuthBindingStatusRevoked, stored.Status)
+	assert.Equal(t, service.PartnerOAuthRevokeReasonAdmin, stored.RevokedReason)
+	var token model.Token
+	require.NoError(t, model.DB.Where("user_id = ?", owner.user.Id).First(&token).Error)
+	assert.Equal(t, common.TokenStatusDisabled, token.Status)
+
+	var audits []model.AuditLog
+	require.NoError(t, model.LOG_DB.Where("action = ?", "partner_oauth.binding.admin_revoke").Find(&audits).Error)
+	require.Len(t, audits, 1)
+	assert.Equal(t, admin.user.Id, audits[0].UserId)
+	assert.Equal(t, common.RoleAdminUser, audits[0].ActorRole)
+	encoded, err := common.Marshal(audits[0])
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), ownerBinding)
+	assert.NotContains(t, string(encoded), "partner-key-owner-secret")
+	var routeAudits []model.AuditLog
+	require.NoError(t, model.LOG_DB.Where("route = ?", "/api/user/:id/partner-oauth/bindings/:binding_id").Find(&routeAudits).Error)
+	require.Len(t, routeAudits, 2)
+	encodedRoutes, err := common.Marshal(routeAudits)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encodedRoutes), "partner-key-owner-secret")
+	assert.NotContains(t, string(encodedRoutes), "partner-key-other-secret")
+
+	again := partnerOAuthAdminRequest(engine, http.MethodDelete, "/api/user/"+itoa(int64(owner.user.Id))+"/partner-oauth/bindings/"+ownerBinding, admin.token, "", "")
+	assert.Equal(t, http.StatusNotFound, again.Code)
+	remaining := partnerOAuthAdminRequest(engine, http.MethodGet, "/api/user/"+itoa(int64(other.user.Id))+"/partner-oauth/bindings", admin.token, "", "")
+	require.Equal(t, http.StatusOK, remaining.Code)
+	assert.Contains(t, remaining.Body.String(), otherBinding)
 }
 
 func TestPartnerOAuthAdminSecurityProofCases(t *testing.T) {

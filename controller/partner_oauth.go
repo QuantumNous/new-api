@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -451,7 +452,7 @@ func DeleteUserPartnerOAuthBinding(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"success": false, "code": "AUTH_SESSION_REQUIRED", "message": "a dashboard login session is required"})
 		return
 	}
-	err := service.RevokeUserPartnerOAuthBinding(identity.UserID, c.Param("binding_id"))
+	err := service.RevokeUserPartnerOAuthBinding(identity.UserID, c.Param("binding_id"), service.PartnerOAuthRevokeReasonUser)
 	if err != nil {
 		if typed := service.AsPartnerOAuthError(err); typed != nil && typed.Status == http.StatusNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"success": false, "code": typed.Code, "message": typed.Description})
@@ -463,6 +464,59 @@ func DeleteUserPartnerOAuthBinding(c *gin.Context) {
 	recordPartnerOAuthAudit(c, identity.UserID, "partner_oauth.binding.revoke", true, model.AuditFields{
 		"binding_id": c.Param("binding_id"),
 		"reason":     "user_revoked",
+	})
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+func loadPartnerOAuthAdminTarget(c *gin.Context) (*model.User, bool) {
+	userID, err := strconv.Atoi(c.Param("id"))
+	if err != nil || userID <= 0 {
+		common.ApiErrorMsg(c, "invalid user id")
+		return nil, false
+	}
+	target, err := model.GetUserById(userID, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return nil, false
+	}
+	if !canManageTargetRole(c.GetInt("role"), target.Role) {
+		common.ApiErrorMsg(c, "no permission")
+		return nil, false
+	}
+	return target, true
+}
+
+func GetUserPartnerOAuthBindingsByAdmin(c *gin.Context) {
+	target, ok := loadPartnerOAuthAdminTarget(c)
+	if !ok {
+		return
+	}
+	bindings, err := service.ListUserPartnerOAuthBindings(target.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": bindings})
+}
+
+func DeleteUserPartnerOAuthBindingByAdmin(c *gin.Context) {
+	target, ok := loadPartnerOAuthAdminTarget(c)
+	if !ok {
+		return
+	}
+	bindingID := c.Param("binding_id")
+	err := service.RevokeUserPartnerOAuthBinding(target.Id, bindingID, service.PartnerOAuthRevokeReasonAdmin)
+	if err != nil {
+		if typed := service.AsPartnerOAuthError(err); typed != nil && typed.Status == http.StatusNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"success": false, "code": typed.Code, "message": typed.Description})
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	recordManageAuditFor(c, target.Id, "partner_oauth.binding.admin_revoke", map[string]any{
+		"binding_id": bindingID,
+		"reason":     service.PartnerOAuthRevokeReasonAdmin,
 	})
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
