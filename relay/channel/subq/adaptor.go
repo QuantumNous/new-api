@@ -45,15 +45,27 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		return nil, errors.New("request is nil")
 	}
 
-	state := "General Context State"
-	prompt := "Evaluate probability and criteria."
+	var systemParts []string
+	var promptParts []string
 
 	for _, m := range request.Messages {
+		content := m.StringContent()
 		if m.Role == "system" {
-			state = fmt.Sprintf("%v", m.Content)
+			systemParts = append(systemParts, content)
 		} else if m.Role == "user" {
-			prompt = fmt.Sprintf("%v", m.Content)
+			promptParts = append(promptParts, content)
 		}
+	}
+
+	state := strings.Join(systemParts, "
+")
+	if state == "" {
+		state = "General Context State"
+	}
+	prompt := strings.Join(promptParts, "
+")
+	if prompt == "" {
+		prompt = "Evaluate probability and criteria."
 	}
 
 	return map[string]any{
@@ -116,6 +128,13 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		return nil, types.NewError(readErr, types.ErrorCodeBadResponseBody)
 	}
 
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, types.NewError(
+			fmt.Errorf("subq upstream returned status %d: %s", resp.StatusCode, string(responseBody)),
+			types.ErrorCodeBadResponseStatusCode,
+		)
+	}
+
 	var raw map[string]any
 	if unmarshalErr := json.Unmarshal(responseBody, &raw); unmarshalErr != nil {
 		return nil, types.NewError(unmarshalErr, types.ErrorCodeBadResponseBody)
@@ -139,7 +158,13 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 
 	c.JSON(http.StatusOK, openaiResp)
-	return raw["usage"], nil
+
+	parsedUsage := &dto.Usage{}
+	if rawUsage, ok := raw["usage"]; ok && rawUsage != nil {
+		usageBytes, _ := json.Marshal(rawUsage)
+		_ = json.Unmarshal(usageBytes, parsedUsage)
+	}
+	return parsedUsage, nil
 }
 
 func (a *Adaptor) GetModelList() []string {
