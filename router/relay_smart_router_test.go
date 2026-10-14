@@ -30,7 +30,12 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	host "github.com/QuantumNous/new-api/pkg/smartrouterhost"
+	relaychannel "github.com/QuantumNous/new-api/relay/channel"
+	openaichannel "github.com/QuantumNous/new-api/relay/channel/openai"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	hosttypes "github.com/QuantumNous/new-api/types"
 	"github.com/bytedance/gopkg/util/gopool"
@@ -193,6 +198,7 @@ func newSmartRouterProtocolUpstream(t *testing.T, protocol host.Protocol, status
 		}
 		upstream.mu.Lock()
 		upstream.calls++
+		upstream.paths = append(upstream.paths, r.URL.Path)
 		upstream.bodies = append(upstream.bodies, body)
 		upstream.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
@@ -411,6 +417,8 @@ func TestSmartRouterProtocolCompletion(t *testing.T) {
 		{"chat_truncated", host.ProtocolChat, true, "data: {\"id\":\"chatcmpl-fixture\",\"model\":\"gpt-3.5-turbo\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"partial\"}}]}\n\n", host.OutcomeResponseCommitted},
 		{"chat_failed", host.ProtocolChat, true, "data: {\"error\":{\"type\":\"upstream_error\",\"message\":\"fixture failed\"}}\n\n", host.OutcomeResponseCommitted},
 		{"responses_completed", host.ProtocolResponses, true, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-fixture\",\"model\":\"gpt-3.5-turbo\",\"status\":\"completed\",\"output\":[]}}\n\n", host.OutcomeSuccess},
+		{"responses_missing_event_type_done", host.ProtocolResponses, true, "data: {\"response\":{\"id\":\"resp-fixture\",\"model\":\"gpt-3.5-turbo\",\"status\":\"completed\",\"output\":[]}}\n\ndata: [DONE]\n\n", host.OutcomeResponseCommitted},
+		{"responses_missing_event_type_eof", host.ProtocolResponses, true, "data: {\"response\":{\"id\":\"resp-fixture\",\"model\":\"gpt-3.5-turbo\",\"status\":\"completed\",\"output\":[]}}\n\n", host.OutcomeResponseCommitted},
 		{"responses_completed_event_failed_status", host.ProtocolResponses, true, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-fixture\",\"status\":\"failed\",\"output\":[]}}\n\n", host.OutcomeResponseCommitted},
 		{"responses_completed_event_missing_status", host.ProtocolResponses, true, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-fixture\",\"output\":[]}}\n\n", host.OutcomeResponseCommitted},
 		{"responses_incomplete_stream", host.ProtocolResponses, true, "data: {\"type\":\"response.incomplete\",\"response\":{\"id\":\"resp-fixture\",\"status\":\"incomplete\",\"output\":[]}}\n\n", host.OutcomeResponseCommitted},
@@ -434,6 +442,283 @@ func TestSmartRouterProtocolCompletion(t *testing.T) {
 			assert.Equal(t, 1, first.callCount())
 			require.Len(t, sidecar.outcomeSnapshot(), 1)
 			assert.Equal(t, test.outcome, sidecar.outcomeSnapshot()[0].Outcome)
+		})
+	}
+}
+
+func TestSmartRouterConvertedResponsesOutcome(t *testing.T) {
+	originalTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 5
+	t.Cleanup(func() { constant.StreamingTimeout = originalTimeout })
+	for _, protocol := range []host.Protocol{host.ProtocolChat, host.ProtocolMessages} {
+		for _, mode := range []string{"json", "stream", "buffered"} {
+			cases := []struct {
+				name        string
+				status      string
+				event       string
+				outcome     host.Outcome
+				helperError bool
+			}{
+				{"completed", "completed", "response.completed", host.OutcomeSuccess, false},
+				{"incomplete", "incomplete", "response.incomplete", host.OutcomeResponseCommitted, false},
+				{"cancelled", "cancelled", "response.cancelled", host.OutcomeResponseCommitted, false},
+				{"failed_status", "failed", "response.completed", host.OutcomeResponseCommitted, false},
+				{"missing_status", "", "response.completed", host.OutcomeResponseCommitted, false},
+			}
+			if mode != "json" {
+				cases = append(cases, []struct {
+					name        string
+					status      string
+					event       string
+					outcome     host.Outcome
+					helperError bool
+				}{
+					{"done_completed", "completed", "response.done", host.OutcomeSuccess, false},
+					{"missing_terminal", "", "", host.OutcomeResponseCommitted, false},
+					{"truncated_eof", "", "", host.OutcomeResponseCommitted, false},
+					{"missing_event_type_done", "completed", "", host.OutcomeResponseCommitted, false},
+					{"missing_event_type_eof", "completed", "", host.OutcomeResponseCommitted, false},
+					{"nonterminal_completed_status", "completed", "response.created", host.OutcomeResponseCommitted, false},
+					{"incomplete_missing_status", "", "response.incomplete", host.OutcomeResponseCommitted, false},
+					{"cancelled_completed_status", "completed", "response.cancelled", host.OutcomeResponseCommitted, false},
+					{"failed_event", "failed", "response.failed", host.OutcomeResponseCommitted, true},
+				}...)
+			}
+			for _, test := range cases {
+				t.Run(string(protocol)+"/"+mode+"/"+test.name, func(t *testing.T) {
+					var charges []int
+					var usages [][2]int
+					var bodies []string
+					for _, enabled := range []bool{false, true} {
+						t.Run(map[bool]string{false: "disabled", true: "enabled"}[enabled], func(t *testing.T) {
+							engine, user := setupSmartRouterHostTest(t)
+							settings := model_setting.GetGlobalSettings()
+							previous := settings.ChatCompletionsToResponsesPolicy
+							settings.ChatCompletionsToResponsesPolicy = model_setting.ChatCompletionsToResponsesPolicy{
+								Enabled: true, AllChannels: true, ModelPatterns: []string{".*"},
+							}
+							t.Cleanup(func() { settings.ChatCompletionsToResponsesPolicy = previous })
+							if test.helperError {
+								previousRanges := operation_setting.AutomaticRetryStatusCodeRanges
+								operation_setting.AutomaticRetryStatusCodeRanges = nil
+								t.Cleanup(func() { operation_setting.AutomaticRetryStatusCodeRanges = previousRanges })
+							}
+							rawResponse := map[string]any{
+								"id": "resp-fixture", "object": "response", "model": relayFailoverModel,
+								"output": []any{map[string]any{
+									"type": "message", "role": "assistant",
+									"content": []any{map[string]any{"type": "output_text", "text": "fixture answer"}},
+								}},
+								"usage": map[string]int{"input_tokens": 5, "output_tokens": 3, "total_tokens": 8},
+							}
+							if test.status != "" {
+								rawResponse["status"] = test.status
+							}
+							body := smartRouterMarshal(t, rawResponse)
+							if mode != "json" {
+								body = "data: {\"type\":\"response.created\",\"response\":{\"id\":\"resp-fixture\",\"model\":\"gpt-3.5-turbo\",\"status\":\"in_progress\"}}\n\n" +
+									"data: {\"type\":\"response.output_text.delta\",\"delta\":\"fixture answer\"}\n\n"
+								if test.event != "" {
+									body += "data: " + smartRouterMarshal(t, map[string]any{"type": test.event, "response": rawResponse}) + "\n\n"
+								} else if strings.HasPrefix(test.name, "missing_event_type_") {
+									body += "data: " + smartRouterMarshal(t, map[string]any{"response": rawResponse}) + "\n\n"
+								}
+								if test.name != "truncated_eof" && test.name != "missing_event_type_eof" {
+									body += "data: [DONE]\n\n"
+								}
+							}
+							first := newSmartRouterProtocolUpstream(t, host.ProtocolResponses, http.StatusOK, body)
+							second := newFailoverUpstream(t, "forbidden-backup", http.StatusOK)
+							addRelayFailoverChannel(t, 7291, 30, first)
+							addRelayFailoverChannel(t, 7292, 20, second)
+							initializeRelayFailoverChannels()
+							sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA, smartRouterBindingB)
+							if enabled {
+								configureSmartRouterHost(t, sidecar, protocol, 7291, 7292)
+							}
+
+							response := performSmartRouterProtocolRequest(t, engine, protocol, mode == "stream")
+
+							assert.Equal(t, 1, first.callCount())
+							assert.Zero(t, second.callCount())
+							paths, requests := first.requestSnapshot()
+							assert.Equal(t, []string{"/v1/responses"}, paths)
+							require.Len(t, requests, 1)
+							var sent map[string]any
+							require.NoError(t, common.Unmarshal(requests[0], &sent))
+							assert.Contains(t, sent, "input", "host upgrade must actually send Responses input")
+							assert.NotContains(t, sent, "messages")
+							if enabled {
+								require.Len(t, sidecar.routeSnapshot(), 1)
+								require.Len(t, sidecar.outcomeSnapshot(), 1)
+								expected := test.outcome
+								if test.helperError && mode == "buffered" {
+									expected = host.OutcomeWriteUnknown
+								}
+								assert.Equal(t, expected, sidecar.outcomeSnapshot()[0].Outcome)
+								assert.Equal(t, protocol, sidecar.outcomeSnapshot()[0].Protocol, "wire protocol remains the signed client tuple")
+							} else {
+								assert.Empty(t, sidecar.routeSnapshot())
+								assert.Empty(t, sidecar.outcomeSnapshot())
+							}
+							if test.helperError && mode == "buffered" {
+								assert.Equal(t, http.StatusInternalServerError, response.Code)
+								assert.Contains(t, response.Body.String(), "responses stream error:")
+								assert.Contains(t, response.Body.String(), `"type":"bad_response"`)
+								requireRelayRefunded(t, user.Id)
+								return
+							}
+							require.Equal(t, http.StatusOK, response.Code)
+							assert.Contains(t, response.Body.String(), "fixture answer")
+							if test.helperError {
+								assert.Contains(t, response.Body.String(), "responses stream error:")
+								assert.Contains(t, response.Body.String(), `"type":"bad_response"`)
+								requireRelayRefunded(t, user.Id)
+								return
+							}
+							log, _ := latestConsumeLog(t, user.Id)
+							var stored model.User
+							var token model.Token
+							var logs int64
+							require.NoError(t, model.DB.First(&stored, user.Id).Error)
+							require.NoError(t, model.DB.Where("user_id = ?", user.Id).First(&token).Error)
+							require.NoError(t, model.LOG_DB.Model(&model.Log{}).
+								Where("user_id = ? AND type = ?", user.Id, model.LogTypeConsume).Count(&logs).Error)
+							assert.EqualValues(t, 1, logs)
+							assert.Equal(t, log.Quota, user.Quota-stored.Quota)
+							assert.Equal(t, log.Quota, 1_000_000-token.RemainQuota)
+							charges = append(charges, log.Quota)
+							usages = append(usages, [2]int{log.PromptTokens, log.CompletionTokens})
+							bodies = append(bodies, smartRouterConversionPayload(t, response.Body.String(), mode == "stream"))
+							if mode == "json" || test.name == "completed" || test.name == "done_completed" {
+								assert.Equal(t, [2]int{5, 3}, usages[len(usages)-1])
+							}
+						})
+					}
+					if !test.helperError {
+						require.Len(t, charges, 2)
+						assert.Equal(t, charges[0], charges[1])
+						assert.Equal(t, usages[0], usages[1])
+						assert.Equal(t, bodies[0], bodies[1], "observer must not change converter output")
+					}
+				})
+			}
+		}
+	}
+}
+
+// Strip only generated response identity/time fields from conversion parity checks.
+func smartRouterConversionPayload(t *testing.T, body string, stream bool) string {
+	t.Helper()
+	var values []any
+	if stream {
+		for line := range strings.SplitSeq(body, "\n") {
+			if data, ok := strings.CutPrefix(line, "data: "); ok && data != "[DONE]" {
+				var value any
+				require.NoError(t, common.UnmarshalJsonStr(data, &value))
+				values = append(values, value)
+			}
+		}
+	} else {
+		var value any
+		require.NoError(t, common.UnmarshalJsonStr(body, &value))
+		values = append(values, value)
+	}
+	for _, value := range values {
+		if object, ok := value.(map[string]any); ok {
+			for _, key := range []string{"id", "created", "created_at"} {
+				delete(object, key)
+			}
+			for _, key := range []string{"message", "response"} {
+				if nested, ok := object[key].(map[string]any); ok {
+					delete(nested, "id")
+					delete(nested, "created_at")
+				}
+			}
+		}
+	}
+	return smartRouterMarshal(t, values)
+}
+
+func TestSmartRouterResponsesViaChatObservation(t *testing.T) {
+	originalTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 5
+	t.Cleanup(func() { constant.StreamingTimeout = originalTimeout })
+	for _, test := range []struct {
+		name    string
+		stream  bool
+		body    string
+		outcome host.Outcome
+	}{
+		{"completed_json", false, `{"id":"chatcmpl-fixture","model":"gpt-3.5-turbo","choices":[{"index":0,"message":{"role":"assistant","content":"fixture answer"},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":3,"total_tokens":8}}`, host.OutcomeSuccess},
+		{"length_json", false, `{"id":"chatcmpl-fixture","model":"gpt-3.5-turbo","choices":[{"index":0,"message":{"role":"assistant","content":"fixture answer"},"finish_reason":"length"}],"usage":{"prompt_tokens":5,"completion_tokens":3,"total_tokens":8}}`, host.OutcomeSuccess},
+		{"missing_terminal_json", false, `{"id":"chatcmpl-fixture","model":"gpt-3.5-turbo","choices":[{"index":0,"message":{"role":"assistant","content":"fixture answer"}}],"usage":{"prompt_tokens":5,"completion_tokens":3,"total_tokens":8}}`, host.OutcomeResponseCommitted},
+		{"completed_stream", true, "data: {\"id\":\"chatcmpl-fixture\",\"model\":\"gpt-3.5-turbo\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"fixture answer\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":3,\"total_tokens\":8}}\n\ndata: [DONE]\n\n", host.OutcomeSuccess},
+		{"length_stream", true, "data: {\"id\":\"chatcmpl-fixture\",\"model\":\"gpt-3.5-turbo\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"fixture answer\"},\"finish_reason\":\"length\"}],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":3,\"total_tokens\":8}}\n\ndata: [DONE]\n\n", host.OutcomeSuccess},
+		{"missing_terminal_stream", true, "data: {\"id\":\"chatcmpl-fixture\",\"model\":\"gpt-3.5-turbo\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"fixture answer\"}}],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":3,\"total_tokens\":8}}\n\ndata: [DONE]\n\n", host.OutcomeResponseCommitted},
+		{"failed_stream", true, "data: {\"id\":\"chatcmpl-fixture\",\"model\":\"gpt-3.5-turbo\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"fixture answer\"}}],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":3,\"total_tokens\":8}}\n\ndata: {\"error\":{\"type\":\"upstream_error\",\"message\":\"fixture failed\"}}\n\n", host.OutcomeResponseCommitted},
+		{"failed_after_completed_stream", true, "data: {\"id\":\"chatcmpl-fixture\",\"model\":\"gpt-3.5-turbo\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"fixture answer\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":3,\"total_tokens\":8}}\n\ndata: {\"error\":{\"type\":\"upstream_error\",\"message\":\"fixture failed\"}}\n\n", host.OutcomeResponseCommitted},
+		{"malformed_after_completed_stream", true, "data: {\"id\":\"chatcmpl-fixture\",\"model\":\"gpt-3.5-turbo\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"fixture answer\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":3,\"total_tokens\":8}}\n\ndata: {invalid}\n\n", host.OutcomeResponseCommitted},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var bodies []string
+			for _, enabled := range []bool{false, true} {
+				t.Run(map[bool]string{false: "disabled", true: "enabled"}[enabled], func(t *testing.T) {
+					_, _ = setupSmartRouterHostTest(t)
+					provider := newSmartRouterProtocolUpstream(t, host.ProtocolChat, http.StatusOK, test.body)
+					addRelayFailoverChannel(t, 7293, 30, provider)
+					initializeRelayFailoverChannels()
+					sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+					if enabled {
+						configureSmartRouterHost(t, sidecar, host.ProtocolResponses, 7293)
+					}
+					// Reverse conversion is currently an excluded AdvancedCustom dispatch.
+					// Exercise its observation boundary with real auth, selection and Do,
+					// without expanding that channel's eligibility or claiming full E2E.
+					engine := gin.New()
+					engine.POST("/v1/responses", middleware.TokenAuth(), middleware.Distribute(), func(c *gin.Context) {
+						info := relaycommon.GenRelayInfoResponses(c, &kitdto.OpenAIResponsesRequest{Model: relayFailoverModel, Stream: common.GetPointer(test.stream)})
+						info.InitChannelMeta(c)
+						info.DisablePing = true
+						require.NoError(t, service.BeginSmartRouterAttempt(c))
+						request, err := http.NewRequest(http.MethodPost, provider.server.URL+"/v1/chat/completions",
+							strings.NewReader(`{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"ping"}]}`))
+						require.NoError(t, err)
+						resp, err := relaychannel.DoRequest(c, request, info)
+						require.NoError(t, err)
+						handler := openaichannel.OaiChatToResponsesHandler
+						if test.stream {
+							handler = openaichannel.OaiChatToResponsesStreamHandler
+						}
+						usage, apiErr := handler(c, info, resp)
+						require.Nil(t, apiErr)
+						require.NotNil(t, usage)
+						assert.Equal(t, 5, usage.PromptTokens)
+						assert.Equal(t, 3, usage.CompletionTokens)
+						assert.False(t, service.FinishSmartRouterAttempt(c, info, apiErr) && enabled, "one binding cannot retry")
+					})
+
+					response := performSmartRouterProtocolRequest(t, engine, host.ProtocolResponses, test.stream)
+
+					require.Equal(t, http.StatusOK, response.Code)
+					assert.Equal(t, 1, provider.callCount())
+					paths, _ := provider.requestSnapshot()
+					assert.Equal(t, []string{"/v1/chat/completions"}, paths)
+					assert.Contains(t, response.Body.String(), "fixture answer")
+					bodies = append(bodies, smartRouterConversionPayload(t, response.Body.String(), test.stream))
+					if enabled {
+						require.Len(t, sidecar.routeSnapshot(), 1)
+						require.Len(t, sidecar.outcomeSnapshot(), 1)
+						assert.Equal(t, test.outcome, sidecar.outcomeSnapshot()[0].Outcome)
+						assert.Equal(t, host.ProtocolResponses, sidecar.outcomeSnapshot()[0].Protocol)
+					} else {
+						assert.Empty(t, sidecar.routeSnapshot())
+						assert.Empty(t, sidecar.outcomeSnapshot())
+					}
+				})
+			}
+			require.Len(t, bodies, 2)
+			assert.Equal(t, bodies[0], bodies[1])
 		})
 	}
 }

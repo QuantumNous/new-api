@@ -21,6 +21,7 @@ import (
 )
 
 func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	host.ObserveUpstreamProtocol(c, host.ProtocolResponses)
 	defer service.CloseResponseBodyGracefully(resp)
 
 	// read response body
@@ -33,13 +34,9 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	host.ObserveResponsesOutcome(c, false, "", responsesResponse.Status)
 	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
-	}
-	if host.StateFor(c) != nil {
-		var status string
-		_ = common.Unmarshal(responsesResponse.Status, &status)
-		host.ObserveProtocolOutcome(c, status)
 	}
 	info.CaptureActualUpstreamModelName(responsesResponse.Model)
 
@@ -77,6 +74,7 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 }
 
 func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response) (*dto.Usage, *types.NewAPIError) {
+	host.ObserveUpstreamProtocol(c, host.ProtocolResponses)
 	if resp == nil || resp.Body == nil {
 		logger.LogError(c, "invalid response or response body")
 		return nil, types.NewError(fmt.Errorf("invalid response"), types.ErrorCodeBadResponse)
@@ -95,12 +93,12 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			sr.Error(err)
 			return
 		}
+		var status []byte
 		if streamResponse.Response != nil {
-			if host.StateFor(c) != nil {
-				var status string
-				_ = common.Unmarshal(streamResponse.Response.Status, &status)
-				host.ObserveProtocolOutcome(c, status)
-			}
+			status = streamResponse.Response.Status
+		}
+		host.ObserveResponsesOutcome(c, true, streamResponse.Type, status)
+		if streamResponse.Response != nil {
 			data = string(rewriteSGLangResponsesCreatedAt(info, []byte(data), "response.created_at", streamResponse.Response.CreatedAt))
 		}
 		sendResponsesStreamData(c, streamResponse, data)

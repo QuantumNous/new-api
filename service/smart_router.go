@@ -243,16 +243,18 @@ func FinishSmartRouterAttempt(c *gin.Context, info *relaycommon.RelayInfo, upstr
 	if state == nil {
 		return true
 	}
+	requireProtocol, protocolCompleted := state.ProtocolOutcome()
 	completed := upstreamError == nil
 	if info.IsStream {
 		outcome := info.StreamStatus.OutcomeSnapshot()
 		completed = completed && info.StreamStatus != nil && info.StreamStatus.IsNormalEnd() &&
-			!outcome.HasErrors && outcome.Response == relaycommon.ResponseOutcomeCompleted
-		if c.Request.URL.Path == "/v1/responses" {
-			completed = completed && state.ProtocolCompleted()
+			!outcome.HasErrors
+		if !requireProtocol {
+			completed = completed && outcome.Response == relaycommon.ResponseOutcomeCompleted
 		}
-	} else if c.Request.URL.Path == "/v1/responses" {
-		completed = completed && state.ProtocolCompleted()
+	}
+	if requireProtocol {
+		completed = completed && protocolCompleted
 	}
 	return state.Finish(c.Request.Context(), completed, c.Writer.Written())
 }

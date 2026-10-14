@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/gin-gonic/gin"
 )
 
@@ -38,7 +39,10 @@ type State struct {
 	unknown           bool
 	rawStatus         int
 	started           time.Time
+	upstreamProtocol  Protocol
+	protocolObserved  bool
 	protocolCompleted bool
+	protocolFailed    bool
 	event             AttemptOutcome
 	retry             bool
 	downstreamFailed  bool
@@ -121,7 +125,8 @@ func (s *State) Begin() error {
 	}
 	s.active, s.invoked, s.unknown, s.retry = true, false, false, false
 	s.rawStatus = 0
-	s.protocolCompleted = false
+	s.upstreamProtocol = s.request.Protocol
+	s.protocolObserved, s.protocolCompleted, s.protocolFailed = false, false, false
 	s.retryAfterMS, s.retryAfterValid, s.ttft = 0, true, 0
 	s.ttftObserved = false
 	s.started = s.client.now()
@@ -159,18 +164,49 @@ func ObserveTransport(c *gin.Context, response *http.Response, err error) {
 	}
 }
 
-func ObserveProtocolOutcome(c *gin.Context, status string) {
+// ObserveUpstreamProtocol identifies the raw protocol before any conversion.
+func ObserveUpstreamProtocol(c *gin.Context, protocol Protocol) {
 	if s := StateFor(c); s != nil {
 		s.mu.Lock()
 		defer s.mu.Unlock()
-		s.protocolCompleted = status == "completed"
+		s.upstreamProtocol, s.protocolObserved = protocol, true
 	}
 }
 
-func (s *State) ProtocolCompleted() bool {
+func ObserveProtocolOutcome(c *gin.Context, completed, failed bool) {
+	if s := StateFor(c); s != nil {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.protocolCompleted = s.protocolCompleted || completed
+		s.protocolFailed = s.protocolFailed || failed
+	}
+}
+
+// ObserveResponsesOutcome retains only original terminal/status facts.
+func ObserveResponsesOutcome(c *gin.Context, stream bool, eventType string, rawStatus []byte) {
+	if StateFor(c) == nil {
+		return
+	}
+	var status string
+	_ = common.Unmarshal(rawStatus, &status)
+	terminal := !stream || eventType == "response.completed" || eventType == "response.done"
+	failed := terminal && status != "completed"
+	switch status {
+	case "failed", "incomplete", "cancelled", "canceled":
+		failed = true
+	}
+	switch eventType {
+	case "error", "response.error", "response.failed", "response.incomplete", "response.cancelled", "response.canceled":
+		failed = true
+	}
+	ObserveProtocolOutcome(c, terminal && status == "completed", failed)
+}
+
+func (s *State) ProtocolOutcome() (required, completed bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.protocolCompleted
+	return s.upstreamProtocol == ProtocolResponses || s.protocolObserved,
+		s.protocolCompleted && !s.protocolFailed
 }
 
 func ParseRetryAfter(headers http.Header, now time.Time) (int64, error) {
