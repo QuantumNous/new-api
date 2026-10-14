@@ -38,6 +38,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/channel/submodel"
 	jspluginadaptor "github.com/QuantumNous/new-api/relay/channel/task/jsplugin"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
+	"github.com/QuantumNous/new-api/relay/channel/subq"
 	"github.com/QuantumNous/new-api/relay/channel/vertex"
 	"github.com/QuantumNous/new-api/relay/channel/volcengine"
 	"github.com/QuantumNous/new-api/relay/channel/xai"
@@ -83,6 +84,8 @@ func GetAdaptor(apiType int) channel.Adaptor {
 		return &jina.Adaptor{}
 	case constant.APITypeCloudflare:
 		return &cloudflare.Adaptor{}
+	case constant.APITypeSubQ:
+		return &subq.Adaptor{}
 	case constant.APITypeSiliconFlow:
 		return &siliconflow.Adaptor{}
 	case constant.APITypeVertexAi:
