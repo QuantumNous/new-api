@@ -152,10 +152,8 @@ func (a *Adaptor) getRequestUrl(info *relaycommon.RelayInfo, modelName, suffix s
 		} else {
 			keyPrefix = "?"
 		}
-		// Vertex API Key 模式下没有 service account JSON，因此无法从 key 解析
-		// project_id；但官方 Vertex 端点 (projects/{PROJECT_ID}/locations/{REGION}/...)
-		// 需要 project_id 才不会 404，所以从 ChannelOtherSettings.VertexProjectID
-		// 透传。未配置时回退到原行为（空 project_id）以保持兼容。
+		// An API key carries no project. Without a configured project ID the URL
+		// keeps the express-mode form, which has no region in its path.
 		projectID := strings.TrimSpace(info.ChannelOtherSettings.VertexProjectID)
 		if a.RequestMode == RequestModeGemini {
 			return fmt.Sprintf(

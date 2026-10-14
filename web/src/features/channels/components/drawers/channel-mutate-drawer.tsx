@@ -292,6 +292,7 @@ const SENSITIVE_FORM_FIELDS = [
   'advanced_custom',
   'is_enterprise_account',
   'vertex_key_type',
+  'vertex_project_id',
   'aws_key_type',
   'azure_responses_version',
   'force_format',
@@ -3933,7 +3934,7 @@ export function ChannelMutateDrawer({
                         </FormControl>
                         <FormDescription>
                           {t(
-                            'Required in API Key mode: the Google Cloud project ID that owns the Vertex AI resource. The official endpoint requires /projects/{project_id}/locations/{region}/... in the path.'
+                            'Optional. Without it, Google picks the region; with it, requests go to the deployment region below.'
                           )}
                         </FormDescription>
                         <FormMessage />
