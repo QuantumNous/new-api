@@ -90,19 +90,25 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
+	// ClientMode must be decided here: DoRequest branches on it
+	// before GetRequestURL is ever called, so assigning it inside
+	// GetRequestURL left the API-key REST path unreachable (#7023).
+	if info.ChannelOtherSettings.AwsKeyType == dto.AwsKeyTypeApiKey {
+		a.ClientMode = ClientModeApiKey
+	} else {
+		a.ClientMode = ClientModeAKSK
+	}
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.ChannelOtherSettings.AwsKeyType == dto.AwsKeyTypeApiKey {
 		awsModelId := getAwsModelID(info.UpstreamModelName)
-		a.ClientMode = ClientModeApiKey
 		awsSecret := strings.Split(info.ApiKey, "|")
 		if len(awsSecret) != 2 {
 			return "", errors.New("invalid aws api key, should be in format of <api-key>|<region>")
 		}
-		return fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com/model/%s/converse", awsModelId, awsSecret[1]), nil
+		return fmt.Sprintf("https://bedrock-runtime.%s.amazonaws.com/model/%s/converse", awsSecret[1], awsModelId), nil
 	} else {
-		a.ClientMode = ClientModeAKSK
 		return "", nil
 	}
 }
@@ -110,7 +116,11 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
 	claude.CommonClaudeHeadersOperation(c, req, info)
 	if a.ClientMode == ClientModeApiKey {
-		req.Set("Authorization", "Bearer "+info.ApiKey)
+		// info.ApiKey is the composite "<api-key>|<region>" in this
+		// mode; Bedrock expects the bare key as the bearer token,
+		// as newAwsClient already does with awsSecret[0].
+		apiKey, _, _ := strings.Cut(info.ApiKey, "|")
+		req.Set("Authorization", "Bearer "+apiKey)
 	}
 	return nil
 }

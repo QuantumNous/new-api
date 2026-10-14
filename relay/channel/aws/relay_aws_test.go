@@ -482,3 +482,100 @@ func TestAwsStreamHandlerStopsAtClientCancellation(t *testing.T) {
 		t.Fatal("upstream producer did not observe the closed stream")
 	}
 }
+
+func TestInit_SetsClientMode(t *testing.T) {
+	t.Parallel()
+
+	// Regression for #7023: ClientMode was only assigned inside
+	// GetRequestURL, which DoRequest cannot reach before branching
+	// on it, so API-key channels never selected the direct REST
+	// path. Init is the single place that decides the mode.
+	tests := []struct {
+		name     string
+		keyType  dto.AwsKeyType
+		expected ClientMode
+	}{
+		{name: "api key selects direct REST mode", keyType: dto.AwsKeyTypeApiKey, expected: ClientModeApiKey},
+		{name: "ak_sk selects SDK mode", keyType: dto.AwsKeyTypeAKSK, expected: ClientModeAKSK},
+		{name: "unset key type defaults to SDK mode", keyType: "", expected: ClientModeAKSK},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			info := &relaycommon.RelayInfo{
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelOtherSettings: dto.ChannelOtherSettings{AwsKeyType: tt.keyType},
+				},
+			}
+			adaptor := &Adaptor{}
+			adaptor.Init(info)
+			assert.Equal(t, tt.expected, adaptor.ClientMode)
+		})
+	}
+}
+
+func TestGetRequestURL_ApiKeyMode(t *testing.T) {
+	t.Parallel()
+
+	// Regression: the Sprintf arguments were swapped — awsModelId
+	// filled the host region slot and awsSecret[1] (the region)
+	// filled the /model/<id>/converse path slot, producing e.g.
+	// https://bedrock-runtime.anthropic.claude-3-5-sonnet-20240620-v1:0.amazonaws.com/model/eu-west-1/converse
+	// instead of
+	// https://bedrock-runtime.eu-west-1.amazonaws.com/model/anthropic.claude-3-5-sonnet-20240620-v1:0/converse
+	// Introduced in 59caea8f3 (feat: support aws bedrock api-keys-use).
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelOtherSettings: dto.ChannelOtherSettings{
+				AwsKeyType: dto.AwsKeyTypeApiKey,
+			},
+			ApiKey:            "key123|eu-west-1",
+			UpstreamModelName: "claude-3-5-sonnet-20240620",
+		},
+	}
+	adaptor := &Adaptor{}
+	adaptor.Init(info)
+
+	requestURL, err := adaptor.GetRequestURL(info)
+	require.NoError(t, err)
+
+	assert.Equal(t, adaptor.ClientMode, ClientModeApiKey)
+	assert.Equal(t,
+		"https://bedrock-runtime.eu-west-1.amazonaws.com/model/anthropic.claude-3-5-sonnet-20240620-v1:0/converse",
+		requestURL,
+	)
+}
+
+func TestSetupRequestHeader_ApiKeyMode(t *testing.T) {
+	t.Parallel()
+
+	// Regression: SetupRequestHeader sent "Authorization: Bearer "
+	// plus the full composite info.ApiKey, so the region suffix was
+	// transmitted to Bedrock as part of the Bearer key123:
+	//   actual:   Bearer key123|eu-west-1
+	//   expected: Bearer key123
+	// info.ApiKey for this channel mode is the composite
+	// "<api-key>|<region>" string (frontend: "Enter API Key, format:
+	// APIKey|Region"; the split in GetRequestURL and newAwsClient
+	// both prove the codebase treats it as composite). Bedrock
+	// expects the bare key only; the region belongs in the endpoint
+	// host. newAwsClient (relay-aws.go) follows this exactly:
+	// bearer.StaticTokenProvider{Value: awsSecret[0]}.
+
+	info := &relaycommon.RelayInfo{
+		OriginModelName: awsTestModel,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelOtherSettings: dto.ChannelOtherSettings{
+				AwsKeyType: dto.AwsKeyTypeApiKey,
+			},
+			ApiKey: "key123|eu-west-1",
+		},
+	}
+	adaptor := &Adaptor{ClientMode: ClientModeApiKey}
+	c := newAwsTestContext(httptest.NewRecorder(), context.Background())
+
+	req := make(http.Header)
+	require.NoError(t, adaptor.SetupRequestHeader(c, &req, info))
+	assert.Equal(t, "Bearer key123", req.Get("Authorization"))
+}
