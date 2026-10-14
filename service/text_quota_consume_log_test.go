@@ -82,14 +82,18 @@ func TestConsumeLogPromptTokensPreservesOpenRouterInputTotal(t *testing.T) {
 
 func TestConsumeLogPromptTokensKeepsProviderUsageSemantics(t *testing.T) {
 	for _, tc := range []struct {
-		name      string
-		semantic  string
-		channel   *relaycommon.ChannelMeta
-		wantInput int
+		name         string
+		semantic     string
+		promptTokens int
+		channel      *relaycommon.ChannelMeta
+		wantInput    int
 	}{
-		{name: "native anthropic split writes", semantic: "anthropic", wantInput: 1130},
-		{name: "explicit openai semantic overrides claude relay format", semantic: "openai", wantInput: 1000},
-		{name: "openrouter explicit openai semantic", semantic: "openai", channel: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenRouter}, wantInput: 1000},
+		{name: "native anthropic split writes", semantic: "anthropic", promptTokens: 1000, wantInput: 1130},
+		{name: "explicit openai semantic overrides claude relay format", semantic: "openai", promptTokens: 1000, wantInput: 1000},
+		{name: "openrouter explicit openai semantic", semantic: "openai", promptTokens: 1000, channel: &relaycommon.ChannelMeta{ChannelType: constant.ChannelTypeOpenRouter}, wantInput: 1000},
+		// Claude reports a fully cached prompt as zero input tokens; the cache
+		// counts are the whole input and must reach the log as the total.
+		{name: "cache-only anthropic response", semantic: "anthropic", wantInput: 130},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
@@ -101,7 +105,7 @@ func TestConsumeLogPromptTokensKeepsProviderUsageSemantics(t *testing.T) {
 			}
 			usage := &dto.Usage{
 				UsageSemantic:    tc.semantic,
-				PromptTokens:     1000,
+				PromptTokens:     tc.promptTokens,
 				CompletionTokens: 50,
 				PromptTokensDetails: dto.InputTokenDetails{
 					CachedTokens: 100,
@@ -111,7 +115,7 @@ func TestConsumeLogPromptTokensKeepsProviderUsageSemantics(t *testing.T) {
 			}
 			summary := calculateTextQuotaSummary(ctx, info, usage)
 			assert.Equal(t, tc.wantInput, summary.consumeLogPromptTokens())
-			assert.Equal(t, 1000, summary.PromptTokens, "the log total must not replace billing input")
+			assert.Equal(t, tc.promptTokens, summary.PromptTokens, "the log total must not replace billing input")
 		})
 	}
 }
