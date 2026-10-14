@@ -194,6 +194,16 @@ attached managed ownership or uncertain ownership are terminal. Runtime and
 request configuration remain immutable; a later reload cannot change an
 existing request's signed plan.
 
+Managed admission uses the error-bearing `model.ListEligibleChannelIDs` read.
+Ability-query and bulk channel-query errors are terminal, as are unavailable
+or inconsistent indexed cache candidates, even when request filters would
+hide them. Such failures do not set scope exclusion, create a signed plan or
+call either service; restoring the dependency cannot revive that request.
+Healthy selection retains the existing mode-specific normalization and filter
+ordering. Original production selectors, including their legacy read-error
+behavior, remain unchanged. Fixed-candidate independent review is required
+before treating this repair as accepted enablement.
+
 Provision and enable in this order:
 
 1. Create host channels and their exact group/model abilities with normal host

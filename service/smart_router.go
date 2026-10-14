@@ -196,22 +196,15 @@ func SelectSmartRouterChannel(param *RetryParam) (*model.Channel, string, bool, 
 			}
 			if len(managed) != 0 {
 				filters := GetChannelConstraints(c).Filters
-				priorities, err := model.ListSatisfiedChannelPriorities(param.TokenGroup, param.ModelName, filters)
+				ids, err := model.ListEligibleChannelIDs(param.TokenGroup, param.ModelName, filters)
 				if err != nil {
 					c.Set(smartRouterAdmissionFailedKey, true)
 					return nil, param.TokenGroup, true, host.ErrBinding
 				}
-				for _, priority := range priorities {
-					ids, err := model.ListSatisfiedChannelIDsAtPriority(param.TokenGroup, param.ModelName, priority, filters)
-					if err != nil {
-						c.Set(smartRouterAdmissionFailedKey, true)
-						return nil, param.TokenGroup, true, host.ErrBinding
-					}
-					for _, id := range ids {
-						if managed[id] {
-							host.Exclude(c)
-							return nil, "", false, nil
-						}
+				for _, id := range ids {
+					if managed[id] {
+						host.Exclude(c)
+						return nil, "", false, nil
 					}
 				}
 			}

@@ -424,3 +424,46 @@ func FixAbility() (int, int, error) {
 	InitChannelCache()
 	return successCount, failCount, nil
 }
+
+func listEligibleChannelIDs(group string, modelName string, filters []dto.ChannelFilter) ([]int, error) {
+	var abilities []Ability
+	err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, modelName, true).
+		Find(&abilities).Error
+	if err != nil {
+		return nil, err
+	}
+	if len(abilities) == 0 {
+		normalizedModel := ratio_setting.FormatMatchingModelName(modelName)
+		if err := DB.Where(commonGroupCol+" = ? and model = ? and enabled = ?", group, normalizedModel, true).
+			Find(&abilities).Error; err != nil {
+			return nil, err
+		}
+	}
+	if len(abilities) == 0 {
+		return nil, nil
+	}
+	ids := make([]int, 0, len(abilities))
+	seen := make(map[int]struct{}, len(abilities))
+	for _, ability := range abilities {
+		if _, exists := seen[ability.ChannelId]; exists {
+			continue
+		}
+		seen[ability.ChannelId] = struct{}{}
+		ids = append(ids, ability.ChannelId)
+	}
+	var channels []*Channel
+	if err := DB.Where("id IN ?", ids).Find(&channels).Error; err != nil {
+		return nil, err
+	}
+	byID := make(map[int]*Channel, len(channels))
+	for _, channel := range channels {
+		byID[channel.Id] = channel
+	}
+	result := make([]int, 0, len(ids))
+	for _, id := range ids {
+		if ok, _ := ChannelSatisfiesFilters(byID[id], modelName, filters); ok {
+			result = append(result, id)
+		}
+	}
+	return result, nil
+}

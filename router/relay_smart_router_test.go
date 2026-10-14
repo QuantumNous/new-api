@@ -18,6 +18,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -48,6 +49,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 const smartRouterTestKey = "0123456789abcdef0123456789abcdef"
@@ -604,6 +606,311 @@ func smartRouterRegistryContext() (*gin.Context, *service.RetryParam) {
 	common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
 	common.SetContextKey(c, constant.ContextKeyOriginalModel, relayFailoverModel)
 	return c, &service.RetryParam{Ctx: c, TokenGroup: "default", ModelName: relayFailoverModel}
+}
+
+func setupSmartRouterEligibilityDB(t *testing.T, cache bool) *gorm.DB {
+	t.Helper()
+	oldDB, oldPath, oldMaster, oldCache := model.DB, common.SQLitePath, common.IsMasterNode, common.MemoryCacheEnabled
+	oldMain, oldLog := common.MainDatabaseType(), common.LogDatabaseType()
+	common.SQLitePath = filepath.Join(t.TempDir(), "eligibility.db")
+	common.IsMasterNode, common.MemoryCacheEnabled = false, cache
+	// InitDB initializes the production reserved-column names without master migrations.
+	require.NoError(t, model.InitDB())
+	db := model.DB
+	db.Logger = logger.Default.LogMode(logger.Silent)
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	sqlDB.SetMaxOpenConns(1)
+	t.Cleanup(func() {
+		require.NoError(t, service.ConfigureSmartRouter(func(string) string { return "" }))
+		model.DB, common.SQLitePath, common.IsMasterNode, common.MemoryCacheEnabled = oldDB, oldPath, oldMaster, oldCache
+		common.SetMainDatabaseType(oldMain)
+		common.SetLogDatabaseType(oldLog)
+		require.NoError(t, sqlDB.Close())
+	})
+	require.NoError(t, db.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.UpstreamManagedRoute{}))
+	return db
+}
+
+func TestSmartRouterRegistryEligibilityReadFailure(t *testing.T) {
+	for _, scenario := range []string{"signed_control", "batch_read_failure", "ability_read_failure", "disabled_legacy_control"} {
+		t.Run(scenario, func(t *testing.T) {
+			db := setupSmartRouterEligibilityDB(t, false)
+			first := newFailoverUpstream(t, "synthetic-eligibility", http.StatusOK)
+			for i := range 2 {
+				priority, weight, baseURL := int64(30-i*10), uint(100), first.server.URL
+				require.NoError(t, db.Create(&model.Channel{
+					Id: i + 1, Type: constant.ChannelTypeOpenAI, Key: "synthetic-eligibility-only",
+					Status: common.ChannelStatusEnabled, Name: "eligibility-fixture",
+					Priority: &priority, Weight: &weight, BaseURL: &baseURL,
+					Group: "default", Models: relayFailoverModel,
+				}).Error)
+				require.NoError(t, db.Create(&model.Ability{
+					Group: "default", Model: relayFailoverModel, ChannelId: i + 1,
+					Enabled: true, Priority: &priority, Weight: weight,
+				}).Error)
+			}
+			require.NoError(t, db.Create(&model.UpstreamManagedRoute{
+				SourceID: 202, ChannelID: 2, ExternalGroupID: "synthetic-eligibility-group",
+				Platform: "openai", Protocol: model.UpstreamProtocolOpenAI,
+				State: model.UpstreamRouteStateActive,
+			}).Error)
+			sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+			if scenario != "disabled_legacy_control" {
+				smartRouterRegistryValues(t, sidecar, []host.RegistryEntry{{
+					BindingID: smartRouterBindingA, ChannelID: 1, Group: "default",
+					Model: relayFailoverModel, Protocol: "chat", ProtocolPlugin: "chat-v1",
+				}})
+			}
+			reads := 0
+			const callback = "test:smart_registry_batch_eligibility_error"
+			if scenario != "signed_control" {
+				require.NoError(t, db.Callback().Query().Before("gorm:query").Register(callback, func(tx *gorm.DB) {
+					table := "channels"
+					if scenario == "ability_read_failure" {
+						table = "abilities"
+					}
+					if tx.Statement.Table == table && tx.Statement.ReflectValue.Kind() == reflect.Slice {
+						reads++
+						tx.AddError(errors.New("synthetic batch eligibility read failure"))
+					}
+				}))
+				t.Cleanup(func() { require.NoError(t, db.Callback().Query().Remove(callback)) })
+			}
+			c, retry := smartRouterRegistryContext()
+			service.GetChannelConstraints(c).AddFilter(dto.ChannelFilter{
+				Kind: dto.FilterExcludeChannelIDs, ExcludedChannelIDs: []int{2},
+			})
+			selected, _, err := service.SelectChannelForRequest(c, retry.ModelName, retry)
+			if selected != nil && err == nil {
+				require.Nil(t, middleware.SetupContextForSelectedChannel(c, selected, retry.ModelName))
+				require.NoError(t, service.BeginSmartRouterAttempt(c))
+				request, requestErr := http.NewRequest(http.MethodPost, first.server.URL+"/v1/chat/completions", strings.NewReader("{}"))
+				require.NoError(t, requestErr)
+				response, callErr := relaychannel.DoRequest(c, request, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}})
+				require.NoError(t, callErr)
+				require.NoError(t, response.Body.Close())
+			}
+			if scenario == "batch_read_failure" || scenario == "ability_read_failure" {
+				assert.Positive(t, reads, "the failing batch read must actually execute")
+				if assert.NotNil(t, err, "uncertain admitted ownership must not select a legacy channel") {
+					assert.Equal(t, http.StatusServiceUnavailable, err.StatusCode)
+					assert.Equal(t, host.ErrBinding.Error(), err.Params["Error"])
+				}
+				assert.Nil(t, selected)
+				assert.False(t, host.Excluded(c), "uncertainty must not become permanent scope exclusion")
+				assert.Nil(t, host.StateFor(c))
+				assert.Empty(t, sidecar.routeSnapshot())
+				assert.Zero(t, first.callCount(), "no actual provider invocation after an eligibility read error")
+				require.NoError(t, db.Callback().Query().Remove(callback))
+				retry.IncreaseRetry()
+				selected, _, handled, restoredErr := service.SelectSmartRouterChannel(retry)
+				assert.True(t, handled, "restoring the read must not revive admitted traffic")
+				assert.ErrorIs(t, restoredErr, host.ErrBinding)
+				assert.Nil(t, selected)
+				assert.Nil(t, host.StateFor(c))
+				assert.Empty(t, sidecar.routeSnapshot())
+				return
+			}
+			require.Nil(t, err)
+			require.NotNil(t, selected)
+			assert.Equal(t, 1, selected.Id)
+			assert.Equal(t, 1, first.callCount())
+			if scenario == "signed_control" {
+				assert.Zero(t, reads)
+				assert.False(t, host.Excluded(c))
+				assert.NotNil(t, host.StateFor(c))
+				assert.Len(t, sidecar.routeSnapshot(), 1)
+			} else {
+				assert.Positive(t, reads, "legacy retains the inherited suppressed-error selection")
+				assert.Nil(t, host.StateFor(c))
+				assert.Empty(t, sidecar.routeSnapshot())
+			}
+		})
+	}
+}
+
+func TestSmartRouterRegistryEligibilityCacheInconsistency(t *testing.T) {
+	for _, filtered := range []bool{false, true} {
+		t.Run(fmt.Sprintf("filtered=%t", filtered), func(t *testing.T) {
+			setupSmartRouterEligibilityDB(t, true)
+			provider := newFailoverUpstream(t, "synthetic-cache-eligibility", http.StatusOK)
+			addRelayFailoverChannel(t, 1, 30, provider)
+			managed := addRelayFailoverChannel(t, 2, 20, provider)
+			addManagedFailoverRoute(t, managed, 202)
+			model.InitChannelCache()
+			sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+			smartRouterRegistryValues(t, sidecar, []host.RegistryEntry{{
+				BindingID: smartRouterBindingA, ChannelID: 1, Group: "default",
+				Model: relayFailoverModel, Protocol: "chat", ProtocolPlugin: "chat-v1",
+			}})
+			// The public record update leaves the enabled-candidate index stale.
+			managed.Status = common.ChannelStatusAutoDisabled
+			model.CacheUpdateChannel(&managed)
+			c, retry := smartRouterRegistryContext()
+			if filtered {
+				service.GetChannelConstraints(c).AddFilter(dto.ChannelFilter{
+					Kind: dto.FilterExcludeChannelIDs, ExcludedChannelIDs: []int{2},
+				})
+			}
+			ids, readErr := model.ListEligibleChannelIDs("default", relayFailoverModel, service.GetChannelConstraints(c).Filters)
+			assert.Error(t, readErr, "an inconsistent indexed candidate is not confirmed absence")
+			assert.Empty(t, ids)
+			selected, _, selectionErr := service.SelectChannelForRequest(c, retry.ModelName, retry)
+			if selected != nil && selectionErr == nil {
+				require.Nil(t, middleware.SetupContextForSelectedChannel(c, selected, retry.ModelName))
+				require.NoError(t, service.BeginSmartRouterAttempt(c))
+				request, err := http.NewRequest(http.MethodPost, provider.server.URL+"/v1/chat/completions", strings.NewReader("{}"))
+				require.NoError(t, err)
+				response, err := relaychannel.DoRequest(c, request, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}})
+				require.NoError(t, err)
+				require.NoError(t, response.Body.Close())
+			}
+			if assert.NotNil(t, selectionErr) {
+				assert.Equal(t, http.StatusServiceUnavailable, selectionErr.StatusCode)
+				assert.Equal(t, host.ErrBinding.Error(), selectionErr.Params["Error"])
+			}
+			assert.Nil(t, selected)
+			assert.False(t, host.Excluded(c))
+			assert.Nil(t, host.StateFor(c))
+			assert.Empty(t, sidecar.routeSnapshot())
+			assert.Zero(t, provider.callCount())
+			model.InitChannelCache()
+			retry.IncreaseRetry()
+			selected, _, handled, err := service.SelectSmartRouterChannel(retry)
+			assert.True(t, handled)
+			assert.ErrorIs(t, err, host.ErrBinding)
+			assert.Nil(t, selected)
+			assert.Nil(t, host.StateFor(c))
+			assert.Empty(t, sidecar.routeSnapshot())
+			assert.Zero(t, provider.callCount())
+		})
+	}
+}
+
+func TestSmartRouterEligibilityReadSemantics(t *testing.T) {
+	for _, cache := range []bool{false, true} {
+		t.Run(fmt.Sprintf("cache=%t", cache), func(t *testing.T) {
+			db := setupSmartRouterEligibilityDB(t, cache)
+			provider := newFailoverUpstream(t, "synthetic-read-semantics", http.StatusOK)
+			for i, name := range []string{"gpt-4-gizmo-exact", "gpt-4-gizmo-*", "gpt-4-gizmo-exact", "gpt-4-gizmo-exact", "qwen3-max"} {
+				channel := addRelayFailoverChannel(t, i+1, int64(50-i*10), provider)
+				channel.Models = name
+				if i == 2 {
+					channel.Group = "other"
+				}
+				if i == 3 {
+					channel.Status = common.ChannelStatusAutoDisabled
+				}
+				require.NoError(t, db.Save(&channel).Error)
+				require.NoError(t, channel.UpdateAbilities(nil))
+			}
+			initializeRelayFailoverChannels()
+			filteredExact, modifier := []int(nil), []int(nil)
+			if cache {
+				filteredExact, modifier = []int{2}, []int{5}
+			}
+			for _, test := range []struct {
+				name, group, model string
+				filters            []dto.ChannelFilter
+				want               []int
+			}{
+				{"exact", "default", "gpt-4-gizmo-exact", nil, []int{1}},
+				{"normalized", "default", "gpt-4-gizmo-other", nil, []int{2}},
+				{"exact_filtered_fallback", "default", "gpt-4-gizmo-exact", []dto.ChannelFilter{{Kind: dto.FilterExcludeChannelIDs, ExcludedChannelIDs: []int{1}}}, filteredExact},
+				{"normalized_filtered", "default", "gpt-4-gizmo-other", []dto.ChannelFilter{{Kind: dto.FilterExcludeChannelIDs, ExcludedChannelIDs: []int{2}}}, nil},
+				{"channel_type_filter", "default", "gpt-4-gizmo-exact", []dto.ChannelFilter{{Kind: dto.FilterChannelTypes, AllowedChannelTypes: []int{constant.ChannelTypeAnthropic}}}, nil},
+				{"other_group", "other", "gpt-4-gizmo-exact", nil, []int{3}},
+				{"no_group", "missing", "gpt-4-gizmo-exact", nil, nil},
+				{"no_model", "default", "missing", nil, nil},
+				{"mode_specific_modifier", "default", "qwen3-max@thinking:on", nil, modifier},
+			} {
+				t.Run(test.name, func(t *testing.T) {
+					ids, err := model.ListEligibleChannelIDs(test.group, test.model, test.filters)
+					require.NoError(t, err)
+					assert.ElementsMatch(t, test.want, ids)
+					priorities, err := model.ListSatisfiedChannelPriorities(test.group, test.model, test.filters)
+					require.NoError(t, err)
+					var legacyIDs []int
+					for _, priority := range priorities {
+						atPriority, err := model.ListSatisfiedChannelIDsAtPriority(test.group, test.model, priority, test.filters)
+						require.NoError(t, err)
+						legacyIDs = append(legacyIDs, atPriority...)
+					}
+					assert.ElementsMatch(t, legacyIDs, ids, "healthy legacy filtering/normalization is unchanged")
+					if len(ids) > 0 {
+						ids[0] = -1
+						again, err := model.ListEligibleChannelIDs(test.group, test.model, test.filters)
+						require.NoError(t, err)
+						assert.ElementsMatch(t, test.want, again, "returned IDs do not alias cache storage")
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestSmartRouterRegistryEligibilityOwnershipModes(t *testing.T) {
+	for _, cache := range []bool{false, true} {
+		for _, scenario := range []string{"eligible_nonregistry", "excluded_nonregistry", "disabled", "detached", "no_owner", "normalized_nonregistry"} {
+			t.Run(fmt.Sprintf("cache=%t/%s", cache, scenario), func(t *testing.T) {
+				db := setupSmartRouterEligibilityDB(t, cache)
+				provider := newFailoverUpstream(t, "synthetic-ownership", http.StatusOK)
+				signed := addRelayFailoverChannel(t, 1, 30, provider)
+				managed := addRelayFailoverChannel(t, 2, 20, provider)
+				modelName := relayFailoverModel
+				if scenario == "normalized_nonregistry" {
+					modelName = "gpt-4-gizmo-request"
+					for _, channel := range []*model.Channel{&signed, &managed} {
+						channel.Models = "gpt-4-gizmo-*"
+						require.NoError(t, db.Save(channel).Error)
+						require.NoError(t, channel.UpdateAbilities(nil))
+					}
+				}
+				if scenario == "disabled" {
+					managed.Status = common.ChannelStatusAutoDisabled
+					require.NoError(t, db.Save(&managed).Error)
+					require.NoError(t, managed.UpdateAbilities(nil))
+				}
+				if scenario != "no_owner" {
+					route := addManagedFailoverRoute(t, managed, 202)
+					if scenario == "detached" {
+						require.NoError(t, db.Model(&route).Update("detached", true).Error)
+					}
+				}
+				initializeRelayFailoverChannels()
+				sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+				smartRouterRegistryValues(t, sidecar, []host.RegistryEntry{{
+					BindingID: smartRouterBindingA, ChannelID: 1, Group: "default",
+					Model: modelName, Protocol: "chat", ProtocolPlugin: "chat-v1",
+				}})
+				c, retry := smartRouterRegistryContext()
+				retry.ModelName = modelName
+				if scenario == "excluded_nonregistry" {
+					service.GetChannelConstraints(c).AddFilter(dto.ChannelFilter{
+						Kind: dto.FilterExcludeChannelIDs, ExcludedChannelIDs: []int{2},
+					})
+				}
+				selected, _, handled, err := service.SelectSmartRouterChannel(retry)
+				require.NoError(t, err)
+				if scenario == "eligible_nonregistry" || scenario == "normalized_nonregistry" {
+					assert.False(t, handled)
+					assert.True(t, host.Excluded(c))
+					assert.Nil(t, selected)
+					assert.Nil(t, host.StateFor(c))
+					assert.Empty(t, sidecar.routeSnapshot())
+				} else {
+					require.True(t, handled)
+					require.NotNil(t, selected)
+					assert.Equal(t, 1, selected.Id)
+					assert.False(t, host.Excluded(c))
+					assert.NotNil(t, host.StateFor(c))
+					assert.Len(t, sidecar.routeSnapshot(), 1)
+				}
+				assert.Zero(t, provider.callCount(), "selection alone cannot invoke a provider")
+			})
+		}
+	}
 }
 
 func TestSmartRouterRegistryConfig(t *testing.T) {

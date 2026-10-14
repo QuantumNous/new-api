@@ -41,6 +41,37 @@ source and are not clean-candidate acceptance. The external
 identifies the final clean SHA, rebuilt fixture, fresh results and limitations.
 No pre-merge counts below substitute for Task A2 acceptance.
 
+## Task A2 I1 Strict Eligibility Repair
+
+The separately registered repair starts from
+`a55ebb71637ea119f597d340c7819877929f9c4a`. The new
+`model.ListEligibleChannelIDs` propagates ability and bulk channel-read errors
+without changing original production selectors. Its cache branch validates
+indexed candidate consistency under one read lock before applying the
+existing filters and cache-specific normalization. Returned IDs are copied;
+no schema, model writes or cache mutation is added.
+
+Uncertain admitted ownership is sticky terminal failure, not scope exclusion:
+no sidecar/provider call, signed state, fallback or revival after restoration.
+Only confirmed eligible attached managed ownership can exclude a tuple,
+including eligible channels outside the registry. Signed-plan, pre-Do,
+retry, authority and settlement guards are unchanged.
+
+Compiled developmental batch-read RED produced 2 pass / 2 fail / 0 skip,
+with passing signed and legacy-disabled controls; minimal SQL GREEN produced
+4 pass / 0 fail / 0 skip with identical assertions. Cache inconsistency RED
+produced 0 pass / 3 fail / 0 skip. The unchanged cache assertions plus
+ability-read, both-mode normalization/filter/copy and ownership controls
+produced 42 pass / 0 fail / 0 skip. These dirty-source runs are not
+fixed-candidate acceptance or independent review.
+
+Evidence is retained only under
+`/Users/bytedance/.local/share/modeltrace-evidence-20261014/host-integration/task-a2-i1`.
+The external `task-a2-i1-implementation.md` report identifies the sealed SHA,
+rebuilt actual fixture, fresh serial checks, hashes and limitations.
+Root audit and fresh independent SPEC then QUALITY remain required.
+No later ModelTrace task, image, deployment or enablement is claimed.
+
 ## Scope
 
 - Standalone Go router service and probe worker.

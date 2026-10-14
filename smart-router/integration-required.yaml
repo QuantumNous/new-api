@@ -11,6 +11,7 @@ verification:
   modeltrace_operator_plane: pending
   task3_acceptance: independent-spec-and-quality-passed-at-7a29b11
   task_a2_acceptance: fresh-merged-candidate-verification-and-reviews-required
+  task_a2_i1_acceptance: strict-eligibility-repair-fresh-spec-then-quality-required
 ownership:
   router_database: standalone
   host_database_access: forbidden
@@ -69,6 +70,10 @@ host_requirements:
   managed_tuple: original-production-selector-and-source-diverse-retries
   managed_ownership_candidates: all-currently-eligible-including-unregistered-channels
   uncertain_admitted_ownership: fail-closed-no-sidecar-or-provider-call
+  managed_eligibility_read: model.ListEligibleChannelIDs
+  eligibility_read_errors: ability-query-bulk-channel-query-or-inconsistent-cache
+  eligibility_failure_restoration: sticky-terminal-no-revival-or-scope-exclusion
+  legacy_selector_read_errors: inherited-production-behavior-unchanged
   signed_plan_ownership: immutable-no-transfer-or-reorder
   pre_do_authority_change: terminal-no-provider-invocation-or-retry
   configuration_ownership: immutable-runtime-and-request

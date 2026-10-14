@@ -383,3 +383,41 @@ func CacheUpdateChannel(channel *Channel) {
 	channelSyncLock.Unlock()
 	InvalidatePricingCache()
 }
+
+// ListEligibleChannelIDs reads ownership candidates without suppressing read
+// errors or allowing filters to hide inconsistent cache entries.
+func ListEligibleChannelIDs(group string, modelName string, filters []dto.ChannelFilter) ([]int, error) {
+	if !common.MemoryCacheEnabled {
+		if DB == nil {
+			return nil, errors.New("channel eligibility database unavailable")
+		}
+		return listEligibleChannelIDs(group, modelName, filters)
+	}
+	channelSyncLock.RLock()
+	defer channelSyncLock.RUnlock()
+	if group2model2channels == nil || channelsIDM == nil {
+		return nil, errors.New("channel eligibility cache unavailable")
+	}
+	read := func(ids []int) ([]int, error) {
+		for _, id := range ids {
+			channel, exists := channelsIDM[id]
+			if !exists || channel == nil || channel.Id != id || channel.Status != common.ChannelStatusEnabled {
+				return nil, fmt.Errorf("channel eligibility cache inconsistent for channel %d", id)
+			}
+		}
+		channels, _ := filterCandidateIDs(ids, modelName, filters)
+		return channels, nil
+	}
+	channels, err := read(group2model2channels[group][modelName])
+	if err != nil {
+		return nil, err
+	}
+	if len(channels) == 0 {
+		normalizedModel := ratio_setting.RoutingMatchModelName(modelName)
+		channels, err = read(group2model2channels[group][normalizedModel])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return append([]int(nil), channels...), nil
+}
