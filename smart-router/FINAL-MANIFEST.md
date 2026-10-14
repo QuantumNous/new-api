@@ -4,9 +4,10 @@
 
 `DONE_WITH_CONCERNS`
 
-The standalone smart-router implementation is complete and verified on `main`.
-The remaining concerns are limited to integrations that require external
-systems or explicit opt-in.
+The feature branch contains the standalone router and locally verified NewAPI
+host interoperability. Task3 is local-only and awaits independent root SPEC
+then QUALITY acceptance on its frozen commit. It is not a production
+deployment or a full NewAPI executable build.
 
 ## Scope
 
@@ -16,6 +17,72 @@ systems or explicit opt-in.
 - Deterministic routing, cooldown, signing, snapshot, and outcome behavior.
 - Synthetic provider connectors, ModelTrace, ProtocolKit, and dry-run ZCode.
 - No NewAPI runtime import or NewAPI private table access.
+- Test-only independent `tests/hostfixture` executable and real Gin
+  token/user/channel/provider E2E tests in `router/relay_smart_router_test.go`.
+
+## Task3 Interoperability
+
+The fixture constructs the existing API, catalog runtime and private SQLite
+store. Six globally unique bindings cover chat, responses and messages with
+matching plugins, one exact authorized group/model, and A/B prices 10/20.
+The host verifies the actual signed snapshot. Healthy route and outcome paths
+delegate to the production sidecar runtime; bounded read-only SQL inspection
+checks persisted decisions, immutable outcome payload hashes and cooldowns.
+
+Three healthy and three A429/B-success flows check real host billing and
+next-request B selection while A cools down. Additional cases check terminal
+401, a fully read POST followed by provider disconnect without a backup call,
+expiry before invocation, and report failures after successful settlement.
+Rejected, unknown-before-persistence and unknown-after-persistence outcomes
+are distinct; only the latter delegates persistence before losing its
+acknowledgement. Each report is one-shot, with no duplicate provider call,
+charge or refund. Mutation gateways and clock offsets are fixture-only.
+
+The process uses a dynamic literal-loopback listener, bounded bodies,
+startup/lifetime/shutdown/reap and private database cleanup. The final test
+must inject the task-owned compiled executable with zero skips.
+
+Developmental E2E reached 13 pass / 0 fail / 0 skip. Earlier compiled failures
+were fixture initialization and test `int`/`int64` equality errors, not host
+behavior defects. They are not claimed as behavioral RED. The new cases are
+first-GREEN interoperability controls after those test corrections.
+
+Evidence is retained under
+`/Users/bytedance/.local/share/modeltrace-evidence-20261014/host-integration/task3`.
+Each run records exact argv/cwd/controlled environment, head, exit code,
+raw-log SHA-256, fixture binary hash and before/after source hashes.
+
+## Task3 Verification
+
+The following pre-commit developmental runs used pinned offline Go 1.26.5,
+`GOMAXPROCS=2`, `-p 2`, and `-count=1`. All reported unchanged source and
+worktree hashes, but `clean_candidate=false` while Task3 files were uncommitted.
+Counts include parent tests and subtests. Root fixed-candidate fresh-cache
+acceptance remains a separate step after the six-file commit.
+
+| Evidence directory | Command scope | Result |
+| --- | --- | --- |
+| `fixture-build` | Independent `./tests/hostfixture` build, fresh cache | exit 0 |
+| `e2e-billing-type-corrected` | Actual injected fixture E2E | 13/0/0 |
+| `host-regressions` | Full `go test ./router`, actual fixture | 907/0/0 |
+| `affected-host-race` | SmartRouter and actual-model-pricing tests; router/client/service/helper/OpenAI, race | 557/0/0 |
+| `sidecar-suite` | Independent `go test ./...` | 344/0/0 |
+| `sidecar-race` | Independent `go test -race ./...` | 344/0/0 |
+| `sidecar-vet` | Independent `go vet ./...` | exit 0 |
+| `sidecar-build` | Independent `go build ./...` | exit 0 |
+
+The sidecar tests use a one-literal Go overlay to relocate the inherited
+ModelTrace `ownedTestRoot` into Task3-owned evidence temporary storage.
+`overlay-provenance.json` records original, overlay and overlay-map SHA-256;
+all assertions and the tracked original remain unchanged. Real Python bridge
+parity tests execute with the existing pinned Python 3.14.7.
+
+The task-owned fixture binary SHA-256 is
+`697e36632d83cc5e24377e13fcb86d5696a2188dcef40d844c464bd24fa27db6`.
+Final post-commit E2E and checksum audit records are retained as
+`fixed-e2e/result.json` and `root-verification/task3-fixed-integrity/result.json`
+in the same evidence root. These records, not this pre-commit table, identify
+the exact frozen commit and cleanliness. No full NewAPI binary build is claimed.
 
 ## Post-`da17ffc` Gap Closure
 
@@ -44,7 +111,10 @@ systems or explicit opt-in.
 - A targeted usage-fixture mutation preserves all 108 identities and causes
   exactly its selected cell to fail.
 
-## Verification
+## Inherited Verification
+
+The following results describe the earlier standalone delivery, not Task3
+fixed-candidate acceptance.
 
 | Check | Result |
 | --- | --- |
@@ -75,9 +145,11 @@ Focused race coverage:
 
 ## Integration Boundary
 
-`integration-required.yaml` is the handoff contract for future Host
-integration. Provider credentials, provider response bodies, opaque binding
-resolution, and Host database ownership remain outside this repository.
+`integration-required.yaml` names implemented host hooks and the
+`host-integrated-local-verified` scope. Provider credentials, provider bodies,
+opaque binding resolution and channel authority stay in NewAPI; the sidecar
+never reads host tables. README records actual host environment names/bounds,
+synthetic registry and independent provisioning before host enablement.
 
 ## Artifact Integrity
 
@@ -90,5 +162,16 @@ the checksum file itself. Runtime signing keys are not stored in this tree.
   available local engine.
 - PostgreSQL migration execution requires `SMART_ROUTER_TEST_POSTGRES=1` and an
   available local engine.
-- Host hooks remain intentionally unimplemented and are listed in
-  `integration-required.yaml`.
+- Production deployment, real-provider verification and crash-durable
+  exactly-once guarantees are not claimed.
+- ModelTrace operator provisioning and independently deployed service plane
+  remain pending; routing interoperability is not ModelTrace enablement.
+- Pins, selected affinity, strict sessions, auto groups, App/task/plugin
+  requests, recovery workers and eligible recovery parents, WebSocket,
+  compact and nonstandard POST paths remain permanently excluded. Ordinary
+  streaming has inherited guards; Task3 real-sidecar providers are unary.
+- The pre-existing missing `web/dist/index.html` blocks a full NewAPI binary
+  build; no generated frontend assets were fabricated for this task.
+- Six inherited typed-nil reverse-stream panic cases and previously observed
+  broad-suite SQLite contention are outside Task3's six-file write boundary.
+  Existing tests and production sources are not changed to hide them.

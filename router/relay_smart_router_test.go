@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -14,11 +15,15 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -47,6 +52,396 @@ import (
 const smartRouterTestKey = "0123456789abcdef0123456789abcdef"
 const smartRouterBindingA = "bnd_AAAAAAAAAAAAAAAAAAAAAAAA"
 const smartRouterBindingB = "bnd_BBBBBBBBBBBBBBBBBBBBBBBB"
+
+type realSidecarFixture struct {
+	url      string
+	bindings []host.RegistryEntry
+	client   *http.Client
+}
+
+type realSidecarDecision struct {
+	RequestID        string   `json:"request_id"`
+	Group            string   `json:"group"`
+	Model            string   `json:"model"`
+	Protocol         string   `json:"protocol"`
+	SnapshotRevision string   `json:"snapshot_revision"`
+	BindingIDs       []string `json:"binding_ids"`
+}
+
+type realSidecarOutcome struct {
+	EventID       string              `json:"event_id"`
+	PayloadSHA256 string              `json:"payload_sha256"`
+	Payload       common.RawMessage   `json:"payload"`
+	Outcome       host.AttemptOutcome `json:"outcome"`
+}
+
+type realSidecarState struct {
+	NowMS     int64                 `json:"now_ms"`
+	Decisions []realSidecarDecision `json:"decisions"`
+	Outcomes  []realSidecarOutcome  `json:"outcomes"`
+	Reports   []host.AttemptOutcome `json:"reports"`
+	Cooldowns map[string]int64      `json:"cooldowns"`
+	Health    map[string]string     `json:"health"`
+}
+
+func startRealSidecarFixture(t *testing.T) *realSidecarFixture {
+	t.Helper()
+	binary := os.Getenv("NEWAPI_SMART_ROUTER_TEST_FIXTURE")
+	if binary == "" {
+		t.Skip("build smart-router/tests/hostfixture and set NEWAPI_SMART_ROUTER_TEST_FIXTURE")
+	}
+	require.True(t, filepath.IsAbs(binary), "fixture binary must be an explicit absolute path")
+	private := t.TempDir()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	t.Cleanup(cancel)
+	command := exec.CommandContext(ctx, binary)
+	command.Env = []string{"PATH=/usr/bin:/bin", "LANG=C", "GOMAXPROCS=2", "TMPDIR=" + private}
+	command.Stderr = io.Discard
+	command.WaitDelay = 2 * time.Second
+	output, err := command.StdoutPipe()
+	require.NoError(t, err)
+	require.NoError(t, command.Start())
+	done := make(chan error, 1)
+	go func() { done <- command.Wait() }()
+	t.Cleanup(func() {
+		defer cancel()
+		defer output.Close()
+		_ = command.Process.Signal(syscall.SIGTERM)
+		select {
+		case err := <-done:
+			assert.NoError(t, err, "fixture must shut down and reap normally")
+		case <-time.After(3 * time.Second):
+			_ = command.Process.Kill()
+			select {
+			case <-done:
+				assert.Fail(t, "fixture needed forced termination")
+			case <-time.After(3 * time.Second):
+				assert.Fail(t, "fixture reap exceeded bounded wait")
+			}
+		}
+		entries, err := os.ReadDir(private)
+		assert.NoError(t, err)
+		assert.Empty(t, entries, "fixture must remove its private database after closing listeners")
+	})
+	type readyMessage struct {
+		URL      string               `json:"url"`
+		Bindings []host.RegistryEntry `json:"bindings"`
+	}
+	ready := make(chan readyMessage, 1)
+	startError := make(chan error, 1)
+	go func() {
+		scanner := bufio.NewScanner(output)
+		scanner.Buffer(make([]byte, 4096), 64<<10)
+		if !scanner.Scan() {
+			startError <- errors.New("fixture did not emit bounded ready metadata")
+			return
+		}
+		var message readyMessage
+		if err := common.Unmarshal(scanner.Bytes(), &message); err != nil {
+			startError <- errors.New("fixture ready metadata invalid")
+			return
+		}
+		ready <- message
+	}()
+	var message readyMessage
+	select {
+	case message = <-ready:
+	case <-startError:
+		require.FailNow(t, "fixture startup failed")
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "fixture startup exceeded bounded wait")
+	}
+	require.Len(t, message.Bindings, 6)
+	ids := map[string]bool{}
+	for _, entry := range message.Bindings {
+		require.False(t, ids[entry.BindingID], "bindings must be globally unique across protocols")
+		ids[entry.BindingID] = true
+		assert.Equal(t, "default", entry.Group)
+		assert.Equal(t, relayFailoverModel, entry.Model)
+		assert.Equal(t, entry.Protocol+"-v1", entry.ProtocolPlugin)
+	}
+	transport := &http.Transport{Proxy: nil, DisableKeepAlives: true, ResponseHeaderTimeout: 2 * time.Second}
+	t.Cleanup(transport.CloseIdleConnections)
+	fixture := &realSidecarFixture{url: message.URL, bindings: message.Bindings,
+		client: &http.Client{Transport: transport, Timeout: 3 * time.Second}}
+	signedClient, err := host.NewClient(host.Config{
+		Enabled: true, URL: message.URL, SigningKey: []byte(smartRouterTestKey),
+		Timeout: 3 * time.Second, AttemptLimit: 2, Bindings: message.Bindings,
+	}, nil)
+	require.NoError(t, err, "ready metadata must satisfy the literal-loopback host contract")
+	snapshot, err := signedClient.Snapshot(ctx)
+	require.NoError(t, err, "actual runtime snapshot must verify with the synthetic signing key")
+	require.Len(t, snapshot.Routes, 3)
+	seen := map[host.Protocol]bool{}
+	for _, route := range snapshot.Routes {
+		require.False(t, seen[route.Protocol])
+		seen[route.Protocol] = true
+		assert.Equal(t, "default", route.Group)
+		assert.Equal(t, relayFailoverModel, route.Model)
+		require.Len(t, route.Bindings, 2)
+		for i, binding := range route.Bindings {
+			assert.True(t, ids[binding.BindingID])
+			assert.Equal(t, string(route.Protocol)+"-v1", binding.ProtocolPlugin)
+			assert.EqualValues(t, 10+i*10, binding.CostMicrounits)
+		}
+	}
+	fixture.state(t)
+	return fixture
+}
+
+func (f *realSidecarFixture) exchange(t *testing.T, method, path string, value any) []byte {
+	t.Helper()
+	var body io.Reader
+	if value != nil {
+		body = strings.NewReader(smartRouterMarshal(t, value))
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, method, f.url+path, body)
+	require.NoError(t, err)
+	request.Header.Set("Content-Type", "application/json")
+	response, err := f.client.Do(request)
+	require.NoError(t, err)
+	defer response.Body.Close()
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	data, err := io.ReadAll(io.LimitReader(response.Body, (64<<10)+1))
+	require.NoError(t, err)
+	require.LessOrEqual(t, len(data), 64<<10)
+	return data
+}
+
+func (f *realSidecarFixture) state(t *testing.T) realSidecarState {
+	t.Helper()
+	var state realSidecarState
+	require.NoError(t, common.Unmarshal(f.exchange(t, http.MethodGet, "/fixture/state", nil), &state))
+	for _, outcome := range state.Outcomes {
+		digest := sha256.Sum256(outcome.Payload)
+		assert.Equal(t, outcome.PayloadSHA256, fmt.Sprintf("%x", digest), "hash actual immutable stored bytes")
+		var decoded host.AttemptOutcome
+		require.NoError(t, common.Unmarshal(outcome.Payload, &decoded))
+		assert.Equal(t, outcome.Outcome, decoded)
+		assert.Equal(t, outcome.EventID, decoded.EventID)
+	}
+	return state
+}
+
+func configureRealSidecarHost(t *testing.T, fixture *realSidecarFixture, protocol host.Protocol) []host.RegistryEntry {
+	t.Helper()
+	entries := []host.RegistryEntry{}
+	for _, entry := range fixture.bindings {
+		if entry.Protocol == string(protocol) {
+			entry.ChannelID = 7301 + len(entries)
+			entries = append(entries, entry)
+		}
+	}
+	require.Len(t, entries, 2)
+	values := map[string]string{
+		"NEWAPI_SMART_ROUTER_ENABLED": "true", "NEWAPI_SMART_ROUTER_URL": fixture.url,
+		"NEWAPI_SMART_ROUTER_SIGNING_KEY":   smartRouterTestKey,
+		"NEWAPI_SMART_ROUTER_BINDINGS":      smartRouterMarshal(t, entries),
+		"NEWAPI_SMART_ROUTER_ATTEMPT_LIMIT": "2", "NEWAPI_SMART_ROUTER_TIMEOUT": "3s",
+	}
+	require.NoError(t, service.ConfigureSmartRouter(func(name string) string { return values[name] }))
+	t.Cleanup(func() { require.NoError(t, service.ConfigureSmartRouter(func(string) string { return "" })) })
+	return entries
+}
+
+func requireRealSidecarBilling(t *testing.T, user *model.User, count int, channel int) {
+	t.Helper()
+	require.Eventually(t, func() bool { return gopool.WorkerCount() == 1 }, 3*time.Second, time.Millisecond)
+	var logs []model.Log
+	require.NoError(t, model.LOG_DB.Where("user_id = ? AND type = ?", user.Id, model.LogTypeConsume).Find(&logs).Error)
+	require.Len(t, logs, count)
+	total := 0
+	for _, log := range logs {
+		assert.Equal(t, channel, log.ChannelId)
+		assert.Equal(t, 5, log.PromptTokens)
+		assert.EqualValues(t, 3, log.CompletionTokens)
+		assert.Positive(t, log.Quota)
+		total += log.Quota
+	}
+	var stored model.User
+	var token model.Token
+	var storedChannel model.Channel
+	require.NoError(t, model.DB.First(&stored, user.Id).Error)
+	require.NoError(t, model.DB.Where("user_id = ?", user.Id).First(&token).Error)
+	require.NoError(t, model.DB.First(&storedChannel, channel).Error)
+	assert.Equal(t, total, user.Quota-stored.Quota, "no duplicate charge or refund after settlement")
+	assert.Equal(t, total, 1_000_000-token.RemainQuota)
+	assert.Equal(t, total, stored.UsedQuota)
+	assert.Equal(t, total, token.UsedQuota)
+	assert.EqualValues(t, total, storedChannel.UsedQuota)
+	assert.Equal(t, count, stored.RequestCount)
+}
+
+func TestSmartRouterRealSidecarEndToEnd(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	for _, protocol := range []host.Protocol{host.ProtocolChat, host.ProtocolResponses, host.ProtocolMessages} {
+		for _, failover := range []bool{false, true} {
+			name := string(protocol) + "/" + map[bool]string{false: "healthy", true: "429_then_success"}[failover]
+			t.Run(name, func(t *testing.T) {
+				fixture := startRealSidecarFixture(t)
+				engine, user := setupSmartRouterHostTest(t)
+				if protocol == host.ProtocolResponses {
+					SetTaskPluginProtocolRouter(engine)
+				}
+				payload := `{"id":"chatcmpl-real-fixture","object":"chat.completion","model":"gpt-3.5-turbo","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":3,"total_tokens":8}}`
+				expectedPath := "/v1/chat/completions"
+				if protocol == host.ProtocolResponses {
+					payload = `{"id":"resp-real-fixture","object":"response","model":"gpt-3.5-turbo","status":"completed","output":[],"usage":{"input_tokens":5,"output_tokens":3,"total_tokens":8}}`
+					expectedPath = "/v1/responses"
+				} else if protocol == host.ProtocolMessages {
+					payload = `{"id":"msg-real-fixture","type":"message","role":"assistant","model":"gpt-3.5-turbo","content":[{"type":"text","text":"ok"}],"stop_reason":"end_turn","usage":{"input_tokens":5,"output_tokens":3}}`
+					expectedPath = "/v1/messages"
+				}
+				status, firstPayload := http.StatusOK, payload
+				if failover {
+					status, firstPayload = http.StatusTooManyRequests, `{"error":{"type":"rate_limit_error","message":"synthetic"}}`
+				}
+				first := newSmartRouterProtocolUpstream(t, protocol, status, firstPayload)
+				second := newSmartRouterProtocolUpstream(t, protocol, http.StatusOK, payload)
+				for i, provider := range []*failoverUpstream{first, second} {
+					channel := addRelayFailoverChannel(t, 7301+i, int64(30-i*10), provider)
+					if protocol == host.ProtocolMessages {
+						require.NoError(t, model.DB.Model(&channel).Update("type", constant.ChannelTypeAnthropic).Error)
+					}
+				}
+				initializeRelayFailoverChannels()
+				entries := configureRealSidecarHost(t, fixture, protocol)
+				response := performSmartRouterProtocolRequest(t, engine, protocol)
+				require.Equal(t, http.StatusOK, response.Code)
+				assert.Equal(t, 1, first.callCount())
+				state := fixture.state(t)
+				require.Len(t, state.Decisions, 1)
+				decision := state.Decisions[0]
+				assert.Equal(t, []string{entries[0].BindingID, entries[1].BindingID}, decision.BindingIDs)
+				assert.Equal(t, "default", decision.Group)
+				assert.Equal(t, relayFailoverModel, decision.Model)
+				assert.Equal(t, string(protocol), decision.Protocol)
+				assert.NotEmpty(t, decision.SnapshotRevision)
+				count, channel := 1, 7301
+				if failover {
+					count, channel = 2, 7302
+				}
+				require.Len(t, state.Outcomes, count)
+				require.Len(t, state.Reports, count, "one report per actual invocation")
+				for i, outcome := range state.Outcomes {
+					assert.Equal(t, decision.RequestID, outcome.Outcome.RequestID)
+					assert.Equal(t, protocol, outcome.Outcome.Protocol)
+					assert.Equal(t, entries[i].BindingID, outcome.Outcome.BindingID)
+					assert.Equal(t, decision.RequestID+"-attempt-"+strconv.Itoa(i+1), outcome.EventID)
+					assert.Equal(t, state.Reports[i], outcome.Outcome)
+				}
+				assert.Equal(t, host.OutcomeSuccess, state.Outcomes[count-1].Outcome.Outcome)
+				paths, _ := first.requestSnapshot()
+				assert.Equal(t, []string{expectedPath}, paths)
+				if !failover {
+					assert.Zero(t, second.callCount())
+					assert.Zero(t, state.Cooldowns[entries[0].BindingID])
+					requireRealSidecarBilling(t, user, 1, channel)
+					return
+				}
+				assert.Equal(t, host.OutcomeRateLimited429, state.Outcomes[0].Outcome.Outcome)
+				assert.Greater(t, state.Cooldowns[entries[0].BindingID], state.NowMS)
+				assert.Equal(t, "degraded", state.Health[entries[0].BindingID])
+				assert.Equal(t, 1, second.callCount())
+				requireRealSidecarBilling(t, user, 1, channel)
+				require.Equal(t, http.StatusOK, performSmartRouterProtocolRequest(t, engine, protocol).Code)
+				next := fixture.state(t)
+				require.Len(t, next.Decisions, 2)
+				require.Len(t, next.Outcomes, 3)
+				require.Len(t, next.Reports, 3)
+				assert.Equal(t, state.Outcomes, next.Outcomes[:2], "later outcomes never mutate prior persisted events")
+				assert.Equal(t, []string{entries[1].BindingID}, next.Decisions[1].BindingIDs)
+				assert.NotEqual(t, decision.RequestID, next.Decisions[1].RequestID)
+				assert.Equal(t, next.Decisions[1].RequestID, next.Outcomes[2].Outcome.RequestID)
+				assert.Equal(t, host.OutcomeSuccess, next.Outcomes[2].Outcome.Outcome)
+				assert.Equal(t, entries[1].BindingID, next.Outcomes[2].Outcome.BindingID)
+				assert.Equal(t, state.Cooldowns[entries[0].BindingID], next.Cooldowns[entries[0].BindingID])
+				assert.Equal(t, 1, first.callCount())
+				assert.Equal(t, 2, second.callCount())
+				paths, _ = second.requestSnapshot()
+				assert.Equal(t, []string{expectedPath, expectedPath}, paths)
+				requireRealSidecarBilling(t, user, 2, channel)
+			})
+		}
+	}
+	for _, mode := range []string{"terminal_401", "provider_write_unknown", "expired", "report_rejected", "report_unknown_before", "report_unknown_after"} {
+		t.Run(mode, func(t *testing.T) {
+			fixture := startRealSidecarFixture(t)
+			engine, user := setupSmartRouterHostTest(t)
+			first := newFailoverUpstream(t, "synthetic-primary", http.StatusOK)
+			if mode == "terminal_401" {
+				first.setStatus(http.StatusUnauthorized)
+			} else if mode == "provider_write_unknown" {
+				first.mu.Lock()
+				first.disconnect = true
+				first.mu.Unlock()
+			}
+			second := newFailoverUpstream(t, "synthetic-backup", http.StatusOK)
+			addRelayFailoverChannel(t, 7301, 30, first)
+			addRelayFailoverChannel(t, 7302, 20, second)
+			initializeRelayFailoverChannels()
+			entries := configureRealSidecarHost(t, fixture, host.ProtocolChat)
+			control := map[string]any{"report_mode": "normal", "clock_offset_ms": 0}
+			if mode == "expired" {
+				control["clock_offset_ms"] = -120_000
+			} else if strings.HasPrefix(mode, "report_") {
+				control["report_mode"] = strings.TrimPrefix(mode, "report_")
+			}
+			fixture.exchange(t, http.MethodPost, "/fixture/control", control)
+			response := performRelayFailoverRequest(t, engine)
+			state := fixture.state(t)
+			require.Len(t, state.Decisions, 1, "even expired replies originate from a real persisted runtime decision")
+			assert.Zero(t, second.callCount())
+			if mode == "expired" {
+				assert.GreaterOrEqual(t, response.Code, 400)
+				assert.Zero(t, first.callCount())
+				assert.Empty(t, state.Outcomes)
+				assert.Empty(t, state.Reports)
+				requireRelayRefunded(t, user.Id)
+				return
+			}
+			assert.Equal(t, 1, first.callCount())
+			require.Len(t, state.Reports, 1, "rejected and unknown outcome reports are never replayed")
+			report := state.Reports[0]
+			assert.Equal(t, state.Decisions[0].RequestID, report.RequestID)
+			assert.Equal(t, entries[0].BindingID, report.BindingID)
+			if mode == "terminal_401" || mode == "provider_write_unknown" {
+				require.Len(t, state.Outcomes, 1)
+				expected := host.OutcomeAuth401
+				if mode == "terminal_401" {
+					assert.Equal(t, http.StatusUnauthorized, response.Code)
+					assert.Equal(t, "unhealthy", state.Health[entries[0].BindingID])
+					assert.Greater(t, state.Cooldowns[entries[0].BindingID], state.NowMS)
+				} else {
+					expected = host.OutcomeWriteUnknown
+					assert.GreaterOrEqual(t, response.Code, 400)
+					_, bodies := first.requestSnapshot()
+					require.Len(t, bodies, 1)
+					assert.Contains(t, string(bodies[0]), `"content":"ping"`, "provider fully reads POST before disconnecting")
+				}
+				assert.Equal(t, expected, report.Outcome)
+				assert.Equal(t, report, state.Outcomes[0].Outcome)
+				requireRelayRefunded(t, user.Id)
+				return
+			}
+			require.Equal(t, http.StatusOK, response.Code)
+			assert.Equal(t, host.OutcomeSuccess, report.Outcome)
+			if mode == "report_unknown_after" {
+				require.Len(t, state.Outcomes, 1, "lost acknowledgement after real persistence")
+				assert.Equal(t, report, state.Outcomes[0].Outcome)
+			} else {
+				assert.Empty(t, state.Outcomes, "rejected write or unknown-before-write is not a persisted outcome")
+			}
+			requireRealSidecarBilling(t, user, 1, 7301)
+			next := fixture.state(t)
+			assert.Equal(t, state.Decisions, next.Decisions)
+			assert.Equal(t, state.Outcomes, next.Outcomes)
+			assert.Equal(t, state.Reports, next.Reports, "inspection cannot retry a report")
+		})
+	}
+}
 
 func setupSmartRouterHostTest(t *testing.T) (*gin.Engine, *model.User) {
 	t.Helper()

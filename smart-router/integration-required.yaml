@@ -1,6 +1,14 @@
 apiVersion: smart-router.integration/v1
-kind: FutureHostHooks
-status: not-integrated
+kind: HostHooks
+status: host-integrated-local-verified
+verification:
+  scope: synthetic-local-real-host-and-independent-sidecar
+  fixture: tests/hostfixture/main.go
+  host_test: router/relay_smart_router_test.go:TestSmartRouterRealSidecarEndToEnd
+  production_deployment: not-performed
+  real_provider_verification: not-performed
+  crash_durable_exactly_once: not-claimed
+  modeltrace_operator_plane: pending
 ownership:
   router_database: standalone
   host_database_access: forbidden
@@ -14,6 +22,7 @@ hooks:
     path: /v1/route
     request_contract: route_request
     response_contract: route_response
+    implementation: service/smart_router.go:SelectSmartRouterChannel
   - name: report_attempt_outcome
     direction: host-to-router
     transport: http
@@ -21,19 +30,32 @@ hooks:
     path: /v1/outcomes
     request_contract: attempt_outcome
     response_contract: empty-204-or-error
+    implementation: service/smart_router.go:FinishSmartRouterAttempt
+    reporting_policy: one-shot-no-replay-on-rejected-or-unknown-write
   - name: fetch_signed_snapshot
     direction: host-to-router
     transport: http
     method: GET
     path: /v1/snapshot
     response_contract: signed_snapshot
+    implementation: pkg/smartrouterhost/client.go:Client.Snapshot
+    use: explicit-client-read-not-relay-hot-path
   - name: resolve_opaque_binding
     direction: host-internal
     transport: none
     input: binding_id
     output: host-owned-provider-configuration
     router_visibility: none
+    implementation: service/smart_router.go:validateSmartRouterSend
+    registry_grants_channel_authority: false
 host_requirements:
+  startup: main.go:service.ConfigureSmartRouter
+  route_hook: service/channel_select.go:SelectSmartRouterChannel
+  attempt_hook: controller/relay.go
+  send_hook: relay/channel/api_request.go:BeforeSmartRouterSend
+  authority: authenticated-token-group-model-and-live-channel-abilities
+  transport: literal-loopback-http-no-proxy-no-redirect
+  default_enabled: false
   verify_signatures: true
   reject_expired_routes_with_injected_clock: true
   enforce_max_attempts: 5
@@ -49,3 +71,15 @@ host_requirements:
   honor_retry_after_ms: true
   maximum_retry_after_ms: 86400000
   invalid_retry_after_policy: fail-closed
+  post_settlement_report_failure: no-duplicate-provider-call-charge-or-refund
+permanent_exclusions:
+  - explicit-channel-pins
+  - selected-affinity
+  - strict-sessions
+  - auto-groups
+  - app-task-plugin-requests
+  - recovery-workers-and-eligible-recovery-parents
+  - websocket
+  - responses-compact
+  - nonstandard-post-paths
+  - task_bridge

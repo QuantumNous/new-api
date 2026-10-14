@@ -15,6 +15,8 @@ contract exposes opaque binding IDs, not provider endpoints or credentials.
 - `protocolkit`: deterministic 36-approved-model by 3-protocol conformance
   matrix with real connector and protocol adapter paths.
 - `zcode`: dry-run manifest generation only.
+- `tests/hostfixture`: bounded, synthetic executable for real NewAPI host
+  interoperability; not an operator service or production bootstrap.
 
 ## Run
 
@@ -133,7 +135,86 @@ only with explicit `SMART_ROUTER_TEST_MYSQL=1` or
 
 ## Integration Boundary
 
-[`integration-required.yaml`](integration-required.yaml) describes future Host
-hooks. The Host remains responsible for resolving opaque binding IDs to its own
-credential material and for enforcing terminal retry outcomes. The router does
-not connect to the Host database or return upstream connection details.
+[`integration-required.yaml`](integration-required.yaml) records locally
+verified NewAPI hooks. `main.go` installs `service.ConfigureSmartRouter`;
+`service/channel_select.go` selects the opaque binding, `controller/relay.go`
+tracks attempts and one-shot outcomes, and `relay/channel/api_request.go`
+revalidates authority and expiry immediately before sending upstream.
+
+Host configuration is disabled by default:
+
+| Variable | Default | Enabled-mode bound |
+| --- | --- | --- |
+| `NEWAPI_SMART_ROUTER_ENABLED` | `false` | Exact `true` enables; empty or `false` disables |
+| `NEWAPI_SMART_ROUTER_URL` | required | `http://127.0.0.1:PORT` or `http://[::1]:PORT`; port 1-65535 |
+| `NEWAPI_SMART_ROUTER_SIGNING_KEY` | required | At least 32 bytes; same key as sidecar |
+| `NEWAPI_SMART_ROUTER_BINDINGS` | required | Strict JSON array, at most 1 MiB, 1-256 entries |
+| `NEWAPI_SMART_ROUTER_TIMEOUT` | `2s` | Greater than zero and at most `10s` |
+| `NEWAPI_SMART_ROUTER_ATTEMPT_LIMIT` | `2` | 1-5 attempts per logical request |
+
+Only literal-loopback HTTP is supported by the host, with no proxy or
+redirects. URLs cannot contain credentials, query, fragment or a path beyond
+`/`. A container sidecar must share the host's loopback namespace or be
+published to its literal loopback; the router's non-loopback listen opt-in
+does not relax host validation.
+
+This synthetic two-binding registry is a configuration example, not authority:
+
+```json
+[
+  {"binding_id":"bnd_AAAAAAAAAAAAAAAAAAAAAAAA","channel_id":7301,"group":"default","model":"gpt-3.5-turbo","protocol":"chat","protocol_plugin":"chat-v1"},
+  {"binding_id":"bnd_BBBBBBBBBBBBBBBBBBBBBBBB","channel_id":7302,"group":"default","model":"gpt-3.5-turbo","protocol":"chat","protocol_plugin":"chat-v1"}
+]
+```
+
+Each binding ID is globally unique, channel IDs are positive, and at most five
+bindings may share an exact group/model/protocol tuple. Supported pairs are
+`chat`/`chat-v1`, `responses`/`responses-v1`, and `messages`/`messages-v1`.
+Groups and models are nonempty and bounded to 128 and 256 bytes respectively.
+The host still authenticates the token and checks its allowed group/model,
+channel status, abilities, provider adaptor and effective model at route and
+send boundaries. The registry cannot grant access or override those checks.
+Credentials, upstream addresses and provider bodies remain host-only.
+
+Provision and enable in this order:
+
+1. Create host channels and their exact group/model abilities with normal host
+   authority. Allocate canonical binding IDs and keep credentials in the host.
+2. Independently provision the sidecar's private database through
+   `store.OpenSQLite`, `UpsertSource`, `UpsertBinding`, and `SetObservation`.
+   Supply matching group/model/protocol/plugin records and prices. `routerd`
+   does not create a usable catalog from host tables or the host registry.
+3. Start `cmd/routerd` with its private database and runtime signing key.
+   Check liveness and signed snapshot readiness before allowing traffic.
+4. Set the host variables above with the matching registry and key, then
+   start the host with `NEWAPI_SMART_ROUTER_ENABLED=true`. Invalid enabled
+   configuration fails startup; do not silently fall back to legacy routing.
+
+Local E2E verification builds the independent fixture and injects it into the
+real host tests. Run these commands from the repository root:
+
+```bash
+(cd smart-router && GOWORK=off go build -o /tmp/newapi-smart-router-hostfixture ./tests/hostfixture)
+NEWAPI_SMART_ROUTER_TEST_FIXTURE=/tmp/newapi-smart-router-hostfixture \
+  go test -count=1 ./router -run '^TestSmartRouterRealSidecarEndToEnd$'
+```
+
+The test-only key and all six A/B bindings are synthetic. The executable uses a
+dynamic `127.0.0.1` port, private SQLite and bounded shutdown/reap; it must not
+be deployed. Missing binary may skip a developer run, but acceptance requires
+the compiled binary and zero skips. Verified cases include three healthy
+protocols, persisted A429/B success and next-request cooldown, terminal 401,
+fully-read POST disconnect, expiry before invocation, and rejected or unknown
+report writes after successful settlement without duplicate provider calls,
+charges or refunds. These are interoperability controls, not fabricated
+behavioral RED/GREEN claims.
+
+Channel pins, selected affinity, strict sessions, `auto` groups, App/task/plugin
+requests, recovery workers and eligible recovery parents, WebSocket, compact
+and nonstandard POST paths remain permanently outside this routing path.
+Ordinary streaming is not categorically excluded; its completion and
+commitment guards are covered by the inherited host regressions, while this
+real-sidecar E2E uses unary synthetic providers. There is no
+production deployment, real-provider verification or crash-durable
+exactly-once claim. ModelTrace's independent runtime is separate from routing;
+its operator provisioning, service plane and deployment remain pending.
