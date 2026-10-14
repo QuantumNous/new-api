@@ -558,7 +558,7 @@ merge 后目标 ancestry 成立，相对目标仅剩 3 个 PATCH-001 业务/测�
 - 补丁与计费：PATCH-001 契约成立；上游 `1b63c28dc`（cache-only 可计费 + 保留零 fresh input）与 Claude relay 估算修复使纯 cache 请求由"不收费/过度估算"转为按上报 usage 计费，方向一致且有测试；Vidu `metadata` 不能再覆盖计费用的 model/duration/resolution，非负与有界由插件 + host（`relay/channel/task/jsplugin/adaptor.go`、`service/task_billing.go`）双重兜底。
 - 插件元数据：四个变更插件的数值字段仍是"计费对象 + 单价"、unit 分离、en/zh 等价，无新增不规范描述；`docs/plugin-api/*` 本区间未改动，无需同步。两处既存缺口（`v1.d.ts` 的 `DriverContext` 未声明 `auth`/`authError`；`v1.md` 的 native-route 前缀示例未列 vidu/hailuo/google/vertex-ai）非本轮引入，未处理。
 - 前端：组件复用、i18n（12 个新 key 在七语言齐全）、Intl locale 规则均无问题；上游本轮新增的 UI 路径存在测试覆盖缺口（排序仅断言 4 项、Vertex Project ID 组件级行为无测试、令牌开关编辑路径无测试等），属上游既有范围，本轮不顺手补测。
-- 值得跟进的可见行为变化：pricing 排序选项改值后，旧书签 `?sort=price-low` / `price-high` 不再匹配，静默回退为 API 原序（无测试、无迁移）；`TokenAuthReadOnly` 现在拒绝已禁用令牌并强制 IP 白名单，已配白名单的令牌在非白名单 IP 由 200 变 403（对外行为收紧，测试覆盖于 `middleware/auth_test.go`、`controller/token_test.go`）。
+- 值得跟进的可见行为变化：pricing 排序选项改值后，旧书签 `?sort=price-low` / `price-high` 不再匹配，静默回退为 API 原序（无测试、无迁移）；`TokenAuthReadOnly` 本轮新增令牌 IP 白名单强制（已禁用令牌的拒绝校验在合并前即存在，本轮只同步了注释），已配 `allow_ips` 的令牌在非白名单 IP 访问 `GET /api/usage/token/`（`router/api-router.go:301-306`）与 `GET /api/log/token`（`:359`）由 200 变 403，客户端 IP 无法解析时同样 403；未配白名单的令牌不受影响。`middleware/auth_test.go`、`controller/token_test.go` 覆盖。
 - 认证侧本轮只做了入口级静态核对：新增的 per-token 额度查询开关由服务端强制、默认仅对新建令牌开启；独立审查建议下一轮按 ASVS 对"额度信息暴露面"做一次正式判定（本轮未做，故不声明合规）。
 
 本轮证据：`/Users/andy/AI/GitHub/new-api/.git/maintenance-evidence/2026-10-14T162034Z-upstream-718a4e7f9/`（含 baseline 环境、root/relaykit/前端日志、全部三库 matrix 的 JSONL、首轮失败与纠正、启动 migration 与 rc.44 升级脚本与快照）。本地持久证据，不随 push 共享。
