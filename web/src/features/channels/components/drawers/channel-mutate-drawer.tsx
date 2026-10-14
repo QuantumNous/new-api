@@ -292,6 +292,7 @@ const SENSITIVE_FORM_FIELDS = [
   'advanced_custom',
   'is_enterprise_account',
   'vertex_key_type',
+  'vertex_project_id',
   'aws_key_type',
   'azure_responses_version',
   'force_format',
@@ -3918,6 +3919,29 @@ export function ChannelMutateDrawer({
                     </FormItem>
                   )}
                 />
+                {vertexKeyType === 'api_key' && (
+                  <FormField
+                    control={form.control}
+                    name='vertex_project_id'
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('Vertex AI Project ID')}</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder={t('e.g., my-project-123')}
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          {t(
+                            'Optional. Without it, Google picks the region; with it, requests go to the deployment region below.'
+                          )}
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
                 {vertexKeyType === 'json' && (
                   <FormItem>
                     <FormLabel>{t('Service account JSON file(s)')}</FormLabel>

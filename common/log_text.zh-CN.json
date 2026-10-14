@@ -505,6 +505,7 @@
   "failed to get paginated tags: %s": "分页查询标签失败: %s",
   "failed to get token by key: %s": "按密钥查询令牌失败: %s",
   "failed to get token key (tokenId=%d, task=%s): %s": "获取令牌 key 失败 (tokenId=%d, task=%s): %s",
+  "failed to get user quota: %s": "查询用户额度失败: %s",
   "failed to increase token quota: %s": "增加令牌额度失败: %s",
   "failed to increase user quota: %s": "增加用户额度失败: %s",
   "failed to init token cache: %s": "初始化令牌缓存失败: %s",

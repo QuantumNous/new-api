@@ -20,6 +20,7 @@ import (
 
 const KeyRequestBody = "key_request_body"
 const KeyBodyStorage = "key_body_storage"
+const keyBodyReadError = "key_body_read_error"
 
 var ErrRequestBodyTooLarge = errors.New("request body too large")
 
@@ -58,6 +59,12 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 		}
 	}
 
+	// A failed read has consumed and closed the body. Later readers get the
+	// same error instead of "http: invalid Read on closed Body".
+	if readErr, failed := c.Get(keyBodyReadError); failed {
+		return nil, readErr.(error)
+	}
+
 	maxMB := constant.MaxRequestBodyMB
 	if maxMB <= 0 {
 		maxMB = 128 // 默认 128MB
@@ -72,8 +79,9 @@ func GetRequestBody(c *gin.Context) (io.Seeker, error) {
 
 	if err != nil {
 		if IsRequestBodyTooLargeError(err) {
-			return nil, errors.Wrap(ErrRequestBodyTooLarge, fmt.Sprintf("request body exceeds %d MB", maxMB))
+			err = errors.Wrap(ErrRequestBodyTooLarge, fmt.Sprintf("request body exceeds %d MB", maxMB))
 		}
+		c.Set(keyBodyReadError, err)
 		return nil, err
 	}
 
