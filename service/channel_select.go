@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	host "github.com/QuantumNous/new-api/pkg/smartrouterhost"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 )
@@ -182,6 +183,9 @@ func expandManagedPriorityPath(param *RetryParam, priorities []int64, filters []
 //	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
 //	         分组B, 优先级1
 func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
+	if channel, group, handled, err := SelectSmartRouterChannel(param); handled {
+		return channel, group, err
+	}
 	var channel *model.Channel
 	var err error
 	selectGroup := param.TokenGroup
@@ -469,6 +473,9 @@ type ChannelSelectError struct {
 // callers. The caller still applies SetupContextForSelectedChannel.
 func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam) (*model.Channel, string, *ChannelSelectError) {
 	constraints := GetChannelConstraints(c)
+	if smartRouter.Load() != nil && smartRouterProtocol(c, retry.TokenGroup) == "" {
+		host.Exclude(c)
+	}
 	if pin, found, overridden := constraints.ResolvedPin(); found {
 		for _, lost := range overridden {
 			logger.LogWarn(c, fmt.Sprintf(
@@ -529,6 +536,9 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 			}
 			if !affinityUsable && RequestPolicy(c).SessionMode == "strict" {
 				return nil, "", &ChannelSelectError{StatusCode: http.StatusServiceUnavailable, Message: "strict_session_binding_unavailable"}
+			}
+			if affinityUsable && smartRouter.Load() != nil {
+				host.Exclude(c)
 			}
 		}
 	}

@@ -18,6 +18,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
+	host "github.com/QuantumNous/new-api/pkg/smartrouterhost"
 	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -202,6 +203,9 @@ func relayDirect(c *gin.Context, relayFormat types.RelayFormat) {
 		operation_setting.GetUpstreamOrchestrationSetting().Enabled {
 		maxRetries = service.AdaptiveRetryTimes(retryParam)
 	}
+	if state := host.StateFor(c); state != nil {
+		state.LimitAttempts(maxRetries + 1)
+	}
 	recoveryWriter := getStreamRecoveryWriter(c)
 	recoveryBaseAttempt := 0
 	if recoveryWriter != nil {
@@ -307,6 +311,10 @@ func relayDirect(c *gin.Context, relayFormat types.RelayFormat) {
 		}
 		c.Request.Body = io.NopCloser(bodyStorage)
 
+		if err := service.BeginSmartRouterAttempt(c); err != nil {
+			newAPIError = types.NewError(err, types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+			break
+		}
 		attemptStartedAt := time.Now()
 		switch relayFormat {
 		case types.RelayFormatOpenAIRealtime:
@@ -320,6 +328,7 @@ func relayDirect(c *gin.Context, relayFormat types.RelayFormat) {
 		default:
 			newAPIError = relayHandler(c, relayInfo)
 		}
+		smartRouterRetry := service.FinishSmartRouterAttempt(c, relayInfo, newAPIError)
 		if recoveryWriter != nil {
 			markStreamRecoveryConversionUnsafe(
 				c,
@@ -377,7 +386,10 @@ func relayDirect(c *gin.Context, relayFormat types.RelayFormat) {
 		if replacement != nil {
 			newAPIError = replacement
 		}
-		if !retry {
+		if !retry || !smartRouterRetry {
+			break
+		}
+		if err := service.WaitSmartRouterRetry(c); err != nil {
 			break
 		}
 	}

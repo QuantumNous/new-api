@@ -307,6 +307,9 @@ func InitResources() error {
 	common.InitEnv()
 
 	logger.SetupLogger()
+	if err := service.ConfigureSmartRouter(os.Getenv); err != nil {
+		return err
+	}
 
 	// Initialize model settings
 	ratio_setting.InitRatioSettings()

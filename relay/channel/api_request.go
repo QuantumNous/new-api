@@ -15,6 +15,7 @@ import (
 
 	common2 "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
+	host "github.com/QuantumNous/new-api/pkg/smartrouterhost"
 	"github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
@@ -602,7 +603,15 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	}
 
 	service.MarkStreamRecoverySubmissionStarted(c)
+	if host.StateFor(c) != nil {
+		req = req.Clone(c.Request.Context())
+		req.GetBody = nil
+		if err := service.BeforeSmartRouterSend(c); err != nil {
+			return nil, err
+		}
+	}
 	resp, err := relayClient.Do(req)
+	host.ObserveTransport(c, resp, err)
 	if err != nil {
 		if info.AppSubject != nil {
 			logger.LogError(c, "App provider submission outcome unknown")

@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	host "github.com/QuantumNous/new-api/pkg/smartrouterhost"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -34,6 +35,11 @@ func OaiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 	}
 	if oaiError := responsesResponse.GetOpenAIError(); oaiError != nil && oaiError.Type != "" {
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
+	}
+	if host.StateFor(c) != nil {
+		var status string
+		_ = common.Unmarshal(responsesResponse.Status, &status)
+		host.ObserveProtocolOutcome(c, status)
 	}
 	info.CaptureActualUpstreamModelName(responsesResponse.Model)
 
@@ -90,6 +96,11 @@ func OaiResponsesStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp
 			return
 		}
 		if streamResponse.Response != nil {
+			if host.StateFor(c) != nil {
+				var status string
+				_ = common.Unmarshal(streamResponse.Response.Status, &status)
+				host.ObserveProtocolOutcome(c, status)
+			}
 			data = string(rewriteSGLangResponsesCreatedAt(info, []byte(data), "response.created_at", streamResponse.Response.CreatedAt))
 		}
 		sendResponsesStreamData(c, streamResponse, data)

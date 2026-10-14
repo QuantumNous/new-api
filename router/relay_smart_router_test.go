@@ -1,21 +1,40 @@
 package router
 
 import (
+	"bufio"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/base64"
 	"errors"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/middleware"
+	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	host "github.com/QuantumNous/new-api/pkg/smartrouterhost"
+	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
+	hosttypes "github.com/QuantumNous/new-api/types"
+	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,6 +42,1345 @@ import (
 const smartRouterTestKey = "0123456789abcdef0123456789abcdef"
 const smartRouterBindingA = "bnd_AAAAAAAAAAAAAAAAAAAAAAAA"
 const smartRouterBindingB = "bnd_BBBBBBBBBBBBBBBBBBBBBBBB"
+
+func setupSmartRouterHostTest(t *testing.T) (*gin.Engine, *model.User) {
+	t.Helper()
+	engine, user := setupRelayFailoverTest(t, true)
+	common.AutomaticDisableChannelEnabled = false
+	// Notification cleanup owns one permanent worker; only short fixture work drains.
+	_, err := service.CheckNotificationLimit(user.Id, "smart-router-fixture")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.Eventually(t, func() bool { return gopool.WorkerCount() == 1 }, 3*time.Second, time.Millisecond,
+			"finish async quota and metrics work before restoring fixture globals")
+	})
+	return engine, user
+}
+
+type smartRouterHostSidecar struct {
+	mu         sync.Mutex
+	server     *httptest.Server
+	order      []string
+	routes     []host.RouteRequest
+	outcomes   []host.AttemptOutcome
+	reportFail bool
+}
+
+func (s *smartRouterHostSidecar) routeSnapshot() []host.RouteRequest {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.routes)
+}
+
+func (s *smartRouterHostSidecar) outcomeSnapshot() []host.AttemptOutcome {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.outcomes)
+}
+
+func newSmartRouterHostSidecar(t *testing.T, order ...string) *smartRouterHostSidecar {
+	t.Helper()
+	sidecar := &smartRouterHostSidecar{order: order}
+	sidecar.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sidecar.mu.Lock()
+		defer sidecar.mu.Unlock()
+		switch r.URL.Path {
+		case "/v1/route":
+			var request host.RouteRequest
+			if common.DecodeJson(r.Body, &request) != nil {
+				http.Error(w, "fixture request invalid", http.StatusBadRequest)
+				return
+			}
+			sidecar.routes = append(sidecar.routes, request)
+			response := host.RouteResponse{
+				Kind: "route_response", SchemaVersion: 1, RequestID: request.RequestID,
+				SnapshotRevision: "host-fixture", ExpiresAt: time.Now().Add(time.Minute).UnixMilli(),
+			}
+			for i, id := range sidecar.order[:min(len(sidecar.order), request.AttemptLimit)] {
+				response.Bindings = append(response.Bindings, host.Binding{BindingID: id, ProtocolPlugin: string(request.Protocol) + "-v1", Rank: i + 1})
+			}
+			payload, err := host.CanonicalPayload(response)
+			if err != nil {
+				http.Error(w, "fixture signing failed", http.StatusInternalServerError)
+				return
+			}
+			mac := hmac.New(sha256.New, []byte(smartRouterTestKey))
+			_, _ = mac.Write(payload)
+			response.Signature = base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+			wire, err := common.Marshal(response)
+			if err != nil {
+				http.Error(w, "fixture encoding failed", http.StatusInternalServerError)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(wire)
+		case "/v1/outcomes":
+			var outcome host.AttemptOutcome
+			if common.DecodeJson(r.Body, &outcome) != nil {
+				http.Error(w, "fixture outcome invalid", http.StatusBadRequest)
+				return
+			}
+			sidecar.outcomes = append(sidecar.outcomes, outcome)
+			if sidecar.reportFail {
+				conn, _, err := w.(http.Hijacker).Hijack()
+				if err == nil {
+					_ = conn.Close()
+				}
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(sidecar.server.Close)
+	return sidecar
+}
+
+func configureSmartRouterHost(t *testing.T, sidecar *smartRouterHostSidecar, protocol host.Protocol, channels ...int) {
+	configureSmartRouterHostLimit(t, sidecar, protocol, 2, channels...)
+}
+
+func configureSmartRouterHostLimit(t *testing.T, sidecar *smartRouterHostSidecar, protocol host.Protocol, limit int, channels ...int) {
+	t.Helper()
+	entries := make([]host.RegistryEntry, len(channels))
+	for i, id := range channels {
+		binding := smartRouterBindingA
+		if i == 1 {
+			binding = smartRouterBindingB
+		} else if i > 1 {
+			binding = "bnd_" + strings.Repeat(string(rune('A'+i)), 24)
+		}
+		entries[i] = host.RegistryEntry{BindingID: binding, ChannelID: id, Group: "default", Model: relayFailoverModel, Protocol: string(protocol), ProtocolPlugin: string(protocol) + "-v1"}
+	}
+	values := map[string]string{
+		"NEWAPI_SMART_ROUTER_ENABLED": "true", "NEWAPI_SMART_ROUTER_URL": sidecar.server.URL,
+		"NEWAPI_SMART_ROUTER_SIGNING_KEY":   smartRouterTestKey,
+		"NEWAPI_SMART_ROUTER_BINDINGS":      smartRouterMarshal(t, entries),
+		"NEWAPI_SMART_ROUTER_ATTEMPT_LIMIT": strconv.Itoa(limit),
+	}
+	require.NoError(t, service.ConfigureSmartRouter(func(name string) string { return values[name] }))
+	t.Cleanup(func() { require.NoError(t, service.ConfigureSmartRouter(func(string) string { return "" })) })
+}
+
+func TestSmartRouterHostSelection(t *testing.T) {
+	engine, user := setupSmartRouterHostTest(t)
+	first := newFailoverUpstream(t, "legacy-first", http.StatusOK)
+	second := newFailoverUpstream(t, "signed-second", http.StatusOK)
+	addRelayFailoverChannel(t, 7101, 30, first)
+	addRelayFailoverChannel(t, 7102, 20, second)
+	initializeRelayFailoverChannels()
+	sidecar := newSmartRouterHostSidecar(t, smartRouterBindingB)
+	configureSmartRouterHost(t, sidecar, host.ProtocolChat, 7101, 7102)
+
+	response := performRelayFailoverRequest(t, engine)
+
+	require.Equal(t, http.StatusOK, response.Code)
+	log, _ := latestConsumeLog(t, user.Id)
+	assert.Equal(t, 7102, log.ChannelId, "the signed route must choose the second host channel before billing")
+	assert.Zero(t, first.callCount())
+	assert.Equal(t, 1, second.callCount())
+	assert.Len(t, sidecar.routeSnapshot(), 1)
+}
+
+func newSmartRouterProtocolUpstream(t *testing.T, protocol host.Protocol, status int, payload string) *failoverUpstream {
+	t.Helper()
+	upstream := &failoverUpstream{name: string(protocol), statusCode: status}
+	upstream.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		if !assert.NoError(t, err) {
+			return
+		}
+		upstream.mu.Lock()
+		upstream.calls++
+		upstream.bodies = append(upstream.bodies, body)
+		upstream.mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		if strings.HasPrefix(payload, "data:") {
+			w.Header().Set("Content-Type", "text/event-stream")
+		}
+		w.WriteHeader(status)
+		_, _ = io.WriteString(w, payload)
+	}))
+	t.Cleanup(upstream.server.Close)
+	return upstream
+}
+
+func performSmartRouterProtocolRequest(t *testing.T, engine *gin.Engine, protocol host.Protocol, stream ...bool) *httptest.ResponseRecorder {
+	t.Helper()
+	path, body := "/v1/chat/completions", `{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"ping"}]}`
+	switch protocol {
+	case host.ProtocolResponses:
+		path, body = "/v1/responses", `{"model":"gpt-3.5-turbo","input":"ping"}`
+	case host.ProtocolMessages:
+		path, body = "/v1/messages", `{"model":"gpt-3.5-turbo","max_tokens":16,"messages":[{"role":"user","content":"ping"}]}`
+	}
+	if len(stream) > 0 && stream[0] {
+		body = strings.TrimSuffix(body, "}") + `,"stream":true}`
+	}
+	request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	request.Header.Set("Authorization", "Bearer harelaytoken")
+	request.Header.Set("x-api-key", "harelaytoken")
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	engine.ServeHTTP(response, request)
+	return response
+}
+
+func TestSmartRouterHostAttempts(t *testing.T) {
+	for _, protocol := range []host.Protocol{host.ProtocolChat, host.ProtocolResponses, host.ProtocolMessages} {
+		t.Run(string(protocol), func(t *testing.T) {
+			engine, _ := setupSmartRouterHostTest(t)
+			if protocol == host.ProtocolResponses {
+				SetTaskPluginProtocolRouter(engine)
+			}
+			payload := `{"id":"chatcmpl-fixture","object":"chat.completion","model":"gpt-3.5-turbo","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":3,"total_tokens":8}}`
+			if protocol == host.ProtocolResponses {
+				payload = `{"id":"resp-fixture","object":"response","model":"gpt-3.5-turbo","status":"completed","output":[],"usage":{"input_tokens":5,"output_tokens":3,"total_tokens":8}}`
+			}
+			upstream := newSmartRouterProtocolUpstream(t, protocol, 200, payload)
+			addRelayFailoverChannel(t, 7111, 30, upstream)
+			initializeRelayFailoverChannels()
+			sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+			configureSmartRouterHost(t, sidecar, protocol, 7111)
+
+			response := performSmartRouterProtocolRequest(t, engine, protocol)
+
+			require.Equal(t, http.StatusOK, response.Code)
+			assert.Equal(t, 1, upstream.callCount())
+			assert.Len(t, sidecar.routeSnapshot(), 1)
+			require.Len(t, sidecar.outcomeSnapshot(), 1, "every actual invocation must produce one outcome")
+			assert.Equal(t, host.OutcomeSuccess, sidecar.outcomeSnapshot()[0].Outcome)
+			assert.Equal(t, protocol, sidecar.outcomeSnapshot()[0].Protocol)
+			assert.Equal(t, sidecar.routeSnapshot()[0].RequestID, sidecar.outcomeSnapshot()[0].RequestID)
+			assert.LessOrEqual(t, len(sidecar.outcomeSnapshot()[0].EventID), 128)
+		})
+	}
+}
+
+func TestSmartRouterUnknownWriteStops(t *testing.T) {
+	engine, user := setupSmartRouterHostTest(t)
+	trace := &failoverCallTrace{}
+	first := newDisconnectingFailoverUpstream(t, "unknown", trace)
+	second := newFailoverUpstream(t, "forbidden-backup", http.StatusOK)
+	addRelayFailoverChannel(t, 7121, 30, first)
+	addRelayFailoverChannel(t, 7122, 20, second)
+	initializeRelayFailoverChannels()
+	sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA, smartRouterBindingB)
+	configureSmartRouterHost(t, sidecar, host.ProtocolChat, 7121, 7122)
+
+	response := performRelayFailoverRequest(t, engine)
+
+	assert.GreaterOrEqual(t, response.Code, 400)
+	assert.Equal(t, 1, first.callCount(), "provider consumes the full request before disconnect")
+	assert.Zero(t, second.callCount())
+	_, bodies := first.requestSnapshot()
+	require.Len(t, bodies, 1)
+	assert.Contains(t, string(bodies[0]), `"content":"ping"`)
+	require.Len(t, sidecar.outcomeSnapshot(), 1)
+	assert.Equal(t, host.OutcomeWriteUnknown, sidecar.outcomeSnapshot()[0].Outcome)
+	requireRelayRefunded(t, user.Id)
+}
+
+func TestSmartRouterHostRetryPolicy(t *testing.T) {
+	for _, status := range []int{401, 429, 500} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			engine, _ := setupSmartRouterHostTest(t)
+			first := newFailoverUpstream(t, "first", status)
+			second := newFailoverUpstream(t, "backup", 200)
+			addRelayFailoverChannel(t, 7131, 30, first)
+			addRelayFailoverChannel(t, 7132, 20, second)
+			initializeRelayFailoverChannels()
+			sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA, smartRouterBindingB)
+			configureSmartRouterHost(t, sidecar, host.ProtocolChat, 7131, 7132)
+
+			response := performRelayFailoverRequest(t, engine)
+
+			count, outcome := 2, host.OutcomeUpstream5xx
+			if status == 401 {
+				count, outcome = 1, host.OutcomeAuth401
+				assert.Equal(t, 401, response.Code)
+				assert.Zero(t, second.callCount())
+			} else {
+				assert.Equal(t, 200, response.Code)
+				assert.Equal(t, 1, second.callCount())
+				if status == 429 {
+					outcome = host.OutcomeRateLimited429
+				}
+			}
+			assert.Equal(t, 1, first.callCount())
+			assert.Len(t, sidecar.routeSnapshot(), 1)
+			require.Len(t, sidecar.outcomeSnapshot(), count)
+			assert.Equal(t, outcome, sidecar.outcomeSnapshot()[0].Outcome)
+			if count == 2 {
+				assert.Equal(t, host.OutcomeSuccess, sidecar.outcomeSnapshot()[1].Outcome)
+				assert.NotEqual(t, sidecar.outcomeSnapshot()[0].EventID, sidecar.outcomeSnapshot()[1].EventID)
+			}
+		})
+	}
+}
+
+func TestSmartRouterReportFailurePreservesBilling(t *testing.T) {
+	for _, success := range []bool{true, false} {
+		t.Run(map[bool]string{true: "settled", false: "failed"}[success], func(t *testing.T) {
+			engine, user := setupSmartRouterHostTest(t)
+			status := 500
+			if success {
+				status = 200
+			}
+			first := newFailoverUpstream(t, "first", status)
+			second := newFailoverUpstream(t, "forbidden", 200)
+			addRelayFailoverChannel(t, 7141, 30, first)
+			addRelayFailoverChannel(t, 7142, 20, second)
+			initializeRelayFailoverChannels()
+			sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA, smartRouterBindingB)
+			sidecar.mu.Lock()
+			sidecar.reportFail = true
+			sidecar.mu.Unlock()
+			configureSmartRouterHost(t, sidecar, host.ProtocolChat, 7141, 7142)
+			response := performRelayFailoverRequest(t, engine)
+			assert.Equal(t, status, response.Code)
+			assert.Equal(t, 1, first.callCount())
+			assert.Zero(t, second.callCount())
+			require.Len(t, sidecar.outcomeSnapshot(), 1)
+			if success {
+				log, _ := latestConsumeLog(t, user.Id)
+				var stored model.User
+				require.NoError(t, model.DB.First(&stored, user.Id).Error)
+				assert.Equal(t, log.Quota, user.Quota-stored.Quota)
+				assert.Positive(t, log.Quota)
+			} else {
+				requireRelayRefunded(t, user.Id)
+			}
+		})
+	}
+}
+
+type smartRouterFailingWriter struct {
+	*httptest.ResponseRecorder
+	err error
+}
+
+func (w *smartRouterFailingWriter) Write(body []byte) (int, error) {
+	w.ResponseRecorder.WriteHeader(http.StatusOK)
+	return 0, w.err
+}
+
+func (w *smartRouterFailingWriter) WriteString(body string) (int, error) {
+	return w.Write([]byte(body))
+}
+
+func TestSmartRouterCommittedFailureStops(t *testing.T) {
+	for _, writeError := range []error{nil, io.ErrClosedPipe} {
+		t.Run(map[bool]string{true: "short_write", false: "write_error"}[writeError == nil], func(t *testing.T) {
+			engine, _ := setupSmartRouterHostTest(t)
+			first := newFailoverUpstream(t, "completed-but-undelivered", 200)
+			second := newFailoverUpstream(t, "forbidden", 200)
+			addRelayFailoverChannel(t, 7151, 30, first)
+			addRelayFailoverChannel(t, 7152, 20, second)
+			initializeRelayFailoverChannels()
+			sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA, smartRouterBindingB)
+			configureSmartRouterHost(t, sidecar, host.ProtocolChat, 7151, 7152)
+			request := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"ping"}]}`))
+			request.Header.Set("Authorization", "Bearer harelaytoken")
+			request.Header.Set("Content-Type", "application/json")
+			writer := &smartRouterFailingWriter{ResponseRecorder: httptest.NewRecorder(), err: writeError}
+
+			engine.ServeHTTP(writer, request)
+
+			assert.Equal(t, 1, first.callCount())
+			assert.Zero(t, second.callCount())
+			require.Len(t, sidecar.outcomeSnapshot(), 1)
+			assert.Equal(t, host.OutcomeResponseCommitted, sidecar.outcomeSnapshot()[0].Outcome, "helper nil does not erase failed downstream writes")
+		})
+	}
+}
+
+func TestSmartRouterProtocolCompletion(t *testing.T) {
+	originalTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 5
+	t.Cleanup(func() { constant.StreamingTimeout = originalTimeout })
+	for _, test := range []struct {
+		name     string
+		protocol host.Protocol
+		stream   bool
+		body     string
+		outcome  host.Outcome
+	}{
+		{"chat_completed", host.ProtocolChat, true, "data: {\"id\":\"chatcmpl-fixture\",\"model\":\"gpt-3.5-turbo\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"ok\"},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n", host.OutcomeSuccess},
+		{"chat_truncated", host.ProtocolChat, true, "data: {\"id\":\"chatcmpl-fixture\",\"model\":\"gpt-3.5-turbo\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"partial\"}}]}\n\n", host.OutcomeResponseCommitted},
+		{"chat_failed", host.ProtocolChat, true, "data: {\"error\":{\"type\":\"upstream_error\",\"message\":\"fixture failed\"}}\n\n", host.OutcomeResponseCommitted},
+		{"responses_completed", host.ProtocolResponses, true, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-fixture\",\"model\":\"gpt-3.5-turbo\",\"status\":\"completed\",\"output\":[]}}\n\n", host.OutcomeSuccess},
+		{"responses_completed_event_failed_status", host.ProtocolResponses, true, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-fixture\",\"status\":\"failed\",\"output\":[]}}\n\n", host.OutcomeResponseCommitted},
+		{"responses_completed_event_missing_status", host.ProtocolResponses, true, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp-fixture\",\"output\":[]}}\n\n", host.OutcomeResponseCommitted},
+		{"responses_incomplete_stream", host.ProtocolResponses, true, "data: {\"type\":\"response.incomplete\",\"response\":{\"id\":\"resp-fixture\",\"status\":\"incomplete\",\"output\":[]}}\n\n", host.OutcomeResponseCommitted},
+		{"responses_incomplete_json", host.ProtocolResponses, false, `{"id":"resp-fixture","model":"gpt-3.5-turbo","status":"incomplete","output":[]}`, host.OutcomeResponseCommitted},
+		{"responses_cancelled_json", host.ProtocolResponses, false, `{"id":"resp-fixture","model":"gpt-3.5-turbo","status":"cancelled","output":[]}`, host.OutcomeResponseCommitted},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			engine, _ := setupSmartRouterHostTest(t)
+			if test.protocol == host.ProtocolResponses {
+				SetTaskPluginProtocolRouter(engine)
+			}
+			first := newSmartRouterProtocolUpstream(t, test.protocol, 200, test.body)
+			addRelayFailoverChannel(t, 7161, 30, first)
+			initializeRelayFailoverChannels()
+			sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+			configureSmartRouterHost(t, sidecar, test.protocol, 7161)
+
+			response := performSmartRouterProtocolRequest(t, engine, test.protocol, test.stream)
+
+			assert.Equal(t, 200, response.Code)
+			assert.Equal(t, 1, first.callCount())
+			require.Len(t, sidecar.outcomeSnapshot(), 1)
+			assert.Equal(t, test.outcome, sidecar.outcomeSnapshot()[0].Outcome)
+		})
+	}
+}
+
+func TestSmartRouterHiddenReplay(t *testing.T) {
+	for _, enabled := range []bool{true, false} {
+		t.Run(map[bool]string{true: "enabled", false: "disabled_control"}[enabled], func(t *testing.T) {
+			engine, _ := setupSmartRouterHostTest(t)
+			var arrivals atomic.Int32
+			var reused atomic.Bool
+			upstream := &failoverUpstream{name: "reused-connection"}
+			var warmRemote string
+			var remoteMu sync.Mutex
+			upstream.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == "GET" {
+					remoteMu.Lock()
+					warmRemote = r.RemoteAddr
+					remoteMu.Unlock()
+					_, _ = io.WriteString(w, "warm")
+					return
+				}
+				body, err := io.ReadAll(r.Body)
+				if !assert.NoError(t, err) {
+					return
+				}
+				assert.Contains(t, string(body), `"content":"ping"`)
+				assert.Equal(t, "synthetic-replay-key", r.Header.Get("Idempotency-Key"))
+				if arrivals.Add(1) == 1 {
+					remoteMu.Lock()
+					reused.Store(r.RemoteAddr == warmRemote)
+					remoteMu.Unlock()
+					conn, _, err := w.(http.Hijacker).Hijack()
+					if assert.NoError(t, err) {
+						_ = conn.Close()
+					}
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, `{"model":"gpt-3.5-turbo","choices":[{"index":0,"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":3,"total_tokens":8}}`)
+			}))
+			t.Cleanup(upstream.server.Close)
+			channel := addRelayFailoverChannel(t, 7171, 30, upstream)
+			require.NoError(t, model.DB.Model(&channel).Update("header_override", `{"Idempotency-Key":"synthetic-replay-key"}`).Error)
+			initializeRelayFailoverChannels()
+			if enabled {
+				sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+				configureSmartRouterHost(t, sidecar, host.ProtocolChat, 7171)
+			}
+			client, err := service.GetHttpClientWithProxySettings("", channel.GetSetting())
+			require.NoError(t, err)
+			warm, err := client.Get(upstream.server.URL)
+			require.NoError(t, err)
+			_, err = io.Copy(io.Discard, warm.Body)
+			require.NoError(t, err)
+			require.NoError(t, warm.Body.Close())
+
+			response := performRelayFailoverRequest(t, engine)
+
+			assert.True(t, reused.Load(), "first POST must use the warmed connection")
+			if enabled {
+				assert.GreaterOrEqual(t, response.Code, 400)
+				assert.EqualValues(t, 1, arrivals.Load(), "count actual arrivals, not observed Do calls")
+			} else {
+				assert.Equal(t, 200, response.Code)
+				assert.EqualValues(t, 2, arrivals.Load(), "disabled control demonstrates the replay condition")
+			}
+		})
+	}
+}
+
+func TestSmartRouterRetryDelay(t *testing.T) {
+	now := time.Date(2026, 10, 14, 0, 0, 0, 0, time.UTC)
+	for _, test := range []struct {
+		name    string
+		headers http.Header
+		delay   int64
+		invalid bool
+	}{
+		{"absent", http.Header{}, 0, false},
+		{"seconds", http.Header{"Retry-After": {"2"}}, 2000, false},
+		{"http_date", http.Header{"Retry-After": {now.Add(3 * time.Second).Format(http.TimeFormat)}}, 3000, false},
+		{"milliseconds", http.Header{"Retry-After-Ms": {"23"}}, 23, false},
+		{"consistent_both", http.Header{"Retry-After": {"2"}, "Retry-After-Ms": {"2000"}}, 2000, false},
+		{"conflicting", http.Header{"Retry-After": {"2"}, "Retry-After-Ms": {"2"}}, 0, true},
+		{"multiple", http.Header{"Retry-After": {"2", "3"}}, 0, true},
+		{"negative", http.Header{"Retry-After": {"-1"}}, 0, true},
+		{"fraction", http.Header{"Retry-After": {"1.5"}}, 0, true},
+		{"malformed", http.Header{"Retry-After": {"tomorrow"}}, 0, true},
+		{"empty", http.Header{"Retry-After": {""}}, 0, true},
+		{"plus", http.Header{"Retry-After-Ms": {"+1"}}, 0, true},
+		{"spaces", http.Header{"Retry-After-Ms": {" 1"}}, 0, true},
+		{"overflow", http.Header{"Retry-After": {"999999999999999999999999"}}, 0, true},
+		{"24h_seconds", http.Header{"Retry-After": {"86400"}}, host.MaximumRetryAfterMS, false},
+		{"24h_ms", http.Header{"Retry-After-Ms": {"86400000"}}, host.MaximumRetryAfterMS, false},
+		{"over24h_seconds", http.Header{"Retry-After": {"86401"}}, 0, true},
+		{"over24h_ms", http.Header{"Retry-After-Ms": {"86400001"}}, 0, true},
+		{"past_date", http.Header{"Retry-After": {now.Add(-time.Second).Format(http.TimeFormat)}}, 0, true},
+		{"over24h_date", http.Header{"Retry-After": {now.Add(24*time.Hour + time.Second).Format(http.TimeFormat)}}, 0, true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			delay, err := host.ParseRetryAfter(test.headers, now)
+			if test.invalid {
+				require.Error(t, err)
+				assert.Zero(t, delay)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, test.delay, delay)
+			}
+		})
+	}
+	t.Run("freeze_once_wait_cancel_and_expiry", func(t *testing.T) {
+		for _, phase := range []string{"advance", "cancel", "expire"} {
+			t.Run(phase, func(t *testing.T) {
+				sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA, smartRouterBindingB)
+				clock := now
+				client, err := host.NewClient(smartRouterConfig(sidecar.server.URL), func() time.Time { return clock })
+				require.NoError(t, err)
+				request, route := smartRouterRequest(), smartRouterResponse()
+				route.ExpiresAt = now.Add(10 * time.Second).UnixMilli()
+				route.Bindings = append(route.Bindings, host.Binding{BindingID: smartRouterBindingB, ProtocolPlugin: "chat-v1", Rank: 2})
+				entries := smartRouterRegistry()
+				second := entries[0]
+				second.BindingID = smartRouterBindingB
+				state := host.NewState(client, request, route, append(entries, second))
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				c, _ := gin.CreateTestContext(httptest.NewRecorder())
+				c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil).WithContext(ctx)
+				host.Install(c, state)
+				require.NoError(t, state.Begin())
+				require.NoError(t, state.Invoke())
+				clock = clock.Add(12 * time.Millisecond)
+				header := http.Header{"Retry-After": {"2"}}
+				host.ObserveTransport(c, &http.Response{StatusCode: 429, Header: header}, nil)
+				require.True(t, state.Finish(ctx, false, false))
+				require.Len(t, sidecar.outcomeSnapshot(), 1)
+				frozen := sidecar.outcomeSnapshot()[0]
+				assert.EqualValues(t, 2000, frozen.RetryAfterMS)
+				assert.EqualValues(t, 12, frozen.LatencyMS)
+				header.Set("Retry-After", "999")
+				waited := time.Duration(0)
+				err = state.WaitRetry(ctx, func(ctx context.Context, delay time.Duration) error {
+					waited = delay
+					assert.LessOrEqual(t, delay, 10*time.Second)
+					if phase == "cancel" {
+						cancel()
+						return ctx.Err()
+					}
+					clock = clock.Add(delay)
+					if phase == "expire" {
+						clock = now.Add(10 * time.Second)
+					}
+					return nil
+				})
+				assert.Equal(t, 2*time.Second, waited)
+				switch phase {
+				case "cancel":
+					require.ErrorIs(t, err, context.Canceled)
+				case "expire":
+					require.ErrorIs(t, err, host.ErrExpired)
+					require.ErrorIs(t, state.Begin(), host.ErrExpired)
+				default:
+					require.NoError(t, err)
+					entry, err := state.Current()
+					require.NoError(t, err)
+					assert.Equal(t, smartRouterBindingB, entry.BindingID)
+				}
+				assert.False(t, state.Finish(ctx, false, false), "duplicate finish never reposts the event")
+				assert.Equal(t, []host.AttemptOutcome{frozen}, sidecar.outcomeSnapshot())
+			})
+		}
+	})
+}
+
+func TestSmartRouterRetryHeaderPolicy(t *testing.T) {
+	for _, test := range []struct {
+		name, value string
+		retry       bool
+	}{
+		{"missing", "", true}, {"valid_ms", "1", true}, {"negative", "-1", false}, {"oversized", "86400001", false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			engine, _ := setupSmartRouterHostTest(t)
+			first := &failoverUpstream{name: "rate-limited"}
+			first.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, _ = io.Copy(io.Discard, r.Body)
+				first.mu.Lock()
+				first.calls++
+				first.mu.Unlock()
+				if test.value != "" {
+					w.Header().Set("Retry-After-Ms", test.value)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(429)
+				_, _ = io.WriteString(w, `{"error":{"type":"rate_limit","message":"fixture"}}`)
+			}))
+			t.Cleanup(first.server.Close)
+			second := newFailoverUpstream(t, "backup", 200)
+			addRelayFailoverChannel(t, 7181, 30, first)
+			addRelayFailoverChannel(t, 7182, 20, second)
+			initializeRelayFailoverChannels()
+			sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA, smartRouterBindingB)
+			configureSmartRouterHost(t, sidecar, host.ProtocolChat, 7181, 7182)
+
+			response := performRelayFailoverRequest(t, engine)
+
+			assert.Equal(t, 1, first.callCount())
+			if test.retry {
+				assert.Equal(t, 200, response.Code)
+				assert.Equal(t, 1, second.callCount())
+			} else {
+				assert.Equal(t, 429, response.Code)
+				assert.Zero(t, second.callCount())
+			}
+			require.NotEmpty(t, sidecar.outcomeSnapshot())
+			if test.value == "1" {
+				assert.EqualValues(t, 1, sidecar.outcomeSnapshot()[0].RetryAfterMS)
+			}
+		})
+	}
+}
+
+func TestSmartRouterScopeExclusions(t *testing.T) {
+	for _, name := range []string{"pin", "origin_task", "strict", "auto", "app", "plugin", "task_filter", "worker", "websocket_get", "websocket_post", "compact", "other", "affinity"} {
+		t.Run(name, func(t *testing.T) {
+			_, _ = setupSmartRouterHostTest(t)
+			first := newFailoverUpstream(t, "legacy", 200)
+			second := newFailoverUpstream(t, "signed", 200)
+			addRelayFailoverChannel(t, 7191, 30, first)
+			addRelayFailoverChannel(t, 7192, 20, second)
+			initializeRelayFailoverChannels()
+			sidecar := newSmartRouterHostSidecar(t, smartRouterBindingB)
+			configureSmartRouterHost(t, sidecar, host.ProtocolChat, 7191, 7192)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+			retry := &service.RetryParam{Ctx: c, TokenGroup: "default", ModelName: relayFailoverModel, Retry: common.GetPointer(0)}
+			constraints := service.GetChannelConstraints(c)
+			switch name {
+			case "pin", "origin_task":
+				source := dto.PinSourceToken
+				if name == "origin_task" {
+					source = dto.PinSourceOriginTask
+				}
+				constraints.AddPin(dto.ChannelPin{ChannelId: 7191, Source: source})
+			case "strict":
+				service.RequestPolicy(c).SessionMode = "strict"
+			case "auto":
+				retry.TokenGroup = "auto"
+			case "app":
+				c.Set(hosttypes.AppRelaySubjectContextKey, &hosttypes.AppRelaySubject{})
+			case "plugin":
+				c.Set(jsplugin.ContextKeyPinnedPlugin, "synthetic-plugin")
+			case "task_filter":
+				constraints.AddFilter(dto.ChannelFilter{Kind: dto.FilterTaskPluginIdentity, TaskPluginKey: "synthetic-plugin"})
+			case "worker":
+				common.SetContextKey(c, constant.ContextKeyStreamRecoveryWorker, true)
+			case "websocket_get":
+				c.Request.Method = "GET"
+				c.Request.URL.Path = "/v1/responses"
+			case "websocket_post":
+				c.Request.Header.Set("Connection", "Upgrade")
+				c.Request.Header.Set("Upgrade", "websocket")
+			case "compact":
+				c.Request.URL.Path = "/v1/responses/compact"
+			case "other":
+				c.Request.URL.Path = "/v1/embeddings"
+			case "affinity":
+				setting := operation_setting.GetChannelAffinitySetting()
+				original := *setting
+				*setting = operation_setting.ChannelAffinitySetting{Enabled: true, SessionMode: "prefer", DefaultTTLSeconds: 60,
+					Rules: []operation_setting.ChannelAffinityRule{{Name: "host-scope-fixture", ModelRegex: []string{".*"},
+						KeySources: []operation_setting.ChannelAffinityKeySource{{Type: "request_header", Key: "X-Session"}}}}}
+				t.Cleanup(func() { *setting = original })
+				c.Request.Header.Set("X-Session", "task2-affinity")
+				_, _ = service.GetPreferredChannelByAffinity(c, relayFailoverModel, "default")
+				service.RecordChannelAffinity(c, 7191)
+				t.Cleanup(func() { service.ClearCurrentChannelAffinityCache(c) })
+			}
+			writer := c.Writer
+			channel, _, selectionErr := service.SelectChannelForRequest(c, relayFailoverModel, retry)
+			if name != "task_filter" {
+				require.Nil(t, selectionErr)
+				require.NotNil(t, channel)
+				assert.Equal(t, 7191, channel.Id, "first selection retains legacy behavior")
+			}
+			assert.True(t, host.Excluded(c), "exclusion must become permanent on initial selection")
+			assert.Nil(t, host.StateFor(c))
+			assert.Same(t, writer, c.Writer)
+			// Remove the original ingress condition to prove retry cannot re-enter.
+			constraints.Pins, constraints.Filters = nil, nil
+			service.RequestPolicy(c).SessionMode = ""
+			c.Set(hosttypes.AppRelaySubjectContextKey, nil)
+			delete(c.Keys, hosttypes.AppRelaySubjectContextKey)
+			delete(c.Keys, jsplugin.ContextKeyPinnedPlugin)
+			common.SetContextKey(c, constant.ContextKeyStreamRecoveryWorker, false)
+			c.Request.Method, c.Request.URL.Path = "POST", "/v1/chat/completions"
+			c.Request.Header.Del("Connection")
+			c.Request.Header.Del("Upgrade")
+			retry.TokenGroup = "default"
+			*retry.Retry = 1
+			channel, _, err := service.CacheGetRandomSatisfiedChannel(retry)
+			require.NoError(t, err)
+			require.NotNil(t, channel)
+			assert.Equal(t, 7192, channel.Id, "retry retains legacy priority order, without a new signed route")
+			assert.Nil(t, host.StateFor(c))
+			assert.Same(t, writer, c.Writer)
+			assert.Empty(t, sidecar.routeSnapshot())
+			assert.Empty(t, sidecar.outcomeSnapshot())
+		})
+	}
+}
+
+func TestSmartRouterRecoveryIngressScope(t *testing.T) {
+	for _, protocol := range []host.Protocol{host.ProtocolResponses, host.ProtocolMessages} {
+		for _, test := range []struct {
+			name                             string
+			enabled, draining, token, stream bool
+			allowed, excluded                bool
+		}{
+			{name: "recovery_parent", enabled: true, token: true, stream: true, allowed: true, excluded: true},
+			{name: "draining_parent", draining: true, token: true, stream: true, allowed: true, excluded: true},
+			{name: "ordinary_nonstream", enabled: true, token: true, allowed: true},
+			{name: "recovery_disabled", token: true, stream: true, allowed: true},
+			{name: "model_not_allowed", enabled: true, token: true, stream: true},
+			{name: "token_not_enabled", enabled: true, stream: true, allowed: true},
+		} {
+			t.Run(string(protocol)+"/"+test.name, func(t *testing.T) {
+				_, user := setupSmartRouterHostTest(t)
+				require.NoError(t, model.DB.Model(&model.Token{}).Where("user_id = ?", user.Id).
+					Update("stream_recovery_enabled", test.token).Error)
+				setting := operation_setting.GetStreamRecoverySetting()
+				original := *setting
+				*setting = operation_setting.StreamRecoverySetting{Enabled: test.enabled, AllowedModels: []string{"other-model"}}
+				if test.allowed {
+					setting.AllowedModels = []string{relayFailoverModel}
+				}
+				if test.draining {
+					setting.IdentityMode = operation_setting.StreamRecoveryIdentityModeDraining
+				}
+				t.Cleanup(func() { *setting = original })
+				first := newFailoverUpstream(t, "legacy", 200)
+				second := newFailoverUpstream(t, "signed", 200)
+				addRelayFailoverChannel(t, 7193, 30, first)
+				addRelayFailoverChannel(t, 7194, 20, second)
+				initializeRelayFailoverChannels()
+				sidecar := newSmartRouterHostSidecar(t, smartRouterBindingB)
+				configureSmartRouterHost(t, sidecar, protocol, 7193, 7194)
+				path := "/v1/responses"
+				if protocol == host.ProtocolMessages {
+					path = "/v1/messages"
+				}
+				engine := gin.New()
+				var parent *gin.Context
+				engine.POST(path, middleware.TokenAuth(), middleware.Distribute(), func(c *gin.Context) {
+					parent = c.Copy()
+					c.Status(http.StatusNoContent)
+				})
+
+				response := performSmartRouterProtocolRequest(t, engine, protocol, test.stream)
+
+				require.Equal(t, http.StatusNoContent, response.Code)
+				require.NotNil(t, parent)
+				assert.Equal(t, test.excluded, host.Excluded(parent))
+				if test.excluded {
+					assert.Equal(t, 7193, parent.GetInt("channel_id"))
+					assert.Nil(t, host.StateFor(parent), "recovery clones must never inherit a signed route or observer state")
+					assert.Empty(t, sidecar.routeSnapshot())
+					common.SetContextKey(parent, constant.ContextKeyTokenStreamRecovery, false)
+					retry := &service.RetryParam{Ctx: parent, TokenGroup: "default", ModelName: relayFailoverModel, Retry: common.GetPointer(1)}
+					selected, _, err := service.CacheGetRandomSatisfiedChannel(retry)
+					require.NoError(t, err)
+					require.NotNil(t, selected)
+					assert.Equal(t, 7194, selected.Id)
+					assert.Empty(t, sidecar.routeSnapshot(), "recovery exclusion survives retry after parent cloning")
+				} else {
+					assert.Equal(t, 7194, parent.GetInt("channel_id"))
+					assert.NotNil(t, host.StateFor(parent))
+					assert.Len(t, sidecar.routeSnapshot(), 1)
+				}
+				assert.Empty(t, sidecar.outcomeSnapshot())
+				assert.Zero(t, first.callCount())
+				assert.Zero(t, second.callCount())
+			})
+		}
+	}
+}
+
+func TestSmartRouterRevalidation(t *testing.T) {
+	for _, phase := range []string{"before_begin", "before_send"} {
+		for _, name := range []string{"disabled", "model_removed", "group_removed", "filter", "plugin", "unsupported", "stale_adaptor", "stale_model", "stale_group", "stale_protocol"} {
+			t.Run(phase+"/"+name, func(t *testing.T) {
+				_, _ = setupSmartRouterHostTest(t)
+				upstream := newFailoverUpstream(t, "forbidden", 200)
+				channel := addRelayFailoverChannel(t, 7201, 30, upstream)
+				initializeRelayFailoverChannels()
+				sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+				configureSmartRouterHost(t, sidecar, host.ProtocolChat, 7201)
+				c, _ := gin.CreateTestContext(httptest.NewRecorder())
+				c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+				common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+				common.SetContextKey(c, constant.ContextKeyOriginalModel, relayFailoverModel)
+				retry := &service.RetryParam{Ctx: c, TokenGroup: "default", ModelName: relayFailoverModel}
+				selected, _, handled, err := service.SelectSmartRouterChannel(retry)
+				require.True(t, handled)
+				require.NoError(t, err)
+				require.Nil(t, middleware.SetupContextForSelectedChannel(c, selected, relayFailoverModel))
+				if phase == "before_send" {
+					require.NoError(t, service.BeginSmartRouterAttempt(c))
+				}
+				switch name {
+				case "disabled":
+					require.NoError(t, model.DB.Model(&channel).Update("status", common.ChannelStatusAutoDisabled).Error)
+				case "model_removed":
+					require.NoError(t, model.DB.Model(&channel).Update("models", "different").Error)
+					require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", channel.Id).Update("model", "different").Error)
+				case "group_removed":
+					require.NoError(t, model.DB.Model(&channel).Update("group", "different").Error)
+					require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", channel.Id).Update("group", "different").Error)
+				case "filter":
+					service.GetChannelConstraints(c).AddFilter(dto.ChannelFilter{Kind: dto.FilterExcludeChannelIDs, ExcludedChannelIDs: []int{channel.Id}})
+				case "plugin":
+					setting := channel.GetSetting()
+					setting.TaskPluginKey = "synthetic-plugin"
+					require.NoError(t, model.DB.Model(&channel).Update("setting", smartRouterMarshal(t, setting)).Error)
+				case "unsupported":
+					require.NoError(t, model.DB.Model(&channel).Update("type", constant.ChannelTypeGemini).Error)
+				case "stale_adaptor":
+					require.NoError(t, model.DB.Model(&channel).Update("type", constant.ChannelTypeAnthropic).Error)
+				case "stale_model":
+					common.SetContextKey(c, constant.ContextKeyOriginalModel, "different")
+				case "stale_group":
+					common.SetContextKey(c, constant.ContextKeyUsingGroup, "different")
+				case "stale_protocol":
+					c.Request.URL.Path = "/v1/messages"
+				}
+				initializeRelayFailoverChannels()
+				if phase == "before_begin" {
+					err = service.BeginSmartRouterAttempt(c)
+				} else {
+					err = service.BeforeSmartRouterSend(c)
+				}
+				assert.ErrorIs(t, err, host.ErrBinding)
+				if err == nil {
+					response, callErr := upstream.server.Client().Post(upstream.server.URL, "application/json", strings.NewReader(`{}`))
+					require.NoError(t, callErr)
+					require.NoError(t, response.Body.Close())
+				}
+				assert.Zero(t, upstream.callCount(), "stale binding must prevent forbidden provider arrivals")
+				assert.False(t, host.StateFor(c).Finish(c.Request.Context(), false, false))
+				assert.Empty(t, sidecar.outcomeSnapshot(), "local revalidation failure is not a provider attempt")
+			})
+		}
+	}
+}
+
+func TestSmartRouterWaitGuards(t *testing.T) {
+	for _, name := range []string{"far_future", "already_cancelled", "expired_deadline"} {
+		t.Run(name, func(t *testing.T) {
+			sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+			now := time.UnixMilli(1000)
+			client, err := host.NewClient(smartRouterConfig(sidecar.server.URL), func() time.Time { return now })
+			require.NoError(t, err)
+			request, route := smartRouterRequest(), smartRouterResponse()
+			route.ExpiresAt = int64(1<<63 - 1)
+			route.Bindings = append(route.Bindings, host.Binding{BindingID: smartRouterBindingB, ProtocolPlugin: "chat-v1", Rank: 2})
+			entry := smartRouterRegistry()[0]
+			second := entry
+			second.BindingID = smartRouterBindingB
+			state := host.NewState(client, request, route, []host.RegistryEntry{entry, second})
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			host.Install(c, state)
+			require.NoError(t, state.Begin())
+			require.NoError(t, state.Invoke())
+			host.ObserveTransport(c, &http.Response{StatusCode: 500, Header: http.Header{"Retry-After-Ms": {"1"}}}, nil)
+			require.True(t, state.Finish(context.Background(), false, false))
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			if name == "already_cancelled" {
+				cancel()
+			} else if name == "expired_deadline" {
+				var deadlineCancel context.CancelFunc
+				ctx, deadlineCancel = context.WithDeadline(ctx, time.Unix(0, 0))
+				defer deadlineCancel()
+			}
+			waited := false
+			err = state.WaitRetry(ctx, func(ctx context.Context, delay time.Duration) error {
+				waited = true
+				return ctx.Err()
+			})
+			if name == "far_future" {
+				assert.NoError(t, err, "signed far-future expiry must not overflow the deadline duration")
+				assert.True(t, waited)
+			} else {
+				require.Error(t, err)
+				assert.False(t, waited)
+				assert.ErrorIs(t, state.Begin(), host.ErrBudget, "cancelled wait permanently revokes retry authorization")
+			}
+		})
+	}
+}
+
+func TestSmartRouterAttemptCaps(t *testing.T) {
+	for _, test := range []struct {
+		name                        string
+		plan, config, retries, want int
+	}{
+		{"five_hard_cap", 5, 5, 8, 5},
+		{"host_budget", 5, 5, 1, 2},
+		{"config_budget", 5, 3, 8, 3},
+		{"plan_budget", 1, 5, 8, 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			engine, user := setupSmartRouterHostTest(t)
+			original := common.RetryTimes
+			common.RetryTimes = test.retries
+			t.Cleanup(func() { common.RetryTimes = original })
+			var providers []*failoverUpstream
+			var channels []int
+			var order []string
+			for i := range 6 {
+				upstream := newFailoverUpstream(t, "cap-"+strconv.Itoa(i), 500)
+				providers = append(providers, upstream)
+				addRelayFailoverChannel(t, 7211+i, int64(60-i*10), upstream)
+				if i < 5 {
+					channels = append(channels, 7211+i)
+					order = append(order, "bnd_"+strings.Repeat(string(rune('A'+i)), 24))
+				}
+			}
+			initializeRelayFailoverChannels()
+			sidecar := newSmartRouterHostSidecar(t, order[:test.plan]...)
+			configureSmartRouterHostLimit(t, sidecar, host.ProtocolChat, test.config, channels...)
+
+			response := performRelayFailoverRequest(t, engine)
+
+			assert.Equal(t, 500, response.Code)
+			for i, upstream := range providers {
+				if i < test.want {
+					assert.Equal(t, 1, upstream.callCount())
+				} else {
+					assert.Zero(t, upstream.callCount(), "no unplanned fallback, including sixth provider")
+				}
+			}
+			require.Len(t, sidecar.routeSnapshot(), 1)
+			require.Len(t, sidecar.outcomeSnapshot(), test.want)
+			for i, outcome := range sidecar.outcomeSnapshot() {
+				assert.Equal(t, order[i], outcome.BindingID)
+				assert.Equal(t, sidecar.routeSnapshot()[0].RequestID+"-attempt-"+strconv.Itoa(i+1), outcome.EventID)
+			}
+			requireRelayRefunded(t, user.Id)
+		})
+	}
+}
+
+func TestSmartRouterBillingParity(t *testing.T) {
+	for _, failover := range []bool{false, true} {
+		t.Run(map[bool]string{true: "failover", false: "healthy"}[failover], func(t *testing.T) {
+			var charges, tokenCharges []int
+			for _, enabled := range []bool{false, true} {
+				t.Run(map[bool]string{true: "enabled", false: "disabled"}[enabled], func(t *testing.T) {
+					engine, user := setupSmartRouterHostTest(t)
+					status := 200
+					if failover {
+						status = 500
+					}
+					first := newFailoverUpstream(t, "first", status)
+					second := newFailoverUpstream(t, "second", 200)
+					addRelayFailoverChannel(t, 7221, 30, first)
+					addRelayFailoverChannel(t, 7222, 20, second)
+					initializeRelayFailoverChannels()
+					sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA, smartRouterBindingB)
+					if enabled {
+						configureSmartRouterHost(t, sidecar, host.ProtocolChat, 7221, 7222)
+					}
+
+					response := performRelayFailoverRequest(t, engine)
+
+					require.Equal(t, 200, response.Code)
+					log, _ := latestConsumeLog(t, user.Id)
+					var stored model.User
+					var token model.Token
+					var logs int64
+					require.NoError(t, model.DB.First(&stored, user.Id).Error)
+					require.NoError(t, model.DB.Where("user_id = ?", user.Id).First(&token).Error)
+					require.NoError(t, model.LOG_DB.Model(&model.Log{}).Where("user_id = ? AND type = ?", user.Id, model.LogTypeConsume).Count(&logs).Error)
+					assert.EqualValues(t, 1, logs, "one settlement across failover")
+					assert.Equal(t, log.Quota, user.Quota-stored.Quota)
+					assert.Equal(t, log.Quota, 1_000_000-token.RemainQuota)
+					assert.Equal(t, 5, log.PromptTokens)
+					assert.Equal(t, 3, log.CompletionTokens)
+					charges = append(charges, log.Quota)
+					tokenCharges = append(tokenCharges, 1_000_000-token.RemainQuota)
+					if !enabled {
+						assert.Empty(t, sidecar.routeSnapshot())
+						assert.Empty(t, sidecar.outcomeSnapshot())
+					}
+				})
+			}
+			require.Len(t, charges, 2)
+			assert.Equal(t, charges[0], charges[1])
+			assert.Equal(t, tokenCharges[0], tokenCharges[1])
+		})
+	}
+}
+
+func TestSmartRouterLocalSetupHasNoOutcome(t *testing.T) {
+	engine, user := setupSmartRouterHostTest(t)
+	first := newFailoverUpstream(t, "never-invoked", 200)
+	channel := addRelayFailoverChannel(t, 7231, 30, first)
+	setting := channel.GetSetting()
+	setting.Proxy = "://synthetic-invalid-proxy"
+	require.NoError(t, model.DB.Model(&channel).Update("setting", smartRouterMarshal(t, setting)).Error)
+	initializeRelayFailoverChannels()
+	sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+	configureSmartRouterHost(t, sidecar, host.ProtocolChat, 7231)
+
+	response := performRelayFailoverRequest(t, engine)
+
+	assert.GreaterOrEqual(t, response.Code, 400)
+	assert.Zero(t, first.callCount())
+	assert.Len(t, sidecar.routeSnapshot(), 1)
+	assert.Empty(t, sidecar.outcomeSnapshot(), "conversion/setup rejection must not masquerade as a provider outcome")
+	requireRelayRefunded(t, user.Id)
+}
+
+func TestSmartRouterWriterInterfaces(t *testing.T) {
+	for _, name := range []string{"header", "body", "sse_flush", "write_string", "string_short", "zero_ttft"} {
+		t.Run(name, func(t *testing.T) {
+			sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+			now := time.UnixMilli(1000)
+			client, err := host.NewClient(smartRouterConfig(sidecar.server.URL), func() time.Time { return now })
+			require.NoError(t, err)
+			state := host.NewState(client, smartRouterRequest(), smartRouterResponse(), smartRouterRegistry())
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			if name == "string_short" {
+				c, _ = gin.CreateTestContext(&smartRouterFailingWriter{ResponseRecorder: recorder, err: io.ErrClosedPipe})
+			}
+			c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			base := c.Writer
+			host.Install(c, state)
+			unwrapper, ok := c.Writer.(interface{ Unwrap() http.ResponseWriter })
+			require.True(t, ok)
+			assert.Same(t, base, unwrapper.Unwrap())
+			assert.Nil(t, c.Writer.Pusher(), "Pusher retains the base writer's contract")
+			require.NoError(t, state.Begin())
+			require.NoError(t, state.Invoke())
+			host.ObserveTransport(c, &http.Response{StatusCode: 500}, nil)
+			switch name {
+			case "header":
+				c.Writer.WriteHeader(502)
+				c.Writer.WriteHeaderNow()
+				assert.True(t, c.Writer.Written())
+				assert.Equal(t, 502, c.Writer.Status())
+			case "body":
+				_, err = c.Writer.Write([]byte("failed body"))
+				require.NoError(t, err)
+			case "sse_flush":
+				require.NoError(t, http.NewResponseController(c.Writer).Flush())
+				assert.True(t, recorder.Flushed)
+			case "write_string", "zero_ttft":
+				_, err = c.Writer.WriteString("data: ping\n\n")
+				require.NoError(t, err)
+				now = now.Add(10 * time.Millisecond)
+				_, err = c.Writer.WriteString("data: failed\n\n")
+				require.NoError(t, err)
+			case "string_short":
+				n, err := c.Writer.WriteString("failed")
+				assert.Zero(t, n)
+				assert.ErrorIs(t, err, io.ErrClosedPipe)
+			}
+			assert.False(t, state.Finish(context.Background(), false, false))
+			require.Len(t, sidecar.outcomeSnapshot(), 1)
+			assert.Equal(t, host.OutcomeResponseCommitted, sidecar.outcomeSnapshot()[0].Outcome)
+			if name == "zero_ttft" {
+				assert.Zero(t, sidecar.outcomeSnapshot()[0].TTFTMS, "first-byte zero is a valid frozen measurement, not an unset sentinel")
+			}
+		})
+	}
+}
+
+func TestSmartRouterOriginalStatus(t *testing.T) {
+	engine, _ := setupSmartRouterHostTest(t)
+	first := newFailoverUpstream(t, "raw-client-error", 400)
+	second := newFailoverUpstream(t, "forbidden", 200)
+	channel := addRelayFailoverChannel(t, 7241, 30, first)
+	require.NoError(t, model.DB.Model(&channel).Update("status_code_mapping", `{"400":"500"}`).Error)
+	addRelayFailoverChannel(t, 7242, 20, second)
+	initializeRelayFailoverChannels()
+	sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA, smartRouterBindingB)
+	configureSmartRouterHost(t, sidecar, host.ProtocolChat, 7241, 7242)
+
+	response := performRelayFailoverRequest(t, engine)
+
+	assert.Equal(t, 500, response.Code, "existing downstream status mapping remains unchanged")
+	assert.Zero(t, second.callCount())
+	require.Len(t, sidecar.outcomeSnapshot(), 1)
+	assert.Equal(t, host.OutcomeClient4xx, sidecar.outcomeSnapshot()[0].Outcome, "retry uses original status, not mapped 500")
+}
+
+func TestSmartRouterReusedSelectionTuple(t *testing.T) {
+	for _, name := range []string{"group", "model", "protocol", "excluded"} {
+		t.Run(name, func(t *testing.T) {
+			_, _ = setupSmartRouterHostTest(t)
+			first := newFailoverUpstream(t, "signed", 200)
+			addRelayFailoverChannel(t, 7251, 30, first)
+			initializeRelayFailoverChannels()
+			sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+			configureSmartRouterHost(t, sidecar, host.ProtocolChat, 7251)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+			retry := &service.RetryParam{Ctx: c, TokenGroup: "default", ModelName: relayFailoverModel}
+			channel, _, err := service.CacheGetRandomSatisfiedChannel(retry)
+			require.NoError(t, err)
+			require.NotNil(t, channel)
+			switch name {
+			case "group":
+				retry.TokenGroup = "different"
+			case "model":
+				retry.ModelName = "different"
+			case "protocol":
+				c.Request.URL.Path = "/v1/messages"
+			case "excluded":
+				host.Exclude(c)
+			}
+			channel, _, err = service.CacheGetRandomSatisfiedChannel(retry)
+			assert.ErrorIs(t, err, host.ErrBinding)
+			assert.Nil(t, channel, "installed plan may never fall back to legacy selection")
+			assert.Len(t, sidecar.routeSnapshot(), 1)
+			assert.Zero(t, first.callCount())
+		})
+	}
+}
+
+func TestSmartRouterExpiryAtSend(t *testing.T) {
+	sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+	now := time.UnixMilli(1000)
+	client, err := host.NewClient(smartRouterConfig(sidecar.server.URL), func() time.Time { return now })
+	require.NoError(t, err)
+	state := host.NewState(client, smartRouterRequest(), smartRouterResponse(), smartRouterRegistry())
+	require.NoError(t, state.Begin())
+	now = time.UnixMilli(2000)
+	assert.ErrorIs(t, state.Invoke(), host.ErrExpired, "expiry between helper begin and actual send must stop invocation")
+	assert.False(t, state.Finish(context.Background(), false, false))
+	assert.Empty(t, sidecar.outcomeSnapshot())
+}
+
+func TestSmartRouterStartupPlacement(t *testing.T) {
+	// The baseline lacks embedded web/dist/index.html, so inspect placement
+	// without fabricating assets or claiming an executable startup test.
+	file, err := parser.ParseFile(token.NewFileSet(), "../main.go", nil, 0)
+	require.NoError(t, err)
+	var initResources *ast.FuncDecl
+	for _, declaration := range file.Decls {
+		if function, ok := declaration.(*ast.FuncDecl); ok && function.Name.Name == "InitResources" {
+			initResources = function
+		}
+	}
+	require.NotNil(t, initResources)
+	var envPosition, loggerPosition, configurePosition token.Pos
+	ast.Inspect(initResources.Body, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		function, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok {
+			return true
+		}
+		switch function.Sel.Name {
+		case "InitEnv":
+			envPosition = call.Pos()
+		case "SetupLogger":
+			loggerPosition = call.Pos()
+		case "ConfigureSmartRouter":
+			configurePosition = call.Pos()
+			require.Len(t, call.Args, 1)
+			getenv, ok := call.Args[0].(*ast.SelectorExpr)
+			require.True(t, ok)
+			assert.Equal(t, "Getenv", getenv.Sel.Name)
+		}
+		return true
+	})
+	require.NotZero(t, configurePosition, "startup must install optional runtime")
+	assert.Greater(t, configurePosition, envPosition)
+	assert.Greater(t, configurePosition, loggerPosition)
+	require.ErrorIs(t, service.ConfigureSmartRouter(func(name string) string {
+		if name == "NEWAPI_SMART_ROUTER_ENABLED" {
+			return "true"
+		}
+		return ""
+	}), host.ErrConfig)
+	require.NoError(t, service.ConfigureSmartRouter(func(string) string { return "" }))
+}
+
+func TestSmartRouterEmptyEligible(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	engine, user := setupSmartRouterHostTest(t)
+	first := newFailoverUpstream(t, "unregistered-for-request", 200)
+	channel := addRelayFailoverChannel(t, 7261, 30, first)
+	initializeRelayFailoverChannels()
+	sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+	// Registry exists, but none of its tuples matches this authorized request.
+	entries := []host.RegistryEntry{{BindingID: smartRouterBindingA, ChannelID: channel.Id, Group: "default", Model: "different-model", Protocol: "chat", ProtocolPlugin: "chat-v1"}}
+	values := map[string]string{"NEWAPI_SMART_ROUTER_ENABLED": "true", "NEWAPI_SMART_ROUTER_URL": sidecar.server.URL,
+		"NEWAPI_SMART_ROUTER_SIGNING_KEY": smartRouterTestKey, "NEWAPI_SMART_ROUTER_BINDINGS": smartRouterMarshal(t, entries)}
+	require.NoError(t, service.ConfigureSmartRouter(func(name string) string { return values[name] }))
+	t.Cleanup(func() { require.NoError(t, service.ConfigureSmartRouter(func(string) string { return "" })) })
+
+	response := performRelayFailoverRequest(t, engine)
+
+	assert.Equal(t, 503, response.Code)
+	assert.Zero(t, first.callCount())
+	assert.Empty(t, sidecar.routeSnapshot())
+	assert.Empty(t, sidecar.outcomeSnapshot())
+	var stored model.User
+	require.NoError(t, model.DB.First(&stored, user.Id).Error)
+	assert.Equal(t, user.Quota, stored.Quota, "empty selection fails before billing")
+}
+
+func TestSmartRouterRetryRevalidatesBackup(t *testing.T) {
+	engine, user := setupSmartRouterHostTest(t)
+	second := newFailoverUpstream(t, "retired-before-retry", 200)
+	channel := addRelayFailoverChannel(t, 7272, 20, second)
+	first := &failoverUpstream{name: "first"}
+	first.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		first.mu.Lock()
+		first.calls++
+		first.mu.Unlock()
+		if !assert.NoError(t, model.DB.Model(&channel).Update("status", common.ChannelStatusAutoDisabled).Error) {
+			w.WriteHeader(500)
+			return
+		}
+		initializeRelayFailoverChannels()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(500)
+		_, _ = io.WriteString(w, `{"error":{"type":"upstream_error","message":"synthetic failure"}}`)
+	}))
+	t.Cleanup(first.server.Close)
+	addRelayFailoverChannel(t, 7271, 30, first)
+	initializeRelayFailoverChannels()
+	sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA, smartRouterBindingB)
+	configureSmartRouterHost(t, sidecar, host.ProtocolChat, 7271, 7272)
+
+	response := performRelayFailoverRequest(t, engine)
+
+	assert.GreaterOrEqual(t, response.Code, 400)
+	assert.Equal(t, 1, first.callCount())
+	assert.Zero(t, second.callCount())
+	assert.Len(t, sidecar.routeSnapshot(), 1)
+	require.Len(t, sidecar.outcomeSnapshot(), 1)
+	assert.Equal(t, host.OutcomeUpstream5xx, sidecar.outcomeSnapshot()[0].Outcome)
+	requireRelayRefunded(t, user.Id)
+}
+
+func TestSmartRouterProviderCancellation(t *testing.T) {
+	engine, user := setupSmartRouterHostTest(t)
+	arrived := make(chan struct{}, 1)
+	release := make(chan struct{})
+	first := &failoverUpstream{name: "cancelled"}
+	first.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := io.Copy(io.Discard, r.Body)
+		if !assert.NoError(t, err) {
+			return
+		}
+		first.mu.Lock()
+		first.calls++
+		first.mu.Unlock()
+		arrived <- struct{}{}
+		select {
+		case <-r.Context().Done():
+		case <-release:
+		}
+	}))
+	t.Cleanup(first.server.Close)
+	t.Cleanup(func() { close(release) })
+	second := newFailoverUpstream(t, "forbidden", 200)
+	addRelayFailoverChannel(t, 7281, 30, first)
+	addRelayFailoverChannel(t, 7282, 20, second)
+	initializeRelayFailoverChannels()
+	sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA, smartRouterBindingB)
+	configureSmartRouterHost(t, sidecar, host.ProtocolChat, 7281, 7282)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	request := httptest.NewRequest("POST", "/v1/chat/completions", strings.NewReader(`{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"ping"}]}`)).WithContext(ctx)
+	request.Header.Set("Authorization", "Bearer harelaytoken")
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		engine.ServeHTTP(response, request)
+	}()
+	select {
+	case <-arrived:
+		cancel()
+	case <-time.After(3 * time.Second):
+		cancel()
+		assert.Fail(t, "provider arrival exceeded bounded wait")
+	}
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		require.FailNow(t, "cancelled request did not finish within bounded wait")
+	}
+	assert.GreaterOrEqual(t, response.Code, 400)
+	assert.Equal(t, 1, first.callCount())
+	assert.Zero(t, second.callCount())
+	assert.Len(t, sidecar.routeSnapshot(), 1)
+	assert.Empty(t, sidecar.outcomeSnapshot(), "cancelled report context is not retried")
+	requireRelayRefunded(t, user.Id)
+}
+
+type smartRouterHijackWriter struct {
+	gin.ResponseWriter
+	conn net.Conn
+}
+
+func (w *smartRouterHijackWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	w.ResponseWriter.WriteHeaderNow()
+	return w.conn, nil, nil
+}
+
+func TestSmartRouterWriterHijack(t *testing.T) {
+	sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+	now := time.UnixMilli(1000)
+	client, err := host.NewClient(smartRouterConfig(sidecar.server.URL), func() time.Time { return now })
+	require.NoError(t, err)
+	state := host.NewState(client, smartRouterRequest(), smartRouterResponse(), smartRouterRegistry())
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest("POST", "/v1/chat/completions", nil)
+	conn, peer := net.Pipe()
+	t.Cleanup(func() { _ = conn.Close(); _ = peer.Close() })
+	c.Writer = &smartRouterHijackWriter{ResponseWriter: c.Writer, conn: conn}
+	host.Install(c, state)
+	require.NoError(t, state.Begin())
+	require.NoError(t, state.Invoke())
+	host.ObserveTransport(c, &http.Response{StatusCode: 500}, nil)
+	got, _, err := http.NewResponseController(c.Writer).Hijack()
+	require.NoError(t, err)
+	assert.Same(t, conn, got)
+	assert.False(t, state.Finish(context.Background(), false, false))
+	require.Len(t, sidecar.outcomeSnapshot(), 1)
+	assert.Equal(t, host.OutcomeResponseCommitted, sidecar.outcomeSnapshot()[0].Outcome)
+}
 
 func smartRouterRegistry() []host.RegistryEntry {
 	return []host.RegistryEntry{{BindingID: smartRouterBindingA, ChannelID: 1, Group: "default", Model: "model-a", Protocol: "chat", ProtocolPlugin: "chat-v1"}}
