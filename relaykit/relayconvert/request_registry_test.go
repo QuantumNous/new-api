@@ -1,6 +1,7 @@
 package relayconvert
 
 import (
+	"context"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -289,7 +290,7 @@ func TestConvertRequestClaudeToResponsesDefaultsImageDetail(t *testing.T) {
 		},
 	}
 
-	result, err := ConvertRequestByID(context.Background(), nil, ConverterClaudeMessagesToOpenAIResponses, req)
+	result, err := ConvertRequestByID(context.Background(), nil, requestConverterClaudeToResponses, req)
 	require.NoError(t, err)
 	responsesReq, ok := result.Value.(*dto.OpenAIResponsesRequest)
 	require.True(t, ok)

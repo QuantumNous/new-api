@@ -28,6 +28,9 @@ type ClaudeResponseInfo struct {
 	// Only snapshots synthesized from partial display usage may be refreshed by
 	// later display deltas. Serialized BillingUsage always remains authoritative.
 	billingUsageSynthesized bool
+
+	// ToolUseCount counts streamed tool_use blocks for the output-token fallback.
+	ToolUseCount int
 }
 
 func StopReasonClaudeToOpenAI(reason string) string {
@@ -708,6 +711,11 @@ func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *d
 
 		claudeInfo.Done = true
 	} else if claudeResponse.Type == "content_block_start" {
+		// Tool calls are most of an agent turn's output; count them for usage fallback.
+		if block := claudeResponse.ContentBlock; block != nil && block.Type == "tool_use" {
+			claudeInfo.ResponseText.WriteString(block.Name)
+			claudeInfo.ToolUseCount++
+		}
 	} else {
 		return false
 	}

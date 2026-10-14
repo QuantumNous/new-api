@@ -30,7 +30,7 @@ func AttachRequest(format types.RelayFormat, request any, set Set, options *conv
 	case types.RelayFormatClaude:
 		value, diagnostics, err = attachClaudeRequest(request, set, options)
 	case types.RelayFormatGemini:
-		value, diagnostics, err = attachGeminiRequest(request, set)
+		value, diagnostics, err = attachGeminiRequest(request, set, options)
 	default:
 		value = request
 	}
@@ -542,7 +542,7 @@ func attachClaudeRequest(request any, set Set, options *convmeta.Options) (any, 
 	return target, diagnostics, nil
 }
 
-func attachGeminiRequest(request any, set Set) (any, []types.ConversionDiagnostic, error) {
+func attachGeminiRequest(request any, set Set, options *convmeta.Options) (any, []types.ConversionDiagnostic, error) {
 	target, ok := request.(*dto.GeminiChatRequest)
 	if !ok || target == nil {
 		return nil, nil, fmt.Errorf("expected Gemini generateContent request, got %T", request)
