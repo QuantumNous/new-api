@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -16,11 +17,11 @@ import (
 
 // WebhookPayload webhook 通知的负载数据
 type WebhookPayload struct {
-	Type      string        `json:"type"`
-	Title     string        `json:"title"`
-	Content   string        `json:"content"`
-	Values    []interface{} `json:"values,omitempty"`
-	Timestamp int64         `json:"timestamp"`
+	Type      string `json:"type"`
+	Title     string `json:"title"`
+	Content   string `json:"content"`
+	Values    []any  `json:"values,omitempty"`
+	Timestamp int64  `json:"timestamp"`
 }
 
 // generateSignature 生成 webhook 签名
@@ -35,7 +36,7 @@ func SendWebhookNotify(webhookURL string, secret string, data dto.Notify) error 
 	// 处理占位符
 	content := data.Content
 	for _, value := range data.Values {
-		content = fmt.Sprintf(content, value)
+		content = strings.Replace(content, dto.ContentValueParam, fmt.Sprintf("%v", value), 1)
 	}
 
 	// 构建 webhook 负载

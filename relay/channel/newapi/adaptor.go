@@ -75,18 +75,18 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	return request, nil
+	return a.claudeAdaptor.ConvertClaudeRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayInfo, request *dto.GeminiChatRequest) (any, error) {
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	return request, nil
+	return a.geminiAdaptor.ConvertGeminiRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
-	return request, nil
+	return a.openaiAdaptor.ConvertImageRequest(c, info, request)
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {

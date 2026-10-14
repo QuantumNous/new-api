@@ -34,6 +34,7 @@ export const apiKeySchema = z.object({
   created_time: z.number(),
   accessed_time: z.number(),
   group: z.string().nullish().default(''),
+  auto_groups: z.array(z.string()).nullish().default(null),
   cross_group_retry: z
     .preprocess((v) => {
       if (v === 1) return true
@@ -45,6 +46,7 @@ export const apiKeySchema = z.object({
   model_limits_enabled: z.boolean(),
   model_limits: z.string().nullish().default(''),
   allow_ips: z.string().nullish().default(''),
+  allow_user_quota_query: z.boolean().optional().default(false),
 })
 
 export type ApiKey = z.infer<typeof apiKeySchema>
@@ -90,8 +92,15 @@ export interface ApiKeyFormData {
   model_limits_enabled: boolean
   model_limits: string
   allow_ips: string
+  allow_user_quota_query: boolean
   group: string
+  auto_groups: string[]
   cross_group_retry: boolean
+}
+
+export interface TokenAutoGroupsConfig {
+  groups: string[]
+  max_count: number
 }
 
 // ============================================================================

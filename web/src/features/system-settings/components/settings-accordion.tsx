@@ -28,6 +28,7 @@ type SettingsAccordionProps = {
   title: string
   children: React.ReactNode
   className?: string
+  keepMounted?: boolean
 }
 
 export function SettingsAccordion({
@@ -35,6 +36,7 @@ export function SettingsAccordion({
   title,
   children,
   className,
+  keepMounted,
 }: SettingsAccordionProps) {
   return (
     <AccordionItem value={value} className={cn(className)}>
@@ -43,7 +45,9 @@ export function SettingsAccordion({
           <div className='text-base font-semibold'>{title}</div>
         </div>
       </AccordionTrigger>
-      <AccordionContent className='pt-4'>{children}</AccordionContent>
+      <AccordionContent className='pt-4' keepMounted={keepMounted}>
+        {children}
+      </AccordionContent>
     </AccordionItem>
   )
 }

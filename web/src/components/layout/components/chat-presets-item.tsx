@@ -48,6 +48,7 @@ import {
   resolveChatUrl,
   type ChatPreset,
 } from '@/features/chat/lib/chat-links'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { normalizeHref } from '../lib/url-utils'
 import type { NavChatPresets } from '../types'
@@ -61,12 +62,14 @@ function ChatMenuItem({
   loading,
   onOpen,
   onNavigate,
+  preload,
 }: {
   preset: ChatPreset
   active: boolean
   loading: boolean
   onOpen: (preset: ChatPreset) => void | Promise<void>
   onNavigate: () => void
+  preload?: false
 }) {
   if (preset.type === 'web') {
     return (
@@ -77,6 +80,7 @@ function ChatMenuItem({
             <Link
               to='/chat/$chatId'
               params={{ chatId: preset.id }}
+              preload={preload}
               onClick={onNavigate}
             />
           }
@@ -191,7 +195,7 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
               : t(
                   'Unable to prepare chat link. Please ensure you have an enabled API key.'
                 )
-          toast.error(message)
+          handleServerError(error, message)
           return
         } finally {
           loadingPresetIdRef.current = null
@@ -277,6 +281,7 @@ export function ChatPresetsItem({ item }: { item: NavChatPresets }) {
               loading={loadingPresetId === preset.id}
               onOpen={handleOpenExternal}
               onNavigate={() => setOpenMobile(false)}
+              preload={isMobile ? false : undefined}
             />
           ))}
         </SidebarMenuSub>

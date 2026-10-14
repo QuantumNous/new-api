@@ -30,6 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import { handleServerError } from '@/lib/handle-server-error'
 
 import { deleteRedemption } from '../api'
 import { SUCCESS_MESSAGES } from '../constants'
@@ -50,7 +51,11 @@ export function RedemptionsDeleteDialog() {
         toast.success(t(SUCCESS_MESSAGES.REDEMPTION_DELETED))
         setOpen(null)
         triggerRefresh()
+      } else {
+        handleServerError(result)
       }
+    } catch (error) {
+      handleServerError(error)
     } finally {
       setIsDeleting(false)
     }

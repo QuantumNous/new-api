@@ -37,7 +37,9 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
+
+import { handleServerError } from '@/lib/handle-server-error'
+import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { getUserGroups, getUserModels } from '../api'
 import {
@@ -75,7 +77,8 @@ export function usePlaygroundOptions({
     isLoading: isLoadingModels,
   } = useQuery({
     queryKey: ['playground-models', currentGroup],
-    queryFn: () => getUserModels(currentGroup),
+    queryFn: async () =>
+      requireServerSuccess(await getUserModels(currentGroup)),
     enabled: currentGroup !== '',
   })
 
@@ -85,13 +88,14 @@ export function usePlaygroundOptions({
     isError: isGroupsError,
   } = useQuery({
     queryKey: ['playground-groups'],
-    queryFn: getUserGroups,
+    queryFn: async () => requireServerSuccess(await getUserGroups()),
   })
 
   useEffect(() => {
     if (!isModelsError) return
 
-    toast.error(
+    handleServerError(
+      modelsError,
       getOptionLoadErrorMessage(
         modelsError,
         t('Failed to load playground models')
@@ -102,7 +106,8 @@ export function usePlaygroundOptions({
   useEffect(() => {
     if (!isGroupsError) return
 
-    toast.error(
+    handleServerError(
+      groupsError,
       getOptionLoadErrorMessage(
         groupsError,
         t('Failed to load playground groups')

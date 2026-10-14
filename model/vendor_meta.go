@@ -13,6 +13,8 @@ import (
 // 本表同样遵循 3NF 设计范式
 
 type Vendor struct {
+	ModelCount  int64          `json:"model_count" gorm:"-"`
+	Version     string         `json:"version,omitempty" gorm:"-"`
 	Id          int            `json:"id"`
 	Name        string         `json:"name" gorm:"size:128;not null;uniqueIndex:uk_vendor_name_delete_at,priority:1"`
 	Description string         `json:"description,omitempty" gorm:"type:text"`
@@ -25,10 +27,20 @@ type Vendor struct {
 
 // Insert 创建新的供应商记录
 func (v *Vendor) Insert() error {
-	now := common.GetTimestamp()
-	v.CreatedTime = now
-	v.UpdatedTime = now
-	return DB.Create(v).Error
+	v.Id = 0
+	err := metadataTransaction(func(tx *gorm.DB) error {
+		if err := validateVendorMetadata(tx, v); err != nil {
+			return err
+		}
+		now := common.GetTimestamp()
+		v.CreatedTime, v.UpdatedTime, v.Status = now, now, 1
+		return tx.Create(v).Error
+	})
+	if err == nil {
+		v.Version = VendorRecordVersion(v)
+		RefreshPricing()
+	}
+	return err
 }
 
 // IsVendorNameDuplicated 检查供应商名称是否重复（排除自身 ID）
@@ -43,14 +55,29 @@ func IsVendorNameDuplicated(id int, name string) (bool, error) {
 
 // Update 更新供应商记录
 func (v *Vendor) Update() error {
-	v.UpdatedTime = common.GetTimestamp()
-	return DB.Save(v).Error
+	err := metadataTransaction(func(tx *gorm.DB) error {
+		var saved Vendor
+		if err := tx.First(&saved, v.Id).Error; err != nil {
+			return err
+		}
+		if v.Version != "" && v.Version != VendorRecordVersion(&saved) {
+			return ErrVendorConflict
+		}
+		if err := validateVendorMetadata(tx, v); err != nil {
+			return err
+		}
+		v.CreatedTime, v.Status, v.UpdatedTime = saved.CreatedTime, saved.Status, common.GetTimestamp()
+		return tx.Model(&Vendor{}).Where("id = ?", v.Id).Updates(map[string]any{"name": v.Name, "description": v.Description, "icon": v.Icon, "updated_time": v.UpdatedTime}).Error
+	})
+	if err == nil {
+		v.Version = VendorRecordVersion(v)
+		RefreshPricing()
+	}
+	return err
 }
 
-// Delete 软删除供应商
-func (v *Vendor) Delete() error {
-	return DB.Delete(v).Error
-}
+// Delete rejects referenced vendors rather than leaving orphaned model records.
+func (v *Vendor) Delete() error { return DeleteVendors([]int{v.Id}) }
 
 // GetVendorByID 根据 ID 获取供应商
 func GetVendorByID(id int) (*Vendor, error) {
@@ -59,22 +86,34 @@ func GetVendorByID(id int) (*Vendor, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := DB.Model(&Model{}).Where("vendor_id = ?", id).Count(&v.ModelCount).Error; err != nil {
+		return nil, err
+	}
+	v.Version = VendorRecordVersion(&v)
 	return &v, nil
 }
 
 // GetAllVendors 获取全部供应商（分页）
 func GetAllVendors(offset int, limit int) ([]*Vendor, error) {
-	var vendors []*Vendor
-	err := DB.Offset(offset).Limit(limit).Find(&vendors).Error
+	vendors, _, err := SearchVendors("", offset, limit)
 	return vendors, err
 }
 
-// SearchVendors 按关键字搜索供应商
-func SearchVendors(keyword string, offset int, limit int) ([]*Vendor, int64, error) {
+// SearchVendors filters persisted vendor records and counts actual model assignments.
+func SearchVendors(keyword string, offset, limit int, association ...string) ([]*Vendor, int64, error) {
 	db := DB.Model(&Vendor{})
 	if keyword != "" {
 		like := "%" + keyword + "%"
 		db = db.Where("name LIKE ? OR description LIKE ?", like, like)
+	}
+	if len(association) > 0 {
+		references := DB.Model(&Model{}).Select("1").Where("models.vendor_id = vendors.id")
+		switch association[0] {
+		case "linked":
+			db = db.Where("EXISTS (?)", references)
+		case "unlinked":
+			db = db.Where("NOT EXISTS (?)", references)
+		}
 	}
 	var total int64
 	if err := db.Count(&total).Error; err != nil {
@@ -83,6 +122,14 @@ func SearchVendors(keyword string, offset int, limit int) ([]*Vendor, int64, err
 	var vendors []*Vendor
 	if err := db.Offset(offset).Limit(limit).Order("id DESC").Find(&vendors).Error; err != nil {
 		return nil, 0, err
+	}
+	counts, err := GetVendorModelCounts()
+	if err != nil {
+		return nil, 0, err
+	}
+	for _, vendor := range vendors {
+		vendor.ModelCount = counts[int64(vendor.Id)]
+		vendor.Version = VendorRecordVersion(vendor)
 	}
 	return vendors, total, nil
 }

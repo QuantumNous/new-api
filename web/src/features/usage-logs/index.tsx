@@ -128,16 +128,16 @@ function UsageLogsContent() {
         <SectionPageLayout.Title>
           {t(pageMeta.titleKey)}
         </SectionPageLayout.Title>
-        {canManageScope && (
-          <SectionPageLayout.Actions>
+        <SectionPageLayout.Actions>
+          {canManageScope && (
             <Tabs value={viewScope} onValueChange={handleViewScopeChange}>
               <TabsList>
                 <TabsTrigger value='all'>{t('All')}</TabsTrigger>
                 <TabsTrigger value='self'>{t('Only Mine')}</TabsTrigger>
               </TabsList>
             </Tabs>
-          </SectionPageLayout.Actions>
-        )}
+          )}
+        </SectionPageLayout.Actions>
         <SectionPageLayout.Content>
           <div className='flex h-full min-h-0 flex-col gap-4'>
             {showTaskSwitcher && (

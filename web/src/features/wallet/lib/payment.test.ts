@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { PAYMENT_TYPES } from '../constants'
 import {
@@ -29,11 +28,11 @@ import {
 
 describe('payment type classification', () => {
   test('keeps Waffo and Waffo Pancake on their dedicated flows', () => {
-    assert.equal(isWaffoPayment(PAYMENT_TYPES.WAFFO), true)
-    assert.equal(isWaffoPayment(PAYMENT_TYPES.WAFFO_PANCAKE), false)
-    assert.equal(isWaffoPancakePayment(PAYMENT_TYPES.WAFFO_PANCAKE), true)
-    assert.equal(isWaffoPancakePayment(PAYMENT_TYPES.WAFFO), false)
-    assert.equal(isStripePayment(PAYMENT_TYPES.STRIPE), true)
+    expect(isWaffoPayment(PAYMENT_TYPES.WAFFO)).toBe(true)
+    expect(isWaffoPayment(PAYMENT_TYPES.WAFFO_PANCAKE)).toBe(false)
+    expect(isWaffoPancakePayment(PAYMENT_TYPES.WAFFO_PANCAKE)).toBe(true)
+    expect(isWaffoPancakePayment(PAYMENT_TYPES.WAFFO)).toBe(false)
+    expect(isStripePayment(PAYMENT_TYPES.STRIPE)).toBe(true)
   })
 })
 
@@ -60,8 +59,8 @@ describe('payment dispatch', () => {
       }
     )
 
-    assert.equal(success, true)
-    assert.deepEqual(calls, ['waffo:120:3'])
+    expect(success).toBe(true)
+    expect(calls).toEqual(['waffo:120:3'])
   })
 
   test('does not create a Waffo order without a selected method index', async () => {
@@ -80,7 +79,7 @@ describe('payment dispatch', () => {
       }
     )
 
-    assert.equal(success, false)
-    assert.equal(called, false)
+    expect(success).toBe(false)
+    expect(called).toBe(false)
   })
 })

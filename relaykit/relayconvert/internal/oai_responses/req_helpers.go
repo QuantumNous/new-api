@@ -1,10 +1,12 @@
 package oairesponses
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
@@ -56,6 +58,29 @@ func responsesInputItems(raw []byte) ([]map[string]any, error) {
 
 func InputItems(raw []byte) ([]map[string]any, error) {
 	return responsesInputItems(raw)
+}
+
+// omitTrailingAssistantText drops the assistant turns without tool calls that
+// end the converted conversation after a user turn or tool result. In
+// Responses they are history and the model answers with a new item; Claude and
+// Gemini would continue them as a prefill, which newer models reject with a
+// 400. Codex leaves them at the end of input when it retries a stream that
+// failed after an assistant message completed.
+func omitTrailingAssistantText[T any](c context.Context, turns []T, isUser, isAssistantText func(T) bool) []T {
+	end := len(turns)
+	for end > 0 && isAssistantText(turns[end-1]) {
+		end--
+	}
+	if end == len(turns) || end == 0 || !isUser(turns[end-1]) {
+		return turns
+	}
+	convdiag.Add(c, types.ConversionDiagnostic{
+		Code:     "trailing_assistant_omitted",
+		Path:     "input",
+		Message:  "assistant output after the last user message or tool result was omitted; the target protocol would continue it as a prefill",
+		Severity: types.ConversionDiagnosticWarning,
+	})
+	return turns[:end]
 }
 
 func responsesContentParts(content any) ([]map[string]any, error) {
@@ -166,30 +191,30 @@ func ObjectValue(value any, fallbackKey string) map[string]any {
 	return responsesObjectValue(value, fallbackKey)
 }
 
-func responsesGeminiResponseMap(value any) map[string]interface{} {
+func responsesGeminiResponseMap(value any) map[string]any {
 	switch typed := value.(type) {
 	case nil:
-		return map[string]interface{}{}
+		return map[string]any{}
 	case map[string]any:
 		return typed
 	case string:
-		var object map[string]interface{}
+		var object map[string]any
 		if err := kitutil.Unmarshal([]byte(typed), &object); err == nil {
 			return object
 		}
-		var array []interface{}
+		var array []any
 		if err := kitutil.Unmarshal([]byte(typed), &array); err == nil {
-			return map[string]interface{}{"result": array}
+			return map[string]any{"result": array}
 		}
-		return map[string]interface{}{"content": typed}
+		return map[string]any{"content": typed}
 	case []any:
-		return map[string]interface{}{"result": typed}
+		return map[string]any{"result": typed}
 	default:
-		return map[string]interface{}{"content": typed}
+		return map[string]any{"content": typed}
 	}
 }
 
-func GeminiResponseMap(value any) map[string]interface{} {
+func GeminiResponseMap(value any) map[string]any {
 	return responsesGeminiResponseMap(value)
 }
 

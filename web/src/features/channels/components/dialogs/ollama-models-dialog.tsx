@@ -40,6 +40,8 @@ import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import { Separator } from '@/components/ui/separator'
 import { getFreshAuthHeaders } from '@/lib/api'
+import { handleServerError } from '@/lib/handle-server-error'
+import { getServerMessage } from '@/lib/server-error-message'
 
 import {
   deleteOllamaModel,
@@ -135,8 +137,8 @@ export function OllamaModelsDialog({
           })
           if (payloadLive?.success) {
             normalized = normalizeOllamaModels(payloadLive.data)
-          } else if (payloadLive?.message) {
-            lastErr = String(payloadLive.message)
+          } else {
+            lastErr = getServerMessage(payloadLive) || ''
           }
         } catch (err: unknown) {
           lastErr = err instanceof Error ? err.message : ''
@@ -150,12 +152,12 @@ export function OllamaModelsDialog({
           normalized = normalizeOllamaModels(payload.data)
           lastErr = ''
         } else {
-          lastErr = String(payload?.message || '')
+          lastErr = getServerMessage(payload) || ''
         }
       }
 
       if (!normalized.length && lastErr) {
-        toast.error(lastErr || t('Failed to fetch models'))
+        handleServerError(new Error(lastErr), t('Failed to fetch models'))
       }
 
       setModels(normalized)
@@ -169,8 +171,7 @@ export function OllamaModelsDialog({
           : normalized.map((m) => m.id)
       })
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : undefined
-      toast.error(msg || t('Failed to fetch models'))
+      handleServerError(err, t('Failed to fetch models'))
       setModels([])
     } finally {
       setIsFetching(false)
@@ -216,12 +217,10 @@ export function OllamaModelsDialog({
         )
         queryClient.invalidateQueries({ queryKey: channelsQueryKeys.lists() })
       } else {
-        toast.error(res.message || t('Failed to update models'))
+        handleServerError(res, t('Failed to update models'))
       }
     } catch (err: unknown) {
-      toast.error(
-        err instanceof Error ? err.message : t('Failed to update models')
-      )
+      handleServerError(err, t('Failed to update models'))
     }
   }
 
@@ -293,7 +292,7 @@ export function OllamaModelsDialog({
             if (data?.status) {
               setPullProgress(data)
             } else if (data?.error) {
-              toast.error(String(data.error))
+              handleServerError(data, String(data.error))
               setIsPulling(false)
               setPullProgress(null)
               pullAbortRef.current = null
@@ -329,7 +328,7 @@ export function OllamaModelsDialog({
         (err as { name?: unknown }).name === 'AbortError'
       if (!isAbort) {
         const msg = err instanceof Error ? err.message : ''
-        toast.error(t('Model pull failed: {{msg}}', { msg }))
+        handleServerError(err, t('Model pull failed: {{msg}}', { msg }))
       }
       setIsPulling(false)
       setPullProgress(null)
@@ -352,11 +351,10 @@ export function OllamaModelsDialog({
         setDeleteOpen(false)
         setDeleteTarget(null)
       } else {
-        toast.error(payload?.message || t('Failed to delete model'))
+        handleServerError(payload, t('Failed to delete model'))
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : undefined
-      toast.error(msg || t('Failed to delete model'))
+      handleServerError(err, t('Failed to delete model'))
     } finally {
       setIsDeleting(false)
     }

@@ -26,6 +26,9 @@ var Chats = []map[string]string{
 		"DeepChat": "deepchat://provider/install?v=1&data={deepchatConfig}",
 	},
 	{
+		"AQBot": "aqbot://providers?{aqbotConfig}",
+	},
+	{
 		"Lobe Chat 官方示例": "https://chat-preview.lobehub.com/?settings={\"keyVaults\":{\"openai\":{\"apiKey\":\"{key}\",\"baseURL\":\"{address}/v1\"}}}",
 	},
 	{
@@ -47,7 +50,7 @@ func UpdateChatsByJsonString(jsonString string) error {
 func Chats2JsonString() string {
 	jsonBytes, err := json.Marshal(Chats)
 	if err != nil {
-		common.SysLog("error marshalling chats: " + err.Error())
+		common.SysLog(common.LogText("error marshalling chats: %s", err.Error()))
 		return "[]"
 	}
 	return string(jsonBytes)

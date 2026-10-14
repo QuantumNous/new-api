@@ -244,6 +244,23 @@ function mergeOptions(
   }
 }
 
+function getFractionDigits(
+  value: number,
+  digitsLarge: number,
+  digitsSmall: number
+): number {
+  return Math.abs(value) >= 1 ? digitsLarge : digitsSmall
+}
+
+/** Return the configured fraction digits for a plain currency value. */
+export function getCurrencyFractionDigits(
+  value: number,
+  options?: CurrencyFormatOptions
+): number {
+  const merged = mergeOptions(options)
+  return getFractionDigits(value, merged.digitsLarge, merged.digitsSmall)
+}
+
 function removeTrailingZeros(str: string): string {
   if (!str.includes('.')) return str
   return str.replace(/(\.[0-9]*?)0+$/, '$1').replace(/\.$/, '')
@@ -261,7 +278,7 @@ function formatNumberWithSuffix(
     return `${removeTrailingZeros(result.toFixed(1))}k`
   }
 
-  const digits = abs >= 1 ? digitsLarge : digitsSmall
+  const digits = getFractionDigits(value, digitsLarge, digitsSmall)
   return removeTrailingZeros(value.toFixed(digits))
 }
 
@@ -300,8 +317,11 @@ function formatCurrencyValue(
     )
   }
 
-  const digits =
-    Math.abs(value) >= 1 ? options.digitsLarge : options.digitsSmall
+  const digits = getFractionDigits(
+    value,
+    options.digitsLarge,
+    options.digitsSmall
+  )
   const adjustedValue = adjustForMinimum(value, digits, options.minimumNonZero)
 
   if (meta.kind === 'currency') {

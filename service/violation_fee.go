@@ -88,15 +88,14 @@ func calcViolationFeeQuota(amount, groupRatio float64) int {
 	if groupRatio <= 0 {
 		return 0
 	}
-	quota := decimal.NewFromFloat(amount).
+	quota := common.QuotaFromDecimal(decimal.NewFromFloat(amount).
 		Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
 		Mul(decimal.NewFromFloat(groupRatio)).
-		Round(0).
-		IntPart()
+		Round(0))
 	if quota <= 0 {
 		return 0
 	}
-	return int(quota)
+	return quota
 }
 
 // ChargeViolationFeeIfNeeded charges an additional fee after the normal flow finishes (including refund).
@@ -124,7 +123,7 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 	}
 
 	if err := PostConsumeQuota(relayInfo, feeQuota, 0, true); err != nil {
-		logger.LogError(ctx, fmt.Sprintf("failed to charge violation fee: %s", err.Error()))
+		logger.LogError(ctx, common.LogText("failed to charge violation fee: %s", err.Error()))
 		return false
 	}
 
@@ -135,7 +134,8 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 	tokenName := ctx.GetString("token_name")
 	oai := apiErr.ToOpenAIError()
 
-	other := map[string]any{
+	other := model.NewLogOther()
+	other.MergePublic(map[string]any{
 		"violation_fee":        true,
 		"violation_fee_code":   string(types.ErrorCodeViolationFeeGrokCSAM),
 		"fee_quota":            feeQuota,
@@ -145,14 +145,14 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 		"upstream_error_type":  oai.Type,
 		"upstream_error_code":  fmt.Sprintf("%v", oai.Code),
 		"violation_fee_marker": CSAMViolationMarker,
-	}
+	})
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:      relayInfo.ChannelId,
 		ModelName:      relayInfo.OriginModelName,
 		TokenName:      tokenName,
 		Quota:          feeQuota,
-		Content:        "Violation fee charged",
+		Content:        []*common.Message{common.NewMessage("Violation fee charged")},
 		TokenId:        relayInfo.TokenId,
 		UseTimeSeconds: int(useTimeSeconds),
 		IsStream:       relayInfo.IsStream,

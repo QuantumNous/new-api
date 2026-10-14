@@ -16,8 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, expect, test } from 'vitest'
 
 import { resolveLegacyRoute } from './legacy-route'
 
@@ -43,17 +42,15 @@ describe('legacy frontend route migration', () => {
     }
 
     for (const [source, target] of Object.entries(routes)) {
-      assert.equal(resolveLegacyRoute(source), target)
+      expect(resolveLegacyRoute(source)).toBe(target)
     }
   })
 
   test('preserves search and hash while applying route-specific behavior', () => {
-    assert.equal(
-      resolveLegacyRoute('/login?redirect=%2Fkeys#continue'),
+    expect(resolveLegacyRoute('/login?redirect=%2Fkeys#continue')).toBe(
       '/sign-in?redirect=%2Fkeys#continue'
     )
-    assert.equal(
-      resolveLegacyRoute('/console/topup?source=email#orders'),
+    expect(resolveLegacyRoute('/console/topup?source=email#orders')).toBe(
       '/wallet?source=email#orders'
     )
   })
@@ -75,23 +72,20 @@ describe('legacy frontend route migration', () => {
     }
 
     for (const [tab, target] of Object.entries(settingsTabs)) {
-      assert.equal(
-        resolveLegacyRoute(`/console/setting?tab=${tab}&from=bookmark#form`),
-        `${target}?tab=${tab}&from=bookmark#form`
-      )
+      expect(
+        resolveLegacyRoute(`/console/setting?tab=${tab}&from=bookmark#form`)
+      ).toBe(`${target}?tab=${tab}&from=bookmark#form`)
     }
-    assert.equal(
-      resolveLegacyRoute('/console/setting?tab=unknown'),
+    expect(resolveLegacyRoute('/console/setting?tab=unknown')).toBe(
       '/system-settings?tab=unknown'
     )
   })
 
   test('safely redirects unknown console locations without touching new routes', () => {
-    assert.equal(
-      resolveLegacyRoute('/console/removed?page=2#old'),
+    expect(resolveLegacyRoute('/console/removed?page=2#old')).toBe(
       '/dashboard?page=2#old'
     )
-    assert.equal(resolveLegacyRoute('/dashboard'), null)
-    assert.equal(resolveLegacyRoute('/api/status'), null)
+    expect(resolveLegacyRoute('/dashboard')).toBe(null)
+    expect(resolveLegacyRoute('/api/status')).toBe(null)
   })
 })

@@ -2,6 +2,7 @@ package model_setting
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -108,10 +109,5 @@ func GetGeminiVersionSetting(key string) string {
 }
 
 func IsGeminiModelSupportImagine(model string) bool {
-	for _, v := range geminiSettings.SupportedImagineModels {
-		if v == model {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(geminiSettings.SupportedImagineModels, model)
 }

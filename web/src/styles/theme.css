@@ -19,7 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: 'Public Sans', sans-serif;
+  --font-sans: var(--font-ui-sans);
+  --font-public-sans: 'Public Sans Variable', 'Public Sans', sans-serif;
   /* Editorial serif token — the body face used by the `serif` font axis
    * and by presets that opt in (currently Anthropic). Lora carries only
    * Latin glyphs, so the stack walks through CJK serifs (Noto / Source Han
@@ -98,11 +99,10 @@ For commercial licensing, please contact support@quantumnous.com
   --app-header-height: 3rem;
   /* Static build-channel fallback consumed when JS hasn't booted yet. */
   --app-rev: '2k6e8r7p';
-  /* Currently active body font. The font axis swaps this between
-   * `--font-sans` and `--font-serif` via `[data-theme-font='...']` blocks
-   * in theme-presets.css. Default mirrors `--font-sans` so behavior is
-   * identical when no font preference is set. */
-  --font-body: var(--font-sans);
+  /* Auto starts with the browser font, including before JS applies the
+   * saved preference. Explicit Sans selects Public Sans in theme-presets.css. */
+  --font-ui-sans: sans-serif;
+  --font-body: var(--font-ui-sans);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
