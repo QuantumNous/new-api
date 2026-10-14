@@ -69,6 +69,7 @@ export function usePricingData(enabled = true) {
     vendors: data?.vendors ?? [],
     groupRatio: data?.group_ratio ?? {},
     usableGroup: data?.usable_group ?? {},
+    groupDisplayNames: data?.group_display_names ?? {},
     endpointMap: data?.supported_endpoint ?? {},
     autoGroups: data?.auto_groups ?? [],
     isLoading,

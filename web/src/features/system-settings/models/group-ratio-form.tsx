@@ -68,6 +68,7 @@ import {
 type GroupFormValues = {
   GroupRatio: string
   TopupGroupRatio: string
+  GroupDisplayNames: string
   UserUsableGroups: string
   GroupGroupRatio: string
   AutoGroups: string
@@ -169,6 +170,7 @@ export const GroupRatioForm = memo(function GroupRatioForm({
             onSectionChange={setSection}
             groupRatio={values.GroupRatio ?? ''}
             topupGroupRatio={values.TopupGroupRatio ?? ''}
+            groupDisplayNames={values.GroupDisplayNames ?? '{}'}
             userUsableGroups={values.UserUsableGroups ?? ''}
             groupGroupRatio={values.GroupGroupRatio ?? ''}
             autoGroups={values.AutoGroups ?? ''}
@@ -256,6 +258,25 @@ export const GroupRatioForm = memo(function GroupRatioForm({
               )}
             />
 
+            <FormField
+              control={form.control}
+              name='GroupDisplayNames'
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('Group display names')}</FormLabel>
+                  <FormControl>
+                    <JsonCodeEditor
+                      value={field.value}
+                      onChange={field.onChange}
+                      name={field.name}
+                      onBlur={field.onBlur}
+                      textareaRef={field.ref}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name='TopupGroupRatio'

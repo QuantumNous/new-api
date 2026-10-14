@@ -45,19 +45,28 @@ import {
 } from './api-keys-cells'
 import { DataTableRowActions } from './data-table-row-actions'
 
-const EMPTY_GROUP_RATIOS: Record<string, number | string> = {}
+const EMPTY_GROUP_RATIOS: Record<
+  string,
+  { ratio: number | string; display_name?: string }
+> = {}
 
-function useGroupRatios(): Record<string, number | string> {
+function useGroupRatios(): Record<
+  string,
+  { ratio: number | string; display_name?: string }
+> {
   const { data } = useQuery({
     queryKey: ['user-groups'],
     queryFn: async () => requireServerSuccess(await getUserGroups()),
     staleTime: 0,
     select: (res) => {
       if (!res.success || !res.data) return {}
-      const ratios: Record<string, number | string> = {}
+      const ratios: Record<
+        string,
+        { ratio: number | string; display_name?: string }
+      > = {}
       for (const [group, info] of Object.entries(res.data)) {
         if (typeof info.ratio === 'number' || typeof info.ratio === 'string') {
-          ratios[group] = info.ratio
+          ratios[group] = info
         }
       }
       return ratios
@@ -157,7 +166,8 @@ export function useApiKeysColumns(now: number): ColumnDef<ApiKey>[] {
           return (
             <ApiKeyGroupCell
               group={group}
-              ratio={groupRatios[group]}
+              ratio={groupRatios[group]?.ratio}
+              displayName={groupRatios[group]?.display_name}
               crossGroupRetry={apiKey.cross_group_retry}
               shouldReduceMotion={shouldReduceMotion}
             />

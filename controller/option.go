@@ -293,6 +293,11 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "GroupDisplayNames":
+		if _, err := setting.ParseGroupDisplayNames(option.Value.(string)); err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": err.Error()})
+			return
+		}
 	case "GroupRatio":
 		err = ratio_setting.CheckGroupRatio(option.Value.(string))
 		if err != nil {

@@ -6,6 +6,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -65,14 +66,15 @@ func GetPricing(c *gin.Context) {
 	}
 
 	c.JSON(200, gin.H{
-		"success":            true,
-		"data":               pricing,
-		"vendors":            model.GetVendors(),
-		"group_ratio":        groupRatio,
-		"usable_group":       usableGroup,
-		"supported_endpoint": model.GetSupportedEndpointMap(),
-		"auto_groups":        service.GetUserAutoGroup(group),
-		"pricing_version":    "a42d372ccf0b5dd13ecf71203521f9d2",
+		"success":             true,
+		"data":                pricing,
+		"vendors":             model.GetVendors(),
+		"group_ratio":         groupRatio,
+		"usable_group":        usableGroup,
+		"group_display_names": setting.GetGroupDisplayNames(),
+		"supported_endpoint":  model.GetSupportedEndpointMap(),
+		"auto_groups":         service.GetUserAutoGroup(group),
+		"pricing_version":     "a42d372ccf0b5dd13ecf71203521f9d2",
 	})
 }
 

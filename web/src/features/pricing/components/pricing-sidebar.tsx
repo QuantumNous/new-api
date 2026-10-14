@@ -1,3 +1,7 @@
+import { ChevronDown, RotateCcw } from 'lucide-react'
+import { memo, useMemo, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -16,10 +20,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ChevronDown, RotateCcw } from 'lucide-react'
-import { memo, useMemo, type ReactNode } from 'react'
-import { useTranslation } from 'react-i18next'
-
+import { useGroupDisplayName } from '@/components/group-display-names'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -210,6 +211,7 @@ export const PricingSidebar = memo(function PricingSidebar(
       .filter((vendor) => vendor.count > 0),
   ]
 
+  const displayName = useGroupDisplayName()
   const groupOptions: FilterOption[] = [
     {
       value: FILTER_ALL,
@@ -217,7 +219,7 @@ export const PricingSidebar = memo(function PricingSidebar(
     },
     ...props.groups.map((group) => ({
       value: group,
-      label: group,
+      label: displayName(group),
       suffix: formatGroupRatio(props.groupRatios?.[group]),
     })),
   ]

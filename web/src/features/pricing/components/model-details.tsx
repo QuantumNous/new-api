@@ -37,6 +37,7 @@ import { CopyButton } from '@/components/copy-button'
 import { StaticDataTable } from '@/components/data-table'
 import { sideDrawerContentClassName } from '@/components/drawer-layout'
 import { GroupBadge } from '@/components/group-badge'
+import { useGroupDisplayName } from '@/components/group-display-names'
 import { PublicLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import {
@@ -520,6 +521,7 @@ function ModelBackendSignalsSection(props: { model: PricingModel }) {
 }
 
 function ModelBackendProviderSection(props: { model: PricingModel }) {
+  const displayName = useGroupDisplayName()
   const { t } = useTranslation()
   const model = props.model
   const groups = normalizeCatalogItems(model.enable_groups)
@@ -546,7 +548,16 @@ function ModelBackendProviderSection(props: { model: PricingModel }) {
   if (groups.length > 0) {
     cells.push(
       <CatalogInfoCell key='groups' label={t('Groups')}>
-        <CatalogPillList items={groups} />
+        <div className='flex flex-wrap gap-1'>
+          {groups.map((group) => (
+            <GroupBadge
+              key={group}
+              group={group}
+              label={displayName(group)}
+              size='sm'
+            />
+          ))}
+        </div>
       </CatalogInfoCell>
     )
   }

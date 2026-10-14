@@ -201,20 +201,21 @@ export function PublicHeader(props: PublicHeaderProps) {
   return (
     <>
       <header className='pointer-events-none fixed inset-x-0 top-0 z-50'>
+        {/* Keep intrinsic width stable; numeric min-width can transition without a fit-content jump. */}
         <div
           className={cn(
-            'pointer-events-auto mx-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
+            'pointer-events-auto mx-auto w-full max-w-[calc(100%-1.5rem)] transition-[min-width,padding] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none lg:w-max',
             floating
-              ? 'w-full max-w-[calc(100%-1.5rem)] pt-3 lg:w-fit lg:px-3'
-              : 'max-w-7xl px-4 pt-0 md:px-6'
+              ? 'pt-3 lg:min-w-0 lg:px-3'
+              : 'px-4 pt-0 md:px-6 lg:min-w-[min(80rem,calc(100%-1.5rem))]'
           )}
         >
           <nav
             className={cn(
-              'flex items-center justify-between gap-2 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)]',
+              'flex items-center justify-between gap-2 ring-border/50 ring-[0.5px] transition-[height,padding,border-radius,background-color,box-shadow,backdrop-filter] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none',
               floating
-                ? 'bg-background/60 ring-border/50 h-12 rounded-2xl pr-1.5 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] ring-[0.5px] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]'
-                : 'h-16 px-2'
+                ? 'bg-background/60 h-12 rounded-2xl pr-1.5 pl-4 shadow-[0_2px_16px_-6px_rgba(0,0,0,0.08),0_0_0_0.5px_rgba(0,0,0,0.02)] backdrop-blur-2xl dark:shadow-[0_2px_16px_-6px_rgba(0,0,0,0.4)]'
+                : 'h-16 rounded-none bg-transparent px-2 shadow-none ring-transparent backdrop-blur-none'
             )}
           >
             {/* Logo */}

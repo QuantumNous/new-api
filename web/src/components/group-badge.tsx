@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 
 import { cn } from '@/lib/utils'
 
+import { useGroupDisplayName } from './group-display-names'
 import { StatusBadge, type StatusBadgeProps } from './status-badge'
 import { Badge } from './ui/badge'
 
@@ -91,12 +92,17 @@ export function GroupBadge(props: GroupBadgeProps) {
     className,
     ...badgeProps
   } = props
+  const displayName = useGroupDisplayName()
   const groupName = group?.trim()
   const isAutoGroup = groupName === 'auto'
   const isEmptyGroup = !groupName
   const isSpecialGroup = isAutoGroup || isEmptyGroup
   const label = getGroupLabel({
-    labelOverride,
+    labelOverride:
+      labelOverride ??
+      (groupName && displayName(groupName) !== groupName
+        ? displayName(groupName)
+        : undefined),
     groupName,
     isAutoGroup,
     isEmptyGroup,

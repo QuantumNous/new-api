@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
@@ -134,6 +134,14 @@ const createGroupSchema = (t: Translate) =>
   z.object({
     GroupRatio: createJsonStringField(t),
     TopupGroupRatio: createJsonStringField(t),
+    GroupDisplayNames: createJsonStringField(t, {
+      predicate: (parsed) =>
+        parsed !== null &&
+        typeof parsed === 'object' &&
+        !Array.isArray(parsed) &&
+        Object.values(parsed).every((v) => typeof v === 'string'),
+      predicateMessage: 'Expected a JSON object with string values',
+    }),
     UserUsableGroups: createJsonStringField(t),
     GroupGroupRatio: createJsonStringField(t),
     AutoGroups: createJsonStringField(t, {
@@ -244,6 +252,7 @@ export function RatioSettingsCard({
   const groupNormalizedDefaults = useRef({
     GroupRatio: normalizeJsonString(groupDefaults.GroupRatio),
     TopupGroupRatio: normalizeJsonString(groupDefaults.TopupGroupRatio),
+    GroupDisplayNames: normalizeJsonString(groupDefaults.GroupDisplayNames),
     UserUsableGroups: normalizeJsonString(groupDefaults.UserUsableGroups),
     GroupGroupRatio: normalizeJsonString(groupDefaults.GroupGroupRatio),
     AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
@@ -284,6 +293,7 @@ export function RatioSettingsCard({
       ...groupDefaults,
       GroupRatio: formatJsonForTextarea(groupDefaults.GroupRatio),
       TopupGroupRatio: formatJsonForTextarea(groupDefaults.TopupGroupRatio),
+      GroupDisplayNames: formatJsonForTextarea(groupDefaults.GroupDisplayNames),
       UserUsableGroups: formatJsonForTextarea(groupDefaults.UserUsableGroups),
       GroupGroupRatio: formatJsonForTextarea(groupDefaults.GroupGroupRatio),
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
@@ -334,6 +344,7 @@ export function RatioSettingsCard({
     groupNormalizedDefaults.current = {
       GroupRatio: normalizeJsonString(groupDefaults.GroupRatio),
       TopupGroupRatio: normalizeJsonString(groupDefaults.TopupGroupRatio),
+      GroupDisplayNames: normalizeJsonString(groupDefaults.GroupDisplayNames),
       UserUsableGroups: normalizeJsonString(groupDefaults.UserUsableGroups),
       GroupGroupRatio: normalizeJsonString(groupDefaults.GroupGroupRatio),
       AutoGroups: normalizeJsonString(groupDefaults.AutoGroups),
@@ -348,6 +359,7 @@ export function RatioSettingsCard({
       ...groupDefaults,
       GroupRatio: formatJsonForTextarea(groupDefaults.GroupRatio),
       TopupGroupRatio: formatJsonForTextarea(groupDefaults.TopupGroupRatio),
+      GroupDisplayNames: formatJsonForTextarea(groupDefaults.GroupDisplayNames),
       UserUsableGroups: formatJsonForTextarea(groupDefaults.UserUsableGroups),
       GroupGroupRatio: formatJsonForTextarea(groupDefaults.GroupGroupRatio),
       AutoGroups: formatJsonForTextarea(groupDefaults.AutoGroups),
@@ -407,11 +419,13 @@ export function RatioSettingsCard({
     [t, updateOption, pricingBaseline, savePricing, pricingQuery]
   )
 
+  const queryClient = useQueryClient()
   const saveGroupRatios = useCallback(
     async (values: GroupFormValues) => {
       const normalized = {
         GroupRatio: normalizeJsonString(values.GroupRatio),
         TopupGroupRatio: normalizeJsonString(values.TopupGroupRatio),
+        GroupDisplayNames: normalizeJsonString(values.GroupDisplayNames),
         UserUsableGroups: normalizeJsonString(values.UserUsableGroups),
         GroupGroupRatio: normalizeJsonString(values.GroupGroupRatio),
         AutoGroups: normalizeJsonString(values.AutoGroups),
@@ -440,8 +454,10 @@ export function RatioSettingsCard({
       }
 
       groupNormalizedDefaults.current = normalized
+      await queryClient.invalidateQueries({ queryKey: ['pricing'] })
+      await queryClient.invalidateQueries({ queryKey: ['user-groups'] })
     },
-    [updateOption]
+    [updateOption, queryClient]
   )
 
   const handleResetRatios = useCallback(() => {

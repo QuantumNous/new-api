@@ -1141,6 +1141,7 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 							require.NoError(t, db.Create(business).Error)
 							require.NoError(t, db.Create(target).Error)
 							closed := false
+							gatewayClosed, latePaid := false, false
 							http.DefaultTransport = wechatFixtureTransport(func(req *http.Request) (*http.Response, error) {
 								statusCode := 200
 								header := http.Header{}
@@ -1152,7 +1153,10 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 									if method == "alipay.trade.close" {
 										closed = true
 									}
-									if scenario == "paid" {
+									if gatewayClosed {
+										payload["trade_status"] = "TRADE_CLOSED"
+									}
+									if scenario == "paid" || latePaid {
 										payload["trade_status"] = "TRADE_SUCCESS"
 									}
 									if scenario == "refunded" {
@@ -1176,14 +1180,17 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 										body = []byte{}
 									} else {
 										state := "NOTPAY"
-										if scenario == "paid" {
+										if gatewayClosed {
+											state = "CLOSED"
+										}
+										if scenario == "paid" || latePaid {
 											state = "SUCCESS"
 										}
 										if scenario == "refunded" {
 											state = "REFUND"
 										}
 										payload := map[string]any{"appid": wxConfig.AppID, "mchid": wxConfig.MchID, "out_trade_no": trade, "transaction_id": "tx-" + trade, "trade_state": state, "trade_type": "NATIVE", "amount": map[string]any{"total": 100, "currency": "CNY"}}
-										if state == "NOTPAY" {
+										if state == "NOTPAY" || state == "CLOSED" {
 											delete(payload, "trade_type")
 										}
 										if strings.HasPrefix(scenario, "not-found") {
@@ -1264,6 +1271,41 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 								assert.Equal(t, "expired", retained.Status)
 								assert.Positive(t, retained.ClosedAt)
 								assert.Equal(t, scenario != "not-found-after-expiry", closed)
+								if scenario == "cancel" {
+									// Manual rechecks must query without issuing another close.
+									closed = false
+									reconcile := service.ReconcileAlipayOrder
+									if provider == model.PaymentProviderWechatPay {
+										reconcile = service.ReconcileWechatPayOrder
+									}
+									require.NoError(t, model.RecordDirectOrderCheck(trade, provider, errors.New("previous failure")))
+									require.NoError(t, reconcile(context.Background(), trade))
+									assert.False(t, closed)
+									var checked struct {
+										LastError   string
+										RetryCount  int
+										NextCheckAt int64
+									}
+									require.NoError(t, db.Model(target).Where("trade_no = ?", trade).First(&checked).Error)
+									assert.Empty(t, checked.LastError)
+									assert.Zero(t, checked.RetryCount)
+									assert.Zero(t, checked.NextCheckAt)
+									gatewayClosed = true
+									require.NoError(t, reconcile(context.Background(), trade))
+									require.NoError(t, db.Model(target).Where("trade_no = ?", trade).First(&retained).Error)
+									assert.Equal(t, "expired", retained.Status)
+									// A later verified payment must still credit exactly once.
+									var before, after model.User
+									require.NoError(t, db.First(&before, user.Id).Error)
+									latePaid = true
+									require.NoError(t, reconcile(context.Background(), trade))
+									require.NoError(t, reconcile(context.Background(), trade))
+									require.NoError(t, db.First(&after, user.Id).Error)
+									assert.Equal(t, before.Quota+100, after.Quota)
+									assert.False(t, closed)
+
+								}
+
 							}
 						})
 					}
@@ -1381,6 +1423,10 @@ func TestWechatPayTransactionOptionalTradeType(t *testing.T) {
 		{"unpaid native", "NOTPAY", core.String("NATIVE"), true},
 		{"unpaid wrong type", "NOTPAY", core.String("JSAPI"), false},
 		{"unpaid empty type", "NOTPAY", core.String(""), false},
+		{"closed missing type", "CLOSED", nil, true},
+		{"closed native", "CLOSED", core.String("NATIVE"), true},
+		{"closed wrong type", "CLOSED", core.String("JSAPI"), false},
+		{"closed empty type", "CLOSED", core.String(""), false},
 		{"paid missing type", "SUCCESS", nil, false},
 		{"paid wrong type", "SUCCESS", core.String("JSAPI"), false},
 		{"paid native", "SUCCESS", core.String("NATIVE"), true},

@@ -121,10 +121,10 @@ func ValidateWechatPayTransaction(config *model.WechatPayConfig, order *model.We
 	if tx == nil || tx.Appid == nil || *tx.Appid != config.AppID || tx.Mchid == nil || *tx.Mchid != config.MchID || tx.OutTradeNo == nil || *tx.OutTradeNo != order.TradeNo || tx.Amount == nil || tx.Amount.Total == nil || *tx.Amount.Total != order.AmountFen || tx.Amount.Currency == nil || *tx.Amount.Currency != "CNY" || tx.TradeState == nil {
 		return errors.New("WeChat Pay transaction mismatch")
 	}
-	// Unpaid query responses may omit trade_type. An explicit type must still
-	// match Native, and all other states (especially SUCCESS) require it.
+	// Unpaid and closed query responses may omit trade_type. An explicit type
+	// must still match Native; successful payments continue to require it.
 	if tx.TradeType == nil {
-		if *tx.TradeState != "NOTPAY" {
+		if *tx.TradeState != "NOTPAY" && *tx.TradeState != "CLOSED" {
 			return errors.New("WeChat Pay transaction mismatch")
 		}
 	} else if *tx.TradeType != "NATIVE" {
@@ -205,6 +205,13 @@ func ReconcileWechatPayOrder(ctx context.Context, tradeNo string) (resultErr err
 		}
 		return model.ErrPaymentReviewRequired
 	case "NOTPAY":
+		// A confirmed local close is terminal for an unpaid order. Keep the
+		// query above so a late SUCCESS can still be recovered, but never issue
+		// a second close request: WeChat may reject a duplicate close as a
+		// business error and turn a harmless NOTPAY result into a retry failure.
+		if order.ClosedAt != 0 {
+			return nil
+		}
 		if common.GetTimestamp() < order.ExpiresAt && !order.CancelRequested && order.Status != common.TopUpStatusExpired {
 			return nil
 		}

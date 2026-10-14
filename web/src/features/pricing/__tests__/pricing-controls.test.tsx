@@ -22,6 +22,8 @@ import { createInstance } from 'i18next'
 import { I18nextProvider, initReactI18next } from 'react-i18next'
 import { describe, expect, it, vi } from 'vitest'
 
+import { GroupBadge } from '@/components/group-badge'
+import { GroupDisplayNamesContext } from '@/components/group-display-names'
 import { getVendorDisplayName, matchesVendorName } from '@/lib/vendor-name'
 
 import { PricingSidebar } from '../components/pricing-sidebar'
@@ -66,6 +68,21 @@ function toolbarProps(): PricingToolbarProps {
 }
 
 describe('pricing controls', () => {
+  it('displays configured group labels while filtering by the original identifier', async () => {
+    const user = userEvent.setup()
+    const props = toolbarProps()
+    render(
+      <GroupDisplayNamesContext value={{ default: 'Standard' }}>
+        <PricingSidebar {...props} />
+        <GroupBadge group='default' />
+      </GroupDisplayNamesContext>
+    )
+    expect(screen.getAllByText('Standard').length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: /premium/ })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Standard/ }))
+    expect(props.onGroupChange).toHaveBeenCalledWith('default')
+  })
+
   it('counts each model once per filter and updates counts when the catalog changes', () => {
     const props = toolbarProps()
     const base: PricingModel = {

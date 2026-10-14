@@ -34,6 +34,7 @@ import { GroupRatioBadge, type GroupRatio } from './auto-group-visuals'
 type ApiKeyGroupCellProps = {
   crossGroupRetry: boolean
   group: string
+  displayName?: string
   ratio?: GroupRatio
   shouldReduceMotion: boolean
 }
@@ -55,6 +56,7 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
       >
         <GroupBadge
           group={group}
+          label={props.displayName?.trim() || undefined}
           ratio={ratio}
           ratioLabel={group ? undefined : t('Inherited')}
           className='px-0'

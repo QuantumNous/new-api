@@ -1,3 +1,8 @@
+import { ChevronRight } from 'lucide-react'
+import { memo, useMemo, type ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { CopyButton } from '@/components/copy-button'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -16,11 +21,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ChevronRight } from 'lucide-react'
-import { memo, useMemo, type ReactNode } from 'react'
-import { useTranslation } from 'react-i18next'
-
-import { CopyButton } from '@/components/copy-button'
+import { useGroupDisplayName } from '@/components/group-display-names'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { getLobeIcon } from '@/lib/lobe-icon'
@@ -65,7 +66,8 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
   const isTokenBased = isTokenBasedModel(props.model)
   const tokenUnitLabel = tokenUnit === 'K' ? '1K' : '1M'
   const tags = parseTags(props.model.tags)
-  const groups = props.model.enable_groups || []
+  const displayName = useGroupDisplayName()
+  const groups = (props.model.enable_groups || []).map(displayName)
   const endpoints = props.model.supported_endpoint_types || []
   const modelIconKey = props.model.icon || props.model.vendor_icon
   const modelIcon = modelIconKey ? getLobeIcon(modelIconKey, 28) : null

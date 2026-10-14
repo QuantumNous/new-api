@@ -260,6 +260,12 @@ func ReconcileAlipayOrder(ctx context.Context, tradeNo string) (resultErr error)
 		}
 		return model.ConfirmDirectOrderClosed(tradeNo, model.PaymentProviderAlipay)
 	case alipay.TradeStatusWaitBuyerPay:
+		// A confirmed local close is terminal for an unpaid order. We still
+		// query first to recover a late payment, but do not call the gateway's
+		// close API again when it already confirmed the close.
+		if order.ClosedAt != 0 {
+			return nil
+		}
 		if common.GetTimestamp() < order.ExpiresAt && !order.CancelRequested && order.Status != common.TopUpStatusExpired {
 			return nil
 		}
