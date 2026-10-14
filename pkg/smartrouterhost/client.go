@@ -194,7 +194,7 @@ func (c *Client) Route(ctx context.Context, request RouteRequest) (RouteResponse
 		return RouteResponse{}, ErrSignature
 	}
 	if response.Kind != "route_response" || response.SchemaVersion != 1 || response.RequestID != request.RequestID ||
-		!bounded(response.SnapshotRevision, 128) || len(response.Bindings) > min(request.AttemptLimit, 5) ||
+		!bounded(response.SnapshotRevision, 128) || response.ExpiresAt < 1 || len(response.Bindings) > min(request.AttemptLimit, 5) ||
 		validateBindings(response.Bindings, request.Protocol) != nil {
 		return RouteResponse{}, ErrResponse
 	}

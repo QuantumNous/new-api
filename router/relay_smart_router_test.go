@@ -273,6 +273,7 @@ func TestSmartRouterSignedRoute(t *testing.T) {
 		{"exact expiry", func(v *host.RouteResponse) { v.ExpiresAt = 1000 }},
 		{"past expiry", func(v *host.RouteResponse) { v.ExpiresAt = 999 }},
 		{"zero expiry", func(v *host.RouteResponse) { v.ExpiresAt = 0 }},
+		{"negative expiry", func(v *host.RouteResponse) { v.ExpiresAt = -1 }},
 		{"unrequested binding", func(v *host.RouteResponse) { v.Bindings[0].BindingID = smartRouterBindingB }},
 		{"duplicate bindings", func(v *host.RouteResponse) { v.Bindings = append(v.Bindings, v.Bindings[0]); v.Bindings[1].Rank = 2 }},
 		{"nonsequential rank", func(v *host.RouteResponse) { v.Bindings[0].Rank = 2 }},
@@ -304,7 +305,11 @@ func TestSmartRouterSignedRoute(t *testing.T) {
 				assert.NoError(t, err)
 			}))
 			defer srv.Close()
-			client, err := host.NewClient(smartRouterConfig(srv.URL), func() time.Time { return time.UnixMilli(1000) })
+			now := int64(1000)
+			if response.ExpiresAt < 1 {
+				now = response.ExpiresAt - 1
+			}
+			client, err := host.NewClient(smartRouterConfig(srv.URL), func() time.Time { return time.UnixMilli(now) })
 			require.NoError(t, err)
 			request := smartRouterRequest()
 			if test.name == "over requested count" {
@@ -315,6 +320,9 @@ func TestSmartRouterSignedRoute(t *testing.T) {
 			if test.name == "legal control" {
 				require.NoError(t, err)
 				assert.Equal(t, response, got)
+			} else if response.ExpiresAt < 1 {
+				require.ErrorIs(t, err, host.ErrResponse)
+				assert.Empty(t, got)
 			} else {
 				require.Error(t, err)
 			}
@@ -328,6 +336,8 @@ func TestSmartRouterSignedRoute(t *testing.T) {
 			{"signature tamper", strings.Replace(wire, response.Signature, strings.Repeat("A", 43), 1), "signature_invalid"},
 			{"correlation without resign", strings.Replace(wire, "req-1", "req-2", 1), "signature_invalid"},
 			{"expiry without resign", strings.Replace(wire, "2000", "1000", 1), "signature_invalid"},
+			{"zero expiry without resign", strings.Replace(wire, `"expires_at":2000`, `"expires_at":0`, 1), "signature_invalid"},
+			{"negative expiry without resign", strings.Replace(wire, `"expires_at":2000`, `"expires_at":-1`, 1), "signature_invalid"},
 			{"unknown", strings.Replace(wire, `"kind":`, `"unknown":1,"kind":`, 1), "invalid_response"},
 			{"trailing", wire + `{}`, "invalid_response"},
 			{"null", strings.Replace(wire, `"expires_at":2000`, `"expires_at":null`, 1), "invalid_response"},
@@ -450,6 +460,52 @@ func TestSmartRouterSignedRoute(t *testing.T) {
 }
 
 func TestSmartRouterControlTransport(t *testing.T) {
+	t.Run("complete POST disconnect is not replayed", func(t *testing.T) {
+		request := smartRouterRequest()
+		outcome := host.AttemptOutcome{Kind: "attempt_outcome", SchemaVersion: 1, EventID: "evt-1", RequestID: "req-1", BindingID: smartRouterBindingA, Protocol: host.ProtocolChat, Outcome: host.OutcomeSuccess}
+		for _, test := range []struct {
+			path    string
+			payload any
+		}{
+			{"/v1/route", request},
+			{"/v1/outcomes", outcome},
+		} {
+			t.Run(test.path, func(t *testing.T) {
+				wire := smartRouterMarshal(t, test.payload)
+				var arrivals atomic.Int32
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					assert.Equal(t, http.MethodPost, r.Method)
+					assert.Equal(t, test.path, r.URL.Path)
+					assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+					body, err := io.ReadAll(r.Body)
+					if !assert.NoError(t, err) {
+						return
+					}
+					assert.Equal(t, wire, string(body))
+					arrivals.Add(1)
+					conn, _, err := w.(http.Hijacker).Hijack()
+					if !assert.NoError(t, err) {
+						return
+					}
+					assert.NoError(t, conn.Close())
+				}))
+				defer srv.Close()
+				client, err := host.NewClient(smartRouterConfig(srv.URL), nil)
+				require.NoError(t, err)
+				if test.path == "/v1/route" {
+					_, err = client.Route(context.Background(), request)
+				} else {
+					err = client.ReportOutcome(context.Background(), outcome)
+				}
+				require.ErrorIs(t, err, host.ErrTransport)
+				srv.Close()
+				assert.EqualValues(t, 1, arrivals.Load())
+				assert.Equal(t, "smart_router: transport_failed", err.Error())
+				assert.NotContains(t, err.Error(), srv.URL)
+				assert.NotContains(t, err.Error(), wire)
+			})
+		}
+	})
 	t.Run("one shot status and strict error contract", func(t *testing.T) {
 		for _, test := range []struct {
 			name                    string
