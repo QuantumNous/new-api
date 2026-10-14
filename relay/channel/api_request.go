@@ -151,12 +151,14 @@ func shouldSkipPassthroughHeader(name string) bool {
 	return false
 }
 
-// userIDPlaceholder 占位符：解析为当前已认证用户 ID（未知用户时该请求头不下发）。
+// userIDPlaceholder resolves to the authenticated user ID. The header is omitted
+// when the user ID is unknown.
 const userIDPlaceholder = "{user_id}"
 
-// parseClientHeaderPlaceholder 解析 {client_header:NAME} 与 {client_header:NAME|FALLBACK}。
-// NAME 是客户端请求头名；FALLBACK 是客户端未携带该请求头时使用的回退值，
-// 回退值可包含 {api_key} / {user_id} 占位符，但不能再嵌套 client_header 占位符。
+// parseClientHeaderPlaceholder parses {client_header:NAME} and
+// {client_header:NAME|FALLBACK}. NAME is the client request header name; FALLBACK
+// is used when the client did not send that header. FALLBACK may contain the
+// {api_key} / {user_id} placeholders but must not nest a client_header placeholder.
 func parseClientHeaderPlaceholder(template string) (name string, fallback string, err error) {
 	if !strings.HasSuffix(template, "}") {
 		return "", "", fmt.Errorf("client_header placeholder must be the full value: %q", template)
@@ -204,8 +206,18 @@ func parseClientHeaderPlaceholder(template string) (name string, fallback string
 	return name, fallback, nil
 }
 
-func applyHeaderOverridePlaceholders(template string, c *gin.Context, info *common.RelayInfo) (string, bool, error) {
+// applyHeaderOverridePlaceholders expands the supported placeholders in one
+// header-override template. fromRequest marks values taken from the incoming
+// request: they are client content and are forwarded verbatim.
+func applyHeaderOverridePlaceholders(template string, c *gin.Context, info *common.RelayInfo, fromRequest bool) (string, bool, error) {
 	trimmed := strings.TrimSpace(template)
+	if fromRequest {
+		// Do not interpolate placeholders inside client-supplied content.
+		if trimmed == "" {
+			return "", false, nil
+		}
+		return template, true, nil
+	}
 	if strings.HasPrefix(trimmed, clientHeaderPlaceholderPrefix) {
 		name, fallback, err := parseClientHeaderPlaceholder(trimmed)
 		if err != nil {
@@ -220,7 +232,7 @@ func applyHeaderOverridePlaceholders(template string, c *gin.Context, info *comm
 			return clientHeaderValue, true, nil
 		}
 		if fallback == "" {
-			// 客户端未携带该请求头，且未配置回退值：不下发该请求头。
+			// Client did not send the header and no fallback is configured: omit it.
 			return "", false, nil
 		}
 		template = fallback
@@ -255,6 +267,10 @@ func applyHeaderOverridePlaceholders(template string, c *gin.Context, info *comm
 //   - "re:<regex>" / "regex:<regex>": passthrough headers whose names match the regex (Go regexp)
 //
 // Passthrough rules are applied first, then normal overrides are applied, so explicit overrides win.
+//
+// Values derived from the incoming request (header passthrough, copy/move/pass_headers,
+// sync_fields into a header) are client content: they are forwarded verbatim and the
+// placeholders above are never expanded inside them.
 func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]string, error) {
 	headerOverride := make(map[string]string)
 	if info == nil {
@@ -262,6 +278,7 @@ func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 	}
 
 	headerOverrideSource := common.GetEffectiveHeaderOverride(info)
+	fromRequestValues := common.GetEffectiveHeaderOverrideFromRequest(info)
 
 	passAll := false
 	var passthroughRegex []*regexp.Regexp
@@ -342,7 +359,7 @@ func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 			continue
 		}
 
-		value, include, err := applyHeaderOverridePlaceholders(str, c, info)
+		value, include, err := applyHeaderOverridePlaceholders(str, c, info, fromRequestValues[key])
 		if err != nil {
 			return nil, types.NewError(err, types.ErrorCodeChannelHeaderOverrideInvalid)
 		}

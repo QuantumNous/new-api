@@ -207,6 +207,9 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	require.Empty(t, upstreamReq.Header.Get("X-Codex-Beta-Features"))
 }
 
+// TestProcessHeaderOverride_ClientHeaderFallbackResolvesToUserID checks the
+// fallback applies only when the client omits the header, and that a
+// {user_id} fallback omits the whole header when the user ID is unknown.
 func TestProcessHeaderOverride_ClientHeaderFallbackResolvesToUserID(t *testing.T) {
 	t.Parallel()
 
@@ -224,18 +227,33 @@ func TestProcessHeaderOverride_ClientHeaderFallbackResolvesToUserID(t *testing.T
 		},
 	}
 
-	// 客户端未携带该请求头时回退为用户 ID
+	// The client did not send the header: the fallback (user ID) applies.
 	headers, err := processHeaderOverride(info, ctx)
 	require.NoError(t, err)
 	require.Equal(t, "42", headers["x-opencode-session"])
 
-	// 客户端携带该请求头时原样透传
+	// The client sent the header: its value is forwarded verbatim.
 	ctx.Request.Header.Set("X-Opencode-Session", "sess-client-1")
 	headers, err = processHeaderOverride(info, ctx)
 	require.NoError(t, err)
 	require.Equal(t, "sess-client-1", headers["x-opencode-session"])
+
+	// A whitespace-only header is treated as absent: the fallback (user ID) applies.
+	ctx.Request.Header.Set("X-Opencode-Session", "   ")
+	headers, err = processHeaderOverride(info, ctx)
+	require.NoError(t, err)
+	require.Equal(t, "42", headers["x-opencode-session"])
+
+	// No client header and no user ID: the {user_id} fallback omits the whole header.
+	ctx.Request.Header.Del("X-Opencode-Session")
+	info.UserId = 0
+	headers, err = processHeaderOverride(info, ctx)
+	require.NoError(t, err)
+	require.NotContains(t, headers, "x-opencode-session")
 }
 
+// TestProcessHeaderOverride_UserIDPlaceholder expands {user_id} and omits the
+// header when the user ID is unknown.
 func TestProcessHeaderOverride_UserIDPlaceholder(t *testing.T) {
 	t.Parallel()
 
@@ -261,13 +279,15 @@ func TestProcessHeaderOverride_UserIDPlaceholder(t *testing.T) {
 	require.Equal(t, "7", headers["x-opencode-session"])
 	require.Equal(t, "u-7", headers["x-user-tag"])
 
-	// 用户未知（如渠道测试）时不下发该请求头，而不是下发 0
+	// Unknown user (e.g. channel test): the header is omitted instead of "0".
 	headers, err = processHeaderOverride(newInfo(0), ctx)
 	require.NoError(t, err)
 	require.NotContains(t, headers, "x-opencode-session")
 	require.NotContains(t, headers, "x-user-tag")
 }
 
+// TestProcessHeaderOverride_ClientHeaderPlaceholderRejectsInvalidSyntax rejects
+// malformed client_header templates at channel-test time.
 func TestProcessHeaderOverride_ClientHeaderPlaceholderRejectsInvalidSyntax(t *testing.T) {
 	t.Parallel()
 
@@ -295,6 +315,8 @@ func TestProcessHeaderOverride_ClientHeaderPlaceholderRejectsInvalidSyntax(t *te
 	}
 }
 
+// TestProcessHeaderOverride_SetHeaderKeepsClientSessionAndFillsUserID keeps the
+// client session header and fills {user_id} only when it is missing.
 func TestProcessHeaderOverride_SetHeaderKeepsClientSessionAndFillsUserID(t *testing.T) {
 	t.Parallel()
 
@@ -331,7 +353,7 @@ func TestProcessHeaderOverride_SetHeaderKeepsClientSessionAndFillsUserID(t *test
 		}
 	}
 
-	// 客户端已携带会话头时保留原值
+	// The client sent a session header: the original value is kept.
 	withSession := info("sess-client-1")
 	_, err := relaycommon.ApplyParamOverrideWithRelayInfo([]byte(`{"model":"gpt-4.1"}`), withSession)
 	require.NoError(t, err)
@@ -339,7 +361,7 @@ func TestProcessHeaderOverride_SetHeaderKeepsClientSessionAndFillsUserID(t *test
 	require.NoError(t, err)
 	require.Equal(t, "sess-client-1", headers["x-opencode-session"])
 
-	// 客户端未携带会话头时补用户 ID
+	// No client session header: the user ID fills it in.
 	ctx.Request.Header.Del("X-Opencode-Session")
 	withoutSession := info("")
 	_, err = relaycommon.ApplyParamOverrideWithRelayInfo([]byte(`{"model":"gpt-4.1"}`), withoutSession)
@@ -347,6 +369,126 @@ func TestProcessHeaderOverride_SetHeaderKeepsClientSessionAndFillsUserID(t *test
 	headers, err = processHeaderOverride(withoutSession, ctx)
 	require.NoError(t, err)
 	require.Equal(t, "42", headers["x-opencode-session"])
+}
+
+// TestProcessHeaderOverride_RequestDerivedValuesAreNotInterpolated locks the rule
+// that client-supplied header content is forwarded verbatim while channel config
+// text still expands its placeholders.
+func TestProcessHeaderOverride_RequestDerivedValuesAreNotInterpolated(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	ctx.Request.Header.Set("X-Custom", "{api_key}")
+	ctx.Request.Header.Set("X-Trace", "{user_id}")
+
+	info := &relaycommon.RelayInfo{
+		UserId: 42,
+		RequestHeaders: map[string]string{
+			"X-Custom": "{api_key}",
+			"X-Trace":  "{user_id}",
+			"X-Beta":   "{api_key}",
+			"X-Gamma":  "alpha",
+		},
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey: "sk-secret-key",
+			ParamOverride: map[string]any{
+				"operations": []any{
+					map[string]any{
+						"mode":  "pass_headers",
+						"value": []any{"X-Custom"},
+					},
+					map[string]any{
+						"mode": "copy_header",
+						"from": "X-Trace",
+						"to":   "X-Trace-Backup",
+					},
+					map[string]any{
+						"mode": "sync_fields",
+						"from": "json:trace",
+						"to":   "header:X-Synced",
+					},
+					map[string]any{
+						"mode":  "set_header",
+						"path":  "X-Config-Tag",
+						"value": "u-{user_id}",
+					},
+					map[string]any{
+						"mode": "set_header",
+						"path": "X-Beta",
+						"value": map[string]any{
+							"known": "known",
+						},
+					},
+					map[string]any{
+						"mode": "set_header",
+						"path": "X-Gamma",
+						"value": map[string]any{
+							"$append": "{user_id}",
+						},
+					},
+					map[string]any{
+						"mode":  "set_header",
+						"path":  "X-Cfg",
+						"value": "{user_id}",
+					},
+					map[string]any{
+						"mode": "sync_fields",
+						"from": "header:X-Cfg",
+						"to":   "header:X-Cfg-Copy",
+					},
+				},
+			},
+		},
+	}
+
+	_, err := relaycommon.ApplyParamOverrideWithRelayInfo([]byte(`{"model":"gpt-4.1","trace":"{api_key}"}`), info)
+	require.NoError(t, err)
+	headers, err := processHeaderOverride(info, ctx)
+	require.NoError(t, err)
+
+	// Request-derived content is forwarded verbatim: no {api_key} / {user_id} interpolation.
+	require.Equal(t, "{api_key}", headers["x-custom"])
+	require.Equal(t, "{user_id}", headers["x-trace-backup"])
+	require.Equal(t, "{api_key}", headers["x-synced"])
+	// A request token containing braces makes the whole value verbatim.
+	require.Equal(t, "{api_key}", headers["x-beta"])
+	// Values declared by channel config still interpolate.
+	require.Equal(t, "u-42", headers["x-config-tag"])
+	// In a mixed value the config-side placeholder still expands.
+	require.Equal(t, "alpha,42", headers["x-gamma"])
+	// sync_fields inherits the source provenance: both sides expand.
+	require.Equal(t, "42", headers["x-cfg"])
+	require.Equal(t, "42", headers["x-cfg-copy"])
+}
+
+// TestProcessHeaderOverride_ClientHeaderNameUsesPipeAsSeparator locks the change
+// that "|" separates NAME from FALLBACK even when it appears in a header name.
+func TestProcessHeaderOverride_ClientHeaderNameUsesPipeAsSeparator(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	// A "|" in the header name is still the separator: this parses as header name
+	// X-Foo with fallback Bar, not as the request header named "X-Foo|Bar".
+	ctx.Request.Header.Set("X-Foo|Bar", "legacy-name")
+	ctx.Request.Header.Set("X-Foo", "new-name")
+
+	info := &relaycommon.RelayInfo{
+		ChannelMeta: &relaycommon.ChannelMeta{
+			HeadersOverride: map[string]any{
+				"X-Upstream": "{client_header:X-Foo|Bar}",
+			},
+		},
+	}
+	headers, err := processHeaderOverride(info, ctx)
+	require.NoError(t, err)
+	require.Equal(t, "new-name", headers["x-upstream"])
 }
 
 func TestToWebSocketURL(t *testing.T) {
