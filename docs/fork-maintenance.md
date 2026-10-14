@@ -28,13 +28,13 @@
 
 | 项目 | 内容 |
 | --- | --- |
-| 状态 | `adapted`；2026-10-12 合并 `7ce439e81` 后核验，继续保留 OpenRouter 修复 `104902b51`；本轮无需新增适配 |
+| 状态 | `adapted`；2026-10-15 合并 `d199ac1fb` 后核验，继续保留 OpenRouter 修复 `104902b51`；实现无改动，仅按上游新增的 cache-only 语义补充一条回归用例（`654f356eb`） |
 | 原始提交 | `4add2c53afe574d0a26038ac51c9e2668d7bab1d` |
 | 后续修复 | `104902b51371345fead518d9e702a967983675b4`，保留 OpenRouter 输入总数，处理 aggregate/split cache write 不一致 |
 | 实现 | [service/text_quota.go](../service/text_quota.go) |
 | 回归 | [service/text_quota_test.go](../service/text_quota_test.go)、[service/text_quota_consume_log_test.go](../service/text_quota_consume_log_test.go) |
 | 必要性 | Anthropic 风格 fresh-only 输入计数在写 consume log 时需加回 cache read/write，使统计采用总输入 token |
-| 上游跟踪 | 目标 `633b4c5b1` 仍无等价实现：写日志处仍是 `PromptTokens: summary.PromptTokens`，`PromptTokensExcludeCache` / `consumeLogPromptTokens` 在该 SHA 不存在。上游 open PR [#7305](https://github.com/QuantumNous/new-api/pull/7305)（本 fork 提交，head = 合并前 `d82cfd646`，2026-10-12 状态 OPEN / REVIEW_REQUIRED / blocked）与 [#7291](https://github.com/QuantumNous/new-api/pull/7291)（TomJKS，目标相同）均未合并 |
+| 上游跟踪 | 目标 `718a4e7f9` 仍无等价实现：写日志处仍是 `PromptTokens: summary.PromptTokens`，`PromptTokensExcludeCache` / `consumeLogPromptTokens` 在该 SHA 不存在。上游 `1b63c28dc` 只让 cache-only 的 Claude 响应保持可计费（`hasBillableUsage`）并保留其零值 fresh input，属于互补而非替代。上游 open PR [#7305](https://github.com/QuantumNous/new-api/pull/7305)（本 fork 提交，head = `60327b1c2`，2026-10-15 核对为 OPEN / REVIEW_REQUIRED / BLOCKED）与 [#7291](https://github.com/QuantumNous/new-api/pull/7291)（TomJKS，2026-10-15 OPEN / BLOCKED）均未合并 |
 
 必须保持的行为：
 
@@ -483,6 +483,79 @@ merge 后目标 ancestry 成立，相对目标仅剩 3 个 PATCH-001 业务/测�
 包含 baseline/环境、前端安装/typecheck/build/test/lint 与 TARGET lint 对照、root vet/build/test、relaykit、全部三库 matrix 的 JSONL 与状态、启动 migration 脚本与两轮快照、首轮失败与修正记录；均为本地持久证据，不随 push 共享。
 
 未验证项 / 阻塞：ClickHouse 日志库与审计存储（无实例，`LogExportDatabaseMatrix/clickhouse`、`IndependentAuditLogStores/clickhouse` 保持 SKIP）；`TestVLLMStatusLive`（外部服务）；上节 OWASP 两项边界仍待验证；`^TestManageUser` 的 fixture 缺口为已复现的上游既有失败（非环境阻塞）。这些缺口不因其余检查全绿而消失。
+
+### 2026-10-15：同步 14 个上游提交并复核三数据库与 rc.44 升级路径
+
+| 字段 | 记录 |
+| --- | --- |
+| 执行环境 | macOS darwin/arm64（Darwin 27.0.0），日期按 Asia/Shanghai（Git 恢复引用用 UTC 时间戳） |
+| 维护分支 / 合并前 | `fix/anthropic-consume-log-cache-tokens` / `60327b1c242f8639564eddfdf0aa213c1dd05417` |
+| 固定上游目标 | `origin/main` → `718a4e7f9751c5bf1958747cd0c2c895e2b937d4`，新增 14 个提交、71 个文件（+2603 / −323） |
+| fork fetch | `HEAD..fork/fix/anthropic-consume-log-cache-tokens` 为空，无远端独有提交 |
+| 恢复引用 | `codex/backup/anthropic-cache-2026-10-14T162034Z-upstream-718a4e7f9` → `60327b1c2` |
+| merge commit | `d199ac1fb479e6a33ea1dbe294d0ca4cb4ef0602` |
+| 后续提交 | `654f356eb`（PATCH-001 cache-only 回归用例）；本条日志为独立 docs commit |
+| 冲突 | 无文本冲突；`service/text_quota.go`、`service/text_quota_test.go` 自动合并，未修改业务实现 |
+| PATCH-001 | `adapted`；合并后 `hasBillableUsage` 取上游新版（cache-only 可计费），`PromptTokensExcludeCache` / `consumeLogPromptTokens` 保留，三库回归与新增 cache-only 用例通过 |
+| 工具 | Go 1.27.2 darwin/arm64、Bun 1.3.9、Node 26.11.1；`go.mod` 仅 `moejs alpha.6 → alpha.7`，无 GORM/driver 变化 |
+| 前端 | frozen-lockfile 安装、typecheck、真实 build（重建 `web/dist` 后再构建 root）通过；完整测试 189 文件 / 2264 用例全通过 |
+| 前端 lint | 22 个本轮变更 TS/TSX 文件 oxlint 报 2 error（2 文件）；固定 `718a4e7f9` 隔离 worktree 用同一 node_modules 复现同样 2 文件 2 error，属上游既有 lint 债 |
+| 插件 lint | 4 个变更 `plugin.js`：0 error / 2 warning |
+| root | `CGO_ENABLED=0 GOWORK=off go vet/build` 通过；全量 `go test -json ./...` 无缓存 exit 0：4907 pass、0 fail、90 个 test-level SKIP（数据库/外部服务），数据库类 SKIP 由下方 focused matrix 逐项覆盖 |
+| relaykit | 独立 `GOWORK=off` vet/build/test 通过；9 个有测试的包 539 pass、0 fail、无 test-level SKIP（另 8 个包无测试文件） |
+| 数据库 | SQLite 3.50.4（modernc.org/sqlite v1.40.1）、MySQL 8.4.11、PostgreSQL 16.14（OrbStack 一次性容器，专用可销毁库） |
+| 同步与验收状态 | 固定上游已纳入历史；PATCH-001 已验证；本轮适用检查通过（含 rc.44 升级路径、两次启动幂等与数据保留） |
+| 推送状态（文档提交前） | 用户本轮只授权合并，未授权 push；此条写入时未推送，本地 HEAD 为紧随其后的 docs commit |
+
+本轮上游增量：Vertex API Key 模式 project_id 与多区域主机名、Vidu/Hailuo/Veo 插件绑定与 Vidu 计费修正、Claude 缓存专用 usage 保留（`1b63c28dc`）、令牌 `allow_user_quota_query` 与只读令牌接口的 IP 白名单/禁用校验、定价排序、Sub2API 余额查询、请求体读取错误传播（`common/gin.go`、`middleware/utils.go` 的 413）、默认关闭敏感词过滤，以及 moejs 与第三方许可清单更新。
+
+#### 检查命令与三数据库结果
+
+前端：`bun install --frozen-lockfile`、`bun run typecheck`、`bun run build`、`bun run test`；lint 使用 `bun x --no-install oxlint -c .oxlintrc.json <本轮变更文件>`。
+后端 focused 命令统一带 `CGO_ENABLED=0 GOWORK=off` 与 `-json -count=1`：
+
+| package / `-run` | 设置与实际覆盖 | 结果 |
+| --- | --- | --- |
+| `./model` / `Test(MigrationSchemaStability\|RequestPolicyDatabaseMatrix\|InferencePresetSettingsAndDatabaseRoundTrip\|SystemTaskHistoryDatabaseMatrix\|MigratePrefillGroupUniqueness\|MigrateTokenKeyUniqueness\|UserSessionPreviousRefreshHash)` | `TEST_MYSQL_DSN`、`TEST_POSTGRES_DSN` | 62 pass / 0 fail / 0 SKIP |
+| `./service` / `Test(CalculateTextQuotaSummary\|ConsumeLogPromptTokens\|FixedPriceBillingDatabaseMatrix)` | `TEST_FIXED_{MYSQL,POSTGRES}_DSN` 及各自 `_LOG_DSN` | 114 pass / 0 fail / 0 SKIP |
+| `./controller` / `TestTokenMigrationFromChar48ToVarchar128` | `TEST_MYSQL_DSN`、`TEST_POSTGRES_DSN`；含 `allow_user_quota_query` 列断言 | 4 pass / 0 SKIP（sqlite/mysql/postgres） |
+| `./controller` / `Test(APITokenAuditDatabaseMatrix\|DeleteRedemptionBatch\|IndependentAuditLogStores\|LogExportDatabaseMatrix)` | `TEST_{MYSQL,POSTGRES}_DSN` + `_LOG_DSN`、`AUDIT_{MYSQL,POSTGRES}_DSN` | 231 pass / 0 fail / 3 SKIP（clickhouse 无实例） |
+| `./controller` / `Test(PreConsumePolicyDatabaseMatrix\|ModelPricingConversionDatabaseMatrix\|ModelManagementDatabaseMatrix\|SharedModelPluginPricingDatabaseMatrix\|VendorManagementDatabaseMatrix\|ModelDeletionDatabaseMatrix\|RequestPolicyRoutingDatabaseMatrix)` | `TEST_{MYSQL,POSTGRES}_DSN` | 335 pass / 0 fail / 0 SKIP |
+| `./controller` / `Test(SecurityLogin\|OAuthLogin\|OAuthBind\|GenerateOAuthCode\|PasskeyRPIDMigrationPreservesExistingCredentials\|AccessTokenAudit\|AccessTokenLifecycle)` | `TEST_SECURITY_DIALECT=sqlite/mysql/postgres` + 对应 `TEST_<DIALECT>_DSN` | 每方言 72 pass / 0 fail |
+| `./controller` / `Test(ExecuteTaskSubmissionHonorsRouteRetainResult\|ImmediateTaskSettlementDatabase\|TaskListsOmitPersistedSnapshot)` | `TEST_TASK_DB_DIALECT=sqlite/mysql/postgres` | 每方言 15 pass / 0 SKIP |
+
+启动 migration 幂等性（真实二进制两次启动，MySQL 与 PostgreSQL 各一轮）：首次启动 → 插入 sentinel 用户与令牌行（`remain_quota=777`）→ 第二次启动 → 对比列/索引快照。
+两库一致：`columns identical`、`indexes identical`、37 张表、sentinel 两行保留、`tokens.allow_user_quota_query` 存在。
+
+升级路径（`upgrade-from-rc44.sh`）：最新发布 tag `v1.0.0-rc.44` 即 `633b4c5b1`，用其二进制在全新库建立已发布 schema（37 张表、无 `allow_user_quota_query`），插入 sentinel 后用本轮合并二进制启动升级：
+
+| 检查 | MySQL 8.4.11 | PostgreSQL 16.14 |
+| --- | --- | --- |
+| 启动日志错误 | 无 | 无 |
+| schema 差异（列） | 仅新增 `tokens.allow_user_quota_query` `tinyint(1)`（可空、无默认） | 仅新增 `tokens.allow_user_quota_query` `boolean`（可空、无默认） |
+| schema 差异（索引） | 无 | 无 |
+| sentinel 行 | 用户 `quota=42`、令牌 `remain_quota=777` 保留 | 同上 |
+| 升级后再次启动 | 列/索引快照完全一致 | 列/索引快照完全一致 |
+
+新增列可空且无默认，升级后的既有令牌读取为 `false`（用户额度查询保持关闭），新建令牌由 `AddToken`/注册流程写入 `true`；该语义由上游 `TestTokenAllowUserQuotaQueryOnCreateAndUpdate`、`TestGetTokenUsageFollowsTheUserQuotaSwitchAndIPWhitelist` 与 token 迁移兼容测试共同固定。
+
+#### 首轮失败、纠正与复跑
+
+1. 首轮 controller 混合组（token 迁移 + 审计 + 兑换批 + 预扣费/模型管理 + `APITokenAuditDatabaseMatrix`）失败 18 项：同一 DSN 上先跑的组留下 `users/tokens/channels` 表，使要求空库的 `TestTokenMigrationFromChar48ToVarchar128*` 主动 SKIP、`TestDeleteRedemptionBatch` 报 "use an empty test database"。改为按组清理库并按组运行后全部通过（本过程不使用 `IF NOT EXISTS` 之外的绕过手段，未修改任何测试）。
+2. 审计组随后 11 项失败为 `Unknown database 'newapi_audit'`：创建该库（MySQL/PG）后 231 pass / 0 fail，仅 clickhouse 保持 SKIP。
+3. 安全矩阵首轮 mysql/postgres 各 65 fail：fixture 通过 `TEST_<DIALECT>_DSN` 取 DSN，而首轮只设了 `TEST_SECURITY_DIALECT`；补上两个 DSN 后每方言 72 pass。
+4. `TestDeleteRedemptionBatch/sqlite` 在隔离运行（`-run 'TestDeleteRedemptionBatch/sqlite'`）时失败（审计事件为 0、200 断言不成立），在固定 `718a4e7f9` 的隔离 worktree 复现完全相同的失败签名；全量套件中通过。判定为上游既有的测试隔离/全局状态依赖，非本轮合并引入，未修改该测试。
+5. 证据脚本自身两处缺陷（PostgreSQL 分支用 `0` 写 boolean 列、`key` 列未加反引号）导致首轮 sentinel 令牌未写入；修正后重跑 MySQL 与 PostgreSQL 两轮，得到上表结果。
+
+#### 认证与其他专项
+
+本轮上游改动触及只读令牌接口：`middleware/auth.go` 的 `TokenAuthReadOnly` 现在拒绝已禁用令牌、并在存在 IP 白名单时强制校验（客户端 IP 无法解析即 403，fail-closed）；`controller/token.go` 的 `GetTokenUsage` 仅在该令牌 `allow_user_quota_query` 为真时返回所属用户额度。
+两者都是服务端强制控制，未引入前端可绕过的路径；三库安全矩阵（含 OAuth login/bind、Passkey 迁移、access token 生命周期与审计）各 72 pass。
+本轮为合并上游既有实现，未新增 ASVS 控制项判定；上一轮记录的两项边界（OAuth login 缺少发起浏览器的服务端绑定、GitHub 跨用户并发认领唯一性未验证）本轮无针对性验证，状态不变，仍不作为合规结论。
+
+本轮证据：`/Users/andy/AI/GitHub/new-api/.git/maintenance-evidence/2026-10-14T162034Z-upstream-718a4e7f9/`（含 baseline 环境、root/relaykit/前端日志、全部三库 matrix 的 JSONL、首轮失败与纠正、启动 migration 与 rc.44 升级脚本与快照）。本地持久证据，不随 push 共享。
+
+未验证项 / 阻塞：ClickHouse 日志与审计存储（无实例）；`TestVLLMStatusLive`（外部服务）；上述两项 OWASP 边界。这些缺口不因其余检查全绿而消失。
 
 ### 新轮次记录模板
 
