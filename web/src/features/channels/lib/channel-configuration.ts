@@ -23,6 +23,7 @@ import {
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
   MODEL_FETCHABLE_TYPES,
   OPENAI_FIELD_PASSTHROUGH_TYPES,
+  SCHEDULED_TEST_ENDPOINT_AUTO,
 } from '../constants'
 import { CHANNEL_TYPE_ADVANCED_CUSTOM } from './advanced-custom'
 import { channelFormSchema, type ChannelFormValues } from './channel-form'
@@ -48,7 +49,13 @@ const CONFIGURATION_BLOCKS = {
   modelMapping: { section: 'routing', fields: ['model_mapping'] },
   routingStrategy: {
     section: 'routing',
-    fields: ['priority', 'weight', 'test_model', 'auto_ban'],
+    fields: [
+      'priority',
+      'weight',
+      'test_model',
+      'test_endpoint_type',
+      'auto_ban',
+    ],
   },
   overrideRules: {
     section: 'request',
@@ -144,6 +151,8 @@ export function getChannelConfigurationState(
       values.priority ||
       values.weight ||
       values.test_model?.trim() ||
+      (values.test_endpoint_type &&
+        values.test_endpoint_type !== SCHEDULED_TEST_ENDPOINT_AUTO) ||
       (values.auto_ban ?? 1) !== 1
     ),
     overrideRules:

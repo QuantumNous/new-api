@@ -468,6 +468,43 @@ export const FIELD_PLACEHOLDERS = {
   STATUS_CODE_MAPPING: '{"400": "500"}',
 } as const
 
+export const SCHEDULED_TEST_ENDPOINT_AUTO = 'auto'
+
+export const SCHEDULED_TEST_ENDPOINT_OPTIONS = [
+  { value: SCHEDULED_TEST_ENDPOINT_AUTO, label: 'Auto detect (default)' },
+  { value: 'openai', label: 'OpenAI (/v1/chat/completions)' },
+  { value: 'openai-response', label: 'OpenAI Responses (/v1/responses)' },
+  {
+    value: 'openai-response-compact',
+    label: 'OpenAI Response Compaction (/v1/responses/compact)',
+  },
+  { value: 'anthropic', label: 'Anthropic (/v1/messages)' },
+  {
+    value: 'gemini',
+    label: 'Gemini (/v1beta/models/{model}:generateContent)',
+  },
+  { value: 'jina-rerank', label: 'Jina Rerank (/v1/rerank)' },
+  {
+    value: 'image-generation',
+    label: 'Image Generation (/v1/images/generations)',
+  },
+  { value: 'embeddings', label: 'Embeddings (/v1/embeddings)' },
+] as const
+
+export type ScheduledTestEndpoint =
+  (typeof SCHEDULED_TEST_ENDPOINT_OPTIONS)[number]['value']
+
+export function normalizeScheduledTestEndpoint(
+  value: unknown
+): ScheduledTestEndpoint {
+  if (typeof value !== 'string') return SCHEDULED_TEST_ENDPOINT_AUTO
+  const trimmed = value.trim()
+  const match = SCHEDULED_TEST_ENDPOINT_OPTIONS.find(
+    (option) => option.value === trimmed
+  )
+  return match?.value ?? SCHEDULED_TEST_ENDPOINT_AUTO
+}
+
 export const FIELD_DESCRIPTIONS = {
   NAME: 'Friendly name to identify this channel',
   TYPE: 'Provider type (OpenAI, Anthropic, etc.)',
@@ -481,6 +518,8 @@ export const FIELD_DESCRIPTIONS = {
   PRIORITY: 'Higher priority channels are selected first',
   WEIGHT: 'Used for load balancing. Higher weight = more requests',
   TEST_MODEL: 'Model to use when testing channel connectivity',
+  SCHEDULED_TEST_ENDPOINT:
+    'Protocol used by scheduled channel tests. Auto detect keeps the current behavior.',
   AUTO_BAN: 'Automatically disable channel on repeated failures',
   STATUS_CODE_MAPPING: 'Map response status codes (JSON format)',
   TAG: 'Group channels by tag for batch operations',
