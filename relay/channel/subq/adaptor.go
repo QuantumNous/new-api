@@ -1,7 +1,6 @@
 package subq
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -57,13 +56,11 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 		}
 	}
 
-	state := strings.Join(systemParts, "
-")
+	state := strings.Join(systemParts, "\n")
 	if state == "" {
 		state = "General Context State"
 	}
-	prompt := strings.Join(promptParts, "
-")
+	prompt := strings.Join(promptParts, "\n")
 	if prompt == "" {
 		prompt = "Evaluate probability and criteria."
 	}
@@ -136,11 +133,19 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 
 	var raw map[string]any
-	if unmarshalErr := json.Unmarshal(responseBody, &raw); unmarshalErr != nil {
+	if unmarshalErr := common.Unmarshal(responseBody, &raw); unmarshalErr != nil {
 		return nil, types.NewError(unmarshalErr, types.ErrorCodeBadResponseBody)
 	}
 
-	evalsBytes, _ := json.Marshal(raw["evaluations"])
+	evalTarget := raw["answers"]
+	if evalTarget == nil {
+		evalTarget = raw["evaluations"]
+	}
+	if evalTarget == nil {
+		evalTarget = raw
+	}
+
+	evalsBytes, _ := common.Marshal(evalTarget)
 	var openaiResp dto.TextResponse
 	openaiResp.Id = fmt.Sprintf("subq-%d", common.GetTimestamp())
 	openaiResp.Created = common.GetTimestamp()
@@ -161,14 +166,14 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 
 	parsedUsage := &dto.Usage{}
 	if rawUsage, ok := raw["usage"]; ok && rawUsage != nil {
-		usageBytes, _ := json.Marshal(rawUsage)
-		_ = json.Unmarshal(usageBytes, parsedUsage)
+		usageBytes, _ := common.Marshal(rawUsage)
+		_ = common.Unmarshal(usageBytes, parsedUsage)
 	}
 	return parsedUsage, nil
 }
 
 func (a *Adaptor) GetModelList() []string {
-	return []string{"subq-latest", "subq-1.0"}
+	return []string{"subq-snap-preview", "subq-latest"}
 }
 
 func (a *Adaptor) GetChannelName() string {
