@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -109,6 +110,207 @@ func modelManagementRequest(t *testing.T, handler gin.HandlerFunc, method, path 
 	return recorder
 }
 
+func TestGetOptionsReturnsCoherentBillingOptionSnapshot(t *testing.T) {
+	const (
+		modelName    = "controller-option-snapshot"
+		pluginKey    = "controller-option-provider"
+		mainExpr     = `tier("main", p * 2 + c * 8)`
+		providerExpr = `tier("provider", u("image_count") * 0.03)`
+	)
+
+	previousConfig := config.GlobalConfig.ExportAllConfigs()
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(previousConfig))
+	})
+	require.NoError(t, billing_setting.UpdateBillingSettingOptions(map[string]string{
+		billing_setting.BillingModeOption:       fmt.Sprintf(`{%q:%q}`, modelName, billing_setting.BillingModeTieredExpr),
+		billing_setting.BillingExprOption:       fmt.Sprintf(`{%q:%q}`, modelName, mainExpr),
+		billing_setting.PluginBillingExprOption: fmt.Sprintf(`{%q:%q}`, billing_setting.PluginBillingExprKey(pluginKey, modelName), providerExpr),
+	}))
+	expected := billing_setting.GetBillingOptionSnapshot()
+
+	common.OptionMapRWMutex.Lock()
+	previousOptions := common.OptionMap
+	common.OptionMap = map[string]string{
+		"public-option":                         "kept",
+		"model_pricing.revision":                "41",
+		billing_setting.BillingModeOption:       `{"stale-model":"ratio"}`,
+		billing_setting.BillingExprOption:       `{"stale-model":"stale-main"}`,
+		billing_setting.PluginBillingExprOption: `{"stale-provider::stale-model":"stale-provider"}`,
+	}
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = previousOptions
+		common.OptionMapRWMutex.Unlock()
+	})
+
+	var response struct {
+		Success bool            `json:"success"`
+		Data    []*model.Option `json:"data"`
+	}
+	recorder := modelManagementRequest(t, GetOptions, http.MethodGet, "/api/option/", nil, &response)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	require.True(t, response.Success, recorder.Body.String())
+
+	values := make(map[string][]string)
+	for _, option := range response.Data {
+		values[option.Key] = append(values[option.Key], option.Value)
+	}
+	assert.Equal(t, []string{"kept"}, values["public-option"])
+	assert.NotContains(t, values, "model_pricing.revision")
+
+	for key, expectedMap := range map[string]map[string]string{
+		billing_setting.BillingModeOption:       expected.BillingMode,
+		billing_setting.BillingExprOption:       expected.BillingExpr,
+		billing_setting.PluginBillingExprOption: expected.PluginBillingExpr,
+	} {
+		require.Len(t, values[key], 1, "%s must be projected exactly once", key)
+		var actual map[string]string
+		require.NoError(t, common.UnmarshalJsonStr(values[key][0], &actual))
+		assert.Equal(t, expectedMap, actual)
+	}
+}
+
+func TestUpdateOptionBillingExpressionReadsAreBounded(t *testing.T) {
+	db := modelManagementDB(t, "sqlite", "")
+	require.NoError(t, db.AutoMigrate(&model.UpstreamPriceEvidence{}))
+	const pluginKey = "bounded-read-plugin"
+	_, err := jsplugin.DefaultRegistry.Register(`
+export const meta = {
+  apiVersion: 1, key: "bounded-read-plugin", name: "Bounded Read Plugin", version: "1.0.0", author: {name: "Test"},
+  models: [
+    "bounded-plugin-model-0", "bounded-plugin-model-1", "bounded-plugin-model-2",
+    "bounded-plugin-model-3", "bounded-plugin-model-4", "bounded-plugin-model-5",
+    "bounded-plugin-model-6", "bounded-plugin-model-7", "bounded-plugin-model-8"
+  ],
+  fetchMode: "per_task", usageSchema: {seconds: {type: "number", unit: "second"}}
+};
+export function buildSubmitRequest() { return {}; }
+export function parseSubmitResponse() { return {}; }
+export function buildQueryRequest() { return {}; }
+export function parseTaskResult() { return {}; }
+`, jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister(pluginKey) })
+	model.InitChannelCache()
+
+	var pricingReads, channelReads atomic.Int64
+	const callbackName = "count_update_option_billing_expression_reads"
+	require.NoError(t, db.Callback().Query().Before("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		switch tx.Statement.Dest.(type) {
+		case *[]model.Option:
+			pricingReads.Add(1)
+		case *[]model.Channel:
+			channelReads.Add(1)
+		}
+	}))
+	t.Cleanup(func() { require.NoError(t, db.Callback().Query().Remove(callbackName)) })
+
+	type readCounts struct {
+		pricing  int64
+		channels int64
+	}
+	saveExpressions := func(optionKey string, expressions map[string]string) readCounts {
+		t.Helper()
+		raw, err := common.Marshal(expressions)
+		require.NoError(t, err)
+		pricingReads.Store(0)
+		channelReads.Store(0)
+		var response struct{ Success bool }
+		recorder := modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{
+			Key:   optionKey,
+			Value: string(raw),
+		}, &response)
+		require.True(t, response.Success, recorder.Body.String())
+		return readCounts{pricing: pricingReads.Load(), channels: channelReads.Load()}
+	}
+
+	for _, tc := range []struct {
+		name, optionKey, validExpression, invalidExpression, modelPrefix string
+		entryKey                                                         func(string) string
+	}{
+		{
+			name:              "main",
+			optionKey:         "billing_setting.billing_expr",
+			validExpression:   `tier("base", p * 1 + c * 2)`,
+			invalidExpression: `tier("base",`,
+			modelPrefix:       "bounded-read-model-",
+			entryKey:          func(modelName string) string { return modelName },
+		},
+		{
+			name:              "plugin",
+			optionKey:         billing_setting.PluginBillingExprOption,
+			validExpression:   `tier("task", u("seconds") * 1)`,
+			invalidExpression: `tier("task", u("missing") * 1)`,
+			modelPrefix:       "bounded-plugin-model-",
+			entryKey: func(modelName string) string {
+				return billing_setting.PluginBillingExprKey(pluginKey, modelName)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			singleExpressions := map[string]string{
+				tc.entryKey(tc.modelPrefix + "0"): tc.validExpression,
+			}
+			single := saveExpressions(tc.optionKey, singleExpressions)
+			manyExpressions := make(map[string]string)
+			for i := range 8 {
+				manyExpressions[tc.entryKey(fmt.Sprintf("%s%d", tc.modelPrefix, i))] = tc.validExpression
+			}
+			many := saveExpressions(tc.optionKey, manyExpressions)
+			t.Logf("pricing/channel reads: one entry=%d/%d, eight entries=%d/%d",
+				single.pricing, single.channels, many.pricing, many.channels)
+			assert.Equal(t, single.pricing, many.pricing, "pricing-map reads must not grow with request entries")
+			assert.Equal(t, single.channels, many.channels, "enabled-channel reads must not grow with request entries")
+
+			var before model.Option
+			require.NoError(t, db.Where("key = ?", tc.optionKey).First(&before).Error)
+			invalidExpressions := maps.Clone(manyExpressions)
+			invalidModel := tc.modelPrefix + "8"
+			invalidExpressions[tc.entryKey(invalidModel)] = tc.invalidExpression
+			raw, err := common.Marshal(invalidExpressions)
+			require.NoError(t, err)
+			pricingReads.Store(0)
+			channelReads.Store(0)
+			var response struct{ Success bool }
+			recorder := modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{
+				Key:   tc.optionKey,
+				Value: string(raw),
+			}, &response)
+			assert.False(t, response.Success, recorder.Body.String())
+			assert.Contains(t, recorder.Body.String(), invalidModel)
+			assert.EqualValues(t, 1, pricingReads.Load(), "semantic validation must use one pricing-map read")
+			assert.EqualValues(t, 1, channelReads.Load(), "semantic validation must use one enabled-channel read")
+			var after model.Option
+			require.NoError(t, db.Where("key = ?", tc.optionKey).First(&after).Error)
+			assert.Equal(t, before.Value, after.Value, "invalid expressions must not be persisted")
+		})
+	}
+
+	for _, tc := range []struct {
+		name, optionKey, value, message string
+	}{
+		{"main shape", "billing_setting.billing_expr", `[]`, "JSON"},
+		{"plugin shape", billing_setting.PluginBillingExprOption, `[]`, "JSON object"},
+		{"plugin key", billing_setting.PluginBillingExprOption, `{"invalid-key":"1"}`, "invalid plugin billing expression key"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pricingReads.Store(0)
+			channelReads.Store(0)
+			var response struct{ Success bool }
+			recorder := modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{
+				Key:   tc.optionKey,
+				Value: tc.value,
+			}, &response)
+			assert.False(t, response.Success, recorder.Body.String())
+			assert.Contains(t, recorder.Body.String(), tc.message)
+			assert.Zero(t, pricingReads.Load(), "controller diagnostics must reject before pricing reads")
+			assert.Zero(t, channelReads.Load(), "controller diagnostics must reject before channel reads")
+		})
+	}
+}
+
 func TestModelPricingConversionDatabaseMatrix(t *testing.T) {
 	previousQuota := common.QuotaPerUnit
 	common.QuotaPerUnit = 500000
@@ -170,7 +372,8 @@ func TestModelPricingConversionDatabaseMatrix(t *testing.T) {
 				{"conversion-fixed", model.PricingValues{"ModelPrice": float64(0.25), "ModelRatio": float64(7)}, `tier("request", fixed(0.25))`, ""},
 				{"gpt-4o-2024-05-13", model.PricingValues{"ModelRatio": float64(2), "CompletionRatio": float64(99)}, `tier("base", p * 4 + c * 12)`, ""},
 				{"gpt-image-2", model.PricingValues{"ModelPrice": float64(1)}, `tier("image", fixed(1)) * image_count`, ""},
-				{"qwen-image-3.0-pro", model.PricingValues{"ModelPrice": float64(1)}, `tier("image", fixed(1)) * image_count`, ""},
+				// Bailian image models are served by the alibaba task plugin, so their pricing is a task usage expression.
+				{"qwen-image-3.0-pro", model.PricingValues{"ModelPrice": float64(1)}, "", "Task pricing must be converted manually using the task usage schema."},
 				{"wan2.7-image-pro", model.PricingValues{"ModelPrice": float64(1)}, "", "Task pricing must be converted manually using the task usage schema."},
 				{"video-summarizer", model.PricingValues{"ModelPrice": float64(1)}, `tier("request", fixed(1))`, ""},
 				{"sora-transcript-helper", model.PricingValues{"ModelPrice": float64(1)}, `tier("request", fixed(1))`, ""},
@@ -363,14 +566,14 @@ func TestModelPricingConversionDatabaseMatrix(t *testing.T) {
 				aliConversion, err := model.PreviewModelPricingConversion(aliName, model.PricingValues{"ModelPrice": 0.04})
 				require.NoError(t, err)
 				require.Empty(t, aliConversion.UnsupportedReason)
+				// Ali image billing lives in the alibaba task plugin, where prompt_extend is a
+				// usage fact; the legacy conversion no longer adds a per-channel request multiplier.
+				assert.Equal(t, `tier("image", fixed(0.04)) * image_count`, aliConversion.Expression)
+				assert.Empty(t, aliConversion.BillingDetails.RequestRules)
 				quantity := 3
 				aliCost, _, err := billingexpr.RunExprWithRequest(aliConversion.Expression, billingexpr.TokenParams{}, billingexpr.RequestInput{ImageCount: &quantity, Body: []byte(`{"parameters":{"prompt_extend":true}}`)})
 				require.NoError(t, err)
-				assert.Equal(t, 240000.0, aliCost)
-				require.NoError(t, (&model.Channel{Name: "Different image rules", Models: aliName, Type: 1, Status: common.ChannelStatusEnabled}).Insert())
-				conflicting, err = model.PreviewModelPricingConversion(aliName, model.PricingValues{"ModelPrice": 0.04})
-				require.NoError(t, err)
-				assert.Contains(t, conflicting.UnsupportedReason, "different image request multipliers")
+				assert.Equal(t, 120000.0, aliCost)
 				for _, tc := range []struct {
 					name    string
 					pricing model.PricingValues
@@ -1495,6 +1698,122 @@ func TestModelDeletionDatabaseMatrix(t *testing.T) {
 					assert.Zero(t, count)
 				})
 			}
+			t.Run("pricing_removal_clears_canonical_aliases_and_runtime", func(t *testing.T) {
+				const (
+					name       = "gpt-4-gizmo-delete-alias"
+					canonical  = "gpt-4-gizmo-*"
+					keep       = "gpt-4-gizmo-delete-keep"
+					pluginKey  = "delete-pricing-probe"
+					expression = `tier("base", p * 2 + c * 4)`
+				)
+				metadata := model.Model{ModelName: name, NameRule: model.NameRuleExact, Status: 1}
+				require.NoError(t, metadata.Insert())
+				baseline, err := model.GetModelPricingSnapshot([]string{name})
+				require.NoError(t, err)
+				require.NoError(t, model.UpdateModelPricing([]model.ModelPricingChange{{
+					ModelName:       name,
+					ExpectedVersion: baseline.Entries[0].Version,
+					Pricing: model.PricingValues{
+						"ModelPrice":                   0.25,
+						"ModelRatio":                   21.0,
+						"CompletionRatio":              4.0,
+						"CacheRatio":                   0.2,
+						"CreateCacheRatio":             1.5,
+						"ImageRatio":                   3.0,
+						"AudioRatio":                   5.0,
+						"AudioCompletionRatio":         6.0,
+						"billing_setting.billing_mode": "tiered_expr",
+						"billing_setting.billing_expr": expression,
+					},
+				}}))
+
+				legacyKeys := []string{"ModelPrice", "ModelRatio", "CompletionRatio", "AudioRatio", "AudioCompletionRatio"}
+				legacyKeySet := make(map[string]bool, len(legacyKeys))
+				for _, key := range legacyKeys {
+					legacyKeySet[key] = true
+				}
+				exactKeys := []string{"CacheRatio", "CreateCacheRatio", "ImageRatio", "billing_setting.billing_mode", "billing_setting.billing_expr"}
+				allKeys := append([]string{}, legacyKeys...)
+				allKeys = append(allKeys, exactKeys...)
+				allKeys = append(allKeys, billing_setting.PluginBillingExprOption)
+				seededOptions := make(map[string]string)
+				for _, key := range allKeys {
+					var option model.Option
+					require.NoError(t, db.Where("key = ?", key).First(&option).Error)
+					var entries map[string]any
+					require.NoError(t, common.UnmarshalJsonStr(option.Value, &entries))
+					switch {
+					case key == billing_setting.PluginBillingExprOption:
+						entries[billing_setting.PluginBillingExprKey(pluginKey, name)] = `tier("target", u("seconds") * 1)`
+						entries[billing_setting.PluginBillingExprKey(pluginKey, keep)] = `tier("keep", u("seconds") * 2)`
+					case key == "CacheRatio":
+						entries[canonical] = 0.9
+					case legacyKeySet[key]:
+						entries[name] = entries[canonical]
+					}
+					raw, err := common.Marshal(entries)
+					require.NoError(t, err)
+					require.NoError(t, db.Model(&model.Option{}).Where("key = ?", key).Update("value", string(raw)).Error)
+					seededOptions[key] = string(raw)
+				}
+				require.NoError(t, config.GlobalConfig.LoadFromDB(seededOptions))
+				assert.Contains(t, ratio_setting.GetModelRatioCopy(), canonical)
+				_, hasPlugin := billing_setting.GetPluginBillingExpr(pluginKey, name)
+				assert.True(t, hasPlugin)
+
+				before, err := model.GetModelPricingSnapshot([]string{name})
+				require.NoError(t, err)
+				require.NotEqual(t, before.EmptyVersion, before.Entries[0].Version)
+				result, err := model.DeleteModelMetadata([]int{metadata.Id}, false, true)
+				require.NoError(t, err)
+				assert.Equal(t, model.ModelDeleteResult{DeletedCount: 1}, result)
+
+				after, err := model.GetModelPricingSnapshot([]string{name})
+				require.NoError(t, err)
+				assert.Empty(t, after.Entries[0].Configured)
+				assert.Equal(t, after.EmptyVersion, after.Entries[0].Version)
+				assert.NotEqual(t, before.Entries[0].Version, after.Entries[0].Version)
+
+				for _, key := range allKeys {
+					var option model.Option
+					require.NoError(t, db.Where("key = ?", key).First(&option).Error)
+					var entries map[string]any
+					require.NoError(t, common.UnmarshalJsonStr(option.Value, &entries))
+					assert.NotContains(t, entries, name, key)
+					if legacyKeySet[key] {
+						assert.NotContains(t, entries, canonical, key)
+					}
+					if key == "CacheRatio" {
+						assert.Equal(t, 0.9, entries[canonical], "non-legacy keys remove only the literal model")
+					}
+					if key == billing_setting.PluginBillingExprOption {
+						assert.NotContains(t, entries, billing_setting.PluginBillingExprKey(pluginKey, name))
+						assert.Contains(t, entries, billing_setting.PluginBillingExprKey(pluginKey, keep))
+					}
+				}
+				for key, entries := range map[string]map[string]float64{
+					"ModelPrice":           ratio_setting.GetModelPriceCopy(),
+					"ModelRatio":           ratio_setting.GetModelRatioCopy(),
+					"CompletionRatio":      ratio_setting.GetCompletionRatioCopy(),
+					"AudioRatio":           ratio_setting.GetAudioRatioCopy(),
+					"AudioCompletionRatio": ratio_setting.GetAudioCompletionRatioCopy(),
+					"CacheRatio":           ratio_setting.GetCacheRatioCopy(),
+					"CreateCacheRatio":     ratio_setting.GetCreateCacheRatioCopy(),
+					"ImageRatio":           ratio_setting.GetImageRatioCopy(),
+				} {
+					assert.NotContains(t, entries, name, key)
+					if legacyKeySet[key] {
+						assert.NotContains(t, entries, canonical, key)
+					}
+				}
+				assert.Equal(t, billing_setting.BillingModeRatio, billing_setting.GetBillingMode(name))
+				_, hasExpression := billing_setting.GetBillingExpr(name)
+				assert.False(t, hasExpression)
+				_, hasPlugin = billing_setting.GetPluginBillingExpr(pluginKey, name)
+				assert.False(t, hasPlugin)
+				_, keepPlugin := billing_setting.GetPluginBillingExpr(pluginKey, keep)
+				assert.True(t, keepPlugin)
+			})
 			for _, ids := range [][]int{nil, {0}, {-1}, make([]int, 1001)} {
 				_, err := model.DeleteModelMetadata(ids, true, false)
 				assert.Error(t, err)
@@ -1604,7 +1923,7 @@ func TestSharedModelPluginPricingDatabaseMatrix(t *testing.T) {
 			final, err := model.GetModelPricingSnapshot([]string{name})
 			require.NoError(t, err)
 			assert.Equal(t, variant, final.Entries[0].PluginVariants[1].Effective)
-			// A provider may disappear without making every legacy price save fail.
+			// One provider may disappear while the main remains valid for another.
 			require.NoError(t, jsplugin.DefaultRegistry.Unregister("matrix-beta"))
 			stale, err := model.GetModelPricingSnapshot([]string{name})
 			require.NoError(t, err)
@@ -1616,6 +1935,8 @@ func TestSharedModelPluginPricingDatabaseMatrix(t *testing.T) {
 			require.NoError(t, err)
 			ratioJSON, err := common.Marshal(map[string]float64{name: 2})
 			require.NoError(t, err)
+			// Legacy whole-map updates validate only changed fields, so a
+			// non-main ratio update and an unchanged expression map still work.
 			response = modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{Key: "ModelRatio", Value: string(ratioJSON)}, nil)
 			assert.Contains(t, response.Body.String(), `"success":true`)
 			response = modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{Key: "billing_setting.billing_expr", Value: string(baseJSON)}, nil)
@@ -1623,7 +1944,6 @@ func TestSharedModelPluginPricingDatabaseMatrix(t *testing.T) {
 			final, err = model.GetModelPricingSnapshot([]string{name})
 			require.NoError(t, err)
 			assert.Equal(t, variant, final.Entries[0].PluginVariants[1].Configured)
-			// The versioned save also preserves an unchanged stale expression.
 			change = model.ModelPricingChange{ModelName: name, ExpectedVersion: final.Entries[0].Version, Pricing: final.Entries[0].Configured}
 			require.NoError(t, model.UpdateModelPricing([]model.ModelPricingChange{change}))
 			change.Pricing[billing_setting.PluginBillingExprOption] = map[string]any{"matrix-beta": "1"}
@@ -1650,7 +1970,18 @@ export function parseTaskResult(){return {};}
 			require.Len(t, stale.Entries[0].PluginVariants, 1)
 			assert.True(t, stale.Entries[0].PluginVariants[0].Stale)
 			assert.Equal(t, "Beta updated", stale.Entries[0].PluginVariants[0].PluginName)
+			// With every provider gone, a versioned full-draft save must reject
+			// the unchanged usage-based main expression.
+			change = model.ModelPricingChange{ModelName: name, ExpectedVersion: stale.Entries[0].Version, Pricing: stale.Entries[0].Configured}
+			require.ErrorContains(t, model.UpdateModelPricing([]model.ModelPricingChange{change}), "no task plugin usage schema")
+			// An unrelated model can still be added without revalidating this
+			// unchanged stale model from the same whole-map option.
+			ratioJSON, err = common.Marshal(map[string]float64{name: 2, "unrelated-ratio-model": 3})
+			require.NoError(t, err)
 			require.NoError(t, model.UpdateModelPricingOptions(map[string]string{"ModelRatio": string(ratioJSON)}))
+			unrelatedPricing, err := model.GetModelPricingSnapshot([]string{"unrelated-ratio-model"})
+			require.NoError(t, err)
+			assert.Equal(t, 3.0, unrelatedPricing.Entries[0].Configured["ModelRatio"])
 			// Removing just the stale override succeeds and leaves other prices.
 			response = modelManagementRequest(t, UpdateOption, http.MethodPut, "/api/option/", OptionUpdateRequest{Key: billing_setting.PluginBillingExprOption, Value: `{}`}, nil)
 			assert.Contains(t, response.Body.String(), `"success":true`)
@@ -1664,6 +1995,113 @@ export function parseTaskResult(){return {};}
 			require.NoError(t, err)
 			assert.Empty(t, final.Entries[0].Configured)
 			assert.Equal(t, "{}", final.Options[billing_setting.PluginBillingExprOption])
+		})
+	}
+}
+
+func TestModelPricingAliasPluginVariantUpdateEndpoint(t *testing.T) {
+	const (
+		alias       = "controller-alias-variant"
+		canonical   = "controller-canonical-variant"
+		pluginKey   = "controller-alias-plugin"
+		mainExpr    = `tier("request", fixed(0.01))`
+		variantExpr = `tier("task", u("seconds") * 1)`
+	)
+	for _, dialect := range []struct{ kind, env string }{{"sqlite", ""}, {"mysql", "TEST_MYSQL_DSN"}, {"postgres", "TEST_POSTGRES_DSN"}} {
+		t.Run(dialect.kind, func(t *testing.T) {
+			if dialect.env != "" && os.Getenv(dialect.env) == "" {
+				t.Skip("set " + dialect.env + " to run this database")
+			}
+			db := modelManagementDB(t, dialect.kind, os.Getenv(dialect.env))
+			require.NoError(t, db.AutoMigrate(&model.UpstreamPriceEvidence{}))
+			source := fmt.Sprintf(`
+export const meta = {
+  apiVersion: 1, key: %q, name: %q, version: "1.0.0", author: {name: "Test"},
+  models: [%q], fetchMode: "per_task",
+  usageSchema: {credits: {type: "number", unit: "credit"}},
+  usageProfiles: [{
+    models: [%q],
+    schema: {seconds: {type: "number", unit: "second"}}
+  }]
+};
+export function buildSubmitRequest() { return {}; }
+export function parseSubmitResponse() { return {}; }
+export function buildQueryRequest() { return {}; }
+export function parseTaskResult() { return {}; }
+`, pluginKey, pluginKey, canonical, canonical)
+			_, err := jsplugin.DefaultRegistry.Register(source, jsplugin.Options{})
+			require.NoError(t, err)
+			t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister(pluginKey) })
+
+			mapping := fmt.Sprintf(`{%q:%q}`, alias, canonical)
+			require.NoError(t, db.Create(&model.Channel{
+				Status: common.ChannelStatusEnabled, Name: "controller alias variant",
+				Models: alias, ModelMapping: &mapping,
+			}).Error)
+			initial, err := model.GetModelPricingSnapshot([]string{alias})
+			require.NoError(t, err)
+			pricing := model.PricingValues{
+				"billing_setting.billing_mode":          billing_setting.BillingModeTieredExpr,
+				"billing_setting.billing_expr":          mainExpr,
+				billing_setting.PluginBillingExprOption: map[string]any{pluginKey: variantExpr},
+			}
+			var response struct {
+				Success bool   `json:"success"`
+				Message string `json:"message"`
+				Data    struct {
+					UpdatedModels []string `json:"updated_models"`
+				} `json:"data"`
+			}
+			mixedCaseAlias := strings.ToUpper(alias)
+			target, resolved := model.ResolveTaskModelAlias(jsplugin.DefaultRegistry.Generation(), mixedCaseAlias)
+			require.True(t, resolved, "task routing retains ASCII-folded alias resolution")
+			assert.Equal(t, alias, target.Alias)
+			modelManagementRequest(t, PreviewModelPricing, http.MethodPost, "/api/option/model_pricing/preview", map[string]any{
+				"model_name": mixedCaseAlias,
+				"pricing":    pricing,
+			}, &response)
+			assert.False(t, response.Success)
+			assert.Contains(t, response.Message, "must use canonical alias spelling "+strconv.Quote(alias))
+
+			response = struct {
+				Success bool   `json:"success"`
+				Message string `json:"message"`
+				Data    struct {
+					UpdatedModels []string `json:"updated_models"`
+				} `json:"data"`
+			}{}
+			recorder := modelManagementRequest(t, UpdateModelPricingConfig, http.MethodPatch, "/api/option/model_pricing", map[string]any{
+				"changes": []any{map[string]any{
+					"model_name":       mixedCaseAlias,
+					"expected_version": initial.Entries[0].Version,
+					"pricing":          pricing,
+				}},
+			}, &response)
+			assert.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+			assert.False(t, response.Success)
+			assert.Contains(t, response.Message, "must use canonical alias spelling "+strconv.Quote(alias))
+
+			response = struct {
+				Success bool   `json:"success"`
+				Message string `json:"message"`
+				Data    struct {
+					UpdatedModels []string `json:"updated_models"`
+				} `json:"data"`
+			}{}
+			recorder = modelManagementRequest(t, UpdateModelPricingConfig, http.MethodPatch, "/api/option/model_pricing", map[string]any{
+				"changes": []any{map[string]any{
+					"model_name":       alias,
+					"expected_version": initial.Entries[0].Version,
+					"pricing":          pricing,
+				}},
+			}, &response)
+			require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+			require.True(t, response.Success, response.Message)
+			assert.Equal(t, []string{alias}, response.Data.UpdatedModels)
+
+			saved, err := model.GetModelPricingSnapshot([]string{alias})
+			require.NoError(t, err)
+			assert.Equal(t, pricing, saved.Entries[0].Configured)
 		})
 	}
 }

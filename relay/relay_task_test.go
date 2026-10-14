@@ -1,10 +1,13 @@
 package relay
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -324,31 +327,209 @@ export function extractUsage(){return {old_units:2};}
 	}
 }
 
+func TestRelayTaskSubmitCanonicalizesMappedBillingIdentityOnly(t *testing.T) {
+	const (
+		alias        = "r4-case-alias"
+		canonical    = "R4-MixedCase-Target"
+		rawMapped    = "r4-mixedcase-target"
+		pluginKey    = "r4-case-provider"
+		mainExpr     = `tier("main", u("seconds") * 2)`
+		providerExpr = `tier("provider", u("seconds") * 3)`
+		incompatible = `true ? tier("selected", u("seconds") * 2) : tier("missing", u("credits"))`
+	)
+	for _, test := range []struct {
+		name           string
+		variants       map[string]string
+		wantExpr       string
+		wantPriceError bool
+	}{
+		{
+			name: "canonical provider override",
+			variants: map[string]string{
+				billing_setting.PluginBillingExprKey(pluginKey, canonical): providerExpr,
+			},
+			wantExpr: providerExpr,
+		},
+		{
+			name:     "canonical main fallback",
+			variants: map[string]string{},
+			wantExpr: mainExpr,
+		},
+		{
+			name: "canonical shared schema rejects incompatible override",
+			variants: map[string]string{
+				billing_setting.PluginBillingExprKey(pluginKey, canonical): incompatible,
+			},
+			wantExpr:       incompatible,
+			wantPriceError: true,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			database := setupRelayChannelDB(t)
+			require.NoError(t, database.AutoMigrate(&model.Option{}))
+			saveBillingConfig(t)
+
+			source := fmt.Sprintf(`
+export const meta = {
+  apiVersion: 1, key: %q, name: %q, version: "1.0.0", author: {name: "Test"},
+  models: [%q], fetchMode: "per_task",
+  usageSchema: {seconds: {type: "number", unit: "second"}}
+};
+export function buildSubmitRequest(ctx) {
+  return {url: ctx.baseUrl+"/submit", method:"POST", body:{model:ctx.model, upstreamModel:ctx.upstreamModel}, action:"text_to_video"};
+}
+export function parseSubmitResponse() { return {taskId:"r4-case-task"}; }
+export function buildQueryRequest() { return {url:"https://provider.example"}; }
+export function parseTaskResult() { return {status:"SUCCESS"}; }
+export function extractUsage() { return {seconds:2}; }
+`, pluginKey, pluginKey, canonical)
+			plugin, err := pluginruntime.DefaultRegistry.Register(source, pluginruntime.Options{})
+			require.NoError(t, err)
+			t.Cleanup(func() { pluginruntime.DefaultRegistry.Unregister(pluginKey) })
+			const secondaryPluginKey = "r4-case-secondary"
+			secondarySource := fmt.Sprintf(`
+export const meta = {
+  apiVersion: 1, key: %q, name: %q, version: "1.0.0", author: {name: "Test"},
+  models: [%q], fetchMode: "per_task",
+  usageSchema: {credits: {type: "number", unit: "credit"}}
+};
+export function buildSubmitRequest() { return {}; }
+export function parseSubmitResponse() { return {}; }
+export function buildQueryRequest() { return {}; }
+export function parseTaskResult() { return {}; }
+`, secondaryPluginKey, secondaryPluginKey, canonical)
+			_, err = pluginruntime.DefaultRegistry.Register(secondarySource, pluginruntime.Options{})
+			require.NoError(t, err)
+			t.Cleanup(func() { pluginruntime.DefaultRegistry.Unregister(secondaryPluginKey) })
+
+			mapping := fmt.Sprintf(`{%q:%q}`, alias, rawMapped)
+			require.NoError(t, database.Create(&model.Channel{
+				Status: common.ChannelStatusEnabled, Name: "R4 case alias",
+				Models: alias, ModelMapping: &mapping,
+			}).Error)
+			modes, err := common.Marshal(map[string]string{canonical: billing_setting.BillingModeTieredExpr})
+			require.NoError(t, err)
+			expressions, err := common.Marshal(map[string]string{canonical: mainExpr})
+			require.NoError(t, err)
+			rawVariants, err := common.Marshal(test.variants)
+			require.NoError(t, err)
+			for _, row := range []model.Option{
+				{Key: "billing_setting.billing_mode", Value: string(modes)},
+				{Key: "billing_setting.billing_expr", Value: string(expressions)},
+				{Key: billing_setting.PluginBillingExprOption, Value: string(rawVariants)},
+			} {
+				require.NoError(t, database.Create(&row).Error)
+			}
+			require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+				"billing_setting.billing_mode":          string(modes),
+				"billing_setting.billing_expr":          string(expressions),
+				billing_setting.PluginBillingExprOption: string(rawVariants),
+			}))
+			model.InitChannelCache()
+
+			snapshot, err := model.GetModelPricingSnapshot([]string{alias})
+			require.NoError(t, err)
+			require.Len(t, snapshot.Entries, 1)
+			require.Len(t, snapshot.Entries[0].PluginVariants, 2)
+			var variant model.ModelPricingPluginVariant
+			for _, candidate := range snapshot.Entries[0].PluginVariants {
+				if candidate.PluginKey == pluginKey {
+					variant = candidate
+				}
+			}
+			assert.Equal(t, pluginKey, variant.PluginKey)
+			assert.Empty(t, variant.Configured)
+			assert.Equal(t, test.wantExpr, variant.Effective)
+			assert.Equal(t, !test.wantPriceError, variant.Compatible)
+
+			type capturedRequest struct {
+				body map[string]any
+				err  error
+			}
+			requestBody := make(chan capturedRequest, 1)
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+				var body map[string]any
+				decodeErr := common.DecodeJson(request.Body, &body)
+				requestBody <- capturedRequest{body: body, err: decodeErr}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"id":"r4-case-task"}`))
+			}))
+			defer server.Close()
+
+			c, info := newTaskSubmitContext(t, alias, mapping)
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, server.URL)
+			c.Set("group", "default")
+			c.Set("task_plugin_key", pluginKey)
+			c.Set(pluginruntime.ContextKeyPinnedPlugin, pluginruntime.PinnedPlugin{
+				Generation: pluginruntime.DefaultRegistry.Generation(),
+				Plugin:     plugin,
+			})
+			info.UserGroup, info.UsingGroup = "default", "default"
+			info.OriginModelName = alias
+			info.Billing = &imageReservation{limit: 1 << 30}
+
+			result, taskErr := RelayTaskSubmit(c, info)
+			if test.wantPriceError {
+				require.NotNil(t, taskErr)
+				assert.Equal(t, "model_price_error", taskErr.Code)
+				assert.Nil(t, result)
+				assert.Nil(t, info.TieredBillingSnapshot)
+				assert.Equal(t, rawMapped, info.UpstreamModelName)
+				select {
+				case <-requestBody:
+					assert.Fail(t, "incompatible pricing must be rejected before outbound")
+				default:
+				}
+				return
+			}
+			require.Nil(t, taskErr, "submission error: %+v", taskErr)
+			require.NotNil(t, result)
+			require.NotNil(t, info.TieredBillingSnapshot)
+			assert.Equal(t, test.wantExpr, info.TieredBillingSnapshot.ExprString)
+			assert.Equal(t, rawMapped, info.UpstreamModelName)
+			captured := <-requestBody
+			require.NoError(t, captured.err)
+			assert.Equal(t, map[string]any{
+				"model":         alias,
+				"upstreamModel": rawMapped,
+			}, captured.body)
+		})
+	}
+}
+
 func TestSharedTaskBillingExpressionSelectionAndFrozenSettlement(t *testing.T) {
 	const baseExpr = `tier("base", u("seconds") * 2)`
 	const alphaExpr = `tier("alpha", u("seconds") * 3)`
 	const betaExpr = `tier("beta", u("credits") * 5)`
 	const aliasExpr = `tier("alias", u("credits") * 7)`
+	const frozenExpr = `v2:unix() == 100 ? tier("frozen", u("seconds") * 3) : tier("wall_clock", u("seconds") * 30)`
 	for _, tc := range []struct {
-		name, plugin, model, mapping, modelExpr, mode, wantExpr string
-		variants                                                map[string]string
-		wantPriceError                                          bool
+		name, plugin, model, mapping, modelExpr, mode, wantExpr, wantTier string
+		variants                                                          map[string]string
+		wantPriceError, profiled                                          bool
 	}{
 		{name: "executing plugin override", plugin: "billing-beta", model: "declared-model", modelExpr: baseExpr, mode: "tiered_expr", variants: map[string]string{"billing-alpha::declared-model": alphaExpr, "billing-beta::declared-model": betaExpr}, wantExpr: betaExpr},
 		{name: "override ignores model mode", plugin: "billing-beta", model: "declared-model", modelExpr: baseExpr, mode: "ratio", variants: map[string]string{"billing-beta::declared-model": betaExpr}, wantExpr: betaExpr},
 		{name: "model expression fallback", plugin: "billing-alpha", model: "declared-model", modelExpr: baseExpr, mode: "tiered_expr", wantExpr: baseExpr},
+		{name: "frozen v2 time reaches settlement", plugin: "billing-alpha", model: "declared-model", modelExpr: baseExpr, mode: "tiered_expr", variants: map[string]string{"billing-alpha::declared-model": frozenExpr}, wantExpr: frozenExpr, wantTier: "frozen"},
 		{name: "alias override precedes mapped override", plugin: "billing-beta", model: "alias-model", mapping: `{"alias-model":"declared-model"}`, modelExpr: baseExpr, mode: "tiered_expr", variants: map[string]string{"billing-beta::declared-model": betaExpr, "billing-beta::alias-model": aliasExpr}, wantExpr: aliasExpr},
 		{name: "mapped override precedes model fallback", plugin: "billing-beta", model: "alias-model", mapping: `{"alias-model":"declared-model"}`, modelExpr: baseExpr, mode: "tiered_expr", variants: map[string]string{"billing-beta::declared-model": betaExpr}, wantExpr: betaExpr},
 		{name: "unconfigured plugin cannot use another schema", plugin: "billing-beta", model: "declared-model", modelExpr: baseExpr, mode: "tiered_expr", wantPriceError: true},
 		{name: "missing usage in skipped branch remains incompatible", plugin: "billing-beta", model: "declared-model", modelExpr: `true ? tier("free", 0) : tier("missing", u("seconds"))`, mode: "tiered_expr", wantPriceError: true},
 		{name: "fixed pricing is still rejected", plugin: "billing-beta", model: "declared-model", variants: map[string]string{"billing-beta::declared-model": `tier("fixed", fixed(1))`}, wantPriceError: true},
+		{name: "endpoint mapping keeps the declared profile", plugin: "billing-beta", model: "declared-model", mapping: `{"declared-model":"ep-endpoint"}`, modelExpr: baseExpr, mode: "tiered_expr", variants: map[string]string{"billing-beta::declared-model": betaExpr}, wantExpr: betaExpr, profiled: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			saveBillingConfig(t)
 			registry := pluginruntime.NewRegistry()
 			for _, spec := range []struct{ key, field, unit string }{{"billing-alpha", "seconds", "second"}, {"billing-beta", "credits", "credit"}} {
 				source := strings.ReplaceAll(billingFallbackPlugin, "bill-fallback", spec.key)
-				source = strings.Replace(source, `fetchMode:"per_task"`, `fetchMode:"per_task",usageSchema:{`+spec.field+`:{type:"number",unit:"`+spec.unit+`"}}`, 1)
+				schema := `usageSchema:{` + spec.field + `:{type:"number",unit:"` + spec.unit + `"}}`
+				if tc.profiled && spec.key == "billing-beta" {
+					// The endpoint ID is undeclared, so only the declared model's profile carries this schema.
+					schema = `usageSchema:{seconds:{type:"number",unit:"second"}},usageProfiles:[{models:["declared-model"],schema:{` + spec.field + `:{type:"number",unit:"` + spec.unit + `"}}}]`
+				}
+				source = strings.Replace(source, `fetchMode:"per_task"`, `fetchMode:"per_task",`+schema, 1)
 				source += `export function extractUsage(){return {` + spec.field + `:2};}`
 				_, err := registry.Register(source, pluginruntime.Options{})
 				require.NoError(t, err)
@@ -372,6 +553,7 @@ func TestSharedTaskBillingExpressionSelectionAndFrozenSettlement(t *testing.T) {
 			info.UserGroup = "default"
 			info.UsingGroup = "default"
 			info.OriginModelName = tc.model
+			info.StartTime = time.Unix(100, 123)
 			plugin, ok := registry.Generation().Get(tc.plugin)
 			require.True(t, ok)
 			c.Set(pluginruntime.ContextKeyPinnedPlugin, pluginruntime.PinnedPlugin{Generation: registry.Generation(), Plugin: plugin})
@@ -384,6 +566,10 @@ func TestSharedTaskBillingExpressionSelectionAndFrozenSettlement(t *testing.T) {
 			}
 			require.NotNil(t, info.TieredBillingSnapshot, "submission error: %+v", taskErr)
 			assert.Equal(t, tc.wantExpr, info.TieredBillingSnapshot.ExprString)
+			assert.Equal(t, int64(100), info.TieredBillingSnapshot.PricingTimeUnix)
+			if tc.wantTier != "" {
+				assert.Equal(t, tc.wantTier, info.TieredBillingSnapshot.EstimatedTier)
+			}
 			assert.NotEqual(t, "model_price_error", taskErr.Code)
 			require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{billing_setting.PluginBillingExprOption: `{}`, "billing_setting.billing_expr": `{}`}))
 			field := "seconds"
@@ -396,6 +582,70 @@ func TestSharedTaskBillingExpressionSelectionAndFrozenSettlement(t *testing.T) {
 			assert.Equal(t, float64(2), info.TieredBillingSnapshot.UsageFacts[field])
 			assert.Equal(t, 2*info.TieredBillingSnapshot.EstimatedQuotaAfterGroup, result.ActualQuotaAfterGroup)
 			assert.Equal(t, tc.wantExpr, info.TieredBillingSnapshot.ExprString)
+			if tc.wantTier != "" {
+				assert.Equal(t, tc.wantTier, result.MatchedTier)
+			}
+		})
+	}
+}
+
+// Issue #7478: task APIs answer 201 Created or 202 Accepted on submission.
+// Every 2xx must reach parseSubmitResponse; only other statuses are upstream
+// failures that keep the upstream status and body.
+func TestRelayTaskSubmitAcceptsAnySuccessfulUpstreamStatus(t *testing.T) {
+	service.InitHttpClient()
+	const source = `
+export const meta = {apiVersion:1,key:"status-echo",name:"Status Echo",version:"1.0.0",author:{name:"Test"},models:["declared-model"],fetchMode:"per_task"};
+export function buildSubmitRequest(ctx) { return {url: ctx.baseUrl+"/submit", method:"POST", body:{model: ctx.model}, action:"text_to_video"}; }
+export function parseSubmitResponse(ctx, response) { return {taskId: response.body.id, taskData: {status: response.statusCode}}; }
+export function buildQueryRequest(ctx) { return {url: ctx.baseUrl+"/query"}; }
+export function parseTaskResult() { return {status:"SUCCESS"}; }
+`
+	for _, tc := range []struct {
+		status   int
+		wantCode string
+	}{
+		{status: http.StatusOK},
+		{status: http.StatusCreated},
+		{status: http.StatusAccepted},
+		{status: http.StatusBadRequest, wantCode: "fail_to_fetch_task"},
+		{status: http.StatusBadGateway, wantCode: "fail_to_fetch_task"},
+	} {
+		t.Run(strconv.Itoa(tc.status), func(t *testing.T) {
+			saveBillingConfig(t)
+			require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+				"billing_setting.billing_mode": `{"declared-model":"tiered_expr"}`,
+				"billing_setting.billing_expr": `{"declared-model":"tier(\"flat\", 3)"}`,
+			}))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(`{"id":"job-42","message":"upstream body"}`))
+			}))
+			defer server.Close()
+
+			c, info := newTaskSubmitContext(t, "declared-model", "")
+			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, server.URL)
+			c.Set("group", "default")
+			info.UserGroup, info.UsingGroup = "default", "default"
+			info.OriginModelName = "declared-model"
+			// An existing reservation skips pre-consume so the fixture reaches the upstream call.
+			info.Billing = &imageReservation{limit: 1 << 30}
+			pinMappingOrderPlugin(t, c, source)
+
+			result, taskErr := RelayTaskSubmit(c, info)
+			if tc.wantCode != "" {
+				require.NotNil(t, taskErr)
+				assert.Equal(t, tc.wantCode, taskErr.Code)
+				assert.Equal(t, tc.status, taskErr.StatusCode)
+				assert.Contains(t, taskErr.Message, "upstream body")
+				assert.Nil(t, result)
+				return
+			}
+			require.Nil(t, taskErr, "submission error: %+v", taskErr)
+			require.NotNil(t, result)
+			assert.Equal(t, "job-42", result.UpstreamTaskID)
+			assert.JSONEq(t, `{"status":`+strconv.Itoa(tc.status)+`}`, string(result.TaskData))
 		})
 	}
 }

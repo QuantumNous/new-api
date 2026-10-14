@@ -16,11 +16,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+var runChannelErrorTask = gopool.Go
+
 // DecideRelayRetry is the single retry decision for relay attempts. The reason
 // is recorded in the request policy decision events of the log details.
 func DecideRelayRetry(c *gin.Context, err *types.NewAPIError, retryTimes int) PolicyDecision {
 	if err == nil {
 		return PolicyDecision{Action: "stop", Reason: "request_completed", Source: "system"}
+	}
+	if c != nil && common.GetContextKeyBool(c, constant.ContextKeyManagedHealthPersistenceUncertain) {
+		return PolicyDecision{Action: "stop", Reason: "managed_health_persistence_uncertain", Source: "managed"}
 	}
 	if ShouldSkipRetryAfterChannelAffinityFailure(c) {
 		source := RequestPolicy(c).SessionModeSource
@@ -32,11 +37,20 @@ func DecideRelayRetry(c *gin.Context, err *types.NewAPIError, retryTimes int) Po
 	if GetChannelConstraints(c).SuppressesRetry() {
 		return PolicyDecision{Action: "stop", Reason: "pinned_channel", Source: "channel_constraint"}
 	}
-	if types.IsChannelError(err) {
-		return PolicyDecision{Action: "retry", Reason: "channel_error", Source: "system"}
-	}
 	if types.IsSkipRetryError(err) {
 		return PolicyDecision{Action: "stop", Reason: "non_retryable_error", Source: "system"}
+	}
+	if c != nil && IsManagedChannel(c.GetInt("channel_id")) {
+		if retryTimes <= 0 {
+			return PolicyDecision{Action: "stop", Reason: "attempt_budget_exhausted", Source: "global"}
+		}
+		if ShouldRecordManagedRouteFailure(err) {
+			return PolicyDecision{Action: "retry", Reason: "managed_route_failure", Source: "managed"}
+		}
+		return PolicyDecision{Action: "stop", Reason: "status_not_retryable", Source: "managed"}
+	}
+	if types.IsChannelError(err) {
+		return PolicyDecision{Action: "retry", Reason: "channel_error", Source: "system"}
 	}
 	if retryTimes <= 0 {
 		return PolicyDecision{Action: "stop", Reason: "attempt_budget_exhausted", Source: "global"}
@@ -67,38 +81,48 @@ func ProcessChannelError(c *gin.Context, channelError types.ChannelError, err *t
 	}
 	reason := err.MaskSensitiveErrorWithStatusCode()
 	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, common.LocalLogPreview(reason)))
-	if IsManagedChannel(channelError.ChannelId) {
-		if channelError.AutoBan && IsManagedModelUnsupported(err) {
-			modelName := c.GetString("original_model")
-			isolated, isolateErr := IsolateManagedRouteModel(channelError.ChannelId, modelName, reason)
-			if isolateErr != nil {
-				common.SysError(fmt.Sprintf(
-					"failed to isolate unsupported managed model: channel_id=%d model=%s error=%v",
-					channelError.ChannelId,
-					modelName,
-					isolateErr,
-				))
-			} else if isolated {
-				logger.LogWarn(c, fmt.Sprintf(
-					"isolated unsupported managed model: channel_id=%d model=%s",
-					channelError.ChannelId,
-					modelName,
-				))
-			}
-		} else if channelError.AutoBan && ShouldRecordManagedRouteFailure(err) {
-			gopool.Go(func() {
-				if _, _, recordErr := RecordManagedChannelFailure(channelError, reason); recordErr != nil {
-					common.SysError(fmt.Sprintf(
-						"failed to record managed channel failure: channel_id=%d error=%v",
-						channelError.ChannelId,
-						recordErr,
-					))
-				}
+	orchestrationEnabled := operation_setting.GetUpstreamOrchestrationSetting().Enabled
+	if channelError.AutoBan && orchestrationEnabled && IsManagedModelUnsupported(err) {
+		modelName := c.GetString("original_model")
+		handled, isolateErr := IsolateManagedRouteModel(channelError.ChannelId, modelName, reason)
+		if isolateErr != nil {
+			common.SysError(fmt.Sprintf(
+				"failed to isolate unsupported managed model: channel_id=%d model=%s error=%v",
+				channelError.ChannelId,
+				modelName,
+				isolateErr,
+			))
+			common.SetContextKey(c, constant.ContextKeyManagedHealthPersistenceUncertain, true)
+		} else if handled {
+			logger.LogWarn(c, fmt.Sprintf(
+				"isolated unsupported managed model: channel_id=%d model=%s",
+				channelError.ChannelId,
+				modelName,
+			))
+		}
+		if isolateErr == nil && !handled && ShouldDisableChannel(err) {
+			runChannelErrorTask(func() {
+				disableChannel(channelError, reason, orchestrationEnabled)
 			})
 		}
-	} else if ShouldDisableChannel(err) && channelError.AutoBan {
-		gopool.Go(func() {
-			DisableChannel(channelError, reason)
+	} else if channelError.AutoBan && orchestrationEnabled && ShouldRecordManagedRouteFailure(err) {
+		disableIfUnhandled := ShouldDisableChannel(err)
+		handled, _, recordErr := RecordManagedChannelFailure(channelError, reason)
+		if recordErr != nil {
+			common.SysError(fmt.Sprintf(
+				"failed to record managed channel failure: channel_id=%d error=%v",
+				channelError.ChannelId,
+				recordErr,
+			))
+			common.SetContextKey(c, constant.ContextKeyManagedHealthPersistenceUncertain, true)
+		} else if !handled && disableIfUnhandled {
+			runChannelErrorTask(func() {
+				disableChannel(channelError, reason, orchestrationEnabled)
+			})
+		}
+	} else if channelError.AutoBan && ShouldDisableChannel(err) {
+		runChannelErrorTask(func() {
+			disableChannel(channelError, reason, orchestrationEnabled)
 		})
 	}
 

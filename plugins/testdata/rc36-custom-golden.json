@@ -24,12 +24,11 @@
       "expected": {
         "kind": "submit",
         "model": "doubao-seedream-5-0-pro-260628",
-        "action": "image_generation",
+        "action": "text_to_image",
         "execution": "deferred",
         "requestBody": {
           "model": "doubao-seedream-5-0-pro-260628",
           "prompt": "a red observatory",
-          "metadata": {"resolution": "1080p"},
           "size": "2048x2048",
           "n": 2
         }
@@ -48,7 +47,6 @@
           "requestBody": {
             "model": "customer-seedream",
             "prompt": "a red observatory",
-            "metadata": {},
             "size": "2048x2048",
             "n": 2
           }
@@ -65,11 +63,10 @@
         "body": {
           "model": "doubao-seedream-5-0-pro-260628",
           "prompt": "a red observatory",
-          "response_format": "url",
           "size": "2048x2048",
           "n": 2
         },
-        "action": "image_generation",
+        "action": "text_to_image",
         "rewriteModel": "doubao-seedream-5-0-pro-260628"
       }
     },
@@ -82,17 +79,14 @@
           "data": {
             "media_type": "image",
             "response": {
-              "data": [
-                {"url": "https://upstream.example.test/one.png"},
-                {"url": "https://upstream.example.test/two.png"}
-              ]
+              "data": [{ "url": "https://upstream.example.test/one.png" }, { "url": "https://upstream.example.test/two.png" }]
             }
           }
         }
       ],
       "expected": [
-        {"key": "image_0", "type": "image", "mimeType": "image/png"},
-        {"key": "image_1", "type": "image", "mimeType": "image/png"}
+        { "key": "image-1", "type": "image" },
+        { "key": "image-2", "type": "image" }
       ]
     },
     {
@@ -100,15 +94,12 @@
       "hook": "buildContentRequest",
       "args": [
         {
-          "artifactKey": "image_0",
-          "clientRequest": {"method": "GET"},
+          "artifactKey": "image-1",
+          "clientRequest": { "method": "GET" },
           "data": {
             "media_type": "image",
             "response": {
-              "data": [
-                {"url": "https://upstream.example.test/one.png"},
-                {"url": "https://upstream.example.test/two.png"}
-              ]
+              "data": [{ "url": "https://upstream.example.test/one.png" }, { "url": "https://upstream.example.test/two.png" }]
             }
           }
         }
@@ -124,15 +115,12 @@
       "hook": "buildContentRequest",
       "args": [
         {
-          "artifactKey": "image_1",
-          "clientRequest": {"method": "HEAD"},
+          "artifactKey": "image-2",
+          "clientRequest": { "method": "HEAD" },
           "data": {
             "media_type": "image",
             "response": {
-              "data": [
-                {"url": "https://upstream.example.test/one.png"},
-                {"url": "https://upstream.example.test/two.png"}
-              ]
+              "data": [{ "url": "https://upstream.example.test/one.png" }, { "url": "https://upstream.example.test/two.png" }]
             }
           }
         }
@@ -150,23 +138,30 @@
       "args": [
         {
           "artifacts": {
-            "image_0": {
-              "key": "image_0",
+            "image-1": {
+              "key": "image-1",
               "type": "image",
               "mimeType": "image/png",
-              "url": "https://gateway.example.test/v1/tasks/task_fixture/artifacts/image_0/content?access=capability"
+              "url": "https://gateway.example.test/v1/tasks/task_fixture/artifacts/image-1/content?access=capability"
             },
-            "image_1": {
-              "key": "image_1",
+            "image-2": {
+              "key": "image-2",
               "type": "image",
               "mimeType": "image/png",
-              "url": "https://gateway.example.test/v1/tasks/task_fixture/artifacts/image_1/content?access=capability"
+              "url": "https://gateway.example.test/v1/tasks/task_fixture/artifacts/image-2/content?access=capability"
             }
           }
         },
         {
           "task_id": "task_fixture",
-          "status": "SUCCESS"
+          "status": "SUCCESS",
+          "action": "text_to_image",
+          "data": {
+            "media_type": "image",
+            "response": {
+              "data": [{ "url": "https://upstream.example.test/one.png" }, { "url": "https://upstream.example.test/two.png" }]
+            }
+          }
         }
       ],
       "expected": {
@@ -178,14 +173,14 @@
             "content": [
               {
                 "type": "output_text",
-                "text": "![generated image 1](https://gateway.example.test/v1/tasks/task_fixture/artifacts/image_0/content?access=capability)\n![generated image 2](https://gateway.example.test/v1/tasks/task_fixture/artifacts/image_1/content?access=capability)",
+                "text": "![Image 1](<https://gateway.example.test/v1/tasks/task_fixture/artifacts/image-1/content?access=capability>)\n\n![Image 2](<https://gateway.example.test/v1/tasks/task_fixture/artifacts/image-2/content?access=capability>)",
                 "annotations": [],
                 "logprobs": []
               }
             ]
           }
         ],
-        "metadata": {"vendor": "doubao"}
+        "metadata": { "vendor": "doubao" }
       }
     }
   ]

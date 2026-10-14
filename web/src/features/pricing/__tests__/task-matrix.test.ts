@@ -307,7 +307,7 @@ describe('task matrix recognition rejection matrix', () => {
     )
   })
 
-  test('rejects undeclared usage fields and enum values', () => {
+  test('rejects undeclared usage fields in tier bodies and conditions', () => {
     assert.equal(
       tryParseTaskMatrixConfig(
         'tier("base", u("unknown") * 0.4)',
@@ -317,10 +317,45 @@ describe('task matrix recognition rejection matrix', () => {
     )
     assert.equal(
       tryParseTaskMatrixConfig(
-        'u("mode") == "ultra" ? tier("ultra", u("seconds") * 0.8) : tier("base", u("seconds") * 0.4)',
+        'u("unknown") == "pro" ? tier("pro", u("seconds") * 0.8) : tier("base", u("seconds") * 0.4)',
         singleEnumSchema
       ),
       null
+    )
+  })
+
+  test('skips tiers on enum values the schema no longer declares and keeps the reachable prices', () => {
+    // Seedance 2.0 mini now declares 480p/720p only; the saved expression still prices 1080p and 4k.
+    const miniSchema: BillingUsageSchema = {
+      tokens: { type: 'number', unit: 'token' },
+      resolution: { enum: ['480p', '720p'] },
+      video_input: { enum: ['none', 'video'] },
+    }
+    const matrix = tryParseTaskMatrixConfig(
+      'u("resolution") == "4k" && u("video_input") == "video" ? tier("4k_video", u("tokens") * 16 / 1000000) : u("resolution") == "4k" ? tier("4k", u("tokens") * 26 / 1000000) : u("resolution") == "1080p" && u("video_input") == "video" ? tier("1080p_video", u("tokens") * 31 / 1000000) : u("resolution") == "1080p" ? tier("1080p", u("tokens") * 51 / 1000000) : u("video_input") == "video" ? tier("video", u("tokens") * 28 / 1000000) : tier("base", u("tokens") * 46 / 1000000)',
+      miniSchema
+    )
+    assert.ok(matrix)
+    assert.deepEqual(
+      matrix.rows.map((row) => [
+        row.combination.resolution,
+        row.combination.video_input,
+        row.unitPrices.tokens,
+      ]),
+      [
+        ['480p', 'none', 46],
+        ['480p', 'video', 28],
+        ['720p', 'none', 46],
+        ['720p', 'video', 28],
+      ]
+    )
+    const onlyRetired = tryParseTaskMatrixConfig(
+      'u("mode") == "ultra" ? tier("ultra", u("seconds") * 0.8) : tier("base", u("seconds") * 0.4)',
+      singleEnumSchema
+    )
+    assert.deepEqual(
+      onlyRetired?.rows.map((row) => row.unitPrices.seconds),
+      [0.4, 0.4]
     )
   })
 

@@ -30,6 +30,10 @@ func shouldCloseActiveWebSocketsAfterDisable(channelId int) bool {
 
 // disable & notify
 func DisableChannel(channelError types.ChannelError, reason string) {
+	disableChannel(channelError, reason, operation_setting.GetUpstreamOrchestrationSetting().Enabled)
+}
+
+func disableChannel(channelError types.ChannelError, reason string, orchestrationEnabled bool) {
 	common.SysLog(fmt.Sprintf("通道「%s」（#%d）发生错误，准备禁用，原因：%s", channelError.ChannelName, channelError.ChannelId, common.LocalLogPreview(reason)))
 
 	// 检查是否启用自动禁用功能
@@ -38,11 +42,15 @@ func DisableChannel(channelError types.ChannelError, reason string) {
 		return
 	}
 
-	if handled, _, err := RecordManagedChannelFailure(channelError, reason); handled {
+	if orchestrationEnabled {
+		handled, _, err := RecordManagedChannelFailure(channelError, reason)
 		if err != nil {
 			common.SysError(fmt.Sprintf("failed to record managed channel failure: channel_id=%d error=%v", channelError.ChannelId, err))
+			return
 		}
-		return
+		if handled {
+			return
+		}
 	}
 
 	channel, _ := model.CacheGetChannel(channelError.ChannelId)

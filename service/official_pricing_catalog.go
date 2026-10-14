@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	builtinplugins "github.com/QuantumNous/new-api/plugins"
 
 	"golang.org/x/net/html"
 )
@@ -166,12 +167,35 @@ func parseVolcenginePricing(
 	imageCost := func(count string, cny float64) string {
 		return fmt.Sprintf(`%s * %.10g`, count, cny/officialCNYPerUSD)
 	}
+	requestImageCost := func(cny float64) string {
+		return fmt.Sprintf(`tier("per_image", fixed(%.10g)) * image_count`, cny/officialCNYPerUSD)
+	}
+	taskImageCost := func(cny float64) string {
+		return fmt.Sprintf(
+			`tier("per_image", (u("images_up_to_1_5k") + u("images_above_1_5k")) * %.10g)`,
+			cny/officialCNYPerUSD,
+		)
+	}
+	proReferenceCost := imageCost(`max(input_images - 1, 0)`, 0.02)
+	proTaskReferenceCost := imageCost(`max(u("input_images") - 1, 0)`, 0.02)
+	proRequestCost := fmt.Sprintf(
+		`tier("per_image", fixed(%s + %s + %s))`,
+		imageCost("images_up_to_1_5k", 0.30),
+		imageCost("images_above_1_5k", 0.60),
+		proReferenceCost,
+	)
+	proTaskCost := fmt.Sprintf(
+		`tier("per_image", %s + %s + %s)`,
+		imageCost(`u("images_up_to_1_5k")`, 0.30),
+		imageCost(`u("images_above_1_5k")`, 0.60),
+		proTaskReferenceCost,
+	)
 	video := `u("video_input") == "video"`
 	resolution := `u("resolution")`
 	promotion := func(start, end int64) string {
 		return fmt.Sprintf(`unix() >= %d && unix() < %d`, start, end)
 	}
-	seedance25Expression := fmt.Sprintf(
+	seedance25Expression := "v2:" + fmt.Sprintf(
 		`%s == "1080p" ? (%s ? tier("promotion_1080p", %s ? %s : %s) : tier("list_1080p", %s ? %s : %s)) : tier("list_480p_720p", %s ? %s : %s)`,
 		resolution,
 		promotion(promotion25Start, promotion25End),
@@ -186,9 +210,10 @@ func parseVolcenginePricing(
 		tokenCost(70),
 	)
 	expressions := map[string]struct {
-		expression string
-		validFrom  int64
-		validUntil int64
+		expression       string
+		pluginExpression string
+		validFrom        int64
+		validUntil       int64
 	}{
 		"doubao-seedance-2-5-260628": {
 			expression: seedance25Expression,
@@ -217,7 +242,7 @@ func parseVolcenginePricing(
 			),
 		},
 		"doubao-seedance-2-0-fast-260128": {
-			expression: fmt.Sprintf(
+			expression: "v2:" + fmt.Sprintf(
 				`%s ? tier("promotion", %s ? %s : %s) : tier("list", %s ? %s : %s)`,
 				promotion(promotion20Start, promotion20End),
 				video,
@@ -231,7 +256,7 @@ func parseVolcenginePricing(
 			validUntil: promotion20End,
 		},
 		"doubao-seedance-2-0-mini-260615": {
-			expression: fmt.Sprintf(
+			expression: "v2:" + fmt.Sprintf(
 				`%s ? tier("promotion", %s ? %s : %s) : tier("list", %s ? %s : %s)`,
 				promotion(promotion20Start, promotion20End),
 				video,
@@ -251,26 +276,24 @@ func parseVolcenginePricing(
 			expression: fmt.Sprintf(`tier("list", %s)`, tokenCost(4.2)),
 		},
 		"doubao-seedream-5-0-pro-260628": {
-			expression: fmt.Sprintf(
-				`%s == "1K" ? tier("up_to_1_5k", %s + %s) : tier("over_1_5k", %s + %s)`,
-				resolution,
-				imageCost(`u("image_count")`, 0.30),
-				imageCost(`max(u("reference_image_count") - 1, 0)`, 0.02),
-				imageCost(`u("image_count")`, 0.60),
-				imageCost(`max(u("reference_image_count") - 1, 0)`, 0.02),
-			),
+			expression:       proRequestCost,
+			pluginExpression: proTaskCost,
 		},
 		"doubao-seedream-5-0-260128": {
-			expression: fmt.Sprintf(`tier("per_image", %s)`, imageCost(`u("image_count")`, 0.22)),
+			expression:       requestImageCost(0.22),
+			pluginExpression: taskImageCost(0.22),
 		},
 		"doubao-seedream-4-5-251128": {
-			expression: fmt.Sprintf(`tier("per_image", %s)`, imageCost(`u("image_count")`, 0.25)),
+			expression:       requestImageCost(0.25),
+			pluginExpression: taskImageCost(0.25),
 		},
 		"doubao-seedream-4-0-250828": {
-			expression: fmt.Sprintf(`tier("per_image", %s)`, imageCost(`u("image_count")`, 0.20)),
+			expression:       requestImageCost(0.20),
+			pluginExpression: taskImageCost(0.20),
 		},
 		"doubao-seedream-4-0-20260415": {
-			expression: fmt.Sprintf(`tier("per_image", %s)`, imageCost(`u("image_count")`, 0.20)),
+			expression:       requestImageCost(0.20),
+			pluginExpression: taskImageCost(0.20),
 		},
 	}
 
@@ -279,39 +302,60 @@ func parseVolcenginePricing(
 		"resolution":  {Enum: []string{"480p", "720p", "1080p", "4k"}},
 		"video_input": {Enum: []string{"none", "video"}},
 	}
-	imageUsageSchema := map[string]jsplugin.UsageFieldSchema{
-		"image_count":           {Type: "number", Unit: "count"},
-		"resolution":            {Enum: []string{"1K", "2K", "3K", "4K"}},
-		"reference_image_count": {Type: "number", Unit: "count"},
+	seedreamAliases := map[string]string{
+		"doubao-seedream-4-0":     "doubao-seedream-4-0-20260415",
+		"doubao-seedream-4-5":     "doubao-seedream-4-5-251128",
+		"doubao-seedream-5-0":     "doubao-seedream-5-0-260128",
+		"doubao-seedream-5-0-pro": "doubao-seedream-5-0-pro-260628",
+	}
+	var doubaoPlugin *jsplugin.LoadedPlugin
+	if hasSeedream {
+		source, sourceErr := builtinplugins.Source("doubao")
+		if sourceErr != nil {
+			return nil, fmt.Errorf("load embedded Doubao plugin: %w", sourceErr)
+		}
+		doubaoPlugin, err = jsplugin.CompilePlugin(source, jsplugin.Options{Key: "doubao"})
+		if err != nil {
+			return nil, fmt.Errorf("compile embedded Doubao plugin: %w", err)
+		}
 	}
 	prices := make([]officialTokenPrice, 0, len(expressions))
-	for modelName, price := range expressions {
-		if _, ok := allowedModels[modelName]; !ok {
+	for modelName := range allowedModels {
+		canonicalModel := modelName
+		if aliasTarget, alias := seedreamAliases[modelName]; alias {
+			canonicalModel = aliasTarget
+		}
+		price, exists := expressions[canonicalModel]
+		if !exists {
 			continue
 		}
 		billingBasis := billingexpr.BillingBasisTask
 		usageSchema := videoUsageSchema
-		if strings.HasPrefix(modelName, "doubao-seedream-") {
+		if strings.HasPrefix(canonicalModel, "doubao-seedream-") {
 			billingBasis = billingexpr.BillingBasisRequest
-			usageSchema = imageUsageSchema
+			usageSchema, _ = doubaoPlugin.Meta.UsageForModel(canonicalModel)
+			if len(usageSchema) == 0 {
+				return nil, fmt.Errorf("embedded Doubao plugin has no usage schema for %s", canonicalModel)
+			}
 		}
 		prices = append(prices, officialTokenPrice{
-			Vendor:         "volcengine",
-			ModelName:      modelName,
-			CanonicalModel: modelName,
-			Currency:       "CNY",
-			Unit:           "per_1m_tokens",
-			BillingBasis:   billingBasis,
-			Expression:     price.expression,
-			ValidFrom:      price.validFrom,
-			ValidUntil:     price.validUntil,
-			UsageSchema:    usageSchema,
-			SourceURL:      sourceURL,
-			EvidenceHash:   officialDocumentEvidenceHash(sourceURL, body, modelName),
+			Vendor:           "volcengine",
+			ModelName:        modelName,
+			CanonicalModel:   canonicalModel,
+			Currency:         "CNY",
+			Unit:             "per_1m_tokens",
+			BillingBasis:     billingBasis,
+			Expression:       price.expression,
+			PluginExpression: price.pluginExpression,
+			ValidFrom:        price.validFrom,
+			ValidUntil:       price.validUntil,
+			UsageSchema:      usageSchema,
+			SourceURL:        sourceURL,
+			EvidenceHash:     officialDocumentEvidenceHash(sourceURL, body, modelName),
 		})
 	}
 	if len(prices) == 0 {
-		return nil, errors.New("Volcengine pricing page contains no approved video models")
+		return nil, errors.New("Volcengine pricing page contains no approved models")
 	}
 	return prices, nil
 }

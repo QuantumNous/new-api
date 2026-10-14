@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"gorm.io/gorm"
 )
@@ -149,6 +150,7 @@ func buildManagedUpstreamChannel(payload rootdto.UpstreamEnrollmentCommand, apiK
 	tag := fmt.Sprintf("managed:sub2api:%s:%s:%s", payload.SourceKey, payload.ExternalGroupID, platform)
 	name := truncateRunes(fmt.Sprintf("%s-%s-%s-%s", payload.SourceKey, payload.GroupName, platform, protocol), 128)
 	testModel := payload.Models[0]
+	orchestration := operation_setting.GetUpstreamOrchestrationSetting()
 	channel := &model.Channel{
 		Type:        constant.ChannelTypeAdvancedCustom,
 		Key:         apiKey,
@@ -159,7 +161,7 @@ func buildManagedUpstreamChannel(payload rootdto.UpstreamEnrollmentCommand, apiK
 		CreatedTime: common.GetTimestamp(),
 		BaseURL:     &baseURL,
 		Models:      strings.Join(payload.Models, ","),
-		Group:       "default,cxy",
+		Group:       strings.Join(orchestration.TargetGroups, ","),
 		Priority:    &priority,
 		AutoBan:     &autoBan,
 		Tag:         &tag,

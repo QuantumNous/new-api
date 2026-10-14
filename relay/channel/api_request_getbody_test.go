@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -184,15 +185,67 @@ type stubTaskAdaptor struct {
 	TaskAdaptor
 	baseURL     string
 	capturedReq *http.Request
+	urlErr      error
+	headerErr   error
 }
 
 func (s *stubTaskAdaptor) BuildRequestURL(info *relaycommon.RelayInfo) (string, error) {
+	if s.urlErr != nil {
+		return "", s.urlErr
+	}
 	return s.baseURL + "/v1/video/generations", nil
 }
 
 func (s *stubTaskAdaptor) BuildRequestHeader(c *gin.Context, req *http.Request, info *relaycommon.RelayInfo) error {
 	s.capturedReq = req
-	return nil
+	return s.headerErr
+}
+
+func TestDoTaskApiRequestClassifiesPreSendFailures(t *testing.T) {
+	urlErr := errors.New("build task URL")
+	headerErr := errors.New("build task headers")
+	tests := []struct {
+		name      string
+		adaptor   *stubTaskAdaptor
+		method    string
+		wantCause error
+	}{
+		{
+			name:      "request URL",
+			adaptor:   &stubTaskAdaptor{urlErr: urlErr},
+			method:    http.MethodPost,
+			wantCause: urlErr,
+		},
+		{
+			name:    "request construction",
+			adaptor: &stubTaskAdaptor{baseURL: "https://provider.example"},
+			method:  "invalid\nmethod",
+		},
+		{
+			name:      "request headers",
+			adaptor:   &stubTaskAdaptor{baseURL: "https://provider.example", headerErr: headerErr},
+			method:    http.MethodPost,
+			wantCause: headerErr,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/video/generations", nil)
+			ctx.Request.Method = test.method
+			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+
+			response, err := DoTaskApiRequest(test.adaptor, ctx, info, nil)
+
+			assert.Nil(t, response)
+			require.Error(t, err)
+			assert.ErrorIs(t, err, ErrProviderRequestNotStarted)
+			if test.wantCause != nil {
+				assert.ErrorIs(t, err, test.wantCause)
+			}
+		})
+	}
 }
 
 // TestDoTaskApiRequest_KeepsReplayableGetBody guards against reintroducing the

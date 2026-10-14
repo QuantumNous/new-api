@@ -521,7 +521,9 @@ if build_proxy "$mysql_proxy_binary" "$mysql_deadline" &&
     -e MYSQL_ROOT_PASSWORD=root \
     -e MYSQL_ROOT_HOST=% \
     -e MYSQL_DATABASE=newapi \
-    "$MYSQL_IMAGE" --innodb-use-native-aio=0 >/dev/null &&
+    "$MYSQL_IMAGE" --innodb-use-native-aio=0 \
+      --character-set-server=utf8mb4 \
+      --collation-server=utf8mb4_unicode_ci >/dev/null &&
   assert_only_internal_network "$mysql_container" "$mysql_network" "$mysql_deadline" &&
   wait_for_mysql "$mysql_container" "$mysql_deadline" &&
   start_proxy "$mysql_proxy" "$mysql_network" "$mysql_proxy_binary" "$mysql_container:3306" "$mysql_deadline"; then

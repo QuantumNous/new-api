@@ -362,10 +362,8 @@ func DeleteModelMetadata(ids []int, removeFromChannels, removePricing bool) (Mod
 			if err := deleteRecords(tx); err != nil {
 				return err
 			}
-			for _, entries := range values {
-				for name := range names {
-					delete(entries, name)
-				}
+			for name := range names {
+				removeModelPricing(values, name)
 			}
 			return nil
 		})

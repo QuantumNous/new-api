@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"math"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -83,6 +84,133 @@ func TestTaskLogDTODoesNotInventHistoricalPluginProvenance(t *testing.T) {
 
 	assert.Nil(t, adminView.AdminInfo)
 	assert.Nil(t, adminView.RootInfo)
+}
+
+func TestTaskLogDTODispatchDiagnosticsAreRootOnly(t *testing.T) {
+	task := &model.Task{
+		TaskID:            "task_uncertain_diagnostics",
+		SubmitTime:        100,
+		ExecutionMode:     model.TaskExecutionModeDeferred,
+		DispatchStatus:    model.TaskDispatchStatusUncertain,
+		DispatchOwner:     "private-runner-owner",
+		DispatchLockUntil: 999,
+		DispatchStartedAt: 125,
+		DispatchAttempts:  2,
+		DispatchError:     "provider submission outcome unknown",
+		PrivateData: model.TaskPrivateData{
+			Key: "private-provider-credential",
+			DeferredRequest: &model.TaskDeferredRequest{
+				RequestBody: []byte(`{"secret":"private-request"}`),
+			},
+		},
+	}
+
+	for _, role := range []int{common.RoleCommonUser, common.RoleAdminUser} {
+		view := tasksToDto([]*model.Task{task}, false, role)[0]
+		assert.Nil(t, view.RootInfo)
+		encoded, err := common.Marshal(view)
+		require.NoError(t, err)
+		assert.NotContains(t, string(encoded), "execution_mode")
+		assert.NotContains(t, string(encoded), "dispatch_status")
+		assert.NotContains(t, string(encoded), "provider submission outcome unknown")
+		assert.NotContains(t, string(encoded), "private-runner-owner")
+		assert.NotContains(t, string(encoded), "private-provider-credential")
+		assert.NotContains(t, string(encoded), "private-request")
+	}
+
+	rootView := tasksToDto([]*model.Task{task}, false, common.RoleRootUser)[0]
+	require.NotNil(t, rootView.RootInfo)
+	assert.Equal(t, model.TaskExecutionModeDeferred, rootView.RootInfo.ExecutionMode)
+	assert.Equal(t, string(model.TaskDispatchStatusUncertain), rootView.RootInfo.DispatchStatus)
+	assert.Equal(t, int64(125), rootView.RootInfo.DispatchStartedAt)
+	assert.Equal(t, 2, rootView.RootInfo.DispatchAttempts)
+	assert.Equal(t, "provider submission outcome unknown", rootView.RootInfo.DispatchError)
+	assert.True(t, rootView.RootInfo.RequiresOperatorResolution)
+	encoded, err := common.Marshal(rootView)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "private-runner-owner")
+	assert.NotContains(t, string(encoded), "private-provider-credential")
+	assert.NotContains(t, string(encoded), "private-request")
+}
+
+func TestTaskLogDTONormalizesLegacyFenceForRootDiagnostics(t *testing.T) {
+	task := &model.Task{
+		TaskID:            "task_legacy_uncertain_diagnostics",
+		SubmitTime:        321,
+		ExecutionMode:     model.TaskExecutionModeDeferred,
+		DispatchStatus:    legacyDeferredDispatchStatusRunningForTest,
+		DispatchOwner:     "legacy-private-owner",
+		DispatchLockUntil: math.MaxInt64,
+		DispatchAttempts:  1,
+		DispatchError:     "legacy fence",
+	}
+
+	rootView := tasksToDto([]*model.Task{task}, false, common.RoleRootUser)[0]
+	require.NotNil(t, rootView.RootInfo)
+	assert.Equal(t, string(model.TaskDispatchStatusUncertain), rootView.RootInfo.DispatchStatus)
+	assert.Equal(t, task.SubmitTime, rootView.RootInfo.DispatchStartedAt)
+	assert.True(t, rootView.RootInfo.RequiresOperatorResolution)
+	encoded, err := common.Marshal(rootView)
+	require.NoError(t, err)
+	assert.NotContains(t, string(encoded), "legacy-private-owner")
+}
+
+func TestTaskLogDTONormalizesExpiredLegacyFiniteLeaseForRootDiagnostics(t *testing.T) {
+	now := common.GetTimestamp()
+	expired := &model.Task{
+		TaskID:            "task_legacy_expired_diagnostics",
+		SubmitTime:        321,
+		ExecutionMode:     model.TaskExecutionModeDeferred,
+		DispatchStatus:    legacyDeferredDispatchStatusRunningForTest,
+		DispatchOwner:     "legacy-expired-private-owner",
+		DispatchLockUntil: now - 1,
+		DispatchAttempts:  1,
+		DispatchError:     "legacy worker outcome unknown",
+	}
+
+	rootView := tasksToDto([]*model.Task{expired}, false, common.RoleRootUser)[0]
+	require.NotNil(t, rootView.RootInfo)
+	assert.Equal(t, string(model.TaskDispatchStatusUncertain), rootView.RootInfo.DispatchStatus)
+	assert.Equal(t, expired.SubmitTime, rootView.RootInfo.DispatchStartedAt)
+	assert.True(t, rootView.RootInfo.RequiresOperatorResolution)
+
+	active := *expired
+	active.TaskID = "task_legacy_active_diagnostics"
+	active.DispatchLockUntil = now + 60
+	activeView := tasksToDto([]*model.Task{&active}, false, common.RoleRootUser)[0]
+	require.NotNil(t, activeView.RootInfo)
+	assert.Equal(t, string(legacyDeferredDispatchStatusRunningForTest), activeView.RootInfo.DispatchStatus)
+	assert.Zero(t, activeView.RootInfo.DispatchStartedAt)
+	assert.False(t, activeView.RootInfo.RequiresOperatorResolution)
+
+	current := *expired
+	current.TaskID = "task_current_expired_diagnostics"
+	current.DispatchStatus = model.TaskDispatchStatusRunning
+	current.DispatchProtocolVersion = model.CurrentTaskDispatchProtocolVersion
+	currentView := tasksToDto([]*model.Task{&current}, false, common.RoleRootUser)[0]
+	require.NotNil(t, currentView.RootInfo)
+	assert.Equal(t, string(model.TaskDispatchStatusRunning), currentView.RootInfo.DispatchStatus)
+	assert.Zero(t, currentView.RootInfo.DispatchStartedAt)
+	assert.False(t, currentView.RootInfo.RequiresOperatorResolution)
+}
+
+func TestTaskLogDTORootDispatchDiagnosticsIncludeZeroValues(t *testing.T) {
+	task := &model.Task{
+		TaskID:         "task_pending_diagnostics",
+		ExecutionMode:  model.TaskExecutionModeDeferred,
+		DispatchStatus: model.TaskDispatchStatusPending,
+	}
+
+	rootView := tasksToDto([]*model.Task{task}, false, common.RoleRootUser)[0]
+	require.NotNil(t, rootView.RootInfo)
+	encoded, err := common.Marshal(rootView)
+	require.NoError(t, err)
+	assert.Contains(t, string(encoded), `"execution_mode":"deferred"`)
+	assert.Contains(t, string(encoded), `"dispatch_status":"pending_v1"`)
+	assert.Contains(t, string(encoded), `"dispatch_started_at":0`)
+	assert.Contains(t, string(encoded), `"dispatch_attempts":0`)
+	assert.Contains(t, string(encoded), `"dispatch_error":""`)
+	assert.Contains(t, string(encoded), `"requires_operator_resolution":false`)
 }
 
 func TestTaskLogDTOReplacesLegacyVideoURLWithAvailabilityFlag(t *testing.T) {

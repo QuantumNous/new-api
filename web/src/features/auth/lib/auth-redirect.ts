@@ -20,6 +20,16 @@ import type { AuthUser } from '@/stores/auth-store'
 
 const allowedRedirectProtocols = new Set(['http:', 'https:'])
 
+export type AuthRedirectNavigation = {
+  href: string
+  mode: 'client' | 'document'
+}
+
+type AuthNavigateOptions = {
+  href: string
+  replace: true
+}
+
 export function getSavedLanguage(user: AuthUser): string | undefined {
   if (typeof user.language === 'string') {
     return user.language
@@ -77,4 +87,36 @@ export function sanitizeAuthRedirect(
   }
 
   return `${redirectURL.pathname}${redirectURL.search}${redirectURL.hash}`
+}
+
+export function resolveAuthRedirectNavigation(
+  value: unknown,
+  origin: string
+): AuthRedirectNavigation | null {
+  const href = sanitizeAuthRedirect(value, origin)
+  if (!href) return null
+
+  return {
+    href,
+    mode:
+      new URL(href, origin).pathname === '/_canvas_sso' ? 'document' : 'client',
+  }
+}
+
+export async function navigateAfterAuthentication(
+  value: unknown,
+  origin: string,
+  navigate: (options: AuthNavigateOptions) => unknown,
+  replaceDocument: (href: string) => void = (href) =>
+    window.location.replace(href)
+): Promise<void> {
+  const target = resolveAuthRedirectNavigation(value, origin) ?? {
+    href: '/dashboard',
+    mode: 'client',
+  }
+  if (target.mode === 'document') {
+    replaceDocument(target.href)
+    return
+  }
+  await navigate({ href: target.href, replace: true })
 }

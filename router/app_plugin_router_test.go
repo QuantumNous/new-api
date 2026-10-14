@@ -64,6 +64,8 @@ type routerAppPluginEnvelope struct {
 	} `json:"error"`
 }
 
+var routerAppPluginRateLimitRun atomic.Uint32
+
 func TestAppPluginDashboardRoutesAndRedaction(t *testing.T) {
 	fixture := setupRouterAppPluginTest(t)
 	registered := map[string]bool{}
@@ -195,6 +197,7 @@ func TestAppPluginDashboardRoutesAndRedaction(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, canvas.Code)
 
 	t.Run("rate limits use canonical envelopes", func(t *testing.T) {
+		rateLimitRun := routerAppPluginRateLimitRun.Add(1)
 		previousGlobal, previousGlobalNum, previousGlobalDuration := common.GlobalApiRateLimitEnable, common.GlobalApiRateLimitNum, common.GlobalApiRateLimitDuration
 		previousCritical, previousCriticalNum, previousCriticalDuration := common.CriticalRateLimitEnable, common.CriticalRateLimitNum, common.CriticalRateLimitDuration
 		previousFlag := operation_setting.AppPluginV1Enabled
@@ -226,10 +229,10 @@ func TestAppPluginDashboardRoutesAndRedaction(t *testing.T) {
 			t.Run(test.name, func(t *testing.T) {
 				token := ""
 				if test.authenticated {
-					token = fmt.Sprintf("b15-rate-limit-token-%d", i)
-					name := fmt.Sprintf("b15-rate-limit-user-%d", i)
+					token = fmt.Sprintf("b15-rate-limit-token-%d-%d", rateLimitRun, i)
+					name := fmt.Sprintf("b15-rate-limit-user-%d-%d", rateLimitRun, i)
 					require.NoError(t, model.DB.Create(&model.User{
-						Id: 15000 + i, Username: name, Role: common.RoleRootUser,
+						Id: 15000 + int(rateLimitRun)*100 + i, Username: name, Role: common.RoleRootUser,
 						Status: common.UserStatusEnabled, Group: "default", AccessToken: &token,
 						AuthVersion: 1, AffCode: name,
 					}).Error)
@@ -241,10 +244,10 @@ func TestAppPluginDashboardRoutesAndRedaction(t *testing.T) {
 					engine.Use(middleware.RequestId())
 				}
 				registerAppPluginRoutes(engine.Group("/api"))
-				firstIP := fmt.Sprintf("198.51.100.%d", 2*i+1)
+				firstIP := routerAppPluginRateLimitIP(rateLimitRun*32 + uint32(2*i+1))
 				secondIP := firstIP
 				if test.userLimit {
-					secondIP = fmt.Sprintf("198.51.100.%d", 2*i+2)
+					secondIP = routerAppPluginRateLimitIP(rateLimitRun*32 + uint32(2*i+2))
 				}
 				first := routerAppPluginRateLimitRequest(engine, http.MethodPost, test.path, token, firstIP)
 				if i == 0 {
@@ -297,7 +300,7 @@ func TestAppPluginDashboardRoutesAndRedaction(t *testing.T) {
 				{http.MethodGet, "/api/user/self", false},
 			} {
 				t.Run(test.method+" "+test.path, func(t *testing.T) {
-					ip := fmt.Sprintf("203.0.113.%d", i+1)
+					ip := routerAppPluginRateLimitIP(rateLimitRun*32 + uint32(19+i))
 					first := routerAppPluginRateLimitRequest(engine, http.MethodGet, "/api/app_plugins", "", ip)
 					assertRouterAppPluginErrorEnvelope(t, first, http.StatusUnauthorized, "unauthenticated", "Authentication required", false)
 					limited := routerAppPluginRateLimitRequest(engine, test.method, test.path, "", ip)
@@ -964,6 +967,10 @@ func openRouterAppPluginDB(t *testing.T) *gorm.DB {
 
 func routerAppPluginRequest(engine http.Handler, method, path, token string, body []byte) *httptest.ResponseRecorder {
 	return routerAppPluginRequestWithHeaders(engine, method, path, token, body, nil)
+}
+
+func routerAppPluginRateLimitIP(id uint32) string {
+	return fmt.Sprintf("10.%d.%d.%d", byte(id>>16), byte(id>>8), byte(id))
 }
 
 func routerAppPluginRateLimitRequest(engine http.Handler, method, path, token, clientIP string) *httptest.ResponseRecorder {
@@ -3886,7 +3893,7 @@ func TestHostAppTaskWorkerPreservesUncertainQueries(t *testing.T) {
 			if test.name == "write descriptor" {
 				source, err := os.ReadFile("../plugins/tasks/doubao/plugin.js")
 				require.NoError(t, err)
-				const query = "url: ctx.baseUrl + \"/api/v3/contents/generations/tasks/\" + ctx.taskId,\n    method: \"GET\","
+				const query = "export function buildQueryRequest(ctx) {\n  return {\n    url: apiRoot(ctx) + \"/api/v3/contents/generations/tasks/\" + ctx.taskId,\n    method: \"GET\","
 				require.Equal(t, 1, strings.Count(string(source), query))
 				sourceOverride = []string{strings.Replace(string(source), query, strings.Replace(query, `"GET"`, `"POST"`, 1), 1)}
 			}

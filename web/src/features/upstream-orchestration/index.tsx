@@ -1,8 +1,24 @@
-import { useMemo, useState } from 'react'
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Activity,
-  CircleDollarSign,
   Link2,
   Pause,
   Play,
@@ -10,10 +26,14 @@ import {
   Route as RouteIcon,
   Unplug,
 } from 'lucide-react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { ErrorState } from '@/components/error-state'
 import { SectionPageLayout } from '@/components/layout'
+import { LoadingState } from '@/components/loading-state'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
@@ -27,6 +47,7 @@ import {
 } from '@/components/ui/table'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { TitledCard } from '@/components/ui/titled-card'
+import { getServerErrorMessage } from '@/lib/server-error-message'
 
 import {
   createPairingCode,
@@ -37,6 +58,12 @@ import {
   requestUpstreamSync,
   updateUpstreamRoute,
 } from './api'
+import {
+  getUnroutedUpstreamGroups,
+  getUpstreamGroupModels,
+} from './group-routing'
+import { calculateUpstreamHA } from './ha-status'
+import { PolicySettingsForm } from './policy-settings-form'
 import type {
   UpstreamGroup,
   UpstreamMetric,
@@ -62,6 +89,35 @@ function statusVariant(status: string) {
   return 'destructive'
 }
 
+function QueryContent(props: {
+  children: ReactNode
+  error: unknown
+  hasData: boolean
+  isPending: boolean
+  onRetry: () => void
+}) {
+  if (props.isPending) return <LoadingState />
+  if (props.error != null && !props.hasData) {
+    return (
+      <ErrorState
+        description={getServerErrorMessage(props.error)}
+        onRetry={props.onRetry}
+      />
+    )
+  }
+  return (
+    <>
+      {props.error != null ? (
+        <ErrorState
+          description={getServerErrorMessage(props.error)}
+          onRetry={props.onRetry}
+        />
+      ) : null}
+      {props.children}
+    </>
+  )
+}
+
 function SourceCard({
   source,
   nowSeconds,
@@ -75,7 +131,10 @@ function SourceCard({
   const balanceRatio =
     source.balance == null
       ? 0
-      : Math.min(100, (source.balance / Math.max(source.low_balance_threshold, 1)) * 20)
+      : Math.min(
+          100,
+          (source.balance / Math.max(source.low_balance_threshold, 1)) * 20
+        )
 
   return (
     <TitledCard
@@ -96,7 +155,9 @@ function SourceCard({
         <div>
           <div className='text-muted-foreground text-xs'>Balance</div>
           <div className='font-mono font-medium'>
-            {source.balance == null ? 'N/A' : `$${formatNumber(source.balance)}`}
+            {source.balance == null
+              ? 'N/A'
+              : `$${formatNumber(source.balance)}`}
           </div>
         </div>
         <div>
@@ -258,6 +319,78 @@ function RouteTable({
   )
 }
 
+function UnroutedGroupsTable({
+  groups,
+  sources,
+}: {
+  groups: UpstreamGroup[]
+  sources: UpstreamSource[]
+}) {
+  const { t } = useTranslation()
+  const sourceMap = useMemo(
+    () => new Map(sources.map((source) => [source.id, source])),
+    [sources]
+  )
+
+  return (
+    <TitledCard
+      title={t('Unrouted groups')}
+      description={t('Groups without an active attached route')}
+      disableHoverEffect
+      titleClassName='text-base'
+      contentClassName='p-0 sm:p-0'
+    >
+      <div className='overflow-x-auto'>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>{t('Source / group')}</TableHead>
+              <TableHead>{t('Health')}</TableHead>
+              <TableHead>{t('Models')}</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {groups.map((group) => {
+              const source = sourceMap.get(group.source_id)
+              const models = getUpstreamGroupModels(group)
+              return (
+                <TableRow key={group.id}>
+                  <TableCell className='max-w-72'>
+                    <div className='truncate font-medium'>
+                      {source?.name || source?.key || group.source_id} /{' '}
+                      {group.name}
+                    </div>
+                    <div className='text-muted-foreground truncate font-mono text-xs'>
+                      {source?.key || group.source_id} / {group.external_id}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={statusVariant(group.health_status)}>
+                      {group.health_status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className='max-w-96 text-sm break-words'>
+                    {models.length > 0
+                      ? models.join(', ')
+                      : t('No models reported')}
+                  </TableCell>
+                </TableRow>
+              )
+            })}
+            {groups.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={3} className='h-20 text-center'>
+                  {t('All discovered groups are routed')}
+                </TableCell>
+              </TableRow>
+            ) : null}
+          </TableBody>
+        </Table>
+      </div>
+    </TitledCard>
+  )
+}
+
 function UsageTable({
   metrics,
   sources,
@@ -285,7 +418,9 @@ function UsageTable({
         <TableBody>
           {metrics.map((metric) => (
             <TableRow key={metric.id}>
-              <TableCell>{sourceMap.get(metric.source_id) || metric.source_id}</TableCell>
+              <TableCell>
+                {sourceMap.get(metric.source_id) || metric.source_id}
+              </TableCell>
               <TableCell className='max-w-52 truncate'>
                 {metric.external_group_id || '-'}
               </TableCell>
@@ -293,21 +428,26 @@ function UsageTable({
                 {formatNumber(metric.total_tokens, 0)}
               </TableCell>
               <TableCell className='font-mono'>
-                {formatNumber(metric.usage_5h)} / {formatNumber(metric.limit_5h)}
+                {formatNumber(metric.usage_5h)} /{' '}
+                {formatNumber(metric.limit_5h)}
               </TableCell>
               <TableCell className='font-mono'>
-                {formatNumber(metric.usage_7d)} / {formatNumber(metric.limit_7d)}
+                {formatNumber(metric.usage_7d)} /{' '}
+                {formatNumber(metric.limit_7d)}
               </TableCell>
               <TableCell className='font-mono'>
-                {formatNumber(metric.usage_30d)} / {formatNumber(metric.limit_30d)}
+                {formatNumber(metric.usage_30d)} /{' '}
+                {formatNumber(metric.limit_30d)}
               </TableCell>
               <TableCell className='font-mono'>
-                {metric.balance == null ? 'N/A' : `$${formatNumber(metric.balance)}`}
+                {metric.balance == null
+                  ? 'N/A'
+                  : `$${formatNumber(metric.balance)}`}
               </TableCell>
               <TableCell>
                 <Badge variant='outline'>{metric.data_quality}</Badge>
               </TableCell>
-              <TableCell className='whitespace-nowrap text-xs'>
+              <TableCell className='text-xs whitespace-nowrap'>
                 {formatTime(metric.observed_at)}
               </TableCell>
             </TableRow>
@@ -338,40 +478,18 @@ export function UpstreamOrchestration() {
     refetchInterval: 60_000,
   })
   const refresh = () => queryClient.invalidateQueries({ queryKey })
-  const nonHaModels = useMemo(() => {
-    const groups = overviewQuery.data?.groups ?? []
-    const routes = overviewQuery.data?.routes ?? []
-    const groupMap = new Map(
-      groups.map((group) => [
-        `${group.source_id}:${group.external_id}`,
-        group,
-      ])
-    )
-    const sourcesByModel = new Map<string, Set<number>>()
-    for (const route of routes) {
-      if (route.state !== 'active') continue
-      const group = groupMap.get(
-        `${route.source_id}:${route.external_group_id}`
-      )
-      if (!group) continue
-      let models: string[] = []
-      try {
-        models = JSON.parse(group.models) as string[]
-      } catch {
-        models = []
-      }
-      for (const model of models) {
-        const key = `${model}:${route.protocol}`
-        const sourceIds = sourcesByModel.get(key) ?? new Set<number>()
-        sourceIds.add(route.source_id)
-        sourcesByModel.set(key, sourceIds)
-      }
-    }
-    return [...sourcesByModel.entries()]
-      .filter(([, sourceIds]) => sourceIds.size < 2)
-      .map(([key]) => key)
-      .sort()
-  }, [overviewQuery.data])
+  const haStatus = useMemo(
+    () => calculateUpstreamHA(overviewQuery.data?.routes ?? []),
+    [overviewQuery.data?.routes]
+  )
+  const unroutedGroups = useMemo(
+    () =>
+      getUnroutedUpstreamGroups(
+        overviewQuery.data?.groups ?? [],
+        overviewQuery.data?.routes ?? []
+      ),
+    [overviewQuery.data?.groups, overviewQuery.data?.routes]
+  )
   const operation = useMutation({
     mutationFn: async (action: string) => {
       if (action === 'sync') return requestUpstreamSync()
@@ -390,12 +508,13 @@ export function UpstreamOrchestration() {
       toast.success(t('Operation submitted'))
       refresh()
     },
-    onError: (error) => toast.error(error instanceof Error ? error.message : String(error)),
+    onError: (error) =>
+      toast.error(error instanceof Error ? error.message : String(error)),
   })
   const overview = overviewQuery.data
 
   return (
-    <SectionPageLayout>
+    <SectionPageLayout stackActionsOnMobile>
       <SectionPageLayout.Title>
         <span className='inline-flex min-w-0 items-center gap-2'>
           <span className='truncate'>{t('Upstream Orchestration')}</span>
@@ -431,159 +550,184 @@ export function UpstreamOrchestration() {
         </Button>
       </SectionPageLayout.Actions>
       <SectionPageLayout.Content>
-        <div className='space-y-4'>
-          {pairingCode ? (
-            <div className='bg-muted flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2'>
-              <span className='text-sm font-medium'>{t('Chrome pairing code')}</span>
-              <code className='select-all break-all text-sm'>{pairingCode}</code>
-              <Button
-                size='sm'
-                variant='ghost'
-                onClick={() => navigator.clipboard.writeText(pairingCode)}
-              >
-                {t('Copy')}
-              </Button>
-            </div>
-          ) : null}
-          {overview && !overview.bark_configured ? (
-            <div className='border-destructive/40 bg-destructive/5 text-destructive rounded-md border px-3 py-2 text-sm'>
-              {t('Root Bark notification is not configured')}
-            </div>
-          ) : null}
-          {nonHaModels.length > 0 ? (
-            <div className='border-amber-500/40 bg-amber-500/5 rounded-md border px-3 py-2 text-sm'>
-              <Badge variant='outline' className='mr-2'>
-                NON_HA
-              </Badge>
-              <span className='break-words'>{nonHaModels.join(', ')}</span>
-            </div>
-          ) : null}
-
-          <div className='grid gap-3 lg:grid-cols-3'>
-            {(overview?.sources ?? []).map((source) => (
-              <SourceCard
-                key={source.id}
-                source={source}
-                nowSeconds={Math.floor(overviewQuery.dataUpdatedAt / 1000)}
-              />
-            ))}
-          </div>
-
-          <Tabs defaultValue='routes'>
-            <TabsList>
-              <TabsTrigger value='routes'>{t('Routes')}</TabsTrigger>
-              <TabsTrigger value='usage'>{t('Usage')}</TabsTrigger>
-              <TabsTrigger value='prices'>{t('Prices')}</TabsTrigger>
-              <TabsTrigger value='automation'>{t('Automation')}</TabsTrigger>
-            </TabsList>
-            <TabsContent value='routes' className='pt-3'>
-              <RouteTable
-                routes={overview?.routes ?? []}
-                sources={overview?.sources ?? []}
-                groups={overview?.groups ?? []}
-                busy={operation.isPending}
-                onAction={(routeId, action) =>
-                  operation.mutate(`${routeId}:${action}`)
-                }
-              />
-            </TabsContent>
-            <TabsContent value='usage' className='pt-3'>
-              <UsageTable
-                metrics={metricsQuery.data ?? []}
-                sources={overview?.sources ?? []}
-              />
-            </TabsContent>
-            <TabsContent value='prices' className='pt-3'>
-              <div className='overflow-x-auto rounded-md border'>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Vendor</TableHead>
-                      <TableHead>Model</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Evidence SHA-256</TableHead>
-                      <TableHead>Captured</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(pricesQuery.data ?? []).map((price) => (
-                      <TableRow key={price.id}>
-                        <TableCell>{price.vendor}</TableCell>
-                        <TableCell className='font-mono'>{price.model_name}</TableCell>
-                        <TableCell>
-                          <Badge variant={statusVariant(price.status)}>
-                            {price.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className='max-w-80 truncate font-mono text-xs'>
-                          {price.evidence_hash}
-                        </TableCell>
-                        <TableCell className='whitespace-nowrap text-xs'>
-                          {formatTime(price.captured_at)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </TabsContent>
-            <TabsContent value='automation' className='pt-3'>
-              <div className='grid gap-3 lg:grid-cols-2'>
-                <TitledCard
-                  title={t('Sync devices')}
-                  icon={<Link2 className='size-4' />}
-                  disableHoverEffect
-                  titleClassName='text-base'
+        <QueryContent
+          error={overviewQuery.error}
+          hasData={overviewQuery.data !== undefined}
+          isPending={overviewQuery.isPending}
+          onRetry={() => void overviewQuery.refetch()}
+        >
+          <div className='space-y-4'>
+            {pairingCode ? (
+              <div className='bg-muted flex flex-wrap items-center justify-between gap-3 rounded-md border px-3 py-2'>
+                <span className='text-sm font-medium'>
+                  {t('Chrome pairing code')}
+                </span>
+                <code className='text-sm break-all select-all'>
+                  {pairingCode}
+                </code>
+                <Button
+                  size='sm'
+                  variant='ghost'
+                  onClick={() => navigator.clipboard.writeText(pairingCode)}
                 >
-                  <div className='space-y-2'>
-                    {(overview?.devices ?? []).map((device) => (
-                      <div
-                        key={device.device_id}
-                        className='flex items-center justify-between gap-3 border-b py-2 last:border-0'
-                      >
-                        <div className='min-w-0'>
-                          <div className='truncate text-sm font-medium'>{device.name}</div>
-                          <div className='text-muted-foreground text-xs'>
-                            {formatTime(device.last_seen_at)}
-                          </div>
-                        </div>
-                        <Badge variant={statusVariant(device.status)}>
-                          {device.status}
-                        </Badge>
-                      </div>
-                    ))}
+                  {t('Copy')}
+                </Button>
+              </div>
+            ) : null}
+            {overview && !overview.bark_configured ? (
+              <div className='border-destructive/40 bg-destructive/5 text-destructive rounded-md border px-3 py-2 text-sm'>
+                {t('Root Bark notification is not configured')}
+              </div>
+            ) : null}
+            {!haStatus.authoritative ? (
+              <Alert variant='destructive'>
+                <AlertTitle>HA</AlertTitle>
+                <AlertDescription>
+                  {t('Information unavailable')}
+                </AlertDescription>
+              </Alert>
+            ) : null}
+            {haStatus.nonHaModels.length > 0 ? (
+              <div className='rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-sm'>
+                <Badge variant='outline' className='mr-2'>
+                  NON_HA
+                </Badge>
+                <span className='break-words'>
+                  {haStatus.nonHaModels.join(', ')}
+                </span>
+              </div>
+            ) : null}
+
+            <div className='grid gap-3 lg:grid-cols-3'>
+              {(overview?.sources ?? []).map((source) => (
+                <SourceCard
+                  key={source.id}
+                  source={source}
+                  nowSeconds={Math.floor(overviewQuery.dataUpdatedAt / 1000)}
+                />
+              ))}
+            </div>
+
+            <Tabs defaultValue='routes'>
+              <TabsList>
+                <TabsTrigger value='routes'>{t('Routes')}</TabsTrigger>
+                <TabsTrigger value='usage'>{t('Usage')}</TabsTrigger>
+                <TabsTrigger value='prices'>{t('Prices')}</TabsTrigger>
+                <TabsTrigger value='automation'>{t('Automation')}</TabsTrigger>
+              </TabsList>
+              <TabsContent value='routes' className='pt-3'>
+                <div className='flex flex-col gap-3'>
+                  <RouteTable
+                    routes={overview?.routes ?? []}
+                    sources={overview?.sources ?? []}
+                    groups={overview?.groups ?? []}
+                    busy={operation.isPending}
+                    onAction={(routeId, action) =>
+                      operation.mutate(`${routeId}:${action}`)
+                    }
+                  />
+                  <UnroutedGroupsTable
+                    groups={unroutedGroups}
+                    sources={overview?.sources ?? []}
+                  />
+                </div>
+              </TabsContent>
+              <TabsContent value='usage' className='pt-3'>
+                <QueryContent
+                  error={metricsQuery.error}
+                  hasData={metricsQuery.data !== undefined}
+                  isPending={metricsQuery.isPending}
+                  onRetry={() => void metricsQuery.refetch()}
+                >
+                  <UsageTable
+                    metrics={metricsQuery.data ?? []}
+                    sources={overview?.sources ?? []}
+                  />
+                </QueryContent>
+              </TabsContent>
+              <TabsContent value='prices' className='pt-3'>
+                <QueryContent
+                  error={pricesQuery.error}
+                  hasData={pricesQuery.data !== undefined}
+                  isPending={pricesQuery.isPending}
+                  onRetry={() => void pricesQuery.refetch()}
+                >
+                  <div className='overflow-x-auto rounded-md border'>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Vendor</TableHead>
+                          <TableHead>Model</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Evidence SHA-256</TableHead>
+                          <TableHead>Captured</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {(pricesQuery.data ?? []).map((price) => (
+                          <TableRow key={price.id}>
+                            <TableCell>{price.vendor}</TableCell>
+                            <TableCell className='font-mono'>
+                              {price.model_name}
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant={statusVariant(price.status)}>
+                                {price.status}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className='max-w-80 truncate font-mono text-xs'>
+                              {price.evidence_hash}
+                            </TableCell>
+                            <TableCell className='text-xs whitespace-nowrap'>
+                              {formatTime(price.captured_at)}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
-                </TitledCard>
-                <TitledCard
-                  title={t('Policy')}
-                  icon={<CircleDollarSign className='size-4' />}
-                  disableHoverEffect
-                  titleClassName='text-base'
-                >
-                  <dl className='grid grid-cols-2 gap-x-4 gap-y-3 text-sm'>
-                    <dt className='text-muted-foreground'>Candidates</dt>
-                    <dd className='text-right font-mono'>
-                      {overview?.settings.candidate_limit ?? 5}
-                    </dd>
-                    <dt className='text-muted-foreground'>Failover budget</dt>
-                    <dd className='text-right font-mono'>
-                      {overview?.settings.failover_budget_seconds ?? 90}s
-                    </dd>
-                    <dt className='text-muted-foreground'>Breaker</dt>
-                    <dd className='text-right font-mono'>
-                      {overview?.settings.failure_threshold ?? 2}/
-                      {overview?.settings.failure_window_minutes ?? 5}m
-                    </dd>
-                    <dt className='text-muted-foreground'>Daily reconcile</dt>
-                    <dd className='text-right font-mono'>
-                      {overview?.settings.daily_reconcile_time ?? '03:00'}
-                    </dd>
-                  </dl>
-                </TitledCard>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </div>
+                </QueryContent>
+              </TabsContent>
+              <TabsContent value='automation' className='pt-3'>
+                <div className='grid gap-3 lg:grid-cols-2'>
+                  <TitledCard
+                    title={t('Sync devices')}
+                    icon={<Link2 className='size-4' />}
+                    disableHoverEffect
+                    titleClassName='text-base'
+                  >
+                    <div className='space-y-2'>
+                      {(overview?.devices ?? []).map((device) => (
+                        <div
+                          key={device.device_id}
+                          className='flex items-center justify-between gap-3 border-b py-2 last:border-0'
+                        >
+                          <div className='min-w-0'>
+                            <div className='truncate text-sm font-medium'>
+                              {device.name}
+                            </div>
+                            <div className='text-muted-foreground text-xs'>
+                              {formatTime(device.last_seen_at)}
+                            </div>
+                          </div>
+                          <Badge variant={statusVariant(device.status)}>
+                            {device.status}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </TitledCard>
+                  {overview ? (
+                    <PolicySettingsForm
+                      settings={overview.settings}
+                      onSaved={refresh}
+                    />
+                  ) : null}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </QueryContent>
       </SectionPageLayout.Content>
     </SectionPageLayout>
   )

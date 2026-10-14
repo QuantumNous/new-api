@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/setting"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/performance_setting"
@@ -29,9 +30,16 @@ type Option struct {
 
 func AllOption() ([]*Option, error) {
 	var options []*Option
-	var err error
-	err = DB.Find(&options).Error
-	return options, err
+	if err := DB.Find(&options).Error; err != nil {
+		return nil, err
+	}
+	public := options[:0]
+	for _, option := range options {
+		if !isModelPricingRevisionOption(option.Key) {
+			public = append(public, option)
+		}
+	}
+	return public, nil
 }
 
 func InitOptionMap() {
@@ -214,11 +222,25 @@ func loadOptionsFromDatabase() {
 	}()
 	passkeyOptionMutex.Lock()
 	defer passkeyOptionMutex.Unlock()
-	options, _ := AllOption()
+	upstreamOrchestrationOptionMutex.Lock()
+	defer upstreamOrchestrationOptionMutex.Unlock()
+	options, err := AllOption()
+	if err != nil {
+		common.SysError("failed to load options: " + err.Error())
+		return
+	}
 	passkeyOptions := make(map[string]string)
+	billingOptions := make(map[string]string)
 	for _, option := range options {
 		if IsPasskeyDomainOption(option.Key) {
 			passkeyOptions[option.Key] = option.Value
+			continue
+		}
+		if strings.HasPrefix(option.Key, upstreamOrchestrationOptionPrefix) {
+			continue
+		}
+		if billing_setting.IsBillingSettingOption(option.Key) {
+			billingOptions[option.Key] = option.Value
 			continue
 		}
 		err := updateOptionMap(option.Key, option.Value)
@@ -226,7 +248,13 @@ func loadOptionsFromDatabase() {
 			common.SysLog("failed to update option map: " + err.Error())
 		}
 	}
+	if err := updateBillingSettingOptionMap(billingOptions); err != nil {
+		common.SysLog("failed to update billing option maps: " + err.Error())
+	}
 	applyPasskeyDomainOptions(passkeyOptions)
+	if err := reloadUpstreamOrchestrationPolicy(); err != nil {
+		common.SysError("invalid upstream orchestration policy: " + err.Error())
+	}
 }
 
 func SyncOptions(frequency int) {
@@ -238,6 +266,9 @@ func SyncOptions(frequency int) {
 }
 
 func validateOptionValue(key string, value string) error {
+	if err := operation_setting.ValidateQuotaOption(key, value); err != nil {
+		return err
+	}
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)
 	}
@@ -257,6 +288,7 @@ const (
 	optionWritePasskey
 	optionWriteRequestPolicy
 	optionWriteAppPolicy
+	optionWriteUpstreamOrchestration
 )
 
 type protectedOptionGroup struct {
@@ -274,6 +306,11 @@ func protectedOptionGroups() []protectedOptionGroup {
 		{authority: optionWriteAppPolicy, keys: []string{
 			AppArkImportDelegationsKey, AppModelInvokePolicyKey,
 		}},
+		{authority: optionWriteUpstreamOrchestration, keys: append(
+			slices.Clone(upstreamOrchestrationPolicyOptionKeys),
+			upstreamOrchestrationStaticEgressOptionKey,
+			upstreamOrchestrationPolicyLockOptionKey,
+		)},
 		{authority: optionWriteGeneric, keys: []string{
 			operation_setting.AppExecutionGrantsEnabledOptionKey,
 			operation_setting.AppPluginEmbeddedSurfaceEnabledOptionKey,
@@ -291,7 +328,14 @@ func protectedOptionWriteError(key string) error {
 	return fmt.Errorf("protected option %q requires its controlled writer", key)
 }
 
+func isModelPricingRevisionOption(key string) bool {
+	return strings.EqualFold(strings.TrimSpace(key), modelPricingRevisionOptionKey)
+}
+
 func validateProtectedOptionKey(key string, writer optionWriteAuthority) error {
+	if isModelPricingRevisionOption(key) {
+		return protectedOptionWriteError(key)
+	}
 	normalized := strings.TrimSpace(key)
 	for _, group := range protectedOptionGroups() {
 		for _, canonical := range group.keys {
@@ -436,6 +480,9 @@ func runOptionWriteTransaction(db *gorm.DB, transaction func(*gorm.DB) error) er
 }
 
 func UpdateOption(key string, value string) error {
+	if IsUpstreamOrchestrationPolicyOption(key) {
+		return UpdateUpstreamOrchestrationOptions(map[string]string{key: value})
+	}
 	if IsRequestPolicyOption(key) {
 		return UpdateRequestPolicyOptions(map[string]string{key: value})
 	}
@@ -466,6 +513,21 @@ func UpdateOption(key string, value string) error {
 func UpdateOptionsBulk(values map[string]string) error {
 	if len(values) == 0 {
 		return nil
+	}
+	hasUpstreamOrchestrationPolicyOption := false
+	for key := range values {
+		if IsUpstreamOrchestrationPolicyOption(key) {
+			hasUpstreamOrchestrationPolicyOption = true
+			break
+		}
+	}
+	if hasUpstreamOrchestrationPolicyOption {
+		for key := range values {
+			if !IsUpstreamOrchestrationPolicyOption(key) {
+				return fmt.Errorf("upstream orchestration policy options cannot be combined with %s", key)
+			}
+		}
+		return UpdateUpstreamOrchestrationOptions(values)
 	}
 	for key := range values {
 		if IsPasskeyDomainOption(key) {
@@ -513,10 +575,18 @@ func UpdateOptionsBulk(values map[string]string) error {
 	if err != nil {
 		return err
 	}
-	for k, v := range values {
-		if err := updateOptionMap(k, v); err != nil {
+	billingOptions := make(map[string]string)
+	for _, key := range slices.Sorted(maps.Keys(values)) {
+		if billing_setting.IsBillingSettingOption(key) {
+			billingOptions[key] = values[key]
+			continue
+		}
+		if err := updateOptionMap(key, values[key]); err != nil {
 			return err
 		}
+	}
+	if err := updateBillingSettingOptionMap(billingOptions); err != nil {
+		return err
 	}
 	if policySnapshot != nil {
 		requestPolicySnapshot.Store(policySnapshot)
@@ -525,6 +595,9 @@ func UpdateOptionsBulk(values map[string]string) error {
 }
 
 func updateOptionMap(key string, value string) (err error) {
+	if billing_setting.IsBillingSettingOption(key) {
+		return updateBillingSettingOptionMap(map[string]string{key: value})
+	}
 	if key == retiredThemeOptionKey {
 		common.OptionMapRWMutex.Lock()
 		delete(common.OptionMap, key)
@@ -874,6 +947,27 @@ func updateOptionMap(key string, value string) (err error) {
 	return err
 }
 
+func updateBillingSettingOptionMap(values map[string]string) error {
+	if len(values) == 0 {
+		return nil
+	}
+	common.OptionMapRWMutex.Lock()
+	err := billing_setting.UpdateBillingSettingOptions(values)
+	if err == nil {
+		if common.OptionMap == nil {
+			common.OptionMap = make(map[string]string)
+		}
+		maps.Copy(common.OptionMap, values)
+	}
+	common.OptionMapRWMutex.Unlock()
+	if err != nil {
+		return err
+	}
+	InvalidatePricingCache()
+	ratio_setting.InvalidateExposedDataCache()
+	return nil
+}
+
 // handleConfigUpdate 处理分层配置更新，返回是否已处理
 func handleConfigUpdate(key, value string) bool {
 	if key == operation_setting.ToolPriceOptionKey {
@@ -889,17 +983,16 @@ func handleConfigUpdate(key, value string) bool {
 	configName := parts[0]
 	configKey := parts[1]
 
-	// 获取配置对象
-	cfg := config.GlobalConfig.Get(configName)
-	if cfg == nil {
+	updated, err := config.GlobalConfig.UpdateFromMap(configName, map[string]string{
+		configKey: value,
+	})
+	if !updated {
 		return false // 未注册的配置
 	}
-
-	// 更新配置
-	configMap := map[string]string{
-		configKey: value,
+	if err != nil {
+		common.SysError("failed to update config " + configName + ": " + err.Error())
+		return true
 	}
-	config.UpdateConfigFromMap(cfg, configMap)
 
 	// 特定配置的后处理
 	if configName == "performance_setting" {

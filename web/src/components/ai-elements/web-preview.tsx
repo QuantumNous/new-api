@@ -43,6 +43,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import dayjs from '@/lib/dayjs'
+import { getScriptAppIframeProps } from '@/lib/iframe-sandbox'
 import { cn } from '@/lib/utils'
 
 export type WebPreviewContextValue = {
@@ -195,8 +196,27 @@ export const WebPreviewUrl = ({
   )
 }
 
-export type WebPreviewBodyProps = ComponentProps<'iframe'> & {
+export type WebPreviewBodyProps = Omit<
+  ComponentProps<'iframe'>,
+  'sandbox' | 'srcDoc'
+> & {
   loading?: ReactNode
+  sandbox?: never
+  srcDoc?: never
+}
+
+const CONTROLLED_IFRAME_PROP_NAMES = new Set(['sandbox', 'src', 'srcdoc'])
+
+function sanitizeWebPreviewIframeProps(
+  props: ComponentProps<'iframe'>
+): ComponentProps<'iframe'> {
+  const sanitizedProps = { ...props }
+  for (const propName of Object.keys(sanitizedProps)) {
+    if (CONTROLLED_IFRAME_PROP_NAMES.has(propName.toLowerCase())) {
+      Reflect.deleteProperty(sanitizedProps, propName)
+    }
+  }
+  return sanitizedProps
 }
 
 export const WebPreviewBody = ({
@@ -207,15 +227,18 @@ export const WebPreviewBody = ({
 }: WebPreviewBodyProps) => {
   const { t } = useTranslation()
   const { url } = useWebPreview()
+  const resolvedSrc = (src ?? url) || undefined
+  const iframeProps = sanitizeWebPreviewIframeProps(props)
+  const iframePolicy = getScriptAppIframeProps(resolvedSrc)
 
   return (
     <div className='flex-1'>
       <iframe
         className={cn('size-full', className)}
-        sandbox='allow-scripts allow-same-origin allow-forms allow-popups allow-presentation'
-        src={(src ?? url) || undefined}
         title={t('Preview')}
-        {...props}
+        {...iframeProps}
+        sandbox={iframePolicy.sandbox}
+        src={iframePolicy.src}
       />
       {loading}
     </div>
@@ -230,6 +253,7 @@ export type WebPreviewConsoleProps = ComponentProps<'div'> & {
   }>
 }
 
+/* oxlint-disable react/no-array-index-key -- Console log events have no stable ID. */
 export const WebPreviewConsole = ({
   className,
   logs = [],
@@ -295,3 +319,4 @@ export const WebPreviewConsole = ({
     </Collapsible>
   )
 }
+/* oxlint-enable react/no-array-index-key */

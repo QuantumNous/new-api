@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"sync"
@@ -15,15 +16,18 @@ import (
 	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 type taskPollingFetchAdaptor struct {
 	mu           sync.Mutex
+	initInfo     *relaycommon.RelayInfo
 	taskIDs      []string
 	fetched      chan string
 	blockTaskID  string
@@ -34,21 +38,32 @@ type taskPollingFetchAdaptor struct {
 
 type batchPollingAdaptor struct {
 	taskPollingFetchAdaptor
-	batchCalls int
-	batchIDs   []string
-	results    map[string]*BatchTaskResult
+	batchCalls     int
+	batchIDs       []string
+	batchKeys      []string
+	batchIDsByCall [][]string
+	batchParseKeys []string
+	parseErrors    map[string]error
+	results        map[string]*BatchTaskResult
 }
 
 func (a *batchPollingAdaptor) FetchMode() string { return "batch" }
-func (a *batchPollingAdaptor) FetchBatchTasks(_ string, _ string, tasks []*model.Task, _ string) (*http.Response, error) {
+func (a *batchPollingAdaptor) FetchBatchTasks(_ string, key string, tasks []*model.Task, _ string) (*http.Response, error) {
 	a.batchCalls++
 	a.batchIDs = a.batchIDs[:0]
 	for _, task := range tasks {
 		a.batchIDs = append(a.batchIDs, task.GetUpstreamTaskID())
 	}
+	a.batchKeys = append(a.batchKeys, key)
+	a.batchIDsByCall = append(a.batchIDsByCall, append([]string(nil), a.batchIDs...))
 	return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader([]byte(`{}`)))}, nil
 }
 func (a *batchPollingAdaptor) ParseBatchResult(_ []*model.Task, _ *http.Response, _ []byte) (map[string]*BatchTaskResult, error) {
+	key := a.initAPIKey()
+	a.batchParseKeys = append(a.batchParseKeys, key)
+	if err := a.parseErrors[key]; err != nil {
+		return nil, err
+	}
 	if a.results != nil {
 		return a.results, nil
 	}
@@ -59,7 +74,27 @@ func (a *batchPollingAdaptor) ParseBatchResult(_ []*model.Task, _ *http.Response
 	return results, nil
 }
 
-func (a *taskPollingFetchAdaptor) Init(_ *relaycommon.RelayInfo) {}
+func (a *taskPollingFetchAdaptor) Init(info *relaycommon.RelayInfo) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.initInfo = info
+}
+func (a *taskPollingFetchAdaptor) initAPIKey() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.initInfo == nil {
+		return ""
+	}
+	return a.initInfo.ApiKey
+}
+func (a *taskPollingFetchAdaptor) initChannelMeta() *relaycommon.ChannelMeta {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if a.initInfo == nil {
+		return nil
+	}
+	return a.initInfo.ChannelMeta
+}
 
 func (a *taskPollingFetchAdaptor) FetchTask(_ string, _ string, task *model.Task, _ string) (*http.Response, error) {
 	taskID := ""
@@ -223,6 +258,87 @@ func TestUpdateVideoTasksDefaultSleepWaitsBetweenTasks(t *testing.T) {
 
 	require.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.Equal(t, 1, adaptor.fetchCount())
+}
+
+func TestPollingPassesExecutingChannelTypeToAdaptor(t *testing.T) {
+	truncate(t)
+	const channelID = 112
+	baseURL := "https://gateway.example"
+	gateway := &model.Channel{Id: channelID, Type: constant.ChannelTypeNewAPI, Name: "gateway", Key: "sk-gateway", Status: common.ChannelStatusEnabled, BaseURL: &baseURL}
+	gateway.SetOtherSettings(dto.ChannelOtherSettings{DisableTaskPollingSleep: true})
+	require.NoError(t, model.DB.Create(gateway).Error)
+	task := seedPollingTask(t, channelID, "task_gateway", "upstream_gateway")
+	taskChannels := map[int][]string{channelID: {task.GetUpstreamTaskID()}}
+	tasks := map[string]*model.Task{task.GetUpstreamTaskID(): task}
+
+	perTask := &taskPollingFetchAdaptor{}
+	previousFactory := GetTaskAdaptorFunc
+	GetTaskAdaptorFunc = func(constant.TaskPlatform) TaskPollingAdaptor { return perTask }
+	t.Cleanup(func() { GetTaskAdaptorFunc = previousFactory })
+	require.NoError(t, UpdateVideoTasks(context.Background(), constant.TaskPlatform("kling"), taskChannels, tasks))
+	meta := perTask.initChannelMeta()
+	require.NotNil(t, meta, "per-task polling initializes the adaptor with channel metadata")
+	assert.Equal(t, constant.ChannelTypeNewAPI, meta.ChannelType, "the adaptor derives the upstream kind from the channel type")
+	assert.Equal(t, channelID, meta.ChannelId)
+	assert.Equal(t, baseURL, meta.ChannelBaseUrl)
+
+	batch := &batchPollingAdaptor{}
+	require.NoError(t, UpdateBatchTasks(context.Background(), batch, taskChannels, tasks))
+	meta = batch.initChannelMeta()
+	require.NotNil(t, meta, "batch polling initializes the adaptor with channel metadata")
+	assert.Equal(t, constant.ChannelTypeNewAPI, meta.ChannelType)
+	assert.Equal(t, channelID, meta.ChannelId)
+	assert.Equal(t, baseURL, meta.ChannelBaseUrl)
+}
+
+func TestUpdateBatchTasksPartitionsTasksByPinnedCredential(t *testing.T) {
+	truncate(t)
+	const channelID = 113
+	seedTaskPollingChannel(t, channelID, true)
+	first := seedPollingTask(t, channelID, "task_pinned_a", "upstream_pinned_a")
+	second := seedPollingTask(t, channelID, "task_pinned_b", "upstream_pinned_b")
+	first.PrivateData.Key = "credential-a"
+	second.PrivateData.Key = "credential-b"
+
+	adaptor := &batchPollingAdaptor{}
+	require.NoError(t, UpdateBatchTasks(context.Background(), adaptor, map[int][]string{
+		channelID: {first.GetUpstreamTaskID(), second.GetUpstreamTaskID(), first.GetUpstreamTaskID()},
+	}, map[string]*model.Task{
+		first.GetUpstreamTaskID():  first,
+		second.GetUpstreamTaskID(): second,
+	}))
+
+	require.Equal(t, 2, adaptor.batchCalls)
+	assert.Equal(t, adaptor.batchKeys, adaptor.batchParseKeys, "fetch and parse must use the same effective credential for each group")
+	batches := make(map[string][]string, adaptor.batchCalls)
+	for i, key := range adaptor.batchKeys {
+		batches[key] = adaptor.batchIDsByCall[i]
+	}
+	assert.Equal(t, []string{first.GetUpstreamTaskID()}, batches[first.PrivateData.Key])
+	assert.Equal(t, []string{second.GetUpstreamTaskID()}, batches[second.PrivateData.Key])
+}
+
+func TestUpdateBatchTasksIsolatesCredentialGroupErrors(t *testing.T) {
+	truncate(t)
+	const channelID = 114
+	seedTaskPollingChannel(t, channelID, true)
+	first := seedPollingTask(t, channelID, "task_error_a", "upstream_error_a")
+	second := seedPollingTask(t, channelID, "task_error_b", "upstream_error_b")
+	first.PrivateData.Key = "credential-a"
+	second.PrivateData.Key = "credential-b"
+
+	adaptor := &batchPollingAdaptor{parseErrors: map[string]error{"credential-a": io.ErrUnexpectedEOF}}
+	require.NoError(t, UpdateBatchTasks(context.Background(), adaptor, map[int][]string{
+		channelID: {first.GetUpstreamTaskID(), second.GetUpstreamTaskID()},
+	}, map[string]*model.Task{
+		first.GetUpstreamTaskID():  first,
+		second.GetUpstreamTaskID(): second,
+	}))
+
+	assert.Equal(t, []string{"credential-a", "credential-b"}, adaptor.batchKeys)
+	assert.Equal(t, adaptor.batchKeys, adaptor.batchParseKeys, "a failed credential group must not block later groups")
+	assert.Equal(t, 1, first.PrivateData.PollFailures)
+	assert.Zero(t, second.PrivateData.PollFailures)
 }
 
 func TestDispatchPlatformUpdateUsesFetchMode(t *testing.T) {
@@ -731,7 +847,8 @@ func TestSweepTimedOutTasksHonorsRefundRolloutBoundary(t *testing.T) {
 		userID          = 403
 		initialQuota    = 10_000
 		legacyTaskQuota = 1_800
-		modernTaskQuota = 1_200
+		deferredQuota   = 1_200
+		foregroundQuota = 900
 	)
 	seedUser(t, userID, initialQuota)
 
@@ -741,11 +858,19 @@ func TestSweepTimedOutTasksHonorsRefundRolloutBoundary(t *testing.T) {
 	legacyTask.SubmitTime = 1771718399 // 2026-02-21 23:59:59 UTC
 	require.NoError(t, model.DB.Create(legacyTask).Error)
 
-	modernTask := makeTask(userID, 0, modernTaskQuota, 0, BillingSourceWallet, 0)
-	modernTask.TaskID = "modern_timeout_with_refund"
-	modernTask.Progress = "50%"
-	modernTask.SubmitTime = 1771718400 // 2026-02-22 00:00:00 UTC
-	require.NoError(t, model.DB.Create(modernTask).Error)
+	deferredTask := makeTask(userID, 0, deferredQuota, 0, BillingSourceWallet, 0)
+	deferredTask.TaskID = "dispatched_deferred_timeout_with_refund"
+	deferredTask.Progress = "50%"
+	deferredTask.SubmitTime = 1771718400 // 2026-02-22 00:00:00 UTC
+	deferredTask.ExecutionMode = model.TaskExecutionModeDeferred
+	deferredTask.DispatchStatus = model.TaskDispatchStatusDispatched
+	require.NoError(t, model.DB.Create(deferredTask).Error)
+
+	foregroundTask := makeTask(userID, 0, foregroundQuota, 0, BillingSourceWallet, 0)
+	foregroundTask.TaskID = "foreground_timeout_with_refund"
+	foregroundTask.Progress = "50%"
+	foregroundTask.SubmitTime = 1771718400
+	require.NoError(t, model.DB.Create(foregroundTask).Error)
 
 	previousTimeout := constant.TaskTimeoutMinutes
 	constant.TaskTimeoutMinutes = 1
@@ -754,25 +879,188 @@ func TestSweepTimedOutTasksHonorsRefundRolloutBoundary(t *testing.T) {
 	sweepTimedOutTasks(context.Background())
 
 	var reloadedLegacy model.Task
-	var reloadedModern model.Task
+	var reloadedDeferred model.Task
+	var reloadedForeground model.Task
 	require.NoError(t, model.DB.First(&reloadedLegacy, legacyTask.ID).Error)
-	require.NoError(t, model.DB.First(&reloadedModern, modernTask.ID).Error)
+	require.NoError(t, model.DB.First(&reloadedDeferred, deferredTask.ID).Error)
+	require.NoError(t, model.DB.First(&reloadedForeground, foregroundTask.ID).Error)
 	assert.EqualValues(t, model.TaskStatusFailure, reloadedLegacy.Status)
-	assert.EqualValues(t, model.TaskStatusFailure, reloadedModern.Status)
+	assert.EqualValues(t, model.TaskStatusFailure, reloadedDeferred.Status)
+	assert.EqualValues(t, model.TaskStatusFailure, reloadedForeground.Status)
 	assert.Zero(t, reloadedLegacy.Quota)
-	assert.Zero(t, reloadedModern.Quota)
+	assert.Zero(t, reloadedDeferred.Quota)
+	assert.Zero(t, reloadedForeground.Quota)
 	assert.Contains(t, reloadedLegacy.FailReason, "旧系统遗留任务")
-	assert.Contains(t, reloadedModern.FailReason, "任务超时")
-	assert.Equal(t, initialQuota+modernTaskQuota, getUserQuota(t, userID))
-	assert.Equal(t, int64(1), countLogs(t))
+	assert.Contains(t, reloadedDeferred.FailReason, "任务超时")
+	assert.Contains(t, reloadedForeground.FailReason, "任务超时")
+	assert.Equal(t, initialQuota+deferredQuota+foregroundQuota, getUserQuota(t, userID))
+	assert.Equal(t, int64(2), countLogs(t))
+}
+
+func TestSweepTimedOutTasksPreservesNewlyResolvedDeferredTaskBeforeFirstPoll(t *testing.T) {
+	truncate(t)
+
+	const userID, initialQuota, taskQuota = 405, 10_000, 1_200
+	seedUser(t, userID, initialQuota)
+
+	now := time.Now().Unix()
+	task := makeTask(userID, 0, taskQuota, 0, BillingSourceWallet, 0)
+	task.TaskID = "deferred_resolved_before_first_poll"
+	task.Status = model.TaskStatusNotStart
+	task.Progress = "0%"
+	task.SubmitTime = now - 2*60
+	task.ExecutionMode = model.TaskExecutionModeDeferred
+	task.DispatchStatus = model.TaskDispatchStatusUncertain
+	task.DispatchStartedAt = now - 90
+	task.PrivateData.DeferredRequest = &model.TaskDeferredRequest{RequestBody: []byte(`{}`)}
+	require.NoError(t, model.DB.Create(task).Error)
+
+	won, err := model.ResolveDeferredTask(
+		task,
+		true,
+		"upstream-resolved-before-poll",
+		"provider confirmed acceptance",
+		now,
+	)
+	require.NoError(t, err)
+	require.True(t, won)
+	require.Equal(t, now, task.StartTime)
+
+	previousTimeout := constant.TaskTimeoutMinutes
+	constant.TaskTimeoutMinutes = 1
+	t.Cleanup(func() { constant.TaskTimeoutMinutes = previousTimeout })
+
+	sweepTimedOutTasks(context.Background())
+
+	var stored model.Task
+	require.NoError(t, model.DB.First(&stored, task.ID).Error)
+	assert.Equal(t, model.TaskStatus(model.TaskStatusSubmitted), stored.Status)
+	assert.Equal(t, "10%", stored.Progress)
+	assert.Equal(t, model.TaskDispatchStatusDispatched, stored.DispatchStatus)
+	assert.Equal(t, now, stored.StartTime)
+	assert.Equal(t, taskQuota, stored.Quota)
+	assert.Equal(t, initialQuota, getUserQuota(t, userID))
+	assert.Zero(t, countLogs(t))
+}
+
+func TestSweepTimedOutTasksDoesNotOverwriteDeferredFenceAcquiredAfterSelection(t *testing.T) {
+	truncate(t)
+
+	const userID, initialQuota, taskQuota = 404, 10_000, 1_200
+	seedUser(t, userID, initialQuota)
+
+	task := makeTask(userID, 0, taskQuota, 0, BillingSourceWallet, 0)
+	task.TaskID = "deferred_timeout_fenced_after_selection"
+	task.Progress = "0%"
+	task.SubmitTime = time.Now().Add(-2 * time.Minute).Unix()
+	task.ExecutionMode = model.TaskExecutionModeDeferred
+	task.DispatchStatus = model.TaskDispatchStatusPending
+	require.NoError(t, model.DB.Create(task).Error)
+
+	const callbackName = "test:fence-deferred-timeout-after-query"
+	fenceApplied := false
+	var fenceErr error
+	require.NoError(t, model.DB.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if fenceApplied {
+			return
+		}
+		if _, ok := tx.Statement.Dest.(*[]*model.Task); !ok {
+			return
+		}
+		fenceApplied = true
+		fenceErr = model.DB.Model(&model.Task{}).Where("id = ?", task.ID).Updates(map[string]any{
+			"dispatch_status":           model.TaskDispatchStatusRunning,
+			"dispatch_owner":            "runner-fenced",
+			"dispatch_lock_until":       int64(math.MaxInt64),
+			"dispatch_attempts":         1,
+			"dispatch_protocol_version": model.CurrentTaskDispatchProtocolVersion,
+		}).Error
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Callback().Query().Remove(callbackName))
+	})
+
+	previousTimeout := constant.TaskTimeoutMinutes
+	constant.TaskTimeoutMinutes = 1
+	t.Cleanup(func() { constant.TaskTimeoutMinutes = previousTimeout })
+
+	sweepTimedOutTasks(context.Background())
+
+	require.True(t, fenceApplied)
+	require.NoError(t, fenceErr)
+	var stored model.Task
+	require.NoError(t, model.DB.First(&stored, task.ID).Error)
+	assert.Equal(t, model.TaskStatus(model.TaskStatusInProgress), stored.Status)
+	assert.Equal(t, "0%", stored.Progress)
+	assert.Equal(t, model.TaskDispatchStatusRunning, stored.DispatchStatus)
+	assert.Equal(t, "runner-fenced", stored.DispatchOwner)
+	assert.Equal(t, int64(math.MaxInt64), stored.DispatchLockUntil)
+	assert.Equal(t, 1, stored.DispatchAttempts)
+	assert.Equal(t, taskQuota, stored.Quota)
+	assert.Equal(t, initialQuota, getUserQuota(t, userID))
+	assert.Zero(t, countLogs(t))
+}
+
+func TestSweepTimedOutTasksDoesNotRefundDeferredTaskWhoseStartTimeRefreshesAfterSelection(t *testing.T) {
+	truncate(t)
+
+	const userID, initialQuota, taskQuota = 406, 10_000, 1_200
+	seedUser(t, userID, initialQuota)
+
+	task := makeTask(userID, 0, taskQuota, 0, BillingSourceWallet, 0)
+	task.TaskID = "deferred_timeout_start_time_refreshed_after_selection"
+	task.Progress = "50%"
+	task.SubmitTime = time.Now().Add(-2 * time.Minute).Unix()
+	task.StartTime = task.SubmitTime
+	task.ExecutionMode = model.TaskExecutionModeDeferred
+	task.DispatchStatus = model.TaskDispatchStatusDispatched
+	require.NoError(t, model.DB.Create(task).Error)
+
+	const callbackName = "test:refresh-deferred-timeout-start-after-query"
+	refreshApplied := false
+	var refreshErr error
+	require.NoError(t, model.DB.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if refreshApplied {
+			return
+		}
+		if _, ok := tx.Statement.Dest.(*[]*model.Task); !ok {
+			return
+		}
+		refreshApplied = true
+		refreshErr = model.DB.Model(&model.Task{}).
+			Where("id = ?", task.ID).
+			Update("start_time", time.Now().Unix()).Error
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Callback().Query().Remove(callbackName))
+	})
+
+	previousTimeout := constant.TaskTimeoutMinutes
+	constant.TaskTimeoutMinutes = 1
+	t.Cleanup(func() { constant.TaskTimeoutMinutes = previousTimeout })
+
+	sweepTimedOutTasks(context.Background())
+
+	require.True(t, refreshApplied)
+	require.NoError(t, refreshErr)
+	var stored model.Task
+	require.NoError(t, model.DB.First(&stored, task.ID).Error)
+	assert.Equal(t, model.TaskStatus(model.TaskStatusInProgress), stored.Status)
+	assert.Equal(t, "50%", stored.Progress)
+	assert.Equal(t, model.TaskDispatchStatusDispatched, stored.DispatchStatus)
+	assert.GreaterOrEqual(t, stored.StartTime, time.Now().Add(-time.Minute).Unix())
+	assert.Equal(t, taskQuota, stored.Quota)
+	assert.Equal(t, initialQuota, getUserQuota(t, userID))
+	assert.Zero(t, countLogs(t))
 }
 
 type scriptedPollingAdaptor struct {
-	statusCode int
-	body       []byte
-	fetchErr   error
-	parse      *relaycommon.TaskInfo
-	parseErr   error
+	statusCode  int
+	body        []byte
+	fetchErr    error
+	parse       *relaycommon.TaskInfo
+	parseErr    error
+	adjustCalls int
 }
 
 func (a *scriptedPollingAdaptor) Init(*relaycommon.RelayInfo) {}
@@ -800,7 +1088,57 @@ func (a *scriptedPollingAdaptor) ParseTaskResult(*model.Task, *http.Response, []
 	return &relaycommon.TaskInfo{Status: model.TaskStatusInProgress}, nil
 }
 func (a *scriptedPollingAdaptor) AdjustBillingOnComplete(*model.Task, *relaycommon.TaskInfo) int {
+	a.adjustCalls++
 	return 0
+}
+
+func TestUpdateVideoSingleTaskCancelledUsesTerminalFinalizerExactlyOnce(t *testing.T) {
+	truncate(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.PerfMetric{}))
+
+	const userID, tokenID, channelID = 509, 509, 509
+	const initialQuota, preConsumed, tokenRemain = 10_000, 4_000, 7_000
+	seedUser(t, userID, initialQuota)
+	seedToken(t, tokenID, userID, "sk-cancel-finalizer", tokenRemain)
+
+	task := makeTask(userID, channelID, preConsumed, tokenID, BillingSourceWallet, 0)
+	task.TaskID = "task_cancel_finalizer"
+	task.SubmitTime = time.Now().Add(-time.Minute).Unix()
+	task.Properties.OriginModelName = "cancel-finalizer-model"
+	task.PrivateData.UpstreamTaskID = "upstream_cancel_finalizer"
+	task.PrivateData.BillingContext.OriginModelName = task.Properties.OriginModelName
+	require.NoError(t, model.DB.Create(task).Error)
+	metricRequestCount := func() int64 {
+		metrics, err := perfmetrics.QuerySummaryAll(1, nil)
+		require.NoError(t, err)
+		for _, summary := range metrics.Models {
+			if summary.ModelName == task.Properties.OriginModelName {
+				return summary.RequestCount
+			}
+		}
+		return 0
+	}
+	metricBaseline := metricRequestCount()
+
+	var winnerTask model.Task
+	var staleTask model.Task
+	require.NoError(t, model.DB.First(&winnerTask, task.ID).Error)
+	require.NoError(t, model.DB.First(&staleTask, task.ID).Error)
+
+	adaptor := &scriptedPollingAdaptor{parse: &relaycommon.TaskInfo{Status: model.TaskStatusCancelled}}
+	ch := &model.Channel{Id: channelID, Type: constant.ChannelTypeKling, Key: "channel-credential"}
+	for _, candidate := range []*model.Task{&winnerTask, &staleTask} {
+		require.NoError(t, updateVideoSingleTask(context.Background(), adaptor, ch, task.GetUpstreamTaskID(), map[string]*model.Task{
+			task.GetUpstreamTaskID(): candidate,
+		}))
+	}
+
+	assert.Equal(t, 1, adaptor.adjustCalls)
+	assert.Equal(t, initialQuota+preConsumed, getUserQuota(t, userID))
+	assert.Equal(t, tokenRemain+preConsumed, getTokenRemainQuota(t, tokenID))
+	assert.Equal(t, int64(1), countLogs(t))
+
+	assert.Equal(t, int64(1), metricRequestCount()-metricBaseline)
 }
 
 type scriptedBatchPollingAdaptor struct {

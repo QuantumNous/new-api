@@ -21,7 +21,7 @@ For commercial licensing, please contact support@quantumnous.com
  * controller/task_plugin.go). Enforced client-side too so an oversized fetch
  * fails with a readable message instead of a server rejection.
  */
-export const MAX_PLUGIN_SOURCE_BYTES = 1024 * 1024
+export const MAX_PLUGIN_SOURCE_BYTES = 8 * 1024 * 1024
 
 export function pluginSourceByteLength(source: string): number {
   return new TextEncoder().encode(source).length

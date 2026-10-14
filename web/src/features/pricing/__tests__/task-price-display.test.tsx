@@ -100,6 +100,69 @@ const model: PricingModel = {
 }
 const clients: QueryClient[] = []
 
+it('shows nested task conditions and prices in detail and group tables without ambiguous log matches', () => {
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { data: { groups: [] } } })
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  clients.push(client)
+  const nestedModel: PricingModel = {
+    ...model,
+    billing_expr:
+      'tier("standard", u("seconds") * (hour("Asia/Shanghai") >= 18 && hour("Asia/Shanghai") < 22 ? (u("resolution") == "4K" ? 0.12 : 0.072) : (u("resolution") == "4K" ? 0.15 : 0.09)))',
+    billing_usage_schema: {
+      seconds: { type: 'number', unit: 'second' },
+      resolution: { enum: ['768P', '4K'] },
+    },
+  }
+  render(
+    <QueryClientProvider client={client}>
+      <ModelCard model={nestedModel} onClick={vi.fn()} />
+      <ModelPriceCell model={nestedModel} />
+      <ModelDetailsContent
+        model={nestedModel}
+        groupRatio={{ default: 2 }}
+        usableGroup={{ default: { desc: '', ratio: 2 } }}
+        endpointMap={{}}
+        autoGroups={[]}
+        priceRate={1}
+        usdExchangeRate={1}
+        tokenUnit='M'
+      />
+      <DynamicPricingBreakdown
+        billingExpr={nestedModel.billing_expr}
+        usageSchema={nestedModel.billing_usage_schema}
+        matchedTierLabel='standard'
+        usageFacts={{ seconds: 10, resolution: '4K' }}
+      />
+    </QueryClientProvider>
+  )
+  expect(
+    screen.queryByText('Special billing expression')
+  ).not.toBeInTheDocument()
+  expect(
+    screen.getAllByText(/resolution: 4K · 18:00–22:00 \(Asia\/Shanghai\)/)
+      .length
+  ).toBeGreaterThan(0)
+  expect(
+    screen.getAllByText(/resolution: 768P · Outside these times:/).length
+  ).toBeGreaterThan(0)
+  expect(screen.getByText('$0.072 – $0.15')).toBeVisible()
+  expect(screen.getAllByText('$0.24').length).toBeGreaterThan(0)
+  expect(screen.queryByText('Matched')).not.toBeInTheDocument()
+})
+
+it('explains missing task metadata while retaining the original expression', () => {
+  const expression = 'tier("base", u("seconds") * 0.09)'
+  render(<DynamicPricingBreakdown billingExpr={expression} />)
+  expect(
+    screen.getByText(
+      'Task usage metadata is unavailable. Pricing details cannot be displayed.'
+    )
+  ).toBeVisible()
+  expect(screen.getByText(expression)).toBeVisible()
+})
+
 it('falls back for omitted count labels and preserves canonical units for other quantities', () => {
   expect(taskUsageUnitLabel({ unit: 'count' }, 'zhCN', '次')).toBe('次')
   expect(

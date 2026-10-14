@@ -17,8 +17,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, CircleCheck, Upload } from 'lucide-react'
-import { useState } from 'react'
+import { AlertTriangle, CircleCheck, Power, Upload } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -36,7 +36,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Spinner } from '@/components/ui/spinner'
 
-import { uploadTaskPlugin } from '../api'
+import { activateTaskPlugin, uploadTaskPlugin } from '../api'
 import {
   encodePluginIconFile,
   PluginIconFileError,
@@ -68,26 +68,47 @@ export function UploadDialog(props: UploadDialogProps) {
   const [result, setResult] = useState<TaskPluginDetail | null>(null)
   const [importUrl, setImportUrl] = useState('')
   const [importError, setImportError] = useState('')
+  const primaryActionRef = useRef<HTMLButtonElement>(null)
   const mutation = useMutation({
     mutationFn: () => uploadTaskPlugin(source, remark, icon),
     onSuccess: (data) => {
       setResult(data)
       queryClient.invalidateQueries({ queryKey: ['task-plugins'] })
-      if (props.initialKey) {
-        queryClient.invalidateQueries({
-          queryKey: ['task-plugin', props.initialKey],
-        })
-        queryClient.invalidateQueries({
-          queryKey: ['task-plugin-versions', props.initialKey],
-        })
-      }
-      toast.success(t('Plugin uploaded successfully'))
+      queryClient.invalidateQueries({
+        queryKey: ['task-plugin', data.meta.key],
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['task-plugin-versions', data.meta.key],
+      })
+      toast.success(
+        data.plugin?.active === false
+          ? t('Plugin saved, activation required')
+          : t('Plugin uploaded successfully')
+      )
+    },
+  })
+  const activateMutation = useMutation({
+    mutationFn: (detail: TaskPluginDetail) =>
+      activateTaskPlugin(detail.meta.key, detail.meta.version),
+    onSuccess: (_, detail) => {
+      queryClient.invalidateQueries({ queryKey: ['task-plugins'] })
+      queryClient.invalidateQueries({
+        queryKey: ['task-plugin', detail.meta.key],
+      })
+      queryClient.invalidateQueries({
+        queryKey: ['task-plugin-versions', detail.meta.key],
+      })
+      toast.success(t('Plugin version activated'))
     },
   })
 
+  useEffect(() => {
+    if (result) primaryActionRef.current?.focus()
+  }, [result, activateMutation.isSuccess])
+
   const handleFile = async (file: File) => {
     if (file.size > MAX_PLUGIN_SOURCE_BYTES) {
-      setImportError(t('Plugin source exceeds the 1 MiB limit.'))
+      setImportError(t('Plugin source exceeds the 8 MiB limit.'))
       return
     }
     setImportError('')
@@ -118,6 +139,7 @@ export function UploadDialog(props: UploadDialogProps) {
   }
 
   const close = (open: boolean) => {
+    if (!open && (mutation.isPending || activateMutation.isPending)) return
     props.onOpenChange(open)
     if (!open) {
       setSource('')
@@ -130,13 +152,89 @@ export function UploadDialog(props: UploadDialogProps) {
       setImportUrl('')
       setImportError('')
       mutation.reset()
+      activateMutation.reset()
     }
+  }
+
+  if (result) {
+    const needsActivation =
+      result.plugin?.active === false && !activateMutation.isSuccess
+
+    return (
+      <Dialog
+        open={props.open}
+        onOpenChange={close}
+        showCloseButton={!activateMutation.isPending}
+        bodyClassName='space-y-4'
+        title={t('Plugin uploaded successfully')}
+        description={`${result.meta.name} (${result.meta.key}) · v${result.meta.version}`}
+        descriptionClassName='break-all'
+        footer={
+          <>
+            <Button
+              ref={needsActivation ? undefined : primaryActionRef}
+              variant={needsActivation ? 'outline' : 'default'}
+              disabled={activateMutation.isPending}
+              onClick={() => close(false)}
+            >
+              {needsActivation ? t('Later') : t('Close')}
+            </Button>
+            {needsActivation && (
+              <Button
+                ref={primaryActionRef}
+                disabled={activateMutation.isPending}
+                onClick={() => activateMutation.mutate(result)}
+              >
+                {activateMutation.isPending ? (
+                  <Spinner aria-hidden='true' />
+                ) : (
+                  <Power aria-hidden='true' />
+                )}
+                {activateMutation.isPending
+                  ? t('Activating...')
+                  : t('Activate now')}
+              </Button>
+            )}
+          </>
+        }
+      >
+        <Alert role='status'>
+          {needsActivation ? (
+            <AlertTriangle aria-hidden='true' />
+          ) : (
+            <CircleCheck aria-hidden='true' />
+          )}
+          <AlertTitle>
+            {needsActivation
+              ? t('Plugin saved, activation required')
+              : t('Plugin version activated')}
+          </AlertTitle>
+          {needsActivation && (
+            <AlertDescription>
+              {t(
+                'This version is saved but not active. Activate it to replace the current version, or activate it later from the Versions tab.'
+              )}
+            </AlertDescription>
+          )}
+        </Alert>
+        {activateMutation.error && (
+          <Alert variant='destructive'>
+            <AlertTriangle aria-hidden='true' />
+            <AlertTitle>{t('Plugin activation failed')}</AlertTitle>
+            <AlertDescription className='break-words whitespace-pre-wrap'>
+              {activateMutation.error.message}
+            </AlertDescription>
+          </Alert>
+        )}
+      </Dialog>
+    )
   }
 
   return (
     <Dialog
       open={props.open}
       onOpenChange={close}
+      showCloseButton={!mutation.isPending}
       contentClassName='sm:max-w-3xl'
       bodyClassName='space-y-4'
       title={
@@ -151,7 +249,11 @@ export function UploadDialog(props: UploadDialogProps) {
       }
       footer={
         <>
-          <Button variant='outline' onClick={() => close(false)}>
+          <Button
+            variant='outline'
+            disabled={mutation.isPending}
+            onClick={() => close(false)}
+          >
             {t('Close')}
           </Button>
           <Button
@@ -219,10 +321,7 @@ export function UploadDialog(props: UploadDialogProps) {
           <FieldLabel htmlFor='task-plugin-icon'>{t('Plugin icon')}</FieldLabel>
           <div className='flex items-center gap-3'>
             {icon ? (
-              <PluginIcon
-                plugin={{ key: result?.meta.key ?? 'upload', iconSrc: icon }}
-                size={32}
-              />
+              <PluginIcon plugin={{ key: 'upload', iconSrc: icon }} size={32} />
             ) : null}
             <Input
               id='task-plugin-icon'
@@ -276,16 +375,6 @@ export function UploadDialog(props: UploadDialogProps) {
           {/* Verbatim: preflight rejections name the conflicting plugin. */}
           <AlertDescription className='whitespace-pre-wrap'>
             {mutation.error.message}
-          </AlertDescription>
-        </Alert>
-      ) : null}
-
-      {result ? (
-        <Alert>
-          <CircleCheck className='text-primary' />
-          <AlertTitle>{t('Parsed plugin metadata')}</AlertTitle>
-          <AlertDescription className='font-mono'>
-            {result.meta.key} · {result.meta.name} · v{result.meta.version}
           </AlertDescription>
         </Alert>
       ) : null}

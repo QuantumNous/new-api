@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"reflect"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -26,10 +28,11 @@ import (
 type PricingValues map[string]any
 
 type ModelPricingChange struct {
-	ModelName       string        `json:"model_name"`
-	ExpectedVersion string        `json:"expected_version"`
-	Pricing         PricingValues `json:"pricing"`
-	Reset           bool          `json:"reset,omitempty"`
+	ModelName              string            `json:"model_name"`
+	ExpectedVersion        string            `json:"expected_version"`
+	Pricing                PricingValues     `json:"pricing"`
+	Reset                  bool              `json:"reset,omitempty"`
+	PluginValidationModels map[string]string `json:"-"`
 }
 
 type ModelPricingEntry struct {
@@ -59,15 +62,31 @@ type ModelPricingSnapshot struct {
 	EmptyVersion string              `json:"empty_version"`
 }
 
-var ErrModelPricingConflict = errors.New("model pricing changed; reload before saving")
+var (
+	ErrModelPricingConflict        = errors.New("model pricing changed; reload before saving")
+	ErrModelPricingPayloadConflict = errors.New("conflicting model pricing payload")
+)
 
-// Lock order is stable across instances. Creating missing option rows inside
-// the transaction also serializes the first write to an unconfigured database.
 var modelPricingOptionKeys = []string{
 	"AudioCompletionRatio", "AudioRatio", "CacheRatio", "CompletionRatio",
 	"CreateCacheRatio", "ImageRatio", "ModelPrice", "ModelRatio",
 	"billing_setting.billing_expr", "billing_setting.billing_mode", billing_setting.PluginBillingExprOption,
 }
+
+var legacyWildcardPricingOptionKeys = []string{
+	"ModelPrice", "ModelRatio", "CompletionRatio", "AudioRatio", "AudioCompletionRatio",
+}
+
+const (
+	modelPricingRevisionOptionKey       = "model_pricing.revision"
+	modelPricingCASMaxAttempts          = 8
+	modelPricingAliasRefreshMaxAttempts = 3
+)
+
+var (
+	errModelPricingCASMiss         = errors.New("model pricing revision changed")
+	errModelPricingAliasCacheStale = errors.New("task alias cache changed")
+)
 
 var modelPricingMutationMu sync.Mutex
 
@@ -95,7 +114,7 @@ func defaultPricingMaps() map[string]map[string]any {
 
 func readModelPricingMaps(db *gorm.DB) (map[string]map[string]any, map[string]bool, []string, error) {
 	var rows []Option
-	if err := db.Where(map[string]any{"key": modelPricingOptionKeys}).Find(&rows).Error; err != nil {
+	if err := db.Where(map[string]any{"key": modelPricingOptionKeys}).Order(clause.OrderByColumn{Column: clause.Column{Name: "key"}}).Find(&rows).Error; err != nil {
 		return nil, nil, nil, err
 	}
 	values := defaultPricingMaps()
@@ -109,6 +128,10 @@ func readModelPricingMaps(db *gorm.DB) (map[string]map[string]any, map[string]bo
 		if entries == nil {
 			return nil, nil, nil, fmt.Errorf("%s must be a JSON object", row.Key)
 		}
+		entries, err := normalizeLegacyPricingEntries(row.Key, entries)
+		if err != nil {
+			return nil, nil, nil, err
+		}
 		values[row.Key] = entries
 		existing[row.Key] = true
 		counts[row.Key]++
@@ -120,6 +143,45 @@ func readModelPricingMaps(db *gorm.DB) (map[string]map[string]any, map[string]bo
 		}
 	}
 	return values, existing, duplicated, nil
+}
+
+func modelPricingStorageName(key, name string) string {
+	if slices.Contains(legacyWildcardPricingOptionKeys, key) {
+		return ratio_setting.FormatMatchingModelName(name)
+	}
+	return name
+}
+
+func normalizeLegacyPricingEntries(key string, entries map[string]any) (map[string]any, error) {
+	if !slices.Contains(legacyWildcardPricingOptionKeys, key) {
+		return entries, nil
+	}
+	normalized := make(map[string]any, len(entries))
+	for name, value := range entries {
+		canonical := modelPricingStorageName(key, name)
+		if name == canonical {
+			normalized[canonical] = value
+		}
+	}
+	for name, value := range entries {
+		canonical := modelPricingStorageName(key, name)
+		if name == canonical {
+			continue
+		}
+		if _, exists := entries[canonical]; exists {
+			continue
+		}
+		existing, exists := normalized[canonical]
+		if !exists {
+			normalized[canonical] = value
+			continue
+		}
+		if reflect.DeepEqual(existing, value) {
+			continue
+		}
+		return nil, fmt.Errorf("%s contains conflicting aliases for %s", key, canonical)
+	}
+	return normalized, nil
 }
 
 func modelPricingValues(values map[string]map[string]any, name string) PricingValues {
@@ -137,41 +199,72 @@ func modelPricingValues(values map[string]map[string]any, name string) PricingVa
 			}
 			continue
 		}
-		if value, exists := values[key][name]; exists {
+		if value, exists := values[key][modelPricingStorageName(key, name)]; exists {
 			result[key] = value
 		}
 	}
 	return result
 }
 
+func replaceModelPricingKey(values map[string]map[string]any, key, name string, draft PricingValues) {
+	entries := values[key]
+	if key == billing_setting.PluginBillingExprOption {
+		for variant := range entries {
+			if _, model, ok := billing_setting.SplitPluginBillingExprKey(variant); ok && model == name {
+				delete(entries, variant)
+			}
+		}
+		variants, _ := draft[key].(map[string]any)
+		for plugin, expr := range variants {
+			entries[billing_setting.PluginBillingExprKey(plugin, name)] = expr
+		}
+		return
+	}
+	if slices.Contains(legacyWildcardPricingOptionKeys, key) {
+		storageName := modelPricingStorageName(key, name)
+		for existingName := range entries {
+			if modelPricingStorageName(key, existingName) == storageName {
+				delete(entries, existingName)
+			}
+		}
+		if value, exists := draft[key]; exists {
+			entries[storageName] = value
+		}
+		return
+	}
+	delete(entries, name)
+	if value, exists := draft[key]; exists {
+		entries[name] = value
+	}
+}
+
+func removeModelPricing(values map[string]map[string]any, name string) {
+	for _, key := range modelPricingOptionKeys {
+		replaceModelPricingKey(values, key, name, PricingValues{})
+	}
+}
+
 // replaceModelPricing writes one complete model draft into the option maps.
 // Plugin expressions are grouped in the draft and flattened only in storage.
 func replaceModelPricing(values map[string]map[string]any, name string, draft PricingValues) {
 	for _, key := range modelPricingOptionKeys {
-		if key == billing_setting.PluginBillingExprOption {
-			for variant := range values[key] {
-				if _, model, ok := billing_setting.SplitPluginBillingExprKey(variant); ok && model == name {
-					delete(values[key], variant)
-				}
-			}
-			variants, _ := draft[key].(map[string]any)
-			for plugin, expr := range variants {
-				values[key][billing_setting.PluginBillingExprKey(plugin, name)] = expr
-			}
-			continue
-		}
-		delete(values[key], name)
-		if value, exists := draft[key]; exists {
-			values[key][name] = value
-		}
+		replaceModelPricingKey(values, key, name, draft)
 	}
+}
+
+func cloneModelPricingMaps(values map[string]map[string]any) map[string]map[string]any {
+	cloned := make(map[string]map[string]any, len(values))
+	for key, entries := range values {
+		cloned[key] = maps.Clone(entries)
+	}
+	return cloned
 }
 
 func effectiveModelPricing(values map[string]map[string]any, name string) PricingValues {
 	result := modelPricingValues(values, name)
 	// Legacy wildcard aliases are resolved by the same normalization as relay.
 	alias := ratio_setting.FormatMatchingModelName(name)
-	for _, key := range []string{"ModelPrice", "ModelRatio", "CompletionRatio", "AudioRatio", "AudioCompletionRatio"} {
+	for _, key := range legacyWildcardPricingOptionKeys {
 		delete(result, key)
 		if value, exists := values[key][alias]; exists {
 			result[key] = value
@@ -229,7 +322,11 @@ func PreviewModelPricing(name string, draft PricingValues) (PricingValues, error
 	if err != nil {
 		return nil, err
 	}
-	if err := validateModelPricing(name, draft, modelPricingValues(values, name)); err != nil {
+	aliasView, err := buildTaskAliasView(DB, jsplugin.DefaultRegistry.Generation())
+	if err != nil {
+		return nil, fmt.Errorf("read task model aliases: %w", err)
+	}
+	if err := validateModelPricing(name, draft, modelPricingValues(values, name), nil, values, aliasView); err != nil {
 		return nil, err
 	}
 	replaceModelPricing(values, name, draft)
@@ -248,6 +345,66 @@ func GetEffectiveModelPricingTx(tx *gorm.DB, names []string) (map[string]Pricing
 		result[name] = effectiveModelPricing(values, name)
 	}
 	return result, nil
+}
+
+func activeTaskPluginVariants(generation *jsplugin.RoutingGeneration, aliases *taskAliasView, name string) ([]*jsplugin.LoadedPlugin, string) {
+	if plugins := generation.PluginsByModel(name); len(plugins) > 0 {
+		return plugins, name
+	}
+	target, resolved := resolveTaskModelAlias(aliases, name)
+	if !resolved {
+		return nil, ""
+	}
+	if target.Declared == "" {
+		// A same-plugin alias with multiple canonical tails stays unpinned but
+		// retains that plugin's default usage metadata.
+		plugin, exists := generation.Get(target.PluginKey)
+		if !exists {
+			return nil, ""
+		}
+		return []*jsplugin.LoadedPlugin{plugin}, ""
+	}
+	return generation.PluginsByModel(target.Declared), target.Declared
+}
+
+func resolveActivePluginVariant(generation *jsplugin.RoutingGeneration, aliases *taskAliasView, pluginKey, name string) (*jsplugin.LoadedPlugin, string, bool) {
+	plugin, exists := generation.Get(pluginKey)
+	if !exists {
+		return nil, "", false
+	}
+	plugins, schemaModel := activeTaskPluginVariants(generation, aliases, name)
+	active := slices.ContainsFunc(plugins, func(candidate *jsplugin.LoadedPlugin) bool {
+		return candidate == plugin
+	})
+	return plugin, schemaModel, active
+}
+
+func effectiveTaskPluginPricingExpression(values map[string]map[string]any, configured, effective PricingValues, pluginKey, name, mappedModel string) (string, bool) {
+	if variants, _ := configured[billing_setting.PluginBillingExprOption].(map[string]any); variants != nil {
+		if expression, ok := variants[pluginKey].(string); ok {
+			return expression, true
+		}
+	}
+	if mappedModel != "" && mappedModel != name {
+		mapped := modelPricingValues(values, mappedModel)
+		if variants, _ := mapped[billing_setting.PluginBillingExprOption].(map[string]any); variants != nil {
+			if expression, ok := variants[pluginKey].(string); ok {
+				return expression, true
+			}
+		}
+	}
+	if effective["billing_setting.billing_mode"] == billing_setting.BillingModeTieredExpr {
+		expression, _ := effective["billing_setting.billing_expr"].(string)
+		return expression, true
+	}
+	if mappedModel != "" && mappedModel != name {
+		mapped := effectiveModelPricing(values, mappedModel)
+		if mapped["billing_setting.billing_mode"] == billing_setting.BillingModeTieredExpr {
+			expression, _ := mapped["billing_setting.billing_expr"].(string)
+			return expression, true
+		}
+	}
+	return "", false
 }
 
 func GetModelPricingSnapshot(names []string) (*ModelPricingSnapshot, error) {
@@ -279,22 +436,20 @@ func GetModelPricingSnapshot(names []string) (*ModelPricingSnapshot, error) {
 	sort.Strings(names)
 	result := &ModelPricingSnapshot{Entries: make([]ModelPricingEntry, 0, len(names)), Options: make(map[string]string), EmptyVersion: ModelPricingVersion(PricingValues{})}
 	generation := jsplugin.DefaultRegistry.Generation()
+	aliasView := loadFreshTaskAliasView(generation)
 	for _, name := range names {
 		configured := modelPricingValues(values, name)
 		entry := ModelPricingEntry{ModelName: name, Version: ModelPricingVersion(configured), Configured: configured,
 			ModelPricingDescription: ModelPricingDescription{Effective: effectiveModelPricing(values, name)}}
 		entry.CacheWriteMode = ResolveCacheWriteMode(name, configured)
 		entry.BillingDetails = ResolveLegacyBillingDetails(name, entry.Effective, configured)
-		if plugin, ok := generation.GetByModel(name); ok {
-			entry.UsageSchema, _ = plugin.Meta.UsageForModel(name)
-		} else if target, ok := ResolveTaskModelAlias(generation, name); ok {
-			if plugin, ok := generation.Get(target.PluginKey); ok {
-				entry.UsageSchema, _ = plugin.Meta.UsageForModel(target.Declared)
-			}
+		_, aliasResolved := resolveTaskModelAlias(aliasView, name)
+		plugins, schemaModel := activeTaskPluginVariants(generation, aliasView, name)
+		if len(plugins) > 0 {
+			entry.UsageSchema, _ = plugins[0].Meta.UsageForModel(schemaModel)
 		}
-		plugins := generation.PluginsByModel(name)
 		configuredVariants, _ := configured[billing_setting.PluginBillingExprOption].(map[string]any)
-		if len(plugins) >= 2 || len(configuredVariants) > 0 {
+		if len(plugins) >= 2 || len(configuredVariants) > 0 || aliasResolved {
 			keys := make(map[string]bool, len(plugins)+len(configuredVariants))
 			for _, plugin := range plugins {
 				keys[plugin.Meta.Key] = true
@@ -303,28 +458,25 @@ func GetModelPricingSnapshot(names []string) (*ModelPricingSnapshot, error) {
 				keys[key] = true
 			}
 			for _, key := range slices.Sorted(maps.Keys(keys)) {
-				configuredValue, overridden := configuredVariants[key]
+				configuredValue := configuredVariants[key]
 				configuredExpr, _ := configuredValue.(string)
-				plugin, exists := generation.Get(key)
-				if !exists || !slices.Contains(plugin.Meta.Models, name) {
+				plugin, schemaModel, active := resolveActivePluginVariant(generation, aliasView, key, name)
+				if !active {
 					variant := ModelPricingPluginVariant{
 						PluginKey: key, PluginName: key, Configured: configuredExpr,
 						UsageSchema: map[string]jsplugin.UsageFieldSchema{}, Stale: true,
 					}
-					if exists {
+					if plugin != nil {
 						variant.PluginName, variant.Icon = plugin.Meta.Name, plugin.Meta.Icon
 					}
 					entry.PluginVariants = append(entry.PluginVariants, variant)
 					continue
 				}
-				schema, examples := plugin.Meta.UsageForModel(name)
+				schema, examples := plugin.Meta.UsageForModel(schemaModel)
 				if schema == nil {
 					schema = map[string]jsplugin.UsageFieldSchema{}
 				}
-				expression := configuredExpr
-				if !overridden && entry.Effective["billing_setting.billing_mode"] == billing_setting.BillingModeTieredExpr {
-					expression, _ = entry.Effective["billing_setting.billing_expr"].(string)
-				}
+				expression, _ := effectiveTaskPluginPricingExpression(values, configured, entry.Effective, key, name, schemaModel)
 				entry.PluginVariants = append(entry.PluginVariants, ModelPricingPluginVariant{
 					PluginKey: plugin.Meta.Key, PluginName: plugin.Meta.Name, Icon: plugin.Meta.Icon,
 					UsageSchema: schema, UsageExamples: examples, Configured: configuredExpr, Effective: expression,
@@ -369,16 +521,31 @@ func ValidateModelPricing(name string, values PricingValues) error {
 	if expression, ok := billing_setting.GetBillingExpr(name); ok {
 		previous["billing_setting.billing_expr"] = expression
 	}
-	return validateModelPricing(name, values, previous)
+	generation := jsplugin.DefaultRegistry.Generation()
+	if DB == nil {
+		return validateModelPricing(name, values, previous, nil, nil, loadFreshTaskAliasView(generation))
+	}
+	pricingMaps, _, _, err := readModelPricingMaps(DB)
+	if err != nil {
+		return err
+	}
+	aliasView, err := buildTaskAliasView(DB, generation)
+	if err != nil {
+		return fmt.Errorf("read task model aliases: %w", err)
+	}
+	return validateModelPricing(name, values, previous, nil, pricingMaps, aliasView)
 }
 
 // Writes pass the locked database snapshot here, so allowing an unchanged stale
 // override cannot bypass validation through an out-of-date process-local cache.
-func validateModelPricing(name string, values, previous PricingValues) error {
+func validateModelPricing(name string, values, previous PricingValues, pluginValidationModels map[string]string, pricingMaps map[string]map[string]any, aliases *taskAliasView) error {
 	if strings.TrimSpace(name) == "" {
 		return errors.New("model name is required")
 	}
 	generation := jsplugin.DefaultRegistry.Generation()
+	if target, resolved := resolveTaskModelAlias(aliases, name); resolved && target.Alias != name {
+		return fmt.Errorf("model name %q must use canonical alias spelling %q", name, target.Alias)
+	}
 	previousVariants, _ := previous[billing_setting.PluginBillingExprOption].(map[string]any)
 	variants := map[string]any{}
 	if value, exists := values[billing_setting.PluginBillingExprOption]; exists {
@@ -392,14 +559,24 @@ func validateModelPricing(name string, values, previous PricingValues) error {
 			if !ok || strings.TrimSpace(expression) == "" {
 				return fmt.Errorf("model %s: plugin %s: billing expression is required", name, key)
 			}
-			plugin, exists := generation.Get(key)
-			if !exists || !slices.Contains(plugin.Meta.Models, name) {
+			pluginModel := name
+			validationModel := strings.TrimSpace(pluginValidationModels[key])
+			var plugin *jsplugin.LoadedPlugin
+			var active bool
+			if validationModel != "" {
+				pluginModel = validationModel
+				plugin, active = generation.Get(key)
+				active = active && slices.Contains(plugin.Meta.Models, pluginModel)
+			} else {
+				plugin, pluginModel, active = resolveActivePluginVariant(generation, aliases, key, name)
+			}
+			if !active {
 				if previousVariants[key] == expression {
 					continue
 				}
 				return fmt.Errorf("model %s: plugin %s does not declare this model", name, key)
 			}
-			schema, _ := plugin.Meta.UsageForModel(name)
+			schema, _ := plugin.Meta.UsageForModel(pluginModel)
 			if err := billing_setting.SmokeTestTaskExpr(expression, schema); err != nil {
 				return fmt.Errorf("model %s: plugin %s: %w", name, key, err)
 			}
@@ -423,37 +600,8 @@ func validateModelPricing(name string, values, previous PricingValues) error {
 			if !ok || strings.TrimSpace(expression) == "" {
 				return errors.New("billing expression is required")
 			}
-			// Even a model expression currently shadowed by every provider must
-			// compile; only its schema-specific smoke tests can be skipped.
-			if _, err := billingexpr.CompileFromCache(expression); err != nil {
-				return fmt.Errorf("model %s: %w", name, err)
-			}
-			var err error
-			if plugins := generation.PluginsByModel(name); len(plugins) > 0 {
-				for _, plugin := range plugins {
-					if _, overridden := variants[plugin.Meta.Key]; overridden {
-						continue
-					}
-					schema, _ := plugin.Meta.UsageForModel(name)
-					if err = billing_setting.SmokeTestTaskExpr(expression, schema); err != nil {
-						return fmt.Errorf("model %s: plugin %s: %w", name, plugin.Meta.Key, err)
-					}
-				}
-			} else if target, resolved := ResolveTaskModelAlias(generation, name); resolved {
-				if plugin, ok := generation.Get(target.PluginKey); ok {
-					schema, _ := plugin.Meta.UsageForModel(target.Declared)
-					err = billing_setting.SmokeTestTaskExpr(expression, schema)
-				} else {
-					err = billing_setting.SmokeTestExpr(expression)
-				}
-			} else if previous[key] != expression || len(billingexpr.UsedUsageKeys(expression)) == 0 {
-				err = billing_setting.SmokeTestExpr(expression)
-			}
-			// With no remaining plugin, an unchanged stored usage expression has
-			// no schema to test. Preserve it so removing stale overrides or saving
-			// other model prices does not become impossible.
-			if err != nil {
-				return fmt.Errorf("model %s: %w", name, err)
+			if err := validateMainModelPricingExpression(name, expression, variants, pricingMaps, aliases); err != nil {
+				return err
 			}
 			continue
 		}
@@ -464,43 +612,238 @@ func validateModelPricing(name string, values, previous PricingValues) error {
 	}
 	if values["billing_setting.billing_mode"] == "tiered_expr" {
 		if _, exists := values["billing_setting.billing_expr"]; !exists {
-			if _, builtin := billing_setting.GetBuiltinBillingExpr(name); !builtin {
+			expression, builtin := billing_setting.GetBuiltinBillingExpr(name)
+			if !builtin {
 				return errors.New("billing expression is required")
+			}
+			if err := validateMainModelPricingExpression(name, expression, variants, pricingMaps, aliases); err != nil {
+				return err
 			}
 		}
 	}
 	return nil
 }
 
+func validateMainModelPricingExpression(name, expression string, variants map[string]any, pricingMaps map[string]map[string]any, aliases *taskAliasView) error {
+	if _, err := billingexpr.CompileFromCache(expression); err != nil {
+		return fmt.Errorf("model %s: %w", name, err)
+	}
+	requestErr := smokeTestModelRequestExpr(expression)
+	generation := jsplugin.DefaultRegistry.Generation()
+	if plugins, schemaModel := activeTaskPluginVariants(generation, aliases, name); len(plugins) > 0 {
+		compatible := requestErr == nil
+		var compatibilityErr error
+		configured := PricingValues{billing_setting.PluginBillingExprOption: variants}
+		effective := PricingValues{
+			"billing_setting.billing_mode": billing_setting.BillingModeTieredExpr,
+			"billing_setting.billing_expr": expression,
+		}
+		for _, plugin := range plugins {
+			schema, _ := plugin.Meta.UsageForModel(schemaModel)
+			mainErr := billing_setting.SmokeTestTaskExpr(expression, schema)
+			if mainErr == nil {
+				compatible = true
+			} else if compatibilityErr == nil {
+				compatibilityErr = fmt.Errorf("model %s: plugin %s: %w", name, plugin.Meta.Key, mainErr)
+			}
+			selected, _ := effectiveTaskPluginPricingExpression(
+				pricingMaps, configured, effective, plugin.Meta.Key, name, schemaModel,
+			)
+			if err := billing_setting.SmokeTestTaskExpr(selected, schema); err != nil {
+				return fmt.Errorf("model %s: plugin %s: %w", name, plugin.Meta.Key, err)
+			}
+		}
+		if !compatible {
+			return compatibilityErr
+		}
+		return nil
+	}
+	if requestErr != nil {
+		return fmt.Errorf("model %s: %w", name, requestErr)
+	}
+	return nil
+}
+
+func validateEffectiveTaskAliasPricing(name string, pricingMaps map[string]map[string]any, aliases *taskAliasView) error {
+	generation := jsplugin.DefaultRegistry.Generation()
+	plugins, schemaModel := activeTaskPluginVariants(generation, aliases, name)
+	configured := modelPricingValues(pricingMaps, name)
+	effective := effectiveModelPricing(pricingMaps, name)
+	for _, plugin := range plugins {
+		expression, selected := effectiveTaskPluginPricingExpression(
+			pricingMaps, configured, effective, plugin.Meta.Key, name, schemaModel,
+		)
+		if !selected {
+			continue
+		}
+		if strings.TrimSpace(expression) == "" {
+			return fmt.Errorf("model %s: plugin %s: billing expression is required", name, plugin.Meta.Key)
+		}
+		schema, _ := plugin.Meta.UsageForModel(schemaModel)
+		if err := billing_setting.SmokeTestTaskExpr(expression, schema); err != nil {
+			return fmt.Errorf("model %s: plugin %s: %w", name, plugin.Meta.Key, err)
+		}
+	}
+	return nil
+}
+
+func validateCandidateTaskAliases(changedModels map[string]bool, pricingMaps map[string]map[string]any, aliases *taskAliasView) error {
+	if aliases == nil {
+		return nil
+	}
+	aliasNames := make(map[string]bool)
+	for _, target := range aliases.byFold {
+		if changedModels[target.Alias] || target.Declared != "" && changedModels[target.Declared] {
+			aliasNames[target.Alias] = true
+		}
+	}
+	for _, name := range slices.Sorted(maps.Keys(aliasNames)) {
+		if err := validateEffectiveTaskAliasPricing(name, pricingMaps, aliases); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func smokeTestModelRequestExpr(expression string) error {
+	used := billingexpr.UsedVars(expression)
+	if !used["images_up_to_1_5k"] && !used["images_above_1_5k"] && !used["input_images"] {
+		return billing_setting.SmokeTestExpr(expression)
+	}
+	if len(billingexpr.UsedUsageKeys(expression)) > 0 {
+		return errors.New("request expression cannot reference task usage")
+	}
+	scalar := func(value float64) *float64 { return &value }
+	requests := []billingexpr.RequestInput{
+		{ImagesUpTo1_5K: scalar(0), ImagesAbove1_5K: scalar(0), InputImages: scalar(0)},
+		{ImagesUpTo1_5K: scalar(billingexpr.MaxRequestImageOutputs), ImagesAbove1_5K: scalar(0), InputImages: scalar(billingexpr.MaxRequestInputImages)},
+		{ImagesUpTo1_5K: scalar(0), ImagesAbove1_5K: scalar(billingexpr.MaxRequestImageOutputs), InputImages: scalar(billingexpr.MaxRequestInputImages)},
+		{ImagesUpTo1_5K: scalar(1), ImagesAbove1_5K: scalar(1), InputImages: scalar(1)},
+	}
+	for _, request := range requests {
+		if _, _, err := billingexpr.RunExprWithRequest(expression, billingexpr.TokenParams{}, request); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func UpdateModelPricing(changes []ModelPricingChange) error {
+	return updateModelPricing(changes, nil)
+}
+
+// UpdateModelPricingWithEvidence commits official pricing evidence in the same
+// validated transaction as its model pricing snapshots.
+func UpdateModelPricingWithEvidence(changes []ModelPricingChange, evidence []UpstreamPriceEvidence) error {
+	return updateModelPricing(changes, func(tx *gorm.DB) error {
+		if len(evidence) == 0 {
+			return nil
+		}
+		return tx.CreateInBatches(&evidence, 50).Error
+	})
+}
+
+func updateModelPricing(changes []ModelPricingChange, afterPricing func(*gorm.DB) error) error {
+	modelPricingMutationMu.Lock()
+	defer modelPricingMutationMu.Unlock()
+	return commitModelPricingWithCoherentAliases(func(cachedAliases *taskAliasView) (map[string]map[string]any, error) {
+		return updateModelPricingDatabaseWithAliasCache(DB, changes, afterPricing, cachedAliases)
+	})
+}
+
+func updateModelPricingDatabase(db *gorm.DB, changes []ModelPricingChange, afterPricing func(*gorm.DB) error) (map[string]map[string]any, error) {
+	return updateModelPricingDatabaseCore(db, changes, afterPricing, nil, false)
+}
+
+func updateModelPricingDatabaseWithAliasCache(db *gorm.DB, changes []ModelPricingChange, afterPricing func(*gorm.DB) error, cachedAliases *taskAliasView) (map[string]map[string]any, error) {
+	return updateModelPricingDatabaseCore(db, changes, afterPricing, cachedAliases, true)
+}
+
+func updateModelPricingDatabaseCore(db *gorm.DB, changes []ModelPricingChange, afterPricing func(*gorm.DB) error, cachedAliases *taskAliasView, requireCoherentAliases bool) (map[string]map[string]any, error) {
 	if len(changes) == 0 {
-		return errors.New("select model pricing changes before saving")
+		return nil, errors.New("select model pricing changes before saving")
 	}
 	seen := make(map[string]bool)
 	for _, change := range changes {
 		if seen[change.ModelName] {
-			return errors.New("duplicate model pricing change")
+			return nil, errors.New("duplicate model pricing change")
 		}
 		seen[change.ModelName] = true
 		if change.ExpectedVersion == "" {
-			return ErrModelPricingConflict
+			return nil, ErrModelPricingConflict
 		}
 	}
-	return mutateModelPricingOptions(func(_ *gorm.DB, values map[string]map[string]any) error {
+	return mutateModelPricingOptionsDatabaseWithAliasCache(db, cachedAliases, requireCoherentAliases, func(tx *gorm.DB, values map[string]map[string]any, aliases *taskAliasView) error {
 		defaults := defaultPricingMaps()
-		for _, change := range changes {
-			previous := modelPricingValues(values, change.ModelName)
-			if ModelPricingVersion(previous) != change.ExpectedVersion {
+		prepared := make([]PricingValues, len(changes))
+		previous := make([]PricingValues, len(changes))
+		type legacyStorageKey struct {
+			option, model string
+		}
+		type legacyStorageIntent struct {
+			value   any
+			present bool
+			source  string
+		}
+		legacyIntents := make(map[legacyStorageKey]legacyStorageIntent)
+		legacyOrder := make([]legacyStorageKey, 0)
+		for index, change := range changes {
+			previous[index] = modelPricingValues(values, change.ModelName)
+			if ModelPricingVersion(previous[index]) != change.ExpectedVersion {
 				return fmt.Errorf("%w: %s", ErrModelPricingConflict, change.ModelName)
 			}
 			pricing := change.Pricing
 			if change.Reset {
 				pricing = modelPricingValues(defaults, change.ModelName)
 			}
-			if err := validateModelPricing(change.ModelName, pricing, previous); err != nil {
+			prepared[index] = pricing
+			for _, key := range legacyWildcardPricingOptionKeys {
+				storageKey := legacyStorageKey{option: key, model: modelPricingStorageName(key, change.ModelName)}
+				value, present := pricing[key]
+				intent, exists := legacyIntents[storageKey]
+				if !exists {
+					legacyIntents[storageKey] = legacyStorageIntent{
+						value: value, present: present, source: change.ModelName,
+					}
+					legacyOrder = append(legacyOrder, storageKey)
+					continue
+				}
+				if intent.present != present || present && !reflect.DeepEqual(intent.value, value) {
+					return fmt.Errorf("%w: %s %q has incompatible intents for %q and %q",
+						ErrModelPricingPayloadConflict, key, storageKey.model, intent.source, change.ModelName)
+				}
+			}
+		}
+		candidate := cloneModelPricingMaps(values)
+		for index, change := range changes {
+			for _, key := range modelPricingOptionKeys {
+				if slices.Contains(legacyWildcardPricingOptionKeys, key) {
+					continue
+				}
+				replaceModelPricingKey(candidate, key, change.ModelName, prepared[index])
+			}
+		}
+		for _, storageKey := range legacyOrder {
+			intent := legacyIntents[storageKey]
+			draft := make(PricingValues)
+			if intent.present {
+				draft[storageKey.option] = intent.value
+			}
+			replaceModelPricingKey(candidate, storageKey.option, storageKey.model, draft)
+		}
+		changedModels := make(map[string]bool, len(changes))
+		for index, change := range changes {
+			if err := validateModelPricing(change.ModelName, prepared[index], previous[index], change.PluginValidationModels, candidate, aliases); err != nil {
 				return err
 			}
-			replaceModelPricing(values, change.ModelName, pricing)
+			changedModels[change.ModelName] = true
+		}
+		if err := validateCandidateTaskAliases(changedModels, candidate, aliases); err != nil {
+			return err
+		}
+		maps.Copy(values, candidate)
+		if afterPricing != nil {
+			return afterPricing(tx)
 		}
 		return nil
 	})
@@ -509,9 +852,10 @@ func UpdateModelPricing(changes []ModelPricingChange) error {
 // UpdateModelPricingOptions keeps legacy single-option callers on the same
 // locking, validation and transaction path as the model-level API.
 func UpdateModelPricingOptions(updates map[string]string) error {
-	return mutateModelPricingOptions(func(_ *gorm.DB, values map[string]map[string]any) error {
+	return mutateModelPricingOptionsWithAliases(func(_ *gorm.DB, values map[string]map[string]any, aliases *taskAliasView) error {
 		previous := maps.Clone(values)
 		names := make(map[string]bool)
+		updatedKeys := make(map[string]bool)
 		for key, raw := range updates {
 			if !IsModelPricingOption(key) {
 				return fmt.Errorf("unsupported pricing field: %s", key)
@@ -522,6 +866,10 @@ func UpdateModelPricingOptions(updates map[string]string) error {
 			}
 			if entries == nil {
 				return fmt.Errorf("%s must be a JSON object", key)
+			}
+			entries, err := normalizeLegacyPricingEntries(key, entries)
+			if err != nil {
+				return err
 			}
 			for _, entriesForKey := range []map[string]any{values[key], entries} {
 				for name := range entriesForKey {
@@ -536,9 +884,16 @@ func UpdateModelPricingOptions(updates map[string]string) error {
 				}
 			}
 			values[key] = entries
+			updatedKeys[key] = true
 		}
 		for name := range names {
-			if err := validateModelPricing(name, modelPricingValues(values, name), modelPricingValues(previous, name)); err != nil {
+			before := modelPricingValues(previous, name)
+			after := modelPricingValues(values, name)
+			if reflect.DeepEqual(before, after) {
+				continue
+			}
+			changed := legacyModelPricingValidationDraft(name, after, before, updatedKeys, aliases)
+			if err := validateModelPricing(name, changed, before, nil, values, aliases); err != nil {
 				return err
 			}
 		}
@@ -546,58 +901,220 @@ func UpdateModelPricingOptions(updates map[string]string) error {
 	})
 }
 
+func legacyModelPricingValidationDraft(name string, after, before PricingValues, updatedKeys map[string]bool, aliases *taskAliasView) PricingValues {
+	changed := make(PricingValues)
+	fieldChanged := func(key string) bool {
+		afterValue, afterExists := after[key]
+		beforeValue, beforeExists := before[key]
+		return afterExists != beforeExists || !reflect.DeepEqual(afterValue, beforeValue)
+	}
+	for key := range updatedKeys {
+		if !fieldChanged(key) {
+			continue
+		}
+		if value, exists := after[key]; exists {
+			changed[key] = value
+		} else if key == billing_setting.PluginBillingExprOption {
+			changed[key] = map[string]any{}
+		}
+	}
+
+	mainChanged := fieldChanged("billing_setting.billing_expr")
+	modeChanged := fieldChanged("billing_setting.billing_mode")
+	variantsChanged := fieldChanged(billing_setting.PluginBillingExprOption)
+	validateMain := mainChanged ||
+		(modeChanged && after["billing_setting.billing_mode"] == billing_setting.BillingModeTieredExpr) ||
+		(variantsChanged && !onlyStalePluginOverridesRemoved(name, after, before, aliases))
+	if !validateMain {
+		return changed
+	}
+	for _, key := range []string{"billing_setting.billing_mode", "billing_setting.billing_expr", billing_setting.PluginBillingExprOption} {
+		if value, exists := after[key]; exists {
+			changed[key] = value
+		}
+	}
+	return changed
+}
+
+func onlyStalePluginOverridesRemoved(name string, after, before PricingValues, aliases *taskAliasView) bool {
+	afterVariants, _ := after[billing_setting.PluginBillingExprOption].(map[string]any)
+	beforeVariants, _ := before[billing_setting.PluginBillingExprOption].(map[string]any)
+	removed := false
+	generation := jsplugin.DefaultRegistry.Generation()
+	for key, previousExpression := range beforeVariants {
+		currentExpression, stillExists := afterVariants[key]
+		if stillExists && reflect.DeepEqual(currentExpression, previousExpression) {
+			continue
+		}
+		if stillExists {
+			return false
+		}
+		if _, _, active := resolveActivePluginVariant(generation, aliases, key, name); active {
+			return false
+		}
+		removed = true
+	}
+	for key := range afterVariants {
+		if _, existed := beforeVariants[key]; !existed {
+			return false
+		}
+	}
+	return removed
+}
+
 func mutateModelPricingOptions(mutate func(*gorm.DB, map[string]map[string]any) error) error {
 	modelPricingMutationMu.Lock()
 	defer modelPricingMutationMu.Unlock()
-	var committed map[string]map[string]any
-	err := DB.Transaction(func(tx *gorm.DB) error {
-		values, existing, duplicated, err := readModelPricingMaps(lockForUpdate(tx))
-		if err != nil {
-			return err
-		}
-		if len(duplicated) > 0 {
-			common.SysError("options table has duplicate pricing keys [" + strings.Join(duplicated, ", ") + "]; the table is missing a primary key")
-		}
-		defaults := defaultPricingMaps()
-		for _, key := range modelPricingOptionKeys {
-			if existing[key] {
-				continue
-			}
-			encoded, err := common.Marshal(defaults[key])
-			if err != nil {
-				return err
-			}
-			row := Option{Key: key, Value: string(encoded)}
-			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row).Error; err != nil {
-				return err
-			}
-		}
-		if err := mutate(tx, values); err != nil {
-			return err
-		}
-		for _, key := range modelPricingOptionKeys {
-			encoded, err := common.Marshal(values[key])
-			if err != nil {
-				return err
-			}
-			if err := tx.Model(&Option{}).Where(clause.Eq{
-				Column: clause.Column{Name: "key"},
-				Value:  key,
-			}).Update("value", string(encoded)).Error; err != nil {
-				return err
-			}
-		}
-		committed = values
-		return nil
-	})
+	committed, err := mutateModelPricingOptionsDatabase(DB, mutate)
 	if err != nil {
 		return err
 	}
-	for _, key := range modelPricingOptionKeys {
-		encoded, _ := common.Marshal(committed[key])
-		if err := updateOptionMap(key, string(encoded)); err != nil {
+	return publishModelPricingOptions(committed)
+}
+
+func mutateModelPricingOptionsWithAliases(mutate func(*gorm.DB, map[string]map[string]any, *taskAliasView) error) error {
+	modelPricingMutationMu.Lock()
+	defer modelPricingMutationMu.Unlock()
+	return commitModelPricingWithCoherentAliases(func(cachedAliases *taskAliasView) (map[string]map[string]any, error) {
+		return mutateModelPricingOptionsDatabaseWithAliasCache(DB, cachedAliases, true, mutate)
+	})
+}
+
+func commitModelPricingWithCoherentAliases(commit func(*taskAliasView) (map[string]map[string]any, error)) error {
+	for attempt := range modelPricingAliasRefreshMaxAttempts {
+		taskAliasRebuildMu.Lock()
+		cachedAliases := taskAliasViewPtr.Load()
+		committed, err := commit(cachedAliases)
+		taskAliasRebuildMu.Unlock()
+		if err == nil {
+			return publishModelPricingOptions(committed)
+		}
+		if !errors.Is(err, errModelPricingAliasCacheStale) {
 			return err
 		}
+		if attempt+1 == modelPricingAliasRefreshMaxAttempts {
+			return fmt.Errorf("%w: routing changed during pricing save", ErrModelPricingConflict)
+		}
+		if err := refreshChannelCache(); err != nil {
+			return fmt.Errorf("refresh channel cache before model pricing save: %w", err)
+		}
+	}
+	return fmt.Errorf("%w: routing changed during pricing save", ErrModelPricingConflict)
+}
+
+func mutateModelPricingOptionsDatabase(db *gorm.DB, mutate func(*gorm.DB, map[string]map[string]any) error) (map[string]map[string]any, error) {
+	return mutateModelPricingOptionsDatabaseCore(db, mutate)
+}
+
+func mutateModelPricingOptionsDatabaseWithAliasCache(db *gorm.DB, cachedAliases *taskAliasView, requireCoherentAliases bool, mutate func(*gorm.DB, map[string]map[string]any, *taskAliasView) error) (map[string]map[string]any, error) {
+	return mutateModelPricingOptionsDatabaseCore(db, func(tx *gorm.DB, values map[string]map[string]any) error {
+		aliases, err := buildTaskAliasView(lockForUpdate(tx), jsplugin.DefaultRegistry.Generation())
+		if err != nil {
+			return fmt.Errorf("read task model aliases: %w", err)
+		}
+		if requireCoherentAliases && !taskAliasViewsSemanticallyEqual(cachedAliases, aliases) {
+			return errModelPricingAliasCacheStale
+		}
+		return mutate(tx, values, aliases)
+	})
+}
+
+func mutateModelPricingOptionsDatabaseCore(db *gorm.DB, mutate func(*gorm.DB, map[string]map[string]any) error) (map[string]map[string]any, error) {
+	revision := Option{Key: modelPricingRevisionOptionKey, Value: "0"}
+	if err := db.Clauses(clause.OnConflict{DoNothing: true}).Create(&revision).Error; err != nil {
+		return nil, err
+	}
+	for range modelPricingCASMaxAttempts {
+		var anchor Option
+		if err := db.Select("value").Where("key = ?", modelPricingRevisionOptionKey).First(&anchor).Error; err != nil {
+			return nil, err
+		}
+		current, err := strconv.ParseUint(anchor.Value, 10, 64)
+		if err != nil || current == math.MaxUint64 {
+			return nil, fmt.Errorf("invalid model pricing revision %q", anchor.Value)
+		}
+		next := strconv.FormatUint(current+1, 10)
+		var committed map[string]map[string]any
+		err = db.Transaction(func(tx *gorm.DB) error {
+			claim := tx.Model(&Option{}).
+				Where("key = ? AND value = ?", modelPricingRevisionOptionKey, anchor.Value).
+				Update("value", next)
+			if claim.Error != nil {
+				return claim.Error
+			}
+			if claim.RowsAffected != 1 {
+				return errModelPricingCASMiss
+			}
+			values, existing, duplicated, readErr := readModelPricingMaps(lockForUpdate(tx))
+			if readErr != nil {
+				return readErr
+			}
+			if len(duplicated) > 0 {
+				common.SysError("options table has duplicate pricing keys [" + strings.Join(duplicated, ", ") + "]; the table is missing a primary key")
+			}
+			if err := mutate(tx, values); err != nil {
+				return err
+			}
+			defaults := defaultPricingMaps()
+			for _, key := range modelPricingOptionKeys {
+				if existing[key] {
+					continue
+				}
+				encoded, err := common.Marshal(defaults[key])
+				if err != nil {
+					return err
+				}
+				row := Option{Key: key, Value: string(encoded)}
+				if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&row).Error; err != nil {
+					return err
+				}
+			}
+			for _, key := range modelPricingOptionKeys {
+				encoded, err := common.Marshal(values[key])
+				if err != nil {
+					return err
+				}
+				if err := tx.Model(&Option{}).Where(clause.Eq{
+					Column: clause.Column{Name: "key"},
+					Value:  key,
+				}).Update("value", string(encoded)).Error; err != nil {
+					return err
+				}
+			}
+			committed = values
+			return nil
+		})
+		if errors.Is(err, errModelPricingCASMiss) {
+			continue
+		}
+		return committed, err
+	}
+	return nil, fmt.Errorf("%w: concurrent database updates", ErrModelPricingConflict)
+}
+
+func publishModelPricingOptions(committed map[string]map[string]any) error {
+	encoded := make(map[string]string, len(modelPricingOptionKeys))
+	for _, key := range modelPricingOptionKeys {
+		value, err := common.Marshal(committed[key])
+		if err != nil {
+			return err
+		}
+		encoded[key] = string(value)
+	}
+	for _, key := range modelPricingOptionKeys {
+		if billing_setting.IsBillingSettingOption(key) {
+			continue
+		}
+		if err := updateOptionMap(key, encoded[key]); err != nil {
+			return err
+		}
+	}
+	if err := updateBillingSettingOptionMap(map[string]string{
+		billing_setting.BillingModeOption:       encoded[billing_setting.BillingModeOption],
+		billing_setting.BillingExprOption:       encoded[billing_setting.BillingExprOption],
+		billing_setting.PluginBillingExprOption: encoded[billing_setting.PluginBillingExprOption],
+	}); err != nil {
+		return err
 	}
 	RefreshPricing()
 	ratio_setting.InvalidateExposedDataCache()

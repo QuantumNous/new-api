@@ -1,6 +1,3 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
-import { AxiosError, type AxiosAdapter } from 'axios'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -19,6 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { cleanup, fireEvent, render, waitFor } from '@testing-library/react'
+import { AxiosError, type AxiosAdapter } from 'axios'
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 

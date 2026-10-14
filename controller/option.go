@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"slices"
-	"sort"
 	"strconv"
 	"strings"
 
@@ -86,7 +85,9 @@ func GetOptions(c *gin.Context) {
 	optionValues := make(map[string]string)
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
-		if k == "theme.frontend" || k == "billing_setting.billing_mode" || k == "billing_setting.billing_expr" {
+		if k == "theme.frontend" ||
+			strings.EqualFold(strings.TrimSpace(k), "model_pricing.revision") ||
+			billing_setting.IsBillingSettingOption(k) {
 			continue
 		}
 		value := common.Interface2String(v)
@@ -107,18 +108,21 @@ func GetOptions(c *gin.Context) {
 		}
 	}
 	common.OptionMapRWMutex.Unlock()
-	// Display the same effective expressions used by pricing and settlement,
-	// including built-in defaults absent from persisted administrator options.
-	for key, values := range map[string]map[string]string{
-		"billing_setting.billing_mode": billing_setting.GetBillingModeCopy(),
-		"billing_setting.billing_expr": billing_setting.GetBillingExprCopy(),
+	billingSnapshot := billing_setting.GetBillingOptionSnapshot()
+	for _, option := range []struct {
+		key   string
+		value map[string]string
+	}{
+		{key: billing_setting.BillingModeOption, value: billingSnapshot.BillingMode},
+		{key: billing_setting.BillingExprOption, value: billingSnapshot.BillingExpr},
+		{key: billing_setting.PluginBillingExprOption, value: billingSnapshot.PluginBillingExpr},
 	} {
-		encoded, err := common.Marshal(values)
+		encoded, err := common.Marshal(option.value)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
 			return
 		}
-		options = append(options, &model.Option{Key: key, Value: string(encoded)})
+		options = append(options, &model.Option{Key: option.key, Value: string(encoded)})
 	}
 	options = append(options, &model.Option{
 		Key:   "CompletionRatioMeta",
@@ -397,32 +401,14 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	case "billing_setting.billing_expr":
-		expressions := make(map[string]string)
+		var expressions map[string]string
 		if err = common.UnmarshalJsonStr(option.Value.(string), &expressions); err != nil {
 			common.ApiErrorMsg(c, "计费表达式配置必须是模型到表达式的 JSON 对象: "+err.Error())
 			return
 		}
-		models := make([]string, 0, len(expressions))
-		for modelName := range expressions {
-			models = append(models, modelName)
-		}
-		sort.Strings(models)
-		storedVariants := billing_setting.GetPluginBillingExprCopy()
-		for _, modelName := range models {
-			variants := make(map[string]any)
-			for key, expression := range storedVariants {
-				if plugin, name, ok := billing_setting.SplitPluginBillingExprKey(key); ok && name == modelName {
-					variants[plugin] = expression
-				}
-			}
-			err = model.ValidateModelPricing(modelName, model.PricingValues{
-				"billing_setting.billing_expr":          expressions[modelName],
-				billing_setting.PluginBillingExprOption: variants,
-			})
-			if err != nil {
-				common.ApiErrorMsg(c, fmt.Sprintf("模型 %s 的计费表达式无效: %v", modelName, err))
-				return
-			}
+		if expressions == nil {
+			common.ApiErrorMsg(c, "计费表达式配置必须是模型到表达式的 JSON 对象")
+			return
 		}
 	case billing_setting.PluginBillingExprOption:
 		var expressions map[string]string
@@ -430,16 +416,10 @@ func UpdateOption(c *gin.Context) {
 			common.ApiErrorMsg(c, "plugin billing expressions must be a JSON object")
 			return
 		}
-		for key, expression := range expressions {
-			plugin, name, valid := billing_setting.SplitPluginBillingExprKey(key)
+		for key := range expressions {
+			_, _, valid := billing_setting.SplitPluginBillingExprKey(key)
 			if !valid {
 				common.ApiErrorMsg(c, "invalid plugin billing expression key: "+key)
-				return
-			}
-			if err = model.ValidateModelPricing(name, model.PricingValues{
-				billing_setting.PluginBillingExprOption: map[string]any{plugin: expression},
-			}); err != nil {
-				common.ApiErrorMsg(c, err.Error())
 				return
 			}
 		}

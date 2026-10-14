@@ -46,7 +46,7 @@ type ModelRedirectPanelProps = {
   onMappingCommit: (value: string) => void
   suggestions: ModelNamingSuggestion[]
   onApplySuggestion: (suggestion: ModelNamingSuggestion) => void
-  onOpenRules: () => void
+  onBatchAdd: () => void
   syncModels: boolean
   onSyncModelsChange: (value: boolean) => void
   sourceModelOptions: string[]
@@ -77,6 +77,7 @@ export function ModelRedirectPanel(props: ModelRedirectPanelProps) {
       defaultWidth={props.width}
       minWidth={340}
       storageKey='channel-model-redirects'
+      expandRequest={props.draftRequest?.token}
       onClose={props.onClose}
       footer={
         <div className='flex items-start gap-3'>
@@ -99,8 +100,8 @@ export function ModelRedirectPanel(props: ModelRedirectPanelProps) {
         </div>
       }
     >
-      <div className='space-y-4'>
-        <div className='space-y-2'>
+      <div className='flex flex-col gap-4'>
+        <div className='flex flex-col gap-2'>
           {props.suggestions.length > 0 && (
             <p className='text-muted-foreground text-xs'>
               {t('Suggested rules')}
@@ -141,7 +142,7 @@ export function ModelRedirectPanel(props: ModelRedirectPanelProps) {
               variant='ghost'
               size='xs'
               disabled={props.disabled}
-              onClick={props.onOpenRules}
+              onClick={props.onBatchAdd}
             >
               {t('More rules')}
             </Button>
@@ -151,6 +152,7 @@ export function ModelRedirectPanel(props: ModelRedirectPanelProps) {
           value={props.mappingValue}
           onChange={props.onMappingChange}
           onCommit={props.onMappingCommit}
+          onBatchAdd={props.onBatchAdd}
           disabled={props.disabled}
           sourceModelOptions={props.sourceModelOptions}
           targetModelOptions={props.targetModelOptions}

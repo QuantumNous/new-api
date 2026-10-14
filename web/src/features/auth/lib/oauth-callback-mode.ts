@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 const OAUTH_POPUP_FLOW_KEY_PREFIX = 'oauth_popup_flow:'
 
 export function rememberOAuthLoginRedirect(

@@ -3,8 +3,10 @@ package model
 import (
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1273,6 +1275,282 @@ func TestAppInstallRouteCollisionIsAtomic(t *testing.T) {
 	})
 }
 
+func TestOpenAppPluginModelDBDefaultSQLiteConfiguration(t *testing.T) {
+	t.Setenv("APP_PLUGIN_TEST_DIALECT", "sqlite")
+	t.Setenv("APP_PLUGIN_TEST_DSN", "")
+
+	db := openAppPluginModelDB(t)
+	var busyTimeout int
+	require.NoError(t, db.Raw("PRAGMA busy_timeout").Scan(&busyTimeout).Error)
+	require.Equal(t, 30000, busyTimeout)
+	var journalMode string
+	require.NoError(t, db.Raw("PRAGMA journal_mode").Scan(&journalMode).Error)
+	require.Equal(t, "wal", journalMode)
+
+	require.NoError(t, MigrateAppPluginTables(db))
+	seedAppPluginModelPolicy(t, db, "policy-basic")
+	req := appPluginModelInstallRequest("fixture-concurrent-cas", "1.0.0", "https://apps.example.com/fixture-concurrent-cas/")
+	installation, err := InstallAppVersion(
+		context.Background(),
+		db,
+		AppIdempotencyScope{ActorID: 30, Key: "fixture-concurrent-cas"},
+		req,
+	)
+	require.NoError(t, err)
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	for _, target := range []string{AppInstallationStatusEnabled, AppInstallationStatusRevoked} {
+		wg.Add(1)
+		go func(next string) {
+			defer wg.Done()
+			<-start
+			_, updateErr := CompareAndSwapAppInstallationStatus(
+				context.Background(),
+				db,
+				installation.InstallationID,
+				installation.Revision,
+				next,
+			)
+			errs <- updateErr
+		}(target)
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+
+	successes := 0
+	conflicts := 0
+	for updateErr := range errs {
+		switch {
+		case updateErr == nil:
+			successes++
+		case errors.Is(updateErr, ErrAppInstallationRevisionConflict), errors.Is(updateErr, ErrAppInstallationRevoked):
+			conflicts++
+		default:
+			require.NoError(t, updateErr)
+		}
+	}
+	require.Equal(t, 1, successes)
+	require.Equal(t, 1, conflicts)
+}
+
+func TestAppPluginTestSQLiteFileURLWindowsDrivePaths(t *testing.T) {
+	const rawQuery = "_pragma=busy_timeout%2830000%29&_txlock=immediate"
+	for _, test := range []struct {
+		name string
+		path string
+	}{
+		{name: "native path", path: `C:\tmp\template.sqlite`},
+		{name: "slash-normalized path", path: "C:/tmp/template.sqlite"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			databaseURL := appPluginTestSQLiteFileURL(test.path, rawQuery)
+			parsed, err := url.Parse(databaseURL.String())
+			require.NoError(t, err)
+			assert.Equal(t, "file", parsed.Scheme)
+			assert.Empty(t, parsed.Host)
+			assert.Equal(t, "/C:/tmp/template.sqlite", parsed.Path)
+			assert.Equal(t, rawQuery, parsed.RawQuery)
+		})
+	}
+}
+
+func TestOpenAppPluginModelDBExplicitSQLiteTemplateIsPrivate(t *testing.T) {
+	t.Setenv("APP_PLUGIN_TEST_DIALECT", "sqlite")
+	templateURL := appPluginTestSQLiteFileURL(
+		filepath.Join(t.TempDir(), "template.sqlite"),
+		"_pragma=busy_timeout%2830000%29&_pragma=journal_mode%28WAL%29&_txlock=immediate",
+	)
+	t.Setenv("APP_PLUGIN_TEST_DSN", templateURL.String())
+
+	first := openAppPluginModelDB(t)
+	second := openAppPluginModelDB(t)
+	firstDialector, ok := first.Dialector.(*sqlite.Dialector)
+	require.True(t, ok)
+	secondDialector, ok := second.Dialector.(*sqlite.Dialector)
+	require.True(t, ok)
+	firstURL, err := url.Parse(firstDialector.DSN)
+	require.NoError(t, err)
+	secondURL, err := url.Parse(secondDialector.DSN)
+	require.NoError(t, err)
+
+	assert.Equal(t, templateURL.RawQuery, firstURL.RawQuery)
+	assert.Equal(t, templateURL.RawQuery, secondURL.RawQuery)
+	assert.NotEqual(t, templateURL.Path, firstURL.Path)
+	assert.NotEqual(t, templateURL.Path, secondURL.Path)
+	assert.NotEqual(t, firstURL.Path, secondURL.Path)
+
+	require.NoError(t, first.Exec("CREATE TABLE app_plugin_fixture_isolation (value TEXT NOT NULL)").Error)
+	require.NoError(t, first.Exec("INSERT INTO app_plugin_fixture_isolation (value) VALUES (?)", "first").Error)
+	var secondTableCount int64
+	require.NoError(t, second.Raw(
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
+		"app_plugin_fixture_isolation",
+	).Scan(&secondTableCount).Error)
+	assert.Zero(t, secondTableCount)
+}
+
+func TestOpenAppPluginModelDBLocalSQLitePathTemplateIsPrivate(t *testing.T) {
+	tests := []struct {
+		name     string
+		windows  bool
+		rawQuery string
+	}{
+		{name: "unix without query"},
+		{
+			name:     "unix with query",
+			rawQuery: "_pragma=busy_timeout%2830000%29&_pragma=journal_mode%28WAL%29&_txlock=immediate",
+		},
+		{name: "windows drive without query", windows: true},
+		{
+			name:     "windows drive with query",
+			windows:  true,
+			rawQuery: "_pragma=busy_timeout%2830000%29&_pragma=journal_mode%28WAL%29&_txlock=immediate",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("APP_PLUGIN_TEST_DIALECT", "sqlite")
+			templatePath := filepath.Join(t.TempDir(), "template.sqlite")
+			if test.windows {
+				templatePath = `C:\tmp\template.sqlite`
+			}
+			templateURL := url.URL{
+				Path:     templatePath,
+				RawQuery: test.rawQuery,
+			}
+			template := templateURL.String()
+			if test.windows {
+				template = templatePath
+				if test.rawQuery != "" {
+					template += "?" + test.rawQuery
+				}
+			}
+			t.Setenv("APP_PLUGIN_TEST_DSN", template)
+
+			first := openAppPluginModelDB(t)
+			second := openAppPluginModelDB(t)
+			firstDialector, ok := first.Dialector.(*sqlite.Dialector)
+			require.True(t, ok)
+			secondDialector, ok := second.Dialector.(*sqlite.Dialector)
+			require.True(t, ok)
+			firstURL, err := url.Parse(firstDialector.DSN)
+			require.NoError(t, err)
+			secondURL, err := url.Parse(secondDialector.DSN)
+			require.NoError(t, err)
+
+			assert.Equal(t, "file", firstURL.Scheme)
+			assert.Equal(t, "file", secondURL.Scheme)
+			assert.Equal(t, templateURL.RawQuery, firstURL.RawQuery)
+			assert.Equal(t, templateURL.RawQuery, secondURL.RawQuery)
+			assert.NotEqual(t, templateURL.Path, firstURL.Path)
+			assert.NotEqual(t, templateURL.Path, secondURL.Path)
+			assert.NotEqual(t, firstURL.Path, secondURL.Path)
+
+			require.NoError(t, first.Exec("CREATE TABLE app_plugin_local_path_isolation (value TEXT NOT NULL)").Error)
+			require.NoError(t, first.Exec("INSERT INTO app_plugin_local_path_isolation (value) VALUES (?)", "first").Error)
+			var secondTableCount int64
+			require.NoError(t, second.Raw(
+				"SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?",
+				"app_plugin_local_path_isolation",
+			).Scan(&secondTableCount).Error)
+			assert.Zero(t, secondTableCount)
+		})
+	}
+}
+
+func TestOpenAppPluginModelDBClosesSQLitePool(t *testing.T) {
+	var pool *sql.DB
+	t.Run("fixture owner", func(t *testing.T) {
+		t.Setenv("APP_PLUGIN_TEST_DIALECT", "sqlite")
+		t.Setenv("APP_PLUGIN_TEST_DSN", "")
+		db := openAppPluginModelDB(t)
+		var err error
+		pool, err = db.DB()
+		require.NoError(t, err)
+		require.NoError(t, pool.Ping())
+	})
+
+	require.NotNil(t, pool)
+	require.Error(t, pool.Ping())
+	assert.Zero(t, pool.Stats().OpenConnections)
+}
+
+func TestAppPluginSQLiteDSNRejectsUnsafeTemplates(t *testing.T) {
+	tests := []struct {
+		name string
+		dsn  string
+	}{
+		{name: "non-file scheme", dsn: "https:///tmp/app_plugin.sqlite"},
+		{name: "authority", dsn: "file://localhost/tmp/app_plugin.sqlite"},
+		{name: "user info", dsn: "file://user@localhost/tmp/app_plugin.sqlite"},
+		{name: "fragment", dsn: "file:/tmp/app_plugin.sqlite#fragment"},
+		{name: "opaque URI", dsn: "file:app_plugin.sqlite"},
+		{name: "empty path", dsn: "file:"},
+		{name: "backslash UNC path", dsn: `\\server\share\app_plugin.sqlite`},
+		{name: "slash UNC path", dsn: "//server/share/app_plugin.sqlite"},
+		{name: "file URI UNC path", dsn: "file:////server/share/app_plugin.sqlite?_txlock=immediate"},
+		{name: "drive-relative path", dsn: `C:app_plugin.sqlite`},
+		{name: "relative path", dsn: "app_plugin.sqlite"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := appPluginSQLiteDSN(t, test.dsn)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestAppPluginSQLiteEagerTransactionMatchesDriverCasePolicy(t *testing.T) {
+	tests := []struct {
+		name     string
+		rawQuery string
+		eager    bool
+	}{
+		{name: "lowercase immediate", rawQuery: "_txlock=immediate", eager: true},
+		{name: "uppercase immediate", rawQuery: "_txlock=IMMEDIATE", eager: true},
+		{name: "mixed-case immediate", rawQuery: "_txlock=Immediate", eager: true},
+		{name: "lowercase exclusive", rawQuery: "_txlock=exclusive", eager: true},
+		{name: "mixed-case exclusive", rawQuery: "_txlock=ExClUsIvE", eager: true},
+		{name: "deferred", rawQuery: "_txlock=deferred", eager: false},
+		{name: "missing", rawQuery: "_pragma=busy_timeout%2830000%29", eager: false},
+		{name: "case-sensitive key", rawQuery: "_TXLOCK=immediate", eager: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			eager, err := appPluginSQLiteEagerTransaction("file:/tmp/app_plugin.sqlite?" + test.rawQuery)
+			require.NoError(t, err)
+			assert.Equal(t, test.eager, eager)
+		})
+	}
+}
+
+func TestAppPluginWaitForDBInUseRejectsWrapperEntryOnly(t *testing.T) {
+	t.Setenv("APP_PLUGIN_TEST_DIALECT", "sqlite")
+	t.Setenv("APP_PLUGIN_TEST_DSN", "")
+	db := openAppPluginModelDB(t)
+	pool, err := db.DB()
+	require.NoError(t, err)
+
+	held, err := pool.Conn(context.Background())
+	require.NoError(t, err)
+	defer held.Close()
+	require.Equal(t, 1, pool.Stats().InUse)
+
+	wrapperEntered := make(chan struct{}, 1)
+	wrapperEntered <- struct{}{}
+	<-wrapperEntered
+
+	waitCtx, cancelWait := context.WithTimeout(context.Background(), 25*time.Millisecond)
+	defer cancelWait()
+	err = appPluginWaitForDBInUse(waitCtx, pool, 2)
+	require.ErrorIs(t, err, context.DeadlineExceeded,
+		"wrapper entry alone must not prove that a second database/sql connection is in use")
+	assert.Contains(t, err.Error(), "InUse >= 2 (last InUse=1)")
+}
+
 func TestAppLifecycleCASAndRevokedTerminal(t *testing.T) {
 	db := openAppPluginModelDB(t)
 	logAppPluginDBVersion(t, db)
@@ -2008,7 +2286,54 @@ func TestAppLifecycleCASAndRevokedTerminal(t *testing.T) {
 		}
 		defer release()
 
+		eagerSQLiteFixture := false
 		if db.Dialector.Name() == "sqlite" {
+			dialector, ok := db.Dialector.(*sqlite.Dialector)
+			require.True(t, ok)
+			eagerSQLiteFixture, err = appPluginSQLiteEagerTransaction(dialector.DSN)
+			require.NoError(t, err)
+		}
+		upgradeDB := db
+		var eagerSQLitePool *sql.DB
+		switch {
+		case db.Dialector.Name() == "sqlite" && eagerSQLiteFixture:
+			eagerSQLitePool, err = db.DB()
+			require.NoError(t, err)
+			beginner, ok := db.Statement.ConnPool.(gorm.TxBeginner)
+			require.True(t, ok)
+			observer := &appPluginTxBeginObserver{
+				ConnPool: db.Statement.ConnPool,
+				beginTx: func(ctx context.Context, options *sql.TxOptions) (*sql.Tx, error) {
+					worker, _ := ctx.Value(workerKey{}).(string)
+					if worker == "3.0.0" {
+						select {
+						case waiterAttempted <- struct{}{}:
+						case <-barrierCtx.Done():
+							return nil, fmt.Errorf("different-version SQLite waiter begin barrier: %w", barrierCtx.Err())
+						}
+					}
+					transaction, beginErr := beginner.BeginTx(ctx, options)
+					if worker != "2.0.0" || beginErr != nil {
+						return transaction, beginErr
+					}
+					select {
+					case holderReady <- struct{}{}:
+					case <-barrierCtx.Done():
+						_ = transaction.Rollback()
+						return nil, fmt.Errorf("different-version SQLite holder begin barrier: %w", barrierCtx.Err())
+					}
+					select {
+					case <-releaseHolder:
+					case <-barrierCtx.Done():
+						_ = transaction.Rollback()
+						return nil, fmt.Errorf("different-version SQLite holder release: %w", barrierCtx.Err())
+					}
+					return transaction, nil
+				},
+			}
+			upgradeDB = db.Session(&gorm.Session{NewDB: true})
+			upgradeDB.Statement.ConnPool = observer
+		case db.Dialector.Name() == "sqlite":
 			const callbackName = "test:app_plugin_different_version_sqlite_start"
 			workersReady := make(chan struct{}, 2)
 			var coordinated sync.Map
@@ -2037,7 +2362,7 @@ func TestAppLifecycleCASAndRevokedTerminal(t *testing.T) {
 				require.NoError(t, db.Callback().Create().Remove(callbackName))
 			})
 			holderReady = workersReady
-		} else {
+		default:
 			ownershipClaimKey := appKeyClaim(v1.AppKey, "").ClaimKey
 			var holderCoordinated atomic.Bool
 			const holderCallback = "test:app_plugin_different_version_ownership_holder"
@@ -2096,7 +2421,7 @@ func TestAppLifecycleCASAndRevokedTerminal(t *testing.T) {
 			wg.Go(func() {
 				ctx := context.WithValue(barrierCtx, workerKey{}, version)
 				req := appPluginModelInstallRequest("concurrent-upgrade", version, "https://apps.example.com/concurrent-upgrade-v"+string(version[0])+"/")
-				result, installErr := InstallAppVersion(ctx, db, AppIdempotencyScope{ActorID: 34, Key: "concurrent-upgrade-v" + string(version[0])}, req)
+				result, installErr := InstallAppVersion(ctx, upgradeDB, AppIdempotencyScope{ActorID: 34, Key: "concurrent-upgrade-v" + string(version[0])}, req)
 				results <- result
 				errs <- installErr
 			})
@@ -2104,12 +2429,29 @@ func TestAppLifecycleCASAndRevokedTerminal(t *testing.T) {
 
 		if db.Dialector.Name() == "sqlite" {
 			runUpgrade("2.0.0")
-			runUpgrade("3.0.0")
-			for range 2 {
+			if eagerSQLiteFixture {
 				select {
 				case <-holderReady:
 				case <-barrierCtx.Done():
-					t.Fatalf("different-version SQLite workers did not reach the start barrier: %v", barrierCtx.Err())
+					t.Fatalf("different-version SQLite holder did not begin its eager transaction: %v", barrierCtx.Err())
+				}
+				runUpgrade("3.0.0")
+				select {
+				case <-waiterAttempted:
+				case <-barrierCtx.Done():
+					t.Fatalf("different-version SQLite waiter did not attempt transaction begin while the first transaction was held: %v", barrierCtx.Err())
+				}
+				if waitErr := appPluginWaitForDBInUse(barrierCtx, eagerSQLitePool, 2); waitErr != nil {
+					t.Fatalf("different-version SQLite waiter did not check out a second database/sql connection while the first transaction was held: %v", waitErr)
+				}
+			} else {
+				runUpgrade("3.0.0")
+				for range 2 {
+					select {
+					case <-holderReady:
+					case <-barrierCtx.Done():
+						t.Fatalf("different-version SQLite workers did not reach the start barrier: %v", barrierCtx.Err())
+					}
 				}
 			}
 		} else {
@@ -2173,10 +2515,15 @@ func openAppPluginModelDB(t *testing.T) *gorm.DB {
 	switch dialect {
 	case "sqlite":
 		common.SetMainDatabaseType(common.DatabaseTypeSQLite)
-		if dsn == "" {
-			dsn = filepath.Join(t.TempDir(), "app_plugin.sqlite")
-		}
+		dsn, err = appPluginSQLiteDSN(t, dsn)
+		require.NoError(t, err)
 		db, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+		require.NoError(t, err)
+		sqlDB, err := db.DB()
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = sqlDB.Close()
+		})
 	case "mysql":
 		common.SetMainDatabaseType(common.DatabaseTypeMySQL)
 		require.NotEmpty(t, dsn, "APP_PLUGIN_TEST_DSN is required for mysql")
@@ -2190,6 +2537,127 @@ func openAppPluginModelDB(t *testing.T) *gorm.DB {
 	}
 	require.NoError(t, err)
 	return db
+}
+
+func appPluginSQLiteDSN(t *testing.T, template string) (string, error) {
+	t.Helper()
+	var sqliteURL *url.URL
+	if template == "" {
+		sqliteURL = &url.URL{
+			RawQuery: url.Values{
+				"_pragma": {"busy_timeout(30000)", "journal_mode(WAL)"},
+				"_txlock": {"immediate"},
+			}.Encode(),
+		}
+	} else {
+		templatePath, rawQuery, hasQuery := strings.Cut(template, "?")
+		if appPluginWindowsDriveAbsolute(templatePath) {
+			queryURL, err := url.Parse("file:/fixture?" + rawQuery)
+			if err != nil {
+				return "", fmt.Errorf("parse APP_PLUGIN_TEST_DSN: %w", err)
+			}
+			if strings.Contains(templatePath, "#") || queryURL.Fragment != "" {
+				return "", fmt.Errorf("APP_PLUGIN_TEST_DSN must not contain a fragment")
+			}
+			sqliteURL = &url.URL{
+				Path:       templatePath,
+				RawQuery:   rawQuery,
+				ForceQuery: hasQuery && rawQuery == "",
+			}
+		} else {
+			var err error
+			sqliteURL, err = url.Parse(template)
+			if err != nil {
+				return "", fmt.Errorf("parse APP_PLUGIN_TEST_DSN: %w", err)
+			}
+		}
+		switch {
+		case sqliteURL.Scheme != "" && sqliteURL.Scheme != "file":
+			return "", fmt.Errorf("APP_PLUGIN_TEST_DSN must use a file URI")
+		case sqliteURL.Host != "":
+			return "", fmt.Errorf("APP_PLUGIN_TEST_DSN must not contain an authority")
+		case sqliteURL.User != nil:
+			return "", fmt.Errorf("APP_PLUGIN_TEST_DSN must not contain user info")
+		case sqliteURL.Fragment != "":
+			return "", fmt.Errorf("APP_PLUGIN_TEST_DSN must not contain a fragment")
+		case sqliteURL.Opaque != "":
+			return "", fmt.Errorf("APP_PLUGIN_TEST_DSN must not be opaque")
+		case sqliteURL.Path == "":
+			return "", fmt.Errorf("APP_PLUGIN_TEST_DSN must contain a path")
+		case strings.HasPrefix(sqliteURL.Path, "//"):
+			return "", fmt.Errorf("APP_PLUGIN_TEST_DSN must not contain a UNC path")
+		case !appPluginWindowsDriveAbsolute(sqliteURL.Path) && !strings.HasPrefix(sqliteURL.Path, "/"):
+			return "", fmt.Errorf("APP_PLUGIN_TEST_DSN must contain an absolute path")
+		}
+	}
+
+	fixtureURL := appPluginTestSQLiteFileURL(
+		filepath.Join(t.TempDir(), "app_plugin.sqlite"),
+		sqliteURL.RawQuery,
+	)
+	fixtureURL.ForceQuery = sqliteURL.ForceQuery
+	return fixtureURL.String(), nil
+}
+
+func appPluginTestSQLiteFileURL(path, rawQuery string) url.URL {
+	if appPluginWindowsDriveAbsolute(path) {
+		path = "/" + strings.ReplaceAll(path, `\`, "/")
+	} else {
+		path = filepath.ToSlash(path)
+	}
+	return url.URL{Scheme: "file", Path: path, RawQuery: rawQuery}
+}
+
+func appPluginWindowsDriveAbsolute(path string) bool {
+	if len(path) < 3 || path[1] != ':' || (path[2] != '/' && path[2] != '\\') {
+		return false
+	}
+	return path[0] >= 'A' && path[0] <= 'Z' || path[0] >= 'a' && path[0] <= 'z'
+}
+
+func appPluginSQLiteEagerTransaction(dsn string) (bool, error) {
+	sqliteURL, err := url.Parse(dsn)
+	if err != nil {
+		return false, err
+	}
+	query, err := url.ParseQuery(sqliteURL.RawQuery)
+	if err != nil {
+		return false, err
+	}
+	lockMode := query.Get("_txlock")
+	return strings.EqualFold(lockMode, "immediate") || strings.EqualFold(lockMode, "exclusive"), nil
+}
+
+type appPluginTxBeginObserver struct {
+	gorm.ConnPool
+	beginTx func(context.Context, *sql.TxOptions) (*sql.Tx, error)
+}
+
+func (observer *appPluginTxBeginObserver) BeginTx(ctx context.Context, options *sql.TxOptions) (*sql.Tx, error) {
+	return observer.beginTx(ctx, options)
+}
+
+func appPluginWaitForDBInUse(ctx context.Context, pool *sql.DB, minimum int) error {
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		stats := pool.Stats()
+		if stats.InUse >= minimum {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			stats = pool.Stats()
+			if stats.InUse >= minimum {
+				return nil
+			}
+			return fmt.Errorf(
+				"database/sql pool did not reach InUse >= %d (last InUse=%d): %w",
+				minimum, stats.InUse, ctx.Err(),
+			)
+		case <-ticker.C:
+		}
+	}
 }
 
 func logAppPluginDBVersion(t *testing.T, db *gorm.DB) {

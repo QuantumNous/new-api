@@ -201,34 +201,96 @@ func (p *SSRFProtection) isAllowedPort(port int) bool {
 	return slices.Contains(p.AllowedPorts, port)
 }
 
+func isASCIIAlphanumeric(c byte) bool {
+	return c >= 'a' && c <= 'z' ||
+		c >= 'A' && c <= 'Z' ||
+		c >= '0' && c <= '9'
+}
+
+func trimASCIIWhitespace(value string) string {
+	return strings.Trim(value, " \t\n\v\f\r")
+}
+
+func isValidASCIIDNSHostname(host string) bool {
+	if len(host) == 0 || len(host) > 253 {
+		return false
+	}
+
+	for _, label := range strings.Split(host, ".") {
+		if len(label) == 0 || len(label) > 63 {
+			return false
+		}
+		if !isASCIIAlphanumeric(label[0]) || !isASCIIAlphanumeric(label[len(label)-1]) {
+			return false
+		}
+		for i := 1; i < len(label)-1; i++ {
+			if !isASCIIAlphanumeric(label[i]) && label[i] != '-' {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func isValidDomainList(list []string) bool {
+	for _, item := range list {
+		item = trimASCIIWhitespace(item)
+		if item == "" {
+			return false
+		}
+		if suffix, ok := strings.CutPrefix(item, "*."); ok {
+			if !isValidASCIIDNSHostname(suffix) {
+				return false
+			}
+			continue
+		}
+		if !isValidASCIIDNSHostname(item) {
+			return false
+		}
+	}
+	return true
+}
+
 // isDomainWhitelisted 检查域名是否在白名单中
 func isDomainListed(domain string, list []string) bool {
 	if len(list) == 0 {
 		return false
 	}
 
+	if !isValidASCIIDNSHostname(domain) {
+		return false
+	}
 	domain = strings.ToLower(domain)
+
 	for _, item := range list {
-		item = strings.ToLower(strings.TrimSpace(item))
+		item = trimASCIIWhitespace(item)
 		if item == "" {
 			continue
-		}
-		// 精确匹配
-		if domain == item {
-			return true
 		}
 		// 通配符匹配 (*.example.com)
 		if after, ok := strings.CutPrefix(item, "*."); ok {
 			suffix := after
-			if strings.HasSuffix(domain, "."+suffix) || domain == suffix {
+			if !isValidASCIIDNSHostname(suffix) {
+				continue
+			}
+			suffix = strings.ToLower(suffix)
+			if len(domain) > len(suffix)+1 && strings.HasSuffix(domain, "."+suffix) {
 				return true
 			}
+			continue
+		}
+		// 精确匹配
+		if isValidASCIIDNSHostname(item) && domain == strings.ToLower(item) {
+			return true
 		}
 	}
 	return false
 }
 
 func (p *SSRFProtection) isDomainAllowed(domain string) bool {
+	if !isValidDomainList(p.DomainList) {
+		return false
+	}
 	listed := isDomainListed(domain, p.DomainList)
 	if p.DomainFilterMode { // 白名单
 		return listed
@@ -284,7 +346,7 @@ func (p *SSRFProtection) ipAccessError(host string, ip net.IP) error {
 
 // ValidateNetworkTarget validates the host and port before dialing.
 func (p *SSRFProtection) ValidateNetworkTarget(host string, port int) error {
-	host = strings.TrimSpace(host)
+	host = trimASCIIWhitespace(host)
 	if host == "" {
 		return fmt.Errorf("invalid host")
 	}
@@ -302,6 +364,9 @@ func (p *SSRFProtection) ValidateNetworkTarget(host string, port int) error {
 		return nil
 	}
 
+	if !isValidASCIIDNSHostname(host) {
+		return fmt.Errorf("invalid domain: %s", host)
+	}
 	if !p.isDomainAllowed(host) {
 		if p.DomainFilterMode {
 			return fmt.Errorf("domain not in whitelist: %s", host)

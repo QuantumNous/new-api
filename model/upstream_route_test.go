@@ -1,7 +1,12 @@
 package model
 
 import (
+	"slices"
+	"sync"
 	"testing"
+
+	"github.com/QuantumNous/new-api/setting/config"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -19,6 +24,48 @@ func setupUpstreamRouteTest(t *testing.T) {
 	t.Cleanup(func() {
 		DB = originalDB
 	})
+}
+
+func TestManagedUpstreamOrchestrationSettingConcurrentReadAndOptionUpdate(t *testing.T) {
+	original, err := config.ConfigToMap(operation_setting.GetUpstreamOrchestrationSetting())
+	require.NoError(t, err)
+	originalOptions := make(map[string]string, len(original))
+	for key, value := range original {
+		originalOptions["upstream_orchestration."+key] = value
+	}
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(originalOptions))
+	})
+
+	start := make(chan struct{})
+	handled := make(chan bool, 100)
+	var workers sync.WaitGroup
+	workers.Go(func() {
+		<-start
+		for i := range 100 {
+			value := `{"public-a":"actual-a"}`
+			if i%2 == 1 {
+				value = `{"public-b":"actual-b"}`
+			}
+			handled <- handleConfigUpdate("upstream_orchestration.model_aliases", value)
+		}
+	})
+	workers.Go(func() {
+		<-start
+		for range 100 {
+			setting := operation_setting.GetUpstreamOrchestrationSetting()
+			for key, value := range setting.ModelAliases {
+				_, _ = key, value
+			}
+			_ = slices.Clone(setting.TargetGroups)
+		}
+	})
+	close(start)
+	workers.Wait()
+	close(handled)
+	for result := range handled {
+		assert.True(t, result)
+	}
 }
 
 func TestRecordUpstreamRouteFailure(t *testing.T) {

@@ -47,7 +47,7 @@ export function ConflictConfirmDialog(props: ConflictConfirmDialogProps) {
       onOpenChange={props.onOpenChange}
       title={t('Preview price changes')}
       desc={t('Review and confirm the selected prices.')}
-      className='max-h-[90vh] overflow-y-auto data-[size=default]:max-w-[calc(100%-2rem)] data-[size=default]:sm:max-w-4xl'
+      className='max-h-[min(90dvh,var(--dialog-available-height))] overflow-y-auto data-[size=default]:max-w-[calc(100%-2rem)] data-[size=default]:sm:max-w-4xl'
       confirmText={t('Confirm Changes')}
       isLoading={props.isLoading}
       handleConfirm={props.onConfirm}

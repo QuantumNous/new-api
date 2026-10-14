@@ -16,11 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
 
 import type { AuthUser } from '@/stores/auth-store'
 
-import { getSavedLanguage, sanitizeAuthRedirect } from './auth-redirect'
+import {
+  getSavedLanguage,
+  navigateAfterAuthentication,
+  sanitizeAuthRedirect,
+} from './auth-redirect'
 
 const origin = 'https://dashboard.example.com'
 
@@ -57,6 +61,59 @@ describe('authentication redirect validation', () => {
   test('rejects invalid or non-HTTP application origins', () => {
     expect(sanitizeAuthRedirect('/dashboard', 'not-an-origin')).toBe(null)
     expect(sanitizeAuthRedirect('/dashboard', 'file:///tmp/app')).toBe(null)
+  })
+})
+
+describe('authentication redirect navigation', () => {
+  test('replaces the document for the Canvas SSO endpoint', async () => {
+    const navigate = vi.fn()
+    const replaceDocument = vi.fn()
+
+    await navigateAfterAuthentication(
+      '/_canvas_sso',
+      origin,
+      navigate,
+      replaceDocument
+    )
+
+    expect(replaceDocument).toHaveBeenCalledWith('/_canvas_sso')
+    expect(navigate).not.toHaveBeenCalled()
+  })
+
+  test('uses client navigation for safe application routes', async () => {
+    const navigate = vi.fn()
+    const replaceDocument = vi.fn()
+
+    await navigateAfterAuthentication(
+      '/dashboard?tab=usage#recent',
+      origin,
+      navigate,
+      replaceDocument
+    )
+
+    expect(navigate).toHaveBeenCalledWith({
+      href: '/dashboard?tab=usage#recent',
+      replace: true,
+    })
+    expect(replaceDocument).not.toHaveBeenCalled()
+  })
+
+  test('rejects unsafe external targets and navigates to the dashboard', async () => {
+    const navigate = vi.fn()
+    const replaceDocument = vi.fn()
+
+    await navigateAfterAuthentication(
+      'https://attacker.example/path',
+      origin,
+      navigate,
+      replaceDocument
+    )
+
+    expect(navigate).toHaveBeenCalledWith({
+      href: '/dashboard',
+      replace: true,
+    })
+    expect(replaceDocument).not.toHaveBeenCalled()
   })
 })
 

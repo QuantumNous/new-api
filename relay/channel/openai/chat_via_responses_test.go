@@ -12,6 +12,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -142,6 +143,49 @@ func TestOaiResponsesToChatStreamHandlerConvertsClaudeSSETerminalsAndUsage(t *te
 	)
 }
 
+func TestOaiChatToResponsesStreamHandlerFallbackUsagePreservesSegmentBoundary(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"id":"chatcmpl_1","model":"gpt-test","choices":[{"index":0,"delta":{"content":"calling"}}]}`,
+		`data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}`,
+		`data: {"choices":[{"index":0,"delta":{"content":"final"},"finish_reason":"stop"}]}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	c.Set(common.RequestIdKey, "segmented-usage-test")
+	resp := &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(strings.NewReader(body)),
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+	}
+	info := &relaycommon.RelayInfo{
+		ChannelMeta:        &relaycommon.ChannelMeta{UpstreamModelName: "gpt-test"},
+		IsStream:           true,
+		RelayFormat:        types.RelayFormatOpenAIResponses,
+		ShouldIncludeUsage: true,
+		DisablePing:        true,
+	}
+
+	usage, relayErr := OaiChatToResponsesStreamHandler(c, info, resp)
+
+	require.Nil(t, relayErr)
+	require.NotNil(t, usage)
+	expected := service.EstimateTokenByModel("gpt-test", "calling\nfinal")
+	merged := service.EstimateTokenByModel("gpt-test", "callingfinal")
+	require.NotEqual(t, merged, expected, "fixture must distinguish merged and segmented usage")
+	assert.Equal(t, expected, usage.CompletionTokens)
+}
+
 func TestOaiResponsesToChatBufferedStreamHandlerReturnsJSONFromSSE(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
@@ -264,6 +308,41 @@ func TestOaiChatToResponsesStreamHandlerConvertsSSEOrderAndUsage(t *testing.T) {
 		`event: response.function_call_arguments.delta`,
 		`event: response.output_text.done`,
 		`event: response.function_call_arguments.done`,
+		`event: response.completed`,
+	)
+}
+
+func TestOaiChatToResponsesStreamHandlerFallbackUsageCountsEveryTextSegment(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	t.Cleanup(func() { constant.StreamingTimeout = oldTimeout })
+
+	body := strings.Join([]string{
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{"content":"alpha "},"finish_reason":"tool_calls"}]}`,
+		`data: {"id":"chatcmpl_1","object":"chat.completion.chunk","created":1710000000,"model":"gpt-test","choices":[{"index":0,"delta":{"content":"beta"},"finish_reason":"stop"}]}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	c, recorder, resp, info := newResponsesChatTestContext(t, body, true)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+
+	usage, apiErr := OaiChatToResponsesStreamHandler(c, info, resp)
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	assert.Equal(t, service.EstimateTokenByModel("gpt-test", "alpha beta"), usage.CompletionTokens)
+	assert.NotEqual(t, service.EstimateTokenByModel("gpt-test", "beta"), usage.CompletionTokens)
+
+	got := recorder.Body.String()
+	requireOrderedSubstrings(t, got,
+		`"delta":"alpha "`,
+		`"text":"alpha "`,
+		`"delta":"beta"`,
+		`"text":"beta"`,
 		`event: response.completed`,
 	)
 }

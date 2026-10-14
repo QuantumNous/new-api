@@ -61,6 +61,9 @@ func testBatchSchemaMigration(t *testing.T, db *gorm.DB) {
 	assert.Equal(t, legacy.TaskID, upgraded.TaskID)
 	assert.True(t, db.Table(taskTable).Migrator().HasColumn(&Task{}, "dispatch_status"))
 	assert.True(t, db.Table(taskTable).Migrator().HasColumn(&Task{}, "dispatch_lock_until"))
+	assert.True(t, db.Table(taskTable).Migrator().HasColumn(&Task{}, "dispatch_started_at"))
+	assert.True(t, db.Table(taskTable).Migrator().HasColumn(&Task{}, "dispatch_protocol_version"))
+	assert.Zero(t, upgraded.DispatchProtocolVersion)
 
 	scope := "user:token:key"
 	batch := Batch{

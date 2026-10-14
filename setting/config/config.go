@@ -38,6 +38,29 @@ func (cm *ConfigManager) Get(name string) any {
 	return cm.configs[name]
 }
 
+// Read executes a callback while the requested configuration is read-locked.
+func (cm *ConfigManager) Read(name string, read func(any)) bool {
+	cm.mutex.RLock()
+	defer cm.mutex.RUnlock()
+	cfg, ok := cm.configs[name]
+	if !ok {
+		return false
+	}
+	read(cfg)
+	return true
+}
+
+// UpdateFromMap applies a partial configuration update while holding the write lock.
+func (cm *ConfigManager) UpdateFromMap(name string, values map[string]string) (bool, error) {
+	cm.mutex.Lock()
+	defer cm.mutex.Unlock()
+	cfg, ok := cm.configs[name]
+	if !ok {
+		return false, nil
+	}
+	return true, updateConfigFromMap(cfg, values)
+}
+
 // LoadFromDB 从数据库加载配置
 func (cm *ConfigManager) LoadFromDB(options map[string]string) error {
 	cm.mutex.Lock()

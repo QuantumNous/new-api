@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -12,6 +13,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
@@ -32,6 +34,19 @@ const cacheExpr = `tier("default", p * 2 + c * 10 + cr * 0.2 + cc * 2.5 + cc1h *
 const probeExpr = `param("service_tier") == "fast" ? tier("fast", p * 4 + c * 20) : tier("normal", p * 2 + c * 10)`
 
 const testQuotaPerUnit = 500_000.0
+
+type trustPolicyFunding struct {
+	source      string
+	preConsumed []int
+}
+
+func (f *trustPolicyFunding) Source() string { return f.source }
+func (f *trustPolicyFunding) PreConsume(quota int) error {
+	f.preConsumed = append(f.preConsumed, quota)
+	return nil
+}
+func (f *trustPolicyFunding) Settle(int) error { return nil }
+func (f *trustPolicyFunding) Refund() error    { return nil }
 
 func makeSnapshot(expr string, groupRatio float64, estPrompt, estCompletion int) *billingexpr.BillingSnapshot {
 	return &billingexpr.BillingSnapshot{
@@ -55,6 +70,42 @@ func makeRelayInfo(expr string, groupRatio float64, estPrompt, estCompletion int
 	return &relaycommon.RelayInfo{
 		TieredBillingSnapshot: snap,
 		FinalPreConsumedQuota: snap.EstimatedQuotaAfterGroup,
+	}
+}
+
+func TestBillingSessionTrustBypassAppliesOnlyToWallet(t *testing.T) {
+	previousTrustQuota := operation_setting.GetQuotaSetting().TrustQuotaUSD
+	previousQuotaPerUnit := common.QuotaPerUnit
+	operation_setting.GetQuotaSetting().TrustQuotaUSD = 10
+	common.QuotaPerUnit = 500_000
+	t.Cleanup(func() {
+		operation_setting.GetQuotaSetting().TrustQuotaUSD = previousTrustQuota
+		common.QuotaPerUnit = previousQuotaPerUnit
+	})
+
+	for _, testCase := range []struct {
+		source       string
+		wantReserved int
+	}{
+		{source: BillingSourceWallet, wantReserved: 0},
+		{source: BillingSourceSubscription, wantReserved: 1_500},
+	} {
+		t.Run(testCase.source, func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(nil)
+			ctx.Set("token_quota", 5_500_000)
+			funding := &trustPolicyFunding{source: testCase.source}
+			info := &relaycommon.RelayInfo{
+				UserId:         1,
+				UserQuota:      5_500_000,
+				TokenUnlimited: true,
+				IsPlayground:   true,
+			}
+			session := &BillingSession{relayInfo: info, funding: funding}
+
+			require.Nil(t, session.preConsume(ctx, 1_500))
+			assert.Equal(t, []int{testCase.wantReserved}, funding.preConsumed)
+			assert.Equal(t, testCase.wantReserved, info.FinalPreConsumedQuota)
+		})
 	}
 }
 
@@ -546,6 +597,73 @@ func TestBillingSessionReserveWalletTopUpDecrementsBalance(t *testing.T) {
 	userQuota, err := model.GetUserQuota(userID, false)
 	require.NoError(t, err)
 	assert.Equal(t, 450_000, userQuota)
+}
+
+func TestBillingSessionWalletReserveAccumulatesForRefund(t *testing.T) {
+	truncate(t)
+	gin.SetMode(gin.TestMode)
+
+	const userID, tokenID = 704, 704
+	const tokenKey = "wallet-reserve-refund-token"
+	seedUser(t, userID, 450_000)
+	seedToken(t, tokenID, userID, tokenKey, 450_000)
+
+	relayInfo := &relaycommon.RelayInfo{
+		UserId:            userID,
+		TokenId:           tokenID,
+		TokenKey:          tokenKey,
+		ImageRequestCount: 1,
+	}
+	funding := &WalletFunding{userId: userID, consumed: 50_000}
+	session := &BillingSession{
+		relayInfo:        relayInfo,
+		funding:          funding,
+		preConsumedQuota: 50_000,
+		tokenConsumed:    50_000,
+	}
+
+	require.NoError(t, session.Reserve(100_000))
+	assert.Equal(t, 100_000, funding.consumed)
+
+	ctx, _ := gin.CreateTestContext(nil)
+	session.Refund(ctx)
+	require.Eventually(t, func() bool {
+		userQuota, userErr := model.GetUserQuota(userID, false)
+		return userErr == nil &&
+			userQuota == 500_000 &&
+			getTokenRemainQuota(t, tokenID) == 500_000
+	}, 3*time.Second, 10*time.Millisecond)
+}
+
+func TestBillingSessionWalletReserveTokenFailureRollsBackOnlyCurrentDelta(t *testing.T) {
+	truncate(t)
+
+	const userID, tokenID = 705, 705
+	const tokenKey = "wallet-reserve-token-failure"
+	seedUser(t, userID, 450_000)
+	seedToken(t, tokenID, userID, tokenKey, 25_000)
+
+	relayInfo := &relaycommon.RelayInfo{
+		UserId:            userID,
+		TokenId:           tokenID,
+		TokenKey:          tokenKey,
+		ImageRequestCount: 1,
+	}
+	funding := &WalletFunding{userId: userID, consumed: 50_000}
+	session := &BillingSession{
+		relayInfo:        relayInfo,
+		funding:          funding,
+		preConsumedQuota: 50_000,
+		tokenConsumed:    50_000,
+	}
+
+	require.Error(t, session.Reserve(100_000))
+	assert.Equal(t, 50_000, funding.consumed)
+	assert.Equal(t, 50_000, session.GetPreConsumedQuota())
+	userQuota, err := model.GetUserQuota(userID, false)
+	require.NoError(t, err)
+	assert.Equal(t, 450_000, userQuota)
+	assert.Equal(t, 25_000, getTokenRemainQuota(t, tokenID))
 }
 
 func TestTryTieredSettleUsesFinalGroupAfterRetry(t *testing.T) {

@@ -27,7 +27,21 @@ const WAN_MODELS = {
 // https://help.aliyun.com/zh/model-studio/text-to-image-v2-api-reference
 // https://help.aliyun.com/zh/model-studio/wan-image-generation-api-reference
 // https://help.aliyun.com/zh/model-studio/wan-image-generation-and-editing-api-reference
-const WAN_IMAGE_MODELS = {
+// https://help.aliyun.com/zh/model-studio/wan2-5-image-edit-api-reference
+// https://help.aliyun.com/zh/model-studio/wanx-image-edit-api-reference
+// https://help.aliyun.com/zh/model-studio/qwen-image-api
+// https://help.aliyun.com/zh/model-studio/qwen-image-edit-api
+// https://help.aliyun.com/zh/model-studio/qwen-image-generation-and-editing-api-reference
+// https://help.aliyun.com/zh/model-studio/z-image-api-reference
+// Kinds: image27/image26/t2i use multimodal-generation (sync) or
+// image-generation/generation (async) with output.choices; legacy uses the
+// async text2image/image-synthesis with output.results; legacy_edit uses the
+// async image2image/image-synthesis with input.images and output.results;
+// legacy_imageedit (wanx2.1-imageedit) uses the same async
+// image2image/image-synthesis with input.function, input.base_image_url and an
+// optional input.mask_image_url; qwen (Qwen-Image, Qwen-Image-Edit, Z-Image)
+// uses multimodal-generation synchronously only, with output.choices.
+const IMAGE_MODELS = {
   "wan2.7-image-pro": "image27",
   "wan2.7-image": "image27",
   "wan2.6-image": "image26",
@@ -38,31 +52,166 @@ const WAN_IMAGE_MODELS = {
   "wanx2.1-t2i-turbo": "legacy",
   "wanx2.1-t2i-plus": "legacy",
   "wanx2.0-t2i-turbo": "legacy",
+  "wan2.5-i2i-preview": "legacy_edit",
+  "wanx2.1-imageedit": "legacy_imageedit",
+  "qwen-image": "qwen",
+  "qwen-image-plus": "qwen",
+  "qwen-image-max": "qwen",
+  "qwen-image-2.0": "qwen",
+  "qwen-image-2.0-pro": "qwen",
+  "qwen-image-3.0": "qwen",
+  "qwen-image-3.0-pro": "qwen",
+  "qwen-image-edit": "qwen",
+  "qwen-image-edit-plus": "qwen",
+  "qwen-image-edit-max": "qwen",
+  "z-image-turbo": "qwen",
+};
+// wanx2.1-imageedit selects its editing operation with input.function. The
+// parameters below belong to specific functions and are forwarded as
+// documented; none of them changes the billed image count.
+const IMAGE_EDIT_FUNCTIONS = [
+  "stylization_all",
+  "stylization_local",
+  "description_edit",
+  "description_edit_with_mask",
+  "remove_watermark",
+  "expand",
+  "super_resolution",
+  "colorization",
+  "doodle",
+  "control_cartoon_feature",
+];
+const IMAGE_EDIT_FUNCTION_PARAMETERS = ["strength", "top_scale", "bottom_scale", "left_scale", "right_scale", "upscale_factor", "is_sketch"];
+// Documented limits of the multimodal-generation image models: the output
+// count range and the number of input images (minInput 1 marks edit-only
+// models). Fixed-count models reject n > 1 upstream ("n must be 1").
+const QWEN_IMAGE_LIMITS = {
+  "qwen-image": { maxN: 1, maxInput: 0 },
+  "qwen-image-plus": { maxN: 1, maxInput: 0 },
+  "qwen-image-max": { maxN: 1, maxInput: 0 },
+  "qwen-image-2.0": { maxN: 6, maxInput: 3 },
+  "qwen-image-2.0-pro": { maxN: 6, maxInput: 3 },
+  "qwen-image-3.0": { maxN: 6, maxInput: 3 },
+  "qwen-image-3.0-pro": { maxN: 6, maxInput: 3 },
+  "qwen-image-edit": { maxN: 1, maxInput: 3, minInput: 1 },
+  "qwen-image-edit-plus": { maxN: 6, maxInput: 3, minInput: 1 },
+  "qwen-image-edit-max": { maxN: 6, maxInput: 3, minInput: 1 },
+  "z-image-turbo": { maxN: 1, maxInput: 0 },
+};
+// Dated snapshots resolve to the undated profile through modelKey().
+const IMAGE_MODEL_SNAPSHOTS = [
+  "qwen-image-plus-2026-01-09",
+  "qwen-image-max-2025-12-30",
+  "qwen-image-2.0-2026-03-03",
+  "qwen-image-2.0-pro-2026-03-03",
+  "qwen-image-2.0-pro-2026-04-22",
+  "qwen-image-2.0-pro-2026-06-22",
+  "qwen-image-edit-plus-2025-10-30",
+  "qwen-image-edit-plus-2025-12-15",
+  "qwen-image-edit-max-2026-01-16",
+];
+const QWEN_IMAGE3_MODELS = ["qwen-image-3.0", "qwen-image-3.0-pro"];
+const Z_IMAGE_MODELS = ["z-image-turbo"];
+// Qwen-Image-3.0 usage: output_image_type / input_image_type switch to the
+// 2K tier above this pixel area.
+const QWEN_IMAGE3_TIER_MAX_PIXELS = 2250000;
+// Largest documented per-request image output (wan2.7 group generation).
+const MAX_IMAGE_OUTPUTS = 12;
+// Legacy per-call pricing multiplied Z-Image requests with prompt rewriting
+// by this ratio; task expressions read the prompt_extend fact instead.
+const Z_IMAGE_PROMPT_EXTEND_RATIO = 2;
+// Base64 uploads on the OpenAI edits endpoint are bounded by DashScope's 10 MB input image limit.
+const MAX_INPUT_IMAGE_BYTES = 10485760;
+
+const IMAGE_UNIT_LABEL = { en: "image", zh: "张", "zh-TW": "張", fr: "image", ja: "枚", ru: "изображение", vi: "ảnh" };
+const IMAGE_COUNT_FIELD = {
+  type: "number",
+  unit: "count",
+  unitLabel: IMAGE_UNIT_LABEL,
+  description: { en: "Image generation unit price", zh: "图片生成单价" },
 };
 
-const WAN_IMAGE_USAGE_SCHEMA = {
-  image_count: {
+const WAN_IMAGE_USAGE_SCHEMA = { image_count: IMAGE_COUNT_FIELD };
+
+// Z-Image is priced differently when prompt rewriting is enabled.
+const Z_IMAGE_USAGE_SCHEMA = {
+  image_count: IMAGE_COUNT_FIELD,
+  prompt_extend: {
+    type: "boolean",
+    description: { en: "Whether prompt rewriting is enabled", zh: "是否开启提示词改写" },
+  },
+};
+
+// Qwen-Image-3.0 meters output images by tier and input images separately.
+// Estimated at submit from the requested size and input count; settled from
+// usage.output_image_count, usage.output_image_type and usage.input_image_count.
+const QWEN_IMAGE3_USAGE_SCHEMA = {
+  image_count: IMAGE_COUNT_FIELD,
+  output_image_type: {
+    enum: ["qima_output_1k", "qima_output_2k"],
+    enumLabels: { qima_output_1k: { en: "1K output", zh: "1K 输出" }, qima_output_2k: { en: "2K output", zh: "2K 输出" } },
+    description: { en: "Output image tier", zh: "输出图片档位" },
+  },
+  input_image_count: {
     type: "number",
     unit: "count",
-    unitLabel: { en: "image", zh: "张", "zh-TW": "張", fr: "image", ja: "枚", ru: "изображение", vi: "ảnh" },
-    description: { en: "Image generation unit price", zh: "图片生成单价" },
+    unitLabel: IMAGE_UNIT_LABEL,
+    description: { en: "Input image unit price", zh: "输入图片单价" },
   },
 };
 
-const WAN_VIDEO_USAGE_SCHEMA = {
-  // Billable seconds: output duration, or input + output for Wan3.
-  seconds: {
-    type: "number",
-    unit: "second",
-    description: { en: "Video generation unit price", zh: "视频生成单价" },
-  },
-  // Requested output video resolution.
-  resolution: {
-    enum: ["480P", "720P", "1080P"],
-    enumLabels: { "480P": { en: "480P", zh: "480P" }, "720P": { en: "720P", zh: "720P" }, "1080P": { en: "1080P", zh: "1080P" } },
-    description: { en: "Output video resolution", zh: "输出视频分辨率" },
-  },
-};
+// Wan video usage facts. The resolution options follow the model's
+// capability table so pricing lists only the tiers the model offers.
+function wanVideoUsageSchema(resolutions, audio) {
+  const resolutionLabels = {};
+  for (const resolution of resolutions) resolutionLabels[resolution] = { en: resolution, zh: resolution };
+  const schema = {
+    // Billable seconds: output duration, or input + output for Wan3.
+    seconds: {
+      type: "number",
+      unit: "second",
+      description: { en: "Video generation unit price", zh: "视频生成单价" },
+    },
+    // Requested output video resolution.
+    resolution: {
+      enum: resolutions,
+      enumLabels: resolutionLabels,
+      description: { en: "Output video resolution", zh: "输出视频分辨率" },
+    },
+  };
+  // wan2.6-i2v-flash prices audio and silent output differently. parameters.audio
+  // defaults to true; the completion usage.audio flag replaces the estimate.
+  if (audio) {
+    schema.audio = {
+      type: "boolean",
+      description: { en: "Whether audio is generated", zh: "是否生成音频" },
+    };
+  }
+  return schema;
+}
+
+const WAN_AUDIO_VIDEO_MODELS = ["wan2.6-i2v-flash"];
+// Dated snapshots share the undated model's capabilities through modelKey.
+const WAN_VIDEO_SNAPSHOTS = ["wan2.7-t2v-2026-04-25", "wan2.7-t2v-2026-06-12", "wan2.7-i2v-2026-04-25"];
+const WAN_VIDEO_RESOLUTIONS = ["480P", "720P", "1080P"];
+
+// One usage profile per distinct resolution set and audio option.
+function wanVideoUsageProfiles() {
+  const profiles = [];
+  for (const model of Object.keys(WAN_MODELS).concat(WAN_VIDEO_SNAPSHOTS)) {
+    const key = modelKey(model);
+    const resolutions = WAN_MODELS[key].resolutions;
+    const audio = WAN_AUDIO_VIDEO_MODELS.includes(key);
+    const shape = resolutions.join("/") + (audio ? "+audio" : "");
+    let profile = profiles.find((entry) => entry.shape === shape);
+    if (!profile) {
+      profile = { shape: shape, models: [], schema: wanVideoUsageSchema(resolutions, audio) };
+      profiles.push(profile);
+    }
+    profile.models.push(model);
+  }
+  return profiles.map((profile) => ({ models: profile.models, schema: profile.schema }));
+}
 
 export const meta = {
   apiVersion: 1,
@@ -70,10 +219,10 @@ export const meta = {
   name: "Alibaba Bailian",
   icon: "Bailian.Color",
   description: {
-    en: "Alibaba Cloud Bailian Wanxiang image and video generation",
-    zh: "阿里云百炼万相图片与视频生成",
+    en: "Alibaba Cloud Bailian image and video generation (Wan, Qwen-Image, Z-Image)",
+    zh: "阿里云百炼图片与视频生成（万相、千问图像、Z-Image）",
   },
-  version: "1.3.0",
+  version: "1.4.1",
   author: { name: "QuantumNous" },
   channelTypes: [17],
   // Literal metadata also supports the dashboard's static script preview.
@@ -111,25 +260,71 @@ export const meta = {
     "wanx2.1-t2i-turbo",
     "wanx2.1-t2i-plus",
     "wanx2.0-t2i-turbo",
-  ],
+    "wan2.5-i2i-preview",
+    "wanx2.1-imageedit",
+    "qwen-image",
+    "qwen-image-plus",
+    "qwen-image-max",
+    "qwen-image-2.0",
+    "qwen-image-2.0-pro",
+    "qwen-image-3.0",
+    "qwen-image-3.0-pro",
+    "qwen-image-edit",
+    "qwen-image-edit-plus",
+    "qwen-image-edit-max",
+    "z-image-turbo",
+  ].concat(IMAGE_MODEL_SNAPSHOTS),
   fetchMode: "per_task",
+  upstreams: ["vendor", "new_api"],
   submitResponseTypes: ["json", "sse"],
   requiredCapabilities: ["json-clone@1", "submit-sse-delta@1"],
-  usageSchema: { ...WAN_IMAGE_USAGE_SCHEMA, ...WAN_VIDEO_USAGE_SCHEMA },
+  usageSchema: { ...WAN_IMAGE_USAGE_SCHEMA, ...wanVideoUsageSchema(WAN_VIDEO_RESOLUTIONS, false) },
   usageProfiles: [
     {
-      models: Object.keys(WAN_IMAGE_MODELS),
+      models: Object.keys(IMAGE_MODELS)
+        .concat(IMAGE_MODEL_SNAPSHOTS)
+        .filter((name) => !QWEN_IMAGE3_MODELS.includes(name) && !Z_IMAGE_MODELS.includes(name)),
       schema: WAN_IMAGE_USAGE_SCHEMA,
     },
-    {
-      models: Object.keys(WAN_MODELS).concat(["wan2.7-t2v-2026-04-25", "wan2.7-t2v-2026-06-12", "wan2.7-i2v-2026-04-25"]),
-      schema: WAN_VIDEO_USAGE_SCHEMA,
-    },
-  ],
+    { models: Z_IMAGE_MODELS, schema: Z_IMAGE_USAGE_SCHEMA },
+    { models: QWEN_IMAGE3_MODELS, schema: QWEN_IMAGE3_USAGE_SCHEMA },
+  ].concat(wanVideoUsageProfiles()),
   routes: [
-    { method: "POST", path: "/ali/api/v1/services/aigc/multimodal-generation/generation", type: "submit", models: ["wan2.7-image-pro", "wan2.7-image", "wan2.6-image", "wan2.6-t2i"], decode: "createImageTask", render: "imageCreated" },
-    { method: "POST", path: "/ali/api/v1/services/aigc/image-generation/generation", type: "submit", models: ["wan2.7-image-pro", "wan2.7-image", "wan2.6-image", "wan2.6-t2i"], decode: "createImageTask", render: "taskCreated" },
-    { method: "POST", path: "/ali/api/v1/services/aigc/text2image/image-synthesis", type: "submit", models: ["wan2.5-t2i-preview", "wan2.2-t2i-flash", "wan2.2-t2i-plus", "wanx2.1-t2i-turbo", "wanx2.1-t2i-plus", "wanx2.0-t2i-turbo"], decode: "createImageTask", render: "taskCreated" },
+    // Synchronous vendor call with no task to re-query; the response is
+    // delivered once and never persisted.
+    {
+      method: "POST",
+      path: "/ali/api/v1/services/aigc/multimodal-generation/generation",
+      type: "submit",
+      models: ["wan2.7-image-pro", "wan2.7-image", "wan2.6-image", "wan2.6-t2i"].concat(Object.keys(QWEN_IMAGE_LIMITS), IMAGE_MODEL_SNAPSHOTS),
+      decode: "createImageTask",
+      render: "imageCreated",
+      retainResult: false,
+    },
+    {
+      method: "POST",
+      path: "/ali/api/v1/services/aigc/image-generation/generation",
+      type: "submit",
+      models: ["wan2.7-image-pro", "wan2.7-image", "wan2.6-image", "wan2.6-t2i"],
+      decode: "createImageTask",
+      render: "taskCreated",
+    },
+    {
+      method: "POST",
+      path: "/ali/api/v1/services/aigc/text2image/image-synthesis",
+      type: "submit",
+      models: ["wan2.5-t2i-preview", "wan2.2-t2i-flash", "wan2.2-t2i-plus", "wanx2.1-t2i-turbo", "wanx2.1-t2i-plus", "wanx2.0-t2i-turbo"],
+      decode: "createImageTask",
+      render: "taskCreated",
+    },
+    {
+      method: "POST",
+      path: "/ali/api/v1/services/aigc/image2image/image-synthesis",
+      type: "submit",
+      models: ["wan2.5-i2i-preview", "wanx2.1-imageedit"],
+      decode: "createImageTask",
+      render: "taskCreated",
+    },
     { method: "POST", path: "/ali/api/v1/services/aigc/video-generation/video-synthesis", type: "submit", decode: "createVideoTask", render: "taskCreated" },
     { method: "POST", path: "/ali/api/v1/services/aigc/image2video/video-synthesis", type: "submit", decode: "createVideoTask", render: "taskCreated" },
     { method: "GET", path: "/ali/api/v1/tasks/:task_id", type: "query", render: "taskStatus" },
@@ -137,11 +332,22 @@ export const meta = {
   protocols: [
     { name: "openai_responses", supports: ["stream", "sync", "background"] },
     { name: "openai_video", models: Object.keys(WAN_MODELS).concat(["wan2.7-t2v-2026-04-25", "wan2.7-t2v-2026-06-12", "wan2.7-i2v-2026-04-25"]) },
+    { name: "openai_image", models: Object.keys(IMAGE_MODELS).concat(IMAGE_MODEL_SNAPSHOTS) },
   ],
 };
 
 function trimmed(value) {
   return String(value || "").trim();
+}
+
+function viaNewAPI(ctx) {
+  return !!(ctx.upstream && ctx.upstream.kind === "new_api");
+}
+
+// Another New API gateway serves the DashScope wire format only on this
+// plugin's /ali native routes; DashScope itself serves the unprefixed paths.
+function apiRoot(ctx) {
+  return ctx.baseUrl + (viaNewAPI(ctx) ? "/ali" : "");
 }
 
 function firstImage(req) {
@@ -174,7 +380,9 @@ const MODERN_SIZES = {
 };
 
 function modelKey(model) {
-  return String(model || "").replace(/-\d{4}-\d{2}-\d{2}$/, "").replace(/^wan2\.1-/, "wanx2.1-");
+  return String(model || "")
+    .replace(/-\d{4}-\d{2}-\d{2}$/, "")
+    .replace(/^wan2\.1-/, "wanx2.1-");
 }
 
 function modelProfile(model) {
@@ -185,25 +393,73 @@ function modelProfile(model) {
 
 function imageModel(ctx) {
   const key = modelKey(ctx.upstreamModel || ctx.model || (ctx.requestBody || {}).model);
-  return Object.prototype.hasOwnProperty.call(WAN_IMAGE_MODELS, key) ? WAN_IMAGE_MODELS[key] : undefined;
+  return Object.prototype.hasOwnProperty.call(IMAGE_MODELS, key) ? IMAGE_MODELS[key] : undefined;
+}
+
+function qwenImage3(ctx) {
+  return QWEN_IMAGE3_MODELS.includes(modelKey(ctx.upstreamModel || ctx.model || (ctx.requestBody || {}).model));
+}
+
+function zImage(ctx) {
+  return Z_IMAGE_MODELS.includes(modelKey(ctx.upstreamModel || ctx.model || (ctx.requestBody || {}).model));
+}
+
+// Host file placeholders stand in for uploaded edit images; the host inlines
+// them as data URLs before the request is sent.
+function isFileRef(value) {
+  return !!value && typeof value === "object" && !Array.isArray(value) && typeof value.__fileRef === "string";
+}
+
+function isImageInput(value) {
+  return isFileRef(value) || (typeof value === "string" && /^(https?:\/\/|data:image\/)/i.test(value));
+}
+
+function sizePixels(size) {
+  const match = /^(\d+)\*(\d+)$/.exec(size);
+  if (!match) return null;
+  const width = Number(match[1]),
+    height = Number(match[2]);
+  if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0) return null;
+  return { width: width, height: height, pixels: width * height };
 }
 
 function convertImage(ctx) {
   const req = ctx.requestBody || {};
   const model = ctx.upstreamModel || req.model;
   const profile = imageModel(ctx);
-  if (!profile) throw new Error("unsupported Wan image model: " + model);
+  if (!profile) throw new Error("unsupported image model: " + model);
+  const limits = QWEN_IMAGE_LIMITS[modelKey(model)];
   const metadata = objectValue(req.metadata, "metadata");
   if (metadata.model !== undefined && metadata.model !== model) throw new Error("can't change model with metadata");
-  const mode = metadata.upstream_mode ?? "async";
+  const mode = metadata.upstream_mode ?? (profile === "qwen" ? "sync" : "async");
   if (mode !== "sync" && mode !== "async") throw new Error("upstream_mode must be sync or async");
-  if (profile === "legacy" && mode === "sync") throw new Error("this image model only supports asynchronous HTTP calls");
+  const legacyProfile = profile === "legacy" || profile === "legacy_edit" || profile === "legacy_imageedit";
+  if (legacyProfile && mode === "sync") throw new Error("this image model only supports asynchronous HTTP calls");
+  if (profile === "qwen" && mode === "async") throw new Error("this image model only supports synchronous HTTP calls");
   const parameters = {};
-  for (const key of ["n", "size", "negative_prompt", "prompt_extend", "watermark", "seed", "enable_interleave", "max_images", "enable_sequential", "thinking_mode", "bbox_list", "color_palette"]) {
+  for (const key of [
+    "n",
+    "size",
+    "negative_prompt",
+    "prompt_extend",
+    "prompt_extend_mode",
+    "enable_thinking",
+    "watermark",
+    "seed",
+    "enable_interleave",
+    "max_images",
+    "enable_sequential",
+    "thinking_mode",
+    "bbox_list",
+    "color_palette",
+  ]) {
     if (req[key] !== undefined) parameters[key] = req[key];
   }
+  if (profile === "legacy_imageedit") {
+    for (const key of IMAGE_EDIT_FUNCTION_PARAMETERS) if (req[key] !== undefined) parameters[key] = req[key];
+  }
   Object.assign(parameters, objectValue(metadata.parameters, "metadata.parameters"));
-  for (const key of ["prompt_extend", "watermark", "enable_interleave", "enable_sequential", "thinking_mode", "stream"]) {
+  for (const key of ["prompt_extend", "enable_thinking", "watermark", "enable_interleave", "enable_sequential", "thinking_mode", "stream"]) {
     if (parameters[key] !== undefined && typeof parameters[key] !== "boolean") throw new Error(key + " must be a boolean");
   }
   if (parameters.stream === true && (mode !== "sync" || profile !== "image26" || !parameters.enable_interleave))
@@ -211,36 +467,85 @@ function convertImage(ctx) {
   if (parameters.enable_interleave && profile !== "image26") throw new Error("enable_interleave is only supported by wan2.6-image");
   if (parameters.enable_sequential && profile !== "image27") throw new Error("enable_sequential is only supported by wan2.7-image models");
   if (parameters.enable_interleave && mode === "sync") parameters.stream = true;
-  const maxN = parameters.enable_interleave ? 1 : parameters.enable_sequential ? 12 : 4;
-  parameters.n = parameters.n ?? (mode === "sync" || parameters.enable_interleave ? 1 : profile === "image27" ? (parameters.enable_sequential ? 12 : 1) : 4);
+  const maxN = parameters.enable_interleave ? 1 : parameters.enable_sequential ? 12 : profile === "qwen" ? limits.maxN : 4;
+  parameters.n =
+    parameters.n ??
+    (mode === "sync" || parameters.enable_interleave || profile === "qwen" || profile === "legacy_imageedit"
+      ? 1
+      : profile === "image27"
+        ? parameters.enable_sequential
+          ? 12
+          : 1
+        : 4);
   // Provider limits are stricter than the host's dto.MaxImageN count ceiling.
-  if (!Number.isInteger(parameters.n) || parameters.n < 1 || parameters.n > maxN) throw new Error("n must be an integer between 1 and " + maxN);
+  // Fixed-count models are rejected here instead of letting DashScope answer
+  // "n must be 1" after the quantity was reserved.
+  if (!Number.isInteger(parameters.n) || parameters.n < 1 || parameters.n > maxN)
+    throw new Error(maxN === 1 ? "n must be 1 for this model" : "n must be an integer between 1 and " + maxN);
   if (parameters.max_images !== undefined && (!Number.isInteger(parameters.max_images) || parameters.max_images < 1 || parameters.max_images > 5))
     throw new Error("max_images must be an integer between 1 and 5");
   if (parameters.enable_interleave) parameters.max_images = parameters.max_images ?? 5;
   if (parameters.seed !== undefined && (!Number.isInteger(parameters.seed) || parameters.seed < 0 || parameters.seed > 2147483647))
     throw new Error("seed must be an integer between 0 and 2147483647");
+  if (parameters.prompt_extend_mode !== undefined && parameters.prompt_extend_mode !== "direct" && parameters.prompt_extend_mode !== "agent")
+    throw new Error("prompt_extend_mode must be direct or agent");
 
   const input = Object.assign({}, objectValue(metadata.input, "metadata.input"));
-  if (profile === "legacy") {
+  let listedImages = req.images;
+  if (listedImages === undefined) {
+    const first = isFileRef(req.image) ? req.image : firstImage(req);
+    listedImages = first ? [first] : [];
+  }
+  if (!Array.isArray(listedImages)) throw new Error("images must be an array");
+  let imageCount = 0;
+  if (legacyProfile) {
     input.prompt = input.prompt ?? req.prompt;
     if (typeof input.prompt !== "string" || !input.prompt.trim()) throw new Error("prompt is required");
-    if (input.messages !== undefined || firstImage(req)) throw new Error("this model only supports text-to-image input");
+    if (input.messages !== undefined) throw new Error("this model does not accept input.messages");
     if (parameters.negative_prompt !== undefined) {
+      if (profile === "legacy_imageedit") throw new Error("this model does not accept negative_prompt");
       input.negative_prompt = parameters.negative_prompt;
       delete parameters.negative_prompt;
     }
+    if (profile === "legacy") {
+      if (listedImages.length) throw new Error("this model only supports text-to-image input");
+    } else if (profile === "legacy_edit") {
+      input.images = input.images ?? listedImages;
+      if (!Array.isArray(input.images) || input.images.length < 1 || input.images.length > 3 || !input.images.every(isImageInput))
+        throw new Error("this model requires 1 to 3 input images as HTTP URLs or Base64 data URLs");
+      imageCount = input.images.length;
+    } else {
+      // wanx2.1-imageedit takes one base image and selects the operation with
+      // input.function; an OpenAI edit defaults to instruction editing, or to
+      // local repainting when a mask is supplied.
+      if (input.images !== undefined) throw new Error("this model takes input.base_image_url, not input.images");
+      if (input.base_image_url === undefined && listedImages.length === 1) input.base_image_url = listedImages[0];
+      if (listedImages.length > 1 || !isImageInput(input.base_image_url))
+        throw new Error("this model requires exactly one input image as an HTTP URL or Base64 data URL");
+      if (input.mask_image_url === undefined && req.mask !== undefined) input.mask_image_url = req.mask;
+      input.function = input.function ?? req.function ?? (input.mask_image_url !== undefined ? "description_edit_with_mask" : "description_edit");
+      if (!IMAGE_EDIT_FUNCTIONS.includes(input.function)) throw new Error("function must be one of " + IMAGE_EDIT_FUNCTIONS.join(", "));
+      if (input.function === "description_edit_with_mask" && !isImageInput(input.mask_image_url))
+        throw new Error("description_edit_with_mask requires a mask image as an HTTP URL or Base64 data URL");
+      if (input.function !== "description_edit_with_mask" && input.mask_image_url !== undefined)
+        throw new Error("mask images are only used by description_edit_with_mask");
+      if (parameters.size !== undefined) throw new Error("this model does not accept size");
+      imageCount = 1;
+    }
   } else if (input.messages === undefined) {
     const content = [];
-    if (req.images !== undefined && !Array.isArray(req.images)) throw new Error("images must be an array");
-    const images = req.images || (firstImage(req) ? [firstImage(req)] : []);
-    for (const image of images) content.push({ image: image });
+    for (const image of listedImages) content.push({ image: image });
     content.push({ text: req.prompt });
     input.messages = [{ role: "user", content: content }];
   }
-  let imageCount = 0;
-  if (profile !== "legacy") {
-    if (!Array.isArray(input.messages) || input.messages.length !== 1 || !input.messages[0] || input.messages[0].role !== "user" || !Array.isArray(input.messages[0].content))
+  if (!legacyProfile) {
+    if (
+      !Array.isArray(input.messages) ||
+      input.messages.length !== 1 ||
+      !input.messages[0] ||
+      input.messages[0].role !== "user" ||
+      !Array.isArray(input.messages[0].content)
+    )
       throw new Error("input.messages must contain one user message with a content array");
     let texts = 0;
     for (const part of input.messages[0].content) {
@@ -250,14 +555,16 @@ function convertImage(ctx) {
         texts++;
       }
       if (part.image !== undefined) {
-        if (typeof part.image !== "string" || !/^(https?:\/\/|data:image\/)/i.test(part.image)) throw new Error("image must be an HTTP URL or Base64 data URL");
+        if (!isImageInput(part.image)) throw new Error("image must be an HTTP URL or Base64 data URL");
         imageCount++;
       }
     }
     if (texts !== 1) throw new Error("input.messages must contain exactly one text prompt");
-    const maxInput = profile === "image27" ? 9 : profile === "image26" ? (parameters.enable_interleave ? 1 : 4) : 0;
-    if (imageCount > maxInput) throw new Error("too many input images for this model");
-    if (profile === "image26" && !parameters.enable_interleave && imageCount === 0) throw new Error("wan2.6-image editing requires a reference image; use wan2.6-t2i for text-to-image");
+    const maxInput = profile === "image27" ? 9 : profile === "image26" ? (parameters.enable_interleave ? 1 : 4) : profile === "qwen" ? limits.maxInput : 0;
+    if (imageCount > maxInput) throw new Error(maxInput === 0 ? "this model only supports text-to-image input" : "too many input images for this model");
+    if (profile === "image26" && !parameters.enable_interleave && imageCount === 0)
+      throw new Error("wan2.6-image editing requires a reference image; use wan2.6-t2i for text-to-image");
+    if (profile === "qwen" && limits.minInput && imageCount < limits.minInput) throw new Error("this image editing model requires at least one input image");
   }
   if (parameters.size !== undefined) {
     if (typeof parameters.size !== "string") throw new Error("size must be a string");
@@ -267,26 +574,75 @@ function convertImage(ctx) {
       if ((profile !== "image26" && profile !== "image27") || parameters.enable_interleave) throw new Error("this model requires a width*height image size");
       if (parameters.size === "4K" && !supports4K) throw new Error("4K is only supported by wan2.7-image-pro text-to-image without sequential output");
     } else {
-      const match = /^(\d+)\*(\d+)$/.exec(parameters.size);
-      if (!match) throw new Error("size must be width*height or a supported resolution preset");
-      const width = Number(match[1]), height = Number(match[2]);
+      const dims = sizePixels(parameters.size);
+      if (!dims) throw new Error("size must be width*height or a supported resolution preset");
+      const width = dims.width,
+        height = dims.height;
       const legacySize = profile === "legacy" && modelKey(model) !== "wan2.5-t2i-preview";
-      const maxPixels = profile === "image27" ? (supports4K ? 4096 * 4096 : 2048 * 2048)
-        : profile === "image26" ? (parameters.enable_interleave ? 1280 * 1280 : 2048 * 2048) : 1440 * 1440;
-      const ratio = profile === "image27" ? 8 : 4;
-      if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0
-        || (legacySize ? width < 512 || height < 512 || width > 1440 || height > 1440
-          : width * height > maxPixels || width / height > ratio || height / width > ratio))
+      const maxPixels =
+        profile === "image27"
+          ? supports4K
+            ? 4096 * 4096
+            : 2048 * 2048
+          : profile === "image26"
+            ? parameters.enable_interleave
+              ? 1280 * 1280
+              : 2048 * 2048
+            : profile === "qwen"
+              ? 2048 * 2048
+              : profile === "legacy_edit"
+                ? 1280 * 1280
+                : 1440 * 1440;
+      const minPixels = profile === "qwen" ? 512 * 512 : 0;
+      const ratio = profile === "image27" || profile === "qwen" ? 8 : 4;
+      if (
+        legacySize
+          ? width < 512 || height < 512 || width > 1440 || height > 1440
+          : dims.pixels > maxPixels || dims.pixels < minPixels || width / height > ratio || height / width > ratio
+      )
         throw new Error("size is outside the model's pixel and aspect-ratio limits");
     }
   }
-  const service = profile === "legacy" ? "text2image/image-synthesis" : mode === "sync" ? "multimodal-generation/generation" : "image-generation/generation";
+  const service =
+    profile === "legacy"
+      ? "text2image/image-synthesis"
+      : profile === "legacy_edit" || profile === "legacy_imageedit"
+        ? "image2image/image-synthesis"
+        : mode === "sync"
+          ? "multimodal-generation/generation"
+          : "image-generation/generation";
   return {
     body: { model: model, input: input, parameters: parameters },
     service: service,
     synchronous: mode === "sync",
     action: imageCount ? "image_to_image" : "text_to_image",
+    inputImages: imageCount,
   };
+}
+
+// Submit-time billing facts: the requested count (max_images for interleaved
+// output), the Z-Image prompt rewriting flag, and the Qwen-Image-3.0 tier
+// estimated from the requested size (an unspecified size reserves the higher
+// tier). Completion facts replace these key by key.
+function imageEstimate(ctx, converted) {
+  const parameters = converted.body.parameters;
+  const facts = { image_count: parameters.enable_interleave ? parameters.max_images : parameters.n };
+  if (zImage(ctx)) facts.prompt_extend = parameters.prompt_extend === true;
+  if (qwenImage3(ctx)) {
+    const dims = typeof parameters.size === "string" ? sizePixels(parameters.size) : null;
+    facts.output_image_type = dims && dims.pixels <= QWEN_IMAGE3_TIER_MAX_PIXELS ? "qima_output_1k" : "qima_output_2k";
+    facts.input_image_count = converted.inputImages;
+  }
+  return facts;
+}
+
+// Legacy per-call pricing multiplies the model price by these ratios; the
+// Z-Image prompt rewriting surcharge survives as its own ratio because the
+// boolean fact cannot be a multiplier.
+function imageRatios(ctx, converted, count) {
+  const ratios = { image_count: count };
+  if (zImage(ctx) && converted.body.parameters.prompt_extend === true) ratios.prompt_extend_ratio = Z_IMAGE_PROMPT_EXTEND_RATIO;
+  return ratios;
 }
 
 function imageContent(body) {
@@ -296,7 +652,7 @@ function imageContent(body) {
     if (result && typeof result.url === "string" && result.url) content.push({ image: result.url });
   }
   for (const choice of Array.isArray(output.choices) ? output.choices : []) {
-    for (const part of (choice && choice.message && Array.isArray(choice.message.content)) ? choice.message.content : []) {
+    for (const part of choice && choice.message && Array.isArray(choice.message.content) ? choice.message.content : []) {
       if (part && typeof part.image === "string" && part.image) content.push({ image: part.image });
       else if (part && typeof part.text === "string") content.push({ text: part.text });
     }
@@ -304,17 +660,41 @@ function imageContent(body) {
   return content;
 }
 
-function imageUsage(body) {
-  const count = (body.usage || {}).image_count;
+// Completion facts. The count prefers usage.image_count, then the
+// Qwen-Image-3.0 usage.output_image_count, and otherwise counts image payloads
+// flattened across output.results[] and every choices[].message.content[]
+// part; payload-less entries are never counted. An inconsistent upstream
+// count is rejected so the host keeps the reservation instead of guessing.
+function imageUsage(ctx, body) {
+  const usage = (body && body.usage) || {};
   const content = imageContent(body);
-  const images = content.filter(function (part) { return part.image; });
-  if (count !== undefined) {
+  const images = content.filter(function (part) {
+    return part.image;
+  });
+  if (images.length > MAX_IMAGE_OUTPUTS) throw new Error("too many output images");
+  const reported = usage.image_count !== undefined ? usage.image_count : usage.output_image_count;
+  let count;
+  if (reported !== undefined) {
     // Do not let fractional, negative or oversized upstream counts change billing.
-    if (!Number.isInteger(count) || count < 0 || count > 12 || (images.length && count === 0)) throw new Error("invalid upstream image_count");
-    return { image_count: count };
+    if (!Number.isInteger(reported) || reported < 0 || reported > MAX_IMAGE_OUTPUTS || (images.length && reported === 0))
+      throw new Error("invalid upstream image count");
+    count = reported;
+  } else if (content.length) count = images.length;
+  else return {};
+  const facts = { image_count: count };
+  if (qwenImage3(ctx)) {
+    if (QWEN_IMAGE3_USAGE_SCHEMA.output_image_type.enum.includes(usage.output_image_type)) facts.output_image_type = usage.output_image_type;
+    if (Number.isInteger(usage.input_image_count) && usage.input_image_count >= 0 && usage.input_image_count <= 3)
+      facts.input_image_count = usage.input_image_count;
   }
-  if (images.length > 12) throw new Error("too many output images");
-  return content.length ? { image_count: images.length } : {};
+  return facts;
+}
+
+// One OpenAI ImageResponse entry from a DashScope image payload.
+function imageDatum(image) {
+  if (/^https?:\/\//i.test(image)) return { url: image };
+  const match = /^data:[^;,]*;base64,(.*)$/s.exec(image);
+  return { b64_json: match ? match[1] : image };
 }
 
 function objectValue(value, name) {
@@ -372,7 +752,13 @@ function videoSize(value) {
 function videoAction(req) {
   const input = objectValue((req.metadata || {}).input, "metadata.input");
   for (const source of [req, input]) {
-    if (firstImage(source) || trimmed(source.img_url) || trimmed(source.image_url) || trimmed(source.first_frame_url) || (Array.isArray(source.media) && source.media.length))
+    if (
+      firstImage(source) ||
+      trimmed(source.img_url) ||
+      trimmed(source.image_url) ||
+      trimmed(source.first_frame_url) ||
+      (Array.isArray(source.media) && source.media.length)
+    )
       return "image_to_video";
   }
   return "text_to_video";
@@ -437,7 +823,8 @@ function convert(ctx) {
   const duration = rawDuration == null ? 5 : Number(rawDuration);
   if (duration === -1 && profile.kind !== "all") throw new Error("duration -1 (smart duration) is only supported by wan3.0 models");
   if (profile.kind === "speech") {
-    if (rawDuration != null && (!Number.isFinite(duration) || duration <= 0 || duration >= 20)) throw new Error("wan2.2-s2v duration must be positive and less than 20 seconds; output follows the audio");
+    if (rawDuration != null && (!Number.isFinite(duration) || duration <= 0 || duration >= 20))
+      throw new Error("wan2.2-s2v duration must be positive and less than 20 seconds; output follows the audio");
     delete parameters.duration;
   } else {
     if (profile.durations) {
@@ -474,7 +861,8 @@ function convert(ctx) {
     } else {
       const frames = counts.first_frame || counts.last_frame;
       const references = counts.reference_image || counts.reference_video || counts.reference_audio || counts.file || counts.link;
-      if ((frames && references) || (counts.file && counts.link) || (counts.last_frame && !counts.first_frame)) throw new Error("unsupported wan3.0 input.media combination");
+      if ((frames && references) || (counts.file && counts.link) || (counts.last_frame && !counts.first_frame))
+        throw new Error("unsupported wan3.0 input.media combination");
       if (!trimmed(input.prompt) && !input.media.length) throw new Error("wan3.0-video requires prompt or input.media");
     }
     if (!input.media.length) delete input.media;
@@ -560,7 +948,11 @@ function responsesVideoText(ctx) {
   const artifact = ctx && ctx.artifacts && ctx.artifacts.video;
   const url = trimmed(artifact && artifact.url);
   if (!url) throw new Error("video artifact is unavailable");
-  const escaped = url.replace(/&/g, "&amp;").replace(/\u0022/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const escaped = url
+    .replace(/&/g, "&amp;")
+    .replace(/\u0022/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
   return '<video controls src="' + escaped + '"></video>';
 }
 
@@ -571,7 +963,7 @@ function responsesOutputText(ctx, task) {
   let index = 0;
   for (const part of content) {
     if (part.image) {
-      const key = "image-" + (++index);
+      const key = "image-" + ++index;
       const artifact = (ctx.artifacts || {})[key];
       if (!artifact || !artifact.url) throw new Error("image artifact is unavailable");
       parts.push("![Image " + index + "](<" + artifact.url + ">)");
@@ -585,15 +977,24 @@ export function buildSubmitRequest(ctx) {
     const converted = convertImage(ctx);
     const headers = { Authorization: "Bearer " + ctx.apiKey, "Content-Type": "application/json" };
     if (!converted.synchronous) headers["X-DashScope-Async"] = "enable";
-    const streaming = converted.synchronous && converted.body.parameters.enable_interleave === true;
+    // A gateway's native route aggregates the vendor stream itself and answers
+    // with one JSON body, so only DashScope is asked for SSE.
+    const streaming = converted.synchronous && converted.body.parameters.enable_interleave === true && !viaNewAPI(ctx);
     if (streaming) headers["X-DashScope-Sse"] = "enable";
-    return { url: ctx.baseUrl + "/api/v1/services/aigc/" + converted.service, method: "POST", headers: headers, body: converted.body, action: converted.action, responseType: streaming ? "sse" : "json" };
+    return {
+      url: apiRoot(ctx) + "/api/v1/services/aigc/" + converted.service,
+      method: "POST",
+      headers: headers,
+      body: converted.body,
+      action: converted.action,
+      responseType: streaming ? "sse" : "json",
+    };
   }
   const body = convert(ctx);
   const kind = modelProfile(body.model).kind;
   const service = kind === "frames" || kind === "speech" ? "image2video" : "video-generation";
   return {
-    url: ctx.baseUrl + "/api/v1/services/aigc/" + service + "/video-synthesis",
+    url: apiRoot(ctx) + "/api/v1/services/aigc/" + service + "/video-synthesis",
     method: "POST",
     headers: { Authorization: "Bearer " + ctx.apiKey, "Content-Type": "application/json", "X-DashScope-Async": "enable" },
     body: body,
@@ -658,7 +1059,9 @@ export function parseSubmitResponse(ctx, resp) {
   if (body.code) throw new Error(body.code + ": " + (body.message || ""));
   if (imageModel(ctx) && convertImage(ctx).synchronous) {
     const content = imageContent(body);
-    const images = content.filter(function (part) { return part.image; });
+    const images = content.filter(function (part) {
+      return part.image;
+    });
     const interleaved = convertImage(ctx).body.parameters.enable_interleave === true;
     if ((!images.length && !(interleaved && content.length)) || (body.output || {}).finished === false)
       throw new Error("synchronous image response has no completed output");
@@ -674,8 +1077,10 @@ export function parseSubmitResponse(ctx, resp) {
 
 export function extractUsage(ctx) {
   if (imageModel(ctx)) {
-    const parameters = convertImage(ctx).body.parameters;
-    return { image_count: parameters.enable_interleave ? parameters.max_images : parameters.n };
+    const converted = convertImage(ctx);
+    const estimate = imageEstimate(ctx, converted);
+    if (ctx.usagePurpose === "billing_ratios") return imageRatios(ctx, converted, estimate.image_count);
+    return estimate;
   }
   const body = convert(ctx);
   const kind = modelProfile(body.model).kind;
@@ -692,17 +1097,23 @@ export function extractUsage(ctx) {
     return ratios;
   }
   const resolution = body.parameters.size ? videoSize(body.parameters.size).resolution : body.parameters.resolution;
-  return { seconds: seconds, resolution: resolution };
+  const facts = { seconds: seconds, resolution: resolution };
+  if (WAN_AUDIO_VIDEO_MODELS.includes(modelKey(body.model))) facts.audio = body.parameters.audio !== false;
+  return facts;
 }
 
 export function extractUsageOnSubmit(ctx, body) {
   // Legacy ratio pricing uses this hook; task expressions use the same actual
   // facts through extractUsageOnComplete for both immediate and polled results.
-  return imageModel(ctx) && convertImage(ctx).synchronous ? imageUsage(body) : {};
+  if (!imageModel(ctx)) return {};
+  const converted = convertImage(ctx);
+  if (!converted.synchronous) return {};
+  const actual = imageUsage(ctx, body || {});
+  return actual.image_count === undefined ? {} : imageRatios(ctx, converted, actual.image_count);
 }
 
 export function extractUsageOnComplete(task, taskResult, body) {
-  if (imageModel(task)) return imageUsage(body || {});
+  if (imageModel(task)) return imageUsage(task, body || {});
   const output = (body && body.output) || {};
   const usage = (body && body.usage) || {};
   const facts = {};
@@ -724,11 +1135,12 @@ export function extractUsageOnComplete(task, taskResult, body) {
   }
   const resolution = usage.SR ?? output.resolution;
   if (resolution != null) facts.resolution = normalizeResolution(resolution);
+  if (WAN_AUDIO_VIDEO_MODELS.includes(model) && typeof usage.audio === "boolean") facts.audio = usage.audio;
   return facts;
 }
 
 export function buildQueryRequest(ctx) {
-  return { url: ctx.baseUrl + "/api/v1/tasks/" + ctx.taskId, method: "GET", headers: { Authorization: "Bearer " + ctx.apiKey } };
+  return { url: apiRoot(ctx) + "/api/v1/tasks/" + ctx.taskId, method: "GET", headers: { Authorization: "Bearer " + ctx.apiKey } };
 }
 
 export function parseTaskResult(ctx, body) {
@@ -738,9 +1150,17 @@ export function parseTaskResult(ctx, body) {
   if (output.task_status === "SUCCEEDED") {
     if (imageModel(ctx)) {
       const content = imageContent(body);
-      const images = content.filter(function (part) { return part.image; });
+      const images = content.filter(function (part) {
+        return part.image;
+      });
       if (!images.length) {
-        if (imageModel(ctx) === "image26" && content.some(function (part) { return trimmed(part.text); })) return { status: "SUCCESS" };
+        if (
+          imageModel(ctx) === "image26" &&
+          content.some(function (part) {
+            return trimmed(part.text);
+          })
+        )
+          return { status: "SUCCESS" };
         return { status: "FAILURE", reason: "image task succeeded without any images" };
       }
       return { status: "SUCCESS", url: images[0].image };
@@ -770,8 +1190,13 @@ function videoURL(body) {
 export function listArtifacts(task) {
   if (task.status !== "SUCCESS") return [];
   const body = artifactData(task);
-  const images = imageContent(body).filter(function (part) { return part.image; });
-  if (images.length) return images.map(function (_, index) { return { key: "image-" + (index + 1), type: "image" }; });
+  const images = imageContent(body).filter(function (part) {
+    return part.image;
+  });
+  if (images.length)
+    return images.map(function (_, index) {
+      return { key: "image-" + (index + 1), type: "image" };
+    });
   return videoURL(body) ? [{ key: "video", type: "video" }] : [];
 }
 
@@ -779,8 +1204,12 @@ export function buildContentRequest(ctx) {
   let url;
   if (ctx.artifactKey === "video") url = videoURL(artifactData(ctx));
   else {
-    const images = imageContent(artifactData(ctx)).filter(function (part) { return part.image; });
-    const index = images.findIndex(function (_, index) { return ctx.artifactKey === "image-" + (index + 1); });
+    const images = imageContent(artifactData(ctx)).filter(function (part) {
+      return part.image;
+    });
+    const index = images.findIndex(function (_, index) {
+      return ctx.artifactKey === "image-" + (index + 1);
+    });
     url = index >= 0 ? images[index].image : "";
   }
   if (!url) throw new Error("artifact_not_found");
@@ -789,9 +1218,11 @@ export function buildContentRequest(ctx) {
 
 export const native = {
   createImageTask: function (ctx) {
-    if (!ctx.body || ctx.body.kind !== "json" || !ctx.body.value || typeof ctx.body.value !== "object" || Array.isArray(ctx.body.value)) throw new Error("JSON object required");
+    if (!ctx.body || ctx.body.kind !== "json" || !ctx.body.value || typeof ctx.body.value !== "object" || Array.isArray(ctx.body.value))
+      throw new Error("JSON object required");
     const req = ctx.body.value;
-    if (req.stream !== undefined && req.stream !== false) throw new Error("native task responses are aggregated JSON; configure upstream streaming in parameters");
+    if (req.stream !== undefined && req.stream !== false)
+      throw new Error("native task responses are aggregated JSON; configure upstream streaming in parameters");
     const requestBody = {
       model: req.model,
       metadata: {
@@ -806,7 +1237,8 @@ export const native = {
     return task.data || {};
   },
   createVideoTask: function (ctx) {
-    if (!ctx.body || ctx.body.kind !== "json" || !ctx.body.value || typeof ctx.body.value !== "object" || Array.isArray(ctx.body.value)) throw new Error("JSON object required");
+    if (!ctx.body || ctx.body.kind !== "json" || !ctx.body.value || typeof ctx.body.value !== "object" || Array.isArray(ctx.body.value))
+      throw new Error("JSON object required");
     const req = ctx.body.value,
       input = objectValue(req.input, "input"),
       parameters = objectValue(req.parameters, "parameters");
@@ -858,9 +1290,25 @@ export const protocols = {
       if (images.length) requestBody.images = images;
       if (trimmed(req.input_reference)) requestBody.input_reference = trimmed(req.input_reference);
       for (const key of [
-        "size", "resolution", "ratio", "duration", "seconds", "auto_duration",
-        "prompt_extend", "watermark", "audio", "seed", "shot_type", "negative_prompt",
-        "img_url", "image_url", "first_frame_url", "last_frame_url", "audio_url", "template", "media",
+        "size",
+        "resolution",
+        "ratio",
+        "duration",
+        "seconds",
+        "auto_duration",
+        "prompt_extend",
+        "watermark",
+        "audio",
+        "seed",
+        "shot_type",
+        "negative_prompt",
+        "img_url",
+        "image_url",
+        "first_frame_url",
+        "last_frame_url",
+        "audio_url",
+        "template",
+        "media",
       ]) {
         if (Object.prototype.hasOwnProperty.call(req, key)) requestBody[key] = req[key];
       }
@@ -919,6 +1367,106 @@ export const protocols = {
         ],
         metadata: { vendor: "ali" },
       };
+    },
+  },
+  // OpenAI Images API. The host pins ctx.model, waits for the task to become
+  // terminal and honors response_format itself; the plugin maps the request
+  // onto the DashScope image services and renders data[] from the result.
+  openai_image: {
+    decodeRequest: function (ctx) {
+      const model = trimmed(ctx.model);
+      if (!model) throw new Error("model is required");
+      let req = {};
+      const uploads = [];
+      if (ctx.body && ctx.body.kind === "json") {
+        req = ctx.body.value;
+        if (!req || typeof req !== "object" || Array.isArray(req)) throw new Error("request body must be an object");
+      } else if (ctx.body && ctx.body.kind === "multipart") {
+        const fields = ctx.body.fields || {};
+        for (const name of Object.keys(fields)) {
+          if (fields[name].length > 1) throw new Error(name + " must be provided once");
+          req[name] = fields[name][0];
+        }
+        for (const key of ["n", "seed", "max_images", "upscale_factor", "strength", "top_scale", "bottom_scale", "left_scale", "right_scale"]) {
+          if (req[key] !== undefined) req[key] = Number(req[key]);
+        }
+        for (const key of ["prompt_extend", "watermark", "enable_thinking", "enable_interleave", "enable_sequential", "thinking_mode", "is_sketch"]) {
+          if (req[key] === undefined) continue;
+          if (req[key] !== "true" && req[key] !== "false") throw new Error(key + " must be true or false");
+          req[key] = req[key] === "true";
+        }
+        for (const key of ["parameters", "input"]) {
+          if (req[key] === undefined) continue;
+          try {
+            req[key] = JSON.parse(req[key]);
+          } catch (e) {
+            throw new Error(key + " must be a JSON object string");
+          }
+        }
+        for (const file of ctx.body.files || []) {
+          const upload = { __fileRef: file.ref, encoding: "dataUrl", mimeType: trimmed(file.mimeType) || "image/png", maxBytes: MAX_INPUT_IMAGE_BYTES };
+          // A mask upload is not a reference image; only wanx2.1-imageedit reads it.
+          if (file.field === "mask") req.mask = upload;
+          else if (/^image(\[\d*\])?$/.test(file.field)) uploads.push(upload);
+        }
+      } else throw new Error("JSON or multipart body required");
+      if (req.stream !== undefined && req.stream !== false && req.stream !== "false")
+        throw new Error("stream is not supported; the complete image response is returned once all images are generated");
+      if (req.response_format !== undefined && req.response_format !== "url" && req.response_format !== "b64_json")
+        throw new Error("response_format must be url or b64_json");
+      const requestBody = { model: model, prompt: typeof req.prompt === "string" ? req.prompt : "" };
+      if (!trimmed(requestBody.prompt) && !objectValue(req.input, "input").messages && !objectValue(req.input, "input").prompt)
+        throw new Error("prompt is required");
+      requestBody.n = req.n === undefined || req.n === null ? 1 : req.n;
+      if (!Number.isInteger(requestBody.n) || requestBody.n < 1) throw new Error("n must be a positive integer");
+      const images = [];
+      for (const image of [].concat(req.image === undefined ? [] : req.image, req.images === undefined ? [] : req.images)) {
+        if (isImageInput(image) || (typeof image === "string" && trimmed(image))) images.push(typeof image === "string" ? trimmed(image) : image);
+        else throw new Error("image must be an HTTP URL or Base64 data URL");
+      }
+      for (const upload of uploads) images.push(upload);
+      if (ctx.operation === "edit" && !images.length) throw new Error("image is required");
+      if (images.length) requestBody.images = images;
+      for (const key of [
+        "size",
+        "negative_prompt",
+        "prompt_extend",
+        "prompt_extend_mode",
+        "enable_thinking",
+        "watermark",
+        "seed",
+        "enable_interleave",
+        "max_images",
+        "enable_sequential",
+        "thinking_mode",
+        "bbox_list",
+        "color_palette",
+        "function",
+        "mask",
+        "strength",
+        "top_scale",
+        "bottom_scale",
+        "left_scale",
+        "right_scale",
+        "upscale_factor",
+        "is_sketch",
+      ]) {
+        if (Object.prototype.hasOwnProperty.call(req, key)) requestBody[key] = req[key];
+      }
+      // Provider passthrough: the same parameters/input objects the DashScope API accepts.
+      const metadata = {};
+      if (req.parameters !== undefined) metadata.parameters = objectValue(req.parameters, "parameters");
+      if (req.input !== undefined) metadata.input = objectValue(req.input, "input");
+      if (Object.keys(metadata).length) requestBody.metadata = metadata;
+      // The model may be a mapped alias; final validation runs after channel selection.
+      return { kind: "submit", model: model, action: images.length ? "image_to_image" : "text_to_image", requestBody: requestBody };
+    },
+    render: function (ctx, task) {
+      const data = [];
+      for (const part of imageContent(artifactData(task))) {
+        if (part.image) data.push(imageDatum(part.image));
+      }
+      return { created: task.created_at, data: data, metadata: artifactData(task) };
     },
   },
   openai_video: {

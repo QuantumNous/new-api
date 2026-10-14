@@ -15,6 +15,7 @@ import (
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 
@@ -25,13 +26,34 @@ import (
 	"gorm.io/gorm"
 )
 
+func updateUpstreamOrchestrationForTest(
+	t *testing.T,
+	update func(*operation_setting.UpstreamOrchestrationSetting),
+) {
+	t.Helper()
+	original := operation_setting.GetUpstreamOrchestrationSetting()
+	originalValues, err := config.ConfigToMap(original)
+	require.NoError(t, err)
+	next := operation_setting.GetUpstreamOrchestrationSetting()
+	update(next)
+	nextValues, err := config.ConfigToMap(next)
+	require.NoError(t, err)
+	updated, err := config.GlobalConfig.UpdateFromMap("upstream_orchestration", nextValues)
+	require.NoError(t, err)
+	require.True(t, updated)
+	t.Cleanup(func() {
+		updated, err := config.GlobalConfig.UpdateFromMap("upstream_orchestration", originalValues)
+		require.NoError(t, err)
+		require.True(t, updated)
+	})
+}
+
 func TestProcessChannelErrorMasksSensitiveReasonsAcrossManagedAndDisablePaths(t *testing.T) {
 	previousDB, previousType := model.DB, common.MainDatabaseType()
 	previousCache, previousRedis := common.MemoryCacheEnabled, common.RedisEnabled
 	previousOptionMap := common.OptionMap
 	previousAutoDisable, previousErrorLog := common.AutomaticDisableChannelEnabled, constant.ErrorLogEnabled
 	previousNotifyLimit := constant.NotifyLimitCount
-	previousOrchestration := *operation_setting.GetUpstreamOrchestrationSetting()
 	fetch := system_setting.GetFetchSetting()
 	previousFetch := *fetch
 	previousOutput, previousErrorOutput := gin.DefaultWriter, gin.DefaultErrorWriter
@@ -44,7 +66,6 @@ func TestProcessChannelErrorMasksSensitiveReasonsAcrossManagedAndDisablePaths(t 
 		common.OptionMapRWMutex.Unlock()
 		common.AutomaticDisableChannelEnabled, constant.ErrorLogEnabled = previousAutoDisable, previousErrorLog
 		constant.NotifyLimitCount = previousNotifyLimit
-		*operation_setting.GetUpstreamOrchestrationSetting() = previousOrchestration
 		*fetch = previousFetch
 		common.LogWriterMu.Lock()
 		gin.DefaultWriter, gin.DefaultErrorWriter = previousOutput, previousErrorOutput
@@ -74,10 +95,11 @@ func TestProcessChannelErrorMasksSensitiveReasonsAcrossManagedAndDisablePaths(t 
 	common.OptionMapRWMutex.Unlock()
 	common.AutomaticDisableChannelEnabled, constant.ErrorLogEnabled = true, false
 	constant.NotifyLimitCount = 100
-	orchestration := operation_setting.GetUpstreamOrchestrationSetting()
-	orchestration.Enabled = true
-	orchestration.FailureThreshold = 1
-	orchestration.FailureWindowMinutes = 5
+	updateUpstreamOrchestrationForTest(t, func(setting *operation_setting.UpstreamOrchestrationSetting) {
+		setting.Enabled = true
+		setting.FailureThreshold = 1
+		setting.FailureWindowMinutes = 5
+	})
 	fetch.EnableSSRFProtection = false
 	service.InitHttpClient()
 
@@ -182,7 +204,9 @@ func TestProcessChannelErrorMasksSensitiveReasonsAcrossManagedAndDisablePaths(t 
 	})
 
 	t.Run("ordinary disable and notification", func(t *testing.T) {
-		orchestration.Enabled = false
+		updateUpstreamOrchestrationForTest(t, func(setting *operation_setting.UpstreamOrchestrationSetting) {
+			setting.Enabled = false
+		})
 		channel := &model.Channel{
 			Name: "ordinary-disable", Key: "upstream-key", Type: constant.ChannelTypeOpenAI,
 			Status: common.ChannelStatusEnabled, Group: "default", Models: "ordinary-model", AutoBan: common.GetPointer(1),
@@ -208,4 +232,35 @@ func TestProcessChannelErrorMasksSensitiveReasonsAcrossManagedAndDisablePaths(t 
 		assert.NotContains(t, logs.String(), "review-secret")
 		assert.NotContains(t, logs.String(), "user:password")
 	})
+}
+
+func TestManagedRelayLocal408DoesNotRetry(t *testing.T) {
+	events := []string{}
+	database := setupTaskSubmissionDatabase(t, false, &events, &model.UpstreamManagedRoute{})
+	updateUpstreamOrchestrationForTest(t, func(setting *operation_setting.UpstreamOrchestrationSetting) {
+		setting.Enabled = true
+	})
+	require.NoError(t, database.Create(&model.UpstreamManagedRoute{
+		SourceID:        1,
+		ExternalGroupID: "managed-408",
+		Platform:        "task",
+		Protocol:        model.UpstreamProtocolOpenAI,
+		ChannelID:       42,
+		State:           model.UpstreamRouteStateActive,
+	}).Error)
+
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Set("channel_id", 42)
+	require.True(t, service.IsManagedChannel(42), "fixture must exercise managed retry ordering")
+	localTimeout := relaytypes.NewErrorWithStatusCode(
+		errors.New("local request timeout"),
+		relaytypes.ErrorCodeBadResponseStatusCode,
+		http.StatusRequestTimeout,
+		relaytypes.ErrOptionWithSkipRetry(),
+	)
+
+	retry, replacement := retryDecision(c, localTimeout, 1)
+
+	assert.False(t, retry)
+	assert.Nil(t, replacement)
 }

@@ -22,25 +22,26 @@ type ImageBillingParameters struct {
 }
 
 type ImageRequest struct {
-	Model             string          `json:"model"`
-	Prompt            string          `json:"prompt" binding:"required"`
-	N                 *uint           `json:"n,omitempty"`
-	Size              string          `json:"size,omitempty"`
-	Quality           string          `json:"quality,omitempty"`
-	ResponseFormat    string          `json:"response_format,omitempty"`
-	Style             json.RawMessage `json:"style,omitempty"`
-	User              json.RawMessage `json:"user,omitempty"`
-	ExtraFields       json.RawMessage `json:"extra_fields,omitempty"`
-	Background        json.RawMessage `json:"background,omitempty"`
-	Moderation        json.RawMessage `json:"moderation,omitempty"`
-	OutputFormat      json.RawMessage `json:"output_format,omitempty"`
-	OutputCompression json.RawMessage `json:"output_compression,omitempty"`
-	PartialImages     json.RawMessage `json:"partial_images,omitempty"`
-	Stream            *bool           `json:"stream,omitempty"`
-	Images            json.RawMessage `json:"images,omitempty"`
-	Mask              json.RawMessage `json:"mask,omitempty"`
-	InputFidelity     json.RawMessage `json:"input_fidelity,omitempty"`
-	Watermark         *bool           `json:"watermark,omitempty"`
+	Model              string          `json:"model"`
+	Prompt             string          `json:"prompt" binding:"required"`
+	N                  *uint           `json:"n,omitempty"`
+	Size               string          `json:"size,omitempty"`
+	Quality            string          `json:"quality,omitempty"`
+	ResponseFormat     string          `json:"response_format,omitempty"`
+	Style              json.RawMessage `json:"style,omitempty"`
+	User               json.RawMessage `json:"user,omitempty"`
+	ExtraFields        json.RawMessage `json:"extra_fields,omitempty"`
+	Background         json.RawMessage `json:"background,omitempty"`
+	Moderation         json.RawMessage `json:"moderation,omitempty"`
+	OutputFormat       json.RawMessage `json:"output_format,omitempty"`
+	OutputCompression  json.RawMessage `json:"output_compression,omitempty"`
+	PartialImages      json.RawMessage `json:"partial_images,omitempty"`
+	Stream             *bool           `json:"stream,omitempty"`
+	Images             json.RawMessage `json:"images,omitempty"`
+	Mask               json.RawMessage `json:"mask,omitempty"`
+	InputFidelity      json.RawMessage `json:"input_fidelity,omitempty"`
+	Watermark          *bool           `json:"watermark,omitempty"`
+	LayerDecomposition *bool           `json:"layer_decomposition,omitempty"`
 	// zhipu 4v
 	WatermarkEnabled json.RawMessage `json:"watermark_enabled,omitempty"`
 	UserId           json.RawMessage `json:"user_id,omitempty"`

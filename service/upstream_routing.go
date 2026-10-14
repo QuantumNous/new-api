@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"slices"
@@ -33,6 +34,24 @@ type upstreamRouteCandidate struct {
 	source model.UpstreamSource
 	group  model.UpstreamGroup
 	models []string
+}
+
+type managedRouteRankResult struct {
+	prioritiesUpdated       int
+	cacheRefreshNeeded      bool
+	newlyUnservableChannels []int
+}
+
+func applyManagedReconcileSideEffects(cacheRefreshNeeded bool, newlyUnservableChannels []int) {
+	if cacheRefreshNeeded {
+		model.InitChannelCache()
+	}
+	if len(newlyUnservableChannels) > 0 {
+		CloseActiveWebSocketsForChannels(
+			newlyUnservableChannels,
+			ChannelDisabledCloseReason,
+		)
+	}
 }
 
 func PrepareManagedUpstreamShadows(now time.Time) (UpstreamReconcileSummary, error) {
@@ -88,6 +107,8 @@ func ReconcileManagedUpstreams(now time.Time) (UpstreamReconcileSummary, error) 
 	summary.SourcesChecked = len(sources)
 	summary.GroupsChecked = len(groups)
 	var routeChanges []string
+	cacheRefreshNeeded := false
+	var newlyUnservableChannels []int
 
 	sourceByID := make(map[int64]model.UpstreamSource, len(sources))
 	for index := range sources {
@@ -137,86 +158,138 @@ func ReconcileManagedUpstreams(now time.Time) (UpstreamReconcileSummary, error) 
 			continue
 		}
 		identity := upstreamGroupIdentity(route.SourceID, route.ExternalGroupID)
-		stateRoute := *route
-		if stateRoute.State == model.UpstreamRouteStateRetained {
-			stateRoute.State = model.UpstreamRouteStateShadow
-		}
-		state, reason := desiredManagedRouteState(stateRoute, source, group, now, setting)
-		if managedCandidateSelectionEvaluable(source, group, now, setting) {
-			if _, selected := selectedGroups[identity]; !selected {
-				state = model.UpstreamRouteStateRetained
+		_, selected := selectedGroups[identity]
+		selectionEvaluable := managedCandidateSelectionEvaluable(source, group, now, setting)
+		var previousState, nextState, reason string
+		channelChanged := false
+		becameUnservable := false
+		applied := false
+		transactionErr := model.DB.Transaction(func(tx *gorm.DB) error {
+			lockedRoute, err := model.GetAttachedUpstreamManagedRouteByIDForUpdate(tx, route.ID)
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			if err != nil {
+				return err
+			}
+			stateRoute := *lockedRoute
+			if stateRoute.State == model.UpstreamRouteStateRetained {
+				stateRoute.State = model.UpstreamRouteStateShadow
+			}
+			nextState, reason = desiredManagedRouteState(stateRoute, source, group, now, setting)
+			if selectionEvaluable && !selected {
+				nextState = model.UpstreamRouteStateRetained
 				reason = "outside managed candidate limit"
 			}
+			if nextState == lockedRoute.State {
+				return nil
+			}
+			previousState = lockedRoute.State
+			updates := map[string]any{
+				"state":       nextState,
+				"last_reason": reason,
+				"updated_at":  now.Unix(),
+			}
+			if nextState == model.UpstreamRouteStateQuarantined {
+				if lockedRoute.RedSince == 0 {
+					updates["red_since"] = now.Unix()
+				}
+				updates["recovery_attempts"] = 0
+				updates["next_probe_at"] = now.Unix()
+			}
+			if nextState == model.UpstreamRouteStateLongRed {
+				updates["next_probe_at"] = int64(0)
+			}
+			if nextState == model.UpstreamRouteStateRetained {
+				updates["rank"] = 0
+				updates["next_probe_at"] = int64(0)
+			}
+			if nextState == model.UpstreamRouteStateShadow &&
+				lockedRoute.State == model.UpstreamRouteStateRetained {
+				updates["next_probe_at"] = now.Unix()
+			}
+			if nextState == model.UpstreamRouteStateActive {
+				updates["red_since"] = int64(0)
+				updates["recovery_attempts"] = 0
+				updates["next_probe_at"] = int64(0)
+				updates["consecutive_failures"] = 0
+				updates["failure_window_start"] = int64(0)
+			}
+			if err := tx.Model(&model.UpstreamManagedRoute{}).
+				Where("id = ? AND detached = ?", lockedRoute.ID, false).
+				Updates(updates).Error; err != nil {
+				return err
+			}
+			status := common.ChannelStatusAutoDisabled
+			if nextState == model.UpstreamRouteStateActive {
+				status = common.ChannelStatusEnabled
+			}
+			channelChanged, err = model.UpdateChannelStatusTx(
+				tx,
+				lockedRoute.ChannelID,
+				"",
+				status,
+				reason,
+			)
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				channelChanged = false
+			} else if err != nil {
+				return err
+			}
+			becameUnservable = channelChanged && status != common.ChannelStatusEnabled
+			applied = true
+			return nil
+		})
+		if transactionErr != nil {
+			applyManagedReconcileSideEffects(cacheRefreshNeeded, newlyUnservableChannels)
+			return summary, transactionErr
 		}
-		if state == route.State {
+		if !applied {
 			continue
 		}
-		updates := map[string]any{
-			"state":       state,
-			"last_reason": reason,
-			"updated_at":  now.Unix(),
-		}
-		if state == model.UpstreamRouteStateQuarantined {
-			if route.RedSince == 0 {
-				updates["red_since"] = now.Unix()
-			}
-			updates["recovery_attempts"] = 0
-			updates["next_probe_at"] = now.Unix()
+		switch nextState {
+		case model.UpstreamRouteStateQuarantined:
 			summary.RoutesQuarantined++
-		}
-		if state == model.UpstreamRouteStateLongRed {
-			updates["next_probe_at"] = int64(0)
+		case model.UpstreamRouteStateLongRed:
 			summary.RoutesLongRed++
-		}
-		if state == model.UpstreamRouteStateRetained {
-			updates["rank"] = 0
-			updates["next_probe_at"] = int64(0)
+		case model.UpstreamRouteStateRetained:
 			summary.RoutesRetained++
-		}
-		if state == model.UpstreamRouteStateShadow && route.State == model.UpstreamRouteStateRetained {
-			updates["next_probe_at"] = now.Unix()
-		}
-		if state == model.UpstreamRouteStateActive {
-			updates["red_since"] = int64(0)
-			updates["recovery_attempts"] = 0
-			updates["next_probe_at"] = int64(0)
-			updates["consecutive_failures"] = 0
-			updates["failure_window_start"] = int64(0)
+		case model.UpstreamRouteStateActive:
 			summary.RoutesActivated++
-		}
-		if err := model.DB.Model(route).Updates(updates).Error; err != nil {
-			return summary, err
 		}
 		routeChanges = append(routeChanges, fmt.Sprintf(
 			"#%d %s/%s: %s -> %s",
 			route.ChannelID,
 			source.Key,
 			group.Name,
-			route.State,
-			state,
+			previousState,
+			nextState,
 		))
-		if state == model.UpstreamRouteStateActive {
-			updateManagedChannelStatus(route.ChannelID, "", common.ChannelStatusEnabled, "")
-		} else {
-			updateManagedChannelStatus(route.ChannelID, "", common.ChannelStatusAutoDisabled, reason)
+		if channelChanged {
+			cacheRefreshNeeded = true
 		}
-		route.State = state
+		if becameUnservable {
+			newlyUnservableChannels = append(newlyUnservableChannels, route.ChannelID)
+		}
 	}
 
 	if setting.AutoEnroll {
 		queued, queueErr := enqueueMissingUpstreamEnrollments(candidates, routes, setting)
 		if queueErr != nil {
+			applyManagedReconcileSideEffects(cacheRefreshNeeded, newlyUnservableChannels)
 			return summary, queueErr
 		}
 		summary.EnrollmentQueued = queued
 	}
-	updated, err := rankManagedRoutes(now, sources, groups, candidates, setting)
-	if err != nil {
-		return summary, err
-	}
-	summary.PrioritiesUpdated = updated
-	if updated > 0 {
-		model.InitChannelCache()
+	rankResult, rankErr := rankManagedRoutes(now, sources, groups, candidates, setting)
+	summary.PrioritiesUpdated = rankResult.prioritiesUpdated
+	newlyUnservableChannels = append(newlyUnservableChannels, rankResult.newlyUnservableChannels...)
+	applyManagedReconcileSideEffects(
+		cacheRefreshNeeded || rankResult.cacheRefreshNeeded,
+		newlyUnservableChannels,
+	)
+	if rankErr != nil {
+		return summary, rankErr
 	}
 	if len(routeChanges) > 0 {
 		if err := NotifyRootBark(
@@ -372,12 +445,15 @@ func buildUpstreamRouteCandidates(
 }
 
 func selectUpstreamCandidateGroups(candidates []upstreamRouteCandidate, limit int) []upstreamRouteCandidate {
-	if limit <= 0 {
-		return nil
-	}
 	sort.SliceStable(candidates, func(i, j int) bool {
 		return lessUpstreamCandidate(candidates[i], candidates[j])
 	})
+	if limit == 0 {
+		return candidates
+	}
+	if limit < 0 {
+		return nil
+	}
 	selected := make(map[string]upstreamRouteCandidate)
 	selectedModels := make(map[string]map[string]struct{})
 	modelCandidates := make(map[string][]upstreamRouteCandidate)
@@ -534,7 +610,8 @@ func rankManagedRoutes(
 	groups []model.UpstreamGroup,
 	candidates []upstreamRouteCandidate,
 	setting *operation_setting.UpstreamOrchestrationSetting,
-) (int, error) {
+) (managedRouteRankResult, error) {
+	var rankResult managedRouteRankResult
 	sourceByID := make(map[int64]model.UpstreamSource, len(sources))
 	for _, source := range sources {
 		sourceByID[source.ID] = source
@@ -549,7 +626,7 @@ func rankManagedRoutes(
 	}
 	routes, err := model.ListUpstreamManagedRoutes()
 	if err != nil {
-		return 0, err
+		return rankResult, err
 	}
 	channelIDs := make([]int, 0, len(routes))
 	for _, route := range routes {
@@ -558,7 +635,7 @@ func rankManagedRoutes(
 	var channels []model.Channel
 	if len(channelIDs) > 0 {
 		if err := model.DB.Where("id IN ?", channelIDs).Find(&channels).Error; err != nil {
-			return 0, err
+			return rankResult, err
 		}
 	}
 	channelByID := make(map[int]model.Channel, len(channels))
@@ -588,7 +665,6 @@ func rankManagedRoutes(
 		)
 	})
 	rankByProtocol := map[string]int{}
-	updated := 0
 	for index := range routes {
 		route := &routes[index]
 		if route.Detached {
@@ -618,52 +694,112 @@ func rankManagedRoutes(
 			routeModels = append(routeModels, modelName)
 		}
 		selected := groupSelected && len(routeModels) > 0
-		rank := 0
-		priority := int64(0)
-		status := common.ChannelStatusAutoDisabled
-		if selected && route.State == model.UpstreamRouteStateActive {
-			rankByProtocol[route.Protocol]++
-			rank = rankByProtocol[route.Protocol]
-			priority = int64(1000 - rank)
-			status = common.ChannelStatusEnabled
-		}
 		selectedEndpoint := source.SelectedEndpoint
+		targetGroups := strings.Join(setting.TargetGroups, ",")
+		channelChanged := false
+		abilitiesUpdated := false
+		becameUnservable := false
+		applied := false
+		activeSelected := false
+		appliedRank := 0
+		appliedProtocol := ""
+		channelID := 0
 		result := model.DB.Transaction(func(tx *gorm.DB) error {
-			if err := tx.Model(&model.UpstreamManagedRoute{}).Where("id = ?", route.ID).Updates(map[string]any{
-				"rank":                 rank,
-				"effective_multiplier": group.EffectiveMultiplier,
-				"updated_at":           now.Unix(),
-			}).Error; err != nil {
+			lockedRoute, lockErr := model.GetAttachedUpstreamManagedRouteByIDForUpdate(tx, route.ID)
+			if errors.Is(lockErr, gorm.ErrRecordNotFound) {
+				return nil
+			}
+			if lockErr != nil {
+				return lockErr
+			}
+			rank := 0
+			priority := int64(0)
+			status := common.ChannelStatusAutoDisabled
+			if selected && lockedRoute.State == model.UpstreamRouteStateActive {
+				rank = rankByProtocol[lockedRoute.Protocol] + 1
+				priority = int64(1000 - rank)
+				status = common.ChannelStatusEnabled
+				activeSelected = true
+			}
+			if err := tx.Model(&model.UpstreamManagedRoute{}).
+				Where("id = ? AND detached = ?", lockedRoute.ID, false).
+				Updates(map[string]any{
+					"rank":                 rank,
+					"effective_multiplier": group.EffectiveMultiplier,
+					"updated_at":           now.Unix(),
+				}).Error; err != nil {
 				return err
 			}
-			var channel model.Channel
-			if err := tx.Where("id = ?", route.ChannelID).First(&channel).Error; err != nil {
+			channel, err := model.GetChannelForUpdate(tx, lockedRoute.ChannelID)
+			if err != nil {
 				return err
 			}
-			channel.Priority = &priority
-			channel.BaseURL = &selectedEndpoint
-			channel.Status = status
-			if groupSelected {
-				channel.Models = strings.Join(routeModels, ",")
+			previousBaseURL := ""
+			if channel.BaseURL != nil {
+				previousBaseURL = *channel.BaseURL
 			}
-			if err := tx.Model(&model.Channel{}).Where("id = ?", route.ChannelID).Updates(map[string]any{
-				"priority": priority,
-				"base_url": selectedEndpoint,
-				"models":   channel.Models,
-				"status":   status,
-			}).Error; err != nil {
+			desiredModels := strings.Join(routeModels, ",")
+			desiredGroup := channel.Group
+			if targetGroups != "" {
+				desiredGroup = targetGroups
+			}
+			channelChanged = channel.GetPriority() != priority ||
+				previousBaseURL != selectedEndpoint ||
+				channel.Models != desiredModels ||
+				channel.Status != status ||
+				channel.Group != desiredGroup
+			becameUnservable = channel.Status == common.ChannelStatusEnabled &&
+				(status != common.ChannelStatusEnabled || desiredModels == "")
+			applied = true
+			appliedRank = rank
+			appliedProtocol = lockedRoute.Protocol
+			channelID = lockedRoute.ChannelID
+			if channelChanged {
+				channel.Priority = &priority
+				channel.BaseURL = &selectedEndpoint
+				channel.Models = desiredModels
+				channel.Status = status
+				channelUpdates := map[string]any{
+					"priority": priority,
+					"base_url": selectedEndpoint,
+					"models":   channel.Models,
+					"status":   status,
+				}
+				if targetGroups != "" {
+					channel.Group = targetGroups
+					channelUpdates["group"] = targetGroups
+				}
+				if err := tx.Model(&model.Channel{}).Where("id = ?", lockedRoute.ChannelID).Updates(channelUpdates).Error; err != nil {
+					return err
+				}
+			}
+			if err := channel.UpdateAbilities(tx); err != nil {
 				return err
 			}
-			return channel.UpdateAbilities(tx)
+			abilitiesUpdated = true
+			return nil
 		})
 		if result != nil {
-			return updated, result
+			return rankResult, result
 		}
-		if selected && route.State == model.UpstreamRouteStateActive {
-			updated++
+		if !applied {
+			continue
+		}
+		if activeSelected {
+			rankByProtocol[appliedProtocol] = appliedRank
+			rankResult.prioritiesUpdated++
+		}
+		if channelChanged || abilitiesUpdated {
+			rankResult.cacheRefreshNeeded = true
+		}
+		if becameUnservable {
+			rankResult.newlyUnservableChannels = append(
+				rankResult.newlyUnservableChannels,
+				channelID,
+			)
 		}
 	}
-	return updated, nil
+	return rankResult, nil
 }
 
 func managedRouteUsesNativeProtocol(

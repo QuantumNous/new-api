@@ -33,7 +33,17 @@ const (
 	deferredDispatchLease       = 5 * time.Minute
 )
 
-type deferredTaskDispatchHandler struct{}
+type deferredTaskSubmitFunc func(
+	c *gin.Context,
+	info *relaycommon.RelayInfo,
+	platform constant.TaskPlatform,
+	quota int,
+	beforeProviderSubmit func() error,
+) (*relay.TaskSubmitResult, *taskdto.TaskError)
+
+type deferredTaskDispatchHandler struct {
+	submit deferredTaskSubmitFunc
+}
 
 type deferredTaskDispatchSummary struct {
 	Found      int `json:"found"`
@@ -41,6 +51,7 @@ type deferredTaskDispatchSummary struct {
 	Dispatched int `json:"dispatched"`
 	Requeued   int `json:"requeued"`
 	Failed     int `json:"failed"`
+	Uncertain  int `json:"uncertain"`
 }
 
 func (deferredTaskDispatchHandler) Type() string {
@@ -48,18 +59,32 @@ func (deferredTaskDispatchHandler) Type() string {
 }
 
 func (deferredTaskDispatchHandler) Enabled() bool {
-	return model.HasDispatchableDeferredTasks(common.GetTimestamp())
+	if model.HasDispatchableDeferredTasks(common.GetTimestamp()) {
+		return true
+	}
+	count, err := model.CountUncertainDeferredTasks()
+	if err != nil {
+		logger.LogWarn(context.Background(), fmt.Sprintf(
+			"count uncertain deferred tasks for scheduler enablement failed: %v",
+			err,
+		))
+		return true
+	}
+	return count > 0
 }
 
 func (deferredTaskDispatchHandler) Interval() time.Duration {
-	return 5 * time.Second
+	// Foreground enqueue starts new work immediately. The scheduled pass is for
+	// crash recovery and operator warnings, so matching the worker lease avoids
+	// creating a persistent stream of warning-only system-task rows.
+	return deferredDispatchLease
 }
 
 func (deferredTaskDispatchHandler) NewPayload() any {
 	return nil
 }
 
-func (deferredTaskDispatchHandler) Run(ctx context.Context, systemTask *model.SystemTask, runnerID string) {
+func (h deferredTaskDispatchHandler) Run(ctx context.Context, systemTask *model.SystemTask, runnerID string) {
 	summary := deferredTaskDispatchSummary{}
 	candidates, err := model.FindDispatchableDeferredTasks(common.GetTimestamp(), deferredDispatchBatchSize)
 	if err != nil {
@@ -89,25 +114,68 @@ func (deferredTaskDispatchHandler) Run(ctx context.Context, systemTask *model.Sy
 		}
 		summary.Claimed++
 
-		result, taskErr := dispatchDeferredTask(ctx, task)
+		result, taskErr := dispatchDeferredTaskWithSubmit(ctx, task, h.submit)
 		if taskErr != nil {
+			reason := deferredTaskFailureReason(taskErr)
 			retryable := deferredTaskErrorRetryable(taskErr) && task.DispatchAttempts < deferredDispatchMaxAttempts
-			if retryable {
-				if won, requeueErr := model.RequeueDeferredTask(task, owner, deferredTaskFailureReason(taskErr)); requeueErr != nil {
+			preProviderIO := task.DispatchStatus == model.TaskDispatchStatusRunning
+			safeBeforeProviderIO := task.DispatchStatus == model.TaskDispatchStatusUncertain &&
+				deferredTaskErrorSafeBeforeProviderIO(taskErr) &&
+				!taskErr.NoRetry &&
+				!taskErr.ProviderAccepted
+			if (preProviderIO || safeBeforeProviderIO) && retryable {
+				var won bool
+				var requeueErr error
+				if preProviderIO {
+					won, requeueErr = model.RequeueDeferredTask(task, owner, reason)
+				} else {
+					won, requeueErr = model.RequeueDeferredTaskBeforeProviderIO(task, owner, reason)
+				}
+				if requeueErr != nil {
 					logger.LogWarn(ctx, fmt.Sprintf("requeue deferred task %s failed: %v", task.TaskID, requeueErr))
 				} else if won {
 					summary.Requeued++
 				}
 				continue
 			}
-			won, failErr := model.FailDeferredTask(task, owner, deferredTaskFailureReason(taskErr), common.GetTimestamp())
+			if task.DispatchStatus == model.TaskDispatchStatusUncertain &&
+				!safeBeforeProviderIO &&
+				!taskErr.ProviderAccepted {
+				if _, recordErr := model.RecordDeferredTaskUncertainty(task, owner, reason); recordErr != nil {
+					logger.LogWarn(ctx, fmt.Sprintf(
+						"record deferred task %s uncertainty failed: %v",
+						task.TaskID,
+						recordErr,
+					))
+				}
+				logger.LogWarn(ctx, fmt.Sprintf(
+					"deferred task %s requires operator resolution: %s",
+					task.TaskID,
+					reason,
+				))
+				continue
+			}
+			var won bool
+			var failErr error
+			if preProviderIO {
+				won, failErr = model.FailDeferredTaskBeforeProviderIO(
+					task,
+					owner,
+					reason,
+					common.GetTimestamp(),
+				)
+			} else {
+				won, failErr = model.FailDeferredTask(task, owner, reason, common.GetTimestamp())
+			}
 			if failErr != nil {
 				logger.LogWarn(ctx, fmt.Sprintf("fail deferred task %s failed: %v", task.TaskID, failErr))
 				continue
 			}
 			if won {
 				summary.Failed++
-				service.RefundTaskQuota(ctx, task, task.FailReason)
+				if preProviderIO || safeBeforeProviderIO {
+					service.RefundTaskQuota(ctx, task, task.FailReason)
+				}
 			}
 			continue
 		}
@@ -116,6 +184,16 @@ func (deferredTaskDispatchHandler) Run(ctx context.Context, systemTask *model.Sy
 		won, completeErr := model.CompleteDeferredTask(task, owner)
 		if completeErr != nil {
 			logger.LogWarn(ctx, fmt.Sprintf("complete deferred task %s failed: %v", task.TaskID, completeErr))
+			if result.ProviderAccepted {
+				const reason = "provider accepted but deferred completion persistence failed"
+				if _, recordErr := model.RecordDeferredTaskUncertainty(task, owner, reason); recordErr != nil {
+					logger.LogWarn(ctx, fmt.Sprintf(
+						"record accepted deferred task %s uncertainty failed: %v",
+						task.TaskID,
+						recordErr,
+					))
+				}
+			}
 			continue
 		}
 		if !won {
@@ -129,6 +207,24 @@ func (deferredTaskDispatchHandler) Run(ctx context.Context, systemTask *model.Sy
 			service.RefundTaskQuota(ctx, task, task.FailReason)
 		}
 	}
+	uncertain, err := model.CountUncertainDeferredTasks()
+	if err != nil {
+		finishSystemTaskHandler(
+			systemTask,
+			runnerID,
+			model.SystemTaskStatusFailed,
+			summary,
+			fmt.Errorf("count uncertain deferred tasks: %w", err),
+		)
+		return
+	}
+	summary.Uncertain = int(uncertain)
+	if summary.Uncertain > 0 {
+		logger.LogWarn(ctx, fmt.Sprintf(
+			"%d deferred tasks require operator resolution",
+			summary.Uncertain,
+		))
+	}
 	finishSystemTaskHandler(systemTask, runnerID, model.SystemTaskStatusSucceeded, summary, nil)
 }
 
@@ -141,6 +237,14 @@ func deferredDispatchOwner(runnerID string, taskID int64) string {
 }
 
 func dispatchDeferredTask(ctx context.Context, task *model.Task) (*relay.TaskSubmitResult, *taskdto.TaskError) {
+	return dispatchDeferredTaskWithSubmit(ctx, task, nil)
+}
+
+func dispatchDeferredTaskWithSubmit(
+	ctx context.Context,
+	task *model.Task,
+	submit deferredTaskSubmitFunc,
+) (*relay.TaskSubmitResult, *taskdto.TaskError) {
 	if task == nil || task.PrivateData.DeferredRequest == nil {
 		return nil, service.TaskErrorWrapperLocal(
 			errors.New("deferred request snapshot is missing"),
@@ -244,7 +348,26 @@ func dispatchDeferredTask(ctx context.Context, task *model.Task) (*relay.TaskSub
 	}
 	info.InitChannelMeta(c)
 	info.UpstreamModelName = task.Properties.UpstreamModelName
-	return relay.RelayDeferredTaskSubmit(c, info, task.Platform, task.Quota)
+	if submit == nil {
+		submit = relay.RelayDeferredTaskSubmit
+	}
+	return submit(c, info, task.Platform, task.Quota, func() error {
+		if err := c.Request.Context().Err(); err != nil {
+			return err
+		}
+		fenced, fenceErr := model.FenceDeferredTaskProviderSubmit(
+			task,
+			task.DispatchOwner,
+			common.GetTimestamp(),
+		)
+		if fenceErr != nil {
+			return fenceErr
+		}
+		if !fenced {
+			return errors.New("deferred dispatch lease lost before provider submit")
+		}
+		return nil
+	})
 }
 
 func deferredTaskRequestContext(
@@ -364,6 +487,14 @@ func deferredTaskErrorRetryable(taskErr *taskdto.TaskError) bool {
 	return taskErr.StatusCode == http.StatusRequestTimeout ||
 		taskErr.StatusCode == http.StatusTooManyRequests ||
 		taskErr.StatusCode >= http.StatusInternalServerError
+}
+
+func deferredTaskErrorSafeBeforeProviderIO(taskErr *taskdto.TaskError) bool {
+	if taskErr == nil || !taskErr.LocalError {
+		return false
+	}
+	return taskErr.Code == "deferred_dispatch_cancelled" ||
+		taskErr.Code == "deferred_provider_request_not_started"
 }
 
 func deferredTaskFailureReason(taskErr *taskdto.TaskError) string {

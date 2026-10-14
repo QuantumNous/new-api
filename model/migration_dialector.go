@@ -22,6 +22,9 @@ func (d mysqlMigrationDialector) Migrator(db *gorm.DB) gorm.Migrator {
 type mysqlSchemaMigrator struct{ mysql.Migrator }
 
 func (m mysqlSchemaMigrator) MigrateColumn(value any, field *schema.Field, column gorm.ColumnType) error {
+	if handled, err := guardMySQLTaskPluginPayloadAutoMigrate(field, column); handled {
+		return err
+	}
 	if !field.HasDefaultValue || !strings.EqualFold(column.DatabaseTypeName(), "decimal") {
 		return m.Migrator.MigrateColumn(value, field, column)
 	}

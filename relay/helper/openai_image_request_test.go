@@ -115,38 +115,42 @@ func TestGetAndValidOpenAIImageRequestMultipartStream(t *testing.T) {
 	})
 }
 
-func TestImageBillingRequestUsesValidatedProviderCount(t *testing.T) {
+// Provider `parameters.n` is still bounded at ingress so a malformed multiplier
+// is a client error, but the billing quantity always follows the top-level n:
+// Ali image requests are served by the alibaba task plugin, which owns the
+// DashScope parameters.n semantics.
+func TestImageBillingRequestValidatesProviderCountWithoutOverriding(t *testing.T) {
 	for _, tc := range []struct {
-		body           string
-		channel, count int
-		invalid        bool
+		body    string
+		count   int
+		invalid bool
 	}{
-		{`{"model":"z-image","n":2,"parameters":{"n":3,"prompt_extend":true}}`, constant.ChannelTypeAli, 3, false},
-		{`{"model":"gpt-image-2","n":2,"parameters":{"n":3}}`, constant.ChannelTypeOpenAI, 2, false},
-		{`{"model":"z-image","n":2,"parameters":{"n":129}}`, constant.ChannelTypeAli, 0, true},
-		{`{"model":"z-image","parameters":{"n":-1}}`, constant.ChannelTypeAli, 0, true},
-		{`{"model":"z-image","n":2,"parameters":{}}`, constant.ChannelTypeAli, 2, false},
-		{`{"model":"z-image","n":2,"parameters":{"n":null}}`, constant.ChannelTypeAli, 2, false},
-		{`{"model":"z-image","n":2,"parameters":{"n":0}}`, constant.ChannelTypeAli, 0, true},
-		{`{"model":"z-image","parameters":{"n":1.5}}`, constant.ChannelTypeAli, 0, true},
-		{`{"model":"z-image","parameters":{"n":18446744073686646784}}`, constant.ChannelTypeAli, 0, true},
-		{`{"model":"z-image","parameters":{"n":128}}`, constant.ChannelTypeAli, 128, false},
-		{`{"model":"z-image","n":0}`, constant.ChannelTypeAli, 1, false},
-		{`{"model":"gpt-image-2","n":2,"parameters":{"n":0}}`, constant.ChannelTypeOpenAI, 2, false},
+		{`{"model":"z-image","n":2,"parameters":{"n":3,"prompt_extend":true}}`, 2, false},
+		{`{"model":"gpt-image-2","n":2,"parameters":{"n":3}}`, 2, false},
+		{`{"model":"z-image","n":2,"parameters":{"n":129}}`, 0, true},
+		{`{"model":"z-image","parameters":{"n":-1}}`, 0, true},
+		{`{"model":"z-image","n":2,"parameters":{}}`, 2, false},
+		{`{"model":"z-image","n":2,"parameters":{"n":null}}`, 2, false},
+		{`{"model":"z-image","n":2,"parameters":{"n":0}}`, 2, false},
+		{`{"model":"z-image","parameters":{"n":1.5}}`, 0, true},
+		{`{"model":"z-image","parameters":{"n":18446744073686646784}}`, 0, true},
+		{`{"model":"z-image","parameters":{"n":128}}`, 1, false},
+		{`{"model":"z-image","n":0}`, 1, false},
+		{`{"model":"gpt-image-2","n":2,"parameters":{"n":0}}`, 2, false},
 	} {
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", bytes.NewBufferString(tc.body))
 		c.Request.Header.Set("Content-Type", "application/json")
-		common.SetContextKey(c, constant.ContextKeyChannelType, tc.channel)
+		common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
 		request, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesGenerations)
 		if tc.invalid {
-			require.Error(t, err)
+			require.Error(t, err, tc.body)
 			continue
 		}
-		require.NoError(t, err)
+		require.NoError(t, err, tc.body)
 		input, err := ResolveImageBillingRequestInput(c, &relaycommon.RelayInfo{Request: request}, billingexpr.RequestInput{})
 		require.NoError(t, err)
-		require.Equal(t, tc.count, *input.ImageCount)
+		require.Equal(t, tc.count, *input.ImageCount, tc.body)
 		cost, _, err := billingexpr.RunExprWithRequest(`tier("image", fixed(0.04)) * image_count`, billingexpr.TokenParams{}, input)
 		require.NoError(t, err)
 		require.Equal(t, float64(tc.count)*40000, cost)

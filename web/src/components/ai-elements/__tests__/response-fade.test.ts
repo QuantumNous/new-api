@@ -159,9 +159,7 @@ describe('classifyValue', () => {
     classifyValue(first, 'done ')
     endRun(first)
 
-    vi.spyOn(performance, 'now').mockReturnValue(
-      1000 + FADE_DURATION_MS + 1
-    )
+    vi.spyOn(performance, 'now').mockReturnValue(1000 + FADE_DURATION_MS + 1)
     const second = beginRun(state)
     const segments = classifyValue(second, 'done next')
     endRun(second)

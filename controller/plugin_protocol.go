@@ -45,7 +45,18 @@ type pluginProtocolBridgeDeps struct {
 	admissionTimeout   time.Duration
 	getByTaskId        func(int, string) (*model.Task, bool, error)
 	resolvePlugin      func(constant.TaskPlatform) (*pluginruntime.LoadedPlugin, *pluginruntime.RoutingGeneration, bool)
+	// imagePollInterval, pollTask and downloadImage serve the synchronous
+	// OpenAI Images protocol: an asynchronous upstream image task is polled
+	// inside the request, and b64_json responses download each image URL.
+	imagePollInterval time.Duration
+	pollTask          func(context.Context, *model.Task) error
+	downloadImage     func(url string) (mimeType string, base64Data string, err error)
 }
+
+// taskPluginImagePollInterval paces the in-request polling of asynchronous
+// image tasks. Legacy DashScope text-to-image jobs finish within tens of
+// seconds, so a short interval keeps the synchronous response prompt.
+const taskPluginImagePollInterval = 3 * time.Second
 
 func defaultPluginProtocolBridgeDeps() pluginProtocolBridgeDeps {
 	timeout := time.Duration(constant.TaskPluginProtocolTimeoutSeconds) * time.Second
@@ -81,6 +92,9 @@ func defaultPluginProtocolBridgeDeps() pluginProtocolBridgeDeps {
 		admissionTimeout:   pluginruntime.DefaultCallTimeout,
 		getByTaskId:        model.GetByTaskId,
 		resolvePlugin:      resolveTaskPluginForProtocolRetrieve,
+		imagePollInterval:  taskPluginImagePollInterval,
+		pollTask:           pollTaskPluginImageTask,
+		downloadImage:      service.GetImageFromUrl,
 	}
 }
 
@@ -130,6 +144,15 @@ func (d pluginProtocolBridgeDeps) withDefaults() pluginProtocolBridgeDeps {
 	}
 	if d.resolvePlugin == nil {
 		d.resolvePlugin = defaults.resolvePlugin
+	}
+	if d.imagePollInterval <= 0 {
+		d.imagePollInterval = defaults.imagePollInterval
+	}
+	if d.pollTask == nil {
+		d.pollTask = defaults.pollTask
+	}
+	if d.downloadImage == nil {
+		d.downloadImage = defaults.downloadImage
 	}
 	return d
 }
@@ -973,6 +996,11 @@ func retrieveTaskPluginResponse(c *gin.Context, deps pluginProtocolBridgeDeps) {
 		}
 	}
 	logger.LogDebug(c, "task_plugin subsystem=protocol event=retrieve_start response_id=%q public_task_id=%q", responseID, taskID)
+
+	if !task.ResultRetrievable() {
+		writeTaskPluginResponseNotFound(c, responseID, "result_discarded")
+		return
+	}
 
 	plugin, generation, ok := deps.resolvePlugin(task.Platform)
 	if !ok || plugin == nil {

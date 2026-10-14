@@ -219,6 +219,18 @@ func (s *AppBillingSession) RecordAcceptance(ctx context.Context, providerID str
 	})
 }
 
+func (s *AppBillingSession) ReleaseBeforeDispatch(ctx context.Context) error {
+	persistCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	err := model.RunAppPluginTransaction(s.service.db.WithContext(persistCtx), func(tx *gorm.DB) error {
+		return model.ReleaseAppTaskExecutionBeforeDispatchTx(tx, s.execution.ID)
+	})
+	if err == nil {
+		s.execution = model.AppTaskExecution{}
+	}
+	return err
+}
+
 func appTaskCredentialDigest(key []byte, credential string) string {
 	mac := hmac.New(sha256.New, key)
 	mac.Write([]byte("new-api/app-task/credential/v1\x00"))

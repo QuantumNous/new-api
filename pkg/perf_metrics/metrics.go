@@ -1,6 +1,7 @@
 package perfmetrics
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"math"
@@ -15,6 +16,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/perf_metrics_setting"
 
 	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/go-redis/redis/v8"
 )
 
 var hotBuckets sync.Map
@@ -63,6 +65,41 @@ func RecordRelayResult(ctx context.Context, info *relaycommon.RelayInfo, apiErr 
 	})
 }
 
+// RecordTaskResult samples one async task exactly once, at its terminal
+// transition, after the polling status CAS is won. Latency is the end-to-end
+// task duration (second resolution, unlike the ms-resolution relay samples);
+// throughput is only present when the provider reports tokens.
+func RecordTaskResult(task *model.Task, result *relaycommon.TaskInfo) {
+	if task == nil {
+		return
+	}
+	modelName := task.Properties.OriginModelName
+	if bc := task.PrivateData.BillingContext; bc != nil && bc.OriginModelName != "" {
+		modelName = bc.OriginModelName
+	}
+	endTs := task.FinishTime
+	if endTs <= 0 {
+		endTs = time.Now().Unix()
+	}
+	sample := Sample{
+		Model:   modelName,
+		Group:   task.Group,
+		Success: task.Status == model.TaskStatusSuccess,
+	}
+	if task.SubmitTime > 0 && endTs > task.SubmitTime {
+		sample.LatencyMs = (endTs - task.SubmitTime) * 1000
+	}
+	if sample.Success && result != nil {
+		tokens := int64(cmp.Or(result.TotalTokens, result.CompletionTokens))
+		genStart := cmp.Or(task.StartTime, task.SubmitTime)
+		if tokens > 0 && genStart > 0 && endTs > genStart {
+			sample.OutputTokens = tokens
+			sample.GenerationMs = (endTs - genStart) * 1000
+		}
+	}
+	Record(sample)
+}
+
 func Record(sample Sample) {
 	setting := perf_metrics_setting.GetSetting()
 	if !setting.Enabled || sample.Model == "" {
@@ -82,8 +119,9 @@ func Record(sample Sample) {
 	}
 	actual, _ := hotBuckets.LoadOrStore(key, &atomicBucket{})
 	actual.(*atomicBucket).add(sample)
+	redisEnabled, rdb := common.RedisEnabled, common.RDB
 	gopool.Go(func() {
-		recordRedis(key, sample)
+		recordRedis(key, sample, redisEnabled, rdb)
 	})
 }
 
@@ -449,15 +487,15 @@ func avgTps(value counters) float64 {
 	return float64(value.outputTokens) / (float64(value.generationMs) / 1000)
 }
 
-func recordRedis(key bucketKey, sample Sample) {
-	if !common.RedisEnabled || common.RDB == nil {
+func recordRedis(key bucketKey, sample Sample, redisEnabled bool, rdb *redis.Client) {
+	if !redisEnabled || rdb == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 
 	redisKey := redisBucketKey(key)
-	pipe := common.RDB.TxPipeline()
+	pipe := rdb.TxPipeline()
 	pipe.HIncrBy(ctx, redisKey, "req", 1)
 	if sample.Success {
 		pipe.HIncrBy(ctx, redisKey, "ok", 1)

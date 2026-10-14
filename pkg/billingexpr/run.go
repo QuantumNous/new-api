@@ -50,6 +50,16 @@ func RunExprByHashWithRequest(exprStr, hash string, params TokenParams, request 
 	return runProgram(entry.prog, entry.requestRules, entry.usedVars, params, request)
 }
 
+func validatedRequestScalar(name string, value *float64, maximum float64) (float64, error) {
+	if value == nil {
+		return 0, fmt.Errorf("%s is required for fixed request pricing", name)
+	}
+	if math.IsNaN(*value) || math.IsInf(*value, 0) || *value < 0 || *value > maximum || math.Trunc(*value) != *value {
+		return 0, fmt.Errorf("%s must be a finite integer between 0 and %.0f", name, maximum)
+	}
+	return *value, nil
+}
+
 func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[string]bool, params TokenParams, request RequestInput) (float64, TraceResult, error) {
 	trace := TraceResult{
 		BillingUnit:  BillingUnitToken,
@@ -70,26 +80,61 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 		}
 		trace.ImageCount = &imageCount
 	}
+	imagesUpTo1_5K := float64(0)
+	if usedVars["images_up_to_1_5k"] {
+		var scalarErr error
+		imagesUpTo1_5K, scalarErr = validatedRequestScalar("images_up_to_1_5k", request.ImagesUpTo1_5K, MaxRequestImageOutputs)
+		if scalarErr != nil {
+			return 0, trace, scalarErr
+		}
+	}
+	imagesAbove1_5K := float64(0)
+	if usedVars["images_above_1_5k"] {
+		var scalarErr error
+		imagesAbove1_5K, scalarErr = validatedRequestScalar("images_above_1_5k", request.ImagesAbove1_5K, MaxRequestImageOutputs)
+		if scalarErr != nil {
+			return 0, trace, scalarErr
+		}
+	}
+	if usedVars["images_up_to_1_5k"] && usedVars["images_above_1_5k"] && imagesUpTo1_5K+imagesAbove1_5K > MaxRequestImageOutputs {
+		return 0, trace, fmt.Errorf("request image outputs must total between 0 and %d", MaxRequestImageOutputs)
+	}
+	inputImages := float64(0)
+	if usedVars["input_images"] {
+		var scalarErr error
+		inputImages, scalarErr = validatedRequestScalar("input_images", request.InputImages, MaxRequestInputImages)
+		if scalarErr != nil {
+			return 0, trace, scalarErr
+		}
+	}
 
+	var fixedErr error
 	env := map[string]any{
-		"image_count": float64(imageCount),
-		"p":           params.P,
-		"c":           params.C,
-		"len":         params.Len,
-		"cr":          params.CR,
-		"cc":          params.CC,
-		"cc1h":        params.CC1h,
-		"img":         params.Img,
-		"img_cr":      params.ImgCR,
-		"img_o":       params.ImgO,
-		"ai":          params.AI,
-		"ao":          params.AO,
+		"image_count":       float64(imageCount),
+		"images_up_to_1_5k": imagesUpTo1_5K,
+		"images_above_1_5k": imagesAbove1_5K,
+		"input_images":      inputImages,
+		"p":                 params.P,
+		"c":                 params.C,
+		"len":               params.Len,
+		"cr":                params.CR,
+		"cc":                params.CC,
+		"cc1h":              params.CC1h,
+		"img":               params.Img,
+		"img_cr":            params.ImgCR,
+		"img_o":             params.ImgO,
+		"ai":                params.AI,
+		"ao":                params.AO,
 		"tier": func(name string, value float64) float64 {
 			trace.MatchedTier = name
 			trace.Cost = value
 			return value
 		},
 		"fixed": func(amount float64) float64 {
+			if amount < 0 || math.IsNaN(amount) || math.IsInf(amount, 0) || math.IsInf(amount*1_000_000, 0) {
+				fixedErr = fmt.Errorf("fixed price must evaluate to a finite, non-negative amount with a finite v1 value")
+				return 0
+			}
 			trace.BillingUnit = BillingUnitRequest
 			trace.FixedPrice = &amount
 			return amount * 1_000_000
@@ -143,6 +188,7 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 		"weekday": func(tz string) int { return int(timeInZone(evaluatedAt, tz).Weekday()) },
 		"month":   func(tz string) int { return int(timeInZone(evaluatedAt, tz).Month()) },
 		"day":     func(tz string) int { return timeInZone(evaluatedAt, tz).Day() },
+		"unix":    func() int64 { return evaluatedAt.Unix() },
 		"max":     math.Max,
 		"min":     math.Min,
 		"abs":     math.Abs,
@@ -153,6 +199,9 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, usedVars map[
 	out, err := expr.Run(prog, env)
 	if err != nil {
 		return 0, trace, fmt.Errorf("expr run error: %w", err)
+	}
+	if fixedErr != nil {
+		return 0, trace, fixedErr
 	}
 	f, ok := out.(float64)
 	if !ok {

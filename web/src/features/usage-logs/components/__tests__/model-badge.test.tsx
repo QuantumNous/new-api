@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { expect, it, vi } from 'vitest'
 
@@ -258,13 +258,13 @@ it.each(
   )
 )(
   'groups $model under $category and displays its provider icon',
-  ({ model, category, label }) => {
+  async ({ model, category, label }) => {
     expect(getModelCategory(model)).toBe(category)
     render(<ModelBadge modelName={model} />)
     expect(screen.getByText(model.trim())).toBeVisible()
     const icon = screen.getByLabelText(label)
     expect(icon).toBeVisible()
-    expect(icon.querySelector('svg, img')).not.toBeNull()
+    await waitFor(() => expect(icon.querySelector('svg, img')).not.toBeNull())
   }
 )
 
@@ -325,7 +325,6 @@ it('opens the mismatch evidence with the keyboard and shows all three models', a
         requested_model: 'requested-model',
         upstream_model: 'mapped-model',
         returned_model: returned,
-        mismatch: true,
       }}
     />
   )
@@ -361,7 +360,6 @@ it.each([false, true])(
                 requested_model: 'requested-model',
                 upstream_model: 'requested-model',
                 returned_model: 'requested-model',
-                mismatch: false,
               }
             : undefined
         }
@@ -384,7 +382,6 @@ it('keeps mapped model details available when the response matches the upstream 
         requested_model: 'requested-model',
         upstream_model: 'mapped-model',
         returned_model: 'mapped-model',
-        mismatch: false,
       }}
     />
   )
@@ -400,6 +397,8 @@ it.each([
   'REQUESTED-MODEL',
   'mapped-model-2026-09-17',
   'MAPPED-MODEL',
+  'deepseek/requested-model',
+  'accounts/vendor/models/MAPPED-MODEL',
 ])(
   'keeps the compatible response %s in the popover without a list annotation',
   async (returned) => {
@@ -411,7 +410,6 @@ it.each([
           requested_model: 'requested-model',
           upstream_model: 'mapped-model',
           returned_model: returned,
-          mismatch: false,
         }}
       />
     )

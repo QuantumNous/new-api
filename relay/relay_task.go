@@ -2,6 +2,7 @@ package relay
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -22,6 +23,7 @@ import (
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
+	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/types"
@@ -38,8 +40,12 @@ type TaskSubmitResult struct {
 	Immediate       *relaycommon.TaskInfo
 	DeferredRequest *model.TaskDeferredRequest
 	PluginState     []byte
+	// ProviderAccepted prevents callers from retrying failures after a 2xx submit.
+	ProviderAccepted bool
 	//PerCallPrice   types.PriceData
 }
+
+var errTaskUpstreamEmptyResponse = errors.New("upstream returned an empty response")
 
 // ResolveOriginTask 处理基于已有任务的提交（remix / continuation）：
 // 查找原始任务、从中提取模型名称、将渠道锁定到原始任务的渠道
@@ -262,19 +268,25 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	if pinnedPlugin.Plugin != nil {
 		pluginKey = pinnedPlugin.Plugin.Meta.Key
 	}
-	exprStr, exists := billing_setting.ResolveTaskBillingExpr(pluginKey, modelName, info.UpstreamModelName)
-	useTiered := exists || billing_setting.GetBillingMode(modelName) == billing_setting.BillingModeTieredExpr
-	if useTiered {
+	billingMappedModel := info.UpstreamModelName
+	if pinnedPlugin.Generation != nil {
+		if canonical, ok := pinnedPlugin.Generation.CanonicalModel(billingMappedModel); ok {
+			billingMappedModel = canonical
+		}
+	}
+	billingDecision := billing_setting.ResolveTaskBillingDecision(pluginKey, modelName, billingMappedModel)
+	exprStr := billingDecision.Expression
+	if billingDecision.Mode == billing_setting.BillingModeTieredExpr {
 		provider, supported := adaptor.(channel.TaskUsageFactsProvider)
 		if billingexpr.UsesFixedPricing(exprStr) {
 			return nil, service.TaskErrorWrapper(fmt.Errorf("fixed pricing is not supported for task usage expressions"), "model_price_error", http.StatusBadRequest)
 		}
-		if !exists || !supported {
+		if !billingDecision.ExpressionExists || !supported {
 			return nil, service.TaskErrorWrapper(fmt.Errorf("task model %s has no usage expression or meter", modelName), "model_price_error", http.StatusBadRequest)
 		}
-		sharedModel := pinnedPlugin.Generation.SharedModel(modelName) || pinnedPlugin.Generation.SharedModel(info.UpstreamModelName)
+		sharedModel := pinnedPlugin.Generation.SharedModel(modelName) || pinnedPlugin.Generation.SharedModel(billingMappedModel)
 		if sharedModel && pinnedPlugin.Plugin != nil {
-			schema, _ := pinnedPlugin.Plugin.Meta.UsageForModel(info.UpstreamModelName)
+			schema, _ := pinnedPlugin.Plugin.Meta.UsageForModels(billingMappedModel, modelName)
 			if !billing_setting.TaskExprCompatible(exprStr, schema) {
 				return nil, service.TaskErrorWrapper(fmt.Errorf("task model %s pricing is not configured for plugin %s", modelName, pluginKey), "model_price_error", http.StatusBadRequest)
 			}
@@ -288,7 +300,14 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		} else {
 			facts = provider.ExtractUsageFacts(c, info)
 		}
-		cost, trace, runErr := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{}, billingexpr.RequestInput{Usage: facts})
+		pricingTimeUnix := common.GetTimestamp()
+		if !info.StartTime.IsZero() {
+			pricingTimeUnix = info.StartTime.Unix()
+		}
+		cost, trace, runErr := billingexpr.RunExprWithRequest(exprStr, billingexpr.TokenParams{}, billingexpr.RequestInput{
+			Usage:           facts,
+			EvaluatedAtUnix: pricingTimeUnix,
+		})
 		if runErr != nil || cost < 0 {
 			if runErr == nil {
 				runErr = fmt.Errorf("negative task expression result")
@@ -299,7 +318,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 		quota, clamp := common.QuotaRoundChecked(cost * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 		noteTaskQuotaClamp(info, clamp)
 		priceData = types.PriceData{Quota: quota, QuotaToPreConsume: quota, GroupRatioInfo: groupRatioInfo}
-		info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{BillingMode: billing_setting.BillingModeTieredExpr, ModelName: modelName, ExprString: exprStr, ExprHash: billingexpr.ExprHashString(exprStr), GroupRatio: groupRatioInfo.GroupRatio, EstimatedQuotaBeforeGroup: cost * common.QuotaPerUnit, EstimatedQuotaAfterGroup: quota, EstimatedTier: trace.MatchedTier, QuotaPerUnit: common.QuotaPerUnit, ExprVersion: billingexpr.ExprVersion(exprStr), TaskUsageBilling: true, UsageFacts: facts}
+		info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{BillingMode: billing_setting.BillingModeTieredExpr, ModelName: modelName, ExprString: exprStr, ExprHash: billingexpr.ExprHashString(exprStr), GroupRatio: groupRatioInfo.GroupRatio, EstimatedQuotaBeforeGroup: cost * common.QuotaPerUnit, EstimatedQuotaAfterGroup: quota, EstimatedTier: trace.MatchedTier, QuotaPerUnit: common.QuotaPerUnit, ExprVersion: billingexpr.ExprVersion(exprStr), PricingTimeUnix: pricingTimeUnix, TaskUsageBilling: true, UsageFacts: facts}
 	} else {
 		priceData, err = helper.ModelPriceHelperPerCall(c, info)
 		if err != nil {
@@ -365,13 +384,15 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 }
 
 // RelayDeferredTaskSubmit rebuilds a previously validated plugin request with
-// current channel credentials. Billing and persistence are intentionally
-// excluded: the foreground request already crossed both durable barriers.
+// current channel credentials. Billing and task creation are intentionally
+// excluded. beforeProviderSubmit persists the worker's final dispatch fence
+// after local request preparation and immediately before provider I/O.
 func RelayDeferredTaskSubmit(
 	c *gin.Context,
 	info *relaycommon.RelayInfo,
 	platform constant.TaskPlatform,
 	quota int,
+	beforeProviderSubmit func() error,
 ) (*TaskSubmitResult, *dto.TaskError) {
 	info.InitChannelMeta(c)
 	resolvedPlatform, adaptor := getTaskAdaptorForRequest(c, platform)
@@ -387,7 +408,45 @@ func RelayDeferredTaskSubmit(
 	if err != nil {
 		return nil, service.TaskErrorWrapper(err, "build_request_failed", http.StatusInternalServerError)
 	}
-	return submitTaskUpstream(c, info, adaptor, resolvedPlatform, requestBody, quota)
+	return submitDeferredTaskUpstream(c, info, adaptor, resolvedPlatform, requestBody, quota, beforeProviderSubmit)
+}
+
+func submitDeferredTaskUpstream(
+	c *gin.Context,
+	info *relaycommon.RelayInfo,
+	adaptor channel.TaskAdaptor,
+	platform constant.TaskPlatform,
+	requestBody io.Reader,
+	quota int,
+	beforeProviderSubmit func() error,
+) (*TaskSubmitResult, *dto.TaskError) {
+	if beforeProviderSubmit == nil {
+		return nil, service.TaskErrorWrapperLocal(errors.New("deferred dispatch fence is missing"), "deferred_dispatch_fence_failed", http.StatusInternalServerError)
+	}
+	if err := beforeProviderSubmit(); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, service.TaskErrorWrapperLocal(err, "deferred_dispatch_cancelled", http.StatusRequestTimeout)
+		}
+		return nil, service.TaskErrorWrapperLocal(err, "deferred_dispatch_fence_failed", http.StatusInternalServerError)
+	}
+	if err := c.Request.Context().Err(); err != nil {
+		return nil, service.TaskErrorWrapperLocal(err, "deferred_dispatch_cancelled", http.StatusRequestTimeout)
+	}
+	result, taskErr := submitTaskUpstream(c, info, adaptor, platform, requestBody, quota)
+	if taskErr != nil {
+		if errors.Is(taskErr.Error, channel.ErrProviderRequestNotStarted) {
+			taskErr.Code = "deferred_provider_request_not_started"
+			taskErr.LocalError = true
+			taskErr.NoRetry = false
+			return result, taskErr
+		}
+		var relayErr *relaytypes.NewAPIError
+		if errors.Is(taskErr.Error, errTaskUpstreamEmptyResponse) ||
+			(errors.As(taskErr.Error, &relayErr) && relayErr.GetErrorCode() == relaytypes.ErrorCodeDoRequestFailed) {
+			taskErr.NoRetry = true
+		}
+	}
+	return result, taskErr
 }
 
 func submitTaskUpstream(
@@ -400,13 +459,20 @@ func submitTaskUpstream(
 ) (*TaskSubmitResult, *dto.TaskError) {
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
-		return nil, service.TaskErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
+		taskErr := service.TaskErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
+		if !errors.Is(err, channel.ErrProviderRequestNotStarted) {
+			taskErr.NoRetry = true
+			taskErr.ProviderWriteUncertain = true
+		}
+		return nil, taskErr
 	}
 	if resp == nil {
-		return nil, service.TaskErrorWrapperLocal(errors.New("upstream returned an empty response"), "fail_to_fetch_task", http.StatusBadGateway)
+		return nil, service.TaskErrorWrapperLocal(errTaskUpstreamEmptyResponse, "fail_to_fetch_task", http.StatusBadGateway)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
+	// Any 2xx is a successful submission: task APIs commonly answer 201 Created
+	// or 202 Accepted, and parseSubmitResponse receives the exact status code.
+	if resp.StatusCode/100 != 2 {
 		responseBody, _ := io.ReadAll(resp.Body)
 		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode)
 	}
@@ -415,10 +481,15 @@ func submitTaskUpstream(
 	// task barrier and billing settlement.
 	parsed, taskErr := adaptor.ParseResponse(c, resp, info)
 	if taskErr != nil {
+		taskErr.NoRetry = true
+		taskErr.ProviderAccepted = true
 		return nil, taskErr
 	}
 	if parsed == nil {
-		return nil, service.TaskErrorWrapperLocal(errors.New("task adaptor returned an empty response"), "plugin_submit_response_invalid", http.StatusBadGateway)
+		taskErr = service.TaskErrorWrapperLocal(errors.New("task adaptor returned an empty response"), "plugin_submit_response_invalid", http.StatusBadGateway)
+		taskErr.NoRetry = true
+		taskErr.ProviderAccepted = true
+		return nil, taskErr
 	}
 
 	// 11. 提交后计费调整：让适配器根据上游实际返回调整 OtherRatios
@@ -451,13 +522,14 @@ func submitTaskUpstream(
 	info.PriceData.Quota = finalQuota
 
 	return &TaskSubmitResult{
-		UpstreamTaskID: parsed.UpstreamTaskID,
-		TaskData:       parsed.TaskData,
-		ClientResponse: parsed.ClientResponse,
-		Platform:       platform,
-		Quota:          finalQuota,
-		Immediate:      parsed.Immediate,
-		PluginState:    parsed.PluginState,
+		UpstreamTaskID:   parsed.UpstreamTaskID,
+		TaskData:         parsed.TaskData,
+		ClientResponse:   parsed.ClientResponse,
+		Platform:         platform,
+		Quota:            finalQuota,
+		Immediate:        parsed.Immediate,
+		PluginState:      parsed.PluginState,
+		ProviderAccepted: true,
 	}, nil
 }
 
@@ -744,6 +816,10 @@ func videoFetchByIDRespBodyBuilder(c *gin.Context) (respBody []byte, taskResp *d
 			taskResp = service.TaskErrorWrapperLocal(errors.New("task_not_exist"), "task_not_exist", http.StatusBadRequest)
 			return
 		}
+	}
+	if !originTask.ResultRetrievable() {
+		taskResp = service.TaskErrorWrapperLocal(errors.New("task_not_exist"), "task_not_exist", http.StatusBadRequest)
+		return
 	}
 
 	isOpenAIVideoAPI := strings.HasPrefix(c.Request.URL.Path, "/v1/videos/")

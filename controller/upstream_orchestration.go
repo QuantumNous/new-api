@@ -3,6 +3,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -22,7 +23,10 @@ import (
 	"gorm.io/gorm"
 )
 
-const upstreamSnapshotBodyLimit = 2 << 20
+const (
+	upstreamSettingsBodyLimit = 256 << 10
+	upstreamSnapshotBodyLimit = 2 << 20
+)
 
 func GetUpstreamOrchestrationOverview(c *gin.Context) {
 	sources, err := model.ListUpstreamSources()
@@ -35,7 +39,7 @@ func GetUpstreamOrchestrationOverview(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	routes, err := model.ListUpstreamManagedRoutes()
+	routes, err := service.ListUpstreamRouteOverviews()
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -62,8 +66,32 @@ func GetUpstreamOrchestrationOverview(c *gin.Context) {
 	})
 }
 
+func UpdateUpstreamOrchestrationSettings(c *gin.Context) {
+	body, err := io.ReadAll(http.MaxBytesReader(c.Writer, c.Request.Body, upstreamSettingsBodyLimit))
+	if err != nil {
+		common.ApiErrorMsg(c, "invalid upstream settings request")
+		return
+	}
+	var request operation_setting.UpstreamRoutingPolicy
+	if len(body) == 0 || common.Unmarshal(body, &request) != nil {
+		common.ApiErrorMsg(c, "invalid upstream settings request")
+		return
+	}
+	policy, err := operation_setting.NormalizeUpstreamRoutingPolicy(request)
+	if err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	if err := model.UpdateUpstreamOrchestrationPolicy(policy); err != nil {
+		common.SysError("failed to save upstream settings")
+		common.ApiErrorMsg(c, "failed to save upstream settings")
+		return
+	}
+	common.ApiSuccess(c, operation_setting.GetUpstreamOrchestrationSetting())
+}
+
 func ListUpstreamOrchestrationRoutes(c *gin.Context) {
-	routes, err := model.ListUpstreamManagedRoutes()
+	routes, err := service.ListUpstreamRouteOverviews()
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -163,23 +191,12 @@ func UpdateUpstreamSource(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	var source model.UpstreamSource
-	if err := model.DB.First(&source, sourceID).Error; err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	updates := map[string]any{"updated_at": common.GetTimestamp()}
-	if request.Enabled != nil {
-		updates["enabled"] = *request.Enabled
-	}
 	if request.LowBalanceThreshold != nil {
 		if *request.LowBalanceThreshold < 0 {
 			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "low balance threshold must be non-negative"})
 			return
 		}
-		updates["low_balance_threshold"] = *request.LowBalanceThreshold
 	}
-	setting := operation_setting.GetUpstreamOrchestrationSetting()
 	if request.StaticEgressIPs != nil {
 		for _, value := range request.StaticEgressIPs {
 			if net.ParseIP(strings.TrimSpace(value)) == nil {
@@ -187,39 +204,16 @@ func UpdateUpstreamSource(c *gin.Context) {
 				return
 			}
 		}
-		next := make(map[string][]string, len(setting.StaticEgressIPs)+1)
-		for key, values := range setting.StaticEgressIPs {
-			next[key] = append([]string(nil), values...)
-		}
-		next[source.Key] = request.StaticEgressIPs
-		encoded, _ := common.Marshal(next)
-		if err := model.UpdateOption("upstream_orchestration.static_egress_ips", string(encoded)); err != nil {
-			common.ApiError(c, err)
-			return
-		}
 	}
-	if request.ModelAliases != nil {
-		encoded, _ := common.Marshal(request.ModelAliases)
-		if err := model.UpdateOption("upstream_orchestration.model_aliases", string(encoded)); err != nil {
-			common.ApiError(c, err)
-			return
-		}
-	}
-	if request.ModelExclusions != nil {
-		encoded, _ := common.Marshal(request.ModelExclusions)
-		if err := model.UpdateOption("upstream_orchestration.model_exclusions", string(encoded)); err != nil {
-			common.ApiError(c, err)
-			return
-		}
-	}
-	if request.ProtocolModelExclusions != nil {
-		encoded, _ := common.Marshal(request.ProtocolModelExclusions)
-		if err := model.UpdateOption("upstream_orchestration.protocol_model_exclusions", string(encoded)); err != nil {
-			common.ApiError(c, err)
-			return
-		}
-	}
-	if err := model.DB.Model(&source).Updates(updates).Error; err != nil {
+	if err := model.UpdateUpstreamSourceWithOptions(model.UpstreamSourceMutation{
+		SourceID:                sourceID,
+		Enabled:                 request.Enabled,
+		LowBalanceThreshold:     request.LowBalanceThreshold,
+		StaticEgressIPs:         request.StaticEgressIPs,
+		ModelAliases:            request.ModelAliases,
+		ModelExclusions:         request.ModelExclusions,
+		ProtocolModelExclusions: request.ProtocolModelExclusions,
+	}); err != nil {
 		common.ApiError(c, err)
 		return
 	}

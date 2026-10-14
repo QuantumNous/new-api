@@ -120,8 +120,8 @@ test('loading keeps installation disabled and footer outside the bounded scroll 
   const dialog = screen.getByRole('dialog')
   expect(dialog).toHaveClass(
     'sm:max-w-3xl',
-    'max-h-[calc(100vh-2rem)]',
-    'overflow-hidden'
+    'max-h-[var(--dialog-available-height,calc(100dvh-2rem))]',
+    'overflow-y-auto'
   )
   const footer = dialog.querySelector('[data-slot=dialog-footer]')
   const body = [...dialog.children].find((element) =>
@@ -304,6 +304,31 @@ test('keyboard users can expand the full model list and inspect a protocol model
   expect(scope).toHaveAttribute('aria-expanded', 'true')
   const scopePanel = screen.getByRole('dialog', { name: 'Model scope' })
   expect(within(scopePanel).getByText('incho_music')).toBeVisible()
+})
+
+test('model constants show source models without an unreadable metadata warning', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(`
+      const MODELS = ['jev-1.13.0', 'jev-latest', 'jev-preview'];
+      export const meta = {models: MODELS};
+      function validate(model) { return MODELS.includes(model); }
+    `)
+    )
+  )
+  renderDialog()
+  const models = screen.getByRole('region', { name: 'Supported models' })
+  expect(await within(models).findByText('jev-1.13.0')).toBeVisible()
+  expect(within(models).getByText('jev-latest')).toBeVisible()
+  expect(within(models).getByText('jev-preview')).toBeVisible()
+  expect(
+    within(models).queryByText('From marketplace index')
+  ).not.toBeInTheDocument()
+  expect(
+    screen.queryByText('Some plugin information could not be read')
+  ).not.toBeInTheDocument()
 })
 
 test('unreadable metadata can be retried without preventing installation or inventing domain restrictions', async () => {

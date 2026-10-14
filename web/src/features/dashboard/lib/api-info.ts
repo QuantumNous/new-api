@@ -46,7 +46,7 @@ export async function testUrlLatency(url: string): Promise<PingStatus> {
     const latency = Math.round(endTime - startTime)
 
     return { latency, testing: false, error: false }
-  } catch (_error) {
+  } catch {
     return { latency: null, testing: false, error: true }
   }
 }

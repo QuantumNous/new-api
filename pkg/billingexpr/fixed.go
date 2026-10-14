@@ -7,6 +7,23 @@ import (
 	"github.com/expr-lang/expr/ast"
 )
 
+var fixedRequestScalarIdentifiers = map[string]struct{}{
+	"images_up_to_1_5k": {},
+	"images_above_1_5k": {},
+	"input_images":      {},
+}
+
+func usesFixedRequestScalar(node ast.Node) bool {
+	return ast.Find(node, func(part ast.Node) bool {
+		identifier, ok := part.(*ast.IdentifierNode)
+		if !ok {
+			return false
+		}
+		_, allowed := fixedRequestScalarIdentifiers[identifier.Value]
+		return allowed
+	}) != nil
+}
+
 // UsesFixedPricing includes unselected branches, even when compilation later
 // optimizes them away. Hosts use it to reject unsupported billing entrances.
 func UsesFixedPricing(expression string) bool {
@@ -39,13 +56,74 @@ func isRequestPriceMultiplier(node ast.Node) bool {
 	return multiplierOK && fallbackOK && fallback == 1 && multiplier >= 0 && !math.IsNaN(multiplier) && !math.IsInf(multiplier, 0)
 }
 
+func validateDynamicFixedAmount(node ast.Node) (bool, error) {
+	switch part := node.(type) {
+	case *ast.IntegerNode:
+		return false, nil
+	case *ast.FloatNode:
+		if math.IsNaN(part.Value) || math.IsInf(part.Value, 0) {
+			return false, fmt.Errorf("fixed price arithmetic contains a non-finite literal")
+		}
+		return false, nil
+	case *ast.IdentifierNode:
+		if _, allowed := fixedRequestScalarIdentifiers[part.Value]; !allowed {
+			return false, fmt.Errorf("fixed price arithmetic cannot reference %q", part.Value)
+		}
+		return true, nil
+	case *ast.BinaryNode:
+		switch part.Operator {
+		case "+", "-", "*":
+		default:
+			return false, fmt.Errorf("fixed price arithmetic does not allow operator %q", part.Operator)
+		}
+		leftUsesScalar, err := validateDynamicFixedAmount(part.Left)
+		if err != nil {
+			return false, err
+		}
+		rightUsesScalar, err := validateDynamicFixedAmount(part.Right)
+		if err != nil {
+			return false, err
+		}
+		return leftUsesScalar || rightUsesScalar, nil
+	case *ast.CallNode:
+		callee, ok := part.Callee.(*ast.IdentifierNode)
+		if !ok || callee.Value != "max" || len(part.Arguments) != 2 {
+			return false, fmt.Errorf("fixed price arithmetic allows only max(left, right)")
+		}
+		leftUsesScalar, err := validateDynamicFixedAmount(part.Arguments[0])
+		if err != nil {
+			return false, err
+		}
+		rightUsesScalar, err := validateDynamicFixedAmount(part.Arguments[1])
+		if err != nil {
+			return false, err
+		}
+		return leftUsesScalar || rightUsesScalar, nil
+	case *ast.BuiltinNode:
+		if part.Name != "max" || len(part.Arguments) != 2 {
+			return false, fmt.Errorf("fixed price arithmetic allows only max(left, right)")
+		}
+		leftUsesScalar, err := validateDynamicFixedAmount(part.Arguments[0])
+		if err != nil {
+			return false, err
+		}
+		rightUsesScalar, err := validateDynamicFixedAmount(part.Arguments[1])
+		if err != nil {
+			return false, err
+		}
+		return leftUsesScalar || rightUsesScalar, nil
+	default:
+		return false, fmt.Errorf("fixed price arithmetic contains unsupported %T", node)
+	}
+}
+
 // validateFixedPricingTree enforces one pricing leaf per execution. Without
 // this invariant, adding two tiers or multiplying a fixed price by tokens
 // would make both the request charge and its billing-unit trace ambiguous.
 func validateFixedPricingTree(node ast.Node) error {
 	switch part := node.(type) {
 	case *ast.ConditionalNode:
-		if containsPricingMarker(part.Cond) {
+		if containsPricingMarker(part.Cond) || usesFixedRequestScalar(part.Cond) {
 			break
 		}
 		if err := validateFixedPricingTree(part.Exp1); err != nil {
@@ -76,10 +154,20 @@ func validateFixedPricingTree(node ast.Node) error {
 				if literal && amount >= 0 && !math.IsNaN(amount) && !math.IsInf(amount*1_000_000, 0) {
 					return nil
 				}
+				usesScalar, err := validateDynamicFixedAmount(fixed.Arguments[0])
+				if err == nil && usesScalar {
+					return nil
+				}
+				if err != nil {
+					return err
+				}
 				return fmt.Errorf("fixed price must be a finite, non-negative numeric literal with a finite v1 value")
 			}
 		}
 		if !containsPricingMarker(price) {
+			if usesFixedRequestScalar(price) {
+				return fmt.Errorf("request billing scalars are allowed only inside fixed price amounts")
+			}
 			return nil
 		}
 	}

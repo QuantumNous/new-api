@@ -118,6 +118,41 @@ func GetUpstreamManagedRouteByChannelID(channelID int) (*UpstreamManagedRoute, e
 	return &route, nil
 }
 
+func acquireUpstreamManagedRouteWriteIntentTx(tx *gorm.DB) error {
+	if !common.UsingMainDatabase(common.DatabaseTypeSQLite) {
+		return nil
+	}
+	return tx.Model(&UpstreamManagedRoute{}).
+		Where("1 = 0").
+		UpdateColumn("updated_at", gorm.Expr("updated_at")).Error
+}
+
+func GetAttachedUpstreamManagedRouteForUpdate(tx *gorm.DB, channelID int) (*UpstreamManagedRoute, error) {
+	if err := acquireUpstreamManagedRouteWriteIntentTx(tx); err != nil {
+		return nil, err
+	}
+	var route UpstreamManagedRoute
+	if err := lockForUpdate(tx).
+		Where("channel_id = ? AND detached = ?", channelID, false).
+		First(&route).Error; err != nil {
+		return nil, err
+	}
+	return &route, nil
+}
+
+func GetAttachedUpstreamManagedRouteByIDForUpdate(tx *gorm.DB, routeID int64) (*UpstreamManagedRoute, error) {
+	if err := acquireUpstreamManagedRouteWriteIntentTx(tx); err != nil {
+		return nil, err
+	}
+	var route UpstreamManagedRoute
+	if err := lockForUpdate(tx).
+		Where("id = ? AND detached = ?", routeID, false).
+		First(&route).Error; err != nil {
+		return nil, err
+	}
+	return &route, nil
+}
+
 func ListUpstreamManagedRoutes() ([]UpstreamManagedRoute, error) {
 	var routes []UpstreamManagedRoute
 	err := DB.Order("rank asc, id asc").Find(&routes).Error
@@ -125,43 +160,65 @@ func ListUpstreamManagedRoutes() ([]UpstreamManagedRoute, error) {
 }
 
 func RecordUpstreamRouteFailure(channelID int, now int64, windowSeconds int64, threshold int, reason string) (*UpstreamManagedRoute, bool, error) {
-	var route UpstreamManagedRoute
-	quarantine := false
+	var route *UpstreamManagedRoute
+	var quarantine bool
 	err := DB.Transaction(func(tx *gorm.DB) error {
-		if err := lockForUpdate(tx).Where("channel_id = ? AND detached = ?", channelID, false).First(&route).Error; err != nil {
-			return err
-		}
-		if route.FailureWindowStart == 0 || now-route.FailureWindowStart > windowSeconds {
-			route.FailureWindowStart = now
-			route.ConsecutiveFailures = 1
-		} else {
-			route.ConsecutiveFailures++
-		}
-		route.LastFailureAt = now
-		route.LastReason = strings.TrimSpace(reason)
-		if route.ConsecutiveFailures >= threshold {
-			route.State = UpstreamRouteStateQuarantined
-			route.RecoveryAttempts = 0
-			route.NextProbeAt = now
-			quarantine = true
-		}
-		route.UpdatedAt = now
-		return tx.Model(&UpstreamManagedRoute{}).Where("id = ?", route.ID).Updates(map[string]any{
-			"state":                 route.State,
-			"consecutive_failures":  route.ConsecutiveFailures,
-			"consecutive_successes": 0,
-			"failure_window_start":  route.FailureWindowStart,
-			"last_failure_at":       route.LastFailureAt,
-			"last_reason":           route.LastReason,
-			"recovery_attempts":     route.RecoveryAttempts,
-			"next_probe_at":         route.NextProbeAt,
-			"updated_at":            route.UpdatedAt,
-		}).Error
+		var err error
+		route, quarantine, err = RecordUpstreamRouteFailureTx(
+			tx, channelID, now, windowSeconds, threshold, reason,
+		)
+		return err
 	})
+	if err != nil {
+		return nil, false, err
+	}
+	return route, quarantine, nil
+}
+
+func RecordUpstreamRouteFailureTx(
+	tx *gorm.DB,
+	channelID int,
+	now int64,
+	windowSeconds int64,
+	threshold int,
+	reason string,
+) (*UpstreamManagedRoute, bool, error) {
+	route, err := GetAttachedUpstreamManagedRouteForUpdate(tx, channelID)
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, false, nil
 	}
-	return &route, quarantine, err
+	if err != nil {
+		return nil, false, err
+	}
+	if route.FailureWindowStart == 0 || now-route.FailureWindowStart > windowSeconds {
+		route.FailureWindowStart = now
+		route.ConsecutiveFailures = 1
+	} else {
+		route.ConsecutiveFailures++
+	}
+	route.LastFailureAt = now
+	route.LastReason = strings.TrimSpace(reason)
+	quarantine := route.ConsecutiveFailures >= threshold
+	if quarantine {
+		route.State = UpstreamRouteStateQuarantined
+		route.RecoveryAttempts = 0
+		route.NextProbeAt = now
+	}
+	route.UpdatedAt = now
+	if err := tx.Model(&UpstreamManagedRoute{}).Where("id = ?", route.ID).Updates(map[string]any{
+		"state":                 route.State,
+		"consecutive_failures":  route.ConsecutiveFailures,
+		"consecutive_successes": 0,
+		"failure_window_start":  route.FailureWindowStart,
+		"last_failure_at":       route.LastFailureAt,
+		"last_reason":           route.LastReason,
+		"recovery_attempts":     route.RecoveryAttempts,
+		"next_probe_at":         route.NextProbeAt,
+		"updated_at":            route.UpdatedAt,
+	}).Error; err != nil {
+		return nil, false, err
+	}
+	return route, quarantine, nil
 }
 
 func RecordUpstreamRouteSuccess(channelID int, now int64, latencyMS int64) (*UpstreamManagedRoute, error) {

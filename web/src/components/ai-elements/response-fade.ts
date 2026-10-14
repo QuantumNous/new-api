@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 /** Must match the animation duration on `[data-stream-fade]` in styles/index.css */
 export const FADE_DURATION_MS = 250
 export const FADE_STAGGER_MS = 25

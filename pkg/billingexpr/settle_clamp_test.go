@@ -70,3 +70,21 @@ func TestComputeTieredQuota_TaskUsageDoesNotScalePerMillion(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 250_000, result.ActualQuotaAfterGroup)
 }
+
+func TestComputeTieredQuotaUsesFrozenSnapshotPricingTime(t *testing.T) {
+	exprStr := `v2:unix() == 100 ? tier("frozen", p) : tier("wall_clock", p * 10)`
+	snap := &billingexpr.BillingSnapshot{
+		BillingMode:     "tiered_expr",
+		ExprString:      exprStr,
+		ExprHash:        billingexpr.ExprHashString(exprStr),
+		GroupRatio:      1,
+		QuotaPerUnit:    1_000_000,
+		ExprVersion:     2,
+		PricingTimeUnix: 100,
+	}
+
+	result, err := billingexpr.ComputeTieredQuota(snap, billingexpr.TokenParams{P: 7})
+	require.NoError(t, err)
+	assert.Equal(t, 7, result.ActualQuotaAfterGroup)
+	assert.Equal(t, "frozen", result.MatchedTier)
+}

@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -9,6 +10,8 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -451,13 +454,79 @@ func (releasedAuditLog) TableName() string { return "logs" }
 
 // External tests create a new database per case on a loopback-only disposable
 // instance. They never drop databases or tables supplied through an environment variable.
+func newAuditSQLiteDSN(t *testing.T, dsn string) string {
+	t.Helper()
+	var databaseURL *url.URL
+	if dsn == "" {
+		databaseURL = &url.URL{}
+		query := databaseURL.Query()
+		query.Add("_pragma", "busy_timeout(30000)")
+		query.Add("_pragma", "journal_mode(WAL)")
+		query.Set("_txlock", "immediate")
+		databaseURL.RawQuery = query.Encode()
+	} else {
+		templatePath, rawQuery, hasQuery := strings.Cut(dsn, "?")
+		if auditWindowsDriveAbsolute(templatePath) {
+			queryURL, err := url.Parse("file:/fixture?" + rawQuery)
+			require.NoError(t, err)
+			require.NotContains(t, templatePath, "#")
+			require.Empty(t, queryURL.Fragment)
+			databaseURL = &url.URL{
+				Path:       templatePath,
+				RawQuery:   rawQuery,
+				ForceQuery: hasQuery && rawQuery == "",
+			}
+		} else {
+			var err error
+			databaseURL, err = url.Parse(dsn)
+			require.NoError(t, err)
+		}
+		require.True(t, databaseURL.Scheme == "" || databaseURL.Scheme == "file")
+		require.Empty(t, databaseURL.Opaque)
+		require.Empty(t, databaseURL.Host)
+		require.Nil(t, databaseURL.User)
+		require.Empty(t, databaseURL.Fragment)
+		require.NotEmpty(t, databaseURL.Path)
+		require.False(t, strings.HasPrefix(databaseURL.Path, "//"))
+		require.True(t, auditWindowsDriveAbsolute(databaseURL.Path) || strings.HasPrefix(databaseURL.Path, "/"))
+	}
+
+	fixtureURL := controllerTestSQLiteFileURL(
+		filepath.Join(t.TempDir(), "audit.db"),
+		databaseURL.RawQuery,
+	)
+	fixtureURL.ForceQuery = databaseURL.ForceQuery
+	return fixtureURL.String()
+}
+
+func controllerTestSQLiteFileURL(path, rawQuery string) url.URL {
+	if auditWindowsDriveAbsolute(path) {
+		path = "/" + strings.ReplaceAll(path, `\`, "/")
+	} else {
+		path = filepath.ToSlash(path)
+	}
+	return url.URL{Scheme: "file", Path: path, RawQuery: rawQuery}
+}
+
+func auditWindowsDriveAbsolute(path string) bool {
+	if len(path) < 3 || path[1] != ':' || (path[2] != '/' && path[2] != '\\') {
+		return false
+	}
+	return path[0] >= 'A' && path[0] <= 'Z' || path[0] >= 'a' && path[0] <= 'z'
+}
+
 func newAuditTestDatabase(t *testing.T, kind, dsn string) (*gorm.DB, string) {
 	t.Helper()
 	if kind == "sqlite" {
-		path := t.TempDir() + "/audit.db"
-		db, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
+		dsn = newAuditSQLiteDSN(t, dsn)
+		db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 		require.NoError(t, err)
-		return db, path
+		sqlDB, err := db.DB()
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = sqlDB.Close()
+		})
+		return db, dsn
 	}
 	require.NotEmpty(t, dsn)
 	name := fmt.Sprintf("newapi_audit_%d", time.Now().UnixNano())
@@ -509,6 +578,155 @@ func newAuditTestDatabase(t *testing.T, kind, dsn string) (*gorm.DB, string) {
 		}
 	})
 	return db, newDSN
+}
+
+func TestNewAuditTestDatabaseSQLiteUsesProductionLockingPragmas(t *testing.T) {
+	db, _ := newAuditTestDatabase(t, "sqlite", "")
+
+	var busyTimeout int
+	require.NoError(t, db.Raw("PRAGMA busy_timeout").Scan(&busyTimeout).Error)
+	assert.Equal(t, 30000, busyTimeout)
+
+	var journalMode string
+	require.NoError(t, db.Raw("PRAGMA journal_mode").Scan(&journalMode).Error)
+	assert.Equal(t, "wal", strings.ToLower(journalMode))
+}
+
+func TestControllerTestSQLiteFileURLWindowsDrivePaths(t *testing.T) {
+	const rawQuery = "_pragma=busy_timeout%2812345%29&_txlock=deferred"
+	for _, test := range []struct {
+		name string
+		path string
+	}{
+		{name: "native path", path: `C:\tmp\shared-audit.db`},
+		{name: "slash-normalized path", path: "C:/tmp/shared-audit.db"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			databaseURL := controllerTestSQLiteFileURL(test.path, rawQuery)
+			parsed, err := url.Parse(databaseURL.String())
+			require.NoError(t, err)
+			assert.Equal(t, "file", parsed.Scheme)
+			assert.Empty(t, parsed.Host)
+			assert.Equal(t, "/C:/tmp/shared-audit.db", parsed.Path)
+			assert.Equal(t, rawQuery, parsed.RawQuery)
+		})
+	}
+}
+
+func TestNewAuditTestDatabaseSQLiteIsolatesExplicitTemplates(t *testing.T) {
+	templateURL := controllerTestSQLiteFileURL(filepath.Join(t.TempDir(), "shared-audit.db"), "")
+	query := templateURL.Query()
+	query.Add("_pragma", "busy_timeout(12345)")
+	query.Add("_pragma", "journal_mode(WAL)")
+	query.Set("_txlock", "deferred")
+	templateURL.RawQuery = query.Encode()
+
+	firstDB, firstDSN := newAuditTestDatabase(t, "sqlite", templateURL.String())
+	secondDB, secondDSN := newAuditTestDatabase(t, "sqlite", templateURL.String())
+
+	require.NotEqual(t, firstDSN, secondDSN)
+	for _, isolatedDSN := range []string{firstDSN, secondDSN} {
+		parsed, err := url.Parse(isolatedDSN)
+		require.NoError(t, err)
+		assert.Equal(t, templateURL.RawQuery, parsed.RawQuery)
+		assert.True(t, strings.HasSuffix(parsed.Path, "/audit.db"))
+		assert.NotEqual(t, templateURL.Path, parsed.Path)
+	}
+
+	require.NoError(t, firstDB.Exec("CREATE TABLE audit_fixture_marker (id INTEGER PRIMARY KEY)").Error)
+	var markerTables int64
+	require.NoError(t, secondDB.Raw(
+		"SELECT COUNT(*) FROM sqlite_master WHERE type = ? AND name = ?",
+		"table", "audit_fixture_marker",
+	).Scan(&markerTables).Error)
+	assert.Zero(t, markerTables)
+}
+
+func TestNewAuditTestDatabaseSQLiteIsolatesPathTemplates(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		windows  bool
+		rawQuery string
+	}{
+		{name: "unix without query"},
+		{name: "unix with query", rawQuery: "_pragma=busy_timeout%2812345%29&_pragma=journal_mode%28WAL%29&_txlock=deferred"},
+		{name: "windows drive without query", windows: true},
+		{name: "windows drive with query", windows: true, rawQuery: "_pragma=busy_timeout%2812345%29&_pragma=journal_mode%28WAL%29&_txlock=deferred"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			templatePath := t.TempDir() + "/shared-audit.db"
+			if tc.windows {
+				templatePath = `C:\tmp\shared-audit.db`
+			}
+			template := templatePath
+			if tc.rawQuery != "" {
+				template += "?" + tc.rawQuery
+			}
+
+			firstDB, firstDSN := newAuditTestDatabase(t, "sqlite", template)
+			secondDB, secondDSN := newAuditTestDatabase(t, "sqlite", template)
+
+			require.NotEqual(t, firstDSN, secondDSN)
+			for _, isolatedDSN := range []string{firstDSN, secondDSN} {
+				parsed, err := url.Parse(isolatedDSN)
+				require.NoError(t, err)
+				assert.Equal(t, "file", parsed.Scheme)
+				assert.Equal(t, tc.rawQuery, parsed.RawQuery)
+				assert.True(t, strings.HasSuffix(parsed.Path, "/audit.db"))
+				assert.NotEqual(t, templatePath, parsed.Path)
+			}
+
+			require.NoError(t, firstDB.Exec("CREATE TABLE audit_fixture_marker (id INTEGER PRIMARY KEY)").Error)
+			var markerTables int64
+			require.NoError(t, secondDB.Raw(
+				"SELECT COUNT(*) FROM sqlite_master WHERE type = ? AND name = ?",
+				"table", "audit_fixture_marker",
+			).Scan(&markerTables).Error)
+			assert.Zero(t, markerTables)
+		})
+	}
+}
+
+func TestNewAuditTestDatabaseClosesSQLitePool(t *testing.T) {
+	var pool *sql.DB
+	t.Run("fixture owner", func(t *testing.T) {
+		db, _ := newAuditTestDatabase(t, "sqlite", "")
+		var err error
+		pool, err = db.DB()
+		require.NoError(t, err)
+		require.NoError(t, pool.Ping())
+	})
+
+	require.NotNil(t, pool)
+	require.Error(t, pool.Ping())
+	assert.Zero(t, pool.Stats().OpenConnections)
+}
+
+func TestNewAuditSQLiteDSNRejectsUnsafeTemplates(t *testing.T) {
+	const unsafeDSNEnv = "NEW_API_AUDIT_UNSAFE_SQLITE_DSN"
+	if dsn := os.Getenv(unsafeDSNEnv); dsn != "" {
+		_ = newAuditSQLiteDSN(t, dsn)
+		return
+	}
+
+	tests := []struct {
+		name string
+		dsn  string
+	}{
+		{name: "backslash UNC path", dsn: `\\server\share\audit.db`},
+		{name: "slash UNC path", dsn: "//server/share/audit.db"},
+		{name: "file URI UNC path", dsn: "file:////server/share/audit.db?_txlock=immediate"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			command := exec.Command(os.Args[0], "-test.run=^TestNewAuditSQLiteDSNRejectsUnsafeTemplates$")
+			command.Env = append(os.Environ(), unsafeDSNEnv+"="+test.dsn)
+			err := command.Run()
+			var exitErr *exec.ExitError
+			require.ErrorAs(t, err, &exitErr)
+			assert.Equal(t, 1, exitErr.ExitCode())
+		})
+	}
 }
 
 func verifyAuditRoleStorage(t *testing.T) {

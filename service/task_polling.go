@@ -15,6 +15,7 @@ import (
 	taskdto "github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
+	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
 	"github.com/QuantumNous/new-api/relay/channel/task/taskcommon"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 
@@ -65,7 +66,7 @@ var GetTaskAdaptorFunc func(platform constant.TaskPlatform) TaskPollingAdaptor
 
 // sweepTimedOutTasks 在主轮询之前独立清理超时任务。
 // 每次最多处理 100 条，剩余的下个周期继续处理。
-// 使用 per-task CAS (UpdateWithStatus) 防止覆盖被正常轮询已推进的任务。
+// 使用 per-task CAS (TimeoutWithStatus) 防止覆盖已推进或仍在派发的任务。
 func sweepTimedOutTasks(ctx context.Context) {
 	if constant.TaskTimeoutMinutes <= 0 {
 		return
@@ -97,7 +98,7 @@ func sweepTimedOutTasks(ctx context.Context) {
 			task.FailReason = reason
 		}
 
-		won, err := task.UpdateWithStatus(oldStatus)
+		won, err := task.TimeoutWithStatus(oldStatus, cutoff)
 		if err != nil {
 			logger.LogError(ctx, fmt.Sprintf("sweepTimedOutTasks CAS update error for task %s: %v", task.TaskID, err))
 			continue
@@ -268,17 +269,46 @@ func updateBatchTasks(ctx context.Context, adaptor BatchTaskPollingAdaptor, chan
 	if baseURL == "" {
 		baseURL = constant.GetChannelBaseURL(ch.Type)
 	}
-	tasks := make([]*model.Task, 0, len(taskIds))
+	credentialOrder := make([]string, 0)
+	tasksByCredential := make(map[string][]*model.Task)
+	seenTasks := make(map[*model.Task]struct{}, len(taskIds))
 	for _, upstreamID := range taskIds {
 		if task := taskM[upstreamID]; task != nil {
-			tasks = append(tasks, task)
+			if _, seen := seenTasks[task]; seen {
+				continue
+			}
+			seenTasks[task] = struct{}{}
+			key := task.PrivateData.Key
+			if key == "" {
+				key = ch.Key
+			}
+			if _, ok := tasksByCredential[key]; !ok {
+				credentialOrder = append(credentialOrder, key)
+			}
+			tasksByCredential[key] = append(tasksByCredential[key], task)
 		}
 	}
-	info := &relaycommon.RelayInfo{}
-	info.ChannelMeta = &relaycommon.ChannelMeta{ChannelBaseUrl: baseURL}
-	info.ApiKey = ch.Key
-	adaptor.Init(info)
-	resp, err := adaptor.FetchBatchTasks(baseURL, ch.Key, tasks, proxy)
+	var firstErr error
+	for _, key := range credentialOrder {
+		// Fetch and parse share adaptor state, so bind both operations to this
+		// group's effective credential before moving to the next group.
+		info := &relaycommon.RelayInfo{}
+		info.ChannelMeta = &relaycommon.ChannelMeta{ChannelType: ch.Type, ChannelId: ch.Id, ChannelBaseUrl: baseURL}
+		info.ApiKey = key
+		adaptor.Init(info)
+		err := updateBatchTaskGroup(ctx, adaptor, channelId, baseURL, key, tasksByCredential[key], proxy)
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+	}
+	return firstErr
+}
+
+func updateBatchTaskGroup(ctx context.Context, adaptor BatchTaskPollingAdaptor, channelId int, baseURL, key string, tasks []*model.Task, proxy string) error {
+	resp, err := adaptor.FetchBatchTasks(baseURL, key, tasks, proxy)
 	if err != nil {
 		common.SysLog(fmt.Sprintf("Get Task Do req error: %v", err))
 		return recordPollFailureForTasks(ctx, adaptor, tasks, pollClassTransport, 0, err.Error())
@@ -301,6 +331,10 @@ func updateBatchTasks(ctx context.Context, adaptor BatchTaskPollingAdaptor, chan
 	responseItems, err := adaptor.ParseBatchResult(tasks, resp, responseBody)
 	if err != nil {
 		return recordPollFailureForTasks(ctx, adaptor, tasks, pollClassHookError, resp.StatusCode, err.Error())
+	}
+	taskM := make(map[string]*model.Task, len(tasks))
+	for _, task := range tasks {
+		taskM[task.GetUpstreamTaskID()] = task
 	}
 	for upstreamID, responseItem := range responseItems {
 		if ctx.Err() != nil {
@@ -374,11 +408,7 @@ func updateBatchTasks(ctx context.Context, adaptor BatchTaskPollingAdaptor, chan
 			continue
 		}
 		if terminalTransition {
-			billingSettled := settleTaskBillingOnComplete(ctx, adaptor, task, &responseItem.TaskInfo)
-			if (task.Status == model.TaskStatusFailure || task.Status == model.TaskStatusCancelled) &&
-				!billingSettled && task.Quota != 0 {
-				RefundTaskQuota(ctx, task, task.FailReason)
-			}
+			finalizeTerminalTask(ctx, adaptor, task, &responseItem.TaskInfo)
 		}
 	}
 	return nil
@@ -449,6 +479,8 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	}
 	info := &relaycommon.RelayInfo{}
 	info.ChannelMeta = &relaycommon.ChannelMeta{
+		ChannelType:    cacheGetChannel.Type,
+		ChannelId:      cacheGetChannel.Id,
 		ChannelBaseUrl: cacheGetChannel.GetBaseURL(),
 	}
 	info.ApiKey = cacheGetChannel.Key
@@ -558,7 +590,6 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 
 	now := time.Now().Unix()
 	shouldFinalizeBilling := false
-	shouldRefund := false
 
 	task.Status = parsedStatus
 	switch parsedStatus {
@@ -604,9 +635,7 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 			task.FinishTime = now
 		}
 		task.FailReason = "cancelled"
-		if task.Quota != 0 {
-			shouldRefund = true
-		}
+		shouldFinalizeBilling = true
 	default:
 		return fmt.Errorf("unknown task status %s for task %s", taskResult.Status, task.TaskID)
 	}
@@ -622,11 +651,9 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 		if err != nil {
 			logger.LogError(ctx, fmt.Sprintf("UpdateWithStatus failed for task %s: %s", task.TaskID, err.Error()))
 			shouldFinalizeBilling = false
-			shouldRefund = false
 		} else if !won {
 			logger.LogWarn(ctx, fmt.Sprintf("Task %s CAS lost or no-op update, skip billing", task.TaskID))
 			shouldFinalizeBilling = false
-			shouldRefund = false
 		}
 	} else if !snap.Equal(task.Snapshot()) {
 		if _, err := task.UpdateWithStatus(snap.Status); err != nil {
@@ -638,16 +665,20 @@ func updateVideoSingleTask(ctx context.Context, adaptor TaskPollingAdaptor, ch *
 	}
 
 	if shouldFinalizeBilling {
-		billingSettled := settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
-		if task.Status == model.TaskStatusFailure && !billingSettled && task.Quota != 0 {
-			RefundTaskQuota(ctx, task, task.FailReason)
-		}
-	}
-	if shouldRefund {
-		RefundTaskQuota(ctx, task, task.FailReason)
+		finalizeTerminalTask(ctx, adaptor, task, taskResult)
 	}
 
 	return nil
+}
+
+// finalizeTerminalTask 终态统一收尾（状态 CAS 赢家调用，恰好一次）：采样 + 结算 + 失败兜底退款。
+func finalizeTerminalTask(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, taskResult *relaycommon.TaskInfo) {
+	perfmetrics.RecordTaskResult(task, taskResult)
+	billingSettled := settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
+	if (task.Status == model.TaskStatusFailure || task.Status == model.TaskStatusCancelled) &&
+		!billingSettled && task.Quota != 0 {
+		RefundTaskQuota(ctx, task, task.FailReason)
+	}
 }
 
 func redactVideoResponseBody(body []byte) []byte {
@@ -845,11 +876,7 @@ func failTaskFromPoll(ctx context.Context, adaptor TaskPollingAdaptor, task *mod
 	if !won {
 		return nil
 	}
-	taskResult := relaycommon.FailTaskInfo(reason)
-	billingSettled := settleTaskBillingOnComplete(ctx, adaptor, task, taskResult)
-	if !billingSettled && task.Quota != 0 {
-		RefundTaskQuota(ctx, task, reason)
-	}
+	finalizeTerminalTask(ctx, adaptor, task, relaycommon.FailTaskInfo(reason))
 	return nil
 }
 

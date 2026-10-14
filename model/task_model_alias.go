@@ -1,6 +1,7 @@
 package model
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -8,6 +9,8 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // TaskAliasTarget is one mapping-derived alias after cross-channel aggregation.
@@ -20,9 +23,10 @@ type TaskAliasTarget struct {
 }
 
 type taskAliasView struct {
-	generation uint64
-	expiresAt  time.Time
-	byFold     map[string]TaskAliasTarget
+	generation           uint64
+	expiresAt            time.Time
+	channelCacheCoherent bool
+	byFold               map[string]TaskAliasTarget
 }
 
 const taskAliasViewTTL = 60 * time.Second
@@ -43,6 +47,13 @@ func ResolveTaskModelAlias(g *jsplugin.RoutingGeneration, name string) (TaskAlia
 	if view == nil {
 		return TaskAliasTarget{}, false
 	}
+	return resolveTaskModelAlias(view, name)
+}
+
+func resolveTaskModelAlias(view *taskAliasView, name string) (TaskAliasTarget, bool) {
+	if view == nil || name == "" {
+		return TaskAliasTarget{}, false
+	}
 	target, ok := view.byFold[jsplugin.ASCIIFold(name)]
 	return target, ok
 }
@@ -58,7 +69,11 @@ func loadFreshTaskAliasView(g *jsplugin.RoutingGeneration) *taskAliasView {
 	if taskAliasViewFresh(view, g.Number) {
 		return view
 	}
-	rebuilt := buildTaskAliasView(g)
+	rebuilt, err := buildTaskAliasView(DB, g)
+	if err != nil {
+		common.SysError(fmt.Sprintf("rebuild task alias view: %s", err.Error()))
+		rebuilt = newTaskAliasView(g)
+	}
 	taskAliasViewPtr.Store(rebuilt)
 	return rebuilt
 }
@@ -67,10 +82,31 @@ func taskAliasViewFresh(view *taskAliasView, generation uint64) bool {
 	return view != nil && view.generation == generation && time.Now().Before(view.expiresAt)
 }
 
+func taskAliasViewsSemanticallyEqual(left, right *taskAliasView) bool {
+	if left == nil || right == nil || left.generation != right.generation || len(left.byFold) != len(right.byFold) {
+		return false
+	}
+	if common.MemoryCacheEnabled && !left.channelCacheCoherent {
+		return false
+	}
+	for fold, target := range left.byFold {
+		if target != right.byFold[fold] {
+			return false
+		}
+	}
+	return true
+}
+
 func rebuildTaskAliasView() {
 	taskAliasRebuildMu.Lock()
 	defer taskAliasRebuildMu.Unlock()
-	taskAliasViewPtr.Store(buildTaskAliasView(jsplugin.DefaultRegistry.Generation()))
+	generation := jsplugin.DefaultRegistry.Generation()
+	rebuilt, err := buildTaskAliasView(DB, generation)
+	if err != nil {
+		common.SysError(fmt.Sprintf("rebuild task alias view: %s", err.Error()))
+		rebuilt = newTaskAliasView(generation)
+	}
+	taskAliasViewPtr.Store(rebuilt)
 }
 
 type taskAliasDraft struct {
@@ -78,32 +114,51 @@ type taskAliasDraft struct {
 	byPlugin  map[string]map[string]struct{}
 }
 
-func buildTaskAliasView(generation *jsplugin.RoutingGeneration) *taskAliasView {
+func newTaskAliasView(generation *jsplugin.RoutingGeneration) *taskAliasView {
 	genNum := uint64(0)
 	if generation != nil {
 		genNum = generation.Number
 	}
-	view := &taskAliasView{
+	return &taskAliasView{
 		generation: genNum,
 		expiresAt:  time.Now().Add(taskAliasViewTTL),
 		byFold:     make(map[string]TaskAliasTarget),
 	}
-	if DB == nil {
-		return view
+}
+
+func buildTaskAliasView(db *gorm.DB, generation *jsplugin.RoutingGeneration) (*taskAliasView, error) {
+	if db == nil {
+		return nil, errors.New("task alias view database is unavailable")
+	}
+	if generation == nil {
+		return nil, errors.New("task alias routing generation is unavailable")
 	}
 
 	var channels []Channel
-	err := DB.Select("id", "type", "models", "model_mapping").
+	err := db.Select("id", "type", "status", "models", "model_mapping").
 		Where("status = ?", common.ChannelStatusEnabled).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "id"}}).
 		Find(&channels).Error
 	if err != nil {
-		common.SysError(fmt.Sprintf("rebuild task alias view: %s", err.Error()))
-		return view
+		return nil, fmt.Errorf("read task alias channels: %w", err)
 	}
-
-	drafts := make(map[string]*taskAliasDraft)
+	channelPointers := make([]*Channel, len(channels))
 	for i := range channels {
-		channel := &channels[i]
+		channelPointers[i] = &channels[i]
+	}
+	return buildTaskAliasViewFromChannels(channelPointers, generation)
+}
+
+func buildTaskAliasViewFromChannels(channels []*Channel, generation *jsplugin.RoutingGeneration) (*taskAliasView, error) {
+	if generation == nil {
+		return nil, errors.New("task alias routing generation is unavailable")
+	}
+	view := newTaskAliasView(generation)
+	drafts := make(map[string]*taskAliasDraft)
+	for _, channel := range channels {
+		if channel == nil || channel.Status != common.ChannelStatusEnabled {
+			continue
+		}
 		mappingJSON := channel.GetModelMapping()
 		if mappingJSON == "" || mappingJSON == "{}" {
 			continue
@@ -186,7 +241,7 @@ func buildTaskAliasView(generation *jsplugin.RoutingGeneration) *taskAliasView {
 			PluginKey: pluginKey,
 		}
 	}
-	return view
+	return view, nil
 }
 
 // followChannelModelMapping walks one channel's mapping the same way

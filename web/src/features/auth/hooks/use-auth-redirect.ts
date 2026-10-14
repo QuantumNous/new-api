@@ -22,6 +22,7 @@ import { useCallback, useEffect, useRef } from 'react'
 
 import {
   getSavedLanguage,
+  navigateAfterAuthentication,
   sanitizeAuthRedirect,
 } from '@/features/auth/lib/auth-redirect'
 import { applyAuthBundle, isAuthBundle } from '@/lib/api'
@@ -63,9 +64,11 @@ export function useAuthRedirect() {
         await i18n.changeLanguage(savedLang)
       }
 
-      const targetPath =
-        sanitizeAuthRedirect(redirectTo, window.location.origin) ?? '/dashboard'
-      await navigate({ href: targetPath, replace: true })
+      await navigateAfterAuthentication(
+        redirectTo,
+        window.location.origin,
+        navigate
+      )
     },
     [navigate, sessionID]
   )

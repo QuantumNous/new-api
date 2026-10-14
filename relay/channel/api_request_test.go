@@ -12,6 +12,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestDoRequestClassifiesClientSetupFailureWithoutChangingMessage(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/test", nil)
+	request := httptest.NewRequest(http.MethodPost, "https://provider.invalid/v1/test", nil)
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}}
+	info.ChannelSetting.Proxy = "://invalid-proxy"
+
+	_, err := doRequest(c, request, info)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrProviderRequestNotStarted)
+	assert.Equal(t, "new proxy http client failed: invalid proxy URL", err.Error())
+}
+
 func TestNewTaskAPIRequestInheritsClientCancellation(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)

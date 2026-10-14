@@ -286,7 +286,7 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 		}
 		imageRequest.BillingParameters = parameters
 	}
-	if _, err := imageRequest.ImageCount(common.GetContextKeyInt(c, constant.ContextKeyChannelType) == constant.ChannelTypeAli); err != nil {
+	if _, err := imageRequest.ImageCount(false); err != nil {
 		return nil, err
 	}
 	return imageRequest, nil

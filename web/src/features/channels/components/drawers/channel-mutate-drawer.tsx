@@ -105,6 +105,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { SecureVerificationDialog } from '@/features/auth/secure-verification'
+import { PluginIcon } from '@/features/task-plugins/components/plugin-icon'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { useHiddenClickUnlock } from '@/hooks/use-hidden-click-unlock'
 import {
@@ -140,6 +141,7 @@ import {
   CLAUDE_FIELD_PASSTHROUGH_TYPES,
   CHANNEL_STATUS_LABELS,
   CHANNEL_TYPE_GEMINI,
+  CHANNEL_TYPE_NEW_API,
   CHANNEL_TYPE_OLLAMA,
   CHANNEL_TYPE_OPTIONS,
   CHANNEL_TYPE_TASK_PLUGIN,
@@ -197,6 +199,7 @@ import {
 import {
   getChannelPluginExtensions,
   supportsChannelPluginExtensions,
+  supportsNewAPIUpstream,
 } from '../../lib/channel-plugin-extensions'
 import { getChannelTypeConfig } from '../../lib/channel-type-config'
 import {
@@ -482,7 +485,6 @@ export function ChannelMutateDrawer({
   const mappingDraftTokenRef = useRef(0)
   const [batchMapping, setBatchMapping] = useState<{
     source: ModelMappingBatchSource
-    selected: string[]
   } | null>(null)
   const [redirectPanelOpen, setRedirectPanelOpen] = useState(false)
   const [redirectSyncModels, setRedirectSyncModels] = useState(true)
@@ -595,6 +597,7 @@ export function ChannelMutateDrawer({
   const currentStatus = formValues.status
   const currentBaseUrl = formValues.base_url
   const currentTaskPluginKey = formValues.task_plugin_key
+  const currentTaskExtendPluginKeys = formValues.task_extend_plugin_keys
   const currentKey = formValues.key
   const currentModels = formValues.models
   const currentModelMapping = formValues.model_mapping
@@ -772,10 +775,15 @@ export function ChannelMutateDrawer({
   const canHavePluginExtensions = supportsChannelPluginExtensions(currentType)
   const pluginExtensions = useMemo(() => {
     if (!canBindTaskPlugin || !taskPluginOptionsQuery.isSuccess) return []
-    return getChannelPluginExtensions(currentType, taskPluginOptionsQuery.data)
+    return getChannelPluginExtensions(
+      currentType,
+      taskPluginOptionsQuery.data,
+      currentTaskExtendPluginKeys
+    )
   }, [
     canBindTaskPlugin,
     currentType,
+    currentTaskExtendPluginKeys,
     taskPluginOptionsQuery.isSuccess,
     taskPluginOptionsQuery.data,
   ])
@@ -1330,6 +1338,48 @@ export function ChannelMutateDrawer({
     [form]
   )
 
+  const taskPluginExtensionOptions = useMemo(
+    () =>
+      (taskPluginOptionsQuery.data ?? [])
+        .filter(supportsNewAPIUpstream)
+        .map((plugin) => ({
+          value: plugin.key,
+          label: plugin.name,
+          hint: plugin.key,
+          icon: <PluginIcon plugin={plugin} size={16} />,
+        })),
+    [taskPluginOptionsQuery.data]
+  )
+
+  // Binding an upstream plugin publishes its models like the type-61 prefill.
+  // Unbinding only changes the binding because models may be operator-managed.
+  const handleTaskExtendPluginKeysChange = useCallback(
+    (keys: string[]) => {
+      const plugins = taskPluginOptionsQuery.data ?? []
+      const declaredBy = (bound: readonly string[]) =>
+        new Set(
+          plugins
+            .filter((plugin) => bound.includes(plugin.key))
+            .flatMap((plugin) => plugin.models)
+        )
+      const previous = form.getValues('task_extend_plugin_keys') ?? []
+      const added = declaredBy(keys.filter((key) => !previous.includes(key)))
+      const models = parseModelsString(form.getValues('models') || '')
+      let modelsChanged = false
+      for (const model of added) {
+        if (!models.includes(model)) {
+          models.push(model)
+          modelsChanged = true
+        }
+      }
+      form.setValue('task_extend_plugin_keys', keys, { shouldDirty: true })
+      if (modelsChanged) {
+        form.setValue('models', models.join(','), { shouldDirty: true })
+      }
+    },
+    [form, taskPluginOptionsQuery.data]
+  )
+
   const raiseMappingDraft = useCallback(
     (from: string, to: string, focus?: 'from' | 'to') => {
       mappingDraftTokenRef.current += 1
@@ -1448,9 +1498,8 @@ export function ChannelMutateDrawer({
     setRedirectPanelOpen(false)
   }, [])
 
-  // Redirect one fetched upstream model. On wide screens the floating panel
-  // stays beside the list; a name the platform already knows is applied at
-  // once, anything else becomes a draft row awaiting the request name.
+  // Redirect one fetched upstream model. Verified aliases can be applied
+  // immediately; unknown names remain explicit drafts.
   const handleFetchedRedirect = useCallback(
     (model: string) => {
       if (window.innerWidth < REDIRECT_PANEL_MIN_VIEWPORT) {
@@ -2486,7 +2535,6 @@ export function ChannelMutateDrawer({
                     ? () =>
                         setBatchMapping({
                           source: batchMappingSource,
-                          selected: [],
                         })
                     : undefined
                 }
@@ -3106,6 +3154,38 @@ export function ChannelMutateDrawer({
       <ChannelModelsSection>
         <div className='space-y-5'>
           <div className='border-border/60 bg-muted/10 rounded-lg border p-4'>
+            {currentType === CHANNEL_TYPE_NEW_API &&
+              canBindTaskPlugin &&
+              taskPluginOptionsQuery.isSuccess &&
+              !showProviderPicker && (
+                <FormField
+                  control={form.control}
+                  name='task_extend_plugin_keys'
+                  render={({ field }) => (
+                    <FormItem className='mb-4'>
+                      <FormLabel>{t('Upstream task plugins')}</FormLabel>
+                      <FormControl>
+                        <MultiSelect
+                          options={taskPluginExtensionOptions}
+                          selected={field.value ?? []}
+                          onChange={handleTaskExtendPluginKeysChange}
+                          placeholder={t(
+                            'Select the task plugins installed on the upstream gateway'
+                          )}
+                          maxVisibleChips={8}
+                          disabled={!canEditSensitive}
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'This channel serves the models of every selected plugin. The upstream New API gateway must have the same plugins installed.'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             <FormField
               control={form.control}
               name='models'
@@ -3353,9 +3433,6 @@ export function ChannelMutateDrawer({
                             onClick={() =>
                               setBatchMapping({
                                 source: 'upstream',
-                                selected: discovery.models.filter((model) =>
-                                  currentModelsArray.includes(model)
-                                ),
                               })
                             }
                           >
@@ -4945,12 +5022,9 @@ export function ChannelMutateDrawer({
               onMappingCommit={handlePanelMappingCommit}
               suggestions={namingSuggestions}
               onApplySuggestion={handleApplySuggestion}
-              onOpenRules={() =>
+              onBatchAdd={() =>
                 setBatchMapping({
-                  source: 'upstream',
-                  selected: upstreamModelList.filter((model) =>
-                    currentModelsArray.includes(model)
-                  ),
+                  source: batchMappingSource,
                 })
               }
               syncModels={redirectSyncModels}
@@ -4990,7 +5064,6 @@ export function ChannelMutateDrawer({
           upstreamModels={upstreamModelList}
           channelModels={currentModelsArray}
           initialSource={batchMapping.source}
-          initialSelected={batchMapping.selected}
           onOpenChange={(nextOpen) => {
             if (!nextOpen) setBatchMapping(null)
           }}

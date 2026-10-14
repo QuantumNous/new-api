@@ -5,15 +5,19 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	relaytypes "github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestManagedSourceDiversityWithinSamePriority(t *testing.T) {
@@ -59,6 +63,27 @@ func TestManagedSourceDiversityWithinSamePriority(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, third)
 	assert.Equal(t, 54, third.Id)
+}
+
+func TestRecordRetryAttemptDeduplicatesChannelAndSourceIDs(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	require.NoError(t, db.AutoMigrate(&model.UpstreamManagedRoute{}))
+	channel := &model.Channel{Id: 62}
+	require.NoError(t, db.Create(&model.UpstreamManagedRoute{
+		SourceID:        1,
+		ExternalGroupID: "25",
+		Platform:        "openai",
+		Protocol:        model.UpstreamProtocolOpenAI,
+		ChannelID:       channel.Id,
+		State:           model.UpstreamRouteStateActive,
+	}).Error)
+	param := &RetryParam{}
+
+	RecordRetryAttempt(param, channel)
+	RecordRetryAttempt(param, channel)
+
+	assert.Equal(t, []int{channel.Id}, param.AttemptedChannelIDs)
+	assert.Equal(t, []int64{1}, param.AttemptedSourceIDs)
 }
 
 func TestManagedModelUnsupportedDetection(t *testing.T) {
@@ -192,4 +217,128 @@ func TestIsolateManagedRouteModelOnlyRemovesFailedModel(t *testing.T) {
 		"gpt-5.4",
 		operation_setting.GetUpstreamOrchestrationSetting().ModelExclusions,
 	))
+}
+
+func TestManagedModelExclusionSerializesWithFullPolicyWrite(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	require.NoError(t, db.AutoMigrate(&model.Option{}, &model.UpstreamSource{}))
+	previousType := common.MainDatabaseType()
+	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
+	previousSetting, err := config.ConfigToMap(
+		operation_setting.GetUpstreamOrchestrationSetting(),
+	)
+	require.NoError(t, err)
+	common.OptionMapRWMutex.Lock()
+	previousOptions := common.OptionMap
+	common.OptionMap = make(map[string]string)
+	common.OptionMapRWMutex.Unlock()
+	t.Cleanup(func() {
+		common.SetMainDatabaseType(previousType)
+		updated, restoreErr := config.GlobalConfig.UpdateFromMap(
+			"upstream_orchestration",
+			previousSetting,
+		)
+		require.NoError(t, restoreErr)
+		require.True(t, updated)
+		common.OptionMapRWMutex.Lock()
+		common.OptionMap = previousOptions
+		common.OptionMapRWMutex.Unlock()
+	})
+	initial := operation_setting.UpstreamRoutingPolicy{
+		TargetGroups:            []string{"initial"},
+		ModelAliases:            map[string]string{"initial": "model"},
+		ModelExclusions:         map[string][]string{"source:paid": {"initial-model"}},
+		ProtocolModelExclusions: map[string][]string{"openai": {"initial-protocol-model"}},
+	}
+	require.NoError(t, model.UpdateUpstreamOrchestrationPolicy(initial))
+	source := model.UpstreamSource{
+		Key: "source", Name: "Source", ConsoleURL: "https://console.example.com",
+	}
+	require.NoError(t, db.Create(&source).Error)
+
+	uiPolicy := operation_setting.UpstreamRoutingPolicy{
+		TargetGroups:            []string{"ui"},
+		ModelAliases:            map[string]string{"ui": "model"},
+		ModelExclusions:         map[string][]string{"source:paid": {"ui-model"}},
+		ProtocolModelExclusions: map[string][]string{"anthropic": {"ui-protocol-model"}},
+	}
+	uiLocked := make(chan struct{})
+	releaseUI := make(chan struct{})
+	releaseUIOnce := sync.Once{}
+	healthRead := make(chan struct{})
+	var uiOnce, healthOnce sync.Once
+	releaseUIWriter := func() {
+		releaseUIOnce.Do(func() { close(releaseUI) })
+	}
+	t.Cleanup(releaseUIWriter)
+	const callbackName = "test:managed_exclusion_policy_serialization"
+	require.NoError(t, db.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table != "options" {
+			return
+		}
+		for _, value := range tx.Statement.Vars {
+			key, ok := value.(string)
+			if !ok {
+				continue
+			}
+			switch key {
+			case "upstream_orchestration.model_aliases":
+				uiOnce.Do(func() {
+					close(uiLocked)
+					<-releaseUI
+				})
+			case managedModelExclusionsOption:
+				healthOnce.Do(func() { close(healthRead) })
+			}
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, db.Callback().Query().Remove(callbackName))
+	})
+
+	uiDone := make(chan error, 1)
+	go func() {
+		uiDone <- model.UpdateUpstreamOrchestrationPolicy(uiPolicy)
+	}()
+	select {
+	case <-uiLocked:
+	case <-time.After(5 * time.Second):
+		t.Fatal("UI policy writer did not reach the transaction barrier")
+	}
+	healthStarted := make(chan struct{})
+	healthDone := make(chan error, 1)
+	go func() {
+		close(healthStarted)
+		_, appendErr := persistManagedModelExclusion(source.ID, "paid", "health-model")
+		healthDone <- appendErr
+	}()
+	select {
+	case <-healthStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("health writer did not start")
+	}
+	select {
+	case earlyErr := <-healthDone:
+		t.Fatalf("health writer completed before the full policy writer released its lock: %v", earlyErr)
+	case <-time.After(250 * time.Millisecond):
+	}
+	releaseUIWriter()
+	require.NoError(t, <-uiDone)
+	select {
+	case <-healthRead:
+	case <-time.After(5 * time.Second):
+		t.Fatal("health writer did not reach the persisted policy read after lock release")
+	}
+	require.NoError(t, <-healthDone)
+
+	var stored model.Option
+	require.NoError(t, db.Where("key = ?", managedModelExclusionsOption).First(&stored).Error)
+	var exclusions map[string][]string
+	require.NoError(t, common.UnmarshalJsonStr(stored.Value, &exclusions))
+	assert.Equal(t, []string{"ui-model", "health-model"}, exclusions["source:paid"])
+	runtime := operation_setting.GetUpstreamOrchestrationSetting()
+	assert.Equal(t, uiPolicy.TargetGroups, runtime.TargetGroups)
+	assert.Equal(t, uiPolicy.ModelAliases, runtime.ModelAliases)
+	assert.Equal(t, exclusions, runtime.ModelExclusions)
+	assert.Equal(t, uiPolicy.ProtocolModelExclusions, runtime.ProtocolModelExclusions)
 }

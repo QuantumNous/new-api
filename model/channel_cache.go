@@ -13,6 +13,7 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
@@ -25,15 +26,36 @@ var channel2advancedCustomConfig map[int]*kitdto.AdvancedCustomConfig
 var channelSyncLock sync.RWMutex
 
 func InitChannelCache() {
+	if err := refreshChannelCache(); err != nil {
+		common.SysError(fmt.Sprintf("sync channels from database: %s", err.Error()))
+	}
+}
+
+func refreshChannelCache() error {
+	generation := jsplugin.DefaultRegistry.Generation()
 	if !common.MemoryCacheEnabled {
+		aliases, err := buildTaskAliasView(DB, generation)
+		if err != nil {
+			return err
+		}
+		aliases.channelCacheCoherent = true
+		taskAliasRebuildMu.Lock()
+		taskAliasViewPtr.Store(aliases)
+		taskAliasRebuildMu.Unlock()
 		InvalidatePricingCache()
-		rebuildTaskAliasView()
-		return
+		return nil
 	}
 	newChannelId2channel := make(map[int]*Channel)
 	newChannel2advancedCustomConfig := make(map[int]*kitdto.AdvancedCustomConfig)
 	var channels []*Channel
-	DB.Find(&channels)
+	if err := DB.Find(&channels).Error; err != nil {
+		return fmt.Errorf("read channel cache: %w", err)
+	}
+	aliases, err := buildTaskAliasViewFromChannels(channels, generation)
+	if err != nil {
+		return err
+	}
+	aliases.channelCacheCoherent = true
 	for _, channel := range channels {
 		newChannelId2channel[channel.Id] = channel
 		if channel.Type == constant.ChannelTypeAdvancedCustom {
@@ -43,7 +65,9 @@ func InitChannelCache() {
 		}
 	}
 	var abilities []*Ability
-	DB.Find(&abilities)
+	if err := DB.Find(&abilities).Error; err != nil {
+		return fmt.Errorf("read channel ability cache: %w", err)
+	}
 	groups := make(map[string]bool)
 	for _, ability := range abilities {
 		groups[ability.Group] = true
@@ -78,6 +102,7 @@ func InitChannelCache() {
 		}
 	}
 
+	taskAliasRebuildMu.Lock()
 	channelSyncLock.Lock()
 	group2model2channels = newGroup2model2channels
 	//channelsIDM = newChannelId2channel
@@ -96,14 +121,16 @@ func InitChannelCache() {
 	}
 	channelsIDM = newChannelId2channel
 	channel2advancedCustomConfig = newChannel2advancedCustomConfig
+	taskAliasViewPtr.Store(aliases)
 	channelSyncLock.Unlock()
+	taskAliasRebuildMu.Unlock()
 	// Lock ordering: InvalidatePricingCache acquires updatePricingLock, and
 	// GetPricing (holding updatePricingLock) nests channelSyncLock.RLock via
 	// loadPricingAdvancedCustomConfigs. channelSyncLock MUST be released before
 	// invalidating the pricing cache, otherwise the reversed order deadlocks.
 	InvalidatePricingCache()
-	rebuildTaskAliasView()
 	common.SysLog("channels synced from database")
+	return nil
 }
 
 func SyncChannelCache(frequency int) {

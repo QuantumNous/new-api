@@ -383,6 +383,7 @@ type responsesWSBillingTest struct {
 	token         *model.Token
 	channel       *model.Channel
 	client        *websocket.Conn
+	redis         *redis.Client
 	done          chan struct{}
 	upstreamDone  chan struct{}
 	connections   atomic.Int32
@@ -406,6 +407,32 @@ func (fixture *responsesWSBillingTest) closeAndWait(t *testing.T) {
 	}
 	// Health classification is synchronous at the request boundary; only the
 	// Redis write is asynchronous, see waitPerfCounters.
+}
+
+func (fixture *responsesWSBillingTest) waitForQuotaState(t *testing.T, userQuota, tokenQuota int) {
+	t.Helper()
+	require.Eventually(t, func() bool {
+		var user model.User
+		var token model.Token
+		if model.DB.First(&user, fixture.user.Id).Error != nil ||
+			model.DB.First(&token, fixture.token.Id).Error != nil ||
+			user.Quota != userQuota ||
+			token.RemainQuota != tokenQuota {
+			return false
+		}
+		cachedUserQuota, userErr := fixture.redis.HGet(
+			context.Background(),
+			fmt.Sprintf("user:%d", fixture.user.Id),
+			"Quota",
+		).Int()
+		cachedTokenQuota, tokenErr := fixture.redis.HGet(
+			context.Background(),
+			"token:"+common.GenerateHMAC(fixture.token.Key),
+			"RemainQuota",
+		).Int()
+		return userErr == nil && tokenErr == nil &&
+			cachedUserQuota == userQuota && cachedTokenQuota == tokenQuota
+	}, 3*time.Second, 10*time.Millisecond)
 }
 
 // waitPerfCounters waits for the asynchronous health samples of the fixture
@@ -465,6 +492,7 @@ func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*web
 	fixture := &responsesWSBillingTest{user: user, token: token, done: make(chan struct{}), upstreamDone: make(chan struct{}), httpDone: make(chan struct{}, 1)}
 	redisServer := miniredis.RunT(t)
 	redisClient := redis.NewClient(&redis.Options{Addr: redisServer.Addr()})
+	fixture.redis = redisClient
 	common.RDB, common.RedisEnabled = redisClient, true
 	t.Cleanup(func() { require.NoError(t, redisClient.Close()) })
 	var upstreamClosed sync.Once
@@ -987,7 +1015,8 @@ func TestResponsesWebSocketInitialUpstreamRejectionRefundsReservation(t *testing
 		t.Run(tc.name, func(t *testing.T) {
 			preConsumed := make(chan int, 1)
 			tokenID := make(chan int, 1)
-			fixture := newResponsesWSBillingTest(t, `tier("output", c * 2)`, func(ws *websocket.Conn, _ *http.Request) {
+			// Pre-consume no longer estimates completion tokens, so an output-priced expression reserves nothing to refund.
+			fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
 				if _, _, err := ws.ReadMessage(); !assert.NoError(t, err) {
 					return
 				}
@@ -1020,7 +1049,7 @@ func TestResponsesWebSocketInitialUpstreamRejectionRefundsReservation(t *testing
 			rejectionError, _ := rejection["error"].(map[string]any)
 			assert.Equal(t, tc.wantType, rejectionError["type"])
 			assert.Equal(t, tc.wantMessage, rejectionError["message"])
-			assert.Equal(t, 2990, <-preConsumed, "the rejected request reserved quota before contacting upstream")
+			assert.Equal(t, 2000, <-preConsumed, "the rejected request reserved quota before contacting upstream")
 			deadline := time.NewTimer(3 * time.Second)
 			defer deadline.Stop()
 			for {
@@ -1235,10 +1264,9 @@ func TestResponsesHTTPRetriesRetryable500WithDefaultBudget(t *testing.T) {
 	oldRetries := common.RetryTimes
 	common.RetryTimes = 1
 	t.Cleanup(func() { common.RetryTimes = oldRetries })
-	orchestration := operation_setting.GetUpstreamOrchestrationSetting()
-	oldOrchestration := *orchestration
-	orchestration.Enabled = false
-	t.Cleanup(func() { *orchestration = oldOrchestration })
+	updateUpstreamOrchestrationForTest(t, func(setting *operation_setting.UpstreamOrchestrationSetting) {
+		setting.Enabled = false
+	})
 
 	var attempts atomic.Int64
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -1285,17 +1313,18 @@ func TestResponsesWebSocketManagedDialFailoverUsesAdaptiveBudget(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(*websocket.Conn, *http.Request) {})
+			firstAttemptStarted := make(chan struct{})
+			releaseFirstAttempt := make(chan struct{})
 			require.NoError(t, model.DB.AutoMigrate(&model.UpstreamManagedRoute{}))
 			previousRetries := common.RetryTimes
 			common.RetryTimes = 1
 			t.Cleanup(func() { common.RetryTimes = previousRetries })
-			orchestration := operation_setting.GetUpstreamOrchestrationSetting()
-			previousOrchestration := *orchestration
-			orchestration.Enabled = true
-			orchestration.RequestAttemptLimit = 5
-			orchestration.FailoverBudgetSeconds = tc.budgetSeconds
-			orchestration.FailureThreshold = 5
-			t.Cleanup(func() { *orchestration = previousOrchestration })
+			updateUpstreamOrchestrationForTest(t, func(setting *operation_setting.UpstreamOrchestrationSetting) {
+				setting.Enabled = true
+				setting.RequestAttemptLimit = 5
+				setting.FailoverBudgetSeconds = tc.budgetSeconds
+				setting.FailureThreshold = 5
+			})
 
 			var totalAttempts atomic.Int64
 			attemptsBySource := make([]atomic.Int64, 3)
@@ -1303,7 +1332,11 @@ func TestResponsesWebSocketManagedDialFailoverUsesAdaptiveBudget(t *testing.T) {
 			for index := range servers {
 				servers[index] = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 					attemptsBySource[index].Add(1)
-					totalAttempts.Add(1)
+					attempt := totalAttempts.Add(1)
+					if attempt == 1 {
+						close(firstAttemptStarted)
+						<-releaseFirstAttempt
+					}
 					if tc.firstDelay > 0 {
 						time.Sleep(tc.firstDelay)
 					}
@@ -1346,9 +1379,14 @@ func TestResponsesWebSocketManagedDialFailoverUsesAdaptiveBudget(t *testing.T) {
 			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(
 				`{"type":"response.create","event_id":"managed-failover","model":"ws-billing","input":"hi"}`,
 			)))
+			<-firstAttemptStarted
+			fixture.waitForQuotaState(t, 99000, 2000)
+			close(releaseFirstAttempt)
 			failed := readResponsesWSTestEvent(t, fixture.client)
 			assert.Equal(t, "error", failed["type"])
 			fixture.closeAndWait(t)
+			fixture.waitForQuotaState(t, 100000, 3000)
+			waitPerfCounters(t, 1)
 
 			assert.Equal(t, tc.wantAttempts, totalAttempts.Load())
 			if tc.wantAttempts == 3 {
@@ -1358,6 +1396,311 @@ func TestResponsesWebSocketManagedDialFailoverUsesAdaptiveBudget(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestResponsesWebSocketManagedDialRetryParity(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		status      int
+		wantSuccess bool
+	}{
+		{name: "request timeout", status: http.StatusRequestTimeout, wantSuccess: true},
+		{name: "gateway timeout", status: http.StatusGatewayTimeout, wantSuccess: true},
+		{name: "cloudflare timeout", status: 524, wantSuccess: true},
+		{name: "ordinary not found", status: http.StatusNotFound},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+				if _, _, err := ws.ReadMessage(); !assert.NoError(t, err) {
+					return
+				}
+				_ = ws.WriteMessage(websocket.TextMessage, []byte(
+					`{"type":"response.completed","response":{"id":"managed-retry","status":"completed","usage":{"input_tokens":1000,"output_tokens":1,"total_tokens":1001}}}`,
+				))
+			})
+			require.NoError(t, model.DB.AutoMigrate(&model.UpstreamManagedRoute{}))
+			updateUpstreamOrchestrationForTest(t, func(setting *operation_setting.UpstreamOrchestrationSetting) {
+				setting.Enabled = true
+				setting.FailoverBudgetSeconds = 10
+				setting.FailureThreshold = 5
+			})
+
+			successURL := *fixture.channel.BaseURL
+			var rejectedAttempts atomic.Int64
+			rejected := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				rejectedAttempts.Add(1)
+				http.Error(w, http.StatusText(tc.status), tc.status)
+			}))
+			t.Cleanup(rejected.Close)
+			high, low := int64(10), int64(0)
+			fixture.channel.BaseURL = &rejected.URL
+			fixture.channel.Priority = &high
+			fixture.channel.AutoBan = common.GetPointer(0)
+			require.NoError(t, model.DB.Save(fixture.channel).Error)
+			require.NoError(t, model.DB.Model(&model.Ability{}).
+				Where("channel_id = ?", fixture.channel.Id).
+				Update("priority", high).Error)
+			backup := &model.Channel{
+				Name: "managed-retry-backup", Key: "backup-key", Status: common.ChannelStatusEnabled,
+				Type: constant.ChannelTypeOpenAI, Group: "default", Models: "ws-billing",
+				BaseURL: &successURL, Priority: &low, AutoBan: common.GetPointer(0),
+			}
+			backup.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: true})
+			require.NoError(t, model.DB.Create(backup).Error)
+			require.NoError(t, model.DB.Create(&model.Ability{
+				ChannelId: backup.Id, Model: "ws-billing", Group: "default", Enabled: true, Priority: backup.Priority,
+			}).Error)
+			for index, channel := range []*model.Channel{fixture.channel, backup} {
+				require.NoError(t, model.DB.Create(&model.UpstreamManagedRoute{
+					SourceID: int64(index + 1), ExternalGroupID: fmt.Sprintf("retry-%d", index),
+					Platform: "openai", Protocol: model.UpstreamProtocolOpenAI, ChannelID: channel.Id,
+					State: model.UpstreamRouteStateActive,
+				}).Error)
+			}
+			model.InitChannelCache()
+
+			require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(
+				`{"type":"response.create","event_id":"managed-retry","model":"ws-billing","input":"hi"}`,
+			)))
+			event := readResponsesWSTestEvent(t, fixture.client)
+			fixture.closeAndWait(t)
+
+			assert.Equal(t, int64(1), rejectedAttempts.Load())
+			if tc.wantSuccess {
+				assert.Equal(t, "response.completed", event["type"])
+				assert.Equal(t, int32(1), fixture.connections.Load())
+				return
+			}
+			assert.Equal(t, "error", event["type"])
+			assert.Equal(t, float64(tc.status), event["status"])
+			assert.Zero(t, fixture.connections.Load())
+		})
+	}
+}
+
+func TestResponsesWebSocketManagedHealthPersistenceFailureStopsFailover(t *testing.T) {
+	for _, failingTable := range []string{"upstream_managed_routes", "channels", "abilities"} {
+		t.Run(failingTable, func(t *testing.T) {
+			testResponsesWebSocketManagedHealthPersistenceFailureStopsFailover(t, failingTable)
+		})
+	}
+}
+
+func testResponsesWebSocketManagedHealthPersistenceFailureStopsFailover(t *testing.T, failingTable string) {
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		if _, _, err := ws.ReadMessage(); !assert.NoError(t, err) {
+			return
+		}
+		_ = ws.WriteMessage(websocket.TextMessage, []byte(
+			`{"type":"response.completed","response":{"id":"unexpected-retry","status":"completed","usage":{"input_tokens":1000,"output_tokens":1,"total_tokens":1001}}}`,
+		))
+	})
+	require.NoError(t, model.DB.AutoMigrate(&model.UpstreamManagedRoute{}))
+	updateUpstreamOrchestrationForTest(t, func(setting *operation_setting.UpstreamOrchestrationSetting) {
+		setting.Enabled = true
+		setting.FailoverBudgetSeconds = 10
+		setting.FailureThreshold = 1
+	})
+	previousAutoDisable := common.AutomaticDisableChannelEnabled
+	previousDisableRanges := append([]operation_setting.StatusCodeRange(nil), operation_setting.AutomaticDisableStatusCodeRanges...)
+	common.AutomaticDisableChannelEnabled = true
+	operation_setting.AutomaticDisableStatusCodeRanges = []operation_setting.StatusCodeRange{
+		{Start: http.StatusInternalServerError, End: http.StatusBadGateway},
+	}
+	t.Cleanup(func() {
+		common.AutomaticDisableChannelEnabled = previousAutoDisable
+		operation_setting.AutomaticDisableStatusCodeRanges = previousDisableRanges
+	})
+
+	successURL := *fixture.channel.BaseURL
+	var rejectedAttempts atomic.Int64
+	rejected := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		rejectedAttempts.Add(1)
+		http.Error(w, "dial rejected", http.StatusBadGateway)
+	}))
+	t.Cleanup(rejected.Close)
+	high, low := int64(10), int64(0)
+	fixture.channel.BaseURL = &rejected.URL
+	fixture.channel.Priority = &high
+	fixture.channel.AutoBan = common.GetPointer(1)
+	fixture.channel.Key = "managed-persistence-key"
+	fixture.channel.ChannelInfo = model.ChannelInfo{}
+	require.NoError(t, model.DB.Save(fixture.channel).Error)
+	require.NoError(t, model.DB.Model(&model.Ability{}).
+		Where("channel_id = ?", fixture.channel.Id).
+		Update("priority", high).Error)
+	backup := &model.Channel{
+		Name: "managed-persistence-backup", Key: "backup-key", Status: common.ChannelStatusEnabled,
+		Type: constant.ChannelTypeOpenAI, Group: "default", Models: "ws-billing",
+		BaseURL: &successURL, Priority: &low, AutoBan: common.GetPointer(1),
+	}
+	backup.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: true})
+	require.NoError(t, model.DB.Create(backup).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{
+		ChannelId: backup.Id, Model: "ws-billing", Group: "default", Enabled: true, Priority: backup.Priority,
+	}).Error)
+	for index, channel := range []*model.Channel{fixture.channel, backup} {
+		require.NoError(t, model.DB.Create(&model.UpstreamManagedRoute{
+			SourceID: int64(index + 1), ExternalGroupID: fmt.Sprintf("persistence-%d", index),
+			Platform: "openai", Protocol: model.UpstreamProtocolOpenAI, ChannelID: channel.Id,
+			State: model.UpstreamRouteStateActive,
+		}).Error)
+	}
+	model.InitChannelCache()
+
+	injected := errors.New("injected managed health persistence failure")
+	persistenceAttempted := make(chan struct{}, 1)
+	const callbackName = "test:responses_ws_managed_health_persistence_failure"
+	require.NoError(t, model.DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table != failingTable {
+			return
+		}
+		select {
+		case persistenceAttempted <- struct{}{}:
+		default:
+		}
+		tx.AddError(injected)
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Callback().Update().Remove(callbackName))
+	})
+
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(
+		`{"type":"response.create","event_id":"managed-persistence","model":"ws-billing","input":"hi"}`,
+	)))
+	event := readResponsesWSTestEvent(t, fixture.client)
+	select {
+	case <-persistenceAttempted:
+	case <-time.After(3 * time.Second):
+		t.Fatal("managed health persistence was not attempted")
+	}
+	fixture.closeAndWait(t)
+	fixture.waitForQuotaState(t, 100000, 3000)
+	waitPerfCounters(t, 1)
+
+	assert.Equal(t, "error", event["type"])
+	assert.Equal(t, int64(1), rejectedAttempts.Load())
+	assert.Zero(t, fixture.connections.Load(), "the alternate provider must not be dialed")
+	var storedChannel model.Channel
+	require.NoError(t, model.DB.First(&storedChannel, fixture.channel.Id).Error)
+	assert.Equal(t, common.ChannelStatusEnabled, storedChannel.Status)
+	var storedAbility model.Ability
+	require.NoError(t, model.DB.Where("channel_id = ?", fixture.channel.Id).First(&storedAbility).Error)
+	assert.True(t, storedAbility.Enabled)
+	var storedRoute model.UpstreamManagedRoute
+	require.NoError(t, model.DB.Where("channel_id = ?", fixture.channel.Id).First(&storedRoute).Error)
+	assert.Equal(t, model.UpstreamRouteStateActive, storedRoute.State)
+	assert.Zero(t, storedRoute.ConsecutiveFailures)
+}
+
+func TestResponsesWebSocketAffinityFailoverSkipsInitialManagedSource(t *testing.T) {
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		if _, _, err := ws.ReadMessage(); !assert.NoError(t, err) {
+			return
+		}
+		_ = ws.WriteMessage(websocket.TextMessage, []byte(
+			`{"type":"response.completed","response":{"id":"affinity-failover","status":"completed","usage":{"input_tokens":1000,"output_tokens":1,"total_tokens":1001}}}`,
+		))
+	})
+	require.NoError(t, model.DB.AutoMigrate(&model.UpstreamManagedRoute{}))
+	updateUpstreamOrchestrationForTest(t, func(setting *operation_setting.UpstreamOrchestrationSetting) {
+		setting.Enabled = true
+		setting.FailoverBudgetSeconds = 10
+		setting.FailureThreshold = 5
+	})
+	affinity := operation_setting.GetChannelAffinitySetting()
+	previousAffinity := *affinity
+	t.Cleanup(func() {
+		*affinity = previousAffinity
+		service.ClearChannelAffinityCacheAll()
+	})
+	*affinity = operation_setting.ChannelAffinitySetting{
+		Enabled:           true,
+		SessionMode:       "prefer",
+		DefaultTTLSeconds: 60,
+		Rules: []operation_setting.ChannelAffinityRule{{
+			Name:       "managed-source",
+			ModelRegex: []string{"^ws-billing$"},
+			PathRegex:  []string{"^/v1/responses$"},
+			KeySources: []operation_setting.ChannelAffinityKeySource{{Type: "context_int", Key: "id"}},
+		}},
+	}
+	service.ClearChannelAffinityCacheAll()
+
+	successURL := *fixture.channel.BaseURL
+	var initialAttempts, siblingAttempts atomic.Int64
+	initial := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		initialAttempts.Add(1)
+		http.Error(w, "initial failed", http.StatusBadGateway)
+	}))
+	t.Cleanup(initial.Close)
+	sibling := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		siblingAttempts.Add(1)
+		http.Error(w, "same source repeated", http.StatusBadGateway)
+	}))
+	t.Cleanup(sibling.Close)
+	high, low := int64(10), int64(0)
+	fixture.channel.BaseURL = &initial.URL
+	fixture.channel.Priority = &high
+	fixture.channel.AutoBan = common.GetPointer(0)
+	require.NoError(t, model.DB.Save(fixture.channel).Error)
+	require.NoError(t, model.DB.Model(&model.Ability{}).
+		Where("channel_id = ?", fixture.channel.Id).
+		Update("priority", high).Error)
+	sourceASibling := &model.Channel{
+		Name: "source-a-sibling", Key: "source-a-sibling-key", Status: common.ChannelStatusEnabled,
+		Type: constant.ChannelTypeOpenAI, Group: "default", Models: "ws-billing",
+		BaseURL: &sibling.URL, Priority: &low, Weight: common.GetPointer(uint(100)), AutoBan: common.GetPointer(0),
+	}
+	sourceB := &model.Channel{
+		Name: "source-b", Key: "source-b-key", Status: common.ChannelStatusEnabled,
+		Type: constant.ChannelTypeOpenAI, Group: "default", Models: "ws-billing",
+		BaseURL: &successURL, Priority: &low, Weight: common.GetPointer(uint(0)), AutoBan: common.GetPointer(0),
+	}
+	for _, channel := range []*model.Channel{sourceASibling, sourceB} {
+		channel.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: true})
+		require.NoError(t, model.DB.Create(channel).Error)
+		require.NoError(t, model.DB.Create(&model.Ability{
+			ChannelId: channel.Id, Model: "ws-billing", Group: "default", Enabled: true,
+			Priority: channel.Priority, Weight: *channel.Weight,
+		}).Error)
+	}
+	for _, route := range []model.UpstreamManagedRoute{
+		{
+			SourceID: 1, ExternalGroupID: "source-a-primary", Platform: "openai",
+			Protocol: model.UpstreamProtocolOpenAI, ChannelID: fixture.channel.Id, State: model.UpstreamRouteStateActive,
+		},
+		{
+			SourceID: 1, ExternalGroupID: "source-a-sibling", Platform: "openai",
+			Protocol: model.UpstreamProtocolOpenAI, ChannelID: sourceASibling.Id, State: model.UpstreamRouteStateActive,
+		},
+		{
+			SourceID: 2, ExternalGroupID: "source-b", Platform: "openai",
+			Protocol: model.UpstreamProtocolOpenAI, ChannelID: sourceB.Id, State: model.UpstreamRouteStateActive,
+		},
+	} {
+		require.NoError(t, model.DB.Create(&route).Error)
+	}
+	model.InitChannelCache()
+
+	seed, _ := gin.CreateTestContext(httptest.NewRecorder())
+	seed.Request = httptest.NewRequest(http.MethodGet, "/v1/responses", nil)
+	seed.Set("id", fixture.user.Id)
+	_, found := service.GetPreferredChannelByAffinity(seed, "ws-billing", "default")
+	require.False(t, found)
+	seed.Set("channel_id", fixture.channel.Id)
+	service.RecordChannelAffinity(seed, fixture.channel.Id)
+
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(
+		`{"type":"response.create","event_id":"affinity-failover","model":"ws-billing","input":"hi"}`,
+	)))
+	event := readResponsesWSTestEvent(t, fixture.client)
+	fixture.closeAndWait(t)
+
+	assert.Equal(t, "response.completed", event["type"])
+	assert.Equal(t, int64(1), initialAttempts.Load())
+	assert.Zero(t, siblingAttempts.Load())
+	assert.Equal(t, int32(1), fixture.connections.Load())
 }
 
 func TestResponsesWebSocketLocalErrorsKeepStreamIdentity(t *testing.T) {

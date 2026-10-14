@@ -135,6 +135,14 @@ func getPricingEndpointTypesForAbility(ability AbilityWithChannel, advancedCusto
 	return common.GetEndpointTypesByChannelType(ability.ChannelType, ability.Model)
 }
 
+func resolvePricingBillingDecision(generation *jsplugin.RoutingGeneration, model string) billing_setting.BillingDecision {
+	mappedModel := ""
+	if target, resolved := ResolveTaskModelAlias(generation, model); resolved {
+		mappedModel = target.Declared
+	}
+	return billing_setting.ResolveTaskBillingDecision("", model, mappedModel)
+}
+
 // loadPricingAdvancedCustomConfigs runs inside updatePricing while
 // updatePricingLock is held, and nests channelSyncLock.RLock. This defines the
 // global lock order updatePricingLock -> channelSyncLock: any code path holding
@@ -413,17 +421,11 @@ func updatePricing() {
 			audioCompletionRatio := ratio_setting.GetAudioCompletionRatio(model)
 			pricing.AudioCompletionRatio = &audioCompletionRatio
 		}
-		if billingMode := billing_setting.GetBillingMode(model); billingMode == "tiered_expr" {
-			if expr, ok := billing_setting.GetBillingExpr(model); ok && strings.TrimSpace(expr) != "" {
-				pricing.BillingMode = billingMode
-				pricing.BillingExpr = expr
-			}
-		} else if target, resolved := ResolveTaskModelAlias(pluginGeneration, model); resolved && target.Declared != "" {
-			if tailMode := billing_setting.GetBillingMode(target.Declared); tailMode == "tiered_expr" {
-				if expr, ok := billing_setting.GetBillingExpr(target.Declared); ok && strings.TrimSpace(expr) != "" {
-					pricing.BillingMode = tailMode
-					pricing.BillingExpr = expr
-				}
+		billingDecision := resolvePricingBillingDecision(pluginGeneration, model)
+		if billingDecision.Mode == billing_setting.BillingModeTieredExpr {
+			if billingDecision.ExpressionExists && strings.TrimSpace(billingDecision.Expression) != "" {
+				pricing.BillingMode = billingDecision.Mode
+				pricing.BillingExpr = billingDecision.Expression
 			}
 		}
 		configuredPrice := explicitPrice || explicitRatio || pricing.BillingExpr != ""
@@ -468,11 +470,9 @@ func updatePricing() {
 				if schema == nil {
 					schema = map[string]jsplugin.UsageFieldSchema{}
 				}
-				expression, hasExpression := billing_setting.ResolveTaskBillingExpr(provider.Meta.Key, model, "")
-				mode := billing_setting.BillingModeRatio
-				if hasExpression || billing_setting.GetBillingMode(model) == billing_setting.BillingModeTieredExpr {
-					mode = billing_setting.BillingModeTieredExpr
-				}
+				billingDecision := billing_setting.ResolveTaskBillingDecision(provider.Meta.Key, model, "")
+				expression := billingDecision.Expression
+				mode := billingDecision.Mode
 				if mode == billing_setting.BillingModeTieredExpr && !billing_setting.TaskExprCompatible(expression, schema) {
 					expression = ""
 				}

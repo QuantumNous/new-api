@@ -3,6 +3,7 @@ package perfmetrics
 import (
 	"context"
 	"errors"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,6 +13,9 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/alicebob/miniredis/v2"
+	"github.com/bytedance/gopkg/util/gopool"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -107,6 +111,88 @@ func TestHourlySuccessSeriesWeightsSmallerBuckets(t *testing.T) {
 		7200: {requestCount: 1, successCount: 1},
 	})
 	assert.Equal(t, []SuccessRatePoint{{Ts: 3600, SuccessRate: 99.01}, {Ts: 7200, SuccessRate: 100}}, points)
+}
+
+// Terminal task sampling: success/failure counts, end-to-end latency, and
+// token throughput only for successful tasks that report tokens.
+func TestRecordTaskResultSamplesTerminalTasks(t *testing.T) {
+	hotBuckets.Clear()
+	t.Cleanup(func() { hotBuckets.Clear() })
+	now := time.Now().Unix()
+	RecordTaskResult(&model.Task{
+		Status:     model.TaskStatusSuccess,
+		Group:      "a",
+		SubmitTime: now - 120,
+		StartTime:  now - 100,
+		FinishTime: now,
+		Properties: model.Properties{OriginModelName: "video-model"},
+	}, &relaycommon.TaskInfo{TotalTokens: 5000})
+	RecordTaskResult(&model.Task{
+		Status:     model.TaskStatusFailure,
+		Group:      "a",
+		SubmitTime: now - 60,
+		FinishTime: now,
+		Properties: model.Properties{OriginModelName: "video-model"},
+	}, relaycommon.FailTaskInfo("boom"))
+	RecordTaskResult(&model.Task{Status: model.TaskStatusSuccess, FinishTime: now}, nil)
+
+	merged := map[bucketKey]counters{}
+	hotBuckets.Range(func(key, value any) bool {
+		k := key.(bucketKey)
+		require.Equal(t, "video-model", k.model)
+		require.Equal(t, "a", k.group)
+		k.bucketTs = 0
+		mergeCounters(merged, k, value.(*atomicBucket).snapshot())
+		return true
+	})
+	assert.Equal(t, counters{
+		requestCount:   2,
+		successCount:   1,
+		totalLatencyMs: 180000,
+		outputTokens:   5000,
+		generationMs:   100000,
+	}, merged[bucketKey{model: "video-model", group: "a"}])
+}
+
+func TestRecordCapturesRedisTargetBeforeRequestCleanup(t *testing.T) {
+	require.Eventually(t, func() bool {
+		return gopool.WorkerCount() == 0
+	}, time.Second, time.Millisecond)
+	gopool.SetCap(1)
+	t.Cleanup(func() { gopool.SetCap(math.MaxInt32) })
+
+	server := miniredis.RunT(t)
+	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
+	previousEnabled, previousRDB := common.RedisEnabled, common.RDB
+	common.RedisEnabled, common.RDB = true, client
+	t.Cleanup(func() {
+		common.RedisEnabled, common.RDB = previousEnabled, previousRDB
+	})
+
+	blocked := make(chan struct{})
+	release := make(chan struct{})
+	gopool.Go(func() {
+		close(blocked)
+		<-release
+	})
+	<-blocked
+
+	Record(Sample{Model: "request-model", Group: "request-group", Success: true})
+	persisted := make(chan struct{})
+	gopool.Go(func() { close(persisted) })
+
+	common.RedisEnabled, common.RDB = false, nil
+	close(release)
+	select {
+	case <-persisted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for asynchronous metric persistence")
+	}
+
+	keys := server.Keys()
+	require.Len(t, keys, 1)
+	assert.Equal(t, "1", server.HGet(keys[0], "req"))
 }
 
 // TEST_PERF_MYSQL_DSN / TEST_PERF_POSTGRES_DSN optionally run the aggregation

@@ -16,14 +16,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Combobox } from '@/components/ui/combobox'
 import { useState } from 'react'
 import type { UseFormReturn } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 
+import { Combobox } from '@/components/ui/combobox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-
 
 import { SettingsControlGroup } from '../../../components/settings-form-layout'
 import { OAUTH_PRESETS, type CustomOAuthFormValues } from '../types'
@@ -109,13 +108,18 @@ export function PresetSelector(props: PresetSelectorProps) {
         <div className='space-y-1.5'>
           <Label>{t('Preset Template')}</Label>
           <Combobox
- options={OAUTH_PRESETS.map((preset) => ({ value: preset.key, label: preset.name }))}
- value={selectedPreset}
- onValueChange={(value) => { if (value !== null) handlePresetChange(value) }}
- aria-label={t('Select preset')}
- placeholder={t('Select preset')}
- className='w-full'
-/>
+            options={OAUTH_PRESETS.map((preset) => ({
+              value: preset.key,
+              label: preset.name,
+            }))}
+            value={selectedPreset}
+            onValueChange={(value) => {
+              if (value !== null) handlePresetChange(value)
+            }}
+            aria-label={t('Select preset')}
+            placeholder={t('Select preset')}
+            className='w-full'
+          />
         </div>
         <div className='space-y-1.5'>
           <Label>{t('Base URL')}</Label>

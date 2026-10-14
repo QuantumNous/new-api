@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -13,11 +14,13 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 const relayFailoverModel = "gpt-3.5-turbo"
@@ -230,9 +233,14 @@ func addRelayFailoverChannel(t *testing.T, id int, priority int64, upstream *fai
 
 func performRelayFailoverRequest(t *testing.T, engine *gin.Engine) *httptest.ResponseRecorder {
 	t.Helper()
+	return performRelayFailoverRequestWithToken(t, engine, "harelaytoken")
+}
+
+func performRelayFailoverRequestWithToken(t *testing.T, engine *gin.Engine, token string) *httptest.ResponseRecorder {
+	t.Helper()
 	body := bytes.NewBufferString(`{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"ping"}]}`)
 	request := httptest.NewRequest(http.MethodPost, "/v1/chat/completions", body)
-	request.Header.Set("Authorization", "Bearer harelaytoken")
+	request.Header.Set("Authorization", "Bearer "+token)
 	request.Header.Set("Content-Type", "application/json")
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)
@@ -245,23 +253,35 @@ func initializeRelayFailoverChannels() {
 	}
 }
 
-func enableManagedOrchestrationForFailoverTest(t *testing.T, budgetSeconds int) {
+func enableManagedOrchestrationForFailoverTest(t *testing.T, budgetSeconds int, failureThreshold ...int) {
 	t.Helper()
-	setting := operation_setting.GetUpstreamOrchestrationSetting()
-	original := *setting
-	setting.Enabled = true
-	setting.FailureThreshold = 2
-	setting.FailureWindowMinutes = 5
-	setting.FailoverBudgetSeconds = budgetSeconds
+	original := operation_setting.GetUpstreamOrchestrationSetting()
+	originalValues, err := config.ConfigToMap(original)
+	require.NoError(t, err)
+	next := operation_setting.GetUpstreamOrchestrationSetting()
+	next.Enabled = true
+	next.FailureThreshold = 2
+	if len(failureThreshold) > 0 {
+		next.FailureThreshold = failureThreshold[0]
+	}
+	next.FailureWindowMinutes = 5
+	next.FailoverBudgetSeconds = budgetSeconds
+	nextValues, err := config.ConfigToMap(next)
+	require.NoError(t, err)
+	updated, err := config.GlobalConfig.UpdateFromMap("upstream_orchestration", nextValues)
+	require.NoError(t, err)
+	require.True(t, updated)
 	t.Cleanup(func() {
-		*setting = original
+		updated, err := config.GlobalConfig.UpdateFromMap("upstream_orchestration", originalValues)
+		require.NoError(t, err)
+		require.True(t, updated)
 	})
 }
 
-func addManagedFailoverRoute(t *testing.T, channel model.Channel) model.UpstreamManagedRoute {
+func addManagedFailoverRoute(t *testing.T, channel model.Channel, sourceID int64) model.UpstreamManagedRoute {
 	t.Helper()
 	route := model.UpstreamManagedRoute{
-		SourceID:        int64(channel.Id),
+		SourceID:        sourceID,
 		ExternalGroupID: fmt.Sprintf("group-%d", channel.Id),
 		Platform:        "openai",
 		Protocol:        model.UpstreamProtocolOpenAI,
@@ -370,6 +390,128 @@ func TestRelayChannelFailoverFrom500(t *testing.T) {
 	}
 }
 
+func TestManagedRelayRetrySkipsInitialSourceSiblings(t *testing.T) {
+	engine, user := setupRelayFailoverTest(t, true)
+	enableManagedOrchestrationForFailoverTest(t, 90)
+	trace := &failoverCallTrace{}
+	initial := newFailoverUpstream(t, "source-a-primary", http.StatusInternalServerError, trace)
+	sibling := newFailoverUpstream(t, "source-a-sibling", http.StatusOK, trace)
+	backup := newFailoverUpstream(t, "source-b", http.StatusOK, trace)
+	initialChannel := addRelayFailoverChannel(t, 3681, 30, initial)
+	siblingChannel := addRelayFailoverChannel(t, 3682, 20, sibling)
+	backupChannel := addRelayFailoverChannel(t, 3683, 20, backup)
+	require.NoError(t, model.DB.Model(&model.Channel{}).
+		Where("id = ?", backupChannel.Id).
+		Update("weight", 0).Error)
+	require.NoError(t, model.DB.Model(&model.Ability{}).
+		Where("channel_id = ?", backupChannel.Id).
+		Update("weight", 0).Error)
+	initialRoute := addManagedFailoverRoute(t, initialChannel, 101)
+	siblingRoute := addManagedFailoverRoute(t, siblingChannel, 101)
+	backupRoute := addManagedFailoverRoute(t, backupChannel, 202)
+	nextProbeAt := common.GetTimestamp() + 3600
+	require.NoError(t, model.DB.Model(&model.UpstreamManagedRoute{}).
+		Where("id IN ?", []int64{initialRoute.ID, siblingRoute.ID}).
+		Update("next_probe_at", nextProbeAt).Error)
+	probeScanDone := make(chan struct{})
+	var probeScanOnce sync.Once
+	const callbackName = "test:initial_source_failover_probe_complete"
+	require.NoError(t, model.DB.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == "upstream_managed_routes" &&
+			strings.Contains(tx.Statement.SQL.String(), "last_success_at <") {
+			probeScanOnce.Do(func() {
+				close(probeScanDone)
+			})
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Callback().Query().Remove(callbackName))
+	})
+	initializeRelayFailoverChannels()
+
+	response := performRelayFailoverRequest(t, engine)
+
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	assert.Contains(t, response.Body.String(), "source-b")
+	assert.Equal(t, []string{"source-a-primary", "source-b"}, trace.snapshot())
+	assert.Equal(t, 1, initial.callCount())
+	assert.Zero(t, sibling.callCount())
+	assert.Equal(t, 1, backup.callCount())
+	log, adminInfo := latestConsumeLog(t, user.Id)
+	assert.Equal(t, backupChannel.Id, log.ChannelId)
+	assert.Equal(t, 2, adminInfo.AttemptCount)
+	assert.Equal(t, []string{"3681", "3683"}, adminInfo.AttemptedChannels)
+	assert.Equal(t, []int64{30, 20}, adminInfo.PriorityPath)
+	requireEventually(t, func() bool {
+		return model.DB.First(&backupRoute, backupRoute.ID).Error == nil &&
+			backupRoute.LastSuccessAt > 0
+	})
+	requireEventually(t, func() bool {
+		return model.DB.First(&initialRoute, initialRoute.ID).Error == nil &&
+			initialRoute.ConsecutiveFailures == 1
+	})
+	select {
+	case <-probeScanDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("managed success did not complete its stale-route scan")
+	}
+}
+
+func TestManagedRelayHealthPersistenceFailureStopsFailover(t *testing.T) {
+	for _, failingTable := range []string{"upstream_managed_routes", "channels", "abilities"} {
+		t.Run(failingTable, func(t *testing.T) {
+			testManagedRelayHealthPersistenceFailureStopsFailover(t, failingTable)
+		})
+	}
+}
+
+func testManagedRelayHealthPersistenceFailureStopsFailover(t *testing.T, failingTable string) {
+	engine, _ := setupRelayFailoverTest(t, true)
+	enableManagedOrchestrationForFailoverTest(t, 90, 1)
+	operation_setting.AutomaticDisableStatusCodeRanges = []operation_setting.StatusCodeRange{
+		{Start: http.StatusInternalServerError, End: http.StatusInternalServerError},
+	}
+	trace := &failoverCallTrace{}
+	primary := newFailoverUpstream(t, "primary", http.StatusInternalServerError, trace)
+	backup := newFailoverUpstream(t, "backup", http.StatusOK, trace)
+	primaryChannel := addRelayFailoverChannel(t, 3691, 30, primary)
+	backupChannel := addRelayFailoverChannel(t, 3692, 20, backup)
+	primaryRoute := addManagedFailoverRoute(t, primaryChannel, 301)
+	addManagedFailoverRoute(t, backupChannel, 302)
+	initializeRelayFailoverChannels()
+
+	injected := fmt.Errorf("injected managed health persistence failure")
+	const callbackName = "test:managed_health_persistence_failure"
+	require.NoError(t, model.DB.Callback().Update().Before("gorm:update").Register(callbackName, func(tx *gorm.DB) {
+		if tx.Statement.Table == failingTable {
+			tx.AddError(injected)
+		}
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Callback().Update().Remove(callbackName))
+	})
+
+	response := performRelayFailoverRequest(t, engine)
+
+	assert.Equal(t, http.StatusInternalServerError, response.Code, response.Body.String())
+	assert.Equal(t, []string{"primary"}, trace.snapshot())
+	assert.Equal(t, 1, primary.callCount())
+	assert.Zero(t, backup.callCount())
+	var storedChannel model.Channel
+	require.NoError(t, model.DB.First(&storedChannel, primaryChannel.Id).Error)
+	assert.Equal(t, common.ChannelStatusEnabled, storedChannel.Status)
+	var storedAbility model.Ability
+	require.NoError(t, model.DB.Where("channel_id = ?", primaryChannel.Id).First(&storedAbility).Error)
+	assert.True(t, storedAbility.Enabled)
+	var storedRoute model.UpstreamManagedRoute
+	require.NoError(t, model.DB.First(&storedRoute, primaryRoute.ID).Error)
+	assert.Equal(t, model.UpstreamRouteStateActive, storedRoute.State)
+	assert.Zero(t, storedRoute.ConsecutiveFailures)
+	cachedChannel, err := model.CacheGetChannel(primaryChannel.Id)
+	require.NoError(t, err)
+	assert.Equal(t, common.ChannelStatusEnabled, cachedChannel.Status)
+}
+
 func TestRelayChannelFailoverFrom429DisablesPrimary(t *testing.T) {
 	engine, _ := setupRelayFailoverTest(t, true)
 	trace := &failoverCallTrace{}
@@ -415,6 +557,79 @@ func TestRelayChannelFailoverFromConnectionFailure(t *testing.T) {
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	assert.Contains(t, response.Body.String(), "backup")
 	assert.Equal(t, []string{"disconnect", "backup"}, trace.snapshot())
+}
+
+func TestRelayChannelErrorHonorsPinnedRetrySuppression(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		managed   bool
+		pinned    bool
+		wantRetry bool
+	}{
+		{name: "pinned managed", managed: true, pinned: true, wantRetry: false},
+		{name: "pinned unmanaged", pinned: true, wantRetry: false},
+		{name: "unpinned", managed: true, wantRetry: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			engine, user := setupRelayFailoverTest(t, false)
+			enableManagedOrchestrationForFailoverTest(t, 90)
+			require.NoError(t, model.DB.Model(user).Update("role", common.RoleRootUser).Error)
+			trace := &failoverCallTrace{}
+			invalid := newFailoverUpstream(t, "invalid-channel", http.StatusOK, trace)
+			backup := newFailoverUpstream(t, "backup", http.StatusOK, trace)
+			channel := addRelayFailoverChannel(t, 3451, 30, invalid)
+			require.NoError(t, model.DB.Model(&channel).Updates(map[string]any{
+				"type":     constant.ChannelTypeXunfei,
+				"key":      "invalid",
+				"auto_ban": 0,
+			}).Error)
+			backupChannel := addRelayFailoverChannel(t, 3452, 20, backup)
+			var backupRoute model.UpstreamManagedRoute
+			if test.managed {
+				addManagedFailoverRoute(t, channel, 3451)
+				backupRoute = addManagedFailoverRoute(t, backupChannel, 3452)
+			}
+			managedSuccessDone := make(chan struct{})
+			var managedSuccessOnce sync.Once
+			const callbackName = "test:pinned_retry_managed_success_complete"
+			require.NoError(t, model.DB.Callback().Query().After("gorm:query").Register(callbackName, func(tx *gorm.DB) {
+				if tx.Statement.Table == "upstream_managed_routes" &&
+					strings.Contains(tx.Statement.SQL.String(), "last_success_at <") {
+					managedSuccessOnce.Do(func() {
+						close(managedSuccessDone)
+					})
+				}
+			}))
+			t.Cleanup(func() {
+				require.NoError(t, model.DB.Callback().Query().Remove(callbackName))
+			})
+			initializeRelayFailoverChannels()
+
+			token := "harelaytoken"
+			if test.pinned {
+				token += fmt.Sprintf("-%d", channel.Id)
+			}
+			response := performRelayFailoverRequestWithToken(t, engine, token)
+
+			if test.wantRetry {
+				require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+				assert.Contains(t, response.Body.String(), "backup")
+				assert.Equal(t, 1, backup.callCount())
+				requireEventually(t, func() bool {
+					return model.DB.First(&backupRoute, backupRoute.ID).Error == nil &&
+						backupRoute.LastSuccessAt > 0
+				})
+				select {
+				case <-managedSuccessDone:
+				case <-time.After(2 * time.Second):
+					t.Fatal("managed success did not complete its stale-route scan")
+				}
+			} else {
+				assert.NotEqual(t, http.StatusOK, response.Code, response.Body.String())
+				assert.Zero(t, backup.callCount())
+			}
+		})
+	}
 }
 
 func TestRelayChannelFailoverDoesNotRetry400(t *testing.T) {
@@ -489,7 +704,7 @@ func TestManagedRelayFailureQuarantinesAfterSecond500(t *testing.T) {
 	backup := newFailoverUpstream(t, "backup", http.StatusOK, trace)
 	primaryChannel := addRelayFailoverChannel(t, 3661, 30, primary)
 	addRelayFailoverChannel(t, 3662, 20, backup)
-	route := addManagedFailoverRoute(t, primaryChannel)
+	route := addManagedFailoverRoute(t, primaryChannel, int64(primaryChannel.Id))
 	initializeRelayFailoverChannels()
 
 	first := performRelayFailoverRequest(t, engine)
@@ -516,6 +731,41 @@ func TestManagedRelayFailureQuarantinesAfterSecond500(t *testing.T) {
 	}, trace.snapshot())
 }
 
+func TestManagedRelay408RetriesAndQuarantines(t *testing.T) {
+	engine, _ := setupRelayFailoverTest(t, true)
+	enableManagedOrchestrationForFailoverTest(t, 90)
+	trace := &failoverCallTrace{}
+	primary := newFailoverUpstream(t, "managed-timeout", http.StatusRequestTimeout, trace)
+	backup := newFailoverUpstream(t, "backup", http.StatusOK, trace)
+	primaryChannel := addRelayFailoverChannel(t, 3663, 30, primary)
+	addRelayFailoverChannel(t, 3664, 20, backup)
+	route := addManagedFailoverRoute(t, primaryChannel, int64(primaryChannel.Id))
+	initializeRelayFailoverChannels()
+
+	first := performRelayFailoverRequest(t, engine)
+	require.Equal(t, http.StatusOK, first.Code, first.Body.String())
+	requireEventually(t, func() bool {
+		return model.DB.First(&route, route.ID).Error == nil &&
+			route.ConsecutiveFailures == 1 &&
+			route.State == model.UpstreamRouteStateActive
+	})
+
+	second := performRelayFailoverRequest(t, engine)
+	require.Equal(t, http.StatusOK, second.Code, second.Body.String())
+	requireEventually(t, func() bool {
+		var storedChannel model.Channel
+		return model.DB.First(&route, route.ID).Error == nil &&
+			model.DB.First(&storedChannel, primaryChannel.Id).Error == nil &&
+			route.ConsecutiveFailures == 2 &&
+			route.State == model.UpstreamRouteStateQuarantined &&
+			storedChannel.Status == common.ChannelStatusAutoDisabled
+	})
+	assert.Equal(t, []string{
+		"managed-timeout", "backup",
+		"managed-timeout", "backup",
+	}, trace.snapshot())
+}
+
 func TestManagedRelayDoesNotRetryOrCountOrdinary400(t *testing.T) {
 	engine, _ := setupRelayFailoverTest(t, false)
 	enableManagedOrchestrationForFailoverTest(t, 90)
@@ -524,7 +774,7 @@ func TestManagedRelayDoesNotRetryOrCountOrdinary400(t *testing.T) {
 	backup := newFailoverUpstream(t, "backup", http.StatusOK, trace)
 	primaryChannel := addRelayFailoverChannel(t, 3671, 30, primary)
 	addRelayFailoverChannel(t, 3672, 20, backup)
-	route := addManagedFailoverRoute(t, primaryChannel)
+	route := addManagedFailoverRoute(t, primaryChannel, int64(primaryChannel.Id))
 	initializeRelayFailoverChannels()
 
 	response := performRelayFailoverRequest(t, engine)

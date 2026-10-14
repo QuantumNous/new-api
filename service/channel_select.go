@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -85,11 +86,16 @@ func (p *RetryParam) ResetRetryNextTry() {
 // AdaptiveRetryTimes visits every priority and, for managed routes, gives
 // distinct upstream sources at the same priority one attempt each.
 func AdaptiveRetryTimes(param *RetryParam) int {
+	retries, _ := adaptiveRetryTimes(param)
+	return retries
+}
+
+func adaptiveRetryTimes(param *RetryParam) (int, bool) {
 	if param == nil {
-		return 0
+		return 0, false
 	}
 	if param.TokenGroup == "auto" {
-		return min(common.RetryTimes, MaxAdaptiveChannelAttempts-1)
+		return min(common.RetryTimes, MaxAdaptiveChannelAttempts-1), false
 	}
 	filters := GetChannelConstraints(param.Ctx).Filters
 	priorities, err := model.ListSatisfiedChannelPriorities(
@@ -98,7 +104,7 @@ func AdaptiveRetryTimes(param *RetryParam) int {
 		filters,
 	)
 	if err != nil || len(priorities) == 0 {
-		return 0
+		return 0, false
 	}
 	if param.Ctx != nil {
 		if _, exists := param.Ctx.Get("channel_priority"); exists {
@@ -111,12 +117,30 @@ func AdaptiveRetryTimes(param *RetryParam) int {
 			}
 		}
 	}
-	param.PriorityPath = expandManagedPriorityPath(param, priorities, filters)
-	return min(len(param.PriorityPath)-1, MaxAdaptiveChannelAttempts-1)
+	priorityPath, managed := expandManagedPriorityPath(param, priorities, filters)
+	param.PriorityPath = priorityPath
+	return min(len(param.PriorityPath)-1, MaxAdaptiveChannelAttempts-1), managed
 }
 
-func expandManagedPriorityPath(param *RetryParam, priorities []int64, filters []dto.ChannelFilter) []int64 {
+// ManagedAdaptiveRetryTimes enables adaptive retries only when the eligible
+// candidate set contains an attached managed route.
+func ManagedAdaptiveRetryTimes(param *RetryParam, attemptLimit int) (int, bool) {
+	if param == nil || param.TokenGroup == "auto" {
+		return 0, false
+	}
+	retries, managed := adaptiveRetryTimes(param)
+	if !managed {
+		return 0, false
+	}
+	if attemptLimit > 0 {
+		retries = min(retries, attemptLimit-1)
+	}
+	return retries, true
+}
+
+func expandManagedPriorityPath(param *RetryParam, priorities []int64, filters []dto.ChannelFilter) ([]int64, bool) {
 	path := make([]int64, 0, MaxAdaptiveChannelAttempts)
+	hasManagedRoute := false
 	for _, priority := range priorities {
 		attempts := 1
 		channelIDs, err := model.ListSatisfiedChannelIDsAtPriority(
@@ -130,6 +154,7 @@ func expandManagedPriorityPath(param *RetryParam, priorities []int64, filters []
 			for _, channelID := range channelIDs {
 				route, managed := managedRouteForChannel(channelID)
 				if managed {
+					hasManagedRoute = true
 					sources[route.SourceID] = struct{}{}
 				}
 			}
@@ -140,11 +165,11 @@ func expandManagedPriorityPath(param *RetryParam, priorities []int64, filters []
 		for range attempts {
 			path = append(path, priority)
 			if len(path) == MaxAdaptiveChannelAttempts {
-				return path
+				return path, hasManagedRoute
 			}
 		}
 	}
-	return path
+	return path, hasManagedRoute
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
@@ -297,7 +322,7 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			return nil, param.TokenGroup, err
 		}
 	}
-	rememberRetryChannel(param, channel)
+	RecordRetryAttempt(param, channel)
 	return channel, selectGroup, nil
 }
 
@@ -364,25 +389,25 @@ func withExcludedChannelIDs(filters []dto.ChannelFilter, channelIDs []int) []dto
 	return result
 }
 
-func rememberRetryChannel(param *RetryParam, channel *model.Channel) {
+// RecordRetryAttempt tracks channels and managed sources already used by a request.
+func RecordRetryAttempt(param *RetryParam, channel *model.Channel) {
 	if param == nil || channel == nil {
 		return
 	}
-	param.AttemptedChannelIDs = append(param.AttemptedChannelIDs, channel.Id)
+	if !slices.Contains(param.AttemptedChannelIDs, channel.Id) {
+		param.AttemptedChannelIDs = append(param.AttemptedChannelIDs, channel.Id)
+	}
 	route, managed := managedRouteForChannel(channel.Id)
 	if !managed {
 		return
 	}
-	for _, sourceID := range param.AttemptedSourceIDs {
-		if sourceID == route.SourceID {
-			return
-		}
+	if !slices.Contains(param.AttemptedSourceIDs, route.SourceID) {
+		param.AttemptedSourceIDs = append(param.AttemptedSourceIDs, route.SourceID)
 	}
-	param.AttemptedSourceIDs = append(param.AttemptedSourceIDs, route.SourceID)
 }
 
 func managedRouteForChannel(channelID int) (*model.UpstreamManagedRoute, bool) {
-	if model.DB == nil || !model.DB.Migrator().HasTable(&model.UpstreamManagedRoute{}) {
+	if model.DB == nil {
 		return nil, false
 	}
 	var routes []model.UpstreamManagedRoute
@@ -570,6 +595,7 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 			FilterKind: kind, Channel: channel, NoAvailableChannel: true,
 		}
 	}
+	RecordRetryAttempt(retry, channel)
 	return channel, selectGroup, nil
 }
 

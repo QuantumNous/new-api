@@ -153,6 +153,7 @@ describe('model cards', () => {
     expect(onClick).not.toHaveBeenCalled()
     await user.click(screen.getByRole('button', { name: 'Details' }))
     expect(onClick).toHaveBeenCalledOnce()
+    expect(onClick).toHaveBeenCalledWith(name)
   })
 
   it('retains a neutral health strip and missing values when metrics are unavailable', () => {

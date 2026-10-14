@@ -914,4 +914,13 @@ func TestSecurityRoutesDisableCachingBeforeAuthentication(t *testing.T) {
 			assert.Contains(t, response.Header().Get("Cache-Control"), "no-store")
 		})
 	}
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/task/task_uncertain/deferred-resolution",
+		strings.NewReader(`{"resolution":"abandon_unknown","reason":"test"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	outer.ServeHTTP(response, request)
+	assert.Equal(t, http.StatusUnauthorized, response.Code)
 }

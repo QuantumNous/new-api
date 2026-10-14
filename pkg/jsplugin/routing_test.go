@@ -81,6 +81,7 @@ func TestRegistryIndexesSharedEndpointCandidatesForDistinctLegacyProviders(t *te
 func TestSupportsRegisteredHostProtocols(t *testing.T) {
 	assert.True(t, SupportsHostProtocol("openai_responses"))
 	assert.True(t, SupportsHostProtocol("openai_video"))
+	assert.True(t, SupportsHostProtocol(ProtocolOpenAIImage))
 	assert.False(t, SupportsHostProtocol("plugin_owned_wire"))
 }
 
@@ -89,6 +90,71 @@ func TestLookupHostProtocolOperationExcludesRetrieveWithoutModelField(t *testing
 	assert.False(t, ok)
 	_, _, ok = LookupHostProtocolOperation(http.MethodPost, "/v1/responses")
 	assert.True(t, ok)
+	for _, path := range []string{"/v1/images/generations", "/v1/images/edits"} {
+		protocol, operation, found := LookupHostProtocolOperation(http.MethodPost, path)
+		require.True(t, found, path)
+		assert.Equal(t, ProtocolOpenAIImage, protocol)
+		assert.Equal(t, "model", operation.ModelField)
+		assert.Empty(t, operation.Modes, "the synchronous image protocol has no request modes")
+	}
+}
+
+// The OpenAI Images protocol is claimed in bare-string form, binds both image
+// endpoints for every declared model, and requires the render hook that shapes
+// the synchronous response.
+func TestOpenAIImageProtocolClaimBindsBothEndpointsAndRequiresRender(t *testing.T) {
+	exports := `export const protocols = {openai_image: {
+		decodeRequest: function(ctx) { return {kind: "submit", model: ctx.model, requestBody: ctx.body.value}; },
+		render: function(ctx, task) { return {data: []}; }
+	}};`
+	registry := NewRegistry()
+	plugin := mustCompileRoutingPlugin(t, "image-plugin", 17, `["image-a", "image-b"]`, `protocols: ["openai_image"],`, exports)
+	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{plugin}))
+	for _, path := range []string{"/v1/images/generations", "/v1/images/edits"} {
+		for _, model := range []string{"image-a", "image-b"} {
+			binding, ok := registry.Generation().LookupEndpoint(http.MethodPost, path, model)
+			require.True(t, ok, path+" "+model)
+			assert.Equal(t, ProtocolOpenAIImage, binding.Protocol)
+			assert.Same(t, plugin, binding.Plugin)
+		}
+	}
+	_, ok := registry.Generation().LookupEndpoint(http.MethodPost, "/v1/videos", "image-a")
+	assert.False(t, ok, "an image claim must not bind the video endpoint")
+
+	scoped := mustCompileRoutingPlugin(t, "image-scoped", 17, `["image-a", "image-b"]`, `protocols: [{name: "openai_image", models: ["image-a"]}],`, exports)
+	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{scoped}))
+	_, ok = registry.Generation().LookupEndpoint(http.MethodPost, "/v1/images/generations", "image-b")
+	assert.False(t, ok, "models narrows the image endpoint bindings")
+
+	_, err := CompilePlugin(routingTestPluginSource("image-no-render", 17, `["image-a"]`, `protocols: ["openai_image"],`,
+		`export const protocols = {openai_image: {decodeRequest: function(ctx) { return {kind: "submit", model: ctx.model}; }}};`), Options{})
+	require.ErrorContains(t, err, `missing hook "render"`)
+	_, err = CompilePlugin(routingTestPluginSource("image-modes", 17, `["image-a"]`, `protocols: [{name: "openai_image", supports: ["sync"]}],`, exports), Options{})
+	require.ErrorContains(t, err, "does not define modes")
+}
+
+func TestFileReferenceRoundTripAddressesRepeatedFieldFiles(t *testing.T) {
+	assert.Equal(t, "request_file:image[]", FileReference("image[]", 0))
+	assert.Equal(t, "request_file:image[]#2", FileReference("image[]", 2))
+	for _, tc := range []struct {
+		ref   string
+		field string
+		index int
+		ok    bool
+	}{
+		{"request_file:input_reference", "input_reference", 0, true},
+		{"request_file:image[]#1", "image[]", 1, true},
+		{"request_file:image[]#01", "", 0, false},
+		{"request_file:image[]#-1", "", 0, false},
+		{"request_file:#1", "", 0, false},
+		{"request_file:", "", 0, false},
+		{"image", "", 0, false},
+	} {
+		field, index, ok := ParseFileReference(tc.ref)
+		assert.Equal(t, tc.ok, ok, tc.ref)
+		assert.Equal(t, tc.field, field, tc.ref)
+		assert.Equal(t, tc.index, index, tc.ref)
+	}
 }
 
 func TestPerProtocolModelsNarrowEndpointBindings(t *testing.T) {
@@ -344,6 +410,56 @@ func TestRouteModelsDecodeAndValidation(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, plugin.Meta.Routes, 1)
 			assert.Equal(t, []string{"gpt-5.5"}, plugin.Meta.Routes[0].Models)
+		})
+	}
+}
+
+func TestRouteRetainResultDecodeAndValidation(t *testing.T) {
+	routeExports := `export const native = {
+		decodeJob: function(ctx) { return {kind: "submit", model: "gpt-5.5", requestBody: ctx.body.value}; },
+		jobCreated: function(ctx, task) { return task; },
+		jobStatus: function(ctx, task) { return task; }
+	};`
+	falseValue := false
+	tests := []struct {
+		name        string
+		metaFields  string
+		want        *bool
+		errContains string
+	}{
+		{
+			name:       "undeclared route retains",
+			metaFields: `routes: [{method: "POST", path: "/v1/batch", type: "submit", decode: "decodeJob", render: "jobCreated"}],`,
+		},
+		{
+			name:       "submit route declines retention",
+			metaFields: `routes: [{method: "POST", path: "/v1/batch", type: "submit", decode: "decodeJob", render: "jobCreated", retainResult: false}],`,
+			want:       &falseValue,
+		},
+		{
+			name:        "query route rejects retainResult",
+			metaFields:  `routes: [{method: "GET", path: "/v1/batch/:task_id", type: "query", render: "jobStatus", retainResult: true}],`,
+			errContains: "must not declare retainResult",
+		},
+		{
+			name:        "non-boolean value",
+			metaFields:  `routes: [{method: "POST", path: "/v1/batch", type: "submit", decode: "decodeJob", render: "jobCreated", retainResult: "no"}],`,
+			errContains: "retainResult must be a boolean",
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			plugin, err := CompilePlugin(
+				routingTestPluginSource("route-retain", 0, `["gpt-5.5"]`, testCase.metaFields, routeExports),
+				Options{},
+			)
+			if testCase.errContains != "" {
+				require.ErrorContains(t, err, testCase.errContains)
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, plugin.Meta.Routes, 1)
+			assert.Equal(t, testCase.want, plugin.Meta.Routes[0].RetainResult)
 		})
 	}
 }

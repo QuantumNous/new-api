@@ -1410,6 +1410,39 @@ func TestCaptureAppTaskBillingInputsClassifiesStorageAndInputFailures(t *testing
 	})
 }
 
+func TestAppBillingSessionReleaseBeforeDispatchRefundsAndAllowsRetry(t *testing.T) {
+	f, c, session, inputs, outbound := appTaskClaimFixture(t)
+	var before model.User
+	require.NoError(t, f.db.First(&before, session.info.AppSubject.UserID).Error)
+
+	execution, won, err := session.Claim(c, inputs, outbound)
+
+	require.NoError(t, err)
+	require.True(t, won)
+	require.Positive(t, execution.ReservedQuota)
+	var reserved model.User
+	require.NoError(t, f.db.First(&reserved, before.Id).Error)
+	assert.EqualValues(t, int64(before.Quota)-execution.ReservedQuota, reserved.Quota)
+
+	require.NoError(t, session.ReleaseBeforeDispatch(c.Request.Context()))
+
+	var executionCount, reconcileCount int64
+	require.NoError(t, f.db.Model(&model.AppTaskExecution{}).
+		Where("id = ?", execution.ID).Count(&executionCount).Error)
+	require.NoError(t, f.db.Model(&model.AppTaskReconcile{}).
+		Where("execution_id = ?", execution.ID).Count(&reconcileCount).Error)
+	assert.Zero(t, executionCount)
+	assert.Zero(t, reconcileCount)
+	var restored model.User
+	require.NoError(t, f.db.First(&restored, before.Id).Error)
+	assert.Equal(t, before.Quota, restored.Quota)
+
+	retry, retryWon, retryErr := session.Claim(c, inputs, outbound)
+	require.NoError(t, retryErr)
+	assert.True(t, retryWon)
+	assert.NotZero(t, retry.ID)
+}
+
 func appTaskClaimFixture(t *testing.T) (
 	*appExecutionFixture,
 	*gin.Context,

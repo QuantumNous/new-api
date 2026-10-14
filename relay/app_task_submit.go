@@ -84,6 +84,12 @@ func submitAppTask(c *gin.Context, info *relaycommon.RelayInfo, adaptor channel.
 	}
 	// No legacy retry/refund is reachable after this committed dispatch claim.
 	response, sendErr := adaptor.DoRequest(c, info, bytes.NewReader(outbound))
+	if errors.Is(sendErr, channel.ErrProviderRequestNotStarted) {
+		if err := session.ReleaseBeforeDispatch(c.Request.Context()); err != nil {
+			return nil, service.TaskErrorWrapperLocal(errors.New("service_unavailable"), "service_unavailable", http.StatusServiceUnavailable)
+		}
+		return nil, service.TaskErrorWrapperLocal(errors.New("provider_request_not_started"), "provider_request_not_started", http.StatusBadGateway)
+	}
 	providerID := ""
 	var responseBody []byte
 	if response != nil {

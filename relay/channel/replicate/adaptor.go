@@ -28,6 +28,18 @@ import (
 type Adaptor struct {
 }
 
+type imageSubmissionStartedError struct {
+	*types.NewAPIError
+}
+
+func (e *imageSubmissionStartedError) Unwrap() error {
+	return e.NewAPIError
+}
+
+func (e *imageSubmissionStartedError) ImageSubmissionStarted() bool {
+	return true
+}
+
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
@@ -65,6 +77,21 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *rel
 }
 
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
+	prepared, err := a.PrepareImageRequest(c, info, request)
+	if err != nil {
+		return nil, err
+	}
+	if info.RelayMode != relayconstant.RelayModeImagesEdits {
+		return prepared, nil
+	}
+	preparedJSON, err := common.Marshal(prepared)
+	if err != nil {
+		return nil, fmt.Errorf("replicate adaptor: encode prepared image request failed: %w", err)
+	}
+	return a.FinalizeImageRequest(c, info, preparedJSON)
+}
+
+func (a *Adaptor) PrepareImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if info == nil {
 		return nil, errors.New("replicate adaptor: relay info is nil")
 	}
@@ -125,14 +152,25 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 	}
 
 	if info.RelayMode == relayconstant.RelayModeImagesEdits {
-		imageURL, err := uploadFileFromForm(c, info, "image", "image[]", "image_prompt")
+		fileHeader, err := imageFileFromForm(c, "image", "image[]", "image_prompt")
+		if err == nil && fileHeader == nil {
+			err = errors.New("replicate adaptor: exactly one source image file is required for edits")
+		}
 		if err != nil {
-			return nil, err
+			return nil, types.NewErrorWithStatusCode(
+				err,
+				types.ErrorCodeInvalidRequest,
+				http.StatusBadRequest,
+				types.ErrOptionWithSkipRetry(),
+			)
 		}
-		if imageURL == "" {
-			return nil, errors.New("replicate adaptor: image file is required for edits")
+		file, err := fileHeader.Open()
+		if err != nil {
+			return nil, fmt.Errorf("replicate adaptor: failed to open image file: %w", err)
 		}
-		inputPayload["image_prompt"] = imageURL
+		if err = file.Close(); err != nil {
+			return nil, fmt.Errorf("replicate adaptor: failed to close image file: %w", err)
+		}
 	}
 
 	if len(request.ExtraFields) > 0 {
@@ -165,10 +203,50 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 		}
 		inputPayload[key] = val
 	}
+	if info.RelayMode == relayconstant.RelayModeImagesEdits {
+		delete(inputPayload, "image_prompt")
+	}
 
 	return map[string]any{
 		"input": inputPayload,
 	}, nil
+}
+
+func (a *Adaptor) FinalizeImageRequest(c *gin.Context, info *relaycommon.RelayInfo, preparedJSON []byte) (any, error) {
+	var payload map[string]any
+	if err := common.Unmarshal(preparedJSON, &payload); err != nil {
+		return nil, fmt.Errorf("replicate adaptor: decode prepared image request failed: %w", err)
+	}
+	if info == nil || info.RelayMode != relayconstant.RelayModeImagesEdits {
+		return payload, nil
+	}
+	input, ok := payload["input"].(map[string]any)
+	if !ok {
+		return nil, errors.New("replicate adaptor: prepared input is required")
+	}
+	imageURL, submissionStarted, err := uploadFileFromForm(c, info, "image", "image[]", "image_prompt")
+	if err != nil {
+		apiErr := types.NewErrorWithStatusCode(
+			err,
+			types.ErrorCodeDoRequestFailed,
+			http.StatusBadGateway,
+			types.ErrOptionWithSkipRetry(),
+		)
+		if submissionStarted {
+			return nil, &imageSubmissionStartedError{NewAPIError: apiErr}
+		}
+		return nil, apiErr
+	}
+	if imageURL == "" {
+		return nil, types.NewErrorWithStatusCode(
+			errors.New("replicate adaptor: image file is required for edits"),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
+	}
+	input["image_prompt"] = imageURL
+	return payload, nil
 }
 
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, requestBody io.Reader) (any, error) {
@@ -179,16 +257,16 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	if resp == nil {
 		return nil, types.NewError(errors.New("replicate adaptor: empty response"), types.ErrorCodeBadResponse)
 	}
+	defer resp.Body.Close()
 
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeReadResponseBodyFailed)
 	}
-	_ = resp.Body.Close()
 
 	var prediction PredictionResponse
-	if err := common.Unmarshal(responseBody, &prediction); err != nil {
-		return nil, types.NewError(fmt.Errorf("replicate adaptor: failed to decode response: %w", err), types.ErrorCodeBadResponseBody)
+	if decodeErr := common.Unmarshal(responseBody, &prediction); decodeErr != nil {
+		return nil, types.NewError(fmt.Errorf("replicate adaptor: failed to decode response: %w", decodeErr), types.ErrorCodeBadResponseBody)
 	}
 
 	if prediction.Error != nil {
@@ -397,48 +475,55 @@ func normalizeFluxDimension(value int) int {
 	return value
 }
 
-func uploadFileFromForm(c *gin.Context, info *relaycommon.RelayInfo, fieldCandidates ...string) (string, error) {
-	if info == nil {
-		return "", errors.New("replicate adaptor: relay info is nil")
-	}
-
+func imageFileFromForm(c *gin.Context, fieldCandidates ...string) (*multipart.FileHeader, error) {
 	mf := c.Request.MultipartForm
 	if mf == nil {
 		if _, err := c.MultipartForm(); err != nil {
-			return "", fmt.Errorf("replicate adaptor: parse multipart form failed: %w", err)
+			return nil, fmt.Errorf("replicate adaptor: parse multipart form failed: %w", err)
 		}
 		mf = c.Request.MultipartForm
 	}
 	if mf == nil || len(mf.File) == 0 {
-		return "", nil
+		return nil, nil
 	}
 
-	if len(fieldCandidates) == 0 {
+	explicitCandidates := len(fieldCandidates) > 0
+	if !explicitCandidates {
 		fieldCandidates = []string{"image", "image[]", "image_prompt"}
 	}
 
-	var fileHeader *multipart.FileHeader
+	var matchingFiles []*multipart.FileHeader
 	for _, key := range fieldCandidates {
-		if files := mf.File[key]; len(files) > 0 {
-			fileHeader = files[0]
-			break
+		matchingFiles = append(matchingFiles, mf.File[key]...)
+	}
+	if len(matchingFiles) > 1 {
+		return nil, errors.New("replicate adaptor: exactly one source image file is required for edits")
+	}
+	if len(matchingFiles) == 1 {
+		return matchingFiles[0], nil
+	}
+	if explicitCandidates {
+		return nil, nil
+	}
+	for _, files := range mf.File {
+		if len(files) > 0 {
+			return files[0], nil
 		}
 	}
-	if fileHeader == nil {
-		for _, files := range mf.File {
-			if len(files) > 0 {
-				fileHeader = files[0]
-				break
-			}
-		}
-	}
-	if fileHeader == nil {
-		return "", nil
-	}
+	return nil, nil
+}
 
+func uploadFileFromForm(c *gin.Context, info *relaycommon.RelayInfo, fieldCandidates ...string) (string, bool, error) {
+	if info == nil {
+		return "", false, errors.New("replicate adaptor: relay info is nil")
+	}
+	fileHeader, err := imageFileFromForm(c, fieldCandidates...)
+	if err != nil || fileHeader == nil {
+		return "", false, err
+	}
 	file, err := fileHeader.Open()
 	if err != nil {
-		return "", fmt.Errorf("replicate adaptor: failed to open image file: %w", err)
+		return "", false, fmt.Errorf("replicate adaptor: failed to open image file: %w", err)
 	}
 	defer file.Close()
 
@@ -456,14 +541,16 @@ func uploadFileFromForm(c *gin.Context, info *relaycommon.RelayInfo, fieldCandid
 	part, err := writer.CreatePart(hdr)
 	if err != nil {
 		writer.Close()
-		return "", fmt.Errorf("replicate adaptor: create upload form failed: %w", err)
+		return "", false, fmt.Errorf("replicate adaptor: create upload form failed: %w", err)
 	}
-	if _, err := io.Copy(part, file); err != nil {
+	if _, copyErr := io.Copy(part, file); copyErr != nil {
 		writer.Close()
-		return "", fmt.Errorf("replicate adaptor: copy image content failed: %w", err)
+		return "", false, fmt.Errorf("replicate adaptor: copy image content failed: %w", copyErr)
 	}
 	formContentType := writer.FormDataContentType()
-	writer.Close()
+	if closeErr := writer.Close(); closeErr != nil {
+		return "", false, fmt.Errorf("replicate adaptor: close upload form failed: %w", closeErr)
+	}
 
 	baseURL := info.ChannelBaseUrl
 	if baseURL == "" {
@@ -473,33 +560,37 @@ func uploadFileFromForm(c *gin.Context, info *relaycommon.RelayInfo, fieldCandid
 
 	req, err := http.NewRequest(http.MethodPost, uploadURL, &body)
 	if err != nil {
-		return "", fmt.Errorf("replicate adaptor: create upload request failed: %w", err)
+		return "", false, fmt.Errorf("replicate adaptor: create upload request failed: %w", err)
 	}
 	req.Header.Set("Content-Type", formContentType)
 	req.Header.Set("Authorization", "Bearer "+info.ApiKey)
 
-	resp, err := service.GetHttpClient().Do(req)
+	uploadClient := *service.GetHttpClient()
+	uploadClient.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	resp, err := uploadClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("replicate adaptor: upload image failed: %w", err)
+		return "", true, fmt.Errorf("replicate adaptor: upload image failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("replicate adaptor: read upload response failed: %w", err)
+		return "", true, fmt.Errorf("replicate adaptor: read upload response failed: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		return "", fmt.Errorf("replicate adaptor: upload image failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
+		return "", true, fmt.Errorf("replicate adaptor: upload image failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(respBody)))
 	}
 
 	var uploadResp FileUploadResponse
 	if err := common.Unmarshal(respBody, &uploadResp); err != nil {
-		return "", fmt.Errorf("replicate adaptor: decode upload response failed: %w", err)
+		return "", true, fmt.Errorf("replicate adaptor: decode upload response failed: %w", err)
 	}
 	if uploadResp.Urls.Get == "" {
-		return "", errors.New("replicate adaptor: upload response missing url")
+		return "", true, errors.New("replicate adaptor: upload response missing url")
 	}
-	return uploadResp.Urls.Get, nil
+	return uploadResp.Urls.Get, true, nil
 }
 
 func (a *Adaptor) ConvertOpenAIRequest(*gin.Context, *relaycommon.RelayInfo, *dto.GeneralOpenAIRequest) (any, error) {

@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -33,6 +34,19 @@ var (
 	errTaskArtifactPluginUnavailable = errors.New("task artifact plugin unavailable")
 	errTaskArtifactPlugin            = errors.New("task artifact plugin error")
 )
+
+const (
+	deferredResolutionProviderAccepted   = "provider_accepted"
+	deferredResolutionAbandonUnknown     = "abandon_unknown"
+	maxDeferredResolutionReasonBytes     = 2000
+	maxDeferredResolutionUpstreamIDBytes = 512
+)
+
+type deferredTaskResolutionRequest struct {
+	Resolution     string `json:"resolution"`
+	UpstreamTaskID string `json:"upstream_task_id"`
+	Reason         string `json:"reason"`
+}
 
 func GetTask(c *gin.Context) {
 	var task *model.Task
@@ -68,6 +82,85 @@ func GetTask(c *gin.Context) {
 		"created_at":  createdAt,
 		"finished_at": task.FinishTime,
 	})
+}
+
+func ResolveDeferredTask(c *gin.Context) {
+	var request deferredTaskResolutionRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeDeferredResolutionError(c, http.StatusBadRequest, "invalid_request", "invalid deferred resolution request")
+		return
+	}
+	request.Resolution = strings.TrimSpace(request.Resolution)
+	request.UpstreamTaskID = strings.TrimSpace(request.UpstreamTaskID)
+	request.Reason = strings.TrimSpace(request.Reason)
+	if request.Reason == "" || len(request.Reason) > maxDeferredResolutionReasonBytes {
+		writeDeferredResolutionError(c, http.StatusBadRequest, "invalid_reason", "reason is required and must be at most 2000 bytes")
+		return
+	}
+	// This endpoint resolves provider outcome state only. Financial corrections
+	// use the separate audited adjustment workflow.
+	switch request.Resolution {
+	case deferredResolutionProviderAccepted:
+		if request.UpstreamTaskID == "" || len(request.UpstreamTaskID) > maxDeferredResolutionUpstreamIDBytes {
+			writeDeferredResolutionError(c, http.StatusBadRequest, "invalid_upstream_task_id", "upstream_task_id is required and must be at most 512 bytes")
+			return
+		}
+	case deferredResolutionAbandonUnknown:
+		if request.UpstreamTaskID != "" {
+			writeDeferredResolutionError(c, http.StatusBadRequest, "invalid_upstream_task_id", "upstream_task_id is only valid for provider_accepted")
+			return
+		}
+	default:
+		writeDeferredResolutionError(c, http.StatusBadRequest, "invalid_resolution", "unsupported deferred resolution")
+		return
+	}
+
+	task, exists, err := model.GetUniqueByOnlyTaskId(strings.TrimSpace(c.Param("task_id")))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !exists || task == nil {
+		writeDeferredResolutionError(c, http.StatusNotFound, "task_not_found", "task not found")
+		return
+	}
+	now := common.GetTimestamp()
+	if !task.RequiresOperatorResolutionAt(now) {
+		writeDeferredResolutionError(c, http.StatusConflict, "invalid_task_state", "task does not require operator resolution")
+		return
+	}
+
+	providerAccepted := request.Resolution == deferredResolutionProviderAccepted
+	won, err := model.ResolveDeferredTask(
+		task,
+		providerAccepted,
+		request.UpstreamTaskID,
+		request.Reason,
+		now,
+	)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if !won {
+		writeDeferredResolutionError(c, http.StatusConflict, "resolution_conflict", "task resolution state changed")
+		return
+	}
+
+	recordManageAudit(c, "task.deferred_resolution", map[string]any{
+		"task_id":              task.TaskID,
+		"resolution":           request.Resolution,
+		"reason":               request.Reason,
+		"upstream_id_attached": providerAccepted,
+	})
+	common.ApiSuccess(c, gin.H{
+		"task_id":    task.TaskID,
+		"resolution": request.Resolution,
+	})
+}
+
+func writeDeferredResolutionError(c *gin.Context, status int, code, message string) {
+	c.JSON(status, gin.H{"success": false, "code": code, "message": message})
 }
 
 func GetTaskArtifacts(c *gin.Context) {
@@ -142,6 +235,9 @@ func writeTaskArtifacts(c *gin.Context, task *model.Task, dashboard bool) {
 		})
 	}
 	response := gin.H{"task_id": task.TaskID, "artifacts": items}
+	if dashboard && task.Status == model.TaskStatusSuccess && task.Platform == constant.TaskPlatformSuno {
+		response["legacy_audio_clips"] = legacySunoAudioClips(task.Data)
+	}
 	if legacyVideoAvailable(task) {
 		legacyContentURL, buildErr := service.BuildTaskArtifactContentURL(task.TaskID, "video")
 		if buildErr != nil {
@@ -157,8 +253,41 @@ func writeTaskArtifacts(c *gin.Context, task *model.Task, dashboard bool) {
 	c.JSON(http.StatusOK, response)
 }
 
+// legacySunoAudioClips projects a pre-plugin Suno task's persisted snapshot
+// into the clips the dashboard audio preview renders. Task lists no longer
+// carry the snapshot, so the dashboard reads it here on demand. The snapshot
+// is either a clip array or a JSON string holding one; only clips with an
+// audio URL are kept and only preview fields are exposed.
+func legacySunoAudioClips(data json.RawMessage) []map[string]any {
+	clips := make([]map[string]any, 0)
+	if len(data) == 0 {
+		return clips
+	}
+	var items []map[string]any
+	if err := common.Unmarshal(data, &items); err != nil {
+		var encoded string
+		if common.Unmarshal(data, &encoded) != nil || common.UnmarshalJsonStr(encoded, &items) != nil {
+			return clips
+		}
+	}
+	for _, item := range items {
+		audioURL, _ := item["audio_url"].(string)
+		if strings.TrimSpace(audioURL) == "" {
+			continue
+		}
+		clip := map[string]any{"audio_url": audioURL}
+		for _, key := range []string{"clip_id", "id", "title", "tags", "duration", "image_url", "image_large_url", "metadata"} {
+			if value, ok := item[key]; ok {
+				clip[key] = value
+			}
+		}
+		clips = append(clips, clip)
+	}
+	return clips
+}
+
 func projectTaskArtifacts(task *model.Task) ([]relaychannel.TaskArtifact, error) {
-	if task == nil || task.Status != model.TaskStatusSuccess || !taskHasPluginExecution(task) {
+	if task == nil || task.Status != model.TaskStatusSuccess || !taskHasPluginExecution(task) || !task.ResultRetrievable() {
 		return []relaychannel.TaskArtifact{}, nil
 	}
 	adaptor := relay.GetTaskAdaptor(task.Platform)
@@ -374,7 +503,7 @@ func TaskArtifactContent(c *gin.Context) {
 		return
 	}
 	artifactKey := strings.TrimSpace(c.Param("artifact_key"))
-	if !taskArtifactKeyPattern.MatchString(artifactKey) {
+	if !taskArtifactKeyPattern.MatchString(artifactKey) || !task.ResultRetrievable() {
 		writeTaskArtifactError(c, http.StatusNotFound, "artifact_not_found", "Task or artifact not found")
 		return
 	}
@@ -462,7 +591,16 @@ func GetAllTask(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	queryParams := model.SyncTaskQueryParams{Platform: constant.TaskPlatform(c.Query("platform")), TaskID: c.Query("task_id"), Status: c.Query("status"), Action: c.Query("action"), StartTimestamp: startTimestamp, EndTimestamp: endTimestamp, ChannelID: c.Query("channel_id")}
+	queryParams := model.SyncTaskQueryParams{
+		Platform:       constant.TaskPlatform(c.Query("platform")),
+		TaskID:         c.Query("task_id"),
+		Status:         c.Query("status"),
+		Action:         c.Query("action"),
+		StartTimestamp: startTimestamp,
+		EndTimestamp:   endTimestamp,
+		ChannelID:      c.Query("channel_id"),
+		DispatchStatus: c.Query("dispatch_status"),
+	}
 	items := model.TaskGetAllTasks(pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
 	pageInfo.SetTotal(int(model.TaskCountAllTasks(queryParams)))
 	pageInfo.SetItems(tasksToDto(items, true, c.GetInt("role")))
@@ -504,6 +642,7 @@ func tasksToDto(tasks []*model.Task, fillUser bool, viewerRole int) []*dto.TaskD
 		}
 		item := relay.TaskModel2Dto(task)
 		item.LegacyVideoAvailable = legacyVideoAvailable(task)
+		item.ResultDiscarded = task.PrivateData.ResultDiscarded
 		if task.Status == model.TaskStatusSuccess {
 			item.ResultURL = ""
 			if taskFailReasonIsLegacyResultURL(task.FailReason) {
@@ -534,9 +673,21 @@ func tasksToDto(tasks []*model.Task, fillUser bool, viewerRole int) []*dto.TaskD
 			}
 		}
 		if viewerRole >= common.RoleRootUser {
+			now := common.GetTimestamp()
+			requiresOperatorResolution := task.RequiresOperatorResolutionAt(now)
+			dispatchStatus := string(task.DispatchStatus)
+			if requiresOperatorResolution {
+				dispatchStatus = string(model.TaskDispatchStatusUncertain)
+			}
 			rootInfo := &dto.TaskRootInfo{
-				UpstreamTaskID: task.PrivateData.UpstreamTaskID,
-				NodeName:       task.PrivateData.NodeName,
+				UpstreamTaskID:             task.PrivateData.UpstreamTaskID,
+				NodeName:                   task.PrivateData.NodeName,
+				ExecutionMode:              task.ExecutionMode,
+				DispatchStatus:             dispatchStatus,
+				DispatchStartedAt:          task.EffectiveDispatchStartedAtAt(now),
+				DispatchAttempts:           task.DispatchAttempts,
+				DispatchError:              task.DispatchError,
+				RequiresOperatorResolution: requiresOperatorResolution,
 			}
 			if execution := task.PrivateData.Execution; execution != nil {
 				if snapshot := execution.TaskPlugin; snapshot != nil {
@@ -548,7 +699,11 @@ func tasksToDto(tasks []*model.Task, fillUser bool, viewerRole int) []*dto.TaskD
 					}
 				}
 			}
-			if rootInfo.TaskPlugin != nil || rootInfo.UpstreamTaskID != "" || rootInfo.NodeName != "" {
+			if rootInfo.TaskPlugin != nil || rootInfo.UpstreamTaskID != "" ||
+				rootInfo.NodeName != "" || rootInfo.ExecutionMode != "" ||
+				rootInfo.DispatchStatus != "" || rootInfo.DispatchStartedAt != 0 ||
+				rootInfo.DispatchAttempts != 0 || rootInfo.DispatchError != "" ||
+				rootInfo.RequiresOperatorResolution {
 				item.RootInfo = rootInfo
 			}
 		}

@@ -201,6 +201,65 @@ func ClaimAppTaskExecutionTx(tx *gorm.DB, grantID string, request AppTaskExecuti
 	return row, true, nil
 }
 
+// ReleaseAppTaskExecutionBeforeDispatchTx removes a claimed execution only
+// when the provider request is known not to have started.
+func ReleaseAppTaskExecutionBeforeDispatchTx(tx *gorm.DB, executionID int64) error {
+	if executionID <= 0 {
+		return errors.New("invalid_execution")
+	}
+	var locator AppTaskExecution
+	if err := tx.Where("id = ? AND execution_kind = ?", executionID, AppExecutionKindTask).
+		First(&locator).Error; err != nil {
+		return err
+	}
+	user, sub, err := lockAppTaskFundingTx(tx, locator)
+	if err != nil {
+		return err
+	}
+	var execution AppTaskExecution
+	lockErr := lockForUpdate(tx).Where("id = ?", executionID).First(&execution).Error
+	if lockErr != nil {
+		return lockErr
+	}
+	if execution.ExecutionKind != AppExecutionKindTask ||
+		execution.UserID != locator.UserID ||
+		execution.FundingSource != locator.FundingSource ||
+		execution.SubscriptionID != locator.SubscriptionID ||
+		execution.FundingRef != locator.FundingRef ||
+		execution.Status != "dispatching" ||
+		execution.BillingState != "reserved" ||
+		execution.ProviderAccepted ||
+		execution.ProviderTaskID != "" {
+		return errors.New("invalid_state_transition")
+	}
+	settled, err := settleAppTaskFundingTx(tx, execution, user, sub, 0)
+	if err != nil {
+		return err
+	}
+	if !settled {
+		return ErrAppExecutionFundingPeriodChanged
+	}
+	if err := tx.Where("execution_id = ?", execution.ID).Delete(&AppTaskReconcile{}).Error; err != nil {
+		return err
+	}
+	result := tx.Where(
+		"id = ? AND execution_kind = ? AND status = ? AND billing_state = ? AND provider_accepted = ? AND provider_task_id = ?",
+		execution.ID,
+		AppExecutionKindTask,
+		"dispatching",
+		"reserved",
+		false,
+		"",
+	).Delete(&AppTaskExecution{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return errors.New("invalid_state_transition")
+	}
+	return nil
+}
+
 func isTaskBackedExecutionModel(candidate AppExecutionModel) bool {
 	return candidate.IsTaskBacked()
 }

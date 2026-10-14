@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-
 /**
  * The header override rule key the relay treats as "forward every client
  * request header" (see processHeaderOverride in relay/channel/api_request.go).

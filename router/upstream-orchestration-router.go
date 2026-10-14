@@ -14,6 +14,7 @@ func registerUpstreamOrchestrationRoutes(apiRouter *gin.RouterGroup) {
 		root.GET("/routes", controller.ListUpstreamOrchestrationRoutes)
 		root.GET("/metrics", controller.ListUpstreamOrchestrationMetrics)
 		root.GET("/prices", controller.ListUpstreamPriceEvidence)
+		root.PUT("/settings", middleware.CriticalRateLimit(), controller.UpdateUpstreamOrchestrationSettings)
 		root.POST("/devices/pairing-code", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.CreateUpstreamPairingCode)
 		root.DELETE("/devices/:device_id", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.RevokeUpstreamDevice)
 		root.PUT("/sources/:id", middleware.CriticalRateLimit(), controller.UpdateUpstreamSource)
