@@ -317,9 +317,9 @@ function ChannelTestDialogContent({
   const batchProgressToastIdRef = useRef<ReturnType<
     typeof toast.loading
   > | null>(null)
-  const [endpointType, setEndpointType] = useState(() =>
-    savedTestEndpoint(currentRow.settings)
-  )
+  const savedEndpoint = savedTestEndpoint(currentRow.settings)
+  const [endpointType, setEndpointType] = useState(savedEndpoint)
+  const [seenOpen, setSeenOpen] = useState(open)
   const [isStreamTest, setIsStreamTest] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({})
@@ -342,6 +342,12 @@ function ChannelTestDialogContent({
     pageIndex: 0,
     pageSize: 30,
   })
+  // Content stays mounted across close and reopen. Apply the current saved
+  // endpoint when the dialog opens, including a save made while it was closed.
+  if (open !== seenOpen) {
+    setSeenOpen(open)
+    if (open) setEndpointType(savedEndpoint)
+  }
   const endpointSelectItems = useMemo(
     () =>
       endpointTypeOptions.map((option) => ({
@@ -386,7 +392,7 @@ function ChannelTestDialogContent({
 
   const resetState = useCallback(() => {
     batchStopRequestedRef.current = true
-    setEndpointType('auto')
+    setEndpointType(savedTestEndpoint(currentRow.settings))
     setIsStreamTest(false)
     setSearchTerm('')
     setTestResults({})
@@ -400,7 +406,7 @@ function ChannelTestDialogContent({
     setIsDeletingFailed(false)
     setFailureDetails(null)
     setPagination({ pageIndex: 0, pageSize: 30 })
-  }, [])
+  }, [currentRow.settings])
 
   const streamDisabled = STREAM_INCOMPATIBLE_ENDPOINTS.has(endpointType)
   const effectiveStreamTest = !streamDisabled && isStreamTest
