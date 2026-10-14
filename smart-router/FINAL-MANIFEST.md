@@ -5,9 +5,41 @@
 `DONE_WITH_CONCERNS`
 
 The feature branch contains the standalone router and locally verified NewAPI
-host interoperability. Task3 is local-only and awaits independent root SPEC
-then QUALITY acceptance on its frozen commit. It is not a production
+host interoperability. Task3 independent SPEC and QUALITY passed at
+`7a29b11ae11b55158bb68a75c2a5affa4ad2f80c`. Task A2 merges pinned production
+and adds scoped admission; its merged candidate requires fresh verification
+and independent root SPEC then QUALITY acceptance. It is not a production
 deployment or a full NewAPI executable build.
+
+## Task A2 Scoped Admission
+
+An ordinary merge retains the accepted feature and pinned production
+`aafdd8f89c6f04cf8727f0832457a2733b009129` ancestries and content.
+`NEWAPI_SMART_ROUTER_SCOPE=registry` admits exact group/model/client-protocol
+tuples before filtering. Absent tuples remain permanently on the original
+production selector through retries; registered unavailable tuples fail
+closed without fallback. Empty/`all` preserves enabled-all admission, invalid
+scope fails enabled startup, and disabled startup reads no other router
+setting.
+
+Registry scope preserves production managed ownership and source-diverse
+retries whenever any eligible channel has an attached managed route, including
+eligible channels outside the registry. Uncertain admitted ownership fails
+closed. Signed plans cannot transfer ownership or reorder bindings. The actual
+Do boundary rechecks enabled status, group/model eligibility and managed
+ownership; changed or uncertain authority terminates without invocation or
+retry. Runtime and request configuration remain immutable.
+
+Developmental behavioral evidence is retained separately under
+`/Users/bytedance/.local/share/modeltrace-evidence-20261014/host-integration/task-a2`.
+The coherent compiled assertions against the unmodified merge implementations
+produced 17 pass / 34 fail / 0 skip; minimal implementation produced
+51 pass / 0 fail / 0 skip. Passing RED identities remain first-GREEN controls.
+Earlier fixture setup failures are not behavioral RED. These runs had dirty
+source and are not clean-candidate acceptance. The external
+`modeltrace-evidence-host-integration-20261014/task-a2-implementation.md` report
+identifies the final clean SHA, rebuilt fixture, fresh results and limitations.
+No pre-merge counts below substitute for Task A2 acceptance.
 
 ## Scope
 

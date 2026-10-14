@@ -146,6 +146,7 @@ Host configuration is disabled by default:
 | Variable | Default | Enabled-mode bound |
 | --- | --- | --- |
 | `NEWAPI_SMART_ROUTER_ENABLED` | `false` | Exact `true` enables; empty or `false` disables |
+| `NEWAPI_SMART_ROUTER_SCOPE` | `all` | Empty or `all` admits supported tuples; `registry` admits exact registered tuples |
 | `NEWAPI_SMART_ROUTER_URL` | required | `http://127.0.0.1:PORT` or `http://[::1]:PORT`; port 1-65535 |
 | `NEWAPI_SMART_ROUTER_SIGNING_KEY` | required | At least 32 bytes; same key as sidecar |
 | `NEWAPI_SMART_ROUTER_BINDINGS` | required | Strict JSON array, at most 1 MiB, 1-256 entries |
@@ -176,6 +177,23 @@ channel status, abilities, provider adaptor and effective model at route and
 send boundaries. The registry cannot grant access or override those checks.
 Credentials, upstream addresses and provider bodies remain host-only.
 
+Use `NEWAPI_SMART_ROUTER_SCOPE=registry` for scoped initial enablement. Exact
+group/model/client-protocol membership is decided before channel filtering.
+An absent tuple remains permanently on the original production selector for
+that request, including retries. A registered but unavailable tuple stays
+admitted and fails closed without fallback. Invalid scope fails enabled
+startup; disabled startup reads no other router setting.
+
+Registry scope also preserves the original production selector and
+source-diverse retries when any currently eligible channel is attached to a
+managed route, including an eligible channel absent from the registry. Failed
+ownership reads fail closed for admitted traffic. Once a signed plan exists,
+it cannot transfer ownership or reorder its bindings. Immediately before the
+actual provider call, disabled channels, lost group/model eligibility, newly
+attached managed ownership or uncertain ownership are terminal. Runtime and
+request configuration remain immutable; a later reload cannot change an
+existing request's signed plan.
+
 Provision and enable in this order:
 
 1. Create host channels and their exact group/model abilities with normal host
@@ -186,7 +204,8 @@ Provision and enable in this order:
    does not create a usable catalog from host tables or the host registry.
 3. Start `cmd/routerd` with its private database and runtime signing key.
    Check liveness and signed snapshot readiness before allowing traffic.
-4. Set the host variables above with the matching registry and key, then
+4. Set the host variables above with `NEWAPI_SMART_ROUTER_SCOPE=registry`,
+   the matching registry and key, then
    start the host with `NEWAPI_SMART_ROUTER_ENABLED=true`. Invalid enabled
    configuration fails startup; do not silently fall back to legacy routing.
 

@@ -9,6 +9,8 @@ verification:
   real_provider_verification: not-performed
   crash_durable_exactly_once: not-claimed
   modeltrace_operator_plane: pending
+  task3_acceptance: independent-spec-and-quality-passed-at-7a29b11
+  task_a2_acceptance: fresh-merged-candidate-verification-and-reviews-required
 ownership:
   router_database: standalone
   host_database_access: forbidden
@@ -56,6 +58,20 @@ host_requirements:
   authority: authenticated-token-group-model-and-live-channel-abilities
   transport: literal-loopback-http-no-proxy-no-redirect
   default_enabled: false
+  optional_scope: NEWAPI_SMART_ROUTER_SCOPE
+  scope_values: [all, registry]
+  default_scope: all
+  initial_enablement_scope: registry
+  disabled_startup: no-other-router-setting-read
+  registry_admission: exact-group-model-client-protocol-before-channel-filtering
+  absent_tuple: permanent-original-selector-through-retries
+  unavailable_registered_tuple: admitted-fail-closed-no-fallback
+  managed_tuple: original-production-selector-and-source-diverse-retries
+  managed_ownership_candidates: all-currently-eligible-including-unregistered-channels
+  uncertain_admitted_ownership: fail-closed-no-sidecar-or-provider-call
+  signed_plan_ownership: immutable-no-transfer-or-reorder
+  pre_do_authority_change: terminal-no-provider-invocation-or-retry
+  configuration_ownership: immutable-runtime-and-request
   verify_signatures: true
   reject_expired_routes_with_injected_clock: true
   enforce_max_attempts: 5
