@@ -28,6 +28,7 @@ import { NoticeSection } from '../maintenance/notice-section'
 import { SidebarModulesSection } from '../maintenance/sidebar-modules-section'
 import type { SiteSettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
+import { CustomPagesSection } from './custom-pages-section'
 
 const SITE_SECTIONS = [
   {
@@ -74,6 +75,13 @@ const SITE_SECTIONS = [
         />
       )
     },
+  },
+  {
+    id: 'custom-pages',
+    titleKey: 'Custom Pages',
+    build: (settings: SiteSettings) => (
+      <CustomPagesSection defaultValue={settings.CustomPages} />
+    ),
   },
   {
     id: 'sidebar-modules',
