@@ -32,6 +32,7 @@ type RegistryEntry struct {
 
 type Config struct {
 	Enabled      bool
+	Scope        string
 	URL          string
 	SigningKey   []byte
 	Timeout      time.Duration
@@ -76,6 +77,7 @@ func LoadConfig(lookup func(string) string) (Config, error) {
 	}
 	config := Config{
 		Enabled: true, URL: lookup("NEWAPI_SMART_ROUTER_URL"),
+		Scope:      lookup("NEWAPI_SMART_ROUTER_SCOPE"),
 		SigningKey: []byte(lookup("NEWAPI_SMART_ROUTER_SIGNING_KEY")),
 		Timeout:    2 * time.Second, AttemptLimit: 2,
 	}
@@ -104,6 +106,9 @@ func LoadConfig(lookup func(string) string) (Config, error) {
 }
 
 func validateConfig(config Config) error {
+	if config.Scope != "" && config.Scope != "all" && config.Scope != "registry" {
+		return ErrConfig
+	}
 	u, err := url.Parse(config.URL)
 	if err != nil || u.Scheme != "http" || u.Opaque != "" || u.User != nil ||
 		strings.ContainsAny(config.URL, "?#") || u.RawPath != "" ||

@@ -24,9 +24,12 @@ type smartRouterRuntime struct {
 	client   *host.Client
 	bindings []host.RegistryEntry
 	limit    int
+	scope    string
 }
 
 var smartRouter atomic.Pointer[smartRouterRuntime]
+
+const smartRouterAdmissionFailedKey = "smart_router_host_admission_failed"
 
 // ConfigureSmartRouter installs the optional host runtime.
 func ConfigureSmartRouter(lookup func(string) string) error {
@@ -44,7 +47,7 @@ func ConfigureSmartRouter(lookup func(string) string) error {
 		smartRouter.Store(nil)
 		return host.ErrConfig
 	}
-	smartRouter.Store(&smartRouterRuntime{client: client, bindings: config.Bindings, limit: config.AttemptLimit})
+	smartRouter.Store(&smartRouterRuntime{client: client, bindings: config.Bindings, limit: config.AttemptLimit, scope: config.Scope})
 	return nil
 }
 
@@ -135,6 +138,24 @@ func smartRouterChannel(c *gin.Context, entry host.RegistryEntry) (*model.Channe
 	return channel, nil
 }
 
+// A successful read distinguishes no attached ownership from uncertain ownership.
+func smartRouterManagedChannels() (map[int]bool, error) {
+	if model.DB == nil {
+		return nil, host.ErrBinding
+	}
+	routes, err := model.ListUpstreamManagedRoutes()
+	if err != nil {
+		return nil, host.ErrBinding
+	}
+	attached := make(map[int]bool, len(routes))
+	for _, route := range routes {
+		if !route.Detached {
+			attached[route.ChannelID] = true
+		}
+	}
+	return attached, nil
+}
+
 func SelectSmartRouterChannel(param *RetryParam) (*model.Channel, string, bool, error) {
 	if param == nil || param.Ctx == nil {
 		return nil, "", false, nil
@@ -145,6 +166,9 @@ func SelectSmartRouterChannel(param *RetryParam) (*model.Channel, string, bool, 
 		if host.Excluded(c) {
 			return nil, "", false, nil
 		}
+		if c.GetBool(smartRouterAdmissionFailedKey) {
+			return nil, param.TokenGroup, true, host.ErrBinding
+		}
 		runtime := smartRouter.Load()
 		if runtime == nil {
 			return nil, "", false, nil
@@ -154,12 +178,47 @@ func SelectSmartRouterChannel(param *RetryParam) (*model.Channel, string, bool, 
 			host.Exclude(c)
 			return nil, "", false, nil
 		}
-		entries := make([]host.RegistryEntry, 0, 5)
-		bindings := make([]host.Binding, 0, 5)
+		matched := make([]host.RegistryEntry, 0, 5)
 		for _, entry := range runtime.bindings {
-			if entry.Group != param.TokenGroup || entry.Model != param.ModelName || entry.Protocol != string(protocol) {
-				continue
+			if entry.Group == param.TokenGroup && entry.Model == param.ModelName && entry.Protocol == string(protocol) {
+				matched = append(matched, entry)
 			}
+		}
+		if runtime.scope == "registry" {
+			if len(matched) == 0 {
+				host.Exclude(c)
+				return nil, "", false, nil
+			}
+			managed, err := smartRouterManagedChannels()
+			if err != nil {
+				c.Set(smartRouterAdmissionFailedKey, true)
+				return nil, param.TokenGroup, true, host.ErrBinding
+			}
+			if len(managed) != 0 {
+				filters := GetChannelConstraints(c).Filters
+				priorities, err := model.ListSatisfiedChannelPriorities(param.TokenGroup, param.ModelName, filters)
+				if err != nil {
+					c.Set(smartRouterAdmissionFailedKey, true)
+					return nil, param.TokenGroup, true, host.ErrBinding
+				}
+				for _, priority := range priorities {
+					ids, err := model.ListSatisfiedChannelIDsAtPriority(param.TokenGroup, param.ModelName, priority, filters)
+					if err != nil {
+						c.Set(smartRouterAdmissionFailedKey, true)
+						return nil, param.TokenGroup, true, host.ErrBinding
+					}
+					for _, id := range ids {
+						if managed[id] {
+							host.Exclude(c)
+							return nil, "", false, nil
+						}
+					}
+				}
+			}
+		}
+		entries := make([]host.RegistryEntry, 0, len(matched))
+		bindings := make([]host.Binding, 0, len(matched))
+		for _, entry := range matched {
 			if _, err := smartRouterChannel(c, entry); err != nil {
 				continue
 			}
@@ -167,10 +226,12 @@ func SelectSmartRouterChannel(param *RetryParam) (*model.Channel, string, bool, 
 			bindings = append(bindings, host.Binding{BindingID: entry.BindingID, ProtocolPlugin: entry.ProtocolPlugin, Rank: len(bindings) + 1})
 		}
 		if len(entries) == 0 {
+			c.Set(smartRouterAdmissionFailedKey, true)
 			return nil, param.TokenGroup, true, host.ErrBinding
 		}
 		var id [18]byte
 		if _, err := rand.Read(id[:]); err != nil {
+			c.Set(smartRouterAdmissionFailedKey, true)
 			return nil, param.TokenGroup, true, host.ErrRequest
 		}
 		request := host.RouteRequest{Kind: "route_request", SchemaVersion: 1,
@@ -178,6 +239,7 @@ func SelectSmartRouterChannel(param *RetryParam) (*model.Channel, string, bool, 
 			Model: param.ModelName, Protocol: protocol, AttemptLimit: runtime.limit, Bindings: bindings}
 		route, err := runtime.client.Route(c.Request.Context(), request)
 		if err != nil {
+			c.Set(smartRouterAdmissionFailedKey, true)
 			return nil, param.TokenGroup, true, err
 		}
 		state = host.NewState(runtime.client, request, route, entries)
@@ -189,9 +251,13 @@ func SelectSmartRouterChannel(param *RetryParam) (*model.Channel, string, bool, 
 	}
 	if entry.Group != param.TokenGroup || entry.Model != param.ModelName ||
 		entry.Protocol != string(smartRouterProtocol(c, param.TokenGroup)) {
+		state.LimitAttempts(0)
 		return nil, param.TokenGroup, true, host.ErrBinding
 	}
 	channel, err := smartRouterChannel(c, entry)
+	if err != nil {
+		state.LimitAttempts(0)
+	}
 	return channel, entry.Group, true, err
 }
 
@@ -205,6 +271,7 @@ func BeginSmartRouterAttempt(c *gin.Context) error {
 		return err
 	}
 	if err := validateSmartRouterSend(c, entry); err != nil {
+		state.LimitAttempts(0)
 		return host.ErrBinding
 	}
 	return state.Begin()
@@ -221,6 +288,7 @@ func BeforeSmartRouterSend(c *gin.Context) error {
 		return err
 	}
 	if err := validateSmartRouterSend(c, entry); err != nil {
+		state.LimitAttempts(0)
 		return host.ErrBinding
 	}
 	return state.Invoke()
@@ -233,6 +301,10 @@ func validateSmartRouterSend(c *gin.Context, entry host.RegistryEntry) error {
 		entry.Model != common.GetContextKeyString(c, constant.ContextKeyOriginalModel) ||
 		entry.Group != common.GetContextKeyString(c, constant.ContextKeyUsingGroup) ||
 		entry.Protocol != string(smartRouterProtocol(c, entry.Group)) {
+		return host.ErrBinding
+	}
+	managed, err := smartRouterManagedChannels()
+	if err != nil || managed[entry.ChannelID] {
 		return host.ErrBinding
 	}
 	return nil

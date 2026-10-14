@@ -47,6 +47,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 const smartRouterTestKey = "0123456789abcdef0123456789abcdef"
@@ -237,6 +238,7 @@ func configureRealSidecarHost(t *testing.T, fixture *realSidecarFixture, protoco
 	require.Len(t, entries, 2)
 	values := map[string]string{
 		"NEWAPI_SMART_ROUTER_ENABLED": "true", "NEWAPI_SMART_ROUTER_URL": fixture.url,
+		"NEWAPI_SMART_ROUTER_SCOPE":         "registry",
 		"NEWAPI_SMART_ROUTER_SIGNING_KEY":   smartRouterTestKey,
 		"NEWAPI_SMART_ROUTER_BINDINGS":      smartRouterMarshal(t, entries),
 		"NEWAPI_SMART_ROUTER_ATTEMPT_LIMIT": "2", "NEWAPI_SMART_ROUTER_TIMEOUT": "3s",
@@ -445,6 +447,7 @@ func TestSmartRouterRealSidecarEndToEnd(t *testing.T) {
 
 func setupSmartRouterHostTest(t *testing.T) (*gin.Engine, *model.User) {
 	t.Helper()
+	require.NoError(t, i18n.Init())
 	engine, user := setupRelayFailoverTest(t, true)
 	common.AutomaticDisableChannelEnabled = false
 	// Notification cleanup owns one permanent worker; only short fixture work drains.
@@ -581,6 +584,420 @@ func TestSmartRouterHostSelection(t *testing.T) {
 	assert.Zero(t, first.callCount())
 	assert.Equal(t, 1, second.callCount())
 	assert.Len(t, sidecar.routeSnapshot(), 1)
+}
+
+func smartRouterRegistryValues(t *testing.T, sidecar *smartRouterHostSidecar, entries []host.RegistryEntry) map[string]string {
+	t.Helper()
+	values := map[string]string{
+		"NEWAPI_SMART_ROUTER_ENABLED": "true", "NEWAPI_SMART_ROUTER_SCOPE": "registry",
+		"NEWAPI_SMART_ROUTER_URL": sidecar.server.URL, "NEWAPI_SMART_ROUTER_SIGNING_KEY": smartRouterTestKey,
+		"NEWAPI_SMART_ROUTER_BINDINGS": smartRouterMarshal(t, entries),
+	}
+	require.NoError(t, service.ConfigureSmartRouter(func(name string) string { return values[name] }))
+	t.Cleanup(func() { require.NoError(t, service.ConfigureSmartRouter(func(string) string { return "" })) })
+	return values
+}
+
+func smartRouterRegistryContext() (*gin.Context, *service.RetryParam) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+	common.SetContextKey(c, constant.ContextKeyUsingGroup, "default")
+	common.SetContextKey(c, constant.ContextKeyOriginalModel, relayFailoverModel)
+	return c, &service.RetryParam{Ctx: c, TokenGroup: "default", ModelName: relayFailoverModel}
+}
+
+func TestSmartRouterRegistryConfig(t *testing.T) {
+	sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+	entries := smartRouterRegistry()
+	values := smartRouterRegistryValues(t, sidecar, entries)
+	for _, scope := range []string{"", "all", "registry", "ALL", " registry", "unknown"} {
+		t.Run("scope="+scope, func(t *testing.T) {
+			_, err := host.LoadConfig(func(name string) string {
+				if name == "NEWAPI_SMART_ROUTER_SCOPE" {
+					return scope
+				}
+				return values[name]
+			})
+			if scope == "" || scope == "all" || scope == "registry" {
+				assert.NoError(t, err)
+			} else {
+				assert.ErrorIs(t, err, host.ErrConfig)
+			}
+		})
+	}
+	for _, enabled := range []string{"", "false"} {
+		t.Run("disabled="+enabled, func(t *testing.T) {
+			var reads []string
+			require.NoError(t, service.ConfigureSmartRouter(func(name string) string {
+				reads = append(reads, name)
+				if name == "NEWAPI_SMART_ROUTER_ENABLED" {
+					return enabled
+				}
+				return "invalid"
+			}))
+			assert.Equal(t, []string{"NEWAPI_SMART_ROUTER_ENABLED"}, reads)
+		})
+	}
+}
+
+func TestSmartRouterRegistryAbsentParity(t *testing.T) {
+	for _, missing := range []string{"group", "model", "protocol"} {
+		t.Run(missing, func(t *testing.T) {
+			var outputs []string
+			var charges []int
+			for _, enabled := range []bool{false, true} {
+				t.Run(fmt.Sprintf("registry=%t", enabled), func(t *testing.T) {
+					engine, user := setupSmartRouterHostTest(t)
+					first := newFailoverUpstream(t, "production-primary", http.StatusInternalServerError)
+					second := newFailoverUpstream(t, "production-backup", http.StatusOK)
+					addRelayFailoverChannel(t, 7401, 30, first)
+					addRelayFailoverChannel(t, 7402, 20, second)
+					initializeRelayFailoverChannels()
+					sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+					if enabled {
+						entry := host.RegistryEntry{BindingID: smartRouterBindingA, ChannelID: 7401,
+							Group: "default", Model: relayFailoverModel, Protocol: "chat", ProtocolPlugin: "chat-v1"}
+						switch missing {
+						case "group":
+							entry.Group = "other"
+						case "model":
+							entry.Model = "other"
+						case "protocol":
+							entry.Protocol, entry.ProtocolPlugin = "messages", "messages-v1"
+						}
+						smartRouterRegistryValues(t, sidecar, []host.RegistryEntry{entry})
+					}
+					response := performRelayFailoverRequest(t, engine)
+					require.Equal(t, http.StatusOK, response.Code)
+					assert.Equal(t, 1, first.callCount())
+					assert.Equal(t, 1, second.callCount())
+					assert.Empty(t, sidecar.routeSnapshot())
+					assert.Empty(t, sidecar.outcomeSnapshot())
+					requireRealSidecarBilling(t, user, 1, 7402)
+					log, info := latestConsumeLog(t, user.Id)
+					assert.Equal(t, []string{"7401", "7402"}, info.AttemptedChannels)
+					outputs = append(outputs, response.Body.String())
+					charges = append(charges, log.Quota)
+				})
+			}
+			require.Len(t, outputs, 2)
+			assert.Equal(t, outputs[0], outputs[1])
+			assert.Equal(t, charges[0], charges[1])
+		})
+	}
+}
+
+func TestSmartRouterRegistryPermanentExclusion(t *testing.T) {
+	_, _ = setupSmartRouterHostTest(t)
+	first := newFailoverUpstream(t, "production-primary", http.StatusInternalServerError)
+	second := newFailoverUpstream(t, "production-backup", http.StatusOK)
+	addRelayFailoverChannel(t, 7411, 30, first)
+	addRelayFailoverChannel(t, 7412, 20, second)
+	initializeRelayFailoverChannels()
+	sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+	entry := host.RegistryEntry{BindingID: smartRouterBindingA, ChannelID: 7411,
+		Group: "default", Model: "other", Protocol: "chat", ProtocolPlugin: "chat-v1"}
+	values := smartRouterRegistryValues(t, sidecar, []host.RegistryEntry{entry})
+	c, retry := smartRouterRegistryContext()
+	selected, _, err := service.CacheGetRandomSatisfiedChannel(retry)
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 7411, selected.Id)
+	assert.True(t, host.Excluded(c))
+	assert.Nil(t, host.StateFor(c))
+	entry.Model = relayFailoverModel
+	values["NEWAPI_SMART_ROUTER_BINDINGS"] = smartRouterMarshal(t, []host.RegistryEntry{entry})
+	require.NoError(t, service.ConfigureSmartRouter(func(name string) string { return values[name] }))
+	service.RecordRetryAttempt(retry, selected)
+	retry.IncreaseRetry()
+	selected, _, err = service.CacheGetRandomSatisfiedChannel(retry)
+	require.NoError(t, err)
+	require.NotNil(t, selected)
+	assert.Equal(t, 7412, selected.Id, "retry keeps the original production selector after registry reload")
+	assert.Nil(t, host.StateFor(c))
+	assert.Empty(t, sidecar.routeSnapshot())
+	assert.Zero(t, first.callCount())
+	assert.Zero(t, second.callCount())
+}
+
+func TestSmartRouterRegistryUnavailable(t *testing.T) {
+	for _, unavailable := range []string{"missing", "disabled", "filtered", "invalid", "ownership_read_error"} {
+		t.Run(unavailable, func(t *testing.T) {
+			engine, user := setupSmartRouterHostTest(t)
+			first := newFailoverUpstream(t, "registered", http.StatusOK)
+			backup := newFailoverUpstream(t, "forbidden-fallback", http.StatusOK)
+			channel := addRelayFailoverChannel(t, 7421, 30, first)
+			addRelayFailoverChannel(t, 7422, 20, backup)
+			entry := host.RegistryEntry{BindingID: smartRouterBindingA, ChannelID: channel.Id,
+				Group: "default", Model: relayFailoverModel, Protocol: "chat", ProtocolPlugin: "chat-v1"}
+			switch unavailable {
+			case "missing":
+				entry.ChannelID = 99999
+			case "disabled":
+				require.NoError(t, model.DB.Model(&channel).Update("status", common.ChannelStatusAutoDisabled).Error)
+			case "invalid":
+				require.NoError(t, model.DB.Model(&channel).Update("type", constant.ChannelTypeGemini).Error)
+			case "ownership_read_error":
+				const callback = "test:smart_registry_ownership_error"
+				require.NoError(t, model.DB.Callback().Query().Before("gorm:query").Register(callback, func(tx *gorm.DB) {
+					if tx.Statement.Table == "upstream_managed_routes" {
+						tx.AddError(errors.New("synthetic ownership read failed"))
+					}
+				}))
+				t.Cleanup(func() { require.NoError(t, model.DB.Callback().Query().Remove(callback)) })
+			}
+			initializeRelayFailoverChannels()
+			sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+			smartRouterRegistryValues(t, sidecar, []host.RegistryEntry{entry})
+			c, retry := smartRouterRegistryContext()
+			if unavailable == "filtered" {
+				service.GetChannelConstraints(c).AddFilter(dto.ChannelFilter{Kind: dto.FilterExcludeChannelIDs, ExcludedChannelIDs: []int{channel.Id}})
+			}
+			selected, _, handled, err := service.SelectSmartRouterChannel(retry)
+			assert.True(t, handled)
+			assert.ErrorIs(t, err, host.ErrBinding)
+			assert.Nil(t, selected)
+			assert.False(t, host.Excluded(c), "registered-but-unavailable is not a scope exclusion")
+			assert.Nil(t, host.StateFor(c))
+			if unavailable != "filtered" {
+				response := performRelayFailoverRequest(t, engine)
+				assert.GreaterOrEqual(t, response.Code, 400)
+				requireRelayRefunded(t, user.Id)
+			}
+			require.NoError(t, service.ConfigureSmartRouter(func(string) string { return "" }))
+			retry.IncreaseRetry()
+			selected, _, handled, err = service.SelectSmartRouterChannel(retry)
+			assert.True(t, handled, "admission is immutable even if global config is disabled")
+			assert.ErrorIs(t, err, host.ErrBinding)
+			assert.Nil(t, selected)
+			assert.Empty(t, sidecar.routeSnapshot())
+			assert.Empty(t, sidecar.outcomeSnapshot())
+			assert.Zero(t, first.callCount())
+			assert.Zero(t, backup.callCount())
+		})
+	}
+}
+
+func TestSmartRouterRegistryManagedParity(t *testing.T) {
+	for _, nonregistered := range []bool{false, true} {
+		t.Run(fmt.Sprintf("nonregistered=%t", nonregistered), func(t *testing.T) {
+			var outputs []string
+			var charges []int
+			for _, enabled := range []bool{false, true} {
+				t.Run(fmt.Sprintf("registry=%t", enabled), func(t *testing.T) {
+					engine, user := setupSmartRouterHostTest(t)
+					enableManagedOrchestrationForFailoverTest(t, 90)
+					trace := &failoverCallTrace{}
+					first := newFailoverUpstream(t, "production-primary", http.StatusInternalServerError, trace)
+					sibling := newFailoverUpstream(t, "signed-sibling", http.StatusOK, trace)
+					backup := newFailoverUpstream(t, "production-diverse", http.StatusOK, trace)
+					initial := addRelayFailoverChannel(t, 7431, 30, first)
+					siblingPriority := int64(20)
+					if nonregistered {
+						siblingPriority = 30
+					}
+					same := addRelayFailoverChannel(t, 7432, siblingPriority, sibling)
+					diverse := addRelayFailoverChannel(t, 7433, 20, backup)
+					if nonregistered {
+						require.NoError(t, model.DB.Model(&same).Update("weight", 0).Error)
+						require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", same.Id).Update("weight", 0).Error)
+					} else {
+						addManagedFailoverRoute(t, initial, 101)
+						addManagedFailoverRoute(t, same, 101)
+					}
+					addManagedFailoverRoute(t, diverse, 202)
+					initializeRelayFailoverChannels()
+					sidecar := newSmartRouterHostSidecar(t, smartRouterBindingB)
+					if enabled {
+						smartRouterRegistryValues(t, sidecar, []host.RegistryEntry{
+							{BindingID: smartRouterBindingA, ChannelID: 7431, Group: "default", Model: relayFailoverModel, Protocol: "chat", ProtocolPlugin: "chat-v1"},
+							{BindingID: smartRouterBindingB, ChannelID: 7432, Group: "default", Model: relayFailoverModel, Protocol: "chat", ProtocolPlugin: "chat-v1"},
+						})
+					}
+					response := performRelayFailoverRequest(t, engine)
+					require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+					assert.Equal(t, []string{"production-primary", "production-diverse"}, trace.snapshot())
+					assert.Zero(t, sibling.callCount(), "production source-diverse selector must run, not merely record a signed selection")
+					assert.Empty(t, sidecar.routeSnapshot())
+					assert.Empty(t, sidecar.outcomeSnapshot())
+					requireRealSidecarBilling(t, user, 1, 7433)
+					log, info := latestConsumeLog(t, user.Id)
+					assert.Equal(t, []string{"7431", "7433"}, info.AttemptedChannels)
+					assert.Equal(t, 2, info.AttemptCount)
+					outputs = append(outputs, response.Body.String())
+					charges = append(charges, log.Quota)
+				})
+			}
+			require.Len(t, outputs, 2)
+			assert.Equal(t, outputs[0], outputs[1])
+			assert.Equal(t, charges[0], charges[1])
+		})
+	}
+}
+
+func TestSmartRouterRegistryManagedEligibility(t *testing.T) {
+	for _, ineligible := range []string{"disabled", "model", "group", "filter", "detached"} {
+		t.Run(ineligible, func(t *testing.T) {
+			_, _ = setupSmartRouterHostTest(t)
+			first := newFailoverUpstream(t, "signed", http.StatusOK)
+			managed := newFailoverUpstream(t, "ineligible-managed", http.StatusOK)
+			addRelayFailoverChannel(t, 7441, 30, first)
+			channel := addRelayFailoverChannel(t, 7442, 20, managed)
+			route := addManagedFailoverRoute(t, channel, 303)
+			switch ineligible {
+			case "disabled":
+				require.NoError(t, model.DB.Model(&channel).Update("status", common.ChannelStatusAutoDisabled).Error)
+			case "model", "group":
+				column := "models"
+				if ineligible == "group" {
+					column = "group"
+				}
+				require.NoError(t, model.DB.Model(&channel).Update(column, "other").Error)
+				require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", channel.Id).Update(ineligible, "other").Error)
+			case "detached":
+				require.NoError(t, model.DB.Model(&route).Update("detached", true).Error)
+			}
+			initializeRelayFailoverChannels()
+			sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+			smartRouterRegistryValues(t, sidecar, []host.RegistryEntry{{BindingID: smartRouterBindingA, ChannelID: 7441,
+				Group: "default", Model: relayFailoverModel, Protocol: "chat", ProtocolPlugin: "chat-v1"}})
+			c, retry := smartRouterRegistryContext()
+			if ineligible == "filter" {
+				service.GetChannelConstraints(c).AddFilter(dto.ChannelFilter{Kind: dto.FilterExcludeChannelIDs, ExcludedChannelIDs: []int{channel.Id}})
+			}
+			selected, _, handled, err := service.SelectSmartRouterChannel(retry)
+			require.NoError(t, err)
+			require.True(t, handled)
+			require.NotNil(t, selected)
+			assert.Equal(t, 7441, selected.Id)
+			assert.NotNil(t, host.StateFor(c))
+			assert.Len(t, sidecar.routeSnapshot(), 1)
+			assert.Zero(t, managed.callCount())
+		})
+	}
+}
+
+func TestSmartRouterRegistryConfigOwnership(t *testing.T) {
+	_, _ = setupSmartRouterHostTest(t)
+	first := newFailoverUpstream(t, "original-signed", http.StatusOK)
+	second := newFailoverUpstream(t, "replacement", http.StatusOK)
+	addRelayFailoverChannel(t, 7451, 30, first)
+	addRelayFailoverChannel(t, 7452, 20, second)
+	initializeRelayFailoverChannels()
+	sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA)
+	entries := []host.RegistryEntry{{BindingID: smartRouterBindingA, ChannelID: 7451,
+		Group: "default", Model: relayFailoverModel, Protocol: "chat", ProtocolPlugin: "chat-v1"}}
+	values := smartRouterRegistryValues(t, sidecar, entries)
+	c, retry := smartRouterRegistryContext()
+	selected, _, handled, err := service.SelectSmartRouterChannel(retry)
+	require.NoError(t, err)
+	require.True(t, handled)
+	require.NotNil(t, selected)
+	require.Nil(t, middleware.SetupContextForSelectedChannel(c, selected, relayFailoverModel))
+	entries[0].ChannelID = 7452
+	values["NEWAPI_SMART_ROUTER_BINDINGS"] = smartRouterMarshal(t, entries)
+	values["NEWAPI_SMART_ROUTER_SCOPE"] = "all"
+	require.NoError(t, service.ConfigureSmartRouter(func(name string) string { return values[name] }))
+	require.NoError(t, service.BeginSmartRouterAttempt(c))
+	request, err := http.NewRequest(http.MethodPost, first.server.URL+"/v1/chat/completions", strings.NewReader(`{}`))
+	require.NoError(t, err)
+	response, err := relaychannel.DoRequest(c, request, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}})
+	require.NoError(t, err)
+	require.NotNil(t, response)
+	require.NoError(t, response.Body.Close())
+	assert.False(t, host.StateFor(c).Finish(c.Request.Context(), true, false))
+	assert.Equal(t, 1, first.callCount())
+	assert.Zero(t, second.callCount())
+	assert.Len(t, sidecar.routeSnapshot(), 1)
+	assert.Len(t, sidecar.outcomeSnapshot(), 1)
+}
+
+func TestSmartRouterRegistryAuthorityTerminal(t *testing.T) {
+	for _, phase := range []string{"before_begin", "before_do"} {
+		for _, change := range []string{"disabled", "model", "group", "managed", "read_error"} {
+			t.Run(phase+"/"+change, func(t *testing.T) {
+				_, _ = setupSmartRouterHostTest(t)
+				first := newFailoverUpstream(t, "forbidden", http.StatusOK)
+				second := newFailoverUpstream(t, "forbidden-retry", http.StatusOK)
+				channel := addRelayFailoverChannel(t, 7461, 30, first)
+				addRelayFailoverChannel(t, 7462, 20, second)
+				initializeRelayFailoverChannels()
+				sidecar := newSmartRouterHostSidecar(t, smartRouterBindingA, smartRouterBindingB)
+				smartRouterRegistryValues(t, sidecar, []host.RegistryEntry{
+					{BindingID: smartRouterBindingA, ChannelID: 7461, Group: "default", Model: relayFailoverModel, Protocol: "chat", ProtocolPlugin: "chat-v1"},
+					{BindingID: smartRouterBindingB, ChannelID: 7462, Group: "default", Model: relayFailoverModel, Protocol: "chat", ProtocolPlugin: "chat-v1"},
+				})
+				c, retry := smartRouterRegistryContext()
+				selected, _, handled, err := service.SelectSmartRouterChannel(retry)
+				require.NoError(t, err)
+				require.True(t, handled)
+				require.Nil(t, middleware.SetupContextForSelectedChannel(c, selected, relayFailoverModel))
+				if phase == "before_do" {
+					require.NoError(t, service.BeginSmartRouterAttempt(c))
+				}
+				var route model.UpstreamManagedRoute
+				switch change {
+				case "disabled":
+					require.NoError(t, model.DB.Model(&channel).Update("status", common.ChannelStatusAutoDisabled).Error)
+				case "model", "group":
+					column := "models"
+					if change == "group" {
+						column = "group"
+					}
+					require.NoError(t, model.DB.Model(&channel).Update(column, "other").Error)
+					require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", channel.Id).Update(change, "other").Error)
+				case "managed":
+					route = addManagedFailoverRoute(t, channel, 404)
+				case "read_error":
+					const callback = "test:smart_registry_send_error"
+					require.NoError(t, model.DB.Callback().Query().Before("gorm:query").Register(callback, func(tx *gorm.DB) {
+						if tx.Statement.Table == "upstream_managed_routes" {
+							tx.AddError(errors.New("synthetic authority read failed"))
+						}
+					}))
+				}
+				initializeRelayFailoverChannels()
+				if phase == "before_begin" {
+					err = service.BeginSmartRouterAttempt(c)
+				} else {
+					request, requestErr := http.NewRequest(http.MethodPost, first.server.URL+"/v1/chat/completions", strings.NewReader(`{}`))
+					require.NoError(t, requestErr)
+					response, callErr := relaychannel.DoRequest(c, request, &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}})
+					err = callErr
+					if response != nil {
+						require.NoError(t, response.Body.Close())
+					}
+				}
+				assert.ErrorIs(t, err, host.ErrBinding)
+				switch change {
+				case "disabled":
+					require.NoError(t, model.DB.Model(&channel).Update("status", common.ChannelStatusEnabled).Error)
+				case "model":
+					require.NoError(t, model.DB.Model(&channel).Update("models", relayFailoverModel).Error)
+					require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", channel.Id).Update("model", relayFailoverModel).Error)
+				case "group":
+					require.NoError(t, model.DB.Model(&channel).Update("group", "default").Error)
+					require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", channel.Id).Update("group", "default").Error)
+				case "managed":
+					require.NoError(t, model.DB.Model(&route).Update("detached", true).Error)
+				case "read_error":
+					require.NoError(t, model.DB.Callback().Query().Remove("test:smart_registry_send_error"))
+				}
+				initializeRelayFailoverChannels()
+				assert.Error(t, service.BeforeSmartRouterSend(c), "restoring authority cannot revive a rejected signed request")
+				assert.False(t, host.StateFor(c).Finish(c.Request.Context(), false, false))
+				retry.IncreaseRetry()
+				selected, _, handled, err = service.SelectSmartRouterChannel(retry)
+				assert.True(t, handled)
+				assert.Error(t, err)
+				assert.Nil(t, selected)
+				assert.Len(t, sidecar.routeSnapshot(), 1)
+				assert.Empty(t, sidecar.outcomeSnapshot())
+				assert.Zero(t, first.callCount())
+				assert.Zero(t, second.callCount())
+			})
+		}
+	}
 }
 
 func newSmartRouterProtocolUpstream(t *testing.T, protocol host.Protocol, status int, payload string) *failoverUpstream {
