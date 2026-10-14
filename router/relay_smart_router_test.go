@@ -602,6 +602,36 @@ func TestSmartRouterControlTransport(t *testing.T) {
 			require.NoError(t, err)
 			require.Error(t, client.ReportOutcome(context.Background(), outcome))
 		})
+		t.Run("chunked nonempty 204", func(t *testing.T) {
+			var calls atomic.Int32
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls.Add(1)
+				assert.Equal(t, http.MethodPost, r.Method)
+				assert.Equal(t, "/v1/outcomes", r.URL.Path)
+				body, err := io.ReadAll(r.Body)
+				if !assert.NoError(t, err) {
+					return
+				}
+				assert.Equal(t, smartRouterMarshal(t, outcome), string(body))
+				conn, buffer, err := w.(http.Hijacker).Hijack()
+				if !assert.NoError(t, err) {
+					return
+				}
+				defer conn.Close()
+				_, err = buffer.WriteString("HTTP/1.1 204 No Content\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n1\r\nx\r\n0\r\n\r\n")
+				if !assert.NoError(t, err) {
+					return
+				}
+				assert.NoError(t, buffer.Flush())
+			}))
+			defer srv.Close()
+			client, err := host.NewClient(smartRouterConfig(srv.URL), nil)
+			require.NoError(t, err)
+			err = client.ReportOutcome(context.Background(), outcome)
+			srv.Close()
+			assert.EqualValues(t, 1, calls.Load())
+			require.ErrorIs(t, err, host.ErrResponse)
+		})
 		t.Run("all outcomes and maximum timings are accepted once", func(t *testing.T) {
 			for _, result := range []host.Outcome{
 				host.OutcomeSuccess, host.OutcomeAuth401, host.OutcomeRateLimited429, host.OutcomeUpstream5xx,
@@ -746,42 +776,80 @@ func TestSmartRouterControlTransport(t *testing.T) {
 	t.Run("context deadlines and cancellation", func(t *testing.T) {
 		for _, operation := range []string{"route", "outcome", "snapshot"} {
 			t.Run(operation, func(t *testing.T) {
-				arrived := make(chan struct{}, 1)
-				release := make(chan struct{})
-				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					arrived <- struct{}{}
-					select {
-					case <-r.Context().Done():
-					case <-release:
-					}
-				}))
-				defer srv.Close()
-				defer close(release)
-				cfg := smartRouterConfig(srv.URL)
-				cfg.Timeout = 100 * time.Millisecond
-				client, err := host.NewClient(cfg, nil)
-				require.NoError(t, err)
-				invoke := func(ctx context.Context) error {
-					switch operation {
-					case "route":
-						_, err := client.Route(ctx, smartRouterRequest())
-						return err
-					case "snapshot":
-						_, err := client.Snapshot(ctx)
-						return err
-					default:
-						return client.ReportOutcome(ctx, host.AttemptOutcome{Kind: "attempt_outcome", SchemaVersion: 1, EventID: "evt-1", RequestID: "req-1", BindingID: smartRouterBindingA, Protocol: host.ProtocolChat, Outcome: host.OutcomeSuccess})
-					}
+				for _, phase := range []struct {
+					name          string
+					timeout       time.Duration
+					beforeArrival bool
+					want          error
+				}{
+					{"deadline", 100 * time.Millisecond, false, context.DeadlineExceeded},
+					{"deadline before arrival", 100 * time.Millisecond, true, context.DeadlineExceeded},
+					{"cancellation", 2 * time.Second, false, context.Canceled},
+					{"cancellation before arrival", 2 * time.Second, true, context.Canceled},
+				} {
+					t.Run(phase.name, func(t *testing.T) {
+						arrived := make(chan struct{}, 1)
+						release := make(chan struct{})
+						var calls atomic.Int32
+						srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+							calls.Add(1)
+							arrived <- struct{}{}
+							select {
+							case <-r.Context().Done():
+							case <-release:
+							}
+						}))
+						defer srv.Close()
+						defer close(release)
+						cfg := smartRouterConfig(srv.URL)
+						cfg.Timeout = phase.timeout
+						client, err := host.NewClient(cfg, nil)
+						require.NoError(t, err)
+						parent := context.Background()
+						if phase.beforeArrival && phase.want == context.DeadlineExceeded {
+							var cancelDeadline context.CancelFunc
+							parent, cancelDeadline = context.WithDeadline(parent, time.Unix(0, 0))
+							defer cancelDeadline()
+						}
+						ctx, cancel := context.WithCancel(parent)
+						defer cancel()
+						if phase.beforeArrival && phase.want == context.Canceled {
+							cancel()
+						}
+						done := make(chan error, 1)
+						go func() {
+							switch operation {
+							case "route":
+								_, err := client.Route(ctx, smartRouterRequest())
+								done <- err
+							case "snapshot":
+								_, err := client.Snapshot(ctx)
+								done <- err
+							default:
+								done <- client.ReportOutcome(ctx, host.AttemptOutcome{Kind: "attempt_outcome", SchemaVersion: 1, EventID: "evt-1", RequestID: "req-1", BindingID: smartRouterBindingA, Protocol: host.ProtocolChat, Outcome: host.OutcomeSuccess})
+							}
+						}()
+						if phase.want == context.Canceled && !phase.beforeArrival {
+							select {
+							case <-arrived:
+								cancel()
+							case err := <-done:
+								require.FailNow(t, "caller completed before request arrival", "error: %v", err)
+							case <-time.After(3 * time.Second):
+								require.FailNow(t, "request arrival exceeded bounded wait")
+							}
+						}
+						select {
+						case err := <-done:
+							require.ErrorIs(t, err, phase.want)
+						case <-time.After(3 * time.Second):
+							require.FailNow(t, "caller completion exceeded bounded wait")
+						}
+						if phase.beforeArrival {
+							assert.Zero(t, calls.Load())
+						}
+					})
 				}
-				err = invoke(context.Background())
-				require.ErrorIs(t, err, context.DeadlineExceeded)
-				<-arrived
-				ctx, cancel := context.WithCancel(context.Background())
-				done := make(chan error, 1)
-				go func() { done <- invoke(ctx) }()
-				<-arrived
-				cancel()
-				require.ErrorIs(t, <-done, context.Canceled)
 			})
 		}
 	})

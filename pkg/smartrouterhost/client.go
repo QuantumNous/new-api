@@ -418,6 +418,7 @@ func (c *Client) call(ctx context.Context, method, path string, payload []byte, 
 	}
 	if response.StatusCode == success && success == http.StatusNoContent {
 		if len(body) != 0 || response.ContentLength > 0 ||
+			len(response.TransferEncoding) != 0 ||
 			(response.Header.Get("Content-Length") != "" && response.Header.Get("Content-Length") != "0") {
 			return nil, ErrResponse
 		}
