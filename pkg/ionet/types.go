@@ -95,10 +95,10 @@ type DeploymentLocation struct {
 
 // DeploymentContainerConfig represents container config in deployment details
 type DeploymentContainerConfig struct {
-	Entrypoint   []string               `json:"entrypoint"`
-	EnvVariables map[string]interface{} `json:"env_variables"`
-	TrafficPort  int                    `json:"traffic_port"`
-	ImageURL     string                 `json:"image_url"`
+	Entrypoint   []string       `json:"entrypoint"`
+	EnvVariables map[string]any `json:"env_variables"`
+	TrafficPort  int            `json:"traffic_port"`
+	ImageURL     string         `json:"image_url"`
 }
 
 // Container represents a container within a deployment

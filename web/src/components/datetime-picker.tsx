@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { ChevronDownIcon } from 'lucide-react'
 import * as React from 'react'
-import { enUS, fr, ja, ru, vi, zhCN, zhTW } from 'react-day-picker/locale'
+import { enUS, fr, ja, ru, vi, zhCN } from 'react-day-picker/locale'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -34,8 +34,7 @@ import { cn } from '@/lib/utils'
 
 const calendarLocales = {
   en: enUS,
-  zhCN,
-  zhTW,
+  zh: zhCN,
   fr,
   ru,
   ja,
@@ -63,21 +62,23 @@ export function DateTimePicker({
   const [open, setOpen] = React.useState(false)
   const [date, setDate] = React.useState<Date | undefined>(value)
   const [month, setMonth] = React.useState<Date | undefined>(value)
-  const [time, setTime] = React.useState<string>('00:00:00')
+  const [time, setTime] = React.useState<string>('00:00')
 
   React.useEffect(() => {
     setDate(value)
     setMonth(value)
     if (value) {
-      setTime(dayjs(value).format('HH:mm:ss'))
+      const hours = value.getHours().toString().padStart(2, '0')
+      const minutes = value.getMinutes().toString().padStart(2, '0')
+      setTime(`${hours}:${minutes}`)
     }
   }, [value])
 
   const handleDateSelect = (selectedDate: Date | undefined) => {
     if (selectedDate) {
-      const [hours, minutes, seconds = 0] = time.split(':').map(Number)
+      const [hours, minutes] = time.split(':').map(Number)
       const newDate = new Date(selectedDate)
-      newDate.setHours(hours, minutes, seconds, 0)
+      newDate.setHours(hours, minutes, 0, 0)
       setDate(newDate)
       setMonth(newDate)
       onChange?.(newDate)
@@ -91,16 +92,12 @@ export function DateTimePicker({
 
   const handleTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTime = e.target.value
-    // The browser reports an emptied or half-cleared field as ''. Keep the
-    // current time: the field shows it again and no invalid date goes out.
-    if (!newTime) return
     setTime(newTime)
 
     if (date) {
-      // A browser may omit :00 seconds from the value.
-      const [hours, minutes, seconds = 0] = newTime.split(':').map(Number)
+      const [hours, minutes] = newTime.split(':').map(Number)
       const newDate = new Date(date)
-      newDate.setHours(hours, minutes, seconds, 0)
+      newDate.setHours(hours, minutes, 0, 0)
       setDate(newDate)
       onChange?.(newDate)
     }
@@ -109,7 +106,7 @@ export function DateTimePicker({
   const handleClear = () => {
     setDate(undefined)
     setMonth(undefined)
-    setTime('00:00:00')
+    setTime('00:00')
     onChange?.(undefined)
   }
 
@@ -146,9 +143,7 @@ export function DateTimePicker({
       </Popover>
       <Input
         type='time'
-        step={1}
         value={time}
-        aria-label={t('Time')}
         onChange={handleTimeChange}
         className='w-32 appearance-none [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none'
         disabled={!date}

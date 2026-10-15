@@ -79,13 +79,11 @@ type responsesWSControl struct {
 // Only the request worker reads or changes billing state. Socket readers pass
 // bounded messages to it; cancellation never performs an independent refund.
 type responsesWSCallState struct {
-	inbox    chan responsesWSMessage
-	controls chan responsesWSControl
-	done     chan struct{}
-	terminal *responsesWSMessage
-	// A nonzero closeCode ends the connection after this request.
-	closeCode   int
-	closeReason string
+	inbox      chan responsesWSMessage
+	controls   chan responsesWSControl
+	done       chan struct{}
+	terminal   *responsesWSMessage
+	closeAfter bool
 }
 
 type responsesWSSession struct {
@@ -97,7 +95,6 @@ type responsesWSSession struct {
 	requestID      string
 	nextEventIndex int
 	workers        sync.WaitGroup
-	closeOnce      sync.Once
 
 	clientWriteMu sync.Mutex
 	targetWriteMu sync.Mutex
@@ -132,9 +129,7 @@ func ResponsesWebSocketHelper(c *gin.Context, client *websocket.Conn, runner Res
 	}
 	client.SetReadLimit(int64(maxMB) << 20)
 	defer func() {
-		// Unless an earlier shutdown ended the read, the client closed or left.
-		// Gorilla already answered a client close frame, so this tells the upstream.
-		s.shutdown(websocket.CloseNormalClosure, "")
+		s.shutdown()
 		s.workers.Wait()
 	}()
 
@@ -185,13 +180,11 @@ func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []b
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			apiErr = types.NewError(fmt.Errorf("responses websocket request panic: %v", recovered), types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
-			state.closeCode = websocket.CloseInternalServerErr
+			state.closeAfter = true
 		}
 		// Finish the middleware count before publishing the terminal event. Hold
 		// admission while writing it so an immediate next create cannot race
-		// the current request's release. A failing request also shuts down
-		// before that release, so a concurrent upstream close cannot report it
-		// as a normal closure; shutdown itself takes neither lock.
+		// the current request's release; socket close needs neither lock.
 		outgoing := state.terminal
 		if apiErr != nil {
 			if body, err := buildResponsesWSErrorPayload(envelope.EventID, streamID, apiErr, upstreamURLs...); err == nil {
@@ -202,18 +195,18 @@ func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []b
 		s.stateMu.Lock()
 		if outgoing != nil {
 			if err := s.client.SetWriteDeadline(time.Now().Add(responsesWSWriteTimeout)); err != nil {
-				state.closeCode = websocket.CloseInternalServerErr
+				state.closeAfter = true
 			} else if err := s.client.WriteMessage(outgoing.kind, outgoing.body); err != nil {
-				state.closeCode = websocket.CloseInternalServerErr
+				state.closeAfter = true
 			}
-		}
-		if state.closeCode != 0 {
-			s.shutdown(state.closeCode, state.closeReason)
 		}
 		s.current = nil
 		close(state.done)
 		s.stateMu.Unlock()
 		s.clientWriteMu.Unlock()
+		if state.closeAfter {
+			s.shutdown()
+		}
 	}()
 	request := s.request.Clone(s.ctx)
 	request.Body = io.NopCloser(bytes.NewReader(message))
@@ -230,7 +223,7 @@ func (s *responsesWSSession) runRequest(state *responsesWSCallState, message []b
 		return callErr
 	})
 	if apiErr != nil && (apiErr.StatusCode == http.StatusUnauthorized || apiErr.StatusCode == http.StatusForbidden) {
-		state.closeCode = websocket.ClosePolicyViolation
+		state.closeAfter = true
 	}
 }
 
@@ -243,7 +236,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			apiErr = types.NewError(fmt.Errorf("responses websocket call panic: %v", recovered), types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
-			state.closeCode = websocket.CloseInternalServerErr
+			state.closeAfter = true
 		}
 		if info == nil && modelName != "" {
 			info = &relaycommon.RelayInfo{OriginModelName: modelName, UsingGroup: common.GetContextKeyString(c, appconstant.ContextKeyUsingGroup), StartTime: started}
@@ -286,7 +279,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			return apiErr
 		}
 		if err := s.writeTarget(websocket.TextMessage, payload); err != nil {
-			state.closeCode = websocket.CloseInternalServerErr
+			state.closeAfter = true
 			return types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
 		}
 	} else {
@@ -338,7 +331,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				return types.NewError(context.Canceled, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
 			}
 			if err := s.writeTarget(websocket.TextMessage, payload); err != nil {
-				state.closeCode = websocket.CloseInternalServerErr
+				state.closeAfter = true
 				return types.NewError(err, types.ErrorCodeBadResponse, types.ErrOptionWithSkipRetry())
 			}
 			s.lockedModel, s.lockedChannelID, s.lockedGroup = modelName, channel.Id, info.UsingGroup
@@ -387,7 +380,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			idle.Reset(timeout)
 			if incoming.err != nil {
 				info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonScannerErr, incoming.err)
-				state.closeCode, state.closeReason = websocket.CloseInternalServerErr, "upstream connection closed"
+				state.closeAfter = true
 				ConsumeResponsesQuota(c, info, accumulator.Finish())
 				return nil
 			}
@@ -401,7 +394,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 			} else {
 				if event.Type != "error" && event.StreamID != "" && event.StreamID != create.StreamID {
 					if err := s.writeClient(incoming.kind, incoming.body); err != nil {
-						s.shutdown(websocket.CloseInternalServerErr, "")
+						s.shutdown()
 					}
 					continue
 				}
@@ -419,7 +412,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 					terminal, ambiguous, controlError := responsesWSErrorEndsRequest(rejection, create.StreamID, responseID, sentControl)
 					if !terminal {
 						if err := s.writeClient(incoming.kind, incoming.body); err != nil {
-							s.shutdown(websocket.CloseInternalServerErr, "")
+							s.shutdown()
 						}
 						// Only a control error in this stream resolves its pending control.
 						if controlError {
@@ -438,10 +431,7 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 						accumulator.Observe(&event.ResponsesStreamResponse, incoming.body)
 						info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonDone, nil)
 						s.lastResponseID = responseID
-						state.terminal = &incoming
-						if ambiguous {
-							state.closeCode = websocket.CloseInternalServerErr
-						}
+						state.terminal, state.closeAfter = &incoming, ambiguous
 						ConsumeResponsesQuota(c, info, accumulator.Finish())
 						return nil
 					}
@@ -479,11 +469,11 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				return nil
 			}
 			if err := s.writeClient(incoming.kind, incoming.body); err != nil {
-				s.shutdown(websocket.CloseInternalServerErr, "")
+				s.shutdown()
 			}
 			if accepted && pendingControl != nil {
 				if err := s.writeTarget(websocket.TextMessage, pendingControl); err != nil {
-					s.shutdown(websocket.CloseInternalServerErr, "")
+					s.shutdown()
 				}
 				sentControl = pendingControl
 				pendingControl = nil
@@ -498,12 +488,12 @@ func (s *responsesWSSession) runCall(c *gin.Context, state *responsesWSCallState
 				continue
 			}
 			if err := s.writeTarget(websocket.TextMessage, control.body); err != nil {
-				s.shutdown(websocket.CloseInternalServerErr, "")
+				s.shutdown()
 			}
 			sentControl = control.body
 		case <-idle.C:
 			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonTimeout, context.DeadlineExceeded)
-			state.closeCode, state.closeReason = websocket.CloseInternalServerErr, "upstream response timed out"
+			state.closeAfter = true
 			ConsumeResponsesQuota(c, info, accumulator.Finish())
 			return nil
 		case <-s.ctx.Done():
@@ -640,27 +630,27 @@ func (s *responsesWSSession) startTargetReader(target *websocket.Conn) {
 			if state := s.getCurrent(); state != nil {
 				select {
 				case state.inbox <- incoming:
-					if err != nil {
-						return
-					}
-					continue
 				case <-state.done:
+					if err == nil {
+						if writeErr := s.writeClient(kind, body); writeErr != nil {
+							s.shutdown()
+							return
+						}
+					} else {
+						s.shutdown()
+					}
 				case <-s.ctx.Done():
 					return
 				}
-			}
-			// No request owns this message. An idle upstream that closed
-			// normally ends the client session with the same code.
-			if err != nil {
-				code := websocket.CloseInternalServerErr
-				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-					code = err.(*websocket.CloseError).Code
+			} else if err == nil {
+				if writeErr := s.writeClient(kind, body); writeErr != nil {
+					s.shutdown()
+					return
 				}
-				s.shutdown(code, "upstream connection closed")
-				return
+			} else {
+				s.shutdown()
 			}
-			if writeErr := s.writeClient(kind, body); writeErr != nil {
-				s.shutdown(websocket.CloseInternalServerErr, "")
+			if err != nil {
 				return
 			}
 		}
@@ -693,7 +683,6 @@ func (s *responsesWSSession) setTarget(target *websocket.Conn) bool {
 	s.connectionMu.Lock()
 	defer s.connectionMu.Unlock()
 	if s.ctx.Err() != nil {
-		_ = target.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""), time.Now().Add(time.Second))
 		_ = target.Close()
 		return false
 	}
@@ -733,28 +722,23 @@ func (s *responsesWSSession) sendError(eventID, streamID string, apiErr *types.N
 	}
 }
 
-// shutdown ends the connection once. Each peer gets a close frame that says
-// why, bounded to one second, and both sockets close even if a write failed.
-// Close frames are control writes, which gorilla allows alongside a blocked
-// data writer, so shutdown takes no write lock and never waits for workers.
-func (s *responsesWSSession) shutdown(code int, reason string) {
-	s.closeOnce.Do(func() {
-		s.cancel()
-		s.connectionMu.Lock()
-		target, unregister := s.target, s.unregister
-		s.target, s.unregister = nil, nil
-		s.connectionMu.Unlock()
-		if unregister != nil {
-			unregister()
-		}
-		closeMessage := websocket.FormatCloseMessage(code, reason)
-		_ = s.client.WriteControl(websocket.CloseMessage, closeMessage, time.Now().Add(time.Second))
-		if target != nil {
-			_ = target.WriteControl(websocket.CloseMessage, closeMessage, time.Now().Add(time.Second))
-			_ = target.Close()
-		}
-		_ = s.client.Close()
-	})
+func (s *responsesWSSession) closeTarget() {
+	s.connectionMu.Lock()
+	target, unregister := s.target, s.unregister
+	s.target, s.unregister = nil, nil
+	s.connectionMu.Unlock()
+	if unregister != nil {
+		unregister()
+	}
+	if target != nil {
+		_ = target.Close()
+	}
+}
+
+func (s *responsesWSSession) shutdown() {
+	s.cancel()
+	s.closeTarget()
+	_ = s.client.Close()
 }
 
 func (s *responsesWSSession) registerChannelClose(channelID int) {
@@ -770,9 +754,15 @@ func (s *responsesWSSession) registerChannelClose(channelID int) {
 }
 
 // closeForPolicy tells both peers why the connection ends, like the realtime
-// relay does.
+// relay does; WriteControl is safe alongside a blocked data writer.
 func (s *responsesWSSession) closeForPolicy(reason string) {
-	s.shutdown(websocket.ClosePolicyViolation, reason)
+	closeMessage := websocket.FormatCloseMessage(websocket.ClosePolicyViolation, reason)
+	deadline := time.Now().Add(time.Second)
+	_ = s.client.WriteControl(websocket.CloseMessage, closeMessage, deadline)
+	if target := s.getTarget(); target != nil {
+		_ = target.WriteControl(websocket.CloseMessage, closeMessage, deadline)
+	}
+	s.shutdown()
 }
 
 // Stream identity belongs to the WebSocket envelope. For the legacy wrapped

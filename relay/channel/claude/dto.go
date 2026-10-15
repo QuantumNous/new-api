@@ -35,9 +35,9 @@ package claude
 //}
 //
 //type Tool struct {
-//	Name        string                 `json:"name"`
-//	Description string                 `json:"description,omitempty"`
-//	InputSchema map[string]interface{} `json:"input_schema"`
+//	Name        string         `json:"name"`
+//	Description string         `json:"description,omitempty"`
+//	InputSchema map[string]any `json:"input_schema"`
 //}
 //
 //type InputSchema struct {

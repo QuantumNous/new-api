@@ -72,7 +72,7 @@ func (i *ImageRequest) ImageCount(useProviderParameters bool) (int, error) {
 }
 
 func (i *ImageRequest) UnmarshalJSON(data []byte) error {
-	// 先解析成 map[string]interface{}
+	// 先解析成 map[string]any
 	var rawMap map[string]json.RawMessage
 	if err := kitutil.Unmarshal(data, &rawMap); err != nil {
 		return err

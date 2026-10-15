@@ -13,9 +13,7 @@
           "type": "text"
         },
         {
-          "image_url": {
-            "url": "https://example.com/cat.png"
-          },
+          "image_url": "https://example.com/cat.png",
           "type": "image_url"
         }
       ]

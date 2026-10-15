@@ -106,7 +106,7 @@ func newResponsesWSRequestRunner(c *gin.Context) relay.ResponsesWSRequestRunner 
 		if common.Unmarshal(response.body.Bytes(), &body) == nil && body.Error != nil {
 			return types.WithOpenAIError(*body.Error, response.status, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
-		// A rejection without an OpenAI error body keeps its HTTP status text.
+		// The existing in-memory rate limiter returns a bare 429 response.
 		return types.NewErrorWithStatusCode(errors.New(http.StatusText(response.status)), types.ErrorCodeInvalidRequest, response.status, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 	}
 }

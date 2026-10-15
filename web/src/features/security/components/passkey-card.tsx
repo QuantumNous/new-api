@@ -48,8 +48,7 @@ import {
   SecureVerificationDialog,
   useSecureVerification,
 } from '@/features/auth/secure-verification'
-import { toIntlLocale } from '@/i18n/languages'
-import { formatTimestampRelative } from '@/lib/format'
+import dayjs from '@/lib/dayjs'
 import { handleServerError } from '@/lib/handle-server-error'
 import { AuthOperationError } from '@/lib/secure-verification'
 
@@ -58,8 +57,7 @@ interface PasskeyCardProps {
 }
 
 export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
-  const { t, i18n } = useTranslation()
-  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const { t } = useTranslation()
   const [confirmOpen, setConfirmOpen] = useState(false)
   const {
     status,
@@ -138,7 +136,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
 
   const formattedLastUsed =
     lastUsed && !Number.isNaN(Date.parse(lastUsed))
-      ? formatTimestampRelative(Date.parse(lastUsed), 'milliseconds', locale)
+      ? dayjs(lastUsed).fromNow()
       : t('Not used yet')
 
   const showUnsupportedNotice = !supported && !enabled

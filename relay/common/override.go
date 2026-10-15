@@ -804,11 +804,11 @@ func compareNumeric(jsonValue, targetValue gjson.Result, operator string) (bool,
 
 // applyOperationsLegacy 原参数覆盖方法。
 //
-// 旧实现把整个 jsonData unmarshal 成 map[string]interface{} 再 marshal 回来，
+// 旧实现把整个 jsonData unmarshal 成 map[string]any 再 marshal 回来，
 // 对包含大 base64 字段（如 Gemini inlineData.data）的请求会放大数倍内存
 // （interface 装箱、map bucket、再次 marshal）。
 // 这里改成在 []byte 上直接调用 sjson.SetBytes，按顶层 key 逐个写入，
-// 不再把 payload 解码到 map[string]interface{}。
+// 不再把 payload 解码到 map[string]any。
 //
 // 语义保持：每个 paramOverride 顶层 key 视为字面 key（不解析点号路径），
 // 与旧的 reqMap[key] = value 一致。包含 `.` `*` `?` `\` 的 key 会被转义，

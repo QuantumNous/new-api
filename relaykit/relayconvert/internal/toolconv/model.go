@@ -91,9 +91,6 @@ type Set struct {
 	// Diagnostics reports losses found while extracting the definitions; they
 	// are returned with the attach diagnostics.
 	Diagnostics []types.ConversionDiagnostic
-	// Model is the upstream model the definitions are attached for; target
-	// capability checks read it. The caller of AttachRequest sets it.
-	Model string
 }
 
 func (s Set) Empty() bool {
