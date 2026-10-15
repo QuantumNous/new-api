@@ -61,6 +61,25 @@ export function isBreakdownTierMatched(
     matchedTierLabel ?? undefined
   )
   if (tierMatchesNormalizedLabel(tier, normalizedMatchedTierLabel)) {
+    if (
+      'unitPrices' in tier &&
+      tiers.filter((candidate) =>
+        tierMatchesNormalizedLabel(candidate, normalizedMatchedTierLabel)
+      ).length > 1
+    ) {
+      // Expanded rows can share one engine label. Time-dependent rows cannot
+      // be resolved from usage alone; never substitute the current wall clock.
+      return (
+        !tier.conditionText &&
+        Boolean(usageFacts) &&
+        tier.conditions.length > 0 &&
+        tier.conditions.every(
+          (condition) =>
+            'field' in condition &&
+            String(usageFacts?.[condition.field]) === condition.value
+        )
+      )
+    }
     return true
   }
   if (
@@ -70,7 +89,11 @@ export function isBreakdownTierMatched(
   ) {
     return false
   }
-  if (!usageFacts || tier.conditions.length === 0) {
+  if (
+    !usageFacts ||
+    tier.conditions.length === 0 ||
+    ('unitPrices' in tier && tier.conditionText)
+  ) {
     return false
   }
   return tier.conditions.every((condition) => {

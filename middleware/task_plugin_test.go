@@ -3,6 +3,7 @@ package middleware
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -11,6 +12,7 @@ import (
 	"net/textproto"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -95,6 +97,85 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 
 	assert.True(t, reachedSubmit)
 	assert.Equal(t, http.StatusNoContent, recorder.Code)
+}
+
+// Native routes and the generic submit entry hand a plugin declaring
+// json-order@1 the client's member order and keep its decoded requestBody as
+// ordered JSON text beside the Go value; other plugins see sorted members.
+func TestTaskPluginEntriesKeepJSONOrderForDeclaringPlugins(t *testing.T) {
+	source := `
+export const meta = {
+  apiVersion: 1, key: "route-order-test", name: "Order", version: "1.0.0", author: {name: "Test"},
+  models: ["m"], fetchMode: "per_task", requiredCapabilities: ["json-order@1"],
+  routes: [{method: "POST", path: "/vendor/eval", type: "submit", decode: "decodeEval", render: "evalDone"}],
+};
+export const native = {
+decodeEval: function(ctx) {
+  const state = ctx.body.value.state;
+  return {kind: "submit", model: ctx.body.value.model, requestBody: {keys: Object.keys(state), state: state}};
+},
+evalDone: function(ctx, task) { return task; },
+};
+export function buildSubmitRequest() { return {url: "https://example.com"}; }
+export function parseSubmitResponse() { return {taskId: "one"}; }
+export function buildQueryRequest() { return {url: "https://example.com"}; }
+export function parseTaskResult() { return {status: "SUCCESS"}; }
+`
+	cases := []struct {
+		name     string
+		source   string
+		wantText string
+		wantKeys []any
+	}{
+		{name: "declared", source: source, wantText: `{"keys":["zeta","alpha"],"state":{"zeta":1,"alpha":2}}`, wantKeys: []any{"zeta", "alpha"}},
+		{name: "undeclared", source: strings.Replace(source, `requiredCapabilities: ["json-order@1"],`, "", 1), wantKeys: []any{"alpha", "zeta"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			plugin := compileTaskRoutePlugin(t, tc.source)
+			router := gin.New()
+			reached := false
+			router.POST("/vendor/eval", pinTaskPluginRoute(plugin, 0), PrepareTaskPluginRoute(), func(c *gin.Context) {
+				reached = true
+				request, ok := c.MustGet("task_request").(map[string]any)
+				require.True(t, ok)
+				assert.Equal(t, tc.wantKeys, request["keys"])
+				text, exists := c.Get(jsplugin.ContextKeyRequestBodyText)
+				if tc.wantText == "" {
+					assert.False(t, exists)
+				} else {
+					assert.Equal(t, json.RawMessage(tc.wantText), text)
+				}
+				c.Status(http.StatusNoContent)
+			})
+			request := httptest.NewRequest(http.MethodPost, "/vendor/eval", strings.NewReader(`{"model":"m","state":{"zeta":1,"alpha":2}}`))
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, request)
+
+			assert.True(t, reached, recorder.Body.String())
+		})
+	}
+
+	t.Run("generic submit entry", func(t *testing.T) {
+		declaring := strings.Replace(genericTaskPluginSource, `fetchMode: "per_task"`, `fetchMode: "per_task", requiredCapabilities: ["json-order@1"]`, 1)
+		_, err := jsplugin.DefaultRegistry.Register(declaring, jsplugin.Options{})
+		require.NoError(t, err)
+		t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister("generic-entry-test") })
+		recorder := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(recorder)
+		c.Params = gin.Params{{Key: "key", Value: "generic-entry-test"}}
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/tasks/generic-entry-test", strings.NewReader(`{"model":"doc","zeta":1,"alpha":2}`))
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		PrepareTaskPluginSubmit()(c)
+
+		require.False(t, c.IsAborted(), recorder.Body.String())
+		text, exists := c.Get(jsplugin.ContextKeyRequestBodyText)
+		require.True(t, exists)
+		assert.Equal(t, json.RawMessage(`{"model":"doc","zeta":1,"alpha":2}`), text)
+	})
 }
 
 func TestPrepareTaskPluginNativeRouteRejectsMultipartBeforeDecoder(t *testing.T) {
@@ -704,6 +785,100 @@ func TestTaskPluginEndpointUsesOneCanonicalModelForDuplicateJSONKeys(t *testing.
 	}
 }
 
+func TestRequestBodyFailuresReportTheirCause(t *testing.T) {
+	require.NoError(t, appI18n.Init())
+	require.NotNil(t, jsplugin.DefaultRegistry.Generation(), "the built-in plugins keep a routing generation, as in production")
+	_, err := jsplugin.DefaultRegistry.Register(genericTaskPluginSource, jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister("generic-entry-test") })
+	routePlugin := compileTaskRoutePlugin(t, genericTaskPluginSource)
+	previous := constant.MaxRequestBodyMB
+	constant.MaxRequestBodyMB = 1
+	t.Cleanup(func() { constant.MaxRequestBodyMB = previous })
+
+	reached := func(c *gin.Context) { c.Status(http.StatusNoContent) }
+	router := gin.New()
+	router.POST("/v1/responses", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), Distribute(), reached)
+	router.POST("/v1/video/generations", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), Distribute(), reached)
+	router.POST("/v1/chat/completions", Distribute(), reached)
+	router.POST("/mj/submit/imagine", Distribute(), reached)
+	router.POST("/v1/tasks/:key", PrepareTaskPluginSubmit(), reached)
+	router.POST("/vendor/jobs", func(c *gin.Context) {
+		c.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Plugin: routePlugin})
+	}, PrepareTaskPluginRoute(), reached)
+	oversized := `{"model":"gpt-x","prompt":"` + strings.Repeat("a", 1<<20) + `"}`
+	tests := []struct {
+		name    string
+		path    string
+		body    io.Reader
+		status  int
+		message string
+	}{
+		{
+			name:    "oversized body on a plugin protocol path",
+			path:    "/v1/responses",
+			body:    strings.NewReader(oversized),
+			status:  http.StatusRequestEntityTooLarge,
+			message: "Invalid request: request body exceeds 1 MB: request body too large",
+		},
+		{
+			name:    "body cut off on a plugin protocol path",
+			path:    "/v1/responses",
+			body:    io.MultiReader(strings.NewReader(`{"model":"gpt-x","input":"`), iotest.ErrReader(io.ErrUnexpectedEOF)),
+			status:  http.StatusBadRequest,
+			message: "Invalid request: unexpected EOF",
+		},
+		{
+			// The endpoint check lets this path through and the distributor reads the body again.
+			name:    "oversized body on the legacy video path",
+			path:    "/v1/video/generations",
+			body:    strings.NewReader(oversized),
+			status:  http.StatusRequestEntityTooLarge,
+			message: "Invalid request: request body exceeds 1 MB: request body too large",
+		},
+		{
+			name:    "oversized Midjourney body",
+			path:    "/mj/submit/imagine",
+			body:    strings.NewReader(oversized),
+			status:  http.StatusRequestEntityTooLarge,
+			message: "Invalid request: request body exceeds 1 MB: request body too large",
+		},
+		{
+			name:    "oversized task plugin submission",
+			path:    "/v1/tasks/generic-entry-test",
+			body:    strings.NewReader(oversized),
+			status:  http.StatusRequestEntityTooLarge,
+			message: "request body exceeds 1 MB: request body too large",
+		},
+		{
+			name:    "oversized plugin route body",
+			path:    "/vendor/jobs",
+			body:    strings.NewReader(oversized),
+			status:  http.StatusRequestEntityTooLarge,
+			message: "request body exceeds 1 MB: request body too large",
+		},
+		{
+			name:    "invalid JSON on an ordinary path",
+			path:    "/v1/chat/completions",
+			body:    strings.NewReader(`{"model":"gpt-x",`),
+			status:  http.StatusBadRequest,
+			message: "Invalid request: invalid JSON request body",
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, testCase.path, testCase.body)
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, request)
+
+			assert.Equal(t, testCase.status, recorder.Code)
+			assert.Contains(t, recorder.Body.String(), `"message":"`+testCase.message)
+		})
+	}
+}
+
 func TestTaskPluginEndpointOnlyPreservesConditionalMiddlewareSemantics(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -855,6 +1030,70 @@ func TestPrepareTaskPluginEndpointAcceptsRegisteredVideoMultipartBody(t *testing
 
 	assert.True(t, reachedDistribution)
 	assert.Equal(t, http.StatusNoContent, recorder.Code)
+}
+
+// The OpenAI Images edits endpoint accepts multipart uploads. Every file of a
+// repeated image[] field is exposed to the decoder with its own ref, and an
+// unclaimed model on the shared endpoint still reaches the ordinary relay.
+func TestPrepareTaskPluginEndpointExposesIndexedRefsForRepeatedImageFiles(t *testing.T) {
+	const key = "endpoint-image-edits-test"
+	_, err := jsplugin.DefaultRegistry.Register(taskProtocolPluginSource(
+		key,
+		"1.0.0",
+		`["image-edit-model"]`,
+		"/v1/images/edits",
+		`if (ctx.body.kind !== "multipart" || ctx.body.fields.prompt[0] !== "watercolor") throw new Error("bad prompt");
+		 return {model: ctx.model, action: "image_to_image", requestBody: {prompt: ctx.body.fields.prompt[0], refs: ctx.body.files.map(function(file) { return file.ref; })}};`,
+	), jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister(key)) })
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	require.NoError(t, writer.WriteField("model", "image-edit-model"))
+	require.NoError(t, writer.WriteField("prompt", "watercolor"))
+	for _, name := range []string{"first.png", "second.png"} {
+		file, createErr := writer.CreateFormFile("image[]", name)
+		require.NoError(t, createErr)
+		_, err = file.Write([]byte(name))
+		require.NoError(t, err)
+	}
+	require.NoError(t, writer.Close())
+
+	router := gin.New()
+	var pinnedProtocol string
+	var taskRequest any
+	router.POST("/v1/images/edits", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), func(c *gin.Context) {
+		if pinned, ok := c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint); ok {
+			pinnedProtocol = pinned.Protocol
+		}
+		taskRequest, _ = c.Get("task_request")
+		c.Status(http.StatusNoContent)
+	})
+	request := httptest.NewRequest(http.MethodPost, "/v1/images/edits", bytes.NewReader(body.Bytes()))
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusNoContent, recorder.Code, recorder.Body.String())
+	assert.Equal(t, jsplugin.ProtocolOpenAIImage, pinnedProtocol)
+	decoded, ok := taskRequest.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, []any{"request_file:image[]", "request_file:image[]#1"}, decoded["refs"])
+
+	unclaimed := gin.New()
+	reachedRelay := false
+	unclaimed.POST("/v1/images/generations", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), func(c *gin.Context) {
+		_, pinned := c.Get(jsplugin.ContextKeyPinnedEndpoint)
+		reachedRelay = !pinned
+		c.Status(http.StatusNoContent)
+	})
+	plain := httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(`{"model":"dall-e-3","prompt":"a cat"}`))
+	plain.Header.Set("Content-Type", "application/json")
+	recorder = httptest.NewRecorder()
+	unclaimed.ServeHTTP(recorder, plain)
+	assert.Equal(t, http.StatusNoContent, recorder.Code)
+	assert.True(t, reachedRelay, "an unclaimed image model keeps the built-in relay")
 }
 
 func TestVideoGenerationsIsNotClaimedByOpenAIVideoProtocol(t *testing.T) {
@@ -1065,6 +1304,12 @@ export const native = {status: function(ctx, task) { return {id: task.task_id}; 
 	insertTaskPluginRouteTask(t, &model.Task{
 		TaskID: "legacy-task", UserId: 7, Platform: constant.TaskPlatform("651"),
 	})
+	// Submitted through a route with retainResult: false; owned by the caller
+	// but not retrievable, so it must be indistinguishable from a missing task.
+	insertTaskPluginRouteTask(t, &model.Task{
+		TaskID: "discarded-task", UserId: 7, Platform: constant.TaskPlatform("route-static-query-test"),
+		Status: model.TaskStatusSuccess, PrivateData: model.TaskPrivateData{ResultDiscarded: true},
+	})
 
 	router := gin.New()
 	router.GET("/vendor/jobs/:id",
@@ -1082,7 +1327,7 @@ export const native = {status: function(ctx, task) { return {id: task.task_id}; 
 	assert.JSONEq(t, `{"id":"legacy-task"}`, legacyRecorder.Body.String())
 
 	var firstBody string
-	for _, taskID := range []string{"missing-task", "foreign-task", "wrong-platform", "wrong-legacy-platform"} {
+	for _, taskID := range []string{"missing-task", "foreign-task", "wrong-platform", "wrong-legacy-platform", "discarded-task"} {
 		recorder := httptest.NewRecorder()
 		router.ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/vendor/jobs/"+taskID, nil))
 		assert.Equal(t, http.StatusNotFound, recorder.Code)
@@ -1636,6 +1881,11 @@ func taskProtocolPluginSource(key, version, models, endpoint, parseRequestBody s
 		protocol = "openai_video"
 		protocolClaim = `"openai_video"`
 		presenters = `render: function() { return {}; },`
+	}
+	if endpoint == "/v1/images/edits" || endpoint == "/v1/images/generations" {
+		protocol = "openai_image"
+		protocolClaim = `"openai_image"`
+		presenters = `render: function() { return {data: []}; },`
 	}
 	return fmt.Sprintf(`
 export const meta = {

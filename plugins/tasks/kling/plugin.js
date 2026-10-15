@@ -7,11 +7,12 @@ export const meta = {
     en: "Kuaishou Kling video generation (text-to-video and image-to-video)",
     zh: "快手可灵视频生成（文生视频、图生视频）",
   },
-  version: "1.0.2",
+  version: "1.1.0",
   author: { name: "QuantumNous" },
   channelTypes: [50],
   models: ["kling-v1", "kling-v1-6", "kling-v2-master"],
   fetchMode: "per_task",
+  upstreams: ["vendor", "new_api"],
   usageSchema: {
     // Kling final unit deduction (estimated at submit, actual on completion).
     units: {
@@ -98,9 +99,15 @@ function isRelay(apiKey) {
   return apiKey.startsWith("sk-");
 }
 
-function tokenFor(apiKey) {
-  if (isRelay(apiKey)) return apiKey;
-  const parts = apiKey.split("|");
+// The host signal is authoritative on New API channels; the sk- key prefix
+// stays as the heuristic for legacy type-50 channels pointed at a gateway.
+function viaGateway(ctx) {
+  return !!(ctx.upstream && ctx.upstream.kind === "new_api") || isRelay(ctx.apiKey);
+}
+
+function tokenFor(ctx) {
+  if (viaGateway(ctx)) return ctx.apiKey;
+  const parts = ctx.apiKey.split("|");
   if (parts.length !== 2) throw new Error("invalid api_key, required format is accessKey|secretKey");
   const now = utils.unixNow();
   return utils.jwtSignHS256({ iss: parts[0].trim(), exp: now + 1800, nbf: now - 5 }, parts[1].trim());
@@ -110,8 +117,8 @@ function pathFor(action) {
   return action === "image_to_video" ? "/v1/videos/image2video" : "/v1/videos/text2video";
 }
 
-function urlFor(baseUrl, apiKey, action) {
-  return baseUrl + (isRelay(apiKey) ? "/kling" : "") + pathFor(action);
+function urlFor(ctx, action) {
+  return ctx.baseUrl + (viaGateway(ctx) ? "/kling" : "") + pathFor(action);
 }
 
 function aspectRatio(size) {
@@ -248,9 +255,9 @@ export function buildSubmitRequest(ctx) {
   if (!body.prompt) delete body.prompt;
   if (!body.image) delete body.image;
   return {
-    url: urlFor(ctx.baseUrl, ctx.apiKey, action),
+    url: urlFor(ctx, action),
     method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: "Bearer " + tokenFor(ctx.apiKey), "User-Agent": "kling-sdk/1.0" },
+    headers: { "Content-Type": "application/json", Accept: "application/json", Authorization: "Bearer " + tokenFor(ctx), "User-Agent": "kling-sdk/1.0" },
     body: body,
     action: action,
   };
@@ -274,9 +281,9 @@ export function extractUsage(ctx) {
 
 export function buildQueryRequest(ctx) {
   return {
-    url: urlFor(ctx.baseUrl, ctx.apiKey, ctx.action) + "/" + ctx.taskId,
+    url: urlFor(ctx, ctx.action) + "/" + ctx.taskId,
     method: "GET",
-    headers: { Accept: "application/json", Authorization: "Bearer " + tokenFor(ctx.apiKey), "User-Agent": "kling-sdk/1.0" },
+    headers: { Accept: "application/json", Authorization: "Bearer " + tokenFor(ctx), "User-Agent": "kling-sdk/1.0" },
   };
 }
 

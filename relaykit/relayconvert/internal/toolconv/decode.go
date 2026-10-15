@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
@@ -142,11 +143,11 @@ func extractOpenAIResponsesRequest(request any) (any, Set, error) {
 			return nil, Set{}, fmt.Errorf("invalid Responses tools: %w", err)
 		}
 		for index, rawTool := range rawTools {
-			definition, err := decodeOpenAIResponsesDefinition(rawTool)
+			definitions, err := decodeOpenAIResponsesDefinitions(rawTool)
 			if err != nil {
 				return nil, Set{}, fmt.Errorf("tools[%d]: %w", index, err)
 			}
-			set.Definitions = append(set.Definitions, definition)
+			set.Definitions = append(set.Definitions, definitions...)
 		}
 	}
 	choice, err := decodeOpenAIResponsesChoice(source.ToolChoice)
@@ -155,17 +156,144 @@ func extractOpenAIResponsesRequest(request any) (any, Set, error) {
 	}
 	set.Choice = choice
 
+	input, additionalDefinitions, additionalDiagnostics, err := extractOpenAIResponsesAdditionalTools(source.Input)
+	if err != nil {
+		return nil, Set{}, err
+	}
+	set.Definitions = append(set.Definitions, additionalDefinitions...)
+	set.Diagnostics = append(set.Diagnostics, additionalDiagnostics...)
+	// Flattened namespace names can collide with other tools.
+	seenNames := make(map[string]struct{}, len(set.Definitions))
+	seenNamespaces := make(map[string]struct{})
+	definitions := set.Definitions[:0]
+	for _, definition := range set.Definitions {
+		if _, seen := seenNamespaces[definition.Namespace]; !seen && definition.Namespace != "" && definition.Namespace != convmeta.DefaultResponsesToolNamespace {
+			seenNamespaces[definition.Namespace] = struct{}{}
+			set.Diagnostics = append(set.Diagnostics, presentationLoss("tools", "tool_namespace_flattened",
+				fmt.Sprintf("tools in namespace %q are sent as functions named %q", definition.Namespace, convmeta.NamespacedToolName(definition.Namespace, "<name>"))))
+		}
+		name := definition.Name
+		_, duplicate := seenNames[name]
+		if definition.Namespace != "" && name != "" && duplicate {
+			set.Diagnostics = append(set.Diagnostics, semanticLoss("tools", "namespaced_tool_dropped",
+				fmt.Sprintf("tool %q from namespace %q shares its flattened name with another tool and was omitted", name, definition.Namespace)))
+			continue
+		}
+		if name != "" {
+			seenNames[name] = struct{}{}
+		}
+		definitions = append(definitions, definition)
+	}
+	set.Definitions = definitions
+
 	clone := *source
 	clone.Tools = nil
 	clone.ToolChoice = nil
 	clone.ParallelToolCalls = nil
-	sanitizedInput, history, err := extractOpenAIResponsesHostedHistory(source.Input)
+	sanitizedInput, history, err := extractOpenAIResponsesHostedHistory(input)
 	if err != nil {
 		return nil, Set{}, err
 	}
 	clone.Input = sanitizedInput
 	set.History = history
 	return &clone, set, nil
+}
+
+// extractOpenAIResponsesAdditionalTools removes the additional_tools input
+// items Codex uses to declare tools and returns their definitions. No target
+// protocol has an input item that declares tools, so they join the top-level
+// tool list.
+func extractOpenAIResponsesAdditionalTools(input json.RawMessage) (json.RawMessage, []Definition, []types.ConversionDiagnostic, error) {
+	if len(input) == 0 || kitutil.GetJsonType(input) != "array" {
+		return input, nil, nil, nil
+	}
+	var rawItems []json.RawMessage
+	if err := kitutil.Unmarshal(input, &rawItems); err != nil {
+		return nil, nil, nil, fmt.Errorf("invalid Responses input: %w", err)
+	}
+	var (
+		filtered    []json.RawMessage
+		definitions []Definition
+		diagnostics []types.ConversionDiagnostic
+	)
+	for index, rawItem := range rawItems {
+		var item struct {
+			Type  string            `json:"type"`
+			Tools []json.RawMessage `json:"tools"`
+		}
+		if err := kitutil.Unmarshal(rawItem, &item); err != nil || strings.TrimSpace(item.Type) != "additional_tools" {
+			filtered = append(filtered, rawItem)
+			continue
+		}
+		for toolIndex, rawTool := range item.Tools {
+			decoded, err := decodeOpenAIResponsesDefinitions(rawTool)
+			if err != nil {
+				return nil, nil, nil, fmt.Errorf("input[%d].tools[%d]: %w", index, toolIndex, err)
+			}
+			definitions = append(definitions, decoded...)
+		}
+		diagnostics = append(diagnostics, presentationLoss(fmt.Sprintf("input[%d]", index), "additional_tools_flattened",
+			"additional_tools items are sent as top-level tools; their position in the input is not preserved"))
+	}
+	if len(diagnostics) == 0 {
+		return input, nil, nil, nil
+	}
+	encoded, err := kitutil.Marshal(filtered)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	return encoded, definitions, diagnostics, nil
+}
+
+// decodeOpenAIResponsesDefinitions decodes one Responses tool. A namespace
+// tool expands into its member tools, each renamed with
+// convmeta.NamespacedToolName and described with the namespace description.
+func decodeOpenAIResponsesDefinitions(raw json.RawMessage) ([]Definition, error) {
+	var namespace struct {
+		Type        string           `json:"type"`
+		Name        string           `json:"name"`
+		Description string           `json:"description"`
+		Tools       []map[string]any `json:"tools"`
+	}
+	if err := kitutil.Unmarshal(raw, &namespace); err != nil || strings.TrimSpace(namespace.Type) != "namespace" {
+		definition, err := decodeOpenAIResponsesDefinition(raw)
+		if err != nil {
+			return nil, err
+		}
+		return []Definition{definition}, nil
+	}
+	namespaceName := strings.TrimSpace(namespace.Name)
+	if namespaceName == "" {
+		return nil, fmt.Errorf("namespace tool requires name")
+	}
+	definitions := make([]Definition, 0, len(namespace.Tools))
+	for index, tool := range namespace.Tools {
+		name := strings.TrimSpace(kitutil.Interface2String(tool["name"]))
+		if name != "" {
+			tool["name"] = convmeta.NamespacedToolName(namespaceName, name)
+		}
+		description := strings.TrimSpace(kitutil.Interface2String(tool["description"]))
+		if namespaceDescription := strings.TrimSpace(namespace.Description); namespaceDescription != "" {
+			description = strings.TrimSpace(namespaceDescription + "\n\n" + description)
+		}
+		if description != "" {
+			tool["description"] = description
+		}
+		encoded, err := kitutil.Marshal(tool)
+		if err != nil {
+			return nil, err
+		}
+		definition, err := decodeOpenAIResponsesDefinition(encoded)
+		if err != nil {
+			return nil, fmt.Errorf("namespace %q tools[%d]: %w", namespaceName, index, err)
+		}
+		definition.Namespace = namespaceName
+		if definition.Name == "" {
+			definition.Name = kitutil.Interface2String(tool["name"])
+		}
+		definitions = append(definitions, definition)
+	}
+	return definitions, nil
 }
 
 func extractClaudeRequest(request any) (any, Set, error) {
@@ -428,9 +556,10 @@ func decodeGeminiDefinitions(raw json.RawMessage) ([]Definition, error) {
 				Name:      strings.TrimSpace(kitutil.Interface2String(function["name"])),
 				Raw:       functionRaw,
 				Function: &Function{
-					Name:        strings.TrimSpace(kitutil.Interface2String(function["name"])),
-					Description: kitutil.Interface2String(function["description"]),
-					Parameters:  parameters,
+					Name:          strings.TrimSpace(kitutil.Interface2String(function["name"])),
+					Description:   kitutil.Interface2String(function["description"]),
+					Parameters:    parameters,
+					OpenAPISchema: function["parameters"] != nil,
 				},
 			})
 		}
@@ -610,6 +739,7 @@ func decodeOpenAIResponsesChoice(raw json.RawMessage) (*Choice, error) {
 		if name == "" {
 			return nil, fmt.Errorf("Responses function tool_choice requires name")
 		}
+		name = convmeta.NamespacedToolName(strings.TrimSpace(kitutil.Interface2String(value["namespace"])), name)
 		return &Choice{Mode: ChoiceNamed, Kind: KindFunction, Name: name}, nil
 	}
 	if isOpenAIResponsesWebSearchType(toolType) {

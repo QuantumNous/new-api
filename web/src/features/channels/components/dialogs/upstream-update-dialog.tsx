@@ -16,277 +16,295 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Search } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Dialog } from '@/components/dialog'
-import { StatusBadge } from '@/components/status-badge'
+import { EmptyState } from '@/components/empty-state'
+import { ErrorState } from '@/components/error-state'
+import { LoadingState } from '@/components/loading-state'
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
-import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { toIntlLocale } from '@/i18n/languages'
+import { formatNumber } from '@/lib/format'
 
-interface UpstreamUpdateDialogProps {
-  open: boolean
-  addModels: string[]
-  removeModels: string[]
-  preferredTab: 'add' | 'remove'
-  confirmLoading: boolean
-  onConfirm: (data: { addModels: string[]; removeModels: string[] }) => void
-  onCancel: () => void
+import type { ChannelUpstreamUpdateState } from '../../hooks/use-channel-upstream-updates'
+import { UpstreamModelSelection } from '../upstream-model-selection'
+
+type UpstreamUpdateDialogProps = {
+  upstream: ChannelUpstreamUpdateState
+}
+
+function ModelChangeList(props: { title: string; models: string[] }) {
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  return (
+    <section aria-label={props.title} className='min-w-0 space-y-2'>
+      <h3 className='text-sm font-medium'>
+        {props.title} ({formatNumber(props.models.length, locale)})
+      </h3>
+      {props.models.length ? (
+        <ul className='max-h-40 space-y-1 overflow-y-auto rounded-md border p-3 font-mono text-xs break-all'>
+          {props.models.map((model) => (
+            <li key={model}>{model}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className='text-muted-foreground text-sm'>{t('None')}</p>
+      )}
+    </section>
+  )
 }
 
 export function UpstreamUpdateDialog(props: UpstreamUpdateDialogProps) {
+  if (!props.upstream.showModal || !props.upstream.channel) return null
+  // Each preview gets fresh selections, including when detection finishes or
+  // another channel is opened. Keeping a hidden dialog mounted retained stale state.
+  return (
+    <UpstreamUpdateSession
+      key={`${props.upstream.previewVersion}-${props.upstream.result ? 'result' : 'preview'}`}
+      upstream={props.upstream}
+    />
+  )
+}
+
+function UpstreamUpdateSession(props: UpstreamUpdateDialogProps) {
   const { t } = useTranslation()
-  const [activeTab, setActiveTab] = useState(props.preferredTab)
-  const [searchAdd, setSearchAdd] = useState('')
-  const [searchRemove, setSearchRemove] = useState('')
-  const [selectedAdd, setSelectedAdd] = useState<Set<string>>(
-    () => new Set(props.addModels)
-  )
-  const [selectedRemove, setSelectedRemove] = useState<Set<string>>(
-    () => new Set(props.removeModels)
-  )
-  const [partialConfirmOpen, setPartialConfirmOpen] = useState(false)
-
-  const filteredAdd = useMemo(
-    () =>
-      props.addModels.filter((m) =>
-        m.toLowerCase().includes(searchAdd.toLowerCase())
-      ),
-    [props.addModels, searchAdd]
-  )
-
-  const filteredRemove = useMemo(
-    () =>
-      props.removeModels.filter((m) =>
-        m.toLowerCase().includes(searchRemove.toLowerCase())
-      ),
-    [props.removeModels, searchRemove]
-  )
-
-  const toggleModel = (
-    model: string,
-    set: Set<string>,
-    setter: (s: Set<string>) => void
-  ) => {
-    const next = new Set(set)
-    if (next.has(model)) next.delete(model)
-    else next.add(model)
-    setter(next)
-  }
-
-  const toggleAllVisible = (
-    models: string[],
-    set: Set<string>,
-    setter: (s: Set<string>) => void
-  ) => {
-    const allSelected = models.every((m) => set.has(m))
-    const next = new Set(set)
-    if (allSelected) {
-      models.forEach((m) => next.delete(m))
-    } else {
-      models.forEach((m) => next.add(m))
-    }
-    setter(next)
-  }
-
-  const handleConfirm = () => {
-    const hasAdd = props.addModels.length > 0
-    const hasRemove = props.removeModels.length > 0
-    const selectedAddArr = Array.from(selectedAdd)
-    const selectedRemoveArr = Array.from(selectedRemove)
-    const anyAdd = selectedAddArr.length > 0
-    const anyRemove = selectedRemoveArr.length > 0
-
-    if (hasAdd && hasRemove && anyAdd !== anyRemove) {
-      setPartialConfirmOpen(true)
-      return
-    }
-
-    props.onConfirm({
-      addModels: selectedAddArr,
-      removeModels: selectedRemoveArr,
-    })
-  }
+  const [activeTab, setActiveTab] = useState(props.upstream.preferredTab)
+  const [selectedAdd, setSelectedAdd] = useState(props.upstream.addModels)
+  const [selectedRemove, setSelectedRemove] = useState<string[]>([])
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const result = props.upstream.result
+  const hasChanges =
+    props.upstream.addModels.length > 0 ||
+    props.upstream.removeModels.length > 0
+  const isPreview =
+    !props.upstream.detectLoading && !props.upstream.detectError && !result
+  const channelLabel = `#${props.upstream.channel?.id} ${props.upstream.channel?.name ?? ''}`
+  const summary = t('Add {{added}} models and remove {{removed}} models', {
+    added: selectedAdd.length,
+    removed: selectedRemove.length,
+  })
 
   return (
     <>
       <Dialog
-        open={props.open}
-        onOpenChange={(v) => !v && props.onCancel()}
-        title={t('Upstream Model Updates')}
-        contentClassName='sm:max-w-lg'
-        contentHeight='auto'
+        open
+        onOpenChange={(open) => !open && props.upstream.closeModal()}
+        showCloseButton={!props.upstream.applyLoading}
+        title={
+          result ? t('Update results') : t('Preview upstream model changes')
+        }
+        description={<span className='break-all'>{channelLabel}</span>}
         bodyClassName='space-y-4'
+        titleClassName='pr-6 leading-snug'
+        footerClassName='sm:flex-wrap'
         footer={
           <>
-            <Button variant='outline' onClick={props.onCancel}>
-              {t('Cancel')}
-            </Button>
             <Button
-              onClick={handleConfirm}
-              disabled={
-                props.confirmLoading ||
-                (props.addModels.length === 0 &&
-                  props.removeModels.length === 0)
-              }
+              variant='outline'
+              onClick={props.upstream.closeModal}
+              disabled={props.upstream.applyLoading}
             >
-              {t('Confirm')}
+              {isPreview && hasChanges ? t('Cancel') : t('Close')}
             </Button>
+            {isPreview && (
+              <>
+                <Button
+                  className='h-auto min-h-8 max-w-full whitespace-normal'
+                  variant='outline'
+                  onClick={() =>
+                    props.upstream.detectChannelUpdates(props.upstream.channel)
+                  }
+                  disabled={props.upstream.applyLoading}
+                >
+                  {t('Refresh preview')}
+                </Button>
+                <Button
+                  className='h-auto min-h-8 max-w-full whitespace-normal'
+                  onClick={() => setConfirmOpen(true)}
+                  disabled={
+                    props.upstream.applyLoading ||
+                    !!props.upstream.applyError ||
+                    (!selectedAdd.length && !selectedRemove.length)
+                  }
+                >
+                  {t('Review selected changes')}
+                </Button>
+              </>
+            )}
           </>
         }
       >
-        <p className='text-muted-foreground text-sm'>
-          {t(
-            'Select models to process. Unselected "add" models will be ignored.'
-          )}
-        </p>
-        <Tabs
-          value={activeTab}
-          onValueChange={(v) => setActiveTab(v as 'add' | 'remove')}
-        >
-          <TabsList className='grid w-full grid-cols-2'>
-            <TabsTrigger value='add' className='gap-1'>
-              {t('Add Models')}
-              <StatusBadge variant='neutral' className='ml-1' copyable={false}>
-                {selectedAdd.size}/{props.addModels.length}
-              </StatusBadge>
-            </TabsTrigger>
-            <TabsTrigger value='remove' className='gap-1'>
-              {t('Remove Models')}
-              <StatusBadge variant='neutral' className='ml-1' copyable={false}>
-                {selectedRemove.size}/{props.removeModels.length}
-              </StatusBadge>
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value='add' className='space-y-3'>
-            <div className='relative'>
-              <Search className='text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4' />
-              <Input
-                placeholder={t('Search models...')}
-                className='pl-8'
-                value={searchAdd}
-                onChange={(e) => setSearchAdd(e.target.value)}
-              />
-            </div>
-            {filteredAdd.length > 0 && (
-              <div className='flex items-center gap-2'>
-                <Checkbox
-                  checked={filteredAdd.every((m) => selectedAdd.has(m))}
-                  onCheckedChange={() =>
-                    toggleAllVisible(filteredAdd, selectedAdd, setSelectedAdd)
-                  }
-                />
-                <span className='text-muted-foreground text-xs'>
-                  {t('Select All Visible')}
-                </span>
-              </div>
+        {props.upstream.detectLoading && (
+          <LoadingState
+            message={t(
+              'Checking upstream models. Channel models will only change after confirmation.'
             )}
-            <ScrollArea className='h-[280px] rounded-md border p-2'>
-              {filteredAdd.length > 0 ? (
-                <div className='space-y-1'>
-                  {filteredAdd.map((model) => (
-                    <label
-                      key={model}
-                      className='hover:bg-accent flex cursor-pointer items-center gap-2 rounded px-2 py-1.5'
-                    >
-                      <Checkbox
-                        checked={selectedAdd.has(model)}
-                        onCheckedChange={() =>
-                          toggleModel(model, selectedAdd, setSelectedAdd)
-                        }
-                      />
-                      <span className='truncate text-sm'>{model}</span>
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <p className='text-muted-foreground py-8 text-center text-sm'>
-                  {props.addModels.length === 0
-                    ? t('No models to add')
-                    : t('No matching results')}
-                </p>
-              )}
-            </ScrollArea>
-          </TabsContent>
-
-          <TabsContent value='remove' className='space-y-3'>
-            <div className='relative'>
-              <Search className='text-muted-foreground absolute top-2.5 left-2.5 h-4 w-4' />
-              <Input
-                placeholder={t('Search models...')}
-                className='pl-8'
-                value={searchRemove}
-                onChange={(e) => setSearchRemove(e.target.value)}
-              />
-            </div>
-            {filteredRemove.length > 0 && (
-              <div className='flex items-center gap-2'>
-                <Checkbox
-                  checked={filteredRemove.every((m) => selectedRemove.has(m))}
-                  onCheckedChange={() =>
-                    toggleAllVisible(
-                      filteredRemove,
-                      selectedRemove,
-                      setSelectedRemove
-                    )
-                  }
-                />
-                <span className='text-muted-foreground text-xs'>
-                  {t('Select All Visible')}
-                </span>
-              </div>
-            )}
-            <ScrollArea className='h-[280px] rounded-md border p-2'>
-              {filteredRemove.length > 0 ? (
-                <div className='space-y-1'>
-                  {filteredRemove.map((model) => (
-                    <label
-                      key={model}
-                      className='hover:bg-accent flex cursor-pointer items-center gap-2 rounded px-2 py-1.5'
-                    >
-                      <Checkbox
-                        checked={selectedRemove.has(model)}
-                        onCheckedChange={() =>
-                          toggleModel(model, selectedRemove, setSelectedRemove)
-                        }
-                      />
-                      <span className='truncate text-sm'>{model}</span>
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <p className='text-muted-foreground py-8 text-center text-sm'>
-                  {props.removeModels.length === 0
-                    ? t('No models to remove')
-                    : t('No matching results')}
-                </p>
-              )}
-            </ScrollArea>
-          </TabsContent>
-        </Tabs>
-      </Dialog>
-
-      <ConfirmDialog
-        open={partialConfirmOpen}
-        onOpenChange={setPartialConfirmOpen}
-        title={t('Partial Submission')}
-        desc={t(
-          'There are both add and remove models pending, but you only selected one type. Confirm submitting only the selected items?'
+          />
         )}
-        handleConfirm={() => {
-          setPartialConfirmOpen(false)
-          props.onConfirm({
-            addModels: Array.from(selectedAdd),
-            removeModels: Array.from(selectedRemove),
+        {props.upstream.detectError && (
+          <ErrorState
+            title={t('Detection failed')}
+            description={props.upstream.detectError}
+            onRetry={() =>
+              props.upstream.detectChannelUpdates(props.upstream.channel)
+            }
+          />
+        )}
+        {result && (
+          <>
+            <Alert>
+              <AlertTitle>{t('Update completed')}</AlertTitle>
+              <AlertDescription>
+                {t(
+                  'The server returned the following result. Unselected models remain pending.'
+                )}
+              </AlertDescription>
+            </Alert>
+            <ModelChangeList
+              title={t('Added models')}
+              models={result.addedModels}
+            />
+            <ModelChangeList
+              title={t('Removed models')}
+              models={result.removedModels}
+            />
+            <ModelChangeList
+              title={t('Still pending addition')}
+              models={result.remainingModels}
+            />
+            <ModelChangeList
+              title={t('Still pending removal')}
+              models={result.remainingRemoveModels}
+            />
+          </>
+        )}
+        {isPreview && (
+          <>
+            <Alert>
+              <AlertDescription>
+                {t(
+                  'Review the model changes before applying. Unselected models stay unchanged and will not be ignored.'
+                )}
+              </AlertDescription>
+            </Alert>
+            {props.upstream.applyError && (
+              <Alert variant='destructive'>
+                <AlertTitle>
+                  {t('Unable to confirm the update result')}
+                </AlertTitle>
+                <AlertDescription>
+                  <p>{props.upstream.applyError}</p>
+                  <p>
+                    {t(
+                      'Refresh the preview before trying again; some changes may already have been saved.'
+                    )}
+                  </p>
+                </AlertDescription>
+              </Alert>
+            )}
+            {hasChanges && (
+              <p className='text-sm font-medium' aria-live='polite'>
+                {summary}
+              </p>
+            )}
+            {hasChanges ? (
+              <Tabs
+                value={activeTab}
+                onValueChange={(value) =>
+                  setActiveTab(value as 'add' | 'remove')
+                }
+              >
+                <TabsList className='grid w-full grid-cols-2 group-data-horizontal/tabs:h-auto'>
+                  <TabsTrigger
+                    value='add'
+                    className='h-auto min-h-7 whitespace-normal'
+                  >
+                    {t('Add Models')} ({props.upstream.addModels.length})
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value='remove'
+                    className='h-auto min-h-7 whitespace-normal'
+                  >
+                    {t('Remove Models')} ({props.upstream.removeModels.length})
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value='add'>
+                  <UpstreamModelSelection
+                    models={props.upstream.addModels}
+                    selected={selectedAdd}
+                    onChange={(models) =>
+                      !props.upstream.applyLoading && setSelectedAdd(models)
+                    }
+                    existingModels={[]}
+                    summaryText={t('Add Models')}
+                    showChanges={false}
+                  />
+                </TabsContent>
+                <TabsContent value='remove' className='space-y-3'>
+                  <Alert variant='destructive'>
+                    <AlertDescription>
+                      {t(
+                        'Removed models will no longer be available through this channel. Select removals explicitly.'
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                  <UpstreamModelSelection
+                    models={props.upstream.removeModels}
+                    selected={selectedRemove}
+                    onChange={(models) =>
+                      !props.upstream.applyLoading && setSelectedRemove(models)
+                    }
+                    existingModels={[]}
+                    summaryText={t('Remove Models')}
+                    showChanges={false}
+                  />
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <EmptyState
+                title={t(
+                  'No processable upstream model updates for this channel'
+                )}
+              />
+            )}
+          </>
+        )}
+      </Dialog>
+      <ConfirmDialog
+        open={confirmOpen && !result}
+        onOpenChange={(open) =>
+          !props.upstream.applyLoading && setConfirmOpen(open)
+        }
+        title={t('Confirm model changes')}
+        desc={
+          <>
+            <span className='break-all'>{channelLabel}</span>
+            <p>{summary}</p>
+          </>
+        }
+        confirmText={
+          props.upstream.applyLoading
+            ? t('Applying...')
+            : t('Apply selected changes')
+        }
+        destructive={selectedRemove.length > 0}
+        isLoading={props.upstream.applyLoading}
+        className='max-h-(--dialog-available-height) overflow-y-auto [&_button]:h-auto [&_button]:min-h-8 [&_button]:whitespace-normal'
+        handleConfirm={async () => {
+          await props.upstream.applyUpdates({
+            addModels: selectedAdd,
+            removeModels: selectedRemove,
           })
+          setConfirmOpen(false)
         }}
-      />
+      >
+        <ModelChangeList title={t('Add Models')} models={selectedAdd} />
+        <ModelChangeList title={t('Remove Models')} models={selectedRemove} />
+      </ConfirmDialog>
     </>
   )
 }

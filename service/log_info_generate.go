@@ -2,7 +2,6 @@ package service
 
 import (
 	"encoding/base64"
-	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -42,7 +41,7 @@ func attachQuotaSaturation(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, o
 		return
 	}
 	attachQuotaSaturationToOther(other, clamp)
-	logger.LogWarn(ctx, fmt.Sprintf("quota saturation on consume log: op=%s kind=%s original=%g clamped=%d user=%d model=%s",
+	logger.LogWarn(ctx, common.LogText("quota saturation on consume log: op=%s kind=%s original=%g clamped=%d user=%d model=%s",
 		clamp.Op, clamp.Kind, clamp.Original, clamp.Clamped, relayInfo.UserId, relayInfo.GetBillingModelName()))
 }
 
@@ -138,8 +137,7 @@ func AppendResponseModelLogInfo(relayInfo *relaycommon.RelayInfo, other *model.L
 		return
 	}
 	observation := relayInfo.ResponseModel
-	if !observation.Mismatch &&
-		observation.ReturnedModel == observation.RequestedModel &&
+	if observation.ReturnedModel == observation.RequestedModel &&
 		(observation.UpstreamModel == "" || observation.UpstreamModel == observation.RequestedModel) &&
 		(relayInfo.ChannelMeta == nil || !relayInfo.IsModelMapped) {
 		return

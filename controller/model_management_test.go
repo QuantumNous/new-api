@@ -170,7 +170,8 @@ func TestModelPricingConversionDatabaseMatrix(t *testing.T) {
 				{"conversion-fixed", model.PricingValues{"ModelPrice": float64(0.25), "ModelRatio": float64(7)}, `tier("request", fixed(0.25))`, ""},
 				{"gpt-4o-2024-05-13", model.PricingValues{"ModelRatio": float64(2), "CompletionRatio": float64(99)}, `tier("base", p * 4 + c * 12)`, ""},
 				{"gpt-image-2", model.PricingValues{"ModelPrice": float64(1)}, `tier("image", fixed(1)) * image_count`, ""},
-				{"qwen-image-3.0-pro", model.PricingValues{"ModelPrice": float64(1)}, `tier("image", fixed(1)) * image_count`, ""},
+				// Bailian image models are served by the alibaba task plugin, so their pricing is a task usage expression.
+				{"qwen-image-3.0-pro", model.PricingValues{"ModelPrice": float64(1)}, "", "Task pricing must be converted manually using the task usage schema."},
 				{"wan2.7-image-pro", model.PricingValues{"ModelPrice": float64(1)}, "", "Task pricing must be converted manually using the task usage schema."},
 				{"video-summarizer", model.PricingValues{"ModelPrice": float64(1)}, `tier("request", fixed(1))`, ""},
 				{"sora-transcript-helper", model.PricingValues{"ModelPrice": float64(1)}, `tier("request", fixed(1))`, ""},
@@ -363,14 +364,14 @@ func TestModelPricingConversionDatabaseMatrix(t *testing.T) {
 				aliConversion, err := model.PreviewModelPricingConversion(aliName, model.PricingValues{"ModelPrice": 0.04})
 				require.NoError(t, err)
 				require.Empty(t, aliConversion.UnsupportedReason)
+				// Ali image billing lives in the alibaba task plugin, where prompt_extend is a
+				// usage fact; the legacy conversion no longer adds a per-channel request multiplier.
+				assert.Equal(t, `tier("image", fixed(0.04)) * image_count`, aliConversion.Expression)
+				assert.Empty(t, aliConversion.BillingDetails.RequestRules)
 				quantity := 3
 				aliCost, _, err := billingexpr.RunExprWithRequest(aliConversion.Expression, billingexpr.TokenParams{}, billingexpr.RequestInput{ImageCount: &quantity, Body: []byte(`{"parameters":{"prompt_extend":true}}`)})
 				require.NoError(t, err)
-				assert.Equal(t, 240000.0, aliCost)
-				require.NoError(t, (&model.Channel{Name: "Different image rules", Models: aliName, Type: 1, Status: common.ChannelStatusEnabled}).Insert())
-				conflicting, err = model.PreviewModelPricingConversion(aliName, model.PricingValues{"ModelPrice": 0.04})
-				require.NoError(t, err)
-				assert.Contains(t, conflicting.UnsupportedReason, "different image request multipliers")
+				assert.Equal(t, 120000.0, aliCost)
 				for _, tc := range []struct {
 					name    string
 					pricing model.PricingValues

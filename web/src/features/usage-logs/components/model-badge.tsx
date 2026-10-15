@@ -31,6 +31,7 @@ import { getLobeIcon } from '@/lib/lobe-icon'
 import { resolveModelProvider } from '@/lib/model-provider'
 import { cn } from '@/lib/utils'
 
+import { isResponseModelMismatch } from '../lib/response-model'
 import type { LogOtherData } from '../types'
 import { DetailRow } from './dialogs/log-detail-layout'
 
@@ -56,7 +57,7 @@ function ModelBadgeContent(props: ModelBadgeProps & { copyable: boolean }) {
       className={cn(
         'border-border/60 bg-muted/30 h-6 max-w-none gap-1.5 rounded-md border px-2 [font-family:var(--font-body)]',
         provider?.icon && 'text-foreground',
-        props.wrapText && 'h-auto min-h-6 max-w-full py-0.5 whitespace-normal',
+        props.wrapText && 'h-auto min-h-6 max-w-full py-px whitespace-normal',
         props.className
       )}
     >
@@ -78,7 +79,7 @@ function ModelBadgeContent(props: ModelBadgeProps & { copyable: boolean }) {
         <span
           className={
             props.wrapText
-              ? 'line-clamp-2 [overflow-wrap:anywhere]'
+              ? 'line-clamp-2 leading-5 [overflow-wrap:anywhere]'
               : 'whitespace-nowrap'
           }
         >
@@ -91,17 +92,19 @@ function ModelBadgeContent(props: ModelBadgeProps & { copyable: boolean }) {
 
 export function ModelBadge(props: ModelBadgeProps) {
   const { t } = useTranslation()
-  const responseModelLabel = props.responseModel?.mismatch
-    ? t('Response model: {{model}}', {
-        model: props.responseModel.returned_model,
-      })
-    : ''
+  const mismatch = isResponseModelMismatch(props.responseModel)
+  const responseModelLabel =
+    mismatch && props.responseModel
+      ? t('Response model: {{model}}', {
+          model: props.responseModel.returned_model,
+        })
+      : ''
   const modelLabel = `${t('Model')}: ${props.modelName}${responseModelLabel ? `, ${responseModelLabel}` : ''}`
   const hasDetails =
     !!props.actualModel ||
     !!(
       props.responseModel &&
-      (props.responseModel.mismatch ||
+      (mismatch ||
         props.responseModel.returned_model !==
           props.responseModel.requested_model ||
         (props.responseModel.upstream_model &&
@@ -129,7 +132,7 @@ export function ModelBadge(props: ModelBadgeProps) {
   const content = (
     <>
       <ModelBadgeContent {...props} copyable={false} />
-      {props.responseModel?.mismatch && (
+      {mismatch && (
         <StatusBadge
           icon={AlertTriangle}
           label={responseModelLabel}
@@ -137,7 +140,7 @@ export function ModelBadge(props: ModelBadgeProps) {
           copyable={false}
         />
       )}
-      {!props.responseModel?.mismatch && props.actualModel && (
+      {!mismatch && props.actualModel && (
         <Route
           className='text-muted-foreground size-3 shrink-0'
           aria-hidden='true'
@@ -205,10 +208,11 @@ export function ResponseModelDetails(props: {
   observation: NonNullable<LogOtherData['response_model']>
 }) {
   const { t } = useTranslation()
+  const mismatch = isResponseModelMismatch(props.observation)
 
   return (
     <div className='min-w-0 space-y-2'>
-      {props.observation.mismatch && (
+      {mismatch && (
         <StatusBadge
           icon={AlertTriangle}
           label={t('Response model: {{model}}', {
@@ -236,7 +240,7 @@ export function ResponseModelDetails(props: {
         value={props.observation.returned_model}
         mono
       />
-      {props.observation.mismatch && (
+      {mismatch && (
         <p className='text-muted-foreground text-xs'>
           {t(
             'The upstream returned a model name different from both the requested and upstream models. Aliases or dated versions may also cause this; this warning alone does not prove model substitution.'

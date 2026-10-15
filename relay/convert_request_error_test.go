@@ -45,20 +45,18 @@ func (*imageReservation) NeedsRefund() bool          { return false }
 func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 	service.InitHttpClient()
 	for _, tc := range []struct {
-		name, body                                       string
-		tiered, passThrough, insufficient, retryToOpenAI bool
-		override                                         any
-		count, status                                    int
+		name, body                                    string
+		tiered, passThrough, insufficient, retryReset bool
+		override                                      any
+		count, status                                 int
 	}{
-		{name: "Ali nested count", body: `{"model":"z-image","n":1,"parameters":{"n":4}}`, count: 4},
-		{name: "Ali empty parameters", body: `{"model":"z-image","n":2,"parameters":{}}`, count: 2},
-		{name: "legacy channel quantity override", body: `{"model":"z-image","n":1}`, override: 4, count: 4},
-		{name: "expression channel quantity override", body: `{"model":"z-image","n":1}`, override: 4, count: 4, tiered: true},
-		{name: "pass-through quantity", body: `{"model":"z-image","n":2,"parameters":{}}`, count: 2, passThrough: true},
-		{name: "zero override rejected", body: `{"model":"z-image","n":1}`, override: 0, status: http.StatusBadRequest},
-		{name: "oversized override rejected", body: `{"model":"z-image","n":1}`, override: 129, status: http.StatusBadRequest},
-		{name: "insufficient reservation blocks upstream", body: `{"model":"z-image","n":1}`, override: 4, count: 4, insufficient: true, status: http.StatusForbidden},
-		{name: "retry drops Ali quantity and surcharge", body: `{"model":"z-image","n":1,"parameters":{"n":4,"prompt_extend":true}}`, count: 1, retryToOpenAI: true},
+		{name: "top-level count", body: `{"model":"gpt-image-2","n":2,"parameters":{}}`, count: 2},
+		{name: "legacy channel quantity override", body: `{"model":"gpt-image-2","n":1}`, override: 4, count: 4},
+		{name: "expression channel quantity override", body: `{"model":"gpt-image-2","n":1}`, override: 4, count: 4, tiered: true},
+		{name: "pass-through quantity", body: `{"model":"gpt-image-2","n":2,"parameters":{}}`, count: 2, passThrough: true},
+		{name: "oversized override rejected", body: `{"model":"gpt-image-2","n":1}`, override: 129, status: http.StatusBadRequest},
+		{name: "insufficient reservation blocks upstream", body: `{"model":"gpt-image-2","n":1}`, override: 4, count: 4, insufficient: true, status: http.StatusForbidden},
+		{name: "retry drops the previous attempt's quantity", body: `{"model":"gpt-image-2","n":1}`, count: 1, retryReset: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			received := make(chan []byte, 1)
@@ -75,15 +73,11 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			c, _ := gin.CreateTestContext(httptest.NewRecorder())
 			c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(tc.body))
 			c.Request.Header.Set("Content-Type", "application/json")
-			channel := constant.ChannelTypeAli
-			if tc.retryToOpenAI {
-				channel = constant.ChannelTypeOpenAI
-			}
-			common.SetContextKey(c, constant.ContextKeyChannelType, channel)
+			common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeOpenAI)
 			common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, upstream.URL)
 			common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{PassThroughBodyEnabled: tc.passThrough})
 			if tc.override != nil {
-				common.SetContextKey(c, constant.ContextKeyChannelParamOverride, map[string]any{"operations": []any{map[string]any{"path": "parameters.n", "mode": "set", "value": tc.override}}})
+				common.SetContextKey(c, constant.ContextKeyChannelParamOverride, map[string]any{"operations": []any{map[string]any{"path": "n", "mode": "set", "value": tc.override}}})
 			}
 			request, err := helper.GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesGenerations)
 			require.NoError(t, err)
@@ -91,7 +85,7 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			if tc.insufficient {
 				reservation.limit = reservation.held
 			}
-			info := &relaycommon.RelayInfo{Request: request, OriginModelName: "z-image", RelayMode: relayconstant.RelayModeImagesGenerations,
+			info := &relaycommon.RelayInfo{Request: request, OriginModelName: "gpt-image-2", RelayMode: relayconstant.RelayModeImagesGenerations,
 				RequestURLPath: c.Request.URL.Path, Billing: reservation,
 				PriceData: hosttypes.PriceData{UsePrice: true, ModelPrice: 0.04, GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1}},
 			}
@@ -101,10 +95,9 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 				info.BillingRequestInput = &billingexpr.RequestInput{Body: []byte(tc.body), ImageCount: common.GetPointer(1)}
 				info.PriceData.UsePrice = false
 			}
-			if tc.retryToOpenAI {
-				reservation.held = 160000
+			if tc.retryReset {
+				reservation.held = 80000
 				info.PriceData.AddOtherRatio("n", 4)
-				info.PriceData.AddOtherRatio("prompt_extend", 2)
 				info.BillingImageCount = common.GetPointer(3)
 			}
 			apiErr := ImageHelper(c, info)
@@ -117,11 +110,7 @@ func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 			assert.Equal(t, http.StatusBadGateway, apiErr.StatusCode)
 			require.Len(t, received, 1)
 			body := <-received
-			path := "parameters.n"
-			if tc.retryToOpenAI {
-				path = "n"
-			}
-			assert.Equal(t, int64(tc.count), gjson.GetBytes(body, path).Int())
+			assert.Equal(t, int64(tc.count), gjson.GetBytes(body, "n").Int())
 			assert.Equal(t, tc.count*20000, info.PriceData.QuotaToPreConsume)
 			assert.GreaterOrEqual(t, reservation.held, info.PriceData.QuotaToPreConsume)
 			assert.Nil(t, info.BillingImageCount)
@@ -298,4 +287,30 @@ func TestGeminiThinkingControlsConvertBestEffort(t *testing.T) {
 		assert.Equal(t, "medium", converted.ReasoningEffort)
 		assert.True(t, hasHostDiagnosticCode(info.ConversionDiagnostics(), "gemini_budget_to_level"))
 	})
+}
+
+// An Ali image model the alibaba task plugin does not claim is rejected by the
+// adaptor with a classified 400 that skips retries. ImageHelper must surface
+// that classification unchanged instead of wrapping it into a retryable
+// conversion failure that other channels would then be asked to serve.
+func TestImageHelperKeepsAdaptorClassifiedConvertError(t *testing.T) {
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", strings.NewReader(`{"model":"wanx-style-repaint-v1","prompt":"a cat"}`))
+	c.Request.Header.Set("Content-Type", "application/json")
+	common.SetContextKey(c, constant.ContextKeyChannelType, constant.ChannelTypeAli)
+	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, "https://dashscope.invalid")
+	request, err := helper.GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesGenerations)
+	require.NoError(t, err)
+	info := &relaycommon.RelayInfo{Request: request, OriginModelName: "wanx-style-repaint-v1", RelayMode: relayconstant.RelayModeImagesGenerations,
+		RequestURLPath: c.Request.URL.Path, Billing: &imageReservation{limit: 500000},
+		PriceData: hosttypes.PriceData{UsePrice: true, ModelPrice: 0.04, GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1}},
+	}
+
+	apiErr := ImageHelper(c, info)
+
+	require.NotNil(t, apiErr)
+	assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
+	assert.Equal(t, types.ErrorCodeInvalidRequest, apiErr.GetErrorCode())
+	assert.True(t, types.IsSkipRetryError(apiErr), "other channels must not be asked to serve the same name")
+	assert.Contains(t, apiErr.Error(), "not served by the alibaba task plugin")
 }

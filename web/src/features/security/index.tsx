@@ -32,7 +32,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { TitledCard } from '@/components/ui/titled-card'
 import { useProfile } from '@/features/profile/hooks/use-profile'
 
-import { AccessTokenCard } from './components/access-token-card'
+import { AccessTokensCard } from './components/access-tokens-card'
 import { AccountActionCard } from './components/account-action-card'
 import { AccountBindings } from './components/account-bindings'
 import { LoginSessionsCard } from './components/login-sessions-card'
@@ -105,7 +105,7 @@ export function Security() {
               {t('Sessions & Access')}
             </h3>
             <LoginSessionsCard />
-            <AccessTokenCard />
+            <AccessTokensCard />
           </section>
           <section aria-labelledby='security-account' className='space-y-4'>
             <h3 id='security-account' className='text-sm font-semibold'>

@@ -26,26 +26,17 @@ import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import { IconBadge } from '@/components/ui/icon-badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Spinner } from '@/components/ui/spinner'
 
-export interface AudioClip {
-  clip_id?: string
-  id?: string
-  title?: string
-  tags?: string
-  duration?: number
-  audio_url?: string
-  image_url?: string
-  image_large_url?: string
-  metadata?: {
-    tags?: string
-    duration?: number
-  }
-}
+import type { AudioClip } from '../../types'
+
+export type { AudioClip }
 
 interface AudioPreviewDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   clips: AudioClip[]
+  loading?: boolean
 }
 
 function formatDuration(seconds?: number): string {
@@ -148,6 +139,29 @@ export function AudioPreviewDialog(props: AudioPreviewDialogProps) {
   const { t } = useTranslation()
   const clips = Array.isArray(props.clips) ? props.clips : []
 
+  let body = (
+    <ScrollArea className='max-h-[60vh]'>
+      <div className='space-y-3 pr-2'>
+        {clips.map((clip, idx) => (
+          <AudioClipCard key={clip.clip_id || clip.id || idx} clip={clip} />
+        ))}
+      </div>
+    </ScrollArea>
+  )
+  if (props.loading) {
+    body = (
+      <div className='flex justify-center py-4' aria-label={t('Loading...')}>
+        <Spinner />
+      </div>
+    )
+  } else if (clips.length === 0) {
+    body = (
+      <p className='text-muted-foreground py-4 text-center text-sm'>
+        {t('None')}
+      </p>
+    )
+  }
+
   return (
     <Dialog
       open={props.open}
@@ -165,19 +179,7 @@ export function AudioPreviewDialog(props: AudioPreviewDialogProps) {
       contentHeight='auto'
       bodyClassName='space-y-4'
     >
-      {clips.length === 0 ? (
-        <p className='text-muted-foreground py-4 text-center text-sm'>
-          {t('None')}
-        </p>
-      ) : (
-        <ScrollArea className='max-h-[60vh]'>
-          <div className='space-y-3 pr-2'>
-            {clips.map((clip, idx) => (
-              <AudioClipCard key={clip.clip_id || clip.id || idx} clip={clip} />
-            ))}
-          </div>
-        </ScrollArea>
-      )}
+      {body}
     </Dialog>
   )
 }

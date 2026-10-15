@@ -62,6 +62,7 @@ import {
 import { useIsMobile } from '@/hooks/use-mobile'
 import { cn } from '@/lib/utils'
 
+import { formatGroupDetail } from './model-group-selector/group-detail'
 import {
   modelGroupSelectorLayoutClasses,
   scrollSelectedOptionIntoView,
@@ -77,7 +78,7 @@ interface ModelOption {
 interface GroupOption {
   label: string
   value: string
-  ratio?: number
+  ratio?: number | string
   desc?: string
   description?: string
 }
@@ -440,13 +441,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                     </span>
                     {(group.desc || group.description) && (
                       <div className='text-muted-foreground truncate text-[9px] leading-tight'>
-                        {group.desc || group.description}
-                        {group.ratio && (
-                          <>
-                            {' · '}
-                            {t('Ratio: {{value}}', { value: group.ratio })}
-                          </>
-                        )}
+                        {formatGroupDetail(group, t)}
                       </div>
                     )}
                   </div>
@@ -500,15 +495,7 @@ export const GroupSelector: React.FC<GroupSelectorProps> = React.memo(
                       </span>
                       {(group.desc || group.description) && (
                         <div className='text-muted-foreground mt-0.5 text-xs'>
-                          {group.desc || group.description}
-                          {group.ratio && (
-                            <>
-                              {' · '}
-                              {t('Ratio: {{value}}', {
-                                value: group.ratio,
-                              })}
-                            </>
-                          )}
+                          {formatGroupDetail(group, t)}
                         </div>
                       )}
                     </div>

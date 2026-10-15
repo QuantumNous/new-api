@@ -141,6 +141,51 @@ func ResolveCacheWriteMode(name string, configured PricingValues) CacheWriteMode
 	return CacheWriteNone
 }
 
+// declaredEndpointNames resolves the endpoint types declared by one model
+// metadata row. Model metadata accepts two shapes — the map form (custom paths)
+// and the type-array form (declared protocols) — and conversion must honour
+// both. Reading only the map form made array-form metadata look like a broken
+// routing configuration and blocked an otherwise convertible model.
+func declaredEndpointNames(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	var value any
+	if err := common.UnmarshalJsonStr(raw, &value); err != nil {
+		return nil, err
+	}
+	// Normalize whitespace here: the callers match these names against the
+	// endpoint switch, so a padded value such as "image-generation " would
+	// silently fall through and drop the image-count settlement rule.
+	switch endpoints := value.(type) {
+	case []any:
+		names := make([]string, 0, len(endpoints))
+		for _, endpoint := range endpoints {
+			text, ok := endpoint.(string)
+			if !ok {
+				return nil, errors.New("invalid endpoint type")
+			}
+			text = strings.TrimSpace(text)
+			if text == "" {
+				return nil, errors.New("invalid endpoint type")
+			}
+			names = append(names, text)
+		}
+		return names, nil
+	case map[string]any:
+		names := make([]string, 0, len(endpoints))
+		for endpoint := range endpoints {
+			endpoint = strings.TrimSpace(endpoint)
+			if endpoint == "" {
+				continue
+			}
+			names = append(names, endpoint)
+		}
+		return names, nil
+	}
+	return nil, errors.New("invalid endpoints")
+}
+
 func PreviewModelPricingConversion(name string, draft PricingValues) (*ModelPricingConversion, error) {
 	if draft == nil {
 		return nil, errors.New("pricing draft is required")
@@ -188,7 +233,6 @@ func PreviewModelPricingConversion(name string, draft PricingValues) (*ModelPric
 		return nil, err
 	}
 	names := []string{name}
-	aliPromptExtend, otherImageRoute := false, false
 	for _, channel := range channels {
 		if !slices.Contains(channel.GetModels(), name) {
 			continue
@@ -230,13 +274,6 @@ func PreviewModelPricingConversion(name string, draft PricingValues) (*ModelPric
 				names = append(names, upstream)
 			}
 		}
-		if channel.Status == common.ChannelStatusEnabled {
-			if channel.Type == constant.ChannelTypeAli && strings.Contains(upstream, "z-image") {
-				aliPromptExtend = true
-			} else {
-				otherImageRoute = true
-			}
-		}
 	}
 	for _, modelName := range names {
 		lower := strings.ToLower(modelName)
@@ -257,11 +294,11 @@ func PreviewModelPricingConversion(name string, draft PricingValues) (*ModelPric
 		if entry.Endpoints == "" || !slices.ContainsFunc(names, entry.MatchesName) {
 			continue
 		}
-		var endpoints map[string]any
-		if err := common.UnmarshalJsonStr(entry.Endpoints, &endpoints); err != nil {
+		endpoints, err := declaredEndpointNames(entry.Endpoints)
+		if err != nil {
 			return &ModelPricingConversion{UnsupportedReason: "The model routing configuration could not be verified."}, nil
 		}
-		for endpoint := range endpoints {
+		for _, endpoint := range endpoints {
 			switch constant.EndpointType(endpoint) {
 			case constant.EndpointTypeImageGeneration:
 				if fixedPrice {
@@ -279,13 +316,7 @@ func PreviewModelPricingConversion(name string, draft PricingValues) (*ModelPric
 		price := effective["ModelPrice"].(float64)
 		expression = `tier("request", fixed(` + decimal.NewFromFloat(price).String() + `))`
 		if preview.BillingDetails.ImageCount {
-			if aliPromptExtend && otherImageRoute {
-				return &ModelPricingConversion{UnsupportedReason: "This model has different image request multipliers across channels. Use separate billing model names to convert them."}, nil
-			}
 			expression = `tier("image", fixed(` + decimal.NewFromFloat(price).String() + `)) * image_count`
-			if aliPromptExtend {
-				preview.BillingDetails.RequestRules = append(preview.BillingDetails.RequestRules, LegacyPricingRule{`param("parameters.prompt_extend") == true`, common.ZImagePromptExtendMultiplier})
-			}
 			for _, rule := range preview.BillingDetails.RequestRules {
 				expression += ` * (` + rule.Condition + ` ? ` + decimal.NewFromFloat(rule.Multiplier).String() + ` : 1)`
 			}

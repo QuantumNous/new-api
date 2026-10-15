@@ -20,6 +20,8 @@ func TestHostProtocolRegistryDrivesProtocolRoutesOnce(t *testing.T) {
 		"GET /v1/videos/:task_id",
 		"GET /v1/videos/:task_id/content",
 		"HEAD /v1/videos/:task_id/content",
+		"POST /v1/images/generations",
+		"POST /v1/images/edits",
 	}
 	actual := make([]string, 0, len(engine.Routes()))
 	for _, route := range engine.Routes() {

@@ -77,7 +77,7 @@ export function PluginSourcePicker(props: PluginSourcePickerProps) {
         </p>
         <p className='text-muted-foreground text-xs'>
           {t(
-            'Single .js file, up to 1 MiB. Its source is shown below before upload.'
+            'Single .js file, up to 8 MiB. Its source is shown below before upload.'
           )}
         </p>
       </div>

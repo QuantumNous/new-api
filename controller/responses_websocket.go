@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
 	"sync"
@@ -107,7 +106,7 @@ func newResponsesWSRequestRunner(c *gin.Context) relay.ResponsesWSRequestRunner 
 		if common.Unmarshal(response.body.Bytes(), &body) == nil && body.Error != nil {
 			return types.WithOpenAIError(*body.Error, response.status, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 		}
-		// The existing in-memory rate limiter returns a bare 429 response.
+		// A rejection without an OpenAI error body keeps its HTTP status text.
 		return types.NewErrorWithStatusCode(errors.New(http.StatusText(response.status)), types.ErrorCodeInvalidRequest, response.status, types.ErrOptionWithSkipRetry(), types.ErrOptionWithNoRecordErrorLog())
 	}
 }
@@ -122,7 +121,7 @@ func ResponsesWebSocket(c *gin.Context) {
 	defer ws.Close()
 
 	if apiError := relay.ResponsesWebSocketHelper(c, ws, runner); apiError != nil {
-		logger.LogError(c, fmt.Sprintf("responses websocket relay error: %s", common.LocalLogPreview(apiError.Error())))
+		logger.LogError(c, common.LogText("responses websocket relay error: %s", common.LocalLogPreview(apiError.Error())))
 		apiError.SetMessage(common.MessageWithRequestId(apiError.Error(), requestID))
 		helper.WssError(c, ws, apiError.ToOpenAIError())
 	}

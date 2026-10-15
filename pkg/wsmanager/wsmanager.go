@@ -97,7 +97,7 @@ func CloseChannels(channelIDs []int, reason string) int {
 		e.close(reason)
 	}
 	if len(entries) > 0 {
-		common.SysLog(fmt.Sprintf("closed %d active websocket connection(s), channels=%v, kinds=%v, reason=%s", len(entries), entryChannelIDs(entries), entryKindCounts(entries), reason))
+		common.SysLog(common.LogText("closed %d active websocket connection(s), channels=%v, kinds=%v, reason=%s", len(entries), entryChannelIDs(entries), entryKindCounts(entries), reason))
 	}
 	return len(entries)
 }
@@ -105,7 +105,7 @@ func CloseChannels(channelIDs []int, reason string) int {
 func CloseChannelsAndBroadcast(channelIDs []int, reason string) int {
 	count := CloseChannels(channelIDs, reason)
 	if err := PublishCloseChannels(context.Background(), channelIDs, reason); err != nil {
-		common.SysLog(fmt.Sprintf("failed to publish websocket close event: %v", err))
+		common.SysLog(common.LogText("failed to publish websocket close event: %v", err))
 	}
 	return count
 }
@@ -164,7 +164,7 @@ func receiveChannelCloseEvents(ctx context.Context, ch <-chan *redis.Message, or
 			}
 			var event closeEvent
 			if err := common.Unmarshal([]byte(msg.Payload), &event); err != nil {
-				common.SysLog(fmt.Sprintf("failed to unmarshal websocket close event: %v", err))
+				common.SysLog(common.LogText("failed to unmarshal websocket close event: %v", err))
 				continue
 			}
 			if event.Origin == origin {

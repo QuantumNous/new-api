@@ -108,7 +108,6 @@ it('shows model mismatch evidence when tapping the mobile model badge', async ()
             requested_model: longName,
             upstream_model: 'mapped-model',
             returned_model: 'unexpected-model',
-            mismatch: true,
           },
         }),
       },
@@ -166,7 +165,6 @@ it.each([false, true])(
                   requested_model: longName,
                   upstream_model: longName,
                   returned_model: longName,
-                  mismatch: false,
                 },
               })
             : log.other,
@@ -174,9 +172,16 @@ it.each([false, true])(
       ],
     })
     const button = screen.getByRole('button', { name: `Model: ${longName}` })
-    expect(within(button).getByText(longName)).toHaveClass(
+    const modelText = within(button).getByText(longName)
+    expect(modelText).toHaveClass(
       'line-clamp-2',
+      'leading-5',
       '[overflow-wrap:anywhere]'
+    )
+    expect(modelText.closest('[data-slot="status-badge"]')).toHaveClass(
+      'max-w-full',
+      'min-h-6',
+      'py-px'
     )
     button.focus()
     await user.keyboard('{Enter}')
@@ -281,6 +286,21 @@ it('omits unused token and throughput placeholders for async jobs', () => {
     .getByRole('button', { name: /^Time:/ })
     .closest('[data-slot="log-time-and-timing"]')
   expect(within(timing as HTMLElement).queryByText('—')).not.toBeInTheDocument()
+})
+
+it('labels a task whose result was returned in the response as synchronous', () => {
+  renderLogs({
+    logs: [
+      {
+        ...log,
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        other: JSON.stringify({ is_task: true, task_sync: true }),
+      },
+    ],
+  })
+  expect(screen.getByText('Sync')).toBeVisible()
+  expect(screen.queryByText('Async')).not.toBeInTheDocument()
 })
 
 it('shows mapped model names in full when inspecting a mobile model badge', async () => {
