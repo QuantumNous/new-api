@@ -136,6 +136,12 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 	version := model_setting.GetGeminiVersionSetting(info.UpstreamModelName)
+	if strings.HasPrefix(info.RequestURLPath, "/v1beta/interactions") {
+		return fmt.Sprintf("%s/v1beta/interactions", info.ChannelBaseUrl), nil
+	}
+	if strings.HasPrefix(info.RequestURLPath, "/v1/interactions") {
+		return fmt.Sprintf("%s/v1/interactions", info.ChannelBaseUrl), nil
+	}
 
 	if strings.HasPrefix(info.UpstreamModelName, "imagen") {
 		return fmt.Sprintf("%s/%s/models/%s:predict", info.ChannelBaseUrl, version, info.UpstreamModelName), nil
@@ -243,6 +249,12 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 }
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
+	if strings.HasPrefix(info.RequestURLPath, "/v1beta/interactions") || strings.HasPrefix(info.RequestURLPath, "/v1/interactions") {
+		if info.IsStream {
+			return GeminiInteractionStreamHandler(c, info, resp)
+		}
+		return GeminiInteractionHandler(c, info, resp)
+	}
 	if info.RelayMode == constant.RelayModeResponses {
 		if info.IsStream {
 			return GeminiResponsesStreamHandler(c, info, resp)

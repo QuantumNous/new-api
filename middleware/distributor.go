@@ -437,6 +437,13 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 			modelRequest.Model = modelName
 		}
 		c.Set("relay_mode", relayMode)
+	} else if strings.HasPrefix(c.Request.URL.Path, "/v1beta/interactions") || strings.HasPrefix(c.Request.URL.Path, "/v1/interactions") {
+		request, err := getInteractionModelRequest(c)
+		if err != nil {
+			return nil, false, err
+		}
+		modelRequest = *request
+		c.Set("relay_mode", relayconstant.RelayModeGemini)
 	} else if !strings.HasPrefix(c.Request.URL.Path, "/v1/audio/transcriptions") && !strings.Contains(c.Request.Header.Get("Content-Type"), "multipart/form-data") {
 		req, err := getModelFromRequest(c)
 		if err != nil {
@@ -504,6 +511,30 @@ func getModelRequest(c *gin.Context) (*ModelRequest, bool, error) {
 	}
 
 	return &modelRequest, shouldSelectChannel, nil
+}
+
+func getInteractionModelRequest(c *gin.Context) (*ModelRequest, error) {
+	request, err := getModelFromRequest(c)
+	if err != nil {
+		return nil, err
+	}
+	if request.Model != "" {
+		return request, nil
+	}
+
+	storage, err := common.GetBodyStorage(c)
+	if err != nil {
+		return nil, err
+	}
+	body, err := storage.Bytes()
+	if err != nil {
+		return nil, err
+	}
+	agent := gjson.GetBytes(body, "agent")
+	if agent.Type == gjson.String {
+		request.Model = agent.String()
+	}
+	return request, nil
 }
 
 // TokenModelLimitAllows reports whether a token model-limit map authorizes

@@ -111,6 +111,11 @@ func SetRelayRouter(router *gin.Engine) {
 			controller.Relay(c, types.RelayFormatOpenAIResponsesCompaction)
 		})
 
+		// Gemini Interactions API also exposes a stable /v1 endpoint.
+		httpRouter.POST("/interactions", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatGemini)
+		})
+
 		// alpha search related routes (Codex standalone web search)
 		httpRouter.POST("/alpha/search", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIAlphaSearch)
@@ -199,6 +204,11 @@ func SetRelayRouter(router *gin.Engine) {
 	relayGeminiRouter.Use(middleware.ModelRequestRateLimit())
 	relayGeminiRouter.Use(middleware.Distribute())
 	{
+		// Gemini Interactions API (/v1beta/interactions).
+		relayGeminiRouter.POST("/interactions", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatGemini)
+		})
+
 		// Gemini API 路径格式: /v1beta/models/{model_name}:{action}
 		relayGeminiRouter.POST("/models/*path", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatGemini)
