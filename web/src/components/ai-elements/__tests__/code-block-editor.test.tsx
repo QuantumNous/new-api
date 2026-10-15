@@ -40,6 +40,40 @@ function editorTree(value: string) {
 }
 
 describe('CodeBlockEditor', () => {
+  test('prevents editing when readOnly and becomes editable when unlocked', () => {
+    const { getByRole, rerender } = render(
+      <CodeBlockEditor
+        ariaLabel='Balance script'
+        autoFocus={false}
+        language='javascript'
+        onChange={() => undefined}
+        readOnly
+        value='const balance = 1'
+      />
+    )
+    const editor = getByRole('textbox', { name: 'Balance script' })
+    expect(editor).toHaveAttribute('aria-readonly', 'true')
+    expect(editor.querySelector('.cm-content')).toHaveAttribute(
+      'contenteditable',
+      'false'
+    )
+    rerender(
+      <CodeBlockEditor
+        ariaLabel='Balance script'
+        autoFocus={false}
+        language='javascript'
+        onChange={() => undefined}
+        readOnly={false}
+        value='const balance = 1'
+      />
+    )
+    expect(editor).toHaveAttribute('aria-readonly', 'false')
+    expect(editor.querySelector('.cm-content')).toHaveAttribute(
+      'contenteditable',
+      'true'
+    )
+  })
+
   test('does not add a second vertical inset to the line-number gutter for multiline source', () => {
     const { getByRole } = render(
       <CodeBlockEditor

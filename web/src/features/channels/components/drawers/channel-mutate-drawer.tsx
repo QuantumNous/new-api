@@ -54,6 +54,7 @@ import { type SubmitErrorHandler, useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
+import { CodeBlockEditor } from '@/components/ai-elements/code-block'
 import {
   sideDrawerContentClassName,
   sideDrawerFooterClassName,
@@ -61,7 +62,6 @@ import {
   sideDrawerHeaderClassName,
   sideDrawerSwitchItemClassName,
 } from '@/components/drawer-layout'
-import { CodeBlockEditor } from '@/components/ai-elements/code-block'
 import { EmptyState } from '@/components/empty-state'
 import { ErrorState } from '@/components/error-state'
 import { JsonCodeEditor } from '@/components/json-code-editor'
@@ -1852,6 +1852,7 @@ export function ChannelMutateDrawer({
               placeholder={t(
                 'export function buildBalanceRequest(ctx) { ... }\nexport function parseBalanceResponse(ctx, response) { ... }'
               )}
+              readOnly={sensitiveLocked || isSubmitting}
               rows={10}
               title={t('Balance Query Script')}
               value={field.value || ''}
@@ -1867,7 +1868,9 @@ export function ChannelMutateDrawer({
               </AlertDescription>
             </Alert>
           )}
-          <FormMessage />
+          <FormMessage
+            translationValues={{ max: MAX_BALANCE_SCRIPT_SOURCE_BYTES }}
+          />
         </FormItem>
       )}
     />

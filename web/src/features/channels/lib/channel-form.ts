@@ -313,10 +313,7 @@ export const channelFormSchema = z
     balance_script: z
       .string()
       .optional()
-      .refine(
-        isValidBalanceScript,
-        `Balance script must be ${MAX_BALANCE_SCRIPT_SOURCE_BYTES} bytes or smaller`
-      ),
+      .refine(isValidBalanceScript, 'Balance script exceeds {{max}} bytes'),
   })
   .superRefine((data, ctx) => {
     if (

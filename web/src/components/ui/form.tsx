@@ -249,7 +249,13 @@ function FormDescription({ className, ...props }: React.ComponentProps<'p'>) {
   )
 }
 
-function FormMessage({ className, ...props }: React.ComponentProps<'p'>) {
+function FormMessage({
+  className,
+  translationValues,
+  ...props
+}: React.ComponentProps<'p'> & {
+  translationValues?: Record<string, string | number>
+}) {
   const { error, formMessageId } = useFormField()
   const formContext = React.useContext(FormRootContext)
   const { t } = useTranslation()
@@ -259,7 +265,8 @@ function FormMessage({ className, ...props }: React.ComponentProps<'p'>) {
     return null
   }
 
-  const translatedBody = typeof body === 'string' ? t(body) : body
+  const translatedBody =
+    typeof body === 'string' ? t(body, translationValues) : body
 
   return (
     <p

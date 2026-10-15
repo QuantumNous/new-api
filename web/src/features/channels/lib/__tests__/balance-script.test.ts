@@ -146,28 +146,37 @@ describe('balance_script form field', () => {
     expect(settings.balance_script).toBe(SAMPLE_SCRIPT)
   })
 
-  test('accepts a script at the byte cap and rejects one above it', () => {
-    const atCap = 'x'.repeat(MAX_BALANCE_SCRIPT_SOURCE_BYTES)
-    const overCap = 'x'.repeat(MAX_BALANCE_SCRIPT_SOURCE_BYTES + 1)
-    expect(balanceScriptByteLength(atCap)).toBe(MAX_BALANCE_SCRIPT_SOURCE_BYTES)
+  test.each(['x', '\u{1F600}'])(
+    'accepts %s source at the UTF-8 byte cap and rejects one above it',
+    (character) => {
+      const atCap = character.repeat(
+        MAX_BALANCE_SCRIPT_SOURCE_BYTES / balanceScriptByteLength(character)
+      )
+      const overCap = atCap + character
+      expect(balanceScriptByteLength(atCap)).toBe(
+        MAX_BALANCE_SCRIPT_SOURCE_BYTES
+      )
 
-    const validForm = {
-      ...CHANNEL_FORM_DEFAULT_VALUES,
-      name: 'test-channel',
-      type: 1,
-      base_url: 'https://example.com',
-      models: 'gpt-5',
-      balance_script: atCap,
-    }
-    expect(channelFormSchema.safeParse(validForm).success).toBe(true)
+      const validForm = {
+        ...CHANNEL_FORM_DEFAULT_VALUES,
+        name: 'test-channel',
+        type: 1,
+        base_url: 'https://example.com',
+        models: 'gpt-5',
+        balance_script: atCap,
+      }
+      expect(channelFormSchema.safeParse(validForm).success).toBe(true)
 
-    const invalidForm = { ...validForm, balance_script: overCap }
-    const result = channelFormSchema.safeParse(invalidForm)
-    expect(result.success).toBe(false)
-    if (!result.success) {
-      expect(
-        result.error.issues.some((issue) => issue.path[0] === 'balance_script')
-      ).toBe(true)
+      const invalidForm = { ...validForm, balance_script: overCap }
+      const result = channelFormSchema.safeParse(invalidForm)
+      expect(result.success).toBe(false)
+      if (!result.success) {
+        expect(
+          result.error.issues.find(
+            (issue) => issue.path[0] === 'balance_script'
+          )?.message
+        ).toBe('Balance script exceeds {{max}} bytes')
+      }
     }
-  })
+  )
 })

@@ -85,6 +85,7 @@ type CodeBlockEditorProps = Omit<
   onChange: (value: string) => void
   onKeyDown?: (event: globalThis.KeyboardEvent) => void
   placeholder?: string
+  readOnly?: boolean
   rows?: number
   title?: ReactNode
   value: string
@@ -605,6 +606,7 @@ export const CodeBlockEditor = ({
   onChange,
   onKeyDown,
   placeholder,
+  readOnly = false,
   rows = 8,
   title,
   value,
@@ -626,6 +628,7 @@ export const CodeBlockEditor = ({
         onChange={onChange}
         onKeyDown={onKeyDown}
         placeholder={placeholder}
+        readOnly={readOnly}
         rows={rows}
         showLineNumbers
         value={value}
