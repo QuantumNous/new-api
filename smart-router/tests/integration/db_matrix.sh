@@ -37,8 +37,8 @@ run_mysql() {
   count="$(mysql --batch --skip-column-names "$database" --execute \
     "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()")"
   mysql --execute "DROP DATABASE \`${database}\`"
-  if [[ "$count" != "12" ]]; then
-    echo "MySQL: FAIL (expected 12 tables, found $count)"
+  if [[ "$count" != "14" ]]; then
+    echo "MySQL: FAIL (expected 14 tables, found $count)"
     exit 1
   fi
   echo "MySQL: PASS"
@@ -74,8 +74,8 @@ run_postgres() {
   count="$(psql --no-psqlrc --tuples-only --no-align --dbname "$database" \
     --command "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'")"
   dropdb "$database"
-  if [[ "$count" != "12" ]]; then
-    echo "PostgreSQL: FAIL (expected 12 tables, found $count)"
+  if [[ "$count" != "14" ]]; then
+    echo "PostgreSQL: FAIL (expected 14 tables, found $count)"
     exit 1
   fi
   echo "PostgreSQL: PASS"
