@@ -103,6 +103,13 @@ def _view(record):
     return output
 
 
+def _hide_uncertain(record, slot):
+    entry = record["slots"][slot]
+    entry["result"].update({"status": "write_unknown", "eligible": False})
+    entry["result"].pop("row", None)
+    entry["status"] = record["status"] = "write_unknown"
+
+
 class Operations:
     def __init__(self, root):
         self._root_fd = None
@@ -160,11 +167,36 @@ class Operations:
             finally:
                 os.close(descriptor)
 
+    def _read_guard(self):
+        try:
+            descriptor = self._open("pending.json", os.O_RDONLY)
+        except FileNotFoundError:
+            return None
+        try:
+            with os.fdopen(descriptor, "rb") as stream:
+                payload = stream.read(1025)
+            if len(payload) > 1024:
+                raise ValueError
+            guard = json.loads(payload)
+            if (type(guard) is not dict or set(guard) != {
+                    "version", "operation_id", "slot_id", "parameter_digest"}
+                    or type(guard["version"]) is not int or guard["version"] != 1
+                    or type(guard["parameter_digest"]) is not str
+                    or not re.fullmatch("[0-9a-f]{64}", guard["parameter_digest"])):
+                raise ValueError
+            _identity(guard["operation_id"])
+            _identity(guard["slot_id"])
+            return guard
+        except (ValueError, TypeError, KeyError, OverflowError):
+            raise ValueError("invalid_ledger_guard") from None
+
     def _read(self):
         try:
             descriptor = self._open("ledger.json", os.O_RDONLY)
         except FileNotFoundError:
-            return {"version": 1, "operations": {}}
+            if self._read_guard() is not None:
+                raise ValueError("invalid_ledger_guard")
+            return {"version": 2, "operations": {}}
         try:
             with os.fdopen(descriptor, "rb") as stream:
                 payload = stream.read(_MAX_BYTES + 1)
@@ -172,7 +204,8 @@ class Operations:
                 raise ValueError
             state = json.loads(payload)
             if (type(state) is not dict or set(state) != {"version", "operations"}
-                    or state["version"] != 1 or type(state["operations"]) is not dict
+                    or type(state["version"]) is not int or state["version"] not in (1, 2)
+                    or type(state["operations"]) is not dict
                     or len(state["operations"]) > _MAX_OPERATIONS):
                 raise ValueError
             for operation_id, record in state["operations"].items():
@@ -198,11 +231,35 @@ class Operations:
                             or entry["result"]["challenge_id"] != slot
                             or entry["result"]["expected_count"] != planned[slot]):
                         raise ValueError
+                # Version 1 had no commit veto. Only the last attempted terminal
+                # slot of an interrupted operation is ambiguous; prior slots were
+                # committed before the next intent could authorize dispatch.
+                attempted = [slot for slot in planned if slot in record["slots"]]
+                if (state["version"] == 1 and attempted
+                        and record["status"] in ("running", "write_unknown")
+                        and record["slots"][attempted[-1]]["status"] != "intent"):
+                    _hide_uncertain(record, attempted[-1])
+            guard = self._read_guard()
+            if guard is not None:
+                record = state["operations"][guard["operation_id"]]
+                attempted = [item["slot_id"] for item in record["plan"]
+                             if item["slot_id"] in record["slots"]]
+                if (record["parameter_digest"] != guard["parameter_digest"]
+                        or not attempted or attempted[-1] != guard["slot_id"]):
+                    raise ValueError
+                entry = record["slots"][guard["slot_id"]]
+                # Readability after replace is not proof that terminal fsync succeeded.
+                if entry["status"] != "intent":
+                    _hide_uncertain(record, guard["slot_id"])
+            state["version"] = 2
             return state
         except (ValueError, TypeError, KeyError, OverflowError):
             raise ValueError("invalid_ledger_state") from None
 
     def _write(self, state):
+        self._persist("ledger.json", state)
+
+    def _persist(self, destination, state):
         payload = json.dumps(state, sort_keys=True, allow_nan=False,
                              separators=(",", ":")).encode()
         if len(payload) > _MAX_BYTES:
@@ -217,7 +274,7 @@ class Operations:
                 stream.write(payload)
                 stream.flush()
                 os.fsync(stream.fileno())
-            os.replace(name, "ledger.json", src_dir_fd=self._root_fd,
+            os.replace(name, destination, src_dir_fd=self._root_fd,
                        dst_dir_fd=self._root_fd)
             os.fsync(self._root_fd)
         except OSError:
@@ -244,7 +301,9 @@ class Operations:
     def _recover(self, state):
         changed = False
         for record in state["operations"].values():
-            if record["status"] != "running":
+            if (record["status"] != "running"
+                    and not any(entry["status"] == "intent"
+                                for entry in record["slots"].values())):
                 continue
             record["status"] = "write_unknown"
             expected = {item["slot_id"]: item["expected_count"] for item in record["plan"]}
@@ -320,6 +379,11 @@ class Operations:
                 return False
             slots[slot_id] = {"status": "intent"}
             self._write(state)
+            # This immutable veto is durable before dispatch, not after the response.
+            self._persist("pending.json", {
+                "version": 1, "operation_id": operation_id, "slot_id": slot_id,
+                "parameter_digest": record["parameter_digest"],
+            })
             return True
 
     def finish_slot(self, operation_id: str, slot_id: str, result: dict) -> None:
@@ -337,10 +401,23 @@ class Operations:
                             if item["slot_id"] == slot_id)
             if projected["challenge_id"] != slot_id or projected["expected_count"] != expected:
                 raise ValueError("invalid_result")
+            if self._read_guard() != {
+                "version": 1, "operation_id": operation_id, "slot_id": slot_id,
+                "parameter_digest": record["parameter_digest"],
+            }:
+                raise ValueError("missing_slot_guard")
             record["slots"][slot_id] = {"status": projected["status"], "result": projected}
             if projected["status"] == "write_unknown":
                 record["status"] = "write_unknown"
             self._write(state)
+            # Only a fully fsynced result may retire the veto. Retirement need not
+            # survive a crash: a restored guard hides only this last slot. The next
+            # claim syncs the namespace before dispatch, preserving earlier results.
+            try:
+                os.unlink("pending.json", dir_fd=self._root_fd)
+            except OSError:
+                self._poisoned = True
+                raise OSError("ledger_persistence_failed") from None
 
     def _attach_plan(self, operation_id, plan):
         projected = _plan_projection(plan)

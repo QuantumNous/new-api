@@ -484,6 +484,67 @@ class CollectionTest(unittest.TestCase):
                 self.assertEqual(result["counts"]["accepted"], 0)
                 self.assertNotIn("analysis", result)
 
+    def test_directory_fsync_failure_never_accepts_uncertain_slot_on_replay(self):
+        for action in ("test", "enroll"):
+            for sustained in (False, True):
+                for prior in (0, 1):
+                    with self.subTest(action=action, sustained=sustained, prior=prior):
+                        with tempfile.TemporaryDirectory() as temporary:
+                            root = Path(temporary) / "ledger"
+                            calls = []
+                            failures = []
+                            bank_bytes = BANK_PATH.read_bytes() if action == "test" else None
+                            bank = json.loads(bank_bytes) if bank_bytes else None
+
+                            def provider(request):
+                                calls.append(1)
+                                return {"status_code": 200,
+                                        "body": openai_body(",".join(["3"] * 330))}
+
+                            def execute(operations):
+                                session = _CollectionSession(
+                                    operations, "fsync-1", provider,
+                                    model_label="sample-model", bank_bytes=bank_bytes,
+                                )
+                                return (test_model(TARGET, session, bank) if action == "test"
+                                        else collect_rows(TARGET, session, 3))
+
+                            with Operations(root) as operations:
+                                original = os.fsync
+
+                                def fail_terminal_directory_sync(descriptor):
+                                    if (descriptor == operations._root_fd
+                                            and len(calls) > prior
+                                            and (sustained or not failures)):
+                                        failures.append(1)
+                                        raise OSError("synthetic-fsync-secret")
+                                    return original(descriptor)
+
+                                with patch("modeltrace_runtime.operations.os.fsync",
+                                           side_effect=fail_terminal_directory_sync):
+                                    first = execute(operations)
+                                same_owner = execute(operations)
+                            with Operations(root) as reopened:
+                                restarted = execute(reopened)
+                            self.assertEqual(len(calls), prior + 1)
+                            self.assertGreaterEqual(len(failures), 1)
+                            for label, result in (("first", first), ("same", same_owner),
+                                                  ("reopened", restarted)):
+                                with self.subTest(projection=label):
+                                    self.assertEqual(result["status"], "write_unknown")
+                                    self.assertEqual(result["counts"]["accepted"], prior)
+                                    self.assertEqual(result["counts"]["unknown"], 1)
+                                    self.assertEqual(result["counts"]["unattempted"], 2 - prior)
+                                    self.assertFalse(result["complete"])
+                                    if action == "test":
+                                        if prior:
+                                            self.assertEqual(result["analysis"]["used_outputs"], 1)
+                                        else:
+                                            self.assertNotIn("analysis", result)
+                                    else:
+                                        self.assertEqual(len(result["rows"]), prior)
+                                    self.assertNotIn("synthetic-fsync-secret", json.dumps(result))
+
 
 if __name__ == "__main__":
     unittest.main()
