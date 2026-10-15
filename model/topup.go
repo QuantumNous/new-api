@@ -479,7 +479,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return errors.New("订单状态不是待支付，无法补单")
 		}
 
-		if topUp.PaymentProvider == PaymentProviderAlipay || topUp.PaymentProvider == PaymentProviderWechatPay {
+		if topUp.PaymentProvider == PaymentProviderAntom || topUp.PaymentProvider == PaymentProviderWebMoney || topUp.PaymentProvider == PaymentProviderAlipay || topUp.PaymentProvider == PaymentProviderWechatPay || topUp.PaymentProvider == PaymentProviderMixPay {
 			return errors.New("直连支付订单必须先查单确认付款")
 		}
 

@@ -80,7 +80,17 @@ interface SubscriptionPlansCardProps {
 
 function getEpayMethods(payMethods: PaymentMethod[] = []): PaymentMethod[] {
   return payMethods.filter(
-    (m) => m?.type && m.type !== 'stripe' && m.type !== 'creem'
+    (m) =>
+      m?.type &&
+      ![
+        'stripe',
+        'creem',
+        'mixpay',
+        'antom',
+        'webmoney',
+        'alipay_direct',
+        'wechatpay_native',
+      ].includes(m.type)
   )
 }
 
@@ -698,6 +708,9 @@ export function SubscriptionPlansCard({
             }
           }}
           plan={selectedPlan}
+          enableAntom={!!topupInfo?.pay_methods?.some((method) => method.type === 'antom')}
+          enableWebMoney={!!topupInfo?.pay_methods?.some((method) => method.type === 'webmoney')}
+          enableMixPay={!!topupInfo?.enable_mixpay_topup}
           enableAlipay={!!topupInfo?.enable_alipay_topup}
           enableWechatPay={!!topupInfo?.enable_wechatpay_topup}
           enableStripe={enableStripe}

@@ -120,6 +120,7 @@ export interface WaffoPayMethod {
  * Topup configuration information
  */
 export interface TopupInfo {
+  enable_mixpay_topup?: boolean
   enable_wechatpay_topup?: boolean
   enable_alipay_topup?: boolean
   /** Whether online topup is enabled */

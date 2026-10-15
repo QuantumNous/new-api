@@ -184,7 +184,7 @@ func TestSecurityProofBindsAccessTokenSession(t *testing.T) {
 }
 
 func TestDirectPaymentConfigProofBindsExactRevision(t *testing.T) {
-	for _, scope := range []string{VerificationScopeAlipayConfig, VerificationScopeWechatPayConfig} {
+	for _, scope := range []string{VerificationScopeAntomConfig, VerificationScopeWebMoneyConfig, VerificationScopeMixPayConfig, VerificationScopeAlipayConfig, VerificationScopeWechatPayConfig} {
 		t.Run(scope, func(t *testing.T) {
 			user := setupAuthSessionTestDB(t)
 			require.NoError(t, model.DB.AutoMigrate(&model.TwoFA{}, &model.PasskeyCredential{}))

@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { openPaymentWindow } from '@/lib/payment-window'
+
 import {
   PAYMENT_TYPES,
   DEFAULT_PRESET_MULTIPLIERS,
@@ -28,44 +30,12 @@ import type { PaymentMethod, PresetAmount, TopupInfo } from '../types'
 // Payment Processing Functions
 // ============================================================================
 
-/**
- * Check if browser is Safari
- */
-function isSafariBrowser(): boolean {
-  return (
-    navigator.userAgent.includes('Safari') &&
-    !navigator.userAgent.includes('Chrome')
-  )
-}
-
-/**
- * Submit payment form (for non-Stripe payments)
- */
+/** Submit a POST-based checkout in the shared payment popup. */
 export function submitPaymentForm(
   url: string,
   params: Record<string, unknown>
 ): void {
-  const form = document.createElement('form')
-  form.action = url
-  form.method = 'POST'
-
-  // Don't open in new tab for Safari
-  if (!isSafariBrowser()) {
-    form.target = '_blank'
-  }
-
-  // Add form parameters
-  Object.entries(params).forEach(([key, value]) => {
-    const input = document.createElement('input')
-    input.type = 'hidden'
-    input.name = key
-    input.value = String(value)
-    form.appendChild(input)
-  })
-
-  document.body.appendChild(form)
-  form.submit()
-  document.body.removeChild(form)
+  openPaymentWindow(url, params)
 }
 
 /**
@@ -156,12 +126,23 @@ export function getMinTopupAmount(topupInfo: TopupInfo | null): number {
   }
 
   if (
-    (topupInfo.enable_alipay_topup || topupInfo.enable_wechatpay_topup) &&
+    (topupInfo.pay_methods?.some((method) =>
+      ['antom', 'webmoney'].includes(method.type)
+    ) ||
+      topupInfo.enable_mixpay_topup ||
+      topupInfo.enable_alipay_topup ||
+      topupInfo.enable_wechatpay_topup) &&
     !topupInfo.enable_online_topup
   ) {
     return (
       topupInfo.pay_methods?.find((method) =>
-        ['alipay_direct', 'wechatpay_native'].includes(method.type)
+        [
+          'antom',
+          'webmoney',
+          'mixpay',
+          'alipay_direct',
+          'wechatpay_native',
+        ].includes(method.type)
       )?.min_topup || DEFAULT_MIN_TOPUP
     )
   }

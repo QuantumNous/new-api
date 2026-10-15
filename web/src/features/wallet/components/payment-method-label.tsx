@@ -30,17 +30,43 @@ export function PaymentMethodLabel(props: {
   name?: string
   icon?: string
   className?: string
+  monochrome?: boolean
 }) {
   const { t } = useTranslation()
+  if (props.method === 'antom') {
+    return (
+      <img
+        src='/antom-logo.svg'
+        alt='Antom'
+        width={87}
+        height={36}
+        className={cn(
+          'inline-block h-7 w-auto shrink-0 bg-transparent object-contain align-middle',
+          props.className
+        )}
+      />
+    )
+  }
   return (
     <span
       className={cn(
         'text-foreground inline-flex items-center gap-1.5 align-middle',
-        getPaymentBrandClassName(props.method),
+        props.monochrome
+          ? 'text-inherit'
+          : getPaymentBrandClassName(props.method),
         props.className
       )}
     >
-      <span aria-hidden='true' className='inline-flex shrink-0'>
+      <span
+        aria-hidden='true'
+        className={cn(
+          'inline-flex shrink-0',
+          props.monochrome &&
+            props.method !== 'mixpay' &&
+            props.method !== 'webmoney' &&
+            'brightness-0 invert'
+        )}
+      >
         {getPaymentIcon(props.method, 'size-4', props.icon, props.name)}
       </span>
       <span>{props.name ?? getPaymentMethodName(props.method, t)}</span>

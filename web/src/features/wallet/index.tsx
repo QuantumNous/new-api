@@ -34,7 +34,7 @@ import { cn } from '@/lib/utils'
 import { getAlipayOrderStatus } from './api'
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { CreemConfirmDialog } from './components/dialogs/creem-confirm-dialog'
-import { PaymentConfirmDialog } from './components/dialogs/payment-confirm-dialog'
+import { MixPayDialog } from './components/dialogs/mixpay-dialog'
 import { TransferDialog } from './components/dialogs/transfer-dialog'
 import { WechatPayDialog } from './components/dialogs/wechatpay-dialog'
 import { RechargeFormCard } from './components/recharge-form-card'
@@ -43,7 +43,7 @@ import { SubscriptionPlansCard } from './components/subscription-plans-card'
 import { WalletPromotionBanner } from './components/wallet-promotion-banner'
 import { WalletStatsCard } from './components/wallet-stats-card'
 import { WalletSubscriptionOverview } from './components/wallet-subscription-overview'
-import { DEFAULT_DISCOUNT_RATE, PAYMENT_TYPES } from './constants'
+import { PAYMENT_TYPES } from './constants'
 import {
   useTopupInfo,
   usePayment,
@@ -109,7 +109,8 @@ export function Wallet() {
   const [selectedWaffoMethodIndex, setSelectedWaffoMethodIndex] = useState<
     number | null
   >(null)
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false)
+  const paymentInFlight = useRef(false)
+  const [startingPayment, setStartingPayment] = useState(false)
   const [subscriptionPurchaseDialogOpen, setSubscriptionPurchaseDialogOpen] =
     useState(false)
   const [selectedSubscriptionPlan, setSelectedSubscriptionPlan] =
@@ -135,6 +136,9 @@ export function Wallet() {
         (method) =>
           method.type !== 'stripe' &&
           method.type !== 'creem' &&
+          method.type !== 'mixpay' &&
+          method.type !== 'antom' &&
+          method.type !== 'webmoney' &&
           method.type !== 'alipay_direct' &&
           method.type !== 'wechatpay_native'
       ),
@@ -148,6 +152,12 @@ export function Wallet() {
       : currency?.usdExchangeRate || 1
   }, [currency?.quotaDisplayType, currency?.usdExchangeRate])
   const {
+    antomTradeNo,
+    setAntomTradeNo,
+    webmoneyTradeNo,
+    setWebmoneyTradeNo,
+    mixpayTradeNo,
+    setMixpayTradeNo,
     wechatCheckout,
     setWechatCheckout,
     amount: paymentAmount,
@@ -264,56 +274,56 @@ export function Wallet() {
     calculatePaymentAmount(amount, getCurrentPaymentType())
   }
 
-  // Handle payment method selection
-  const handlePaymentMethodSelect = (method: PaymentMethod) => {
-    setSelectedPaymentMethod(method)
-    setSelectedWaffoMethodIndex(null)
-    void calculatePaymentAmount(topupAmount, method.type)
-  }
-
-  const handlePaymentContinue = async () => {
-    if (!selectedPaymentMethod) return
-
-    let minimum = Math.max(
-      selectedPaymentMethod.min_topup || 0,
-      selectedPaymentMethod.type === PAYMENT_TYPES.WAFFO
-        ? topupInfo?.waffo_min_topup || 0
-        : getMinTopupAmount(topupInfo)
-    )
+  const handlePaymentMethodSelect = async (
+    method: PaymentMethod,
+    waffoIndex: number | null = null
+  ) => {
+    if (paymentInFlight.current) return
+    const direct = [
+      'antom',
+      'webmoney',
+      'mixpay',
+      'alipay_direct',
+      'wechatpay_native',
+    ].includes(method.type)
+    const minimum = direct
+      ? method.min_topup || 1
+      : Math.max(
+          method.min_topup || 0,
+          method.type === PAYMENT_TYPES.WAFFO
+            ? topupInfo?.waffo_min_topup || 0
+            : getMinTopupAmount(topupInfo)
+        )
     if (
-      ['alipay_direct', 'wechatpay_native'].includes(selectedPaymentMethod.type)
+      topupAmount < minimum ||
+      (method.type === PAYMENT_TYPES.WAFFO && waffoIndex === null)
     ) {
-      minimum = selectedPaymentMethod.min_topup || 1
+      return
     }
-    if (topupAmount < minimum) return
-
-    if (selectedPaymentMethod.type === PAYMENT_TYPES.WAFFO) {
-      if (selectedWaffoMethodIndex === null) return
-      await calculatePaymentAmount(topupAmount, PAYMENT_TYPES.WAFFO)
-    } else {
-      await calculatePaymentAmount(topupAmount, selectedPaymentMethod.type)
-    }
-    setConfirmDialogOpen(true)
-  }
-
-  // Handle payment confirmation
-  const handlePaymentConfirm = async () => {
-    if (!selectedPaymentMethod) return
-
-    const success = await dispatchSelectedPayment(
-      selectedPaymentMethod,
-      topupAmount,
-      selectedWaffoMethodIndex,
-      {
-        regular: processPayment,
-        waffo: processWaffoPayment,
-        waffoPancake: processWaffoPancakePayment,
+    paymentInFlight.current = true
+    setStartingPayment(true)
+    setSelectedPaymentMethod(method)
+    setSelectedWaffoMethodIndex(waffoIndex)
+    try {
+      const quote = await calculatePaymentAmount(topupAmount, method.type)
+      if (!Number.isFinite(quote) || quote <= 0) {
+        toast.error(t('Payment request failed'))
+        return
       }
-    )
-
-    if (success) {
-      setConfirmDialogOpen(false)
-      await fetchUser()
+      const success = await dispatchSelectedPayment(
+        method,
+        topupAmount,
+        waffoIndex,
+        {
+          regular: (amount, type) => processPayment(amount, type, quote),
+          waffo: processWaffoPayment,
+          waffoPancake: processWaffoPancakePayment,
+        }
+      )
+      if (success) await fetchUser()
+    } finally {
+      paymentInFlight.current = false
+      setStartingPayment(false)
     }
   }
 
@@ -356,22 +366,40 @@ export function Wallet() {
   }
 
   const handleWaffoMethodSelect = (method: WaffoPayMethod, index: number) => {
-    setSelectedPaymentMethod({
-      name: method.name,
-      type: PAYMENT_TYPES.WAFFO,
-      icon: method.icon,
-      min_topup: topupInfo?.waffo_min_topup,
-    })
-    setSelectedWaffoMethodIndex(index)
+    void handlePaymentMethodSelect(
+      {
+        name: method.name,
+        type: PAYMENT_TYPES.WAFFO,
+        icon: method.icon,
+        min_topup: topupInfo?.waffo_min_topup,
+      },
+      index
+    )
   }
-
-  // Get discount rate for current topup amount
-  const getDiscountRate = useCallback(() => {
-    return topupInfo?.discount?.[topupAmount] || DEFAULT_DISCOUNT_RATE
-  }, [topupInfo, topupAmount])
 
   return (
     <>
+      <MixPayDialog
+        provider='antom'
+        tradeNo={antomTradeNo}
+        onClose={() => setAntomTradeNo(null)}
+        onPaid={fetchUser}
+      />
+      <MixPayDialog
+        provider='webmoney'
+        tradeNo={webmoneyTradeNo}
+        onClose={() => setWebmoneyTradeNo(null)}
+        onPaid={fetchUser}
+      />
+      <MixPayDialog
+        tradeNo={mixpayTradeNo}
+        onClose={() => setMixpayTradeNo(null)}
+        onPaid={() => {
+          setMixpayTradeNo(null)
+          void fetchUser()
+          toast.success(t('Payment successful'))
+        }}
+      />
       <WechatPayDialog
         checkout={wechatCheckout}
         onClose={() => setWechatCheckout(null)}
@@ -418,7 +446,12 @@ export function Wallet() {
                   paymentAmount={paymentAmount}
                   calculating={calculating}
                   onPaymentMethodSelect={handlePaymentMethodSelect}
-                  onPaymentContinue={handlePaymentContinue}
+                  processing={
+                    startingPayment ||
+                    processing ||
+                    waffoProcessing ||
+                    pancakeProcessing
+                  }
                   selectedPaymentMethod={selectedPaymentMethod}
                   selectedWaffoMethodIndex={selectedWaffoMethodIndex}
                   redemptionCode={redemptionCode}
@@ -487,19 +520,6 @@ export function Wallet() {
         </SectionPageLayout.Content>
       </SectionPageLayout>
 
-      <PaymentConfirmDialog
-        open={confirmDialogOpen}
-        onOpenChange={setConfirmDialogOpen}
-        onConfirm={handlePaymentConfirm}
-        topupAmount={topupAmount}
-        paymentAmount={paymentAmount}
-        paymentMethod={selectedPaymentMethod}
-        calculating={calculating}
-        processing={processing || waffoProcessing || pancakeProcessing}
-        discountRate={getDiscountRate()}
-        usdExchangeRate={effectiveUsdExchangeRate}
-      />
-
       <TransferDialog
         open={transferDialogOpen}
         onOpenChange={setTransferDialogOpen}
@@ -525,6 +545,13 @@ export function Wallet() {
           }
         }}
         plan={selectedSubscriptionPlan}
+        enableAntom={
+          !!topupInfo?.pay_methods?.some((method) => method.type === 'antom')
+        }
+        enableWebMoney={
+          !!topupInfo?.pay_methods?.some((method) => method.type === 'webmoney')
+        }
+        enableMixPay={!!topupInfo?.enable_mixpay_topup}
         enableAlipay={!!topupInfo?.enable_alipay_topup}
         enableWechatPay={!!topupInfo?.enable_wechatpay_topup}
         enableStripe={!!topupInfo?.enable_stripe_topup}

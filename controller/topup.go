@@ -100,7 +100,7 @@ func GetTopUpInfo(c *gin.Context) {
 	enableAlipay := alipayErr == nil && alipayConfig.Enabled && complianceConfirmed
 	filteredMethods := make([]map[string]string, 0, len(payMethods)+1)
 	for _, method := range payMethods {
-		if method["type"] != model.PaymentMethodAlipayDirect && method["type"] != model.PaymentMethodWechatPay {
+		if method["type"] != model.PaymentProviderAntom && method["type"] != model.PaymentProviderWebMoney && method["type"] != model.PaymentMethodAlipayDirect && method["type"] != model.PaymentMethodWechatPay && method["type"] != model.PaymentMethodMixPay {
 			filteredMethods = append(filteredMethods, method)
 		}
 	}
@@ -114,7 +114,21 @@ func GetTopUpInfo(c *gin.Context) {
 		payMethods = append(payMethods, map[string]string{"name": "WeChat Pay", "type": model.PaymentMethodWechatPay, "icon": "SiWechat", "min_topup": alipayMinimum(&model.AlipayConfig{MinTopUp: wechatConfig.MinTopUp})})
 	}
 
+	antomConfig, antomErr := model.CurrentAntomConfig()
+	if antomErr == nil && antomConfig.Enabled && complianceConfirmed && (!antomConfig.Sandbox || c.GetInt("role") == common.RoleRootUser) {
+		payMethods = append(payMethods, map[string]string{"name": "Antom", "type": model.PaymentProviderAntom, "min_topup": alipayMinimum(&model.AlipayConfig{MinTopUp: antomConfig.MinTopUp})})
+	}
+	webmoneyConfig, webmoneyErr := model.CurrentWebMoneyConfig()
+	if webmoneyErr == nil && webmoneyConfig.Enabled && complianceConfirmed {
+		payMethods = append(payMethods, map[string]string{"name": "WebMoney", "type": model.PaymentProviderWebMoney, "min_topup": alipayMinimum(&model.AlipayConfig{MinTopUp: webmoneyConfig.MinTopUp})})
+	}
+	mixpayConfig, mixpayErr := model.CurrentMixPayConfig()
+	enableMixPay := mixpayErr == nil && mixpayConfig.Enabled && complianceConfirmed
+	if enableMixPay {
+		payMethods = append(payMethods, map[string]string{"name": "MixPay", "type": model.PaymentMethodMixPay, "min_topup": alipayMinimum(&model.AlipayConfig{MinTopUp: mixpayConfig.MinTopUp})})
+	}
 	data := gin.H{
+		"enable_mixpay_topup":              enableMixPay,
 		"enable_wechatpay_topup":           enableWechat,
 		"enable_alipay_topup":              enableAlipay,
 		"enable_online_topup":              isEpayTopUpEnabled(),
@@ -315,7 +329,7 @@ func RequestEpay(c *gin.Context) {
 		return
 	}
 
-	if req.PaymentMethod == model.PaymentMethodWechatPay || req.PaymentMethod == model.PaymentMethodAlipayDirect || !operation_setting.ContainsPayMethod(req.PaymentMethod) {
+	if req.PaymentMethod == model.PaymentProviderAntom || req.PaymentMethod == model.PaymentProviderWebMoney || req.PaymentMethod == model.PaymentMethodMixPay || req.PaymentMethod == model.PaymentMethodWechatPay || req.PaymentMethod == model.PaymentMethodAlipayDirect || !operation_setting.ContainsPayMethod(req.PaymentMethod) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "支付方式不存在"})
 		return
 	}
@@ -558,6 +572,10 @@ func GetUserTopUps(c *gin.Context) {
 	}
 
 	pageInfo.SetTotal(int(total))
+	if err := model.PopulateMixPayTopUpQuotas(topups); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	if err := model.PopulateAlipayTopUpQuotas(topups); err != nil {
 		common.ApiError(c, err)
 		return
@@ -591,6 +609,10 @@ func GetAllTopUps(c *gin.Context) {
 	}
 
 	pageInfo.SetTotal(int(total))
+	if err := model.PopulateMixPayTopUpQuotas(topups); err != nil {
+		common.ApiError(c, err)
+		return
+	}
 	if err := model.PopulateAlipayTopUpQuotas(topups); err != nil {
 		common.ApiError(c, err)
 		return

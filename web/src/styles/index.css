@@ -759,3 +759,34 @@ For commercial licensing, please contact support@quantumnous.com
     display: none;
   }
 }
+
+/* Brand strip inside the Antom payment button; no nested carousel controls. */
+@keyframes antom-payment-icons-scroll {
+  to { transform: translateX(-50%); }
+}
+.antom-payment-icons-track {
+  animation: antom-payment-icons-scroll 24s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .antom-payment-icons-track { animation: none; width: auto; }
+  .antom-payment-icons-set { flex-wrap: wrap; }
+  .antom-payment-icons-set + .antom-payment-icons-set { display: none; }
+}
+
+.payment-label-overlay::before,
+.payment-label-overlay::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  pointer-events: none;
+}
+.payment-label-overlay::before {
+  right: 100%;
+  background: linear-gradient(to right, transparent, var(--payment-mask-color, #fff));
+}
+.payment-label-overlay::after {
+  left: 100%;
+  background: linear-gradient(to right, var(--payment-mask-color, #fff), transparent);
+}

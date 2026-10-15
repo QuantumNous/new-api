@@ -63,7 +63,9 @@ import { safeNumberFieldProps } from '../utils/numeric-field'
 import { AlipaySettingsSection } from './alipay-settings-section'
 import { AmountDiscountVisualEditor } from './amount-discount-visual-editor'
 import { AmountOptionsVisualEditor } from './amount-options-visual-editor'
+import { AntomSettingsSection } from './antom-settings-section'
 import { CreemProductsVisualEditor } from './creem-products-visual-editor'
+import { MixPaySettingsSection } from './mixpay-settings-section'
 import { PaymentMethodsVisualEditor } from './payment-methods-visual-editor'
 import { PaymentSecurityStatus } from './payment-security-status'
 import {
@@ -83,6 +85,7 @@ import {
   WaffoSettingsSection,
   type WaffoSettingsValues,
 } from './waffo-settings-section'
+import { WebMoneySettingsSection } from './webmoney-settings-section'
 import { WechatPaySettingsSection } from './wechatpay-settings-section'
 
 function isHttpOriginUrl(value: string) {
@@ -883,28 +886,39 @@ export function PaymentSettingsSection({
             saveLabel='Save all settings'
           />
           <Tabs defaultValue='general' className='min-w-0'>
-            <div className='overflow-x-auto pb-1'>
-              <TabsList className='flex w-max min-w-full'>
-                <TabsTrigger value='general'>{t('General')}</TabsTrigger>
-                <TabsTrigger value='alipay'>
+            <div className='min-w-0 pb-1'>
+              <TabsList className='flex w-full flex-wrap justify-start gap-1 group-data-horizontal/tabs:h-auto'>
+                <TabsTrigger className='h-8 flex-none' value='general'>
+                  {t('General')}
+                </TabsTrigger>
+                <TabsTrigger className='h-8 flex-none' value='antom'>
+                  <PaymentMethodLabel method='antom' />
+                </TabsTrigger>
+                <TabsTrigger className='h-8 flex-none' value='webmoney'>
+                  <PaymentMethodLabel method='webmoney' />
+                </TabsTrigger>
+                <TabsTrigger className='h-8 flex-none' value='mixpay'>
+                  <PaymentMethodLabel method='mixpay' />
+                </TabsTrigger>
+                <TabsTrigger className='h-8 flex-none' value='alipay'>
                   <PaymentMethodLabel method='alipay_direct' />
                 </TabsTrigger>
-                <TabsTrigger value='wechatpay'>
+                <TabsTrigger className='h-8 flex-none' value='wechatpay'>
                   <PaymentMethodLabel method='wechatpay_native' />
                 </TabsTrigger>
-                <TabsTrigger value='epay'>
+                <TabsTrigger className='h-8 flex-none' value='epay'>
                   <PaymentMethodLabel method='epay' />
                 </TabsTrigger>
-                <TabsTrigger value='stripe'>
+                <TabsTrigger className='h-8 flex-none' value='stripe'>
                   <PaymentMethodLabel method='stripe' />
                 </TabsTrigger>
-                <TabsTrigger value='creem'>
+                <TabsTrigger className='h-8 flex-none' value='creem'>
                   <PaymentMethodLabel method='creem' />
                 </TabsTrigger>
-                <TabsTrigger value='waffo-pancake'>
+                <TabsTrigger className='h-8 flex-none' value='waffo-pancake'>
                   <PaymentMethodLabel method='waffo_pancake' />
                 </TabsTrigger>
-                <TabsTrigger value='waffo'>
+                <TabsTrigger className='h-8 flex-none' value='waffo'>
                   <PaymentMethodLabel method='waffo' />
                 </TabsTrigger>
               </TabsList>
@@ -1162,6 +1176,18 @@ export function PaymentSettingsSection({
               className={paymentTabContentClassName}
             >
               <WechatPaySettingsSection />
+            </TabsContent>
+            <TabsContent
+              value='webmoney'
+              className={paymentTabContentClassName}
+            >
+              <WebMoneySettingsSection />
+            </TabsContent>
+            <TabsContent value='antom'>
+              <AntomSettingsSection />
+            </TabsContent>
+            <TabsContent value='mixpay' className={paymentTabContentClassName}>
+              <MixPaySettingsSection />
             </TabsContent>
             <TabsContent value='alipay' className={paymentTabContentClassName}>
               <AlipaySettingsSection />

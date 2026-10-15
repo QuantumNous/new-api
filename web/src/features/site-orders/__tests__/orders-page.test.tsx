@@ -192,9 +192,10 @@ test.each([false, true])(
     expect(alipay.parentElement?.querySelector('svg')).toHaveStyle({
       color: '#1677FF',
     })
-    expect(wechat.parentElement?.querySelector('svg')).toHaveStyle({
-      color: '#07C160',
-    })
+    expect(wechat.parentElement?.querySelector('img')).toHaveAttribute(
+      'src',
+      '/wechatpay-logo.svg'
+    )
     expect(screen.getByText('Sandbox')).toBeVisible()
     client.clear()
   }
@@ -490,4 +491,254 @@ test('cancelling a personal pending order asks for confirmation and refreshes it
   )
   expect(screen.getByText('Closing order')).toBeVisible()
   client.clear()
+})
+
+test.each([
+  {
+    status: 'pending',
+    review_required: false,
+    expires_at: 4102444800,
+    pay_link: 'https://mixpay.me/code/original-checkout',
+    opens: true,
+  },
+  {
+    status: 'pending',
+    review_required: false,
+    expires_at: 4102444800,
+    pay_link: 'https://example.com/code/unsafe',
+    opens: false,
+  },
+  {
+    status: 'pending',
+    review_required: true,
+    expires_at: 4102444800,
+    pay_link: '',
+    opens: false,
+  },
+  {
+    status: 'paid',
+    review_required: false,
+    expires_at: 4102444800,
+    pay_link: '',
+    opens: false,
+  },
+  {
+    status: 'pending',
+    review_required: false,
+    expires_at: 1,
+    pay_link: 'https://mixpay.me/code/original-checkout',
+    opens: false,
+  },
+])(
+  'MixPay resumes the original checkout only when the server still allows payment: %j',
+  async (checkout) => {
+    const assign = vi.fn()
+    vi.stubGlobal(
+      'open',
+      vi.fn(() => ({
+        opener: null,
+        location: { replace: assign },
+        focus: vi.fn(),
+        close: vi.fn(),
+      }))
+    )
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          items: [
+            {
+              id: 61,
+              trade_no: 'MX-original',
+              payment_provider: 'mixpay',
+              payment_method: 'mixpay',
+              order_status: 'pending',
+              expires_at: 4102444800,
+              money: 1,
+            },
+          ],
+          total: 1,
+        },
+      },
+    })
+    vi.mocked(api.post).mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          ...checkout,
+          payment_provider: 'mixpay',
+          trade_no: 'MX-original',
+          amount: '1',
+          currency: 'USD',
+        },
+      },
+    })
+    const client = await showPage(true)
+    try {
+      await userEvent.click(await screen.findByRole('button', { name: 'Pay' }))
+      await waitFor(() => expect(client.isMutating()).toBe(0))
+      expect(api.post).toHaveBeenCalledWith('/api/user/self/orders/61/pay', {
+        mobile: false,
+      })
+      if (checkout.opens) expect(assign).toHaveBeenCalledWith(checkout.pay_link)
+      else expect(assign).not.toHaveBeenCalled()
+    } finally {
+      client.clear()
+      vi.unstubAllGlobals()
+    }
+  }
+)
+
+test('MixPay orders under review show a disabled payment button and retain details', async () => {
+  vi.mocked(api.get).mockResolvedValue({
+    data: {
+      success: true,
+      data: {
+        items: [
+          {
+            id: 62,
+            trade_no: 'MX-review',
+            payment_provider: 'mixpay',
+            payment_method: 'mixpay',
+            order_status: 'pending',
+            review_required: true,
+            expires_at: 4102444800,
+            money: 1,
+          },
+        ],
+        total: 1,
+      },
+    },
+  })
+  const client = await showPage(true)
+  expect(await screen.findByRole('button', { name: 'Pay' })).toBeDisabled()
+  expect(screen.getByRole('button', { name: 'Details' })).toBeVisible()
+  expect(api.post).not.toHaveBeenCalled()
+  client.clear()
+})
+
+test('wallet retains a MixPay pending order under review without offering payment or cancellation', async () => {
+  useAuthStore.getState().auth.setUser({ id: 42, username: 'test', role: 1 })
+  vi.mocked(api.get).mockImplementation(async (_url, config) => {
+    const visible =
+      config?.params.provider === 'mixpay' && !config.params.actionable
+    return {
+      data: {
+        success: true,
+        data: {
+          total: visible ? 1 : 0,
+          items: visible
+            ? [
+                {
+                  id: 63,
+                  trade_no: 'MX-needs-review',
+                  payment_provider: 'mixpay',
+                  payment_method: 'mixpay',
+                  order_status: 'pending',
+                  review_required: true,
+                  expires_at: 4102444800,
+                  money: 1,
+                },
+              ]
+            : [],
+        },
+      },
+    }
+  })
+  const client = await showPage(true, true)
+  try {
+    expect(await screen.findByText('You have an unpaid order')).toBeVisible()
+    expect(screen.getByText(/MX-needs-review/)).toBeVisible()
+    expect(screen.getByText('Payment requires attention')).toBeVisible()
+    expect(screen.getByRole('link', { name: 'My orders' })).toHaveAttribute(
+      'href',
+      '/my-orders'
+    )
+    expect(
+      screen.queryByRole('button', { name: 'Pay' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: 'Cancel order' })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByText(
+        'Closing order. Waiting for payment provider confirmation.'
+      )
+    ).not.toBeInTheDocument()
+  } finally {
+    client.clear()
+    useAuthStore.getState().auth.setUser(null)
+  }
+})
+
+test('wallet offers payment for a pending MixPay order during automatic query retries without a manual review warning', async () => {
+  useAuthStore.getState().auth.setUser({ id: 42, username: 'test', role: 1 })
+  const assign = vi.fn()
+  vi.stubGlobal(
+    'open',
+    vi.fn(() => ({
+      opener: null,
+      location: { replace: assign },
+      focus: vi.fn(),
+      close: vi.fn(),
+    }))
+  )
+  vi.mocked(api.get).mockImplementation(async (_url, config) => ({
+    data: {
+      success: true,
+      data: {
+        total: config?.params.provider === 'mixpay' ? 1 : 0,
+        items:
+          config?.params.provider === 'mixpay'
+            ? [
+                {
+                  id: 64,
+                  trade_no: 'MX-unpaid',
+                  payment_provider: 'mixpay',
+                  payment_method: 'mixpay',
+                  order_status: 'pending',
+                  review_required: false,
+                  last_error: 'payment_check_pending',
+                  expires_at: 4102444800,
+                  money: 1,
+                },
+              ]
+            : [],
+      },
+    },
+  }))
+  vi.mocked(api.post).mockResolvedValue({
+    data: {
+      success: true,
+      data: {
+        payment_provider: 'mixpay',
+        trade_no: 'MX-unpaid',
+        status: 'pending',
+        review_required: false,
+        expires_at: 4102444800,
+        pay_link: 'https://mixpay.me/code/original-unpaid',
+      },
+    },
+  })
+  const client = await showPage(true, true)
+  try {
+    const pay = await screen.findByRole('button', { name: 'Pay' })
+    expect(pay).toBeEnabled()
+    expect(
+      screen.queryByText('Payment requires attention')
+    ).not.toBeInTheDocument()
+    await userEvent.click(pay)
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith(
+        'https://mixpay.me/code/original-unpaid'
+      )
+    )
+    expect(api.post).toHaveBeenCalledWith('/api/user/self/orders/64/pay', {
+      mobile: false,
+    })
+  } finally {
+    client.clear()
+    useAuthStore.getState().auth.setUser(null)
+    vi.unstubAllGlobals()
+  }
 })

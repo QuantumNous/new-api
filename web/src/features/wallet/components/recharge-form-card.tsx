@@ -16,9 +16,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { ArrowRight, Loader2, WalletCards } from 'lucide-react'
+import { Loader2, WalletCards } from 'lucide-react'
 import { useState, useEffect, type ReactNode } from 'react'
-import { Trans, useTranslation } from 'react-i18next'
+import { useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -43,11 +43,10 @@ import { PAYMENT_TYPES } from '../constants'
 import {
   getDiscountPercentage,
   formatDirectTopUpAmount,
-  getPaymentIcon,
-  getPaymentBrandClassName,
   getMinTopupAmount,
   calculatePresetPricing,
 } from '../lib'
+import { PAYMENT_ACTION_CLASS_NAME, getPaymentButtonClassName } from '../lib/ui'
 import type {
   PaymentMethod,
   PresetAmount,
@@ -56,6 +55,7 @@ import type {
   WaffoPayMethod,
 } from '../types'
 import { CreemProductsSection } from './creem-products-section'
+import { PaymentMethodIcons } from './payment-method-icons'
 import { PaymentMethodLabel } from './payment-method-label'
 import { RedemptionCodeCard } from './redemption-code-card'
 
@@ -69,6 +69,7 @@ interface RechargeFormCardProps {
   onTopupAmountChange: (amount: number) => void
   paymentAmount: number
   calculating: boolean
+  processing?: boolean
   onPaymentMethodSelect: (method: PaymentMethod) => void
   onPaymentContinue?: () => void
   selectedPaymentMethod?: PaymentMethod
@@ -101,10 +102,8 @@ export function RechargeFormCard({
   onSelectPreset,
   topupAmount,
   onTopupAmountChange,
-  paymentAmount,
-  calculating,
+  processing = false,
   onPaymentMethodSelect,
-  onPaymentContinue,
   selectedPaymentMethod,
   selectedWaffoMethodIndex,
   redemptionCode,
@@ -130,7 +129,7 @@ export function RechargeFormCard({
   const currencyMeta = getCurrencyDisplay().meta
   let inputCurrencySymbol = '$'
   if (
-    ['alipay_direct', 'wechatpay_native'].includes(
+    ['mixpay', 'alipay_direct', 'wechatpay_native'].includes(
       selectedPaymentMethod?.type || ''
     )
   ) {
@@ -156,6 +155,10 @@ export function RechargeFormCard({
   }
 
   const hasConfigurableTopup =
+    topupInfo?.pay_methods?.some((method) =>
+      ['antom', 'webmoney'].includes(method.type)
+    ) ||
+    topupInfo?.enable_mixpay_topup ||
     topupInfo?.enable_wechatpay_topup ||
     topupInfo?.enable_alipay_topup ||
     topupInfo?.enable_online_topup ||
@@ -172,81 +175,6 @@ export function RechargeFormCard({
   const hasPaymentMethods =
     standardPaymentMethods.length > 0 ||
     (enableWaffoTopup && hasWaffoPaymentMethods && !!onWaffoMethodSelect)
-  let selectedMethodMinimum = selectedPaymentMethod
-    ? Math.max(
-        selectedPaymentMethod.min_topup || 0,
-        selectedPaymentMethod.type === PAYMENT_TYPES.WAFFO
-          ? waffoMinTopup || 0
-          : minTopup
-      )
-    : minTopup
-  if (
-    ['alipay_direct', 'wechatpay_native'].includes(
-      selectedPaymentMethod?.type || ''
-    )
-  ) {
-    selectedMethodMinimum = selectedPaymentMethod?.min_topup || 1
-  }
-  const hasSelectedPaymentMethod =
-    !!selectedPaymentMethod &&
-    (selectedPaymentMethod.type !== PAYMENT_TYPES.WAFFO ||
-      selectedWaffoMethodIndex !== null)
-  let paymentButtonLabel: ReactNode = t('Please select a payment method')
-  if (hasSelectedPaymentMethod && selectedPaymentMethod) {
-    let methodName = t(selectedPaymentMethod.name)
-    let methodIcon = selectedPaymentMethod.icon
-    let payableAmount = formatLocalCurrencyAmount(paymentAmount, {
-      digitsLarge: 2,
-      digitsSmall: 2,
-      abbreviate: false,
-    })
-    if (
-      ['alipay_direct', 'wechatpay_native'].includes(selectedPaymentMethod.type)
-    ) {
-      methodName =
-        selectedPaymentMethod.type === 'alipay_direct'
-          ? t('Alipay')
-          : t('WeChat Pay')
-      payableAmount = `¥${formatLocalCurrencyAmount(paymentAmount, {
-        showSymbol: false,
-        digitsLarge: 2,
-        digitsSmall: 2,
-        abbreviate: false,
-      })}`
-    } else if (
-      selectedPaymentMethod.type === PAYMENT_TYPES.WAFFO &&
-      selectedWaffoMethodIndex != null
-    ) {
-      methodName =
-        waffoPayMethods?.[selectedWaffoMethodIndex]?.name ?? methodName
-      methodIcon = waffoPayMethods?.[selectedWaffoMethodIndex]?.icon
-    }
-    paymentButtonLabel = (
-      <span className='inline-flex min-w-0 flex-wrap items-center justify-center gap-1.5'>
-        <Trans
-          i18nKey='Pay {{amount}} with <method/>'
-          values={{ amount: payableAmount }}
-          components={{
-            method: (
-              <PaymentMethodLabel
-                method={selectedPaymentMethod.type}
-                name={methodName}
-                icon={methodIcon}
-                className='bg-background rounded px-1.5 py-0.5'
-              />
-            ),
-          }}
-        />
-      </span>
-    )
-    if (calculating) paymentButtonLabel = t('Calculating...')
-  }
-  const discount =
-    topupInfo?.discount?.[topupAmount] ||
-    presetAmounts.find((preset) => preset.value === topupAmount)?.discount ||
-    1
-  const hasDiscount = discount > 0 && discount < 1 && topupAmount > 0
-  const discountPercent = hasDiscount ? getDiscountPercentage(discount) : 0
   if (loading) {
     if (embedded) {
       return (
@@ -375,16 +303,24 @@ export function RechargeFormCard({
                         <div className='flex w-full min-w-0 flex-col items-center justify-center gap-1'>
                           <div className='flex min-w-0 flex-wrap items-baseline justify-center gap-x-2'>
                             <span className='min-w-0 truncate text-base font-semibold sm:text-lg'>
-                              {['alipay_direct', 'wechatpay_native'].includes(
-                                selectedPaymentMethod?.type || ''
-                              )
+                              {[
+                                'antom',
+                                'webmoney',
+                                'mixpay',
+                                'alipay_direct',
+                                'wechatpay_native',
+                              ].includes(selectedPaymentMethod?.type || '')
                                 ? formatDirectTopUpAmount(preset.value)
                                 : formatLocalCurrencyAmount(actualPrice)}
                             </span>
                             {hasDiscount &&
-                              !['alipay_direct', 'wechatpay_native'].includes(
-                                selectedPaymentMethod?.type || ''
-                              ) && (
+                              ![
+                                'antom',
+                                'webmoney',
+                                'mixpay',
+                                'alipay_direct',
+                                'wechatpay_native',
+                              ].includes(selectedPaymentMethod?.type || '') && (
                                 <span className='text-muted-foreground text-xs line-through'>
                                   {formatLocalCurrencyAmount(originalPrice)}
                                 </span>
@@ -436,123 +372,109 @@ export function RechargeFormCard({
               {hasPaymentMethods && (
                 <div className='space-y-2.5 sm:space-y-3'>
                   <Label className='text-muted-foreground text-xs font-medium tracking-wider uppercase'>
-                    {t('Payment Method')}
+                    {t('Pay with')}
                   </Label>
                   <div
-                    role='radiogroup'
-                    aria-label={t('Payment Method')}
-                    className='bg-muted/20 flex min-w-0 gap-1 overflow-x-auto rounded-xl border p-1'
+                    role='group'
+                    aria-label={t('Pay with')}
+                    className='grid min-w-0 grid-cols-1 gap-3'
                   >
                     {standardPaymentMethods.map((method) => {
-                      const methodMinimum = Math.max(
-                        method.min_topup || 0,
-                        minTopup
-                      )
-                      const disabled = methodMinimum > topupAmount
-                      const selected =
-                        selectedPaymentMethod?.type === method.type &&
-                        selectedWaffoMethodIndex === null
-                      const disabledReason = disabled
-                        ? t('Minimum topup amount: {{amount}}', {
-                            amount: methodMinimum,
-                          })
-                        : undefined
+                      const direct = [
+                        'antom',
+                        'webmoney',
+                        'mixpay',
+                        'alipay_direct',
+                        'wechatpay_native',
+                      ].includes(method.type)
+                      const minimum = direct
+                        ? method.min_topup || 1
+                        : Math.max(method.min_topup || 0, minTopup)
                       return (
                         <Button
                           key={method.type}
                           type='button'
-                          variant='ghost'
-                          role='radio'
-                          aria-checked={selected}
-                          aria-label={
-                            disabledReason
-                              ? `${method.name}. ${disabledReason}`
-                              : method.name
+                          variant='default'
+                          disabled={processing || topupAmount < minimum}
+                          title={
+                            topupAmount < minimum
+                              ? t('Minimum topup amount: {{amount}}', {
+                                  amount: minimum,
+                                })
+                              : undefined
                           }
-                          title={disabledReason}
-                          disabled={disabled}
                           onClick={() => onPaymentMethodSelect(method)}
                           className={cn(
-                            'min-w-[112px] flex-1 gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium whitespace-nowrap',
-                            selected
-                              ? 'border-primary bg-primary/10 text-primary shadow-xs ring-1 ring-primary/20'
-                              : 'border-transparent bg-background hover:border-border hover:bg-background'
+                            PAYMENT_ACTION_CLASS_NAME,
+                            getPaymentButtonClassName(method.type),
+                            ['antom', 'mixpay'].includes(method.type) &&
+                              'relative overflow-hidden'
                           )}
                         >
-                          {getPaymentIcon(
-                            method.type,
-                            'h-4 w-4',
-                            method.icon,
-                            method.name
-                          )}
+                          {processing &&
+                            selectedPaymentMethod?.type === method.type && (
+                              <Loader2 className='size-4 shrink-0 animate-spin' />
+                            )}
                           <span
                             className={cn(
-                              'truncate',
-                              getPaymentBrandClassName(method.type)
+                              'inline-flex items-center justify-center',
+                              ['antom', 'mixpay'].includes(method.type) &&
+                                'payment-label-overlay pointer-events-none absolute inset-y-0 left-1/2 z-10 w-[40%] -translate-x-1/2 bg-white px-4',
+                              method.type === 'mixpay' &&
+                                'bg-[#194bff] px-1 [--payment-mask-color:#194bff] [&>span]:min-w-0'
                             )}
                           >
-                            {method.type === 'alipay_direct'
-                              ? t('Alipay')
-                              : t(method.name)}
+                            <PaymentMethodLabel
+                              monochrome
+                              method={method.type}
+                              name={
+                                {
+                                  alipay_direct: t('Alipay'),
+                                  mixpay: t('MixPay(Crypto)'),
+                                }[method.type] ?? t(method.name)
+                              }
+                              icon={method.icon}
+                            />
                           </span>
+                          {(method.type === 'antom' ||
+                            method.type === 'mixpay') && (
+                            <PaymentMethodIcons method={method.type} />
+                          )}
                         </Button>
                       )
                     })}
                     {enableWaffoTopup &&
                       hasWaffoPaymentMethods &&
                       onWaffoMethodSelect &&
-                      waffoPayMethods?.map((method, index) => {
-                        const waffoMin = waffoMinTopup || 0
-                        const disabled = waffoMin > topupAmount
-                        const selected =
-                          selectedPaymentMethod?.type === PAYMENT_TYPES.WAFFO &&
-                          selectedWaffoMethodIndex === index
-                        const disabledReason = disabled
-                          ? t('Minimum topup amount: {{amount}}', {
-                              amount: waffoMin,
-                            })
-                          : undefined
-                        return (
-                          <Button
-                            key={`waffo-${method.payMethodType ?? method.name}-${method.payMethodName ?? method.name}`}
-                            type='button'
-                            variant='ghost'
-                            role='radio'
-                            aria-checked={selected}
-                            aria-label={
-                              disabledReason
-                                ? `${method.name}. ${disabledReason}`
-                                : method.name
-                            }
-                            title={disabledReason}
-                            disabled={disabled}
-                            onClick={() => onWaffoMethodSelect(method, index)}
-                            className={cn(
-                              'min-w-[112px] flex-1 gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium whitespace-nowrap',
-                              selected
-                                ? 'border-primary bg-primary/10 text-primary shadow-xs ring-1 ring-primary/20'
-                                : 'border-transparent bg-background hover:border-border hover:bg-background'
+                      waffoPayMethods?.map((method, index) => (
+                        <Button
+                          key={`${method.payMethodType ?? method.name}-${method.payMethodName ?? method.name}`}
+                          type='button'
+                          variant='default'
+                          disabled={
+                            processing || topupAmount < (waffoMinTopup || 0)
+                          }
+                          onClick={() => onWaffoMethodSelect(method, index)}
+                          className={cn(
+                            PAYMENT_ACTION_CLASS_NAME,
+                            getPaymentButtonClassName(PAYMENT_TYPES.WAFFO)
+                          )}
+                        >
+                          {processing &&
+                            selectedPaymentMethod?.type ===
+                              PAYMENT_TYPES.WAFFO &&
+                            selectedWaffoMethodIndex === index && (
+                              <Loader2 className='size-4 shrink-0 animate-spin' />
                             )}
-                          >
-                            {method.icon && (
-                              <img
-                                src={method.icon}
-                                alt={method.name}
-                                className='h-4 w-4 object-contain'
-                              />
-                            )}
-                            {!method.icon &&
-                              getPaymentIcon(PAYMENT_TYPES.WAFFO, 'h-4 w-4')}
-                            <span className='truncate'>{method.name}</span>
-                          </Button>
-                        )
-                      })}
+                          <PaymentMethodLabel
+                            monochrome
+                            method={PAYMENT_TYPES.WAFFO}
+                            name={method.name}
+                            icon={method.icon}
+                          />
+                        </Button>
+                      ))}
                   </div>
-                  {!hasSelectedPaymentMethod && (
-                    <p className='text-muted-foreground text-xs'>
-                      {t('Please select a payment method')}
-                    </p>
-                  )}
                 </div>
               )}
 
@@ -566,36 +488,6 @@ export function RechargeFormCard({
                     )}
                   </AlertDescription>
                 </Alert>
-              )}
-
-              {hasPaymentMethods && (
-                <div className='relative pt-2'>
-                  {hasDiscount && (
-                    <Badge
-                      variant='outline'
-                      className='border-success/30 bg-background text-success pointer-events-none absolute top-0 right-3 z-10 -rotate-6 shadow-xs'
-                    >
-                      {t('Save {{percent}}%', { percent: discountPercent })}
-                    </Badge>
-                  )}
-                  <Button
-                    type='button'
-                    className='h-11 w-full gap-2 text-sm font-semibold sm:h-12'
-                    onClick={onPaymentContinue}
-                    disabled={
-                      !onPaymentContinue ||
-                      calculating ||
-                      !hasSelectedPaymentMethod ||
-                      topupAmount < selectedMethodMinimum
-                    }
-                  >
-                    {calculating && (
-                      <Loader2 className='h-4 w-4 animate-spin' />
-                    )}
-                    {paymentButtonLabel}
-                    {!calculating && <ArrowRight className='h-4 w-4' />}
-                  </Button>
-                </div>
               )}
             </>
           )}

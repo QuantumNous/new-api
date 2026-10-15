@@ -8,6 +8,7 @@ import { formatTimestampToDate } from '@/lib/format'
 import { useAuthStore } from '@/stores/auth-store'
 
 import { getPendingDirectOrders } from './api'
+import { OrderStatus } from './order-status'
 import { paymentAmount } from './presentation'
 import { canPayOrder, useOrderPayment } from './use-order-payment'
 
@@ -22,8 +23,20 @@ export function PendingOrderNotice(props: { onPaid?: () => void }) {
   })
   const payment = useOrderPayment(props.onPaid)
   const order = query.data?.order
-  if (!order || order.cancel_requested || payment.dismissedOrderId === order.id) {
+  if (
+    !order ||
+    order.cancel_requested ||
+    payment.dismissedOrderId === order.id
+  ) {
     return payment.dialogs
+  }
+  let paymentHint = `${t('Expires At')}: ${formatTimestampToDate(order.expires_at)}`
+  if (order.close_requested_at) {
+    paymentHint = t('Closing order. Waiting for payment provider confirmation.')
+  } else if (order.expires_at * 1000 <= Date.now()) {
+    paymentHint = t(
+      'Payment time has ended. Waiting for the final payment result.'
+    )
   }
   return (
     <>
@@ -52,12 +65,9 @@ export function PendingOrderNotice(props: { onPaid?: () => void }) {
         <p className='text-muted-foreground text-xs break-all'>
           {t('Order number')}: {order.trade_no}
         </p>
+        <OrderStatus order={order} />
         <div className='flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-t pt-3'>
-          <p className='text-muted-foreground text-xs'>
-            {!canPayOrder(order)
-              ? t('Closing order. Waiting for payment provider confirmation.')
-              : `${t('Expires At')}: ${formatTimestampToDate(order.expires_at)}`}
-          </p>
+          <p className='text-muted-foreground text-xs'>{paymentHint}</p>
           <div className='ml-auto flex flex-wrap items-center justify-end gap-2'>
             <Link
               to='/my-orders'
@@ -65,14 +75,18 @@ export function PendingOrderNotice(props: { onPaid?: () => void }) {
             >
               {t('My orders')}
             </Link>
-            <Button
-              size='sm'
-              variant='outline'
-              disabled={payment.busy}
-              onClick={() => payment.requestCancel(order)}
-            >
-              {t('Cancel order')}
-            </Button>
+            {!['mixpay', 'webmoney'].includes(
+              order.payment_provider
+            ) && (
+              <Button
+                size='sm'
+                variant='outline'
+                disabled={payment.busy}
+                onClick={() => payment.requestCancel(order)}
+              >
+                {t('Cancel order')}
+              </Button>
+            )}
             {canPayOrder(order) && (
               <Button
                 size='sm'

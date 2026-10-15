@@ -184,23 +184,36 @@ export function SiteOrders(props: { scope?: OrderScope }) {
               >
                 {t('Pay')}
               </Button>
+              {!['mixpay', 'webmoney'].includes(
+                row.original.payment_provider
+              ) && (
+                <Button
+                  variant='outline'
+                  size='sm'
+                  disabled={payment.busy}
+                  onClick={() => payment.requestCancel(row.original)}
+                >
+                  {t('Cancel')}
+                </Button>
+              )}
+            </>
+          ) : (
+            <>
+              {personal &&
+                row.original.payment_provider === 'mixpay' &&
+                row.original.order_status === 'pending' && (
+                  <Button size='sm' disabled>
+                    {t('Pay')}
+                  </Button>
+                )}
               <Button
                 variant='outline'
                 size='sm'
-                disabled={payment.busy}
-                onClick={() => payment.requestCancel(row.original)}
+                onClick={() => setSelected(row.original.id)}
               >
-                {t('Cancel')}
+                {t('Details')}
               </Button>
             </>
-          ) : (
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={() => setSelected(row.original.id)}
-            >
-              {t('Details')}
-            </Button>
           )}
         </div>
       ),
@@ -227,6 +240,9 @@ export function SiteOrders(props: { scope?: OrderScope }) {
   const providerOptions = [
     { value: 'all', label: t('All') },
     ...[
+      'mixpay',
+      'webmoney',
+      'antom',
       'alipay',
       'wechatpay',
       'epay',

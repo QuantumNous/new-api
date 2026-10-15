@@ -25,7 +25,7 @@ import {
   Package,
   WalletCards,
 } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -36,13 +36,18 @@ import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { formatSubscriptionPrice } from '@/features/subscriptions/lib/format'
 import type { WechatPayCheckout } from '@/features/wallet/api'
+import { MixPayDialog } from '@/features/wallet/components/dialogs/mixpay-dialog'
 import { WechatPayDialog } from '@/features/wallet/components/dialogs/wechatpay-dialog'
 import { PaymentMethodLabel } from '@/features/wallet/components/payment-method-label'
 import { getPaymentIcon } from '@/features/wallet/lib'
+import { createMixPayPayment, quoteMixPay } from '@/features/wallet/mixpay'
+import { createAntomPayment, quoteAntom } from '@/features/wallet/antom'
+import { createWebMoneyPayment, quoteWebMoney } from '@/features/wallet/webmoney'
 import type { PaymentMethod } from '@/features/wallet/types'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { formatQuota } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
+import { openPaymentWindow } from '@/lib/payment-window'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { DEFAULT_CURRENCY_CONFIG } from '@/stores/system-config-store'
 
@@ -62,6 +67,9 @@ interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
   plan: PlanRecord | null
+  enableAntom?: boolean
+  enableWebMoney?: boolean
+  enableMixPay?: boolean
   enableAlipay?: boolean
   enableWechatPay?: boolean
   enableStripe?: boolean
@@ -78,12 +86,15 @@ interface Props {
 export function SubscriptionPurchaseDialog(props: Props) {
   const { t } = useTranslation()
   const { currency } = useSystemConfig()
+  const [mixpayTradeNo, setMixpayTradeNo] = useState<string | null>(null)
+  const [checkoutProvider, setCheckoutProvider] = useState<'mixpay' | 'antom' | 'webmoney'>('mixpay')
+  const mixpayKey = useRef<{ plan: number; provider: string; key: string } | null>(null)
   const [paying, setPaying] = useState(false)
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('')
 
   const [wechatCheckout, setWechatCheckout] =
     useState<WechatPayCheckout | null>(null)
-  const isDirect = ['alipay_direct', 'wechatpay_native'].includes(
+  const isDirect = ['mixpay', 'antom', 'webmoney', 'alipay_direct', 'wechatpay_native'].includes(
     selectedPaymentMethod
   )
   const directQuote = useQuery({
@@ -93,13 +104,13 @@ export function SubscriptionPurchaseDialog(props: Props) {
       selectedPaymentMethod,
     ],
     enabled: props.open && !!props.plan?.plan?.id && isDirect,
-    queryFn: async () =>
-      requireServerSuccess(
-        await quoteSubscriptionDirect(
-          props.plan?.plan?.id || 0,
-          selectedPaymentMethod
-        )
-      ).data,
+    queryFn: async () => {
+      const planID = props.plan?.plan?.id || 0
+      if (selectedPaymentMethod === 'antom') return (await quoteAntom(0, planID)).data
+      if (selectedPaymentMethod === 'webmoney') return (await quoteWebMoney(0, planID)).data
+      if (selectedPaymentMethod === 'mixpay') return requireServerSuccess(await quoteMixPay(0, planID)).data
+      return requireServerSuccess(await quoteSubscriptionDirect(planID, selectedPaymentMethod)).data
+    },
     staleTime: 0,
     retry: false,
   })
@@ -111,6 +122,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
     if (props.plan?.plan?.allow_balance_pay !== false) {
       setSelectedPaymentMethod('balance')
+    } else if (props.enableAntom) {
+      setSelectedPaymentMethod('antom')
+    } else if (props.enableWebMoney) {
+      setSelectedPaymentMethod('webmoney')
+    } else if (props.enableMixPay) {
+      setSelectedPaymentMethod('mixpay')
     } else if (props.enableAlipay) {
       setSelectedPaymentMethod('alipay_direct')
     } else if (props.enableWechatPay) {
@@ -131,6 +148,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
     props.open,
     props.epayMethods,
     props.enableOnlineTopUp,
+    props.enableAntom,
+    props.enableWebMoney,
+    props.enableMixPay,
     props.enableAlipay,
     props.enableWechatPay,
     props.enableStripe,
@@ -149,6 +169,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const hasEpay =
     props.enableOnlineTopUp && (props.epayMethods || []).length > 0
   const hasAnyPayment =
+    props.enableAntom ||
+    props.enableWebMoney ||
+    props.enableMixPay ||
     props.enableAlipay ||
     props.enableWechatPay ||
     hasStripe ||
@@ -161,7 +184,12 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const totalAmount = Number(plan.total_amount || 0)
   let price = formatSubscriptionPrice(plan)
   if (isDirect) {
-    price = directQuote.data ? `CNY ${directQuote.data}` : '—'
+    let paymentCurrency = 'CNY'
+    if (['mixpay', 'antom'].includes(selectedPaymentMethod)) paymentCurrency = 'USD'
+    if (selectedPaymentMethod === 'webmoney') paymentCurrency = 'WMT'
+    price = directQuote.data
+      ? `${paymentCurrency} ${directQuote.data}`
+      : '—'
   }
   const quotaPerUnit =
     currency?.quotaPerUnit && currency.quotaPerUnit > 0
@@ -184,6 +212,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
   const handlePaymentContinue = () => {
     if (limitReached || paying || !selectedPaymentMethod) return
     switch (selectedPaymentMethod) {
+      case 'antom':
+      case 'webmoney':
+      case 'mixpay':
       case 'alipay_direct':
       case 'wechatpay_native':
         void handlePayDirect()
@@ -213,6 +244,24 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
     setPaying(true)
     try {
+      if (selectedPaymentMethod === 'mixpay' || selectedPaymentMethod === 'antom' || selectedPaymentMethod === 'webmoney') {
+        if (!mixpayKey.current || mixpayKey.current.plan !== plan.id || mixpayKey.current.provider !== selectedPaymentMethod) {
+          mixpayKey.current = { plan: plan.id, provider: selectedPaymentMethod, key: crypto.randomUUID() }
+        }
+        let createPayment = createMixPayPayment
+        if (selectedPaymentMethod === 'antom') createPayment = createAntomPayment
+        if (selectedPaymentMethod === 'webmoney') createPayment = createWebMoneyPayment
+        const checkout = await createPayment(
+          0,
+          directQuote.data,
+          mixpayKey.current.key,
+          plan.id
+        )
+        setCheckoutProvider(selectedPaymentMethod)
+        setMixpayTradeNo(checkout.trade_no)
+        mixpayKey.current = null
+        return
+      }
       const provider =
         selectedPaymentMethod === 'alipay_direct' ? 'alipay' : 'wechatpay'
       const data = requireServerSuccess(
@@ -228,7 +277,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
         } catch {
           /* Optional return tracking. */
         }
-        window.location.assign(data.pay_link)
+        openPaymentWindow(data.pay_link)
       } else if (data?.code_url) {
         setWechatCheckout({ ...data, code_url: data.code_url })
       } else {
@@ -246,8 +295,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
     try {
       const res = await paySubscriptionStripe({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.pay_link) {
-        window.open(res.data.pay_link, '_blank')
-        toast.success(t('Payment page opened'))
+        if (openPaymentWindow(res.data.pay_link)) {
+          toast.success(t('Payment page opened'))
+        }
         props.onOpenChange(false)
       } else {
         handleServerError(res, t('Payment request failed'))
@@ -264,8 +314,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
     try {
       const res = await paySubscriptionCreem({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.checkout_url) {
-        window.open(res.data.checkout_url, '_blank')
-        toast.success(t('Payment page opened'))
+        if (openPaymentWindow(res.data.checkout_url)) {
+          toast.success(t('Payment page opened'))
+        }
         props.onOpenChange(false)
       } else {
         handleServerError(res, t('Payment request failed'))
@@ -277,15 +328,14 @@ export function SubscriptionPurchaseDialog(props: Props) {
     }
   }
 
-  // In-tab redirect (not window.open) — user-gesture context is lost
-  // across the await, so a popup would be blocked. Same as the wallet hook.
   const handlePayWaffoPancake = async () => {
     setPaying(true)
     try {
       const res = await paySubscriptionWaffoPancake({ plan_id: plan.id })
       if (res.message === 'success' && res.data?.checkout_url) {
-        toast.success(t('Redirecting to payment page...'))
-        window.location.href = res.data.checkout_url
+        if (openPaymentWindow(res.data.checkout_url)) {
+          toast.success(t('Redirecting to payment page...'))
+        }
       } else {
         handleServerError(res, t('Payment request failed'))
       }
@@ -295,10 +345,6 @@ export function SubscriptionPurchaseDialog(props: Props) {
       setPaying(false)
     }
   }
-
-  const isSafari =
-    typeof navigator !== 'undefined' &&
-    /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
 
   const handlePayEpay = async () => {
     if (!selectedEpayMethod) {
@@ -312,23 +358,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
         payment_method: selectedEpayMethod,
       })
       if (res.message === 'success' && res.url) {
-        const form = document.createElement('form')
-        form.action = res.url
-        form.method = 'POST'
-        if (!isSafari) {
-          form.target = '_blank'
+        if (openPaymentWindow(res.url, res.data || {})) {
+          toast.success(t('Payment initiated'))
         }
-        Object.entries(res.data || {}).forEach(([key, value]) => {
-          const input = document.createElement('input')
-          input.type = 'hidden'
-          input.name = key
-          input.value = String(value)
-          form.appendChild(input)
-        })
-        document.body.appendChild(form)
-        form.submit()
-        document.body.removeChild(form)
-        toast.success(t('Payment initiated'))
         props.onOpenChange(false)
       } else {
         handleServerError(res, t('Payment request failed'))
@@ -364,6 +396,16 @@ export function SubscriptionPurchaseDialog(props: Props) {
 
   return (
     <>
+      <MixPayDialog
+        provider={checkoutProvider}
+        tradeNo={mixpayTradeNo}
+        onClose={() => setMixpayTradeNo(null)}
+        onPaid={() => {
+          setMixpayTradeNo(null)
+          props.onOpenChange(false)
+          void props.onPurchaseSuccess?.()
+        }}
+      />
       <WechatPayDialog
         checkout={wechatCheckout}
         description={t(
@@ -378,7 +420,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
         }}
       />
       <Dialog
-        open={props.open && !wechatCheckout}
+        open={props.open && !wechatCheckout && !mixpayTradeNo}
         onOpenChange={props.onOpenChange}
         title={
           <>
@@ -400,7 +442,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
               <div
                 role='radiogroup'
                 aria-label={t('Payment Method')}
-                className='bg-muted/20 flex min-w-0 gap-1 overflow-x-auto rounded-xl border p-1'
+                className='bg-muted/20 flex min-w-0 flex-wrap gap-2 rounded-xl border p-1'
               >
                 {allowBalancePay && (
                   <Button
@@ -410,7 +452,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                     aria-checked={selectedPaymentMethod === 'balance'}
                     onClick={() => setSelectedPaymentMethod('balance')}
                     disabled={paying || limitReached}
-                    className={`min-w-[128px] flex-1 gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium whitespace-nowrap ${
+                    className={`min-w-[min(100%,128px)] max-w-full flex-1 gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium whitespace-nowrap ${
                       selectedPaymentMethod === 'balance'
                         ? 'border-primary bg-primary/10 text-primary ring-primary/20 shadow-xs ring-1'
                         : 'bg-background hover:border-border hover:bg-background border-transparent'
@@ -421,6 +463,9 @@ export function SubscriptionPurchaseDialog(props: Props) {
                   </Button>
                 )}
                 {[
+                  { method: 'antom', enabled: props.enableAntom },
+                  { method: 'webmoney', enabled: props.enableWebMoney },
+                  { method: 'mixpay', enabled: props.enableMixPay },
                   { method: 'alipay_direct', enabled: props.enableAlipay },
                   {
                     method: 'wechatpay_native',
@@ -437,7 +482,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                       aria-checked={selectedPaymentMethod === item.method}
                       disabled={paying || limitReached}
                       onClick={() => setSelectedPaymentMethod(item.method)}
-                      className={`min-w-[128px] flex-1 rounded-lg border px-3 py-2.5 ${selectedPaymentMethod === item.method ? 'border-primary bg-primary/10 ring-primary/20 ring-1' : 'bg-background border-transparent'}`}
+                      className={`min-w-[min(100%,128px)] max-w-full flex-1 rounded-lg border px-3 py-2.5 ${selectedPaymentMethod === item.method ? 'border-primary bg-primary/10 ring-primary/20 ring-1' : 'bg-background border-transparent'}`}
                     >
                       <PaymentMethodLabel method={item.method} />
                     </Button>
@@ -455,7 +500,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                         aria-checked={selected}
                         onClick={() => setSelectedPaymentMethod(value)}
                         disabled={paying || limitReached}
-                        className={`min-w-[128px] flex-1 gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium whitespace-nowrap ${
+                        className={`min-w-[min(100%,128px)] max-w-full flex-1 gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium whitespace-nowrap ${
                           selected
                             ? 'border-primary bg-primary/10 text-primary ring-primary/20 shadow-xs ring-1'
                             : 'bg-background hover:border-border hover:bg-background border-transparent'
@@ -481,7 +526,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                     aria-checked={selectedPaymentMethod === 'stripe'}
                     onClick={() => setSelectedPaymentMethod('stripe')}
                     disabled={paying || limitReached}
-                    className={`min-w-[112px] flex-1 gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium whitespace-nowrap ${
+                    className={`min-w-[min(100%,112px)] max-w-full flex-1 gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium whitespace-nowrap ${
                       selectedPaymentMethod === 'stripe'
                         ? 'border-primary bg-primary/10 text-primary ring-primary/20 shadow-xs ring-1'
                         : 'bg-background hover:border-border hover:bg-background border-transparent'
@@ -499,7 +544,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                     aria-checked={selectedPaymentMethod === 'creem'}
                     onClick={() => setSelectedPaymentMethod('creem')}
                     disabled={paying || limitReached}
-                    className={`min-w-[112px] flex-1 gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium whitespace-nowrap ${
+                    className={`min-w-[min(100%,112px)] max-w-full flex-1 gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium whitespace-nowrap ${
                       selectedPaymentMethod === 'creem'
                         ? 'border-primary bg-primary/10 text-primary ring-primary/20 shadow-xs ring-1'
                         : 'bg-background hover:border-border hover:bg-background border-transparent'
@@ -517,7 +562,7 @@ export function SubscriptionPurchaseDialog(props: Props) {
                     aria-checked={selectedPaymentMethod === 'waffo_pancake'}
                     onClick={() => setSelectedPaymentMethod('waffo_pancake')}
                     disabled={paying || limitReached}
-                    className={`min-w-[150px] flex-1 gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium whitespace-nowrap ${
+                    className={`min-w-[min(100%,150px)] max-w-full flex-1 gap-2 rounded-lg border px-3 py-2.5 text-sm font-medium whitespace-nowrap ${
                       selectedPaymentMethod === 'waffo_pancake'
                         ? 'border-primary bg-primary/10 text-primary ring-primary/20 shadow-xs ring-1'
                         : 'bg-background hover:border-border hover:bg-background border-transparent'

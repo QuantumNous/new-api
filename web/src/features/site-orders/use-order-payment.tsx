@@ -4,15 +4,25 @@ import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { getAntomCheckoutURL } from '@/features/wallet/antom'
 import type { WechatPayCheckout } from '@/features/wallet/api'
+import { MixPayDialog } from '@/features/wallet/components/dialogs/mixpay-dialog'
 import { WechatPayDialog } from '@/features/wallet/components/dialogs/wechatpay-dialog'
 import { handleServerError } from '@/lib/handle-server-error'
+import { openPaymentWindow } from '@/lib/payment-window'
 
-import { cancelOrder, resumeOrder, type SiteOrder } from './api'
+import {
+  cancelOrder,
+  resumeOrder,
+  type SiteOrder,
+  type OrderScope,
+} from './api'
 
 export function canPayOrder(order: SiteOrder) {
   return (
-    ['alipay', 'wechatpay'].includes(order.payment_provider) &&
+    ['antom', 'webmoney', 'mixpay', 'alipay', 'wechatpay'].includes(
+      order.payment_provider
+    ) &&
     order.order_status === 'pending' &&
     !order.cancel_requested &&
     !order.close_requested_at &&
@@ -22,9 +32,13 @@ export function canPayOrder(order: SiteOrder) {
 }
 
 // Shared payment interactions for the wallet notice and personal order list.
-export function useOrderPayment(onPaid?: () => void) {
+export function useOrderPayment(
+  onPaid?: () => void,
+  scope: OrderScope = 'personal'
+) {
   const { t } = useTranslation()
   const client = useQueryClient()
+  const [mixpayTradeNo, setMixpayTradeNo] = useState<string | null>(null)
   const [checkout, setCheckout] = useState<WechatPayCheckout | null>(null)
   const [dismissedOrderId, setDismissedOrderId] = useState<number | null>(null)
   const [subscription, setSubscription] = useState(false)
@@ -34,6 +48,7 @@ export function useOrderPayment(onPaid?: () => void) {
     void client.invalidateQueries({ queryKey: ['subscriptions'] })
   }, [client])
   const paid = useCallback(() => {
+    setMixpayTradeNo(null)
     setCheckout(null)
     refresh()
     onPaid?.()
@@ -42,16 +57,52 @@ export function useOrderPayment(onPaid?: () => void) {
   const pay = useMutation({
     mutationFn: (order: SiteOrder) => resumeOrder(order.id),
     onSuccess: (result, order) => {
-      if (result.payment_provider === 'alipay' && result.pay_link) {
+      if (result.payment_provider === 'antom') {
+        if (
+          result.trade_no === order.trade_no &&
+          result.status === 'pending' &&
+          result.expires_at * 1000 > Date.now() &&
+          result.pay_link === `/payment/antom/${order.trade_no}`
+        ) {
+          openPaymentWindow(() => getAntomCheckoutURL(order.trade_no))
+        }
+        refresh()
+      } else if (result.payment_provider === 'webmoney') {
+        if (
+          result.trade_no === order.trade_no &&
+          result.status === 'pending' &&
+          result.expires_at * 1000 > Date.now() &&
+          result.pay_link ===
+            'https://merchant.wmtransfer.com/lmi/payment_utf.asp' &&
+          result.pay_params
+        ) {
+          openPaymentWindow(result.pay_link, result.pay_params)
+        }
+        refresh()
+      } else if (result.payment_provider === 'mixpay') {
+        if (
+          result.trade_no === order.trade_no &&
+          result.status === 'pending' &&
+          !result.review_required &&
+          result.expires_at * 1000 > Date.now() &&
+          result.pay_link &&
+          /^https:\/\/mixpay\.me\/code\/[A-Za-z0-9_-]+$/.test(result.pay_link)
+        ) {
+          openPaymentWindow(result.pay_link)
+          return
+        }
+        refresh()
+        setMixpayTradeNo(result.trade_no)
+      } else if (result.payment_provider === 'alipay' && result.pay_link) {
         try {
           sessionStorage.setItem('alipay-pending-order', result.trade_no)
         } catch {
           /* Storage may be disabled. */
         }
-        window.location.assign(result.pay_link)
+        openPaymentWindow(result.pay_link)
       } else if (result.payment_provider === 'wechatpay' && result.code_url) {
         setSubscription(order.order_type === 'subscription')
-        setCheckout({ ...result, code_url: result.code_url })
+        setCheckout({ ...result, currency: 'CNY', code_url: result.code_url })
       }
     },
     onError: (error) => {
@@ -60,7 +111,7 @@ export function useOrderPayment(onPaid?: () => void) {
     },
   })
   const cancel = useMutation({
-    mutationFn: (order: SiteOrder) => cancelOrder(order.id),
+    mutationFn: (order: SiteOrder) => cancelOrder(order.id, scope),
     onSuccess: (result, order) => {
       setDismissedOrderId(order.id)
       setCancelTarget(null)
@@ -85,6 +136,11 @@ export function useOrderPayment(onPaid?: () => void) {
     busy: pay.isPending || cancel.isPending,
     dialogs: (
       <>
+        <MixPayDialog
+          tradeNo={mixpayTradeNo}
+          onClose={() => setMixpayTradeNo(null)}
+          onPaid={paid}
+        />
         <WechatPayDialog
           checkout={checkout}
           onClose={() => setCheckout(null)}

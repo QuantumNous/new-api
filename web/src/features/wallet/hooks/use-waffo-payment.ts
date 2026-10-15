@@ -21,6 +21,7 @@ import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 
 import { handleServerError } from '@/lib/handle-server-error'
+import { openPaymentWindow } from '@/lib/payment-window'
 
 import { requestWaffoPayment, isApiSuccess } from '../api'
 
@@ -67,8 +68,9 @@ export function useWaffoPayment() {
           const paymentUrl = getPaymentUrl(response.data)
 
           if (paymentUrl) {
-            window.open(paymentUrl, '_blank')
-            toast.success(i18next.t('Redirecting to payment page...'))
+            if (openPaymentWindow(paymentUrl)) {
+              toast.success(i18next.t('Redirecting to payment page...'))
+            }
             return true
           }
         }

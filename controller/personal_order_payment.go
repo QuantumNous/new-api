@@ -47,6 +47,63 @@ func PersonalOrderPayment(c *gin.Context) {
 		return
 	}
 	order := orders[0]
+	if order.PaymentProvider == model.PaymentProviderAntom {
+		if c.Param("action") == "cancel" || c.Param("action") == "recheck" {
+			LockOrder(order.TradeNo)
+			defer UnlockOrder(order.TradeNo)
+			status := "checked"
+			if c.Param("action") == "cancel" {
+				status, err = service.CancelAntomOrder(c.Request.Context(), order.TradeNo)
+			} else {
+				err = service.ReconcileAntomOrder(c.Request.Context(), order.TradeNo)
+			}
+			model.RecordAuditLog(c, model.AuditLog{UserId: userID, ActorRole: c.GetInt("role"), Category: model.AuditCategoryOperation, Action: "payment.antom." + c.Param("action"), Content: order.TradeNo, Success: err == nil})
+			if err != nil {
+				common.ApiError(c, err)
+				return
+			}
+			common.ApiSuccess(c, gin.H{"status": status})
+			return
+		}
+		if c.Param("action") != "pay" {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		payment, config, err := model.GetAntomOrder(order.TradeNo)
+		if err != nil || payment.UserID != userID {
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
+		common.ApiSuccess(c, service.AntomCheckout(payment, config))
+		return
+	}
+	if order.PaymentProvider == model.PaymentProviderWebMoney {
+		if c.Param("action") != "pay" {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		payment, config, err := model.GetWebMoneyOrder(order.TradeNo)
+		if err != nil || payment.UserID != userID {
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
+		common.ApiSuccess(c, service.WebMoneyCheckout(payment, config))
+		return
+	}
+	if order.PaymentProvider == model.PaymentProviderMixPay {
+		if c.Param("action") != "pay" {
+			c.AbortWithStatus(http.StatusBadRequest)
+			return
+		}
+		payment, e := model.GetMixPayOrder(order.TradeNo)
+		if e != nil || payment.UserID != userID {
+			c.AbortWithStatus(http.StatusNotFound)
+			return
+		}
+		_ = model.WakeMixPayOrder(order.TradeNo)
+		common.ApiSuccess(c, service.MixPayCheckout(payment))
+		return
+	}
 	if order.PaymentProvider != model.PaymentProviderAlipay && order.PaymentProvider != model.PaymentProviderWechatPay {
 		c.AbortWithStatus(http.StatusBadRequest)
 		return

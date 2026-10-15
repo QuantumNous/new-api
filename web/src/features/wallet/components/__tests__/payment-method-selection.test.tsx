@@ -54,7 +54,10 @@ function PaymentMethodFixture(props: {
   methods?: PaymentMethod[]
   presets?: PresetAmount[]
   calculating?: boolean
+  processing?: boolean
+  onPay?: (method: PaymentMethod) => void
   payable?: number
+  topupOverride?: Partial<TopupInfo>
 }) {
   const methods = props.methods || paymentMethods
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(methods[0])
@@ -66,7 +69,7 @@ function PaymentMethodFixture(props: {
     <RechargeFormCard
       embedded
       pendingOrderNotice={<div>Pending payment fixture</div>}
-      topupInfo={{ ...topupInfo, pay_methods: methods }}
+      topupInfo={{ ...topupInfo, ...props.topupOverride, pay_methods: methods }}
       presetAmounts={props.presets ?? []}
       selectedPreset={preset}
       onSelectPreset={(value) => {
@@ -81,7 +84,11 @@ function PaymentMethodFixture(props: {
       paymentAmount={props.payable ?? 10}
       calculating={props.calculating ?? true}
       onPaymentContinue={vi.fn()}
-      onPaymentMethodSelect={setSelectedPaymentMethod}
+      processing={props.processing}
+      onPaymentMethodSelect={(method) => {
+        setSelectedPaymentMethod(method)
+        props.onPay?.(method)
+      }}
       selectedPaymentMethod={selectedPaymentMethod}
       selectedWaffoMethodIndex={null}
       redemptionCode=''
@@ -102,10 +109,16 @@ describe('recharge payment method selection', () => {
     async (type, name, icon, colorClass, color) => {
       const method = { type, name, icon }
       const selection = render(<PaymentMethodFixture methods={[method]} />)
-      expect(screen.getByText(name)).toHaveClass(colorClass)
-      expect((await screen.findByTitle(name)).closest('svg')).toHaveStyle({
-        color,
-      })
+      expect(screen.getByText(name).parentElement).toHaveClass('text-inherit')
+      if (type === 'wechatpay_native') {
+        expect(
+          document.querySelector('img[src="/wechatpay-logo.svg"]')
+        ).toBeInTheDocument()
+      } else {
+        expect((await screen.findByTitle(name)).closest('svg')).toHaveStyle({
+          color,
+        })
+      }
       selection.unmount()
       render(
         <PaymentConfirmDialog
@@ -120,34 +133,56 @@ describe('recharge payment method selection', () => {
         />
       )
       expect(screen.getByText(name)).toHaveClass(colorClass)
-      expect((await screen.findByTitle(name)).closest('svg')).toHaveStyle({
-        color,
-      })
+      if (type === 'wechatpay_native') {
+        expect(
+          document.querySelector('img[src="/wechatpay-logo.svg"]')
+        ).toBeInTheDocument()
+      } else {
+        expect((await screen.findByTitle(name)).closest('svg')).toHaveStyle({
+          color,
+        })
+      }
     }
   )
-  test('keeps payment icons visible and allows selection while its amount recalculates', async () => {
-    const user = userEvent.setup()
-
-    render(<PaymentMethodFixture />)
-
-    const bankTransfer = screen.getByRole('radio', { name: 'Bank transfer' })
-    const cardPayment = screen.getByRole('radio', { name: 'Card payment' })
-
-    expect(screen.getByRole('img', { name: 'Bank transfer' })).toBeVisible()
-    expect(screen.getByRole('img', { name: 'Card payment' })).toBeVisible()
-    expect(cardPayment).toBeEnabled()
-
-    await user.click(cardPayment)
-
-    expect(bankTransfer).toHaveAttribute('aria-checked', 'false')
-    expect(cardPayment).toHaveAttribute('aria-checked', 'true')
-    expect(cardPayment).toHaveClass('border-primary', 'ring-1')
-    expect(screen.getByRole('img', { name: 'Bank transfer' })).toBeVisible()
-    expect(screen.getByRole('img', { name: 'Card payment' })).toBeVisible()
-  })
 })
 
 test.each([
+  ['wxpay', 'WeChat', 'bg-[#07883f]'],
+  ['alipay_direct', 'Alipay', 'bg-[#0969da]'],
+  ['mixpay', 'MixPay', 'bg-[#194bff]'],
+])(
+  'direct %s checkout uses a solid brand button with white content',
+  (type, name, background) => {
+    render(<PaymentMethodFixture methods={[{ type, name }]} />)
+    const label = screen.getByText(
+      type === 'mixpay' ? 'MixPay(Crypto)' : name
+    ).parentElement
+    expect(label?.closest('button')).toHaveClass(
+      background,
+      'text-white',
+      'rounded-xl'
+    )
+    const icon = label?.querySelector('[aria-hidden="true"]')
+    if (type === 'mixpay') {
+      expect(icon).not.toHaveClass('brightness-0', 'invert')
+      expect(icon?.querySelector('img')).toHaveAttribute(
+        'src',
+        '/mixpay-logo.svg'
+      )
+    } else {
+      if (type === 'wxpay') {
+        expect(icon?.querySelector('img')).toHaveAttribute(
+          'src',
+          '/wechatpay-logo.svg'
+        )
+      }
+      expect(icon).toHaveClass('brightness-0', 'invert')
+    }
+  }
+)
+
+test.each([
+  ['mixpay', 'MixPay', 'text-blue-600'],
   ['epay', 'Epay', 'text-blue-600'],
   ['stripe', 'Stripe', 'text-violet-600'],
   ['creem', 'Creem', 'text-indigo-600'],
@@ -165,6 +200,11 @@ test.each([
       expect(icon?.firstElementChild).toHaveStyle({
         maskImage: 'url(/waffo-logo-light.svg)',
       })
+    } else if (method === 'mixpay') {
+      expect(icon?.querySelector('img')).toHaveAttribute(
+        'src',
+        '/mixpay-logo.svg'
+      )
     } else {
       expect(icon?.querySelector('svg')).toBeInTheDocument()
     }
@@ -177,7 +217,7 @@ test.each([{ presets: [] }, { presets: [{ value: 20, discount: 1 }] }])(
     render(<PaymentMethodFixture presets={presets} />)
     const amounts = screen.getByRole('group', { name: 'Amount' })
     const amount = within(amounts).getByLabelText('Custom Amount')
-    const methods = screen.getByRole('radiogroup', { name: 'Payment Method' })
+    const methods = screen.getByRole('group', { name: 'Pay with' })
     const notice = screen.getByText('Pending payment fixture')
     expect(
       amounts.compareDocumentPosition(methods) &
@@ -227,35 +267,65 @@ test('custom amount is a single input with a currency prefix and concise placeho
   expect(amount).toHaveClass('border-0')
 })
 
-test('payment button combines the selected method and actual quote without a separate amount row', async () => {
+test('each channel is a direct payment action without a selection or separate continue button', async () => {
+  const onPay = vi.fn()
+  const methods = [
+    { type: 'wechatpay_native', name: 'WeChat Pay' },
+    { type: 'alipay_direct', name: 'Alipay' },
+    { type: 'mixpay', name: 'MixPay' },
+  ]
+  render(
+    <PaymentMethodFixture methods={methods} calculating={false} onPay={onPay} />
+  )
+  expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
+  const group = screen.getByRole('group', { name: 'Pay with' })
+  expect(group).toHaveClass('grid', 'grid-cols-1', 'gap-3')
+  expect(screen.getAllByText('Pay with')).toHaveLength(1)
+  expect(within(group).queryByText(/Pay with/)).not.toBeInTheDocument()
+  expect(within(group).getAllByRole('button')).toHaveLength(3)
+  for (const button of within(group).getAllByRole('button')) {
+    expect(button).toHaveClass(
+      'h-14',
+      'min-h-14',
+      'w-full',
+      'rounded-xl',
+      'border',
+      'py-2'
+    )
+  }
+  for (const method of methods) {
+    await userEvent.click(
+      within(group).getByRole('button', {
+        name: method.type === 'mixpay' ? 'MixPay(Crypto)' : method.name,
+      })
+    )
+    expect(onPay).toHaveBeenLastCalledWith(method)
+  }
+  expect(onPay).toHaveBeenCalledTimes(3)
+})
+
+test('starting a payment disables all channel actions', () => {
+  render(<PaymentMethodFixture processing />)
+  for (const button of within(
+    screen.getByRole('group', { name: 'Pay with' })
+  ).getAllByRole('button')) {
+    expect(button).toBeDisabled()
+  }
+})
+
+test('minimums apply per channel, including direct MixPay minimum independent of legacy payments', () => {
   render(
     <PaymentMethodFixture
       calculating={false}
-      payable={18}
       methods={[
-        { type: 'alipay_direct', name: 'Alipay' },
-        { type: 'wechatpay_native', name: 'WeChat Pay' },
+        { type: 'mixpay', name: 'MixPay', min_topup: 1 },
+        { type: 'bank', name: 'Bank', min_topup: 20 },
       ]}
+      topupOverride={{ min_topup: 20 }}
     />
   )
-  expect(screen.queryByText('Amount to pay:')).not.toBeInTheDocument()
-  expect(
-    screen.getByRole('button', { name: 'Pay ¥18 with Alipay' })
-  ).toBeEnabled()
-  expect(
-    screen
-      .getByRole('button', { name: 'Pay ¥18 with Alipay' })
-      .querySelector('[aria-hidden="true"] svg')
-  ).toBeInTheDocument()
-  await userEvent.click(screen.getByRole('radio', { name: 'WeChat Pay' }))
-  expect(
-    screen.getByRole('button', { name: 'Pay ¥18 with WeChat Pay' })
-  ).toBeEnabled()
-})
-test('payment button shows calculation status instead of a stale quote', () => {
-  render(<PaymentMethodFixture calculating payable={18} />)
-  expect(screen.getByRole('button', { name: 'Calculating...' })).toBeDisabled()
-  expect(screen.queryByText('Amount to pay:')).not.toBeInTheDocument()
+  expect(screen.getByRole('button', { name: 'MixPay(Crypto)' })).toBeEnabled()
+  expect(screen.getByRole('button', { name: 'Bank' })).toBeDisabled()
 })
 
 test('preset amounts are centered with discounts on a second line only when applicable', () => {
@@ -311,28 +381,92 @@ test('custom amount centers the currency prefix and content together', async () 
   expect(input).toHaveValue('12345')
 })
 
-test('selecting a discounted amount shows savings as a tilted payment-button corner badge', async () => {
+test('MixPay-only configuration displays recharge controls and its direct payment action', () => {
   render(
     <PaymentMethodFixture
+      methods={[{ type: 'mixpay', name: 'MixPay', min_topup: 1 }]}
       calculating={false}
-      presets={[
-        { value: 200, discount: 0.85 },
-        { value: 20, discount: 1 },
-      ]}
+      payable={10}
+      topupOverride={{ enable_online_topup: false, enable_mixpay_topup: true }}
     />
   )
-  const amounts = screen.getByRole('group', { name: 'Amount' })
-  expect(screen.queryByText(/Save \d+%/)).not.toBeInTheDocument()
-  await userEvent.click(
-    within(amounts).getByRole('button', { name: /15% off/ })
+  expect(screen.getByRole('group', { name: 'Amount' })).toBeVisible()
+  expect(screen.getByRole('button', { name: 'MixPay(Crypto)' })).toBeEnabled()
+})
+
+test('WebMoney-only configuration enables recharge without Epay or MixPay', () => {
+  render(
+    <PaymentMethodFixture
+      methods={[{ type: 'webmoney', name: 'WebMoney', min_topup: 1 }]}
+      calculating={false}
+      payable={10}
+      topupOverride={{ enable_online_topup: false, enable_mixpay_topup: false }}
+    />
   )
-  const savings = screen.getByText('Save 15%')
-  expect(savings).toHaveAttribute('data-slot', 'badge')
-  expect(savings).toHaveClass('absolute', 'right-3', 'top-0', '-rotate-6')
-  expect(savings.parentElement).toHaveClass('relative')
-  const paymentArea = savings.parentElement
-  if (!paymentArea) throw new Error('Missing payment button container')
-  expect(within(paymentArea).getByRole('button', { name: /Pay/ })).toBeEnabled()
-  await userEvent.click(within(amounts).getByRole('button', { name: /20$/ }))
-  expect(screen.queryByText(/Save \d+%/)).not.toBeInTheDocument()
+  expect(screen.getByRole('group', { name: 'Amount' })).toBeVisible()
+  expect(screen.getByRole('button', { name: 'WebMoney' })).toBeEnabled()
+})
+
+test('Antom-only configuration offers a direct top-up action', () => {
+  render(
+    <PaymentMethodFixture
+      methods={[{ type: 'antom', name: 'Antom', min_topup: 1 }]}
+    />
+  )
+  expect(screen.getByRole('button', { name: 'Antom' })).toBeEnabled()
+})
+
+test('Antom displays payment brands without adding extra payment actions', async () => {
+  const onPay = vi.fn()
+  const method = { type: 'antom', name: 'Antom' }
+  render(
+    <PaymentMethodFixture
+      methods={[method]}
+      calculating={false}
+      onPay={onPay}
+    />
+  )
+  const group = screen.getByRole('group', { name: 'Pay with' })
+  const button = within(group).getByRole('button', { name: 'Antom' })
+  expect(within(group).getAllByRole('button')).toHaveLength(1)
+  expect(button.querySelector('[title="Visa"] img')).toHaveAttribute(
+    'src',
+    '/payment-methods/antom/visa.svg'
+  )
+  expect(button.querySelector('[title="Apple Pay"]')).not.toBeNull()
+  expect(
+    within(button).getByRole('img', { name: 'Antom' }).parentElement
+  ).toHaveClass('absolute', 'left-1/2', 'z-10', 'w-[40%]', 'bg-white')
+  expect(button.querySelector('.antom-payment-icons')).toHaveClass(
+    'w-full',
+    'max-w-full',
+    'shrink-0',
+    'overflow-hidden'
+  )
+  await userEvent.click(button)
+  expect(onPay).toHaveBeenCalledWith(method)
+})
+
+test('MixPay keeps its centered label above a full-width crypto icon strip', async () => {
+  const onPay = vi.fn()
+  const method = { type: 'mixpay', name: 'MixPay' }
+  render(
+    <PaymentMethodFixture
+      methods={[method]}
+      calculating={false}
+      onPay={onPay}
+    />
+  )
+  const button = screen.getByRole('button', { name: 'MixPay(Crypto)' })
+  expect(button).toHaveClass('relative', 'overflow-hidden')
+  expect(button.querySelector('[title="Bitcoin"] img')).toHaveAttribute(
+    'src',
+    '/payment-methods/mixpay/btc.png'
+  )
+  expect(button.querySelector('.antom-payment-icons')).toHaveClass('w-full')
+  expect(
+    within(button).getByText('MixPay(Crypto)').parentElement?.parentElement
+  ).toHaveClass('w-[40%]', 'bg-[#194bff]', 'z-10')
+  await userEvent.click(button)
+  expect(onPay).toHaveBeenCalledWith(method)
 })

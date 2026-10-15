@@ -17,7 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-
 import {
   createRootRoute,
   createRouter,
@@ -327,4 +326,99 @@ test('failed order displays a translated failure status', async () => {
   })
   showOrder()
   expect(await screen.findByText('Failed')).toBeVisible()
+})
+
+test('MixPay admin detail offers server verification and recovery without claiming a pending payment was received', async () => {
+  vi.mocked(api.get).mockResolvedValue({
+    data: {
+      success: true,
+      data: {
+        ...order,
+        payment_provider: 'mixpay',
+        payment_method: 'mixpay',
+        order_status: 'pending',
+        review_required: true,
+        amount_fen: null,
+        currency: 'USD',
+        payment_amount: '1.43',
+        gateway_status: 'unpaid',
+      },
+    },
+  })
+  vi.mocked(api.post).mockResolvedValue({
+    data: { success: true, data: { result: 'unpaid' } },
+  })
+  showOrder()
+  const check = await screen.findByRole('button', {
+    name: 'Check payment result',
+  })
+  expect(screen.getAllByText('USD 1.43')).toHaveLength(1)
+  expect(screen.getByText('unpaid')).toBeVisible()
+  await userEvent.click(check)
+  await waitFor(() =>
+    expect(api.post).toHaveBeenCalledWith('/api/user/orders/1/recheck')
+  )
+  await userEvent.click(
+    screen.getByRole('button', { name: 'Verify and recover order' })
+  )
+  const dialog = await screen.findByRole('alertdialog')
+  await userEvent.type(
+    within(dialog).getByLabelText('Recovery reason'),
+    'Verify missing payment'
+  )
+  await userEvent.click(
+    within(dialog).getByRole('button', { name: 'Verify and recover order' })
+  )
+  await waitFor(() =>
+    expect(api.post).toHaveBeenCalledWith('/api/user/orders/1/recover', {
+      reason: 'Verify missing payment',
+    })
+  )
+  expect(
+    await screen.findByText('The payment provider has not confirmed payment.')
+  ).toBeVisible()
+})
+
+test('WebMoney admin detail enables X18 verification and recovery', async () => {
+  vi.mocked(api.get).mockResolvedValue({
+    data: {
+      success: true,
+      data: {
+        ...order,
+        order_type: 'topup',
+        payment_provider: 'webmoney',
+        payment_method: 'webmoney',
+        order_status: 'pending',
+        amount_fen: null,
+        currency: 'WMT',
+        payment_amount: '10.00',
+        gateway_status: 'x18:8',
+      },
+    },
+  })
+  vi.mocked(api.post).mockResolvedValue({ data: { success: true } })
+  showOrder()
+  const check = await screen.findByRole('button', {
+    name: 'Check payment result',
+  })
+  expect(
+    screen.getByRole('button', { name: 'Verify and recover order' })
+  ).toBeEnabled()
+  expect(screen.getByText('Payment not found (X18 8)')).toBeVisible()
+  await userEvent.click(check)
+  await waitFor(() =>
+    expect(api.post).toHaveBeenCalledWith('/api/user/orders/1/recheck')
+  )
+})
+
+test('personal Antom orders offer server recheck and confirmed cancellation even after checkout expiry', async () => {
+  vi.mocked(api.get).mockResolvedValue({data:{success:true,data:{...order,payment_provider:'antom',payment_method:'antom',order_status:'pending',gateway_status:'PROCESSING'}}})
+  vi.mocked(api.post).mockResolvedValue({data:{success:true,data:{status:'closed'}}})
+  render(<QueryClientProvider client={client}><OrderDetail id={1} scope='personal' onClose={() => {}} /></QueryClientProvider>)
+  await userEvent.click(await screen.findByRole('button',{name:'Check payment result'}))
+  expect(api.post).toHaveBeenCalledWith('/api/user/self/orders/1/recheck',{})
+  await userEvent.click(screen.getByRole('button',{name:'Cancel order'}))
+  const dialog = await screen.findByRole('alertdialog')
+  await userEvent.click(within(dialog).getByRole('button',{name:'Cancel order'}))
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/user/self/orders/1/cancel',{}))
 })

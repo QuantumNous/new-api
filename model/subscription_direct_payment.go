@@ -31,7 +31,13 @@ func CreateDirectSubscriptionOrder(order *SubscriptionOrder, plan *SubscriptionP
 		if err := tx.Create(order).Error; err != nil {
 			return err
 		}
-		return tx.Create(payment).Error
+		if err := tx.Create(payment).Error; err != nil {
+			return err
+		}
+		if wm, ok := payment.(*WebMoneyOrder); ok && (wm.ID <= 0 || wm.ID >= 999999999999999) {
+			return errors.New("WebMoney payment number exhausted")
+		}
+		return nil
 	})
 }
 
@@ -52,6 +58,7 @@ func completeDirectSubscriptionPayment(tradeNo, provider string) error {
 		var providerTradeNo *string
 		var amountFen int64
 		var reviewRequired bool
+		receiptCurrency, receiptAmount := "CNY", ""
 		switch provider {
 		case PaymentProviderAlipay:
 			var p AlipayOrder
@@ -67,8 +74,25 @@ func completeDirectSubscriptionPayment(tradeNo, provider string) error {
 			}
 			reviewRequired = p.ReviewRequired
 			payment, status, providerTradeNo, amountFen, userID = &p, p.Status, p.ProviderTradeNo, p.AmountFen, p.UserID
+		case PaymentProviderAntom:
+			var p AntomOrder
+			if err := lockForUpdate(tx).Where("trade_no = ?", tradeNo).First(&p).Error; err != nil {
+				return err
+			}
+			payment, status, providerTradeNo, userID = &p, p.Status, p.ProviderTradeNo, p.UserID
+			receiptCurrency, receiptAmount = "USD", p.Amount
+		case PaymentProviderWebMoney:
+			var p WebMoneyOrder
+			if err := lockForUpdate(tx).Where("trade_no = ?", tradeNo).First(&p).Error; err != nil {
+				return err
+			}
+			payment, status, providerTradeNo, userID = &p, p.Status, p.ProviderTradeNo, p.UserID
+			receiptCurrency, receiptAmount = "WMT", p.Amount
 		default:
 			return ErrPaymentMethodMismatch
+		}
+		if receiptAmount == "" {
+			receiptAmount = decimal.NewFromInt(amountFen).Div(decimal.NewFromInt(100)).StringFixed(2)
 		}
 		var order SubscriptionOrder
 		if err := lockForUpdate(tx).Where("trade_no = ?", tradeNo).First(&order).Error; err != nil {
@@ -101,11 +125,15 @@ func completeDirectSubscriptionPayment(tradeNo, provider string) error {
 				return err
 			}
 			order.Status = SubscriptionOrderPaidReview
-			order.PaymentReceipt = PaymentReceipt{ReceiptCurrency: "CNY", ReceiptAmount: decimal.NewFromInt(amountFen).Div(decimal.NewFromInt(100)).StringFixed(2), ReceiptTradeNo: *providerTradeNo}
+			order.PaymentReceipt = PaymentReceipt{ReceiptCurrency: receiptCurrency, ReceiptAmount: receiptAmount, ReceiptTradeNo: *providerTradeNo}
 			if err := tx.Save(&order).Error; err != nil {
 				return err
 			}
-			if err := tx.Model(payment).Updates(map[string]any{"review_required": true, "last_error": "subscription_conflict", "next_check_at": 0, "checked_at": common.GetTimestamp()}).Error; err != nil {
+			updates := map[string]any{"review_required": true, "last_error": "subscription_conflict", "next_check_at": 0, "checked_at": common.GetTimestamp()}
+			if provider == PaymentProviderWebMoney || provider == PaymentProviderAntom {
+				updates = map[string]any{"status": "paid"}
+			}
+			if err := tx.Model(payment).Updates(updates).Error; err != nil {
 				return err
 			}
 			reviewed = true
@@ -116,11 +144,18 @@ func completeDirectSubscriptionPayment(tradeNo, provider string) error {
 		}
 		order.Status = common.TopUpStatusSuccess
 		order.CompleteTime = common.GetTimestamp()
-		order.PaymentReceipt = PaymentReceipt{ReceiptCurrency: "CNY", ReceiptAmount: decimal.NewFromInt(amountFen).Div(decimal.NewFromInt(100)).StringFixed(2), ReceiptTradeNo: *providerTradeNo}
+		order.PaymentReceipt = PaymentReceipt{ReceiptCurrency: receiptCurrency, ReceiptAmount: receiptAmount, ReceiptTradeNo: *providerTradeNo}
 		if err := tx.Save(&order).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(payment).Updates(map[string]any{"status": common.TopUpStatusSuccess, "last_error": "", "cache_pending": false}).Error; err != nil {
+		updates := map[string]any{"status": common.TopUpStatusSuccess, "cache_pending": false}
+		if provider != PaymentProviderWebMoney {
+			updates["last_error"] = ""
+		}
+		if provider == PaymentProviderAntom {
+			updates["next_check_at"] = 0
+		}
+		if err := tx.Model(payment).Updates(updates).Error; err != nil {
 			return err
 		}
 		completed = true
@@ -143,4 +178,16 @@ func completeDirectSubscriptionPayment(tradeNo, provider string) error {
 
 func isDirectSubscriptionOrder(tradeNo string) bool {
 	return strings.HasPrefix(tradeNo, "SUBALI") || strings.HasPrefix(tradeNo, "SUBWX")
+}
+
+// A verified payment may require manual resolution if subscription eligibility changed.
+func DirectSubscriptionReviewRequired(tradeNo string) bool {
+	if !strings.HasPrefix(tradeNo, "SUBANT") && !strings.HasPrefix(tradeNo, "SUBWM") {
+		return false
+	}
+	var order SubscriptionOrder
+	if err := DB.Select("status").Where("trade_no = ?", tradeNo).Take(&order).Error; err != nil {
+		return true
+	}
+	return order.Status == SubscriptionOrderPaidReview
 }

@@ -90,7 +90,7 @@ export function PaymentConfirmDialog({
               {t('Topup Amount')}
             </span>
             <span className='text-lg font-semibold'>
-              {['alipay_direct', 'wechatpay_native'].includes(
+              {['mixpay', 'alipay_direct', 'wechatpay_native'].includes(
                 paymentMethod?.type || ''
               )
                 ? formatDirectTopUpAmount(topupAmount)
@@ -114,6 +114,7 @@ export function PaymentConfirmDialog({
                   {['alipay_direct', 'wechatpay_native'].includes(
                     paymentMethod?.type || ''
                   ) && 'CNY '}
+                  {paymentMethod?.type === 'mixpay' && 'USD '}
                   {formatCurrency(paymentAmount)}
                 </span>
                 {hasDiscount && (

@@ -404,7 +404,7 @@ func TestRechargeEpayEnforcesFinalWalletQuotaLimit(t *testing.T) {
 
 func TestAlipayCacheRetryPreservesReservations(t *testing.T) {
 	server := useUserCacheMiniRedis(t)
-	require.NoError(t, DB.AutoMigrate(&AlipayOrder{}, &WechatPayOrder{}))
+	require.NoError(t, DB.AutoMigrate(&AlipayOrder{}, &WechatPayOrder{}, &MixPayOrder{}))
 	const userID = 98001
 	snapshot := &UserBase{Id: userID, AuthVersion: 1, Quota: 1000}
 	require.NoError(t, writeUserCache(snapshot, true))
@@ -438,5 +438,15 @@ func TestAlipayCacheRetryPreservesReservations(t *testing.T) {
 	require.NoError(t, SyncAlipayQuotaCache(order))
 	require.NoError(t, SyncWechatPayQuotaCache(wx))
 	assert.Equal(t, "1600", server.HGet(getUserCacheKey(userID), "Quota"))
+	// MixPay shares the cumulative watermark and may replay after a crash before
+	// its durable cache_pending flag was cleared.
+	require.NoError(t, common.RDB.HIncrBy(t.Context(), getUserCacheKey(userID), "Quota", -50).Err())
+	mix := &MixPayOrder{TradeNo: "MXcache", TraceID: "mixpay-cache-trace", RequestKey: "mixpay-cache-key", UserID: userID, CreditSequence: 900, Status: common.TopUpStatusSuccess, CachePending: true}
+	require.NoError(t, DB.Create(mix).Error)
+	require.NoError(t, SyncMixPayFulfillment(mix.TradeNo))
+	require.NoError(t, DB.Model(mix).Update("cache_pending", true).Error)
+	require.NoError(t, SyncMixPayFulfillment(mix.TradeNo))
+	require.NoError(t, SyncWechatPayQuotaCache(wx))
+	assert.Equal(t, "1750", server.HGet(getUserCacheKey(userID), "Quota"))
 
 }

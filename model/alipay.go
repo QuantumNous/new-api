@@ -223,7 +223,7 @@ func PopulateAlipayTopUpQuotas(topups []*TopUp) error {
 	return nil
 }
 
-// Both direct payment providers share the existing cumulative AlipayCredit watermark.
+// Direct payments and MixPay share the existing cumulative AlipayCredit watermark.
 // Keeping the persisted/cache names preserves compatibility with existing balances.
 func syncDirectPaymentQuotaCache(userID int, creditSequence int64) error {
 	if common.RedisEnabled {

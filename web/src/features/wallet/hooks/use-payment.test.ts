@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
-import { calculateAmount } from '../api'
+import { calculateAmount, requestWechatPayPayment } from '../api'
 import { PAYMENT_TYPES } from '../constants'
 import type { AmountResponse } from '../types'
 import { requestPaymentAmount, usePayment } from './use-payment'
@@ -141,4 +141,23 @@ describe('payment amount routing', () => {
     expect(result.current.amount).toBe(20)
     expect(result.current.calculating).toBe(false)
   })
+})
+
+test('direct channel checkout uses the quote obtained for this click instead of stale hook state', async () => {
+  vi.mocked(requestWechatPayPayment).mockResolvedValue({
+    success: true,
+    data: {
+      trade_no: 'WX-current',
+      amount: '7.25',
+      currency: 'CNY',
+      expires_at: 4102444800,
+      code_url: 'weixin://wxpay/current',
+    },
+  })
+  const { result } = renderHook(() => usePayment())
+  await act(async () => {
+    await result.current.processPayment(10, 'wechatpay_native', 7.25)
+  })
+  expect(requestWechatPayPayment).toHaveBeenCalledWith(10, '7.25')
+  expect(result.current.wechatCheckout?.trade_no).toBe('WX-current')
 })

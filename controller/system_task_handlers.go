@@ -18,6 +18,9 @@ import (
 // instances and each run is recorded as one task row. Call this before
 // service.StartSystemTaskRunner.
 func RegisterScheduledSystemTasks() {
+	service.RegisterSystemTaskHandler(mixpayReconcileHandler{})
+	service.RegisterSystemTaskHandler(webmoneyReconcileHandler{})
+	service.RegisterSystemTaskHandler(antomReconcileHandler{})
 	service.RegisterSystemTaskHandler(alipayReconcileHandler{})
 	service.RegisterSystemTaskHandler(wechatpayReconcileHandler{})
 	service.RegisterSystemTaskHandler(channelTestHandler{})
@@ -198,4 +201,58 @@ func (wechatpayReconcileHandler) Run(ctx context.Context, task *model.SystemTask
 		return
 	}
 	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, nil, nil)
+}
+
+type mixpayReconcileHandler struct{}
+
+func (mixpayReconcileHandler) Type() string { return "mixpay_reconcile" }
+func (mixpayReconcileHandler) Enabled() bool {
+	var count int64
+	return model.DB.Model(&model.MixPayOrder{}).Where("next_check_at > 0").Limit(1).Count(&count).Error == nil && count > 0
+}
+func (mixpayReconcileHandler) Interval() time.Duration { return 2 * time.Second }
+func (mixpayReconcileHandler) NewPayload() any         { return nil }
+func (mixpayReconcileHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	err := service.RunMixPayReconciliation(ctx)
+	status := model.SystemTaskStatusSucceeded
+	if err != nil {
+		status = model.SystemTaskStatusFailed
+	}
+	finishSystemTaskHandler(task, runnerID, status, nil, err)
+}
+
+type webmoneyReconcileHandler struct{}
+
+func (webmoneyReconcileHandler) Type() string { return "webmoney_reconcile" }
+func (webmoneyReconcileHandler) Enabled() bool {
+	var count int64
+	return model.DB.Model(&model.WebMoneyOrder{}).Where("status = ? OR cache_pending = ? OR log_pending = ?", "paid", true, true).Limit(1).Count(&count).Error == nil && count > 0
+}
+func (webmoneyReconcileHandler) Interval() time.Duration { return 30 * time.Second }
+func (webmoneyReconcileHandler) NewPayload() any         { return nil }
+func (webmoneyReconcileHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	err := service.RunWebMoneyReconciliation(ctx)
+	status := model.SystemTaskStatusSucceeded
+	if err != nil {
+		status = model.SystemTaskStatusFailed
+	}
+	finishSystemTaskHandler(task, runnerID, status, nil, err)
+}
+
+type antomReconcileHandler struct{}
+
+func (antomReconcileHandler) Type() string { return "antom_reconcile" }
+func (antomReconcileHandler) Enabled() bool {
+	var count int64
+	return model.DB.Model(&model.AntomOrder{}).Where("next_check_at > 0 OR status = ? OR cache_pending = ? OR log_pending = ?", "paid", true, true).Limit(1).Count(&count).Error == nil && count > 0
+}
+func (antomReconcileHandler) Interval() time.Duration { return 30 * time.Second }
+func (antomReconcileHandler) NewPayload() any         { return nil }
+func (antomReconcileHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	err := service.RunAntomReconciliation(ctx)
+	status := model.SystemTaskStatusSucceeded
+	if err != nil {
+		status = model.SystemTaskStatusFailed
+	}
+	finishSystemTaskHandler(task, runnerID, status, nil, err)
 }

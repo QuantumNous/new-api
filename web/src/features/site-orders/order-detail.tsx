@@ -46,10 +46,11 @@ import { formatTimestampToDate, formatNumber } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { getOrder, recheckOrder, type OrderScope } from './api'
+import { getOrder, recheckOrder, recheckPersonalOrder, type OrderScope } from './api'
 import { OrderStatus } from './order-status'
 import { paymentAmount } from './presentation'
 import { RecoverOrder } from './recover-order'
+import { useOrderPayment } from './use-order-payment'
 
 export function OrderDetail(props: {
   id: number | null
@@ -61,6 +62,7 @@ export function OrderDetail(props: {
   const userId = useAuthStore((s) => s.auth.user?.id)
   const role = useAuthStore((s) => s.auth.user?.role ?? 0)
   const client = useQueryClient()
+  const payment = useOrderPayment(undefined, props.scope ?? 'site')
   const query = useQuery({
     queryKey: [
       'site-orders',
@@ -76,7 +78,10 @@ export function OrderDetail(props: {
     enabled: props.id !== null,
   })
   const mutation = useMutation({
-    mutationFn: recheckOrder,
+    mutationFn: async (id: number) => {
+      if (personal) await recheckPersonalOrder(id)
+      else await recheckOrder(id)
+    },
     onSettled: () => client.invalidateQueries({ queryKey: ['site-orders'] }),
   })
   const recovering =
@@ -100,13 +105,17 @@ export function OrderDetail(props: {
         [t('Payment Method'), getPaymentMethodName(order.payment_method, t)],
         [
           t('Environment'),
-          order.amount_fen === null ? t('Not recorded') : environment,
+          order.amount_fen === null && order.payment_provider !== 'antom'
+            ? t('Not recorded')
+            : environment,
         ],
         [t('Order amount'), paymentAmount(order)],
         [
           t('Confirmed payment'),
-          order.payment_amount ||
-          (order.provider_trade_no && order.amount_fen !== null)
+          (!['mixpay', 'webmoney', 'antom'].includes(order.payment_provider) ||
+            ['success', 'SUCCESS'].includes(order.gateway_status || '')) &&
+          (order.payment_amount ||
+            (order.provider_trade_no && order.amount_fen !== null))
             ? paymentAmount(order)
             : '—',
         ],
@@ -154,13 +163,33 @@ export function OrderDetail(props: {
   if (
     order &&
     !personal &&
-    ['alipay', 'wechatpay'].includes(order.payment_provider)
+    ['alipay', 'wechatpay', 'mixpay', 'webmoney', 'antom'].includes(
+      order.payment_provider
+    )
   ) {
     const closeReasons: Record<string, string> = {
       user_cancelled: t('Cancelled by user'),
       expired: t('Payment window expired'),
       gateway_closed: t('Closed by payment provider'),
     }
+    const webMoneyStatuses: Record<string, string> = {
+      '': t('Not recorded'),
+      success: t('Completed'),
+      'x18:8': t('Payment not found'),
+      'x18:9': t('Awaiting payment'),
+      'x18:13': t('Payment rejected'),
+      'hold:4': t('Payment held'),
+      'hold:12': t('Payment refunded'),
+      query_failed: t('Verification failed'),
+    }
+    const providerStatus =
+      order.payment_provider === 'webmoney'
+        ? (webMoneyStatuses[order.gateway_status || ''] ??
+            t('Verification failed')) +
+          (order.gateway_status?.startsWith('x18:')
+            ? ` (X18 ${order.gateway_status.slice(4)})`
+            : '')
+        : order.gateway_status || '—'
     fields.push(
       [t('Close reason'), closeReasons[order.close_reason ?? ''] ?? '—'],
       [
@@ -173,7 +202,7 @@ export function OrderDetail(props: {
         t('Closure confirmed at'),
         order.closed_at ? formatTimestampToDate(order.closed_at) : '—',
       ],
-      [t('Payment provider status'), order.gateway_status || '—'],
+      [t('Payment provider status'), providerStatus],
       [
         t('Last automatic check'),
         order.checked_at ? formatTimestampToDate(order.checked_at) : '—',
@@ -258,10 +287,22 @@ export function OrderDetail(props: {
                   )}
                 </p>
               )}
+              {personal && order.payment_provider === 'antom' && (
+                <div className='flex flex-wrap gap-2'><Button disabled={mutation.isPending || query.isFetching} onClick={() => mutation.mutate(order.id)}>{t('Check payment result')}</Button>
+                  {order.order_status === 'pending' && !order.cancel_requested && <Button variant='outline' disabled={payment.busy} onClick={() => payment.requestCancel(order)}>{t('Cancel order')}</Button>}
+                  {payment.dialogs}
+                </div>
+              )}
+              {!personal && role >= ROLE.SUPER_ADMIN && order.payment_provider === 'antom' && order.order_status === 'pending' && !order.cancel_requested && (
+                <><Button variant='outline' disabled={payment.busy} onClick={() => payment.requestCancel(order)}>{t('Cancel order')}</Button>{payment.dialogs}</>
+              )}
               {!personal &&
                 role >= ROLE.SUPER_ADMIN &&
-                order.order_type !== 'subscription' &&
-                ['alipay', 'wechatpay'].includes(order.payment_provider) && (
+                (order.order_type !== 'subscription' ||
+                  ['mixpay', 'antom', 'webmoney'].includes(order.payment_provider)) &&
+                ['alipay', 'wechatpay', 'mixpay', 'webmoney', 'antom'].includes(
+                  order.payment_provider
+                ) && (
                   <Button
                     disabled={
                       mutation.isPending || query.isFetching || recovering
@@ -273,8 +314,11 @@ export function OrderDetail(props: {
                 )}
               {!personal &&
                 role >= ROLE.SUPER_ADMIN &&
-                order.order_type !== 'subscription' &&
-                ['alipay', 'wechatpay'].includes(order.payment_provider) && (
+                (order.order_type !== 'subscription' ||
+                  ['mixpay', 'antom', 'webmoney'].includes(order.payment_provider)) &&
+                ['alipay', 'wechatpay', 'mixpay', 'webmoney', 'antom'].includes(
+                  order.payment_provider
+                ) && (
                   <RecoverOrder
                     order={order}
                     disabled={
@@ -283,7 +327,13 @@ export function OrderDetail(props: {
                   />
                 )}
               {!personal &&
-                !['alipay', 'wechatpay'].includes(order.payment_provider) && (
+                ![
+                  'alipay',
+                  'wechatpay',
+                  'mixpay',
+                  'webmoney',
+                  'antom',
+                ].includes(order.payment_provider) && (
                   <p className='text-muted-foreground text-xs'>
                     {t(
                       'Payment verification and recovery are not available for this payment channel.'

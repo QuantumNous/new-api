@@ -70,8 +70,16 @@ export default defineConfig(({ envMode }) => {
       host: '0.0.0.0',
       strictPort: false,
       proxy: devProxy,
+      headers: isProd ? undefined : { 'Cache-Control': 'no-store' },
     },
     output: {
+      // Version development assets too: public tunnels may retain old browser caches.
+      filename: isProd
+        ? undefined
+        : {
+            js: '[name].[contenthash:8].js',
+            css: '[name].[contenthash:8].css',
+          },
       // Production optimizations
       minify: isProd,
       target: 'web',

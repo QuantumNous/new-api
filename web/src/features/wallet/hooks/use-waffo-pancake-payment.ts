@@ -21,6 +21,7 @@ import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 
 import { handleServerError } from '@/lib/handle-server-error'
+import { openPaymentWindow } from '@/lib/payment-window'
 
 import { requestWaffoPancakePayment, isApiSuccess } from '../api'
 
@@ -67,8 +68,6 @@ function getErrorMessage(message: string | undefined, data: unknown): string {
 /**
  * Hook for the Waffo Pancake hosted-checkout flow.
  *
- * Same-tab redirect (window.location.href) rather than window.open: the
- * user-gesture context is lost across the await, so popups get blocked.
  */
 export function useWaffoPancakePayment() {
   const [processing, setProcessing] = useState(false)
@@ -90,8 +89,9 @@ export function useWaffoPancakePayment() {
               toast.error(i18next.t('Invalid payment redirect URL'))
               return false
             }
-            toast.success(i18next.t('Redirecting to payment page...'))
-            window.location.href = checkoutUrl
+            if (openPaymentWindow(checkoutUrl)) {
+              toast.success(i18next.t('Redirecting to payment page...'))
+            }
             return true
           }
         }

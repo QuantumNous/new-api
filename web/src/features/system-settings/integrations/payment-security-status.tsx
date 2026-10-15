@@ -40,6 +40,9 @@ interface SecurityStatus {
   migration_enabled: boolean
   alipay: 'unknown' | 'empty' | 'verified' | 'error'
   wechatpay: 'unknown' | 'empty' | 'verified' | 'error'
+  webmoney: 'unknown' | 'empty' | 'verified' | 'error'
+  antom: 'unknown' | 'empty' | 'verified' | 'error'
+  antom_sessions: 'unknown' | 'empty' | 'verified' | 'error'
 }
 
 export function PaymentSecurityStatus() {
@@ -74,7 +77,7 @@ export function PaymentSecurityStatus() {
         <CardTitle>{t('Payment security')}</CardTitle>
         <CardDescription>
           {t(
-            'Checks stored Alipay and WeChat Pay credentials, including historical configurations. Other gateways are not covered.'
+            'Checks encrypted credentials for Alipay, WeChat Pay, WebMoney, and Antom, including historical configurations and Antom checkout links. MixPay does not require secret credentials.'
           )}
         </CardDescription>
         <CardAction>
@@ -151,6 +154,26 @@ export function PaymentSecurityStatus() {
                   </Badge>
                 </dd>
               </div>
+              {(
+                [
+                  ['webmoney', 'WebMoney'],
+                  ['antom', 'Antom'],
+                  ['antom_sessions', t('Antom checkout links')],
+                ] as const
+              ).map(([key, label]) => (
+                <div key={key}>
+                  <dt className='text-muted-foreground mb-2'>{label}</dt>
+                  <dd>
+                    <Badge
+                      variant={
+                        status[key] === 'error' ? 'destructive' : 'secondary'
+                      }
+                    >
+                      {labels[status[key] || 'unknown']}
+                    </Badge>
+                  </dd>
+                </div>
+              ))}
             </dl>
             {status.migration_enabled && (
               <p role='alert' className='text-destructive text-sm'>
@@ -161,7 +184,10 @@ export function PaymentSecurityStatus() {
             )}
             {(status.key_file_status !== 'ready' ||
               status.alipay === 'error' ||
-              status.wechatpay === 'error') && (
+              status.wechatpay === 'error' ||
+              status.webmoney === 'error' ||
+              status.antom === 'error' ||
+              status.antom_sessions === 'error') && (
               <p role='alert' className='text-destructive text-sm'>
                 {t(
                   'Ask the server operator to check the payment key file and credential migration.'

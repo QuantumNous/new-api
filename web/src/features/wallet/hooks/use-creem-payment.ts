@@ -21,6 +21,7 @@ import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
 
 import { handleServerError } from '@/lib/handle-server-error'
+import { openPaymentWindow } from '@/lib/payment-window'
 
 import { requestCreemPayment, isApiSuccess } from '../api'
 
@@ -39,8 +40,9 @@ export function useCreemPayment() {
       })
 
       if (isApiSuccess(response) && response.data?.checkout_url) {
-        window.open(response.data.checkout_url, '_blank')
-        toast.success(i18next.t('Redirecting to Creem checkout...'))
+        if (openPaymentWindow(response.data.checkout_url)) {
+          toast.success(i18next.t('Redirecting to Creem checkout...'))
+        }
         return true
       }
 

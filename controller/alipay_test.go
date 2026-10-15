@@ -85,7 +85,7 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 			model.LOG_DB = db
 			common.RedisEnabled = false
 			common.SetMainDatabaseType(common.DatabaseType(dialect))
-			tables := []any{&model.WechatPayConfig{}, &model.WechatPayOrder{}, &model.AlipayOrder{}, &model.AlipayConfig{}, &model.TopUp{}, &model.SubscriptionOrder{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.User{}, &model.Log{}}
+			tables := []any{&model.WebMoneyOrder{}, &model.AntomOrder{}, &model.AntomConfig{}, &model.MixPayOrder{}, &model.WechatPayConfig{}, &model.WechatPayOrder{}, &model.AlipayOrder{}, &model.AlipayConfig{}, &model.TopUp{}, &model.SubscriptionOrder{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.User{}, &model.Log{}}
 			t.Cleanup(func() {
 				require.NoError(t, db.Migrator().DropTable(tables...))
 				model.DB = oldDB
@@ -1607,4 +1607,65 @@ func TestPaymentSecretKeyring(t *testing.T) {
 	require.NoError(t, os.Chmod(path, 0644))
 	_, err = paymentsecret.Load()
 	assert.Error(t, err)
+}
+
+func TestMixPayCallbackAndOrderAuthorization(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "mixpay-callback.db")), &gorm.Config{Logger: logger.Discard})
+	require.NoError(t, err)
+	old := model.DB
+	model.DB = db
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { model.DB = old; require.NoError(t, sqlDB.Close()) })
+	require.NoError(t, db.AutoMigrate(&model.WebMoneyOrder{}, &model.AntomOrder{}, &model.AntomConfig{}, &model.MixPayOrder{}))
+	order := model.MixPayOrder{TradeNo: "MXcallback", TraceID: "trace", PayeeID: "payee", UserID: 17, Status: "pending", RequestKey: "key"}
+	require.NoError(t, db.Create(&order).Error)
+	router := gin.New()
+	require.NoError(t, router.SetTrustedProxies(nil))
+	router.POST("/notify", MixPayNotify)
+	router.GET("/orders/:trade_no", func(c *gin.Context) { c.Set("id", 18) }, GetMixPayOrderStatus)
+	router.POST("/recheck/:trade_no", func(c *gin.Context) { c.Set("id", 18) }, RecheckMixPayReturn)
+	router.POST("/owner-recheck/:trade_no", func(c *gin.Context) { c.Set("id", 17) }, RecheckMixPayReturn)
+
+	for _, tc := range []struct {
+		name, ip, body string
+		want           int
+	}{
+		{"spoofed forwarding header", "192.0.2.1:1234", `{"orderId":"MXcallback","traceId":"trace","payeeId":"payee"}`, 403},
+		{"wrong trace", "52.198.117.57:1234", `{"orderId":"MXcallback","traceId":"other","payeeId":"payee"}`, 400},
+		{"durable valid notification", "52.198.117.57:1234", `{"orderId":"MXcallback","traceId":"trace","payeeId":"payee"}`, 200},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/notify", strings.NewReader(tc.body))
+			req.RemoteAddr = tc.ip
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Forwarded-For", "52.198.117.57")
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+			require.Equal(t, tc.want, rec.Code)
+			if tc.want == 200 {
+				assert.JSONEq(t, `{"code":"SUCCESS"}`, rec.Body.String())
+			}
+		})
+	}
+	saved, err := model.GetMixPayOrder(order.TradeNo)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, saved.WakeVersion)
+	assert.Positive(t, saved.NextCheckAt)
+	assert.Equal(t, "pending", saved.Status, "notification is never payment evidence")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/orders/MXcallback", nil))
+	assert.Equal(t, 404, rec.Code)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/recheck/MXcallback", nil))
+	assert.Equal(t, 404, rec.Code)
+	require.NoError(t, db.Model(&order).Update("creation_state", "queued").Error)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/owner-recheck/MXcallback", nil))
+	assert.Equal(t, 200, rec.Code)
+	assert.Contains(t, rec.Body.String(), `"status":"pending"`, "return cannot create a checkout or assume success")
+	require.NoError(t, db.Model(&order).Update("status", "success").Error)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/owner-recheck/MXcallback", nil))
+	assert.Contains(t, rec.Body.String(), `"status":"success"`)
 }

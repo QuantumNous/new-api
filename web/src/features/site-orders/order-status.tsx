@@ -55,7 +55,9 @@ export function OrderStatus(props: { order: SiteOrder }) {
           copyable={false}
         />
       )}
-      {(props.order.last_error || props.order.review_required) && (
+      {(props.order.review_required ||
+        (props.order.payment_provider !== 'mixpay' &&
+          props.order.last_error)) && (
         <StatusBadge
           label={t('Payment requires attention')}
           variant='danger'

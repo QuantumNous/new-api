@@ -99,3 +99,27 @@ test('shows migration and verification warnings without a healthy label', async 
   await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(2))
   expect(screen.queryByText('Encrypted and verified')).not.toBeInTheDocument()
 })
+
+test('shows WebMoney and Antom checks and warns about corrupted checkout links', async () => {
+  vi.mocked(api.get).mockResolvedValue({
+    data: {
+      success: true,
+      data: {
+        key_file_status: 'ready',
+        alipay: 'empty',
+        wechatpay: 'empty',
+        webmoney: 'verified',
+        antom: 'verified',
+        antom_sessions: 'error',
+        migration_enabled: false,
+      },
+    },
+  })
+  renderStatus()
+  expect(await screen.findByText('WebMoney')).toBeVisible()
+  expect(screen.getByText('Antom')).toBeVisible()
+  expect(screen.getByText('Antom checkout links')).toBeVisible()
+  expect(screen.getAllByText('Encrypted and verified')).toHaveLength(2)
+  expect(screen.getByText('Verification failed')).toBeVisible()
+  expect(screen.getByRole('alert')).toBeVisible()
+})

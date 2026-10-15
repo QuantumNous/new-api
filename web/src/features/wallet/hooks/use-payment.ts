@@ -21,7 +21,9 @@ import { useState, useCallback, useRef } from 'react'
 import { toast } from 'sonner'
 
 import { handleServerError } from '@/lib/handle-server-error'
+import { openPaymentWindow } from '@/lib/payment-window'
 
+import { createAntomPayment, quoteAntom } from '../antom'
 import {
   calculateAmount,
   calculateAlipayAmount,
@@ -42,7 +44,9 @@ import {
   isWaffoPancakePayment,
   submitPaymentForm,
 } from '../lib'
+import { createMixPayPayment, quoteMixPay } from '../mixpay'
 import type { AmountRequest, AmountResponse } from '../types'
+import { createWebMoneyPayment, quoteWebMoney } from '../webmoney'
 
 // ============================================================================
 // Payment Hook
@@ -73,6 +77,14 @@ export async function requestPaymentAmount(
   paymentType: string,
   calculators: PaymentAmountCalculators = defaultPaymentAmountCalculators
 ): Promise<number> {
+  if (paymentType === 'antom')
+    {return Number((await quoteAntom(topupAmount)).data)}
+  if (paymentType === 'webmoney') {
+    return Number((await quoteWebMoney(topupAmount)).data)
+  }
+  if (paymentType === 'mixpay') {
+    return Number((await quoteMixPay(topupAmount)).data)
+  }
   let calculator = calculators.regular
   if (paymentType === 'wechatpay_native') {
     calculator = calculators.wechatpay || calculateWechatPayAmount
@@ -95,6 +107,10 @@ export async function requestPaymentAmount(
 }
 
 export function usePayment() {
+  const [antomTradeNo, setAntomTradeNo] = useState<string | null>(null)
+  const [webmoneyTradeNo, setWebmoneyTradeNo] = useState<string | null>(null)
+  const [mixpayTradeNo, setMixpayTradeNo] = useState<string | null>(null)
+  const mixpayRequest = useRef<{ amount: number; key: string } | null>(null)
   const [wechatCheckout, setWechatCheckout] =
     useState<WechatPayCheckout | null>(null)
   const [amount, setAmount] = useState<number>(0)
@@ -133,16 +149,45 @@ export function usePayment() {
 
   // Process payment
   const processPayment = useCallback(
-    async (topupAmount: number, paymentType: string) => {
+    async (
+      topupAmount: number,
+      paymentType: string,
+      expectedAmount?: number
+    ) => {
       try {
         setProcessing(true)
 
+        if (['mixpay', 'webmoney', 'antom'].includes(paymentType)) {
+          if (
+            !mixpayRequest.current ||
+            mixpayRequest.current.amount !== topupAmount
+          ) {
+            mixpayRequest.current = {
+              amount: topupAmount,
+              key: crypto.randomUUID(),
+            }
+          }
+          let createPayment = createMixPayPayment
+          if (paymentType === 'antom') { createPayment = createAntomPayment }
+          else if (paymentType === 'webmoney') { createPayment = createWebMoneyPayment }
+          const checkout = await createPayment(
+            Math.floor(topupAmount),
+            (expectedAmount ?? amount).toFixed(2),
+            mixpayRequest.current.key
+          )
+          if (paymentType === 'antom') setAntomTradeNo(checkout.trade_no)
+          else if (paymentType === 'webmoney')
+            {setWebmoneyTradeNo(checkout.trade_no)}
+          else setMixpayTradeNo(checkout.trade_no)
+          mixpayRequest.current = null
+          return true
+        }
         const isStripe = isStripePayment(paymentType)
         const quotaAmount = Math.floor(topupAmount)
         if (paymentType === 'wechatpay_native') {
           const response = await requestWechatPayPayment(
             quotaAmount,
-            amount.toFixed(2)
+            (expectedAmount ?? amount).toFixed(2)
           )
           if (!isApiSuccess(response) || !response.data?.code_url) {
             handleServerError(response, i18next.t('Payment request failed'))
@@ -154,7 +199,7 @@ export function usePayment() {
         if (paymentType === 'alipay_direct') {
           const response = await requestAlipayPayment(
             quotaAmount,
-            amount.toFixed(2)
+            (expectedAmount ?? amount).toFixed(2)
           )
           if (!isApiSuccess(response) || !response.data?.pay_link) {
             handleServerError(response, i18next.t('Payment request failed'))
@@ -169,7 +214,7 @@ export function usePayment() {
           } catch {
             /* Storage may be unavailable in private browsing. */
           }
-          window.location.assign(response.data.pay_link)
+          openPaymentWindow(response.data.pay_link)
           return true
         }
 
@@ -190,8 +235,9 @@ export function usePayment() {
 
         // Handle Stripe payment
         if (isStripe && response.data?.pay_link) {
-          window.open(response.data.pay_link as string, '_blank')
-          toast.success(i18next.t('Redirecting to payment page...'))
+          if (openPaymentWindow(response.data.pay_link as string)) {
+            toast.success(i18next.t('Redirecting to payment page...'))
+          }
           return true
         }
 
@@ -217,6 +263,12 @@ export function usePayment() {
   )
 
   return {
+    antomTradeNo,
+    setAntomTradeNo,
+    webmoneyTradeNo,
+    setWebmoneyTradeNo,
+    mixpayTradeNo,
+    setMixpayTradeNo,
     wechatCheckout,
     setWechatCheckout,
     amount,

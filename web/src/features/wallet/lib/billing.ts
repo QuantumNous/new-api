@@ -60,6 +60,9 @@ export function getStatusConfig(status: TopupStatus): StatusConfig {
  */
 export const PAYMENT_METHOD_NAMES: Record<string, string> = {
   stripe: 'Stripe',
+  mixpay: 'MixPay',
+  webmoney: 'WebMoney',
+  antom: 'Antom',
   alipay: 'Alipay',
   alipay_direct: 'Alipay',
   wechatpay_native: 'WeChat Pay',

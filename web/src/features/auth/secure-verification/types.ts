@@ -25,6 +25,9 @@ export type VerificationMethod =
   | 'oauth'
   | 'session'
 export type SecurityProofScope =
+  | 'payment.antom.configure'
+  | 'payment.webmoney.configure'
+  | 'payment.mixpay.configure'
   | 'payment.alipay.configure'
   | 'payment.wechatpay.configure'
   | 'channel.key.read'
@@ -54,7 +57,12 @@ export type AdminUserManageAction = 'disable' | 'enable' | 'promote' | 'demote'
 
 export type VerificationOperation =
   | {
-      scope: 'payment.alipay.configure' | 'payment.wechatpay.configure'
+      scope:
+        | 'payment.antom.configure'
+        | 'payment.webmoney.configure'
+        | 'payment.mixpay.configure'
+        | 'payment.alipay.configure'
+        | 'payment.wechatpay.configure'
       context: { config_hash: string }
     }
   | { scope: 'channel.key.read'; context: { channel_id: number } }
@@ -97,6 +105,9 @@ export type VerificationOperation =
   | {
       scope: Exclude<
         SecurityProofScope,
+        | 'payment.antom.configure'
+        | 'payment.webmoney.configure'
+        | 'payment.mixpay.configure'
         | 'payment.alipay.configure'
         | 'payment.wechatpay.configure'
         | 'channel.key.read'

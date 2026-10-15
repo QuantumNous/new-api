@@ -21,11 +21,22 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, test, vi } from 'vitest'
 
+import {
+  quoteMixPay,
+  createMixPayPayment,
+  getMixPayPayment,
+} from '@/features/wallet/mixpay'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
 import { quoteSubscriptionDirect, paySubscriptionDirect } from '../../../api'
 import type { PlanRecord } from '../../../types'
 import { SubscriptionPurchaseDialog } from '../subscription-purchase-dialog'
+
+vi.mock('@/features/wallet/mixpay', () => ({
+  quoteMixPay: vi.fn(),
+  createMixPayPayment: vi.fn(),
+  getMixPayPayment: vi.fn(),
+}))
 
 vi.mock('../../../api', async (original) => ({
   ...(await original<typeof import('../../../api')>()),
@@ -87,6 +98,31 @@ describe('subscription purchase dialog payment methods', () => {
       configuredIconUrl
     )
   })
+})
+
+test('multiple payment methods wrap within the dialog and remain selectable', async () => {
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <SubscriptionPurchaseDialog
+        open
+        onOpenChange={vi.fn()}
+        plan={plan}
+        enableOnlineTopUp
+        epayMethods={[
+          { type: 'alipay', name: 'Alipay' },
+          { type: 'wxpay', name: 'WeChat Pay' },
+          { type: 'bank', name: 'Bank' },
+          { type: 'local', name: 'Local Pay' },
+        ]}
+      />
+    </QueryClientProvider>
+  )
+  const group = screen.getByRole('radiogroup', { name: 'Payment Method' })
+  expect(group).toHaveClass('flex-wrap')
+  expect(group).not.toHaveClass('overflow-x-auto')
+  const method = screen.getByRole('radio', { name: 'Local Pay' })
+  await userEvent.click(method)
+  expect(method).toHaveAttribute('aria-checked', 'true')
 })
 
 test('offers direct payments and uses server quote when starting a one-time WeChat subscription', async () => {
@@ -189,5 +225,90 @@ test('a CNY plan uses its fixed yuan price and the equivalent wallet quota', () 
   )
   expect(screen.getAllByText('¥7').length).toBeGreaterThan(0)
   expect(screen.getByRole('button', { name: 'Continue' })).toBeEnabled()
+  client.clear()
+})
+
+test('MixPay subscription uses a USD quote and waits for fulfillment before activation', async () => {
+  vi.mocked(quoteMixPay).mockResolvedValue({ success: true, data: '10.00' })
+  const checkout = {
+    payment_provider: 'mixpay' as const,
+    trade_no: 'MXsubscription',
+    amount: '10.00',
+    currency: 'USD',
+    expires_at: 4102444800,
+    status: 'pending',
+    gateway_status: 'unpaid',
+    creation_state: 'ready',
+    pay_link: 'https://mixpay.me/code/sub',
+    review_required: false,
+  }
+  vi.mocked(createMixPayPayment).mockResolvedValue(checkout)
+  vi.mocked(getMixPayPayment).mockResolvedValue(checkout)
+  const onPurchaseSuccess = vi.fn()
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      }
+    >
+      <SubscriptionPurchaseDialog
+        open
+        onOpenChange={vi.fn()}
+        plan={plan}
+        enableMixPay
+        onPurchaseSuccess={onPurchaseSuccess}
+      />
+    </QueryClientProvider>
+  )
+  await screen.findByText('USD 10.00')
+  await userEvent.click(screen.getByRole('button', { name: 'Continue' }))
+  expect(
+    await screen.findByRole('button', { name: 'Open payment page' })
+  ).toBeVisible()
+  expect(createMixPayPayment).toHaveBeenCalledWith(
+    0,
+    '10.00',
+    expect.any(String),
+    1
+  )
+  expect(paySubscriptionDirect).not.toHaveBeenCalled()
+  expect(onPurchaseSuccess).not.toHaveBeenCalled()
+})
+
+vi.mock('@/features/wallet/antom', () => ({
+  quoteAntom: vi.fn(), createAntomPayment: vi.fn(), getAntomPayment: vi.fn(),
+}))
+vi.mock('@/features/wallet/webmoney', () => ({
+  quoteWebMoney: vi.fn(), createWebMoneyPayment: vi.fn(), getWebMoneyPayment: vi.fn(),
+}))
+
+test.each(['antom', 'webmoney'] as const)('%s purchases the selected subscription and activates only after server fulfillment', async (provider) => {
+  const antom = await import('@/features/wallet/antom')
+  const webmoney = await import('@/features/wallet/webmoney')
+  const quote = provider === 'antom' ? antom.quoteAntom : webmoney.quoteWebMoney
+  const create = provider === 'antom' ? antom.createAntomPayment : webmoney.createWebMoneyPayment
+  const get = provider === 'antom' ? antom.getAntomPayment : webmoney.getWebMoneyPayment
+  const currency = provider === 'antom' ? 'USD' : 'WMT'
+  vi.mocked(quote).mockResolvedValue({data: '10.00'})
+  const checkout = {
+    payment_provider: provider, trade_no: `SUB${provider}`, amount: '10.00', currency,
+    expires_at: 4102444800, status: 'pending', gateway_status: '', creation_state: 'ready',
+    pay_link: '', review_required: false,
+  }
+  vi.mocked(create).mockResolvedValue(checkout)
+  vi.mocked(get).mockResolvedValue(checkout)
+  const onPurchaseSuccess = vi.fn()
+  const client = new QueryClient({defaultOptions:{queries:{retry:false}}})
+  render(<QueryClientProvider client={client}><SubscriptionPurchaseDialog open plan={plan}
+    enableAntom={provider === 'antom'} enableWebMoney={provider === 'webmoney'}
+    onOpenChange={vi.fn()} onPurchaseSuccess={onPurchaseSuccess} /></QueryClientProvider>)
+  await screen.findByText(`${currency} 10.00`)
+  await userEvent.click(screen.getByRole('button', {name:'Continue'}))
+  await waitFor(() => expect(get).toHaveBeenCalledWith(checkout.trade_no))
+  expect(quote).toHaveBeenCalledWith(0, 1)
+  expect(create).toHaveBeenCalledWith(0, '10.00', expect.any(String), 1)
+  expect(onPurchaseSuccess).not.toHaveBeenCalled()
+  client.setQueryData([`${provider}-order`, checkout.trade_no], {...checkout, status:'success'})
+  await waitFor(() => expect(onPurchaseSuccess).toHaveBeenCalledTimes(1))
   client.clear()
 })

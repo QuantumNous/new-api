@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { CreditCard, Landmark } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si'
+import { SiAlipay, SiStripe } from 'react-icons/si'
 
 import { ReactIconByName } from '@/components/react-icon-by-name'
 
@@ -30,6 +30,10 @@ import { PAYMENT_TYPES, PAYMENT_ICON_COLORS } from '../constants'
 
 export function getPaymentBrandClassName(paymentType?: string): string {
   switch (paymentType) {
+    case 'webmoney':
+      return 'text-[#036cb5] dark:text-sky-400'
+    case 'mixpay':
+      return 'text-blue-600 dark:text-blue-400'
     case PAYMENT_TYPES.ALIPAY:
     case PAYMENT_TYPES.ALIPAY_DIRECT:
       return 'text-blue-600 dark:text-blue-400'
@@ -47,6 +51,36 @@ export function getPaymentBrandClassName(paymentType?: string): string {
       return 'text-blue-600 dark:text-blue-400'
     default:
       return ''
+  }
+}
+
+// Shared geometry for every wallet payment action, including Waffo channels.
+export const PAYMENT_ACTION_CLASS_NAME =
+  'relative h-14 min-h-14 w-full min-w-0 shrink-0 gap-2 overflow-hidden rounded-xl border px-3 py-2 text-sm font-semibold whitespace-normal text-white transition-transform duration-150 ease-out motion-safe:enabled:hover:scale-[1.02] motion-reduce:transition-none'
+
+// Brand shades retain contrast with white payment-button labels.
+export function getPaymentButtonClassName(paymentType: string): string {
+  switch (paymentType) {
+    case 'antom':
+      return 'border border-[#0a22aa]/20 bg-white text-[#0a22aa]'
+    case 'webmoney':
+      return 'bg-[#036cb5]'
+    case PAYMENT_TYPES.WECHAT:
+    case 'wechatpay_native':
+      return 'bg-[#07883f]'
+    case PAYMENT_TYPES.ALIPAY:
+    case PAYMENT_TYPES.ALIPAY_DIRECT:
+      return 'bg-[#0969da]'
+    case 'mixpay':
+      return 'bg-[#194bff]'
+    case PAYMENT_TYPES.STRIPE:
+      return 'bg-[#635bff]'
+    case PAYMENT_TYPES.CREEM:
+      return 'bg-indigo-600'
+    case PAYMENT_TYPES.WAFFO_PANCAKE:
+      return 'bg-orange-700'
+    default:
+      return 'bg-blue-600'
   }
 }
 
@@ -118,7 +152,14 @@ export function getPaymentIcon(
       />
     )
   }
-  if (iconValue) {
+  if (
+    iconValue &&
+    !(
+      iconValue === 'SiWechat' &&
+      (paymentType === PAYMENT_TYPES.WECHAT ||
+        paymentType === 'wechatpay_native')
+    )
+  ) {
     return (
       <ReactIconByName
         name={iconValue}
@@ -134,6 +175,33 @@ export function getPaymentIcon(
   }
 
   switch (paymentType) {
+    case 'antom':
+      return (
+        <img
+          src='/antom-logo.svg'
+          alt='Antom'
+          className={className}
+          style={{ width: 'auto', objectFit: 'contain' }}
+        />
+      )
+    case 'webmoney':
+      return (
+        <img
+          src='/webmoney-logo.svg'
+          alt={altName || 'WebMoney'}
+          className={className}
+          style={{ objectFit: 'contain' }}
+        />
+      )
+    case 'mixpay':
+      return (
+        <img
+          src='/mixpay-logo.svg'
+          alt={altName || 'MixPay'}
+          className={className}
+          style={{ objectFit: 'contain' }}
+        />
+      )
     case PAYMENT_TYPES.ALIPAY:
     case PAYMENT_TYPES.ALIPAY_DIRECT:
       return (
@@ -145,9 +213,11 @@ export function getPaymentIcon(
     case PAYMENT_TYPES.WECHAT:
     case 'wechatpay_native':
       return (
-        <SiWechat
+        <img
+          src='/wechatpay-logo.svg'
+          alt={altName || 'WeChat Pay'}
           className={className}
-          style={{ color: PAYMENT_ICON_COLORS[PAYMENT_TYPES.WECHAT] }}
+          style={{ objectFit: 'contain' }}
         />
       )
     case PAYMENT_TYPES.STRIPE:

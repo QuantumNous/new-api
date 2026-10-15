@@ -660,6 +660,9 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
 			return ErrSubscriptionOrderNotFound
 		}
+		if order.PaymentProvider == PaymentProviderMixPay || order.PaymentProvider == PaymentProviderAntom || order.PaymentProvider == PaymentProviderWebMoney {
+			return ErrPaymentMethodMismatch
+		}
 		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
 			return ErrPaymentMethodMismatch
 		}
@@ -792,6 +795,9 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) err
 		var order SubscriptionOrder
 		if err := lockForUpdate(tx).Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
 			return ErrSubscriptionOrderNotFound
+		}
+		if order.PaymentProvider == PaymentProviderMixPay || order.PaymentProvider == PaymentProviderAntom || order.PaymentProvider == PaymentProviderWebMoney {
+			return ErrPaymentMethodMismatch
 		}
 		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
 			return ErrPaymentMethodMismatch
