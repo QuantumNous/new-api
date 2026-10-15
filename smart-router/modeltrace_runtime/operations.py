@@ -316,8 +316,7 @@ class Operations:
                         "response_received": False,
                     }})
             changed = True
-        if changed:
-            self._write(state)
+        return changed
 
     def begin(self, operation_id: str, parameter_digest: str) -> dict:
         _identity(operation_id)
@@ -335,9 +334,19 @@ class Operations:
                 except BlockingIOError:
                     os.close(lease)
                     return _view(record) if record is not None else {"status": "busy"}
+                except BaseException:
+                    os.close(lease)
+                    raise
                 self._lease = lease
                 try:
-                    self._recover(state)
+                    if self._recover(state):
+                        try:
+                            self._write(state)
+                        except OSError:
+                            self._poisoned = True
+                            # Validated history remains readable, never executable.
+                            if record is None:
+                                raise
                 except BaseException:
                     self._release()
                     raise

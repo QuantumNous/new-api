@@ -1,8 +1,11 @@
 from concurrent.futures import ThreadPoolExecutor
+import errno
+import fcntl
 import json
 import os
 from pathlib import Path
 import select
+import stat
 import subprocess
 import sys
 import tempfile
@@ -20,6 +23,264 @@ RESULT = {"status": "ok", "numbers": [3, 2, 3] * 30, "eligible": True,
 
 
 class OperationsTest(unittest.TestCase):
+    def seed_interrupted_history(self, root, operation_id="operation-1"):
+        with Operations(root) as owner:
+            owner.begin(operation_id, DIGEST)
+            owner._attach_plan(operation_id, PLAN + [
+                {"slot_id": "query-02", "expected_count": 100}])
+            self.assertTrue(owner.claim_slot(operation_id, "query-01"))
+            owner.finish_slot(operation_id, "query-01", RESULT)
+            self.assertTrue(owner.claim_slot(operation_id, "query-02"))
+        return json.loads((root / "ledger.json").read_bytes())
+
+    def test_readable_recovery_faults_never_grant_admission_or_ownership(self):
+        for boundary in ("file", "replace"):
+            with self.subTest(boundary=boundary), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp) / "ledger"
+                self.seed_interrupted_history(root)
+                ledger = (root / "ledger.json").read_bytes()
+                guard = (root / "pending.json").read_bytes()
+                sync, replace = os.fsync, os.replace
+
+                def failing_sync(descriptor):
+                    if boundary == "file" and stat.S_ISREG(os.fstat(descriptor).st_mode):
+                        raise OSError("synthetic-recovery-secret")
+                    return sync(descriptor)
+
+                def failing_replace(source, destination, **options):
+                    if boundary == "replace":
+                        raise OSError("synthetic-recovery-secret")
+                    return replace(source, destination, **options)
+
+                with Operations(root) as operations:
+                    with patch("modeltrace_runtime.operations.os.fsync",
+                               side_effect=failing_sync), patch(
+                            "modeltrace_runtime.operations.os.replace",
+                            side_effect=failing_replace):
+                        saved = operations.begin("operation-1", DIGEST)
+                        self.assertEqual(saved["counts"], {
+                            "requested": 2, "intents": 2, "transport_calls": None,
+                            "known_responses": 1, "accepted": 1, "rejected": 0,
+                            "unknown": 1, "unattempted": 0,
+                        })
+                        self.assertEqual(saved["status"], "write_unknown")
+                        self.assertEqual(saved["slots"]["query-01"]["result"], RESULT)
+                        self.assertNotIn("_created", saved)
+                        for operation_id in ("operation-1", "operation-2"):
+                            self.assertFalse(operations.claim_slot(operation_id, "query-02"))
+                            with self.assertRaisesRegex(ValueError, "not_operation_owner"):
+                                operations._attach_plan(operation_id, PLAN)
+                            with self.assertRaisesRegex(ValueError, "not_operation_owner"):
+                                operations.finish_slot(operation_id, "query-01", RESULT)
+                        self.assertTrue(operations._poisoned)
+                        self.assertIsNone(operations._owner)
+                        self.assertIsNone(operations._lease)
+                        self.assertEqual(operations.begin("operation-1", DIGEST), saved)
+                        saved["slots"]["query-01"]["result"]["numbers"].clear()
+                        self.assertEqual(
+                            operations.begin("operation-1", DIGEST)["slots"][
+                                "query-01"]["result"], RESULT)
+                        self.assertEqual(operations.begin(
+                            "operation-1", "b" * 64), {"status": "conflict"})
+                        with self.assertRaisesRegex(OSError, "ledger_persistence_failed"):
+                            operations.begin("operation-2", DIGEST)
+                        self.assertIsNone(operations._lease)
+                        # A fresh, initially unpoisoned instance also cannot admit work.
+                        with Operations(root) as other:
+                            with self.assertRaisesRegex(OSError, "ledger_persistence_failed"):
+                                other.begin("operation-2", DIGEST)
+                            self.assertTrue(other._poisoned)
+                            self.assertIsNone(other._lease)
+                            self.assertIsNone(other._owner)
+                        self.assertEqual((root / "ledger.json").read_bytes(), ledger)
+                        self.assertEqual((root / "pending.json").read_bytes(), guard)
+                    with self.assertRaisesRegex(ValueError, "ledger_capacity"):
+                        operations.begin("operation-2", DIGEST)
+                    self.assertIsNone(operations._lease)
+                with Operations(root) as healthy:
+                    self.assertTrue(healthy.begin("operation-2", DIGEST)["_created"])
+                    self.assertEqual(healthy.begin(
+                        "operation-1", DIGEST)["counts"]["accepted"], 1)
+
+    def test_recovery_of_multiple_historical_operations_preserves_safe_samples(self):
+        with tempfile.TemporaryDirectory() as temp:
+            parent = Path(temp)
+            records = {}
+            for operation_id in ("history-1", "history-2"):
+                state = self.seed_interrupted_history(parent / operation_id, operation_id)
+                records.update(state["operations"])
+            with Operations(parent / "completed") as complete:
+                complete.begin("history-0", DIGEST)
+                complete._attach_plan("history-0", PLAN)
+                complete.claim_slot("history-0", "query-01")
+                complete.finish_slot("history-0", "query-01", RESULT)
+                complete._finalize("history-0", "succeeded")
+            records.update(json.loads((parent / "completed/ledger.json").read_bytes())[
+                "operations"])
+            # Model an imported version-1 snapshot with multiple unfinished owners,
+            # using actual persisted histories rather than invented terminal samples.
+            root = parent / "ledger"
+            root.mkdir(mode=0o700)
+            ledger = root / "ledger.json"
+            ledger.write_text(json.dumps({"version": 1, "operations": records}))
+            ledger.chmod(0o600)
+            original = ledger.read_bytes()
+            with Operations(root) as operations:
+                with patch("modeltrace_runtime.operations.os.replace",
+                           side_effect=OSError("synthetic-multi-history")):
+                    completed = operations.begin("history-0", DIGEST)
+                    self.assertEqual(completed["status"], "succeeded")
+                    self.assertEqual(completed["slots"]["query-01"]["result"], RESULT)
+                    for operation_id in ("history-1", "history-2"):
+                        recovered = operations.begin(operation_id, DIGEST)
+                        self.assertEqual(recovered["status"], "write_unknown")
+                        self.assertEqual(recovered["counts"]["accepted"], 1)
+                        self.assertEqual(recovered["counts"]["unknown"], 1)
+                        self.assertEqual(recovered["slots"]["query-01"]["result"], RESULT)
+                        uncertain = recovered["slots"]["query-02"]["result"]
+                        self.assertEqual(uncertain["numbers"], [])
+                        self.assertFalse(uncertain["eligible"])
+                        self.assertNotIn("row", uncertain)
+                        self.assertEqual(operations.begin(operation_id, DIGEST), recovered)
+                        self.assertIsNone(operations._lease)
+                    with self.assertRaises(OSError):
+                        operations.begin("new-history", DIGEST)
+                    self.assertEqual(ledger.read_bytes(), original)
+            with Operations(root) as healthy:
+                self.assertEqual(healthy.begin("history-0", DIGEST), completed)
+                self.assertEqual(healthy._read()["operations"]["history-2"]["status"],
+                                 "write_unknown")
+                self.assertEqual(healthy.begin("history-1", DIGEST)["counts"]["accepted"], 1)
+
+    def test_replay_does_not_hide_validation_projection_or_interruption_errors(self):
+        faults = (
+            ("_read", OSError), ("_read", ValueError), ("_recover", OSError),
+            ("_write", ValueError), ("_write", KeyboardInterrupt), ("_write", SystemExit),
+        )
+        for method, error in faults:
+            with self.subTest(method=method, error=error.__name__):
+                with tempfile.TemporaryDirectory() as temp:
+                    root = Path(temp) / "ledger"
+                    self.seed_interrupted_history(root)
+                    with Operations(root) as operations:
+                        with patch.object(operations, method, side_effect=error("controlled")):
+                            with self.assertRaises(error):
+                                operations.begin("operation-1", DIGEST)
+                        self.assertIsNone(operations._lease)
+                        self.assertIsNone(operations._owner)
+                        self.assertFalse(operations._poisoned)
+                        self.assertEqual(operations.begin(
+                            "operation-1", DIGEST)["counts"]["accepted"], 1)
+
+    def test_failed_lease_acquisition_closes_descriptor_and_propagates(self):
+        for error in (OSError, KeyboardInterrupt, SystemExit):
+            with self.subTest(error=error.__name__), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp) / "ledger"
+                self.seed_interrupted_history(root)
+                with Operations(root) as operations:
+                    descriptors = []
+                    original_open, original_flock = operations._open, fcntl.flock
+
+                    def capture_open(name, flags):
+                        descriptor = original_open(name, flags)
+                        if name == "active.lock":
+                            descriptors.append(descriptor)
+                        return descriptor
+
+                    def failing_flock(descriptor, flags):
+                        if flags & fcntl.LOCK_NB:
+                            raise error("controlled-lease")
+                        return original_flock(descriptor, flags)
+
+                    with patch.object(operations, "_open", side_effect=capture_open), patch(
+                            "modeltrace_runtime.operations.fcntl.flock",
+                            side_effect=failing_flock):
+                        with self.assertRaises(error):
+                            operations.begin("operation-1", DIGEST)
+                    self.assertEqual(len(descriptors), 1)
+                    self.assertIsNone(operations._lease)
+                    self.assertIsNone(operations._owner)
+                    self.assertFalse(operations._poisoned)
+                    try:
+                        with self.assertRaises(OSError) as raised:
+                            os.fstat(descriptors[0])
+                        self.assertEqual(raised.exception.errno, errno.EBADF)
+                    finally:
+                        try:
+                            os.close(descriptors[0])
+                        except OSError:
+                            pass
+
+    def test_corrupt_historical_ledger_or_guard_never_uses_recovery_fallback(self):
+        for destination in ("ledger.json", "pending.json"):
+            with self.subTest(destination=destination), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp) / "ledger"
+                self.seed_interrupted_history(root)
+                (root / destination).write_bytes(b"{broken")
+                with Operations(root) as operations:
+                    with patch("modeltrace_runtime.operations.os.replace",
+                               side_effect=OSError("controlled-corrupt-write")) as replacement:
+                        with self.assertRaisesRegex(ValueError, "invalid_ledger_state"):
+                            operations.begin("operation-1", DIGEST)
+                        with self.assertRaisesRegex(ValueError, "invalid_ledger_state"):
+                            operations.begin("new-history", DIGEST)
+                        self.assertEqual(replacement.call_count, 0)
+                    self.assertFalse(operations._poisoned)
+                    self.assertIsNone(operations._lease)
+                    self.assertIsNone(operations._owner)
+
+    def test_readable_guarded_terminal_row_is_never_accepted_under_write_failure(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp) / "ledger"
+            row = {
+                "row_id": "row-01", "condition_id": "baseline",
+                "challenge_id": "query-01", "expected_count": 100,
+                "numbers": RESULT["numbers"], "source": "sample-model",
+            }
+            with Operations(root) as owner:
+                owner.begin("operation-1", DIGEST)
+                owner._attach_plan("operation-1", PLAN + [
+                    {"slot_id": "query-02", "expected_count": 100}])
+                owner.claim_slot("operation-1", "query-01")
+                owner.finish_slot("operation-1", "query-01", {**RESULT, "row": row})
+                prior = owner._read()["operations"]["operation-1"]["slots"]["query-01"]
+                owner.claim_slot("operation-1", "query-02")
+                sync = os.fsync
+
+                def failing_directory_sync(descriptor):
+                    if descriptor == owner._root_fd:
+                        raise OSError("controlled-guarded-terminal")
+                    return sync(descriptor)
+
+                with patch("modeltrace_runtime.operations.os.fsync",
+                           side_effect=failing_directory_sync):
+                    with self.assertRaises(OSError):
+                        owner.finish_slot("operation-1", "query-02", {
+                            **RESULT, "challenge_id": "query-02",
+                            "row": {**row, "row_id": "row-02", "challenge_id": "query-02"},
+                        })
+            raw = json.loads((root / "ledger.json").read_bytes())
+            self.assertTrue(raw["operations"]["operation-1"]["slots"][
+                "query-02"]["result"]["eligible"])
+            self.assertTrue((root / "pending.json").exists())
+            with Operations(root) as reopened:
+                with patch("modeltrace_runtime.operations.os.replace",
+                           side_effect=OSError("controlled-guarded-recovery")):
+                    result = reopened.begin("operation-1", DIGEST)
+                    self.assertEqual(result["status"], "write_unknown")
+                    self.assertEqual(result["slots"]["query-01"], prior)
+                    self.assertEqual(result["counts"]["accepted"], 1)
+                    self.assertEqual(result["counts"]["unknown"], 1)
+                    uncertain = result["slots"]["query-02"]["result"]
+                    self.assertFalse(uncertain["eligible"])
+                    self.assertNotIn("row", uncertain)
+                    self.assertFalse(reopened.claim_slot("operation-1", "query-02"))
+                    self.assertEqual(reopened.begin("operation-1", DIGEST), result)
+                    with self.assertRaises(OSError):
+                        reopened.begin("new-history", DIGEST)
+                    self.assertIsNone(reopened._lease)
+                    self.assertIsNone(reopened._owner)
+
     def test_durable_replay_conflict_success_and_claim_once(self):
         with tempfile.TemporaryDirectory() as temp:
             with Operations(Path(temp) / "ledger") as operations:

@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+import stat
 import subprocess
 import sys
 import tempfile
@@ -483,6 +484,176 @@ class CollectionTest(unittest.TestCase):
                 self.assertEqual(result["counts"]["unknown"], 1)
                 self.assertEqual(result["counts"]["accepted"], 0)
                 self.assertNotIn("analysis", result)
+
+    def test_sustained_terminal_failure_preserves_readable_historical_partial(self):
+        for action in ("test", "enroll"):
+            for boundary in ("file", "replace"):
+                with tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary) / "ledger"
+                    calls, failures = [], []
+                    numbers = [3, 2, 3] * 110
+                    bank_bytes = BANK_PATH.read_bytes() if action == "test" else None
+                    bank = json.loads(bank_bytes) if bank_bytes else None
+
+                    def provider(request):
+                        calls.append(1)
+                        return {"status_code": 200,
+                                "body": openai_body(",".join(map(str, numbers)))}
+
+                    def execute(operations, operation_id="historical-1", target=TARGET):
+                        session = _CollectionSession(
+                            operations, operation_id, provider,
+                            model_label="sample-model", bank_bytes=bank_bytes,
+                        )
+                        return (test_model(target, session, bank) if action == "test"
+                                else collect_rows(target, session, 3))
+
+                    sync, replace = os.fsync, os.replace
+
+                    def failing_sync(descriptor):
+                        if (boundary == "file" and len(calls) >= 2
+                                and stat.S_ISREG(os.fstat(descriptor).st_mode)):
+                            failures.append(1)
+                            raise OSError("synthetic-historical-secret")
+                        return sync(descriptor)
+
+                    def failing_replace(source, destination, **options):
+                        if boundary == "replace" and len(calls) >= 2:
+                            failures.append(1)
+                            raise OSError("synthetic-historical-secret")
+                        return replace(source, destination, **options)
+
+                    with patch("modeltrace_runtime.operations.os.fsync",
+                               side_effect=failing_sync), patch(
+                            "modeltrace_runtime.operations.os.replace",
+                            side_effect=failing_replace):
+                        with Operations(root) as operations:
+                            first = execute(operations)
+                            prior_slot, affected_slot = [
+                                item["slot_id"] for item in first["plan"][:2]]
+                            prior_entry = first["slots"][prior_slot]
+                            self.assertEqual(prior_entry["result"]["numbers"], numbers)
+                            self.assertTrue(prior_entry["result"]["eligible"])
+                            ledger = (root / "ledger.json").read_bytes()
+                            guard = (root / "pending.json").read_bytes()
+                            saved = json.loads(ledger)["operations"]["historical-1"]
+                            self.assertEqual(saved["slots"][prior_slot], prior_entry)
+                            self.assertEqual(saved["slots"][affected_slot], {"status": "intent"})
+                            same = execute(operations)
+                            self.assertEqual(execute(operations), same)
+                            self.assertTrue(operations._poisoned)
+                            self.assertIsNone(operations._lease)
+                            self.assertIsNone(operations._owner)
+                            self.assertFalse(operations.claim_slot("historical-1", affected_slot))
+                            self.assertEqual(
+                                execute(operations, target={
+                                    **TARGET, "api_key": "changed-synthetic-key",
+                                })["status"], "conflict")
+                            self.assertEqual(execute(
+                                operations, "new-history-1")["status"], "ledger_unavailable")
+                            self.assertIsNone(operations._lease)
+                        with Operations(root) as reopened:
+                            restarted = execute(reopened)
+                            self.assertEqual(execute(reopened), restarted)
+                            self.assertTrue(reopened._poisoned)
+                            self.assertIsNone(reopened._lease)
+                            self.assertIsNone(reopened._owner)
+                            self.assertEqual(execute(
+                                reopened, "new-history-2")["status"], "ledger_unavailable")
+                            self.assertIsNone(reopened._lease)
+                        self.assertEqual(len(calls), 2)
+                        self.assertEqual((root / "ledger.json").read_bytes(), ledger)
+                        self.assertEqual((root / "pending.json").read_bytes(), guard)
+                    with Operations(root) as healthy:
+                        recovered = execute(healthy)
+                    self.assertEqual(len(calls), 2)
+                    self.assertGreaterEqual(len(failures), 4)
+                    for label, result in (
+                        ("initial", first), ("same", same), ("reopened", restarted),
+                        ("healthy", recovered),
+                    ):
+                        with self.subTest(action=action, boundary=boundary, projection=label):
+                            self.assertEqual(result["status"], "write_unknown")
+                            self.assertFalse(result["complete"])
+                            self.assertNotIn("_created", result)
+                            self.assertEqual(result["slots"][prior_slot], prior_entry)
+                            self.assertEqual(result["counts"], {
+                                "requested": 3, "intents": 2,
+                                "transport_calls": 2 if label == "initial" else None,
+                                "known_responses": 2 if label == "initial" else 1,
+                                "accepted": 1, "rejected": 0, "unknown": 1,
+                                "unattempted": 1,
+                            })
+                            affected = result["slots"][affected_slot]
+                            self.assertEqual(affected["status"], "write_unknown")
+                            self.assertFalse(affected["result"]["eligible"])
+                            self.assertNotIn("row", affected["result"])
+                            if action == "test":
+                                self.assertEqual(result["analysis"], first["analysis"])
+                                self.assertEqual(result["analysis"]["used_outputs"], 1)
+                            else:
+                                self.assertEqual(result["rows"], first["rows"])
+                                self.assertEqual(result["rows"], [prior_entry["result"]["row"]])
+                            self.assertNotIn("synthetic-historical-secret", json.dumps(result))
+
+    def test_loopback_historical_replay_preserves_partial_without_reposting(self):
+        for action in ("test", "enroll"):
+            for protocol in ("openai", "anthropic"):
+                for boundary in ("file", "replace"):
+                    with self.subTest(action=action, protocol=protocol, boundary=boundary):
+                        with tempfile.TemporaryDirectory() as temporary, OwnedProvider(
+                                protocol=protocol) as provider:
+                            root = Path(temporary) / "ledger"
+                            bank_bytes = BANK_PATH.read_bytes() if action == "test" else None
+                            bank = json.loads(bank_bytes) if bank_bytes else None
+                            raw_transport = provider.transport()
+                            sync, replace = os.fsync, os.replace
+
+                            def execute(operations, operation_id="http-history"):
+                                session = _CollectionSession(
+                                    operations, operation_id, raw_transport,
+                                    model_label="sample-model", bank_bytes=bank_bytes,
+                                )
+                                return (test_model(provider.target(), session, bank)
+                                        if action == "test"
+                                        else collect_rows(provider.target(), session, 3))
+
+                            def failing_sync(descriptor):
+                                if (boundary == "file" and len(provider.posts) >= 2
+                                        and stat.S_ISREG(os.fstat(descriptor).st_mode)):
+                                    raise OSError("controlled-loopback-file")
+                                return sync(descriptor)
+
+                            def failing_replace(source, destination, **options):
+                                if boundary == "replace" and len(provider.posts) >= 2:
+                                    raise OSError("controlled-loopback-replace")
+                                return replace(source, destination, **options)
+
+                            with patch("modeltrace_runtime.operations.os.fsync",
+                                       side_effect=failing_sync), patch(
+                                    "modeltrace_runtime.operations.os.replace",
+                                    side_effect=failing_replace):
+                                with Operations(root) as operations:
+                                    first = execute(operations)
+                                    same = execute(operations)
+                                with Operations(root) as reopened:
+                                    restarted = execute(reopened)
+                                    self.assertEqual(execute(
+                                        reopened, "http-new")["status"], "ledger_unavailable")
+                                    self.assertIsNone(reopened._lease)
+                            self.assertEqual(len(provider.posts), 2)
+                            with self.assertRaises(ProcessLookupError):
+                                os.kill(raw_transport.last_child_pid, 0)
+                            for result in (first, same, restarted):
+                                self.assertEqual(result["status"], "write_unknown")
+                                self.assertEqual(result["counts"]["accepted"], 1)
+                                self.assertEqual(result["counts"]["unknown"], 1)
+                                self.assertFalse(result["complete"])
+                                if action == "test":
+                                    self.assertEqual(result["analysis"], first["analysis"])
+                                else:
+                                    self.assertEqual(result["rows"], first["rows"])
+                                    self.assertEqual(len(result["rows"]), 1)
 
     def test_directory_fsync_failure_never_accepts_uncertain_slot_on_replay(self):
         for action in ("test", "enroll"):
