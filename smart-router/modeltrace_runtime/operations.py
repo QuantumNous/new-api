@@ -443,24 +443,26 @@ class Operations:
     def _finalize(self, operation_id, status):
         if status not in _STATUSES - {"running"}:
             raise ValueError("invalid_operation_status")
-        with self._locked():
-            if self._owner != operation_id:
-                raise ValueError("not_operation_owner")
-            state = self._read()
-            record = state["operations"][operation_id]
-            if self._poisoned or record["status"] == "write_unknown":
-                status = "write_unknown"
-            if status == "succeeded" and (
-                len(record["slots"]) != len(record["plan"]) or not record["plan"]
-                or any(item["status"] != "ok" for item in record["slots"].values())
-            ):
-                raise ValueError("incomplete_operation")
-            record["status"] = status
-            try:
-                self._write(state)
-            finally:
+        try:
+            with self._thread_lock:
+                if self._owner != operation_id:
+                    raise ValueError("not_operation_owner")
+                with self._locked():
+                    state = self._read()
+                    record = state["operations"][operation_id]
+                    if self._poisoned or record["status"] == "write_unknown":
+                        status = "write_unknown"
+                    if status == "succeeded" and (
+                        len(record["slots"]) != len(record["plan"]) or not record["plan"]
+                        or any(item["status"] != "ok" for item in record["slots"].values())
+                    ):
+                        raise ValueError("incomplete_operation")
+                    record["status"] = status
+                    self._write(state)
+                    return _view(record)
+        finally:
+            if self._owner == operation_id:
                 self._release()
-            return _view(record)
 
     def close(self):
         with self._thread_lock:

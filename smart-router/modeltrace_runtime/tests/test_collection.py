@@ -1,6 +1,9 @@
+import errno
+import fcntl
 import json
 import os
 from pathlib import Path
+import signal
 import stat
 import subprocess
 import sys
@@ -10,6 +13,7 @@ from unittest.mock import patch
 
 from modeltrace_runtime.collection import _CollectionSession, collect_rows, test_model
 from modeltrace_runtime.operations import Operations
+from modeltrace_runtime.tests.test_operations import _finalization_evidence, _lease_available
 from modeltrace_runtime.tests.test_transport import CHALLENGE, OwnedProvider, TARGET, openai_body
 from third_party.modeltrace.challenge_suite import fingerprint_suite
 
@@ -21,6 +25,230 @@ BANK_PATH = (
 
 
 class CollectionTest(unittest.TestCase):
+    def test_owned_finalization_lock_read_cancellation_releases_before_escape(self):
+        for action in ("test", "enroll"):
+            for protocol in ("openai", "anthropic"):
+                for boundary in ("lock", "read"):
+                    for kind in ("KeyboardInterrupt", "SystemExit"):
+                        with self.subTest(action=action, protocol=protocol,
+                                          boundary=boundary, kind=kind):
+                            self.finalization_case(action, protocol, boundary, kind)
+
+    def test_finalization_ordinary_errors_and_write_cancellation_preserve_history(self):
+        controls = (
+            ("lock", "OSError"), ("lock", "ValueError"),
+            ("read", "OSError"), ("read", "ValueError"),
+            ("write", "KeyboardInterrupt"), ("write", "SystemExit"),
+        )
+        for action in ("test", "enroll"):
+            for protocol in ("openai", "anthropic"):
+                for boundary, kind in controls:
+                    with self.subTest(action=action, protocol=protocol,
+                                      boundary=boundary, kind=kind):
+                        self.finalization_case(action, protocol, boundary, kind)
+
+    def finalization_case(self, action, protocol, boundary, kind):
+        output = _finalization_evidence("-".join((action, protocol, boundary, kind)))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "ledger"
+            operation_id = "finalization-1"
+            numbers = [3, 2, 3] * 110
+            calls, faults, raised, closes = [], [], [], []
+            bank_bytes = BANK_PATH.read_bytes() if action == "test" else None
+            bank = json.loads(bank_bytes) if bank_bytes else None
+            target = {**TARGET, "api_format": protocol}
+            finalizing = False
+            lease = None
+
+            def snapshot(label):
+                folder = output / label
+                folder.mkdir()
+                for name in ("ledger.json", "pending.json"):
+                    if (root / name).exists():
+                        (folder / name).write_bytes((root / name).read_bytes())
+
+            def provider(request):
+                snapshot("pre-post-" + str(len(calls) + 1))
+                record = json.loads((root / "ledger.json").read_bytes())[
+                    "operations"][operation_id]
+                pending = [slot for slot, entry in record["slots"].items()
+                           if entry["status"] == "intent"]
+                self.assertEqual(len(pending), 1)
+                self.assertEqual(json.loads((root / "pending.json").read_bytes())[
+                    "slot_id"], pending[0])
+                calls.append(pending[0])
+                text = ",".join(map(str, numbers))
+                body = openai_body(text) if protocol == "openai" else {
+                    "content": [{"type": "text", "text": text}], "stop_reason": "end_turn",
+                }
+                return {"status_code": 200, "body": body}
+
+            def execute(owner, identity=operation_id, destination=target):
+                session = _CollectionSession(
+                    owner, identity, provider, model_label="sample-model",
+                    bank_bytes=bank_bytes)
+                return (test_model(destination, session, bank) if action == "test"
+                        else collect_rows(destination, session, 3))
+
+            with Operations(root) as owner:
+                original_finalize = owner._finalize
+                sync, opened, flock, close = os.fsync, os.open, fcntl.flock, os.close
+                fault = {"SystemExit": SystemExit, "OSError": OSError,
+                         "ValueError": ValueError}.get(kind, KeyboardInterrupt)(
+                             "controlled-finalization")
+
+                def interrupt():
+                    try:
+                        if kind == "KeyboardInterrupt":
+                            signal.raise_signal(signal.SIGINT)
+                        else:
+                            raise fault
+                    except (KeyboardInterrupt, SystemExit, OSError, ValueError) as error:
+                        raised.append(error)
+                        raise
+
+                def finalize(*args):
+                    nonlocal finalizing, lease
+                    finalizing, lease = True, owner._lease
+                    try:
+                        return original_finalize(*args)
+                    finally:
+                        finalizing = False
+
+                def failing_sync(descriptor):
+                    if (finalizing and boundary == "write"
+                            and stat.S_ISREG(os.fstat(descriptor).st_mode)):
+                        interrupt()
+                    if len(calls) >= 2 and stat.S_ISREG(os.fstat(descriptor).st_mode):
+                        faults.append("regular-file-fsync")
+                        raise OSError("controlled-terminal-fsync")
+                    return sync(descriptor)
+
+                def cancelling_open(name, flags, *args, **options):
+                    if finalizing and boundary == "read" and name == "ledger.json":
+                        interrupt()
+                    return opened(name, flags, *args, **options)
+
+                def cancelling_flock(descriptor, flags):
+                    if finalizing and boundary == "lock":
+                        interrupt()
+                    return flock(descriptor, flags)
+
+                def counted_close(descriptor):
+                    if finalizing and descriptor == lease:
+                        closes.append(descriptor)
+                    return close(descriptor)
+
+                with patch.object(owner, "_finalize", side_effect=finalize), patch(
+                        "modeltrace_runtime.operations.os.fsync", side_effect=failing_sync), patch(
+                        "modeltrace_runtime.operations.os.open", side_effect=cancelling_open), patch(
+                        "modeltrace_runtime.operations.fcntl.flock", side_effect=cancelling_flock), patch(
+                        "modeltrace_runtime.operations.os.close", side_effect=counted_close):
+                    caught, returned = None, None
+                    if kind in ("KeyboardInterrupt", "SystemExit"):
+                        with self.assertRaises(KeyboardInterrupt if kind == "KeyboardInterrupt"
+                                               else SystemExit) as caught:
+                            execute(owner)
+                        self.assertIs(caught.exception, raised[0])
+                    else:
+                        returned = execute(owner)
+                        self.assertEqual(returned["status"], "write_unknown")
+                        self.assertFalse(returned["complete"])
+                        self.assertEqual(returned["counts"], {
+                            "requested": 3, "intents": 2, "transport_calls": 2,
+                            "known_responses": 2, "accepted": 1, "rejected": 0,
+                            "unknown": 1, "unattempted": 1,
+                        })
+                        (output / "ordinary-return.json").write_text(
+                            json.dumps(returned, sort_keys=True, indent=2) + "\n")
+                    self.assertEqual(len(raised), 1)
+                    self.assertEqual(len(calls), 2)
+                    self.assertTrue(faults)
+                    self.assertTrue(owner._poisoned)
+                    snapshot("after-cancellation")
+                    record = owner._read()["operations"][operation_id]
+                    prior_slot, uncertain_slot = [
+                        item["slot_id"] for item in record["plan"][:2]]
+                    prior = record["slots"][prior_slot]
+                    self.assertEqual(prior["result"]["numbers"], numbers)
+                    self.assertTrue(prior["result"]["eligible"])
+                    self.assertEqual(record["slots"][uncertain_slot], {"status": "intent"})
+                    try:
+                        os.fstat(lease)
+                        closed = False
+                    except OSError as error:
+                        self.assertEqual(error.errno, errno.EBADF)
+                        closed = True
+                    available = _lease_available(root, output, "after-cancellation")
+                    (output / "observation.json").write_text(json.dumps({
+                        "owner": owner._owner, "lease": owner._lease,
+                        "lease_closed": closed, "lease_close_count": len(closes),
+                        "lock_available": available, "poisoned": owner._poisoned,
+                        "same_exception_object": caught.exception is raised[0] if caught else None,
+                        "exception_escaped": caught is not None,
+                        "cancellation": kind, "faults": faults, "calls": calls,
+                        "record": record,
+                    }, sort_keys=True, indent=2) + "\n")
+                    self.assertEqual(
+                        (owner._lease, owner._owner, available, closed, len(closes)),
+                        (None, None, True, True, 1),
+                        "owned finalization must release the actual lease once before cancellation escapes")
+                    if returned is not None:
+                        self.assertEqual(returned["slots"][prior_slot], prior)
+                        uncertain = returned["slots"][uncertain_slot]["result"]
+                        self.assertFalse(uncertain["eligible"])
+                        self.assertNotIn("row", uncertain)
+                        if action == "test":
+                            self.assertEqual(returned["analysis"]["used_outputs"], 1)
+                        else:
+                            self.assertEqual(returned["rows"], [prior["result"]["row"]])
+                    ledger = (root / "ledger.json").read_bytes()
+                    guard = (root / "pending.json").read_bytes()
+                    replay = execute(owner)
+                    self.assertEqual(execute(owner), replay)
+                    self.assertNotIn("_created", replay)
+                    self.assertFalse(owner.claim_slot(operation_id, uncertain_slot))
+                    self.assertEqual(execute(owner, "finalization-new")["status"],
+                                     "ledger_unavailable")
+                    self.assertEqual(execute(owner, destination={
+                        **target, "api_key": "changed-synthetic-key"})["status"], "conflict")
+                    with Operations(root) as reopened:
+                        restarted = execute(reopened)
+                        self.assertEqual(execute(reopened), restarted)
+                        self.assertEqual(execute(reopened, "finalization-fresh")["status"],
+                                         "ledger_unavailable")
+                        self.assertFalse(reopened.claim_slot(operation_id, uncertain_slot))
+                        self.assertIsNone(reopened._lease)
+                        self.assertIsNone(reopened._owner)
+                    self.assertEqual((root / "ledger.json").read_bytes(), ledger)
+                    self.assertEqual((root / "pending.json").read_bytes(), guard)
+                    snapshot("after-fault-period-replay")
+                with Operations(root) as healthy:
+                    recovered = execute(healthy)
+                for label, result in (("same", replay), ("reopened", restarted),
+                                      ("healthy", recovered)):
+                    self.assertEqual(result["status"], "write_unknown")
+                    self.assertFalse(result["complete"])
+                    self.assertEqual(result["slots"][prior_slot], prior)
+                    self.assertEqual(result["counts"], {
+                        "requested": 3, "intents": 2, "transport_calls": None,
+                        "known_responses": 1, "accepted": 1, "rejected": 0,
+                        "unknown": 1, "unattempted": 1,
+                    })
+                    uncertain = result["slots"][uncertain_slot]["result"]
+                    self.assertFalse(uncertain["eligible"])
+                    self.assertNotIn("row", uncertain)
+                    self.assertEqual(uncertain["numbers"], [])
+                    if action == "test":
+                        self.assertEqual(result["analysis"]["used_outputs"], 1)
+                        self.assertFalse(result["analysis"]["complete"])
+                    else:
+                        self.assertEqual(result["rows"], [prior["result"]["row"]])
+                    (output / (label + "-replay.json")).write_text(
+                        json.dumps(result, sort_keys=True, indent=2) + "\n")
+                self.assertEqual(len(calls), 2)
+                self.assertTrue(_lease_available(root, output, "after-replay"))
+
     def test_three_independent_challenges_use_exactly_three_posts(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "ledger"
