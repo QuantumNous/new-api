@@ -25,6 +25,8 @@ export {
   getSavedChartPreferences,
   saveChartPreferences,
   buildDefaultDashboardFilters,
+  detectQuickRangeDays,
+  granularityForRangeDays,
 } from './filters'
 export {
   getLatencyColorClass,
