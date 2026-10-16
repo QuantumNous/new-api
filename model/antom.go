@@ -348,3 +348,13 @@ func ExpireAntomOrder(id int64) error {
 		return tx.Model(&order).Update("status", "expired").Error
 	})
 }
+
+// AntomOrdersRequiringReconciliation includes unopened and legacy orders with no
+// schedule. Manual review and confirmed terminal orders must not keep polling.
+func AntomOrdersRequiringReconciliation(db *gorm.DB) *gorm.DB {
+	reviewOrders := db.Session(&gorm.Session{NewDB: true}).Model(&SubscriptionOrder{}).Select("trade_no").Where("status = ?", SubscriptionOrderPaidReview)
+	return db.Model(&AntomOrder{}).
+		Where("status IN ? OR (status = ? AND COALESCE(gateway_status, '') NOT IN ?) OR cache_pending = ? OR log_pending = ?", []string{"pending", "paid"}, "expired", []string{"FAIL", "CANCELLED"}, true, true).
+		Where("trade_no NOT IN (?)", reviewOrders).
+		Where("COALESCE(review_required, ?) = ? OR status = ?", false, false, "success")
+}

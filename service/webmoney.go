@@ -154,8 +154,7 @@ func VerifyWebMoneyNotification(o *model.WebMoneyOrder, c *model.WebMoneyConfig,
 // bounds retries across workers; fulfillment remains independently idempotent.
 func RunWebMoneyReconciliation(ctx context.Context) error {
 	var orders []model.WebMoneyOrder
-	reviewOrders := model.DB.Model(&model.SubscriptionOrder{}).Select("trade_no").Where("status = ?", model.SubscriptionOrderPaidReview)
-	if err := model.DB.WithContext(ctx).Where("(status IN ? OR cache_pending = ? OR log_pending = ?) AND COALESCE(next_check_at, 0) <= ?", []string{"pending", "expired", "paid"}, true, true, common.GetTimestamp()).Where("trade_no NOT IN (?)", reviewOrders).Where("COALESCE(review_required, ?) = ? OR status = ?", false, false, "success").Order("next_check_at, id").Limit(30).Find(&orders).Error; err != nil {
+	if err := model.WebMoneyOrdersRequiringReconciliation(model.DB.WithContext(ctx), common.GetTimestamp()).Where("COALESCE(next_check_at, 0) <= ?", common.GetTimestamp()).Order("next_check_at, id").Limit(30).Find(&orders).Error; err != nil {
 		return err
 	}
 	var result error
@@ -211,6 +210,12 @@ func reconcileWebMoneyOrder(ctx context.Context, trade string, verifyCompleted b
 			return err
 		}
 	}
+	// Expiry is a local acceptance deadline, not proof of provider cancellation.
+	// Stop automatic unpaid polling after a finite grace period; signed callbacks
+	// and explicit administrator queries can still recover a late receipt.
+	if !verifyCompleted && (o.Status == "pending" || o.Status == "expired") && o.ExpiresAt <= common.GetTimestamp()-model.WebMoneyReconciliationWindowSeconds {
+		return model.DB.Model(o).Where("status IN ?", []string{"pending", "expired"}).Update("next_check_at", 0).Error
+	}
 	if config.WMID == "" {
 		current, e := model.CurrentWebMoneyConfig()
 		if e != nil {
@@ -237,9 +242,17 @@ func reconcileWebMoneyOrder(ctx context.Context, trade string, verifyCompleted b
 		}
 		return errors.New("WebMoney no longer confirms the verified payment")
 	}
-	next := common.GetTimestamp() + 120
-	if o.ExpiresAt <= common.GetTimestamp() {
-		next = common.GetTimestamp() + 3600
+	now := common.GetTimestamp()
+	next := min(now+120, o.ExpiresAt)
+	if o.ExpiresAt <= now {
+		switch {
+		case o.ExpiresAt <= now-model.WebMoneyReconciliationWindowSeconds:
+			next = 0
+		case o.ExpiresAt <= now-86400:
+			next = min(now+86400, o.ExpiresAt+model.WebMoneyReconciliationWindowSeconds)
+		default:
+			next = min(now+3600, o.ExpiresAt+86400)
+		}
 	}
 	updates := map[string]any{"gateway_status": gatewayStatus, "checked_at": common.GetTimestamp(), "next_check_at": next, "last_error": ""}
 	if err != nil {

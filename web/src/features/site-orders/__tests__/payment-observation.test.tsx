@@ -79,57 +79,61 @@ test.each([
   }
 )
 
-test.each(['failed', 'expired', 'paid_review', 'forbidden', 'success-review'])(
-  '%s stops observation without reporting payment success',
-  async (status) => {
-    vi.mocked(api.get).mockReset()
-    vi.spyOn(window, 'open').mockReturnValue(null)
-    const order = {
-      id: 7,
-      trade_no: 'terminal-test',
-      payment_provider: 'alipay',
-    } as SiteOrder
-    vi.mocked(api.post).mockResolvedValue({
+test.each([
+  'failed',
+  'expired',
+  'paid_review',
+  'review_closed',
+  'forbidden',
+  'success-review',
+])('%s stops observation without reporting payment success', async (status) => {
+  vi.mocked(api.get).mockReset()
+  vi.spyOn(window, 'open').mockReturnValue(null)
+  const order = {
+    id: 7,
+    trade_no: 'terminal-test',
+    payment_provider: 'alipay',
+  } as SiteOrder
+  vi.mocked(api.post).mockResolvedValue({
+    data: {
+      success: true,
+      data: {
+        ...order,
+        pay_link: 'https://openapi.alipay.com/gateway.do',
+      },
+    },
+  })
+  if (status === 'forbidden') {
+    vi.mocked(api.get).mockRejectedValue({ response: { status: 403 } })
+  } else {
+    vi.mocked(api.get).mockResolvedValue({
       data: {
         success: true,
         data: {
           ...order,
-          pay_link: 'https://openapi.alipay.com/gateway.do',
+          order_status: status === 'success-review' ? 'success' : status,
+          review_required: status === 'success-review',
+          closed_at: 1,
         },
       },
     })
-    if (status === 'forbidden') {
-      vi.mocked(api.get).mockRejectedValue({ response: { status: 403 } })
-    } else {
-      vi.mocked(api.get).mockResolvedValue({
-        data: {
-          success: true,
-          data: {
-            ...order,
-            order_status: status === 'success-review' ? 'success' : status,
-            review_required: status === 'success-review',
-            closed_at: 1,
-          },
-        },
-      })
-    }
-    const client = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
-    })
-    const onPaid = vi.fn()
-    const hook = renderHook(() => useOrderPayment(onPaid), {
-      wrapper: ({ children }: { children: ReactNode }) => (
-        <QueryClientProvider client={client}>{children}</QueryClientProvider>
-      ),
-    })
-    act(() => hook.result.current.pay(order))
-    await waitFor(() => expect(api.get).toHaveBeenCalled())
-    await waitFor(() => expect(client.isFetching()).toBe(0))
-    await act(async () => {
-      await client.invalidateQueries({ queryKey: ['site-orders'] })
-    })
-    expect(onPaid).not.toHaveBeenCalled()
-    hook.unmount()
-    client.clear()
   }
-)
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  const onPaid = vi.fn()
+  const hook = renderHook(() => useOrderPayment(onPaid), {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    ),
+  })
+  act(() => hook.result.current.pay(order))
+  await waitFor(() => expect(api.get).toHaveBeenCalled())
+  await waitFor(() => expect(client.isFetching()).toBe(0))
+  await act(async () => {
+    await client.invalidateQueries({ queryKey: ['site-orders'] })
+  })
+  expect(onPaid).not.toHaveBeenCalled()
+  hook.unmount()
+  client.clear()
+})

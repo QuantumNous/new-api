@@ -191,5 +191,5 @@ func DirectSubscriptionReviewRequired(tradeNo string) bool {
 	if err := DB.Select("status").Where("trade_no = ?", tradeNo).Take(&order).Error; err != nil {
 		return true
 	}
-	return order.Status == SubscriptionOrderPaidReview
+	return order.Status == SubscriptionOrderPaidReview || order.Status == PaymentOrderReviewClosed
 }

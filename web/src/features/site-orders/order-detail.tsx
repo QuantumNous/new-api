@@ -53,7 +53,11 @@ import {
   type OrderScope,
 } from './api'
 import { OrderStatus } from './order-status'
-import { paymentAmount } from './presentation'
+import {
+  paymentAmount,
+  paymentProviderStatusLabel,
+  reviewResolutionLabel,
+} from './presentation'
 import { RecoverOrder } from './recover-order'
 import { useOrderPayment } from './use-order-payment'
 
@@ -192,24 +196,11 @@ export function OrderDetail(props: {
         `${t('Cancellation rejected')}${order.cancellation_code ? ` (${order.cancellation_code})` : ''}`,
       ])
     }
-    const webMoneyStatuses: Record<string, string> = {
-      '': t('Not recorded'),
-      success: t('Completed'),
-      'x18:8': t('Payment not found'),
-      'x18:9': t('Awaiting payment'),
-      'x18:13': t('Payment rejected'),
-      'hold:4': t('Payment held'),
-      'hold:12': t('Payment refunded'),
-      query_failed: t('Verification failed'),
-    }
-    const providerStatus =
-      order.payment_provider === 'webmoney'
-        ? (webMoneyStatuses[order.gateway_status || ''] ??
-            t('Verification failed')) +
-          (order.gateway_status?.startsWith('x18:')
-            ? ` (X18 ${order.gateway_status.slice(4)})`
-            : '')
-        : order.gateway_status || '—'
+    const providerStatus = paymentProviderStatusLabel(
+      order.payment_provider,
+      order.gateway_status,
+      t
+    )
     fields.push(
       [t('Close reason'), closeReasons[order.close_reason ?? ''] ?? '—'],
       [
@@ -232,7 +223,10 @@ export function OrderDetail(props: {
         order.next_check_at ? formatTimestampToDate(order.next_check_at) : '—',
       ],
       [t('Consecutive failures'), formatNumber(order.retry_count ?? 0, locale)],
-      [t('Manual review required'), t(order.review_required ? 'Yes' : 'No')]
+      [
+        t('Manual review required'),
+        t(order.review_required && !order.review_resolution ? 'Yes' : 'No'),
+      ]
     )
   }
   return (
@@ -311,13 +305,25 @@ export function OrderDetail(props: {
                       {formatTimestampToDate(review.created_at)}
                     </p>
                     <p className='break-words whitespace-pre-wrap'>
+                      {review.action && (
+                        <span>
+                          {reviewResolutionLabel(review.action, t)} ·{' '}
+                        </span>
+                      )}
                       {review.note}
+                      {review.reference && (
+                        <span>
+                          {' '}
+                          · {t('Refund reference')}: {review.reference}
+                        </span>
+                      )}
                     </p>
                   </div>
                 ))}
               {!personal &&
                 role >= ROLE.SUPER_ADMIN &&
-                order.review_required && (
+                order.review_required &&
+                !order.review_resolution && (
                   <RecoverOrder
                     order={order}
                     review
@@ -384,7 +390,8 @@ export function OrderDetail(props: {
                 ['alipay', 'wechatpay', 'mixpay', 'webmoney', 'antom'].includes(
                   order.payment_provider
                 ) &&
-                !order.review_required && (
+                !order.review_required &&
+                !order.review_resolution && (
                   <RecoverOrder
                     order={order}
                     disabled={

@@ -22,7 +22,16 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 export type OrderScope = 'site' | 'personal'
 
 export interface SiteOrder {
-  reviews?: { id: number; actor_id: number; note: string; created_at: number }[]
+  review_resolution?: string
+  review_version?: string
+  reviews?: {
+    action?: string
+    reference?: string
+    id: number
+    actor_id: number
+    note: string
+    created_at: number
+  }[]
   id: number
   order_type?: 'topup' | 'subscription'
   currency?: string
@@ -110,8 +119,15 @@ export async function recoverOrder(id: number, reason: string) {
   return requireServerSuccess(response.data).data
 }
 
-export async function recordOrderReview(id: number, note: string) {
-  const response = await api.post(`/api/user/orders/${id}/review`, { note })
+export async function recordOrderReview(
+  id: number,
+  note: string,
+  resolution?: { action: string; reference: string; version: string }
+) {
+  const response = await api.post(`/api/user/orders/${id}/review`, {
+    note,
+    ...resolution,
+  })
   requireServerSuccess(response.data)
   return { result: 'review_recorded' }
 }

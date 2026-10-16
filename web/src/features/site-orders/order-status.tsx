@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 import { StatusBadge } from '@/components/status-badge'
 
 import type { SiteOrder } from './api'
+import { reviewResolutionLabel } from './presentation'
 
 export function OrderStatus(props: { order: SiteOrder }) {
   const { t } = useTranslation()
@@ -28,6 +29,7 @@ export function OrderStatus(props: { order: SiteOrder }) {
     pending: t('Awaiting payment'),
     paid: t('Paid, awaiting credit'),
     paid_review: t('Paid, awaiting manual review'),
+    review_closed: t('Review resolved'),
     success: t('Completed'),
     expired:
       props.order.close_reason === 'local_expiry' ||
@@ -51,7 +53,12 @@ export function OrderStatus(props: { order: SiteOrder }) {
   return (
     <div className='flex flex-wrap gap-1'>
       <StatusBadge
-        label={labels[props.order.order_status] ?? props.order.order_status}
+        label={
+          props.order.review_resolution &&
+          props.order.order_status !== 'success'
+            ? reviewResolutionLabel(props.order.review_resolution, t)
+            : (labels[props.order.order_status] ?? props.order.order_status)
+        }
         variant={variant}
         copyable={false}
       />
@@ -62,15 +69,24 @@ export function OrderStatus(props: { order: SiteOrder }) {
           copyable={false}
         />
       )}
-      {(props.order.review_required ||
-        (props.order.payment_provider !== 'mixpay' &&
-          props.order.last_error)) && (
-        <StatusBadge
-          label={t('Payment requires attention')}
-          variant='danger'
-          copyable={false}
-        />
-      )}
+      {props.order.review_resolution &&
+        props.order.order_status === 'success' && (
+          <StatusBadge
+            label={reviewResolutionLabel(props.order.review_resolution, t)}
+            variant='success'
+            copyable={false}
+          />
+        )}
+      {!props.order.review_resolution &&
+        (props.order.review_required ||
+          (props.order.payment_provider !== 'mixpay' &&
+            props.order.last_error)) && (
+          <StatusBadge
+            label={t('Payment requires attention')}
+            variant='danger'
+            copyable={false}
+          />
+        )}
     </div>
   )
 }

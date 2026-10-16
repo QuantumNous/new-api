@@ -59,7 +59,7 @@ func TestMixPayDatabaseMatrix(t *testing.T) {
 			common.SetMainDatabaseType(common.DatabaseType(dialect))
 			common.RedisEnabled = false
 			legacy := []any{&model.User{}, &model.TopUp{}, &model.SubscriptionOrder{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.Log{}, &model.AlipayConfig{}, &model.AlipayOrder{}, &model.WechatPayConfig{}, &model.WechatPayOrder{}}
-			added := []any{&model.MixPayConfig{}, &model.WebMoneyOrder{}, &model.AntomOrder{}, &model.AntomConfig{}, &model.MixPayOrder{}, &model.MixPayRequestBudget{}}
+			added := []any{&model.PaymentReview{}, &model.MixPayConfig{}, &model.WebMoneyOrder{}, &model.AntomOrder{}, &model.AntomConfig{}, &model.MixPayOrder{}, &model.MixPayRequestBudget{}}
 			tables := append(legacy, added...)
 			t.Cleanup(func() {
 				require.NoError(t, db.Migrator().DropTable(tables...))

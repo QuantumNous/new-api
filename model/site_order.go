@@ -65,6 +65,8 @@ func RecordPaymentReceipt(tradeNo, provider, transaction, currency, amount strin
 
 // SiteOrder is a read-only projection. Payment credentials never enter this DTO.
 type SiteOrder struct {
+	ReviewResolution  string          `json:"review_resolution" gorm:"-"`
+	ReviewVersion     string          `json:"review_version" gorm:"-"`
 	Reviews           []PaymentReview `json:"reviews,omitempty" gorm:"-"`
 	CancellationState string          `json:"cancellation_state"`
 	CancellationCode  string          `json:"cancellation_code"`
@@ -99,7 +101,7 @@ type SiteOrderFilter struct {
 	Keyword       string `form:"keyword" binding:"max=128"`
 	User          string `form:"user" binding:"max=64"`
 	Provider      string `form:"provider" binding:"max=50"`
-	Status        string `form:"status" binding:"omitempty,oneof=pending paid paid_review success expired failed"`
+	Status        string `form:"status" binding:"omitempty,oneof=pending paid paid_review review_closed success expired failed"`
 	Start         int64  `form:"start" binding:"min=0"`
 	End           int64  `form:"end" binding:"min=0"`
 	Page          int    `form:"p" binding:"min=1,max=1000000"`
@@ -107,16 +109,20 @@ type SiteOrderFilter struct {
 }
 
 func ListSiteOrders(filter SiteOrderFilter) ([]SiteOrder, int64, error) {
-	name := DB.NamingStrategy.TableName
+	return listSiteOrders(DB, filter)
+}
+
+func listSiteOrders(db *gorm.DB, filter SiteOrderFilter) ([]SiteOrder, int64, error) {
+	name := db.NamingStrategy.TableName
 	// Subscription IDs occupy the negative namespace in this read-only projection.
 	// This keeps existing top-up URLs stable and avoids collisions across tables.
 	// Successful subscription history rows are excluded: the subscription is authoritative.
-	topups := DB.Table(name("TopUp")+" AS t").
+	topups := db.Table(name("TopUp")+" AS t").
 		Select("t.id, t.user_id, t.amount, t.money, t.trade_no, t.payment_method, t.payment_provider, t.create_time, t.complete_time, t.status, t.receipt_currency, t.receipt_amount, t.receipt_trade_no, ? AS order_type", "topup").
-		Where("NOT EXISTS (?)", DB.Table(name("SubscriptionOrder")+" AS s").Select("1").Where("s.trade_no = t.trade_no"))
-	subscriptions := DB.Table(name("SubscriptionOrder")+" AS s").
+		Where("NOT EXISTS (?)", db.Table(name("SubscriptionOrder")+" AS s").Select("1").Where("s.trade_no = t.trade_no"))
+	subscriptions := db.Table(name("SubscriptionOrder")+" AS s").
 		Select("-s.id AS id, s.user_id, 0 AS amount, s.money, s.trade_no, s.payment_method, s.payment_provider, s.create_time, s.complete_time, s.status, s.receipt_currency, s.receipt_amount, s.receipt_trade_no, ? AS order_type", "subscription")
-	query := DB.Table("(? UNION ALL ?) AS t", topups, subscriptions).
+	query := db.Table("(? UNION ALL ?) AS t", topups, subscriptions).
 		Joins("LEFT JOIN "+name("User")+" AS u ON u.id = t.user_id").
 		Joins("LEFT JOIN "+name("AlipayOrder")+" AS a ON a.trade_no = t.trade_no AND t.payment_provider = ?", PaymentProviderAlipay).
 		Joins("LEFT JOIN "+name("WechatPayOrder")+" AS w ON w.trade_no = t.trade_no AND t.payment_provider = ?", PaymentProviderWechatPay).
@@ -142,13 +148,13 @@ func ListSiteOrders(filter SiteOrderFilter) ([]SiteOrder, int64, error) {
 		query = query.Where("t.payment_provider = ?", filter.Provider)
 	}
 	if filter.Status != "" {
-		query = query.Where("CASE WHEN t.status = 'paid_review' THEN t.status WHEN m.status = 'failed' AND m.gateway_status = 'failed' THEN 'expired' ELSE COALESCE(a.status, w.status, m.status, wm.status, am.status, t.status) END = ?", filter.Status)
+		query = query.Where("CASE WHEN t.status IN ('paid_review', 'review_closed') THEN t.status WHEN m.status = 'failed' AND m.gateway_status = 'failed' THEN 'expired' ELSE COALESCE(a.status, w.status, m.status, wm.status, am.status, t.status) END = ?", filter.Status)
 	}
 	if filter.ExcludeClosed {
-		query = query.Where("CASE WHEN t.status = 'paid_review' THEN t.status WHEN m.status = 'failed' AND m.gateway_status = 'failed' THEN 'expired' ELSE COALESCE(a.status, w.status, m.status, wm.status, am.status, t.status) END <> ? OR wm.status = 'expired' OR (am.status = 'expired' AND COALESCE(am.gateway_status, '') NOT IN ('FAIL', 'CANCELLED'))", common.TopUpStatusExpired)
+		query = query.Where("CASE WHEN t.status IN ('paid_review', 'review_closed') THEN t.status WHEN m.status = 'failed' AND m.gateway_status = 'failed' THEN 'expired' ELSE COALESCE(a.status, w.status, m.status, wm.status, am.status, t.status) END <> ? OR wm.status = 'expired' OR (am.status = 'expired' AND COALESCE(am.gateway_status, '') NOT IN ('FAIL', 'CANCELLED'))", common.TopUpStatusExpired)
 	}
 	if filter.Actionable {
-		query = query.Where("t.payment_provider IN ? AND CASE WHEN t.status = 'paid_review' THEN t.status WHEN m.status = 'failed' AND m.gateway_status = 'failed' THEN 'expired' ELSE COALESCE(a.status, w.status, m.status, wm.status, am.status, t.status) END = ? AND COALESCE(a.cancel_requested, w.cancel_requested, (am.cancellation_state IS NOT NULL AND am.cancellation_state <> ''), ?) = ? AND COALESCE(a.review_required, w.review_required, m.review_required, wm.review_required, am.review_required, ?) = ? AND COALESCE(a.expires_at, w.expires_at, m.expires_at, wm.expires_at, am.expires_at, 0) > ?", []string{PaymentProviderAlipay, PaymentProviderWechatPay, PaymentProviderMixPay, PaymentProviderWebMoney, PaymentProviderAntom}, common.TopUpStatusPending, false, false, false, false, common.GetTimestamp())
+		query = query.Where("t.payment_provider IN ? AND CASE WHEN t.status IN ('paid_review', 'review_closed') THEN t.status WHEN m.status = 'failed' AND m.gateway_status = 'failed' THEN 'expired' ELSE COALESCE(a.status, w.status, m.status, wm.status, am.status, t.status) END = ? AND COALESCE(a.cancel_requested, w.cancel_requested, (am.cancellation_state IS NOT NULL AND am.cancellation_state <> ''), ?) = ? AND COALESCE(a.review_required, w.review_required, m.review_required, wm.review_required, am.review_required, ?) = ? AND COALESCE(a.expires_at, w.expires_at, m.expires_at, wm.expires_at, am.expires_at, 0) > ?", []string{PaymentProviderAlipay, PaymentProviderWechatPay, PaymentProviderMixPay, PaymentProviderWebMoney, PaymentProviderAntom}, common.TopUpStatusPending, false, false, false, false, common.GetTimestamp())
 	}
 	if filter.Start > 0 {
 		query = query.Where("t.create_time >= ?", filter.Start)
@@ -161,7 +167,7 @@ func ListSiteOrders(filter SiteOrderFilter) ([]SiteOrder, int64, error) {
 		return nil, 0, err
 	}
 	orders := make([]SiteOrder, 0)
-	err := query.Select("t.*, COALESCE(am.cancellation_state, '') AS cancellation_state, COALESCE(am.cancellation_code, '') AS cancellation_code, COALESCE(am.amount, '') AS antom_amount, COALESCE(wm.amount, '') AS web_money_amount, COALESCE(m.quote_amount, '') AS mix_pay_quote, COALESCE(u.username, '') AS username, CASE WHEN t.status = 'paid_review' THEN t.status WHEN m.status = 'failed' AND m.gateway_status = 'failed' THEN 'expired' ELSE COALESCE(a.status, w.status, m.status, wm.status, am.status, t.status) END AS order_status, COALESCE(NULLIF(a.provider_trade_no, ''), NULLIF(w.provider_trade_no, ''), NULLIF(m.trace_id, ''), wm.provider_trade_no, am.provider_trade_no, t.receipt_trade_no, '') AS provider_trade_no, COALESCE(a.amount_fen, w.amount_fen) AS amount_fen, COALESCE(a.credited_quota, w.credited_quota, m.credited_quota, wm.credited_quota, am.credited_quota) AS frozen_quota, COALESCE(ac.sandbox, amc.sandbox, ?) AS sandbox, COALESCE(a.cache_pending, w.cache_pending, m.cache_pending, wm.cache_pending, am.cache_pending, ?) AS cache_pending, COALESCE(a.cancel_requested, w.cancel_requested, (am.cancellation_state IS NOT NULL AND am.cancellation_state <> ''), ?) AS cancel_requested, COALESCE(a.last_error, w.last_error, m.last_error, wm.last_error, am.last_error, '') AS last_error, COALESCE(a.expires_at, w.expires_at, m.expires_at, wm.expires_at, am.expires_at, 0) AS expires_at, COALESCE(a.closed_at, w.closed_at, CASE WHEN am.status = 'expired' AND am.gateway_status IN ('FAIL', 'CANCELLED') THEN am.checked_at END, 0) AS closed_at, COALESCE(a.close_requested_at, w.close_requested_at, 0) AS close_requested_at, COALESCE(a.close_reason, w.close_reason, CASE WHEN wm.status = 'expired' OR (am.status = 'expired' AND COALESCE(am.gateway_status, '') NOT IN ('FAIL', 'CANCELLED')) THEN 'local_expiry' WHEN am.status = 'expired' THEN 'gateway_closed' END, '') AS close_reason, COALESCE(a.gateway_status, w.gateway_status, m.gateway_status, COALESCE(NULLIF(wm.gateway_status, ''), CASE WHEN wm.status IN ('paid', 'success') THEN 'success' END), am.gateway_status, '') AS gateway_status, COALESCE(a.checked_at, w.checked_at, m.checked_at, wm.checked_at, am.checked_at, 0) AS checked_at, COALESCE(a.next_check_at, w.next_check_at, m.next_check_at, wm.next_check_at, am.next_check_at, 0) AS next_check_at, COALESCE(a.retry_count, w.retry_count, m.retry_count, 0) AS retry_count, COALESCE(a.review_required, w.review_required, m.review_required, wm.review_required, am.review_required, ?) AS review_required", false, false, false, false).
+	err := query.Select("t.*, COALESCE(am.cancellation_state, '') AS cancellation_state, COALESCE(am.cancellation_code, '') AS cancellation_code, COALESCE(am.amount, '') AS antom_amount, COALESCE(wm.amount, '') AS web_money_amount, COALESCE(m.quote_amount, '') AS mix_pay_quote, COALESCE(u.username, '') AS username, CASE WHEN t.status IN ('paid_review', 'review_closed') THEN t.status WHEN m.status = 'failed' AND m.gateway_status = 'failed' THEN 'expired' ELSE COALESCE(a.status, w.status, m.status, wm.status, am.status, t.status) END AS order_status, COALESCE(NULLIF(a.provider_trade_no, ''), NULLIF(w.provider_trade_no, ''), NULLIF(m.trace_id, ''), wm.provider_trade_no, am.provider_trade_no, t.receipt_trade_no, '') AS provider_trade_no, COALESCE(a.amount_fen, w.amount_fen) AS amount_fen, COALESCE(a.credited_quota, w.credited_quota, m.credited_quota, wm.credited_quota, am.credited_quota) AS frozen_quota, COALESCE(ac.sandbox, amc.sandbox, ?) AS sandbox, COALESCE(a.cache_pending, w.cache_pending, m.cache_pending, wm.cache_pending, am.cache_pending, ?) AS cache_pending, COALESCE(a.cancel_requested, w.cancel_requested, (am.cancellation_state IS NOT NULL AND am.cancellation_state <> ''), ?) AS cancel_requested, COALESCE(a.last_error, w.last_error, m.last_error, wm.last_error, am.last_error, '') AS last_error, COALESCE(a.expires_at, w.expires_at, m.expires_at, wm.expires_at, am.expires_at, 0) AS expires_at, COALESCE(a.closed_at, w.closed_at, CASE WHEN am.status = 'expired' AND am.gateway_status IN ('FAIL', 'CANCELLED') THEN am.checked_at END, 0) AS closed_at, COALESCE(a.close_requested_at, w.close_requested_at, 0) AS close_requested_at, COALESCE(a.close_reason, w.close_reason, CASE WHEN wm.status = 'expired' OR (am.status = 'expired' AND COALESCE(am.gateway_status, '') NOT IN ('FAIL', 'CANCELLED')) THEN 'local_expiry' WHEN am.status = 'expired' THEN 'gateway_closed' END, '') AS close_reason, COALESCE(a.gateway_status, w.gateway_status, m.gateway_status, COALESCE(NULLIF(wm.gateway_status, ''), CASE WHEN wm.status IN ('paid', 'success') THEN 'success' END), am.gateway_status, '') AS gateway_status, COALESCE(a.checked_at, w.checked_at, m.checked_at, wm.checked_at, am.checked_at, 0) AS checked_at, COALESCE(a.next_check_at, w.next_check_at, m.next_check_at, wm.next_check_at, am.next_check_at, 0) AS next_check_at, COALESCE(a.retry_count, w.retry_count, m.retry_count, 0) AS retry_count, COALESCE(a.review_required, w.review_required, m.review_required, wm.review_required, am.review_required, ?) AS review_required", false, false, false, false).
 		Order("t.create_time DESC, t.id DESC").Offset((filter.Page - 1) * filter.PageSize).Limit(filter.PageSize).Scan(&orders).Error
 	for i := range orders {
 		if orders[i].PaymentProvider == PaymentProviderAntom && orders[i].GatewayStatus == "CANCEL_REQUESTED" {
@@ -169,7 +175,9 @@ func ListSiteOrders(filter SiteOrderFilter) ([]SiteOrder, int64, error) {
 		}
 		if orders[i].OrderStatus == SubscriptionOrderPaidReview {
 			orders[i].ReviewRequired = true
-			orders[i].LastError = "subscription_conflict"
+			if orders[i].LastError == "" {
+				orders[i].LastError = "subscription_conflict"
+			}
 		}
 		orders[i].Currency = orders[i].PaymentReceipt.ReceiptCurrency
 		orders[i].PaymentAmount = orders[i].PaymentReceipt.ReceiptAmount
@@ -185,6 +193,9 @@ func ListSiteOrders(filter SiteOrderFilter) ([]SiteOrder, int64, error) {
 			orders[i].Currency = "USD"
 			orders[i].PaymentAmount = orders[i].MixPayQuote
 		}
+	}
+	if err == nil {
+		err = populatePaymentReviewResolutions(db, orders)
 	}
 	return orders, total, err
 }

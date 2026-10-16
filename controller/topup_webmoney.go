@@ -168,7 +168,7 @@ func requestWebMoney(c *gin.Context, create bool) {
 	if plan != nil {
 		trade = "SUB" + trade
 	}
-	o := model.WebMoneyOrder{TradeNo: trade, UserID: userID, RequestKey: req.RequestKey, RequestedAmount: req.Amount, ConfigID: config.ID, Amount: amount, CreditedQuota: quota, Status: "pending", CreatedAt: now, ExpiresAt: now + 1800}
+	o := model.WebMoneyOrder{TradeNo: trade, UserID: userID, RequestKey: req.RequestKey, RequestedAmount: req.Amount, ConfigID: config.ID, Amount: amount, CreditedQuota: quota, Status: "pending", CreatedAt: now, ExpiresAt: now + model.WebMoneyPaymentLifetimeSeconds, NextCheckAt: now + 120}
 	money, _ := decimal.NewFromString(amount)
 	top := model.TopUp{UserId: userID, Amount: decimal.NewFromInt(int64(quota)).Div(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart(), Money: money.InexactFloat64(), TradeNo: trade, PaymentMethod: model.PaymentProviderWebMoney, PaymentProvider: model.PaymentProviderWebMoney, CreateTime: now, Status: "pending"}
 	if plan != nil {

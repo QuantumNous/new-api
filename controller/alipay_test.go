@@ -85,7 +85,7 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 			model.LOG_DB = db
 			common.RedisEnabled = false
 			common.SetMainDatabaseType(common.DatabaseType(dialect))
-			tables := []any{&model.WebMoneyConfig{}, &model.WebMoneyOrder{}, &model.AntomOrder{}, &model.AntomConfig{}, &model.MixPayOrder{}, &model.WechatPayConfig{}, &model.WechatPayOrder{}, &model.AlipayOrder{}, &model.AlipayConfig{}, &model.TopUp{}, &model.SubscriptionOrder{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.User{}, &model.Log{}}
+			tables := []any{&model.PaymentReview{}, &model.WebMoneyConfig{}, &model.WebMoneyOrder{}, &model.AntomOrder{}, &model.AntomConfig{}, &model.MixPayOrder{}, &model.WechatPayConfig{}, &model.WechatPayOrder{}, &model.AlipayOrder{}, &model.AlipayConfig{}, &model.TopUp{}, &model.SubscriptionOrder{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.User{}, &model.Log{}}
 			t.Cleanup(func() {
 				require.NoError(t, db.Migrator().DropTable(tables...))
 				model.DB = oldDB

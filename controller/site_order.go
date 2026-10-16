@@ -70,7 +70,10 @@ func ReviewSiteOrder(c *gin.Context) {
 	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 4096)
 	var request struct {
-		Note string `json:"note"`
+		Note      string `json:"note"`
+		Action    string `json:"action"`
+		Reference string `json:"reference"`
+		Version   string `json:"version"`
 	}
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil || id == 0 || c.ShouldBindJSON(&request) != nil {
@@ -82,11 +85,31 @@ func ReviewSiteOrder(c *gin.Context) {
 		c.AbortWithStatus(http.StatusNotFound)
 		return
 	}
-	if err = model.RecordPaymentReview(order, c.GetInt("id"), request.Note); err != nil {
+	if request.Action == "" {
+		err = model.RecordPaymentReview(order, c.GetInt("id"), request.Note)
+	} else {
+		err = model.ResolvePaymentReview(order, c.GetInt("id"), request.Action, request.Note, request.Reference, request.Version)
+	}
+	if err != nil {
 		common.ApiErrorMsg(c, "无法记录复核结果，请检查订单状态及备注长度")
 		return
 	}
-	model.RecordAuditLog(c, model.AuditLog{UserId: c.GetInt("id"), ActorRole: c.GetInt("role"), Category: model.AuditCategoryOperation, Action: "payment.order.review", Content: order.TradeNo, Success: true})
+	model.RecordAuditLog(c, model.AuditLog{UserId: c.GetInt("id"), ActorRole: c.GetInt("role"), Category: model.AuditCategoryOperation, Action: "payment.order.review", Content: order.TradeNo, Success: true, Other: model.AuditOther{Op: &model.AuditOperation{Action: "payment.order.review", Params: model.AuditFields{"resolution": request.Action, "reference": request.Reference}}}})
+	// Financial changes are committed; these retries only synchronize caches/logs.
+	if request.Action == "fulfill" {
+		switch order.PaymentProvider {
+		case model.PaymentProviderAntom:
+			_ = model.CompleteAntomOrder(order.TradeNo)
+		case model.PaymentProviderWebMoney:
+			_ = model.CompleteWebMoneyOrder(order.TradeNo)
+		case model.PaymentProviderMixPay:
+			_ = model.SyncMixPayFulfillment(order.TradeNo)
+		case model.PaymentProviderAlipay:
+			_ = model.CompleteAlipayTopUp(order.TradeNo)
+		case model.PaymentProviderWechatPay:
+			_ = model.CompleteWechatPayTopUp(order.TradeNo)
+		}
+	}
 	common.ApiSuccess(c, nil)
 }
 
@@ -245,7 +268,7 @@ func personalOrderView(order model.SiteOrder) gin.H {
 		"payment_provider": order.PaymentProvider, "payment_method": order.PaymentMethod,
 		"order_status": order.OrderStatus, "amount_fen": order.AmountFen, "frozen_quota": order.FrozenQuota,
 		"money": order.Money, "create_time": order.CreateTime, "complete_time": order.CompleteTime,
-		"expires_at": order.ExpiresAt, "sandbox": order.Sandbox, "cancel_requested": order.CancelRequested, "close_requested_at": order.CloseRequestedAt, "closed_at": order.ClosedAt, "review_required": order.ReviewRequired,
+		"expires_at": order.ExpiresAt, "sandbox": order.Sandbox, "cancel_requested": order.CancelRequested, "close_requested_at": order.CloseRequestedAt, "closed_at": order.ClosedAt, "review_required": order.ReviewRequired, "review_resolution": order.ReviewResolution,
 	}
 }
 

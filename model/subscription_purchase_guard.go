@@ -10,6 +10,9 @@ import (
 
 const SubscriptionOrderPaidReview = "paid_review"
 
+// A manual non-fulfillment disposition closes the local business order only.
+const PaymentOrderReviewClosed = "review_closed"
+
 var ErrSubscriptionPurchasePending = errors.New("同套餐或同等级已有未完成订单，请前往我的订单继续支付或取消，关单确认后再购买")
 var ErrSubscriptionPurchaseLimit = errors.New("已达到该套餐购买上限")
 
@@ -65,6 +68,15 @@ func checkSubscriptionReservationTx(tx *gorm.DB, userID int, plan *SubscriptionP
 		return err
 	}
 	for _, order := range orders {
+		if order.Status == SubscriptionOrderPaidReview {
+			current, _, err := listSiteOrders(tx, SiteOrderFilter{ID: -order.Id, Page: 1, PageSize: 1})
+			if err != nil {
+				return err
+			}
+			if len(current) == 1 && (current[0].ReviewResolution == "refunded" || current[0].ReviewResolution == "acknowledged") {
+				continue
+			}
+		}
 		if order.Status == common.TopUpStatusExpired {
 			var payment any
 			switch order.PaymentProvider {

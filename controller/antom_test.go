@@ -75,7 +75,7 @@ func TestAntomPaymentDatabaseMatrix(t *testing.T) {
 			model.DB, model.LOG_DB = db, db
 			common.SetMainDatabaseType(common.DatabaseType(dialect))
 			common.RedisEnabled = false
-			tables := []any{&model.User{}, &model.TopUp{}, &model.SubscriptionOrder{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.WebMoneyConfig{}, &model.AlipayConfig{}, &model.AlipayOrder{}, &model.WechatPayOrder{}, &model.MixPayOrder{}, &model.WebMoneyOrder{}, &model.AntomConfig{}, &model.AntomOrder{}, &model.Log{}}
+			tables := []any{&model.PaymentReview{}, &model.User{}, &model.TopUp{}, &model.SubscriptionOrder{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.WebMoneyConfig{}, &model.AlipayConfig{}, &model.AlipayOrder{}, &model.WechatPayOrder{}, &model.MixPayOrder{}, &model.WebMoneyOrder{}, &model.AntomConfig{}, &model.AntomOrder{}, &model.Log{}}
 			t.Cleanup(func() {
 				require.NoError(t, db.Migrator().DropTable(tables...))
 				require.NoError(t, db.Migrator().DropTable("audit_logs"))
@@ -85,6 +85,18 @@ func TestAntomPaymentDatabaseMatrix(t *testing.T) {
 				http.DefaultTransport = oldTransport
 				require.NoError(t, connection.Close())
 			})
+
+			// Upgrade an append-only review table created before resolutions existed.
+			legacyReview := struct {
+				ID        int64  `gorm:"primaryKey"`
+				TradeNo   string `gorm:"type:varchar(64)"`
+				Provider  string `gorm:"type:varchar(24)"`
+				ActorID   int
+				Note      string `gorm:"type:text"`
+				CreatedAt int64
+			}{TradeNo: "legacy-note", Provider: "antom", ActorID: 1, Note: "Preserve old review"}
+			require.NoError(t, db.Table(db.NamingStrategy.TableName("PaymentReview")).AutoMigrate(&legacyReview))
+			require.NoError(t, db.Table(db.NamingStrategy.TableName("PaymentReview")).Create(&legacyReview).Error)
 			require.NoError(t, db.AutoMigrate(tables...))
 			require.NoError(t, db.AutoMigrate(tables...))
 			require.NoError(t, db.Table("audit_logs").AutoMigrate(&model.AuditLog{}))
@@ -119,6 +131,10 @@ func TestAntomPaymentDatabaseMatrix(t *testing.T) {
 				require.NoError(t, db.Raw("SELECT version()").Scan(&version).Error)
 			}
 			t.Log(dialect, version)
+			var migratedReview model.PaymentReview
+			require.NoError(t, db.First(&migratedReview, legacyReview.ID).Error)
+			assert.Equal(t, "Preserve old review", migratedReview.Note)
+			assert.Empty(t, migratedReview.Action)
 			config := model.AntomConfig{Enabled: true, Sandbox: true, ClientID: "SANDBOX_test", Region: "SG", PublicKey: base64.StdEncoding.EncodeToString(public), Secret: base64.StdEncoding.EncodeToString(private), SettlementCurrency: "USD", Description: "Test", MinTopUp: 1, NotifyBaseURL: "https://example.com", ReturnURL: "https://example.com/wallet"}
 			require.NoError(t, service.ValidateAntomConfig(&config))
 			require.NoError(t, db.Create(&config).Error)
@@ -138,9 +154,30 @@ func TestAntomPaymentDatabaseMatrix(t *testing.T) {
 			require.Error(t, db.Model(&config).Update("client_id", "changed").Error)
 			user := model.User{Username: "antom-buyer", Status: common.UserStatusEnabled, Quota: 100}
 			require.NoError(t, db.Create(&user).Error)
+			assert.False(t, (antomReconcileHandler{}).Enabled())
 			order := model.AntomOrder{TradeNo: "ANTtest", UserID: user.Id, ConfigID: config.ID, RequestKey: "one", Amount: "1.00", CreditedQuota: 50, RequestedAmount: 1, Status: "pending", CreatedAt: common.GetTimestamp(), ExpiresAt: common.GetTimestamp() + 1800}
 			top := model.TopUp{UserId: user.Id, TradeNo: order.TradeNo, PaymentProvider: "antom", PaymentMethod: "antom", Status: "pending", Money: 1}
 			require.NoError(t, model.CreateAntomOrder(&order, &top))
+			t.Run("unopened orders activate reconciliation without a schedule", func(t *testing.T) {
+				assert.True(t, (antomReconcileHandler{}).Enabled())
+				for _, state := range []struct {
+					status  string
+					gateway string
+					review  bool
+					want    bool
+				}{
+					{"expired", "", false, true},
+					{"expired", "CANCELLED", false, false},
+					{"expired", "FAIL", false, false},
+					{"paid", "SUCCESS", true, false},
+					{"success", "SUCCESS", false, false},
+				} {
+					require.NoError(t, db.Model(&order).Updates(map[string]any{"status": state.status, "gateway_status": state.gateway, "review_required": state.review, "next_check_at": common.GetTimestamp() + 3600}).Error)
+					assert.Equal(t, state.want, (antomReconcileHandler{}).Enabled(), "%+v", state)
+				}
+				require.NoError(t, db.Model(&order).Updates(map[string]any{"status": "pending", "gateway_status": "", "review_required": false, "next_check_at": 0}).Error)
+				require.NoError(t, db.First(&order, order.ID).Error)
+			})
 			duplicate := order
 			duplicate.ID = 0
 			duplicate.TradeNo = "duplicate"
@@ -461,6 +498,7 @@ func TestAntomPaymentDatabaseMatrix(t *testing.T) {
 					assert.EqualValues(t, 12345, subscription.AmountTotal)
 					require.NoError(t, db.Model(&model.UserSubscription{}).Where("user_id = ? AND plan_id = ?", user.Id, plan.Id).Count(&count).Error)
 					assert.EqualValues(t, 1, count)
+
 					require.NoError(t, db.First(&buyer, user.Id).Error)
 					assert.Equal(t, 150, buyer.Quota)
 					subOrder := model.GetSubscriptionOrderByTradeNo(trade)
@@ -856,6 +894,133 @@ func TestAntomPaymentDatabaseMatrix(t *testing.T) {
 						require.Error(t, model.RecordAntomPayment(current, "contradictory-payment"))
 					}
 				}
+			})
+
+			t.Run("five channel review resolutions are atomic and preserve holds", func(t *testing.T) {
+				channels := []struct {
+					provider string
+					target   any
+					gateway  string
+				}{
+					{model.PaymentProviderAntom, &model.AntomOrder{}, "SUCCESS"},
+					{model.PaymentProviderWebMoney, &model.WebMoneyOrder{}, "success"},
+					{model.PaymentProviderMixPay, &model.MixPayOrder{}, "success"},
+					{model.PaymentProviderAlipay, &model.AlipayOrder{}, "TRADE_SUCCESS"},
+					{model.PaymentProviderWechatPay, &model.WechatPayOrder{}, "SUCCESS"},
+				}
+				for _, channel := range channels {
+					for _, action := range []string{"fulfill", "refunded", "acknowledged"} {
+						t.Run(channel.provider+"/"+action, func(t *testing.T) {
+							trade := "review-" + channel.provider + "-" + action
+							buyer := model.User{Username: trade, AffCode: uuid.NewString()[:8], Status: common.UserStatusEnabled}
+							require.NoError(t, db.Create(&buyer).Error)
+							top := model.TopUp{TradeNo: trade, UserId: buyer.Id, Status: "pending", PaymentProvider: channel.provider, PaymentMethod: channel.provider, Money: 1}
+							require.NoError(t, db.Create(&top).Error)
+							fields := map[string]any{"trade_no": trade, "user_id": buyer.Id, "request_key": trade, "status": "paid", "review_required": true, "gateway_status": channel.gateway, "credited_quota": 50}
+							if channel.provider == model.PaymentProviderMixPay {
+								fields["trace_id"], fields["verified_at"], fields["quote_amount"] = trade, common.GetTimestamp(), "1.00"
+							} else {
+								fields["provider_trade_no"] = trade
+								if channel.provider == model.PaymentProviderAlipay || channel.provider == model.PaymentProviderWechatPay {
+									delete(fields, "request_key")
+									fields["amount_fen"] = 100
+								} else {
+									fields["amount"] = "1.00"
+								}
+							}
+							require.NoError(t, db.Model(channel.target).Create(fields).Error)
+							projection, err := model.GetSiteOrder(top.Id)
+							require.NoError(t, err)
+							require.Error(t, model.ResolvePaymentReview(projection, user.Id, action, "Verified in merchant dashboard", "refund-123", "stale"))
+							if action == "refunded" {
+								require.Error(t, model.ResolvePaymentReview(projection, user.Id, action, "Verified in merchant dashboard", "", projection.ReviewVersion))
+							}
+							require.NoError(t, model.ResolvePaymentReview(projection, user.Id, action, "Verified in merchant dashboard", "refund-123", projection.ReviewVersion))
+							require.Error(t, model.ResolvePaymentReview(projection, user.Id, action, "Repeated request", "refund-123", projection.ReviewVersion))
+							updated, err := model.GetSiteOrder(top.Id)
+							require.NoError(t, err)
+							assert.Equal(t, action, updated.ReviewResolution)
+							require.NoError(t, db.First(&buyer, buyer.Id).Error)
+							if action == "fulfill" {
+								assert.Equal(t, 50, buyer.Quota)
+								assert.Equal(t, "success", updated.OrderStatus)
+								assert.False(t, updated.ReviewRequired)
+							} else {
+								assert.Zero(t, buyer.Quota)
+								assert.True(t, updated.ReviewRequired)
+								assert.Equal(t, model.PaymentOrderReviewClosed, updated.OrderStatus)
+								require.NoError(t, db.Model(channel.target).Where("trade_no = ?", trade).Update("last_error", "new_payment_evidence").Error)
+								changed, err := model.GetSiteOrder(top.Id)
+								require.NoError(t, err)
+								assert.Empty(t, changed.ReviewResolution, "new evidence reopens the review")
+							}
+							var count int64
+							require.NoError(t, db.Model(&model.PaymentReview{}).Where("trade_no = ?", trade).Count(&count).Error)
+							assert.EqualValues(t, 1, count)
+							require.NoError(t, db.Model(channel.target).Where("trade_no = ?", trade).Update("cache_pending", false).Error)
+							if channel.provider == model.PaymentProviderMixPay || channel.provider == model.PaymentProviderAntom || channel.provider == model.PaymentProviderWebMoney {
+								require.NoError(t, db.Model(channel.target).Where("trade_no = ?", trade).Update("log_pending", false).Error)
+							}
+						})
+					}
+				}
+				for _, channel := range channels {
+					for _, action := range []string{"fulfill", "refunded", "acknowledged"} {
+						t.Run(channel.provider+"/subscription/"+action, func(t *testing.T) {
+							trade := "subreview-" + channel.provider + "-" + action
+							buyer := model.User{Username: trade, AffCode: uuid.NewString()[:8], Status: common.UserStatusEnabled}
+							require.NoError(t, db.Create(&buyer).Error)
+							plan := model.SubscriptionPlan{Title: trade, Enabled: true, PriceAmount: 1, Currency: "USD", DurationUnit: "month", DurationValue: 1, TotalAmount: 12345, QuotaResetPeriod: "never"}
+							require.NoError(t, db.Create(&plan).Error)
+							payload, err := common.Marshal(plan)
+							require.NoError(t, err)
+							sub := model.SubscriptionOrder{TradeNo: trade, UserId: buyer.Id, PlanId: plan.Id, Status: model.SubscriptionOrderPaidReview, PaymentProvider: channel.provider, ProviderPayload: string(payload), Money: 1}
+							require.NoError(t, db.Create(&sub).Error)
+							fields := map[string]any{"trade_no": trade, "user_id": buyer.Id, "request_key": trade, "status": "paid", "review_required": true, "gateway_status": channel.gateway, "last_error": "subscription_conflict", "credited_quota": 50}
+							if channel.provider == model.PaymentProviderMixPay {
+								fields["trace_id"], fields["verified_at"], fields["quote_amount"], fields["plan_id"] = trade, common.GetTimestamp(), "1.00", plan.Id
+							} else {
+								fields["provider_trade_no"] = trade
+								if channel.provider == model.PaymentProviderAlipay || channel.provider == model.PaymentProviderWechatPay {
+									delete(fields, "request_key")
+									fields["amount_fen"] = 100
+								} else {
+									fields["amount"] = "1.00"
+								}
+							}
+							require.NoError(t, db.Model(channel.target).Create(fields).Error)
+							projection, err := model.GetSiteOrder(-sub.Id)
+							require.NoError(t, err)
+							if action == "fulfill" {
+								active := model.UserSubscription{UserId: buyer.Id, PlanId: plan.Id, Status: "active", EndTime: common.GetTimestamp() + 3600}
+								require.NoError(t, db.Create(&active).Error)
+								require.ErrorIs(t, model.ResolvePaymentReview(projection, user.Id, action, "Verified subscription payment", "", projection.ReviewVersion), model.ErrActiveSubscriptionExists)
+								require.NoError(t, db.Model(&active).Update("status", "expired").Error)
+							}
+							require.NoError(t, model.ResolvePaymentReview(projection, user.Id, action, "Verified subscription payment", "refund-sub-123", projection.ReviewVersion))
+							require.Error(t, model.ResolvePaymentReview(projection, user.Id, action, "Repeated subscription request", "refund-sub-123", projection.ReviewVersion))
+							var activeCount int64
+							require.NoError(t, db.Model(&model.UserSubscription{}).Where("user_id = ? AND status = ?", buyer.Id, "active").Count(&activeCount).Error)
+							if action == "fulfill" {
+								assert.EqualValues(t, 1, activeCount)
+							} else {
+								assert.Zero(t, activeCount)
+								replacement := model.SubscriptionOrder{TradeNo: "replace-" + trade, UserId: buyer.Id, PlanId: plan.Id, Status: "pending", PaymentProvider: model.PaymentProviderAntom}
+								payment := model.AntomOrder{TradeNo: replacement.TradeNo, UserID: buyer.Id, RequestKey: replacement.TradeNo, Status: "pending"}
+								require.NoError(t, model.CreateDirectSubscriptionOrder(&replacement, &plan, &payment), "resolved review releases the reservation")
+								require.NoError(t, db.Delete(&payment).Error)
+								require.NoError(t, db.Delete(&replacement).Error)
+							}
+							require.NoError(t, db.First(&buyer, buyer.Id).Error)
+							assert.Zero(t, buyer.Quota, "subscription resolution never credits the wallet")
+							require.NoError(t, db.Model(channel.target).Where("trade_no = ?", trade).Update("cache_pending", false).Error)
+							if channel.provider == model.PaymentProviderMixPay {
+								require.NoError(t, db.Model(channel.target).Where("trade_no = ?", trade).Update("log_pending", false).Error)
+							}
+						})
+					}
+				}
+
 			})
 
 			t.Run("legacy rejected cancellation and old pending orders remain recoverable", func(t *testing.T) {

@@ -267,6 +267,7 @@ export function SiteOrders(props: { scope?: OrderScope }) {
     { value: 'pending', label: t('Awaiting payment') },
     { value: 'paid', label: t('Paid, awaiting credit') },
     { value: 'paid_review', label: t('Paid, awaiting manual review') },
+    { value: 'review_closed', label: t('Review resolved') },
     { value: 'success', label: t('Completed') },
     { value: 'expired', label: t('Closed') },
     { value: 'failed', label: t('Failed') },

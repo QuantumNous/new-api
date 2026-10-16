@@ -464,8 +464,7 @@ func reconcileAntomOrder(ctx context.Context, trade string, verifyCompleted bool
 }
 func RunAntomReconciliation(ctx context.Context) error {
 	var orders []model.AntomOrder
-	reviewOrders := model.DB.Model(&model.SubscriptionOrder{}).Select("trade_no").Where("status = ?", model.SubscriptionOrderPaidReview)
-	if err := model.DB.WithContext(ctx).Where("(status IN ? OR (status = ? AND COALESCE(gateway_status, '') NOT IN ?) OR cache_pending = ? OR log_pending = ?) AND COALESCE(next_check_at, 0) <= ?", []string{"pending", "paid"}, "expired", []string{"FAIL", "CANCELLED"}, true, true, common.GetTimestamp()).Where("trade_no NOT IN (?)", reviewOrders).Where("COALESCE(review_required, ?) = ? OR status = ?", false, false, "success").Order("next_check_at, id").Limit(100).Find(&orders).Error; err != nil {
+	if err := model.AntomOrdersRequiringReconciliation(model.DB.WithContext(ctx)).Where("COALESCE(next_check_at, 0) <= ?", common.GetTimestamp()).Order("next_check_at, id").Limit(100).Find(&orders).Error; err != nil {
 		return err
 	}
 	var result error

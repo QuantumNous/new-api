@@ -25,7 +25,15 @@ import { z } from 'zod'
 
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { getPaymentMethodName } from '@/features/wallet/lib/billing'
 import { toIntlLocale } from '@/i18n/languages'
@@ -41,11 +49,26 @@ export function RecoverOrder(props: {
 }) {
   const { t, i18n } = useTranslation()
   const [open, setOpen] = useState(false)
+  const [action, setAction] = useState('note')
   const title = props.review
-    ? t('Record review outcome')
+    ? t('Resolve payment review')
     : t('Verify and recover order')
   const client = useQueryClient()
+  const choices = [
+    { value: 'note', label: t('Record review outcome') },
+    { value: 'fulfill', label: t('Fulfill verified payment') },
+    { value: 'refunded', label: t('Record external refund') },
+    { value: 'acknowledged', label: t('Resolve without adjustment') },
+  ]
   const schema = z.object({
+    reference: z
+      .string()
+      .trim()
+      .max(128)
+      .refine(
+        (value) => !props.review || action !== 'refunded' || value.length > 0,
+        t('Refund reference is required.')
+      ),
     reason: z
       .string()
       .trim()
@@ -54,13 +77,23 @@ export function RecoverOrder(props: {
   })
   const form = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
-    defaultValues: { reason: '' },
+    defaultValues: { reason: '', reference: '' },
   })
   const mutation = useMutation({
     mutationKey: ['site-orders', 'recover', props.order.id],
-    mutationFn: (values: { reason: string }) =>
+    mutationFn: (values: { reason: string; reference: string }) =>
       props.review
-        ? recordOrderReview(props.order.id, values.reason)
+        ? recordOrderReview(
+            props.order.id,
+            values.reason,
+            action === 'note'
+              ? undefined
+              : {
+                  action,
+                  reference: values.reference,
+                  version: props.order.review_version ?? '',
+                }
+          )
         : recoverOrder(props.order.id, values.reason),
     onSuccess: () => setOpen(false),
     onSettled: () => client.invalidateQueries({ queryKey: ['site-orders'] }),
@@ -84,6 +117,19 @@ export function RecoverOrder(props: {
       'Payment verification failed. Check the order status before retrying.'
     ),
   }
+  let description = t(
+    'Only verified payments can credit the frozen quota. Amounts and recipients cannot be changed.'
+  )
+  if (props.review) {
+    description =
+      action === 'note'
+        ? t(
+            'Record the investigation or external refund outcome. This does not change balances, subscriptions or the payment hold.'
+          )
+        : t(
+            'Fulfillment uses the verified payment and frozen order. Other resolutions do not refund money or change balances or subscriptions.'
+          )
+  }
   return (
     <>
       <Button
@@ -91,6 +137,8 @@ export function RecoverOrder(props: {
         disabled={props.disabled || mutation.isPending}
         onClick={() => {
           mutation.reset()
+          form.reset()
+          setAction('note')
           setOpen(true)
         }}
       >
@@ -102,16 +150,12 @@ export function RecoverOrder(props: {
           if (!mutation.isPending) setOpen(value)
         }}
         title={title}
-        desc={
-          props.review
-            ? t(
-                'Record the investigation or external refund outcome. This does not change balances, subscriptions or the payment hold.'
-              )
-            : t(
-                'Only verified payments can credit the frozen quota. Amounts and recipients cannot be changed.'
-              )
+        desc={description}
+        confirmText={
+          props.review && action === 'note'
+            ? t('Record review outcome')
+            : title
         }
-        confirmText={title}
         isLoading={mutation.isPending}
         handleConfirm={() =>
           void form.handleSubmit((values) => mutation.mutate(values))()
@@ -146,6 +190,48 @@ export function RecoverOrder(props: {
             </dd>
           </div>
         </dl>
+        {props.review && (
+          <div className='space-y-2'>
+            <Label htmlFor='review-action'>{t('Resolution')}</Label>
+            <Select
+              items={choices}
+              value={action}
+              disabled={mutation.isPending}
+              onValueChange={(value) => setAction(value ?? 'note')}
+            >
+              <SelectTrigger id='review-action'>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {choices.map((choice) => (
+                  <SelectItem key={choice.value} value={choice.value}>
+                    {choice.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className='text-muted-foreground text-sm'>
+              {t(
+                'Fulfillment uses the verified payment and frozen order. Other resolutions do not refund money or change balances or subscriptions.'
+              )}
+            </p>
+            {action === 'refunded' && (
+              <>
+                <Label htmlFor='refund-reference'>
+                  {t('Refund reference')}
+                </Label>
+                <Input
+                  id='refund-reference'
+                  maxLength={128}
+                  disabled={mutation.isPending}
+                  aria-invalid={!!form.formState.errors.reference}
+                  {...form.register('reference')}
+                />
+                <p role='alert'>{form.formState.errors.reference?.message}</p>
+              </>
+            )}
+          </div>
+        )}
         <div className='space-y-2'>
           <Label htmlFor='recovery-reason'>
             {props.review ? t('Review outcome') : t('Recovery reason')}

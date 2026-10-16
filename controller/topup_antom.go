@@ -173,7 +173,7 @@ func requestAntom(c *gin.Context, create bool) {
 	if plan != nil {
 		trade = "SUB" + trade
 	}
-	o := model.AntomOrder{TradeNo: trade, UserID: userID, RequestKey: req.RequestKey, RequestedAmount: req.Amount, ConfigID: config.ID, Amount: amount, CreditedQuota: quota, Status: "pending", CreatedAt: now, ExpiresAt: now + 1800}
+	o := model.AntomOrder{TradeNo: trade, UserID: userID, RequestKey: req.RequestKey, RequestedAmount: req.Amount, ConfigID: config.ID, Amount: amount, CreditedQuota: quota, Status: "pending", CreatedAt: now, ExpiresAt: now + 1800, NextCheckAt: now + 60}
 	money, _ := decimal.NewFromString(amount)
 	top := model.TopUp{UserId: userID, Amount: decimal.NewFromInt(int64(quota)).Div(decimal.NewFromFloat(common.QuotaPerUnit)).IntPart(), Money: money.InexactFloat64(), TradeNo: trade, PaymentMethod: model.PaymentProviderAntom, PaymentProvider: model.PaymentProviderAntom, CreateTime: now, Status: "pending"}
 	if plan != nil {

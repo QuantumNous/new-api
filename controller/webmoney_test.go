@@ -67,7 +67,7 @@ func TestWebMoneyDatabaseMatrix(t *testing.T) {
 			common.SetMainDatabaseType(common.DatabaseType(dialect))
 			common.RedisEnabled = false
 			legacy := []any{&model.User{}, &model.TopUp{}, &model.SubscriptionOrder{}, &model.AlipayConfig{}, &model.AlipayOrder{}, &model.WechatPayOrder{}, &model.MixPayOrder{}, &model.Log{}}
-			added := []any{&model.PaymentReview{}, &model.WebMoneyConfig{}, &model.WebMoneyOrder{}, &model.AntomOrder{}, &model.AntomConfig{}}
+			added := []any{&model.SubscriptionPlan{}, &model.UserSubscription{}, &model.PaymentReview{}, &model.WebMoneyConfig{}, &model.WebMoneyOrder{}, &model.AntomOrder{}, &model.AntomConfig{}}
 			tables := append(legacy, added...)
 			t.Cleanup(func() {
 				require.NoError(t, db.Migrator().DropTable(tables...))
@@ -289,6 +289,32 @@ func TestWebMoneyDatabaseMatrix(t *testing.T) {
 
 			require.NoError(t, service.RunWebMoneyReconciliation(context.Background()))
 			assert.Equal(t, beforeQueries+1, queryCount, "scheduled checks must not run on every worker tick")
+			t.Run("expired polling is bounded and manual inquiry remains available", func(t *testing.T) {
+				now := common.GetTimestamp()
+				require.NoError(t, db.Model(&other).Updates(map[string]any{"expires_at": now - 86401, "next_check_at": 0}).Error)
+				require.NoError(t, service.RunWebMoneyReconciliation(context.Background()))
+				daily, _, err := model.GetWebMoneyOrder(other.TradeNo)
+				require.NoError(t, err)
+				assert.GreaterOrEqual(t, daily.NextCheckAt, now+86400)
+				for _, state := range []string{"pending", "expired"} {
+					require.NoError(t, db.Model(&other).Updates(map[string]any{"status": state, "expires_at": now - 8*86400, "next_check_at": now - 1}).Error)
+					queries := queryCount
+					require.NoError(t, service.RunWebMoneyReconciliation(context.Background()))
+					assert.Equal(t, queries, queryCount, "old schedules are cleaned without a remote request")
+					stopped, _, err := model.GetWebMoneyOrder(other.TradeNo)
+					require.NoError(t, err)
+					assert.Equal(t, "expired", stopped.Status)
+					assert.Zero(t, stopped.NextCheckAt)
+					assert.False(t, (webmoneyReconcileHandler{}).Enabled())
+					require.NoError(t, service.RunWebMoneyReconciliation(context.Background()))
+					assert.Equal(t, queries, queryCount)
+				}
+				queries := queryCount
+				require.NoError(t, service.RecheckWebMoneyOrder(context.Background(), other.TradeNo))
+				assert.Equal(t, queries+1, queryCount)
+				require.NoError(t, db.Model(&other).Updates(map[string]any{"expires_at": common.GetTimestamp() - 1, "next_check_at": common.GetTimestamp() + 3600}).Error)
+			})
+
 			checkRecorder := httptest.NewRecorder()
 			checkContext, _ := gin.CreateTestContext(checkRecorder)
 			checkContext.Request = httptest.NewRequest("POST", fmt.Sprintf("/orders/%d/recover", otherTop.Id), strings.NewReader(`{"reason":"Verify expired payment"}`))
@@ -390,6 +416,56 @@ func TestWebMoneyDatabaseMatrix(t *testing.T) {
 			require.NoError(t, db.First(&buyer, user.Id).Error)
 			assert.Equal(t, 200, buyer.Quota)
 
+			t.Run("late subscription receipt can be resolved without duplicating benefits", func(t *testing.T) {
+				for i, action := range []string{"refunded", "acknowledged"} {
+					trade := "SUBWMlate-" + action
+					buyer := model.User{Username: "wm-" + action, AffCode: "wm-" + action, Status: common.UserStatusEnabled}
+					require.NoError(t, db.Create(&buyer).Error)
+					plan := model.SubscriptionPlan{Title: trade, Enabled: true, PriceAmount: 10, Currency: "USD", DurationUnit: "month", DurationValue: 1, TotalAmount: 1000, QuotaResetPeriod: "never"}
+					require.NoError(t, db.Create(&plan).Error)
+					payload, err := common.Marshal(plan)
+					require.NoError(t, err)
+					sub := model.SubscriptionOrder{TradeNo: trade, UserId: buyer.Id, PlanId: plan.Id, Status: "expired", PaymentProvider: model.PaymentProviderWebMoney, ProviderPayload: string(payload), Money: 10}
+					require.NoError(t, db.Create(&sub).Error)
+					payment := model.WebMoneyOrder{TradeNo: trade, UserID: buyer.Id, ConfigID: config.ID, RequestKey: trade, Amount: "10.00", Status: "expired", ExpiresAt: common.GetTimestamp() - 8*86400}
+					require.NoError(t, db.Create(&payment).Error)
+					active := model.UserSubscription{UserId: buyer.Id, PlanId: plan.Id, Status: "active", EndTime: common.GetTimestamp() + 3600}
+					require.NoError(t, db.Create(&active).Error)
+					notification := url.Values{}
+					for k, values := range v {
+						notification[k] = append([]string(nil), values...)
+					}
+					number, transaction := strconv.FormatInt(payment.ID, 10), strconv.Itoa(300+i)
+					notification.Set("LMI_PAYMENT_NO", number)
+					notification.Set("LMI_SYS_TRANS_NO", transaction)
+					hash := sha256.Sum256([]byte(strings.Join([]string{config.Purse, "10.00", number, "0", "100", transaction, "20261014 23:00:00", config.Secret, "T987654321012", "123456789012"}, ";")))
+					notification.Set("LMI_HASH2", hex.EncodeToString(hash[:]))
+					assert.Equal(t, 200, send(notification), "callbacks remain accepted beyond the polling deadline")
+					projection, err := model.GetSiteOrder(-sub.Id)
+					require.NoError(t, err)
+					assert.Equal(t, model.SubscriptionOrderPaidReview, projection.OrderStatus)
+					require.ErrorIs(t, model.ResolvePaymentReview(projection, user.Id, "fulfill", "Try to fulfill conflicting subscription", "", projection.ReviewVersion), model.ErrActiveSubscriptionExists)
+					require.NoError(t, model.ResolvePaymentReview(projection, user.Id, action, "Late payment handled after verification", "WM-refund-reference", projection.ReviewVersion))
+					assert.Equal(t, 200, send(notification))
+					closed, err := model.GetSiteOrder(-sub.Id)
+					require.NoError(t, err)
+					assert.Equal(t, model.PaymentOrderReviewClosed, closed.OrderStatus)
+					assert.Equal(t, action, closed.ReviewResolution)
+					pending, count, err := model.ListSiteOrders(model.SiteOrderFilter{OwnerID: buyer.Id, Status: model.SubscriptionOrderPaidReview, Page: 1, PageSize: 10})
+					require.NoError(t, err)
+					assert.Empty(t, pending)
+					assert.Zero(t, count)
+					var entitlementCount int64
+					require.NoError(t, db.Model(&model.UserSubscription{}).Where("user_id = ?", buyer.Id).Count(&entitlementCount).Error)
+					assert.EqualValues(t, 1, entitlementCount)
+					require.NoError(t, db.First(&buyer, buyer.Id).Error)
+					assert.Zero(t, buyer.Quota)
+					require.NoError(t, db.Model(&active).Update("status", "expired").Error)
+					replacement := model.SubscriptionOrder{TradeNo: trade + "-new", UserId: buyer.Id, PlanId: plan.Id, Status: "pending", PaymentProvider: model.PaymentProviderWebMoney}
+					newPayment := model.WebMoneyOrder{TradeNo: replacement.TradeNo, UserID: buyer.Id, RequestKey: replacement.TradeNo, Status: "pending"}
+					require.NoError(t, model.CreateDirectSubscriptionOrder(&replacement, &plan, &newPayment))
+				}
+			})
 			// Configuration endpoints never accept ordinary users or PATs; order reads enforce ownership.
 			for _, role := range []int{common.RoleCommonUser, common.RoleAdminUser} {
 				w := httptest.NewRecorder()

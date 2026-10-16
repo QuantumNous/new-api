@@ -13,6 +13,9 @@ import (
 
 const PaymentProviderWebMoney = "webmoney"
 
+const WebMoneyPaymentLifetimeSeconds int64 = 30 * 60
+const WebMoneyReconciliationWindowSeconds int64 = 7 * 24 * 60 * 60
+
 // Immutable revisions keep in-flight orders bound to their original credentials.
 type WebMoneyConfig struct {
 	ID            int    `json:"id"`
@@ -242,4 +245,14 @@ func ExpireWebMoneyOrder(id int64) error {
 		}
 		return tx.Model(&order).Update("status", "expired").Error
 	})
+}
+
+// Old schedules get one local cleanup pass, never another remote inquiry.
+// Paid receipts and fulfillment retries remain recoverable beyond the unpaid window.
+func WebMoneyOrdersRequiringReconciliation(db *gorm.DB, now int64) *gorm.DB {
+	reviewOrders := db.Session(&gorm.Session{NewDB: true}).Model(&SubscriptionOrder{}).Select("trade_no").Where("status IN ?", []string{SubscriptionOrderPaidReview, PaymentOrderReviewClosed})
+	return db.Model(&WebMoneyOrder{}).
+		Where("status IN ? OR (status = ? AND (expires_at > ? OR next_check_at > 0)) OR cache_pending = ? OR log_pending = ?", []string{"pending", "paid"}, "expired", now-WebMoneyReconciliationWindowSeconds, true, true).
+		Where("trade_no NOT IN (?)", reviewOrders).
+		Where("COALESCE(review_required, ?) = ? OR status = ?", false, false, "success")
 }

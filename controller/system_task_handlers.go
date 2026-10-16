@@ -227,7 +227,7 @@ type webmoneyReconcileHandler struct{}
 func (webmoneyReconcileHandler) Type() string { return "webmoney_reconcile" }
 func (webmoneyReconcileHandler) Enabled() bool {
 	var count int64
-	return model.DB.Model(&model.WebMoneyOrder{}).Where("(status IN ? AND COALESCE(review_required, ?) = ?) OR cache_pending = ? OR log_pending = ?", []string{"pending", "expired", "paid"}, false, false, true, true).Limit(1).Count(&count).Error == nil && count > 0
+	return model.WebMoneyOrdersRequiringReconciliation(model.DB, common.GetTimestamp()).Limit(1).Count(&count).Error == nil && count > 0
 }
 func (webmoneyReconcileHandler) Interval() time.Duration { return 30 * time.Second }
 func (webmoneyReconcileHandler) NewPayload() any         { return nil }
@@ -245,7 +245,7 @@ type antomReconcileHandler struct{}
 func (antomReconcileHandler) Type() string { return "antom_reconcile" }
 func (antomReconcileHandler) Enabled() bool {
 	var count int64
-	return model.DB.Model(&model.AntomOrder{}).Where("next_check_at > 0 OR status = ? OR cache_pending = ? OR log_pending = ?", "paid", true, true).Limit(1).Count(&count).Error == nil && count > 0
+	return model.AntomOrdersRequiringReconciliation(model.DB).Limit(1).Count(&count).Error == nil && count > 0
 }
 func (antomReconcileHandler) Interval() time.Duration { return 30 * time.Second }
 func (antomReconcileHandler) NewPayload() any         { return nil }

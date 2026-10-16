@@ -1,3 +1,12 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  createRootRoute,
+  createRouter,
+  createMemoryHistory,
+  RouterProvider,
+} from '@tanstack/react-router'
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -16,17 +25,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import {
-  createRootRoute,
-  createRouter,
-  createMemoryHistory,
-  RouterProvider,
-} from '@tanstack/react-router'
-import { render, screen, waitFor, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { createInstance } from 'i18next'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 
+import zh from '@/i18n/locales/zh.json'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -34,6 +36,7 @@ import { SiteOrders } from '..'
 import type { SiteOrder } from '../api'
 import { OrderDetail } from '../order-detail'
 import { OrderStatus } from '../order-status'
+import { paymentProviderStatusLabel } from '../presentation'
 
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 const order: SiteOrder = {
@@ -79,12 +82,15 @@ function showOrder() {
 describe('Site order detail', () => {
   test('root can record a review outcome without clearing the payment hold', async () => {
     vi.mocked(api.get).mockResolvedValue({
-      data: { success: true, data: { ...order, review_required: true } },
+      data: {
+        success: true,
+        data: { ...order, review_required: true, review_version: 'version-1' },
+      },
     })
     vi.mocked(api.post).mockResolvedValue({ data: { success: true } })
     showOrder()
     await userEvent.click(
-      await screen.findByRole('button', { name: 'Record review outcome' })
+      await screen.findByRole('button', { name: 'Resolve payment review' })
     )
     const dialog = await screen.findByRole('alertdialog')
     expect(
@@ -105,6 +111,71 @@ describe('Site order detail', () => {
       })
     )
     expect(await screen.findByText('Review outcome recorded.')).toBeVisible()
+  })
+
+  test('refund resolution requires a reference and sends the displayed version', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        success: true,
+        data: { ...order, review_required: true, review_version: 'version-1' },
+      },
+    })
+    vi.mocked(api.post).mockResolvedValue({ data: { success: true } })
+    showOrder()
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Resolve payment review' })
+    )
+    const dialog = await screen.findByRole('alertdialog')
+    await userEvent.click(
+      within(dialog).getByRole('combobox', { name: 'Resolution' })
+    )
+    await userEvent.click(
+      await screen.findByRole('option', { name: 'Record external refund' })
+    )
+    await userEvent.type(
+      within(dialog).getByLabelText('Review outcome'),
+      'Refund confirmed externally'
+    )
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Resolve payment review' })
+    )
+    expect(
+      await screen.findByText('Refund reference is required.')
+    ).toBeVisible()
+    expect(api.post).not.toHaveBeenCalled()
+    await userEvent.type(
+      within(dialog).getByLabelText('Refund reference'),
+      'REF-123'
+    )
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Resolve payment review' })
+    )
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/user/orders/1/review', {
+        note: 'Refund confirmed externally',
+        action: 'refunded',
+        reference: 'REF-123',
+        version: 'version-1',
+      })
+    )
+  })
+
+  test('resolved review keeps payment hold but hides resolution action', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          ...order,
+          review_required: true,
+          review_resolution: 'refunded',
+        },
+      },
+    })
+    showOrder()
+    expect(await screen.findByText('External refund recorded')).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Resolve payment review' })
+    ).not.toBeInTheDocument()
   })
 
   test('held subscription payment is shown as paid awaiting review, not completed', async () => {
@@ -384,7 +455,7 @@ test('MixPay admin detail offers server verification and review notes while hold
     name: 'Check payment result',
   })
   expect(screen.getAllByText('USD 1.43')).toHaveLength(1)
-  expect(screen.getByText('unpaid')).toBeVisible()
+  expect(screen.getByText('Awaiting payment', { selector: 'dd' })).toBeVisible()
   await userEvent.click(check)
   await waitFor(() =>
     expect(api.post).toHaveBeenCalledWith('/api/user/orders/1/recheck')
@@ -393,7 +464,7 @@ test('MixPay admin detail offers server verification and review notes while hold
     screen.queryByRole('button', { name: 'Verify and recover order' })
   ).not.toBeInTheDocument()
   expect(
-    screen.getByRole('button', { name: 'Record review outcome' })
+    screen.getByRole('button', { name: 'Resolve payment review' })
   ).toBeVisible()
 })
 
@@ -422,7 +493,7 @@ test('WebMoney admin detail enables X18 verification and recovery', async () => 
   expect(
     screen.getByRole('button', { name: 'Verify and recover order' })
   ).toBeEnabled()
-  expect(screen.getByText('Payment not found (X18 8)')).toBeVisible()
+  expect(screen.getByText('Payment not found')).toBeVisible()
   await userEvent.click(check)
   await waitFor(() =>
     expect(api.post).toHaveBeenCalledWith('/api/user/orders/1/recheck')
@@ -544,4 +615,31 @@ test('locally expired Antom order still offers provider cancellation in details'
   expect(
     await screen.findByRole('button', { name: 'Cancel order' })
   ).toBeVisible()
+})
+
+test('provider states have distinct Chinese meanings and unknown codes remain visible', async () => {
+  const translations = createInstance()
+  await translations.init({ lng: 'zh', resources: { zh } })
+  const cases = [
+    ['antom', 'SUCCESS', '支付成功'],
+    ['antom', 'CAPTURE_PENDING', '扣款尚未完成'],
+    ['antom', 'API_FUTURE_CODE', '支付查询接口异常（FUTURE_CODE）'],
+    ['webmoney', 'x18:8', '未找到成功付款'],
+    ['webmoney', 'x18:-6', '查询签名或摘要验证失败'],
+    ['webmoney', 'query_failed', '支付查询或校验失败'],
+    ['webmoney', 'x18:999', '未识别的渠道状态（x18:999）'],
+    ['mixpay', 'failed', '支付失败'],
+    ['mixpay', 'paid_less', '付款不足，等待补款'],
+    ['alipay', 'TRADE_CLOSED', '未付款交易已关闭，或已全额退款'],
+    ['wechatpay', 'REFUND', '转入退款，退款结果待核实'],
+    ['wechatpay', 'NOTPAY', '待支付'],
+    ['wechatpay', 'failed', '未识别的渠道状态（failed）'],
+    ['antom', '', '未记录'],
+    ['unknown', 'SUCCESS', '未识别的渠道状态（SUCCESS）'],
+  ]
+  for (const [provider, status, expected] of cases) {
+    expect(paymentProviderStatusLabel(provider, status, translations.t)).toBe(
+      expected
+    )
+  }
 })

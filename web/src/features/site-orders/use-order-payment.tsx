@@ -44,9 +44,13 @@ function paymentObservationFinished(order?: SiteOrder) {
     // A local timeout is not proof that the provider has stopped accepting payment.
     return !!order.closed_at
   }
-  return ['success', 'failed', 'expired', 'paid_review'].includes(
-    order.order_status
-  )
+  return [
+    'success',
+    'failed',
+    'expired',
+    'paid_review',
+    'review_closed',
+  ].includes(order.order_status)
 }
 
 // Shared payment interactions for the wallet notice and personal order list.
