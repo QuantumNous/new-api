@@ -25,6 +25,7 @@ type ResponsesToClaudeStreamState struct {
 	byItemID         map[string]*responsesClaudeStreamBlock
 	lastByKind       map[string]*responsesClaudeStreamBlock
 	usageText        strings.Builder
+	usageTextSink    func(string)
 }
 
 type responsesClaudeStreamBlock struct {
@@ -56,6 +57,24 @@ func (s *ResponsesToClaudeStreamState) UsageText() string {
 		return ""
 	}
 	return s.usageText.String()
+}
+
+func (s *ResponsesToClaudeStreamState) SetUsageTextSink(sink func(string)) {
+	if s == nil {
+		return
+	}
+	s.usageTextSink = sink
+}
+
+func (s *ResponsesToClaudeStreamState) recordUsageText(text string) {
+	if s == nil || text == "" {
+		return
+	}
+	if s.usageTextSink != nil {
+		s.usageTextSink(text)
+		return
+	}
+	s.usageText.WriteString(text)
 }
 
 func (s *ResponsesToClaudeStreamState) Done() bool {
@@ -343,7 +362,7 @@ func (s *ResponsesToClaudeStreamState) flushBlock(block *responsesClaudeStreamBl
 	}
 	delta := value[block.SentBytes:]
 	block.SentBytes = len(value)
-	s.usageText.WriteString(delta)
+	s.recordUsageText(delta)
 	index := block.Index
 	media := &dto.ClaudeMediaMessage{}
 	switch block.Kind {
