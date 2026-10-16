@@ -275,16 +275,18 @@ func TestResponsesWSRequestRunnerSharesRedisSuccessLimitWithHTTP(t *testing.T) {
 }
 
 type responsesWSBillingTest struct {
-	httpUpstream http.HandlerFunc
-	httpDone     chan struct{}
-	user         *model.User
-	token        *model.Token
-	channel      *model.Channel
-	client       *websocket.Conn
-	done         chan struct{}
-	upstreamDone chan struct{}
-	connections  atomic.Int32
-	gatewayURL   string
+	httpUpstream    http.HandlerFunc
+	httpDone        chan struct{}
+	user            *model.User
+	token           *model.Token
+	channel         *model.Channel
+	client          *websocket.Conn
+	done            chan struct{}
+	upstreamDone    chan struct{}
+	connections     atomic.Int32
+	failFirstWSDial atomic.Bool
+	wsDialAttempts  atomic.Int32
+	gatewayURL      string
 }
 
 func (fixture *responsesWSBillingTest) closeAndWait(t *testing.T) {
@@ -379,6 +381,10 @@ func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*web
 			_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
 			return
 		}
+		if fixture.failFirstWSDial.Load() && fixture.wsDialAttempts.Add(1) == 1 {
+			http.Error(w, "simulated upstream dial failure", http.StatusBadGateway)
+			return
+		}
 		ws, err := (&websocket.Upgrader{}).Upgrade(w, r, nil)
 		if !assert.NoError(t, err) {
 			return
@@ -422,6 +428,120 @@ func newResponsesWSBillingTest(t *testing.T, expression string, handle func(*web
 	fixture.client = client
 	t.Cleanup(func() { fixture.closeAndWait(t) })
 	return fixture
+}
+
+func createResponsesWSFallbackChannel(t *testing.T, baseURL, name string) *model.Channel {
+	t.Helper()
+	channel := &model.Channel{
+		Name: name, Key: "fallback-secret", Status: common.ChannelStatusEnabled,
+		Type: constant.ChannelTypeOpenAI, Group: "default", Models: "ws-billing", BaseURL: &baseURL,
+		Priority: common.GetPointer(int64(0)),
+	}
+	channel.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: true})
+	require.NoError(t, model.DB.Create(channel).Error)
+	require.NoError(t, model.DB.Create(&model.Ability{ChannelId: channel.Id, Model: "ws-billing", Group: "default", Enabled: true, Priority: channel.Priority}).Error)
+	t.Cleanup(func() {
+		require.NoError(t, model.DB.Where("channel_id = ?", channel.Id).Delete(&model.Ability{}).Error)
+		require.NoError(t, model.DB.Delete(channel).Error)
+		model.InitChannelCache()
+	})
+	return channel
+}
+
+func TestResponsesWSRunCallRetriesAgainstBudgetedChannel(t *testing.T) {
+	previousRetryTimes := common.RetryTimes
+	defer func() { common.RetryTimes = previousRetryTimes }()
+	common.RetryTimes = 1
+
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		if _, _, err := ws.ReadMessage(); !assert.NoError(t, err) {
+			return
+		}
+		for _, event := range []string{
+			`{"type":"response.created","response":{"id":"retry-ok","status":"in_progress"}}`,
+			`{"type":"response.completed","response":{"id":"retry-ok","status":"completed","usage":{"input_tokens":1,"output_tokens":1}}}`,
+		} {
+			if !assert.NoError(t, ws.WriteMessage(websocket.TextMessage, []byte(event))) {
+				return
+			}
+		}
+	})
+	fixture.failFirstWSDial.Store(true)
+	fixture.channel.Priority = common.GetPointer(int64(10))
+	fixture.channel.SetOtherSettings(dto.ChannelOtherSettings{RetryBudget: 1})
+	require.NoError(t, model.DB.Model(fixture.channel).Updates(map[string]any{
+		"priority": fixture.channel.Priority,
+		"settings": fixture.channel.OtherSettings,
+	}).Error)
+	require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", fixture.channel.Id).Update("priority", fixture.channel.Priority).Error)
+
+	fallbackHits := atomic.Int32{}
+	fallback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fallbackHits.Add(1)
+		http.Error(w, "fallback must not be selected", http.StatusBadGateway)
+	}))
+	t.Cleanup(fallback.Close)
+	createResponsesWSFallbackChannel(t, fallback.URL, "responses-ws-fallback")
+	model.InitChannelCache()
+
+	require.NoError(t, fixture.client.WriteMessage(websocket.TextMessage, []byte(`{"type":"response.create","model":"ws-billing","input":"hello"}`)))
+	assert.Equal(t, "response.created", readResponsesWSTestEvent(t, fixture.client)["type"])
+	assert.Equal(t, "response.completed", readResponsesWSTestEvent(t, fixture.client)["type"])
+	assert.Eventually(t, func() bool { return fixture.wsDialAttempts.Load() == 2 }, 3*time.Second, 10*time.Millisecond)
+	assert.Equal(t, int32(1), fixture.connections.Load())
+	assert.Zero(t, fallbackHits.Load(), "the retry budget should keep the request on its original channel")
+}
+
+func TestRelayRetriesAgainstBudgetedChannel(t *testing.T) {
+	previousRetryTimes := common.RetryTimes
+	defer func() { common.RetryTimes = previousRetryTimes }()
+	common.RetryTimes = 1
+
+	fixture := newResponsesWSBillingTest(t, `tier("request", fixed(0.002))`, func(ws *websocket.Conn, _ *http.Request) {
+		_, _, _ = ws.ReadMessage()
+	})
+	fixture.channel.Priority = common.GetPointer(int64(10))
+	fixture.channel.SetOtherSettings(dto.ChannelOtherSettings{RetryBudget: 1})
+	require.NoError(t, model.DB.Model(fixture.channel).Updates(map[string]any{
+		"priority": fixture.channel.Priority,
+		"settings": fixture.channel.OtherSettings,
+	}).Error)
+	require.NoError(t, model.DB.Model(&model.Ability{}).Where("channel_id = ?", fixture.channel.Id).Update("priority", fixture.channel.Priority).Error)
+
+	fallbackHits := atomic.Int32{}
+	fallback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fallbackHits.Add(1)
+		http.Error(w, "fallback must not be selected", http.StatusBadGateway)
+	}))
+	t.Cleanup(fallback.Close)
+	createResponsesWSFallbackChannel(t, fallback.URL, "responses-http-fallback")
+	model.InitChannelCache()
+
+	mainAttempts := atomic.Int32{}
+	fixture.httpUpstream = func(w http.ResponseWriter, _ *http.Request) {
+		if mainAttempts.Add(1) == 1 {
+			http.Error(w, `{"error":{"message":"temporary failure"}}`, http.StatusBadGateway)
+			return
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = fmt.Fprint(w, "data: {\"type\":\"response.created\",\"response\":{\"id\":\"retry-ok\",\"status\":\"in_progress\"}}\n\n")
+		_, _ = fmt.Fprint(w, "data: {\"type\":\"response.output_text.delta\",\"delta\":\"ok\"}\n\n")
+		_, _ = fmt.Fprint(w, "data: {\"type\":\"response.completed\",\"response\":{\"id\":\"retry-ok\",\"status\":\"completed\",\"usage\":{\"input_tokens\":1,\"output_tokens\":1}}}\n\n")
+		_, _ = fmt.Fprint(w, "data: [DONE]\n\n")
+	}
+	request, err := http.NewRequest(http.MethodPost, fixture.gatewayURL+"/v1/responses", strings.NewReader(`{"model":"ws-billing","input":"hello","stream":true}`))
+	require.NoError(t, err)
+	request.Header.Set("Authorization", "Bearer sk-"+fixture.token.Key)
+	request.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(request)
+	require.NoError(t, err)
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusOK, response.StatusCode)
+	assert.Contains(t, string(body), `"type":"response.completed"`)
+	assert.Equal(t, int32(2), mainAttempts.Load())
+	assert.Zero(t, fallbackHits.Load(), "the retry budget should keep the HTTP relay on its original channel")
 }
 
 func TestResponsesInterruptedStreamHealth(t *testing.T) {
