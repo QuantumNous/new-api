@@ -51,6 +51,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		switch info.RelayMode {
 		case relayconstant.RelayModeEmbeddings:
 			return fmt.Sprintf("%s/api/embed", info.ChannelBaseUrl), nil
+		case relayconstant.RelayModeSystemOne:
+			return fmt.Sprintf("%s/v1/systemone", info.ChannelBaseUrl), nil
 		case relayconstant.RelayModeResponses:
 			return fmt.Sprintf("%s/v1/responses", info.ChannelBaseUrl), nil
 		case relayconstant.RelayModeResponsesCompact:

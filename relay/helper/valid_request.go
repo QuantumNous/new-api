@@ -48,6 +48,8 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request, err = GetAndValidateEmbeddingRequest(c, relayMode)
 	case types.RelayFormatRerank:
 		request, err = GetAndValidateRerankRequest(c)
+	case types.RelayFormatSystemOne:
+		request, err = GetAndValidateSystemOneRequest(c)
 	case types.RelayFormatOpenAIAudio:
 		request, err = GetAndValidAudioRequest(c, relayMode)
 	case types.RelayFormatOpenAIRealtime:
@@ -95,6 +97,20 @@ func GetAndValidateRerankRequest(c *gin.Context) (*dto.RerankRequest, error) {
 		return nil, types.NewError(fmt.Errorf("documents is empty"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 	}
 	return rerankRequest, nil
+}
+
+func GetAndValidateSystemOneRequest(c *gin.Context) (*dto.SystemOneRequest, error) {
+	request := &dto.SystemOneRequest{}
+	if err := common.UnmarshalBodyReusable(c, request); err != nil {
+		return nil, err
+	}
+	if request.Model == "" {
+		return nil, errors.New("model is required")
+	}
+	if request.Stream != nil && *request.Stream {
+		return nil, errors.New("stream is not supported; the System One decision endpoint returns a single JSON object")
+	}
+	return request, nil
 }
 
 func GetAndValidateEmbeddingRequest(c *gin.Context, relayMode int) (*dto.EmbeddingRequest, error) {

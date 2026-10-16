@@ -13,6 +13,7 @@ func TestPath2RelayMode(t *testing.T) {
 	}{
 		{path: "/v1/alpha/search", want: RelayModeAlphaSearch},
 		{path: "/v1/alpha/search?foo=1", want: RelayModeAlphaSearch},
+		{path: "/v1/systemone", want: RelayModeSystemOne},
 	}
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
