@@ -16,7 +16,11 @@ export interface ExternalBillingResponse {
   data: ExternalBillingRow[]
 }
 
-function buildParams(startTimestamp: number, endTimestamp: number, username?: string) {
+function buildParams(
+  startTimestamp: number,
+  endTimestamp: number,
+  username?: string
+): Record<string, number | string> {
   const p: Record<string, number | string> = {}
   if (startTimestamp) p.start_timestamp = startTimestamp
   if (endTimestamp) p.end_timestamp = endTimestamp
@@ -56,4 +60,10 @@ export async function fetchExternalBillingSelf(
   return assertSuccess(res.data)
 }
 
-export const QUOTA_PER_USD = 500000
+// Quota-to-USD conversion. Kept in sync with the backend via the
+// VITE_QUOTA_PER_USD env var; falls back to the upstream default (500000).
+export const QUOTA_PER_USD: number = (() => {
+  const raw = import.meta.env.VITE_QUOTA_PER_USD
+  const parsed = typeof raw === 'string' ? Number(raw) : Number(raw ?? NaN)
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 500000
+})()
