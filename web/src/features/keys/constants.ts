@@ -16,12 +16,18 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { type StatusBadgeProps } from '@/components/status-badge'
+import type { StatusBadgeProps } from '@/components/status-badge'
 
 // ============================================================================
 // API Key Status Configuration
 // label values are i18n keys; use t(config.label) in components (e.g. StatusBadge)
 // ============================================================================
+
+/**
+ * System-preset group for batch inference platforms. Keys in this group cannot
+ * call the API; batch platforms charge them through the admin billing API.
+ */
+export const BATCH_GROUP = 'batch'
 
 export const API_KEY_STATUS = {
   ENABLED: 1,

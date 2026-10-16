@@ -29,6 +29,7 @@ import {
 import { useMediaQuery } from '@/hooks'
 import { cn } from '@/lib/utils'
 
+import { BATCH_GROUP } from '../constants'
 import { GroupRatioBadge, type GroupRatio } from './auto-group-visuals'
 
 type ApiKeyGroupCellProps = {
@@ -50,7 +51,13 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
       <TruncatedCell
         className={isMobile ? 'w-full' : 'max-w-50'}
         tabIndex={0}
-        tooltipContent={group || t('Follow user group')}
+        tooltipContent={
+          group === BATCH_GROUP
+            ? t(
+                'Keys in the batch group cannot call the API directly. They are only charged by batch inference platforms.'
+              )
+            : group || t('Follow user group')
+        }
         tooltipClassName='break-all'
       >
         <GroupBadge

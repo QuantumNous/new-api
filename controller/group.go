@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting"
@@ -43,6 +44,17 @@ func GetUserGroups(c *gin.Context) {
 			"ratio": "auto",
 			"desc":  setting.GetUsableGroupDescription("auto"),
 		}
+	}
+	// The batch group is only offered where API keys are created or edited;
+	// it cannot relay, so other group pickers never list it.
+	if c.Query("scene") == "token" && service.CanUseBatchGroup(userGroup) {
+		usableGroups[constant.BatchGroup] = map[string]any{
+			"ratio": service.GetUserGroupRatio(userGroup, constant.BatchGroup),
+			"desc":  "Batch inference group",
+			"batch": true,
+		}
+	} else {
+		delete(usableGroups, constant.BatchGroup)
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

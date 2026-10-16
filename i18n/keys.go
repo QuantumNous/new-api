@@ -17,6 +17,7 @@ const (
 	MsgAuthTokenIPNotAllowed      = "auth.token_ip_not_allowed"
 	MsgAuthTokenGroupForbidden    = "auth.token_group_forbidden"
 	MsgAuthTokenGroupDeprecated   = "auth.token_group_deprecated"
+	MsgAuthTokenBatchGroupRelay   = "auth.token_batch_group_relay"
 	MsgAuthChannelSelectForbidden = "auth.channel_select_forbidden"
 
 	MsgRateLimitReached      = "rate_limit.reached"

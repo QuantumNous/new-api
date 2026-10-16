@@ -279,6 +279,8 @@ func SetApiRouter(router *gin.Engine) {
 		handlePermissionRoute(apiRouter.Group("", middleware.AdminAuth()), http.MethodGet, "/task_plugin_options", authz.TaskPluginBind, controller.GetTaskPluginOptions)
 		registerChannelRoutes(apiRouter)
 		registerAuthzRoutes(apiRouter)
+		// Batch inference platforms charge batch group API keys here.
+		apiRouter.POST("/batch/billing", middleware.AdminAuth(), controller.ChargeBatchBilling)
 		tokenRoute := apiRouter.Group("/token")
 		tokenRoute.Use(middleware.UserAuth())
 		tokenRoute.Use(middleware.TokenOperationAudit())

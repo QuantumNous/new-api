@@ -387,21 +387,22 @@ func usageSemanticFromUsage(relayInfo *relaycommon.RelayInfo, usage *dto.Usage) 
 	return "openai"
 }
 
-func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []*common.Message) {
-	originUsage := usage
-	billingUsage := effectiveBillingUsage(usage)
-	if usage == nil {
-		extraContent = append(extraContent, common.NewMessage("Upstream returned no usage"))
-	}
-	if originUsage != nil {
-		ObserveChannelAffinityUsageCacheByRelayFormat(ctx, billingUsage, relayInfo.GetFinalRequestRelayFormat())
-	}
+// textSettlement is the charge a text request settles for its usage.
+type textSettlement struct {
+	summary              textQuotaSummary
+	billingUsage         *dto.Usage
+	tieredResult         *billingexpr.TieredResult
+	tieredBillingApplied bool
+}
 
-	adminRejectReason := common.GetContextKeyString(ctx, constant.ContextKeyAdminRejectReason)
+// calculateTextSettlement prices a usage already remapped by
+// effectiveBillingUsage, applying tiered expressions when the request carries a
+// tiered billing snapshot. It has no side effects beyond noting quota clamps
+// on relayInfo, so callers may price a usage before charging it.
+func calculateTextSettlement(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, billingUsage *dto.Usage) textSettlement {
 	summary := calculateTextQuotaSummary(ctx, relayInfo, billingUsage)
 
 	var tieredResult *billingexpr.TieredResult
-	var tieredTokens billingexpr.TokenParams
 	tieredBillingApplied := false
 	snap := relayInfo.TieredBillingSnapshot
 	// Providers normally estimate missing usage before settlement. Preserve the
@@ -415,7 +416,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		if snap := relayInfo.TieredBillingSnapshot; snap != nil {
 			tieredUsedVars = billingexpr.UsedVarsByHash(snap.ExprString, snap.ExprHash)
 		}
-		tieredTokens = BuildTieredTokenParams(billingUsage, summary.IsClaudeUsageSemantic, tieredUsedVars)
+		tieredTokens := BuildTieredTokenParams(billingUsage, summary.IsClaudeUsageSemantic, tieredUsedVars)
 		tieredOk, tieredQuota, tieredRes := TryTieredSettle(relayInfo, tieredTokens)
 		if tieredOk {
 			tieredBillingApplied = true
@@ -427,6 +428,30 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 			}
 		}
 	}
+	return textSettlement{
+		summary:              summary,
+		billingUsage:         billingUsage,
+		tieredResult:         tieredResult,
+		tieredBillingApplied: tieredBillingApplied,
+	}
+}
+
+func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []*common.Message) {
+	originUsage := usage
+	billingUsage := effectiveBillingUsage(usage)
+	if usage == nil {
+		extraContent = append(extraContent, common.NewMessage("Upstream returned no usage"))
+	}
+	if originUsage != nil {
+		ObserveChannelAffinityUsageCacheByRelayFormat(ctx, billingUsage, relayInfo.GetFinalRequestRelayFormat())
+	}
+
+	adminRejectReason := common.GetContextKeyString(ctx, constant.ContextKeyAdminRejectReason)
+	settlement := calculateTextSettlement(ctx, relayInfo, billingUsage)
+	summary := settlement.summary
+	billingUsage = settlement.billingUsage
+	tieredResult := settlement.tieredResult
+	tieredBillingApplied := settlement.tieredBillingApplied
 
 	for _, item := range summary.ToolSurchargeItems {
 		q := decimal.NewFromFloat(item.Price).

@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting/config"
 	"github.com/QuantumNous/new-api/types"
 )
@@ -79,6 +80,11 @@ func UpdateGroupRatioByJSONString(jsonStr string) error {
 func GetGroupRatio(name string) float64 {
 	ratio, ok := groupRatioMap.Get(name)
 	if !ok {
+		// The system-preset batch group defaults to 1 until an administrator
+		// configures its ratio.
+		if name == constant.BatchGroup {
+			return 1
+		}
 		common.SysLog(common.LogText("group ratio not found: %s", name))
 		return 1
 	}

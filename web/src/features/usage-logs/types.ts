@@ -245,6 +245,11 @@ export interface LogOtherData {
   is_system_prompt_overwritten?: boolean
   po?: string[]
   billing_source?: string
+  /** Charged by a batch inference platform through the batch billing API. */
+  batch_billing?: boolean
+  batch_request_id?: string
+  /** 'usage' when priced from token usage, 'quota' for an explicit charge. */
+  batch_billing_mode?: string
   group?: string
   stream_status?: {
     status?: string

@@ -49,8 +49,8 @@ const EMPTY_GROUP_RATIOS: Record<string, number | string> = {}
 
 function useGroupRatios(): Record<string, number | string> {
   const { data } = useQuery({
-    queryKey: ['user-groups'],
-    queryFn: async () => requireServerSuccess(await getUserGroups()),
+    queryKey: ['user-groups', 'token'],
+    queryFn: async () => requireServerSuccess(await getUserGroups('token')),
     staleTime: 0,
     select: (res) => {
       if (!res.success || !res.data) return {}

@@ -79,7 +79,7 @@ import {
   getApiKey,
   getTokenAutoGroups,
 } from '../api'
-import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
+import { BATCH_GROUP, ERROR_MESSAGES, SUCCESS_MESSAGES } from '../constants'
 import {
   getApiKeyFormSchema,
   type ApiKeyFormValues,
@@ -132,8 +132,8 @@ export function ApiKeysMutateDrawer({
     isFetched: groupsFetched,
     isFetching: groupsFetching,
   } = useQuery({
-    queryKey: ['user-groups'],
-    queryFn: async () => requireServerSuccess(await getUserGroups()),
+    queryKey: ['user-groups', 'token'],
+    queryFn: async () => requireServerSuccess(await getUserGroups('token')),
     enabled: open,
     staleTime: 0,
   })
@@ -173,9 +173,17 @@ export function ApiKeysMutateDrawer({
     [groupsData, t]
   )
   const backendHasAuto = groups.some((g) => g.value === 'auto')
-  const availableAutoGroupNames = useMemo(
-    () => groups.filter((group) => group.value !== 'auto').map((g) => g.value),
+  // The batch group cannot relay, so it never joins an Auto group order.
+  const autoGroupOptions = useMemo(
+    () => groups.filter((group) => group.value !== BATCH_GROUP),
     [groups]
+  )
+  const availableAutoGroupNames = useMemo(
+    () =>
+      autoGroupOptions
+        .filter((group) => group.value !== 'auto')
+        .map((g) => g.value),
+    [autoGroupOptions]
   )
   const globalAutoGroups = useMemo(() => {
     const available = new Set(availableAutoGroupNames)
@@ -444,6 +452,13 @@ export function ApiKeysMutateDrawer({
                         placeholder={t('Select a group')}
                       />
                     </FormControl>
+                    {field.value === BATCH_GROUP && (
+                      <FormDescription>
+                        {t(
+                          'Keys in the batch group cannot call the API directly. They are only charged by batch inference platforms.'
+                        )}
+                      </FormDescription>
+                    )}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -465,7 +480,7 @@ export function ApiKeysMutateDrawer({
                         <AutoGroupOrderEditor
                           value={field.value}
                           mode={autoGroupsMode}
-                          options={groups}
+                          options={autoGroupOptions}
                           globalOptions={globalAutoGroupOptions}
                           maxCount={maxAutoGroups}
                           onChange={(value) => {

@@ -57,12 +57,21 @@ export async function getUserModels(): Promise<{
   return res.data
 }
 
-export async function getUserGroups(): Promise<{
+/**
+ * `scene: 'token'` also returns groups that are only offered when creating or
+ * editing API keys, such as the batch inference group.
+ */
+export async function getUserGroups(scene?: 'token'): Promise<{
   success: boolean
   message?: string
-  data?: Record<string, { desc: string; ratio: number | string }>
+  data?: Record<
+    string,
+    { desc: string; ratio: number | string; batch?: boolean }
+  >
 }> {
-  const res = await api.get('/api/user/self/groups')
+  const res = scene
+    ? await api.get('/api/user/self/groups', { params: { scene } })
+    : await api.get('/api/user/self/groups')
   return res.data
 }
 

@@ -81,6 +81,9 @@ var accessTokenStaticResources = []AccessTokenResource{
 		accessTokenView("View all top-up records, subscription plans, and user subscriptions."),
 		accessTokenEdit("Complete top-up orders and manage subscription plans and user subscriptions."),
 	}},
+	{Resource: "batch_billing", LabelKey: "Batch billing", group: AccessTokenGroupAdmin, minRole: common.RoleAdminUser, Actions: []authz.ActionDefinition{
+		accessTokenEdit("Charge batch group API keys for usage served by batch inference platforms."),
+	}},
 	{Resource: "model", LabelKey: "Models", group: AccessTokenGroupAdmin, minRole: common.RoleAdminUser, Actions: []authz.ActionDefinition{
 		accessTokenView("View models and vendors, and preview upstream sync."),
 		accessTokenEdit("Edit models and vendors, and sync them from upstream."),

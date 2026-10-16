@@ -621,6 +621,10 @@ func TokenAuth() func(c *gin.Context) {
 
 		userGroup := userCache.Group
 		tokenGroup := token.Group
+		if tokenGroup == constant.BatchGroup || tokenGroup == "" && userGroup == constant.BatchGroup {
+			abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgAuthTokenBatchGroupRelay, map[string]any{"Group": constant.BatchGroup}), types.ErrorCodeAccessDenied)
+			return
+		}
 		if tokenGroup != "" {
 			// check common.UserUsableGroups[userGroup]
 			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {

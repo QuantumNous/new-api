@@ -47,10 +47,22 @@ func GroupInUserUsableGroups(userGroup, groupName string) bool {
 }
 
 func IsUserSelectableGroup(userGroup, groupName string) bool {
-	if groupName == "" || groupName == "auto" {
+	if groupName == "" || groupName == "auto" || groupName == constant.BatchGroup {
 		return false
 	}
 	return GroupInUserUsableGroups(userGroup, groupName) && ratio_setting.ContainsGroupRatio(groupName)
+}
+
+// CanUseBatchGroup reports whether users of userGroup may create API keys in
+// the system-preset batch group. It is available to every user group unless an
+// administrator removes it with a "-:batch" special usable group rule.
+func CanUseBatchGroup(userGroup string) bool {
+	specialSettings, ok := ratio_setting.GetGroupRatioSetting().GroupSpecialUsableGroup.Get(userGroup)
+	if !ok {
+		return true
+	}
+	_, removed := specialSettings["-:"+constant.BatchGroup]
+	return !removed
 }
 
 // GetUserAutoGroup 根据用户分组获取自动分组设置

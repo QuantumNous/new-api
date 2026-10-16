@@ -60,6 +60,7 @@ function installApiFixtures(createdPayloads: Array<Record<string, unknown>>) {
             success: true,
             data: {
               auto: { desc: 'Automatic routing', ratio: 'auto' },
+              batch: { desc: 'Batch inference group', ratio: 0.5, batch: true },
               default: { desc: 'Standard access', ratio: 1 },
               vip: { desc: 'Priority access', ratio: 2 },
             },
@@ -100,11 +101,12 @@ async function renderCreateDrawer(): Promise<void> {
     { updatedAt: freshAt }
   )
   queryClient.setQueryData(
-    ['user-groups'],
+    ['user-groups', 'token'],
     {
       success: true,
       data: {
         auto: { desc: 'Automatic routing', ratio: 'auto' },
+        batch: { desc: 'Batch inference group', ratio: 0.5, batch: true },
         default: { desc: 'Standard access', ratio: 1 },
         vip: { desc: 'Priority access', ratio: 2 },
       },
@@ -297,5 +299,49 @@ describe('API keys mutate drawer user quota query switch', () => {
     fireEvent.click(findButton('Save changes', true))
     await waitFor(() => expect(createdPayloads).toHaveLength(1))
     expect(createdPayloads[0]?.allow_user_quota_query).toBe(false)
+  })
+})
+
+describe('API keys mutate drawer batch group', () => {
+  test('keeps the batch group out of the Auto group order options', async () => {
+    installApiFixtures([])
+    await renderCreateDrawer()
+
+    const autoOrderControl = getControlByLabel('Auto group order')
+    const addGroupTrigger = autoOrderControl.querySelector<HTMLButtonElement>(
+      'button[role="combobox"]'
+    )
+    if (!addGroupTrigger) {
+      throw new Error('Expected Auto group order combobox')
+    }
+    fireEvent.click(addGroupTrigger)
+    const optionTexts = [
+      ...document.querySelectorAll<HTMLElement>('[data-slot="command-item"]'),
+    ].map((option) => option.textContent ?? '')
+    expect(optionTexts.some((text) => text.includes('Priority access'))).toBe(
+      true
+    )
+    expect(
+      optionTexts.some((text) => text.includes('Batch inference group'))
+    ).toBe(false)
+  })
+
+  test('explains the batch group when selected and creates the key in it', async () => {
+    const createdPayloads: Array<Record<string, unknown>> = []
+    installApiFixtures(createdPayloads)
+    await renderCreateDrawer()
+    const hint =
+      'Keys in the batch group cannot call the API directly. They are only charged by batch inference platforms.'
+    expect(screen.queryByText(hint)).toBeNull()
+
+    selectComboboxOption(getControlByLabel('Group'), 'Batch inference group')
+    expect(screen.getByText(hint)).toBeInTheDocument()
+    expect(document.body.textContent?.includes('Auto group order')).toBe(false)
+
+    changeInput(getControlByLabel('Name'), 'batch-platform')
+    fireEvent.click(findButton('Save changes', true))
+    await waitFor(() => expect(createdPayloads).toHaveLength(1))
+    expect(createdPayloads[0]?.group).toBe('batch')
+    expect(createdPayloads[0]?.cross_group_retry).toBe(false)
   })
 })

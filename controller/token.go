@@ -89,6 +89,21 @@ func getTokenRequestUserGroup(c *gin.Context) (string, error) {
 	return model.GetUserGroup(c.GetInt("id"), false)
 }
 
+// ensureBatchGroupAllowed rejects assigning the batch group to an API key when
+// an administrator has removed it from the user's group.
+func ensureBatchGroupAllowed(c *gin.Context) bool {
+	userGroup, err := getTokenRequestUserGroup(c)
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	if !service.CanUseBatchGroup(userGroup) {
+		common.ApiErrorT(c, "The batch group is not available for your account")
+		return false
+	}
+	return true
+}
+
 func setTokenAutoGroups(c *gin.Context, token *model.Token, groups []string) bool {
 	if len(groups) == 0 {
 		if err := token.SetAutoGroups(nil); err != nil {
@@ -333,6 +348,9 @@ func AddToken(c *gin.Context) {
 		common.ApiErrorT(c, "Maximum number of tokens reached ({{max}})", map[string]any{"max": maxTokens})
 		return
 	}
+	if token.Group == constant.BatchGroup && !ensureBatchGroupAllowed(c) {
+		return
+	}
 	if token.Group == "auto" {
 		if !setTokenAutoGroups(c, &token, request.AutoGroups.Groups) {
 			return
@@ -458,6 +476,9 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.AllowIps = token.AllowIps
 		if request.AllowUserQuotaQuery != nil {
 			cleanToken.AllowUserQuotaQuery = *request.AllowUserQuotaQuery
+		}
+		if token.Group == constant.BatchGroup && cleanToken.Group != constant.BatchGroup && !ensureBatchGroupAllowed(c) {
+			return
 		}
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry

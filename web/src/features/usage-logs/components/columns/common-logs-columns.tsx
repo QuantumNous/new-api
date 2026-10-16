@@ -356,19 +356,31 @@ export function useCommonLogsColumns(
           const log = row.original
           const timestamp = row.getValue('created_at') as number
           const config = getLogTypeConfig(log.type)
+          const isBatchBilling = parseLogOther(log.other)?.batch_billing
 
           return (
             <div className='flex min-w-0 flex-col gap-0.5'>
               <span className='truncate font-mono text-xs tabular-nums'>
                 {formatTimestampToDate(timestamp)}
               </span>
-              <StatusBadge
-                label={t(config.label)}
-                variant={config.color as StatusBadgeProps['variant']}
-                size='sm'
-                copyable={false}
-                className='-ml-1.5 !text-xs [&_span]:!text-xs'
-              />
+              <div className='flex min-w-0 flex-wrap items-center'>
+                <StatusBadge
+                  label={t(config.label)}
+                  variant={config.color as StatusBadgeProps['variant']}
+                  size='sm'
+                  copyable={false}
+                  className='-ml-1.5 !text-xs [&_span]:!text-xs'
+                />
+                {isBatchBilling && (
+                  <StatusBadge
+                    label={t('Batch inference')}
+                    variant='info'
+                    size='sm'
+                    copyable={false}
+                    className='!text-xs [&_span]:!text-xs'
+                  />
+                )}
+              </div>
             </div>
           )
         },
@@ -399,6 +411,18 @@ export function useCommonLogsColumns(
             if (!isDisplayableLogType(log.type)) return null
 
             const other = parseLogOther(log.other)
+            // Batch platforms bill outside the relay, so no channel served it.
+            if (other?.batch_billing) {
+              return (
+                <StatusBadge
+                  label={t('Batch inference')}
+                  variant='neutral'
+                  size='sm'
+                  showDot={false}
+                  copyable={false}
+                />
+              )
+            }
             const affinity = other?.admin_info?.channel_affinity
             const rawUseChannel = other?.admin_info?.use_channel ?? []
             const useChannel = Array.isArray(rawUseChannel)

@@ -640,6 +640,14 @@ export function DetailsDialog(props: DetailsDialogProps) {
             size='sm'
             copyable={false}
           />
+          {other?.batch_billing && (
+            <StatusBadge
+              label={t('Batch inference')}
+              variant='info'
+              size='sm'
+              copyable={false}
+            />
+          )}
         </>
       }
       description={t('View the complete details for this log entry')}
@@ -668,6 +676,13 @@ export function DetailsDialog(props: DetailsDialogProps) {
             <DetailRow
               label={t('Upstream Request ID')}
               value={props.log.upstream_request_id}
+              mono
+            />
+          )}
+          {other?.batch_request_id && (
+            <DetailRow
+              label={t('Batch Request ID')}
+              value={other.batch_request_id}
               mono
             />
           )}
