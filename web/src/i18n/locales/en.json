@@ -5674,7 +5674,7 @@
     "Retry Suggestion": "Retry Suggestion",
     "Retry Times": "Retry Times",
     "Retry, or read the plugin code below.": "Retry, or read the plugin code below.",
-    "Retry this channel before moving to the next priority. Uses the global retry budget; 0 keeps the current routing behavior.": "Retry this channel before moving to the next priority. Uses the global retry budget; 0 keeps the current routing behavior.",
+    "Retry this channel before moving to the next priority. Uses the global retry budget; 0 keeps the current routing behavior.": "Maximum retries on this channel count toward the global retry limit.",
     "Return a custom error immediately": "Return a custom error immediately",
     "Return Custom Error": "Return Custom Error",
     "Return data conforming to a JSON schema": "Return data conforming to a JSON schema",

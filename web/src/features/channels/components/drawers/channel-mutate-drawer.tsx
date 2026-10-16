@@ -2401,7 +2401,7 @@ export function ChannelMutateDrawer({
           name='retry_budget'
           render={({ field }) => (
             <FormItem>
-              <FormLabel>{t('Same-channel retry budget')}</FormLabel>
+              <FormLabel>{t('Retry budget')}</FormLabel>
               <FormControl>
                 <Input
                   type='number'
