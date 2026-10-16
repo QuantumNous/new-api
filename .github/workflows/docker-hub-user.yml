@@ -1,9 +1,6 @@
 name: Publish user Docker Hub image
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 concurrency:
