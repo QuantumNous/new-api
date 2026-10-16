@@ -206,12 +206,21 @@ export interface ChannelTestResponse {
   }
 }
 
+export interface ChannelKeyBalance {
+  index: number
+  key_preview: string
+  balance?: number
+  error?: string
+}
+
 export interface ChannelBalanceResponse {
   success: boolean
   message?: string
   balance?: number
   currency?: string
   raw_response?: string
+  /** Per-key results, present when a multi-key channel was queried. */
+  keys?: ChannelKeyBalance[]
 }
 
 export interface FetchModelsResponse {

@@ -444,6 +444,13 @@ export function BalanceCell({ channel }: { channel: Channel }) {
       setOpen('inference-status')
       return
     }
+    if (isMultiKeyChannel(channel)) {
+      // A multi-key channel reports one balance per key, so open the dialog
+      // that shows the per-key breakdown instead of a single toast.
+      setCurrentRow(channel)
+      setOpen('balance-query')
+      return
+    }
     if (isUpdating) {
       return
     }

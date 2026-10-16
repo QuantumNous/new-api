@@ -26,6 +26,7 @@ import {
   CodeBlock,
   CodeBlockCopyButton,
 } from '@/components/ai-elements/code-block'
+import { StaticDataTable } from '@/components/data-table'
 import { Dialog } from '@/components/dialog'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -37,6 +38,7 @@ import { createServerError } from '@/lib/server-error-message'
 
 import { getCodexUsage, updateChannelBalance } from '../../api'
 import { channelsQueryKeys } from '../../lib'
+import type { ChannelKeyBalance } from '../../types'
 import { useChannels } from '../channels-provider'
 import {
   CodexUsageDialog,
@@ -60,6 +62,9 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
   )
   const [rawResponse, setRawResponse] = useState<string | null>(
     props.initialRawResponse ?? null
+  )
+  const [keyBalances, setKeyBalances] = useState<ChannelKeyBalance[] | null>(
+    null
   )
   const [codexUsageResponse, setCodexUsageResponse] =
     useState<CodexUsageDialogData | null>(null)
@@ -102,6 +107,7 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
 
         setBalance(newBalance)
         setBalanceUpdatedTime(now)
+        setKeyBalances(response.keys ?? null)
         toast.success(t('Balance updated successfully'))
 
         // Update currentRow immediately with new balance and timestamp
@@ -132,6 +138,7 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
     setBalance(null)
     setBalanceUpdatedTime(null)
     setRawResponse(null)
+    setKeyBalances(null)
     setCodexUsageResponse(null)
     props.onOpenChange(false)
   }
@@ -226,6 +233,63 @@ export function BalanceQueryDialog(props: BalanceQueryDialogProps) {
                 )}
               </div>
             </div>
+
+            {/* Per-key breakdown of a multi-key channel */}
+            {keyBalances !== null && (
+              <div className='space-y-2'>
+                <div className='text-sm font-medium'>
+                  {t('Per-key balance')}
+                </div>
+                {keyBalances.some((entry) => entry.error) && (
+                  <Alert variant='destructive'>
+                    <AlertDescription>
+                      {t(
+                        'Some keys did not report a balance. The total only covers the keys that answered.'
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                )}
+                <div className='overflow-hidden rounded-md border'>
+                  <StaticDataTable
+                    className='rounded-none border-0'
+                    data={keyBalances}
+                    getRowKey={(entry) => entry.index}
+                    columns={[
+                      {
+                        id: 'index',
+                        header: t('Index'),
+                        className: 'w-16',
+                        cellClassName: 'font-mono text-sm',
+                        cell: (entry) => `#${entry.index + 1}`,
+                      },
+                      {
+                        id: 'key',
+                        header: t('Key'),
+                        cellClassName: 'font-mono text-xs',
+                        cell: (entry) => entry.key_preview,
+                      },
+                      {
+                        id: 'balance',
+                        header: t('Balance'),
+                        className: 'w-32',
+                        cellClassName: 'text-sm',
+                        cell: (entry) =>
+                          entry.balance === undefined
+                            ? '-'
+                            : formatBalance(entry.balance),
+                      },
+                      {
+                        id: 'error',
+                        header: t('Error'),
+                        cellClassName:
+                          'text-muted-foreground max-w-xs truncate text-xs',
+                        cell: (entry) => entry.error || '-',
+                      },
+                    ]}
+                  />
+                </div>
+              </div>
+            )}
           </>
         )}
 
