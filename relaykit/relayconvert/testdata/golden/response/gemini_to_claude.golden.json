@@ -1,5 +1,5 @@
 {
-  "id": "chatcmpl-<uuid>",
+  "id": "resp_<uuid>",
   "type": "message",
   "role": "assistant",
   "content": [
@@ -9,7 +9,7 @@
     },
     {
       "type": "tool_use",
-      "id": "call_<uuid>",
+      "id": "call_<scope>_1",
       "name": "get_weather",
       "input": {
         "city": "Paris"

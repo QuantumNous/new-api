@@ -42,11 +42,13 @@ func TestMain(m *testing.M) {
 const goldenDir = "testdata/golden"
 
 var (
+	toolScopeRe = regexp.MustCompile(`call_[0-9a-f]{12}_`)
 	hex32Re     = regexp.MustCompile(`[0-9a-f]{32}`)
 	timestampRe = regexp.MustCompile(`("created(_at)?"\s*:\s*)\d{9,}`)
 )
 
 func normalizeVolatile(data []byte) []byte {
+	data = toolScopeRe.ReplaceAll(data, []byte("call_<scope>_"))
 	data = hex32Re.ReplaceAll(data, []byte("<uuid>"))
 	data = timestampRe.ReplaceAll(data, []byte(`${1}0`))
 	return data

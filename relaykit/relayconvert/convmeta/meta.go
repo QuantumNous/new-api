@@ -155,6 +155,7 @@ const (
 // Values is a plain-struct Meta implementation for tests and non-RelayInfo
 // hosts (the relaykit-native entry point).
 type Values struct {
+	textStreamStates     map[string]any
 	OriginModelName      string
 	UpstreamModelName    string
 	ChannelMetaAttached  bool
@@ -333,4 +334,22 @@ func ReasoningStateOf(m Meta) *dto.ReasoningConversionState {
 		return nil
 	}
 	return m.ReasoningState()
+}
+
+// TextStreamState retains protocol projection state for the legacy chunk facade.
+func (v *Values) TextStreamState(key string) any {
+	if v == nil {
+		return nil
+	}
+	return v.textStreamStates[key]
+}
+
+func (v *Values) SetTextStreamState(key string, state any) {
+	if v == nil {
+		return
+	}
+	if v.textStreamStates == nil {
+		v.textStreamStates = make(map[string]any)
+	}
+	v.textStreamStates[key] = state
 }

@@ -17,15 +17,27 @@
         }
       ],
       "usageMetadata": {
-        "promptTokenCount": 0,
+        "promptTokenCount": 4,
         "toolUsePromptTokenCount": 0,
         "candidatesTokenCount": 0,
-        "totalTokenCount": 0,
+        "totalTokenCount": 4,
         "thoughtsTokenCount": 0,
         "cachedContentTokenCount": 0,
         "promptTokensDetails": null,
         "toolUsePromptTokensDetails": null,
-        "candidatesTokensDetails": null
+        "candidatesTokensDetails": null,
+        "billing_usage": {
+          "source": "claude_messages",
+          "semantic": "anthropic",
+          "claude_usage": {
+            "input_tokens": 4,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0,
+            "output_tokens": 0,
+            "claude_cache_creation_5_m_tokens": 0,
+            "claude_cache_creation_1_h_tokens": 0
+          }
+        }
       }
     },
     {
@@ -41,10 +53,10 @@
         }
       ],
       "usageMetadata": {
-        "promptTokenCount": 0,
+        "promptTokenCount": 4,
         "toolUsePromptTokenCount": 0,
         "candidatesTokenCount": 2,
-        "totalTokenCount": 2,
+        "totalTokenCount": 6,
         "thoughtsTokenCount": 0,
         "cachedContentTokenCount": 0,
         "promptTokensDetails": null,
@@ -54,7 +66,7 @@
           "source": "claude_messages",
           "semantic": "anthropic",
           "claude_usage": {
-            "input_tokens": 0,
+            "input_tokens": 4,
             "cache_creation_input_tokens": 0,
             "cache_read_input_tokens": 0,
             "output_tokens": 2,

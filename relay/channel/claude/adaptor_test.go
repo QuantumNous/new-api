@@ -282,9 +282,7 @@ func TestConvertGeminiRequestMapsSystemInstructionToolsAndMultimodal(t *testing.
 	converted, ok := out.(*dto.ClaudeRequest)
 	require.True(t, ok)
 
-	system := converted.ParseSystem()
-	require.NotEmpty(t, system)
-	assert.Contains(t, system[0].GetText(), "You are a helpful assistant.")
+	assert.Equal(t, "You are a helpful assistant.", converted.GetStringSystem())
 	require.NotEmpty(t, converted.Messages)
 	assert.Equal(t, "user", converted.Messages[0].Role)
 

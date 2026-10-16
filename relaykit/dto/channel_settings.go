@@ -158,6 +158,9 @@ func (s *ChannelOtherSettings) ValidateToolLossPolicy() error {
 const (
 	AdvancedCustomConverterSGLangRerank                = "jina_rerank_to_sglang"
 	advancedCustomConverterNone                        = "none"
+	advancedCustomConverterClaudeMessagesToGemini      = "claude_messages_to_gemini_generate_content"
+	advancedCustomConverterGeminiContentToClaude       = "gemini_generate_content_to_claude_messages"
+	advancedCustomConverterResponsesToClaude           = "openai_responses_to_claude_messages"
 	advancedCustomConverterClaudeMessagesToOpenAIChat  = "anthropic_messages_to_openai_chat_completions"
 	advancedCustomConverterOpenAIChatToClaudeMessages  = "openai_chat_completions_to_anthropic_messages"
 	advancedCustomConverterOpenAIChatToOpenAIResponses = "openai_chat_completions_to_openai_responses"
@@ -440,6 +443,8 @@ func IsAdvancedCustomConverterAllowed(converter string) bool {
 	switch converter {
 	case advancedCustomConverterNone,
 		AdvancedCustomConverterSGLangRerank,
+		advancedCustomConverterClaudeMessagesToGemini,
+		advancedCustomConverterResponsesToClaude,
 		advancedCustomConverterClaudeMessagesToOpenAIChat,
 		advancedCustomConverterOpenAIChatToClaudeMessages,
 		advancedCustomConverterOpenAIChatToOpenAIResponses,
@@ -448,7 +453,8 @@ func IsAdvancedCustomConverterAllowed(converter string) bool {
 		advancedCustomConverterGeminiContentToOpenAIChat,
 		advancedCustomConverterOpenAIChatToGeminiContent,
 		advancedCustomConverterClaudeMessagesToOpenAIResponses,
-		advancedCustomConverterGeminiContentToOpenAIResponses:
+		advancedCustomConverterGeminiContentToOpenAIResponses,
+		advancedCustomConverterGeminiContentToClaude:
 		return true
 	default:
 		return false
@@ -644,7 +650,8 @@ func validateAdvancedCustomConverterPath(index int, incomingPath string, convert
 	case advancedCustomConverterNone:
 		return nil
 	case advancedCustomConverterClaudeMessagesToOpenAIChat,
-		advancedCustomConverterClaudeMessagesToOpenAIResponses:
+		advancedCustomConverterClaudeMessagesToOpenAIResponses,
+		advancedCustomConverterClaudeMessagesToGemini:
 		if incomingPath == "/v1/messages" {
 			return nil
 		}
@@ -654,7 +661,7 @@ func validateAdvancedCustomConverterPath(index int, incomingPath string, convert
 		if incomingPath == "/v1/chat/completions" {
 			return nil
 		}
-	case advancedCustomConverterOpenAIResponsesToOpenAIChat:
+	case advancedCustomConverterOpenAIResponsesToOpenAIChat, advancedCustomConverterResponsesToClaude:
 		if incomingPath == "/v1/responses" {
 			return nil
 		}
@@ -663,7 +670,8 @@ func validateAdvancedCustomConverterPath(index int, incomingPath string, convert
 			return nil
 		}
 	case advancedCustomConverterGeminiContentToOpenAIChat,
-		advancedCustomConverterGeminiContentToOpenAIResponses:
+		advancedCustomConverterGeminiContentToOpenAIResponses,
+		advancedCustomConverterGeminiContentToClaude:
 		if strings.Contains(incomingPath, ":generateContent") || strings.Contains(incomingPath, ":streamGenerateContent") {
 			return nil
 		}

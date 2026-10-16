@@ -83,19 +83,20 @@ func TestClaudeDefaultMaxTokensPresence(t *testing.T) {
 				assert.Equal(t, clientMaxTokens, *got.MaxTokens)
 			})
 
-			t.Run("client zero same as absent, hook fills", func(t *testing.T) {
+			t.Run("explicit zero overrides hook", func(t *testing.T) {
 				clientMaxTokens := uint(0)
 				got, err := converter.convert(t, claudeDefaultsMeta(func(string) int { return 512 }), &clientMaxTokens)
 				require.NoError(t, err)
 				require.NotNil(t, got.MaxTokens)
-				assert.Equal(t, uint(512), *got.MaxTokens)
+				assert.Zero(t, *got.MaxTokens)
 			})
 
-			t.Run("client zero same as absent, no hook fails", func(t *testing.T) {
+			t.Run("explicit zero requires no hook", func(t *testing.T) {
 				clientMaxTokens := uint(0)
 				got, err := converter.convert(t, &convmeta.Values{}, &clientMaxTokens)
-				require.ErrorIs(t, err, sharedclaude.ErrMissingMaxTokens)
-				assert.Nil(t, got)
+				require.NoError(t, err)
+				require.NotNil(t, got.MaxTokens)
+				assert.Zero(t, *got.MaxTokens)
 			})
 		})
 	}

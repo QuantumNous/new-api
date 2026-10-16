@@ -4,7 +4,7 @@
       "type": "message_start",
       "message": {
         "type": "message",
-        "model": "upstream-model",
+        "model": "stream-model",
         "usage": {
           "input_tokens": 0,
           "cache_creation_input_tokens": 0,

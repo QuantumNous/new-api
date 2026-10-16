@@ -365,3 +365,18 @@ func groundingRuneRange(rendered string, part renderedGeminiPart, startByte int,
 	end := partStartRunes + utf8.RuneCountInString(part.text[:endByte])
 	return start, end, true
 }
+
+// GroundingStream projects late grounding metadata against the emitted text.
+type GroundingStream struct {
+	candidate *geminiGroundingStreamCandidate
+	sent      map[string]struct{}
+}
+
+func (s *GroundingStream) Observe(candidate dto.GeminiChatCandidate, rendered string) []byte {
+	if s.candidate == nil {
+		s.candidate = newGeminiGroundingStreamCandidate()
+		s.sent = make(map[string]struct{})
+	}
+	s.candidate.appendContent(candidate.Content, rendered)
+	return s.candidate.groundingAnnotations(candidate.GroundingMetadata, candidate.Index, s.sent)
+}

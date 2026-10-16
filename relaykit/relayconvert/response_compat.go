@@ -1,7 +1,10 @@
 package relayconvert
 
 import (
+	"context"
 	"fmt"
+	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
+	"github.com/QuantumNous/new-api/relaykit/types"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
@@ -12,7 +15,18 @@ import (
 )
 
 type ClaudeResponseInfo = claudemessages.ClaudeResponseInfo
-type ClaudeToChatStreamState = claudemessages.ClaudeToChatStreamState
+type ClaudeToChatStreamState struct{ meta *convmeta.Values }
+
+func (s *ClaudeToChatStreamState) ConvertChunk(response *dto.ClaudeResponse) (*dto.ChatCompletionsStreamResponse, error) {
+	if s.meta == nil {
+		s.meta = &convmeta.Values{}
+	}
+	value, _, err := irStreamConverter(types.RelayFormatClaude, types.RelayFormatOpenAI)(context.Background(), s.meta, response)
+	if err != nil {
+		return nil, err
+	}
+	return value.(*dto.ChatCompletionsStreamResponse), nil
+}
 
 type ChatToResponsesStreamEvent = oaichat.ChatToResponsesStreamEvent
 type ChatToResponsesStreamState = oaichat.ChatToResponsesStreamState
@@ -36,11 +50,19 @@ func NormalizeCacheCreationSplit(totalTokens int, tokens5m int, tokens1h int) (i
 }
 
 func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info convmeta.Meta) *dto.ClaudeResponse {
-	return oaichat.ResponseOpenAI2Claude(openAIResponse, info)
+	value, _, err := irResponseConverter(types.RelayFormatOpenAI, types.RelayFormatClaude)(context.Background(), info, openAIResponse)
+	if err != nil {
+		return nil
+	}
+	return value.(*dto.ClaudeResponse)
 }
 
 func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamResponse, info convmeta.Meta) []*dto.ClaudeResponse {
-	return oaichat.StreamResponseOpenAI2Claude(openAIResponse, info)
+	value, _, err := irStreamConverter(types.RelayFormatOpenAI, types.RelayFormatClaude)(context.Background(), info, openAIResponse)
+	if err != nil {
+		return nil
+	}
+	return value.([]*dto.ClaudeResponse)
 }
 
 func StopReasonClaudeToOpenAI(reason string) string {
@@ -52,7 +74,7 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 }
 
 func NewClaudeToChatStreamState() *ClaudeToChatStreamState {
-	return claudemessages.NewClaudeToChatStreamState()
+	return &ClaudeToChatStreamState{meta: &convmeta.Values{}}
 }
 
 func NewClaudeHostedStreamBridge() *ClaudeHostedStreamBridge {
@@ -75,8 +97,8 @@ func (b *GeminiHostedStreamBridge) Finalize(state *ResponseStreamState) ([]ChatT
 		return nil, nil
 	}
 	for _, stepState := range state.stepStates {
-		if streamState, ok := stepState.(*ChatToResponsesStreamState); ok {
-			return b.bridge.Finalize(streamState)
+		if streamState, ok := stepState.(*irResponseStream); ok && streamState.responses != nil {
+			return b.bridge.Finalize(streamState.responses)
 		}
 	}
 	return nil, fmt.Errorf("Gemini hosted stream bridge requires a Chat-to-Responses stream state")
@@ -90,15 +112,19 @@ func (b *ClaudeHostedStreamBridge) Convert(response *dto.ClaudeResponse, state *
 		return nil, false, nil
 	}
 	for _, stepState := range state.stepStates {
-		if streamState, ok := stepState.(*ChatToResponsesStreamState); ok {
-			return b.bridge.Convert(response, streamState)
+		if streamState, ok := stepState.(*irResponseStream); ok && streamState.responses != nil {
+			return b.bridge.Convert(response, streamState.responses)
 		}
 	}
 	return nil, false, nil
 }
 
 func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextResponse {
-	return claudemessages.ResponseClaude2OpenAI(claudeResponse)
+	value, _, err := irResponseConverter(types.RelayFormatClaude, types.RelayFormatOpenAI)(context.Background(), nil, claudeResponse)
+	if err != nil {
+		return nil
+	}
+	return value.(*dto.OpenAITextResponse)
 }
 
 func UsageFromClaudeAPIUsage(usage *dto.ClaudeUsage) *dto.Usage {
@@ -126,11 +152,19 @@ func FinalizeClaudeStreamBillingUsage(claudeInfo *ClaudeResponseInfo) {
 }
 
 func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info convmeta.Meta) *dto.GeminiChatResponse {
-	return oaichat.ResponseOpenAI2Gemini(openAIResponse, info)
+	value, _, err := irResponseConverter(types.RelayFormatOpenAI, types.RelayFormatGemini)(context.Background(), info, openAIResponse)
+	if err != nil {
+		return nil
+	}
+	return value.(*dto.GeminiChatResponse)
 }
 
 func StreamResponseOpenAI2Gemini(openAIResponse *dto.ChatCompletionsStreamResponse, info convmeta.Meta) *dto.GeminiChatResponse {
-	return oaichat.StreamResponseOpenAI2Gemini(openAIResponse, info)
+	value, _, err := irStreamConverter(types.RelayFormatOpenAI, types.RelayFormatGemini)(context.Background(), info, openAIResponse)
+	if err != nil {
+		return nil
+	}
+	return value.(*dto.GeminiChatResponse)
 }
 
 func UsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTokens int) *dto.Usage {
@@ -138,7 +172,13 @@ func UsageFromGeminiMetadata(metadata *dto.GeminiUsageMetadata, fallbackPromptTo
 }
 
 func ResponseGeminiChat2OpenAI(id string, created int64, response *dto.GeminiChatResponse) *dto.OpenAITextResponse {
-	return geminichat.ResponseGeminiChat2OpenAI(id, created, response)
+	value, _, err := irResponseConverter(types.RelayFormatGemini, types.RelayFormatOpenAI)(context.Background(), nil, response)
+	if err != nil {
+		return nil
+	}
+	out := value.(*dto.OpenAITextResponse)
+	out.Id, out.Created = id, created
+	return out
 }
 
 func StreamResponseGeminiChat2OpenAI(geminiResponse *dto.GeminiChatResponse) (*dto.ChatCompletionsStreamResponse, bool) {
@@ -207,4 +247,8 @@ func FinalizeResponsesToChatStream(state *ResponsesToChatStreamState) []dto.Chat
 
 func NewResponsesBufferedAccumulator() *ResponsesBufferedAccumulator {
 	return oairesponses.NewResponsesBufferedAccumulator()
+}
+
+func ClaudeUsageFromOpenAI(usage *dto.Usage) *dto.ClaudeUsage {
+	return sharedclaude.UsageFromOpenAI(usage)
 }

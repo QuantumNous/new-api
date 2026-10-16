@@ -138,6 +138,9 @@ export interface AdvancedCustomRouteAuth {
 }
 
 export type AdvancedCustomConverter =
+  | 'claude_messages_to_gemini_generate_content'
+  | 'gemini_generate_content_to_claude_messages'
+  | 'openai_responses_to_claude_messages'
   | 'none'
   | 'anthropic_messages_to_openai_chat_completions'
   | 'openai_chat_completions_to_anthropic_messages'

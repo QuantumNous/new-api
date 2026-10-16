@@ -37,6 +37,7 @@
     {
       "role": "tool",
       "content": "15 degrees",
+      "name": "get_weather",
       "tool_call_id": "call_abc"
     }
   ],

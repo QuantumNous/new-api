@@ -1093,3 +1093,50 @@ func mustAdvancedCustomRawMessage(t *testing.T, value any) []byte {
 	require.NoError(t, err)
 	return raw
 }
+
+func TestAdaptorDirectIRRoutesUseTargetProtocolAndStreamURL(t *testing.T) {
+	for _, tc := range []struct {
+		converter, incoming, upstream string
+		from                          types.RelayFormat
+	}{
+		{relayconvert.ConverterClaudeMessagesToGeminiContent, "/v1/messages", "/v1beta/models/{model}:generateContent", types.RelayFormatClaude},
+		{relayconvert.ConverterGeminiContentToClaudeMessages, "/v1beta/models/{model}:generateContent", "/v1/messages", types.RelayFormatGemini},
+		{relayconvert.ConverterOpenAIResponsesToClaudeMessages, "/v1/responses", "/v1/messages", types.RelayFormatOpenAIResponses},
+	} {
+		t.Run(tc.converter, func(t *testing.T) {
+			config := &dto.AdvancedCustomConfig{Routes: []dto.AdvancedCustomRoute{{IncomingPath: tc.incoming, UpstreamPath: tc.upstream, Converter: tc.converter, Auth: &dto.AdvancedCustomRouteAuth{Type: "header", Name: "x-api-key", Value: "{api_key}"}}}}
+			require.NoError(t, config.Validate())
+			info := advancedCustomRelayInfo(config)
+			info.RequestURLPath, info.RelayFormat, info.IsStream = strings.ReplaceAll(tc.incoming, "{model}", "test"), tc.from, true
+			c := advancedCustomGinContext(info.RequestURLPath)
+			adaptor := &Adaptor{}
+			var converted any
+			var err error
+			switch tc.from {
+			case types.RelayFormatClaude:
+				converted, err = adaptor.ConvertClaudeRequest(c, info, &dto.ClaudeRequest{Model: "test", MaxTokens: common.GetPointer(uint(1024)), Messages: []dto.ClaudeMessage{{Role: "user", Content: "hello"}}})
+			case types.RelayFormatGemini:
+				converted, err = adaptor.ConvertGeminiRequest(c, info, &dto.GeminiChatRequest{Contents: []dto.GeminiChatContent{{Role: "user", Parts: []dto.GeminiPart{{Text: "hello"}}}}, GenerationConfig: dto.GeminiChatGenerationConfig{MaxOutputTokens: common.GetPointer(uint(1024))}})
+			case types.RelayFormatOpenAIResponses:
+				converted, err = adaptor.ConvertOpenAIResponsesRequest(c, info, dto.OpenAIResponsesRequest{Model: "test", Input: []byte(`"hello"`), MaxOutputTokens: common.GetPointer(uint(1024))})
+			}
+			require.NoError(t, err)
+			url, err := adaptor.GetRequestURL(info)
+			require.NoError(t, err)
+			headers := http.Header{}
+			require.NoError(t, adaptor.SetupRequestHeader(c, &headers, info))
+			assert.Equal(t, "sk-test", headers.Get("x-api-key"))
+			if tc.from == types.RelayFormatClaude {
+				require.IsType(t, &dto.GeminiChatRequest{}, converted)
+				assert.Contains(t, url, ":streamGenerateContent?alt=sse")
+			} else {
+				request, ok := converted.(*dto.ClaudeRequest)
+				require.True(t, ok)
+				require.NotNil(t, request.Stream)
+				assert.True(t, *request.Stream)
+				assert.Equal(t, "https://fallback.example/v1/messages", url)
+				assert.Equal(t, "2023-06-01", headers.Get("anthropic-version"))
+			}
+		})
+	}
+}

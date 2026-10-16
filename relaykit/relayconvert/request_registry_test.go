@@ -99,7 +99,6 @@ func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
 		from           types.RelayFormat
 		to             types.RelayFormat
 		quality        RequestConverterQuality
-		stepConverters []string
 		advancedCustom bool
 	}{
 		{converter: ConverterClaudeMessagesToOpenAIChat, from: types.RelayFormatClaude, to: types.RelayFormatOpenAI, quality: RequestConverterQualityFair, advancedCustom: true},
@@ -109,14 +108,11 @@ func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
 		{converter: ConverterOpenAIChatToOpenAIResponses, from: types.RelayFormatOpenAI, to: types.RelayFormatOpenAIResponses, quality: RequestConverterQualityGood, advancedCustom: true},
 		{converter: ConverterOpenAIResponsesToOpenAIChat, from: types.RelayFormatOpenAIResponses, to: types.RelayFormatOpenAI, quality: RequestConverterQualityGood, advancedCustom: true},
 		{
-			converter: requestConverterClaudeToGemini,
-			from:      types.RelayFormatClaude,
-			to:        types.RelayFormatGemini,
-			quality:   RequestConverterQualityDiscouraged,
-			stepConverters: []string{
-				ConverterClaudeMessagesToOpenAIChat,
-				ConverterOpenAIChatToGeminiContent,
-			},
+			converter:      requestConverterClaudeToGemini,
+			from:           types.RelayFormatClaude,
+			to:             types.RelayFormatGemini,
+			quality:        RequestConverterQualityFair,
+			advancedCustom: true,
 		},
 		{
 			converter:      requestConverterClaudeToResponses,
@@ -126,31 +122,25 @@ func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
 			advancedCustom: true,
 		},
 		{
-			converter: requestConverterGeminiToClaude,
-			from:      types.RelayFormatGemini,
-			to:        types.RelayFormatClaude,
-			quality:   RequestConverterQualityDiscouraged,
-			stepConverters: []string{
-				ConverterGeminiContentToOpenAIChat,
-				ConverterOpenAIChatToClaudeMessages,
-			},
-		},
-		{
-			converter: requestConverterGeminiToResponses,
-			from:      types.RelayFormatGemini,
-			to:        types.RelayFormatOpenAIResponses,
-			quality:   RequestConverterQualityFair,
-			stepConverters: []string{
-				ConverterGeminiContentToOpenAIChat,
-				ConverterOpenAIChatToOpenAIResponses,
-			},
+			converter:      requestConverterGeminiToClaude,
+			from:           types.RelayFormatGemini,
+			to:             types.RelayFormatClaude,
+			quality:        RequestConverterQualityFair,
 			advancedCustom: true,
 		},
 		{
-			converter: requestConverterResponsesToClaude,
-			from:      types.RelayFormatOpenAIResponses,
-			to:        types.RelayFormatClaude,
-			quality:   RequestConverterQualityFair,
+			converter:      requestConverterGeminiToResponses,
+			from:           types.RelayFormatGemini,
+			to:             types.RelayFormatOpenAIResponses,
+			quality:        RequestConverterQualityFair,
+			advancedCustom: true,
+		},
+		{
+			converter:      requestConverterResponsesToClaude,
+			from:           types.RelayFormatOpenAIResponses,
+			to:             types.RelayFormatClaude,
+			quality:        RequestConverterQualityFair,
+			advancedCustom: true,
 		},
 		{
 			converter:      ConverterOpenAIResponsesToGemini,
@@ -172,12 +162,8 @@ func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
 			assert.Equal(t, tt.from, spec.From)
 			assert.Equal(t, tt.to, spec.To)
 			assert.Equal(t, tt.quality, spec.Quality)
-			assert.Equal(t, tt.stepConverters, spec.StepConverters)
-			if len(tt.stepConverters) == 0 {
-				assert.NotNil(t, spec.Convert)
-			} else {
-				assert.Nil(t, spec.Convert)
-			}
+			assert.Empty(t, spec.StepConverters)
+			assert.NotNil(t, spec.Convert)
 			assert.Equal(t, tt.advancedCustom, dto.IsAdvancedCustomConverterAllowed(tt.converter))
 		})
 	}
@@ -735,14 +721,14 @@ func TestConvertRequestResponsesToGeminiUsesDirectConverter(t *testing.T) {
 	require.Len(t, geminiReq.Contents, 2)
 	assert.Equal(t, "model", geminiReq.Contents[0].Role)
 	require.Len(t, geminiReq.Contents[0].Parts, 2)
-	functionCall := geminiReq.Contents[0].Parts[0].FunctionCall
+	functionCall := geminiReq.Contents[0].Parts[1].FunctionCall
 	require.NotNil(t, functionCall)
 	assert.Equal(t, "lookup", functionCall.FunctionName)
 	assert.Equal(t, map[string]any{"q": "x"}, functionCall.Arguments)
 	var thoughtSignature string
-	require.NoError(t, kitutil.Unmarshal(geminiReq.Contents[0].Parts[0].ThoughtSignature, &thoughtSignature))
+	require.NoError(t, kitutil.Unmarshal(geminiReq.Contents[0].Parts[1].ThoughtSignature, &thoughtSignature))
 	assert.Equal(t, sharedgemini.ThoughtSignatureBypassValue, thoughtSignature)
-	assert.Equal(t, "I will call.", geminiReq.Contents[0].Parts[1].Text)
+	assert.Equal(t, "I will call.", geminiReq.Contents[0].Parts[0].Text)
 
 	assert.Equal(t, "user", geminiReq.Contents[1].Role)
 	require.Len(t, geminiReq.Contents[1].Parts, 1)
@@ -1004,4 +990,62 @@ func mustMarshalRequestJSON(t *testing.T, value any) []byte {
 	raw, err := kitutil.Marshal(value)
 	require.NoError(t, err)
 	return raw
+}
+
+func TestIRRequestPreservesExplicitZeroAndFalseAcrossProtocols(t *testing.T) {
+	sources := []struct {
+		format  types.RelayFormat
+		raw     string
+		request any
+	}{
+		{types.RelayFormatOpenAI, `{"model":"test","messages":[{"role":"user","content":"hello"}],"max_tokens":0,"temperature":0,"top_p":0,"stream":false}`, &dto.GeneralOpenAIRequest{}},
+		{types.RelayFormatClaude, `{"model":"test","messages":[{"role":"user","content":"hello"}],"max_tokens":0,"temperature":0,"top_p":0,"stream":false}`, &dto.ClaudeRequest{}},
+		{types.RelayFormatOpenAIResponses, `{"model":"test","input":"hello","max_output_tokens":0,"temperature":0,"top_p":0,"stream":false}`, &dto.OpenAIResponsesRequest{}},
+		{types.RelayFormatGemini, `{"contents":[{"role":"user","parts":[{"text":"hello"}]}],"generationConfig":{"maxOutputTokens":0,"temperature":0,"topP":0}}`, &dto.GeminiChatRequest{}},
+	}
+	for _, source := range sources {
+		require.NoError(t, kitutil.UnmarshalJsonStr(source.raw, source.request))
+		for _, target := range []types.RelayFormat{types.RelayFormatOpenAI, types.RelayFormatClaude, types.RelayFormatOpenAIResponses, types.RelayFormatGemini} {
+			if source.format == target {
+				continue
+			}
+			t.Run(string(source.format)+"_to_"+string(target), func(t *testing.T) {
+				result, err := ConvertRequest(context.Background(), &convmeta.Values{UpstreamModelName: "test"}, target, source.request)
+				require.NoError(t, err)
+				var maxTokens *uint
+				var temperature, topP *float64
+				switch value := result.Value.(type) {
+				case *dto.GeneralOpenAIRequest:
+					maxTokens, temperature, topP = value.MaxCompletionTokens, value.Temperature, value.TopP
+					if maxTokens == nil {
+						maxTokens = value.MaxTokens
+					}
+					if source.format != types.RelayFormatGemini {
+						require.NotNil(t, value.Stream)
+						assert.False(t, *value.Stream)
+					}
+				case *dto.ClaudeRequest:
+					maxTokens, temperature, topP = value.MaxTokens, value.Temperature, value.TopP
+					if source.format != types.RelayFormatGemini {
+						require.NotNil(t, value.Stream)
+						assert.False(t, *value.Stream)
+					}
+				case *dto.OpenAIResponsesRequest:
+					maxTokens, temperature, topP = value.MaxOutputTokens, value.Temperature, value.TopP
+					if source.format != types.RelayFormatGemini {
+						require.NotNil(t, value.Stream)
+						assert.False(t, *value.Stream)
+					}
+				case *dto.GeminiChatRequest:
+					maxTokens, temperature, topP = value.GenerationConfig.MaxOutputTokens, value.GenerationConfig.Temperature, value.GenerationConfig.TopP
+				}
+				require.NotNil(t, maxTokens)
+				assert.Zero(t, *maxTokens)
+				require.NotNil(t, temperature)
+				assert.Zero(t, *temperature)
+				require.NotNil(t, topP)
+				assert.Zero(t, *topP)
+			})
+		}
+	}
 }

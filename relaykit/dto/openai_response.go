@@ -539,8 +539,9 @@ type ResponsesOutputContent struct {
 }
 
 type ResponsesReasoningSummaryPart struct {
-	Type string `json:"type"`
-	Text string `json:"text"`
+	Annotations *[]any `json:"annotations,omitempty"`
+	Type        string `json:"type"`
+	Text        string `json:"text"`
 }
 
 const (

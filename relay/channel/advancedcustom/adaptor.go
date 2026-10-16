@@ -80,6 +80,12 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 		return a.convertCrossProtocolChatRequest(c, info, converter, request)
 	case relayconvert.ConverterClaudeMessagesToOpenAIResponses:
 		return convertCrossProtocolResponsesRequest(c, info, converter, request)
+	case relayconvert.ConverterClaudeMessagesToGeminiContent:
+		result, err := service.ConvertRequestByID(c, info, converter, request)
+		if err != nil {
+			return nil, err
+		}
+		return result.Value, nil
 	default:
 		return nil, fmt.Errorf("converter %q does not support Anthropic Messages requests", converter)
 	}
@@ -98,6 +104,12 @@ func (a *Adaptor) ConvertGeminiRequest(c *gin.Context, info *relaycommon.RelayIn
 		return a.convertCrossProtocolChatRequest(c, info, converter, request)
 	case relayconvert.ConverterGeminiContentToOpenAIResponses:
 		return convertCrossProtocolResponsesRequest(c, info, converter, request)
+	case relayconvert.ConverterGeminiContentToClaudeMessages:
+		result, err := service.ConvertRequestByID(c, info, converter, request)
+		if err != nil {
+			return nil, err
+		}
+		return result.Value, nil
 	default:
 		return nil, fmt.Errorf("converter %q does not support Gemini generateContent requests", converter)
 	}
@@ -113,16 +125,12 @@ func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommo
 		return a.convertOpenAICompatibleResponsesRequest(c, info, request)
 	case relayconvert.ConverterOpenAIResponsesToOpenAIChat:
 		return a.convertCrossProtocolChatRequest(c, info, converter, request)
-	case relayconvert.ConverterOpenAIResponsesToGemini:
+	case relayconvert.ConverterOpenAIResponsesToGemini, relayconvert.ConverterOpenAIResponsesToClaudeMessages:
 		result, err := service.ConvertRequestByID(c, info, converter, request)
 		if err != nil {
 			return nil, err
 		}
-		geminiRequest, ok := result.Value.(*dto.GeminiChatRequest)
-		if !ok {
-			return nil, fmt.Errorf("expected Gemini generateContent request, got %T", result.Value)
-		}
-		return geminiRequest, nil
+		return result.Value, nil
 	default:
 		return nil, fmt.Errorf("converter %q does not support OpenAI Responses requests", converter)
 	}
@@ -294,9 +302,9 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	case relayconvert.ConverterClaudeMessagesToOpenAIChat,
 		relayconvert.ConverterGeminiContentToOpenAIChat:
 		return a.openaiAdaptor.DoResponse(c, resp, info)
-	case relayconvert.ConverterOpenAIChatToClaudeMessages:
+	case relayconvert.ConverterOpenAIChatToClaudeMessages, relayconvert.ConverterGeminiContentToClaudeMessages, relayconvert.ConverterOpenAIResponsesToClaudeMessages:
 		return a.claudeAdaptor.DoResponse(c, resp, info)
-	case relayconvert.ConverterOpenAIChatToGeminiContent:
+	case relayconvert.ConverterOpenAIChatToGeminiContent, relayconvert.ConverterClaudeMessagesToGeminiContent:
 		return a.geminiAdaptor.DoResponse(c, resp, info)
 	case relayconvert.ConverterOpenAIResponsesToGemini:
 		return a.geminiAdaptor.DoResponse(c, resp, info)
@@ -475,7 +483,7 @@ func shouldUseGeminiStreamURL(converter string, info *relaycommon.RelayInfo) boo
 	return info != nil &&
 		info.IsStream &&
 		(converter == relayconvert.ConverterOpenAIChatToGeminiContent ||
-			converter == relayconvert.ConverterOpenAIResponsesToGemini)
+			converter == relayconvert.ConverterOpenAIResponsesToGemini || converter == relayconvert.ConverterClaudeMessagesToGeminiContent)
 }
 
 func useGeminiStreamGenerateContentURL(parsedURL *url.URL) {
@@ -491,6 +499,8 @@ func useGeminiStreamGenerateContentURL(parsedURL *url.URL) {
 
 func shouldApplyClaudeHeaders(converter string, info *relaycommon.RelayInfo) bool {
 	return converter == relayconvert.ConverterOpenAIChatToClaudeMessages ||
+		converter == relayconvert.ConverterGeminiContentToClaudeMessages ||
+		converter == relayconvert.ConverterOpenAIResponsesToClaudeMessages ||
 		(converter == relayconvert.ConverterNone && info != nil && info.RelayFormat == types.RelayFormatClaude)
 }
 

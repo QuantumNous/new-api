@@ -1,5 +1,5 @@
 {
-  "id": "chatcmpl-<uuid>",
+  "id": "resp_<uuid>",
   "object": "response",
   "created_at": 0,
   "status": "completed",
@@ -9,7 +9,7 @@
   "output": [
     {
       "type": "message",
-      "id": "chatcmpl-<uuid>_msg_0",
+      "id": "msg_resp_<uuid>_0",
       "status": "completed",
       "role": "assistant",
       "content": [
@@ -24,13 +24,13 @@
     },
     {
       "type": "function_call",
-      "id": "call_<uuid>",
+      "id": "fc_call_<scope>_1",
       "status": "completed",
       "role": "",
       "content": null,
       "quality": "",
       "size": "",
-      "call_id": "call_<uuid>",
+      "call_id": "call_<scope>_1",
       "name": "get_weather",
       "arguments": "{\"city\":\"Paris\"}"
     }
@@ -65,7 +65,7 @@
     },
     "prompt_tokens_details": {
       "cached_tokens": 0,
-      "text_tokens": 0,
+      "text_tokens": 10,
       "audio_tokens": 0,
       "image_tokens": 0
     },
@@ -75,14 +75,9 @@
       "image_tokens": 0,
       "reasoning_tokens": 2
     },
-    "input_tokens": 10,
-    "output_tokens": 7,
-    "input_tokens_details": {
-      "cached_tokens": 0,
-      "text_tokens": 10,
-      "audio_tokens": 0,
-      "image_tokens": 0
-    },
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "input_tokens_details": null,
     "claude_cache_creation_5_m_tokens": 0,
     "claude_cache_creation_1_h_tokens": 0
   },

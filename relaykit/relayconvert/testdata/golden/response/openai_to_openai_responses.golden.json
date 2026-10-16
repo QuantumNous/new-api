@@ -9,7 +9,7 @@
   "output": [
     {
       "type": "reasoning",
-      "id": "chatcmpl-fixed_reasoning_0",
+      "id": "rs_chatcmpl-fixed_0",
       "status": "completed",
       "role": "",
       "content": null,
@@ -23,8 +23,20 @@
       "size": ""
     },
     {
+      "type": "function_call",
+      "id": "fc_call_abc",
+      "status": "completed",
+      "role": "",
+      "content": null,
+      "quality": "",
+      "size": "",
+      "call_id": "call_abc",
+      "name": "get_weather",
+      "arguments": "{\"city\":\"Paris\"}"
+    },
+    {
       "type": "message",
-      "id": "chatcmpl-fixed_msg_0",
+      "id": "msg_chatcmpl-fixed_2",
       "status": "completed",
       "role": "assistant",
       "content": [
@@ -36,18 +48,6 @@
       ],
       "quality": "",
       "size": ""
-    },
-    {
-      "type": "function_call",
-      "id": "call_abc",
-      "status": "completed",
-      "role": "",
-      "content": null,
-      "quality": "",
-      "size": "",
-      "call_id": "call_abc",
-      "name": "get_weather",
-      "arguments": "{\"city\":\"Paris\"}"
     }
   ],
   "parallel_tool_calls": false,

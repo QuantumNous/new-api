@@ -1,11 +1,14 @@
 package relayconvert
 
 import (
+	"context"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,12 +16,11 @@ import (
 
 func TestLookupBuiltinResponseConverters(t *testing.T) {
 	tests := []struct {
-		lookupID       string
-		id             string
-		from           types.RelayFormat
-		to             types.RelayFormat
-		quality        ResponseConverterQuality
-		stepConverters []string
+		lookupID string
+		id       string
+		from     types.RelayFormat
+		to       types.RelayFormat
+		quality  ResponseConverterQuality
 	}{
 		{lookupID: ResponseConverterOAIChatToOAIResponses, id: ConverterOpenAIChatToOpenAIResponses, from: types.RelayFormatOpenAI, to: types.RelayFormatOpenAIResponses, quality: ResponseConverterQualityGood},
 		{lookupID: ResponseConverterOAIResponsesToOAIChat, id: ConverterOpenAIResponsesToOpenAIChat, from: types.RelayFormatOpenAIResponses, to: types.RelayFormatOpenAI, quality: ResponseConverterQualityGood},
@@ -31,11 +33,7 @@ func TestLookupBuiltinResponseConverters(t *testing.T) {
 			id:       requestConverterClaudeToGemini,
 			from:     types.RelayFormatClaude,
 			to:       types.RelayFormatGemini,
-			quality:  ResponseConverterQualityDiscouraged,
-			stepConverters: []string{
-				ConverterClaudeMessagesToOpenAIChat,
-				ConverterOpenAIChatToGeminiContent,
-			},
+			quality:  ResponseConverterQualityFair,
 		},
 		{
 			lookupID: responseConverterClaudeToResponses,
@@ -43,21 +41,13 @@ func TestLookupBuiltinResponseConverters(t *testing.T) {
 			from:     types.RelayFormatClaude,
 			to:       types.RelayFormatOpenAIResponses,
 			quality:  ResponseConverterQualityFair,
-			stepConverters: []string{
-				ConverterClaudeMessagesToOpenAIChat,
-				ConverterOpenAIChatToOpenAIResponses,
-			},
 		},
 		{
 			lookupID: responseConverterGeminiToClaude,
 			id:       requestConverterGeminiToClaude,
 			from:     types.RelayFormatGemini,
 			to:       types.RelayFormatClaude,
-			quality:  ResponseConverterQualityDiscouraged,
-			stepConverters: []string{
-				ConverterGeminiContentToOpenAIChat,
-				ConverterOpenAIChatToClaudeMessages,
-			},
+			quality:  ResponseConverterQualityFair,
 		},
 		{
 			lookupID: responseConverterGeminiToResponses,
@@ -65,10 +55,6 @@ func TestLookupBuiltinResponseConverters(t *testing.T) {
 			from:     types.RelayFormatGemini,
 			to:       types.RelayFormatOpenAIResponses,
 			quality:  ResponseConverterQualityFair,
-			stepConverters: []string{
-				ConverterGeminiContentToOpenAIChat,
-				ConverterOpenAIChatToOpenAIResponses,
-			},
 		},
 		{
 			lookupID: responseConverterResponsesToClaude,
@@ -83,10 +69,6 @@ func TestLookupBuiltinResponseConverters(t *testing.T) {
 			from:     types.RelayFormatOpenAIResponses,
 			to:       types.RelayFormatGemini,
 			quality:  ResponseConverterQualityFair,
-			stepConverters: []string{
-				ConverterOpenAIResponsesToOpenAIChat,
-				ConverterOpenAIChatToGeminiContent,
-			},
 		},
 	}
 
@@ -98,12 +80,8 @@ func TestLookupBuiltinResponseConverters(t *testing.T) {
 			assert.Equal(t, tt.from, spec.From)
 			assert.Equal(t, tt.to, spec.To)
 			assert.Equal(t, tt.quality, spec.Quality)
-			assert.Equal(t, tt.stepConverters, spec.StepConverters)
-			if len(tt.stepConverters) == 0 {
-				assert.NotNil(t, spec.Convert)
-			} else {
-				assert.Nil(t, spec.Convert)
-			}
+			assert.Empty(t, spec.StepConverters)
+			assert.NotNil(t, spec.Convert)
 		})
 	}
 
@@ -112,10 +90,10 @@ func TestLookupBuiltinResponseConverters(t *testing.T) {
 }
 
 func TestConvertResponseRejectsNilAndUnsupportedRoute(t *testing.T) {
-	_, err := ConvertResponse(nil, nil, types.RelayFormatOpenAI, (*dto.OpenAITextResponse)(nil))
+	_, err := ConvertResponse(context.Background(), nil, types.RelayFormatOpenAI, (*dto.OpenAITextResponse)(nil))
 	require.Error(t, err)
 
-	_, err = ConvertResponse(nil, nil, types.RelayFormatEmbedding, &dto.OpenAITextResponse{})
+	_, err = ConvertResponse(context.Background(), nil, types.RelayFormatEmbedding, &dto.OpenAITextResponse{})
 	require.Error(t, err)
 }
 
@@ -123,7 +101,7 @@ func TestConvertResponseDirectConverters(t *testing.T) {
 	chat := textRegistryChatResponse()
 	info := &convmeta.Values{ChannelMetaAttached: true, UpstreamModelName: "gemini-test"}
 
-	toResponses, err := ConvertResponse(nil, info, types.RelayFormatOpenAIResponses, chat)
+	toResponses, err := ConvertResponse(context.Background(), info, types.RelayFormatOpenAIResponses, chat)
 	require.NoError(t, err)
 	assert.Equal(t, ConverterOpenAIChatToOpenAIResponses, toResponses.Converter)
 	assert.Equal(t, ResponseConverterQualityGood, toResponses.Quality)
@@ -153,7 +131,7 @@ func TestConvertResponseDirectConverters(t *testing.T) {
 		},
 		Usage: &dto.Usage{InputTokens: 4, OutputTokens: 6, TotalTokens: 10},
 	}
-	toChat, err := ConvertResponse(nil, info, types.RelayFormatOpenAI, responses)
+	toChat, err := ConvertResponse(context.Background(), info, types.RelayFormatOpenAI, responses)
 	require.NoError(t, err)
 	assert.Equal(t, ConverterOpenAIResponsesToOpenAIChat, toChat.Converter)
 	assert.Equal(t, ResponseConverterQualityGood, toChat.Quality)
@@ -164,7 +142,7 @@ func TestConvertResponseDirectConverters(t *testing.T) {
 	assert.Equal(t, dto.BillingUsageSourceOAIResponses, toChat.Usage.BillingUsage.Source)
 	assert.Equal(t, 4, toChat.Usage.BillingUsage.OpenAIUsage.InputTokens)
 
-	toClaude, err := ConvertResponse(nil, info, types.RelayFormatClaude, chat)
+	toClaude, err := ConvertResponse(context.Background(), info, types.RelayFormatClaude, chat)
 	require.NoError(t, err)
 	assert.Equal(t, ConverterOpenAIChatToClaudeMessages, toClaude.Converter)
 	assert.Equal(t, ResponseConverterQualityFair, toClaude.Quality)
@@ -177,7 +155,7 @@ func TestConvertResponseDirectConverters(t *testing.T) {
 	require.NotNil(t, claudeValue.Usage.BillingUsage)
 	require.NotNil(t, claudeValue.Usage.BillingUsage.OpenAIUsage)
 
-	toGemini, err := ConvertResponse(nil, info, types.RelayFormatGemini, chat)
+	toGemini, err := ConvertResponse(context.Background(), info, types.RelayFormatGemini, chat)
 	require.NoError(t, err)
 	assert.Equal(t, ConverterOpenAIChatToGeminiContent, toGemini.Converter)
 	assert.Equal(t, ResponseConverterQualityFair, toGemini.Quality)
@@ -190,10 +168,10 @@ func TestConvertResponseDirectConverters(t *testing.T) {
 	require.NotNil(t, geminiValue.UsageMetadata.BillingUsage.OpenAIUsage)
 }
 
-func TestConvertResponseDirectAndMultiHopConverters(t *testing.T) {
+func TestConvertResponseDirectIRConverters(t *testing.T) {
 	responses := textRegistryResponsesResponse()
 
-	toClaude, err := ConvertResponse(nil, &convmeta.Values{}, types.RelayFormatClaude, responses)
+	toClaude, err := ConvertResponse(context.Background(), &convmeta.Values{}, types.RelayFormatClaude, responses)
 	require.NoError(t, err)
 	assert.Equal(t, requestConverterResponsesToClaude, toClaude.Converter)
 	assert.Equal(t, ResponseConverterQualityFair, toClaude.Quality)
@@ -209,13 +187,12 @@ func TestConvertResponseDirectAndMultiHopConverters(t *testing.T) {
 	assert.Equal(t, map[string]any{"q": "x"}, claudeValue.Content[1].Input)
 	assert.Equal(t, 11, toClaude.Usage.TotalTokens)
 
-	toGemini, err := ConvertResponse(nil, &convmeta.Values{ChannelMetaAttached: true, UpstreamModelName: "gemini-test"}, types.RelayFormatGemini, responses)
+	toGemini, err := ConvertResponse(context.Background(), &convmeta.Values{ChannelMetaAttached: true, UpstreamModelName: "gemini-test"}, types.RelayFormatGemini, responses)
 	require.NoError(t, err)
 	assert.Equal(t, ConverterOpenAIResponsesToGemini, toGemini.Converter)
 	assert.Equal(t, ResponseConverterQualityFair, toGemini.Quality)
 	assert.Equal(t, []ResponseStep{
-		{Converter: ConverterOpenAIResponsesToOpenAIChat, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatOpenAI},
-		{Converter: ConverterOpenAIChatToGeminiContent, From: types.RelayFormatOpenAI, To: types.RelayFormatGemini},
+		{Converter: ConverterOpenAIResponsesToGemini, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatGemini},
 	}, toGemini.Steps)
 	require.IsType(t, &dto.GeminiChatResponse{}, toGemini.Value)
 	geminiValue := toGemini.Value.(*dto.GeminiChatResponse)
@@ -241,7 +218,7 @@ func TestConvertResponsePreservesInterleavedResponsesBlocksForClaude(t *testing.
 		},
 	}
 
-	result, err := ConvertResponse(nil, nil, types.RelayFormatClaude, responses)
+	result, err := ConvertResponse(context.Background(), nil, types.RelayFormatClaude, responses)
 	require.NoError(t, err)
 	assert.Equal(t, []ResponseStep{
 		{Converter: ConverterOpenAIResponsesToClaudeMessages, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatClaude},
@@ -262,18 +239,17 @@ func TestConvertResponsePreservesInterleavedResponsesBlocksForClaude(t *testing.
 	assert.Equal(t, "What would you like me to build?", claudeResponse.Content[3].GetText())
 }
 
-func TestConvertResponseByIDExecutesMultiHopAndChecksSource(t *testing.T) {
+func TestConvertResponseByIDUsesIRAndChecksSource(t *testing.T) {
 	responses := textRegistryResponsesResponse()
 
-	result, err := ConvertResponseByID(nil, nil, responseConverterResponsesToGemini, responses)
+	result, err := ConvertResponseByID(context.Background(), nil, responseConverterResponsesToGemini, responses)
 	require.NoError(t, err)
 	assert.Equal(t, ConverterOpenAIResponsesToGemini, result.Converter)
 	assert.Equal(t, []ResponseStep{
-		{Converter: ConverterOpenAIResponsesToOpenAIChat, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatOpenAI},
-		{Converter: ConverterOpenAIChatToGeminiContent, From: types.RelayFormatOpenAI, To: types.RelayFormatGemini},
+		{Converter: ConverterOpenAIResponsesToGemini, From: types.RelayFormatOpenAIResponses, To: types.RelayFormatGemini},
 	}, result.Steps)
 
-	_, err = ConvertResponseByID(nil, nil, responseConverterResponsesToGemini, textRegistryChatResponse())
+	_, err = ConvertResponseByID(context.Background(), nil, responseConverterResponsesToGemini, textRegistryChatResponse())
 	require.Error(t, err)
 }
 
@@ -298,7 +274,7 @@ func TestConvertResponseProviderToOAIChatUsage(t *testing.T) {
 			},
 		},
 	}
-	toChat, err := ConvertResponse(nil, nil, types.RelayFormatOpenAI, claude)
+	toChat, err := ConvertResponse(context.Background(), nil, types.RelayFormatOpenAI, claude)
 	require.NoError(t, err)
 	assert.Equal(t, ConverterClaudeMessagesToOpenAIChat, toChat.Converter)
 	require.IsType(t, &dto.OpenAITextResponse{}, toChat.Value)
@@ -352,7 +328,7 @@ func TestConvertResponseProviderToOAIChatUsage(t *testing.T) {
 			},
 		},
 	}
-	toChat, err = ConvertResponse(nil, &convmeta.Values{ChannelMetaAttached: true, UpstreamModelName: "gemini-test"}, types.RelayFormatOpenAI, gemini)
+	toChat, err = ConvertResponse(context.Background(), &convmeta.Values{ChannelMetaAttached: true, UpstreamModelName: "gemini-test"}, types.RelayFormatOpenAI, gemini)
 	require.NoError(t, err)
 	assert.Equal(t, ConverterGeminiContentToOpenAIChat, toChat.Converter)
 	require.IsType(t, &dto.OpenAITextResponse{}, toChat.Value)
@@ -384,14 +360,14 @@ func TestConvertResponsePreservesBillingUsageAcrossChatResponsesBridge(t *testin
 		OutputTokens:             5,
 	})
 
-	toResponses, err := ConvertResponse(nil, nil, types.RelayFormatOpenAIResponses, chat)
+	toResponses, err := ConvertResponse(context.Background(), nil, types.RelayFormatOpenAIResponses, chat)
 	require.NoError(t, err)
 	require.NotNil(t, toResponses.Usage.BillingUsage)
 	require.NotNil(t, toResponses.Usage.BillingUsage.ClaudeUsage)
 	assert.Equal(t, 10, toResponses.Usage.BillingUsage.ClaudeUsage.InputTokens)
 
 	responsesValue := toResponses.Value.(*dto.OpenAIResponsesResponse)
-	toChat, err := ConvertResponse(nil, nil, types.RelayFormatOpenAI, responsesValue)
+	toChat, err := ConvertResponse(context.Background(), nil, types.RelayFormatOpenAI, responsesValue)
 	require.NoError(t, err)
 	require.NotNil(t, toChat.Usage.BillingUsage)
 	require.NotNil(t, toChat.Usage.BillingUsage.ClaudeUsage)
@@ -407,7 +383,7 @@ func TestConvertResponseUsesBillingUsageWhenRestoringNativeTargets(t *testing.T)
 		OutputTokens:             5,
 	})
 
-	toClaude, err := ConvertResponse(nil, nil, types.RelayFormatClaude, chat)
+	toClaude, err := ConvertResponse(context.Background(), nil, types.RelayFormatClaude, chat)
 	require.NoError(t, err)
 	claudeValue := toClaude.Value.(*dto.ClaudeResponse)
 	require.NotNil(t, claudeValue.Usage)
@@ -424,7 +400,7 @@ func TestConvertResponseUsesBillingUsageWhenRestoringNativeTargets(t *testing.T)
 		TotalTokenCount:         17,
 	})
 
-	toGemini, err := ConvertResponse(nil, nil, types.RelayFormatGemini, chat)
+	toGemini, err := ConvertResponse(context.Background(), nil, types.RelayFormatGemini, chat)
 	require.NoError(t, err)
 	geminiValue := toGemini.Value.(*dto.GeminiChatResponse)
 	assert.Equal(t, 7, geminiValue.UsageMetadata.PromptTokenCount)
@@ -442,7 +418,7 @@ func TestConvertStreamResponseDirectConverters(t *testing.T) {
 	}
 	info.SendResponseCount = 1
 	finishReason := "stop"
-	result, err := ConvertStreamResponse(nil, info, types.RelayFormatClaude, &dto.ChatCompletionsStreamResponse{
+	result, err := ConvertStreamResponse(context.Background(), info, types.RelayFormatClaude, &dto.ChatCompletionsStreamResponse{
 		Id:    "chatcmpl_1",
 		Model: "gpt-test",
 		Choices: []dto.ChatCompletionsStreamResponseChoice{
@@ -461,7 +437,7 @@ func TestConvertStreamResponseDirectConverters(t *testing.T) {
 	require.IsType(t, []*dto.ClaudeResponse{}, result.Value)
 	assert.Equal(t, 5, result.Usage.TotalTokens)
 
-	result, err = ConvertStreamResponse(nil, &convmeta.Values{ChannelMetaAttached: true, UpstreamModelName: "gemini-test"}, types.RelayFormatOpenAI, &dto.GeminiChatResponse{
+	result, err = ConvertStreamResponse(context.Background(), &convmeta.Values{ChannelMetaAttached: true, UpstreamModelName: "gemini-test"}, types.RelayFormatOpenAI, &dto.GeminiChatResponse{
 		Candidates: []dto.GeminiChatCandidate{{Content: dto.GeminiChatContent{Parts: []dto.GeminiPart{{Text: "hello"}}}}},
 		UsageMetadata: dto.GeminiUsageMetadata{
 			PromptTokenCount:     1,
@@ -482,7 +458,7 @@ func TestConvertStreamResponseStatefulDirectConverters(t *testing.T) {
 		Model: "gpt-test",
 	})
 	require.NoError(t, err)
-	chatResults, err := ConvertStreamResponseChunk(nil, nil, chatState, &dto.ChatCompletionsStreamResponse{
+	chatResults, err := ConvertStreamResponseChunk(context.Background(), nil, chatState, &dto.ChatCompletionsStreamResponse{
 		Id:    "chatcmpl_1",
 		Model: "gpt-test",
 		Choices: []dto.ChatCompletionsStreamResponseChoice{
@@ -496,7 +472,7 @@ func TestConvertStreamResponseStatefulDirectConverters(t *testing.T) {
 	assert.Equal(t, []ResponseStep{{Converter: ConverterOpenAIChatToOpenAIResponses, From: types.RelayFormatOpenAI, To: types.RelayFormatOpenAIResponses}}, chatResults[0].Steps)
 	assert.Equal(t, 5, chatState.Usage().TotalTokens)
 
-	finalResults, err := FinalizeStreamResponse(nil, nil, chatState)
+	finalResults, err := FinalizeStreamResponse(context.Background(), nil, chatState)
 	require.NoError(t, err)
 	require.NotEmpty(t, finalResults)
 	lastEvent, ok := finalResults[len(finalResults)-1].Value.(ChatToResponsesStreamEvent)
@@ -508,7 +484,7 @@ func TestConvertStreamResponseStatefulDirectConverters(t *testing.T) {
 		Model: "gpt-test",
 	})
 	require.NoError(t, err)
-	responsesResults, err := ConvertStreamResponseChunk(nil, nil, responsesState, &dto.ResponsesStreamResponse{
+	responsesResults, err := ConvertStreamResponseChunk(context.Background(), nil, responsesState, &dto.ResponsesStreamResponse{
 		Type:  "response.output_text.delta",
 		Delta: "hello",
 	})
@@ -531,7 +507,7 @@ func TestConvertStreamResponseStatefulDirectResponsesToClaude(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	results, err := ConvertStreamResponseChunk(nil, info, state, &dto.ResponsesStreamResponse{
+	results, err := ConvertStreamResponseChunk(context.Background(), info, state, &dto.ResponsesStreamResponse{
 		Type:  "response.output_text.delta",
 		Delta: "hello",
 	})
@@ -555,7 +531,7 @@ func TestConvertStreamResponseStatefulDirectResponsesToClaude(t *testing.T) {
 	assert.True(t, sawTextDelta)
 
 	state.SetUsage(&dto.Usage{PromptTokens: 2, CompletionTokens: 3, TotalTokens: 5})
-	_, err = FinalizeStreamResponse(nil, info, state)
+	_, err = FinalizeStreamResponse(context.Background(), info, state)
 	require.NoError(t, err)
 	assert.Equal(t, 5, state.Usage().TotalTokens)
 }
@@ -581,7 +557,7 @@ func TestResponseUsageMatrixChatAndResponsesDetails(t *testing.T) {
 			ImageTokens:     2,
 		},
 	}
-	result, err := ConvertResponse(nil, nil, types.RelayFormatOpenAIResponses, chat)
+	result, err := ConvertResponse(context.Background(), nil, types.RelayFormatOpenAIResponses, chat)
 	require.NoError(t, err)
 	assert.Equal(t, 10, result.Usage.InputTokens)
 	assert.Equal(t, 5, result.Usage.OutputTokens)
@@ -624,7 +600,7 @@ func TestResponseUsageMatrixChatAndResponsesDetails(t *testing.T) {
 			},
 		},
 	}
-	result, err = ConvertResponse(nil, nil, types.RelayFormatOpenAI, responses)
+	result, err = ConvertResponse(context.Background(), nil, types.RelayFormatOpenAI, responses)
 	require.NoError(t, err)
 	assert.Equal(t, 12, result.Usage.PromptTokens)
 	assert.Equal(t, 8, result.Usage.CompletionTokens)
@@ -755,7 +731,7 @@ func TestConvertResponseToResponsesRestoresRecordedCustomTools(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := ConvertResponse(nil, info, types.RelayFormatOpenAIResponses, tt.response)
+			result, err := ConvertResponse(context.Background(), info, types.RelayFormatOpenAIResponses, tt.response)
 			require.NoError(t, err)
 			responses, ok := result.Value.(*dto.OpenAIResponsesResponse)
 			require.True(t, ok)
@@ -768,11 +744,11 @@ func TestConvertResponseToResponsesRestoresRecordedCustomTools(t *testing.T) {
 			require.NoError(t, err)
 			var results []ResponseResult
 			for _, chunk := range tt.stream {
-				chunkResults, err := ConvertStreamResponseChunk(nil, info, state, chunk)
+				chunkResults, err := ConvertStreamResponseChunk(context.Background(), info, state, chunk)
 				require.NoError(t, err)
 				results = append(results, chunkResults...)
 			}
-			finals, err := FinalizeStreamResponse(nil, info, state)
+			finals, err := FinalizeStreamResponse(context.Background(), info, state)
 			require.NoError(t, err)
 			results = append(results, finals...)
 
@@ -798,6 +774,148 @@ func TestConvertResponseToResponsesRestoresRecordedCustomTools(t *testing.T) {
 				"response.custom_tool_call_input.done ls",
 				`response.output_item.done custom_tool_call "ls"`,
 			}, toolEvents)
+		})
+	}
+}
+
+func TestIRGeminiStreamingPreservesRepeatedDeltasAndIndependentChoices(t *testing.T) {
+	state, err := NewResponseStreamState(types.RelayFormatGemini, types.RelayFormatOpenAI, ResponseStreamOptions{ID: "multi", IncludeUsage: true, DeferTerminal: true})
+	require.NoError(t, err)
+	text := map[int]string{}
+	for _, frame := range []dto.GeminiChatResponse{
+		{Candidates: []dto.GeminiChatCandidate{{Index: 0, Content: dto.GeminiChatContent{Parts: []dto.GeminiPart{{Text: "ha"}}}}, {Index: 1, Content: dto.GeminiChatContent{Parts: []dto.GeminiPart{{Text: "B"}}}}}},
+		{Candidates: []dto.GeminiChatCandidate{{Index: 0, Content: dto.GeminiChatContent{Parts: []dto.GeminiPart{{Text: "ha"}}}, FinishReason: respPtr("STOP")}, {Index: 1, Content: dto.GeminiChatContent{Parts: []dto.GeminiPart{{Text: "B"}}}, FinishReason: respPtr("STOP")}}},
+		{HasUsageMetadata: true, UsageMetadata: dto.GeminiUsageMetadata{PromptTokenCount: 10, CandidatesTokenCount: 4, TotalTokenCount: 14}},
+	} {
+		results, err := ConvertStreamResponseChunk(context.Background(), nil, state, &frame)
+		require.NoError(t, err)
+		for _, result := range results {
+			chunk := result.Value.(*dto.ChatCompletionsStreamResponse)
+			for _, choice := range chunk.Choices {
+				assert.Nil(t, choice.FinishReason)
+				text[choice.Index] += choice.Delta.GetContentString()
+			}
+		}
+	}
+	assert.Equal(t, map[int]string{0: "haha", 1: "BB"}, text)
+	require.NotNil(t, state.Usage())
+	assert.Equal(t, 14, state.Usage().TotalTokens)
+	require.NotNil(t, state.Usage().BillingUsage)
+	assert.Equal(t, dto.BillingUsageSourceGeminiChat, state.Usage().BillingUsage.Source)
+	results, err := FinalizeStreamResponse(context.Background(), nil, state)
+	require.NoError(t, err)
+	finishes := map[int]string{}
+	for _, result := range results {
+		chunk := result.Value.(*dto.ChatCompletionsStreamResponse)
+		for _, choice := range chunk.Choices {
+			if choice.FinishReason != nil {
+				finishes[choice.Index] = *choice.FinishReason
+			}
+		}
+		require.NotNil(t, chunk.Usage)
+		assert.Equal(t, 14, chunk.Usage.TotalTokens)
+	}
+	assert.Equal(t, map[int]string{0: "stop", 1: "stop"}, finishes)
+	again, err := FinalizeStreamResponse(context.Background(), nil, state)
+	require.NoError(t, err)
+	assert.Empty(t, again)
+}
+
+func TestIRResponseConversionPreservesCreationTimeForValuesAndPointers(t *testing.T) {
+	chat := dto.OpenAITextResponse{Id: "chat_1", Created: int64(123456), Choices: []dto.OpenAITextResponseChoice{{Message: dto.Message{Role: "assistant", Content: "hello"}, FinishReason: "stop"}}}
+	responses := dto.OpenAIResponsesResponse{ID: "resp_1", CreatedAt: 123456, Output: []dto.ResponsesOutput{{Type: "message", Role: "assistant", Content: []dto.ResponsesOutputContent{{Type: "output_text", Text: "hello"}}}}}
+	for _, source := range []any{chat, &chat, responses, &responses} {
+		t.Run(fmt.Sprintf("%T", source), func(t *testing.T) {
+			var target types.RelayFormat = types.RelayFormatOpenAIResponses
+			switch source.(type) {
+			case dto.OpenAIResponsesResponse, *dto.OpenAIResponsesResponse:
+				target = types.RelayFormatOpenAI
+			}
+			result, err := ConvertResponse(context.Background(), nil, target, source)
+			require.NoError(t, err)
+			encoded, err := kitutil.Marshal(result.Value)
+			require.NoError(t, err)
+			var output struct {
+				Created   int64 `json:"created"`
+				CreatedAt int64 `json:"created_at"`
+			}
+			require.NoError(t, kitutil.Unmarshal(encoded, &output))
+			if target == types.RelayFormatOpenAI {
+				assert.Equal(t, int64(123456), output.Created)
+			} else {
+				assert.Equal(t, int64(123456), output.CreatedAt)
+			}
+		})
+	}
+}
+
+func TestIRGeminiStreamKeepsDistinctSameNameToolCalls(t *testing.T) {
+	state, err := NewResponseStreamState(types.RelayFormatGemini, types.RelayFormatOpenAI, ResponseStreamOptions{ID: "tools"})
+	require.NoError(t, err)
+	ids := []string{}
+	args := []string{}
+	for _, id := range []string{"call_a", "call_b"} {
+		results, err := ConvertStreamResponseChunk(context.Background(), nil, state, &dto.GeminiChatResponse{Candidates: []dto.GeminiChatCandidate{{Content: dto.GeminiChatContent{Parts: []dto.GeminiPart{{FunctionCall: &dto.FunctionCall{ID: id, FunctionName: "lookup", Arguments: map[string]any{"id": id}}}}}}}})
+		require.NoError(t, err)
+		for _, result := range results {
+			for _, choice := range result.Value.(*dto.ChatCompletionsStreamResponse).Choices {
+				for _, tool := range choice.Delta.ToolCalls {
+					if tool.ID != "" {
+						ids = append(ids, tool.ID)
+					}
+					if tool.Function.Arguments != "" {
+						args = append(args, tool.Function.Arguments)
+					}
+				}
+			}
+		}
+	}
+	assert.Equal(t, []string{"call_a", "call_b"}, ids)
+	assert.Equal(t, []string{`{"id":"call_a"}`, `{"id":"call_b"}`}, args)
+}
+
+func TestIRResponseFailureDoesNotBecomeSuccessfulCompletion(t *testing.T) {
+	state, err := NewResponseStreamState(types.RelayFormatOpenAIResponses, types.RelayFormatClaude, ResponseStreamOptions{})
+	require.NoError(t, err)
+	_, err = ConvertStreamResponseChunk(context.Background(), nil, state, &dto.ResponsesStreamResponse{Type: "error", Message: "upstream failure"})
+	require.ErrorContains(t, err, "upstream failure")
+	results, err := FinalizeStreamResponse(context.Background(), nil, state)
+	require.NoError(t, err)
+	assert.Empty(t, results)
+}
+
+func TestIRGeminiPartialArgumentsCompleteOrFailAtEOF(t *testing.T) {
+	for _, complete := range []bool{true, false} {
+		t.Run(fmt.Sprint(complete), func(t *testing.T) {
+			state, err := NewResponseStreamState(types.RelayFormatGemini, types.RelayFormatOpenAI, ResponseStreamOptions{})
+			require.NoError(t, err)
+			partial := &dto.GeminiChatResponse{Candidates: []dto.GeminiChatCandidate{{Content: dto.GeminiChatContent{Parts: []dto.GeminiPart{{FunctionCall: &dto.FunctionCall{ID: "call_1", FunctionName: "lookup", WillContinue: respPtr(true), PartialArgs: []dto.GeminiPartialArg{{JSONPath: "$.query", StringValue: respPtr("hel")}}}}}}}}}
+			results, err := ConvertStreamResponseChunk(context.Background(), nil, state, partial)
+			require.NoError(t, err)
+			for _, result := range results {
+				assert.False(t, result.Value.(*dto.ChatCompletionsStreamResponse).IsToolCall())
+			}
+			if complete {
+				call := partial.Candidates[0].Content.Parts[0].FunctionCall
+				call.WillContinue, call.PartialArgs[0].StringValue = respPtr(false), respPtr("lo")
+				results, err = ConvertStreamResponseChunk(context.Background(), nil, state, partial)
+				require.NoError(t, err)
+				var arguments string
+				for _, result := range results {
+					for _, choice := range result.Value.(*dto.ChatCompletionsStreamResponse).Choices {
+						for _, tool := range choice.Delta.ToolCalls {
+							arguments += tool.Function.Arguments
+						}
+					}
+				}
+				assert.JSONEq(t, `{"query":"hello"}`, arguments)
+			}
+			_, err = FinalizeStreamResponse(context.Background(), nil, state)
+			if complete {
+				require.NoError(t, err)
+			} else {
+				require.ErrorContains(t, err, "incomplete function call")
+			}
 		})
 	}
 }

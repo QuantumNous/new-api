@@ -81,6 +81,7 @@ type TokenCountMeta struct {
 }
 
 type RelayInfo struct {
+	textStreamStates  map[string]any
 	TokenId           int
 	TokenKey          string
 	TokenGroup        string
@@ -273,6 +274,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	// Per-attempt only. Do not clear StreamStatus, conversion diagnostics,
 	// LastError, or billing accumulators — those are request-scoped.
 	info.SendResponseCount = 0
+	info.textStreamStates = nil
 	info.ClaudeToChatStreamState = nil
 	info.ChatToGeminiStreamState = nil
 	channelType := common.GetContextKeyInt(c, constant.ContextKeyChannelType)
@@ -1276,4 +1278,21 @@ func RemoveGeminiDisabledFields(jsonData []byte) ([]byte, error) {
 		return jsonData, nil
 	}
 	return jsonDataAfter, nil
+}
+
+// TextStreamState stores compatibility API state for one source/target pair.
+func (v *RelayInfo) TextStreamState(key string) any {
+	if v == nil {
+		return nil
+	}
+	return v.textStreamStates[key]
+}
+func (v *RelayInfo) SetTextStreamState(key string, state any) {
+	if v == nil {
+		return
+	}
+	if v.textStreamStates == nil {
+		v.textStreamStates = make(map[string]any)
+	}
+	v.textStreamStates[key] = state
 }
