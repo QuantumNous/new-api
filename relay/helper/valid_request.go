@@ -50,6 +50,8 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request, err = GetAndValidateRerankRequest(c)
 	case types.RelayFormatOpenAIAudio:
 		request, err = GetAndValidAudioRequest(c, relayMode)
+	case types.RelayFormatMinerU:
+		request, err = GetAndValidateMinerURequest(c)
 	case types.RelayFormatOpenAIRealtime:
 		request = &dto.BaseRequest{}
 	default:
@@ -78,6 +80,17 @@ func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, 
 		}
 	}
 	return audioRequest, nil
+}
+
+func GetAndValidateMinerURequest(c *gin.Context) (*dto.MinerURequest, error) {
+	request := &dto.MinerURequest{}
+	if err := common.UnmarshalBodyReusable(c, request); err != nil {
+		return nil, err
+	}
+	if request.Model == "" {
+		request.Model = "mineru"
+	}
+	return request, nil
 }
 
 func GetAndValidateRerankRequest(c *gin.Context) (*dto.RerankRequest, error) {

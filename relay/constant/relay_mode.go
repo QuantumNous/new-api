@@ -49,6 +49,8 @@ const (
 	RelayModeResponsesCompact
 
 	RelayModeAlphaSearch
+
+	RelayModeMinerU
 )
 
 func Path2RelayMode(path string) int {
@@ -87,6 +89,8 @@ func Path2RelayMode(path string) int {
 		relayMode = RelayModeRealtime
 	} else if strings.HasPrefix(path, "/v1beta/models") || strings.HasPrefix(path, "/v1/models") {
 		relayMode = RelayModeGemini
+	} else if strings.HasPrefix(path, "/v1/file_parse") {
+		relayMode = RelayModeMinerU
 	} else if strings.HasPrefix(path, "/mj") {
 		relayMode = Path2RelayModeMidjourney(path)
 	}
