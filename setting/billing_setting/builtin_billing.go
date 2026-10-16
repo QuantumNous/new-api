@@ -14,9 +14,11 @@ var builtinBillingExpr = map[string]string{
 	// channels filter service_tier by default, so it may not reach the upstream.
 	"gpt-6-astra": `len <= 272000 ? tier("standard", p * 10 + c * 50 + cr * 1 + cc * 12.5) : tier("long_context", p * 20 + c * 75 + cr * 2 + cc * 25)`,
 	// https://platform.xiaomimimo.com/docs/zh-CN/price/pay-as-you-go (2026-10-16).
-	// Domestic and international rates are the same prices in CNY and USD.
-	// Output costs twice the input price on all three models, and a cache hit
-	// costs 1/50 of input for flash and roughly 1/121 for the two pro models.
+	// Coefficients are the published USD rates; the domestic CNY list prices the
+	// same models at an implied rate of roughly 7 CNY/USD, so the two lists do
+	// not carry the same numbers. Output costs twice the input price on all
+	// three models, and a cache hit costs 1/50 of input for flash and roughly
+	// 1/121 for the two pro models.
 	// The MiMo audio models are deliberately absent: the TTS series is free only
 	// for a limited period, and ASR is published per hour of audio with no
 	// documented token rate to turn that into a token price, so both keep the
