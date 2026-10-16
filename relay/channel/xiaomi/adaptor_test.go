@@ -146,6 +146,7 @@ func TestConvertSpeechRequestRejectsContainersMiMoCannotRender(t *testing.T) {
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "unsupported response_format")
 			assert.Empty(t, adaptor.speechFormat)
+			requireClientRejection(t, err)
 		})
 	}
 }
@@ -162,8 +163,20 @@ func TestConvertTranscriptionRequestRejectsTimedFormats(t *testing.T) {
 
 			require.Error(t, err)
 			assert.Contains(t, err.Error(), "unsupported response_format")
+			requireClientRejection(t, err)
 		})
 	}
+}
+
+// A rejected request format is the client's mistake, so it must surface as a
+// 400. Left as a plain error the helper would wrap it into a retryable 500 that
+// hides the rejection behind unrelated channels.
+func requireClientRejection(t *testing.T, err error) {
+	t.Helper()
+
+	var apiErr *types.NewAPIError
+	require.ErrorAs(t, err, &apiErr)
+	assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
 }
 
 // The speech endpoint promises a raw audio body, so the base64 payload MiMo

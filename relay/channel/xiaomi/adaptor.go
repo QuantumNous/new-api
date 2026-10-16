@@ -148,14 +148,22 @@ func (a *Adaptor) buildSpeechRequest(c *gin.Context, request dto.AudioRequest) (
 	// MiMo renders wav and mp3. The remaining OpenAI containers (opus, aac,
 	// flac, pcm) have no MiMo equivalent; answering them with wav bytes would
 	// hand the client a payload its decoder cannot read, so they are rejected
-	// before the upstream is asked to synthesise anything.
+	// before the upstream is asked to synthesise anything. The rejection is a
+	// 400 that skips channel retries: every Xiaomi channel refuses the same
+	// value, so a retryable 500 would only hide the client's mistake behind
+	// unrelated channels.
 	format := audioFormatWAV
 	switch strings.ToLower(strings.TrimSpace(request.ResponseFormat)) {
 	case "", audioFormatWAV:
 	case audioFormatMP3:
 		format = audioFormatMP3
 	default:
-		return nil, fmt.Errorf("unsupported response_format %q: the Xiaomi MiMo channel renders wav and mp3", request.ResponseFormat)
+		return nil, types.NewErrorWithStatusCode(
+			fmt.Errorf("unsupported response_format %q: the Xiaomi MiMo channel renders wav and mp3", request.ResponseFormat),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
 	}
 	a.speechFormat = format
 
@@ -194,11 +202,17 @@ func buildTranscriptionRequest(c *gin.Context, request dto.AudioRequest) (io.Rea
 	// MiMo returns a plain transcript with no timestamps, so json and text are
 	// the only OpenAI transcription formats that can be honoured. The timed
 	// ones are rejected here, before the upstream is charged for a transcript
-	// this adaptor would otherwise have to mislabel as json.
+	// this adaptor would otherwise have to mislabel as json, and as a 400 that
+	// skips channel retries for the same reason as the speech formats above.
 	switch strings.ToLower(strings.TrimSpace(request.ResponseFormat)) {
 	case "", "json", "text":
 	default:
-		return nil, fmt.Errorf("unsupported response_format %q: the Xiaomi MiMo channel renders json and text", request.ResponseFormat)
+		return nil, types.NewErrorWithStatusCode(
+			fmt.Errorf("unsupported response_format %q: the Xiaomi MiMo channel renders json and text", request.ResponseFormat),
+			types.ErrorCodeInvalidRequest,
+			http.StatusBadRequest,
+			types.ErrOptionWithSkipRetry(),
+		)
 	}
 
 	form, err := common.ParseMultipartFormReusable(c)
