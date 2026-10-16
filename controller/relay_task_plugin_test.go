@@ -18,6 +18,7 @@ import (
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relay"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/types"
 	"github.com/gin-gonic/gin"
@@ -152,6 +153,41 @@ func TestExecuteTaskSubmissionRefundsWhenInsertFails(t *testing.T) {
 	assert.Equal(t, []string{"reserve", "insert", "refund"}, events)
 	assert.Equal(t, 1, billing.refunds)
 	assert.False(t, c.Writer.Written())
+}
+
+func TestExecuteTaskSubmissionUsesChannelRetryBudget(t *testing.T) {
+	events := []string{}
+	previousDB := model.DB
+	database := setupTaskSubmissionDatabase(t, true, &events)
+	require.NoError(t, database.AutoMigrate(&model.Channel{}, &model.Ability{}))
+	oldRetries, oldCache := common.RetryTimes, common.MemoryCacheEnabled
+	common.RetryTimes, common.MemoryCacheEnabled = 1, true
+	t.Cleanup(func() {
+		common.RetryTimes, common.MemoryCacheEnabled = oldRetries, oldCache
+		if oldCache && previousDB != nil {
+			model.DB = previousDB
+			model.InitChannelCache()
+		}
+	})
+	priority := int64(10)
+	channel := &model.Channel{Name: "task-retry-budget", Type: constant.ChannelTypeOpenAI, Key: "sk-test", Status: common.ChannelStatusEnabled, Group: "default", Models: "plugin-model", Priority: &priority}
+	channel.SetOtherSettings(kitdto.ChannelOtherSettings{RetryBudget: 1})
+	require.NoError(t, database.Create(channel).Error)
+	require.NoError(t, database.Create(&model.Ability{ChannelId: channel.Id, Model: "plugin-model", Group: "default", Enabled: true, Priority: &priority}).Error)
+	model.InitChannelCache()
+
+	c := taskSubmissionTestContext()
+	info := taskSubmissionRelayInfo(&taskSubmissionTestBilling{events: &events})
+	info.TokenGroup = "default"
+	info.LockedChannel = nil
+	var selected []int
+	outcome, taskErr := executeTaskSubmissionWith(c, info, func(c *gin.Context, _ *relaycommon.RelayInfo) (*relay.TaskSubmitResult, *dto.TaskError) {
+		selected = append(selected, common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+		return nil, &dto.TaskError{StatusCode: http.StatusInternalServerError, Message: "upstream failed"}
+	})
+	require.Nil(t, outcome)
+	require.NotNil(t, taskErr)
+	assert.Equal(t, []int{channel.Id, channel.Id}, selected)
 }
 
 func TestExecuteTaskSubmissionSettlementFailureStaysDurableAndWritesNothing(t *testing.T) {
