@@ -57,12 +57,13 @@ function PaymentMethodFixture(props: {
   processing?: boolean
   onPay?: (method: PaymentMethod) => void
   payable?: number
+  initialAmount?: number
   topupOverride?: Partial<TopupInfo>
 }) {
   const methods = props.methods || paymentMethods
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState(methods[0])
 
-  const [amount, setAmount] = useState(10)
+  const [amount, setAmount] = useState(props.initialAmount ?? 10)
   const [preset, setPreset] = useState<number | null>(null)
 
   return (
@@ -256,6 +257,29 @@ test('custom amount uses a numeric keyboard without native spinner or wheel adju
   await userEvent.clear(amount)
   expect(amount).toHaveValue('')
 })
+
+test.each([false, true])(
+  'clicking custom amount card space focuses editing (preset selected: %s)',
+  async (selectPreset) => {
+    const user = userEvent.setup()
+    render(
+      <PaymentMethodFixture
+        initialAmount={1}
+        presets={[{ value: 20, discount: 1 }]}
+      />
+    )
+    const input = screen.getByRole('textbox', { name: 'Custom Amount' })
+    if (selectPreset) {
+      await user.click(screen.getByRole('button', { name: /20/ }))
+    }
+    const card = input.closest('[data-slot="input-group"]')
+    if (!card) throw new Error('Custom amount card is missing')
+    await user.click(card)
+    expect(input).toHaveFocus()
+    await user.keyboard('{Control>}a{/Control}35')
+    expect(input).toHaveValue('35')
+  }
+)
 
 test('custom amount is a single input with a currency prefix and concise placeholder', () => {
   render(<PaymentMethodFixture />)

@@ -49,6 +49,7 @@ const STATUS_RELATED_KEYS = new Set([
   'ServerAddress',
   'console_setting.default_language',
   'console_setting.home_globe_domestic_only',
+  'console_setting.home_business_qrcode',
   'passkey.enabled',
   'passkey.rp_id',
   'passkey.legacy_rp_ids',

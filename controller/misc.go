@@ -67,6 +67,7 @@ func GetStatus(c *gin.Context) {
 		"theme":                       "default",
 		"system_name":                 common.SystemName,
 		"default_language":            cs.DefaultLanguage,
+		"home_business_qrcode":        cs.HomeBusinessQRCode,
 		"home_globe_domestic_only":    cs.HomeGlobeDomesticOnly,
 		"logo":                        common.Logo,
 		"footer_html":                 common.Footer,

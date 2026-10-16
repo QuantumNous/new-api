@@ -36,9 +36,9 @@ interface UserInfoDialogProps {
 
 function InfoItem({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className='space-y-1.5'>
+    <div className='min-w-0 space-y-1.5'>
       <Label className='text-muted-foreground text-xs'>{label}</Label>
-      <div className='text-sm font-semibold'>{value}</div>
+      <div className='text-sm font-semibold break-all'>{value}</div>
     </div>
   )
 }
@@ -106,6 +106,8 @@ export function UserInfoDialog({
               />
             )}
           </div>
+
+          <InfoItem label={t('Email')} value={userInfo.email || '-'} />
 
           {/* Balance Info */}
           <div className='grid grid-cols-2 gap-4'>

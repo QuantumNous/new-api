@@ -111,6 +111,10 @@ func checkDangerousContent(content string, index int, itemType string) error {
 }
 
 func validateUploadedSupportIcon(icon string) bool {
+	return validateUploadedImage(icon, supportIconMaxFileSize)
+}
+
+func validateUploadedImage(icon string, maxFileSize int) bool {
 	separator := strings.IndexByte(icon, ',')
 	if separator < 0 {
 		return false
@@ -122,11 +126,11 @@ func validateUploadedSupportIcon(icon string) bool {
 	}
 
 	encoded := icon[separator+1:]
-	if encoded == "" || len(encoded) > base64.StdEncoding.EncodedLen(supportIconMaxFileSize) {
+	if encoded == "" || len(encoded) > base64.StdEncoding.EncodedLen(maxFileSize) {
 		return false
 	}
 	decoded, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil || len(decoded) == 0 || len(decoded) > supportIconMaxFileSize {
+	if err != nil || len(decoded) == 0 || len(decoded) > maxFileSize {
 		return false
 	}
 
@@ -722,4 +726,37 @@ func validateUptimeKumaGroups(groupsStr string) error {
 
 func GetUptimeKumaGroups() []map[string]interface{} {
 	return getJSONList(GetConsoleSetting().UptimeKumaGroups)
+}
+
+type BusinessContact struct {
+	ID    string `json:"id,omitempty"`
+	Label string `json:"label"`
+	Image string `json:"image"`
+}
+
+// ValidateHomeBusinessQRCode accepts a channel list and previously saved single images.
+func ValidateHomeBusinessQRCode(value string) error {
+	if value == "" || validateWalletPromotionImageURL(value) || validateUploadedImage(value, 2*1024*1024) {
+		return nil
+	}
+	var contacts []BusinessContact
+	if err := common.UnmarshalJsonStr(value, &contacts); err != nil || contacts == nil || len(contacts) > 8 {
+		return fmt.Errorf("business cooperation must be a list of up to 8 contact channels")
+	}
+	ids := make(map[string]bool)
+	for _, contact := range contacts {
+		if contact.ID != "" {
+			if ids[contact.ID] || len(contact.ID) > 64 || !slugRegex.MatchString(contact.ID) {
+				return fmt.Errorf("business contact channel IDs must be unique and valid")
+			}
+			ids[contact.ID] = true
+		}
+		if strings.TrimSpace(contact.Label) == "" || exceedsMaxCharacters(contact.Label, 80) {
+			return fmt.Errorf("each business contact must have a label of 1 to 80 characters")
+		}
+		if !validateWalletPromotionImageURL(contact.Image) && !validateUploadedImage(contact.Image, 2*1024*1024) {
+			return fmt.Errorf("each business QR code must be an HTTP(S) image URL or a PNG, JPG, WebP, or GIF image up to 2 MB")
+		}
+	}
+	return nil
 }

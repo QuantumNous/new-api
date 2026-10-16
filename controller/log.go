@@ -10,6 +10,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type adminLogItem struct {
+	*model.Log
+	UserEmail string `json:"user_email,omitempty"`
+}
+
 func GetAllLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	logType, _ := strconv.Atoi(c.Query("type"))
@@ -32,8 +37,32 @@ func GetAllLogs(c *gin.Context) {
 	} else {
 		model.FormatRootLogs(logs)
 	}
+	// Emails are current profile data, not a snapshot persisted in the log database.
+	userIDs := make([]int, 0, len(logs))
+	for _, log := range logs {
+		userIDs = append(userIDs, log.UserId)
+	}
+	emails := make(map[int]string)
+	if len(userIDs) > 0 {
+		var users []model.User
+		query := model.DB.Select("id", "email").Where("id IN ?", userIDs)
+		if c.GetInt("role") != common.RoleRootUser {
+			query = query.Where("role < ?", c.GetInt("role"))
+		}
+		if err := query.Find(&users).Error; err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		for _, user := range users {
+			emails[user.Id] = user.Email
+		}
+	}
+	items := make([]adminLogItem, 0, len(logs))
+	for _, log := range logs {
+		items = append(items, adminLogItem{Log: log, UserEmail: emails[log.UserId]})
+	}
 	pageInfo.SetTotal(int(total))
-	pageInfo.SetItems(logs)
+	pageInfo.SetItems(items)
 	common.ApiSuccess(c, pageInfo)
 	return
 }

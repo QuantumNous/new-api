@@ -512,6 +512,7 @@ export interface FetchLogsConfig {
 export interface UserInfo {
   id: number
   username: string
+  email?: string
   display_name?: string
   quota: number
   used_quota: number

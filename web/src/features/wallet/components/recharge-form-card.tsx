@@ -341,8 +341,11 @@ export function RechargeFormCard({
                     )
                   })}
                   <InputGroup
+                    onClick={(event) => {
+                      event.currentTarget.querySelector('input')?.focus()
+                    }}
                     className={cn(
-                      'h-[76px] min-w-0 justify-center gap-1.5 rounded-lg px-3 shadow-xs [&>input]:pl-0',
+                      'h-[76px] min-w-0 cursor-text justify-center gap-1.5 rounded-lg px-3 shadow-xs [&>input]:pl-0',
                       selectedPreset === null
                         ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
                         : 'border-border'

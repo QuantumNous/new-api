@@ -17,13 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useRef, type ChangeEvent } from 'react'
 import type { Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
-import { toast } from 'sonner'
 import * as z from 'zod'
 
-import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import {
   Form,
@@ -37,11 +34,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { SUPPORT_ICON_IMAGE_TYPES } from '@/features/support/types'
+import { parseBusinessContacts } from '@/features/home/lib/business-contacts'
 import { INTERFACE_LANGUAGE_OPTIONS } from '@/i18n/languages'
 
+import { BusinessContactsInput } from '../components/business-contacts-input'
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
 import { FormNavigationGuard } from '../components/form-navigation-guard'
+import { ImageSettingInput } from '../components/image-setting-input'
 import {
   SettingsForm,
   SettingsFormGrid,
@@ -57,6 +56,7 @@ import { isValidTaskPublicAddress } from './task-public-address'
 
 const _systemInfoSchema = z.object({
   console_setting: z.object({
+    home_business_qrcode: z.string().optional(),
     home_globe_domestic_only: z.boolean().optional(),
     default_language: z.enum([
       'auto',
@@ -99,10 +99,12 @@ function normalizeValue(value: unknown): string {
 export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
-  const logoFileRef = useRef<HTMLInputElement>(null)
 
   const normalizedDefaults: SystemInfoFormValues = {
     console_setting: {
+      home_business_qrcode: normalizeValue(
+        defaultValues.console_setting?.home_business_qrcode
+      ),
       home_globe_domestic_only:
         defaultValues.console_setting?.home_globe_domestic_only === true,
       default_language:
@@ -125,7 +127,31 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
   }
 
   const systemInfoSchemaWithI18n = z.object({
-    console_setting: _systemInfoSchema.shape.console_setting,
+    console_setting: _systemInfoSchema.shape.console_setting.extend({
+      home_business_qrcode: z
+        .string()
+        .optional()
+        .refine(
+          (value) => {
+            if (!value || value === '[]') return true
+            const contacts = parseBusinessContacts(value)
+            return (
+              contacts.length > 0 &&
+              contacts.length <= 8 &&
+              contacts.every(
+                (contact) =>
+                  contact.label.trim().length > 0 &&
+                  contact.label.length <= 80 &&
+                  /^(https?:\/\/|data:image\/)/.test(contact.image)
+              )
+            )
+          },
+          {
+            error: () =>
+              t('Provide a label and QR code image for each channel.'),
+          }
+        ),
+    }),
     SystemName: z.string().min(1, {
       error: () => t('System name is required'),
     }),
@@ -170,36 +196,6 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
         }
       },
     })
-
-  const handleLogoFile = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file) return
-    if (!SUPPORT_ICON_IMAGE_TYPES.some((type) => type === file.type)) {
-      toast.error(t('Please choose a PNG, JPG, WebP, or GIF image'))
-      return
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      toast.error(t('Logo file must be 2 MB or smaller'))
-      return
-    }
-    const reader = new FileReader()
-    reader.onload = () => {
-      if (
-        typeof reader.result !== 'string' ||
-        !reader.result.startsWith('data:image/')
-      ) {
-        toast.error(t('Failed to read icon file'))
-        return
-      }
-      form.setValue('Logo', reader.result, {
-        shouldDirty: true,
-        shouldValidate: true,
-      })
-    }
-    reader.onerror = () => toast.error(t('Failed to read icon file'))
-    reader.readAsDataURL(file)
-  }
 
   return (
     <>
@@ -340,17 +336,12 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>{t('Logo')}</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder={t('https://example.com/logo.png')}
-                        {...field}
-                        value={
-                          field.value?.startsWith('data:image/')
-                            ? ''
-                            : field.value
-                        }
-                      />
-                    </FormControl>
+                    <ImageSettingInput
+                      label={t('Logo')}
+                      value={field.value || ''}
+                      onChange={field.onChange}
+                      disabled={isSubmitting}
+                    />
                     <FormDescription>
                       {t(
                         'Enter a logo URL or upload a local image. Save changes to apply.'
@@ -359,44 +350,37 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                         'Supports PNG, JPG, WebP, or GIF. Maximum file size: 2 MB.'
                       )}
                     </FormDescription>
-                    <input
-                      ref={logoFileRef}
-                      type='file'
-                      accept={SUPPORT_ICON_IMAGE_TYPES.join(',')}
-                      className='hidden'
-                      onChange={handleLogoFile}
-                    />
-                    <div className='flex items-center gap-3'>
-                      {field.value && (
-                        <img
-                          src={field.value}
-                          alt={t('Logo')}
-                          className='size-12 rounded-md border object-contain'
-                        />
-                      )}
-                      <Button
-                        type='button'
-                        variant='outline'
-                        disabled={isSubmitting}
-                        onClick={() => logoFileRef.current?.click()}
-                      >
-                        {t('Upload')}
-                      </Button>
-                      {field.value && (
-                        <Button
-                          type='button'
-                          variant='ghost'
-                          disabled={isSubmitting}
-                          onClick={() => field.onChange('')}
-                        >
-                          {t('Remove')}
-                        </Button>
-                      )}
-                    </div>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+              <SettingsFormGridItem span='full'>
+                <FormField
+                  control={form.control}
+                  name='console_setting.home_business_qrcode'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t('Business cooperation channels')}
+                      </FormLabel>
+                      <FormDescription>
+                        {t(
+                          'Add up to 8 contact channels with a label below each QR code. Leave the list empty to hide business cooperation on the homepage.'
+                        )}{' '}
+                        {t(
+                          'Supports PNG, JPG, WebP, or GIF. Maximum file size: 2 MB.'
+                        )}
+                      </FormDescription>
+                      <BusinessContactsInput
+                        value={field.value || ''}
+                        onChange={field.onChange}
+                        disabled={isSubmitting}
+                      />
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </SettingsFormGridItem>
 
               <FormField
                 control={form.control}

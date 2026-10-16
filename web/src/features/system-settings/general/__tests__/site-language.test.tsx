@@ -23,7 +23,13 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import {
+  cleanup,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { afterEach, expect, test, vi } from 'vitest'
@@ -33,7 +39,10 @@ import { api } from '@/lib/api'
 import { SettingsPageProvider } from '../../components/settings-page-context'
 import { SystemInfoSection } from '../system-info-section'
 
-function Fixture(props: { initialLanguage: 'auto' | 'zhTW' }) {
+function Fixture(props: {
+  initialLanguage: 'auto' | 'zhTW'
+  initialQRCode?: string
+}) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null)
   return (
     <>
@@ -47,7 +56,10 @@ function Fixture(props: { initialLanguage: 'auto' | 'zhTW' }) {
             Logo: '',
             general_setting: { docs_link: '' },
             legal: {},
-            console_setting: { default_language: props.initialLanguage },
+            console_setting: {
+              default_language: props.initialLanguage,
+              home_business_qrcode: props.initialQRCode,
+            },
           }}
         />
       </SettingsPageProvider>
@@ -153,3 +165,118 @@ test('saves the domestic globe filter through the existing settings API', async 
   )
   client.clear()
 })
+
+test.each(['upload', 'remove'])(
+  '%s the business QR code through site settings',
+  async (action) => {
+    const user = userEvent.setup()
+    const put = vi
+      .spyOn(api, 'put')
+      .mockResolvedValue({ data: { success: true } })
+    const client = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
+    const router = createRouter({
+      routeTree: createRootRoute({
+        component: () => (
+          <Fixture
+            initialLanguage='auto'
+            initialQRCode={
+              action === 'remove' ? 'https://example.com/qr.png' : ''
+            }
+          />
+        ),
+      }),
+      history: createMemoryHistory({ initialEntries: ['/'] }),
+    })
+    render(
+      <QueryClientProvider client={client}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    )
+    if (action === 'upload') {
+      await user.click(
+        await screen.findByRole('button', { name: 'Add contact channel' })
+      )
+      await user.type(
+        screen.getByRole('textbox', { name: 'Channel label' }),
+        'Sales'
+      )
+    }
+    const input = await screen.findByLabelText('QR code image', {
+      selector: 'input[type="file"]',
+    })
+    const image =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='
+    if (action === 'upload') {
+      await user.upload(
+        input,
+        new File([new Uint8Array(2 * 1024 * 1024 + 1)], 'too-large.png', {
+          type: 'image/png',
+        })
+      )
+      expect(
+        screen.queryByRole('img', { name: 'QR code image' })
+      ).not.toBeInTheDocument()
+      await user.upload(
+        input,
+        new File(
+          [Uint8Array.from(atob(image.split(',')[1]), (c) => c.charCodeAt(0))],
+          'qr.png',
+          { type: 'image/png' }
+        )
+      )
+      expect(
+        await screen.findByRole('img', { name: 'QR code image' })
+      ).toHaveAttribute('src', image)
+      await user.click(
+        screen.getByRole('button', { name: 'Add contact channel' })
+      )
+      const second = within(
+        screen.getByRole('group', { name: 'Contact channel 2' })
+      )
+      await user.type(
+        second.getByRole('textbox', { name: 'Channel label' }),
+        'Telegram'
+      )
+      await user.upload(
+        second.getByLabelText('QR code image', {
+          selector: 'input[type="file"]',
+        }),
+        new File(
+          [Uint8Array.from(atob(image.split(',')[1]), (c) => c.charCodeAt(0))],
+          'telegram.png',
+          { type: 'image/png' }
+        )
+      )
+      expect(
+        await second.findByRole('img', { name: 'QR code image' })
+      ).toHaveAttribute('src', image)
+    } else {
+      await user.click(screen.getByRole('button', { name: 'Remove channel' }))
+      expect(
+        screen.queryByRole('img', { name: 'QR code image' })
+      ).not.toBeInTheDocument()
+    }
+    await user.click(screen.getByRole('button', { name: 'Save Changes' }))
+    await waitFor(() =>
+      expect(put).toHaveBeenCalledWith('/api/option/', {
+        key: 'console_setting.home_business_qrcode',
+        value: expect.any(String),
+      })
+    )
+    const saved = put.mock.calls[0][1] as { value: string }
+    expect(JSON.parse(saved.value)).toEqual(
+      action === 'upload'
+        ? [
+            { id: expect.any(String), label: 'Sales', image },
+            { id: expect.any(String), label: 'Telegram', image },
+          ]
+        : []
+    )
+    client.clear()
+  }
+)

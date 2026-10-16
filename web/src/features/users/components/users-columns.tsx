@@ -98,7 +98,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
       },
       {
         accessorKey: 'email',
-        header: t('Email'),
+        header: t('User'),
         enableSorting: false,
         cell: ({ row }) => {
           const email = row.original.email?.trim() || '—'
@@ -109,7 +109,7 @@ export function useUsersColumns(): ColumnDef<User>[] {
             <div className='flex min-w-[160px] flex-col gap-1'>
               <div className='flex items-center gap-2'>
                 <LongText className='max-w-[200px] text-sm font-normal'>
-                  {email}
+                  {row.original.username}
                 </LongText>
                 {remark && (
                   <Tooltip>
@@ -130,6 +130,9 @@ export function useUsersColumns(): ColumnDef<User>[] {
                   </Tooltip>
                 )}
               </div>
+              <LongText className='text-muted-foreground max-w-[200px] text-xs font-normal'>
+                {email}
+              </LongText>
               {displayName &&
                 displayName !== row.original.username &&
                 displayName !== email && (

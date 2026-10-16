@@ -678,3 +678,49 @@ func TestManageUserQuotaCacheUsesCommittedIntegerDifference(t *testing.T) {
 		})
 	}
 }
+
+func TestAdminLogUserEmail(t *testing.T) {
+	db := setupManageUserTestDB(t)
+	for _, user := range []model.User{
+		{Id: 91001, Username: "log-email-user", AffCode: "lgmail01", Email: "buyer@example.com", Role: common.RoleCommonUser},
+		{Id: 91002, Username: "log-email-admin", AffCode: "lgmail02", Email: "admin@example.com", Role: common.RoleAdminUser},
+	} {
+		require.NoError(t, db.Create(&user).Error)
+		require.NoError(t, model.LOG_DB.Create(&model.Log{UserId: user.Id, Username: user.Username, Type: model.LogTypeSystem, CreatedAt: 1700000000}).Error)
+	}
+	for _, tc := range []struct {
+		name     string
+		role     int
+		personal bool
+		emails   []string
+	}{
+		{"root", common.RoleRootUser, false, []string{"buyer@example.com", "admin@example.com"}},
+		{"admin", common.RoleAdminUser, false, []string{"buyer@example.com", ""}},
+		{"personal", common.RoleCommonUser, true, []string{"", ""}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodGet, "/api/log/?page_size=20", nil)
+			c.Set("role", tc.role)
+			c.Set("id", 91001)
+			if tc.personal {
+				GetUserLogs(c)
+			} else {
+				GetAllLogs(c)
+			}
+			var response struct {
+				Success bool `json:"success"`
+				Data    struct {
+					Items []adminLogItem `json:"items"`
+				} `json:"data"`
+			}
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &response))
+			require.True(t, response.Success, recorder.Body.String())
+			require.NotEmpty(t, response.Data.Items)
+			for _, item := range response.Data.Items {
+				assert.Equal(t, tc.emails[item.UserId-91001], item.UserEmail)
+			}
+		})
+	}
+}

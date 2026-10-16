@@ -99,7 +99,7 @@ export function GlobeHero() {
       sandbox='allow-scripts'
       title={t('AI models')}
       tabIndex={-1}
-      className='block h-svh max-h-[1000px] min-h-[420px] w-full border-0 bg-[#08090a]'
+      className='block h-dvh w-full border-0 bg-[#08090a]'
       onLoad={() => {
         syncVisibility()
         syncCopy()

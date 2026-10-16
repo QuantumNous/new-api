@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import {
+  flexRender,
   getCoreRowModel,
   useReactTable,
   type VisibilityState,
@@ -56,6 +57,7 @@ const log = usageLogSchema.parse({
 })
 
 function Fixture(props: {
+  desktopUser?: boolean
   admin?: boolean
   visibility?: VisibilityState
   logs?: UsageLog[]
@@ -74,6 +76,17 @@ function Fixture(props: {
       <button type='button' onClick={() => context.setSensitiveVisible(false)}>
         Hide sensitive data
       </button>
+      {props.desktopUser &&
+        table.getRowModel().rows.map((row) => {
+          const cell = row
+            .getAllCells()
+            .find((cell) => cell.column.id === 'user')
+          return cell ? (
+            <div key={row.id}>
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </div>
+          ) : null
+        })}
       <UsageLogsMobileList
         table={table}
         logCategory='common'
@@ -336,4 +349,17 @@ it('shows loading placeholders without displaying stale log fields', () => {
   expect(
     screen.queryByRole('button', { name: /^Model:/ })
   ).not.toBeInTheDocument()
+})
+
+it('shows email below the desktop user and hides it with sensitive information', async () => {
+  renderLogs({
+    desktopUser: true,
+    logs: [{ ...log, user_email: 'buyer@example.com' }],
+  })
+  expect(screen.getByText('buyer@example.com')).toBeVisible()
+  await userEvent.click(
+    screen.getByRole('button', { name: 'Hide sensitive data' })
+  )
+  expect(screen.queryByText('buyer@example.com')).not.toBeInTheDocument()
+  expect(screen.queryByTitle('buyer@example.com')).not.toBeInTheDocument()
 })

@@ -88,6 +88,7 @@ export interface ApiResponse<T = unknown> {
 // ============================================================================
 
 export interface SystemStatus {
+  home_business_qrcode?: string
   home_globe_domestic_only?: boolean
   success?: boolean
   message?: string

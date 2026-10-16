@@ -80,6 +80,13 @@ test('pauses an offscreen scene, resumes it and releases the observer on unmount
   expect(disconnect).toHaveBeenCalledOnce()
 })
 
+test('fills the dynamic viewport without fixed height limits', () => {
+  render(<GlobeHero />)
+  const frame = screen.getByTitle('AI models')
+  expect(frame).toHaveClass('h-dvh')
+  expect(frame).not.toHaveClass('max-h-[1000px]', 'min-h-[420px]', 'h-svh')
+})
+
 test('keeps the scene in an isolated document without trapping keyboard focus', () => {
   render(<GlobeHero />)
   const frame = screen.getByTitle('AI models')

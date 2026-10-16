@@ -436,3 +436,13 @@ it('labels raw quota mode as tokens without introducing a currency symbol', () =
     within(screen.getAllByRole('cell')[0]).getByText('200')
   ).toBeInTheDocument()
 })
+
+it('shows username and email together in the user identity cell', async () => {
+  await renderUsersList()
+  const username = screen.getByText('long-user-name-for-table-layout')
+  const cell = username.closest('td')
+  if (!cell) throw new Error('User identity cell is missing')
+  expect(within(cell).getByText('long-user-email@example.com')).toBeVisible()
+  expect(within(cell).getByText('A display name')).toBeVisible()
+  expect(screen.getByRole('columnheader', { name: 'User' })).toBeVisible()
+})

@@ -559,44 +559,56 @@ export function useCommonLogsColumns(
             return (
               <button
                 type='button'
-                className='flex items-center gap-1.5 text-left'
+                className='flex min-w-0 flex-col items-start gap-1 text-left'
                 onClick={(e) => {
                   e.stopPropagation()
                   setSelectedUserId(log.user_id)
                   setUserInfoDialogOpen(true)
                 }}
               >
-                <Avatar className='ring-border/60 size-6 ring-1 max-sm:hidden'>
-                  <AvatarFallback
-                    className={cn(
-                      'text-[11px] font-semibold',
-                      !sensitiveVisible && 'bg-muted text-muted-foreground'
-                    )}
-                    style={
-                      sensitiveVisible
-                        ? getUserAvatarStyle(log.username)
-                        : undefined
-                    }
-                  >
-                    {sensitiveVisible
-                      ? getUserAvatarFallback(log.username)
-                      : '•'}
-                  </AvatarFallback>
-                </Avatar>
-                <TooltipProvider delay={300}>
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <span className='text-muted-foreground max-w-[100px] truncate text-sm hover:underline' />
+                <span className='flex items-center gap-1.5'>
+                  <Avatar className='ring-border/60 size-6 ring-1 max-sm:hidden'>
+                    <AvatarFallback
+                      className={cn(
+                        'text-[11px] font-semibold',
+                        !sensitiveVisible && 'bg-muted text-muted-foreground'
+                      )}
+                      style={
+                        sensitiveVisible
+                          ? getUserAvatarStyle(log.username)
+                          : undefined
                       }
                     >
-                      {sensitiveVisible ? log.username : '••••'}
-                    </TooltipTrigger>
-                    {sensitiveVisible && log.username.length > 12 && (
-                      <TooltipContent side='top'>{log.username}</TooltipContent>
-                    )}
-                  </Tooltip>
-                </TooltipProvider>
+                      {sensitiveVisible
+                        ? getUserAvatarFallback(log.username)
+                        : '•'}
+                    </AvatarFallback>
+                  </Avatar>
+                  <TooltipProvider delay={300}>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span className='text-muted-foreground max-w-[100px] truncate text-sm hover:underline' />
+                        }
+                      >
+                        {sensitiveVisible ? log.username : '••••'}
+                      </TooltipTrigger>
+                      {sensitiveVisible && log.username.length > 12 && (
+                        <TooltipContent side='top'>
+                          {log.username}
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
+                </span>
+                {log.user_email && (
+                  <span
+                    className='text-muted-foreground max-w-[220px] truncate text-xs'
+                    title={sensitiveVisible ? log.user_email : undefined}
+                  >
+                    {sensitiveVisible ? log.user_email : '••••'}
+                  </span>
+                )}
               </button>
             )
           },

@@ -22,10 +22,17 @@ import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
+import { useStatus } from '@/hooks/use-status'
 import { useAuthStore } from '@/stores/auth-store'
+
+import { parseBusinessContacts } from '../lib/business-contacts'
 
 export function GlobeIntro() {
   const { t } = useTranslation()
+  const { status } = useStatus()
+  const contacts = parseBusinessContacts(status?.home_business_qrcode).filter(
+    (contact) => contact.image
+  )
   const isAuthenticated = useAuthStore((state) => !!state.auth.user)
   const [contactOpen, setContactOpen] = useState(false)
   const [text, setText] = useState('')
@@ -80,11 +87,12 @@ export function GlobeIntro() {
 
   return (
     <>
-      <div className='pointer-events-none absolute inset-0 flex items-center justify-center px-5'>
-        <div className='pointer-events-auto w-full max-w-[min(52vw,620px)] px-3 py-7 text-center text-white [text-shadow:0_2px_18px_#000] max-sm:max-w-[90vw] sm:px-6'>
+      <div className='pointer-events-none absolute inset-0 flex items-center justify-center px-5 select-none'>
+        <div className='w-full max-w-[min(52vw,620px)] px-3 py-7 text-center text-white [text-shadow:0_2px_18px_#000] max-sm:max-w-[90vw] sm:px-6'>
           <img
             src='/home-globe/hcai-logo.png'
             alt='HCAI'
+            draggable={false}
             width={1039}
             height={406}
             className='mx-auto mb-5 h-auto w-32 max-w-full object-contain sm:w-40 lg:w-48'
@@ -98,40 +106,64 @@ export function GlobeIntro() {
               <span className='ml-1 inline-block h-[0.9em] w-0.5 bg-white/80 align-baseline' />
             </span>
           </h2>
-          <div className='mt-1 flex flex-wrap justify-center gap-3'>
+          <div className='pointer-events-auto mt-1 flex flex-wrap justify-center gap-3'>
             <Button
               className='h-11 rounded-full bg-white px-6 text-black hover:bg-white/90'
               render={<Link to={isAuthenticated ? '/dashboard' : '/sign-in'} />}
             >
               {t('Try it now')}
             </Button>
-            <Button
-              variant='outline'
-              className='h-11 rounded-full border-white/30 bg-white/10 px-6 text-white hover:bg-white/20 hover:text-white'
-              onClick={() => setContactOpen(true)}
-            >
-              {t('Business cooperation')}
-            </Button>
+            {contacts.length > 0 && (
+              <Button
+                variant='outline'
+                className='h-11 rounded-full border-white/30 bg-white/10 px-6 text-white hover:bg-white/20 hover:text-white'
+                onClick={() => setContactOpen(true)}
+              >
+                {t('Business cooperation')}
+              </Button>
+            )}
           </div>
         </div>
       </div>
-      <Dialog
-        open={contactOpen}
-        onOpenChange={setContactOpen}
-        title={t('Business cooperation')}
-        description={t('Scan with WeChat to discuss business cooperation.')}
-        contentClassName='sm:max-w-sm'
-      >
-        <div className='mx-auto w-fit rounded-xl bg-white p-4'>
-          <img
-            src='/home-globe/business-wechat.png'
-            alt={t('Business WeChat QR code')}
-            width={392}
-            height={394}
-            className='h-auto w-full max-w-64'
-          />
-        </div>
-      </Dialog>
+      {contacts.length > 0 && (
+        <Dialog
+          open={contactOpen}
+          onOpenChange={setContactOpen}
+          title={t('Business cooperation')}
+          description={t(
+            'Scan a QR code to contact us about business cooperation.'
+          )}
+          contentClassName={`dark ${contacts.length > 1 ? 'sm:max-w-2xl' : 'sm:max-w-sm'}`}
+        >
+          <div
+            className={
+              contacts.length > 1
+                ? 'grid grid-cols-1 gap-6 sm:grid-cols-2'
+                : 'grid grid-cols-1 gap-6'
+            }
+          >
+            {contacts.map((contact) => (
+              <figure
+                key={contact.id}
+                className='min-w-0 space-y-3 text-center'
+              >
+                <div className='mx-auto w-fit max-w-full rounded-xl bg-white p-4'>
+                  <img
+                    src={contact.image}
+                    alt={contact.label || t('Business cooperation')}
+                    width={256}
+                    height={256}
+                    className='aspect-square w-full max-w-64 object-contain'
+                  />
+                </div>
+                <figcaption className='text-sm font-medium break-all'>
+                  {contact.label || t('Business cooperation')}
+                </figcaption>
+              </figure>
+            ))}
+          </div>
+        </Dialog>
+      )}
     </>
   )
 }

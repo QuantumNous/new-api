@@ -143,6 +143,7 @@ export type SystemTaskFilters = {
 }
 
 export type SiteSettings = {
+  'console_setting.home_business_qrcode': string
   'console_setting.home_globe_domestic_only': boolean
   'console_setting.default_language': InterfaceLanguageCode | 'auto'
   Notice: string

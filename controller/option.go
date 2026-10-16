@@ -444,6 +444,11 @@ func UpdateOption(c *gin.Context) {
 				return
 			}
 		}
+	case "console_setting.home_business_qrcode":
+		if err = console_setting.ValidateHomeBusinessQRCode(option.Value.(string)); err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
+		}
 	case "console_setting.default_language":
 		if err = console_setting.ValidateDefaultLanguage(option.Value.(string)); err != nil {
 			common.ApiErrorMsg(c, err.Error())

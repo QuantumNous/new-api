@@ -254,3 +254,33 @@ func TestFooterRegistrationValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateHomeBusinessQRCode(t *testing.T) {
+	png := "data:image/png;base64," + base64.StdEncoding.EncodeToString([]byte{0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a})
+	for _, value := range []string{"", "https://example.com/qr.png", png} {
+		require.NoError(t, ValidateHomeBusinessQRCode(value))
+	}
+	for _, value := range []string{"javascript:alert(1)", "data:image/svg+xml;base64,PHN2Zz4=", "data:image/png;base64,YmFk", "data:image/png;base64,?", "data:image/png;base64," + base64.StdEncoding.EncodeToString(make([]byte, 2*1024*1024+1))} {
+		require.Error(t, ValidateHomeBusinessQRCode(value))
+	}
+}
+
+func TestValidateBusinessContactChannels(t *testing.T) {
+	for _, value := range []string{`[]`, `[{"label":"WeChat","image":"https://example.com/wechat.png"},{"label":"Telegram","image":"https://example.com/telegram.png"}]`} {
+		require.NoError(t, ValidateHomeBusinessQRCode(value))
+	}
+	for _, value := range []string{`null`, `{}`, `[{}]`, `[{"label":"","image":"https://example.com/qr.png"}]`, `[{"label":"Sales","image":"javascript:alert(1)"}]`, `[{"label":"Sales","image":""}]`} {
+		require.Error(t, ValidateHomeBusinessQRCode(value))
+	}
+	contacts := make([]BusinessContact, 9)
+	for i := range contacts {
+		contacts[i] = BusinessContact{Label: "Sales", Image: "https://example.com/qr.png"}
+	}
+	encoded, err := common.Marshal(contacts)
+	require.NoError(t, err)
+	require.Error(t, ValidateHomeBusinessQRCode(string(encoded)))
+	contacts = []BusinessContact{{Label: strings.Repeat("a", 81), Image: "https://example.com/qr.png"}}
+	encoded, err = common.Marshal(contacts)
+	require.NoError(t, err)
+	require.Error(t, ValidateHomeBusinessQRCode(string(encoded)))
+}

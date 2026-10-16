@@ -6,6 +6,7 @@ import (
 )
 
 type ConsoleSetting struct {
+	HomeBusinessQRCode    string `json:"home_business_qrcode"`
 	HomeGlobeDomesticOnly bool   `json:"home_globe_domestic_only"`
 	DefaultLanguage       string `json:"default_language"`
 	ApiInfo               string `json:"api_info"`              // 控制台 API 信息 (JSON 数组字符串)
