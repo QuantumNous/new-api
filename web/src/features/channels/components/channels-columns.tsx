@@ -27,7 +27,7 @@ import {
   Shuffle,
   SlidersHorizontal,
 } from 'lucide-react'
-import { useState, useMemo, useContext, useEffect } from 'react'
+import { useState, useMemo, useContext, useEffect, useId } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -52,7 +52,7 @@ import {
   formatQuotaWithCurrency,
   getCurrencyLabel,
 } from '@/lib/currency'
-import { formatTimestampToDate } from '@/lib/format'
+import { formatNumber, formatTimestampToDate } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import {
   createServerError,
@@ -62,6 +62,7 @@ import { truncateText } from '@/lib/utils'
 
 import { getCodexUsage, updateChannelBalance } from '../api'
 import {
+  CHANNEL_STATUS,
   CHANNEL_STATUS_CONFIG,
   CHANNEL_TYPE_TASK_PLUGIN,
   CHANNEL_TYPE_VLLM,
@@ -625,6 +626,7 @@ export function useChannelsColumns(
 ): ColumnDef<Channel>[] {
   const { t, i18n } = useTranslation()
   const { sensitiveVisible } = useChannels()
+  const statusTooltipId = useId()
   const enableSelection = options.enableSelection ?? true
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   // The column definitions only depend on the translation function, the active
@@ -950,30 +952,68 @@ export function useChannelsColumns(
 
           // Tag row: show aggregated status
           if (isTagRow) {
-            const childrenCount = (row.original as TagRow).children?.length || 0
+            const children = (row.original as TagRow).children
+            const childrenCount = children.length || 0
+            const enabledCount = children.filter(
+              (child) => child.status === 1
+            ).length
             const hasEnabled = status === 1
 
-            if (hasEnabled) {
-              return (
-                <StatusBadge
-                  label={`Active (${childrenCount})`}
-                  variant='success'
-                  size='sm'
-                  copyable={false}
-                  className='-ml-1.5'
-                />
-              )
-            } else {
-              return (
-                <StatusBadge
-                  label={`Inactive (${childrenCount})`}
-                  variant='neutral'
-                  size='sm'
-                  copyable={false}
-                  className='-ml-1.5'
-                />
-              )
+            const statusCounts = {
+              1: enabledCount,
+              2: children.filter((child) => child.status === 2).length,
+              3: children.filter((child) => child.status === 3).length,
             }
+            const tooltipId = `${statusTooltipId}-${row.id}`
+            const label = hasEnabled
+              ? `Active (${enabledCount})`
+              : `Inactive (${childrenCount})`
+
+            return (
+              <TooltipProvider delay={0}>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={<span tabIndex={0} aria-describedby={tooltipId} />}
+                  >
+                    <StatusBadge
+                      label={label}
+                      variant={
+                        hasEnabled
+                          ? CHANNEL_STATUS_CONFIG[CHANNEL_STATUS.ENABLED]
+                              .variant
+                          : CHANNEL_STATUS_CONFIG[
+                              CHANNEL_STATUS.MANUAL_DISABLED
+                            ].variant
+                      }
+                      size='sm'
+                      copyable={false}
+                      className='-ml-1.5'
+                    />
+                  </TooltipTrigger>
+                  <TooltipContent side='top' role='tooltip' id={tooltipId}>
+                    <dl className='grid min-w-10 grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-1 text-xs'>
+                      <div className='col-span-2 grid grid-cols-subgrid items-center'>
+                        <dt>{t('Total')}</dt>
+                        <dd className='text-right'>
+                          {formatNumber(childrenCount, locale)}
+                        </dd>
+                      </div>
+                      {([1, 2, 3] as const).map((childStatus) => (
+                        <div
+                          key={childStatus}
+                          className='col-span-2 grid grid-cols-subgrid items-center'
+                        >
+                          <dt>{t(CHANNEL_STATUS_CONFIG[childStatus].label)}</dt>
+                          <dd className='text-right'>
+                            {formatNumber(statusCounts[childStatus], locale)}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )
           }
 
           // Regular channel row
@@ -1268,6 +1308,6 @@ export function useChannelsColumns(
         meta: { pinned: 'right' as const },
       },
     ],
-    [enableSelection, t, locale, sensitiveVisible]
+    [enableSelection, t, locale, sensitiveVisible, statusTooltipId]
   )
 }
