@@ -1,4 +1,5 @@
 import copy
+from contextlib import contextmanager
 import http.server
 import json
 import os
@@ -50,6 +51,381 @@ class CapturedExport:
 
     def get(self, probe_id):
         return {"probe_id": probe_id, "state": "running"}
+
+
+@contextmanager
+def terminal_directory_failure(journal, identity):
+    """Keep real file sync/replacement and fail only the terminal directory sync."""
+    replace, fsync = os.replace, os.fsync
+    events = []
+    pending = False
+
+    def actual_replace(source, destination, **kwargs):
+        nonlocal pending
+        result = replace(source, destination, **kwargs)
+        if destination == "actions.json" and kwargs.get("dst_dir_fd") == journal.fd:
+            descriptor = journal.open("actions.json", os.O_RDONLY)
+            with os.fdopen(descriptor, "rb") as stream:
+                entry = json.load(stream)["actions"].get(identity, {})
+            if entry.get("status") == "terminal":
+                events.append({"terminal_replaced": True, "http_status": entry["http_status"]})
+                pending = True
+        return result
+
+    def terminal_fsync(descriptor):
+        nonlocal pending
+        if descriptor == journal.fd and pending:
+            pending = False
+            events.append({"terminal_directory_fsync_failed": True})
+            raise OSError("controlled terminal journal directory sync failure")
+        return fsync(descriptor)
+
+    with patch.object(os, "replace", side_effect=actual_replace), \
+            patch.object(os, "fsync", side_effect=terminal_fsync):
+        yield events
+
+
+@contextmanager
+def first_terminal_write_failure(journal, transition):
+    """Fail one real finish transition; callback and preceding intent are untouched."""
+    finish, opened, fsync, replace = journal.finish, journal.open, os.fsync, os.replace
+    active = failed = False
+
+    def fail_once(name):
+        nonlocal failed
+        if active and not failed and name == transition:
+            failed = True
+            raise OSError("controlled first terminal " + transition)
+
+    def terminal_finish(*args):
+        nonlocal active
+        active = True
+        try:
+            return finish(*args)
+        finally:
+            active = False
+
+    def terminal_open(name, flags):
+        if flags & os.O_CREAT:
+            fail_once("create")
+        return opened(name, flags)
+
+    def terminal_sync(descriptor):
+        fail_once("directory_fsync" if descriptor == journal.fd else "file_fsync")
+        return fsync(descriptor)
+
+    def terminal_replace(*args, **kwargs):
+        fail_once("replace")
+        return replace(*args, **kwargs)
+
+    with patch.object(journal, "finish", side_effect=terminal_finish), \
+            patch.object(journal, "open", side_effect=terminal_open), \
+            patch.object(os, "fsync", side_effect=terminal_sync), \
+            patch.object(os, "replace", side_effect=terminal_replace):
+        yield
+    if not failed:
+        raise AssertionError("terminal failure transition was not reached")
+
+
+class ActionJournalGuardTest(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory(prefix="task-e-journal-i1-state-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name) / "control"
+        self.journal = workbench.ActionJournal(str(self.root))
+        self.addCleanup(self.journal.close)
+        self.session = {"owned": set()}
+        self.parameters = {"generation": "builtin", "bank_revision": workbench.BUILTIN_REVISION}
+        self.journal.begin("prior-safe", {}, "reload", self.session)
+        self.journal.finish("prior-safe", {"safe": True}, 200)
+        self.prior = self.journal.read()["actions"]["prior-safe"]
+
+    def uncertain_terminal(self):
+        self.journal.begin("uncertain", self.parameters, "publication", self.session)
+        with terminal_directory_failure(self.journal, "uncertain"):
+            with self.assertRaises(OSError):
+                self.journal.finish("uncertain", {"summary": {"generation": "synthetic"}}, 200)
+        return next(self.root.glob("pending-*.json"))
+
+    def files(self):
+        return {path.name: path.read_bytes() for path in self.root.iterdir() if path.is_file()}
+
+    def test_guard_missing_between_terminal_and_retirement_never_acknowledges_success(self):
+        self.journal.begin("uncertain", self.parameters, "publication", self.session)
+        write = self.journal.write
+        removed = False
+
+        def lost_guard(state):
+            nonlocal removed
+            write(state)
+            if not removed and state["actions"]["uncertain"]["status"] == "terminal":
+                removed = True
+                next(self.root.glob("pending-*.json")).unlink()
+
+        with patch.object(self.journal, "write", side_effect=lost_guard):
+            with self.assertRaises((OSError, workbench.RequestError)):
+                self.journal.finish("uncertain", {"summary": {}}, 200)
+        with self.assertRaises(workbench.RequestError):
+            self.journal.read()
+        raw = json.loads((self.root / "actions.json").read_bytes())
+        self.assertEqual(raw["actions"]["prior-safe"], self.prior)
+
+    def test_surviving_guard_veto_is_read_only_scoped_and_preserves_prior_receipts(self):
+        guard = self.uncertain_terminal()
+        before = self.files()
+        self.assertEqual(self.journal.begin("prior-safe", {}, "reload", self.session),
+                         ({"safe": True}, 200))
+        self.assertEqual(self.journal.begin("uncertain", self.parameters, "publication", self.session),
+                         ({"error": "restart_required"}, 503))
+        for parameters, session, expected in (
+                ({**self.parameters, "generation": "changed"}, self.session, 409),
+                (self.parameters, {"owned": set()}, 404)):
+            with self.assertRaises(workbench.RequestError) as error:
+                self.journal.begin("uncertain", parameters, "publication", session)
+            self.assertEqual(error.exception.status, expected)
+        self.assertTrue(self.journal.publication_uncertain())
+        self.assertEqual(self.files(), before)
+        self.assertEqual(self.journal.read()["actions"]["prior-safe"], self.prior)
+        self.journal.close()
+        self.journal = workbench.ActionJournal(str(self.root))
+        self.addCleanup(self.journal.close)
+        self.assertEqual(self.files(), before)
+        with self.assertRaises(workbench.RequestError) as error:
+            self.journal.begin("new-publication", self.parameters, "publication", {"owned": set()})
+        self.assertEqual(error.exception.code, "restart_required")
+        # An unrelated kind may finish without replacing or retiring the old veto.
+        fresh = {"owned": set()}
+        self.journal.begin("unrelated-export", {}, "export", fresh)
+        self.journal.finish("unrelated-export", {"probe_id": "synthetic"}, 200)
+        self.assertEqual(guard.read_bytes(), before[guard.name])
+        self.assertTrue(self.journal.publication_uncertain())
+        self.assertEqual(self.journal.read()["actions"]["prior-safe"], self.prior)
+
+    def test_invalid_or_missing_guard_fails_closed_without_recovery_writes(self):
+        for mutation in ("corrupt", "oversize", "missing", "digest", "kind", "identity",
+                         "symlink", "hardlink", "mode", "missing_actions"):
+            with self.subTest(mutation=mutation):
+                guard = self.uncertain_terminal()
+                originals = self.files()
+                if mutation == "missing":
+                    guard.unlink()
+                elif mutation == "corrupt":
+                    guard.write_bytes(b"{")
+                elif mutation == "oversize":
+                    guard.write_bytes(b" " * 1025)
+                elif mutation in ("digest", "kind", "identity"):
+                    value = json.loads(guard.read_bytes())
+                    key = {"identity": "action_id"}.get(mutation, mutation)
+                    value[key] = {"digest": "0" * 64, "kind": "export",
+                                  "identity": "prior-safe"}[mutation]
+                    guard.write_text(json.dumps(value))
+                elif mutation == "symlink":
+                    guard.unlink()
+                    guard.symlink_to(self.root / "actions.json")
+                elif mutation == "hardlink":
+                    os.link(guard, self.root / "guard-link")
+                elif mutation == "mode":
+                    guard.chmod(0o644)
+                else:
+                    (self.root / "actions.json").unlink()
+                before = self.files()
+                with self.assertRaises((OSError, ValueError, workbench.RequestError)):
+                    self.journal.read()
+                self.assertEqual(self.files(), before)
+                self.journal.close()
+                with self.assertRaises(workbench.RequestError):
+                    workbench.ActionJournal(str(self.root))
+                self.assertEqual(self.files(), before)
+                for path in self.root.iterdir():
+                    if path.name != "owner.lock":
+                        path.unlink()
+                for name, payload in originals.items():
+                    if name != "owner.lock":
+                        (self.root / name).write_bytes(payload)
+                        (self.root / name).chmod(0o600)
+                # Restore only this test's fixture, not through journal recovery.
+                guard.unlink()
+                state = json.loads((self.root / "actions.json").read_bytes())
+                del state["actions"]["uncertain"]
+                (self.root / "actions.json").write_text(json.dumps(state))
+                self.journal = workbench.ActionJournal(str(self.root))
+                self.addCleanup(self.journal.close)
+
+    def test_retirement_failure_survives_restart_and_keeps_unknown_response(self):
+        self.journal.begin("uncertain", self.parameters, "publication", self.session)
+        unlink = os.unlink
+
+        def retirement_failure(name, **kwargs):
+            if name.startswith("pending-") and kwargs.get("dir_fd") == self.journal.fd:
+                raise OSError("controlled retirement failure")
+            return unlink(name, **kwargs)
+
+        with patch.object(os, "unlink", side_effect=retirement_failure):
+            with self.assertRaises(OSError):
+                self.journal.finish("uncertain", {"summary": {}}, 200)
+        before = self.files()
+        self.assertEqual(self.journal.begin("uncertain", self.parameters, "publication", self.session),
+                         ({"error": "restart_required"}, 503))
+        self.journal.close()
+        self.journal = workbench.ActionJournal(str(self.root))
+        self.addCleanup(self.journal.close)
+        self.assertTrue(self.journal.publication_uncertain())
+        self.assertEqual(self.files(), before)
+
+    def test_legacy_nonempty_history_is_quarantined_and_empty_history_usable(self):
+        for status in ("intent", "terminal"):
+            with self.subTest(status=status):
+                self.journal.close()
+                legacy = {"version": 1, "actions": {"legacy": {
+                    "digest": "a" * 64, "kind": "publication", "status": status,
+                    **({"response": {"summary": {}}, "http_status": 200}
+                       if status == "terminal" else {}),
+                }}}
+                (self.root / "actions.json").write_text(json.dumps(legacy))
+                before = self.files()
+                with self.assertRaises(workbench.RequestError):
+                    workbench.ActionJournal(str(self.root))
+                self.assertEqual(self.files(), before)
+        (self.root / "actions.json").write_text(json.dumps({"version": 1, "actions": {}}))
+        self.journal = workbench.ActionJournal(str(self.root))
+        self.addCleanup(self.journal.close)
+        fresh = {"owned": set()}
+        self.journal.begin("fresh", self.parameters, "publication", fresh)
+        self.journal.finish("fresh", {"summary": {}}, 200)
+        self.assertFalse(self.journal.publication_uncertain())
+
+    def test_ordinary_success_retirement_restart_replay_and_next_action_remain_usable(self):
+        self.journal.begin("success", self.parameters, "publication", self.session)
+        response = {"summary": {"generation": "synthetic"}}
+        self.journal.finish("success", response, 200)
+        self.assertFalse(list(self.root.glob("pending-*.json")))
+        before = self.files()
+        self.assertEqual(self.journal.begin("success", self.parameters, "publication", self.session),
+                         (response, 200))
+        self.assertEqual(self.files(), before)
+        self.journal.close()
+        self.journal = workbench.ActionJournal(str(self.root))
+        self.addCleanup(self.journal.close)
+        self.assertFalse(self.journal.publication_uncertain())
+        self.assertEqual(self.files(), before)
+        fresh = {"owned": set()}
+        self.journal.begin("next-action", self.parameters, "publication", fresh)
+        self.journal.finish("next-action", {"summary": {}}, 200)
+        self.assertEqual(self.journal.read()["actions"]["success"]["response"], response)
+        self.assertEqual(self.journal.read()["actions"]["prior-safe"], self.prior)
+
+    def test_retirement_preparation_failures_keep_independent_veto(self):
+        for transition in ("create", "file_fsync", "replace", "directory_fsync"):
+            with self.subTest(transition=transition):
+                self.journal.begin("uncertain", self.parameters, "publication", self.session)
+                write = self.journal.write
+                fsync, replace, opened = os.fsync, os.replace, self.journal.open
+                active = failed = False
+                writes = 0
+
+                def fail_once(name):
+                    nonlocal failed
+                    if active and not failed and name == transition:
+                        failed = True
+                        raise OSError("controlled retirement preparation " + transition)
+
+                def retirement_write(state):
+                    nonlocal active, writes
+                    writes += 1
+                    active = writes == 2
+                    try:
+                        return write(state)
+                    finally:
+                        active = False
+
+                def retirement_open(name, flags):
+                    if flags & os.O_CREAT:
+                        fail_once("create")
+                    return opened(name, flags)
+
+                def retirement_sync(descriptor):
+                    fail_once("directory_fsync" if descriptor == self.journal.fd else "file_fsync")
+                    return fsync(descriptor)
+
+                def retirement_replace(*args, **kwargs):
+                    fail_once("replace")
+                    return replace(*args, **kwargs)
+
+                with patch.object(self.journal, "write", side_effect=retirement_write), \
+                        patch.object(self.journal, "open", side_effect=retirement_open), \
+                        patch.object(os, "fsync", side_effect=retirement_sync), \
+                        patch.object(os, "replace", side_effect=retirement_replace):
+                    with self.assertRaises(OSError):
+                        self.journal.finish("uncertain", {"summary": {}}, 200)
+                self.assertTrue(failed)
+                before = self.files()
+                self.assertEqual(self.journal.begin(
+                    "uncertain", self.parameters, "publication", self.session),
+                    ({"error": "restart_required"}, 503))
+                self.assertEqual(self.journal.read()["actions"]["prior-safe"], self.prior)
+                self.journal.close()
+                self.journal = workbench.ActionJournal(str(self.root))
+                self.addCleanup(self.journal.close)
+                self.assertTrue(self.journal.publication_uncertain())
+                self.assertEqual(self.files(), before)
+                # Reset the controlled fixture only; production never clears this veto.
+                next(self.root.glob("pending-*.json")).unlink()
+                state = json.loads((self.root / "actions.json").read_bytes())
+                del state["actions"]["uncertain"]
+                self.journal.write(state)
+
+    def test_changed_guard_at_final_retirement_boundary_is_not_deleted(self):
+        self.journal.begin("uncertain", self.parameters, "publication", self.session)
+        write = self.journal.write
+        writes = 0
+
+        def changed_guard(state):
+            nonlocal writes
+            write(state)
+            writes += 1
+            if writes == 2:
+                guard = next(self.root.glob("pending-*.json"))
+                value = json.loads(guard.read_bytes())
+                value["digest"] = "0" * 64
+                guard.write_text(json.dumps(value))
+
+        with patch.object(self.journal, "write", side_effect=changed_guard):
+            with self.assertRaises(workbench.RequestError):
+                self.journal.finish("uncertain", {"summary": {}}, 200)
+        self.assertEqual(len(list(self.root.glob("pending-*.json"))), 1)
+        before = self.files()
+        with self.assertRaises(workbench.RequestError):
+            self.journal.read()
+        self.assertEqual(self.files(), before)
+
+    def test_crash_restored_guard_hides_only_completed_action_kind(self):
+        self.journal.begin("success", self.parameters, "publication", self.session)
+        response = {"summary": {}}
+        guard_bytes = None
+        guard_name = None
+        unlink = os.unlink
+
+        def capture_retired_guard(name, **kwargs):
+            nonlocal guard_bytes, guard_name
+            if name.startswith("pending-") and kwargs.get("dir_fd") == self.journal.fd:
+                guard_name = name
+                guard_bytes = (self.root / name).read_bytes()
+            return unlink(name, **kwargs)
+
+        with patch.object(os, "unlink", side_effect=capture_retired_guard):
+            self.journal.finish("success", response, 200)
+        self.journal.close()
+        (self.root / guard_name).write_bytes(guard_bytes)
+        (self.root / guard_name).chmod(0o600)
+        before = self.files()
+        self.journal = workbench.ActionJournal(str(self.root))
+        self.addCleanup(self.journal.close)
+        self.assertTrue(self.journal.publication_uncertain())
+        self.assertEqual(self.journal.begin("prior-safe", {}, "reload", self.session),
+                         ({"safe": True}, 200))
+        self.assertEqual(self.journal.begin("success", self.parameters, "publication", self.session),
+                         ({"error": "restart_required"}, 503))
+        self.assertEqual(self.files(), before)
 
 
 class SequenceProvider(OwnedProvider):
@@ -125,6 +501,210 @@ class ManualWorkbenchTest(unittest.TestCase):
         return self.client.post(path, base_url=ORIGIN, json=value, headers={
             "Origin": ORIGIN, "X-CSRF-Token": self.csrf,
         })
+
+    def restart_workbench(self):
+        self.app.extensions["modeltrace_workbench"].close()
+        bank_root, operations_root = self.store.root, Path(self.temporary.name) / "operations"
+        self.store._root_finalizer()
+        self.operations.close()
+        config = self.app.config.copy()
+        self.store = BankStore(bank_root)
+        self.addCleanup(self.store._root_finalizer)
+        self.operations = Operations(operations_root)
+        self.addCleanup(self.operations.close)
+        self.app = workbench.create_app(self.store, object(), self.operations, self.export)
+        self.app.config.update(config)
+        self.addCleanup(self.app.extensions["modeltrace_workbench"].close)
+        self.client = self.app.test_client()
+        self.csrf = self.client.get("/api/session", base_url=ORIGIN).get_json()["csrf_token"]
+
+    def test_terminal_directory_failure_vetoes_publication_replay_and_restart(self):
+        before = self.store.summary()
+        value = {"action_id": "terminal-uncertain", "bank_id": "custom", "label": "Custom",
+                 "generation": before["generation"], "bank_revision": before["revision"]}
+        control = self.app.extensions["modeltrace_workbench"]
+        journal = control.journal(self.app)
+        with terminal_directory_failure(journal, value["action_id"]) as events:
+            initial = self.post("/api/banks", value)
+        committed = self.store._load_manifest()
+        raw = json.loads((Path(self.temporary.name) / "control/actions.json").read_bytes())
+        replay = self.post("/api/banks", value)
+        self.assertEqual(self.store._load_manifest(), committed)
+        self.assertEqual(control.children, set())
+        # No new owned ID here: its unknown receipt could mask the restart defect.
+        self.restart_workbench()
+        current = self.store.summary()
+        fresh = self.post("/api/banks", {
+            "action_id": "fresh-after-restart", "bank_id": "second", "label": "Second",
+            "generation": current["generation"], "bank_revision": current["revision"],
+        })
+        after_fresh = self.store._load_manifest()
+        reload_result = self.post("/api/banks/reload", {"action_id": "reload-after-restart"})
+        old = self.post("/api/banks", value)
+        print(json.dumps({"journal_i1_publication_observation": {
+            "events": events, "initial": [initial.status_code, initial.get_json().get("error")],
+            "readable_terminal_status": raw["actions"][value["action_id"]]["status"],
+            "readable_terminal_http_status": raw["actions"][value["action_id"]].get("http_status"),
+            "replay": [replay.status_code, replay.get_json().get("error")],
+            "fresh_after_restart": [fresh.status_code, fresh.get_json().get("error")],
+            "generation_before": committed["generation"],
+            "generation_after": after_fresh["generation"],
+        }}), flush=True)
+        self.assertEqual(events, [{"terminal_replaced": True, "http_status": 200},
+                                  {"terminal_directory_fsync_failed": True}])
+        self.assertEqual(
+            (initial.status_code, initial.get_json().get("error"),
+             replay.status_code, replay.get_json().get("error"),
+             fresh.status_code, fresh.get_json().get("error"),
+             reload_result.status_code, reload_result.get_json().get("error"),
+             old.status_code, after_fresh == committed),
+            (503, "restart_required", 503, "restart_required", 503, "restart_required",
+             503, "restart_required", 404, True),
+        )
+
+    def test_terminal_directory_failure_vetoes_export_replay_and_restart(self):
+        evidence = {
+            "schema_version": 1, "probe_id": "terminal-export-probe", "binding_id": BINDING,
+            "claimed_model": "GPT-4o", "protocol": "chat",
+            "bank_revision": workbench.BUILTIN_REVISION, "samples": reference_samples(1),
+        }
+        value = {"action_id": "terminal-export", "evidence": evidence}
+        journal = self.app.extensions["modeltrace_workbench"].journal(self.app)
+        with terminal_directory_failure(journal, value["action_id"]) as events:
+            initial = self.post("/api/export", value)
+        replay = self.post("/api/export", value)
+        self.restart_workbench()
+        fresh = self.post("/api/export", {
+            "action_id": "fresh-export", "evidence": {**evidence, "probe_id": "fresh-probe"},
+        })
+        self.assertEqual(events, [{"terminal_replaced": True, "http_status": 200},
+                                  {"terminal_directory_fsync_failed": True}])
+        self.assertEqual(
+            (initial.status_code, initial.get_json().get("error"),
+             replay.status_code, replay.get_json().get("error"),
+             fresh.status_code, fresh.get_json().get("error"), len(self.export.evidence)),
+            (503, "write_unknown", 503, "write_unknown", 503, "write_unknown", 1),
+        )
+
+    def test_preterminal_guard_write_failures_preserve_intent_and_prior_receipts(self):
+        for transition in ("create", "file_fsync", "replace", "directory_fsync"):
+            with self.subTest(transition=transition):
+                # Each branch has its own roots so an unknown receipt cannot mask another.
+                with tempfile.TemporaryDirectory(prefix="task-e-journal-i1-guard-") as root:
+                    store = BankStore(Path(root) / "banks")
+                    operations = Operations(Path(root) / "operations")
+                    app = workbench.create_app(store, object(), operations, self.export)
+                    app.config.update(self.app.config)
+                    app.config["WORKBENCH_STATE_ROOT"] = str(Path(root) / "control")
+                    control = app.extensions["modeltrace_workbench"]
+                    try:
+                        client = app.test_client()
+                        csrf = client.get("/api/session", base_url=ORIGIN).get_json()["csrf_token"]
+                        headers = {"Origin": ORIGIN, "X-CSRF-Token": csrf}
+                        prior = client.post("/api/banks/reload", base_url=ORIGIN,
+                                            json={"action_id": "prior-safe"}, headers=headers)
+                        before = store.summary()
+                        value = {"action_id": "guard-failure", "bank_id": "custom",
+                                 "label": "Custom", "generation": before["generation"],
+                                 "bank_revision": before["revision"]}
+                        journal = control.journal(app)
+                        with first_terminal_write_failure(journal, transition):
+                            initial = client.post("/api/banks", base_url=ORIGIN,
+                                                  json=value, headers=headers)
+                        committed = store._load_manifest()
+                        raw = json.loads((Path(root) / "control/actions.json").read_bytes())
+                        replay = client.post("/api/banks", base_url=ORIGIN,
+                                             json=value, headers=headers)
+                        self.assertEqual(initial.get_json(), {"error": "restart_required"})
+                        self.assertEqual(replay.get_json(), {"error": "restart_required"})
+                        self.assertEqual(raw["actions"]["prior-safe"]["response"], prior.get_json())
+                        self.assertEqual(raw["actions"]["guard-failure"]["status"], "intent")
+                        self.assertEqual(client.post(
+                            "/api/banks/reload", base_url=ORIGIN, headers=headers,
+                            json={"action_id": "prior-safe"}).get_json(), prior.get_json())
+                        control.close()
+                        store._root_finalizer()
+                        operations.close()
+                        store = BankStore(Path(root) / "banks")
+                        operations = Operations(Path(root) / "operations")
+                        restarted = workbench.create_app(store, object(), operations, self.export)
+                        restarted.config.update(app.config)
+                        control = restarted.extensions["modeltrace_workbench"]
+                        client = restarted.test_client()
+                        headers["X-CSRF-Token"] = client.get(
+                            "/api/session", base_url=ORIGIN).get_json()["csrf_token"]
+                        current = store.summary()
+                        fresh = client.post("/api/banks", base_url=ORIGIN, headers=headers,
+                                            json={**value, "action_id": "fresh", "bank_id": "second",
+                                                  "generation": current["generation"],
+                                                  "bank_revision": current["revision"]})
+                        self.assertEqual(fresh.get_json(), {"error": "restart_required"})
+                        self.assertEqual(store._load_manifest(), committed)
+                    finally:
+                        control.close()
+                        operations.close()
+                        store._root_finalizer()
+
+    def test_successful_publication_and_export_replay_restart_and_next_action(self):
+        before = self.store.summary()
+        create = {"action_id": "success-before-restart", "bank_id": "custom",
+                  "label": "Custom", "generation": before["generation"],
+                  "bank_revision": before["revision"]}
+        initial = self.post("/api/banks", create)
+        self.assertEqual(initial.status_code, 200)
+        committed = self.store._load_manifest()
+        self.assertEqual(self.post("/api/banks", create).get_json(), initial.get_json())
+        self.assertEqual(self.store._load_manifest(), committed)
+        evidence = {
+            "schema_version": 1, "probe_id": "successful-export-probe", "binding_id": BINDING,
+            "claimed_model": "GPT-4o", "protocol": "chat",
+            "bank_revision": self.store.summary()["revision"], "samples": reference_samples(1),
+        }
+        value = {"action_id": "successful-export", "evidence": evidence}
+        exported = self.post("/api/export", value)
+        self.assertEqual(exported.status_code, 200)
+        self.assertEqual(self.post("/api/export", value).get_json(), exported.get_json())
+        self.assertEqual(len(self.export.evidence), 1)
+        control_root = Path(self.temporary.name) / "control"
+        files = {path.name: path.read_bytes() for path in control_root.iterdir()}
+        self.assertFalse(list(control_root.glob("pending-*.json")))
+        self.restart_workbench()
+        self.assertEqual(self.client.get("/api/banks", base_url=ORIGIN).status_code, 200)
+        self.assertEqual({path.name: path.read_bytes() for path in control_root.iterdir()}, files)
+        self.assertEqual(self.post("/api/banks", create).status_code, 404)
+        self.assertEqual(self.post("/api/export", value).status_code, 404)
+        current = self.store.summary()
+        fresh = self.post("/api/banks", {
+            **create, "action_id": "success-after-restart", "bank_id": "second",
+            "generation": current["generation"], "bank_revision": current["revision"],
+        })
+        self.assertEqual(fresh.status_code, 200)
+        self.assertNotEqual(self.store._load_manifest(), committed)
+        fresh_export = self.post("/api/export", {
+            "action_id": "new-export-after-restart",
+            "evidence": {**evidence, "probe_id": "new-successful-probe",
+                         "bank_revision": self.store.summary()["revision"]},
+        })
+        self.assertEqual(fresh_export.status_code, 200)
+        self.assertEqual(len(self.export.evidence), 2)
+        self.assertFalse(list(control_root.glob("pending-*.json")))
+        self.assertEqual(self.app.extensions["modeltrace_workbench"].children, set())
+
+    def test_get_after_unknown_does_not_recover_guard_or_rewrite_receipts(self):
+        before = self.store.summary()
+        value = {"action_id": "get-uncertain", "bank_id": "custom", "label": "Custom",
+                 "generation": before["generation"], "bank_revision": before["revision"]}
+        journal = self.app.extensions["modeltrace_workbench"].journal(self.app)
+        with terminal_directory_failure(journal, value["action_id"]):
+            self.assertEqual(self.post("/api/banks", value).status_code, 503)
+        self.restart_workbench()
+        control_root = Path(self.temporary.name) / "control"
+        files = {path.name: path.read_bytes() for path in control_root.iterdir()}
+        for path in ("/api/banks", "/api/bank?bank_id=custom"):
+            response = self.client.get(path, base_url=ORIGIN)
+            self.assertEqual(response.status_code, 503)
+            self.assertEqual(response.get_json(), {"error": "restart_required"})
+        self.assertEqual({path.name: path.read_bytes() for path in control_root.iterdir()}, files)
 
     def test_workbench_manual_analyze_can_export_numeric_evidence(self):
         samples = reference_samples()

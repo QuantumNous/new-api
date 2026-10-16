@@ -365,29 +365,76 @@ class ActionJournal:
             raise ValueError
         return descriptor
 
+    def guard(self, identity, entry):
+        return {"version": 1, "action_id": identity,
+                "digest": entry["digest"], "kind": entry["kind"]}
+
+    def read_guard(self, identity):
+        try:
+            descriptor = self.open("pending-" + identity + ".json", os.O_RDONLY)
+        except FileNotFoundError:
+            return None
+        with os.fdopen(descriptor, "rb") as stream:
+            payload = stream.read(1025)
+        if len(payload) > 1024:
+            raise RequestError("unavailable", 503)
+        value = strict_json(payload)
+        exact_fields(value, ("version", "action_id", "digest", "kind"))
+        if type(value["version"]) is not int or value["version"] != 1:
+            raise RequestError("unavailable", 503)
+        return value
+
     def read(self):
+        guards = {name for name in os.listdir(self.fd) if name.startswith("pending-")}
         try:
             descriptor = self.open("actions.json", os.O_RDONLY)
         except FileNotFoundError:
-            return {"version": 1, "actions": {}}
+            if guards:
+                raise RequestError("unavailable", 503)
+            return {"version": 2, "actions": {}}
         with os.fdopen(descriptor, "rb") as stream:
             payload = stream.read(8 * 1024 * 1024 + 1)
         if len(payload) > 8 * 1024 * 1024:
             raise RequestError("unavailable", 503)
         value = strict_json(payload)
         exact_fields(value, ("version", "actions"))
-        if value["version"] != 1 or type(value["actions"]) is not dict or len(value["actions"]) > 128:
+        if (type(value["version"]) is not int or value["version"] not in (1, 2)
+                or type(value["actions"]) is not dict or len(value["actions"]) > 128):
             raise RequestError("unavailable", 503)
+        # The old journal has no independent proof of terminal durability.
+        if value["version"] == 1 and value["actions"]:
+            raise RequestError("unavailable", 503)
+        value["version"] = 2
         for identity, entry in value["actions"].items():
             _identity(identity)
-            exact_fields(entry, ("digest", "kind", "status"), ("response", "http_status", "precondition"))
-            if (not re.fullmatch("[0-9a-f]{64}", entry["digest"])
+            exact_fields(entry, ("digest", "kind", "status"),
+                         ("response", "http_status", "precondition", "guard_pending"))
+            if (type(entry["digest"]) is not str or not re.fullmatch("[0-9a-f]{64}", entry["digest"])
                     or entry["kind"] not in ("analysis", "collection", "publication", "export", "reload")
-                    or entry["status"] not in ("intent", "terminal")):
+                    or entry["status"] not in ("intent", "terminal")
+                    or ("guard_pending" in entry and entry["guard_pending"] is not True)
+                    or (entry["status"] == "terminal" and (
+                        type(entry.get("response")) is not dict
+                        or type(entry.get("http_status")) is not int
+                        or not 100 <= entry["http_status"] <= 599))):
                 raise RequestError("unavailable", 503)
+            guard = self.read_guard(identity)
+            if guard is None:
+                if entry.get("guard_pending"):
+                    raise RequestError("unavailable", 503)
+            else:
+                if guard != self.guard(identity, entry):
+                    raise RequestError("unavailable", 503)
+                guards.discard("pending-" + identity + ".json")
+                entry["guard_pending"] = True
+        if guards:
+            raise RequestError("unavailable", 503)
         return value
 
     def write(self, value):
+        self.persist("actions.json", value)
+
+    def persist(self, destination, value):
         payload = json.dumps(value, allow_nan=False, separators=(",", ":")).encode()
         if len(payload) > 8 * 1024 * 1024:
             raise RequestError("capacity", 503)
@@ -398,7 +445,7 @@ class ActionJournal:
                 stream.write(payload)
                 stream.flush()
                 os.fsync(stream.fileno())
-            os.replace(name, "actions.json", src_dir_fd=self.fd, dst_dir_fd=self.fd)
+            os.replace(name, destination, src_dir_fd=self.fd, dst_dir_fd=self.fd)
             os.fsync(self.fd)
         finally:
             try:
@@ -417,14 +464,15 @@ class ActionJournal:
                 raise RequestError("not_found", 404)
             if entry["digest"] != digest or entry["kind"] != kind:
                 raise RequestError("conflict", 409)
-            if entry["status"] == "intent":
+            if entry["status"] == "intent" or entry.get("guard_pending"):
                 return ({"error": "restart_required" if kind == "publication" else "write_unknown"}, 503)
             return entry["response"], entry["http_status"]
         if len(state["actions"]) >= 128 or len(session["owned"]) >= 128:
             raise RequestError("capacity", 503)
         if kind in ("publication", "collection", "export") and any(
                 item["kind"] == kind and (
-                    item["status"] == "intent" or item.get("response", {}).get("error") in (
+                    item["status"] == "intent" or item.get("guard_pending")
+                    or item.get("response", {}).get("error") in (
                         "write_unknown", "restart_required")
                     or item.get("response", {}).get("status") == "write_unknown")
                 for item in state["actions"].values()):
@@ -440,14 +488,33 @@ class ActionJournal:
 
     def finish(self, identity, response, status):
         state = self.read()
-        state["actions"][identity].update({
+        entry = state["actions"][identity]
+        if entry["status"] != "intent" or entry.get("guard_pending"):
+            raise RequestError("unavailable", 503)
+        guard = self.guard(identity, entry)
+        name = "pending-" + identity + ".json"
+        self.persist(name, guard)
+        if self.read_guard(identity) != guard:
+            raise RequestError("unavailable", 503)
+        entry.update({
             "status": "terminal", "response": response, "http_status": status,
+            "guard_pending": True,
         })
         self.write(state)
+        # A missing veto is unsafe until the terminal receipt was fully synced.
+        if self.read_guard(identity) != guard:
+            raise RequestError("unavailable", 503)
+        del entry["guard_pending"]
+        self.write(state)
+        # No post-unlink sync: a crash-restored veto remains conservative.
+        if self.read_guard(identity) != guard:
+            raise RequestError("unavailable", 503)
+        os.unlink(name, dir_fd=self.fd)
 
     def publication_uncertain(self, active_identity=None):
         return any(identity != active_identity and item["kind"] == "publication" and (
-            item["status"] == "intent" or item.get("response", {}).get("error") == "restart_required")
+            item["status"] == "intent" or item.get("guard_pending")
+            or item.get("response", {}).get("error") == "restart_required")
             for identity, item in self.read()["actions"].items())
 
     def close(self):
