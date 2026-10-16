@@ -26,9 +26,44 @@ For commercial licensing, please contact support@quantumnous.com
  * that activates it. Loaded globally so font-switching is instantaneous
  * with no FOUT once the variable is fetched. */
 @import '@fontsource-variable/lora';
+/* Persian (Arabic-script) face. The theme fonts have no Persian glyphs, so
+ * without it Persian text falls back to whatever the OS has. Applied only
+ * when the page language is Persian; see the `:lang(fa)` rule below. */
+@import '@fontsource-variable/vazirmatn';
 
 @import './theme.css';
 @import './theme-presets.css';
+
+/* Unlayered so it also wins over the `font-sans` utility. Code keeps its own
+ * `font-mono` face. */
+html:lang(fa) body,
+html:lang(fa) .font-sans {
+  font-family: 'Vazirmatn Variable', sans-serif;
+}
+
+/* Persian inside monospace text (`font-mono`, code, kbd, pre, samp).
+ * DejaVu Sans Mono, Menlo and Courier New have fixed-width Arabic glyphs, so
+ * a fallback after the monospace families would never be reached and Persian
+ * would render spaced out. This face covers only the Arabic script, so it
+ * goes first: Persian takes Vazirmatn, while Latin letters, digits and
+ * punctuation in versions, code and keys still use the monospace stack. */
+@font-face {
+  font-family: 'Vazirmatn Persian Script';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('@fontsource-variable/vazirmatn/files/vazirmatn-arabic-wght-normal.woff2')
+    format('woff2-variations');
+  unicode-range:
+    U+0600-06FF, U+0750-077F, U+0870-088E, U+0890-0891, U+0897-08E1,
+    U+08E3-08FF, U+200C-200D, U+FB50-FDFF, U+FE70-FE74, U+FE76-FEFC;
+}
+
+html:lang(fa) {
+  --font-mono:
+    'Vazirmatn Persian Script', ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, 'Liberation Mono', 'Courier New', monospace;
+}
 
 @layer base {
   :root {

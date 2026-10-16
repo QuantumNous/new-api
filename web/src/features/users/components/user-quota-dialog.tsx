@@ -24,6 +24,7 @@ import { Dialog } from '@/components/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { formatValueChange } from '@/i18n/languages'
 import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
 import { formatQuota, parseQuotaFromDollars } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
@@ -41,7 +42,7 @@ interface UserQuotaDialogProps {
 }
 
 export function UserQuotaDialog(props: UserQuotaDialogProps) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [mode, setMode] = useState<QuotaAdjustMode>('add')
   const [amount, setAmount] = useState('')
   const [loading, setLoading] = useState(false)
@@ -63,7 +64,11 @@ export function UserQuotaDialog(props: UserQuotaDialogProps) {
         return `${t('Current quota')}: ${formatQuota(current)}  -${formatQuota(val)} = ${formatQuota(current - val)}`
       case 'override': {
         const overrideQuota = parseQuotaFromDollars(amountValue)
-        return `${t('Current quota')}: ${formatQuota(current)} → ${formatQuota(overrideQuota)}`
+        return `${t('Current quota')}: ${formatValueChange(
+          formatQuota(current),
+          formatQuota(overrideQuota),
+          i18n.resolvedLanguage || i18n.language
+        )}`
       }
       default:
         return ''

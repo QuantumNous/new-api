@@ -22,6 +22,11 @@ import path from 'node:path'
 // This script is executed from the web/ package root (see package.json script).
 const LOCALES_DIR = path.resolve('src/i18n/locales')
 const FALLBACK_COMPARE_LOCALE = 'en' // used for "still English" detection only
+// Partial locales (keep in sync with PARTIAL_INTERFACE_LANGUAGES in
+// src/i18n/languages.ts). Their missing keys are reported but not filled with
+// English text, so the runtime falls back to English per key. Every other
+// locale is filled up to the full key set of the base locale.
+const PARTIAL_LOCALES = new Set(['fa'])
 const OBFUSCATED_KEYS = [
   {
     runtime: ['footer', 'new' + 'api', 'projectAttributionSuffix'].join('.'),
@@ -146,7 +151,8 @@ function reorderLikeBase(
   fill,
   extras,
   missing,
-  currentPath = []
+  currentPath = [],
+  omitMissing = false
 ) {
   // If base is an object, we keep base's key order and recurse.
   if (isPlainObject(base)) {
@@ -163,10 +169,12 @@ function reorderLikeBase(
           f[key],
           extras,
           missing,
-          nextPath
+          nextPath,
+          omitMissing
         )
       } else {
         missing.push(nextPath.join('.'))
+        if (omitMissing) continue
         out[key] = reorderLikeBase(
           base[key],
           undefined,
@@ -227,12 +235,13 @@ function isLikelyUntranslated({ locale, baseValue, value }) {
   if (!/[A-Za-z]{3,}/.test(s)) return false
 
   // For locales with non-latin scripts, equality with EN is a strong signal.
-  if (locale === 'ja' || locale === 'zh') return true
+  if (locale === 'ja' || locale === 'zh' || locale === 'fa') return true
   if (locale === 'ru') return true
 
   // For fr/vi: still useful but noisier; keep it conservative.
-  if (locale === 'fr' || locale === 'vi')
+  if (locale === 'fr' || locale === 'vi') {
     return /\b(the|and|or|to|with|please)\b/i.test(s)
+  }
 
   return false
 }
@@ -286,7 +295,16 @@ async function main() {
 
     const extras = {}
     const missing = []
-    const fixed = reorderLikeBase(baseJson, json, compareJson, extras, missing)
+    const partial = PARTIAL_LOCALES.has(locale)
+    const fixed = reorderLikeBase(
+      baseJson,
+      json,
+      compareJson,
+      extras,
+      missing,
+      [],
+      partial
+    )
 
     // Untranslated scan (translation namespace only)
     const untranslated = {}
@@ -309,6 +327,7 @@ async function main() {
 
     report.locales[locale] = {
       file: filename,
+      partial,
       missingCount: missing.length,
       extrasCount: Object.keys(extras).length,
       untranslatedCount: Object.keys(untranslated).length,
