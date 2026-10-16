@@ -93,18 +93,18 @@ func InitializePaymentSecrets(db *gorm.DB) error {
 	}
 	for _, target := range []struct {
 		provider string
+		model    any
 		fields   []string
 	}{
-		{"alipay", []string{"private_key"}},
-		{"wechatpay", []string{"private_key", "apiv3_key"}},
+		{"alipay", &AlipayConfig{}, []string{"private_key"}},
+		{"wechatpay", &WechatPayConfig{}, []string{"private_key", "apiv3_key"}},
+		{"webmoney", &WebMoneyConfig{}, []string{"ciphertext"}},
+		{"antom", &AntomConfig{}, []string{"ciphertext"}},
+		{"antom/order", &AntomOrder{}, []string{"session_ciphertext"}},
 	} {
 		// Respect the configured GORM naming strategy rather than assuming table names.
 		stmt := &gorm.Statement{DB: db}
-		if target.provider == "alipay" {
-			err = stmt.Parse(&AlipayConfig{})
-		} else {
-			err = stmt.Parse(&WechatPayConfig{})
-		}
+		err = stmt.Parse(target.model)
 		if err != nil {
 			return errors.New("payment configuration schema unavailable")
 		}
@@ -124,21 +124,29 @@ func InitializePaymentSecrets(db *gorm.DB) error {
 			for _, row := range rows {
 				err := db.Session(&gorm.Session{Logger: logger.Discard}).Transaction(func(tx *gorm.DB) error {
 					var stored struct {
-						ID         int
-						PrivateKey string
-						APIv3Key   string
+						ID                int
+						PrivateKey        string
+						APIv3Key          string
+						Ciphertext        string
+						SessionCiphertext string
 					}
 					if err := lockForUpdate(tx.Table(table)).Select(append([]string{"id"}, target.fields...)).Where("id = ?", row.ID).Take(&stored).Error; err != nil {
 						return errors.New("cannot read payment credentials")
 					}
-					values := map[string]string{"private_key": stored.PrivateKey, "apiv3_key": stored.APIv3Key}
+					values := map[string]string{"private_key": stored.PrivateKey, "apiv3_key": stored.APIv3Key, "ciphertext": stored.Ciphertext, "session_ciphertext": stored.SessionCiphertext}
 					updates := map[string]any{}
 					for _, field := range target.fields {
 						value := values[field]
 						if value == "" {
 							continue
 						}
-						binding := fmt.Sprintf("%s/%d/%s", target.provider, row.ID, field)
+						bindingField := field
+						if field == "ciphertext" {
+							bindingField = "secret"
+						} else if field == "session_ciphertext" {
+							bindingField = "session"
+						}
+						binding := fmt.Sprintf("%s/%d/%s", target.provider, row.ID, bindingField)
 						plain := value
 						if strings.HasPrefix(value, paymentsecret.Prefix) {
 							plain, err = ring.Open(value, binding)
@@ -151,6 +159,11 @@ func InitializePaymentSecrets(db *gorm.DB) error {
 						} else {
 							if !migrate {
 								return errors.New("plaintext payment credentials require explicit offline migration")
+							}
+							// These channels have always used encrypted storage. Never interpret
+							// a damaged envelope as a legacy plaintext value during rotation.
+							if field == "ciphertext" || field == "session_ciphertext" {
+								return errors.New("invalid encrypted payment credential")
 							}
 							// Unknown/corrupt envelopes must never be reclassified as legacy secrets.
 							if field == "private_key" {

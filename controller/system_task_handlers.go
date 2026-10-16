@@ -18,6 +18,7 @@ import (
 // instances and each run is recorded as one task row. Call this before
 // service.StartSystemTaskRunner.
 func RegisterScheduledSystemTasks() {
+	service.RegisterSystemTaskHandler(paymentAuditHandler{})
 	service.RegisterSystemTaskHandler(mixpayReconcileHandler{})
 	service.RegisterSystemTaskHandler(webmoneyReconcileHandler{})
 	service.RegisterSystemTaskHandler(antomReconcileHandler{})
@@ -226,7 +227,7 @@ type webmoneyReconcileHandler struct{}
 func (webmoneyReconcileHandler) Type() string { return "webmoney_reconcile" }
 func (webmoneyReconcileHandler) Enabled() bool {
 	var count int64
-	return model.DB.Model(&model.WebMoneyOrder{}).Where("status = ? OR cache_pending = ? OR log_pending = ?", "paid", true, true).Limit(1).Count(&count).Error == nil && count > 0
+	return model.DB.Model(&model.WebMoneyOrder{}).Where("(status IN ? AND COALESCE(review_required, ?) = ?) OR cache_pending = ? OR log_pending = ?", []string{"pending", "expired", "paid"}, false, false, true, true).Limit(1).Count(&count).Error == nil && count > 0
 }
 func (webmoneyReconcileHandler) Interval() time.Duration { return 30 * time.Second }
 func (webmoneyReconcileHandler) NewPayload() any         { return nil }
@@ -250,6 +251,22 @@ func (antomReconcileHandler) Interval() time.Duration { return 30 * time.Second 
 func (antomReconcileHandler) NewPayload() any         { return nil }
 func (antomReconcileHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
 	err := service.RunAntomReconciliation(ctx)
+	status := model.SystemTaskStatusSucceeded
+	if err != nil {
+		status = model.SystemTaskStatusFailed
+	}
+	finishSystemTaskHandler(task, runnerID, status, nil, err)
+}
+
+// Financial audits use a separate cadence from unpaid-order reconciliation.
+type paymentAuditHandler struct{}
+
+func (paymentAuditHandler) Type() string            { return "payment_audit" }
+func (paymentAuditHandler) Enabled() bool           { return service.HasDuePaymentAudit() }
+func (paymentAuditHandler) Interval() time.Duration { return time.Minute }
+func (paymentAuditHandler) NewPayload() any         { return nil }
+func (paymentAuditHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	err := service.RunPaymentAudit(ctx)
 	status := model.SystemTaskStatusSucceeded
 	if err != nil {
 		status = model.SystemTaskStatusFailed

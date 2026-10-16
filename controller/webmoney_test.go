@@ -67,7 +67,7 @@ func TestWebMoneyDatabaseMatrix(t *testing.T) {
 			common.SetMainDatabaseType(common.DatabaseType(dialect))
 			common.RedisEnabled = false
 			legacy := []any{&model.User{}, &model.TopUp{}, &model.SubscriptionOrder{}, &model.AlipayConfig{}, &model.AlipayOrder{}, &model.WechatPayOrder{}, &model.MixPayOrder{}, &model.Log{}}
-			added := []any{&model.WebMoneyConfig{}, &model.WebMoneyOrder{}, &model.AntomOrder{}, &model.AntomConfig{}}
+			added := []any{&model.PaymentReview{}, &model.WebMoneyConfig{}, &model.WebMoneyOrder{}, &model.AntomOrder{}, &model.AntomConfig{}}
 			tables := append(legacy, added...)
 			t.Cleanup(func() {
 				require.NoError(t, db.Migrator().DropTable(tables...))
@@ -113,6 +113,12 @@ func TestWebMoneyDatabaseMatrix(t *testing.T) {
 			assert.Error(t, db.Create(&duplicate).Error)
 			checkout := service.WebMoneyCheckout(&o, &config)
 			assert.Equal(t, "WMT", checkout["currency"])
+			assert.Equal(t, false, checkout["closure_confirmed"])
+			params := checkout["pay_params"].(map[string]string)
+			assert.Equal(t, "https://example.com/payment/webmoney/WMtest", params["LMI_SUCCESS_URL"])
+			assert.Equal(t, params["LMI_SUCCESS_URL"], params["LMI_FAIL_URL"])
+			assert.Equal(t, "0", params["LMI_SUCCESS_METHOD"])
+			assert.Equal(t, "0", params["LMI_FAIL_METHOD"])
 			assert.Equal(t, strconv.FormatInt(o.ID, 10), checkout["pay_params"].(map[string]string)["LMI_PAYMENT_NO"])
 			router := gin.New()
 			router.POST("/notify", WebMoneyNotify)
@@ -176,12 +182,15 @@ func TestWebMoneyDatabaseMatrix(t *testing.T) {
 			other.TradeNo = "WMother"
 			other.RequestKey = "request-2"
 			other.Status = "pending"
+			other.ExpiresAt = common.GetTimestamp() + 1800
 			other.ProviderTradeNo = nil
 			otherTop := model.TopUp{UserId: user.Id, TradeNo: other.TradeNo, PaymentProvider: "webmoney", PaymentMethod: "webmoney", Status: "pending"}
 			require.NoError(t, model.CreateWebMoneyOrder(&other, &otherTop))
 			assert.Error(t, model.RecordWebMoneyPayment(&other, "200"))
 			// Upgrade existing orders, preserving them across repeated migrations.
-			require.NoError(t, db.Migrator().DropColumn(&model.WebMoneyOrder{}, "GatewayStatus"))
+			for _, field := range []string{"GatewayStatus", "CheckedAt", "NextCheckAt", "LastError", "ReviewRequired"} {
+				require.NoError(t, db.Migrator().DropColumn(&model.WebMoneyOrder{}, field))
+			}
 			require.NoError(t, db.AutoMigrate(&model.WebMoneyOrder{}))
 			require.NoError(t, db.AutoMigrate(&model.WebMoneyOrder{}))
 			// Upgrade from the pre-X18 schema without changing stored secrets.
@@ -198,7 +207,9 @@ func TestWebMoneyDatabaseMatrix(t *testing.T) {
 			oldTransport := http.DefaultTransport
 			defer func() { http.DefaultTransport = oldTransport }()
 			responseBody := ""
+			queryCount := 0
 			http.DefaultTransport = webMoneyQueryTransport(func(r *http.Request) (*http.Response, error) {
+				queryCount++
 				assert.Equal(t, "https://merchant.webmoney.ru/conf/xml/XMLTransGet.asp", r.URL.String())
 				assert.Equal(t, http.MethodPost, r.Method)
 				raw, readErr := io.ReadAll(r.Body)
@@ -239,12 +250,15 @@ func TestWebMoneyDatabaseMatrix(t *testing.T) {
 				{"ambiguous result", "<retval>0</retval><retval>9</retval>" + operation, true},
 				{"wrong identity", "<retval>0</retval>" + operation + `<errorlog lmi_payee_purse="T999999999999" lmi_payment_no="1"/>`, true},
 			} {
+				// Each response case starts without a previous financial hold.
+				require.NoError(t, db.Model(&other).Update("review_required", false).Error)
 				responseBody = "<merchant.response>" + tc.body + "</merchant.response>"
 				queryErr := service.ReconcileWebMoneyOrder(context.Background(), other.TradeNo)
 				assert.Equal(t, tc.wantError, queryErr != nil, tc.name)
 				unchanged, _, err := model.GetWebMoneyOrder(other.TradeNo)
 				require.NoError(t, err)
 				assert.Equal(t, "pending", unchanged.Status, tc.name)
+				assert.Equal(t, tc.name == "refunded", unchanged.ReviewRequired, tc.name)
 				expectedStatuses := map[string]string{"unpaid": "x18:9", "not found": "x18:8", "authentication failure": "x18:-7", "rejected invoice": "x18:13", "held": "hold:4", "refunded": "hold:12"}
 				if expectedStatus, ok := expectedStatuses[tc.name]; ok {
 					assert.Equal(t, expectedStatus, unchanged.GatewayStatus, tc.name)
@@ -254,8 +268,40 @@ func TestWebMoneyDatabaseMatrix(t *testing.T) {
 					assert.Equal(t, expectedStatus, projected[0].GatewayStatus)
 				}
 			}
+			// Lost notifications are recovered by the worker, including locally expired payments.
+			responseBody = "<merchant.response><retval>9</retval></merchant.response>"
+			require.NoError(t, db.Model(&other).Updates(map[string]any{"next_check_at": 0, "expires_at": common.GetTimestamp() - 1}).Error)
+			assert.True(t, (webmoneyReconcileHandler{}).Enabled(), "pending orders must activate reconciliation")
+			beforeQueries := queryCount
+			require.NoError(t, service.RunWebMoneyReconciliation(context.Background()))
+			assert.Equal(t, beforeQueries+1, queryCount)
+			waiting, _, err := model.GetWebMoneyOrder(other.TradeNo)
+			require.NoError(t, err)
+			assert.Greater(t, waiting.NextCheckAt, common.GetTimestamp()+120)
+			assert.Positive(t, waiting.CheckedAt)
+			assert.Equal(t, "expired", waiting.Status)
+			pre.Set("LMI_PAYMENT_NO", strconv.FormatInt(other.ID, 10))
+			assert.Equal(t, 400, send(pre))
+			projection, err := model.GetSiteOrder(otherTop.Id)
+			require.NoError(t, err)
+			assert.Equal(t, "local_expiry", projection.CloseReason)
+			assert.Zero(t, projection.ClosedAt, "local expiry must not claim provider cancellation")
+
+			require.NoError(t, service.RunWebMoneyReconciliation(context.Background()))
+			assert.Equal(t, beforeQueries+1, queryCount, "scheduled checks must not run on every worker tick")
+			checkRecorder := httptest.NewRecorder()
+			checkContext, _ := gin.CreateTestContext(checkRecorder)
+			checkContext.Request = httptest.NewRequest("POST", fmt.Sprintf("/orders/%d/recover", otherTop.Id), strings.NewReader(`{"reason":"Verify expired payment"}`))
+			checkContext.Params = gin.Params{{Key: "id", Value: strconv.Itoa(otherTop.Id)}}
+			checkContext.Set("role", common.RoleRootUser)
+			checkContext.Set("id", user.Id)
+			checkContext.Request.Header.Set("Content-Type", "application/json")
+			RecoverSiteOrder(checkContext)
+			assert.Contains(t, checkRecorder.Body.String(), `"result":"expired"`)
+
 			responseBody = "<merchant.response><retval>0</retval>" + operation + "</merchant.response>"
-			require.NoError(t, service.ReconcileWebMoneyOrder(context.Background(), other.TradeNo))
+			require.NoError(t, db.Model(&other).Update("next_check_at", 0).Error)
+			require.NoError(t, service.RunWebMoneyReconciliation(context.Background()))
 			require.NoError(t, service.ReconcileWebMoneyOrder(context.Background(), other.TradeNo))
 			require.NoError(t, db.First(&buyer, user.Id).Error)
 			assert.Equal(t, 200, buyer.Quota)
@@ -269,6 +315,80 @@ func TestWebMoneyDatabaseMatrix(t *testing.T) {
 			RecheckSiteOrder(adminContext)
 			assert.Equal(t, 200, adminRecorder.Code)
 			assert.Contains(t, adminRecorder.Body.String(), `"success":true`)
+
+			// Completed payments are rechecked daily, not on every scheduler tick.
+			require.NoError(t, db.Model(&model.WebMoneyOrder{}).Where("status = ?", "success").Update("checked_at", common.GetTimestamp()).Error)
+			require.NoError(t, db.Model(&other).Update("checked_at", common.GetTimestamp()-86401).Error)
+			beforeDaily := queryCount
+			require.NoError(t, service.RunPaymentAudit(context.Background()))
+			assert.Equal(t, beforeDaily+1, queryCount)
+			require.NoError(t, service.RunPaymentAudit(context.Background()))
+			assert.Equal(t, beforeDaily+1, queryCount)
+			assert.False(t, service.HasDuePaymentAudit())
+
+			// A later protected-payment refund is visible without undoing wallet history.
+			responseBody = "<merchant.response><retval>0</retval>" + strings.ReplaceAll(operation, "<hold_state>0", "<hold_state>12") + "</merchant.response>"
+			require.NoError(t, db.Model(&model.WebMoneyOrder{}).Where("status = ?", "success").Update("checked_at", common.GetTimestamp()).Error)
+			assert.False(t, service.HasDuePaymentAudit())
+			require.NoError(t, db.Model(&other).Update("checked_at", common.GetTimestamp()-86401).Error)
+			assert.True(t, service.HasDuePaymentAudit())
+			beforeAudit := queryCount
+			require.NoError(t, service.RunPaymentAudit(context.Background()))
+			assert.Equal(t, beforeAudit+1, queryCount)
+			require.NoError(t, service.RunPaymentAudit(context.Background()))
+			assert.Equal(t, beforeAudit+1, queryCount, "held orders must not be queried repeatedly")
+			held, _, err := model.GetWebMoneyOrder(other.TradeNo)
+			require.NoError(t, err)
+			assert.True(t, held.ReviewRequired)
+			assert.Equal(t, "success", held.Status)
+			assert.Empty(t, service.WebMoneyCheckout(held, historical)["pay_link"])
+			projection, err = model.GetSiteOrder(otherTop.Id)
+			require.NoError(t, err)
+			assert.True(t, projection.ReviewRequired)
+			assert.Equal(t, "hold:12", projection.GatewayStatus)
+			require.NoError(t, db.First(&buyer, user.Id).Error)
+			assert.Equal(t, 200, buyer.Quota)
+
+			// Review notes preserve the hold and funds, and reject unprivileged writers.
+			for _, tc := range []struct {
+				role  int
+				token bool
+				note  string
+				want  int
+			}{
+				{common.RoleCommonUser, false, "Refund handled externally", 403},
+				{common.RoleAdminUser, false, "Refund handled externally", 403},
+				{common.RoleRootUser, true, "Refund handled externally", 403},
+				{common.RoleRootUser, false, "Refund handled externally", 200},
+			} {
+				w := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(w)
+				c.Set("id", user.Id)
+				c.Set("role", tc.role)
+				c.Set("use_access_token", tc.token)
+				c.Params = gin.Params{{Key: "id", Value: strconv.Itoa(otherTop.Id)}}
+				c.Request = httptest.NewRequest("POST", "/review", strings.NewReader(`{"note":"`+tc.note+`"}`))
+				c.Request.Header.Set("Content-Type", "application/json")
+				ReviewSiteOrder(c)
+				assert.Equal(t, tc.want, w.Code)
+			}
+			var notes []model.PaymentReview
+			require.NoError(t, db.Where("trade_no = ?", other.TradeNo).Find(&notes).Error)
+			require.Len(t, notes, 1)
+			assert.Equal(t, user.Id, notes[0].ActorID)
+			assert.Equal(t, "Refund handled externally", notes[0].Note)
+			require.Error(t, model.RecordPaymentReview(projection, user.Id, "x"))
+			// Repeated startup keeps review history and old payment records intact.
+			require.NoError(t, db.AutoMigrate(&model.PaymentReview{}))
+			require.NoError(t, db.AutoMigrate(&model.PaymentReview{}))
+			var preserved model.PaymentReview
+			require.NoError(t, db.First(&preserved, notes[0].ID).Error)
+			assert.Equal(t, notes[0], preserved)
+			held, _, err = model.GetWebMoneyOrder(other.TradeNo)
+			require.NoError(t, err)
+			assert.True(t, held.ReviewRequired)
+			require.NoError(t, db.First(&buyer, user.Id).Error)
+			assert.Equal(t, 200, buyer.Quota)
 
 			// Configuration endpoints never accept ordinary users or PATs; order reads enforce ownership.
 			for _, role := range []int{common.RoleCommonUser, common.RoleAdminUser} {

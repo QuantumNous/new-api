@@ -133,7 +133,17 @@ func ValidateWechatPayTransaction(config *model.WechatPayConfig, order *model.We
 	return nil
 }
 
-func ReconcileWechatPayOrder(ctx context.Context, tradeNo string) (resultErr error) {
+// RecheckWechatPayOrder queries the gateway even after local fulfillment, so manual
+// verification can detect reversals without crediting or debiting funds again.
+func RecheckWechatPayOrder(ctx context.Context, tradeNo string) error {
+	return reconcileWechatPayOrder(ctx, tradeNo, true)
+}
+
+func ReconcileWechatPayOrder(ctx context.Context, tradeNo string) error {
+	return reconcileWechatPayOrder(ctx, tradeNo, false)
+}
+
+func reconcileWechatPayOrder(ctx context.Context, tradeNo string, verifyCompleted bool) (resultErr error) {
 	order, config, err := model.GetWechatPayOrder(tradeNo)
 	if err != nil {
 		return err
@@ -147,12 +157,14 @@ func ReconcileWechatPayOrder(ctx context.Context, tradeNo string) (resultErr err
 		}
 	}
 	if order.Status == common.TopUpStatusSuccess {
-		return model.SyncWechatPayQuotaCache(order)
+		if err := model.SyncWechatPayQuotaCache(order); err != nil || !verifyCompleted {
+			return err
+		}
 	}
-	if order.Status == "paid" {
+	if order.Status == "paid" && !verifyCompleted {
 		return model.CompleteWechatPayTopUp(tradeNo)
 	}
-	if order.Status != common.TopUpStatusPending && order.Status != common.TopUpStatusExpired {
+	if order.Status != common.TopUpStatusPending && order.Status != common.TopUpStatusExpired && order.Status != common.TopUpStatusSuccess && order.Status != "paid" {
 		return nil
 	}
 	client, err := WechatPayClient(config)
@@ -163,6 +175,9 @@ func ReconcileWechatPayOrder(ctx context.Context, tradeNo string) (resultErr err
 	tx, _, err := svc.QueryOrderByOutTradeNo(ctx, native.QueryOrderByOutTradeNoRequest{Mchid: core.String(config.MchID), OutTradeNo: core.String(tradeNo)})
 	if err != nil {
 		if core.IsAPIError(err, "ORDER_NOT_EXIST") {
+			if order.Status == common.TopUpStatusSuccess || order.Status == "paid" {
+				return errors.New("verified payment missing at gateway")
+			}
 			if err := model.DB.Model(&model.WechatPayOrder{}).Where("id = ?", order.ID).Update("gateway_status", "NOT_FOUND").Error; err != nil {
 				return err
 			}
@@ -176,11 +191,22 @@ func ReconcileWechatPayOrder(ctx context.Context, tradeNo string) (resultErr err
 	if err = ValidateWechatPayTransaction(config, order, tx); err != nil {
 		return err
 	}
+	if (order.Status == common.TopUpStatusSuccess || order.Status == "paid") && (order.ProviderTradeNo == nil || tx.TransactionId == nil || *tx.TransactionId != *order.ProviderTradeNo) {
+		return errors.New("WeChat Pay transaction mismatch")
+	}
 	if len(*tx.TradeState) > 32 {
 		return errors.New("invalid WeChat Pay state")
 	}
 	if err := model.DB.Model(&model.WechatPayOrder{}).Where("id = ?", order.ID).Update("gateway_status", *tx.TradeState).Error; err != nil {
 		return err
+	}
+	// Never interpret a previously credited payment as an unpaid close. A
+	// verified reversal or inconsistent gateway state requires financial review.
+	if (order.Status == common.TopUpStatusSuccess || order.Status == "paid") && (*tx.TradeState != "SUCCESS") {
+		if err := model.DB.Model(&model.WechatPayOrder{}).Where("id = ?", order.ID).Update("review_required", true).Error; err != nil {
+			return err
+		}
+		return model.ErrPaymentReviewRequired
 	}
 	switch *tx.TradeState {
 	case "SUCCESS":
@@ -190,7 +216,10 @@ func ReconcileWechatPayOrder(ctx context.Context, tradeNo string) (resultErr err
 		if err = model.RecordWechatPayPayment(tradeNo, *tx.TransactionId, *tx.Amount.Total); err != nil {
 			return err
 		}
-		return model.CompleteWechatPayTopUp(tradeNo)
+		if err := model.CompleteWechatPayTopUp(tradeNo); err != nil {
+			return errors.Join(ErrPaymentFulfillmentPending, err)
+		}
+		return nil
 	case "CLOSED":
 		if tx.SuccessTime != nil && *tx.SuccessTime != "" {
 			if err := model.DB.Model(&model.WechatPayOrder{}).Where("id = ?", order.ID).Update("review_required", true).Error; err != nil {

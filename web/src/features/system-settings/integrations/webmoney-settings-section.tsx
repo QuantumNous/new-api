@@ -130,7 +130,7 @@ function WebMoneyConfigForm(props: { config: Config }) {
         </p>
         <p className='text-muted-foreground text-sm'>
           {t(
-            'Set Success URL and Fail URL to the Return URL below. Use work mode; test payments never credit your wallet.'
+            'Set Success URL and Fail URL to the Return URL below, and enable "Allow URLs transmitted in the form" for automatic payment-window completion. Use work mode; test payments never credit your wallet.'
           )}
         </p>
         <p className='text-muted-foreground text-sm'>

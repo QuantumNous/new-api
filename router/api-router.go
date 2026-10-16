@@ -187,6 +187,7 @@ func SetApiRouter(router *gin.Engine) {
 				adminRoute.POST("/orders/:id/cancel", middleware.SessionCookieOriginGuard(), middleware.UserCriticalRateLimit("payment-order-cancel"), controller.CancelAntomSiteOrder)
 				adminRoute.POST("/orders/:id/recheck", middleware.SessionCookieOriginGuard(), middleware.UserCriticalRateLimit("payment-order-recheck"), controller.RecheckSiteOrder)
 				adminRoute.POST("/orders/:id/recover", middleware.SessionCookieOriginGuard(), middleware.UserCriticalRateLimit("payment-order-recheck"), controller.RecoverSiteOrder)
+				adminRoute.POST("/orders/:id/review", middleware.SessionCookieOriginGuard(), middleware.UserCriticalRateLimit("payment-order-review"), controller.ReviewSiteOrder)
 				adminRoute.POST("/topup/complete", controller.AdminCompleteTopUp)
 				adminRoute.GET("/search", controller.SearchUsers)
 				adminRoute.GET("/:id/oauth/bindings", controller.GetUserOAuthBindingsByAdmin)

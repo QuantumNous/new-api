@@ -10,6 +10,9 @@ import (
 	"gorm.io/gorm"
 )
 
+// ErrPaymentFulfillmentPending distinguishes verified payment from a failed gateway check.
+var ErrPaymentFulfillmentPending = errors.New("verified payment fulfillment pending")
+
 type DirectOrderCheckout struct {
 	PaymentProvider string `json:"payment_provider"`
 	TradeNo         string `json:"trade_no"`

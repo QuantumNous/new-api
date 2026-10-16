@@ -206,7 +206,7 @@ func WebMoneyNotify(c *gin.Context) {
 		return
 	}
 	if v.Get("LMI_PREREQUEST") == "1" {
-		if service.ValidateWebMoneyPayment(o, config, v) != nil || o.Status != "pending" || o.ExpiresAt <= common.GetTimestamp() {
+		if service.ValidateWebMoneyPayment(o, config, v) != nil || o.ReviewRequired || o.Status != "pending" || o.ExpiresAt <= common.GetTimestamp() {
 			c.String(400, "NO")
 			return
 		}

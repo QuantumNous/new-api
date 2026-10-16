@@ -66,7 +66,7 @@ export function Hero(props: HeroProps) {
       <h1 className='sr-only'>
         {t('One AI gateway for')} {t('AI models')}
       </h1>
-      <div className='sticky top-0 z-0'>
+      <div data-home-dark-surface className='sticky top-0 z-0'>
         <GlobeHero />
         <GlobeIntro />
         <div className='absolute inset-x-0 bottom-6 flex justify-center sm:bottom-8'>

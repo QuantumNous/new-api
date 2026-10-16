@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
 import * as React from 'react'
 
+import { SurfaceThemeContext } from '@/context/surface-theme-context'
 import { cn } from '@/lib/utils'
 
 function Popover({ ...props }: PopoverPrimitive.Root.Props) {
@@ -50,6 +51,7 @@ function PopoverContent({
     | 'collisionBoundary'
     | 'collisionAvoidance'
   >) {
+  const surfaceTheme = React.useContext(SurfaceThemeContext)
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Positioner
@@ -60,7 +62,7 @@ function PopoverContent({
         collisionPadding={collisionPadding}
         collisionBoundary={collisionBoundary}
         collisionAvoidance={collisionAvoidance}
-        className='isolate z-50'
+        className={cn('isolate z-50', surfaceTheme)}
       >
         <PopoverPrimitive.Popup
           data-slot='popover-content'

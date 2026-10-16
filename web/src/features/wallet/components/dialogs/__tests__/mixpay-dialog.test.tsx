@@ -3,10 +3,15 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 
+import { getAntomPayment } from '../../../antom'
 import { getMixPayPayment, type MixPayCheckout } from '../../../mixpay'
 import { getWebMoneyPayment } from '../../../webmoney'
 import { MixPayDialog } from '../mixpay-dialog'
 
+vi.mock('../../../antom', () => ({
+  getAntomPayment: vi.fn(),
+  getAntomCheckoutURL: vi.fn(),
+}))
 vi.mock('../../../webmoney', () => ({ getWebMoneyPayment: vi.fn() }))
 vi.mock('../../../mixpay', () => ({ getMixPayPayment: vi.fn() }))
 afterEach(() => vi.restoreAllMocks())
@@ -88,6 +93,7 @@ test('pending checkout opens official page and Escape closes without cancelling 
 test.each([
   { ...pending, status: 'paid' },
   { ...pending, review_required: true },
+  { ...pending, status: 'success', review_required: true },
   { ...pending, status: 'failed' },
   { ...pending, pay_link: 'https://mixpay.me.evil.test/code/test' },
 ])('does not open unsafe or non-payable checkout: %j', async (order) => {
@@ -167,14 +173,12 @@ test('WebMoney opens a POST checkout once and credits only after server confirma
   const submit = vi
     .spyOn(HTMLFormElement.prototype, 'submit')
     .mockImplementation(() => {})
-  const open = vi
-    .spyOn(window, 'open')
-    .mockReturnValue({
-      document: doc,
-      opener: null,
-      focus: vi.fn(),
-      close: vi.fn(),
-    } as unknown as Window)
+  const open = vi.spyOn(window, 'open').mockReturnValue({
+    document: doc,
+    opener: null,
+    focus: vi.fn(),
+    close: vi.fn(),
+  } as unknown as Window)
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -204,4 +208,77 @@ test('WebMoney opens a POST checkout once and credits only after server confirma
   })
   await client.invalidateQueries({ queryKey: ['webmoney-order', 'WMtest'] })
   await waitFor(() => expect(onPaid).toHaveBeenCalledTimes(1))
+})
+
+test.each(['webmoney', 'antom'] as const)(
+  '%s local expiry retains late-payment checking without reopening checkout',
+  async (provider) => {
+    vi.mocked(provider === 'webmoney' ? getWebMoneyPayment : getAntomPayment)
+      .mockResolvedValueOnce({
+        ...pending,
+        payment_provider: provider,
+        status: 'expired',
+        closure_confirmed: false,
+        expires_at: 1,
+        pay_link: '',
+      })
+      .mockResolvedValue({
+        ...pending,
+        payment_provider: provider,
+        status: 'success',
+        pay_link: '',
+      })
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const onPaid = vi.fn()
+    const view = render(
+      <QueryClientProvider client={client}>
+        <MixPayDialog
+          provider={provider}
+          tradeNo='MXtest'
+          onPaid={onPaid}
+          onClose={() => {}}
+        />
+      </QueryClientProvider>
+    )
+    expect(
+      await screen.findByText(
+        'Payment time has ended. Waiting for the final payment result.'
+      )
+    ).toBeVisible()
+    expect(
+      screen.queryByRole('button', { name: 'Open payment page' })
+    ).not.toBeInTheDocument()
+    await userEvent.click(
+      screen.getByRole('button', { name: 'Check payment status' })
+    )
+    await waitFor(() => expect(onPaid).toHaveBeenCalledOnce())
+    view.unmount()
+    client.clear()
+  }
+)
+
+test('uncertain MixPay creation explains recovery and opens only the recovered link', async () => {
+  const open = vi.spyOn(window, 'open').mockReturnValue(null)
+  vi.mocked(getMixPayPayment)
+    .mockResolvedValueOnce({
+      ...pending,
+      creation_state: 'recovering',
+      gateway_status: 'unpaid',
+      pay_link: '',
+    })
+    .mockResolvedValue({ ...pending, gateway_status: 'unpaid' })
+  const { onPaid, client, unmount } = renderCheckout()
+  expect(
+    await screen.findByText('Recovering payment link. Please keep this order.')
+  ).toBeVisible()
+  expect(open).not.toHaveBeenCalled()
+  await userEvent.click(
+    screen.getByRole('button', { name: 'Check payment status' })
+  )
+  await waitFor(() => expect(open).toHaveBeenCalledOnce())
+  expect(onPaid).not.toHaveBeenCalled()
+  unmount()
+  client.clear()
 })

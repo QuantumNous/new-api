@@ -214,12 +214,14 @@ func TestMixPayDatabaseMatrix(t *testing.T) {
 				model.LOG_DB = db
 			})
 
-			t.Run("lost creation response never creates a second upstream payment", func(t *testing.T) {
+			t.Run("lost creation response recovers the original idempotent checkout", func(t *testing.T) {
 				o := mixPayFixture(t, &user, 10)
 				require.NoError(t, db.Model(o).Update("creation_state", "queued").Error)
 				oldClient := mixPayHTTPClient
 				t.Cleanup(func() { mixPayHTTPClient = oldClient })
 				var paths []string
+				var originalRequest map[string]any
+				recoverable := false
 				server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					paths = append(paths, r.Method+" "+r.URL.Path)
 					if r.Method == http.MethodPost {
@@ -229,6 +231,18 @@ func TestMixPayDatabaseMatrix(t *testing.T) {
 						assert.Equal(t, o.TradeNo, request["orderId"])
 						assert.Equal(t, o.QuoteAmount, request["quoteAmount"])
 						assert.NotContains(t, request, "isTemp")
+						if originalRequest == nil {
+							originalRequest = request
+						} else {
+							assert.Equal(t, originalRequest, request, "recovery must not change any frozen payment parameter")
+						}
+						if recoverable {
+							_, _ = w.Write([]byte(`{"success":true,"code":0,"data":{"code":"original-checkout"}}`))
+							return
+						}
+					} else if recoverable {
+						_, _ = w.Write([]byte(`{"success":true,"code":0,"data":{"status":"unpaid","quoteAmount":"0"}}`))
+						return
 					}
 					w.WriteHeader(http.StatusServiceUnavailable)
 				}))
@@ -243,6 +257,29 @@ func TestMixPayDatabaseMatrix(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, "uncertain", saved.CreationState)
 				assert.Equal(t, "pending", saved.Status)
+				assert.Equal(t, "checkout_recovery_pending", saved.LastError)
+				recoverable = true
+				for range 2 {
+					require.NoError(t, db.Model(&model.MixPayRequestBudget{}).Where("id = 1").Update("next_at", 0).Error)
+					require.NoError(t, ReconcileMixPayOrder(context.Background(), o.TradeNo))
+				}
+				saved, err = model.GetMixPayOrder(o.TradeNo)
+				require.NoError(t, err)
+				assert.Equal(t, "ready", saved.CreationState)
+				assert.Equal(t, "original-checkout", saved.Code)
+				assert.Empty(t, saved.LastError)
+				assert.Equal(t, []string{"POST /v1/one_time_payment", "GET /v1/payments_result", "GET /v1/payments_result", "POST /v1/one_time_payment"}, paths)
+				// Payment progress discovered by another check takes precedence over code recovery.
+				require.NoError(t, db.Model(o).Updates(map[string]any{"creation_state": "recovering", "code": "", "gateway_status": "confirming"}).Error)
+				require.NoError(t, db.Model(&model.MixPayRequestBudget{}).Where("id = 1").Update("next_at", 0).Error)
+				require.NoError(t, ReconcileMixPayOrder(context.Background(), o.TradeNo))
+				assert.Equal(t, "GET /v1/payments_result", paths[len(paths)-1])
+				// Even a queued recovery must not refresh an expired payment window.
+				require.NoError(t, db.Model(o).Updates(map[string]any{"creation_state": "recovering", "code": "", "expires_at": common.GetTimestamp() - 1}).Error)
+				require.NoError(t, db.Model(&model.MixPayRequestBudget{}).Where("id = 1").Update("next_at", 0).Error)
+				require.NoError(t, ReconcileMixPayOrder(context.Background(), o.TradeNo))
+				assert.Equal(t, "GET /v1/payments_result", paths[len(paths)-1])
+
 			})
 
 			t.Run("manual verification queries fresh results and credits success only once", func(t *testing.T) {

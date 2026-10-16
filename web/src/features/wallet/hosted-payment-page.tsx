@@ -17,18 +17,32 @@ import {
   getAntomCheckoutURL,
   recheckAntomPayment,
 } from './antom'
-import { getMixPayPayment, recheckMixPayPayment } from './mixpay'
+import {
+  getMixPayPayment,
+  recheckMixPayPayment,
+  type MixPayCheckout,
+} from './mixpay'
+import { getWebMoneyPayment } from './webmoney'
+
+function paymentTerminal(order?: MixPayCheckout) {
+  return (
+    order?.review_required ||
+    order?.status === 'success' ||
+    order?.status === 'failed' ||
+    (order?.status === 'expired' && order.closure_confirmed !== false)
+  )
+}
 
 export function HostedPaymentPage({
   tradeNo,
   provider = 'antom',
 }: {
   tradeNo: string
-  provider?: 'antom' | 'mixpay'
+  provider?: 'antom' | 'mixpay' | 'webmoney'
 }) {
   const { t } = useTranslation()
   const hostedReturn =
-    provider === 'mixpay' ||
+    provider !== 'antom' ||
     new URLSearchParams(window.location.search).get('hosted_return') === '1'
   const verificationAttempts = useRef(0)
   const session = useQuery({
@@ -48,18 +62,20 @@ export function HostedPaymentPage({
   const order = useQuery({
     queryKey: [`${provider}-return-order`, tradeNo],
     queryFn: () => {
+      if (provider === 'webmoney') return getWebMoneyPayment(tradeNo)
       const recheck = hostedReturn && verificationAttempts.current++ < 3
-      if (provider === 'mixpay')
-        {return recheck
+      if (provider === 'mixpay') {
+        return recheck
           ? recheckMixPayPayment(tradeNo)
-          : getMixPayPayment(tradeNo)}
+          : getMixPayPayment(tradeNo)
+      }
       return recheck ? recheckAntomPayment(tradeNo) : getAntomPayment(tradeNo)
     },
     enabled: showResult,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
     refetchInterval: (q) =>
-      ['success', 'expired', 'failed'].includes(q.state.data?.status || '') ||
+      paymentTerminal(q.state.data) ||
       [401, 403, 404].includes(getServerErrorStatus(q.state.error) || 0)
         ? false
         : 5000,
@@ -70,20 +86,26 @@ export function HostedPaymentPage({
     if (!hostedReturn && session.data) window.location.replace(session.data)
   }, [hostedReturn, session.data])
   useEffect(() => {
-    if (order.data?.status === 'success') window.close()
-  }, [order.data?.status])
+    if (order.data?.status === 'success' && !order.data.review_required) {
+      window.close()
+    }
+  }, [order.data?.status, order.data?.review_required])
 
   const status = order.data?.status
-  const terminal = ['success', 'expired', 'failed'].includes(status || '')
+  const terminal = paymentTerminal(order.data)
   let message = t(
     'Payment processing. You can leave this page and check My orders later.'
   )
-  if (status === 'success') message = t('Payment successful')
-  else if (status === 'expired') message = t('Closed')
-  else if (status === 'failed') message = t('Payment failed')
-  else if (order.data?.review_required) {
+  if (order.data?.review_required) {
     message = t('Payment requires review. Please contact support.')
-  } else if (order.data?.gateway_status === 'paid_less') {
+  } else if (status === 'success') message = t('Payment successful')
+  else if (status === 'expired') {
+    message =
+      order.data?.closure_confirmed === false
+        ? t('Payment time has ended. Waiting for the final payment result.')
+        : t('Closed')
+  } else if (status === 'failed') message = t('Payment failed')
+  else if (order.data?.gateway_status === 'paid_less') {
     message = t(
       'Payment amount is insufficient. Complete payment using the original checkout.'
     )
@@ -135,7 +157,7 @@ export function HostedPaymentPage({
             {t('Check payment status')}
           </Button>
         )}
-        {status === 'success' && (
+        {status === 'success' && !order.data?.review_required && (
           <Button variant='outline' onClick={() => window.close()}>
             {t('Close')}
           </Button>

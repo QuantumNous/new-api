@@ -137,7 +137,11 @@ export function Home() {
   }
 
   return (
-    <PublicLayout showMainContainer={false} navLinks={homeNavLinks}>
+    <PublicLayout
+      showMainContainer={false}
+      navLinks={homeNavLinks}
+      headerProps={{ adaptToHomeBackdrop: true }}
+    >
       <Hero>
         <Stats />
         <Features />

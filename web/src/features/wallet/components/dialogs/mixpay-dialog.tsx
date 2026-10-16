@@ -35,7 +35,10 @@ export function MixPayDialog(props: {
         mixpay: getMixPayPayment,
       })[provider](props.tradeNo || ''),
     refetchInterval: (q) =>
-      ['success', 'failed', 'expired'].includes(q.state.data?.status || '') ||
+      ['success', 'failed'].includes(q.state.data?.status || '') ||
+      (provider !== 'webmoney' &&
+        q.state.data?.status === 'expired' &&
+        q.state.data.closure_confirmed !== false) ||
       [401, 403, 404].includes(getServerErrorStatus(q.state.error) || 0)
         ? false
         : 5000,
@@ -47,8 +50,12 @@ export function MixPayDialog(props: {
   const order = query.data
   const onPaid = props.onPaid
   const tradeNo = props.tradeNo
-  const paid = order?.status === 'success'
-  const failed = ['failed', 'expired'].includes(order?.status || '')
+  const paid = order?.status === 'success' && !order.review_required
+  const failed =
+    order?.status === 'failed' ||
+    (provider !== 'webmoney' &&
+      order?.status === 'expired' &&
+      order.closure_confirmed !== false)
   const expiresAt = order?.expires_at
   const expired = !!expiresAt && Math.max(now, Date.now()) >= expiresAt * 1000
   useEffect(() => {
@@ -70,12 +77,13 @@ export function MixPayDialog(props: {
   let message = t(
     'Payment processing. You can leave this page and check My orders later.'
   )
-  if (paid) message = t('Payment successful')
-  else if (order?.status === 'expired') message = t('Closed')
-  else if (failed) message = t('Payment failed')
-  else if (order?.review_required) {
+  if (order?.review_required) {
     message = t('Payment requires review. Please contact support.')
-  } else if (order?.gateway_status === 'paid_less') {
+  } else if (paid) message = t('Payment successful')
+  else if (order?.status === 'expired' && failed) {
+    message = t('Closed')
+  } else if (failed) message = t('Payment failed')
+  else if (order?.gateway_status === 'paid_less') {
     message = t(
       'Payment amount is insufficient. Complete payment using the original checkout.'
     )
@@ -83,6 +91,12 @@ export function MixPayDialog(props: {
     message = t('Payment received. Your order is being fulfilled.')
   } else if (expired) {
     message = t('Payment time has ended. Waiting for the final payment result.')
+  } else if (
+    provider === 'mixpay' &&
+    ['uncertain', 'recovering'].includes(order?.creation_state || '') &&
+    ['', 'unpaid'].includes(order?.gateway_status || '')
+  ) {
+    message = t('Recovering payment link. Please keep this order.')
   }
 
   let safeLink = false

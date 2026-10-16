@@ -194,6 +194,11 @@ export function Wallet() {
     }
   }, [])
 
+  const refreshPaymentResult = useCallback(() => {
+    void fetchUser()
+    setSubscriptionRefreshKey((value) => value + 1)
+  }, [fetchUser])
+
   useEffect(() => {
     fetchUser()
   }, [fetchUser])
@@ -383,27 +388,27 @@ export function Wallet() {
         provider='antom'
         tradeNo={antomTradeNo}
         onClose={() => setAntomTradeNo(null)}
-        onPaid={fetchUser}
+        onPaid={refreshPaymentResult}
       />
       <MixPayDialog
         provider='webmoney'
         tradeNo={webmoneyTradeNo}
         onClose={() => setWebmoneyTradeNo(null)}
-        onPaid={fetchUser}
+        onPaid={refreshPaymentResult}
       />
       <MixPayDialog
         tradeNo={mixpayTradeNo}
         onClose={() => setMixpayTradeNo(null)}
         onPaid={() => {
           setMixpayTradeNo(null)
-          void fetchUser()
+          refreshPaymentResult()
           toast.success(t('Payment successful'))
         }}
       />
       <WechatPayDialog
         checkout={wechatCheckout}
         onClose={() => setWechatCheckout(null)}
-        onPaid={fetchUser}
+        onPaid={refreshPaymentResult}
       />
       <SectionPageLayout>
         <SectionPageLayout.Title>{t('Wallet')}</SectionPageLayout.Title>
@@ -436,7 +441,9 @@ export function Wallet() {
             >
               <div className='grid min-w-0'>
                 <RechargeFormCard
-                  pendingOrderNotice={<PendingOrderNotice onPaid={fetchUser} />}
+                  pendingOrderNotice={
+                    <PendingOrderNotice onPaid={refreshPaymentResult} />
+                  }
                   topupInfo={topupInfo}
                   presetAmounts={presetAmounts}
                   selectedPreset={selectedPreset}
@@ -491,7 +498,7 @@ export function Wallet() {
                     setSubscriptionPurchaseDialogOpen(true)
                   }}
                   userQuota={user?.quota}
-                  onPurchaseSuccess={fetchUser}
+                  onPurchaseSuccess={refreshPaymentResult}
                   refreshKey={subscriptionRefreshKey}
                 />
               </div>
@@ -560,7 +567,7 @@ export function Wallet() {
         enableOnlineTopUp={!!topupInfo?.enable_online_topup}
         epayMethods={subscriptionEpayMethods}
         userQuota={user?.quota}
-        onPurchaseSuccess={fetchUser}
+        onPurchaseSuccess={refreshPaymentResult}
         purchaseLimit={
           selectedSubscriptionPlan?.plan?.max_purchase_per_user
             ? Number(selectedSubscriptionPlan.plan.max_purchase_per_user)

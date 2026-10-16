@@ -7,6 +7,7 @@ export interface MixPayCheckout {
   amount: string
   currency: string
   expires_at: number
+  closure_confirmed?: boolean
   status: string
   gateway_status: string
   creation_state: string

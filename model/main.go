@@ -357,6 +357,7 @@ func migrateDB() error {
 		&WebMoneyConfig{},
 		&AntomConfig{},
 		&AntomOrder{},
+		&PaymentReview{},
 		&WebMoneyOrder{},
 		&MixPayConfig{},
 		&MixPayOrder{},

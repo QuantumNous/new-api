@@ -85,7 +85,7 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 			model.LOG_DB = db
 			common.RedisEnabled = false
 			common.SetMainDatabaseType(common.DatabaseType(dialect))
-			tables := []any{&model.WebMoneyOrder{}, &model.AntomOrder{}, &model.AntomConfig{}, &model.MixPayOrder{}, &model.WechatPayConfig{}, &model.WechatPayOrder{}, &model.AlipayOrder{}, &model.AlipayConfig{}, &model.TopUp{}, &model.SubscriptionOrder{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.User{}, &model.Log{}}
+			tables := []any{&model.WebMoneyConfig{}, &model.WebMoneyOrder{}, &model.AntomOrder{}, &model.AntomConfig{}, &model.MixPayOrder{}, &model.WechatPayConfig{}, &model.WechatPayOrder{}, &model.AlipayOrder{}, &model.AlipayConfig{}, &model.TopUp{}, &model.SubscriptionOrder{}, &model.SubscriptionPlan{}, &model.UserSubscription{}, &model.User{}, &model.Log{}}
 			t.Cleanup(func() {
 				require.NoError(t, db.Migrator().DropTable(tables...))
 				model.DB = oldDB
@@ -223,6 +223,45 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 				AlipayNotify(c)
 				return w
 			}
+			t.Run("partial refund notifications never credit or erase prior credit", func(t *testing.T) {
+				buyer := model.User{Username: "refund-notify", AffCode: "refund-note", Status: common.UserStatusEnabled, Quota: 100}
+				require.NoError(t, db.Create(&buyer).Error)
+				for _, credited := range []bool{false, true} {
+					trade := fmt.Sprintf("ALIrefund-notify-%t", credited)
+					top := model.TopUp{UserId: buyer.Id, TradeNo: trade, PaymentProvider: "alipay", Status: "pending"}
+					payment := model.AlipayOrder{TradeNo: trade, UserID: buyer.Id, ConfigID: cfg.ID, AmountFen: 700, CreditedQuota: 10, Status: "pending"}
+					require.NoError(t, model.CreateAlipayOrder(&top, &payment))
+					if credited {
+						require.NoError(t, model.RecordAlipayPayment(trade, trade+"tx", 700))
+						require.NoError(t, model.CompleteAlipayTopUp(trade))
+					}
+					require.NoError(t, db.First(&buyer, buyer.Id).Error)
+					before := buyer.Quota
+					refund := url.Values{}
+					for k, v := range values {
+						refund[k] = append([]string{}, v...)
+					}
+					refund.Set("out_trade_no", trade)
+					refund.Set("trade_no", trade+"tx")
+					refund.Set("refund_fee", "1.00")
+					refund.Set("sign", "forged")
+					assert.Equal(t, 400, notify(refund).Code)
+					sign(refund)
+					for range 2 {
+						assert.Equal(t, 200, notify(refund).Code)
+					}
+					// A late original success notification must not bypass the hold.
+					refund.Del("refund_fee")
+					sign(refund)
+					_ = notify(refund)
+					require.NoError(t, db.First(&payment, payment.ID).Error)
+					assert.True(t, payment.ReviewRequired)
+					require.NoError(t, db.First(&buyer, buyer.Id).Error)
+					assert.Equal(t, before, buyer.Quota)
+					require.NoError(t, db.Delete(&payment).Error)
+					require.NoError(t, db.Delete(&top).Error)
+				}
+			})
 			for _, field := range []string{"app_id", "seller_id", "total_amount"} {
 				v := url.Values{}
 				for k, vs := range values {
@@ -887,6 +926,35 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 				RecheckSiteOrder(ctx)
 				assert.Equal(t, http.StatusForbidden, recorder.Code)
 			}
+			adminTransport := http.DefaultTransport
+			t.Cleanup(func() { http.DefaultTransport = adminTransport })
+			http.DefaultTransport = wechatFixtureTransport(func(req *http.Request) (*http.Response, error) {
+				trade := strings.TrimPrefix(req.URL.Path, "/v3/pay/transactions/out-trade-no/")
+				fixture, ok := map[string]struct {
+					transaction string
+					amount      int64
+				}{
+					"WXverified": {"420000000001", 9000},
+					"WXoverflow": {"420000000002", 9000},
+					"WXrecovery": {"recovery-provider", 100},
+				}[trade]
+				if !ok {
+					return nil, errors.New("unexpected gateway request")
+				}
+				payload := map[string]any{"appid": wxConfig.AppID, "mchid": wxConfig.MchID, "out_trade_no": trade, "transaction_id": fixture.transaction, "trade_state": "SUCCESS", "trade_type": "NATIVE", "amount": map[string]any{"total": fixture.amount, "currency": "CNY"}}
+				body, err := common.Marshal(payload)
+				require.NoError(t, err)
+				timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+				digest := sha256.Sum256([]byte(timestamp + "\nnonce\n" + string(body) + "\n"))
+				sig, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, digest[:])
+				require.NoError(t, err)
+				header := http.Header{}
+				header.Set("Wechatpay-Serial", wxConfig.PublicKeyID)
+				header.Set("Wechatpay-Timestamp", timestamp)
+				header.Set("Wechatpay-Nonce", "nonce")
+				header.Set("Wechatpay-Signature", base64.StdEncoding.EncodeToString(sig))
+				return &http.Response{StatusCode: 200, Header: header, Body: io.NopCloser(bytes.NewReader(body)), Request: req}, nil
+			})
 			recorder := httptest.NewRecorder()
 			ctx, _ := gin.CreateTestContext(recorder)
 			ctx.Request = httptest.NewRequest(http.MethodPost, "/api/user/orders/1/recheck", nil)
@@ -1114,8 +1182,11 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 				transport := http.DefaultTransport
 				t.Cleanup(func() { http.DefaultTransport = transport })
 				for _, provider := range []string{model.PaymentProviderAlipay, model.PaymentProviderWechatPay} {
-					for _, scenario := range []string{"timeout", "cancel", "paid", "not-found-before-expiry", "not-found-after-expiry", "subscription", "refunded"} {
+					for _, scenario := range []string{"timeout", "cancel", "paid", "not-found-before-expiry", "not-found-after-expiry", "subscription", "refunded", "uncredited-refund", "close-response-lost"} {
 						t.Run(provider+"/"+scenario, func(t *testing.T) {
+							if scenario == "close-response-lost" && provider != model.PaymentProviderAlipay {
+								return
+							}
 							trade := "gate-" + provider + "-" + scenario
 							if scenario == "subscription" {
 								if provider == model.PaymentProviderAlipay {
@@ -1141,7 +1212,7 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 							require.NoError(t, db.Create(business).Error)
 							require.NoError(t, db.Create(target).Error)
 							closed := false
-							gatewayClosed, latePaid := false, false
+							gatewayClosed, latePaid, refunded := false, false, false
 							http.DefaultTransport = wechatFixtureTransport(func(req *http.Request) (*http.Response, error) {
 								statusCode := 200
 								header := http.Header{}
@@ -1152,6 +1223,10 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 									payload := map[string]any{"code": "10000", "msg": "Success", "out_trade_no": trade, "trade_no": "tx-" + trade, "total_amount": "1.00", "trade_status": "WAIT_BUYER_PAY"}
 									if method == "alipay.trade.close" {
 										closed = true
+										if scenario == "close-response-lost" && !gatewayClosed {
+											gatewayClosed = true
+											return nil, errors.New("close response lost")
+										}
 									}
 									if gatewayClosed {
 										payload["trade_status"] = "TRADE_CLOSED"
@@ -1159,7 +1234,7 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 									if scenario == "paid" || latePaid {
 										payload["trade_status"] = "TRADE_SUCCESS"
 									}
-									if scenario == "refunded" {
+									if scenario == "refunded" || scenario == "uncredited-refund" || refunded {
 										payload["trade_status"] = "TRADE_CLOSED"
 										payload["send_pay_date"] = "2026-10-11 12:00:00"
 									}
@@ -1186,7 +1261,7 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 										if scenario == "paid" || latePaid {
 											state = "SUCCESS"
 										}
-										if scenario == "refunded" {
+										if scenario == "refunded" || scenario == "uncredited-refund" || refunded {
 											state = "REFUND"
 										}
 										payload := map[string]any{"appid": wxConfig.AppID, "mchid": wxConfig.MchID, "out_trade_no": trade, "transaction_id": "tx-" + trade, "trade_state": state, "trade_type": "NATIVE", "amount": map[string]any{"total": 100, "currency": "CNY"}}
@@ -1212,6 +1287,31 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 								}
 								return &http.Response{StatusCode: statusCode, Header: header, Body: io.NopCloser(bytes.NewReader(body)), Request: req}, nil
 							})
+							if scenario == "uncredited-refund" {
+								var before, after model.User
+								require.NoError(t, db.First(&before, user.Id).Error)
+								if provider == model.PaymentProviderAlipay {
+									require.NoError(t, model.RecordAlipayPayment(trade, "tx-"+trade, 100))
+									require.ErrorIs(t, service.RecheckAlipayOrder(context.Background(), trade), model.ErrPaymentReviewRequired)
+									require.ErrorIs(t, model.CompleteAlipayTopUp(trade), model.ErrPaymentReviewRequired)
+								} else {
+									require.NoError(t, model.RecordWechatPayPayment(trade, "tx-"+trade, 100))
+									require.ErrorIs(t, service.RecheckWechatPayOrder(context.Background(), trade), model.ErrPaymentReviewRequired)
+									require.ErrorIs(t, model.CompleteWechatPayTopUp(trade), model.ErrPaymentReviewRequired)
+								}
+								require.NoError(t, db.First(&after, user.Id).Error)
+								assert.Equal(t, before.Quota, after.Quota)
+								var retained struct {
+									Status string
+									model.DirectPaymentLifecycle
+								}
+								require.NoError(t, db.Model(target).Where("trade_no = ?", trade).First(&retained).Error)
+								assert.True(t, retained.ReviewRequired)
+								assert.Equal(t, "paid", retained.Status)
+								assert.Zero(t, retained.ClosedAt)
+								assert.False(t, closed)
+								return
+							}
 							if scenario == "timeout" || scenario == "not-found-after-expiry" {
 								var err error
 								if provider == model.PaymentProviderAlipay {
@@ -1227,16 +1327,55 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 								if scenario == "paid" {
 									expected = "paid"
 								}
-								if scenario == "not-found-before-expiry" || scenario == "refunded" {
+								if scenario == "not-found-before-expiry" || scenario == "refunded" || scenario == "close-response-lost" {
 									expected = "closing"
 								}
 								assert.Equal(t, expected, status)
+							}
+							if scenario == "close-response-lost" {
+								require.NoError(t, service.ReconcileAlipayOrder(context.Background(), trade))
 							}
 							var count int64
 							require.NoError(t, db.Model(target).Where("trade_no = ?", trade).Count(&count).Error)
 							if scenario == "paid" || scenario == "not-found-before-expiry" || scenario == "refunded" {
 								assert.EqualValues(t, 1, count)
 								assert.False(t, closed)
+								if scenario == "paid" {
+									var credited model.User
+									require.NoError(t, db.First(&credited, user.Id).Error)
+									recheck := service.RecheckAlipayOrder
+									if provider == model.PaymentProviderWechatPay {
+										recheck = service.RecheckWechatPayOrder
+									}
+									require.NoError(t, recheck(context.Background(), trade))
+									refunded = true
+									for range 2 {
+										require.ErrorIs(t, recheck(context.Background(), trade), model.ErrPaymentReviewRequired)
+									}
+									var retained struct {
+										Status string
+										model.DirectPaymentLifecycle
+									}
+									require.NoError(t, db.Model(target).Where("trade_no = ?", trade).First(&retained).Error)
+									assert.True(t, retained.ReviewRequired)
+									assert.Equal(t, "success", retained.Status)
+									assert.Zero(t, retained.ClosedAt)
+									var after model.User
+									require.NoError(t, db.First(&after, user.Id).Error)
+									assert.Equal(t, credited.Quota, after.Quota)
+									assert.False(t, closed)
+									// Admin recovery must not report "already credited" for a reversal.
+									recorder := httptest.NewRecorder()
+									request, _ := gin.CreateTestContext(recorder)
+									request.Request = httptest.NewRequest(http.MethodPost, "/recover", strings.NewReader(`{"reason":"Inspect refunded payment"}`))
+									request.Request.Header.Set("Content-Type", "application/json")
+									request.Params = gin.Params{{Key: "id", Value: strconv.Itoa(business.(*model.TopUp).Id)}}
+									request.Set("id", user.Id)
+									request.Set("role", common.RoleRootUser)
+									RecoverSiteOrder(request)
+									assert.Equal(t, http.StatusOK, recorder.Code)
+									assert.Contains(t, recorder.Body.String(), `"result":"verification_failed"`)
+								}
 								if scenario == "not-found-before-expiry" {
 									var waiting struct {
 										LastError string
@@ -1271,6 +1410,19 @@ func TestAlipayPaymentDatabaseMatrix(t *testing.T) {
 								assert.Equal(t, "expired", retained.Status)
 								assert.Positive(t, retained.ClosedAt)
 								assert.Equal(t, scenario != "not-found-after-expiry", closed)
+								if scenario == "subscription" {
+									// Subscription IDs use the negative namespace in the shared admin API.
+									subscription := business.(*model.SubscriptionOrder)
+									recorder := httptest.NewRecorder()
+									request, _ := gin.CreateTestContext(recorder)
+									request.Request = httptest.NewRequest(http.MethodPost, "/api/user/orders/recheck", nil)
+									request.Params = gin.Params{{Key: "id", Value: strconv.Itoa(-subscription.Id)}}
+									request.Set("id", user.Id)
+									request.Set("role", common.RoleRootUser)
+									RecheckSiteOrder(request)
+									assert.Equal(t, http.StatusOK, recorder.Code)
+									assert.Contains(t, recorder.Body.String(), `"success":true`)
+								}
 								if scenario == "cancel" {
 									// Manual rechecks must query without issuing another close.
 									closed = false
@@ -1512,6 +1664,7 @@ func verifyPaymentSecretStorage(t *testing.T, db *gorm.DB, config model.AlipayCo
 	var readWX model.WechatPayConfig
 	require.NoError(t, db.First(&readWX, wx.ID).Error)
 	assert.Equal(t, config.PrivateKey, readWX.PrivateKey)
+
 	assert.Equal(t, strings.Repeat("a", 32), readWX.APIv3Key)
 	raw, err := common.Marshal(readWX)
 	require.NoError(t, err)
@@ -1524,6 +1677,19 @@ func verifyPaymentSecretStorage(t *testing.T, db *gorm.DB, config model.AlipayCo
 	assert.Error(t, err)
 	_, err = ring.Open(readWX.APIv3KeyCiphertext, "wechatpay/90002/private_key")
 	assert.Error(t, err)
+	wm := model.WebMoneyConfig{ID: 90003, PreviousID: 90002, Secret: "rotation-test-secret"}
+	ant := model.AntomConfig{ID: 90004, PreviousID: 90003, Secret: config.PrivateKey}
+	require.NoError(t, db.Create(&wm).Error)
+	require.NoError(t, db.Create(&ant).Error)
+	sessionCiphertext, err := ring.Seal("hosted:https://checkout.antom.com/test", "antom/order/90005/session")
+	require.NoError(t, err)
+	session := model.AntomOrder{ID: 90005, TradeNo: "rotation-test", UserID: 90005, RequestKey: "rotation", SessionCiphertext: sessionCiphertext}
+	require.NoError(t, db.Create(&session).Error)
+	defer func() {
+		require.NoError(t, db.Delete(&session).Error)
+		require.NoError(t, db.Delete(&ant).Error)
+		require.NoError(t, db.Delete(&wm).Error)
+	}()
 	// Rotation keeps historical configurations readable, then removes dependence
 	// on the old key only after the explicit migration has re-encrypted every row.
 	rotatedFile := filepath.Join(t.TempDir(), "rotated.json")
@@ -1556,6 +1722,24 @@ func verifyPaymentSecretStorage(t *testing.T, db *gorm.DB, config model.AlipayCo
 	require.NoError(t, model.InitializePaymentSecrets(db))
 	require.NoError(t, db.First(&readWX, wx.ID).Error)
 	assert.Equal(t, config.PrivateKey, readWX.PrivateKey)
+	var readWM model.WebMoneyConfig
+	var readAnt model.AntomConfig
+	var readSession model.AntomOrder
+	require.NoError(t, db.First(&readWM, wm.ID).Error)
+	require.NoError(t, db.First(&readAnt, ant.ID).Error)
+	require.NoError(t, db.First(&readSession, session.ID).Error)
+	assert.Equal(t, wm.Secret, readWM.Secret)
+	assert.Equal(t, ant.Secret, readAnt.Secret)
+	plainSession, err := fresh.Open(readSession.SessionCiphertext, "antom/order/90005/session")
+	require.NoError(t, err)
+	assert.Equal(t, "hosted:https://checkout.antom.com/test", plainSession)
+	// A corrupt envelope must fail even during an explicitly enabled migration.
+	require.NoError(t, db.Table(db.NamingStrategy.TableName("WebMoneyConfig")).Where("id = ?", wm.ID).Update("ciphertext", "corrupt-envelope").Error)
+	t.Setenv("PAYMENT_SECRET_MIGRATE", "1")
+	assert.Error(t, model.InitializePaymentSecrets(db))
+	require.NoError(t, db.Table(db.NamingStrategy.TableName("WebMoneyConfig")).Where("id = ?", wm.ID).Update("ciphertext", readWM.Ciphertext).Error)
+	t.Setenv("PAYMENT_SECRET_MIGRATE", "")
+
 	t.Setenv("PAYMENT_SECRET_KEY_FILE", "")
 	assert.Error(t, model.InitializePaymentSecrets(db))
 	status = model.InspectPaymentSecrets(db)

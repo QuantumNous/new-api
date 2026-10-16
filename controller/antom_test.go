@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -96,6 +97,21 @@ func TestAntomPaymentDatabaseMatrix(t *testing.T) {
 			var preserved model.TopUp
 			require.NoError(t, db.First(&preserved, legacy.Id).Error)
 			assert.Equal(t, legacy, preserved)
+			// Upgrade the previous Antom schema with an unresolved cancellation in place.
+			require.NoError(t, db.Migrator().DropColumn(&model.AntomOrder{}, "review_required"))
+			require.NoError(t, db.Migrator().DropColumn(&model.AntomOrder{}, "cancellation_state"))
+			require.NoError(t, db.Migrator().DropColumn(&model.AntomOrder{}, "cancellation_code"))
+			require.NoError(t, db.Migrator().DropColumn(&model.AntomOrder{}, "cancellation_token"))
+			require.NoError(t, db.Migrator().DropColumn(&model.AntomOrder{}, "cancellation_until"))
+			require.NoError(t, db.Table(db.NamingStrategy.TableName("AntomOrder")).Create(map[string]any{"trade_no": "legacy-cancel", "request_key": "legacy-cancel", "user_id": 999, "status": "pending", "gateway_status": "CANCEL_REQUESTED", "last_error": "cancellation_rejected", "next_check_at": 0}).Error)
+			require.NoError(t, db.AutoMigrate(tables...))
+			require.NoError(t, db.AutoMigrate(tables...))
+			var legacyCancel model.AntomOrder
+			require.NoError(t, db.Where("trade_no = ?", "legacy-cancel").First(&legacyCancel).Error)
+			assert.Equal(t, "CANCEL_REQUESTED", legacyCancel.GatewayStatus)
+			assert.Empty(t, legacyCancel.CancellationState)
+			assert.False(t, legacyCancel.ReviewRequired)
+			require.NoError(t, db.Delete(&legacyCancel).Error)
 			var version string
 			if dialect == "sqlite" {
 				require.NoError(t, db.Raw("SELECT sqlite_version()").Scan(&version).Error)
@@ -268,6 +284,81 @@ func TestAntomPaymentDatabaseMatrix(t *testing.T) {
 			assert.Equal(t, "USD", projected[0].Currency)
 			assert.True(t, projected[0].Sandbox)
 
+			t.Run("verified refund is retained after credit and before credit", func(t *testing.T) {
+				refundUser := model.User{Username: "antom-refund-buyer", AffCode: "ant-refund", Status: common.UserStatusEnabled, Quota: 100}
+				require.NoError(t, db.Create(&refundUser).Error)
+				originalResponse := response
+				defer func() { response = originalResponse }()
+				for _, credited := range []bool{false, true} {
+					trade := fmt.Sprintf("ANTrefund-%t", credited)
+					payment := model.AntomOrder{TradeNo: trade, RequestKey: trade, ConfigID: config.ID, UserID: refundUser.Id, Amount: "1.00", CreditedQuota: 50, Status: "pending", CreatedAt: common.GetTimestamp(), ExpiresAt: common.GetTimestamp() + 1800}
+					topup := model.TopUp{UserId: refundUser.Id, TradeNo: trade, PaymentProvider: "antom", Status: "pending"}
+					require.NoError(t, model.CreateAntomOrder(&payment, &topup))
+					require.NoError(t, model.RecordAntomPayment(&payment, trade+"payment"))
+					if credited {
+						require.NoError(t, model.CompleteAntomOrder(trade))
+					}
+					var before, after model.User
+					require.NoError(t, db.First(&before, refundUser.Id).Error)
+					response = map[string]any{"result": map[string]string{"resultStatus": "S", "resultCode": "SUCCESS"}, "paymentStatus": "SUCCESS", "paymentRequestId": trade, "paymentId": trade + "payment", "paymentAmount": service.AntomAmount{Currency: "USD", Value: "100"}, "transactions": []any{
+						map[string]any{"transactionType": "REFUND", "transactionStatus": "SUCCESS", "transactionAmount": service.AntomAmount{Currency: "USD", Value: "50"}},
+						map[string]any{"transactionType": "CAPTURE", "transactionStatus": "PROCESSING", "transactionAmount": service.AntomAmount{Currency: "USD", Value: "100"}},
+					}}
+					invalidSignature = true
+					require.Error(t, service.RecheckAntomOrder(context.Background(), trade))
+					unchanged, _, e := model.GetAntomOrder(trade)
+					require.NoError(t, e)
+					assert.False(t, unchanged.ReviewRequired)
+					invalidSignature = false
+					// A signed refund notification must query even a fulfilled order.
+					body := `{"notifyType":"REFUND_RESULT","refundStatus":"SUCCESS"}`
+					path := "/api/user/antom/notify/" + trade
+					timestamp := time.Now().UTC().Format(time.RFC3339)
+					digest := sha256.Sum256([]byte("POST " + path + "\n" + config.ClientID + "." + timestamp + "." + body))
+					signature, signErr := rsa.SignPKCS1v15(rand.Reader, provider, crypto.SHA256, digest[:])
+					require.NoError(t, signErr)
+					refundTransactions := response["transactions"]
+					for _, phase := range []string{"unavailable", "stale", "confirmed", "replay"} {
+						invalidSignature = phase == "unavailable"
+						response["transactions"] = refundTransactions
+						if phase == "stale" {
+							response["transactions"] = []any{}
+						}
+						recorder := httptest.NewRecorder()
+						c, _ := gin.CreateTestContext(recorder)
+						c.Params = gin.Params{{Key: "trade_no", Value: trade}}
+						c.Request = httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+						c.Request.Header.Set("Client-Id", config.ClientID)
+						c.Request.Header.Set("Request-Time", timestamp)
+						c.Request.Header.Set("Signature", "algorithm=RSA256,keyVersion=1,signature="+url.QueryEscape(base64.StdEncoding.EncodeToString(signature)))
+						AntomNotify(c)
+						if phase == "unavailable" || phase == "stale" {
+							assert.Equal(t, http.StatusServiceUnavailable, recorder.Code)
+						} else {
+							assert.Equal(t, http.StatusOK, recorder.Code)
+						}
+					}
+					held, _, e := model.GetAntomOrder(trade)
+					require.NoError(t, e)
+					assert.True(t, held.ReviewRequired)
+					assert.Equal(t, "REFUNDED", held.GatewayStatus)
+					assert.Zero(t, held.NextCheckAt)
+					if credited {
+						assert.Equal(t, "success", held.Status)
+					} else {
+						assert.Equal(t, "paid", held.Status)
+						require.ErrorIs(t, model.CompleteAntomOrder(trade), model.ErrPaymentReviewRequired)
+					}
+					require.NoError(t, db.First(&after, refundUser.Id).Error)
+					assert.Equal(t, before.Quota, after.Quota)
+					view, e := model.GetSiteOrder(topup.Id)
+					require.NoError(t, e)
+					assert.True(t, view.ReviewRequired)
+					assert.Equal(t, "REFUNDED", view.GatewayStatus)
+
+				}
+			})
+
 			closed := order
 			closed.ID = 0
 			closed.TradeNo, closed.RequestKey, closed.Status = "ANTclosed", "two", "pending"
@@ -307,6 +398,8 @@ func TestAntomPaymentDatabaseMatrix(t *testing.T) {
 					}
 					plan := model.SubscriptionPlan{Title: channel, Enabled: true, PriceAmount: 10, Currency: "USD", DurationUnit: "month", DurationValue: 1, TotalAmount: 12345, QuotaResetPeriod: "never"}
 					require.NoError(t, db.Create(&plan).Error)
+					model.InvalidateSubscriptionPlanCache(plan.Id)
+					t.Cleanup(func() { model.InvalidateSubscriptionPlanCache(plan.Id) })
 					amount := "10.00"
 					if channel == "webmoney" {
 						amount = "20.00"
@@ -403,6 +496,16 @@ func TestAntomPaymentDatabaseMatrix(t *testing.T) {
 						require.NoError(t, model.CompleteWebMoneyOrder(conflictTrade))
 					}
 					require.True(t, model.DirectSubscriptionReviewRequired(conflictTrade))
+					// Review-held subscriptions must not consume worker slots repeatedly.
+					if channel == "antom" {
+						_ = service.RunAntomReconciliation(context.Background())
+					} else {
+						_ = service.RunWebMoneyReconciliation(context.Background())
+					}
+					var held struct{ NextCheckAt int64 }
+					require.NoError(t, db.Model(payment).Select("next_check_at").Where("trade_no = ?", conflictTrade).Take(&held).Error)
+					assert.Zero(t, held.NextCheckAt, "a review-held payment must not be claimed")
+
 					require.NoError(t, db.Model(&model.UserSubscription{}).Where("user_id = ? AND plan_id = ?", user.Id, conflictPlan.Id).Count(&count).Error)
 					assert.EqualValues(t, 1, count)
 					if channel == "antom" {
@@ -415,8 +518,171 @@ func TestAntomPaymentDatabaseMatrix(t *testing.T) {
 						require.NoError(t, model.CloseAntomOrder(payment.ID, "FAIL"))
 						require.NoError(t, db.First(&closedOrder, closedOrder.Id).Error)
 						assert.Equal(t, "expired", closedOrder.Status)
+
+						closedPlan = plan
+						closedPlan.Id = 0
+						require.NoError(t, db.Create(&closedPlan).Error)
+						old := model.SubscriptionOrder{UserId: user.Id, PlanId: closedPlan.Id, TradeNo: "SUBANTexpired", PaymentProvider: channel, Status: "pending"}
+						oldPayment := model.AntomOrder{TradeNo: old.TradeNo, UserID: user.Id, ConfigID: config.ID, RequestKey: "expired-sub", Amount: amount, Status: "pending", ExpiresAt: common.GetTimestamp() - 1}
+						require.NoError(t, model.CreateDirectSubscriptionOrder(&old, &closedPlan, &oldPayment))
+						require.NoError(t, model.ExpireAntomOrder(oldPayment.ID))
+						require.NoError(t, model.ExpireAntomOrder(oldPayment.ID))
+						require.NoError(t, db.First(&old, old.Id).Error)
+						assert.Equal(t, "expired", old.Status)
+						replacement := model.SubscriptionOrder{UserId: user.Id, PlanId: closedPlan.Id, TradeNo: "SUBANTreplacement", PaymentProvider: channel, Status: "pending"}
+						newPayment := model.AntomOrder{TradeNo: replacement.TradeNo, UserID: user.Id, ConfigID: config.ID, RequestKey: "replacement-sub", Amount: amount, Status: "pending", ExpiresAt: common.GetTimestamp() + 600}
+						require.NoError(t, model.CreateDirectSubscriptionOrder(&replacement, &closedPlan, &newPayment))
+						require.NoError(t, model.RecordAntomPayment(&newPayment, "antom-replacement"))
+						require.NoError(t, model.CompleteAntomOrder(replacement.TradeNo))
+						// A payment authorized before expiry may still arrive afterwards.
+						require.NoError(t, model.RecordAntomPayment(&oldPayment, "antom-expired-late"))
+						require.NoError(t, model.CompleteAntomOrder(old.TradeNo))
+						require.NoError(t, model.CompleteAntomOrder(old.TradeNo))
+						require.True(t, model.DirectSubscriptionReviewRequired(old.TradeNo))
+						require.NoError(t, db.Model(&model.UserSubscription{}).Where("user_id = ? AND plan_id = ?", user.Id, closedPlan.Id).Count(&count).Error)
+						assert.EqualValues(t, 1, count)
+					} else {
+						closedPlan := plan
+						closedPlan.Id = 0
+						require.NoError(t, db.Create(&closedPlan).Error)
+						old := model.SubscriptionOrder{UserId: user.Id, PlanId: closedPlan.Id, TradeNo: "SUBWMexpired", PaymentProvider: channel, Status: "pending"}
+						oldPayment := model.WebMoneyOrder{TradeNo: old.TradeNo, UserID: user.Id, ConfigID: wmConfig.ID, RequestKey: "expired-sub", Amount: amount, Status: "pending", ExpiresAt: common.GetTimestamp() - 1}
+						require.NoError(t, model.CreateDirectSubscriptionOrder(&old, &closedPlan, &oldPayment))
+						require.NoError(t, model.ExpireWebMoneyOrder(oldPayment.ID))
+						require.NoError(t, model.ExpireWebMoneyOrder(oldPayment.ID))
+						require.NoError(t, db.First(&old, old.Id).Error)
+						assert.Equal(t, "expired", old.Status)
+						replacement := model.SubscriptionOrder{UserId: user.Id, PlanId: closedPlan.Id, TradeNo: "SUBWMreplacement", PaymentProvider: channel, Status: "pending"}
+						newPayment := model.WebMoneyOrder{TradeNo: replacement.TradeNo, UserID: user.Id, ConfigID: wmConfig.ID, RequestKey: "replacement-sub", Amount: amount, Status: "pending", ExpiresAt: common.GetTimestamp() + 600}
+						require.NoError(t, model.CreateDirectSubscriptionOrder(&replacement, &closedPlan, &newPayment))
+						require.NoError(t, model.RecordWebMoneyPayment(&newPayment, "wm-replacement"))
+						require.NoError(t, model.CompleteWebMoneyOrder(replacement.TradeNo))
+						// A payment authorized before expiry may still arrive afterwards.
+						require.NoError(t, model.RecordWebMoneyPayment(&oldPayment, "wm-expired-late"))
+						require.NoError(t, model.CompleteWebMoneyOrder(old.TradeNo))
+						require.NoError(t, model.CompleteWebMoneyOrder(old.TradeNo))
+						require.True(t, model.DirectSubscriptionReviewRequired(old.TradeNo))
+						require.NoError(t, db.Model(&model.UserSubscription{}).Where("user_id = ? AND plan_id = ?", user.Id, closedPlan.Id).Count(&count).Error)
+						assert.EqualValues(t, 1, count)
 					}
 
+				})
+			}
+
+			t.Run("checkout result cannot bypass concurrent order changes", func(t *testing.T) {
+				originalTransport := http.DefaultTransport
+				defer func() { http.DefaultTransport = originalTransport }()
+				for _, change := range []string{"cancel", "paid", "expired", "review"} {
+					t.Run(change, func(t *testing.T) {
+						trade := "ANTsession-" + change
+						o := model.AntomOrder{TradeNo: trade, UserID: user.Id, ConfigID: config.ID, RequestKey: trade, Amount: "1.00", Status: "pending", ExpiresAt: common.GetTimestamp() + 600}
+						top := model.TopUp{UserId: user.Id, TradeNo: trade, PaymentProvider: "antom", Status: "pending"}
+						require.NoError(t, model.CreateAntomOrder(&o, &top))
+						calls := 0
+						http.DefaultTransport = webMoneyQueryTransport(func(r *http.Request) (*http.Response, error) {
+							calls++
+							assert.True(t, strings.HasSuffix(r.URL.Path, "/createPaymentSession"))
+							switch change {
+							case "cancel":
+								_, err := model.RequestAntomCancellation(o.ID)
+								require.NoError(t, err)
+							case "paid":
+								require.NoError(t, model.RecordAntomPayment(&o, trade))
+							case "expired":
+								require.NoError(t, db.Model(&o).Update("expires_at", common.GetTimestamp()-1).Error)
+							case "review":
+								require.NoError(t, db.Model(&o).Update("review_required", true).Error)
+							}
+							raw, err := common.Marshal(map[string]any{"result": map[string]string{"resultStatus": "S", "resultCode": "SUCCESS"}, "paymentSessionId": "session-race", "normalUrl": "https://checkout.antom.com/checkout-page/pages/payment/index.html?sessionData=race", "paymentSessionExpiryTime": time.Unix(common.GetTimestamp()+600, 0).UTC().Format(time.RFC3339)})
+							require.NoError(t, err)
+							stamp := time.Now().UTC().Format(time.RFC3339)
+							digest := sha256.Sum256([]byte("POST " + r.URL.Path + "\n" + config.ClientID + "." + stamp + "." + string(raw)))
+							sig, err := rsa.SignPKCS1v15(rand.Reader, provider, crypto.SHA256, digest[:])
+							require.NoError(t, err)
+							header := http.Header{}
+							header.Set("Client-Id", config.ClientID)
+							header.Set("Response-Time", stamp)
+							header.Set("Signature", "algorithm=RSA256,keyVersion=1,signature="+url.QueryEscape(base64.StdEncoding.EncodeToString(sig)))
+							return &http.Response{StatusCode: 200, Header: header, Body: io.NopCloser(strings.NewReader(string(raw)))}, nil
+						})
+						link, err := service.CreateAntomSession(context.Background(), &o, &config, "203.0.113.42")
+						require.Error(t, err)
+						assert.Empty(t, link)
+						current, _, err := model.GetAntomOrder(trade)
+						require.NoError(t, err)
+						assert.Empty(t, current.SessionCiphertext)
+						if change == "review" {
+							assert.Empty(t, service.AntomCheckout(current, &config)["pay_link"])
+							_, cancelErr := model.RequestAntomCancellation(o.ID)
+							require.ErrorIs(t, cancelErr, model.ErrPaymentReviewRequired)
+							require.ErrorIs(t, model.CloseAntomOrder(o.ID, "CANCELLED"), model.ErrPaymentReviewRequired)
+						}
+						// Even an earlier in-memory checkout snapshot cannot return a cached URL now.
+						o.ExpiresAt = common.GetTimestamp() + 600
+						o.SessionCiphertext, err = ring.Seal("hosted:https://checkout.antom.com/cached", fmt.Sprintf("antom/order/%d/session", o.ID))
+						require.NoError(t, err)
+						link, err = service.CreateAntomSession(context.Background(), &o, &config, "203.0.113.42")
+						require.Error(t, err)
+						assert.Empty(t, link)
+						assert.Equal(t, 1, calls)
+						require.NoError(t, db.Delete(&o).Error)
+						require.NoError(t, db.Delete(&top).Error)
+					})
+				}
+			})
+
+			for _, channel := range []string{"antom", "webmoney"} {
+				t.Run(channel+" fulfillment retry respects schedule", func(t *testing.T) {
+					buyer := model.User{Username: "retry-" + channel, AffCode: "retry-" + channel, Status: common.UserStatusDisabled}
+					require.NoError(t, db.Create(&buyer).Error)
+					trade := "retry-" + channel
+					top := model.TopUp{UserId: buyer.Id, TradeNo: trade, PaymentProvider: channel, Status: "pending"}
+					var payment any
+					run := service.RunAntomReconciliation
+					if channel == "antom" {
+						o := &model.AntomOrder{TradeNo: trade, UserID: buyer.Id, ConfigID: config.ID, RequestKey: trade, Amount: "1.00", CreditedQuota: 100, Status: "pending", NextCheckAt: common.GetTimestamp() + 3600}
+						require.NoError(t, model.CreateAntomOrder(o, &top))
+						require.NoError(t, model.RecordAntomPayment(o, trade))
+						payment = o
+					} else {
+						config, err := model.CurrentWebMoneyConfig()
+						require.NoError(t, err)
+						o := &model.WebMoneyOrder{TradeNo: trade, UserID: buyer.Id, ConfigID: config.ID, RequestKey: trade, Amount: "1.00", CreditedQuota: 100, Status: "pending", NextCheckAt: common.GetTimestamp() + 3600}
+						require.NoError(t, model.CreateWebMoneyOrder(o, &top))
+						require.NoError(t, model.RecordWebMoneyPayment(o, trade))
+						payment, run = o, service.RunWebMoneyReconciliation
+					}
+					_ = run(context.Background())
+					var saved struct {
+						Status      string
+						NextCheckAt int64
+						LogPending  bool
+					}
+					require.NoError(t, db.Model(payment).Where("trade_no = ?", trade).Take(&saved).Error)
+					assert.Equal(t, "paid", saved.Status)
+					assert.InDelta(t, common.GetTimestamp()+120, saved.NextCheckAt, 5, "verified receipt wakes fulfillment; failure gets backoff")
+					require.NoError(t, db.Model(&buyer).Update("status", common.UserStatusEnabled).Error)
+					_ = run(context.Background())
+					require.NoError(t, db.First(&buyer, buyer.Id).Error)
+					assert.Zero(t, buyer.Quota, "paid rows must respect retry backoff")
+					require.NoError(t, db.Model(payment).Update("next_check_at", 0).Error)
+					logDB := model.LOG_DB
+					model.LOG_DB = nil
+					_ = run(context.Background())
+					model.LOG_DB = logDB
+					require.NoError(t, db.Model(payment).Where("trade_no = ?", trade).Take(&saved).Error)
+					assert.Equal(t, "success", saved.Status)
+					assert.True(t, saved.LogPending)
+					assert.Greater(t, saved.NextCheckAt, common.GetTimestamp())
+					_ = run(context.Background())
+					require.NoError(t, db.Model(payment).Where("trade_no = ?", trade).Take(&saved).Error)
+					assert.True(t, saved.LogPending, "audit retries must also respect backoff")
+					require.NoError(t, db.Model(payment).Update("next_check_at", 0).Error)
+					_ = run(context.Background())
+					require.NoError(t, db.Model(payment).Where("trade_no = ?", trade).Take(&saved).Error)
+					assert.False(t, saved.LogPending)
+					require.NoError(t, db.First(&buyer, buyer.Id).Error)
+					assert.Equal(t, 100, buyer.Quota, "retrying audit work must not credit twice")
 				})
 			}
 
@@ -466,6 +732,157 @@ func TestAntomPaymentDatabaseMatrix(t *testing.T) {
 				state, err = service.CancelAntomOrder(context.Background(), order.TradeNo)
 				require.NoError(t, err)
 				assert.Equal(t, "paid", state)
+			})
+
+			t.Run("cancellation lease fences overlap and stale responses", func(t *testing.T) {
+				pending := model.AntomOrder{TradeNo: "ANTcancel-lease", UserID: user.Id, ConfigID: config.ID, RequestKey: "cancel-lease", Amount: "1.00", Status: "pending"}
+				top := model.TopUp{UserId: user.Id, TradeNo: pending.TradeNo, PaymentProvider: "antom", Status: "pending"}
+				require.NoError(t, model.CreateAntomOrder(&pending, &top))
+				first, err := model.RequestAntomCancellation(pending.ID)
+				require.NoError(t, err)
+				require.NotEmpty(t, first)
+				originalTransport := http.DefaultTransport
+				calls := 0
+				http.DefaultTransport = webMoneyQueryTransport(func(r *http.Request) (*http.Response, error) {
+					calls++
+					return originalTransport.RoundTrip(r)
+				})
+				defer func() { http.DefaultTransport = originalTransport }()
+				state, err := service.CancelAntomOrder(context.Background(), pending.TradeNo)
+				require.NoError(t, err)
+				assert.Equal(t, "closing", state)
+				assert.Zero(t, calls, "another worker must not send a concurrent cancellation")
+				require.Error(t, model.RecordAntomPayment(&pending, "lease-payment"))
+				// A crashed worker can be replaced after lease expiry without trusting its late response.
+				require.NoError(t, db.Model(&pending).Update("cancellation_until", common.GetTimestamp()-1).Error)
+				second, err := model.RequestAntomCancellation(pending.ID)
+				require.NoError(t, err)
+				require.NotEmpty(t, second)
+				assert.NotEqual(t, first, second)
+				require.Error(t, model.FinishAntomCancellation(pending.ID, first, "F", "ORDER_STATUS_INVALID"))
+				after, _, err := model.GetAntomOrder(pending.TradeNo)
+				require.NoError(t, err)
+				assert.Equal(t, "requested", after.CancellationState)
+				require.Error(t, model.RecordAntomPayment(&pending, "lease-payment"))
+				require.NoError(t, model.FinishAntomCancellation(pending.ID, second, "F", "ORDER_STATUS_INVALID"))
+				require.Error(t, model.FinishAntomCancellation(pending.ID, first, "S", "SUCCESS"))
+				after, _, err = model.GetAntomOrder(pending.TradeNo)
+				require.NoError(t, err)
+				assert.Equal(t, "pending", after.Status)
+				assert.Equal(t, "rejected", after.CancellationState)
+				require.NoError(t, model.RecordAntomPayment(&pending, "lease-payment"))
+				require.NoError(t, db.Delete(&pending).Error)
+				require.NoError(t, db.Delete(&top).Error)
+			})
+
+			t.Run("rejected cancellation resumes authoritative verification", func(t *testing.T) {
+				pending := model.AntomOrder{TradeNo: "ANTcancel-rejected", UserID: user.Id, ConfigID: config.ID, RequestKey: "cancel-rejected", Amount: "1.00", CreditedQuota: 25, Status: "pending", CreatedAt: common.GetTimestamp(), ExpiresAt: common.GetTimestamp() + 600}
+				top := model.TopUp{UserId: user.Id, TradeNo: pending.TradeNo, PaymentProvider: "antom", Status: "pending"}
+				require.NoError(t, model.CreateAntomOrder(&pending, &top))
+				response = map[string]any{"result": map[string]string{"resultStatus": "F", "resultCode": "ORDER_STATUS_INVALID"}}
+				_, err := service.CancelAntomOrder(context.Background(), pending.TradeNo)
+				require.Error(t, err)
+				after, _, err := model.GetAntomOrder(pending.TradeNo)
+				require.NoError(t, err)
+				assert.Positive(t, after.NextCheckAt)
+				assert.Empty(t, service.AntomCheckout(after, &config)["pay_link"])
+				projected, err := model.GetSiteOrder(top.Id)
+				require.NoError(t, err)
+				assert.True(t, projected.CancelRequested)
+				assert.Equal(t, "rejected", projected.CancellationState)
+				assert.Equal(t, "rejected", personalOrderView(*projected)["cancellation_state"])
+				assert.Equal(t, "ORDER_STATUS_INVALID", projected.CancellationCode)
+				// PROCESSING updates the gateway result without dropping cancellation intent.
+				response = map[string]any{"result": map[string]string{"resultStatus": "S", "resultCode": "SUCCESS"}, "paymentRequestId": pending.TradeNo, "paymentStatus": "PROCESSING", "paymentAmount": service.AntomAmount{Currency: "USD", Value: "100"}}
+				require.NoError(t, service.ReconcileAntomOrder(context.Background(), pending.TradeNo))
+				after, _, err = model.GetAntomOrder(pending.TradeNo)
+				require.NoError(t, err)
+				assert.Equal(t, "PROCESSING", after.GatewayStatus)
+				assert.Empty(t, service.AntomCheckout(after, &config)["pay_link"])
+
+				response = map[string]any{"result": map[string]string{"resultStatus": "S", "resultCode": "SUCCESS"}, "paymentRequestId": pending.TradeNo, "paymentId": "payment-cancel-rejected", "paymentStatus": "SUCCESS", "paymentAmount": service.AntomAmount{Currency: "USD", Value: "100"}}
+				require.NoError(t, service.ReconcileAntomOrder(context.Background(), pending.TradeNo))
+				after, _, err = model.GetAntomOrder(pending.TradeNo)
+				require.NoError(t, err)
+				assert.Equal(t, "success", after.Status)
+				require.NoError(t, service.ReconcileAntomOrder(context.Background(), pending.TradeNo))
+			})
+
+			t.Run("local expiry preserves late payment and distinguishes gateway closure", func(t *testing.T) {
+				for _, outcome := range []string{"SUCCESS", "FAIL", "CANCELLED", "cancel"} {
+					trade := "ANTexpiry-" + outcome
+					o := model.AntomOrder{TradeNo: trade, UserID: user.Id, ConfigID: config.ID, RequestKey: trade, Amount: "1.00", CreditedQuota: 25, Status: "pending", ExpiresAt: common.GetTimestamp() - 1}
+					top := model.TopUp{UserId: user.Id, TradeNo: trade, PaymentProvider: "antom", Status: "pending"}
+					require.NoError(t, model.CreateAntomOrder(&o, &top))
+					response = map[string]any{"result": map[string]string{"resultStatus": "F", "resultCode": "ORDER_NOT_EXIST"}}
+					require.NoError(t, service.ReconcileAntomOrder(context.Background(), trade))
+					current, _, err := model.GetAntomOrder(trade)
+					require.NoError(t, err)
+					assert.Equal(t, "expired", current.Status)
+					assert.True(t, current.PaymentUnresolved())
+					assert.False(t, current.ClosureConfirmed())
+					assert.Empty(t, service.AntomCheckout(current, &config)["pay_link"])
+					projection, err := model.GetSiteOrder(top.Id)
+					require.NoError(t, err)
+					assert.Equal(t, "local_expiry", projection.CloseReason)
+					assert.Zero(t, projection.ClosedAt)
+					assert.Equal(t, "local_expiry", personalOrderView(*projection)["close_reason"])
+					visible, _, err := model.ListSiteOrders(model.SiteOrderFilter{ID: top.Id, OwnerID: user.Id, ExcludeClosed: true, Page: 1, PageSize: 1})
+					require.NoError(t, err)
+					assert.Len(t, visible, 1, "local expiry must remain visible when excluding closed orders")
+					response = map[string]any{"result": map[string]string{"resultStatus": "S", "resultCode": "SUCCESS"}, "paymentRequestId": trade, "paymentId": trade, "paymentStatus": outcome, "paymentAmount": service.AntomAmount{Currency: "USD", Value: "100"}}
+					require.NoError(t, db.Model(&o).Update("next_check_at", 0).Error)
+					if outcome == "cancel" {
+						state, err := service.CancelAntomOrder(context.Background(), trade)
+						require.NoError(t, err)
+						assert.Equal(t, "closed", state)
+					} else {
+						_ = service.RunAntomReconciliation(context.Background())
+					}
+					current, _, err = model.GetAntomOrder(trade)
+					require.NoError(t, err)
+					projection, err = model.GetSiteOrder(top.Id)
+					require.NoError(t, err)
+					if outcome == "SUCCESS" {
+						assert.Equal(t, "success", current.Status)
+						require.NoError(t, service.ReconcileAntomOrder(context.Background(), trade))
+					} else {
+						assert.True(t, current.ClosureConfirmed())
+						assert.Positive(t, projection.ClosedAt)
+						assert.Equal(t, "gateway_closed", projection.CloseReason)
+						visible, _, err = model.ListSiteOrders(model.SiteOrderFilter{ID: top.Id, OwnerID: user.Id, ExcludeClosed: true, Page: 1, PageSize: 1})
+						require.NoError(t, err)
+						assert.Empty(t, visible)
+						require.Error(t, model.RecordAntomPayment(current, "contradictory-payment"))
+					}
+				}
+			})
+
+			t.Run("legacy rejected cancellation and old pending orders remain recoverable", func(t *testing.T) {
+				for _, legacyRejected := range []bool{false, true} {
+					trade := fmt.Sprintf("ANTold-%t", legacyRejected)
+					pending := model.AntomOrder{TradeNo: trade, UserID: user.Id, ConfigID: config.ID, RequestKey: trade, Amount: "1.00", CreditedQuota: 25, Status: "pending", CreatedAt: common.GetTimestamp() - 73*3600, ExpiresAt: common.GetTimestamp() - 72*3600, NextCheckAt: common.GetTimestamp() - 1}
+					if legacyRejected {
+						pending.GatewayStatus, pending.LastError, pending.NextCheckAt = "CANCEL_REQUESTED", "cancellation_rejected", 0
+					}
+					top := model.TopUp{UserId: user.Id, TradeNo: trade, PaymentProvider: "antom", Status: "pending"}
+					require.NoError(t, model.CreateAntomOrder(&pending, &top))
+					response = map[string]any{"result": map[string]string{"resultStatus": "S", "resultCode": "SUCCESS"}, "paymentRequestId": trade, "paymentStatus": "PROCESSING", "paymentAmount": service.AntomAmount{Currency: "USD", Value: "100"}}
+					// Worker selection must also include old rejected rows with next_check_at=0.
+					_ = service.RunAntomReconciliation(context.Background())
+					after, _, err := model.GetAntomOrder(trade)
+					require.NoError(t, err)
+					assert.Equal(t, "PROCESSING", after.GatewayStatus)
+					assert.Greater(t, after.NextCheckAt, common.GetTimestamp())
+					if legacyRejected {
+						assert.Equal(t, "rejected", after.CancellationState)
+					}
+					response["paymentStatus"], response["paymentId"] = "SUCCESS", "payment-"+trade
+					require.NoError(t, service.ReconcileAntomOrder(context.Background(), trade))
+					after, _, err = model.GetAntomOrder(trade)
+					require.NoError(t, err)
+					assert.Equal(t, "success", after.Status)
+				}
 			})
 
 			// A foreign owner cannot access the session; a browser event cannot forge a callback.

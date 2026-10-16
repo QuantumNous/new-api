@@ -25,6 +25,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/paymentsecret"
 	"github.com/shopspring/decimal"
+	"gorm.io/gorm"
 )
 
 var antomRegions = map[string]string{"SG": "https://open-sea-global.alipay.com", "US": "https://open-na-global.alipay.com", "DE": "https://open-de-global.alipay.com"}
@@ -216,16 +217,25 @@ func CallAntom(ctx context.Context, c *model.AntomConfig, action string, payload
 }
 func AntomCheckout(o *model.AntomOrder, c *model.AntomConfig) map[string]any {
 	link := ""
-	if o.Status == "pending" && o.GatewayStatus != "CANCEL_REQUESTED" && o.ExpiresAt > common.GetTimestamp() {
+	if !o.ReviewRequired && o.Status == "pending" && o.GatewayStatus != "CANCEL_REQUESTED" && o.CancellationState == "" && o.ExpiresAt > common.GetTimestamp() {
 		link = "/payment/antom/" + o.TradeNo
 	}
-	return map[string]any{"payment_provider": "antom", "trade_no": o.TradeNo, "amount": o.Amount, "currency": "USD", "status": o.Status, "gateway_status": o.GatewayStatus, "expires_at": o.ExpiresAt, "pay_link": link, "review_required": model.DirectSubscriptionReviewRequired(o.TradeNo), "creation_state": "ready", "sandbox": c.Sandbox}
+	return map[string]any{"payment_provider": "antom", "trade_no": o.TradeNo, "amount": o.Amount, "currency": "USD", "status": o.Status, "gateway_status": o.GatewayStatus, "closure_confirmed": o.ClosureConfirmed(), "expires_at": o.ExpiresAt, "pay_link": link, "review_required": o.ReviewRequired || model.DirectSubscriptionReviewRequired(o.TradeNo), "creation_state": "ready", "sandbox": c.Sandbox}
 }
 func CreateAntomSession(ctx context.Context, o *model.AntomOrder, c *model.AntomConfig, clientIP string) (string, error) {
 	if net.ParseIP(clientIP) == nil {
 		return "", errors.New("invalid buyer IP address")
 	}
-	if o.Status != "pending" || o.GatewayStatus == "CANCEL_REQUESTED" || o.ExpiresAt <= common.GetTimestamp() {
+	if o.ReviewRequired || o.Status != "pending" || o.GatewayStatus == "CANCEL_REQUESTED" || o.CancellationState != "" || o.ExpiresAt <= common.GetTimestamp() {
+		return "", errors.New("Antom payment window has ended")
+	}
+	// Recheck persisted state as callers may hold a snapshot from before cancellation.
+	available := model.DB.Model(&model.AntomOrder{}).Where("id = ? AND status = ? AND COALESCE(cancellation_state, '') = '' AND COALESCE(gateway_status, '') <> ?", o.ID, "pending", "CANCEL_REQUESTED").Where("COALESCE(review_required, ?) = ?", false, false).Session(&gorm.Session{})
+	var count int64
+	if err := available.Where("expires_at > ?", common.GetTimestamp()).Count(&count).Error; err != nil {
+		return "", err
+	}
+	if count != 1 {
 		return "", errors.New("Antom payment window has ended")
 	}
 	ring, err := paymentsecret.Load()
@@ -250,8 +260,12 @@ func CreateAntomSession(ctx context.Context, o *model.AntomOrder, c *model.Antom
 	}
 	amount := AntomAmount{Currency: "USD", Value: value.Mul(decimal.NewFromInt(100)).StringFixed(0)}
 	// Reconcile ambiguous network failures even when no session response arrives.
-	if err := model.DB.Model(o).Where("status = ?", "pending").Update("next_check_at", common.GetTimestamp()+60).Error; err != nil {
-		return "", err
+	scheduled := available.Where("expires_at > ?", common.GetTimestamp()).Update("next_check_at", common.GetTimestamp()+60)
+	if scheduled.Error != nil {
+		return "", scheduled.Error
+	}
+	if scheduled.RowsAffected != 1 {
+		return "", errors.New("Antom payment window has ended")
 	}
 	returnURL, err := url.Parse(c.ReturnURL)
 	if err != nil {
@@ -292,21 +306,61 @@ func CreateAntomSession(ctx context.Context, o *model.AntomOrder, c *model.Antom
 	if err != nil {
 		return "", err
 	}
-	err = model.DB.Model(o).Where("status = ?", "pending").Updates(map[string]any{"session_ciphertext": sealed, "session_id": response.SessionID, "next_check_at": common.GetTimestamp() + 30}).Error
-	return response.NormalURL, err
+	// Cancellation, a verified payment, or expiry during the upstream request
+	// takes precedence. Never return a newly created URL after losing this race.
+	saved := available.Where("expires_at > ?", common.GetTimestamp()).Updates(map[string]any{"session_ciphertext": sealed, "session_id": response.SessionID, "next_check_at": common.GetTimestamp() + 30})
+	if saved.Error != nil {
+		return "", saved.Error
+	}
+	if saved.RowsAffected != 1 {
+		return "", errors.New("Antom payment window has ended")
+	}
+	return response.NormalURL, nil
 }
+
+// RecheckAntomOrder verifies current gateway evidence even after fulfillment.
+func RecheckAntomOrder(ctx context.Context, trade string) error {
+	return reconcileAntomOrder(ctx, trade, true)
+}
+
 func ReconcileAntomOrder(ctx context.Context, trade string) error {
+	return reconcileAntomOrder(ctx, trade, false)
+}
+
+func reconcileAntomOrder(ctx context.Context, trade string, verifyCompleted bool) error {
 	o, c, err := model.GetAntomOrder(trade)
 	if err != nil {
 		return err
 	}
-	if o.Status == "paid" || o.Status == "success" {
-		return model.CompleteAntomOrder(trade)
+	if !verifyCompleted && (o.Status == "paid" || o.Status == "success") {
+		err := model.CompleteAntomOrder(trade)
+		if err != nil {
+			// Completion may reset the schedule before a cache or audit write fails.
+			// Persist backoff for fulfillment failures as well as gateway failures.
+			err = errors.Join(err, model.DB.Model(o).Update("next_check_at", common.GetTimestamp()+120).Error)
+		}
+		return err
 	}
-	if o.Status != "pending" {
+	if !o.PaymentUnresolved() && o.Status != "paid" && o.Status != "success" {
 		return nil
 	}
-	if o.GatewayStatus == "CANCEL_REQUESTED" {
+	if o.Status == "pending" && o.ExpiresAt <= common.GetTimestamp() {
+		if err := model.ExpireAntomOrder(o.ID); err != nil {
+			return err
+		}
+	}
+	// Recover cancellations rejected by versions that stopped polling permanently.
+	if o.CancellationState == "" && o.GatewayStatus == "CANCEL_REQUESTED" && o.LastError == "cancellation_rejected" {
+		updated := model.DB.Model(o).Where("status IN ? AND gateway_status = ? AND last_error = ? AND (cancellation_state IS NULL OR cancellation_state = '')", []string{"pending", "expired"}, "CANCEL_REQUESTED", "cancellation_rejected").Updates(map[string]any{"cancellation_state": "rejected", "gateway_status": "CANCEL_REJECTED", "next_check_at": common.GetTimestamp()})
+		if updated.Error != nil {
+			return updated.Error
+		}
+		if updated.RowsAffected == 0 {
+			return nil
+		}
+		o.CancellationState, o.GatewayStatus = "rejected", "CANCEL_REJECTED"
+	}
+	if o.CancellationState == "requested" || (o.CancellationState == "" && o.GatewayStatus == "CANCEL_REQUESTED") {
 		_, err := CancelAntomOrder(ctx, o.TradeNo)
 		return err
 	}
@@ -339,15 +393,14 @@ func ReconcileAntomOrder(ctx context.Context, trade string) error {
 			}
 		}
 	}
+	confirmedRefund := false
 	if status == "SUCCESS" {
 		if !antomID.MatchString(response.PaymentID) {
-			err = errors.New("invalid Antom payment ID")
-			status = "QUERY_FAILED"
+			return errors.New("invalid Antom payment ID")
 		}
 		for _, transaction := range response.Transactions {
 			if transaction.Type == "REFUND" && transaction.Status == "SUCCESS" {
-				status = "REFUNDED"
-				err = errors.New("Antom payment was refunded")
+				confirmedRefund = true
 			}
 			if transaction.Type == "CAPTURE" && (transaction.Status != "SUCCESS" || transaction.Amount != response.PaymentAmount) {
 				status = "CAPTURE_PENDING"
@@ -355,15 +408,47 @@ func ReconcileAntomOrder(ctx context.Context, trade string) error {
 			}
 		}
 	}
+	verifiedReceipt := o.Status == "paid" || o.Status == "success"
+	if verifiedReceipt && status != "QUERY_FAILED" && status != "ORDER_NOT_EXIST" && (o.ProviderTradeNo == nil || response.PaymentID != *o.ProviderTradeNo) {
+		return errors.New("Antom payment identity mismatch")
+	}
+	if confirmedRefund {
+		status = "REFUNDED"
+		err = model.ErrPaymentReviewRequired
+	}
+	if confirmedRefund || (verifiedReceipt && (status == "FAIL" || status == "CANCELLED")) {
+		if saveErr := model.DB.Model(o).Updates(map[string]any{"review_required": true, "gateway_status": status, "checked_at": common.GetTimestamp(), "last_error": "manual_review_required", "next_check_at": 0}).Error; saveErr != nil {
+			return saveErr
+		}
+		return model.ErrPaymentReviewRequired
+	}
 	if status == "SUCCESS" && err == nil {
 		if err = model.RecordAntomPayment(o, response.PaymentID); err != nil {
 			return err
 		}
-		return model.CompleteAntomOrder(trade)
+		if o.ReviewRequired {
+			return model.ErrPaymentReviewRequired
+		}
+		if err := model.DB.Model(o).Updates(map[string]any{"checked_at": common.GetTimestamp(), "gateway_status": "SUCCESS", "last_error": ""}).Error; err != nil {
+			return err
+		}
+		if err := model.CompleteAntomOrder(trade); err != nil {
+			return errors.Join(ErrPaymentFulfillmentPending, err)
+		}
+		return nil
+	}
+	if verifiedReceipt {
+		if err == nil {
+			err = errors.New("Antom no longer confirms the verified payment")
+		}
+		if saveErr := model.DB.Model(o).Updates(map[string]any{"checked_at": common.GetTimestamp(), "last_error": "verification_failed"}).Error; saveErr != nil {
+			return saveErr
+		}
+		return err
 	}
 	next := common.GetTimestamp() + 60
 	if o.CreatedAt < common.GetTimestamp()-72*3600 {
-		next = 0
+		next = common.GetTimestamp() + 3600
 	}
 	updates := map[string]any{"gateway_status": status, "checked_at": common.GetTimestamp(), "next_check_at": next, "last_error": ""}
 	if err != nil {
@@ -372,14 +457,15 @@ func ReconcileAntomOrder(ctx context.Context, trade string) error {
 	if status == "FAIL" || status == "CANCELLED" {
 		return model.CloseAntomOrder(o.ID, status)
 	}
-	if saveErr := model.DB.Model(o).Where("status = ? AND gateway_status <> ?", "pending", "CANCEL_REQUESTED").Updates(updates).Error; saveErr != nil {
+	if saveErr := model.DB.Model(o).Where("status IN ? AND (cancellation_state IS NULL OR cancellation_state <> ?) AND COALESCE(gateway_status, '') NOT IN ?", []string{"pending", "expired"}, "requested", []string{"CANCEL_REQUESTED", "FAIL", "CANCELLED"}).Updates(updates).Error; saveErr != nil {
 		return saveErr
 	}
 	return err
 }
 func RunAntomReconciliation(ctx context.Context) error {
 	var orders []model.AntomOrder
-	if err := model.DB.WithContext(ctx).Where("(status = ? AND next_check_at > 0 AND next_check_at <= ?) OR status = ? OR cache_pending = ? OR log_pending = ?", "pending", common.GetTimestamp(), "paid", true, true).Order("next_check_at, id").Limit(100).Find(&orders).Error; err != nil {
+	reviewOrders := model.DB.Model(&model.SubscriptionOrder{}).Select("trade_no").Where("status = ?", model.SubscriptionOrderPaidReview)
+	if err := model.DB.WithContext(ctx).Where("(status IN ? OR (status = ? AND COALESCE(gateway_status, '') NOT IN ?) OR cache_pending = ? OR log_pending = ?) AND COALESCE(next_check_at, 0) <= ?", []string{"pending", "paid"}, "expired", []string{"FAIL", "CANCELLED"}, true, true, common.GetTimestamp()).Where("trade_no NOT IN (?)", reviewOrders).Where("COALESCE(review_required, ?) = ? OR status = ?", false, false, "success").Order("next_check_at, id").Limit(100).Find(&orders).Error; err != nil {
 		return err
 	}
 	var result error
@@ -388,7 +474,7 @@ func RunAntomReconciliation(ctx context.Context) error {
 			return ctx.Err()
 		}
 		// CAS prevents multiple workers from querying one order at the same time.
-		claimed := model.DB.Model(&model.AntomOrder{}).Where("id = ? AND next_check_at = ?", o.ID, o.NextCheckAt).Update("next_check_at", common.GetTimestamp()+120)
+		claimed := model.DB.Model(&model.AntomOrder{}).Where("id = ? AND COALESCE(next_check_at, 0) = ?", o.ID, o.NextCheckAt).Update("next_check_at", common.GetTimestamp()+120)
 		if claimed.Error != nil {
 			return claimed.Error
 		}
@@ -403,7 +489,8 @@ func RunAntomReconciliation(ctx context.Context) error {
 }
 
 // Cancellation intent fences fulfillment before contacting the gateway. Unknown
-// results retain the fence across restarts; a rejection requires explicit review before further attempts.
+// results retain the fence across restarts; a definitive rejection resumes inquiry
+// while retaining cancellation intent so checkout cannot be reopened.
 func CancelAntomOrder(ctx context.Context, trade string) (string, error) {
 	o, c, err := model.GetAntomOrder(trade)
 	if err != nil {
@@ -412,32 +499,38 @@ func CancelAntomOrder(ctx context.Context, trade string) (string, error) {
 	if o.Status == "success" {
 		return "paid", nil
 	}
-	if o.Status == "expired" {
+	if o.ClosureConfirmed() {
 		return "closed", nil
 	}
-	if o.Status != "pending" {
+	if !o.PaymentUnresolved() {
 		return "", errors.New("Antom payment already received; cancellation requires manual review")
 	}
-	if err := model.RequestAntomCancellation(o.ID); err != nil {
+	token, err := model.RequestAntomCancellation(o.ID)
+	if err != nil {
 		return "", err
 	}
+	if token == "" {
+		return "closing", nil
+	}
+	// Bound the HTTP call well inside the durable lease.
+	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
 	response, err := CallAntom(ctx, c, "cancel", map[string]string{"paymentRequestId": trade})
 	if err != nil {
+		return "closing", errors.Join(err, model.FinishAntomCancellation(o.ID, token, "", ""))
+	}
+	if (response.PaymentRequestID != "" && response.PaymentRequestID != trade) ||
+		(response.Result.Status == "S" && response.PaymentRequestID != trade) ||
+		!antomID.MatchString(response.Result.Code) {
+		return "closing", errors.Join(errors.New("invalid Antom cancellation result"), model.FinishAntomCancellation(o.ID, token, "", ""))
+	}
+	if err := model.FinishAntomCancellation(o.ID, token, response.Result.Status, response.Result.Code); err != nil {
 		return "closing", err
 	}
-	if response.PaymentRequestID != "" && response.PaymentRequestID != trade {
-		return "closing", errors.New("Antom cancellation identity mismatch")
-	}
 	if response.Result.Status == "S" && response.Result.Code == "SUCCESS" {
-		if err := model.CloseAntomOrder(o.ID, "CANCELLED"); err != nil {
-			return "closing", err
-		}
 		return "closed", nil
 	}
 	if response.Result.Status == "F" {
-		if err := model.DB.Model(o).Where("status = ? AND gateway_status = ?", "pending", "CANCEL_REQUESTED").Updates(map[string]any{"last_error": "cancellation_rejected", "next_check_at": 0}).Error; err != nil {
-			return "", err
-		}
 		return "", fmt.Errorf("Antom cancellation rejected (%s)", response.Result.Code)
 	}
 	return "closing", nil

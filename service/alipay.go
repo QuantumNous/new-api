@@ -180,7 +180,17 @@ func VerifyAlipayNotification(config *model.AlipayConfig, values url.Values) (*a
 	return notification, nil
 }
 
-func ReconcileAlipayOrder(ctx context.Context, tradeNo string) (resultErr error) {
+// RecheckAlipayOrder queries the gateway even after local fulfillment, so manual
+// verification can detect reversals without crediting or debiting funds again.
+func RecheckAlipayOrder(ctx context.Context, tradeNo string) error {
+	return reconcileAlipayOrder(ctx, tradeNo, true)
+}
+
+func ReconcileAlipayOrder(ctx context.Context, tradeNo string) error {
+	return reconcileAlipayOrder(ctx, tradeNo, false)
+}
+
+func reconcileAlipayOrder(ctx context.Context, tradeNo string, verifyCompleted bool) (resultErr error) {
 	order, config, err := model.GetAlipayOrder(tradeNo)
 	if err != nil {
 		return err
@@ -194,12 +204,14 @@ func ReconcileAlipayOrder(ctx context.Context, tradeNo string) (resultErr error)
 		}
 	}
 	if order.Status == common.TopUpStatusSuccess {
-		return model.SyncAlipayQuotaCache(order)
+		if err := model.SyncAlipayQuotaCache(order); err != nil || !verifyCompleted {
+			return err
+		}
 	}
-	if order.Status == "paid" {
+	if order.Status == "paid" && !verifyCompleted {
 		return model.CompleteAlipayTopUp(tradeNo)
 	}
-	if order.Status != common.TopUpStatusPending && order.Status != common.TopUpStatusExpired {
+	if order.Status != common.TopUpStatusPending && order.Status != common.TopUpStatusExpired && order.Status != common.TopUpStatusSuccess && order.Status != "paid" {
 		return nil
 	}
 	client, err := AlipayClient(config)
@@ -217,6 +229,9 @@ func ReconcileAlipayOrder(ctx context.Context, tradeNo string) (resultErr error)
 		// Previously issued links remain usable until their absolute expiry.
 		// Retain an unseen trade after a short clock-skew grace.
 		if rsp.SubCode == "ACQ.TRADE_NOT_EXIST" {
+			if order.Status == common.TopUpStatusSuccess || order.Status == "paid" {
+				return errors.New("verified payment missing at gateway")
+			}
 			if err := model.DB.Model(&model.AlipayOrder{}).Where("id = ?", order.ID).Update("gateway_status", "NOT_FOUND").Error; err != nil {
 				return err
 			}
@@ -234,15 +249,29 @@ func ReconcileAlipayOrder(ctx context.Context, tradeNo string) (resultErr error)
 	if err != nil || fen != order.AmountFen {
 		return errors.New("Alipay amount mismatch")
 	}
+	if (order.Status == common.TopUpStatusSuccess || order.Status == "paid") && (order.ProviderTradeNo == nil || rsp.TradeNo != *order.ProviderTradeNo) {
+		return errors.New("Alipay transaction mismatch")
+	}
 	if err := model.DB.Model(&model.AlipayOrder{}).Where("id = ?", order.ID).Update("gateway_status", string(rsp.TradeStatus)).Error; err != nil {
 		return err
+	}
+	// Never interpret a previously credited payment as an unpaid close. A
+	// verified reversal or inconsistent gateway state requires financial review.
+	if (order.Status == common.TopUpStatusSuccess || order.Status == "paid") && (rsp.TradeStatus != alipay.TradeStatusSuccess && rsp.TradeStatus != alipay.TradeStatusFinished) {
+		if err := model.DB.Model(&model.AlipayOrder{}).Where("id = ?", order.ID).Update("review_required", true).Error; err != nil {
+			return err
+		}
+		return model.ErrPaymentReviewRequired
 	}
 	switch rsp.TradeStatus {
 	case alipay.TradeStatusSuccess, alipay.TradeStatusFinished:
 		if err := model.RecordAlipayPayment(tradeNo, rsp.TradeNo, fen); err != nil {
 			return err
 		}
-		return model.CompleteAlipayTopUp(tradeNo)
+		if err := model.CompleteAlipayTopUp(tradeNo); err != nil {
+			return errors.Join(ErrPaymentFulfillmentPending, err)
+		}
+		return nil
 	case alipay.TradeStatusClosed:
 		// TRADE_CLOSED also represents a full refund. Never erase payment evidence.
 		paid, amountErr := decimal.NewFromString(rsp.BuyerPayAmount)
@@ -253,6 +282,17 @@ func ReconcileAlipayOrder(ctx context.Context, tradeNo string) (resultErr error)
 			return model.ErrPaymentReviewRequired
 		}
 		if order.ClosedAt == 0 {
+			// A previous close response may have been lost. Ask the close API
+			// for affirmative evidence instead of inferring "unpaid" from
+			// TRADE_CLOSED, which can also mean a fully refunded payment.
+			closed, closeErr := client.TradeClose(ctx, alipay.TradeClose{OutTradeNo: tradeNo})
+			if closeErr == nil && closed != nil && closed.Code == alipay.CodeSuccess && closed.OutTradeNo == tradeNo {
+				return model.ConfirmDirectOrderClosed(tradeNo, model.PaymentProviderAlipay)
+			}
+			if closeErr != nil || closed == nil || closed.Code == alipay.CodeUnknowError || closed.Code == alipay.CodeCallLimited {
+				return errors.New("支付宝关单尚未确认")
+			}
+			// A definitive rejection does not prove whether this was refunded.
 			if err := model.DB.Model(&model.AlipayOrder{}).Where("id = ?", order.ID).Update("review_required", true).Error; err != nil {
 				return err
 			}

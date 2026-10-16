@@ -29,14 +29,21 @@ export function OrderStatus(props: { order: SiteOrder }) {
     paid: t('Paid, awaiting credit'),
     paid_review: t('Paid, awaiting manual review'),
     success: t('Completed'),
-    expired: t('Closed'),
+    expired:
+      props.order.close_reason === 'local_expiry' ||
+      props.order.payment_provider === 'webmoney'
+        ? t('Expired')
+        : t('Closed'),
     failed: t('Failed'),
   }
   if (
     props.order.order_status === 'pending' &&
     (props.order.cancel_requested || props.order.close_requested_at)
   ) {
-    labels.pending = t('Closing order')
+    labels.pending =
+      props.order.cancellation_state === 'rejected'
+        ? t('Cancellation rejected')
+        : t('Closing order')
   }
   let variant: 'success' | 'warning' | 'danger' = 'warning'
   if (props.order.order_status === 'success') variant = 'success'

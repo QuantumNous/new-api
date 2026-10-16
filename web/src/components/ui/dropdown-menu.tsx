@@ -21,6 +21,7 @@ import { ArrowRight01Icon, Tick02Icon } from '@hugeicons/core-free-icons'
 import { HugeiconsIcon } from '@hugeicons/react'
 import * as React from 'react'
 
+import { SurfaceThemeContext } from '@/context/surface-theme-context'
 import { cn } from '@/lib/utils'
 
 import {
@@ -52,10 +53,11 @@ function DropdownMenuContent({
     MenuPrimitive.Positioner.Props,
     'align' | 'alignOffset' | 'side' | 'sideOffset'
   >) {
+  const surfaceTheme = React.useContext(SurfaceThemeContext)
   return (
     <MenuPrimitive.Portal>
       <MenuPrimitive.Positioner
-        className='isolate z-50 outline-none'
+        className={cn('isolate z-50 outline-none', surfaceTheme)}
         align={align}
         alignOffset={alignOffset}
         side={side}

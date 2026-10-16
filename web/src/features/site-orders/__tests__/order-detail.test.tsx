@@ -33,6 +33,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { SiteOrders } from '..'
 import type { SiteOrder } from '../api'
 import { OrderDetail } from '../order-detail'
+import { OrderStatus } from '../order-status'
 
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 const order: SiteOrder = {
@@ -76,6 +77,36 @@ function showOrder() {
   )
 }
 describe('Site order detail', () => {
+  test('root can record a review outcome without clearing the payment hold', async () => {
+    vi.mocked(api.get).mockResolvedValue({
+      data: { success: true, data: { ...order, review_required: true } },
+    })
+    vi.mocked(api.post).mockResolvedValue({ data: { success: true } })
+    showOrder()
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Record review outcome' })
+    )
+    const dialog = await screen.findByRole('alertdialog')
+    expect(
+      within(dialog).getByText(
+        'Record the investigation or external refund outcome. This does not change balances, subscriptions or the payment hold.'
+      )
+    ).toBeVisible()
+    await userEvent.type(
+      within(dialog).getByLabelText('Review outcome'),
+      'Refund handled externally'
+    )
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Record review outcome' })
+    )
+    await waitFor(() =>
+      expect(api.post).toHaveBeenCalledWith('/api/user/orders/1/review', {
+        note: 'Refund handled externally',
+      })
+    )
+    expect(await screen.findByText('Review outcome recorded.')).toBeVisible()
+  })
+
   test('held subscription payment is shown as paid awaiting review, not completed', async () => {
     vi.mocked(api.get).mockResolvedValue({
       data: {
@@ -328,7 +359,7 @@ test('failed order displays a translated failure status', async () => {
   expect(await screen.findByText('Failed')).toBeVisible()
 })
 
-test('MixPay admin detail offers server verification and recovery without claiming a pending payment was received', async () => {
+test('MixPay admin detail offers server verification and review notes while holding recovery without claiming a pending payment was received', async () => {
   vi.mocked(api.get).mockResolvedValue({
     data: {
       success: true,
@@ -358,24 +389,11 @@ test('MixPay admin detail offers server verification and recovery without claimi
   await waitFor(() =>
     expect(api.post).toHaveBeenCalledWith('/api/user/orders/1/recheck')
   )
-  await userEvent.click(
-    screen.getByRole('button', { name: 'Verify and recover order' })
-  )
-  const dialog = await screen.findByRole('alertdialog')
-  await userEvent.type(
-    within(dialog).getByLabelText('Recovery reason'),
-    'Verify missing payment'
-  )
-  await userEvent.click(
-    within(dialog).getByRole('button', { name: 'Verify and recover order' })
-  )
-  await waitFor(() =>
-    expect(api.post).toHaveBeenCalledWith('/api/user/orders/1/recover', {
-      reason: 'Verify missing payment',
-    })
-  )
   expect(
-    await screen.findByText('The payment provider has not confirmed payment.')
+    screen.queryByRole('button', { name: 'Verify and recover order' })
+  ).not.toBeInTheDocument()
+  expect(
+    screen.getByRole('button', { name: 'Record review outcome' })
   ).toBeVisible()
 })
 
@@ -412,13 +430,118 @@ test('WebMoney admin detail enables X18 verification and recovery', async () => 
 })
 
 test('personal Antom orders offer server recheck and confirmed cancellation even after checkout expiry', async () => {
-  vi.mocked(api.get).mockResolvedValue({data:{success:true,data:{...order,payment_provider:'antom',payment_method:'antom',order_status:'pending',gateway_status:'PROCESSING'}}})
-  vi.mocked(api.post).mockResolvedValue({data:{success:true,data:{status:'closed'}}})
-  render(<QueryClientProvider client={client}><OrderDetail id={1} scope='personal' onClose={() => {}} /></QueryClientProvider>)
-  await userEvent.click(await screen.findByRole('button',{name:'Check payment result'}))
-  expect(api.post).toHaveBeenCalledWith('/api/user/self/orders/1/recheck',{})
-  await userEvent.click(screen.getByRole('button',{name:'Cancel order'}))
+  vi.mocked(api.get).mockResolvedValue({
+    data: {
+      success: true,
+      data: {
+        ...order,
+        payment_provider: 'antom',
+        payment_method: 'antom',
+        order_status: 'pending',
+        gateway_status: 'PROCESSING',
+      },
+    },
+  })
+  vi.mocked(api.post).mockResolvedValue({
+    data: { success: true, data: { status: 'closed' } },
+  })
+  render(
+    <QueryClientProvider client={client}>
+      <OrderDetail id={1} scope='personal' onClose={() => {}} />
+    </QueryClientProvider>
+  )
+  await userEvent.click(
+    await screen.findByRole('button', { name: 'Check payment result' })
+  )
+  expect(api.post).toHaveBeenCalledWith('/api/user/self/orders/1/recheck', {})
+  await userEvent.click(screen.getByRole('button', { name: 'Cancel order' }))
   const dialog = await screen.findByRole('alertdialog')
-  await userEvent.click(within(dialog).getByRole('button',{name:'Cancel order'}))
-  await waitFor(() => expect(api.post).toHaveBeenCalledWith('/api/user/self/orders/1/cancel',{}))
+  await userEvent.click(
+    within(dialog).getByRole('button', { name: 'Cancel order' })
+  )
+  await waitFor(() =>
+    expect(api.post).toHaveBeenCalledWith('/api/user/self/orders/1/cancel', {})
+  )
+})
+
+test('WebMoney local expiry is not presented as provider-confirmed closure', () => {
+  render(
+    <OrderStatus
+      order={{
+        ...order,
+        payment_provider: 'webmoney',
+        order_status: 'expired',
+        close_reason: 'local_expiry',
+        last_error: '',
+      }}
+    />
+  )
+  expect(screen.getByText('Expired')).toBeVisible()
+  expect(screen.queryByText('Closed')).not.toBeInTheDocument()
+})
+
+test('rejected Antom cancellation is not shown as still closing', () => {
+  render(
+    <OrderStatus
+      order={{
+        ...order,
+        payment_provider: 'antom',
+        order_status: 'pending',
+        cancel_requested: true,
+        cancellation_state: 'rejected',
+      }}
+    />
+  )
+  expect(screen.getByText('Cancellation rejected')).toBeVisible()
+  expect(screen.queryByText('Closing order')).not.toBeInTheDocument()
+})
+
+test('completed Antom payment remains completed after an earlier rejected cancellation', () => {
+  render(
+    <OrderStatus
+      order={{
+        ...order,
+        payment_provider: 'antom',
+        order_status: 'success',
+        cancel_requested: true,
+        cancellation_state: 'rejected',
+      }}
+    />
+  )
+  expect(screen.getByText('Completed')).toBeVisible()
+  expect(screen.queryByText('Cancellation rejected')).not.toBeInTheDocument()
+})
+
+test('locally expired Antom order is not presented as provider-confirmed closure', () => {
+  render(
+    <OrderStatus
+      order={{
+        ...order,
+        payment_provider: 'antom',
+        order_status: 'expired',
+        close_reason: 'local_expiry',
+      }}
+    />
+  )
+  expect(screen.getByText('Expired')).toBeVisible()
+  expect(screen.queryByText('Closed')).not.toBeInTheDocument()
+})
+
+test('locally expired Antom order still offers provider cancellation in details', async () => {
+  vi.mocked(api.get).mockResolvedValue({
+    data: {
+      success: true,
+      data: {
+        ...order,
+        payment_provider: 'antom',
+        order_status: 'expired',
+        close_reason: 'local_expiry',
+        cancel_requested: false,
+      },
+    },
+  })
+  showOrder()
+  expect(
+    await screen.findByRole('button', { name: 'Cancel order' })
+  ).toBeVisible()
 })

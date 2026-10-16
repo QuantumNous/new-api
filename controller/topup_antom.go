@@ -204,15 +204,47 @@ func AntomNotify(c *gin.Context) {
 		return
 	}
 	var notify struct {
-		Type      string `json:"notifyType"`
-		RequestID string `json:"paymentRequestId"`
+		Type         string `json:"notifyType"`
+		RequestID    string `json:"paymentRequestId"`
+		RefundStatus string `json:"refundStatus"`
 	}
-	if common.Unmarshal(body, &notify) != nil || (notify.Type != "PAYMENT_RESULT" && notify.Type != "CAPTURE_RESULT") || (notify.RequestID != "" && notify.RequestID != o.TradeNo) {
+	if common.Unmarshal(body, &notify) != nil || (notify.Type != "PAYMENT_RESULT" && notify.Type != "CAPTURE_RESULT" && notify.Type != "REFUND_RESULT") || (notify.RequestID != "" && notify.RequestID != o.TradeNo) {
 		c.AbortWithStatus(400)
 		return
 	}
+	// Refunds and changes to a received payment need a fresh inquiry: the normal
+	// fulfillment worker intentionally skips gateway queries for completed orders.
+	// A failed inquiry is not acknowledged so Antom can retry the notification.
+	if notify.Type == "REFUND_RESULT" || o.Status == "paid" || o.Status == "success" {
+		if notify.Type == "REFUND_RESULT" && notify.RefundStatus == "SUCCESS" {
+			// A verified refund notification fences fulfillment while inquiry catches
+			// up. It never debits a wallet or replaces the verified gateway result.
+			if err = model.DB.Model(o).Updates(map[string]any{"review_required": true, "last_error": "manual_review_required"}).Error; err != nil {
+				c.AbortWithStatus(http.StatusServiceUnavailable)
+				return
+			}
+		}
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
+		defer cancel()
+		err = service.RecheckAntomOrder(ctx, o.TradeNo)
+		if err != nil && !errors.Is(err, model.ErrPaymentReviewRequired) {
+			c.AbortWithStatus(http.StatusServiceUnavailable)
+			return
+		}
+		if notify.Type == "REFUND_RESULT" && notify.RefundStatus == "SUCCESS" {
+			verified, _, readErr := model.GetAntomOrder(o.TradeNo)
+			if readErr != nil || verified.GatewayStatus != "REFUNDED" {
+				// Notification and inquiry can become visible at different times.
+				// Keep retrying rather than lose a refund behind a stale success result.
+				c.AbortWithStatus(http.StatusServiceUnavailable)
+				return
+			}
+		}
+		c.JSON(200, gin.H{"result": gin.H{"resultCode": "SUCCESS", "resultStatus": "S", "resultMessage": "success."}})
+		return
+	}
 	// Signed notifications only wake an authoritative query. Never credit based on a client event.
-	if err = model.DB.Model(o).Where("status = ?", "pending").Update("next_check_at", common.GetTimestamp()).Error; err != nil {
+	if err = model.DB.Model(o).Where("status IN ? AND COALESCE(gateway_status, '') NOT IN ?", []string{"pending", "expired"}, []string{"FAIL", "CANCELLED"}).Update("next_check_at", common.GetTimestamp()).Error; err != nil {
 		c.AbortWithStatus(503)
 		return
 	}
@@ -256,7 +288,7 @@ func RecheckAntomOrder(c *gin.Context) {
 		return
 	}
 	// Repeated return-page requests share the recently verified result.
-	if o.Status == "paid" || (o.Status == "pending" && o.CheckedAt <= common.GetTimestamp()-5) {
+	if o.Status == "paid" || (o.PaymentUnresolved() && o.CheckedAt <= common.GetTimestamp()-5) {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 15*time.Second)
 		defer cancel()
 		if err = service.ReconcileAntomOrder(ctx, trade); err != nil {

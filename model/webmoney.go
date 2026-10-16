@@ -66,6 +66,10 @@ func CurrentWebMoneyConfig() (*WebMoneyConfig, error) {
 }
 
 type WebMoneyOrder struct {
+	ReviewRequired  bool    `json:"review_required"`
+	CheckedAt       int64   `json:"checked_at"`
+	NextCheckAt     int64   `json:"-" gorm:"index"`
+	LastError       string  `json:"-" gorm:"type:varchar(64)"`
 	ID              int64   `json:"-"`
 	TradeNo         string  `json:"trade_no" gorm:"type:varchar(64);uniqueIndex"`
 	UserID          int     `json:"-" gorm:"uniqueIndex:idx_webmoney_request,priority:1"`
@@ -118,10 +122,14 @@ func RecordWebMoneyPayment(o *WebMoneyOrder, transaction string) error {
 			}
 			return nil
 		}
-		if current.Status != "pending" {
+		if current.Status != "pending" && current.Status != "expired" {
 			return ErrTopUpStatusInvalid
 		}
-		return tx.Model(&current).Updates(map[string]any{"status": "paid", "gateway_status": "success", "provider_trade_no": transaction}).Error
+		updates := map[string]any{"status": "paid", "next_check_at": 0, "provider_trade_no": transaction}
+		if !current.ReviewRequired {
+			updates["gateway_status"] = "success"
+		}
+		return tx.Model(&current).Updates(updates).Error
 	})
 }
 func CompleteWebMoneyOrder(trade string) error {
@@ -143,6 +151,9 @@ func CompleteWebMoneyOrder(trade string) error {
 		if o.Status == "success" {
 			return nil
 		}
+		if o.ReviewRequired {
+			return ErrPaymentReviewRequired
+		}
 		if o.Status != "paid" || o.ProviderTradeNo == nil {
 			return ErrTopUpStatusInvalid
 		}
@@ -157,7 +168,7 @@ func CompleteWebMoneyOrder(trade string) error {
 		if err := lockForUpdate(tx).Where("trade_no = ?", trade).First(&top).Error; err != nil {
 			return err
 		}
-		if top.UserId != o.UserID || top.PaymentProvider != PaymentProviderWebMoney || top.Status != "pending" || top.CompleteTime != 0 {
+		if top.UserId != o.UserID || top.PaymentProvider != PaymentProviderWebMoney || (top.Status != "pending" && top.Status != "expired") || top.CompleteTime != 0 {
 			return ErrPaymentMethodMismatch
 		}
 		if o.CreditedQuota <= 0 || user.AlipayCredit < 0 || user.AlipayCredit > common.MaxWalletQuota-int64(o.CreditedQuota) {
@@ -201,4 +212,34 @@ func CompleteWebMoneyOrder(trade string) error {
 		return DB.Model(o).Update("log_pending", false).Error
 	}
 	return nil
+}
+
+// ExpireWebMoneyOrder stops local acceptance; it is not a provider cancellation.
+// Retain the order and its scheduled checks so already-authorized payments can
+// still be recorded. Subscription fulfillment revalidates eligibility on receipt.
+func ExpireWebMoneyOrder(id int64) error {
+	var initial WebMoneyOrder
+	if err := DB.Select("id", "user_id").First(&initial, id).Error; err != nil {
+		return err
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockSubscriptionBuyer(tx, initial.UserID); err != nil {
+			return err
+		}
+		var order WebMoneyOrder
+		if err := lockForUpdate(tx).First(&order, id).Error; err != nil {
+			return err
+		}
+		if order.Status != "pending" || order.ExpiresAt > common.GetTimestamp() {
+			return nil
+		}
+		var business any = &TopUp{}
+		if strings.HasPrefix(order.TradeNo, "SUBWM") {
+			business = &SubscriptionOrder{}
+		}
+		if err := tx.Model(business).Where("trade_no = ? AND payment_provider = ? AND status = ?", order.TradeNo, PaymentProviderWebMoney, "pending").Update("status", "expired").Error; err != nil {
+			return err
+		}
+		return tx.Model(&order).Update("status", "expired").Error
+	})
 }

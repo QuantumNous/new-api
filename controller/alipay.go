@@ -221,6 +221,19 @@ func AlipayNotify(c *gin.Context) {
 		c.String(http.StatusBadRequest, "fail")
 		return
 	}
+	if notification.RefundFee != "" && notification.RefundFee != "0" && notification.RefundFee != "0.00" {
+		refundFen, parseErr := service.AlipayAmountFen(notification.RefundFee)
+		if parseErr != nil || refundFen > fen {
+			c.String(http.StatusBadRequest, "fail")
+			return
+		}
+		if err = model.HoldAlipayRefund(tradeNo, notification.TradeNo, fen, refundFen); err != nil {
+			c.String(http.StatusInternalServerError, "fail")
+			return
+		}
+		alipay.ACKNotification(c.Writer)
+		return
+	}
 	switch notification.TradeStatus {
 	case alipay.TradeStatusSuccess, alipay.TradeStatusFinished:
 		err = model.RecordAlipayPayment(tradeNo, notification.TradeNo, fen)
@@ -230,12 +243,12 @@ func AlipayNotify(c *gin.Context) {
 	case alipay.TradeStatusClosed:
 		// Query before closing: a delayed full-refund notification must never
 		// overwrite a paid order or silently deduct a user's wallet balance.
-		err = service.ReconcileAlipayOrder(c.Request.Context(), tradeNo)
+		err = service.RecheckAlipayOrder(c.Request.Context(), tradeNo)
 	case alipay.TradeStatusWaitBuyerPay:
 	default:
 		err = errors.New("unknown trade status")
 	}
-	if err != nil {
+	if err != nil && !errors.Is(err, model.ErrPaymentReviewRequired) {
 		common.SysError(fmt.Sprintf("Alipay notification order %s requires retry", tradeNo))
 		c.String(http.StatusInternalServerError, "fail")
 		return

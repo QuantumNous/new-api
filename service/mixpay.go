@@ -191,12 +191,12 @@ func reconcileMixPayOrder(ctx context.Context, trade string, manual bool) (resul
 	if !allowed {
 		return errors.New("MixPay request queued")
 	}
-	if o.CreationState == "queued" {
+	if !manual && (o.CreationState == "queued" || (o.CreationState == "recovering" && o.GatewayStatus == "unpaid" && o.Status == "pending" && !o.ReviewRequired && o.Code == "" && o.ExpiresAt > common.GetTimestamp()+10)) {
 		if common.GetTimestamp() >= o.ExpiresAt {
 			// This request was never sent. Do not fabricate an upstream failure result.
 			return model.RejectUnsentMixPayOrder(o)
 		}
-		r := model.DB.Model(&model.MixPayOrder{}).Where("id = ? AND lease_token = ? AND creation_state = ?", o.ID, o.LeaseToken, "queued").Update("creation_state", "uncertain")
+		r := model.DB.Model(&model.MixPayOrder{}).Where("id = ? AND lease_token = ? AND creation_state = ?", o.ID, o.LeaseToken, o.CreationState).Update("creation_state", "uncertain")
 		if r.Error != nil {
 			return r.Error
 		}
@@ -227,7 +227,7 @@ func reconcileMixPayOrder(ctx context.Context, trade string, manual bool) (resul
 		}
 		return model.DB.Model(&model.MixPayOrder{}).Where("id = ? AND lease_token = ? AND lease_until > ?", o.ID, o.LeaseToken, common.GetTimestamp()).Updates(map[string]any{"code": rsp.Data.Code, "creation_state": "ready"}).Error
 	}
-	// Uncertain creates are queried with their original trace, never blindly recreated.
+	// Query the original trace before retrying an uncertain checkout creation.
 	rsp, err := mixPayRequest(ctx, http.MethodGet, "payments_result?"+url.Values{"traceId": {o.TraceID}}.Encode(), nil)
 	if err != nil {
 		return err
@@ -284,6 +284,12 @@ func reconcileMixPayOrder(ctx context.Context, trade string, manual bool) (resul
 	}
 	if err := model.SaveMixPayResult(o, data.Status, data.FailureCode, data.SettleStatus, data.SettleAmount, data.SettleAsset); err != nil {
 		return err
+	}
+	// The official 2026-08-13 changelog documents idempotent one-time code
+	// creation. Retry only the unchanged frozen request, after an unpaid result,
+	// on a subsequent budgeted check. Never extend the deadline or replace traceId.
+	if !manual && !o.ReviewRequired && data.Status == "unpaid" && o.Code == "" && o.Status == "pending" && o.CreationState == "uncertain" && o.ExpiresAt > common.GetTimestamp()+10 {
+		return model.DB.Model(&model.MixPayOrder{}).Where("id = ? AND lease_token = ? AND lease_until > ? AND status = ? AND creation_state = ?", o.ID, o.LeaseToken, common.GetTimestamp(), "pending", "uncertain").Update("creation_state", "recovering").Error
 	}
 	if data.Status == "success" && !o.ReviewRequired {
 		return model.CompleteMixPayOrder(trade)

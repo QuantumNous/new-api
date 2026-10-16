@@ -185,6 +185,9 @@ func FinishMixPayCheck(o *MixPayOrder, checkErr error) error {
 		if current.WakeVersion != o.WakeVersion {
 			next = now
 		}
+		if current.Status == "pending" && current.Code == "" && (current.CreationState == "uncertain" || current.CreationState == "recovering") {
+			last = "checkout_recovery_pending"
+		}
 		if current.ReviewRequired {
 			next = now + 300
 			last = current.LastError

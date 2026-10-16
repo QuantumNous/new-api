@@ -79,6 +79,7 @@ func completeDirectSubscriptionPayment(tradeNo, provider string) error {
 			if err := lockForUpdate(tx).Where("trade_no = ?", tradeNo).First(&p).Error; err != nil {
 				return err
 			}
+			reviewRequired = p.ReviewRequired
 			payment, status, providerTradeNo, userID = &p, p.Status, p.ProviderTradeNo, p.UserID
 			receiptCurrency, receiptAmount = "USD", p.Amount
 		case PaymentProviderWebMoney:
@@ -86,6 +87,7 @@ func completeDirectSubscriptionPayment(tradeNo, provider string) error {
 			if err := lockForUpdate(tx).Where("trade_no = ?", tradeNo).First(&p).Error; err != nil {
 				return err
 			}
+			reviewRequired = p.ReviewRequired
 			payment, status, providerTradeNo, userID = &p, p.Status, p.ProviderTradeNo, p.UserID
 			receiptCurrency, receiptAmount = "WMT", p.Amount
 		default:
@@ -131,7 +133,7 @@ func completeDirectSubscriptionPayment(tradeNo, provider string) error {
 			}
 			updates := map[string]any{"review_required": true, "last_error": "subscription_conflict", "next_check_at": 0, "checked_at": common.GetTimestamp()}
 			if provider == PaymentProviderWebMoney || provider == PaymentProviderAntom {
-				updates = map[string]any{"status": "paid"}
+				updates["status"] = "paid"
 			}
 			if err := tx.Model(payment).Updates(updates).Error; err != nil {
 				return err

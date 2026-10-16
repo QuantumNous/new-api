@@ -46,7 +46,12 @@ import { formatTimestampToDate, formatNumber } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { getOrder, recheckOrder, recheckPersonalOrder, type OrderScope } from './api'
+import {
+  getOrder,
+  recheckOrder,
+  recheckPersonalOrder,
+  type OrderScope,
+} from './api'
 import { OrderStatus } from './order-status'
 import { paymentAmount } from './presentation'
 import { RecoverOrder } from './recover-order'
@@ -87,6 +92,12 @@ export function OrderDetail(props: {
   const recovering =
     useIsMutating({ mutationKey: ['site-orders', 'recover', props.id] }) > 0
   const order = query.data
+  const canCancelAntom =
+    order?.payment_provider === 'antom' &&
+    !order.cancel_requested &&
+    (order.order_status === 'pending' ||
+      (order.order_status === 'expired' &&
+        order.close_reason === 'local_expiry'))
   let transactionLabel = t('Payment transaction number')
   if (order?.payment_provider === 'alipay') {
     transactionLabel = t('Alipay transaction number')
@@ -171,6 +182,15 @@ export function OrderDetail(props: {
       user_cancelled: t('Cancelled by user'),
       expired: t('Payment window expired'),
       gateway_closed: t('Closed by payment provider'),
+      local_expiry: t(
+        'Payment time has ended. Waiting for the final payment result.'
+      ),
+    }
+    if (order.cancellation_state === 'rejected') {
+      fields.push([
+        t('Cancellation status'),
+        `${t('Cancellation rejected')}${order.cancellation_code ? ` (${order.cancellation_code})` : ''}`,
+      ])
     }
     const webMoneyStatuses: Record<string, string> = {
       '': t('Not recorded'),
@@ -280,6 +300,32 @@ export function OrderDetail(props: {
                     </div>
                   ))}
               </dl>
+              {!personal &&
+                order.reviews?.map((review) => (
+                  <div
+                    key={review.id}
+                    className='space-y-1 rounded-md border p-3'
+                  >
+                    <p className='text-muted-foreground text-xs'>
+                      {t('Review outcome')} · #{review.actor_id} ·{' '}
+                      {formatTimestampToDate(review.created_at)}
+                    </p>
+                    <p className='break-words whitespace-pre-wrap'>
+                      {review.note}
+                    </p>
+                  </div>
+                ))}
+              {!personal &&
+                role >= ROLE.SUPER_ADMIN &&
+                order.review_required && (
+                  <RecoverOrder
+                    order={order}
+                    review
+                    disabled={
+                      mutation.isPending || query.isFetching || recovering
+                    }
+                  />
+                )}
               {!personal && (
                 <p className='text-muted-foreground text-xs'>
                   {t(
@@ -288,18 +334,39 @@ export function OrderDetail(props: {
                 </p>
               )}
               {personal && order.payment_provider === 'antom' && (
-                <div className='flex flex-wrap gap-2'><Button disabled={mutation.isPending || query.isFetching} onClick={() => mutation.mutate(order.id)}>{t('Check payment result')}</Button>
-                  {order.order_status === 'pending' && !order.cancel_requested && <Button variant='outline' disabled={payment.busy} onClick={() => payment.requestCancel(order)}>{t('Cancel order')}</Button>}
+                <div className='flex flex-wrap gap-2'>
+                  <Button
+                    disabled={mutation.isPending || query.isFetching}
+                    onClick={() => mutation.mutate(order.id)}
+                  >
+                    {t('Check payment result')}
+                  </Button>
+                  {canCancelAntom && (
+                    <Button
+                      variant='outline'
+                      disabled={payment.busy}
+                      onClick={() => payment.requestCancel(order)}
+                    >
+                      {t('Cancel order')}
+                    </Button>
+                  )}
                   {payment.dialogs}
                 </div>
               )}
-              {!personal && role >= ROLE.SUPER_ADMIN && order.payment_provider === 'antom' && order.order_status === 'pending' && !order.cancel_requested && (
-                <><Button variant='outline' disabled={payment.busy} onClick={() => payment.requestCancel(order)}>{t('Cancel order')}</Button>{payment.dialogs}</>
+              {!personal && role >= ROLE.SUPER_ADMIN && canCancelAntom && (
+                <>
+                  <Button
+                    variant='outline'
+                    disabled={payment.busy}
+                    onClick={() => payment.requestCancel(order)}
+                  >
+                    {t('Cancel order')}
+                  </Button>
+                  {payment.dialogs}
+                </>
               )}
               {!personal &&
                 role >= ROLE.SUPER_ADMIN &&
-                (order.order_type !== 'subscription' ||
-                  ['mixpay', 'antom', 'webmoney'].includes(order.payment_provider)) &&
                 ['alipay', 'wechatpay', 'mixpay', 'webmoney', 'antom'].includes(
                   order.payment_provider
                 ) && (
@@ -314,11 +381,10 @@ export function OrderDetail(props: {
                 )}
               {!personal &&
                 role >= ROLE.SUPER_ADMIN &&
-                (order.order_type !== 'subscription' ||
-                  ['mixpay', 'antom', 'webmoney'].includes(order.payment_provider)) &&
                 ['alipay', 'wechatpay', 'mixpay', 'webmoney', 'antom'].includes(
                   order.payment_provider
-                ) && (
+                ) &&
+                !order.review_required && (
                   <RecoverOrder
                     order={order}
                     disabled={

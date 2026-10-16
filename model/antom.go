@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/paymentsecret"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -68,6 +69,11 @@ func CurrentAntomConfig() (*AntomConfig, error) {
 }
 
 type AntomOrder struct {
+	ReviewRequired    bool   `json:"review_required"`
+	CancellationToken string `json:"-" gorm:"type:varchar(36)"`
+	CancellationUntil int64  `json:"-"`
+	CancellationState string `json:"cancellation_state" gorm:"type:varchar(24)"`
+	CancellationCode  string `json:"cancellation_code" gorm:"type:varchar(64)"`
 	SessionCiphertext string `json:"-" gorm:"type:text"`
 	SessionID         string `json:"-" gorm:"type:varchar(64)"`
 	CheckedAt         int64  `json:"checked_at"`
@@ -111,6 +117,15 @@ func CreateAntomOrder(o *AntomOrder, top *TopUp) error {
 	})
 }
 
+// Local expiry stops checkout, but does not prove the provider stopped payment.
+func (o *AntomOrder) ClosureConfirmed() bool {
+	return o.Status == "expired" && (o.GatewayStatus == "FAIL" || o.GatewayStatus == "CANCELLED")
+}
+
+func (o *AntomOrder) PaymentUnresolved() bool {
+	return o.Status == "pending" || (o.Status == "expired" && !o.ClosureConfirmed())
+}
+
 // Called only after signature, environment, order identity and frozen amount validation.
 func RecordAntomPayment(o *AntomOrder, transaction string) error {
 	return DB.Transaction(func(tx *gorm.DB) error {
@@ -124,10 +139,10 @@ func RecordAntomPayment(o *AntomOrder, transaction string) error {
 			}
 			return nil
 		}
-		if current.Status != "pending" || current.GatewayStatus == "CANCEL_REQUESTED" {
+		if !current.PaymentUnresolved() || current.CancellationState == "requested" || (current.CancellationState == "" && current.GatewayStatus == "CANCEL_REQUESTED") {
 			return ErrTopUpStatusInvalid
 		}
-		return tx.Model(&current).Updates(map[string]any{"status": "paid", "gateway_status": "SUCCESS", "provider_trade_no": transaction, "last_error": "", "checked_at": common.GetTimestamp()}).Error
+		return tx.Model(&current).Updates(map[string]any{"status": "paid", "next_check_at": 0, "gateway_status": "SUCCESS", "provider_trade_no": transaction, "last_error": "", "checked_at": common.GetTimestamp()}).Error
 	})
 }
 func CompleteAntomOrder(trade string) error {
@@ -149,6 +164,9 @@ func CompleteAntomOrder(trade string) error {
 		if o.Status == "success" {
 			return tx.Model(&o).Update("next_check_at", 0).Error
 		}
+		if o.ReviewRequired {
+			return ErrPaymentReviewRequired
+		}
 		if o.Status != "paid" || o.ProviderTradeNo == nil {
 			return ErrTopUpStatusInvalid
 		}
@@ -163,7 +181,7 @@ func CompleteAntomOrder(trade string) error {
 		if err := lockForUpdate(tx).Where("trade_no = ?", trade).First(&top).Error; err != nil {
 			return err
 		}
-		if top.UserId != o.UserID || top.PaymentProvider != PaymentProviderAntom || top.Status != "pending" || top.CompleteTime != 0 {
+		if top.UserId != o.UserID || top.PaymentProvider != PaymentProviderAntom || (top.Status != "pending" && top.Status != "expired") || top.CompleteTime != 0 {
 			return ErrPaymentMethodMismatch
 		}
 		if o.CreditedQuota <= 0 || user.AlipayCredit < 0 || user.AlipayCredit > common.MaxWalletQuota-int64(o.CreditedQuota) {
@@ -219,30 +237,114 @@ func CloseAntomOrder(id int64, gatewayStatus string) error {
 		if err := lockForUpdate(tx).First(&o, id).Error; err != nil {
 			return err
 		}
-		if o.Status != "pending" {
-			return nil
-		}
-		var target any = &TopUp{}
-		if strings.HasPrefix(o.TradeNo, "SUBANT") {
-			target = &SubscriptionOrder{}
-		}
-		if err := tx.Model(target).Where("trade_no = ? AND payment_provider = ? AND status = ?", o.TradeNo, PaymentProviderAntom, "pending").Update("status", "expired").Error; err != nil {
-			return err
-		}
-		return tx.Model(&o).Updates(map[string]any{"status": "expired", "gateway_status": gatewayStatus, "checked_at": common.GetTimestamp(), "next_check_at": 0, "last_error": ""}).Error
+		return closeAntomOrder(tx, &o, gatewayStatus)
 	})
 }
 
-// Reserve cancellation under the same row lock as verified payment recording.
-func RequestAntomCancellation(id int64) error {
+// Caller holds the payment row lock; both query and cancellation use this transition.
+func closeAntomOrder(tx *gorm.DB, o *AntomOrder, gatewayStatus string) error {
+	if o.ReviewRequired {
+		return ErrPaymentReviewRequired
+	}
+	if !o.PaymentUnresolved() {
+		return nil
+	}
+	var target any = &TopUp{}
+	if strings.HasPrefix(o.TradeNo, "SUBANT") {
+		target = &SubscriptionOrder{}
+	}
+	if err := tx.Model(target).Where("trade_no = ? AND payment_provider = ? AND status = ?", o.TradeNo, PaymentProviderAntom, "pending").Update("status", "expired").Error; err != nil {
+		return err
+	}
+	updates := map[string]any{"status": "expired", "gateway_status": gatewayStatus, "checked_at": common.GetTimestamp(), "next_check_at": 0, "last_error": ""}
+	if gatewayStatus == "CANCELLED" {
+		updates["cancellation_state"] = "confirmed"
+		updates["cancellation_code"] = "SUCCESS"
+	}
+	return tx.Model(o).Updates(updates).Error
+}
+
+// Reserve one outbound cancellation across workers and user requests. A process
+// crash leaves an expiring lease while cancellation intent keeps fulfillment fenced.
+func RequestAntomCancellation(id int64) (string, error) {
+	token := ""
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var o AntomOrder
+		if err := lockForUpdate(tx).First(&o, id).Error; err != nil {
+			return err
+		}
+		if o.ReviewRequired {
+			return ErrPaymentReviewRequired
+		}
+		if !o.PaymentUnresolved() || o.ProviderTradeNo != nil {
+			return ErrTopUpStatusInvalid
+		}
+		if o.CancellationUntil > common.GetTimestamp() {
+			return nil
+		}
+		token = uuid.NewString()
+		return tx.Model(&o).Updates(map[string]any{"gateway_status": "CANCEL_REQUESTED", "cancellation_state": "requested", "cancellation_code": "", "cancellation_token": token, "cancellation_until": common.GetTimestamp() + 60, "next_check_at": common.GetTimestamp() + 120}).Error
+	})
+	return token, err
+}
+
+// Only the current attempt may resolve cancellation intent. A stale response must
+// not clear a newer fence or close an order after another attempt was rejected.
+func FinishAntomCancellation(id int64, token, resultStatus, resultCode string) error {
+	if token == "" {
+		return errors.New("missing Antom cancellation attempt")
+	}
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var o AntomOrder
 		if err := lockForUpdate(tx).First(&o, id).Error; err != nil {
 			return err
 		}
-		if o.Status != "pending" || o.ProviderTradeNo != nil {
+		if o.CancellationToken != token || o.CancellationUntil <= common.GetTimestamp() {
+			return errors.New("Antom cancellation attempt expired")
+		}
+		if !o.PaymentUnresolved() || o.CancellationState != "requested" {
 			return ErrTopUpStatusInvalid
 		}
-		return tx.Model(&o).Updates(map[string]any{"gateway_status": "CANCEL_REQUESTED", "next_check_at": common.GetTimestamp() + 120}).Error
+		if resultStatus == "S" && resultCode == "SUCCESS" {
+			if err := closeAntomOrder(tx, &o, "CANCELLED"); err != nil {
+				return err
+			}
+			return tx.Model(&o).Updates(map[string]any{"cancellation_token": "", "cancellation_until": 0}).Error
+		}
+		updates := map[string]any{"cancellation_token": "", "cancellation_until": 0, "last_error": "cancellation_unconfirmed", "next_check_at": common.GetTimestamp() + 120}
+		if resultStatus == "F" {
+			updates["cancellation_state"], updates["cancellation_code"] = "rejected", resultCode
+			updates["gateway_status"], updates["last_error"] = "CANCEL_REJECTED", "cancellation_rejected"
+			updates["next_check_at"] = common.GetTimestamp() + 60
+		}
+		return tx.Model(&o).Updates(updates).Error
+	})
+}
+
+// ExpireAntomOrder releases local purchase reservations without claiming gateway closure.
+func ExpireAntomOrder(id int64) error {
+	var initial AntomOrder
+	if err := DB.Select("id", "user_id").First(&initial, id).Error; err != nil {
+		return err
+	}
+	return DB.Transaction(func(tx *gorm.DB) error {
+		if err := lockSubscriptionBuyer(tx, initial.UserID); err != nil {
+			return err
+		}
+		var order AntomOrder
+		if err := lockForUpdate(tx).First(&order, id).Error; err != nil {
+			return err
+		}
+		if order.Status != "pending" || order.ExpiresAt > common.GetTimestamp() {
+			return nil
+		}
+		var business any = &TopUp{}
+		if strings.HasPrefix(order.TradeNo, "SUBANT") {
+			business = &SubscriptionOrder{}
+		}
+		if err := tx.Model(business).Where("trade_no = ? AND payment_provider = ? AND status = ?", order.TradeNo, PaymentProviderAntom, "pending").Update("status", "expired").Error; err != nil {
+			return err
+		}
+		return tx.Model(&order).Update("status", "expired").Error
 	})
 }

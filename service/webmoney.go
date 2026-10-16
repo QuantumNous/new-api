@@ -88,10 +88,16 @@ func QuoteWebMoneyOrder(c *model.WebMoneyConfig, amount int64, group string, pla
 	return money.StringFixed(2), quota, plan, nil
 }
 func WebMoneyCheckout(o *model.WebMoneyOrder, c *model.WebMoneyConfig) map[string]any {
-	data := map[string]any{"payment_provider": "webmoney", "trade_no": o.TradeNo, "amount": o.Amount, "currency": "WMT", "expires_at": o.ExpiresAt, "status": o.Status, "pay_link": "", "review_required": model.DirectSubscriptionReviewRequired(o.TradeNo), "creation_state": "ready", "gateway_status": o.GatewayStatus}
-	if o.Status == "pending" && o.ExpiresAt > common.GetTimestamp() {
+	data := map[string]any{"payment_provider": "webmoney", "trade_no": o.TradeNo, "amount": o.Amount, "currency": "WMT", "expires_at": o.ExpiresAt, "status": o.Status, "pay_link": "", "review_required": o.ReviewRequired || model.DirectSubscriptionReviewRequired(o.TradeNo), "creation_state": "ready", "gateway_status": o.GatewayStatus, "closure_confirmed": false}
+	if !o.ReviewRequired && o.Status == "pending" && o.ExpiresAt > common.GetTimestamp() {
+		returnURL, err := url.Parse(c.ReturnURL)
+		if err != nil || returnURL.Scheme != "https" || returnURL.Host == "" {
+			return data
+		}
+		returnURL.Path = "/payment/webmoney/" + o.TradeNo
+		returnURL.RawPath, returnURL.RawQuery, returnURL.Fragment = "", "", ""
 		data["pay_link"] = "https://merchant.wmtransfer.com/lmi/payment_utf.asp"
-		data["pay_params"] = map[string]string{"LMI_PAYEE_PURSE": c.Purse, "LMI_PAYMENT_AMOUNT": o.Amount, "LMI_PAYMENT_NO": strconv.FormatInt(o.ID, 10), "LMI_PAYMENT_DESC_BASE64": base64.StdEncoding.EncodeToString([]byte(c.Description)), "LMI_SUCCESS_URL": c.ReturnURL, "LMI_FAIL_URL": c.ReturnURL}
+		data["pay_params"] = map[string]string{"LMI_PAYEE_PURSE": c.Purse, "LMI_PAYMENT_AMOUNT": o.Amount, "LMI_PAYMENT_NO": strconv.FormatInt(o.ID, 10), "LMI_PAYMENT_DESC_BASE64": base64.StdEncoding.EncodeToString([]byte(c.Description)), "LMI_SUCCESS_URL": returnURL.String(), "LMI_FAIL_URL": returnURL.String(), "LMI_SUCCESS_METHOD": "0", "LMI_FAIL_METHOD": "0"}
 	}
 	return data
 }
@@ -144,46 +150,66 @@ func VerifyWebMoneyNotification(o *model.WebMoneyOrder, c *model.WebMoneyConfig,
 	return nil
 }
 
-// Durable verified evidence is retried even when the buyer closes the browser.
+// Pending payments are queried even when notifications are lost. A durable claim
+// bounds retries across workers; fulfillment remains independently idempotent.
 func RunWebMoneyReconciliation(ctx context.Context) error {
-	var lastID int64
+	var orders []model.WebMoneyOrder
+	reviewOrders := model.DB.Model(&model.SubscriptionOrder{}).Select("trade_no").Where("status = ?", model.SubscriptionOrderPaidReview)
+	if err := model.DB.WithContext(ctx).Where("(status IN ? OR cache_pending = ? OR log_pending = ?) AND COALESCE(next_check_at, 0) <= ?", []string{"pending", "expired", "paid"}, true, true, common.GetTimestamp()).Where("trade_no NOT IN (?)", reviewOrders).Where("COALESCE(review_required, ?) = ? OR status = ?", false, false, "success").Order("next_check_at, id").Limit(30).Find(&orders).Error; err != nil {
+		return err
+	}
 	var result error
-	for {
+	for _, o := range orders {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		var orders []model.WebMoneyOrder
-		if err := model.DB.WithContext(ctx).Where("id > ? AND (status = ? OR cache_pending = ? OR log_pending = ?)", lastID, "paid", true, true).Order("id").Limit(100).Find(&orders).Error; err != nil {
-			return err
+		claimed := model.DB.WithContext(ctx).Model(&model.WebMoneyOrder{}).Where("id = ? AND COALESCE(next_check_at, 0) = ?", o.ID, o.NextCheckAt).Update("next_check_at", common.GetTimestamp()+120)
+		if claimed.Error != nil {
+			return claimed.Error
 		}
-		for _, o := range orders {
-			if ctx.Err() != nil {
-				return ctx.Err()
-			}
-			if err := model.CompleteWebMoneyOrder(o.TradeNo); err != nil {
-				result = errors.New("WebMoney fulfillment requires retry")
-			}
-			lastID = o.ID
+		if claimed.RowsAffected == 0 {
+			continue
 		}
-		if len(orders) < 100 {
-			return result
+		if err := ReconcileWebMoneyOrder(ctx, o.TradeNo); err != nil {
+			result = errors.New("WebMoney reconciliation requires retry")
 		}
 	}
+	return result
 }
 
 // ReconcileWebMoneyOrder obtains authoritative X18 evidence using the order's
 // frozen purse and secret. The WMID alone may be supplied by a later revision
 // for the same purse, so pre-X18 orders remain recoverable.
 func ReconcileWebMoneyOrder(ctx context.Context, trade string) error {
+	return reconcileWebMoneyOrder(ctx, trade, false)
+}
+
+// RecheckWebMoneyOrder verifies X18 even when a payment was already fulfilled.
+func RecheckWebMoneyOrder(ctx context.Context, trade string) error {
+	return reconcileWebMoneyOrder(ctx, trade, true)
+}
+
+func reconcileWebMoneyOrder(ctx context.Context, trade string, verifyCompleted bool) error {
 	o, config, err := model.GetWebMoneyOrder(trade)
 	if err != nil {
 		return err
 	}
-	if o.Status == "paid" || o.Status == "success" {
-		return model.CompleteWebMoneyOrder(trade)
+	if !verifyCompleted && (o.Status == "paid" || o.Status == "success") {
+		err := model.CompleteWebMoneyOrder(trade)
+		if err != nil {
+			// Completion may reset the schedule before a cache or audit write fails.
+			// Persist backoff for fulfillment failures as well as gateway failures.
+			err = errors.Join(err, model.DB.Model(o).Update("next_check_at", common.GetTimestamp()+120).Error)
+		}
+		return err
 	}
-	if o.Status != "pending" {
+	if o.Status != "pending" && o.Status != "expired" && o.Status != "paid" && o.Status != "success" {
 		return errors.New("WebMoney order cannot be queried")
+	}
+	if o.Status == "pending" && o.ExpiresAt <= common.GetTimestamp() {
+		if err := model.ExpireWebMoneyOrder(o.ID); err != nil {
+			return err
+		}
 	}
 	if config.WMID == "" {
 		current, e := model.CurrentWebMoneyConfig()
@@ -195,17 +221,52 @@ func ReconcileWebMoneyOrder(ctx context.Context, trade string) error {
 		}
 	}
 	transaction, gatewayStatus, err := QueryWebMoneyPayment(ctx, o, config)
+	verifiedReceipt := o.Status == "paid" || o.Status == "success"
+	if gatewayStatus == "hold:12" || (verifiedReceipt && gatewayStatus == "hold:4") {
+		if saveErr := model.DB.Model(o).Updates(map[string]any{"review_required": true, "gateway_status": gatewayStatus, "checked_at": common.GetTimestamp(), "next_check_at": 0, "last_error": "manual_review_required"}).Error; saveErr != nil {
+			return saveErr
+		}
+		return model.ErrPaymentReviewRequired
+	}
+	if verifiedReceipt && (err != nil || transaction == "") {
+		if saveErr := model.DB.Model(o).Updates(map[string]any{"checked_at": common.GetTimestamp(), "last_error": "verification_failed"}).Error; saveErr != nil {
+			return saveErr
+		}
+		if err != nil {
+			return err
+		}
+		return errors.New("WebMoney no longer confirms the verified payment")
+	}
+	next := common.GetTimestamp() + 120
+	if o.ExpiresAt <= common.GetTimestamp() {
+		next = common.GetTimestamp() + 3600
+	}
+	updates := map[string]any{"gateway_status": gatewayStatus, "checked_at": common.GetTimestamp(), "next_check_at": next, "last_error": ""}
+	if err != nil {
+		updates["last_error"] = "verification_failed"
+	}
 	if err != nil || transaction == "" {
 		// A concurrent verified callback takes precedence over an incomplete query.
-		if saveErr := model.DB.Model(&model.WebMoneyOrder{}).Where("id = ? AND status = ?", o.ID, "pending").Update("gateway_status", gatewayStatus).Error; saveErr != nil {
+		if saveErr := model.DB.Model(&model.WebMoneyOrder{}).Where("id = ? AND status IN ?", o.ID, []string{"pending", "expired"}).Updates(updates).Error; saveErr != nil {
 			return saveErr
 		}
 		return err
 	}
+	if o.ReviewRequired {
+		return model.ErrPaymentReviewRequired
+	}
+	updates["next_check_at"] = 0
+	saved := model.DB.Model(&model.WebMoneyOrder{}).Where("id = ? AND COALESCE(review_required, ?) = ?", o.ID, false, false).Updates(updates)
+	if saved.Error != nil {
+		return saved.Error
+	}
 	if err := model.RecordWebMoneyPayment(o, transaction); err != nil {
 		return err
 	}
-	return model.CompleteWebMoneyOrder(trade)
+	if err := model.CompleteWebMoneyOrder(trade); err != nil {
+		return errors.Join(ErrPaymentFulfillmentPending, err)
+	}
+	return nil
 }
 
 // QueryWebMoneyPayment returns a transaction only for a completed, matching
@@ -284,12 +345,6 @@ func QueryWebMoneyPayment(ctx context.Context, o *model.WebMoneyOrder, c *model.
 		return "", "query_failed", errors.New("missing or ambiguous WebMoney transaction")
 	}
 	operation := result.Operations[0]
-	if operation.HoldState != nil && (*operation.HoldState == 4 || *operation.HoldState == 12) {
-		return "", "hold:" + strconv.Itoa(*operation.HoldState), errors.New("WebMoney payment is held or refunded")
-	}
-	if operation.HoldState == nil || *operation.HoldState != 0 {
-		return "", "query_failed", errors.New("WebMoney payment is held or refunded")
-	}
 	if !webMoneyNumber.MatchString(operation.Transaction) || !webMoneyNumber.MatchString(operation.Invoice) {
 		return "", "query_failed", errors.New("invalid WebMoney transaction")
 	}
@@ -302,6 +357,15 @@ func QueryWebMoneyPayment(ctx context.Context, o *model.WebMoneyOrder, c *model.
 	expected, expectedErr := decimal.NewFromString(o.Amount)
 	if err != nil || expectedErr != nil || !amount.IsPositive() || !amount.Equal(expected) {
 		return "", "query_failed", errors.New("WebMoney payment amount mismatch")
+	}
+	if o.ProviderTradeNo != nil && *o.ProviderTradeNo != strconv.FormatInt(transaction, 10) {
+		return "", "query_failed", errors.New("WebMoney transaction mismatch")
+	}
+	if operation.HoldState != nil && (*operation.HoldState == 4 || *operation.HoldState == 12) {
+		return "", "hold:" + strconv.Itoa(*operation.HoldState), errors.New("WebMoney payment is held or refunded")
+	}
+	if operation.HoldState == nil || *operation.HoldState != 0 {
+		return "", "query_failed", errors.New("WebMoney payment is held or refunded")
 	}
 	return strconv.FormatInt(transaction, 10), "success", nil
 }

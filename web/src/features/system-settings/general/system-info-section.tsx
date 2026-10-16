@@ -17,10 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useRef, type ChangeEvent } from 'react'
 import type { Resolver } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 import * as z from 'zod'
 
+import { Button } from '@/components/ui/button'
 import { Combobox } from '@/components/ui/combobox'
 import {
   Form,
@@ -34,6 +37,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
+import { SUPPORT_ICON_IMAGE_TYPES } from '@/features/support/types'
 import { INTERFACE_LANGUAGE_OPTIONS } from '@/i18n/languages'
 
 import { FormDirtyIndicator } from '../components/form-dirty-indicator'
@@ -95,6 +99,7 @@ function normalizeValue(value: unknown): string {
 export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()
+  const logoFileRef = useRef<HTMLInputElement>(null)
 
   const normalizedDefaults: SystemInfoFormValues = {
     console_setting: {
@@ -165,6 +170,36 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
         }
       },
     })
+
+  const handleLogoFile = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (!SUPPORT_ICON_IMAGE_TYPES.some((type) => type === file.type)) {
+      toast.error(t('Please choose a PNG, JPG, WebP, or GIF image'))
+      return
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error(t('Logo file must be 2 MB or smaller'))
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      if (
+        typeof reader.result !== 'string' ||
+        !reader.result.startsWith('data:image/')
+      ) {
+        toast.error(t('Failed to read icon file'))
+        return
+      }
+      form.setValue('Logo', reader.result, {
+        shouldDirty: true,
+        shouldValidate: true,
+      })
+    }
+    reader.onerror = () => toast.error(t('Failed to read icon file'))
+    reader.readAsDataURL(file)
+  }
 
   return (
     <>
@@ -304,16 +339,60 @@ export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
                 name='Logo'
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>{t('Logo URL')}</FormLabel>
+                    <FormLabel>{t('Logo')}</FormLabel>
                     <FormControl>
                       <Input
                         placeholder={t('https://example.com/logo.png')}
                         {...field}
+                        value={
+                          field.value?.startsWith('data:image/')
+                            ? ''
+                            : field.value
+                        }
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('URL to your logo image (optional)')}
+                      {t(
+                        'Enter a logo URL or upload a local image. Save changes to apply.'
+                      )}{' '}
+                      {t(
+                        'Supports PNG, JPG, WebP, or GIF. Maximum file size: 2 MB.'
+                      )}
                     </FormDescription>
+                    <input
+                      ref={logoFileRef}
+                      type='file'
+                      accept={SUPPORT_ICON_IMAGE_TYPES.join(',')}
+                      className='hidden'
+                      onChange={handleLogoFile}
+                    />
+                    <div className='flex items-center gap-3'>
+                      {field.value && (
+                        <img
+                          src={field.value}
+                          alt={t('Logo')}
+                          className='size-12 rounded-md border object-contain'
+                        />
+                      )}
+                      <Button
+                        type='button'
+                        variant='outline'
+                        disabled={isSubmitting}
+                        onClick={() => logoFileRef.current?.click()}
+                      >
+                        {t('Upload')}
+                      </Button>
+                      {field.value && (
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          disabled={isSubmitting}
+                          onClick={() => field.onChange('')}
+                        >
+                          {t('Remove')}
+                        </Button>
+                      )}
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}

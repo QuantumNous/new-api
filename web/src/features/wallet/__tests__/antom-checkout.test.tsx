@@ -119,6 +119,7 @@ test.each([
       data: {
         trade_no: 'ANTstate',
         status,
+        closure_confirmed: status === 'expired',
         amount: '1.00',
         expires_at: 1,
       },
@@ -252,9 +253,9 @@ test.each(['success', 'pending', 'failed', 'paid'])(
         '/api/user/mixpay/order/MXreturn/recheck',
         {}
       )
-      if (status === 'success')
-        {await waitFor(() => expect(close).toHaveBeenCalledOnce())}
-      else expect(close).not.toHaveBeenCalled()
+      if (status === 'success') {
+        await waitFor(() => expect(close).toHaveBeenCalledOnce())
+      } else expect(close).not.toHaveBeenCalled()
       expect(
         screen.queryByRole('button', { name: 'Open payment page' })
       ).not.toBeInTheDocument()
@@ -268,3 +269,104 @@ test.each(['success', 'pending', 'failed', 'paid'])(
     }
   }
 )
+
+test.each(['antom', 'webmoney'] as const)(
+  'local %s expiry keeps verification available and accepts late fulfillment',
+  async (provider) => {
+    vi.stubGlobal('location', {
+      search: '?hosted_return=1&LMI_PAYMENT_AMOUNT=999&status=success',
+      replace: vi.fn(),
+    })
+    const close = vi.spyOn(window, 'close').mockImplementation(() => {})
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    vi.mocked(provider === 'webmoney' ? api.get : api.post).mockResolvedValue({
+      data: {
+        success: true,
+        data: {
+          trade_no: 'ANTexpired',
+          status: 'expired',
+          closure_confirmed: false,
+          expires_at: 1,
+        },
+      },
+    })
+    const view = render(
+      <QueryClientProvider client={client}>
+        <HostedPaymentPage provider={provider} tradeNo='ANTexpired' />
+      </QueryClientProvider>
+    )
+    try {
+      expect(
+        await screen.findByText(
+          'Payment time has ended. Waiting for the final payment result.'
+        )
+      ).toBeVisible()
+      expect(screen.queryByText('Closed')).not.toBeInTheDocument()
+      expect(close).not.toHaveBeenCalled()
+      if (provider === 'webmoney') {
+        expect(api.post).not.toHaveBeenCalled()
+        expect(api.get).toHaveBeenCalledWith(
+          '/api/user/webmoney/order/ANTexpired'
+        )
+      }
+      vi.mocked(provider === 'webmoney' ? api.get : api.post).mockResolvedValue(
+        {
+          data: {
+            success: true,
+            data: { trade_no: 'ANTexpired', status: 'success' },
+          },
+        }
+      )
+      await userEvent.click(
+        screen.getByRole('button', { name: 'Check payment status' })
+      )
+      await waitFor(() => expect(close).toHaveBeenCalledTimes(1))
+    } finally {
+      view.unmount()
+      client.clear()
+      vi.restoreAllMocks()
+      vi.unstubAllGlobals()
+      vi.resetAllMocks()
+    }
+  }
+)
+
+test('a fulfilled payment under financial review neither closes nor reports success', async () => {
+  vi.stubGlobal('location', { search: '?hosted_return=1', replace: vi.fn() })
+  const close = vi.spyOn(window, 'close').mockImplementation(() => {})
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
+  vi.mocked(api.post).mockResolvedValue({
+    data: {
+      success: true,
+      data: {
+        trade_no: 'ANTreview',
+        status: 'success',
+        review_required: true,
+      },
+    },
+  })
+  const view = render(
+    <QueryClientProvider client={client}>
+      <HostedPaymentPage tradeNo='ANTreview' />
+    </QueryClientProvider>
+  )
+  try {
+    expect(
+      await screen.findByText(
+        'Payment requires review. Please contact support.'
+      )
+    ).toBeVisible()
+    expect(screen.queryByText('Payment successful')).not.toBeInTheDocument()
+    expect(close).not.toHaveBeenCalled()
+  } finally {
+    view.unmount()
+    client.clear()
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    vi.resetAllMocks()
+  }
+})
