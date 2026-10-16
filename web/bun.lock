@@ -49,7 +49,7 @@
         "react-hook-form": "^7.80.0",
         "react-i18next": "^17.0.8",
         "react-icons": "^5.7.0",
-        "react-resizable-panels": "^4.12.0",
+        "react-resizable-panels": "^4.14.4",
         "react-top-loading-bar": "^3.0.2",
         "recharts": "3.9.1",
         "shiki": "^4.3.0",
@@ -2186,7 +2186,7 @@
 
     "react-remove-scroll-bar": ["react-remove-scroll-bar@2.3.8", "", { "dependencies": { "react-style-singleton": "^2.2.2", "tslib": "^2.0.0" }, "peerDependencies": { "@types/react": "*", "react": "^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0" }, "optionalPeers": ["@types/react"] }, "sha512-9r+yi9+mgU33AKcj6IbT9oRCO78WriSj6t/cF8DWBZJ9aOGPOTEDvdUDz1FwKim7QXWwmHqtdHnRJfhAxEG46Q=="],
 
-    "react-resizable-panels": ["react-resizable-panels@4.12.2", "", { "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" } }, "sha512-NwY5LCo4WrxVvDh0xoMML6EMLPONP/8ckKcIdpnojxexoatZdjLiRqLJQjQK5CPkd4SYiB/2M5BVrjZBQtOO7Q=="],
+    "react-resizable-panels": ["react-resizable-panels@4.14.4", "", { "peerDependencies": { "react": "^18.0.0 || ^19.0.0", "react-dom": "^18.0.0 || ^19.0.0" } }, "sha512-VfM+JuqMcx0J0h+CDXbRWrAWdw+rlKEv5KXNM2z7E+PbZxhQ1ygDtjRgJy1ScxGCzpI0ZJ36pF4V8gO35spM1g=="],
 
     "react-rnd": ["react-rnd@10.5.3", "", { "dependencies": { "re-resizable": "^6.11.2", "react-draggable": "^4.5.0", "tslib": "2.6.2" }, "peerDependencies": { "react": ">=16.3.0", "react-dom": ">=16.3.0" } }, "sha512-s/sIT3pGZnQ+57egijkTp9mizjIWrJz68Pq6yd+F/wniFY3IriML18dUXnQe/HP9uMiJ+9MAp44hljG99fZu6Q=="],
 
