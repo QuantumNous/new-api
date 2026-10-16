@@ -12,6 +12,8 @@ from pathlib import Path
 import re
 import secrets
 import signal
+import socket
+import ssl
 import stat
 import subprocess
 import sys
@@ -253,11 +255,12 @@ class WorkbenchControl:
         self.admission = threading.Lock()
         self.stopped = False
         self.children = set()
+        self.connections = set()
         self.state = None
 
     def close(self):
+        self.stop()
         with self.lock:
-            self.stopped = True
             self.sessions.clear()
             children = list(self.children)
         for child in children:
@@ -282,12 +285,28 @@ class WorkbenchControl:
         with self.lock:
             self.stopped = True
             children = list(self.children)
+            for connection in self.connections:
+                try:
+                    connection.shutdown(socket.SHUT_RDWR)
+                except OSError:
+                    pass
         for child in children:
             try:
                 if child.poll() is None:
                     os.killpg(child.pid, signal.SIGTERM)
             except ProcessLookupError:
                 pass
+
+    def register_connection(self, connection):
+        with self.lock:
+            if not self.stopped and self.pid == os.getpid():
+                self.connections.add(connection)
+                return True
+            try:
+                connection.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            return False
 
     def journal(self, app):
         with self.lock:
@@ -1112,11 +1131,31 @@ def main(argv=None):
         control.journal(app)
 
         class QuietRequestHandler(WSGIRequestHandler):
+            timeout = 10
+
+            def __init__(self, connection, address, server):
+                if not control.register_connection(connection):
+                    return
+                try:
+                    connection.settimeout(self.timeout)
+                    if isinstance(connection, ssl.SSLSocket):
+                        try:
+                            connection.do_handshake()
+                        except (OSError, ValueError):
+                            return
+                    super().__init__(connection, address, server)
+                finally:
+                    with control.lock:
+                        control.connections.discard(connection)
+
             def log(self, *args, **kwargs):
                 pass
 
         server = make_server(settings["listen_host"], port, app, threaded=True,
                              request_handler=QuietRequestHandler, ssl_context=tls)
+        if tls is not None:
+            # Accept must not handshake before the socket is owned and cancellable.
+            server.socket.do_handshake_on_connect = False
         server.daemon_threads = False
         server.block_on_close = True
         server.timeout = .25

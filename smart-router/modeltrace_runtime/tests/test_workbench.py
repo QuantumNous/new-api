@@ -1,5 +1,6 @@
 import copy
 from contextlib import contextmanager
+import http.client
 import http.server
 import json
 import os
@@ -1252,6 +1253,457 @@ class ControlledCollectionTest(unittest.TestCase):
 
 
 class WorkbenchLifecycleTest(unittest.TestCase):
+    def test_sigterm_reaps_main_with_unfinished_tls_handshake_peer_open(self):
+        import selectors
+        import ssl
+        import time
+        with tempfile.TemporaryDirectory(prefix="task-e-lifecycle-i1-tls-") as temporary:
+            root = Path(temporary)
+            certificate, key = root / "certificate.pem", root / "synthetic-key.pem"
+            certificate_argv = [
+                "/usr/bin/openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                "-keyout", str(key), "-out", str(certificate), "-subj", "/CN=localhost",
+                "-days", "1",
+            ]
+            generated = subprocess.run(certificate_argv, capture_output=True, timeout=10,
+                                       env={"PATH": "/usr/bin:/bin"})
+            self.assertEqual(generated.returncode, 0, "synthetic certificate setup failed")
+            with socket.socket() as reserve:
+                reserve.bind(("127.0.0.1", 0))
+                port = reserve.getsockname()[1]
+            host = "127.0.0.1:" + str(port)
+            config = {
+                "listen_host": "127.0.0.1", "listen_port": port,
+                "hosts": [host], "origins": ["https://" + host], "local_http": False,
+                "bank_root": str(root / "banks"), "operations_root": str(root / "operations"),
+                "state_root": str(root / "control"), "bindings": [],
+                "daemon_url": "http://127.0.0.1:1",
+                "tls_certificate": str(certificate), "tls_private_key": str(key),
+                "interpreter_sha256": __import__("hashlib").sha256(
+                    Path(sys.executable).read_bytes()).hexdigest(),
+            }
+            config_path = root / "config.json"
+            config_path.write_text(json.dumps(config))
+            read_fd, write_fd = os.pipe()
+            os.write(write_fd, b"synthetic-lifecycle-i1-tls-ingest-key")
+            os.close(write_fd)
+            argv = [sys.executable, "-B", "-m", "modeltrace_runtime.workbench",
+                    "--config", str(config_path), "--ingest-key-fd", str(read_fd)]
+            environment = {
+                "PATH": "/usr/bin:/bin", "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1", "TMPDIR": tempfile.gettempdir(),
+                "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1",
+                "VECLIB_MAXIMUM_THREADS": "1",
+            }
+            child = peer = connection = None
+            observation = {"argv": argv, "environment": environment, "config": config,
+                           "certificate_argv": certificate_argv,
+                           "certificate_child_waited_reaped": generated.returncode == 0}
+            with tempfile.TemporaryFile() as errors:
+                try:
+                    try:
+                        child = subprocess.Popen(
+                            argv, cwd=ROOT, pass_fds=(read_fd,), stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=errors, env=environment,
+                            start_new_session=True,
+                        )
+                    finally:
+                        os.close(read_fd)
+                    with selectors.DefaultSelector() as selector:
+                        selector.register(child.stdout, selectors.EVENT_READ)
+                        self.assertTrue(selector.select(10), "TLS main did not become ready")
+                    self.assertEqual(child.stdout.readline(), b"modeltrace_workbench_ready\n")
+                    context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+                    context.check_hostname = False
+                    context.verify_mode = ssl.CERT_NONE
+                    connection = http.client.HTTPSConnection(
+                        "127.0.0.1", port, timeout=5, context=context)
+                    connection.request("GET", "/api/session")
+                    response = connection.getresponse()
+                    response.read()
+                    self.assertEqual(response.status, 200)
+                    connection.close()
+                    # A partial TLS record followed by a bounded complete TLS control
+                    # exposes accept-time handshake blocking, without a timing sleep.
+                    peer = socket.create_connection(("127.0.0.1", port), timeout=5)
+                    peer.sendall(b"\x16\x03\x01\x02\x00\x01")
+                    connection = http.client.HTTPSConnection(
+                        "127.0.0.1", port, timeout=1, context=context)
+                    try:
+                        connection.request("GET", "/")
+                        response = connection.getresponse()
+                        response.read()
+                        observation["parallel_tls_get"] = response.status
+                    except TimeoutError:
+                        observation["parallel_tls_get"] = "handshake_timeout"
+                    connection.close()
+                    connection = None
+                    child.send_signal(signal.SIGTERM)
+                    started = time.monotonic()
+                    try:
+                        code, exited = child.wait(timeout=5), True
+                    except subprocess.TimeoutExpired:
+                        code, exited = None, False
+                    observation.update({
+                        "peer_open_at_assertion": peer.fileno() >= 0,
+                        "exit_before_peer_release": code, "wait_seconds": time.monotonic() - started,
+                        "alive_after_sigterm": not exited, "observation_bound_seconds": 5,
+                    })
+                    self.assertTrue(exited, "SIGTERM blocked in the accepted TLS handshake "
+                                    "before request-handler registration")
+                    self.assertEqual(code, 0)
+                    self.assertEqual(observation["parallel_tls_get"], 200)
+                    with self.assertRaises(ChildProcessError):
+                        os.waitpid(child.pid, os.WNOHANG)
+                    with socket.socket() as listener:
+                        self.assertNotEqual(listener.connect_ex(("127.0.0.1", port)), 0)
+                    journal = workbench.ActionJournal(str(root / "control"))
+                    try:
+                        self.assertEqual(journal.read()["actions"], {})
+                    finally:
+                        journal.close()
+                    observation["listener_closed_state_reusable"] = True
+                finally:
+                    for resource in (peer, connection):
+                        if resource is not None:
+                            resource.close()
+                    if child is not None:
+                        if child.poll() is None:
+                            child.send_signal(signal.SIGTERM)
+                            try:
+                                child.wait(timeout=10)
+                            except subprocess.TimeoutExpired:
+                                observation["cleanup_forced_kill"] = True
+                                os.killpg(child.pid, signal.SIGKILL)
+                                child.wait(timeout=5)
+                        child.stdout.close()
+                        observation.update({"child_pid": child.pid, "cleanup_exit": child.returncode,
+                                            "child_waited_reaped": child.returncode is not None})
+                    errors.seek(0)
+                    observation["child_stderr"] = errors.read().decode(errors="replace")
+                    print(json.dumps({"lifecycle_i1_tls_observation": observation}), flush=True)
+
+    def test_stop_joins_header_wait_and_rejects_late_handler_before_state_release(self):
+        from werkzeug.serving import make_server
+        with tempfile.TemporaryDirectory(prefix="task-e-lifecycle-i1-race-") as temporary:
+            root = Path(temporary)
+            with socket.socket() as reserve:
+                reserve.bind(("127.0.0.1", 0))
+                port = reserve.getsockname()[1]
+            host = "127.0.0.1:" + str(port)
+            origin = "http://" + host
+            config = {
+                "listen_host": "127.0.0.1", "listen_port": port,
+                "hosts": [host], "origins": [origin], "local_http": True,
+                "bank_root": str(root / "banks"), "operations_root": str(root / "operations"),
+                "state_root": str(root / "control"), "bindings": [],
+                "daemon_url": "http://127.0.0.1:1",
+                "interpreter_sha256": __import__("hashlib").sha256(
+                    Path(sys.executable).read_bytes()).hexdigest(),
+            }
+            config_path = root / "config.json"
+            config_path.write_text(json.dumps(config))
+            read_fd, write_fd = os.pipe()
+            os.write(write_fd, b"synthetic-lifecycle-i1-race-key-32bytes")
+            os.close(write_fd)
+            installed, owned, threads, accepted, close_order, result = {}, {}, [], [], [], []
+            ready = threading.Event()
+            header_ready = threading.Event()
+            delay_next = threading.Event()
+            late_ready = threading.Event()
+            release_late = threading.Event()
+            join_started = threading.Event()
+            completed = threading.Event()
+
+            def install(sig, callback):
+                installed[sig] = callback
+                if sig == signal.SIGINT:
+                    ready.set()
+
+            def observed_server(*args, **kwargs):
+                original_handler = kwargs["request_handler"]
+
+                class ObservedHandler(original_handler):
+                    def setup(self):
+                        super().setup()
+                        accepted.append(self.connection)
+                        header_ready.set()
+
+                kwargs["request_handler"] = ObservedHandler
+                server = make_server(*args, **kwargs)
+                control = server.app.extensions["modeltrace_workbench"]
+                owned.update(server=server, control=control, journal=control.state)
+                process = server.process_request_thread
+                close_server, close_control = server.server_close, control.close
+
+                def process_thread(connection, address):
+                    threads.append(threading.current_thread())
+                    if delay_next.is_set():
+                        delay_next.clear()
+                        late_ready.set()
+                        if not release_late.wait(10):
+                            raise AssertionError("late handler fixture was not released")
+                    return process(connection, address)
+
+                def joined_server():
+                    join_started.set()
+                    close_order.append({"join_started_state_open": control.state.fd is not None})
+                    close_server()
+                    close_order.append({
+                        "all_handlers_joined": all(not thread.is_alive() for thread in threads),
+                        "registered_connections": len(control.connections),
+                        "state_still_open": control.state.fd is not None,
+                    })
+
+                def released_control():
+                    close_order.append({"release_after_handler_join": all(
+                        not thread.is_alive() for thread in threads)})
+                    close_control()
+
+                server.process_request_thread = process_thread
+                server.server_close = joined_server
+                control.close = released_control
+                return server
+
+            def run_main():
+                try:
+                    result.append(workbench.main([
+                        "--config", str(config_path), "--ingest-key-fd", str(read_fd),
+                    ]))
+                finally:
+                    completed.set()
+
+            peer = late_peer = connection = None
+            main_thread = threading.Thread(target=run_main)
+            with patch("werkzeug.serving.make_server", side_effect=observed_server), \
+                    patch.object(signal, "signal", side_effect=install), \
+                    patch.object(workbench, "execute_owned") as backend:
+                main_thread.start()
+                try:
+                    self.assertTrue(ready.wait(10), "real main did not install shutdown")
+                    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+                    connection.request("GET", "/api/session")
+                    response = connection.getresponse()
+                    session = json.loads(response.read())
+                    cookie = response.getheader("Set-Cookie").split(";", 1)[0]
+                    self.assertEqual(response.status, 200)
+                    connection.close()
+                    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+                    connection.request("POST", "/api/banks/reload",
+                                       json.dumps({"action_id": "ordinary-complete"}), {
+                        "Origin": origin, "Cookie": cookie,
+                        "X-CSRF-Token": session["csrf_token"],
+                        "Content-Type": "application/json",
+                    })
+                    response = connection.getresponse()
+                    self.assertEqual(response.status, 200)
+                    self.assertEqual(json.loads(response.read())["summary"]["generation"], "builtin")
+                    connection.close()
+                    connection = None
+                    header_ready.clear()
+                    peer = socket.create_connection(("127.0.0.1", port), timeout=5)
+                    peer.sendall(b"GET / HTTP/1.1\r\nHost:")
+                    self.assertTrue(header_ready.wait(5), "withheld-header handler not started")
+                    delay_next.set()
+                    late_peer = socket.create_connection(("127.0.0.1", port), timeout=5)
+                    body = json.dumps({"action_id": "late-action", "samples": reference_samples(1)})
+                    late_peer.sendall((
+                        "POST /api/analyze HTTP/1.1\r\nHost: " + host
+                        + "\r\nOrigin: " + origin + "\r\nCookie: " + cookie
+                        + "\r\nX-CSRF-Token: " + session["csrf_token"]
+                        + "\r\nContent-Type: application/json\r\nContent-Length: "
+                        + str(len(body.encode())) + "\r\nConnection: close\r\n\r\n" + body
+                    ).encode())
+                    self.assertTrue(late_ready.wait(5), "late accepted handler not delayed")
+                    installed[signal.SIGTERM]()
+                    self.assertTrue(join_started.wait(5), "main never began actual handler join")
+                    release_late.set()
+                    self.assertTrue(completed.wait(5), "main did not finish with both peers open")
+                    main_thread.join(5)
+                    self.assertFalse(main_thread.is_alive())
+                    self.assertEqual(result, [0])
+                    self.assertEqual(close_order, [
+                        {"join_started_state_open": True},
+                        {"all_handlers_joined": True, "registered_connections": 0,
+                         "state_still_open": True},
+                        {"release_after_handler_join": True},
+                    ])
+                    self.assertTrue(all(not thread.daemon for thread in threads))
+                    self.assertEqual(len(accepted), 3, "late handler entered request setup")
+                    self.assertTrue(all(connection.fileno() == -1 for connection in accepted))
+                    self.assertEqual(owned["control"].children, set())
+                    self.assertIsNone(owned["control"].state)
+                    self.assertIsNone(owned["journal"].fd)
+                    self.assertIsNone(owned["journal"].lease)
+                    backend.assert_not_called()
+                    journal = workbench.ActionJournal(str(root / "control"))
+                    try:
+                        self.assertEqual(set(journal.read()["actions"]), {"ordinary-complete"})
+                    finally:
+                        journal.close()
+                    print(json.dumps({"lifecycle_i1_race_observation": {
+                        "ordinary_complete_post": 200, "close_order": close_order,
+                        "handlers_joined": len(threads), "late_handler_setup_rejected": True,
+                        "all_handler_sockets_closed": True, "no_backend_admission": True,
+                        "peers_open_through_main_completion": True,
+                    }}), flush=True)
+                finally:
+                    release_late.set()
+                    if "control" in owned:
+                        owned["control"].stop()
+                    if signal.SIGTERM in installed:
+                        installed[signal.SIGTERM]()
+                    for resource in (peer, late_peer, connection):
+                        if resource is not None:
+                            resource.close()
+                    main_thread.join(10)
+                    if main_thread.is_alive():
+                        raise AssertionError("owned main thread was not joined")
+                    try:
+                        os.close(read_fd)
+                    except OSError:
+                        pass
+
+    def test_sigterm_reaps_main_with_authenticated_body_peer_still_open(self):
+        daemon = SignedDaemonFixture()
+        self.addCleanup(daemon.close)
+        with tempfile.TemporaryDirectory(prefix="task-e-lifecycle-i1-body-") as temporary:
+            root = Path(temporary)
+            with socket.socket() as reserve:
+                reserve.bind(("127.0.0.1", 0))
+                port = reserve.getsockname()[1]
+            host = "127.0.0.1:" + str(port)
+            origin = "http://" + host
+            config = {
+                "listen_host": "127.0.0.1", "listen_port": port,
+                "hosts": [host], "origins": [origin], "local_http": True,
+                "bank_root": str(root / "banks"), "operations_root": str(root / "operations"),
+                "state_root": str(root / "control"), "bindings": [],
+                "daemon_url": daemon.url,
+                "interpreter_sha256": __import__("hashlib").sha256(
+                    Path(sys.executable).read_bytes()).hexdigest(),
+            }
+            config_path = root / "config.json"
+            config_path.write_text(json.dumps(config))
+            read_fd, write_fd = os.pipe()
+            os.write(write_fd, b"synthetic-lifecycle-i1-ingest-key")
+            os.close(write_fd)
+            argv = [sys.executable, "-B", "-m", "modeltrace_runtime.workbench",
+                    "--config", str(config_path), "--ingest-key-fd", str(read_fd)]
+            environment = {
+                "PATH": "/usr/bin:/bin", "PYTHONNOUSERSITE": "1",
+                "PYTHONDONTWRITEBYTECODE": "1", "TMPDIR": tempfile.gettempdir(),
+                "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1",
+                "VECLIB_MAXIMUM_THREADS": "1",
+            }
+            peer = connection = child = None
+            observation = {"argv": argv, "environment": environment, "config": config}
+            with tempfile.TemporaryFile() as errors:
+                try:
+                    try:
+                        child = subprocess.Popen(
+                            argv, cwd=ROOT, pass_fds=(read_fd,), stdin=subprocess.DEVNULL,
+                            stdout=subprocess.PIPE, stderr=errors, env=environment,
+                            start_new_session=True,
+                        )
+                    finally:
+                        os.close(read_fd)
+                    import selectors
+                    import time
+                    with selectors.DefaultSelector() as selector:
+                        selector.register(child.stdout, selectors.EVENT_READ)
+                        self.assertTrue(selector.select(10), "real main never became ready")
+                    self.assertEqual(child.stdout.readline(), b"modeltrace_workbench_ready\n")
+                    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+                    connection.request("GET", "/api/session")
+                    response = connection.getresponse()
+                    session = json.loads(response.read())
+                    self.assertEqual(response.status, 200)
+                    cookie = response.getheader("Set-Cookie").split(";", 1)[0]
+                    connection.close()
+                    connection = None
+                    peer = socket.create_connection(("127.0.0.1", port), timeout=5)
+                    peer.sendall((
+                        "POST /api/analyze HTTP/1.1\r\nHost: " + host
+                        + "\r\nOrigin: " + origin + "\r\nCookie: " + cookie
+                        + "\r\nX-CSRF-Token: " + session["csrf_token"]
+                        + "\r\nContent-Type: application/json\r\nContent-Length: 1024"
+                        + "\r\nExpect: 100-continue\r\nConnection: close\r\n\r\n"
+                    ).encode())
+                    interim = peer.recv(4096)
+                    self.assertIn(b"100 Continue", interim)
+                    peer.sendall(b'{"action_id":"unfinished-body",')
+                    session = cookie = None
+                    connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+                    connection.request("GET", "/")
+                    response = connection.getresponse()
+                    response.read()
+                    self.assertEqual(response.status, 200)
+                    connection.close()
+                    connection = None
+                    child.send_signal(signal.SIGTERM)
+                    started = time.monotonic()
+                    try:
+                        code = child.wait(timeout=5)
+                        exited = True
+                    except subprocess.TimeoutExpired:
+                        code, exited = None, False
+                    observation.update({
+                        "received_100_continue": True, "parallel_complete_get": 200,
+                        "peer_open_at_exit_assertion": peer.fileno() >= 0,
+                        "exit_before_peer_release": code,
+                        "alive_after_sigterm_observation": not exited,
+                        "wait_seconds": time.monotonic() - started,
+                        "observation_bound_seconds": 5,
+                    })
+                    self.assertTrue(exited, "SIGTERM waited for the unfinished body peer "
+                                    "instead of canceling and joining its handler")
+                    self.assertEqual(code, 0)
+                    with self.assertRaises(ChildProcessError):
+                        os.waitpid(child.pid, os.WNOHANG)
+                    with socket.socket() as listener:
+                        self.assertNotEqual(listener.connect_ex(("127.0.0.1", port)), 0)
+                    # Actual state owners must be reusable, without admitting the partial action.
+                    journal = workbench.ActionJournal(str(root / "control"))
+                    try:
+                        self.assertEqual(journal.read()["actions"], {})
+                    finally:
+                        journal.close()
+                    operations = Operations(root / "operations")
+                    try:
+                        with operations._locked():
+                            self.assertEqual(operations._read()["operations"], {})
+                    finally:
+                        operations.close()
+                    store = BankStore(root / "banks")
+                    try:
+                        self.assertEqual(store.summary()["generation"], "builtin")
+                    finally:
+                        store._root_finalizer()
+                    self.assertEqual(daemon.requests, [])
+                    observation["listener_closed_state_reusable_zero_admission"] = True
+                finally:
+                    if peer is not None:
+                        peer.close()
+                    if connection is not None:
+                        connection.close()
+                    if child is not None:
+                        if child.poll() is None:
+                            child.send_signal(signal.SIGTERM)
+                            try:
+                                child.wait(timeout=10)
+                            except subprocess.TimeoutExpired:
+                                observation["cleanup_forced_kill"] = True
+                                os.killpg(child.pid, signal.SIGKILL)
+                                child.wait(timeout=5)
+                        child.stdout.close()
+                        observation.update({"child_pid": child.pid,
+                                            "cleanup_exit": child.returncode,
+                                            "child_waited_reaped": child.returncode is not None})
+                    errors.seek(0)
+                    observation["child_stderr"] = errors.read().decode(errors="replace")
+                    print(json.dumps({"lifecycle_i1_body_observation": observation}), flush=True)
+
     def test_container_wildcard_listen_requires_opt_in_and_loopback_operator_hosts(self):
         with tempfile.TemporaryDirectory(prefix="task-e-container-settings-") as temporary:
             root = Path(temporary)
