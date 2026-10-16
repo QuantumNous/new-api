@@ -145,16 +145,17 @@ func (a *Adaptor) buildSpeechRequest(c *gin.Context, request dto.AudioRequest) (
 		return nil, errors.New("input is required")
 	}
 
-	// MiMo renders wav and mp3. Every other OpenAI response_format, including
-	// the timed containers, falls back to wav: the reply carries a truthful
-	// Content-Type rather than failing a client that cannot ask for wav.
+	// MiMo renders wav and mp3. The remaining OpenAI containers (opus, aac,
+	// flac, pcm) have no MiMo equivalent; answering them with wav bytes would
+	// hand the client a payload its decoder cannot read, so they are rejected
+	// before the upstream is asked to synthesise anything.
 	format := audioFormatWAV
 	switch strings.ToLower(strings.TrimSpace(request.ResponseFormat)) {
 	case "", audioFormatWAV:
 	case audioFormatMP3:
 		format = audioFormatMP3
 	default:
-		logger.LogWarn(c.Request.Context(), common.LogText("xiaomi speech cannot render response_format %q, answering with wav", request.ResponseFormat))
+		return nil, fmt.Errorf("unsupported response_format %q: the Xiaomi MiMo channel renders wav and mp3", request.ResponseFormat)
 	}
 	a.speechFormat = format
 
@@ -190,6 +191,16 @@ func (a *Adaptor) buildSpeechRequest(c *gin.Context, request dto.AudioRequest) (
 // buildTranscriptionRequest turns an OpenAI transcription request into the chat
 // completion MiMo expects, carrying the uploaded audio as a base64 data URL.
 func buildTranscriptionRequest(c *gin.Context, request dto.AudioRequest) (io.Reader, error) {
+	// MiMo returns a plain transcript with no timestamps, so json and text are
+	// the only OpenAI transcription formats that can be honoured. The timed
+	// ones are rejected here, before the upstream is charged for a transcript
+	// this adaptor would otherwise have to mislabel as json.
+	switch strings.ToLower(strings.TrimSpace(request.ResponseFormat)) {
+	case "", "json", "text":
+	default:
+		return nil, fmt.Errorf("unsupported response_format %q: the Xiaomi MiMo channel renders json and text", request.ResponseFormat)
+	}
+
 	form, err := common.ParseMultipartFormReusable(c)
 	if err != nil {
 		return nil, fmt.Errorf("parse multipart form failed: %w", err)
@@ -324,16 +335,19 @@ func (a *Adaptor) doSpeechResponse(c *gin.Context, resp *http.Response, info *re
 	usage.PromptTokensDetails.TextTokens = usage.PromptTokens
 	usage.TotalTokens = usage.PromptTokens
 
-	if _, err := c.Writer.Write(audio); err != nil {
-		logger.LogError(c, common.LogText("failed to write xiaomi TTS response: %s", err.Error()))
-		return usage, nil
-	}
-
 	// MiMo reports no duration for synthesis, so the audio it just produced is
-	// what gets billed, at the same rate the OpenAI TTS handler uses.
+	// what gets billed, at the same rate the OpenAI TTS handler uses. The count
+	// is derived before the body is written: the upstream has already generated
+	// and charged for this audio, so a write that fails part way (a client that
+	// disconnected, say) must not leave the request settling as text-only and
+	// letting the gateway absorb the synthesis cost.
 	usage.CompletionTokens = audioTokenCount(c, audio, a.speechFormat)
 	usage.CompletionTokenDetails.AudioTokens = usage.CompletionTokens
 	usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
+
+	if _, err := c.Writer.Write(audio); err != nil {
+		logger.LogError(c, common.LogText("failed to write xiaomi TTS response: %s", err.Error()))
+	}
 	return usage, nil
 }
 
@@ -401,12 +415,12 @@ func doTranscriptionResponse(c *gin.Context, resp *http.Response, info *relaycom
 		text = completion.Choices[0].Message.Content
 	}
 
+	// buildTranscriptionRequest rejects the timed formats before the upstream is
+	// called, so only json and text reach this point.
 	responseFormat := ""
 	if request, ok := info.Request.(*dto.AudioRequest); ok {
 		responseFormat = request.ResponseFormat
 	}
-	// MiMo returns a plain transcript with no timestamps, so the timed formats
-	// (srt, vtt, verbose_json) are answered as json instead of being faked.
 	if strings.EqualFold(strings.TrimSpace(responseFormat), "text") {
 		c.Writer.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		c.Writer.Header().Set("Content-Length", strconv.Itoa(len(text)))

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -83,13 +84,6 @@ func TestConvertSpeechRequestBuildsChatCompletion(t *testing.T) {
 			wantVoice:    "mimo_default",
 			wantMessages: 1,
 		},
-		{
-			name:         "a container MiMo cannot render falls back to wav",
-			request:      dto.AudioRequest{Model: "mimo-v2.5-tts", Input: "你好", ResponseFormat: "opus"},
-			wantFormat:   "wav",
-			wantVoice:    "mimo_default",
-			wantMessages: 1,
-		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			adaptor := &Adaptor{}
@@ -136,6 +130,40 @@ func TestConvertSpeechRequestRequiresInput(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "input is required")
+}
+
+// Answering a container MiMo cannot render with wav bytes would hand the client
+// a payload its decoder cannot read, so the request fails instead of degrading.
+func TestConvertSpeechRequestRejectsContainersMiMoCannotRender(t *testing.T) {
+	for _, responseFormat := range []string{"opus", "aac", "flac", "pcm"} {
+		t.Run(responseFormat, func(t *testing.T) {
+			adaptor := &Adaptor{}
+			request := dto.AudioRequest{Model: "mimo-v2.5-tts", Input: "你好", ResponseFormat: responseFormat}
+
+			_, err := adaptor.ConvertAudioRequest(xiaomiGinContext(t, "/v1/audio/speech"),
+				xiaomiRelayInfo(relayconstant.RelayModeAudioSpeech, &request), request)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "unsupported response_format")
+			assert.Empty(t, adaptor.speechFormat)
+		})
+	}
+}
+
+// MiMo returns no timestamps, so the timed transcription formats cannot be
+// honoured and must fail before the upstream is charged for a transcript.
+func TestConvertTranscriptionRequestRejectsTimedFormats(t *testing.T) {
+	for _, responseFormat := range []string{"srt", "vtt", "verbose_json"} {
+		t.Run(responseFormat, func(t *testing.T) {
+			c := xiaomiGinContext(t, "/v1/audio/transcriptions")
+			c.Request.Header.Set("Content-Type", multipartAudioBody(t, c, "clip.wav", "audio/wav", []byte{0x01}))
+
+			_, err := buildTranscriptionRequest(c, dto.AudioRequest{Model: "mimo-v2.5-asr", ResponseFormat: responseFormat})
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "unsupported response_format")
+		})
+	}
 }
 
 // The speech endpoint promises a raw audio body, so the base64 payload MiMo
@@ -217,6 +245,32 @@ func TestSpeechResponseBillsRenderedAudio(t *testing.T) {
 			assert.Equal(t, usage.PromptTokens+usage.CompletionTokens, usage.TotalTokens)
 		})
 	}
+}
+
+// The upstream has already generated and charged for this audio by the time the
+// body is written, so a failed write must still report the audio tokens.
+// Reporting zero would settle the request as text-only and leave the gateway
+// absorbing the synthesis cost.
+func TestSpeechResponseBillsRenderedAudioWhenTheWriteFails(t *testing.T) {
+	audio := wavWithPCM(make([]byte, 16000))
+	completion, err := common.Marshal(map[string]any{
+		"choices": []any{
+			map[string]any{"message": map[string]any{"audio": map[string]any{"data": base64.StdEncoding.EncodeToString(audio)}}},
+		},
+	})
+	require.NoError(t, err)
+
+	c, _ := gin.CreateTestContext(&failingResponseWriter{})
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/audio/speech", nil)
+
+	usage, apiErr := (&Adaptor{speechFormat: audioFormatWAV}).doSpeechResponse(c, &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader(completion)),
+	}, xiaomiRelayInfo(relayconstant.RelayModeAudioSpeech, &dto.AudioRequest{}))
+
+	require.Nil(t, apiErr)
+	assert.Equal(t, 17, usage.CompletionTokenDetails.AudioTokens)
+	assert.Equal(t, usage.PromptTokens+usage.CompletionTokens, usage.TotalTokens)
 }
 
 func TestSpeechResponseRejectsACompletionWithoutAudio(t *testing.T) {
@@ -310,7 +364,6 @@ func TestTranscriptionResponseRendersRequestedFormat(t *testing.T) {
 		{name: "json by default", responseFormat: "", wantType: "application/json", wantBody: `{"text":"你好世界"}`},
 		{name: "json explicitly", responseFormat: "json", wantType: "application/json", wantBody: `{"text":"你好世界"}`},
 		{name: "plain text", responseFormat: "text", wantType: "text/plain; charset=utf-8", wantBody: "你好世界"},
-		{name: "timed formats answer json", responseFormat: "srt", wantType: "application/json", wantBody: `{"text":"你好世界"}`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			recorder, c := xiaomiRecorder(t)
@@ -338,6 +391,25 @@ func xiaomiRecorder(t *testing.T) (*httptest.ResponseRecorder, *gin.Context) {
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/audio", nil)
 	return recorder, c
 }
+
+// failingResponseWriter accepts headers and the status line but refuses the
+// body, standing in for a client that disconnected mid-response.
+type failingResponseWriter struct {
+	header http.Header
+}
+
+func (w *failingResponseWriter) Header() http.Header {
+	if w.header == nil {
+		w.header = make(http.Header)
+	}
+	return w.header
+}
+
+func (w *failingResponseWriter) Write([]byte) (int, error) {
+	return 0, errors.New("client disconnected")
+}
+
+func (w *failingResponseWriter) WriteHeader(int) {}
 
 // multipartAudioBody puts a file part on the request and returns the multipart
 // content type the caller must advertise.
