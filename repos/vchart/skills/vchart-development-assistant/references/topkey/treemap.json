@@ -1,0 +1,178 @@
+{
+  "padding": {
+    "key": "padding",
+    "oneDesc": "布局 padding的配置"
+  },
+  "percent": {
+    "key": "percent",
+    "oneDesc": "是否对数据进行百分比处理"
+  },
+  "name": {
+    "key": "name",
+    "oneDesc": "系列名称"
+  },
+  "id": {
+    "key": "id",
+    "oneDesc": "用户自定义的 series id"
+  },
+  "animation": {
+    "key": "animation",
+    "oneDesc": "是否开启系列动画"
+  },
+  "aspectRatio": {
+    "key": "aspectRatio",
+    "oneDesc": "矩形分割比例"
+  },
+  "stack": {
+    "key": "stack",
+    "oneDesc": "是否对数据进行堆叠处理"
+  },
+  "animationEnter": {
+    "key": "animationEnter",
+    "oneDesc": "数据更新 - 新增数据动画"
+  },
+  "animationUpdate": {
+    "key": "animationUpdate",
+    "oneDesc": "数据更新 - 数据更新动画"
+  },
+  "animationExit": {
+    "key": "animationExit",
+    "oneDesc": "数据更新 - 数据删除动画"
+  },
+  "dataIndex": {
+    "key": "dataIndex",
+    "oneDesc": "系列关联的数据索引"
+  },
+  "valueField": {
+    "key": "valueField",
+    "oneDesc": "权重字段"
+  },
+  "animationState": {
+    "key": "animationState",
+    "oneDesc": "状态切换动画"
+  },
+  "support3d": {
+    "key": "support3d",
+    "oneDesc": "是否支持3d视角"
+  },
+  "morph": {
+    "key": "morph",
+    "oneDesc": "morph 动画配置"
+  },
+  "regionIndex": {
+    "key": "regionIndex",
+    "oneDesc": "系列关联的region索引"
+  },
+  "regionId": {
+    "key": "regionId",
+    "oneDesc": "系列关联的region id"
+  },
+  "drill": {
+    "key": "drill",
+    "oneDesc": "下钻功能开关"
+  },
+  "totalLabel": {
+    "key": "totalLabel",
+    "oneDesc": "堆叠汇总标签"
+  },
+  "animationAppear": {
+    "key": "animationAppear",
+    "oneDesc": "图表入场动画\n支持配置图表内置不同动画效果"
+  },
+  "animationDisappear": {
+    "key": "animationDisappear",
+    "oneDesc": "图表退场动画"
+  },
+  "animationNormal": {
+    "key": "animationNormal",
+    "oneDesc": "循环动画"
+  },
+  "categoryField": {
+    "key": "categoryField",
+    "oneDesc": "文本字段"
+  },
+  "label": {
+    "key": "label",
+    "oneDesc": "叶子节点标签样式配置，默认不显示"
+  },
+  "nonLeaf": {
+    "key": "nonLeaf",
+    "oneDesc": "非叶子节点样式配置"
+  },
+  "leaf": {
+    "key": "leaf",
+    "oneDesc": "叶子节点样式配置"
+  },
+  "nonLeafLabel": {
+    "key": "nonLeafLabel",
+    "oneDesc": "非叶子节点标签样式配置，默认不显示"
+  },
+  "dataId": {
+    "key": "dataId",
+    "oneDesc": "系列关联的数据id"
+  },
+  "dataKey": {
+    "key": "dataKey",
+    "oneDesc": "dataKey用于绑定数据与Mark的关系, 该配置在动画中非常重要."
+  },
+  "seriesField": {
+    "key": "seriesField",
+    "oneDesc": "分组字段"
+  },
+  "stackValue": {
+    "key": "stackValue",
+    "oneDesc": "堆叠时的分组值\nstackValue 相等的系列将在一起堆积。没有配置的系列将在一组"
+  },
+  "stackOffsetSilhouette": {
+    "key": "stackOffsetSilhouette",
+    "oneDesc": "是否围绕中心轴偏移轮廓"
+  },
+  "invalidType": {
+    "key": "invalidType",
+    "oneDesc": "null，undefined等非法数据点连接方式。"
+  },
+  "extensionMark": {
+    "key": "extensionMark",
+    "oneDesc": "扩展mark"
+  },
+  "interactions": {
+    "key": "interactions",
+    "oneDesc": "其他需要按需注册的类型交互"
+  },
+  "drillField": {
+    "key": "drillField",
+    "oneDesc": "通过API进行钻取, 需要此配置项."
+  },
+  "maxDepth": {
+    "key": "maxDepth",
+    "oneDesc": "当节点在层次数据中的深度大于 maxDepth 时，节点将不会被显示"
+  },
+  "splitType": {
+    "key": "splitType",
+    "oneDesc": "'binary':    递归地将指定的节点分割成一个近似平衡的二叉树，对宽的矩形选择水平分割，对高的矩形选择垂直分割。\n\n'dice':      根据指定节点的每个子节点的值水平划分由x0, y0, x1, y1指定的矩形区域。子节点按顺序定位，从给定矩形\n             的左边缘（x0）开始。如果子节点的值之和小于指定节点的值（即，如果指定节点有一个非零的内部值），剩余的空位将被\n             定位在给定矩形的右边缘（x1）。\n\n'slice':     和'dice'类似，方向为竖直方向分割。\n\n'sliceDice': 节点奇数深度，用'slice'；节点偶数深度，用'dice'。\n\n'squarify':  尽可能按照一个特定长宽比的分割矩形。"
+  },
+  "gapWidth": {
+    "key": "gapWidth",
+    "oneDesc": "节点间距"
+  },
+  "nodePadding": {
+    "key": "nodePadding",
+    "oneDesc": "节点内边距"
+  },
+  "minVisibleArea": {
+    "key": "minVisibleArea",
+    "oneDesc": "当区域面积（px * px）小于设定值后，节点将被隐藏"
+  },
+  "minChildrenVisibleArea": {
+    "key": "minChildrenVisibleArea",
+    "oneDesc": "当区域面积（px * px）小于设定值后，节点的子节点将被隐藏"
+  },
+  "minChildrenVisibleSize": {
+    "key": "minChildrenVisibleSize",
+    "oneDesc": "当区域宽或高（px）小于设定值后，节点的子节点将被隐藏"
+  },
+  "roam": {
+    "key": "roam",
+    "oneDesc": "是否开启拖拽和缩放"
+  }
+}

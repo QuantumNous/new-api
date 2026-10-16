@@ -1,0 +1,91 @@
+{
+  "model": "claude-sonnet-4-6",
+  "id": "msg_012HMyuvZLN3vLPPuRYVnQff",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "server_tool_use",
+      "id": "srvtoolu_015CSHH7X69AhdK9gNzotEeh",
+      "name": "code_execution",
+      "input": {
+        "code": "\nimport json\nresult = await web_fetch({\"url\": \"https://example.com\"})\nparsed = json.loads(result) if isinstance(result, str) else result\nif isinstance(parsed, list):\n    print(parsed[0][\"content\"][:500])\nelse:\n    print(parsed)\n"
+      },
+      "caller": {
+        "type": "direct"
+      }
+    },
+    {
+      "type": "server_tool_use",
+      "id": "srvtoolu_0152eMmZnBDZc4C2miykFWW5",
+      "name": "web_fetch",
+      "input": {
+        "url": "https://example.com"
+      },
+      "caller": {
+        "type": "code_execution_20260120",
+        "tool_id": "srvtoolu_015CSHH7X69AhdK9gNzotEeh"
+      }
+    },
+    {
+      "type": "web_fetch_tool_result",
+      "tool_use_id": "srvtoolu_0152eMmZnBDZc4C2miykFWW5",
+      "content": {
+        "type": "web_fetch_result",
+        "url": "https://example.com",
+        "retrieved_at": "2026-03-03T15:05:04.091000+00:00",
+        "content": {
+          "type": "document",
+          "source": {
+            "type": "text",
+            "media_type": "text/plain",
+            "data": "Example Domain\n\n# Example Domain\n\nThis domain is for use in documentation examples without needing permission. Avoid use in operations.\n\n[Learn more](https://iana.org/domains/example)"
+          },
+          "title": "Example Domain"
+        }
+      },
+      "caller": {
+        "type": "code_execution_20260120",
+        "tool_id": "srvtoolu_015CSHH7X69AhdK9gNzotEeh"
+      }
+    },
+    {
+      "type": "code_execution_tool_result",
+      "tool_use_id": "srvtoolu_015CSHH7X69AhdK9gNzotEeh",
+      "content": {
+        "type": "code_execution_result",
+        "stdout": "{'type': 'web_fetch_result', 'url': 'https://example.com', 'retrieved_at': '2026-03-03T15:05:04.091000+00:00', 'content': {'type': 'document', 'source': {'type': 'text', 'media_type': 'text/plain', 'data': 'Example Domain\\n\\n# Example Domain\\n\\nThis domain is for use in documentation examples without needing permission. Avoid use in operations.\\n\\n[Learn more](https://iana.org/domains/example)'}, 'title': 'Example Domain'}}\n",
+        "stderr": "",
+        "return_code": 0,
+        "content": [],
+        "abort_reason": null
+      }
+    },
+    {
+      "type": "text",
+      "text": "The page at **example.com** is a simple placeholder page for the \"Example Domain,\" which is reserved for use in documentation and illustrative examples without requiring prior permission."
+    }
+  ],
+  "container": {
+    "id": "container_011CYgdc3J4LpgHCdaYF6kB6",
+    "expires_at": "2026-03-03T19:37:31.023014Z"
+  },
+  "stop_reason": "end_turn",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 7204,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 162,
+    "service_tier": "standard",
+    "inference_geo": "global",
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 1
+    }
+  }
+}

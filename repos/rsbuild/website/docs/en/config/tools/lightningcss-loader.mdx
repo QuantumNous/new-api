@@ -1,0 +1,71 @@
+---
+description: 'You can set the options for builtin:lightningcss-loader through tools.lightningcssLoader.'
+---
+
+# tools.lightningcssLoader
+
+- **Type:** `Rspack.LightningcssLoaderOptions | Function | boolean`
+- **Default:**
+
+```ts
+const defaultOptions = {
+  errorRecovery: true,
+  // use current project's browserslist config
+  targets: browserslist,
+  // minify is enabled when output.injectStyles is true and in production mode
+  minify: config.mode === 'production' && config.output.injectStyles,
+};
+```
+
+You can set the options for [builtin:lightningcss-loader](https://rspack.rs/guide/features/builtin-lightningcss-loader) through `tools.lightningcssLoader`.
+
+## Object type
+
+When `tools.lightningcssLoader` is an object, it will be merged with the default configuration using `Object.assign`.
+
+For example, you can disable the addition of vendor prefixes through `tools.lightningcssLoader.exclude`. In this case, you can use PostCSS's autoprefixer plugin to add vendor prefixes.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    lightningcssLoader: {
+      exclude: {
+        vendorPrefixes: true,
+      },
+    },
+  },
+};
+```
+
+## Function type
+
+When `tools.lightningcssLoader` is a function, the default options will be passed in as the first parameter. You can directly modify this object or return a new object as the final options to be used. For example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    lightningcssLoader: (config) => {
+      config.exclude = {
+        vendorPrefixes: true,
+      };
+      return config;
+    },
+  },
+};
+```
+
+## Disable loader
+
+Set `tools.lightningcssLoader` to `false` to disable the built-in `lightningcss-loader` in Rsbuild:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    lightningcssLoader: false,
+  },
+};
+```
+
+:::tip
+Setting `tools.lightningcssLoader` to `false` only disables the `lightningcss-loader`. If you need to disable the full functionality of Lightning CSS, refer to [Disabling Lightning CSS](/guide/styling/css-usage#disabling-lightning-css).
+:::

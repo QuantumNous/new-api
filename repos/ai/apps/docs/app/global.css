@@ -1,0 +1,21 @@
+@import "@vercel/geistdocs/styles.css";
+
+@source "../content/**/*.mdx";
+
+/* Step counters for the <Steps> MDX component (ported from ai-sdk.dev). */
+.docs-steps {
+  counter-reset: step;
+}
+
+.docs-steps :is(h2, h3, h4) {
+  counter-increment: step;
+}
+
+.docs-steps :is(h2, h3, h4)::before {
+  content: counter(step);
+  @apply -ml-[41px] mt-[3px] absolute inline-flex size-8 items-center justify-center rounded-full bg-gray-100 text-gray-1000 text-sm font-normal;
+}
+
+.docs-steps :is(h2, h3, h4) {
+  @apply relative;
+}

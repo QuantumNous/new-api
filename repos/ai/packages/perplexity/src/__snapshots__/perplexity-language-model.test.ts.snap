@@ -1,0 +1,588 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`doGenerate > citations > should extract citation content 1`] = `
+{
+  "content": [
+    {
+      "text": "The most recent estimates for San Francisco's city population (as of 2024-2026) range from **803,000 to 893,000**, with a consensus around **827,000-844,000** from authoritative U.S. data sources.[2][3][5][7]
+
+Recent figures include:
+- 827,526 (2024 estimate, consistent across Wikipedia, California Demographics, and FRED/St. Louis Fed data).[2][3][5]
+- 844,276 (San Francisco County 2026 projection).[7]
+- 803,876 (2026 city projection, noting a -1.45% annual decline).[6]
+- 893,000 (2026 city estimate from populationstat.com).[1]
+
+These reflect post-2020 Census trends (873,965 in 2020), with population declining due to factors like high costs and migration, though some sources project modest metro-area growth to 3.3-4.7 million.[1][2] Federal sources like FRED (updated March 2025) provide the most reliable annual benchmarks, while projections vary by methodology.[5] For the latest official data, check U.S. Census Bureau updates beyond 2024.",
+      "type": "text",
+    },
+    {
+      "id": "id-6",
+      "sourceType": "url",
+      "type": "source",
+      "url": "https://populationstat.com/united-states/san-francisco",
+    },
+    {
+      "id": "id-7",
+      "sourceType": "url",
+      "type": "source",
+      "url": "https://en.wikipedia.org/wiki/San_Francisco",
+    },
+    {
+      "id": "id-8",
+      "sourceType": "url",
+      "type": "source",
+      "url": "https://www.california-demographics.com/cities_by_population",
+    },
+    {
+      "id": "id-9",
+      "sourceType": "url",
+      "type": "source",
+      "url": "https://wfin.com/fox-sports/pat-mcafee-says-san-francisco-wasnt-the-s-hole-he-thought-it-may-be-during-super-bowl-week/",
+    },
+    {
+      "id": "id-10",
+      "sourceType": "url",
+      "type": "source",
+      "url": "https://fred.stlouisfed.org/series/CASANF0POP",
+    },
+    {
+      "id": "id-11",
+      "sourceType": "url",
+      "type": "source",
+      "url": "https://worldpopulationreview.com/us-cities/california/san-francisco",
+    },
+    {
+      "id": "id-12",
+      "sourceType": "url",
+      "type": "source",
+      "url": "https://worldpopulationreview.com/us-counties/california/san-francisco-county",
+    },
+  ],
+  "finishReason": {
+    "raw": "stop",
+    "unified": "stop",
+  },
+  "providerMetadata": {
+    "perplexity": {
+      "cost": null,
+      "images": null,
+      "usage": {
+        "citationTokens": null,
+        "numSearchQueries": null,
+      },
+    },
+  },
+  "request": {
+    "body": {
+      "frequency_penalty": undefined,
+      "max_tokens": undefined,
+      "messages": [
+        {
+          "content": "Hello",
+          "role": "user",
+        },
+      ],
+      "model": "sonar",
+      "presence_penalty": undefined,
+      "response_format": undefined,
+      "temperature": undefined,
+      "top_k": undefined,
+      "top_p": undefined,
+    },
+  },
+  "response": {
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "The most recent estimates for San Francisco's city population (as of 2024-2026) range from **803,000 to 893,000**, with a consensus around **827,000-844,000** from authoritative U.S. data sources.[2][3][5][7]
+
+Recent figures include:
+- 827,526 (2024 estimate, consistent across Wikipedia, California Demographics, and FRED/St. Louis Fed data).[2][3][5]
+- 844,276 (San Francisco County 2026 projection).[7]
+- 803,876 (2026 city projection, noting a -1.45% annual decline).[6]
+- 893,000 (2026 city estimate from populationstat.com).[1]
+
+These reflect post-2020 Census trends (873,965 in 2020), with population declining due to factors like high costs and migration, though some sources project modest metro-area growth to 3.3-4.7 million.[1][2] Federal sources like FRED (updated March 2025) provide the most reliable annual benchmarks, while projections vary by methodology.[5] For the latest official data, check U.S. Census Bureau updates beyond 2024.",
+            "role": "assistant",
+          },
+        },
+      ],
+      "citations": [
+        "https://populationstat.com/united-states/san-francisco",
+        "https://en.wikipedia.org/wiki/San_Francisco",
+        "https://www.california-demographics.com/cities_by_population",
+        "https://wfin.com/fox-sports/pat-mcafee-says-san-francisco-wasnt-the-s-hole-he-thought-it-may-be-during-super-bowl-week/",
+        "https://fred.stlouisfed.org/series/CASANF0POP",
+        "https://worldpopulationreview.com/us-cities/california/san-francisco",
+        "https://worldpopulationreview.com/us-counties/california/san-francisco-county",
+      ],
+      "created": 1770768226,
+      "id": "702738a1-c1e0-4a7f-b9ab-0f6fe1b13514",
+      "model": "sonar",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 251,
+        "prompt_tokens": 10,
+        "total_tokens": 261,
+      },
+    },
+    "headers": {
+      "content-length": "1733",
+      "content-type": "application/json",
+    },
+    "id": "702738a1-c1e0-4a7f-b9ab-0f6fe1b13514",
+    "modelId": "sonar",
+    "timestamp": 2026-02-11T00:03:46.000Z,
+  },
+  "usage": {
+    "inputTokens": {
+      "cacheRead": undefined,
+      "cacheWrite": undefined,
+      "noCache": 10,
+      "total": 10,
+    },
+    "outputTokens": {
+      "reasoning": 0,
+      "text": 251,
+      "total": 251,
+    },
+    "raw": {
+      "completion_tokens": 251,
+      "prompt_tokens": 10,
+      "total_tokens": 261,
+    },
+  },
+  "warnings": [],
+}
+`;
+
+exports[`doGenerate > text > should extract text content 1`] = `
+{
+  "content": [
+    {
+      "text": "**EcoVista Day** is a new annual holiday celebrated on the first Saturday of October, dedicated to envisioning and creating sustainable futures through innovative, nature-inspired decorations and communal creativity.[1][2]
+
+### Core Purpose
+EcoVista Day encourages people to blend modern design with environmental mindfulness, transforming homes and public spaces into interactive showcases of sustainability. It reimagines holiday traditions by focusing on biodegradable materials, technology-enhanced greenery, and unconventional structures, drawing from trends like natural elements and interactive decor to promote eco-awareness without excess waste.[1][3]
+
+### Key Traditions
+- **Forage and Craft Natural Installations**: Participants gather pinecones, dried fruits, herbs, seed pods, eucalyptus, and berries from local sources to build wreaths, garlands, and sculptural "vista trees"—ladder-shaped or wall-cascading displays made from branches and hessian ribbons. These biodegradable ornaments hang through the evening, lit by solar-powered LED globes for a glowing, otherworldly effect.[1][2][3]
+  
+- **Interactive Tech Greenery**: Create sensor-activated decorations, such as musical ornaments or color-changing lights triggered by touch, integrated into backyard setups or porches. Families host "vista stations" where guests add personal touches, like tying velvet bows or stacking book-tree alternatives, fostering shared creativity.[1][4]
+
+- **Communal Feast and Reflection**: Evening gatherings feature minimalist Scandinavian-style tables draped in linen runners with evergreen swags, pomegranates, and votive candles. Share stories of future visions while enjoying sustainable meals, ending with a group "light-off" to appreciate starlit skies, emphasizing low-impact luxury.[2][3]
+
+This holiday scales for individuals (home setups) or communities (pop-up parks), using affordable, repurposable items to make festivity accessible and forward-thinking.[5]",
+      "type": "text",
+    },
+    {
+      "id": "id-0",
+      "sourceType": "url",
+      "type": "source",
+      "url": "https://www.modernchristmastrees.com/innovative-approaches-holiday-decor-modern-interior-design/",
+    },
+    {
+      "id": "id-1",
+      "sourceType": "url",
+      "type": "source",
+      "url": "https://camillestyles.com/design/modern-christmas-decorating-ideas/",
+    },
+    {
+      "id": "id-2",
+      "sourceType": "url",
+      "type": "source",
+      "url": "https://www.elledecor.com/design-decorate/interior-designers/advice/g2833/christmas-decorating-ideas/",
+    },
+    {
+      "id": "id-3",
+      "sourceType": "url",
+      "type": "source",
+      "url": "https://www.youtube.com/watch?v=GVxMMHAwzIU",
+    },
+    {
+      "id": "id-4",
+      "sourceType": "url",
+      "type": "source",
+      "url": "https://www.jjonesdesignco.com/blogs/modern-industrial-christmas-decor-joshuas-must-have-holiday-picks",
+    },
+    {
+      "id": "id-5",
+      "sourceType": "url",
+      "type": "source",
+      "url": "https://www.bhsusa.com/blog/5-decorations-for-a-mid-century-modern-inspired-holiday",
+    },
+  ],
+  "finishReason": {
+    "raw": "stop",
+    "unified": "stop",
+  },
+  "providerMetadata": {
+    "perplexity": {
+      "cost": null,
+      "images": null,
+      "usage": {
+        "citationTokens": null,
+        "numSearchQueries": null,
+      },
+    },
+  },
+  "request": {
+    "body": {
+      "frequency_penalty": undefined,
+      "max_tokens": undefined,
+      "messages": [
+        {
+          "content": "Hello",
+          "role": "user",
+        },
+      ],
+      "model": "sonar",
+      "presence_penalty": undefined,
+      "response_format": undefined,
+      "temperature": undefined,
+      "top_k": undefined,
+      "top_p": undefined,
+    },
+  },
+  "response": {
+    "body": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "index": 0,
+          "message": {
+            "content": "**EcoVista Day** is a new annual holiday celebrated on the first Saturday of October, dedicated to envisioning and creating sustainable futures through innovative, nature-inspired decorations and communal creativity.[1][2]
+
+### Core Purpose
+EcoVista Day encourages people to blend modern design with environmental mindfulness, transforming homes and public spaces into interactive showcases of sustainability. It reimagines holiday traditions by focusing on biodegradable materials, technology-enhanced greenery, and unconventional structures, drawing from trends like natural elements and interactive decor to promote eco-awareness without excess waste.[1][3]
+
+### Key Traditions
+- **Forage and Craft Natural Installations**: Participants gather pinecones, dried fruits, herbs, seed pods, eucalyptus, and berries from local sources to build wreaths, garlands, and sculptural "vista trees"—ladder-shaped or wall-cascading displays made from branches and hessian ribbons. These biodegradable ornaments hang through the evening, lit by solar-powered LED globes for a glowing, otherworldly effect.[1][2][3]
+  
+- **Interactive Tech Greenery**: Create sensor-activated decorations, such as musical ornaments or color-changing lights triggered by touch, integrated into backyard setups or porches. Families host "vista stations" where guests add personal touches, like tying velvet bows or stacking book-tree alternatives, fostering shared creativity.[1][4]
+
+- **Communal Feast and Reflection**: Evening gatherings feature minimalist Scandinavian-style tables draped in linen runners with evergreen swags, pomegranates, and votive candles. Share stories of future visions while enjoying sustainable meals, ending with a group "light-off" to appreciate starlit skies, emphasizing low-impact luxury.[2][3]
+
+This holiday scales for individuals (home setups) or communities (pop-up parks), using affordable, repurposable items to make festivity accessible and forward-thinking.[5]",
+            "role": "assistant",
+          },
+        },
+      ],
+      "citations": [
+        "https://www.modernchristmastrees.com/innovative-approaches-holiday-decor-modern-interior-design/",
+        "https://camillestyles.com/design/modern-christmas-decorating-ideas/",
+        "https://www.elledecor.com/design-decorate/interior-designers/advice/g2833/christmas-decorating-ideas/",
+        "https://www.youtube.com/watch?v=GVxMMHAwzIU",
+        "https://www.jjonesdesignco.com/blogs/modern-industrial-christmas-decor-joshuas-must-have-holiday-picks",
+        "https://www.bhsusa.com/blog/5-decorations-for-a-mid-century-modern-inspired-holiday",
+      ],
+      "created": 1770768220,
+      "id": "aec30d94-c6a5-4d30-935e-97dbe8de9f85",
+      "model": "sonar",
+      "object": "chat.completion",
+      "usage": {
+        "completion_tokens": 392,
+        "prompt_tokens": 11,
+        "total_tokens": 403,
+      },
+    },
+    "headers": {
+      "content-length": "2786",
+      "content-type": "application/json",
+    },
+    "id": "aec30d94-c6a5-4d30-935e-97dbe8de9f85",
+    "modelId": "sonar",
+    "timestamp": 2026-02-11T00:03:40.000Z,
+  },
+  "usage": {
+    "inputTokens": {
+      "cacheRead": undefined,
+      "cacheWrite": undefined,
+      "noCache": 11,
+      "total": 11,
+    },
+    "outputTokens": {
+      "reasoning": 0,
+      "text": 392,
+      "total": 392,
+    },
+    "raw": {
+      "completion_tokens": 392,
+      "prompt_tokens": 11,
+      "total_tokens": 403,
+    },
+  },
+  "warnings": [],
+}
+`;
+
+exports[`doStream > citations > should stream citations 1`] = `
+[
+  {
+    "type": "stream-start",
+    "warnings": [],
+  },
+  {
+    "id": "58cb9740-f356-49e9-b71e-a02a1376c1b9",
+    "modelId": "sonar",
+    "timestamp": 2026-02-11T00:04:00.000Z,
+    "type": "response-metadata",
+  },
+  {
+    "id": "id-66",
+    "sourceType": "url",
+    "type": "source",
+    "url": "https://populationstat.com/united-states/san-francisco",
+  },
+  {
+    "id": "id-67",
+    "sourceType": "url",
+    "type": "source",
+    "url": "https://en.wikipedia.org/wiki/San_Francisco",
+  },
+  {
+    "id": "id-68",
+    "sourceType": "url",
+    "type": "source",
+    "url": "https://fred.stlouisfed.org/graph/?g=4K5j",
+  },
+  {
+    "id": "id-69",
+    "sourceType": "url",
+    "type": "source",
+    "url": "https://www.california-demographics.com/cities_by_population",
+  },
+  {
+    "id": "id-70",
+    "sourceType": "url",
+    "type": "source",
+    "url": "https://worldpopulationreview.com/us-cities/california/san-francisco",
+  },
+  {
+    "id": "id-71",
+    "sourceType": "url",
+    "type": "source",
+    "url": "https://worldpopulationreview.com/us-counties/california/san-francisco-county",
+  },
+  {
+    "id": "id-72",
+    "sourceType": "url",
+    "type": "source",
+    "url": "https://www.worldometers.info/world-population/us-population/",
+  },
+  {
+    "id": "0",
+    "type": "text-start",
+  },
+  {
+    "delta": "The",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " current",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " population",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " of",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " **",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "[2]",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "[3]",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "id": "0",
+    "type": "text-end",
+  },
+  {
+    "finishReason": {
+      "raw": "stop",
+      "unified": "stop",
+    },
+    "providerMetadata": {
+      "perplexity": {
+        "cost": null,
+        "images": null,
+        "usage": {
+          "citationTokens": null,
+          "numSearchQueries": null,
+        },
+      },
+    },
+    "type": "finish",
+    "usage": {
+      "inputTokens": {
+        "cacheRead": undefined,
+        "cacheWrite": undefined,
+        "noCache": 10,
+        "total": 10,
+      },
+      "outputTokens": {
+        "reasoning": 0,
+        "text": 336,
+        "total": 336,
+      },
+      "raw": {
+        "completion_tokens": 336,
+        "prompt_tokens": 10,
+        "total_tokens": 346,
+      },
+    },
+  },
+]
+`;
+
+exports[`doStream > text > should stream text 1`] = `
+[
+  {
+    "type": "stream-start",
+    "warnings": [],
+  },
+  {
+    "id": "a3d55d44-63f9-4704-bb26-e17be1ddab3a",
+    "modelId": "sonar",
+    "timestamp": 2026-02-11T00:03:53.000Z,
+    "type": "response-metadata",
+  },
+  {
+    "id": "id-61",
+    "sourceType": "url",
+    "type": "source",
+    "url": "https://www.modernchristmastrees.com/innovative-approaches-holiday-decor-modern-interior-design/",
+  },
+  {
+    "id": "id-62",
+    "sourceType": "url",
+    "type": "source",
+    "url": "https://camillestyles.com/design/modern-christmas-decorating-ideas/",
+  },
+  {
+    "id": "id-63",
+    "sourceType": "url",
+    "type": "source",
+    "url": "https://www.elledecor.com/design-decorate/interior-designers/advice/g2833/christmas-decorating-ideas/",
+  },
+  {
+    "id": "id-64",
+    "sourceType": "url",
+    "type": "source",
+    "url": "https://www.youtube.com/watch?v=GVxMMHAwzIU",
+  },
+  {
+    "id": "id-65",
+    "sourceType": "url",
+    "type": "source",
+    "url": "https://www.jjonesdesignco.com/blogs/modern-industrial-christmas-decor-joshuas-must-have-holiday-picks",
+  },
+  {
+    "id": "0",
+    "type": "text-start",
+  },
+  {
+    "delta": "**",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Eco",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "Vista",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": " Day",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "**",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "[1]",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "[5]",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "delta": "",
+    "id": "0",
+    "type": "text-delta",
+  },
+  {
+    "id": "0",
+    "type": "text-end",
+  },
+  {
+    "finishReason": {
+      "raw": "stop",
+      "unified": "stop",
+    },
+    "providerMetadata": {
+      "perplexity": {
+        "cost": null,
+        "images": null,
+        "usage": {
+          "citationTokens": null,
+          "numSearchQueries": null,
+        },
+      },
+    },
+    "type": "finish",
+    "usage": {
+      "inputTokens": {
+        "cacheRead": undefined,
+        "cacheWrite": undefined,
+        "noCache": 11,
+        "total": 11,
+      },
+      "outputTokens": {
+        "reasoning": 0,
+        "text": 434,
+        "total": 434,
+      },
+      "raw": {
+        "completion_tokens": 434,
+        "prompt_tokens": 11,
+        "total_tokens": 445,
+      },
+    },
+  },
+]
+`;

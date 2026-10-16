@@ -1,0 +1,66 @@
+{
+  "type": {
+    "key": "type",
+    "oneDesc": "图表类型，当前为组合图表"
+  },
+  "series": {
+    "key": "series",
+    "oneDesc": "series(系列)是描述数据在图表中呈现方式的基本概念。组合图的各种图元相关配置和映射方式都放在series中进行配置"
+  },
+  "bar": {
+    "key": "bar",
+    "oneDesc": "柱图图元样式配置"
+  },
+  "barBackground": {
+    "key": "barBackground",
+    "oneDesc": "柱图中每根柱子背后的背景图元配置"
+  },
+  "point": {
+    "key": "point",
+    "oneDesc": "点图元配置"
+  },
+  "line": {
+    "key": "line",
+    "oneDesc": "线图元配置"
+  },
+  "area": {
+    "key": "area",
+    "oneDesc": "面积图元配置"
+  },
+  "boxPlot": {
+    "key": "boxPlot",
+    "oneDesc": "箱体图元配置"
+  },
+  "circlePacking": {
+    "key": "circlePacking",
+    "oneDesc": "嵌套圆图中每个圆的图元配置"
+  },
+  "cell": {
+    "key": "cell",
+    "oneDesc": "单元格图元配置"
+  },
+  "cellBackground": {
+    "key": "cellBackground",
+    "oneDesc": "每个单元格对应的背景配置"
+  },
+  "sunburst": {
+    "key": "sunburst",
+    "oneDesc": "旭日图中单个扇区图元配置"
+  },
+  "circle": {
+    "key": "circle",
+    "oneDesc": "韦恩图中圆形图元配置"
+  },
+  "markLine": {
+    "key": "markLine",
+    "oneDesc": "参考线标注，支持在图表上进行标注，标注样式为线条，可以自定义各种线条样式，同时也支持文本展示"
+  },
+  "markArea": {
+    "key": "markArea",
+    "oneDesc": "区域标注，支持在图表上对某块区域进行标注，支持对标注区域配色和文本解释."
+  },
+  "markPoint": {
+    "key": "markPoint",
+    "oneDesc": "参考点标注，支持对图表上某个具体的点进行标注，支持文本解释"
+  }
+}

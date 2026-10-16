@@ -1,0 +1,46 @@
+{
+  "name": "@visactor/vchart-schema",
+  "version": "2.1.3",
+  "description": "The VChart JSON schema file.",
+  "sideEffects": false,
+  "main": "vchart.json",
+  "files": [
+    "vchart.json"
+  ],
+  "scripts": {
+    "test": "jest",
+    "test-live": "npm run test-watch __tests__",
+    "test-watch": "DEBUG_MODE=1 jest --watch"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@internal/eslint-config": "workspace:*",
+    "@rushstack/eslint-patch": "~1.1.4",
+    "@internal/ts-config": "workspace:*",
+    "ts-json-schema-generator": "^1.2.0",
+    "ajv": "^8.12.0",
+    "ajv-keywords": "^5.1.0",
+    "semver": "7.3.4",
+    "@types/jest": "^26.0.0",
+    "jest": "^26.0.0",
+    "jest-electron": "^0.1.12",
+    "ts-jest": "^26.0.0",
+    "@types/semver": "7.3.12"
+  },
+  "homepage": "",
+  "bugs": "https://github.com/VisActor/VChart/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VisActor/VChart",
+    "directory": "packages/vchart-schema"
+  },
+  "author": {
+    "name": "VisActor",
+    "url": "https://www.visactor.io/"
+  },
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

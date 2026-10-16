@@ -1,0 +1,24 @@
+{
+  "output": {
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "toolUse": {
+            "toolUseId": "toolu_01PQjhxo3eirCdKNvCJrKc8f",
+            "name": "get-weather",
+            "input": {
+              "location": "San Francisco"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "usage": {
+    "inputTokens": 843,
+    "outputTokens": 28,
+    "totalTokens": 871
+  },
+  "stopReason": "tool_use"
+}

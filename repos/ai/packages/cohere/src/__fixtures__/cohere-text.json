@@ -1,0 +1,24 @@
+{
+  "id": "e7592632-1e3d-424f-b129-bd5f9f980f7b",
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "The capital of France is Paris."
+      }
+    ]
+  },
+  "finish_reason": "COMPLETE",
+  "usage": {
+    "billed_units": {
+      "input_tokens": 12,
+      "output_tokens": 7
+    },
+    "tokens": {
+      "input_tokens": 507,
+      "output_tokens": 10
+    },
+    "cached_tokens": 448
+  }
+}

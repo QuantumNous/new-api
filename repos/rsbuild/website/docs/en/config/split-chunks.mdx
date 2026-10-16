@@ -1,0 +1,120 @@
+---
+description: "splitChunks is used to configure Rsbuild's chunk splitting strategy."
+---
+
+# splitChunks
+
+- **Type:**
+
+```ts
+type SplitChunksConfig =
+  | (Rspack.OptimizationSplitChunksOptions & {
+      preset?: SplitChunksPreset;
+    })
+  | false;
+```
+
+- **Default:** based on [output.target](/config/output/target):
+  - When `output.target` is `'web'`, the default is `{ preset: 'default', chunks: 'all' }`
+  - When `output.target` is any other value, the default is `false`
+- **Version:** `>= 2.0.0`
+
+`splitChunks` is used to configure Rsbuild's chunk splitting strategy.
+
+It is built on top of Rspack's [optimization.splitChunks](https://rspack.rs/plugins/webpack/split-chunks-plugin) and extends it with an additional `preset` option, which provides several Rsbuild-specific presets for common use cases.
+
+## splitChunks.preset
+
+- **Type:** `'default' | 'per-package' | 'single-vendor' | 'none' | undefined`
+- **Default:** `'default'` when `output.target` is `'web'`, `none` otherwise
+
+`preset` is used to enable the built-in presets in Rsbuild to simplify common chunk splitting scenarios.
+
+### default
+
+The default splitting strategy in Rsbuild, with the following rules:
+
+- When [output.polyfill](/config/output/polyfill) is enabled, polyfill code is automatically split into `lib-polyfill.js`
+- When the React plugin is used, React-related packages are automatically split into separate chunks. See [React plugin - splitChunks](/plugins/list/plugin-react#splitchunks)
+- When the Vue plugin is used, Vue-related packages are automatically split into separate chunks. See [Vue plugin - splitChunks](/plugins/list/plugin-vue#splitchunks)
+
+```ts title="rsbuild.config.ts"
+export default {
+  splitChunks: {
+    preset: 'default',
+  },
+};
+```
+
+### per-package
+
+`per-package` splits dependencies in `node_modules` by npm package. Each package is bundled into its own chunk, with names like `npm-react.js` or `npm-babel_runtime.js`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  splitChunks: {
+    preset: 'per-package',
+  },
+};
+```
+
+### single-vendor
+
+`single-vendor` merges all third-party dependencies in `node_modules` into a single vendor chunk.
+
+```ts title="rsbuild.config.ts"
+export default {
+  splitChunks: {
+    preset: 'single-vendor',
+  },
+};
+```
+
+### none
+
+`none` disables Rsbuild's built-in preset rules. This is useful when you want to rely on Rspack defaults or only use your custom options.
+
+```ts title="rsbuild.config.ts"
+export default {
+  splitChunks: {
+    preset: 'none',
+  },
+};
+```
+
+## Other options
+
+Apart from the `preset` option, all other options behave the same as in Rspack. For detailed usage, see the [Rspack documentation](https://rspack.rs/plugins/webpack/split-chunks-plugin).
+
+```ts title="rsbuild.config.ts"
+export default {
+  splitChunks: {
+    // Rsbuild-specific option
+    preset: 'default',
+    // Rspack options
+    chunks: 'all',
+    minSize: 20 * 1024,
+    cacheGroups: {
+      vendors: {
+        test: /[\\/]node_modules[\\/]/,
+        name: 'vendors',
+        priority: -10,
+      },
+    },
+  },
+};
+```
+
+:::tip
+Rsbuild first converts the preset rules into a configuration object, then merges it with the `splitChunks` options you provide. The user-defined `splitChunks` configuration takes higher priority.
+:::
+
+## Disable chunk splitting
+
+To disable chunk splitting, set `splitChunks` to `false`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  splitChunks: false,
+};
+```

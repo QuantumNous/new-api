@@ -1,0 +1,749 @@
+{"type":"message_start","message":{"model":"claude-opus-4-6","id":"msg_01WJn2D9FrjipEZ9u51siJHC","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":60385,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":5,"service_tier":"standard","inference_geo":"global"}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"compaction","content":null}}
+{"type":"ping"}
+{"type":"content_block_delta","index":0,"delta":{"type":"compaction_delta","content":"## Summary of Conversation\n\n### Task Context\nThe user shared a very long reference document about web development and software engineering (duplicated 5 times for \"redundancy\"). They asked a series of questions about different topics covered in the documentation.\n\n### Conversation Flow\n1. **React vs Vue.js State Management**: I explained React's hooks (useState, useReducer, useContext) and Redux vs Vue's Composition API (ref, computed, watch) and Pinia (defineStore with state, getters, actions).\n\n2. **Docker and Kubernetes**: I explained Docker's containerization (Dockerfile, Docker Compose) and Kubernetes orchestration (Deployments, Services, Ingress), plus how they work together in a development-to-production workflow.\n\n3. **Testing Strategies**: I covered the differences between Unit Testing (Jest - isolated functions, fast), Integration Testing (supertest - API endpoints, service communication), and E2E Testing (Playwright - real user flows in browsers), plus the testing pyramid concept.\n\n4. **SQL vs NoSQL Databases**: I explained SQL databases (DDL, DML, JOINs, window functions, CTEs, indexing) vs NoSQL options (MongoDB for documents, Redis for key-value/caching, Neo4j for graphs), and when to use each.\n\n5. **Current Question**: The user asked me to summarize key algorithms and data structures from the documentation. This is the pending question I need to answer.\n\n### Pending Response Needed\nI need to provide a comprehensive summary of algorithms and data structures from the documentation, covering:\n- **Data Structures**: Arrays, Linked Lists, Stacks, Queues, Priority Queues, Binary Search Trees, Hash Tables, Graphs\n- **Sorting Algorithms**: Quick Sort, Merge Sort, Heap Sort\n- **Searching Algorithms**: Binary Search (and variants)\n- **Dynamic Programming**: Fibonacci, LCS, Knapsack, Coin Change, Edit Distance\n- **Big O Notation**: Common complexities from O(1) to O(n!)\n\n### Key Pattern\nThe user asks broad questions about sections of the documentation and expects organized, structured answers that summarize the key concepts. They've been asking follow-up questions sequentially through the major sections. This was their \"final\" question in the series."}}
+{"type":"content_block_stop","index":0}
+{"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Based"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" on the conversation"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" history"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":", you"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" asked"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" me to summarize the"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" key algorithms and data structures from the documentation"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":". Here's a"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" comprehensive summary:\n\n---"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n#"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Algorithms &"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Data Structures Summary\n\n## "}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"📦"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Core"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Data"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Structures\n\n### Arrays"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- **Fixed"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-size**"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"or"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" dynam"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ically res"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ized"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":") cont"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"iguous memory blocks"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- **Access"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**: O(1) by"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" index\n- **Search"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**: O(n) linear"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":","}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O(log n) if"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" sorted"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"binary"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" search)\n- **Insertion/"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Deletion**: O(n) due"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" to shifting elements"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- Great"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" for random"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" access;"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" less"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" ideal"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" for frequent insertions/remov"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"als\n\n### Linked Lists\n-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **Singly Linked**:"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Each"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" node points"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" to the next"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- **Doubly Linked**:"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Each node points to both next"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" and previous\n- **Insertion"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"/Deletion**"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" at head:"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O(1)\n- **Search"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"/"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Access"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**: O(n) —"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" no"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" random access\n- Useful"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" when"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" you need frequent"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" insertions/deletions and"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" don"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"'t need"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" index"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ing\n\n### Stacks ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"LIFO)\n- **Push/"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Pop/"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Peek**: O(1)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- Use"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" cases"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":": function call"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" st"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"acks, "}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"undo operations, expression evaluation,"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" D"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"FS"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- Can"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" be implemented with arrays or linked lists"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n### Queues ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"FIFO)\n- **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Enqueue/Dequeue/"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Peek**: O(1)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- Use cases: B"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"FS, task"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" scheduling, buff"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ering"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Variants"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":": **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Circular Queue**,"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Deque** (double-ended)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n### Priority Queues /"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Heaps\n-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Typically"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" implemented as a"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"binary"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" heap**"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" (min-heap or max-heap"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":")\n- **Insert"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**: O(log n)\n-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **Extract min"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"/max**: O(log n)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Peek"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**: O(1)\n- Use"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" cases:"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Dijkstra's algorithm, task"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" scheduling by"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" priority,"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" median"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" finding\n\n### Binary Search Trees (BS"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"T"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":")\n- Each"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" node:"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" left"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" child < parent < right child\n-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **Average"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" search"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"/"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"insert/"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"delete: O(log n)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- **Worst case"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" (de"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"generate/"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"skewed): O(n)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Balanced"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" variants"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**: AVL trees"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":", Red-Black trees →"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" guarantee"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O(log n)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"In"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-order traversal**"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" yields"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" sorted output"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n### Hash Tables\n- **Key"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" →"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" hash"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" function →"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" bucket index"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**\n- **Average"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"** insert"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"/search"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"/"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"delete: O(1)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- **Worst case**"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" (many"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" collisions): O(n)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Collision"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" resolution: **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ch"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"aining** ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"linked"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" lists in"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" buckets)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" or **open addressing**"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" (pro"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"bing)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- Use"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" cases: dict"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ionaries, caches"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":", frequency"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" counting,"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" de"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"duplication\n\n### Graphs\n-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **Representations"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**:"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Adjacency List"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"space"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-efficient for"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" sparse)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" vs"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"."}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Adjacency Matrix (fast"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" edge"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" lookup)\n- **Types"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**: Directed/"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Undirected,"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Weighted/Unweighted,"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Cyclic/"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Acyclic\n- **Key"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" algorithms"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**:\n  - **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"B"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"FS**"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" (Breadth-First Search):"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O(V + E),"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" uses"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" queue —"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" shortest"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" path in"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" unweighted graphs"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n  - **DFS** ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Depth-First Search): O("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"V + E), uses stack/"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"recursion — cycle"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" detection,"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" topological sort\n  - **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Dijkstra's**:"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Shortest"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" path in"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" weighted graphs ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"non-negative weights),"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"((V + E) log V)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" with"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" min"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-heap\n  - **Bell"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"man-Ford**: Handles"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" negative weights, O(V × E"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":")"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n  - **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Top"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ological Sort"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**: Linear"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" ordering of DA"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"G vertices"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n---"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n## 🔄"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Sorting Algorithms\n\n### Quick"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Sort\n```"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\nfunction quickSort(arr):"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n    if arr."}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"length <= 1:"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" return arr\n    pick"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" pivot (e.g., last element"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":")\n    partition into"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" ["}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"less],"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" [equal"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"], [greater]\n    return"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" [..."}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"quickSort(less), ..."}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"equal"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":", ...quickSort(greater)]"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n```"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **Average**: O(n log n"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":")\n- **Worst**"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" (bad"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" pivot selection"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"): O(n²)\n-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **Space"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**: O(log"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" n) for recursion stack ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"in"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-place variant"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":")"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- **Not"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" stable** (by"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" default)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- In"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" practice"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":","}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" often the"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" fastest"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" general"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-purpose sort"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n### Merge Sort\n```"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\nfunction mergeSort(arr):"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n    if arr.length <= 1"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":": return arr\n    split"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" into"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" left"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" half,"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" right half\n    return"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" merge(mergeSort(left),"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" mergeSort(right))\n```"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- **Always"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**:"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O(n log n)"}}
+{"type":"ping"}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" — guaranteed"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- **Space"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**: O(n) for the"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" merge"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" step"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- **Stable**"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" sort"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" (preserves relative order of equal elements"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":")\n- Preferred"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" when"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" stability"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" matters"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" or"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" for"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" linked"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" lists"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n### Heap Sort\n```"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\nfunction heapSort(arr):"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n    build"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Max"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Heap(arr)\n    for"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" i from end"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" to"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" start"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":":\n        swap arr"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"[0] with"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" arr[i]\n        he"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"apify"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Down(arr, "}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"0,"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" i)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n```\n- **Always"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**: O(n log n)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- **Space**: O(1"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":") —"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" in-place\n- **Not"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" stable**\n- Useful"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" when"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" guaranteed"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O(n log n) is"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" needed"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" with"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"(1) extra"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" space\n\n###"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Comparison"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Table"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n| Algorithm"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" | Best"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" | Average | Worst | Space |"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Stable?"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" |\n|-----------|------|------"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"---|-------|-------|---------|"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n| Quick Sort | O"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"(n log n) | O("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"n log"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" n) | O(n²)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" | O(log n) | No"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" |\n| Merge Sort | O"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"(n log n) | O("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"n log n) | O(n"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" log"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" n) | O(n) |"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Yes |\n| Heap Sort |"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O(n log n) | O"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"(n log n) | O("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"n"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" log"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" n) | O(1) |"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" No |"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n---\n\n## 🔍"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Searching Algorithms\n\n### Binary"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Search"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n```python"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\ndef binary"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"_search(arr, target):"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n    low"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":", high = 0, len("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"arr) - 1\n    while"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" low <= high:\n        mid ="}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" (low + high) // 2"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n        if arr[mid] =="}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" target:\n            return mid"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n        elif arr[mid] "}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"< target:\n            low = mid +"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" 1\n        else:\n            "}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"high = mid - 1\n    "}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"return -1\n```\n- **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Prerequis"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ite**: Array must be **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"sorted**\n- **Time"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**: O(log n)\n-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **Space**: O(1)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" iter"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ative,"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O(log n) recursive"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n### Common"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Variants\n- **Lower"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Bound**: Find first"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" occurrence"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" of target ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"or"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" first"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" element "}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"≥ target)\n- **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Upper Bound**: Find last"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" occurrence ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"or first"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" element >"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" target)\n- **Search"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" in"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Rot"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ated Sorted Array**: Modified"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" binary search checking"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" which"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" half is"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" sorted"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- **Binary"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Search on Answer"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**: Search"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" over"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" the"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" solution"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" space ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"e"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":".g., \"minimum"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" capacity"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" to"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" ship"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" packages"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" in"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" D"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" days\")\n\n---\n\n## "}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"🧠"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Dynamic Programming ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"DP)\n\nThe"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" core"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" idea: **break"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" problems"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" into overl"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"apping subproblems**,"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" store"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" results"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" to"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" avoid re"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"computation."}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\nTwo"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" approaches:\n-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **Top"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-Down"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Memoization)**: Recursive"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" +"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" cache"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- **Bottom-Up (Tab"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ulation)**: Iterative,"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" build"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" table"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" from base"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" cases\n\n### Classic"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Problems"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n####"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" 1."}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Fibonacci"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n```python\n#"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Bottom"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-up O"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"(n) time"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":", O(1) space\ndef"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" fib(n):\n    a"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":", b = 0, 1"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n    for _ in range(n"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"):\n        a, b = b"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":", a + b\n    return a"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n```\n\n#### 2."}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Longest Common Subsequence (LCS"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":")\n```"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\ndp"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"[i][j] = length of"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" LCS of str"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"1[0.."}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"i-1] and str2["}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"0..j-1]"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\nif"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" str1[i-1] =="}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" str2[j-1]:"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n    dp[i][j] ="}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" dp[i-1][j-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"1] + 1\nelse:"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n    dp[i][j]"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" = max(dp[i-1"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"][j], dp[i][j"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-1])\n```"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n- **Time**: O(m"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" × n),"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Space**: O(m × n),"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" optim"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"izable"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" to"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O(min"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"(m,"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" n))"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n#### 3. "}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"0/1 Knapsack"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n```\ndp[i][w"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"] = max"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" value using items 1"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"..i with capacity"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" w\n\ndp"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"[i][w] = max("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n    dp[i-1][w"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"],              "}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"// skip"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" item i\n    dp[i-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"1][w -"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" weight[i]] + value[i"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"]  // take"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" item i\n)\n```\n-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **Time**: O(n × W"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"), **Space**: O(n"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" × W),"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" optimizable to O(W)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n#### 4."}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Coin Change ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"minimum"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" coins)\n```\ndp[amount"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"] = min coins"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" needed"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" to make "}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"'amount'"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\ndp"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"[0] = 0"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\nfor each coin in"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" coins"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":":\n    for"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" a"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" from"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" coin to target"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":":\n        dp[a] ="}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" min(dp[a], dp["}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"a - coin] + 1)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n```\n- **Time**: O"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"(amount × |"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"coins|)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n#### 5. Edit Distance ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Levenshtein)\n```"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\ndp[i][j] = min"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" ed"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"its to transform str1[0.."}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"i-1] →"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" str2[0..j-1"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"]\n\nif str1[i-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"1] == str2[j-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"1]:\n    dp[i]["}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"j] = dp[i-1"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"][j-1]"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\nelse:\n    dp[i"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"][j] = 1 +"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" min("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n        dp[i-1][j"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"],      "}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"// delete"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n        dp[i][j-1"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"],      // insert\n        dp["}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"i-1][j-1]"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"     // replace"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n    )\n```\n- **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Time**: O(m × n)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n---\n\n## 📊 "}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Big O Complexity"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Reference"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\nFrom"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" fastest"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" to slowest:"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n| Notation"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" | Name"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" | Example"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" |"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n|----------|------|---------|"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n| O(1) |"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Constant | Hash"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" table lookup,"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" array access by"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" index |\n| O(log n"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":") | Logarithmic | Binary"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" search, balanced"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" BS"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"T operations"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" |\n| O(n) |"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Linear | Linear"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" search, single"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" array"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" travers"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"al |\n| O(n log"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" n) | Linearithmic |"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Merge sort, heap sort, efficient"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" sorting |\n| O(n²"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":") | Quadratic | Bubble"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" sort, nested"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" loops,"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" br"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ute-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"force pairs"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" |\n| O(n³"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":") | Cubic | Floyd"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-Warshall, naive"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" matrix"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" multiplication |\n| O(2"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ⁿ) | Expon"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ential | Recursive"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Fibonacci ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"naive"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"), power"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" set"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" generation"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" |\n| O(n!) |"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Factorial | Generating"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" all permutations, br"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ute-force TS"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"P |\n\n###"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Key Rules"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" for"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Analysis"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n1. **Drop"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" constants**: O(2"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"n"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":") →"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O(n)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n2. **Drop lower"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"order terms**: O(n²"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" +"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" n)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" → O(n²"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":")\n3. **Different"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" inputs"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" ="}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" different variables"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**: O(n ×"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" m),"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" not"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O(n"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"²)\n4. **Am"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ortized analysis**: Some"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" operations"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" are"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" expensive"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" rarely"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"e.g., dynamic"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" array"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" resizing is"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O(1"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":") amortized)\n\n###"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Space"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Complexity"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Matters"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Too"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Recursive algorithms"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":": count"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" the"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"call"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" stack depth"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**\n- In"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-place algorithms ("}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"like heap"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" sort)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" use"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"(1) extra space\n-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" M"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"emoization/"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"tab"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"ulation trade"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" space"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" for time"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n---\n\n## "}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"🎯 Key"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Takeaways\n\n1. **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Choose"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" data"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" structures"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" based on your"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" access"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" patterns**:"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Random"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" access →"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" array"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"/hash"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" table;"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Ordered"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" data"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" → BS"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"T;"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" FI"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"FO →"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" queue; LIFO → stack"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"\n\n2. **Sorting"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"**:"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Quick sort is"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" fastest"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" in"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" practice;"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Merge sort when"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" stability matters; Heap sort for guaranteed"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O(n log n)"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" with"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" O(1) space\n\n3."}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **Binary"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" search**"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" applies"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" far"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" beyond"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" sorted"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" arrays —"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" any"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" monot"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"onic condition"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" over"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" a search"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" space\n\n4. **Dynamic programming**"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" ="}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" recursion + memoization (or"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" bottom"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"-up tabulation)."}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Look"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" for **"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"optimal"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" substructure** and **overlapping"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" subproblems**\n\n5."}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" **Always"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" consider"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" the"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" tr"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"adeoff**: Time vs. Space"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":","}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Simpl"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"icity vs. Performance"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":","}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Average"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" case"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" vs. Worst case\n\nThis"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" covers"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" the core"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" algorithms and data structures section"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" from"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" the documentation."}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" Would"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" you like me to dive"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" deeper into any specific algorithm"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":","}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" walk"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" through a particular problem"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":", or cover"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" another"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" section?"}}
+{"type":"content_block_stop","index":1}
+{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":612,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":2819,"server_tool_use":{"web_search_requests":0},"iterations":[{"input_tokens":60385,"output_tokens":522,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"type":"compaction"},{"input_tokens":612,"output_tokens":2819,"cache_read_input_tokens":0,"cache_creation_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"type":"message"}]},"context_management":{"applied_edits":[]}}
+{"type":"message_stop"}

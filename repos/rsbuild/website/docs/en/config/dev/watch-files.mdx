@@ -1,0 +1,141 @@
+---
+description: 'Watch specified files and directories for changes. When a change is detected, it can trigger a page reload or restart the dev server.'
+---
+
+# dev.watchFiles
+
+- **Type:**
+
+```ts
+type WatchFiles = {
+  paths: string | string[];
+  type?: 'reload-page' | 'reload-server';
+  // watch options for chokidar
+  options?: ChokidarOptions;
+};
+
+type WatchFilesConfig = WatchFiles | WatchFiles[];
+```
+
+- **Default:** `undefined`
+
+Watch specified files and directories for changes. When a change is detected, it can trigger a page reload or restart the dev server.
+
+## paths
+
+- **Type:** `string | string[]`
+- **Default:** `undefined`
+
+Paths of the files or directories to watch, supports glob syntax. It can be a single path or an array of multiple paths.
+
+- Watching a single file:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    watchFiles: {
+      paths: 'public/demo.txt',
+    },
+  },
+};
+```
+
+- Using glob to match multiple files:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    watchFiles: {
+      paths: 'src/**/*.txt',
+    },
+  },
+};
+```
+
+- Watching multiple file paths:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    watchFiles: {
+      paths: ['src/**/*.txt', 'public/**/*'],
+    },
+  },
+};
+```
+
+## type
+
+- **Type:** `'reload-page' | 'reload-server'`
+- **Default:** `'reload-page'`
+
+Specifies whether to trigger a page reload or restart the dev server when a file changes.
+
+### reload-page
+
+`reload-page` means that when a file changes, the page in the browser will automatically reload. If the type is not explicitly specified, Rsbuild defaults to the `reload-page` behavior.
+
+This can be used to watch changes to static assets, such as files in the [public directory](/config/server/public-dir).
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    watchFiles: {
+      type: 'reload-page',
+      paths: 'public/**/*',
+    },
+  },
+};
+```
+
+> If both [dev.hmr](/config/dev/hmr) and [dev.liveReload](/config/dev/live-reload) are set to `false`, the page will not automatically reload.
+
+### reload-server
+
+`reload-server` means that the dev server will automatically restart when a file changes. This can be used to watch changes to configuration files, such as modules imported by your `rsbuild.config.ts` file.
+
+For example, if you maintain some common configuration files in the `config` directory, such as `common.ts`, you may want the dev server to automatically restart when these files change. Example configuration:
+
+```ts title="rsbuild.config.ts"
+import { commonConfig } from './config/common';
+
+export default {
+  ...commonConfig,
+  dev: {
+    watchFiles: {
+      type: 'reload-server',
+      paths: ['./config/*.ts'],
+    },
+  },
+};
+```
+
+Note that the reload-server functionality is provided by Rsbuild CLI. If you are using a custom server or a framework built on top of Rsbuild, this configuration is currently not supported.
+
+## options
+
+- **Type:** `ChokidarOptions`
+- **Default:** `undefined`
+
+`watchFiles` is implemented based on [chokidar v4](https://github.com/paulmillr/chokidar#getting-started), and you can pass chokidar options through `options`.
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    watchFiles: {
+      paths: 'src/**/*.txt',
+      options: {
+        usePolling: false,
+      },
+    },
+  },
+};
+```
+
+## Notes
+
+`watchFiles` is not applicable for watching build dependency files. When an Rsbuild build starts, the underlying Rspack automatically watches all build dependencies. Any changes to these files will trigger a new build.
+
+If you want to prevent some files from triggering a rebuild when they change, you can use Rspack's [watchOptions.ignored](https://rspack.rs/config/watch#watchoptionsignored) configuration item.
+
+> See [HMR - File Watching](/guide/advanced/hmr#file-watching) for details.

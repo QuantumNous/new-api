@@ -1,0 +1,97 @@
+---
+description: 'Configure whether to clean all files in the output directory before the build starts. The output directory is the output.distPath.root directory.'
+---
+
+# output.cleanDistPath
+
+- **Type:**
+
+```ts
+type CleanDistPath = boolean | 'auto' | CleanDistPathObject;
+```
+
+- **Default:** `'auto'`
+
+Configure whether to clean all files in the output directory before the build starts. The output directory is the [output.distPath.root](/config/output/dist-path) directory.
+
+## Default behavior
+
+The default value of `output.cleanDistPath` is `'auto'`:
+
+- In development mode, if [dev.writeToDisk](/config/dev/write-to-disk) is `false`, Rsbuild will not perform cleanup.
+- In any mode, if [output.distPath.root](/config/output/dist-path) is an external directory or equals the project root directory, Rsbuild will not perform cleanup to avoid accidentally deleting files from other directories.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    distPath: {
+      root: '../../some-dir',
+    },
+  },
+};
+```
+
+## Forced switch
+
+Set `cleanDistPath` to `true` to force enable it, or `false` to force disable it.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    cleanDistPath: true,
+  },
+};
+```
+
+## Conditional
+
+To clean files only in production mode and not in development mode, configure it as:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    cleanDistPath: process.env.NODE_ENV === 'production',
+  },
+};
+```
+
+## Options
+
+`output.cleanDistPath` supports configuration as an object to achieve more granular control.
+
+### enable
+
+- **Type:** `boolean | 'auto'`
+- **Default:** `'auto'`
+
+Whether to clean up all files in the output directory before the build starts.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    // Equivalent to `cleanDistPath: true`
+    cleanDistPath: {
+      enable: true,
+    },
+  },
+};
+```
+
+### keep
+
+- **Type:** `RegExp[]`
+- **Default:** `undefined`
+
+Specify the files to keep in the output directory. If the file's absolute path matches the regular expression in `keep`, the file will not be removed.
+
+For example, to keep the `dist/foo.json` file:
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    cleanDistPath: {
+      keep: [/dist\/foo.json/],
+    },
+  },
+};
+```

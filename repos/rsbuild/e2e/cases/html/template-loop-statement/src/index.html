@@ -1,0 +1,34 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+  </head>
+  <body>
+    <!-- for loop -->
+    <div id="for">
+      <ul>
+        <% for (let i = 0; i < items.length; i++) { %>
+        <li>for: <%= items[i] %></li>
+        <% } %>
+      </ul>
+    </div>
+
+    <!-- forEach loop -->
+    <div id="for-each">
+      <ul>
+        <% items.forEach(function(item, index) { %>
+        <li>for each: <%= item %> <%= index %></li>
+        <% }); %>
+      </ul>
+    </div>
+
+    <!-- for...of loop -->
+    <div id="for-of">
+      <ul>
+        <% for (let item of items) { %>
+        <li>for of: <%= item %></li>
+        <% } %>
+      </ul>
+    </div>
+  </body>
+</html>

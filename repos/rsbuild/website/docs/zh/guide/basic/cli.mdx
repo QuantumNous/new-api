@@ -1,0 +1,188 @@
+---
+description: 'Rsbuild 内置了一个轻量的命令行工具，包含 rsbuild dev、rsbuild build 等命令。'
+---
+
+# 命令行工具
+
+Rsbuild 内置了一个轻量的命令行工具，包含 [rsbuild dev](#rsbuild)、[rsbuild build](#rsbuild-build) 等命令。
+
+## 查看所有命令
+
+如果你需要查看所有可用的 CLI 命令，请在项目目录中运行以下命令：
+
+```bash
+npx rsbuild -h
+```
+
+输出如下：
+
+```
+Usage:
+  $ rsbuild [command] [options]
+
+Commands:
+  dev      Start the dev server
+  build    Build the app for production
+  preview  Preview the production build locally
+  inspect  Inspect the Rspack and Rsbuild configs
+```
+
+## 公共选项
+
+Rsbuild CLI 提供了一些公共选项，可以用于所有命令：
+
+| 选项                       | 描述                                                                                                                          |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `--base <base>`            | 指定服务端的基础路径，详见 [server.base](/config/server/base)                                                                 |
+| `-c, --config <config>`    | 指定配置文件路径（相对路径或绝对路径），详见 [指定配置文件](/guide/configuration/rsbuild#specify-config-file)                 |
+| `--config-loader <loader>` | 指定配置文件加载方式（`auto` \| `jiti` \| `native`），详见 [指定加载方式](/guide/configuration/rsbuild#specify-config-loader) |
+| `--dist-path <dir>`        | 指定构建产物的根目录，详见 [output.distPath](/config/output/dist-path)                                                        |
+| `--env-mode <mode>`        | 指定 env 模式来加载 `.env.[mode]` 文件，详见 [Env 模式](/guide/advanced/env-vars#env-mode)                                    |
+| `--env-dir <dir>`          | 指定目录来加载 `.env` 文件，详见 [Env 目录](/guide/advanced/env-vars#env-directory)                                           |
+| `--environment <name>`     | 指定需要构建的 environment 名称，详见 [构建指定环境](/guide/advanced/environments#build-a-specific-environment)               |
+| `-h, --help`               | 显示命令帮助                                                                                                                  |
+| `--log-level <level>`      | 指定日志级别（`info` \| `warn` \| `error` \| `silent`），详见 [logLevel](/config/log-level)                                   |
+| `-m, --mode <mode>`        | 指定构建模式（`development` \| `production` \| `none`），详见 [mode](/config/mode)                                            |
+| `--no-env`                 | 禁用 `.env` 文件的加载                                                                                                        |
+| `--no-source-map`          | 禁用 source map，详见 [output.sourceMap](/config/output/source-map)                                                           |
+| `-r, --root <root>`        | 指定项目根目录（绝对路径或者相对于 [cwd](https://nodejs.org/api/process.html#processcwd) 的路径）                             |
+| `--source-map`             | 启用 source map，详见 [output.sourceMap](/config/output/source-map)                                                           |
+
+对于布尔类型的选项，可以使用 `--no-` 前缀来显式禁用对应功能，例如 `--no-env` 或 `--no-source-map`。
+
+## rsbuild
+
+`rsbuild` 命令用于启动本地开发服务器，并以开发模式编译源代码。`rsbuild dev` 是 `rsbuild` 的别名。
+
+```bash
+Usage:
+  rsbuild [options]
+  rsbuild dev [options]
+
+Options:
+  -o, --open [url]      启动时是否在浏览器中打开页面
+  --port <port>         设置 Rsbuild server 监听的端口号
+  --strict-port         当指定端口已被占用时退出
+  --host [host]         指定 Rsbuild server 启动时监听的 host
+```
+
+### 指定 Host \{#specifying-host}
+
+默认情况下，dev server 仅监听 `localhost`。当传入 `--host` 且未指定值时，服务器会监听所有网络接口：
+
+```bash
+npx rsbuild --host
+
+# 等同于：
+npx rsbuild --host 0.0.0.0
+```
+
+### 打开页面 \{#opening-page}
+
+通过 `--open` 选项可以在启动 dev server 时自动打开页面，等同于将 [server.open](/config/server/open) 设置为 `true`。
+
+```bash
+rsbuild --open
+```
+
+`--open` 选项也支持指定需要打开的 URL 地址，比如：
+
+```bash
+rsbuild --open http://localhost:3000/foo
+```
+
+`--open` 选项也可以缩写为 `-o`：
+
+```bash
+rsbuild -o
+```
+
+:::tip
+当同时使用 [server.open](/config/server/open) 和 `--open` 时，`--open` 的优先级更高。
+:::
+
+## rsbuild build
+
+`rsbuild build` 命令默认会在 `dist/` 目录下构建出可用于生产环境的产物。
+
+```bash
+Usage: rsbuild build [options]
+
+Options:
+  -w, --watch           启用监视模式，在文件更改时自动重新构建
+```
+
+## rsbuild preview
+
+`rsbuild preview` 命令用于在本地预览生产模式构建的产物, 注意你需要提前执行 `rsbuild build` 命令构建出对应产物。
+
+```bash
+Usage: rsbuild preview [options]
+
+Options:
+  -o, --open [url]      启动时是否在浏览器中打开页面
+  --port <port>         设置 Rsbuild server 监听的端口号
+  --strict-port         当指定端口已被占用时退出
+  --host [host]         指定 Rsbuild server 启动时监听的 host
+```
+
+:::tip
+preview 命令仅用于本地预览，请勿将它用于生产服务器，因为它不是为此而设计的。
+:::
+
+## rsbuild inspect
+
+`rsbuild inspect` 命令用于查看项目的 Rsbuild 配置以及 Rspack 配置。
+
+```bash
+Usage: rsbuild inspect [options]
+
+Options:
+  --output <output>     指定在 dist 目录下输出的路径 (default: ".rsbuild")
+  --verbose             在结果中展示函数的完整内容
+```
+
+当你在项目根目录下执行命令 `npx rsbuild inspect` 后，会在项目的 `dist/.rsbuild` 目录生成以下文件：
+
+- `rsbuild.config.mjs`: 表示在构建时使用的 Rsbuild 配置。
+- `rspack.config.web.mjs`: 表示在构建时使用的 Rspack 配置。
+
+```bash
+➜ npx rsbuild inspect
+
+config inspection completed, generated files:
+
+  - Rsbuild config: /project/dist/.rsbuild/rsbuild.config.mjs
+  - Rspack config (web): /project/dist/.rsbuild/rspack.config.web.mjs
+```
+
+### 指定模式
+
+默认情况下，inspect 命令会输出开发模式的配置，你可以添加 `--mode production` 选项来输出生产模式的配置：
+
+```bash
+rsbuild inspect --mode production
+```
+
+### 完整内容
+
+默认情况下，inspect 命令会省略配置对象中的函数内容，你可以添加 `--verbose` 选项来输出函数的完整内容：
+
+```bash
+rsbuild inspect --verbose
+```
+
+### 多种产物类型
+
+如果当前项目有多种产物类型，比如同时构建了浏览器产物和 Node.js 产物，那么会在 `dist/.rsbuild` 目录生成多份 Rspack 配置文件。
+
+```bash
+➜ npx rsbuild inspect
+
+config inspection completed, generated files:
+
+  - Rsbuild config (web): /project/dist/.rsbuild/rsbuild.config.web.mjs
+  - Rsbuild config (node): /project/dist/.rsbuild/rsbuild.config.node.mjs
+  - Rspack config (web): /project/dist/.rsbuild/rspack.config.web.mjs
+  - Rspack config (node): /project/dist/.rsbuild/rspack.config.node.mjs
+```

@@ -1,0 +1,45 @@
+---
+description: 'Specifies the condition names used to match entry points in the exports field of a package.'
+---
+
+# resolve.conditionNames
+
+- **Type:** `string[]`
+- **Default:** Same as Rspack's [resolve.conditionNames](https://rspack.rs/config/resolve#resolveconditionnames)
+- **Version:** `>= 1.5.7`
+
+Specifies the condition names used to match entry points in the [`exports` field](https://nodejs.org/api/packages.html#packages_exports) of a package.
+
+## Example
+
+The value of `resolve.conditionNames` overrides the default value of Rsbuild:
+
+```js title="rsbuild.config.ts"
+export default {
+  resolve: {
+    conditionNames: ['require', 'node'],
+  },
+};
+```
+
+## Rspack config
+
+`resolve.conditionNames` is provided by Rspack, see [Rspack - resolve.conditionNames](https://rspack.rs/config/resolve#resolveconditionnames).
+
+You can also configure it using [tools.rspack](/config/tools/rspack):
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      resolve: {
+        conditionNames: ['custom'],
+      },
+    },
+  },
+};
+```
+
+The difference between them is how the configuration is merged.
+
+`tools.rspack` merges the configuration arrays based on [rspack-merge](https://github.com/rstackjs/rspack-merge), which means `tools.rspack.resolve.conditionNames` will merge with the default value of Rsbuild, rather than overriding it.

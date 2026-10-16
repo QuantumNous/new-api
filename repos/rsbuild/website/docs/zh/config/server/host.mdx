@@ -1,0 +1,68 @@
+---
+description: '指定 Rsbuild server 启动时监听的 host。'
+---
+
+# server.host
+
+- **类型：** `string | boolean`
+- **默认值：** `localhost`
+
+指定 Rsbuild server 启动时监听的 host。
+
+默认情况下，Rsbuild server 会监听 `localhost`。你可以通过以下方式配置：
+
+- `string`：指定要监听的主机名或 IP 地址。
+- `true`：等同于 `0.0.0.0`，监听所有 IPv4 网络接口。
+- `false`：等同于 `localhost`。
+
+## 所有 IPv4 网络接口
+
+如果你希望 Rsbuild server 监听所有 IPv4 的网络接口（包括公网地址），可以设置为 `0.0.0.0` 或 `true`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    host: '0.0.0.0',
+  },
+};
+```
+
+你也可以使用 CLI 的 [--host](/guide/basic/cli#specifying-host) 选项来开启网络访问：
+
+```bash
+rsbuild --host
+```
+
+:::tip
+CLI 的 `--host` 选项的优先级高于 `server.host` 配置。
+:::
+
+## IPv6 支持
+
+如果你希望监听所有 IPv6 的网络接口，可以设置为：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    host: '::',
+  },
+};
+```
+
+如果你希望监听 IPv6 指定的 host，可以设置为：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    host: '::1',
+  },
+};
+```
+
+此时，你可以通过 `http://[::1]:3000/` 访问页面。
+
+## 版本历史
+
+| 版本   | 变更内容                                                 |
+| ------ | -------------------------------------------------------- |
+| v2.0.0 | 默认值从 `0.0.0.0` 改为 `localhost`，支持 `boolean` 类型 |

@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "packageName": "@visactor/vchart-extension",
+      "comment": "fix: keep 3D chart entries on narrow VChart and VRender subpaths for BytePack ESM loading",
+      "type": "patch"
+    }
+  ],
+  "packageName": "@visactor/vchart-extension",
+  "email": "openai@example.com"
+}

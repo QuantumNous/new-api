@@ -1,0 +1,18 @@
+.input {
+  box-sizing: border-box;
+  padding-left: 0.375rem;
+  margin: 0;
+  border: 1px solid var(--color-gray-200);
+  height: 1.75rem;
+  border-radius: 0.375rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: normal;
+  background-color: transparent;
+  color: var(--color-gray-900);
+
+  &:focus {
+    outline: 2px solid var(--color-blue);
+    outline-offset: -1px;
+  }
+}

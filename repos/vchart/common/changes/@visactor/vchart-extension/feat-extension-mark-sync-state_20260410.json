@@ -1,0 +1,11 @@
+{
+  "changes": [
+    {
+      "packageName": "@visactor/vchart-extension",
+      "comment": "feat: add ExtensionMarkSyncStatePlugin to synchronize interactive states of extensionMark with primary marks",
+      "type": "minor"
+    }
+  ],
+  "packageName": "@visactor/vchart-extension",
+  "email": "kitee0325@gmail.com"
+}

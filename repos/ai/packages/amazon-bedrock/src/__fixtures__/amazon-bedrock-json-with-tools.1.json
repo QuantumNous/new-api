@@ -1,0 +1,50 @@
+{
+  "output": {
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Calling multiple tools."
+        },
+        {
+          "toolUse": {
+            "toolUseId": "tool-1",
+            "name": "tool-a",
+            "input": {
+              "param": "a"
+            }
+          }
+        },
+        {
+          "toolUse": {
+            "toolUseId": "tool-2",
+            "name": "tool-b",
+            "input": {
+              "param": "b"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "text": "Finally the JSON response."
+        },
+        {
+          "toolUse": {
+            "toolUseId": "json-tool-id",
+            "name": "json",
+            "input": {
+              "final": "result"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "usage": {
+    "inputTokens": 28,
+    "outputTokens": 62,
+    "totalTokens": 90
+  },
+  "stopReason": "tool_use"
+}

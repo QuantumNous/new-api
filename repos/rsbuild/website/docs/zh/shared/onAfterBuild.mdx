@@ -1,0 +1,16 @@
+`onAfterBuild` 是在执行生产模式构建后触发的回调函数，你可以通过 [stats](https://rspack.rs/zh/api/javascript-api/stats) 参数获取到构建结果信息。
+
+另外，你可以通过 `isWatch` 判断是否是 watch 模式，并在 watch 模式下通过 `isFirstCompile` 来判断是否为首次构建。
+
+- **类型：**
+
+```ts
+function OnAfterBuild(
+  callback: (params: {
+    isFirstCompile: boolean;
+    isWatch: boolean;
+    stats?: Stats | MultiStats;
+    environments: Record<string, EnvironmentContext>;
+  }) => Promise<void> | void,
+): void;
+```

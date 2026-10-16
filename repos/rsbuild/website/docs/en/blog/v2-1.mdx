@@ -1,0 +1,205 @@
+---
+description: 'Rsbuild 2.1 is out, featuring the Rust-based React Compiler, TanStack Start support, a Tailwind CSS v4 plugin, and support for CSS URL imports and Worker query imports.'
+date: 2026-06-26 12:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Announcing Rsbuild 2.1
+
+_June 26, 2026_
+
+<BlogAuthors />
+
+We are pleased to announce the official release of Rsbuild 2.1!
+
+The main improvements in 2.1 include:
+
+- Framework and ecosystem:
+  - [Upgrade to Rspack 2.1](#upgrade-to-rspack-21)
+  - [Rust-based React Compiler](#rust-react-compiler)
+  - [TanStack Start support](#tanstack-start-support)
+  - [Tailwind CSS plugin](#tailwind-css-plugin)
+- New features:
+  - [Automatic externals](#auto-external)
+  - [Parallel Babel and SVGR](#parallel-babel-and-svgr)
+- Resource imports:
+  - [CSS URL imports](#css-url-imports)
+  - [Worker query imports](#worker-query-imports)
+  - [Wasm source import](#wasm-source-import)
+
+## Upgrade to Rspack 2.1
+
+Rsbuild 2.1 is powered by Rspack 2.1. This brings faster builds, the Rust implementation of React Compiler, new output optimization capabilities, and many improvements under the hood.
+
+For more details, see the [Rspack 2.1 announcement post](https://rspack.rs/blog/announcing-2-1).
+
+## Rust-based React Compiler \{#rust-react-compiler}
+
+[React Compiler](https://react.dev/learn/react-compiler) can automatically optimize React components and Hooks at build time. Previously, React Compiler was primarily integrated through a Babel plugin, which introduced additional Babel transform overhead and increased build time.
+
+Rspack 2.1 includes the [Rust implementation of React Compiler](https://github.com/react/react/pull/36173), and Rsbuild 2.1 exposes this capability through `@rsbuild/plugin-react`. You can now enable the [`reactCompiler`](/plugins/list/plugin-react#reactcompiler) option in the React plugin to use React Compiler.
+
+When measuring only the additional compilation time introduced by React Compiler, our benchmarks show that the Rust implementation is **7-13x** faster than the Babel implementation.
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+
+export default defineConfig({
+  plugins: [
+    pluginReact({
+      reactCompiler: true,
+    }),
+  ],
+});
+```
+
+For projects using React 17 or React 18, you need to install `react-compiler-runtime` and explicitly set the target React version for React Compiler:
+
+```ts title="rsbuild.config.ts"
+pluginReact({
+  reactCompiler: {
+    target: '18',
+  },
+});
+```
+
+For more options, see the [React plugin documentation](/plugins/list/plugin-react#reactcompiler).
+
+## TanStack Start support
+
+[TanStack Start](https://tanstack.com/start/latest) is a full-stack React framework powered by TanStack Router. It provides full-document SSR, streaming rendering, Server Functions, client and server builds, and more.
+
+In the Rsbuild 2.0 announcement, we mentioned that we were working with the TanStack team to explore an integration. TanStack Start now officially supports using Rsbuild as the build tool. You can keep using familiar Rsbuild configuration and plugins, and only need to add the TanStack Start plugin:
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+import { tanstackStart } from '@tanstack/react-start/plugin/rsbuild';
+
+export default defineConfig({
+  plugins: [pluginReact(), tanstackStart()],
+});
+```
+
+See the [TanStack Start blog](https://tanstack.com/blog/start-adds-rsbuild-support) or the [guide](/guide/framework/react#tanstack-start) for more details.
+
+## Tailwind CSS plugin
+
+Rsbuild now provides the [Tailwind CSS plugin](/plugins/list/plugin-tailwindcss) for integrating Tailwind CSS v4 with Rsbuild. The plugin is built on top of Tailwind CSS's official [`@tailwindcss/webpack`](https://www.npmjs.com/package/@tailwindcss/webpack) loader.
+
+Compared with using `@tailwindcss/postcss`, this avoids running Tailwind CSS compilation through PostCSS. In our tests, it improved build performance by up to **30%**.
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';
+
+export default defineConfig({
+  plugins: [pluginTailwindcss()],
+});
+```
+
+## Automatic externals \{#auto-external}
+
+When building Node.js applications or SSR output, some dependencies are not suitable for bundling. Examples include observability SDKs, native addons, packages that require runtime instrumentation, or peer dependencies that should be provided by the host application. In the past, these cases usually required manual `output.externals` configuration.
+
+Rsbuild now supports the [`output.autoExternal`](/config/output/auto-external) option. It reads dependency fields from `package.json` and automatically generates external rules. This capability was previously used mainly in Rslib, and can now be used directly in Rsbuild applications.
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+    autoExternal: true,
+  },
+};
+```
+
+## Parallel Babel and SVGR
+
+Babel and SVGR both provide flexible transformation capabilities, but they can be relatively expensive to run. When a project has many modules that need Babel processing, or needs to convert many SVG files into React components, this overhead can become significant.
+
+[`@rsbuild/plugin-babel`](/plugins/list/plugin-babel#parallel) and [`@rsbuild/plugin-svgr`](/plugins/list/plugin-svgr#parallel) now provide the `parallel` option. This option uses Rspack's parallel loader to distribute transformation tasks to worker threads, reducing pressure on the main thread and improving overall build performance.
+
+```ts title="rsbuild.config.ts"
+import { pluginBabel } from '@rsbuild/plugin-babel';
+import { pluginSvgr } from '@rsbuild/plugin-svgr';
+
+export default {
+  plugins: [
+    pluginBabel({
+      parallel: true,
+    }),
+    pluginSvgr({
+      parallel: true,
+    }),
+  ],
+};
+```
+
+> Options passed to worker threads must be structured-cloneable. If you pass functions in Babel or SVGR options, keep using the default serial mode, or rewrite that logic as serializable configuration.
+
+## CSS URL imports
+
+Rsbuild now supports [CSS `?url` imports](/guide/styling/css-usage#url) to access the URL of a compiled CSS file. When importing a stylesheet with `?url`, Rsbuild runs the full CSS compilation pipeline and emits the result as a separate asset. In JavaScript, you receive the final CSS file URL, and the stylesheet is not automatically injected into the page.
+
+This is useful when runtime code needs to decide when to load styles, such as in micro-frontends, theme customization, or Web Components.
+
+```js title="src/index.js"
+import darkThemeUrl from './dark-theme.css?url';
+
+const link = document.createElement('link');
+link.rel = 'stylesheet';
+link.href = darkThemeUrl;
+document.head.appendChild(link);
+```
+
+## Worker query imports
+
+Rsbuild now supports importing a Worker constructor directly with the [`?worker` query](/guide/basic/web-workers). This lets Worker scripts be imported like regular modules, making it easier to preserve the existing code structure when migrating from tools such as Vite.
+
+```js title="src/index.js"
+import MyWorker from './worker.js?worker';
+
+const worker = new MyWorker();
+
+worker.onmessage = (event) => {
+  console.log(event.data);
+};
+
+worker.postMessage(10);
+```
+
+By default, Worker scripts are emitted as separate chunks in production builds. If you want to inline the Worker code into the main bundle, add the `inline` query:
+
+```js title="src/index.js"
+import InlineWorker from './worker.js?worker&inline';
+
+const worker = new InlineWorker();
+```
+
+For scenarios that require the full [`WorkerOptions`](https://developer.mozilla.org/en-US/docs/Web/API/Worker/Worker#options) object, such as `type: 'module'` or `credentials: 'include'`, we still recommend using the [standard Worker constructor syntax](/guide/basic/web-workers#import-with-constructors).
+
+## Wasm source import
+
+Rsbuild 2.1 supports the [`import source`](/guide/basic/wasm-assets#source-import) syntax from the [Source Phase Imports](https://github.com/tc39/proposal-source-phase-imports) proposal, allowing you to obtain the compiled `WebAssembly.Module` directly.
+
+Unlike a regular import, which returns the Wasm module's exports directly, `import source` is better suited for scenarios where you need to instantiate the module manually, provide different imports, create multiple instances, or pass the module to a Worker.
+
+```js title="src/index.js"
+import source wasmModule from './add.wasm';
+
+const instance = await WebAssembly.instantiate(wasmModule);
+const { add } = instance.exports;
+
+console.log(add(1, 2)); // 3
+```
+
+## Upgrade
+
+If you are already using Rsbuild 2.0, you only need to upgrade the relevant `@rsbuild/*` packages to version 2.1. For more details, see [Upgrade Rsbuild](/guide/upgrade/upgrade-rsbuild).

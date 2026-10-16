@@ -1,0 +1,62 @@
+/**
+ * This configuration file specifies NPM dependency version selections that affect all projects
+ * in a Rush repo.  More documentation is available on the Rush website: https://rushjs.io
+ */
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/rush/v5/common-versions.schema.json",
+
+  /**
+   * A table that specifies a "preferred version" for a given NPM package.  This feature is typically used
+   * to hold back an indirect dependency to a specific older version, or to reduce duplication of indirect dependencies.
+   *
+   * The "preferredVersions" value can be any SemVer range specifier (e.g. "~1.2.3").  Rush injects these values into
+   * the "dependencies" field of the top-level common/temp/package.json, which influences how the package manager
+   * will calculate versions.  The specific effect depends on your package manager.  Generally it will have no
+   * effect on an incompatible or already constrained SemVer range.  If you are using PNPM, similar effects can be
+   * achieved using the pnpmfile.js hook.  See the Rush documentation for more details.
+   *
+   * After modifying this field, it's recommended to run "rush update --full" so that the package manager
+   * will recalculate all version selections.
+   */
+  "preferredVersions": {
+    /**
+     * When someone asks for "^1.0.0" make sure they get "1.2.3" when working in this repo,
+     * instead of the latest version.
+     */
+    // "some-library": "1.2.3"
+  },
+
+  /**
+   * When set to true, for all projects in the repo, all dependencies will be automatically added as preferredVersions,
+   * except in cases where different projects specify different version ranges for a given dependency.  For older
+   * package managers, this tended to reduce duplication of indirect dependencies.  However, it can sometimes cause
+   * trouble for indirect dependencies with incompatible peerDependencies ranges.
+   *
+   * The default value is true.  If you're encountering installation errors related to peer dependencies,
+   * it's recommended to set this to false.
+   *
+   * After modifying this field, it's recommended to run "rush update --full" so that the package manager
+   * will recalculate all version selections.
+   */
+  // "implicitlyPreferredVersions": false,
+
+  /**
+   * The "rush check" command can be used to enforce that every project in the repo must specify
+   * the same SemVer range for a given dependency.  However, sometimes exceptions are needed.
+   * The allowedAlternativeVersions table allows you to list other SemVer ranges that will be
+   * accepted by "rush check" for a given dependency.
+   *
+   * IMPORTANT: THIS TABLE IS FOR *ADDITIONAL* VERSION RANGES THAT ARE ALTERNATIVES TO THE
+   * USUAL VERSION (WHICH IS INFERRED BY LOOKING AT ALL PROJECTS IN THE REPO).
+   * This design avoids unnecessary churn in this file.
+   */
+  "allowedAlternativeVersions": {
+    /**
+     * For example, allow some projects to use an older TypeScript compiler
+     * (in addition to whatever "usual" version is being used by other projects in the repo):
+     */
+    // "typescript": [
+    //   "4.0.2"
+    // ]
+  }
+}

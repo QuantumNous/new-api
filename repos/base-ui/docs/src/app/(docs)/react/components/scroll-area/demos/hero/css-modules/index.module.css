@@ -1,0 +1,84 @@
+.ScrollArea {
+  box-sizing: border-box;
+  width: 24rem;
+  height: 8.5rem;
+  max-width: calc(100vw - 8rem);
+  background-color: white;
+
+  @media (prefers-color-scheme: dark) {
+    background-color: oklch(14.5% 0 0deg);
+  }
+}
+
+.Viewport {
+  box-sizing: border-box;
+  height: 100%;
+  border: 1px solid oklch(14.5% 0 0deg);
+
+  @media (prefers-color-scheme: dark) {
+    border: 1px solid white;
+  }
+
+  &:focus-visible {
+    outline: 2px solid oklch(14.5% 0 0deg);
+    outline-offset: -1px;
+
+    @media (prefers-color-scheme: dark) {
+      outline-color: white;
+    }
+  }
+}
+
+.Content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-block: 0.5rem;
+  padding-left: 0.75rem;
+  padding-right: 1.25rem;
+}
+
+.Paragraph {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.375rem;
+  color: oklch(14.5% 0 0deg);
+
+  @media (prefers-color-scheme: dark) {
+    color: white;
+  }
+}
+
+.Scrollbar {
+  display: flex;
+  justify-content: center;
+  background-color: rgb(0 0 0 / 12%);
+  width: 1rem;
+  margin: 1px;
+  opacity: 0;
+  transition: opacity 150ms;
+  pointer-events: none;
+
+  @media (prefers-color-scheme: dark) {
+    background-color: rgb(255 255 255 / 12%);
+  }
+
+  &[data-scrolling] {
+    transition-duration: 0ms;
+  }
+
+  &[data-hovering],
+  &[data-scrolling] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+.Thumb {
+  width: 100%;
+  background-color: oklch(14.5% 0 0deg);
+
+  @media (prefers-color-scheme: dark) {
+    background-color: white;
+  }
+}

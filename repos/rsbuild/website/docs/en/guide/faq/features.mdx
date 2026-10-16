@@ -1,0 +1,94 @@
+---
+description: 'Frequently asked questions about Rsbuild, focused on feature support, tradeoffs, and ecosystem compatibility.'
+---
+
+# Features FAQ
+
+### How to import a UI component library on demand?
+
+To enable on-demand imports for a component library, configure [source.transformImport](/config/source/transform-import). This works the same way as [babel-plugin-import](https://npmjs.com/package/babel-plugin-import).
+
+```ts
+export default {
+  source: {
+    transformImport: [
+      {
+        libraryName: 'my-components',
+        libraryDirectory: 'es',
+        style: true,
+      },
+    ],
+  },
+};
+```
+
+---
+
+### How to run ESLint during compilation?
+
+To protect compilation performance, Rsbuild doesn't run ESLint checks during builds by default. If you need ESLint in the pipeline, use the [ESLint plugin](https://github.com/rstackjs/rsbuild-plugin-eslint).
+
+---
+
+### How to configure CDN path for static assets?
+
+To serve static assets like JS and CSS from a CDN, set the asset URL prefix with [output.assetPrefix](/config/output/asset-prefix).
+
+```js
+export default {
+  output: {
+    assetPrefix: 'https://cdn.example.com/assets/',
+  },
+};
+```
+
+---
+
+### How to remove console after production build?
+
+In production builds, you can strip `console` calls to avoid shipping development logs.
+
+Rsbuild provides a built-in option for removing console statements. See [performance.removeConsole](/config/performance/remove-console).
+
+---
+
+### How to view the final generated Rspack configuration?
+
+Use Rsbuild's debug mode to view the Rspack configuration that Rsbuild generates.
+
+Enable debug mode by setting the `DEBUG=rsbuild` environment variable when running a build. In this mode, the generated Rspack configuration is written to the `dist` directory.
+
+```bash
+➜ DEBUG=rsbuild pnpm dev
+
+  ...
+  rsbuild 10:00:00 configuration loaded from: /path/to/...
+  rsbuild 10:00:00 registering default plugins
+  rsbuild 10:00:00 default plugins registered
+  ...
+
+config inspection completed, generated files:
+
+  - Rsbuild config: /root/my-project/dist/.rsbuild/rsbuild.config.mjs
+  - Rspack config (web): /root/my-project/dist/.rsbuild/rspack.config.web.mjs
+```
+
+---
+
+### How to ignore specific warnings?
+
+By default, Rsbuild prints all errors and warnings from the build.
+
+If a noisy third-party package produces many warnings, you can silence specific messages with Rspack's `ignoreWarnings` configuration.
+
+```ts
+export default {
+  tools: {
+    rspack: {
+      ignoreWarnings: [/Using \/ for division outside of calc()/],
+    },
+  },
+};
+```
+
+For details, please refer to: [ignoreWarnings](https://rspack.rs/config/other-options#ignorewarnings).

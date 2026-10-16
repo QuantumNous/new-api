@@ -1,0 +1,38 @@
+{
+  "id": "v1_ChdUV3NIYW9LTk9OYXlxdHNQb2RpcC1RRRIXVFdzSGFvS05PTmF5cXRzUG9kaXAtUUU",
+  "status": "completed",
+  "usage": {
+    "total_tokens": 78,
+    "total_input_tokens": 8,
+    "input_tokens_by_modality": [
+      {
+        "modality": "text",
+        "tokens": 8
+      }
+    ],
+    "total_cached_tokens": 0,
+    "total_output_tokens": 11,
+    "total_tool_use_tokens": 0,
+    "total_thought_tokens": 59
+  },
+  "created": "2026-05-15T18:51:59Z",
+  "updated": "2026-05-15T18:51:59Z",
+  "service_tier": "standard",
+  "steps": [
+    {
+      "signature": "CqACAQw51sc7wSan2PLLtHG+z0j4AgWR8MPPe76QUDZpwhGeQ1AGXBWGqSm7nhjwbkyXhJ7JlfZ/R3iLZAmqxGH9mLrdkzQooTu5YKptE0+D1jb+PLv7PM/pkCeI8E2IUDtamWiQP2/eG3Rgouxd7+kNxcaERwGTLFsGMdZttew0aP8+xd0hKPAZVkkqKtjVVNYQaSVsnXpTxZrE+spikYx1T/lB9tl6tYkJrB/SmkGO/tsTqDVsaejBXheSM+pu/Nt7s9gAhiNxJnoTvFENezmmiGwiho1lkkPrK8u5uODO5MldRXefJnv8mkZAw/3l6Cxd63hKPGP5za6sjFr/0Scsv0LcrOU65e+YEqZOkp7OXcCoqTCZZITx89JjkOA/pN1T",
+      "type": "thought"
+    },
+    {
+      "content": [
+        {
+          "text": "{\"name\":\"John Doe\",\"age\":30}",
+          "type": "text"
+        }
+      ],
+      "type": "model_output"
+    }
+  ],
+  "object": "interaction",
+  "model": "gemini-2.5-flash"
+}

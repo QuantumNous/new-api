@@ -1,0 +1,165 @@
+---
+description: 'Rsbuild 0.4 发布，提供内置模块联邦配置，并更新插件 Hook 顺序与多项默认行为。'
+date: 2024-02-06 08:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+  - name: 9aoy
+    avatar: 'https://github.com/9aoy.png'
+    github: '9aoy'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Rsbuild 0.4 发布
+
+_2024 年 2 月 6 日_
+
+<BlogAuthors />
+
+![](https://assets.rspack.rs/rsbuild/rsbuild-banner-v0-4.png)
+
+Rsbuild 0.4 版本提供内置的模块联邦支持。此外，还包含一些 API 的不兼容更新，请参考当前文档进行升级。
+
+### 模块联邦配置
+
+Rsbuild 现在提供一个内置的 [moduleFederation](/config/module-federation/options) 选项，这将使得在 Rsbuild 中配置模块联邦变得更加容易。
+
+- **示例：**
+
+```ts title="rsbuild.config.ts"
+export default defineConfig({
+  moduleFederation: {
+    options: {
+      // ModuleFederationPluginOptions
+    },
+  },
+});
+```
+
+当你使用该选项时，Rsbuild 会自动修改默认的 `publicPath` 和 `splitChunks` 配置，使模块联邦可以开箱即用。
+
+> 详见 [RFC - Provide first-class support for Module Federation](https://github.com/web-infra-dev/rsbuild/discussions/1461)。
+
+### 插件 Hook 顺序
+
+在 Rsbuild 插件中使用 hook 时，现在可以通过 `order` 字段来声明 hook 的顺序：
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyRsbuildConfig({
+      handler: () => console.log('hello'),
+      order: 'pre',
+    });
+  },
+});
+```
+
+> 详见 [Plugin Hooks](/plugins/dev/hooks)。
+
+### 重命名 disableFilenameHash
+
+`output.disableFilenameHash` 配置已被重命名为 [output.filenameHash](/config/output/filename-hash)。
+
+- 更改前：
+
+```ts
+export default {
+  output: {
+    disableFilenameHash: true,
+  },
+};
+```
+
+- 更改后：
+
+```ts
+export default {
+  output: {
+    filenameHash: false,
+  },
+};
+```
+
+## 移除 postcss-flexbugs-fixes
+
+Rsbuild 0.4 移除了内置的 [postcss-flexbugs-fixes](https://github.com/luisrudge/postcss-flexbugs-fixes) 插件。
+
+该插件用于修复 IE 10 / 11 中的一些 flex bug。考虑到现代浏览器已经不再存在这些 flex 问题，我们移除了这个插件以提高构建性能。
+
+如果你的项目需要兼容 IE 10 / 11 ，并且遇到了这些 flex 问题，你可以在 Rsbuild 中手动添加这个插件：
+
+- 安装插件：
+
+```bash
+npm add postcss-flexbugs-fixes -D
+```
+
+- 在 `postcss.config.cjs` 中注册插件：
+
+```js
+module.exports = {
+  'postcss-flexbugs-fixes': {},
+};
+```
+
+## Pure React 插件
+
+React 插件已移除对 [antd](https://npmjs.com/package/antd) v4 和 [@arco-design/web-react](https://npmjs.com/package/@arco-design/web-react) 的默认 [source.transformImport](/config/source/transform-import) 配置。
+
+与组件库相关的配置应该在组件库相关的插件中提供，如 `rsbuild-plugin-antd` 或 `rsbuild-plugin-arco`，而 React 插件会专注于提供 React 基础的能力。
+
+- 如果你的项目正在使用 `antd` v3 或 v4，你可以手动添加以下配置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: [
+      {
+        libraryName: 'antd',
+        libraryDirectory: 'es',
+        style: 'css',
+      },
+    ],
+  },
+};
+```
+
+- 如果你的项目正在使用 `@arco-design/web-react` v3 或 v4，你可以手动添加以下配置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: [
+      {
+        libraryName: '@arco-design/web-react',
+        libraryDirectory: 'es',
+        camelToDashComponentName: false,
+        style: 'css',
+      },
+      {
+        libraryName: '@arco-design/web-react/icon',
+        libraryDirectory: 'react-icon',
+        camelToDashComponentName: false,
+      },
+    ],
+  },
+};
+```
+
+## JavaScript API
+
+`loadConfig` 方法现在会返回配置内容和配置文件的路径：
+
+```js
+import { loadConfig } from '@rsbuild/core';
+
+// 0.3
+const config = await loadConfig();
+
+// 0.4
+const { content, filePath } = await loadConfig();
+```

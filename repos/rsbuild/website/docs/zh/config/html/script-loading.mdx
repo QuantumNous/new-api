@@ -1,0 +1,84 @@
+---
+description: '指定由 Rsbuild 生成的 script 标签的加载方式。'
+---
+
+# html.scriptLoading
+
+- **类型：** `'defer' | 'blocking' | 'module'`
+- **默认值：** `'defer'`
+
+指定由 Rsbuild 生成的 `<script>` 标签的加载方式。
+
+- `'defer'`：添加 `defer` 属性，使脚本并行加载并在文档解析完成后执行。
+- `'module'`：添加 `type="module"` 属性，以启用 ES modules 语义。
+- `'blocking'`：不添加 `defer` 或 `async`，脚本将按顺序立即执行。
+
+:::tip 提示
+如果启用了 [output.module](/config/output/module)，该值将始终为 `'module'`。
+:::
+
+## 注意
+
+`scriptLoading` 选项仅作用于 Rsbuild 自动生成的 `<script>` 标签，不会影响：
+
+- HTML 模板中已经存在的 `<script>` 标签
+- 通过 [html.tags](/config/html/tags) 添加的 `<script>` 标签
+- 通过 [api.modifyHtmlTags](/plugins/dev/hooks#modifyhtmltags) 添加的 `<script>` 标签
+
+## 可选值
+
+### defer
+
+默认情况下，Rsbuild 生成的 `<script>` 标签会自动设置 [`defer` 属性](https://developer.mozilla.org/zh-CN/docs/Web/HTML/Reference/Elements/script#defer)，以避免阻塞页面的解析和渲染。
+
+```html
+<head>
+  <script defer src="/static/js/main.js"></script>
+</head>
+<body></body>
+```
+
+:::tip
+当浏览器遇到带有 `defer` 属性的 `<script>` 标签时，它会异步地下载脚本文件，不会阻塞页面的解析和渲染。在页面解析和渲染完成后，浏览器会按照 `<script>` 标签在文档中出现的顺序依次执行它们。
+:::
+
+### module
+
+将 `scriptLoading` 设置为 `module` 时，可以让脚本支持 ES modules 语法，同时浏览器也会自动默认延迟执行这些脚本，效果与 `defer` 类似。
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    scriptLoading: 'module',
+  },
+};
+```
+
+```html
+<head>
+  <script type="module" src="/static/js/main.js"></script>
+</head>
+<body></body>
+```
+
+### blocking
+
+将 `scriptLoading` 设置为 `blocking` 可以移除 `defer` 属性，此时脚本是同步执行的，这意味着它会阻塞浏览器的解析和渲染过程，直到脚本文件被下载并执行完毕。
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    inject: 'body',
+    scriptLoading: 'blocking',
+  },
+};
+```
+
+当你需要设置 `blocking` 时，建议把 [html.inject](/config/html/inject) 设置为 `body`，避免页面渲染被阻塞。
+
+```html
+<head></head>
+<body>
+  <script src="/static/js/main.js"></script>
+</body>
+```

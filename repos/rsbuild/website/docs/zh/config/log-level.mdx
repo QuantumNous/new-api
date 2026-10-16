@@ -1,0 +1,44 @@
+---
+description: '指定 Rsbuild 的日志级别，默认值为 info。'
+---
+
+# logLevel
+
+- **类型：** `'info' | 'warn' | 'error' | 'silent'`
+- **默认值：** `'info'`
+- **版本：** `>= 1.4.0`
+
+指定当前 Rsbuild 实例的日志级别。
+
+:::tip
+这个选项同样会影响 Rsbuild 的浏览器端日志输出。你可以通过 [client.logLevel](/config/dev/client#loglevel) 选项对该行为进行覆盖。
+:::
+
+## 示例
+
+将 `logLevel` 配置为 `warn` 后，Rsbuild 只会输出 `warn` 和 `error` 级别的日志：
+
+```ts title="rsbuild.config.ts"
+export default {
+  logLevel: 'warn',
+};
+```
+
+将 `logLevel` 配置为 `error` 后，Rsbuild 只会输出 `error` 级别的日志：
+
+```ts title="rsbuild.config.ts"
+export default {
+  logLevel: 'error',
+};
+```
+
+## 可选值
+
+- `info`：输出所有日志
+- `warn`：输出 `warn` 和 `error` 级别的日志
+- `error`：输出 `error` 级别的日志
+- `silent`：不输出任何日志
+
+::: note
+当 [开启调试模式](/guide/debug/debug-mode) 时，始终会输出所有日志。
+:::

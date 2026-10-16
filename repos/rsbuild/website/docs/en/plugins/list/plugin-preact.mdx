@@ -1,0 +1,111 @@
+---
+description: 'The Preact plugin provides support for Preact, integrating features such as JSX compilation and React aliasing.'
+---
+
+# Preact plugin
+
+import { SourceCode } from '@theme';
+
+<SourceCode href="https://github.com/web-infra-dev/rsbuild/tree/main/packages/plugin-preact" />
+
+The Preact plugin provides support for Preact, integrating features such as JSX compilation and React aliasing.
+
+## Quick start
+
+### Install plugin
+
+Run the following command:
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/plugin-preact -D" />
+
+:::tip
+`@rsbuild/plugin-preact` v2 no longer supports Rsbuild 1.x. If your project uses Rsbuild 1.x, install `@rsbuild/plugin-preact@1` instead.
+:::
+
+### Register plugin
+
+Register the plugin in Rsbuild config:
+
+```ts title="rsbuild.config.ts"
+import { pluginPreact } from '@rsbuild/plugin-preact';
+
+export default {
+  plugins: [pluginPreact()],
+};
+```
+
+After registration, you can develop Preact directly.
+
+## Options
+
+### reactAliasesEnabled
+
+Whether to aliases `react`, `react-dom` to `preact/compat`.
+
+- **Type:** `boolean`
+- **Default:** `true`
+- **Example:** Disable aliases.
+
+```ts
+pluginPreact({
+  reactAliasesEnabled: false,
+});
+```
+
+### prefreshEnabled
+
+Whether to inject [Prefresh](https://github.com/preactjs/prefresh) for HMR.
+
+- **Type:** `boolean`
+- **Default:** `true`
+- **Version:** `>= v1.1.0`
+- **Example:** Disable Prefresh.
+
+```ts
+pluginPreact({
+  prefreshEnabled: false,
+});
+```
+
+### preactRefreshOptions
+
+Set the options for [@rspack/plugin-preact-refresh](https://github.com/rstackjs/rspack-plugin-preact-refresh). The value is passed to the Rspack plugin, and `preactPath` is automatically configured by Rsbuild.
+
+- **Type:**
+
+```ts
+type PreactRefreshOptions = {
+  // @link https://rspack.rs/config/module-rules#condition
+  test?: Rspack.RuleSetCondition;
+  include?: Rspack.RuleSetCondition | null;
+  exclude?: Rspack.RuleSetCondition | null;
+  overlay?: {
+    module: string;
+  };
+};
+```
+
+- **Default:**
+
+The default value is the same as `@rspack/plugin-preact-refresh`:
+
+```js
+const defaultOptions = {
+  test: /\.(?:js|jsx|mjs|cjs|ts|tsx|mts|cts)$/,
+  exclude: /node_modules/,
+};
+```
+
+- **Example:**
+
+```ts
+pluginPreact({
+  preactRefreshOptions: {
+    test: /\.(?:jsx|tsx)$/,
+    include: /src/,
+    exclude: /node_modules/,
+  },
+});
+```

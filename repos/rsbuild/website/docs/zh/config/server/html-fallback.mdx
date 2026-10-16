@@ -1,0 +1,41 @@
+---
+description: 'Rsbuild 的 server.html-fallback 配置项参考，包含作用、默认值、配置行为和使用示例。'
+---
+
+# server.htmlFallback
+
+- **类型：** `false | 'index'`
+- **默认值：** `'index'`
+
+是否启用 HTML 页面回退功能。
+
+## 默认行为
+
+在默认配置下，如果请求同时满足以下条件，但未找到对应资源时，将自动回退到 index.html：
+
+- 请求方法为 GET 或 HEAD
+- 请求头的 Accept 字段包含 `text/html` 或 `*/*`
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    htmlFallback: 'index',
+  },
+};
+```
+
+## 禁用
+
+如果不想启用 HTML 页面回退功能，可以将 `server.htmlFallback` 设置为 `false`。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    htmlFallback: false,
+  },
+};
+```
+
+## 自定义
+
+如果 `server.htmlFallback` 无法满足你的需求，可以通过 [server.historyApiFallback](/config/server/history-api-fallback) 进行更灵活的设置。

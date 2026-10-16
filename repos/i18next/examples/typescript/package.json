@@ -1,0 +1,16 @@
+{
+  "name": "typescript-example",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node dist/index.js"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "5.9.3"
+  },
+  "dependencies": {
+    "i18next": "25.7.4"
+  }
+}

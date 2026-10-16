@@ -1,0 +1,87 @@
+@layer components {
+  .MenuPositioner {
+    /* The outline is sometimes seen in Safari when the positioner is focused intermittently */
+    outline: 0;
+    z-index: 1;
+  }
+
+  .MenuPopup {
+    outline: 0;
+    max-width: var(--available-width);
+    max-height: var(--available-height);
+    border-radius: var(--radius-8);
+    background-color: var(--color-popup);
+    overflow: hidden;
+    cursor: default;
+    -webkit-user-select: none;
+    user-select: none;
+    padding-block: 0.25rem;
+
+    /* Make sure the layout doesn't fall apart on extreme zoom on mobile */
+    min-width: min-content;
+
+    @media (prefers-color-scheme: light) {
+      box-shadow:
+        0 0 1px var(--blackA-4),
+        0 0.5px 1px var(--blackA-3),
+        0 1px 3px var(--blackA-1),
+        0 2px 4px -1px var(--blackA-1),
+        0 4px 12px -2px var(--blackA-1),
+        0 4px 16px -4px var(--blackA-1);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      box-shadow: inset 0 0 0 1px var(--gray-c3);
+    }
+  }
+
+  .MenuItem {
+    font-size: var(--font-size-13);
+    outline: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    height: 1.75rem;
+    padding-inline: 0.75rem;
+    line-height: 1;
+    white-space: nowrap;
+    z-index: 0;
+    color: var(--gray-t2);
+    text-decoration: none;
+
+    &[data-highlighted] {
+      position: relative;
+      color: white;
+
+      @media (prefers-color-scheme: dark) {
+        color: black;
+      }
+
+      &::before {
+        content: '';
+        position: absolute;
+        inset-inline: 0.25rem;
+        inset-block: 0;
+        z-index: -1;
+        border-radius: var(--radius-4);
+        background-color: var(--gray-t2);
+
+        @media (prefers-color-scheme: dark) {
+          background-color: white;
+        }
+      }
+    }
+
+    @media (pointer: coarse) {
+      font-size: var(--font-size-15);
+      height: 2.25rem;
+    }
+  }
+
+  .MenuSeparator {
+    height: 1px;
+    margin-block: 0.25rem;
+    margin-inline: 0.25rem;
+    background-color: var(--color-border);
+  }
+}

@@ -1,0 +1,115 @@
+{"type":"message_start","message":{"model":"claude-sonnet-4-5-20250929","id":"msg_01WUP4eZFC22KbkesuJGqVAw","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":879,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":5,"service_tier":"standard"}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+{"type":"ping"}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"I'll help you with"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" this"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" task"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":". Let me start by reading the note"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" tree to see"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" the current structure, and then search"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" for the right tools to add a"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" bullet"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" point"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"."}}
+{"type":"content_block_stop","index":0}
+{"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_01U8pzAHj2vNdPCA2Kf8JjeN","name":"readNoteTree","input":{},"caller":{"type":"direct"}}}
+{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":""}}
+{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"noteId\": \"d10aa585-982b"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"-4bd9-984e-"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"420f9b3717f7"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\"}"}}
+{"type":"content_block_stop","index":1}
+{"type":"content_block_start","index":2,"content_block":{"type":"server_tool_use","id":"srvtoolu_01FjZe9o4YXXJjGxLmfj44Rf","name":"tool_search_tool_bm25","input":{},"caller":{"type":"direct"}}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":""}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{\"query\": \"ad"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"d bullet"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":" point insert"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":" text"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":" editor"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\", \"limit\": 5"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"}"}}
+{"type":"content_block_stop","index":2}
+{"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"input_tokens":879,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":177}}
+{"type":"message_stop"}
+{"type":"message_start","message":{"model":"claude-sonnet-4-5-20250929","id":"msg_014CbStN8SFzjGbDkZzTtD7i","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":1398,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":1,"service_tier":"standard"}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"tool_search_tool_result","tool_use_id":"srvtoolu_01FjZe9o4YXXJjGxLmfj44Rf","content":{"type":"tool_search_tool_search_result","tool_references":[{"type":"tool_reference","tool_name":"executeEditorOperation"}]}}}
+{"type":"content_block_stop","index":0}
+{"type":"content_block_start","index":1,"content_block":{"type":"text","text":""}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"Perfect"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"! I can"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" see the current"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" note structure has"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" one"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" bull"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"eted list item with"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" the"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" text \"hi\". Now I nee"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"d to ad"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"d a"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" new bullet with"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" \"bye\" after it"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":". Let me use"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" the `"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"executeEditorOperation` tool"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" to"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" insert"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" a"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":" new bull"}}
+{"type":"content_block_delta","index":1,"delta":{"type":"text_delta","text":"eted list item."}}
+{"type":"content_block_stop","index":1}
+{"type":"content_block_start","index":2,"content_block":{"type":"tool_use","id":"toolu_01QoRrvXNv6w4vZSyo9cnxP2","name":"executeEditorOperation","input":{},"caller":{"type":"direct"}}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":""}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{\"noteId\": \"d10aa"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"585-982b-4bd9"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"-984e-420f9b"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"3717f7"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\", \"operations\": [\n  {\n    \"op"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\": \"insert_"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"node"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\",\n    \"type"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\": \"bulletedListItem\","}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\n    \"text\": \"bye\","}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\n    \"at"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\": {\n      \"type\": \""}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"path"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\",\n      \"path\": [1"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"]\n    }\n  }"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"\n]"}}
+{"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"}"}}
+{"type":"content_block_stop","index":2}
+{"type":"message_delta","delta":{"stop_reason":"tool_use","stop_sequence":null},"usage":{"input_tokens":1398,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":213,"server_tool_use":{"web_search_requests":0}}}
+{"type":"message_stop"}
+{"type":"message_start","message":{"model":"claude-sonnet-4-5-20250929","id":"msg_01XnBpTaw23kf2UnGUdkKfey","type":"message","role":"assistant","content":[],"stop_reason":null,"stop_sequence":null,"usage":{"input_tokens":1639,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":0},"output_tokens":6,"service_tier":"standard"}}}
+{"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}
+{"type":"ping"}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Great! I've successfully complete"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d the task. Here"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"'s what I did:\n\n1."}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" **Read the note tree**:"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" The"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" note"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" ha"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d one"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" bulleted list item containing"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" \"hi\""}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n2. **Adde"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"d a"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" new bullet**: I"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" inserted a"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" new bulleted list item with the"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" text \"bye\" at"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" position"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" ["}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"1],"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" which places"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" it right"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" after the \"hi\" bullet"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n\nThe note now"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" contains"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":":\n- hi"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"\n- bye\n\nThe operation"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":" was successful"}}
+{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"!"}}
+{"type":"content_block_stop","index":0}
+{"type":"message_delta","delta":{"stop_reason":"end_turn","stop_sequence":null},"usage":{"input_tokens":1639,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":95}}
+{"type":"message_stop"}

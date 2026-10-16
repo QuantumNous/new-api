@@ -1,0 +1,29 @@
+{
+  "id": "b3999b8c93e04e11bcbff7bcab829667",
+  "created": 1769088854,
+  "model": "mistral-small-latest",
+  "usage": {
+    "prompt_tokens": 124,
+    "total_tokens": 146,
+    "completion_tokens": 22
+  },
+  "object": "chat.completion",
+  "choices": [
+    {
+      "index": 0,
+      "finish_reason": "tool_calls",
+      "message": {
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "id": "gSIMJiOkT",
+            "function": {
+              "name": "weather",
+              "arguments": "{\"location\": \"San Francisco\"}"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

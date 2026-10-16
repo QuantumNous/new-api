@@ -1,0 +1,22 @@
+{
+  "id": "oGs6Zt9-62bZhn-99529372487b1b0a",
+  "object": "rerank",
+  "model": "Salesforce/Llama-Rank-v1",
+  "results": [
+    {
+      "index": 0,
+      "relevance_score": 0.6475887154399037,
+      "document": {}
+    },
+    {
+      "index": 5,
+      "relevance_score": 0.6323295373206566,
+      "document": {}
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 2966,
+    "completion_tokens": 0,
+    "total_tokens": 2966
+  }
+}

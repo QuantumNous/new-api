@@ -1,0 +1,32 @@
+{
+  "id": "f03bc170-b375-4561-9685-35182c8152c5",
+  "object": "chat.completion",
+  "created": 1764681341,
+  "model": "deepseek-reasoner",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "{\n  \"location\": \"San Francisco\",\n  \"condition\": \"cloudy\",\n  \"temperature\": 7\n}",
+        "reasoning_content": "I have the result from the weather tool. It returned a JSON object with location, condition, and temperature. I need to reply with JSON object ONLY. The assistant's response should be the JSON output. So I should output exactly that JSON? Or perhaps wrap it in some way? The instruction says \"Reply with JSON object ONLY.\" Probably I should output the result as is, or maybe a structured response. But the tool result is already JSON. I think I should output that JSON directly. However, I need to ensure it's a valid response. Let me output the JSON object."
+      },
+      "logprobs": null,
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 495,
+    "completion_tokens": 144,
+    "total_tokens": 639,
+    "prompt_tokens_details": {
+      "cached_tokens": 320
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 118
+    },
+    "prompt_cache_hit_tokens": 320,
+    "prompt_cache_miss_tokens": 175
+  },
+  "system_fingerprint": "fp_eaab8d114b_prod0820_fp8_kvcache"
+}

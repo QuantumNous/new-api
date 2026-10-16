@@ -1,0 +1,5 @@
+{
+  "name": "@type-tests/core-types",
+  "private": true,
+  "type": "module"
+}

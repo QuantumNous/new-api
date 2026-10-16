@@ -1,0 +1,46 @@
+import type { DataView } from '@visactor/vdataset';
+import type { IScatterInvalidType } from '../../typings';
+import type { IScatterSeriesSpec } from './interface';
+import { CartesianSeries } from '../cartesian/cartesian';
+import type { ISeriesSpecUpdatePolicy } from '../base/base-series';
+import type { SeriesMarkMap } from '../interface';
+import { SeriesTypeEnum } from '../interface/type';
+import type { ILabelMark, IMark } from '../../mark/interface';
+import { ScatterSeriesSpecTransformer } from './scatter-transformer';
+export declare class ScatterSeries<T extends IScatterSeriesSpec = IScatterSeriesSpec> extends CartesianSeries<T> {
+    static readonly type: string;
+    type: SeriesTypeEnum;
+    static readonly mark: SeriesMarkMap;
+    static readonly builtInTheme: {
+        scatter: import("./interface").IScatterSeriesTheme;
+    };
+    static readonly transformerConstructor: any;
+    readonly transformerConstructor: typeof ScatterSeriesSpecTransformer;
+    private _symbolMark;
+    private _labelMark;
+    private _size;
+    private _sizeField;
+    private _shape;
+    private _shapeField;
+    protected _invalidType: IScatterInvalidType;
+    protected _getSpecUpdatePolicy(): ISeriesSpecUpdatePolicy;
+    setAttrFromSpec(): void;
+    private _getSeriesAttribute;
+    private getSizeAttribute;
+    private getShapeAttribute;
+    initMark(): void;
+    initMarkStyle(): void;
+    initAnimation(): void;
+    private initSymbolMarkStyle;
+    protected initTooltip(): void;
+    viewDataStatisticsUpdate(d: DataView): void;
+    initLabelMarkStyle(labelMark?: ILabelMark): void;
+    private _updateSymbolGraphicPosition;
+    private _ensureLabelGraphicPostMatrix;
+    handleZoom(e: any): void;
+    handlePan(e: any): void;
+    onLayoutEnd(): void;
+    getDefaultShapeType(): string;
+    getActiveMarks(): IMark[];
+}
+export declare const registerScatterSeries: () => void;

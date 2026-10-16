@@ -1,0 +1,21 @@
+library:
+  name: '@tanstack/solid-start'
+  version: '1.166.2'
+  repository: 'https://github.com/TanStack/router'
+  description: >-
+    Solid bindings for TanStack Start. useServerFn hook,
+    tanstackStart Vite plugin, Solid-specific setup.
+generated_at: '2026-03-08'
+skills:
+  - name: 'Solid Start'
+    slug: 'solid-start'
+    type: 'framework'
+    domain: 'solid-start-bindings'
+    path: 'skills/solid-start/SKILL.md'
+    package: 'packages/solid-start'
+    description: >-
+      Solid bindings for TanStack Start. useServerFn hook,
+      tanstackStart Vite plugin, Solid-specific setup.
+    sources:
+      - 'TanStack/router:packages/solid-start/src'
+      - 'TanStack/router:docs/start/framework/solid/build-from-scratch.md'

@@ -1,0 +1,9 @@
+在关闭构建时调用，可用于在构建关闭时执行清理操作。
+
+Rsbuild CLI 会在执行 [rsbuild build](/guide/basic/cli#rsbuild-build) 完成后自动调用此钩子，使用 JavaScript API 的用户需要手动调用 [build.close()](/api/javascript-api/instance#close-build) 方法来触发此钩子。
+
+- **类型：**
+
+```ts
+function onCloseBuild(callback: () => Promise<void> | void): void;
+```

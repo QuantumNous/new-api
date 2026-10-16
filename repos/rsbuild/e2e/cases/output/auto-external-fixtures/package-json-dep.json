@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "@e2e/auto-external-pkg": "1.0.0"
+  }
+}

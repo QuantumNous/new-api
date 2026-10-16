@@ -1,0 +1,161 @@
+---
+description: 'Rsbuild JavaScript API 参考，涵盖RsbuildInstance、RsbuildConfig、NormalizedConfig等核心接口和用法。'
+---
+
+# Rsbuild types
+
+本章节介绍了 Rsbuild 提供的一些类型定义。
+
+## RsbuildInstance
+
+Rsbuild 实例的类型，对应 [createRsbuild](/api/javascript-api/core#creatersbuild) 方法的返回值。
+
+```ts
+import type { RsbuildInstance } from '@rsbuild/core';
+
+let rsbuild: RsbuildInstance;
+```
+
+## RsbuildConfig
+
+Rsbuild 配置的类型。
+
+```ts
+import type { RsbuildConfig } from '@rsbuild/core';
+
+const config: RsbuildConfig = {
+  // ...
+};
+```
+
+你也可以引用 Rsbuild 配置中各个字段的类型定义：
+
+```ts
+import type {
+  DevConfig,
+  HtmlConfig,
+  ToolsConfig,
+  SourceConfig,
+  ServerConfig,
+  OutputConfig,
+  SecurityConfig,
+  PerformanceConfig,
+  ModuleFederationConfig,
+} from '@rsbuild/core';
+```
+
+## NormalizedConfig
+
+Rsbuild 配置归一化后的类型，对应 [getNormalizedConfig](/plugins/dev/core#apigetnormalizedconfig) 方法的返回值。
+
+```ts
+import type { NormalizedConfig } from '@rsbuild/core';
+
+const config: NormalizedConfig = api.getNormalizedConfig();
+```
+
+你也可以引用归一化后的 Rsbuild 配置中各个字段的类型定义：
+
+```ts
+import type {
+  NormalizedDevConfig,
+  NormalizedHtmlConfig,
+  NormalizedToolsConfig,
+  NormalizedSourceConfig,
+  NormalizedServerConfig,
+  NormalizedOutputConfig,
+  NormalizedSecurityConfig,
+  NormalizedPerformanceConfig,
+  NormalizedModuleFederationConfig,
+} from '@rsbuild/core';
+```
+
+## NormalizedEnvironmentConfig
+
+指定环境下的 Rsbuild 归一化配置类型，对应 [`getNormalizedConfig({ environment })`](/plugins/dev/core#apigetnormalizedconfig) 方法的返回值。
+
+```ts
+import type { NormalizedEnvironmentConfig } from '@rsbuild/core';
+
+const config: NormalizedEnvironmentConfig = api.getNormalizedConfig({
+  environment,
+});
+```
+
+## RsbuildContext
+
+Rsbuild 实例中 [context 属性](/api/javascript-api/instance#rsbuildcontext)的类型定义。
+
+```ts
+import type { RsbuildContext } from '@rsbuild/core';
+
+const context: RsbuildContext = rsbuild.context;
+```
+
+## RsbuildPlugin
+
+定义 Rsbuild 插件的结构和行为。
+
+Rsbuild 插件提供了一种标准化的方式，通过生命周期钩子和修改配置来扩展构建能力。
+
+```ts
+import type { RsbuildPlugin } from '@rsbuild/core';
+
+const myPlugin: RsbuildPlugin = {
+  name: 'my-plugin',
+  setup() {},
+};
+```
+
+## RsbuildPluginAPI
+
+通过 `setup` 函数提供给 Rsbuild 插件的 API 接口。
+
+它允许插件与构建过程进行交互，修改配置、注册钩子、以及访问上下文信息。
+
+```ts
+import type { RsbuildPluginAPI } from '@rsbuild/core';
+
+const myPlugin = {
+  name: 'my-plugin',
+  setup(api: RsbuildPluginAPI) {},
+};
+```
+
+## RsbuildTarget
+
+Rsbuild 构建产物的类型。
+
+```ts
+import type { RsbuildTarget } from '@rsbuild/core';
+```
+
+## CreateRsbuildOptions
+
+[createRsbuild](/api/javascript-api/core#creatersbuild) 方法的入参类型。
+
+```ts
+import type { CreateRsbuildOptions } from '@rsbuild/core';
+```
+
+## InspectConfigOptions
+
+[rsbuild.inspectConfig](/api/javascript-api/instance#rsbuildinspectconfig) 方法的入参类型。
+
+```ts
+import type { InspectConfigOptions } from '@rsbuild/core';
+```
+
+## Rspack
+
+包含 `@rspack/core` 导出的所有类型，比如 `Rspack.Configuration`。
+
+```ts
+import type { Rspack } from '@rsbuild/core';
+
+const rspackConfig: Rspack.Configuration = {};
+```
+
+## 其他
+
+查看 [@rsbuild/core - src/index.ts](https://github.com/web-infra-dev/rsbuild/blob/main/packages/core/src/index.ts) 了解所有导出的类型。

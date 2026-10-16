@@ -1,0 +1,10 @@
+{
+  "type": "skill_version",
+  "skill_id": "skill_01Xud7kLMsjLfc7Aa6RvigZf",
+  "id": "skill_version_01GD1pqKAjok68MJxg1f9bTA",
+  "version": "1772078380123708",
+  "directory": "test-capture-skill",
+  "name": "test-capture-skill",
+  "description": "An updated test skill for fixture capture",
+  "created_at": "2026-02-26T03:59:41.132754Z"
+}

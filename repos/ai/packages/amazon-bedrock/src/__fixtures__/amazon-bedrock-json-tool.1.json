@@ -1,0 +1,35 @@
+{
+  "output": {
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "toolUse": {
+            "toolUseId": "json-tool-id",
+            "name": "json",
+            "input": {
+              "elements": [
+                {
+                  "location": "San Francisco",
+                  "temperature": -5,
+                  "condition": "snowy"
+                },
+                {
+                  "location": "London",
+                  "temperature": 0,
+                  "condition": "snowy"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "usage": {
+    "inputTokens": 15,
+    "outputTokens": 42,
+    "totalTokens": 57
+  },
+  "stopReason": "tool_use"
+}

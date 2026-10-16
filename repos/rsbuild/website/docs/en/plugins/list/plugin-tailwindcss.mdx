@@ -1,0 +1,142 @@
+---
+description: 'Integrate Tailwind CSS v4 in Rsbuild with a plugin based on @tailwindcss/webpack, avoiding @tailwindcss/postcss transforms for better build performance.'
+---
+
+# Tailwind CSS plugin
+
+import { SourceCode } from '@theme';
+
+<SourceCode href="https://github.com/web-infra-dev/rsbuild/tree/main/packages/plugin-tailwindcss" />
+
+This plugin is based on [@tailwindcss/webpack](https://www.npmjs.com/package/@tailwindcss/webpack) and is used to integrate [Tailwind CSS](https://tailwindcss.com/) v4 in Rsbuild.
+
+Compared with the [@tailwindcss/postcss](https://www.npmjs.com/package/@tailwindcss/postcss)-based integration, this plugin does not run Tailwind CSS transforms through PostCSS, providing better build performance.
+
+## Quick start
+
+### Install plugin
+
+Run the following command:
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/plugin-tailwindcss tailwindcss -D" />
+
+:::tip
+The Tailwind CSS plugin supports Rsbuild >= 2.0 and Tailwind CSS >= 4.0.
+:::
+
+### Register plugin
+
+Register the plugin in Rsbuild config:
+
+```ts title="rsbuild.config.ts"
+import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';
+
+export default {
+  plugins: [pluginTailwindcss()],
+};
+```
+
+### Import CSS
+
+Add an `@import` to your CSS entry file that imports Tailwind CSS:
+
+```css title="src/index.css"
+@import 'tailwindcss';
+```
+
+Then import this CSS file in your JavaScript or TypeScript entry:
+
+```ts title="src/index.ts"
+import './index.css';
+```
+
+Now you can use Tailwind's utility classes in your HTML or framework components:
+
+```html
+<h1 class="text-3xl font-bold underline">Hello world!</h1>
+```
+
+:::tip
+Tailwind CSS v4 is not designed to be used with CSS preprocessors like Sass, Less, or Stylus. You need to place the `@import 'tailwindcss';` statement at the beginning of a `.css` file. See [Tailwind CSS - Compatibility](https://tailwindcss.com/docs/compatibility#sass-less-and-stylus) for more details.
+:::
+
+## Scan scope
+
+By default, this plugin uses the [Rsbuild root directory](/config/root) as Tailwind CSS's scan base, which defaults to `process.cwd()`.
+
+Tailwind CSS automatically detects class names from files under the scan base. You can narrow or customize the scan scope with Tailwind CSS's `source(...)` function and [`@source` directive](https://tailwindcss.com/docs/detecting-classes-in-source-files#explicitly-registering-sources) in your CSS entry file:
+
+```css title="src/index.css"
+@import 'tailwindcss' source('./');
+```
+
+You can also disable automatic source detection and explicitly register source files:
+
+```css title="src/index.css"
+@import 'tailwindcss' source(none);
+
+@source './pages/**/*.html';
+@source './components/**/*.{js,ts,jsx,tsx}';
+```
+
+Relative paths in `source(...)` and `@source` are resolved from the CSS file that contains them.
+
+## Options
+
+### optimize
+
+Enable Tailwind CSS's built-in Lightning CSS optimization.
+
+By default, this option is enabled in production mode and disabled in development mode.
+
+- **Type:**
+
+```ts
+type Optimize =
+  | boolean
+  | {
+      minify?: boolean;
+    };
+```
+
+- **Default:** `true` in production mode, `false` in development mode
+
+In production mode, Tailwind CSS's built-in minification follows Rsbuild's CSS minification config. For example, setting [`output.minify`](/config/output/minify) to `false` disables Tailwind CSS's built-in minification in the default configuration.
+
+When `optimize` is `false`, Tailwind CSS still compiles Tailwind directives and generates utilities, but skips Tailwind CSS's built-in Lightning CSS optimization step:
+
+```ts title="rsbuild.config.ts"
+pluginTailwindcss({
+  optimize: false,
+});
+```
+
+If you want to always enable Tailwind CSS's built-in optimization and minification, set `optimize` to `true`:
+
+```ts title="rsbuild.config.ts"
+pluginTailwindcss({
+  optimize: true,
+});
+```
+
+If you want to enable Tailwind CSS's built-in optimization without enabling its minification, pass an object and omit `minify` or set it to `false`:
+
+```ts title="rsbuild.config.ts"
+pluginTailwindcss({
+  optimize: {
+    minify: false,
+  },
+});
+```
+
+To explicitly enable Tailwind CSS's built-in minification:
+
+```ts title="rsbuild.config.ts"
+pluginTailwindcss({
+  optimize: {
+    minify: true,
+  },
+});
+```

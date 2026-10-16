@@ -1,0 +1,22 @@
+library:
+  name: '@tanstack/router-plugin'
+  version: '1.166.2'
+  repository: 'https://github.com/TanStack/router'
+  description: >-
+    Bundler plugin for route generation and automatic code splitting.
+    Supports Vite, Webpack, Rspack, and esbuild via unplugin.
+generated_at: '2026-03-08'
+skills:
+  - name: 'Router Plugin'
+    slug: 'router-plugin'
+    type: 'core'
+    domain: 'bundler-integration'
+    path: 'skills/router-plugin/SKILL.md'
+    package: 'packages/router-plugin'
+    description: >-
+      Bundler plugin for route generation and automatic code splitting.
+      Supports Vite, Webpack, Rspack, and esbuild via unplugin.
+    sources:
+      - 'TanStack/router:packages/router-plugin/src'
+      - 'TanStack/router:docs/router/routing/file-based-routing.md'
+      - 'TanStack/router:docs/router/guide/code-splitting.md'

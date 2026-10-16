@@ -1,0 +1,205 @@
+---
+description: 'Rsbuild 2.1 带来 Rust 版本 React Compiler、TanStack Start 支持、Tailwind CSS v4 插件，以及 CSS url、Worker 等资源导入 query 支持。'
+date: 2026-06-26 12:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Rsbuild 2.1 发布
+
+_2026 年 6 月 26 日_
+
+<BlogAuthors />
+
+我们很高兴地宣布 Rsbuild 2.1 已经正式发布！
+
+2.1 版本的主要改进包括：
+
+- 框架与生态：
+  - [升级到 Rspack 2.1](#upgrade-to-rspack-21)
+  - [React Compiler Rust 版本](#rust-react-compiler)
+  - [TanStack Start 支持](#tanstack-start-support)
+  - [Tailwind CSS 插件](#tailwind-css-plugin)
+- 新特性：
+  - [自动 external](#auto-external)
+  - [并行编译](#parallel-babel-and-svgr)
+- 资源导入：
+  - [CSS URL 导入](#css-url-imports)
+  - [Worker 导入](#worker-query-imports)
+  - [Wasm 导入](#wasm-source-import)
+
+## 升级到 Rspack 2.1 \{#upgrade-to-rspack-21}
+
+Rsbuild 2.1 基于 Rspack 2.1 构建，带来了更快的构建性能、React Compiler Rust 版本、新的产物优化能力，以及多项底层改进。
+
+更多详情请参考 [Rspack 2.1 发布公告](https://rspack.rs/zh/blog/announcing-2-1)。
+
+## React Compiler Rust 版本 \{#rust-react-compiler}
+
+[React Compiler](https://react.dev/learn/react-compiler) 可以在构建阶段自动优化 React 组件和 Hooks。过去，React Compiler 主要通过 Babel 插件接入，这会引入额外的 Babel 转换开销，并增加项目的构建时间。
+
+Rspack 2.1 内置了 [Rust 版本的 React Compiler](https://github.com/react/react/pull/36173)，Rsbuild 2.1 则通过 `@rsbuild/plugin-react` 对这一能力进行了封装。现在你只需要开启 [`reactCompiler`](/plugins/list/plugin-react#reactcompiler) 选项，就可以在 React 插件中使用 React Compiler。
+
+在我们的基准测试中，针对 React Compiler 带来的额外编译耗时，Rust 版本比 Babel 版本快 **7-13 倍**。
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+
+export default defineConfig({
+  plugins: [
+    pluginReact({
+      reactCompiler: true,
+    }),
+  ],
+});
+```
+
+对于 React 17 或 React 18 项目，你需要安装 `react-compiler-runtime`，并显式设置 React Compiler 的目标 React 版本：
+
+```ts title="rsbuild.config.ts"
+pluginReact({
+  reactCompiler: {
+    target: '18',
+  },
+});
+```
+
+更多选项可以参考 [React 插件文档](/plugins/list/plugin-react#reactcompiler)。
+
+## TanStack Start 支持 \{#tanstack-start-support}
+
+[TanStack Start](https://tanstack.com/start/latest) 是一个由 TanStack Router 驱动的全栈 React 框架。它提供整页文档 SSR、流式渲染、Server Functions、客户端/服务端构建等能力。
+
+在 Rsbuild 2.0 发布时，我们提到正在与 TanStack 团队合作探索集成。现在，TanStack Start 已经官方支持使用 Rsbuild 作为构建工具。你可以继续使用熟悉的 Rsbuild 配置与插件，只需额外注册 TanStack Start 插件：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginReact } from '@rsbuild/plugin-react';
+import { tanstackStart } from '@tanstack/react-start/plugin/rsbuild';
+
+export default defineConfig({
+  plugins: [pluginReact(), tanstackStart()],
+});
+```
+
+参考 [TanStack Start 博客](https://tanstack.com/blog/start-adds-rsbuild-support) 或 [指南](/guide/framework/react#tanstack-start) 了解更多。
+
+## Tailwind CSS 插件 \{#tailwind-css-plugin}
+
+Rsbuild 现在提供了 [Tailwind CSS 插件](/plugins/list/plugin-tailwindcss)，用于在 Rsbuild 中集成 Tailwind CSS v4。该插件基于 Tailwind CSS 官方的 [loader](https://www.npmjs.com/package/@tailwindcss/webpack) 实现。
+
+相比通过 `@tailwindcss/postcss` 进行转换，这种方式不需要再经过 PostCSS 执行 Tailwind CSS 编译。在我们的测试中，它可以带来至多 **30%** 的构建性能提升。
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';
+
+export default defineConfig({
+  plugins: [pluginTailwindcss()],
+});
+```
+
+## 自动 external \{#auto-external}
+
+在构建 Node.js 应用或 SSR 产物时，某些依赖并不适合打包进 bundle。例如观测 SDK、原生插件、需要运行时插桩的包，或应由宿主应用提供的 peer dependencies。过去这类场景通常需要手动配置 `output.externals`。
+
+Rsbuild 现在支持 [`output.autoExternal`](/config/output/auto-external) 选项。它会读取 `package.json` 中的依赖字段，并自动生成 external 规则。这个能力此前主要用于 Rslib，现在也可以直接用于 Rsbuild 应用。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+    autoExternal: true,
+  },
+};
+```
+
+## 并行编译 \{#parallel-babel-and-svgr}
+
+Babel 和 SVGR 都提供了灵活的转换能力，但执行性能较差。当项目中存在大量需要 Babel 处理的模块，或需要将大量 SVG 转换为 React 组件时，这部分开销会变得明显。
+
+[`@rsbuild/plugin-babel`](/plugins/list/plugin-babel#parallel) 和 [`@rsbuild/plugin-svgr`](/plugins/list/plugin-svgr#parallel) 现在新增了 `parallel` 选项，可以借助 Rspack 的 parallel loader 将转换任务分配到 worker 线程中执行，从而降低主线程压力，提升整体构建性能。
+
+```ts title="rsbuild.config.ts"
+import { pluginBabel } from '@rsbuild/plugin-babel';
+import { pluginSvgr } from '@rsbuild/plugin-svgr';
+
+export default {
+  plugins: [
+    pluginBabel({
+      parallel: true,
+    }),
+    pluginSvgr({
+      parallel: true,
+    }),
+  ],
+};
+```
+
+> 传递给 worker 线程的选项必须能够被结构化克隆。如果你在 Babel 或 SVGR 选项中传入函数，需要继续使用默认的串行模式，或将这部分逻辑改写为可序列化配置。
+
+## CSS URL 导入 \{#css-url-imports}
+
+Rsbuild 现在支持通过 [CSS `?url` 导入](/guide/styling/css-usage#url)来获取编译后样式文件的 URL。通过 `?url` 导入样式文件时，Rsbuild 会对 CSS 执行完整的编译处理，并将结果作为单独资源输出。在 JavaScript 中，你获取到的是最终 CSS 文件的 URL，样式不会自动注入页面。
+
+这适用于需要由运行时代码决定何时加载样式的场景，例如微前端、主题定制或 Web Components 等。
+
+```js title="src/index.js"
+import darkThemeUrl from './dark-theme.css?url';
+
+const link = document.createElement('link');
+link.rel = 'stylesheet';
+link.href = darkThemeUrl;
+document.head.appendChild(link);
+```
+
+## Worker 导入 \{#worker-query-imports}
+
+Rsbuild 现在支持通过 [`?worker` query](/guide/basic/web-workers) 直接导入 Worker 构造器。这种写法让 Worker 脚本可以像普通模块一样被导入，在从 Vite 等工具迁移时也更容易保留原有代码结构。
+
+```js title="src/index.js"
+import MyWorker from './worker.js?worker';
+
+const worker = new MyWorker();
+
+worker.onmessage = (event) => {
+  console.log(event.data);
+};
+
+worker.postMessage(10);
+```
+
+默认情况下，Worker 脚本会在生产构建中输出为独立 chunk。如果你希望将 Worker 代码内联到主 bundle 中，可以添加 `inline` query：
+
+```js title="src/index.js"
+import InlineWorker from './worker.js?worker&inline';
+
+const worker = new InlineWorker();
+```
+
+对于需要传入完整 [`WorkerOptions`](https://developer.mozilla.org/zh-CN/docs/Web/API/Worker/Worker#%E5%8F%82%E6%95%B0) 的场景，例如 `type: 'module'` 或 `credentials: 'include'`，仍然建议使用[标准 Worker 构造器写法](/guide/basic/web-workers#使用-worker-构造器)。
+
+## Wasm 导入 \{#wasm-source-import}
+
+Rsbuild 2.1 支持 [Source Phase Imports](https://github.com/tc39/proposal-source-phase-imports) 提案中的 [`import source`](/guide/basic/wasm-assets#source-import) 语法，可以直接获取编译后的 `WebAssembly.Module`。
+
+相比普通导入直接获取 Wasm 模块导出，`import source` 更适合需要手动实例化、传入不同 imports、创建多个实例，或将模块传递给 Worker 的场景。
+
+```js title="src/index.js"
+import source wasmModule from './add.wasm';
+
+const instance = await WebAssembly.instantiate(wasmModule);
+const { add } = instance.exports;
+
+console.log(add(1, 2)); // 3
+```
+
+## 升级
+
+如果你已经在使用 Rsbuild 2.0，只需要将相关 `@rsbuild/*` 包升级到最新版本即可，升级方式可以参考 [升级 Rsbuild](/guide/upgrade/upgrade-rsbuild)。

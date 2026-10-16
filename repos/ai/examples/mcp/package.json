@@ -1,0 +1,48 @@
+{
+  "name": "@example/mcp",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "server:sse": "tsx src/sse/server.ts",
+    "client:sse": "tsx src/sse/client.ts",
+    "server:http": "tsx src/http/server.ts",
+    "client:http": "tsx src/http/client.ts",
+    "server:mcp-with-auth": "tsx src/mcp-with-auth/server.ts",
+    "client:mcp-with-auth": "tsx src/mcp-with-auth/client.ts",
+    "server:mcp-prompts": "tsx src/mcp-prompts/server.ts",
+    "client:mcp-prompts": "tsx src/mcp-prompts/client.ts",
+    "server:mcp-resources": "tsx src/mcp-resources/server.ts",
+    "client:mcp-resources": "tsx src/mcp-resources/client.ts",
+    "server:elicitation": "tsx src/elicitation/server.ts",
+    "client:elicitation": "tsx src/elicitation/client.ts",
+    "server:elicitation-multi-step": "tsx src/elicitation-multi-step/server.ts",
+    "client:elicitation-multi-step": "tsx src/elicitation-multi-step/client.ts",
+    "server:elicitation-ui": "tsx src/elicitation-ui/server.ts",
+    "server:tool-meta": "tsx src/tool-meta/server.ts",
+    "client:tool-meta": "tsx src/tool-meta/client.ts",
+    "server:provider-metadata": "tsx src/provider-metadata/server.ts",
+    "client:provider-metadata": "tsx src/provider-metadata/client.ts",
+    "server:server-instructions": "tsx src/server-instructions/server.ts",
+    "client:server-instructions": "tsx src/server-instructions/client.ts",
+    "stdio:build": "tsc src/stdio/server.ts --outDir src/stdio/dist --target es2023 --module nodenext",
+    "client:stdio": "tsx src/stdio/client.ts",
+    "custom-transport:build": "tsc src/custom-transport/server.ts --outDir src/custom-transport/dist --target es2023 --module nodenext",
+    "custom-transport:client": "tsx src/custom-transport/client.ts",
+    "type-check": "tsc --build"
+  },
+  "dependencies": {
+    "@ai-sdk/openai": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "ai": "workspace:*",
+    "dotenv": "16.4.5",
+    "express": "5.0.1",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@ai-sdk/mcp": "workspace:*",
+    "@types/express": "5.0.0",
+    "@types/node": "22.19.19",
+    "tsx": "4.19.2",
+    "typescript": "5.8.3"
+  }
+}

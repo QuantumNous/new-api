@@ -1,0 +1,18 @@
+A callback function that is triggered before the compilation of a single environment.
+
+You can access the [Rspack configuration](https://rspack.rs/config/) for the current environment through the `bundlerConfig` parameter.
+
+Moreover, you can use `isWatch` to determine whether it is dev or build watch mode, and use `isFirstCompile` to determine whether it is the first build in watch mode.
+
+- **Type:**
+
+```ts
+function OnBeforeEnvironmentCompile(
+  callback: (params: {
+    isWatch: boolean;
+    isFirstCompile: boolean;
+    bundlerConfig?: Rspack.Configuration;
+    environment: EnvironmentContext;
+  }) => Promise<void> | void,
+): void;
+```

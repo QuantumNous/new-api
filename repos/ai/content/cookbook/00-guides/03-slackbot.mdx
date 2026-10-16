@@ -1,0 +1,502 @@
+---
+title: Slackbot Agent Guide
+description: Learn how to use the AI SDK to build an AI Agent in Slack.
+tags: ['agents', 'chatbot']
+---
+
+# Building an AI Agent in Slack with the AI SDK
+
+In this guide, you will learn how to build a Slackbot powered by the AI SDK. The bot will be able to respond to direct messages and mentions in channels using the full context of the thread.
+
+## Slack App Setup
+
+Before we start building, you'll need to create and configure a Slack app:
+
+1. Go to [api.slack.com/apps](https://api.slack.com/apps)
+2. Click "Create New App" and choose "From scratch"
+3. Give your app a name and select your workspace
+4. Under "OAuth & Permissions", add the following bot token scopes:
+   - `app_mentions:read`
+   - `chat:write`
+   - `im:history`
+   - `im:write`
+   - `assistant:write`
+5. Install the app to your workspace (button under "OAuth Tokens" subsection)
+6. Copy the Bot User OAuth Token and Signing Secret for the next step
+7. Under App Home -> Show Tabs -> Chat Tab, check "Allow users to send Slash commands and messages from the chat tab"
+
+## Project Setup
+
+This project uses the following stack:
+
+- [AI SDK by Vercel](/docs)
+- [Slack Web API](https://api.slack.com/web)
+- [Vercel](https://vercel.com)
+- [OpenAI](https://openai.com)
+
+## Getting Started
+
+1. Clone [the repository](https://github.com/vercel-labs/ai-sdk-slackbot) and check out the `starter` branch
+
+<Snippet
+  text={[
+    'git clone https://github.com/vercel-labs/ai-sdk-slackbot.git',
+    'cd ai-sdk-slackbot',
+    'git checkout starter',
+  ]}
+/>
+
+2. Install dependencies
+
+<Snippet text={['pnpm install']} />
+
+## Project Structure
+
+The starter repository already includes:
+
+- Slack utilities (`lib/slack-utils.ts`) including functions for validating incoming requests, converting Slack threads to AI SDK compatible message formats, and getting the Slackbot's user ID
+- General utility functions (`lib/utils.ts`) including initial Exa setup
+- Files to handle the different types of Slack events (`lib/handle-messages.ts` and `lib/handle-app-mention.ts`)
+- An API endpoint (`POST`) for Slack events (`api/events.ts`)
+
+## Event Handler
+
+First, let's take a look at our API route (`api/events.ts`):
+
+```typescript
+import type { SlackEvent } from '@slack/web-api';
+import {
+  assistantThreadMessage,
+  handleNewAssistantMessage,
+} from '../lib/handle-messages';
+import { waitUntil } from '@vercel/functions';
+import { handleNewAppMention } from '../lib/handle-app-mention';
+import { verifyRequest, getBotId } from '../lib/slack-utils';
+
+export async function POST(request: Request) {
+  const rawBody = await request.text();
+  const payload = JSON.parse(rawBody);
+  const requestType = payload.type as 'url_verification' | 'event_callback';
+
+  // See https://api.slack.com/events/url_verification
+  if (requestType === 'url_verification') {
+    return new Response(payload.challenge, { status: 200 });
+  }
+
+  await verifyRequest({ requestType, request, rawBody });
+
+  try {
+    const botUserId = await getBotId();
+
+    const event = payload.event as SlackEvent;
+
+    if (event.type === 'app_mention') {
+      waitUntil(handleNewAppMention(event, botUserId));
+    }
+
+    if (event.type === 'assistant_thread_started') {
+      waitUntil(assistantThreadMessage(event));
+    }
+
+    if (
+      event.type === 'message' &&
+      !event.subtype &&
+      event.channel_type === 'im' &&
+      !event.bot_id &&
+      !event.bot_profile &&
+      event.bot_id !== botUserId
+    ) {
+      waitUntil(handleNewAssistantMessage(event, botUserId));
+    }
+
+    return new Response('Success!', { status: 200 });
+  } catch (error) {
+    console.error('Error generating response', error);
+    return new Response('Error generating response', { status: 500 });
+  }
+}
+```
+
+This file defines a `POST` function that handles incoming requests from Slack. First, you check the request type to see if it's a URL verification request. If it is, you respond with the challenge string provided by Slack. If it's an event callback, you verify the request and then have access to the event data. This is where you can implement your event handling logic.
+
+You then handle three types of events: `app_mention`, `assistant_thread_started`, and `message`:
+
+- For `app_mention`, you call `handleNewAppMention` with the event and the bot user ID.
+- For `assistant_thread_started`, you call `assistantThreadMessage` with the event.
+- For `message`, you call `handleNewAssistantMessage` with the event and the bot user ID.
+
+Finally, you respond with a success message to Slack. Note, each handler function is wrapped in a `waitUntil` function. Let's take a look at what this means and why it's important.
+
+### The waitUntil Function
+
+Slack expects a response within 3 seconds to confirm the request is being handled. However, generating AI responses can take longer. If you don't respond to the Slack request within 3 seconds, Slack will send another request, leading to another invocation of your API route, another call to the LLM, and ultimately another response to the user. To solve this, you can use the `waitUntil` function, which allows you to run your AI logic after the response is sent, without blocking the response itself.
+
+This means, your API endpoint will:
+
+1. Immediately respond to Slack (within 3 seconds)
+2. Continue processing the message asynchronously
+3. Send the AI response when it's ready
+
+## Event Handlers
+
+Let's look at how each event type is currently handled.
+
+### App Mentions
+
+When a user mentions your bot in a channel, the `app_mention` event is triggered. The `handleNewAppMention` function in `handle-app-mention.ts` processes these mentions:
+
+1. Checks if the message is from a bot to avoid infinite response loops
+2. Creates a status updater to show the bot is "thinking"
+3. If the mention is in a thread, it retrieves the thread history
+4. Calls the LLM with the message content (using the `generateResponse` function which you will implement in the next section)
+5. Updates the initial "thinking" message with the AI response
+
+Here's the code for the `handleNewAppMention` function:
+
+```typescript filename="lib/handle-app-mention.ts"
+import { AppMentionEvent } from '@slack/web-api';
+import { client, getThread } from './slack-utils';
+import { generateResponse } from './ai';
+
+const updateStatusUtil = async (
+  initialStatus: string,
+  event: AppMentionEvent,
+) => {
+  const initialMessage = await client.chat.postMessage({
+    channel: event.channel,
+    thread_ts: event.thread_ts ?? event.ts,
+    text: initialStatus,
+  });
+
+  if (!initialMessage || !initialMessage.ts)
+    throw new Error('Failed to post initial message');
+
+  const updateMessage = async (status: string) => {
+    await client.chat.update({
+      channel: event.channel,
+      ts: initialMessage.ts as string,
+      text: status,
+    });
+  };
+  return updateMessage;
+};
+
+export async function handleNewAppMention(
+  event: AppMentionEvent,
+  botUserId: string,
+) {
+  console.log('Handling app mention');
+  if (event.bot_id || event.bot_id === botUserId || event.bot_profile) {
+    console.log('Skipping app mention');
+    return;
+  }
+
+  const { thread_ts, channel } = event;
+  const updateMessage = await updateStatusUtil('is thinking...', event);
+
+  if (thread_ts) {
+    const messages = await getThread(channel, thread_ts, botUserId);
+    const result = await generateResponse(messages, updateMessage);
+    updateMessage(result);
+  } else {
+    const result = await generateResponse(
+      [{ role: 'user', content: event.text }],
+      updateMessage,
+    );
+    updateMessage(result);
+  }
+}
+```
+
+Now let's see how new assistant threads and messages are handled.
+
+### Assistant Thread Messages
+
+When a user starts a thread with your assistant, the `assistant_thread_started` event is triggered. The `assistantThreadMessage` function in `handle-messages.ts` handles this:
+
+1. Posts a welcome message to the thread
+2. Sets up suggested prompts to help users get started
+
+Here's the code for the `assistantThreadMessage` function:
+
+```typescript filename="lib/handle-messages.ts"
+import type { AssistantThreadStartedEvent } from '@slack/web-api';
+import { client } from './slack-utils';
+
+export async function assistantThreadMessage(
+  event: AssistantThreadStartedEvent,
+) {
+  const { channel_id, thread_ts } = event.assistant_thread;
+  console.log(`Thread started: ${channel_id} ${thread_ts}`);
+  console.log(JSON.stringify(event));
+
+  await client.chat.postMessage({
+    channel: channel_id,
+    thread_ts: thread_ts,
+    text: "Hello, I'm an AI assistant built with the AI SDK by Vercel!",
+  });
+
+  await client.assistant.threads.setSuggestedPrompts({
+    channel_id: channel_id,
+    thread_ts: thread_ts,
+    prompts: [
+      {
+        title: 'Get the weather',
+        message: 'What is the current weather in London?',
+      },
+      {
+        title: 'Get the news',
+        message: 'What is the latest Premier League news from the BBC?',
+      },
+    ],
+  });
+}
+```
+
+### Direct Messages
+
+For direct messages to your bot, the `message` event is triggered and the event is handled by the `handleNewAssistantMessage` function in `handle-messages.ts`:
+
+1. Verifies the message isn't from a bot
+2. Updates the status to show the response is being generated
+3. Retrieves the conversation history
+4. Calls the LLM with the conversation context
+5. Posts the LLM's response to the thread
+
+Here's the code for the `handleNewAssistantMessage` function:
+
+```typescript filename="lib/handle-messages.ts"
+import type { GenericMessageEvent } from '@slack/web-api';
+import { client, getThread } from './slack-utils';
+import { generateResponse } from './ai';
+
+export async function handleNewAssistantMessage(
+  event: GenericMessageEvent,
+  botUserId: string,
+) {
+  if (
+    event.bot_id ||
+    event.bot_id === botUserId ||
+    event.bot_profile ||
+    !event.thread_ts
+  )
+    return;
+
+  const { thread_ts, channel } = event;
+  const updateStatus = updateStatusUtil(channel, thread_ts);
+  updateStatus('is thinking...');
+
+  const messages = await getThread(channel, thread_ts, botUserId);
+  const result = await generateResponse(messages, updateStatus);
+
+  await client.chat.postMessage({
+    channel: channel,
+    thread_ts: thread_ts,
+    text: result,
+    unfurl_links: false,
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: result,
+        },
+      },
+    ],
+  });
+
+  updateStatus('');
+}
+```
+
+With the event handlers in place, let's now implement the AI logic.
+
+## Implementing AI Logic
+
+The core of our application is the `generateResponse` function in `lib/generate-response.ts`, which processes messages and generates responses using the AI SDK.
+
+Here's how to implement it:
+
+```typescript filename="lib/generate-response.ts"
+import { generateText, ModelMessage } from 'ai';
+__PROVIDER_IMPORT__;
+
+export const generateResponse = async (
+  messages: ModelMessage[],
+  updateStatus?: (status: string) => void,
+) => {
+  const { text } = await generateText({
+    model: __MODEL__,
+    system: `You are a Slack bot assistant. Keep your responses concise and to the point.
+    - Do not tag users.
+    - Current date is: ${new Date().toISOString().split('T')[0]}`,
+    messages,
+  });
+
+  // Convert markdown to Slack mrkdwn format
+  return text.replace(/\[(.*?)\]\((.*?)\)/g, '<$2|$1>').replace(/\*\*/g, '*');
+};
+```
+
+This basic implementation:
+
+1. Uses the AI SDK's `generateText` function to call Anthropic's `claude-sonnet-4.5` model
+2. Provides a system prompt to guide the model's behavior
+3. Formats the response for Slack's markdown format
+
+## Enhancing with Tools
+
+The real power of the AI SDK comes from tools that enable your bot to perform actions. Let's add two useful tools:
+
+```typescript filename="lib/generate-response.ts"
+import { generateText, tool, ModelMessage, isStepCount } from 'ai';
+__PROVIDER_IMPORT__;
+import { z } from 'zod';
+import { exa } from './utils';
+
+export const generateResponse = async (
+  messages: ModelMessage[],
+  updateStatus?: (status: string) => void,
+) => {
+  const { text } = await generateText({
+    model: __MODEL__,
+    system: `You are a Slack bot assistant. Keep your responses concise and to the point.
+    - Do not tag users.
+    - Current date is: ${new Date().toISOString().split('T')[0]}
+    - Always include sources in your final response if you use web search.`,
+    messages,
+    stopWhen: isStepCount(10),
+    tools: {
+      getWeather: tool({
+        description: 'Get the current weather at a location',
+        inputSchema: z.object({
+          latitude: z.number(),
+          longitude: z.number(),
+          city: z.string(),
+        }),
+        execute: async ({ latitude, longitude, city }) => {
+          updateStatus?.(`is getting weather for ${city}...`);
+
+          const response = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weathercode,relativehumidity_2m&timezone=auto`,
+          );
+
+          const weatherData = await response.json();
+          return {
+            temperature: weatherData.current.temperature_2m,
+            weatherCode: weatherData.current.weathercode,
+            humidity: weatherData.current.relativehumidity_2m,
+            city,
+          };
+        },
+      }),
+      searchWeb: tool({
+        description: 'Use this to search the web for information',
+        inputSchema: z.object({
+          query: z.string(),
+          specificDomain: z
+            .string()
+            .nullable()
+            .describe(
+              'a domain to search if the user specifies e.g. bbc.com. Should be only the domain name without the protocol',
+            ),
+        }),
+        execute: async ({ query, specificDomain }) => {
+          updateStatus?.(`is searching the web for ${query}...`);
+          const { results } = await exa.searchAndContents(query, {
+            livecrawl: 'always',
+            numResults: 3,
+            includeDomains: specificDomain ? [specificDomain] : undefined,
+          });
+
+          return {
+            results: results.map(result => ({
+              title: result.title,
+              url: result.url,
+              snippet: result.text.slice(0, 1000),
+            })),
+          };
+        },
+      }),
+    },
+  });
+
+  // Convert markdown to Slack mrkdwn format
+  return text.replace(/\[(.*?)\]\((.*?)\)/g, '<$2|$1>').replace(/\*\*/g, '*');
+};
+```
+
+In this updated implementation:
+
+1. You added two tools:
+   - `getWeather`: Fetches weather data for a specified location
+   - `searchWeb`: Searches the web for information using the Exa API
+
+2. You set `stopWhen: isStepCount(10)` to enable multi-step conversations. This defines the stopping conditions of your agent, when the model generates a tool call. This will automatically send any tool results back to the LLM to trigger additional tool calls or responses as the LLM deems necessary. This turns your LLM call from a one-off operation into a multi-step agentic flow.
+
+## How It Works
+
+When a user interacts with your bot:
+
+1. The Slack event is received and processed by your API endpoint
+2. The user's message and the thread history is passed to the `generateResponse` function
+3. The AI SDK processes the message and may invoke tools as needed
+4. The response is formatted for Slack and sent back to the user
+
+The tools are automatically invoked based on the user's intent. For example, if a user asks "What's the weather in London?", the AI will:
+
+1. Recognize this as a weather query
+2. Call the `getWeather` tool with London's coordinates (inferred by the LLM)
+3. Process the weather data
+4. Generate a final response, answering the user's question
+
+## Deploying the App
+
+1. Install the Vercel CLI
+
+<Snippet text={['pnpm install -g vercel']} />
+
+2. Deploy the app
+
+<Snippet text={['vercel deploy']} />
+
+3. Copy the deployment URL and update the Slack app's Event Subscriptions to point to your Vercel URL
+4. Go to your project's deployment settings (Your project -> Settings -> Environment Variables) and add your environment variables
+
+```bash
+SLACK_BOT_TOKEN=your_slack_bot_token
+SLACK_SIGNING_SECRET=your_slack_signing_secret
+OPENAI_API_KEY=your_openai_api_key
+EXA_API_KEY=your_exa_api_key
+```
+
+<Note>
+  Make sure to redeploy your app after updating environment variables.
+</Note>
+
+5. Head back to the [https://api.slack.com/](https://api.slack.com/) and navigate to the "Event Subscriptions" page. Enable events and add your deployment URL.
+
+```bash
+https://your-vercel-url.vercel.app/api/events
+```
+
+6. On the Events Subscription page, subscribe to the following events.
+   - `app_mention`
+   - `assistant_thread_started`
+   - `message:im`
+
+Finally, head to Slack and test the app by sending a message to the bot.
+
+## Next Steps
+
+You've built a Slack chatbot powered by the AI SDK! Here are some ways you could extend it:
+
+1. Add memory for specific users to give the LLM context of previous interactions
+2. Implement more tools like database queries or knowledge base searches
+3. Add support for rich message formatting with blocks
+4. Add analytics to track usage patterns
+
+<Note>
+  In a production environment, it is recommended to implement a robust queueing
+  system to ensure messages are properly handled.
+</Note>

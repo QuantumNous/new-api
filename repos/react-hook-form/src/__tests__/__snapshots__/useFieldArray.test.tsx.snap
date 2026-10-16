@@ -1,0 +1,391 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`useFieldArray array of array fields should allow append with deeply nested field array even with flat structure 1`] = `
+[
+  {},
+  {
+    "test": [],
+  },
+  {
+    "test": [
+      {
+        "yourDetails": {
+          "firstName": [
+            "test",
+            "test1",
+          ],
+          "lastName": [
+            "test",
+            "test1",
+          ],
+        },
+      },
+    ],
+  },
+  {
+    "test": [
+      {
+        "yourDetails": {
+          "firstName": [
+            "test",
+            "test1",
+          ],
+          "lastName": [
+            "test",
+            "test1",
+          ],
+        },
+      },
+    ],
+  },
+  {
+    "test": [
+      {
+        "yourDetails": {
+          "firstName": [
+            "test",
+            "test1",
+          ],
+          "lastName": [
+            "test",
+            "test1",
+          ],
+        },
+      },
+    ],
+  },
+]
+`;
+
+exports[`useFieldArray should append multiple inputs correctly 1`] = `
+[
+  {
+    "test": [
+      {
+        "value": "data",
+      },
+    ],
+  },
+  {
+    "test": [
+      {
+        "value": "data",
+      },
+    ],
+  },
+  {
+    "test": [
+      {
+        "value": "data",
+      },
+      {
+        "value": "test",
+      },
+      {
+        "value": "test1",
+      },
+    ],
+  },
+  {
+    "test": [
+      {
+        "value": "data",
+      },
+      {
+        "value": "test",
+      },
+      {
+        "value": "test1",
+      },
+    ],
+  },
+]
+`;
+
+exports[`useFieldArray should custom register append, prepend and insert inputs with values 1`] = `
+[
+  [],
+  [
+    {
+      "test": "append",
+      "test1": "append",
+      "test2": [],
+    },
+  ],
+  [
+    {
+      "test": "append",
+      "test1": "append",
+      "test2": [],
+    },
+  ],
+  [
+    {
+      "test": "prepend",
+      "test1": "prepend",
+      "test2": [],
+    },
+    {
+      "test": "append",
+      "test1": "append",
+      "test2": [],
+    },
+  ],
+  [
+    {
+      "test": "prepend",
+      "test1": "prepend",
+      "test2": [],
+    },
+    {
+      "test": "append",
+      "test1": "append",
+      "test2": [],
+    },
+  ],
+  [
+    {
+      "test": "prepend",
+      "test1": "prepend",
+      "test2": [],
+    },
+    {
+      "test": "insert",
+      "test1": "insert",
+      "test2": [],
+    },
+    {
+      "test": "append",
+      "test1": "append",
+      "test2": [],
+    },
+  ],
+  [
+    {
+      "test": "prepend",
+      "test1": "prepend",
+      "test2": [],
+    },
+    {
+      "test": "insert",
+      "test1": "insert",
+      "test2": [],
+    },
+    {
+      "test": "append",
+      "test1": "append",
+      "test2": [],
+    },
+  ],
+  [
+    {
+      "test": "prepend",
+      "test1": "prepend",
+      "test2": [],
+    },
+    {
+      "test": "insert",
+      "test1": "insert",
+      "test2": [],
+    },
+    {
+      "test": "append",
+      "test1": "append",
+      "test2": [],
+    },
+    {
+      "test": "append",
+      "test1": "",
+      "test2": [
+        {
+          "test": "test",
+        },
+      ],
+    },
+  ],
+  [
+    {
+      "test": "prepend",
+      "test1": "prepend",
+      "test2": [],
+    },
+    {
+      "test": "insert",
+      "test1": "insert",
+      "test2": [],
+    },
+    {
+      "test": "append",
+      "test1": "append",
+      "test2": [],
+    },
+    {
+      "test": "append",
+      "test1": "",
+      "test2": [
+        {
+          "test": "test",
+        },
+      ],
+    },
+  ],
+  [
+    {
+      "test": "prepend",
+      "test1": "",
+      "test2": [
+        {
+          "test": "test",
+        },
+      ],
+    },
+    {
+      "test": "prepend",
+      "test1": "prepend",
+      "test2": [],
+    },
+    {
+      "test": "insert",
+      "test1": "insert",
+      "test2": [],
+    },
+    {
+      "test": "append",
+      "test1": "append",
+      "test2": [],
+    },
+    {
+      "test": "append",
+      "test1": "",
+      "test2": [
+        {
+          "test": "test",
+        },
+      ],
+    },
+  ],
+  [
+    {
+      "test": "prepend",
+      "test1": "",
+      "test2": [
+        {
+          "test": "test",
+        },
+      ],
+    },
+    {
+      "test": "prepend",
+      "test1": "prepend",
+      "test2": [],
+    },
+    {
+      "test": "insert",
+      "test1": "insert",
+      "test2": [],
+    },
+    {
+      "test": "append",
+      "test1": "append",
+      "test2": [],
+    },
+    {
+      "test": "append",
+      "test1": "",
+      "test2": [
+        {
+          "test": "test",
+        },
+      ],
+    },
+  ],
+  [
+    {
+      "test": "prepend",
+      "test1": "",
+      "test2": [
+        {
+          "test": "test",
+        },
+      ],
+    },
+    {
+      "test": "insert",
+      "test1": "",
+      "test2": [
+        {
+          "test": "test",
+        },
+      ],
+    },
+    {
+      "test": "prepend",
+      "test1": "prepend",
+      "test2": [],
+    },
+    {
+      "test": "insert",
+      "test1": "insert",
+      "test2": [],
+    },
+    {
+      "test": "append",
+      "test1": "append",
+      "test2": [],
+    },
+    {
+      "test": "append",
+      "test1": "",
+      "test2": [
+        {
+          "test": "test",
+        },
+      ],
+    },
+  ],
+  [
+    {
+      "test": "prepend",
+      "test1": "",
+      "test2": [
+        {
+          "test": "test",
+        },
+      ],
+    },
+    {
+      "test": "insert",
+      "test1": "",
+      "test2": [
+        {
+          "test": "test",
+        },
+      ],
+    },
+    {
+      "test": "prepend",
+      "test1": "prepend",
+      "test2": [],
+    },
+    {
+      "test": "insert",
+      "test1": "insert",
+      "test2": [],
+    },
+    {
+      "test": "append",
+      "test1": "append",
+      "test2": [],
+    },
+    {
+      "test": "append",
+      "test1": "",
+      "test2": [
+        {
+          "test": "test",
+        },
+      ],
+    },
+  ],
+]
+`;

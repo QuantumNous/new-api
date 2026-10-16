@@ -1,0 +1,56 @@
+name: Publish to JSR
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+
+jobs:
+  publish:
+    name: Publish to JSR
+    runs-on: ubuntu-latest
+    if: github.repository == 'i18next/i18next'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Verify tag matches package.json version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag $TAG_VERSION does not match package.json version $PKG_VERSION"
+            exit 1
+          fi
+
+      - name: Generate jsr.json from package.json
+        run: |
+          node -e '
+            const pkg = require("./package.json");
+            const jsr = {
+              name: "@i18next/i18next",
+              version: pkg.version,
+              license: pkg.license,
+              exports: "./src/index.js",
+              publish: {
+                include: [
+                  "src/*.js",
+                  "index.d.ts",
+                  "index.d.mts",
+                  "typescript/*.d.ts",
+                  "README.md"
+                ]
+              }
+            };
+            require("fs").writeFileSync("jsr.json", JSON.stringify(jsr, null, 2) + "\n");
+          '
+
+      - name: Publish
+        run: npx --yes jsr@0.14.3 publish

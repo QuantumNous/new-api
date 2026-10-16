@@ -1,0 +1,22 @@
+library:
+  name: '@tanstack/vue-start'
+  version: '1.166.2'
+  repository: 'https://github.com/TanStack/router'
+  description: >-
+    Vue bindings for TanStack Start. useServerFn hook,
+    tanstackStart Vite plugin, Html/Body SSR shell,
+    Vue-specific setup.
+generated_at: '2026-03-08'
+skills:
+  - name: 'Vue Start'
+    slug: 'vue-start'
+    type: 'framework'
+    domain: 'vue-start-bindings'
+    path: 'skills/vue-start/SKILL.md'
+    package: 'packages/vue-start'
+    description: >-
+      Vue bindings for TanStack Start. useServerFn hook,
+      tanstackStart Vite plugin, Html/Body SSR shell,
+      Vue-specific setup.
+    sources:
+      - 'TanStack/router:packages/vue-start/src'

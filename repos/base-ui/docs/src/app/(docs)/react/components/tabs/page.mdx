@@ -1,0 +1,97 @@
+# Tabs
+
+<Subtitle>A component for toggling between related panels on the same page.</Subtitle>
+
+<Meta
+  name="description"
+  content="A high-quality, unstyled React tabs component for toggling between related panels on the same page."
+/>
+
+import { DemoTabsHero } from './demos/hero';
+
+<DemoTabsHero />
+
+## Anatomy
+
+Import the component and assemble its parts:
+
+```jsx title="Anatomy"
+import { Tabs } from '@base-ui/react/tabs';
+
+<Tabs.Root>
+  <Tabs.List>
+    <Tabs.Tab />
+    <Tabs.Indicator />
+  </Tabs.List>
+  <Tabs.Panel />
+</Tabs.Root>;
+```
+
+## Examples
+
+### Links
+
+Use the `render` prop and set `nativeButton={false}` on `<Tabs.Tab>` to render tabs as anchor elements.
+
+```jsx title="Tabs as links"
+import { Tabs } from '@base-ui/react/tabs';
+import Link from 'next/link';
+
+<Tabs.Root>
+  <Tabs.List>
+    {/* @highlight-start */}
+    {/* @highlight-text "nativeButton={false}" "render" */}
+    <Tabs.Tab nativeButton={false} render={<Link href="/overview" />} value="overview">
+      Overview
+    </Tabs.Tab>
+    {/* @highlight-end */}
+  </Tabs.List>
+  {/* ... */}
+</Tabs.Root>;
+```
+
+## API reference
+
+import { TypesTabs } from './types';
+
+### Root
+
+<TypesTabs.Root />
+
+### List
+
+<TypesTabs.List />
+
+### Tab
+
+<TypesTabs.Tab />
+
+### Indicator
+
+<TypesTabs.Indicator />
+
+### Panel
+
+<TypesTabs.Panel />
+
+export const metadata = {
+  keywords: [
+    'React Tabs',
+    'Tabbed Interface Component',
+    'Tab Panel',
+    'Tab Control',
+    'Tabbed Navigation',
+    'Tabbed UI',
+    'Page Switcher',
+    'Content Switcher',
+    'View Switcher',
+    'Tab List Indicator',
+    'Tablist',
+    'Tabpanel',
+    'Keyboard Navigation Tabs',
+    'Controlled Tabs',
+    'Accessible Tabs',
+    'Headless React Components',
+    'Base UI',
+  ],
+};

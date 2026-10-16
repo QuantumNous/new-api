@@ -1,0 +1,17 @@
+Called after each development mode build, you can use `isFirstCompile` to determine whether it is the first build.
+
+- **Type:**
+
+```ts
+function OnAfterDevCompile(
+  callback: (params: {
+    isFirstCompile: boolean;
+    stats: Stats | MultiStats;
+    environments: Record<string, EnvironmentContext>;
+  }) => Promise<void> | void,
+): void;
+```
+
+:::tip
+The `onAfterDevCompile` hook was added in Rsbuild v1.5.0. For earlier versions, you can use the functionally identical `onDevCompileDone` hook.
+:::

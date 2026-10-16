@@ -1,0 +1,29 @@
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  & a {
+    display: block;
+    text-decoration: none;
+    color: var(--color-gray-800);
+    padding: 4px 8px;
+    border-radius: 0.375rem;
+    margin-left: -8px;
+
+    &:hover {
+      background-color: var(--color-gray-100);
+    }
+  }
+
+  & h3 {
+    font-weight: 500;
+    color: var(--color-gray-500);
+    margin-top: 2px;
+  }
+}
+
+.groupItems {
+  margin-left: 8px;
+  margin-bottom: 0.75em;
+}

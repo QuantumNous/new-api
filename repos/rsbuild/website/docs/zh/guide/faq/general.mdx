@@ -1,0 +1,23 @@
+---
+description: 'Rsbuild 常见问题解答，聚焦基础概念、生态定位和常见问题。'
+---
+
+# 通用类问题
+
+### Rsbuild 和 Rspack 的关系？
+
+Rspack 是 Rsbuild 底层的打包工具。Rsbuild 的目标是为 Rspack 用户提供开箱即用的构建能力，使开发者能够在零配置的情况下启动一个 web 项目。
+
+Rspack 和 Rsbuild 的主要区别在于：
+
+- Rspack 项目需要从零开始配置；Rsbuild 默认提供了最佳实践的配置，并支持扩展 Rspack 配置。
+- Rspack 项目需要接入社区中的 loaders 和 plugins 来支持各种场景；Rsbuild 提供官方插件，默认支持常见的前端框架和构建能力。
+- Rspack CLI 的能力对标 webpack CLI，功能比较精简；而 Rsbuild 提供更强大的 CLI 和更完善的 dev server。
+
+---
+
+### Rsbuild 能否用于构建工具库或组件库？
+
+Rsbuild 可以开箱即用地构建 Web 应用。
+
+对于工具库和组件库，我们推荐使用 [Rslib](https://github.com/web-infra-dev/rslib)，它是基于 Rsbuild 实现的 library 开发工具，能够复用 Rsbuild 的配置和插件。

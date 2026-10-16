@@ -1,0 +1,21 @@
+{
+  "extends": "@internal/ts-config/tsconfig.base.json",
+  "ts-node": {
+    "transpileOnly": true,
+    "compilerOptions": {
+      "declaration": true,
+      "sourceMap": true
+    }
+  },
+  "compilerOptions": {
+    "baseUrl": ".",
+    "outDir": "output",
+    "target": "ES2015",
+    "module": "CommonJS",
+    "declaration": true,
+    "sourceMap": false
+  },
+  "include": [
+    "src"
+  ]
+}

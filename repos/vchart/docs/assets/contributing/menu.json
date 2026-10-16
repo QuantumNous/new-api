@@ -1,0 +1,308 @@
+{
+  "menu": "contributing",
+  "children": [
+    {
+      "path": "1-Setting-Up-the-Development-Environment",
+      "title": {
+        "zh": "1.搭建开发环境",
+        "en": "1-Setting-Up-the-Development-Environment"
+      }
+    },
+    {
+      "path": "2-Howto Submit an Issue",
+      "title": {
+        "zh": "2.如何提issue",
+        "en": "2-Howto Submit an Issue"
+      }
+    },
+    {
+      "path": "3-How to Contribute Documentation",
+      "title": {
+        "zh": "3.如何贡献文档",
+        "en": "3-How to Contribute Documentation"
+      }
+    },
+    {
+      "path": "4-How to Contribute to a Demo",
+      "title": {
+        "zh": "4.如何贡献demo",
+        "en": "4-How to Contribute to a Demo"
+      }
+    },
+    {
+      "path": "5-How to Contribute Code",
+      "title": {
+        "zh": "5.如何贡献代码",
+        "en": "5-How to Contribute Code"
+      }
+    },
+    {
+      "path": "6-How to upload images",
+      "title": {
+        "zh": "6.如何上传图片",
+        "en": "6-How to upload images"
+      }
+    },
+    {
+      "path": "sourcecode",
+      "title": {
+        "zh": "源代码分析",
+        "en": "Source Code Analysis"
+      },
+      "children": [
+        {
+          "path": "0-vchart-engineering",
+          "title": {
+            "zh": "VChart 工程化",
+            "en": "VChart Engineering"
+          }
+        },
+        {
+          "path": "1-vchart-basic-principles",
+          "title": {
+            "zh": "VChart 基本原理",
+            "en": "VChart Basic Principles"
+          }
+        },
+        {
+          "path": "3-how-to-assemble-a-vchart",
+          "title": {
+            "zh": "如何组装一个 VChart",
+            "en": "How to Assemble a VChart"
+          }
+        },
+        {
+          "path": "6.1-primitive-basic-concepts",
+          "title": {
+            "zh": "图元基础概念",
+            "en": "Primitive Basic Concepts"
+          }
+        },
+        {
+          "path": "6.2-visual-channel-mapping",
+          "title": {
+            "zh": "视觉通道映射",
+            "en": "Visual Channel Mapping"
+          }
+        },
+        {
+          "path": "6.3-primitive-interaction-and-state-handling",
+          "title": {
+            "zh": "图元交互与状态处理",
+            "en": "Primitive Interaction and State Handling"
+          }
+        },
+        {
+          "path": "6.4-custom-primitives",
+          "title": {
+            "zh": "自定义图元",
+            "en": "Custom Primitives"
+          }
+        },
+        {
+          "path": "9.1-vchart-layout-basic-concepts",
+          "title": {
+            "zh": "VChart 布局基础概念",
+            "en": "VChart Layout Basic Concepts"
+          }
+        },
+        {
+          "path": "9.2-vchart-layout-source-code-analysis",
+          "title": {
+            "zh": "VChart 布局源码分析",
+            "en": "VChart Layout Source Code Analysis"
+          }
+        },
+        {
+          "path": "10.1-animation-concepts-and-types",
+          "title": {
+            "zh": "动画概念与类型",
+            "en": "Animation Concepts and Types"
+          }
+        },
+        {
+          "path": "10.2-global-morphing-animation",
+          "title": {
+            "zh": "全局变形动画",
+            "en": "Global Morphing Animation"
+          }
+        },
+        {
+          "path": "10.3-state-change-animation",
+          "title": {
+            "zh": "状态变更动画",
+            "en": "State Change Animation"
+          }
+        },
+        {
+          "path": "10.4-data-update-animation",
+          "title": {
+            "zh": "数据更新动画",
+            "en": "Data Update Animation"
+          }
+        },
+        {
+          "path": "10.5-animation-orchestration",
+          "title": {
+            "zh": "动画编排",
+            "en": "Animation Orchestration"
+          }
+        },
+        {
+          "path": "11.1-theme-configuration-parsing-logic",
+          "title": {
+            "zh": "主题配置解析逻辑",
+            "en": "Theme Configuration Parsing Logic"
+          }
+        },
+        {
+          "path": "11.2-theme-update-source-code-analysis",
+          "title": {
+            "zh": "主题更新源码分析",
+            "en": "Theme Update Source Code Analysis"
+          }
+        },
+        {
+          "path": "12.1-vchart-plugin-mechanism",
+          "title": {
+            "zh": "VChart 插件机制",
+            "en": "VChart Plugin Mechanism"
+          }
+        },
+        {
+          "path": "12.2-vchart-plugin-feature-source-code-analysis",
+          "title": {
+            "zh": "VChart 插件功能源码分析",
+            "en": "VChart Plugin Feature Source Code Analysis"
+          }
+        },
+        {
+          "path": "13.1-vchart-on-demand-loading-mechanism",
+          "title": {
+            "zh": "VChart 按需加载机制",
+            "en": "VChart On-demand Loading Mechanism"
+          }
+        },
+        {
+          "path": "13.2-vchart-on-demand-loading-source-code-analysis",
+          "title": {
+            "zh": "VChart 按需加载源码分析",
+            "en": "VChart On-demand Loading Source Code Analysis"
+          }
+        },
+        {
+          "path": "14.1.1-react-vchart-introduction",
+          "title": {
+            "zh": "React VChart 介绍",
+            "en": "React VChart Introduction"
+          }
+        },
+        {
+          "path": "14.1.2-react-vchart-source-code-analysis",
+          "title": {
+            "zh": "React VChart 源码分析",
+            "en": "React VChart Source Code Analysis"
+          }
+        },
+        {
+          "path": "14.2.1-taro-vchart-introduction",
+          "title": {
+            "zh": "Taro VChart 介绍",
+            "en": "Taro VChart Introduction"
+          }
+        },
+        {
+          "path": "14.2.2-taro-vchart-source-code-analysis",
+          "title": {
+            "zh": "Taro VChart 源码分析",
+            "en": "Taro VChart Source Code Analysis"
+          }
+        },
+        {
+          "path": "14.3.1-lark-vchart-introduction",
+          "title": {
+            "zh": "Lark VChart 介绍",
+            "en": "Lark VChart Introduction"
+          }
+        },
+        {
+          "path": "14.3.2-lark-vchart-source-code-analysis",
+          "title": {
+            "zh": "Lark VChart 源码分析",
+            "en": "Lark VChart Source Code Analysis"
+          }
+        },
+        {
+          "path": "14.4.1-tt-vchart-introduction",
+          "title": {
+            "zh": "TT VChart 介绍",
+            "en": "TT VChart Introduction"
+          }
+        },
+        {
+          "path": "14.4.2-tt-vchart-source-code-analysis",
+          "title": {
+            "zh": "TT VChart 源码分析",
+            "en": "TT VChart Source Code Analysis"
+          }
+        },
+        {
+          "path": "14.5.1-wx-vchart-introduction",
+          "title": {
+            "zh": "WX VChart 介绍",
+            "en": "WX VChart Introduction"
+          }
+        },
+        {
+          "path": "14.5.2-wx-vchart-source-code-analysis",
+          "title": {
+            "zh": "WX VChart 源码分析",
+            "en": "WX VChart Source Code Analysis"
+          }
+        },
+        {
+          "path": "14.6.1-openinula-vchart-introduction",
+          "title": {
+            "zh": "OpenInula VChart 介绍",
+            "en": "OpenInula VChart Introduction"
+          }
+        },
+        {
+          "path": "14.6.2-openinula-vchart-source-code-analysis",
+          "title": {
+            "zh": "OpenInula VChart 源码分析",
+            "en": "OpenInula VChart Source Code Analysis"
+          }
+        },
+        {
+          "path": "14.7.1-harmony-vchart-introduction",
+          "title": {
+            "zh": "Harmony VChart 介绍",
+            "en": "Harmony VChart Introduction"
+          }
+        },
+        {
+          "path": "14.7.2-harmony-vchart-source-code-analysis",
+          "title": {
+            "zh": "Harmony VChart 源码分析",
+            "en": "Harmony VChart Source Code Analysis"
+          }
+        },
+        {
+          "path": "14.8.1-vchart-svg-plugin-introduction",
+          "title": {
+            "zh": "VChart SVG 插件介绍",
+            "en": "VChart SVG Plugin Introduction"
+          }
+        },
+        {
+          "path": "14.8.2-vchart-svg-plugin-source-code-analysis",
+          "title": {
+            "zh": "VChart SVG 插件源码分析",
+            "en": "VChart SVG Plugin Source Code Analysis"
+          }
+        }
+      ]
+    }
+  ]
+}

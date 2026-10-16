@@ -1,0 +1,114 @@
+@import 'tailwindcss' source('../');
+
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+html {
+  color-scheme: light dark;
+}
+* {
+  @apply border-gray-200 dark:border-gray-800;
+}
+body {
+  @apply bg-gray-50 text-gray-950 dark:bg-gray-900 dark:text-gray-200;
+}
+
+/* Slide Left Transition */
+html:active-view-transition-type(slide-left) {
+  &::view-transition-old(main-content) {
+    animation: 300ms cubic-bezier(0.4, 0, 0.2, 1) both slide-out-left;
+  }
+  &::view-transition-new(main-content) {
+    animation: 300ms cubic-bezier(0.4, 0, 0.2, 1) both slide-in-left;
+  }
+}
+
+@keyframes slide-out-left {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Slide Right Transition */
+html:active-view-transition-type(slide-right) {
+  &::view-transition-old(main-content) {
+    animation: 300ms cubic-bezier(0.4, 0, 0.2, 1) both slide-out-right;
+  }
+  &::view-transition-new(main-content) {
+    animation: 300ms cubic-bezier(0.4, 0, 0.2, 1) both slide-in-right;
+  }
+}
+
+@keyframes slide-out-right {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+/* Warp/Rotate Transition */
+html:active-view-transition-type(warp) {
+  &::view-transition-old(post) {
+    animation: 400ms ease-out both warp-out;
+  }
+
+  &::view-transition-new(post) {
+    animation: 400ms ease-out both warp-in;
+  }
+}
+
+@keyframes warp-out {
+  from {
+    opacity: 1;
+    filter: blur(0) brightness(1);
+    transform: scale(1) rotate(0deg);
+  }
+  to {
+    opacity: 0;
+    filter: blur(15px) brightness(1.8);
+    transform: scale(1.1) rotate(90deg);
+  }
+}
+
+@keyframes warp-in {
+  from {
+    opacity: 0;
+    filter: blur(15px) brightness(1.8);
+    transform: scale(0.9) rotate(-45deg);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0) brightness(1);
+    transform: scale(1) rotate(0deg);
+  }
+}

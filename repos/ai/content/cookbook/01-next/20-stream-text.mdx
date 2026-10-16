@@ -1,0 +1,73 @@
+---
+title: Stream Text
+description: Learn how to stream text using the AI SDK and Next.js
+tags: ['next', 'streaming']
+---
+
+# Stream Text
+
+Text generation can sometimes take a long time to complete, especially when you're generating a couple of paragraphs. In such cases, it is useful to stream the text generation process to the client in real-time. This allows the client to display the generated text as it is being generated, rather than have users wait for it to complete before displaying the result.
+
+<Browser>
+  <TextGeneration stream />
+</Browser>
+
+## Client
+
+Let's create a simple React component that imports the `useCompletion` hook from the `@ai-sdk/react` module. The `useCompletion` hook will call the `/api/completion` endpoint when a button is clicked. The endpoint will generate text based on the input prompt and stream it to the client.
+
+```tsx filename="app/page.tsx"
+'use client';
+
+import { useCompletion } from '@ai-sdk/react';
+
+export default function Page() {
+  const { completion, complete } = useCompletion({
+    api: '/api/completion',
+  });
+
+  return (
+    <div>
+      <div
+        onClick={async () => {
+          await complete('Why is the sky blue?');
+        }}
+      >
+        Generate
+      </div>
+
+      {completion}
+    </div>
+  );
+}
+```
+
+## Server
+
+Let's create a route handler for `/api/completion` that will generate text based on the input prompt. The route will call the `streamText` function from the `ai` module, which will then generate text based on the input prompt and stream it to the client.
+
+```typescript filename='app/api/completion/route.ts'
+import {
+  createUIMessageStreamResponse,
+  streamText,
+  toUIMessageStream,
+} from 'ai';
+
+export async function POST(req: Request) {
+  const { prompt }: { prompt: string } = await req.json();
+
+  const result = streamText({
+    model: 'openai/gpt-4o',
+    system: 'You are a helpful assistant.',
+    prompt,
+  });
+
+  return createUIMessageStreamResponse({
+    stream: toUIMessageStream({ stream: result.stream }),
+  });
+}
+```
+
+---
+
+<GithubLink link="https://github.com/vercel/ai/blob/main/examples/next-openai-pages/pages/basics/stream-text/index.tsx" />

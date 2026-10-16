@@ -1,0 +1,20 @@
+`onAfterEnvironmentCompile` 是在执行单个 environment 的构建后触发的回调函数，你可以通过 [stats](https://rspack.rs/zh/api/javascript-api/stats) 参数获取到构建结果信息。
+
+另外，你可以通过 `isWatch` 判断是否是 dev 或者 build watch 模式，并通过 `isFirstCompile` 来判断是否为首次构建。
+
+- **类型：**
+
+```ts
+function OnAfterEnvironmentCompile(
+  callback: (params: {
+    isFirstCompile: boolean;
+    isWatch: boolean;
+    stats?: Stats;
+    environment: EnvironmentContext;
+    /**
+     * The time it takes to build the current environment in milliseconds.
+     */
+    time: number;
+  }) => Promise<void> | void,
+): void;
+```

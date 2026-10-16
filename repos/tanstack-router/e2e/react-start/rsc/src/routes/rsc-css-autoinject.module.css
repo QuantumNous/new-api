@@ -1,0 +1,43 @@
+.card {
+  padding: 16px;
+  border: 3px solid #0f766e;
+  border-radius: 14px;
+  background: #ccfbf1;
+  color: #134e4a;
+  box-shadow: 0 8px 20px rgb(15 118 110 / 0.18);
+}
+
+.renderable {
+  border-color: #2563eb;
+}
+
+.composite {
+  border-color: #9333ea;
+}
+
+.flight {
+  border-color: #ea580c;
+}
+
+.badge {
+  display: inline-block;
+  margin-bottom: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #0f766e;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.description {
+  margin: 0;
+  font-size: 14px;
+}

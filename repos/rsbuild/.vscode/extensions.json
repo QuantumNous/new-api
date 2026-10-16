@@ -1,0 +1,3 @@
+{
+  "recommendations": ["rstack.rslint", "rstack.rstest", "oxc.oxc-vscode", "unifiedjs.vscode-mdx"]
+}

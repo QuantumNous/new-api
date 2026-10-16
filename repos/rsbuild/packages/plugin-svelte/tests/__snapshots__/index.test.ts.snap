@@ -1,0 +1,710 @@
+// Rstest Snapshot v1
+
+exports[`plugin-svelte > should add rule for \`.svelte.js\` and \`.svelte.ts\` as expected 1`] = `
+[
+  {
+    "resolve": {
+      "fullySpecified": false,
+    },
+    "test": /\\\\\\.m\\?js/,
+  },
+  {
+    "dependency": {
+      "not": "url",
+    },
+    "exclude": [
+      /\\\\\\.\\(\\?:svelte\\\\\\.js\\|svelte\\\\\\.ts\\)\\$/,
+    ],
+    "include": [
+      {
+        "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+      },
+      /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+      /node_modules\\[\\\\\\\\/\\]svelte\\[\\\\\\\\/\\]/,
+    ],
+    "oneOf": [
+      {
+        "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "javascript/auto",
+        "use": [
+          {
+            "loader": "<ROOT>/packages/core/dist/workerLoader.mjs",
+          },
+        ],
+      },
+      {
+        "type": "asset/source",
+        "with": {
+          "type": "text",
+        },
+      },
+      {
+        "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "asset/source",
+      },
+      {
+        "type": "javascript/auto",
+        "use": [
+          {
+            "loader": "builtin:swc-loader",
+            "options": {
+              "collectTypeScriptInfo": {
+                "exportedEnum": false,
+                "typeExports": true,
+              },
+              "detectSyntax": "auto",
+              "env": {
+                "targets": [
+                  "chrome >= 107",
+                  "edge >= 107",
+                  "firefox >= 104",
+                  "safari >= 16",
+                ],
+              },
+              "isModule": "unknown",
+              "jsc": {
+                "experimental": {
+                  "cacheRoot": "<ROOT>/packages/plugin-svelte/tests/node_modules/.cache/.swc",
+                  "keepImportAttributes": true,
+                },
+                "externalHelpers": true,
+                "output": {
+                  "charset": "utf8",
+                },
+                "parser": {
+                  "decorators": true,
+                },
+                "transform": {
+                  "decoratorVersion": "2023-11",
+                  "legacyDecorator": false,
+                },
+              },
+            },
+          },
+        ],
+      },
+    ],
+    "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+  },
+  {
+    "test": /\\\\\\.\\(\\?:svelte\\\\\\.js\\|svelte\\\\\\.ts\\)\\$/,
+    "use": [
+      {
+        "loader": "<PNPM_INNER>/svelte-loader/index.js",
+        "options": {
+          "compilerOptions": {
+            "dev": false,
+          },
+          "emitCss": false,
+          "hotReload": false,
+          "preprocess": {
+            "markup": [Function],
+            "script": [Function],
+            "style": [Function],
+          },
+        },
+      },
+      {
+        "loader": "builtin:swc-loader",
+        "options": {
+          "collectTypeScriptInfo": {
+            "exportedEnum": false,
+            "typeExports": true,
+          },
+          "detectSyntax": "auto",
+          "env": {
+            "targets": [
+              "chrome >= 107",
+              "edge >= 107",
+              "firefox >= 104",
+              "safari >= 16",
+            ],
+          },
+          "isModule": "unknown",
+          "jsc": {
+            "experimental": {
+              "cacheRoot": "<ROOT>/packages/plugin-svelte/tests/node_modules/.cache/.swc",
+              "keepImportAttributes": true,
+            },
+            "externalHelpers": true,
+            "output": {
+              "charset": "utf8",
+            },
+            "parser": {
+              "decorators": true,
+            },
+            "transform": {
+              "decoratorVersion": "2023-11",
+              "legacyDecorator": false,
+            },
+          },
+        },
+      },
+    ],
+    "with": {
+      "type": {
+        "not": "text",
+      },
+    },
+  },
+  {
+    "test": /\\\\\\.\\(\\?:svelte\\\\\\.js\\|svelte\\\\\\.ts\\)\\$/,
+    "type": "asset/source",
+    "with": {
+      "type": "text",
+    },
+  },
+]
+`;
+
+exports[`plugin-svelte > should add rule for \`.svelte.js\` and \`.svelte.ts\` as expected 2`] = `
+[
+  {
+    "dependency": {
+      "not": "url",
+    },
+    "exclude": [
+      /\\\\\\.\\(\\?:svelte\\\\\\.js\\|svelte\\\\\\.ts\\)\\$/,
+    ],
+    "include": [
+      {
+        "not": /\\[\\\\\\\\/\\]node_modules\\[\\\\\\\\/\\]/,
+      },
+      /\\\\\\.\\(\\?:ts\\|tsx\\|jsx\\|mts\\|cts\\)\\$/,
+      /node_modules\\[\\\\\\\\/\\]svelte\\[\\\\\\\\/\\]/,
+    ],
+    "oneOf": [
+      {
+        "resourceQuery": /\\[\\?&\\]worker\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "javascript/auto",
+        "use": [
+          {
+            "loader": "<ROOT>/packages/core/dist/workerLoader.mjs",
+          },
+        ],
+      },
+      {
+        "type": "asset/source",
+        "with": {
+          "type": "text",
+        },
+      },
+      {
+        "resourceQuery": /\\[\\?&\\]raw\\(\\?:&\\|=\\|\\$\\)/,
+        "type": "asset/source",
+      },
+      {
+        "type": "javascript/auto",
+        "use": [
+          {
+            "loader": "builtin:swc-loader",
+            "options": {
+              "collectTypeScriptInfo": {
+                "exportedEnum": false,
+                "typeExports": true,
+              },
+              "detectSyntax": "auto",
+              "env": {
+                "targets": [
+                  "chrome >= 107",
+                  "edge >= 107",
+                  "firefox >= 104",
+                  "safari >= 16",
+                ],
+              },
+              "isModule": "unknown",
+              "jsc": {
+                "experimental": {
+                  "cacheRoot": "<ROOT>/packages/plugin-svelte/tests/node_modules/.cache/.swc",
+                  "keepImportAttributes": true,
+                },
+                "externalHelpers": true,
+                "output": {
+                  "charset": "utf8",
+                },
+                "parser": {
+                  "decorators": true,
+                },
+                "transform": {
+                  "decoratorVersion": "2023-11",
+                  "legacyDecorator": false,
+                },
+              },
+            },
+          },
+        ],
+      },
+    ],
+    "test": /\\\\\\.\\(\\?:js\\|jsx\\|mjs\\|cjs\\|ts\\|tsx\\|mts\\|cts\\)\\$/,
+  },
+  {
+    "test": /\\\\\\.\\(\\?:svelte\\\\\\.js\\|svelte\\\\\\.ts\\)\\$/,
+    "use": [
+      {
+        "loader": "<PNPM_INNER>/svelte-loader/index.js",
+        "options": {
+          "compilerOptions": {
+            "dev": false,
+          },
+          "emitCss": false,
+          "hotReload": false,
+          "preprocess": {
+            "markup": [Function],
+            "script": [Function],
+            "style": [Function],
+          },
+        },
+      },
+      {
+        "loader": "builtin:swc-loader",
+        "options": {
+          "collectTypeScriptInfo": {
+            "exportedEnum": false,
+            "typeExports": true,
+          },
+          "detectSyntax": "auto",
+          "env": {
+            "targets": [
+              "chrome >= 107",
+              "edge >= 107",
+              "firefox >= 104",
+              "safari >= 16",
+            ],
+          },
+          "isModule": "unknown",
+          "jsc": {
+            "experimental": {
+              "cacheRoot": "<ROOT>/packages/plugin-svelte/tests/node_modules/.cache/.swc",
+              "keepImportAttributes": true,
+            },
+            "externalHelpers": true,
+            "output": {
+              "charset": "utf8",
+            },
+            "parser": {
+              "decorators": true,
+            },
+            "transform": {
+              "decoratorVersion": "2023-11",
+              "legacyDecorator": false,
+            },
+          },
+        },
+      },
+    ],
+    "with": {
+      "type": {
+        "not": "text",
+      },
+    },
+  },
+  {
+    "test": /\\\\\\.\\(\\?:svelte\\\\\\.js\\|svelte\\\\\\.ts\\)\\$/,
+    "type": "asset/source",
+    "with": {
+      "type": "text",
+    },
+  },
+]
+`;
+
+exports[`plugin-svelte > should add svelte loader and resolve config properly 1`] = `
+[
+  {
+    "test": /\\\\\\.svelte\\$/,
+    "use": [
+      {
+        "loader": "builtin:swc-loader",
+        "options": {
+          "collectTypeScriptInfo": {
+            "exportedEnum": false,
+            "typeExports": true,
+          },
+          "detectSyntax": "auto",
+          "env": {
+            "targets": [
+              "chrome >= 107",
+              "edge >= 107",
+              "firefox >= 104",
+              "safari >= 16",
+            ],
+          },
+          "isModule": "unknown",
+          "jsc": {
+            "experimental": {
+              "cacheRoot": "<ROOT>/packages/plugin-svelte/tests/node_modules/.cache/.swc",
+              "keepImportAttributes": true,
+            },
+            "externalHelpers": true,
+            "output": {
+              "charset": "utf8",
+            },
+            "parser": {
+              "decorators": true,
+            },
+            "transform": {
+              "decoratorVersion": "2023-11",
+              "legacyDecorator": false,
+            },
+          },
+        },
+      },
+      {
+        "loader": "<PNPM_INNER>/svelte-loader/index.js",
+        "options": {
+          "compilerOptions": {
+            "dev": false,
+          },
+          "emitCss": false,
+          "hotReload": false,
+          "preprocess": {
+            "markup": [Function],
+            "script": [Function],
+            "style": [Function],
+          },
+        },
+      },
+    ],
+    "with": {
+      "type": {
+        "not": "text",
+      },
+    },
+  },
+  {
+    "test": /\\\\\\.svelte\\$/,
+    "type": "asset/source",
+    "with": {
+      "type": "text",
+    },
+  },
+]
+`;
+
+exports[`plugin-svelte > should add svelte loader and resolve config properly 2`] = `
+{
+  "alias": {
+    "@swc/helpers": "<PNPM_INNER>/@swc/helpers",
+  },
+  "conditionNames": [
+    "svelte",
+    "...",
+  ],
+  "extensionAlias": {
+    ".js": [
+      ".js",
+      ".ts",
+      ".tsx",
+    ],
+    ".jsx": [
+      ".jsx",
+      ".tsx",
+    ],
+  },
+  "extensions": [
+    ".ts",
+    ".tsx",
+    ".mjs",
+    ".js",
+    ".jsx",
+    ".json",
+    ".svelte",
+  ],
+  "mainFields": [
+    "svelte",
+    "...",
+  ],
+  "tsConfig": {
+    "configFile": "<ROOT>/packages/plugin-svelte/tests/tsconfig.json",
+    "references": "auto",
+  },
+}
+`;
+
+exports[`plugin-svelte > should override default svelte-loader options throw options.svelteLoaderOptions 1`] = `
+[
+  {
+    "test": /\\\\\\.svelte\\$/,
+    "use": [
+      {
+        "loader": "builtin:swc-loader",
+        "options": {
+          "collectTypeScriptInfo": {
+            "exportedEnum": false,
+            "typeExports": true,
+          },
+          "detectSyntax": "auto",
+          "env": {
+            "targets": [
+              "chrome >= 107",
+              "edge >= 107",
+              "firefox >= 104",
+              "safari >= 16",
+            ],
+          },
+          "isModule": "unknown",
+          "jsc": {
+            "experimental": {
+              "cacheRoot": "<ROOT>/packages/plugin-svelte/tests/node_modules/.cache/.swc",
+              "keepImportAttributes": true,
+            },
+            "externalHelpers": true,
+            "output": {
+              "charset": "utf8",
+            },
+            "parser": {
+              "decorators": true,
+            },
+            "transform": {
+              "decoratorVersion": "2023-11",
+              "legacyDecorator": false,
+            },
+          },
+        },
+      },
+      {
+        "loader": "<PNPM_INNER>/svelte-loader/index.js",
+        "options": {
+          "compilerOptions": {
+            "dev": false,
+          },
+          "emitCss": false,
+          "hotReload": false,
+          "preprocess": null,
+        },
+      },
+    ],
+    "with": {
+      "type": {
+        "not": "text",
+      },
+    },
+  },
+  {
+    "test": /\\\\\\.svelte\\$/,
+    "type": "asset/source",
+    "with": {
+      "type": "text",
+    },
+  },
+]
+`;
+
+exports[`plugin-svelte > should set dev and hotReload to false in production mode 1`] = `
+[
+  {
+    "test": /\\\\\\.svelte\\$/,
+    "use": [
+      {
+        "loader": "builtin:swc-loader",
+        "options": {
+          "collectTypeScriptInfo": {
+            "exportedEnum": true,
+            "typeExports": true,
+          },
+          "detectSyntax": "auto",
+          "env": {
+            "targets": [
+              "chrome >= 107",
+              "edge >= 107",
+              "firefox >= 104",
+              "safari >= 16",
+            ],
+          },
+          "isModule": "unknown",
+          "jsc": {
+            "experimental": {
+              "cacheRoot": "<ROOT>/packages/plugin-svelte/tests/node_modules/.cache/.swc",
+              "keepImportAttributes": true,
+            },
+            "externalHelpers": true,
+            "output": {
+              "charset": "utf8",
+            },
+            "parser": {
+              "decorators": true,
+            },
+            "transform": {
+              "decoratorVersion": "2023-11",
+              "legacyDecorator": false,
+            },
+          },
+        },
+      },
+      {
+        "loader": "<PNPM_INNER>/svelte-loader/index.js",
+        "options": {
+          "compilerOptions": {
+            "dev": false,
+          },
+          "emitCss": true,
+          "hotReload": false,
+          "preprocess": {
+            "markup": [Function],
+            "script": [Function],
+            "style": [Function],
+          },
+        },
+      },
+    ],
+    "with": {
+      "type": {
+        "not": "text",
+      },
+    },
+  },
+  {
+    "test": /\\\\\\.svelte\\$/,
+    "type": "asset/source",
+    "with": {
+      "type": "text",
+    },
+  },
+]
+`;
+
+exports[`plugin-svelte > should support pass custom preprocess options 1`] = `
+[
+  {
+    "test": /\\\\\\.svelte\\$/,
+    "use": [
+      {
+        "loader": "builtin:swc-loader",
+        "options": {
+          "collectTypeScriptInfo": {
+            "exportedEnum": false,
+            "typeExports": true,
+          },
+          "detectSyntax": "auto",
+          "env": {
+            "targets": [
+              "chrome >= 107",
+              "edge >= 107",
+              "firefox >= 104",
+              "safari >= 16",
+            ],
+          },
+          "isModule": "unknown",
+          "jsc": {
+            "experimental": {
+              "cacheRoot": "<ROOT>/packages/plugin-svelte/tests/node_modules/.cache/.swc",
+              "keepImportAttributes": true,
+            },
+            "externalHelpers": true,
+            "output": {
+              "charset": "utf8",
+            },
+            "parser": {
+              "decorators": true,
+            },
+            "transform": {
+              "decoratorVersion": "2023-11",
+              "legacyDecorator": false,
+            },
+          },
+        },
+      },
+      {
+        "loader": "<PNPM_INNER>/svelte-loader/index.js",
+        "options": {
+          "compilerOptions": {
+            "dev": false,
+          },
+          "emitCss": false,
+          "hotReload": false,
+          "preprocess": {
+            "markup": [Function],
+            "script": [Function],
+            "style": [Function],
+          },
+        },
+      },
+    ],
+    "with": {
+      "type": {
+        "not": "text",
+      },
+    },
+  },
+  {
+    "test": /\\\\\\.svelte\\$/,
+    "type": "asset/source",
+    "with": {
+      "type": "text",
+    },
+  },
+]
+`;
+
+exports[`plugin-svelte > should turn off HMR by hand correctly 1`] = `
+[
+  {
+    "test": /\\\\\\.svelte\\$/,
+    "use": [
+      {
+        "loader": "builtin:swc-loader",
+        "options": {
+          "collectTypeScriptInfo": {
+            "exportedEnum": false,
+            "typeExports": true,
+          },
+          "detectSyntax": "auto",
+          "env": {
+            "targets": [
+              "chrome >= 107",
+              "edge >= 107",
+              "firefox >= 104",
+              "safari >= 16",
+            ],
+          },
+          "isModule": "unknown",
+          "jsc": {
+            "experimental": {
+              "cacheRoot": "<ROOT>/packages/plugin-svelte/tests/node_modules/.cache/.swc",
+              "keepImportAttributes": true,
+            },
+            "externalHelpers": true,
+            "output": {
+              "charset": "utf8",
+            },
+            "parser": {
+              "decorators": true,
+            },
+            "transform": {
+              "decoratorVersion": "2023-11",
+              "legacyDecorator": false,
+            },
+          },
+        },
+      },
+      {
+        "loader": "<PNPM_INNER>/svelte-loader/index.js",
+        "options": {
+          "compilerOptions": {
+            "dev": false,
+          },
+          "emitCss": false,
+          "hotReload": false,
+          "preprocess": {
+            "markup": [Function],
+            "script": [Function],
+            "style": [Function],
+          },
+        },
+      },
+    ],
+    "with": {
+      "type": {
+        "not": "text",
+      },
+    },
+  },
+  {
+    "test": /\\\\\\.svelte\\$/,
+    "type": "asset/source",
+    "with": {
+      "type": "text",
+    },
+  },
+]
+`;

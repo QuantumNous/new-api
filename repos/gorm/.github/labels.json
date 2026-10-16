@@ -1,0 +1,166 @@
+{
+  "labels": {
+    "critical": {
+      "name": "type:critical",
+      "colour": "#E84137",
+      "description": "critical questions"
+    },
+    "question": {
+      "name": "type:question",
+      "colour": "#EDEDED",
+      "description": "general questions"
+    },
+    "feature": {
+      "name": "type:feature_request",
+      "colour": "#43952A",
+      "description": "feature request"
+    },
+    "invalid_question": {
+      "name": "type:invalid question",
+      "colour": "#CF2E1F",
+      "description": "invalid question (not related to GORM or described in document or not enough information provided)"
+    },
+    "with_playground": {
+      "name": "type:with reproduction steps",
+      "colour": "#00ff00",
+      "description": "with reproduction steps"
+    },
+    "without_playground": {
+      "name": "type:missing reproduction steps",
+      "colour": "#CF2E1F",
+      "description": "missing reproduction steps"
+    },
+    "has_pr": {
+      "name": "type:has pull request",
+      "colour": "#43952A",
+      "description": "has pull request"
+    },
+    "not_tested": {
+      "name": "type:not tested",
+      "colour": "#CF2E1F",
+      "description": "not tested"
+    },
+    "tested": {
+      "name": "type:tested",
+      "colour": "#00ff00",
+      "description": "tested"
+    },
+    "breaking_change": {
+      "name": "type:breaking change",
+      "colour": "#CF2E1F",
+      "description": "breaking change"
+    }
+  },
+  "issue": {
+    "with_playground": {
+      "requires": 1,
+      "conditions": [
+        {
+          "type": "descriptionMatches",
+          "pattern": "/github.com\/go-gorm\/playground\/pull\/\\d\\d+/s"
+        }
+      ]
+    },
+    "critical": {
+      "requires": 1,
+      "conditions": [
+        {
+          "type": "descriptionMatches",
+          "pattern": "/(critical|urgent)/i"
+        },
+        {
+          "type": "titleMatches",
+          "pattern": "/(critical|urgent)/i"
+        }
+      ]
+    },
+    "question": {
+      "requires": 1,
+      "conditions": [
+        {
+          "type": "titleMatches",
+          "pattern": "/question/i"
+        },
+        {
+          "type": "descriptionMatches",
+          "pattern": "/question/i"
+        }
+      ]
+    },
+    "feature": {
+      "requires": 1,
+      "conditions": [
+        {
+          "type": "titleMatches",
+          "pattern": "/feature/i"
+        },
+        {
+          "type": "descriptionMatches",
+          "pattern": "/Describe the feature/i"
+        }
+      ]
+    },
+    "without_playground": {
+      "requires": 6,
+      "conditions": [
+        {
+          "type": "descriptionMatches",
+          "pattern": "/^((?!github.com\/go-gorm\/playground\/pull\/\\d\\d+).)*$/s"
+        },
+        {
+          "type": "titleMatches",
+          "pattern": "/^((?!question).)*$/s"
+        },
+        {
+          "type": "descriptionMatches",
+          "pattern": "/^((?!question).)*$/is"
+        },
+        {
+          "type": "descriptionMatches",
+          "pattern": "/^((?!Describe the feature).)*$/is"
+        },
+        {
+          "type": "titleMatches",
+          "pattern": "/^((?!critical|urgent).)*$/s"
+        },
+        {
+          "type": "descriptionMatches",
+          "pattern": "/^((?!critical|urgent).)*$/s"
+        }
+      ]
+    }
+  },
+  "pr": {
+    "critical": {
+      "requires": 1,
+      "conditions": [
+        {
+          "type": "descriptionMatches",
+          "pattern": "/(critical|urgent)/i"
+        },
+        {
+          "type": "titleMatches",
+          "pattern": "/(critical|urgent)/i"
+        }
+      ]
+    },
+    "not_tested": {
+      "requires": 1,
+      "conditions": [
+        {
+          "type": "descriptionMatches",
+          "pattern": "/\\[\\] Tested/"
+        }
+      ]
+    },
+    "breaking_change": {
+      "requires": 1,
+      "conditions": [
+        {
+          "type": "descriptionMatches",
+          "pattern": "/\\[\\] Non breaking API changes/"
+        }
+      ]
+    }
+  }
+}

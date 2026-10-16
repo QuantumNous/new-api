@@ -1,0 +1,26 @@
+---
+description: '是否开启 Hot Module Replacement 热更新能力。'
+---
+
+# dev.hmr
+
+- **类型：** `boolean`
+- **默认值：** `true`
+
+是否开启 Hot Module Replacement 热更新能力。
+
+请查看 [模块热更新](/guide/advanced/hmr) 来了解更多内容。
+
+> 通过 [dev.client](/config/dev/client) 可以配置 client 代码的 HMR 行为。
+
+## 禁用 HMR
+
+当 `dev.hmr` 设置为 `false` 时，热更新和 react-refresh 将被禁用，Rsbuild 会自动降级到 [dev.liveReload](/config/dev/live-reload)。
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    hmr: false,
+  },
+};
+```

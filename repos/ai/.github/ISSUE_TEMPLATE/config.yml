@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Ask a question
+    url: https://community.vercel.com/ai-sdk
+    about: Please ask questions in our discussions forum.

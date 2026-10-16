@@ -1,0 +1,226 @@
+---
+description: 'Use Sass as the CSS preprocessor, implemented based on sass-loader.'
+---
+
+# Sass plugin
+
+import { SourceCode } from '@theme';
+
+<SourceCode href="https://github.com/web-infra-dev/rsbuild/tree/main/packages/plugin-sass" />
+
+Use [Sass](https://sass-lang.com/) as the CSS preprocessor, implemented based on [sass-loader](https://github.com/webpack/sass-loader).
+
+## Quick start
+
+### Install plugin
+
+Run the following command:
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/plugin-sass -D" />
+
+:::tip
+
+- The Sass plugin only supports @rsbuild/core versions >= 0.7.0.
+- If the @rsbuild/core version is lower than 0.7.0, it has built-in support for the Sass plugin; you don't need to install it.
+
+:::
+
+### Register plugin
+
+Register the plugin in Rsbuild config:
+
+```ts title="rsbuild.config.ts"
+import { pluginSass } from '@rsbuild/plugin-sass';
+
+export default {
+  plugins: [pluginSass()],
+};
+```
+
+After registration, you can import `*.scss`, `*.sass`, `*.module.scss`, or `*.module.sass` files without additional config.
+
+## Options
+
+To customize the compilation behavior of Sass, use the following options.
+
+### sassLoaderOptions
+
+Modify the config of [sass-loader](https://github.com/webpack/sass-loader).
+
+- **Type:** `Object | Function`
+- **Default:**
+
+```js
+const defaultOptions = {
+  api: 'modern-compiler',
+  implementation: require.resolve('sass-embedded'),
+  sourceMap: rsbuildConfig.output.sourceMap.css,
+  sassOptions: {
+    quietDeps: true,
+    silenceDeprecations: ['legacy-js-api', 'import'],
+  },
+};
+```
+
+- **Example:**
+
+If `sassLoaderOptions` is an object, it is merged with the default config through `Object.assign`. It should be noted that `sassOptions` is merged through deepMerge in a deep way.
+
+```js
+pluginSass({
+  sassLoaderOptions: {
+    sourceMap: true,
+  },
+});
+```
+
+If `sassLoaderOptions` is a function, the default config is passed as the first parameter, which can be directly modified or returned as the final result.
+
+```js
+pluginSass({
+  sassLoaderOptions(config) {
+    config.additionalData = async (content, loaderContext) => {
+      // ...
+    };
+  },
+});
+```
+
+### include
+
+- **Type:** [Rspack.RuleSetCondition](https://rspack.rs/config/module-rules#condition)
+- **Default:** `/\.s(?:a|c)ss$/`
+- **Version:** `>= 1.1.0`
+
+Include some `.scss` or `.sass` files, they will be transformed by `sass-loader`. The value is the same as the [rules[].test](https://rspack.rs/config/module-rules#rulestest) option in Rspack.
+
+For example:
+
+```ts
+pluginSass({
+  include: /\.custom\.scss$/,
+});
+```
+
+### exclude
+
+- **Type:** [Rspack.RuleSetCondition](https://rspack.rs/config/module-rules#condition)
+- **Default:** `undefined`
+
+Exclude some `.sass` or `.scss` files, they will not be transformed by `sass-loader`.
+
+For example:
+
+```ts
+pluginSass({
+  exclude: /some-folder[\\/]foo\.scss/,
+});
+```
+
+### rewriteUrls
+
+- **Type:** `boolean`
+- **Default:** `true`
+- **Version:** `>= 1.2.0`
+
+Whether to use [resolve-url-loader](https://github.com/bholloway/resolve-url-loader/tree/v5/packages/resolve-url-loader) to rewrite URLs.
+
+When enabled, `resolve-url-loader` allows you to write relative URLs in your Sass files that are correctly resolved from the current Sass file's location, rather than being relative to the Sass entry file (e.g. `main.scss`).
+
+If you set this option to `false`, the build performance will be improved, but Rsbuild will use the native URL resolution of Sass, which means all URLs must be relative to the Sass entry file.
+
+```ts
+pluginSass({
+  rewriteUrls: false,
+});
+```
+
+## Practices
+
+### Modify Sass implementation
+
+Sass provides several implementations, including [sass](https://npmjs.com/package/sass), [sass-embedded](https://npmjs.com/package/sass-embedded), and [node-sass](https://npmjs.com/package/node-sass).
+
+Rsbuild uses the latest `sass-embedded` implementation by default. `sass-embedded` is a JavaScript wrapper around the native Dart Sass executable, providing a consistent API and optimal performance.
+
+To use a different Sass implementation instead of the built-in `sass-embedded` included in Rsbuild, install the preferred Sass implementation in your project and specify it using the `sass-loader`'s [implementation](https://github.com/webpack/sass-loader#implementation) option.
+
+```ts
+pluginSass({
+  sassLoaderOptions: {
+    implementation: require.resolve('sass'),
+  },
+});
+```
+
+:::tip
+Switching from `sass-embedded` to another Sass implementation can significantly decrease build performance.
+:::
+
+### Select Sass API
+
+Rsbuild uses the latest `modern-compiler` API by default. If you rely on the `legacy` API of Sass, you can set the `api` option of the sass-loader to `legacy` to maintain compatibility with some deprecated Sass syntax.
+
+```ts
+pluginSass({
+  sassLoaderOptions: {
+    api: 'legacy',
+  },
+});
+```
+
+:::tip
+Sass's `legacy` API has been deprecated and will be removed in Sass 2.0. We recommend migrating to the `modern-compiler` API. For more details, see [Sass - Legacy JS API](https://sass-lang.com/documentation/breaking-changes/legacy-js-api/).
+:::
+
+### Ignore Sass deprecation warnings
+
+Sass uses warning logs to highlight deprecated patterns that will be removed in future major releases. We recommend updating your code according to these warnings. If you do not want to see them, you can ignore the warnings by using the [silenceDeprecations](https://sass-lang.com/documentation/js-api/interfaces/stringoptions/#silenceDeprecations) option in Sass.
+
+For example, `@import` has been deprecated in Sass. If you use this syntax, Sass will output the following prompt:
+
+```
+Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+ 0 | @import './b.scss';
+```
+
+`@rsbuild/plugin-sass` adds the following configuration by default to silence the `@import` warning, if you need to silence other deprecated warnings, you can use the same method.
+
+```ts
+pluginSass({
+  sassLoaderOptions: {
+    sassOptions: {
+      silenceDeprecations: ['import'],
+    },
+  },
+});
+```
+
+> For more information, see [Sass Deprecations](https://sass-lang.com/documentation/js-api/interfaces/deprecations/).
+
+### Configure multiple Sass plugins
+
+By using the `include` and `exclude` options, you can register multiple Sass plugins and specify different options for each plugin.
+
+For example:
+
+```ts
+export default {
+  plugins: [
+    pluginSass({
+      exclude: /\.another\.scss$/,
+    }),
+    pluginSass({
+      include: /\.another\.scss$/,
+      sassLoaderOptions: {
+        // some custom options
+      },
+    }),
+  ],
+};
+```

@@ -1,0 +1,23 @@
+library:
+  name: '@tanstack/virtual-file-routes'
+  version: '1.161.4'
+  repository: 'https://github.com/TanStack/router'
+  description: >-
+    Programmatic route tree building as an alternative to filesystem
+    conventions. Provides rootRoute, index, route, layout, physical,
+    and defineVirtualSubtreeConfig helpers.
+generated_at: '2026-03-08'
+skills:
+  - name: 'Virtual File Routes'
+    slug: 'virtual-file-routes'
+    type: 'core'
+    domain: 'virtual-route-config'
+    path: 'skills/virtual-file-routes/SKILL.md'
+    package: 'packages/virtual-file-routes'
+    description: >-
+      Programmatic route tree building with rootRoute, index, route,
+      layout, physical, defineVirtualSubtreeConfig. Integrates with
+      TanStack Router plugin's virtualRouteConfig option.
+    sources:
+      - 'TanStack/router:packages/virtual-file-routes/src'
+      - 'TanStack/router:docs/router/routing/virtual-file-routes.md'

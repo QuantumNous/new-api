@@ -1,0 +1,58 @@
+import type { IAxisCommonTheme } from '../axis/interface';
+import type { IBrushTheme } from '../brush/interface';
+import type { ICrosshairTheme } from '../crosshair/interface';
+import type { IDataZoomTheme } from '../data-zoom/data-zoom/interface';
+import type { IScrollBarTheme } from '../data-zoom/scroll-bar/interface';
+import type { IIndicatorTheme } from '../indicator/interface';
+import type { IDiscreteLegendTheme } from '../legend/discrete/interface';
+import type { IColorLegendTheme, ISizeLegendTheme } from '../legend/continuous/interface';
+import type { IMarkAreaTheme } from '../marker/mark-area/interface';
+import type { IMarkLineTheme } from '../marker/mark-line/interface';
+import type { IMarkPointTheme } from '../marker/mark-point/interface';
+import type { IPlayerTheme } from '../player/interface';
+import type { ITitleTheme } from '../title/interface';
+import type { ITooltipSpec, ITooltipTheme } from '../tooltip/interface';
+import type { ComponentTypeEnum } from './type';
+import type { ITotalLabelTheme } from '../label/interface';
+import type { IPoptipTheme } from '../poptip/interface';
+import type { IColorKey } from '../../theme/color-scheme/interface';
+import type { Direction, IOrientType } from '../../typings';
+import type { ICartesianAxisCommonTheme } from '../axis/cartesian/interface/theme';
+import type { IPolarAxisCommonTheme } from '../axis/polar/interface/theme';
+export interface IComponentTheme {
+    axis?: IAxisCommonTheme;
+    axisBand?: IAxisCommonTheme;
+    axisLinear?: IAxisCommonTheme;
+    axisX?: ICartesianAxisCommonTheme;
+    axisY?: ICartesianAxisCommonTheme;
+    axisRadius?: IPolarAxisCommonTheme;
+    axisAngle?: IPolarAxisCommonTheme;
+    [ComponentTypeEnum.discreteLegend]?: IDiscreteLegendTheme;
+    [ComponentTypeEnum.colorLegend]?: IColorLegendTheme;
+    [ComponentTypeEnum.sizeLegend]?: ISizeLegendTheme;
+    [ComponentTypeEnum.markLine]?: IMarkLineTheme;
+    [ComponentTypeEnum.polarMarkLine]?: IMarkLineTheme;
+    [ComponentTypeEnum.markArea]?: IMarkAreaTheme;
+    [ComponentTypeEnum.polarMarkArea]?: IMarkAreaTheme;
+    [ComponentTypeEnum.markPoint]?: IMarkPointTheme;
+    [ComponentTypeEnum.polarMarkPoint]?: IMarkPointTheme;
+    [ComponentTypeEnum.geoMarkPoint]?: IMarkPointTheme;
+    [ComponentTypeEnum.tooltip]?: ITooltipTheme<string | IColorKey> & Partial<Pick<ITooltipSpec, 'visible' | 'activeType' | 'mark' | 'dimension' | 'group' | 'trigger' | 'triggerOff' | 'showDelay' | 'hideTimer' | 'lockAfterClick' | 'renderMode' | 'confine' | 'className' | 'parentElement' | 'enterable' | 'throttleInterval'>>;
+    [ComponentTypeEnum.crosshair]?: ICrosshairTheme;
+    [ComponentTypeEnum.dataZoom]?: IDataZoomTheme;
+    [ComponentTypeEnum.scrollBar]?: IScrollBarTheme;
+    [ComponentTypeEnum.indicator]?: IIndicatorTheme;
+    [ComponentTypeEnum.player]?: IPlayerTheme;
+    [ComponentTypeEnum.brush]?: IBrushTheme;
+    [ComponentTypeEnum.title]?: ITitleTheme;
+    [ComponentTypeEnum.poptip]?: IPoptipTheme;
+    [ComponentTypeEnum.totalLabel]?: ITotalLabelTheme;
+    [key: string]: any;
+}
+export type ComponentThemeWithDirection<T extends {
+    orient?: IOrientType;
+}> = T & {
+    orient?: IOrientType;
+    [Direction.horizontal]?: Omit<T, 'orient'>;
+    [Direction.vertical]?: Omit<T, 'orient'>;
+};

@@ -1,0 +1,52 @@
+---
+description: '向所有 Rsbuild 服务器发送的响应添加 headers。此配置基于 Node.js 的 response.setHeader() 方法实现。'
+---
+
+# server.headers
+
+- **类型：** `Record<string, string | string[]>`
+- **默认值：** `undefined`
+
+向所有 Rsbuild 服务器发送的响应添加 headers。此配置基于 Node.js 的 [response.setHeader()](https://nodejs.org/api/http.html#responsesetheadername-value) 方法实现。
+
+如果待发送的 headers 中已存在该 header，它的值将被覆盖。
+
+:::tip
+
+如果要设置 CORS headers，如 `Access-Control-Allow-Origin`，可以使用 [server.cors](/config/server/cors) 选项。
+
+如果同时使用 `server.headers` 和 `server.cors`，`server.headers` 会覆盖 `server.cors`。
+
+:::
+
+## 用法
+
+`server.headers` 选项接受一个对象，其中：
+
+- 键是 header 名称（不区分大小写）
+- 值可以是字符串或字符串数组
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    headers: {
+      'X-Custom-Foo': 'bar',
+    },
+  },
+};
+```
+
+## 多个值
+
+使用字符串数组可以发送具有相同名称的多个 header。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    headers: {
+      // 多个 Set-Cookie headers
+      'Set-Cookie': ['type=ninja', 'language=javascript'],
+    },
+  },
+};
+```

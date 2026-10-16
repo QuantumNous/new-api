@@ -1,0 +1,20 @@
+{
+  "name": "@example/fastify",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "@ai-sdk/openai": "workspace:*",
+    "ai": "workspace:*",
+    "dotenv": "16.4.5",
+    "fastify": "5.8.5"
+  },
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "type-check": "tsc --build"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "tsx": "4.19.2",
+    "typescript": "5.8.3"
+  }
+}

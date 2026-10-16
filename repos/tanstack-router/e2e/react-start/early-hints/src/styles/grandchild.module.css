@@ -1,0 +1,13 @@
+/* Grandchild route CSS module */
+.container {
+  background-color: #dcfce7;
+  padding: 10px;
+  border-radius: 4px;
+  border: 2px solid #22c55e;
+  margin-top: 8px;
+}
+
+.title {
+  color: #166534;
+  font-weight: 500;
+}

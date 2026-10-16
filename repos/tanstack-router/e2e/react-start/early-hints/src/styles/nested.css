@@ -1,0 +1,13 @@
+/* Nested route styles */
+.nested-container {
+  background-color: #ede9fe;
+  padding: 12px;
+  border-radius: 6px;
+  border: 2px solid #8b5cf6;
+  margin-top: 8px;
+}
+
+.nested-title {
+  color: #5b21b6;
+  font-weight: 600;
+}

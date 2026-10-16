@@ -1,0 +1,58 @@
+@keyframes slide-down {
+  from {
+    height: 0;
+  }
+
+  to {
+    height: var(--collapsible-panel-height);
+  }
+}
+
+@keyframes slide-up {
+  from {
+    height: var(--collapsible-panel-height);
+  }
+
+  to {
+    height: 0;
+  }
+}
+
+@keyframes slide-right {
+  from {
+    width: 0;
+  }
+
+  to {
+    width: var(--collapsible-panel-width);
+  }
+}
+
+@keyframes slide-left {
+  from {
+    width: var(--collapsible-panel-width);
+  }
+
+  to {
+    width: 0;
+  }
+}
+
+.root {
+  --duration: 500ms;
+  --icon-duration: 150ms;
+}
+
+.panel {
+  &[data-open] {
+    animation: slide-down var(--duration) ease-out;
+  }
+
+  &[data-closed] {
+    animation: slide-up var(--duration) ease-in;
+  }
+}
+
+.slowRoot {
+  --duration: 1600ms;
+}

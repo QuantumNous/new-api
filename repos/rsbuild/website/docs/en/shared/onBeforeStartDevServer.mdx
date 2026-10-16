@@ -1,0 +1,22 @@
+Called before starting the dev server.
+
+Use the `server` parameter to get the dev server instance, see [Server API](/api/javascript-api/server-api) for more information.
+
+- **Type:**
+
+```ts
+type MaybePromise<T> = T | Promise<T>;
+
+type OnBeforeStartDevServerFn = (params: {
+  /**
+   * The dev server instance, the same as the return value of `createDevServer`.
+   */
+  server: RsbuildDevServer;
+  /**
+   * Context information for all environments.
+   */
+  environments: Record<string, EnvironmentContext>;
+}) => MaybePromise<(() => MaybePromise<void>) | void>;
+
+function OnBeforeStartDevServer(callback: OnBeforeStartDevServerFn): void;
+```

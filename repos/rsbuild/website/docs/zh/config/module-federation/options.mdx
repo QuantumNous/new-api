@@ -1,0 +1,97 @@
+---
+description: '用于配置 Rspack 模块联邦插件（对应模块联邦 v1.5）。'
+---
+
+import { PackageManagerTabs } from '@theme';
+
+# moduleFederation.options
+
+- **类型：** [Rspack.ModuleFederationPluginOptions](https://rspack.rs/zh/plugins/webpack/module-federation-plugin#选项)
+- **默认值：** `undefined`
+
+用于配置 Rspack 模块联邦插件（对应模块联邦 v1.5）。
+
+:::tip
+模块联邦的实现有多个版本。在使用 `moduleFederation.options` 之前，请阅读 [模块联邦指南](/guide/advanced/module-federation) 来了解不同版本之间的差异，以及如何进行选择，
+:::
+
+## 介绍
+
+在使用模块联邦时，我们推荐你使用 Rsbuild 提供的 `moduleFederation.options` 选项，这个选项会自动调整一些相关的配置，以保证模块联邦应用可以正确运行。
+
+当你设置 `moduleFederation.options` 选项后，Rsbuild 会执行以下操作：
+
+- 自动注册 [ModuleFederationPlugin](https://rspack.rs/zh/plugins/webpack/module-federation-plugin) 插件，并将 `options` 的值透传给插件。
+- 将 provider 的 [dev.assetPrefix](/config/dev/asset-prefix) 配置的默认值设置为 `true`，这可以确保 remote modules 的静态资源 URL 是正确的。
+- 将 Rspack [output.uniqueName](https://rspack.rs/zh/config/output#outputuniquename) 配置的默认值设置为 `moduleFederation.options.name`，使 HMR 可以正常工作。
+
+## 用法
+
+`moduleFederation.options` 的类型与 Rspack 的 ModuleFederationPlugin 插件完全一致：
+
+```ts title="rsbuild.config.ts"
+export default defineConfig({
+  moduleFederation: {
+    options: {
+      name: 'remote',
+      // other options
+    },
+  },
+});
+```
+
+该选项依赖运行时包 [@module-federation/runtime-tools](https://www.npmjs.com/package/@module-federation/runtime-tools)，用于提供模块联邦的运行时支持。请先安装该依赖：
+
+<PackageManagerTabs command="add @module-federation/runtime-tools" />
+
+> 参考 [ModuleFederationPlugin](https://rspack.rs/zh/plugins/webpack/module-federation-plugin) 文档来了解所有可用的选项。
+
+## 示例
+
+下面是一个最小示例：
+
+- Remote App
+
+```ts title="remote/rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  server: {
+    port: 3002,
+  },
+  moduleFederation: {
+    options: {
+      name: 'remote',
+      exposes: {
+        './Button': './src/Button',
+      },
+      filename: 'remoteEntry.js',
+    },
+  },
+});
+```
+
+- Host App
+
+```ts title="host/rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  server: {
+    port: 3002,
+  },
+  moduleFederation: {
+    options: {
+      name: 'host',
+      remotes: {
+        remote: 'remote@http://localhost:3002/remoteEntry.js',
+      },
+    },
+  },
+});
+```
+
+更多示例请查看：
+
+- [Rsbuild - module-federation example](https://github.com/rstackjs/rstack-examples/tree/main/rsbuild/module-federation)
+- [module-federation/module-federation-examples](https://github.com/module-federation/module-federation-examples)

@@ -1,0 +1,9 @@
+dist
+build
+esm
+cjs
+node_modules
+coverage
+
+# ignore big data files
+__tests__/data/*

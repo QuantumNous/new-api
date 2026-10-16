@@ -1,0 +1,35 @@
+{
+  "name": "tanstack-router-e2e-vue-scroll-restoration-sandbox-vite",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000",
+    "dev:hash": "VITE_APP_HISTORY=hash vite --port 3000",
+    "dev:e2e": "vite",
+    "build": "vite build && tsc --noEmit",
+    "preview": "vite preview",
+    "start": "vite",
+    "test:e2e:browser": "VITE_APP_HISTORY=browser playwright test --config=playwright.browser.config.ts --project=chromium",
+    "test:e2e:hash": "VITE_APP_HISTORY=hash playwright test --config=playwright.hash.config.ts --project=chromium",
+    "test:e2e": "rm -rf port*.txt; pnpm run test:e2e:browser && pnpm run test:e2e:hash"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/router-plugin": "workspace:^",
+    "@tanstack/vue-router": "workspace:^",
+    "@tanstack/vue-router-devtools": "workspace:^",
+    "redaxios": "^0.5.1",
+    "tailwindcss": "^4.2.2",
+    "vue": "^3.5.16",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.1",
+    "@tanstack/router-e2e-utils": "workspace:^",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "@vitejs/plugin-vue-jsx": "^5.1.5",
+    "typescript": "~5.8.3",
+    "vite": "^8.0.14",
+    "vue-tsc": "^3.1.5"
+  }
+}

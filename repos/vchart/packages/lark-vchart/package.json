@@ -1,0 +1,61 @@
+{
+  "name": "@visactor/lark-vchart",
+  "version": "2.1.3",
+  "description": "VChart 飞书小程序组件",
+  "main": "index.js",
+  "files": [
+    "index.js",
+    "index.json",
+    "index.ttml",
+    "index.ttss"
+  ],
+  "scripts": {
+    "rollup": "npm run build",
+    "build": "npm run clear && rollup -c --configPlugin typescript --bundleConfigAsCjs",
+    "clear": "rimraf index.js"
+  },
+  "keywords": [
+    "lark",
+    "charts",
+    "visualization",
+    "VChart",
+    "animation",
+    "storytelling",
+    "VisActor",
+    "graphics",
+    "interaction"
+  ],
+  "homepage": "https://www.visactor.io/vchart",
+  "bugs": "https://github.com/VisActor/VChart/issues",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/VisActor/VChart",
+    "directory": "packages/lark-vchart"
+  },
+  "author": {
+    "name": "VisActor",
+    "url": "https://www.visactor.io/"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@babel/core": "7.20.12",
+    "@babel/preset-env": "7.20.2",
+    "@rollup/plugin-babel": "6.0.3",
+    "@rollup/plugin-commonjs": "24.1.0",
+    "@rollup/plugin-node-resolve": "15.0.2",
+    "@rollup/plugin-typescript": "11.1.0",
+    "rimraf": "3.0.2",
+    "rollup": "3.20.5",
+    "rollup-plugin-copy": "3.4.0",
+    "rollup-plugin-terser": "7.0.2",
+    "@internal/bundler": "workspace:*",
+    "@internal/eslint-config": "workspace:*",
+    "@internal/ts-config": "workspace:*",
+    "@rushstack/eslint-patch": "~1.1.4",
+    "eslint": "~8.18.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "$schema": "https://inlang.com/schema/inlang-message-format",
+  "example_message": "Hello world {username}",
+  "hello_about": "Hello /about!",
+  "home_page": "Home page",
+  "about_page": "About page"
+}

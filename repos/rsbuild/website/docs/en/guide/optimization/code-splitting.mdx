@@ -1,0 +1,57 @@
+---
+description: 'Code splitting is the process of breaking code into multiple chunks to enable on-demand loading and improve performance.'
+---
+
+# Code splitting
+
+Code splitting is the process of breaking code into multiple chunks to enable on-demand loading and improve performance. With a well-designed splitting strategy, you can reduce the initial load size and speed up page rendering.
+
+:::tip
+A chunk usually corresponds to a built output asset. The browser can request and cache these chunks separately instead of loading all code at once.
+:::
+
+> Reference: [Rspack - Code Splitting](https://rspack.rs/guide/optimization/code-splitting).
+
+## Using dynamic import
+
+By using [dynamic import](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/import), you can split code that is not required for the initial render into async chunks and load it only when needed.
+
+When Rsbuild encounters the `import()` syntax, it automatically splits the referenced module into a new chunk and loads it on demand at runtime.
+
+For large modules, whether local modules or third-party dependencies, dynamic import can be used to defer loading:
+
+```js
+// Local module
+import('./bigModule.ts').then((bigModule) => {
+  console.log(bigModule);
+});
+
+// Third-party dependency
+import('some-package').then((somePackage) => {
+  console.log(somePackage);
+});
+```
+
+## Chunk splitting
+
+Rsbuild provides the [splitChunks](/config/split-chunks) option to configure how chunks are split during the build process. This option is based on Rspack's `optimization.splitChunks` configuration and extends it with a set of ready-to-use presets.
+
+With `splitChunks`, you can customize chunk splitting rules. For example, you can control which modules are grouped into the same chunk and set conditions such as the minimum chunk size. This helps strike a better balance between load performance and the number of network requests.
+
+In the example below, axios is split into a separate chunk named `axios.js`:
+
+```ts
+export default {
+  splitChunks: {
+    cacheGroups: {
+      axios: {
+        test: /[\\/]node_modules[\\/]axios[\\/]/,
+        name: 'axios',
+        chunks: 'all',
+      },
+    },
+  },
+};
+```
+
+For more options and usage details, see the [splitChunks documentation](/config/split-chunks).

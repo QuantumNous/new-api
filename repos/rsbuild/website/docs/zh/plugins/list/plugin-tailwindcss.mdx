@@ -1,0 +1,142 @@
+---
+description: '基于 @tailwindcss/webpack 在 Rsbuild 中集成 Tailwind CSS v4，无需通过 @tailwindcss/postcss 执行转换，提供更好的构建性能。'
+---
+
+# Tailwind CSS 插件
+
+import { SourceCode } from '@theme';
+
+<SourceCode href="https://github.com/web-infra-dev/rsbuild/tree/main/packages/plugin-tailwindcss" />
+
+该插件基于 [@tailwindcss/webpack](https://www.npmjs.com/package/@tailwindcss/webpack) 实现，用于在 Rsbuild 中集成 [Tailwind CSS](https://tailwindcss.com/) v4。
+
+相比基于 [@tailwindcss/postcss](https://www.npmjs.com/package/@tailwindcss/postcss) 的集成方式，该插件无需通过 PostCSS 执行 Tailwind CSS 转换，因此提供了更好的构建性能。
+
+## 快速开始
+
+### 安装插件
+
+执行以下命令安装插件：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/plugin-tailwindcss tailwindcss -D" />
+
+:::tip
+Tailwind CSS 插件支持 Rsbuild >= 2.0 和 Tailwind CSS >= 4.0。
+:::
+
+### 注册插件
+
+在 Rsbuild 配置中注册插件：
+
+```ts title="rsbuild.config.ts"
+import { pluginTailwindcss } from '@rsbuild/plugin-tailwindcss';
+
+export default {
+  plugins: [pluginTailwindcss()],
+};
+```
+
+### 引入 CSS
+
+在 CSS 入口文件中添加 `@import` 指令，引入 Tailwind CSS：
+
+```css title="src/index.css"
+@import 'tailwindcss';
+```
+
+然后在 JavaScript 或 TypeScript 入口中引入这个 CSS 文件：
+
+```ts title="src/index.ts"
+import './index.css';
+```
+
+现在你可以在 HTML 或框架组件中使用 Tailwind 的 utility classes：
+
+```html
+<h1 class="text-3xl font-bold underline">Hello world!</h1>
+```
+
+:::tip
+Tailwind CSS v4 不能与 Sass、Less 或 Stylus 等 CSS 预处理器一起使用，你需要将 `@import 'tailwindcss';` 语句放在 `.css` 文件的开头，详见 [Tailwind CSS - Compatibility](https://tailwindcss.com/docs/compatibility#sass-less-and-stylus)。
+:::
+
+## 扫描范围
+
+默认情况下，该插件会使用 [Rsbuild 根目录](/config/root) 作为 Tailwind CSS 的扫描基准目录（默认为 `process.cwd()`）。
+
+Tailwind CSS 会自动从扫描基准目录下的文件中检测类名。你可以在 CSS 入口文件中使用 Tailwind CSS 的 `source(...)` 函数和 [`@source` 指令](https://tailwindcss.com/docs/detecting-classes-in-source-files#explicitly-registering-sources) 来收窄或自定义扫描范围：
+
+```css title="src/index.css"
+@import 'tailwindcss' source('./');
+```
+
+也可以禁用自动源文件检测，并显式注册需要扫描的源文件：
+
+```css title="src/index.css"
+@import 'tailwindcss' source(none);
+
+@source './pages/**/*.html';
+@source './components/**/*.{js,ts,jsx,tsx}';
+```
+
+`source(...)` 和 `@source` 中的相对路径会基于声明它们的 CSS 文件进行解析。
+
+## 选项
+
+### optimize
+
+启用 Tailwind CSS 自带的 Lightning CSS optimization。
+
+默认情况下，该选项在生产模式下启用，在开发模式下禁用。
+
+- **类型：**
+
+```ts
+type Optimize =
+  | boolean
+  | {
+      minify?: boolean;
+    };
+```
+
+- **默认值：** 生产模式下为 `true`，开发模式下为 `false`
+
+生产模式下，Tailwind CSS 自带的 minify 会跟随 Rsbuild 的 CSS minify 配置。例如，将 [`output.minify`](/config/output/minify) 设置为 `false` 时，默认配置下也会禁用 Tailwind CSS 自带的 minify。
+
+当 `optimize` 为 `false` 时，Tailwind CSS 仍然会编译 Tailwind directives 并生成 utilities，但会跳过 Tailwind CSS 自带的 Lightning CSS optimization 步骤：
+
+```ts title="rsbuild.config.ts"
+pluginTailwindcss({
+  optimize: false,
+});
+```
+
+如果你希望始终启用 Tailwind CSS 自带的 optimization 和 minify，可以将 `optimize` 设置为 `true`：
+
+```ts title="rsbuild.config.ts"
+pluginTailwindcss({
+  optimize: true,
+});
+```
+
+如果你希望启用 Tailwind CSS 自带的 optimization，但不启用其中的 minify，可以传入对象并省略 `minify`，或者将其设置为 `false`：
+
+```ts title="rsbuild.config.ts"
+pluginTailwindcss({
+  optimize: {
+    minify: false,
+  },
+});
+```
+
+如果你需要显式启用 Tailwind CSS 自带的 minify：
+
+```ts title="rsbuild.config.ts"
+pluginTailwindcss({
+  optimize: {
+    minify: true,
+  },
+});
+```

@@ -1,0 +1,314 @@
+---
+description: '本章节介绍如何使用 Rsbuild 实现 SSR 功能。'
+---
+
+# 服务端渲染（SSR）
+
+本章节介绍如何使用 Rsbuild 实现 SSR 功能。
+
+值得注意的是，Rsbuild 自身不提供开箱即用的 SSR 能力，而是提供 low-level 的 API 和配置来允许框架开发者实现 SSR。
+
+## 全栈框架 \{#full-stack-frameworks}
+
+如果你希望直接使用 SSR，推荐使用基于 Rsbuild 的全栈框架，因为这些框架已经实现了 SSR 能力。
+
+- [React 全栈框架](/guide/framework/react#full-stack-frameworks)
+- [Solid 全栈框架](/guide/framework/solid#full-stack-frameworks)
+
+## 什么是 SSR
+
+SSR 是 "Server-side rendering"（服务端渲染）的缩写。它表示由服务器生成网页的 HTML，并将其发送给客户端，而不是只发送一个空的 HTML 外壳，并依赖 JavaScript 来生成页面内容。
+
+在传统的客户端渲染中，服务器会向客户端发送一个空的 HTML 外壳和一些 JavaScript 脚本，然后从服务器的 API 中获取数据，并用动态内容填充页面。这会导致页面的初始加载时间较慢，不利于用户体验和 SEO。
+
+使用 SSR 后，服务器会生成已经包含动态内容的 HTML，并将其发送给客户端。这使得首屏加载速度更快，并对 SEO 更加友好，因为搜索引擎可以爬取到渲染后的页面。
+
+## 文件结构
+
+一个典型的 SSR 应用会包含以下文件：
+
+```
+- index.html
+- server.js          # 自定义服务器脚本
+- src/
+  - App.js           # 导出 App 代码
+  - index.client.js  # 客户端入口，挂载 App 组件到 Dom 元素
+  - index.server.js  # 服务端入口，通过 SSR API 渲染 App 组件
+```
+
+`index.html` 中需要定义 SSR 占位符：
+
+```html
+<div id="root"><!--app-content--></div>
+```
+
+## 创建 SSR 配置
+
+SSR 场景下，需要同时产出 web 和 node 两种类型的产物，分别用于客户端渲染（CSR）和服务器端渲染（SSR）。
+
+此时可以使用 Rsbuild 的[多环境构建](/guide/advanced/environments)能力，定义如下配置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    // 配置 web 环境，用于浏览器端
+    web: {
+      source: {
+        entry: {
+          index: './src/index.client.js',
+        },
+      },
+      output: {
+        // 浏览器产物的 target 类型为 'web'
+        target: 'web',
+      },
+      html: {
+        // 自定义 HTML 模版
+        template: './index.html',
+      },
+    },
+    // 配置 node 环境，用于 SSR
+    node: {
+      source: {
+        entry: {
+          index: './src/index.server.js',
+        },
+      },
+      output: {
+        // Node.js 产物的 target 类型为 'node'
+        target: 'node',
+        distPath: {
+          root: 'dist/server',
+        },
+      },
+    },
+  },
+};
+```
+
+### 配置 external 依赖
+
+SSR 的服务端产物通常运行在 Node.js 中。如果部署时会同时安装 `node_modules`，建议将依赖配置为 external，让 Node.js 在运行时直接加载这些依赖，而不是将它们打包进服务端产物。
+
+此时建议使用 [output.autoExternal](/config/output/auto-external)：
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    node: {
+      output: {
+        target: 'node',
+        autoExternal: true,
+      },
+    },
+  },
+};
+```
+
+开启后，Rsbuild 会将根目录 `package.json` 中声明的依赖标记为 external，并覆盖 `react/jsx-runtime` 这类子路径导入，使运行时依赖可以由 Node.js 直接加载。
+
+如果你需要生成完全独立的服务端 bundle，或者部署环境不会安装这些被 external 的依赖，可以保持该选项关闭，或按需配置需要 external 的依赖类型。
+
+## 自定义 Server
+
+Rsbuild 提供了 [Server API](/api/javascript-api/server-api) 和 [Environment API](/guide/advanced/environments#environment-api) 来实现 SSR。
+
+以下是一个基础示例：
+
+```ts title="server.mjs"
+import express from 'express';
+import { createRsbuild } from '@rsbuild/core';
+
+async function initRsbuild() {
+  const rsbuild = await createRsbuild({
+    config: {
+      server: {
+        middlewareMode: true,
+      },
+    },
+  });
+  return rsbuild.createDevServer();
+}
+
+async function startDevServer() {
+  const app = express();
+  const rsbuild = await initRsbuild();
+  const { environments } = rsbuild;
+
+  // 访问 /index.html 时进行 SSR
+  app.get('/', async (req, res, next) => {
+    try {
+      // 加载服务端产物
+      const bundle = await environments.node.loadBundle('index');
+      const template = await environments.web.getTransformedHtml('index');
+      const rendered = bundle.render();
+      // 将渲染内容插入到 HTML 模版中
+      const html = template.replace('<!--app-content-->', rendered);
+
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(html);
+    } catch (err) {
+      logger.error('SSR failed.');
+      logger.error(err);
+      next();
+    }
+  });
+  app.use(rsbuild.middlewares);
+
+  const server = app.listen(rsbuild.port, async () => {
+    await rsbuild.afterListen();
+  });
+  rsbuild.connectWebSocket({ server });
+}
+
+startDevServer();
+```
+
+## 修改启动脚本
+
+使用自定义 Server 后，需要将启动命令由 `rsbuild dev` 改为 `node ./server.mjs`。
+
+如果需要预览 SSR 的线上效果，同样需要修改预览命令。SSR Prod Server 示例参考：[Example](https://github.com/rstackjs/rstack-examples/blob/main/rsbuild/ssr-express/prod-server.mjs)。
+
+```json title="package.json"
+{
+  "scripts": {
+    "build": "rsbuild build",
+    "dev": "node ./server.mjs",
+    "preview": "node ./prod-server.mjs"
+  }
+}
+```
+
+现在，执行 `npm run dev` 命令即可启动带有 SSR 功能的开发服务器，访问 `http://localhost:3000/` 即可看到 SSR 内容已经渲染到了 HTML 页面上。
+
+## 获取资源清单
+
+默认情况下，和当前页面关联的 scripts 和 links 会自动插入到 HTML 模版中，此时通过 [getTransformedHtml](/api/javascript-api/environment-api#gettransformedhtml) 即可获取编译后的 HTML 模版内容。
+
+在服务器端动态生成 HTML 时，你需要将 JavaScript 和 CSS 资源的 URL 注入到 HTML 中。通过配置 [output.manifest](/config/output/manifest)，你可以方便地获取这些资源的清单信息。示例如下：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    manifest: true,
+  },
+};
+```
+
+```ts title="server.ts"
+async function renderHtmlPage(): Promise<string> {
+  const manifest = await fs.promises.readFile('./dist/manifest.json', 'utf-8');
+
+  const { entries } = JSON.parse(manifest);
+  const { js, css } = entries['index'].initial;
+
+  const scriptTags = js.map((file) => `<script src="${file}" defer></script>`).join('\n');
+  const styleTags = css.map((file) => `<link rel="stylesheet" href="${file}">`).join('\n');
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        ${scriptTags}
+        ${styleTags}
+      </head>
+      <body>
+        <div id="root"></div>
+      </body>
+    </html>`;
+}
+```
+
+## 示例项目
+
+- [SSR + Express Example](https://github.com/rstackjs/rstack-examples/blob/main/rsbuild/ssr-express)
+- [SSR + Express + Manifest Example](https://github.com/rstackjs/rstack-examples/blob/main/rsbuild/ssr-express-with-manifest)
+
+## 在插件中适配 SSR
+
+在开发 Rsbuild 插件时，如果需要针对 SSR 添加特定的逻辑，可以根据 `target` 进行区分。
+
+- 通过 [modifyEnvironmentConfig](/plugins/dev/hooks#modifyenvironmentconfig) 修改 SSR 场景下的 Rsbuild 配置：
+
+```js
+export const myPlugin = () => ({
+  name: 'my-plugin',
+  setup(api) {
+    api.modifyEnvironmentConfig((config) => {
+      if (config.target === 'node') {
+        // SSR 特有的 Rsbuild 配置
+      }
+    });
+  },
+});
+```
+
+- 通过 [modifyRspackConfig](/plugins/dev/hooks#modifyrspackconfig) 修改 SSR 场景下的 Rspack 配置：
+
+```js
+export const myPlugin = () => ({
+  name: 'my-plugin',
+  setup(api) {
+    api.modifyRspackConfig((config, { target }) => {
+      if (target === 'node') {
+        // SSR 特有的 Rspack 配置
+      }
+    });
+  },
+});
+```
+
+- 通过 [transform](/plugins/dev/core#apitransform) 为 SSR 和客户端分别进行代码转换：
+
+```js
+export const myPlugin = () => ({
+  name: 'my-plugin',
+  setup(api) {
+    api.transform({ test: /foo\.js$/, targets: ['web'] }, ({ code }) => {
+      // 转换 client 代码
+    });
+
+    api.transform({ test: /foo\.js$/, targets: ['node'] }, ({ code }) => {
+      // 转换 server 代码
+    });
+  },
+});
+```
+
+## 保持资源 URL 一致
+
+在多环境 SSR 中，建议保持服务端和客户端构建的 [output.assetPrefix](/config/output/asset-prefix) 和静态资源的 [output.distPath](/config/output/dist-path) 配置一致。这有助于保障服务端使用 `?url` 等 query 时，拿到与客户端一致的资源路径。
+
+```ts title="rsbuild.config.ts"
+const assetPaths = {
+  css: 'assets/css',
+  image: 'assets/image',
+};
+
+export default {
+  output: {
+    assetPrefix: '/',
+  },
+  environments: {
+    web: {
+      output: {
+        target: 'web',
+        distPath: {
+          root: 'dist/client',
+          ...assetPaths,
+        },
+      },
+    },
+    node: {
+      output: {
+        target: 'node',
+        distPath: {
+          root: 'dist/server',
+          ...assetPaths,
+        },
+      },
+    },
+  },
+};
+```

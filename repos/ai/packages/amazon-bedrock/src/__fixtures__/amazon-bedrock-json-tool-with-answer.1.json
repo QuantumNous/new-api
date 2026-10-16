@@ -1,0 +1,29 @@
+{
+  "output": {
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "2 + 2 equals 4."
+        },
+        {
+          "toolUse": {
+            "toolUseId": "json-tool-id-123",
+            "name": "json",
+            "input": {
+              "firstName": "John",
+              "lastName": "Doe"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "usage": {
+    "inputTokens": 156,
+    "outputTokens": 35,
+    "totalTokens": 191
+  },
+  "stopReason": "tool_use"
+}

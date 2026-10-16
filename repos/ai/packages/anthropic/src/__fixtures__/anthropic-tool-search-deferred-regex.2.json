@@ -1,0 +1,69 @@
+{
+  "model": "claude-sonnet-4-5-20250929",
+  "id": "msg_01AyVh7iTyYup5o85hpFmYC1",
+  "type": "message",
+  "role": "assistant",
+  "content": [
+    {
+      "type": "tool_search_tool_result",
+      "tool_use_id": "srvtoolu_01WD1PoedV47LMZdJrsVNZtM",
+      "content": {
+        "type": "tool_search_tool_search_result",
+        "tool_references": [
+          {
+            "type": "tool_reference",
+            "tool_name": "readNoteTree"
+          },
+          {
+            "type": "tool_reference",
+            "tool_name": "executeEditorOperation"
+          }
+        ]
+      }
+    },
+    {
+      "type": "text",
+      "text": "Good! I can see the current note structure has one bulleted list item with the text \"hi\". Now I need to add a new bullet point with \"bye\" after it. Let me use the `executeEditorOperation` tool to insert a new bulleted list item."
+    },
+    {
+      "type": "tool_use",
+      "id": "toolu_01Vif37vPguXdx5yxixnpvpM",
+      "name": "executeEditorOperation",
+      "input": {
+        "noteId": "d10aa585-982b-4bd9-984e-420f9b3717f7",
+        "operations": [
+          {
+            "op": "insert_node",
+            "at": {
+              "type": "path",
+              "path": [
+                1
+              ]
+            },
+            "type": "bulletedListItem",
+            "text": "bye"
+          }
+        ]
+      },
+      "caller": {
+        "type": "direct"
+      }
+    }
+  ],
+  "stop_reason": "tool_use",
+  "stop_sequence": null,
+  "usage": {
+    "input_tokens": 1520,
+    "cache_creation_input_tokens": 0,
+    "cache_read_input_tokens": 0,
+    "cache_creation": {
+      "ephemeral_5m_input_tokens": 0,
+      "ephemeral_1h_input_tokens": 0
+    },
+    "output_tokens": 203,
+    "service_tier": "standard",
+    "server_tool_use": {
+      "web_search_requests": 0
+    }
+  }
+}

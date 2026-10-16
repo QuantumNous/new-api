@@ -1,0 +1,188 @@
+---
+description: 'Rsbuild 默认集成 PostCSS，你可以通过 tools.postcss 对 postcss-loader 进行配置。'
+---
+
+# tools.postcss
+
+- **类型：** `Object | Function`
+- **默认值：**
+
+```js
+const defaultOptions = {
+  postcssOptions: {
+    config: false,
+    sourceMap: rsbuildConfig.output.sourceMap.css,
+  },
+};
+```
+
+Rsbuild 默认集成 PostCSS，你可以通过 `tools.postcss` 对 [postcss-loader](https://github.com/webpack/postcss-loader) 进行配置。
+
+## Function 类型
+
+当 `tools.postcss` 是一个 function 时，默认选项会作为第一个参数传入，你可以直接修改这个对象，也可以返回一个新的对象作为最终使用的选项。函数的第二个参数为修改 `postcss-loader` 配置的工具函数。
+
+例如，需要新增一个 PostCSS 插件，调用 [addPlugins](#addplugins) 工具函数即可：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    postcss: (opts, { addPlugins }) => {
+      addPlugins(require('postcss-px-to-viewport'));
+    },
+  },
+};
+```
+
+需要给 PostCSS 插件传递参数时，可以将 PostCSS 插件作为一个函数调用：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    postcss: (opts, { addPlugins }) => {
+      const viewportPlugin = require('postcss-px-to-viewport')({
+        viewportWidth: 375,
+      });
+      addPlugins(viewportPlugin);
+    },
+  },
+};
+```
+
+也可以修改默认的 `postcss-loader` 选项：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    postcss: (opts) => {
+      opts.sourceMap = false;
+    },
+  },
+};
+```
+
+`tools.postcss` 可以返回一个配置对象，并完全替换默认配置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    postcss: () => {
+      return {
+        postcssOptions: {
+          plugins: [require('postcss-px-to-viewport')],
+        },
+      };
+    },
+  },
+};
+```
+
+## Object 类型
+
+当 `tools.postcss` 是一个 object 时，它会与默认配置通过 `Object.assign` 合并。注意 `Object.assign` 是浅拷贝，它会完全覆盖内置的 `plugins` 数组，请谨慎使用。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    postcss: {
+      // 由于使用 `Object.assign` 合并，因此默认的 postcssOptions 会被覆盖。
+      postcssOptions: {
+        plugins: [require('postcss-px-to-viewport')],
+      },
+    },
+  },
+};
+```
+
+## 工具函数
+
+### addPlugins
+
+```ts
+type AddPlugins = (
+  plugins: PostCSSPlugin | PostCSSPlugin[],
+  options?: {
+    /**
+     * 控制插件在现有 PostCSS 插件列表中的添加位置
+     * @default 'post'
+     */
+    order?: 'pre' | 'post';
+  },
+) => void;
+```
+
+用于添加额外的 PostCSS 插件，你可以传入单个 PostCSS 插件，也可以传入 PostCSS 插件数组。
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    postcss: (config, { addPlugins }) => {
+      // 添加一个插件
+      addPlugins(require('postcss-preset-env'));
+      // 批量添加插件
+      addPlugins([require('postcss-preset-env'), require('postcss-import')]);
+    },
+  },
+};
+```
+
+要在已有的插件之前添加插件，设置 `order` 选项为 `pre`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    postcss: (config, { addPlugins }) => {
+      addPlugins(require('postcss-preset-env'), { order: 'pre' });
+    },
+  },
+};
+```
+
+## 实践
+
+### 多份 PostCSS 选项
+
+`tools.postcss.postcssOptions` 可以设置为一个函数，函数接收 Rspack 的 `loaderContext` 作为参数，这允许你根据不同的文件路径使用不同的 PostCSS 选项。
+
+例如，为路径中包含 `foo` 的文件使用 `postcss-plugin-a`，为其他文件使用 `postcss-plugin-b`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    postcss: {
+      postcssOptions: (loaderContext) => {
+        if (/foo/.test(loaderContext.resourcePath)) {
+          return {
+            plugins: [require('postcss-plugin-a')],
+          };
+        }
+        return {
+          plugins: [require('postcss-plugin-b')],
+        };
+      },
+    },
+  },
+};
+```
+
+:::tip
+如果项目中包含 `postcss.config.*` 配置文件，该文件的内容会与 `tools.postcss.postcssOptions` 合并，后者的优先级更高，`plugins` 数组会被合并到一个数组中。
+:::
+
+## 注意事项
+
+### PostCSS 版本
+
+Rsbuild 中使用的 PostCSS 版本为 v8，当你引入社区中的 PostCSS 插件时，请注意版本是否适配，部分旧版本插件可能无法在 PostCSS v8 下运行。
+
+### PostCSS 配置加载
+
+Rsbuild 使用 [postcss-load-config](https://github.com/postcss/postcss-load-config) 加载 PostCSS 配置文件，并将其与默认配置合并。
+
+Rsbuild 内部将 `postcss-loader` 的 `postcssOptions.config` 选项始终设置为 `false`，以避免重复加载配置文件。
+
+## 版本历史
+
+| 版本   | 变更内容                           |
+| ------ | ---------------------------------- |
+| v1.6.8 | `addPlugins` 方法新增 `order` 选项 |

@@ -1,0 +1,9 @@
+{
+  "name": "@e2e/swc-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@swc/plugin-remove-console": "catalog:"
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "lineWidth": 120
+  },
+  "javascript": {
+    "formatter": {
+      "trailingCommas": "es5"
+    }
+  },
+  "json": {
+    "formatter": {
+      "trailingCommas": "none"
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "suspicious": {
+        "noExplicitAny": "off", // `any` is amazing
+        "noUnsafeDeclarationMerging": "off",
+        "noMisleadingInstantiator": "off",
+        "noEmptyInterface": "off",
+        "noConfusingVoidType": "off",
+        "noThenProperty": "off"
+      },
+      "style": {
+        "noUnusedTemplateLiteral": "off", // why is this even a best practice?
+        "noParameterAssign": "off", // required for performant coercion in _parse
+        "noNonNullAssertion": "off",
+        "useTemplate": "off",
+        "noUselessElse": "off"
+      },
+      "correctness": {
+        "noUnusedImports": {
+          "level": "error",
+          "fix": "none"
+        },
+        "noUnusedVariables": {
+          "level": "warn",
+          "fix": "none"
+        }
+      },
+      "complexity": {
+        "noUselessConstructor": "off",
+        "noBannedTypes": "off",
+        "useArrowFunction": "off",
+        "useLiteralKeys": {
+          "fix": "unsafe",
+          "level": "error"
+        }
+      },
+      "performance": {
+        "noDelete": "off"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "off",
+        "noDangerouslySetInnerHtmlWithChildren": "off"
+      }
+    }
+  },
+  "files": {
+    "ignore": ["lib", "coverage", "dist", ".tshy", ".tshy-build", "experiments", ".source"]
+  }
+}

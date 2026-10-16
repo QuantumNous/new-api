@@ -1,0 +1,9 @@
+{
+  "name": "@e2e/html-loader",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "html-loader": "catalog:"
+  }
+}

@@ -1,0 +1,146 @@
+---
+description: 'Rsbuild supports building outputs for multiple environments. You can use environments to define different Rsbuild configurations for each environment.'
+---
+
+# environments
+
+Rsbuild supports building outputs for multiple environments. You can use `environments` to define different Rsbuild configurations for each environment.
+
+> Please refer to [Multi-environment builds](/guide/advanced/environments) for more information.
+
+- **Type:**
+
+```ts
+type Environments = {
+  [name: string]: EnvironmentConfig;
+};
+```
+
+- **Default:** `undefined`
+
+## Available options
+
+`EnvironmentConfig` is a subset of the Rsbuild configuration, supporting most options.
+
+Since multiple environments share the same server instance, the following options are currently not supported in `EnvironmentConfig`:
+
+- `root`
+- `mode`
+- `logLevel`
+- `customLogger`
+- `environments`
+- `server.*`
+- `dev.watchFiles`
+- `dev.cliShortcuts`
+
+## Example
+
+Configure Rsbuild configuration for `web` (client) and `node` (SSR) environments:
+
+```ts title="rsbuild.config.ts"
+export default {
+  // Shared configuration for all environments
+  resolve: {
+    alias: {
+      '@common': './src/common',
+    },
+  },
+  environments: {
+    // configuration for client
+    web: {
+      source: {
+        entry: {
+          index: './src/index.client.js',
+        },
+      },
+      output: {
+        target: 'web',
+      },
+      resolve: {
+        alias: {
+          '@common1': './src/web/common1',
+        },
+      },
+    },
+    // configuration for SSR
+    node: {
+      source: {
+        entry: {
+          index: './src/index.server.js',
+        },
+      },
+      output: {
+        target: 'node',
+        distPath: {
+          root: 'dist/server',
+        },
+      },
+      resolve: {
+        alias: {
+          '@common1': './src/ssr/common1',
+        },
+      },
+    },
+  },
+};
+```
+
+For the `web` environment, the merged Rsbuild configuration is:
+
+```js
+const webConfig = {
+  source: {
+    entry: {
+      index: './src/index.client.js',
+    },
+  },
+  output: {
+    target: 'web',
+  },
+  resolve: {
+    alias: {
+      '@common': './src/common',
+      '@common1': './src/web/common1',
+    },
+  },
+};
+```
+
+For the `node` environment, the merged Rsbuild configuration is:
+
+```js
+const nodeConfig = {
+  source: {
+    entry: {
+      index: './src/index.server.js',
+    },
+  },
+  output: {
+    target: 'node',
+    distPath: {
+      root: 'dist/server',
+    },
+  },
+  resolve: {
+    alias: {
+      '@common': './src/common',
+      '@common1': './src/ssr/common1',
+    },
+  },
+};
+```
+
+## Environment name
+
+Since environment names are used in directory names and object property names, we recommend using only letters, numbers, `-`, `_`, and `$`. When other characters are used, Rsbuild will show a warning.
+
+```ts title="rsbuild.config.ts"
+export default {
+  environments: {
+    someName: {}, // ✅
+    some_name: {}, // ✅
+    'some-name': {}, // ✅
+    'some:name': {}, // ❌
+  },
+};
+```

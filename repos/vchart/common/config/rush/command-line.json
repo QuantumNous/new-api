@@ -1,0 +1,213 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/rush/v5/command-line.schema.json",
+  "commands": [
+    {
+      "name": "rebuild",
+      "summary": "",
+      "enableParallelism": false,
+      "commandKind": "bulk",
+      "ignoreMissingScript": true,
+      "allowWarningsInSuccessfulBuild": true
+    },
+    {
+      "name": "build",
+      "summary": "",
+      "enableParallelism": false,
+      "commandKind": "bulk",
+      "ignoreMissingScript": true,
+      "allowWarningsInSuccessfulBuild": true
+    },
+    {
+      "name": "compile",
+      "summary": "",
+      "enableParallelism": false,
+      "commandKind": "bulk",
+      "ignoreMissingScript": true,
+      "allowWarningsInSuccessfulBuild": true
+    },
+    {
+      "name": "eslint",
+      "summary": "",
+      "enableParallelism": false,
+      "commandKind": "bulk",
+      "ignoreMissingScript": true,
+      "ignoreDependencyOrder": true,
+      "allowWarningsInSuccessfulBuild": true
+    },
+    {
+      "name": "test",
+      "summary": "",
+      "enableParallelism": false,
+      "commandKind": "bulk",
+      "ignoreMissingScript": true,
+      "ignoreDependencyOrder": true,
+      "allowWarningsInSuccessfulBuild": true
+    },
+    {
+      "name": "run",
+      "summary": "",
+      "commandKind": "global",
+      "autoinstallerName": "run-script",
+      "safeForSimultaneousRushProcesses": true,
+      "shellCommand": "ts-node common/autoinstallers/run-script/run.ts"
+    },
+    {
+      "name": "commitlint",
+      "commandKind": "global",
+      "summary": "Used by the commit-msg Git hook. This command invokes commitlint to lint commit message.",
+      "autoinstallerName": "lint",
+      "safeForSimultaneousRushProcesses": true,
+      "shellCommand": "node common/autoinstallers/lint/commit-lint.js"
+    },
+    {
+      "name": "lint-staged",
+      "commandKind": "global",
+      "summary": "Used by the pre-commit Git hook. This command invokes eslint to lint staged changes.",
+      "autoinstallerName": "lint",
+      "safeForSimultaneousRushProcesses": true,
+      "shellCommand": "lint-staged"
+    },
+    {
+      "name": "prettier",
+      "commandKind": "global",
+      "summary": "Used by the pre-commit Git hook. This command invokes Prettier to reformat staged changes.",
+      "safeForSimultaneousRushProcesses": true,
+      "autoinstallerName": "lint",
+      "shellCommand": "ts-node common/autoinstallers/lint/prettier.ts"
+    },
+    {
+      "name": "create",
+      "commandKind": "global",
+      "summary": "Create a project in 'packages' dir",
+      "autoinstallerName": "create",
+      "safeForSimultaneousRushProcesses": true,
+      "shellCommand": "ts-node common/autoinstallers/create/src/cli.ts"
+    },
+    {
+      "commandKind": "global",
+      "name": "start",
+      "summary": "Start the development server",
+      "description": "Run this command to start vchart development server",
+      "shellCommand": "rush run -p @visactor/vchart -s start"
+    },
+    {
+      "commandKind": "global",
+      "name": "react",
+      "summary": "Start the development server of react-vchart demo",
+      "description": "Run this command to start react-vchart development server",
+      "shellCommand": "rush run -p @visactor/react-vchart -s start"
+    },
+    {
+      "commandKind": "global",
+      "name": "openinula",
+      "summary": "Start the development server of openinula-vchart demo",
+      "description": "Run this command to start openinula-vchart development server",
+      "shellCommand": "rush run -p @visactor/openinula-vchart -s start"
+    },
+    {
+      "name": "change-all",
+      "commandKind": "global",
+      "autoinstallerName": "run-script",
+      "summary": "Run rush change width lint",
+      "description": "Run rush change width lint",
+      "safeForSimultaneousRushProcesses": true,
+      "shellCommand": "ts-node common/autoinstallers/lint/change-all.ts"
+    },
+    {
+      "commandKind": "global",
+      "name": "docs",
+      "summary": "Start the document development server",
+      "description": "Run this command to start document development server",
+      "shellCommand": "rush run -p @internal/docs -s start"
+    },
+    {
+      "commandKind": "global",
+      "name": "types",
+      "summary": "Build the types of vchart",
+      "description": "Run this command to build the types of vchart",
+      "shellCommand": "rush run -p @visactor/vchart -s build:types"
+    }
+  ],
+  "parameters": [
+    {
+      "parameterKind": "string",
+      "longName": "--dir",
+      "description": "Specify which dir will handle",
+      "associatedCommands": [
+        "prettier"
+      ],
+      "argumentName": "DIR",
+      "required": false
+    },
+    {
+      "parameterKind": "string",
+      "longName": "--ext",
+      "description": "Specify which file type will handle, example `rush prettier --ext 'tsx,scss'`",
+      "associatedCommands": [
+        "prettier"
+      ],
+      "argumentName": "EXT",
+      "required": false
+    },
+    {
+      "parameterKind": "string",
+      "longName": "--project",
+      "shortName": "-p",
+      "description": "Specify the name of the main Rush project to be run",
+      "associatedCommands": [
+        "run"
+      ],
+      "argumentName": "PROJECT_NAME",
+      "required": true
+    },
+    {
+      "parameterKind": "string",
+      "longName": "--script",
+      "shortName": "-s",
+      "description": "Specify script name in project",
+      "associatedCommands": [
+        "run"
+      ],
+      "argumentName": "SCRIPT_NAME",
+      "required": true
+    },
+    {
+      "parameterKind": "string",
+      "longName": "--message",
+      "shortName": "-m",
+      "description": "Write a message for change",
+      "associatedCommands": ["change-all"],
+      "argumentName": "MESSAGE",
+      "required": false
+    },
+    {
+      "parameterKind": "flag",
+      "longName": "--not-commit",
+      "shortName": "-n",
+      "description": "not commit after run rush change",
+      "associatedCommands": ["change-all"],
+      "required": false
+    },
+    {
+      "parameterKind": "choice",
+      "longName": "--type",
+      "shortName": "-t",
+      "description": "The bump type of change: major, minor, patch, none",
+      "associatedCommands": ["change-all"],
+      "alternatives": [
+        {
+          "name": "patch",
+          "description": "A patch change"
+        },
+        {
+          "name": "minor",
+          "description": "A minor change"
+        },
+        {
+          "name": "major",
+          "description": "A major change"
+        }
+      ]
+    }
+  ]
+}

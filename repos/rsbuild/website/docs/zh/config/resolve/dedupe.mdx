@@ -1,0 +1,56 @@
+---
+description: '强制 Rsbuild 从项目根目录解析指定的包，这可以用于移除重复包和减少包大小。'
+---
+
+# resolve.dedupe
+
+- **类型：** `string[]`
+- **默认值：** `undefined`
+- **版本：** `>= 1.1.7`
+
+强制 Rsbuild 从项目根目录解析指定的包，这可以用于移除重复包和减少包大小。
+
+## 示例
+
+例如，假设你的项目是基于 React 19 开发的，而你正在使用的 `foo` 包依赖了 React 17，那么你的项目中就会存在两个不同版本的 React：
+
+```
+app/
+├── src/
+└── node_modules/
+    ├── foo/
+    │   └── node_modules/
+    │       ├── react (v17)
+    │       └── react-dom (v17)
+    ├── react (v19)
+    └── react-dom (v19)
+```
+
+在这种情况下，你可以使用 `resolve.dedupe` 配置项来移除重复的 React 包，将所有 `react` 和 `react-dom` 包都解析到 `/node_modules/react` 和 `/node_modules/react-dom`：
+
+```ts title="rsbuild.config.ts"
+export default defineConfig({
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+  },
+});
+```
+
+注意，如果使用 `resolve.dedupe` 将一个包的不同 major 版本统一为同一个，可能导致一些包无法正常工作，因为它们可能依赖于特定版本的 API 或功能。
+
+例如，如果 `foo` 依赖了一个 React 17 特有的 API 或功能，此时将 React 17 和 React 19 统一为 React 19，就可能会导致 `foo` 无法正常工作。
+
+## 实现原理
+
+`resolve.dedupe` 是基于 [resolve.alias](/config/resolve/alias) 实现的，它会在当前项目的根目录下通过 `require.resolve` 获取指定包的路径，并设置到 alias 中。
+
+在上述的例子中，`resolve.dedupe` 会被转换为以下 alias 配置：
+
+```ts
+const alias = {
+  react: '/app/node_modules/react',
+  'react-dom': '/app/node_modules/react-dom',
+};
+```
+
+`resolve.dedupe` 生成的 alias 会与项目中配置的 `resolve.alias` 合并，当两者配置了相同的 key 时，`resolve.alias` 的优先级更高。

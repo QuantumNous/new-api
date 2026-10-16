@@ -1,0 +1,40 @@
+{
+  "projectName": "react-i18next",
+  "projectOwner": "i18next",
+  "repoType": "github",
+  "repoHost": "https://github.com",
+  "files": ["README.md"],
+  "imageSize": 100,
+  "commit": false,
+  "contributors": [
+    {
+      "login": "jamuhl",
+      "name": "Jan Mühlemann",
+      "avatar_url": "https://avatars3.githubusercontent.com/u/977772?v=4",
+      "profile": "http://twitter.com/jamuhl",
+      "contributions": ["code", "example", "doc", "question"]
+    },
+    {
+      "login": "adrai",
+      "name": "Adriano Raiano",
+      "avatar_url": "https://avatars0.githubusercontent.com/u/1086194?v=4",
+      "profile": "http://twitter.com/#!/adrirai",
+      "contributions": ["code", "example", "doc", "question"]
+    },
+    {
+      "login": "tigerabrodi",
+      "name": "Tiger Abrodi",
+      "avatar_url": "https://avatars1.githubusercontent.com/u/49603590?v=4",
+      "profile": "https://tigerabrodi.dev/",
+      "contributions": ["question", "code", "review"]
+    },
+    {
+      "login": "pedrodurek",
+      "name": "Pedro Durek",
+      "avatar_url": "https://avatars1.githubusercontent.com/u/12190482?v=4",
+      "profile": "https://github.com/pedrodurek",
+      "contributions": ["code", "example"]
+    }
+  ],
+  "commitConvention": "none"
+}

@@ -1,0 +1,70 @@
+{
+  "id": "resp_68da74aaae58819ca776fbd20244e8df0fdbc19a07110799",
+  "object": "response",
+  "created_at": 1759147178,
+  "status": "completed",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-5-codex",
+  "output": [
+    {
+      "id": "rs_68da74ab2c48819cb435ff526bd1ba1d0fdbc19a07110799",
+      "type": "reasoning",
+      "summary": []
+    },
+    {
+      "id": "lsh_68da74abdaec819c9aa19c124308f4600fdbc19a07110799",
+      "type": "local_shell_call",
+      "status": "completed",
+      "action": {
+        "type": "exec",
+        "command": ["ls"],
+        "env": {},
+        "working_directory": "/root"
+      },
+      "call_id": "call_XWgeTylovOiS8xLNz2TONOgO"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "reasoning": {
+    "effort": "medium",
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1.0,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [],
+  "top_logprobs": 0,
+  "top_p": 1.0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 407,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 24,
+    "output_tokens_details": {
+      "reasoning_tokens": 0
+    },
+    "total_tokens": 431
+  },
+  "user": null,
+  "metadata": {}
+}

@@ -1,0 +1,41 @@
+// Fixture for testing reactive count changes via onUpdate.
+// The <virtualizer> tag must recalculate items when count changes —
+// this requires the explicit notify() call after _willUpdate() in onUpdate.
+// Without it, count changes silently have no effect.
+
+export interface Input {
+  initialCount?: number
+}
+
+<let/count = (input.initialCount ?? 3)/>
+
+<div/scrollEl style="height: 400px; width: 400px; overflow: auto">
+  <button
+    data-testid="increment-btn"
+    onClick=() => { count = count + 1 }
+  />
+  <button
+    data-testid="decrement-btn"
+    onClick=() => { count = Math.max(0, count - 1) }
+  />
+  <virtualizer|{ virtualItems, totalSize }|
+    count=count
+    estimateSize=() => 50
+    getScrollElement=scrollEl
+  >
+    <div
+      data-testid="virtual-wrapper"
+      style=`height: ${totalSize}px; position: relative`
+    >
+      <for|item| of=virtualItems>
+        <div
+          data-testid="virtual-item"
+          data-index=item.index
+          style=`position: absolute; height: ${item.size}px; transform: translateY(${item.start}px)`
+        >
+          Row ${item.index}
+        </div>
+      </for>
+    </div>
+  </virtualizer>
+</div>

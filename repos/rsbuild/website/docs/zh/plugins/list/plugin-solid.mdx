@@ -1,0 +1,125 @@
+---
+description: 'Solid 插件提供了对 Solid 的支持，插件内部集成了 babel-preset-solid。'
+---
+
+# Solid 插件
+
+import { SourceCode } from '@theme';
+
+<SourceCode href="https://github.com/web-infra-dev/rsbuild/tree/main/packages/plugin-solid" />
+
+Solid 插件提供了对 Solid 的支持，插件内部集成了 [babel-preset-solid](https://github.com/solidjs/solid/tree/main/packages/babel-preset-solid)。
+
+## 快速开始
+
+### 安装插件
+
+执行以下命令安装插件：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/plugin-babel @rsbuild/plugin-solid -D" />
+
+### 注册插件
+
+在 Rsbuild 配置中注册插件：
+
+```ts title="rsbuild.config.ts"
+import { pluginBabel } from '@rsbuild/plugin-babel';
+import { pluginSolid } from '@rsbuild/plugin-solid';
+
+export default {
+  plugins: [
+    pluginBabel({
+      include: /\.(?:jsx|tsx)$/,
+    }),
+    pluginSolid(),
+  ],
+};
+```
+
+注册后，即可进行 Solid 开发。
+
+:::tip
+由于 Solid 的 JSX 依赖 Babel 进行编译，因此你需要额外添加 [Babel 插件](/plugins/list/plugin-babel)。
+
+Babel 编译会产生额外的编译开销，在上述例子中，我们通过 `include` 来匹配 `.jsx` 和 `.tsx` 文件，从而减少 Babel 带来的性能开销。
+
+:::
+
+## 解析行为
+
+Solid 插件会将 `solid` 添加到 Rsbuild 的 [resolve.conditionNames](/config/resolve/condition-names) 中，使 package exports 可以解析到 Solid 专属的入口。
+
+在开发模式下，插件还会添加 `development`，用于解析 Solid 的开发环境运行时。你可以通过 [`dev: false`](#dev) 关闭该行为。
+
+如果你配置了 `resolve.conditionNames`，插件会保留已有配置，并在前面添加这些 Solid 条件。
+
+## 选项
+
+如果你需要自定义 Solid 的编译行为，可以使用以下配置项。
+
+### dev
+
+是否在开发模式下解析 Solid 的开发环境运行时。设置为 `false` 可以禁用 `development` condition，设置为 `true` 可以在生产模式下强制启用 `development` condition。
+
+- **类型：** `boolean`
+- **默认值：** 开发模式下为 `true`，生产模式下为 `false`
+- **示例：**
+
+```ts
+pluginSolid({
+  dev: false,
+});
+```
+
+### refresh.disabled
+
+是否在开发模式下禁用 [Solid Refresh](https://github.com/solidjs/solid-refresh) HMR。该选项只控制 Solid Refresh 注入，不会禁用 Rsbuild HMR。
+
+- **类型：** `boolean`
+- **默认值：** `false`
+- **示例：**
+
+```ts
+pluginSolid({
+  refresh: {
+    disabled: true,
+  },
+});
+```
+
+### ssr
+
+是否生成 Solid SSR 输出。启用后，插件会为 Node.js target 设置 `generate: 'ssr'` 和 `hydratable: true`，为其他 target 设置 `generate: 'dom'` 和 `hydratable: true`。
+
+[`solid`](#solid) 中的配置会覆盖这些默认值。
+
+- **类型：** `boolean`
+- **默认值：** `false`
+- **示例：**
+
+```ts
+pluginSolid({
+  ssr: true,
+});
+```
+
+### solid
+
+传递给 `babel-preset-solid` 的选项，请查阅 [babel-preset-solid 文档](https://npmjs.com/package/babel-preset-solid) 来了解具体用法。
+
+- **类型：** `SolidPresetOptions`
+- **默认值：** `{}`
+- **示例：**
+
+```ts
+pluginSolid({
+  solid: {
+    generate: 'ssr',
+    hydratable: true,
+  },
+});
+```
+
+> `solidPresetOptions` 是 `solid` 的废弃别名，请使用 `solid` 代替。如果两个选项同时设置，则 `solid` 优先生效。

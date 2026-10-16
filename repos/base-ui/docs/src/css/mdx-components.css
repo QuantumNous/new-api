@@ -1,0 +1,110 @@
+@import './custom-media.css';
+
+@layer components {
+  .MdCode {
+    margin-inline: 0.1em;
+  }
+
+  pre .MdCode {
+    margin-inline: 0;
+  }
+
+  .MdH1 {
+    margin-bottom: 1rem;
+    font-family: var(--font-sans-b);
+    font-size: var(--font-size-34);
+    line-height: 2.7rem;
+    font-weight: var(--font-weight-700);
+    text-wrap: balance;
+  }
+
+  .MdH2 {
+    margin-top: 2.5rem;
+    margin-bottom: 1rem;
+    scroll-margin-top: calc(var(--header-height) + 1rem);
+    font-family: var(--font-sans-b);
+    font-size: var(--font-size-21);
+    line-height: 1.625rem;
+    font-weight: var(--font-weight-700);
+    text-wrap: balance;
+  }
+
+  .Subtitle + .MdH2 {
+    margin-top: 0;
+  }
+
+  .MdH3 {
+    margin-top: 2rem;
+    margin-bottom: 0.375rem;
+    scroll-margin-top: calc(var(--header-height) + 1rem);
+    font-family: var(--font-sans-b);
+    font-size: var(--font-size-18);
+    line-height: 1.75rem;
+    font-weight: var(--font-weight-700);
+    text-wrap: balance;
+  }
+
+  .MdH4,
+  .MdH5,
+  .MdH6 {
+    margin-top: 2rem;
+    margin-bottom: 0.375rem;
+    scroll-margin-top: calc(var(--header-height) + 1rem);
+    font-weight: var(--font-weight-700);
+    text-wrap: balance;
+  }
+
+  @media (--show-quick-nav) {
+    .MdH2,
+    .MdH3,
+    .MdH4,
+    .MdH5,
+    .MdH6 {
+      scroll-margin-top: 1.5rem;
+    }
+  }
+
+  .MdP {
+    margin-bottom: 1rem;
+  }
+
+  .MdListItem {
+    margin-bottom: 0.125rem;
+  }
+
+  .MdListItem > p {
+    margin-bottom: 0.5rem;
+  }
+
+  .MdUl {
+    margin-bottom: 1rem;
+    margin-left: 1.125rem;
+    list-style-type: disc;
+  }
+
+  .MdOl {
+    margin-bottom: 1rem;
+    margin-left: 1.75rem;
+    list-style-type: decimal;
+  }
+
+  .MdTable {
+    margin-block: 1.25rem;
+  }
+
+  .MdReferenceBlock {
+    margin-top: 1.25rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .MdFigure {
+    margin-top: var(--space-20);
+    margin-bottom: var(--space-24);
+  }
+
+  .MdEm {
+    font-family: var(--font-serif);
+    /* Adjust to visually match the sans-serif font */
+    font-size: 1.06em;
+  }
+}

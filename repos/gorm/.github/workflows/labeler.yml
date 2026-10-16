@@ -1,0 +1,19 @@
+name: "Issue Labeler"
+on:
+  issues:
+    types: [opened, edited, reopened]
+  pull_request:
+    types: [opened, edited, reopened]
+
+jobs:
+  triage:
+    runs-on: ubuntu-latest
+    name: Label issues and pull requests
+    steps:
+      - name: check out
+        uses: actions/checkout@v3
+
+      - name: labeler
+        uses: jinzhu/super-labeler-action@develop
+        with:
+          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"

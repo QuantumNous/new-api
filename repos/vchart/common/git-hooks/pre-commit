@@ -1,0 +1,39 @@
+#!/bin/sh
+
+# log rush change to stdout
+STAGE_FILES=$(git diff --cached --name-only)
+
+if [[ $STAGE_FILES != "" ]] ; then
+  changedFiles=''
+  # 红色文本的 ANSI 转义序列
+  RED='\033[0;31m'
+  # 大字体的 ANSI 转义序列
+  BIG_FONT='\033[1m'
+
+  # 重置颜色的 ANSI 转义序列
+  RESET='\033[0m'
+
+  for fileName in $STAGE_FILES;do
+    if [[ $fileName =~ ^packages/.*\/src/.* ]]; then
+      changedFiles="${changedFiles}
+       ${RED}${fileName}${RESET}"
+    fi
+  done;
+
+  if [[ $changedFiles != "" ]] ; then
+
+    echo "
+    [Notice]: please check, do you need to run ${RED}${BIG_FONT}rush change-all${RESET} to generate changelog,
+    you has modified some src files, include:
+    ${changedFiles}
+    "
+  fi
+fi
+
+# lint-staged
+node common/scripts/install-run-rush.js lint-staged || exit $? #++
+
+# local pre-commit
+if [ -f "common/scripts/pre-commit" ]; then
+  common/scripts/pre-commit
+fi

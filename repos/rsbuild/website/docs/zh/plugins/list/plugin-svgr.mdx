@@ -1,0 +1,442 @@
+---
+description: '默认情况下，Rsbuild 会将 SVG 图片当作静态资源处理，处理规则可参考：静态资源。'
+---
+
+# SVGR 插件
+
+import { SourceCode } from '@theme';
+
+<SourceCode href="https://github.com/web-infra-dev/rsbuild/tree/main/packages/plugin-svgr" />
+
+默认情况下，Rsbuild 会将 SVG 图片当作静态资源处理，处理规则可参考：[静态资源](/guide/basic/static-assets)。
+
+通过添加 SVGR 插件，Rsbuild 支持调用 [SVGR](https://react-svgr.com/)，将 SVG 图片转换为一个 React 组件使用。
+
+## 快速开始
+
+### 安装插件
+
+执行以下命令安装插件：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/plugin-svgr -D" />
+
+### 注册插件
+
+在 Rsbuild 配置中注册插件：
+
+```ts title="rsbuild.config.ts"
+import { pluginReact } from '@rsbuild/plugin-react';
+import { pluginSvgr } from '@rsbuild/plugin-svgr';
+
+export default {
+  plugins: [pluginReact(), pluginSvgr()],
+};
+```
+
+## 示例
+
+### 默认用法
+
+注册后，在 **JS 文件**中引用带有 `?react` 后缀的 SVG 资源时，Rsbuild 会调用 SVGR 将 SVG 图片转换为 React 组件。
+
+```jsx title="App.jsx"
+import Logo from './logo.svg?react';
+
+export const App = () => <Logo />;
+```
+
+如果导入的路径不包含 `?react` 后缀，那么 SVG 会被当做普通的静态资源来处理，你会得到一个 URL 字符串或 base64 URL，参考 [静态资源](/guide/basic/static-assets)。
+
+```js
+import logoURL from './static/logo.svg';
+
+console.log(logoURL); // => "/static/svg/logo.6c12aba3ab.svg" 或 base64 URL
+```
+
+### 具名导入
+
+`@rsbuild/plugin-svgr` 支持具名导入 `ReactComponent` 来使用 SVGR，你需要设置 [svgrOptions.exportType](#svgroptionsexporttype) 为 `'named'`：
+
+```js
+pluginSvgr({
+  svgrOptions: {
+    exportType: 'named',
+  },
+});
+```
+
+```jsx title="App.jsx"
+import { ReactComponent as Logo } from './logo.svg';
+
+export const App = () => <Logo />;
+```
+
+`@rsbuild/plugin-svgr` 也支持默认导入和混合导入等用法：
+
+- 通过 [svgrOptions.exportType](#svgroptionsexporttype) 设置为 `'default'` 来启用默认导入。
+- 通过 [mixedImport](#mixedimport) 选项来启用混合导入，从而同时使用默认导入和具名导入。
+
+## 选项
+
+如果你需要自定义 SVGR 的编译行为，可以使用以下配置项：
+
+- **类型：**
+
+```ts
+type PluginSvgrOptions = {
+  /**
+   * 修改 SVGR 选项
+   */
+  svgrOptions?: import('@svgr/core').Config;
+  /**
+   * 是否允许同时使用默认导入和具名导入
+   * @default false
+   */
+  mixedImport?: boolean;
+  /**
+   * 自定义匹配 SVGR 转换的 query 后缀
+   * @default /react/
+   */
+  query?: RegExp;
+  /**
+   * 是否并行将 SVG 模块转换为 React 组件
+   * @default false
+   */
+  parallel?: boolean;
+  /**
+   * 排除一部分 SVG 文件，这些文件不会经过 SVGR 处理
+   */
+  exclude?: Rspack.RuleSetCondition;
+  /**
+   * 排除一部分模块，这些模块引用的 SVG 文件不会经过 SVGR 处理
+   */
+  excludeImporter?: Rspack.RuleSetCondition;
+};
+```
+
+### svgrOptions
+
+用于修改 SVGR 的选项，传入的对象会与默认值进行 deep merge。完整文档请参考 [SVGR - Options](https://react-svgr.com/docs/options/)。
+
+- **类型：** `import('@svgr/core').Config`
+- **默认值：**
+
+```ts
+const defaultSvgrOptions = {
+  svgo: true,
+  svgoConfig: {
+    plugins: [
+      {
+        name: 'preset-default',
+        params: {
+          overrides: {
+            removeViewBox: false,
+          },
+        },
+      },
+      'prefixIds',
+    ],
+  },
+};
+```
+
+- **示例：**
+
+```ts
+pluginSvgr({
+  svgrOptions: {
+    svgoConfig: {
+      datauri: 'base64',
+    },
+  },
+});
+```
+
+当你设置 `svgoConfig.plugins` 时，同名 plugin 的配置会被自动合并，比如下面的配置会与内置的 `preset-default` 进行合并：
+
+```ts
+pluginSvgr({
+  svgrOptions: {
+    svgoConfig: {
+      plugins: [
+        {
+          name: 'preset-default',
+          params: {
+            overrides: {
+              cleanupIds: false,
+            },
+          },
+        },
+      ],
+    },
+  },
+});
+```
+
+合并后的 `svgoConfig` 如下：
+
+```ts
+const mergedSvgoConfig = {
+  plugins: [
+    {
+      name: 'preset-default',
+      params: {
+        overrides: {
+          removeViewBox: false,
+          cleanupIds: false,
+        },
+      },
+    },
+    'prefixIds',
+  ],
+};
+```
+
+### svgrOptions.exportType
+
+设置 SVG React 组件的导出方式。
+
+- **类型：** `'default' | 'named'`
+- **默认值：** `undefined`
+
+`exportType` 可以设置为：
+
+- `default`：使用默认导出。
+- `named`：使用 `ReactComponent` 具名导出。
+
+比如把 SVG 文件默认导出的内容设置为 React 组件：
+
+```ts
+pluginSvgr({
+  svgrOptions: {
+    exportType: 'default',
+  },
+});
+```
+
+此时再使用默认导入，你会得到一个 React 组件，而不是 URL：
+
+```ts
+import Logo from './logo.svg';
+
+console.log(Logo); // => React 组件
+```
+
+同时，你也可以通过指定 `?url` 的 query 来导入 url，比如：
+
+```ts
+import logo from './logo.svg?url';
+
+console.log(logo); // => 资源 url
+```
+
+:::tip
+当 `svgrOptions.exportType` 被设置为 `'default'` 时，具名导入（ReactComponent）将无法使用。
+:::
+
+### mixedImport
+
+- **类型：** `boolean`
+- **默认值：** `false`
+
+是否开启混合导入，允许同时使用默认导入和命名导入。
+
+混合导入通常和 `svgrOptions.exportType: 'named'` 同时使用，比如：
+
+```ts
+pluginSvgr({
+  mixedImport: true,
+  svgrOptions: {
+    exportType: 'named',
+  },
+});
+```
+
+此时引用的 SVG 文件会同时导出 URL 和 React 组件：
+
+```js
+import logoUrl, { ReactComponent as Logo } from './logo.svg';
+
+console.log(logoUrl); // -> string
+console.log(Logo); // -> React component
+```
+
+:::tip
+启用 `mixedImport` 后，如果没有显式设置 `svgrOptions.exportType`，则默认值为 `'named'`。
+:::
+
+#### 局限性
+
+建议优先使用 `?react` 来将 SVG 转换为 React 组件，而不是使用混合导入。因为混合导入有如下局限性：
+
+1. 包体积增加：混合导入会导致单个 SVG 模块被编译为两种代码（即使部分导出没有被使用），这会增加产物的包体积。
+2. 编译速度下降：混合导入会产生额外的编译开销。即使代码中未使用到 ReactComponent 导出，SVG 文件仍然会被 SVGR 编译。而 SVGR 是基于 Babel 实现的，性能开销较大。
+
+### query
+
+- **类型：** `RegExp`
+- **默认值：** `/react/`
+
+用于自定义匹配 SVGR 转换的 query 后缀。
+
+比如需要匹配带有 `?svgr` 后缀的 import 路径：
+
+```ts
+pluginSvgr({
+  query: /svgr/,
+});
+```
+
+```jsx title="App.jsx"
+import Logo from './logo.svg?svgr';
+
+export const App = () => <Logo />;
+```
+
+### parallel
+
+- **类型：** `boolean`
+- **默认值：** `false`
+- **版本：** 添加于 v2.0.4
+
+是否使用 worker 线程并行将 SVG 模块转换为 React 组件。开启后，SVG 模块会被分配到多个 worker 线程中处理，降低主线程压力，并在编译大量 SVG 模块时提升整体构建性能。
+
+```ts
+pluginSvgr({
+  parallel: true,
+});
+```
+
+> 该功能基于 Rspack 的 parallel loader 实现。传递给 worker 线程的选项必须符合 [HTML 结构化克隆算法](https://nodejs.org/api/worker_threads.html#portpostmessagevalue-transferlist) 的要求，否则会传输失败。例如，不能将函数作为选项传递。详见 [Rspack - Rule.use.parallel](https://rspack.rs/zh/config/module-rules#rulesuseparallel)。
+
+### exclude
+
+- **类型：** [Rspack.RuleSetCondition](https://rspack.rs/zh/config/module-rules#condition)
+- **默认值：** `undefined`
+
+用于排除一部分 SVG 模块，这些 SVG 模块不会经过 SVGR 处理。
+
+比如，项目中包含 `a.svg` 和 `b.svg`，你可以将 `b.svg` 添加到 exclude：
+
+```ts
+pluginSvgr({
+  svgrOptions: {
+    exportType: 'default',
+  },
+  exclude: /b\.svg/,
+});
+```
+
+在引用时，`a.svg` 会被转换为 React 组件，`b.svg` 会被当做普通的静态资源来处理：
+
+```ts title="src/index.ts"
+import component from './a.svg';
+import url from './b.svg';
+
+console.log(component); // => React 组件
+console.log(url); // => 资源 url
+```
+
+### excludeImporter
+
+- **类型：** [Rspack.RuleSetCondition](https://rspack.rs/zh/config/module-rules#condition)
+- **默认值：** `undefined`
+
+用于排除一部分模块，这些模块引用的 SVG 文件不会经过 SVGR 处理。
+
+比如，项目中包含 `page-a/index.ts` 和 `page-b/index.ts`，你可以将 `page-b` 添加到 excludeImporter：
+
+```ts
+pluginSvgr({
+  svgrOptions: {
+    exportType: 'default',
+  },
+  excludeImporter: /\/page-b\/index\.ts/,
+});
+```
+
+- page-a 中引用的 SVG 会被转换为 React 组件：
+
+```ts title="page-a/index.ts"
+import Logo from './logo.svg';
+
+console.log(Logo); // => React 组件
+```
+
+- page-b 中引用的 SVG 会被当做普通的静态资源来处理：
+
+```ts title="page-b/index.ts"
+import url from './logo.svg';
+
+console.log(url); // => 资源 url
+```
+
+:::tip
+模块路径中的 query 比 `exclude` 和 `excludeImporter` 具有更高的优先级。比如某个模块被 exclude，添加 `?react` 依然可以使它被 SVGR 转换。
+:::
+
+## 类型声明
+
+当你在 TypeScript 代码中引用 SVG 资源时，TypeScript 可能会提示该模块缺少类型定义：
+
+```
+TS2307: Cannot find module './logo.svg?react' or its corresponding type declarations.
+```
+
+此时你需要为 SVG 资源添加类型声明文件，请在项目中创建 `src/env.d.ts` 文件，并添加相应的类型声明。
+
+- 默认情况下，你可以添加如下类型声明：
+
+```ts
+declare module '*.svg' {
+  const content: string;
+  export default content;
+}
+declare module '*.svg?react' {
+  const ReactComponent: React.FunctionComponent<React.SVGProps<SVGSVGElement>>;
+  export default ReactComponent;
+}
+```
+
+- 如果 `svgrOptions.exportType` 的值为 `'default'`，则将类型声明设置为：
+
+```ts
+declare module '*.svg' {
+  const ReactComponent: React.FunctionComponent<React.SVGProps<SVGSVGElement>>;
+  export default ReactComponent;
+}
+declare module '*.svg?react' {
+  const ReactComponent: React.FunctionComponent<React.SVGProps<SVGSVGElement>>;
+  export default ReactComponent;
+}
+```
+
+- 如果 `svgrOptions.exportType` 的值为 `'named'`，则将类型声明设置为：
+
+```ts
+declare module '*.svg' {
+  export const ReactComponent: React.FunctionComponent<React.SVGProps<SVGSVGElement>>;
+}
+declare module '*.svg?react' {
+  const ReactComponent: React.FunctionComponent<React.SVGProps<SVGSVGElement>>;
+  export default ReactComponent;
+}
+```
+
+- 如果 `svgrOptions.exportType` 的值为 `'named'`，且开启了 `mixedImport`，则将类型声明设置为：
+
+```ts
+declare module '*.svg' {
+  export const ReactComponent: React.FunctionComponent<React.SVGProps<SVGSVGElement>>;
+  const content: string;
+  export default content;
+}
+declare module '*.svg?react' {
+  const ReactComponent: React.FunctionComponent<React.SVGProps<SVGSVGElement>>;
+  export default ReactComponent;
+}
+```
+
+添加类型声明后，如果依然存在上述错误提示，请尝试重启当前 IDE，或者调整 `env.d.ts` 所在的目录，使 TypeScript 能够正确识别类型定义。

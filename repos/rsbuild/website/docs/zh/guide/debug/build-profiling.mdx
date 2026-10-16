@@ -1,0 +1,79 @@
+---
+description: '进行构建性能分析可以帮助你确定项目中的性能瓶颈，从而采取针对性的优化。'
+---
+
+# 构建性能分析
+
+进行构建性能分析可以帮助你确定项目中的性能瓶颈，从而采取针对性的优化。
+
+## 使用 Rsdoctor
+
+Rsdoctor 是一个构建分析工具，能够可视化地展示各个 loaders 和 plugins 的编译耗时。
+
+请参考 [使用 Rsdoctor](/guide/debug/rsdoctor) 了解更多。
+
+## Node.js profiling
+
+当 Rsbuild 执行一次构建时，会包含 JavaScript 和 Rust 两侧的代码运行开销，以及 JavaScript 和 Rust 之间的数据通信开销。
+
+通常而言，JavaScript 侧的性能开销会大于 Rust 侧，你可以使用 Node.js 的 profiling 来分析 JS 侧的开销，这有助于发现 JS 侧的性能瓶颈。
+
+例如，进行 [CPU profiling](https://nodejs.org/docs/v20.17.0/api/cli.html#--cpu-prof) 分析，在项目根目录执行以下命令：
+
+```bash
+# dev
+node --cpu-prof ./node_modules/@rsbuild/core/bin/rsbuild.js dev
+
+# build
+node --cpu-prof ./node_modules/@rsbuild/core/bin/rsbuild.js build
+
+# 设置更高精度的采样间隔
+node --cpu-prof --cpu-prof-interval=100 ./node_modules/@rsbuild/core/bin/rsbuild.js build
+```
+
+以上命令执行后会生成一个 `*.cpuprofile` 文件，我们可以使用 [speedscope](https://github.com/jlfwong/speedscope) 来可视化查看该文件：
+
+```bash
+# 安装 speedscope
+npm install -g speedscope
+
+# 查看 cpuprofile 内容
+# 请将文件名替换为本地文件的名称
+speedscope CPU.date.000000.00000.0.001.cpuprofile
+```
+
+## Rspack profiling
+
+Rsbuild 支持使用 `RSPACK_PROFILE` 环境变量来对 Rspack 进行构建性能分析。
+
+```json title="package.json"
+{
+  "scripts": {
+    "dev:profile": "RSPACK_PROFILE=OVERVIEW rsbuild",
+    "build:profile": "RSPACK_PROFILE=OVERVIEW rsbuild build"
+  }
+}
+```
+
+由于 Windows 不支持上述用法，你也可以使用 [cross-env](https://npmjs.com/package/cross-env) 来设置环境变量，这可以确保在不同的操作系统中都能正常使用：
+
+```json title="package.json"
+{
+  "scripts": {
+    "dev:profile": "cross-env RSPACK_PROFILE=OVERVIEW rsbuild",
+    "build:profile": "cross-env RSPACK_PROFILE=OVERVIEW rsbuild build"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.0"
+  }
+}
+```
+
+默认情况下，Rspack 会使用 `logger` trace layer，并将 profile 输出到项目根目录下的 `.rspack-profile-${timestamp}-${pid}/rspack.log`。当 `RSPACK_TRACE_OUTPUT` 是相对文件路径时，它会解析到生成的 `.rspack-profile-${timestamp}-${pid}` 目录下；绝对路径会按原样使用。如果需要输出到终端，请显式设置 `RSPACK_TRACE_OUTPUT=stdout` 或 `RSPACK_TRACE_OUTPUT=stderr`。
+
+:::tip
+
+- 在关闭 dev server 时，优先使用 `CTRL + D` 关闭，而不是 `CTRL + C`，这可以确保 Rspack 能够完整地记录性能数据。
+- 关于 Rspack 性能分析的更多用法，可参考 [Rspack - Tracing](https://rspack.rs/zh/contribute/development/tracing)。
+
+:::

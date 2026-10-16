@@ -1,0 +1,37 @@
+{
+  "name": "tanstack-search-validator-adapters",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 3000",
+    "build": "vite build && NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit",
+    "preview": "vite preview",
+    "start": "vite",
+    "test:unit": "vitest"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.2.2",
+    "@tanstack/arktype-adapter": "^1.167.0",
+    "@tanstack/react-query": "^5.90.0",
+    "@tanstack/react-router": "^1.170.18",
+    "@tanstack/react-router-devtools": "^1.167.0",
+    "@tanstack/router-plugin": "^1.168.20",
+    "@tanstack/valibot-adapter": "^1.167.0",
+    "@tanstack/zod-adapter": "^1.167.0",
+    "arktype": "^2.1.7",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.2.2",
+    "valibot": "1.0.0-beta.15",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.14"
+  }
+}

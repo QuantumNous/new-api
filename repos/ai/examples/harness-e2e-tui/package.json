@@ -1,0 +1,29 @@
+{
+  "name": "@example/harness-e2e-tui",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "type-check": "tsc --build"
+  },
+  "dependencies": {
+    "@ai-sdk/harness": "workspace:*",
+    "@ai-sdk/harness-claude-code": "workspace:*",
+    "@ai-sdk/harness-codex": "workspace:*",
+    "@ai-sdk/harness-deepagents": "workspace:*",
+    "@ai-sdk/harness-opencode": "workspace:*",
+    "@ai-sdk/harness-pi": "workspace:*",
+    "@ai-sdk/sandbox-vercel": "workspace:*",
+    "@ai-sdk/tui": "workspace:*",
+    "@earendil-works/pi-coding-agent": "^0.79.0",
+    "@vercel/sandbox": "^2.0.1",
+    "ai": "workspace:*",
+    "dotenv": "16.4.5",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "22.19.19",
+    "tsx": "4.19.2",
+    "typescript": "5.8.3"
+  }
+}

@@ -1,0 +1,1 @@
+import './child5';

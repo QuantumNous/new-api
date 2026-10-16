@@ -1,0 +1,38 @@
+name: Maintenance
+
+on:
+  # So that PRs touching the same files as the push are updated
+  push:
+    branches:
+      - master
+      - next
+  # So that the `dirtyLabel` is removed if conflicts are resolved
+  # Could put too much strain on rate limit
+  # If we hit the rate limit too often remove this event
+  pull_request_target:
+    branches:
+      - master
+      - next
+    types: [synchronize]
+
+permissions: {}
+
+jobs:
+  main:
+    # l10nbot creates a lot of commits at once which starves CI.
+    # We rely on other pushes to mark these branches as outdated.
+    if: ${{ github.actor != 'l10nbot' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - run: echo "${{ github.actor }}"
+      - name: Check if prs are dirty
+        uses: eps1lon/actions-label-merge-conflict@1df065ebe6e3310545d4f4c4e862e43bdca146f0 # v3.0.3
+        with:
+          dirtyLabel: 'PR: out-of-date'
+          removeOnDirtyLabel: 'PR: ready to ship'
+          repoToken: '${{ secrets.GITHUB_TOKEN }}'
+          retryAfter: 130
+          retryMax: 10

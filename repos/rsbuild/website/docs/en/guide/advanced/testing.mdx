@@ -1,0 +1,96 @@
+---
+description: "Rsbuild doesn't include built-in testing frameworks, but integrates seamlessly with popular testing tools."
+---
+
+# Testing
+
+Rsbuild doesn't include built-in testing frameworks, but integrates seamlessly with popular testing tools.
+
+This guide shows how to add [unit testing](#unit-testing) and [end-to-end testing](#end-to-end-testing) to Rsbuild applications.
+
+## Unit testing
+
+Unit tests verify individual components and functions in isolation. Rsbuild can work with testing frameworks like [Rstest](https://rstest.rs), [Vitest](https://vitest.dev/), [Jest](https://jestjs.io/), and others.
+
+The following example uses Rstest to show how to add unit tests to an Rsbuild application.
+
+### Rstest
+
+[Rstest](https://rstest.rs/) is a testing framework built on Rsbuild that provides first-class support for Rsbuild applications. It offers Jest-compatible APIs while natively supporting modern features like TypeScript and ESM.
+
+#### Installing
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rstest/core @rstest/adapter-rsbuild -D" />
+
+#### Configuring scripts
+
+Add test scripts to your `package.json`:
+
+```json
+{
+  "scripts": {
+    "test": "rstest",
+    "test:watch": "rstest -w"
+  }
+}
+```
+
+#### Writing tests
+
+Create test files, for example:
+
+```ts title="src/utils.ts"
+export function add(a: number, b: number) {
+  return a + b;
+}
+```
+
+```ts title="src/utils.test.ts"
+import { expect, test } from '@rstest/core';
+import { add } from './utils';
+
+test('should add two numbers correctly', () => {
+  expect(add(1, 2)).toBe(3);
+  expect(add(-1, 1)).toBe(0);
+});
+```
+
+#### Running tests
+
+```bash
+# Run tests
+npm run test
+
+# Run and watch
+npm run test:watch
+```
+
+#### Configuring Rstest
+
+Create an `rstest.config.ts` file in the root of your project, and use [@rstest/adapter-rsbuild](https://rstest.rs/guide/integration/rsbuild#reuse-rsbuild-config) to reuse your existing Rsbuild configuration:
+
+```ts title="rstest.config.ts"
+import { defineConfig } from '@rstest/core';
+import { withRsbuildConfig } from '@rstest/adapter-rsbuild';
+
+export default defineConfig({
+  extends: withRsbuildConfig(),
+  // Additional rstest-specific configuration
+});
+```
+
+You can add Rstest-specific options in the same configuration file, such as test file matching patterns, setup files, and code coverage.
+
+These are the basic steps for using Rstest. Check the [Rstest documentation](https://rstest.rs/guide/start/) for more usage details.
+
+### Examples
+
+The [rstack-examples](https://github.com/rstackjs/rstack-examples/tree/main/rstest) repository includes a collection of Rstest examples that demonstrate common usage patterns and practices.
+
+## End-to-end testing
+
+End-to-end testing validates complete user workflows, ensuring your application functions correctly in real browser environments.
+
+For E2E testing, we recommend Playwright, a modern end-to-end testing framework. See the [Playwright documentation](https://playwright.dev/docs/intro) for details.

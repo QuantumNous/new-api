@@ -1,0 +1,20 @@
+A callback function that is triggered after the compilation of a single environment. You can access the build result information via the [stats](https://rspack.rs/api/javascript-api/stats) parameter.
+
+Moreover, you can use `isWatch` to determine whether it is dev or build watch mode, and use `isFirstCompile` to determine whether it is the first build.
+
+- **Type:**
+
+```ts
+function OnAfterEnvironmentCompile(
+  callback: (params: {
+    isFirstCompile: boolean;
+    isWatch: boolean;
+    stats?: Stats;
+    environment: EnvironmentContext;
+    /**
+     * The time it takes to build the current environment in milliseconds.
+     */
+    time: number;
+  }) => Promise<void> | void,
+): void;
+```

@@ -1,0 +1,69 @@
+---
+description: 'Rsdoctor 是一款为 Rspack 生态量身打造的构建分析工具。'
+---
+
+# 使用 Rsdoctor
+
+[Rsdoctor](https://rsdoctor.rs/) 是一款为 Rspack 生态量身打造的构建分析工具。
+
+Rsdoctor 致力于成为一站式、智能化的构建分析工具，通过可视化与智能分析，使整个构建流程变得透明、可预测和可优化，从而帮助开发团队精准定位瓶颈、优化性能并提升工程质量。
+
+当你需要调试构建产物或构建过程时，可以借助 Rsdoctor 来提升排查问题的效率。
+
+## 快速上手
+
+在基于 Rsbuild 的项目中，你可以通过以下步骤开启 Rsdoctor 分析：
+
+1. 安装 Rsdoctor 插件：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsdoctor/rspack-plugin -D" />
+
+2. 在 CLI 命令前添加 `RSDOCTOR=true` 环境变量：
+
+```json title="package.json"
+{
+  "scripts": {
+    "dev:rsdoctor": "RSDOCTOR=true rsbuild",
+    "build:rsdoctor": "RSDOCTOR=true rsbuild build"
+  }
+}
+```
+
+由于 Windows 不支持上述用法，你也可以使用 [cross-env](https://npmjs.com/package/cross-env) 来设置环境变量，这可以确保在不同的操作系统中都能正常使用：
+
+```json title="package.json"
+{
+  "scripts": {
+    "dev:rsdoctor": "cross-env RSDOCTOR=true rsbuild",
+    "build:rsdoctor": "cross-env RSDOCTOR=true rsbuild build"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.0"
+  }
+}
+```
+
+在项目内执行上述命令后，Rsbuild 会自动注册 Rsdoctor 的插件，并在构建完成后打开本次构建的分析页面，请参考 [Rsdoctor 文档](https://rsdoctor.rs/) 来了解完整功能。
+
+## 配置项
+
+如果你需要配置 Rsdoctor 插件提供的 [选项](https://rsdoctor.rs/zh/config/options/options)，请手动注册 Rsdoctor 插件：
+
+```ts title="rsbuild.config.ts"
+import { RsdoctorRspackPlugin } from '@rsdoctor/rspack-plugin';
+
+export default {
+  tools: {
+    rspack: {
+      plugins: [
+        process.env.RSDOCTOR === 'true' &&
+          new RsdoctorRspackPlugin({
+            // 插件选项
+          }),
+      ],
+    },
+  },
+};
+```

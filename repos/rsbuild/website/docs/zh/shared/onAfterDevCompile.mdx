@@ -1,0 +1,17 @@
+在每次开发模式构建结束后调用，你可以通过 `isFirstCompile` 来判断是否为首次构建。
+
+- **类型：**
+
+```ts
+function OnAfterDevCompile(
+  callback: (params: {
+    isFirstCompile: boolean;
+    stats: Stats | MultiStats;
+    environments: Record<string, EnvironmentContext>;
+  }) => Promise<void> | void,
+): void;
+```
+
+:::tip
+`onAfterDevCompile` 钩子在 Rsbuild v1.5.0 中新增。对于之前的版本，你可以使用功能完全相同的 `onDevCompileDone` 钩子。
+:::

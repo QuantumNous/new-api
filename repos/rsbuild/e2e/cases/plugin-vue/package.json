@@ -1,0 +1,9 @@
+{
+  "name": "@e2e/vue3",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "vue": "catalog:"
+  }
+}

@@ -1,0 +1,279 @@
+---
+description: 'Whether to print the file sizes after production build.'
+---
+
+# performance.printFileSize
+
+- **Type:**
+
+```ts
+type PrintFileSizeOptions =
+  | boolean
+  | {
+      total?: boolean | Function;
+      detail?: boolean;
+      compressed?: boolean;
+      include?: (asset: PrintFileSizeAsset) => boolean;
+      exclude?: (asset: PrintFileSizeAsset) => boolean;
+      diff?: boolean;
+    };
+```
+
+- **Default:** `true`
+
+Whether to print the file sizes after production build.
+
+## Default outputs
+
+The default output log is as follows:
+
+```
+File (web)                                Size        Gzip
+dist/static/js/lib-react.b0714b60ab.js    140.4 kB    45.0 kB
+dist/static/js/index.f3fde9c7ab.js        1.9 kB      0.97 kB
+dist/index.html                           0.39 kB     0.25 kB
+dist/static/css/index.2960ac62ab.css      0.35 kB     0.26 kB
+
+                                 Total:   143.0 kB    46.3 kB
+```
+
+## Disable outputs
+
+If you do not want to print any information, you can disable it by setting `printFileSize` to `false`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    printFileSize: false,
+  },
+};
+```
+
+## Options
+
+You can customize the output format through the options.
+
+### total
+
+- **Type:**
+
+```ts
+type Total =
+  | boolean
+  | ((params: {
+      environmentName: string;
+      distPath: string;
+      assets: PrintFileSizeAsset[];
+      totalSize: number;
+      totalGzipSize: number;
+    }) => string);
+```
+
+- **Default:** `true`
+
+Whether to output the total size of all static assets, or provide a function to customize the output format of the total size.
+
+When set to `false`, the total size will not be output:
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    printFileSize: {
+      total: false,
+    },
+  },
+};
+```
+
+:::tip
+If the current build only generates one static asset, the total size will not be printed.
+:::
+
+When set to a function, you can customize the total size output format:
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    printFileSize: {
+      total: ({ distPath, assets, totalSize }) => {
+        return `Generated ${assets.length} files in ${distPath}, the total size is ${(totalSize / 1000).toFixed(1)} kB.`;
+      },
+    },
+  },
+};
+```
+
+Function parameters:
+
+- `environmentName`: The unique name of the current environment, used to distinguish and locate the environment
+- `distPath`: The output directory relative to the project root
+- `assets`: Array of static assets, each containing `name` and `size` properties
+- `totalSize`: Total size of all static assets in bytes
+- `totalGzipSize`: Total gzip-compressed size of all static assets in bytes
+
+### detail
+
+- **Type:** `boolean`
+- **Default:** `true`
+
+Whether to output the size of each static asset.
+
+If you do not need to view the size of each static asset, you can set `detail` to false. In this case, only the total size will be output:
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    printFileSize: {
+      detail: false,
+    },
+  },
+};
+```
+
+### compressed
+
+- **Type:** `boolean`
+- **Default:** `false` when [output.target](/config/output/target) is `node`, otherwise `true`
+
+Whether to output the gzip-compressed size of each static asset.
+
+If you do not need to view the gzipped size, you can set `compressed` to false. This can save some gzip computation time for large projects:
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    printFileSize: {
+      compressed: false,
+    },
+  },
+};
+```
+
+:::tip
+
+- This data is only for reference to the size after gzip compression. Rsbuild does not enable gzip compression for static assets. Usually, you need to enable gzip compression on the server side, for example, using the [gzip module](https://nginx.org/en/docs/http/ngx_http_gzip_module.html) of nginx.
+- For non-compressible assets (such as images), the gzip size will not be shown in the detailed list, but their original size will be included in the total gzip size calculation.
+
+:::
+
+### include
+
+- **Type:**
+
+```ts
+type PrintFileSizeAsset = {
+  /**
+   * The name of the static asset.
+   * @example 'index.html', 'static/js/index.[hash].js'
+   */
+  name: string;
+  /**
+   * The size of the static asset in bytes.
+   */
+  size: number;
+};
+type Include = (asset: PrintFileSizeAsset) => boolean;
+```
+
+- **Default:** `undefined`
+
+A filter function to determine which static assets to print.
+
+If returned `false`, the static asset will be excluded and not included in the total size or detailed size.
+
+For example, only output static assets larger than 10 kB:
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    printFileSize: {
+      include: (asset) => asset.size > 10 * 1000,
+    },
+  },
+};
+```
+
+Or only output `.js` files larger than 10 kB:
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    printFileSize: {
+      include: (asset) => /\.js$/.test(asset.name) && asset.size > 10 * 1000,
+    },
+  },
+};
+```
+
+### exclude
+
+- **Type:**
+
+```ts
+type Exclude = (asset: PrintFileSizeAsset) => boolean;
+```
+
+- **Default:** `(asset) => /\.(?:map|LICENSE\.txt|d\.(?:ts|mts|cts))$/.test(asset.name)`
+
+A filter function to determine which static assets to exclude. If both `include` and `exclude` are set, `exclude` will take precedence.
+
+Rsbuild defaults to excluding source map, license files, and `.d.ts`, `.d.mts`, or `.d.cts` type declaration files, as these files do not affect page load performance.
+
+For example, exclude `.html` files in addition to the default:
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    printFileSize: {
+      exclude: (asset) =>
+        /\.(?:map|LICENSE\.txt|d\.(?:ts|mts|cts))$/.test(asset.name) || /\.html$/.test(asset.name),
+    },
+  },
+};
+```
+
+### diff
+
+- **Type:** `boolean`
+- **Default:** `false`
+
+Controls whether file size differences are displayed relative to the previous build.
+
+When this option is enabled, Rsbuild records a snapshot of all output file sizes after each build. On subsequent builds, Rsbuild compares the current sizes against the previous snapshot and shows the change inline in parentheses.
+
+To enable diff output:
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    printFileSize: {
+      diff: true,
+    },
+  },
+};
+```
+
+On the second build, the output begins to include inline size deltas:
+
+```
+File (web)                                Size                  Gzip
+dist/static/js/lib-react.b0714b60ab.js    140.4 kB (+2.1 kB)    45.0 kB (+0.5 kB)
+dist/static/js/index.f3fde9c7ab.js        1.9 kB (-0.3 kB)      0.97 kB (-0.1 kB)
+dist/static/css/index.2960ac62ab.css      0.35 kB (+0.35 kB)    0.26 kB (+0.26 kB)
+
+                                 Total:   143.0 kB (+2.15 kB)   46.3 kB (+0.66 kB)
+```
+
+- Increases are highlighted in red with a `+` prefix
+- Decreases are highlighted in green with a `-` prefix
+- Files with no change omit the diff indicator
+
+:::tip
+Snapshots are stored at `<root>/node_modules/.cache/rsbuild/file-sizes-[hash].json`, where [hash] is derived from the Rsbuild configuration file path.
+:::
+
+## Version history
+
+| Version | Changes             |
+| ------- | ------------------- |
+| v1.6.13 | Added `diff` option |

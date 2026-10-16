@@ -1,0 +1,30 @@
+.ScrollArea {
+  width: 340px;
+  height: 100px;
+  background: rgb(0 0 0 / 0.1);
+}
+
+.Viewport {
+  height: 100%;
+}
+
+.Scrollbar {
+  display: flex;
+  background: rgb(0 0 0 / 0.1);
+
+  &[data-orientation='vertical'] {
+    margin-block: 20px;
+    width: 8px;
+  }
+
+  &[data-orientation='horizontal'] {
+    flex-direction: column;
+    height: 8px;
+    margin-inline: 20px;
+  }
+}
+
+.Thumb {
+  background: rgb(0 0 0 / 0.5);
+  flex: 1;
+}

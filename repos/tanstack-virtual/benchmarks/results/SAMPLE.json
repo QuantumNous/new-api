@@ -1,0 +1,2580 @@
+{
+  "opts": {
+    "headed": false,
+    "runs": 5,
+    "libs": ["tanstack", "virtua", "virtuoso", "window"],
+    "scenarios": [
+      "mount-fixed-1k",
+      "mount-fixed-10k",
+      "mount-fixed-100k",
+      "mount-dynamic-1k",
+      "mount-dynamic-10k",
+      "scroll-to-bottom-10k",
+      "fast-scroll-dynamic-10k",
+      "jump-to-end-dynamic-10k"
+    ],
+    "useDev": false
+  },
+  "results": [
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 5.099999904632568,
+        "firstPaintMs": 12.300000190734863,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6086427
+      },
+      "ranAt": "2026-05-17T06:27:57.062Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 0.9000000953674316,
+        "firstPaintMs": 8.699999809265137,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6088087
+      },
+      "ranAt": "2026-05-17T06:27:57.089Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 0.8000001907348633,
+        "firstPaintMs": 5.200000286102295,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6095999
+      },
+      "ranAt": "2026-05-17T06:27:57.113Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 0.6999998092651367,
+        "firstPaintMs": 9.599999904632568,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6095106
+      },
+      "ranAt": "2026-05-17T06:27:57.135Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 0.6999998092651367,
+        "firstPaintMs": 9.299999713897705,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6095107
+      },
+      "ranAt": "2026-05-17T06:27:57.157Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 2.4000000953674316,
+        "firstPaintMs": 4.900000095367432,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6887007
+      },
+      "ranAt": "2026-05-17T06:27:57.181Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 1.700000286102295,
+        "firstPaintMs": 10.100000381469727,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6887691
+      },
+      "ranAt": "2026-05-17T06:27:57.205Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 1.5999999046325684,
+        "firstPaintMs": 5.899999618530273,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6888900
+      },
+      "ranAt": "2026-05-17T06:27:57.229Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 1.5999999046325684,
+        "firstPaintMs": 11.099999904632568,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6888088
+      },
+      "ranAt": "2026-05-17T06:27:57.255Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 1.5999999046325684,
+        "firstPaintMs": 4.399999618530273,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6888623
+      },
+      "ranAt": "2026-05-17T06:27:57.281Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 10.5,
+        "firstPaintMs": 12.699999809265137,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 14867350
+      },
+      "ranAt": "2026-05-17T06:27:57.317Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 6.300000190734863,
+        "firstPaintMs": 9.200000286102295,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 14867346
+      },
+      "ranAt": "2026-05-17T06:27:57.349Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 6,
+        "firstPaintMs": 10.599999904632568,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 14867938
+      },
+      "ranAt": "2026-05-17T06:27:57.379Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 6.099999904632568,
+        "firstPaintMs": 15.900000095367432,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 14867265
+      },
+      "ranAt": "2026-05-17T06:27:57.408Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 5.900000095367432,
+        "firstPaintMs": 6.699999809265137,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 14868104
+      },
+      "ranAt": "2026-05-17T06:27:57.439Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 1.4000000953674316,
+        "firstPaintMs": 5.400000095367432,
+        "actionMs": 125.2000002861023,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 15919900
+      },
+      "ranAt": "2026-05-17T06:27:57.591Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 1.5,
+        "firstPaintMs": 3.6000003814697266,
+        "actionMs": 124.09999990463257,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6428115
+      },
+      "ranAt": "2026-05-17T06:27:57.741Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 1.299999713897705,
+        "firstPaintMs": 3.5999999046325684,
+        "actionMs": 124.09999990463257,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6426506
+      },
+      "ranAt": "2026-05-17T06:27:57.891Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 1.5,
+        "firstPaintMs": 3.9000000953674316,
+        "actionMs": 121.19999980926514,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6427068
+      },
+      "ranAt": "2026-05-17T06:27:58.041Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 1.6999998092651367,
+        "firstPaintMs": 10.900000095367432,
+        "actionMs": 120.59999990463257,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6432238
+      },
+      "ranAt": "2026-05-17T06:27:58.191Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 5.800000190734863,
+        "firstPaintMs": 8.800000190734863,
+        "actionMs": 119.19999980926514,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8523135
+      },
+      "ranAt": "2026-05-17T06:27:58.341Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 6,
+        "firstPaintMs": 9.200000286102295,
+        "actionMs": 118.2999997138977,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8523169
+      },
+      "ranAt": "2026-05-17T06:27:58.491Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 5.900000095367432,
+        "firstPaintMs": 8.900000095367432,
+        "actionMs": 118.80000019073486,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8523310
+      },
+      "ranAt": "2026-05-17T06:27:58.641Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 6.299999713897705,
+        "firstPaintMs": 9.699999809265137,
+        "actionMs": 116.90000009536743,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8523318
+      },
+      "ranAt": "2026-05-17T06:27:58.791Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 7.100000381469727,
+        "firstPaintMs": 10.5,
+        "actionMs": 114.5,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8523301
+      },
+      "ranAt": "2026-05-17T06:27:58.940Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 1.5,
+        "firstPaintMs": 4,
+        "actionMs": 1527.8999996185303,
+        "scrollFps": 59.99868134766269,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 9818195
+      },
+      "ranAt": "2026-05-17T06:28:00.491Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 1.6999998092651367,
+        "firstPaintMs": 5,
+        "actionMs": 1525.7999997138977,
+        "scrollFps": 60.0065941312232,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 9572074
+      },
+      "ranAt": "2026-05-17T06:28:02.057Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 2.1999998092651367,
+        "firstPaintMs": 4.099999904632568,
+        "actionMs": 1519.8000001907349,
+        "scrollFps": 60.00659413122322,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 9443114
+      },
+      "ranAt": "2026-05-17T06:28:03.608Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 2.1999998092651367,
+        "firstPaintMs": 3.9000000953674316,
+        "actionMs": 1521.2999997138977,
+        "scrollFps": 59.99868134766269,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 9443822
+      },
+      "ranAt": "2026-05-17T06:28:05.157Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 2.200000286102295,
+        "firstPaintMs": 3.700000286102295,
+        "actionMs": 1519.7000002861023,
+        "scrollFps": 60.00263747857049,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 9436839
+      },
+      "ranAt": "2026-05-17T06:28:06.707Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 7.800000190734863,
+        "firstPaintMs": 14.5,
+        "actionMs": 1525.5,
+        "scrollFps": 60.002637478570485,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 9624712
+      },
+      "ranAt": "2026-05-17T06:28:08.273Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 6.400000095367432,
+        "firstPaintMs": 10.800000190734863,
+        "actionMs": 1516,
+        "scrollFps": 60.00263747857049,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 9646331
+      },
+      "ranAt": "2026-05-17T06:28:09.824Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 6.799999713897705,
+        "firstPaintMs": 13.899999618530273,
+        "actionMs": 1525,
+        "scrollFps": 60.00263747857049,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 9635143
+      },
+      "ranAt": "2026-05-17T06:28:11.390Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 7.099999904632568,
+        "firstPaintMs": 11,
+        "actionMs": 1518.6999998092651,
+        "scrollFps": 60.0052488107751,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 9651463
+      },
+      "ranAt": "2026-05-17T06:28:12.958Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 7.699999809265137,
+        "firstPaintMs": 15,
+        "actionMs": 1528.4000000953674,
+        "scrollFps": 60.00659413122322,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 10133675
+      },
+      "ranAt": "2026-05-17T06:28:14.524Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 8.5,
+        "firstPaintMs": 14.799999713897705,
+        "actionMs": 90.89999961853027,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 9698153
+      },
+      "ranAt": "2026-05-17T06:28:14.657Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 7.099999904632568,
+        "firstPaintMs": 10.799999713897705,
+        "actionMs": 82.09999990463257,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 9699761
+      },
+      "ranAt": "2026-05-17T06:28:14.773Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 6.800000190734863,
+        "firstPaintMs": 10.700000286102295,
+        "actionMs": 83,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 9699668
+      },
+      "ranAt": "2026-05-17T06:28:14.890Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 6.5,
+        "firstPaintMs": 10,
+        "actionMs": 83.09999990463257,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 9697280
+      },
+      "ranAt": "2026-05-17T06:28:15.006Z"
+    },
+    {
+      "library": "tanstack",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 6.800000190734863,
+        "firstPaintMs": 10.599999904632568,
+        "actionMs": 83.10000038146973,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 9701473
+      },
+      "ranAt": "2026-05-17T06:28:15.123Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 2.3000001907348633,
+        "firstPaintMs": 9.5,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6300409
+      },
+      "ranAt": "2026-05-17T06:28:15.147Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 0.5999999046325684,
+        "firstPaintMs": 8.599999904632568,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6288497
+      },
+      "ranAt": "2026-05-17T06:28:15.168Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 0.6999998092651367,
+        "firstPaintMs": 8.399999618530273,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6288897
+      },
+      "ranAt": "2026-05-17T06:28:15.188Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 0.5999999046325684,
+        "firstPaintMs": 8.300000190734863,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6289526
+      },
+      "ranAt": "2026-05-17T06:28:15.208Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 0.6999998092651367,
+        "firstPaintMs": 3.9000000953674316,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6301637
+      },
+      "ranAt": "2026-05-17T06:28:15.229Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 0.9000000953674316,
+        "firstPaintMs": 9,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6721789
+      },
+      "ranAt": "2026-05-17T06:28:15.251Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 1,
+        "firstPaintMs": 8.799999713897705,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6722421
+      },
+      "ranAt": "2026-05-17T06:28:15.273Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 1,
+        "firstPaintMs": 4.199999809265137,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6734957
+      },
+      "ranAt": "2026-05-17T06:28:15.295Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 1.0999999046325684,
+        "firstPaintMs": 10.900000095367432,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6722660
+      },
+      "ranAt": "2026-05-17T06:28:15.318Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 0.9000000953674316,
+        "firstPaintMs": 6.699999809265137,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6734719
+      },
+      "ranAt": "2026-05-17T06:28:15.342Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 3.0999999046325684,
+        "firstPaintMs": 11.099999904632568,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 11055465
+      },
+      "ranAt": "2026-05-17T06:28:15.367Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 3,
+        "firstPaintMs": 10.400000095367432,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 11043105
+      },
+      "ranAt": "2026-05-17T06:28:15.390Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 3.0999999046325684,
+        "firstPaintMs": 10.700000286102295,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 11056189
+      },
+      "ranAt": "2026-05-17T06:28:15.414Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 3,
+        "firstPaintMs": 10.800000190734863,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 11043145
+      },
+      "ranAt": "2026-05-17T06:28:15.438Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 4.200000286102295,
+        "firstPaintMs": 5,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 11055785
+      },
+      "ranAt": "2026-05-17T06:28:15.463Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 1.5,
+        "firstPaintMs": 9.299999713897705,
+        "actionMs": 121.7000002861023,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6479289
+      },
+      "ranAt": "2026-05-17T06:28:15.607Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 1.8000001907348633,
+        "firstPaintMs": 10.5,
+        "actionMs": 123,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6462551
+      },
+      "ranAt": "2026-05-17T06:28:15.757Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 1.6999998092651367,
+        "firstPaintMs": 9.900000095367432,
+        "actionMs": 121.40000009536743,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6477684
+      },
+      "ranAt": "2026-05-17T06:28:15.907Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 1.8999996185302734,
+        "firstPaintMs": 10.199999809265137,
+        "actionMs": 120.30000019073486,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6479772
+      },
+      "ranAt": "2026-05-17T06:28:16.057Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 1.9000000953674316,
+        "firstPaintMs": 10.800000190734863,
+        "actionMs": 121.09999990463257,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6479237
+      },
+      "ranAt": "2026-05-17T06:28:16.207Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 8.400000095367432,
+        "firstPaintMs": 16.90000009536743,
+        "actionMs": 122.40000009536743,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8199423
+      },
+      "ranAt": "2026-05-17T06:28:16.374Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 6.700000286102295,
+        "firstPaintMs": 13.5,
+        "actionMs": 117.80000019073486,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8217282
+      },
+      "ranAt": "2026-05-17T06:28:16.524Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 6.599999904632568,
+        "firstPaintMs": 14.800000190734863,
+        "actionMs": 118.09999990463257,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8200907
+      },
+      "ranAt": "2026-05-17T06:28:16.674Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 7.699999809265137,
+        "firstPaintMs": 15.099999904632568,
+        "actionMs": 113.80000019073486,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8215592
+      },
+      "ranAt": "2026-05-17T06:28:16.823Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 5.600000381469727,
+        "firstPaintMs": 16.5,
+        "actionMs": 113.90000009536743,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8217661
+      },
+      "ranAt": "2026-05-17T06:28:16.992Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 1.4000000953674316,
+        "firstPaintMs": 7.700000286102295,
+        "actionMs": 1525.4000000953674,
+        "scrollFps": 60.002637478570485,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 6783343
+      },
+      "ranAt": "2026-05-17T06:28:18.623Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 1,
+        "firstPaintMs": 1.3000001907348633,
+        "actionMs": 1526.5999999046326,
+        "scrollFps": 60.00659413122322,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 6782755
+      },
+      "ranAt": "2026-05-17T06:28:20.177Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 1.4000000953674316,
+        "firstPaintMs": 13.800000190734863,
+        "actionMs": 1531.0999999046326,
+        "scrollFps": 60.001304376182084,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 7909894
+      },
+      "ranAt": "2026-05-17T06:28:21.740Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 1.0999999046325684,
+        "firstPaintMs": 2.5999999046325684,
+        "actionMs": 1526.5,
+        "scrollFps": 60.002637478570485,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 6784469
+      },
+      "ranAt": "2026-05-17T06:28:23.290Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 1.1999998092651367,
+        "firstPaintMs": 11.099999904632568,
+        "actionMs": 1517.7999997138977,
+        "scrollFps": 60.00263747857049,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 6798621
+      },
+      "ranAt": "2026-05-17T06:28:24.840Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 9.900000095367432,
+        "firstPaintMs": 16.699999809265137,
+        "actionMs": 1531,
+        "scrollFps": 60.001304376182084,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 8258693
+      },
+      "ranAt": "2026-05-17T06:28:26.406Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 6.300000190734863,
+        "firstPaintMs": 13.800000190734863,
+        "actionMs": 1522.4000000953674,
+        "scrollFps": 60.00263747857049,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 8242370
+      },
+      "ranAt": "2026-05-17T06:28:27.959Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 10.799999713897705,
+        "firstPaintMs": 17.899999618530273,
+        "actionMs": 1523.3000001907349,
+        "scrollFps": 60.002637478570485,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 8241079
+      },
+      "ranAt": "2026-05-17T06:28:29.523Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 8.5,
+        "firstPaintMs": 14.599999904632568,
+        "actionMs": 1532.8000001907349,
+        "scrollFps": 60.005217845029996,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 8259372
+      },
+      "ranAt": "2026-05-17T06:28:31.090Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 5.699999809265137,
+        "firstPaintMs": 13.299999713897705,
+        "actionMs": 1519.5,
+        "scrollFps": 60.002637478570485,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 8241608
+      },
+      "ranAt": "2026-05-17T06:28:32.639Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 5.699999809265137,
+        "firstPaintMs": 13.299999713897705,
+        "actionMs": 72.10000038146973,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8208066
+      },
+      "ranAt": "2026-05-17T06:28:32.739Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 5.700000286102295,
+        "firstPaintMs": 13,
+        "actionMs": 72.59999990463257,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8207584
+      },
+      "ranAt": "2026-05-17T06:28:32.839Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 5.700000286102295,
+        "firstPaintMs": 14.099999904632568,
+        "actionMs": 71.2000002861023,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8208218
+      },
+      "ranAt": "2026-05-17T06:28:32.939Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 5.799999713897705,
+        "firstPaintMs": 13.799999713897705,
+        "actionMs": 72.30000019073486,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8207269
+      },
+      "ranAt": "2026-05-17T06:28:33.039Z"
+    },
+    {
+      "library": "virtua",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 5.699999809265137,
+        "firstPaintMs": 13.300000190734863,
+        "actionMs": 72.69999980926514,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8207237
+      },
+      "ranAt": "2026-05-17T06:28:33.140Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 5.099999904632568,
+        "firstPaintMs": 22.09999990463257,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6808084
+      },
+      "ranAt": "2026-05-17T06:28:33.206Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 2,
+        "firstPaintMs": 12.899999618530273,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6621739
+      },
+      "ranAt": "2026-05-17T06:28:33.238Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 1.5,
+        "firstPaintMs": 2,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6621144
+      },
+      "ranAt": "2026-05-17T06:28:33.264Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 1.8000001907348633,
+        "firstPaintMs": 7,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6621747
+      },
+      "ranAt": "2026-05-17T06:28:33.292Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 1.799999713897705,
+        "firstPaintMs": 9.699999809265137,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6621196
+      },
+      "ranAt": "2026-05-17T06:28:33.317Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 2.0999999046325684,
+        "firstPaintMs": 9.699999809265137,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7053550
+      },
+      "ranAt": "2026-05-17T06:28:33.341Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 2.1999998092651367,
+        "firstPaintMs": 9.199999809265137,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7054616
+      },
+      "ranAt": "2026-05-17T06:28:33.364Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 2,
+        "firstPaintMs": 10,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7054713
+      },
+      "ranAt": "2026-05-17T06:28:33.388Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 1.8000001907348633,
+        "firstPaintMs": 5,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7055528
+      },
+      "ranAt": "2026-05-17T06:28:33.411Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 2,
+        "firstPaintMs": 9.899999618530273,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7054001
+      },
+      "ranAt": "2026-05-17T06:28:33.434Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 5.5,
+        "firstPaintMs": 7.300000190734863,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 11375543
+      },
+      "ranAt": "2026-05-17T06:28:33.461Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 5.5,
+        "firstPaintMs": 12.099999904632568,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 11374922
+      },
+      "ranAt": "2026-05-17T06:28:33.487Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 4.800000190734863,
+        "firstPaintMs": 5.900000095367432,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 11375187
+      },
+      "ranAt": "2026-05-17T06:28:33.512Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 4.799999713897705,
+        "firstPaintMs": 11.400000095367432,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 11374938
+      },
+      "ranAt": "2026-05-17T06:28:33.537Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 5,
+        "firstPaintMs": 5.199999809265137,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 11375679
+      },
+      "ranAt": "2026-05-17T06:28:33.562Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 2.4000000953674316,
+        "firstPaintMs": 9.699999809265137,
+        "actionMs": 204.80000019073486,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7492389
+      },
+      "ranAt": "2026-05-17T06:28:33.790Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 2.799999713897705,
+        "firstPaintMs": 7.799999713897705,
+        "actionMs": 190,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7492783
+      },
+      "ranAt": "2026-05-17T06:28:34.023Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 2.8000001907348633,
+        "firstPaintMs": 6.099999904632568,
+        "actionMs": 194.2999997138977,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7494064
+      },
+      "ranAt": "2026-05-17T06:28:34.255Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 2.5,
+        "firstPaintMs": 11.599999904632568,
+        "actionMs": 200.5,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7494020
+      },
+      "ranAt": "2026-05-17T06:28:34.489Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 3,
+        "firstPaintMs": 10.699999809265137,
+        "actionMs": 190.59999990463257,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7493013
+      },
+      "ranAt": "2026-05-17T06:28:34.706Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 8.200000286102295,
+        "firstPaintMs": 15.099999904632568,
+        "actionMs": 200.80000019073486,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 9229536
+      },
+      "ranAt": "2026-05-17T06:28:34.939Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 8.199999809265137,
+        "firstPaintMs": 14,
+        "actionMs": 188.40000009536743,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 9223223
+      },
+      "ranAt": "2026-05-17T06:28:35.156Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 8.5,
+        "firstPaintMs": 14.699999809265137,
+        "actionMs": 188.2000002861023,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 9224195
+      },
+      "ranAt": "2026-05-17T06:28:35.373Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 9.300000190734863,
+        "firstPaintMs": 16,
+        "actionMs": 185.30000019073486,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 9224355
+      },
+      "ranAt": "2026-05-17T06:28:35.589Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 9.299999713897705,
+        "firstPaintMs": 15.5,
+        "actionMs": 184.69999980926514,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 9221197
+      },
+      "ranAt": "2026-05-17T06:28:35.806Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 2,
+        "firstPaintMs": 2.1999998092651367,
+        "actionMs": 1525.3999996185303,
+        "scrollFps": 60.00263747857049,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 7440593
+      },
+      "ranAt": "2026-05-17T06:28:37.356Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 2.0999999046325684,
+        "firstPaintMs": 10.199999809265137,
+        "actionMs": 1520.7000002861023,
+        "scrollFps": 60.002637478570485,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 7439349
+      },
+      "ranAt": "2026-05-17T06:28:38.906Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 2.3000001907348633,
+        "firstPaintMs": 10.700000286102295,
+        "actionMs": 1520.9000000953674,
+        "scrollFps": 60.002637478570485,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 7442852
+      },
+      "ranAt": "2026-05-17T06:28:40.456Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 2.3000001907348633,
+        "firstPaintMs": 12.5,
+        "actionMs": 1517.6000003814697,
+        "scrollFps": 60.00659413122322,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 7443093
+      },
+      "ranAt": "2026-05-17T06:28:42.006Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 2.1999998092651367,
+        "firstPaintMs": 11.099999904632568,
+        "actionMs": 1519.5,
+        "scrollFps": 60.002637478570485,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 7442861
+      },
+      "ranAt": "2026-05-17T06:28:43.556Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 8,
+        "firstPaintMs": 14.299999713897705,
+        "actionMs": 1519.8000001907349,
+        "scrollFps": 60.00263747857049,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 9264603
+      },
+      "ranAt": "2026-05-17T06:28:45.105Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 7.100000381469727,
+        "firstPaintMs": 10.900000095367432,
+        "actionMs": 1530.4000000953674,
+        "scrollFps": 60.00388720834523,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 9266951
+      },
+      "ranAt": "2026-05-17T06:28:46.690Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 11.900000095367432,
+        "firstPaintMs": 18.700000286102295,
+        "actionMs": 1522.9000000953674,
+        "scrollFps": 59.99868134766269,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 9265587
+      },
+      "ranAt": "2026-05-17T06:28:48.255Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 7.699999809265137,
+        "firstPaintMs": 14.099999904632568,
+        "actionMs": 1517.5999999046326,
+        "scrollFps": 60.0052488107751,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 9264575
+      },
+      "ranAt": "2026-05-17T06:28:49.806Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 10.400000095367432,
+        "firstPaintMs": 16.90000009536743,
+        "actionMs": 1531.2999997138977,
+        "scrollFps": 60.005217845029996,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 9266098
+      },
+      "ranAt": "2026-05-17T06:28:51.373Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 11.599999904632568,
+        "firstPaintMs": 11.899999618530273,
+        "actionMs": 161,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 9764416
+      },
+      "ranAt": "2026-05-17T06:28:51.572Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 8.400000095367432,
+        "firstPaintMs": 14.200000286102295,
+        "actionMs": 154.09999990463257,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 9765043
+      },
+      "ranAt": "2026-05-17T06:28:51.755Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 9.099999904632568,
+        "firstPaintMs": 15,
+        "actionMs": 152,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 9764524
+      },
+      "ranAt": "2026-05-17T06:28:51.938Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 8.399999618530273,
+        "firstPaintMs": 14.5,
+        "actionMs": 155.19999980926514,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 9764875
+      },
+      "ranAt": "2026-05-17T06:28:52.122Z"
+    },
+    {
+      "library": "virtuoso",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 9,
+        "firstPaintMs": 15.199999809265137,
+        "actionMs": 152.60000038146973,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 9764410
+      },
+      "ranAt": "2026-05-17T06:28:52.305Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 3.3999996185302734,
+        "firstPaintMs": 4.699999809265137,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6861779
+      },
+      "ranAt": "2026-05-17T06:28:52.333Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 2.1999998092651367,
+        "firstPaintMs": 7.5,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6861306
+      },
+      "ranAt": "2026-05-17T06:28:52.358Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 2.1999998092651367,
+        "firstPaintMs": 11.5,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6853417
+      },
+      "ranAt": "2026-05-17T06:28:52.384Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 1.9000000953674316,
+        "firstPaintMs": 6,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6861215
+      },
+      "ranAt": "2026-05-17T06:28:52.410Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-fixed-1k"
+      },
+      "metrics": {
+        "mountMs": 2.0999999046325684,
+        "firstPaintMs": 10.199999809265137,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 6835843
+      },
+      "ranAt": "2026-05-17T06:28:52.434Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 2.5,
+        "firstPaintMs": 5.599999904632568,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7288925
+      },
+      "ranAt": "2026-05-17T06:28:52.461Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 2.700000286102295,
+        "firstPaintMs": 11.300000190734863,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7274572
+      },
+      "ranAt": "2026-05-17T06:28:52.486Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 2.299999713897705,
+        "firstPaintMs": 5.5,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7289497
+      },
+      "ranAt": "2026-05-17T06:28:52.511Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 2.299999713897705,
+        "firstPaintMs": 10.400000095367432,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7273282
+      },
+      "ranAt": "2026-05-17T06:28:52.537Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-fixed-10k"
+      },
+      "metrics": {
+        "mountMs": 2.4000000953674316,
+        "firstPaintMs": 5.300000190734863,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7288917
+      },
+      "ranAt": "2026-05-17T06:28:52.563Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 4.300000190734863,
+        "firstPaintMs": 13.900000095367432,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 11594216
+      },
+      "ranAt": "2026-05-17T06:28:52.591Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 4.300000190734863,
+        "firstPaintMs": 13.5,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 11594230
+      },
+      "ranAt": "2026-05-17T06:28:52.620Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 4.400000095367432,
+        "firstPaintMs": 6.800000190734863,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 11618086
+      },
+      "ranAt": "2026-05-17T06:28:52.648Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 4.399999618530273,
+        "firstPaintMs": 9.5,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 11609882
+      },
+      "ranAt": "2026-05-17T06:28:52.677Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-fixed-100k"
+      },
+      "metrics": {
+        "mountMs": 4.5,
+        "firstPaintMs": 13.799999713897705,
+        "actionMs": null,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 11598957
+      },
+      "ranAt": "2026-05-17T06:28:52.705Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 2.6999998092651367,
+        "firstPaintMs": 5.599999904632568,
+        "actionMs": 122.90000009536743,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7159536
+      },
+      "ranAt": "2026-05-17T06:28:52.855Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 3,
+        "firstPaintMs": 4.300000190734863,
+        "actionMs": 121.69999980926514,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7159412
+      },
+      "ranAt": "2026-05-17T06:28:53.005Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 3.0999999046325684,
+        "firstPaintMs": 4.400000095367432,
+        "actionMs": 120.69999980926514,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7159082
+      },
+      "ranAt": "2026-05-17T06:28:53.155Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 2.9000000953674316,
+        "firstPaintMs": 4.5,
+        "actionMs": 120.40000009536743,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7168948
+      },
+      "ranAt": "2026-05-17T06:28:53.305Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-dynamic-1k"
+      },
+      "metrics": {
+        "mountMs": 2.799999713897705,
+        "firstPaintMs": 4.099999904632568,
+        "actionMs": 121.80000019073486,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 7169319
+      },
+      "ranAt": "2026-05-17T06:28:53.455Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 7,
+        "firstPaintMs": 8.199999809265137,
+        "actionMs": 116.89999961853027,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 10015714
+      },
+      "ranAt": "2026-05-17T06:28:53.605Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 7,
+        "firstPaintMs": 8.300000190734863,
+        "actionMs": 115.89999961853027,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 10018054
+      },
+      "ranAt": "2026-05-17T06:28:53.755Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 7.100000381469727,
+        "firstPaintMs": 8.400000095367432,
+        "actionMs": 115.7999997138977,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8908000
+      },
+      "ranAt": "2026-05-17T06:28:53.905Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 7.099999904632568,
+        "firstPaintMs": 8.599999904632568,
+        "actionMs": 115.89999961853027,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8906157
+      },
+      "ranAt": "2026-05-17T06:28:54.055Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "mount-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 7,
+        "firstPaintMs": 9.900000095367432,
+        "actionMs": 117.80000019073486,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 8905100
+      },
+      "ranAt": "2026-05-17T06:28:54.205Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 2.4000000953674316,
+        "firstPaintMs": 3.6000003814697266,
+        "actionMs": 1524.4000000953674,
+        "scrollFps": 60.002637478570485,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 12030498
+      },
+      "ranAt": "2026-05-17T06:28:55.755Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 2.5999999046325684,
+        "firstPaintMs": 3.8000001907348633,
+        "actionMs": 1522,
+        "scrollFps": 60.00263747857049,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 12016529
+      },
+      "ranAt": "2026-05-17T06:28:57.305Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 2.700000286102295,
+        "firstPaintMs": 3.8000001907348633,
+        "actionMs": 1521.1999998092651,
+        "scrollFps": 60.002637478570485,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 11771363
+      },
+      "ranAt": "2026-05-17T06:28:58.855Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 2.799999713897705,
+        "firstPaintMs": 4,
+        "actionMs": 1522.0999999046326,
+        "scrollFps": 60.00263747857049,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 11740186
+      },
+      "ranAt": "2026-05-17T06:29:00.405Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "scroll-to-bottom-10k"
+      },
+      "metrics": {
+        "mountMs": 2.700000286102295,
+        "firstPaintMs": 3.8000001907348633,
+        "actionMs": 1522.9000000953674,
+        "scrollFps": 60.00659413122322,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 11948823
+      },
+      "ranAt": "2026-05-17T06:29:01.955Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 9.5,
+        "firstPaintMs": 13.200000286102295,
+        "actionMs": 1521.6999998092651,
+        "scrollFps": 59.99868134766269,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 11210447
+      },
+      "ranAt": "2026-05-17T06:29:03.522Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 8.800000190734863,
+        "firstPaintMs": 12,
+        "actionMs": 1521.5999999046326,
+        "scrollFps": 60.00263747857049,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 11923206
+      },
+      "ranAt": "2026-05-17T06:29:05.089Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 8.300000190734863,
+        "firstPaintMs": 11.400000095367432,
+        "actionMs": 1523.1999998092651,
+        "scrollFps": 60.00263747857049,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 61265957
+      },
+      "ranAt": "2026-05-17T06:29:06.655Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 8.200000286102295,
+        "firstPaintMs": 9.700000286102295,
+        "actionMs": 1527.0999999046326,
+        "scrollFps": 60.00263747857049,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 11205786
+      },
+      "ranAt": "2026-05-17T06:29:08.222Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "fast-scroll-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 8.400000095367432,
+        "firstPaintMs": 12.700000286102295,
+        "actionMs": 1524.2999997138977,
+        "scrollFps": 60.00659413122322,
+        "longFrames": 0,
+        "jankMs": 0,
+        "memoryBytes": 11923803
+      },
+      "ranAt": "2026-05-17T06:29:09.789Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 8.5,
+        "firstPaintMs": 11.599999904632568,
+        "actionMs": 70.89999961853027,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 38619317
+      },
+      "ranAt": "2026-05-17T06:29:09.904Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 6.700000286102295,
+        "firstPaintMs": 9.300000190734863,
+        "actionMs": 68.30000019073486,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 38622133
+      },
+      "ranAt": "2026-05-17T06:29:10.004Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 6.699999809265137,
+        "firstPaintMs": 7.900000095367432,
+        "actionMs": 66.59999990463257,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 38606492
+      },
+      "ranAt": "2026-05-17T06:29:10.105Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 6.800000190734863,
+        "firstPaintMs": 8.200000286102295,
+        "actionMs": 67.59999990463257,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 38620488
+      },
+      "ranAt": "2026-05-17T06:29:10.204Z"
+    },
+    {
+      "library": "window",
+      "scenario": {
+        "id": "jump-to-end-dynamic-10k"
+      },
+      "metrics": {
+        "mountMs": 6.800000190734863,
+        "firstPaintMs": 9.5,
+        "actionMs": 67.90000009536743,
+        "scrollFps": null,
+        "longFrames": null,
+        "jankMs": null,
+        "memoryBytes": 38622070
+      },
+      "ranAt": "2026-05-17T06:29:10.305Z"
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`tool validation > should pass validation for provider-executed tools (deferred results) 1`] = `
+[
+  {
+    "content": [
+      {
+        "input": {
+          "code": "print("hello")",
+        },
+        "providerExecuted": true,
+        "providerOptions": undefined,
+        "toolCallId": "call_1",
+        "toolName": "code_interpreter",
+        "type": "tool-call",
+      },
+    ],
+    "providerOptions": undefined,
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`tool validation > should pass validation for tool-approval-response 1`] = `
+[
+  {
+    "content": [
+      {
+        "input": {
+          "action": "delete_db",
+        },
+        "providerExecuted": undefined,
+        "providerOptions": undefined,
+        "toolCallId": "call_to_approve",
+        "toolName": "dangerous_action",
+        "type": "tool-call",
+      },
+    ],
+    "providerOptions": undefined,
+    "role": "assistant",
+  },
+]
+`;
+
+exports[`tool validation > should preserve provider-executed tool-approval-response 1`] = `
+[
+  {
+    "content": [
+      {
+        "input": {
+          "action": "execute",
+        },
+        "providerExecuted": true,
+        "providerOptions": undefined,
+        "toolCallId": "call_provider_executed",
+        "toolName": "mcp_tool",
+        "type": "tool-call",
+      },
+    ],
+    "providerOptions": undefined,
+    "role": "assistant",
+  },
+  {
+    "content": [
+      {
+        "approvalId": "approval_provider",
+        "approved": true,
+        "reason": undefined,
+        "type": "tool-approval-response",
+      },
+    ],
+    "providerOptions": undefined,
+    "role": "tool",
+  },
+]
+`;

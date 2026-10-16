@@ -1,0 +1,47 @@
+{
+  "extends": "../tsconfig.base.json",
+  "include": [
+    "data",
+    "scripts/*.mts",
+    "src",
+    "types.d.ts",
+    "next-env.d.ts",
+    "next.config.mjs",
+    ".next/types/**/*.ts",
+    "export/types/**/*.ts"
+  ],
+  "compilerOptions": {
+    "allowJs": true,
+    "isolatedModules": true,
+    /* files are emitted by webpack */
+    "noEmit": true,
+    "noUnusedLocals": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "types": ["react"],
+    "incremental": true,
+    "composite": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@base-ui/react": ["../packages/react/src"],
+      "@base-ui/react/*": ["../packages/react/src/*"],
+      "@base-ui/utils/*": ["../packages/utils/src/*"]
+    },
+    "strictNullChecks": true,
+    "jsx": "preserve"
+  },
+  "exclude": ["node_modules"],
+  "references": [
+    {
+      "path": "../packages/react/tsconfig.build.json"
+    }
+  ]
+}

@@ -1,0 +1,34 @@
+---
+description: 'Use customLogger to attach a logger instance to the current Rsbuild instance. Create it with createLogger() for isolated logging.'
+---
+
+# customLogger
+
+- **Type:** [Logger](/api/javascript-api/core#logger)
+- **Default:** `undefined`
+
+Uses a custom logger instance for the current Rsbuild instance.
+
+> See [Logging](/guide/advanced/logging) for more details.
+
+## Example
+
+Use [createLogger](/api/javascript-api/core#createlogger) to create a new logger instance.
+
+```ts title="rsbuild.config.ts"
+import { createLogger, defineConfig } from '@rsbuild/core';
+
+const logger = createLogger({
+  level: 'warn',
+});
+
+export default defineConfig({
+  customLogger: logger,
+});
+```
+
+## Version history
+
+| Version | Changes                         |
+| ------- | ------------------------------- |
+| v2.0.0  | Added the `customLogger` option |

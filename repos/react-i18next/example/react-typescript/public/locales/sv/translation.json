@@ -1,0 +1,24 @@
+{
+  "title": "Välkommen till React TypeScript med react-i18next",
+  "description": {
+    "part1": "För att komma igång, redigera <1>src/App.tsx</1> och spara för att ladda om.",
+    "part2": "Växla språk mellan engelska och svenska med knapparna ovan."
+  },
+  "examples": {
+    "greeting": "Hej {{name}}!",
+    "counter": "Du har klickat {{count}} gång",
+    "counter_plural": "Du har klickat {{count}} gånger",
+    "date": "Idag är det {{date, datetime}}",
+    "interpolation": "Interpolering med {{value}}",
+    "nested": {
+      "title": "Nästlade översättningar",
+      "content": "Detta är nästlat innehåll"
+    }
+  },
+  "forms": {
+    "submit": "Skicka",
+    "cancel": "Avbryt", 
+    "save": "Spara",
+    "delete": "Ta bort"
+  }
+}

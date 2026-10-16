@@ -1,0 +1,100 @@
+.Trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-radius: 0.25rem;
+  padding: 4px 8px;
+  text-align: left;
+}
+
+.TriggerNested:focus {
+  background: #3b82f6;
+  outline: none;
+  color: #fff;
+}
+
+.TriggerNestedOpenNoFocus {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.TriggerNestedOpenHasFocus {
+  background: #e2e8f0;
+  border-radius: 0.25rem;
+  padding: 4px 8px;
+}
+
+.TriggerRootOpen {
+  background: #e2e8f0;
+}
+
+.Icon {
+  margin-left: 1rem;
+}
+
+.Panel {
+  border: 1px solid rgb(15 23 42 / 0.1);
+  border-radius: 0.25rem;
+  background: #fff;
+  background-clip: padding-box;
+  padding: 4px;
+  box-shadow:
+    0 10px 15px -3px rgb(0 0 0 / 0.1),
+    0 4px 6px -4px rgb(0 0 0 / 0.1);
+  outline: none;
+}
+
+.PanelFlexCol {
+  display: flex;
+  flex-direction: column;
+}
+
+.PanelFlexRow {
+  display: flex;
+  flex-direction: row;
+}
+
+.PanelGrid {
+  display: grid;
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.Item {
+  display: flex;
+  border-radius: 0.25rem;
+  padding: 4px 8px;
+  text-align: left;
+  outline: none;
+}
+
+.Item:focus {
+  background: #3b82f6;
+  color: #fff;
+}
+
+.ItemDisabled {
+  opacity: 0.4;
+}
+
+.Heading {
+  margin-bottom: 2rem;
+  font-size: 3rem;
+  font-weight: 700;
+}
+
+.Container {
+  margin-bottom: 1rem;
+  display: grid;
+  height: 20rem;
+  place-items: center;
+  border: 1px solid #94a3b8;
+  border-radius: 0.25rem;
+}
+
+@media (min-width: 1024px) {
+  .Container {
+    width: 40rem;
+  }
+}

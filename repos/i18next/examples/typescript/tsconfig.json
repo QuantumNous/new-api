@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "module": "CommonJS",
+    // "module": "NodeNext",
+    "esModuleInterop": true,
+    "target": "es6",
+    "lib": ["es2015"],
+    "jsx": "react",
+    "moduleResolution": "Node",
+    // "moduleResolution": "NodeNext",
+    "forceConsistentCasingInFileNames": true,
+    "sourceMap": true,
+    "outDir": "dist",
+    // "resolveJsonModule": true,
+    "strictNullChecks": true
+  }
+}

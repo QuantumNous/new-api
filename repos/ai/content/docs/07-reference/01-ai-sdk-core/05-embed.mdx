@@ -1,0 +1,304 @@
+---
+title: embed
+description: API Reference for embed.
+---
+
+# `embed()`
+
+Generate an embedding for a single value using an embedding model.
+
+This is ideal for use cases where you need to embed a single value to e.g. retrieve similar items or to use the embedding in a downstream task.
+
+```ts
+import { embed } from 'ai';
+
+const { embedding } = await embed({
+  model: 'openai/text-embedding-3-small',
+  value: 'sunny day at the beach',
+});
+```
+
+## Import
+
+<Snippet text={`import { embed } from "ai"`} prompt={false} />
+
+## API Signature
+
+### Parameters
+
+<PropertiesTable
+  content={[
+    {
+      name: 'model',
+      type: 'EmbeddingModel',
+      description:
+        "The embedding model to use. Example: openai.embeddingModel('text-embedding-3-small')",
+    },
+    {
+      name: 'value',
+      type: 'VALUE',
+      description: 'The value to embed. The type depends on the model.',
+    },
+    {
+      name: 'maxRetries',
+      type: 'number',
+      isOptional: true,
+      description:
+        'Maximum number of retries. Set to 0 to disable retries. Default: 2.',
+    },
+    {
+      name: 'abortSignal',
+      type: 'AbortSignal',
+      isOptional: true,
+      description:
+        'An optional abort signal that can be used to cancel the call.',
+    },
+    {
+      name: 'headers',
+      type: 'Record<string, string>',
+      isOptional: true,
+      description:
+        'Additional HTTP headers to be sent with the request. Only applicable for HTTP-based providers.',
+    },
+    {
+      name: 'providerOptions',
+      type: 'ProviderOptions',
+      isOptional: true,
+      description:
+        'Provider-specific options that are passed through to the provider.',
+    },
+    {
+      name: 'telemetry',
+      type: 'TelemetryOptions',
+      isOptional: true,
+      description: 'Telemetry configuration.',
+      properties: [
+        {
+          type: 'TelemetryOptions',
+          parameters: [
+            {
+              name: 'isEnabled',
+              type: 'boolean',
+              isOptional: true,
+              description:
+                'Enable or disable telemetry. Enabled by default. Set to `false` to opt out.',
+            },
+            {
+              name: 'recordInputs',
+              type: 'boolean',
+              isOptional: true,
+              description:
+                'Enable or disable input recording. Enabled by default.',
+            },
+            {
+              name: 'recordOutputs',
+              type: 'boolean',
+              isOptional: true,
+              description:
+                'Enable or disable output recording. Enabled by default.',
+            },
+            {
+              name: 'functionId',
+              type: 'string',
+              isOptional: true,
+              description:
+                'Identifier for this function. Used to group telemetry data by function.',
+            },
+            {
+              name: 'integrations',
+              isOptional: true,
+              type: 'Telemetry | Telemetry[]',
+              description:
+                'Per-call telemetry integrations that receive lifecycle events. When provided, these replace any globally registered integrations for this call.',
+            },
+          ],
+        },
+      ],
+    },
+    {
+      name: 'onStart',
+      type: '(event: EmbedStartEvent) => PromiseLike<void> | void',
+      isOptional: true,
+      description:
+        'Callback that is called when the embed operation begins, before the embedding model is called. Errors thrown in this callback are silently caught and do not break the embedding flow.',
+      properties: [
+        {
+          type: 'EmbedStartEvent',
+          parameters: [
+            {
+              name: 'callId',
+              type: 'string',
+              description: 'Unique identifier for this embed call.',
+            },
+            {
+              name: 'operationId',
+              type: 'string',
+              description: "Identifies the operation type ('ai.embed').",
+            },
+            {
+              name: 'model',
+              type: '{ provider: string; modelId: string }',
+              description: 'The embedding model being used.',
+            },
+            {
+              name: 'value',
+              type: 'string | Array<string>',
+              description: 'The value being embedded.',
+            },
+            {
+              name: 'maxRetries',
+              type: 'number',
+              description: 'Maximum number of retries for failed requests.',
+            },
+            {
+              name: 'abortSignal',
+              type: 'AbortSignal | undefined',
+              description: 'Abort signal for cancelling the operation.',
+            },
+            {
+              name: 'headers',
+              type: 'Record<string, string | undefined> | undefined',
+              description: 'Additional HTTP headers sent with the request.',
+            },
+            {
+              name: 'providerOptions',
+              type: 'ProviderOptions | undefined',
+              description: 'Additional provider-specific options.',
+            },
+          ],
+        },
+      ],
+    },
+    {
+      name: 'onEnd',
+      type: '(event: EmbedEndEvent) => PromiseLike<void> | void',
+      isOptional: true,
+      description:
+        'Callback that is called when the embed operation completes, after the embedding model returns. Errors thrown in this callback are silently caught and do not break the embedding flow.',
+      properties: [
+        {
+          type: 'EmbedEndEvent',
+          parameters: [
+            {
+              name: 'callId',
+              type: 'string',
+              description: 'Unique identifier for this embed call.',
+            },
+            {
+              name: 'operationId',
+              type: 'string',
+              description: "Identifies the operation type ('ai.embed').",
+            },
+            {
+              name: 'model',
+              type: '{ provider: string; modelId: string }',
+              description: 'The embedding model that was used.',
+            },
+            {
+              name: 'value',
+              type: 'string | Array<string>',
+              description: 'The value that was embedded.',
+            },
+            {
+              name: 'embedding',
+              type: 'Embedding | Array<Embedding>',
+              description: 'The resulting embedding vector.',
+            },
+            {
+              name: 'usage',
+              type: 'EmbeddingModelUsage',
+              description: 'Token usage for the embedding operation.',
+            },
+            {
+              name: 'warnings',
+              type: 'Array<Warning>',
+              description: 'Warnings from the embedding model.',
+            },
+            {
+              name: 'providerMetadata',
+              type: 'ProviderMetadata | undefined',
+              description: 'Optional provider-specific metadata.',
+            },
+            {
+              name: 'response',
+              type: '{ headers?: Record<string, string>; body?: unknown } | undefined',
+              description: 'Optional response data including headers and body.',
+            },
+          ],
+        },
+      ],
+    },
+  ]}
+/>
+
+### Returns
+
+<PropertiesTable
+  content={[
+    {
+      name: 'value',
+      type: 'VALUE',
+      description: 'The value that was embedded.',
+    },
+    {
+      name: 'embedding',
+      type: 'number[]',
+      description: 'The embedding of the value.',
+    },
+    {
+      name: 'usage',
+      type: 'EmbeddingModelUsage',
+      description: 'The token usage for generating the embeddings.',
+      properties: [
+        {
+          type: 'EmbeddingModelUsage',
+          parameters: [
+            {
+              name: 'tokens',
+              type: 'number',
+              description: 'The number of tokens used in the embedding.',
+            },
+          ],
+        },
+      ],
+    },
+    {
+      name: 'warnings',
+      type: 'Warning[]',
+      description:
+        'Warnings from the model provider (e.g. unsupported settings).',
+    },
+    {
+      name: 'response',
+      type: 'Response',
+      isOptional: true,
+      description: 'Optional response data.',
+      properties: [
+        {
+          type: 'Response',
+          parameters: [
+            {
+              name: 'headers',
+              isOptional: true,
+              type: 'Record<string, string>',
+              description: 'Response headers.',
+            },
+            {
+              name: 'body',
+              type: 'unknown',
+              isOptional: true,
+              description: 'The response body.',
+            },
+          ],
+        },
+      ],
+    },
+    {
+      name: 'providerMetadata',
+      type: 'ProviderMetadata | undefined',
+      isOptional: true,
+      description:
+        'Optional metadata from the provider. The outer key is the provider name. The inner values are the metadata. Details depend on the provider.',
+    },
+  ]}
+/>

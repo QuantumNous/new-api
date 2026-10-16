@@ -1,0 +1,93 @@
+# TypeScript
+
+<Subtitle>A guide to using TypeScript with Base UI.</Subtitle>
+<Meta name="description" content="A guide to using TypeScript with Base UI." />
+
+## Namespaces
+
+Base UI uses namespaces to organize types. Every component has two core interfaces:
+
+- `Props` (such as `Tooltip.Root.Props`)
+- `State` (such as `Tooltip.Root.State`)
+
+### Props
+
+When creating wrapping components, you can use the `Props` type to accept all of the underlying Base UI props for the component.
+
+```tsx title="Prop types"
+import { Tooltip } from '@base-ui/react/tooltip';
+
+function MyTooltip(props: Tooltip.Root.Props) {
+  return <Tooltip.Root {...props} />;
+}
+```
+
+### State
+
+The `State` type is the internal state of the component.
+For example, `Positioner` components (such as `<Popover.Positioner>`) have state that describes the position of the element in relation to their anchor.
+
+```tsx title="Positioner state"
+function renderPositioner(props: Popover.Positioner.Props, state: Popover.Positioner.State) {
+  return (
+    <div {...props}>
+      <ul>
+        <li>The popover is {state.open ? 'open' : 'closed'}</li>
+        <li>I am on the {state.side} side of the anchor</li>
+        <li>I am aligned at the {state.align} of the side</li>
+        <li>The anchor is {state.anchorHidden ? 'hidden' : 'visible'}</li>
+      </ul>
+      {props.children}
+    </div>
+  );
+}
+
+<Popover.Positioner render={renderPositioner} />;
+```
+
+### Events
+
+Types relating to custom Base UI events are also exported on component parts' namespaces.
+
+- `ChangeEventDetails` (such as `Combobox.Root.ChangeEventDetails`) is the object passed to change handlers like `onValueChange` and `onOpenChange`.
+- `ChangeEventReason` (such as `Combobox.Root.ChangeEventReason`) is the union of possible reason strings for a change event.
+
+```tsx title="Change event types"
+function onValueChange(value: string, eventDetails: Combobox.Root.ChangeEventDetails) {
+  console.log(value, eventDetails);
+}
+
+function onOpenChange(open: boolean, eventDetails: Combobox.Root.ChangeEventDetails) {
+  console.log(open, eventDetails);
+}
+```
+
+### Other accessible types
+
+Depending on the component API, other types are also exported on component parts or utility functions.
+The following list is non-exhaustive, and each of these are documented where necessary.
+
+- Popups have an `actionsRef` prop to access imperative methods. For example, `Menu.Root.Actions` gives access to the shape of the `actionsRef` object prop on `<Menu.Root>`.
+- The `toast` object on `<Toast.Root>` is a complex object with many properties. `Toast.Root.ToastObject` gives access to this interface.
+- Components that have a `render` prop have an extended `React.ComponentProps` type, enhanced with a `render` prop. The `useRender.ComponentProps` type on the function gives access to this interface.
+
+export const metadata = {
+  keywords: [
+    'Base UI TypeScript',
+    'Component Props Namespace',
+    'Combobox ChangeEventDetails',
+    'Popover Positioner State',
+    'Toast Actions Ref Types',
+    'Use Render Component Props',
+    'Handbook TypeScript',
+    'Type Definitions',
+    'Type Safety',
+    'Generics',
+    'Component Types',
+    'Props Types',
+    'Event Types',
+    'Ref Types',
+    'Type Inference',
+    'Strongly Typed Components',
+  ],
+};

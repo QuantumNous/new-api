@@ -1,0 +1,91 @@
+{
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.12.1",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/colinhacks/zod.git"
+  },
+  "bugs": {
+    "url": "https://github.com/colinhacks/zod/issues"
+  },
+  "support": {
+    "backing": {
+      "npm-funding": true
+    }
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.17.4",
+    "@biomejs/biome": "^1.9.4",
+    "@seriousme/openapi-schema-validator": "2.9.0",
+    "@types/benchmark": "^2.1.5",
+    "@types/semver": "^7.7.0",
+    "@web-std/file": "^3.0.3",
+    "arktype": "^2.1.19",
+    "benchmark": "^2.1.4",
+    "chalk": "^5.4.1",
+    "console-table-printer": "^2.12.1",
+    "esbuild": "^0.25.5",
+    "execa": "^9.5.2",
+    "globby": "^16.2.0",
+    "husky": "^9.1.7",
+    "jsr": "^0.12.4",
+    "lint-staged": "^16.4.0",
+    "madge": "^8.0.0",
+    "mitata": "^0.1.14",
+    "prettier": "^3.5.3",
+    "recheck": "^4.5.0",
+    "rolldown": "1.0.0-beta.18",
+    "rollup": "^4.60.2",
+    "semver": "^7.7.2",
+    "supershy": "^1.0.0",
+    "tinybench": "^2.9.0",
+    "ts-morph": "^28.0.0",
+    "tsdown": "^0.21.10",
+    "tslib": "^2.8.1",
+    "tsx": "^4.19.3",
+    "typescript": "~5.5.4",
+    "vite": "^7.3.2",
+    "vitest": "^4.1.5",
+    "zod": "workspace:*",
+    "zod3": "npm:zod@~3.24.0",
+    "zshy": "^0.7.2"
+  },
+  "lint-staged": {
+    "packages/*/src/**/*.ts": [
+      "biome format --no-errors-on-unmatched --write",
+      "biome lint --no-errors-on-unmatched --write"
+    ],
+    "packages/*/**/*.json": [
+      "biome format --no-errors-on-unmatched --write",
+      "biome lint --no-errors-on-unmatched --write"
+    ],
+    "packages/*/**/*.md": [
+      "prettier --ignore-unknown --write"
+    ]
+  },
+  "scripts": {
+    "fix": "pnpm run format && pnpm run lint",
+    "format": "biome check --write .",
+    "format:check": "biome check .",
+    "lint": "biome lint --write .",
+    "lint:check": "biome lint .",
+    "clean": "pnpm run -r clean",
+    "build": "pnpm run -r --filter zod build",
+    "test:watch": "vitest",
+    "test": "vitest run",
+    "prepublishOnly": "pnpm run test && pnpm run build",
+    "dev": "tsx --conditions @zod/source",
+    "dev:watch": "tsx --conditions @zod/source --watch",
+    "dev:play": "pnpm dev play.ts",
+    "bench": "tsx --conditions @zod/source packages/bench/index.ts",
+    "moltar": "pnpm bench object-moltar",
+    "prepare": "husky",
+    "postbuild": "biome format --write .",
+    "publish:jsr": "jsr publish --dry-run",
+    "bundle:rollup": "rollup -c",
+    "bundle:esbuild": "esbuild --bundle ./scratch/input.ts --outfile=./scratch/out_esbuild.js --bundle --format=esm",
+    "check:semver": "tsx scripts/check-versions.ts",
+    "check:circular": "madge --circular --extensions ts --exclude '(v4/core|v3|iso\\.ts)' packages/zod/src"
+  }
+}
