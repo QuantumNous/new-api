@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ModelTrace | new-api</title>
+  <link rel="stylesheet" href="/static-manual/styles.css">
+  <link rel="stylesheet" href="/static-manual/repository-link.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="product-name"><span class="product-mark">MT</span><strong>ModelTrace</strong><span class="version">new-api / QuantumNous</span></div>
+    <div class="topbar-actions">
+      <span id="topbar-bank-count">Loading current bank</span>
+      <a class="topbar-github" href="https://github.com/xqy2006/ModelTrace" target="_blank" rel="noopener noreferrer" aria-label="ModelTrace upstream repository">
+        <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 0 1 2-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
+      </a>
+    </div>
+  </header>
+  <div class="layout">
+    <aside class="sidebar">
+      <nav aria-label="Workspace">
+        <button class="nav-button active" data-workspace="test" type="button"><span class="nav-icon">01</span><strong>Model testing</strong></button>
+        <button class="nav-button" data-workspace="library" type="button"><span class="nav-icon">02</span><strong>Bank management</strong></button>
+        <a href="/static-manual/">Pinned builtin manual</a>
+      </nav>
+      <div class="sidebar-note"><strong>Independent local operator</strong><span>Not remote administrator authentication.</span><span>No automatic retry or publication.</span></div>
+    </aside>
+    <main class="main-content">
+      <div id="test-message" class="message" role="status" aria-live="polite" hidden></div>
+      <section id="workspace-test" class="workspace active">
+        <div class="page-header"><h1>Model testing</h1><div id="active-bank-badge" class="privacy-badge">Current generation</div></div>
+        <div class="mode-tabs" aria-label="Testing mode">
+          <button class="mode-tab active" data-mode="manual" type="button">Manual input</button>
+          <button class="mode-tab" data-mode="api" type="button">Explicit API collection</button>
+        </div>
+        <section id="test-manual" class="mode-panel active">
+          <div class="panel-toolbar"><strong>Three owned challenges</strong><button id="regenerate" class="button secondary" type="button">New challenge plan</button></div>
+          <div id="challenge-list" class="challenge-list"></div>
+          <div class="action-row"><button id="analyze" class="button primary" type="button">Analyze manual outputs</button></div>
+        </section>
+        <section id="test-api" class="mode-panel">
+          <form id="api-test-form" class="form-panel">
+            <div class="form-grid two">
+              <label>Base URL<input id="test-api-base" type="url" required maxlength="2048" autocomplete="off"></label>
+              <label>API model<input id="test-api-model" required maxlength="1024" autocomplete="off"></label>
+              <label>API key<input id="test-api-key" type="password" required maxlength="4096" autocomplete="off"></label>
+              <label>Explicit protocol<select id="test-protocol"><option value="openai">OpenAI Chat</option><option value="anthropic">Anthropic Messages</option></select></label>
+              <label>Claimed model label<input id="test-label" required maxlength="1024" value="GPT-4o"></label>
+              <label>Fixed action<select id="test-action"><option value="test">Exactly three slots</option><option value="probe">One owned challenge slot</option></select></label>
+            </div>
+            <div class="form-footer"><button class="button primary" type="submit">Collect once</button></div>
+          </form>
+          <div id="collection-status" class="progress-panel" role="status" hidden></div>
+          <div class="action-row"><button id="analyze-collected" class="button secondary" type="button" disabled>Analyze committed numeric samples</button><button id="lookup-operation" class="button secondary" type="button" disabled>Read owned operation</button></div>
+        </section>
+        <section id="result" class="result-panel" aria-live="polite" hidden></section>
+        <section class="form-panel">
+          <div class="form-heading"><strong>Numeric Evidence only</strong><span>Closed-set probability is not identity proof. Partial or unknown remains inconclusive.</span></div>
+          <div class="form-grid two">
+            <label>Existing binding<select id="binding-select"></select></label>
+            <label>Probe ID<input id="probe-id" readonly></label>
+          </div>
+          <div class="form-footer"><button id="download-evidence" class="button secondary" type="button" disabled>Download numeric Evidence</button><button id="submit-evidence" class="button primary" type="button" disabled>Signed submit once</button><button id="read-probe" class="button secondary" type="button" disabled>Signed readback</button></div>
+          <pre id="export-status" aria-live="polite"></pre>
+        </section>
+      </section>
+      <section id="workspace-library" class="workspace">
+        <div class="page-header"><h1>Bank management</h1><div class="library-actions"><button id="rebuild" class="button secondary" type="button">Explicit rebuild</button><button id="reload" class="button secondary" type="button">Reload view only</button></div></div>
+        <section class="inventory-panel"><div class="form-heading"><strong>Current generation</strong><span id="bank-revision"></span></div><div id="bank-inventory" class="fingerprint-list"></div></section>
+        <form id="create-bank-form" class="form-panel">
+          <div class="form-grid two"><label>New family ID<input id="new-bank-id" pattern="[a-z0-9][a-z0-9-]{0,63}" required></label><label>New family label<input id="new-bank-name" maxlength="1024" required></label></div>
+          <div class="form-footer"><button class="button primary" type="submit">Create family once</button></div>
+        </form>
+        <form id="auto-enrollment" class="form-panel">
+          <div class="form-heading"><strong>Enrollment collection</strong><span>Collection never publishes. Three valid rows can remain inactive; fitting requires four distinct challenges per model.</span></div>
+          <div class="form-grid two">
+            <label>Destination family<select id="enroll-family"></select></label>
+            <label>Model label<input id="enroll-label" maxlength="1024" required></label>
+            <label>Enrollment base URL<input id="enroll-base" type="url" maxlength="2048" required autocomplete="off"></label>
+            <label>Enrollment API model<input id="enroll-model" maxlength="1024" required autocomplete="off"></label>
+            <label>Enrollment API key<input id="enroll-key" type="password" maxlength="4096" required autocomplete="off"></label>
+            <label>Enrollment protocol<select id="enroll-protocol"><option value="openai">OpenAI Chat</option><option value="anthropic">Anthropic Messages</option></select></label>
+            <label>Slots (3 to 36)<input id="sample-count" type="number" min="3" max="36" value="3" required></label>
+          </div>
+          <div class="form-footer"><button class="button primary" type="submit">Collect enrollment once</button><button id="publish-enrollment" class="button secondary" type="button" disabled>Publish completed enrollment once</button></div>
+          <pre id="enrollment-status" aria-live="polite"></pre>
+        </form>
+      </section>
+      <footer class="scope-panel">ModelTrace upstream: xqy2006/ModelTrace. Host project: new-api, QuantumNous. AGPL-3.0-or-later host attribution preserved.</footer>
+    </main>
+  </div>
+  <script type="module" src="/assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+.topbar-actions { display: flex; align-items: center; gap: 12px; }
+.topbar-github { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 auto; color: var(--muted); border-radius: 7px; text-decoration: none; }
+.topbar-github:hover { color: var(--primary); background: var(--primary-soft); }
+.topbar-github:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
