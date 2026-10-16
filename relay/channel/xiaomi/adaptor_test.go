@@ -1,0 +1,379 @@
+package xiaomi
+
+import (
+	"bytes"
+	"encoding/base64"
+	"encoding/binary"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func xiaomiRelayInfo(relayMode int, request dto.Request) *relaycommon.RelayInfo {
+	return &relaycommon.RelayInfo{
+		RelayFormat:    types.RelayFormatOpenAI,
+		RelayMode:      relayMode,
+		RequestURLPath: "/v1/audio/speech",
+		Request:        request,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:            "sk-test",
+			ChannelBaseUrl:    "https://api.xiaomimimo.com",
+			ChannelType:       constant.ChannelTypeXiaomi,
+			UpstreamModelName: "mimo-v2.5-tts",
+		},
+	}
+}
+
+func xiaomiGinContext(t *testing.T, path string) *gin.Context {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, path, nil)
+	c.Request.Header.Set("Content-Type", "application/json")
+	return c
+}
+
+// MiMo synthesises audio from a chat completion, so the OpenAI speech fields
+// have to land as the two chat turns and the audio options MiMo reads.
+func TestConvertSpeechRequestBuildsChatCompletion(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		request      dto.AudioRequest
+		wantFormat   string
+		wantVoice    string
+		wantMessages int
+	}{
+		{
+			name:         "defaults to wav and the default voice",
+			request:      dto.AudioRequest{Model: "mimo-v2.5-tts", Input: "你好"},
+			wantFormat:   "wav",
+			wantVoice:    "mimo_default",
+			wantMessages: 1,
+		},
+		{
+			name:         "instructions become the style turn",
+			request:      dto.AudioRequest{Model: "mimo-v2.5-tts", Input: "你好", Instructions: "轻声细语"},
+			wantFormat:   "wav",
+			wantVoice:    "mimo_default",
+			wantMessages: 2,
+		},
+		{
+			name:         "keeps an mp3 request and a MiMo preset voice",
+			request:      dto.AudioRequest{Model: "mimo-v2.5-tts", Input: "你好", Voice: "冰糖", ResponseFormat: "mp3"},
+			wantFormat:   "mp3",
+			wantVoice:    "冰糖",
+			wantMessages: 1,
+		},
+		{
+			name:         "an OpenAI voice MiMo does not have falls back to the default",
+			request:      dto.AudioRequest{Model: "mimo-v2.5-tts", Input: "你好", Voice: "alloy"},
+			wantFormat:   "wav",
+			wantVoice:    "mimo_default",
+			wantMessages: 1,
+		},
+		{
+			name:         "a container MiMo cannot render falls back to wav",
+			request:      dto.AudioRequest{Model: "mimo-v2.5-tts", Input: "你好", ResponseFormat: "opus"},
+			wantFormat:   "wav",
+			wantVoice:    "mimo_default",
+			wantMessages: 1,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			adaptor := &Adaptor{}
+			info := xiaomiRelayInfo(relayconstant.RelayModeAudioSpeech, &tc.request)
+
+			reader, err := adaptor.ConvertAudioRequest(xiaomiGinContext(t, "/v1/audio/speech"), info, tc.request)
+			require.NoError(t, err)
+
+			body, err := io.ReadAll(reader)
+			require.NoError(t, err)
+			assert.Equal(t, tc.wantFormat, adaptor.speechFormat)
+
+			var payload struct {
+				Model    string `json:"model"`
+				Messages []struct {
+					Role    string `json:"role"`
+					Content string `json:"content"`
+				} `json:"messages"`
+				Audio struct {
+					Format string `json:"format"`
+					Voice  string `json:"voice"`
+				} `json:"audio"`
+				Stream bool `json:"stream"`
+			}
+			require.NoError(t, common.Unmarshal(body, &payload))
+
+			assert.Equal(t, tc.request.Model, payload.Model)
+			assert.Equal(t, tc.wantFormat, payload.Audio.Format)
+			assert.Equal(t, tc.wantVoice, payload.Audio.Voice)
+			assert.False(t, payload.Stream)
+			require.Len(t, payload.Messages, tc.wantMessages)
+			assert.Equal(t, "assistant", payload.Messages[len(payload.Messages)-1].Role)
+			assert.Equal(t, tc.request.Input, payload.Messages[len(payload.Messages)-1].Content)
+		})
+	}
+}
+
+func TestConvertSpeechRequestRequiresInput(t *testing.T) {
+	adaptor := &Adaptor{}
+	request := dto.AudioRequest{Model: "mimo-v2.5-tts"}
+
+	_, err := adaptor.ConvertAudioRequest(xiaomiGinContext(t, "/v1/audio/speech"),
+		xiaomiRelayInfo(relayconstant.RelayModeAudioSpeech, &request), request)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "input is required")
+}
+
+// The speech endpoint promises a raw audio body, so the base64 payload MiMo
+// returns inside the chat completion has to be unpacked and labelled with the
+// container that was actually rendered.
+func TestSpeechResponseUnpacksAudioAndLabelsContainer(t *testing.T) {
+	audio := wavWithPCM(make([]byte, 320))
+	completion, err := common.Marshal(map[string]any{
+		"choices": []any{
+			map[string]any{"message": map[string]any{"audio": map[string]any{"data": base64.StdEncoding.EncodeToString(audio)}}},
+		},
+	})
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		name        string
+		format      string
+		contentType string
+	}{
+		{name: "wav request answers audio/wav", format: audioFormatWAV, contentType: "audio/wav"},
+		{name: "mp3 request answers audio/mpeg", format: audioFormatMP3, contentType: "audio/mpeg"},
+		{name: "no negotiated format answers audio/wav", format: "", contentType: "audio/wav"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder, c := xiaomiRecorder(t)
+
+			_, apiErr := (&Adaptor{speechFormat: tc.format}).doSpeechResponse(c, &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(completion)),
+			}, xiaomiRelayInfo(relayconstant.RelayModeAudioSpeech, &dto.AudioRequest{}))
+
+			require.Nil(t, apiErr)
+			assert.Equal(t, tc.contentType, recorder.Header().Get("Content-Type"))
+			assert.Equal(t, audio, recorder.Body.Bytes())
+		})
+	}
+}
+
+// MiMo reports no duration for synthesis, so the reply is billed by the audio
+// it returned, and a payload whose header cannot be read still costs something
+// instead of settling to zero.
+func TestSpeechResponseBillsRenderedAudio(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		audio     []byte
+		format    string
+		wantToken int
+	}{
+		{
+			name:      "one second of wav bills one minute's worth of 1000 tokens",
+			audio:     wavWithPCM(make([]byte, 16000)),
+			format:    audioFormatWAV,
+			wantToken: 17,
+		},
+		{
+			name:      "an unreadable payload falls back to its size",
+			audio:     []byte{0x00, 0x01, 0x02, 0x03},
+			format:    audioFormatWAV,
+			wantToken: 1,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			completion, err := common.Marshal(map[string]any{
+				"choices": []any{
+					map[string]any{"message": map[string]any{"audio": map[string]any{"data": base64.StdEncoding.EncodeToString(tc.audio)}}},
+				},
+			})
+			require.NoError(t, err)
+			_, c := xiaomiRecorder(t)
+
+			usage, apiErr := (&Adaptor{speechFormat: tc.format}).doSpeechResponse(c, &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader(completion)),
+			}, xiaomiRelayInfo(relayconstant.RelayModeAudioSpeech, &dto.AudioRequest{}))
+
+			require.Nil(t, apiErr)
+			assert.Equal(t, tc.wantToken, usage.CompletionTokenDetails.AudioTokens)
+			assert.Equal(t, tc.wantToken, usage.CompletionTokens)
+			assert.Equal(t, usage.PromptTokens+usage.CompletionTokens, usage.TotalTokens)
+		})
+	}
+}
+
+func TestSpeechResponseRejectsACompletionWithoutAudio(t *testing.T) {
+	_, c := xiaomiRecorder(t)
+
+	_, apiErr := (&Adaptor{}).doSpeechResponse(c, &http.Response{
+		StatusCode: http.StatusOK,
+		Body:       io.NopCloser(bytes.NewReader([]byte(`{"choices":[{"message":{"content":""}}]}`))),
+	}, xiaomiRelayInfo(relayconstant.RelayModeAudioSpeech, &dto.AudioRequest{}))
+
+	require.NotNil(t, apiErr)
+	assert.Contains(t, apiErr.Error(), "no audio")
+}
+
+// Transcription only reaches MiMo as a chat message carrying the upload as a
+// data URL, so the container has to be recognised before the base64 step.
+func TestConvertTranscriptionRequestCarriesAudioDataURL(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		filename    string
+		partType    string
+		wantDataURL string
+		wantErr     string
+	}{
+		{name: "wav by extension", filename: "clip.wav", partType: "application/octet-stream", wantDataURL: "data:audio/wav;base64,"},
+		{name: "mp3 by extension", filename: "clip.mp3", partType: "application/octet-stream", wantDataURL: "data:audio/mpeg;base64,"},
+		{name: "content type decides when the name has no extension", filename: "clip", partType: "audio/mpeg", wantDataURL: "data:audio/mpeg;base64,"},
+		{name: "rejects a container MiMo cannot decode", filename: "clip.flac", partType: "audio/flac", wantErr: "unsupported audio format"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := xiaomiGinContext(t, "/v1/audio/transcriptions")
+			c.Request.Header.Set("Content-Type", multipartAudioBody(t, c, tc.filename, tc.partType, []byte{0x01, 0x02}))
+
+			reader, err := buildTranscriptionRequest(c, dto.AudioRequest{Model: "mimo-v2.5-asr"})
+			if tc.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tc.wantErr)
+				return
+			}
+			require.NoError(t, err)
+
+			body, err := io.ReadAll(reader)
+			require.NoError(t, err)
+
+			var payload struct {
+				Model    string `json:"model"`
+				Messages []struct {
+					Content []struct {
+						Type       string `json:"type"`
+						InputAudio struct {
+							Data string `json:"data"`
+						} `json:"input_audio"`
+					} `json:"content"`
+				} `json:"messages"`
+				ASROptions struct {
+					Language string `json:"language"`
+				} `json:"asr_options"`
+			}
+			require.NoError(t, common.Unmarshal(body, &payload))
+
+			assert.Equal(t, "mimo-v2.5-asr", payload.Model)
+			require.Len(t, payload.Messages, 1)
+			require.Len(t, payload.Messages[0].Content, 1)
+			assert.Equal(t, "input_audio", payload.Messages[0].Content[0].Type)
+			assert.Equal(t,
+				tc.wantDataURL+base64.StdEncoding.EncodeToString([]byte{0x01, 0x02}),
+				payload.Messages[0].Content[0].InputAudio.Data)
+			assert.Equal(t, "auto", payload.ASROptions.Language)
+		})
+	}
+}
+
+func TestAsrLanguageNarrowsTheOpenAIHint(t *testing.T) {
+	assert.Equal(t, "auto", asrLanguage(nil))
+	assert.Equal(t, "zh", asrLanguage([]string{"zh"}))
+	assert.Equal(t, "en", asrLanguage([]string{"EN"}))
+	assert.Equal(t, "auto", asrLanguage([]string{"ja"}))
+}
+
+// The transcript arrives as chat message content, but the endpoint promises an
+// OpenAI transcription payload.
+func TestTranscriptionResponseRendersRequestedFormat(t *testing.T) {
+	const completion = `{"choices":[{"message":{"content":"你好世界"}}],"usage":{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10,"prompt_tokens_details":{"audio_tokens":25}}}`
+
+	for _, tc := range []struct {
+		name           string
+		responseFormat string
+		wantType       string
+		wantBody       string
+	}{
+		{name: "json by default", responseFormat: "", wantType: "application/json", wantBody: `{"text":"你好世界"}`},
+		{name: "json explicitly", responseFormat: "json", wantType: "application/json", wantBody: `{"text":"你好世界"}`},
+		{name: "plain text", responseFormat: "text", wantType: "text/plain; charset=utf-8", wantBody: "你好世界"},
+		{name: "timed formats answer json", responseFormat: "srt", wantType: "application/json", wantBody: `{"text":"你好世界"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder, c := xiaomiRecorder(t)
+			request := dto.AudioRequest{Model: "mimo-v2.5-asr", ResponseFormat: tc.responseFormat}
+
+			usage, apiErr := doTranscriptionResponse(c, &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(completion))),
+			}, xiaomiRelayInfo(relayconstant.RelayModeAudioTranscription, &request))
+
+			require.Nil(t, apiErr)
+			assert.Equal(t, tc.wantType, recorder.Header().Get("Content-Type"))
+			assert.Equal(t, tc.wantBody, recorder.Body.String())
+			// The audio-token detail is what makes the request settle against
+			// the audio prices instead of the text ones.
+			assert.Equal(t, 25, usage.PromptTokensDetails.AudioTokens)
+		})
+	}
+}
+
+func xiaomiRecorder(t *testing.T) (*httptest.ResponseRecorder, *gin.Context) {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/audio", nil)
+	return recorder, c
+}
+
+// multipartAudioBody puts a file part on the request and returns the multipart
+// content type the caller must advertise.
+func multipartAudioBody(t *testing.T, c *gin.Context, filename string, partType string, content []byte) string {
+	t.Helper()
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreatePart(map[string][]string{
+		"Content-Disposition": {`form-data; name="file"; filename="` + filename + `"`},
+		"Content-Type":        {partType},
+	})
+	require.NoError(t, err)
+	_, err = part.Write(content)
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	c.Request.Body = io.NopCloser(bytes.NewReader(body.Bytes()))
+	return writer.FormDataContentType()
+}
+
+// wavWithPCM wraps PCM samples in the minimal 16-bit mono 8 kHz RIFF header the
+// duration parser reads.
+func wavWithPCM(pcm []byte) []byte {
+	header := make([]byte, 44)
+	copy(header, "RIFF")
+	binary.LittleEndian.PutUint32(header[4:], uint32(36+len(pcm)))
+	copy(header[8:], "WAVEfmt ")
+	binary.LittleEndian.PutUint32(header[16:], 16)
+	binary.LittleEndian.PutUint16(header[20:], 1)     // PCM
+	binary.LittleEndian.PutUint16(header[22:], 1)     // mono
+	binary.LittleEndian.PutUint32(header[24:], 8000)  // sample rate
+	binary.LittleEndian.PutUint32(header[28:], 16000) // byte rate
+	binary.LittleEndian.PutUint16(header[32:], 2)     // block align
+	binary.LittleEndian.PutUint16(header[34:], 16)    // bits per sample
+	copy(header[36:], "data")
+	binary.LittleEndian.PutUint32(header[40:], uint32(len(pcm)))
+	return append(header, pcm...)
+}
