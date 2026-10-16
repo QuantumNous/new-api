@@ -48,6 +48,25 @@ func DecodeBase64FileData(base64String string) (string, string, error) {
 	return resolver(base64String)
 }
 
+// DefaultResponsesImageDetail is the detail a Responses input_image part gets
+// when the source protocol carries no detail hint. Strict Responses validators
+// (vLLM validates with the OpenAI Python SDK types, where detail is required)
+// reject parts that omit it, while OpenAI itself treats the field as optional
+// and defaults to "auto".
+const DefaultResponsesImageDetail = "auto"
+
+// ResponsesImageDetail normalizes a source detail hint into a value Responses
+// accepts. Anything outside low/high/auto falls back to the default so an
+// upstream never sees a detail it may reject.
+func ResponsesImageDetail(detail string) string {
+	switch normalized := strings.ToLower(strings.TrimSpace(detail)); normalized {
+	case "low", "high":
+		return normalized
+	default:
+		return DefaultResponsesImageDetail
+	}
+}
+
 // IsTextMimeType reports whether a MIME type is plain text that a target can
 // carry as text: text/* and application/json, ignoring parameters.
 func IsTextMimeType(mimeType string) bool {
