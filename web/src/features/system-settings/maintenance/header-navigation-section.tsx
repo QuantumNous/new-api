@@ -49,7 +49,8 @@ import {
 } from './config'
 
 const headerNavSchema = z.object({
-  home: z.boolean(),
+  homeEnabled: z.boolean(),
+  homeRequireAuth: z.boolean(),
   console: z.boolean(),
   pricingEnabled: z.boolean(),
   pricingRequireAuth: z.boolean(),
@@ -67,8 +68,14 @@ type HeaderNavigationSectionProps = {
 }
 
 const toFormValues = (config: HeaderNavModulesConfig): HeaderNavFormValues => ({
-  home:
-    config.home === undefined ? HEADER_NAV_DEFAULT.home : Boolean(config.home),
+  homeEnabled:
+    config.home?.enabled === undefined
+      ? HEADER_NAV_DEFAULT.home.enabled
+      : Boolean(config.home.enabled),
+  homeRequireAuth:
+    config.home?.requireAuth === undefined
+      ? HEADER_NAV_DEFAULT.home.requireAuth
+      : Boolean(config.home.requireAuth),
   console:
     config.console === undefined
       ? HEADER_NAV_DEFAULT.console
@@ -117,10 +124,14 @@ export function HeaderNavigationSection({
   const onSubmit = async (values: HeaderNavFormValues) => {
     const payload: HeaderNavModulesConfig = {
       ...config,
-      home: values.home,
       console: values.console,
       docs: values.docs,
       about: values.about,
+      home: {
+        ...(config.home ?? HEADER_NAV_DEFAULT.home),
+        enabled: values.homeEnabled,
+        requireAuth: values.homeRequireAuth,
+      },
       pricing: {
         ...(config.pricing ?? HEADER_NAV_DEFAULT.pricing),
         enabled: values.pricingEnabled,
@@ -154,11 +165,6 @@ export function HeaderNavigationSection({
     description: string
   }> = [
     {
-      key: 'home',
-      title: t('Home'),
-      description: t('Landing page with system overview.'),
-    },
-    {
       key: 'console',
       title: t('Console'),
       description: t('User dashboard and quota controls.'),
@@ -178,12 +184,23 @@ export function HeaderNavigationSection({
   const accessModules: Array<{
     enabledKey: keyof HeaderNavFormValues
     requireAuthKey: keyof HeaderNavFormValues
-    requireAuthDependsOn: 'pricingEnabled' | 'rankingsEnabled'
+    requireAuthDependsOn: 'homeEnabled' | 'pricingEnabled' | 'rankingsEnabled'
     title: string
     description: string
     requireAuthTitle: string
     requireAuthDescription: string
   }> = [
+    {
+      enabledKey: 'homeEnabled',
+      requireAuthKey: 'homeRequireAuth',
+      requireAuthDependsOn: 'homeEnabled',
+      title: t('Home'),
+      description: t('Landing page with system overview.'),
+      requireAuthTitle: t('Require login to view home'),
+      requireAuthDescription: t(
+        'Visitors must authenticate before accessing the home page.'
+      ),
+    },
     {
       enabledKey: 'pricingEnabled',
       requireAuthKey: 'pricingRequireAuth',
