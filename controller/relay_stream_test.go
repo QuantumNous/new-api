@@ -184,6 +184,57 @@ func TestRelayKeepAlivePreservesValidationErrors(t *testing.T) {
 	require.NotContains(t, recorder.Body.String(), ": PING")
 }
 
+func TestStreamKeepAlivePreservesFastHTTPFailures(t *testing.T) {
+	settings := operation_setting.GetGeneralSetting()
+	previousEnabled, previousInterval := settings.PingIntervalEnabled, settings.PingIntervalSeconds
+	settings.PingIntervalEnabled, settings.PingIntervalSeconds = true, 60
+	t.Cleanup(func() {
+		settings.PingIntervalEnabled, settings.PingIntervalSeconds = previousEnabled, previousInterval
+	})
+	service.InitHttpClient()
+	for _, status := range []int{http.StatusUnauthorized, http.StatusPaymentRequired, http.StatusForbidden, http.StatusTooManyRequests} {
+		t.Run(http.StatusText(status), func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(status)
+				_, _ = io.WriteString(w, `{"error":"request rejected"}`)
+			}))
+			defer upstream.Close()
+			engine := gin.New()
+			engine.POST("/v1/messages", func(c *gin.Context) {
+				stop := helper.StartStreamKeepAlive(c, time.Minute)
+				defer stop()
+				request, err := http.NewRequestWithContext(c.Request.Context(), http.MethodPost, upstream.URL, strings.NewReader("{}"))
+				if !assert.NoError(t, err) {
+					return
+				}
+				info := &relaycommon.RelayInfo{IsStream: true, ChannelMeta: &relaycommon.ChannelMeta{}}
+				response, err := channel.DoRequest(c, request, info)
+				if !assert.NoError(t, err) {
+					return
+				}
+				defer response.Body.Close()
+				body, err := io.ReadAll(response.Body)
+				if assert.NoError(t, err) {
+					c.Header("Content-Type", "application/json")
+					c.Data(response.StatusCode, "application/json", body)
+				}
+			})
+			gateway := httptest.NewServer(engine)
+			defer gateway.Close()
+			client := &http.Client{Timeout: 4 * time.Second}
+			response, err := client.Post(gateway.URL+"/v1/messages", "application/json", strings.NewReader("{}"))
+			require.NoError(t, err)
+			defer response.Body.Close()
+			body, err := io.ReadAll(response.Body)
+			require.NoError(t, err)
+			require.Equal(t, status, response.StatusCode)
+			require.Equal(t, "application/json", response.Header.Get("Content-Type"))
+			require.JSONEq(t, `{"error":"request rejected"}`, string(body))
+		})
+	}
+}
+
 func TestRelayKeepAliveHonorsStreamSettings(t *testing.T) {
 	settings := operation_setting.GetGeneralSetting()
 	previousEnabled := settings.PingIntervalEnabled
@@ -200,6 +251,7 @@ func TestRelayKeepAliveHonorsStreamSettings(t *testing.T) {
 	}{
 		{name: "ping disabled", enabled: false, stream: true},
 		{name: "non-streaming", enabled: true, stream: false},
+		{name: "fast streaming failure", enabled: true, stream: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			settings.PingIntervalEnabled = test.enabled

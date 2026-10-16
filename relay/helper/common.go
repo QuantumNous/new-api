@@ -85,7 +85,7 @@ func (writer *streamKeepAliveWriter) ping() error {
 	return PingData(writer.pingContext)
 }
 
-// StartStreamKeepAlive 覆盖请求准备和重试；业务写入开始后交给流处理器保活。
+// StartStreamKeepAlive 按 interval 发送心跳，覆盖请求准备和重试；业务写入开始后交给流处理器。
 // 内层请求复用外层的保活，内层清理不会提前结束它。
 func StartStreamKeepAlive(c *gin.Context, interval time.Duration) func() {
 	if previous, ok := c.Writer.(*streamKeepAliveWriter); ok {
@@ -121,9 +121,6 @@ func (writer *streamKeepAliveWriter) keepAlive(ctx context.Context, interval tim
 			logger.LogDebug(writer.pingContext, "SSE ping goroutine panic recovered: %v", recovered)
 		}
 	}()
-	if ctx.Err() != nil || writer.ping() != nil {
-		return
-	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
