@@ -5379,7 +5379,7 @@
     "Retry Settings": "Paramètres de relance",
     "Retry Suggestion": "Suggestion de relance",
     "Retry Times": "Nombre de tentatives",
-    "Retry this channel before moving to the next priority. Uses the global retry budget; 0 keeps the current routing behavior.": "Réessaie ce canal avant de passer à la priorité suivante. Décompte le budget global ; 0 conserve le routage actuel.",
+    "Retry this channel before moving to the next priority. Uses the global retry budget; 0 keeps the current routing behavior.": "Le nombre maximal de tentatives sur ce canal compte dans la limite globale.",
     "Return a custom error immediately": "Retourner immédiatement une erreur personnalisée",
     "Return Custom Error": "Retourner une erreur personnalisée",
     "Return data conforming to a JSON schema": "Renvoyer des données conformes à un schéma JSON",

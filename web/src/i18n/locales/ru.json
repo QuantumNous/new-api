@@ -5379,7 +5379,7 @@
     "Retry Settings": "Настройки повторов",
     "Retry Suggestion": "Рекомендация по повтору",
     "Retry Times": "Количество повторных попыток",
-    "Retry this channel before moving to the next priority. Uses the global retry budget; 0 keeps the current routing behavior.": "Повторяет запрос на этом канале перед переходом к следующему приоритету. Учитывается в общем лимите; 0 сохраняет текущую маршрутизацию.",
+    "Retry this channel before moving to the next priority. Uses the global retry budget; 0 keeps the current routing behavior.": "Максимальное число повторов на этом канале учитывается в общем лимите повторов.",
     "Return a custom error immediately": "Немедленно вернуть пользовательскую ошибку",
     "Return Custom Error": "Вернуть пользовательскую ошибку",
     "Return data conforming to a JSON schema": "Возвращать данные, соответствующие JSON-схеме",

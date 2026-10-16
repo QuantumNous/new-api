@@ -5379,7 +5379,7 @@
     "Retry Settings": "重試設定",
     "Retry Suggestion": "重試建議",
     "Retry Times": "重試次數",
-    "Retry this channel before moving to the next priority. Uses the global retry budget; 0 keeps the current routing behavior.": "切換至下一優先級前先重試目前渠道。計入全域重試預算；設為 0 時維持目前的路由行為。",
+    "Retry this channel before moving to the next priority. Uses the global retry budget; 0 keeps the current routing behavior.": "目前渠道最大重試次數，計入全域重試次數",
     "Return a custom error immediately": "立即返回自訂錯誤",
     "Return Custom Error": "返回自訂錯誤",
     "Return data conforming to a JSON schema": "返回符合 JSON Schema 的數據",
