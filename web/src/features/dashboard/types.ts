@@ -86,6 +86,8 @@ export interface FlowBuildOptions {
   // are partially masked in the rendered graph while keeping node identity so
   // the Sankey shape stays intact.
   maskSensitive?: boolean
+  // Label for calls that did not use an API token (token_id is zero or omitted).
+  noApiTokenLabel?: string
   // Resolves the label for a token whose record no longer exists (deleted).
   // Lets the caller inject a localized string such as "Deleted (123)".
   deletedTokenLabel?: (tokenId: number) => string
