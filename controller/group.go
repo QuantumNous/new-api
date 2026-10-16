@@ -2,6 +2,7 @@ package controller
 
 import (
 	"net/http"
+	"slices"
 
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -16,6 +17,7 @@ func GetGroups(c *gin.Context) {
 	for groupName := range ratio_setting.GetGroupRatioCopy() {
 		groupNames = append(groupNames, groupName)
 	}
+	slices.Sort(groupNames)
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
