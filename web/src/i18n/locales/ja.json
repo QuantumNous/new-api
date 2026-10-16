@@ -5301,7 +5301,7 @@
     "Retry Settings": "再試行設定",
     "Retry Suggestion": "リトライ提案",
     "Retry Times": "再試行回数",
-    "Retry this channel before moving to the next priority. Uses the global retry budget; 0 keeps the current routing behavior.": "次の優先度に進む前にこのチャネルを再試行します。全体の再試行回数に含まれ、0 なら現在のルーティング動作を維持します。",
+    "Retry this channel before moving to the next priority. Uses the global retry budget; 0 keeps the current routing behavior.": "このチャネルの最大再試行回数は全体の再試行回数に含まれます。",
     "Return a custom error immediately": "即座にカスタムエラーを返す",
     "Return Custom Error": "カスタムエラーを返す",
     "Return data conforming to a JSON schema": "JSON スキーマに準拠したデータを返却",

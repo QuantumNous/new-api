@@ -1483,7 +1483,7 @@ test('editing a channel shows and validates its retry budget before saving', asy
   await screen.findByDisplayValue('Existing channel')
   await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
   const budget = screen.getByRole('spinbutton', {
-    name: 'Same-channel retry budget',
+    name: 'Retry budget',
   })
   const priority = screen.getByRole('spinbutton', { name: 'Priority' })
   const routingGrid = budget.closest('[class~="sm:grid-cols-2"]')

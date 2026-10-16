@@ -5301,7 +5301,7 @@
     "Retry Settings": "Cài đặt thử lại",
     "Retry Suggestion": "Gợi ý thử lại",
     "Retry Times": "Số lần thử lại",
-    "Retry this channel before moving to the next priority. Uses the global retry budget; 0 keeps the current routing behavior.": "Thử lại kênh này trước khi chuyển sang mức ưu tiên tiếp theo. Tính vào giới hạn thử lại chung; 0 giữ nguyên cách định tuyến hiện tại.",
+    "Retry this channel before moving to the next priority. Uses the global retry budget; 0 keeps the current routing behavior.": "Số lần thử lại tối đa trên kênh này được tính vào giới hạn thử lại chung.",
     "Return a custom error immediately": "Trả về lỗi tùy chỉnh ngay lập tức",
     "Return Custom Error": "Trả lỗi tùy chỉnh",
     "Return data conforming to a JSON schema": "Trả về dữ liệu tuân theo JSON Schema",
