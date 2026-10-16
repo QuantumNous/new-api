@@ -57,9 +57,9 @@ func TestUpdateChannelSub2APIBalanceRemainingPreferred(t *testing.T) {
 	defer server.Close()
 
 	channel := newSub2APITestChannel(t, server.URL)
-	balance, err := updateChannelSub2APIBalance(channel)
+	result, err := updateChannelBalance(channel)
 	require.NoError(t, err)
-	assert.InDelta(t, 986.17194888, balance, 1e-9)
+	assert.InDelta(t, 986.17194888, result.Balance, 1e-9)
 	assert.InDelta(t, 986.17194888, channel.Balance, 1e-9)
 }
 
@@ -72,9 +72,10 @@ func TestUpdateChannelSub2APIBalanceWalletFallback(t *testing.T) {
 	defer server.Close()
 
 	channel := newSub2APITestChannel(t, server.URL)
-	balance, err := updateChannelSub2APIBalance(channel)
+	value, err := fetchChannelSub2APIBalance(channel, channel.Key)
 	require.NoError(t, err)
-	assert.InDelta(t, 42.5, balance, 1e-9)
+	assert.InDelta(t, 42.5, value.Balance, 1e-9)
+	assert.True(t, value.AccountLevel, "a wallet value belongs to the account, not to the key")
 }
 
 func TestUpdateChannelSub2APIBalanceSubscriptionKeyMissingFields(t *testing.T) {
@@ -86,7 +87,7 @@ func TestUpdateChannelSub2APIBalanceSubscriptionKeyMissingFields(t *testing.T) {
 	defer server.Close()
 
 	channel := newSub2APITestChannel(t, server.URL)
-	_, err := updateChannelSub2APIBalance(channel)
+	_, err := fetchChannelSub2APIBalance(channel, channel.Key)
 	require.Error(t, err)
 }
 
@@ -99,7 +100,7 @@ func TestUpdateChannelSub2APIBalanceInvalidKey(t *testing.T) {
 	defer server.Close()
 
 	channel := newSub2APITestChannel(t, server.URL)
-	_, err := updateChannelSub2APIBalance(channel)
+	_, err := fetchChannelSub2APIBalance(channel, channel.Key)
 	require.EqualError(t, err, "Sub2API key is invalid (isValid=false)")
 }
 
@@ -114,7 +115,7 @@ func TestUpdateChannelSub2APIBalanceUnlimitedSubscription(t *testing.T) {
 	channel := newSub2APITestChannel(t, server.URL)
 	require.NoError(t, model.DB.Model(channel).Update("balance", 12.5).Error)
 
-	_, err := updateChannelSub2APIBalance(channel)
+	_, err := updateChannelBalance(channel)
 	require.EqualError(t, err, "Sub2API /v1/usage reports an unlimited subscription without a finite balance")
 
 	stored := model.Channel{}
@@ -131,16 +132,16 @@ func TestUpdateChannelSub2APIBalanceNegativeWalletBalance(t *testing.T) {
 	defer server.Close()
 
 	channel := newSub2APITestChannel(t, server.URL)
-	balance, err := updateChannelSub2APIBalance(channel)
+	value, err := fetchChannelSub2APIBalance(channel, channel.Key)
 	require.NoError(t, err)
-	assert.InDelta(t, -1, balance, 1e-9)
+	assert.InDelta(t, -1, value.Balance, 1e-9)
 }
 
 func TestUpdateChannelSub2APIBalanceMissingBaseURL(t *testing.T) {
 	setupSub2APIBalanceTest(t)
 	empty := ""
 	channel := &model.Channel{BaseURL: &empty, Key: "sk-test"}
-	_, err := updateChannelSub2APIBalance(channel)
+	_, err := fetchChannelSub2APIBalance(channel, channel.Key)
 	require.Error(t, err)
 }
 

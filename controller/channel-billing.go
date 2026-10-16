@@ -58,6 +58,36 @@ const maxAdvancedCustomBalanceResponseBytes = 256 << 10
 type channelBalanceResult struct {
 	Balance     float64
 	RawResponse string
+	// Keys holds the per-key results of a multi-key balance query. It stays
+	// empty for single-key channels.
+	Keys []channelKeyBalance
+	// Partial is true when at least one enabled key did not report a balance,
+	// so Balance only covers the keys that did.
+	Partial bool
+}
+
+// channelKeyBalance is one key's result inside a multi-key balance query. Only a
+// preview of the key leaves the backend, truncated to the first 10 characters
+// exactly like the multi-key management endpoint, so a key of 10 characters or
+// fewer is still shown in full.
+type channelKeyBalance struct {
+	Index      int      `json:"index"`
+	KeyPreview string   `json:"key_preview"`
+	Balance    *float64 `json:"balance,omitempty"`
+	Error      string   `json:"error,omitempty"`
+}
+
+// channelKeyBalanceValue is the result of querying the upstream with one key.
+type channelKeyBalanceValue struct {
+	// Balance is what this key can spend on its own.
+	Balance float64
+	// AccountCap is the upstream's shared ceiling over the same dimension, for
+	// example the New API owner quota. Every key of one account reports it, so
+	// it caps the sum instead of being summed.
+	AccountCap *float64
+	// AccountLevel marks a value that belongs to the upstream account rather
+	// than to the key, so it is counted once instead of being summed.
+	AccountLevel bool
 }
 
 type OpenAIUsageResponse struct {
@@ -218,62 +248,58 @@ func updateChannelOpenAISBBalance(channel *model.Channel) (float64, error) {
 	return balance, nil
 }
 
-func updateChannelAIProxyBalance(channel *model.Channel) (float64, error) {
+func fetchChannelAIProxyBalance(channel *model.Channel, key string) (channelKeyBalanceValue, error) {
 	url := "https://aiproxy.io/api/report/getUserOverview"
 	headers := http.Header{}
-	headers.Add("Api-Key", channel.Key)
+	headers.Add("Api-Key", key)
 	body, err := GetResponseBody("GET", url, channel, headers)
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
 	response := AIProxyUserOverviewResponse{}
 	err = common.Unmarshal(body, &response)
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
 	if !response.Success {
-		return 0, fmt.Errorf("code: %d, message: %s", response.ErrorCode, response.Message)
+		return channelKeyBalanceValue{}, fmt.Errorf("code: %d, message: %s", response.ErrorCode, response.Message)
 	}
-	channel.UpdateBalance(response.Data.TotalPoints)
-	return response.Data.TotalPoints, nil
+	return channelKeyBalanceValue{Balance: response.Data.TotalPoints}, nil
 }
 
-func updateChannelAPI2GPTBalance(channel *model.Channel) (float64, error) {
+func fetchChannelAPI2GPTBalance(channel *model.Channel, key string) (channelKeyBalanceValue, error) {
 	url := "https://api.api2gpt.com/dashboard/billing/credit_grants"
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
-
+	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(key))
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
 	response := API2GPTUsageResponse{}
 	err = common.Unmarshal(body, &response)
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
-	channel.UpdateBalance(response.TotalRemaining)
-	return response.TotalRemaining, nil
+	return channelKeyBalanceValue{Balance: response.TotalRemaining}, nil
 }
 
-func updateChannelSiliconFlowBalance(channel *model.Channel) (float64, error) {
+func fetchChannelSiliconFlowBalance(channel *model.Channel, key string) (channelKeyBalanceValue, error) {
 	url := "https://api.siliconflow.cn/v1/user/info"
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(key))
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
 	response := SiliconFlowUsageResponse{}
 	err = common.Unmarshal(body, &response)
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
 	if response.Code != 20000 {
-		return 0, fmt.Errorf("code: %d, message: %s", response.Code, response.Message)
+		return channelKeyBalanceValue{}, fmt.Errorf("code: %d, message: %s", response.Code, response.Message)
 	}
 	balance, err := strconv.ParseFloat(response.Data.TotalBalance, 64)
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return channelKeyBalanceValue{Balance: balance}, nil
 }
 
 func getDeepSeekBalanceUSD(response DeepSeekUsageResponse, usdExchangeRate float64) (float64, error) {
@@ -337,61 +363,57 @@ func getDeepSeekBalanceUSD(response DeepSeekUsageResponse, usdExchangeRate float
 	return balanceUSD, nil
 }
 
-func updateChannelDeepSeekBalance(channel *model.Channel) (float64, error) {
+func fetchChannelDeepSeekBalance(channel *model.Channel, key string) (channelKeyBalanceValue, error) {
 	url := "https://api.deepseek.com/user/balance"
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(key))
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
 	response := DeepSeekUsageResponse{}
 	err = common.Unmarshal(body, &response)
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
 	balance, err := getDeepSeekBalanceUSD(response, operation_setting.USDExchangeRate)
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return channelKeyBalanceValue{Balance: balance}, nil
 }
 
-func updateChannelAIGC2DBalance(channel *model.Channel) (float64, error) {
+func fetchChannelAIGC2DBalance(channel *model.Channel, key string) (channelKeyBalanceValue, error) {
 	url := "https://api.aigc2d.com/dashboard/billing/credit_grants"
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(key))
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
 	response := APGC2DGPTUsageResponse{}
 	err = common.Unmarshal(body, &response)
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
-	channel.UpdateBalance(response.TotalAvailable)
-	return response.TotalAvailable, nil
+	return channelKeyBalanceValue{Balance: response.TotalAvailable}, nil
 }
 
-func updateChannelOpenRouterBalance(channel *model.Channel) (float64, error) {
+func fetchChannelOpenRouterBalance(channel *model.Channel, key string) (channelKeyBalanceValue, error) {
 	url := "https://openrouter.ai/api/v1/credits"
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(key))
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
 	response := OpenRouterCreditResponse{}
 	err = common.Unmarshal(body, &response)
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
-	balance := response.Data.TotalCredits - response.Data.TotalUsage
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return channelKeyBalanceValue{Balance: response.Data.TotalCredits - response.Data.TotalUsage}, nil
 }
 
-func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
+func fetchChannelMoonshotBalance(channel *model.Channel, key string) (channelKeyBalanceValue, error) {
 	url := "https://api.moonshot.cn/v1/users/me/balance"
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(key))
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
 
 	type MoonshotBalanceData struct {
@@ -410,26 +432,25 @@ func updateChannelMoonshotBalance(channel *model.Channel) (float64, error) {
 	response := MoonshotBalanceResponse{}
 	err = common.Unmarshal(body, &response)
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
 	if !response.Status || response.Code != 0 {
-		return 0, fmt.Errorf("failed to update moonshot balance, status: %v, code: %d, scode: %s", response.Status, response.Code, response.Scode)
+		return channelKeyBalanceValue{}, fmt.Errorf("failed to update moonshot balance, status: %v, code: %d, scode: %s", response.Status, response.Code, response.Scode)
 	}
 	availableBalanceCny := response.Data.AvailableBalance
 	availableBalanceUsd := decimal.NewFromFloat(availableBalanceCny).Div(decimal.NewFromFloat(operation_setting.Price)).InexactFloat64()
-	channel.UpdateBalance(availableBalanceUsd)
-	return availableBalanceUsd, nil
+	return channelKeyBalanceValue{Balance: availableBalanceUsd}, nil
 }
 
-func updateChannelSub2APIBalance(channel *model.Channel) (float64, error) {
+func fetchChannelSub2APIBalance(channel *model.Channel, key string) (channelKeyBalanceValue, error) {
 	baseURL := channel.GetBaseURL()
 	if baseURL == "" {
-		return 0, errors.New("Sub2API channel is missing base_url")
+		return channelKeyBalanceValue{}, errors.New("Sub2API channel is missing base_url")
 	}
 	url := fmt.Sprintf("%s/v1/usage", strings.TrimRight(baseURL, "/"))
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(key))
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
 
 	type sub2apiUsageResponse struct {
@@ -444,71 +465,47 @@ func updateChannelSub2APIBalance(channel *model.Channel) (float64, error) {
 	}
 	usage := sub2apiUsageResponse{}
 	if err := common.Unmarshal(body, &usage); err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
 	if usage.IsValid != nil && !*usage.IsValid {
-		return 0, errors.New("Sub2API key is invalid (isValid=false)")
+		return channelKeyBalanceValue{}, errors.New("Sub2API key is invalid (isValid=false)")
 	}
 
+	// remaining comes from this key's own subscription limits, while balance is
+	// the account wallet shared by every key of the account, so a wallet value
+	// must not be added up per key.
 	balance := usage.Remaining
+	accountLevel := false
 	if balance == nil {
 		balance = usage.Balance
+		accountLevel = true
 	}
 	if balance == nil {
-		return 0, errors.New("Sub2API /v1/usage response is missing remaining and balance fields (the key may belong to a subscription group without an available balance)")
+		return channelKeyBalanceValue{}, errors.New("Sub2API /v1/usage response is missing remaining and balance fields (the key may belong to a subscription group without an available balance)")
 	}
 	// Sub2API reports remaining=-1 for a subscription group with no daily, weekly,
 	// or monthly limit. A wallet balance can legitimately be negative, so detect
 	// the unlimited case from the subscription limits rather than the value.
 	subscription := usage.Subscription
 	if subscription != nil && subscription.DailyLimitUSD == nil && subscription.WeeklyLimitUSD == nil && subscription.MonthlyLimitUSD == nil {
-		return 0, errors.New("Sub2API /v1/usage reports an unlimited subscription without a finite balance")
+		return channelKeyBalanceValue{}, errors.New("Sub2API /v1/usage reports an unlimited subscription without a finite balance")
 	}
-	channel.UpdateBalance(*balance)
-	return *balance, nil
+	return channelKeyBalanceValue{Balance: *balance, AccountLevel: accountLevel}, nil
 }
 
-// updateChannelNewAPIBalance reads the upstream key's remaining quota. When the
-// upstream also returns its owner's quota, the smaller of the two is what the
-// key can still spend. Quota converts to USD with the upstream's quota_per_unit.
-func updateChannelNewAPIBalance(channel *model.Channel) (float64, error) {
+// fetchChannelNewAPIBalance reads the upstream key's remaining quota. The key
+// quota and the owner quota are returned separately: the owner quota is shared
+// by every key of the upstream account, so a multi-key query caps the sum with
+// it instead of adding it up. Quota converts to USD with quota_per_unit.
+// fetchChannelNewAPIQuotaPerUnit reads the upstream's quota_per_unit, which
+// describes the channel rather than one key, so a multi-key query resolves it
+// once instead of once per key.
+func fetchChannelNewAPIQuotaPerUnit(channel *model.Channel) (float64, error) {
 	baseURL := strings.TrimRight(channel.GetBaseURL(), "/")
 	if baseURL == "" {
 		return 0, errors.New("New API channel is missing base_url")
 	}
-	body, err := GetResponseBody("GET", baseURL+"/api/usage/token/", channel, GetAuthHeader(channel.Key))
-	if err != nil {
-		return 0, err
-	}
-	var usage struct {
-		Code    bool   `json:"code"`
-		Message string `json:"message"`
-		Data    struct {
-			TotalAvailable float64 `json:"total_available"`
-			UnlimitedQuota bool    `json:"unlimited_quota"`
-			UserQuota      *struct {
-				TotalAvailable float64 `json:"total_available"`
-			} `json:"user_quota"`
-		} `json:"data"`
-	}
-	if err := common.Unmarshal(body, &usage); err != nil {
-		return 0, err
-	}
-	if !usage.Code {
-		return 0, fmt.Errorf("New API usage query failed: %s", usage.Message)
-	}
-	remaining := usage.Data.TotalAvailable
-	if usage.Data.UnlimitedQuota {
-		remaining = math.Inf(1)
-	}
-	if userQuota := usage.Data.UserQuota; userQuota != nil {
-		remaining = min(remaining, userQuota.TotalAvailable)
-	}
-	if math.IsInf(remaining, 1) {
-		return 0, common.NewMessage(`The upstream key has unlimited quota. Turn on "Allow querying user quota" for this key on the upstream to see the real balance.`)
-	}
-
-	body, err = GetResponseBody("GET", baseURL+"/api/status", channel, nil)
+	body, err := GetResponseBody("GET", baseURL+"/api/status", channel, nil)
 	if err != nil {
 		return 0, err
 	}
@@ -523,13 +520,68 @@ func updateChannelNewAPIBalance(channel *model.Channel) (float64, error) {
 	if status.Data.QuotaPerUnit <= 0 {
 		return 0, errors.New("New API /api/status response is missing quota_per_unit")
 	}
-	balance := remaining / status.Data.QuotaPerUnit
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return status.Data.QuotaPerUnit, nil
 }
 
-func fetchAdvancedCustomBalance(channel *model.Channel) (channelBalanceResult, error) {
-	key := strings.TrimSpace(channel.Key)
+// fetchChannelNewAPIBalanceForKey reads the upstream key's remaining quota. The
+// key quota and the owner quota are returned separately: the owner quota is
+// shared by every key of the upstream account, so a multi-key query caps the sum
+// with it instead of adding it up.
+func fetchChannelNewAPIBalanceForKey(channel *model.Channel, key string, quotaPerUnit float64) (channelKeyBalanceValue, error) {
+	baseURL := strings.TrimRight(channel.GetBaseURL(), "/")
+	if baseURL == "" {
+		return channelKeyBalanceValue{}, errors.New("New API channel is missing base_url")
+	}
+	body, err := GetResponseBody("GET", baseURL+"/api/usage/token/", channel, GetAuthHeader(key))
+	if err != nil {
+		return channelKeyBalanceValue{}, err
+	}
+	var usage struct {
+		Code    bool   `json:"code"`
+		Message string `json:"message"`
+		Data    struct {
+			TotalAvailable float64 `json:"total_available"`
+			UnlimitedQuota bool    `json:"unlimited_quota"`
+			UserQuota      *struct {
+				TotalAvailable float64 `json:"total_available"`
+			} `json:"user_quota"`
+		} `json:"data"`
+	}
+	if err := common.Unmarshal(body, &usage); err != nil {
+		return channelKeyBalanceValue{}, err
+	}
+	if !usage.Code {
+		return channelKeyBalanceValue{}, fmt.Errorf("New API usage query failed: %s", usage.Message)
+	}
+	value := channelKeyBalanceValue{Balance: usage.Data.TotalAvailable}
+	if usage.Data.UnlimitedQuota {
+		value.Balance = math.Inf(1)
+	}
+	if userQuota := usage.Data.UserQuota; userQuota != nil {
+		accountCap := userQuota.TotalAvailable
+		value.AccountCap = &accountCap
+	}
+	if math.IsInf(value.Balance, 1) && value.AccountCap == nil {
+		return channelKeyBalanceValue{}, common.NewMessage(`The upstream key has unlimited quota. Turn on "Allow querying user quota" for this key on the upstream to see the real balance.`)
+	}
+	value.Balance /= quotaPerUnit
+	if value.AccountCap != nil {
+		accountCap := *value.AccountCap / quotaPerUnit
+		value.AccountCap = &accountCap
+	}
+	return value, nil
+}
+
+func fetchChannelNewAPIBalance(channel *model.Channel, key string) (channelKeyBalanceValue, error) {
+	quotaPerUnit, err := fetchChannelNewAPIQuotaPerUnit(channel)
+	if err != nil {
+		return channelKeyBalanceValue{}, err
+	}
+	return fetchChannelNewAPIBalanceForKey(channel, key, quotaPerUnit)
+}
+
+func fetchAdvancedCustomBalance(channel *model.Channel, key string) (channelBalanceResult, error) {
+	key = strings.TrimSpace(key)
 	info := &relaycommon.RelayInfo{
 		RelayFormat:    types.RelayFormatOpenAI,
 		RelayMode:      relayconstant.RelayModeUnknown,
@@ -601,7 +653,6 @@ func fetchAdvancedCustomBalance(channel *model.Channel) (channelBalanceResult, e
 				balance >= 0 &&
 				!math.IsNaN(balance) &&
 				!math.IsInf(balance, 0) {
-				channel.UpdateBalance(balance)
 				return channelBalanceResult{Balance: balance}, nil
 			}
 		}
@@ -615,14 +666,165 @@ func fetchAdvancedCustomBalance(channel *model.Channel) (channelBalanceResult, e
 }
 
 func updateChannelBalance(channel *model.Channel) (channelBalanceResult, error) {
-	if channel.Type == constant.ChannelTypeAdvancedCustom {
-		return fetchAdvancedCustomBalance(channel)
+	if channel.ChannelInfo.IsMultiKey {
+		return aggregateMultiKeyChannelBalance(channel)
 	}
-	balance, err := updateStandardChannelBalance(channel)
-	return channelBalanceResult{Balance: balance}, err
+	if channel.Type == constant.ChannelTypeAdvancedCustom {
+		result, err := fetchAdvancedCustomBalance(channel, channel.Key)
+		if err != nil {
+			return channelBalanceResult{}, err
+		}
+		if result.RawResponse == "" {
+			channel.UpdateBalance(result.Balance)
+		}
+		return result, nil
+	}
+	value, err := fetchStandardChannelBalance(channel, channel.Key)
+	if err != nil {
+		return channelBalanceResult{}, err
+	}
+	// The owner quota is shared by every key of one upstream account, so a
+	// single key is still limited by it.
+	balance := value.Balance
+	if value.AccountCap != nil {
+		balance = min(balance, *value.AccountCap)
+	}
+	channel.UpdateBalance(balance)
+	return channelBalanceResult{Balance: balance}, nil
 }
 
-func updateStandardChannelBalance(channel *model.Channel) (float64, error) {
+// aggregateMultiKeyChannelBalance queries every enabled key of a multi-key
+// channel and adds the results up. A key that fails is reported per key, and
+// the sum then only covers the keys that answered, so an unreachable key never
+// makes the channel look exhausted. Values the upstream reports for the whole
+// account rather than for the key are counted once, and a shared ceiling caps
+// the sum instead of being added up.
+// aggregateMultiKeyChannelBalance queries every enabled key of a multi-key
+// channel and adds the results up. A key that fails is reported per key, and the
+// sum then only covers the keys that answered, so an unreachable key never makes
+// the channel look exhausted. Keys are assumed to belong to one upstream
+// account: a value the upstream reports for the whole account rather than for
+// the key is counted once, and a shared ceiling caps the sum instead of being
+// added up.
+func aggregateMultiKeyChannelBalance(channel *model.Channel) (channelBalanceResult, error) {
+	keys := channel.GetKeys()
+	enabledIndexes := make([]int, 0, len(keys))
+	for i := range keys {
+		if status, ok := channel.ChannelInfo.MultiKeyStatusList[i]; ok && status != common.ChannelStatusEnabled {
+			continue
+		}
+		enabledIndexes = append(enabledIndexes, i)
+	}
+	if len(enabledIndexes) == 0 {
+		return channelBalanceResult{}, common.NewMessage("Multi-key channel has no enabled key to query")
+	}
+
+	// quota_per_unit belongs to the channel, not to a key, so resolve it once.
+	var newAPIQuotaPerUnit float64
+	if channel.Type == constant.ChannelTypeNewAPI {
+		quotaPerUnit, err := fetchChannelNewAPIQuotaPerUnit(channel)
+		if err != nil {
+			return channelBalanceResult{}, err
+		}
+		newAPIQuotaPerUnit = quotaPerUnit
+	}
+
+	result := channelBalanceResult{Keys: make([]channelKeyBalance, 0, len(enabledIndexes))}
+	var keyLevelSum float64
+	var accountLevelValue float64
+	seenAccountLevel := false
+	var accountCap *float64
+	sawUnboundedKey := false
+	answered := 0
+	for position, index := range enabledIndexes {
+		if position > 0 && common.RequestInterval > 0 {
+			time.Sleep(common.RequestInterval)
+		}
+		keyPreview := keys[index]
+		if len(keyPreview) > 10 {
+			keyPreview = keyPreview[:10] + "..."
+		}
+		entry := channelKeyBalance{Index: index, KeyPreview: keyPreview}
+
+		var value channelKeyBalanceValue
+		var err error
+		switch {
+		case channel.Type == constant.ChannelTypeAdvancedCustom:
+			// The route answers with raw JSON when it cannot be read as a balance;
+			// show that payload instead of a partial total.
+			var advanced channelBalanceResult
+			advanced, err = fetchAdvancedCustomBalance(channel, keys[index])
+			if err == nil && advanced.RawResponse != "" {
+				return channelBalanceResult{RawResponse: advanced.RawResponse}, nil
+			}
+			value = channelKeyBalanceValue{Balance: advanced.Balance}
+		case channel.Type == constant.ChannelTypeNewAPI:
+			value, err = fetchChannelNewAPIBalanceForKey(channel, keys[index], newAPIQuotaPerUnit)
+		default:
+			value, err = fetchStandardChannelBalance(channel, keys[index])
+		}
+		if err == nil {
+			switch {
+			case math.IsNaN(value.Balance), math.IsInf(value.Balance, -1):
+				err = errors.New("the upstream reported a non-finite balance for this key")
+			case math.IsInf(value.Balance, 1):
+				if value.AccountCap == nil {
+					err = errors.New("the upstream reported an unlimited balance for this key without a shared account quota")
+				} else {
+					sawUnboundedKey = true
+				}
+			}
+		}
+
+		if err != nil {
+			entry.Error = err.Error()
+			result.Partial = true
+		} else {
+			balance := value.Balance
+			if math.IsInf(balance, 1) && value.AccountCap != nil {
+				// An unlimited key can spend up to the shared account quota.
+				balance = *value.AccountCap
+			}
+			entry.Balance = &balance
+			answered++
+			if !math.IsInf(value.Balance, 1) {
+				if value.AccountLevel {
+					if !seenAccountLevel {
+						accountLevelValue = value.Balance
+						seenAccountLevel = true
+					} else {
+						accountLevelValue = max(accountLevelValue, value.Balance)
+					}
+				} else {
+					keyLevelSum += value.Balance
+				}
+			}
+			if value.AccountCap != nil && (accountCap == nil || *value.AccountCap > *accountCap) {
+				accountCap = value.AccountCap
+			}
+		}
+		result.Keys = append(result.Keys, entry)
+	}
+	if answered == 0 {
+		return channelBalanceResult{}, fmt.Errorf("every enabled key failed to report a balance, first error: %s", result.Keys[0].Error)
+	}
+
+	total := keyLevelSum
+	if seenAccountLevel {
+		total += accountLevelValue
+	}
+	if accountCap != nil {
+		total = min(total, *accountCap)
+	}
+	if sawUnboundedKey && accountCap != nil {
+		total = *accountCap
+	}
+	channel.UpdateBalance(total)
+	result.Balance = total
+	return result, nil
+}
+
+func fetchStandardChannelBalance(channel *model.Channel, key string) (channelKeyBalanceValue, error) {
 	baseURL := constant.GetChannelBaseURL(channel.Type)
 	if channel.GetBaseURL() == "" {
 		channel.BaseURL = &baseURL
@@ -633,42 +835,42 @@ func updateStandardChannelBalance(channel *model.Channel) (float64, error) {
 			baseURL = channel.GetBaseURL()
 		}
 	case constant.ChannelTypeAzure:
-		return 0, common.NewMessage("Not implemented yet")
+		return channelKeyBalanceValue{}, common.NewMessage("Not implemented yet")
 	case constant.ChannelTypeCustom:
 		baseURL = channel.GetBaseURL()
 	//case common.ChannelTypeOpenAISB:
 	//	return updateChannelOpenAISBBalance(channel)
 	case constant.ChannelTypeAIProxy:
-		return updateChannelAIProxyBalance(channel)
+		return fetchChannelAIProxyBalance(channel, key)
 	case constant.ChannelTypeAPI2GPT:
-		return updateChannelAPI2GPTBalance(channel)
+		return fetchChannelAPI2GPTBalance(channel, key)
 	case constant.ChannelTypeAIGC2D:
-		return updateChannelAIGC2DBalance(channel)
+		return fetchChannelAIGC2DBalance(channel, key)
 	case constant.ChannelTypeSiliconFlow:
-		return updateChannelSiliconFlowBalance(channel)
+		return fetchChannelSiliconFlowBalance(channel, key)
 	case constant.ChannelTypeDeepSeek:
-		return updateChannelDeepSeekBalance(channel)
+		return fetchChannelDeepSeekBalance(channel, key)
 	case constant.ChannelTypeOpenRouter:
-		return updateChannelOpenRouterBalance(channel)
+		return fetchChannelOpenRouterBalance(channel, key)
 	case constant.ChannelTypeMoonshot:
-		return updateChannelMoonshotBalance(channel)
+		return fetchChannelMoonshotBalance(channel, key)
 	case constant.ChannelTypeSub2API:
-		return updateChannelSub2APIBalance(channel)
+		return fetchChannelSub2APIBalance(channel, key)
 	case constant.ChannelTypeNewAPI:
-		return updateChannelNewAPIBalance(channel)
+		return fetchChannelNewAPIBalance(channel, key)
 	default:
-		return 0, common.NewMessage("Not implemented yet")
+		return channelKeyBalanceValue{}, common.NewMessage("Not implemented yet")
 	}
 	url := fmt.Sprintf("%s/v1/dashboard/billing/subscription", baseURL)
 
-	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err := GetResponseBody("GET", url, channel, GetAuthHeader(key))
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
 	subscription := OpenAISubscriptionResponse{}
 	err = common.Unmarshal(body, &subscription)
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
 	now := time.Now()
 	startDate := fmt.Sprintf("%s-01", now.Format("2006-01"))
@@ -677,18 +879,16 @@ func updateStandardChannelBalance(channel *model.Channel) (float64, error) {
 		startDate = now.AddDate(0, 0, -100).Format("2006-01-02")
 	}
 	url = fmt.Sprintf("%s/v1/dashboard/billing/usage?start_date=%s&end_date=%s", baseURL, startDate, endDate)
-	body, err = GetResponseBody("GET", url, channel, GetAuthHeader(channel.Key))
+	body, err = GetResponseBody("GET", url, channel, GetAuthHeader(key))
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
 	usage := OpenAIUsageResponse{}
 	err = common.Unmarshal(body, &usage)
 	if err != nil {
-		return 0, err
+		return channelKeyBalanceValue{}, err
 	}
-	balance := subscription.HardLimitUSD - usage.TotalUsage/100
-	channel.UpdateBalance(balance)
-	return balance, nil
+	return channelKeyBalanceValue{Balance: subscription.HardLimitUSD - usage.TotalUsage/100}, nil
 }
 
 func UpdateChannelBalance(c *gin.Context) {
@@ -706,10 +906,6 @@ func UpdateChannelBalance(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "Task Plugin channels do not support balance queries"})
 		return
 	}
-	if channel.ChannelInfo.IsMultiKey {
-		common.ApiErrorT(c, "Multi-key channels do not support balance queries")
-		return
-	}
 	result, err := updateChannelBalance(channel)
 	if err != nil {
 		common.ApiError(c, err)
@@ -719,10 +915,13 @@ func UpdateChannelBalance(c *gin.Context) {
 		"success": true,
 		"message": "",
 	}
-	if result.RawResponse == "" {
-		response["balance"] = result.Balance
-	} else {
+	if result.RawResponse != "" {
 		response["raw_response"] = result.RawResponse
+	} else {
+		response["balance"] = result.Balance
+		if len(result.Keys) > 0 {
+			response["keys"] = result.Keys
+		}
 	}
 	c.JSON(http.StatusOK, response)
 }
@@ -736,9 +935,6 @@ func updateAllChannelsBalance() error {
 		if channel.Status != common.ChannelStatusEnabled {
 			continue
 		}
-		if channel.ChannelInfo.IsMultiKey {
-			continue // skip multi-key channels
-		}
 		// TODO: support Azure
 		//if channel.Type != common.ChannelTypeOpenAI && channel.Type != common.ChannelTypeCustom {
 		//	continue
@@ -746,7 +942,7 @@ func updateAllChannelsBalance() error {
 		result, err := updateChannelBalance(channel)
 		if err != nil {
 			continue
-		} else if result.RawResponse == "" {
+		} else if result.RawResponse == "" && !result.Partial {
 			// err is nil & balance <= 0 means quota is used up
 			if result.Balance <= 0 {
 				service.DisableChannel(*types.NewChannelError(channel.Id, channel.Type, channel.Name, channel.ChannelInfo.IsMultiKey, "", channel.GetAutoBan()), "Insufficient balance")
