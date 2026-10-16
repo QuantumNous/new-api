@@ -130,6 +130,42 @@ func TestConvertSpeechRequestRequiresInput(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "input is required")
+	requireClientRejection(t, err)
+}
+
+// MiMo has no translation endpoint, and the caller picked it, so the rejection
+// must reach them as a 400 rather than a gateway failure.
+func TestConvertAudioRequestRejectsTranslation(t *testing.T) {
+	_, err := (&Adaptor{}).ConvertAudioRequest(xiaomiGinContext(t, "/v1/audio/translations"),
+		xiaomiRelayInfo(relayconstant.RelayModeAudioTranslation, &dto.AudioRequest{}), dto.AudioRequest{})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does not support this audio endpoint")
+	requireClientRejection(t, err)
+}
+
+// MiMo answers synthesis and recognition on the chat endpoint, so both audio
+// relay modes have to be rewritten there instead of the OpenAI audio paths the
+// caller used.
+func TestGetRequestURLPointsAudioModesAtChatCompletions(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		relayMode int
+		path      string
+	}{
+		{name: "speech", relayMode: relayconstant.RelayModeAudioSpeech, path: "/v1/audio/speech"},
+		{name: "transcription", relayMode: relayconstant.RelayModeAudioTranscription, path: "/v1/audio/transcriptions"},
+		{name: "chat keeps its own path", relayMode: relayconstant.RelayModeChatCompletions, path: "/v1/chat/completions"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			info := xiaomiRelayInfo(tc.relayMode, nil)
+			info.RequestURLPath = tc.path
+
+			url, err := (&Adaptor{}).GetRequestURL(info)
+			require.NoError(t, err)
+			assert.Equal(t, "https://api.xiaomimimo.com/v1/chat/completions", url)
+		})
+	}
 }
 
 // Answering a container MiMo cannot render with wav bytes would hand the client
@@ -321,6 +357,7 @@ func TestConvertTranscriptionRequestCarriesAudioDataURL(t *testing.T) {
 			if tc.wantErr != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), tc.wantErr)
+				requireClientRejection(t, err)
 				return
 			}
 			require.NoError(t, err)
@@ -393,6 +430,46 @@ func TestTranscriptionResponseRendersRequestedFormat(t *testing.T) {
 			// The audio-token detail is what makes the request settle against
 			// the audio prices instead of the text ones.
 			assert.Equal(t, 25, usage.PromptTokensDetails.AudioTokens)
+		})
+	}
+}
+
+// Upstream normally reports the recognised audio, and those counts are what the
+// request settles on. When the audio-token detail is missing the reply would
+// carry no prompt tokens at all, so the local estimate stands in for them.
+func TestTranscriptionUsagePrefersUpstreamCountsAndFallsBackToTheEstimate(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		completion string
+		wantPrompt int
+		wantTotal  int
+	}{
+		{
+			name:       "reported audio tokens are kept",
+			completion: `{"choices":[{"message":{"content":"你好"}}],"usage":{"prompt_tokens":25,"completion_tokens":3,"total_tokens":28,"prompt_tokens_details":{"audio_tokens":25}}}`,
+			wantPrompt: 25,
+			wantTotal:  28,
+		},
+		{
+			name:       "a reply without audio tokens falls back to the estimate",
+			completion: `{"choices":[{"message":{"content":"你好"}}],"usage":{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10}}`,
+			wantPrompt: 42,
+			wantTotal:  45,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, c := xiaomiRecorder(t)
+			info := xiaomiRelayInfo(relayconstant.RelayModeAudioTranscription, &dto.AudioRequest{Model: "mimo-v2.5-asr"})
+			info.SetEstimatePromptTokens(42)
+
+			usage, apiErr := doTranscriptionResponse(c, &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewReader([]byte(tc.completion))),
+			}, info)
+
+			require.Nil(t, apiErr)
+			assert.Equal(t, tc.wantPrompt, usage.PromptTokens)
+			assert.Equal(t, tc.wantTotal, usage.TotalTokens)
 		})
 	}
 }

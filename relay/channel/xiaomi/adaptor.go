@@ -74,6 +74,14 @@ var inputAudioMIMETypes = map[string]string{
 	audioFormatMP3: "audio/mpeg",
 }
 
+// clientError marks a request the caller sent wrong. Left as a plain error the
+// audio helper would wrap it into a retryable 500, hiding the caller's mistake
+// behind an unrelated gateway failure; every Xiaomi channel refuses the same
+// input, so the rejection is a 400 that skips channel retries.
+func clientError(err error) error {
+	return types.NewErrorWithStatusCode(err, types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
+}
+
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	a.openaiAdaptor.Init(info)
 }
@@ -133,7 +141,7 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 		return buildTranscriptionRequest(c, request)
 	default:
 		// MiMo neither translates nor exposes the OpenAI realtime audio API.
-		return nil, errors.New("the Xiaomi MiMo channel does not support this audio endpoint")
+		return nil, clientError(errors.New("the Xiaomi MiMo channel does not support this audio endpoint"))
 	}
 }
 
@@ -142,28 +150,20 @@ func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInf
 // read becomes the assistant turn.
 func (a *Adaptor) buildSpeechRequest(c *gin.Context, request dto.AudioRequest) (io.Reader, error) {
 	if strings.TrimSpace(request.Input) == "" {
-		return nil, errors.New("input is required")
+		return nil, clientError(errors.New("input is required"))
 	}
 
 	// MiMo renders wav and mp3. The remaining OpenAI containers (opus, aac,
 	// flac, pcm) have no MiMo equivalent; answering them with wav bytes would
 	// hand the client a payload its decoder cannot read, so they are rejected
-	// before the upstream is asked to synthesise anything. The rejection is a
-	// 400 that skips channel retries: every Xiaomi channel refuses the same
-	// value, so a retryable 500 would only hide the client's mistake behind
-	// unrelated channels.
+	// before the upstream is asked to synthesise anything.
 	format := audioFormatWAV
 	switch strings.ToLower(strings.TrimSpace(request.ResponseFormat)) {
 	case "", audioFormatWAV:
 	case audioFormatMP3:
 		format = audioFormatMP3
 	default:
-		return nil, types.NewErrorWithStatusCode(
-			fmt.Errorf("unsupported response_format %q: the Xiaomi MiMo channel renders wav and mp3", request.ResponseFormat),
-			types.ErrorCodeInvalidRequest,
-			http.StatusBadRequest,
-			types.ErrOptionWithSkipRetry(),
-		)
+		return nil, clientError(fmt.Errorf("unsupported response_format %q: the Xiaomi MiMo channel renders wav and mp3", request.ResponseFormat))
 	}
 	a.speechFormat = format
 
@@ -202,26 +202,20 @@ func buildTranscriptionRequest(c *gin.Context, request dto.AudioRequest) (io.Rea
 	// MiMo returns a plain transcript with no timestamps, so json and text are
 	// the only OpenAI transcription formats that can be honoured. The timed
 	// ones are rejected here, before the upstream is charged for a transcript
-	// this adaptor would otherwise have to mislabel as json, and as a 400 that
-	// skips channel retries for the same reason as the speech formats above.
+	// this adaptor would otherwise have to mislabel as json.
 	switch strings.ToLower(strings.TrimSpace(request.ResponseFormat)) {
 	case "", "json", "text":
 	default:
-		return nil, types.NewErrorWithStatusCode(
-			fmt.Errorf("unsupported response_format %q: the Xiaomi MiMo channel renders json and text", request.ResponseFormat),
-			types.ErrorCodeInvalidRequest,
-			http.StatusBadRequest,
-			types.ErrOptionWithSkipRetry(),
-		)
+		return nil, clientError(fmt.Errorf("unsupported response_format %q: the Xiaomi MiMo channel renders json and text", request.ResponseFormat))
 	}
 
 	form, err := common.ParseMultipartFormReusable(c)
 	if err != nil {
-		return nil, fmt.Errorf("parse multipart form failed: %w", err)
+		return nil, clientError(fmt.Errorf("parse multipart form failed: %w", err))
 	}
 	fileHeaders := form.File["file"]
 	if len(fileHeaders) == 0 {
-		return nil, errors.New("file is required")
+		return nil, clientError(errors.New("file is required"))
 	}
 
 	dataURL, err := inputAudioDataURL(fileHeaders[0])
@@ -271,7 +265,7 @@ func inputAudioDataURL(fileHeader *multipart.FileHeader) (string, error) {
 		}
 	}
 	if format == "" {
-		return "", fmt.Errorf("unsupported audio format %q: the Xiaomi MiMo channel accepts mp3 and wav", fileHeader.Filename)
+		return "", clientError(fmt.Errorf("unsupported audio format %q: the Xiaomi MiMo channel accepts mp3 and wav", fileHeader.Filename))
 	}
 
 	file, err := fileHeader.Open()
@@ -315,10 +309,14 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	case relayconstant.RelayModeAudioTranscription:
 		return doTranscriptionResponse(c, resp, info)
 	default:
-		if info.IsStream {
-			return openai.OaiStreamHandler(c, info, resp)
-		}
-		return openai.OpenaiHandler(c, info, resp)
+		// Chat and Responses reach MiMo in the OpenAI wire format, and the stock
+		// adaptor already selects the right handler per relay mode. Handling
+		// them here instead would bill a Responses reply through the chat
+		// handlers, which read prompt_tokens rather than input_tokens and would
+		// settle it as an estimate. Every mode MiMo cannot serve is refused
+		// during conversion, so nothing else can arrive.
+		adaptor := openai.Adaptor{}
+		return adaptor.DoResponse(c, resp, info)
 	}
 }
 
