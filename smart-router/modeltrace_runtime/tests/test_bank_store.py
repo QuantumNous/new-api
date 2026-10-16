@@ -2291,6 +2291,123 @@ class BankStoreTest(unittest.TestCase):
             self.assertIs(type(error), ValueError)
             self.assertIn("8192", str(error))
 
+    def sized_bank_artifact(self, bank, size):
+        bank_store = importlib.import_module("modeltrace_runtime.bank_store")
+        content = bank_store._json_bytes(bank)
+        self.assertLessEqual(len(content), size)
+        # JSON whitespace changes only artifact size, never bank/scoring semantics.
+        content = content[:-1] + b" " * (size - len(content)) + b"\n"
+        self.assertEqual(size, len(content))
+        self.assertEqual(bank, json.loads(content))
+        bank_store.validate_bank(json.loads(content))
+        return content
+
+    def test_oversized_banks_reject_before_publication_preserving_current(self):
+        bank_store = importlib.import_module("modeltrace_runtime.bank_store")
+        for artifact in ("bank.json", "families/gpt.json"):
+            with self.subTest(artifact=artifact), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory).resolve() / "state"
+                store = bank_store.BankStore(root)
+                expected = store.create("custom-bank", "Custom Bank")
+                unified = store._current_bank()[0]
+                families = store._fit_family_banks(store._custom_rows)
+                selected = unified if artifact == "bank.json" else families["gpt"]
+                content = self.sized_bank_artifact(selected, 17 * 1024 * 1024)
+                before_files = self.disk_snapshot(root)
+                before_manifest = (root / "current.json").read_bytes()
+                publication_opens = []
+                serialize = bank_store._json_bytes
+                open_directory = store._open_directory
+
+                def sized_serialize(value):
+                    return content if value is selected else serialize(value)
+
+                def record_open(parent, name, *, create=False):
+                    if create:
+                        publication_opens.append(name)
+                    return open_directory(parent, name, create=create)
+
+                error = None
+                with mock.patch.object(
+                    bank_store, "_json_bytes", side_effect=sized_serialize,
+                ), mock.patch.object(
+                    store, "_open_directory", side_effect=record_open,
+                ):
+                    try:
+                        store._publish_generation(
+                            store._banks, store._custom_rows, unified, families,
+                        )
+                    except Exception as caught:
+                        error = caught
+                with self.subTest(invariant="reject"):
+                    self.assertIs(type(error), ValueError)
+                    self.assertEqual(
+                        f"generation artifact {artifact} is too large", str(error),
+                    )
+                with self.subTest(invariant="before-generation-creation"):
+                    self.assertEqual([], publication_opens)
+                with self.subTest(invariant="prior-current-byte-identical"):
+                    self.assertEqual(before_manifest, (root / "current.json").read_bytes())
+                with self.subTest(invariant="prior-generation-byte-identical"):
+                    after_files = self.disk_snapshot(root)
+                    self.assertEqual(set(before_files), set(after_files))
+                    for path, snapshot in before_files.items():
+                        self.assertEqual(snapshot, after_files[path], path)
+                with self.subTest(invariant="prior-current-usable"):
+                    self.assertEqual(expected, store.summary())
+                    self.assertEqual(expected, bank_store.BankStore(root).summary())
+
+    def test_banks_at_consumer_limit_publish_and_restart(self):
+        bank_store = importlib.import_module("modeltrace_runtime.bank_store")
+        for artifact in ("bank.json", "families/gpt.json"):
+            with self.subTest(artifact=artifact), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory).resolve() / "state"
+                store = bank_store.BankStore(root)
+                previous = store.create("custom-bank", "Custom Bank")
+                unified = store._current_bank()[0]
+                families = store._fit_family_banks(store._custom_rows)
+                selected = unified if artifact == "bank.json" else families["gpt"]
+                content = self.sized_bank_artifact(selected, 16 * 1024 * 1024)
+                serialize = bank_store._json_bytes
+
+                def sized_serialize(value):
+                    return content if value is selected else serialize(value)
+
+                with mock.patch.object(
+                    bank_store, "_json_bytes", side_effect=sized_serialize,
+                ):
+                    store._publish_generation(
+                        store._banks, store._custom_rows, unified, families,
+                    )
+                manifest = json.loads((root / "current.json").read_bytes())
+                self.assertEqual(
+                    content, (root / "generations" / manifest["generation"] / artifact).read_bytes(),
+                )
+                current = store.summary()
+                self.assertNotEqual(previous["generation"], current["generation"])
+                self.assertEqual(previous["models"], current["models"])
+                self.assertEqual(previous["families"], current["families"])
+                self.assertEqual(current, bank_store.BankStore(root).summary())
+
+    def test_oversized_committed_banks_fail_closed_on_restart_and_refresh(self):
+        bank_store = importlib.import_module("modeltrace_runtime.bank_store")
+        for artifact in ("unified", "family"):
+            with self.subTest(artifact=artifact), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory).resolve() / "state"
+                store = bank_store.BankStore(root)
+                store.create("custom-bank", "Custom Bank")
+                manifest = json.loads((root / "current.json").read_bytes())
+                entry = (
+                    manifest["bank"] if artifact == "unified"
+                    else manifest["families"]["gpt"]
+                )
+                bank = json.loads((root / entry["path"]).read_bytes())
+                content = self.sized_bank_artifact(bank, 17 * 1024 * 1024)
+                self.replace_current_artifact(root, manifest, entry, content)
+                self.assert_snapshot_rejected_on_restart_and_refresh(
+                    root, store, "^committed artifact is too large$",
+                )
+
     def test_oversized_references_are_rejected_before_publication(self):
         bank_store = importlib.import_module("modeltrace_runtime.bank_store")
         numeric_rows = importlib.import_module("modeltrace_runtime.numeric_rows")
