@@ -1455,7 +1455,6 @@
     "Connect to the OpenAI API or compatible services": "Connecter l’API OpenAI ou des services compatibles",
     "Connect to Vidu video generation services": "Connecter les services de génération vidéo Vidu",
     "Connect to Volcengine Ark model services": "Connecter les services de modèles Volcengine Ark",
-    "Connect to Xiaomi MiMo chat, speech recognition and speech synthesis services": "Connecter les services de conversation, de reconnaissance vocale et de synthèse vocale Xiaomi MiMo",
     "Connect to xAI Grok model services": "Connecter les services de modèles xAI Grok",
     "Connected to io.net service normally.": "Connexion au service io.net réussie.",
     "Connection & Models": "Connexion et modèles",
@@ -7222,7 +7221,6 @@
     "Write value to the target field": "Écrire la valeur dans le champ cible",
     "x": "x",
     "xAI": "xAI",
-    "Xiaomi MiMo": "Xiaomi MiMo",
     "Xinference": "Xinference",
     "Xunfei": "Xunfei",
     "Year": "Année",
@@ -7278,6 +7276,8 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Xiaomi MiMo": "Xiaomi MiMo",
+    "Connect to Xiaomi MiMo chat, speech recognition and speech synthesis services": "Connecter les services de conversation, de reconnaissance vocale et de synthèse vocale Xiaomi MiMo"
   }
 }

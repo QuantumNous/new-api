@@ -1455,7 +1455,6 @@
     "Connect to the OpenAI API or compatible services": "Подключение к API OpenAI или совместимым сервисам",
     "Connect to Vidu video generation services": "Подключение к сервисам генерации видео Vidu",
     "Connect to Volcengine Ark model services": "Подключение к моделям Volcengine Ark",
-    "Connect to Xiaomi MiMo chat, speech recognition and speech synthesis services": "Подключение к сервисам чата, распознавания и синтеза речи Xiaomi MiMo",
     "Connect to xAI Grok model services": "Подключение к моделям xAI Grok",
     "Connected to io.net service normally.": "Соединение с сервисом io.net установлено.",
     "Connection & Models": "Подключение и модели",
@@ -7222,7 +7221,6 @@
     "Write value to the target field": "Записать значение в целевое поле",
     "x": "x",
     "xAI": "xAI",
-    "Xiaomi MiMo": "Xiaomi MiMo",
     "Xinference": "Xinference",
     "Xunfei": "Xunfei",
     "Year": "Год",
@@ -7278,6 +7276,8 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Xiaomi MiMo": "Xiaomi MiMo",
+    "Connect to Xiaomi MiMo chat, speech recognition and speech synthesis services": "Подключение к сервисам чата, распознавания и синтеза речи Xiaomi MiMo"
   }
 }

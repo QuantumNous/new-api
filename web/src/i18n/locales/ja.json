@@ -1455,7 +1455,6 @@
     "Connect to the OpenAI API or compatible services": "OpenAI API または互換サービスに接続",
     "Connect to Vidu video generation services": "Vidu の動画生成サービスに接続",
     "Connect to Volcengine Ark model services": "Volcengine Ark のモデルサービスに接続",
-    "Connect to Xiaomi MiMo chat, speech recognition and speech synthesis services": "Xiaomi MiMo のチャット、音声認識、音声合成サービスに接続",
     "Connect to xAI Grok model services": "xAI Grok のモデルサービスに接続",
     "Connected to io.net service normally.": "io.net サービスに正常に接続しました。",
     "Connection & Models": "接続とモデル",
@@ -7222,7 +7221,6 @@
     "Write value to the target field": "ターゲットフィールドに値を書き込む",
     "x": "x",
     "xAI": "xAI",
-    "Xiaomi MiMo": "Xiaomi MiMo",
     "Xinference": "Xinference",
     "Xunfei": "Xunfei",
     "Year": "年",
@@ -7278,6 +7276,8 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Xiaomi MiMo": "Xiaomi MiMo",
+    "Connect to Xiaomi MiMo chat, speech recognition and speech synthesis services": "Xiaomi MiMo のチャット、音声認識、音声合成サービスに接続"
   }
 }
