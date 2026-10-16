@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
+import { useState } from 'react'
 import { I18nextProvider } from 'react-i18next'
 import { expect, test, vi } from 'vitest'
 
@@ -42,6 +43,44 @@ test('external mapping changes update the editor without emitting an edit', () =
   expect(screen.getByDisplayValue('upstream-b')).toBeVisible()
   expect(screen.queryByDisplayValue('client-a')).not.toBeInTheDocument()
   expect(onChange).not.toHaveBeenCalled()
+})
+
+test('manual mapping targets remain editable without an upstream picker', async () => {
+  const user = userEvent.setup()
+  const onChange = vi.fn()
+  render(
+    <ModelMappingEditor
+      value='{"client-model":"previous-model"}'
+      onChange={onChange}
+    />
+  )
+  const target = screen.getByRole('combobox', { name: 'Upstream Model Name' })
+  await user.clear(target)
+  await user.type(target, 'custom-deployment')
+  await user.tab()
+  expect(JSON.parse(onChange.mock.lastCall?.[0] ?? '{}')).toEqual({
+    'client-model': 'custom-deployment',
+  })
+  expect(
+    screen.queryByRole('button', { name: 'Select Model' })
+  ).not.toBeInTheDocument()
+})
+
+test('disabled mapping fields reject manual edits', async () => {
+  const user = userEvent.setup()
+  const onChange = vi.fn()
+  render(
+    <ModelMappingEditor
+      value='{"client-model":"previous-model"}'
+      onChange={onChange}
+      disabled
+    />
+  )
+  const target = screen.getByRole('combobox', { name: 'Upstream Model Name' })
+  expect(target).toBeDisabled()
+  await user.type(target, 'changed')
+  expect(onChange).not.toHaveBeenCalled()
+  expect(target).toHaveValue('previous-model')
 })
 
 test('language changes preserve draft mappings and explain the same direction in JSON mode', async () => {
@@ -110,6 +149,34 @@ test('a new row focuses its request field and both fields offer searchable model
   await user.click(screen.getByRole('option', { name: 'upstream-a' }))
   expect(onChange).toHaveBeenLastCalledWith(
     '{\n  "alpha-model": "upstream-a"\n}'
+  )
+})
+
+function ControlledMappingEditor() {
+  const [value, setValue] = useState('')
+  return <ModelMappingEditor value={value} onChange={setValue} />
+}
+
+test('editing the second draft keeps the first draft empty when the form echoes mapping changes', async () => {
+  const user = userEvent.setup()
+  render(<ControlledMappingEditor />)
+  await user.click(screen.getByRole('button', { name: 'Add Mapping' }))
+  await user.click(screen.getByRole('button', { name: 'Add Mapping' }))
+  const sources = screen.getAllByRole('combobox', {
+    name: 'Request Model Name',
+  })
+  await user.type(sources[1], 'client-alias')
+  expect(sources[0]).toHaveValue('')
+  expect(sources[1]).toHaveValue('client-alias')
+  expect(sources[1]).toHaveFocus()
+
+  const targets = screen.getAllByRole('combobox', {
+    name: 'Upstream Model Name',
+  })
+  await user.type(targets[1], 'provider-model')
+  await user.click(screen.getByRole('tab', { name: 'JSON' }))
+  expect(screen.getByRole('textbox', { name: 'Model Mapping' })).toHaveValue(
+    '{\n  "client-alias": "provider-model"\n}'
   )
 })
 

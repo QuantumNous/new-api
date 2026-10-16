@@ -113,8 +113,10 @@ test.each([
   }
 )
 
-function InlineSelection() {
-  const [selected, setSelected] = useState(['manual-model'])
+function InlineSelection(props: { selectionMode?: 'single' | 'multiple' }) {
+  const [selected, setSelected] = useState(
+    props.selectionMode === 'single' ? ['gpt-one'] : ['manual-model']
+  )
   return (
     <>
       <UpstreamModelSelection
@@ -122,12 +124,43 @@ function InlineSelection() {
         selected={selected}
         existingModels={[]}
         showChanges={false}
+        selectionMode={props.selectionMode}
         onChange={setSelected}
       />
       <output aria-label='Selected models'>{selected.join(',')}</output>
     </>
   )
 }
+
+test('single selection replaces the selected model and supports keyboard navigation without bulk actions', async () => {
+  const user = userEvent.setup()
+  render(<InlineSelection selectionMode='single' />)
+  const first = screen.getByRole('radio', { name: 'gpt-one' })
+  expect(first).toBeChecked()
+  expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  first.focus()
+  await user.keyboard('{ArrowDown}')
+  expect(screen.getByRole('radio', { name: 'gpt-two' })).toBeChecked()
+  expect(first).not.toBeChecked()
+  expect(screen.getByLabelText('Selected models')).toHaveTextContent(
+    /^gpt-two$/
+  )
+  await user.click(screen.getByRole('radio', { name: 'another-model' }))
+  expect(screen.getByLabelText('Selected models')).toHaveTextContent(
+    /^another-model$/
+  )
+  const search = screen.getByRole('textbox', { name: 'Search models...' })
+  await user.type(search, 'gpt')
+  expect(
+    screen.queryByRole('button', { name: 'Select all matching models' })
+  ).not.toBeInTheDocument()
+  await user.clear(search)
+  await user.type(search, 'unavailable')
+  expect(screen.getByText('No matching items')).toBeVisible()
+  expect(screen.getByLabelText('Selected models')).toHaveTextContent(
+    /^another-model$/
+  )
+})
 
 test('category headers keep a transparent background while expanding and collapsing without changing selection', async () => {
   const user = userEvent.setup()

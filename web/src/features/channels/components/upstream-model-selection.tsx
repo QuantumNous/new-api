@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/collapsible'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Tooltip,
@@ -53,6 +54,7 @@ function sortedModelCategories(models: string[]): [string, string[]][] {
 
 type ModelCategoryProps = {
   name: string
+  selectionMode?: 'single' | 'multiple'
   models: string[]
   selected: string[]
   redirectOnly: Set<string>
@@ -74,22 +76,28 @@ function ModelCategory(props: ModelCategoryProps) {
   return (
     <Collapsible defaultOpen className='@container rounded-lg border'>
       <div className='flex items-center gap-3 px-3'>
-        <Checkbox
-          aria-label={t('Select all models in {{category}}', {
-            category: categoryName,
-          })}
-          checked={allSelected}
-          indeterminate={selectedCount > 0 && !allSelected}
-          onCheckedChange={(checked) => {
-            if (checked) {
-              props.onChange([...new Set([...props.selected, ...props.models])])
-            } else {
-              props.onChange(
-                props.selected.filter((model) => !props.models.includes(model))
-              )
-            }
-          }}
-        />
+        {props.selectionMode !== 'single' && (
+          <Checkbox
+            aria-label={t('Select all models in {{category}}', {
+              category: categoryName,
+            })}
+            checked={allSelected}
+            indeterminate={selectedCount > 0 && !allSelected}
+            onCheckedChange={(checked) => {
+              if (checked) {
+                props.onChange([
+                  ...new Set([...props.selected, ...props.models]),
+                ])
+              } else {
+                props.onChange(
+                  props.selected.filter(
+                    (model) => !props.models.includes(model)
+                  )
+                )
+              }
+            }}
+          />
+        )}
         <CollapsibleTrigger
           render={
             <Button
@@ -112,18 +120,26 @@ function ModelCategory(props: ModelCategoryProps) {
         <div className='grid gap-2 @lg:grid-cols-2'>
           {props.models.map((model) => (
             <div key={model} className='flex min-w-0 items-start gap-2'>
-              <Checkbox
-                id={`${id}-${model}`}
-                className='mt-0.5 shrink-0'
-                checked={selected.has(model)}
-                onCheckedChange={(checked) =>
-                  props.onChange(
-                    checked
-                      ? [...props.selected, model]
-                      : props.selected.filter((item) => item !== model)
-                  )
-                }
-              />
+              {props.selectionMode === 'single' ? (
+                <RadioGroupItem
+                  id={`${id}-${model}`}
+                  className='mt-0.5 shrink-0'
+                  value={model}
+                />
+              ) : (
+                <Checkbox
+                  id={`${id}-${model}`}
+                  className='mt-0.5 shrink-0'
+                  checked={selected.has(model)}
+                  onCheckedChange={(checked) =>
+                    props.onChange(
+                      checked
+                        ? [...props.selected, model]
+                        : props.selected.filter((item) => item !== model)
+                    )
+                  }
+                />
+              )}
               <Label
                 htmlFor={`${id}-${model}`}
                 className='min-w-0 cursor-pointer text-sm font-normal break-all'
@@ -188,6 +204,7 @@ type UpstreamModelSelectionProps = {
   redirectSourceModels?: string[]
   showChanges?: boolean
   summaryText?: string
+  selectionMode?: 'single' | 'multiple'
   /** Renders a per-model action that starts a redirect for that model. */
   onRedirectModel?: (model: string) => void
   /** Upstream model name to the request name it is published under. */
@@ -249,7 +266,8 @@ export function UpstreamModelSelection(props: UpstreamModelSelectionProps) {
     search,
   ])
 
-  const showChanges = props.showChanges ?? true
+  const showChanges =
+    props.selectionMode !== 'single' && (props.showChanges ?? true)
   const counts = {
     new: categorized.added.length,
     existing: categorized.existing.length,
@@ -273,6 +291,41 @@ export function UpstreamModelSelection(props: UpstreamModelSelectionProps) {
   else if (counts.removed) fallbackTab = 'removed'
   const activeTab = counts[tabState.tab] > 0 ? tabState.tab : fallbackTab
 
+  const modelCategories = !showChanges && (
+    <div className='max-h-96 space-y-2 overflow-y-auto'>
+      {sortedModelCategories(categorized.filtered).map(([name, models]) => (
+        <ModelCategory
+          key={name}
+          name={name}
+          selectionMode={props.selectionMode}
+          models={models}
+          selected={props.selected}
+          redirectOnly={categorized.redirectOnly}
+          onChange={props.onChange}
+          onRedirectModel={props.onRedirectModel}
+          aliases={props.aliases}
+        />
+      ))}
+      {!categorized.filtered.length && (
+        <p className='text-muted-foreground py-3 text-sm'>
+          {t('No matching items')}
+        </p>
+      )}
+    </div>
+  )
+  const modelSelection =
+    props.selectionMode === 'single' ? (
+      <RadioGroup
+        aria-label={t('Models')}
+        value={props.selected[0] ?? ''}
+        onValueChange={(value) => props.onChange([String(value)])}
+      >
+        {modelCategories}
+      </RadioGroup>
+    ) : (
+      modelCategories
+    )
+
   return (
     <div className='space-y-3'>
       <Input
@@ -287,7 +340,7 @@ export function UpstreamModelSelection(props: UpstreamModelSelectionProps) {
             {props.summaryText ??
               t('Fetched {{count}} models', { count: props.models.length })}
           </span>
-          {search.trim().length > 0 && (
+          {props.selectionMode !== 'single' && search.trim().length > 0 && (
             <Button
               type='button'
               variant='outline'
@@ -396,25 +449,7 @@ export function UpstreamModelSelection(props: UpstreamModelSelectionProps) {
           )}
         </Tabs>
       ) : (
-        <div className='max-h-96 space-y-2 overflow-y-auto'>
-          {sortedModelCategories(categorized.filtered).map(([name, models]) => (
-            <ModelCategory
-              key={name}
-              name={name}
-              models={models}
-              selected={props.selected}
-              redirectOnly={categorized.redirectOnly}
-              onChange={props.onChange}
-              onRedirectModel={props.onRedirectModel}
-              aliases={props.aliases}
-            />
-          ))}
-          {!categorized.filtered.length && (
-            <p className='text-muted-foreground py-3 text-sm'>
-              {t('No matching items')}
-            </p>
-          )}
-        </div>
+        modelSelection
       )}
       <p className='text-muted-foreground text-sm'>
         {t('{{n}} model(s) selected', { n: props.selected.length })}

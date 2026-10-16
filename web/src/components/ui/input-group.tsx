@@ -73,7 +73,11 @@ function InputGroupAddon({
       data-align={align}
       className={cn(inputGroupAddonVariants({ align }), className)}
       onClick={(e) => {
-        if ((e.target as HTMLElement).closest('button')) {
+        // Portaled popups manage their own focus even when nested in this addon.
+        if (
+          !e.currentTarget.contains(e.target as Node) ||
+          (e.target as HTMLElement).closest('button')
+        ) {
           return
         }
         e.currentTarget.parentElement?.querySelector('input')?.focus()
