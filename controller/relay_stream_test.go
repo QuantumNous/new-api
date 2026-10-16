@@ -236,6 +236,10 @@ func TestRelayStreamErrorAfterKeepAlive(t *testing.T) {
 			require.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
 			require.Contains(t, recorder.Body.String(), "upstream rejected input")
 			require.NotContains(t, recorder.Body.String(), "provider.example")
+			status, ok := common.GetContextKeyType[*relaycommon.StreamStatus](c, constant.ContextKeyResponseStreamStatus)
+			require.True(t, ok)
+			require.True(t, status.ResponseFailed(), "stream errors must not consume the successful-request rate limit")
+			require.Equal(t, http.StatusBadRequest, status.OutcomeSnapshot().ErrorStatus)
 			if format == types.RelayFormatClaude {
 				require.Contains(t, recorder.Body.String(), "event: error\n")
 			} else {
