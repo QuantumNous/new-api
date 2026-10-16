@@ -105,6 +105,9 @@ func ChatCompletionsResponseToResponsesResponseWithTools(resp *dto.OpenAITextRes
 	}
 
 	for i, toolCall := range choice.Message.ParseToolCalls() {
+		if (toolCall.Type == "" || toolCall.Type == "function") && strings.TrimSpace(toolCall.Function.Name) == "" {
+			continue
+		}
 		toolOutput, err := chatToolCallToResponsesOutput(toolCall, id, i, responseOutputStatus(out), tools)
 		if err != nil {
 			return nil, nil, err
@@ -220,14 +223,16 @@ func chatToolCallToResponsesOutput(toolCall dto.ToolCallRequest, responseID stri
 		callID = fmt.Sprintf("%s_call_%d", responseID, index)
 	}
 	if toolCall.Type == "" || toolCall.Type == "function" {
+		namespace, name := tools.ResponsesToolName(toolCall.Function.Name)
 		if tools.IsCustomTool(toolCall.Function.Name) {
 			return dto.ResponsesOutput{
-				Type:   responsesOutputTypeCustomToolCall,
-				ID:     callID,
-				Status: status,
-				CallId: callID,
-				Name:   toolCall.Function.Name,
-				Input:  chatArgumentsRawMessage(customToolInputFromArguments(toolCall.Function.Arguments)),
+				Type:      responsesOutputTypeCustomToolCall,
+				ID:        callID,
+				Status:    status,
+				CallId:    callID,
+				Name:      name,
+				Namespace: namespace,
+				Input:     chatArgumentsRawMessage(customToolInputFromArguments(toolCall.Function.Arguments)),
 			}, nil
 		}
 		return dto.ResponsesOutput{
@@ -235,7 +240,8 @@ func chatToolCallToResponsesOutput(toolCall dto.ToolCallRequest, responseID stri
 			ID:        callID,
 			Status:    status,
 			CallId:    callID,
-			Name:      toolCall.Function.Name,
+			Name:      name,
+			Namespace: namespace,
 			Arguments: chatArgumentsRawMessage(toolCall.Function.Arguments),
 		}, nil
 	}

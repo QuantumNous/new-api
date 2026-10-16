@@ -62,7 +62,7 @@ func (token *UserAccessToken) GetScopes() []string {
 	}
 	var scopes []string
 	if err := common.UnmarshalJsonStr(token.Scopes, &scopes); err != nil {
-		common.SysError("invalid access token scopes: " + err.Error())
+		common.SysError(common.LogText("invalid access token scopes: %s", err.Error()))
 		return nil
 	}
 	return scopes

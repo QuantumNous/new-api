@@ -5,6 +5,8 @@
 package convmeta
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
@@ -92,15 +94,33 @@ type ClaudeStreamToolCall struct {
 // ResponsesToolState records how Responses-only tool definitions were encoded
 // for the upstream protocol, so the matching response can be restored.
 type ResponsesToolState struct {
-	// CustomToolNames lists Responses custom (freeform) tools that were sent to
-	// OpenAI Chat Completions as function tools taking one string "input"
-	// argument. Chat function calls with these names are custom tool calls.
+	// CustomToolNames lists Responses custom (freeform) tools that were sent
+	// upstream as function tools taking one string "input" argument. Function
+	// calls with these names are custom tool calls.
 	CustomToolNames map[string]struct{}
+	// Namespaces maps an upstream function name to the Responses tool
+	// namespace it was flattened from; see NamespacedToolName.
+	Namespaces map[string]string
 }
 
 // CustomToolInputArgument is the single function argument that carries a
-// Responses custom tool input through OpenAI Chat Completions.
+// Responses custom tool input through an upstream function call.
 const CustomToolInputArgument = "input"
+
+// DefaultResponsesToolNamespace is the namespace Codex declares its ordinary
+// tools in. OpenAI returns calls to its tools by bare name without a
+// namespace field, so its tools keep their names upstream.
+const DefaultResponsesToolNamespace = "functions"
+
+// NamespacedToolName is the upstream function name of a tool declared in a
+// Responses tool namespace: "<namespace>__<name>", or the bare name for the
+// default namespace.
+func NamespacedToolName(namespace string, name string) string {
+	if namespace == "" || namespace == DefaultResponsesToolNamespace {
+		return name
+	}
+	return namespace + "__" + name
+}
 
 // IsCustomTool reports whether name was encoded from a Responses custom tool.
 func (s *ResponsesToolState) IsCustomTool(name string) bool {
@@ -109,6 +129,20 @@ func (s *ResponsesToolState) IsCustomTool(name string) bool {
 	}
 	_, ok := s.CustomToolNames[name]
 	return ok
+}
+
+// ResponsesToolName restores the Responses namespace and tool name of an
+// upstream function name. Names that were not flattened from a namespace
+// return an empty namespace and the name unchanged.
+func (s *ResponsesToolState) ResponsesToolName(upstreamName string) (string, string) {
+	if s == nil {
+		return "", upstreamName
+	}
+	namespace, ok := s.Namespaces[upstreamName]
+	if !ok {
+		return "", upstreamName
+	}
+	return namespace, strings.TrimPrefix(upstreamName, namespace+"__")
 }
 
 const (

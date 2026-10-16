@@ -377,7 +377,7 @@ func GetModelPrice(name string, printErr bool) (float64, bool) {
 	}
 
 	if printErr {
-		common.SysError("model price not found: " + name)
+		common.SysError(common.LogText("model price not found: %s", name))
 	}
 	return -1, false
 }
@@ -407,7 +407,7 @@ func GetModelRatio(name string) (float64, bool, string) {
 func DefaultModelRatio2JSONString() string {
 	jsonBytes, err := common.Marshal(defaultModelRatio)
 	if err != nil {
-		common.SysError("error marshalling model ratio: " + err.Error())
+		common.SysError(common.LogText("error marshalling model ratio: %s", err.Error()))
 	}
 	return string(jsonBytes)
 }

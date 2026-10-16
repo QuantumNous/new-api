@@ -34,13 +34,6 @@ var (
 		"pro-image",
 		"image-generation",
 	}
-	OpenAITextModels = []string{
-		"gpt-",
-		"o1",
-		"o3",
-		"o4",
-		"chatgpt",
-	}
 )
 
 func IsOpenAIResponseOnlyModel(modelName string) bool {
@@ -100,16 +93,6 @@ func IsImageGenerationModel(modelName string) bool {
 			}
 			continue
 		}
-		if strings.Contains(modelName, m) {
-			return true
-		}
-	}
-	return false
-}
-
-func IsOpenAITextModel(modelName string) bool {
-	modelName = strings.ToLower(modelName)
-	for _, m := range OpenAITextModels {
 		if strings.Contains(modelName, m) {
 			return true
 		}

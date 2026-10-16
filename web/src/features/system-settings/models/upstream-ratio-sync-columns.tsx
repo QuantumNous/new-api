@@ -68,19 +68,17 @@ export function useUpstreamRatioSyncColumns(
           </div>
         ),
       },
-      ...upstreamNames.map(
-        (source): ColumnDef<PricingSyncRow> => ({
-          id: `upstream_${source}`,
-          size: upstreamNames.length === 1 ? 420 : 320,
-          minSize: 280,
-          header: isMobile
-            ? getUpstreamDisplayName(source, t)
-            : () => <SyncSourceHeader source={source} />,
-          cell: ({ row }) => (
-            <SyncSourcePriceCell row={row.original} source={source} />
-          ),
-        })
-      ),
+      ...upstreamNames.map((source): ColumnDef<PricingSyncRow> => ({
+        id: `upstream_${source}`,
+        size: upstreamNames.length === 1 ? 420 : 320,
+        minSize: 280,
+        header: isMobile
+          ? getUpstreamDisplayName(source, t)
+          : () => <SyncSourceHeader source={source} />,
+        cell: ({ row }) => (
+          <SyncSourcePriceCell row={row.original} source={source} />
+        ),
+      })),
     ],
     [upstreamNames, isMobile, t]
   )

@@ -51,7 +51,7 @@ func ApplySeedanceTaskPrice(c *gin.Context, info *relaycommon.RelayInfo) (bool, 
 		GroupRatio:        groupRatioInfo.GroupRatio,
 	})
 	if !ok {
-		return false, modelPriceNotConfiguredError(info.OriginModelName, info.UserId)
+		return false, modelPriceNotConfiguredError(c, info.OriginModelName, info.UserId)
 	}
 
 	freeModel := false

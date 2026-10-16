@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -50,16 +49,16 @@ func manageUserQuota(c *gin.Context, req ManageRequest) {
 		case errors.Is(err, model.ErrInvalidUserQuotaAdjustment):
 			params["failure_reason"] = "invalid_parameters"
 			if (req.Mode == "add" || req.Mode == "subtract") && req.Value <= 0 {
-				common.ApiErrorI18n(c, i18n.MsgUserQuotaChangeZero)
+				common.ApiErrorT(c, "Quota change amount cannot be zero")
 			} else {
-				common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+				common.ApiErrorT(c, "Invalid parameters")
 			}
 		case errors.Is(err, model.ErrUserQuotaPermission):
 			params["failure_reason"] = "permission_denied"
-			common.ApiErrorI18n(c, i18n.MsgUserNoPermissionHigherLevel)
+			common.ApiErrorT(c, "No permission to update users of same or higher permission level")
 		case errors.Is(err, gorm.ErrRecordNotFound):
 			params["failure_reason"] = "target_not_found"
-			common.ApiErrorI18n(c, i18n.MsgUserNotExists)
+			common.ApiErrorT(c, "User does not exist")
 		case errors.Is(err, model.ErrWalletQuotaLimitExceeded):
 			params["failure_reason"] = "quota_limit_exceeded"
 			common.ApiError(c, err)

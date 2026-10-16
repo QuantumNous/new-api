@@ -32,9 +32,9 @@ func TestGeminiModelMappingRouting(t *testing.T) {
 	settings.PassThroughRequestEnabled = false
 	t.Cleanup(func() { settings.PassThroughRequestEnabled = previousPassThrough })
 	geminiSettings := model_setting.GetGeminiSettings()
-	previousVersions := geminiSettings.VersionSettings
+	previousGemini := *geminiSettings
 	geminiSettings.VersionSettings = map[string]string{"default": "v1beta"}
-	t.Cleanup(func() { geminiSettings.VersionSettings = previousVersions })
+	t.Cleanup(func() { *geminiSettings = previousGemini })
 
 	for _, provider := range []struct {
 		name        string
@@ -47,13 +47,14 @@ func TestGeminiModelMappingRouting(t *testing.T) {
 	} {
 		t.Run(provider.name, func(t *testing.T) {
 			for _, tc := range []struct {
-				name        string
-				model       string
-				mapping     string
-				upstream    string
-				action      string
-				version     string
-				passThrough bool
+				name           string
+				model          string
+				mapping        string
+				upstream       string
+				action         string
+				version        string
+				passThrough    bool
+				disableAdapter bool
 			}{
 				{name: "mapped effort name", model: "gemini-3.8-flash", mapping: `{"gemini-3.8-flash":"gemini-3.8-flash-high"}`, upstream: "gemini-3.8-flash-high"},
 				{name: "mapped effort name stream", model: "gemini-3.8-flash", mapping: `{"gemini-3.8-flash":"gemini-3.8-flash-high"}`, upstream: "gemini-3.8-flash-high", action: "streamGenerateContent"},
@@ -61,6 +62,7 @@ func TestGeminiModelMappingRouting(t *testing.T) {
 				{name: "mapped effort name passthrough", model: "gemini-3.8-flash", mapping: `{"gemini-3.8-flash":"gemini-3.8-flash-high"}`, upstream: "gemini-3.8-flash-high", passThrough: true},
 				{name: "mapped effort name with explicit modifier", model: "client-alias", mapping: `{"client-alias":"gemini-3.8-flash-high@effort:low"}`, upstream: "gemini-3.8-flash-high"},
 				{name: "unmapped legacy effort", model: "gemini-3.8-flash-high", upstream: "gemini-3.8-flash"},
+				{name: "disabled legacy adapter", model: "gemini-3.8-flash-high", upstream: "gemini-3.8-flash-high", disableAdapter: true},
 				{name: "mapped", model: "client-alias", mapping: `{"client-alias":"gemini-2.5-flash"}`, upstream: "gemini-2.5-flash"},
 				{name: "stream", model: "client-alias", mapping: `{"client-alias":"gemini-2.5-flash"}`, upstream: "gemini-2.5-flash", action: "streamGenerateContent"},
 				{name: "v1", model: "client-alias", mapping: `{"client-alias":"gemini-2.5-flash"}`, upstream: "gemini-2.5-flash", version: "v1"},
@@ -75,6 +77,7 @@ func TestGeminiModelMappingRouting(t *testing.T) {
 				{name: "unmapped", model: "gemini-2.5-flash", upstream: "gemini-2.5-flash"},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
+					geminiSettings.ThinkingAdapterEnabled = !tc.disableAdapter
 					version := tc.version
 					if version == "" {
 						version = "v1beta"

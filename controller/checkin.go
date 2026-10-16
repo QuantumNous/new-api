@@ -2,7 +2,6 @@ package controller
 
 import (
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -32,7 +31,7 @@ func respondCheckinError(c *gin.Context, err error) {
 func GetCheckinStatus(c *gin.Context) {
 	setting := operation_setting.GetCheckinSetting()
 	if !setting.Enabled {
-		common.ApiErrorI18n(c, i18n.MsgCheckinDisabled)
+		common.ApiErrorT(c, "Check-in feature is not enabled")
 		return
 	}
 
@@ -57,7 +56,7 @@ func GetCheckinStatus(c *gin.Context) {
 func DoCheckin(c *gin.Context) {
 	setting := operation_setting.GetCheckinSetting()
 	if !setting.Enabled {
-		common.ApiErrorI18n(c, i18n.MsgCheckinDisabled)
+		common.ApiErrorT(c, "Check-in feature is not enabled")
 		return
 	}
 
@@ -67,9 +66,8 @@ func DoCheckin(c *gin.Context) {
 		respondCheckinError(c, err)
 		return
 	}
-
-	model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf("用户签到，获得额度 %s", logger.LogQuota(checkin.QuotaAwarded)))
-	common.ApiSuccessI18n(c, i18n.MsgCheckinSuccess, gin.H{
+	model.RecordLog(userId, model.LogTypeSystem, common.NewMessage("Daily check-in, received {{quota}}", map[string]any{"quota": logger.FormatQuota(checkin.QuotaAwarded)}))
+	common.ApiSuccessT(c, "Check-in successful", gin.H{
 		"quota_awarded": checkin.QuotaAwarded,
 		"checkin_date":  checkin.CheckinDate,
 	})

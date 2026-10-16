@@ -238,7 +238,7 @@ export function ClaudeSettingsCard({ defaultValues }: ClaudeSettingsCardProps) {
                     <FormLabel>{t('Thinking Suffix Adapter')}</FormLabel>
                     <FormDescription>
                       {t(
-                        'Maps -thinking and effort suffixes (-low, -medium, -high, -xhigh, -max) to Claude adaptive thinking.'
+                        'Adapt `-thinking`, `-nothinking`, and effort suffixes such as `-high` to Anthropic native thinking behavior while keeping billing predictable. When off, model names are sent upstream unchanged.'
                       )}
                     </FormDescription>
                   </SettingsSwitchContent>

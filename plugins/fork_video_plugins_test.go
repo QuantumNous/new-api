@@ -70,9 +70,9 @@ func TestForkVideoDecodersKeepNativeEndpointsAndBoundDuration(t *testing.T) {
 			for _, path := range []string{"/v1/videos", "/v1/videos/generations", "/v1/videos/edits", "/v1/videos/extensions"} {
 				_, found := registry.Generation().LookupEndpoint("POST", path, model)
 				require.True(t, found)
-				value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_video", "decodeRequest"}, map[string]any{"model": model, "path": path, "body": map[string]any{"kind": "json", "value": map[string]any{"model": model, "duration": 5, "video": map[string]any{"url": "https://cdn.example/source.mp4"}}}})
+				value, err := plugin.Engine.CallPath(t.Context(), "protocols", []string{"openai_video", "decodeRequest"}, map[string]any{"model": model, "path": path, "body": map[string]any{"kind": "json", "value": map[string]any{"model": model, "prompt": "sunrise", "duration": 5, "video": map[string]any{"url": "https://cdn.example/source.mp4"}}}})
 				require.NoError(t, err)
-				value, err = plugin.Engine.Call(t.Context(), "buildSubmitRequest", map[string]any{"baseUrl": "https://api.x.ai", "apiKey": "xai-key", "upstreamModel": "mapped-video", "requestBody": value.(map[string]any)["requestBody"]})
+				value, err = plugin.Engine.Call(t.Context(), "buildSubmitRequest", map[string]any{"baseUrl": "https://api.x.ai", "apiKey": "xai-key", "model": model, "upstreamModel": "mapped-video", "requestBody": value.(map[string]any)["requestBody"]})
 				require.NoError(t, err)
 				request := value.(map[string]any)
 				assert.Equal(t, "https://api.x.ai"+path, request["url"])
@@ -99,5 +99,42 @@ func TestSeedancePluginsPreserveAdaptiveDuration(t *testing.T) {
 			assert.EqualValues(t, -1, body["duration"])
 			assert.Equal(t, "mapped-model", body["model"])
 		})
+	}
+}
+
+func TestXAILegacyTaskCompatibility(t *testing.T) {
+	source, err := plugins.Source("xai")
+	require.NoError(t, err)
+	plugin, err := jsplugin.NewRegistry().RegisterFactory(source, jsplugin.Options{Key: "xai"})
+	require.NoError(t, err)
+	assert.Contains(t, plugin.Meta.Models, "grok-imagine-video-1.5-preview")
+	for _, status := range []string{"done", "completed", "succeeded", "success", " SUCCESS "} {
+		t.Run(status, func(t *testing.T) {
+			data := map[string]any{"status": status, "id": "private-id", "request_id": "private-id", "usage": map[string]any{"cost": 12}, "video": map[string]any{"url": "https://cdn.example/video.mp4", "duration": 7}}
+			task := map[string]any{"task_id": "task_public", "status": "SUCCESS", "data": data}
+			value, err := plugin.Engine.Call(t.Context(), "parseTaskResult", map[string]any{}, data)
+			require.NoError(t, err)
+			assert.Equal(t, "SUCCESS", value.(map[string]any)["status"])
+			value, err = plugin.Engine.Call(t.Context(), "extractUsageOnComplete", task, map[string]any{}, data)
+			require.NoError(t, err)
+			assert.EqualValues(t, 7, value.(map[string]any)["seconds"])
+			value, err = plugin.Engine.Call(t.Context(), "listArtifacts", task)
+			require.NoError(t, err)
+			assert.Len(t, value, 1, "historical tasks must still expose their video artifact")
+			value, err = plugin.Engine.CallMember(t.Context(), "native", "render", map[string]any{}, task)
+			require.NoError(t, err)
+			output := value.(map[string]any)
+			assert.Equal(t, "task_public", output["request_id"])
+			assert.NotContains(t, output, "id")
+			assert.NotContains(t, output, "usage")
+			assert.Equal(t, data["video"], output["video"])
+		})
+	}
+	for _, status := range []string{"queued", "in_progress", "processing", "running"} {
+		value, err := plugin.Engine.CallMember(t.Context(), "native", "render", map[string]any{}, map[string]any{
+			"task_id": "task_public", "status": "FAILURE", "fail_reason": "task expired", "data": map[string]any{"status": status},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "failed", value.(map[string]any)["status"], "host failure must override stale %s state", status)
 	}
 }

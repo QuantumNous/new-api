@@ -5,6 +5,7 @@ export const meta = {
   key: "doubao-mediakit",
   name: "DoubaoVideoMediaKit",
   version: "1.0.0",
+  requiredCapabilities: ["duration-auto@1"],
   author: { name: "QuantumNous" },
   icon: "Doubao.Color",
   fetchMode: "per_task",

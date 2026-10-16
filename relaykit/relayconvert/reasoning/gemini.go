@@ -145,7 +145,7 @@ func RenderGemini(model string, intent Intent, maxOutputTokens *uint, adapterBud
 			}
 			hasBudget = true
 		} else if intent.Effort != "" {
-			budget = gemini25BudgetForEffort(intent.Effort)
+			budget = gemini25BudgetForEffort(intent.Effort, capabilities.maxBudget)
 			hasBudget = true
 		} else if intent.Mode != ModeUnset && maxOutputTokens != nil && *maxOutputTokens > 0 {
 			if uint64(*maxOutputTokens) > uint64(math.MaxInt) {
@@ -295,7 +295,7 @@ func NormalizeGeminiThinkingConfig(model string, generation *dto.GeminiChatGener
 
 	if capabilities.kind == geminiThinkingBudget {
 		if config.ThinkingLevel != "" {
-			budget := gemini25BudgetForEffort(intent.Effort)
+			budget := gemini25BudgetForEffort(intent.Effort, capabilities.maxBudget)
 			diagnostics = append(diagnostics, geminiReasoningDiagnostic(
 				"gemini_level_to_budget",
 				fmt.Sprintf("model %q uses thinkingBudget; thinkingLevel %q was converted to budget %d", model, config.ThinkingLevel, budget),
@@ -476,14 +476,19 @@ func EquivalentGeminiStrength(model string, left Intent, right Intent) (bool, er
 	return leftConfig.ThinkingBudget == nil || *leftConfig.ThinkingBudget == *rightConfig.ThinkingBudget, nil
 }
 
-func gemini25BudgetForEffort(effort Effort) int {
+// gemini25BudgetForEffort follows Google's OpenAI-compatible mapping, where
+// high is 24576; xhigh and max, which that mapping lacks, take the model's
+// largest budget.
+func gemini25BudgetForEffort(effort Effort, maxBudget int) int {
 	switch effort {
 	case EffortMinimal, EffortLow:
 		return 1024
 	case EffortMedium:
 		return 8192
-	case EffortHigh, EffortXHigh, EffortMax:
+	case EffortHigh:
 		return 24576
+	case EffortXHigh, EffortMax:
+		return maxBudget
 	default:
 		return 0
 	}

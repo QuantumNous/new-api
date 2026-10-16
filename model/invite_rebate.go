@@ -119,9 +119,9 @@ func applyInviteRebate(topUp *TopUp) {
 		return
 	}
 	syncCreditUserQuotaCache(result.InviterId, result.Quota, "invite rebate")
-	RecordLog(result.InviterId, LogTypeSystem, fmt.Sprintf(
-		"邀请充值返利：被邀请用户 #%d 第 %d 次充值，按实际支付金额的 %.4g%% 返还 %s",
-		result.InviteeId, result.Sequence, result.Percent, logger.LogQuota(result.Quota),
+	RecordLog(result.InviterId, LogTypeSystem, common.NewMessage(
+		"Invite top-up rebate: user #{{user_id}}, top-up #{{sequence}}, {{percent}}% of payment returned as {{quota}}",
+		map[string]any{"user_id": result.InviteeId, "sequence": result.Sequence, "percent": fmt.Sprintf("%.4g", result.Percent), "quota": logger.FormatQuota(result.Quota)},
 	))
 }
 

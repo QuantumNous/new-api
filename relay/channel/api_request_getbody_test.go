@@ -419,16 +419,28 @@ func runGoAwayAfterFirstRequestServer(ln net.Listener) <-chan h2ServerResult {
 
 			if attempt == 0 {
 				err = framer.WriteGoAway(0, http2.ErrCodeNo, nil)
-				conn.Close()
 				if err != nil {
+					_ = conn.Close()
 					res.err = err
 					return
 				}
+				// Drain outstanding SETTINGS/WINDOW_UPDATE frames before closing.
+				// Closing with unread data can send a TCP reset on Windows and
+				// discard GOAWAY, which would test an abrupt reset instead.
+				if tcp, ok := conn.(*net.TCPConn); ok {
+					_ = tcp.CloseWrite()
+				}
+				_, _ = io.Copy(io.Discard, conn)
+				_ = conn.Close()
 				continue
 			}
 
 			err = writeH2TestResponse(framer, streamID)
-			conn.Close()
+			if tcp, ok := conn.(*net.TCPConn); ok {
+				_ = tcp.CloseWrite()
+			}
+			_, _ = io.Copy(io.Discard, conn)
+			_ = conn.Close()
 			if err != nil {
 				res.err = err
 			}

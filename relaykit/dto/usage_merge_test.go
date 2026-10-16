@@ -72,37 +72,95 @@ func TestGeminiModalityKeysSettleConsistentlyAndDuplicateEntriesSum(t *testing.T
 		})
 	}
 
+	// A case variant in a later cumulative frame is the same modality and
+	// replaces the earlier value.
 	mergedDetails := mergeGeminiTokenDetails(
 		[]GeminiPromptTokensDetails{{Modality: "AUDIO", TokenCount: 10}},
 		[]GeminiPromptTokensDetails{{Modality: "audio", TokenCount: 15}},
 	)
-	require.Len(t, mergedDetails, 1)
-	assert.Equal(t, 25, mergedDetails[0].TokenCount)
+	assert.Equal(t, []GeminiPromptTokensDetails{{Modality: "audio", TokenCount: 15}}, mergedDetails)
 
-	streamMerged := MergeGeminiUsageMetadataNonZero(
-		&GeminiUsageMetadata{
-			PromptTokenCount:    10,
-			PromptTokensDetails: []GeminiPromptTokensDetails{{Modality: "AUDIO", TokenCount: 10}},
-		},
-		&GeminiUsageMetadata{
-			PromptTokenCount:    25,
-			PromptTokensDetails: []GeminiPromptTokensDetails{{Modality: "audio", TokenCount: 15}},
-		},
-	)
-	require.NotNil(t, streamMerged)
-	streamUsage, ok := NewGeminiChatBillingUsage(streamMerged).CanonicalUsage()
-	require.True(t, ok)
-
-	decodedUsage, ok := NewGeminiChatBillingUsage(&GeminiUsageMetadata{
+	// Duplicate entries inside one snapshot settle as their sum, and merging
+	// that snapshot again (every frame repeats it) does not add it twice.
+	snapshot := &GeminiUsageMetadata{
 		PromptTokenCount: 25,
 		PromptTokensDetails: []GeminiPromptTokensDetails{
 			{Modality: "AUDIO", TokenCount: 10},
 			{Modality: "audio", TokenCount: 15},
 		},
-	}).CanonicalUsage()
+	}
+	streamMerged := MergeGeminiUsageMetadataNonZero(MergeGeminiUsageMetadataNonZero(nil, snapshot), snapshot)
+	require.NotNil(t, streamMerged)
+	streamUsage, ok := NewGeminiChatBillingUsage(streamMerged).CanonicalUsage()
 	require.True(t, ok)
-	assert.Equal(t, decodedUsage.PromptTokensDetails.AudioTokens, streamUsage.PromptTokensDetails.AudioTokens)
+
+	decodedUsage, ok := NewGeminiChatBillingUsage(snapshot).CanonicalUsage()
+	require.True(t, ok)
 	assert.Equal(t, 25, decodedUsage.PromptTokensDetails.AudioTokens)
+	assert.Equal(t, 25, streamUsage.PromptTokensDetails.AudioTokens)
+}
+
+func TestMergeGeminiUsageMetadataStreamDetailsAreCumulativeSnapshots(t *testing.T) {
+	t.Parallel()
+
+	prompt := []GeminiPromptTokensDetails{
+		{Modality: "IMAGE", TokenCount: 1089},
+		{Modality: "TEXT", TokenCount: 42},
+	}
+	frames := []*GeminiUsageMetadata{
+		{PromptTokenCount: 1131, TotalTokenCount: 1131, PromptTokensDetails: prompt},
+		{
+			PromptTokenCount:           1131,
+			ToolUsePromptTokenCount:    7,
+			CandidatesTokenCount:       5,
+			TotalTokenCount:            1143,
+			PromptTokensDetails:        prompt,
+			ToolUsePromptTokensDetails: []GeminiPromptTokensDetails{{Modality: "TEXT", TokenCount: 7}},
+			CandidatesTokensDetails:    []GeminiPromptTokensDetails{{Modality: "TEXT", TokenCount: 5}},
+		},
+		{
+			PromptTokenCount:           1131,
+			ToolUsePromptTokenCount:    7,
+			CandidatesTokenCount:       1310,
+			ThoughtsTokenCount:         76,
+			TotalTokenCount:            2524,
+			PromptTokensDetails:        prompt,
+			ToolUsePromptTokensDetails: []GeminiPromptTokensDetails{{Modality: "TEXT", TokenCount: 7}},
+			CandidatesTokensDetails: []GeminiPromptTokensDetails{
+				{Modality: "TEXT", TokenCount: 20},
+				{Modality: "IMAGE", TokenCount: 1290},
+			},
+		},
+		// A trailing frame without details keeps the last reported ones.
+		{PromptTokenCount: 1131, CandidatesTokenCount: 1310, ThoughtsTokenCount: 76, TotalTokenCount: 2524},
+	}
+	var merged *GeminiUsageMetadata
+	for _, frame := range frames {
+		merged = MergeGeminiUsageMetadataNonZero(merged, frame)
+	}
+	require.NotNil(t, merged)
+	assert.Equal(t, prompt, merged.PromptTokensDetails)
+	assert.Equal(t, []GeminiPromptTokensDetails{{Modality: "TEXT", TokenCount: 7}}, merged.ToolUsePromptTokensDetails)
+	assert.Equal(t, []GeminiPromptTokensDetails{
+		{Modality: "TEXT", TokenCount: 20},
+		{Modality: "IMAGE", TokenCount: 1290},
+	}, merged.CandidatesTokensDetails)
+
+	streamUsage, ok := NewGeminiChatBillingUsage(merged).CanonicalUsage()
+	require.True(t, ok)
+	nonStreamUsage, ok := NewGeminiChatBillingUsage(frames[2]).CanonicalUsage()
+	require.True(t, ok)
+	assert.Equal(t, nonStreamUsage, streamUsage)
+	assert.Equal(t, 1089, streamUsage.PromptTokensDetails.ImageTokens)
+	assert.Equal(t, 1290, streamUsage.CompletionTokenDetails.ImageTokens)
+
+	// Converted streams remember the same cumulative sidecar at several
+	// pipeline steps; repeated merges must not change the result.
+	sidecar := NewGeminiChatBillingUsage(merged)
+	again := MergeBillingUsageNonZero(MergeBillingUsageNonZero(sidecar, sidecar), sidecar)
+	repeatedUsage, ok := again.CanonicalUsage()
+	require.True(t, ok)
+	assert.Equal(t, nonStreamUsage, repeatedUsage)
 }
 
 func TestClaudeCacheCreationSubObjectZeroDoesNotReviveFlatLegacyFields(t *testing.T) {

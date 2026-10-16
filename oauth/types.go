@@ -1,5 +1,7 @@
 package oauth
 
+import "github.com/QuantumNous/new-api/common"
+
 // OAuthToken represents the token received from OAuth provider
 type OAuthToken struct {
 	AccessToken  string `json:"access_token"`
@@ -25,12 +27,19 @@ type OAuthUser struct {
 	Extra map[string]any
 }
 
+// Texts of OAuthError that the web console translates.
+const (
+	msgInvalidCode   = "Invalid authorization code"
+	msgTokenFailed   = "Failed to get token from {{provider}}, please check settings"
+	msgUserInfoEmpty = "{{provider}} returned empty user info, please check settings"
+	msgConnectFailed = "Unable to connect to {{provider}} server, please try again later"
+	msgGetUserFailed = "Failed to get user information"
+)
+
 // OAuthError represents a translatable OAuth error
 type OAuthError struct {
-	// MsgKey is the i18n message key
-	MsgKey string
-	// Params contains optional parameters for the message template
-	Params map[string]any
+	// Message is the text the web console translates
+	Message *common.Message
 	// RawError is the underlying error for logging purposes
 	RawError string
 }
@@ -39,24 +48,17 @@ func (e *OAuthError) Error() string {
 	if e.RawError != "" {
 		return e.RawError
 	}
-	return e.MsgKey
+	return e.Message.Error()
 }
 
-// NewOAuthError creates a new OAuth error with the given message key
-func NewOAuthError(msgKey string, params map[string]any) *OAuthError {
-	return &OAuthError{
-		MsgKey: msgKey,
-		Params: params,
-	}
+// NewOAuthError creates a new OAuth error with the given web console message
+func NewOAuthError(message *common.Message) *OAuthError {
+	return &OAuthError{Message: message}
 }
 
 // NewOAuthErrorWithRaw creates a new OAuth error with raw error message for logging
-func NewOAuthErrorWithRaw(msgKey string, params map[string]any, rawError string) *OAuthError {
-	return &OAuthError{
-		MsgKey:   msgKey,
-		Params:   params,
-		RawError: rawError,
-	}
+func NewOAuthErrorWithRaw(message *common.Message, rawError string) *OAuthError {
+	return &OAuthError{Message: message, RawError: rawError}
 }
 
 // AccessDeniedError is a direct user-facing access denial message.
