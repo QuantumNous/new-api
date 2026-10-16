@@ -24,7 +24,7 @@ import (
 
 const (
 	InitialScannerBufferSize    = 64 << 10  // 64KB (64*1024)
-	DefaultMaxScannerBufferSize = 128 << 20 // 64MB (64*1024*1024) default SSE buffer size
+	DefaultMaxScannerBufferSize = 128 << 20 // 128MB (128*1024*1024) default SSE buffer size
 	DefaultPingInterval         = 10 * time.Second
 	// streamWriteTimeout bounds a single blocked write to a slow client so the
 	// unconditional wg.Wait() in cleanup can always finish. Without it, a slow
