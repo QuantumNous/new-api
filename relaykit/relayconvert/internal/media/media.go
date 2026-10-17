@@ -48,19 +48,16 @@ func DecodeBase64FileData(base64String string) (string, string, error) {
 	return resolver(base64String)
 }
 
-// DefaultResponsesImageDetail is the detail a Responses input_image part gets
-// when the source protocol carries no detail hint. Strict Responses validators
-// (vLLM validates with the OpenAI Python SDK types, where detail is required)
-// reject parts that omit it, while OpenAI itself treats the field as optional
-// and defaults to "auto".
+// DefaultResponsesImageDetail is used when the source protocol carries no detail
+// hint. Sending the default explicitly also supports strict Responses validators
+// that reject input_image parts without detail.
 const DefaultResponsesImageDetail = "auto"
 
-// ResponsesImageDetail normalizes a source detail hint into a value Responses
-// accepts. Anything outside low/high/auto falls back to the default so an
-// upstream never sees a detail it may reject.
+// ResponsesImageDetail preserves supported image detail levels and defaults
+// missing or unrecognized hints to "auto".
 func ResponsesImageDetail(detail string) string {
 	switch normalized := strings.ToLower(strings.TrimSpace(detail)); normalized {
-	case "low", "high":
+	case "low", "high", "auto", "original":
 		return normalized
 	default:
 		return DefaultResponsesImageDetail
