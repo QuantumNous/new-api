@@ -3711,6 +3711,7 @@
     "Model assignments": "模型归属",
     "model billing support": "模型计费支持",
     "Model Call Analytics": "模型调用分析",
+    "Cache usage is recorded only after the upgrade; historical data is not backfilled.": "缓存用量仅从升级后开始记录，历史数据不回填。",
     "Model context usage": "模型上下文用量",
     "Model deleted": "模型已删除",
     "Model deleted successfully": "模型删除成功",

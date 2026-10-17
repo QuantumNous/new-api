@@ -3711,6 +3711,7 @@
     "Model assignments": "Gán mô hình",
     "model billing support": "hỗ trợ tính phí mô hình",
     "Model Call Analytics": "Phân tích lượt gọi mô hình",
+    "Cache usage is recorded only after the upgrade; historical data is not backfilled.": "Mức sử dụng bộ nhớ đệm chỉ được ghi nhận sau khi nâng cấp; dữ liệu lịch sử không được bổ sung.",
     "Model context usage": "Sử dụng ngữ cảnh mô hình",
     "Model deleted": "Đã xóa mô hình",
     "Model deleted successfully": "Model đã được xóa thành công",

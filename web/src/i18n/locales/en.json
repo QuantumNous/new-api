@@ -3711,6 +3711,7 @@
     "Model assignments": "Model assignments",
     "model billing support": "model billing support",
     "Model Call Analytics": "Model Call Analytics",
+    "Cache usage is recorded only after the upgrade; historical data is not backfilled.": "Cache usage is recorded only after the upgrade; historical data is not backfilled.",
     "Model context usage": "Model context usage",
     "Model deleted": "Model deleted",
     "Model deleted successfully": "Model deleted successfully",
