@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"sync"
@@ -328,10 +329,11 @@ func markPluginRouteHit(c *gin.Context) {
 func pluginRouteRecovery() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
-			if recover() == nil {
+			rec := recover()
+			if rec == nil {
 				return
 			}
-			common.SysError(common.LogText("panic recovered in plugin route"))
+			common.SysError(common.LogText(fmt.Sprintf("panic recovered in plugin route: %v\n%s", rec, debug.Stack())))
 			if pinnedValue, exists := c.Get(jsplugin.ContextKeyPinnedRoute); exists {
 				if pinned, ok := pinnedValue.(jsplugin.PinnedRoute); ok && pinned.Plugin != nil && pinned.Generation != nil {
 					logger.LogDebug(
