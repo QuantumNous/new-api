@@ -21,8 +21,10 @@ var builtinBillingExpr = map[string]string{
 	// 1/121 for the two pro models.
 	// The MiMo audio models are deliberately absent: the TTS series is free only
 	// for a limited period, and ASR is published per hour of audio with no
-	// documented token rate to turn that into a token price, so both keep the
-	// administrator's pricing (or the default ratio while unset).
+	// documented token rate to turn that into a token price, so neither gets a
+	// built-in expression. Until the administrator configures a price or ratio
+	// for them, a request is rejected with the standard "model price not
+	// configured" error rather than billed against an invented rate.
 	"mimo-v2.6-flash":          `tier("standard", p * 0.14 + cr * 0.0028 + c * 0.28)`,
 	"mimo-v2.6-pro":            `tier("standard", p * 0.435 + cr * 0.0036 + c * 0.87)`,
 	"mimo-v2.6-pro-ultraspeed": `tier("standard", p * 4.35 + cr * 0.036 + c * 8.7)`,
