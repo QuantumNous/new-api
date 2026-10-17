@@ -38,7 +38,9 @@ import (
 	host "github.com/QuantumNous/new-api/pkg/smartrouterhost"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
 	openaichannel "github.com/QuantumNous/new-api/relay/channel/openai"
+	volcenginechannel "github.com/QuantumNous/new-api/relay/channel/volcengine"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
@@ -443,6 +445,235 @@ func TestSmartRouterRealSidecarEndToEnd(t *testing.T) {
 			assert.Equal(t, state.Decisions, next.Decisions)
 			assert.Equal(t, state.Outcomes, next.Outcomes)
 			assert.Equal(t, state.Reports, next.Reports, "inspection cannot retry a report")
+		})
+	}
+}
+
+func TestSmartRouterRealSidecarVolcEngineChat(t *testing.T) {
+	const mappedModel = "synthetic-volcengine-chat"
+	for _, tc := range []struct {
+		name       string
+		status     int
+		disconnect bool
+		outcome    host.Outcome
+		backup     bool
+	}{
+		{name: "healthy", status: http.StatusOK, outcome: host.OutcomeSuccess},
+		{name: "429_then_success", status: http.StatusTooManyRequests, outcome: host.OutcomeRateLimited429, backup: true},
+		{name: "terminal_401", status: http.StatusUnauthorized, outcome: host.OutcomeAuth401},
+		{name: "provider_write_unknown", status: http.StatusOK, disconnect: true, outcome: host.OutcomeWriteUnknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			fixture := startRealSidecarFixture(t)
+			engine, user := setupSmartRouterHostTest(t)
+			first := newFailoverUpstream(t, "volcengine-primary", tc.status)
+			second := newFailoverUpstream(t, "volcengine-backup", http.StatusOK)
+			first.disconnect = tc.disconnect
+			for i, provider := range []*failoverUpstream{first, second} {
+				channel := addRelayFailoverChannel(t, 7301+i, int64(30-i*10), provider)
+				mapping := smartRouterMarshal(t, map[string]string{
+					relayFailoverModel:     "synthetic-chat-alias",
+					"synthetic-chat-alias": mappedModel,
+				})
+				require.NoError(t, model.DB.Model(&channel).Updates(map[string]any{
+					"type": constant.ChannelTypeVolcEngine, "model_mapping": mapping,
+				}).Error)
+				handler := provider.server.Config.Handler
+				provider.server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					assert.Equal(t, http.MethodPost, r.Method)
+					body, err := io.ReadAll(r.Body)
+					if !assert.NoError(t, err, "provider must fully read the actual Chat request") {
+						http.Error(w, "synthetic body read failed", http.StatusBadRequest)
+						return
+					}
+					r.Body = io.NopCloser(strings.NewReader(string(body)))
+					handler.ServeHTTP(w, r)
+				})
+			}
+			initializeRelayFailoverChannels()
+			entries := configureRealSidecarHost(t, fixture, host.ProtocolChat)
+			response := performRelayFailoverRequest(t, engine)
+			if tc.outcome == host.OutcomeAuth401 {
+				assert.Equal(t, http.StatusUnauthorized, response.Code)
+			} else if tc.disconnect {
+				assert.GreaterOrEqual(t, response.Code, 400)
+			} else {
+				assert.Equal(t, http.StatusOK, response.Code, "existing type45 Chat must enter the signed router")
+			}
+			assert.Equal(t, 1, first.callCount())
+			count, settledChannel := 1, 7301
+			if tc.backup {
+				count, settledChannel = 2, 7302
+				assert.Equal(t, 1, second.callCount())
+			} else {
+				assert.Zero(t, second.callCount(), "terminal and unknown writes never fall back")
+			}
+			providers := []*failoverUpstream{first, second}
+			for _, provider := range providers[:count] {
+				paths, bodies := provider.requestSnapshot()
+				assert.Equal(t, []string{"/api/v3/chat/completions"}, paths)
+				require.Len(t, bodies, 1, "one fully read POST per invocation, including disconnect")
+				var request map[string]any
+				require.NoError(t, common.Unmarshal(bodies[0], &request))
+				assert.Equal(t, mappedModel, request["model"], "real chained mapping reaches the upstream DTO")
+				assert.Equal(t, []any{map[string]any{"role": "user", "content": "ping"}}, request["messages"])
+			}
+			state := fixture.state(t)
+			require.Len(t, state.Decisions, 1)
+			decision := state.Decisions[0]
+			assert.Equal(t, "default", decision.Group)
+			assert.Equal(t, relayFailoverModel, decision.Model, "registry identity stays the original client model")
+			assert.Equal(t, string(host.ProtocolChat), decision.Protocol)
+			assert.Equal(t, []string{entries[0].BindingID, entries[1].BindingID}, decision.BindingIDs)
+			assert.NotEmpty(t, decision.SnapshotRevision)
+			require.Len(t, state.Reports, count, "one original report per actual invocation")
+			require.Len(t, state.Outcomes, count)
+			for i, outcome := range state.Outcomes {
+				assert.Equal(t, state.Reports[i], outcome.Outcome)
+				expected := tc.outcome
+				if i > 0 {
+					expected = host.OutcomeSuccess
+				}
+				assert.Equal(t, expected, outcome.Outcome.Outcome)
+				assert.Equal(t, decision.RequestID, outcome.Outcome.RequestID)
+				assert.Equal(t, entries[i].BindingID, outcome.Outcome.BindingID)
+				assert.Equal(t, host.ProtocolChat, outcome.Outcome.Protocol)
+				assert.Equal(t, decision.RequestID+"-attempt-"+strconv.Itoa(i+1), outcome.EventID)
+			}
+			if tc.outcome == host.OutcomeSuccess || tc.backup {
+				requireRealSidecarBilling(t, user, 1, settledChannel)
+				log, _ := latestConsumeLog(t, user.Id)
+				assert.Equal(t, relayFailoverModel, log.ModelName, "billing preserves client model identity")
+				if tc.backup {
+					var failedChannel model.Channel
+					require.NoError(t, model.DB.First(&failedChannel, 7301).Error)
+					assert.Zero(t, failedChannel.UsedQuota, "the failed first attempt is not charged")
+				}
+			} else {
+				requireRelayRefunded(t, user.Id)
+				require.Eventually(t, func() bool { return gopool.WorkerCount() == 1 }, 3*time.Second, time.Millisecond)
+				var logs int64
+				require.NoError(t, model.LOG_DB.Model(&model.Log{}).
+					Where("user_id = ? AND type = ?", user.Id, model.LogTypeConsume).Count(&logs).Error)
+				assert.Zero(t, logs)
+				var stored model.User
+				var token model.Token
+				require.NoError(t, model.DB.First(&stored, user.Id).Error)
+				require.NoError(t, model.DB.Where("user_id = ?", user.Id).First(&token).Error)
+				assert.Zero(t, stored.UsedQuota)
+				assert.Zero(t, stored.RequestCount)
+				assert.Zero(t, token.UsedQuota)
+				var channels []model.Channel
+				require.NoError(t, model.DB.Find(&channels).Error)
+				for _, channel := range channels {
+					assert.Zero(t, channel.UsedQuota)
+				}
+			}
+			next := fixture.state(t)
+			assert.Equal(t, state.Decisions, next.Decisions)
+			assert.Equal(t, state.Outcomes, next.Outcomes, "original persisted reports remain immutable")
+			assert.Equal(t, state.Reports, next.Reports, "no report replay after inspection or accounting")
+			assert.Equal(t, 1, first.callCount(), "unknown writes cannot be replayed by transport")
+		})
+	}
+}
+
+func TestSmartRouterRealSidecarVolcEngineEligibility(t *testing.T) {
+	for _, tc := range []struct {
+		channelType int
+		protocol    host.Protocol
+	}{
+		{constant.ChannelTypeVolcEngine, host.ProtocolResponses},
+		{constant.ChannelTypeVolcEngine, host.ProtocolMessages},
+		{constant.ChannelTypeAdvancedCustom, host.ProtocolChat},
+		{constant.ChannelTypeAdvancedCustom, host.ProtocolResponses},
+		{constant.ChannelTypeAdvancedCustom, host.ProtocolMessages},
+	} {
+		t.Run(fmt.Sprintf("type%d/%s", tc.channelType, tc.protocol), func(t *testing.T) {
+			fixture := startRealSidecarFixture(t)
+			engine, user := setupSmartRouterHostTest(t)
+			if tc.protocol == host.ProtocolResponses {
+				SetTaskPluginProtocolRouter(engine)
+			}
+			provider := newFailoverUpstream(t, "excluded", http.StatusOK)
+			channel := addRelayFailoverChannel(t, 7301, 30, provider)
+			require.NoError(t, model.DB.Model(&channel).Update("type", tc.channelType).Error)
+			initializeRelayFailoverChannels()
+			configureRealSidecarHost(t, fixture, tc.protocol)
+			response := performSmartRouterProtocolRequest(t, engine, tc.protocol)
+			assert.Equal(t, http.StatusServiceUnavailable, response.Code, "unsupported registry tuple fails before routing")
+			assert.Zero(t, provider.callCount())
+			state := fixture.state(t)
+			assert.Empty(t, state.Decisions, "no signed route on initial exclusion")
+			assert.Empty(t, state.Reports)
+			assert.Empty(t, state.Outcomes)
+			requireRelayRefunded(t, user.Id)
+		})
+	}
+}
+
+func TestSmartRouterRealSidecarVolcEngineBeforeSend(t *testing.T) {
+	for _, name := range []string{"stable_chat", "type58", "responses", "messages"} {
+		t.Run(name, func(t *testing.T) {
+			fixture := startRealSidecarFixture(t)
+			_, _ = setupSmartRouterHostTest(t)
+			provider := newFailoverUpstream(t, "pre-send", http.StatusOK)
+			channel := addRelayFailoverChannel(t, 7301, 30, provider)
+			require.NoError(t, model.DB.Model(&channel).Update("type", constant.ChannelTypeVolcEngine).Error)
+			initializeRelayFailoverChannels()
+			entries := configureRealSidecarHost(t, fixture, host.ProtocolChat)
+			c, retry := smartRouterRegistryContext()
+			selected, _, handled, err := service.SelectSmartRouterChannel(retry)
+			require.True(t, handled)
+			require.NoError(t, err)
+			require.NotNil(t, selected)
+			require.Nil(t, middleware.SetupContextForSelectedChannel(c, selected, relayFailoverModel))
+			require.NoError(t, service.BeginSmartRouterAttempt(c), "type45 Chat is authorized before local conversion")
+			switch name {
+			case "type58":
+				require.NoError(t, model.DB.Model(&channel).Update("type", constant.ChannelTypeAdvancedCustom).Error)
+				initializeRelayFailoverChannels()
+			case "responses":
+				c.Request.URL.Path = "/v1/responses"
+			case "messages":
+				c.Request.URL.Path = "/v1/messages"
+			}
+			info := &relaycommon.RelayInfo{
+				RelayMode: relayconstant.RelayModeChatCompletions,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelBaseUrl: provider.server.URL, UpstreamModelName: relayFailoverModel,
+				},
+			}
+			response, err := relaychannel.DoApiRequest(&volcenginechannel.Adaptor{}, c, info,
+				strings.NewReader(`{"model":"gpt-3.5-turbo","messages":[{"role":"user","content":"ping"}]}`))
+			if name == "stable_chat" {
+				require.NoError(t, err)
+				require.NotNil(t, response)
+				_, err = io.Copy(io.Discard, response.Body)
+				require.NoError(t, err)
+				require.NoError(t, response.Body.Close())
+				assert.Equal(t, http.StatusOK, response.StatusCode)
+				assert.Equal(t, 1, provider.callCount())
+				paths, _ := provider.requestSnapshot()
+				assert.Equal(t, []string{"/api/v3/chat/completions"}, paths)
+			} else {
+				assert.ErrorIs(t, err, host.ErrBinding, "the actual pre-Do boundary must reject changed authority")
+				assert.Nil(t, response)
+				assert.Zero(t, provider.callCount())
+			}
+			require.NotNil(t, host.StateFor(c))
+			assert.False(t, host.StateFor(c).Finish(c.Request.Context(), name == "stable_chat", false))
+			state := fixture.state(t)
+			require.Len(t, state.Decisions, 1, "the mutation occurs after an actual signed selection and Begin")
+			assert.Equal(t, []string{entries[0].BindingID}, state.Decisions[0].BindingIDs)
+			if name == "stable_chat" {
+				require.Len(t, state.Reports, 1)
+				require.Len(t, state.Outcomes, 1)
+				assert.Equal(t, host.OutcomeSuccess, state.Outcomes[0].Outcome.Outcome)
+			} else {
+				assert.Empty(t, state.Reports, "local rejection is not a provider invocation")
+				assert.Empty(t, state.Outcomes)
+			}
 		})
 	}
 }

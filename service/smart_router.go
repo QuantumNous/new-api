@@ -129,6 +129,7 @@ func smartRouterChannel(c *gin.Context, entry host.RegistryEntry) (*model.Channe
 	}
 	// This scope uses only the audited common HTTP transport adaptors.
 	if channel.Type != constant.ChannelTypeOpenAI && channel.Type != constant.ChannelTypeNewAPI &&
+		(channel.Type != constant.ChannelTypeVolcEngine || entry.Protocol != string(host.ProtocolChat)) &&
 		(channel.Type != constant.ChannelTypeAnthropic || entry.Protocol == string(host.ProtocolResponses)) {
 		return nil, host.ErrBinding
 	}
