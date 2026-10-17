@@ -12,6 +12,7 @@ import (
 	"net/textproto"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -780,6 +781,100 @@ func TestTaskPluginEndpointUsesOneCanonicalModelForDuplicateJSONKeys(t *testing.
 
 			assert.False(t, reachedDownstream)
 			assert.Equal(t, http.StatusBadRequest, recorder.Code)
+		})
+	}
+}
+
+func TestRequestBodyFailuresReportTheirCause(t *testing.T) {
+	require.NoError(t, appI18n.Init())
+	require.NotNil(t, jsplugin.DefaultRegistry.Generation(), "the built-in plugins keep a routing generation, as in production")
+	_, err := jsplugin.DefaultRegistry.Register(genericTaskPluginSource, jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister("generic-entry-test") })
+	routePlugin := compileTaskRoutePlugin(t, genericTaskPluginSource)
+	previous := constant.MaxRequestBodyMB
+	constant.MaxRequestBodyMB = 1
+	t.Cleanup(func() { constant.MaxRequestBodyMB = previous })
+
+	reached := func(c *gin.Context) { c.Status(http.StatusNoContent) }
+	router := gin.New()
+	router.POST("/v1/responses", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), Distribute(), reached)
+	router.POST("/v1/video/generations", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), Distribute(), reached)
+	router.POST("/v1/chat/completions", Distribute(), reached)
+	router.POST("/mj/submit/imagine", Distribute(), reached)
+	router.POST("/v1/tasks/:key", PrepareTaskPluginSubmit(), reached)
+	router.POST("/vendor/jobs", func(c *gin.Context) {
+		c.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Plugin: routePlugin})
+	}, PrepareTaskPluginRoute(), reached)
+	oversized := `{"model":"gpt-x","prompt":"` + strings.Repeat("a", 1<<20) + `"}`
+	tests := []struct {
+		name    string
+		path    string
+		body    io.Reader
+		status  int
+		message string
+	}{
+		{
+			name:    "oversized body on a plugin protocol path",
+			path:    "/v1/responses",
+			body:    strings.NewReader(oversized),
+			status:  http.StatusRequestEntityTooLarge,
+			message: "Invalid request: request body exceeds 1 MB: request body too large",
+		},
+		{
+			name:    "body cut off on a plugin protocol path",
+			path:    "/v1/responses",
+			body:    io.MultiReader(strings.NewReader(`{"model":"gpt-x","input":"`), iotest.ErrReader(io.ErrUnexpectedEOF)),
+			status:  http.StatusBadRequest,
+			message: "Invalid request: unexpected EOF",
+		},
+		{
+			// The endpoint check lets this path through and the distributor reads the body again.
+			name:    "oversized body on the legacy video path",
+			path:    "/v1/video/generations",
+			body:    strings.NewReader(oversized),
+			status:  http.StatusRequestEntityTooLarge,
+			message: "Invalid request: request body exceeds 1 MB: request body too large",
+		},
+		{
+			name:    "oversized Midjourney body",
+			path:    "/mj/submit/imagine",
+			body:    strings.NewReader(oversized),
+			status:  http.StatusRequestEntityTooLarge,
+			message: "Invalid request: request body exceeds 1 MB: request body too large",
+		},
+		{
+			name:    "oversized task plugin submission",
+			path:    "/v1/tasks/generic-entry-test",
+			body:    strings.NewReader(oversized),
+			status:  http.StatusRequestEntityTooLarge,
+			message: "request body exceeds 1 MB: request body too large",
+		},
+		{
+			name:    "oversized plugin route body",
+			path:    "/vendor/jobs",
+			body:    strings.NewReader(oversized),
+			status:  http.StatusRequestEntityTooLarge,
+			message: "request body exceeds 1 MB: request body too large",
+		},
+		{
+			name:    "invalid JSON on an ordinary path",
+			path:    "/v1/chat/completions",
+			body:    strings.NewReader(`{"model":"gpt-x",`),
+			status:  http.StatusBadRequest,
+			message: "Invalid request: invalid JSON request body",
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, testCase.path, testCase.body)
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, request)
+
+			assert.Equal(t, testCase.status, recorder.Code)
+			assert.Contains(t, recorder.Body.String(), `"message":"`+testCase.message)
 		})
 	}
 }

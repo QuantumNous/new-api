@@ -633,10 +633,8 @@ github.com/BurntSushi/toml v1.6.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/Calcium-Ion/go-epay v0.0.5 h1:TgIx44c/bhdFqso4kbmDzZFzgyDJLma5hMDNA6sOXbo=
 github.com/Calcium-Ion/go-epay v0.0.5/go.mod h1:cxo/ZOg8ClvE3VAnCmEzbuyAZINSq7kFEN9oHj5WQ2U=
-github.com/Calcium-Ion/moejs v0.1.0-alpha.5 h1:hkTuLRIhtyXMPQciULZHTbdrw/LEJYvO2MDzl+/F1Y8=
-github.com/Calcium-Ion/moejs v0.1.0-alpha.5/go.mod h1:9YqHj36EV7pzV/vlEYSw49f3oggeJFdmqcjM9TmDpHs=
-github.com/Calcium-Ion/moejs v0.1.0-alpha.6 h1:gbB/aEx2jdMm0FD+UzF2zV76HBrJxvFopSf82mz87qQ=
-github.com/Calcium-Ion/moejs v0.1.0-alpha.6/go.mod h1:9YqHj36EV7pzV/vlEYSw49f3oggeJFdmqcjM9TmDpHs=
+github.com/Calcium-Ion/moejs v0.1.0-alpha.7 h1:WddI+y1792kpl1fTFDzk5PSqcV3I+IkpOJVgHM2TpfI=
+github.com/Calcium-Ion/moejs v0.1.0-alpha.7/go.mod h1:9YqHj36EV7pzV/vlEYSw49f3oggeJFdmqcjM9TmDpHs=
 github.com/ClickHouse/ch-go v0.58.2/go.mod h1:Ap/0bEmiLa14gYjCiRkYGbXvbe8vwdrfTYWhsuQ99aw=
 github.com/ClickHouse/ch-go v0.71.0 h1:bUdZ/EZj/LcVHsMqaRUP2holqygrPWQKeMjc6nZoyRM=
 github.com/ClickHouse/ch-go v0.71.0/go.mod h1:NwbNc+7jaqfY58dmdDUbG4Jl22vThgx1cYjBw0vtgXw=

@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/textproto"
 	"regexp"
 	"strings"
@@ -21,8 +22,10 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
@@ -651,7 +654,7 @@ func TestSecurityAccountEmailResendAndAttemptLimit(t *testing.T) {
 	_, identity := setupSecurityEnrollmentTest(t)
 	mailbox := newSecurityMailbox(t)
 	flow := startSecurityEmailBinding(t, identity, "new@example.com", service.VerificationMethodPassword)
-	_, err := service.ResendAccountEmailBinding(identity, flow.FlowToken)
+	_, err := service.ResendAccountEmailBinding(identity, flow.FlowToken, "")
 	assert.ErrorIs(t, err, model.ErrEmailBindingResendWait)
 	_, err = service.FinishEmailBinding(identity, flow.FlowToken, "invalid", "")
 	assert.ErrorIs(t, err, model.ErrEmailBindingCodeInvalid)
@@ -662,7 +665,7 @@ func TestSecurityAccountEmailResendAndAttemptLimit(t *testing.T) {
 	payload, err := common.Marshal(state)
 	require.NoError(t, err)
 	require.NoError(t, model.DB.Model(stored).Update("payload", string(payload)).Error)
-	replacement, err := service.ResendAccountEmailBinding(identity, flow.FlowToken)
+	replacement, err := service.ResendAccountEmailBinding(identity, flow.FlowToken, "")
 	require.NoError(t, err)
 	assert.Equal(t, flow.ExpiresAt, replacement.ExpiresAt)
 	_, state, err = model.GetEmailBinding(identity, flow.FlowToken)
@@ -680,6 +683,56 @@ func TestSecurityAccountEmailResendAndAttemptLimit(t *testing.T) {
 	}
 	_, err = service.FinishEmailBinding(identity, flow.FlowToken, mailbox.code(t, flow.Email), "")
 	assert.ErrorIs(t, err, model.ErrEmailBindingLocked)
+}
+
+// Email binding codes and account security notices are written in the account
+// owner's saved language, else in the language the request states, and quote
+// provider names HTML-escaped.
+func TestSecurityAccountMailsFollowTheOwnersLanguage(t *testing.T) {
+	user, identity := setupSecurityEnrollmentTest(t)
+	mailbox := newSecurityMailbox(t)
+	mails := func(receiver string) string {
+		mailbox.mutex.Lock()
+		defer mailbox.mutex.Unlock()
+		return strings.Join(mailbox.mail[receiver], "\n")
+	}
+	saveLanguage := func(language string) {
+		setting, err := common.Marshal(dto.UserSetting{Language: language})
+		require.NoError(t, err)
+		require.NoError(t, model.DB.Model(user).Update("setting", string(setting)).Error)
+	}
+
+	saveLanguage("zhCN")
+	require.NoError(t, model.DB.Model(user).Update("email", "previous@example.com").Error)
+	flow := startSecurityEmailBinding(t, identity, "new@example.com", service.VerificationMethodPassword)
+	request, err := common.Marshal(map[string]string{"flow_token": flow.FlowToken, "new_code": mailbox.code(t, flow.Email), "old_code": mailbox.code(t, "previous@example.com")})
+	require.NoError(t, err)
+	response := securityEnrollmentRequest("POST", "/api/oauth/email/bind", string(request), "", identity, EmailBind)
+	require.Contains(t, response.Body.String(), `"success":true`)
+	assert.Contains(t, mails("new@example.com"), "请确认将此邮箱地址绑定到您的账户。")
+	assert.Contains(t, mails("new@example.com"), "您的账户安全设置有变动：邮箱地址已确认。")
+	assert.Contains(t, mails("previous@example.com"), "您的账户正在申请更换邮箱地址，请确认替换当前邮箱。")
+	assert.Contains(t, mails("previous@example.com"), "您的账户安全设置有变动：邮箱地址已更换。")
+
+	for _, tc := range []struct {
+		name, saved, acceptLanguage, receiver, want string
+	}{
+		{"request language when none is saved", "", "zh-TW", "tw@example.com", "您的帳戶安全設定有變動：已綁定登入帳號 &lt;b&gt;Corp&lt;/b&gt;。"},
+		{"saved language over the request", "en", "zh-CN", "en@example.com", "Your account security settings have changed: Login account linked: &lt;b&gt;Corp&lt;/b&gt;."},
+		{"default language when neither states one", "", "", "default@example.com", "Your account security settings have changed: Login account linked: &lt;b&gt;Corp&lt;/b&gt;."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			saveLanguage(tc.saved)
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodGet, "/api/oauth/github", nil)
+			if tc.acceptLanguage != "" {
+				c.Request.Header.Set("Accept-Language", tc.acceptLanguage)
+			}
+			lang := service.AccountMailLanguage(c, user.Id)
+			require.NoError(t, service.NotifyAccountSecurityChange(lang, tc.receiver, i18n.MsgSecurityEventLoginLinked, map[string]any{"Provider": "<b>Corp</b>"}))
+			assert.Contains(t, mails(tc.receiver), tc.want)
+		})
+	}
 }
 
 func TestSecurityAccountEmailConcurrentClaimsHaveOneOwner(t *testing.T) {

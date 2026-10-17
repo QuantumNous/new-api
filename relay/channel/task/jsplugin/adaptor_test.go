@@ -412,6 +412,32 @@ export function buildSubmitRequest(ctx){return {url:ctx.baseUrl+"/submit"}} expo
 	assert.Contains(t, taskErr.Message, "must not return renderer")
 }
 
+func TestTaskAdaptorMasksChannelAddressInBuildFailure(t *testing.T) {
+	source := `
+export const meta = {apiVersion:1,key:"build-fail",name:"Build Fail",version:"1.0.0",author:{name:"Test"},models:["m"],fetchMode:"per_task",allowedHosts:["assets.corp.internal"]};
+export function buildSubmitRequest(ctx){throw new Error("utils.fetch to private.example.com failed: dial tcp: lookup private.example.com: no such host; utils.fetch to assets.corp.internal failed: dial tcp: lookup assets.corp.internal: no such host")}
+export function parseSubmitResponse(){return {taskId:"one"}} export function buildQueryRequest(){return {}} export function parseTaskResult(){return {status:"SUCCESS"}}
+`
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/video/generations", nil)
+	c.Set("task_request", map[string]any{"model": "m"})
+	common.SetContextKey(c, constant.ContextKeyChannelBaseUrl, "https://private.example.com")
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://private.example.com"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}, OriginModelName: "m"}
+	adaptor := New(plugin)
+	adaptor.Init(info)
+
+	taskErr := adaptor.ValidateRequestAndSetAction(c, info)
+
+	require.NotNil(t, taskErr)
+	assert.Equal(t, "plugin_request_invalid", taskErr.Code)
+	assert.True(t, taskErr.LocalError)
+	assert.Contains(t, taskErr.Message, "no such host")
+	assert.NotContains(t, taskErr.Message, "private.example.com")
+	assert.NotContains(t, taskErr.Message, "assets.corp.internal")
+}
+
 const orderedProtocolPlugin = `
 export const meta = {apiVersion:1,key:"ordered",name:"Ordered",version:"1.0.0",author:{name:"Test"},models:["m"],fetchMode:"per_task",requiredCapabilities:["json-order@1"],protocols:[{name:"openai_responses",supports:["sync"]}]};
 export const protocols = {openai_responses:{decodeRequest:function(ctx){const b = ctx.body.value; return {kind:"submit",model:ctx.model,requestBody:{model:b.model,state:b.state,questions:b.questions}};},renderFinal:function(){return {};}}};
