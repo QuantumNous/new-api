@@ -1,6 +1,8 @@
 package relayconvert
 
 import (
+	"fmt"
+
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	claudemessages "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/claude_messages"
@@ -10,11 +12,24 @@ import (
 )
 
 type ClaudeResponseInfo = claudemessages.ClaudeResponseInfo
+type ClaudeToChatStreamState = claudemessages.ClaudeToChatStreamState
 
 type ChatToResponsesStreamEvent = oaichat.ChatToResponsesStreamEvent
 type ChatToResponsesStreamState = oaichat.ChatToResponsesStreamState
 type ResponsesToChatStreamState = oairesponses.ResponsesToChatStreamState
 type ResponsesBufferedAccumulator = oairesponses.ResponsesBufferedAccumulator
+
+// ClaudeHostedStreamBridge owns Anthropic server-tool input deltas while a
+// Claude stream is being converted to the Responses protocol.
+type ClaudeHostedStreamBridge struct {
+	bridge *claudemessages.ClaudeHostedStreamBridge
+}
+
+// GeminiHostedStreamBridge accumulates Gemini grounding queries until the
+// upstream stream ends, then emits one canonical Responses web-search call.
+type GeminiHostedStreamBridge struct {
+	bridge *geminichat.GeminiHostedStreamBridge
+}
 
 func NormalizeCacheCreationSplit(totalTokens int, tokens5m int, tokens1h int) (int, int) {
 	return oaichat.NormalizeCacheCreationSplit(totalTokens, tokens5m, tokens1h)
@@ -34,6 +49,52 @@ func StopReasonClaudeToOpenAI(reason string) string {
 
 func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCompletionsStreamResponse {
 	return claudemessages.StreamResponseClaude2OpenAI(claudeResponse)
+}
+
+func NewClaudeToChatStreamState() *ClaudeToChatStreamState {
+	return claudemessages.NewClaudeToChatStreamState()
+}
+
+func NewClaudeHostedStreamBridge() *ClaudeHostedStreamBridge {
+	return &ClaudeHostedStreamBridge{bridge: claudemessages.NewClaudeHostedStreamBridge()}
+}
+
+func NewGeminiHostedStreamBridge() *GeminiHostedStreamBridge {
+	return &GeminiHostedStreamBridge{bridge: geminichat.NewGeminiHostedStreamBridge()}
+}
+
+func (b *GeminiHostedStreamBridge) Observe(response *dto.GeminiChatResponse) {
+	if b == nil || b.bridge == nil {
+		return
+	}
+	b.bridge.Observe(response)
+}
+
+func (b *GeminiHostedStreamBridge) Finalize(state *ResponseStreamState) ([]ChatToResponsesStreamEvent, error) {
+	if b == nil || b.bridge == nil || state == nil {
+		return nil, nil
+	}
+	for _, stepState := range state.stepStates {
+		if streamState, ok := stepState.(*ChatToResponsesStreamState); ok {
+			return b.bridge.Finalize(streamState)
+		}
+	}
+	return nil, fmt.Errorf("Gemini hosted stream bridge requires a Chat-to-Responses stream state")
+}
+
+func (b *ClaudeHostedStreamBridge) Convert(response *dto.ClaudeResponse, state *ResponseStreamState) ([]ChatToResponsesStreamEvent, bool, error) {
+	if state == nil {
+		return nil, false, nil
+	}
+	if b == nil || b.bridge == nil {
+		return nil, false, nil
+	}
+	for _, stepState := range state.stepStates {
+		if streamState, ok := stepState.(*ChatToResponsesStreamState); ok {
+			return b.bridge.Convert(response, streamState)
+		}
+	}
+	return nil, false, nil
 }
 
 func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextResponse {
@@ -58,6 +119,10 @@ func PatchClaudeMessageDeltaUsageData(data string, usage *dto.ClaudeUsage) strin
 
 func FormatClaudeResponseInfo(claudeResponse *dto.ClaudeResponse, oaiResponse *dto.ChatCompletionsStreamResponse, claudeInfo *ClaudeResponseInfo) bool {
 	return claudemessages.FormatClaudeResponseInfo(claudeResponse, oaiResponse, claudeInfo)
+}
+
+func FinalizeClaudeStreamBillingUsage(claudeInfo *ClaudeResponseInfo) {
+	claudemessages.FinalizeClaudeStreamBillingUsage(claudeInfo)
 }
 
 func ResponseOpenAI2Gemini(openAIResponse *dto.OpenAITextResponse, info convmeta.Meta) *dto.GeminiChatResponse {
@@ -114,6 +179,10 @@ func ResponsesResponseToChatCompletionsResponse(resp *dto.OpenAIResponsesRespons
 
 func UsageFromResponsesUsage(src *dto.Usage) *dto.Usage {
 	return oairesponses.UsageFromResponsesUsage(src)
+}
+
+func NormalizeResponsesUsage(src *dto.Usage) *dto.Usage {
+	return oairesponses.NormalizeResponsesUsage(src)
 }
 
 func ExtractOutputTextFromResponses(resp *dto.OpenAIResponsesResponse) string {

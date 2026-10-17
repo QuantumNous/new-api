@@ -36,7 +36,7 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 		return "", errors.New("replicate adaptor: relay info is nil")
 	}
 	if info.ChannelBaseUrl == "" {
-		info.ChannelBaseUrl = constant.ChannelBaseURLs[constant.ChannelTypeReplicate]
+		info.ChannelBaseUrl = constant.GetChannelBaseURL(constant.ChannelTypeReplicate)
 	}
 	requestPath := info.RequestURLPath
 	if requestPath == "" {
@@ -467,7 +467,7 @@ func uploadFileFromForm(c *gin.Context, info *relaycommon.RelayInfo, fieldCandid
 
 	baseURL := info.ChannelBaseUrl
 	if baseURL == "" {
-		baseURL = constant.ChannelBaseURLs[constant.ChannelTypeReplicate]
+		baseURL = constant.GetChannelBaseURL(constant.ChannelTypeReplicate)
 	}
 	uploadURL := relaycommon.GetFullRequestURL(baseURL, "/v1/files", info.ChannelType)
 

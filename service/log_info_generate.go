@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -22,22 +23,17 @@ import (
 // admin-only for free, since model.formatUserLogs strips the whole admin_info
 // object for non-admin viewers. Creates admin_info if absent. No-op when the
 // clamp is nil (the common case: no saturation happened).
-func attachQuotaSaturationToOther(other map[string]interface{}, clamp *common.QuotaClamp) {
+func attachQuotaSaturationToOther(other *model.LogOther, clamp *common.QuotaClamp) {
 	if clamp == nil || other == nil {
 		return
 	}
-	adminInfo, ok := other["admin_info"].(map[string]interface{})
-	if !ok || adminInfo == nil {
-		adminInfo = map[string]interface{}{}
-		other["admin_info"] = adminInfo
-	}
-	adminInfo["quota_saturation"] = clamp.AuditMap()
+	other.SetAdmin("quota_saturation", clamp.AuditMap())
 }
 
 // attachQuotaSaturation records the request's quota clamp (if any) onto the
 // consume log's other.admin_info and emits a request-correlated backend audit
 // line. Called right before RecordConsumeLog on the text/audio/wss paths.
-func attachQuotaSaturation(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+func attachQuotaSaturation(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other *model.LogOther) {
 	if relayInfo == nil {
 		return
 	}
@@ -47,16 +43,16 @@ func attachQuotaSaturation(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, o
 	}
 	attachQuotaSaturationToOther(other, clamp)
 	logger.LogWarn(ctx, fmt.Sprintf("quota saturation on consume log: op=%s kind=%s original=%g clamped=%d user=%d model=%s",
-		clamp.Op, clamp.Kind, clamp.Original, clamp.Clamped, relayInfo.UserId, relayInfo.OriginModelName))
+		clamp.Op, clamp.Kind, clamp.Original, clamp.Clamped, relayInfo.UserId, relayInfo.GetBillingModelName()))
 }
 
-func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other *model.LogOther) {
 	if other == nil {
 		return
 	}
 	if ctx != nil && ctx.Request != nil && ctx.Request.URL != nil {
 		if path := ctx.Request.URL.Path; path != "" {
-			other["request_path"] = path
+			other.SetPublic("request_path", path)
 			return
 		}
 	}
@@ -65,50 +61,64 @@ func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other
 		if idx := strings.Index(path, "?"); idx != -1 {
 			path = path[:idx]
 		}
-		other["request_path"] = path
+		other.SetPublic("request_path", path)
 	}
 }
 
+// AppendRelayLogAdminInfo records relay routing and conversion diagnostics in
+// the admin-only scope shared by successful and failed request logs.
+func AppendRelayLogAdminInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other *model.LogOther) {
+	if ctx == nil || other == nil {
+		return
+	}
+	other.SetAdmin("use_channel", ctx.GetStringSlice("use_channel"))
+	if relayInfo != nil {
+		if billingModel := relayInfo.GetBillingModelName(); billingModel != "" && billingModel != relayInfo.OriginModelName {
+			other.SetAdmin("billing_model", billingModel)
+		}
+		if diagnostics := relayInfo.ConversionDiagnostics(); len(diagnostics) > 0 {
+			other.SetAdmin("conversion_diagnostics", diagnostics)
+		}
+		if relayInfo.ConversionDiagnosticsTruncated() {
+			other.SetAdmin("conversion_diagnostics_truncated", true)
+		}
+	}
+	if common.GetContextKeyBool(ctx, constant.ContextKeyChannelIsMultiKey) {
+		other.SetAdmin("is_multi_key", true)
+		other.SetAdmin("multi_key_index", common.GetContextKeyInt(ctx, constant.ContextKeyChannelMultiKeyIndex))
+	}
+	if common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens) {
+		other.SetAdmin("local_count_tokens", true)
+	}
+
+	AppendChannelAffinityAdminInfo(ctx, other)
+}
+
 func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelRatio, groupRatio, completionRatio float64,
-	cacheTokens int, cacheRatio float64, modelPrice float64, userGroupRatio float64) map[string]interface{} {
-	other := make(map[string]interface{})
-	other["model_ratio"] = modelRatio
-	other["group_ratio"] = groupRatio
-	other["completion_ratio"] = completionRatio
-	other["cache_tokens"] = cacheTokens
-	other["cache_ratio"] = cacheRatio
-	other["model_price"] = modelPrice
-	other["user_group_ratio"] = userGroupRatio
-	other["frt"] = float64(relayInfo.FirstResponseTime.UnixMilli() - relayInfo.StartTime.UnixMilli())
+	cacheTokens int, cacheRatio float64, modelPrice float64, userGroupRatio float64) *model.LogOther {
+	other := model.NewLogOther()
+	other.SetPublic("model_ratio", modelRatio)
+	other.SetPublic("group_ratio", groupRatio)
+	other.SetPublic("completion_ratio", completionRatio)
+	other.SetPublic("cache_tokens", cacheTokens)
+	other.SetPublic("cache_ratio", cacheRatio)
+	other.SetPublic("model_price", modelPrice)
+	other.SetPublic("user_group_ratio", userGroupRatio)
+	other.SetPublic("frt", float64(relayInfo.FirstResponseTime.UnixMilli()-relayInfo.StartTime.UnixMilli()))
 	if relayInfo.ReasoningEffort != "" {
-		other["reasoning_effort"] = relayInfo.ReasoningEffort
+		other.SetPublic("reasoning_effort", relayInfo.ReasoningEffort)
 	}
 	if relayInfo.IsModelMapped {
-		other["is_model_mapped"] = true
-		other["upstream_model_name"] = relayInfo.UpstreamModelName
+		other.SetPublic("is_model_mapped", true)
+		other.SetPublic("upstream_model_name", relayInfo.UpstreamModelName)
 	}
 
 	isSystemPromptOverwritten := common.GetContextKeyBool(ctx, constant.ContextKeySystemPromptOverride)
 	if isSystemPromptOverwritten {
-		other["is_system_prompt_overwritten"] = true
+		other.SetPublic("is_system_prompt_overwritten", true)
 	}
 
-	adminInfo := make(map[string]interface{})
-	adminInfo["use_channel"] = ctx.GetStringSlice("use_channel")
-	isMultiKey := common.GetContextKeyBool(ctx, constant.ContextKeyChannelIsMultiKey)
-	if isMultiKey {
-		adminInfo["is_multi_key"] = true
-		adminInfo["multi_key_index"] = common.GetContextKeyInt(ctx, constant.ContextKeyChannelMultiKeyIndex)
-	}
-
-	isLocalCountTokens := common.GetContextKeyBool(ctx, constant.ContextKeyLocalCountTokens)
-	if isLocalCountTokens {
-		adminInfo["local_count_tokens"] = isLocalCountTokens
-	}
-
-	AppendChannelAffinityAdminInfo(ctx, adminInfo)
-
-	other["admin_info"] = adminInfo
+	AppendRelayLogAdminInfo(ctx, relayInfo, other)
 	appendRequestPath(ctx, relayInfo, other)
 	appendRequestConversionChain(relayInfo, other)
 	appendFinalRequestFormat(relayInfo, other)
@@ -118,14 +128,14 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	return other
 }
 
-func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+func appendParamOverrideInfo(relayInfo *relaycommon.RelayInfo, other *model.LogOther) {
 	if relayInfo == nil || other == nil || len(relayInfo.ParamOverrideAudit) == 0 {
 		return
 	}
-	other["po"] = relayInfo.ParamOverrideAudit
+	other.SetPublic("po", relayInfo.ParamOverrideAudit)
 }
 
-func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other *model.LogOther) {
 	if relayInfo == nil || other == nil || !relayInfo.IsStream || relayInfo.StreamStatus == nil {
 		return
 	}
@@ -149,36 +159,36 @@ func appendStreamStatus(relayInfo *relaycommon.RelayInfo, other map[string]inter
 		}
 		streamInfo["errors"] = messages
 	}
-	other["stream_status"] = streamInfo
+	other.SetPublic("stream_status", streamInfo)
 }
 
-func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other *model.LogOther) {
 	if relayInfo == nil || other == nil {
 		return
 	}
 	// billing_source: "wallet" or "subscription"
 	if relayInfo.BillingSource != "" {
-		other["billing_source"] = relayInfo.BillingSource
+		other.SetPublic("billing_source", relayInfo.BillingSource)
 	}
 	if relayInfo.UserSetting.BillingPreference != "" {
-		other["billing_preference"] = relayInfo.UserSetting.BillingPreference
+		other.SetPublic("billing_preference", relayInfo.UserSetting.BillingPreference)
 	}
 	if relayInfo.BillingSource == "subscription" {
 		if relayInfo.SubscriptionId != 0 {
-			other["subscription_id"] = relayInfo.SubscriptionId
+			other.SetPublic("subscription_id", relayInfo.SubscriptionId)
 		}
 		if relayInfo.SubscriptionPreConsumed > 0 {
-			other["subscription_pre_consumed"] = relayInfo.SubscriptionPreConsumed
+			other.SetPublic("subscription_pre_consumed", relayInfo.SubscriptionPreConsumed)
 		}
 		// post_delta: settlement delta applied after actual usage is known (can be negative for refund)
 		if relayInfo.SubscriptionPostDelta != 0 {
-			other["subscription_post_delta"] = relayInfo.SubscriptionPostDelta
+			other.SetPublic("subscription_post_delta", relayInfo.SubscriptionPostDelta)
 		}
 		if relayInfo.SubscriptionPlanId != 0 {
-			other["subscription_plan_id"] = relayInfo.SubscriptionPlanId
+			other.SetPublic("subscription_plan_id", relayInfo.SubscriptionPlanId)
 		}
 		if relayInfo.SubscriptionPlanTitle != "" {
-			other["subscription_plan_title"] = relayInfo.SubscriptionPlanTitle
+			other.SetPublic("subscription_plan_title", relayInfo.SubscriptionPlanTitle)
 		}
 		// Compute "this request" subscription consumed + remaining
 		consumed := relayInfo.SubscriptionPreConsumed + relayInfo.SubscriptionPostDelta
@@ -194,19 +204,19 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 			if remain < 0 {
 				remain = 0
 			}
-			other["subscription_total"] = relayInfo.SubscriptionAmountTotal
-			other["subscription_used"] = usedFinal
-			other["subscription_remain"] = remain
+			other.SetPublic("subscription_total", relayInfo.SubscriptionAmountTotal)
+			other.SetPublic("subscription_used", usedFinal)
+			other.SetPublic("subscription_remain", remain)
 		}
 		if consumed > 0 {
-			other["subscription_consumed"] = consumed
+			other.SetPublic("subscription_consumed", consumed)
 		}
 		// Wallet quota is not deducted when billed from subscription.
-		other["wallet_quota_deducted"] = 0
+		other.SetPublic("wallet_quota_deducted", 0)
 	}
 }
 
-func appendRequestConversionChain(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+func appendRequestConversionChain(relayInfo *relaycommon.RelayInfo, other *model.LogOther) {
 	if relayInfo == nil || other == nil {
 		return
 	}
@@ -231,41 +241,41 @@ func appendRequestConversionChain(relayInfo *relaycommon.RelayInfo, other map[st
 	if len(chain) == 0 {
 		return
 	}
-	other["request_conversion"] = chain
+	other.SetPublic("request_conversion", chain)
 }
 
-func appendFinalRequestFormat(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+func appendFinalRequestFormat(relayInfo *relaycommon.RelayInfo, other *model.LogOther) {
 	if relayInfo == nil || other == nil {
 		return
 	}
 	if relayInfo.GetFinalRequestRelayFormat() == types.RelayFormatClaude {
 		// claude indicates the final upstream request format is Claude Messages.
 		// Frontend log rendering uses this to keep the original Claude input display.
-		other["claude"] = true
+		other.SetPublic("claude", true)
 	}
 }
 
-func GenerateWssOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeUsage, modelRatio, groupRatio, completionRatio, audioRatio, audioCompletionRatio, modelPrice, userGroupRatio float64) map[string]interface{} {
+func GenerateWssOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeUsage, modelRatio, groupRatio, completionRatio, audioRatio, audioCompletionRatio, modelPrice, userGroupRatio float64) *model.LogOther {
 	info := GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, 0, 0.0, modelPrice, userGroupRatio)
-	info["ws"] = true
-	info["audio_input"] = usage.InputTokenDetails.AudioTokens
-	info["audio_output"] = usage.OutputTokenDetails.AudioTokens
-	info["text_input"] = usage.InputTokenDetails.TextTokens
-	info["text_output"] = usage.OutputTokenDetails.TextTokens
-	info["audio_ratio"] = audioRatio
-	info["audio_completion_ratio"] = audioCompletionRatio
+	info.SetPublic("ws", true)
+	info.SetPublic("audio_input", usage.InputTokenDetails.AudioTokens)
+	info.SetPublic("audio_output", usage.OutputTokenDetails.AudioTokens)
+	info.SetPublic("text_input", usage.InputTokenDetails.TextTokens)
+	info.SetPublic("text_output", usage.OutputTokenDetails.TextTokens)
+	info.SetPublic("audio_ratio", audioRatio)
+	info.SetPublic("audio_completion_ratio", audioCompletionRatio)
 	return info
 }
 
-func GenerateAudioOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, modelRatio, groupRatio, completionRatio, audioRatio, audioCompletionRatio, modelPrice, userGroupRatio float64) map[string]interface{} {
+func GenerateAudioOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, modelRatio, groupRatio, completionRatio, audioRatio, audioCompletionRatio, modelPrice, userGroupRatio float64) *model.LogOther {
 	info := GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, 0, 0.0, modelPrice, userGroupRatio)
-	info["audio"] = true
-	info["audio_input"] = usage.PromptTokensDetails.AudioTokens
-	info["audio_output"] = usage.CompletionTokenDetails.AudioTokens
-	info["text_input"] = usage.PromptTokensDetails.TextTokens
-	info["text_output"] = usage.CompletionTokenDetails.TextTokens
-	info["audio_ratio"] = audioRatio
-	info["audio_completion_ratio"] = audioCompletionRatio
+	info.SetPublic("audio", true)
+	info.SetPublic("audio_input", usage.PromptTokensDetails.AudioTokens)
+	info.SetPublic("audio_output", usage.CompletionTokenDetails.AudioTokens)
+	info.SetPublic("text_input", usage.PromptTokensDetails.TextTokens)
+	info.SetPublic("text_output", usage.CompletionTokenDetails.TextTokens)
+	info.SetPublic("audio_ratio", audioRatio)
+	info.SetPublic("audio_completion_ratio", audioCompletionRatio)
 	return info
 }
 
@@ -274,28 +284,28 @@ func GenerateClaudeOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo,
 	cacheCreationTokens int, cacheCreationRatio float64,
 	cacheCreationTokens5m int, cacheCreationRatio5m float64,
 	cacheCreationTokens1h int, cacheCreationRatio1h float64,
-	modelPrice float64, userGroupRatio float64) map[string]interface{} {
+	modelPrice float64, userGroupRatio float64) *model.LogOther {
 	info := GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice, userGroupRatio)
-	info["claude"] = true
-	info["cache_creation_tokens"] = cacheCreationTokens
-	info["cache_creation_ratio"] = cacheCreationRatio
+	info.SetPublic("claude", true)
+	info.SetPublic("cache_creation_tokens", cacheCreationTokens)
+	info.SetPublic("cache_creation_ratio", cacheCreationRatio)
 	if cacheCreationTokens5m != 0 {
-		info["cache_creation_tokens_5m"] = cacheCreationTokens5m
-		info["cache_creation_ratio_5m"] = cacheCreationRatio5m
+		info.SetPublic("cache_creation_tokens_5m", cacheCreationTokens5m)
+		info.SetPublic("cache_creation_ratio_5m", cacheCreationRatio5m)
 	}
 	if cacheCreationTokens1h != 0 {
-		info["cache_creation_tokens_1h"] = cacheCreationTokens1h
-		info["cache_creation_ratio_1h"] = cacheCreationRatio1h
+		info.SetPublic("cache_creation_tokens_1h", cacheCreationTokens1h)
+		info.SetPublic("cache_creation_ratio_1h", cacheCreationRatio1h)
 	}
 	return info
 }
 
-func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData hosttypes.PriceData) map[string]interface{} {
-	other := make(map[string]interface{})
-	other["model_price"] = priceData.ModelPrice
-	other["group_ratio"] = priceData.GroupRatioInfo.GroupRatio
+func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData hosttypes.PriceData) *model.LogOther {
+	other := model.NewLogOther()
+	other.SetPublic("model_price", priceData.ModelPrice)
+	other.SetPublic("group_ratio", priceData.GroupRatioInfo.GroupRatio)
 	if priceData.GroupRatioInfo.HasSpecialRatio {
-		other["user_group_ratio"] = priceData.GroupRatioInfo.GroupSpecialRatio
+		other.SetPublic("user_group_ratio", priceData.GroupRatioInfo.GroupSpecialRatio)
 	}
 	appendRequestPath(nil, relayInfo, other)
 	return other
@@ -304,7 +314,7 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData hosttypes.P
 // InjectTieredBillingInfo overlays tiered billing fields onto an existing
 // module-specific other map. Call this after GenerateTextOtherInfo /
 // GenerateClaudeOtherInfo / etc. when the request used tiered_expr billing.
-func InjectTieredBillingInfo(other map[string]interface{}, relayInfo *relaycommon.RelayInfo, result *billingexpr.TieredResult) {
+func InjectTieredBillingInfo(other *model.LogOther, relayInfo *relaycommon.RelayInfo, result *billingexpr.TieredResult) {
 	if relayInfo == nil || other == nil {
 		return
 	}
@@ -312,12 +322,12 @@ func InjectTieredBillingInfo(other map[string]interface{}, relayInfo *relaycommo
 	if snap == nil {
 		return
 	}
-	other["billing_mode"] = "tiered_expr"
-	other["expr_b64"] = base64.StdEncoding.EncodeToString([]byte(snap.ExprString))
+	other.SetPublic("billing_mode", "tiered_expr")
+	other.SetPublic("expr_b64", base64.StdEncoding.EncodeToString([]byte(snap.ExprString)))
 	if result != nil {
-		other["matched_tier"] = result.MatchedTier
+		other.SetPublic("matched_tier", result.MatchedTier)
 		if len(result.RequestRules) > 0 {
-			other["request_rules"] = result.RequestRules
+			other.SetPublic("request_rules", result.RequestRules)
 		}
 	}
 }

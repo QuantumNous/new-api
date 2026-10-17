@@ -102,6 +102,12 @@ func runProgram(prog *vm.Program, requestRules []RequestRuleTrace, params TokenP
 			}
 			return result.Value()
 		},
+		"u": func(name string) interface{} {
+			if request.Usage == nil {
+				return nil
+			}
+			return request.Usage[strings.TrimSpace(name)]
+		},
 		"has": func(source interface{}, substr string) bool {
 			if source == nil || substr == "" {
 				return false

@@ -205,6 +205,7 @@ export const TASK_STATUS = {
  */
 export const TASK_PLATFORMS = {
   SUNO: 'suno',
+  SUNOAPI: 'sunoapi',
   KLING: 'kling',
   RUNWAY: 'runway',
   LUMA: 'luma',
@@ -320,6 +321,7 @@ export const TASK_STATUS_MAPPINGS: Record<string, StatusMapping> = {
  */
 export const TASK_PLATFORM_MAPPINGS: Record<string, StatusMapping> = {
   [TASK_PLATFORMS.SUNO]: { label: 'suno', variant: 'green' },
+  [TASK_PLATFORMS.SUNOAPI]: { label: 'sunoapi', variant: 'green' },
   [TASK_PLATFORMS.KLING]: { label: 'kling', variant: 'blue' },
   [TASK_PLATFORMS.RUNWAY]: { label: 'runway', variant: 'violet' },
   [TASK_PLATFORMS.LUMA]: { label: 'luma', variant: 'orange' },

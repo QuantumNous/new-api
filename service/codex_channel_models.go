@@ -33,7 +33,7 @@ func FetchCodexChannelModels(channel *model.Channel) ([]string, error) {
 
 	baseURL := channel.GetBaseURL()
 	if baseURL == "" {
-		baseURL = constant.ChannelBaseURLs[constant.ChannelTypeCodex]
+		baseURL = constant.GetChannelBaseURL(constant.ChannelTypeCodex)
 	}
 	return fetchCodexChannelModels(ctx, channel, baseURL, client, clientVersion)
 }

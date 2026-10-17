@@ -144,6 +144,85 @@ The usage-log UI treats `request_rules` as the authoritative rule list and rende
 
 ---
 
+## Task Usage Expressions
+
+Task plugins can expose validated, provider-specific billing facts through
+`meta.usageSchema`. Expressions read those facts with `u("key")`. A literal key
+must be declared by the plugin schema before the expression can be saved.
+Numeric facts are finite, non-negative values in the declared canonical unit
+(`second`, `count`, `token`, or `credit`); enum facts are exact strings from the
+declared value list. The schema description is display-only metadata and never
+affects evaluation. `token` is the host unit for upstream billing tokens (for
+example doubao `usage.completion_tokens`). `credit` is the host unit for vendor
+resource-pack units (for example kling `final_unit_deduction`). Both share the
+int32 quota bound, not the 3600-second / 128-count limits.
+
+Task usage billing has a deliberately different conversion rule from token
+billing:
+
+```
+task quota = expression output in USD * QuotaPerUnit * groupRatio
+token quota = expression output in $/1M tokens / 1,000,000 * QuotaPerUnit * groupRatio
+```
+
+In other words, a task expression already returns the request's dollar cost.
+For example, `u("seconds") * 0.4` means $0.40 per second. Engine semantics do
+not divide task output by one million.
+
+The visual editor generates, and public pricing displays recognize, exactly
+these canonical task shapes. Expressions outside these shapes remain valid in
+raw mode but fall back to the special-expression display:
+
+```
+# Flat unit pricing
+tier("base", u("seconds") * 0.4)
+
+# Enum tiers (conditions may combine enum comparisons with &&)
+u("mode") == "pro"
+  ? tier("pro", u("seconds") * 0.8)
+  : tier("std", u("seconds") * 0.4)
+
+# Optional constant plus multiple numeric usage terms
+tier("base", 0.1 + u("seconds") * 0.4 + u("clips") * 0.05)
+
+# Upstream token overlay (doubao Seedance tokens)
+# The editor takes a $/1M token input and emits the / 1000000 literal.
+# Engine semantics are unchanged: the expression still returns USD.
+tier("base", u("tokens") * 9.8 / 1000000)
+
+# Vendor credit overlay (kling resource-pack units)
+# The coefficient is the real $/credit price; no /1M scale.
+tier("base", u("units") * 0.14)
+```
+
+The tier body is an optional non-negative constant plus one or more
+`u("<number field>") * <unit price>` terms. Token-unit fields use the
+canonical scaled shape `u("<field>") * <dollars per 1M tokens> / 1000000`.
+Credit, second, and count fields keep the bare `u("<field>") * <unit price>`
+shape. Tier conditions are equality checks
+between declared enum fields and values, optionally joined by `&&`, with
+chained ternaries following the same ordering rules as token tiers. Numeric
+range tiers are not part of the current canonical shape. Request rules after
+`|||` remain orthogonal and use the same syntax as token expressions.
+
+Before saving, the host compiles every expression, rejects literal `u()` keys
+that the selected task plugin did not declare, and smoke-tests usage vectors.
+Every numeric field is exercised at 0, 1, and its host-owned unit ceiling
+(`second` 3600, `count` 128, `token`/`credit` int32 max). Enum values are exercised as a
+Cartesian product. Smoke vectors are capped at
+64, reducing oversized enum dimensions to their first and last values. Every
+evaluated result must be finite and non-negative.
+
+Submission evaluates the expression with request-derived usage facts and
+freezes both the expression and those facts in the billing snapshot. On
+completion, the host overlays completion facts on the frozen submission facts
+key by key, so measured values replace estimates while facts omitted by the
+completion hook retain their submission values. The same expression is then
+evaluated again; a changed fact can therefore produce a settlement delta and a
+different matched tier. Evaluation failure keeps the pre-consumed charge.
+
+---
+
 ## Architecture
 
 ### Data Flow

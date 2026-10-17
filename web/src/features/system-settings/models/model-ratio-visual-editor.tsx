@@ -47,6 +47,7 @@ import {
   useDataTable,
 } from '@/components/data-table'
 import { Button } from '@/components/ui/button'
+import { usePricingData } from '@/features/pricing/hooks/use-pricing-data'
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 import { useMediaQuery } from '@/hooks'
 
@@ -64,7 +65,10 @@ import {
   isBasePricingUnset,
   type ModelRow,
 } from './model-pricing-snapshots'
-import { buildModelRatioColumns } from './model-ratio-table-columns'
+import {
+  buildModelRatioColumns,
+  TASK_PRICING_MODE_FILTER,
+} from './model-ratio-table-columns'
 
 type ModelRatioVisualEditorProps = {
   savedModelPrice: string
@@ -140,6 +144,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
   ref
 ) {
   const { t } = useTranslation()
+  const { models: pricingModels } = usePricingData()
   const isMobile = useMediaQuery('(max-width: 767px)')
   const [sheetOpen, setSheetOpen] = useState(false)
   const [editorOpen, setEditorOpen] = useState(false)
@@ -191,6 +196,20 @@ const ModelRatioVisualEditorComponent = forwardRef<
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(columnVisibility))
   }, [columnVisibility])
+
+  const taskModelNames = useMemo(
+    () =>
+      new Set(
+        pricingModels
+          .filter(
+            (model) =>
+              model.billing_usage_schema &&
+              Object.keys(model.billing_usage_schema).length > 0
+          )
+          .map((model) => model.model_name)
+      ),
+    [pricingModels]
+  )
 
   const models = useMemo(() => {
     const savedRows = buildModelSnapshots({
@@ -466,9 +485,10 @@ const ModelRatioVisualEditorComponent = forwardRef<
         onDelete: handleDelete,
         onEdit: handleEdit,
         deleteDisabled: filterMode === 'unset',
+        taskModelNames,
         t,
       }),
-    [handleEdit, handleDelete, filterMode, t]
+    [handleEdit, handleDelete, filterMode, t, taskModelNames]
   )
 
   const ensurePageInRange = useCallback((pageCount: number) => {
@@ -749,6 +769,11 @@ const ModelRatioVisualEditorComponent = forwardRef<
                     label: 'Expression',
                     value: 'tiered_expr',
                     count: modeCounts.tiered_expr,
+                  },
+                  {
+                    label: 'Expression - Task pricing',
+                    value: TASK_PRICING_MODE_FILTER,
+                    count: modeCounts[TASK_PRICING_MODE_FILTER],
                   },
                 ],
               },

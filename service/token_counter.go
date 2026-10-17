@@ -181,7 +181,13 @@ func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *rela
 	if !constant.CountToken {
 		return 0, nil
 	}
+	return CountRequestToken(c, meta, info)
+}
 
+// CountRequestToken counts request tokens regardless of the billing estimation
+// switch. Utility endpoints such as Claude's messages/count_tokens must remain
+// available even when operators disable request-token estimation for relays.
+func CountRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *relaycommon.RelayInfo) (int, error) {
 	if meta == nil {
 		return 0, errors.New("token count meta is nil")
 	}

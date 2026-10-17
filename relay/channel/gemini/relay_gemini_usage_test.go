@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -15,6 +16,130 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestStreamResponseGeminiChat2OpenAIAttachesUsageMetadata(t *testing.T) {
+	t.Parallel()
+
+	withUsage, isStop := streamResponseGeminiChat2OpenAI(&dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{{
+			Content: dto.GeminiChatContent{
+				Role:  "model",
+				Parts: []dto.GeminiPart{{Text: "hello"}},
+			},
+		}},
+		UsageMetadata: dto.GeminiUsageMetadata{
+			PromptTokenCount:     3868,
+			CandidatesTokenCount: 0,
+			TotalTokenCount:      3868,
+		},
+	})
+	require.False(t, isStop)
+	require.NotNil(t, withUsage)
+	require.NotNil(t, withUsage.Usage)
+	require.Equal(t, 3868, withUsage.Usage.PromptTokens)
+	require.Equal(t, 3868, withUsage.Usage.TotalTokens)
+	require.NotNil(t, withUsage.Usage.BillingUsage)
+	require.Equal(t, dto.BillingUsageSourceGeminiChat, withUsage.Usage.BillingUsage.Source)
+	require.Equal(t, dto.BillingUsageSemanticGemini, withUsage.Usage.BillingUsage.Semantic)
+	require.NotNil(t, withUsage.Usage.BillingUsage.GeminiUsageMetadata)
+	require.Equal(t, 3868, withUsage.Usage.BillingUsage.GeminiUsageMetadata.PromptTokenCount)
+	require.False(t, withUsage.Usage.BillingUsage.Estimated)
+
+	withoutUsage, _ := streamResponseGeminiChat2OpenAI(&dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{{
+			Content: dto.GeminiChatContent{
+				Role:  "model",
+				Parts: []dto.GeminiPart{{Text: "hello"}},
+			},
+		}},
+	})
+	require.NotNil(t, withoutUsage)
+	require.Nil(t, withoutUsage.Usage)
+}
+
+func TestGeminiChatStreamHandlerClaudeFirstFrameUsesUpstreamUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+
+	oldStreamingTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() {
+		constant.StreamingTimeout = oldStreamingTimeout
+	})
+
+	info := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatClaude,
+		OriginModelName: "gemini-2.5-flash",
+		ChannelMeta: &relaycommon.ChannelMeta{
+			UpstreamModelName: "gemini-2.5-flash",
+		},
+		ClaudeConvertInfo: &relaycommon.ClaudeConvertInfo{
+			LastMessagesType: relaycommon.LastMessageTypeNone,
+		},
+	}
+	info.SetEstimatePromptTokens(4994)
+
+	chunkData, err := common.Marshal(dto.GeminiChatResponse{
+		Candidates: []dto.GeminiChatCandidate{{
+			Content: dto.GeminiChatContent{
+				Role:  "model",
+				Parts: []dto.GeminiPart{{Text: "hello"}},
+			},
+		}},
+		UsageMetadata: dto.GeminiUsageMetadata{
+			PromptTokenCount: 3868,
+			TotalTokenCount:  3868,
+		},
+	})
+	require.NoError(t, err)
+	resp := &http.Response{
+		Body: io.NopCloser(bytes.NewReader([]byte("data: " + string(chunkData) + "\n" + "data: [DONE]\n"))),
+	}
+
+	usage, newAPIError := GeminiChatStreamHandler(c, info, resp)
+	require.Nil(t, newAPIError)
+	require.NotNil(t, usage)
+	require.Equal(t, 3868, usage.PromptTokens)
+
+	var startUsage, deltaUsage *dto.ClaudeUsage
+	for _, line := range strings.Split(recorder.Body.String(), "\n") {
+		payload, ok := strings.CutPrefix(strings.TrimSpace(line), "data: ")
+		if !ok {
+			continue
+		}
+		var event dto.ClaudeResponse
+		if err := common.UnmarshalJsonStr(payload, &event); err != nil {
+			continue
+		}
+		switch event.Type {
+		case "message_start":
+			if event.Message != nil {
+				startUsage = event.Message.Usage
+			}
+		case "message_delta":
+			deltaUsage = event.Usage
+		}
+	}
+
+	require.NotNil(t, startUsage)
+	require.Equal(t, 3868, startUsage.InputTokens)
+	require.NotNil(t, startUsage.BillingUsage)
+	require.Equal(t, dto.BillingUsageSourceGeminiChat, startUsage.BillingUsage.Source)
+	require.Equal(t, dto.BillingUsageSemanticGemini, startUsage.BillingUsage.Semantic)
+	require.NotNil(t, startUsage.BillingUsage.GeminiUsageMetadata)
+	require.Equal(t, 3868, startUsage.BillingUsage.GeminiUsageMetadata.PromptTokenCount)
+	require.False(t, startUsage.BillingUsage.Estimated)
+
+	require.NotNil(t, deltaUsage)
+	require.Equal(t, 3868, deltaUsage.InputTokens)
+	require.NotNil(t, deltaUsage.BillingUsage)
+	require.Equal(t, dto.BillingUsageSourceGeminiChat, deltaUsage.BillingUsage.Source)
+	require.Equal(t, dto.BillingUsageSemanticGemini, deltaUsage.BillingUsage.Semantic)
+	require.NotNil(t, deltaUsage.BillingUsage.GeminiUsageMetadata)
+	require.Equal(t, 3868, deltaUsage.BillingUsage.GeminiUsageMetadata.PromptTokenCount)
+}
 
 func TestGeminiChatHandlerCompletionTokensExcludeToolUsePromptTokens(t *testing.T) {
 	t.Parallel()

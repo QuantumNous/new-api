@@ -28,6 +28,7 @@ export {
   getFreshAuthHeaders,
   isAuthBundle,
   refreshAuthentication,
+  resolveAuthentication,
   AuthRotationError,
 } from '@/lib/auth-session'
 export type { AuthTokenRotation, RefreshOutcome } from '@/lib/auth-session'
@@ -77,7 +78,14 @@ export async function getNotice(): Promise<{
   message?: string
   data?: string
 }> {
-  const res = await api.get('/api/notice')
+  // Drop the client's global `Cache-Control: no-store` for this public,
+  // non-user-specific payload. `no-store` forbids the browser from keeping a
+  // copy at all, so it would never hold an ETag to revalidate with and the
+  // server could never answer 304. The server sends `no-cache`, so the browser
+  // still revalidates on every request and an admin edit shows up immediately.
+  const res = await api.get('/api/notice', {
+    headers: { 'Cache-Control': null },
+  })
   return res.data
 }
 
