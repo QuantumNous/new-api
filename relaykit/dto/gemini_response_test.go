@@ -32,3 +32,27 @@ func TestGeminiChatResponseMarshalKeepsUsageMetadataField(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(data), `"usageMetadata"`)
 }
+
+func TestGeminiInteractionRequestPreservesUnknownFieldsWhenRoutingModelChanges(t *testing.T) {
+	var request GeminiInteractionRequest
+	require.NoError(t, kitutil.Unmarshal([]byte(`{"model":"gemini-3.8-flash","input":"hello","future_option":{"enabled":true}}`), &request))
+	request.SetModelName("gemini-3.8-flash-tts")
+
+	data, err := kitutil.Marshal(&request)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"model":"gemini-3.8-flash-tts"`)
+	assert.Contains(t, string(data), `"future_option":{"enabled":true}`)
+	assert.True(t, request.HasInput())
+}
+
+func TestGeminiInteractionRequestPreservesAgentWhenRoutingAgentChanges(t *testing.T) {
+	var request GeminiInteractionRequest
+	require.NoError(t, kitutil.Unmarshal([]byte(`{"agent":"deep-research-preview","input":"hello","future_option":{"enabled":true}}`), &request))
+	request.SetModelName("deep-research-pro")
+
+	data, err := kitutil.Marshal(&request)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"agent":"deep-research-pro"`)
+	assert.NotContains(t, string(data), `"model"`)
+	assert.Contains(t, string(data), `"future_option":{"enabled":true}`)
+}

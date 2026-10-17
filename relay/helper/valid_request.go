@@ -26,7 +26,9 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 	case types.RelayFormatOpenAI:
 		request, err = GetAndValidateTextRequest(c, relayMode)
 	case types.RelayFormatGemini:
-		if strings.Contains(c.Request.URL.Path, ":embedContent") {
+		if strings.HasPrefix(c.Request.URL.Path, "/v1beta/interactions") || strings.HasPrefix(c.Request.URL.Path, "/v1/interactions") {
+			request, err = GetAndValidateGeminiInteractionRequest(c)
+		} else if strings.Contains(c.Request.URL.Path, ":embedContent") {
 			request, err = GetAndValidateGeminiEmbeddingRequest(c)
 		} else if strings.Contains(c.Request.URL.Path, ":batchEmbedContents") {
 			request, err = GetAndValidateGeminiBatchEmbeddingRequest(c)
@@ -56,6 +58,31 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		return nil, fmt.Errorf("unsupported relay format: %s", format)
 	}
 	return request, err
+}
+
+func GetAndValidateGeminiInteractionRequest(c *gin.Context) (*dto.GeminiInteractionRequest, error) {
+	request := &dto.GeminiInteractionRequest{}
+	if err := common.UnmarshalBodyReusable(c, request); err != nil {
+		return nil, err
+	}
+	if !request.HasInput() {
+		return nil, errors.New("input is required")
+	}
+	if request.Model == "" && request.Agent == "" {
+		return nil, errors.New("model or agent is required")
+	}
+	if len(request.GenerationConfig) > 0 {
+		var config struct {
+			MaxOutputTokens *uint `json:"max_output_tokens"`
+		}
+		if err := common.Unmarshal(request.GenerationConfig, &config); err != nil {
+			return nil, fmt.Errorf("generation_config is invalid: %w", err)
+		}
+		if ExceedsMaxTokensLimit(config.MaxOutputTokens) {
+			return nil, errors.New("generation_config.max_output_tokens is invalid")
+		}
+	}
+	return request, nil
 }
 
 func GetAndValidAudioRequest(c *gin.Context, relayMode int) (*dto.AudioRequest, error) {

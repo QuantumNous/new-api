@@ -301,6 +301,50 @@ func TestGeminiTextGenerationHandlerPromptTokensIncludeToolUsePromptTokens(t *te
 	require.Equal(t, 1120, usage.CompletionTokenDetails.ReasoningTokens)
 }
 
+func TestGeminiInteractionHandlerMapsUsage(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1beta/interactions", nil)
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gemini-3.8-flash",
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "gemini-3.8-flash"},
+	}
+	body := `{"id":"interaction-1","object":"interaction","model":"gemini-3.8-flash","steps":[{"type":"model_output","content":[{"type":"text","text":"hello"}]}],"usage":{"total_input_tokens":7,"total_output_tokens":20,"total_thought_tokens":22,"total_tokens":49}}`
+	usage, apiErr := GeminiInteractionHandler(c, info, &http.Response{Body: io.NopCloser(strings.NewReader(body))})
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	assert.Equal(t, 7, usage.PromptTokens)
+	assert.Equal(t, 42, usage.CompletionTokens)
+	assert.Equal(t, 49, usage.TotalTokens)
+	assert.Contains(t, recorder.Body.String(), `"interaction-1"`)
+}
+
+func TestGeminiInteractionStreamHandlerPreservesEventNames(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1beta/interactions", nil)
+	oldStreamingTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 300
+	t.Cleanup(func() { constant.StreamingTimeout = oldStreamingTimeout })
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "gemini-3.8-flash",
+		ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: "gemini-3.8-flash"},
+	}
+	body := "event: interaction.created\ndata: {\"event_type\":\"interaction.created\",\"interaction\":{\"id\":\"interaction-1\",\"model\":\"gemini-3.8-flash\"}}\n" +
+		"event: step.delta\ndata: {\"event_type\":\"step.delta\",\"delta\":{\"type\":\"text\",\"text\":\"hello\"}}\n" +
+		"event: interaction.completed\ndata: {\"event_type\":\"interaction.completed\",\"interaction\":{\"status\":\"completed\",\"usage\":{\"total_input_tokens\":7,\"total_output_tokens\":1,\"total_tokens\":8}}}\n" +
+		"event: done\ndata: [DONE]\n"
+	usage, apiErr := GeminiInteractionStreamHandler(c, info, &http.Response{Body: io.NopCloser(strings.NewReader(body))})
+	require.Nil(t, apiErr)
+	require.NotNil(t, usage)
+	assert.Equal(t, 7, usage.PromptTokens)
+	assert.Contains(t, recorder.Body.String(), "event: interaction.created\n")
+	assert.Contains(t, recorder.Body.String(), "event: step.delta\ndata: {\"event_type\":\"step.delta\"")
+	assert.Contains(t, recorder.Body.String(), "event: done\ndata: [DONE]\n\n")
+}
+
 func TestGeminiChatHandlerUsesEstimatedPromptTokensWhenUsagePromptMissing(t *testing.T) {
 	t.Parallel()
 
