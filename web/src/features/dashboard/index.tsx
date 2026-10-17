@@ -41,9 +41,7 @@ import { OverviewDashboard } from './components/overview/overview-dashboard'
 import { DEFAULT_TIME_GRANULARITY } from './constants'
 import {
   buildDefaultDashboardFilters,
-  getDefaultDays,
   getSavedChartPreferences,
-  getSavedGranularity,
   saveChartPreferences,
 } from './lib'
 import {
@@ -207,14 +205,10 @@ export function Dashboard() {
     buildDefaultDashboardFilters(getSavedChartPreferences())
   )
   const [userChartsFilters, setUserChartsFilters] = useState<UserChartsFilters>(
-    () => {
-      const granularity = getSavedGranularity()
-      return {
-        timeGranularity: granularity,
-        selectedRange: getDefaultDays(granularity),
-        topUserLimit: 10,
-      }
-    }
+    () => ({
+      ...buildDefaultDashboardFilters(getSavedChartPreferences()),
+      topUserLimit: 10,
+    })
   )
   const [flowSensitiveVisible, setFlowSensitiveVisible] = useState(true)
 
@@ -224,6 +218,22 @@ export function Dashboard() {
 
   const handleResetFilters = useCallback(() => {
     setModelFilters(buildDefaultDashboardFilters(chartPreferences))
+  }, [chartPreferences])
+
+  // The filter dialog owns time range and username; the top-user limit is a
+  // chart setting that lives alongside them, so it is carried over by hand.
+  const handleUserFilterChange = useCallback((filters: DashboardFilters) => {
+    setUserChartsFilters((prev) => ({
+      ...filters,
+      topUserLimit: prev.topUserLimit,
+    }))
+  }, [])
+
+  const handleResetUserFilters = useCallback(() => {
+    setUserChartsFilters((prev) => ({
+      ...buildDefaultDashboardFilters(chartPreferences),
+      topUserLimit: prev.topUserLimit,
+    }))
   }, [chartPreferences])
 
   const handleDataUpdate = useCallback(
@@ -315,6 +325,20 @@ export function Dashboard() {
         />
       </>
     ) : null
+  const userActions =
+    activeSection === 'users' ? (
+      <ModelsFilter
+        preferences={chartPreferences}
+        currentFilters={userChartsFilters}
+        onFilterChange={handleUserFilterChange}
+        onReset={handleResetUserFilters}
+        titleKey='User Analytics Filters'
+        descriptionKey='Filter the user analytics view by time range and user.'
+        multiUserFilter
+      />
+    ) : null
+  // The user section renders its filter next to the range row instead of in the
+  // header, so the button sits directly above the chart panels.
   const sectionActions = modelActions ?? flowActions
 
   if (activeSection === 'overview') {
@@ -397,6 +421,7 @@ export function Dashboard() {
                 <LazyUserCharts
                   filters={userChartsFilters}
                   onFiltersChange={setUserChartsFilters}
+                  actions={userActions}
                 />
               </Suspense>
             </FadeIn>

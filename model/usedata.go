@@ -160,11 +160,18 @@ func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData
 	return quotaDatas, err
 }
 
-func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+// GetQuotaDataGroupByUser returns per-user quota rows inside the time range.
+// An empty usernames slice aggregates every user, matching GetAllQuotaDates;
+// otherwise only the listed users are returned.
+func GetQuotaDataGroupByUser(startTime int64, endTime int64, usernames []string) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
-	err = DB.Table("quota_data").
+	query := DB.Table("quota_data").
 		Select("username, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used").
-		Where("created_at >= ? and created_at <= ?", startTime, endTime).
+		Where("created_at >= ? and created_at <= ?", startTime, endTime)
+	if len(usernames) > 0 {
+		query = query.Where("username IN ?", usernames)
+	}
+	err = query.
 		Group("username, created_at").
 		Find(&quotaDatas).Error
 	return quotaDatas, err

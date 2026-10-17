@@ -188,7 +188,10 @@ export interface DashboardFilters {
   start_timestamp?: Date
   end_timestamp?: Date
   time_granularity?: TimeGranularity
+  /** Single-user filter used by the model and flow sections. */
   username?: string
+  /** Multi-user filter used by sections whose backend accepts a user list. */
+  usernames?: string[]
 }
 
 export type ConsumptionDistributionChartType = 'bar' | 'area'
@@ -204,9 +207,9 @@ export interface DashboardChartPreferences {
 
 // User analytics selections are held by the dashboard parent so they survive
 // switching between dashboard sub-sections, matching the model/flow filters.
-export interface UserChartsFilters {
-  timeGranularity: TimeGranularity
-  selectedRange: number
+// Reuses DashboardFilters so the user section can offer the same time range and
+// username controls the model and flow sections already have.
+export interface UserChartsFilters extends DashboardFilters {
   topUserLimit: number
 }
 

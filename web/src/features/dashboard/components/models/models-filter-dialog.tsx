@@ -16,12 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
 import { Filter, RotateCcw, Calendar, Search } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { DateTimePicker } from '@/components/datetime-picker'
 import { Dialog } from '@/components/dialog'
+import { MultiSelect, type Option } from '@/components/multi-select'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -41,14 +43,21 @@ import {
 import {
   buildDefaultDashboardFilters,
   cleanFilters,
+  detectQuickRangeDays,
+  granularityForRangeDays,
 } from '@/features/dashboard/lib'
 import type {
   DashboardChartPreferences,
   DashboardFilters,
 } from '@/features/dashboard/types'
+import { getUsers } from '@/features/users/api'
 import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
 import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/auth-store'
+
+/** Upper bound of users offered in the multi-user picker. Selections are kept
+ *  even when the list is truncated, and the control still accepts typed names. */
+const USER_OPTION_PAGE_SIZE = 100
 
 interface ModelsFilterProps {
   preferences: DashboardChartPreferences
@@ -59,27 +68,12 @@ interface ModelsFilterProps {
   onReset: () => void
   titleKey?: string
   descriptionKey?: string
-}
-
-// Quick-range presets imply a sensible granularity (matching the app's
-// range<->granularity pairing), so picking "7 Days" requests daily buckets
-// instead of leaving the granularity on its previous value (e.g. hourly).
-function granularityForRangeDays(days: number): TimeGranularity {
-  if (days <= 1) return 'hour'
-  if (days >= 29) return 'week'
-  return 'day'
-}
-
-// Highlights the matching quick-range button when the applied range spans an
-// exact preset; custom ranges leave every quick button unselected.
-function detectQuickRangeDays(
-  filters: DashboardFilters | undefined
-): number | null {
-  const start = filters?.start_timestamp
-  const end = filters?.end_timestamp
-  if (!start || !end) return null
-  const days = Math.round((end.getTime() - start.getTime()) / 86_400_000)
-  return TIME_RANGE_PRESETS.some((preset) => preset.days === days) ? days : null
+  /**
+   * Swaps the free-text Username field for a multi-user picker backed by the
+   * `usernames` filter. Only sections whose endpoint accepts a user list should
+   * turn this on.
+   */
+  multiUserFilter?: boolean
 }
 
 /**
@@ -110,6 +104,20 @@ export function ModelsFilter(props: ModelsFilterProps) {
   const [selectedRange, setSelectedRange] = useState<number | null>(() =>
     detectQuickRangeDays(props.currentFilters)
   )
+
+  // Only fetched for the multi-user picker; the single-user field stays a plain
+  // text input and costs no request.
+  const { data: userOptions = [] } = useQuery({
+    queryKey: ['dashboard', 'filter-user-options'],
+    enabled: Boolean(props.multiUserFilter) && Boolean(isAdmin),
+    staleTime: 5 * 60_000,
+    queryFn: async () => {
+      const res = await getUsers({ p: 1, page_size: USER_OPTION_PAGE_SIZE })
+      return ((res.data?.items ?? []) as { username: string }[]).map(
+        (item): Option => ({ label: item.username, value: item.username })
+      )
+    },
+  })
 
   const handleOpenChange = (nextOpen: boolean) => {
     // Sync the editing state from the applied filters every time the dialog
@@ -147,7 +155,7 @@ export function ModelsFilter(props: ModelsFilterProps) {
 
   const handleChange = (
     field: keyof DashboardFilters,
-    value: Date | string | undefined
+    value: Date | string | string[] | undefined
   ) => {
     setFilters((prev) => ({ ...prev, [field]: value }))
     if (field === 'start_timestamp' || field === 'end_timestamp')
@@ -288,15 +296,29 @@ export function ModelsFilter(props: ModelsFilterProps) {
             <>
               <SectionDivider label={t('Admin Only')} />
 
-              <div className='grid gap-2'>
-                <Label htmlFor='username'>{t('Username')}</Label>
-                <Input
-                  id='username'
-                  placeholder={t('Filter by username')}
-                  value={filters.username}
-                  onChange={(e) => handleChange('username', e.target.value)}
-                />
-              </div>
+              {props.multiUserFilter ? (
+                <div className='grid gap-2'>
+                  <Label htmlFor='usernames'>{t('Usernames')}</Label>
+                  <MultiSelect
+                    id='usernames'
+                    options={userOptions}
+                    selected={filters.usernames ?? []}
+                    onChange={(values) => handleChange('usernames', values)}
+                    placeholder={t('Filter by username')}
+                    allowCreate
+                  />
+                </div>
+              ) : (
+                <div className='grid gap-2'>
+                  <Label htmlFor='username'>{t('Username')}</Label>
+                  <Input
+                    id='username'
+                    placeholder={t('Filter by username')}
+                    value={filters.username}
+                    onChange={(e) => handleChange('username', e.target.value)}
+                  />
+                </div>
+              )}
             </>
           )}
         </div>

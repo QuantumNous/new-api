@@ -19,7 +19,14 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { VChart } from '@visactor/react-vchart'
 import { Users, Loader2 } from 'lucide-react'
-import { useEffect, useMemo, useState, useRef, useCallback } from 'react'
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useRef,
+  useCallback,
+  type ReactNode,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { IconBadge } from '@/components/ui/icon-badge'
@@ -28,12 +35,15 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useTheme } from '@/context/theme-provider'
 import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
 import {
+  DEFAULT_TIME_GRANULARITY,
   TIME_GRANULARITY_OPTIONS,
   TIME_RANGE_PRESETS,
 } from '@/features/dashboard/constants'
 import {
+  buildQueryParams,
+  detectQuickRangeDays,
   getDefaultDays,
-  saveGranularity,
+  granularityForRangeDays,
   processUserChartData,
 } from '@/features/dashboard/lib'
 import type {
@@ -41,7 +51,11 @@ import type {
   UserChartsFilters,
 } from '@/features/dashboard/types'
 import { requireServerSuccess } from '@/lib/server-error-message'
-import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
+import {
+  computeTimeRange,
+  getRollingDateRange,
+  type TimeGranularity,
+} from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
 
 let themeManagerPromise: Promise<
@@ -70,6 +84,11 @@ const TOP_USER_LIMIT_OPTIONS = [5, 10, 20, 50]
 interface UserChartsProps {
   filters: UserChartsFilters
   onFiltersChange: (filters: UserChartsFilters) => void
+  /**
+   * Section controls rendered at the end of the range row so they sit directly
+   * above the chart panels, matching where the model section puts its filter.
+   */
+  actions?: ReactNode
 }
 
 export function UserCharts(props: UserChartsProps) {
@@ -81,44 +100,55 @@ export function UserCharts(props: UserChartsProps) {
   >(null)
 
   // The selection is owned by the dashboard parent so it persists across
-  // sub-section switches; the rolling window is derived from the chosen range.
-  const timeGranularity = props.filters.timeGranularity
-  const selectedRange = props.filters.selectedRange
-  const topUserLimit = props.filters.topUserLimit
-  const onFiltersChange = props.onFiltersChange
+  // sub-section switches. Time range, granularity and usernames live in the
+  // shared filter dialog, like the model and flow sections; the quick-range
+  // tabs below stay in sync with whatever that dialog applied.
+  const { filters, onFiltersChange } = props
+  const topUserLimit = filters.topUserLimit
+  const timeGranularity = filters.time_granularity ?? DEFAULT_TIME_GRANULARITY
+  // Null when a custom range is applied, so no quick button claims it.
+  const selectedRange = detectQuickRangeDays(filters)
 
-  const timeRange = useMemo(() => {
-    const { start, end } = getRollingDateRange(selectedRange)
-    return {
-      start_timestamp: Math.floor(start.getTime() / 1000),
-      end_timestamp: Math.floor(end.getTime() / 1000),
-    }
-  }, [selectedRange])
+  const timeRange = useMemo(
+    () =>
+      computeTimeRange(
+        getDefaultDays(filters.time_granularity),
+        filters.start_timestamp,
+        filters.end_timestamp
+      ),
+    [filters.time_granularity, filters.start_timestamp, filters.end_timestamp]
+  )
+
+  const queryParams = useMemo(
+    () => buildQueryParams(timeRange, filters),
+    [timeRange, filters]
+  )
 
   const handleRangeChange = useCallback(
     (days: number) => {
-      onFiltersChange({ ...props.filters, selectedRange: days })
+      const { start, end } = getRollingDateRange(days)
+      onFiltersChange({
+        ...filters,
+        start_timestamp: start,
+        end_timestamp: end,
+        time_granularity: granularityForRangeDays(days),
+      })
     },
-    [onFiltersChange, props.filters]
+    [onFiltersChange, filters]
   )
 
   const handleGranularityChange = useCallback(
-    (g: TimeGranularity) => {
-      saveGranularity(g)
-      onFiltersChange({
-        ...props.filters,
-        timeGranularity: g,
-        selectedRange: getDefaultDays(g),
-      })
+    (granularity: TimeGranularity) => {
+      onFiltersChange({ ...filters, time_granularity: granularity })
     },
-    [onFiltersChange, props.filters]
+    [onFiltersChange, filters]
   )
 
   const handleTopUserLimitChange = useCallback(
     (limit: number) => {
-      onFiltersChange({ ...props.filters, topUserLimit: limit })
+      onFiltersChange({ ...filters, topUserLimit: limit })
     },
-    [onFiltersChange, props.filters]
+    [onFiltersChange, filters]
   )
 
   useEffect(() => {
@@ -138,9 +168,9 @@ export function UserCharts(props: UserChartsProps) {
   }, [resolvedTheme])
 
   const { data: userData, isLoading } = useQuery({
-    queryKey: ['dashboard', 'user-quota', timeRange],
+    queryKey: ['dashboard', 'user-quota', queryParams],
     queryFn: async () =>
-      requireServerSuccess(await getUserQuotaDataByUsers(timeRange)),
+      requireServerSuccess(await getUserQuotaDataByUsers(queryParams)),
     select: (res) => (res.success ? res.data : []),
     staleTime: 60_000,
   })
@@ -160,7 +190,7 @@ export function UserCharts(props: UserChartsProps) {
     <div className='space-y-3'>
       <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
         <Tabs
-          value={String(selectedRange)}
+          value={selectedRange === null ? '' : String(selectedRange)}
           onValueChange={(value) => handleRangeChange(Number(value))}
           className='shrink-0'
         >
@@ -220,6 +250,12 @@ export function UserCharts(props: UserChartsProps) {
 
         {isLoading && (
           <Loader2 className='text-muted-foreground size-4 animate-spin' />
+        )}
+
+        {props.actions != null && (
+          <div className='ml-auto flex shrink-0 flex-wrap items-center gap-1.5 sm:gap-2'>
+            {props.actions}
+          </div>
         )}
       </div>
 

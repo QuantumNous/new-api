@@ -3,12 +3,30 @@ package controller
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 
 	"github.com/gin-gonic/gin"
 )
+
+// parseUsernameList splits the comma-separated `usernames` filter used by the
+// per-user dashboard endpoint. A single name is the common case; blank entries
+// are dropped so a trailing comma does not accidentally select every user.
+func parseUsernameList(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	usernames := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if name := strings.TrimSpace(part); name != "" {
+			usernames = append(usernames, name)
+		}
+	}
+	return usernames
+}
 
 func parseFlowQuotaTimeRange(c *gin.Context) (int64, int64, bool) {
 	startTimestamp, err := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
@@ -48,7 +66,12 @@ func GetAllQuotaDates(c *gin.Context) {
 func GetQuotaDatesByUser(c *gin.Context) {
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
-	dates, err := model.GetQuotaDataGroupByUser(startTimestamp, endTimestamp)
+	usernames := parseUsernameList(c.Query("usernames"))
+	// Accept the single-user parameter too, so existing callers keep working.
+	if len(usernames) == 0 && c.Query("username") != "" {
+		usernames = []string{c.Query("username")}
+	}
+	dates, err := model.GetQuotaDataGroupByUser(startTimestamp, endTimestamp, usernames)
 	if err != nil {
 		common.ApiError(c, err)
 		return
