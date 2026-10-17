@@ -87,3 +87,22 @@ func TestGeminiChatGenerationConfigPreservesExplicitZeroValuesSnakeCase(t *testi
 	assert.Equal(t, float64(0), generationConfig["seed"])
 	assert.Equal(t, false, generationConfig["responseLogprobs"])
 }
+
+func TestGeminiChatRequestPreservesContinuationToken(t *testing.T) {
+	raw := []byte(`{
+		"contents":[{"role":"user","parts":[{"text":"continue"}]}],
+		"continuationToken":"ct-123"
+	}`)
+
+	var req GeminiChatRequest
+	require.NoError(t, kitutil.Unmarshal(raw, &req))
+	require.NotNil(t, req.ContinuationToken)
+	assert.Equal(t, "ct-123", *req.ContinuationToken)
+
+	encoded, err := kitutil.Marshal(req)
+	require.NoError(t, err)
+
+	var out map[string]any
+	require.NoError(t, kitutil.Unmarshal(encoded, &out))
+	assert.Equal(t, "ct-123", out["continuationToken"])
+}
