@@ -150,32 +150,103 @@ func shouldSkipPassthroughHeader(name string) bool {
 	return false
 }
 
-func applyHeaderOverridePlaceholders(template string, c *gin.Context, apiKey string) (string, bool, error) {
-	trimmed := strings.TrimSpace(template)
-	if strings.HasPrefix(trimmed, clientHeaderPlaceholderPrefix) {
-		afterPrefix := trimmed[len(clientHeaderPlaceholderPrefix):]
-		end := strings.Index(afterPrefix, "}")
-		if end < 0 || end != len(afterPrefix)-1 {
-			return "", false, fmt.Errorf("client_header placeholder must be the full value: %q", template)
-		}
+// requestIDPlaceholder resolves to the request ID: unique per request, so it can
+// backfill an identity header the upstream requires (e.g. x-opencode-session)
+// when the client did not send one. Session semantics belong to the client; the
+// gateway only guarantees the header exists and is unique.
+const requestIDPlaceholder = "{request_id}"
 
-		name := strings.TrimSpace(afterPrefix[:end])
-		if name == "" {
-			return "", false, fmt.Errorf("client_header placeholder name is empty: %q", template)
+// parseClientHeaderPlaceholder parses {client_header:NAME} and
+// {client_header:NAME|FALLBACK}. NAME is the client request header name; FALLBACK
+// is used when the client did not send that header. FALLBACK may contain the
+// {api_key} / {request_id} placeholders but must not nest a client_header placeholder.
+func parseClientHeaderPlaceholder(template string) (name string, fallback string, err error) {
+	if !strings.HasSuffix(template, "}") {
+		return "", "", fmt.Errorf("client_header placeholder must be the full value: %q", template)
+	}
+
+	body := template[len(clientHeaderPlaceholderPrefix) : len(template)-1]
+	depth := 0
+	split := -1
+	for i, r := range body {
+		switch r {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth < 0 {
+				return "", "", fmt.Errorf("client_header placeholder has unbalanced braces: %q", template)
+			}
+		case '|':
+			if depth == 0 && split < 0 {
+				split = i
+			}
+		}
+	}
+	if depth != 0 {
+		return "", "", fmt.Errorf("client_header placeholder has unbalanced braces: %q", template)
+	}
+
+	name = strings.TrimSpace(body)
+	if split >= 0 {
+		name = strings.TrimSpace(body[:split])
+		fallback = strings.TrimSpace(body[split+1:])
+	}
+	if name == "" {
+		return "", "", fmt.Errorf("client_header placeholder name is empty: %q", template)
+	}
+	if strings.ContainsAny(name, "{}") {
+		return "", "", fmt.Errorf("client_header placeholder name is invalid: %q", template)
+	}
+	if split >= 0 && fallback == "" {
+		return "", "", fmt.Errorf("client_header placeholder fallback is empty: %q", template)
+	}
+	if strings.Contains(fallback, clientHeaderPlaceholderPrefix) {
+		return "", "", fmt.Errorf("client_header placeholder fallback must not nest client_header: %q", template)
+	}
+	return name, fallback, nil
+}
+
+// applyHeaderOverridePlaceholders expands the supported placeholders in one
+// header-override template. fromRequest marks values taken from the incoming
+// request: they are client content and are forwarded verbatim.
+func applyHeaderOverridePlaceholders(template string, c *gin.Context, info *common.RelayInfo, fromRequest bool) (string, bool, error) {
+	trimmed := strings.TrimSpace(template)
+	if fromRequest {
+		// Do not interpolate placeholders inside client-supplied content.
+		if trimmed == "" {
+			return "", false, nil
+		}
+		return template, true, nil
+	}
+	if strings.HasPrefix(trimmed, clientHeaderPlaceholderPrefix) {
+		name, fallback, err := parseClientHeaderPlaceholder(trimmed)
+		if err != nil {
+			return "", false, err
 		}
 		if c == nil || c.Request == nil {
 			return "", false, fmt.Errorf("missing request context for client_header placeholder")
 		}
 		clientHeaderValue := c.Request.Header.Get(name)
-		if strings.TrimSpace(clientHeaderValue) == "" {
+		if strings.TrimSpace(clientHeaderValue) != "" {
+			// Do not interpolate {api_key} inside client-supplied content.
+			return clientHeaderValue, true, nil
+		}
+		if fallback == "" {
+			// Client did not send the header and no fallback is configured: omit it.
 			return "", false, nil
 		}
-		// Do not interpolate {api_key} inside client-supplied content.
-		return clientHeaderValue, true, nil
+		template = fallback
 	}
 
 	if strings.Contains(template, "{api_key}") {
-		template = strings.ReplaceAll(template, "{api_key}", apiKey)
+		template = strings.ReplaceAll(template, "{api_key}", info.ApiKey)
+	}
+	if strings.Contains(template, requestIDPlaceholder) {
+		if info.RequestId == "" {
+			return "", false, nil
+		}
+		template = strings.ReplaceAll(template, requestIDPlaceholder, info.RequestId)
 	}
 	if strings.TrimSpace(template) == "" {
 		return "", false, nil
@@ -186,13 +257,21 @@ func applyHeaderOverridePlaceholders(template string, c *gin.Context, apiKey str
 // processHeaderOverride applies channel header overrides, with placeholder substitution.
 // Supported placeholders:
 //   - {api_key}: resolved to the channel API key
-//   - {client_header:<name>}: resolved to the incoming request header value
+//   - {request_id}: resolved to the request ID (unique per request; header omitted when unknown)
+//   - {client_header:<name>}: resolved to the incoming request header value;
+//     the header is omitted when the client did not send it
+//   - {client_header:<name>|<fallback>}: uses <fallback> when the client did not
+//     send <name>, so a default can be supplied (e.g. {client_header:x-opencode-session|{request_id}})
 //
 // Header passthrough rules (keys only; values are ignored):
 //   - "*": passthrough all incoming headers by name (excluding unsafe headers)
 //   - "re:<regex>" / "regex:<regex>": passthrough headers whose names match the regex (Go regexp)
 //
 // Passthrough rules are applied first, then normal overrides are applied, so explicit overrides win.
+//
+// Values derived from the incoming request (header passthrough, copy/move/pass_headers,
+// sync_fields into a header) are client content: they are forwarded verbatim and the
+// placeholders above are never expanded inside them.
 func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]string, error) {
 	headerOverride := make(map[string]string)
 	if info == nil {
@@ -200,6 +279,7 @@ func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 	}
 
 	headerOverrideSource := common.GetEffectiveHeaderOverride(info)
+	fromRequestValues := common.GetEffectiveHeaderOverrideFromRequest(info)
 
 	passAll := false
 	var passthroughRegex []*regexp.Regexp
@@ -276,11 +356,25 @@ func processHeaderOverride(info *common.RelayInfo, c *gin.Context) (map[string]s
 		if !ok {
 			return nil, types.NewError(nil, types.ErrorCodeChannelHeaderOverrideInvalid)
 		}
+		fromRequest := fromRequestValues[key]
 		if info.IsChannelTest && strings.HasPrefix(strings.TrimSpace(str), clientHeaderPlaceholderPrefix) {
-			continue
+			// A channel test is not real client traffic: skip client-header templates so
+			// test-harness headers are never forwarded upstream. A template with a fallback
+			// still has a config-defined value (e.g. {request_id}), so it is resolved via the
+			// fallback alone — otherwise the test could never exercise upstreams that require
+			// the header. The test request's own header is never read: the fallback is what
+			// real clients without the header will get, so it is what the test must verify.
+			_, fallback, parseErr := parseClientHeaderPlaceholder(strings.TrimSpace(str))
+			if parseErr != nil || fallback == "" {
+				continue
+			}
+			// The fallback is config text: interpolate it regardless of any request
+			// provenance the template's target header may carry.
+			str = fallback
+			fromRequest = false
 		}
 
-		value, include, err := applyHeaderOverridePlaceholders(str, c, info.ApiKey)
+		value, include, err := applyHeaderOverridePlaceholders(str, c, info, fromRequest)
 		if err != nil {
 			return nil, types.NewError(err, types.ErrorCodeChannelHeaderOverrideInvalid)
 		}
