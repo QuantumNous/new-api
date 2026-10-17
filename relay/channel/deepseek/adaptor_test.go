@@ -98,6 +98,7 @@ func TestServerSideSearchBillingKeys(t *testing.T) {
 		info := &relaycommon.RelayInfo{RelayFormat: tc.format, RelayMode: tc.mode, ChannelMeta: &relaycommon.ChannelMeta{}}
 		(&Adaptor{}).Init(info)
 		assert.Equal(t, SearchToolPriceKey, info.WebSearchBillingKey, tc.format)
+		assert.Equal(t, FetchToolPriceKey, info.WebFetchBillingKey, tc.format)
 		assert.Equal(t, tc.mode == constant.RelayModeResponses, info.VendorToolUsage != nil, tc.format)
 	}
 

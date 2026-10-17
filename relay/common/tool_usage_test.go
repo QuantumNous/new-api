@@ -149,6 +149,7 @@ func TestBillableToolCountSources(t *testing.T) {
 				info.RecordRequestInferredToolCall("search_strategy_turbo")
 				info.VendorToolUsage = func([]byte) map[string]int { return nil }
 				info.WebSearchBillingKey = "search_strategy_agent"
+				info.WebFetchBillingKey = "deepseek_fetch"
 				info.InitChannelMeta(c)
 			},
 			want: map[string]int{dto.BuildInToolWebSearch: 2},
@@ -167,6 +168,7 @@ func TestBillableToolCountSources(t *testing.T) {
 			assert.Equal(t, tt.want, counts)
 			assert.Equal(t, tt.wantVendorHook, info.VendorToolUsage != nil)
 			assert.Equal(t, tt.wantBillingKey, info.WebSearchBillingKey)
+			assert.Empty(t, info.WebFetchBillingKey)
 		})
 	}
 }

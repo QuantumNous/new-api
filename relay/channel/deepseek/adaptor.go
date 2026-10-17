@@ -62,9 +62,11 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
-	// DeepSeek runs Claude Code and Codex searches server-side and bills them
-	// through its Search API, whatever model name the client sent.
+	// DeepSeek runs Claude Code and Codex searches and page fetches
+	// server-side and bills them through its Search and Fetch APIs, whatever
+	// model name the client sent.
 	info.WebSearchBillingKey = SearchToolPriceKey
+	info.WebFetchBillingKey = FetchToolPriceKey
 	if info.RelayMode == constant.RelayModeResponses {
 		info.VendorToolUsage = responsesToolUsage
 	}

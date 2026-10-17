@@ -252,15 +252,17 @@ func countClaudeContentBlockTools(info *relaycommon.RelayInfo, block *dto.Claude
 }
 
 // recordClaudeServerToolUse bills the server tool requests Anthropic reports
-// in usage.server_tool_use. web_fetch, code_execution, and tool_search have no
-// built-in price and bill only once an operator prices them.
+// in usage.server_tool_use. Searches and fetches use the channel's own keys
+// when its adaptor sets them; otherwise web_fetch, code_execution, and
+// tool_search have no built-in price and bill only once an operator prices
+// them.
 func recordClaudeServerToolUse(info *relaycommon.RelayInfo, serverToolUse *dto.ClaudeServerToolUse) {
 	if info == nil || serverToolUse == nil {
 		return
 	}
 	for name, count := range map[string]int{
 		cmp.Or(info.WebSearchBillingKey, dto.BuildInToolWebSearch): serverToolUse.WebSearchRequests,
-		"web_fetch":      serverToolUse.WebFetchRequests,
+		cmp.Or(info.WebFetchBillingKey, "web_fetch"):               serverToolUse.WebFetchRequests,
 		"code_execution": serverToolUse.CodeExecutionRequests,
 		"tool_search":    serverToolUse.ToolSearchRequests,
 	} {

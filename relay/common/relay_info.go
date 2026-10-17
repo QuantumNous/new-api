@@ -205,6 +205,11 @@ type RelayInfo struct {
 	// CountBillableToolCall. Set by a channel adaptor whose upstream bills
 	// search under its own price list; empty keeps the protocol defaults.
 	WebSearchBillingKey string
+	// WebFetchBillingKey overrides the tool-price key of
+	// usage.server_tool_use.web_fetch_requests in the Claude handler, for an
+	// upstream that bills page fetches under its own price list; empty keeps
+	// the protocol default web_fetch.
+	WebFetchBillingKey string
 	// requestInferredToolKey is the tool-price key RecordRequestInferredToolCall
 	// billed for the current channel attempt.
 	requestInferredToolKey string
@@ -330,6 +335,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	// The adaptor Init of this attempt sets the vendor billing hooks again.
 	info.VendorToolUsage = nil
 	info.WebSearchBillingKey = ""
+	info.WebFetchBillingKey = ""
 	if info.requestInferredToolKey != "" && info.ResponsesUsageInfo != nil {
 		delete(info.ResponsesUsageInfo.BuiltInTools, info.requestInferredToolKey)
 	}

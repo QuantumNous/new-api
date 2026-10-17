@@ -84,6 +84,7 @@ func TestCountClaudeStreamBillableToolsServerToolKeys(t *testing.T) {
 	tests := []struct {
 		name       string
 		billingKey string
+		fetchKey   string
 		usage      dto.ClaudeServerToolUse
 		want       map[string]int
 	}{
@@ -94,6 +95,13 @@ func TestCountClaudeStreamBillableToolsServerToolKeys(t *testing.T) {
 			want:       map[string]int{"search_strategy_agent": 2},
 		},
 		{
+			name:       "vendor web search and web fetch keys",
+			billingKey: "deepseek_search",
+			fetchKey:   "deepseek_fetch",
+			usage:      dto.ClaudeServerToolUse{WebSearchRequests: 1, WebFetchRequests: 2},
+			want:       map[string]int{"deepseek_search": 1, "deepseek_fetch": 2},
+		},
+		{
 			name:  "every server tool",
 			usage: dto.ClaudeServerToolUse{WebSearchRequests: 1, WebFetchRequests: 2, CodeExecutionRequests: 3, ToolSearchRequests: 4},
 			want:  map[string]int{"web_search": 1, "web_fetch": 2, "code_execution": 3, "tool_search": 4},
@@ -101,7 +109,7 @@ func TestCountClaudeStreamBillableToolsServerToolKeys(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			info := &relaycommon.RelayInfo{OriginModelName: "claude-3-7-sonnet", WebSearchBillingKey: tt.billingKey}
+			info := &relaycommon.RelayInfo{OriginModelName: "claude-3-7-sonnet", WebSearchBillingKey: tt.billingKey, WebFetchBillingKey: tt.fetchKey}
 			countClaudeStreamBillableTools(info, &dto.ClaudeResponse{
 				Type:  "message_delta",
 				Usage: &dto.ClaudeUsage{ServerToolUse: &tt.usage},
