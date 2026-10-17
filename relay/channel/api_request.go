@@ -1,7 +1,6 @@
 package channel
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -22,7 +21,6 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 
-	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
@@ -440,81 +438,6 @@ func toWebSocketURL(raw string) string {
 	}
 }
 
-func startPingKeepAlive(c *gin.Context, pingInterval time.Duration) (context.CancelFunc, <-chan struct{}) {
-	pingerCtx, stopPinger := context.WithCancel(context.Background())
-	done := make(chan struct{})
-
-	gopool.Go(func() {
-		defer close(done)
-		defer func() {
-			// 增加panic恢复处理
-			if r := recover(); r != nil {
-				logger.LogDebug(c, "SSE ping goroutine panic recovered: %v", r)
-			}
-			logger.LogDebug(c, "SSE ping goroutine stopped")
-		}()
-
-		if pingInterval <= 0 {
-			pingInterval = helper.DefaultPingInterval
-		}
-
-		ticker := time.NewTicker(pingInterval)
-		// 确保在任何情况下都清理ticker
-		defer func() {
-			ticker.Stop()
-			logger.LogDebug(c, "SSE ping ticker stopped")
-		}()
-
-		var pingMutex sync.Mutex
-		logger.LogDebug(c, "SSE ping goroutine started")
-
-		// 增加超时控制，防止goroutine长时间运行
-		maxPingDuration := 120 * time.Minute // 最大ping持续时间
-		pingTimeout := time.NewTimer(maxPingDuration)
-		defer pingTimeout.Stop()
-
-		for {
-			select {
-			// 发送 ping 数据
-			case <-ticker.C:
-				if err := sendPingData(c, &pingMutex); err != nil {
-					logger.LogDebug(c, "SSE ping error, stopping goroutine: %s", err.Error())
-					return
-				}
-			// 收到退出信号
-			case <-pingerCtx.Done():
-				return
-			// request 结束
-			case <-c.Request.Context().Done():
-				return
-			// 超时保护，防止goroutine无限运行
-			case <-pingTimeout.C:
-				logger.LogDebug(c, "SSE ping goroutine timeout, stopping")
-				return
-			}
-		}
-	})
-
-	return stopPinger, done
-}
-
-func sendPingData(c *gin.Context, mutex *sync.Mutex) error {
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	// Bound the write so a slow client cannot block this goroutine forever;
-	// doRequest's defer waits for the pinger to exit before returning.
-	helper.ExtendWriteDeadline(c)
-	err := helper.PingData(c)
-	if err != nil {
-		logger.LogError(c, common2.LogText("SSE ping error: %s", err.Error()))
-		return err
-	}
-
-	logger.LogDebug(c, "SSE ping data sent")
-	return nil
-}
-
 func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	return doRequest(c, req, info)
 }
@@ -545,23 +468,14 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 			policy.String())
 	}
 
-	var stopPinger context.CancelFunc
-	var pingerDone <-chan struct{}
 	if info.IsStream {
 		helper.SetEventStreamHeaders(c)
 		// 处理流式请求的 ping 保活
 		generalSettings := operation_setting.GetGeneralSetting()
 		if generalSettings.PingIntervalEnabled && !info.DisablePing {
 			pingInterval := time.Duration(generalSettings.PingIntervalSeconds) * time.Second
-			stopPinger, pingerDone = startPingKeepAlive(c, pingInterval)
-			// 使用defer确保在任何情况下都能停止ping goroutine
-			defer func() {
-				if stopPinger != nil {
-					stopPinger()
-					<-pingerDone
-					logger.LogDebug(c, "SSE ping goroutine stopped by defer")
-				}
-			}()
+			stopPinger := helper.StartStreamKeepAlive(c, pingInterval)
+			defer stopPinger()
 		}
 	}
 
