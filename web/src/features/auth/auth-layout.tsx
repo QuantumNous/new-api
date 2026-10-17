@@ -21,6 +21,8 @@ import { useTranslation } from 'react-i18next'
 
 import { Skeleton } from '@/components/ui/skeleton'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { DEFAULT_LOGO } from '@/lib/constants'
+import { cn } from '@/lib/utils'
 
 type AuthLayoutProps = {
   children: React.ReactNode
@@ -36,21 +38,30 @@ export function AuthLayout({ children }: AuthLayoutProps) {
         to='/'
         className='absolute top-4 left-4 z-10 flex items-center gap-2 transition-opacity hover:opacity-80 sm:top-8 sm:left-8'
       >
-        <div className='relative h-8 w-8'>
+        <div
+          className={cn('relative h-8', logo === DEFAULT_LOGO ? 'w-40' : 'w-8')}
+        >
           {loading ? (
             <Skeleton className='absolute inset-0 rounded-full' />
           ) : (
             <img
               src={logo}
               alt={t('Logo')}
-              className='h-8 w-8 rounded-full object-cover'
+              className='h-full w-full object-contain'
             />
           )}
         </div>
         {loading ? (
           <Skeleton className='h-6 w-24' />
         ) : (
-          <h1 className='text-xl font-medium'>{systemName}</h1>
+          <h1
+            className={cn(
+              'text-xl font-medium',
+              logo === DEFAULT_LOGO && 'sr-only'
+            )}
+          >
+            {systemName}
+          </h1>
         )}
       </Link>
       <div className='container flex items-center pt-16 sm:pt-0'>

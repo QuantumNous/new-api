@@ -31,6 +31,7 @@ export const createModelPricingSchema = (t: (key: string) => string) =>
     createCacheRatio: z.string().optional(),
     completionRatio: z.string().optional(),
     imageRatio: z.string().optional(),
+    imagePrice: z.string().optional(),
     audioRatio: z.string().optional(),
     audioCompletionRatio: z.string().optional(),
   })
@@ -39,7 +40,11 @@ export type ModelPricingFormValues = z.infer<
   ReturnType<typeof createModelPricingSchema>
 >
 
-export type PricingMode = 'per-token' | 'per-request' | 'tiered_expr'
+export type PricingMode =
+  | 'per-token'
+  | 'per-request'
+  | 'per-image'
+  | 'tiered_expr'
 
 export type LaneKey =
   | 'completion'
@@ -57,6 +62,7 @@ export type ModelRatioData = {
   createCacheRatio?: string
   completionRatio?: string
   imageRatio?: string
+  imagePrice?: string
   audioRatio?: string
   audioCompletionRatio?: string
   billingMode?: PricingMode
@@ -238,6 +244,37 @@ export function buildPreviewRows(
         value: values.price || t('Empty'),
       },
     ]
+  }
+
+  if (mode === 'per-image') {
+    try {
+      const config = JSON.parse(values.imagePrice || '{}') as {
+        base_price?: number
+        pixel_tiers?: Array<{ max_pixels: number | null; multiplier: number }>
+      }
+      const rows: PreviewRow[] = [
+        {
+          key: 'imagePrice',
+          label: t('Base price (USD/image)'),
+          value:
+            config.base_price === undefined
+              ? t('Empty')
+              : `$${config.base_price}`,
+        },
+      ]
+      for (const [index, tier] of (config.pixel_tiers || []).entries()) {
+        rows.push({
+          key: `pixel-${index}`,
+          label: `${t('Pixel upper bound')}: ${tier.max_pixels ?? '∞'}`,
+          value: `× ${tier.multiplier} → $${Number(config.base_price) * tier.multiplier}`,
+        })
+      }
+      return rows
+    } catch {
+      return [
+        { key: 'imagePrice', label: t('Image price rules'), value: t('Empty') },
+      ]
+    }
   }
 
   return [

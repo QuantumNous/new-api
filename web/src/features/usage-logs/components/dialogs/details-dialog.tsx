@@ -233,7 +233,28 @@ function BillingBreakdown(props: {
   const fmtPrice = (usd: number) => formatBillingCurrencyFromUSD(usd, priceOpts)
   const baseInputUSD = other.model_ratio != null ? other.model_ratio * 2.0 : 0
 
-  if (isTieredExpr) {
+  if (other.image_billing) {
+    const image = other.image_billing
+    rows.push(
+      { label: t('Billing Mode'), value: t('Per-image') },
+      { label: t('Request size'), value: image.size || '—' },
+      { label: t('Pixels'), value: String(image.pixels) },
+      { label: t('Generated images'), value: String(image.count) },
+      { label: t('Image count source'), value: image.count_source },
+      { label: t('Image price'), value: fmtPrice(image.base_price) },
+      { label: t('Price multiplier'), value: String(image.multiplier) },
+      {
+        label: t('Matched Tier'),
+        value: image.tier
+          ? `${image.min_pixels} < pixels ≤ ${image.max_pixels ?? '∞'}`
+          : t('None'),
+      },
+      {
+        label: t('Image billing calculation'),
+        value: `${image.count} × ${fmtPrice(image.base_price)} × ${image.multiplier} × ${image.group_ratio} = ${fmtPrice(image.quota / image.quota_per_unit)}`,
+      }
+    )
+  } else if (isTieredExpr) {
     rows.push({
       label: t('Billing Mode'),
       value: t('Dynamic Pricing'),

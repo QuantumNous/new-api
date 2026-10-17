@@ -595,6 +595,10 @@ export function LogSettingsSection({
                     'This will permanently remove log entries before the selected timestamp.'
                   )}{' '}
               {t('This action cannot be undone.')}
+              {' '}
+              {t(
+                'Deleting consumption logs prevents historical bills from being regenerated.'
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

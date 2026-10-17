@@ -23,10 +23,42 @@ import (
 )
 
 func updateOpenAIImageCount(info *relaycommon.RelayInfo, count int64) {
+	if info != nil && info.PriceData.ImageBilling != nil && count >= 0 && count <= int64(dto.MaxImageN) {
+		info.PriceData.ImageBilling.Count = int(count)
+		info.PriceData.ImageBilling.CountSource = "completed_images"
+	}
 	if info == nil || !info.PriceData.UsePrice || count <= 0 || count > int64(dto.MaxImageN) {
 		return
 	}
 	info.PriceData.AddOtherRatio("n", float64(count))
+}
+
+func updateOpenAIImageCountFromResponse(c *gin.Context, info *relaycommon.RelayInfo, responseBody []byte, usage *dto.Usage) {
+	dataCount := gjson.GetBytes(responseBody, "data.#").Int()
+	updateReportedImageCount(c, info, dataCount, usage)
+}
+
+func updateReportedImageCount(c *gin.Context, info *relaycommon.RelayInfo, dataCount int64, usage *dto.Usage) {
+	if usage == nil || usage.GeneratedImages == nil {
+		updateOpenAIImageCount(info, dataCount)
+		if info != nil && info.PriceData.ImageBilling != nil && dataCount >= 0 && dataCount <= int64(dto.MaxImageN) {
+			info.PriceData.ImageBilling.CountSource = "data"
+		}
+		return
+	}
+
+	generatedImages := int64(*usage.GeneratedImages)
+	if generatedImages < 0 || generatedImages > int64(dto.MaxImageN) {
+		logger.LogWarn(c, fmt.Sprintf("invalid usage.generated_images=%d (allowed 0..%d); retaining bounded requested count", generatedImages, dto.MaxImageN))
+		return
+	}
+	if dataCount != generatedImages {
+		logger.LogWarn(c, fmt.Sprintf("OpenAI image response count differs from usage.generated_images: data_count=%d generated_images=%d; using usage.generated_images for billing", dataCount, generatedImages))
+	}
+	updateOpenAIImageCount(info, generatedImages)
+	if info != nil && info.PriceData.ImageBilling != nil && generatedImages >= 0 && generatedImages <= int64(dto.MaxImageN) {
+		info.PriceData.ImageBilling.CountSource = "usage.generated_images"
+	}
 }
 
 // OpenaiImageHandler handles non-streaming OpenAI image responses
@@ -49,7 +81,7 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		return nil, types.WithOpenAIError(*oaiError, resp.StatusCode)
 	}
 
-	updateOpenAIImageCount(info, gjson.GetBytes(responseBody, "data.#").Int())
+	updateOpenAIImageCountFromResponse(c, info, responseBody, &usageResp.Usage)
 
 	// 写入新的 response body
 	service.IOCopyBytesGracefully(c, resp, responseBody)
@@ -127,7 +159,7 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		}
 		if err := common.Unmarshal(raw, &chunk); err == nil {
 			normalizeOpenAIUsage(&chunk.Usage)
-			if service.ValidUsage(&chunk.Usage) {
+			if service.ValidUsage(&chunk.Usage) || chunk.Usage.GeneratedImages != nil {
 				usage = &chunk.Usage
 			}
 			if chunk.Type == "image_generation.completed" || chunk.Type == "image_edit.completed" {
@@ -162,6 +194,9 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		}
 		if upstreamFinished || float64(completedImages) > requestedN {
 			updateOpenAIImageCount(info, completedImages)
+			if usage.GeneratedImages != nil {
+				updateReportedImageCount(c, info, completedImages, usage)
+			}
 		}
 	}
 	return usage, nil
@@ -253,7 +288,7 @@ func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
 
 	imageCount := gjson.GetBytes(responseBody, "data.#").Int()
-	updateOpenAIImageCount(info, imageCount)
+	updateOpenAIImageCountFromResponse(c, info, responseBody, &usageResp.Usage)
 
 	helper.SetEventStreamHeaders(c)
 	c.Status(http.StatusOK)

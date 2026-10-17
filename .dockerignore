@@ -10,3 +10,13 @@ docs
 /web/node_modules
 /web/dist
 !THIRD-PARTY-LICENSES.md
+
+# Local runtime data and credentials must not enter the image build context.
+**/*.db
+**/*.db-shm
+**/*.db-wal
+**/*.prof
+.env
+.env.*
+!.env.example
+**/__pycache__

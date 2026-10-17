@@ -20,8 +20,18 @@ For commercial licensing, please contact support@quantumnous.com
  * Type definitions for usage logs
  */
 import type { RequestRuleTrace } from '@/features/pricing/lib/billing-expr'
-
 import type { UsageLog } from './data/schema'
+
+export type BillingExportCurrency = 'USD' | 'CNY'
+
+export interface BillingExportRequest {
+  userId: number
+  startDate: string
+  endDate: string
+  currency: BillingExportCurrency
+  exchangeRate: string
+}
+
 // ============================================================================
 // Log Category Types
 // ============================================================================
@@ -177,6 +187,24 @@ export interface LogOtherData {
   model_ratio?: number
   completion_ratio?: number
   model_price?: number
+  image_billing?: {
+    version: number
+    base_price: number
+    multiplier: number
+    unit_price: number
+    size: string
+    width: number
+    height: number
+    pixels: number
+    min_pixels: number
+    max_pixels: number | null
+    tier: number
+    count: number
+    count_source: string
+    group_ratio: number
+    quota: number
+    quota_per_unit: number
+  }
   group_ratio?: number
   user_group_ratio?: number
   cache_ratio?: number

@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/sidebar'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
+import { DEFAULT_LOGO, DEFAULT_LOGO_ICON } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 
 type SystemBrandProps = {
@@ -65,14 +66,28 @@ export function SystemBrand(props: SystemBrandProps) {
           'hover:bg-accent focus-visible:ring-ring/40 focus-visible:ring-2'
         )}
       >
-        <div className='flex size-5 items-center justify-center overflow-hidden rounded-md'>
+        <div
+          className={cn(
+            'flex items-center justify-center',
+            logo === DEFAULT_LOGO
+              ? 'h-6 w-30'
+              : 'size-5 overflow-hidden rounded-md'
+          )}
+        >
           <img
             src={logo}
             alt={t('Logo')}
-            className='size-full rounded-md object-cover'
+            className='size-full object-contain'
           />
         </div>
-        <span className='max-w-[12rem] truncate'>{name}</span>
+        <span
+          className={cn(
+            'max-w-[12rem] truncate',
+            logo === DEFAULT_LOGO && 'sr-only'
+          )}
+        >
+          {name}
+        </span>
       </Link>
     )
   }
@@ -85,15 +100,30 @@ export function SystemBrand(props: SystemBrandProps) {
           className='hover:text-sidebar-foreground active:text-sidebar-foreground cursor-default hover:bg-transparent active:bg-transparent'
           render={<div />}
         >
-          <div className='flex aspect-square size-8 items-center justify-center overflow-hidden rounded-lg'>
+          <div
+            className={cn(
+              'aspect-square size-8 items-center justify-center overflow-hidden rounded-lg',
+              logo === DEFAULT_LOGO
+                ? 'hidden group-data-[collapsible=icon]:flex'
+                : 'flex'
+            )}
+          >
             <img
-              src={logo}
+              src={logo === DEFAULT_LOGO ? DEFAULT_LOGO_ICON : logo}
               alt={t('Logo')}
               className='size-full rounded-lg object-cover'
             />
           </div>
           <div className='grid flex-1 text-start text-sm leading-tight group-data-[collapsible=icon]:hidden'>
-            <span className='truncate font-semibold'>{name}</span>
+            {logo === DEFAULT_LOGO ? (
+              <img
+                src={logo}
+                alt='TokenInfra'
+                className='h-7 w-35 object-contain'
+              />
+            ) : (
+              <span className='truncate font-semibold'>{name}</span>
+            )}
             <span className='truncate text-xs'>{version}</span>
           </div>
         </SidebarMenuButton>

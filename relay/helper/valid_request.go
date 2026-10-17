@@ -13,6 +13,7 @@ import (
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/samber/lo"
 
 	"github.com/gin-gonic/gin"
@@ -251,11 +252,18 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 		}
 
 		// Not "256x256", "512x512", or "1024x1024"
+		pixelBilling := false
+		if cfg, ok := ratio_setting.GetImagePricingConfig(imageRequest.Model); ok {
+			pixelBilling = len(cfg.PixelTiers) > 0
+			if _, err := ResolveImagePricing(imageRequest, cfg); err != nil {
+				return nil, err
+			}
+		}
 		if imageRequest.Model == "dall-e-2" || imageRequest.Model == "dall-e" {
 			if imageRequest.Size != "" && imageRequest.Size != "256x256" && imageRequest.Size != "512x512" && imageRequest.Size != "1024x1024" {
 				return nil, errors.New("size must be one of 256x256, 512x512, or 1024x1024 for dall-e-2 or dall-e")
 			}
-			if imageRequest.Size == "" {
+			if imageRequest.Size == "" && !pixelBilling {
 				imageRequest.Size = "1024x1024"
 			}
 		} else if imageRequest.Model == "dall-e-3" {
@@ -265,7 +273,7 @@ func GetAndValidOpenAIImageRequest(c *gin.Context, relayMode int) (*dto.ImageReq
 			if imageRequest.Quality == "" {
 				imageRequest.Quality = "standard"
 			}
-			if imageRequest.Size == "" {
+			if imageRequest.Size == "" && !pixelBilling {
 				imageRequest.Size = "1024x1024"
 			}
 		} else if imageRequest.Model == "gpt-image-1" {

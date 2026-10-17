@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/config"
@@ -15,6 +16,27 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestModelPriceHelperUsesImagePriceRuleWithoutLegacySizeMultiplier(t *testing.T) {
+	require.NoError(t, ratio_setting.UpdateImagePriceByJSONString(`{"custom-image":[{"size":"1024x1024","price":2}]}`))
+	t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateImagePriceByJSONString(`{}`)) })
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Set("group", "default")
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "custom-image",
+		UserGroup:       "default",
+		UsingGroup:      "default",
+		Request:         &dto.ImageRequest{Model: "custom-image", Size: "1024x1024"},
+	}
+	priceData, err := ModelPriceHelper(ctx, info, 0, &types.TokenCountMeta{
+		ImagePriceRatio: 3,
+		BillingRatios:   map[string]float64{"n": 2},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2.0, priceData.ModelPrice)
+	require.Equal(t, 2_000_000, priceData.QuotaToPreConsume)
+}
 
 func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	gin.SetMode(gin.TestMode)

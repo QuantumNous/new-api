@@ -9,6 +9,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -72,11 +73,29 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) hostty
 
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (hosttypes.PriceData, error) {
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
+	customImagePrice := false
+	var imageBilling *hosttypes.ImageBillingDetail
+	if imageRequest, ok := info.Request.(*dto.ImageRequest); ok {
+		if cfg, configured := ratio_setting.GetImagePricingConfig(info.OriginModelName); configured {
+			var err error
+			imageBilling, err = ResolveImagePricing(imageRequest, cfg)
+			if err != nil {
+				return hosttypes.PriceData{}, err
+			}
+			modelPrice, usePrice, customImagePrice = imageBilling.UnitPrice, true, true
+		}
+		resolution, aspectRatio := imageRequestEnumFields(imageRequest)
+		if imagePrice, matched := ratio_setting.GetImagePrice(info.OriginModelName, imageRequest.Size, resolution, aspectRatio); matched {
+			modelPrice = imagePrice
+			usePrice = true
+			customImagePrice = true
+		}
+	}
 
 	groupRatioInfo := HandleGroupRatio(c, info)
 
 	// Check if this model uses tiered_expr billing
-	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
+	if imageBilling == nil && billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
 		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo)
 	}
 
@@ -124,7 +143,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		}
 		preConsumedQuota = quota
 	} else {
-		if meta.ImagePriceRatio != 0 {
+		if meta.ImagePriceRatio != 0 && !customImagePrice {
 			modelPrice = modelPrice * meta.ImagePriceRatio
 		}
 	}
@@ -149,6 +168,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	}
 
 	priceData := hosttypes.PriceData{
+		ImageBilling:         imageBilling,
 		FreeModel:            freeModel,
 		ModelPrice:           modelPrice,
 		ModelRatio:           modelRatio,
@@ -167,6 +187,10 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	if usePrice {
 		for name, ratio := range meta.BillingRatios {
 			priceData.AddOtherRatio(name, ratio)
+		}
+		if imageBilling != nil {
+			imageBilling.GroupRatio = groupRatioInfo.GroupRatio
+			priceData.ReplaceOtherRatios(map[string]float64{"n": float64(imageBilling.Count)})
 		}
 		quotaToPreConsume := priceData.ApplyOtherRatiosToFloat(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 		quota, err := common.QuotaFromFloatStrict(quotaToPreConsume)
@@ -253,6 +277,9 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hostt
 }
 
 func HasModelBillingConfig(modelName string) bool {
+	if ratio_setting.HasImagePriceConfig(modelName) {
+		return true
+	}
 	if _, ok := ratio_setting.GetModelPrice(modelName, false); ok {
 		return true
 	}
@@ -264,6 +291,24 @@ func HasModelBillingConfig(modelName string) bool {
 	}
 	expr, ok := billing_setting.GetBillingExpr(modelName)
 	return ok && strings.TrimSpace(expr) != ""
+}
+
+func imageRequestEnumFields(request *dto.ImageRequest) (string, string) {
+	if request == nil {
+		return "", ""
+	}
+	readString := func(name string) string {
+		raw, ok := request.Extra[name]
+		if !ok {
+			return ""
+		}
+		var value string
+		if err := common.Unmarshal(raw, &value); err != nil {
+			return ""
+		}
+		return value
+	}
+	return readString("resolution"), readString("aspect_ratio")
 }
 
 func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta, groupRatioInfo hosttypes.GroupRatioInfo) (hosttypes.PriceData, error) {

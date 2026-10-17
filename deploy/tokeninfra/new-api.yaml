@@ -113,7 +113,10 @@ metadata:
   namespace: new-api
   annotations:
     service.beta.kubernetes.io/volcengine-loadbalancer-id: "clb-gidgc4stkmbk512lqwazm4oe"
-    service.beta.kubernetes.io/volcengine-loadbalancer-protocol-port: "HTTP:80"
+    service.beta.kubernetes.io/volcengine-loadbalancer-protocol-port: "HTTPS:443,HTTP:80"
+    service.beta.kubernetes.io/volcengine-loadbalancer-cert-source: "cert_center"
+    service.beta.kubernetes.io/volcengine-loadbalancer-cert-id: "cert-4e70faf1385e4c8ca9ab1469f2d024e8"
+    service.beta.kubernetes.io/volcengine-loadbalancer-ca-enabled: "off"
     service.beta.kubernetes.io/volcengine-loadbalancer-keepalive-timeout: "900"
     service.beta.kubernetes.io/volcengine-loadbalancer-client-header-timeout: "120"
     service.beta.kubernetes.io/volcengine-loadbalancer-client-body-timeout: "120"
@@ -123,10 +126,15 @@ metadata:
     service.beta.kubernetes.io/volcengine-loadbalancer-proxy-connect-timeout: "120"
 spec:
   type: LoadBalancer
+  externalTrafficPolicy: Local
   selector:
     app: new-api
   ports:
     - name: http
       port: 80
+      targetPort: http
+      protocol: TCP
+    - name: https
+      port: 443
       targetPort: http
       protocol: TCP

@@ -63,6 +63,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 
+import { validateImagePricing } from './image-pricing'
+import { ImagePricingEditor } from './image-pricing-editor'
 import {
   EMPTY_LANE_ENABLED,
   EMPTY_LANE_PRICES,
@@ -168,6 +170,7 @@ export const ModelPricingEditorPanel = forwardRef<
       createCacheRatio: '',
       completionRatio: '',
       imageRatio: '',
+      imagePrice: '',
       audioRatio: '',
       audioCompletionRatio: '',
     },
@@ -185,16 +188,15 @@ export const ModelPricingEditorPanel = forwardRef<
         createCacheRatio: editData.createCacheRatio || '',
         completionRatio: editData.completionRatio || '',
         imageRatio: editData.imageRatio || '',
+        imagePrice: editData.imagePrice || '',
         audioRatio: editData.audioRatio || '',
         audioCompletionRatio: editData.audioCompletionRatio || '',
       })
-      setPricingMode(
-        editData.billingMode === 'tiered_expr'
-          ? 'tiered_expr'
-          : editData.price
-            ? 'per-request'
-            : 'per-token'
-      )
+      let nextMode: PricingMode = 'per-token'
+      if (editData.billingMode === 'tiered_expr') nextMode = 'tiered_expr'
+      else if (editData.imagePrice) nextMode = 'per-image'
+      else if (editData.price) nextMode = 'per-request'
+      setPricingMode(nextMode)
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
     } else {
@@ -206,6 +208,7 @@ export const ModelPricingEditorPanel = forwardRef<
         createCacheRatio: '',
         completionRatio: '',
         imageRatio: '',
+        imagePrice: '',
         audioRatio: '',
         audioCompletionRatio: '',
       })
@@ -412,6 +415,17 @@ export const ModelPricingEditorPanel = forwardRef<
 
   const validatePricingValues = useCallback(() => {
     if (
+      pricingMode === 'per-image' &&
+      !validateImagePricing(form.getValues('imagePrice') || '')
+    ) {
+      form.setError('imagePrice', {
+        message: t(
+          'Enter a valid base price and increasing pixel limits with positive multipliers.'
+        ),
+      })
+      return false
+    }
+    if (
       pricingMode === 'per-token' &&
       toNumberOrNull(promptPrice) === null &&
       laneConfigs.some(
@@ -443,12 +457,16 @@ export const ModelPricingEditorPanel = forwardRef<
       const data: ModelRatioData = {
         name: values.name.trim(),
         billingMode: pricingMode,
-        price: values.price || '',
+        price:
+          pricingMode === 'per-request' || pricingMode === 'tiered_expr'
+            ? values.price || ''
+            : '',
         ratio: values.ratio || '',
         cacheRatio: values.cacheRatio || '',
         createCacheRatio: values.createCacheRatio || '',
         completionRatio: values.completionRatio || '',
         imageRatio: values.imageRatio || '',
+        imagePrice: pricingMode === 'per-image' ? values.imagePrice || '' : '',
         audioRatio: values.audioRatio || '',
         audioCompletionRatio: values.audioCompletionRatio || '',
       }
@@ -544,12 +562,15 @@ export const ModelPricingEditorPanel = forwardRef<
                   onValueChange={handleModeChange}
                   className='gap-4'
                 >
-                  <TabsList className='grid w-full grid-cols-3'>
+                  <TabsList className='grid w-full grid-cols-4'>
                     <TabsTrigger value='per-token'>
                       {t('Per-token')}
                     </TabsTrigger>
                     <TabsTrigger value='per-request'>
                       {t('Per-request')}
+                    </TabsTrigger>
+                    <TabsTrigger value='per-image'>
+                      {t('Per-image')}
                     </TabsTrigger>
                     <TabsTrigger value='tiered_expr'>
                       {t('Expression')}
@@ -595,6 +616,25 @@ export const ModelPricingEditorPanel = forwardRef<
                           )
                         })}
                       </div>
+                    </FieldGroup>
+                  </TabsContent>
+
+                  <TabsContent value='per-image' className='pt-0'>
+                    <FieldGroup className='gap-5'>
+                      <FormField
+                        control={form.control}
+                        name='imagePrice'
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>{t('Image price rules')}</FormLabel>
+                            <ImagePricingEditor
+                              value={field.value || ''}
+                              onChange={field.onChange}
+                            />
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </FieldGroup>
                   </TabsContent>
 

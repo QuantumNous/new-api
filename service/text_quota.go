@@ -280,6 +280,13 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		summary.PromptTokens -= summary.CacheCreationTokens
 	}
 
+	if image := relayInfo.PriceData.ImageBilling; image != nil {
+		charge := decimal.NewFromFloat(image.BasePrice).Mul(decimal.NewFromFloat(image.Multiplier)).Mul(decimal.NewFromInt(int64(image.Count))).Mul(decimal.NewFromFloat(image.GroupRatio)).Mul(decimal.NewFromFloat(image.QuotaPerUnit))
+		quota, clamp := common.QuotaFromDecimalChecked(charge)
+		summary.Quota = quota
+		noteQuotaClamp(relayInfo, clamp)
+		return summary
+	}
 	dPromptTokens := decimal.NewFromInt(int64(summary.PromptTokens))
 	dCacheTokens := decimal.NewFromInt(int64(summary.CacheTokens))
 	dImageTokens := decimal.NewFromInt(int64(summary.ImageTokens))
@@ -522,6 +529,11 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 
 	attachQuotaSaturation(ctx, relayInfo, other)
+	if image := relayInfo.PriceData.ImageBilling; image != nil {
+		image.Quota = summary.Quota
+		other["image_billing"] = image
+		other["billing_mode"] = "per-image"
+	}
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
 		ChannelId:        relayInfo.ChannelId,
