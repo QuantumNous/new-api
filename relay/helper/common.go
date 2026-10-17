@@ -58,6 +58,13 @@ func SetEventStreamHeaders(c *gin.Context) {
 	c.Writer.Header().Set("X-Accel-Buffering", "no")
 }
 
+// CommitEventStreamHeaders prepares and flushes the SSE response headers.
+// Call this only after the upstream response has been accepted as a stream.
+func CommitEventStreamHeaders(c *gin.Context) error {
+	SetEventStreamHeaders(c)
+	return FlushWriter(c)
+}
+
 func ClaudeData(c *gin.Context, resp dto.ClaudeResponse) error {
 	if requestContextDone(c) {
 		return nil

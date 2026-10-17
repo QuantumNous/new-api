@@ -148,7 +148,11 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 
 	scanner.Split(bufio.ScanLines)
 	copyCodexSSEHeaders(c, resp)
-	SetEventStreamHeaders(c)
+	if err := CommitEventStreamHeaders(c); err != nil {
+		info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonWriterError, err)
+		logger.LogError(c, "failed to commit SSE headers: "+err.Error())
+		return
+	}
 
 	ctx = context.WithValue(ctx, "stop_chan", stopChan)
 
