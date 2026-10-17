@@ -3,6 +3,11 @@ name: CI
 on:
   pull_request:
     types: [opened, synchronize, closed]
+  push:
+    branches:
+      - dev
+      - main
+      - release
 
 permissions:
   contents: read
