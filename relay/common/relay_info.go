@@ -163,6 +163,10 @@ type RelayInfo struct {
 	RuntimeHeadersOverride                map[string]any
 	UseRuntimeHeadersOverride             bool
 	ParamOverrideAudit                    []string
+	// RuntimeHeadersOverrideFromRequest marks runtime header-override values that
+	// were derived from the incoming request. They are client content and must be
+	// forwarded verbatim, without placeholder interpolation.
+	RuntimeHeadersOverrideFromRequest map[string]bool
 
 	PriceData hosttypes.PriceData
 
