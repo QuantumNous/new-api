@@ -197,13 +197,15 @@ func TaskErrorWrapperLocal(err error, code string, statusCode int) *taskdto.Task
 	return openaiErr
 }
 
-func TaskErrorWrapper(err error, code string, statusCode int) *taskdto.TaskError {
+// TaskErrorWrapper masks the upstream addresses of the task channel in network
+// errors; see common.MaskSensitiveInfo.
+func TaskErrorWrapper(err error, code string, statusCode int, upstreamURLs ...string) *taskdto.TaskError {
 	text := err.Error()
 	lowerText := strings.ToLower(text)
 	if strings.Contains(lowerText, "post") || strings.Contains(lowerText, "dial") || strings.Contains(lowerText, "http") {
 		common.SysLog(common.LogText("error: %s", text))
 		//text = "请求上游地址失败"
-		text = common.MaskSensitiveInfo(text)
+		text = common.MaskSensitiveInfo(text, upstreamURLs...)
 	}
 	//避免暴露内部错误
 	taskError := &taskdto.TaskError{
