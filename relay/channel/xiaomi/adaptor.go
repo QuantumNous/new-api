@@ -454,9 +454,12 @@ func doTranscriptionResponse(c *gin.Context, resp *http.Response, info *relaycom
 	}
 
 	// The audio-token detail MiMo reports is what makes the gateway settle this
-	// request against the audio prices rather than the text ones.
+	// request against the audio prices rather than the text ones. A reply that
+	// carries prompt tokens without that detail still reports what the upstream
+	// recognised, so it is kept; only a reply that reports no prompt tokens at
+	// all needs the local estimate to stand in for them.
 	usage := completion.Usage
-	if usage.PromptTokensDetails.AudioTokens == 0 {
+	if usage.PromptTokensDetails.AudioTokens == 0 && usage.PromptTokens == 0 {
 		usage.PromptTokens = info.GetEstimatePromptTokens()
 		usage.TotalTokens = usage.PromptTokens + usage.CompletionTokens
 	}

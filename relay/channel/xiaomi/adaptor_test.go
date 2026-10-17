@@ -435,8 +435,10 @@ func TestTranscriptionResponseRendersRequestedFormat(t *testing.T) {
 }
 
 // Upstream normally reports the recognised audio, and those counts are what the
-// request settles on. When the audio-token detail is missing the reply would
-// carry no prompt tokens at all, so the local estimate stands in for them.
+// request settles on. A reply that reports prompt tokens without the audio
+// detail still reports what the upstream recognised, so those counts stay as
+// they are; only a reply that reports no prompt tokens at all leaves the local
+// estimate to stand in for them.
 func TestTranscriptionUsagePrefersUpstreamCountsAndFallsBackToTheEstimate(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
@@ -451,8 +453,14 @@ func TestTranscriptionUsagePrefersUpstreamCountsAndFallsBackToTheEstimate(t *tes
 			wantTotal:  28,
 		},
 		{
-			name:       "a reply without audio tokens falls back to the estimate",
+			name:       "prompt tokens reported without the audio detail are kept",
 			completion: `{"choices":[{"message":{"content":"你好"}}],"usage":{"prompt_tokens":7,"completion_tokens":3,"total_tokens":10}}`,
+			wantPrompt: 7,
+			wantTotal:  10,
+		},
+		{
+			name:       "a reply without prompt tokens falls back to the estimate",
+			completion: `{"choices":[{"message":{"content":"你好"}}],"usage":{"completion_tokens":3,"total_tokens":3}}`,
 			wantPrompt: 42,
 			wantTotal:  45,
 		},
