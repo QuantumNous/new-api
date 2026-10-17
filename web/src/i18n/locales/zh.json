@@ -5484,7 +5484,6 @@
     "s": "秒",
     "Safety Settings": "安全设置",
     "Same as Local": "与本地相同",
-    "Same-channel retry budget": "当前渠道重试预算",
     "Sample interval: {{seconds}} seconds": "采样间隔：{{seconds}} 秒",
     "Sampling temperature; lower is more deterministic": "采样温度；越低越稳定",
     "Sandbox": "沙盘",
