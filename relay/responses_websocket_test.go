@@ -256,6 +256,21 @@ func TestResponsesWSChannelRoutingRequiresExplicitOptIn(t *testing.T) {
 	require.NotNil(t, httpChannel)
 	assert.Equal(t, legacy.Id, httpChannel.Id)
 
+	// The failed WebSocket dial consumes a normal retry, but may reuse the
+	// selected channel while its budget remains.
+	// This test covers the post-failure selector state; runCall's real dial/retry
+	// path is covered by TestResponsesWSRunCallRetriesAgainstBudgetedChannel.
+	enabled.SetOtherSettings(dto.ChannelOtherSettings{RetryBudget: 1})
+	require.NoError(t, database.Model(enabled).Update("settings", enabled.OtherSettings).Error)
+	model.InitChannelCache()
+	common.SetContextKey(c, constant.ContextKeyChannelOtherSetting, enabled.GetOtherSettings())
+	params.IncreaseRetry()
+	channel, apiErr = selectResponsesWSChannel(c, "ws-model", params)
+	require.Nil(t, apiErr)
+	require.NotNil(t, channel)
+	assert.Equal(t, enabled.Id, channel.Id)
+	assert.Equal(t, 1, params.GetRetry())
+
 	// Disabling the saved setting takes effect for the next create on an existing session.
 	enabled.SetSetting(dto.ChannelSettings{ResponsesWebSocketEnabled: false})
 	require.NoError(t, database.Model(enabled).Update("setting", enabled.Setting).Error)

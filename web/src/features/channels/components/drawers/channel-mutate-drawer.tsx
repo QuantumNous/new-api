@@ -2245,6 +2245,26 @@ export function ChannelMutateDrawer({
             </FormItem>
           )}
         />
+        <FormField
+          control={form.control}
+          name='retry_budget'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('Retry budget')}</FormLabel>
+              <FormControl>
+                <Input
+                  type='number'
+                  {...field}
+                  onChange={(event) => field.onChange(Number(event.target.value))}
+                />
+              </FormControl>
+              <FormDescription>
+                {t('Retry this channel before moving to the next priority. Uses the global retry budget; 0 keeps the current routing behavior.')}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
       </div>
 
       <FormField

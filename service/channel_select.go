@@ -42,11 +42,19 @@ func AppendTaskPluginIdentityFilter(c *gin.Context, pluginKey string) {
 }
 
 type RetryParam struct {
-	Ctx          *gin.Context
-	TokenGroup   string
-	ModelName    string
-	RequestPath  string
-	Retry        *int
+	Ctx         *gin.Context
+	TokenGroup  string
+	ModelName   string
+	RequestPath string
+	// Retry counts attempts in the current group; auto selection resets it when preparing the next group.
+	Retry *int
+	// routeRetry selects the priority tier; same-channel reuse does not advance it.
+	routeRetry int
+	// sameChannelRetries counts budgeted reuses of the last selected channel.
+	sameChannelRetries int
+	// affinityChecked prevents budgeted auto-group switches from repeating first-attempt affinity selection.
+	affinityChecked bool
+	// resetNextTry keeps the loop increment from consuming the first try of a prepared auto group.
 	resetNextTry bool
 }
 
@@ -59,6 +67,8 @@ func (p *RetryParam) GetRetry() int {
 
 func (p *RetryParam) SetRetry(retry int) {
 	p.Retry = &retry
+	p.routeRetry = retry
+	p.sameChannelRetries = 0
 }
 
 func (p *RetryParam) IncreaseRetry() {
@@ -74,6 +84,26 @@ func (p *RetryParam) IncreaseRetry() {
 
 func (p *RetryParam) ResetRetryNextTry() {
 	p.resetNextTry = true
+}
+
+// reuseBudgetedChannel consumes a budget only when the next attempt actually selects the saved channel.
+// A spent budget or ineligible channel advances the priority tier once.
+func (p *RetryParam) reuseBudgetedChannel(group string, filters []dto.ChannelFilter) *model.Channel {
+	if p.GetRetry() == 0 {
+		return nil
+	}
+	channel, err := model.CacheGetChannel(common.GetContextKeyInt(p.Ctx, constant.ContextKeyChannelId))
+	if err == nil && channel != nil && p.sameChannelRetries < channel.GetOtherSettings().RetryBudget &&
+		channel.Status == common.ChannelStatusEnabled &&
+		model.IsChannelEnabledForGroupModel(group, p.ModelName, channel.Id) {
+		if ok, _ := model.ChannelSatisfiesFilters(channel, p.ModelName, filters); ok {
+			p.sameChannelRetries++
+			return channel
+		}
+	}
+	p.sameChannelRetries = 0
+	p.routeRetry++
+	return nil
 }
 
 // CacheGetRandomSatisfiedChannel tries to get a random channel that satisfies the requirements.
@@ -111,6 +141,19 @@ func (p *RetryParam) ResetRetryNextTry() {
 //
 //	Retry=3: GroupB, priority1 (startRetryIndex=2, priorityRetry=1)
 //	         分组B, 优先级1
+//
+// RetryTimes can also end a group before every priority tier is visited, and nil
+// means no channel is eligible at the requested tier, not necessarily that all
+// tiers are exhausted.
+// RetryTimes 也可能在遍历完所有优先级前结束当前分组；nil 表示请求的优先级没有可用渠道，
+// 不一定代表所有优先级均已用尽。
+//
+// The notes above are retained for the zero-budget legacy flow. When a channel
+// budget is enabled, Retry still limits attempts in the group, while routeRetry
+// selects the priority tier and may lag Retry. ContextKeyAutoGroupRetryIndex
+// remains compatibility state and is not used in that calculation.
+// 上述说明保留用于预算为 0 的旧流程。启用渠道预算后，Retry 仍限制当前分组的尝试次数，
+// routeRetry 选择优先级且可能落后于 Retry；ContextKeyAutoGroupRetryIndex 仅保留为兼容状态。
 func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, error) {
 	var channel *model.Channel
 	var err error
@@ -134,25 +177,35 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 				startGroupIndex = idx
 			}
 		}
-
+		// A budgeted retry keeps the selected channel only while it still passes the normal eligibility checks.
+		// 预算内复用已选渠道，但仍需满足普通选路的可用性与过滤条件。
+		if startGroupIndex < len(autoGroups) {
+			channel = param.reuseBudgetedChannel(autoGroups[startGroupIndex], filters)
+		}
 		for i := startGroupIndex; i < len(autoGroups); i++ {
 			autoGroup := autoGroups[i]
 			// Calculate priorityRetry for current group
 			// 计算当前分组的 priorityRetry
-			priorityRetry := param.GetRetry()
 			// If moved to a new group, reset priorityRetry and update startRetryIndex
 			// 如果切换到新分组，重置 priorityRetry 并更新 startRetryIndex
+			// The startRetryIndex part is historical; current selection resets only priorityRetry.
+			// startRetryIndex 属于旧逻辑；当前选路仅重置 priorityRetry。
+			// Same-channel retries do not advance priority; a newly skipped-to group starts at priority 0.
+			// 同渠道重试不推进优先级；同次选择中跳过并进入的新分组从优先级 0 开始。
+			priorityRetry := param.routeRetry
 			if i > startGroupIndex {
 				priorityRetry = 0
 			}
 			logger.LogDebug(param.Ctx, "Auto selecting group: %s, priorityRetry: %d", autoGroup, priorityRetry)
 
-			channel, _ = model.GetRandomSatisfiedChannel(
-				autoGroup,
-				param.ModelName,
-				priorityRetry,
-				filters,
-			)
+			if channel == nil {
+				channel, _ = model.GetRandomSatisfiedChannel(
+					autoGroup,
+					param.ModelName,
+					priorityRetry,
+					filters,
+				)
+			}
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
 				// 当前分组没有该模型的可用渠道，尝试下一个分组
@@ -171,16 +224,22 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 
 			// Prepare state for next retry
 			// 为下一次重试准备状态
-			if crossGroupRetry && priorityRetry >= common.RetryTimes {
+			// The group attempt count, not the priority tier, controls the original preselection transition.
+			// 原先在选路阶段预置下一组的行为由分组尝试次数决定，而非优先级索引。
+			if crossGroupRetry && param.GetRetry() >= common.RetryTimes {
 				// Current group has exhausted all retries, prepare to switch to next group
 				// This request still uses current group, but next retry will use next group
 				// 当前分组已用完所有重试次数，准备切换到下一个分组
 				// 本次请求仍使用当前分组，但下次重试将使用下一个分组
-				logger.LogDebug(param.Ctx, "Current group %s retries exhausted (priorityRetry=%d >= RetryTimes=%d), preparing switch to next group for next retry", autoGroup, priorityRetry, common.RetryTimes)
+				logger.LogDebug(param.Ctx, "Current group %s retries exhausted (retry=%d >= RetryTimes=%d), preparing switch to next group for next retry", autoGroup, param.GetRetry(), common.RetryTimes)
 				common.SetContextKey(param.Ctx, constant.ContextKeyAutoGroupIndex, i+1)
 				// Reset retry counter so outer loop can continue for next group
 				// 重置重试计数器，以便外层循环可以为下一个分组继续
+				budgetWasUsed := param.routeRetry < param.GetRetry()
 				param.SetRetry(0)
+				if !budgetWasUsed {
+					param.affinityChecked = false
+				}
 				param.ResetRetryNextTry()
 			} else {
 				// Stay in current group, save current state
@@ -190,10 +249,13 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 			break
 		}
 	} else {
+		if channel = param.reuseBudgetedChannel(selectGroup, filters); channel != nil {
+			return channel, selectGroup, nil
+		}
 		channel, err = model.GetRandomSatisfiedChannel(
 			param.TokenGroup,
 			param.ModelName,
-			param.GetRetry(),
+			param.routeRetry,
 			filters,
 		)
 		if err != nil {
@@ -309,7 +371,8 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 	usingGroup := retry.TokenGroup
 	var channel *model.Channel
 	var selectGroup string
-	if retry.GetRetry() == 0 {
+	if retry.GetRetry() == 0 && !retry.affinityChecked {
+		retry.affinityChecked = true
 		if preferredChannelID, found := GetPreferredChannelByAffinity(c, modelName, usingGroup); found {
 			affinityUsable := false
 			preferred, err := model.CacheGetChannel(preferredChannelID)
@@ -320,10 +383,13 @@ func SelectChannelForRequest(c *gin.Context, modelName string, retry *RetryParam
 			if affinitySatisfied {
 				if usingGroup == "auto" {
 					userGroup := common.GetContextKeyString(c, constant.ContextKeyUserGroup)
-					for _, g := range GetRequestAutoGroups(c, userGroup) {
+					for index, g := range GetRequestAutoGroups(c, userGroup) {
 						if model.IsChannelEnabledForGroupModel(g, modelName, preferred.Id) {
 							selectGroup = g
 							common.SetContextKey(c, constant.ContextKeyAutoGroup, g)
+							if preferred.GetOtherSettings().RetryBudget > 0 {
+								common.SetContextKey(c, constant.ContextKeyAutoGroupIndex, index)
+							}
 							channel = preferred
 							affinityUsable = true
 							MarkChannelAffinityUsed(c, g, preferred.Id)

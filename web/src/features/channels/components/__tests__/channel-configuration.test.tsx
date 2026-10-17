@@ -1472,6 +1472,36 @@ test('restoring routing defaults clears the configured indicator for both the bl
   expect(within(block).getByRole('img', { name: 'Configured' })).toBeVisible()
 })
 
+test('editing a channel shows and validates its retry budget before saving', async () => {
+  editingChannel = {
+    ...editingChannel,
+    settings: '{"retry_budget":2}',
+  }
+  const put = vi.spyOn(api, 'put').mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  const budget = screen.getByRole('spinbutton', {
+    name: 'Retry budget',
+  })
+  const priority = screen.getByRole('spinbutton', { name: 'Priority' })
+  const routingGrid = budget.closest('[class~="sm:grid-cols-2"]')
+  expect(routingGrid).not.toBeNull()
+  expect(routingGrid).toBe(priority.closest('[class~="sm:grid-cols-2"]'))
+  expect(budget).toHaveValue(2)
+  fireEvent.change(budget, { target: { value: '-1' } })
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  expect(screen.getByText('Retry budget must be an integer from 0 to 99')).toBeVisible()
+  expect(put).not.toHaveBeenCalled()
+
+  fireEvent.change(budget, { target: { value: '3' } })
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as { settings: string }
+  expect(JSON.parse(payload.settings).retry_budget).toBe(3)
+})
+
 test('request processing configuration does not mark the network category as configured', async () => {
   editingChannel = {
     ...editingChannel,

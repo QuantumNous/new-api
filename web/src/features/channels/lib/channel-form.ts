@@ -222,6 +222,12 @@ export const channelFormSchema = z
       ),
     priority: z.number().optional(),
     weight: z.number().optional(),
+    retry_budget: z
+      .number()
+      .int('Retry budget must be an integer from 0 to 99')
+      .min(0, 'Retry budget must be an integer from 0 to 99')
+      .max(99, 'Retry budget must be an integer from 0 to 99')
+      .optional(),
     test_model: z.string().optional(),
     auto_ban: z.number().optional(),
     status: z.number(),
@@ -442,6 +448,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   model_mapping: '',
   priority: 0,
   weight: 0,
+  retry_budget: 0,
   test_model: '',
   auto_ban: 1,
   status: CHANNEL_STATUS.ENABLED,
@@ -565,6 +572,7 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
   let advancedCustom = ''
+  let retryBudget = 0
 
   if (channel.settings) {
     try {
@@ -582,6 +590,9 @@ export function transformChannelToFormDefaults(
       allowInferenceGeo = parsed.allow_inference_geo === true
       allowSpeed = parsed.allow_speed === true
       claudeBetaQuery = parsed.claude_beta_query === true
+      retryBudget = Number.isInteger(parsed.retry_budget)
+        ? parsed.retry_budget
+        : 0
       ollamaOpenAIChat = parsed.ollama_openai_chat === true
       disableTaskPollingSleep = parsed.disable_task_polling_sleep === true
       upstreamModelUpdateCheckEnabled =
@@ -613,6 +624,7 @@ export function transformChannelToFormDefaults(
     model_mapping: channel.model_mapping || '',
     priority: channel.priority || 0,
     weight: channel.weight || 0,
+    retry_budget: retryBudget,
     test_model: channel.test_model || '',
     auto_ban: channel.auto_ban ?? 1,
     status: channel.status,
@@ -713,6 +725,12 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
       // eslint-disable-next-line no-console
       console.error('Failed to parse existing settings:', error)
     }
+  }
+
+  if ((formData.retry_budget ?? 0) > 0) {
+    settingsObj.retry_budget = formData.retry_budget
+  } else {
+    delete settingsObj.retry_budget
   }
 
   // Add vertex_key_type for Vertex AI channels (type 41)
