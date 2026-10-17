@@ -12,6 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// SetRelayRouter registers model discovery and relay endpoints with their
+// middleware and protocol-specific handlers.
 func SetRelayRouter(router *gin.Engine) {
 	router.Use(middleware.CORS())
 	router.Use(middleware.DecompressRequestMiddleware())
@@ -114,6 +116,9 @@ func SetRelayRouter(router *gin.Engine) {
 		// alpha search related routes (Codex standalone web search)
 		httpRouter.POST("/alpha/search", func(c *gin.Context) {
 			controller.Relay(c, types.RelayFormatOpenAIAlphaSearch)
+		})
+		httpRouter.POST("/decisions", func(c *gin.Context) {
+			controller.Relay(c, types.RelayFormatOpenAIDecisions)
 		})
 
 		// image related routes. /images/generations and /images/edits are

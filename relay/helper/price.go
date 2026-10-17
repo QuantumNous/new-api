@@ -63,9 +63,15 @@ func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) hostty
 	return groupRatioInfo
 }
 
+// ModelPriceHelper resolves the billing model and pricing, estimates the quota
+// reservation, and stores the resulting price data on info. Decisions uses an
+// endpoint-specific billing name so its rates remain separate from other APIs.
 func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta) (hosttypes.PriceData, error) {
 	if info != nil {
-		if matched := resolveBillingModelName(info.GetOriginModelName()); matched != "" && matched != info.OriginModelName {
+		if info.RelayFormat == types.RelayFormatOpenAIDecisions {
+			// Endpoint pricing must not reuse this model's Chat/Responses rates.
+			info.BillingModelName = info.GetOriginModelName() + "-decisions"
+		} else if matched := resolveBillingModelName(info.GetOriginModelName()); matched != "" && matched != info.OriginModelName {
 			info.BillingModelName = matched
 		}
 	}

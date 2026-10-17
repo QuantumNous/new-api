@@ -151,6 +151,7 @@ Accounts, channels, plugin installation states, usage, prices, and costs shown b
 | Interface | Common endpoints |
 | --- | --- |
 | OpenAI Chat / Responses | `POST /v1/chat/completions`, `POST /v1/responses` |
+| OpenAI Decisions | `POST /v1/decisions` (OpenAI and New API channels; non-streaming) |
 | Anthropic Messages | `POST /v1/messages` |
 | Gemini | `POST /v1beta/models/{model}:generateContent`, `POST /v1beta/models/{model}:streamGenerateContent` |
 | Realtime / Responses WebSocket | `GET /v1/realtime`, `GET /v1/responses` (WebSocket upgrade) |
@@ -161,6 +162,8 @@ Accounts, channels, plugin installation states, usage, prices, and costs shown b
 [RelayKit](./relaykit/README.md) provides request, response, and streaming conversion between the four text protocols. Available features depend on the channel, upstream model, and conversion path; protocol-specific tools and fields may not map exactly. WebSocket support also requires a compatible upstream and channel configuration.
 
 This README describes the current source tree. Check the release notes for the version you deploy.
+
+Decisions accepts native `predicate`, `choice`, and `score` questions with text or image input. Send the upstream model name (currently `gpt-6-luna`), not a pricing suffix. Billing uses a separate `<requested-model>-decisions` entry: `gpt-6-luna-decisions` has built-in input pricing of $0.10 per million tokens, doubled above 272,000 input tokens, with zero cache-read, cache-write, and output rates. Configure an expression for aliases and regional processing premiums; administrator pricing overrides take precedence. See the [OpenAI Decisions guide](https://developers.openai.com/api/docs/guides/decisions).
 
 <a id="quick-start"></a>
 

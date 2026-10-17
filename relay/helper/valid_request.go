@@ -19,6 +19,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GetAndValidateRequest selects the request decoder and validator for the relay
+// format and URL path. It returns the typed request and any decoding or validation
+// error, and rejects unsupported relay formats.
 func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dto.Request, err error) {
 	relayMode := relayconstant.Path2RelayMode(c.Request.URL.Path)
 
@@ -41,6 +44,13 @@ func GetAndValidateRequest(c *gin.Context, format types.RelayFormat) (request dt
 		request, err = GetAndValidateResponsesCompactionRequest(c)
 	case types.RelayFormatOpenAIAlphaSearch:
 		request, err = GetAndValidateAlphaSearchRequest(c)
+	case types.RelayFormatOpenAIDecisions:
+		decisions := &dto.OpenAIDecisionsRequest{}
+		err = common.UnmarshalBodyReusable(c, decisions)
+		if err == nil {
+			err = decisions.Validate()
+		}
+		request = decisions
 
 	case types.RelayFormatOpenAIImage:
 		request, err = GetAndValidOpenAIImageRequest(c, relayMode)
