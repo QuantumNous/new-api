@@ -29,8 +29,11 @@ import userEvent from '@testing-library/user-event'
 import { StrictMode, useState } from 'react'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 
+import { DirectionProvider } from '@/components/ui/direction'
+
 import { CHANNEL_PRIORITY_GUIDE_KEYS } from '../../constants'
 import { ChannelPriorityModeToggle } from '../channel-priority-controls'
+import { ChannelPriorityDemo } from '../channel-priority-demo'
 
 function Fixture(props: { reason?: 'sort'; viewMode?: 'card' | 'table' }) {
   const [active, setActive] = useState(false)
@@ -350,3 +353,25 @@ test('keyboard selection switches to the other explicitly named demo', async () 
   ).toHaveAttribute('aria-selected', 'true')
   expect(guide.getByRole('status')).toHaveTextContent('New priority: 90')
 })
+
+test.each([
+  { direction: 'ltr' as const, offset: 'calc(100% + 12px)' },
+  { direction: 'rtl' as const, offset: 'calc(-100% + -12px)' },
+])(
+  'the card demo places its second column towards the inline end in $direction',
+  ({ direction, offset }) => {
+    render(
+      <DirectionProvider direction={direction}>
+        <ChannelPriorityDemo
+          viewMode='card'
+          mode='same'
+          playing={false}
+          onComplete={() => {}}
+        />
+      </DirectionProvider>
+    )
+    const cards = within(screen.getByRole('list', { name: 'Card view' }))
+    const second = cards.getByText('Channel B').closest('li') as HTMLElement
+    expect(second.style.transform).toContain(`translateX(${offset})`)
+  }
+)
