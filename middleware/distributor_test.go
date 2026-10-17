@@ -168,14 +168,16 @@ func TestTokenModelLimitAllowsLegacyAliasAndModifierVariant(t *testing.T) {
 	assert.True(t, TokenModelLimitAllows(wildcard, "gemini-2.5-flash-thinking-8192"))
 }
 
-// /v1/tools/search and /v1/tools/fetch bodies name no model: requests route by
-// the DeepSeek routing names unless the body names one.
+// /v1/tools/search and /v1/tools/fetch always route and bill by the DeepSeek
+// routing names. A model named in the body is ignored: a chat model there
+// would price the call at zero tokens.
 func TestGetModelRequestAssignsDeepSeekToolRoutingNames(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	for _, tc := range []struct{ path, body, want string }{
 		{"/v1/tools/search", `{"query":"deepseek","count":3}`, constant.DeepSeekSearchModel},
 		{"/v1/tools/fetch", `{"url":"https://example.com/"}`, constant.DeepSeekFetchModel},
-		{"/v1/tools/search", `{"query":"deepseek","model":"deepseek-search-cn"}`, "deepseek-search-cn"},
+		{"/v1/tools/search", `{"query":"deepseek","model":"deepseek-flash"}`, constant.DeepSeekSearchModel},
+		{"/v1/tools/fetch", `{"url":"https://example.com/","model":"deepseek-v4-pro"}`, constant.DeepSeekFetchModel},
 	} {
 		c, _ := gin.CreateTestContext(httptest.NewRecorder())
 		c.Request = httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(tc.body))
