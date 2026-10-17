@@ -375,6 +375,48 @@ func TestChannelRetryBudgetKeepsSelectedChannelWithinGroupBudget(t *testing.T) {
 	assert.Equal(t, 2, settings.RetryBudget)
 }
 
+func TestChannelRetryBudgetUsesCurrentCachedSettings(t *testing.T) {
+	db := setupChannelSelectAutoGroupsTest(t)
+	common.RetryTimes = 2
+	const modelName = "updated-retry-budget-model"
+	createChannelSelectAutoGroupsChannel(t, db, 2211, "default", modelName)
+	createChannelSelectAutoGroupsChannel(t, db, 2212, "default", modelName)
+	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 2211).Updates(map[string]any{
+		"priority": 10, "settings": `{"retry_budget":2}`,
+	}).Error)
+	require.NoError(t, db.Model(&model.Ability{}).Where("channel_id = ?", 2211).Update("priority", 10).Error)
+	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 2212).Update("priority", 5).Error)
+	require.NoError(t, db.Model(&model.Ability{}).Where("channel_id = ?", 2212).Update("priority", 5).Error)
+	model.InitChannelCache()
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	param := &RetryParam{Ctx: ctx, TokenGroup: "default", ModelName: modelName}
+	first, _, err := CacheGetRandomSatisfiedChannel(param)
+	require.NoError(t, err)
+	require.NotNil(t, first)
+	assert.Equal(t, 2211, first.Id)
+	common.SetContextKey(ctx, constant.ContextKeyChannelId, first.Id)
+	common.SetContextKey(ctx, constant.ContextKeyChannelOtherSetting, first.GetOtherSettings())
+
+	param.IncreaseRetry()
+	second, _, err := CacheGetRandomSatisfiedChannel(param)
+	require.NoError(t, err)
+	require.NotNil(t, second)
+	assert.Equal(t, 2211, second.Id)
+	common.SetContextKey(ctx, constant.ContextKeyChannelId, second.Id)
+	common.SetContextKey(ctx, constant.ContextKeyChannelOtherSetting, second.GetOtherSettings())
+
+	// The in-flight request retains the initial context snapshot, while channel edits refresh the cache.
+	require.NoError(t, db.Model(&model.Channel{}).Where("id = ?", 2211).Update("settings", `{"retry_budget":1}`).Error)
+	model.InitChannelCache()
+
+	param.IncreaseRetry()
+	third, _, err := CacheGetRandomSatisfiedChannel(param)
+	require.NoError(t, err)
+	require.NotNil(t, third)
+	assert.Equal(t, 2212, third.Id, "the updated cached budget must stop reusing the channel")
+}
+
 func TestChannelRetryBudgetZeroKeepsPrioritySequence(t *testing.T) {
 	db := setupChannelSelectAutoGroupsTest(t)
 	common.RetryTimes = 2

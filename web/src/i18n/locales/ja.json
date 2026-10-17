@@ -5404,7 +5404,6 @@
     "s": "s",
     "Safety Settings": "安全設定",
     "Same as Local": "ローカルと同じ",
-    "Same-channel retry budget": "同一チャネルの再試行回数",
     "Sample interval: {{seconds}} seconds": "サンプリング間隔：{{seconds}} 秒",
     "Sampling temperature; lower is more deterministic": "サンプリング温度。低いほど決定論的になります",
     "Sandbox": "サンドボックス",

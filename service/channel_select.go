@@ -12,7 +12,6 @@ import (
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
-	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 )
@@ -93,15 +92,13 @@ func (p *RetryParam) reuseBudgetedChannel(group string, filters []dto.ChannelFil
 	if p.GetRetry() == 0 {
 		return nil
 	}
-	settings, _ := common.GetContextKeyType[kitdto.ChannelOtherSettings](p.Ctx, constant.ContextKeyChannelOtherSetting)
-	if p.sameChannelRetries < settings.RetryBudget {
-		channel, err := model.CacheGetChannel(common.GetContextKeyInt(p.Ctx, constant.ContextKeyChannelId))
-		if err == nil && channel != nil && channel.Status == common.ChannelStatusEnabled &&
-			model.IsChannelEnabledForGroupModel(group, p.ModelName, channel.Id) {
-			if ok, _ := model.ChannelSatisfiesFilters(channel, p.ModelName, filters); ok {
-				p.sameChannelRetries++
-				return channel
-			}
+	channel, err := model.CacheGetChannel(common.GetContextKeyInt(p.Ctx, constant.ContextKeyChannelId))
+	if err == nil && channel != nil && p.sameChannelRetries < channel.GetOtherSettings().RetryBudget &&
+		channel.Status == common.ChannelStatusEnabled &&
+		model.IsChannelEnabledForGroupModel(group, p.ModelName, channel.Id) {
+		if ok, _ := model.ChannelSatisfiesFilters(channel, p.ModelName, filters); ok {
+			p.sameChannelRetries++
+			return channel
 		}
 	}
 	p.sameChannelRetries = 0

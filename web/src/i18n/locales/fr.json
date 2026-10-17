@@ -5404,7 +5404,6 @@
     "s": "s",
     "Safety Settings": "Paramètres de sécurité",
     "Same as Local": "Identique au local",
-    "Same-channel retry budget": "Budget de nouvelles tentatives sur ce canal",
     "Sample interval: {{seconds}} seconds": "Intervalle : {{seconds}} secondes",
     "Sampling temperature; lower is more deterministic": "Température d'échantillonnage ; plus c'est bas, plus c'est déterministe",
     "Sandbox": "Bac à sable",

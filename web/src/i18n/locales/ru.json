@@ -5404,7 +5404,6 @@
     "s": "s",
     "Safety Settings": "Настройки безопасности",
     "Same as Local": "То же, что и локальный",
-    "Same-channel retry budget": "Повторы на том же канале",
     "Sample interval: {{seconds}} seconds": "Интервал выборки: {{seconds}} с",
     "Sampling temperature; lower is more deterministic": "Температура сэмплирования; чем ниже, тем детерминированнее",
     "Sandbox": "Песочница",
