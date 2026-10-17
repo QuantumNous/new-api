@@ -348,6 +348,9 @@ func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	require.Equal(t, messageSummary.CacheCreationTokens1h, chatSummary.CacheCreationTokens1h)
 	require.True(t, chatSummary.IsClaudeUsageSemantic)
 	require.Equal(t, 1488, chatSummary.Quota)
+	// 日志记录的总输入 = fresh 1000 + 缓存命中 100 + 缓存写入 50。
+	require.True(t, chatSummary.PromptTokensExcludeCache)
+	require.Equal(t, 1150, logInputTokens(chatSummary))
 }
 
 func TestCalculateTextQuotaSummaryUsesSplitClaudeCacheCreationRatios(t *testing.T) {
@@ -760,6 +763,52 @@ func TestCacheWriteTokensTotal(t *testing.T) {
 	})
 }
 
+// 日志里的 prompt_tokens 必须对所有供应商表示同一含义（总输入 token），
+// 因为使用日志、RPM/TPM 与 token 统计、数据看板导出都按“总输入”读取它，
+// 并把缓存数量当作它的明细展示。
+func TestLogInputTokensNormalizesCacheAcrossSemantics(t *testing.T) {
+	t.Run("openai semantic keeps prompt tokens", func(t *testing.T) {
+		// OpenAI 语义下 PromptTokens 已包含缓存，再加一次会重复计算。
+		assert.Equal(t, 1000, logInputTokens(textQuotaSummary{
+			PromptTokens:        1000,
+			CompletionTokens:    200,
+			CacheTokens:         800,
+			CacheCreationTokens: 100,
+		}))
+	})
+
+	t.Run("anthropic semantic adds cache read and write back", func(t *testing.T) {
+		// Anthropic 语义下 input_tokens 只是未命中缓存的 fresh token，
+		// 不加回缓存会让一次 59 万 token 的请求在日志里只显示 2。
+		assert.Equal(t, 590823, logInputTokens(textQuotaSummary{
+			PromptTokens:             2,
+			CompletionTokens:         1117,
+			CacheTokens:              589733,
+			CacheCreationTokens:      1088,
+			PromptTokensExcludeCache: true,
+		}))
+	})
+
+	t.Run("anthropic semantic uses billed cache write total", func(t *testing.T) {
+		// 只有 5m/1h 拆分值时，按实际计费的缓存写入总量加回。
+		assert.Equal(t, 1300, logInputTokens(textQuotaSummary{
+			PromptTokens:             100,
+			CacheTokens:              1000,
+			CacheCreationTokens5m:    150,
+			CacheCreationTokens1h:    50,
+			PromptTokensExcludeCache: true,
+		}))
+	})
+
+	t.Run("anthropic semantic without cache", func(t *testing.T) {
+		assert.Equal(t, 100, logInputTokens(textQuotaSummary{
+			PromptTokens:             100,
+			CompletionTokens:         50,
+			PromptTokensExcludeCache: true,
+		}))
+	})
+}
+
 func TestCalculateTextQuotaSummaryHandlesLegacyClaudeDerivedOpenAIUsage(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -793,6 +842,8 @@ func TestCalculateTextQuotaSummaryHandlesLegacyClaudeDerivedOpenAIUsage(t *testi
 
 	// 62 + 3544*0.1 + 586*1.25 + 95*5 = 1624.9 => 1624
 	require.Equal(t, 1624, summary.Quota)
+	// 这条旧路径的 PromptTokens 同样不含缓存，日志总输入 = 62 + 3544 + 586。
+	require.Equal(t, 4192, logInputTokens(summary))
 }
 
 func TestCalculateTextQuotaSummaryBillsOpenAICacheWriteTokens(t *testing.T) {
