@@ -462,6 +462,15 @@ func RecordTaskBillingLog(params RecordTaskBillingLogParams) {
 			NodeName:  nodeName,
 		})
 	}
+	if common.DataExportEnabled {
+		quota := params.Quota
+		if params.LogType == LogTypeRefund {
+			quota = -quota
+		}
+		gopool.Go(func() {
+			LogQuotaData(log.UserId, username, log.ModelName, quota, common.GetTimestamp(), log.PromptTokens+log.CompletionTokens)
+		})
+	}
 }
 
 // LogFilter is the usage-log search shared by the log list and the log export.
