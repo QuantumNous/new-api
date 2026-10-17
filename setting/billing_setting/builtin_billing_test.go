@@ -110,6 +110,69 @@ func TestGPT6AstraBuiltinBilling(t *testing.T) {
 	}
 }
 
+func TestXiaomiBuiltinBilling(t *testing.T) {
+	settings := config.GlobalConfig.Get("billing_setting").(*billing_setting.BillingSetting)
+	saved := *settings
+	savedRatios, savedPrices := ratio_setting.ModelRatio2JSONString(), ratio_setting.ModelPrice2JSONString()
+	savedOptions := common.OptionMap
+	t.Cleanup(func() {
+		*settings, common.OptionMap = saved, savedOptions
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(savedRatios))
+		require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(savedPrices))
+	})
+	common.OptionMap = map[string]string{"billing_setting.billing_mode": `{}`, "billing_setting.billing_expr": `{}`}
+	require.NoError(t, config.GlobalConfig.LoadFromDB(common.OptionMap))
+	require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`))
+	require.NoError(t, ratio_setting.UpdateModelPriceByJSONString(`{}`))
+
+	// quota = expression output / 1,000,000 * 500000, so half the USD cost. The
+	// expected values are the published prices applied by hand: input p, output
+	// at twice that, and cache reads at the model's own cache price.
+	for _, tc := range []struct {
+		name                  string
+		model                 string
+		input, output, cached int
+		quota                 int
+	}{
+		{"flash uncached input", "mimo-v2.6-flash", 1000, 100, 0, 84},      // (1000*0.14 + 100*0.28) / 2
+		{"flash with cache reads", "mimo-v2.6-flash", 2000, 100, 1000, 85}, // (1000*0.14 + 1000*0.0028 + 100*0.28) / 2
+		{"pro uncached input", "mimo-v2.6-pro", 1000, 100, 0, 261},         // (1000*0.435 + 100*0.87) / 2
+		{"pro with cache reads", "mimo-v2.6-pro", 2000, 100, 1000, 263},    // (1000*0.435 + 1000*0.0036 + 100*0.87) / 2
+		{"ultraspeed uncached input", "mimo-v2.6-pro-ultraspeed", 1000, 100, 0, 2610},
+		{"ultraspeed with cache reads", "mimo-v2.6-pro-ultraspeed", 2000, 100, 1000, 2628},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, billing_setting.BillingModeTieredExpr, billing_setting.GetBillingMode(tc.model))
+			expression, ok := billing_setting.GetBillingExpr(tc.model)
+			require.True(t, ok)
+
+			usage := &dto.Usage{
+				PromptTokens: tc.input, CompletionTokens: tc.output,
+				PromptTokensDetails: dto.InputTokenDetails{CachedTokens: tc.cached},
+			}
+			params := service.BuildTieredTokenParams(usage, false, billingexpr.UsedVars(expression))
+			// ExprHash must be carried: the compiled-expression cache is keyed by
+			// hash alone and returns a hit without rechecking the expression, so an
+			// empty hash would silently serve whichever expression compiled first.
+			result, err := billingexpr.ComputeTieredQuotaWithRequest(&billingexpr.BillingSnapshot{
+				ExprString: expression, ExprHash: billingexpr.ExprHashString(expression),
+				GroupRatio: 1, QuotaPerUnit: 500000,
+			}, params, billingexpr.RequestInput{Body: []byte(`{}`)})
+			require.NoError(t, err)
+			assert.Equal(t, tc.quota, result.ActualQuotaAfterGroup)
+		})
+	}
+
+	// A price the administrator already configured keeps winning, so introducing
+	// these defaults does not silently replace someone's hand-set pricing.
+	t.Run("legacy ratio still takes precedence", func(t *testing.T) {
+		require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{"mimo-v2.6-flash":0}`))
+		t.Cleanup(func() { require.NoError(t, ratio_setting.UpdateModelRatioByJSONString(`{}`)) })
+
+		assert.Equal(t, billing_setting.BillingModeRatio, billing_setting.GetBillingMode("mimo-v2.6-flash"))
+	})
+}
+
 func TestImageModelBuiltinPricesAndOverrides(t *testing.T) {
 	settings := config.GlobalConfig.Get("billing_setting").(*billing_setting.BillingSetting)
 	saved := *settings

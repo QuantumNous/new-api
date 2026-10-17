@@ -103,6 +103,7 @@ const BRAND_AND_LITERAL_KEYS = new Set([
   'Webhook URL:',
   'Well-Known URL',
   'Worker URL',
+  'Xiaomi MiMo',
   'Xinference',
   'Xunfei',
   'Zhipu V4',
