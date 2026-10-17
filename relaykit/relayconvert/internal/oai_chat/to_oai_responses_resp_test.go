@@ -1,6 +1,7 @@
 package oaichat
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -352,6 +353,34 @@ func TestChatCompletionsStreamToResponsesReopensItemsAfterMidStreamFinishReason(
 
 func execCustomToolState() *convmeta.ResponsesToolState {
 	return &convmeta.ResponsesToolState{CustomToolNames: map[string]struct{}{"exec": {}}}
+}
+
+func toolSearchState() *convmeta.ResponsesToolState {
+	return &convmeta.ResponsesToolState{ToolSearchNames: map[string]struct{}{"tool_search": {}}}
+}
+
+func TestChatCompletionsResponseToResponsesRestoresToolSearchCalls(t *testing.T) {
+	message := dto.Message{Role: "assistant"}
+	message.SetToolCalls([]dto.ToolCallRequest{
+		{ID: "call_search", Type: "function", Function: dto.FunctionRequest{Name: "tool_search", Arguments: `{"goal":"find a tool"}`}},
+	})
+	chat := &dto.OpenAITextResponse{
+		Model:   "gpt-test",
+		Choices: []dto.OpenAITextResponseChoice{{Message: message, FinishReason: "tool_calls"}},
+	}
+
+	resp, _, err := ChatCompletionsResponseToResponsesResponseWithTools(chat, "resp_1", toolSearchState())
+	require.NoError(t, err)
+	require.Len(t, resp.Output, 1)
+	raw, err := kitutil.Marshal(resp.Output[0])
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"type":"tool_search_call","id":"call_search","execution":"client","status":"completed","call_id":"call_search","arguments":{"goal":"find a tool"}}`, string(raw))
+}
+
+func TestChatArgumentsToToolSearchArgumentsFallsBackToObject(t *testing.T) {
+	assert.Equal(t, json.RawMessage(`{"goal":"x"}`), chatArgumentsToToolSearchArguments(`{"goal":"x"}`))
+	assert.Equal(t, json.RawMessage(`{}`), chatArgumentsToToolSearchArguments(`not json`))
+	assert.Equal(t, json.RawMessage(`{}`), chatArgumentsToToolSearchArguments(``))
 }
 
 func TestChatCompletionsResponseToResponsesRestoresCustomToolCalls(t *testing.T) {

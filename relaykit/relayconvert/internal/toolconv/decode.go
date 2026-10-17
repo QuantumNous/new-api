@@ -186,6 +186,13 @@ func extractOpenAIResponsesRequest(request any) (any, Set, error) {
 	}
 	set.Definitions = definitions
 
+	toolSearchName := responsesToolSearchFunctionName(set.Definitions)
+	input, toolSearchDiagnostics, err := rewriteResponsesToolSearchHistory(input, toolSearchName)
+	if err != nil {
+		return nil, Set{}, err
+	}
+	set.Diagnostics = append(set.Diagnostics, toolSearchDiagnostics...)
+
 	clone := *source
 	clone.Tools = nil
 	clone.ToolChoice = nil
@@ -243,6 +250,123 @@ func extractOpenAIResponsesAdditionalTools(input json.RawMessage) (json.RawMessa
 		return nil, nil, nil, err
 	}
 	return encoded, definitions, diagnostics, nil
+}
+
+// responsesToolSearchFunctionName returns the upstream function name of the
+// client-executed tool_search declared in the request, or "" when there is
+// none. Hosted tool searches run against tools declared in the request and
+// have no function-call equivalent, so they are not carried by another
+// protocol.
+func responsesToolSearchFunctionName(definitions []Definition) string {
+	for _, definition := range definitions {
+		if definition.Kind != KindToolSearch || definition.Execution != ExecutionClient {
+			continue
+		}
+		if name := strings.TrimSpace(definition.Name); name != "" {
+			return name
+		}
+		return responsesToolSearchDefaultName
+	}
+	return ""
+}
+
+// rewriteResponsesToolSearchHistory rewrites the continuation items of a
+// client-executed tool search into the function_call/function_call_output
+// items every other protocol understands, so a pivoted conversation can keep
+// going after the model searched for tools. A hosted search carries a null
+// call_id and no caller pairing, so it is left for the hosted-history path.
+func rewriteResponsesToolSearchHistory(input json.RawMessage, toolName string) (json.RawMessage, []types.ConversionDiagnostic, error) {
+	if toolName == "" || len(input) == 0 || kitutil.GetJsonType(input) != "array" {
+		return input, nil, nil
+	}
+	var items []json.RawMessage
+	if err := kitutil.Unmarshal(input, &items); err != nil {
+		return nil, nil, fmt.Errorf("invalid Responses input: %w", err)
+	}
+	rewritten := make([]json.RawMessage, 0, len(items))
+	var diagnostics []types.ConversionDiagnostic
+	changed := false
+	for index, rawItem := range items {
+		var item map[string]any
+		if err := kitutil.Unmarshal(rawItem, &item); err != nil {
+			rewritten = append(rewritten, rawItem)
+			continue
+		}
+		callID := strings.TrimSpace(kitutil.Interface2String(item["call_id"]))
+		var (
+			encoded json.RawMessage
+			err     error
+		)
+		switch strings.TrimSpace(kitutil.Interface2String(item["type"])) {
+		case "tool_search_call":
+			if callID == "" {
+				rewritten = append(rewritten, rawItem)
+				continue
+			}
+			arguments, rawErr := rawJSONDefault(item["arguments"], "{}")
+			if rawErr != nil {
+				return nil, nil, fmt.Errorf("input[%d].arguments: %w", index, rawErr)
+			}
+			encoded, err = kitutil.Marshal(map[string]any{
+				"type":      "function_call",
+				"name":      toolName,
+				"call_id":   callID,
+				"arguments": string(arguments),
+			})
+		case "tool_search_output":
+			if callID == "" {
+				rewritten = append(rewritten, rawItem)
+				continue
+			}
+			tools, rawErr := rawJSONDefault(item["tools"], "[]")
+			if rawErr != nil {
+				return nil, nil, fmt.Errorf("input[%d].tools: %w", index, rawErr)
+			}
+			encoded, err = kitutil.Marshal(map[string]any{
+				"type":    "function_call_output",
+				"call_id": callID,
+				"output":  string(tools),
+			})
+		default:
+			rewritten = append(rewritten, rawItem)
+			continue
+		}
+		if err != nil {
+			return nil, nil, err
+		}
+		rewritten = append(rewritten, encoded)
+		changed = true
+		diagnostics = append(diagnostics, presentationLoss(
+			fmt.Sprintf("input[%d]", index),
+			"tool_search_history_as_function",
+			fmt.Sprintf("client tool-search item is carried upstream as a function call to %q; the caller still performs the lookup", toolName),
+		))
+	}
+	if !changed {
+		return input, nil, nil
+	}
+	encoded, err := kitutil.Marshal(rewritten)
+	if err != nil {
+		return nil, nil, err
+	}
+	return encoded, diagnostics, nil
+}
+
+// rawJSONDefault encodes a decoded JSON value, substituting fallback when the
+// source item omitted it, so a rewritten function item always carries the
+// string payload the target protocol expects.
+func rawJSONDefault(value any, fallback string) (json.RawMessage, error) {
+	if value == nil {
+		return json.RawMessage(fallback), nil
+	}
+	encoded, err := rawJSON(value)
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(string(encoded)) == "" {
+		return json.RawMessage(fallback), nil
+	}
+	return encoded, nil
 }
 
 // decodeOpenAIResponsesDefinitions decodes one Responses tool. A namespace
@@ -436,12 +560,39 @@ func decodeOpenAIResponsesDefinition(raw json.RawMessage) (Definition, error) {
 			Raw:        cloneRaw(raw),
 		}, nil
 	}
+	if toolType == "tool_search" {
+		name := strings.TrimSpace(kitutil.Interface2String(tool["name"]))
+		return Definition{
+			Kind:       KindToolSearch,
+			Execution:  responsesToolSearchExecution(tool),
+			NativeType: toolType,
+			Name:       name,
+			ToolSearch: &ToolSearch{
+				Name:        name,
+				Description: strings.TrimSpace(kitutil.Interface2String(tool["description"])),
+				Parameters:  tool["parameters"],
+			},
+			Raw: cloneRaw(raw),
+		}, nil
+	}
 	return Definition{
 		Kind:       kindFromNativeType(toolType),
 		Execution:  executionFromNativeType(toolType),
 		NativeType: toolType,
 		Raw:        cloneRaw(raw),
 	}, nil
+}
+
+// responsesToolSearchExecution reads the Responses tool_search execution mode.
+// Only "client" searches can be carried by another protocol, because the
+// caller that issued the search is also the one that answers it. A hosted
+// search (absent or "server") runs against tools declared in the request and
+// has no equivalent on a function-call protocol.
+func responsesToolSearchExecution(tool map[string]any) Execution {
+	if strings.TrimSpace(kitutil.Interface2String(tool["execution"])) == string(ExecutionClient) {
+		return ExecutionClient
+	}
+	return ExecutionServer
 }
 
 func decodeClaudeDefinition(raw json.RawMessage) (Definition, error) {
