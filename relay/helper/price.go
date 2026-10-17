@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	hostreasoning "github.com/QuantumNous/new-api/setting/reasoning"
@@ -311,6 +312,11 @@ func resolveBillingModelName(origin string) string {
 	}
 	candidates = append(candidates, hostreasoning.CanonicalBillingModelNames(origin)...)
 	base := hostreasoning.BaseModelName(origin)
+	// DeepSeek thinking tails (-none/-low/-max) bill at the base model's price,
+	// with or without @ modifiers after them.
+	if deepSeekBase, _, _, ok := reasoning.ParseDeepSeekV4ThinkingSuffix(base); ok && !model_setting.ShouldPreserveThinkingSuffix(base) {
+		candidates = append(candidates, deepSeekBase)
+	}
 	candidates = append(candidates, base)
 
 	seen := make(map[string]struct{}, len(candidates))

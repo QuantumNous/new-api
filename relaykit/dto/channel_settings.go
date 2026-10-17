@@ -223,6 +223,8 @@ const (
 	advancedCustomEndpointPathOpenAIResponses        = "/v1/responses"
 	advancedCustomEndpointPathOpenAIResponsesCompact = "/v1/responses/compact"
 	advancedCustomEndpointPathOpenAIAlphaSearch      = "/v1/alpha/search"
+	advancedCustomEndpointPathDeepSeekToolsSearch    = "/v1/tools/search"
+	advancedCustomEndpointPathDeepSeekToolsFetch     = "/v1/tools/fetch"
 	advancedCustomEndpointPathClaudeMessages         = "/v1/messages"
 	advancedCustomEndpointPathJinaRerank             = "/v1/rerank"
 	advancedCustomEndpointPathImageGeneration        = "/v1/images/generations"
@@ -348,6 +350,10 @@ func advancedCustomEndpointTypeFromIncomingPath(incomingPath string) (types.Endp
 		return types.EndpointTypeOpenAIResponseCompact, true
 	case advancedCustomEndpointPathOpenAIAlphaSearch:
 		return types.EndpointTypeOpenAIAlphaSearch, true
+	case advancedCustomEndpointPathDeepSeekToolsSearch:
+		return types.EndpointTypeDeepSeekToolsSearch, true
+	case advancedCustomEndpointPathDeepSeekToolsFetch:
+		return types.EndpointTypeDeepSeekToolsFetch, true
 	case advancedCustomEndpointPathClaudeMessages:
 		return types.EndpointTypeAnthropic, true
 	case advancedCustomEndpointPathJinaRerank:

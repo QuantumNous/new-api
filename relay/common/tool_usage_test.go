@@ -37,6 +37,25 @@ func TestCountBillableToolCallWebSearchDefaultsToPreview(t *testing.T) {
 	assert.Equal(t, 1, info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolWebSearchPreview].CallCount)
 }
 
+// A channel whose upstream bills search itself keys web_search_call items to
+// its own price, so a mapped claude-* or gpt-* name never bills web_search.
+func TestCountBillableToolCallWebSearchUsesChannelBillingKey(t *testing.T) {
+	info := &RelayInfo{
+		OriginModelName:     "gpt-5.1-codex",
+		WebSearchBillingKey: "deepseek_search",
+		ResponsesUsageInfo: &ResponsesUsageInfo{
+			BuiltInTools: map[string]*BuildInToolInfo{
+				dto.BuildInToolWebSearch: {ToolName: dto.BuildInToolWebSearch, CallCount: 0},
+			},
+		},
+	}
+
+	info.CountBillableToolCall(dto.BuildInCallWebSearchCall, "")
+	require.Contains(t, info.ResponsesUsageInfo.BuiltInTools, "deepseek_search")
+	assert.Equal(t, 1, info.ResponsesUsageInfo.BuiltInTools["deepseek_search"].CallCount)
+	assert.Equal(t, 0, info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolWebSearch].CallCount)
+}
+
 func TestCountBillableToolCallFunctionCallRequiresPrice(t *testing.T) {
 	operation_setting.SetToolPriceForTest("my_priced_fn", 5.0)
 	t.Cleanup(func() {

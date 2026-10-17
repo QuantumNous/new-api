@@ -168,6 +168,25 @@ func TestTokenModelLimitAllowsLegacyAliasAndModifierVariant(t *testing.T) {
 	assert.True(t, TokenModelLimitAllows(wildcard, "gemini-2.5-flash-thinking-8192"))
 }
 
+// /v1/tools/search and /v1/tools/fetch bodies name no model: requests route by
+// the DeepSeek routing names unless the body names one.
+func TestGetModelRequestAssignsDeepSeekToolRoutingNames(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct{ path, body, want string }{
+		{"/v1/tools/search", `{"query":"deepseek","count":3}`, constant.DeepSeekSearchModel},
+		{"/v1/tools/fetch", `{"url":"https://example.com/"}`, constant.DeepSeekFetchModel},
+		{"/v1/tools/search", `{"query":"deepseek","model":"deepseek-search-cn"}`, "deepseek-search-cn"},
+	} {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(tc.body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		modelRequest, shouldSelectChannel, err := getModelRequest(c)
+		require.NoError(t, err, tc.body)
+		assert.True(t, shouldSelectChannel, tc.body)
+		assert.Equal(t, tc.want, modelRequest.Model, tc.body)
+	}
+}
+
 func TestTokenModelLimitAllowsExemptAtNameByFullName(t *testing.T) {
 	settings := model_setting.GetGlobalSettings()
 	original := append([]string(nil), settings.ThinkingModelBlacklist...)

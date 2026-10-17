@@ -199,10 +199,11 @@ type RelayInfo struct {
 	// value suppresses the protocol items counted under that key, so a vendor
 	// count can supersede web_search_call items billed under a different key.
 	VendorToolUsage func(raw []byte) map[string]int
-	// WebSearchBillingKey overrides the tool-price key the Claude handler uses
-	// for usage.server_tool_use.web_search_requests. Set by a channel adaptor
-	// whose Anthropic-compatible endpoint bills search under its own price
-	// list; empty keeps the protocol default web_search.
+	// WebSearchBillingKey overrides the tool-price key of hosted web search:
+	// usage.server_tool_use.web_search_requests and web_search_tool_result
+	// blocks in the Claude handler, and web_search_call items counted by
+	// CountBillableToolCall. Set by a channel adaptor whose upstream bills
+	// search under its own price list; empty keeps the protocol defaults.
 	WebSearchBillingKey string
 	// requestInferredToolKey is the tool-price key RecordRequestInferredToolCall
 	// billed for the current channel attempt.
@@ -722,6 +723,9 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 			return GenRelayInfoAlphaSearch(c, request), nil
 		}
 		return nil, errors.New("request is not a AlphaSearchRequest")
+	case types.RelayFormatDeepSeekTools:
+		info = genBaseRelayInfo(c, request)
+		info.RelayFormat = types.RelayFormatDeepSeekTools
 	case types.RelayFormatTask:
 		info = genBaseRelayInfo(c, nil)
 		info.TaskRelayInfo = &TaskRelayInfo{}
