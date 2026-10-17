@@ -2,6 +2,7 @@ package replicate
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,8 +10,10 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/textproto"
+	"net/url"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -27,6 +30,15 @@ import (
 
 type Adaptor struct {
 }
+
+const (
+	predictionPollInitialInterval = time.Second
+	predictionPollMaxInterval     = 5 * time.Second
+	predictionPollTimeout         = 20 * time.Minute
+	maxPredictionResponseBytes    = 4 * 1024 * 1024
+	maxPredictionErrorPreview     = 1024
+	maxTransientPollFailures      = 3
+)
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
@@ -191,50 +203,12 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		return nil, types.NewError(fmt.Errorf("replicate adaptor: failed to decode response: %w", err), types.ErrorCodeBadResponseBody)
 	}
 
-	if prediction.Error != nil {
-		errMsg := prediction.Error.Message
-		if errMsg == "" {
-			errMsg = prediction.Error.Detail
-		}
-		if errMsg == "" {
-			errMsg = prediction.Error.Code
-		}
-		if errMsg == "" {
-			errMsg = "replicate adaptor: prediction error"
-		}
-		return nil, types.NewError(errors.New(errMsg), types.ErrorCodeBadResponse)
+	prediction, err = waitForPrediction(c, info, prediction)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponse)
 	}
 
-	if prediction.Status != "" && !strings.EqualFold(prediction.Status, "succeeded") {
-		return nil, types.NewError(fmt.Errorf("replicate adaptor: prediction status %q", prediction.Status), types.ErrorCodeBadResponse)
-	}
-
-	var urls []string
-
-	appendOutput := func(value string) {
-		value = strings.TrimSpace(value)
-		if value == "" {
-			return
-		}
-		urls = append(urls, value)
-	}
-
-	switch output := prediction.Output.(type) {
-	case string:
-		appendOutput(output)
-	case []any:
-		for _, item := range output {
-			if str, ok := item.(string); ok {
-				appendOutput(str)
-			}
-		}
-	case nil:
-		// no output
-	default:
-		if str, ok := output.(fmt.Stringer); ok {
-			appendOutput(str.String())
-		}
-	}
+	urls := predictionOutputURLs(prediction.Output)
 
 	if len(urls) == 0 {
 		return nil, types.NewError(errors.New("replicate adaptor: empty prediction output"), types.ErrorCodeBadResponseBody)
@@ -297,6 +271,181 @@ func (a *Adaptor) GetModelList() []string {
 
 func (a *Adaptor) GetChannelName() string {
 	return ChannelName
+}
+
+func waitForPrediction(c *gin.Context, info *relaycommon.RelayInfo, prediction PredictionResponse) (PredictionResponse, error) {
+	done, err := evaluatePrediction(prediction)
+	if err != nil {
+		return PredictionResponse{}, err
+	}
+	if done {
+		return prediction, nil
+	}
+
+	if info == nil {
+		return PredictionResponse{}, errors.New("replicate adaptor: relay info is nil while polling")
+	}
+	if strings.TrimSpace(prediction.ID) == "" {
+		return PredictionResponse{}, errors.New("replicate adaptor: pending prediction is missing id")
+	}
+
+	baseURL := info.ChannelBaseUrl
+	if baseURL == "" {
+		baseURL = constant.ChannelBaseURLs[constant.ChannelTypeReplicate]
+	}
+	pollURL := relaycommon.GetFullRequestURL(baseURL, "/v1/predictions/"+url.PathEscape(prediction.ID), info.ChannelType)
+	client, err := service.GetHttpClientWithProxySettings(info.ChannelSetting.Proxy, info.ChannelSetting)
+	if err != nil {
+		return PredictionResponse{}, fmt.Errorf("replicate adaptor: create polling client failed: %w", err)
+	}
+
+	requestContext := context.Background()
+	if c != nil && c.Request != nil {
+		requestContext = c.Request.Context()
+	}
+	pollContext, cancel := context.WithTimeout(requestContext, predictionPollTimeout)
+	defer cancel()
+
+	pollInterval := predictionPollInitialInterval
+	transientFailures := 0
+	for {
+		req, err := http.NewRequestWithContext(pollContext, http.MethodGet, pollURL, nil)
+		if err != nil {
+			return PredictionResponse{}, fmt.Errorf("replicate adaptor: create polling request failed: %w", err)
+		}
+		req.Header.Set("Authorization", "Bearer "+info.ApiKey)
+		req.Header.Set("Accept", "application/json")
+
+		resp, requestErr := client.Do(req)
+		if requestErr != nil {
+			if pollContext.Err() != nil {
+				return PredictionResponse{}, fmt.Errorf("replicate adaptor: prediction polling stopped: %w", pollContext.Err())
+			}
+			transientFailures++
+			if transientFailures > maxTransientPollFailures {
+				return PredictionResponse{}, fmt.Errorf("replicate adaptor: poll prediction failed after retries: %w", requestErr)
+			}
+		} else {
+			responseBody, readErr := io.ReadAll(io.LimitReader(resp.Body, maxPredictionResponseBytes+1))
+			_ = resp.Body.Close()
+			if readErr != nil {
+				return PredictionResponse{}, fmt.Errorf("replicate adaptor: read polling response failed: %w", readErr)
+			}
+			if len(responseBody) > maxPredictionResponseBytes {
+				return PredictionResponse{}, errors.New("replicate adaptor: polling response is too large")
+			}
+			responsePreview := strings.TrimSpace(string(responseBody))
+			if len(responsePreview) > maxPredictionErrorPreview {
+				responsePreview = responsePreview[:maxPredictionErrorPreview] + "..."
+			}
+
+			isTransientStatus := resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= http.StatusInternalServerError
+			if isTransientStatus {
+				transientFailures++
+				if transientFailures > maxTransientPollFailures {
+					return PredictionResponse{}, fmt.Errorf("replicate adaptor: polling failed after retries with status %d: %s", resp.StatusCode, responsePreview)
+				}
+			} else {
+				if resp.StatusCode != http.StatusOK {
+					return PredictionResponse{}, fmt.Errorf("replicate adaptor: polling failed with status %d: %s", resp.StatusCode, responsePreview)
+				}
+
+				var polled PredictionResponse
+				if err := common.Unmarshal(responseBody, &polled); err != nil {
+					return PredictionResponse{}, fmt.Errorf("replicate adaptor: failed to decode polling response: %w", err)
+				}
+				transientFailures = 0
+				prediction = polled
+				done, err := evaluatePrediction(prediction)
+				if err != nil {
+					return PredictionResponse{}, err
+				}
+				if done {
+					return prediction, nil
+				}
+			}
+		}
+
+		timer := time.NewTimer(pollInterval)
+		select {
+		case <-pollContext.Done():
+			timer.Stop()
+			return PredictionResponse{}, fmt.Errorf("replicate adaptor: prediction polling stopped: %w", pollContext.Err())
+		case <-timer.C:
+		}
+		if pollInterval < predictionPollMaxInterval {
+			pollInterval *= 2
+			if pollInterval > predictionPollMaxInterval {
+				pollInterval = predictionPollMaxInterval
+			}
+		}
+	}
+}
+
+func evaluatePrediction(prediction PredictionResponse) (bool, error) {
+	if errMsg := predictionErrorMessage(prediction.Error); errMsg != "" {
+		return false, errors.New(errMsg)
+	}
+
+	switch strings.ToLower(strings.TrimSpace(prediction.Status)) {
+	case "", "succeeded":
+		return true, nil
+	case "starting", "processing":
+		return false, nil
+	case "failed", "canceled", "aborted":
+		return false, fmt.Errorf("replicate adaptor: prediction status %q", prediction.Status)
+	default:
+		return false, fmt.Errorf("replicate adaptor: unknown prediction status %q", prediction.Status)
+	}
+}
+
+func predictionErrorMessage(raw []byte) string {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return ""
+	}
+	if trimmed[0] == '"' {
+		var message string
+		if err := common.Unmarshal(trimmed, &message); err == nil && strings.TrimSpace(message) != "" {
+			return message
+		}
+	}
+	var predictionError PredictionError
+	if err := common.Unmarshal(trimmed, &predictionError); err == nil {
+		for _, message := range []string{predictionError.Message, predictionError.Detail, predictionError.Code} {
+			if strings.TrimSpace(message) != "" {
+				return message
+			}
+		}
+	}
+	return "replicate adaptor: prediction error"
+}
+
+func predictionOutputURLs(output any) []string {
+	urls := make([]string, 0)
+	appendOutput := func(value string) {
+		if value = strings.TrimSpace(value); value != "" {
+			urls = append(urls, value)
+		}
+	}
+
+	switch value := output.(type) {
+	case string:
+		appendOutput(value)
+	case []any:
+		for _, item := range value {
+			if str, ok := item.(string); ok {
+				appendOutput(str)
+			}
+		}
+	case []string:
+		for _, item := range value {
+			appendOutput(item)
+		}
+	case fmt.Stringer:
+		appendOutput(value.String())
+	}
+	return urls
 }
 
 func downloadImagesToBase64(urls []string) ([]string, error) {
