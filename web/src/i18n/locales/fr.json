@@ -5464,6 +5464,8 @@
     "Scheduled or bulk health checks can disable a channel when this duration is exceeded, if both global and channel auto-disable are enabled.": "Si la désactivation automatique est active globalement et pour le canal, un contrôle périodique ou groupé dépassant cette durée peut le désactiver.",
     "Scheduled recovery is off. Bulk channel tests can still re-enable automatically disabled channels.": "Le rétablissement périodique est inactif. Les tests groupés peuvent toujours réactiver les canaux désactivés automatiquement.",
     "Scheduled test options": "Options des tests planifiés",
+    "Scheduled test endpoint": "Point de terminaison du test planifié",
+    "Protocol used by scheduled channel tests. Auto detect keeps the current behavior.": "Protocole utilisé par les tests de canal planifiés. La détection automatique conserve le comportement actuel.",
     "scheduling controls": "contrôles d'ordonnancement",
     "Science": "Science",
     "Scope": "Portée",

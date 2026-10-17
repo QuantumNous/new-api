@@ -5464,6 +5464,8 @@
     "Scheduled or bulk health checks can disable a channel when this duration is exceeded, if both global and channel auto-disable are enabled.": "Если автоотключение включено глобально и для канала, превышение этой длительности при периодической или массовой проверке может отключить канал.",
     "Scheduled recovery is off. Bulk channel tests can still re-enable automatically disabled channels.": "Периодическое восстановление отключено. Массовые проверки могут восстановить автоматически отключённые каналы.",
     "Scheduled test options": "Параметры плановых проверок",
+    "Scheduled test endpoint": "Конечная точка плановой проверки",
+    "Protocol used by scheduled channel tests. Auto detect keeps the current behavior.": "Протокол плановых проверок канала. Автоопределение сохраняет текущее поведение.",
     "scheduling controls": "механизмов управления маршрутизацией",
     "Science": "Наука",
     "Scope": "Область",

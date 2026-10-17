@@ -30,6 +30,8 @@ import {
   FIELD_PASSTHROUGH_TYPES,
   MODEL_FETCHABLE_TYPES,
   OPENAI_FIELD_PASSTHROUGH_TYPES,
+  SCHEDULED_TEST_ENDPOINT_AUTO,
+  normalizeScheduledTestEndpoint,
 } from '../constants'
 import type { Channel } from '../types'
 import {
@@ -223,6 +225,7 @@ export const channelFormSchema = z
     priority: z.number().optional(),
     weight: z.number().optional(),
     test_model: z.string().optional(),
+    test_endpoint_type: z.string().optional(),
     auto_ban: z.number().optional(),
     status: z.number(),
     status_code_mapping: z
@@ -443,6 +446,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   priority: 0,
   weight: 0,
   test_model: '',
+  test_endpoint_type: SCHEDULED_TEST_ENDPOINT_AUTO,
   auto_ban: 1,
   status: CHANNEL_STATUS.ENABLED,
   status_code_mapping: '',
@@ -560,6 +564,7 @@ export function transformChannelToFormDefaults(
   let allowSpeed = false
   let claudeBetaQuery = false
   let ollamaOpenAIChat = false
+  let testEndpointType = SCHEDULED_TEST_ENDPOINT_AUTO
   let disableTaskPollingSleep = false
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
@@ -583,6 +588,9 @@ export function transformChannelToFormDefaults(
       allowSpeed = parsed.allow_speed === true
       claudeBetaQuery = parsed.claude_beta_query === true
       ollamaOpenAIChat = parsed.ollama_openai_chat === true
+      testEndpointType = normalizeScheduledTestEndpoint(
+        parsed.test_endpoint_type
+      )
       disableTaskPollingSleep = parsed.disable_task_polling_sleep === true
       upstreamModelUpdateCheckEnabled =
         parsed.upstream_model_update_check_enabled === true
@@ -614,6 +622,7 @@ export function transformChannelToFormDefaults(
     priority: channel.priority || 0,
     weight: channel.weight || 0,
     test_model: channel.test_model || '',
+    test_endpoint_type: testEndpointType,
     auto_ban: channel.auto_ban ?? 1,
     status: channel.status,
     status_code_mapping: channel.status_code_mapping || '',
@@ -800,6 +809,15 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.claude_beta_query = formData.claude_beta_query === true
   } else if ('claude_beta_query' in settingsObj) {
     delete settingsObj.claude_beta_query
+  }
+
+  const testEndpointType = normalizeScheduledTestEndpoint(
+    formData.test_endpoint_type
+  )
+  if (testEndpointType === SCHEDULED_TEST_ENDPOINT_AUTO) {
+    delete settingsObj.test_endpoint_type
+  } else {
+    settingsObj.test_endpoint_type = testEndpointType
   }
 
   // Only the Ollama adaptor can switch chat completions to the OpenAI-compatible endpoint.

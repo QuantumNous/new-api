@@ -493,3 +493,59 @@ func TestTestAllChannelsRejectsExistingActiveTask(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), existing.TaskID)
 	require.Contains(t, recorder.Body.String(), "A channel test task is already running or queued")
 }
+
+func TestEndpointForAutomaticChannelTestUsesSavedEndpoint(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		channel *model.Channel
+		want    string
+	}{
+		{name: "nil channel", want: ""},
+		{
+			name:    "empty keeps auto detect",
+			channel: &model.Channel{Type: constant.ChannelTypeOpenAI},
+			want:    "",
+		},
+		{
+			name: "saved responses wins over chat auto detect",
+			channel: &model.Channel{
+				Type:          constant.ChannelTypeOpenAI,
+				OtherSettings: `{"test_endpoint_type":" openai-response "}`,
+			},
+			want: string(constant.EndpointTypeOpenAIResponse),
+		},
+		{
+			name: "saved anthropic",
+			channel: &model.Channel{
+				Type:          constant.ChannelTypeSub2API,
+				OtherSettings: `{"test_endpoint_type":"anthropic"}`,
+			},
+			want: string(constant.EndpointTypeAnthropic),
+		},
+		{
+			name: "unknown saved value keeps auto detect",
+			channel: &model.Channel{
+				Type:          constant.ChannelTypeOpenAI,
+				OtherSettings: `{"test_endpoint_type":"openai-alpha-search"}`,
+			},
+			want: "",
+		},
+		{
+			name:    "codex without a saved endpoint still uses responses",
+			channel: &model.Channel{Type: constant.ChannelTypeCodex},
+			want:    string(constant.EndpointTypeOpenAIResponse),
+		},
+		{
+			name: "explicit saved endpoint wins over codex default",
+			channel: &model.Channel{
+				Type:          constant.ChannelTypeCodex,
+				OtherSettings: `{"test_endpoint_type":"openai-response-compact"}`,
+			},
+			want: string(constant.EndpointTypeOpenAIResponseCompact),
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, endpointForAutomaticChannelTest(tt.channel))
+		})
+	}
+}

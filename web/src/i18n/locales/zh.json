@@ -5464,6 +5464,8 @@
     "Scheduled or bulk health checks can disable a channel when this duration is exceeded, if both global and channel auto-disable are enabled.": "全局和渠道自动停用均开启时，定时或批量健康检查耗时超过此阈值可触发停用。",
     "Scheduled recovery is off. Bulk channel tests can still re-enable automatically disabled channels.": "定时恢复未运行，批量测试仍可恢复被自动停用的渠道。",
     "Scheduled test options": "定期测试子选项",
+    "Scheduled test endpoint": "定时测试端点",
+    "Protocol used by scheduled channel tests. Auto detect keeps the current behavior.": "定时渠道测试使用的协议。选择自动检测则保持当前行为。",
     "scheduling controls": "调度控制能力",
     "Science": "科研",
     "Scope": "作用域",

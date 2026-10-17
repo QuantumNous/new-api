@@ -5464,6 +5464,8 @@
     "Scheduled or bulk health checks can disable a channel when this duration is exceeded, if both global and channel auto-disable are enabled.": "Scheduled or bulk health checks can disable a channel when this duration is exceeded, if both global and channel auto-disable are enabled.",
     "Scheduled recovery is off. Bulk channel tests can still re-enable automatically disabled channels.": "Scheduled recovery is off. Bulk channel tests can still re-enable automatically disabled channels.",
     "Scheduled test options": "Scheduled test options",
+    "Scheduled test endpoint": "Scheduled test endpoint",
+    "Protocol used by scheduled channel tests. Auto detect keeps the current behavior.": "Protocol used by scheduled channel tests. Auto detect keeps the current behavior.",
     "scheduling controls": "scheduling controls",
     "Science": "Science",
     "Scope": "Scope",

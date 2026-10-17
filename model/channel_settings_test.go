@@ -18,6 +18,16 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestChannelValidateSettingsRejectsInvalidTestEndpoint(t *testing.T) {
+	channel := &Channel{OtherSettings: `{"test_endpoint_type":"not-an-endpoint"}`}
+	err := channel.ValidateSettings()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "test_endpoint_type")
+
+	channel.OtherSettings = `{"test_endpoint_type":"anthropic"}`
+	require.NoError(t, channel.ValidateSettings())
+}
+
 func TestChannelValidateSettingsRejectsInvalidHTTPTransport(t *testing.T) {
 	tests := []struct {
 		name    string

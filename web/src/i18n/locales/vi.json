@@ -5464,6 +5464,8 @@
     "Scheduled or bulk health checks can disable a channel when this duration is exceeded, if both global and channel auto-disable are enabled.": "Nếu bật tự động vô hiệu hóa cả ở cấp chung và cấp kênh, kiểm tra định kỳ hoặc hàng loạt vượt thời gian này có thể vô hiệu hóa kênh.",
     "Scheduled recovery is off. Bulk channel tests can still re-enable automatically disabled channels.": "Khôi phục định kỳ đang tắt. Kiểm tra hàng loạt vẫn có thể bật lại các kênh bị tự động vô hiệu hóa.",
     "Scheduled test options": "Tùy chọn kiểm tra định kỳ",
+    "Scheduled test endpoint": "Endpoint kiểm tra định kỳ",
+    "Protocol used by scheduled channel tests. Auto detect keeps the current behavior.": "Giao thức dùng cho kiểm tra kênh định kỳ. Tự động phát hiện giữ nguyên hành vi hiện tại.",
     "scheduling controls": "điều khiển điều phối",
     "Science": "Khoa học",
     "Scope": "Phạm vi",

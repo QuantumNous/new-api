@@ -139,6 +139,9 @@ type ChannelOtherSettings struct {
 	// rejection. Empty follows the default allow policy. Accepted values:
 	// "", "allow", "safe", "strict".
 	ToolLossPolicy string `json:"tool_loss_policy,omitempty"`
+	// TestEndpointType is the optional endpoint used by scheduled channel tests.
+	// Empty keeps automatic detection. Accepted values match the manual test dialog.
+	TestEndpointType string `json:"test_endpoint_type,omitempty"`
 }
 
 func (s *ChannelOtherSettings) IsOpenRouterEnterprise() bool {
@@ -159,6 +162,45 @@ func (s *ChannelOtherSettings) ValidateToolLossPolicy() error {
 		return nil
 	default:
 		return fmt.Errorf("invalid tool_loss_policy: %s", s.ToolLossPolicy)
+	}
+}
+
+// NormalizeTestEndpointType returns a scheduled-test endpoint the channel tester
+// can format. Empty and unknown values return empty so callers keep auto-detect.
+func (s ChannelOtherSettings) NormalizeTestEndpointType() string {
+	endpoint := strings.TrimSpace(s.TestEndpointType)
+	if !isScheduledTestEndpoint(endpoint) {
+		return ""
+	}
+	return endpoint
+}
+
+// ValidateTestEndpointType rejects a stored scheduled-test endpoint the tester
+// cannot format. Empty keeps automatic detection.
+func (s *ChannelOtherSettings) ValidateTestEndpointType() error {
+	if s == nil {
+		return nil
+	}
+	endpoint := strings.TrimSpace(s.TestEndpointType)
+	if endpoint == "" || isScheduledTestEndpoint(endpoint) {
+		return nil
+	}
+	return fmt.Errorf("invalid test_endpoint_type: %s", endpoint)
+}
+
+func isScheduledTestEndpoint(endpoint string) bool {
+	switch types.EndpointType(endpoint) {
+	case types.EndpointTypeOpenAI,
+		types.EndpointTypeOpenAIResponse,
+		types.EndpointTypeOpenAIResponseCompact,
+		types.EndpointTypeAnthropic,
+		types.EndpointTypeGemini,
+		types.EndpointTypeJinaRerank,
+		types.EndpointTypeImageGeneration,
+		types.EndpointTypeEmbeddings:
+		return true
+	default:
+		return false
 	}
 }
 

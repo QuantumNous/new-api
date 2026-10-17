@@ -5464,6 +5464,8 @@
     "Scheduled or bulk health checks can disable a channel when this duration is exceeded, if both global and channel auto-disable are enabled.": "全体とチャネルの両方で自動無効化が有効な場合、定期または一括ヘルスチェックがこの時間を超えると無効化されることがあります。",
     "Scheduled recovery is off. Bulk channel tests can still re-enable automatically disabled channels.": "定期復旧は無効です。一括チャネルテストでは、自動無効化されたチャネルを復旧できます。",
     "Scheduled test options": "定期テストのオプション",
+    "Scheduled test endpoint": "定期テストのエンドポイント",
+    "Protocol used by scheduled channel tests. Auto detect keeps the current behavior.": "定期チャネルテストで使うプロトコルです。自動検出のままで現在の動作を維持します。",
     "scheduling controls": "スケジューリング制御",
     "Science": "科学",
     "Scope": "スコープ",
