@@ -8,6 +8,7 @@
           "type": "input_text"
         },
         {
+          "detail": "high",
           "image_url": "https://example.com/cat.png",
           "type": "input_image"
         }
