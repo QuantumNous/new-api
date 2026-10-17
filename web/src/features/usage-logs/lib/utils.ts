@@ -38,6 +38,7 @@ import type {
   FetchLogsConfig,
   GetMidjourneyLogsParams,
   GetTaskLogsParams,
+  LogOtherData,
 } from '../types'
 
 export { buildQueryParams } from './query-params'
@@ -58,6 +59,13 @@ export function isDisplayableLogType(type: number): boolean {
  */
 export function isTimingLogType(type: number): boolean {
   return (TIMING_LOG_TYPES as readonly number[]).includes(type)
+}
+
+export function getUseTimeSeconds(
+  useTime: number,
+  other: LogOtherData | null
+): number {
+  return other?.ut != null ? other.ut / 1000 : useTime
 }
 
 /**
