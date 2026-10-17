@@ -228,7 +228,7 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	summary := textQuotaSummary{
 		ModelName:            relayInfo.GetBillingModelName(),
 		TokenName:            ctx.GetString("token_name"),
-		UseTimeSeconds:       time.Now().Unix() - relayInfo.StartTime.Unix(),
+		UseTimeSeconds:       int64(math.Ceil(time.Since(relayInfo.StartTime).Seconds())),
 		CompletionRatio:      relayInfo.PriceData.CompletionRatio,
 		CacheRatio:           relayInfo.PriceData.CacheRatio,
 		ImageRatio:           relayInfo.PriceData.ImageRatio,
