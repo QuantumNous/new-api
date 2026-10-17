@@ -17,9 +17,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute } from '@tanstack/react-router'
+import { z } from 'zod'
 
 import { SiteOrders } from '@/features/site-orders'
 
 export const Route = createFileRoute('/_authenticated/my-orders/')({
-  component: () => <SiteOrders scope='personal' />,
+  validateSearch: z.object({
+    order: z.string().max(200).optional().catch(undefined),
+  }),
+  component: OrdersPage,
 })
+
+function OrdersPage() {
+  const { order } = Route.useSearch()
+  return (
+    <SiteOrders key={order ?? ''} scope='personal' initialOrderNumber={order} />
+  )
+}

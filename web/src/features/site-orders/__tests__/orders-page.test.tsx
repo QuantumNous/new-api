@@ -35,7 +35,11 @@ import { PendingOrderNotice } from '../pending-order-notice'
 
 vi.mock('@/lib/api', () => ({ api: { get: vi.fn(), post: vi.fn() } }))
 afterEach(() => vi.resetAllMocks())
-async function showPage(personal = false, notice = false) {
+async function showPage(
+  personal = false,
+  notice = false,
+  initialOrderNumber?: string
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
@@ -45,7 +49,10 @@ async function showPage(personal = false, notice = false) {
         notice ? (
           <PendingOrderNotice />
         ) : (
-          <SiteOrders scope={personal ? 'personal' : 'site'} />
+          <SiteOrders
+            scope={personal ? 'personal' : 'site'}
+            initialOrderNumber={initialOrderNumber}
+          />
         ),
     }),
     history: createMemoryHistory({ initialEntries: ['/'] }),
@@ -442,7 +449,7 @@ test.each([false, true])(
     } else {
       expect(within(detail).getByText('Next retry')).toBeVisible()
       expect(within(detail).getByText('Cancelled by user')).toBeVisible()
-      expect(within(detail).getByText('WAIT_BUYER_PAY')).toBeVisible()
+      expect(within(detail).getByText('Awaiting payment')).toBeVisible()
     }
     client.clear()
   }
@@ -741,4 +748,33 @@ test('wallet offers payment for a pending MixPay order during automatic query re
     useAuthStore.getState().auth.setUser(null)
     vi.unstubAllGlobals()
   }
+})
+
+test('an order card destination opens only the matching personal order details', async () => {
+  const order = {
+    id: 71,
+    trade_no: 'ALI-card-7',
+    order_status: 'pending',
+    payment_provider: 'alipay',
+    create_time: 1700000000,
+    money: 1,
+    amount_fen: 100,
+  }
+  vi.mocked(api.get).mockImplementation(async (url) => ({
+    data: {
+      success: true,
+      data:
+        url === '/api/user/self/orders/71'
+          ? order
+          : { items: [order], total: 1 },
+    },
+  }))
+  const client = await showPage(true, false, 'ALI-card-7')
+  expect(await screen.findByRole('dialog')).toBeVisible()
+  expect(api.get).toHaveBeenCalledWith('/api/user/self/orders', {
+    params: expect.objectContaining({ keyword: 'ALI-card-7' }),
+  })
+  expect(api.get).toHaveBeenCalledWith('/api/user/self/orders/71')
+  expect(api.get).not.toHaveBeenCalledWith('/api/user/orders/71')
+  client.clear()
 })

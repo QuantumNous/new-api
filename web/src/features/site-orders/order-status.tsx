@@ -23,7 +23,23 @@ import { StatusBadge } from '@/components/status-badge'
 import type { SiteOrder } from './api'
 import { reviewResolutionLabel } from './presentation'
 
-export function OrderStatus(props: { order: SiteOrder }) {
+export function OrderStatus(props: {
+  order: Pick<SiteOrder, 'order_status'> &
+    Partial<
+      Pick<
+        SiteOrder,
+        | 'close_reason'
+        | 'payment_provider'
+        | 'cancel_requested'
+        | 'close_requested_at'
+        | 'cancellation_state'
+        | 'review_resolution'
+        | 'cache_pending'
+        | 'review_required'
+        | 'last_error'
+      >
+    >
+}) {
   const { t } = useTranslation()
   const labels: Record<string, string> = {
     pending: t('Awaiting payment'),

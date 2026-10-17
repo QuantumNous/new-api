@@ -17,16 +17,27 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { z } from 'zod'
 
 import { SiteOrders } from '@/features/site-orders'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 
 export const Route = createFileRoute('/_authenticated/site-orders/')({
+  validateSearch: z.object({
+    order: z.string().max(200).optional().catch(undefined),
+  }),
   beforeLoad: () => {
     if ((useAuthStore.getState().auth.user?.role ?? 0) < ROLE.ADMIN) {
       throw redirect({ to: '/403' })
     }
   },
-  component: SiteOrders,
+  component: OrdersPage,
 })
+
+function OrdersPage() {
+  const { order } = Route.useSearch()
+  return (
+    <SiteOrders key={order ?? ''} scope='site' initialOrderNumber={order} />
+  )
+}

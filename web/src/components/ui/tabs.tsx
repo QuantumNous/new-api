@@ -95,4 +95,25 @@ function TabsContent({ className, ...props }: TabsPrimitive.Panel.Props) {
   )
 }
 
-export { Tabs, TabsList, TabsTrigger, TabsContent, tabsListVariants }
+function TabsIndicator({ className, ...props }: TabsPrimitive.Indicator.Props) {
+  return (
+    <TabsPrimitive.Indicator
+      data-slot='tabs-indicator'
+      aria-hidden='true'
+      className={cn(
+        'pointer-events-none absolute top-0 left-0 h-(--active-tab-height) w-(--active-tab-width) [transform:translate(var(--active-tab-left),var(--active-tab-top))] [--tabs-dur:250ms] [--tabs-ease:cubic-bezier(0.22,1,0.36,1)] transition-[transform,width,height] duration-(--tabs-dur) ease-(--tabs-ease) motion-reduce:transition-none',
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  TabsIndicator,
+  tabsListVariants,
+}

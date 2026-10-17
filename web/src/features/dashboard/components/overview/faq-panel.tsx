@@ -1,3 +1,6 @@
+import { HelpCircle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -16,9 +19,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { HelpCircle } from 'lucide-react'
-import { useTranslation } from 'react-i18next'
-
+import { LoadingState } from '@/components/loading-state'
 import {
   Accordion,
   AccordionContent,
@@ -33,9 +34,62 @@ import type { FAQItem } from '@/features/dashboard/types'
 
 import { PanelWrapper } from '../ui/panel-wrapper'
 
-export function FAQPanel() {
+export function FAQPanel(
+  props: {
+    compact?: boolean
+    items?: (Omit<FAQItem, 'id'> & { id?: string | number })[]
+  } = {}
+) {
   const { t } = useTranslation()
-  const { items: list, loading } = useFAQ()
+  const faq = useFAQ()
+  const list = props.items ?? faq.items
+  const loading = props.items ? false : faq.loading
+
+  const content = (
+    <Accordion className={props.compact ? 'w-full' : 'w-full px-4 sm:px-5'}>
+      {list.map((item, idx: number) => {
+        const key = item.id ?? `faq-${idx}`
+        const value = `item-${key}`
+        return (
+          <AccordionItem key={key} value={value} className='border-border/60'>
+            <AccordionTrigger
+              className={
+                props.compact
+                  ? 'min-h-11 py-2 text-start hover:no-underline'
+                  : 'text-start hover:no-underline'
+              }
+            >
+              <Markdown className='text-sm leading-relaxed font-semibold'>
+                {item.question}
+              </Markdown>
+            </AccordionTrigger>
+            <AccordionContent>
+              <Markdown
+                className={
+                  props.compact
+                    ? 'text-muted-foreground text-sm'
+                    : 'text-muted-foreground/60 text-sm'
+                }
+              >
+                {item.answer}
+              </Markdown>
+            </AccordionContent>
+          </AccordionItem>
+        )
+      })}
+    </Accordion>
+  )
+  if (props.compact) {
+    if (loading) return <LoadingState />
+    if (!list.length) {
+      return (
+        <p className='text-muted-foreground py-6'>
+          {t('No FAQ entries available')}
+        </p>
+      )
+    }
+    return content
+  }
 
   return (
     <PanelWrapper
@@ -54,32 +108,7 @@ export function FAQPanel() {
       height='h-80'
       contentClassName='p-0'
     >
-      <ScrollArea className='h-80'>
-        <Accordion className='w-full px-4 sm:px-5'>
-          {list.map((item: FAQItem, idx: number) => {
-            const key = item.id ?? `faq-${idx}`
-            const value = `item-${key}`
-            return (
-              <AccordionItem
-                key={key}
-                value={value}
-                className='border-border/60'
-              >
-                <AccordionTrigger className='text-start hover:no-underline'>
-                  <Markdown className='text-sm leading-relaxed font-semibold'>
-                    {item.question}
-                  </Markdown>
-                </AccordionTrigger>
-                <AccordionContent>
-                  <Markdown className='text-muted-foreground/60 text-sm'>
-                    {item.answer}
-                  </Markdown>
-                </AccordionContent>
-              </AccordionItem>
-            )
-          })}
-        </Accordion>
-      </ScrollArea>
+      <ScrollArea className='h-80'>{content}</ScrollArea>
     </PanelWrapper>
   )
 }
