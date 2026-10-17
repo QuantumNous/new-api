@@ -3084,6 +3084,7 @@
     "Manage Vendors": "مدیریت سازندگان",
     "Manage your LinuxDO OAuth app": "مدیریت برنامۀ OAuth شما در LinuxDO",
     "Manage your security settings and account access": "تنظیمات امنیتی و دسترسی حساب خود را مدیریت کنید",
+    "Mantle (Messages API)": "Mantle (API پیام‌ها)",
     "Manual Disabled": "غیرفعال‌شده به‌صورت دستی",
     "Map fields from the user info response to local user attributes. Supports nested paths (e.g. ocs.data.id).": "فیلدهای پاسخ اطلاعات کاربر را به ویژگی‌های کاربر در این سیستم نگاشت کنید. مسیرهای تودرتو پشتیبانی می‌شوند (مثلاً ⁨ocs.data.id⁩).",
     "Map model identifiers to Gemini API versions. A `default` entry applies when no specific match is found.": "شناسه‌های مدل را به نسخه‌های Gemini API نگاشت کنید. وقتی تطبیق مشخصی پیدا نشود، مدخل ⁨`default`⁩ اعمال می‌شود.",
