@@ -739,6 +739,133 @@ func TestTaskAdaptorMapsJSContract(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestTaskAdaptorHeaderOverrides(t *testing.T) {
+	service.InitHttpClient()
+	source := strings.ReplaceAll(mockPlugin, `"X-Plugin":`, `"Authorization": "plugin-default", "X-Plugin":`)
+	source += `
+export function buildBatchQueryRequest(ctx) {
+  return {url: ctx.baseUrl + "/batch", method: "POST", headers: {Authorization: "plugin-default", "X-Plugin": "batch"}, body: {}};
+}
+export function parseBatchResult() { return {}; }
+`
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	overrides := map[string]any{
+		"X-API-Key":     "{api_key}",
+		"Authorization": "Custom {api_key}",
+		"X-Plugin":      "configured",
+		"Host":          "upstream.example",
+		"*":             true,
+		"re:^X-Trace-":  true,
+		"X-Client":      "{client_header:X-Trace-Id}",
+	}
+	for _, mode := range []string{"submit", "poll", "batch"} {
+		for _, tc := range []struct {
+			name     string
+			headers  map[string]any
+			runtime  bool
+			invalid  bool
+			redirect bool
+		}{
+			{name: "plugin defaults"},
+			{name: "channel overrides", headers: overrides},
+			{name: "runtime overrides", headers: overrides, runtime: true},
+			{name: "invalid header value", headers: map[string]any{"X-API-Key": "key\r\nInjected: value"}, invalid: true},
+			{name: "redirect", headers: overrides, redirect: true},
+		} {
+			t.Run(mode+"/"+tc.name, func(t *testing.T) {
+				received := make(chan *http.Request, 2)
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					received <- r.Clone(r.Context())
+					if tc.redirect && r.URL.Path != "/redirected" {
+						http.Redirect(w, r, "/redirected", http.StatusFound)
+						return
+					}
+					_, _ = w.Write([]byte(`{}`))
+				}))
+				defer server.Close()
+				info := &relaycommon.RelayInfo{
+					ChannelMeta: &relaycommon.ChannelMeta{
+						ChannelBaseUrl:  server.URL,
+						ApiKey:          "channel-key",
+						HeadersOverride: tc.headers,
+					},
+					TaskRelayInfo: &relaycommon.TaskRelayInfo{},
+				}
+				if tc.runtime {
+					info.HeadersOverride = map[string]any{"X-Legacy": "must-not-be-sent"}
+					info.UseRuntimeHeadersOverride = true
+					info.RuntimeHeadersOverride = tc.headers
+				}
+				adaptor := New(plugin)
+				adaptor.Init(info)
+				task := &model.Task{PrivateData: model.TaskPrivateData{UpstreamTaskID: "task-1", Key: "task-key"}}
+				var resp *http.Response
+				var requestErr error
+				wantKey := "channel-key"
+				wantPlugin := "submit"
+				switch mode {
+				case "submit":
+					c, _ := gin.CreateTestContext(httptest.NewRecorder())
+					c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
+					c.Request.Header.Set("X-Trace-Id", "client-trace")
+					c.Request.Header.Set("X-API-Key", "client-key")
+					c.Request.Header.Set("Authorization", "client-authorization")
+					c.Request.Header.Set("Cookie", "client-session")
+					c.Set("task_request", relaycommon.TaskSubmitReq{Prompt: "hello"})
+					body, err := adaptor.BuildRequestBody(c, info)
+					require.NoError(t, err)
+					resp, requestErr = adaptor.DoRequest(c, info, body)
+				case "poll":
+					wantKey, wantPlugin = "task-key", "query"
+					resp, requestErr = adaptor.FetchTask(server.URL, "argument-key", task, "")
+				case "batch":
+					wantKey, wantPlugin = "batch-key", "batch"
+					resp, requestErr = adaptor.FetchBatchTasks(server.URL, "batch-key", []*model.Task{task}, "")
+				}
+				if resp != nil {
+					t.Cleanup(func() { _ = resp.Body.Close() })
+				}
+				if tc.invalid {
+					require.Error(t, requestErr)
+					assert.Nil(t, resp)
+					assert.Empty(t, received, "invalid configuration must reject the descriptor request before sending it")
+					return
+				}
+				require.NoError(t, requestErr)
+				require.NotNil(t, resp)
+				if tc.redirect {
+					assert.Equal(t, http.StatusFound, resp.StatusCode)
+				} else {
+					assert.Equal(t, http.StatusOK, resp.StatusCode)
+				}
+				require.Len(t, received, 1, "redirects must not forward credentials to another request")
+				request := <-received
+				assert.Empty(t, request.Header.Get("Cookie"))
+				assert.Empty(t, request.Header.Get("X-Legacy"))
+				if tc.headers == nil {
+					assert.Equal(t, wantPlugin, request.Header.Get("X-Plugin"))
+					assert.Equal(t, "plugin-default", request.Header.Get("Authorization"))
+					assert.Empty(t, request.Header.Get("X-API-Key"))
+				} else {
+					assert.Equal(t, "configured", request.Header.Get("X-Plugin"))
+					assert.Equal(t, wantKey, request.Header.Get("X-API-Key"))
+					assert.Equal(t, "Custom "+wantKey, request.Header.Get("Authorization"))
+					assert.Equal(t, "upstream.example", request.Host)
+					wantClient := ""
+					if mode == "submit" {
+						wantClient = "client-trace"
+					}
+					assert.Equal(t, wantClient, request.Header.Get("X-Client"))
+					assert.Equal(t, wantClient, request.Header.Get("X-Trace-Id"))
+					assert.Equal(t, "{api_key}", tc.headers["X-API-Key"], "resolving credentials must not mutate channel configuration")
+				}
+				assert.Equal(t, "channel-key", info.ApiKey, "polling must not change shared channel credentials")
+			})
+		}
+	}
+}
+
 func TestTaskAdaptorPreservesSoraVideoResponseFields(t *testing.T) {
 	source, err := plugins.Source("sora")
 	require.NoError(t, err)

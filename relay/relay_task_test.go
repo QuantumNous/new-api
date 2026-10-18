@@ -1,6 +1,7 @@
 package relay
 
 import (
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -46,6 +47,38 @@ func setupRelayChannelDB(t *testing.T) *gorm.DB {
 		require.NoError(t, sqlDB.Close())
 	})
 	return database
+}
+
+func TestRealtimeFetchAppliesChannelHeaderOverrides(t *testing.T) {
+	database := setupRelayChannelDB(t)
+	service.InitHttpClient()
+	requests := make(chan *http.Request, 1)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests <- r.Clone(r.Context())
+		_, _ = w.Write([]byte(`{"name":"operations/task-1","done":false}`))
+	}))
+	t.Cleanup(server.Close)
+	headerOverride := `{"X-API-Key":"{api_key}"}`
+	channel := &model.Channel{
+		Name: "realtime-header-override", Type: constant.ChannelTypeGemini,
+		Key: "channel-key", BaseURL: &server.URL, HeaderOverride: &headerOverride,
+	}
+	require.NoError(t, database.Create(channel).Error)
+	task := &model.Task{
+		TaskID: "public-task", ChannelId: channel.Id,
+		Status: model.TaskStatusInProgress, Progress: "50%",
+		PrivateData: model.TaskPrivateData{
+			Key: "saved-key", UpstreamTaskID: base64.RawURLEncoding.EncodeToString([]byte("operations/task-1")),
+		},
+	}
+
+	tryRealtimeFetch(task, true)
+
+	require.Len(t, requests, 1)
+	request := <-requests
+	assert.Equal(t, "/v1beta/operations/task-1", request.URL.Path)
+	assert.Equal(t, "saved-key", request.Header.Get("X-API-Key"))
+	assert.Equal(t, "saved-key", request.Header.Get("X-Goog-Api-Key"))
 }
 
 func TestApplyChannelPinPreservesOriginTasksAndRetryMode(t *testing.T) {
