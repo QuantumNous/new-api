@@ -1,6 +1,7 @@
 package model
 
 import (
+	"fmt"
 	"maps"
 	"strconv"
 	"strings"
@@ -66,6 +67,9 @@ func InitOptionMap() {
 	common.OptionMap["EmailAliasRestrictionEnabled"] = strconv.FormatBool(common.EmailAliasRestrictionEnabled)
 	common.OptionMap["EmailDomainWhitelist"] = strings.Join(common.EmailDomainWhitelist, ",")
 	common.OptionMap["SMTPServer"] = ""
+	common.OptionMap["EmailProvider"] = "smtp"
+	common.OptionMap["ResendApiKey"] = ""
+	common.OptionMap["ResendFrom"] = ""
 	common.OptionMap["SMTPFrom"] = ""
 	common.OptionMap["SMTPPort"] = strconv.Itoa(common.SMTPPort)
 	common.OptionMap["SMTPAccount"] = ""
@@ -234,6 +238,20 @@ func validateOptionValue(key string, value string) error {
 	}
 	if err := operation_setting.ValidateQuotaOption(key, value); err != nil {
 		return err
+	}
+	if key == "EmailProvider" {
+		if err := common.ValidateEmailProvider(value); err != nil {
+			return err
+		}
+		if value == "resend" {
+			common.OptionMapRWMutex.RLock()
+			apiKey, from := common.OptionMap["ResendApiKey"], common.OptionMap["ResendFrom"]
+			common.OptionMapRWMutex.RUnlock()
+			return common.ValidateResendConfiguration(apiKey, from)
+		}
+	}
+	if key == "ResendKeyConfigured" {
+		return fmt.Errorf("Resend key configuration status is read-only")
 	}
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)
