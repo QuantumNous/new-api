@@ -132,7 +132,9 @@ it('retains administrator tools without granting super-admin-only tools', async 
     .auth.setBundle({ ...bundle, user: { ...bundle.user, role: ROLE.ADMIN } })
   await renderApp(<NavigationProbe />, client)
   expect(screen.getByRole('link', { name: 'Channels' })).toBeVisible()
-  expect(screen.getByRole('link', { name: 'System Settings' })).toBeVisible()
+  expect(
+    screen.queryByRole('link', { name: 'System Settings' })
+  ).not.toBeInTheDocument()
   expect(
     screen.queryByRole('link', { name: 'Partner OAuth Clients' })
   ).not.toBeInTheDocument()

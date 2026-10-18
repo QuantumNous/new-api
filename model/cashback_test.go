@@ -2833,7 +2833,7 @@ func TestCheckinRejectsNegativeConfigurationAndSkipsZeroQuotaUpdate(t *testing.T
 	require.NoError(t, db.Model(&WalletRefundCreditEvent{}).Where("user_id = ?", user.Id).Count(&count).Error)
 	assert.Zero(t, count)
 	_, err = UserCheckin(user.Id)
-	require.ErrorContains(t, err, "今日已签到")
+	require.ErrorContains(t, err, "Already checked in today")
 }
 
 func TestRechargeEpayCreatesCashbackOnceAndManualCompletionStaysIneligible(t *testing.T) {

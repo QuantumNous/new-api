@@ -1333,7 +1333,7 @@ function ProviderGroupPricingSection(
               (tier) => 'unitPrices' in tier || tier.billingUnit === 'request'
             )
               ? t('Prices shown per usage unit')
-              : `${t('Prices shown per')} ${tokenUnitLabel} tokens`}
+              : t('Prices shown per {{unit}} tokens', { unit: tokenUnitLabel })}
           </p>
         </div>
       </section>
@@ -1436,7 +1436,7 @@ function ProviderGroupPricingSection(
       <div className='-mx-4 sm:mx-0'>
         {isTokenBased && (
           <p className='text-muted-foreground/40 mt-1.5 px-4 text-[10px] sm:px-0'>
-            {t('Prices shown per')} {tokenUnitLabel} tokens
+            {t('Prices shown per {{unit}} tokens', { unit: tokenUnitLabel })}
           </p>
         )}
       </div>

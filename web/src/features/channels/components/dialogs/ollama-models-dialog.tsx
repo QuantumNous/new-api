@@ -42,6 +42,7 @@ import { Separator } from '@/components/ui/separator'
 import { getFreshAuthHeaders } from '@/lib/api'
 import { resolveApiRequestURL } from '@/lib/api-base-url'
 import { handleServerError } from '@/lib/handle-server-error'
+import { getServerMessage } from '@/lib/server-error-message'
 
 import {
   deleteOllamaModel,
@@ -137,8 +138,8 @@ export function OllamaModelsDialog({
           })
           if (payloadLive?.success) {
             normalized = normalizeOllamaModels(payloadLive.data)
-          } else if (payloadLive?.message) {
-            lastErr = String(payloadLive.message)
+          } else {
+            lastErr = getServerMessage(payloadLive) || ''
           }
         } catch (err: unknown) {
           lastErr = err instanceof Error ? err.message : ''
@@ -152,7 +153,7 @@ export function OllamaModelsDialog({
           normalized = normalizeOllamaModels(payload.data)
           lastErr = ''
         } else {
-          lastErr = String(payload?.message || '')
+          lastErr = getServerMessage(payload) || ''
         }
       }
 

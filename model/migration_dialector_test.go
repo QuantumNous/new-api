@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/schema"
 )
 
 type MigrationIdentityFields struct {
@@ -83,6 +84,49 @@ func TestMigrationSchemaStability(t *testing.T) {
 			t.Cleanup(func() { _ = sqlDB.Close() })
 			recorder := &migrationSQLRecorder{}
 			db = db.Session(&gorm.Session{Logger: recorder})
+
+			t.Run("prefixed_personal_access_tokens_and_audit_logs", func(t *testing.T) {
+				const prefix = "rc44_pat_"
+				prefixedDB, err := gorm.Open(db.Dialector, &gorm.Config{
+					NamingStrategy: schema.NamingStrategy{TablePrefix: prefix},
+					Logger:         recorder,
+				})
+				require.NoError(t, err)
+				prefixedSQL, err := prefixedDB.DB()
+				require.NoError(t, err)
+				t.Cleanup(func() { _ = prefixedSQL.Close() })
+				t.Cleanup(func() {
+					_ = prefixedDB.Migrator().DropTable(&AuditLog{})
+					_ = prefixedDB.Migrator().DropTable(&UserAccessToken{})
+				})
+				require.Equal(t, "user_access_tokens", (schema.NamingStrategy{}).TableName("UserAccessToken"))
+				require.Equal(t, prefix+"user_access_tokens", prefixedDB.NamingStrategy.TableName("UserAccessToken"))
+				require.NoError(t, prefixedDB.AutoMigrate(&UserAccessToken{}))
+				require.True(t, prefixedDB.Migrator().HasTable(&UserAccessToken{}))
+				token := UserAccessToken{UserId: 7, Name: "existing", TokenHash: strings.Repeat("a", 64)}
+				require.NoError(t, prefixedDB.Create(&token).Error)
+				recorder.reset()
+				require.NoError(t, prefixedDB.AutoMigrate(&UserAccessToken{}))
+				assert.Empty(t, recorder.schemaMutations())
+				var saved UserAccessToken
+				require.NoError(t, prefixedDB.Where("token_hash = ?", token.TokenHash).First(&saved).Error)
+				assert.Equal(t, token.Id, saved.Id)
+				assert.Equal(t, token.UserId, saved.UserId)
+				assert.Error(t, prefixedDB.Create(&UserAccessToken{TokenHash: token.TokenHash}).Error)
+
+				// Audit records are routed through the log database's naming strategy,
+				// including when it shares the primary database connection.
+				require.NoError(t, prefixedDB.AutoMigrate(&AuditLog{}))
+				audit := AuditLog{EventId: "existing-event", Category: AuditCategoryLogin, ActorRole: 1}
+				require.NoError(t, prefixedDB.Create(&audit).Error)
+				recorder.reset()
+				require.NoError(t, prefixedDB.AutoMigrate(&AuditLog{}))
+				assert.Empty(t, recorder.schemaMutations())
+				var savedAudit AuditLog
+				require.NoError(t, prefixedDB.Where("event_id = ?", audit.EventId).First(&savedAudit).Error)
+				assert.Equal(t, audit.Id, savedAudit.Id)
+				assert.Error(t, prefixedDB.Create(&AuditLog{EventId: audit.EventId}).Error)
+			})
 
 			t.Run("identity_and_indexes", func(t *testing.T) {
 				const table = "migration_identity_test"

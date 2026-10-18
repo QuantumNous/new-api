@@ -1,6 +1,8 @@
 package router
 
 import (
+	"net/http"
+
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/service"
@@ -107,10 +109,17 @@ func SetApiRouter(router *gin.Engine) {
 				selfRoute.GET("/models", controller.GetUserModels)
 				selfRoute.PUT("/self", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.UpdateSelf)
 				selfRoute.DELETE("/self", middleware.DisableCache(), controller.DeleteSelf)
-				selfRoute.GET("/token", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("access-token"), middleware.DisableCache(), controller.GenerateAccessToken)
-				selfRoute.GET("/token/status", middleware.DisableCache(), controller.GetAccessTokenStatus)
-				selfRoute.POST("/token", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("access-token"), middleware.DisableCache(), controller.GenerateAccessToken)
-				selfRoute.DELETE("/token", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("access-token"), middleware.DisableCache(), controller.RevokeAccessToken)
+				accessTokenRoute := selfRoute.Group("/access_tokens")
+				accessTokenRoute.Use(middleware.DisableCache())
+				{
+					accessTokenRoute.GET("", controller.ListAccessTokens)
+					accessTokenRoute.GET("/catalog", controller.GetAccessTokenCatalog)
+					accessTokenRoute.GET("/scopes", controller.GetAccessTokenScopes)
+					accessTokenRoute.POST("", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("access-token"), controller.CreateAccessToken)
+					accessTokenRoute.PATCH("/:id", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("access-token"), controller.UpdateAccessToken)
+					accessTokenRoute.DELETE("/:id", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("access-token"), controller.DeleteAccessToken)
+					accessTokenRoute.DELETE("/legacy", middleware.CriticalRateLimit(), middleware.UserCriticalRateLimit("access-token"), controller.RevokeLegacyAccessToken)
+				}
 				selfRoute.GET("/passkey", controller.PasskeyStatus)
 				selfRoute.POST("/passkey/register/begin", middleware.UserCriticalRateLimit("security-verification"), middleware.DisableCache(), controller.PasskeyRegisterBegin)
 				selfRoute.POST("/passkey/register/finish", middleware.UserCriticalRateLimit("security-verification"), middleware.DisableCache(), controller.PasskeyRegisterFinish)
@@ -264,12 +273,12 @@ func SetApiRouter(router *gin.Engine) {
 		partnerOAuthClientRoute := apiRouter.Group("/partner-oauth/clients")
 		partnerOAuthClientRoute.Use(middleware.AdminAuth())
 		{
-			partnerOAuthClientRoute.GET("", middleware.RequirePermission(authz.PartnerOAuthClientRead), controller.GetPartnerOAuthClients)
-			partnerOAuthClientRoute.POST("", middleware.RequirePermission(authz.PartnerOAuthClientSensitiveWrite), controller.CreatePartnerOAuthClient)
-			partnerOAuthClientRoute.PUT("/:id", middleware.RequirePermission(authz.PartnerOAuthClientSensitiveWrite), controller.UpdatePartnerOAuthClient)
-			partnerOAuthClientRoute.POST("/:id/secret", middleware.RequirePermission(authz.PartnerOAuthClientSensitiveWrite), controller.RotatePartnerOAuthClientSecret)
-			partnerOAuthClientRoute.POST("/:id/status", middleware.RequirePermission(authz.PartnerOAuthClientOperate), controller.UpdatePartnerOAuthClientStatus)
-			partnerOAuthClientRoute.DELETE("/:id", middleware.RequirePermission(authz.PartnerOAuthClientSensitiveWrite), controller.DeletePartnerOAuthClient)
+			handlePermissionRoute(partnerOAuthClientRoute, http.MethodGet, "", authz.PartnerOAuthClientRead, controller.GetPartnerOAuthClients)
+			handlePermissionRoute(partnerOAuthClientRoute, http.MethodPost, "", authz.PartnerOAuthClientSensitiveWrite, controller.CreatePartnerOAuthClient)
+			handlePermissionRoute(partnerOAuthClientRoute, http.MethodPut, "/:id", authz.PartnerOAuthClientSensitiveWrite, controller.UpdatePartnerOAuthClient)
+			handlePermissionRoute(partnerOAuthClientRoute, http.MethodPost, "/:id/secret", authz.PartnerOAuthClientSensitiveWrite, controller.RotatePartnerOAuthClientSecret)
+			handlePermissionRoute(partnerOAuthClientRoute, http.MethodPost, "/:id/status", authz.PartnerOAuthClientOperate, controller.UpdatePartnerOAuthClientStatus)
+			handlePermissionRoute(partnerOAuthClientRoute, http.MethodDelete, "/:id", authz.PartnerOAuthClientSensitiveWrite, controller.DeletePartnerOAuthClient)
 		}
 
 		// Custom OAuth provider management (root only)
@@ -316,7 +325,7 @@ func SetApiRouter(router *gin.Engine) {
 			taskPluginRoute.POST("/:key/dryrun", controller.DryRunTaskPlugin)
 			taskPluginRoute.DELETE("/:key/versions/:version", controller.DeleteTaskPluginVersion)
 		}
-		apiRouter.GET("/task_plugin_options", middleware.AdminAuth(), middleware.RequirePermission(authz.TaskPluginBind), controller.GetTaskPluginOptions)
+		handlePermissionRoute(apiRouter.Group("", middleware.AdminAuth()), http.MethodGet, "/task_plugin_options", authz.TaskPluginBind, controller.GetTaskPluginOptions)
 		registerChannelRoutes(apiRouter)
 		registerAuthzRoutes(apiRouter)
 		tokenRoute := apiRouter.Group("/token")
@@ -357,7 +366,7 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.DELETE("/invalid", controller.DeleteInvalidRedemption)
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
-		apiRouter.GET("/audit", middleware.DisableCache(), middleware.AdminAuth(), middleware.RequirePermission(authz.AuditRead), controller.GetAuditLogs)
+		handlePermissionRoute(apiRouter.Group("", middleware.DisableCache(), middleware.AdminAuth()), http.MethodGet, "/audit", authz.AuditRead, controller.GetAuditLogs)
 		apiRouter.GET("/audit/self", middleware.DisableCache(), middleware.UserAuth(), controller.GetAuditLogs)
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
@@ -368,6 +377,8 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute.GET("/channel_affinity_usage_cache", middleware.AdminAuth(), controller.GetChannelAffinityUsageCacheStats)
 		logRoute.GET("/search", middleware.AdminAuth(), controller.SearchAllLogs)
 		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs)
+		logRoute.GET("/export", middleware.AdminAuth(), controller.ExportAllLogs)
+		logRoute.GET("/self/export", middleware.UserAuth(), controller.ExportUserLogs)
 		logRoute.GET("/self/search", middleware.UserAuth(), middleware.SearchRateLimit(), controller.SearchUserLogs)
 
 		systemTaskRoute := apiRouter.Group("/system-task")

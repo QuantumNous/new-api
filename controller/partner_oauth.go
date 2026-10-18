@@ -195,7 +195,10 @@ func writePartnerOAuthHTMLError(c *gin.Context, status int, code string) {
 	}
 	title := i18n.T(c, "partner_oauth.error."+code+".title")
 	description := i18n.T(c, "partner_oauth.error."+code+".description")
-	lang := i18n.GetLangFromContext(c)
+	lang := i18n.StatedLang(c)
+	if lang == "" {
+		lang = common.DefaultLanguage
+	}
 	page := "<!DOCTYPE html><html lang=\"" + html.EscapeString(lang) + "\"><head><meta charset=\"utf-8\">" +
 		"<meta name=\"referrer\" content=\"no-referrer\">" +
 		"<title>" + html.EscapeString(title) + "</title></head><body><h1>" + html.EscapeString(title) +

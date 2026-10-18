@@ -131,6 +131,42 @@ docker -H "unix://$RAW" start task-db
 docker -H "unix://$RAW" exec task-go go test -overlay=/tmp/task-overlay.json ./model -run 'TestRelevantDatabaseIntegration' -v
 ```
 
+## Scenario: audit log migration across separate log databases
+
+### 1. Scope / Trigger
+- Changing `model.AuditLog`, `RecordAuditLog`, `MigrateAuditLogs`, or the independent `LOG_SQL_DSN` migration path.
+
+### 2. Signatures
+- `RecordAuditLog(c *gin.Context, entry AuditLog)` writes through `LOG_DB`; `MigrateAuditLogs() error` creates `audit_logs` in the configured log store. `UserAccessToken` lives in the main DB.
+
+### 3. Contracts
+- SQLite/MySQL/PostgreSQL use GORM's naming strategy for `AuditLog` and `UserAccessToken` (including a configured table prefix); do not hardcode a `TableName()` just to reproduce the default name. ClickHouse uses an explicit `audit_logs` MergeTree table and a JSON-encoded `other` insert; it does **not** enforce `event_id` uniqueness. Do not rely on ClickHouse to reject duplicate audit writes or call that table database-deduplicated.
+- Audit records are not subject to usage-log TTL. Test a separately configured log store rather than assuming `LOG_DB == DB`.
+
+### 4. Validation & Error Matrix
+| Condition | Required result |
+| --- | --- |
+| Main/log databases have a GORM table prefix | Migrate and write to the corresponding prefixed tables; no missing-table errors |
+| ClickHouse receives the same `event_id` twice | Both rows may remain; prevent duplicate events at the producer if uniqueness is required |
+| Log DB is unavailable | Log the write failure without recording sensitive bearer credentials |
+
+### 5. Good / Base / Bad Cases
+- Good: migrate a representative previous-release main and independent log DB twice on each supported engine, then read existing audit rows and check new records.
+- Base: fresh migrations work with default table names.
+- Bad: test only the main DB, assume ClickHouse enforces `uniqueIndex`, or hardcode `audit_logs` for a prefixed relational log DB.
+
+### 6. Tests Required
+- In task-isolated Docker containers, verify fresh and previous-release upgrades plus repeat migration for SQLite, MySQL and PostgreSQL main/log stores; assert preserved data, indexes and uniqueness. For ClickHouse, verify fresh/upgrade audit read-write and repeat migration, and document its duplicate `event_id` behavior. Record actual engine versions and untested older versions/production backup separately.
+
+### 7. Wrong vs Correct
+```go
+// Wrong: bypasses the relational log database's naming strategy.
+LOG_DB.Table("audit_logs").Create(&entry)
+// Correct: relational log store; use its configured GORM schema.
+LOG_DB.Create(&entry)
+// ClickHouse's explicit table and JSON binding remain a separate dialect branch.
+```
+
 ## Common Mistakes
 
 - Do not call `GetDBTimestamp()` (which queries the global `DB`) inside a GORM transaction. SQLite test setups may have one available connection, so the nested query waits on the transaction's own connection indefinitely. Use `getDBTimestampOn(tx)` for transaction-local database time; `CreateUserSubscriptionFromPlanTx` is an example. This also keeps transactional reads on the same connection across dialects.

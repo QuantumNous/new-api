@@ -56,6 +56,7 @@ import {
   DEFAULT_CURRENCY_CONFIG,
   useSystemConfigStore,
 } from '@/stores/system-config-store'
+import { createTestAuthBundle } from '@/test-utils/auth-bundle'
 
 import { ModelsDialogs } from '../components/models-dialogs'
 import { ModelsProvider } from '../components/models-provider'
@@ -125,7 +126,11 @@ async function renderList(
     total?: number
   } = {}
 ) {
-  useAuthStore.getState().auth.setUser({ id: 1, username: 'admin', role: 100 })
+  const bundle = createTestAuthBundle()
+  useAuthStore.getState().auth.setBundle({
+    ...bundle,
+    user: { id: 1, username: 'admin', role: 100 },
+  })
   const get = vi.spyOn(api, 'get').mockImplementation(async (url) => {
     if (url === '/api/models/' || url === '/api/models/search') {
       return {

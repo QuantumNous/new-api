@@ -39,8 +39,10 @@ var auditContentTemplates = map[string]string{
 	"cashback.principal_debt_resolve":  "Resolved cashback principal debt for top-up ${top_up_id}",
 	"cashback.sensitive_view":          "Viewed sensitive cashback details for reward ${reward_id}",
 	"user.account_delete":              "Account deletion",
-	"access_token.generate":            "Generated a system access token",
-	"access_token.revoke":              "Revoked the system access token",
+	"access_token.generate":            "Generated an access token",
+	"access_token.revoke":              "Revoked an access token",
+	"access_token.rename":              "Renamed an access token",
+	"access_token.update":              "Changed access token permissions",
 	"user.2fa_setup":                   "Started two-factor authentication setup",
 	"user.2fa_enable":                  "Enabled two-factor authentication",
 	"user.2fa_disable_self":            "Disabled two-factor authentication",
@@ -74,8 +76,9 @@ var auditContentTemplates = map[string]string{
 	"redemption.create":       "Created ${count} redemption codes named ${name} (${quota} each)",
 	"redemption.delete_batch": "Batch deleted ${count} redemption codes",
 
-	"subscription.plan_reset":      "Reset active subscriptions for plan ${plan_id}",
-	"subscription.user_plan_reset": "Reset active plan ${plan_id} subscriptions for user ${target_user_id}",
+	"subscription.plan_reset":       "Reset active subscriptions for plan ${plan_id}",
+	"subscription.user_plan_reset":  "Reset active plan ${plan_id} subscriptions for user ${target_user_id}",
+	"subscription.user_quota_reset": "Administrator reset the quota of subscription plan ${plan_title} (ID: ${plan_id})",
 
 	"partner_oauth.binding.admin_revoke": "Revoked partner application ${binding_id} for user ${target_user_id}",
 }
@@ -172,6 +175,12 @@ func recordUserSecurityAudit(c *gin.Context, userId int, action string, params m
 			params = map[string]any{}
 		}
 		params["code"] = code
+	}
+	if c.GetBool("use_access_token") {
+		if params == nil {
+			params = map[string]any{}
+		}
+		params["token_ref"] = c.GetString("access_token_ref")
 	}
 	var auditInfo *model.AuditRequestInfo
 	if success, ok := params["success"].(bool); ok {

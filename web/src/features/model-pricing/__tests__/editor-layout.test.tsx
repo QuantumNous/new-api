@@ -35,6 +35,7 @@ import { ModelRatioForm } from '@/features/system-settings/models/model-ratio-fo
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
 import { usePricingPreferencesStore } from '@/stores/pricing-preferences-store'
+import { createTestAuthBundle } from '@/test-utils/auth-bundle'
 
 import { ModelPricingPanel } from '../model-pricing-panel'
 import type { PricingValues } from '../pricing'
@@ -71,9 +72,11 @@ it.each(['none', 'standard', 'claude_ttl'] as const)(
       ImageRatio: 1,
     }
     const configured = { ModelRatio: 2 }
-    useAuthStore
-      .getState()
-      .auth.setUser({ id: 1, username: 'administrator', role: 100 })
+    const bundle = createTestAuthBundle()
+    useAuthStore.getState().auth.setBundle({
+      ...bundle,
+      user: { id: 1, username: 'administrator', role: 100 },
+    })
     usePricingPreferencesStore.setState({ currency: 'USD' })
     vi.spyOn(api, 'get').mockImplementation(async (url) => ({
       data: {

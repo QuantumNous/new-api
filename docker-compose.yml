@@ -48,6 +48,8 @@ services:
       ERROR_LOG_ENABLED: "true" # 是否启用错误日志记录 (Whether to enable error log 
       BATCH_UPDATE_ENABLED: "true" # 是否启用批量更新 (Whether to enable batch update)
       NODE_NAME: "${NODE_NAME:-new-api-node-1}"
+      # 默认语言可选 en、zh-CN、zh-TW；不设置时为 en。
+      DEFAULT_LANGUAGE: "${DEFAULT_LANGUAGE:-en}"
 #      - STREAMING_TIMEOUT=300  # 流模式无响应超时时间，单位秒，默认120秒，如果出现空补全可以尝试改为更大值 （Streaming timeout in seconds, default is 120s. Increase if experiencing empty completions）
 #      - RELAY_IDLE_CONN_TIMEOUT=90  # Relay HTTP 客户端空闲连接超时时间，单位秒，默认跟随 Go 标准库，设置为0表示不限制 (Relay HTTP client idle keep-alive timeout in seconds, defaults to Go standard library; set 0 to disable)
 

@@ -512,7 +512,7 @@ export function parseTaskResult() { return {}; }
 					require.NoError(t, records[i].Insert())
 					ids = append(ids, records[i].Id)
 				}
-				active := model.Channel{Name: "Square active", Type: 1, Key: "fixture", Group: "default", Status: common.ChannelStatusEnabled,
+				active := model.Channel{Name: "Square active", Type: 1, Key: "fixture", Group: "default,vip", Status: common.ChannelStatusEnabled,
 					Models: "square-visible,square-hidden,square-bare,square-partial-on,square-partial-hidden,square-hidden-child,square-hidden-override,square-prefix-ending,square-contains-ending"}
 				inactive := model.Channel{Name: "Square inactive", Type: 1, Key: "fixture", Group: "default", Status: common.ChannelStatusManuallyDisabled,
 					Models: "square-disabled,square-partial-off,square-off-child"}

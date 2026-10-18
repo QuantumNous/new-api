@@ -29,7 +29,7 @@ import {
   useCanEditModelPricing,
   invalidateModelPricing,
 } from '@/features/model-pricing/api'
-import { createServerError } from '@/lib/server-error-message'
+import { createServerError, getServerMessage } from '@/lib/server-error-message'
 
 import { deleteModel, deleteModels } from '../../api'
 import type { Model } from '../../types'
@@ -92,8 +92,9 @@ export function ModelDeleteDialog(props: ModelDeleteDialogProps) {
       ? t('Delete model "{{name}}"?', { name: props.models[0].model_name })
       : t('Delete {{count}} models?', { count: props.models.length })
   let errorMessage = mutation.error?.message
-  if (isAxiosError<{ message?: string }>(mutation.error)) {
-    errorMessage = mutation.error.response?.data.message || errorMessage
+  if (isAxiosError(mutation.error)) {
+    errorMessage =
+      getServerMessage(mutation.error.response?.data) || errorMessage
   }
   return (
     <ConfirmDialog

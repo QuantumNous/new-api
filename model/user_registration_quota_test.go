@@ -1,7 +1,6 @@
 package model
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -62,9 +61,16 @@ func assertRegistrationInviteeQuotaAndAudit(t *testing.T, user User) {
 	require.NoError(t, LOG_DB.Where("user_id = ? AND type = ?", user.Id, LogTypeSystem).Find(&logs).Error)
 	inviteeLogs := 0
 	for _, log := range logs {
-		if strings.Contains(log.Content, "使用邀请码赠送") {
-			inviteeLogs++
-			assert.Contains(t, log.Content, logger.LogQuota(25))
+		var other struct {
+			ContentParts []*common.Message `json:"content_parts"`
+		}
+		require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+		for _, message := range other.ContentParts {
+			if message.Key == "Invitation code bonus {{quota}}" {
+				inviteeLogs++
+				assert.Equal(t, logger.FormatQuota(25), message.Params["quota"])
+				assert.Equal(t, message.Error(), log.Content)
+			}
 		}
 	}
 	assert.Equal(t, 1, inviteeLogs, "audit must describe the invitee quota stored in the creation transaction")

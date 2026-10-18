@@ -186,6 +186,50 @@ describe('UploadDialog file selection', () => {
   })
 })
 
+describe('UploadDialog declaration preview', () => {
+  async function selectSource(
+    user: ReturnType<typeof userEvent.setup>,
+    source: string
+  ) {
+    await user.upload(
+      fileInput(),
+      new File([source], 'plugin.js', { type: 'text/javascript' })
+    )
+    return screen.findByRole('region', { name: 'Connection settings' })
+  }
+
+  test('lists the request domains the selected plugin declares', async () => {
+    const user = userEvent.setup()
+    renderDialog()
+
+    const connections = await selectSource(
+      user,
+      'export const meta = {models: ["m"], allowedHosts: ["files.example.com", "cdn.example.com:8443"]};'
+    )
+
+    expect(
+      within(connections).getByText('files.example.com, cdn.example.com:8443')
+    ).toBeVisible()
+    expect(
+      within(connections).queryByText('From marketplace index')
+    ).not.toBeInTheDocument()
+  })
+
+  test('says no extra domains are declared when the plugin lists none', async () => {
+    const user = userEvent.setup()
+    renderDialog()
+
+    const connections = await selectSource(
+      user,
+      'export const meta = {models: ["m"]};'
+    )
+
+    expect(
+      within(connections).getByText('No extra domains declared')
+    ).toBeVisible()
+  })
+})
+
 describe('UploadDialog URL import', () => {
   test('keeps Fetch disabled until a URL is typed, then fills the source', async () => {
     const user = userEvent.setup()

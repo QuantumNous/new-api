@@ -24,7 +24,7 @@ func TestUpdateOptionRejectsRetiredFrontendTheme(t *testing.T) {
 	UpdateOption(context)
 
 	assert.Equal(t, http.StatusOK, response.Code)
-	assert.JSONEq(t, `{"success":false,"message":"Classic 前端已移除，主题只能设置为 default"}`, response.Body.String())
+	assert.JSONEq(t, `{"success":false,"message":"The Classic frontend has been removed. The theme can only be set to default","message_key":"The Classic frontend has been removed. The theme can only be set to default"}`, response.Body.String())
 }
 
 func TestGetStatusAdvertisesDefaultDashboard(t *testing.T) {
