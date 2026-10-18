@@ -45,7 +45,7 @@ func TestConvertClaudeRequestPreservesNativeClaudeCodeThinking(t *testing.T) {
 	temperature := 0.7
 	topP := 0.9
 	req := &dto.ClaudeRequest{
-		Model:        "claude-opus-4-8",
+		Model:        "claude-opus-4-6",
 		MaxTokens:    &maxTokens,
 		Temperature:  &temperature,
 		TopP:         &topP,
@@ -74,6 +74,75 @@ func TestConvertClaudeRequestPreservesNativeClaudeCodeThinking(t *testing.T) {
 	assert.Equal(t, topP, *converted.TopP)
 	assert.JSONEq(t, `{"effort":"high"}`, string(converted.OutputConfig))
 	assert.Empty(t, info.ConversionDiagnostics())
+}
+
+func TestConvertClaudeRequestRendersNativeThinkingRejectedByModel(t *testing.T) {
+	tests := []struct {
+		name             string
+		model            string
+		fields           string
+		wantThinking     string
+		wantOutputConfig string
+		wantDiagnostic   string
+	}{
+		{
+			name:             "manual thinking on an adaptive-only model becomes adaptive with a budget-derived effort",
+			model:            "claude-haiku-5-5",
+			fields:           `"thinking":{"type":"enabled","budget_tokens":1024,"display":"summarized"}`,
+			wantThinking:     `{"type":"adaptive","display":"summarized"}`,
+			wantOutputConfig: `{"effort":"low"}`,
+			wantDiagnostic:   "claude_budget_to_adaptive",
+		},
+		{
+			name:             "manual thinking keeps the request's own effort",
+			model:            "claude-opus-4-8",
+			fields:           `"thinking":{"type":"enabled","budget_tokens":10000},"output_config":{"effort":"xhigh"}`,
+			wantThinking:     `{"type":"adaptive"}`,
+			wantOutputConfig: `{"effort":"xhigh"}`,
+			wantDiagnostic:   "claude_budget_to_adaptive",
+		},
+		{
+			name:             "budget_tokens is removed from adaptive thinking",
+			model:            "claude-sonnet-5-5",
+			fields:           `"thinking":{"type":"adaptive","budget_tokens":16000,"display":"omitted"},"output_config":{"effort":"high"}`,
+			wantThinking:     `{"type":"adaptive","display":"omitted"}`,
+			wantOutputConfig: `{"effort":"high"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			body := `{"model":"` + tt.model + `","max_tokens":32000,` + tt.fields +
+				`,"messages":[{"role":"user","content":"hi"}]}`
+			var req dto.ClaudeRequest
+			require.NoError(t, common.UnmarshalJsonStr(body, &req))
+			info := &relaycommon.RelayInfo{
+				OriginModelName: tt.model,
+				ChannelMeta:     &relaycommon.ChannelMeta{UpstreamModelName: tt.model},
+			}
+
+			out, err := (&Adaptor{}).ConvertClaudeRequest(nil, info, &req)
+			require.NoError(t, err)
+			encoded, err := common.Marshal(out)
+			require.NoError(t, err)
+			var upstream struct {
+				Thinking     json.RawMessage `json:"thinking"`
+				OutputConfig json.RawMessage `json:"output_config"`
+			}
+			require.NoError(t, common.Unmarshal(encoded, &upstream))
+			assert.JSONEq(t, tt.wantThinking, string(upstream.Thinking))
+			assert.JSONEq(t, tt.wantOutputConfig, string(upstream.OutputConfig))
+
+			codes := make([]string, 0, len(info.ConversionDiagnostics()))
+			for _, diagnostic := range info.ConversionDiagnostics() {
+				codes = append(codes, diagnostic.Code)
+			}
+			if tt.wantDiagnostic == "" {
+				assert.Empty(t, codes)
+			} else {
+				assert.Contains(t, codes, tt.wantDiagnostic)
+			}
+		})
+	}
 }
 
 func TestConvertClaudeRequestPreservesMessageOutputConfig(t *testing.T) {
