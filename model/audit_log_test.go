@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/glebarez/sqlite"
@@ -12,9 +13,11 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/schema"
 )
 
+// TestAuditLogSortIndexDatabaseMatrix verifies audit ordering and index migrations across supported databases.
 func TestAuditLogSortIndexDatabaseMatrix(t *testing.T) {
 	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
 		t.Run(dialect, func(t *testing.T) {
@@ -40,11 +43,9 @@ func TestAuditLogSortIndexDatabaseMatrix(t *testing.T) {
 			sqlDB, err := db.DB()
 			require.NoError(t, err)
 			sqlDB.SetMaxOpenConns(1)
-			previousLogDB, previousType := LOG_DB, common.LogDatabaseType()
-			LOG_DB = db
+			previousType := common.LogDatabaseType()
 			common.SetLogDatabaseType(common.DatabaseType(dialect))
 			t.Cleanup(func() {
-				LOG_DB = previousLogDB
 				common.SetLogDatabaseType(previousType)
 				assert.NoError(t, sqlDB.Close())
 			})
@@ -57,7 +58,20 @@ func TestAuditLogSortIndexDatabaseMatrix(t *testing.T) {
 			t.Logf("database version: %s", version)
 			for _, upgrade := range []bool{false, true} {
 				t.Run(fmt.Sprintf("upgrade=%v", upgrade), func(t *testing.T) {
-					t.Cleanup(func() { assert.NoError(t, db.Migrator().DropTable(&AuditLog{})) })
+					db := db
+					if dialect == "postgres" {
+						db = db.Begin()
+						require.NoError(t, db.Error)
+						t.Cleanup(func() { assert.NoError(t, db.Rollback().Error) })
+						schemaName := fmt.Sprintf("audit_sort_test_%d", time.Now().UnixNano())
+						require.NoError(t, db.Exec("CREATE SCHEMA ?", clause.Table{Name: schemaName}).Error)
+						require.NoError(t, db.Exec("SET LOCAL search_path TO ?", clause.Table{Name: schemaName}).Error)
+					} else {
+						t.Cleanup(func() { assert.NoError(t, db.Migrator().DropTable(&AuditLog{})) })
+					}
+					previousLogDB := LOG_DB
+					LOG_DB = db
+					t.Cleanup(func() { LOG_DB = previousLogDB })
 					require.NoError(t, MigrateAuditLogs())
 					if upgrade {
 						require.NoError(t, db.Migrator().DropIndex(&AuditLog{}, "idx_audit_time_event"))
