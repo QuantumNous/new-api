@@ -433,10 +433,11 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if !billing_setting.IsPerSecondModel(info.OriginModelName) && !isYkSdPerSecondModel(info.OriginModelName) {
 		return nil
 	}
-	sec := 0
-	if body, err := readRequestBodyMap(c); err == nil {
-		sec = durationFromBody(body)
+	var body map[string]interface{}
+	if parsed, err := readRequestBodyMap(c); err == nil {
+		body = parsed
 	}
+	sec := durationFromBody(body)
 	if sec <= 0 {
 		if req, err := relaycommon.GetTaskRequest(c); err == nil {
 			if req.Duration > 0 {
@@ -449,29 +450,15 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 	if sec <= 0 {
 		sec = defaultDurationSeconds
 	}
-	return map[string]float64{"seconds": float64(sec)}
+	ratios := map[string]float64{"seconds": float64(sec)}
+	if videoRatio, ok := referenceVideoBillingRatio(info, body); ok {
+		ratios["reference_video"] = videoRatio
+	}
+	return ratios
 }
 
 func (a *TaskAdaptor) AdjustBillingOnComplete(task *model.Task, taskResult *relaycommon.TaskInfo) int {
-	if task == nil || taskResult == nil || taskResult.Status != model.TaskStatusSuccess {
-		return 0
-	}
-	bc := task.PrivateData.BillingContext
-	if bc == nil || bc.ModelPrice <= 0 {
-		return 0
-	}
-	modelName := bc.OriginModelName
-	if modelName == "" {
-		modelName = task.Properties.OriginModelName
-	}
-	if !billing_setting.IsPerSecondModel(modelName) && !isYkSdPerSecondModel(modelName) {
-		return 0
-	}
-	sec := taskcommon.ExtractDurationSecondsFromJSON(task.Data)
-	if sec <= 0 {
-		return 0
-	}
-	return taskcommon.QuotaFromPerSecondModelPrice(bc.ModelPrice, sec, bc.GroupRatio, bc.OtherRatios)
+	return adjustYkSdBillingOnComplete(task, taskResult)
 }
 
 func (a *TaskAdaptor) GetModelList() []string {
