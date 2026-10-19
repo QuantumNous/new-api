@@ -5,7 +5,6 @@ import (
 	"math"
 	"net/http/httptest"
 	"os"
-	"runtime"
 	"testing"
 	"time"
 
@@ -20,7 +19,6 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	hosttypes "github.com/QuantumNous/new-api/types"
 
-	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/shopspring/decimal"
@@ -1603,33 +1601,10 @@ func TestPostTextConsumeQuotaLogsMissingUsageAsStructuredContent(t *testing.T) {
 // the upstream model name; the log must still record the billing model.
 func TestRealtimeSessionSettlement(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	require.NoError(t, err)
-	sqlDB, err := db.DB()
-	require.NoError(t, err)
-	sqlDB.SetMaxOpenConns(1)
-	t.Cleanup(func() { require.NoError(t, sqlDB.Close()) })
-
-	oldDB, oldLogDB := model.DB, model.LOG_DB
-	oldMain, oldLogType := common.MainDatabaseType(), common.LogDatabaseType()
-	oldRedis, oldBatch := common.RedisEnabled, common.BatchUpdateEnabled
-	model.DB, model.LOG_DB = db, db
-	common.SetDatabaseTypes(common.DatabaseTypeSQLite, common.DatabaseTypeSQLite)
-	require.NoError(t, model.InitLogDB())
-	common.RedisEnabled = false
-	common.BatchUpdateEnabled = false
-	t.Cleanup(func() {
-		for gopool.WorkerCount() > 0 {
-			runtime.Gosched()
-		}
-		model.DB, model.LOG_DB = oldDB, oldLogDB
-		common.SetDatabaseTypes(oldMain, oldLogType)
-		common.RedisEnabled, common.BatchUpdateEnabled = oldRedis, oldBatch
-	})
-	require.NoError(t, db.AutoMigrate(
-		&model.User{}, &model.Token{}, &model.Channel{}, &model.Log{},
-		&model.UserSubscription{}, &model.SubscriptionPlan{}, &model.SubscriptionPreConsumeRecord{},
-	))
+	// Refunds settle asynchronously through model.DB, so this test uses the
+	// package database from TestMain instead of swapping globals.
+	db := model.DB
+	require.NoError(t, db.AutoMigrate(&model.SubscriptionPlan{}, &model.SubscriptionPreConsumeRecord{}))
 
 	const (
 		startWallet = 100_000
