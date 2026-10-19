@@ -2,10 +2,12 @@ package model
 
 import (
 	"math"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -141,11 +143,23 @@ func TestRedisBatchReserveNeverFallsBackToStaleDatabaseBalance(t *testing.T) {
 func TestBatchUpdateAccumulatesTwoMaximumRequestCharges(t *testing.T) {
 	truncateTables(t)
 	resetBatchUpdateTestState(t)
+	// This package has no parallel tests or background pool producers. Go registers
+	// accepted work before returning; workers decrement atomically only at an empty queue.
+	waitForCacheWorkers := func() {
+		if !assert.Eventually(t, func() bool { return gopool.WorkerCount() == 0 },
+			3*time.Second, time.Millisecond, "join cache work before changing the fixture") {
+			// Panic and Fatal still run older cleanups, which would restore live globals.
+			os.Exit(1)
+		}
+	}
+	waitForCacheWorkers()
+	t.Cleanup(waitForCacheWorkers)
 	common.BatchUpdateEnabled = true
 
 	user := createReserveTestUser(t, common.MaxQuota*2+100)
 	require.NoError(t, DecreaseUserQuota(user.Id, common.MaxQuota, false))
 	require.NoError(t, DecreaseUserQuota(user.Id, common.MaxQuota, false))
+	waitForCacheWorkers()
 
 	batchUpdate()
 	assert.Equal(t, 100, getUserQuotaFromDB(t, user.Id))

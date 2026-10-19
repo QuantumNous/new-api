@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -262,16 +264,63 @@ func TestGeminiLiveRelayRouteForwardsNativeBidiSession(t *testing.T) {
 
 	engine := gin.New()
 	SetRelayRouter(engine)
-	gateway := httptest.NewServer(engine)
-	t.Cleanup(gateway.Close)
+	started, deferredDone := make(chan struct{}), make(chan struct{})
+	var admissionMu sync.Mutex
+	accepting := true
+	gateway := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		admissionMu.Lock()
+		select {
+		case <-started:
+			admissionMu.Unlock()
+			http.Error(w, "handler already started", http.StatusServiceUnavailable)
+			return
+		default:
+		}
+		if !accepting {
+			admissionMu.Unlock()
+			http.Error(w, "test gateway closed", http.StatusServiceUnavailable)
+			return
+		}
+		close(started)
+		admissionMu.Unlock()
+		defer close(deferredDone)
+		engine.ServeHTTP(w, r)
+	}))
+	var conn *websocket.Conn
+	var err error
+	t.Cleanup(func() {
+		if conn != nil {
+			_ = conn.Close()
+		}
+		// Closing admission under the start lock excludes a late handler after this check.
+		admissionMu.Lock()
+		accepting = false
+		hasStarted := false
+		select {
+		case <-started:
+			hasStarted = true
+		default:
+		}
+		admissionMu.Unlock()
+		_ = gateway.Listener.Close()
+		gateway.CloseClientConnections()
+		if hasStarted {
+			select {
+			case <-deferredDone:
+			case <-time.After(3 * time.Second):
+				fmt.Fprintln(os.Stderr, "Gemini Live handler did not finish; refusing ratio/Redis/DB restoration")
+				os.Exit(1)
+			}
+		}
+		gateway.Close()
+	})
 
 	header := http.Header{"Authorization": []string{"Bearer " + token.Key}}
-	conn, _, err := websocket.DefaultDialer.Dial(
+	conn, _, err = websocket.DefaultDialer.Dial(
 		"ws"+strings.TrimPrefix(gateway.URL, "http")+middleware.GeminiLivePath,
 		header,
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = conn.Close() })
 	require.NoError(t, conn.SetReadDeadline(time.Now().Add(3*time.Second)))
 	require.NoError(t, conn.WriteJSON(map[string]any{
 		"setup": map[string]any{"model": "models/" + modelName},

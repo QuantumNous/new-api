@@ -15,6 +15,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+func init() {
+	gin.SetMode(gin.TestMode)
+}
+
 func TestGetRequestURLForImageGeneration(t *testing.T) {
 	t.Parallel()
 
@@ -87,7 +91,6 @@ func TestConvertImageRequest(t *testing.T) {
 func TestDoResponseForImageGeneration(t *testing.T) {
 	t.Parallel()
 
-	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 
