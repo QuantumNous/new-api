@@ -30,6 +30,7 @@ import SettingsCheckin from '../../pages/Setting/Operation/SettingsCheckin';
 import SettingsSeedanceAsset from '../../pages/Setting/Operation/SettingsSeedanceAsset';
 import SettingsSeedanceOfficialAsset from '../../pages/Setting/Operation/SettingsSeedanceOfficialAsset';
 import SettingsYkSdAsset from '../../pages/Setting/Operation/SettingsYkSdAsset';
+import SettingsYbModeration from '../../pages/Setting/Operation/SettingsYbModeration';
 import SettingsTaskModelChannelOrder from '../../pages/Setting/Operation/SettingsTaskModelChannelOrder';
 import { API, showError, toBoolean } from '../../helpers';
 
@@ -102,6 +103,10 @@ const OperationSetting = () => {
     /* yk-sd 素材网关 */
     'yk_sd_asset.enabled': false,
     'yk_sd_asset.gateway_channel_id': 0,
+
+    /* yb 真人素材审核网关 */
+    'yb_moderation.enabled': false,
+    'yb_moderation.gateway_channel_id': 0,
 
     /* 令牌设置 */
     'token_setting.max_user_tokens': 1000,
@@ -193,6 +198,10 @@ const OperationSetting = () => {
         {/* yk-sd 素材网关 */}
         <Card style={{ marginTop: '10px' }}>
           <SettingsYkSdAsset options={inputs} refresh={onRefresh} />
+        </Card>
+        {/* yb 真人素材审核网关 */}
+        <Card style={{ marginTop: '10px' }}>
+          <SettingsYbModeration options={inputs} refresh={onRefresh} />
         </Card>
       </Spin>
     </>

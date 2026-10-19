@@ -80,6 +80,8 @@ const defaultOperationsSettings: OperationsSettings = {
   'seedance_asset_official.project_name': 'default',
   'yk_sd_asset.enabled': false,
   'yk_sd_asset.gateway_channel_id': 0,
+  'yb_moderation.enabled': false,
+  'yb_moderation.gateway_channel_id': 0,
 }
 
 export function OperationsSettings() {

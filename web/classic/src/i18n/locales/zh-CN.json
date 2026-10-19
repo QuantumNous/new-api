@@ -4039,6 +4039,12 @@
     "Worker密钥": "Worker密钥",
     "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。": "X 也可以小于 1，当折扣用。想做\"只给输出加价\"或\"额外加固定费用\"，请直接写完整计费公式。",
     "yk-sd 渠道说明": "yk-sd（KYY Seedance special/discount）异步视频：seedance2.0-yk-special→sd_2.0_special、seedance2.0-yk-discount→sd_2.0_discount（按秒）；媒体强制入素材库。",
-    "yksd_key_prompt": "格式：Bearer token（KYY / yk-sd API Key）"
+    "yksd_key_prompt": "格式：Bearer token（KYY / yk-sd API Key）",
+    "yb 渠道说明": "yb（yabaoai）异步视频：POST/GET /v1/video/generations。含真人的 http(s)/base64 图会在提交前自动走 /v1/moderation/face 换 asset://；也可先调公开审核 API。默认 Base URL https://api.yabaoai.com。",
+    "yb_key_prompt": "格式：Bearer token（yb / yabaoai API Key）",
+    "yb 真人素材审核网关": "yb 真人素材审核网关",
+    "将 /v1/moderation/face 转发到 yb（yabaoai）渠道，用于真人素材审核后换取 asset://": "将 /v1/moderation/face 转发到 yb（yabaoai）渠道，用于真人素材审核后换取 asset://",
+    "启用 yb 真人素材审核 API": "启用 yb 真人素材审核 API",
+    "保存 yb 审核设置": "保存 yb 审核设置"
   }
 }

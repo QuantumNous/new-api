@@ -28,6 +28,7 @@ import { createSectionRegistry } from '../utils/section-registry'
 import { SeedanceAssetSettingsSection } from './seedance-asset-settings-section'
 import { SeedanceOfficialAssetSettingsSection } from './seedance-official-asset-settings-section'
 import { YkSdAssetSettingsSection } from './yk-sd-asset-settings-section'
+import { YbModerationSettingsSection } from './yb-moderation-settings-section'
 import { TaskModelChannelOrderSection } from './task-model-channel-order-section'
 
 const OPERATIONS_SECTIONS = [
@@ -214,6 +215,20 @@ const OPERATIONS_SECTIONS = [
         defaultValues={{
           enabled: settings['yk_sd_asset.enabled'] ?? false,
           gatewayChannelId: settings['yk_sd_asset.gateway_channel_id'] ?? 0,
+        }}
+      />
+    ),
+  },
+  {
+    id: 'yb-moderation',
+    titleKey: 'yb Face Moderation Gateway',
+    descriptionKey:
+      'Proxy /v1/moderation/face to a yb (yabaoai) channel for real-person asset review',
+    build: (settings: OperationsSettings) => (
+      <YbModerationSettingsSection
+        defaultValues={{
+          enabled: settings['yb_moderation.enabled'] ?? false,
+          gatewayChannelId: settings['yb_moderation.gateway_channel_id'] ?? 0,
         }}
       />
     ),

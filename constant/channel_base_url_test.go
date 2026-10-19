@@ -27,6 +27,9 @@ func TestGetChannelDefaultBaseURL(t *testing.T) {
 	if got := GetChannelDefaultBaseURL(ChannelTypeYkSd); got != "https://zcbservice.aizfw.cn/kyyReactApiServer" {
 		t.Fatalf("yk-sd base url = %q", got)
 	}
+	if got := GetChannelDefaultBaseURL(ChannelTypeYb); got != "https://api.yabaoai.com" {
+		t.Fatalf("yb base url = %q", got)
+	}
 	if got := GetChannelDefaultBaseURL(len(ChannelBaseURLs)); got != "" {
 		t.Fatalf("out of range should return empty, got %q", got)
 	}

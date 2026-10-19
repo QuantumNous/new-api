@@ -52,6 +52,7 @@ import (
 	taskmao "github.com/QuantumNous/new-api/relay/channel/task/mao"
 	taskykvideo "github.com/QuantumNous/new-api/relay/channel/task/ykvideo"
 	taskyksd "github.com/QuantumNous/new-api/relay/channel/task/yksd"
+	taskyb "github.com/QuantumNous/new-api/relay/channel/task/yb"
 	taskvyro "github.com/QuantumNous/new-api/relay/channel/task/vyroseedance"
 	taskxai "github.com/QuantumNous/new-api/relay/channel/task/xai"
 	"github.com/QuantumNous/new-api/relay/channel/tencent"
@@ -201,6 +202,8 @@ func GetTaskAdaptor(platform constant.TaskPlatform) channel.TaskAdaptor {
 			return &taskykvideo.TaskAdaptor{}
 		case constant.ChannelTypeYkSd:
 			return &taskyksd.TaskAdaptor{}
+		case constant.ChannelTypeYb:
+			return &taskyb.TaskAdaptor{}
 		}
 	}
 	return nil

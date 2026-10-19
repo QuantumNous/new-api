@@ -749,6 +749,17 @@ export function ChannelMutateDrawer({
       }
     }
 
+    if (currentType === 71) {
+      const currentModels = form.getValues('models')
+      if (!currentModels || currentModels.trim() === '') {
+        form.setValue('models', 'doubao-seedance-2-0-mini-260615')
+      }
+      const currentBaseUrlValue = form.getValues('base_url')
+      if (!currentBaseUrlValue || currentBaseUrlValue.trim() === '') {
+        form.setValue('base_url', 'https://api.yabaoai.com')
+      }
+    }
+
     if (currentType === 1 || currentType === 55) {
       if (form.getValues('openai_face_pass') === undefined) {
         form.setValue('openai_face_pass', true)

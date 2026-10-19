@@ -335,6 +335,8 @@ export type OperationsSettings = {
   'seedance_asset_official.project_name': string
   'yk_sd_asset.enabled': boolean
   'yk_sd_asset.gateway_channel_id': number
+  'yb_moderation.enabled': boolean
+  'yb_moderation.gateway_channel_id': number
 }
 
 export type SecuritySettings = {

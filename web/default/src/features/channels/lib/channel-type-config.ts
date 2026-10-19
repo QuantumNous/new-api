@@ -325,6 +325,21 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
         'Async video with forced assetUpload/assetDetail before create. Public asset APIs: POST /api/yk-sd/assets/upload|detail. Watermark/seed/tools passthrough.',
     },
   },
+  71: {
+    id: 71,
+    name: CHANNEL_TYPES[71],
+    icon: 'openai',
+    defaultBaseUrl: 'https://api.yabaoai.com',
+    supportedModels: ['doubao-seedance-2-0-mini-260615'],
+    hints: {
+      key: 'Bearer token (yb / yabaoai API Key)',
+      models:
+        'Pass-through upstream model IDs (e.g. doubao-seedance-2-0-mini-260615). Configure model mapping on the channel if needed.',
+      baseUrl: 'Default: https://api.yabaoai.com',
+      other:
+        'Async video via POST/GET /v1/video/generations. Body: model/prompt/image + metadata.{resolution,ratio,duration}. HTTP/data/base64 images are auto face-moderated to asset:// before create. Public APIs: POST/GET /v1/moderation/face (enable yb_moderation gateway). per_second billing when enabled.',
+    },
+  },
 }
 
 export const CHANNEL_83ZI_BASE_URL_PRESETS = [

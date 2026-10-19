@@ -68,6 +68,7 @@ const (
 	ChannelTypeMao            = 68
 	ChannelTypeYkVideo        = 69
 	ChannelTypeYkSd           = 70
+	ChannelTypeYb             = 71
 	ChannelTypeDummy          // this one is only for count, do not add any channel after this
 
 )
@@ -144,6 +145,7 @@ var ChannelBaseURLs = []string{
 	"https://api.catertx.com",                   //68 mao (catertx Seedance)
 	"https://zcbservice.aizfw.cn/kyyReactApiServer", //69 yk-video (KYY model-center)
 	"https://zcbservice.aizfw.cn/kyyReactApiServer", //70 yk-sd (KYY Seedance special/discount)
+	"https://api.yabaoai.com",                       //71 yb (yabaoai OpenAI-compatible video)
 }
 
 var ChannelTypeNames = map[int]string{
@@ -214,6 +216,7 @@ var ChannelTypeNames = map[int]string{
 	ChannelTypeMao:           "mao",
 	ChannelTypeYkVideo:       "yk-video",
 	ChannelTypeYkSd:          "yk-sd",
+	ChannelTypeYb:            "yb",
 }
 
 func GetChannelTypeName(channelType int) string {

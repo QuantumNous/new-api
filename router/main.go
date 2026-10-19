@@ -17,6 +17,7 @@ func SetRouter(router *gin.Engine, assets ThemeAssets) {
 	SetSeedanceRouter(router)
 	SetSeedanceOfficialRouter(router)
 	SetYkSdRouter(router)
+	SetYbRouter(router)
 	SetDashboardRouter(router)
 	SetRelayRouter(router)
 	SetVideoRouter(router)

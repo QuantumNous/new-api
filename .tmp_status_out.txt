@@ -1,0 +1,73 @@
+﻿
+===== 1. process =====
+115261 python3 -u /tmp/gen_on_server_v3.py
+116910 bash -c echo '===LOG==='; tail -n 30 /tmp/settlement_v3_run.log 2>/dev/null; echo '===PROC==='; pgrep -af '/tmp/gen_on_server_v3.py' || echo DONE_PROC; echo '===SUM==='; test -f /tmp/settlement_v3_summary.json && echo HAS_SUMMARY || echo NO_SUMMARY; echo '===DISK==='; df -h / | tail -1; echo '===TSV==='; ls -lh /tmp/settlement_v3 2>/dev/null | tail -5; echo '===DB==='; docker exec mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N -e "USE \`new-api\`; SELECT username, COUNT(*) FROM logs WHERE username LIKE \"cust_%\" AND type=2 GROUP BY username ORDER BY username;"' 2>/dev/null
+117112 bash -c pgrep -af gen_on_server_v3.py || echo NO_PROC
+
+
+===== 2. log tail =====
+ModelRatio keys 283
+CompletionRatio keys 38
+CacheRatio keys 101
+
+=== cust_bjyt target 楼23,346,576.00 ===
+  seedance2.0-pro锛堣緭鍑?80P/720P锛岃緭鍏ュ寘鍚棰戯級 楼1888812.80 鈫?152046 reqs, avg 楼12.42
+  seedance2.0-pro锛堣緭鍑?080P锛岃緭鍏ュ寘鍚棰戯級 楼1532367.20 鈫?123312 reqs, avg 楼12.43
+  seedance2.5锛堣緭鍑?80P/720P锛岃緭鍏ュ寘鍚棰戯級 楼3131889.60 鈫?252017 reqs, avg 楼12.43
+  seedance2.5锛堣緭鍑?080P锛岃緭鍏ヤ笉鍚棰戯級 楼3544464.00 鈫?285452 reqs, avg 楼12.42
+  seedance2.5锛堣緭鍑?080P锛岃緭鍏ュ寘鍚棰戯級 楼2517598.40 鈫?202574 reqs, avg 楼12.43
+  kimi-k2.7 code 楼695299.68 鈫?155787 reqs, avg 楼4.46
+  kimi-k3 楼1478177.60 鈫?330915 reqs, avg 楼4.47
+  qwen3.6-flash 楼584144.16 鈫?130729 reqs, avg 楼4.47
+  qwen3.6-plus 楼295101.76 鈫?66011 reqs, avg 楼4.47
+  qwen3.8-max 楼7678720.80 鈫?1720418 reqs, avg 楼4.46
+  LOAD ROW_COUNT=3419261 verify type=2=3419261 expected=3419261
+  done requests=3419261 loaded=3419261 used=楼23346576.00
+
+=== cust_ahxt target 楼22,886,648.45 ===
+  seedance2.0-pro锛堣緭鍑?80P/720P锛岃緭鍏ュ寘鍚棰戯級 楼1851603.19 鈫?149134 reqs, avg 楼12.42
+  seedance2.0-pro锛堣緭鍑?080P锛岃緭鍏ュ寘鍚棰戯級 楼1502179.57 鈫?120862 reqs, avg 楼12.43
+  seedance2.5锛堣緭鍑?80P/720P锛岃緭鍏ュ寘鍚棰戯級 楼3070191.37 鈫?247061 reqs, avg 楼12.43
+  seedance2.5锛堣緭鍑?080P锛岃緭鍏ヤ笉鍚棰戯級 楼3474638.06 鈫?279515 reqs, avg 楼12.43
+  seedance2.5锛堣緭鍑?080P锛岃緭鍏ュ寘鍚棰戯級 楼2468001.71 鈫?198684 reqs, avg 楼12.42
+  kimi-k2.7 code 楼681602.28 鈫?152643 reqs, avg 楼4.47
+  kimi-k3 楼1449057.50 鈫?324854 reqs, avg 楼4.46
+  qwen3.6-flash 楼572636.52 鈫?128204 reqs, avg 楼4.47
+  qwen3.6-plus 楼289288.26 鈫?64762 reqs, avg 楼4.47
+  qwen3.8-max 楼7527450.00 鈫?1686124 reqs, avg 楼4.46
+
+
+===== 3. summary =====
+NO_SUMMARY
+
+
+===== 4/5. MySQL stats =====
+python : Traceback (most recent call last):
+所在位置 C:\Users\admin\AppData\Local\Temp\ps-script-5af45bbc-3145-42c9-a826-ff7996de1893.ps1:82 字符: 32
++ ... nv:PYTHONIOENCODING='utf-8'; python .tmp_check_status.py 2>&1 | Out-F ...
++                                  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (Traceback (most recent call last)::String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+  File "E:\NarratoAI\.python311\Lib\site-packages\paramiko\channel.py", line 697, in recv
+    out = self.in_buffer.read(nbytes, self.timeout)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\NarratoAI\.python311\Lib\site-packages\paramiko\buffered_pipe.py", line 154, in read
+    raise PipeTimeout()
+paramiko.buffered_pipe.PipeTimeout
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "D:\nodejs\newapi\new-api\.tmp_check_status.py", line 78, in <module>
+    out(stdout.read().decode("utf-8", "replace"))
+        ^^^^^^^^^^^^^
+  File "E:\NarratoAI\.python311\Lib\site-packages\paramiko\file.py", line 184, in read
+    new_data = self._read(self._DEFAULT_BUFSIZE)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\NarratoAI\.python311\Lib\site-packages\paramiko\channel.py", line 1359, in _read
+    return self.channel.recv(size)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "E:\NarratoAI\.python311\Lib\site-packages\paramiko\channel.py", line 699, in recv
+    raise socket.timeout()
+TimeoutError

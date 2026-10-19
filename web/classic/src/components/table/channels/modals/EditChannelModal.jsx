@@ -176,6 +176,8 @@ function type2secretPrompt(type) {
       return 'ykvideo_key_prompt';
     case 70:
       return 'yksd_key_prompt';
+    case 71:
+      return 'yb_key_prompt';
     default:
       return '请输入渠道对应的鉴权密钥';
   }
@@ -813,6 +815,13 @@ const EditChannelModal = (props) => {
           setInputs((prevInputs) => ({
             ...prevInputs,
             base_url: 'https://zcbservice.aizfw.cn/kyyReactApiServer',
+          }));
+          break;
+        case 71: // yb
+          localModels = ['doubao-seedance-2-0-mini-260615'];
+          setInputs((prevInputs) => ({
+            ...prevInputs,
+            base_url: 'https://api.yabaoai.com',
           }));
           break;
         default:
@@ -2892,7 +2901,7 @@ const EditChannelModal = (props) => {
                       />
                     )}
 
-                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61 || inputs.type === 62 || inputs.type === 63 || inputs.type === 64 || inputs.type === 65 || inputs.type === 66 || inputs.type === 67 || inputs.type === 68 || inputs.type === 69) && (
+                    {(inputs.type === 58 || inputs.type === 59 || inputs.type === 60 || inputs.type === 61 || inputs.type === 62 || inputs.type === 63 || inputs.type === 64 || inputs.type === 65 || inputs.type === 66 || inputs.type === 67 || inputs.type === 68 || inputs.type === 69 || inputs.type === 70 || inputs.type === 71) && (
                       <Banner
                         type='info'
                         closeIcon={null}
@@ -2918,6 +2927,8 @@ const EditChannelModal = (props) => {
                                             ? 'yk-video 渠道说明'
                                             : inputs.type === 70
                                               ? 'yk-sd 渠道说明'
+                                              : inputs.type === 71
+                                                ? 'yb 渠道说明'
                                             : '异步视频渠道通用说明',
                         )}
                       />
