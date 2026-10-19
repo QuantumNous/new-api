@@ -10,9 +10,12 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
+	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 type emailHTTPTransport func(*http.Request) (*http.Response, error)
@@ -184,6 +187,48 @@ func TestEmailProviderCannotActivateIncompleteResend(t *testing.T) {
 			assert.Contains(t, response.Body.String(), `"message_key":"Resend `)
 			assert.Equal(t, "smtp", common.OptionMap["EmailProvider"])
 			assert.NotContains(t, response.Body.String(), "test-key")
+		})
+	}
+}
+
+func TestResendSettingsChangesKeepActiveDeliveryWorking(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.Option{}))
+	previousDB, previousRedis := model.DB, common.RedisEnabled
+	model.DB, common.RedisEnabled = db, false
+	t.Cleanup(func() { model.DB, common.RedisEnabled = previousDB, previousRedis })
+
+	tests := []struct {
+		name, provider, key, value string
+		saved                      bool
+	}{
+		{"active sender the parser rejects", "resend", "ResendFrom", "notify..team@example.com", false},
+		{"active key cleared", "resend", "ResendApiKey", " ", false},
+		{"active sender renamed", "resend", "ResendFrom", `"New API" <notify@example.com>`, true},
+		{"inactive sender saved before its key", "smtp", "ResendFrom", "notify@example.com", true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			settings := map[string]string{"EmailProvider": test.provider, "ResendApiKey": "test-key", "ResendFrom": "sender@example.com"}
+			if test.provider == "smtp" {
+				settings["ResendApiKey"] = ""
+			}
+			configureEmailDelivery(t, settings)
+			before := settings[test.key]
+			body, err := common.Marshal(OptionUpdateRequest{Key: test.key, Value: test.value})
+			require.NoError(t, err)
+			response := httptest.NewRecorder()
+			context, _ := gin.CreateTestContext(response)
+			context.Request = httptest.NewRequest(http.MethodPut, "/api/option/", strings.NewReader(string(body)))
+			UpdateOption(context)
+			if test.saved {
+				assert.Contains(t, response.Body.String(), `"success":true`)
+				assert.Equal(t, test.value, common.OptionMap[test.key])
+				return
+			}
+			assert.Contains(t, response.Body.String(), `"message_key":"Resend `)
+			assert.Equal(t, before, common.OptionMap[test.key])
 		})
 	}
 }

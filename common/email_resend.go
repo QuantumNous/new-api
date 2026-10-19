@@ -73,7 +73,7 @@ func sendResendEmail(apiKey, from, subject, receiver, content string) error {
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := resendEmailClient.Do(req)
 	if err != nil {
-		SysError(LogText("Resend request failed: %v", err))
+		SysError(LogText("Resend request failed: error=%q", err))
 		return NewMessage("Resend request failed")
 	}
 	defer resp.Body.Close()
@@ -85,7 +85,7 @@ func sendResendEmail(apiKey, from, subject, receiver, content string) error {
 			Message string `json:"message"`
 		}
 		_ = DecodeJson(io.LimitReader(resp.Body, 4096), &failure)
-		SysError(LogText("Resend rejected the email: status=%d name=%s message=%s", resp.StatusCode, failure.Name, failure.Message))
+		SysError(LogText("Resend rejected the email: status=%d name=%q message=%q", resp.StatusCode, failure.Name, failure.Message))
 		return NewMessage("Resend email delivery failed (HTTP {{status}})", map[string]any{"status": resp.StatusCode})
 	}
 	var result struct {
