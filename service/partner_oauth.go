@@ -55,6 +55,19 @@ var (
 )
 
 var ErrPartnerOAuthRefreshReuse = errors.New("partner oauth refresh token reuse detected")
+var ErrPartnerOAuthReplayRevocationUnavailable = errors.New("partner oauth replay revocation unavailable")
+
+// PartnerOAuthReplayRevocation carries safe context only when replay actually
+// revoked an active binding. The underlying OAuth error remains generic.
+type PartnerOAuthReplayRevocation struct {
+	BindingID string
+	UserID    int
+	Kind      string
+	Err       error
+}
+
+func (e *PartnerOAuthReplayRevocation) Error() string { return e.Err.Error() }
+func (e *PartnerOAuthReplayRevocation) Unwrap() error { return e.Err }
 
 type PartnerOAuthError struct {
 	Status      int
@@ -411,6 +424,7 @@ type PartnerOAuthAuthorizationView struct {
 }
 
 type PartnerOAuthTokenResponse struct {
+	UserID                int    `json:"-"` // Safe audit context, never part of the OAuth response.
 	AccessToken           string `json:"access_token"`
 	TokenType             string `json:"token_type"`
 	ExpiresIn             int    `json:"expires_in"`
@@ -430,12 +444,13 @@ type PartnerOAuthAccountResponse struct {
 }
 
 type PartnerOAuthCredentialResponse struct {
-	BindingID string `json:"binding_id"`
-	AccountID string `json:"account_id"`
-	KeyID     string `json:"key_id"`
-	APIKey    string `json:"api_key"`
-	BaseURL   string `json:"base_url"`
-	ExpiresAt string `json:"expires_at"`
+	NewlyIssued bool   `json:"-"`
+	BindingID   string `json:"binding_id"`
+	AccountID   string `json:"account_id"`
+	KeyID       string `json:"key_id"`
+	APIKey      string `json:"api_key"`
+	BaseURL     string `json:"base_url"`
+	ExpiresAt   string `json:"expires_at"`
 }
 
 type PartnerOAuthBindingView struct {
@@ -750,6 +765,7 @@ func ExchangePartnerOAuthCode(client *model.PartnerOAuthClient, code, redirectUR
 			return err
 		}
 		response = &PartnerOAuthTokenResponse{
+			UserID:      user.Id,
 			AccessToken: accessRaw,
 			TokenType:   "Bearer",
 			ExpiresIn:   accessTTL,
@@ -763,10 +779,21 @@ func ExchangePartnerOAuthCode(client *model.PartnerOAuthClient, code, redirectUR
 		return nil
 	})
 	if errors.Is(err, model.ErrAuthFlowConsumed) {
-		if flow, lookupErr := model.LookupAuthFlow(code, match); lookupErr == nil {
-			_ = model.RevokePartnerOAuthBindingByAuthorizationFlow(flow.Id, "code_replay")
+		grantErr := partnerOAuthErr(http.StatusBadRequest, "invalid_grant", "authorization grant is invalid")
+		flow, lookupErr := model.LookupAuthFlow(code, match)
+		if lookupErr != nil && !errors.Is(lookupErr, model.ErrAuthFlowInvalid) {
+			return nil, ErrPartnerOAuthReplayRevocationUnavailable
 		}
-		return nil, partnerOAuthErr(http.StatusBadRequest, "invalid_grant", "authorization grant is invalid")
+		if flow != nil {
+			binding, revokeErr := model.RevokePartnerOAuthBindingByAuthorizationFlow(flow.Id, "code_replay")
+			if revokeErr != nil {
+				return nil, ErrPartnerOAuthReplayRevocationUnavailable
+			}
+			if binding != nil {
+				return nil, &PartnerOAuthReplayRevocation{BindingID: binding.BindingId, UserID: binding.UserId, Kind: "code_replay", Err: grantErr}
+			}
+		}
+		return nil, grantErr
 	}
 	if errors.Is(err, model.ErrAuthFlowExpired) || errors.Is(err, model.ErrAuthFlowInvalid) {
 		return nil, partnerOAuthErr(http.StatusBadRequest, "invalid_grant", "authorization grant is invalid")
@@ -857,13 +884,30 @@ func RefreshPartnerOAuthToken(client *model.PartnerOAuthClient, refreshToken, re
 		return nil
 	})
 	if replay {
+		grantErr := fmt.Errorf("%w: %w", partnerOAuthErr(http.StatusBadRequest, "invalid_grant", "refresh token is invalid"), ErrPartnerOAuthRefreshReuse)
 		token, lookupErr := model.FindPartnerOAuthToken(hash)
-		if lookupErr == nil {
-			_ = model.DB.Transaction(func(tx *gorm.DB) error {
-				return model.RevokePartnerOAuthBindingWithTx(tx, token.BindingId, "refresh_reuse")
-			})
+		if lookupErr != nil {
+			return nil, ErrPartnerOAuthReplayRevocationUnavailable
 		}
-		return nil, fmt.Errorf("%w: %w", partnerOAuthErr(http.StatusBadRequest, "invalid_grant", "refresh token is invalid"), ErrPartnerOAuthRefreshReuse)
+		var revoked *model.PartnerOAuthBinding
+		revokeErr := model.DB.Transaction(func(tx *gorm.DB) error {
+			binding, err := model.LockPartnerOAuthBindingWithTx(tx, token.BindingId)
+			if err != nil || binding.Status != model.PartnerOAuthBindingStatusActive {
+				return err
+			}
+			if err := model.RevokePartnerOAuthBindingWithTx(tx, binding.BindingId, "refresh_reuse"); err != nil {
+				return err
+			}
+			revoked = binding
+			return nil
+		})
+		if revokeErr != nil {
+			return nil, ErrPartnerOAuthReplayRevocationUnavailable
+		}
+		if revoked != nil {
+			return nil, &PartnerOAuthReplayRevocation{BindingID: revoked.BindingId, UserID: revoked.UserId, Kind: "refresh_reuse", Err: grantErr}
+		}
+		return nil, grantErr
 	}
 	if typed := AsPartnerOAuthError(err); typed != nil {
 		return nil, typed
@@ -877,27 +921,38 @@ func RefreshPartnerOAuthToken(client *model.PartnerOAuthClient, refreshToken, re
 	return response, nil
 }
 
-// RevokePartnerOAuthToken returns the revoked binding ID, or "" when the token
+// RevokePartnerOAuthToken returns the revoked binding, or nil when the token
 // matched no active binding of this client (still a successful RFC 7009 revoke).
-func RevokePartnerOAuthToken(client *model.PartnerOAuthClient, rawToken string) (string, error) {
+func RevokePartnerOAuthToken(client *model.PartnerOAuthClient, rawToken string) (*model.PartnerOAuthBinding, error) {
 	if client == nil || rawToken == "" {
-		return "", nil
+		return nil, nil
 	}
 	token, err := model.FindPartnerOAuthToken(model.HashPartnerOAuthToken(rawToken))
+	if errors.Is(err, model.ErrPartnerOAuthTokenNotFound) {
+		return nil, nil
+	}
 	if err != nil {
-		return "", nil
+		return nil, err
 	}
-	binding, err := model.GetPartnerOAuthBindingByBindingID(token.BindingId)
-	if err != nil || binding.ClientId != client.ClientId || binding.Status != model.PartnerOAuthBindingStatusActive {
-		return "", nil
-	}
+	var revoked *model.PartnerOAuthBinding
 	err = model.DB.Transaction(func(tx *gorm.DB) error {
-		return model.RevokePartnerOAuthBindingWithTx(tx, binding.BindingId, "revoked")
+		binding, err := model.LockPartnerOAuthBindingWithTx(tx, token.BindingId)
+		if errors.Is(err, model.ErrPartnerOAuthBindingNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if binding.ClientId != client.ClientId || binding.Status != model.PartnerOAuthBindingStatusActive {
+			return nil
+		}
+		if err := model.RevokePartnerOAuthBindingWithTx(tx, binding.BindingId, "revoked"); err != nil {
+			return err
+		}
+		revoked = binding
+		return nil
 	})
-	if err != nil {
-		return "", err
-	}
-	return binding.BindingId, nil
+	return revoked, err
 }
 
 type PartnerOAuthAccessPrincipal struct {
@@ -975,7 +1030,7 @@ func IssuePartnerOAuthCredential(principal *PartnerOAuthAccessPrincipal) (*Partn
 	if setting.DefaultUseAutoGroup {
 		group = "auto"
 	}
-	token, err := model.IssuePartnerOAuthCredential(principal.Binding.BindingId, model.PartnerOAuthCredentialIssue{
+	token, newlyIssued, err := model.IssuePartnerOAuthCredential(principal.Binding.BindingId, model.PartnerOAuthCredentialIssue{
 		UserId:      principal.User.Id,
 		Name:        truncateRunes(principal.Client.Name, 50),
 		Group:       group,
@@ -1003,12 +1058,13 @@ func IssuePartnerOAuthCredential(principal *PartnerOAuthAccessPrincipal) (*Partn
 		expiresAt = principal.Binding.ExpiresAt
 	}
 	return &PartnerOAuthCredentialResponse{
-		BindingID: principal.Binding.BindingId,
-		AccountID: model.PartnerOAuthAccountID(principal.User.Id),
-		KeyID:     model.PartnerOAuthKeyID(token.Id),
-		APIKey:    "sk-" + token.Key,
-		BaseURL:   baseURL,
-		ExpiresAt: rfc3339UTC(expiresAt),
+		NewlyIssued: newlyIssued,
+		BindingID:   principal.Binding.BindingId,
+		AccountID:   model.PartnerOAuthAccountID(principal.User.Id),
+		KeyID:       model.PartnerOAuthKeyID(token.Id),
+		APIKey:      "sk-" + token.Key,
+		BaseURL:     baseURL,
+		ExpiresAt:   rfc3339UTC(expiresAt),
 	}, nil
 }
 
@@ -1047,17 +1103,26 @@ const (
 	PartnerOAuthRevokeReasonAdmin = "admin_revoked"
 )
 
-func RevokeUserPartnerOAuthBinding(userID int, bindingID, reason string) error {
+func RevokeUserPartnerOAuthBinding(userID int, bindingID, reason string) (*model.PartnerOAuthBinding, error) {
 	if reason != PartnerOAuthRevokeReasonUser && reason != PartnerOAuthRevokeReasonAdmin {
-		return partnerOAuthErr(http.StatusBadRequest, "invalid_request", "revoke reason is invalid")
+		return nil, partnerOAuthErr(http.StatusBadRequest, "invalid_request", "revoke reason is invalid")
 	}
-	binding, err := model.GetPartnerOAuthBindingByBindingID(bindingID)
-	if err != nil || binding.UserId != userID || binding.Status != model.PartnerOAuthBindingStatusActive {
-		return partnerOAuthErr(http.StatusNotFound, "PARTNER_OAUTH_BINDING_NOT_FOUND", "binding not found")
-	}
-	return model.DB.Transaction(func(tx *gorm.DB) error {
-		return model.RevokePartnerOAuthBindingWithTx(tx, binding.BindingId, reason)
+	var revoked *model.PartnerOAuthBinding
+	err := model.DB.Transaction(func(tx *gorm.DB) error {
+		binding, err := model.LockPartnerOAuthBindingWithTx(tx, bindingID)
+		if err != nil && !errors.Is(err, model.ErrPartnerOAuthBindingNotFound) {
+			return err
+		}
+		if binding == nil || binding.UserId != userID || binding.Status != model.PartnerOAuthBindingStatusActive {
+			return partnerOAuthErr(http.StatusNotFound, "PARTNER_OAUTH_BINDING_NOT_FOUND", "binding not found")
+		}
+		if err := model.RevokePartnerOAuthBindingWithTx(tx, binding.BindingId, reason); err != nil {
+			return err
+		}
+		revoked = binding
+		return nil
 	})
+	return revoked, err
 }
 
 func CleanupExpiredPartnerOAuthTokens() error {

@@ -245,7 +245,9 @@ func TestPartnerOAuthRevokeSemantics(t *testing.T) {
 
 	revoked, err = RevokePartnerOAuthToken(client, issued.RefreshToken)
 	require.NoError(t, err)
-	assert.Equal(t, issued.BindingID, revoked)
+	require.NotNil(t, revoked)
+	assert.Equal(t, issued.BindingID, revoked.BindingId)
+	assert.Equal(t, user.Id, revoked.UserId)
 	_, err = AuthenticatePartnerOAuthAccessToken(issued.AccessToken, PartnerOAuthScopeAccountRead)
 	require.Error(t, err)
 	assert.Equal(t, "invalid_token", AsPartnerOAuthError(err).Code)

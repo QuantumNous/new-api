@@ -174,8 +174,9 @@ func RotatePartnerOAuthClientSecret(clientID, secretHash string) error {
 	return UpdatePartnerOAuthClient(client)
 }
 
-func DeletePartnerOAuthClient(clientID string) error {
-	return DB.Transaction(func(tx *gorm.DB) error {
+func DeletePartnerOAuthClient(clientID string) ([]PartnerOAuthBinding, error) {
+	var revoked []PartnerOAuthBinding
+	err := DB.Transaction(func(tx *gorm.DB) error {
 		var client PartnerOAuthClient
 		if err := tx.Where("client_id = ?", clientID).First(&client).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -188,12 +189,24 @@ func DeletePartnerOAuthClient(clientID string) error {
 			return err
 		}
 		for i := range bindings {
-			if err := RevokePartnerOAuthBindingWithTx(tx, bindings[i].BindingId, "client_deleted"); err != nil {
+			var current PartnerOAuthBinding
+			if err := lockForUpdate(tx).Where("binding_id = ?", bindings[i].BindingId).First(&current).Error; err != nil {
 				return err
 			}
+			if current.Status != PartnerOAuthBindingStatusActive {
+				continue
+			}
+			if err := RevokePartnerOAuthBindingWithTx(tx, current.BindingId, "client_deleted"); err != nil {
+				return err
+			}
+			revoked = append(revoked, current)
 		}
-		return tx.Delete(&client).Error
+		if err := tx.Delete(&client).Error; err != nil {
+			return err
+		}
+		return nil
 	})
+	return revoked, err
 }
 
 type PartnerOAuthBindingCreate struct {
@@ -377,21 +390,27 @@ func RevokePartnerOAuthBindingWithTx(tx *gorm.DB, bindingID, reason string) erro
 	return tx.Model(&token).Update("status", common.TokenStatusDisabled).Error
 }
 
-func RevokePartnerOAuthBindingByAuthorizationFlow(flowID int64, reason string) error {
+func RevokePartnerOAuthBindingByAuthorizationFlow(flowID int64, reason string) (*PartnerOAuthBinding, error) {
 	if flowID <= 0 {
-		return nil
+		return nil, nil
 	}
-	return DB.Transaction(func(tx *gorm.DB) error {
+	var revoked *PartnerOAuthBinding
+	err := DB.Transaction(func(tx *gorm.DB) error {
 		var binding PartnerOAuthBinding
-		err := tx.Where("authorization_flow_id = ?", flowID).First(&binding).Error
+		err := lockForUpdate(tx).Where("authorization_flow_id = ?", flowID).First(&binding).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil
 		}
-		if err != nil {
+		if err != nil || binding.Status != PartnerOAuthBindingStatusActive {
 			return err
 		}
-		return RevokePartnerOAuthBindingWithTx(tx, binding.BindingId, reason)
+		if err := RevokePartnerOAuthBindingWithTx(tx, binding.BindingId, reason); err != nil {
+			return err
+		}
+		revoked = &binding
+		return nil
 	})
+	return revoked, err
 }
 
 type PartnerOAuthCredentialIssue struct {
@@ -402,8 +421,9 @@ type PartnerOAuthCredentialIssue struct {
 	Key         string
 }
 
-func IssuePartnerOAuthCredential(bindingID string, issue PartnerOAuthCredentialIssue) (*Token, error) {
+func IssuePartnerOAuthCredential(bindingID string, issue PartnerOAuthCredentialIssue) (*Token, bool, error) {
 	var issued *Token
+	var created bool
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var binding PartnerOAuthBinding
 		if err := lockForUpdate(tx).Where("binding_id = ?", bindingID).First(&binding).Error; err != nil {
@@ -439,12 +459,13 @@ func IssuePartnerOAuthCredential(bindingID string, issue PartnerOAuthCredentialI
 			return err
 		}
 		issued = &token
+		created = true
 		return nil
 	})
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return issued, nil
+	return issued, created, nil
 }
 
 func DeleteExpiredPartnerOAuthTokens(now int64) error {

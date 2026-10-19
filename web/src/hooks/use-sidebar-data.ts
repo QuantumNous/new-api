@@ -239,8 +239,14 @@ export function useSidebarData(): SidebarData {
           },
           {
             title: t('Partner OAuth Clients'),
-            url: '/partner-oauth-clients',
             icon: Key,
+            items: [
+              { title: t('Client list'), url: '/partner-oauth-clients' },
+              {
+                title: t('Authorization logs'),
+                url: '/partner-oauth-clients/logs',
+              },
+            ],
             requiredPermission: {
               resource: ADMIN_PERMISSION_RESOURCES.PARTNER_OAUTH_CLIENT,
               action: ADMIN_PERMISSION_ACTIONS.READ,

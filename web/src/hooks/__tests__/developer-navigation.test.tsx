@@ -45,13 +45,28 @@ function NavigationProbe() {
       </nav>
       {navGroups.map((group) => (
         <nav key={group.id} aria-label={group.title}>
-          {group.items.map((item) =>
-            item.url ? (
-              <a key={item.title} href={item.url}>
-                {item.title}
-              </a>
-            ) : null
-          )}
+          {group.items.map((item) => {
+            if (item.url) {
+              return (
+                <a key={item.title} href={item.url}>
+                  {item.title}
+                </a>
+              )
+            }
+            if (item.items) {
+              return (
+                <div key={item.title}>
+                  <span>{item.title}</span>
+                  {item.items.map((child) => (
+                    <a key={child.title} href={child.url}>
+                      {child.title}
+                    </a>
+                  ))}
+                </div>
+              )
+            }
+            return null
+          })}
         </nav>
       ))}
     </>
@@ -136,7 +151,10 @@ it('retains administrator tools without granting super-admin-only tools', async 
     screen.queryByRole('link', { name: 'System Settings' })
   ).not.toBeInTheDocument()
   expect(
-    screen.queryByRole('link', { name: 'Partner OAuth Clients' })
+    screen.queryByRole('link', { name: 'Authorization logs' })
+  ).not.toBeInTheDocument()
+  expect(
+    screen.queryByRole('link', { name: 'Client list' })
   ).not.toBeInTheDocument()
   expect(
     screen.queryByRole('link', { name: 'System Info' })
@@ -156,9 +174,13 @@ it('shows Partner OAuth Clients when the admin has read permission', async () =>
     },
   })
   await renderApp(<NavigationProbe />, client)
+  expect(screen.getByRole('link', { name: 'Client list' })).toHaveAttribute(
+    'href',
+    '/partner-oauth-clients'
+  )
   expect(
-    screen.getByRole('link', { name: 'Partner OAuth Clients' })
-  ).toHaveAttribute('href', '/partner-oauth-clients')
+    screen.getByRole('link', { name: 'Authorization logs' })
+  ).toHaveAttribute('href', '/partner-oauth-clients/logs')
 })
 
 it('honors the site model-catalog switch for the new developer destination', async () => {

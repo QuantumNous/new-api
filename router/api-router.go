@@ -270,6 +270,8 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.GET("/waffo-pancake/subscription-product-options", controller.ListWaffoPancakeSubscriptionProductOptions)
 		}
 
+		handlePermissionRoute(apiRouter.Group("", middleware.DisableCache(), middleware.AdminAuth()), http.MethodGet,
+			"/partner-oauth/authorization-logs", authz.PartnerOAuthClientRead, controller.GetPartnerOAuthAuthorizationLogs)
 		partnerOAuthClientRoute := apiRouter.Group("/partner-oauth/clients")
 		partnerOAuthClientRoute.Use(middleware.AdminAuth())
 		{

@@ -14,6 +14,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/i18n"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -85,21 +86,8 @@ func writePartnerIntegrationAPIError(c *gin.Context, err error) {
 	})
 }
 
-func recordPartnerOAuthAudit(c *gin.Context, userID int, action string, success bool, params model.AuditFields) {
-	role := c.GetInt("role")
-	if role == 0 {
-		role = common.RoleCommonUser
-	}
-	model.RecordAuditLog(c, model.AuditLog{
-		UserId:    userID,
-		ActorRole: role,
-		Category:  model.AuditCategorySecurity,
-		Action:    action,
-		Success:   success,
-		Other: model.AuditOther{
-			Op: &model.AuditOperation{Action: action, Params: params},
-		},
-	})
+func recordPartnerOAuthAudit(c *gin.Context, entry model.PartnerOauthAuthorizationLog) {
+	model.RecordPartnerOAuthAuthorizationLog(c, entry)
 }
 
 func PartnerOAuthAuthorize(c *gin.Context) {
@@ -298,7 +286,8 @@ func PartnerOAuthDecideAuthorization(c *gin.Context) {
 	if body.Decision == "approve" {
 		action = "partner_oauth.consent.approve"
 	}
-	recordPartnerOAuthAudit(c, user.Id, action, true, model.AuditFields{"client_id": clientID})
+	recordPartnerOAuthAudit(c, model.PartnerOauthAuthorizationLog{Action: action, Success: true, Status: http.StatusOK,
+		ActorUserId: user.Id, TargetUserId: user.Id, ClientId: clientID})
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"redirect_to": redirectTo}})
 }
 
@@ -323,16 +312,30 @@ func PartnerOAuthToken(c *gin.Context) {
 	case "authorization_code":
 		issued, exchangeErr := service.ExchangePartnerOAuthCode(client, form["code"], form["redirect_uri"], form["code_verifier"])
 		if exchangeErr != nil {
+			if errors.Is(exchangeErr, service.ErrPartnerOAuthReplayRevocationUnavailable) {
+				logger.LogError(c.Request.Context(), common.LogText("partner oauth replay revocation failed (request_id=%s): database error", c.GetString(common.RequestIdKey)))
+			}
+			var replay *service.PartnerOAuthReplayRevocation
+			if errors.As(exchangeErr, &replay) {
+				recordPartnerOAuthAudit(c, model.PartnerOauthAuthorizationLog{Action: "partner_oauth.code.replay_detected", Success: false,
+					Reason: replay.Kind, ClientId: client.ClientId, BindingId: replay.BindingID, TargetUserId: replay.UserID, Status: http.StatusBadRequest})
+			}
 			writePartnerOAuthError(c, exchangeErr)
 			return
 		}
-		recordPartnerOAuthAudit(c, 0, "partner_oauth.token.issue", true, model.AuditFields{"client_id": client.ClientId, "binding_id": issued.BindingID})
+		recordPartnerOAuthAudit(c, model.PartnerOauthAuthorizationLog{Action: "partner_oauth.token.issue", Success: true,
+			ClientId: client.ClientId, BindingId: issued.BindingID, TargetUserId: issued.UserID, Status: http.StatusOK})
 		c.JSON(http.StatusOK, issued)
 	case "refresh_token":
 		issued, refreshErr := service.RefreshPartnerOAuthToken(client, form["refresh_token"], form["scope"])
 		if refreshErr != nil {
-			if errors.Is(refreshErr, service.ErrPartnerOAuthRefreshReuse) {
-				recordPartnerOAuthAudit(c, 0, "partner_oauth.refresh.reuse_detected", true, model.AuditFields{"client_id": client.ClientId})
+			if errors.Is(refreshErr, service.ErrPartnerOAuthReplayRevocationUnavailable) {
+				logger.LogError(c.Request.Context(), common.LogText("partner oauth replay revocation failed (request_id=%s): database error", c.GetString(common.RequestIdKey)))
+			}
+			var replay *service.PartnerOAuthReplayRevocation
+			if errors.As(refreshErr, &replay) {
+				recordPartnerOAuthAudit(c, model.PartnerOauthAuthorizationLog{Action: "partner_oauth.refresh.reuse_detected", Success: false,
+					Reason: replay.Kind, ClientId: client.ClientId, BindingId: replay.BindingID, TargetUserId: replay.UserID, Status: http.StatusBadRequest})
 			}
 			writePartnerOAuthError(c, refreshErr)
 			return
@@ -360,17 +363,14 @@ func PartnerOAuthRevoke(c *gin.Context) {
 		writePartnerOAuthError(c, authErr)
 		return
 	}
-	bindingID, err := service.RevokePartnerOAuthToken(client, form["token"])
+	binding, err := service.RevokePartnerOAuthToken(client, form["token"])
 	if err != nil {
 		writePartnerOAuthError(c, err)
 		return
 	}
-	if bindingID != "" {
-		recordPartnerOAuthAudit(c, 0, "partner_oauth.binding.revoke", true, model.AuditFields{
-			"client_id":  client.ClientId,
-			"binding_id": bindingID,
-			"reason":     "revoked",
-		})
+	if binding != nil {
+		recordPartnerOAuthAudit(c, model.PartnerOauthAuthorizationLog{Action: "partner_oauth.binding.revoke", Success: true,
+			ClientId: client.ClientId, BindingId: binding.BindingId, TargetUserId: binding.UserId, Reason: "revoked", Status: http.StatusOK})
 	}
 	c.Status(http.StatusOK)
 }
@@ -430,12 +430,9 @@ func PartnerOAuthCredential(c *gin.Context) {
 		writePartnerIntegrationAPIError(c, err)
 		return
 	}
-	if strings.HasPrefix(issued.APIKey, "sk-") {
-		recordPartnerOAuthAudit(c, principal.User.Id, "partner_oauth.credential.issue", true, model.AuditFields{
-			"client_id":  principal.Client.ClientId,
-			"binding_id": principal.Binding.BindingId,
-			"key_id":     issued.KeyID,
-		})
+	if issued.NewlyIssued {
+		recordPartnerOAuthAudit(c, model.PartnerOauthAuthorizationLog{Action: "partner_oauth.credential.issue", Success: true,
+			ClientId: principal.Client.ClientId, BindingId: principal.Binding.BindingId, TargetUserId: principal.User.Id, Status: http.StatusOK})
 	}
 	c.JSON(http.StatusOK, issued)
 }
@@ -463,7 +460,7 @@ func DeleteUserPartnerOAuthBinding(c *gin.Context) {
 		c.JSON(http.StatusForbidden, gin.H{"success": false, "code": "AUTH_SESSION_REQUIRED", "message": "a dashboard login session is required"})
 		return
 	}
-	err := service.RevokeUserPartnerOAuthBinding(identity.UserID, c.Param("binding_id"), service.PartnerOAuthRevokeReasonUser)
+	binding, err := service.RevokeUserPartnerOAuthBinding(identity.UserID, c.Param("binding_id"), service.PartnerOAuthRevokeReasonUser)
 	if err != nil {
 		if typed := service.AsPartnerOAuthError(err); typed != nil && typed.Status == http.StatusNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"success": false, "code": typed.Code, "message": typed.Description})
@@ -472,10 +469,9 @@ func DeleteUserPartnerOAuthBinding(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	recordPartnerOAuthAudit(c, identity.UserID, "partner_oauth.binding.revoke", true, model.AuditFields{
-		"binding_id": c.Param("binding_id"),
-		"reason":     "user_revoked",
-	})
+	recordPartnerOAuthAudit(c, model.PartnerOauthAuthorizationLog{Action: "partner_oauth.binding.revoke", Success: true,
+		ActorUserId: identity.UserID, TargetUserId: identity.UserID, ClientId: binding.ClientId,
+		BindingId: binding.BindingId, Reason: "user_revoked", Status: http.StatusOK})
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
@@ -511,12 +507,15 @@ func GetUserPartnerOAuthBindingsByAdmin(c *gin.Context) {
 }
 
 func DeleteUserPartnerOAuthBindingByAdmin(c *gin.Context) {
+	// This token operation is never a generic management audit, even when
+	// the binding is missing or the dedicated log store is unavailable.
+	markAuditLogged(c)
 	target, ok := loadPartnerOAuthAdminTarget(c)
 	if !ok {
 		return
 	}
 	bindingID := c.Param("binding_id")
-	err := service.RevokeUserPartnerOAuthBinding(target.Id, bindingID, service.PartnerOAuthRevokeReasonAdmin)
+	binding, err := service.RevokeUserPartnerOAuthBinding(target.Id, bindingID, service.PartnerOAuthRevokeReasonAdmin)
 	if err != nil {
 		if typed := service.AsPartnerOAuthError(err); typed != nil && typed.Status == http.StatusNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"success": false, "code": typed.Code, "message": typed.Description})
@@ -525,10 +524,9 @@ func DeleteUserPartnerOAuthBindingByAdmin(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	recordManageAuditFor(c, target.Id, "partner_oauth.binding.admin_revoke", map[string]any{
-		"binding_id": bindingID,
-		"reason":     service.PartnerOAuthRevokeReasonAdmin,
-	})
+	recordPartnerOAuthAudit(c, model.PartnerOauthAuthorizationLog{Action: "partner_oauth.binding.admin_revoke", Success: true,
+		ActorUserId: c.GetInt("id"), TargetUserId: target.Id, ClientId: binding.ClientId,
+		BindingId: bindingID, Reason: "admin_revoked", Status: http.StatusOK})
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 

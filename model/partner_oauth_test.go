@@ -1,11 +1,17 @@
 package model
 
 import (
+	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/glebarez/sqlite"
+	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm/schema"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,6 +50,78 @@ func TestPartnerOAuthTablesMigrate(t *testing.T) {
 	truncateTables(t)
 	require.NoError(t, DB.AutoMigrate(&PartnerOAuthClient{}, &PartnerOAuthBinding{}, &PartnerOAuthToken{}))
 	require.NoError(t, DB.AutoMigrate(&PartnerOAuthClient{}, &PartnerOAuthBinding{}, &PartnerOAuthToken{}))
+}
+
+func TestPartnerOAuthAuthorizationLogStoreMigration(t *testing.T) {
+	if os.Getenv("PARTNER_OAUTH_AUDIT_DB_ISOLATED") != "1" {
+		t.Skip("requires task-owned Docker runner and disposable databases")
+	}
+	for _, dialect := range []struct {
+		name string
+		dsn  string
+		kind common.DatabaseType
+		open func(string) gorm.Dialector
+	}{
+		{"sqlite", ":memory:", common.DatabaseTypeSQLite, func(dsn string) gorm.Dialector { return sqlite.Open(dsn) }},
+		{"mysql", os.Getenv("TEST_MYSQL_DSN"), common.DatabaseTypeMySQL, func(dsn string) gorm.Dialector { return mysql.Open(dsn) }},
+		{"postgres", os.Getenv("TEST_POSTGRES_DSN"), common.DatabaseTypePostgreSQL, func(dsn string) gorm.Dialector {
+			return postgres.New(postgres.Config{DSN: dsn, PreferSimpleProtocol: true})
+		}},
+	} {
+		t.Run(dialect.name, func(t *testing.T) {
+			if strings.TrimSpace(dialect.dsn) == "" {
+				t.Skip("task-isolated database DSN not configured")
+			}
+			for _, scenario := range []string{"fresh", "upgrade"} {
+				t.Run(scenario, func(t *testing.T) {
+					prefix := "poa_f_"
+					if scenario == "upgrade" {
+						prefix = "poa_u_"
+					}
+					logDB, err := gorm.Open(dialect.open(dialect.dsn), &gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: prefix}})
+					require.NoError(t, err)
+					sqlDB, err := logDB.DB()
+					require.NoError(t, err)
+					t.Cleanup(func() { _ = sqlDB.Close() })
+					// LOG_DB is independent of DB; only the log store receives the new table.
+					mainDB, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+					require.NoError(t, err)
+					oldDB, oldLog, oldKind := DB, LOG_DB, common.LogDatabaseType()
+					DB, LOG_DB = mainDB, logDB
+					common.SetLogDatabaseType(dialect.kind)
+					t.Cleanup(func() { DB, LOG_DB = oldDB, oldLog; common.SetLogDatabaseType(oldKind) })
+					require.NoError(t, logDB.Migrator().DropTable(&PartnerOauthAuthorizationLog{}, &AuditLog{}))
+					if scenario == "upgrade" {
+						require.NoError(t, MigrateAuditLogs())
+						require.NoError(t, logDB.Create(&AuditLog{EventId: "legacy-token", Category: AuditCategorySecurity, Action: "partner_oauth.token.issue"}).Error)
+					}
+					require.NoError(t, MigratePartnerOAuthAuthorizationLogs())
+					require.NoError(t, MigratePartnerOAuthAuthorizationLogs())
+					assert.True(t, logDB.Migrator().HasTable(&PartnerOauthAuthorizationLog{}))
+					assert.False(t, mainDB.Migrator().HasTable(&PartnerOauthAuthorizationLog{}))
+					assert.Equal(t, prefix+"partner_oauth_authorization_logs", logDB.NamingStrategy.TableName("PartnerOauthAuthorizationLog"))
+					var before int64
+					require.NoError(t, logDB.Model(&PartnerOauthAuthorizationLog{}).Count(&before).Error)
+					assert.Zero(t, before) // Old generic events are not backfilled.
+					RecordPartnerOAuthAuthorizationLog(nil, PartnerOauthAuthorizationLog{
+						Action: "partner_oauth.token.issue", Success: true, Status: 200,
+						ClientId: "pc_0123456789abcdef0123456789abcdef", BindingId: "bnd_0123456789abcdef0123456789abcdef", TargetUserId: 7,
+					})
+					items, total, err := GetPartnerOAuthAuthorizationLogs(PartnerOauthAuthorizationLogFilter{TargetUserId: 7}, 0, 10)
+					require.NoError(t, err)
+					assert.Equal(t, int64(1), total)
+					require.Len(t, items, 1)
+					assert.NotEmpty(t, items[0].RequestId)
+					if scenario == "upgrade" {
+						var legacy AuditLog
+						require.NoError(t, logDB.Where("event_id = ?", "legacy-token").First(&legacy).Error)
+						assert.Equal(t, "partner_oauth.token.issue", legacy.Action)
+					}
+					require.Error(t, logDB.Create(&PartnerOauthAuthorizationLog{EventId: items[0].EventId}).Error)
+				})
+			}
+		})
+	}
 }
 
 func TestCreatePartnerOAuthBindingWithTokens(t *testing.T) {
@@ -210,7 +288,7 @@ func TestIssuePartnerOAuthCredentialSingleKeyUnderConcurrency(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			issued, err := IssuePartnerOAuthCredential(bindingID, PartnerOAuthCredentialIssue{
+			issued, _, err := IssuePartnerOAuthCredential(bindingID, PartnerOAuthCredentialIssue{
 				UserId:      user.Id,
 				Name:        client.Name,
 				ExpiredTime: time.Now().Add(24 * time.Hour).Unix(),

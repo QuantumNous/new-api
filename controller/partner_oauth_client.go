@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
@@ -39,6 +40,84 @@ func partnerOAuthClientToView(client *model.PartnerOAuthClient, secret string) p
 		UpdatedAt:       client.UpdatedAt,
 		ClientSecret:    secret,
 	}
+}
+
+// GetPartnerOAuthAuthorizationLogs exposes only the dedicated safe projection.
+func GetPartnerOAuthAuthorizationLogs(c *gin.Context) {
+	query := c.Request.URL.Query()
+	for key, values := range query {
+		switch key {
+		case "page", "page_size", "start", "end", "action", "success", "client_id", "target_user_id":
+		default:
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid filter"})
+			return
+		}
+		if len(values) != 1 {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid filter"})
+			return
+		}
+	}
+	page, pageSize := 1, 20
+	var err error
+	if query.Has("page") {
+		page, err = strconv.Atoi(query.Get("page"))
+		if err != nil || page < 1 || page > 1000000 {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid page"})
+			return
+		}
+	}
+	if query.Has("page_size") {
+		pageSize, err = strconv.Atoi(query.Get("page_size"))
+		if err != nil || pageSize < 1 || pageSize > 100 {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid page size"})
+			return
+		}
+	}
+	filter := model.PartnerOauthAuthorizationLogFilter{Action: query.Get("action"), ClientId: query.Get("client_id")}
+	if filter.Action != "" && !model.ValidPartnerOAuthLogAction(filter.Action) ||
+		filter.ClientId != "" && !model.ValidPartnerOAuthLogClientID(filter.ClientId) {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid filter"})
+		return
+	}
+	if query.Has("success") {
+		value, err := strconv.ParseBool(query.Get("success"))
+		if err != nil || (query.Get("success") != "true" && query.Get("success") != "false") {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid result"})
+			return
+		}
+		filter.Success = &value
+	}
+	for _, field := range []struct {
+		name string
+		into *int64
+	}{{"start", &filter.Start}, {"end", &filter.End}} {
+		if query.Has(field.name) {
+			*field.into, err = strconv.ParseInt(query.Get(field.name), 10, 64)
+			if err != nil || *field.into <= 0 {
+				c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid time range"})
+				return
+			}
+		}
+	}
+	if filter.End > 0 && filter.Start > filter.End {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid time range"})
+		return
+	}
+	if query.Has("target_user_id") {
+		filter.TargetUserId, err = strconv.Atoi(query.Get("target_user_id"))
+		if err != nil || filter.TargetUserId <= 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid target user"})
+			return
+		}
+	}
+	items, total, err := model.GetPartnerOAuthAuthorizationLogs(filter, (page-1)*pageSize, pageSize)
+	if err != nil {
+		logger.LogError(c.Request.Context(), common.LogText("partner oauth authorization log read failed (request_id=%s): database error", c.GetString(common.RequestIdKey)))
+		c.JSON(http.StatusServiceUnavailable, gin.H{"success": false, "message": "authorization logs unavailable"})
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{"items": items, "total": total}})
 }
 
 func GetPartnerOAuthClients(c *gin.Context) {
@@ -225,9 +304,15 @@ func DeletePartnerOAuthClient(c *gin.Context) {
 	}) == nil {
 		return
 	}
-	if err := model.DeletePartnerOAuthClient(client.ClientId); err != nil {
+	revoked, err := model.DeletePartnerOAuthClient(client.ClientId)
+	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	for _, binding := range revoked {
+		recordPartnerOAuthAudit(c, model.PartnerOauthAuthorizationLog{Action: "partner_oauth.binding.client_delete", Success: true,
+			ActorUserId: c.GetInt("id"), TargetUserId: binding.UserId, ClientId: client.ClientId,
+			BindingId: binding.BindingId, Reason: "client_deleted", Status: http.StatusOK})
 	}
 	recordPartnerOAuthAdminAudit(c, "partner_oauth.client.delete", client.ClientId, nil)
 	c.JSON(http.StatusOK, gin.H{"success": true})
@@ -288,4 +373,5 @@ func recordPartnerOAuthAdminAudit(c *gin.Context, action, clientID string, field
 		Success:   true,
 		Other:     model.AuditOther{Op: &model.AuditOperation{Action: action, Params: params}},
 	})
+	markAuditLogged(c)
 }

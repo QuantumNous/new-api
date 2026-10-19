@@ -51,6 +51,7 @@ DELETE /api/user/{id}/partner-oauth/bindings/{binding_id}
 Admin (`AdminAuth` + Casbin `partner_oauth_client`):
 
 ```text
+GET    /api/partner-oauth/authorization-logs  (read)
 GET    /api/partner-oauth/clients
 POST   /api/partner-oauth/clients
 PUT    /api/partner-oauth/clients/{id}
@@ -75,6 +76,10 @@ DELETE /api/partner-oauth/clients/{id}
 - Client scope/redirect edits affect future grants only. Disable blocks tokens. Delete revokes bindings and keys.
 - Authz: `read` + `operate` default admin; `sensitive_write` has no default and requires step-up `partner_oauth.client.sensitive_write` (2FA/Passkey if enrolled, otherwise password/OAuth).
 - An admin can list and revoke a lower-role user's active partner bindings. Root can manage any user. Revoke uses the same binding path as the user, stores reason `admin_revoked`, and disables the dedicated key. The audit records the admin actor and binding id, not the key.
+- OAuth consent approve/deny, code exchange and replay revocation, refresh replay revocation, token/user/admin/client-delete binding revocations, and first credential issuance write **only** to `partner_oauth_authorization_logs` in `LOG_DB`. Ordinary account/model API calls, successful refresh, and repeat credential reads do not write there. Client configuration actions continue in generic `audit_logs`; historical generic rows are neither deleted nor backfilled.
+- Authorization logs contain only event/request IDs, timestamp, action/result, allowlisted reason, actor and target user IDs, generated client/binding IDs, IP, route template and status. Never store passwords, codes, state, tokens, secrets, verifiers, keys, raw URLs/query, bodies, or cookies. Failed log writes emit a non-sensitive server error with request ID without changing an already committed OAuth response. Successful token/revoke audit metadata comes from the committed operation (not a post-commit binding query); replay revocation lookup/write failures return a generic server error and emit a safe server log rather than pretending the grant was safely revoked.
+- `GET /api/partner-oauth/authorization-logs` requires AdminAuth and `partner_oauth_client.read`; it validates bounded page/page_size, action, result, client ID, target user and time range, returns descending `{items,total}`, and never exposes all-user logs to normal users.
+- The dedicated table migrates on both shared and independent `LOG_DB` paths; relational names respect configured table prefixes. ClickHouse uses an explicit MergeTree without database-enforced event ID uniqueness. Audit records do not share usage-log TTL. Rollback preserves the table and historical records.
 - Audit events never contain passwords, codes, tokens, secrets, verifiers, or keys.
 - Request ID: send `X-Request-Id` (plus existing `X-Oneapi-Request-Id`).
 - Logger strips query for `/api/partner-oauth/`, `/partner-authorize`, and `/sign-in`.
