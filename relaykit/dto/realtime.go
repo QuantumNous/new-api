@@ -1,6 +1,9 @@
 package dto
 
-import "github.com/QuantumNous/new-api/relaykit/types"
+import (
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/types"
+)
 
 const (
 	RealtimeEventTypeError              = "error"
@@ -43,6 +46,32 @@ type RealtimeUsage struct {
 	OutputTokens       int                `json:"output_tokens"`
 	InputTokenDetails  InputTokenDetails  `json:"input_token_details"`
 	OutputTokenDetails OutputTokenDetails `json:"output_token_details"`
+}
+
+func (u *RealtimeUsage) UnmarshalJSON(data []byte) error {
+	type realtimeUsage RealtimeUsage
+	var wire struct {
+		realtimeUsage
+		InputTokenDetails   *InputTokenDetails  `json:"input_token_details"`
+		OutputTokenDetails  *OutputTokenDetails `json:"output_token_details"`
+		InputTokensDetails  *InputTokenDetails  `json:"input_tokens_details"`
+		OutputTokensDetails *OutputTokenDetails `json:"output_tokens_details"`
+	}
+	if err := kitutil.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	*u = RealtimeUsage(wire.realtimeUsage)
+	if wire.InputTokenDetails != nil {
+		u.InputTokenDetails = *wire.InputTokenDetails
+	} else if wire.InputTokensDetails != nil {
+		u.InputTokenDetails = *wire.InputTokensDetails
+	}
+	if wire.OutputTokenDetails != nil {
+		u.OutputTokenDetails = *wire.OutputTokenDetails
+	} else if wire.OutputTokensDetails != nil {
+		u.OutputTokenDetails = *wire.OutputTokensDetails
+	}
+	return nil
 }
 
 type RealtimeSession struct {
