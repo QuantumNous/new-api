@@ -55,9 +55,14 @@ export async function getUserQuotaDates(
 // System Monitoring
 // ----------------------------------------------------------------------------
 
+// Get per-user quota data within a time range.
+// Admin users get every user's data unless `usernames` narrows it down; the
+// backend expects it as a comma-separated list.
 export async function getUserQuotaDataByUsers(params: {
   start_timestamp: number
   end_timestamp: number
+  default_time?: string
+  usernames?: string
 }) {
   const res = await api.get<{ success: boolean; data: QuotaDataItem[] }>(
     '/api/data/users',

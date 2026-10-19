@@ -154,16 +154,47 @@ export function buildDefaultDashboardFilters(
 
 export function buildQueryParams(
   timeRange: { start_timestamp: number; end_timestamp: number },
-  filters?: { time_granularity?: TimeGranularity; username?: string }
+  filters?: {
+    time_granularity?: TimeGranularity
+    username?: string
+    usernames?: string[]
+  }
 ): {
   start_timestamp: number
   end_timestamp: number
   default_time: string
   username?: string
+  usernames?: string
 } {
+  const usernames = (filters?.usernames ?? []).filter(Boolean)
   return {
     ...timeRange,
     default_time: getSavedGranularity(filters?.time_granularity),
     ...(filters?.username && { username: filters.username }),
+    // The backend takes a comma-separated list; an empty selection means "all
+    // users", so the parameter is dropped rather than sent empty.
+    ...(usernames.length > 0 && { usernames: usernames.join(',') }),
   }
+}
+
+// Quick-range presets imply a sensible granularity (matching the app's
+// range<->granularity pairing), so picking "7 Days" requests daily buckets
+// instead of leaving the granularity on its previous value (e.g. hourly).
+export function granularityForRangeDays(days: number): TimeGranularity {
+  if (days <= 1) return 'hour'
+  if (days >= 29) return 'week'
+  return 'day'
+}
+
+// Highlights the matching quick-range button when the applied range spans an
+// exact preset; custom ranges leave every quick button unselected.
+export function detectQuickRangeDays(filters?: {
+  start_timestamp?: Date
+  end_timestamp?: Date
+}): number | null {
+  const start = filters?.start_timestamp
+  const end = filters?.end_timestamp
+  if (!start || !end) return null
+  const days = Math.round((end.getTime() - start.getTime()) / 86_400_000)
+  return TIME_RANGE_PRESETS.some((preset) => preset.days === days) ? days : null
 }
