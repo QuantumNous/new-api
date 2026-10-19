@@ -1,6 +1,11 @@
 package dto
 
-import "github.com/QuantumNous/new-api/relaykit/types"
+import (
+	"encoding/json"
+
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/types"
+)
 
 const (
 	RealtimeEventTypeError              = "error"
@@ -43,6 +48,43 @@ type RealtimeUsage struct {
 	OutputTokens       int                `json:"output_tokens"`
 	InputTokenDetails  InputTokenDetails  `json:"input_token_details"`
 	OutputTokenDetails OutputTokenDetails `json:"output_token_details"`
+}
+
+func (u *RealtimeUsage) UnmarshalJSON(data []byte) error {
+	type realtimeUsage RealtimeUsage
+	var wire struct {
+		realtimeUsage
+		InputTokenDetails   json.RawMessage `json:"input_token_details"`
+		OutputTokenDetails  json.RawMessage `json:"output_token_details"`
+		InputTokensDetails  json.RawMessage `json:"input_tokens_details"`
+		OutputTokensDetails json.RawMessage `json:"output_tokens_details"`
+	}
+	if err := kitutil.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	*u = RealtimeUsage(wire.realtimeUsage)
+	// Key presence, not the decoded pointer, decides precedence: a present
+	// singular key with null keeps the zero details instead of falling back
+	// to the plural key.
+	if wire.InputTokenDetails != nil {
+		if err := kitutil.Unmarshal(wire.InputTokenDetails, &u.InputTokenDetails); err != nil {
+			return err
+		}
+	} else if wire.InputTokensDetails != nil {
+		if err := kitutil.Unmarshal(wire.InputTokensDetails, &u.InputTokenDetails); err != nil {
+			return err
+		}
+	}
+	if wire.OutputTokenDetails != nil {
+		if err := kitutil.Unmarshal(wire.OutputTokenDetails, &u.OutputTokenDetails); err != nil {
+			return err
+		}
+	} else if wire.OutputTokensDetails != nil {
+		if err := kitutil.Unmarshal(wire.OutputTokensDetails, &u.OutputTokenDetails); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 type RealtimeSession struct {
