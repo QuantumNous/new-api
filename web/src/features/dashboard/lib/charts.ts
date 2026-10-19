@@ -706,6 +706,12 @@ const USER_COLORS = [
   '#5D7092',
 ]
 
+function getUserChartIdentity(item: QuotaDataItem): string {
+  return item.user_id && item.user_id > 0
+    ? `user:${item.user_id}`
+    : `username:${item.username || 'unknown'}`
+}
+
 export function processUserChartData(
   data: QuotaDataItem[],
   timeGranularity: TimeGranularity = 'day',
@@ -756,11 +762,46 @@ export function processUserChartData(
   if (!data || data.length === 0) return emptyResult
 
   const userQuotaTotal = new Map<string, number>()
+  const userInfo = new Map<string, QuotaDataItem>()
   data.forEach((item) => {
-    const username = item.username || 'unknown'
-    const prev = userQuotaTotal.get(username) || 0
-    userQuotaTotal.set(username, prev + (Number(item.quota) || 0))
+    const user = getUserChartIdentity(item)
+    const prev = userQuotaTotal.get(user) || 0
+    userQuotaTotal.set(user, prev + (Number(item.quota) || 0))
+    const previous = userInfo.get(user)
+    if (!previous || item.created_at >= previous.created_at) {
+      userInfo.set(user, item)
+    }
   })
+
+  const baseLabels = new Map<string, string>()
+  const labelCounts = new Map<string, number>()
+  for (const [user, item] of userInfo) {
+    const label = item.display_name?.trim() || item.username || 'unknown'
+    baseLabels.set(user, label)
+    labelCounts.set(label, (labelCounts.get(label) || 0) + 1)
+  }
+  const userLabels = new Map<string, string>()
+  const userTooltips = new Map<string, string>()
+  const usedLabels = new Set<string>()
+  for (const [user, item] of [...userInfo.entries()].sort(([a], [b]) =>
+    a.localeCompare(b)
+  )) {
+    const base = baseLabels.get(user) || item.username || 'unknown'
+    const username = item.username || 'unknown'
+    let label = base
+    if ((labelCounts.get(base) || 0) > 1) label = `${base} (${username})`
+    // A literal display name can also match a disambiguated label.
+    while (usedLabels.has(label)) label = `${label} [${user}]`
+    usedLabels.add(label)
+    userLabels.set(user, label)
+    userTooltips.set(
+      user,
+      base === username ? username : `${base} (${username})`
+    )
+  }
+  const formatUserLabel = (value: string) => userLabels.get(value) || value
+  const formatUserTooltip = (datum: Record<string, unknown>) =>
+    userTooltips.get(String(datum?.User)) || datum?.User
 
   const sorted = [...userQuotaTotal.entries()].sort((a, b) => b[1] - a[1])
   const topUsers = sorted.slice(0, limit).map(([u]) => u)
@@ -788,7 +829,7 @@ export function processUserChartData(
     const ts = Number(item.created_at)
     const timeKey = formatChartTime(ts, timeGranularity)
     timeTimestamps.set(timeKey, Math.min(timeTimestamps.get(timeKey) ?? ts, ts))
-    const user = item.username || 'unknown'
+    const user = getUserChartIdentity(item)
     if (!topUserSet.has(user)) return
     let map = timeUserMap.get(timeKey)
     if (!map) {
@@ -844,14 +885,19 @@ export function processUserChartData(
         style: { fontSize: 11 },
       },
       axes: [
-        { orient: 'left', type: 'band' },
+        {
+          orient: 'left',
+          type: 'band',
+          label: { formatMethod: formatUserLabel },
+        },
         { orient: 'bottom', type: 'linear', visible: false },
       ],
       tooltip: {
         mark: {
+          title: { visible: false },
           content: [
             {
-              key: (datum: Record<string, unknown>) => datum?.User,
+              key: formatUserTooltip,
               value: (datum: Record<string, unknown>) =>
                 formatVal(Number(datum?.rawQuota) || 0),
             },
@@ -889,7 +935,11 @@ export function processUserChartData(
         text: tt('User Consumption Trend'),
         subtext: `${tt('Total:')} ${formatVal(totalQuota)}`,
       },
-      legends: { visible: true, selectMode: 'single' },
+      legends: {
+        visible: true,
+        selectMode: 'single',
+        item: { label: { formatMethod: formatUserLabel } },
+      },
       axes: [
         { orient: 'bottom', type: 'band' },
         {
@@ -904,7 +954,7 @@ export function processUserChartData(
         mark: {
           content: [
             {
-              key: (datum: Record<string, unknown>) => datum?.User,
+              key: formatUserTooltip,
               value: (datum: Record<string, unknown>) =>
                 formatVal(Number(datum?.rawQuota) || 0),
             },
@@ -913,7 +963,7 @@ export function processUserChartData(
         dimension: {
           content: [
             {
-              key: (datum: Record<string, unknown>) => datum?.User,
+              key: formatUserTooltip,
               value: (datum: Record<string, unknown>) =>
                 Number(datum?.rawQuota) || 0,
             },
