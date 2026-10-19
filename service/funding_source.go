@@ -50,7 +50,10 @@ func (w *WalletFunding) PreConsume(amount int) error {
 	if !reserved {
 		return ErrInsufficientWalletQuota
 	}
-	w.consumed = amount
+	// consumed is the whole freeze Refund will return. A later reserve must add
+	// to it; assignment would drop the opening hold, and a failed token reserve
+	// would then roll the refundable amount down to zero.
+	w.consumed += amount
 	return nil
 }
 
