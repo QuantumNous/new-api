@@ -1,7 +1,6 @@
 package model
 
 import (
-	"fmt"
 	"maps"
 	"strconv"
 	"strings"
@@ -240,8 +239,8 @@ func validateOptionValue(key string, value string) error {
 		return err
 	}
 	if key == "EmailProvider" {
-		if err := common.ValidateEmailProvider(value); err != nil {
-			return err
+		if value != "smtp" && value != "resend" {
+			return common.NewMessage("Email sending method must be SMTP or Resend")
 		}
 		if value == "resend" {
 			common.OptionMapRWMutex.RLock()
@@ -251,7 +250,7 @@ func validateOptionValue(key string, value string) error {
 		}
 	}
 	if key == "ResendKeyConfigured" {
-		return fmt.Errorf("Resend key configuration status is read-only")
+		return common.NewMessage("Resend key configuration status is read-only")
 	}
 	if key == operation_setting.ToolPriceOptionKey {
 		return operation_setting.ValidateToolPricesJSON(value)

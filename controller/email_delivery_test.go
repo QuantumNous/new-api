@@ -40,7 +40,7 @@ func configureEmailDelivery(t *testing.T, options map[string]string) {
 }
 
 func TestResendDeliversThroughSelectedProvider(t *testing.T) {
-	configureEmailDelivery(t, map[string]string{"EmailProvider": "resend", "ResendApiKey": "test-key", "ResendFrom": "HiCoder <sender@example.com>"})
+	configureEmailDelivery(t, map[string]string{"EmailProvider": "resend", "ResendApiKey": "test-key", "ResendFrom": "New API <sender@example.com>"})
 	calls := 0
 	http.DefaultTransport = emailHTTPTransport(func(request *http.Request) (*http.Response, error) {
 		calls++
@@ -57,7 +57,7 @@ func TestResendDeliversThroughSelectedProvider(t *testing.T) {
 			HTML    string   `json:"html"`
 		}
 		require.NoError(t, common.DecodeJson(request.Body, &body))
-		assert.Equal(t, `"HiCoder" <sender@example.com>`, body.From)
+		assert.Equal(t, `"New API" <sender@example.com>`, body.From)
 		assert.Equal(t, []string{"one@example.com", "two@example.com"}, body.To)
 		assert.Equal(t, "验证码", body.Subject)
 		assert.Equal(t, "<p>123456</p>", body.HTML)
@@ -115,7 +115,7 @@ func TestResendRejectsMalformedSuccessAndSanitizesTransportErrors(t *testing.T) 
 			http.DefaultTransport = emailHTTPTransport(func(*http.Request) (*http.Response, error) {
 				return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
 			})
-			require.EqualError(t, common.SendEmail("verification", "one@example.com", "123456"), "invalid Resend delivery response")
+			require.EqualError(t, common.SendEmail("verification", "one@example.com", "123456"), "Invalid Resend delivery response")
 		})
 	}
 	configureEmailDelivery(t, map[string]string{"EmailProvider": "resend", "ResendApiKey": "test-key", "ResendFrom": "sender@example.com"})
@@ -160,7 +160,7 @@ func TestEmailProviderOptionRejectsInvalidValues(t *testing.T) {
 			context.Request = httptest.NewRequest(http.MethodPut, "/api/option/", strings.NewReader(string(body)))
 			UpdateOption(context)
 			assert.Contains(t, response.Body.String(), `"success":false`)
-			assert.Contains(t, response.Body.String(), "email provider must be smtp or resend")
+			assert.Contains(t, response.Body.String(), `"message_key":"Email sending method must be SMTP or Resend"`)
 			assert.Equal(t, "smtp", common.OptionMap["EmailProvider"])
 		})
 	}
@@ -181,6 +181,7 @@ func TestEmailProviderCannotActivateIncompleteResend(t *testing.T) {
 			context.Request = httptest.NewRequest(http.MethodPut, "/api/option/", strings.NewReader(`{"key":"EmailProvider","value":"resend"}`))
 			require.NotPanics(t, func() { UpdateOption(context) }, "invalid activation must fail before accessing storage")
 			assert.Contains(t, response.Body.String(), `"success":false`)
+			assert.Contains(t, response.Body.String(), `"message_key":"Resend `)
 			assert.Equal(t, "smtp", common.OptionMap["EmailProvider"])
 			assert.NotContains(t, response.Body.String(), "test-key")
 		})

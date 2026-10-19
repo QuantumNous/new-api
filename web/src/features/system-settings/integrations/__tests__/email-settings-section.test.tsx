@@ -1,3 +1,21 @@
+/*
+Copyright (C) 2023-2026 QuantumNous
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
+*/
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -129,13 +147,13 @@ describe('email delivery settings', () => {
     await user.type(from, 'mail@example.com')
     await user.type(
       screen.getByRole('textbox', { name: 'Sender name' }),
-      'HiCoder'
+      'New API'
     )
     await user.type(screen.getByLabelText('Resend API key'), 'test-key')
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
     await waitFor(() => expect(request).toHaveBeenCalledTimes(3))
     expect(request.mock.calls.map((call) => call[1])).toEqual([
-      { key: 'ResendFrom', value: '"HiCoder" <mail@example.com>' },
+      { key: 'ResendFrom', value: '"New API" <mail@example.com>' },
       { key: 'ResendApiKey', value: 'test-key' },
       { key: 'EmailProvider', value: 'resend' },
     ])
@@ -167,7 +185,7 @@ describe('email delivery settings', () => {
     await user.type(from, 'notify@another.example')
     await user.type(
       screen.getByRole('textbox', { name: 'Sender name' }),
-      'HiCoder 通知'
+      'New API 通知'
     )
     await user.click(screen.getByRole('radio', { name: 'SMTP' }))
     expect(
@@ -178,7 +196,7 @@ describe('email delivery settings', () => {
       screen.getByRole('textbox', { name: 'Sender email address' })
     ).toHaveValue('notify@another.example')
     expect(screen.getByRole('textbox', { name: 'Sender name' })).toHaveValue(
-      'HiCoder 通知'
+      'New API 通知'
     )
   })
 
@@ -241,13 +259,13 @@ describe('email delivery settings', () => {
       .mockResolvedValue({ data: { success: true } })
     const user = renderEmail({
       EmailProvider: 'resend',
-      ResendFrom: 'HiCoder <notify@example.com>',
+      ResendFrom: 'New API <notify@example.com>',
     })
     expect(
       screen.getByRole('textbox', { name: 'Sender email address' })
     ).toHaveValue('notify@example.com')
     expect(screen.getByRole('textbox', { name: 'Sender name' })).toHaveValue(
-      'HiCoder'
+      'New API'
     )
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
     expect(request).not.toHaveBeenCalled()
@@ -259,17 +277,17 @@ describe('email delivery settings', () => {
       .mockResolvedValue({ data: { success: true } })
     const user = renderEmail({
       EmailProvider: 'resend',
-      ResendFrom: '"HiCoder, \\"Mail\\"" <notify@example.com>',
+      ResendFrom: '"New API, \\"Mail\\"" <notify@example.com>',
     })
     const name = screen.getByRole('textbox', { name: 'Sender name' })
-    expect(name).toHaveValue('HiCoder, "Mail"')
+    expect(name).toHaveValue('New API, "Mail"')
     await user.clear(name)
-    await user.type(name, 'HiCoder, "Support"')
+    await user.type(name, 'New API, "Support"')
     await user.click(screen.getByRole('button', { name: 'Save Changes' }))
     await waitFor(() =>
       expect(request).toHaveBeenLastCalledWith('/api/option/', {
         key: 'ResendFrom',
-        value: '"HiCoder, \\"Support\\"" <notify@example.com>',
+        value: '"New API, \\"Support\\"" <notify@example.com>',
       })
     )
     await user.clear(name)
@@ -282,7 +300,7 @@ describe('email delivery settings', () => {
     )
   })
 
-  it.each(['notify', 'HiCoder <notify@example.com>'])(
+  it.each(['notify', 'New API <notify@example.com>'])(
     'rejects %s instead of a complete standalone sender email',
     async (address) => {
       const request = vi
@@ -314,7 +332,7 @@ describe('email delivery settings', () => {
     const parsed = createEmailSchema((key) => key).safeParse({
       ...defaults,
       EmailProvider: 'resend',
-      ResendSenderName: 'HiCoder\r\nBcc: other@example.com',
+      ResendSenderName: 'New API\r\nBcc: other@example.com',
     })
     expect(parsed.success).toBe(false)
     if (!parsed.success) {

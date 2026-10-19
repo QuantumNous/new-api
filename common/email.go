@@ -88,7 +88,7 @@ func SendEmail(subject string, receiver string, content string) error {
 		return sendResendEmail(resendKey, resendFrom, subject, receiver, content)
 	case "", "smtp": // Preserve existing installations without a selector.
 	default:
-		return fmt.Errorf("invalid email provider")
+		return NewMessage("Email sending method must be SMTP or Resend")
 	}
 	if SMTPFrom == "" { // for compatibility
 		SMTPFrom = SMTPAccount

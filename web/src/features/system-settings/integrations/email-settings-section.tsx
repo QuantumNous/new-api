@@ -275,7 +275,7 @@ export function EmailSettingsSection({
                 </FormControl>
                 <FormDescription>
                   {t(
-                    'Only the selected provider sends email. Switching providers disables the other without deleting its settings. No automatic fallback.'
+                    'Only the selected method sends email. The other method keeps its settings.'
                   )}
                 </FormDescription>
                 <FormMessage />
@@ -300,9 +300,7 @@ export function EmailSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t(
-                        'Enter the complete email address, including a domain verified in Resend. No domain is added automatically.'
-                      )}
+                      {t('The domain must be verified in Resend')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -346,9 +344,7 @@ export function EmailSettingsSection({
                       />
                     </FormControl>
                     <FormDescription>
-                      {t(
-                        'Enter a Resend API key. Leave blank to keep the saved key; saved keys are never returned by the server.'
-                      )}
+                      {t('Leave blank to keep the existing key')}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

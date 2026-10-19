@@ -3,7 +3,6 @@ package common
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"net/http"
 	"net/mail"
@@ -18,25 +17,18 @@ var resendEmailClient = &http.Client{
 	},
 }
 
-func ValidateEmailProvider(value string) error {
-	if value != "smtp" && value != "resend" {
-		return fmt.Errorf("email provider must be smtp or resend")
-	}
-	return nil
-}
-
 // ValidateResendConfiguration is shared by provider activation and delivery.
 // It checks local configuration only; saving settings never sends an email.
 func ValidateResendConfiguration(apiKey, from string) error {
 	apiKey = strings.TrimSpace(apiKey)
 	if apiKey == "" || strings.ContainsAny(apiKey, "\r\n\x00") {
-		return fmt.Errorf("Resend API key is not configured or invalid")
+		return NewMessage("Resend API key is not configured or invalid")
 	}
 	if strings.ContainsAny(from, "\r\n\x00") {
-		return fmt.Errorf("Resend sender address is not configured or invalid")
+		return NewMessage("Resend sender address is not configured or invalid")
 	}
 	if _, err := mail.ParseAddress(strings.TrimSpace(from)); err != nil {
-		return fmt.Errorf("Resend sender address is not configured or invalid")
+		return NewMessage("Resend sender address is not configured or invalid")
 	}
 	return nil
 }
@@ -58,7 +50,7 @@ func sendResendEmail(apiKey, from, subject, receiver, content string) error {
 	for address := range strings.SplitSeq(receiver, ";") {
 		recipient, err := mail.ParseAddress(strings.TrimSpace(address))
 		if err != nil || len(to) >= 50 {
-			return fmt.Errorf("invalid Resend recipients (maximum 50)")
+			return NewMessage("Invalid email address")
 		}
 		to = append(to, recipient.Address)
 	}
@@ -69,29 +61,38 @@ func sendResendEmail(apiKey, from, subject, receiver, content string) error {
 		HTML    string   `json:"html"`
 	}{sender.String(), to, subject, content})
 	if err != nil {
-		return fmt.Errorf("failed to encode Resend email")
+		return NewMessage("Resend request failed")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.resend.com/emails", bytes.NewReader(payload))
 	if err != nil {
-		return fmt.Errorf("failed to create Resend request")
+		return NewMessage("Resend request failed")
 	}
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := resendEmailClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("Resend request failed")
+		SysError(LogText("Resend request failed: %v", err))
+		return NewMessage("Resend request failed")
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("Resend email delivery failed (HTTP %d)", resp.StatusCode)
+		// The reason (unverified domain, invalid key, quota) goes to the server
+		// log only, because the error may reach whoever asked for the email.
+		var failure struct {
+			Name    string `json:"name"`
+			Message string `json:"message"`
+		}
+		_ = DecodeJson(io.LimitReader(resp.Body, 4096), &failure)
+		SysError(LogText("Resend rejected the email: status=%d name=%s message=%s", resp.StatusCode, failure.Name, failure.Message))
+		return NewMessage("Resend email delivery failed (HTTP {{status}})", map[string]any{"status": resp.StatusCode})
 	}
 	var result struct {
 		ID string `json:"id"`
 	}
 	if err := DecodeJson(io.LimitReader(resp.Body, 4096), &result); err != nil || strings.TrimSpace(result.ID) == "" {
-		return fmt.Errorf("invalid Resend delivery response")
+		return NewMessage("Invalid Resend delivery response")
 	}
 	return nil
 }
