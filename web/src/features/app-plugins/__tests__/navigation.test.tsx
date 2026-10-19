@@ -51,8 +51,19 @@ import { useSidebarView } from '@/hooks/use-sidebar-view'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { listAppPlugins, resolveAppNavigation } from '../api'
-import type { AppNavigationItem, AppSurface } from '../types'
+import {
+  authorizeApp,
+  getAppLaunchContext,
+  listAppPlugins,
+  resolveAppNavigation,
+} from '../api'
+import type {
+  AppAuthorizeRequest,
+  AppAuthorizeResult,
+  AppLaunchContext,
+  AppNavigationItem,
+  AppSurface,
+} from '../types'
 
 const seedance: AppNavigationItem = {
   key: 'seedance-repro',
@@ -370,4 +381,203 @@ test('lists apps with the authenticated client and rejects failed envelopes', as
     data: { success: false, message: 'apps rejected', data: [] },
   })
   await expect(listAppPlugins()).rejects.toThrow('apps rejected')
+})
+
+const launchContext: AppLaunchContext = {
+  app_key: seedance.key,
+  surface: 'embedded',
+  start_url: 'https://seedance.example.test/start-embedded',
+  origin: 'https://seedance.example.test',
+}
+const authorizeRequest: AppAuthorizeRequest = {
+  surface: 'embedded',
+  transaction_id: 'transaction-1',
+  state: 'A'.repeat(43),
+  nonce: 'A'.repeat(43),
+  code_challenge: 'A'.repeat(43),
+  code_challenge_method: 'S256',
+}
+const authorization: AppAuthorizeResult = {
+  launch_url: 'https://seedance.example.test/callback?code=one-time-code',
+  surface: 'embedded',
+  expires_in: 60,
+}
+const endpoints = [
+  { name: 'navigation', call: () => listAppPlugins(), data: [seedance] },
+  {
+    name: 'launch context',
+    call: () => getAppLaunchContext(seedance.key, 'embedded'),
+    data: launchContext,
+  },
+  {
+    name: 'authorization',
+    call: () => authorizeApp(seedance.key, authorizeRequest, 'request-1'),
+    data: authorization,
+  },
+]
+
+test.each(endpoints)(
+  'rejects missing or nonboolean success in $name responses',
+  async ({ call, data }) => {
+    const get = vi.spyOn(api, 'get')
+    const post = vi.spyOn(api, 'post')
+    const bodies = [
+      { data },
+      { success: 'false', data },
+      { success: 'true', data },
+      { success: 1, data },
+      { success: null, data },
+      null,
+      [],
+    ]
+    for (const body of bodies) {
+      get.mockResolvedValue({ data: body })
+      post.mockResolvedValue({ data: body })
+      await expect(call()).rejects.toThrow('App unavailable')
+    }
+  }
+)
+
+test.each([
+  ['null list', null],
+  ['nonarray list', {}],
+  ['null item', [null]],
+  ['missing item fields', [{ key: seedance.key }]],
+  ['nonstring label', [{ ...seedance, name: { en: 1 } }]],
+  ['array labels', [{ ...seedance, name: ['Seedance'] }]],
+  ['nonarray surfaces', [{ ...seedance, enabled_surfaces: 'embedded' }]],
+  ['unknown surface', [{ ...seedance, enabled_surfaces: ['other'] }]],
+  ['nonstring scope', [{ ...seedance, granted_scopes: [1] }]],
+  ['nonstring version', [{ ...seedance, version: 1 }]],
+  ['missing direct URL', [{ ...seedance, direct_url: undefined }]],
+  ['nonstring dashboard path', [{ ...seedance, dashboard_path: null }]],
+])('rejects malformed navigation: %s', async (_name, data) => {
+  vi.spyOn(api, 'get').mockResolvedValue({
+    data: { success: true, message: 'one-time-code', data },
+  })
+
+  await expect(listAppPlugins()).rejects.toThrow('App unavailable')
+})
+
+test.each([
+  ['null context', null],
+  ['array context', []],
+  ['missing fields', {}],
+  ['nonstring app key', { ...launchContext, app_key: 1 }],
+  ['unknown surface', { ...launchContext, surface: 'other' }],
+  ['nonstring start URL', { ...launchContext, start_url: null }],
+  ['missing origin', { ...launchContext, origin: undefined }],
+])('rejects malformed launch context: %s', async (_name, data) => {
+  vi.spyOn(api, 'get').mockResolvedValue({ data: { success: true, data } })
+
+  await expect(getAppLaunchContext(seedance.key, 'embedded')).rejects.toThrow(
+    'App unavailable'
+  )
+})
+
+test.each([
+  ['null authorization', null],
+  ['array authorization', []],
+  ['missing fields', {}],
+  ['nonstring launch URL', { ...authorization, launch_url: null }],
+  ['unknown surface', { ...authorization, surface: 'other' }],
+  ['missing expiry', { ...authorization, expires_in: undefined }],
+  ['string expiry', { ...authorization, expires_in: '60' }],
+  ['wrong numeric expiry', { ...authorization, expires_in: 61 }],
+])('rejects malformed authorization: %s', async (_name, data) => {
+  vi.spyOn(api, 'post').mockResolvedValue({
+    data: { success: true, message: 'one-time-code', data },
+  })
+
+  await expect(
+    authorizeApp(seedance.key, authorizeRequest, 'request-1')
+  ).rejects.toThrow('App unavailable')
+})
+
+test.each(endpoints)(
+  'preserves explicit business rejection message and cause for $name',
+  async ({ call }) => {
+    const body = {
+      success: false,
+      message: 'apps rejected',
+      data: null,
+    }
+    vi.spyOn(api, 'get').mockResolvedValue({ data: body })
+    vi.spyOn(api, 'post').mockResolvedValue({ data: body })
+
+    await expect(call()).rejects.toMatchObject({
+      message: 'apps rejected',
+      cause: body,
+    })
+  }
+)
+
+test.each(endpoints)(
+  'does not expose malformed response details for $name',
+  async ({ call }) => {
+    const body = {
+      success: 'false',
+      message: 'one-time-code',
+      data: authorization,
+    }
+    vi.spyOn(api, 'get').mockResolvedValue({ data: body })
+    vi.spyOn(api, 'post').mockResolvedValue({ data: body })
+
+    const error = await call().catch((value: unknown) => value)
+    expect(error).toBeInstanceOf(Error)
+    expect(error).toHaveProperty('message', 'App unavailable')
+    expect(error).not.toHaveProperty('cause')
+    expect(error).not.toHaveProperty('issues')
+  }
+)
+
+test('accepts empty and minimally populated navigation without new registration semantics', async () => {
+  const minimal: AppNavigationItem = {
+    ...seedance,
+    name: {},
+    version: '',
+    enabled_surfaces: [],
+    direct_url: '',
+    granted_scopes: [],
+  }
+  const get = vi.spyOn(api, 'get').mockResolvedValueOnce({
+    data: { success: true, data: [] },
+  })
+  await expect(listAppPlugins()).resolves.toEqual([])
+  get.mockResolvedValueOnce({ data: { success: true, data: [minimal] } })
+  await expect(listAppPlugins()).resolves.toEqual([minimal])
+})
+
+test('accepts valid launch and authorization payloads for both surfaces', async () => {
+  const get = vi.spyOn(api, 'get')
+  const post = vi.spyOn(api, 'post')
+  const controller = new AbortController()
+  for (const surface of ['direct', 'embedded'] as const) {
+    const context = { ...launchContext, surface }
+    const result = { ...authorization, surface }
+    get.mockResolvedValueOnce({ data: { success: true, data: context } })
+    post.mockResolvedValueOnce({ data: { success: true, data: result } })
+
+    await expect(
+      getAppLaunchContext('app/key', surface, controller.signal)
+    ).resolves.toEqual(context)
+    expect(get).toHaveBeenLastCalledWith(
+      '/api/app_plugins/app%2Fkey/launch-context',
+      { params: { surface }, signal: controller.signal, skipErrorHandler: true }
+    )
+    const request = { ...authorizeRequest, surface }
+    await expect(
+      authorizeApp('app/key', request, 'request-1', controller.signal)
+    ).resolves.toEqual(result)
+    expect(post).toHaveBeenLastCalledWith(
+      '/api/app_plugins/app%2Fkey/authorize',
+      request,
+      {
+        headers: { 'Idempotency-Key': 'request-1' },
+        signal: controller.signal,
+        singleUseAuthorization: true,
+        skipErrorHandler: true,
+      }
+    )
+  }
 })

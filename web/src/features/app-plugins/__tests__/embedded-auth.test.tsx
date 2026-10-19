@@ -191,6 +191,71 @@ function ReadyDuringRender(props: { source: Window | null }) {
   return null
 }
 
+test('keeps no-referrer on the frame before and after authorization navigation', async () => {
+  authorizeResponse()
+  const frame = await renderFrame()
+
+  expect(frame).toHaveAttribute('src', context.start_url)
+  expect(frame).toHaveAttribute('referrerpolicy', 'no-referrer')
+
+  await sendMessage(frame)
+  await waitFor(() => expect(frame).toHaveAttribute('src', launchURL))
+
+  expect(frame).toHaveAttribute('referrerpolicy', 'no-referrer')
+  expect(frame).toHaveAttribute(
+    'sandbox',
+    'allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox'
+  )
+  expect(frame).toHaveAttribute('allow', 'clipboard-read; clipboard-write')
+})
+
+test.each([
+  ['missing success', { data: [seedanceApp] }],
+  ['string false success', { success: 'false', data: [seedanceApp] }],
+  ['nonboolean success', { success: 1, data: [seedanceApp] }],
+])(
+  'shows safe App unavailable without a frame or POST for %s',
+  async (_name, body) => {
+    vi.mocked(api.get).mockImplementation(async (url) => {
+      if (url === '/api/app_plugins') return { data: body }
+      if (url === '/api/app_plugins/seedance-repro/launch-context') {
+        return { data: { success: true, data: context } }
+      }
+      throw new Error(`Unexpected GET ${url}`)
+    })
+    const post = vi.spyOn(api, 'post')
+
+    renderAppFrame()
+
+    expect(await screen.findByText('App unavailable')).toBeInTheDocument()
+    expect(document.querySelector('iframe')).toBeNull()
+    expect(api.get).not.toHaveBeenCalledWith(
+      '/api/app_plugins/seedance-repro/launch-context',
+      expect.anything()
+    )
+    expect(post).not.toHaveBeenCalled()
+  }
+)
+
+test('removes the frame safely when authorization expiry violates the contract', async () => {
+  const post = vi.spyOn(api, 'post').mockResolvedValue({
+    data: {
+      success: true,
+      message: 'one-time-code',
+      data: { launch_url: launchURL, surface: 'embedded', expires_in: 61 },
+    },
+  })
+  const frame = await renderFrame()
+
+  await sendMessage(frame)
+
+  expect(await screen.findByText('App unavailable')).toBeInTheDocument()
+  expect(document.querySelector('iframe')).toBeNull()
+  expect(document.body.textContent).not.toContain('one-time-code')
+  await sendMessage(frame)
+  expect(post).toHaveBeenCalledTimes(1)
+})
+
 test('rejects forged embedded handshake messages', async () => {
   const post = authorizeResponse()
   const frame = await renderFrame()

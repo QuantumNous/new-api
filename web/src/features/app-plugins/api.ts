@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useQuery } from '@tanstack/react-query'
 import { Puzzle } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { z } from 'zod'
 
 import type { SidebarData } from '@/components/layout/types'
 import { useSidebarData } from '@/hooks/use-sidebar-data'
@@ -34,20 +35,60 @@ import type {
   AppSurface,
 } from './types'
 
-type ServerEnvelope<T> = {
-  success: boolean
-  message?: string
-  data: T
+const appSurfaceSchema = z.enum(['direct', 'embedded'])
+const appNavigationSchema = z.object({
+  success: z.literal(true),
+  message: z.string().optional(),
+  data: z.array(
+    z.object({
+      key: z.string(),
+      name: z.record(z.string(), z.string()),
+      version: z.string(),
+      enabled_surfaces: z.array(appSurfaceSchema),
+      dashboard_path: z.string(),
+      direct_url: z.string(),
+      granted_scopes: z.array(z.string()),
+    })
+  ),
+})
+const appLaunchContextSchema = z.object({
+  success: z.literal(true),
+  message: z.string().optional(),
+  data: z.object({
+    app_key: z.string(),
+    surface: appSurfaceSchema,
+    start_url: z.string(),
+    origin: z.string(),
+  }),
+})
+const appAuthorizeSchema = z.object({
+  success: z.literal(true),
+  message: z.string().optional(),
+  data: z.object({
+    launch_url: z.string(),
+    surface: appSurfaceSchema,
+    expires_in: z.literal(60),
+  }),
+})
+
+function parseAppResponse<T>(
+  response: unknown,
+  schema: z.ZodType<{ data: T }>
+): T {
+  requireServerSuccess(response)
+  const parsed = schema.safeParse(response)
+  if (!parsed.success) throw new Error('App unavailable')
+  return parsed.data.data
 }
 
 export async function listAppPlugins(
   signal?: AbortSignal
 ): Promise<AppNavigationItem[]> {
-  const response = await api.get<ServerEnvelope<AppNavigationItem[]>>(
-    '/api/app_plugins',
-    { signal, skipErrorHandler: true }
-  )
-  return requireServerSuccess(response.data).data
+  const response = await api.get<unknown>('/api/app_plugins', {
+    signal,
+    skipErrorHandler: true,
+  })
+  return parseAppResponse(response.data, appNavigationSchema)
 }
 
 export async function getAppLaunchContext(
@@ -55,11 +96,11 @@ export async function getAppLaunchContext(
   surface: AppSurface,
   signal?: AbortSignal
 ): Promise<AppLaunchContext> {
-  const response = await api.get<ServerEnvelope<AppLaunchContext>>(
+  const response = await api.get<unknown>(
     `/api/app_plugins/${encodeURIComponent(appKey)}/launch-context`,
     { params: { surface }, signal, skipErrorHandler: true }
   )
-  return requireServerSuccess(response.data).data
+  return parseAppResponse(response.data, appLaunchContextSchema)
 }
 
 export async function authorizeApp(
@@ -68,7 +109,7 @@ export async function authorizeApp(
   idempotencyKey: string,
   signal?: AbortSignal
 ): Promise<AppAuthorizeResult> {
-  const response = await api.post<ServerEnvelope<AppAuthorizeResult>>(
+  const response = await api.post<unknown>(
     `/api/app_plugins/${encodeURIComponent(appKey)}/authorize`,
     request,
     {
@@ -78,7 +119,7 @@ export async function authorizeApp(
       skipErrorHandler: true,
     }
   )
-  return requireServerSuccess(response.data).data
+  return parseAppResponse(response.data, appAuthorizeSchema)
 }
 
 export function resolveAppNavigation(

@@ -51,6 +51,7 @@ export function AppFrame(props: { appKey: string }) {
         ref={auth.iframeRef}
         title={auth.title}
         src={auth.src}
+        referrerPolicy='no-referrer'
         className='h-full min-h-0 w-full border-0'
         sandbox='allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox'
         allow='clipboard-read; clipboard-write'
