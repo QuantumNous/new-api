@@ -1,0 +1,15 @@
+# Build context: smart-router; bind modeltrace-dependencies to the audited
+# prepared local image (sha256:39ea3e0b03449292636509facadead17cd9020d553baa9c5bd27849147db1c1a).
+FROM python:3.14.7-slim-bookworm@sha256:998acd06f485adfd6890e3e15a4b542543e0cf22ff904310095da328a5e3e561
+COPY --from=modeltrace-dependencies /wheels/ /wheels/
+COPY modeltrace_runtime/requirements.lock /opt/modeltrace/requirements.lock
+RUN printf '%s  %s\n' 6c557de964a32c08ef4b216470f2bb766d3a2f00c63f13f04c775163b771e33a /opt/modeltrace/requirements.lock 3fbc4d6c766a7a5d56c4bcc80d3325181a05f1b64596eb7cf622f0ec056dd546 /usr/local/bin/python3.14 | sha256sum -c - \
+    && /usr/local/bin/python3.14 -m pip install --disable-pip-version-check --no-cache-dir --no-index --find-links=/wheels --require-hashes -r /opt/modeltrace/requirements.lock \
+    && rm -rf /wheels
+WORKDIR /opt/modeltrace
+COPY modeltrace_runtime/ ./modeltrace_runtime/
+COPY third_party/modeltrace/ ./third_party/modeltrace/
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 OPENBLAS_NUM_THREADS=1
+USER 65532:65532
+EXPOSE 18087
+ENTRYPOINT ["/usr/local/bin/python3.14", "-B", "-c", "import os; from modeltrace_runtime.workbench import main; fd = os.open('/run/secrets/modeltrace_ingest', os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK); raise SystemExit(main(['--config', '/run/modeltrace/workbench.json', '--ingest-key-fd', str(fd)]))"]

@@ -1,0 +1,64 @@
+name: standalone-modeltrace
+
+services:
+  modeltrace-engine:
+    profiles: ["modeltrace-engine"]
+    image: "${MODELTRACE_ENGINE_IMAGE:?final reviewed engine image required}"
+    user: "65532:65532"
+    read_only: true
+    restart: "no"
+    stop_grace_period: 30s
+    ports: ["127.0.0.1:18086:18086"]
+    environment:
+      SMART_ROUTER_MODELTRACE_INGEST_KEY:
+      # Generation mode requires an already published validated current.json.
+      SMART_ROUTER_MODELTRACE_BANK: /state/bank
+    volumes:
+      - type: bind
+        source: "${MODELTRACE_ENGINE_STATE:?exclusive owner-only engine state required}"
+        target: /data/modeltrace
+      - type: bind
+        source: "${MODELTRACE_BANK_STATE:?exclusive bank state required}"
+        target: /state/bank
+        read_only: true
+    networks: [modeltrace]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+  modeltrace-workbench:
+    profiles: ["modeltrace-workbench"]
+    image: "${MODELTRACE_WORKBENCH_IMAGE:?final reviewed workbench image required}"
+    user: "65532:65532"
+    read_only: true
+    restart: "no"
+    stop_grace_period: 30s
+    ports: ["127.0.0.1:18087:18087"]
+    volumes:
+      - type: bind
+        source: "${MODELTRACE_BANK_STATE:?exclusive bank state required}"
+        target: /state/bank
+      - type: bind
+        source: "${MODELTRACE_OPERATOR_STATE:?exclusive owner-only operator state required}"
+        target: /state/operator
+      - type: bind
+        source: "${MODELTRACE_WORKBENCH_CONFIG:?protected reviewed workbench config required}"
+        target: /run/modeltrace/workbench.json
+        read_only: true
+    secrets:
+      - source: modeltrace_ingest
+        target: modeltrace_ingest
+        uid: "65532"
+        gid: "65532"
+        mode: 0400
+    tmpfs: ["/tmp:rw,noexec,nosuid,size=64m,mode=0700,uid=65532,gid=65532"]
+    networks: [modeltrace]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+networks:
+  modeltrace:
+    driver: bridge
+
+secrets:
+  modeltrace_ingest:
+    file: "${MODELTRACE_INGEST_MOUNT:?protected numeric-ingest mount required}"

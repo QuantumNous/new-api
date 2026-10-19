@@ -11,6 +11,50 @@ and adds scoped admission; its merged candidate requires fresh verification
 and independent root SPEC then QUALITY acceptance. It is not a production
 deployment or a full NewAPI executable build.
 
+## Task F Composed Distribution
+
+Task F starts from the accepted clean host compatibility predecessor
+`03cb833ff7f819cb0592ee6598b8f258eadfcf1c`. Its earlier host, F0 inventory,
+collection, operator, daemon, numeric and vendor implementations are preserved.
+The historical sections below retain developmental evidence, not current
+pending reviews for those accepted predecessors.
+
+The exact distribution delta is eight additions and five modifications:
+two E2E test files, requirements.in/lock, engine/workbench Dockerfiles,
+disabled-profile Compose, MODELTRACE-VERIFICATION; additive existing router
+Dockerfile, README, integration declaration, this manifest and outer checksums.
+No root Dockerfile/frontend/host/numeric/vendor source changes are included.
+
+The owned daemon shadow and Python tests require both synthetic
+OpenAI/Anthropic protocols, signed numeric submit/get, complete/partial
+projection, same-ID replay, durable SQLite reopen/latest, byte-identical
+original router state, three fixed distinct slots, incomplete/inconclusive
+results and one-call interrupted unknown states without replacement or
+fallback. Vanished prior run evidence is historical only. Fresh recovered
+results are authoritative only in the external Task F report/seal.
+
+Both Python image definitions use the exact eight-wheel hash lock and regular
+CPython3.14.7/Linuxamd64/glibc preparation tuple, not local-platform acceptance.
+Private Go linker pins bind the independently prepared Linux interpreter and
+unchanged four-entry numerical/all26-payload vendor manifests. The same reviewed
+F0 provisioner is built into router and engine. Provider credentials remain
+operator/host-owned. Workbench's fixed inline protected-file-to-FD bootstrap
+invokes the existing explicit main; no launcher, secret API or WSGI package is
+added. Same numeric UID65532 enables owner-only generation readability;
+publisher is RW, daemon bank mount RO, daemon SQLite/temp independent RW.
+
+Host scope includes retained types1/14/60 and newly accepted type45 Chat.
+Type45 Responses/Messages and type58 AdvancedCustom remain excluded, as do
+managed-registry and the permanent request exclusions. Billing is unchanged.
+Closed-set probability does not prove arbitrary provider identity.
+
+Final images/frontend, actual Linux UID/RO/generation/export/shutdown/browser
+checks, three complete same-final-SHA clean archives, independent final SPEC
+then different QUALITY, publication and Task G live acceptance are
+**BUILD_PENDING**. Prepared dependency images and local synthetic source checks
+do not substitute for these gates. The external Task F report/seal binds the
+actual source SHA; no self-referential final commit is embedded here.
+
 ## Task A2 Scoped Admission
 
 An ordinary merge retains the accepted feature and pinned production
@@ -227,14 +271,14 @@ the checksum file itself. Runtime signing keys are not stored in this tree.
   available local engine.
 - Production deployment, real-provider verification and crash-durable
   exactly-once guarantees are not claimed.
-- ModelTrace operator provisioning and independently deployed service plane
-  remain pending; routing interoperability is not ModelTrace enablement.
+- ModelTrace service-plane packaging is present; actual operator provisioning,
+  independently verified final images and deployment remain BUILD_PENDING.
 - Pins, selected affinity, strict sessions, auto groups, App/task/plugin
   requests, recovery workers and eligible recovery parents, WebSocket,
   compact and nonstandard POST paths remain permanently excluded. Ordinary
   streaming has inherited guards; Task3 real-sidecar providers are unary.
-- The pre-existing missing `web/dist/index.html` blocks a full NewAPI binary
-  build; no generated frontend assets were fabricated for this task.
+- Final NewAPI/frontend acceptance requires newly built complete final-source
+  assets. Prior ignored assets are not current acceptance; Task F fabricates none.
 - Six inherited typed-nil reverse-stream panic cases and previously observed
   broad-suite SQLite contention are outside Task3's six-file write boundary.
   Existing tests and production sources are not changed to hide them.

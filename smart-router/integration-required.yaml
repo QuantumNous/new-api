@@ -8,15 +8,40 @@ verification:
   production_deployment: not-performed
   real_provider_verification: not-performed
   crash_durable_exactly_once: not-claimed
-  modeltrace_operator_plane: pending
+  modeltrace_operator_plane: composed-source-recovered-verification-external-final-build-pending
   task3_acceptance: independent-spec-and-quality-passed-at-7a29b11
-  task_a2_acceptance: fresh-merged-candidate-verification-and-reviews-required
-  task_a2_i1_acceptance: strict-eligibility-repair-fresh-spec-then-quality-required
+  task_a2_acceptance: accepted-host-predecessor-preserved
+  task_a2_i1_acceptance: accepted-strict-eligibility-predecessor-preserved
+  final_images_frontend_archives_reviews: BUILD_PENDING
 ownership:
   router_database: standalone
   host_database_access: forbidden
   provider_credentials: host-only
   provider_response_bodies: host-only
+  modeltrace_provider_credentials: transient-operator-only-never-go
+  modeltrace_provider_response_bodies: transient-operator-only-numeric-export
+  modeltrace_database: independent-attribution-sqlite-not-router-or-host
+  modeltrace_bank_publication: workbench-only
+  modeltrace_bank_consumption: daemon-read-only
+  modeltrace_ingest: independent-role-signed-numeric-only
+modeltrace_distribution:
+  entrypoints: [cmd/modeltraced, cmd/modeltrace, modeltrace_runtime.workbench.main]
+  provisioner: cmd/inventory-provisioner
+  independent_databases: same-public-inventory-separate-one-shot-journals
+  profiles_disabled_by_default: true
+  numeric_uid_gid: "65532:65532"
+  host_ports: ["127.0.0.1:18086", "127.0.0.1:18087"]
+  release_tuple: regular-cpython-3.14.7-linux-amd64-glibc
+  numerical_manifest_entries: 4
+  vendor_payloads: 26
+  provider_calls: exactly-three-fixed-distinct-slots
+  unknown_write: stop-no-retry-no-replacement
+  historical_replay: zero-extra-provider-post-no-fallback
+  partial_assessment: incomplete-inconclusive
+  arbitrary_provider_identity: not-proven-by-closed-set-probability
+  generation_startup: explicit-validated-publication-before-daemon
+  workbench_ingest_bootstrap: protected-mounted-file-to-inherited-fd
+  final_runtime_acceptance: BUILD_PENDING
 hooks:
   - name: request_route
     direction: host-to-router
@@ -63,6 +88,11 @@ host_requirements:
   scope_values: [all, registry]
   default_scope: all
   initial_enablement_scope: registry
+  supported_channel_types: [1, 14, 60]
+  additional_chat_only_channel_type: 45
+  channel_14_responses: excluded
+  channel_45_responses_messages: excluded
+  channel_58_advanced_custom: excluded
   disabled_startup: no-other-router-setting-read
   registry_admission: exact-group-model-client-protocol-before-channel-filtering
   absent_tuple: permanent-original-selector-through-retries

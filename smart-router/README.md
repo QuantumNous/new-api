@@ -8,6 +8,12 @@ contract exposes opaque binding IDs, not provider endpoints or credentials.
 
 - `cmd/routerd`: strict HTTP API, signed routes and snapshots, SQLite state.
 - `cmd/probeworker`: typed, synthetic EBond/Hualong/Leyi probe fixtures.
+- `cmd/inventory-provisioner`: reviewed one-shot public inventory publication;
+  existing databases are read-only reconciliation targets, unknown never retries.
+- `cmd/modeltraced`, `cmd/modeltrace`: independent signed numeric attribution
+  daemon and analyze/submit/get CLI, not provider collectors.
+- `modeltrace_runtime.workbench`: explicit operator collection, publication and
+  signed export lifecycle; importing its factory starts nothing.
 - `api`: provisional request, response, outcome, snapshot, and error contracts.
 - `routing`: eligibility, price ordering, hysteresis, retry, and cooldown rules.
 - `store`: router-owned state and executable SQLite persistence.
@@ -202,16 +208,23 @@ call either service; restoring the dependency cannot revive that request.
 Healthy selection retains the existing mode-specific normalization and filter
 ordering. Original production selectors, including their legacy read-error
 behavior, remain unchanged. Fixed-candidate independent review is required
-before treating this repair as accepted enablement.
+before production enablement. The accepted host predecessor is preserved;
+Task F adds distribution wiring, not another host admission repair.
+
+The initial host scope retains types 1/14/60 and adds separately reviewed type
+45 VolcEngine **Chat only**. Type 45 Responses/Messages and type 58
+AdvancedCustom remain excluded. Type 14 does not support Responses in this
+integration. Registry entries never override channel/adaptor authority.
 
 Provision and enable in this order:
 
 1. Create host channels and their exact group/model abilities with normal host
    authority. Allocate canonical binding IDs and keep credentials in the host.
-2. Independently provision the sidecar's private database through
-   `store.OpenSQLite`, `UpsertSource`, `UpsertBinding`, and `SetObservation`.
-   Supply matching group/model/protocol/plugin records and prices. `routerd`
-   does not create a usable catalog from host tables or the host registry.
+2. Use the same reviewed `cmd/inventory-provisioner` on independently owned
+   router and ModelTrace SQLite paths with the same fixed public inventory,
+   explicit costs and hysteresis. Each initially absent database has a separate
+   journaled publication; existing paths are check-only, unknown never retries.
+   `routerd` does not create a catalog from host tables or the host registry.
 3. Start `cmd/routerd` with its private database and runtime signing key.
    Check liveness and signed snapshot readiness before allowing traffic.
 4. Set the host variables above with `NEWAPI_SMART_ROUTER_SCOPE=registry`,
@@ -246,4 +259,76 @@ commitment guards are covered by the inherited host regressions, while this
 real-sidecar E2E uses unary synthetic providers. There is no
 production deployment, real-provider verification or crash-durable
 exactly-once claim. ModelTrace's independent runtime is separate from routing;
-its operator provisioning, service plane and deployment remain pending.
+Task F packages its reviewed service plane. Actual runtime provisioning,
+final-image/frontend/archive acceptance and deployment remain `BUILD_PENDING`.
+
+## ModelTrace Distribution
+
+`Dockerfile.modeltrace-engine` builds the reviewed daemon, CLI and same
+inventory-provisioner from this independent module. Private linker pins bind
+the regular Linux interpreter and unchanged runtime/vendor manifests.
+`Dockerfile.modeltrace-workbench` invokes the reviewed explicit main using a
+fixed inline bootstrap: open `/run/secrets/modeltrace_ingest` read-only,
+no-follow/nonblocking, then pass its descriptor to main. No new `_KEY_FILE`
+interface, shell secret substitution or provider credential enters Go.
+
+Both image definitions use the public pinned Python base and an explicitly
+named BuildKit `modeltrace-dependencies` context carrying the prepared offline
+wheelhouse. Root must bind that context to the audited local dependency image
+ID `sha256:39ea3e0b03449292636509facadead17cd9020d553baa9c5bd27849147db1c1a`,
+not treat the ID as a registry digest. The exact lock is
+`modeltrace_runtime/requirements.lock` (SHA-256
+`6c557de964a32c08ef4b216470f2bb766d3a2f00c63f13f04c775163b771e33a`).
+Installation is offline/hash-required. The release tuple is regular CPython
+3.14.7, Linux/amd64, glibc; no Python 3.11, musl, cp314t or other-architecture
+acceptance is claimed. The worker imports NumPy only despite the shared
+eight-distribution lock.
+
+The exact four-file numerical closure and all 26 vendor payloads, license,
+provenance, nested checksums and inert upstream archive are preserved.
+Collection, ledger, bank publication, web/manual assets and workbench stay
+outside the numerical worker snapshot. Upstream app/start/enrollment/hooks are
+not executable entrypoints. Closed-set probability distinguishes only models
+in the selected bank, not arbitrary provider identity. Exactly three fixed
+distinct slots are used; partial results remain incomplete/inconclusive,
+interrupted one-shot writes remain unknown, and historical replay dispatches
+no replacement request or fallback.
+
+`compose.modeltrace.yaml` starts no service by default. Separate profiles
+`modeltrace-workbench` and `modeltrace-engine` publish only literal host loopback
+ports 18087 and 18086. It references reviewed final images, protected config/
+numeric-ingest mount and exclusively owned state, never NewAPI/P5 databases.
+The independent network permits operator provider egress; there is no worker
+HTTP port. Host/router signing and numeric ingest are separate roles.
+Provider secrets remain transient operator action inputs.
+
+Initialize exclusively task-owned state for UID/GID `65532:65532` with
+owner-only modes. Workbench mounts bank state read/write; daemon mounts it
+read-only and owns separate writable DB/temp. File-backed Compose secrets may
+not honor declared uid/mode, so root must establish actual mount ownership,
+readability and descriptor behavior. Never relax BankStore or shared state.
+
+Start the workbench against its reviewed builtin fallback, explicitly publish
+one validated initial generation with its durable action ID, then start the
+generation-mode daemon. Bind the actual revision before export. An unknown
+publication stops and reconciles read-only. A builtin-file daemon is a separate
+fixed-bank mode, cannot follow publications, and must not fall back between
+modes. The Compose default is generation mode and intentionally fails startup
+without a published valid `current.json`.
+
+Protected workbench JSON uses the existing fields `listen_host` (`0.0.0.0`),
+`listen_port` (18087), `allow_container_listen` (`true`), `local_http` (`true`),
+literal-loopback `hosts`/`origins`, `bank_root` (`/state/bank`),
+`operations_root` and `state_root` (distinct paths under `/state/operator`),
+reviewed `bindings`, `daemon_url` (`http://modeltrace-engine:18086`) and
+`interpreter_sha256` (the independently pinned Linux executable digest).
+The trusted runtime supplies matching numeric-ingest material through the
+daemon's existing environment and the workbench's protected descriptor.
+No credential value belongs in this JSON or Compose source.
+
+See [MODELTRACE-VERIFICATION.md](MODELTRACE-VERIFICATION.md) for exact evidence
+limits. Root still owns the actual final Linux images, generation/nonroot/
+read-only/persistence/shutdown/browser checks, final frontend, three same-SHA
+clean archives and independent SPEC then different QUALITY. Live
+source/channel/cost/cache acceptance and one-shot Canary remain Task G;
+host billing, quotas and settlement are unchanged.
