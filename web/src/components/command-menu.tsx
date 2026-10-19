@@ -33,7 +33,7 @@ import {
 } from '@/components/ui/command'
 import { useSearch } from '@/context/search-context'
 import { useTheme } from '@/context/theme-provider'
-import { useSidebarData } from '@/hooks/use-sidebar-data'
+import { useAppSidebarData } from '@/features/app-plugins/api'
 
 import { getNavGroupsForPath } from './layout/lib/sidebar-view-registry'
 import { ScrollArea } from './ui/scroll-area'
@@ -44,7 +44,7 @@ export function CommandMenu() {
   const { setTheme } = useTheme()
   const { open, setOpen } = useSearch()
   const { pathname } = useLocation()
-  const sidebarData = useSidebarData()
+  const sidebarData = useAppSidebarData()
 
   // Use the active nested sidebar view's nav groups when one matches
   // the current URL; otherwise fall back to the root navigation.

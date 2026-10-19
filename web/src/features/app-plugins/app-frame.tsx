@@ -20,6 +20,7 @@ import { useTranslation } from 'react-i18next'
 
 import { ErrorState } from '@/components/error-state'
 import { Main } from '@/components/layout/components/main'
+import { LoadingState } from '@/components/loading-state'
 
 import { useEmbeddedAuth } from './use-embedded-auth'
 
@@ -27,9 +28,34 @@ export function AppFrame(props: { appKey: string }) {
   const { t } = useTranslation()
   const auth = useEmbeddedAuth(props.appKey)
 
+  if (auth.isPending) {
+    return (
+      <Main>
+        <LoadingState className='flex-1' />
+      </Main>
+    )
+  }
+
+  if (auth.error || !auth.src) {
+    return (
+      <Main>
+        <ErrorState description={t(auth.error?.message ?? 'App unavailable')} />
+      </Main>
+    )
+  }
+
+  /* oxlint-disable react/iframe-missing-sandbox -- The app contract requires scripts and same-origin APIs inside the isolated frame. */
   return (
-    <Main>
-      <ErrorState description={t(auth.error?.message ?? '')} />
+    <Main className='p-0'>
+      <iframe
+        ref={auth.iframeRef}
+        title={auth.title}
+        src={auth.src}
+        className='h-full min-h-0 w-full border-0'
+        sandbox='allow-scripts allow-same-origin allow-forms allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox'
+        allow='clipboard-read; clipboard-write'
+      />
     </Main>
   )
+  /* oxlint-enable react/iframe-missing-sandbox */
 }

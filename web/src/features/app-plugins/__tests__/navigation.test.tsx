@@ -23,17 +23,35 @@ import {
   createRouter,
   RouterProvider,
 } from '@tanstack/react-router'
-import { cleanup, render, screen } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import i18next from 'i18next'
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  expect,
+  test,
+  vi,
+} from 'vitest'
 
-import { ErrorState } from '@/components/error-state'
 import { NavGroup } from '@/components/layout/components/nav-group'
 import { SidebarProvider } from '@/components/ui/sidebar'
+import { SearchProvider } from '@/context/search-provider'
+import { ThemeProvider } from '@/context/theme-provider'
+import { useSidebarView } from '@/hooks/use-sidebar-view'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
 
-import { resolveAppNavigation, useAppSidebarData } from '../api'
+import { listAppPlugins, resolveAppNavigation } from '../api'
 import type { AppNavigationItem, AppSurface } from '../types'
 
 const seedance: AppNavigationItem = {
@@ -47,6 +65,29 @@ const seedance: AppNavigationItem = {
 }
 
 let client: QueryClient
+const originalGetAnimations = Object.getOwnPropertyDescriptor(
+  HTMLElement.prototype,
+  'getAnimations'
+)
+
+beforeAll(() => {
+  Object.defineProperty(HTMLElement.prototype, 'getAnimations', {
+    configurable: true,
+    value: () => [],
+  })
+})
+
+afterAll(() => {
+  if (originalGetAnimations) {
+    Object.defineProperty(
+      HTMLElement.prototype,
+      'getAnimations',
+      originalGetAnimations
+    )
+    return
+  }
+  Reflect.deleteProperty(HTMLElement.prototype, 'getAnimations')
+})
 
 beforeEach(() => {
   client = new QueryClient({
@@ -70,28 +111,27 @@ beforeEach(() => {
   })
 })
 
-afterEach(() => {
+afterEach(async () => {
   cleanup()
   client.clear()
   useAuthStore.getState().auth.reset()
   localStorage.clear()
   sessionStorage.clear()
   vi.restoreAllMocks()
+  await i18next.changeLanguage('en')
 })
 
 function Navigation() {
-  const navigation = useAppSidebarData()
-  if (navigation.error) {
-    return <ErrorState description={navigation.error.message} />
-  }
-  return navigation.navGroups.map((group) => (
+  const sidebarView = useSidebarView()
+  return sidebarView.navGroups.map((group) => (
     <NavGroup key={group.id ?? group.title} {...group} />
   ))
 }
 
-async function renderNavigation(apps: AppNavigationItem[]) {
+async function renderNavigation(apps: AppNavigationItem[] | Error) {
   vi.spyOn(api, 'get').mockImplementation(async (url) => {
     if (url === '/api/app_plugins') {
+      if (apps instanceof Error) throw apps
       return { data: { success: true, message: '', data: apps } }
     }
     if (url === '/api/status') {
@@ -136,6 +176,13 @@ test('renders only server-approved app surfaces', async () => {
   expect(
     document.querySelector('a[href*="surface=direct"]')
   ).not.toBeInTheDocument()
+  expect(
+    client.getQueryState([
+      'app-plugins',
+      'navigation',
+      'navigation-test-session',
+    ])
+  ).toBeDefined()
 })
 
 test('keeps Infinite Canvas and Seedance as separate navigation items', async () => {
@@ -181,4 +228,146 @@ test('rejects unregistered app navigation', () => {
   expect(
     resolveAppNavigation([seedance], '/apps/seedance-repro', 'embedded')
   ).toEqual(seedance)
+})
+
+test('resolves app labels by active language, English, first label, then key', async () => {
+  await i18next.changeLanguage('fr')
+  await renderNavigation([
+    {
+      ...seedance,
+      key: 'active',
+      dashboard_path: '/apps/active',
+      name: { fr: 'Actif', en: 'Active' },
+    },
+    {
+      ...seedance,
+      key: 'english',
+      dashboard_path: '/apps/english',
+      name: { en: 'English' },
+    },
+    {
+      ...seedance,
+      key: 'first',
+      dashboard_path: '/apps/first',
+      name: { vi: 'First server label', ja: 'Second server label' },
+    },
+    { ...seedance, key: 'app-key', dashboard_path: '/apps/app-key', name: {} },
+  ])
+
+  expect(await screen.findByRole('link', { name: 'Actif' })).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'English' })).toBeInTheDocument()
+  expect(
+    screen.getByRole('link', { name: 'First server label' })
+  ).toBeInTheDocument()
+  expect(screen.getByRole('link', { name: 'app-key' })).toBeInTheDocument()
+})
+
+test('preserves static navigation when the app list fails', async () => {
+  await renderNavigation(new Error('app list unavailable'))
+
+  expect(
+    await screen.findByRole('link', { name: 'Playground' })
+  ).toHaveAttribute('href', '/playground')
+  expect(
+    screen.queryByRole('link', { name: 'Seedance' })
+  ).not.toBeInTheDocument()
+})
+
+test('removes stale App navigation when an app-list refetch fails', async () => {
+  let listError: Error | null = null
+  vi.spyOn(api, 'get').mockImplementation(async (url) => {
+    if (url === '/api/app_plugins') {
+      if (listError) throw listError
+      return { data: { success: true, message: '', data: [seedance] } }
+    }
+    if (url === '/api/status') {
+      return {
+        data: { success: true, message: '', data: { chats: [] } },
+      }
+    }
+    throw new Error(`Unexpected GET ${url}`)
+  })
+  const router = createRouter({
+    routeTree: createRootRoute({ component: Navigation }),
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+  })
+  await router.load()
+  render(
+    <QueryClientProvider client={client}>
+      <SidebarProvider>
+        <RouterProvider router={router} />
+      </SidebarProvider>
+    </QueryClientProvider>
+  )
+  expect(
+    await screen.findByRole('link', { name: 'Seedance' })
+  ).toBeInTheDocument()
+
+  listError = new Error('app list unavailable')
+  await act(async () => {
+    await client.refetchQueries({
+      queryKey: ['app-plugins', 'navigation', 'navigation-test-session'],
+    })
+  })
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole('link', { name: 'Seedance' })
+    ).not.toBeInTheDocument()
+  )
+  expect(screen.getByRole('link', { name: 'Playground' })).toBeInTheDocument()
+})
+
+test('shows an approved App command in the real root CommandMenu', async () => {
+  vi.spyOn(api, 'get').mockImplementation(async (url) => {
+    if (url === '/api/app_plugins') {
+      return { data: { success: true, message: '', data: [seedance] } }
+    }
+    if (url === '/api/status') {
+      return {
+        data: { success: true, message: '', data: { chats: [] } },
+      }
+    }
+    throw new Error(`Unexpected GET ${url}`)
+  })
+  const router = createRouter({
+    routeTree: createRootRoute({
+      component: () => (
+        <ThemeProvider>
+          <SearchProvider>
+            <div>Root path</div>
+          </SearchProvider>
+        </ThemeProvider>
+      ),
+    }),
+    history: createMemoryHistory({ initialEntries: ['/'] }),
+  })
+  await router.load()
+  render(
+    <QueryClientProvider client={client}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
+  )
+
+  fireEvent.keyDown(document, { key: 'k', ctrlKey: true })
+
+  expect(await screen.findByText('Seedance')).toBeInTheDocument()
+})
+
+test('lists apps with the authenticated client and rejects failed envelopes', async () => {
+  const controller = new AbortController()
+  const get = vi.spyOn(api, 'get').mockResolvedValueOnce({
+    data: { success: true, message: '', data: [seedance] },
+  })
+
+  await expect(listAppPlugins(controller.signal)).resolves.toEqual([seedance])
+  expect(get).toHaveBeenCalledWith('/api/app_plugins', {
+    signal: controller.signal,
+    skipErrorHandler: true,
+  })
+
+  get.mockResolvedValueOnce({
+    data: { success: false, message: 'apps rejected', data: [] },
+  })
+  await expect(listAppPlugins()).rejects.toThrow('apps rejected')
 })

@@ -16,7 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
+import { Puzzle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
+
 import type { SidebarData } from '@/components/layout/types'
+import { useSidebarData } from '@/hooks/use-sidebar-data'
+import { api } from '@/lib/api'
+import { requireServerSuccess } from '@/lib/server-error-message'
+import { useAuthStore } from '@/stores/auth-store'
 
 import type {
   AppAuthorizeRequest,
@@ -26,43 +34,116 @@ import type {
   AppSurface,
 } from './types'
 
-// RED-only boundary for GET /api/app_plugins through the shared api client.
-export async function listAppPlugins(
-  _signal?: AbortSignal
-): Promise<AppNavigationItem[]> {
-  throw new Error('app_navigation_unsupported')
+type ServerEnvelope<T> = {
+  success: boolean
+  message?: string
+  data: T
 }
 
-// Only the authenticated server can resolve a surface's start URL and origin.
+export async function listAppPlugins(
+  signal?: AbortSignal
+): Promise<AppNavigationItem[]> {
+  const response = await api.get<ServerEnvelope<AppNavigationItem[]>>(
+    '/api/app_plugins',
+    { signal, skipErrorHandler: true }
+  )
+  return requireServerSuccess(response.data).data
+}
+
 export async function getAppLaunchContext(
-  _appKey: string,
-  _surface: AppSurface,
-  _signal?: AbortSignal
+  appKey: string,
+  surface: AppSurface,
+  signal?: AbortSignal
 ): Promise<AppLaunchContext> {
-  throw new Error('embedded_auth_unsupported')
+  const response = await api.get<ServerEnvelope<AppLaunchContext>>(
+    `/api/app_plugins/${encodeURIComponent(appKey)}/launch-context`,
+    { params: { surface }, signal, skipErrorHandler: true }
+  )
+  return requireServerSuccess(response.data).data
 }
 
 export async function authorizeApp(
-  _appKey: string,
-  _request: AppAuthorizeRequest,
-  _idempotencyKey: string,
-  _signal?: AbortSignal
+  appKey: string,
+  request: AppAuthorizeRequest,
+  idempotencyKey: string,
+  signal?: AbortSignal
 ): Promise<AppAuthorizeResult> {
-  throw new Error('embedded_auth_unsupported')
+  const response = await api.post<ServerEnvelope<AppAuthorizeResult>>(
+    `/api/app_plugins/${encodeURIComponent(appKey)}/authorize`,
+    request,
+    {
+      headers: { 'Idempotency-Key': idempotencyKey },
+      signal,
+      singleUseAuthorization: true,
+      skipErrorHandler: true,
+    }
+  )
+  return requireServerSuccess(response.data).data
 }
 
 export function resolveAppNavigation(
-  _apps: AppNavigationItem[],
-  _dashboardPath: string,
-  _surface: AppSurface
+  apps: AppNavigationItem[],
+  dashboardPath: string,
+  surface: AppSurface
 ): AppNavigationItem | null {
-  throw new Error('app_navigation_unsupported')
+  if (!dashboardPath.startsWith('/') || dashboardPath.startsWith('//')) {
+    return null
+  }
+
+  return (
+    apps.find((app) => {
+      const canonicalPath = `/apps/${app.key}`
+      return (
+        app.dashboard_path === canonicalPath &&
+        dashboardPath === canonicalPath &&
+        app.enabled_surfaces.includes(surface)
+      )
+    }) ?? null
+  )
 }
 
-// The GREEN phase will compose useSidebarData with session-scoped App data here.
 export function useAppSidebarData(): SidebarData & { error: Error | null } {
+  const staticSidebar = useSidebarData()
+  const sessionID = useAuthStore((state) => state.auth.session?.sid)
+  const { i18n, t } = useTranslation()
+  const language = i18n.resolvedLanguage || i18n.language
+  const appsQuery = useQuery({
+    queryKey: ['app-plugins', 'navigation', sessionID],
+    queryFn: ({ signal }) => listAppPlugins(signal),
+    enabled: Boolean(sessionID),
+  })
+  const apps = appsQuery.error ? [] : (appsQuery.data ?? [])
+  const appItems = apps.flatMap((app) => {
+    if (resolveAppNavigation([app], app.dashboard_path, 'embedded') === null) {
+      return []
+    }
+
+    const activeLabel = app.name[language]
+    const englishLabel = app.name.en
+    const firstLabel = Object.values(app.name).find(
+      (label) => label.trim() !== ''
+    )
+    return [
+      {
+        title: activeLabel || englishLabel || firstLabel || app.key,
+        url: app.dashboard_path,
+        icon: Puzzle,
+      },
+    ]
+  })
+
+  if (appItems.length === 0) {
+    return {
+      navGroups: staticSidebar.navGroups,
+      error: appsQuery.error,
+    }
+  }
+
   return {
-    navGroups: [],
-    error: new Error('app_navigation_unsupported'),
+    navGroups: [
+      ...staticSidebar.navGroups,
+      { id: 'apps', title: t('Apps'), items: appItems },
+    ],
+    error: appsQuery.error,
   }
 }

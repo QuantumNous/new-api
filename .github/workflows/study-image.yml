@@ -53,9 +53,7 @@ jobs:
         run: |
           bun install --frozen-lockfile
           bun run typecheck
-          # These contracts are intentionally RED until the App Plugin browser
-          # surfaces are implemented and registered in a later phase.
-          bun run test --exclude 'src/features/app-plugins/__tests__/*.test.tsx'
+          bun run test
       - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c
       - uses: docker/login-action@c99871dec2022cc055c062a10cc1a1310835ceb4
         with:
