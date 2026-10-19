@@ -50,12 +50,13 @@ func WssHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.
 		defer unregister()
 	}
 
+	info.RealtimeCommittedQuota = 0
 	usage, newAPIError := adaptor.DoResponse(c, nil, info)
 	if newAPIError != nil {
 		// reset status code 重置状态码
 		service.ResetStatusCode(newAPIError, statusCodeMappingStr)
 		return newAPIError
 	}
-	service.PostWssConsumeQuota(c, info, info.UpstreamModelName, usage.(*dto.RealtimeUsage), nil)
+	service.PostWssConsumeQuota(c, info, usage.(*dto.RealtimeUsage), nil)
 	return nil
 }

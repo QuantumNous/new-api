@@ -172,7 +172,9 @@ func (s *BillingSession) reserve(targetQuota int, requireAvailableQuota bool) er
 		_, imageRequest := s.relayInfo.Request.(*dto.ImageRequest)
 		requireAvailableQuota = requireAvailableQuota || imageRequest || s.relayInfo.ImageRequestCount > 0
 	}
-	if s.settled || s.refunded || s.trusted && !requireAvailableQuota || targetQuota <= s.preConsumedQuota {
+	realtime := s.relayInfo != nil && s.relayInfo.RelayFormat == types.RelayFormatOpenAIRealtime
+	requireAvailableQuota = requireAvailableQuota || realtime
+	if s.settled || s.refunded || (s.trusted && !requireAvailableQuota) || targetQuota <= s.preConsumedQuota {
 		return nil
 	}
 
