@@ -1,5 +1,14 @@
 package billing_setting
 
+import "github.com/QuantumNous/new-api/constant"
+
+// deepSeekPeak is DeepSeek's peak window: Monday to Friday, 09:00-12:00 and
+// 14:00-18:00 Beijing time. The Chinese public holidays DeepSeek bills
+// off-peak are not known in advance and bill at peak here.
+const deepSeekPeak = `weekday("Asia/Shanghai") >= 1 && weekday("Asia/Shanghai") <= 5 && ((hour("Asia/Shanghai") >= 9 && hour("Asia/Shanghai") < 12) || (hour("Asia/Shanghai") >= 14 && hour("Asia/Shanghai") < 18))`
+
+const deepSeekFlashExpr = deepSeekPeak + ` ? tier("peak", p * 0.3 + cr * 0.006 + c * 1.2) : tier("off_peak", p * 0.15 + cr * 0.003 + c * 0.6)`
+
 // Built-in token prices use actual USD per million tokens. Keep new model
 // defaults here instead of splitting them across the legacy ratio tables.
 var builtinBillingExpr = map[string]string{
@@ -28,4 +37,16 @@ var builtinBillingExpr = map[string]string{
 	"mimo-v2.6-flash":          `tier("standard", p * 0.14 + cr * 0.0028 + c * 0.28)`,
 	"mimo-v2.6-pro":            `tier("standard", p * 0.435 + cr * 0.0036 + c * 0.87)`,
 	"mimo-v2.6-pro-ultraspeed": `tier("standard", p * 4.35 + cr * 0.036 + c * 8.7)`,
+	// https://api-docs.deepseek.com/quick_start/pricing (2026-10-17). Off-peak
+	// is half the peak price. deepseek-v4-flash and deepseek-v4-flash-vision-exp
+	// run on V4.1 Flash and bill at the Flash price. Images bill as input
+	// tokens, and there is no cache-write price.
+	"deepseek-flash":               deepSeekFlashExpr,
+	"deepseek-v4-flash":            deepSeekFlashExpr,
+	"deepseek-v4-flash-vision-exp": deepSeekFlashExpr,
+	"deepseek-v4-pro":              deepSeekPeak + ` ? tier("peak", p * 1.32 + cr * 0.044 + c * 3.96) : tier("off_peak", p * 0.66 + cr * 0.022 + c * 1.98)`,
+	// The Search and Fetch API routing names: $0.75 per 1,000 successful
+	// requests each, the same pricing page. The calls carry no tokens.
+	constant.DeepSeekSearchModel: `tier("request", fixed(0.00075))`,
+	constant.DeepSeekFetchModel:  `tier("request", fixed(0.00075))`,
 }
