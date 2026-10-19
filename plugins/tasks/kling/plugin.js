@@ -106,8 +106,11 @@ function viaGateway(ctx) {
 }
 
 function tokenFor(ctx) {
-  if (viaGateway(ctx)) return ctx.apiKey;
-  const parts = ctx.apiKey.split("|");
+  const apiKey = trimmed(ctx.apiKey);
+  if (!apiKey) throw new Error("api_key is empty");
+  if (viaGateway(ctx)) return apiKey;
+  const parts = apiKey.split("|");
+  if (parts.length === 1) return apiKey;
   if (parts.length !== 2) throw new Error("invalid api_key, required format is accessKey|secretKey");
   const now = utils.unixNow();
   return utils.jwtSignHS256({ iss: parts[0].trim(), exp: now + 1800, nbf: now - 5 }, parts[1].trim());
