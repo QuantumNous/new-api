@@ -458,6 +458,12 @@ func TokenOrUserAuth() func(c *gin.Context) {
 // 仍然检查令牌 IP 白名单和用户是否被封禁。
 func TokenAuthReadOnly() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		model.EnsureIpBlacklistLoaded()
+		if model.IsIpBlacklisted(c.ClientIP()) {
+			abortWithOpenAiMessage(c, http.StatusForbidden, "IP address is blacklisted due to repeated invalid API key attempts")
+			c.Abort()
+			return
+		}
 		key := c.Request.Header.Get("Authorization")
 		if key == "" {
 			common.ApiErrorStatus(c, http.StatusUnauthorized, errors.New(common.TranslateMessage(c, i18n.MsgTokenNotProvided)))
@@ -474,6 +480,7 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 		token, err := model.GetTokenByKey(key, false)
 		if err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
+				service.RecordInvalidKeyIPFailure(c)
 				common.ApiErrorStatus(c, http.StatusUnauthorized, errors.New(common.TranslateMessage(c, i18n.MsgTokenInvalid)))
 			} else {
 				common.SysLog(common.LogText("TokenAuthReadOnly GetTokenByKey database error: %s", err.Error()))
@@ -527,6 +534,11 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 
 func TokenAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
+		model.EnsureIpBlacklistLoaded()
+		if model.IsIpBlacklisted(c.ClientIP()) {
+			abortWithOpenAiMessage(c, http.StatusForbidden, "IP address is blacklisted due to repeated invalid API key attempts")
+			return
+		}
 		// 先检测是否为ws
 		applyWebSocketSubprotocolAuthorization(c.Request.Header)
 		// 检查path包含/v1/messages 或 /v1/models
@@ -582,6 +594,7 @@ func TokenAuth() func(c *gin.Context) {
 				abortWithOpenAiMessage(c, http.StatusInternalServerError,
 					common.TranslateMessage(c, i18n.MsgDatabaseError))
 			} else {
+				service.RecordInvalidKeyIPFailure(c)
 				abortWithOpenAiMessage(c, http.StatusUnauthorized,
 					common.TranslateMessage(c, i18n.MsgTokenInvalid))
 			}

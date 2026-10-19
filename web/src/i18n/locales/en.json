@@ -7318,6 +7318,23 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "API Key IP Blacklist": "API Key IP Blacklist",
+    "Attempts": "Attempts",
+    "Banned At": "Banned At",
+    "IP removed from blacklist": "IP removed from blacklist",
+    "IPs that exceed 10 invalid API key attempts within 24 hours are banned automatically. Only administrators can remove them.": "IPs that exceed 10 invalid API key attempts within 24 hours are banned automatically. Only administrators can remove them.",
+    "Inspect model outputs": "Inspect model outputs",
+    "No blacklisted IPs": "No blacklisted IPs",
+    "Remove IP from blacklist?": "Remove IP from blacklist?",
+    "Returned as a normal assistant message when a prompt or model output is blocked. Leave blank to use the default reply.": "Returned as a normal assistant message when a prompt or model output is blocked. Leave blank to use the default reply.",
+    "Search IP": "Search IP",
+    "Simulated reply": "Simulated reply",
+    "Sorry, I cannot assist with that request.": "Sorry, I cannot assist with that request.",
+    "Stop and replace on hit": "Stop and replace on hit",
+    "This IP will be allowed to call the API again. Repeated invalid key attempts can trigger another automatic ban.": "This IP will be allowed to call the API again. Repeated invalid key attempts can trigger another automatic ban.",
+    "When enabled, assistant replies are scanned after the upstream model responds.": "When enabled, assistant replies are scanned after the upstream model responds.",
+    "When on, blocked output is replaced with the simulated reply. When off, matched words in non-stream replies are masked instead.": "When on, blocked output is replaced with the simulated reply. When off, matched words in non-stream replies are masked instead.",
+"When sensitive keywords are detected, return a configurable simulated model reply instead of an API error.": "When sensitive keywords are detected, return a configurable simulated model reply instead of an API error."
   }
 }

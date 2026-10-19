@@ -15,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting"
 	"github.com/QuantumNous/new-api/tokenkit"
 
 	"github.com/gin-gonic/gin"
@@ -121,8 +122,13 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var secondLastStreamData string // 保留倒数第二个stream data；部分兼容网关把完整usage放在倒数第二个事件
 	seenStreamToolCalls := make(map[string]struct{})
 	var streamFunctionCallNames []string
+	sensitiveBlocked := false
+	checkedLen := 0
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		if sensitiveBlocked {
+			return
+		}
 		if lastStreamData != "" {
 			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
 				common.SysLog(common.LogText("error handling stream format: %s", err.Error()))
@@ -140,10 +146,33 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 				logger.LogError(c, common.LogText("error processing stream token data: %s", err.Error()))
 				sr.Error(err)
 			}
+			if hit, words, nextChecked := helper.CheckAccumulatedCompletionSuffix(responseTextBuilder.String(), checkedLen); hit {
+				checkedLen = nextChecked
+				if setting.StopOnSensitiveEnabled {
+					sensitiveBlocked = true
+					service.RecordSensitiveBlockLog(c, info, words, true)
+					lastStreamData = ""
+					helper.EmitOpenAIStreamSensitiveStop(c, responseId, createAt, model)
+					sr.Done()
+				}
+			} else {
+				checkedLen = nextChecked
+			}
 		}
 	})
 
 	info.StreamStatus.RequireTerminal()
+
+	if sensitiveBlocked {
+		if !containStreamUsage {
+			usage = service.ResponseText2Usage(c, responseTextBuilder.String(), info.UpstreamModelName, info.GetEstimatePromptTokens())
+			usage.CompletionTokens += toolCount * 7
+		}
+		for _, name := range streamFunctionCallNames {
+			info.CountBillableToolCall(dto.BuildInCallFunctionCall, name)
+		}
+		return usage, nil
+	}
 
 	// 处理最后的响应
 	shouldSendLastResp := true

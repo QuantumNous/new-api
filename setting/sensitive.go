@@ -2,10 +2,12 @@ package setting
 
 import "strings"
 
-var CheckSensitiveEnabled = false
-var CheckSensitiveOnPromptEnabled = false
+var CheckSensitiveEnabled = true
+var CheckSensitiveOnPromptEnabled = true
 
-//var CheckSensitiveOnCompletionEnabled = true
+// CheckSensitiveOnCompletionEnabled enables scanning assistant output after the
+// upstream model responds (non-streaming replacement or streaming stop).
+var CheckSensitiveOnCompletionEnabled = true
 
 // StopOnSensitiveEnabled 如果检测到敏感词，是否立刻停止生成，否则替换敏感词
 var StopOnSensitiveEnabled = true
@@ -14,7 +16,24 @@ var StopOnSensitiveEnabled = true
 var StreamCacheQueueLength = 0
 
 // SensitiveWords 敏感词
-var SensitiveWords []string
+// var SensitiveWords []string
+var SensitiveWords = []string{
+	"test_sensitive",
+}
+
+// SensitiveBlockReply is returned to the client as a simulated model reply when
+// a prompt or completion is blocked by the sensitive-word filter. Empty uses the built-in default.
+var SensitiveBlockReply = ""
+
+const DefaultSensitiveBlockReply = "Sorry, I cannot assist with that request."
+
+func GetSensitiveBlockReply() string {
+	reply := strings.TrimSpace(SensitiveBlockReply)
+	if reply == "" {
+		return DefaultSensitiveBlockReply
+	}
+	return reply
+}
 
 func SensitiveWordsToString() string {
 	return strings.Join(SensitiveWords, "\n")
@@ -35,6 +54,6 @@ func ShouldCheckPromptSensitive() bool {
 	return CheckSensitiveEnabled && CheckSensitiveOnPromptEnabled
 }
 
-//func ShouldCheckCompletionSensitive() bool {
-//	return CheckSensitiveEnabled && CheckSensitiveOnCompletionEnabled
-//}
+func ShouldCheckCompletionSensitive() bool {
+	return CheckSensitiveEnabled && CheckSensitiveOnCompletionEnabled
+}

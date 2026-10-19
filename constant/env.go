@@ -16,6 +16,10 @@ var NotifyLimitCount int
 var NotificationLimitDurationMinute int
 var GenerateDefaultToken bool
 var ErrorLogEnabled bool
+
+// InvalidKeyIPBanThreshold is the number of invalid API key attempts from one
+// client IP within 24h that triggers an automatic blacklist entry. Default 10.
+var InvalidKeyIPBanThreshold = 10
 var TaskQueryLimit int
 var TaskTimeoutMinutes int
 var TaskPollMaxFailures = 20

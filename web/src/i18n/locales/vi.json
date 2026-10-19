@@ -7318,6 +7318,23 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "API Key IP Blacklist": "Danh sách đen IP khóa API",
+    "Attempts": "Số lần thử",
+    "Banned At": "Thời điểm chặn",
+    "IP removed from blacklist": "Đã xóa IP khỏi danh sách đen",
+    "IPs that exceed 10 invalid API key attempts within 24 hours are banned automatically. Only administrators can remove them.": "IP vượt quá 10 lần thử API key không hợp lệ trong 24 giờ sẽ bị chặn tự động. Chỉ quản trị viên mới có thể gỡ.",
+    "Inspect model outputs": "Kiểm tra đầu ra mô hình",
+    "No blacklisted IPs": "Không có IP trong danh sách đen",
+    "Remove IP from blacklist?": "Gỡ IP khỏi danh sách đen?",
+    "Returned as a normal assistant message when a prompt or model output is blocked. Leave blank to use the default reply.": "Trả về như tin nhắn trợ lý thông thường khi prompt hoặc đầu ra mô hình bị chặn. Để trống để dùng phản hồi mặc định.",
+    "Search IP": "Tìm IP",
+    "Simulated reply": "Phản hồi giả lập",
+    "Sorry, I cannot assist with that request.": "Xin lỗi, tôi không thể hỗ trợ yêu cầu này.",
+    "Stop and replace on hit": "Dừng và thay thế khi khớp",
+    "This IP will be allowed to call the API again. Repeated invalid key attempts can trigger another automatic ban.": "Sau khi gỡ, IP có thể gọi API lại. Thử key sai nhiều lần có thể bị chặn tự động lần nữa.",
+    "When enabled, assistant replies are scanned after the upstream model responds.": "Khi bật, phản hồi trợ lý sẽ được quét sau khi mô hình thượng nguồn trả lời.",
+    "When on, blocked output is replaced with the simulated reply. When off, matched words in non-stream replies are masked instead.": "Bật: đầu ra bị chặn được thay bằng phản hồi giả lập. Tắt: từ khớp trong phản hồi không stream sẽ bị che.",
+"When sensitive keywords are detected, return a configurable simulated model reply instead of an API error.": "Khi phát hiện từ nhạy cảm, trả về phản hồi mô hình giả lập có thể cấu hình thay vì lỗi API."
   }
 }

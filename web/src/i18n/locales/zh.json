@@ -7318,6 +7318,23 @@
     "Zhipu": "智谱",
     "Zhipu GLM": "智谱GLM",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "API Key IP Blacklist": "API Key IP 黑名单",
+    "Attempts": "尝试次数",
+    "Banned At": "封禁时间",
+    "IP removed from blacklist": "已从黑名单移除该 IP",
+    "IPs that exceed 10 invalid API key attempts within 24 hours are banned automatically. Only administrators can remove them.": "同一 IP 在 24 小时内无效 API Key 尝试达到 10 次将自动封禁，仅管理员可手动移除。",
+    "Inspect model outputs": "检查模型输出",
+    "No blacklisted IPs": "暂无黑名单 IP",
+    "Remove IP from blacklist?": "从黑名单移除该 IP？",
+    "Returned as a normal assistant message when a prompt or model output is blocked. Leave blank to use the default reply.": "在提示词或模型输出被拦截时，作为普通助手消息返回。留空则使用默认回复。",
+    "Search IP": "搜索 IP",
+    "Simulated reply": "模拟回复",
+    "Sorry, I cannot assist with that request.": "抱歉，我无法协助处理该请求。",
+    "Stop and replace on hit": "命中后停止并替换",
+    "This IP will be allowed to call the API again. Repeated invalid key attempts can trigger another automatic ban.": "移除后该 IP 可再次调用 API；若再次频繁使用错误 Key，仍会被自动封禁。",
+    "When enabled, assistant replies are scanned after the upstream model responds.": "开启后，会在上游模型返回后扫描助手回复。",
+    "When on, blocked output is replaced with the simulated reply. When off, matched words in non-stream replies are masked instead.": "开启时，拦截的输出会替换为模拟回复；关闭时，非流式回复中的命中词会被打码。",
+"When sensitive keywords are detected, return a configurable simulated model reply instead of an API error.": "检测到敏感词时，返回可配置的模拟模型回复，而不是 API 错误。"
   }
 }
