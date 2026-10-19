@@ -7318,6 +7318,23 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "API Key IP Blacklist": "API Key IP ブラックリスト",
+    "Attempts": "試行回数",
+    "Banned At": "禁止日時",
+    "IP removed from blacklist": "ブラックリストから IP を削除しました",
+    "IPs that exceed 10 invalid API key attempts within 24 hours are banned automatically. Only administrators can remove them.": "同一 IP が 24 時間以内に無効な API Key を 10 回試行すると自動禁止されます。解除は管理者のみ可能です。",
+    "Inspect model outputs": "モデル出力を検査",
+    "No blacklisted IPs": "ブラックリストの IP はありません",
+    "Remove IP from blacklist?": "ブラックリストから IP を削除しますか？",
+    "Returned as a normal assistant message when a prompt or model output is blocked. Leave blank to use the default reply.": "プロンプトまたはモデル出力が遮断されたときに通常のアシスタントメッセージとして返します。空欄の場合はデフォルト応答を使用します。",
+    "Search IP": "IP を検索",
+    "Simulated reply": "模擬応答",
+    "Sorry, I cannot assist with that request.": "申し訳ありませんが、そのリクエストには対応できません。",
+    "Stop and replace on hit": "検出時に停止して置換",
+    "This IP will be allowed to call the API again. Repeated invalid key attempts can trigger another automatic ban.": "削除後、この IP は再び API を呼べます。無効キーの試行が続くと再度自動禁止されることがあります。",
+    "When enabled, assistant replies are scanned after the upstream model responds.": "有効にすると、上流モデルの応答後にアシスタント返信を検査します。",
+    "When on, blocked output is replaced with the simulated reply. When off, matched words in non-stream replies are masked instead.": "オンの場合、遮断された出力は模擬応答に置換されます。オフの場合、非ストリーム応答の一致語をマスクします。",
+"When sensitive keywords are detected, return a configurable simulated model reply instead of an API error.": "センシティブな語句が検出された場合、API エラーではなく設定可能な模擬モデル応答を返します。"
   }
 }

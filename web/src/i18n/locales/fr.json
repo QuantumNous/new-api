@@ -7318,6 +7318,23 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "API Key IP Blacklist": "Liste noire IP des clés API",
+    "Attempts": "Tentatives",
+    "Banned At": "Banni le",
+    "IP removed from blacklist": "IP retirée de la liste noire",
+    "IPs that exceed 10 invalid API key attempts within 24 hours are banned automatically. Only administrators can remove them.": "Les IP dépassant 10 tentatives de clé API invalide en 24 h sont bannies automatiquement. Seuls les administrateurs peuvent les retirer.",
+    "Inspect model outputs": "Inspecter les sorties du modèle",
+    "No blacklisted IPs": "Aucune IP en liste noire",
+    "Remove IP from blacklist?": "Retirer l'IP de la liste noire ?",
+    "Returned as a normal assistant message when a prompt or model output is blocked. Leave blank to use the default reply.": "Renvoyée comme message d’assistant normal lorsque l’invite ou la sortie du modèle est bloquée. Laissez vide pour la réponse par défaut.",
+    "Search IP": "Rechercher une IP",
+    "Simulated reply": "Réponse simulée",
+    "Sorry, I cannot assist with that request.": "Désolé, je ne peux pas vous aider pour cette demande.",
+    "Stop and replace on hit": "Arrêter et remplacer en cas de détection",
+    "This IP will be allowed to call the API again. Repeated invalid key attempts can trigger another automatic ban.": "Cette IP pourra à nouveau appeler l'API. Des tentatives invalides répétées pourront entraîner un nouveau ban automatique.",
+    "When enabled, assistant replies are scanned after the upstream model responds.": "Lorsque cette option est activée, les réponses de l’assistant sont analysées après la réponse du modèle amont.",
+    "When on, blocked output is replaced with the simulated reply. When off, matched words in non-stream replies are masked instead.": "Activé : la sortie bloquée est remplacée par la réponse simulée. Désactivé : les mots détectés dans les réponses non streaming sont masqués.",
+"When sensitive keywords are detected, return a configurable simulated model reply instead of an API error.": "Lorsqu’un mot sensible est détecté, renvoyer une réponse de modèle simulée configurable au lieu d’une erreur API."
   }
 }

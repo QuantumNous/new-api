@@ -347,6 +347,13 @@ func SetApiRouter(router *gin.Engine) {
 			systemInfoRoute.DELETE("/instances/:node_name", controller.DeleteStaleSystemInstance)
 		}
 
+		ipBlacklistRoute := apiRouter.Group("/ip-blacklist")
+		ipBlacklistRoute.Use(middleware.AdminAuth())
+		{
+			ipBlacklistRoute.GET("/", controller.GetIpBlacklist)
+			ipBlacklistRoute.DELETE("/:id", controller.DeleteIpBlacklist)
+		}
+
 		dataRoute := apiRouter.Group("/data")
 		dataRoute.GET("/", middleware.AdminAuth(), controller.GetAllQuotaDates)
 		dataRoute.GET("/users", middleware.AdminAuth(), controller.GetQuotaDatesByUser)

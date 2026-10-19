@@ -7318,6 +7318,23 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "API Key IP Blacklist": "Чёрный список IP для API-ключей",
+    "Attempts": "Попытки",
+    "Banned At": "Заблокирован",
+    "IP removed from blacklist": "IP удалён из чёрного списка",
+    "IPs that exceed 10 invalid API key attempts within 24 hours are banned automatically. Only administrators can remove them.": "IP с более чем 10 неверными попытками API-ключа за 24 часа блокируются автоматически. Снять блокировку может только администратор.",
+    "Inspect model outputs": "Проверять ответы модели",
+    "No blacklisted IPs": "Нет IP в чёрном списке",
+    "Remove IP from blacklist?": "Удалить IP из чёрного списка?",
+    "Returned as a normal assistant message when a prompt or model output is blocked. Leave blank to use the default reply.": "Возвращается как обычное сообщение ассистента при блокировке запроса или ответа модели. Оставьте пустым для ответа по умолчанию.",
+    "Search IP": "Поиск IP",
+    "Simulated reply": "Имитированный ответ",
+    "Sorry, I cannot assist with that request.": "Извините, я не могу помочь с этим запросом.",
+    "Stop and replace on hit": "Остановить и заменить при срабатывании",
+    "This IP will be allowed to call the API again. Repeated invalid key attempts can trigger another automatic ban.": "После удаления IP снова сможет вызывать API. Повторные неверные ключи могут снова привести к автоблокировке.",
+    "When enabled, assistant replies are scanned after the upstream model responds.": "Если включено, ответы ассистента проверяются после ответа вышестоящей модели.",
+    "When on, blocked output is replaced with the simulated reply. When off, matched words in non-stream replies are masked instead.": "Включено: заблокированный вывод заменяется имитированным ответом. Выключено: совпавшие слова в нестриминговых ответах маскируются.",
+"When sensitive keywords are detected, return a configurable simulated model reply instead of an API error.": "При обнаружении чувствительных слов возвращается настраиваемый имитированный ответ модели вместо ошибки API."
   }
 }

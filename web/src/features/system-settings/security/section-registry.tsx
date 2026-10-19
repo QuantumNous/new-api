@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { RateLimitSection } from '../request-limits/rate-limit-section'
 import { SSRFSection } from '../request-limits/ssrf-section'
 import { TokenLimitSection } from '../request-limits/token-limit-section'
+import { IpBlacklistSection } from '../request-limits/ip-blacklist-section'
+import { SensitiveWordsSection } from '../request-limits/sensitive-words-section'
 import type { SecuritySettings } from '../types'
 import { createSectionRegistry } from '../utils/section-registry'
 
@@ -73,6 +75,29 @@ const SECURITY_SECTIONS = [
         defaultValues={{
           'token_setting.max_user_tokens':
             settings['token_setting.max_user_tokens'],
+        }}
+      />
+    ),
+  },
+  {
+    id: 'ip-blacklist',
+    titleKey: 'API Key IP Blacklist',
+    build: (_settings: SecuritySettings) => <IpBlacklistSection />,
+  },
+  {
+    id: 'sensitive-words',
+    titleKey: 'Sensitive Words',
+    build: (settings: SecuritySettings) => (
+      <SensitiveWordsSection
+        defaultValues={{
+          CheckSensitiveEnabled: settings.CheckSensitiveEnabled,
+          CheckSensitiveOnPromptEnabled:
+            settings.CheckSensitiveOnPromptEnabled,
+          CheckSensitiveOnCompletionEnabled:
+            settings.CheckSensitiveOnCompletionEnabled,
+          StopOnSensitiveEnabled: settings.StopOnSensitiveEnabled,
+          SensitiveWords: settings.SensitiveWords,
+          SensitiveBlockReply: settings.SensitiveBlockReply,
         }}
       />
     ),
