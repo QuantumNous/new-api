@@ -50,6 +50,22 @@ email.password_reset.greeting: "您好，您正在進行{{.SystemName}}密碼重
 email.password_reset.link: "點擊 <a href='{{.Link}}'>此處</a> 進行密碼重設。"
 email.password_reset.link_fallback: "如果連結無法點擊，請嘗試點擊下面的連結或將其複製到瀏覽器中開啟：<br> {{.Link}}"
 email.password_reset.validity: "重設連結 {{.Minutes}} 分鐘內有效，如果不是本人操作，請忽略。"
+email.binding.subject: "{{.SystemName}}電子郵件綁定確認"
+email.binding.new_intro: "請確認將此電子郵件地址綁定到您的帳戶。"
+email.binding.old_intro: "您的帳戶正在申請更換電子郵件地址，請確認替換目前的電子郵件。"
+email.binding.code: "驗證碼：<strong>{{.Code}}</strong>"
+email.binding.new_validity: "驗證碼 {{.Minutes}} 分鐘內有效。如果不是您本人操作，請勿將驗證碼告訴任何人。"
+email.binding.old_validity: "驗證碼 {{.Minutes}} 分鐘內有效。如果不是您本人操作，請勿將驗證碼告訴任何人，並聯絡管理員。"
+email.security_notice.subject: "{{.SystemName}}帳戶安全提醒"
+email.security_notice.changed: "您的帳戶安全設定有變動：{{.Event}}。"
+email.security_notice.advice: "如果不是您本人操作，請開啟帳戶安全設定，登出其他工作階段，並聯絡管理員。"
+email.security_event.password_updated: "密碼已修改"
+email.security_event.email_change_requested: "已申請更換電子郵件地址"
+email.security_event.email_changed: "電子郵件地址已更換"
+email.security_event.email_confirmed: "電子郵件地址已確認"
+email.security_event.login_linked: "已綁定登入帳號 {{.Provider}}"
+email.security_event.login_unlinked: "已解綁登入帳號"
+email.security_event.wechat_linked: "已綁定微信帳號"
 
 # Low-quota notices
 notify.quota_low_title: "您的額度即將用盡"
@@ -58,7 +74,7 @@ notify.quota_low_bark: "{{.Prompt}}，剩餘額度：{{.Quota}}，請及時儲�
 notify.quota_low_gotify: "{{.Prompt}}，目前剩餘額度為 {{.Quota}}，請及時儲值。"
 notify.quota_low_email: "{{.Prompt}}，目前剩餘額度為 {{.Quota}}，為了不影響您的使用，請及時儲值。<br/>儲值連結：<a href='{{.Link}}'>{{.Link}}</a>"
 
-# Channel notices sent to the root user and model update watchers
+# Channel notices sent to administrators who receive them and to model update watchers
 channel.notify_disabled_subject: "管道「{{.Name}}」（#{{.Id}}）已被停用"
 channel.notify_disabled_content: "管道「{{.Name}}」（#{{.Id}}）已被停用，原因：{{.Reason}}"
 channel.notify_enabled_subject: "管道「{{.Name}}」（#{{.Id}}）已被啟用"
