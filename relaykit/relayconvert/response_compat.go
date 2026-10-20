@@ -39,6 +39,10 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info convmeta
 	return oaichat.ResponseOpenAI2Claude(openAIResponse, info)
 }
 
+func FinalizeStreamResponseOpenAI2Claude(info convmeta.Meta) []*dto.ClaudeResponse {
+	return oaichat.FinalizeStreamResponseOpenAI2Claude(info)
+}
+
 func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamResponse, info convmeta.Meta) []*dto.ClaudeResponse {
 	return oaichat.StreamResponseOpenAI2Claude(openAIResponse, info)
 }

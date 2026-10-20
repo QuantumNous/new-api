@@ -182,7 +182,8 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			})
 		}
 	}
-	if info.GetSendResponseCount() == 1 {
+	if !state.MessageStartSent {
+		state.MessageStartSent = true
 		// Client-visible Claude stream usage matches billing merge: first
 		// frame records first, a later non-zero field overrides, and a later
 		// zero/missing field never erases a first-frame positive. Anthropic
