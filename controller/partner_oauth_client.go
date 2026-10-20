@@ -309,11 +309,13 @@ func DeletePartnerOAuthClient(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	entries := make([]model.PartnerOauthAuthorizationLog, 0, len(revoked))
 	for _, binding := range revoked {
-		recordPartnerOAuthAudit(c, model.PartnerOauthAuthorizationLog{Action: "partner_oauth.binding.client_delete", Success: true,
+		entries = append(entries, model.PartnerOauthAuthorizationLog{Action: "partner_oauth.binding.client_delete", Success: true,
 			ActorUserId: c.GetInt("id"), TargetUserId: binding.UserId, ClientId: client.ClientId,
 			BindingId: binding.BindingId, Reason: "client_deleted", Status: http.StatusOK})
 	}
+	model.RecordPartnerOAuthAuthorizationLogs(c, entries)
 	recordPartnerOAuthAdminAudit(c, "partner_oauth.client.delete", client.ClientId, nil)
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }

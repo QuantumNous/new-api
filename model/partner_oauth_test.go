@@ -112,6 +112,17 @@ func TestPartnerOAuthAuthorizationLogStoreMigration(t *testing.T) {
 					assert.Equal(t, int64(1), total)
 					require.Len(t, items, 1)
 					assert.NotEmpty(t, items[0].RequestId)
+					RecordPartnerOAuthAuthorizationLogs(nil, []PartnerOauthAuthorizationLog{
+						{Action: "partner_oauth.binding.client_delete", Success: true, Status: 200, Reason: "client_deleted", TargetUserId: 8,
+							ClientId: "pc_0123456789abcdef0123456789abcdef", BindingId: "bnd_00000000000000000000000000000001"},
+						{Action: "partner_oauth.binding.client_delete", Success: true, Status: 200, Reason: "client_deleted", TargetUserId: 8,
+							ClientId: "pc_0123456789abcdef0123456789abcdef", BindingId: "bnd_00000000000000000000000000000002"},
+					})
+					batch, batchTotal, err := GetPartnerOAuthAuthorizationLogs(PartnerOauthAuthorizationLogFilter{TargetUserId: 8}, 0, 10)
+					require.NoError(t, err)
+					assert.Equal(t, int64(2), batchTotal)
+					require.Len(t, batch, 2)
+					assert.NotEqual(t, batch[0].EventId, batch[1].EventId)
 					if scenario == "upgrade" {
 						var legacy AuditLog
 						require.NoError(t, logDB.Where("event_id = ?", "legacy-token").First(&legacy).Error)

@@ -40,6 +40,9 @@ type PartnerOauthAuthorizationLogFilter struct {
 	End          int64
 }
 
+// 13 columns per row keeps a batch far below every dialect's bind-parameter limit.
+const partnerOAuthLogBatchSize = 500
+
 var (
 	partnerOAuthLogClientID  = regexp.MustCompile(`^pc_[0-9a-f]{32}$`)
 	partnerOAuthLogBindingID = regexp.MustCompile(`^bnd_[0-9a-f]{32}$`)
@@ -78,47 +81,61 @@ func ValidPartnerOAuthLogReason(reason string) bool {
 // A failed write is surfaced in server logs by request ID, without including DB
 // errors (which may contain input). The authorization result is never changed.
 func RecordPartnerOAuthAuthorizationLog(c *gin.Context, entry PartnerOauthAuthorizationLog) {
+	RecordPartnerOAuthAuthorizationLogs(c, []PartnerOauthAuthorizationLog{entry})
+}
+
+// RecordPartnerOAuthAuthorizationLogs writes the valid entries of one request in
+// batches, so bulk revocations do not cost one log database round-trip per row.
+func RecordPartnerOAuthAuthorizationLogs(c *gin.Context, entries []PartnerOauthAuthorizationLog) {
 	ctx := context.Background()
-	entry.EventId = common.NewRequestId() // Never persist a caller-provided identifier.
-	entry.RequestId = ""
-	entry.Ip = ""
-	entry.Route = ""
+	requestID, ip, route := "", "", ""
 	if c != nil && c.Request != nil {
 		ctx = c.Request.Context()
-		entry.RequestId = c.GetString(common.RequestIdKey)
-		entry.Ip = c.ClientIP()
-		entry.Route = c.FullPath()
+		requestID = c.GetString(common.RequestIdKey)
+		ip = c.ClientIP()
+		route = c.FullPath()
 	}
-	if !partnerOAuthLogRequestID.MatchString(entry.RequestId) {
-		entry.RequestId = common.NewRequestId()
+	if !partnerOAuthLogRequestID.MatchString(requestID) {
+		requestID = common.NewRequestId()
 	}
-	if net.ParseIP(entry.Ip) == nil {
-		entry.Ip = ""
+	if net.ParseIP(ip) == nil {
+		ip = ""
 	}
-	if entry.CreatedAt == 0 {
-		entry.CreatedAt = common.GetTimestamp()
+	valid := make([]PartnerOauthAuthorizationLog, 0, len(entries))
+	for _, entry := range entries {
+		entry.EventId = common.NewRequestId() // Never persist a caller-provided identifier.
+		entry.RequestId = requestID
+		entry.Ip = ip
+		entry.Route = route
+		if entry.CreatedAt == 0 {
+			entry.CreatedAt = common.GetTimestamp()
+		}
+		if !ValidPartnerOAuthLogAction(entry.Action) || !ValidPartnerOAuthLogReason(entry.Reason) ||
+			(entry.ClientId != "" && !ValidPartnerOAuthLogClientID(entry.ClientId)) ||
+			(entry.BindingId != "" && !ValidPartnerOAuthLogBindingID(entry.BindingId)) ||
+			entry.ActorUserId < 0 || entry.TargetUserId < 0 || entry.Status < 100 || entry.Status > 599 ||
+			len(entry.Ip) > 64 || len(entry.Route) > 128 ||
+			(c != nil && entry.Route == "") {
+			logger.LogError(ctx, common.LogText("partner oauth authorization log rejected (request_id=%s): invalid metadata", requestID))
+			continue
+		}
+		valid = append(valid, entry)
 	}
-	if !ValidPartnerOAuthLogAction(entry.Action) || !ValidPartnerOAuthLogReason(entry.Reason) ||
-		(entry.ClientId != "" && !ValidPartnerOAuthLogClientID(entry.ClientId)) ||
-		(entry.BindingId != "" && !ValidPartnerOAuthLogBindingID(entry.BindingId)) ||
-		entry.ActorUserId < 0 || entry.TargetUserId < 0 || entry.Status < 100 || entry.Status > 599 ||
-		len(entry.Ip) > 64 || len(entry.Route) > 128 ||
-		(c != nil && entry.Route == "") {
-		logger.LogError(ctx, common.LogText("partner oauth authorization log rejected (request_id=%s): invalid metadata", entry.RequestId))
+	if len(valid) == 0 {
 		return
 	}
 	if LOG_DB == nil {
-		logger.LogError(ctx, common.LogText("partner oauth authorization log write failed (request_id=%s): log database unavailable", entry.RequestId))
+		logger.LogError(ctx, common.LogText("partner oauth authorization log write failed (request_id=%s): log database unavailable", requestID))
 		return
 	}
 	var err error
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
-		err = LOG_DB.Table("partner_oauth_authorization_logs").Create(&entry).Error
+		err = LOG_DB.Table("partner_oauth_authorization_logs").CreateInBatches(&valid, partnerOAuthLogBatchSize).Error
 	} else {
-		err = LOG_DB.Create(&entry).Error
+		err = LOG_DB.CreateInBatches(&valid, partnerOAuthLogBatchSize).Error
 	}
 	if err != nil {
-		logger.LogError(ctx, common.LogText("partner oauth authorization log write failed (request_id=%s): database error", entry.RequestId))
+		logger.LogError(ctx, common.LogText("partner oauth authorization log write failed (request_id=%s): database error", requestID))
 	}
 }
 
