@@ -7,8 +7,10 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
@@ -91,7 +93,11 @@ func TestListModelsSupportsOpenAIAndGeminiAuthentication(t *testing.T) {
 }
 
 func TestCreditsEndpointWithAPIKey(t *testing.T) {
+	require.NoError(t, i18n.Init())
 	setupRelayRouterTestDB(t)
+	originalDisplayType := operation_setting.GetGeneralSetting().QuotaDisplayType
+	operation_setting.GetGeneralSetting().QuotaDisplayType = operation_setting.QuotaDisplayTypeUSD
+	t.Cleanup(func() { operation_setting.GetGeneralSetting().QuotaDisplayType = originalDisplayType })
 
 	user := model.User{
 		Username: "credits-user",
@@ -101,19 +107,22 @@ func TestCreditsEndpointWithAPIKey(t *testing.T) {
 	}
 	require.NoError(t, model.DB.Create(&user).Error)
 	require.NoError(t, model.DB.Create(&model.Token{
-		UserId:      user.Id,
-		Key:         "creditstestkey",
-		Status:      common.TokenStatusEnabled,
-		ExpiredTime: -1,
-		RemainQuota: int(common.QuotaPerUnit * 5),
+		UserId:              user.Id,
+		Key:                 "creditstestkey",
+		Status:              common.TokenStatusEnabled,
+		ExpiredTime:         -1,
+		RemainQuota:         int(common.QuotaPerUnit),
+		AllowUserQuotaQuery: true,
 	}).Error)
 
 	engine := gin.New()
 	SetDashboardRouter(engine)
+	SetRelayRouter(engine)
 
 	paths := []struct {
 		name       string
 		path       string
+		headerName string
 		headerAuth string
 	}{
 		{
@@ -152,6 +161,47 @@ func TestCreditsEndpointWithAPIKey(t *testing.T) {
 			path:       "/credits/",
 			headerAuth: "Bearer creditstestkey",
 		},
+		{
+			name:       "Claude API key without anthropic-version",
+			path:       "/v1/credits",
+			headerName: "x-api-key",
+			headerAuth: "sk-creditstestkey",
+		},
+		{
+			name:       "Claude API key with unversioned trailing slash",
+			path:       "/credits/",
+			headerName: "x-api-key",
+			headerAuth: "creditstestkey",
+		},
+		{
+			name:       "Gemini API key on v1",
+			path:       "/v1/credits",
+			headerName: "x-goog-api-key",
+			headerAuth: "creditstestkey",
+		},
+		{
+			name:       "Gemini API key on v1beta",
+			path:       "/v1beta/credits",
+			headerName: "x-goog-api-key",
+			headerAuth: "sk-creditstestkey",
+		},
+		{
+			name:       "Gemini API key with trailing slash",
+			path:       "/v1beta/credits/",
+			headerName: "x-goog-api-key",
+			headerAuth: "creditstestkey",
+		},
+		{
+			name:       "Bearer token on v1beta",
+			path:       "/v1beta/credits",
+			headerAuth: "Bearer creditstestkey",
+		},
+		{
+			name:       "Gemini query cannot choose a different account",
+			path:       "/v1beta/credits?user_id=999999&id=999999",
+			headerName: "x-goog-api-key",
+			headerAuth: "creditstestkey",
+		},
 	}
 
 	for _, tc := range paths {
@@ -159,11 +209,16 @@ func TestCreditsEndpointWithAPIKey(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
 			if tc.headerAuth != "" {
-				req.Header.Set("Authorization", tc.headerAuth)
+				headerName := tc.headerName
+				if headerName == "" {
+					headerName = "Authorization"
+				}
+				req.Header.Set(headerName, tc.headerAuth)
 			}
 			engine.ServeHTTP(recorder, req)
 
 			require.Equal(t, http.StatusOK, recorder.Code)
+			assert.Contains(t, recorder.Header().Get("Cache-Control"), "no-store")
 			var payload map[string]any
 			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
 			assert.Equal(t, "credit_summary", payload["object"])
@@ -173,13 +228,24 @@ func TestCreditsEndpointWithAPIKey(t *testing.T) {
 		})
 	}
 
+	for _, queryName := range []string{"key", "api_key", "apiKey"} {
+		t.Run("Gemini credentials are not accepted in URL/"+queryName, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodGet, "/v1beta/credits?"+queryName+"=creditstestkey", nil)
+			engine.ServeHTTP(recorder, request)
+			assert.Equal(t, http.StatusUnauthorized, recorder.Code)
+			assert.NotContains(t, recorder.Body.String(), "creditstestkey")
+		})
+	}
+
 	t.Run("GET /v1/credits with unlimited token returns user quota instead of 100000000", func(t *testing.T) {
 		unlimitedToken := model.Token{
-			UserId:         user.Id,
-			Key:            "unlimitedcredittestkey",
-			Status:         common.TokenStatusEnabled,
-			ExpiredTime:    -1,
-			UnlimitedQuota: true,
+			UserId:              user.Id,
+			Key:                 "unlimitedcredittestkey",
+			Status:              common.TokenStatusEnabled,
+			ExpiredTime:         -1,
+			UnlimitedQuota:      true,
+			AllowUserQuotaQuery: true,
 		}
 		require.NoError(t, model.DB.Create(&unlimitedToken).Error)
 
@@ -196,6 +262,114 @@ func TestCreditsEndpointWithAPIKey(t *testing.T) {
 		assert.Equal(t, float64(5), data["total_usage"])
 		assert.Equal(t, float64(5), payload["total_available"])
 	})
+
+	t.Run("all formats enforce revoked user quota permission", func(t *testing.T) {
+		require.NoError(t, model.DB.Model(&model.Token{}).Where("key = ?", "creditstestkey").Update("allow_user_quota_query", false).Error)
+		for _, tc := range []struct{ path, header, value string }{
+			{"/v1/credits", "Authorization", "Bearer creditstestkey"},
+			{"/v1/credits", "x-api-key", "creditstestkey"},
+			{"/v1beta/credits", "x-goog-api-key", "creditstestkey"},
+		} {
+			t.Run(tc.header, func(t *testing.T) {
+				recorder := httptest.NewRecorder()
+				request := httptest.NewRequest(http.MethodGet, tc.path, nil)
+				request.Header.Set(tc.header, tc.value)
+				engine.ServeHTTP(recorder, request)
+				assert.Equal(t, http.StatusForbidden, recorder.Code)
+				var payload map[string]any
+				require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+				assert.Contains(t, payload, "error")
+				assert.NotContains(t, payload, "data")
+			})
+		}
+	})
+}
+
+func TestCreditsNativeAuthenticationEnforcesTokenRestrictions(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	setupRelayRouterTestDB(t)
+	engine := gin.New()
+	require.NoError(t, engine.SetTrustedProxies(nil))
+	SetDashboardRouter(engine)
+
+	for _, protocol := range []struct{ name, path, header string }{
+		{"Claude", "/v1/credits", "x-api-key"},
+		{"Gemini", "/v1beta/credits", "x-goog-api-key"},
+	} {
+		for i, tc := range []struct {
+			name        string
+			tokenStatus int
+			expired     bool
+			exhausted   bool
+			banned      bool
+			allowIPs    string
+			missingKey  bool
+			invalidKey  bool
+			bearer      bool
+			wantStatus  int
+		}{
+			{name: "missing key", missingKey: true, wantStatus: http.StatusUnauthorized},
+			{name: "invalid key", invalidKey: true, wantStatus: http.StatusUnauthorized},
+			{name: "disabled token", tokenStatus: common.TokenStatusDisabled, wantStatus: http.StatusUnauthorized},
+			{name: "expired token", expired: true, wantStatus: http.StatusUnauthorized},
+			{name: "exhausted token", exhausted: true, wantStatus: http.StatusUnauthorized},
+			{name: "banned user", banned: true, wantStatus: http.StatusForbidden},
+			{name: "IP restriction", allowIPs: "192.0.2.0/24", wantStatus: http.StatusForbidden},
+			{name: "invalid native key cannot fall back to bearer", invalidKey: true, bearer: true, wantStatus: http.StatusUnauthorized},
+		} {
+			t.Run(protocol.name+"/"+tc.name, func(t *testing.T) {
+				identity := fmt.Sprintf("creditguard%s%d", protocol.name, i)
+				user := model.User{
+					Username: identity, AffCode: identity,
+					Status: common.UserStatusEnabled, Group: "default", Quota: int(common.QuotaPerUnit * 5),
+				}
+				if tc.banned {
+					user.Status = common.UserStatusDisabled
+				}
+				require.NoError(t, model.DB.Create(&user).Error)
+				token := model.Token{
+					UserId: user.Id, Key: identity,
+					Status: common.TokenStatusEnabled, ExpiredTime: -1, RemainQuota: int(common.QuotaPerUnit),
+					AllowUserQuotaQuery: true,
+				}
+				if tc.tokenStatus != 0 {
+					token.Status = tc.tokenStatus
+				}
+				if tc.expired {
+					token.ExpiredTime = time.Now().Add(-time.Minute).Unix()
+				}
+				if tc.exhausted {
+					token.RemainQuota = 0
+				}
+				if tc.allowIPs != "" {
+					token.AllowIps = &tc.allowIPs
+				}
+				require.NoError(t, model.DB.Create(&token).Error)
+
+				request := httptest.NewRequest(http.MethodGet, protocol.path, nil)
+				request.RemoteAddr = "127.0.0.1:12345"
+				if !tc.missingKey {
+					key := token.Key
+					if tc.invalidKey {
+						key = "invalidnativekey"
+					}
+					request.Header.Set(protocol.header, key)
+				}
+				if tc.bearer {
+					request.Header.Set("Authorization", "Bearer "+token.Key)
+				}
+				recorder := httptest.NewRecorder()
+				engine.ServeHTTP(recorder, request)
+				require.Equal(t, tc.wantStatus, recorder.Code)
+				assert.Contains(t, recorder.Header().Get("Cache-Control"), "no-store")
+				var payload map[string]any
+				require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+				assert.Contains(t, payload, "error")
+				assert.NotContains(t, payload, "data")
+				assert.NotContains(t, recorder.Body.String(), token.Key)
+			})
+		}
+	}
 }
 
 func TestGeminiModelEndpointsOnRouter(t *testing.T) {

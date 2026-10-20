@@ -543,21 +543,23 @@ func TokenAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		// 先检测是否为ws
 		applyWebSocketSubprotocolAuthorization(c.Request.Header)
-		// 检查path包含/v1/messages 或 /v1/models
-		if strings.Contains(c.Request.URL.Path, "/v1/messages") || strings.Contains(c.Request.URL.Path, "/v1/models") {
+		path := strings.TrimSuffix(c.Request.URL.Path, "/")
+		isCreditsRequest := path == "/credits" || path == "/v1/credits" || path == "/v1beta/credits"
+		if isCreditsRequest || strings.Contains(path, "/v1/messages") || strings.Contains(path, "/v1/models") {
 			anthropicKey := c.Request.Header.Get("x-api-key")
 			if anthropicKey != "" {
 				c.Request.Header.Set("Authorization", "Bearer "+anthropicKey)
 			}
 		}
-		// gemini api 从query中获取key，支持通过api key查询credits
-		path := strings.TrimSuffix(c.Request.URL.Path, "/")
-		if path == "/v1/models" ||
+		// Keep legacy query-key compatibility scoped to the existing endpoints.
+		// New credits endpoints accept keys through headers to avoid URL leakage.
+		acceptsQueryAPIKey := path == "/v1/models" ||
 			path == "/v1/credits" ||
 			path == "/credits" ||
-			strings.HasPrefix(c.Request.URL.Path, "/v1beta/models") ||
-			strings.HasPrefix(c.Request.URL.Path, "/v1beta/openai/models") ||
-			strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
+			strings.HasPrefix(path, "/v1beta/models") ||
+			strings.HasPrefix(path, "/v1beta/openai/models") ||
+			strings.HasPrefix(path, "/v1/models/")
+		if acceptsQueryAPIKey {
 			skKey := c.Query("key")
 			if skKey == "" {
 				skKey = c.Query("api_key")
@@ -568,6 +570,8 @@ func TokenAuth() func(c *gin.Context) {
 			if skKey != "" {
 				c.Request.Header.Set("Authorization", "Bearer "+skKey)
 			}
+		}
+		if acceptsQueryAPIKey || isCreditsRequest {
 			// 从x-goog-api-key header中获取key
 			xGoogKey := c.Request.Header.Get("x-goog-api-key")
 			if xGoogKey != "" {
@@ -575,7 +579,6 @@ func TokenAuth() func(c *gin.Context) {
 			}
 		}
 		key := c.Request.Header.Get("Authorization")
-		parts := make([]string, 0)
 		if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
 			key = strings.TrimSpace(key[7:])
 		}
@@ -584,14 +587,10 @@ func TokenAuth() func(c *gin.Context) {
 			if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
 				key = strings.TrimSpace(key[7:])
 			}
-			key = strings.TrimPrefix(key, "sk-")
-			parts = strings.Split(key, "-")
-			key = parts[0]
-		} else {
-			key = strings.TrimPrefix(key, "sk-")
-			parts = strings.Split(key, "-")
-			key = parts[0]
 		}
+		key = strings.TrimPrefix(key, "sk-")
+		parts := strings.Split(key, "-")
+		key = parts[0]
 		token, err := model.ValidateUserToken(key)
 		if token != nil {
 			id := c.GetInt("id")
@@ -637,6 +636,10 @@ func TokenAuth() func(c *gin.Context) {
 		userEnabled := userCache.Status == common.UserStatusEnabled
 		if !userEnabled {
 			abortWithOpenAiMessage(c, http.StatusForbidden, common.TranslateMessage(c, i18n.MsgAuthUserBanned))
+			return
+		}
+		if isCreditsRequest && !token.AllowUserQuotaQuery {
+			abortWithOpenAiMessage(c, http.StatusForbidden, i18n.T(c, i18n.MsgForbidden), types.ErrorCodeAccessDenied)
 			return
 		}
 
