@@ -81,6 +81,55 @@ func TestRealtimeFetchAppliesChannelHeaderOverrides(t *testing.T) {
 	assert.Equal(t, "saved-key", request.Header.Get("X-Goog-Api-Key"))
 }
 
+func TestRealtimeFetchRefundsTaskItFindsFailed(t *testing.T) {
+	database := setupRelayChannelDB(t)
+	require.NoError(t, database.AutoMigrate(&model.Task{}, &model.User{}, &model.Log{}))
+	previousLogDB := model.LOG_DB
+	previousFactory := service.GetTaskAdaptorFunc
+	previousRedis := common.RedisEnabled
+	model.LOG_DB = database
+	common.RedisEnabled = false
+	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
+		if adaptor := GetTaskAdaptor(platform); adaptor != nil {
+			return adaptor
+		}
+		return nil
+	}
+	t.Cleanup(func() {
+		model.LOG_DB = previousLogDB
+		service.GetTaskAdaptorFunc = previousFactory
+		common.RedisEnabled = previousRedis
+	})
+	service.InitHttpClient()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"name":"operations/task-1","done":true,"error":{"code":3,"message":"blocked by safety"}}`))
+	}))
+	t.Cleanup(server.Close)
+	channel := &model.Channel{Name: "realtime-refund", Type: constant.ChannelTypeGemini, Key: "channel-key", BaseURL: &server.URL}
+	require.NoError(t, database.Create(channel).Error)
+	require.NoError(t, database.Create(&model.User{Id: 7, Username: "realtime-owner", Quota: 100}).Error)
+	task := &model.Task{
+		TaskID: "public-task", Platform: constant.TaskPlatform(strconv.Itoa(constant.ChannelTypeGemini)),
+		UserId: 7, ChannelId: channel.Id, Quota: 1000,
+		Status: model.TaskStatusInProgress, Progress: "50%",
+		PrivateData: model.TaskPrivateData{
+			Key: "channel-key", UpstreamTaskID: base64.RawURLEncoding.EncodeToString([]byte("operations/task-1")),
+		},
+	}
+	require.NoError(t, database.Create(task).Error)
+
+	tryRealtimeFetch(task, true)
+
+	var stored model.Task
+	require.NoError(t, database.First(&stored, task.ID).Error)
+	assert.Equal(t, model.TaskStatus(model.TaskStatusFailure), stored.Status)
+	assert.Equal(t, "blocked by safety", stored.FailReason)
+	assert.Zero(t, stored.Quota, "the failed task is refunded")
+	var user model.User
+	require.NoError(t, database.First(&user, 7).Error)
+	assert.Equal(t, 1100, user.Quota)
+}
+
 func TestApplyChannelPinPreservesOriginTasksAndRetryMode(t *testing.T) {
 	database := setupRelayChannelDB(t)
 	channel := &model.Channel{Name: "origin-channel", Key: "sk-test", Status: common.ChannelStatusEnabled, Type: constant.ChannelTypeDoubaoVideo}
