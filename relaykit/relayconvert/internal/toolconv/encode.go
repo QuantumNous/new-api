@@ -781,6 +781,8 @@ func attachGeminiRequest(request any, set Set, options *convmeta.Options) (any, 
 			))
 		}
 	}
+	// Only emitted hosted tools count: a host encoder may omit a search tool.
+	hasHostedTools := len(tools) > 0
 	if len(functions) > 0 {
 		tools = append(tools, map[string]any{"functionDeclarations": functions})
 	}
@@ -796,7 +798,27 @@ func attachGeminiRequest(request any, set Set, options *convmeta.Options) (any, 
 		return target, append(diagnostics, toolChoiceWithoutToolsDiagnostics(set)...), nil
 	}
 	config, choiceDiagnostics := encodeGeminiChoice(responsesCustomToolChoice(set.Choice, customTools))
-	target.ToolConfig = config
+	if target.ToolConfig == nil {
+		target.ToolConfig = config
+	} else if config != nil {
+		// Keep retrieval settings supplied by the host's web-search encoder.
+		target.ToolConfig.FunctionCallingConfig = config.FunctionCallingConfig
+	}
+	if hasHostedTools {
+		if target.ToolConfig == nil {
+			target.ToolConfig = &dto.ToolConfig{}
+		}
+		target.ToolConfig.IncludeServerSideToolInvocations = kitutil.GetPointer(true)
+		if target.ToolConfig.FunctionCallingConfig == nil {
+			target.ToolConfig.FunctionCallingConfig = &dto.FunctionCallingConfig{}
+		}
+		// Gemini tool combinations require context circulation and reject AUTO.
+		// VALIDATED still permits text answers; ANY and NONE retain client intent.
+		switch target.ToolConfig.FunctionCallingConfig.Mode {
+		case "", "AUTO":
+			target.ToolConfig.FunctionCallingConfig.Mode = "VALIDATED"
+		}
+	}
 	diagnostics = append(diagnostics, choiceDiagnostics...)
 	if set.ParallelAllowed != nil && !*set.ParallelAllowed {
 		diagnostics = append(diagnostics, semanticLoss(
