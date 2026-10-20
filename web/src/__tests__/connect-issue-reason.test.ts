@@ -10,7 +10,7 @@ beforeAll(() => {
     join(repoRoot, 'public/connect.js'),
     'utf8'
   )
-  // connect.js is a browser IIFE; eval mirrors how /desktop/connect loads it.
+  // connect.js is a browser IIFE; eval mirrors third-party embeds (station SPA no longer loads it).
   // eslint-disable-next-line no-eval
   eval(script)
 })
