@@ -1,7 +1,11 @@
 /*
 Copyright (C) 2023-2026 QuantumNous
 */
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  focusManager,
+  QueryClient,
+  QueryClientProvider,
+} from '@tanstack/react-query'
 import {
   createMemoryHistory,
   createRootRoute,
@@ -128,6 +132,44 @@ describe('partner OAuth authorization logs', () => {
     await waitFor(() =>
       expect(requests.at(-1)).toMatchObject({ page: 2, page_size: 20 })
     )
+    client.clear()
+  })
+
+  it('keeps rows fetched by this page visible during a window-focus refetch', async () => {
+    response = {
+      success: true,
+      data: {
+        total: 1,
+        items: [
+          {
+            event_id: 'evt-focus',
+            created_at: 1735689600,
+            action: 'partner_oauth.token.issue',
+            success: true,
+            reason: '',
+            actor_user_id: 0,
+            target_user_id: 12,
+            client_id: clientId,
+            binding_id: '',
+            request_id: 'focus-request',
+            ip: '127.0.0.1',
+            route: '/oauth/token',
+            status: 200,
+          },
+        ],
+      },
+    }
+    const { client } = renderLogs()
+    expect(await screen.findByText('focus-request')).toBeVisible()
+    requestPending = new Promise<void>((resolve) => {
+      releaseRequest = resolve
+    })
+    focusManager.setFocused(false)
+    focusManager.setFocused(true)
+    await waitFor(() => expect(requests).toHaveLength(2))
+    expect(screen.getByText('focus-request')).toBeVisible()
+    releaseRequest?.()
+    focusManager.setFocused(undefined)
     client.clear()
   })
 

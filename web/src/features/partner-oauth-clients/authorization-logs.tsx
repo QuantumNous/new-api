@@ -196,9 +196,12 @@ export function PartnerOAuthAuthorizationLogs() {
     ],
     [actionNames, locale, t]
   )
-  // An old query result is not proof that the current session still has read access.
-  const showRows =
-    canRead && query.isFetchedAfterMount && !query.isFetching && !query.isError
+  // An old query result is not proof that the current session still has read access,
+  // so rows cached before this mount stay hidden until refetched. Background
+  // refetches of rows fetched by this mount keep them visible.
+  const showRows = canRead && query.isFetchedAfterMount && !query.isError
+  const isLoadingRows =
+    query.isPending || (query.isFetching && !query.isFetchedAfterMount)
   const { table } = useDataTable({
     data: showRows ? (query.data?.items ?? EMPTY_LOGS) : EMPTY_LOGS,
     columns,
@@ -206,7 +209,7 @@ export function PartnerOAuthAuthorizationLogs() {
     totalCount: showRows ? (query.data?.total ?? 0) : 0,
     pagination: { pageIndex: filters.page - 1, pageSize: filters.page_size },
     onPaginationChange: (updater) => {
-      if (!canRead || query.isFetching || query.isError) return
+      if (!canRead || query.isError) return
       setFilters((previous) => {
         const current = {
           pageIndex: previous.page - 1,
@@ -240,7 +243,7 @@ export function PartnerOAuthAuthorizationLogs() {
           <DataTablePage
             table={table}
             columns={columns}
-            isLoading={query.isPending || query.isFetching}
+            isLoading={isLoadingRows}
             isFetching={query.isFetching}
             emptyTitle={
               query.isError
