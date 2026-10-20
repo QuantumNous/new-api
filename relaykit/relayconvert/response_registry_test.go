@@ -19,8 +19,8 @@ func TestLookupBuiltinResponseConverters(t *testing.T) {
 		quality        ResponseConverterQuality
 		stepConverters []string
 	}{
-		{lookupID: ResponseConverterOAIChatToOAIResponses, id: ConverterOpenAIChatToOpenAIResponses, from: types.RelayFormatOpenAI, to: types.RelayFormatOpenAIResponses, quality: ResponseConverterQualityGood},
-		{lookupID: ResponseConverterOAIResponsesToOAIChat, id: ConverterOpenAIResponsesToOpenAIChat, from: types.RelayFormatOpenAIResponses, to: types.RelayFormatOpenAI, quality: ResponseConverterQualityGood},
+		{lookupID: ResponseConverterOAIChatToOAIResponses, id: ConverterOpenAIChatToOpenAIResponses, from: types.RelayFormatOpenAI, to: types.RelayFormatOpenAIResponses, quality: ResponseConverterQualityFair},
+		{lookupID: ResponseConverterOAIResponsesToOAIChat, id: ConverterOpenAIResponsesToOpenAIChat, from: types.RelayFormatOpenAIResponses, to: types.RelayFormatOpenAI, quality: ResponseConverterQualityFair},
 		{lookupID: ResponseConverterOAIChatToClaudeMessages, id: ConverterOpenAIChatToClaudeMessages, from: types.RelayFormatOpenAI, to: types.RelayFormatClaude, quality: ResponseConverterQualityFair},
 		{lookupID: ResponseConverterOAIChatToGeminiChat, id: ConverterOpenAIChatToGeminiContent, from: types.RelayFormatOpenAI, to: types.RelayFormatGemini, quality: ResponseConverterQualityFair},
 		{lookupID: ResponseConverterClaudeMessagesToOAIChat, id: ConverterClaudeMessagesToOpenAIChat, from: types.RelayFormatClaude, to: types.RelayFormatOpenAI, quality: ResponseConverterQualityFair},
@@ -125,7 +125,7 @@ func TestConvertResponseDirectConverters(t *testing.T) {
 	toResponses, err := ConvertResponse(nil, info, types.RelayFormatOpenAIResponses, chat)
 	require.NoError(t, err)
 	assert.Equal(t, ConverterOpenAIChatToOpenAIResponses, toResponses.Converter)
-	assert.Equal(t, ResponseConverterQualityGood, toResponses.Quality)
+	assert.Equal(t, ResponseConverterQualityFair, toResponses.Quality)
 	assert.Equal(t, types.RelayFormatOpenAI, toResponses.From)
 	assert.Equal(t, types.RelayFormat(types.RelayFormatOpenAIResponses), toResponses.To)
 	assert.Equal(t, []ResponseStep{{Converter: ConverterOpenAIChatToOpenAIResponses, From: types.RelayFormatOpenAI, To: types.RelayFormatOpenAIResponses}}, toResponses.Steps)
@@ -155,7 +155,7 @@ func TestConvertResponseDirectConverters(t *testing.T) {
 	toChat, err := ConvertResponse(nil, info, types.RelayFormatOpenAI, responses)
 	require.NoError(t, err)
 	assert.Equal(t, ConverterOpenAIResponsesToOpenAIChat, toChat.Converter)
-	assert.Equal(t, ResponseConverterQualityGood, toChat.Quality)
+	assert.Equal(t, ResponseConverterQualityFair, toChat.Quality)
 	require.IsType(t, &dto.OpenAITextResponse{}, toChat.Value)
 	assert.Equal(t, 10, toChat.Usage.TotalTokens)
 	require.NotNil(t, toChat.Usage.BillingUsage)

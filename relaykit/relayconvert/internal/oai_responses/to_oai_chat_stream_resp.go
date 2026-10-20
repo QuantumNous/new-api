@@ -124,7 +124,15 @@ func ResponsesStreamEventToChatChunks(event *dto.ResponsesStreamResponse, state 
 		chunks = append(chunks, state.finalize(response)...)
 		return chunks, nil
 	case responsesEventFailed, responsesEventError:
-		return nil, fmt.Errorf("responses stream error: %s", event.Type)
+		message := strings.TrimSpace(event.Message)
+		if message == "" {
+			if code := strings.TrimSpace(event.Code); code != "" {
+				message = code + " " + event.Type
+			} else {
+				message = event.Type
+			}
+		}
+		return nil, fmt.Errorf("responses stream error: %s", message)
 	default:
 		return nil, nil
 	}

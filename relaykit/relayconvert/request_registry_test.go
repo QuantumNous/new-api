@@ -25,8 +25,8 @@ func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
 		{converter: ConverterGeminiContentToOpenAIChat, from: types.RelayFormatGemini, to: types.RelayFormatOpenAI, quality: RequestConverterQualityFair, advancedCustom: true},
 		{converter: ConverterOpenAIChatToClaudeMessages, from: types.RelayFormatOpenAI, to: types.RelayFormatClaude, quality: RequestConverterQualityFair, advancedCustom: true},
 		{converter: ConverterOpenAIChatToGeminiContent, from: types.RelayFormatOpenAI, to: types.RelayFormatGemini, quality: RequestConverterQualityFair, advancedCustom: true},
-		{converter: ConverterOpenAIChatToOpenAIResponses, from: types.RelayFormatOpenAI, to: types.RelayFormatOpenAIResponses, quality: RequestConverterQualityGood, advancedCustom: true},
-		{converter: ConverterOpenAIResponsesToOpenAIChat, from: types.RelayFormatOpenAIResponses, to: types.RelayFormatOpenAI, quality: RequestConverterQualityGood, advancedCustom: true},
+		{converter: ConverterOpenAIChatToOpenAIResponses, from: types.RelayFormatOpenAI, to: types.RelayFormatOpenAIResponses, quality: RequestConverterQualityFair, advancedCustom: true},
+		{converter: ConverterOpenAIResponsesToOpenAIChat, from: types.RelayFormatOpenAIResponses, to: types.RelayFormatOpenAI, quality: RequestConverterQualityFair, advancedCustom: true},
 		{
 			converter: requestConverterClaudeToGemini,
 			from:      types.RelayFormatClaude,
@@ -118,7 +118,7 @@ func TestConvertRequestToTargetRecordsConversionChain(t *testing.T) {
 	assert.Equal(t, types.RelayFormatOpenAI, result.From)
 	assert.Equal(t, types.RelayFormat(types.RelayFormatOpenAIResponses), result.To)
 	assert.Equal(t, ConverterOpenAIChatToOpenAIResponses, result.Converter)
-	assert.Equal(t, RequestConverterQualityGood, result.Quality)
+	assert.Equal(t, RequestConverterQualityFair, result.Quality)
 	assert.Equal(t, []RequestStep{
 		{
 			Converter: ConverterOpenAIChatToOpenAIResponses,

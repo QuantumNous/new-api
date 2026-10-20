@@ -117,7 +117,7 @@ var builtinTextConverters = []TextConverterSpec{
 		ID:      ConverterOpenAIChatToOpenAIResponses,
 		From:    types.RelayFormatOpenAI,
 		To:      types.RelayFormatOpenAIResponses,
-		Quality: TextConverterQualityGood,
+		Quality: TextConverterQualityFair,
 		Req: TextRequestSide{
 			Convert: convertChatRequestToResponses,
 		},
@@ -133,7 +133,7 @@ var builtinTextConverters = []TextConverterSpec{
 		ID:      ConverterOpenAIResponsesToOpenAIChat,
 		From:    types.RelayFormatOpenAIResponses,
 		To:      types.RelayFormatOpenAI,
-		Quality: TextConverterQualityGood,
+		Quality: TextConverterQualityFair,
 		Req: TextRequestSide{
 			Convert: convertResponsesRequestToChat,
 		},

@@ -261,6 +261,11 @@ func ExtractOutputTextFromResponses(resp *dto.OpenAIResponsesResponse) string {
 		return sb.String()
 	}
 	for _, out := range resp.Output {
+		// Reasoning and tool outputs are not assistant-visible text; their
+		// content must never leak into chat content.
+		if out.Type == responsesOutputTypeReasoning || isResponsesToolOutputType(out.Type) {
+			continue
+		}
 		var outputText strings.Builder
 		for _, c := range out.Content {
 			if c.Text != "" {

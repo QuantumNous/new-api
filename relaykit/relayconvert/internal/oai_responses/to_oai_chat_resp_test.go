@@ -588,3 +588,30 @@ func mustStreamChunks(t *testing.T, state *ResponsesToChatStreamState, event *dt
 	require.NoError(t, err)
 	return chunks
 }
+
+
+// B10: stream failure errors surface the upstream message/code, not just the
+// event type.
+func TestResponsesStreamErrorCarriesUpstreamMessage(t *testing.T) {
+	state := NewResponsesToChatStreamState("gpt-test", false)
+
+	_, err := ResponsesStreamEventToChatChunks(&dto.ResponsesStreamResponse{
+		Type:    "response.failed",
+		Message: "boom",
+	}, state)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "boom")
+
+	_, err = ResponsesStreamEventToChatChunks(&dto.ResponsesStreamResponse{
+		Type: "response.failed",
+		Code: "server_error",
+	}, state)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "server_error response.failed")
+
+	_, err = ResponsesStreamEventToChatChunks(&dto.ResponsesStreamResponse{
+		Type: "response.failed",
+	}, state)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "response.failed")
+}

@@ -44,6 +44,9 @@ type ChatToResponsesStreamState struct {
 	text               strings.Builder
 	annotations        []any
 	reasoning          strings.Builder
+	// usageText mirrors every client-visible token stream (text, reasoning,
+	// tool arguments and names) so hosts can bill without upstream usage.
+	usageText          strings.Builder
 }
 
 type chatToResponsesStreamTool struct {
@@ -386,12 +389,13 @@ func (s *ChatToResponsesStreamState) UsageText() string {
 	if s == nil {
 		return ""
 	}
-	return s.text.String()
+	return s.usageText.String()
 }
 
 func (s *ChatToResponsesStreamState) appendTextDelta(delta string) []ChatToResponsesStreamEvent {
 	events := s.startText()
 	s.text.WriteString(delta)
+	s.usageText.WriteString(delta)
 	events = append(events, s.event(responsesEventOutputTextDelta, dto.ResponsesStreamResponse{
 		Type:         responsesEventOutputTextDelta,
 		OutputIndex:  intPtr(s.textOutputIndex),
@@ -447,7 +451,7 @@ func (s *ChatToResponsesStreamState) appendAnnotationDelta(raw []byte) ([]ChatTo
 }
 
 func (s *ChatToResponsesStreamState) appendReasoningDelta(delta string) []ChatToResponsesStreamEvent {
-	events := make([]ChatToResponsesStreamEvent, 0, 2)
+	events := make([]ChatToResponsesStreamEvent, 0, 3)
 	if !s.reasoningStarted {
 		s.reasoningStarted = true
 		s.reasoningIndex = s.nextIndex("reasoning", -1)
@@ -461,8 +465,21 @@ func (s *ChatToResponsesStreamState) appendReasoningDelta(delta string) []ChatTo
 				Summary: []dto.ResponsesReasoningSummaryPart{},
 			},
 		}))
+		// A single summary part wraps the whole reasoning stream; clients
+		// expect the part lifecycle around the summary text deltas.
+		events = append(events, s.event(responsesEventReasoningSummaryPartAdded, dto.ResponsesStreamResponse{
+			Type:         responsesEventReasoningSummaryPartAdded,
+			OutputIndex:  intPtr(s.reasoningIndex),
+			SummaryIndex: intPtr(0),
+			ItemID:       s.reasoningID(),
+			Part: &dto.ResponsesReasoningSummaryPart{
+				Type: "summary_text",
+				Text: "",
+			},
+		}))
 	}
 	s.reasoning.WriteString(delta)
+	s.usageText.WriteString(delta)
 	events = append(events, s.event(responsesEventReasoningSummaryDelta, dto.ResponsesStreamResponse{
 		Type:         responsesEventReasoningSummaryDelta,
 		OutputIndex:  intPtr(s.reasoningIndex),
@@ -508,7 +525,14 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 		}))
 	}
 	if tool.Done {
-		return nil, fmt.Errorf("tool-call stream index %d received data after completion", chatIndex)
+		// Late deltas after completion are merged silently: re-emitting
+		// events would corrupt the output sequence and dropping them would
+		// lose arguments.
+		if toolCall.Function.Arguments != "" {
+			tool.Arguments.WriteString(toolCall.Function.Arguments)
+			s.usageText.WriteString(toolCall.Function.Arguments)
+		}
+		return nil, nil
 	}
 	if incomingID != "" {
 		if tool.CallID != "" && tool.CallID != incomingID {
@@ -525,12 +549,16 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 	}
 	if toolCall.Function.Arguments != "" {
 		tool.Arguments.WriteString(toolCall.Function.Arguments)
+		s.usageText.WriteString(toolCall.Function.Arguments)
 		events = append(events, s.event(responsesEventFunctionArgsDelta, dto.ResponsesStreamResponse{
 			Type:        responsesEventFunctionArgsDelta,
 			OutputIndex: intPtr(tool.OutputIndex),
 			ItemID:      tool.ItemID,
 			Delta:       toolCall.Function.Arguments,
 		}))
+	}
+	if incomingName != "" {
+		s.usageText.WriteString(incomingName)
 	}
 	return events, nil
 }
@@ -573,6 +601,16 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 			reasoningDone.Part = nil
 		}
 		events = append(events, s.event(responsesEventReasoningSummaryDone, reasoningDone))
+		events = append(events, s.event(responsesEventReasoningSummaryPartDone, dto.ResponsesStreamResponse{
+			Type:         responsesEventReasoningSummaryPartDone,
+			OutputIndex:  intPtr(s.reasoningIndex),
+			SummaryIndex: intPtr(0),
+			ItemID:       s.reasoningID(),
+			Part: &dto.ResponsesReasoningSummaryPart{
+				Type: "summary_text",
+				Text: s.reasoning.String(),
+			},
+		}))
 		events = append(events, s.event(responsesEventOutputItemDone, dto.ResponsesStreamResponse{
 			Type:        responsesEventOutputItemDone,
 			OutputIndex: intPtr(s.reasoningIndex),
@@ -584,14 +622,14 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 			continue
 		}
 		tool.Done = true
+		// Responses clients rely on the final arguments payload and tool name
+		// being present on the done event regardless of sequence numbering.
 		argumentsDone := dto.ResponsesStreamResponse{
 			Type:        responsesEventFunctionArgsDone,
 			OutputIndex: intPtr(tool.OutputIndex),
 			ItemID:      tool.ItemID,
-		}
-		if s.EmitSequenceNumber {
-			argumentsDone.Arguments = kitutil.GetPointer(tool.Arguments.String())
-			argumentsDone.Name = tool.Name
+			Name:        tool.Name,
+			Arguments:   kitutil.GetPointer(tool.Arguments.String()),
 		}
 		events = append(events, s.event(responsesEventFunctionArgsDone, argumentsDone))
 		events = append(events, s.event(responsesEventOutputItemDone, dto.ResponsesStreamResponse{

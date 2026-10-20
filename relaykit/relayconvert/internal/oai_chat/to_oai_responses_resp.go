@@ -26,6 +26,8 @@ const (
 	responsesEventFunctionArgsDone          = "response.function_call_arguments.done"
 	responsesEventReasoningSummaryDelta     = "response.reasoning_summary_text.delta"
 	responsesEventReasoningSummaryDone      = "response.reasoning_summary_text.done"
+	responsesEventReasoningSummaryPartAdded = "response.reasoning_summary_part.added"
+	responsesEventReasoningSummaryPartDone  = "response.reasoning_summary_part.done"
 	responsesOutputTypeFunctionCall         = "function_call"
 	responsesOutputTypeMessage              = "message"
 	responsesOutputTypeReasoning            = "reasoning"

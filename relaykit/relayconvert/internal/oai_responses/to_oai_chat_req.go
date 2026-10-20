@@ -447,7 +447,26 @@ func responsesRequestTextToChatResponseFormat(raw json.RawMessage) (*dto.Respons
 
 	out := &dto.ResponseFormat{Type: formatType}
 	if formatType == "json_schema" {
-		schemaRaw, err := kitutil.Marshal(format)
+		// Chat Completions expects the json_schema payload itself: the
+		// Responses text.format object minus its redundant "type" key (the
+		// flat {name, strict, schema} shape; a legacy nested "json_schema"
+		// object is flattened too).
+		schema := make(map[string]any, len(format))
+		for key, value := range format {
+			if key == "type" {
+				continue
+			}
+			schema[key] = value
+		}
+		if nested, ok := schema["json_schema"].(map[string]any); ok {
+			delete(schema, "json_schema")
+			for key, value := range nested {
+				if _, exists := schema[key]; !exists {
+					schema[key] = value
+				}
+			}
+		}
+		schemaRaw, err := kitutil.Marshal(schema)
 		if err != nil {
 			return nil, err
 		}
