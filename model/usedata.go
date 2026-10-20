@@ -194,6 +194,21 @@ func GetQuotaDataGroupByUser(startTime int64, endTime int64) ([]*UserQuotaData, 
 			userIDs = append(userIDs, row.UserID)
 		}
 	}
+	identities, err := dashboardUserIdentities(userIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range quotaDatas {
+		if user, ok := identities[row.UserID]; ok {
+			row.Username = user.Username
+			row.DisplayName = user.DisplayName
+		}
+	}
+	return quotaDatas, nil
+}
+
+// dashboardUserIdentities resolves current labels without modifying usage history.
+func dashboardUserIdentities(userIDs []int) (map[int]User, error) {
 	identities := make(map[int]User, len(userIDs))
 	// Bound IN parameters for SQLite and large installations.
 	for start := 0; start < len(userIDs); start += 500 {
@@ -206,13 +221,7 @@ func GetQuotaDataGroupByUser(startTime int64, endTime int64) ([]*UserQuotaData, 
 			identities[user.Id] = user
 		}
 	}
-	for _, row := range quotaDatas {
-		if user, ok := identities[row.UserID]; ok {
-			row.Username = user.Username
-			row.DisplayName = user.DisplayName
-		}
-	}
-	return quotaDatas, nil
+	return identities, nil
 }
 
 func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaData []*QuotaData, err error) {

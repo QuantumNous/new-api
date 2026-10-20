@@ -71,26 +71,32 @@ func TestUserQuotaDisplayNamesDatabaseMatrix(t *testing.T) {
 			require.NoError(t, db.Create(&users).Error)
 			require.NoError(t, db.Delete(&User{}, 4).Error)
 			rows := []QuotaData{
-				{UserID: 1, Username: "old-login", CreatedAt: 3600, Quota: 50, Count: 1, TokenUsed: 5},
+				{UserID: 1, Username: "old-login", CreatedAt: 3600, Quota: 50, Count: 1, TokenUsed: 5, CacheReadTokens: 2, CacheCreationTokens: 1},
 				{UserID: 1, Username: "current-login", CreatedAt: 3600, Quota: 30, Count: 2, TokenUsed: 3},
 				{UserID: 2, Username: "other-login", CreatedAt: 3600, Quota: 20, Count: 1},
-				{UserID: 3, Username: "no-display-name", CreatedAt: 3600, Quota: 10},
+				{UserID: 3, Username: "no-display-name", CreatedAt: 3600, Quota: 0, TokenUsed: 1000, Count: 9},
 				{UserID: 4, Username: "deleted-login", CreatedAt: 3600, Quota: 9},
 				{UserID: 99, Username: "missing-login", CreatedAt: 3600, Quota: 8},
 				{Username: "legacy-a", CreatedAt: 3600, Quota: 7},
 				{Username: "legacy-b", CreatedAt: 3600, Quota: 6},
 				{UserID: 1, Username: "current-login", CreatedAt: 7200, Quota: 999},
 			}
+			for i := range rows {
+				rows[i].UseGroup = "default"
+			}
 			require.NoError(t, db.Create(&rows).Error)
 			got, err := GetQuotaDataGroupByUser(3600, 3600)
 			require.NoError(t, err)
 			require.Len(t, got, 8)
 			var renamedTotal, total, count, tokens int
+			var cacheRead, cacheCreation int64
 			legacy := map[string]int{}
 			for _, row := range got {
 				total += row.Quota
 				count += row.Count
 				tokens += row.TokenUsed
+				cacheRead += row.CacheReadTokens
+				cacheCreation += row.CacheCreationTokens
 				switch row.UserID {
 				case 1:
 					assert.Equal(t, "current-login", row.Username)
@@ -106,10 +112,44 @@ func TestUserQuotaDisplayNamesDatabaseMatrix(t *testing.T) {
 				}
 			}
 			assert.Equal(t, 80, renamedTotal)
-			assert.Equal(t, 140, total)
-			assert.Equal(t, 4, count)
-			assert.Equal(t, 8, tokens)
+			assert.Equal(t, 130, total)
+			assert.Equal(t, 13, count)
+			assert.Equal(t, 1008, tokens)
+			assert.Equal(t, int64(2), cacheRead)
+			assert.Equal(t, int64(1), cacheCreation)
 			assert.Equal(t, map[string]int{"legacy-a": 7, "legacy-b": 6}, legacy)
+			for _, role := range []int{common.RoleAdminUser, common.RoleRootUser} {
+				flow, err := GetFlowQuotaData(3600, 3600, "", 1, role)
+				require.NoError(t, err)
+				require.Len(t, flow, 8)
+				var flowQuota, flowTokens, flowCount int
+				for _, row := range flow {
+					flowQuota += row.Quota
+					flowTokens += row.TokenUsed
+					flowCount += row.Count
+					switch row.UserID {
+					case 1:
+						assert.Equal(t, "current-login", row.Username)
+						assert.Equal(t, "Same Name", row.DisplayName)
+					case 2:
+						assert.Equal(t, "Same Name", row.DisplayName)
+					default:
+						assert.Empty(t, row.DisplayName)
+					}
+				}
+				assert.Equal(t, total, flowQuota)
+				assert.Equal(t, tokens, flowTokens)
+				assert.Equal(t, count, flowCount)
+			}
+			self, err := GetFlowQuotaData(3600, 3600, "", 1, common.RoleCommonUser)
+			require.NoError(t, err)
+			require.Len(t, self, 1)
+			assert.Zero(t, self[0].UserID)
+			assert.Empty(t, self[0].Username)
+			assert.Empty(t, self[0].DisplayName)
+			assert.Equal(t, 80, self[0].Quota)
+			assert.Equal(t, 8, self[0].TokenUsed)
+
 			var unchanged QuotaData
 			require.NoError(t, db.First(&unchanged, rows[0].Id).Error)
 			assert.Equal(t, "old-login", unchanged.Username)
