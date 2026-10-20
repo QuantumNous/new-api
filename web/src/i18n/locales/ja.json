@@ -2830,7 +2830,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "高度なカスタムチャネルでは、プロトコル変換を行わない /v1/responses ルートにのみ適用されます。",
     "GitHub ID is empty!": "GitHub ID が空です！",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
@@ -6945,6 +6945,9 @@
     "User Agent": "ユーザーエージェント",
     "User Agreement": "ユーザー利用規約",
     "User Analytics": "ユーザー統計",
+    "Usage metric": "使用量の指標",
+    "User Usage Ranking": "ユーザー別使用量ランキング",
+    "User Usage Trend": "ユーザー別使用量の推移",
     "User Consumption Ranking": "ユーザー消費ランキング",
     "User Consumption Trend": "ユーザー消費トレンド",
     "User Count": "ユーザー数",
@@ -7337,8 +7340,5 @@
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V 4",
     "Zoom": "ズーム"
-  },
-  "Usage metric": "使用量の指標",
-  "User Usage Ranking": "ユーザー別使用量ランキング",
-  "User Usage Trend": "ユーザー別使用量の推移"
+  }
 }

@@ -19,10 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import i18next from 'i18next'
 import { useState } from 'react'
 import { afterEach, expect, test, vi } from 'vitest'
 
 import type { UserChartsFilters } from '@/features/dashboard/types'
+import zh from '@/i18n/locales/zh.json'
 import { api } from '@/lib/api'
 
 import { UserCharts } from '../user-charts'
@@ -37,9 +39,10 @@ const client = new QueryClient({
   defaultOptions: { queries: { retry: false } },
 })
 
-afterEach(() => {
+afterEach(async () => {
   cleanup()
   client.clear()
+  await i18next.changeLanguage('en')
   window.localStorage.clear()
 })
 
@@ -87,4 +90,14 @@ test('metric tabs support clicks and keyboard selection and survive section swit
     'aria-selected',
     'true'
   )
+})
+
+test('Chinese locale translates the metric selector and both chart headings', async () => {
+  vi.spyOn(api, 'get').mockImplementation(() => new Promise(() => {}))
+  i18next.addResourceBundle('zh', 'translation', zh.translation)
+  await i18next.changeLanguage('zh')
+  render(<Dashboard />)
+  expect(screen.getByRole('tablist', { name: '统计指标' })).toBeInTheDocument()
+  expect(screen.getByText('用户用量排名')).toBeInTheDocument()
+  expect(screen.getByText('用户用量趋势')).toBeInTheDocument()
 })

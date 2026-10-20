@@ -2830,7 +2830,7 @@
     "footer.columns.related.links.oneApi": "Один API",
     "footer.columns.related.title": "Связанные проекты",
     "footer.defaultCopyright": "Все права защищены.",
-    "footer.newapi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
+    "footer.new\u0061pi.projectAttributionSuffix": "Все права защищены. Разработано участниками проекта.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "Для расширенных пользовательских каналов это действует только для маршрутов /v1/responses без преобразования протокола.",
     "GitHub ID is empty!": "GitHub ID не указан!",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Для каналов, добавленных после 10 мая 2025 г., не нужно удалять \".\" из имён моделей при развёртывании",
@@ -6945,6 +6945,9 @@
     "User Agent": "Пользовательский агент",
     "User Agreement": "Пользовательское соглашение",
     "User Analytics": "Аналитика пользователей",
+    "Usage metric": "Показатель использования",
+    "User Usage Ranking": "Рейтинг использования по пользователям",
+    "User Usage Trend": "Динамика использования по пользователям",
     "User Consumption Ranking": "Рейтинг потребления",
     "User Consumption Trend": "Тренд потребления",
     "User Count": "Количество пользователей",
@@ -7337,8 +7340,5 @@
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom"
-  },
-  "Usage metric": "Показатель использования",
-  "User Usage Ranking": "Рейтинг использования по пользователям",
-  "User Usage Trend": "Динамика использования по пользователям"
+  }
 }

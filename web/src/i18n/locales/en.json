@@ -2830,7 +2830,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.",
     "GitHub ID is empty!": "GitHub ID is empty!",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
@@ -6945,6 +6945,9 @@
     "User Agent": "User Agent",
     "User Agreement": "User Agreement",
     "User Analytics": "User Analytics",
+    "Usage metric": "Usage metric",
+    "User Usage Ranking": "User Usage Ranking",
+    "User Usage Trend": "User Usage Trend",
     "User Consumption Ranking": "User Consumption Ranking",
     "User Consumption Trend": "User Consumption Trend",
     "User Count": "User Count",
@@ -7337,8 +7340,5 @@
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
     "Zoom": "Zoom"
-  },
-  "Usage metric": "Usage metric",
-  "User Usage Ranking": "User Usage Ranking",
-  "User Usage Trend": "User Usage Trend"
+  }
 }
