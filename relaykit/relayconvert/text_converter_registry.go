@@ -60,6 +60,7 @@ var builtinTextConverters = []TextConverterSpec{
 			ConvertStream:      convertClaudeMessagesStreamResponseToOAIChat,
 			NewStreamState:     newClaudeMessagesToOAIChatStreamState,
 			ConvertStreamChunk: convertClaudeMessagesStreamResponseChunkToOAIChat,
+			FinalizeStream:     finalizeClaudeMessagesStreamResponseToOAIChat,
 			Aliases:            []string{ResponseConverterClaudeMessagesToOAIChat},
 		},
 	},

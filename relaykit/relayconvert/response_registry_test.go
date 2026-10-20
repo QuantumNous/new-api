@@ -699,3 +699,33 @@ func textRegistryResponsesResponse() *dto.OpenAIResponsesResponse {
 func respPtr[T any](value T) *T {
 	return &value
 }
+
+// A4: the Claude -> Chat registry entry synthesizes the terminal chunk when
+// the upstream stream is truncated before any stop event.
+func TestFinalizeClaudeMessagesStreamToOAIChatSynthesizesTerminalChunk(t *testing.T) {
+	state, err := NewResponseStreamState(types.RelayFormatClaude, types.RelayFormatOpenAI, ResponseStreamOptions{})
+	require.NoError(t, err)
+
+	_, err = ConvertStreamResponseChunk(nil, nil, state, &dto.ClaudeResponse{
+		Type:    "message_start",
+		Message: &dto.ClaudeMediaMessage{Id: "msg_1", Model: "claude-test", Type: "message"},
+	})
+	require.NoError(t, err)
+	_, err = ConvertStreamResponseChunk(nil, nil, state, &dto.ClaudeResponse{
+		Type:         "content_block_start",
+		Index:        respPtr(0),
+		ContentBlock: &dto.ClaudeMediaMessage{Type: "tool_use", Id: "toolu_1", Name: "lookup"},
+	})
+	require.NoError(t, err)
+
+	results, err := FinalizeStreamResponse(nil, nil, state)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	chunk, ok := results[0].Value.(*dto.ChatCompletionsStreamResponse)
+	require.True(t, ok)
+	require.NotNil(t, chunk)
+	require.Len(t, chunk.Choices, 1)
+	require.NotNil(t, chunk.Choices[0].FinishReason)
+	assert.Equal(t, "tool_calls", *chunk.Choices[0].FinishReason)
+	assert.Equal(t, "msg_1", chunk.Id)
+}

@@ -1,6 +1,7 @@
 package claudemessages
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -8,8 +9,10 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/reasonmap"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -85,8 +88,9 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 					},
 				})
 			case "signature_delta":
-				signatureContent := "\n"
-				choice.Delta.ReasoningContent = &signatureContent
+				// Intentionally ignored: a signature is protocol state, not
+				// reasoning content, and fabricating one would be rejected by
+				// real Anthropic upstreams.
 			case "thinking_delta":
 				choice.Delta.ReasoningContent = claudeResponse.Delta.Thinking
 			case "citations_delta":
@@ -127,16 +131,49 @@ type ClaudeToChatStreamState struct {
 	toolIndexByContentBlock map[int]int
 	blockTypeByContentBlock map[int]string
 	nextToolIndex           int
+
+	// Stream identity captured from message_start so every emitted chunk and
+	// the synthesized terminal chunk carry consistent id/model/created.
+	id      string
+	model   string
+	created int64
+
+	// usage is the merged OpenAI-style usage from message_start and
+	// message_delta; it is attached to chunks that carry a finish reason.
+	usage *dto.Usage
+
+	// terminalSent records that a stop event (message_delta stop_reason,
+	// message_stop, or error) was already translated; FinalizeClaudeToChatStream
+	// only synthesizes a terminal chunk when it is still false.
+	terminalSent bool
+	sawToolCall  bool
+	sawError     bool
 }
 
 func NewClaudeToChatStreamState() *ClaudeToChatStreamState {
 	return &ClaudeToChatStreamState{
 		toolIndexByContentBlock: make(map[int]int),
 		blockTypeByContentBlock: make(map[int]string),
+		created:                 kitutil.GetTimestamp(),
 	}
 }
 
-func (s *ClaudeToChatStreamState) ConvertChunk(claudeResponse *dto.ClaudeResponse) (*dto.ChatCompletionsStreamResponse, error) {
+// StreamUsage exposes the merged usage so stream wrappers can settle billing
+// even when no final usage chunk was emitted.
+func (s *ClaudeToChatStreamState) StreamUsage() *dto.Usage {
+	if s == nil {
+		return nil
+	}
+	return s.usage
+}
+
+func (s *ClaudeToChatStreamState) SetStreamUsage(usage *dto.Usage) {
+	if s != nil && usage != nil {
+		s.usage = usage
+	}
+}
+
+func (s *ClaudeToChatStreamState) ConvertChunk(ctx context.Context, claudeResponse *dto.ClaudeResponse) (*dto.ChatCompletionsStreamResponse, error) {
 	if s == nil {
 		return nil, fmt.Errorf("Claude-to-Chat stream state is required")
 	}
@@ -152,6 +189,30 @@ func (s *ClaudeToChatStreamState) ConvertChunk(claudeResponse *dto.ClaudeRespons
 
 	converted := *claudeResponse
 	switch claudeResponse.Type {
+	case "message_start":
+		if claudeResponse.Message != nil {
+			if claudeResponse.Message.Id != "" {
+				s.id = claudeResponse.Message.Id
+			}
+			if claudeResponse.Message.Model != "" {
+				s.model = claudeResponse.Message.Model
+			}
+			if usage := usageFromClaudeAPIUsage(claudeResponse.Message.Usage); usage != nil {
+				s.usage = dto.MergeUsageNonZero(s.usage, usage)
+			}
+		}
+	case "message_delta":
+		if usage := usageFromClaudeAPIUsage(claudeResponse.Usage); usage != nil {
+			s.usage = dto.MergeUsageNonZero(s.usage, usage)
+		}
+		if claudeResponse.Delta != nil && claudeResponse.Delta.StopReason != nil {
+			s.terminalSent = true
+		}
+	case "message_stop":
+		s.terminalSent = true
+	case "error":
+		s.sawError = true
+		s.terminalSent = true
 	case "content_block_start":
 		if claudeResponse.ContentBlock == nil {
 			break
@@ -161,7 +222,10 @@ func (s *ClaudeToChatStreamState) ConvertChunk(claudeResponse *dto.ClaudeRespons
 			break
 		}
 		if claudeResponse.Index == nil {
-			return nil, fmt.Errorf("Claude content block stream start is missing index")
+			// A block we cannot track would emit a tool delta in the wrong
+			// index space; drop it instead of failing the whole stream.
+			convdiag.Add(ctx, claudeStreamDiagnostic("stream_index_missing", "Claude content block stream start is missing index"))
+			return nil, nil
 		}
 		contentBlockIndex := *claudeResponse.Index
 		s.blockTypeByContentBlock[contentBlockIndex] = blockType
@@ -178,15 +242,24 @@ func (s *ClaudeToChatStreamState) ConvertChunk(claudeResponse *dto.ClaudeRespons
 			s.toolIndexByContentBlock[contentBlockIndex] = toolIndex
 		}
 		converted.Index = kitutil.GetPointer(toolIndex)
+		s.sawToolCall = true
 	case "content_block_delta":
+		if claudeResponse.Delta != nil && claudeResponse.Delta.Type == "signature_delta" {
+			// A signature is protocol state, not user-visible reasoning
+			// content. Never synthesize one: real Anthropic upstreams reject
+			// fabricated signatures harder than missing ones.
+			return nil, nil
+		}
 		if claudeResponse.Delta == nil || claudeResponse.Delta.Type != "input_json_delta" {
 			break
 		}
 		if claudeResponse.Index == nil {
-			return nil, fmt.Errorf("Claude tool-use stream delta is missing content block index")
+			convdiag.Add(ctx, claudeStreamDiagnostic("stream_index_missing", "Claude tool-use stream delta is missing content block index"))
+			return nil, nil
 		}
 		if claudeResponse.Delta.PartialJson == nil {
-			return nil, fmt.Errorf("Claude tool-use stream delta is missing partial JSON")
+			convdiag.Add(ctx, claudeStreamDiagnostic("stream_index_missing", "Claude tool-use stream delta is missing partial JSON"))
+			return nil, nil
 		}
 		contentBlockIndex := *claudeResponse.Index
 		toolIndex, exists := s.toolIndexByContentBlock[contentBlockIndex]
@@ -194,7 +267,8 @@ func (s *ClaudeToChatStreamState) ConvertChunk(claudeResponse *dto.ClaudeRespons
 			if isClaudeHostedToolStreamBlock(s.blockTypeByContentBlock[contentBlockIndex]) {
 				return nil, nil
 			}
-			return nil, fmt.Errorf("Claude tool-use stream delta references unknown content block index %d", contentBlockIndex)
+			convdiag.Add(ctx, claudeStreamDiagnostic("stream_unknown_block_index", fmt.Sprintf("Claude tool-use stream delta references unknown content block index %d", contentBlockIndex)))
+			return nil, nil
 		}
 		converted.Index = kitutil.GetPointer(toolIndex)
 	case "content_block_stop":
@@ -204,6 +278,52 @@ func (s *ClaudeToChatStreamState) ConvertChunk(claudeResponse *dto.ClaudeRespons
 	}
 
 	return StreamResponseClaude2OpenAI(&converted), nil
+}
+
+// FinalizeClaudeToChatStream synthesizes the terminal chunk when the upstream
+// stream ended without a stop event. It is a no-op once a terminal chunk was
+// emitted, mirroring GeminiToChatStreamState.Finalize.
+func FinalizeClaudeToChatStream(state *ClaudeToChatStreamState) *dto.ChatCompletionsStreamResponse {
+	if state == nil || state.terminalSent {
+		return nil
+	}
+	state.terminalSent = true
+	finishReason := "stop"
+	if state.sawToolCall {
+		finishReason = "tool_calls"
+	}
+	return &dto.ChatCompletionsStreamResponse{
+		Id:      state.id,
+		Object:  "chat.completion.chunk",
+		Created: state.created,
+		Model:   state.model,
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{
+				Delta:        dto.ChatCompletionsStreamResponseChoiceDelta{},
+				FinishReason: &finishReason,
+			},
+		},
+		Usage: state.usage,
+	}
+}
+
+func claudeStreamDiagnostic(code string, message string) types.ConversionDiagnostic {
+	return types.ConversionDiagnostic{
+		Code:     code,
+		Message:  message,
+		Severity: types.ConversionDiagnosticWarning,
+		From:     types.RelayFormatClaude,
+		To:       types.RelayFormatOpenAI,
+	}
+}
+
+// usageFromClaudeAPIUsage is a nil-safe alias so stream state capture never
+// synthesizes an all-zero usage entry.
+func usageFromClaudeAPIUsage(usage *dto.ClaudeUsage) *dto.Usage {
+	if usage == nil {
+		return nil
+	}
+	return UsageFromClaudeAPIUsage(usage)
 }
 
 func isClaudeHostedToolStreamBlock(blockType string) bool {

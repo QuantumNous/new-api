@@ -7,8 +7,11 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
+	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 const (
@@ -99,7 +102,10 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 		openAIRequest.Stop = claudeRequest.StopSequences
 	}
 
-	tools, _ := kitutil.Any2Type[[]dto.Tool](claudeRequest.Tools)
+	tools, err := kitutil.Any2Type[[]dto.Tool](claudeRequest.Tools)
+	if err != nil {
+		return nil, fmt.Errorf("invalid Claude tools: %w", err)
+	}
 	openAITools := make([]dto.ToolCallRequest, 0)
 	for _, claudeTool := range tools {
 		openAITool := dto.ToolCallRequest{
@@ -113,6 +119,15 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 		openAITools = append(openAITools, openAITool)
 	}
 	openAIRequest.Tools = openAITools
+
+	if claudeRequest.ToolChoice != nil {
+		toolChoice, parallelToolCalls, err := sharedclaude.ClaudeToolChoiceToChat(claudeRequest.ToolChoice)
+		if err != nil {
+			return nil, err
+		}
+		openAIRequest.ToolChoice = toolChoice
+		openAIRequest.ParallelTooCalls = parallelToolCalls
+	}
 
 	openAIMessages := make([]dto.Message, 0)
 	if claudeRequest.System != nil {
@@ -160,7 +175,7 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 	}
 	toolNames := make(map[string]string)
 	var unnamedToolResults []unnamedToolResult
-	for _, claudeMessage := range claudeRequest.Messages {
+	for messageIndex, claudeMessage := range claudeRequest.Messages {
 		openAIMessage := dto.Message{
 			Role: claudeMessage.Role,
 		}
@@ -174,11 +189,23 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 			var toolCalls []dto.ToolCallRequest
 			mediaMessages := make([]dto.MediaContent, 0, len(content))
 
-			for _, mediaMsg := range content {
+			for blockIndex, mediaMsg := range content {
 				if _, exists := toolNames[mediaMsg.Id]; !exists {
 					toolNames[mediaMsg.Id] = mediaMsg.Name
 				}
 				switch mediaMsg.Type {
+				case "thinking", "redacted_thinking":
+					// Chat Completions has no encrypted-thinking history slot.
+					// Never fabricate a signature for it upstream, just record
+					// that the block was dropped.
+					convdiag.Add(ctx, types.ConversionDiagnostic{
+						Code:     "thinking_history_dropped",
+						Path:     fmt.Sprintf("messages[%d].content[%d]", messageIndex, blockIndex),
+						Message:  "Claude thinking history block cannot be represented in Chat Completions and was dropped",
+						Severity: types.ConversionDiagnosticWarning,
+						From:     types.RelayFormatClaude,
+						To:       types.RelayFormatOpenAI,
+					})
 				case "text", "input_text":
 					message := dto.MediaContent{
 						Type:         "text",
@@ -227,7 +254,10 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 			if len(toolCalls) > 0 {
 				openAIMessage.SetToolCalls(toolCalls)
 			}
-			if len(mediaMessages) > 0 && len(toolCalls) == 0 {
+			// OpenAI allows assistant messages to carry content alongside
+			// tool_calls; dropping the text here loses interleaved reasoning
+			// the model produced before calling tools.
+			if len(mediaMessages) > 0 {
 				openAIMessage.SetMediaContent(mediaMessages)
 			}
 		}

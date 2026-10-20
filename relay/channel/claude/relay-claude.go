@@ -129,7 +129,7 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeBadResponseBody)
 		}
-		response, err := state.ConvertChunk(&claudeResponse)
+		response, err := state.ConvertChunk(c.Request.Context(), &claudeResponse)
 		if err != nil {
 			return types.NewError(err, types.ErrorCodeBadResponseBody)
 		}

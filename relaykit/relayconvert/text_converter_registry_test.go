@@ -22,7 +22,7 @@ func TestLookupBuiltinTextConverters(t *testing.T) {
 		streamDirect              bool
 		skipStreamDirectAssertion bool
 	}{
-		{id: ConverterClaudeMessagesToOpenAIChat, from: types.RelayFormatClaude, to: types.RelayFormatOpenAI, quality: TextConverterQualityFair, reqDirect: true, respDirect: true, respAlias: ResponseConverterClaudeMessagesToOAIChat},
+		{id: ConverterClaudeMessagesToOpenAIChat, from: types.RelayFormatClaude, to: types.RelayFormatOpenAI, quality: TextConverterQualityFair, reqDirect: true, respDirect: true, respAlias: ResponseConverterClaudeMessagesToOAIChat, streamDirect: true},
 		{id: ConverterOpenAIChatToClaudeMessages, from: types.RelayFormatOpenAI, to: types.RelayFormatClaude, quality: TextConverterQualityFair, reqDirect: true, respDirect: true, respAlias: ResponseConverterOAIChatToClaudeMessages},
 		{id: ConverterGeminiContentToOpenAIChat, from: types.RelayFormatGemini, to: types.RelayFormatOpenAI, quality: TextConverterQualityFair, reqDirect: true, respDirect: true, respAlias: ResponseConverterGeminiChatToOAIChat, streamDirect: true},
 		{id: ConverterOpenAIChatToGeminiContent, from: types.RelayFormatOpenAI, to: types.RelayFormatGemini, quality: TextConverterQualityFair, reqDirect: true, respDirect: true, respAlias: ResponseConverterOAIChatToGeminiChat, skipStreamDirectAssertion: true},

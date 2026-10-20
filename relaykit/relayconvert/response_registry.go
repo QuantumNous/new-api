@@ -1150,7 +1150,7 @@ func newClaudeMessagesToOAIChatStreamState(_ ResponseStreamOptions) any {
 	return claudemessages.NewClaudeToChatStreamState()
 }
 
-func convertClaudeMessagesStreamResponseChunkToOAIChat(_ context.Context, _ convmeta.Meta, response any, state any) ([]any, *dto.Usage, error) {
+func convertClaudeMessagesStreamResponseChunkToOAIChat(ctx context.Context, _ convmeta.Meta, response any, state any) ([]any, *dto.Usage, error) {
 	claudeResponse, err := asClaudeResponse(response)
 	if err != nil {
 		return nil, nil, err
@@ -1159,15 +1159,26 @@ func convertClaudeMessagesStreamResponseChunkToOAIChat(_ context.Context, _ conv
 	if !ok || streamState == nil {
 		return nil, nil, errors.New("Claude-to-Chat stream state is required")
 	}
-	openAIResponse, err := streamState.ConvertChunk(claudeResponse)
+	openAIResponse, err := streamState.ConvertChunk(ctx, claudeResponse)
 	if err != nil {
 		return nil, nil, err
 	}
 	usage := usageFromClaudeResponse(claudeResponse)
-	if openAIResponse != nil && usage != nil {
+	if openAIResponse != nil && usage != nil && openAIResponse.Usage == nil {
+		// The stream state owns terminal-chunk usage semantics; only backfill
+		// chunks the state did not already populate.
 		openAIResponse.Usage = usage
 	}
 	return streamValuesFromAny(openAIResponse), usage, nil
+}
+
+func finalizeClaudeMessagesStreamResponseToOAIChat(_ context.Context, _ convmeta.Meta, state any) ([]any, *dto.Usage, error) {
+	streamState, ok := state.(*claudemessages.ClaudeToChatStreamState)
+	if !ok || streamState == nil {
+		return nil, nil, errors.New("Claude-to-Chat stream state is required")
+	}
+	terminal := claudemessages.FinalizeClaudeToChatStream(streamState)
+	return streamValuesFromAny(terminal), streamState.StreamUsage(), nil
 }
 
 func convertGeminiChatResponseToOAIChat(_ context.Context, info convmeta.Meta, response any) (any, *dto.Usage, error) {

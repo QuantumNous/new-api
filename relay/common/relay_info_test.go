@@ -302,7 +302,7 @@ func TestInitChannelMetaResetsPerAttemptStreamStateAndPreservesRequestState(t *t
 	require.NoError(t, err)
 
 	claudeState := relayconvert.NewClaudeToChatStreamState()
-	_, err = claudeState.ConvertChunk(&dto.ClaudeResponse{
+	_, err = claudeState.ConvertChunk(context.Background(), &dto.ClaudeResponse{
 		Type:  "content_block_start",
 		Index: ptr(7),
 		ContentBlock: &dto.ClaudeMediaMessage{
@@ -312,7 +312,7 @@ func TestInitChannelMetaResetsPerAttemptStreamStateAndPreservesRequestState(t *t
 		},
 	})
 	require.NoError(t, err)
-	_, err = claudeState.ConvertChunk(&dto.ClaudeResponse{
+	_, err = claudeState.ConvertChunk(context.Background(), &dto.ClaudeResponse{
 		Type:  "content_block_delta",
 		Index: ptr(7),
 		Delta: &dto.ClaudeMediaMessage{
@@ -357,7 +357,7 @@ func TestInitChannelMetaResetsPerAttemptStreamStateAndPreservesRequestState(t *t
 	require.NotNil(t, info.LastError)
 
 	freshClaude := relayconvert.NewClaudeToChatStreamState()
-	_, err = freshClaude.ConvertChunk(&dto.ClaudeResponse{
+	freshChunk, err := freshClaude.ConvertChunk(context.Background(), &dto.ClaudeResponse{
 		Type:  "content_block_delta",
 		Index: ptr(7),
 		Delta: &dto.ClaudeMediaMessage{
@@ -365,8 +365,10 @@ func TestInitChannelMetaResetsPerAttemptStreamStateAndPreservesRequestState(t *t
 			PartialJson: ptr(`{"q":"x"}`),
 		},
 	})
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unknown content block index")
+	// Unknown block indexes are defensively skipped instead of failing the
+	// whole stream.
+	require.NoError(t, err)
+	assert.Nil(t, freshChunk)
 
 	info.IncrSendResponseCount()
 	responses := relayconvert.StreamResponseOpenAI2Claude(&dto.ChatCompletionsStreamResponse{
