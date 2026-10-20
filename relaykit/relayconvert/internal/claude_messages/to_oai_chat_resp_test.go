@@ -2,6 +2,7 @@ package claudemessages
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -193,4 +194,94 @@ func TestFinalizeCarriesMergedUsage(t *testing.T) {
 	require.NotNil(t, usage)
 	assert.Equal(t, 4, usage.PromptTokens)
 	assert.Equal(t, 9, usage.CompletionTokens)
+}
+
+// A8/A17/A18: non-stream conversion accumulates every thinking block, keeps
+// the generated id when upstream omits one, and defaults finish_reason.
+func TestResponseClaude2OpenAINonStream(t *testing.T) {
+	claudeResponse := &dto.ClaudeResponse{
+		Type:  "message",
+		Model: "claude-test",
+		Content: []dto.ClaudeMediaMessage{
+			{Type: "thinking", Thinking: kitutilPtr("first part")},
+			{Type: "tool_use", Id: "toolu_1", Name: "lookup", Input: map[string]any{"q": 1}},
+			{Type: "thinking", Thinking: kitutilPtr(" second part")},
+			{Type: "text", Text: kitutilPtr("Answer")},
+		},
+	}
+
+	t.Run("accumulates all thinking blocks", func(t *testing.T) {
+		result := ResponseClaude2OpenAI(claudeResponse)
+		require.Len(t, result.Choices, 1)
+		require.NotNil(t, result.Choices[0].ReasoningContent)
+		assert.Equal(t, "first part second part", *result.Choices[0].ReasoningContent)
+		assert.Equal(t, "Answer", result.Choices[0].StringContent())
+		require.Len(t, result.Choices[0].ParseToolCalls(), 1)
+	})
+
+	t.Run("keeps generated id when upstream id empty", func(t *testing.T) {
+		result := ResponseClaude2OpenAI(claudeResponse)
+		assert.True(t, strings.HasPrefix(result.Id, "chatcmpl-"))
+	})
+
+	t.Run("empty finish reason becomes stop", func(t *testing.T) {
+		result := ResponseClaude2OpenAI(claudeResponse)
+		assert.Equal(t, "stop", result.Choices[0].FinishReason)
+	})
+}
+
+// A15/A16: a message_delta without a stop reason is skipped by the stateful
+// path instead of emitting an empty choice; stateless keeps the finish reason.
+func TestMessageDeltaWithoutStopReason(t *testing.T) {
+	delta := &dto.ClaudeResponse{
+		Type:  "message_delta",
+		Usage: &dto.ClaudeUsage{OutputTokens: 3},
+	}
+
+	t.Run("stateful skips chunk but keeps usage", func(t *testing.T) {
+		state := NewClaudeToChatStreamState()
+		chunk, err := state.ConvertChunk(context.Background(), delta)
+		require.NoError(t, err)
+		assert.Nil(t, chunk)
+		require.NotNil(t, state.StreamUsage())
+		assert.Equal(t, 3, state.StreamUsage().CompletionTokens)
+	})
+
+	t.Run("stateless emits no finish reason", func(t *testing.T) {
+		chunk := StreamResponseClaude2OpenAI(delta)
+		require.NotNil(t, chunk)
+		require.Len(t, chunk.Choices, 1)
+		assert.Nil(t, chunk.Choices[0].FinishReason)
+	})
+}
+
+// A9/A10: the terminal chunk carries merged usage and consistent identity.
+func TestTerminalChunkCarriesUsageAndIdentity(t *testing.T) {
+	state := NewClaudeToChatStreamState()
+	_, err := state.ConvertChunk(context.Background(), &dto.ClaudeResponse{
+		Type: "message_start",
+		Message: &dto.ClaudeMediaMessage{
+			Id:    "msg_9",
+			Model: "claude-test",
+			Type:  "message",
+			Usage: &dto.ClaudeUsage{InputTokens: 6, OutputTokens: 0},
+		},
+	})
+	require.NoError(t, err)
+
+	chunk, err := state.ConvertChunk(context.Background(), &dto.ClaudeResponse{
+		Type:  "message_delta",
+		Delta: &dto.ClaudeMediaMessage{StopReason: kitutilPtr("end_turn")},
+		Usage: &dto.ClaudeUsage{OutputTokens: 5},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, chunk)
+	assert.Equal(t, "msg_9", chunk.Id)
+	assert.Equal(t, "claude-test", chunk.Model)
+	require.NotNil(t, chunk.Usage)
+	assert.Equal(t, 6, chunk.Usage.PromptTokens)
+	assert.Equal(t, 5, chunk.Usage.CompletionTokens)
+	assert.NotZero(t, chunk.Usage.TotalTokens)
+	require.NotNil(t, chunk.Choices[0].FinishReason)
+	assert.Equal(t, "stop", *chunk.Choices[0].FinishReason)
 }

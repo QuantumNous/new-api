@@ -34,6 +34,11 @@ func StopReasonClaudeToOpenAI(reason string) string {
 	return reasonmap.ClaudeStopReasonToOpenAIFinishReason(reason)
 }
 
+// StreamResponseClaude2OpenAI converts a single Claude stream event into a
+// Chat Completions chunk. It is stateless: chunk identity (id/model/created)
+// and merged usage are only filled in by the stateful ClaudeToChatStreamState
+// path, which is what production converters use. The sparse Claude content
+// block index passes through unchanged here.
 func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCompletionsStreamResponse {
 	var response dto.ChatCompletionsStreamResponse
 	response.Object = "chat.completion.chunk"
@@ -105,10 +110,13 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 		}
 	} else if claudeResponse.Type == "message_delta" {
 		if claudeResponse.Delta != nil && claudeResponse.Delta.StopReason != nil {
+			// Claude never sends a literal "null" stop_reason in
+			// message_delta; an unmappable reason falls back to stop.
 			finishReason := StopReasonClaudeToOpenAI(*claudeResponse.Delta.StopReason)
-			if finishReason != "null" {
-				choice.FinishReason = &finishReason
+			if finishReason == "" {
+				finishReason = "stop"
 			}
+			choice.FinishReason = &finishReason
 		}
 	} else if claudeResponse.Type == "message_stop" {
 		return nil
@@ -205,9 +213,12 @@ func (s *ClaudeToChatStreamState) ConvertChunk(ctx context.Context, claudeRespon
 		if usage := usageFromClaudeAPIUsage(claudeResponse.Usage); usage != nil {
 			s.usage = dto.MergeUsageNonZero(s.usage, usage)
 		}
-		if claudeResponse.Delta != nil && claudeResponse.Delta.StopReason != nil {
-			s.terminalSent = true
+		if claudeResponse.Delta == nil || claudeResponse.Delta.StopReason == nil {
+			// A message_delta without a stop reason carries no chunk-visible
+			// state; emitting an empty choice would only confuse clients.
+			return nil, nil
 		}
+		s.terminalSent = true
 	case "message_stop":
 		s.terminalSent = true
 	case "error":
@@ -277,7 +288,32 @@ func (s *ClaudeToChatStreamState) ConvertChunk(ctx context.Context, claudeRespon
 		}
 	}
 
-	return StreamResponseClaude2OpenAI(&converted), nil
+	chunk := StreamResponseClaude2OpenAI(&converted)
+	if chunk != nil {
+		// Backfill stream identity on every chunk (mirrors the Gemini
+		// converter) so clients see a consistent id/model/created even when
+		// the upstream omits them on individual events.
+		if s.id != "" {
+			chunk.Id = s.id
+		}
+		if s.model != "" {
+			chunk.Model = s.model
+		}
+		if s.created != 0 {
+			chunk.Created = s.created
+		}
+		// Terminal chunks carry the merged usage; the registry only backfills
+		// chunks the state did not populate.
+		if chunk.Choices != nil {
+			for _, choice := range chunk.Choices {
+				if choice.FinishReason != nil && s.usage != nil {
+					chunk.Usage = s.usage
+					break
+				}
+			}
+		}
+	}
+	return chunk, nil
 }
 
 // FinalizeClaudeToChatStream synthesizes the terminal chunk when the upstream
@@ -344,17 +380,14 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 	}
 	var responseText strings.Builder
 	responseTextOffset := 0
-	var responseThinking string
-	if len(claudeResponse.Content) > 0 {
-		if claudeResponse.Content[0].Thinking != nil {
-			responseThinking = *claudeResponse.Content[0].Thinking
-		}
-	}
+	var thinkingContent strings.Builder
 	tools := make([]dto.ToolCallResponse, 0)
-	thinkingContent := ""
 	annotations := make([]any, 0)
 
-	fullTextResponse.Id = claudeResponse.Id
+	// Keep the generated chatcmpl-uuid when the upstream did not provide an id.
+	if claudeResponse.Id != "" {
+		fullTextResponse.Id = claudeResponse.Id
+	}
 	for _, message := range claudeResponse.Content {
 		switch message.Type {
 		case "tool_use":
@@ -368,8 +401,10 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 				},
 			})
 		case "thinking":
+			// Accumulate every thinking block; multiple blocks are common
+			// when a response interleaves reasoning and tool use.
 			if message.Thinking != nil {
-				thinkingContent = *message.Thinking
+				thinkingContent.WriteString(*message.Thinking)
 			}
 		case "text":
 			text := message.GetText()
@@ -389,18 +424,19 @@ func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextRe
 		},
 		FinishReason: StopReasonClaudeToOpenAI(claudeResponse.StopReason),
 	}
+	if choice.FinishReason == "" {
+		choice.FinishReason = "stop"
+	}
 	choice.SetStringContent(responseText.String())
 	if encodedAnnotations, err := marshalChatAnnotations(annotations); err == nil && len(encodedAnnotations) > 0 {
 		choice.Message.Annotations = encodedAnnotations
 	}
-	if len(responseThinking) > 0 {
-		choice.ReasoningContent = &responseThinking
-	}
 	if len(tools) > 0 {
 		choice.Message.SetToolCalls(tools)
 	}
-	if thinkingContent != "" {
-		choice.Message.ReasoningContent = &thinkingContent
+	if thinkingContent.Len() > 0 {
+		accumulated := thinkingContent.String()
+		choice.ReasoningContent = &accumulated
 	}
 	fullTextResponse.Model = claudeResponse.Model
 	choices = append(choices, choice)

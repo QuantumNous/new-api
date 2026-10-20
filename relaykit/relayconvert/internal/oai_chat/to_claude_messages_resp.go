@@ -447,7 +447,9 @@ func FinalizeStreamResponseOpenAI2Claude(info convmeta.Meta) []*dto.ClaudeRespon
 }
 
 func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info convmeta.Meta) *dto.ClaudeResponse {
-	var stopReason string
+	// Claude requires a terminal stop_reason; end_turn is the neutral
+	// fallback when the response carries no choices at all.
+	stopReason := "end_turn"
 	contents := make([]dto.ClaudeMediaMessage, 0)
 	claudeResponse := &dto.ClaudeResponse{
 		Id:    openAIResponse.Id,
