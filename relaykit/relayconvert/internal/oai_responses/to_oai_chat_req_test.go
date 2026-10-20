@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -416,4 +417,53 @@ func TestResponsesRequestToChatCompletionsRequestSkipsNonMessageItems(t *testing
 	assert.Equal(t, "tool", got.Messages[3].Role)
 	assert.Equal(t, "call_2", got.Messages[3].ToolCallId)
 	assert.Equal(t, "custom-result", got.Messages[3].StringContent())
+}
+
+// B15: non-string instructions decode as a content-part array; anything else
+// is skipped with a diagnostic and never embedded as raw JSON.
+func TestResponsesRequestToChatCompletionsRequestInstructionsContentParts(t *testing.T) {
+	t.Run("content-part array concatenates text", func(t *testing.T) {
+		got, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
+			Model: "gpt-test",
+			Instructions: mustRawMessage(t, []map[string]any{
+				{"type": "input_text", "text": "be "},
+				{"type": "input_text", "text": "brief"},
+			}),
+			Input: mustRawMessage(t, "hello"),
+		})
+		require.NoError(t, err)
+		require.Len(t, got.Messages, 2)
+		assert.Equal(t, "system", got.Messages[0].Role)
+		assert.Equal(t, "be brief", got.Messages[0].StringContent())
+		assert.Equal(t, "user", got.Messages[1].Role)
+		assert.Equal(t, "hello", got.Messages[1].StringContent())
+	})
+
+	t.Run("non-decodable instructions skipped with diagnostic", func(t *testing.T) {
+		ctx, collector := convdiag.WithCollector(context.Background())
+		got, err := ResponsesRequestToChatCompletionsRequest(ctx, &dto.OpenAIResponsesRequest{
+			Model:        "gpt-test",
+			Instructions: mustRawMessage(t, 42),
+			Input:        mustRawMessage(t, "hello"),
+		})
+		require.NoError(t, err)
+		// Only the user message remains; no raw "42" system message.
+		require.Len(t, got.Messages, 1)
+		assert.Equal(t, "user", got.Messages[0].Role)
+
+		diagnostics := collector.Diagnostics()
+		require.Len(t, diagnostics, 1)
+		assert.Equal(t, "dropped_content_part", diagnostics[0].Code)
+		assert.Equal(t, "instructions", diagnostics[0].Path)
+	})
+
+	t.Run("string input path unaffected", func(t *testing.T) {
+		got, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
+			Model: "gpt-test",
+			Input: mustRawMessage(t, "plain"),
+		})
+		require.NoError(t, err)
+		require.Len(t, got.Messages, 1)
+		assert.Equal(t, "plain", got.Messages[0].StringContent())
+	})
 }

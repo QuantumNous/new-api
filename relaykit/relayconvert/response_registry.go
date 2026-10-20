@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	claudemessages "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/claude_messages"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	geminichat "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/gemini_chat"
 	oaichat "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/oai_chat"
 	oairesponses "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/oai_responses"
@@ -1047,20 +1048,62 @@ func finalizeOAIResponsesStreamResponseToClaudeMessages(_ context.Context, info 
 	return streamValuesFromAny(responses), streamState.Usage, err
 }
 
-func convertOAIChatResponseToClaudeMessages(_ context.Context, info convmeta.Meta, response any) (any, *dto.Usage, error) {
+func convertOAIChatResponseToClaudeMessages(ctx context.Context, info convmeta.Meta, response any) (any, *dto.Usage, error) {
 	chatResponse, err := asOAIChatResponse(response)
 	if err != nil {
 		return nil, nil, err
 	}
-	return ResponseOpenAI2Claude(chatResponse, info), UsageFromChatUsage(&chatResponse.Usage), nil
+	claudeResponse := ResponseOpenAI2Claude(chatResponse, info)
+	addClaudeThinkingSignatureDiagnostics(ctx, []*dto.ClaudeResponse{claudeResponse})
+	return claudeResponse, UsageFromChatUsage(&chatResponse.Usage), nil
 }
 
-func convertOAIChatStreamResponseToClaudeMessages(_ context.Context, info convmeta.Meta, response any) (any, *dto.Usage, error) {
+func convertOAIChatStreamResponseToClaudeMessages(ctx context.Context, info convmeta.Meta, response any) (any, *dto.Usage, error) {
 	chatResponse, err := asOAIChatStreamResponse(response)
 	if err != nil {
 		return nil, nil, err
 	}
-	return StreamResponseOpenAI2Claude(chatResponse, info), canonicalUsageFromResponse(chatResponse), nil
+	claudeResponses := StreamResponseOpenAI2Claude(chatResponse, info)
+	addClaudeThinkingSignatureDiagnostics(ctx, claudeResponses)
+	return claudeResponses, canonicalUsageFromResponse(chatResponse), nil
+}
+
+// addClaudeThinkingSignatureDiagnostics reports thinking blocks that were
+// generated without an Anthropic signature. No signature is fabricated: a
+// made-up value is rejected by real Anthropic upstreams harder than a missing
+// one. Clients that replay the thinking back to Anthropic will need to drop
+// those blocks.
+func addClaudeThinkingSignatureDiagnostics(ctx context.Context, responses []*dto.ClaudeResponse) {
+	for _, claudeResponse := range responses {
+		if claudeResponse == nil {
+			continue
+		}
+		switch claudeResponse.Type {
+		case "message":
+			for _, block := range claudeResponse.Content {
+				if block.Type != "thinking" {
+					continue
+				}
+				convdiag.Add(ctx, types.ConversionDiagnostic{
+					Code:     "claude_thinking_signature_missing",
+					Message:  "Claude thinking block was generated without a signature and cannot be replayed to Anthropic upstreams",
+					Severity: types.ConversionDiagnosticWarning,
+					From:     types.RelayFormatOpenAI,
+					To:       types.RelayFormatClaude,
+				})
+			}
+		case "content_block_start":
+			if claudeResponse.ContentBlock != nil && claudeResponse.ContentBlock.Type == "thinking" {
+				convdiag.Add(ctx, types.ConversionDiagnostic{
+					Code:     "claude_thinking_signature_missing",
+					Message:  "Claude thinking block was generated without a signature and cannot be replayed to Anthropic upstreams",
+					Severity: types.ConversionDiagnosticWarning,
+					From:     types.RelayFormatOpenAI,
+					To:       types.RelayFormatClaude,
+				})
+			}
+		}
+	}
 }
 
 func finalizeOAIChatStreamResponseToClaudeMessages(_ context.Context, info convmeta.Meta, _ any) ([]any, *dto.Usage, error) {

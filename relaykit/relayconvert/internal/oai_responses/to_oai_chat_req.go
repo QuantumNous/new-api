@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
+	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
 const (
@@ -38,7 +39,7 @@ func ResponsesRequestToChatCompletionsRequest(ctx context.Context, req *dto.Open
 		return nil, err
 	}
 
-	messages, err := responsesRequestMessagesToChat(req)
+	messages, err := responsesRequestMessagesToChat(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -139,10 +140,10 @@ func ValidateRequestChatUnsupportedFields(req *dto.OpenAIResponsesRequest) error
 	return validateResponsesRequestChatUnsupportedFields(req)
 }
 
-func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Message, error) {
+func responsesRequestMessagesToChat(ctx context.Context, req *dto.OpenAIResponsesRequest) ([]dto.Message, error) {
 	messages := make([]dto.Message, 0)
 	if rawJSONPresent(req.Instructions) {
-		instructions, err := responsesJSONString(req.Instructions)
+		instructions, err := responsesInstructionsToChatText(ctx, req.Instructions)
 		if err != nil {
 			return nil, fmt.Errorf("invalid instructions: %w", err)
 		}
@@ -179,6 +180,53 @@ func responsesRequestMessagesToChat(req *dto.OpenAIResponsesRequest) ([]dto.Mess
 	default:
 		return nil, fmt.Errorf("unsupported responses input type %q", kitutil.GetJsonType(req.Input))
 	}
+}
+
+// responsesInstructionsToChatText decodes instructions as a string, falling
+// back to a content-part array whose text parts are concatenated. Anything
+// else is skipped with a diagnostic instead of embedding raw JSON into the
+// system message. The input string branch is unaffected.
+func responsesInstructionsToChatText(ctx context.Context, raw json.RawMessage) (string, error) {
+	if kitutil.GetJsonType(raw) == "string" {
+		var value string
+		if err := kitutil.Unmarshal(raw, &value); err != nil {
+			return "", err
+		}
+		return value, nil
+	}
+	var parts []map[string]any
+	if err := kitutil.Unmarshal(raw, &parts); err != nil {
+		convdiag.Add(ctx, types.ConversionDiagnostic{
+			Code:     "dropped_content_part",
+			Path:     "instructions",
+			Message:  "Responses instructions are neither a string nor a text content-part array and were dropped",
+			Severity: types.ConversionDiagnosticWarning,
+			From:     types.RelayFormatOpenAIResponses,
+			To:       types.RelayFormatOpenAI,
+		})
+		return "", nil
+	}
+	var sb strings.Builder
+	onlyText := true
+	for _, part := range parts {
+		partType := strings.TrimSpace(kitutil.Interface2String(part["type"]))
+		if partType != "" && partType != "input_text" && partType != "text" {
+			onlyText = false
+			continue
+		}
+		sb.WriteString(kitutil.Interface2String(part["text"]))
+	}
+	if !onlyText {
+		convdiag.Add(ctx, types.ConversionDiagnostic{
+			Code:     "dropped_content_part",
+			Path:     "instructions",
+			Message:  "Responses instructions contain non-text content parts which were dropped",
+			Severity: types.ConversionDiagnosticWarning,
+			From:     types.RelayFormatOpenAIResponses,
+			To:       types.RelayFormatOpenAI,
+		})
+	}
+	return sb.String(), nil
 }
 
 func responsesInputItemToChatMessages(item map[string]any, messages []dto.Message) ([]dto.Message, error) {

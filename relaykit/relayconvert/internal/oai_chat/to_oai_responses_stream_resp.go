@@ -46,7 +46,7 @@ type ChatToResponsesStreamState struct {
 	reasoning          strings.Builder
 	// usageText mirrors every client-visible token stream (text, reasoning,
 	// tool arguments and names) so hosts can bill without upstream usage.
-	usageText          strings.Builder
+	usageText strings.Builder
 }
 
 type chatToResponsesStreamTool struct {

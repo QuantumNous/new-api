@@ -20,6 +20,7 @@ type ResponsesToChatStreamState struct {
 
 	sentStart                  bool
 	finalized                  bool
+	lastReasoningItemKey       string
 	hasSentText                bool
 	sentAnnotationCount        int
 	sawToolCall                bool
@@ -92,7 +93,7 @@ func ResponsesStreamEventToChatChunks(event *dto.ResponsesStreamResponse, state 
 		state.applyResponseMetadata(event.Response)
 		return state.ensureStart(), nil
 	case responsesEventReasoningSummaryDelta, responsesEventReasoningTextDelta:
-		return state.reasoningDelta(event.Delta), nil
+		return state.reasoningDelta(event.Delta, responsesReasoningEventKey(event)), nil
 	case responsesEventReasoningSummaryDone, responsesEventReasoningTextDone:
 		if state.hasSentReasoning {
 			state.needsReasoningSummaryBreak = true
@@ -221,7 +222,11 @@ func (s *ResponsesToChatStreamState) terminalOutputChunks(response *dto.OpenAIRe
 			chunks = append(chunks, annotationChunks...)
 			annotationOffset += responsesOutputAnnotationCount(out)
 		case out.Type == responsesOutputTypeReasoning && !hadSentReasoning:
-			chunks = append(chunks, s.reasoningDelta(reasoningOutputText(out))...)
+			itemKey := ""
+			if out.ID != "" {
+				itemKey = "item:" + strings.TrimSpace(out.ID)
+			}
+			chunks = append(chunks, s.reasoningDelta(reasoningOutputText(out), itemKey)...)
 		case isResponsesToolOutputType(out.Type):
 			chunks = append(chunks, s.toolItem(&dto.ResponsesStreamResponse{Item: out})...)
 		}
@@ -288,10 +293,31 @@ func responsesOutputAnnotationCount(output *dto.ResponsesOutput) int {
 	return count
 }
 
-func (s *ResponsesToChatStreamState) reasoningDelta(delta string) []dto.ChatCompletionsStreamResponse {
+// responsesReasoningEventKey identifies which reasoning item a delta belongs
+// to so adjacent items get a visible separator.
+func responsesReasoningEventKey(event *dto.ResponsesStreamResponse) string {
+	if event == nil {
+		return ""
+	}
+	if event.OutputIndex != nil {
+		return fmt.Sprintf("output:%d", *event.OutputIndex)
+	}
+	if itemID := strings.TrimSpace(responseStreamEventItemID(event)); itemID != "" {
+		return "item:" + itemID
+	}
+	return ""
+}
+
+func (s *ResponsesToChatStreamState) reasoningDelta(delta string, itemKey string) []dto.ChatCompletionsStreamResponse {
 	if delta == "" {
 		return nil
 	}
+	if itemKey != "" && s.lastReasoningItemKey != "" && itemKey != s.lastReasoningItemKey && s.hasSentReasoning {
+		// Adjacent reasoning items without an intervening done event still
+		// need a visible separation in the merged reasoning_content stream.
+		s.needsReasoningSummaryBreak = true
+	}
+	s.lastReasoningItemKey = itemKey
 	if s.needsReasoningSummaryBreak {
 		if strings.HasPrefix(delta, "\n\n") {
 			s.needsReasoningSummaryBreak = false
@@ -557,27 +583,45 @@ func (s *ResponsesToChatStreamState) finalize(response *dto.OpenAIResponsesRespo
 }
 
 func (s *ResponsesToChatStreamState) flushAllPendingTools() []dto.ChatCompletionsStreamResponse {
-	keys := make([]string, 0, len(s.toolByKey)+len(s.pendingArgsByOutputIndex)+len(s.pendingArgsByItemID))
+	// Order by the dense chat tool index so flushed tools keep arrival order;
+	// fallback keys (no tool yet) trail the known ones in stable key order.
+	type pendingToolKey struct {
+		key   string
+		index int
+	}
+	entries := make([]pendingToolKey, 0, len(s.toolByKey)+len(s.pendingArgsByOutputIndex)+len(s.pendingArgsByItemID))
 	seen := make(map[string]bool)
-	for key := range s.toolByKey {
-		keys = append(keys, key)
+	for key, tool := range s.toolByKey {
+		entries = append(entries, pendingToolKey{key: key, index: tool.Index})
 		seen[key] = true
 	}
+	fallbackKeys := make([]string, 0)
 	for outputIndex := range s.pendingArgsByOutputIndex {
 		key := fmt.Sprintf("output:%d", outputIndex)
 		if !seen[key] {
-			keys = append(keys, key)
+			fallbackKeys = append(fallbackKeys, key)
 			seen[key] = true
 		}
 	}
 	for itemID := range s.pendingArgsByItemID {
 		key := "item:" + itemID
 		if !seen[key] {
-			keys = append(keys, key)
+			fallbackKeys = append(fallbackKeys, key)
 			seen[key] = true
 		}
 	}
-	sort.Strings(keys)
+	sort.Strings(fallbackKeys)
+	fallbackBase := len(s.toolByKey)
+	for i, key := range fallbackKeys {
+		entries = append(entries, pendingToolKey{key: key, index: fallbackBase + i})
+	}
+	sort.SliceStable(entries, func(i, j int) bool {
+		return entries[i].index < entries[j].index
+	})
+	keys := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		keys = append(keys, entry.key)
+	}
 
 	var chunks []dto.ChatCompletionsStreamResponse
 	for _, key := range keys {
@@ -763,11 +807,35 @@ func (a *ResponsesBufferedAccumulator) ProcessEvent(event *dto.ResponsesStreamRe
 	}
 }
 
+// SupplementResponseOutput merges accumulated items into a response that
+// already carries output from the terminal event. Items the upstream already
+// delivered always win; accumulated items are appended only when their item
+// ID is present and not already covered, preserving order. Responses with no
+// output at all are filled wholesale.
 func (a *ResponsesBufferedAccumulator) SupplementResponseOutput(resp *dto.OpenAIResponsesResponse) {
-	if a == nil || resp == nil || len(resp.Output) > 0 {
+	if a == nil || resp == nil {
 		return
 	}
-	resp.Output = a.BuildOutput()
+	if len(resp.Output) == 0 {
+		resp.Output = a.BuildOutput()
+		return
+	}
+	present := make(map[string]bool, len(resp.Output))
+	for _, out := range resp.Output {
+		if id := strings.TrimSpace(out.ID); id != "" {
+			present[id] = true
+		}
+	}
+	for _, out := range a.BuildOutput() {
+		id := strings.TrimSpace(out.ID)
+		// Items without an ID cannot be deduplicated safely and are skipped:
+		// appending them would duplicate content the upstream already sent.
+		if id == "" || present[id] {
+			continue
+		}
+		present[id] = true
+		resp.Output = append(resp.Output, out)
+	}
 }
 
 func (a *ResponsesBufferedAccumulator) BuildOutput() []dto.ResponsesOutput {

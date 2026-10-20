@@ -457,7 +457,10 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info convmeta
 		Role:  "assistant",
 		Model: openAIResponse.Model,
 	}
-	for _, choice := range openAIResponse.Choices {
+	// Only the first choice converts: Claude messages have no candidate
+	// list, and concatenating choices would interleave unrelated content.
+	if len(openAIResponse.Choices) > 0 {
+		choice := openAIResponse.Choices[0]
 		stopReason = stopReasonOpenAI2Claude(choice.FinishReason)
 		reasoningContent := choice.Message.GetReasoningContent()
 		textContent := choice.Message.StringContent()

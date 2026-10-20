@@ -1,10 +1,13 @@
 package relayconvert
 
 import (
+	"context"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -728,4 +731,29 @@ func TestFinalizeClaudeMessagesStreamToOAIChatSynthesizesTerminalChunk(t *testin
 	require.NotNil(t, chunk.Choices[0].FinishReason)
 	assert.Equal(t, "tool_calls", *chunk.Choices[0].FinishReason)
 	assert.Equal(t, "msg_1", chunk.Id)
+}
+
+// B17 part 2: thinking blocks generated without a signature surface the
+// claude_thinking_signature_missing diagnostic at the registry entry.
+func TestConvertOAIChatToClaudeThinkingSignatureDiagnostic(t *testing.T) {
+	ctx, collector := convdiag.WithCollector(context.Background())
+	chat := &dto.OpenAITextResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.OpenAITextResponseChoice{
+			{Index: 0, Message: dto.Message{Role: "assistant", Content: "answer", ReasoningContent: kitutil.GetPointer("hmm")}, FinishReason: "stop"},
+		},
+	}
+	result, err := ConvertResponse(ctx, nil, types.RelayFormatClaude, chat)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	found := false
+	for _, diagnostic := range collector.Diagnostics() {
+		if diagnostic.Code == "claude_thinking_signature_missing" {
+			found = true
+			assert.Equal(t, types.ConversionDiagnosticWarning, diagnostic.Severity)
+		}
+	}
+	assert.True(t, found, "expected claude_thinking_signature_missing diagnostic")
 }

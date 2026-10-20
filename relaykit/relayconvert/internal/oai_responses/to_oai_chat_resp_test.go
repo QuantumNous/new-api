@@ -589,7 +589,6 @@ func mustStreamChunks(t *testing.T, state *ResponsesToChatStreamState, event *dt
 	return chunks
 }
 
-
 // B10: stream failure errors surface the upstream message/code, not just the
 // event type.
 func TestResponsesStreamErrorCarriesUpstreamMessage(t *testing.T) {
@@ -614,4 +613,118 @@ func TestResponsesStreamErrorCarriesUpstreamMessage(t *testing.T) {
 	}, state)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "response.failed")
+}
+
+// B16: adjacent reasoning items without a done event still get a separator.
+func TestResponsesStreamAdjacentReasoningItemsGetSeparator(t *testing.T) {
+	state := NewResponsesToChatStreamState("gpt-test", false)
+	outputIndexA := 0
+	outputIndexB := 1
+
+	_, err := ResponsesStreamEventToChatChunks(&dto.ResponsesStreamResponse{
+		Type:        responsesEventReasoningSummaryDelta,
+		OutputIndex: &outputIndexA,
+		Delta:       "first item",
+	}, state)
+	require.NoError(t, err)
+
+	chunks, err := ResponsesStreamEventToChatChunks(&dto.ResponsesStreamResponse{
+		Type:        responsesEventReasoningSummaryDelta,
+		OutputIndex: &outputIndexB,
+		Delta:       "second item",
+	}, state)
+	require.NoError(t, err)
+	require.Len(t, chunks, 1)
+	reasoning := chunks[0].Choices[0].Delta.GetReasoningContent()
+	assert.True(t, strings.HasPrefix(reasoning, "\n\n"), "item switch must inject a blank-line separator, got %q", reasoning)
+	assert.Contains(t, reasoning, "second item")
+}
+
+// B14: flushed tools keep arrival (index) order, not lexicographic key order.
+func TestResponsesStreamFlushedToolsKeepArrivalOrder(t *testing.T) {
+	state := NewResponsesToChatStreamState("gpt-test", false)
+
+	// First tool registered under a lexicographically LARGER key.
+	itemZ := "msg_zzz"
+	itemA := "msg_aaa"
+	var chunks []dto.ChatCompletionsStreamResponse
+	firstChunks, err := ResponsesStreamEventToChatChunks(&dto.ResponsesStreamResponse{
+		Type:   responsesEventOutputItemAdded,
+		ItemID: itemZ,
+		Item:   &dto.ResponsesOutput{Type: "function_call", ID: itemZ, Name: "first", CallId: "call_z", Status: "in_progress"},
+	}, state)
+	require.NoError(t, err)
+	chunks = append(chunks, firstChunks...)
+	secondChunks, err := ResponsesStreamEventToChatChunks(&dto.ResponsesStreamResponse{
+		Type:   responsesEventOutputItemAdded,
+		ItemID: itemA,
+		Item:   &dto.ResponsesOutput{Type: "function_call", ID: itemA, Name: "second", CallId: "call_a", Status: "in_progress"},
+	}, state)
+	require.NoError(t, err)
+	chunks = append(chunks, secondChunks...)
+
+	allChunks, err := ResponsesStreamEventToChatChunks(&dto.ResponsesStreamResponse{
+		Type: responsesEventCompleted,
+		Response: &dto.OpenAIResponsesResponse{
+			ID:     "resp_1",
+			Status: []byte(`"completed"`),
+		},
+	}, state)
+	require.NoError(t, err)
+	chunks = append(chunks, allChunks...)
+	chunks = append(chunks, FinalizeResponsesToChatStream(state)...)
+
+	// Tools stay in arrival (index) order across item-added emission and any
+	// final flush; lexicographic key order would swap them.
+	toolOrder := make([]string, 0)
+	for _, chunk := range chunks {
+		if len(chunk.Choices) == 0 {
+			continue
+		}
+		for _, toolCall := range chunk.Choices[0].Delta.ToolCalls {
+			toolOrder = append(toolOrder, toolCall.Function.Name)
+		}
+	}
+	require.Len(t, toolOrder, 2)
+	assert.Equal(t, []string{"first", "second"}, toolOrder)
+}
+
+// B18: SupplementResponseOutput merges by item ID with upstream items first.
+func TestSupplementResponseOutputMergesByItemID(t *testing.T) {
+	accumulator := NewResponsesBufferedAccumulator()
+	outputIndex := 3
+	accumulator.ProcessEvent(&dto.ResponsesStreamResponse{
+		Type:        responsesEventReasoningSummaryDelta,
+		OutputIndex: &outputIndex,
+		ItemID:      "rs_1",
+		Delta:       "accumulated reasoning",
+	})
+	accumulator.ProcessEvent(&dto.ResponsesStreamResponse{
+		Type:  responsesEventOutputTextDelta,
+		Delta: "unidentified text",
+	})
+
+	resp := &dto.OpenAIResponsesResponse{
+		Output: []dto.ResponsesOutput{
+			{Type: "message", ID: "msg_1", Role: "assistant", Content: []dto.ResponsesOutputContent{{Type: "output_text", Text: "upstream text"}}},
+		},
+	}
+	accumulator.SupplementResponseOutput(resp)
+
+	require.Len(t, resp.Output, 2)
+	assert.Equal(t, "msg_1", resp.Output[0].ID, "upstream items keep priority and order")
+	assert.Equal(t, "upstream text", resp.Output[0].Content[0].Text)
+	assert.Equal(t, "rs_1", resp.Output[1].ID)
+	// The unidentifiable accumulated item is not duplicated.
+	for _, out := range resp.Output {
+		if out.Type == "message" {
+			assert.Equal(t, "upstream text", out.Content[0].Text)
+		}
+	}
+
+	t.Run("empty output still fills wholesale", func(t *testing.T) {
+		empty := &dto.OpenAIResponsesResponse{}
+		accumulator.SupplementResponseOutput(empty)
+		assert.NotEmpty(t, empty.Output)
+	})
 }
