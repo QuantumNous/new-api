@@ -3719,6 +3719,7 @@
     "Model assignments": "Привязка моделей",
     "model billing support": "поддержка биллинга моделей",
     "Model Call Analytics": "Аналитика вызовов моделей",
+    "Cache usage is recorded only after the upgrade; historical data is not backfilled.": "Использование кэша учитывается только после обновления; исторические данные не заполняются.",
     "Model context usage": "Использование контекста модели",
     "Model deleted": "Модель удалена",
     "Model deleted successfully": "Модель успешно удалена",

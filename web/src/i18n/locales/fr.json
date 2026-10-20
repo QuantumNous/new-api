@@ -3719,6 +3719,7 @@
     "Model assignments": "Attribution des modèles",
     "model billing support": "prise en charge de la facturation des modèles",
     "Model Call Analytics": "Analyse des appels de modèles",
+    "Cache usage is recorded only after the upgrade; historical data is not backfilled.": "L’utilisation du cache est enregistrée uniquement après la mise à niveau ; les données historiques ne sont pas complétées.",
     "Model context usage": "Utilisation du contexte du modèle",
     "Model deleted": "Modèle supprimé",
     "Model deleted successfully": "Modèle supprimé avec succès",
