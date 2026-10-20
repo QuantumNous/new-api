@@ -2,6 +2,7 @@ package claudemessages
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -34,6 +35,10 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 	}
 	if claudeRequest.MaxTokens != nil {
 		openAIRequest.MaxTokens = kitutil.GetPointer(*claudeRequest.MaxTokens)
+	} else if claudeRequest.MaxTokensToSample != nil {
+		// Legacy Anthropic alias for max_tokens; honor it when the modern
+		// field is absent (mirrors the Responses-side converter).
+		openAIRequest.MaxTokens = kitutil.GetPointer(*claudeRequest.MaxTokensToSample)
 	}
 	if claudeRequest.TopP != nil {
 		openAIRequest.TopP = kitutil.GetPointer(*claudeRequest.TopP)
@@ -169,6 +174,9 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 		}
 	}
 
+	// Tool results whose name is not inline-resolvable keep Name nil until the
+	// second pass, which can also resolve forward references to tool_use
+	// blocks appearing later in the conversation.
 	type unnamedToolResult struct {
 		index int
 		id    string
@@ -176,101 +184,167 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 	toolNames := make(map[string]string)
 	var unnamedToolResults []unnamedToolResult
 	for messageIndex, claudeMessage := range claudeRequest.Messages {
-		openAIMessage := dto.Message{
-			Role: claudeMessage.Role,
-		}
 		if claudeMessage.IsStringContent() {
-			openAIMessage.SetStringContent(claudeMessage.GetStringContent())
-		} else {
-			content, err := claudeMessage.ParseContent()
-			if err != nil {
-				return nil, err
+			openAIMessage := dto.Message{
+				Role: claudeMessage.Role,
 			}
-			var toolCalls []dto.ToolCallRequest
-			mediaMessages := make([]dto.MediaContent, 0, len(content))
+			openAIMessage.SetStringContent(claudeMessage.GetStringContent())
+			openAIMessages = append(openAIMessages, openAIMessage)
+			continue
+		}
+		content, err := claudeMessage.ParseContent()
+		if err != nil {
+			return nil, err
+		}
 
-			for blockIndex, mediaMsg := range content {
-				if _, exists := toolNames[mediaMsg.Id]; !exists {
-					toolNames[mediaMsg.Id] = mediaMsg.Name
+		// Flush model: text/image blocks accumulate into the pending message
+		// so a tool_result in the middle of a Claude message flushes the
+		// pending content first and preserves the original block order.
+		role := claudeMessage.Role
+		var pendingContent []dto.MediaContent
+		var pendingToolCalls []dto.ToolCallRequest
+		flushPending := func() {
+			if len(pendingContent) == 0 && len(pendingToolCalls) == 0 {
+				return
+			}
+			pending := dto.Message{Role: role}
+			pending.SetMediaContent(pendingContent)
+			if len(pendingToolCalls) > 0 {
+				pending.SetToolCalls(pendingToolCalls)
+			}
+			openAIMessages = append(openAIMessages, pending)
+			pendingContent = nil
+			pendingToolCalls = nil
+		}
+
+		for blockIndex, mediaMsg := range content {
+			switch mediaMsg.Type {
+			case "thinking", "redacted_thinking":
+				// Chat Completions has no encrypted-thinking history slot.
+				// Never fabricate a signature for it upstream, just record
+				// that the block was dropped.
+				convdiag.Add(ctx, types.ConversionDiagnostic{
+					Code:     "thinking_history_dropped",
+					Path:     fmt.Sprintf("messages[%d].content[%d]", messageIndex, blockIndex),
+					Message:  "Claude thinking history block cannot be represented in Chat Completions and was dropped",
+					Severity: types.ConversionDiagnosticWarning,
+					From:     types.RelayFormatClaude,
+					To:       types.RelayFormatOpenAI,
+				})
+			case "text", "input_text":
+				message := dto.MediaContent{
+					Type: "text",
+					Text: mediaMsg.GetText(),
 				}
-				switch mediaMsg.Type {
-				case "thinking", "redacted_thinking":
-					// Chat Completions has no encrypted-thinking history slot.
-					// Never fabricate a signature for it upstream, just record
-					// that the block was dropped.
+				if isOpenRouter {
+					message.CacheControl = mediaMsg.CacheControl
+				}
+				pendingContent = append(pendingContent, message)
+			case "image":
+				// claudeSourceURL handles nil sources, remote URLs, and
+				// base64/data: payloads uniformly.
+				sourceURL := claudeSourceURL(mediaMsg.Source)
+				if sourceURL == "" {
 					convdiag.Add(ctx, types.ConversionDiagnostic{
-						Code:     "thinking_history_dropped",
+						Code:     "image_source_unsupported",
 						Path:     fmt.Sprintf("messages[%d].content[%d]", messageIndex, blockIndex),
-						Message:  "Claude thinking history block cannot be represented in Chat Completions and was dropped",
+						Message:  "Claude image source cannot be represented as a Chat image_url and was dropped",
 						Severity: types.ConversionDiagnosticWarning,
 						From:     types.RelayFormatClaude,
 						To:       types.RelayFormatOpenAI,
 					})
-				case "text", "input_text":
-					message := dto.MediaContent{
-						Type:         "text",
-						Text:         mediaMsg.GetText(),
-						CacheControl: mediaMsg.CacheControl,
-					}
-					mediaMessages = append(mediaMessages, message)
-				case "image":
-					imageData := fmt.Sprintf("data:%s;base64,%s", mediaMsg.Source.MediaType, mediaMsg.Source.Data)
-					mediaMessage := dto.MediaContent{
-						Type:     "image_url",
-						ImageUrl: &dto.MessageImageUrl{Url: imageData},
-					}
-					mediaMessages = append(mediaMessages, mediaMessage)
-				case "tool_use":
-					toolCall := dto.ToolCallRequest{
-						ID:   mediaMsg.Id,
-						Type: "function",
-						Function: dto.FunctionRequest{
-							Name:      mediaMsg.Name,
-							Arguments: requestToJSONString(mediaMsg.Input),
-						},
-					}
-					toolCalls = append(toolCalls, toolCall)
-				case "tool_result":
-					toolName := mediaMsg.Name
-					if toolName == "" {
-						unnamedToolResults = append(unnamedToolResults, unnamedToolResult{index: len(openAIMessages), id: mediaMsg.ToolUseId})
-					}
-					oaiToolMessage := dto.Message{
-						Role:       "tool",
-						Name:       &toolName,
-						ToolCallId: mediaMsg.ToolUseId,
-					}
-					if mediaMsg.IsStringContent() {
-						oaiToolMessage.SetStringContent(mediaMsg.GetStringContent())
-					} else {
-						mediaContents := mediaMsg.ParseMediaContent()
-						encodedJSON, _ := kitutil.Marshal(mediaContents)
-						oaiToolMessage.SetStringContent(string(encodedJSON))
-					}
-					openAIMessages = append(openAIMessages, oaiToolMessage)
+					continue
 				}
-			}
-
-			if len(toolCalls) > 0 {
-				openAIMessage.SetToolCalls(toolCalls)
-			}
-			// OpenAI allows assistant messages to carry content alongside
-			// tool_calls; dropping the text here loses interleaved reasoning
-			// the model produced before calling tools.
-			if len(mediaMessages) > 0 {
-				openAIMessage.SetMediaContent(mediaMessages)
+				pendingContent = append(pendingContent, dto.MediaContent{
+					Type:     "image_url",
+					ImageUrl: &dto.MessageImageUrl{Url: sourceURL},
+				})
+			case "tool_use":
+				if _, exists := toolNames[mediaMsg.Id]; !exists {
+					// First registration wins; duplicate ids keep the
+					// earliest tool name.
+					toolNames[mediaMsg.Id] = mediaMsg.Name
+				}
+				toolCall := dto.ToolCallRequest{
+					ID:   mediaMsg.Id,
+					Type: "function",
+					Function: dto.FunctionRequest{
+						Name:      mediaMsg.Name,
+						Arguments: requestToJSONString(mediaMsg.Input),
+					},
+				}
+				pendingToolCalls = append(pendingToolCalls, toolCall)
+			case "tool_result":
+				flushPending()
+				toolName := mediaMsg.Name
+				oaiToolMessage := dto.Message{
+					Role:       "tool",
+					ToolCallId: mediaMsg.ToolUseId,
+				}
+				if toolName != "" {
+					name := toolName
+					oaiToolMessage.Name = &name
+				} else {
+					unnamedToolResults = append(unnamedToolResults, unnamedToolResult{index: len(openAIMessages), id: mediaMsg.ToolUseId})
+				}
+				if mediaMsg.IsStringContent() {
+					oaiToolMessage.SetStringContent(mediaMsg.GetStringContent())
+				} else {
+					mediaContents := mediaMsg.ParseMediaContent()
+					encodedJSON, _ := kitutil.Marshal(mediaContents)
+					oaiToolMessage.SetStringContent(string(encodedJSON))
+				}
+				openAIMessages = append(openAIMessages, oaiToolMessage)
 			}
 		}
-		if len(openAIMessage.ParseContent()) > 0 || len(openAIMessage.ToolCalls) > 0 {
-			openAIMessages = append(openAIMessages, openAIMessage)
-		}
+		flushPending()
 	}
 	for _, result := range unnamedToolResults {
-		*openAIMessages[result.index].Name = toolNames[result.id]
+		if result.index < 0 || result.index >= len(openAIMessages) {
+			continue
+		}
+		// Only backfill a name we actually resolved; an unknown tool_use_id
+		// keeps Name nil instead of an empty string.
+		if name := toolNames[result.id]; name != "" {
+			openAIMessages[result.index].Name = &name
+		}
 	}
 
 	openAIRequest.Messages = openAIMessages
+
+	// Claude-only request fields have no Chat Completions equivalent. Record
+	// each dropped field so hosts can surface the loss instead of silently
+	// swallowing it.
+	droppedFields := make([]types.ConversionDiagnostic, 0, 6)
+	appendDropped := func(field string, present bool) {
+		if !present {
+			return
+		}
+		droppedFields = append(droppedFields, types.ConversionDiagnostic{
+			Code:     "dropped_request_field",
+			Path:     field,
+			Message:  fmt.Sprintf("Claude request field %q has no Chat Completions equivalent and was dropped", field),
+			Severity: types.ConversionDiagnosticWarning,
+			From:     types.RelayFormatClaude,
+			To:       types.RelayFormatOpenAI,
+		})
+	}
+	appendDropped("metadata", rawJSONFieldPresent(claudeRequest.Metadata))
+	appendDropped("mcp_servers", rawJSONFieldPresent(claudeRequest.McpServers))
+	appendDropped("context_management", rawJSONFieldPresent(claudeRequest.ContextManagement))
+	appendDropped("container", rawJSONFieldPresent(claudeRequest.Container))
+	appendDropped("service_tier", claudeRequest.ServiceTier != "")
+	appendDropped("chat_template_kwargs", rawJSONFieldPresent(claudeRequest.ChatTemplateKwargs))
+	convdiag.Add(ctx, droppedFields...)
+
 	return &openAIRequest, nil
+}
+
+func rawJSONFieldPresent(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	return kitutil.GetJsonType(raw) != "null"
 }
 
 func requestToJSONString(v any) string {

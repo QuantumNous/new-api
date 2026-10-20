@@ -191,7 +191,6 @@ func TestConvertRequestClaudeToChatResolvesToolResultNames(t *testing.T) {
 	}{
 		{0, "call_1", "first"},
 		{2, "call_1", "first"},
-		{3, "missing", ""},
 		{4, "call_1", "explicit"},
 	} {
 		message := chatReq.Messages[tt.index]
@@ -200,6 +199,8 @@ func TestConvertRequestClaudeToChatResolvesToolResultNames(t *testing.T) {
 		require.NotNil(t, message.Name)
 		assert.Equal(t, tt.name, *message.Name)
 	}
+	// An unresolvable tool_use_id keeps Name nil instead of an empty string.
+	assert.Nil(t, chatReq.Messages[3].Name)
 	assert.Equal(t, "assistant", chatReq.Messages[1].Role)
 	assert.Equal(t, "assistant", chatReq.Messages[5].Role)
 }
