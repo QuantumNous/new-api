@@ -699,16 +699,17 @@ func (s *ChatToResponsesStreamState) nextHostedIndex(id string) int {
 	return index
 }
 
+// sortedTools orders pending tool completions by their Responses output_index
+// so done events never run backwards in the output sequence, even when the
+// Chat Completions tool_call indexes arrived out of order.
 func (s *ChatToResponsesStreamState) sortedTools() []*chatToResponsesStreamTool {
-	indexes := make([]int, 0, len(s.toolsByIndex))
-	for index := range s.toolsByIndex {
-		indexes = append(indexes, index)
+	tools := make([]*chatToResponsesStreamTool, 0, len(s.toolsByIndex))
+	for _, tool := range s.toolsByIndex {
+		tools = append(tools, tool)
 	}
-	sort.Ints(indexes)
-	tools := make([]*chatToResponsesStreamTool, 0, len(indexes))
-	for _, index := range indexes {
-		tools = append(tools, s.toolsByIndex[index])
-	}
+	sort.Slice(tools, func(i, j int) bool {
+		return tools[i].OutputIndex < tools[j].OutputIndex
+	})
 	return tools
 }
 

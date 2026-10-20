@@ -1,6 +1,7 @@
 package oaichat
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -158,4 +159,46 @@ func mustResponsesEventsFromChatChunk(t *testing.T, state *ChatToResponsesStream
 	events, err := ChatCompletionsStreamChunkToResponsesEvents(chunk, state)
 	require.NoError(t, err)
 	return events
+}
+
+// B3: done events follow output_index order even when Chat tool_call indexes
+// arrive out of order.
+func TestChatCompletionsStreamToResponsesDoneEventsFollowOutputIndexOrder(t *testing.T) {
+	state := NewChatToResponsesStreamState("resp_1", "gpt-test")
+	state.Created = 123
+
+	var events []ChatToResponsesStreamEvent
+	appendToolCall := func(index int, id string, args string) {
+		toolIndex := index
+		events = append(events, mustResponsesEventsFromChatChunk(t, state, &dto.ChatCompletionsStreamResponse{
+			Choices: []dto.ChatCompletionsStreamResponseChoice{
+				{Index: 0, Delta: dto.ChatCompletionsStreamResponseChoiceDelta{ToolCalls: []dto.ToolCallResponse{
+					{Index: &toolIndex, ID: id, Type: "function", Function: dto.FunctionResponse{Name: "fn_" + id, Arguments: args}},
+				}}},
+			},
+		})...)
+	}
+
+	// Chat index 1 is created before chat index 0, so it owns the lower
+	// Responses output_index.
+	appendToolCall(1, "call_b", `{"b":1}`)
+	appendToolCall(0, "call_a", `{"a":1}`)
+
+	finishReason := "tool_calls"
+	events = append(events, mustResponsesEventsFromChatChunk(t, state, &dto.ChatCompletionsStreamResponse{
+		Choices: []dto.ChatCompletionsStreamResponseChoice{
+			{Index: 0, FinishReason: &finishReason},
+		},
+	})...)
+
+	var outputIndexes []int
+	for _, event := range events {
+		if event.Type != responsesEventFunctionArgsDone {
+			continue
+		}
+		require.NotNil(t, event.Payload.OutputIndex)
+		outputIndexes = append(outputIndexes, *event.Payload.OutputIndex)
+	}
+	require.Len(t, outputIndexes, 2)
+	assert.True(t, sort.IntsAreSorted(outputIndexes), "function_call_arguments.done events must be ordered by output_index, got %v", outputIndexes)
 }

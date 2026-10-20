@@ -196,21 +196,40 @@ func responsesInputItemToChatMessages(item map[string]any, messages []dto.Messag
 			return nil, err
 		}
 		return appendToolCallToLastAssistant(messages, toolCall), nil
-	case responsesInputTypeFunctionCallOutput:
+	case responsesInputTypeFunctionCallOutput, responsesInputTypeCustomToolOutput:
 		callID := strings.TrimSpace(kitutil.Interface2String(item["call_id"]))
 		content := responseToolOutputToChatContent(item["output"])
 		return append(messages, dto.Message{Role: "tool", ToolCallId: callID, Content: content}), nil
 	}
 
 	role := strings.TrimSpace(kitutil.Interface2String(item["role"]))
-	if role == "" {
-		role = "user"
-	}
 	content, err := responsesInputContentToChatContent(item["content"])
 	if err != nil {
 		return nil, err
 	}
+	// History bookkeeping items (reasoning, item_reference, web_search_call,
+	// ...) carry neither role nor content. Converting them into empty user
+	// messages corrupts the upstream conversation; skip them cleanly instead.
+	if role == "" && responsesChatContentEmpty(content) {
+		return messages, nil
+	}
+	if role == "" {
+		role = "user"
+	}
 	return append(messages, dto.Message{Role: role, Content: content}), nil
+}
+
+func responsesChatContentEmpty(content any) bool {
+	switch value := content.(type) {
+	case nil:
+		return true
+	case string:
+		return strings.TrimSpace(value) == ""
+	case []any:
+		return len(value) == 0
+	default:
+		return false
+	}
 }
 
 func responsesInputContentToChatContent(content any) (any, error) {
@@ -443,6 +462,15 @@ func RequestTextToChatResponseFormat(raw json.RawMessage) (*dto.ResponseFormat, 
 
 func responsesImagePartToChatImageURL(part map[string]any) any {
 	if imageURL, ok := part["image_url"]; ok {
+		if url, isString := imageURL.(string); isString {
+			// Chat Completions requires image_url to be an object, not a
+			// bare string. Sibling keys like detail stay on the part.
+			wrapped := map[string]any{"url": url}
+			if detail, hasDetail := part["detail"]; hasDetail {
+				wrapped["detail"] = detail
+			}
+			return wrapped
+		}
 		return imageURL
 	}
 	imageURL := map[string]any{}

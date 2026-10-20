@@ -357,3 +357,63 @@ func mustRawMessage(t *testing.T, value any) []byte {
 	require.NoError(t, err)
 	return raw
 }
+
+// B1: a bare-string image_url input part is wrapped into the object shape
+// Chat Completions requires.
+func TestResponsesRequestToChatCompletionsRequestWrapsStringImageURL(t *testing.T) {
+	got, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, []map[string]any{
+			{
+				"role": "user",
+				"content": []map[string]any{
+					{"type": "input_image", "image_url": "https://example.test/a.png", "detail": "low"},
+				},
+			},
+		}),
+	})
+	require.NoError(t, err)
+	require.Len(t, got.Messages, 1)
+
+	raw, err := kitutil.Marshal(got.Messages[0].Content)
+	require.NoError(t, err)
+	imageURL := gjson.Get(string(raw), "0.image_url")
+	require.True(t, imageURL.IsObject(), "image_url must be an object, got %s", string(raw))
+	assert.Equal(t, "https://example.test/a.png", imageURL.Get("url").String())
+	assert.Equal(t, "low", imageURL.Get("detail").String())
+}
+
+// B2: roleless bookkeeping items are skipped; custom tool outputs become tool
+// messages just like function_call_output.
+func TestResponsesRequestToChatCompletionsRequestSkipsNonMessageItems(t *testing.T) {
+	got, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Input: mustRawMessage(t, []map[string]any{
+			{"type": "reasoning", "summary": []any{}},
+			{"type": "item_reference", "id": "item_1"},
+			{"type": "web_search_call", "action": map[string]any{"query": "x"}},
+			{"type": "message", "role": "user", "content": "hello"},
+			{"type": "function_call", "call_id": "call_1", "name": "lookup", "arguments": "{}"},
+			{"type": "function_call_output", "call_id": "call_1", "output": "result"},
+			{"type": "custom_tool_call_output", "call_id": "call_2", "output": "custom-result"},
+		}),
+	})
+	require.NoError(t, err)
+
+	// user message + assistant carrying the function_call + two tool outputs
+	require.Len(t, got.Messages, 4)
+	assert.Equal(t, "user", got.Messages[0].Role)
+	assert.Equal(t, "hello", got.Messages[0].StringContent())
+
+	assert.Equal(t, "assistant", got.Messages[1].Role)
+	toolCalls := got.Messages[1].ParseToolCalls()
+	require.Len(t, toolCalls, 1)
+	assert.Equal(t, "lookup", toolCalls[0].Function.Name)
+
+	assert.Equal(t, "tool", got.Messages[2].Role)
+	assert.Equal(t, "call_1", got.Messages[2].ToolCallId)
+
+	assert.Equal(t, "tool", got.Messages[3].Role)
+	assert.Equal(t, "call_2", got.Messages[3].ToolCallId)
+	assert.Equal(t, "custom-result", got.Messages[3].StringContent())
+}
