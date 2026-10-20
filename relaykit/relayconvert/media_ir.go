@@ -137,6 +137,9 @@ func normalizeMedia(ctx context.Context, from, target types.RelayFormat, media *
 	if media.Kind == "" {
 		media.Kind = mediaKindFromMIME(media.MIME)
 	}
+	if media.Kind == ir.MediaImage && target == types.RelayFormatOpenAIResponses {
+		media.Detail = relaymedia.ResponsesImageDetail(media.Detail)
+	}
 	if media.Kind == ir.MediaFile && media.Filename == "" && media.Source == ir.MediaSourceBase64 &&
 		(target == types.RelayFormatOpenAI || target == types.RelayFormatOpenAIResponses) {
 		media.Filename = defaultMediaFilename(media.MIME)

@@ -334,6 +334,79 @@ func TestConvertRequestClaudeToResponsesPreservesMixedBlockOrder(t *testing.T) {
 	assert.Equal(t, "continue", inputContentText(t, input[5]))
 }
 
+func TestConvertRequestChatToResponsesPreservesImageDetail(t *testing.T) {
+	for _, tc := range []struct {
+		detail string
+		want   string
+	}{
+		{"", "auto"}, {"auto", "auto"}, {"low", "low"}, {"high", "high"},
+		{"original", "original"}, {" HIGH ", "high"}, {"bogus", "auto"},
+	} {
+		t.Run(tc.detail, func(t *testing.T) {
+			request := &dto.GeneralOpenAIRequest{
+				Model: "gpt-test",
+				Messages: []dto.Message{{Role: "user", Content: []any{
+					map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.test/a.png", "detail": tc.detail}},
+				}}},
+			}
+			result, err := ConvertRequestByID(context.Background(), nil, ConverterOpenAIChatToOpenAIResponses, request)
+			require.NoError(t, err)
+			response, ok := result.Value.(*dto.OpenAIResponsesRequest)
+			require.True(t, ok)
+			var items []struct {
+				Content []struct {
+					Type     string `json:"type"`
+					ImageURL string `json:"image_url"`
+					Detail   string `json:"detail"`
+				} `json:"content"`
+			}
+			require.NoError(t, kitutil.Unmarshal(response.Input, &items))
+			require.Len(t, items, 1)
+			require.Len(t, items[0].Content, 1)
+			assert.Equal(t, "input_image", items[0].Content[0].Type)
+			assert.Equal(t, "https://example.test/a.png", items[0].Content[0].ImageURL)
+			assert.Equal(t, tc.want, items[0].Content[0].Detail)
+		})
+	}
+}
+
+func TestConvertRequestClaudeToResponsesDefaultsImageDetail(t *testing.T) {
+	const imageData = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+Xoy8AAAAASUVORK5CYII="
+	req := &dto.ClaudeRequest{
+		Model: "gpt-test",
+		Messages: []dto.ClaudeMessage{
+			{Role: "user", Content: []dto.ClaudeMediaMessage{{
+				Type:   "image",
+				Source: &dto.ClaudeMessageSource{Type: "url", Url: "https://example.test/a.png"},
+			}}},
+			{Role: "assistant", Content: []dto.ClaudeMediaMessage{{
+				Type: "tool_use", Id: "call_1", Name: "screenshot", Input: map[string]any{},
+			}}},
+			{Role: "user", Content: []dto.ClaudeMediaMessage{{
+				Type: "tool_result", ToolUseId: "call_1",
+				Content: []dto.ClaudeMediaMessage{{
+					Type:   "image",
+					Source: &dto.ClaudeMessageSource{Type: "base64", MediaType: "image/png", Data: imageData},
+				}},
+			}}},
+		},
+	}
+
+	result, err := ConvertRequestByID(context.Background(), nil, ConverterClaudeMessagesToOpenAIResponses, req)
+	require.NoError(t, err)
+	responsesReq, ok := result.Value.(*dto.OpenAIResponsesRequest)
+	require.True(t, ok)
+	assert.JSONEq(t, `[
+		{"type":"message","role":"user","content":[
+			{"type":"input_image","image_url":"https://example.test/a.png","detail":"auto"}
+		]},
+		{"type":"function_call","id":"fc_call_1","call_id":"call_1","name":"screenshot","arguments":"{}"},
+		{"type":"function_call_output","call_id":"call_1","output":[
+			{"type":"input_image","image_url":"data:image/png;base64,`+imageData+`","detail":"auto"}
+		]}
+	]`, string(responsesReq.Input))
+}
+
 func TestConvertRequestClaudeToResponsesDropsIncompatibleContextManagement(t *testing.T) {
 	req := &dto.ClaudeRequest{
 		Model: "gpt-test",

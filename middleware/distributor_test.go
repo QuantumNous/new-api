@@ -168,6 +168,27 @@ func TestTokenModelLimitAllowsLegacyAliasAndModifierVariant(t *testing.T) {
 	assert.True(t, TokenModelLimitAllows(wildcard, "gemini-2.5-flash-thinking-8192"))
 }
 
+// /v1/tools/search and /v1/tools/fetch always route and bill by the DeepSeek
+// routing names. A model named in the body is ignored: a chat model there
+// would price the call at zero tokens.
+func TestGetModelRequestAssignsDeepSeekToolRoutingNames(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct{ path, body, want string }{
+		{"/v1/tools/search", `{"query":"deepseek","count":3}`, constant.DeepSeekSearchModel},
+		{"/v1/tools/fetch", `{"url":"https://example.com/"}`, constant.DeepSeekFetchModel},
+		{"/v1/tools/search", `{"query":"deepseek","model":"deepseek-flash"}`, constant.DeepSeekSearchModel},
+		{"/v1/tools/fetch", `{"url":"https://example.com/","model":"deepseek-v4-pro"}`, constant.DeepSeekFetchModel},
+	} {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(tc.body))
+		c.Request.Header.Set("Content-Type", "application/json")
+		modelRequest, shouldSelectChannel, err := getModelRequest(c)
+		require.NoError(t, err, tc.body)
+		assert.True(t, shouldSelectChannel, tc.body)
+		assert.Equal(t, tc.want, modelRequest.Model, tc.body)
+	}
+}
+
 func TestTokenModelLimitAllowsExemptAtNameByFullName(t *testing.T) {
 	settings := model_setting.GetGlobalSettings()
 	original := append([]string(nil), settings.ThinkingModelBlacklist...)

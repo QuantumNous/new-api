@@ -14,6 +14,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/schema"
 )
 
 func testModerationUniqueMigrationNonPostgreSQL(t *testing.T, db *gorm.DB) {
@@ -50,11 +51,18 @@ func TestMigrateModerationUniqueConstraintsMySQL(t *testing.T) {
 		t.Skip("TEST_MYSQL_DSN is not configured")
 	}
 
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
+		NamingStrategy: schema.NamingStrategy{
+			TablePrefix: fmt.Sprintf("moderation_test_%d_", time.Now().UnixNano()),
+		},
+	})
 	require.NoError(t, err)
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = sqlDB.Close() })
+	t.Cleanup(func() {
+		assert.NoError(t, db.Migrator().DropTable(&ModerationTokenState{}, &ModerationAccountState{}, &ModerationUserRecord{}))
+	})
 	testModerationUniqueMigrationNonPostgreSQL(t, db)
 }
 

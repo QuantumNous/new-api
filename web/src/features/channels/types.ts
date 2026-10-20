@@ -98,8 +98,10 @@ export interface ChannelOtherSettings {
   opencode_go_compat?: boolean
   azure_responses_version?: string
   vertex_key_type?: 'json' | 'api_key'
+  vertex_project_id?: string
   openrouter_enterprise?: boolean
   aws_key_type?: 'ak_sk' | 'api_key'
+  aws_api_type?: 'invoke_model' | 'mantle'
   allow_service_tier?: boolean
   disable_store?: boolean
   allow_safety_identifier?: boolean

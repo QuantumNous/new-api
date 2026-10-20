@@ -1,9 +1,9 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -39,33 +39,11 @@ func SystemPerformanceCheck() gin.HandlerFunc {
 
 // checkSystemPerformance 检查系统性能是否超过阈值
 func checkSystemPerformance() *types.NewAPIError {
-	config := common.GetPerformanceMonitorConfig()
-	if !config.Enabled {
+	// 过载标记在采样侧完成：CPU / 内存按容器 cgroup 配额计算，并要求连续多次
+	// 超阈值；判定时再按当前阈值复核，并忽略过期采样。
+	overload := common.CheckSystemOverload(common.GetSystemStatus(), common.GetPerformanceMonitorConfig(), time.Now())
+	if overload == nil {
 		return nil
 	}
-
-	status := common.GetSystemStatus()
-
-	// 检查 CPU
-	if config.CPUThreshold > 0 && int(status.CPUUsage) > config.CPUThreshold {
-		return types.NewErrorWithStatusCode(
-			fmt.Errorf("system cpu overloaded (current: %.1f%%, threshold: %d%%)", status.CPUUsage, config.CPUThreshold),
-			"system_cpu_overloaded", http.StatusServiceUnavailable)
-	}
-
-	// 检查内存
-	if config.MemoryThreshold > 0 && int(status.MemoryUsage) > config.MemoryThreshold {
-		return types.NewErrorWithStatusCode(
-			fmt.Errorf("system memory overloaded (current: %.1f%%, threshold: %d%%)", status.MemoryUsage, config.MemoryThreshold),
-			"system_memory_overloaded", http.StatusServiceUnavailable)
-	}
-
-	// 检查磁盘
-	if config.DiskThreshold > 0 && int(status.DiskUsage) > config.DiskThreshold {
-		return types.NewErrorWithStatusCode(
-			fmt.Errorf("system disk overloaded (current: %.1f%%, threshold: %d%%)", status.DiskUsage, config.DiskThreshold),
-			"system_disk_overloaded", http.StatusServiceUnavailable)
-	}
-
-	return nil
+	return types.NewErrorWithStatusCode(overload, types.ErrorCode(overload.Code), http.StatusServiceUnavailable)
 }

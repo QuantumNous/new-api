@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useMemo } from 'react'
 import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
@@ -34,8 +35,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Switch } from '@/components/ui/switch'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { parseQuotaFromDollars, quotaUnitsToDollars } from '@/lib/format'
 
 import {
+  SettingsControlChildren,
+  SettingsControlGroup,
   SettingsForm,
   SettingsSwitchContent,
   SettingsSwitchItem,
@@ -64,11 +69,19 @@ const createEmailSchema = (t: (key: string) => string) =>
     SMTPStartTLSEnabled: z.boolean(),
     SMTPInsecureSkipVerify: z.boolean(),
     SMTPForceAuthLogin: z.boolean(),
+    QuotaRemindEnabled: z.boolean(),
+    // Entered as a display amount; stored in quota units.
+    QuotaRemindThreshold: z.string().refine((value) => {
+      const trimmed = value.trim()
+      if (!trimmed) return true
+      return Number.isFinite(Number(trimmed)) && Number(trimmed) >= 0
+    }, t('Must be greater than or equal to 0')),
   })
 
 type EmailFormValues = z.infer<ReturnType<typeof createEmailSchema>>
 
 type EmailSettingsSectionProps = {
+  /** Option values as stored; QuotaRemindThreshold is in quota units */
   defaultValues: EmailFormValues
 }
 
@@ -90,12 +103,27 @@ export function EmailSettingsSection({
   const updateOption = useUpdateOption()
   const emailSchema = createEmailSchema(t)
 
+  // The form edits the threshold as a display amount. Comparing amounts on
+  // save leaves a threshold nobody edited untouched.
+  const formDefaults = useMemo(
+    () => ({
+      ...defaultValues,
+      QuotaRemindThreshold: String(
+        quotaUnitsToDollars(Number(defaultValues.QuotaRemindThreshold) || 0)
+      ),
+    }),
+    [defaultValues]
+  )
+
   const form = useForm<EmailFormValues>({
     resolver: zodResolver(emailSchema),
-    defaultValues,
+    defaultValues: formDefaults,
   })
 
-  useResetForm(form, defaultValues)
+  useResetForm(form, formDefaults)
+
+  const quotaRemindEnabled = form.watch('QuotaRemindEnabled')
+  const tokensOnly = getCurrencyDisplay().meta.kind === 'tokens'
 
   const onSubmit = async (values: EmailFormValues) => {
     const securityMode = getSmtpSecurityMode(values)
@@ -173,19 +201,33 @@ export function EmailSettingsSection({
       })
     }
 
+    if (values.QuotaRemindEnabled !== defaultValues.QuotaRemindEnabled) {
+      updates.push({
+        key: 'QuotaRemindEnabled',
+        value: values.QuotaRemindEnabled,
+      })
+    }
+
+    const threshold = values.QuotaRemindThreshold.trim()
+    if (threshold !== formDefaults.QuotaRemindThreshold) {
+      updates.push({
+        key: 'QuotaRemindThreshold',
+        value: String(parseQuotaFromDollars(Number(threshold || 0))),
+      })
+    }
+
     for (const update of updates) {
       await updateOption.mutateAsync(update)
     }
   }
 
   return (
-    <SettingsSection title={t('SMTP Email')}>
+    <SettingsSection title={t('Email & Notifications')}>
       <Form {...form}>
         <SettingsForm onSubmit={form.handleSubmit(onSubmit)} autoComplete='off'>
           <SettingsPageFormActions
             onSave={form.handleSubmit(onSubmit)}
             isSaving={updateOption.isPending}
-            saveLabel='Save SMTP settings'
           />
           <FormField
             control={form.control}
@@ -405,6 +447,60 @@ export function EmailSettingsSection({
               </FormItem>
             )}
           />
+
+          <SettingsControlGroup>
+            <FormField
+              control={form.control}
+              name='QuotaRemindEnabled'
+              render={({ field }) => (
+                <SettingsSwitchItem>
+                  <SettingsSwitchContent>
+                    <FormLabel>{t('Low balance reminder')}</FormLabel>
+                    <FormDescription>
+                      {t(
+                        'Remind users through their chosen notification method when their balance drops below the threshold'
+                      )}
+                    </FormDescription>
+                  </SettingsSwitchContent>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </SettingsSwitchItem>
+              )}
+            />
+
+            {quotaRemindEnabled && (
+              <SettingsControlChildren>
+                <FormField
+                  control={form.control}
+                  name='QuotaRemindThreshold'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {t('Default reminder threshold')} ({getCurrencyLabel()})
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          autoComplete='off'
+                          type='number'
+                          min={0}
+                          step={tokensOnly ? 1 : 0.000001}
+                          {...field}
+                          onChange={(event) =>
+                            field.onChange(event.target.value)
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </SettingsControlChildren>
+            )}
+          </SettingsControlGroup>
         </SettingsForm>
       </Form>
     </SettingsSection>

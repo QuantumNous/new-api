@@ -442,6 +442,16 @@ func (r ResponsesOutput) MarshalJSON() ([]byte, error) {
 			Error:             r.ItemError,
 			ApprovalRequestID: r.ApprovalRequestID,
 		})
+	case "reasoning":
+		// summary is required on a reasoning item, even before any summary text exists.
+		type responsesOutputAlias ResponsesOutput
+		if len(r.Summary) > 0 {
+			return kitutil.Marshal(responsesOutputAlias(r))
+		}
+		return kitutil.Marshal(struct {
+			responsesOutputAlias
+			Summary []ResponsesReasoningSummaryPart `json:"summary"`
+		}{responsesOutputAlias(r), []ResponsesReasoningSummaryPart{}})
 	default:
 		type responsesOutputAlias ResponsesOutput
 		return kitutil.Marshal(responsesOutputAlias(r))

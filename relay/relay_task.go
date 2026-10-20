@@ -66,7 +66,7 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 	// 查找原始任务
 	originTask, exist, err := model.GetByTaskId(info.UserId, info.OriginTaskID)
 	if err != nil {
-		return service.TaskErrorWrapper(err, "get_origin_task_failed", http.StatusInternalServerError)
+		return service.TaskErrorWrapper(err, "get_origin_task_failed", http.StatusInternalServerError, common.UpstreamAddresses(c)...)
 	}
 	if !exist {
 		return service.TaskErrorWrapperLocal(errors.New("task_origin_not_exist"), "task_not_exist", http.StatusBadRequest)
@@ -100,7 +100,7 @@ func ResolveOriginTask(c *gin.Context, info *relaycommon.RelayInfo) *dto.TaskErr
 	if originTask.ChannelId != info.ChannelId {
 		key, _, newAPIError := ch.GetNextEnabledKey()
 		if newAPIError != nil {
-			return service.TaskErrorWrapper(newAPIError, "channel_no_available_key", newAPIError.StatusCode)
+			return service.TaskErrorWrapper(newAPIError, "channel_no_available_key", newAPIError.StatusCode, common.UpstreamAddresses(c)...)
 		}
 		common.SetContextKey(c, constant.ContextKeyChannelKey, key)
 		common.SetContextKey(c, constant.ContextKeyChannelType, ch.Type)
@@ -267,16 +267,16 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	} else if useTiered {
 		provider, supported := adaptor.(channel.TaskUsageFactsProvider)
 		if billingexpr.UsesFixedPricing(exprStr) {
-			return nil, service.TaskErrorWrapper(fmt.Errorf("fixed pricing is not supported for task usage expressions"), "model_price_error", http.StatusBadRequest)
+			return nil, service.TaskErrorWrapper(fmt.Errorf("fixed pricing is not supported for task usage expressions"), "model_price_error", http.StatusBadRequest, common.UpstreamAddresses(c)...)
 		}
 		if !exists || !supported {
-			return nil, service.TaskErrorWrapper(fmt.Errorf("task model %s has no usage expression or meter", modelName), "model_price_error", http.StatusBadRequest)
+			return nil, service.TaskErrorWrapper(fmt.Errorf("task model %s has no usage expression or meter", modelName), "model_price_error", http.StatusBadRequest, common.UpstreamAddresses(c)...)
 		}
 		sharedModel := pinnedPlugin.Generation.SharedModel(modelName) || pinnedPlugin.Generation.SharedModel(info.UpstreamModelName)
 		if sharedModel && pinnedPlugin.Plugin != nil {
 			schema, _ := pinnedPlugin.Plugin.Meta.UsageForModels(info.UpstreamModelName, modelName)
 			if !billing_setting.TaskExprCompatible(exprStr, schema) {
-				return nil, service.TaskErrorWrapper(fmt.Errorf("task model %s pricing is not configured for plugin %s", modelName, pluginKey), "model_price_error", http.StatusBadRequest)
+				return nil, service.TaskErrorWrapper(fmt.Errorf("task model %s pricing is not configured for plugin %s", modelName, pluginKey), "model_price_error", http.StatusBadRequest, common.UpstreamAddresses(c)...)
 			}
 		}
 		var facts map[string]any
@@ -293,7 +293,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 			if runErr == nil {
 				runErr = fmt.Errorf("negative task expression result")
 			}
-			return nil, service.TaskErrorWrapper(runErr, "model_price_error", http.StatusBadRequest)
+			return nil, service.TaskErrorWrapper(runErr, "model_price_error", http.StatusBadRequest, common.UpstreamAddresses(c)...)
 		}
 		groupRatioInfo := helper.HandleGroupRatio(c, info)
 		quota, clamp := common.QuotaRoundChecked(cost * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
@@ -303,7 +303,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	} else {
 		priceData, err = helper.ModelPriceHelperPerCall(c, info)
 		if err != nil {
-			return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest)
+			return nil, service.TaskErrorWrapper(err, "model_price_error", http.StatusBadRequest, common.UpstreamAddresses(c)...)
 		}
 	}
 	info.PriceData = priceData
@@ -347,13 +347,13 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	// 8. 构建请求体
 	requestBody, err := adaptor.BuildRequestBody(c, info)
 	if err != nil {
-		return nil, service.TaskErrorWrapper(err, "build_request_failed", http.StatusInternalServerError)
+		return nil, service.TaskErrorWrapper(err, "build_request_failed", http.StatusInternalServerError, common.UpstreamAddresses(c)...)
 	}
 
 	// 9. 发送请求
 	resp, err := adaptor.DoRequest(c, info, requestBody)
 	if err != nil {
-		return nil, service.TaskErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
+		return nil, service.TaskErrorWrapper(err, "do_request_failed", http.StatusInternalServerError, common.UpstreamAddresses(c)...)
 	}
 	if resp == nil {
 		return nil, service.TaskErrorWrapperLocal(errors.New("upstream returned an empty response"), "fail_to_fetch_task", http.StatusBadGateway)
@@ -363,7 +363,7 @@ func RelayTaskSubmit(c *gin.Context, info *relaycommon.RelayInfo) (*TaskSubmitRe
 	// or 202 Accepted, and parseSubmitResponse receives the exact status code.
 	if resp.StatusCode/100 != 2 {
 		responseBody, _ := io.ReadAll(resp.Body)
-		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode)
+		return nil, service.TaskErrorWrapper(fmt.Errorf("%s", string(responseBody)), "fail_to_fetch_task", resp.StatusCode, common.UpstreamAddresses(c)...)
 	}
 
 	// 10. Parse only. The controller presents the response after the durable

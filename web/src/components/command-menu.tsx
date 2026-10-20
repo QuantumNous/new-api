@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useLocation, useNavigate } from '@tanstack/react-router'
+import { useNavigate } from '@tanstack/react-router'
 import { ArrowRight, ChevronRight, Laptop, Moon, Sun } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
@@ -31,28 +31,20 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command'
+import { useSearch } from '@/context/search-provider'
 import { useTheme } from '@/context/theme-provider'
-import { useSidebarData } from '@/hooks/use-sidebar-data'
+import { useSidebarView } from '@/hooks/use-sidebar-view'
 
-import { getNavGroupsForPath } from './layout/lib/sidebar-view-registry'
 import { ScrollArea } from './ui/scroll-area'
 
-export function CommandMenu({
-  open,
-  setOpen,
-}: {
-  open: boolean
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>
-}) {
+export function CommandMenu() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const { setTheme } = useTheme()
-  const { pathname } = useLocation()
-  const sidebarData = useSidebarData()
-
-  // Use the active nested sidebar view's nav groups when one matches
-  // the current URL; otherwise fall back to the root navigation.
-  const navGroups = getNavGroupsForPath(pathname, t) ?? sidebarData.navGroups
+  const { open, setOpen } = useSearch()
+  // Offer the same pages as the sidebar, so search never lists pages the
+  // user's role or the sidebar settings hide.
+  const { navGroups } = useSidebarView()
 
   const runCommand = React.useCallback(
     (command: () => unknown) => {
@@ -75,7 +67,7 @@ export function CommandMenu({
                   if (navItem.url) {
                     return (
                       <CommandItem
-                        key={navItem.url}
+                        key={`${navItem.title}-${navItem.url}`}
                         value={navItem.title}
                         onSelect={() => {
                           runCommand(() => navigate({ to: navItem.url }))

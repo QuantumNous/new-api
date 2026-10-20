@@ -17,6 +17,7 @@ import (
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/service/authz"
 	"github.com/alicebob/miniredis/v2"
@@ -638,6 +639,88 @@ func TestManageUserQuotaCacheUsesCommittedIntegerDifference(t *testing.T) {
 			} else if !tc.failCache {
 				assert.Equal(t, strconv.Itoa(tc.wantCached), server.HGet(quotaKey, "Quota"))
 			}
+		})
+	}
+}
+
+// Saving notification settings starts from what the user stored: fields the
+// form does not manage stay, and switches an older client leaves out keep
+// their stored values. Only administrators change the channel and upstream
+// switches, and a threshold of 0 means the site default.
+func TestUpdateUserSettingKeepsWhatTheRequestLeavesOut(t *testing.T) {
+	on, off := true, false
+	stored := dto.UserSetting{
+		NotifyType:                       dto.NotifyTypeBark,
+		BarkUrl:                          "https://api.day.app/key/{{title}}/{{content}}",
+		QuotaWarningThreshold:            500000,
+		QuotaWarningEnabled:              &off,
+		ChannelNotifyEnabled:             &on,
+		UpstreamModelUpdateNotifyEnabled: true,
+		Language:                         "zhCN",
+		SidebarModules:                   `{"chat":{"enabled":true}}`,
+		BillingPreference:                "wallet_only",
+	}
+	kept := func(setting dto.UserSetting) dto.UserSetting {
+		setting.Language, setting.SidebarModules, setting.BillingPreference = stored.Language, stored.SidebarModules, stored.BillingPreference
+		return setting
+	}
+	switchesChanged := `{"notify_type":"email","quota_warning_threshold":0,"quota_warning_enabled":true,"channel_notify_enabled":false,"upstream_model_update_notify_enabled":false}`
+	for _, tc := range []struct {
+		name        string
+		role        int
+		body        string
+		wantSuccess bool
+		want        dto.UserSetting
+	}{
+		{
+			name:        "older client without the new switches",
+			role:        common.RoleAdminUser,
+			body:        `{"notify_type":"webhook","quota_warning_threshold":2000,"webhook_url":"https://example.com/hook","webhook_secret":"hook-secret","accept_unset_model_ratio_model":true,"record_ip_log":true}`,
+			wantSuccess: true,
+			want: kept(dto.UserSetting{
+				NotifyType: dto.NotifyTypeWebhook, WebhookUrl: "https://example.com/hook", WebhookSecret: "hook-secret",
+				QuotaWarningThreshold: 2000, QuotaWarningEnabled: &off, ChannelNotifyEnabled: &on, UpstreamModelUpdateNotifyEnabled: true,
+				AcceptUnsetRatioModel: true, RecordIpLog: true,
+			}),
+		},
+		{
+			name:        "administrator changes the switches and uses the site default threshold",
+			role:        common.RoleAdminUser,
+			body:        switchesChanged,
+			wantSuccess: true,
+			want:        kept(dto.UserSetting{NotifyType: dto.NotifyTypeEmail, QuotaWarningEnabled: &on, ChannelNotifyEnabled: &off}),
+		},
+		{
+			name:        "user cannot change the administrator switches",
+			role:        common.RoleCommonUser,
+			body:        switchesChanged,
+			wantSuccess: true,
+			want:        kept(dto.UserSetting{NotifyType: dto.NotifyTypeEmail, QuotaWarningEnabled: &on, ChannelNotifyEnabled: &on, UpstreamModelUpdateNotifyEnabled: true}),
+		},
+		{
+			name: "negative threshold",
+			role: common.RoleCommonUser,
+			body: `{"notify_type":"email","quota_warning_threshold":-1}`,
+			want: stored,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db := setupManageUserTestDB(t)
+			setting, err := common.Marshal(stored)
+			require.NoError(t, err)
+			user := model.User{Username: "setting-owner", Role: tc.role, Status: common.UserStatusEnabled, AffCode: "setting-owner-aff", Setting: string(setting)}
+			require.NoError(t, db.Create(&user).Error)
+
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(http.MethodPut, "/api/user/setting", strings.NewReader(tc.body))
+			c.Request.Header.Set("Content-Type", "application/json")
+			c.Set("id", user.Id)
+			UpdateUserSetting(c)
+
+			assert.Contains(t, recorder.Body.String(), fmt.Sprintf(`"success":%t`, tc.wantSuccess))
+			require.NoError(t, db.First(&user, user.Id).Error)
+			assert.Equal(t, tc.want, user.GetSetting())
 		})
 	}
 }

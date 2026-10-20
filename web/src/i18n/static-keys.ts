@@ -216,8 +216,12 @@ export const STATIC_I18N_KEYS = [
 
   // Pricing constants
   'Name',
-  'Price: Low to High',
-  'Price: High to Low',
+  'Input Price: Low to High',
+  'Input Price: High to Low',
+  'Output Price: Low to High',
+  'Output Price: High to Low',
+  'Per-request Price: Low to High',
+  'Per-request Price: High to Low',
   'All Models',
   'Token-based',
   'Per Request',
@@ -909,4 +913,11 @@ export const STATIC_I18N_KEYS = [
   'Verification method',
   'Admin permissions updated',
   'Provider ID',
+  // Channel priority ordering API errors.
+  'Channel priorities changed. Refresh and try again.',
+  'Invalid channel priority move',
+  'Channel priority is outside the sortable range',
+  'New API channel is missing base_url',
+  'New API usage query failed: {{reason}}',
+  'New API /api/status response is missing quota_per_unit',
 ] as const
