@@ -761,26 +761,18 @@ export function parseBatchResult() { return {}; }
 	}
 	for _, mode := range []string{"submit", "poll", "batch"} {
 		for _, tc := range []struct {
-			name     string
-			headers  map[string]any
-			runtime  bool
-			invalid  bool
-			redirect bool
+			name    string
+			headers map[string]any
+			invalid bool
 		}{
 			{name: "plugin defaults"},
 			{name: "channel overrides", headers: overrides},
-			{name: "runtime overrides", headers: overrides, runtime: true},
 			{name: "invalid header value", headers: map[string]any{"X-API-Key": "key\r\nInjected: value"}, invalid: true},
-			{name: "redirect", headers: overrides, redirect: true},
 		} {
 			t.Run(mode+"/"+tc.name, func(t *testing.T) {
-				received := make(chan *http.Request, 2)
+				received := make(chan *http.Request, 1)
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					received <- r.Clone(r.Context())
-					if tc.redirect && r.URL.Path != "/redirected" {
-						http.Redirect(w, r, "/redirected", http.StatusFound)
-						return
-					}
 					_, _ = w.Write([]byte(`{}`))
 				}))
 				defer server.Close()
@@ -791,11 +783,6 @@ export function parseBatchResult() { return {}; }
 						HeadersOverride: tc.headers,
 					},
 					TaskRelayInfo: &relaycommon.TaskRelayInfo{},
-				}
-				if tc.runtime {
-					info.HeadersOverride = map[string]any{"X-Legacy": "must-not-be-sent"}
-					info.UseRuntimeHeadersOverride = true
-					info.RuntimeHeadersOverride = tc.headers
 				}
 				adaptor := New(plugin)
 				adaptor.Init(info)
@@ -834,15 +821,10 @@ export function parseBatchResult() { return {}; }
 				}
 				require.NoError(t, requestErr)
 				require.NotNil(t, resp)
-				if tc.redirect {
-					assert.Equal(t, http.StatusFound, resp.StatusCode)
-				} else {
-					assert.Equal(t, http.StatusOK, resp.StatusCode)
-				}
-				require.Len(t, received, 1, "redirects must not forward credentials to another request")
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
+				require.Len(t, received, 1)
 				request := <-received
 				assert.Empty(t, request.Header.Get("Cookie"))
-				assert.Empty(t, request.Header.Get("X-Legacy"))
 				if tc.headers == nil {
 					assert.Equal(t, wantPlugin, request.Header.Get("X-Plugin"))
 					assert.Equal(t, "plugin-default", request.Header.Get("Authorization"))

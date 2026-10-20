@@ -746,22 +746,15 @@ func (a *TaskAdaptor) doFetchDescriptor(baseURL, key, proxy string, descriptor r
 	for name, value := range descriptor.Headers {
 		req.Header.Set(name, value)
 	}
-	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
-		ApiKey:          key,
-		HeadersOverride: relaycommon.GetEffectiveHeaderOverride(a.info),
-	}}
-	if err := channel.ApplyHeaderOverride(info, nil, req); err != nil {
+	if err := channel.ApplyHeaderOverride(a.headerOverrideInfo(key), nil, req); err != nil {
 		return nil, err
 	}
 	client, err := service.GetHttpClientWithProxySettings(proxy, a.channelSetting())
 	if err != nil {
 		return nil, err
 	}
-	// Keep channel credentials on the configured upstream, as submission does.
-	noRedirects := *client
-	noRedirects.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 	started := time.Now()
-	resp, err := noRedirects.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		logger.LogDebug(
 			context.Background(),
@@ -1087,13 +1080,41 @@ func (a *TaskAdaptor) BuildContentRequest(ctx context.Context, task *model.Task,
 			}
 		}
 	}
+	headers := descriptor.Headers
+	if !descriptor.Credentialless {
+		var overrides map[string]string
+		if overrides, err = channel.ResolveHeaderOverride(a.headerOverrideInfo(a.info.ApiKey), nil); err != nil {
+			return nil, err
+		}
+		if len(overrides) > 0 {
+			headers = make(map[string]string, len(descriptor.Headers)+len(overrides))
+			for name, value := range descriptor.Headers {
+				headers[http.CanonicalHeaderKey(strings.TrimSpace(name))] = value
+			}
+			for name, value := range overrides {
+				// A content request keeps the host of its URL.
+				if name != "host" {
+					headers[http.CanonicalHeaderKey(name)] = value
+				}
+			}
+		}
+	}
 	return &channel.TaskContentRequest{
 		URL:            descriptor.URL,
 		Method:         method,
-		Headers:        descriptor.Headers,
+		Headers:        headers,
 		Body:           body,
 		Credentialless: descriptor.Credentialless,
 	}, nil
+}
+
+// headerOverrideInfo carries the channel's Request Header Override for a
+// request built outside the client request, with {api_key} set to key.
+func (a *TaskAdaptor) headerOverrideInfo(key string) *relaycommon.RelayInfo {
+	return &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{
+		ApiKey:          key,
+		HeadersOverride: relaycommon.GetEffectiveHeaderOverride(a.info),
+	}}
 }
 
 func taskArtifactContext(task *model.Task) (map[string]any, error) {
