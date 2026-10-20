@@ -148,6 +148,8 @@
   "RemoveGeminiDisabledFields Marshal error: %s": "RemoveGeminiDisabledFields 序列化失败: %s",
   "RemoveGeminiDisabledFields Unmarshal error: %s": "RemoveGeminiDisabledFields 反序列化失败: %s",
   "Rerank request body: %s": "重排序请求体: %s",
+  "Resend rejected the email: status=%d name=%q message=%q": "Resend 拒绝发送邮件: status=%d name=%q message=%q",
+  "Resend request failed: error=%q": "请求 Resend 失败: error=%q",
   "SKIP_64BIT_QUOTA_SCHEMA_CHECK=true; skipping user quota schema check": "已设置 SKIP_64BIT_QUOTA_SCHEMA_CHECK=true，跳过用户额度字段的类型检查",
   "SQL_DSN not set, using SQLite as database": "未设置 SQL_DSN，数据库使用 SQLite",
   "SSE ping data sent": "SSE ping 数据已发送",
