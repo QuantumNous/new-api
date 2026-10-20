@@ -38,6 +38,10 @@ func TestUserQuotaDisplayNamesDatabaseMatrix(t *testing.T) {
 			sqlDB, err := db.DB()
 			require.NoError(t, err)
 			sqlDB.SetMaxOpenConns(1)
+			if dialect != "sqlite" && (db.Migrator().HasTable(&User{}) || db.Migrator().HasTable(&QuotaData{})) {
+				require.NoError(t, sqlDB.Close())
+				t.Skip("test database must not contain users or quota_data tables")
+			}
 			previousDB, previousType := DB, common.MainDatabaseType()
 			DB = db
 			common.SetMainDatabaseType(common.DatabaseType(dialect))
