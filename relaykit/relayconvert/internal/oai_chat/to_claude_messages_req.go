@@ -128,6 +128,7 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 	lastMessage := dto.Message{
 		Role: "tool",
 	}
+	lastMessageHasPlaceholder := false
 	for _, message := range textRequest.Messages {
 		switch message.Role {
 		case "":
@@ -166,9 +167,9 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 					// Keep both messages' tool calls so later tool results still
 					// match a tool_use block.
 					texts := make([]string, 0, 2)
-					// "..." here is the placeholder added below for an empty
-					// tool-call message, not text from the client.
-					if previousText := lastMessage.StringContent(); previousText != "" && !(previousText == "..." && len(previousToolCalls) > 0) {
+					// Omit only text injected for an empty tool-call message.
+					isToolPlaceholder := lastMessageHasPlaceholder && len(previousToolCalls) > 0
+					if previousText := lastMessage.StringContent(); previousText != "" && !isToolPlaceholder {
 						texts = append(texts, previousText)
 					}
 					if currentText := message.StringContent(); currentText != "" {
@@ -182,11 +183,13 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 				formatMessages = formatMessages[:len(formatMessages)-1]
 			}
 		}
-		if fmtMessage.Content == nil || (fmtMessage.IsStringContent() && fmtMessage.StringContent() == "") {
+		hasPlaceholder := fmtMessage.Content == nil || (fmtMessage.IsStringContent() && fmtMessage.StringContent() == "")
+		if hasPlaceholder {
 			fmtMessage.SetStringContent("...")
 		}
 		formatMessages = append(formatMessages, fmtMessage)
 		lastMessage = fmtMessage
+		lastMessageHasPlaceholder = hasPlaceholder
 	}
 
 	claudeMessages := make([]dto.ClaudeMessage, 0)
