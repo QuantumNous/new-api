@@ -6,6 +6,8 @@
     "1000": "1000",
     "10000": "10000",
     "_copy": "_复制",
+    "Already installed? One tap opens the app and signs you into this site—no long URL.": "已安装助手？点一下即可打开并登录本站，不用手填网址。",
+    "Open YesChoy desktop in one click": "一键打开野菜助手",
     "Connect desktop assistant": "连接桌面助手",
     "Sign in on this site before connecting the desktop app.": "请先登录本站，再连接桌面助手。",
     "Sign in on this site if you have not already, then use the button below. Your browser will open the YesChoy desktop app — no API keys to copy.": "若尚未登录，请先在本站完成登录，再点击下方按钮。浏览器会拉起 YesChoy 桌面端，无需复制 API 密钥。",

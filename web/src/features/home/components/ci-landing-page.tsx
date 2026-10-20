@@ -23,6 +23,7 @@ import {
   Copy,
   ExternalLink,
   Gauge,
+  MonitorDown,
   Search,
   Wallet,
 } from 'lucide-react'
@@ -213,9 +214,17 @@ export function CiLandingPage(props: LandingPageProps) {
                   </strong>
                 </p>
                 <div className='ci-heroActions ci-heroActions--primary'>
+                  <a
+                    href='/desktop/connect'
+                    className='ci-button ci-button--default ci-button--size-sm ci-heroOpenDesktop'
+                    data-testid='homepage-open-desktop'
+                  >
+                    {t('Open YesChoy desktop in one click')}{' '}
+                    <MonitorDown size={17} aria-hidden='true' />
+                  </a>
                   <Link
                     to={primaryTo}
-                    className='ci-button ci-button--default ci-button--size-sm'
+                    className='ci-button ci-button--outline ci-button--size-sm'
                   >
                     {t('Start saving')} <ArrowIcon />
                   </Link>
@@ -226,6 +235,11 @@ export function CiLandingPage(props: LandingPageProps) {
                     {t('Client')}
                   </Link>
                 </div>
+                <p className='ci-heroOpenDesktopHint'>
+                  {t(
+                    'Already installed? One tap opens the app and signs you into this site—no long URL.'
+                  )}
+                </p>
                 <div className='ci-trustRow'>
                   <span>
                     <Wallet size={15} /> {t('Fund from $5')}
@@ -411,9 +425,16 @@ export function CiLandingPage(props: LandingPageProps) {
                 )}
               </p>
               <div className='ci-heroActions'>
+                <a
+                  href='/desktop/connect'
+                  className='ci-button ci-button--default ci-button--size-sm ci-heroOpenDesktop'
+                >
+                  {t('Open YesChoy desktop in one click')}{' '}
+                  <MonitorDown size={17} aria-hidden='true' />
+                </a>
                 <Link
                   to={primaryTo}
-                  className='ci-button ci-button--default ci-button--size-sm'
+                  className='ci-button ci-button--outline ci-button--size-sm'
                 >
                   {t('Start saving')} <ArrowIcon />
                 </Link>
