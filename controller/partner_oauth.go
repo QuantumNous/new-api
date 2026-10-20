@@ -508,13 +508,26 @@ func GetUserPartnerOAuthBindingsByAdmin(c *gin.Context) {
 
 func DeleteUserPartnerOAuthBindingByAdmin(c *gin.Context) {
 	// This token operation is never a generic management audit, even when
-	// the binding is missing or the dedicated log store is unavailable.
+	// the binding is missing or the dedicated log store is unavailable, so
+	// every outcome, including rejected attempts, goes to the dedicated log.
 	markAuditLogged(c)
+	entry := model.PartnerOauthAuthorizationLog{Action: "partner_oauth.binding.admin_revoke",
+		ActorUserId: c.GetInt("id"), Reason: service.PartnerOAuthRevokeReasonAdmin}
+	if targetID, err := strconv.Atoi(c.Param("id")); err == nil && targetID > 0 {
+		entry.TargetUserId = targetID
+	}
+	bindingID := c.Param("binding_id")
+	if model.ValidPartnerOAuthLogBindingID(bindingID) {
+		entry.BindingId = bindingID
+	}
+	defer func() {
+		entry.Status = c.Writer.Status()
+		recordPartnerOAuthAudit(c, entry)
+	}()
 	target, ok := loadPartnerOAuthAdminTarget(c)
 	if !ok {
 		return
 	}
-	bindingID := c.Param("binding_id")
 	binding, err := service.RevokeUserPartnerOAuthBinding(target.Id, bindingID, service.PartnerOAuthRevokeReasonAdmin)
 	if err != nil {
 		if typed := service.AsPartnerOAuthError(err); typed != nil && typed.Status == http.StatusNotFound {
@@ -524,9 +537,8 @@ func DeleteUserPartnerOAuthBindingByAdmin(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	recordPartnerOAuthAudit(c, model.PartnerOauthAuthorizationLog{Action: "partner_oauth.binding.admin_revoke", Success: true,
-		ActorUserId: c.GetInt("id"), TargetUserId: target.Id, ClientId: binding.ClientId,
-		BindingId: bindingID, Reason: "admin_revoked", Status: http.StatusOK})
+	entry.Success = true
+	entry.ClientId = binding.ClientId
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 

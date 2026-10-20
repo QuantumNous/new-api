@@ -1196,8 +1196,23 @@ func TestPartnerOAuthAdminManagesUserClientBindings(t *testing.T) {
 	require.NoError(t, model.DB.Where("user_id = ?", owner.user.Id).First(&token).Error)
 	assert.Equal(t, common.TokenStatusDisabled, token.Status)
 
+	peerRevoke := partnerOAuthAdminRequest(engine, http.MethodDelete, "/api/user/"+itoa(int64(peer.user.Id))+"/partner-oauth/bindings/"+ownerBinding, admin.token, "", "")
+	assert.Contains(t, peerRevoke.Body.String(), "no permission")
+
+	var failed []model.PartnerOauthAuthorizationLog
+	require.NoError(t, model.LOG_DB.Where("action = ? AND success = ?", "partner_oauth.binding.admin_revoke", false).
+		Find(&failed).Error)
+	require.Len(t, failed, 2)
+	failedByTarget := map[int]model.PartnerOauthAuthorizationLog{failed[0].TargetUserId: failed[0], failed[1].TargetUserId: failed[1]}
+	assert.Equal(t, http.StatusNotFound, failedByTarget[other.user.Id].Status)
+	assert.Equal(t, http.StatusOK, failedByTarget[peer.user.Id].Status)
+	for _, entry := range failed {
+		assert.Equal(t, admin.user.Id, entry.ActorUserId)
+		assert.Equal(t, ownerBinding, entry.BindingId)
+	}
+
 	var logs []model.PartnerOauthAuthorizationLog
-	require.NoError(t, model.LOG_DB.Where("action = ?", "partner_oauth.binding.admin_revoke").Find(&logs).Error)
+	require.NoError(t, model.LOG_DB.Where("action = ? AND success = ?", "partner_oauth.binding.admin_revoke", true).Find(&logs).Error)
 	require.Len(t, logs, 1)
 	assert.Equal(t, admin.user.Id, logs[0].ActorUserId)
 	assert.Equal(t, owner.user.Id, logs[0].TargetUserId)

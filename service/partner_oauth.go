@@ -886,12 +886,19 @@ func RefreshPartnerOAuthToken(client *model.PartnerOAuthClient, refreshToken, re
 	if replay {
 		grantErr := fmt.Errorf("%w: %w", partnerOAuthErr(http.StatusBadRequest, "invalid_grant", "refresh token is invalid"), ErrPartnerOAuthRefreshReuse)
 		token, lookupErr := model.FindPartnerOAuthToken(hash)
+		if errors.Is(lookupErr, model.ErrPartnerOAuthTokenNotFound) {
+			// Deleted concurrently (cleanup or client delete): nothing left to revoke.
+			return nil, grantErr
+		}
 		if lookupErr != nil {
 			return nil, ErrPartnerOAuthReplayRevocationUnavailable
 		}
 		var revoked *model.PartnerOAuthBinding
 		revokeErr := model.DB.Transaction(func(tx *gorm.DB) error {
 			binding, err := model.LockPartnerOAuthBindingWithTx(tx, token.BindingId)
+			if errors.Is(err, model.ErrPartnerOAuthBindingNotFound) {
+				return nil
+			}
 			if err != nil || binding.Status != model.PartnerOAuthBindingStatusActive {
 				return err
 			}

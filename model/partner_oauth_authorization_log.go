@@ -50,6 +50,10 @@ func ValidPartnerOAuthLogClientID(id string) bool {
 	return partnerOAuthLogClientID.MatchString(id)
 }
 
+func ValidPartnerOAuthLogBindingID(id string) bool {
+	return partnerOAuthLogBindingID.MatchString(id)
+}
+
 func ValidPartnerOAuthLogAction(action string) bool {
 	switch action {
 	case "partner_oauth.consent.approve", "partner_oauth.consent.deny",
@@ -96,7 +100,7 @@ func RecordPartnerOAuthAuthorizationLog(c *gin.Context, entry PartnerOauthAuthor
 	}
 	if !ValidPartnerOAuthLogAction(entry.Action) || !ValidPartnerOAuthLogReason(entry.Reason) ||
 		(entry.ClientId != "" && !ValidPartnerOAuthLogClientID(entry.ClientId)) ||
-		(entry.BindingId != "" && !partnerOAuthLogBindingID.MatchString(entry.BindingId)) ||
+		(entry.BindingId != "" && !ValidPartnerOAuthLogBindingID(entry.BindingId)) ||
 		entry.ActorUserId < 0 || entry.TargetUserId < 0 || entry.Status < 100 || entry.Status > 599 ||
 		len(entry.Ip) > 64 || len(entry.Route) > 128 ||
 		(c != nil && entry.Route == "") {
