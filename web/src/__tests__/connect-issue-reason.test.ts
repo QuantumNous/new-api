@@ -3,6 +3,17 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 
+declare global {
+  interface Window {
+    YeschoyConnect: {
+      normalizeIssueReasonCode: (
+        reason: string,
+        status?: number
+      ) => string
+    }
+  }
+}
+
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
 beforeAll(() => {
