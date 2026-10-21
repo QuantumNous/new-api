@@ -460,3 +460,14 @@ func TestClaudeToChatStopSequencesAndOutputConfigDiagnostics(t *testing.T) {
 	}
 	assert.Equal(t, 1, codes["output_config"])
 }
+
+// A12: an invalid Claude tools payload errors out instead of silently
+// converting to zero tools.
+func TestClaudeToChatInvalidToolsPayloadErrors(t *testing.T) {
+	request := claudeMessagesFixture([]dto.ClaudeMessage{{Role: "user", Content: "hi"}})
+	request.Tools = "not-an-array"
+
+	_, err := ClaudeMessagesRequestToOpenAIChat(context.Background(), request, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid Claude tools")
+}
