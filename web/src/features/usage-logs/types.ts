@@ -124,6 +124,9 @@ export interface LogOtherData {
     usage_billing_path?: UsageBillingPath | string
     channel_affinity?: ChannelAffinityInfo
     // Top-up audit fields (type=1, admin only)
+    source?: string
+    redemption_id?: number
+    request_ip?: string
     payment_method?: string
     callback_payment_method?: string
     caller_ip?: string

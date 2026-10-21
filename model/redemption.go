@@ -133,7 +133,7 @@ func GetRedemptionById(id int) (*Redemption, error) {
 	return &redemption, err
 }
 
-func Redeem(key string, userId int) (quota int, err error) {
+func Redeem(key string, userId int, requestIP string) (quota int, err error) {
 	if key == "" {
 		return 0, errors.New("redemption code not provided")
 	}
@@ -181,7 +181,13 @@ func Redeem(key string, userId int) (quota int, err error) {
 		return 0, ErrRedeemFailed
 	}
 	syncCreditUserQuotaCache(userId, redemption.Quota, common.LogText("redemption"))
-	RecordLog(userId, LogTypeTopup, common.NewMessage("Topped up {{quota}} with a redemption code, code ID {{id}}", map[string]any{"quota": logger.FormatQuota(redemption.Quota), "id": redemption.Id}))
+	other := NewLogOther()
+	other.MergeAdmin(map[string]any{
+		"source":        "redemption",
+		"redemption_id": redemption.Id,
+		"request_ip":    requestIP,
+	})
+	recordTopupLog(userId, common.NewMessage("Topped up {{quota}} with a redemption code, code ID {{id}}", map[string]any{"quota": logger.FormatQuota(redemption.Quota), "id": redemption.Id}), requestIP, other)
 	return redemption.Quota, nil
 }
 

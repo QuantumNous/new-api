@@ -506,40 +506,67 @@ export function DetailsDialog(props: DetailsDialogProps) {
   const showAdminIp =
     !!props.log.ip && (showTiming || (props.isAdmin && isTopup))
   const adminInfo = other?.admin_info
-  const topupAuditFields =
-    isTopup && props.isAdmin && adminInfo
-      ? ([
-          adminInfo.payment_method && {
-            label: t('Order Payment Method'),
-            value: adminInfo.payment_method,
-          },
-          adminInfo.callback_payment_method && {
-            label: t('Callback Payment Method'),
-            value: adminInfo.callback_payment_method,
-          },
-          adminInfo.caller_ip && {
-            label: t('Callback Caller IP'),
-            value: adminInfo.caller_ip,
-          },
-          adminInfo.server_ip && {
-            label: t('Server IP'),
-            value: adminInfo.server_ip,
-          },
-          adminInfo.node_name && {
-            label: t('Node Name'),
-            value: adminInfo.node_name,
-          },
-          adminInfo.version && {
-            label: t('System Version'),
-            value: adminInfo.version,
-          },
-        ].filter(Boolean) as Array<{ label: string; value: string }>)
-      : []
-  const showLegacyTopupWarning = isTopup && props.isAdmin && !adminInfo
-  const showTopupAuditSection =
-    isTopup &&
-    props.isAdmin &&
-    (topupAuditFields.length > 0 || showLegacyTopupWarning)
+  const topupAuditFields: Array<{ label: string; value: string }> = []
+  if (isTopup && props.isAdmin && adminInfo) {
+    if (adminInfo.source === 'redemption') {
+      topupAuditFields.push({
+        label: t('Top-up Source'),
+        value: t('Redemption Code'),
+      })
+      if (adminInfo.redemption_id != null) {
+        topupAuditFields.push({
+          label: t('Redemption Code ID'),
+          value: String(adminInfo.redemption_id),
+        })
+      }
+      if (adminInfo.request_ip) {
+        topupAuditFields.push({
+          label: t('Redemption Request IP'),
+          value: adminInfo.request_ip,
+        })
+      }
+    } else {
+      if (adminInfo.payment_method) {
+        topupAuditFields.push({
+          label: t('Order Payment Method'),
+          value: adminInfo.payment_method,
+        })
+      }
+      if (adminInfo.callback_payment_method) {
+        topupAuditFields.push({
+          label: t('Callback Payment Method'),
+          value: adminInfo.callback_payment_method,
+        })
+      }
+      if (adminInfo.caller_ip) {
+        topupAuditFields.push({
+          label: t('Callback Caller IP'),
+          value: adminInfo.caller_ip,
+        })
+      }
+    }
+    if (adminInfo.server_ip) {
+      topupAuditFields.push({
+        label: t('Server IP'),
+        value: adminInfo.server_ip,
+      })
+    }
+    if (adminInfo.node_name) {
+      topupAuditFields.push({
+        label: t('Node Name'),
+        value: adminInfo.node_name,
+      })
+    }
+    if (adminInfo.version) {
+      topupAuditFields.push({
+        label: t('System Version'),
+        value: adminInfo.version,
+      })
+    }
+  }
+  const showTopupAuditSection = isTopup && props.isAdmin
+  const showMissingTopupAudit =
+    showTopupAuditSection && topupAuditFields.length === 0
   const manageOperator = (() => {
     if (!isManage || !props.isAdmin || !adminInfo) return null
     const username = adminInfo.admin_username
@@ -974,13 +1001,11 @@ export function DetailsDialog(props: DetailsDialogProps) {
                 mono
               />
             ))}
-            {showLegacyTopupWarning && (
+            {showMissingTopupAudit && (
               <div className='flex items-start gap-1.5 text-xs text-amber-600 dark:text-amber-400'>
                 <Info className='mt-0.5 size-3.5 shrink-0' aria-hidden='true' />
                 <span>
-                  {t(
-                    'This historical record predates audit-info tracking and cannot be backfilled. The current instance already records server IP, callback IP, payment method, and system version for new top-ups going forward.'
-                  )}
+                  {t('Audit information was not recorded for this top-up.')}
                 </span>
               </div>
             )}

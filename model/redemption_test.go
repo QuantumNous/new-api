@@ -128,7 +128,7 @@ func setupRedeemFixture(t *testing.T, quota int) (userId int, key string) {
 func TestRedeemCreditsQuotaExactlyOnce(t *testing.T) {
 	userId, key := setupRedeemFixture(t, 500)
 
-	quota, err := Redeem(key, userId)
+	quota, err := Redeem(key, userId, "203.0.113.17")
 	require.NoError(t, err)
 	assert.Equal(t, 500, quota)
 
@@ -142,7 +142,7 @@ func TestRedeemCreditsQuotaExactlyOnce(t *testing.T) {
 	assert.Equal(t, userId, redemption.UsedUserId)
 
 	// Redeeming the same code again must fail and must not credit quota.
-	_, err = Redeem(key, userId)
+	_, err = Redeem(key, userId, "203.0.113.17")
 	require.Error(t, err)
 	require.NoError(t, DB.First(&user, "id = ?", userId).Error)
 	assert.Equal(t, 500, user.Quota)
@@ -152,7 +152,7 @@ func TestRedeemRejectsWalletOverflow(t *testing.T) {
 	userId, key := setupRedeemFixture(t, 11)
 	require.NoError(t, DB.Model(&User{}).Where("id = ?", userId).Update("quota", common.MaxWalletQuota-10).Error)
 
-	_, err := Redeem(key, userId)
+	_, err := Redeem(key, userId, "203.0.113.17")
 	require.ErrorIs(t, err, ErrRedeemFailed)
 
 	var user User
@@ -189,7 +189,7 @@ func TestRedeemConcurrentSingleSuccess(t *testing.T) {
 	for i := range goroutines {
 		go func(idx int) {
 			defer wg.Done()
-			if _, err := Redeem(key, userId); err == nil {
+			if _, err := Redeem(key, userId, "203.0.113.17"); err == nil {
 				successes[idx] = true
 			}
 		}(i)

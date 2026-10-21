@@ -250,15 +250,23 @@ func RecordOperationAuditLog(logUserId, actorRole int, content string, ip string
 }
 
 func RecordTopupLog(userId int, content *common.Message, callerIp string, paymentMethod string, callbackPaymentMethod string) {
-	username, _ := GetUsernameById(userId, false)
 	other := NewLogOther()
 	other.MergeAdmin(map[string]any{
-		"server_ip":               common.GetIp(),
-		"node_name":               common.NodeName,
 		"caller_ip":               callerIp,
 		"payment_method":          paymentMethod,
 		"callback_payment_method": callbackPaymentMethod,
-		"version":                 common.Version,
+	})
+	recordTopupLog(userId, content, callerIp, other)
+}
+
+// recordTopupLog shares server metadata across payment and redemption top-ups;
+// callers supply only the audit fields applicable to their source.
+func recordTopupLog(userId int, content *common.Message, callerIp string, other *LogOther) {
+	username, _ := GetUsernameById(userId, false)
+	other.MergeAdmin(map[string]any{
+		"server_ip": common.GetIp(),
+		"node_name": common.NodeName,
+		"version":   common.Version,
 	})
 	log := &Log{
 		UserId:    userId,
