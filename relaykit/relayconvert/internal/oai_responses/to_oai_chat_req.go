@@ -571,10 +571,12 @@ func responsesImagePartToChatImageURL(part map[string]any) any {
 	if imageURL, ok := part["image_url"]; ok {
 		if url, isString := imageURL.(string); isString {
 			// Chat Completions requires image_url to be an object, not a
-			// bare string. Sibling keys like detail stay on the part.
+			// bare string. detail is normalized through the shared whitelist:
+			// strict Chat upstreams reject newer Responses values such as
+			// "original".
 			wrapped := map[string]any{"url": url}
 			if detail, hasDetail := part["detail"]; hasDetail {
-				wrapped["detail"] = detail
+				wrapped["detail"] = relaymedia.ResponsesImageDetail(kitutil.Interface2String(detail))
 			}
 			return wrapped
 		}
