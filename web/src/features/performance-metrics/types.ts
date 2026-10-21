@@ -43,6 +43,7 @@ export type PerformanceMetricsData = {
   success: boolean
   message?: string
   data: {
+    cache_hit_rate?: number | null
     summary?: PerformanceSummary | null
     series?: PerformanceSeriesPoint[]
     window_start?: number

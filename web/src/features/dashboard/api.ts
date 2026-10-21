@@ -32,22 +32,23 @@ import type {
 // Quota & Usage Data
 // ----------------------------------------------------------------------------
 
-// Get user quota data within a time range
-// Admin users get all users' data by default.
+// Get user quota data within a time range. Admin users get all users' data by default.
 export async function getUserQuotaDates(
   params: {
     start_timestamp: number
     end_timestamp: number
     default_time?: string
     username?: string
+    include_cache_hit_rate?: boolean
   },
   isAdmin = false
 ) {
   const endpoint = isAdmin ? '/api/data' : '/api/data/self'
-  const res = await api.get<{ success: boolean; data: QuotaDataItem[] }>(
-    endpoint,
-    { params }
-  )
+  const res = await api.get<{
+    success: boolean
+    data: QuotaDataItem[]
+    cache_hit_rate?: number | null
+  }>(endpoint, { params })
   return res.data
 }
 

@@ -5,7 +5,9 @@ import (
 	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/model"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -58,11 +60,12 @@ func GetPerfMetrics(c *gin.Context) {
 		}
 	}
 
+	activeGroups := append(lo.Keys(ratio_setting.GetGroupRatioCopy()), "auto")
 	result, err := perfmetrics.Query(perfmetrics.QueryParams{
 		Model:         modelName,
 		Group:         c.Query("group"),
 		Hours:         hours,
-		AllowedGroups: append(lo.Keys(ratio_setting.GetGroupRatioCopy()), "auto"),
+		AllowedGroups: activeGroups,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -70,6 +73,19 @@ func GetPerfMetrics(c *gin.Context) {
 			"message": err.Error(),
 		})
 		return
+	}
+
+	result.CacheHitRate, err = service.GetCacheHitRate(c.Request.Context(), model.CacheUsageFilter{
+		ModelName:      modelName,
+		Group:          c.Query("group"),
+		AllowedGroups:  activeGroups,
+		StartTimestamp: result.WindowStart,
+		EndTimestamp:   result.WindowEnd,
+	})
+	if err != nil {
+		// A missing log database must not hide otherwise available latency,
+		// throughput, and availability metrics.
+		result.CacheHitRate = nil
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -7601,6 +7601,8 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Cache hit rate": "Cache hit rate",
+    "Input tokens served from cache in the last 24 hours": "Input tokens served from cache in the last 24 hours"
   }
 }

@@ -25,6 +25,7 @@ import {
   Flame,
   TrendingUp,
   Activity,
+  Database,
   type LucideIcon,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -94,6 +95,7 @@ export function useSummaryCardsConfig(totals: {
   todayUsageDisplay: string
   usedDisplay: string
   requestCountDisplay: string
+  cacheHitRateDisplay: string
   currencyLabel: string
   currencyEnabled: boolean
 }) {
@@ -124,6 +126,13 @@ export function useSummaryCardsConfig(totals: {
       value: totals.requestCountDisplay,
       description: t('Total requests made'),
       icon: Activity,
+    },
+    {
+      key: 'cacheHitRate',
+      title: t('Cache hit rate'),
+      value: totals.cacheHitRateDisplay,
+      description: t('Input tokens served from cache in the last 24 hours'),
+      icon: Database,
     },
   ]
 }

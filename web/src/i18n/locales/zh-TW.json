@@ -7601,6 +7601,8 @@
     "Zhipu": "智譜",
     "Zhipu GLM": "智譜GLM",
     "Zhipu V4": "智譜 V4",
-    "Zoom": "縮放"
+    "Zoom": "縮放",
+    "Cache hit rate": "快取命中率",
+    "Input tokens served from cache in the last 24 hours": "近 24 小時輸入 Token 的快取命中比例"
   }
 }

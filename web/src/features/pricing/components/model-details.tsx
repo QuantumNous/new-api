@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   CalendarClock,
   Code2,
+  Database,
   FileText,
   HeartPulse,
   Info,
@@ -32,6 +33,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getPerfMetrics } from '@/features/performance-metrics/api'
 import {
+  formatCacheHitRate,
   formatLatency,
   formatThroughput,
   formatUptimePct,
@@ -281,7 +283,11 @@ function OverviewSummaryGrid(props: { model: PricingModel }) {
   const avgLatency = summary?.avg_latency_ms ?? 0
 
   return (
-    <div className='bg-muted/20 grid overflow-hidden rounded-lg border sm:grid-cols-3 sm:divide-x'>
+    <div
+      role='group'
+      aria-label={t('Performance')}
+      className='bg-muted/20 grid overflow-hidden rounded-lg border sm:grid-cols-2 lg:grid-cols-4 [&>div+div]:border-t sm:[&>div+div]:border-t-0 lg:[&>div+div]:border-l sm:[&>div:nth-child(even)]:border-l sm:[&>div:nth-child(n+3)]:border-t lg:[&>div:nth-child(n+3)]:border-t-0'
+    >
       <OverviewMetric
         icon={Timer}
         label='TPS'
@@ -297,6 +303,11 @@ function OverviewSummaryGrid(props: { model: PricingModel }) {
         label={t('Success rate')}
         value={formatUptimePct(successRate)}
         valueClassName={getSuccessRateTextClass(successRate)}
+      />
+      <OverviewMetric
+        icon={Database}
+        label={t('Cache hit rate')}
+        value={formatCacheHitRate(metricsQuery.data?.data.cache_hit_rate)}
       />
     </div>
   )

@@ -16,6 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { formatPercent } from '@/lib/format'
+
+export function formatCacheHitRate(rate: number | null | undefined): string {
+  if (rate == null || !Number.isFinite(rate) || rate < 0 || rate > 100) {
+    return '—'
+  }
+  return formatPercent(rate)
+}
+
 export function formatThroughput(tps: number): string {
   if (!Number.isFinite(tps) || tps <= 0) return '—'
   if (tps >= 1_000) return `${(tps / 1_000).toFixed(1)}K t/s`

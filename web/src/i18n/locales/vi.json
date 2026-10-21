@@ -7601,6 +7601,8 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Cache hit rate": "Tỷ lệ trúng bộ nhớ đệm",
+    "Input tokens served from cache in the last 24 hours": "Tỷ lệ token đầu vào được đọc từ bộ nhớ đệm trong 24 giờ qua"
   }
 }

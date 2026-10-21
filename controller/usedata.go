@@ -3,9 +3,11 @@ package controller
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -74,11 +76,24 @@ func GetUserQuotaDates(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
+	response := gin.H{
 		"success": true,
 		"message": "",
 		"data":    dates,
-	})
+	}
+	if c.Query("include_cache_hit_rate") == "true" {
+		// Preserve usage data when the separate log database is unavailable.
+		// The quota chart has a future-hour buffer; cache usage instead covers
+		// the actual rolling 24 hours up to the current minute.
+		cacheEnd := time.Now().Unix()
+		rate, _ := service.GetCacheHitRate(c.Request.Context(), model.CacheUsageFilter{
+			UserID:         userId,
+			StartTimestamp: cacheEnd - 24*60*60,
+			EndTimestamp:   cacheEnd,
+		})
+		response["cache_hit_rate"] = rate
+	}
+	c.JSON(http.StatusOK, response)
 	return
 }
 

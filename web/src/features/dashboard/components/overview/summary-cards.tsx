@@ -27,6 +27,7 @@ import { Button } from '@/components/ui/button'
 import { getUserQuotaDates } from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import type { QuotaDataItem } from '@/features/dashboard/types'
+import { formatCacheHitRate } from '@/features/performance-metrics/lib/format'
 import { useStatus } from '@/hooks/use-status'
 import { getCurrencyLabel, isCurrencyDisplayEnabled } from '@/lib/currency'
 import { formatNumber, formatQuota } from '@/lib/format'
@@ -152,6 +153,7 @@ export function SummaryCards() {
       'dashboard',
       'overview',
       'summary-sparklines',
+      user?.id,
       summaryTimeRange.start_timestamp,
       summaryTimeRange.end_timestamp,
     ],
@@ -161,6 +163,7 @@ export function SummaryCards() {
           start_timestamp: summaryTimeRange.start_timestamp,
           end_timestamp: summaryTimeRange.end_timestamp,
           default_time: 'hour',
+          include_cache_hit_rate: true,
         })
       ),
     staleTime: 60 * 1000,
@@ -231,11 +234,14 @@ export function SummaryCards() {
 
   const items = useSummaryCardsConfig({
     ...summaryValues,
+    cacheHitRateDisplay: formatCacheHitRate(
+      usageTrendQuery.isError ? undefined : usageTrendQuery.data?.cache_hit_rate
+    ),
     todayUsageDisplay,
     currencyEnabled,
     currencyLabel,
   }).map((config, index) => {
-    const tones = ['accent-1', 'accent-2', 'accent-3'] as const
+    const tones = ['accent-1', 'accent-2', 'accent-3', 'accent-2'] as const
 
     return {
       key: config.key,
@@ -266,7 +272,7 @@ export function SummaryCards() {
               </p>
             </div>
           </div>
-          <StaggerContainer className='grid grid-cols-3 gap-1.5 sm:gap-3'>
+          <StaggerContainer className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-4'>
             {items.map((it) => (
               <StaggerItem
                 key={it.key}
@@ -280,7 +286,10 @@ export function SummaryCards() {
                   tone={it.tone}
                   sparkline={it.sparkline}
                   sparklineVariant={it.sparklineVariant}
-                  loading={loading}
+                  loading={
+                    loading ||
+                    (it.key === 'cacheHitRate' && usageTrendQuery.isLoading)
+                  }
                   compactMobile
                 />
               </StaggerItem>

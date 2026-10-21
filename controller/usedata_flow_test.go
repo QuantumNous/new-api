@@ -1,15 +1,48 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGetUserQuotaDatesCacheRateUsesCurrentUserAndRolling24Hours(t *testing.T) {
+	setupFlowControllerTestDB(t)
+	require.NoError(t, model.DB.AutoMigrate(&model.Log{}))
+	now := time.Now().Unix()
+	require.NoError(t, model.LOG_DB.Create(&[]model.Log{
+		// This request is in the actual last 24h, before the chart's 23h start.
+		{UserId: 91001, CreatedAt: now - 23*3600 - 1800, Type: model.LogTypeConsume, PromptTokens: 1000, Other: `{"cache_tokens":950}`},
+		{UserId: 91002, CreatedAt: now - 3600, Type: model.LogTypeConsume, PromptTokens: 1000, Other: `{"cache_tokens":0}`},
+		{UserId: 91001, CreatedAt: now - 25*3600, Type: model.LogTypeConsume, PromptTokens: 1000, Other: `{"cache_tokens":0}`},
+		{UserId: 91001, CreatedAt: now + 120, Type: model.LogTypeConsume, PromptTokens: 1000, Other: `{"cache_tokens":0}`},
+	}).Error)
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Set("id", 91001)
+	ctx.Set("role", common.RoleCommonUser)
+	ctx.Request = httptest.NewRequest(http.MethodGet, fmt.Sprintf("/api/data/self?start_timestamp=%d&end_timestamp=%d&include_cache_hit_rate=true&user_id=91002&username=bob", now-23*3600, now+3600), nil)
+	GetUserQuotaDates(ctx)
+	var payload struct {
+		Success      bool               `json:"success"`
+		Data         []*model.QuotaData `json:"data"`
+		CacheHitRate *float64           `json:"cache_hit_rate"`
+	}
+	require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &payload))
+	require.True(t, payload.Success, recorder.Body.String())
+	require.NotNil(t, payload.CacheHitRate)
+	assert.Equal(t, 95.0, *payload.CacheHitRate)
+	assert.Empty(t, payload.Data)
+}
 
 type flowQuotaResponse struct {
 	Success bool                  `json:"success"`

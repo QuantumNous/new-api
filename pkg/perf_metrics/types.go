@@ -52,6 +52,7 @@ type GroupResult struct {
 }
 
 type QueryResult struct {
+	CacheHitRate *float64      `json:"cache_hit_rate"`
 	ModelName    string        `json:"model_name"`
 	SeriesSchema string        `json:"series_schema"`
 	Summary      *Summary      `json:"summary"`

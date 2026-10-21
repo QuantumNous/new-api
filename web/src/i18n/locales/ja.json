@@ -7601,6 +7601,8 @@
     "Zhipu": "Zhipu",
     "Zhipu GLM": "Zhipu GLM",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Cache hit rate": "キャッシュヒット率",
+    "Input tokens served from cache in the last 24 hours": "過去24時間にキャッシュから読み取った入力トークンの割合"
   }
 }
