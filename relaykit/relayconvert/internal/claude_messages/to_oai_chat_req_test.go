@@ -436,3 +436,27 @@ func TestClaudeMessagesRequestToOpenAIChatKeepsParallelToolResultsContiguous(t *
 	require.NotNil(t, parts[0].GetImageMedia())
 	assert.Equal(t, dataURL, parts[0].GetImageMedia().Url)
 }
+
+// #7175: single-element stop_sequences must stay an array; some upstreams
+// reject the collapsed string form. #4317: output_config drops are reported.
+func TestClaudeToChatStopSequencesAndOutputConfigDiagnostics(t *testing.T) {
+	request := claudeMessagesFixture([]dto.ClaudeMessage{{Role: "user", Content: "hi"}})
+	request.StopSequences = []string{"END"}
+	request.OutputConfig = json.RawMessage(`{"effort":"high"}`)
+
+	ctx, collector := convdiag.WithCollector(context.Background())
+	result, err := ClaudeMessagesRequestToOpenAIChat(ctx, request, nil)
+	require.NoError(t, err)
+
+	stopRaw, err := json.Marshal(result.Stop)
+	require.NoError(t, err)
+	assert.JSONEq(t, `["END"]`, string(stopRaw), "single stop must serialize as an array")
+
+	codes := map[string]int{}
+	for _, diagnostic := range collector.Diagnostics() {
+		if diagnostic.Code == "dropped_request_field" {
+			codes[diagnostic.Path]++
+		}
+	}
+	assert.Equal(t, 1, codes["output_config"])
+}

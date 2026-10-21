@@ -993,3 +993,38 @@ func TestResponsesRequestToChatCompletionsRequestInstructionsContentParts(t *tes
 		assert.Equal(t, "plain", got.Messages[0].StringContent())
 	})
 }
+
+// #5938: hosted tools (mcp_server etc.) are skipped with a diagnostic instead
+// of being forwarded in raw shape; #6396: reasoning items ahead of tool calls
+// become assistant reasoning_content.
+func TestResponsesRequestToChatCompletionsRequestToolsAndReasoningHistory(t *testing.T) {
+	got, err := ResponsesRequestToChatCompletionsRequest(context.Background(), &dto.OpenAIResponsesRequest{
+		Model: "gpt-test",
+		Tools: mustRawMessage(t, []map[string]any{
+			{"type": "function", "name": "lookup", "description": "Look up", "parameters": map[string]any{"type": "object"}},
+			{"type": "web_search"},
+			{"type": "mcp_server", "server_label": "docs", "server_url": "https://mcp.example.test"},
+		}),
+		Input: mustRawMessage(t, []map[string]any{
+			{
+				"type": "reasoning",
+				"summary": []map[string]any{
+					{"type": "summary_text", "text": "need the docs first"},
+				},
+			},
+			{"type": "function_call", "call_id": "call_1", "name": "lookup", "arguments": "{}"},
+			{"type": "function_call_output", "call_id": "call_1", "output": "done"},
+		}),
+	})
+	require.NoError(t, err)
+
+	require.Len(t, got.Tools, 1, "hosted tools must be dropped")
+	assert.Equal(t, "function", got.Tools[0].Type)
+
+	// assistant carries the reasoning ahead of its tool call
+	assistant := got.Messages[0]
+	assert.Equal(t, "assistant", assistant.Role)
+	require.NotNil(t, assistant.ReasoningContent)
+	assert.Equal(t, "need the docs first", *assistant.ReasoningContent)
+	require.Len(t, assistant.ParseToolCalls(), 1)
+}

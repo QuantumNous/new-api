@@ -47,7 +47,7 @@ func ResponsesRequestToChatCompletionsRequest(ctx context.Context, req *dto.Open
 		return nil, err
 	}
 
-	tools, err := responsesRequestToolsToChat(req.Tools)
+	tools, err := responsesRequestToolsToChat(ctx, req.Tools)
 	if err != nil {
 		return nil, err
 	}
@@ -176,11 +176,31 @@ func responsesRequestMessagesToChat(ctx context.Context, req *dto.OpenAIResponse
 		// batch to stay contiguous, so media hoisted out of tool output items is
 		// held back and emitted as a single user message once the batch ends.
 		var pendingMedia []any
+		// Reasoning items preceding a function_call ride on that assistant
+		// message as reasoning_content instead of being dropped (#6396).
+		var pendingReasoning []string
 		for _, item := range items {
 			itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
 			if len(pendingMedia) > 0 && itemType != responsesInputTypeFunctionCallOutput && itemType != responsesInputTypeCustomToolOutput {
 				messages = append(messages, dto.Message{Role: "user", Content: pendingMedia})
 				pendingMedia = nil
+			}
+			if itemType == "reasoning" {
+				if text := responsesReasoningItemText(item); text != "" {
+					pendingReasoning = append(pendingReasoning, text)
+				}
+				continue
+			}
+			if len(pendingReasoning) > 0 && (itemType == responsesInputTypeFunctionCall || itemType == responsesInputTypeCustomToolCall) {
+				if len(messages) == 0 || messages[len(messages)-1].Role != "assistant" {
+					messages = append(messages, dto.Message{Role: "assistant"})
+				}
+				assistant := &messages[len(messages)-1]
+				if assistant.ReasoningContent == nil {
+					reasoning := strings.Join(pendingReasoning, "\n\n")
+					assistant.ReasoningContent = &reasoning
+				}
+				pendingReasoning = nil
 			}
 			nextMessages, media, err := responsesInputItemToChatMessages(ctx, item, messages)
 			if err != nil {
@@ -284,6 +304,28 @@ func responsesInputItemToChatMessages(ctx context.Context, item map[string]any, 
 		role = "user"
 	}
 	return append(messages, dto.Message{Role: role, Content: content}), nil, nil
+}
+
+// responsesReasoningItemText extracts the visible text of an input reasoning
+// item from its summary and content arrays.
+func responsesReasoningItemText(item map[string]any) string {
+	var sb strings.Builder
+	for _, field := range []string{"summary", "content"} {
+		parts, ok := item[field].([]any)
+		if !ok {
+			continue
+		}
+		for _, rawPart := range parts {
+			part, ok := rawPart.(map[string]any)
+			if !ok {
+				continue
+			}
+			if text := kitutil.Interface2String(part["text"]); text != "" {
+				appendSeparatedText(&sb, text)
+			}
+		}
+	}
+	return sb.String()
 }
 
 func responsesChatContentEmpty(content any) bool {
@@ -443,7 +485,7 @@ func appendToolCallToLastAssistant(messages []dto.Message, toolCall dto.ToolCall
 	return messages
 }
 
-func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, error) {
+func responsesRequestToolsToChat(ctx context.Context, raw json.RawMessage) ([]dto.ToolCallRequest, error) {
 	if !rawJSONPresent(raw) {
 		return nil, nil
 	}
@@ -454,7 +496,7 @@ func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, er
 	}
 
 	out := make([]dto.ToolCallRequest, 0, len(tools))
-	for _, tool := range tools {
+	for index, tool := range tools {
 		toolType := strings.TrimSpace(kitutil.Interface2String(tool["type"]))
 		if toolType == "function" {
 			out = append(out, dto.ToolCallRequest{
@@ -464,6 +506,20 @@ func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, er
 					Description: kitutil.Interface2String(tool["description"]),
 					Parameters:  tool["parameters"],
 				},
+			})
+			continue
+		}
+		if toolType != "custom" {
+			// Hosted tools (mcp_server, web_search, code_interpreter, ...)
+			// have no Chat Completions representation; forwarding their raw
+			// shape would 400 on strict upstreams (#5938).
+			convdiag.Add(ctx, types.ConversionDiagnostic{
+				Code:     "unsupported_hosted_tool",
+				Path:     fmt.Sprintf("tools[%d]", index),
+				Message:  fmt.Sprintf("Chat Completions cannot represent hosted tool %q; the tool was omitted", toolType),
+				Severity: types.ConversionDiagnosticWarning,
+				From:     types.RelayFormatOpenAIResponses,
+				To:       types.RelayFormatOpenAI,
 			})
 			continue
 		}

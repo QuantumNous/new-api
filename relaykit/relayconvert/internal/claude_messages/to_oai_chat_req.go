@@ -101,9 +101,9 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 		info.SetReasoningEffort(string(effectiveEffort))
 	}
 
-	if len(claudeRequest.StopSequences) == 1 {
-		openAIRequest.Stop = claudeRequest.StopSequences[0]
-	} else if len(claudeRequest.StopSequences) > 1 {
+	if len(claudeRequest.StopSequences) > 0 {
+		// Always forward stop as an array: collapsing a single sequence to a
+		// string is lossy round-trip-wise and 400s on strict upstreams (#7175).
 		openAIRequest.Stop = claudeRequest.StopSequences
 	}
 
@@ -388,6 +388,8 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 	appendDropped("container", rawJSONFieldPresent(claudeRequest.Container))
 	appendDropped("service_tier", claudeRequest.ServiceTier != "")
 	appendDropped("chat_template_kwargs", rawJSONFieldPresent(claudeRequest.ChatTemplateKwargs))
+	appendDropped("output_config", rawJSONFieldPresent(claudeRequest.OutputConfig))
+	appendDropped("output_format", rawJSONFieldPresent(claudeRequest.OutputFormat))
 	convdiag.Add(ctx, droppedFields...)
 
 	return &openAIRequest, nil
