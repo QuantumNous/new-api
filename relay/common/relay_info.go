@@ -991,6 +991,7 @@ func (info *RelayInfo) ConvOptions() *convmeta.Options {
 	if info != nil {
 		if info.ChannelMeta != nil {
 			options.ToolLossPolicy = types.ConversionLossPolicy(info.ChannelOtherSettings.ToolLossPolicy)
+			options.PreserveAssistantReasoning = info.ChannelOtherSettings.ClaudeThinkingToReasoningContent
 		}
 		info.convOptions = options
 	}

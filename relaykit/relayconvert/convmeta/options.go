@@ -9,6 +9,10 @@ import "github.com/QuantumNous/new-api/relaykit/types"
 type Options struct {
 	Claude ClaudeOptions
 	Gemini GeminiOptions
+	// PreserveAssistantReasoning enables plaintext assistant thinking blocks
+	// on the Claude Messages→OpenAI Chat request conversion as reasoning_content.
+	// Zero value leaves this extension disabled.
+	PreserveAssistantReasoning bool
 
 	// ToolLossPolicy controls whether a cross-protocol conversion may omit or
 	// approximate built-in-tool semantics. The zero value uses the allow
