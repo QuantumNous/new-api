@@ -30,7 +30,7 @@ func setupSyncVendorsTestDB(t *testing.T) {
 	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	require.NoError(t, err)
-	require.NoError(t, db.AutoMigrate(&model.Model{}, &model.Vendor{}))
+	require.NoError(t, db.AutoMigrate(&model.Model{}, &model.Vendor{}, &model.Option{}))
 	model.DB = db
 
 	t.Cleanup(func() {
@@ -59,9 +59,9 @@ func TestSyncModelVendors_MatchesByIconAndName(t *testing.T) {
 	setupSyncVendorsTestDB(t)
 
 	// 预置模型：一个带图标、一个仅有可推断名称、一个完全不匹配
-	require.NoError(t, (&model.Model{ModelName: "doubao-seed-2.0-pro", Icon: "Doubao.Color", ModelType: model.ModelTypeText, Status: 1}).Insert())
-	require.NoError(t, (&model.Model{ModelName: "gpt-4o", ModelType: model.ModelTypeText, Status: 1}).Insert())
-	require.NoError(t, (&model.Model{ModelName: "some-custom-model", ModelType: model.ModelTypeText, Status: 1}).Insert())
+	require.NoError(t, model.DB.Create(&model.Model{ModelName: "doubao-seed-2.0-pro", Icon: "Doubao.Color", ModelType: model.ModelTypeText, Status: 1}).Error)
+	require.NoError(t, model.DB.Create(&model.Model{ModelName: "gpt-4o", ModelType: model.ModelTypeText, Status: 1}).Error)
+	require.NoError(t, model.DB.Create(&model.Model{ModelName: "some-custom-model", ModelType: model.ModelTypeText, Status: 1}).Error)
 
 	// 首次调用：应种子化 vendors 并回填 2 条
 	rr := doSyncVendors(t)
@@ -106,7 +106,7 @@ func TestSyncModelVendors_PreservesManualVendorEdits(t *testing.T) {
 	custom := &model.Vendor{Name: "OpenAI", DisplayName: "自定义 OpenAI 代理", Icon: "Custom.Icon", Status: 1}
 	require.NoError(t, custom.Insert())
 
-	require.NoError(t, (&model.Model{ModelName: "gpt-4o", ModelType: model.ModelTypeText, Status: 1}).Insert())
+	require.NoError(t, model.DB.Create(&model.Model{ModelName: "gpt-4o", ModelType: model.ModelTypeText, Status: 1}).Error)
 
 	rr := doSyncVendors(t)
 	require.True(t, rr.Success)

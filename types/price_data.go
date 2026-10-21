@@ -104,8 +104,6 @@ func (p *PriceData) RemoveOtherRatiosFromFloat(value float64) float64 {
 }
 
 func isValidOtherRatio(ratio float64) bool {
-	// NaN/Inf would poison every downstream quota multiplication
-	// (int(NaN * quota) wraps to a negative charge).
 	return ratio > 0 && !math.IsInf(ratio, 1)
 }
 

@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 )
 
 func TestBuildTestRequestAutoVolcSeedreamUsesImageRequest(t *testing.T) {
@@ -72,7 +72,7 @@ func TestEndpointTypeFromModelType(t *testing.T) {
 		model.ModelTypeEmbedding: constant.EndpointTypeEmbeddings,
 		model.ModelTypeImage:     constant.EndpointTypeImageGeneration,
 		model.ModelTypeFile:      constant.EndpointTypeOpenAIResponse,
-		model.ModelTypeAudio:     constant.EndpointTypeOpenAI,
+		model.ModelTypeAudio:     constant.EndpointTypeAudioTranscription,
 		model.ModelTypeVideo:     constant.EndpointTypeOpenAI,
 	}
 	for modelType, want := range cases {

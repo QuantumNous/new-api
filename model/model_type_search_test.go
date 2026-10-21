@@ -15,7 +15,7 @@ func TestSearchModelsFiltersByModelType(t *testing.T) {
 		}
 	}
 
-	got, total, err := SearchModels("", "", ModelTypeImage, 0, 10)
+	got, total, err := SearchModels("", "", ModelTypeImage, "", "", 0, 10)
 	if err != nil {
 		t.Fatalf("SearchModels returned error: %v", err)
 	}

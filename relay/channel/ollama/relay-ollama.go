@@ -1,7 +1,6 @@
 package ollama
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -9,34 +8,77 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/dto"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
+	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/service"
-	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 )
 
+func toOllamaResponseFormat(responseFormat *dto.ResponseFormat) (any, error) {
+	if responseFormat == nil {
+		return nil, nil
+	}
+	switch responseFormat.Type {
+	case "json", "json_object":
+		return "json", nil
+	case "json_schema":
+		if len(responseFormat.JsonSchema) == 0 {
+			return nil, nil
+		}
+		var jsonSchema dto.FormatJsonSchema
+		if err := common.Unmarshal(responseFormat.JsonSchema, &jsonSchema); err != nil {
+			return nil, fmt.Errorf("invalid ollama response format: %w", err)
+		}
+		return jsonSchema.Schema, nil
+	default:
+		return nil, nil
+	}
+}
+
 func openAIChatToOllamaChat(c *gin.Context, r *dto.GeneralOpenAIRequest) (*OllamaChatRequest, error) {
+	think := r.Think
+	if len(think) == 0 {
+		effort := r.ReasoningEffort
+		if len(r.Reasoning) > 0 {
+			var reasoning dto.Reasoning
+			if err := common.Unmarshal(r.Reasoning, &reasoning); err != nil {
+				return nil, fmt.Errorf("invalid ollama reasoning: %w", err)
+			}
+			effort = lo.CoalesceOrEmpty(reasoning.Effort, effort)
+		}
+		if effort != "" {
+			var thinkValue any
+			switch effort {
+			case "none":
+				thinkValue = false
+			case "low", "medium", "high", "max":
+				thinkValue = effort
+			default:
+				return nil, fmt.Errorf("unsupported ollama reasoning effort %q", effort)
+			}
+			var err error
+			think, err = common.Marshal(thinkValue)
+			if err != nil {
+				return nil, fmt.Errorf("marshal ollama think: %w", err)
+			}
+		}
+	}
+
 	chatReq := &OllamaChatRequest{
 		Model:   r.Model,
 		Stream:  lo.FromPtrOr(r.Stream, false),
 		Options: map[string]any{},
-		Think:   r.Think,
+		Think:   think,
 	}
-	if r.ResponseFormat != nil {
-		if r.ResponseFormat.Type == "json" {
-			chatReq.Format = "json"
-		} else if r.ResponseFormat.Type == "json_schema" {
-			if len(r.ResponseFormat.JsonSchema) > 0 {
-				var schema any
-				_ = json.Unmarshal(r.ResponseFormat.JsonSchema, &schema)
-				chatReq.Format = schema
-			}
-		}
+	format, err := toOllamaResponseFormat(r.ResponseFormat)
+	if err != nil {
+		return nil, err
 	}
+	chatReq.Format = format
 
 	// options mapping
 	if r.Temperature != nil {
@@ -68,12 +110,10 @@ func openAIChatToOllamaChat(c *gin.Context, r *dto.GeneralOpenAIRequest) (*Ollam
 		case []string:
 			chatReq.Options["stop"] = v
 		case []any:
-			arr := make([]string, 0, len(v))
-			for _, i := range v {
-				if s, ok := i.(string); ok {
-					arr = append(arr, s)
-				}
-			}
+			arr := lo.FilterMap(v, func(item any, _ int) (string, bool) {
+				value, ok := item.(string)
+				return value, ok
+			})
 			if len(arr) > 0 {
 				chatReq.Options["stop"] = arr
 			}
@@ -81,14 +121,20 @@ func openAIChatToOllamaChat(c *gin.Context, r *dto.GeneralOpenAIRequest) (*Ollam
 	}
 
 	if len(r.Tools) > 0 {
-		tools := make([]OllamaTool, 0, len(r.Tools))
-		for _, t := range r.Tools {
-			tools = append(tools, OllamaTool{Type: "function", Function: OllamaToolFunction{Name: t.Function.Name, Description: t.Function.Description, Parameters: t.Function.Parameters}})
-		}
-		chatReq.Tools = tools
+		chatReq.Tools = lo.Map(r.Tools, func(tool dto.ToolCallRequest, _ int) OllamaTool {
+			return OllamaTool{
+				Type: "function",
+				Function: OllamaToolFunction{
+					Name:        tool.Function.Name,
+					Description: tool.Function.Description,
+					Parameters:  tool.Function.Parameters,
+				},
+			}
+		})
 	}
 
 	chatReq.Messages = make([]OllamaChatMessage, 0, len(r.Messages))
+	toolNamesByCallID := make(map[string]string)
 	for _, m := range r.Messages {
 		var textBuilder strings.Builder
 		var images []string
@@ -117,25 +163,38 @@ func openAIChatToOllamaChat(c *gin.Context, r *dto.GeneralOpenAIRequest) (*Ollam
 		if len(images) > 0 {
 			cm.Images = images
 		}
-		if m.Role == "tool" && m.Name != nil {
-			cm.ToolName = *m.Name
+		if m.Role == "assistant" {
+			if reasoning, ok := lo.Coalesce(m.ReasoningContent, m.Reasoning); ok {
+				thinking, err := common.Marshal(*reasoning)
+				if err != nil {
+					return nil, fmt.Errorf("marshal ollama thinking: %w", err)
+				}
+				cm.Thinking = thinking
+			}
+		}
+		if m.Role == "tool" {
+			cm.ToolCallID = m.ToolCallId
+			cm.ToolName = lo.CoalesceOrEmpty(lo.FromPtr(m.Name), toolNamesByCallID[m.ToolCallId])
 		}
 		if m.ToolCalls != nil && len(m.ToolCalls) > 0 {
 			parsed := m.ParseToolCalls()
 			if len(parsed) > 0 {
 				calls := make([]OllamaToolCall, 0, len(parsed))
 				for _, tc := range parsed {
-					var args interface{}
+					var args any
 					if tc.Function.Arguments != "" {
-						_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
+						_ = common.Unmarshal([]byte(tc.Function.Arguments), &args)
 					}
 					if args == nil {
 						args = map[string]any{}
 					}
-					oc := OllamaToolCall{}
+					oc := OllamaToolCall{ID: tc.ID}
 					oc.Function.Name = tc.Function.Name
 					oc.Function.Arguments = args
 					calls = append(calls, oc)
+					if tc.ID != "" {
+						toolNamesByCallID[tc.ID] = tc.Function.Name
+					}
 				}
 				cm.ToolCalls = calls
 			}
@@ -175,15 +234,11 @@ func openAIToGenerate(c *gin.Context, r *dto.GeneralOpenAIRequest) (*OllamaGener
 			gen.Suffix = s
 		}
 	}
-	if r.ResponseFormat != nil {
-		if r.ResponseFormat.Type == "json" {
-			gen.Format = "json"
-		} else if r.ResponseFormat.Type == "json_schema" {
-			var schema any
-			_ = json.Unmarshal(r.ResponseFormat.JsonSchema, &schema)
-			gen.Format = schema
-		}
+	format, err := toOllamaResponseFormat(r.ResponseFormat)
+	if err != nil {
+		return nil, err
 	}
+	gen.Format = format
 	if r.Temperature != nil {
 		gen.Options["temperature"] = r.Temperature
 	}
@@ -212,12 +267,10 @@ func openAIToGenerate(c *gin.Context, r *dto.GeneralOpenAIRequest) (*OllamaGener
 		case []string:
 			gen.Options["stop"] = v
 		case []any:
-			arr := make([]string, 0, len(v))
-			for _, i := range v {
-				if s, ok := i.(string); ok {
-					arr = append(arr, s)
-				}
-			}
+			arr := lo.FilterMap(v, func(item any, _ int) (string, bool) {
+				value, ok := item.(string)
+				return value, ok
+			})
 			if len(arr) > 0 {
 				gen.Options["stop"] = arr
 			}
@@ -284,7 +337,7 @@ func FetchOllamaModels(baseURL, apiKey string) ([]OllamaModel, error) {
 	client := &http.Client{}
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %v", err)
+		return nil, fmt.Errorf("failed to create request: %v", err)
 	}
 
 	// Ollama 通常不需要 Bearer token，但为了兼容性保留
@@ -294,24 +347,24 @@ func FetchOllamaModels(baseURL, apiKey string) ([]OllamaModel, error) {
 
 	response, err := client.Do(request)
 	if err != nil {
-		return nil, fmt.Errorf("请求失败: %v", err)
+		return nil, fmt.Errorf("request failed: %v", err)
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(response.Body)
-		return nil, fmt.Errorf("服务器返回错误 %d: %s", response.StatusCode, string(body))
+		return nil, fmt.Errorf("server returned error %d: %s", response.StatusCode, string(body))
 	}
 
 	var tagsResponse OllamaTagsResponse
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		return nil, fmt.Errorf("读取响应失败: %v", err)
+		return nil, fmt.Errorf("failed to read response: %v", err)
 	}
 
 	err = common.Unmarshal(body, &tagsResponse)
 	if err != nil {
-		return nil, fmt.Errorf("解析响应失败: %v", err)
+		return nil, fmt.Errorf("failed to parse response: %v", err)
 	}
 
 	return tagsResponse.Models, nil
@@ -328,7 +381,7 @@ func PullOllamaModel(baseURL, apiKey, modelName string) error {
 
 	requestBody, err := common.Marshal(pullRequest)
 	if err != nil {
-		return fmt.Errorf("序列化请求失败: %v", err)
+		return fmt.Errorf("failed to marshal request: %v", err)
 	}
 
 	client := &http.Client{
@@ -336,7 +389,7 @@ func PullOllamaModel(baseURL, apiKey, modelName string) error {
 	}
 	request, err := http.NewRequest("POST", url, strings.NewReader(string(requestBody)))
 	if err != nil {
-		return fmt.Errorf("创建请求失败: %v", err)
+		return fmt.Errorf("failed to create request: %v", err)
 	}
 
 	request.Header.Set("Content-Type", "application/json")
@@ -346,13 +399,13 @@ func PullOllamaModel(baseURL, apiKey, modelName string) error {
 
 	response, err := client.Do(request)
 	if err != nil {
-		return fmt.Errorf("请求失败: %v", err)
+		return fmt.Errorf("request failed: %v", err)
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(response.Body)
-		return fmt.Errorf("拉取模型失败 %d: %s", response.StatusCode, string(body))
+		return fmt.Errorf("failed to pull model, status %d: %s", response.StatusCode, string(body))
 	}
 
 	return nil
@@ -369,7 +422,7 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 
 	requestBody, err := common.Marshal(pullRequest)
 	if err != nil {
-		return fmt.Errorf("序列化请求失败: %v", err)
+		return fmt.Errorf("failed to marshal request: %v", err)
 	}
 
 	client := &http.Client{
@@ -377,7 +430,7 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 	}
 	request, err := http.NewRequest("POST", url, strings.NewReader(string(requestBody)))
 	if err != nil {
-		return fmt.Errorf("创建请求失败: %v", err)
+		return fmt.Errorf("failed to create request: %v", err)
 	}
 
 	request.Header.Set("Content-Type", "application/json")
@@ -387,13 +440,13 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 
 	response, err := client.Do(request)
 	if err != nil {
-		return fmt.Errorf("请求失败: %v", err)
+		return fmt.Errorf("request failed: %v", err)
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(response.Body)
-		return fmt.Errorf("拉取模型失败 %d: %s", response.StatusCode, string(body))
+		return fmt.Errorf("failed to pull model, status %d: %s", response.StatusCode, string(body))
 	}
 
 	// 读取流式响应
@@ -416,7 +469,7 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 
 		// 检查是否出现错误或完成
 		if strings.EqualFold(pullResponse.Status, "error") {
-			return fmt.Errorf("拉取模型失败: %s", strings.TrimSpace(line))
+			return fmt.Errorf("failed to pull model: %s", strings.TrimSpace(line))
 		}
 		if strings.EqualFold(pullResponse.Status, "success") {
 			successful = true
@@ -425,11 +478,11 @@ func PullOllamaModelStream(baseURL, apiKey, modelName string, progressCallback f
 	}
 
 	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("读取流式响应失败: %v", err)
+		return fmt.Errorf("failed to read stream response: %v", err)
 	}
 
 	if !successful {
-		return fmt.Errorf("拉取模型未完成: 未收到成功状态")
+		return fmt.Errorf("model pull did not complete: no success status received")
 	}
 
 	return nil
@@ -445,13 +498,13 @@ func DeleteOllamaModel(baseURL, apiKey, modelName string) error {
 
 	requestBody, err := common.Marshal(deleteRequest)
 	if err != nil {
-		return fmt.Errorf("序列化请求失败: %v", err)
+		return fmt.Errorf("failed to marshal request: %v", err)
 	}
 
 	client := &http.Client{}
 	request, err := http.NewRequest("DELETE", url, strings.NewReader(string(requestBody)))
 	if err != nil {
-		return fmt.Errorf("创建请求失败: %v", err)
+		return fmt.Errorf("failed to create request: %v", err)
 	}
 
 	request.Header.Set("Content-Type", "application/json")
@@ -461,13 +514,13 @@ func DeleteOllamaModel(baseURL, apiKey, modelName string) error {
 
 	response, err := client.Do(request)
 	if err != nil {
-		return fmt.Errorf("请求失败: %v", err)
+		return fmt.Errorf("request failed: %v", err)
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(response.Body)
-		return fmt.Errorf("删除模型失败 %d: %s", response.StatusCode, string(body))
+		return fmt.Errorf("failed to delete model, status %d: %s", response.StatusCode, string(body))
 	}
 
 	return nil
@@ -476,7 +529,7 @@ func DeleteOllamaModel(baseURL, apiKey, modelName string) error {
 func FetchOllamaVersion(baseURL, apiKey string) (string, error) {
 	trimmedBase := strings.TrimRight(baseURL, "/")
 	if trimmedBase == "" {
-		return "", fmt.Errorf("baseURL 为空")
+		return "", fmt.Errorf("baseURL is empty")
 	}
 
 	url := fmt.Sprintf("%s/api/version", trimmedBase)
@@ -484,7 +537,7 @@ func FetchOllamaVersion(baseURL, apiKey string) (string, error) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	request, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		return "", fmt.Errorf("创建请求失败: %v", err)
+		return "", fmt.Errorf("failed to create request: %v", err)
 	}
 
 	if apiKey != "" {
@@ -493,29 +546,29 @@ func FetchOllamaVersion(baseURL, apiKey string) (string, error) {
 
 	response, err := client.Do(request)
 	if err != nil {
-		return "", fmt.Errorf("请求失败: %v", err)
+		return "", fmt.Errorf("request failed: %v", err)
 	}
 	defer response.Body.Close()
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		return "", fmt.Errorf("读取响应失败: %v", err)
+		return "", fmt.Errorf("failed to read response: %v", err)
 	}
 
 	if response.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("查询版本失败 %d: %s", response.StatusCode, string(body))
+		return "", fmt.Errorf("failed to query version, status %d: %s", response.StatusCode, string(body))
 	}
 
 	var versionResp struct {
 		Version string `json:"version"`
 	}
 
-	if err := json.Unmarshal(body, &versionResp); err != nil {
-		return "", fmt.Errorf("解析响应失败: %v", err)
+	if err := common.Unmarshal(body, &versionResp); err != nil {
+		return "", fmt.Errorf("failed to parse response: %v", err)
 	}
 
 	if versionResp.Version == "" {
-		return "", fmt.Errorf("未返回版本信息")
+		return "", fmt.Errorf("no version information returned")
 	}
 
 	return versionResp.Version, nil

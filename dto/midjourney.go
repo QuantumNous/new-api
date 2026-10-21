@@ -27,10 +27,10 @@ type MidjourneyRequest struct {
 }
 
 type MidjourneyResponse struct {
-	Code        int         `json:"code"`
-	Description string      `json:"description"`
-	Properties  interface{} `json:"properties"`
-	Result      string      `json:"result"`
+	Code        int    `json:"code"`
+	Description string `json:"description"`
+	Properties  any    `json:"properties"`
+	Result      string `json:"result"`
 }
 
 type MidjourneyUploadResponse struct {

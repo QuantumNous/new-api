@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -34,6 +35,9 @@ func Password2Hash(password string) (string, error) {
 }
 
 func ValidatePasswordAndHash(password string, hash string) bool {
+	if strings.HasPrefix(hash, "$argon2id$") {
+		return validateArgon2AccountPassword(password, hash)
+	}
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
 }

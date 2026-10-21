@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
-	"gorm.io/driver/sqlite"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -23,7 +23,7 @@ func setupModelTypeTestDB(t *testing.T) {
 		t.Fatalf("open sqlite: %v", err)
 	}
 	DB = db
-	if err := DB.AutoMigrate(&Model{}); err != nil {
+	if err := DB.AutoMigrate(&Model{}, &Option{}); err != nil {
 		t.Fatalf("migrate model: %v", err)
 	}
 }

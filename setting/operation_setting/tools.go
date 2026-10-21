@@ -1,10 +1,13 @@
 package operation_setting
 
 import (
+	"encoding/json"
+	"math"
 	"sort"
 	"strings"
 	"sync/atomic"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
@@ -16,44 +19,113 @@ import (
 //   - "tool_name"              → default price for all models
 //   - "tool_name:model_prefix*" → override for models matching the prefix
 //
-// Lookup order: longest prefix match → default → hardcoded fallback → 0
+// Effective index: hardcoded defaults → hardcoded model overrides → valid
+// operator values. Lookup uses the longest model prefix before the tool
+// default, and a matched numeric zero is terminal.
+//
+// Built-in keys are written in the vendor's list currency.
 // ---------------------------------------------------------------------------
 
-var defaultToolPrices = map[string]float64{
-	"web_search":         10.0, // OpenAI web search (all models) / Claude web search
-	"web_search_preview": 10.0, // OpenAI web search preview (default: reasoning models)
-	"file_search":        2.5,  // OpenAI file search (Responses API)
-	"google_search":      14.0, // Gemini Grounding with Google Search
-}
+const ToolPriceOptionKey = "tool_price_setting.prices"
 
-var defaultToolPriceOverrides = map[string]float64{
-	"web_search_preview:gpt-4o*":       25.0, // non-reasoning models
-	"web_search_preview:gpt-4.1*":      25.0,
-	"web_search_preview:gpt-4o-mini*":  25.0,
-	"web_search_preview:gpt-4.1-mini*": 25.0,
+const (
+	defaultWebSearchToolPrice        = 10.0
+	defaultWebSearchPreviewToolPrice = 10.0
+	defaultFileSearchToolPrice       = 2.5
+	defaultGoogleSearchToolPrice     = 14.0
+	defaultImageGenerationToolPrice  = 150.0
+	defaultSearchPreviewModelPrice   = 25.0
+)
+
+// seedHardcodedToolPrices injects compile-time built-in fallbacks (tool
+// defaults and model-prefix overrides) into the destination. The source is
+// constants, not a mutable package map or operator configuration.
+func seedHardcodedToolPrices(prices map[string]float64) {
+	prices["web_search"] = defaultWebSearchToolPrice
+	prices["web_search_preview"] = defaultWebSearchPreviewToolPrice
+	prices["file_search"] = defaultFileSearchToolPrice
+	prices["google_search"] = defaultGoogleSearchToolPrice
+	prices["image_generation"] = defaultImageGenerationToolPrice
+	prices["web_search_preview:gpt-4o*"] = defaultSearchPreviewModelPrice
+	prices["web_search_preview:gpt-4.1*"] = defaultSearchPreviewModelPrice
+	prices["web_search_preview:gpt-4o-mini*"] = defaultSearchPreviewModelPrice
+	prices["web_search_preview:gpt-4.1-mini*"] = defaultSearchPreviewModelPrice
+
+	// Google Search grounding (USD per 1K, ai.google.dev/gemini-api/docs/pricing
+	// and cloud.google.com/vertex-ai/generative-ai/pricing): Gemini 3 bills each
+	// search query at $14 (the google_search default); Gemini 2.5 and older bill
+	// $35 per grounded prompt, so their query count is free and the grounded
+	// prompt carries the price.
+	prices["google_search:gemini-2.5*"] = 0
+	prices["google_search:gemini-2.0*"] = 0
+	prices["google_search:gemini-1.5*"] = 0
+	prices["google_search_grounded_prompt:gemini-2.5*"] = 35
+	prices["google_search_grounded_prompt:gemini-2.0*"] = 35
+	prices["google_search_grounded_prompt:gemini-1.5*"] = 35
+
+	// Vendor search tiers, verbatim in the vendor's list currency per 1K
+	// calls. CNY: Zhipu search engines, 0.01/0.03/0.05 CNY per call
+	// (https://docs.bigmodel.cn/cn/guide/tools/web-search), and Alibaba Model
+	// Studio search strategies at Beijing prices
+	// (https://help.aliyun.com/zh/model-studio/web-search); the Singapore
+	// agent price (73.392381 CNY) is set by the operator. USD: Azure
+	// Responses web search, billed as Bing transactions at $14 per 1,000
+	// (https://www.microsoft.com/en-us/bing/apis), and xAI web search $5 per
+	// 1K calls, x_search $5 per 1K posts and $10 per 1K profiles
+	// (https://docs.x.ai/developers/pricing).
+	prices["search_std"] = 10
+	prices["search_pro"] = 30
+	prices["search_pro_sogou"] = 50
+	prices["search_pro_quark"] = 50
+	prices["search_strategy_turbo"] = 3
+	prices["search_strategy_max"] = 4
+	prices["search_strategy_agent"] = 4
+	prices["search_strategy_agent_max"] = 4
+	prices["bing_web_search"] = 14
+	prices["web_search:grok*"] = 5
+	prices["x_search_posts"] = 5
+	prices["x_search_profiles"] = 10
+
+	// DeepSeek Search and Fetch APIs, $0.75 per 1,000 successful requests
+	// each (https://api-docs.deepseek.com/quick_start/pricing), for the
+	// searches and page fetches DeepSeek runs server-side for Claude Code and
+	// Codex traffic. /v1/tools/search and /v1/tools/fetch bill through the
+	// deepseek-search and deepseek-fetch model prices instead.
+	prices["deepseek_search"] = 0.75
+	prices["deepseek_fetch"] = 0.75
 }
 
 // ToolPriceSetting is managed by config.GlobalConfig.Register.
+// Prices holds operator overrides only; hardcoded fallbacks live in the index.
 type ToolPriceSetting struct {
 	Prices map[string]float64 `json:"prices"`
 }
 
 var toolPriceSetting = ToolPriceSetting{
-	Prices: func() map[string]float64 {
-		m := make(map[string]float64, len(defaultToolPrices)+len(defaultToolPriceOverrides))
-		for k, v := range defaultToolPrices {
-			m[k] = v
-		}
-		for k, v := range defaultToolPriceOverrides {
-			m[k] = v
-		}
-		return m
-	}(),
+	Prices: make(map[string]float64),
 }
+
+// builtInToolNames are the tool names (the part before ":") that
+// seedHardcodedToolPrices prices, built once from the constant seed and never
+// from operator configuration.
+var builtInToolNames = make(map[string]struct{})
 
 func init() {
 	config.GlobalConfig.Register("tool_price_setting", &toolPriceSetting)
+	seed := make(map[string]float64)
+	seedHardcodedToolPrices(seed)
+	for key := range seed {
+		name, _, _ := strings.Cut(key, ":")
+		builtInToolNames[name] = struct{}{}
+	}
 	RebuildToolPriceIndex()
+}
+
+// IsBuiltInToolPriceKey reports whether the built-in price seed prices the
+// tool name, as a default or for a model prefix. Operator prices never count.
+func IsBuiltInToolPriceKey(name string) bool {
+	_, ok := builtInToolNames[name]
+	return ok
 }
 
 // ---------------------------------------------------------------------------
@@ -72,17 +144,77 @@ type toolPriceIndex struct {
 
 var currentIndex atomic.Pointer[toolPriceIndex]
 
+func isValidToolPrice(price float64) bool {
+	return price >= 0 && !math.IsNaN(price) && !math.IsInf(price, 0)
+}
+
+func decodeToolPricesJSON(value string, ignoreInvalidEntries bool) (map[string]float64, error) {
+	rawValue := json.RawMessage(strings.TrimSpace(value))
+	if common.GetJsonType(rawValue) != "object" {
+		return nil, common.NewMessage("Tool prices must be a JSON object")
+	}
+
+	var rawPrices map[string]json.RawMessage
+	if err := common.Unmarshal(rawValue, &rawPrices); err != nil {
+		return nil, common.NewMessage("Failed to parse tool prices: {{error}}", map[string]any{"error": err.Error()})
+	}
+
+	prices := make(map[string]float64, len(rawPrices))
+	for name, rawPrice := range rawPrices {
+		var entryErr error
+		if common.GetJsonType(rawPrice) != "number" {
+			entryErr = common.NewMessage(`Tool price "{{name}}" must be a non-negative number`, map[string]any{"name": name})
+		} else {
+			var price float64
+			if err := common.Unmarshal(rawPrice, &price); err != nil {
+				entryErr = common.NewMessage(`Failed to parse tool price "{{name}}": {{error}}`, map[string]any{"name": name, "error": err.Error()})
+			} else if !isValidToolPrice(price) {
+				entryErr = common.NewMessage(`Tool price "{{name}}" must be a finite non-negative number`, map[string]any{"name": name})
+			} else {
+				prices[name] = price
+			}
+		}
+
+		if entryErr == nil {
+			continue
+		}
+		if !ignoreInvalidEntries {
+			return nil, entryErr
+		}
+		common.SysError(entryErr.Error())
+	}
+	return prices, nil
+}
+
+// ValidateToolPricesJSON validates an operator-supplied complete price map.
+// A numeric zero is valid and intentionally disables the matching rule.
+func ValidateToolPricesJSON(value string) error {
+	_, err := decodeToolPricesJSON(value, false)
+	return err
+}
+
+// LoadToolPricesFromJSONString replaces the complete operator price map.
+// Invalid legacy entries are ignored individually so valid sibling overrides
+// survive, while missing built-in keys continue to use hardcoded fallbacks.
+func LoadToolPricesFromJSONString(value string) {
+	prices, err := decodeToolPricesJSON(value, true)
+	if err != nil {
+		common.SysError(common.LogText("failed to load tool prices, using hardcoded fallbacks: %s", err.Error()))
+		prices = make(map[string]float64)
+	}
+	toolPriceSetting.Prices = prices
+	RebuildToolPriceIndex()
+}
+
 // RebuildToolPriceIndex rebuilds the lookup index from the current config.
 // Called on init and after config updates. Not on the billing hot path.
 func RebuildToolPriceIndex() {
-	merged := make(map[string]float64, len(defaultToolPrices)+len(defaultToolPriceOverrides)+len(toolPriceSetting.Prices))
-	for k, v := range defaultToolPrices {
-		merged[k] = v
-	}
-	for k, v := range defaultToolPriceOverrides {
-		merged[k] = v
-	}
+	merged := make(map[string]float64, 9+len(toolPriceSetting.Prices))
+	seedHardcodedToolPrices(merged)
 	for k, v := range toolPriceSetting.Prices {
+		if !isValidToolPrice(v) {
+			continue
+		}
 		merged[k] = v
 	}
 
@@ -92,13 +224,13 @@ func RebuildToolPriceIndex() {
 	}
 
 	for key, price := range merged {
-		colonIdx := strings.IndexByte(key, ':')
-		if colonIdx < 0 {
+		before, after, ok := strings.Cut(key, ":")
+		if !ok {
 			idx.defaults[key] = price
 			continue
 		}
-		toolName := key[:colonIdx]
-		modelPart := key[colonIdx+1:]
+		toolName := before
+		modelPart := after
 		prefix := strings.TrimSuffix(modelPart, "*")
 		idx.prefixes[toolName] = append(idx.prefixes[toolName], prefixEntry{prefix: prefix, price: price})
 	}
@@ -106,6 +238,9 @@ func RebuildToolPriceIndex() {
 	for tool := range idx.prefixes {
 		entries := idx.prefixes[tool]
 		sort.Slice(entries, func(i, j int) bool {
+			if len(entries[i].prefix) == len(entries[j].prefix) {
+				return entries[i].prefix < entries[j].prefix
+			}
 			return len(entries[i].prefix) > len(entries[j].prefix)
 		})
 		idx.prefixes[tool] = entries
@@ -119,10 +254,11 @@ func RebuildToolPriceIndex() {
 func GetToolPriceForModel(toolName, modelName string) float64 {
 	idx := currentIndex.Load()
 	if idx == nil {
-		if v, ok := defaultToolPrices[toolName]; ok {
-			return v
+		RebuildToolPriceIndex()
+		idx = currentIndex.Load()
+		if idx == nil {
+			return 0
 		}
-		return 0
 	}
 
 	if entries, ok := idx.prefixes[toolName]; ok && modelName != "" {
@@ -144,48 +280,19 @@ func GetToolPrice(toolName string) float64 {
 	return GetToolPriceForModel(toolName, "")
 }
 
-// ---------------------------------------------------------------------------
-// GPT Image 1 per-call pricing (special: depends on quality + size)
-// ---------------------------------------------------------------------------
-
-const (
-	GPTImage1Low1024x1024    = 0.011
-	GPTImage1Low1024x1536    = 0.016
-	GPTImage1Low1536x1024    = 0.016
-	GPTImage1Medium1024x1024 = 0.042
-	GPTImage1Medium1024x1536 = 0.063
-	GPTImage1Medium1536x1024 = 0.063
-	GPTImage1High1024x1024   = 0.167
-	GPTImage1High1024x1536   = 0.25
-	GPTImage1High1536x1024   = 0.25
-)
-
-func GetGPTImage1PriceOnceCall(quality string, size string) float64 {
-	prices := map[string]map[string]float64{
-		"low": {
-			"1024x1024": GPTImage1Low1024x1024,
-			"1024x1536": GPTImage1Low1024x1536,
-			"1536x1024": GPTImage1Low1536x1024,
-		},
-		"medium": {
-			"1024x1024": GPTImage1Medium1024x1024,
-			"1024x1536": GPTImage1Medium1024x1536,
-			"1536x1024": GPTImage1Medium1536x1024,
-		},
-		"high": {
-			"1024x1024": GPTImage1High1024x1024,
-			"1024x1536": GPTImage1High1024x1536,
-			"1536x1024": GPTImage1High1536x1024,
-		},
+// SetToolPriceForTest injects a tool price and rebuilds the lookup index. Tests only.
+func SetToolPriceForTest(name string, price float64) {
+	if toolPriceSetting.Prices == nil {
+		toolPriceSetting.Prices = make(map[string]float64)
 	}
+	toolPriceSetting.Prices[name] = price
+	RebuildToolPriceIndex()
+}
 
-	if qualityMap, exists := prices[quality]; exists {
-		if price, exists := qualityMap[size]; exists {
-			return price
-		}
-	}
-
-	return GPTImage1High1024x1024
+// DeleteToolPriceForTest removes an injected tool price and rebuilds the index. Tests only.
+func DeleteToolPriceForTest(name string) {
+	delete(toolPriceSetting.Prices, name)
+	RebuildToolPriceIndex()
 }
 
 // ---------------------------------------------------------------------------
@@ -204,15 +311,20 @@ const (
 func GetGeminiInputAudioPricePerMillionTokens(modelName string) float64 {
 	if strings.HasPrefix(modelName, "gemini-2.5-flash-preview-native-audio") {
 		return Gemini25FlashNativeAudioInputAudioPrice
-	} else if strings.HasPrefix(modelName, "gemini-2.5-flash-preview-lite") {
+	}
+	if strings.HasPrefix(modelName, "gemini-2.5-flash-preview-lite") {
 		return Gemini25FlashLitePreviewInputAudioPrice
-	} else if strings.HasPrefix(modelName, "gemini-2.5-flash-preview") {
+	}
+	if strings.HasPrefix(modelName, "gemini-2.5-flash-preview") {
 		return Gemini25FlashPreviewInputAudioPrice
-	} else if strings.HasPrefix(modelName, "gemini-2.5-flash") {
+	}
+	if strings.HasPrefix(modelName, "gemini-2.5-flash") {
 		return Gemini25FlashProductionInputAudioPrice
-	} else if strings.HasPrefix(modelName, "gemini-2.0-flash") {
+	}
+	if strings.HasPrefix(modelName, "gemini-2.0-flash") {
 		return Gemini20FlashInputAudioPrice
-	} else if strings.HasPrefix(modelName, "gemini-robotics-er-1.5") {
+	}
+	if strings.HasPrefix(modelName, "gemini-robotics-er-1.5") {
 		return GeminiRoboticsER15InputAudioPrice
 	}
 	return 0

@@ -61,8 +61,11 @@ func Redeem(userID int, commissionCents int64) (int64, error) {
 			return err
 		}
 		model.RecordLog(userID, model.LogTypeTopup,
-			fmt.Sprintf("佣金 ¥%.2f 转入账户余额，+%d 额度（汇率 %.4f）",
-				float64(commissionCents)/100.0, quotaCredited, rate))
+			common.NewMessage("Commission {{commission}} transferred to account balance, credited {{quota}} quota at exchange rate {{rate}}", map[string]any{
+				"commission": fmt.Sprintf("¥%.2f", float64(commissionCents)/100.0),
+				"quota":      quotaCredited,
+				"rate":       fmt.Sprintf("%.4f", rate),
+			}))
 		return nil
 	})
 	if err != nil {

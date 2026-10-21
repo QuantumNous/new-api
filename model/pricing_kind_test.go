@@ -5,7 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"gorm.io/driver/sqlite"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -24,7 +24,7 @@ func setupPricingKindTestDB(t *testing.T) {
 		t.Fatalf("open sqlite: %v", err)
 	}
 	DB = db
-	if err := DB.AutoMigrate(&Model{}); err != nil {
+	if err := DB.AutoMigrate(&Model{}, &Option{}); err != nil {
 		t.Fatalf("migrate model: %v", err)
 	}
 }
@@ -96,8 +96,8 @@ func TestPricingKindUpdateViaModelObjectDirectly(t *testing.T) {
 	m2 := &Model{
 		Id:          m.Id,
 		ModelName:   "seedream-test",
-		ModelType:   "image",           // simulate what ShouldBindJSON would set
-		PricingKind: "image-gen",       // simulate what ShouldBindJSON would set
+		ModelType:   "image",     // simulate what ShouldBindJSON would set
+		PricingKind: "image-gen", // simulate what ShouldBindJSON would set
 		Status:      1,
 	}
 	if err := m2.Update(); err != nil {

@@ -569,7 +569,7 @@
       "post": {
         "summary": "用户登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 无需鉴权。签发新登录 Session 时可能返回 409 AUTH_SESSION_LIMIT 或 429 AUTH_SESSION_ISSUANCE_LIMIT。",
         "tags": [
           "用户登陆注册"
         ],
@@ -595,6 +595,26 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "description": "该用户的活跃登录 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "该用户在统计窗口内创建的 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -611,7 +631,7 @@
       "post": {
         "summary": "两步验证登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（登录流程）",
+        "description": "🔓 无需鉴权（登录流程）。签发新登录 Session 时可能返回 409 AUTH_SESSION_LIMIT 或 429 AUTH_SESSION_ISSUANCE_LIMIT。",
         "tags": [
           "用户登陆注册"
         ],
@@ -624,6 +644,10 @@
                 "properties": {
                   "code": {
                     "type": "string"
+                  },
+                  "flow_token": {
+                    "type": "string",
+                    "description": "密码校验成功后返回的一次性 2FA 登录流程令牌"
                   }
                 }
               }
@@ -634,6 +658,26 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "description": "该用户的活跃登录 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "该用户在统计窗口内创建的 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -646,11 +690,125 @@
         ]
       }
     },
-    "/api/user/logout": {
-      "get": {
-        "summary": "用户登出",
+    "/api/user/auth/refresh": {
+      "post": {
+        "summary": "刷新面板登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "使用 HttpOnly Refresh Cookie 轮换刷新令牌并返回新的 AuthBundle；SESSION_COOKIE_SECURE=true 时要求同源或可信 Origin，false/未配置时保持本地 HTTP 兼容模式。已有内存会话时通过 X-Auth-Session 绑定预期 SID，Cookie 不匹配返回 409 AUTH_SESSION_MISMATCH 且不修改 Cookie。",
+        "tags": [
+          "用户登陆注册"
+        ],
+        "parameters": [
+          {
+            "name": "X-Auth-Session",
+            "in": "header",
+            "description": "可选的预期登录会话 SID；冷启动时可省略",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          },
+          "409": {
+            "description": "X-Auth-Session 与 Refresh Cookie 的 SID 不一致；不修改 Cookie 或会话",
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/user/auth/logout": {
+      "post": {
+        "summary": "撤销当前登录会话",
+        "deprecated": false,
+        "description": "撤销明确的 Bearer/X-Auth-Session 会话；仅当 HttpOnly Refresh Cookie 属于同一 SID 时才撤销并清除 Cookie，避免跨标签页误踢其他账号。SESSION_COOKIE_SECURE=true 时要求同源或可信 Origin，false/未配置时保持本地 HTTP 兼容模式。",
+        "tags": [
+          "用户登陆注册"
+        ],
+        "parameters": [
+          {
+            "name": "X-Auth-Session",
+            "in": "header",
+            "description": "可选的预期登录会话 SID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/user/sessions": {
+      "get": {
+        "summary": "查看登录会话",
+        "deprecated": false,
+        "description": "🔐 需要面板 Access Token；PAT 不能管理浏览器登录会话。只返回当前 user_auth_version 的有效会话，当前会话优先，最多 100 条。",
+        "tags": [
+          "用户登陆注册"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "返回当前鉴权版本的有效登录会话",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      }
+    },
+    "/api/user/sessions/{sid}": {
+      "delete": {
+        "summary": "撤销指定登录会话",
+        "deprecated": false,
+        "description": "🔐 需要面板 Access Token，可撤销当前会话",
+        "tags": [
+          "用户登陆注册"
+        ],
+        "parameters": [
+          {
+            "name": "sid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "AccessToken1": []
+          }
+        ]
+      }
+    },
+    "/api/user/sessions/revoke-others": {
+      "post": {
+        "summary": "撤销其他登录会话",
+        "deprecated": false,
+        "description": "🔐 保留当前登录会话并撤销该用户的其他会话，包含列表不可见的旧 user_auth_version active 残留行",
         "tags": [
           "用户登陆注册"
         ],
@@ -663,10 +821,7 @@
         },
         "security": [
           {
-            "Combination343": []
-          },
-          {
-            "Combination1243": []
+            "AccessToken1": []
           }
         ]
       }
@@ -725,7 +880,7 @@
       "post": {
         "summary": "完成Passkey登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔓 无需鉴权。签发新登录 Session 时可能返回 409 AUTH_SESSION_LIMIT 或 429 AUTH_SESSION_ISSUANCE_LIMIT。",
         "tags": [
           "用户登陆注册"
         ],
@@ -734,6 +889,26 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "description": "该用户的活跃登录 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "该用户在统计窗口内创建的 Session 已达上限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSessionIssuanceError"
+                }
+              }
+            }
           }
         },
         "security": [
@@ -750,7 +925,7 @@
       "get": {
         "summary": "GitHub OAuth登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
         "tags": [
           "OAuth"
         ],
@@ -769,6 +944,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -785,7 +966,7 @@
       "get": {
         "summary": "Discord OAuth登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
         "tags": [
           "OAuth"
         ],
@@ -804,6 +985,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -820,7 +1007,7 @@
       "get": {
         "summary": "OIDC登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
         "tags": [
           "OAuth"
         ],
@@ -829,6 +1016,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -845,7 +1038,7 @@
       "get": {
         "summary": "LinuxDO OAuth登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
         "tags": [
           "OAuth"
         ],
@@ -854,6 +1047,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -867,14 +1066,44 @@
       }
     },
     "/api/oauth/state": {
-      "get": {
+      "post": {
         "summary": "生成OAuth State",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "创建一次性 OAuth AuthFlow。login 无需鉴权；bind 需要面板 Access Token 并绑定当前登录会话",
         "tags": [
           "OAuth"
         ],
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "provider",
+                  "intent"
+                ],
+                "properties": {
+                  "provider": {
+                    "type": "string"
+                  },
+                  "intent": {
+                    "type": "string",
+                    "enum": [
+                      "login",
+                      "bind"
+                    ]
+                  },
+                  "aff": {
+                    "type": "string",
+                    "description": "仅 login intent 可用的 affiliate code"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "成功",
@@ -895,7 +1124,7 @@
       "get": {
         "summary": "微信OAuth登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
         "tags": [
           "OAuth"
         ],
@@ -904,6 +1133,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -917,14 +1152,32 @@
       }
     },
     "/api/oauth/wechat/bind": {
-      "get": {
+      "post": {
         "summary": "绑定微信",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔐 需要面板 Access Token",
         "tags": [
           "OAuth"
         ],
         "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "code"
+                ],
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "成功",
@@ -933,42 +1186,43 @@
         },
         "security": [
           {
-            "Combination343": []
-          },
-          {
-            "Combination1243": []
+            "AccessToken1": []
           }
         ]
       }
     },
     "/api/oauth/email/bind": {
-      "get": {
+      "post": {
         "summary": "绑定邮箱",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔐 需要面板 Access Token",
         "tags": [
           "OAuth"
         ],
-        "parameters": [
-          {
-            "name": "email",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "code",
-            "in": "query",
-            "description": "",
-            "required": false,
-            "schema": {
-              "type": "string"
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "code"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "code": {
+                    "type": "string"
+                  }
+                }
+              }
             }
           }
-        ],
+        },
         "responses": {
           "200": {
             "description": "成功",
@@ -977,10 +1231,7 @@
         },
         "security": [
           {
-            "Combination343": []
-          },
-          {
-            "Combination1243": []
+            "AccessToken1": []
           }
         ]
       }
@@ -989,7 +1240,7 @@
       "get": {
         "summary": "Telegram登录",
         "deprecated": false,
-        "description": "🔓 无需鉴权（OAuth回调）",
+        "description": "🔓 无需鉴权（OAuth 回调）。创建本地登录 Session 时同样受 AUTH_SESSION_LIMIT 和 AUTH_SESSION_ISSUANCE_LIMIT 约束。",
         "tags": [
           "OAuth"
         ],
@@ -998,6 +1249,12 @@
           "200": {
             "description": "成功",
             "headers": {}
+          },
+          "409": {
+            "$ref": "#/components/responses/AuthSessionLimit"
+          },
+          "429": {
+            "$ref": "#/components/responses/AuthSessionIssuanceLimit"
           }
         },
         "security": [
@@ -1010,11 +1267,11 @@
         ]
       }
     },
-    "/api/oauth/telegram/bind": {
-      "get": {
-        "summary": "绑定Telegram",
+    "/api/oauth/telegram/bind/start": {
+      "post": {
+        "summary": "创建 Telegram 绑定流程",
         "deprecated": false,
-        "description": "🔓 无需鉴权",
+        "description": "🔐 需要面板 Access Token；返回绑定 widget 使用的一次性 flow_token 与 callback_url",
         "tags": [
           "OAuth"
         ],
@@ -1027,12 +1284,36 @@
         },
         "security": [
           {
-            "Combination343": []
-          },
-          {
-            "Combination1243": []
+            "AccessToken1": []
           }
         ]
+      }
+    },
+    "/api/oauth/telegram/bind/{flow_token}": {
+      "get": {
+        "summary": "完成 Telegram 绑定",
+        "deprecated": false,
+        "description": "Telegram widget 回调；通过一次性 flow_token 关联并重新校验创建该流程的登录会话。始终以 302 回到 /oauth/telegram：成功携带 telegram_bind=success，失败携带 telegram_bind=error、flow_token 和稳定 error_code（TELEGRAM_BIND_DISABLED、TELEGRAM_BIND_INVALID_REQUEST、TELEGRAM_BIND_FLOW_INVALID、TELEGRAM_BIND_SESSION_INVALID、TELEGRAM_BIND_ALREADY_BOUND、TELEGRAM_BIND_USER_DELETED、TELEGRAM_BIND_USER_DISABLED 或 TELEGRAM_BIND_INTERNAL_ERROR），不会透传底层错误文案。",
+        "tags": [
+          "OAuth"
+        ],
+        "parameters": [
+          {
+            "name": "flow_token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "重定向到 /oauth/telegram 的绑定结果回调",
+            "headers": {}
+          }
+        },
+        "security": []
       }
     },
     "/api/user/self/groups": {
@@ -2967,13 +3248,32 @@
                 "type": "object",
                 "properties": {
                   "base_url": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "上游基础地址。编辑预览时显式空字符串表示清除已保存值，省略则沿用已保存值；相对上游路径要求非空的完整基础地址。"
                   },
                   "type": {
-                    "type": "integer"
+                    "type": "integer",
+                    "description": "渠道类型。高级自定义渠道为 58。"
                   },
                   "key": {
-                    "type": "string"
+                    "type": "string",
+                    "description": "新建渠道预览使用的 API 密钥。提供 channel_id 时忽略此字段，并在服务端使用渠道已保存的单密钥或多密钥配置。"
+                  },
+                  "channel_id": {
+                    "type": "integer",
+                    "description": "可选的已保存渠道 ID。用于在不向前端返回密钥的情况下预览尚未保存的高级自定义配置。"
+                  },
+                  "advanced_custom": {
+                    "type": "string",
+                    "description": "可选的高级自定义配置 JSON 字符串。新建高级自定义渠道时必填；编辑预览时覆盖已保存配置，省略则沿用已保存配置。模型发现仅支持显式的 /v1/models 路由和 OpenAI data[].id 响应。"
+                  },
+                  "header_override": {
+                    "type": "string",
+                    "description": "可选的全局请求头覆盖 JSON 字符串。编辑预览时覆盖已保存值，显式空字符串表示清除，省略则沿用。"
+                  },
+                  "proxy": {
+                    "type": "string",
+                    "description": "可选的网络代理。编辑预览时覆盖已保存值，显式空字符串表示清除，省略则沿用。"
                   }
                 }
               }
@@ -3881,18 +4181,30 @@
             "Combination1243": []
           }
         ]
-      },
-      "delete": {
-        "summary": "删除历史日志",
+      }
+    },
+    "/api/system-task/log-cleanup": {
+      "post": {
+        "summary": "创建日志清理任务",
         "deprecated": false,
-        "description": "👨‍💼 需要管理员权限（Admin）",
+        "description": "👑 需要超级管理员权限（Root）。使用 target_timestamp 指定需清理的历史日志边界，并返回异步系统任务。",
         "tags": [
           "日志"
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "target_timestamp",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
         "responses": {
           "200": {
-            "description": "成功",
+            "description": "成功创建任务或返回参数错误",
             "headers": {}
           }
         },
@@ -4799,7 +5111,7 @@
       "get": {
         "summary": "获取系统选项",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）",
+        "description": "👑 需要超级管理员权限（Root）。已退役的 theme.frontend 不在列表中返回。",
         "tags": [
           "系统设置"
         ],
@@ -4822,7 +5134,7 @@
       "put": {
         "summary": "更新系统选项",
         "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）",
+        "description": "👑 需要超级管理员权限（Root）。兼容期内 theme.frontend=default 可幂等写入，其他主题值会被拒绝。",
         "tags": [
           "系统设置"
         ],
@@ -4846,31 +5158,6 @@
     "/api/option/rest_model_ratio": {
       "post": {
         "summary": "重置模型倍率",
-        "deprecated": false,
-        "description": "👑 需要超级管理员权限（Root）",
-        "tags": [
-          "系统设置"
-        ],
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "成功",
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "Combination343": []
-          },
-          {
-            "Combination1243": []
-          }
-        ]
-      }
-    },
-    "/api/option/migrate_console_setting": {
-      "post": {
-        "summary": "迁移控制台设置",
         "deprecated": false,
         "description": "👑 需要超级管理员权限（Root）",
         "tags": [
@@ -4956,6 +5243,32 @@
             "type": "string"
           },
           "data": {}
+        }
+      },
+      "AuthSessionIssuanceError": {
+        "type": "object",
+        "required": [
+          "success",
+          "code",
+          "message"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "AUTH_SESSION_LIMIT",
+              "AUTH_SESSION_ISSUANCE_LIMIT"
+            ]
+          },
+          "message": {
+            "type": "string"
+          }
         }
       },
       "PageInfo": {
@@ -5122,33 +5435,63 @@
         }
       }
     },
-    "responses": {},
+    "responses": {
+      "AuthSessionLimit": {
+        "description": "该用户的活跃登录 Session 已达上限",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuthSessionIssuanceError"
+            }
+          }
+        }
+      },
+      "AuthSessionIssuanceLimit": {
+        "description": "该用户在统计窗口内创建的 Session 已达上限",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/AuthSessionIssuanceError"
+            }
+          }
+        }
+      }
+    },
     "securitySchemes": {
       "SessionAuth1": {
         "type": "apiKey",
         "in": "cookie",
         "name": "session",
-        "description": "Session认证，通过登录接口获取"
+        "description": "已废弃：Gin session 不再用于面板鉴权"
       },
       "AccessToken1": {
-        "type": "apiKey",
-        "in": "header",
-        "name": "Authorization",
-        "description": "Access Token认证，格式: Bearer {access_token}，通过 /api/user/token 接口生成"
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT or PAT",
+        "description": "面板短期 JWT 或 User.AccessToken PAT；不再要求 New-Api-User"
       },
       "NewApiUser1": {
         "type": "apiKey",
         "in": "header",
         "name": "New-Api-User",
-        "description": "用户ID请求头，必须与当前登录用户ID匹配，使用Session或AccessToken认证时必须提供"
+        "description": "已废弃且不再参与鉴权；PAT 客户端可以移除此请求头"
+      },
+      "RefreshCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "new_api_refresh",
+        "description": "仅 refresh/logout 使用的 HttpOnly、SameSite=Strict Cookie"
+      },
+      "SecurityProof": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Security-Proof",
+        "description": "绑定用户、登录会话和 scope 的短期二次验证 Proof"
       },
       "Combination222": {
         "group": [
           {
-            "id": 573666
-          },
-          {
-            "id": 573668
+            "id": 573667
           }
         ],
         "type": "combination"
@@ -5157,9 +5500,6 @@
         "group": [
           {
             "id": 573667
-          },
-          {
-            "id": 573668
           }
         ],
         "type": "combination"
@@ -5167,10 +5507,7 @@
       "Combination223": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5179,9 +5516,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5189,10 +5523,7 @@
       "Combination224": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5201,9 +5532,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5211,10 +5539,7 @@
       "Combination225": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5223,9 +5548,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5233,10 +5555,7 @@
       "Combination226": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5245,9 +5564,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5255,10 +5571,7 @@
       "Combination227": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5267,9 +5580,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5277,10 +5587,7 @@
       "Combination228": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5289,9 +5596,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5299,10 +5603,7 @@
       "Combination229": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5311,9 +5612,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5321,10 +5619,7 @@
       "Combination230": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5333,9 +5628,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5343,10 +5635,7 @@
       "Combination231": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5355,9 +5644,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5365,10 +5651,7 @@
       "Combination232": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5377,9 +5660,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5387,10 +5667,7 @@
       "Combination233": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5399,9 +5676,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5409,10 +5683,7 @@
       "Combination234": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5421,9 +5692,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5431,10 +5699,7 @@
       "Combination235": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5443,9 +5708,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5453,10 +5715,7 @@
       "Combination236": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5465,9 +5724,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5475,10 +5731,7 @@
       "Combination237": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5487,9 +5740,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5497,10 +5747,7 @@
       "Combination238": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5509,9 +5756,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5519,10 +5763,7 @@
       "Combination239": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5531,9 +5772,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5541,10 +5779,7 @@
       "Combination240": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5553,9 +5788,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5563,10 +5795,7 @@
       "Combination241": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5575,9 +5804,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5585,10 +5811,7 @@
       "Combination242": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5597,9 +5820,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5607,10 +5827,7 @@
       "Combination243": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5619,9 +5836,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5629,10 +5843,7 @@
       "Combination244": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5641,9 +5852,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5651,10 +5859,7 @@
       "Combination245": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5663,9 +5868,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5673,10 +5875,7 @@
       "Combination246": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5685,9 +5884,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5695,10 +5891,7 @@
       "Combination247": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5707,9 +5900,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5717,10 +5907,7 @@
       "Combination248": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5729,9 +5916,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5739,10 +5923,7 @@
       "Combination249": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5751,9 +5932,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5761,10 +5939,7 @@
       "Combination250": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5773,9 +5948,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5783,10 +5955,7 @@
       "Combination251": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5795,9 +5964,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5805,10 +5971,7 @@
       "Combination252": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5817,9 +5980,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5827,10 +5987,7 @@
       "Combination253": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5839,9 +5996,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5849,10 +6003,7 @@
       "Combination254": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5861,9 +6012,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5871,10 +6019,7 @@
       "Combination255": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5883,9 +6028,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5893,10 +6035,7 @@
       "Combination256": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5905,9 +6044,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5915,10 +6051,7 @@
       "Combination257": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5927,9 +6060,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5937,10 +6067,7 @@
       "Combination258": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5949,9 +6076,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5959,10 +6083,7 @@
       "Combination259": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5971,9 +6092,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -5981,10 +6099,7 @@
       "Combination260": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -5993,9 +6108,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6003,10 +6115,7 @@
       "Combination261": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6015,9 +6124,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6025,10 +6131,7 @@
       "Combination262": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6037,9 +6140,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6047,10 +6147,7 @@
       "Combination263": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6059,9 +6156,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6069,10 +6163,7 @@
       "Combination264": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6081,9 +6172,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6091,10 +6179,7 @@
       "Combination265": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6103,9 +6188,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6113,10 +6195,7 @@
       "Combination266": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6125,9 +6204,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6135,10 +6211,7 @@
       "Combination267": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6147,9 +6220,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6157,10 +6227,7 @@
       "Combination268": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6169,9 +6236,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6179,10 +6243,7 @@
       "Combination269": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6191,9 +6252,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6201,10 +6259,7 @@
       "Combination270": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6213,9 +6268,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6223,10 +6275,7 @@
       "Combination271": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6235,9 +6284,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6245,10 +6291,7 @@
       "Combination272": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6257,9 +6300,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6267,10 +6307,7 @@
       "Combination273": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6279,9 +6316,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6289,10 +6323,7 @@
       "Combination274": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6301,9 +6332,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6311,10 +6339,7 @@
       "Combination275": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6323,9 +6348,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6333,10 +6355,7 @@
       "Combination276": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6345,9 +6364,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6355,10 +6371,7 @@
       "Combination277": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6367,9 +6380,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6377,10 +6387,7 @@
       "Combination278": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6389,9 +6396,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6399,10 +6403,7 @@
       "Combination279": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6411,9 +6412,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6421,10 +6419,7 @@
       "Combination280": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6433,9 +6428,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6443,10 +6435,7 @@
       "Combination281": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6455,9 +6444,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6465,10 +6451,7 @@
       "Combination282": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6477,9 +6460,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6487,10 +6467,7 @@
       "Combination283": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6499,9 +6476,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6509,10 +6483,7 @@
       "Combination284": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6521,9 +6492,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6531,10 +6499,7 @@
       "Combination285": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6543,9 +6508,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6553,10 +6515,7 @@
       "Combination286": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6565,9 +6524,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6575,10 +6531,7 @@
       "Combination287": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6587,9 +6540,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6597,10 +6547,7 @@
       "Combination288": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6609,9 +6556,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6619,10 +6563,7 @@
       "Combination289": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6631,9 +6572,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6641,10 +6579,7 @@
       "Combination290": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6653,9 +6588,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6663,10 +6595,7 @@
       "Combination291": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6675,9 +6604,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6685,10 +6611,7 @@
       "Combination292": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6697,9 +6620,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6707,10 +6627,7 @@
       "Combination293": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6719,9 +6636,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6729,10 +6643,7 @@
       "Combination294": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6741,9 +6652,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6751,10 +6659,7 @@
       "Combination295": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6763,9 +6668,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6773,10 +6675,7 @@
       "Combination296": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6785,9 +6684,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6795,10 +6691,7 @@
       "Combination297": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6807,9 +6700,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6817,10 +6707,7 @@
       "Combination298": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6829,9 +6716,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6839,10 +6723,7 @@
       "Combination299": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6851,9 +6732,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6861,10 +6739,7 @@
       "Combination300": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6873,9 +6748,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6883,10 +6755,7 @@
       "Combination301": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6895,9 +6764,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6905,10 +6771,7 @@
       "Combination302": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6917,9 +6780,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6927,10 +6787,7 @@
       "Combination303": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6939,9 +6796,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6949,10 +6803,7 @@
       "Combination304": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6961,9 +6812,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6971,10 +6819,7 @@
       "Combination305": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -6983,9 +6828,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -6993,10 +6835,7 @@
       "Combination306": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7005,9 +6844,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7015,10 +6851,7 @@
       "Combination307": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7027,9 +6860,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7037,10 +6867,7 @@
       "Combination308": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7049,9 +6876,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7059,10 +6883,7 @@
       "Combination309": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7071,9 +6892,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7081,10 +6899,7 @@
       "Combination310": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7093,9 +6908,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7103,10 +6915,7 @@
       "Combination311": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7115,9 +6924,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7125,10 +6931,7 @@
       "Combination312": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7137,9 +6940,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7147,10 +6947,7 @@
       "Combination313": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7159,9 +6956,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7169,10 +6963,7 @@
       "Combination314": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7181,9 +6972,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7191,10 +6979,7 @@
       "Combination315": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7203,9 +6988,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7213,10 +6995,7 @@
       "Combination316": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7225,9 +7004,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7235,10 +7011,7 @@
       "Combination317": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7247,9 +7020,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7257,10 +7027,7 @@
       "Combination318": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7269,9 +7036,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7279,10 +7043,7 @@
       "Combination319": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7291,9 +7052,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7301,10 +7059,7 @@
       "Combination320": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7313,9 +7068,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7323,10 +7075,7 @@
       "Combination321": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7335,9 +7084,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7345,10 +7091,7 @@
       "Combination322": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7357,9 +7100,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7367,10 +7107,7 @@
       "Combination323": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7379,9 +7116,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7389,10 +7123,7 @@
       "Combination324": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7401,9 +7132,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7411,10 +7139,7 @@
       "Combination325": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7423,9 +7148,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7433,10 +7155,7 @@
       "Combination326": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7445,9 +7164,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7455,10 +7171,7 @@
       "Combination327": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7467,9 +7180,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7477,10 +7187,7 @@
       "Combination328": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7489,9 +7196,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7499,10 +7203,7 @@
       "Combination329": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7511,9 +7212,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7521,10 +7219,7 @@
       "Combination330": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7533,9 +7228,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7543,10 +7235,7 @@
       "Combination331": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7555,9 +7244,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7565,10 +7251,7 @@
       "Combination332": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7577,9 +7260,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7587,10 +7267,7 @@
       "Combination333": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7599,9 +7276,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7609,10 +7283,7 @@
       "Combination334": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7621,9 +7292,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7631,10 +7299,7 @@
       "Combination335": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7643,9 +7308,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7653,10 +7315,7 @@
       "Combination336": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7665,9 +7324,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7675,10 +7331,7 @@
       "Combination337": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7687,9 +7340,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7697,10 +7347,7 @@
       "Combination338": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7709,9 +7356,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7719,10 +7363,7 @@
       "Combination339": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7731,9 +7372,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7741,10 +7379,7 @@
       "Combination340": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7753,9 +7388,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7763,10 +7395,7 @@
       "Combination341": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7775,9 +7404,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"
@@ -7785,10 +7411,7 @@
       "Combination342": {
         "group": [
           {
-            "id": "SessionAuth"
-          },
-          {
-            "id": "NewApiUser"
+            "id": "AccessToken"
           }
         ],
         "type": "combination"
@@ -7797,9 +7420,6 @@
         "group": [
           {
             "id": "AccessToken"
-          },
-          {
-            "id": "NewApiUser"
           }
         ],
         "type": "combination"

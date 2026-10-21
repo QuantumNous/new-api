@@ -65,8 +65,10 @@ func settleOne(rec *model.CommissionRecord) error {
 			return err
 		}
 		model.RecordLog(rec.BeneficiaryId, model.LogTypeSystem,
-			fmt.Sprintf("推广佣金结算 ¥%.2f 来自 用户#%d 首充",
-				float64(rec.CommissionAmountCents)/100.0, rec.SourceUserId))
+			common.NewMessage("Referral commission {{commission}} settled from user #{{source_user}} first top-up", map[string]any{
+				"commission":  fmt.Sprintf("¥%.2f", float64(rec.CommissionAmountCents)/100.0),
+				"source_user": rec.SourceUserId,
+			}))
 		return nil
 	})
 }

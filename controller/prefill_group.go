@@ -28,7 +28,7 @@ func CreatePrefillGroup(c *gin.Context) {
 		return
 	}
 	if g.Name == "" || g.Type == "" {
-		common.ApiErrorMsg(c, "组名称和类型不能为空")
+		common.ApiErrorT(c, "Group name and type cannot be empty")
 		return
 	}
 	// 创建前检查名称
@@ -36,7 +36,7 @@ func CreatePrefillGroup(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	} else if dup {
-		common.ApiErrorMsg(c, "组名称已存在")
+		common.ApiErrorT(c, "Group name already exists")
 		return
 	}
 
@@ -55,7 +55,7 @@ func UpdatePrefillGroup(c *gin.Context) {
 		return
 	}
 	if g.Id == 0 {
-		common.ApiErrorMsg(c, "缺少组 ID")
+		common.ApiErrorT(c, "Missing group ID")
 		return
 	}
 	// 名称冲突检查
@@ -63,7 +63,7 @@ func UpdatePrefillGroup(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	} else if dup {
-		common.ApiErrorMsg(c, "组名称已存在")
+		common.ApiErrorT(c, "Group name already exists")
 		return
 	}
 
