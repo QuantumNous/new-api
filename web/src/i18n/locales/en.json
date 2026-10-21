@@ -7778,7 +7778,6 @@
     "Time Series Forecasting": "Time Series Forecasting",
     "Refresh the local Hugging Face taxonomy snapshot.": "Refresh the local Hugging Face taxonomy snapshot.",
     "Sync HF dictionary": "Sync HF dictionary",
-    "Hugging Face taxonomy sync is coming soon. For now, edit web/default/src/features/models/lib/known-model-registry.ts to add a model.": "Hugging Face taxonomy sync is coming soon. For now, edit web/default/src/features/models/lib/known-model-registry.ts to add a model.",
     "Model type": "Model type",
     "Primary output modality — used by the model list filter. Auto-detected from the model name; override if the inference is wrong.": "Primary output modality — used by the model list filter. Auto-detected from the model name; override if the inference is wrong.",
     "Embedding": "Embedding",

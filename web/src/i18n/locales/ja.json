@@ -7777,7 +7777,6 @@
     "Time Series Forecasting": "時系列予測",
     "Refresh the local Hugging Face taxonomy snapshot.": "ローカルの Hugging Face 分類辞書を更新します。",
     "Sync HF dictionary": "HF 辞書を同期",
-    "Hugging Face taxonomy sync is coming soon. For now, edit web/default/src/features/models/lib/known-model-registry.ts to add a model.": "Hugging Face 辞書のオンライン同期は近日公開予定です。今のところは web/default/src/features/models/lib/known-model-registry.ts を編集してモデルを追加してください。",
     "Model type": "モデルタイプ",
     "Primary output modality — used by the model list filter. Auto-detected from the model name; override if the inference is wrong.": "主な出力形式 — モデルリストのフィルタで使用されます。モデル名から自動検出、誤検出時は手動で修正してください。",
     "Embedding": "エンベディング",

@@ -7779,7 +7779,6 @@
     "Time Series Forecasting": "时序预测",
     "Refresh the local Hugging Face taxonomy snapshot.": "刷新本地保存的 Hugging Face 分类字典。",
     "Sync HF dictionary": "更新 HF 词典",
-    "Hugging Face taxonomy sync is coming soon. For now, edit web/default/src/features/models/lib/known-model-registry.ts to add a model.": "Hugging Face 词典在线同步即将上线。目前请编辑 web/default/src/features/models/lib/known-model-registry.ts 手动新增模型。",
     "Model type": "模型类型",
     "Primary output modality — used by the model list filter. Auto-detected from the model name; override if the inference is wrong.": "主要输出形态 — 用于模型列表的类型筛选。系统会依据模型名自动识别，如识别有误可手动调整。",
     "Embedding": "向量嵌入",

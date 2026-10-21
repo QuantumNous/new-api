@@ -7777,7 +7777,6 @@
     "Time Series Forecasting": "Prévision de séries temporelles",
     "Refresh the local Hugging Face taxonomy snapshot.": "Actualiser le dictionnaire Hugging Face local.",
     "Sync HF dictionary": "Synchroniser dictionnaire HF",
-    "Hugging Face taxonomy sync is coming soon. For now, edit web/default/src/features/models/lib/known-model-registry.ts to add a model.": "La synchronisation en ligne du dictionnaire Hugging Face arrive bientôt. En attendant, modifiez web/default/src/features/models/lib/known-model-registry.ts pour ajouter un modèle.",
     "Model type": "Type de modèle",
     "Primary output modality — used by the model list filter. Auto-detected from the model name; override if the inference is wrong.": "Modalité de sortie principale — utilisée par le filtre de liste. Détectée depuis le nom du modèle; ajustez si nécessaire.",
     "Embedding": "Embedding",
