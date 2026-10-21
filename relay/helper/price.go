@@ -1,10 +1,12 @@
 package helper
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -13,6 +15,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/QuantumNous/new-api/setting/billing_setting"
+	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	hostreasoning "github.com/QuantumNous/new-api/setting/reasoning"
@@ -21,19 +24,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func modelPriceNotConfiguredError(modelName string, userId int) error {
+func modelPriceNotConfiguredError(c *gin.Context, modelName string, userId int) error {
+	key := i18n.MsgRelayModelPriceNotConfigured
 	if model.IsAdmin(userId) {
-		return fmt.Errorf(
-			"模型 %s 的价格未配置。请前往「系统设置 → 运营设置」开启自用模式，或在「系统设置 → 分组与模型定价设置」中为该模型配置价格；"+
-				"Model %s price not configured. Go to System Settings → Operation Settings to enable self-use mode, or configure the model price in System Settings → Group & Model Pricing.",
-			modelName, modelName,
-		)
+		key = i18n.MsgRelayModelPriceNotConfiguredAdmin
 	}
-	return fmt.Errorf(
-		"模型 %s 的价格尚未由管理员配置，暂时无法使用，请联系站点管理员开启该模型；"+
-			"Model %s has not been priced by the administrator yet. Please contact the site administrator to enable this model.",
-		modelName, modelName,
-	)
+	return errors.New(i18n.T(c, key, map[string]any{"Model": modelName}))
 }
 
 // https://docs.claude.com/en/docs/build-with-claude/prompt-caching#1-hour-cache-duration
@@ -110,7 +106,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 				acceptUnsetRatio = true
 			}
 			if !acceptUnsetRatio {
-				return hosttypes.PriceData{}, modelPriceNotConfiguredError(matchName, info.UserId)
+				return hosttypes.PriceData{}, modelPriceNotConfiguredError(c, matchName, info.UserId)
 			}
 		}
 		completionRatio = ratio_setting.GetCompletionRatio(billingModelName)
@@ -234,7 +230,7 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (hostt
 				acceptUnsetRatio = true
 			}
 			if !ratioSuccess && !acceptUnsetRatio {
-				return hosttypes.PriceData{}, modelPriceNotConfiguredError(matchName, info.UserId)
+				return hosttypes.PriceData{}, modelPriceNotConfiguredError(c, matchName, info.UserId)
 			}
 		}
 	}
@@ -316,6 +312,11 @@ func resolveBillingModelName(origin string) string {
 	}
 	candidates = append(candidates, hostreasoning.CanonicalBillingModelNames(origin)...)
 	base := hostreasoning.BaseModelName(origin)
+	// DeepSeek thinking tails (-none/-low/-max) bill at the base model's price,
+	// with or without @ modifiers after them.
+	if deepSeekBase, _, _, ok := reasoning.ParseDeepSeekV4ThinkingSuffix(base); ok && !model_setting.ShouldPreserveThinkingSuffix(base) {
+		candidates = append(candidates, deepSeekBase)
+	}
 	candidates = append(candidates, base)
 
 	seen := make(map[string]struct{}, len(candidates))

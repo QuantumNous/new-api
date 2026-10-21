@@ -16,6 +16,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { runInNewContext } from 'node:vm'
+
 import { act, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -26,6 +30,41 @@ vi.mock('@lobehub/icons/es/Mistral/components/Color.js', () => {
 })
 
 describe('Lobe icons', () => {
+  it.each([
+    '/build/web/node_modules/@lobehub/icons/es/',
+    'D:\\a\\new-api\\web\\node_modules\\@lobehub\\icons\\es\\',
+  ])('includes icon variants when bundling from %s', (root) => {
+    // Vitest loads imports without applying Rspack's webpackInclude filter.
+    const source = readFileSync(
+      resolve(import.meta.dirname, '../lobe-icon.tsx'),
+      'utf8'
+    )
+    const comment = source.match(/\/\*\s*(webpackInclude:[\s\S]*?)\*\//)
+    expect(comment).not.toBeNull()
+    const { webpackInclude } = runInNewContext(
+      `({${comment?.[1]}})`,
+      {},
+      {
+        timeout: 1000,
+      }
+    ) as { webpackInclude: RegExp }
+    const separator = root.includes('\\') ? '\\' : '/'
+    const files = [
+      'OpenAI/components/Mono.js',
+      'Claude/components/Color.js',
+      'Gemini/components/Color.js',
+      'Gemma/components/Simple.js',
+      'LobeHub/components/Morden.js',
+      'OpenAI/index.js',
+      'OpenAI/components/Mono.d.ts',
+      'OpenAI/components/Unknown.js',
+    ]
+    const included = files.filter((file) =>
+      webpackInclude.test(root + file.replaceAll('/', separator))
+    )
+    expect(included).toEqual(files.slice(0, 5))
+  })
+
   it('loads a named variant with its configured size and accessibility props', async () => {
     render(
       getLobeIcon('Claude.Color.size={32}.role="img".aria-label="Claude icon"')

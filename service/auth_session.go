@@ -149,6 +149,16 @@ func ValidateLoginSession(identity AuthIdentity) (*model.UserSession, *model.Use
 	return session, user, nil
 }
 
+// ValidateStepUpIdentity checks that the identity requesting or consuming a
+// proof is still live: a browser session or a scoped access token.
+func ValidateStepUpIdentity(identity AuthIdentity) error {
+	if _, ok := model.ParseAccessTokenSessionID(identity.SessionID); ok {
+		return model.ValidateAccessTokenIdentity(identity)
+	}
+	_, _, err := ValidateLoginSession(identity)
+	return err
+}
+
 // ValidateSessionReference validates a server-side flow bound to an existing
 // dashboard session without requiring an access token on the callback request.
 func ValidateSessionReference(userID int, sid string) (AuthIdentity, error) {
@@ -174,7 +184,8 @@ func ValidateSessionReference(userID int, sid string) (AuthIdentity, error) {
 // AdvanceCurrentSessionSecurity increments the user's global auth version,
 // preserves only the current browser session at a new session version and
 // returns a replacement access token. Call after a successful 2FA/passkey
-// security-setting mutation that did not already advance AuthVersion.
+// security-setting mutation that did not already advance AuthVersion. When the
+// change was made through an access token it returns a nil bundle.
 func AdvanceCurrentSessionSecurity(identity AuthIdentity, reason string) (*AuthBundle, error) {
 	nextUserAuthVersion, err := model.BumpUserAuthVersion(identity.UserID)
 	if err != nil {
@@ -198,6 +209,12 @@ func AdvanceCurrentSessionToUserVersion(identity AuthIdentity, reason string) (*
 }
 
 func advanceCurrentSessionToVersion(identity AuthIdentity, nextUserAuthVersion int64, reason string) (*AuthBundle, error) {
+	// An access token has no browser session to keep, so every browser session
+	// signs in again at the new auth version. The token itself stays valid.
+	if _, ok := model.ParseAccessTokenSessionID(identity.SessionID); ok {
+		_, err := model.RevokeAllUserSessions(identity.UserID, reason)
+		return nil, err
+	}
 	session, err := model.AdvanceUserSessionAuthVersion(
 		identity.UserID,
 		identity.SessionID,

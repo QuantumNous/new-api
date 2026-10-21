@@ -3,6 +3,7 @@ package toolconv
 import (
 	"encoding/json"
 
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
@@ -39,24 +40,12 @@ type Function struct {
 	OpenAPISchema bool
 }
 
-type ApproximateLocation struct {
-	City     string
-	Region   string
-	Country  string
-	Timezone string
-}
-
-type WebSearch struct {
-	Location          *ApproximateLocation
-	AllowedDomains    []string
-	BlockedDomains    []string
-	SearchContextSize string
-	MaxUses           *int
-	AllowedCallers    []string
-	ResponseInclusion string
-	ExternalWebAccess *bool
-	ReturnTokenBudget json.RawMessage
-}
+// ApproximateLocation and WebSearch are the convmeta types, so a host
+// web-search encoder receives the decoded specification unchanged.
+type (
+	ApproximateLocation = convmeta.ApproximateLocation
+	WebSearch           = convmeta.WebSearch
+)
 
 type Definition struct {
 	Kind       Kind

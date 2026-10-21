@@ -151,6 +151,27 @@ describe('log cost display', () => {
     { source: 'subscription', label: 'Subscription' },
     { source: 'wallet', label: 'Wallet' },
   ])(
+    'vertically centers the $source icon within its container',
+    ({ source, label }) => {
+      renderCost({
+        quota: 5000,
+        other: { billing_source: source },
+        showBillingSource: true,
+      })
+
+      // Mobile cards give inline-flex descendants a minimum height, so the
+      // source container must center its smaller icon independently of the badge.
+      expect(screen.getByRole('img', { name: label })).toHaveClass(
+        'inline-flex',
+        'items-center'
+      )
+    }
+  )
+
+  test.each([
+    { source: 'subscription', label: 'Subscription' },
+    { source: 'wallet', label: 'Wallet' },
+  ])(
     'reveals the $source label on hover and keyboard focus',
     async ({ source, label }) => {
       const user = userEvent.setup()

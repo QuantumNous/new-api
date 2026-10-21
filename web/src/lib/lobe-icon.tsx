@@ -161,9 +161,10 @@ export function getLobeIcon(
   let IconComponent = LAZY_ICONS.get(cacheKey)
   if (!IconComponent) {
     // Load the selected SVG variant, avoiding the brand index's Avatar/UI dependencies.
+    // Rspack applies webpackInclude before normalizing Windows path separators.
     IconComponent = lazy(() =>
       import(
-        /* webpackInclude: /\/components\/(Mono|Avatar|Brand|BrandColor|Color|Combine|Text|TextCn|TextColor|Simple|Morden)\.js$/ */
+        /* webpackInclude: /[\\/]components[\\/](Mono|Avatar|Brand|BrandColor|Color|Combine|Text|TextCn|TextColor|Simple|Morden)\.js$/ */
         `@lobehub/icons/es/${baseKey}/components/${variant}.js`
       ).catch(() => ({
         default: (props: Record<string, unknown>) =>
