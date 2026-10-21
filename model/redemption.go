@@ -128,7 +128,7 @@ func SearchRedemptions(keyword string, status string, startIdx int, num int) (re
 
 func GetRedemptionById(id int) (*Redemption, error) {
 	if id == 0 {
-		return nil, errors.New("id 为空！")
+		return nil, common.NewMessage("ID is empty")
 	}
 	redemption := Redemption{Id: id}
 	var err error = nil
@@ -144,10 +144,10 @@ type SubscriptionRedemptionResult struct {
 
 func Redeem(key string, userId int) (data any, err error) {
 	if key == "" {
-		return 0, errors.New("未提供兑换码")
+		return 0, errors.New("redemption code not provided")
 	}
 	if userId == 0 {
-		return 0, errors.New("无效的 user id")
+		return 0, errors.New("invalid user id")
 	}
 	redemption := &Redemption{}
 
@@ -173,13 +173,13 @@ func Redeem(key string, userId int) (data any, err error) {
 		}
 		err := lockForUpdate(tx).Where(keyCol+" = ?", key).First(redemption).Error
 		if err != nil {
-			return errors.New("无效的兑换码")
+			return errors.New("invalid redemption code")
 		}
 		if redemption.Status != common.RedemptionCodeStatusEnabled {
-			return errors.New("该兑换码已被使用")
+			return errors.New("redemption code already used")
 		}
 		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
-			return errors.New("该兑换码已过期")
+			return errors.New("redemption code expired")
 		}
 		if redemption.PlanId < 0 || (redemption.PlanId == 0 && redemption.Quota <= 0) || (redemption.PlanId > 0 && redemption.Quota != 0) {
 			return errors.New("invalid redemption entitlement")
@@ -209,7 +209,7 @@ func Redeem(key string, userId int) (data any, err error) {
 			return result.Error
 		}
 		if result.RowsAffected == 0 {
-			return errors.New("该兑换码已被使用")
+			return errors.New("redemption code already used")
 		}
 		if subscriptionPlan != nil {
 			_, err := CreateUserSubscriptionFromPlanTx(tx, userId, subscriptionPlan, "redemption")
@@ -221,19 +221,19 @@ func Redeem(key string, userId int) (data any, err error) {
 		return creditTopUpQuotaProtected(tx, userId, redemption.Quota, nil, creditFences)
 	})
 	if err != nil {
-		common.SysError("redemption failed: " + err.Error())
+		common.SysError(common.LogText("redemption failed: %s", err.Error()))
 		return 0, ErrRedeemFailed
 	}
 	if subscriptionPlan != nil {
 		if subscriptionPlan.UpgradeGroup != "" {
-			refreshSubscriptionUserGroupCache(userId, "subscription redemption")
+			refreshSubscriptionUserGroupCache(userId, common.LogText("subscription redemption"))
 		}
-		RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码开通套餐 %d，兑换码ID %d", subscriptionPlan.Id, redemption.Id))
+		RecordLog(userId, LogTypeTopup, common.NewMessage("Opened subscription plan {{plan}} with a redemption code, code ID {{id}}", map[string]any{"plan": subscriptionPlan.Id, "id": redemption.Id}))
 		return SubscriptionRedemptionResult{Type: "subscription", PlanId: subscriptionPlan.Id, PlanTitle: subscriptionPlan.Title}, nil
 	}
 	creditCommitted = true
-	syncCreditUserQuotaCache(creditFences, userId, redemption.Quota, "redemption")
-	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
+	syncCreditUserQuotaCache(creditFences, userId, redemption.Quota, common.LogText("redemption"))
+	RecordLog(userId, LogTypeTopup, common.NewMessage("Topped up {{quota}} with a redemption code, code ID {{id}}", map[string]any{"quota": logger.FormatQuota(redemption.Quota), "id": redemption.Id}))
 	return redemption.Quota, nil
 }
 
@@ -343,7 +343,7 @@ func (redemption *Redemption) Delete() error {
 
 func DeleteRedemptionById(id int) (err error) {
 	if id == 0 {
-		return errors.New("id 为空！")
+		return common.NewMessage("ID is empty")
 	}
 	redemption := Redemption{Id: id}
 	err = DB.Where(redemption).First(&redemption).Error

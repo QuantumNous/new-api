@@ -26,6 +26,7 @@ const OPERATOR_PREFIXES = [
   '/system-settings',
   '/system-info',
   '/task-plugins',
+  '/partner-oauth-clients',
   '/models',
   '/dashboard/models',
   '/dashboard/flow',

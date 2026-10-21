@@ -51,6 +51,11 @@ func TestInitSeedsBuiltInRolesAndPoliciesOnce(t *testing.T) {
 	assert.True(t, Can(2, common.RoleAdminUser, ChannelWrite))
 	assert.False(t, Can(2, common.RoleAdminUser, ChannelSensitiveWrite))
 	assert.False(t, Can(3, common.RoleCommonUser, ChannelRead))
+	assert.True(t, Can(2, common.RoleAdminUser, PartnerOAuthClientRead))
+	assert.True(t, Can(2, common.RoleAdminUser, PartnerOAuthClientOperate))
+	assert.False(t, Can(2, common.RoleAdminUser, PartnerOAuthClientSensitiveWrite))
+	assert.True(t, Can(1, common.RoleRootUser, PartnerOAuthClientSensitiveWrite))
+	assert.False(t, Can(3, common.RoleCommonUser, PartnerOAuthClientRead))
 }
 
 func TestInitOnSlaveOnlyLoadsPolicies(t *testing.T) {
@@ -158,6 +163,11 @@ func TestSetUserPermissionsStoresOnlyOverrides(t *testing.T) {
 			ActionBind: false,
 		},
 		ResourceAudit: {ActionRead: false},
+		ResourcePartnerOAuthClient: {
+			ActionRead:           true,
+			ActionOperate:        true,
+			ActionSensitiveWrite: false,
+		},
 	}, ExplicitUserPermissions(42))
 	assert.Equal(t, PermissionsMap{
 		ResourceChannel: {
@@ -190,6 +200,11 @@ func TestSetUserPermissionsStoresOnlyOverrides(t *testing.T) {
 			ActionBind: false,
 		},
 		ResourceAudit: {ActionRead: false},
+		ResourcePartnerOAuthClient: {
+			ActionRead:           true,
+			ActionOperate:        true,
+			ActionSensitiveWrite: false,
+		},
 	}, ExplicitUserPermissions(42))
 	assert.Empty(t, ExplicitUserOverrides(42))
 }
@@ -284,6 +299,9 @@ func TestCapabilitiesUseCatalogShape(t *testing.T) {
 	assert.False(t, capabilities[ResourceChannel][ActionSensitiveWrite])
 	assert.False(t, capabilities[ResourceChannel][ActionSecretView])
 	assert.False(t, capabilities[ResourceTaskPlugin][ActionBind])
+	assert.True(t, capabilities[ResourcePartnerOAuthClient][ActionRead])
+	assert.True(t, capabilities[ResourcePartnerOAuthClient][ActionOperate])
+	assert.False(t, capabilities[ResourcePartnerOAuthClient][ActionSensitiveWrite])
 }
 
 func TestTaskPluginBindIsRootOnlyUntilGranted(t *testing.T) {

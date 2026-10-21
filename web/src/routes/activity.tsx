@@ -18,8 +18,8 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { createFileRoute } from '@tanstack/react-router'
 
-import { ProductActivityPage } from '@/features/product-activity'
+import { CashbackActivityPage } from '@/features/cashback-activity'
 
 export const Route = createFileRoute('/activity')({
-  component: ProductActivityPage,
+  component: CashbackActivityPage,
 })

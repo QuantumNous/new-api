@@ -23,7 +23,8 @@ import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from '@/lib/api'
-import { useAuthStore } from '@/stores/auth-store'
+import { useAuthStore, type AuthUser } from '@/stores/auth-store'
+import { createTestAuthBundle } from '@/test-utils/auth-bundle'
 
 import { ModelDeleteDialog } from '../components/dialogs/model-delete-dialog'
 
@@ -48,6 +49,11 @@ function Fixture(props: { batch?: boolean; onSuccess?: () => void }) {
     </>
   )
 }
+function signInAs(user: AuthUser) {
+  const bundle = createTestAuthBundle()
+  useAuthStore.getState().auth.setBundle({ ...bundle, user })
+}
+
 function mount(batch = false) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -165,7 +171,7 @@ describe('model deletion', () => {
 })
 
 it('lets a super administrator remove pricing independently of channel removal', async () => {
-  useAuthStore.getState().auth.setUser({ id: 1, username: 'root', role: 100 })
+  signInAs({ id: 1, username: 'root', role: 100 })
   const post = vi.spyOn(api, 'post').mockResolvedValue({
     data: { success: true, data: { deleted_count: 2, updated_channels: 0 } },
   })
@@ -195,7 +201,7 @@ it('lets a super administrator remove pricing independently of channel removal',
 })
 
 it('keeps pricing removal unavailable to an ordinary administrator', () => {
-  useAuthStore.getState().auth.setUser({ id: 2, username: 'admin', role: 10 })
+  signInAs({ id: 2, username: 'admin', role: 10 })
   mount()
   expect(
     screen.getByRole('checkbox', { name: 'Also remove pricing' })

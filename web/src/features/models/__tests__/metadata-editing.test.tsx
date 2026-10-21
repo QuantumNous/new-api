@@ -25,7 +25,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { pricingOptions } from '@/features/model-pricing/pricing'
 import { api } from '@/lib/api'
-import { useAuthStore } from '@/stores/auth-store'
+import { useAuthStore, type AuthUser } from '@/stores/auth-store'
+import { createTestAuthBundle } from '@/test-utils/auth-bundle'
 
 import { DataTableRowActions } from '../components/data-table-row-actions'
 import { ModelMutateDrawer } from '../components/drawers/model-mutate-drawer'
@@ -52,8 +53,13 @@ afterEach(() => {
   useAuthStore.getState().auth.reset()
 })
 
+function signInAs(user: AuthUser) {
+  const bundle = createTestAuthBundle()
+  useAuthStore.getState().auth.setBundle({ ...bundle, user })
+}
+
 function renderModelActions(currentModel: Model = model, role = 100) {
-  useAuthStore.getState().auth.setUser({ id: 1, username: 'admin', role })
+  signInAs({ id: 1, username: 'admin', role })
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   })
@@ -295,9 +301,7 @@ describe('metadata editing', () => {
   ])(
     'shows the server reason for a $name and preserves the draft for retry',
     async ({ response }) => {
-      useAuthStore
-        .getState()
-        .auth.setUser({ id: 2, username: 'admin', role: 10 })
+      signInAs({ id: 2, username: 'admin', role: 10 })
       vi.spyOn(api, 'get').mockResolvedValue({
         data: { success: true, data: { items: [] } },
       })
@@ -362,7 +366,7 @@ describe('metadata editing', () => {
   )
 
   it('allows an administrator to save metadata without loading or changing system pricing', async () => {
-    useAuthStore.getState().auth.setUser({ id: 2, username: 'admin', role: 10 })
+    signInAs({ id: 2, username: 'admin', role: 10 })
     const get = vi.spyOn(api, 'get').mockImplementation(async (url) => {
       if (url === '/api/models/7') {
         return { data: { success: true, data: model } }
@@ -441,7 +445,7 @@ describe('metadata editing', () => {
     })
   })
   it('keeps metadata drafts while saving pricing independently and preserves the price draft across tabs', async () => {
-    useAuthStore.getState().auth.setUser({ id: 1, username: 'root', role: 100 })
+    signInAs({ id: 1, username: 'root', role: 100 })
     let version = 'v1'
     let storedPrice = 1.5
     const get = vi.spyOn(api, 'get').mockImplementation(async (url) => {

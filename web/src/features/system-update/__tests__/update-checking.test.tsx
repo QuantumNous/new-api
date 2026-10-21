@@ -41,7 +41,8 @@ import { api } from '@/lib/api'
 import { createAppQueryClient } from '@/lib/query-client'
 import { ROLE } from '@/lib/roles'
 import { STATUS_QUERY_KEY } from '@/lib/status-query'
-import { useAuthStore } from '@/stores/auth-store'
+import { useAuthStore, type AuthUser } from '@/stores/auth-store'
+import { createTestAuthBundle } from '@/test-utils/auth-bundle'
 
 import { useSystemUpdatePreferencesStore, useSystemUpdateStore } from '../store'
 import { SystemUpdateAction } from '../system-update-action'
@@ -63,6 +64,11 @@ function Wrapper(props: { children: ReactNode }) {
   )
 }
 
+function signInAs(user: AuthUser): void {
+  const bundle = createTestAuthBundle()
+  useAuthStore.getState().auth.setBundle({ ...bundle, user })
+}
+
 function respondWithRelease(tag = release.tag_name): void {
   fetchMock.mockImplementation(
     async () =>
@@ -76,9 +82,7 @@ beforeEach(() => {
   localStorage.clear()
   useSystemUpdateStore.setState({ snapshot: null })
   useSystemUpdatePreferencesStore.setState({ ignoredVersionsByUserId: {} })
-  useAuthStore
-    .getState()
-    .auth.setUser({ id: 1, username: 'admin', role: ROLE.ADMIN })
+  signInAs({ id: 1, username: 'admin', role: ROLE.ADMIN })
   focusManager.setFocused(true)
   onlineManager.setOnline(true)
   fetchMock.mockReset()
@@ -109,9 +113,11 @@ describe('administrator update entry', () => {
   test.each([null, ROLE.USER])(
     'hides the entry and makes no release request for role %s',
     (role) => {
-      useAuthStore
-        .getState()
-        .auth.setUser(role === null ? null : { id: 2, username: 'user', role })
+      if (role === null) {
+        useAuthStore.getState().auth.reset()
+      } else {
+        signInAs({ id: 2, username: 'user', role })
+      }
       render(
         <>
           <SystemUpdateAction />
@@ -478,26 +484,14 @@ describe('version notification preferences', () => {
     act(() => hook.result.current.setIgnored(true))
     act(() => useAuthStore.getState().auth.reset())
     expect(hook.result.current.shouldNotify).toBe(false)
-    act(() =>
-      useAuthStore
-        .getState()
-        .auth.setUser({ id: 2, username: 'other-admin', role: ROLE.ADMIN })
-    )
+    act(() => signInAs({ id: 2, username: 'other-admin', role: ROLE.ADMIN }))
     expect(hook.result.current.shouldNotify).toBe(true)
     act(() => hook.result.current.setIgnored(true))
-    act(() =>
-      useAuthStore
-        .getState()
-        .auth.setUser({ id: 1, username: 'admin', role: ROLE.ADMIN })
-    )
+    act(() => signInAs({ id: 1, username: 'admin', role: ROLE.ADMIN }))
     expect(hook.result.current.isIgnored).toBe(true)
     act(() => hook.result.current.setIgnored(false))
     expect(hook.result.current.shouldNotify).toBe(true)
-    act(() =>
-      useAuthStore
-        .getState()
-        .auth.setUser({ id: 2, username: 'other-admin', role: ROLE.ADMIN })
-    )
+    act(() => signInAs({ id: 2, username: 'other-admin', role: ROLE.ADMIN }))
     expect(hook.result.current.isIgnored).toBe(true)
     expect(hook.result.current.shouldNotify).toBe(false)
     expect(fetchMock).toHaveBeenCalledTimes(1)

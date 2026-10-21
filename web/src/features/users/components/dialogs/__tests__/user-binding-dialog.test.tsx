@@ -40,6 +40,7 @@ import { api } from '@/lib/api'
 import { STATUS_QUERY_KEY } from '@/lib/status-query'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
+import { UsersProvider } from '../../users-provider'
 import { UserBindingDialog } from '../user-binding-dialog'
 
 /**
@@ -61,19 +62,42 @@ function renderWithQueryClient(
   queryClient = createQueryClient()
 ): ReturnType<typeof render> {
   return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <UsersProvider>{ui}</UsersProvider>
+    </QueryClientProvider>
   )
 }
 
 type ApiMethod = (url: string) => Promise<{ data: unknown }>
 type MockableApi = {
   get: ApiMethod
+  post: ApiMethod
   delete: ApiMethod
 }
 
 const apiClient = api as unknown as MockableApi
 const originalGet = apiClient.get
+const originalPost = apiClient.post
 const originalDelete = apiClient.delete
+
+const verificationMethods = {
+  data: {
+    success: true,
+    data: {
+      scope: 'admin.user.binding.clear',
+      methods: [{ method: '2fa', available: true }],
+      oauth_providers: [],
+      password_encryption_enabled: false,
+    },
+  },
+}
+
+// Every unbind is gated by the shared step-up ceremony mounted in UsersProvider.
+async function completeUnbindVerification() {
+  const code = await screen.findByLabelText('Authenticator code or backup code')
+  fireEvent.change(code, { target: { value: '123456' } })
+  fireEvent.click(screen.getByRole('button', { name: 'Verify' }))
+}
 const originalGetAnimations = Object.getOwnPropertyDescriptor(
   HTMLElement.prototype,
   'getAnimations'
@@ -92,7 +116,7 @@ const user = {
 }
 
 function findUnbindButton(provider: string): HTMLButtonElement {
-  let container = screen.getByText(provider).parentElement
+  let container = screen.getByText(provider, { selector: 'span' }).parentElement
   while (container && !container.querySelector('button')) {
     container = container.parentElement
   }
@@ -133,6 +157,7 @@ afterEach(() => {
   window.localStorage.clear()
   useSystemConfigStore.setState(useSystemConfigStore.getInitialState(), true)
   apiClient.get = originalGet
+  apiClient.post = originalPost
   apiClient.delete = originalDelete
 })
 
@@ -145,6 +170,10 @@ describe('UserBindingDialog built-in bindings', () => {
           return { data: { success: true, data: user } }
         case '/api/user/7/oauth/bindings':
           return { data: { success: true, data: [] } }
+        case '/api/user/7/partner-oauth/bindings':
+          return { data: { success: true, data: [] } }
+        case '/api/verify/methods':
+          return verificationMethods
         case '/api/status':
           return {
             data: {
@@ -161,6 +190,20 @@ describe('UserBindingDialog built-in bindings', () => {
           }
         default:
           throw new Error(`Unexpected GET ${url}`)
+      }
+    }
+    apiClient.post = async (url) => {
+      if (url !== '/api/verify') throw new Error(`Unexpected POST ${url}`)
+      return {
+        data: {
+          success: true,
+          data: {
+            proof_token: 'binding-proof',
+            method: '2fa',
+            scope: 'admin.user.binding.clear',
+            expires_at: Math.floor(Date.now() / 1000) + 60,
+          },
+        },
       }
     }
     apiClient.delete = async (url) => {
@@ -186,6 +229,7 @@ describe('UserBindingDialog built-in bindings', () => {
     for (const [provider, bindingType] of expectedBindings) {
       fireEvent.click(findUnbindButton(provider))
       fireEvent.click(screen.getByRole('button', { name: 'Confirm Unbind' }))
+      await completeUnbindVerification()
       await waitFor(() => {
         expect(deletedUrls.at(-1)).toBe(`/api/user/7/bindings/${bindingType}`)
       })
@@ -197,6 +241,59 @@ describe('UserBindingDialog built-in bindings', () => {
     }
 
     expect(deletedUrls).toHaveLength(expectedBindings.length)
+  })
+})
+
+describe('UserBindingDialog partner applications', () => {
+  test('lists an authorized client and revokes its dedicated key', async () => {
+    const deletedUrls: string[] = []
+    apiClient.get = async (url) => {
+      if (url === '/api/user/7') return { data: { success: true, data: user } }
+      if (url === '/api/user/7/oauth/bindings') {
+        return { data: { success: true, data: [] } }
+      }
+      if (url === '/api/user/7/partner-oauth/bindings') {
+        return {
+          data: {
+            success: true,
+            data: [
+              {
+                binding_id: 'bnd_example',
+                client_id: 'pc_example',
+                client_name: 'Example Assistant',
+                scopes: ['account:read', 'credential:read'],
+                created_at: 1,
+                expires_at: 1_800_000_000,
+              },
+            ],
+          },
+        }
+      }
+      if (url === '/api/status') {
+        return { data: { success: true, data: {} } }
+      }
+      throw new Error(`Unexpected GET ${url}`)
+    }
+    apiClient.delete = async (url) => {
+      deletedUrls.push(url)
+      return { data: { success: true } }
+    }
+
+    renderWithQueryClient(
+      <UserBindingDialog open userId={7} onOpenChange={() => undefined} />
+    )
+
+    await screen.findByText('Example Assistant')
+    expect(screen.getByText('Read your account profile')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Revoke authorization' })
+    )
+    await waitFor(() => {
+      expect(deletedUrls).toEqual([
+        '/api/user/7/partner-oauth/bindings/bnd_example',
+      ])
+    })
   })
 })
 
@@ -218,6 +315,9 @@ describe('UserBindingDialog shared status updates', () => {
       if (url === '/api/user/7/oauth/bindings') {
         return { data: { success: true, data: [] } }
       }
+      if (url === '/api/user/7/partner-oauth/bindings') {
+        return { data: { success: true, data: [] } }
+      }
       throw new Error(`Unexpected GET ${url}`)
     }
     renderWithQueryClient(
@@ -225,9 +325,9 @@ describe('UserBindingDialog shared status updates', () => {
       queryClient
     )
     await screen.findByText('bound-user (ID: 7)')
-    expect(screen.getByText('GitHub').parentElement).toHaveTextContent(
-      'Disabled'
-    )
+    expect(
+      screen.getByText('GitHub', { selector: 'span' }).parentElement
+    ).toHaveTextContent('Disabled')
     fireEvent.click(screen.getByRole('button', { name: 'Show All' }))
     await act(async () => {
       resolveStatus({
@@ -241,9 +341,9 @@ describe('UserBindingDialog shared status updates', () => {
       })
     })
     await screen.findByText('New provider')
-    expect(screen.getByText('GitHub').parentElement).not.toHaveTextContent(
-      'Disabled'
-    )
+    expect(
+      screen.getByText('GitHub', { selector: 'span' }).parentElement
+    ).not.toHaveTextContent('Disabled')
   })
 
   test.each(['success', 'failure'] as const)(
@@ -261,6 +361,9 @@ describe('UserBindingDialog shared status updates', () => {
           return { data: { success: true, data: user } }
         }
         if (url === '/api/user/7/oauth/bindings') {
+          return { data: { success: true, data: [] } }
+        }
+        if (url === '/api/user/7/partner-oauth/bindings') {
           return { data: { success: true, data: [] } }
         }
         throw new Error(`Unexpected GET ${url}`)
@@ -296,6 +399,9 @@ describe('UserBindingDialog shared status updates', () => {
       if (url === '/api/user/7/oauth/bindings') {
         return { data: { success: true, data: [] } }
       }
+      if (url === '/api/user/7/partner-oauth/bindings') {
+        return { data: { success: true, data: [] } }
+      }
       throw new Error(`Unexpected GET ${url}`)
     }
     renderWithQueryClient(
@@ -306,9 +412,9 @@ describe('UserBindingDialog shared status updates', () => {
     await waitFor(() =>
       expect(queryClient.getQueryState(STATUS_QUERY_KEY)?.status).toBe('error')
     )
-    expect(screen.getByText('GitHub').parentElement).not.toHaveTextContent(
-      'Disabled'
-    )
+    expect(
+      screen.getByText('GitHub', { selector: 'span' }).parentElement
+    ).not.toHaveTextContent('Disabled')
   })
 
   test.each([

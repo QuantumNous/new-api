@@ -19,6 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import type { TFunction } from 'i18next'
 
 import { loginMethodLabel } from '@/features/security/components/login-session-utils'
+import type { PermissionResourceDef } from '@/lib/admin-permissions'
+import dayjs from '@/lib/dayjs'
 import { ROLE } from '@/lib/roles'
 
 import { renderAuditContent } from '../../lib/format'
@@ -65,6 +67,11 @@ export type AuditDetailField = {
   label: string
   value: unknown
   copyable?: boolean
+}
+
+export type AuditDetailOptions = {
+  // Labels for stored access token scopes; omitted until they have loaded.
+  scopeResources?: PermissionResourceDef[]
 }
 
 export function isAuditDetailObject(
@@ -159,9 +166,66 @@ export function auditFieldLabel(key: string, t: TFunction): string {
       return t('Operator Admin')
     case 'audit_info':
       return t('Request')
+    case 'token_id':
+      return t('Token ID')
+    case 'token_ref':
+      return t('Token identifier')
+    case 'scopes':
+      return t('Permissions')
+    case 'previous_scopes':
+      return t('Previous permissions')
+    case 'expires_at':
+      return t('Expiration')
+    case 'required_scope':
+      return t('Required permission')
+    case 'failure_reason':
+      return t('Failure reason')
+    case 'legacy':
+      return t('Legacy token')
+    case 'revoked_access_tokens':
+      return t('Revoked access tokens')
+    case 'verification_method':
+      return t('Verification method')
+    case 'password_reset':
+      return t('Reset password')
+    case 'admin_permissions_updated':
+      return t('Admin permissions updated')
+    case 'provider_id':
+      return t('Provider ID')
     default:
       return key
   }
+}
+
+// Groups stored access token scopes by resource. Scopes missing from the
+// dictionary are only counted, so a raw scope key never reaches the reader.
+function describeAccessTokenScopes(
+  scopes: string[],
+  resources: PermissionResourceDef[] | undefined,
+  t: TFunction
+): unknown {
+  const granted = new Set(scopes)
+  if (!resources) return t('{{count}} permissions', { count: granted.size })
+  const matched = new Set<string>()
+  const rows: Record<string, string> = {}
+  for (const resource of resources) {
+    const labels: string[] = []
+    for (const action of resource.actions) {
+      const scope = `${resource.resource}:${action.action}`
+      if (!granted.has(scope) || matched.has(scope)) continue
+      matched.add(scope)
+      labels.push(t(action.label_key))
+    }
+    if (labels.length) rows[t(resource.label_key)] = labels.join(', ')
+  }
+  const unavailable = granted.size - matched.size
+  if (!unavailable) return rows
+  const note = t('{{count}} permissions are no longer available', {
+    count: unavailable,
+  })
+  if (!matched.size) return note
+  rows[t('Other')] = note
+  return rows
 }
 
 function buildTokenAuditOperation(
@@ -320,7 +384,11 @@ function buildTokenAuditOperation(
   return { headline, summary, identifier, description, fields }
 }
 
-export function buildAuditDetails(entry: AuditLog, t: TFunction) {
+export function buildAuditDetails(
+  entry: AuditLog,
+  t: TFunction,
+  options: AuditDetailOptions = {}
+) {
   const metadata = isAuditDetailObject(entry.other) ? entry.other : {}
   const metadataUnavailable =
     entry.other != null && !isAuditDetailObject(entry.other)
@@ -458,6 +526,45 @@ export function buildAuditDetails(entry: AuditLog, t: TFunction) {
   }
   if (typeof params.method === 'string') {
     params.method = loginMethodLabel(params.method, t)
+  }
+  if (typeof params.verification_method === 'string') {
+    params.verification_method = loginMethodLabel(params.verification_method, t)
+  }
+  for (const key of ['scopes', 'previous_scopes']) {
+    const scopes = params[key]
+    if (
+      !Array.isArray(scopes) ||
+      !scopes.every((scope) => typeof scope === 'string')
+    ) {
+      continue
+    }
+    fields.push({
+      label: auditFieldLabel(key, t),
+      value: describeAccessTokenScopes(scopes, options.scopeResources, t),
+    })
+    delete params[key]
+  }
+  if (typeof params.expires_at === 'number') {
+    fields.push({
+      label: t('Expiration'),
+      value: params.expires_at
+        ? dayjs.unix(params.expires_at).format('YYYY-MM-DD HH:mm:ss')
+        : t('Never expires'),
+    })
+    delete params.expires_at
+  }
+  if (
+    entry.category === 'access_token' &&
+    typeof params.failure_reason === 'string'
+  ) {
+    const reasons: Record<string, string> = {
+      expired: t('Access token expired'),
+      scope_denied: t('The access token lacks the required permission'),
+      route_undeclared: t('Access tokens cannot use this feature'),
+      session_required: t('This feature requires signing in to the dashboard'),
+    }
+    params.failure_reason =
+      reasons[params.failure_reason] ?? params.failure_reason
   }
   if (
     action === 'channel.status_update_batch' &&

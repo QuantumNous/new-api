@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
@@ -19,6 +20,7 @@ func TestCashbackPublicOffersAnonymousAndConfigRootOnly(t *testing.T) {
 	previousDB, previousLogDB := model.DB, model.LOG_DB
 	previousType := common.MainDatabaseType()
 	previousRedis := common.RedisEnabled
+	previousSecret := common.SessionSecret
 	previousRateEnabled := common.GlobalApiRateLimitEnable
 	previousRateNum := common.GlobalApiRateLimitNum
 	previousRateDuration := common.GlobalApiRateLimitDuration
@@ -27,25 +29,31 @@ func TestCashbackPublicOffersAnonymousAndConfigRootOnly(t *testing.T) {
 	sqlDB, err := db.DB()
 	require.NoError(t, err)
 	sqlDB.SetMaxOpenConns(1)
-	require.NoError(t, db.AutoMigrate(&model.Option{}, &model.User{}, &model.AuditLog{}))
+	require.NoError(t, db.AutoMigrate(&model.Option{}, &model.User{}, &model.UserSession{}, &model.AuditLog{}))
 	model.DB, model.LOG_DB = db, db
 	common.SetMainDatabaseType(common.DatabaseTypeSQLite)
 	common.RedisEnabled = false
+	common.SessionSecret = "cashback-offers-test-secret"
 	common.GlobalApiRateLimitEnable = false
 	t.Cleanup(func() {
 		model.DB, model.LOG_DB = previousDB, previousLogDB
 		common.SetMainDatabaseType(previousType)
 		common.RedisEnabled = previousRedis
+		common.SessionSecret = previousSecret
 		common.GlobalApiRateLimitEnable = previousRateEnabled
 		common.GlobalApiRateLimitNum = previousRateNum
 		common.GlobalApiRateLimitDuration = previousRateDuration
 		_ = sqlDB.Close()
 	})
 
-	adminToken := "cashback-offers-admin-pat"
-	rootToken := "cashback-offers-root-pat"
-	require.NoError(t, db.Create(&model.User{Username: "offers-admin", Password: "placeholder", Role: common.RoleAdminUser, Status: common.UserStatusEnabled, AccessToken: &adminToken, AffCode: "offers-admin"}).Error)
-	require.NoError(t, db.Create(&model.User{Username: "offers-root", Password: "placeholder", Role: common.RoleRootUser, Status: common.UserStatusEnabled, AccessToken: &rootToken, AffCode: "offers-root"}).Error)
+	admin := &model.User{Username: "offers-admin", Password: "placeholder", Role: common.RoleAdminUser, Status: common.UserStatusEnabled, AffCode: "offers-admin", AuthVersion: 1}
+	root := &model.User{Username: "offers-root", Password: "placeholder", Role: common.RoleRootUser, Status: common.UserStatusEnabled, AffCode: "offers-root", AuthVersion: 1}
+	require.NoError(t, db.Create(admin).Error)
+	require.NoError(t, db.Create(root).Error)
+	adminBundle, err := service.CreateLoginSession(admin.Id, "password", "192.0.2.183", "router-test")
+	require.NoError(t, err)
+	rootBundle, err := service.CreateLoginSession(root.Id, "password", "192.0.2.184", "router-test")
+	require.NoError(t, err)
 
 	engine := gin.New()
 	SetApiRouter(engine)
@@ -66,11 +74,11 @@ func TestCashbackPublicOffersAnonymousAndConfigRootOnly(t *testing.T) {
 	assert.Contains(t, public.Body.String(), `"active":false`)
 	assert.NotContains(t, public.Body.String(), "max_reward_quota")
 	assert.Equal(t, http.StatusUnauthorized, request("/api/cashback/config", "", "192.0.2.182:1234").Code)
-	admin := request("/api/cashback/config", adminToken, "192.0.2.183:1234")
-	assert.Equal(t, http.StatusForbidden, admin.Code, admin.Body.String())
-	root := request("/api/cashback/config", rootToken, "192.0.2.184:1234")
-	assert.Equal(t, http.StatusOK, root.Code, root.Body.String())
-	assert.Contains(t, root.Body.String(), "max_reward_quota")
+	adminResponse := request("/api/cashback/config", adminBundle.AccessToken, "192.0.2.183:1234")
+	assert.Equal(t, http.StatusForbidden, adminResponse.Code, adminResponse.Body.String())
+	rootResponse := request("/api/cashback/config", rootBundle.AccessToken, "192.0.2.184:1234")
+	assert.Equal(t, http.StatusOK, rootResponse.Code, rootResponse.Body.String())
+	assert.Contains(t, rootResponse.Body.String(), "max_reward_quota")
 
 	// Register a fresh router with the global API limiter enabled. A public
 	// cashback read must traverse it just like the other anonymous API routes.

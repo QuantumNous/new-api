@@ -121,11 +121,12 @@ func TestGetUserLogSummaryAcceptsTenDayWindow(t *testing.T) {
 func TestGetUserLogsFiltersMultipleRequestTypes(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 	require.NoError(t, db.AutoMigrate(&model.Log{}))
+	now := common.GetTimestamp()
 	require.NoError(t, db.Create(&[]model.Log{
-		{UserId: 42, Type: model.LogTypeConsume, CreatedAt: 1000, ModelName: "consume"},
-		{UserId: 42, Type: model.LogTypeError, CreatedAt: 1001, ModelName: "error"},
-		{UserId: 42, Type: model.LogTypeManage, CreatedAt: 1002, ModelName: "manage"},
-		{UserId: 99, Type: model.LogTypeConsume, CreatedAt: 1003, ModelName: "other-user"},
+		{UserId: 42, Type: model.LogTypeConsume, CreatedAt: now - 3, ModelName: "consume"},
+		{UserId: 42, Type: model.LogTypeError, CreatedAt: now - 2, ModelName: "error"},
+		{UserId: 42, Type: model.LogTypeManage, CreatedAt: now - 1, ModelName: "manage"},
+		{UserId: 99, Type: model.LogTypeConsume, CreatedAt: now, ModelName: "other-user"},
 	}).Error)
 	for page, expectedType := range []int{model.LogTypeError, model.LogTypeConsume} {
 		t.Run(fmt.Sprintf("page-%d", page+1), func(t *testing.T) {
@@ -320,10 +321,10 @@ func TestGetUserRequestLogsAcrossFiftyRawRows(t *testing.T) {
 	require.NoError(t, db.Create(&logs).Error)
 	// Establish the actual regression: raw page 1 has the errors, raw page 2
 	// has their settlements. Neither raw page can resolve the request alone.
-	rawFirst, _, err := model.GetUserLogs(42, []int{2, 5}, 100, 200, "", "", 0, 50, "", "", "")
+	rawFirst, _, err := model.GetUserLogs(42, model.LogFilter{Types: []int{2, 5}, StartTimestamp: 100, EndTimestamp: 200}, 0, 50)
 	require.NoError(t, err)
 	require.Equal(t, model.LogTypeError, rawFirst[0].Type)
-	rawSecond, _, err := model.GetUserLogs(42, []int{2, 5}, 100, 200, "", "", 50, 50, "", "", "")
+	rawSecond, _, err := model.GetUserLogs(42, model.LogFilter{Types: []int{2, 5}, StartTimestamp: 100, EndTimestamp: 200}, 50, 50)
 	require.NoError(t, err)
 	require.Equal(t, "settled", rawSecond[len(rawSecond)-2].ModelName)
 	var all []model.Log

@@ -3,7 +3,6 @@ package controller
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
@@ -11,7 +10,6 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
@@ -47,16 +45,16 @@ type oauthFlowPayload struct {
 	Authorization          *model.AuthFlowAuthorization   `json:"authorization,omitempty"`
 }
 
-// providerParams returns map with Provider key for i18n templates
+// providerParams returns the params of messages that name the OAuth provider.
 func providerParams(name string) map[string]any {
-	return map[string]any{"Provider": name}
+	return map[string]any{"provider": name}
 }
 
 // GenerateOAuthCode generates a state code for OAuth CSRF protection
 func GenerateOAuthCode(c *gin.Context) {
 	var request oauthStateRequest
 	if err := common.DecodeJson(c.Request.Body, &request); err != nil {
-		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}
 	request.Provider = strings.TrimSpace(request.Provider)
@@ -67,7 +65,7 @@ func GenerateOAuthCode(c *gin.Context) {
 		len(request.Aff) > 32 ||
 		(request.Intent != model.AuthFlowIntentLogin && request.Aff != "") ||
 		(request.Intent != model.AuthFlowIntentVerify && (request.Scope != "" || len(request.Context) != 0)) {
-		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}
 	flowPayload := oauthFlowPayload{AffiliateCode: request.Aff}
@@ -84,7 +82,7 @@ func GenerateOAuthCode(c *gin.Context) {
 	if request.Intent == model.AuthFlowIntentBind || request.Intent == model.AuthFlowIntentVerify {
 		identity, ok := middleware.GetSessionAuthIdentity(c)
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "绑定操作需要登录"})
+			writeAccountStatusError(c, http.StatusUnauthorized, "Sign in to bind an account")
 			return
 		}
 		userID, sessionID = identity.UserID, identity.SessionID
@@ -188,13 +186,13 @@ func HandleOAuth(c *gin.Context) {
 	providerName := c.Param("provider")
 	provider := oauth.GetProvider(providerName)
 	if provider == nil {
-		common.ApiErrorI18n(c, i18n.MsgOAuthUnknownProvider)
+		writeAccountStatusError(c, http.StatusBadRequest, "Unknown OAuth provider")
 		return
 	}
 	state := c.Query("state")
 	pendingFlow, err := model.GetAuthFlow(state, model.AuthFlowMatch{Purpose: model.AuthFlowPurposeOAuth, Provider: providerName})
 	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
+		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": common.NewMessage("State parameter is empty or mismatched").Error()})
 		return
 	}
 	var payload oauthFlowPayload
@@ -219,7 +217,7 @@ func HandleOAuth(c *gin.Context) {
 		if payload.OriginHost != "" {
 			// A proof must never be delivered to another Origin without a bound ceremony.
 			if pendingFlow.Intent != model.AuthFlowIntentBind {
-				c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
+				c.JSON(http.StatusForbidden, gin.H{"success": false, "message": common.NewMessage("State parameter is empty or mismatched").Error()})
 				return
 			}
 			targetHost, active, targetErr := resolveOAuthReturnTarget(payload)
@@ -228,7 +226,7 @@ func HandleOAuth(c *gin.Context) {
 				return
 			}
 			if targetHost == "" || payload.BrowserBindingHash == "" || payload.ExpectedAuthVersion <= 0 || payload.ExpectedSessionVersion <= 0 {
-				c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
+				c.JSON(http.StatusForbidden, gin.H{"success": false, "message": common.NewMessage("State parameter is empty or mismatched").Error()})
 				return
 			}
 			identity = service.AuthIdentity{
@@ -238,10 +236,10 @@ func HandleOAuth(c *gin.Context) {
 			match.UserId, match.SessionId = identity.UserID, identity.SessionID
 			if !active {
 				if _, err := model.ConsumeAuthFlow(state, match); err != nil {
-					c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
+					c.JSON(http.StatusForbidden, gin.H{"success": false, "message": common.NewMessage("State parameter is empty or mismatched").Error()})
 					return
 				}
-				writeDomainBindReturn(c, targetHost, providerName, "target_unavailable", i18n.T(c, i18n.MsgOAuthStateInvalid))
+				writeDomainBindReturn(c, targetHost, providerName, "target_unavailable", common.NewMessage("State parameter is empty or mismatched").Error())
 				return
 			}
 			if payload.SessionIdentity == nil || payload.SessionIdentity.SessionIdentity() != identity.SessionIdentity() {
@@ -250,10 +248,10 @@ func HandleOAuth(c *gin.Context) {
 			}
 			if _, _, err := service.ValidateLoginSession(identity); err != nil {
 				if _, consumeErr := model.ConsumeAuthFlow(state, match); consumeErr != nil {
-					c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
+					c.JSON(http.StatusForbidden, gin.H{"success": false, "message": common.NewMessage("State parameter is empty or mismatched").Error()})
 					return
 				}
-				writeDomainBindReturn(c, targetHost, providerName, "failed", i18n.T(c, i18n.MsgOAuthStateInvalid))
+				writeDomainBindReturn(c, targetHost, providerName, "failed", common.NewMessage("State parameter is empty or mismatched").Error())
 				return
 			}
 			deferDomainBind = true
@@ -261,7 +259,7 @@ func HandleOAuth(c *gin.Context) {
 			var ok bool
 			identity, ok = middleware.GetSessionAuthIdentity(c)
 			if !ok || identity.UserID != pendingFlow.UserId || identity.SessionID != pendingFlow.SessionId {
-				c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
+				c.JSON(http.StatusForbidden, gin.H{"success": false, "message": common.NewMessage("State parameter is empty or mismatched").Error()})
 				return
 			}
 			match.UserId, match.SessionId = identity.UserID, identity.SessionID
@@ -278,7 +276,7 @@ func HandleOAuth(c *gin.Context) {
 			}
 		}
 	} else if pendingFlow.Intent != model.AuthFlowIntentLogin {
-		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		common.ApiErrorT(c, "Invalid parameters")
 		return
 	}
 	if providerName == "telegram" {
@@ -303,13 +301,13 @@ func HandleOAuth(c *gin.Context) {
 		c.Set(oauth.TelegramOAuthFlowContextKey, payload.Telegram)
 	}
 	if !provider.IsEnabled() {
-		handleOAuthFlowMessage(c, i18n.T(c, i18n.MsgOAuthNotEnabled, providerParams(provider.GetName())), pendingFlow.Intent, payload, providerName)
+		handleOAuthFlowMessage(c, common.NewMessage("{{provider}} login and registration has not been enabled by administrator", providerParams(provider.GetName())).Error(), pendingFlow.Intent, payload, providerName)
 		return
 	}
 	if errorCode := c.Query("error"); errorCode != "" {
 		flow, err := model.ConsumeAuthFlow(state, match)
 		if err != nil {
-			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": common.NewMessage("State parameter is empty or mismatched").Error()})
 			return
 		}
 		errorDescription := c.Query("error_description")
@@ -350,7 +348,7 @@ func HandleOAuth(c *gin.Context) {
 	}
 	flow, err := model.ConsumeAuthFlow(state, match)
 	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
+		writeAccountStatusError(c, http.StatusForbidden, "State parameter is empty or mismatched")
 		return
 	}
 	switch flow.Intent {
@@ -392,24 +390,24 @@ func handleOAuthLogin(c *gin.Context, provider oauth.Provider, oauthUser *oauth.
 		message := err.Error()
 		switch {
 		case errors.Is(err, model.ErrEmailAlreadyTaken):
-			message = i18n.T(c, i18n.MsgUserEmailAlreadyTaken)
+			message = common.NewMessage("Email address is already in use").Error()
 		default:
 			switch err.(type) {
 			case *OAuthUserDeletedError:
-				message = i18n.T(c, i18n.MsgOAuthUserDeleted)
+				message = common.NewMessage("User has been deleted").Error()
 			case *OAuthRegistrationDisabledError:
-				message = i18n.T(c, i18n.MsgUserRegisterDisabled)
+				message = common.NewMessage("New user registration has been disabled by administrator").Error()
 			case *OAuthEmailAlreadyTakenError:
-				message = i18n.T(c, i18n.MsgUserEmailAlreadyTaken)
+				message = common.NewMessage("Email address is already in use").Error()
 			case *OAuthLegacyBindingNotConfirmedError:
-				message = i18n.T(c, i18n.MsgOAuthNotAutoLinked, providerParams(provider.GetName()))
+				message = common.NewMessage("This {{provider}} account cannot be linked to an existing account automatically, please sign in or register another way and then link {{provider}} in account settings", providerParams(provider.GetName())).Error()
 			}
 		}
 		handleOAuthFlowMessage(c, message, flow.Intent, payload, flow.Provider)
 		return
 	}
 	if user.Status != common.UserStatusEnabled {
-		handleOAuthFlowMessage(c, i18n.T(c, i18n.MsgOAuthUserBanned), flow.Intent, payload, flow.Provider)
+		handleOAuthFlowMessage(c, common.NewMessage("User has been banned").Error(), flow.Intent, payload, flow.Provider)
 		return
 	}
 	if payload.OriginHost != "" {
@@ -417,7 +415,7 @@ func handleOAuthLogin(c *gin.Context, provider oauth.Provider, oauthUser *oauth.
 		// ceremony can be transferred across Hosts, never allow it to bypass MFA.
 		state, err := model.GetUserVerificationState(user.Id)
 		if err != nil || state.HasTwoFA || state.HasPasskey || migration != nil {
-			handleOAuthFlowMessage(c, i18n.T(c, i18n.MsgOAuthStateInvalid), flow.Intent, payload, flow.Provider)
+			handleOAuthFlowMessage(c, common.NewMessage("State parameter is empty or mismatched").Error(), flow.Intent, payload, flow.Provider)
 			return
 		}
 	}
@@ -443,12 +441,12 @@ func handleOAuthBind(c *gin.Context, providerName string, provider oauth.Provide
 		return false, false
 	}
 	if provider.IsUserIDTaken(oauthUser.ProviderUserID) {
-		handleOAuthFlowMessage(c, i18n.T(c, i18n.MsgOAuthAlreadyBound, providerParams(provider.GetName())), flow.Intent, payload, providerName)
+		handleOAuthFlowMessage(c, common.NewMessage("This {{provider}} account has already been bound", providerParams(provider.GetName())).Error(), flow.Intent, payload, providerName)
 		return false, false
 	}
 	if deferDomainBind {
 		if _, err := model.ConsumeAuthFlow(state, match); err != nil {
-			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": i18n.T(c, i18n.MsgOAuthStateInvalid)})
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": common.NewMessage("State parameter is empty or mismatched").Error()})
 			return false, false
 		}
 		if err := issueDomainBindHandoff(c, provider, oauthUser, flow, payload); err != nil {
@@ -475,7 +473,7 @@ func handleOAuthBind(c *gin.Context, providerName string, provider oauth.Provide
 		return true, true
 	}
 	notificationFailed := service.NotifyAccountSecurityChange(user.Email, "Login account linked: "+provider.GetName()) != nil
-	common.ApiSuccessI18n(c, i18n.MsgOAuthBindSuccess, gin.H{"action": "bind", "notification_warning": notificationFailed})
+	common.ApiSuccessT(c, "Binding successful", gin.H{"action": "bind", "notification_warning": notificationFailed})
 	return true, notificationFailed
 }
 
@@ -529,7 +527,7 @@ func findOrCreateOAuthUser(c *gin.Context, provider oauth.Provider, oauthUser *o
 			if emailProvider, ok := provider.(oauth.VerifiedEmailProvider); ok && user.Email != "" {
 				emails, err := emailProvider.GetVerifiedEmails(c.Request.Context(), token)
 				if err != nil {
-					common.SysError(fmt.Sprintf("[OAuth] Failed to load verified emails for user %d: %s", user.Id, err.Error()))
+					common.SysError(common.LogText("[OAuth] Failed to load verified emails for user %d: %s", user.Id, err.Error()))
 					reason = "verified_emails_unavailable"
 				}
 				accountEmail := model.NormalizeEmail(user.Email)
@@ -714,15 +712,12 @@ func handleOAuthFlowMessage(c *gin.Context, message, intent string, payload oaut
 func oauthErrorMessage(c *gin.Context, err error) string {
 	switch e := err.(type) {
 	case *oauth.OAuthError:
-		if e.Params != nil {
-			return i18n.T(c, e.MsgKey, e.Params)
-		}
-		return i18n.T(c, e.MsgKey)
+		return e.Message.Error()
 	case *oauth.AccessDeniedError:
 		return e.Message
 	case *oauth.TrustLevelError:
-		return i18n.T(c, i18n.MsgOAuthTrustLevelLow)
+		return common.NewMessage("Linux DO trust level does not meet the minimum required by administrator").Error()
 	default:
-		return i18n.T(c, i18n.MsgOAuthStateInvalid)
+		return common.NewMessage("State parameter is empty or mismatched").Error()
 	}
 }

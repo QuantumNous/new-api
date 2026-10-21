@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/index.md","reason":"后端层规范入口，确认受冲突影响模块"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"迁移和三库 Docker 隔离验证"}
+{"file":".trellis/spec/frontend/index.md","reason":"前端层质量门槛和翻译范围"}
+{"file":".agents/rules/billing.md","reason":"计费冲突强制阅读与安全不变量"}
+{"file":".trellis/tasks/10-17-merge-rc44/research/merge-preflight.md","reason":"版本来源、冲突数量及风险分组"}

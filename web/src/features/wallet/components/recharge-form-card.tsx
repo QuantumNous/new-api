@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { Gift, ExternalLink, Loader2, Receipt, WalletCards } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
+import { Trans, useTranslation } from 'react-i18next'
 
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
@@ -295,32 +295,30 @@ export function RechargeFormCard({
                             </div>
                             {hasDiscount && (
                               <div className='text-xs font-medium text-green-600'>
-                                {getDiscountLabel(discount)}
+                                {getDiscountLabel(discount, t)}
                               </div>
                             )}
                           </div>
                           <div className='text-muted-foreground mt-1.5 flex w-full flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:mt-2'>
                             <span>
-                              {t('Pay {{amount}}', {
-                                amount: formatLocalCurrencyAmount(actualPrice),
-                              })}
-                              {hasDiscount && savedAmount > 0 && (
-                                <span className='text-green-600'>
-                                  {' • '}
-                                  {t('Save {{amount}}', {
-                                    amount:
-                                      formatLocalCurrencyAmount(savedAmount),
-                                  })}
-                                </span>
+                              {hasDiscount && savedAmount > 0 ? (
+                                <Trans
+                                  t={t}
+                                  i18nKey='Pay {{amount}} <savings>• Save {{saved}}</savings>'
+                                  values={{
+                                    amount: formatLocalCurrencyAmount(actualPrice),
+                                    saved: formatLocalCurrencyAmount(savedAmount),
+                                  }}
+                                  components={{ savings: <span className='text-green-600' /> }}
+                                />
+                              ) : (
+                                t('Pay {{amount}}', { amount: formatLocalCurrencyAmount(actualPrice) })
                               )}
                             </span>
                             {cashbackQuota > 0 && (
                               <span className='rounded-sm bg-green-600/10 px-1.5 py-0.5 text-[11px] leading-4 font-medium text-green-700 dark:text-green-400'>
                                 {t('Cashback {{amount}}', {
-                                  amount: formatQuotaWithCurrency(
-                                    cashbackQuota,
-                                    { abbreviate: false }
-                                  ),
+                                  amount: formatQuotaWithCurrency(cashbackQuota, { abbreviate: false }),
                                 })}
                               </span>
                             )}
@@ -346,7 +344,7 @@ export function RechargeFormCard({
                     value={localAmount}
                     onChange={(e) => handleAmountChange(e.target.value)}
                     min={inputMinTopup}
-                    placeholder={`Minimum ${inputMinTopup}`}
+                    placeholder={t('Minimum {{amount}}', { amount: inputMinTopup })}
                     className='h-9 text-base sm:h-10 sm:text-lg'
                   />
                   <div className='bg-muted/30 flex min-h-9 items-center justify-between gap-2 rounded-md border px-3 lg:min-w-52'>

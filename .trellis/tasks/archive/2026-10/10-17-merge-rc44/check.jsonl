@@ -1,0 +1,5 @@
+{"file":".trellis/spec/backend/index.md","reason":"检查后端冲突与规范"}
+{"file":".trellis/spec/backend/database-guidelines.md","reason":"检查三库迁移和容器验证"}
+{"file":".trellis/spec/frontend/quality-guidelines.md","reason":"检查前端冲突和可见行为"}
+{"file":".agents/rules/billing.md","reason":"复核计费不变量没有因合并回归"}
+{"file":".trellis/tasks/10-17-merge-rc44/research/merge-preflight.md","reason":"核对来源和风险文件"}

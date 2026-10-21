@@ -38,12 +38,12 @@ DO NOT send optional commentary
 
 ## 2. 技术栈
 
-- **后端**：Go 1.25.1（以各模块 `go.mod` 为准），Gin，GORM v2
+- **后端**：根模块及 `tokenkit/` 使用 Go 1.26，`relaykit/` 使用 Go 1.25.1（以各模块 `go.mod` 为准），Gin，GORM v2
 - **前端**：React 19、TypeScript、Rsbuild 2、TanStack Router/Query/Table、Zustand、Base UI、Tailwind CSS 4；包管理与脚本一律用 **Bun**
 - **数据库**：主库必须同时支持 SQLite、MySQL、PostgreSQL；独立配置的日志库额外支持 ClickHouse
 - **缓存**：Redis（go-redis）+ 进程内缓存
 - **认证**：浏览器会话、API Token 与个人访问令牌、JWT、WebAuthn/Passkey、TOTP、OAuth/OIDC；授权用 Casbin（`service/authz/`）
-- **扩展**：Sobek 执行的 JavaScript 任务插件；Electron 桌面封装
+- **扩展**：moejs 执行的 JavaScript 任务插件；Electron 桌面封装
 
 ## 3. 目录与架构
 
@@ -51,6 +51,7 @@ DO NOT send optional commentary
 |---|---|
 | `router/` `middleware/` `controller/` `service/` `model/` `relay/` | 网关主体：管理 API、上游转发、计费、后台任务 |
 | `relaykit/` | 独立 Go 模块：协议 DTO 与转换，**不得依赖根模块** |
+| `tokenkit/` | 独立 Go 模块：文本与图片 token 计数/估算，不依赖根模块或 `relaykit/` |
 | `plugins/tasks/` + `pkg/jsplugin/` | JavaScript 任务插件及其运行时 |
 | `web/` | React 前端（规范见 `web/AGENTS.md`） |
 | `electron/` | 桌面封装 |
@@ -143,8 +144,14 @@ make dev                          # docker 起 API + 本地前端开发服务器
 
 ### 7.2 relaykit 模块独立
 
-- `relaykit/` 不得 import 根模块 `new-api` 的任何包，也不得依赖根模块专有配置、生成文件或 workspace。
-- 修改 `relaykit/` 或其公开 API 后必须运行 `cd relaykit && GOWORK=off go build ./...`，根模块编译通过不算数。
+- `relaykit/` 与 `tokenkit/` 均不得 import 根模块 `new-api` 的任何包，也不得依赖根模块专有配置、生成文件或 workspace；`tokenkit/` 也不得依赖 `relaykit/`。
+- 修改这两个模块或其公开 API 后，必须在对应模块中运行 `GOWORK=off go build ./...`；根模块编译通过不算数。
+
+### 后端 i18n
+
+- `i18n/` 使用 go-i18n/v2，语言为 en、zh-CN、zh-TW；无前端中介的 API 客户端错误、邮件和通知使用 `i18n.T` / `i18n.Translate`。
+- Web 控制台 API 消息用英文源文本 `common.NewMessage` / `common.ApiErrorT` / `common.ApiSuccessT`，并为前端七种语言补齐翻译；存储日志内容为 `[]*common.Message`，网关失败原因使用固定英文源文本。
+- 服务端日志使用英文 `common.LogText`；`DEFAULT_LANGUAGE=zh-CN` 时已有翻译位于 `common/log_text.zh-CN.json`，也作为未指定语言读者的默认后端语言。
 
 ### 7.3 JSON
 

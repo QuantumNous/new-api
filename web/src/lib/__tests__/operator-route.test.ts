@@ -40,5 +40,6 @@ describe('isOperatorRoute', () => {
     expect(isOperatorRoute('/models/metadata')).toBe(true)
     expect(isOperatorRoute('/guide')).toBe(true)
     expect(isOperatorRoute('/guide/codex')).toBe(true)
+    expect(isOperatorRoute('/partner-oauth-clients')).toBe(true)
   })
 })

@@ -27,6 +27,7 @@ import { api } from '@/lib/http-client'
 import { createAppQueryClient } from '@/lib/query-client'
 import { useAuthStore } from '@/stores/auth-store'
 import { usePricingPreferencesStore } from '@/stores/pricing-preferences-store'
+import { createTestAuthBundle } from '@/test-utils/auth-bundle'
 
 import type { ModelPricingConfig } from '../api'
 import { ModelPricingPanel } from '../model-pricing-panel'
@@ -46,9 +47,11 @@ afterEach(() => {
 it.each([200, 400])(
   'shows the backend pricing error once, preserves the draft, and reports a new attempt separately (HTTP %i)',
   async (status) => {
-    useAuthStore
-      .getState()
-      .auth.setUser({ id: 1, username: 'administrator', role: 100 })
+    const bundle = createTestAuthBundle()
+    useAuthStore.getState().auth.setBundle({
+      ...bundle,
+      user: { id: 1, username: 'administrator', role: 100 },
+    })
     usePricingPreferencesStore.setState({ currency: 'USD' })
     const values = {
       'billing_setting.billing_mode': 'tiered_expr',

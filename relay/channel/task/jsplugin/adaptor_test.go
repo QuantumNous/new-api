@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"io"
 	"math"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -82,9 +84,10 @@ func TestTaskAdaptorRejectsDeprecatedClientResponse(t *testing.T) {
 }
 
 func TestTaskAdaptorBuildsMultipartFromOpaqueFileReference(t *testing.T) {
+	// The plugin forwards the client's Content-Type, whose boundary is not the one of the rebuilt body.
 	source := `
 export const meta = {apiVersion:1,key:"multipart",name:"Multipart",version:"1.0.0",author:{name:"Test"},models:["m"],fetchMode:"per_task"};
-export function buildSubmitRequest(ctx) { return {url:ctx.baseUrl+"/submit",bodyType:"multipart",parts:[{name:"model",value:"m"},{name:"input_reference",fileRef:ctx.files[0].ref}]}; }
+export function buildSubmitRequest(ctx) { return {url:ctx.baseUrl+"/submit",headers:{"Content-Type":ctx.requestHeaders["Content-Type"]},bodyType:"multipart",parts:[{name:"model",value:"m"},{name:"input_reference",fileRef:ctx.files[0].ref}]}; }
 export function parseSubmitResponse(ctx,r){return {taskId:"1"}} export function buildQueryRequest(){return {url:"https://example.com"}} export function parseTaskResult(){return {status:"SUCCESS"}}
 `
 	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
@@ -107,7 +110,13 @@ export function parseSubmitResponse(ctx,r){return {taskId:"1"}} export function 
 	require.NoError(t, err)
 	requestBytes, err := io.ReadAll(body)
 	require.NoError(t, err)
-	reader := multipart.NewReader(bytes.NewReader(requestBytes), strings.TrimPrefix(c.GetHeader("Content-Type"), "multipart/form-data; boundary="))
+	upstreamRequest := httptest.NewRequest(http.MethodPost, "https://provider.example/submit", bytes.NewReader(requestBytes))
+	require.NoError(t, adaptor.BuildRequestHeader(c, upstreamRequest, info))
+	mediaType, params, err := mime.ParseMediaType(upstreamRequest.Header.Get("Content-Type"))
+	require.NoError(t, err)
+	assert.Equal(t, "multipart/form-data", mediaType)
+	require.NotEmpty(t, params["boundary"])
+	reader := multipart.NewReader(bytes.NewReader(requestBytes), params["boundary"])
 	form, err := reader.ReadForm(1024)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"m"}, form.Value["model"])
@@ -403,6 +412,69 @@ export function buildSubmitRequest(ctx){return {url:ctx.baseUrl+"/submit"}} expo
 	assert.Contains(t, taskErr.Message, "must not return renderer")
 }
 
+const orderedProtocolPlugin = `
+export const meta = {apiVersion:1,key:"ordered",name:"Ordered",version:"1.0.0",author:{name:"Test"},models:["m"],fetchMode:"per_task",requiredCapabilities:["json-order@1"],protocols:[{name:"openai_responses",supports:["sync"]}]};
+export const protocols = {openai_responses:{decodeRequest:function(ctx){const b = ctx.body.value; return {kind:"submit",model:ctx.model,requestBody:{model:b.model,state:b.state,questions:b.questions}};},renderFinal:function(){return {};}}};
+export function buildSubmitRequest(ctx){const b = ctx.requestBody; return {url:ctx.baseUrl+"/submit",body:{model:b.model,state:b.state,questions:b.questions}}}
+export function parseSubmitResponse(){return {taskId:"one"}} export function buildQueryRequest(){return {}} export function parseTaskResult(){return {status:"SUCCESS"}}
+`
+
+// A plugin declaring json-order@1 forwards the members in the order the client
+// sent them, through the final decode, the request body hooks receive and the
+// upstream body, while billing bounds still read the decoded value; other
+// plugins keep the host codec's sorted encoding.
+func TestTaskAdaptorJSONOrderCapability(t *testing.T) {
+	client := `{"model":"m","state":{"zeta":"1","alpha":"2","mid":"&<>"},"questions":{"q2":{"type":"noul"},"q1":{"type":"noul"}}}`
+	undeclared := strings.Replace(orderedProtocolPlugin, `requiredCapabilities:["json-order@1"],`, "", 1)
+	cases := []struct {
+		name   string
+		source string
+		client string
+		want   string
+		status int
+	}{
+		{name: "declared keeps the client's order", source: orderedProtocolPlugin, client: client,
+			want: `{"model":"m","state":{"zeta":"1","alpha":"2","mid":"&<>"},"questions":{"q2":{"type":"noul"},"q1":{"type":"noul"}}}`},
+		{name: "undeclared stays sorted", source: undeclared, client: client,
+			want: `{"model":"m","questions":{"q1":{"type":"noul"},"q2":{"type":"noul"}},"state":{"alpha":"2","mid":"\u0026\u003c\u003e","zeta":"1"}}`},
+		{name: "declared still bounds billing quantities", source: orderedProtocolPlugin,
+			client: `{"model":"m","state":{"duration":3601},"questions":{}}`, status: http.StatusBadRequest},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			plugin, err := pluginruntime.NewRegistry().Register(tc.source, pluginruntime.Options{})
+			require.NoError(t, err)
+			var value any
+			require.NoError(t, common.Unmarshal([]byte(tc.client), &value))
+			protocolContext := pluginruntime.ProtocolRequestContext{
+				RouteRequestContext: pluginruntime.RouteRequestContext{Body: map[string]any{"kind": "json", "value": value}, BodyText: json.RawMessage(tc.client)},
+				Protocol:            "openai_responses", Model: "m",
+			}
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+			c.Set(pluginruntime.ContextKeyPinnedEndpoint, pluginruntime.PinnedEndpoint{Plugin: plugin, Protocol: "openai_responses", Model: "m"})
+			c.Set(pluginruntime.ContextKeyProtocolRequest, protocolContext)
+			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}, OriginModelName: "m"}
+			adaptor := New(plugin)
+			adaptor.Init(info)
+
+			taskErr := adaptor.ValidateRequestAndSetAction(c, info)
+			if tc.status != 0 {
+				require.NotNil(t, taskErr)
+				assert.Equal(t, tc.status, taskErr.StatusCode)
+				assert.Equal(t, "plugin_usage_invalid", taskErr.Code)
+				return
+			}
+			require.Nil(t, taskErr)
+			body, err := adaptor.BuildRequestBody(c, info)
+			require.NoError(t, err)
+			raw, err := io.ReadAll(body)
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, string(raw))
+		})
+	}
+}
+
 func TestTaskAdaptorBuildContentRequestHookAndMissingFallback(t *testing.T) {
 	source := strings.Replace(mockPlugin, `export function listArtifacts() { return []; }
 export function buildContentRequest() { throw new Error("artifact_not_found"); }`, `export function listArtifacts(task) { return [{key: "video", type: "video", mimeType: "video/mp4"}]; }
@@ -428,7 +500,7 @@ export function buildContentRequest(ctx) {
 	artifacts, err := adaptor.ListArtifacts(task)
 	require.NoError(t, err)
 	require.Equal(t, []channel.TaskArtifact{{Key: "video", Type: "video", MimeType: "video/mp4"}}, artifacts)
-	descriptor, err := adaptor.BuildContentRequest(task, "video", channel.TaskArtifactClientRequest{Method: http.MethodHead})
+	descriptor, err := adaptor.BuildContentRequest(t.Context(), task, "video", channel.TaskArtifactClientRequest{Method: http.MethodHead})
 	require.NoError(t, err)
 	require.NotNil(t, descriptor)
 	assert.Equal(t, "https://provider.example/content/video", descriptor.URL)
@@ -448,7 +520,7 @@ export function parseTaskResult(){return {status:"SUCCESS"};}
 	artifacts, err = fallback.ListArtifacts(&model.Task{})
 	require.NoError(t, err)
 	assert.Nil(t, artifacts)
-	descriptor, err = fallback.BuildContentRequest(&model.Task{}, "video", channel.TaskArtifactClientRequest{Method: http.MethodGet})
+	descriptor, err = fallback.BuildContentRequest(t.Context(), &model.Task{}, "video", channel.TaskArtifactClientRequest{Method: http.MethodGet})
 	require.NoError(t, err)
 	assert.Nil(t, descriptor)
 }
@@ -489,6 +561,7 @@ export function buildContentRequest(ctx) { return {url:"https://cdn.example/vide
 	adaptor := New(plugin)
 	adaptor.Init(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://provider.example"}})
 	descriptor, err := adaptor.BuildContentRequest(
+		t.Context(),
 		&model.Task{TaskID: "task", Data: []byte(`{}`)},
 		"video",
 		channel.TaskArtifactClientRequest{Method: http.MethodGet},
@@ -497,6 +570,59 @@ export function buildContentRequest(ctx) { return {url:"https://cdn.example/vide
 	require.NotNil(t, descriptor)
 	assert.True(t, descriptor.Credentialless)
 	assert.Equal(t, "https://cdn.example/video.mp4", descriptor.URL)
+}
+
+func TestTaskAdaptorHookFetchReachesRequestHostsOnly(t *testing.T) {
+	service.InitHttpClient()
+	extra := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"from":"extra"}`))
+	}))
+	defer extra.Close()
+	base := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/info":
+			assert.Equal(t, "Bearer key", r.Header.Get("Authorization"))
+			_, _ = w.Write([]byte(`{"from":"base"}`))
+		case "/moved":
+			http.Redirect(w, r, extra.URL+"/elsewhere", http.StatusFound)
+		default:
+			t.Errorf("unexpected request %s", r.URL.Path)
+		}
+	}))
+	defer base.Close()
+	source := strings.Replace(mockPlugin, `fetchMode: "per_task",`, `fetchMode: "per_task", allowedHosts: ["`+strings.TrimPrefix(extra.URL, "http://")+`"],`, 1)
+	source = strings.Replace(source, `export function listArtifacts() { return []; }
+export function buildContentRequest() { throw new Error("artifact_not_found"); }`, `export function listArtifacts() { return [{key: "video", type: "video"}]; }
+export function buildContentRequest(ctx) {
+  const base = utils.fetch({url: ctx.baseUrl + "/info", headers: {Authorization: "Bearer " + ctx.apiKey}});
+  const extra = utils.fetch({url: "http://" + meta.allowedHosts[0] + "/info"});
+  const moved = utils.fetch({url: ctx.baseUrl + "/moved"});
+  let denied = "";
+  try { utils.fetch({url: "https://other.example/info"}); } catch (e) { denied = e.message; }
+  return {url: ctx.baseUrl + "/content", method: "GET", headers: {
+    "X-Base": base.body.from, "X-Extra": extra.body.from, "X-Moved": moved.status + " " + moved.headers.Location, "X-Denied": denied,
+  }};
+}`, 1)
+	source = strings.Replace(source, `render: function(ctx, task) { return {id: task.task_id, status: "completed"}; }`,
+		`render: function(ctx, task) { return utils.fetch({url: "https://provider.example/info"}).body; }`, 1)
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	adaptor := New(plugin)
+	adaptor.Init(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: base.URL, ApiKey: "key"}})
+
+	descriptor, err := adaptor.BuildContentRequest(t.Context(), &model.Task{TaskID: "task", Data: []byte(`{}`)}, "video", channel.TaskArtifactClientRequest{Method: http.MethodGet})
+	require.NoError(t, err)
+	require.NotNil(t, descriptor)
+	assert.Equal(t, map[string]string{
+		"X-Base":   "base",
+		"X-Extra":  "extra",
+		"X-Moved":  "302 " + extra.URL + "/elsewhere",
+		"X-Denied": `utils.fetch to other.example failed: plugin request host "other.example" is not allowed`,
+	}, descriptor.Headers)
+
+	// Renderers run on every client read and may not fetch.
+	_, err = adaptor.ConvertToOpenAIVideo(&model.Task{TaskID: "task_public", Status: model.TaskStatusSuccess})
+	assert.ErrorContains(t, err, "utils.fetch is not available in protocols.openai_video.render")
 }
 
 func TestTaskAdaptorMapsJSContract(t *testing.T) {
@@ -662,13 +788,22 @@ func TestTaskAdaptorPreservesSoraVideoResponseFields(t *testing.T) {
 }
 
 func TestTaskAdaptorRejectsNonObjectOpenAIVideoRendererOutput(t *testing.T) {
-	for _, value := range []string{"null", "[]", `"video"`, "42", "false"} {
+	for value, message := range map[string]string{
+		"null":           "plugin returned an invalid OpenAI video object",
+		"undefined":      "plugin returned an invalid OpenAI video object",
+		"[]":             "plugin returned an invalid OpenAI video object",
+		`"video"`:        "plugin returned an invalid OpenAI video object",
+		"42":             "plugin returned an invalid OpenAI video object",
+		"false":          "plugin returned an invalid OpenAI video object",
+		"{seconds: NaN}": "json: unsupported value: NaN",
+		"[Infinity]":     "json: unsupported value: +Inf",
+	} {
 		t.Run(value, func(t *testing.T) {
 			source := strings.Replace(mockPlugin, `return {id: task.task_id, status: "completed"};`, "return "+value+";", 1)
 			plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
 			require.NoError(t, err)
 			_, err = New(plugin).ConvertToOpenAIVideo(&model.Task{TaskID: "task_public"})
-			require.ErrorContains(t, err, "invalid OpenAI video object")
+			require.EqualError(t, err, message)
 		})
 	}
 }
@@ -858,6 +993,53 @@ export function extractUsageOnComplete(task, result, body) { return (body || {})
 		ratios, err := adaptor.EstimateBillingValidated(context, info)
 		require.Error(t, err)
 		assert.Nil(t, ratios)
+	})
+
+	t.Run("duration -1 passes only for plugins that declare duration-auto@1", func(t *testing.T) {
+		declaring, err := pluginruntime.NewRegistry().Register(strings.Replace(source, `fetchMode: "per_task",`, `fetchMode: "per_task", requiredCapabilities: ["duration-auto@1"],`, 1), pluginruntime.Options{})
+		require.NoError(t, err)
+		for _, tc := range []struct {
+			name      string
+			declaring bool
+			body      map[string]any
+			accepted  bool
+		}{
+			{"undeclared plugins keep rejecting it", false, map[string]any{"metadata": map[string]any{"duration": -1}}, false},
+			{"vendor parameters and declared usage fields", true, map[string]any{
+				"duration": -1,
+				"metadata": map[string]any{"seconds": "-1", "parameters": map[string]any{"durationSeconds": -1}},
+			}, true},
+			{"other negative durations", true, map[string]any{"metadata": map[string]any{"duration": -2}}, false},
+			{"durations above the host limit", true, map[string]any{"metadata": map[string]any{"duration": relaycommon.MaxTaskDurationSeconds + 1}}, false},
+			{"negative counts", true, map[string]any{"metadata": map[string]any{"count": -1}}, false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				adaptor, context, info := newRequest(t, tc.body)
+				if tc.declaring {
+					adaptor = New(declaring)
+					adaptor.Init(info)
+				}
+				taskErr := adaptor.ValidateRequestAndSetAction(context, info)
+				if tc.accepted {
+					assert.Nil(t, taskErr)
+					return
+				}
+				require.NotNil(t, taskErr)
+				assert.Equal(t, "plugin_usage_invalid", taskErr.Code)
+			})
+		}
+
+		adaptor, context, info := newRequest(t, map[string]any{
+			"metadata":         map[string]any{"duration": -1},
+			"hookUsageEntries": []any{map[string]any{"name": "duration", "value": -1}},
+		})
+		adaptor = New(declaring)
+		adaptor.Init(info)
+		require.Nil(t, adaptor.ValidateRequestAndSetAction(context, info))
+		_, err = adaptor.ExtractUsageFactsValidated(context, info)
+		assert.Error(t, err, "usage facts stay non-negative")
+		_, err = adaptor.EstimateBillingValidated(context, info)
+		assert.Error(t, err, "billing ratios stay non-negative")
 	})
 
 	t.Run("declared token facts use int32 saturation instead of duration cap", func(t *testing.T) {
@@ -1150,6 +1332,26 @@ func TestSubmitContextOriginTasksNilDataOnInvalidJSON(t *testing.T) {
 	require.True(t, ok)
 	require.Len(t, originTasks, 1)
 	assert.Nil(t, originTasks[0]["data"])
+}
+
+func TestSubmitContextNormalizesRequestBodyOnEveryCall(t *testing.T) {
+	plugin, err := pluginruntime.NewRegistry().Register(mockPlugin, pluginruntime.Options{})
+	require.NoError(t, err)
+	adaptor := New(plugin)
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+	adaptor.Init(info)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
+	c.Set("task_request", map[string]any{"prompt": string([]byte{0xff}), "count": int64(math.MaxInt64)})
+
+	normalized := map[string]any{"prompt": "�", "count": float64(math.MaxInt64)}
+	assert.Equal(t, normalized, adaptor.submitContext(c, info)["requestBody"])
+	assert.Equal(t, normalized, adaptor.submitContext(c, info)["requestBody"])
+	assert.Equal(t, normalized, adaptor.submitContext(nil, info)["requestBody"])
+
+	replaced := map[string]any{"prompt": "second", "count": int64(2)}
+	c.Set("task_request", replaced)
+	assert.Equal(t, replaced, adaptor.submitContext(c, info)["requestBody"])
 }
 
 func TestTaskAdaptorRejectsRequestHostOverride(t *testing.T) {
@@ -1757,27 +1959,112 @@ func TestTaskSubmitStreamIdleTimeout(t *testing.T) {
 }
 
 func TestPluginJSONValuesPreserveCodecNormalizationAndIsolation(t *testing.T) {
-	for _, value := range []any{
-		map[string]any{"units": int64(3), "nested": []any{true, "<image> / 图像", math.Copysign(0, -1), nil}},
-		map[string]any{"empty": []any{}, "null": []any(nil), "object": map[string]any(nil)},
-		map[string]any{"large": int64(math.MaxInt64), "invalid UTF-8": string([]byte{0xff, 0xfe})},
-		map[string]any{string([]byte{0xff}): "invalid key"},
-		map[string]any{"bytes": []byte{0, 1, 255}, "number": json.Number("9007199254740993")},
-		json.RawMessage(`{"units":2,"enabled":false}`),
-		struct {
+	for _, tc := range []struct {
+		value any
+		plain bool
+	}{
+		{map[string]any{"units": int64(3), "nested": []any{true, "<image> / 图像", math.Copysign(0, -1), nil}}, true},
+		{map[string]any{"empty": []any{}, "object": map[string]any(nil)}, true},
+		{map[string]any{"null": []any(nil)}, false},
+		{map[string]any{"large": int64(math.MaxInt64), "invalid UTF-8": string([]byte{0xff, 0xfe})}, false},
+		{map[string]any{string([]byte{0xff}): "invalid key"}, false},
+		{map[string]any{"bytes": []byte{0, 1, 255}, "number": json.Number("9007199254740993")}, false},
+		{json.RawMessage(`{"units":2,"enabled":false}`), false},
+		{struct {
 			Units int `json:"units"`
-		}{Units: 0},
+		}{Units: 0}, false},
 	} {
-		encoded, err := common.Marshal(value)
+		encoded, err := common.Marshal(tc.value)
 		require.NoError(t, err)
 		var expected any
 		require.NoError(t, common.Unmarshal(encoded, &expected))
-		assert.Equal(t, expected, jsonValue(value))
+		assert.Equal(t, expected, jsonValue(tc.value))
+		assert.Equal(t, tc.plain, isPlainJSONValue(tc.value, 0))
 	}
 	source := map[string]any{"items": []any{map[string]any{"label": "original"}}}
 	copy := jsonValue(source).(map[string]any)
 	copy["items"].([]any)[0].(map[string]any)["label"] = "changed"
 	assert.Equal(t, "original", source["items"].([]any)[0].(map[string]any)["label"])
+}
+
+func TestRequestDescriptorDecodingMatchesCodec(t *testing.T) {
+	engine, err := pluginruntime.Compile(`
+class Descriptor { constructor() { this.url = "u"; this.method = "PUT"; } }
+let deep = "leaf";
+for (let i = 0; i < 70; i++) deep = [deep];
+const results = {
+  "plain body": () => ({url: "https://provider.example/submit", method: "POST", headers: {"X-Plugin": "submit"}, body: {
+    units: 3, large: 2 ** 60, zero: -0, text: "<image> &   图像", missing: undefined,
+    items: [null, true, 1.5, {}, [], undefined],
+  }}),
+  "argument body": (arg) => ({url: "u", body: arg}),
+  "argument headers": (arg) => ({url: "u", headers: arg.headers}),
+  "changed argument body": (arg) => { arg.units = 4; return {url: "u", body: arg}; },
+  "string body": () => ({url: "u", body: '{"raw":true}'}),
+  "null body": () => ({url: "u", body: null}),
+  "undefined body": () => ({url: "u", body: undefined}),
+  "no body": () => ({url: "u", credentialless: true}),
+  "class instance": () => new Descriptor(),
+  "null prototype": () => Object.assign(Object.create(null), {url: "u", body: {a: 1}}),
+  "getter body": () => ({url: "u", get body() { return {from: "getter"}; }}),
+  "date body": () => ({url: "u", body: {at: new Date(0)}}),
+  "typed array body": () => ({url: "u", body: new Uint8Array([0, 1, 255])}),
+  "deep body": () => ({url: "u", body: deep}),
+  "capitalized body key": () => ({url: "u", Body: {from: "Body"}}),
+  "body and capitalized body": () => ({url: "u", body: {from: "body"}, Body: {from: "Body"}, BODY: "upper"}),
+  "case-insensitive other field": () => ({URL: "u", Method: "PUT", body: "text"}),
+  "NaN body": () => ({url: "u", body: {ratio: NaN}}),
+  "infinite method": () => ({url: "u", method: Infinity, body: {}}),
+  "cyclic body": () => { const body = {}; body.self = body; return {url: "u", body}; },
+  "invalid header": () => ({url: "u", headers: {x: 1}, body: {}}),
+  "invalid parts": () => ({url: "u", parts: "none", body: {}}),
+  "not an object": () => "descriptor",
+  "throwing getter": () => ({url: "u", get body() { throw new Error("getter failed"); }}),
+};
+export function build(name, arg) { return results[name](arg); }
+`, pluginruntime.Options{})
+	require.NoError(t, err)
+	argument := func() map[string]any {
+		return map[string]any{
+			"units": int64(3), "large": int64(math.MaxInt64), "zero": math.Copysign(0, -1),
+			"headers": map[string]any{"X-Plugin": "submit"},
+			"items":   []any{nil, true, 1.5, map[string]any{"label": "original"}, []any{}},
+		}
+	}
+	for _, name := range []string{
+		"plain body", "argument body", "argument headers", "changed argument body", "string body", "null body",
+		"undefined body", "no body", "class instance", "null prototype", "getter body", "date body",
+		"typed array body", "deep body", "capitalized body key", "body and capitalized body",
+		"case-insensitive other field", "NaN body", "infinite method", "cyclic body", "invalid header",
+		"invalid parts", "not an object", "throwing getter",
+	} {
+		var expected requestDescriptor
+		value, expectedErr := engine.Call(t.Context(), "build", name, argument())
+		hookFailed := expectedErr != nil
+		if !hookFailed {
+			expectedErr = convert(value, &expected)
+		}
+		var decoded requestDescriptor
+		err := engine.CallInto(t.Context(), &decoded, "build", name, argument())
+		if expectedErr != nil {
+			require.EqualError(t, err, expectedErr.Error(), name)
+			var invalid *pluginruntime.ResultError
+			assert.Equal(t, !hookFailed, errors.As(err, &invalid), name)
+			continue
+		}
+		require.NoError(t, err, name)
+		assert.Equal(t, expected, decoded, name)
+		expectedJSON, err := common.Marshal(expected)
+		require.NoError(t, err, name)
+		decodedJSON, err := common.Marshal(decoded)
+		require.NoError(t, err, name)
+		assert.Equal(t, string(expectedJSON), string(decodedJSON), name)
+	}
+	source := argument()
+	var decoded requestDescriptor
+	require.NoError(t, engine.CallInto(t.Context(), &decoded, "build", "argument body", source))
+	decoded.Body.(map[string]any)["items"].([]any)[3].(map[string]any)["label"] = "changed"
+	assert.Equal(t, "original", source["items"].([]any)[3].(map[string]any)["label"])
 }
 
 func TestTaskSubmitHooksReceiveIndependentRequestSnapshots(t *testing.T) {
@@ -1809,6 +2096,39 @@ export function parseTaskResult(){return {status:"SUCCESS"};}
 	assert.JSONEq(t, `{"units":3,"nested":{"label":"built"}}`, string(encoded))
 	assert.Equal(t, int64(2), request["units"])
 	assert.Equal(t, "original", request["nested"].(map[string]any)["label"])
+}
+
+func TestTaskUsageValidationLeavesReturnedHostRequestUnchanged(t *testing.T) {
+	// Returning ctx.requestBody hands back the host request map itself, so
+	// normalized facts must be built in a new map.
+	source := `
+export const meta={apiVersion:1,key:"request-usage",name:"Request usage",version:"1.0.0",author:{name:"Test"},models:["usage"],fetchMode:"per_task",usageSchema:{units:{type:"number",unit:"count"}}};
+export function buildSubmitRequest(ctx){return {url:ctx.baseUrl+"/submit",body:ctx.requestBody};}
+export function extractUsage(ctx){return ctx.requestBody;}
+export function parseSubmitResponse(){return {taskId:"usage"};}
+export function buildQueryRequest(ctx){return {url:ctx.baseUrl+"/query"};}
+export function parseTaskResult(){return {status:"SUCCESS"};}
+`
+	plugin, err := pluginruntime.CompilePlugin(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	request := map[string]any{"units": int64(2)}
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	c.Request = httptest.NewRequest(http.MethodPost, "/submit", nil)
+	c.Set("task_request", request)
+	info := &relaycommon.RelayInfo{OriginModelName: "usage", ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "usage", ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}}
+	adaptor := New(plugin)
+	adaptor.Init(info)
+	require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+	facts, err := adaptor.ExtractUsageFactsValidated(c, info)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"units": float64(2)}, facts)
+	assert.Equal(t, int64(2), request["units"])
+	estimateRequest := map[string]any{"units": int64(2)}
+	c.Set("task_request", estimateRequest)
+	ratios, err := adaptor.EstimateBillingValidated(c, info)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]float64{"units": 2}, ratios)
+	assert.Equal(t, int64(2), estimateRequest["units"])
 }
 
 func TestTaskSubmitDeltaStreamContract(t *testing.T) {
@@ -1867,6 +2187,26 @@ export function parseSubmitEventDelta(ctx,event,previous) {
 			assert.Equal(t, map[string]any{"units": float64(0)}, parsed.Immediate.UsageFacts)
 		})
 	}
+
+	t.Run("delta hook exported without the declaration", func(t *testing.T) {
+		undeclared := strings.Replace(source, `requiredCapabilities:["submit-sse-delta@1"],`, "", 1)
+		undeclared = strings.Replace(undeclared, "export function parseSubmitEvent(", "function unusedSnapshotHook(", 1)
+		plugin, err := pluginruntime.CompilePlugin(undeclared, pluginruntime.Options{})
+		require.NoError(t, err)
+		require.Empty(t, plugin.Meta.RequiredCapabilities)
+		info := &relaycommon.RelayInfo{OriginModelName: "alias", ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "document", ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{PublicTaskID: "public-document"}}
+		adaptor := New(plugin)
+		adaptor.Init(info)
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/compile", nil)
+		c.Set("task_request", map[string]any{})
+		require.Nil(t, adaptor.ValidateRequestAndSetAction(c, info))
+		stream := "data: " + first + "\n\ndata: " + last + "\n\n"
+		response := &http.Response{StatusCode: http.StatusOK, Header: http.Header{"Content-Type": {"text/event-stream"}}, Body: io.NopCloser(strings.NewReader(stream))}
+		parsed, taskErr := adaptor.ParseResponse(c, response, info)
+		require.Nil(t, taskErr)
+		assert.JSONEq(t, `{"document":"helloworld","units":0}`, string(parsed.TaskData))
+	})
 }
 
 func TestAlibabaSubmitDeltaDoesNotMutateControlState(t *testing.T) {

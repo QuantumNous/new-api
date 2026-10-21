@@ -72,17 +72,14 @@ beforeEach(() => {
     .getState()
     .auth.setUser({ ...profile, permissions: { sidebar_settings: false } })
   vi.spyOn(api, 'get').mockImplementation(async (url) => {
-    if (url === '/api/user/token/status') {
+    if (url === '/api/user/access_tokens') {
+      return { data: { success: true, data: { items: [], legacy: null } } }
+    }
+    if (url === '/api/user/access_tokens/catalog') {
       return {
         data: {
           success: true,
-          data: {
-            exists: false,
-            token_ref: '',
-            created_at: null,
-            last_used_at: null,
-            last_used_ip: '',
-          },
+          data: { groups: [], max_tokens: 20, default_expiry_days: 30 },
         },
       }
     }
@@ -101,6 +98,9 @@ beforeEach(() => {
       }
     }
     if (url === '/api/user/sessions') {
+      return { data: { success: true, data: [] } }
+    }
+    if (url === '/api/user/partner-oauth/bindings') {
       return { data: { success: true, data: [] } }
     }
     throw new Error(`Unexpected GET ${url}`)
@@ -194,11 +194,12 @@ describe('security page migration', () => {
       'xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.46fr)]'
     )
     const access = screen.getByRole('region', { name: 'Sessions & Access' })
-    expect(
-      within(access).getByRole('heading', { name: 'Access Token' })
-    ).toBeVisible()
+    expect(within(access).getByText('Access tokens')).toBeVisible()
     expect(
       await within(access).findByText('No active login sessions')
+    ).toBeVisible()
+    expect(
+      await within(access).findByText('No authorized applications')
     ).toBeVisible()
     expect(
       screen.getByRole('switch', { name: 'Record IP Address' })

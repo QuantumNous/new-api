@@ -1,0 +1,15 @@
+{"file": "AGENTS.md", "reason": "Project-wide rules: JSON wrappers, DB compatibility, modern Go, test quality, OWASP, frontend rules"}
+{"file": ".trellis/tasks/10-10-partner-oauth-integration/research/source-relay-partner-api-v0.2.md", "reason": "Authoritative external protocol contract to implement"}
+{"file": ".trellis/tasks/10-10-partner-oauth-integration/research/codebase-infrastructure.md", "reason": "Verified facts about issuer, request id, rate limit, auth, logging, tokens, routing, admin UI"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Docker-isolated three-database verification and migration pitfalls"}
+{"file": ".trellis/spec/backend/oauth-client-pkce.md", "reason": "Prior OAuth PKCE contract patterns (form parsing, no-store, log redaction, error page); note it forbids key issuance for yeschoy-desktop only"}
+{"file": ".trellis/spec/backend/error-handling.md", "reason": "Backend error handling conventions"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend quality rules"}
+{"file": ".trellis/spec/backend/directory-structure.md", "reason": "Backend file layout"}
+{"file": "web/AGENTS.md", "reason": "Frontend rules for consent page and admin section"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Frontend component reuse and structure"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality and test rules"}
+{"file": ".trellis/spec/guides/cross-layer-thinking-guide.md", "reason": "Feature spans model/service/controller/middleware/router/web"}
+{"file": ".trellis/tasks/10-10-partner-oauth-integration/research/security-threat-model.md", "reason": "Security controls T1-T26 that implementation must satisfy"}
+{"file": "service/authz/resources_channel.go", "reason": "Pattern for registering the partner_oauth_client authz resource and default role grants"}
+{"file": "middleware/secure_verification.go", "reason": "RequireSecurityProof usage for step-up on sensitive client operations"}

@@ -30,9 +30,9 @@ import {
 } from 'lucide-react'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { SiGithub, SiDiscord } from 'react-icons/si'
 import { toast } from 'sonner'
 
+import { IconGithub, IconDiscord } from '@/assets/brand-icons'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
@@ -45,18 +45,24 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { toIntlLocale } from '@/i18n/languages'
 import { handleServerError } from '@/lib/handle-server-error'
 import { indexCustomOAuthBindings, type CustomOAuthBinding } from '@/lib/oauth'
+import { AuthOperationError } from '@/lib/secure-verification'
 import { requireServerSuccess } from '@/lib/server-error-message'
 import { statusQueryOptions } from '@/lib/status-query'
 
 import {
   getUser,
   getUserOAuthBindings,
+  getUserPartnerOAuthBindings,
   adminClearUserBinding,
   adminUnbindCustomOAuth,
+  adminRevokeUserPartnerOAuthBinding,
+  type UserPartnerOAuthBinding,
 } from '../../api'
 import type { User } from '../../types'
+import { useUsers } from '../users-provider'
 
 interface Props {
   open: boolean
@@ -108,14 +114,14 @@ const BUILTIN_BINDINGS: ReadonlyArray<{
     key: 'github',
     field: 'github_id',
     label: 'GitHub',
-    icon: <SiGithub className='h-4 w-4' />,
+    icon: <IconGithub className='h-4 w-4' />,
     statusKey: 'github_oauth',
   },
   {
     key: 'discord',
     field: 'discord_id',
     label: 'Discord',
-    icon: <SiDiscord className='h-4 w-4' />,
+    icon: <IconDiscord className='h-4 w-4' />,
     statusKey: 'discord_oauth',
   },
   {
@@ -148,6 +154,13 @@ const BUILTIN_BINDINGS: ReadonlyArray<{
   },
 ]
 
+function partnerScopeLabel(scope: string, t: (key: string) => string) {
+  if (scope === 'account:read') return t('Read your account profile')
+  if (scope === 'credential:read') return t('Receive a dedicated API key')
+  if (scope === 'offline_access') return t('Stay connected for 30 days')
+  return scope
+}
+
 function CustomProviderIcon(props: { iconUrl?: string }) {
   if (!props.iconUrl) return <Link2 className='h-4 w-4' />
   return (
@@ -163,13 +176,23 @@ function CustomProviderIcon(props: { iconUrl?: string }) {
 }
 
 export function UserBindingDialog(props: Props) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
+  const { requestVerification, verificationActive } = useUsers()
   const [user, setUser] = useState<User | null>(null)
   const [oauthBindings, setOauthBindings] = useState<CustomOAuthBinding[]>([])
+  const [partnerBindings, setPartnerBindings] = useState<
+    UserPartnerOAuthBinding[]
+  >([])
+  const [partnerLoadFailed, setPartnerLoadFailed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showBoundOnly, setShowBoundOnly] = useState(true)
   const [unbindTarget, setUnbindTarget] = useState<BindingItem | null>(null)
   const [unbinding, setUnbinding] = useState(false)
+  const [revokeApp, setRevokeApp] = useState<UserPartnerOAuthBinding | null>(
+    null
+  )
+  const [revokingApp, setRevokingApp] = useState(false)
   const { data: statusInfo, isLoading: statusLoading } = useQuery({
     ...statusQueryOptions,
     enabled: props.open && !!props.userId,
@@ -179,11 +202,15 @@ export function UserBindingDialog(props: Props) {
     if (!props.userId) return
     setLoading(true)
     try {
-      const [userRes, oauthRes] = await Promise.all([
+      const [userRes, oauthRes, partnerRes] = await Promise.all([
         getUser(props.userId),
         getUserOAuthBindings(props.userId).catch(() => ({
           success: false,
-          data: [],
+          data: [] as CustomOAuthBinding[],
+        })),
+        getUserPartnerOAuthBindings(props.userId).catch(() => ({
+          success: false,
+          data: [] as UserPartnerOAuthBinding[],
         })),
       ])
       requireServerSuccess(userRes)
@@ -192,6 +219,13 @@ export function UserBindingDialog(props: Props) {
       }
       if (oauthRes.success && oauthRes.data) {
         setOauthBindings(oauthRes.data)
+      }
+      if (partnerRes.success) {
+        setPartnerBindings(partnerRes.data ?? [])
+        setPartnerLoadFailed(false)
+      } else {
+        setPartnerBindings([])
+        setPartnerLoadFailed(true)
       }
     } catch (error) {
       handleServerError(error, t('Failed to load'))
@@ -207,6 +241,9 @@ export function UserBindingDialog(props: Props) {
     } else {
       setUser(null)
       setOauthBindings([])
+      setPartnerBindings([])
+      setPartnerLoadFailed(false)
+      setRevokeApp(null)
     }
   }, [props.open, props.userId, fetchData])
 
@@ -281,13 +318,37 @@ export function UserBindingDialog(props: Props) {
     if (!unbindTarget || !props.userId) return
     setUnbinding(true)
     try {
+      const userId = props.userId
+      const verification = {
+        scope: 'admin.user.binding.clear',
+        title: t('Verify to unbind account'),
+        description: t(
+          'Confirm your identity before unbinding {{provider}} from this user.',
+          { provider: unbindTarget.label }
+        ),
+      } as const
       let res
       if (unbindTarget.type === 'builtin') {
-        res = await adminClearUserBinding(props.userId, unbindTarget.key)
+        const proof = await requestVerification({
+          ...verification,
+          context: { user_id: userId, binding_type: unbindTarget.key },
+        })
+        if (!proof) return
+        res = await adminClearUserBinding(
+          userId,
+          unbindTarget.key,
+          proof.proof_token
+        )
       } else if (unbindTarget.providerId) {
+        const proof = await requestVerification({
+          ...verification,
+          context: { user_id: userId, provider_id: unbindTarget.providerId },
+        })
+        if (!proof) return
         res = await adminUnbindCustomOAuth(
-          props.userId,
-          unbindTarget.providerId
+          userId,
+          unbindTarget.providerId,
+          proof.proof_token
         )
       }
       if (res?.success) {
@@ -300,10 +361,32 @@ export function UserBindingDialog(props: Props) {
         handleServerError(res, t('Unbind failed'))
       }
     } catch (error) {
-      handleServerError(error, t('Unbind failed'))
+      handleServerError(AuthOperationError.from(error), t('Unbind failed'))
     } finally {
       setUnbinding(false)
       setUnbindTarget(null)
+    }
+  }
+
+  const handleRevokeApp = async () => {
+    if (!revokeApp || !props.userId) return
+    setRevokingApp(true)
+    try {
+      const res = await adminRevokeUserPartnerOAuthBinding(
+        props.userId,
+        revokeApp.binding_id
+      )
+      if (res.success) {
+        toast.success(t('Authorization revoked'))
+        await fetchData()
+      } else {
+        handleServerError(res, t('Failed to revoke authorization'))
+      }
+    } catch (error) {
+      handleServerError(error, t('Failed to revoke authorization'))
+    } finally {
+      setRevokingApp(false)
+      setRevokeApp(null)
     }
   }
 
@@ -420,6 +503,60 @@ export function UserBindingDialog(props: Props) {
                   ))}
                 </div>
               )}
+
+              <Separator className='my-3' />
+              <div className='space-y-2 pr-3'>
+                <p className='text-sm font-medium'>
+                  {t('Authorized applications')}
+                </p>
+                <p className='text-muted-foreground text-xs'>
+                  {t(
+                    'Third-party assistants this user approved. Revoking one disables its dedicated API key.'
+                  )}
+                </p>
+                {partnerLoadFailed ? (
+                  <p className='text-muted-foreground text-sm'>
+                    {t('Unable to load authorized applications')}
+                  </p>
+                ) : null}
+                {!partnerLoadFailed && partnerBindings.length === 0 ? (
+                  <p className='text-muted-foreground text-sm'>
+                    {t('No authorized applications')}
+                  </p>
+                ) : null}
+                {partnerBindings.map((binding) => (
+                  <div
+                    key={binding.binding_id}
+                    className='flex items-start justify-between gap-2 rounded-md border px-3 py-2.5'
+                  >
+                    <div className='min-w-0'>
+                      <p className='text-sm font-medium'>
+                        {binding.client_name}
+                      </p>
+                      <p className='text-muted-foreground text-xs'>
+                        {t('Valid until {{date}}', {
+                          date: new Date(
+                            binding.expires_at * 1000
+                          ).toLocaleString(locale),
+                        })}
+                      </p>
+                      <ul className='text-muted-foreground list-disc space-y-0.5 pl-4 text-xs'>
+                        {binding.scopes.map((scope) => (
+                          <li key={scope}>{partnerScopeLabel(scope, t)}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='text-destructive hover:text-destructive h-7 shrink-0 px-2'
+                      onClick={() => setRevokeApp(binding)}
+                    >
+                      {t('Revoke')}
+                    </Button>
+                  </div>
+                ))}
+              </div>
             </ScrollArea>
 
             <p className='text-muted-foreground text-xs'>
@@ -430,7 +567,7 @@ export function UserBindingDialog(props: Props) {
       </Dialog>
 
       <ConfirmDialog
-        open={!!unbindTarget}
+        open={!!unbindTarget && !verificationActive}
         onOpenChange={(open) => !open && setUnbindTarget(null)}
         title={t('Confirm Unbind')}
         desc={t(
@@ -443,6 +580,20 @@ export function UserBindingDialog(props: Props) {
         destructive
         handleConfirm={handleUnbind}
         isLoading={unbinding}
+      />
+
+      <ConfirmDialog
+        open={!!revokeApp}
+        onOpenChange={(open) => !open && setRevokeApp(null)}
+        title={t('Revoke authorization')}
+        desc={t(
+          'Revoke {{name}} for this user? Its dedicated API key stops working immediately.',
+          { name: revokeApp?.client_name || '' }
+        )}
+        confirmText={t('Revoke authorization')}
+        destructive
+        handleConfirm={handleRevokeApp}
+        isLoading={revokingApp}
       />
     </>
   )

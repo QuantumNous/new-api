@@ -135,3 +135,33 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 5: 合作方 OAuth 授权日志（专表）
+<!-- trellis-session: v=2 fp=9186403f922f6283 -->
+
+**Date**: 2026-10-19
+**Task**: 合作方 OAuth 授权日志（专表）
+**Branch**: `feat/partner-oauth-audit-rc44`
+
+### Summary
+
+授权/令牌事件写入独立 partner_oauth_authorization_logs 表，新增后台日志页；SQLite/MySQL5.7/PG9.6 迁移已验证，ClickHouse 未验证（用户确认无需验证）。
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `431cc580c` | feat(partner-oauth): record authorization events in a dedicated log table |
+
+### Testing
+
+- [OK] [OK] controller/model/service/router/middleware 全量测试、go vet、前端 typecheck 与相关 vitest
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- 推送与合入按用户指令

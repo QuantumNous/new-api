@@ -96,6 +96,7 @@ func testCashbackProductionDatabase(t *testing.T, databaseType common.DatabaseTy
 		&CashbackDeviceLink{},
 		&CashbackQuotaMutation{},
 		&Log{},
+		&AuditLog{},
 	}
 	if useSchema {
 		require.NoError(t, db.Exec(fmt.Sprintf(`CREATE SCHEMA "%s"`, namespace)).Error)
@@ -141,6 +142,7 @@ func testCashbackProductionDatabase(t *testing.T, databaseType common.DatabaseTy
 
 	require.NoError(t, db.AutoMigrate(models...))
 	require.NoError(t, db.AutoMigrate(models...)) // Fresh and repeated startup.
+	require.True(t, db.Migrator().HasTable(&AuditLog{}))
 	require.True(t, db.Migrator().HasTable(&Checkin{}))
 	require.True(t, db.Migrator().HasIndex(&Checkin{}, "idx_user_checkin_date"))
 	for _, cashbackModel := range []interface{}{
@@ -355,6 +357,10 @@ func testCashbackProductionDatabase(t *testing.T, databaseType common.DatabaseTy
 	require.Len(t, issueMutations, 1)
 	require.Equal(t, fmt.Sprintf("cashback:reward:%d:issue", reward.ID), issueMutations[0].EventKey)
 	require.Equal(t, reward.RewardQuota, issueMutations[0].Quota)
+	var issuedAudit AuditLog
+	require.NoError(t, db.Where("category = ? AND action = ? AND user_id = ?", AuditCategoryOperation, "cashback.reward_issued", inviter.Id).Take(&issuedAudit).Error)
+	require.Equal(t, inviter.Id, issuedAudit.UserId)
+	require.True(t, issuedAudit.Success)
 
 	// An approved historical payer row keeps its original future hold date but
 	// is picked up early on every database dialect when reviewer evidence exists.

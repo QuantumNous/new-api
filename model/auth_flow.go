@@ -30,6 +30,8 @@ const (
 	AuthFlowPurposeTwoFASetup          = "2fa_setup"
 	AuthFlowPurposeSecurityProof       = "security_proof"
 	AuthFlowPurposeEmailBinding        = "email_binding"
+	AuthFlowPurposePartnerOAuthRequest = "partner_oauth_request"
+	AuthFlowPurposePartnerOAuthCode    = "partner_oauth_code"
 	AuthFlowIntentLogin                = "login"
 	AuthFlowIntentBind                 = "bind"
 	AuthFlowIntentVerify               = "verify"
@@ -101,7 +103,11 @@ type AuthFlowAuthorization struct {
 
 // ValidateAuthSessionWithTx rechecks the authoritative identity while holding the
 // user/session locks until the caller's credential change or flow consumption commits.
+// Token-bound identities (pat:<id>) are checked against user_access_tokens instead.
 func ValidateAuthSessionWithTx(tx *gorm.DB, identity AuthSessionIdentity) error {
+	if tokenID, ok := ParseAccessTokenSessionID(identity.SessionID); ok {
+		return validateAccessTokenIdentityWithTx(tx, tokenID, identity)
+	}
 	if identity.UserID <= 0 || identity.SessionID == "" || identity.UserAuthVersion <= 0 || identity.SessionVersion <= 0 {
 		return ErrUserSessionInactive
 	}
@@ -145,6 +151,10 @@ func authFlowTokenHash(token string) string {
 
 func CreateAuthFlow(input AuthFlowCreate) (string, *AuthFlow, error) {
 	return createAuthFlowWithTx(DB, input)
+}
+
+func CreateAuthFlowWithTx(tx *gorm.DB, input AuthFlowCreate) (string, *AuthFlow, error) {
+	return createAuthFlowWithTx(tx, input)
 }
 
 func createAuthFlowWithTx(tx *gorm.DB, input AuthFlowCreate) (string, *AuthFlow, error) {
@@ -282,6 +292,22 @@ func ConsumeAuthFlowWithAction(token string, match AuthFlowMatch, action func(tx
 		return nil, err
 	}
 	return &consumed, nil
+}
+
+// LookupAuthFlow returns a flow by token hash without consuming it or
+// enforcing expiry. Used to resolve a replayed authorization code.
+func LookupAuthFlow(token string, match AuthFlowMatch) (*AuthFlow, error) {
+	if token == "" || match.Purpose == "" {
+		return nil, ErrAuthFlowInvalid
+	}
+	var flow AuthFlow
+	if err := applyAuthFlowMatch(DB, token, match).First(&flow).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrAuthFlowInvalid
+		}
+		return nil, err
+	}
+	return &flow, nil
 }
 
 func DeleteExpiredAuthFlows(now time.Time) error {
