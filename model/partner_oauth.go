@@ -432,6 +432,11 @@ func IssuePartnerOAuthCredential(bindingID string, issue PartnerOAuthCredentialI
 			}
 			return err
 		}
+		// A revoke that committed after the caller authenticated left no key to
+		// disable, so issuing here would create a live key for a dead binding.
+		if binding.Status != PartnerOAuthBindingStatusActive || binding.ExpiresAt <= common.GetTimestamp() {
+			return ErrPartnerOAuthBindingNotFound
+		}
 		if binding.TokenId > 0 {
 			var existing Token
 			if err := tx.Unscoped().Where("id = ? AND user_id = ?", binding.TokenId, issue.UserId).First(&existing).Error; err != nil {

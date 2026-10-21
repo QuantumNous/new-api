@@ -63,14 +63,16 @@ DELETE /api/partner-oauth/clients/{id}
 ## 3. Contracts
 
 - Clients: `client_secret_basic` or `none`; PKCE S256 required; secrets shown once.
-- Redirects: exact match; loopback port exception only for `none` clients.
+- Redirects: exact match; loopback port exception only for `none` clients. `/oauth/authorize` never redirects an error to a `redirect_uri` that was not first matched against the enabled client (repeated parameters and unsupported `response_type` included); those cases render the HTML error page.
 - Scopes: `account:read credential:read offline_access`. No `id_token`.
 - Issuer: `CustomDomainMainOrigin` when custom domains are enabled, else `ServerAddress`.
 - Host gate: callback/main origin only. `iss` and `base_url` come from config.
 - Consent cookie `partner_oauth_rq`: HttpOnly, Secure (omit only for plain HTTP issuer), SameSite=Lax, Path=/api/partner-oauth, Max-Age=600.
 - Consent path is `/partner-authorize` (not `/oauth/...`). Frame-deny + no-referrer.
 - One dedicated unlimited API key per binding; bypass `MaxUserTokens`.
+- Credential issuance re-checks, under the binding row lock, that the binding is still active and unexpired; a binding revoked after the caller authenticated never gets a new key (`invalid_token`).
 - Cap 10 active bindings per (user, client).
+- Consent decision: a rejected approval (binding limit, disabled account) keeps the request and `partner_oauth_rq` cookie so the user can retry; the cookie is cleared only after a successful decision. Non-OAuth errors return a generic 500 and a request-ID server log, never the raw error text.
 - Refresh tokens rotate with zero grace; replay revokes the binding and key.
 - Auth-version change invalidates OAuth tokens but does not disable the key.
 - Client scope/redirect edits affect future grants only. Disable blocks tokens. Delete revokes bindings and keys.

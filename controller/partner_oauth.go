@@ -147,6 +147,13 @@ func writePartnerOAuthAuthorizeRedirectOrPage(c *gin.Context, params map[string]
 		writePartnerOAuthHTMLError(c, typed.Status, typed.Code)
 		return
 	}
+	// Query and response_type errors arrive before the redirect URI was
+	// matched against the client, so verify it here before redirecting.
+	if _, resolveErr := service.ResolvePartnerOAuthRedirectClient(params["client_id"], params["redirect_uri"]); resolveErr != nil {
+		resolved := service.AsPartnerOAuthError(resolveErr)
+		writePartnerOAuthHTMLError(c, http.StatusBadRequest, resolved.Code)
+		return
+	}
 	state := params["state"]
 	if service.ValidatePartnerOAuthState(state) != nil {
 		state = ""
@@ -253,7 +260,12 @@ func PartnerOAuthInspectAuthorization(c *gin.Context) {
 	}
 	view, err := service.InspectPartnerOAuthAuthorizationForUser(c.Query("request"), partnerOAuthRequestCookie(c), identity.UserID)
 	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": err.Error()})
+		if typed := service.AsPartnerOAuthError(err); typed != nil {
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": typed.Description})
+			return
+		}
+		logger.LogError(c.Request.Context(), common.LogText("partner oauth consent inspect failed (request_id=%s): database error", c.GetString(common.RequestIdKey)))
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "please try again later"})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": view})
@@ -286,11 +298,18 @@ func PartnerOAuthDecideAuthorization(c *gin.Context) {
 		return
 	}
 	redirectTo, clientID, err := service.DecidePartnerOAuthAuthorization(body.Request, partnerOAuthRequestCookie(c), body.Decision, user)
-	clearPartnerOAuthRequestCookie(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		// A rejected decision (e.g. binding limit) leaves the request
+		// unconsumed, so keep the cookie and let the user retry.
+		if typed := service.AsPartnerOAuthError(err); typed != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": typed.Description})
+			return
+		}
+		logger.LogError(c.Request.Context(), common.LogText("partner oauth consent decision failed (request_id=%s): database error", c.GetString(common.RequestIdKey)))
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "please try again later"})
 		return
 	}
+	clearPartnerOAuthRequestCookie(c)
 	action := "partner_oauth.consent.deny"
 	if body.Decision == "approve" {
 		action = "partner_oauth.consent.approve"
@@ -415,7 +434,7 @@ func PartnerOAuthCredential(c *gin.Context) {
 		return
 	}
 	var object map[string]json.RawMessage
-	if err := json.Unmarshal(body, &object); err != nil || len(object) != 0 {
+	if err := common.Unmarshal(body, &object); err != nil || len(object) != 0 {
 		writePartnerIntegrationAPIError(c, &service.PartnerOAuthError{Status: http.StatusBadRequest, Code: "invalid_request", Description: "request body must be an empty object"})
 		return
 	}

@@ -469,17 +469,28 @@ type PartnerOAuthBindingKeyView struct {
 	Status int    `json:"status"`
 }
 
-func BeginPartnerOAuthAuthorization(clientID, redirectURI, scope, state, challenge, method string) (requestToken, nonce, consentURL string, err error) {
+// ResolvePartnerOAuthRedirectClient returns the enabled client only when the
+// redirect URI is registered for it. Nothing may be redirected to a callback
+// before this succeeds (RFC 6749 §4.1.2.1).
+func ResolvePartnerOAuthRedirectClient(clientID, redirectURI string) (*model.PartnerOAuthClient, error) {
 	client, err := model.GetPartnerOAuthClientByClientID(clientID)
 	if err != nil || client.Status != model.PartnerOAuthClientStatusEnabled {
-		return "", "", "", partnerOAuthErr(http.StatusBadRequest, "invalid_client", "client is invalid")
+		return nil, partnerOAuthErr(http.StatusBadRequest, "invalid_client", "client is invalid")
 	}
 	uris, err := ParsePartnerOAuthRedirectURIs(client.RedirectURIs)
 	if err != nil {
-		return "", "", "", partnerOAuthErr(http.StatusBadRequest, "invalid_client", "client is invalid")
+		return nil, partnerOAuthErr(http.StatusBadRequest, "invalid_client", "client is invalid")
 	}
 	if !MatchPartnerOAuthRedirectURI(uris, redirectURI, client.TokenAuthMethod == model.PartnerOAuthTokenAuthMethodNone) {
-		return "", "", "", partnerOAuthErr(http.StatusBadRequest, "invalid_redirect", "redirect_uri is not registered")
+		return nil, partnerOAuthErr(http.StatusBadRequest, "invalid_redirect", "redirect_uri is not registered")
+	}
+	return client, nil
+}
+
+func BeginPartnerOAuthAuthorization(clientID, redirectURI, scope, state, challenge, method string) (requestToken, nonce, consentURL string, err error) {
+	client, err := ResolvePartnerOAuthRedirectClient(clientID, redirectURI)
+	if err != nil {
+		return "", "", "", err
 	}
 	if err := ValidatePartnerOAuthState(state); err != nil {
 		return "", "", "", err
@@ -1047,6 +1058,9 @@ func IssuePartnerOAuthCredential(principal *PartnerOAuthAccessPrincipal) (*Partn
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, partnerOAuthErr(http.StatusNotFound, "credential_not_found", "the authorized API key was not found")
+		}
+		if errors.Is(err, model.ErrPartnerOAuthBindingNotFound) {
+			return nil, partnerOAuthErr(http.StatusUnauthorized, "invalid_token", "access token is invalid")
 		}
 		return nil, err
 	}

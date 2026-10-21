@@ -321,6 +321,41 @@ func TestIssuePartnerOAuthCredentialSingleKeyUnderConcurrency(t *testing.T) {
 	assert.Equal(t, int64(1), count)
 }
 
+func TestIssuePartnerOAuthCredentialRejectsRevokedBinding(t *testing.T) {
+	truncateTables(t)
+	user := seedPartnerOAuthUser(t)
+	client := seedPartnerOAuthClient(t)
+	var bindingID string
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		binding, err := CreatePartnerOAuthBindingWithTx(tx, PartnerOAuthBindingCreate{
+			ClientId:        client.ClientId,
+			UserId:          user.Id,
+			UserAuthVersion: user.AuthVersion,
+			Scope:           "credential:read",
+			ExpiresAt:       time.Now().Add(24 * time.Hour).Unix(),
+			AccessTokenHash: HashPartnerOAuthToken("oa_revoked"),
+			AccessExpiresAt: time.Now().Add(time.Hour).Unix(),
+		})
+		bindingID = binding.BindingId
+		return err
+	}))
+	// The revoke lands after the caller authenticated but before it issues.
+	require.NoError(t, DB.Transaction(func(tx *gorm.DB) error {
+		return RevokePartnerOAuthBindingWithTx(tx, bindingID, "user_revoked")
+	}))
+
+	_, _, err := IssuePartnerOAuthCredential(bindingID, PartnerOAuthCredentialIssue{
+		UserId:      user.Id,
+		Name:        client.Name,
+		ExpiredTime: time.Now().Add(24 * time.Hour).Unix(),
+		Key:         "key-after-revoke",
+	})
+	require.ErrorIs(t, err, ErrPartnerOAuthBindingNotFound)
+	var count int64
+	require.NoError(t, DB.Model(&Token{}).Where("user_id = ?", user.Id).Count(&count).Error)
+	assert.Zero(t, count)
+}
+
 func TestDeleteExpiredPartnerOAuthTokens(t *testing.T) {
 	truncateTables(t)
 	require.NoError(t, DB.Create(&PartnerOAuthToken{

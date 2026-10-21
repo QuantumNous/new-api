@@ -113,6 +113,38 @@ func TestPartnerOAuthInvalidClientReturnsHTMLWithoutRedirect(t *testing.T) {
 	assert.NotEmpty(t, rec.Header().Get("X-Request-Id"))
 }
 
+func TestPartnerOAuthAuthorizeErrorsNeverRedirectToUnregisteredURI(t *testing.T) {
+	engine := setupPartnerOAuthController(t)
+	client, _ := createPartnerTestClient(t, model.PartnerOAuthTokenAuthMethodNone, []string{"http://127.0.0.1/oauth/callback"})
+	state := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	base := "/oauth/authorize?client_id=" + client.ClientId + "&state=" + state
+	cases := []struct {
+		name         string
+		path         string
+		wantStatus   int
+		wantRedirect string
+	}{
+		{"unsupported response_type, unregistered uri", base + "&response_type=token&redirect_uri=" + url.QueryEscape("https://evil.example/cb"), http.StatusBadRequest, ""},
+		{"repeated state, unregistered uri", base + "&state=" + state + "&redirect_uri=" + url.QueryEscape("https://evil.example/cb"), http.StatusBadRequest, ""},
+		{"unsupported response_type, registered uri", base + "&response_type=token&redirect_uri=" + url.QueryEscape("http://127.0.0.1:43721/oauth/callback"), http.StatusFound, "http://127.0.0.1:43721/oauth/callback"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			req.Host = "localhost:3000"
+			rec := httptest.NewRecorder()
+			engine.ServeHTTP(rec, req)
+			assert.Equal(t, tc.wantStatus, rec.Code)
+			if tc.wantRedirect == "" {
+				assert.Empty(t, rec.Header().Get("Location"))
+				assert.Contains(t, rec.Header().Get("Content-Type"), "text/html")
+				return
+			}
+			assert.True(t, strings.HasPrefix(rec.Header().Get("Location"), tc.wantRedirect+"?error=unsupported_response_type"))
+		})
+	}
+}
+
 func TestPartnerOAuthAuthorizeRedirectsToConsent(t *testing.T) {
 	engine := setupPartnerOAuthController(t)
 	client, _ := createPartnerTestClient(t, model.PartnerOAuthTokenAuthMethodNone, []string{"http://127.0.0.1/oauth/callback"})
@@ -814,6 +846,64 @@ func TestPartnerOAuthPublicClientPKCEBrowserConsentFlow(t *testing.T) {
 	require.NoError(t, json.Unmarshal(tokenRec.Body.Bytes(), &issued))
 	assert.Empty(t, issued.RefreshToken)
 	assert.NotEmpty(t, issued.AccessToken)
+}
+
+func TestPartnerOAuthRejectedApprovalKeepsRequestRetryable(t *testing.T) {
+	engine := setupPartnerOAuthBrowserFlow(t)
+	user := createPartnerBrowserUser(t, "limit-retry")
+	client, _ := createPartnerTestClient(t, model.PartnerOAuthTokenAuthMethodNone, []string{"http://127.0.0.1/oauth/callback"})
+	bindingIDs := make([]string, 0, model.PartnerOAuthMaxActiveBindings)
+	for i := range model.PartnerOAuthMaxActiveBindings {
+		binding, err := model.CreatePartnerOAuthBindingWithTx(model.DB, model.PartnerOAuthBindingCreate{
+			ClientId: client.ClientId, UserId: user.user.Id, UserAuthVersion: 1, Scope: "account:read",
+			ExpiresAt: time.Now().Add(time.Hour).Unix(), AccessTokenHash: "limit-access-" + strconv.Itoa(i),
+			AccessExpiresAt: time.Now().Add(time.Hour).Unix(),
+		})
+		require.NoError(t, err)
+		bindingIDs = append(bindingIDs, binding.BindingId)
+	}
+
+	authURL := "/oauth/authorize?response_type=code&client_id=" + client.ClientId +
+		"&redirect_uri=" + url.QueryEscape("http://127.0.0.1:43721/oauth/callback") +
+		"&scope=account:read&state=cccccccccccccccccccccccccccccccc" +
+		"&code_challenge=E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM&code_challenge_method=S256"
+	authReq := httptest.NewRequest(http.MethodGet, authURL, nil)
+	authReq.Host = "localhost:3000"
+	authRec := httptest.NewRecorder()
+	engine.ServeHTTP(authRec, authReq)
+	require.Equal(t, http.StatusSeeOther, authRec.Code)
+	requestToken := strings.TrimPrefix(authRec.Header().Get("Location"), "/partner-authorize?request=")
+	var nonce string
+	for _, cookie := range authRec.Result().Cookies() {
+		if cookie.Name == service.PartnerOAuthCookieName {
+			nonce = cookie.Value
+		}
+	}
+	require.NotEmpty(t, nonce)
+
+	approve := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/api/partner-oauth/authorization/decision",
+			strings.NewReader(`{"request":`+mustJSON(requestToken)+`,"decision":"approve"}`))
+		req.Host = "localhost:3000"
+		req.Header.Set("Authorization", "Bearer "+user.token)
+		req.Header.Set("Content-Type", "application/json")
+		req.AddCookie(&http.Cookie{Name: service.PartnerOAuthCookieName, Value: nonce})
+		rec := httptest.NewRecorder()
+		engine.ServeHTTP(rec, req)
+		return rec
+	}
+
+	rejected := approve()
+	assert.Equal(t, http.StatusBadRequest, rejected.Code)
+	for _, cookie := range rejected.Result().Cookies() {
+		assert.NotEqual(t, service.PartnerOAuthCookieName, cookie.Name, "cookie must survive a rejected approval")
+	}
+
+	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
+		return model.RevokePartnerOAuthBindingWithTx(tx, bindingIDs[0], "user_revoked")
+	}))
+	retried := approve()
+	assert.Equal(t, http.StatusOK, retried.Code, retried.Body.String())
 }
 
 func TestPartnerOAuthWrongPKCEBurnsAuthorizationCode(t *testing.T) {
