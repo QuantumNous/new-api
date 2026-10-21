@@ -498,3 +498,30 @@ func TestClaudeResponsePassesInputTransformationsThrough(t *testing.T) {
 	require.Nil(t, HandleStreamResponseData(c, info, &ClaudeResponseInfo{Usage: &dto.Usage{}}, event))
 	assert.Contains(t, w.Body.String(), "data: "+event+"\n")
 }
+
+func TestClaudeIterationUsageSurvivesResponseHandlers(t *testing.T) {
+	const usage = `{"input_tokens":3508,"output_tokens":440,"iterations":[{"type":"message","input_tokens":3508,"output_tokens":440},{"type":"advisor_message","model":"claude-opus-4-8","input_tokens":2481,"output_tokens":4800}]}`
+	for _, stream := range []bool{false, true} {
+		t.Run(fmt.Sprintf("stream_%t", stream), func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+			info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatClaude, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "claude-haiku-4-5-20251001"}}
+			state := &ClaudeResponseInfo{Usage: &dto.Usage{}}
+			if stream {
+				require.Nil(t, HandleStreamResponseData(c, info, state, `{"type":"message_start","message":{"id":"msg_iterations","model":"claude-haiku-4-5-20251001","usage":{"input_tokens":67,"output_tokens":1}}}`))
+				data := `{"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":` + usage + `}`
+				require.Nil(t, HandleStreamResponseData(c, info, state, data))
+				// A repeated cumulative array replaces the earlier one, never appends it.
+				require.Nil(t, HandleStreamResponseData(c, info, state, data))
+			} else {
+				data := []byte(`{"id":"msg_iterations","type":"message","model":"claude-haiku-4-5-20251001","content":[],"stop_reason":"end_turn","usage":` + usage + `}`)
+				require.Nil(t, HandleClaudeResponseData(c, info, state, &http.Response{Header: make(http.Header), StatusCode: 200}, data))
+			}
+			require.Len(t, info.ClaudeUsageIterations, 2)
+			assert.Equal(t, "claude-opus-4-8", info.ClaudeUsageIterations[1].Model)
+			assert.Equal(t, 4800, info.ClaudeUsageIterations[1].OutputTokens)
+			assert.Equal(t, 3508, state.Usage.PromptTokens)
+			assert.Equal(t, 440, state.Usage.CompletionTokens)
+		})
+	}
+}
