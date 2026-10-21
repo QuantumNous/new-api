@@ -42,6 +42,8 @@ func (*imageReservation) Settle(int) error           { return nil }
 func (*imageReservation) Refund(*gin.Context)        {}
 func (*imageReservation) NeedsRefund() bool          { return false }
 
+func (s *imageReservation) ReserveBeforeSubmit(quota int) error { return s.Reserve(quota) }
+
 func TestImageRequestReservesFinalQuantityBeforeUpstream(t *testing.T) {
 	service.InitHttpClient()
 	for _, tc := range []struct {
