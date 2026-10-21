@@ -23,6 +23,7 @@ func SetWebRouter(router *gin.Engine, assets WebAssets, pluginDispatcher gin.Han
 	router.GET("/oauth/handoff", middleware.RouteTag("web"), controller.DomainOAuthHandoffBridge)
 	router.GET("/partner-authorize", middleware.RouteTag("web"), controller.ServePartnerAuthorizePage(assets.IndexPage))
 	compress := gzip.Gzip(gzip.DefaultCompression)
+	router.GET("/desktop/connect", middleware.RouteTag("web"), middleware.DisableCache(), controller.ServeDesktopConnectPage)
 
 	router.NoRoute(
 		pluginDispatcher,

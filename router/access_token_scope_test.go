@@ -45,6 +45,7 @@ var accessTokenExemptRoutes = []string{
 	"POST /api/oauth/domain-handoff-fallback",
 	"POST /api/desktop/v2/device-authorizations",
 	"POST /api/desktop/v2/device-authorizations/token",
+	"POST /api/desktop/v2/connect-codes/exchange",
 	"POST /api/desktop/v2/sessions/refresh",
 	"POST /api/user/reset",
 	"POST /api/user/register",

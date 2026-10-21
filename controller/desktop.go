@@ -211,6 +211,60 @@ func RefreshDesktopSession(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": desktopAuthBundleData(bundle)})
 }
 
+type desktopConnectCodeIssueRequest struct {
+	Origin string `json:"origin"`
+}
+
+type desktopConnectCodeExchangeRequest struct {
+	Code          string `json:"code"`
+	DeviceID      string `json:"deviceId"`
+	Platform      string `json:"platform"`
+	ClientVersion string `json:"clientVersion"`
+}
+
+func IssueDesktopConnectCode(c *gin.Context) {
+	setAuthNoStore(c)
+	identity, ok := middleware.GetBrowserSessionAuthIdentity(c)
+	if !ok {
+		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "code": "session_required"})
+		return
+	}
+	request := desktopConnectCodeIssueRequest{}
+	if c.Request.ContentLength != 0 {
+		if err := common.DecodeJson(c.Request.Body, &request); err != nil {
+			writeDesktopConnectCodeError(c, &service.DesktopConnectCodeError{Code: "connect_origin_invalid"})
+			return
+		}
+	}
+	view, err := service.IssueDesktopConnectCode(
+		identity.UserID,
+		identity.UserAuthVersion,
+		request.Origin,
+		c.GetHeader("Origin"),
+		c.Request.Host,
+	)
+	if err != nil {
+		writeDesktopConnectCodeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": view})
+}
+
+func ExchangeDesktopConnectCode(c *gin.Context) {
+	setAuthNoStore(c)
+	request := desktopConnectCodeExchangeRequest{}
+	if err := common.DecodeJson(c.Request.Body, &request); err != nil || strings.TrimSpace(request.Code) == "" {
+		writeDesktopConnectCodeError(c, &service.DesktopConnectCodeError{Code: "connect_code_expired"})
+		return
+	}
+	bundle, err := service.ExchangeDesktopConnectCode(request.Code, c.Request.Host, c.ClientIP(), c.Request.UserAgent())
+	if err != nil {
+		writeDesktopConnectCodeError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": desktopStationConnectAuthBundleData(bundle)})
+}
+
 func RevokeCurrentDesktopSession(c *gin.Context) {
 	setAuthNoStore(c)
 	identity, ok := middleware.GetDesktopSessionAuthIdentity(c)
@@ -243,6 +297,26 @@ func desktopAuthBundleData(bundle *service.AuthBundle) gin.H {
 		"refresh_expires_at": bundle.Session.ExpiresAt,
 		"session_id":         bundle.Session.SID,
 	}
+}
+
+func desktopStationConnectAuthBundleData(bundle *service.AuthBundle) gin.H {
+	return gin.H{
+		"accessToken":      bundle.AccessToken,
+		"tokenType":        bundle.TokenType,
+		"accessExpiresAt":  bundle.AccessExpiresAt,
+		"refreshToken":     bundle.RefreshToken,
+		"refreshExpiresAt": bundle.Session.ExpiresAt,
+		"sessionId":        bundle.Session.SID,
+	}
+}
+
+func writeDesktopConnectCodeError(c *gin.Context, err error) {
+	var flowErr *service.DesktopConnectCodeError
+	if !errors.As(err, &flowErr) {
+		flowErr = &service.DesktopConnectCodeError{Code: "server_error", Cause: err}
+	}
+	status := service.DesktopConnectCodeHTTPStatus(flowErr.Code)
+	c.JSON(status, gin.H{"success": false, "code": flowErr.Code})
 }
 
 func writeDesktopAuthorizationError(c *gin.Context, err error) {

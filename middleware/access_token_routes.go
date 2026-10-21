@@ -168,6 +168,7 @@ var accessTokenRouteRules = map[string]accessTokenRouteRule{
 	"POST /api/desktop/v2/device-authorizations/decision": accessTokenSessionRule,
 	"DELETE /api/desktop/v2/sessions/current":             accessTokenSessionRule,
 	"GET /api/desktop/v2/notices":                         accessTokenSessionRule,
+	"POST /api/desktop/v2/connect-codes":                  accessTokenSessionRule,
 
 	// router/api-router.go: /api/option
 	"GET /api/option/":                                           accessTokenScopeRule("option:read"),
