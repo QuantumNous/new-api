@@ -227,6 +227,22 @@ func TestStreamScannerHandler_DoneStopsScanner(t *testing.T) {
 	assert.Equal(t, int64(50), count.Load(), "data after [DONE] must not be processed")
 }
 
+func TestStreamScannerHandler_BareDoneStopsScanner(t *testing.T) {
+	t.Parallel()
+
+	body := "data: {\"id\":1}\n[DONE]\ndata: {\"id\":2}\n"
+	c, resp, info := setupStreamTest(t, strings.NewReader(body))
+
+	var received []string
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		received = append(received, data)
+	})
+
+	assert.Equal(t, []string{"{\"id\":1}"}, received)
+	require.NotNil(t, info.StreamStatus)
+	assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+}
+
 func TestStreamScannerHandler_StopStopsStream(t *testing.T) {
 	t.Parallel()
 

@@ -269,7 +269,7 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			if data[:5] != "data:" && data[:6] != "[DONE]" {
 				continue
 			}
-			data = data[5:]
+			data = strings.TrimPrefix(data, "data:")
 			data = strings.TrimSpace(data)
 			if data == "" {
 				continue
