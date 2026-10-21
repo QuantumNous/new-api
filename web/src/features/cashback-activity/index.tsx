@@ -111,17 +111,11 @@ export function CashbackActivityPage() {
       <div className='ci-handoffRoot'>
         <MarketingHeader
           isAuthenticated={isAuthenticated}
-          currentPage='home'
-          showModelsLink={false}
+          currentPage='activity'
         />
         <main>
-          <section
-            className='activity-hero'
-            id='top'
-            aria-labelledby='activity-title'
-          >
+          <section className='activity-hero' aria-labelledby='activity-title'>
             <div className='activity-hero__content'>
-              <p className='activity-kicker'>{t('During National Day')}</p>
               <h1 id='activity-title'>{t('Top-up and inviter cashback')}</h1>
               <p className='activity-hero__intro'>
                 {t(

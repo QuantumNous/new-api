@@ -23,6 +23,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CashbackActivityPage } from '@/features/cashback-activity'
 import zh from '@/i18n/locales/zh.json'
+import { Route } from '@/routes/activity'
 import { useAuthStore } from '@/stores/auth-store'
 import { createTestAuthBundle } from '@/test-utils/auth-bundle'
 import { renderApp } from '@/test-utils/render-app'
@@ -51,14 +52,14 @@ afterEach(async () => {
   await act(() => i18next.changeLanguage('en'))
 })
 
-describe('public cashback campaign content', () => {
-  it('links guests to registration without claiming fixed rewards', async () => {
+describe('public cashback activity page', () => {
+  it('registers a public route and links guests to registration without claiming fixed rewards', async () => {
+    expect(Route.options.component).toBe(CashbackActivityPage)
     await renderApp(<CashbackActivityPage />, client)
 
     expect(
       await screen.findByText('No active cashback offers right now.')
     ).toBeVisible()
-    expect(screen.getByText('During National Day')).toBeVisible()
     expect(
       screen.getByText('No active top-up payer offer right now.')
     ).toBeVisible()
@@ -85,11 +86,7 @@ describe('public cashback campaign content', () => {
       within(
         screen.getByRole('navigation', { name: 'Main navigation' })
       ).getByRole('link', { name: 'Offers' })
-    ).not.toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('link', { name: /home$/i })).toHaveAttribute(
-      'aria-current',
-      'page'
-    )
+    ).toHaveAttribute('aria-current', 'page')
   })
 
   it('updates the navigation and both offer descriptions when language changes', async () => {
@@ -106,7 +103,6 @@ describe('public cashback campaign content', () => {
     ).toHaveAttribute('href', '/activity')
     expect(screen.getByRole('heading', { name: '充值返现' })).toBeVisible()
     expect(screen.getByRole('heading', { name: '邀请返现' })).toBeVisible()
-    expect(screen.getByText('国庆期间')).toBeVisible()
     expect(screen.getByText('目前没有生效的返现优惠。')).toBeVisible()
   })
 
@@ -154,8 +150,7 @@ describe('public cashback campaign content', () => {
       expect(
         await screen.findByText('No active cashback offers right now.')
       ).toBeVisible()
-      expect(screen.getByText('During National Day')).toBeVisible()
-      expect(
+        expect(
         screen.queryByText(/12\.5% of the top-up face amount/)
       ).not.toBeInTheDocument()
     } finally {
@@ -288,13 +283,12 @@ describe('public cashback campaign content', () => {
     expect(screen.queryByText(/24-hour reward limit/)).not.toBeInTheDocument()
   })
 
-  it('shows read failure instead of treating a fixed National Day kicker as a live offer', async () => {
+  it('shows read failure instead of presenting stale rules as a live offer', async () => {
     getPublicCashbackOffers.mockRejectedValue(new Error('unavailable'))
     await renderApp(<CashbackActivityPage />, client)
     expect(
       await screen.findByText('Current offers are temporarily unavailable.')
     ).toBeVisible()
-    expect(screen.getByText('During National Day')).toBeVisible()
     expect(screen.queryByText('Current cashback rules')).not.toBeInTheDocument()
   })
 
