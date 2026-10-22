@@ -52,6 +52,7 @@ type User struct {
 	InviterId         int                        `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
 	DeletedAt         gorm.DeletedAt             `gorm:"index"`
 	LinuxDOId         string                     `json:"linux_do_id" gorm:"column:linux_do_id;index"`
+	FeishuId          string                     `json:"feishu_id" gorm:"column:feishu_id;index"`
 	Setting           string                     `json:"setting" gorm:"type:text;column:setting"`
 	Remark            string                     `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
 	StripeCustomer    string                     `json:"stripe_customer" gorm:"type:varchar(64);column:stripe_customer;index"`
@@ -1276,6 +1277,19 @@ func (user *User) FillUserByLinuxDOId() error {
 	}
 	err := DB.Where("linux_do_id = ?", user.LinuxDOId).First(user).Error
 	return err
+}
+
+func IsFeishuIdAlreadyTaken(feishuId string) bool {
+	var user User
+	err := DB.Unscoped().Where("feishu_id = ?", feishuId).First(&user).Error
+	return !errors.Is(err, gorm.ErrRecordNotFound)
+}
+
+func (user *User) FillUserByFeishuId() error {
+	if user.FeishuId == "" {
+		return errors.New("feishu id is empty")
+	}
+	return DB.Where("feishu_id = ?", user.FeishuId).First(user).Error
 }
 
 func RootUserExists() bool {

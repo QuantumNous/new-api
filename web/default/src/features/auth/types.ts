@@ -108,6 +108,8 @@ export interface SystemStatus {
     oidc_client_id?: string
     linuxdo_oauth?: boolean
     linuxdo_client_id?: string
+    feishu_oauth?: boolean
+    feishu_app_id?: string
     telegram_oauth?: boolean
     passkey_login?: boolean
     wechat_login?: boolean
@@ -156,6 +158,8 @@ export interface SystemStatus {
   oidc_client_id?: string
   linuxdo_oauth?: boolean
   linuxdo_client_id?: string
+  feishu_oauth?: boolean
+  feishu_app_id?: string
   telegram_oauth?: boolean
   passkey_login?: boolean
   wechat_login?: boolean

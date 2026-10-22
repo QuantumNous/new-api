@@ -22,7 +22,7 @@ import { useTranslation } from 'react-i18next'
 import { SiGithub, SiWechat, SiLinux } from 'react-icons/si'
 import { toast } from 'sonner'
 
-import { IconDiscord } from '@/assets/brand-icons'
+import { IconDiscord, IconFeishu } from '@/assets/brand-icons'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
@@ -35,6 +35,7 @@ import {
   handleOIDCOAuth,
   handleDiscordOAuth,
   handleLinuxDOOAuth,
+  handleFeishuOAuth,
 } from '@/lib/oauth'
 
 import {
@@ -254,6 +255,23 @@ export function AccountBindingsTab({
         onBind: () => {
           if (status?.linuxdo_client_id) {
             handleLinuxDOOAuth(status.linuxdo_client_id)
+          }
+        },
+      },
+      {
+        id: 'feishu',
+        label: t('Feishu / Lark'),
+        icon: IconFeishu,
+        value: (profile as unknown as Record<string, unknown>).feishu_id as
+          | string
+          | undefined,
+        isBound: Boolean(
+          (profile as unknown as Record<string, unknown>).feishu_id
+        ),
+        isEnabled: status?.feishu_oauth || false,
+        onBind: () => {
+          if (status?.feishu_app_id) {
+            handleFeishuOAuth(status.feishu_app_id)
           }
         },
       },

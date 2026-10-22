@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next'
 
 import {
   IconDiscord,
+  IconFeishu,
   IconGithub,
   IconLinuxDo,
   IconWeChat,
@@ -63,6 +64,7 @@ export function OAuthProviders({
     handleDiscordLogin,
     handleOIDCLogin,
     handleLinuxDOLogin,
+    handleFeishuLogin,
     handleTelegramLogin,
     handleCustomOAuthLogin,
   } = useOAuthLogin(status)
@@ -103,6 +105,15 @@ export function OAuthProviders({
       key: 'oidc',
       label: t('Continue with OIDC'),
       onClick: handleOIDCLogin,
+    })
+  }
+
+  if (status?.feishu_oauth) {
+    providerButtons.push({
+      key: 'feishu',
+      label: t('Continue with Feishu / Lark'),
+      onClick: handleFeishuLogin,
+      icon: <IconFeishu className='h-4 w-4' />,
     })
   }
 

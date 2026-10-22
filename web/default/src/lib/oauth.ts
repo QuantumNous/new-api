@@ -71,6 +71,17 @@ export function buildLinuxDOOAuthUrl(clientId: string, state: string): string {
   return `https://connect.linux.do/oauth2/authorize?response_type=code&client_id=${clientId}&state=${state}`
 }
 
+/**
+ * Build Feishu OAuth URL
+ */
+export function buildFeishuOAuthUrl(appId: string, state: string): string {
+  const url = new URL('https://open.feishu.cn/open-apis/authen/v1/authorize')
+  url.searchParams.set('app_id', appId)
+  url.searchParams.set('redirect_uri', `${window.location.origin}/oauth/feishu`)
+  url.searchParams.set('state', state)
+  return url.toString()
+}
+
 // ============================================================================
 // OAuth Helper Functions
 // ============================================================================
@@ -139,5 +150,16 @@ export async function handleLinuxDOOAuth(clientId: string): Promise<void> {
   if (!state) return
 
   const url = buildLinuxDOOAuthUrl(clientId, state)
+  window.open(url, '_blank')
+}
+
+/**
+ * Handle Feishu OAuth binding/login
+ */
+export async function handleFeishuOAuth(appId: string): Promise<void> {
+  const state = await getOAuthState()
+  if (!state) return
+
+  const url = buildFeishuOAuthUrl(appId, state)
   window.open(url, '_blank')
 }
