@@ -45,20 +45,24 @@ type feishuUserTokenRequest struct {
 }
 
 type feishuUserTokenResponse struct {
-	Code        int    `json:"code"`
-	Msg         string `json:"msg"`
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	ExpiresIn   int    `json:"expires_in"`
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	Data struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		ExpiresIn   int    `json:"expires_in"`
+	} `json:"data"`
 }
 
 type feishuUserInfo struct {
-	Code   int    `json:"code"`
-	Msg    string `json:"msg"`
-	OpenId string `json:"open_id"`
-	Name   string `json:"name"`
-	EnName string `json:"en_name"`
-	Email  string `json:"email"`
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	Data struct {
+		OpenId string `json:"open_id"`
+		Name   string `json:"name"`
+		EnName string `json:"en_name"`
+		Email  string `json:"email"`
+	} `json:"data"`
 }
 
 func (p *FeishuProvider) GetName() string {
@@ -157,12 +161,12 @@ func (p *FeishuProvider) getUserAccessToken(ctx context.Context, appToken, userC
 	if err := json.NewDecoder(res.Body).Decode(&resp); err != nil {
 		return "", err
 	}
-	if resp.Code != 0 || resp.AccessToken == "" {
+	if resp.Code != 0 || resp.Data.AccessToken == "" {
 		logger.LogError(ctx, fmt.Sprintf("[OAuth-Feishu] getUserAccessToken failed: code=%d msg=%s", resp.Code, resp.Msg))
 		return "", NewOAuthError(i18n.MsgOAuthTokenFailed, map[string]any{"Provider": "Feishu"})
 	}
 
-	return resp.AccessToken, nil
+	return resp.Data.AccessToken, nil
 }
 
 func (p *FeishuProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*OAuthUser, error) {
@@ -199,23 +203,23 @@ func (p *FeishuProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*O
 		return nil, err
 	}
 
-	if user.Code != 0 || user.OpenId == "" {
-		logger.LogError(ctx, fmt.Sprintf("[OAuth-Feishu] GetUserInfo failed: code=%d openId=%s", user.Code, user.OpenId))
+	if user.Code != 0 || user.Data.OpenId == "" {
+		logger.LogError(ctx, fmt.Sprintf("[OAuth-Feishu] GetUserInfo failed: code=%d openId=%s", user.Code, user.Data.OpenId))
 		return nil, NewOAuthError(i18n.MsgOAuthUserInfoEmpty, map[string]any{"Provider": "Feishu"})
 	}
 
-	name := user.Name
+	name := user.Data.Name
 	if name == "" {
-		name = user.EnName
+		name = user.Data.EnName
 	}
 
-	logger.LogDebug(ctx, "[OAuth-Feishu] GetUserInfo success: openId=%s name=%s", user.OpenId, name)
+	logger.LogDebug(ctx, "[OAuth-Feishu] GetUserInfo success: openId=%s name=%s", user.Data.OpenId, name)
 
 	return &OAuthUser{
-		ProviderUserID: user.OpenId,
+		ProviderUserID: user.Data.OpenId,
 		Username:       name,
 		DisplayName:    name,
-		Email:          user.Email,
+		Email:          user.Data.Email,
 	}, nil
 }
 
