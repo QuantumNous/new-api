@@ -164,7 +164,8 @@ func (s *ChannelOtherSettings) ValidateToolLossPolicy() error {
 }
 
 // ValidateUpstreamModelUpdatePatterns checks that every regex: entry in the
-// upstream model allow and ignore lists compiles.
+// upstream model allow and ignore lists has a body that compiles. An empty
+// body would match every model.
 func (s *ChannelOtherSettings) ValidateUpstreamModelUpdatePatterns() error {
 	if s == nil {
 		return nil
@@ -187,7 +188,11 @@ func (s *ChannelOtherSettings) ValidateUpstreamModelUpdatePatterns() error {
 			if !ok {
 				continue
 			}
-			if _, err := regexp.Compile(strings.TrimSpace(regexBody)); err != nil {
+			regexBody = strings.TrimSpace(regexBody)
+			if regexBody == "" {
+				return fmt.Errorf("empty regex in %s: %s", list.field, pattern)
+			}
+			if _, err := regexp.Compile(regexBody); err != nil {
 				return fmt.Errorf("invalid regex in %s: %s", list.field, pattern)
 			}
 		}

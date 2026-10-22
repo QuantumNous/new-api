@@ -752,6 +752,14 @@ func TestChannelOtherSettingsValidateUpstreamModelUpdatePatterns(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "empty entries")
 
+	err = (&ChannelOtherSettings{UpstreamModelUpdateAllowedModels: []string{"regex:   "}}).ValidateUpstreamModelUpdatePatterns()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty regex in upstream_model_update_allowed_models")
+
+	err = (&ChannelOtherSettings{UpstreamModelUpdateIgnoredModels: []string{"regex:"}}).ValidateUpstreamModelUpdatePatterns()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty regex in upstream_model_update_ignored_models")
+
 	err = (&ChannelOtherSettings{UpstreamModelUpdateIgnoredModels: []string{"regex:[a-"}}).ValidateUpstreamModelUpdatePatterns()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "upstream_model_update_ignored_models")
