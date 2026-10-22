@@ -31,11 +31,13 @@ import type {
   ChannelOpsResponse,
   ChannelTestResponse,
   CopyChannelParams,
+  ChannelModelMappingRule,
   CopyChannelResponse,
   FetchModelsResponse,
   GetChannelResponse,
   GetChannelsParams,
   GetChannelsResponse,
+  ModelMappingRulesPreview,
   MultiKeyManageParams,
   MultiKeyStatusResponse,
   SearchChannelsParams,
@@ -315,6 +317,22 @@ export async function fetchUpstreamModels(
     channelActionConfig()
   )
   return res.data
+}
+
+/**
+ * Preview applying model mapping rules to the current models and mapping
+ */
+export async function previewModelMappingRules(params: {
+  models: string[]
+  model_mapping: Record<string, string>
+  rules: ChannelModelMappingRule[]
+}): Promise<ModelMappingRulesPreview> {
+  const res = await api.post<{
+    success: boolean
+    message?: string
+    data: ModelMappingRulesPreview
+  }>('/api/channel/model_mapping_rules/preview', params, channelActionConfig())
+  return requireServerSuccess(res.data).data
 }
 
 /**

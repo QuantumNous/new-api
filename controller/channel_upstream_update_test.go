@@ -346,7 +346,7 @@ func TestFailedAdvancedCustomDetectionDoesNotStageFullRemoval(t *testing.T) {
 	channel.SetOtherSettings(settings)
 	require.NoError(t, db.Create(channel).Error)
 
-	modelsChanged, autoAdded, err := checkAndPersistChannelUpstreamModelUpdates(channel, &settings, true, true)
+	modelsChanged, autoAdded, _, err := checkAndPersistChannelUpstreamModelUpdates(channel, &settings, true, true)
 	require.ErrorContains(t, err, "no valid model IDs")
 	require.False(t, modelsChanged)
 	require.Zero(t, autoAdded)
@@ -508,13 +508,14 @@ func TestNormalizeChannelModelMapping(t *testing.T) {
 }
 
 func TestCollectPendingUpstreamModelChangesFromModels_WithModelMapping(t *testing.T) {
-	pendingAddModels, pendingRemoveModels := collectPendingUpstreamModelChangesFromModels(
+	pendingAddModels, pendingRemoveModels, _ := collectPendingUpstreamModelChangesFromModels(
 		[]string{"alias-model", "gpt-4o", "stale-model"},
 		[]string{"gpt-4o", "gpt-4.1", "mapped-target"},
 		[]string{"gpt-4.1"},
 		map[string]string{
 			"alias-model": "mapped-target",
 		},
+		nil,
 	)
 
 	require.Equal(t, []string{}, pendingAddModels)
@@ -522,15 +523,195 @@ func TestCollectPendingUpstreamModelChangesFromModels_WithModelMapping(t *testin
 }
 
 func TestCollectPendingUpstreamModelChangesFromModels_WithIgnoredRegexPatterns(t *testing.T) {
-	pendingAddModels, pendingRemoveModels := collectPendingUpstreamModelChangesFromModels(
+	pendingAddModels, pendingRemoveModels, _ := collectPendingUpstreamModelChangesFromModels(
 		[]string{"gpt-4o"},
 		[]string{"gpt-4o", "claude-3-5-sonnet", "sora-video", "gpt-4.1"},
 		[]string{"regex:^sora-.*$", "gpt-4.1"},
+		nil,
 		nil,
 	)
 
 	require.Equal(t, []string{"claude-3-5-sonnet"}, pendingAddModels)
 	require.Equal(t, []string{}, pendingRemoveModels)
+}
+
+var testModelMappingRules = dto.ModelMappingRules{
+	{Type: dto.ModelMappingRuleStripPrefix, Values: "relay/"},
+	{Type: dto.ModelMappingRuleRegexReplace, Find: "(?i)^minimax-m", ReplaceWith: "MiniMax-M"},
+}
+
+func TestCollectPendingUpstreamModelChangesFromModels_WithMappingRules(t *testing.T) {
+	upstreamModels := []string{"relay/claude-opus-5-5", "relay/gemini-3-flash", "gemini-3-flash", "minimax-m3.1"}
+	tests := []struct {
+		name          string
+		localModels   []string
+		modelMapping  map[string]string
+		rules         dto.ModelMappingRules
+		wantAdd       []string
+		wantConflicts []modelMappingRuleConflict
+	}{
+		{
+			name:          "no rules keeps upstream names",
+			localModels:   []string{"gemini-3-flash"},
+			wantAdd:       []string{"relay/claude-opus-5-5", "relay/gemini-3-flash", "minimax-m3.1"},
+			wantConflicts: []modelMappingRuleConflict{},
+		},
+		{
+			name:          "derived name already present locally counts as covered",
+			localModels:   []string{"gemini-3-flash"},
+			rules:         testModelMappingRules,
+			wantAdd:       []string{"relay/claude-opus-5-5", "minimax-m3.1"},
+			wantConflicts: []modelMappingRuleConflict{},
+		},
+		{
+			name:    "first upstream model wins when two derive the same name",
+			rules:   testModelMappingRules,
+			wantAdd: []string{"relay/claude-opus-5-5", "relay/gemini-3-flash", "minimax-m3.1"},
+			wantConflicts: []modelMappingRuleConflict{
+				{Target: "gemini-3-flash", Upstream: "gemini-3-flash"},
+			},
+		},
+		{
+			name:         "derived name mapped to another upstream model is a conflict",
+			localModels:  []string{"gemini-3-flash"},
+			modelMapping: map[string]string{"claude-opus-5-5": "vendor/claude-opus-5-5"},
+			rules:        testModelMappingRules,
+			wantAdd:      []string{"minimax-m3.1"},
+			wantConflicts: []modelMappingRuleConflict{
+				{Target: "claude-opus-5-5", Upstream: "relay/claude-opus-5-5"},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pendingAddModels, _, conflicts := collectPendingUpstreamModelChangesFromModels(
+				test.localModels,
+				upstreamModels,
+				nil,
+				test.modelMapping,
+				test.rules,
+			)
+			assert.Equal(t, test.wantAdd, pendingAddModels)
+			assert.Equal(t, test.wantConflicts, conflicts)
+		})
+	}
+}
+
+func TestUpstreamModelSyncAppliesMappingRules(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":[{"id":"relay/claude-opus-5-5"},{"id":"relay/gemini-3-flash"},{"id":"gemini-3-flash"},{"id":"minimax-m3.1"}]}`))
+	}))
+	defer server.Close()
+
+	baseURL := server.URL
+	existingMapping := `{"legacy":"legacy-upstream"}`
+	channel := &model.Channel{
+		Type:         constant.ChannelTypeOpenAI,
+		Key:          "sk-test",
+		BaseURL:      &baseURL,
+		Name:         "rules",
+		Models:       "gemini-3-flash,legacy",
+		Group:        "default",
+		ModelMapping: &existingMapping,
+	}
+	settings := dto.ChannelOtherSettings{
+		UpstreamModelUpdateCheckEnabled:    true,
+		UpstreamModelUpdateAutoSyncEnabled: true,
+		ModelMappingRules:                  testModelMappingRules,
+	}
+	channel.SetOtherSettings(settings)
+	require.NoError(t, db.Create(channel).Error)
+
+	modelsChanged, autoAdded, conflicts, err := checkAndPersistChannelUpstreamModelUpdates(channel, &settings, true, true)
+	require.NoError(t, err)
+	assert.True(t, modelsChanged)
+	assert.Equal(t, 2, autoAdded)
+	assert.Empty(t, conflicts)
+
+	reloaded, err := model.GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, "gemini-3-flash,legacy,claude-opus-5-5,MiniMax-M3.1", reloaded.Models)
+	assert.Equal(t, map[string]string{
+		"legacy":          "legacy-upstream",
+		"claude-opus-5-5": "relay/claude-opus-5-5",
+		"MiniMax-M3.1":    "minimax-m3.1",
+	}, normalizeChannelModelMapping(reloaded))
+
+	settings = reloaded.GetOtherSettings()
+	modelsChanged, _, _, err = checkAndPersistChannelUpstreamModelUpdates(reloaded, &settings, true, true)
+	require.NoError(t, err)
+	assert.False(t, modelsChanged)
+	assert.Empty(t, settings.UpstreamModelUpdateLastDetectedModels)
+}
+
+func TestApplyChannelUpstreamModelUpdatesAppliesMappingRules(t *testing.T) {
+	db := setupModelListControllerTestDB(t)
+	channel := &model.Channel{
+		Type:   constant.ChannelTypeOpenAI,
+		Key:    "sk-test",
+		Name:   "rules",
+		Models: "gemini-3-flash",
+		Group:  "default",
+	}
+	channel.SetOtherSettings(dto.ChannelOtherSettings{
+		UpstreamModelUpdateLastDetectedModels: []string{"relay/claude-opus-5-5", "minimax-m3.1"},
+		ModelMappingRules:                     testModelMappingRules,
+	})
+	require.NoError(t, db.Create(channel).Error)
+
+	added, _, remaining, _, modelsChanged, err := applyChannelUpstreamModelUpdates(channel, []string{"relay/claude-opus-5-5"}, nil, nil)
+	require.NoError(t, err)
+	assert.True(t, modelsChanged)
+	assert.Equal(t, []string{"relay/claude-opus-5-5"}, added)
+	assert.Equal(t, []string{"minimax-m3.1"}, remaining)
+
+	reloaded, err := model.GetChannelById(channel.Id, true)
+	require.NoError(t, err)
+	assert.Equal(t, "gemini-3-flash,claude-opus-5-5", reloaded.Models)
+	assert.Equal(t, map[string]string{"claude-opus-5-5": "relay/claude-opus-5-5"}, normalizeChannelModelMapping(reloaded))
+}
+
+func TestPreviewModelMappingRules(t *testing.T) {
+	preview := previewModelMappingRules(
+		[]string{"relay/gpt-6", "alias", "minimax-m3.1", "relay/gemini-3-flash", "gemini-3-flash", "plain"},
+		map[string]string{"alias": "relay/alias-upstream", "minimax-m3.1": "vendor/minimax-m3.1"},
+		testModelMappingRules,
+	)
+
+	assert.Equal(t, []string{"gpt-6", "alias", "MiniMax-M3.1", "relay/gemini-3-flash", "gemini-3-flash", "plain"}, preview.Models)
+	assert.Equal(t, map[string]string{
+		"gpt-6":        "relay/gpt-6",
+		"alias":        "relay/alias-upstream",
+		"MiniMax-M3.1": "vendor/minimax-m3.1",
+	}, preview.ModelMapping)
+	assert.Equal(t, []modelMappingRuleChange{
+		{From: "relay/gpt-6", To: "gpt-6", Upstream: "relay/gpt-6"},
+		{From: "minimax-m3.1", To: "MiniMax-M3.1", Upstream: "vendor/minimax-m3.1"},
+	}, preview.Changed)
+	assert.Equal(t, []modelMappingRuleConflict{
+		{Model: "relay/gemini-3-flash", Target: "gemini-3-flash", Upstream: "relay/gemini-3-flash"},
+	}, preview.Conflicts)
+
+	again := previewModelMappingRules(preview.Models, preview.ModelMapping, testModelMappingRules)
+	assert.Empty(t, again.Changed)
+}
+
+func TestPreviewChannelModelMappingRulesRejectsInvalidRules(t *testing.T) {
+	body, err := common.Marshal(map[string]any{
+		"models": []string{"a"},
+		"rules":  []map[string]string{{"type": "regex_replace", "find": "("}},
+	})
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/channel/model_mapping_rules/preview", bytes.NewReader(body))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+
+	PreviewChannelModelMappingRules(ctx)
+
+	assert.Contains(t, recorder.Body.String(), `"success":false`)
+	assert.Contains(t, recorder.Body.String(), "Invalid model mapping rules")
 }
 
 func TestBuildUpstreamModelUpdateTaskNotificationContent_OmitOverflowDetails(t *testing.T) {

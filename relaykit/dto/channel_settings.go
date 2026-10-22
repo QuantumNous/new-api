@@ -130,6 +130,7 @@ type ChannelOtherSettings struct {
 	UpstreamModelUpdateLastDetectedModels []string              `json:"upstream_model_update_last_detected_models,omitempty"` // 上次检测到的可加入模型
 	UpstreamModelUpdateLastRemovedModels  []string              `json:"upstream_model_update_last_removed_models,omitempty"`  // 上次检测到的可删除模型
 	UpstreamModelUpdateIgnoredModels      []string              `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
+	ModelMappingRules                     ModelMappingRules     `json:"model_mapping_rules,omitempty"`                        // 有序的模型映射规则，上游模型同步时自动套用
 	AdvancedCustom                        *AdvancedCustomConfig `json:"advanced_custom,omitempty"`
 	// OllamaOpenAIChat routes Ollama chat completions to the OpenAI-compatible
 	// /v1/chat/completions endpoint. When unset, chat completions keep using
@@ -160,6 +161,117 @@ func (s *ChannelOtherSettings) ValidateToolLossPolicy() error {
 	default:
 		return fmt.Errorf("invalid tool_loss_policy: %s", s.ToolLossPolicy)
 	}
+}
+
+const (
+	ModelMappingRuleStripPrefix  = "strip_prefix"
+	ModelMappingRuleStripSuffix  = "strip_suffix"
+	ModelMappingRuleAddPrefix    = "add_prefix"
+	ModelMappingRuleAddSuffix    = "add_suffix"
+	ModelMappingRuleReplace      = "replace"
+	ModelMappingRuleRegexReplace = "regex_replace"
+)
+
+// ModelMappingRule is one step that rewrites an upstream model name into the
+// name clients call. Values holds comma-separated affixes for the strip rules,
+// Value the affix for the add rules, and Find/ReplaceWith the text or RE2
+// pattern and replacement ($1, ${name}) for the replace rules.
+type ModelMappingRule struct {
+	Type        string `json:"type"`
+	Values      string `json:"values,omitempty"`
+	Value       string `json:"value,omitempty"`
+	Find        string `json:"find,omitempty"`
+	ReplaceWith string `json:"replace_with,omitempty"`
+}
+
+// ModelMappingRules is an ordered pipeline: each rule receives the previous
+// rule's output.
+type ModelMappingRules []ModelMappingRule
+
+func (rules ModelMappingRules) Validate() error {
+	for i, rule := range rules {
+		switch rule.Type {
+		case ModelMappingRuleStripPrefix, ModelMappingRuleStripSuffix:
+			if len(splitModelMappingRuleValues(rule.Values)) == 0 {
+				return fmt.Errorf("model_mapping_rules[%d]: values is required", i)
+			}
+		case ModelMappingRuleAddPrefix, ModelMappingRuleAddSuffix:
+			if strings.TrimSpace(rule.Value) == "" {
+				return fmt.Errorf("model_mapping_rules[%d]: value is required", i)
+			}
+		case ModelMappingRuleReplace:
+			if rule.Find == "" {
+				return fmt.Errorf("model_mapping_rules[%d]: find is required", i)
+			}
+		case ModelMappingRuleRegexReplace:
+			if rule.Find == "" {
+				return fmt.Errorf("model_mapping_rules[%d]: find is required", i)
+			}
+			if _, err := regexp.Compile(rule.Find); err != nil {
+				return fmt.Errorf("model_mapping_rules[%d]: invalid regex: %s", i, rule.Find)
+			}
+		default:
+			return fmt.Errorf("model_mapping_rules[%d]: unknown type: %s", i, rule.Type)
+		}
+	}
+	return nil
+}
+
+// Apply runs the rules in order and returns the client-facing name. Add rules
+// skip names that already carry the affix, so applying the rules to a name
+// they produced leaves it unchanged. A result that trims to empty keeps the
+// input name.
+func (rules ModelMappingRules) Apply(name string) string {
+	result := name
+	for _, rule := range rules {
+		switch rule.Type {
+		case ModelMappingRuleStripPrefix:
+			for _, prefix := range splitModelMappingRuleValues(rule.Values) {
+				if stripped, ok := strings.CutPrefix(result, prefix); ok {
+					result = stripped
+					break
+				}
+			}
+		case ModelMappingRuleStripSuffix:
+			for _, suffix := range splitModelMappingRuleValues(rule.Values) {
+				if stripped, ok := strings.CutSuffix(result, suffix); ok {
+					result = stripped
+					break
+				}
+			}
+		case ModelMappingRuleAddPrefix:
+			if !strings.HasPrefix(result, rule.Value) {
+				result = rule.Value + result
+			}
+		case ModelMappingRuleAddSuffix:
+			if !strings.HasSuffix(result, rule.Value) {
+				result += rule.Value
+			}
+		case ModelMappingRuleReplace:
+			if rule.Find != "" {
+				result = strings.ReplaceAll(result, rule.Find, rule.ReplaceWith)
+			}
+		case ModelMappingRuleRegexReplace:
+			if pattern, err := regexp.Compile(rule.Find); err == nil {
+				result = pattern.ReplaceAllString(result, rule.ReplaceWith)
+			}
+		}
+	}
+	result = strings.TrimSpace(result)
+	if result == "" {
+		return name
+	}
+	return result
+}
+
+func splitModelMappingRuleValues(values string) []string {
+	var parts []string
+	for part := range strings.SplitSeq(values, ",") {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			parts = append(parts, trimmed)
+		}
+	}
+	return parts
 }
 
 const (

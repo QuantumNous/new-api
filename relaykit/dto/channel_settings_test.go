@@ -736,3 +736,53 @@ func TestChannelOtherSettingsValidateToolLossPolicy(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tool_loss_policy")
 }
+
+func TestModelMappingRulesApply(t *testing.T) {
+	tests := []struct {
+		name  string
+		rules ModelMappingRules
+		input string
+		want  string
+	}{
+		{"strip first matching prefix", ModelMappingRules{{Type: ModelMappingRuleStripPrefix, Values: "a/, relay/,relay/x"}}, "relay/x-model", "x-model"},
+		{"strip suffix", ModelMappingRules{{Type: ModelMappingRuleStripSuffix, Values: "-free,-latest"}}, "gpt-6-latest", "gpt-6"},
+		{"add prefix once", ModelMappingRules{{Type: ModelMappingRuleAddPrefix, Value: "team/"}}, "team/gpt-6", "team/gpt-6"},
+		{"add suffix", ModelMappingRules{{Type: ModelMappingRuleAddSuffix, Value: "-hd"}}, "img", "img-hd"},
+		{"replace all occurrences", ModelMappingRules{{Type: ModelMappingRuleReplace, Find: "_", ReplaceWith: "-"}}, "a_b_c", "a-b-c"},
+		{"regex with case-insensitive flag", ModelMappingRules{{Type: ModelMappingRuleRegexReplace, Find: "(?i)^minimax-m", ReplaceWith: "MiniMax-M"}}, "MINIMAX-m3.1", "MiniMax-M3.1"},
+		{"regex capture groups", ModelMappingRules{{Type: ModelMappingRuleRegexReplace, Find: `^(\w+)/(?P<name>.+)$`, ReplaceWith: "${name}@$1"}}, "relay/gpt-6", "gpt-6@relay"},
+		{"pipeline uses previous output", ModelMappingRules{
+			{Type: ModelMappingRuleStripPrefix, Values: "relay/"},
+			{Type: ModelMappingRuleRegexReplace, Find: "(?i)^minimax", ReplaceWith: "MiniMax"},
+			{Type: ModelMappingRuleAddSuffix, Value: "-x"},
+		}, "relay/minimax-m3", "MiniMax-m3-x"},
+		{"empty result keeps input", ModelMappingRules{{Type: ModelMappingRuleStripPrefix, Values: "relay/"}}, "relay/", "relay/"},
+		{"no rules", nil, "gpt-6", "gpt-6"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, test.rules.Apply(test.input))
+		})
+	}
+}
+
+func TestModelMappingRulesValidate(t *testing.T) {
+	require.NoError(t, ModelMappingRules(nil).Validate())
+	require.NoError(t, ModelMappingRules{
+		{Type: ModelMappingRuleStripPrefix, Values: "relay/"},
+		{Type: ModelMappingRuleRegexReplace, Find: "(?i)^a"},
+	}.Validate())
+
+	invalid := []ModelMappingRule{
+		{Type: "lowercase"},
+		{Type: ModelMappingRuleStripPrefix, Values: " , "},
+		{Type: ModelMappingRuleAddSuffix},
+		{Type: ModelMappingRuleReplace},
+		{Type: ModelMappingRuleRegexReplace, Find: "("},
+	}
+	for _, rule := range invalid {
+		err := ModelMappingRules{rule}.Validate()
+		require.Error(t, err, rule.Type)
+		assert.Contains(t, err.Error(), "model_mapping_rules[0]")
+	}
+}

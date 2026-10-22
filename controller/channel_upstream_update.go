@@ -85,12 +85,22 @@ type applyAllChannelUpstreamModelUpdatesResult struct {
 }
 
 type detectChannelUpstreamModelUpdatesResult struct {
-	ChannelID       int      `json:"channel_id"`
-	ChannelName     string   `json:"channel_name"`
-	AddModels       []string `json:"add_models"`
-	RemoveModels    []string `json:"remove_models"`
-	LastCheckTime   int64    `json:"last_check_time"`
-	AutoAddedModels int      `json:"auto_added_models"`
+	ChannelID       int                        `json:"channel_id"`
+	ChannelName     string                     `json:"channel_name"`
+	AddModels       []string                   `json:"add_models"`
+	RemoveModels    []string                   `json:"remove_models"`
+	RuleConflicts   []modelMappingRuleConflict `json:"rule_conflicts"`
+	LastCheckTime   int64                      `json:"last_check_time"`
+	AutoAddedModels int                        `json:"auto_added_models"`
+}
+
+// modelMappingRuleConflict reports a model that the mapping rules would rename
+// to a name already taken by another model or mapping. Model is set only when
+// rules are applied to an existing channel model.
+type modelMappingRuleConflict struct {
+	Model    string `json:"model,omitempty"`
+	Target   string `json:"target"`
+	Upstream string `json:"upstream"`
 }
 
 type upstreamModelUpdateChannelSummary struct {
@@ -183,7 +193,8 @@ func collectPendingUpstreamModelChangesFromModels(
 	upstreamModels []string,
 	ignoredModels []string,
 	modelMapping map[string]string,
-) (pendingAddModels []string, pendingRemoveModels []string) {
+	mappingRules dto.ModelMappingRules,
+) (pendingAddModels []string, pendingRemoveModels []string, ruleConflicts []modelMappingRuleConflict) {
 	localSet := make(map[string]struct{})
 	localModels = normalizeModelNames(localModels)
 	upstreamModels = normalizeModelNames(upstreamModels)
@@ -212,6 +223,11 @@ func collectPendingUpstreamModelChangesFromModels(
 		coveredUpstreamSet[modelName] = struct{}{}
 	}
 
+	// Ignore patterns match upstream names; mapping rules run afterwards. A
+	// model whose rule-derived name already exists locally is covered, and when
+	// two upstream models derive the same name the first one wins.
+	ruleConflicts = []modelMappingRuleConflict{}
+	claimedNames := make(map[string]struct{})
 	pendingAdd := lo.Filter(upstreamModels, func(modelName string, _ int) bool {
 		if _, ok := coveredUpstreamSet[modelName]; ok {
 			return false
@@ -225,6 +241,21 @@ func collectPendingUpstreamModelChangesFromModels(
 		}) {
 			return false
 		}
+		clientName := mappingRules.Apply(modelName)
+		if clientName != modelName {
+			if _, ok := localSet[clientName]; ok {
+				return false
+			}
+			if target, ok := modelMapping[clientName]; ok && target != modelName {
+				ruleConflicts = append(ruleConflicts, modelMappingRuleConflict{Target: clientName, Upstream: modelName})
+				return false
+			}
+		}
+		if _, ok := claimedNames[clientName]; ok {
+			ruleConflicts = append(ruleConflicts, modelMappingRuleConflict{Target: clientName, Upstream: modelName})
+			return false
+		}
+		claimedNames[clientName] = struct{}{}
 		return true
 	})
 	pendingRemove := lo.Filter(localModels, func(modelName string, _ int) bool {
@@ -236,21 +267,71 @@ func collectPendingUpstreamModelChangesFromModels(
 		_, ok := upstreamSet[modelName]
 		return !ok
 	})
-	return normalizeModelNames(pendingAdd), normalizeModelNames(pendingRemove)
+	return normalizeModelNames(pendingAdd), normalizeModelNames(pendingRemove), ruleConflicts
 }
 
-func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.ChannelOtherSettings) (pendingAddModels []string, pendingRemoveModels []string, err error) {
+func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.ChannelOtherSettings) (pendingAddModels []string, pendingRemoveModels []string, ruleConflicts []modelMappingRuleConflict, err error) {
 	upstreamModels, err := fetchChannelUpstreamModelIDs(channel)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
-	pendingAddModels, pendingRemoveModels = collectPendingUpstreamModelChangesFromModels(
+	pendingAddModels, pendingRemoveModels, ruleConflicts = collectPendingUpstreamModelChangesFromModels(
 		channel.GetModels(),
 		upstreamModels,
 		settings.UpstreamModelUpdateIgnoredModels,
 		normalizeChannelModelMapping(channel),
+		settings.ModelMappingRules,
 	)
-	return pendingAddModels, pendingRemoveModels, nil
+	return pendingAddModels, pendingRemoveModels, ruleConflicts, nil
+}
+
+// applyModelMappingRulesToUpstreamModels returns the client-facing names for
+// upstream models that are being added to a channel. When the rules rename a
+// model, the name is recorded in the channel model mapping pointing back to
+// the upstream model. A renamed model whose name already exists or is mapped
+// to another upstream model is skipped. Without rules, or when the saved
+// mapping cannot be parsed, the upstream names are returned unchanged.
+func applyModelMappingRulesToUpstreamModels(channel *model.Channel, upstreamModels []string, rules dto.ModelMappingRules) (clientModels []string, mappingChanged bool) {
+	upstreamModels = normalizeModelNames(upstreamModels)
+	if len(rules) == 0 {
+		return upstreamModels, false
+	}
+	mapping := make(map[string]string)
+	if channel.ModelMapping != nil && strings.TrimSpace(*channel.ModelMapping) != "" {
+		if err := common.UnmarshalJsonStr(*channel.ModelMapping, &mapping); err != nil {
+			return upstreamModels, false
+		}
+	}
+	existing := make(map[string]struct{})
+	for _, modelName := range channel.GetModels() {
+		existing[strings.TrimSpace(modelName)] = struct{}{}
+	}
+	for _, upstreamModel := range upstreamModels {
+		clientName := rules.Apply(upstreamModel)
+		if clientName == upstreamModel {
+			clientModels = append(clientModels, upstreamModel)
+			continue
+		}
+		if _, ok := existing[clientName]; ok {
+			continue
+		}
+		if target, ok := mapping[clientName]; ok && target != upstreamModel {
+			continue
+		}
+		existing[clientName] = struct{}{}
+		clientModels = append(clientModels, clientName)
+		mapping[clientName] = upstreamModel
+		mappingChanged = true
+	}
+	if mappingChanged {
+		mappingBytes, err := common.Marshal(mapping)
+		if err != nil {
+			return upstreamModels, false
+		}
+		mappingJSON := string(mappingBytes)
+		channel.ModelMapping = &mappingJSON
+	}
+	return clientModels, mappingChanged
 }
 
 func getUpstreamModelUpdateMinCheckIntervalSeconds() int64 {
@@ -501,13 +582,16 @@ func fetchAdvancedCustomUpstreamModelIDs(channel *model.Channel, baseURL string)
 	return parseOpenAIModelIDs(body)
 }
 
-func updateChannelUpstreamModelSettings(channel *model.Channel, settings dto.ChannelOtherSettings, updateModels bool) error {
+func updateChannelUpstreamModelSettings(channel *model.Channel, settings dto.ChannelOtherSettings, updateModels bool, updateModelMapping bool) error {
 	channel.SetOtherSettings(settings)
 	updates := map[string]any{
 		"settings": channel.OtherSettings,
 	}
 	if updateModels {
 		updates["models"] = channel.Models
+	}
+	if updateModelMapping {
+		updates["model_mapping"] = channel.ModelMapping
 	}
 	return model.DB.Model(&model.Channel{}).Where("id = ?", channel.Id).Updates(updates).Error
 }
@@ -517,28 +601,31 @@ func checkAndPersistChannelUpstreamModelUpdates(
 	settings *dto.ChannelOtherSettings,
 	force bool,
 	allowAutoApply bool,
-) (modelsChanged bool, autoAdded int, err error) {
+) (modelsChanged bool, autoAdded int, ruleConflicts []modelMappingRuleConflict, err error) {
 	now := common.GetTimestamp()
 	if !force {
 		minInterval := getUpstreamModelUpdateMinCheckIntervalSeconds()
 		if settings.UpstreamModelUpdateLastCheckTime > 0 &&
 			now-settings.UpstreamModelUpdateLastCheckTime < minInterval {
-			return false, 0, nil
+			return false, 0, nil, nil
 		}
 	}
 
-	pendingAddModels, pendingRemoveModels, fetchErr := collectPendingUpstreamModelChanges(channel, *settings)
+	pendingAddModels, pendingRemoveModels, ruleConflicts, fetchErr := collectPendingUpstreamModelChanges(channel, *settings)
 	settings.UpstreamModelUpdateLastCheckTime = now
 	if fetchErr != nil {
-		if err = updateChannelUpstreamModelSettings(channel, *settings, false); err != nil {
-			return false, 0, err
+		if err = updateChannelUpstreamModelSettings(channel, *settings, false, false); err != nil {
+			return false, 0, nil, err
 		}
-		return false, 0, fetchErr
+		return false, 0, nil, fetchErr
 	}
 
+	mappingChanged := false
 	if allowAutoApply && settings.UpstreamModelUpdateAutoSyncEnabled && len(pendingAddModels) > 0 {
 		originModels := normalizeModelNames(channel.GetModels())
-		mergedModels := mergeModelNames(originModels, pendingAddModels)
+		var clientModels []string
+		clientModels, mappingChanged = applyModelMappingRulesToUpstreamModels(channel, pendingAddModels, settings.ModelMappingRules)
+		mergedModels := mergeModelNames(originModels, clientModels)
 		if len(mergedModels) > len(originModels) {
 			channel.Models = strings.Join(mergedModels, ",")
 			autoAdded = len(mergedModels) - len(originModels)
@@ -550,15 +637,15 @@ func checkAndPersistChannelUpstreamModelUpdates(
 	}
 	settings.UpstreamModelUpdateLastRemovedModels = pendingRemoveModels
 
-	if err = updateChannelUpstreamModelSettings(channel, *settings, modelsChanged); err != nil {
-		return false, autoAdded, err
+	if err = updateChannelUpstreamModelSettings(channel, *settings, modelsChanged, mappingChanged); err != nil {
+		return false, autoAdded, ruleConflicts, err
 	}
 	if modelsChanged {
 		if err = channel.UpdateAbilities(nil); err != nil {
-			return true, autoAdded, err
+			return true, autoAdded, ruleConflicts, err
 		}
 	}
-	return modelsChanged, autoAdded, nil
+	return modelsChanged, autoAdded, ruleConflicts, nil
 }
 
 func refreshChannelRuntimeCache() {
@@ -770,7 +857,7 @@ scanLoop:
 			}
 
 			checkedChannels++
-			modelsChanged, autoAdded, err := checkAndPersistChannelUpstreamModelUpdates(channel, &settings, force, allowAutoApply)
+			modelsChanged, autoAdded, _, err := checkAndPersistChannelUpstreamModelUpdates(channel, &settings, force, allowAutoApply)
 			if err != nil {
 				failedChannels++
 				failedChannelIDs = append(failedChannelIDs, channel.Id)
@@ -924,6 +1011,7 @@ func ApplyChannelUpstreamModelUpdates(c *gin.Context) {
 			"remaining_models":        remainingModels,
 			"remaining_remove_models": remainingRemoveModels,
 			"models":                  channel.Models,
+			"model_mapping":           channel.ModelMapping,
 			"settings":                channel.OtherSettings,
 		},
 	})
@@ -950,7 +1038,7 @@ func DetectChannelUpstreamModelUpdates(c *gin.Context) {
 	}
 
 	settings := channel.GetOtherSettings()
-	modelsChanged, autoAdded, err := checkAndPersistChannelUpstreamModelUpdates(channel, &settings, true, false)
+	modelsChanged, autoAdded, ruleConflicts, err := checkAndPersistChannelUpstreamModelUpdates(channel, &settings, true, false)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -967,6 +1055,7 @@ func DetectChannelUpstreamModelUpdates(c *gin.Context) {
 			ChannelName:     channel.Name,
 			AddModels:       normalizeModelNames(settings.UpstreamModelUpdateLastDetectedModels),
 			RemoveModels:    normalizeModelNames(settings.UpstreamModelUpdateLastRemovedModels),
+			RuleConflicts:   ruleConflicts,
 			LastCheckTime:   settings.UpstreamModelUpdateLastCheckTime,
 			AutoAddedModels: autoAdded,
 		},
@@ -995,7 +1084,8 @@ func applyChannelUpstreamModelUpdates(
 	removeModels = subtractModelNames(removeModels, addModels)
 
 	originModels := normalizeModelNames(channel.GetModels())
-	nextModels := applySelectedModelChanges(originModels, addModels, removeModels)
+	clientAddModels, mappingChanged := applyModelMappingRulesToUpstreamModels(channel, addModels, settings.ModelMappingRules)
+	nextModels := applySelectedModelChanges(originModels, clientAddModels, removeModels)
 	modelsChanged = !slices.Equal(originModels, nextModels)
 	if modelsChanged {
 		channel.Models = strings.Join(nextModels, ",")
@@ -1011,7 +1101,7 @@ func applyChannelUpstreamModelUpdates(
 	settings.UpstreamModelUpdateLastRemovedModels = remainingRemoveModels
 	settings.UpstreamModelUpdateLastCheckTime = common.GetTimestamp()
 
-	if err := updateChannelUpstreamModelSettings(channel, settings, modelsChanged); err != nil {
+	if err := updateChannelUpstreamModelSettings(channel, settings, modelsChanged, mappingChanged); err != nil {
 		return nil, nil, nil, nil, false, err
 	}
 

@@ -31,7 +31,7 @@ import {
   MODEL_FETCHABLE_TYPES,
   OPENAI_FIELD_PASSTHROUGH_TYPES,
 } from '../constants'
-import type { Channel } from '../types'
+import type { Channel, ChannelModelMappingRule } from '../types'
 import {
   CHANNEL_TYPE_ADVANCED_CUSTOM,
   advancedCustomConfigUsesRelativeUpstreamPath,
@@ -202,6 +202,21 @@ function addRequiredIssue(
   })
 }
 
+/** Mirrors the server's required-field checks for saved model mapping rules. */
+export function hasIncompleteModelMappingRule(
+  rules: ChannelModelMappingRule[] | undefined
+): boolean {
+  return (rules ?? []).some((rule) => {
+    if (rule.type === 'strip_prefix' || rule.type === 'strip_suffix') {
+      return !(rule.values ?? '').split(',').some((value) => value.trim())
+    }
+    if (rule.type === 'add_prefix' || rule.type === 'add_suffix') {
+      return !rule.value?.trim()
+    }
+    return !rule.find
+  })
+}
+
 export const channelFormSchema = z
   .object({
     name: z.string().min(1, ERROR_MESSAGES.REQUIRED_NAME),
@@ -295,6 +310,24 @@ export const channelFormSchema = z
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
     upstream_model_update_ignored_models: z.string().optional(),
+    model_mapping_rules: z
+      .array(
+        z.object({
+          type: z.enum([
+            'strip_prefix',
+            'strip_suffix',
+            'add_prefix',
+            'add_suffix',
+            'replace',
+            'regex_replace',
+          ]),
+          values: z.string().optional(),
+          value: z.string().optional(),
+          find: z.string().optional(),
+          replace_with: z.string().optional(),
+        })
+      )
+      .optional(),
   })
   .superRefine((data, ctx) => {
     if (
@@ -321,6 +354,13 @@ export const channelFormSchema = z
       !data.task_plugin_key?.trim()
     ) {
       addRequiredIssue(ctx, 'task_plugin_key', 'Task plugin is required')
+    }
+    if (hasIncompleteModelMappingRule(data.model_mapping_rules)) {
+      addRequiredIssue(
+        ctx,
+        'model_mapping_rules',
+        'Complete or remove empty model mapping rules'
+      )
     }
 
     if (data.type === CHANNEL_TYPE_ADVANCED_CUSTOM) {
@@ -488,6 +528,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
+  model_mapping_rules: [],
   advanced_custom: '',
 }
 
@@ -564,6 +605,7 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
+  let modelMappingRules: ChannelModelMappingRule[] = []
   let advancedCustom = ''
 
   if (channel.settings) {
@@ -593,6 +635,9 @@ export function transformChannelToFormDefaults(
       )
         ? parsed.upstream_model_update_ignored_models.join(',')
         : ''
+      if (Array.isArray(parsed.model_mapping_rules)) {
+        modelMappingRules = parsed.model_mapping_rules
+      }
       if (parsed.advanced_custom) {
         advancedCustom = stringifyAdvancedCustomConfig(parsed.advanced_custom)
       }
@@ -649,6 +694,7 @@ export function transformChannelToFormDefaults(
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
+    model_mapping_rules: modelMappingRules,
     advanced_custom: advancedCustom,
   }
 }
@@ -847,6 +893,12 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     }
   } else if ('advanced_custom' in settingsObj) {
     delete settingsObj.advanced_custom
+  }
+
+  if (formData.model_mapping_rules?.length) {
+    settingsObj.model_mapping_rules = formData.model_mapping_rules
+  } else {
+    delete settingsObj.model_mapping_rules
   }
 
   return JSON.stringify(settingsObj)

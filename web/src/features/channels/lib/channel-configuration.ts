@@ -46,6 +46,7 @@ export type ChannelConfigurationStatus =
 
 const CONFIGURATION_BLOCKS = {
   modelMapping: { section: 'routing', fields: ['model_mapping'] },
+  modelMappingRules: { section: 'routing', fields: ['model_mapping_rules'] },
   routingStrategy: {
     section: 'routing',
     fields: ['priority', 'weight', 'test_model', 'auto_ban'],
@@ -140,6 +141,7 @@ export function getChannelConfigurationState(
   const claudePassthrough = CLAUDE_FIELD_PASSTHROUGH_TYPES.has(values.type)
   const configured: Record<ChannelConfigurationBlock, boolean> = {
     modelMapping: hasConfiguredJson(values.model_mapping),
+    modelMappingRules: Boolean(values.model_mapping_rules?.length),
     routingStrategy: Boolean(
       values.priority ||
       values.weight ||
