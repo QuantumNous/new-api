@@ -239,7 +239,7 @@ export function RedemptionsMutateDrawer({
 
   const handleSetExpiry = (months: number, days: number, hours: number) => {
     const newDate = addTimeToDate(months, days, hours)
-    form.setValue('expired_time', newDate)
+    form.setValue('expired_time', newDate ?? null)
   }
 
   const { meta: currencyMeta } = getCurrencyDisplay()
@@ -355,8 +355,8 @@ export function RedemptionsMutateDrawer({
                         <div className='flex flex-col gap-2'>
                           <FormControl>
                             <DateTimePicker
-                              value={field.value}
-                              onChange={field.onChange}
+                              value={field.value ?? undefined}
+                              onChange={(date) => field.onChange(date ?? null)}
                               placeholder={t('Never expires')}
                             />
                           </FormControl>

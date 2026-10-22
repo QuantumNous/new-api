@@ -279,6 +279,175 @@ describe('API keys mutate drawer Auto group integration', () => {
   })
 })
 
+describe('API keys mutate drawer switching records', () => {
+  test('shows Never expires and saves -1 for a never-expiring key opened after an expiring key', async () => {
+    const expiringKey = {
+      id: 11,
+      name: 'key-a',
+      key: 'sk-a',
+      status: 1,
+      remain_quota: 0,
+      used_quota: 0,
+      unlimited_quota: true,
+      expired_time: 1893456000,
+      created_time: 1700000000,
+      accessed_time: 1700000000,
+      group: 'default',
+      auto_groups: null,
+      cross_group_retry: false,
+      model_limits_enabled: false,
+      model_limits: '',
+      allow_ips: '',
+      allow_user_quota_query: false,
+    }
+    const neverExpiringKey = {
+      ...expiringKey,
+      id: 22,
+      name: 'key-b',
+      key: 'sk-b',
+      expired_time: -1,
+    }
+    const keysById = new Map([
+      [expiringKey.id, expiringKey],
+      [neverExpiringKey.id, neverExpiringKey],
+    ])
+    const updatedPayloads: Array<Record<string, unknown>> = []
+
+    apiClient.get = async (url) => {
+      const detailMatch = /^\/api\/token\/(\d+)$/.exec(url)
+      if (detailMatch) {
+        const key = keysById.get(Number(detailMatch[1]))
+        if (!key) throw new Error(`Unexpected token id ${detailMatch[1]}`)
+        return { data: { success: true, data: key } }
+      }
+      switch (url) {
+        case '/api/status':
+          return { data: { data: { default_use_auto_group: true } } }
+        case '/api/user/models':
+          return { data: { success: true, data: [] } }
+        case '/api/user/self/groups':
+          return {
+            data: {
+              success: true,
+              data: {
+                auto: { desc: 'Automatic routing', ratio: 'auto' },
+                default: { desc: 'Standard access', ratio: 1 },
+                vip: { desc: 'Priority access', ratio: 2 },
+              },
+            },
+          }
+        case '/api/token/auto-groups':
+          return {
+            data: {
+              success: true,
+              data: { groups: ['vip', 'default'], max_count: 3 },
+            },
+          }
+        default:
+          throw new Error(`Unexpected GET ${url}`)
+      }
+    }
+    const apiWithPut = apiClient as unknown as {
+      put: (url: string, data?: unknown) => Promise<{ data: unknown }>
+    }
+    const originalPut = apiWithPut.put
+    apiWithPut.put = async (url, data) => {
+      expect(url).toBe('/api/token/')
+      updatedPayloads.push(data as Record<string, unknown>)
+      return { data: { success: true, data: {} } }
+    }
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    const freshAt = Date.now() + 60_000
+    queryClient.setQueryData(
+      ['status'],
+      { default_use_auto_group: true },
+      { updatedAt: freshAt }
+    )
+    queryClient.setQueryData(
+      ['user-models'],
+      { success: true, data: [] },
+      { updatedAt: freshAt }
+    )
+    queryClient.setQueryData(
+      ['user-groups'],
+      {
+        success: true,
+        data: {
+          auto: { desc: 'Automatic routing', ratio: 'auto' },
+          default: { desc: 'Standard access', ratio: 1 },
+          vip: { desc: 'Priority access', ratio: 2 },
+        },
+      },
+      { updatedAt: freshAt }
+    )
+    queryClient.setQueryData(
+      ['token-auto-groups'],
+      {
+        success: true,
+        data: { groups: ['vip', 'default'], max_count: 3 },
+      },
+      { updatedAt: freshAt }
+    )
+    renderedDrawer = { queryClient }
+
+    const tree = (open: boolean, currentRow?: unknown) => (
+      <QueryClientProvider client={queryClient}>
+        <I18nextProvider i18n={i18n}>
+          <ApiKeysProvider>
+            <ApiKeysMutateDrawer
+              open={open}
+              onOpenChange={() => undefined}
+              currentRow={currentRow as never}
+            />
+          </ApiKeysProvider>
+        </I18nextProvider>
+      </QueryClientProvider>
+    )
+    const expiryButtonText = () => {
+      const label = [
+        ...document.querySelectorAll<HTMLLabelElement>('label'),
+      ].find((candidate) => candidate.textContent?.trim() === 'Expiration Time')
+      const item = label?.closest('[data-slot="form-item"]')
+      const button = item?.querySelector<HTMLButtonElement>('button')
+      return button?.textContent ?? ''
+    }
+
+    try {
+      const view = render(tree(true, expiringKey))
+      await waitFor(
+        () => expect(getControlByLabel('Name').value).toBe('key-a'),
+        { timeout: 2000 }
+      )
+      await waitFor(() =>
+        expect(expiryButtonText()).toMatch(/\d{4}-\d{2}-\d{2}/)
+      )
+
+      fireEvent.click(findButton('Close', true))
+      view.rerender(tree(false))
+      view.rerender(tree(true, neverExpiringKey))
+
+      await waitFor(
+        () => expect(getControlByLabel('Name').value).toBe('key-b'),
+        { timeout: 2000 }
+      )
+      await waitFor(
+        () => expect(expiryButtonText()).toContain('Never expires'),
+        { timeout: 2000 }
+      )
+
+      fireEvent.click(findButton('Save changes', true))
+      await waitFor(() => expect(updatedPayloads).toHaveLength(1))
+      expect(updatedPayloads[0]?.id).toBe(22)
+      expect(updatedPayloads[0]?.expired_time).toBe(-1)
+    } finally {
+      apiWithPut.put = originalPut
+    }
+  })
+})
+
 describe('API keys mutate drawer user quota query switch', () => {
   test('sends false for a new key after the switch, which starts on, is turned off', async () => {
     const createdPayloads: Array<Record<string, unknown>> = []
