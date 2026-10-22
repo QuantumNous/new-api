@@ -1232,6 +1232,36 @@ test('quick options and detailed settings share changes across tabs and save the
   })
 })
 
+test('upstream model allowlist loads from settings and saves as a trimmed list', async () => {
+  editingChannel.settings = JSON.stringify({
+    upstream_model_update_check_enabled: true,
+    upstream_model_update_allowed_models: ['gpt-*'],
+    upstream_model_update_ignored_models: ['*-mini'],
+  })
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+
+  await user.click(screen.getByRole('tab', { name: /Other Settings/ }))
+  const allowlist = screen.getByRole('textbox', {
+    name: 'Only sync these upstream models',
+  })
+  expect(allowlist).toHaveValue('gpt-*')
+  await user.clear(allowlist)
+  await user.type(allowlist, 'gpt-*, regex:(?i)^claude- ,gpt-*')
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as { settings: string }
+  expect(JSON.parse(payload.settings)).toMatchObject({
+    upstream_model_update_allowed_models: ['gpt-*', 'regex:(?i)^claude-'],
+    upstream_model_update_ignored_models: ['*-mini'],
+  })
+})
+
 test('quick options show only applicable shortcuts when the provider changes', async () => {
   const user = userEvent.setup()
   render(<ConfigurationHarness />)

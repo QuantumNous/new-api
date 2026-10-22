@@ -295,6 +295,7 @@ export const channelFormSchema = z
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
     upstream_model_update_ignored_models: z.string().optional(),
+    upstream_model_update_allowed_models: z.string().optional(),
   })
   .superRefine((data, ctx) => {
     if (
@@ -488,6 +489,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
+  upstream_model_update_allowed_models: '',
   advanced_custom: '',
 }
 
@@ -564,6 +566,7 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
+  let upstreamModelUpdateAllowedModels = ''
   let advancedCustom = ''
 
   if (channel.settings) {
@@ -592,6 +595,11 @@ export function transformChannelToFormDefaults(
         parsed.upstream_model_update_ignored_models
       )
         ? parsed.upstream_model_update_ignored_models.join(',')
+        : ''
+      upstreamModelUpdateAllowedModels = Array.isArray(
+        parsed.upstream_model_update_allowed_models
+      )
+        ? parsed.upstream_model_update_allowed_models.join(',')
         : ''
       if (parsed.advanced_custom) {
         advancedCustom = stringifyAdvancedCustomConfig(parsed.advanced_custom)
@@ -649,6 +657,7 @@ export function transformChannelToFormDefaults(
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
+    upstream_model_update_allowed_models: upstreamModelUpdateAllowedModels,
     advanced_custom: advancedCustom,
   }
 }
@@ -822,6 +831,14 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     settingsObj.upstream_model_update_ignored_models = [
       ...new Set(
         String(formData.upstream_model_update_ignored_models || '')
+          .split(',')
+          .map((model) => model.trim())
+          .filter(Boolean)
+      ),
+    ]
+    settingsObj.upstream_model_update_allowed_models = [
+      ...new Set(
+        String(formData.upstream_model_update_allowed_models || '')
           .split(',')
           .map((model) => model.trim())
           .filter(Boolean)

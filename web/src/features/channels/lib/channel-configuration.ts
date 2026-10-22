@@ -93,6 +93,7 @@ const CONFIGURATION_BLOCKS = {
     fields: [
       'upstream_model_update_check_enabled',
       'upstream_model_update_auto_sync_enabled',
+      'upstream_model_update_allowed_models',
       'upstream_model_update_ignored_models',
     ],
   },
@@ -184,6 +185,7 @@ export function getChannelConfigurationState(
       Boolean(
         values.upstream_model_update_check_enabled ||
         values.upstream_model_update_auto_sync_enabled ||
+        values.upstream_model_update_allowed_models?.trim() ||
         values.upstream_model_update_ignored_models?.trim()
       ),
     internalNotes: Boolean(values.tag?.trim() || values.remark?.trim()),

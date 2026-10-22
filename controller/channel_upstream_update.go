@@ -178,9 +178,38 @@ func normalizeChannelModelMapping(channel *model.Channel) map[string]string {
 	return normalized
 }
 
+// matchesUpstreamModelPattern reports whether an upstream model name matches
+// one allow or ignore list entry: regex:<RE2>, a case-sensitive * wildcard, or
+// an exact name.
+func matchesUpstreamModelPattern(pattern string, modelName string) bool {
+	if regexBody, ok := strings.CutPrefix(pattern, "regex:"); ok {
+		matched, err := regexp.MatchString(strings.TrimSpace(regexBody), modelName)
+		return err == nil && matched
+	}
+	if !strings.Contains(pattern, "*") {
+		return pattern == modelName
+	}
+	parts := strings.Split(pattern, "*")
+	rest, ok := strings.CutPrefix(modelName, parts[0])
+	if !ok {
+		return false
+	}
+	// Taking the leftmost match of each middle part leaves the longest
+	// remainder for the suffix, so no backtracking is needed.
+	for _, part := range parts[1 : len(parts)-1] {
+		_, after, found := strings.Cut(rest, part)
+		if !found {
+			return false
+		}
+		rest = after
+	}
+	return strings.HasSuffix(rest, parts[len(parts)-1])
+}
+
 func collectPendingUpstreamModelChangesFromModels(
 	localModels []string,
 	upstreamModels []string,
+	allowedModels []string,
 	ignoredModels []string,
 	modelMapping map[string]string,
 ) (pendingAddModels []string, pendingRemoveModels []string) {
@@ -195,6 +224,7 @@ func collectPendingUpstreamModelChangesFromModels(
 		upstreamSet[modelName] = struct{}{}
 	}
 
+	normalizedAllowedModels := normalizeModelNames(allowedModels)
 	normalizedIgnoredModels := normalizeModelNames(ignoredModels)
 
 	redirectSourceSet := make(map[string]struct{}, len(modelMapping))
@@ -216,16 +246,13 @@ func collectPendingUpstreamModelChangesFromModels(
 		if _, ok := coveredUpstreamSet[modelName]; ok {
 			return false
 		}
-		if lo.ContainsBy(normalizedIgnoredModels, func(ignoredModel string) bool {
-			if regexBody, ok := strings.CutPrefix(ignoredModel, "regex:"); ok {
-				matched, err := regexp.MatchString(strings.TrimSpace(regexBody), modelName)
-				return err == nil && matched
-			}
-			return ignoredModel == modelName
-		}) {
+		matchesModel := func(pattern string) bool {
+			return matchesUpstreamModelPattern(pattern, modelName)
+		}
+		if len(normalizedAllowedModels) > 0 && !slices.ContainsFunc(normalizedAllowedModels, matchesModel) {
 			return false
 		}
-		return true
+		return !slices.ContainsFunc(normalizedIgnoredModels, matchesModel)
 	})
 	pendingRemove := lo.Filter(localModels, func(modelName string, _ int) bool {
 		// Redirect source models are virtual aliases and should not be removed
@@ -247,6 +274,7 @@ func collectPendingUpstreamModelChanges(channel *model.Channel, settings dto.Cha
 	pendingAddModels, pendingRemoveModels = collectPendingUpstreamModelChangesFromModels(
 		channel.GetModels(),
 		upstreamModels,
+		settings.UpstreamModelUpdateAllowedModels,
 		settings.UpstreamModelUpdateIgnoredModels,
 		normalizeChannelModelMapping(channel),
 	)
