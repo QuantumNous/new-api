@@ -249,7 +249,9 @@ func collectPendingUpstreamModelChangesFromModels(
 		matchesModel := func(pattern string) bool {
 			return matchesUpstreamModelPattern(pattern, modelName)
 		}
-		if len(normalizedAllowedModels) > 0 && !slices.ContainsFunc(normalizedAllowedModels, matchesModel) {
+		// A configured allowlist stays restrictive even if every entry is
+		// blank after normalization.
+		if len(allowedModels) > 0 && !slices.ContainsFunc(normalizedAllowedModels, matchesModel) {
 			return false
 		}
 		return !slices.ContainsFunc(normalizedIgnoredModels, matchesModel)

@@ -550,6 +550,11 @@ func TestCollectPendingUpstreamModelChangesFromModels_AllowedAndIgnoredPatterns(
 			wantAdd: upstreamModels,
 		},
 		{
+			name:          "allowlist with only blank entries allows nothing",
+			allowedModels: []string{" ", ""},
+			wantAdd:       []string{},
+		},
+		{
 			name:          "exact allowlist entry",
 			allowedModels: []string{"claude-opus-5"},
 			wantAdd:       []string{"claude-opus-5"},

@@ -3141,7 +3141,7 @@
     "Ignored upstream models": "已忽略上游模型",
     "Only sync these upstream models": "仅同步这些上游模型",
     "e.g., gpt-*,regex:(?i)^claude-": "例如：gpt-*,regex:(?i)^claude-",
-    "Comma-separated. Leave empty to allow all models. Supports exact names, * wildcards, and the regex: prefix. A model must match this list and must not match the ignored list.": "使用英文逗号分隔。留空表示不限制。支持精确模型名、* 通配和 regex: 前缀。模型需先命中此列表，且不命中忽略列表。",
+    "Comma-separated. Leave empty to allow all models. Supports exact names, * wildcards, and the regex: prefix. A model must match this list and must not match the ignored list. Only affects models to add, not removals.": "使用英文逗号分隔。留空表示不限制。支持精确模型名、* 通配和 regex: 前缀。模型需先命中此列表，且不命中忽略列表。只影响新增，不影响删除。",
     "Comma-separated exact model names or * wildcards. Prefix with regex: to ignore by regular expression.": "使用英文逗号分隔精确模型名或 * 通配。以 regex: 开头可使用正则表达式忽略。",
     "image": "张",
     "Image": "图片",

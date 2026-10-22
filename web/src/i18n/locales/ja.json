@@ -3141,7 +3141,7 @@
     "Ignored upstream models": "無視する上流モデル",
     "Only sync these upstream models": "同期する上流モデルを限定",
     "e.g., gpt-*,regex:(?i)^claude-": "例: gpt-*,regex:(?i)^claude-",
-    "Comma-separated. Leave empty to allow all models. Supports exact names, * wildcards, and the regex: prefix. A model must match this list and must not match the ignored list.": "カンマ区切りで入力します。空欄の場合は制限しません。完全一致のモデル名、* ワイルドカード、regex: プレフィックスに対応します。モデルはこのリストに一致し、かつ無視リストに一致しない必要があります。",
+    "Comma-separated. Leave empty to allow all models. Supports exact names, * wildcards, and the regex: prefix. A model must match this list and must not match the ignored list. Only affects models to add, not removals.": "カンマ区切りで入力します。空欄の場合は制限しません。完全一致のモデル名、* ワイルドカード、regex: プレフィックスに対応します。モデルはこのリストに一致し、かつ無視リストに一致しない必要があります。追加のみに影響し、削除には影響しません。",
     "Comma-separated exact model names or * wildcards. Prefix with regex: to ignore by regular expression.": "完全一致のモデル名または * ワイルドカードをカンマ区切りで入力します。regex: で始めると正規表現で除外できます。",
     "image": "枚",
     "Image": "画像",

@@ -3141,7 +3141,7 @@
     "Ignored upstream models": "Ignored upstream models",
     "Only sync these upstream models": "Only sync these upstream models",
     "e.g., gpt-*,regex:(?i)^claude-": "e.g., gpt-*,regex:(?i)^claude-",
-    "Comma-separated. Leave empty to allow all models. Supports exact names, * wildcards, and the regex: prefix. A model must match this list and must not match the ignored list.": "Comma-separated. Leave empty to allow all models. Supports exact names, * wildcards, and the regex: prefix. A model must match this list and must not match the ignored list.",
+    "Comma-separated. Leave empty to allow all models. Supports exact names, * wildcards, and the regex: prefix. A model must match this list and must not match the ignored list. Only affects models to add, not removals.": "Comma-separated. Leave empty to allow all models. Supports exact names, * wildcards, and the regex: prefix. A model must match this list and must not match the ignored list. Only affects models to add, not removals.",
     "Comma-separated exact model names or * wildcards. Prefix with regex: to ignore by regular expression.": "Comma-separated exact model names or * wildcards. Prefix with regex: to ignore by regular expression.",
     "image": "image",
     "Image": "Image",

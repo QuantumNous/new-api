@@ -176,6 +176,11 @@ func (s *ChannelOtherSettings) ValidateUpstreamModelUpdatePatterns() error {
 		{"upstream_model_update_allowed_models", s.UpstreamModelUpdateAllowedModels},
 		{"upstream_model_update_ignored_models", s.UpstreamModelUpdateIgnoredModels},
 	}
+	for _, pattern := range s.UpstreamModelUpdateAllowedModels {
+		if strings.TrimSpace(pattern) == "" {
+			return fmt.Errorf("upstream_model_update_allowed_models must not contain empty entries")
+		}
+	}
 	for _, list := range lists {
 		for _, pattern := range list.patterns {
 			regexBody, ok := strings.CutPrefix(strings.TrimSpace(pattern), "regex:")

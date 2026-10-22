@@ -2375,7 +2375,7 @@ export function ChannelMutateDrawer({
               </FormControl>
               <FormDescription>
                 {t(
-                  'Comma-separated. Leave empty to allow all models. Supports exact names, * wildcards, and the regex: prefix. A model must match this list and must not match the ignored list.'
+                  'Comma-separated. Leave empty to allow all models. Supports exact names, * wildcards, and the regex: prefix. A model must match this list and must not match the ignored list. Only affects models to add, not removals.'
                 )}
               </FormDescription>
               <FormMessage />

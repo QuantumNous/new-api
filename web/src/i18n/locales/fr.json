@@ -3141,7 +3141,7 @@
     "Ignored upstream models": "Modèles amont ignorés",
     "Only sync these upstream models": "Synchroniser uniquement ces modèles amont",
     "e.g., gpt-*,regex:(?i)^claude-": "ex. : gpt-*,regex:(?i)^claude-",
-    "Comma-separated. Leave empty to allow all models. Supports exact names, * wildcards, and the regex: prefix. A model must match this list and must not match the ignored list.": "Séparés par des virgules. Laissez vide pour autoriser tous les modèles. Prend en charge les noms exacts, les jokers * et le préfixe regex:. Un modèle doit correspondre à cette liste et ne pas correspondre à la liste des modèles ignorés.",
+    "Comma-separated. Leave empty to allow all models. Supports exact names, * wildcards, and the regex: prefix. A model must match this list and must not match the ignored list. Only affects models to add, not removals.": "Séparés par des virgules. Laissez vide pour autoriser tous les modèles. Prend en charge les noms exacts, les jokers * et le préfixe regex:. Un modèle doit correspondre à cette liste et ne pas correspondre à la liste des modèles ignorés. Ne concerne que les ajouts, pas les suppressions.",
     "Comma-separated exact model names or * wildcards. Prefix with regex: to ignore by regular expression.": "Noms exacts de modèles ou jokers * séparés par des virgules. Préfixez avec regex: pour ignorer par expression régulière.",
     "image": "image",
     "Image": "Image",

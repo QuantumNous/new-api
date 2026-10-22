@@ -3141,7 +3141,7 @@
     "Ignored upstream models": "Mô hình upstream bị bỏ qua",
     "Only sync these upstream models": "Chỉ đồng bộ các mô hình upstream này",
     "e.g., gpt-*,regex:(?i)^claude-": "ví dụ: gpt-*,regex:(?i)^claude-",
-    "Comma-separated. Leave empty to allow all models. Supports exact names, * wildcards, and the regex: prefix. A model must match this list and must not match the ignored list.": "Phân tách bằng dấu phẩy. Để trống để cho phép mọi mô hình. Hỗ trợ tên chính xác, ký tự đại diện * và tiền tố regex:. Mô hình phải khớp danh sách này và không khớp danh sách bỏ qua.",
+    "Comma-separated. Leave empty to allow all models. Supports exact names, * wildcards, and the regex: prefix. A model must match this list and must not match the ignored list. Only affects models to add, not removals.": "Phân tách bằng dấu phẩy. Để trống để cho phép mọi mô hình. Hỗ trợ tên chính xác, ký tự đại diện * và tiền tố regex:. Mô hình phải khớp danh sách này và không khớp danh sách bỏ qua. Chỉ ảnh hưởng đến việc thêm, không ảnh hưởng đến việc xóa.",
     "Comma-separated exact model names or * wildcards. Prefix with regex: to ignore by regular expression.": "Tên mô hình chính xác hoặc ký tự đại diện *, phân tách bằng dấu phẩy. Thêm tiền tố regex: để bỏ qua bằng biểu thức chính quy.",
     "image": "ảnh",
     "Image": "Hình ảnh",
