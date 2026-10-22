@@ -30,11 +30,19 @@ func TestClaudeStreamFinalUsageEstimatesOnlyUncountedUsage(t *testing.T) {
 		name, startUsage, deltaUsage, stopReason string // no deltaUsage: the stream broke before message_delta
 		streamText                               bool
 		wantInput, wantOutput                    int
+		wantCacheRead, wantCacheCreation         int
+		wantCacheCreation5m, wantCacheCreation1h int
 		wantLocalCount                           bool
+		wantNoCanonicalUsage                     bool
 	}{
-		{name: "cache-only refusal keeps zeros", startUsage: `{"input_tokens":0,"output_tokens":0,"cache_creation_input_tokens":20000,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":20000}}`, deltaUsage: `{"output_tokens":0}`, stopReason: "refusal"},
-		{name: "broken stream keeps cache-only input", startUsage: `{"input_tokens":0,"output_tokens":1,"cache_read_input_tokens":50000}`, streamText: true, wantOutput: 2, wantLocalCount: true},
+		{name: "cache-only refusal keeps zeros", startUsage: `{"input_tokens":0,"output_tokens":0,"cache_creation_input_tokens":20000,"cache_creation":{"ephemeral_5m_input_tokens":0,"ephemeral_1h_input_tokens":20000}}`, deltaUsage: `{"output_tokens":0}`, stopReason: "refusal", wantCacheCreation: 20000, wantCacheCreation1h: 20000},
+		{name: "broken stream keeps cache-only input", startUsage: `{"input_tokens":0,"output_tokens":1,"cache_read_input_tokens":50000}`, streamText: true, wantOutput: 2, wantCacheRead: 50000, wantLocalCount: true},
+		{name: "broken stream with zero usage estimates only output", startUsage: `{"input_tokens":0,"output_tokens":0}`, streamText: true, wantOutput: 2, wantLocalCount: true},
+		{name: "zero-frame abort does not estimate input", wantLocalCount: true, wantNoCanonicalUsage: true},
+		{name: "broken stream keeps reported input and output", startUsage: `{"input_tokens":1000,"output_tokens":10}`, streamText: true, wantInput: 1000, wantOutput: 10, wantLocalCount: true},
+		{name: "broken stream keeps cache creation splits", startUsage: `{"input_tokens":0,"output_tokens":1,"cache_creation_input_tokens":300,"cache_creation":{"ephemeral_5m_input_tokens":100,"ephemeral_1h_input_tokens":200}}`, streamText: true, wantOutput: 2, wantCacheCreation: 300, wantCacheCreation5m: 100, wantCacheCreation1h: 200, wantLocalCount: true},
 		{name: "zeros after streamed text are estimated", startUsage: `{"input_tokens":0,"output_tokens":0}`, deltaUsage: `{"output_tokens":0}`, stopReason: "end_turn", streamText: true, wantInput: 1200, wantOutput: 2, wantLocalCount: true},
+		{name: "completed stream without usage keeps input estimate", startUsage: `null`, deltaUsage: `null`, stopReason: "end_turn", streamText: true, wantInput: 1200, wantOutput: 2, wantLocalCount: true},
 		{name: "zero delta input keeps start input", startUsage: `{"input_tokens":1000,"output_tokens":1}`, deltaUsage: `{"input_tokens":0,"output_tokens":50}`, stopReason: "end_turn", streamText: true, wantInput: 1000, wantOutput: 50},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -43,8 +51,10 @@ func TestClaudeStreamFinalUsageEstimatesOnlyUncountedUsage(t *testing.T) {
 			info := &relaycommon.RelayInfo{RelayFormat: types.RelayFormatClaude, ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "claude-opus-4-8"}}
 			info.SetEstimatePromptTokens(1200)
 			state := &ClaudeResponseInfo{Usage: &dto.Usage{}}
-			start := fmt.Sprintf(`{"type":"message_start","message":{"id":"msg_1","model":"claude-opus-4-8","usage":%s}}`, tc.startUsage)
-			require.Nil(t, HandleStreamResponseData(c, info, state, start))
+			if tc.startUsage != "" {
+				start := fmt.Sprintf(`{"type":"message_start","message":{"id":"msg_1","model":"claude-opus-4-8","usage":%s}}`, tc.startUsage)
+				require.Nil(t, HandleStreamResponseData(c, info, state, start))
+			}
 			if tc.streamText {
 				require.Nil(t, HandleStreamResponseData(c, info, state, `{"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hello"}}`))
 			}
@@ -56,11 +66,25 @@ func TestClaudeStreamFinalUsageEstimatesOnlyUncountedUsage(t *testing.T) {
 			HandleStreamFinalResponse(c, info, state)
 			assert.Equal(t, tc.wantInput, state.Usage.PromptTokens)
 			assert.Equal(t, tc.wantOutput, state.Usage.CompletionTokens)
+			assert.Equal(t, tc.wantInput+tc.wantOutput, state.Usage.TotalTokens)
+			assert.Equal(t, tc.wantCacheRead, state.Usage.PromptTokensDetails.CachedTokens)
+			assert.Equal(t, tc.wantCacheCreation, state.Usage.PromptTokensDetails.CachedCreationTokens)
+			assert.Equal(t, tc.wantCacheCreation5m, state.Usage.ClaudeCacheCreation5mTokens)
+			assert.Equal(t, tc.wantCacheCreation1h, state.Usage.ClaudeCacheCreation1hTokens)
 			assert.Equal(t, tc.wantLocalCount, common.GetContextKeyBool(c, constant.ContextKeyLocalCountTokens))
 			canonical, ok := state.Usage.BillingUsage.CanonicalUsage()
+			if tc.wantNoCanonicalUsage {
+				assert.False(t, ok)
+				assert.Nil(t, canonical)
+				return
+			}
 			require.True(t, ok)
 			assert.Equal(t, tc.wantInput, canonical.PromptTokens, "settlement must bill the same input")
 			assert.Equal(t, tc.wantOutput, canonical.CompletionTokens)
+			assert.Equal(t, tc.wantCacheRead, canonical.PromptTokensDetails.CachedTokens)
+			assert.Equal(t, tc.wantCacheCreation, canonical.PromptTokensDetails.CachedCreationTokens)
+			assert.Equal(t, tc.wantCacheCreation5m, canonical.ClaudeCacheCreation5mTokens)
+			assert.Equal(t, tc.wantCacheCreation1h, canonical.ClaudeCacheCreation1hTokens)
 		})
 	}
 }
@@ -298,7 +322,11 @@ func TestClaudeStreamFallbackCountsInterruptedToolUse(t *testing.T) {
 
 	// Text estimate plus the per-tool_use framing the upstream bills.
 	assert.Equal(t, tokenkit.Estimate("claude-sonnet-5", `read_file{"path":"main.go"}`)+40, claudeInfo.Usage.CompletionTokens)
-	assert.Equal(t, 100, claudeInfo.Usage.PromptTokens)
+	assert.Zero(t, claudeInfo.Usage.PromptTokens, "interrupted tool output must not imply the full input was consumed")
+	canonical, ok := claudeInfo.Usage.BillingUsage.CanonicalUsage()
+	require.True(t, ok)
+	assert.Zero(t, canonical.PromptTokens)
+	assert.Equal(t, claudeInfo.Usage.CompletionTokens, canonical.CompletionTokens)
 }
 
 func TestBuildOpenAIStyleUsageFromClaudeUsage(t *testing.T) {
