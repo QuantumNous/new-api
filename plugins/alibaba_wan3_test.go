@@ -83,8 +83,8 @@ func TestAlibabaWan3(t *testing.T) {
 		require.ErrorContains(t, callErr, "only supported by wan3.0")
 	})
 
-	// /v1/video/generations has no plugin decoder, so -1 reaches the host's
-	// request validation as a vendor parameter; duration-auto@1 lets it through.
+	// /v1/video/generations has no plugin decoder, so -1 reaches the plugin as
+	// a vendor parameter in metadata.
 	t.Run("metadata parameters keep -1 on /v1/video/generations", func(t *testing.T) {
 		body, facts, _ := submitAlibabaRequest(t, plugin, "wan3.0-video", map[string]any{
 			"model": "wan3.0-video", "prompt": "a cat", "metadata": map[string]any{"parameters": map[string]any{"duration": -1}},

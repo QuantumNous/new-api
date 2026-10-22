@@ -7,6 +7,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/gin-gonic/gin"
 )
@@ -31,8 +32,15 @@ func BuildTieredTokenParams(usage *dto.Usage, isClaudeUsageSemantic bool, usedVa
 	cc1h := float64(0)
 
 	if usage.UsageSemantic == "anthropic" {
-		cc1h = float64(usage.ClaudeCacheCreation1hTokens)
-		cc5m = float64(usage.ClaudeCacheCreation5mTokens)
+		// Upstreams may report the cache-write total without a full 5m/1h
+		// split; the unlabelled remainder is billed as 5m writes.
+		split5m, split1h := relayconvert.NormalizeCacheCreationSplit(
+			usage.PromptTokensDetails.CacheCreationTokensTotal(),
+			usage.ClaudeCacheCreation5mTokens,
+			usage.ClaudeCacheCreation1hTokens,
+		)
+		cc5m = float64(split5m)
+		cc1h = float64(split1h)
 	}
 
 	img := float64(usage.PromptTokensDetails.ImageTokens)

@@ -320,6 +320,72 @@ describe('local billing expression evaluation', () => {
 })
 
 describe('visual billing document', () => {
+  test('adding a condition to per-image pricing keeps image quantity outside the whole pricing tree', () => {
+    const document = parseVisualBillingDocument(
+      'image_count * tier("image", fixed(0.04))'
+    )
+    assert(document && document.root.kind === 'tier')
+    const original = document.root
+    document.root = {
+      id: 'priced-condition',
+      kind: 'branch',
+      condition: {
+        id: 'length',
+        kind: 'comparison',
+        probe: 'len',
+        timezone: '',
+        operator: '>=',
+        value: '100',
+      },
+      yes: {
+        ...original,
+        id: 'long',
+        origin: undefined,
+        label: 'long',
+        fixedPrice: '0.1',
+      },
+      no: original,
+    }
+    const result = serializeVisualBillingDocument(document)
+    assert(result.ok)
+    expect(
+      evaluateBillingExpression(result.source, {
+        imageCount: 3,
+        tokens: { len: 100 },
+      })
+    ).toMatchObject({ status: 'success', cost: 300000 })
+    expect(
+      evaluateBillingExpression(result.source, {
+        imageCount: 3,
+        tokens: { len: 0 },
+      })
+    ).toMatchObject({ status: 'success', cost: 120000 })
+  })
+  test.each([
+    'v1: (tier("image", fixed(0.04))) * image_count',
+    'image_count * tier("image", fixed(0.04))',
+  ])(
+    'editing a per-image price retains the quantity multiplier: %s',
+    (source) => {
+      const document = parseVisualBillingDocument(source)
+      assert(document)
+      expect(serializeVisualBillingDocument(document)).toEqual({
+        ok: true,
+        source,
+      })
+      assert(document.root.kind === 'tier')
+      document.root.fixedPrice = '0.05'
+      const updated = serializeVisualBillingDocument(document)
+      expect(updated).toEqual({
+        ok: true,
+        source: source.replace('0.04', '0.05'),
+      })
+      if (!updated.ok) return
+      expect(
+        evaluateBillingExpression(updated.source, { imageCount: 3 })
+      ).toMatchObject({ status: 'success', cost: 150000 })
+    }
+  )
   test.each([
     deepSeekExpression,
     `v1:  (hour('Asia/Shanghai') >= 9 ? tier('peak', cr * 0 + p * 3e0 + c * 9) : tier('off', c * 4.5 + p * 1.5))  `,

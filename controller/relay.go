@@ -248,7 +248,6 @@ func writeRelayStreamError(c *gin.Context, format types.RelayFormat, apiError *t
 	}
 	status.MarkFailed(string(apiError.GetErrorCode()), string(apiError.GetErrorType()), apiError.StatusCode)
 	upstreamURLs := common.UpstreamAddresses(c)
-	helper.ExtendWriteDeadline(c)
 	if format == types.RelayFormatClaude {
 		_ = helper.ClaudeData(c, dto.ClaudeResponse{Type: "error", Error: apiError.ToClaudeError(upstreamURLs...)})
 		return

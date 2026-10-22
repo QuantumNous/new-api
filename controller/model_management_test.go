@@ -1525,6 +1525,12 @@ func TestSharedModelPluginPricingDatabaseMatrix(t *testing.T) {
 				_, err := jsplugin.DefaultRegistry.Register(source, jsplugin.Options{})
 				require.NoError(t, err)
 				t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister(spec.key) })
+				if spec.key == "matrix-alpha" {
+					single, err := model.GetModelPricingSnapshot([]string{name})
+					require.NoError(t, err)
+					require.Len(t, single.Entries[0].PluginVariants, 1, "a sole provider must expose its separate pricing editor")
+					assert.Equal(t, "matrix-alpha", single.Entries[0].PluginVariants[0].PluginKey)
+				}
 			}
 
 			// Representative existing options have no plugin-expression row.
@@ -1560,6 +1566,21 @@ func TestSharedModelPluginPricingDatabaseMatrix(t *testing.T) {
 			assert.Equal(t, base, loaded.Entries[0].PluginVariants[0].Effective)
 			assert.True(t, loaded.Entries[0].PluginVariants[1].Compatible)
 			assert.Equal(t, variant, loaded.Entries[0].PluginVariants[1].Configured)
+			// Ordinary relay pricing and the existing plugin expressions are
+			// saved together without changing either plugin's billing contract.
+			ordinary := model.ModelPricingChange{ModelName: name, ExpectedVersion: loaded.Entries[0].Version, Pricing: model.PricingValues{
+				"billing_setting.billing_mode": "tiered_expr", "billing_setting.billing_expr": `tier("image", fixed(0.04)) * image_count`,
+				billing_setting.PluginBillingExprOption: map[string]any{"matrix-alpha": base, "matrix-beta": variant},
+			}}
+			require.NoError(t, model.UpdateModelPricing([]model.ModelPricingChange{ordinary}))
+			separate, err := model.GetModelPricingSnapshot([]string{name})
+			require.NoError(t, err)
+			assert.Equal(t, ordinary.Pricing, separate.Entries[0].Configured)
+			assert.Equal(t, base, separate.Entries[0].PluginVariants[0].Effective)
+			assert.Equal(t, variant, separate.Entries[0].PluginVariants[1].Effective)
+			// Keep exercising the pre-existing plugin-default configuration below.
+			change.ExpectedVersion = separate.Entries[0].Version
+			require.NoError(t, model.UpdateModelPricing([]model.ModelPricingChange{change}))
 			var flat map[string]string
 			require.NoError(t, common.UnmarshalJsonStr(loaded.Options[billing_setting.PluginBillingExprOption], &flat))
 			assert.Equal(t, map[string]string{"matrix-beta::" + name: variant}, flat)

@@ -326,8 +326,8 @@ profiles require their own examples, using the same validation as the defaults.
 
 The host resolves model aliases before selecting usage metadata. Model-level
 pricing and expression-save APIs use the declared target; an ambiguous alias
-with multiple targets in the same plugin retains the plugin defaults. Request
-and usage validation use the executing plugin and final upstream model. Polling
+with multiple targets in the same plugin retains the plugin defaults. Usage
+validation uses the executing plugin and final upstream model. Polling
 selects metadata from each saved task's model, including in mixed-model batches.
 An upstream name that no profile declares, such as a channel mapping to a vendor
 endpoint ID, falls back to the client-facing model's profile. Unmatched models

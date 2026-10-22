@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import * as z from 'zod'
 
+import type { ModelPricingPluginVariant } from '@/features/model-pricing/api'
 import {
   formatPricingAmount,
   USD_PRICING_CURRENCY,
@@ -29,6 +30,8 @@ import type {
 } from '@/features/model-pricing/pricing'
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
 import { formatBillingCondition } from '@/features/pricing/lib/billing-expression/condition-display'
+import { compileBillingExpression } from '@/features/pricing/lib/billing-expression/parser'
+import type { BillingUsageSchema } from '@/features/pricing/types'
 
 import { formatPricingNumber } from './pricing-format'
 
@@ -73,6 +76,34 @@ export type ModelRatioData = {
   billingMode?: PricingMode
   billingExpr?: string
   requestRuleExpr?: string
+}
+
+export function usesTaskModelPricing(
+  data: ModelRatioData | null | undefined,
+  schema: BillingUsageSchema | undefined,
+  variants: ModelPricingPluginVariant[] = []
+): boolean {
+  if (
+    data?.billingMode !== 'tiered_expr' &&
+    (hasValue(data?.price) || hasValue(data?.ratio))
+  ) {
+    return false
+  }
+  const compiled = compileBillingExpression(data?.billingExpr ?? '')
+  if (compiled.status === 'ready' && compiled.functions.has('u')) return true
+  if (!schema) return false
+  if (!data?.billingExpr?.trim()) return true
+  if (compiled.status === 'ready' && compiled.functions.has('fixed')) {
+    return false
+  }
+  const active = variants.filter((variant) => !variant.stale)
+  return (
+    active.length === 0 ||
+    active.some(
+      (variant) =>
+        !Object.hasOwn(data.pluginBillingExpr ?? {}, variant.plugin_key)
+    )
+  )
 }
 
 export type PreviewRow = {
