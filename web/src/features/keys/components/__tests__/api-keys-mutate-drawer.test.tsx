@@ -17,7 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { afterEach, describe, expect, test } from 'vitest'
+import { afterEach, describe, expect, test, vi } from 'vitest'
+
+import { apiKeySchema, type ApiKey } from '../../types'
 
 const { createInstance } = await import('i18next')
 const { I18nextProvider, initReactI18next } = await import('react-i18next')
@@ -298,4 +300,90 @@ describe('API keys mutate drawer user quota query switch', () => {
     await waitFor(() => expect(createdPayloads).toHaveLength(1))
     expect(createdPayloads[0]?.allow_user_quota_query).toBe(false)
   })
+})
+
+
+describe('API key expiry when reusing the drawer', () => {
+  test('keeps an uncached never-expiring key unchanged after closing a dated key', async () => {
+    installApiFixtures([])
+    const get = apiClient.get
+    const dated = apiKeySchema.parse({
+      id: 1,
+      name: 'dated-key',
+      key: 'fixture-key',
+      status: 1,
+      remain_quota: 0,
+      used_quota: 0,
+      unlimited_quota: true,
+      expired_time: new Date(2030, 0, 2, 12).getTime() / 1000,
+      created_time: 1,
+      accessed_time: 0,
+      model_limits_enabled: false,
+    })
+    const never = { ...dated, id: 2, name: 'never-key', expired_time: -1 }
+    let resolveDetail!: (value: { data: unknown }) => void
+    const detail = new Promise<{ data: unknown }>((resolve) => {
+      resolveDetail = resolve
+    })
+    apiClient.get = async (url) => {
+      if (url === '/api/token/1') {
+        return { data: { success: true, data: dated } }
+      }
+      if (url === '/api/token/2') return detail
+      return get(url)
+    }
+    const put = vi.spyOn(api, 'put').mockResolvedValue({ data: { success: true } })
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    })
+    renderedDrawer = { queryClient }
+    const tree = (currentRow: ApiKey, open = true) => (
+      <QueryClientProvider client={queryClient}>
+        <I18nextProvider i18n={i18n}>
+          <ApiKeysProvider>
+            <ApiKeysMutateDrawer
+              open={open}
+              currentRow={currentRow}
+              onOpenChange={() => undefined}
+            />
+          </ApiKeysProvider>
+        </I18nextProvider>
+      </QueryClientProvider>
+    )
+    const view = render(tree(dated))
+    await waitFor(() => expect(getControlByLabel('Name')).toHaveValue('dated-key'))
+    expect(await screen.findByRole('button', { name: '2030-01-02' })).toBeVisible()
+    fireEvent.click(findButton('Close', true))
+    view.rerender(tree(dated, false))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    view.rerender(tree(never))
+    expect(findButton('Save changes', true)).toBeDisabled()
+    resolveDetail({ data: { success: true, data: never } })
+    await waitFor(() => expect(getControlByLabel('Name')).toHaveValue('never-key'))
+    await waitFor(() => expect(findButton('Save changes', true)).toBeEnabled())
+    fireEvent.click(findButton('Save changes', true))
+    await waitFor(() => expect(put).toHaveBeenCalledWith('/api/token/', expect.objectContaining({
+      id: 2,
+      expired_time: -1,
+    })))
+    expect(screen.getByRole('button', { name: 'Never expires' })).toBeVisible()
+    expect(screen.getByLabelText('Time')).toBeDisabled()
+  })
+
+  test.each(['Never', 'Clear'])(
+    'saves a new key without expiry after selecting a date and clicking %s',
+    async (action) => {
+      const payloads: Array<Record<string, unknown>> = []
+      installApiFixtures(payloads)
+      await renderCreateDrawer()
+      changeInput(getControlByLabel('Name'), 'cleared-expiry')
+      fireEvent.click(screen.getByRole('button', { name: '1 Month' }))
+      expect(screen.getByLabelText('Time')).toBeEnabled()
+      fireEvent.click(screen.getByRole('button', { name: action, exact: true }))
+      expect(screen.getByRole('button', { name: 'Never expires' })).toBeVisible()
+      fireEvent.click(findButton('Save changes', true))
+      await waitFor(() => expect(payloads).toHaveLength(1))
+      expect(payloads[0].expired_time).toBe(-1)
+    }
+  )
 })

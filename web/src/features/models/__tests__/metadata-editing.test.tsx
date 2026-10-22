@@ -567,3 +567,68 @@ describe('metadata editing', () => {
     client.clear()
   })
 })
+
+
+describe('vendor when reusing the metadata drawer', () => {
+  it('saves an uncached model without a vendor after closing a model with a vendor', async () => {
+    useAuthStore.getState().auth.setUser({ id: 2, username: 'admin', role: 10 })
+    const unassigned: Model = {
+      id: 8,
+      model_name: 'unassigned-model',
+      description: 'No vendor',
+      status: 1,
+      sync_official: 1,
+      name_rule: 0,
+      created_time: 1,
+      updated_time: 1,
+    }
+    let resolveDetail!: (value: Awaited<ReturnType<typeof api.get>>) => void
+    const detail = new Promise<Awaited<ReturnType<typeof api.get>>>((resolve) => {
+      resolveDetail = resolve
+    })
+    vi.spyOn(api, 'get').mockImplementation(async (url) => {
+      if (url === '/api/models/7') {
+        return { data: { success: true, data: model } }
+      }
+      if (url === '/api/models/8') return detail
+      if (url === '/api/vendors/') {
+        return { data: { success: true, data: {
+          items: [{ id: 3, name: 'Existing vendor' }],
+        } } }
+      }
+      throw new Error(`Unexpected GET ${url}`)
+    })
+    const put = vi.spyOn(api, 'put').mockResolvedValue({ data: { success: true } })
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    })
+    const tree = (currentRow: Model, open = true) => (
+      <QueryClientProvider client={client}>
+        <ModelsProvider>
+          <ModelMutateDrawer
+            open={open}
+            onOpenChange={() => undefined}
+            currentRow={currentRow}
+          />
+        </ModelsProvider>
+      </QueryClientProvider>
+    )
+    const view = render(tree(model))
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Vendor' })).toHaveValue('Existing vendor'))
+    await userEvent.click(screen.getAllByRole('button', { name: 'Close', exact: true })[0])
+    view.rerender(tree(model, false))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    view.rerender(tree(unassigned))
+    await act(async () => {
+      resolveDetail({ data: { success: true, data: unassigned } })
+    })
+    await waitFor(() => expect(screen.getByRole('textbox', { name: /Model Name/ })).toHaveValue('unassigned-model'))
+    await userEvent.click(screen.getByRole('button', { name: 'Save metadata' }))
+    await waitFor(() => expect(put).toHaveBeenCalledWith('/api/models/', expect.objectContaining({
+      id: 8,
+      vendor_id: 0,
+    }), expect.any(Object)))
+    expect(screen.getByRole('combobox', { name: 'Vendor' })).toHaveValue('')
+    client.clear()
+  })
+})
