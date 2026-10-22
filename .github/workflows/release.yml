@@ -44,7 +44,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: '>=1.26'
+          go-version-file: go.mod
       - name: Build Backend (amd64)
         run: |
           go mod download
@@ -98,7 +98,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: '>=1.26'
+          go-version-file: go.mod
       - name: Build Backend
         run: |
           go mod download
@@ -149,7 +149,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
-          go-version: '>=1.26'
+          go-version-file: go.mod
       - name: Build Backend
         run: |
           go mod download
