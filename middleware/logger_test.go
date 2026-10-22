@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestSetUpLoggerRedactsQueryCredentialsWithoutChangingRequest verifies log masking and request preservation.
 func TestSetUpLoggerRedactsQueryCredentialsWithoutChangingRequest(t *testing.T) {
 	previousMode, previousWriter := gin.Mode(), gin.DefaultWriter
 	gin.SetMode(gin.TestMode)
@@ -58,6 +59,18 @@ func TestSetUpLoggerRedactsQueryCredentialsWithoutChangingRequest(t *testing.T) 
 			target:     "/v1beta/models/gemini%25test:generateContent?key=percent-secret",
 			loggedPath: "/v1beta/models/gemini%25test:generateContent?key=%2A%2A%2Amasked%2A%2A%2A",
 			secrets:    []string{"percent-secret"},
+		},
+		{
+			name: "literal hash in credential stays in the query", method: http.MethodGet, status: http.StatusUnauthorized,
+			target:     "/v1/models?key=#hash-secret",
+			loggedPath: "/v1/models?key=%2A%2A%2Amasked%2A%2A%2A",
+			secrets:    []string{"hash-secret"},
+		},
+		{
+			name: "literal hash before credential stays in the query", method: http.MethodGet, status: http.StatusUnauthorized,
+			target:     "/v1/models?alt=#sse&key=after-hash-secret",
+			loggedPath: "/v1/models?alt=%23sse&key=%2A%2A%2Amasked%2A%2A%2A",
+			secrets:    []string{"after-hash-secret"},
 		},
 		{
 			name: "ordinary query unchanged", method: http.MethodGet, status: http.StatusOK,
