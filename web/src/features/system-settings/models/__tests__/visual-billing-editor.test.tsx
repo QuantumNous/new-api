@@ -450,6 +450,49 @@ test('edits image cache pricing and preserves an explicitly free cache lane', ()
   ).toBeChecked()
 })
 
+test('keeps an OpenAI 12-hour cache write price through edits and labels the default write as 30 minutes', async () => {
+  const source =
+    'tier("base", p * 10 + c * 40 + cr * 1 + cc * 12.5 + cc12h * 25)'
+  const onBillingExprChange = vi.fn()
+  render(
+    <TieredPricingEditor
+      billingExpr={source}
+      requestRuleExpr=''
+      onBillingExprChange={onBillingExprChange}
+      onRequestRuleExprChange={vi.fn()}
+    />
+  )
+  const user = userEvent.setup()
+  const tier = within(screen.getByRole('group', { name: 'Pricing tier base' }))
+  expect(
+    tier.getByRole('textbox', { name: 'Cache Creation (30m)' })
+  ).toHaveValue('12.5')
+  expect(
+    tier.getByRole('textbox', { name: 'Cache create (12h) price' })
+  ).toHaveValue('25')
+  expect(
+    tier.getByRole('checkbox', { name: 'Include Cache create (1h) price' })
+  ).not.toBeChecked()
+  expect(onBillingExprChange).not.toHaveBeenCalled()
+
+  fireEvent.change(tier.getByRole('textbox', { name: 'Input price' }), {
+    target: { value: '11' },
+  })
+  expect(onBillingExprChange).toHaveBeenLastCalledWith(
+    source.replace('p * 10', 'p * 11')
+  )
+
+  await user.click(
+    tier.getByRole('checkbox', { name: 'Include Cache create (12h) price' })
+  )
+  expect(onBillingExprChange).toHaveBeenLastCalledWith(
+    'tier("base", p * 11 + c * 40 + cr * 1 + cc * 12.5)'
+  )
+  expect(tier.getByRole('textbox', { name: 'Cache create price' })).toHaveValue(
+    '12.5'
+  )
+})
+
 describe('visual time billing editor', () => {
   test.each([
     ['simple tiers', 'tier("base", p * 2 + c * 8)', '2'],

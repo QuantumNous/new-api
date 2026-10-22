@@ -220,7 +220,7 @@ func TestResponsesRequestToChatCompletionsRequestToolsToolChoiceAndTextFormat(t 
 	assert.Equal(t, "function", got.Tools[0].Type)
 	assert.Equal(t, "lookup", got.Tools[0].Function.Name)
 	assert.Equal(t, "Lookup data", got.Tools[0].Function.Description)
-	assert.Equal(t, "object", got.Tools[0].Function.Parameters.(map[string]any)["type"])
+	assert.Equal(t, "object", gjson.GetBytes(got.Tools[0].Function.Parameters, "type").String())
 	assert.Equal(t, map[string]any{
 		"type": "function",
 		"function": map[string]any{

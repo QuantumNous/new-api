@@ -100,13 +100,22 @@ func Distribute() func(c *gin.Context) {
 		if pinned || shouldSelectChannel {
 			usingGroup := common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
 			var selectErr *service.ChannelSelectError
-			channel, _, selectErr = service.SelectChannelForRequest(c, modelRequest.Model, &service.RetryParam{
-				Ctx:         c,
-				ModelName:   modelRequest.Model,
-				TokenGroup:  usingGroup,
-				RequestPath: c.Request.URL.Path,
-				Retry:       common.GetPointer(0),
-			})
+			if value, exists := c.Get(contextKeyTaskPluginEndpointSelection); exists && !pinned {
+				if selected, ok := value.(taskPluginEndpointSelection); ok && selected.Model == modelRequest.Model && selected.Channel != nil && selected.Channel.Status == common.ChannelStatusEnabled {
+					if matches, _ := model.ChannelSatisfiesFilters(selected.Channel, modelRequest.Model, constraints.Filters); matches {
+						channel = selected.Channel
+					}
+				}
+			}
+			if channel == nil {
+				channel, _, selectErr = service.SelectChannelForRequest(c, modelRequest.Model, &service.RetryParam{
+					Ctx:         c,
+					ModelName:   modelRequest.Model,
+					TokenGroup:  usingGroup,
+					RequestPath: c.Request.URL.Path,
+					Retry:       common.GetPointer(0),
+				})
+			}
 			if selectErr != nil {
 				if selectErr.FilterKind == taskdto.FilterTaskPluginIdentity {
 					logTaskPluginChannelDecision(c, selectErr.Channel, modelRequest.Model, "channel_rejected", "identity_mismatch")
