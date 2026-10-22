@@ -130,6 +130,7 @@ type ChannelOtherSettings struct {
 	UpstreamModelUpdateLastDetectedModels []string              `json:"upstream_model_update_last_detected_models,omitempty"` // 上次检测到的可加入模型
 	UpstreamModelUpdateLastRemovedModels  []string              `json:"upstream_model_update_last_removed_models,omitempty"`  // 上次检测到的可删除模型
 	UpstreamModelUpdateIgnoredModels      []string              `json:"upstream_model_update_ignored_models,omitempty"`       // 手动忽略的模型
+	UpstreamModelUpdateAllowedModels      []string              `json:"upstream_model_update_allowed_models,omitempty"`       // 只同步命中的模型，空表示不限制
 	AdvancedCustom                        *AdvancedCustomConfig `json:"advanced_custom,omitempty"`
 	// OllamaOpenAIChat routes Ollama chat completions to the OpenAI-compatible
 	// /v1/chat/completions endpoint. When unset, chat completions keep using
@@ -160,6 +161,43 @@ func (s *ChannelOtherSettings) ValidateToolLossPolicy() error {
 	default:
 		return fmt.Errorf("invalid tool_loss_policy: %s", s.ToolLossPolicy)
 	}
+}
+
+// ValidateUpstreamModelUpdatePatterns checks that every regex: entry in the
+// upstream model allow and ignore lists has a body that compiles. An empty
+// body would match every model.
+func (s *ChannelOtherSettings) ValidateUpstreamModelUpdatePatterns() error {
+	if s == nil {
+		return nil
+	}
+	lists := []struct {
+		field    string
+		patterns []string
+	}{
+		{"upstream_model_update_allowed_models", s.UpstreamModelUpdateAllowedModels},
+		{"upstream_model_update_ignored_models", s.UpstreamModelUpdateIgnoredModels},
+	}
+	for _, pattern := range s.UpstreamModelUpdateAllowedModels {
+		if strings.TrimSpace(pattern) == "" {
+			return fmt.Errorf("upstream_model_update_allowed_models must not contain empty entries")
+		}
+	}
+	for _, list := range lists {
+		for _, pattern := range list.patterns {
+			regexBody, ok := strings.CutPrefix(strings.TrimSpace(pattern), "regex:")
+			if !ok {
+				continue
+			}
+			regexBody = strings.TrimSpace(regexBody)
+			if regexBody == "" {
+				return fmt.Errorf("empty regex in %s: %s", list.field, pattern)
+			}
+			if _, err := regexp.Compile(regexBody); err != nil {
+				return fmt.Errorf("invalid regex in %s: %s", list.field, pattern)
+			}
+		}
+	}
+	return nil
 }
 
 const (

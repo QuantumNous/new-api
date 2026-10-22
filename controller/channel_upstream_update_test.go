@@ -511,6 +511,7 @@ func TestCollectPendingUpstreamModelChangesFromModels_WithModelMapping(t *testin
 	pendingAddModels, pendingRemoveModels := collectPendingUpstreamModelChangesFromModels(
 		[]string{"alias-model", "gpt-4o", "stale-model"},
 		[]string{"gpt-4o", "gpt-4.1", "mapped-target"},
+		nil,
 		[]string{"gpt-4.1"},
 		map[string]string{
 			"alias-model": "mapped-target",
@@ -525,12 +526,105 @@ func TestCollectPendingUpstreamModelChangesFromModels_WithIgnoredRegexPatterns(t
 	pendingAddModels, pendingRemoveModels := collectPendingUpstreamModelChangesFromModels(
 		[]string{"gpt-4o"},
 		[]string{"gpt-4o", "claude-3-5-sonnet", "sora-video", "gpt-4.1"},
+		nil,
 		[]string{"regex:^sora-.*$", "gpt-4.1"},
 		nil,
 	)
 
 	require.Equal(t, []string{"claude-3-5-sonnet"}, pendingAddModels)
 	require.Equal(t, []string{}, pendingRemoveModels)
+}
+
+func TestCollectPendingUpstreamModelChangesFromModels_AllowedAndIgnoredPatterns(t *testing.T) {
+	upstreamModels := []string{"gpt-6-sol", "gpt-6-mini", "claude-opus-5", "vendor/gpt-x", "GPT-6-pro", "text-embedding-4"}
+	tests := []struct {
+		name          string
+		localModels   []string
+		allowedModels []string
+		ignoredModels []string
+		modelMapping  map[string]string
+		wantAdd       []string
+	}{
+		{
+			name:    "empty allowlist keeps every uncovered model",
+			wantAdd: upstreamModels,
+		},
+		{
+			name:          "allowlist with only blank entries allows nothing",
+			allowedModels: []string{" ", ""},
+			wantAdd:       []string{},
+		},
+		{
+			name:          "exact allowlist entry",
+			allowedModels: []string{"claude-opus-5"},
+			wantAdd:       []string{"claude-opus-5"},
+		},
+		{
+			name:          "wildcard allowlist is anchored and case-sensitive",
+			allowedModels: []string{"gpt-*"},
+			wantAdd:       []string{"gpt-6-sol", "gpt-6-mini"},
+		},
+		{
+			name:          "regex allowlist can ignore case",
+			allowedModels: []string{"regex:(?i)^gpt-"},
+			wantAdd:       []string{"gpt-6-sol", "gpt-6-mini", "GPT-6-pro"},
+		},
+		{
+			name:          "ignore list still applies after allowlist",
+			allowedModels: []string{"gpt-*", "*embedding*"},
+			ignoredModels: []string{"*-mini"},
+			wantAdd:       []string{"gpt-6-sol", "text-embedding-4"},
+		},
+		{
+			name:          "wildcard in the middle",
+			allowedModels: []string{"*/gpt-*"},
+			wantAdd:       []string{"vendor/gpt-x"},
+		},
+		{
+			name:          "models covered by local list or mapping target are not pending",
+			localModels:   []string{"gpt-6-sol", "alias"},
+			allowedModels: []string{"gpt-*"},
+			modelMapping:  map[string]string{"alias": "gpt-6-mini"},
+			wantAdd:       []string{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pendingAddModels, _ := collectPendingUpstreamModelChangesFromModels(
+				test.localModels,
+				upstreamModels,
+				test.allowedModels,
+				test.ignoredModels,
+				test.modelMapping,
+			)
+			assert.Equal(t, test.wantAdd, pendingAddModels)
+		})
+	}
+}
+
+func TestMatchesUpstreamModelPattern(t *testing.T) {
+	tests := []struct {
+		pattern string
+		model   string
+		want    bool
+	}{
+		{"gpt-4o", "gpt-4o", true},
+		{"gpt-4o", "gpt-4o-mini", false},
+		{"*", "anything", true},
+		{"*-mini", "gpt-6-mini", true},
+		{"*-mini", "gpt-6-mini-high", false},
+		{"a*a", "a", false},
+		{"a*a", "aa", true},
+		{"*embedding*", "text-embedding-4", true},
+		{"gpt-*", "GPT-6", false},
+		{"gpt.*", "gpt-4", false},
+		{"regex:^sora-", "sora-2", true},
+		{"regex:(", "(", false},
+	}
+	for _, test := range tests {
+		assert.Equal(t, test.want, matchesUpstreamModelPattern(test.pattern, test.model), "%s vs %s", test.pattern, test.model)
+	}
 }
 
 func TestBuildUpstreamModelUpdateTaskNotificationContent_OmitOverflowDetails(t *testing.T) {

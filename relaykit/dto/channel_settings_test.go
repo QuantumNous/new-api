@@ -736,3 +736,31 @@ func TestChannelOtherSettingsValidateToolLossPolicy(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "tool_loss_policy")
 }
+
+func TestChannelOtherSettingsValidateUpstreamModelUpdatePatterns(t *testing.T) {
+	require.NoError(t, (*ChannelOtherSettings)(nil).ValidateUpstreamModelUpdatePatterns())
+	require.NoError(t, (&ChannelOtherSettings{
+		UpstreamModelUpdateAllowedModels: []string{"gpt-*", "regex:(?i)^claude-"},
+		UpstreamModelUpdateIgnoredModels: []string{"*-mini", "regex:^sora-.*$"},
+	}).ValidateUpstreamModelUpdatePatterns())
+
+	err := (&ChannelOtherSettings{UpstreamModelUpdateAllowedModels: []string{"regex:("}}).ValidateUpstreamModelUpdatePatterns()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "upstream_model_update_allowed_models")
+
+	err = (&ChannelOtherSettings{UpstreamModelUpdateAllowedModels: []string{" "}}).ValidateUpstreamModelUpdatePatterns()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty entries")
+
+	err = (&ChannelOtherSettings{UpstreamModelUpdateAllowedModels: []string{"regex:   "}}).ValidateUpstreamModelUpdatePatterns()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty regex in upstream_model_update_allowed_models")
+
+	err = (&ChannelOtherSettings{UpstreamModelUpdateIgnoredModels: []string{"regex:"}}).ValidateUpstreamModelUpdatePatterns()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty regex in upstream_model_update_ignored_models")
+
+	err = (&ChannelOtherSettings{UpstreamModelUpdateIgnoredModels: []string{"regex:[a-"}}).ValidateUpstreamModelUpdatePatterns()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "upstream_model_update_ignored_models")
+}

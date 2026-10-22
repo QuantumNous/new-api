@@ -318,6 +318,7 @@ const SENSITIVE_FORM_FIELDS = [
   'upstream_model_update_check_enabled',
   'upstream_model_update_auto_sync_enabled',
   'upstream_model_update_ignored_models',
+  'upstream_model_update_allowed_models',
 ] satisfies (keyof ChannelFormValues)[]
 
 function parseSettingsRecord(
@@ -2362,6 +2363,27 @@ export function ChannelMutateDrawer({
         </div>
         <FormField
           control={form.control}
+          name='upstream_model_update_allowed_models'
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('Only sync these upstream models')}</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder={t('e.g., gpt-*,regex:(?i)^claude-')}
+                  {...field}
+                />
+              </FormControl>
+              <FormDescription>
+                {t(
+                  'Comma-separated. Leave empty to allow all models. Supports exact names, * wildcards, and the regex: prefix. A model must match this list and must not match the ignored list. Only affects models to add, not removals.'
+                )}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
           name='upstream_model_update_ignored_models'
           render={({ field }) => (
             <FormItem>
@@ -2376,7 +2398,7 @@ export function ChannelMutateDrawer({
               </FormControl>
               <FormDescription>
                 {t(
-                  'Comma-separated exact model names. Prefix with regex: to ignore by regular expression.'
+                  'Comma-separated exact model names or * wildcards. Prefix with regex: to ignore by regular expression.'
                 )}
               </FormDescription>
               <FormMessage />
