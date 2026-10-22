@@ -5200,6 +5200,8 @@
     "{{count}} model(s) kept because the new name is taken": "{{count}} mô hình được giữ nguyên vì tên mới đã được dùng",
     "Conflicting models": "Mô hình xung đột",
     "Fix the model mapping JSON before applying rules": "Hãy sửa JSON ánh xạ mô hình trước khi áp dụng quy tắc",
+    "Complete or remove empty model mapping rules": "Hãy điền hoặc xóa các quy tắc ánh xạ trống",
+    "The form changed after the preview. Preview again.": "Biểu mẫu đã thay đổi sau khi xem trước. Hãy xem trước lại.",
     "Failed to preview model mapping rules": "Không thể xem trước quy tắc ánh xạ",
     "Invalid model mapping rules: {{error}}": "Quy tắc ánh xạ không hợp lệ: {{error}}",
     "Replace with": "Thay bằng",

@@ -5200,6 +5200,8 @@
     "{{count}} model(s) kept because the new name is taken": "新しい名前が使用済みのため {{count}} 個のモデルはそのままです",
     "Conflicting models": "競合するモデル",
     "Fix the model mapping JSON before applying rules": "ルールを適用する前にモデルマッピングの JSON を修正してください",
+    "Complete or remove empty model mapping rules": "空のマッピングルールを入力するか削除してください",
+    "The form changed after the preview. Preview again.": "プレビュー後にフォームが変更されました。もう一度プレビューしてください。",
     "Failed to preview model mapping rules": "マッピングルールのプレビューに失敗しました",
     "Invalid model mapping rules: {{error}}": "マッピングルールが無効です: {{error}}",
     "Replace with": "置換後",

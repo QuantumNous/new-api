@@ -1299,6 +1299,84 @@ test('applying saved mapping rules previews renames and saves the confirmed mode
   })
 })
 
+test('a preview confirmed after the rules changed is discarded and keeps the newer form values', async () => {
+  editingChannel.models = 'relay/gpt-6'
+  editingChannel.settings = JSON.stringify({
+    model_mapping_rules: [{ type: 'strip_prefix', values: 'relay/' }],
+  })
+  let resolvePreview: (value: unknown) => void = () => {}
+  vi.spyOn(api, 'post').mockReturnValue(
+    new Promise((resolve) => {
+      resolvePreview = resolve
+    })
+  )
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  const rules = screen.getByRole('group', { name: 'Model mapping rules' })
+  await user.click(
+    within(rules).getByRole('button', { name: 'Apply to existing models' })
+  )
+  await user.type(within(rules).getByRole('textbox', { name: 'Prefix' }), ',x/')
+  await act(async () => {
+    resolvePreview({
+      data: {
+        success: true,
+        data: {
+          models: ['gpt-6'],
+          model_mapping: { 'gpt-6': 'relay/gpt-6' },
+          changed: [
+            { from: 'relay/gpt-6', to: 'gpt-6', upstream: 'relay/gpt-6' },
+          ],
+          conflicts: [],
+        },
+      },
+    })
+  })
+  const dialog = await screen.findByRole('dialog', {
+    name: 'Apply rules to existing models',
+  })
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Apply changes' })
+  )
+
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as { models: string }
+  expect(payload.models).toBe('relay/gpt-6')
+})
+
+test('an empty model mapping rule blocks saving and preview with a field error', async () => {
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const post = vi.spyOn(api, 'post')
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  const rules = screen.getByRole('group', { name: 'Model mapping rules' })
+  await user.click(within(rules).getByRole('button', { name: 'Add rule' }))
+  await user.click(
+    within(rules).getByRole('button', { name: 'Apply to existing models' })
+  )
+  expect(post).not.toHaveBeenCalled()
+
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  expect(
+    await within(rules).findByText(
+      'Complete or remove empty model mapping rules'
+    )
+  ).toBeVisible()
+  expect(put).not.toHaveBeenCalled()
+})
+
 test('quick options show only applicable shortcuts when the provider changes', async () => {
   const user = userEvent.setup()
   render(<ConfigurationHarness />)

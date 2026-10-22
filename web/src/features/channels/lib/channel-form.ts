@@ -202,6 +202,21 @@ function addRequiredIssue(
   })
 }
 
+/** Mirrors the server's required-field checks for saved model mapping rules. */
+export function hasIncompleteModelMappingRule(
+  rules: ChannelModelMappingRule[] | undefined
+): boolean {
+  return (rules ?? []).some((rule) => {
+    if (rule.type === 'strip_prefix' || rule.type === 'strip_suffix') {
+      return !(rule.values ?? '').split(',').some((value) => value.trim())
+    }
+    if (rule.type === 'add_prefix' || rule.type === 'add_suffix') {
+      return !rule.value?.trim()
+    }
+    return !rule.find
+  })
+}
+
 export const channelFormSchema = z
   .object({
     name: z.string().min(1, ERROR_MESSAGES.REQUIRED_NAME),
@@ -339,6 +354,13 @@ export const channelFormSchema = z
       !data.task_plugin_key?.trim()
     ) {
       addRequiredIssue(ctx, 'task_plugin_key', 'Task plugin is required')
+    }
+    if (hasIncompleteModelMappingRule(data.model_mapping_rules)) {
+      addRequiredIssue(
+        ctx,
+        'model_mapping_rules',
+        'Complete or remove empty model mapping rules'
+      )
     }
 
     if (data.type === CHANNEL_TYPE_ADVANCED_CUSTOM) {

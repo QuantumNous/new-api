@@ -5200,6 +5200,8 @@
     "{{count}} model(s) kept because the new name is taken": "Не изменено моделей, так как новое имя занято: {{count}}",
     "Conflicting models": "Конфликтующие модели",
     "Fix the model mapping JSON before applying rules": "Исправьте JSON сопоставления моделей перед применением правил",
+    "Complete or remove empty model mapping rules": "Заполните или удалите пустые правила сопоставления",
+    "The form changed after the preview. Preview again.": "Форма изменилась после предпросмотра. Запустите предпросмотр снова.",
     "Failed to preview model mapping rules": "Не удалось просмотреть результат правил сопоставления",
     "Invalid model mapping rules: {{error}}": "Недопустимые правила сопоставления: {{error}}",
     "Replace with": "Заменить на",

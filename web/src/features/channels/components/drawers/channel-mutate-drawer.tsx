@@ -171,6 +171,7 @@ import {
   channelFormSchema,
   channelsQueryKeys,
   getAdvancedCustomStats,
+  hasIncompleteModelMappingRule,
   transformChannelToFormDefaults,
   type ChannelFormValues,
   deduplicateKeys,
@@ -489,6 +490,7 @@ export function ChannelMutateDrawer({
   const [rulesPreview, setRulesPreview] =
     useState<ModelMappingRulesPreview | null>(null)
   const [rulesPreviewLoading, setRulesPreviewLoading] = useState(false)
+  const rulesPreviewInputRef = useRef('')
   const [redirectPanelOpen, setRedirectPanelOpen] = useState(false)
   const [redirectSyncModels, setRedirectSyncModels] = useState(true)
   const syncedAliasesRef = useRef(new Set<string>())
@@ -1454,7 +1456,21 @@ export function ChannelMutateDrawer({
     [form, syncModelsWithMapping]
   )
 
+  const getRulesPreviewInput = useCallback(
+    () =>
+      JSON.stringify([
+        form.getValues('models') || '',
+        form.getValues('model_mapping') || '',
+        form.getValues('model_mapping_rules') ?? [],
+      ]),
+    [form]
+  )
+
   const handlePreviewMappingRules = useCallback(async () => {
+    if (hasIncompleteModelMappingRule(form.getValues('model_mapping_rules'))) {
+      toast.error(t('Complete or remove empty model mapping rules'))
+      return
+    }
     let mapping: unknown
     try {
       mapping = JSON.parse(form.getValues('model_mapping')?.trim() || '{}')
@@ -1466,6 +1482,7 @@ export function ChannelMutateDrawer({
       return
     }
     setRulesPreviewLoading(true)
+    rulesPreviewInputRef.current = getRulesPreviewInput()
     try {
       setRulesPreview(
         await previewModelMappingRules({
@@ -1479,10 +1496,17 @@ export function ChannelMutateDrawer({
     } finally {
       setRulesPreviewLoading(false)
     }
-  }, [form, t])
+  }, [form, getRulesPreviewInput, t])
 
   const handleConfirmMappingRules = useCallback(
     (preview: ModelMappingRulesPreview) => {
+      // The models, mapping, and rules stay editable while the preview loads;
+      // a preview of older values must not overwrite newer edits.
+      if (rulesPreviewInputRef.current !== getRulesPreviewInput()) {
+        setRulesPreview(null)
+        toast.error(t('The form changed after the preview. Preview again.'))
+        return
+      }
       form.setValue('models', formatModelsArray(preview.models), {
         shouldDirty: true,
       })
@@ -1495,7 +1519,7 @@ export function ChannelMutateDrawer({
       )
       setRulesPreview(null)
     },
-    [form]
+    [form, getRulesPreviewInput, t]
   )
 
   const handleBatchMappingApply = useCallback(

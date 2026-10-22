@@ -5200,6 +5200,8 @@
     "{{count}} model(s) kept because the new name is taken": "{{count}} modèle(s) conservés car le nouveau nom est déjà pris",
     "Conflicting models": "Modèles en conflit",
     "Fix the model mapping JSON before applying rules": "Corrigez le JSON du mappage de modèles avant d'appliquer les règles",
+    "Complete or remove empty model mapping rules": "Complétez ou supprimez les règles de mappage vides",
+    "The form changed after the preview. Preview again.": "Le formulaire a changé après l'aperçu. Relancez l'aperçu.",
     "Failed to preview model mapping rules": "Échec de l'aperçu des règles de mappage",
     "Invalid model mapping rules: {{error}}": "Règles de mappage invalides : {{error}}",
     "Replace with": "Remplacer par",

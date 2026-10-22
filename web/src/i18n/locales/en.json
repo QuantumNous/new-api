@@ -5200,6 +5200,8 @@
     "{{count}} model(s) kept because the new name is taken": "{{count}} model(s) kept because the new name is taken",
     "Conflicting models": "Conflicting models",
     "Fix the model mapping JSON before applying rules": "Fix the model mapping JSON before applying rules",
+    "Complete or remove empty model mapping rules": "Complete or remove empty model mapping rules",
+    "The form changed after the preview. Preview again.": "The form changed after the preview. Preview again.",
     "Failed to preview model mapping rules": "Failed to preview model mapping rules",
     "Invalid model mapping rules: {{error}}": "Invalid model mapping rules: {{error}}",
     "Replace with": "Replace with",
