@@ -93,12 +93,12 @@ function deferred<T>() {
   return { promise, reject, resolve }
 }
 
-function drawerTree(currentRow: Redemption) {
+function drawerTree(currentRow: Redemption, open = true) {
   return (
     <I18nextProvider i18n={i18n}>
       <RedemptionsProvider>
         <RedemptionsMutateDrawer
-          open
+          open={open}
           currentRow={currentRow}
           onOpenChange={() => undefined}
         />
@@ -129,11 +129,14 @@ async function renderDrawer(
   renderedDrawer = { result: render(drawerTree(currentRow)) }
 }
 
-async function rerenderDrawer(currentRow: Redemption): Promise<void> {
+async function rerenderDrawer(
+  currentRow: Redemption,
+  open = true
+): Promise<void> {
   if (!renderedDrawer) {
     throw new Error('Expected a rendered redemption drawer')
   }
-  renderedDrawer.result.rerender(drawerTree(currentRow))
+  renderedDrawer.result.rerender(drawerTree(currentRow, open))
 }
 
 function getSaveButton(): HTMLButtonElement {
@@ -315,4 +318,71 @@ describe('redemption drawer', () => {
     expect(updates[0]?.id).toBe(2)
     expect(updates[0]?.quota).toBe(1000001)
   })
+})
+
+
+describe('redemption expiry when reusing the drawer', () => {
+  test('keeps an uncached never-expiring code unchanged after closing a dated code', async () => {
+    const dated = {
+      ...redemption(1),
+      expired_time: new Date(2030, 0, 2, 12).getTime() / 1000,
+    }
+    const never = redemption(2)
+    const detail = deferred<{ data: unknown }>()
+    const updates: unknown[] = []
+    apiClient.get = async (url) => {
+      if (url === '/api/redemption/1') {
+        return { data: { success: true, data: dated } }
+      }
+      return detail.promise
+    }
+    apiClient.put = async (url, data) => {
+      expect(url).toBe('/api/redemption/')
+      updates.push(data)
+      return { data: { success: true } }
+    }
+    await renderDrawer(dated)
+    await waitForLoadedForm()
+    expect(await screen.findByRole('button', { name: '2030-01-02' })).toBeVisible()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Close', exact: true })[0])
+    await rerenderDrawer(dated, false)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await rerenderDrawer(never)
+    expect(screen.getByRole('button', { name: 'Loading...' })).toBeDisabled()
+    detail.resolve({ data: { success: true, data: never } })
+    await waitForLoadedForm()
+    fireEvent.click(getSaveButton())
+    await waitFor(() => expect(updates).toEqual([expect.objectContaining({
+      id: 2,
+      expired_time: 0,
+    })]))
+    expect(screen.getByRole('button', { name: 'Never expires' })).toBeVisible()
+    expect(screen.getByLabelText('Time')).toBeDisabled()
+  })
+
+  test.each(['Never', 'Clear'])(
+    'saves an existing code without expiry after clicking %s',
+    async (action) => {
+      const dated = {
+        ...redemption(1),
+        expired_time: new Date(2030, 0, 2, 12).getTime() / 1000,
+      }
+      const updates: unknown[] = []
+      apiClient.get = async () => ({ data: { success: true, data: dated } })
+      apiClient.put = async (_url, data) => {
+        updates.push(data)
+        return { data: { success: true } }
+      }
+      await renderDrawer(dated)
+      await waitForLoadedForm()
+      await screen.findByRole('button', { name: '2030-01-02' })
+      fireEvent.click(screen.getByRole('button', { name: action, exact: true }))
+      expect(screen.getByRole('button', { name: 'Never expires' })).toBeVisible()
+      fireEvent.click(getSaveButton())
+      await waitFor(() => expect(updates).toEqual([expect.objectContaining({
+        id: 1,
+        expired_time: 0,
+      })]))
+    }
+  )
 })

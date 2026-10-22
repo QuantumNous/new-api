@@ -401,7 +401,7 @@ export function ModelMutateDrawer(props: {
                                 }))}
                                 onValueChange={(value) =>
                                   field.onChange(
-                                    value ? Number.parseInt(value) : undefined
+                                    value ? Number.parseInt(value) : null
                                   )
                                 }
                                 value={field.value ? String(field.value) : null}
