@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 	"mime"
@@ -27,6 +28,7 @@ import (
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/QuantumNous/new-api/setting/system_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -651,6 +653,238 @@ export function buildContentRequest(ctx) {
 	assert.ErrorContains(t, err, "utils.fetch is not available in protocols.openai_video.render")
 }
 
+type taskQueryRoundTripper func(*http.Request) (*http.Response, error)
+
+func (f taskQueryRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	return f(req)
+}
+
+func TestTaskQueryRedirects(t *testing.T) {
+	service.InitHttpClient()
+	client := service.GetHttpClient()
+	originalClient := *client
+	fetchSetting := system_setting.GetFetchSetting()
+	originalSetting := *fetchSetting
+	t.Cleanup(func() {
+		*client = originalClient
+		*fetchSetting = originalSetting
+	})
+	*fetchSetting = system_setting.FetchSetting{
+		EnableSSRFProtection: true,
+		DomainList:           []string{"blocked.example"},
+		AllowedPorts:         []string{"1-65535"},
+	}
+	const source = `
+export const meta = {apiVersion:1,key:"redirect",name:"Redirect",version:"1.0.0",author:{name:"Test"},models:["m"],fetchMode:"batch"};
+export function buildSubmitRequest(ctx) {return {url:ctx.baseUrl+"/submit"};}
+export function parseSubmitResponse() {return {taskId:"task"};}
+export function buildQueryRequest(ctx) {return ctx.state;}
+export function parseTaskResult() {return {status:"SUCCESS"};}
+export function buildBatchQueryRequest(ctx,tasks) {return tasks[0].state;}
+export function parseBatchResult() {return [];}
+`
+	defaultPlugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	type redirectCase struct {
+		name           string
+		start          string
+		locations      []string
+		allowedHosts   []string
+		status         int
+		body           string
+		batch          bool
+		ordered        bool
+		loop           bool
+		wantRequests   int
+		credentialHops int
+		wantError      string
+	}
+	cases := []redirectCase{
+		{name: "host case and explicit default port", locations: []string{"https://API.example:443/final"}, wantRequests: 2, credentialHops: 2},
+		{name: "port change is cross origin", locations: []string{"https://api.example:8443/final"}, wantRequests: 2, credentialHops: 1},
+		{name: "subdomain is cross origin", locations: []string{"https://sub.api.example/final"}, wantRequests: 2, credentialHops: 1},
+		{name: "HTTPS upgrade keeps the configured host", start: "http://api.example/query", locations: []string{"https://api.example/final"}, wantRequests: 2, credentialHops: 2},
+		{name: "authorized cross origin", locations: []string{"https://cdn.example/final"}, allowedHosts: []string{"cdn.example"}, wantRequests: 2, credentialHops: 2},
+		{name: "allowedHosts does not authorize unlisted hosts", locations: []string{"https://other.example/final"}, allowedHosts: []string{"cdn.example"}, wantRequests: 2, credentialHops: 1},
+		{name: "explicit allowed port", locations: []string{"https://api.example:8443/final"}, allowedHosts: []string{"api.example:8443"}, wantRequests: 2, credentialHops: 2},
+		{name: "authorized origin does not authorize its subdomain", locations: []string{"https://sub.cdn.example/final"}, allowedHosts: []string{"cdn.example"}, wantRequests: 2, credentialHops: 1},
+		{name: "authorized origin does not authorize other ports", locations: []string{"https://cdn.example:8443/final"}, allowedHosts: []string{"cdn.example"}, wantRequests: 2, credentialHops: 1},
+		{name: "untrusted chain never restores credentials", locations: []string{"https://cdn.example/next", "/more", "https://api.example/final"}, wantRequests: 4, credentialHops: 1},
+		{name: "trust after an untrusted hop cannot restore credentials", locations: []string{"https://other.example/next", "https://cdn.example/final"}, allowedHosts: []string{"cdn.example"}, wantRequests: 3, credentialHops: 1},
+		{name: "authorized chain can return to origin", locations: []string{"https://cdn.example/next", "https://api.example/final"}, allowedHosts: []string{"cdn.example"}, wantRequests: 3, credentialHops: 3},
+		{name: "redirect URL credentials are removed", locations: []string{"https://username:location-secret@cdn.example/final"}, wantRequests: 2, credentialHops: 1},
+		{name: "SSRF still rejects an authorized origin", locations: []string{"https://blocked.example/final?key=location-secret"}, allowedHosts: []string{"blocked.example"}, wantRequests: 1, credentialHops: 1, wantError: "blocked"},
+		{name: "SSRF checks later hops", locations: []string{"https://cdn.example/next", "https://blocked.example/final"}, wantRequests: 2, credentialHops: 1, wantError: "blocked"},
+		{name: "HTTPS downgrade is rejected even for the channel host", locations: []string{"http://api.example/final?key=location-secret"}, wantRequests: 1, credentialHops: 1, wantError: "cannot downgrade HTTPS"},
+		{name: "redirect limit remains enforced", loop: true, wantRequests: 10, credentialHops: 10, wantError: "stopped after 10 redirects"},
+	}
+	for _, status := range []int{301, 302, 303, 307, 308} {
+		cases = append(cases,
+			redirectCase{name: fmt.Sprintf("same origin %d", status), status: status, locations: []string{"/final"}, wantRequests: 2, credentialHops: 2},
+			redirectCase{name: fmt.Sprintf("cross origin %d", status), status: status, locations: []string{"https://cdn.example/final?signature=download-token"}, wantRequests: 2, credentialHops: 1},
+		)
+	}
+	for _, status := range []int{307, 308} {
+		cases = append(cases,
+			redirectCase{name: fmt.Sprintf("batch same origin body %d", status), status: status, body: `{"ids":["task"]}`, batch: true, locations: []string{"/final"}, wantRequests: 2, credentialHops: 2},
+			redirectCase{name: fmt.Sprintf("batch untrusted body %d", status), status: status, body: `{"ids":["task"]}`, batch: true, locations: []string{"https://cdn.example/final?key=location-secret"}, wantRequests: 1, credentialHops: 1, wantError: "cannot replay a body"},
+			redirectCase{name: fmt.Sprintf("batch authorized body %d", status), status: status, body: `{"ids":["task"]}`, batch: true, ordered: true, locations: []string{"https://cdn.example/final"}, allowedHosts: []string{"cdn.example"}, wantRequests: 2, credentialHops: 2},
+		)
+	}
+	cases = append(cases, redirectCase{name: "POST to GET across origins", status: 303, body: `{"ids":["task"]}`, batch: true, locations: []string{"https://cdn.example/final"}, wantRequests: 2, credentialHops: 1})
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.start == "" {
+				tc.start = "https://api.example/query?key=query-secret"
+			}
+			if tc.status == 0 {
+				tc.status = http.StatusFound
+			}
+			descriptor := requestDescriptor{URL: tc.start, Method: http.MethodGet, Headers: map[string]string{
+				"Authorization": "Bearer channel-secret", "Cookie": "session=channel-secret",
+				"X-API-Key": "channel-secret", "x-goog-api-key": "channel-secret", "X-Vendor-Credential": "channel-secret",
+				"Accept": "application/json", "Accept-Language": "en", "Content-Type": "application/json",
+			}}
+			if tc.body != "" {
+				descriptor.Method, descriptor.Body = http.MethodPost, tc.body
+			}
+			state, err := common.Marshal(descriptor)
+			require.NoError(t, err)
+			task := &model.Task{TaskID: "task", PrivateData: model.TaskPrivateData{PluginState: state}}
+			type sentRequest struct {
+				request *http.Request
+				body    string
+			}
+			var sent []sentRequest
+			// Exercise net/http's real redirect machinery without external DNS
+			// or TLS servers; the transport records exactly what it would send.
+			client.Transport = taskQueryRoundTripper(func(req *http.Request) (*http.Response, error) {
+				var body []byte
+				if req.Body != nil {
+					var readErr error
+					body, readErr = io.ReadAll(req.Body)
+					require.NoError(t, readErr)
+					require.NoError(t, req.Body.Close())
+				}
+				sent = append(sent, sentRequest{request: req.Clone(req.Context()), body: string(body)})
+				resp := &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(`{"status":"SUCCESS"}`)), Request: req}
+				if tc.loop {
+					resp.StatusCode = tc.status
+					resp.Header.Set("Location", "/query")
+				} else if len(sent) <= len(tc.locations) {
+					resp.StatusCode = tc.status
+					resp.Header.Set("Location", tc.locations[len(sent)-1])
+				}
+				return resp, nil
+			})
+			pluginSource := source
+			if len(tc.allowedHosts) > 0 {
+				hosts, marshalErr := common.Marshal(tc.allowedHosts)
+				require.NoError(t, marshalErr)
+				pluginSource = strings.Replace(pluginSource, `fetchMode:"batch"`, `fetchMode:"batch",allowedHosts:`+string(hosts), 1)
+			}
+			if tc.ordered {
+				pluginSource = strings.Replace(pluginSource, `fetchMode:"batch"`, `fetchMode:"batch",requiredCapabilities:["json-order@1"]`, 1)
+			}
+			plugin, registerErr := pluginruntime.NewRegistry().Register(pluginSource, pluginruntime.Options{})
+			require.NoError(t, registerErr)
+			adaptor := New(plugin)
+			var resp *http.Response
+			if tc.batch {
+				resp, err = adaptor.FetchBatchTasks(tc.start, "channel-secret", []*model.Task{task}, "")
+			} else {
+				resp, err = adaptor.FetchTask(tc.start, "channel-secret", task, "")
+			}
+			if tc.wantError != "" {
+				require.ErrorContains(t, err, tc.wantError)
+				assert.NotContains(t, err.Error(), "location-secret")
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
+				require.NoError(t, resp.Body.Close())
+			}
+			require.Len(t, sent, tc.wantRequests)
+			for i, hop := range sent {
+				for _, name := range []string{"Authorization", "Cookie", "X-API-Key", "X-Goog-Api-Key", "X-Vendor-Credential"} {
+					if i < tc.credentialHops {
+						assert.Contains(t, hop.request.Header.Get(name), "channel-secret", "hop %d, header %s", i, name)
+					} else {
+						assert.Empty(t, hop.request.Header.Get(name), "hop %d, header %s", i, name)
+					}
+				}
+				if i >= tc.credentialHops {
+					assert.Empty(t, hop.request.Header.Get("Referer"), "hop %d", i)
+					assert.Nil(t, hop.request.URL.User, "hop %d", i)
+				}
+				assert.Equal(t, "application/json", hop.request.Header.Get("Accept"))
+				assert.Equal(t, "en", hop.request.Header.Get("Accept-Language"))
+				if i == 0 || tc.status == 307 || tc.status == 308 {
+					assert.Equal(t, tc.body, hop.body)
+					assert.Equal(t, descriptor.Method, hop.request.Method)
+				} else {
+					assert.Empty(t, hop.body)
+					assert.Equal(t, http.MethodGet, hop.request.Method)
+				}
+			}
+			if tc.wantError == "" && strings.Contains(tc.locations[len(tc.locations)-1], "signature=") {
+				assert.Equal(t, "download-token", sent[len(sent)-1].request.URL.Query().Get("signature"))
+			}
+		})
+	}
+
+	t.Run("query policy does not change the shared client", func(t *testing.T) {
+		var headers []http.Header
+		client.Transport = taskQueryRoundTripper(func(req *http.Request) (*http.Response, error) {
+			headers = append(headers, req.Header.Clone())
+			resp := &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: http.NoBody, Request: req}
+			if len(headers) == 1 {
+				resp.StatusCode = http.StatusFound
+				resp.Header.Set("Location", "https://cdn.example/final")
+			}
+			return resp, nil
+		})
+		req, err := http.NewRequest(http.MethodGet, "https://api.example/query", nil)
+		require.NoError(t, err)
+		req.Header.Set("X-API-Key", "shared-client-value")
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+		require.Len(t, headers, 2)
+		assert.Equal(t, "shared-client-value", headers[1].Get("X-API-Key"))
+	})
+
+	t.Run("real HTTP receivers do not receive cross origin credentials", func(t *testing.T) {
+		client.Transport = originalClient.Transport
+		fetchSetting.AllowPrivateIp = true
+		received := make(chan http.Header, 2)
+		target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			received <- r.Header.Clone()
+			_, _ = w.Write([]byte(`{"status":"SUCCESS"}`))
+		}))
+		defer target.Close()
+		origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			received <- r.Header.Clone()
+			http.Redirect(w, r, target.URL+"/final", http.StatusFound)
+		}))
+		defer origin.Close()
+		resp, err := New(defaultPlugin).doFetchDescriptor(origin.URL, "", "", requestDescriptor{
+			URL:     origin.URL + "/query?key=query-secret",
+			Headers: map[string]string{"X-API-Key": "channel-secret", "x-goog-api-key": "channel-secret", "X-Vendor-Credential": "channel-secret"},
+		})
+		require.NoError(t, err)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+		assert.JSONEq(t, `{"status":"SUCCESS"}`, string(body))
+		initialHeaders, redirectedHeaders := <-received, <-received
+		assert.Equal(t, "channel-secret", initialHeaders.Get("X-API-Key"))
+		for _, name := range []string{"X-API-Key", "X-Goog-Api-Key", "X-Vendor-Credential", "Referer"} {
+			assert.Empty(t, redirectedHeaders.Get(name), name)
+		}
+	})
+}
+
 func TestTaskAdaptorMapsJSContract(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	service.InitHttpClient()
@@ -737,6 +971,115 @@ func TestTaskAdaptorMapsJSContract(t *testing.T) {
 	}`, string(rendered))
 	_, err = plugin.Engine.Export(context.Background(), "meta")
 	require.NoError(t, err)
+}
+
+func TestTaskAdaptorHeaderOverrides(t *testing.T) {
+	service.InitHttpClient()
+	source := strings.ReplaceAll(mockPlugin, `"X-Plugin":`, `"Authorization": "plugin-default", "X-Plugin":`)
+	source += `
+export function buildBatchQueryRequest(ctx) {
+  return {url: ctx.baseUrl + "/batch", method: "POST", headers: {Authorization: "plugin-default", "X-Plugin": "batch"}, body: {}};
+}
+export function parseBatchResult() { return {}; }
+`
+	plugin, err := pluginruntime.NewRegistry().Register(source, pluginruntime.Options{})
+	require.NoError(t, err)
+	overrides := map[string]any{
+		"X-API-Key":     "{api_key}",
+		"Authorization": "Custom {api_key}",
+		"X-Plugin":      "configured",
+		"Host":          "upstream.example",
+		"*":             true,
+		"re:^X-Trace-":  true,
+		"X-Client":      "{client_header:X-Trace-Id}",
+	}
+	for _, mode := range []string{"submit", "poll", "batch"} {
+		for _, tc := range []struct {
+			name    string
+			headers map[string]any
+			invalid bool
+		}{
+			{name: "plugin defaults"},
+			{name: "channel overrides", headers: overrides},
+			{name: "invalid header value", headers: map[string]any{"X-API-Key": "key\r\nInjected: value"}, invalid: true},
+		} {
+			t.Run(mode+"/"+tc.name, func(t *testing.T) {
+				received := make(chan *http.Request, 1)
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					received <- r.Clone(r.Context())
+					_, _ = w.Write([]byte(`{}`))
+				}))
+				defer server.Close()
+				info := &relaycommon.RelayInfo{
+					ChannelMeta: &relaycommon.ChannelMeta{
+						ChannelBaseUrl:  server.URL,
+						ApiKey:          "channel-key",
+						HeadersOverride: tc.headers,
+					},
+					TaskRelayInfo: &relaycommon.TaskRelayInfo{},
+				}
+				adaptor := New(plugin)
+				adaptor.Init(info)
+				task := &model.Task{PrivateData: model.TaskPrivateData{UpstreamTaskID: "task-1", Key: "task-key"}}
+				var resp *http.Response
+				var requestErr error
+				wantKey := "channel-key"
+				wantPlugin := "submit"
+				switch mode {
+				case "submit":
+					c, _ := gin.CreateTestContext(httptest.NewRecorder())
+					c.Request = httptest.NewRequest(http.MethodPost, "/v1/videos", nil)
+					c.Request.Header.Set("X-Trace-Id", "client-trace")
+					c.Request.Header.Set("X-API-Key", "client-key")
+					c.Request.Header.Set("Authorization", "client-authorization")
+					c.Request.Header.Set("Cookie", "client-session")
+					c.Set("task_request", relaycommon.TaskSubmitReq{Prompt: "hello"})
+					body, err := adaptor.BuildRequestBody(c, info)
+					require.NoError(t, err)
+					resp, requestErr = adaptor.DoRequest(c, info, body)
+				case "poll":
+					wantKey, wantPlugin = "task-key", "query"
+					resp, requestErr = adaptor.FetchTask(server.URL, "argument-key", task, "")
+				case "batch":
+					wantKey, wantPlugin = "batch-key", "batch"
+					resp, requestErr = adaptor.FetchBatchTasks(server.URL, "batch-key", []*model.Task{task}, "")
+				}
+				if resp != nil {
+					t.Cleanup(func() { _ = resp.Body.Close() })
+				}
+				if tc.invalid {
+					require.Error(t, requestErr)
+					assert.Nil(t, resp)
+					assert.Empty(t, received, "invalid configuration must reject the descriptor request before sending it")
+					return
+				}
+				require.NoError(t, requestErr)
+				require.NotNil(t, resp)
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
+				require.Len(t, received, 1)
+				request := <-received
+				assert.Empty(t, request.Header.Get("Cookie"))
+				if tc.headers == nil {
+					assert.Equal(t, wantPlugin, request.Header.Get("X-Plugin"))
+					assert.Equal(t, "plugin-default", request.Header.Get("Authorization"))
+					assert.Empty(t, request.Header.Get("X-API-Key"))
+				} else {
+					assert.Equal(t, "configured", request.Header.Get("X-Plugin"))
+					assert.Equal(t, wantKey, request.Header.Get("X-API-Key"))
+					assert.Equal(t, "Custom "+wantKey, request.Header.Get("Authorization"))
+					assert.Equal(t, "upstream.example", request.Host)
+					wantClient := ""
+					if mode == "submit" {
+						wantClient = "client-trace"
+					}
+					assert.Equal(t, wantClient, request.Header.Get("X-Client"))
+					assert.Equal(t, wantClient, request.Header.Get("X-Trace-Id"))
+					assert.Equal(t, "{api_key}", tc.headers["X-API-Key"], "resolving credentials must not mutate channel configuration")
+				}
+				assert.Equal(t, "channel-key", info.ApiKey, "polling must not change shared channel credentials")
+			})
+		}
+	}
 }
 
 func TestTaskAdaptorPreservesSoraVideoResponseFields(t *testing.T) {
