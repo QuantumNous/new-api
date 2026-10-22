@@ -536,7 +536,14 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 		s.toolsByIndex[chatIndex] = tool
 	}
 	if tool.Done {
-		return nil, fmt.Errorf("tool-call stream index %d received data after completion", chatIndex)
+		// Late deltas after completion are merged silently: re-emitting
+		// events would corrupt the output sequence and dropping them would
+		// lose arguments.
+		if toolCall.Function.Arguments != "" {
+			tool.Arguments.WriteString(toolCall.Function.Arguments)
+			s.usageText.WriteString(toolCall.Function.Arguments)
+		}
+		return nil, nil
 	}
 	if incomingID != "" {
 		if tool.CallID != "" && tool.CallID != incomingID {
@@ -556,6 +563,12 @@ func (s *ChatToResponsesStreamState) appendToolCallDelta(toolCall dto.ToolCallRe
 	}
 	delta := toolCall.Function.Arguments
 	tool.Arguments.WriteString(delta)
+	if delta != "" {
+		s.usageText.WriteString(delta)
+	}
+	if incomingName != "" {
+		s.usageText.WriteString(incomingName)
+	}
 	// A nameless call is invalid Responses output, so hold it back until a
 	// valid name arrives. Announcement also determines whether it is custom.
 	if !tool.Announced && tool.Name != "" {
@@ -701,15 +714,17 @@ func (s *ChatToResponsesStreamState) doneDeltaEvents() []ChatToResponsesStreamEv
 				Input:       kitutil.GetPointer(input),
 			}))
 		} else {
+			// Responses clients rely on the final arguments payload and the
+			// custom-tool-mapped name on the done event regardless of
+			// sequence numbering.
 			argumentsDone := dto.ResponsesStreamResponse{
 				Type:        responsesEventFunctionArgsDone,
 				OutputIndex: intPtr(tool.OutputIndex),
 				ItemID:      tool.ItemID,
 			}
-			if s.EmitSequenceNumber {
-				argumentsDone.Arguments = kitutil.GetPointer(tool.Arguments.String())
-				_, argumentsDone.Name = s.Tools.ResponsesToolName(tool.Name)
-			}
+			_, responsesName := s.Tools.ResponsesToolName(tool.Name)
+			argumentsDone.Name = responsesName
+			argumentsDone.Arguments = kitutil.GetPointer(tool.Arguments.String())
 			events = append(events, s.event(responsesEventFunctionArgsDone, argumentsDone))
 		}
 		events = append(events, s.event(responsesEventOutputItemDone, dto.ResponsesStreamResponse{
@@ -829,16 +844,17 @@ func (s *ChatToResponsesStreamState) nextHostedIndex(id string) int {
 	return index
 }
 
+// sortedTools orders pending tool completions by their Responses output_index
+// so done events never run backwards in the output sequence, even when the
+// Chat Completions tool_call indexes arrived out of order.
 func (s *ChatToResponsesStreamState) sortedTools() []*chatToResponsesStreamTool {
-	indexes := make([]int, 0, len(s.toolsByIndex))
-	for index := range s.toolsByIndex {
-		indexes = append(indexes, index)
+	tools := make([]*chatToResponsesStreamTool, 0, len(s.toolsByIndex))
+	for _, tool := range s.toolsByIndex {
+		tools = append(tools, tool)
 	}
-	sort.Ints(indexes)
-	tools := make([]*chatToResponsesStreamTool, 0, len(indexes))
-	for _, index := range indexes {
-		tools = append(tools, s.toolsByIndex[index])
-	}
+	sort.Slice(tools, func(i, j int) bool {
+		return tools[i].OutputIndex < tools[j].OutputIndex
+	})
 	return tools
 }
 

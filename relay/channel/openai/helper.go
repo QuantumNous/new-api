@@ -204,28 +204,38 @@ func HandleFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, lastStream
 		helper.Done(c)
 
 	case types.RelayFormatClaude:
-		var streamResponse dto.ChatCompletionsStreamResponse
-		if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &streamResponse); err != nil {
-			common.SysLog(common.LogText("error unmarshalling stream response: %s", err.Error()))
-			return
-		}
+		if lastStreamData != "" {
+			var streamResponse dto.ChatCompletionsStreamResponse
+			if err := common.Unmarshal(common.StringToByteSlice(lastStreamData), &streamResponse); err != nil {
+				common.SysLog(common.LogText("error unmarshalling stream response: %s", err.Error()))
+			} else {
+				info.ClaudeConvertInfo.Usage = usage
 
-		info.ClaudeConvertInfo.Usage = usage
-
-		result, err := service.ConvertStreamResponse(c, info, types.RelayFormatClaude, &streamResponse)
-		if err != nil {
-			common.SysLog(common.LogText("error converting Claude stream response: %s", err.Error()))
-			return
+				result, err := service.ConvertStreamResponse(c, info, types.RelayFormatClaude, &streamResponse)
+				if err != nil {
+					common.SysLog(common.LogText("error converting Claude stream response: %s", err.Error()))
+				} else if claudeResponses, ok := result.Value.([]*dto.ClaudeResponse); ok {
+					for _, resp := range claudeResponses {
+						_ = helper.ClaudeData(c, *resp)
+					}
+				} else {
+					common.SysLog(common.LogText("expected Claude stream responses, got %T", result.Value))
+				}
+			}
 		}
-		claudeResponses, ok := result.Value.([]*dto.ClaudeResponse)
-		if !ok {
-			common.SysLog(common.LogText("expected Claude stream responses, got %T", result.Value))
-			return
+		// Issue #1428: when the upstream stream ended without producing the
+		// terminal message_delta/message_stop - a finish chunk without usage
+		// still waiting for a usage-only frame, or a truncated upstream - synthesize
+		// them so Anthropic clients see a protocol-valid end instead of a
+		// dangling open content block.
+		if info.ClaudeConvertInfo != nil {
+			if info.SendResponseCount > 0 && !info.ClaudeConvertInfo.Done {
+				for _, resp := range relayconvert.FinalizeStreamResponseOpenAI2Claude(info) {
+					_ = helper.ClaudeData(c, *resp)
+				}
+			}
+			info.ClaudeConvertInfo.Done = true
 		}
-		for _, resp := range claudeResponses {
-			_ = helper.ClaudeData(c, *resp)
-		}
-		info.ClaudeConvertInfo.Done = true
 
 	case types.RelayFormatGemini:
 		var streamResponse dto.ChatCompletionsStreamResponse

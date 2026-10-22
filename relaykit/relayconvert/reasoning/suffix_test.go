@@ -70,6 +70,18 @@ func TestParseKnownProviderModelSuffix(t *testing.T) {
 			wantEffort:         EffortHigh,
 		},
 		{
+			name:      "claude effort tail kept when adapter is off",
+			model:     "claude-opus-5-5-high",
+			wantBase:  "claude-opus-5-5-high",
+			wantFound: false,
+		},
+		{
+			name:      "gemini effort tail kept when adapter is off",
+			model:     "gemini-2.5-flash-high",
+			wantBase:  "gemini-2.5-flash-high",
+			wantFound: false,
+		},
+		{
 			name:               "gemini thinking alias",
 			model:              "gemini-2.5-flash-thinking",
 			allowThinkingAlias: true,

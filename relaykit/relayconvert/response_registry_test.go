@@ -1,11 +1,14 @@
 package relayconvert
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,8 +23,8 @@ func TestLookupBuiltinResponseConverters(t *testing.T) {
 		quality        ResponseConverterQuality
 		stepConverters []string
 	}{
-		{lookupID: ResponseConverterOAIChatToOAIResponses, id: ConverterOpenAIChatToOpenAIResponses, from: types.RelayFormatOpenAI, to: types.RelayFormatOpenAIResponses, quality: ResponseConverterQualityGood},
-		{lookupID: ResponseConverterOAIResponsesToOAIChat, id: ConverterOpenAIResponsesToOpenAIChat, from: types.RelayFormatOpenAIResponses, to: types.RelayFormatOpenAI, quality: ResponseConverterQualityGood},
+		{lookupID: ResponseConverterOAIChatToOAIResponses, id: ConverterOpenAIChatToOpenAIResponses, from: types.RelayFormatOpenAI, to: types.RelayFormatOpenAIResponses, quality: ResponseConverterQualityFair},
+		{lookupID: ResponseConverterOAIResponsesToOAIChat, id: ConverterOpenAIResponsesToOpenAIChat, from: types.RelayFormatOpenAIResponses, to: types.RelayFormatOpenAI, quality: ResponseConverterQualityFair},
 		{lookupID: ResponseConverterOAIChatToClaudeMessages, id: ConverterOpenAIChatToClaudeMessages, from: types.RelayFormatOpenAI, to: types.RelayFormatClaude, quality: ResponseConverterQualityFair},
 		{lookupID: ResponseConverterOAIChatToGeminiChat, id: ConverterOpenAIChatToGeminiContent, from: types.RelayFormatOpenAI, to: types.RelayFormatGemini, quality: ResponseConverterQualityFair},
 		{lookupID: ResponseConverterClaudeMessagesToOAIChat, id: ConverterClaudeMessagesToOpenAIChat, from: types.RelayFormatClaude, to: types.RelayFormatOpenAI, quality: ResponseConverterQualityFair},
@@ -126,7 +129,7 @@ func TestConvertResponseDirectConverters(t *testing.T) {
 	toResponses, err := ConvertResponse(nil, info, types.RelayFormatOpenAIResponses, chat)
 	require.NoError(t, err)
 	assert.Equal(t, ConverterOpenAIChatToOpenAIResponses, toResponses.Converter)
-	assert.Equal(t, ResponseConverterQualityGood, toResponses.Quality)
+	assert.Equal(t, ResponseConverterQualityFair, toResponses.Quality)
 	assert.Equal(t, types.RelayFormatOpenAI, toResponses.From)
 	assert.Equal(t, types.RelayFormat(types.RelayFormatOpenAIResponses), toResponses.To)
 	assert.Equal(t, []ResponseStep{{Converter: ConverterOpenAIChatToOpenAIResponses, From: types.RelayFormatOpenAI, To: types.RelayFormatOpenAIResponses}}, toResponses.Steps)
@@ -156,7 +159,7 @@ func TestConvertResponseDirectConverters(t *testing.T) {
 	toChat, err := ConvertResponse(nil, info, types.RelayFormatOpenAI, responses)
 	require.NoError(t, err)
 	assert.Equal(t, ConverterOpenAIResponsesToOpenAIChat, toChat.Converter)
-	assert.Equal(t, ResponseConverterQualityGood, toChat.Quality)
+	assert.Equal(t, ResponseConverterQualityFair, toChat.Quality)
 	require.IsType(t, &dto.OpenAITextResponse{}, toChat.Value)
 	assert.Equal(t, 10, toChat.Usage.TotalTokens)
 	require.NotNil(t, toChat.Usage.BillingUsage)
@@ -800,4 +803,57 @@ func TestConvertResponseToResponsesRestoresRecordedCustomTools(t *testing.T) {
 			}, toolEvents)
 		})
 	}
+}
+
+// the upstream stream is truncated before any stop event.
+func TestFinalizeClaudeMessagesStreamToOAIChatSynthesizesTerminalChunk(t *testing.T) {
+	state, err := NewResponseStreamState(types.RelayFormatClaude, types.RelayFormatOpenAI, ResponseStreamOptions{})
+	require.NoError(t, err)
+
+	_, err = ConvertStreamResponseChunk(nil, nil, state, &dto.ClaudeResponse{
+		Type:    "message_start",
+		Message: &dto.ClaudeMediaMessage{Id: "msg_1", Model: "claude-test", Type: "message"},
+	})
+	require.NoError(t, err)
+	_, err = ConvertStreamResponseChunk(nil, nil, state, &dto.ClaudeResponse{
+		Type:         "content_block_start",
+		Index:        respPtr(0),
+		ContentBlock: &dto.ClaudeMediaMessage{Type: "tool_use", Id: "toolu_1", Name: "lookup"},
+	})
+	require.NoError(t, err)
+
+	results, err := FinalizeStreamResponse(nil, nil, state)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	chunk, ok := results[0].Value.(*dto.ChatCompletionsStreamResponse)
+	require.True(t, ok)
+	require.NotNil(t, chunk)
+	require.Len(t, chunk.Choices, 1)
+	require.NotNil(t, chunk.Choices[0].FinishReason)
+	assert.Equal(t, "tool_calls", *chunk.Choices[0].FinishReason)
+	assert.Equal(t, "msg_1", chunk.Id)
+}
+
+// claude_thinking_signature_missing diagnostic at the registry entry.
+func TestConvertOAIChatToClaudeThinkingSignatureDiagnostic(t *testing.T) {
+	ctx, collector := convdiag.WithCollector(context.Background())
+	chat := &dto.OpenAITextResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.OpenAITextResponseChoice{
+			{Index: 0, Message: dto.Message{Role: "assistant", Content: "answer", ReasoningContent: kitutil.GetPointer("hmm")}, FinishReason: "stop"},
+		},
+	}
+	result, err := ConvertResponse(ctx, nil, types.RelayFormatClaude, chat)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	found := false
+	for _, diagnostic := range collector.Diagnostics() {
+		if diagnostic.Code == "claude_thinking_signature_missing" {
+			found = true
+			assert.Equal(t, types.ConversionDiagnosticWarning, diagnostic.Severity)
+		}
+	}
+	assert.True(t, found, "expected claude_thinking_signature_missing diagnostic")
 }

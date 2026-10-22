@@ -47,7 +47,7 @@ func ResponsesRequestToChatCompletionsRequest(ctx context.Context, req *dto.Open
 		return nil, err
 	}
 
-	tools, err := responsesRequestToolsToChat(req.Tools)
+	tools, err := responsesRequestToolsToChat(ctx, req.Tools)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +146,7 @@ func ValidateRequestChatUnsupportedFields(req *dto.OpenAIResponsesRequest) error
 func responsesRequestMessagesToChat(ctx context.Context, req *dto.OpenAIResponsesRequest) ([]dto.Message, error) {
 	messages := make([]dto.Message, 0)
 	if rawJSONPresent(req.Instructions) {
-		instructions, err := responsesJSONString(req.Instructions)
+		instructions, err := responsesInstructionsToChatText(ctx, req.Instructions)
 		if err != nil {
 			return nil, fmt.Errorf("invalid instructions: %w", err)
 		}
@@ -176,11 +176,31 @@ func responsesRequestMessagesToChat(ctx context.Context, req *dto.OpenAIResponse
 		// batch to stay contiguous, so media hoisted out of tool output items is
 		// held back and emitted as a single user message once the batch ends.
 		var pendingMedia []any
+		// Reasoning items preceding a function_call ride on that assistant
+		// message as reasoning_content instead of being dropped (#6396).
+		var pendingReasoning []string
 		for _, item := range items {
 			itemType := strings.TrimSpace(kitutil.Interface2String(item["type"]))
 			if len(pendingMedia) > 0 && itemType != responsesInputTypeFunctionCallOutput && itemType != responsesInputTypeCustomToolOutput {
 				messages = append(messages, dto.Message{Role: "user", Content: pendingMedia})
 				pendingMedia = nil
+			}
+			if itemType == "reasoning" {
+				if text := responsesReasoningItemText(item); text != "" {
+					pendingReasoning = append(pendingReasoning, text)
+				}
+				continue
+			}
+			if len(pendingReasoning) > 0 && (itemType == responsesInputTypeFunctionCall || itemType == responsesInputTypeCustomToolCall) {
+				if len(messages) == 0 || messages[len(messages)-1].Role != "assistant" {
+					messages = append(messages, dto.Message{Role: "assistant"})
+				}
+				assistant := &messages[len(messages)-1]
+				if assistant.ReasoningContent == nil {
+					reasoning := strings.Join(pendingReasoning, "\n\n")
+					assistant.ReasoningContent = &reasoning
+				}
+				pendingReasoning = nil
 			}
 			nextMessages, media, err := responsesInputItemToChatMessages(ctx, item, messages)
 			if err != nil {
@@ -196,6 +216,53 @@ func responsesRequestMessagesToChat(ctx context.Context, req *dto.OpenAIResponse
 	default:
 		return nil, fmt.Errorf("unsupported responses input type %q", kitutil.GetJsonType(req.Input))
 	}
+}
+
+// responsesInstructionsToChatText decodes instructions as a string, falling
+// back to a content-part array whose text parts are concatenated. Anything
+// else is skipped with a diagnostic instead of embedding raw JSON into the
+// system message. The input string branch is unaffected.
+func responsesInstructionsToChatText(ctx context.Context, raw json.RawMessage) (string, error) {
+	if kitutil.GetJsonType(raw) == "string" {
+		var value string
+		if err := kitutil.Unmarshal(raw, &value); err != nil {
+			return "", err
+		}
+		return value, nil
+	}
+	var parts []map[string]any
+	if err := kitutil.Unmarshal(raw, &parts); err != nil {
+		convdiag.Add(ctx, types.ConversionDiagnostic{
+			Code:     "dropped_content_part",
+			Path:     "instructions",
+			Message:  "Responses instructions are neither a string nor a text content-part array and were dropped",
+			Severity: types.ConversionDiagnosticWarning,
+			From:     types.RelayFormatOpenAIResponses,
+			To:       types.RelayFormatOpenAI,
+		})
+		return "", nil
+	}
+	var sb strings.Builder
+	onlyText := true
+	for _, part := range parts {
+		partType := strings.TrimSpace(kitutil.Interface2String(part["type"]))
+		if partType != "" && partType != "input_text" && partType != "text" {
+			onlyText = false
+			continue
+		}
+		sb.WriteString(kitutil.Interface2String(part["text"]))
+	}
+	if !onlyText {
+		convdiag.Add(ctx, types.ConversionDiagnostic{
+			Code:     "dropped_content_part",
+			Path:     "instructions",
+			Message:  "Responses instructions contain non-text content parts which were dropped",
+			Severity: types.ConversionDiagnosticWarning,
+			From:     types.RelayFormatOpenAIResponses,
+			To:       types.RelayFormatOpenAI,
+		})
+	}
+	return sb.String(), nil
 }
 
 // responsesInputItemToChatMessages appends the Chat messages for one Responses input item.
@@ -223,14 +290,55 @@ func responsesInputItemToChatMessages(ctx context.Context, item map[string]any, 
 	}
 
 	role := strings.TrimSpace(kitutil.Interface2String(item["role"]))
-	if role == "" {
-		role = "user"
-	}
 	content, err := responsesInputContentToChatContent(ctx, item["content"])
 	if err != nil {
 		return nil, nil, err
 	}
+	// History bookkeeping items (reasoning, item_reference, web_search_call,
+	// ...) carry neither role nor content. Converting them into empty user
+	// messages corrupts the upstream conversation; skip them cleanly instead.
+	if role == "" && responsesChatContentEmpty(content) {
+		return messages, nil, nil
+	}
+	if role == "" {
+		role = "user"
+	}
 	return append(messages, dto.Message{Role: role, Content: content}), nil, nil
+}
+
+// responsesReasoningItemText extracts the visible text of an input reasoning
+// item from its summary and content arrays.
+func responsesReasoningItemText(item map[string]any) string {
+	var sb strings.Builder
+	for _, field := range []string{"summary", "content"} {
+		parts, ok := item[field].([]any)
+		if !ok {
+			continue
+		}
+		for _, rawPart := range parts {
+			part, ok := rawPart.(map[string]any)
+			if !ok {
+				continue
+			}
+			if text := kitutil.Interface2String(part["text"]); text != "" {
+				appendSeparatedText(&sb, text)
+			}
+		}
+	}
+	return sb.String()
+}
+
+func responsesChatContentEmpty(content any) bool {
+	switch value := content.(type) {
+	case nil:
+		return true
+	case string:
+		return strings.TrimSpace(value) == ""
+	case []any:
+		return len(value) == 0
+	default:
+		return false
+	}
 }
 
 func responsesInputContentToChatContent(ctx context.Context, content any) (any, error) {
@@ -377,7 +485,7 @@ func appendToolCallToLastAssistant(messages []dto.Message, toolCall dto.ToolCall
 	return messages
 }
 
-func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, error) {
+func responsesRequestToolsToChat(ctx context.Context, raw json.RawMessage) ([]dto.ToolCallRequest, error) {
 	if !rawJSONPresent(raw) {
 		return nil, nil
 	}
@@ -388,7 +496,7 @@ func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, er
 	}
 
 	out := make([]dto.ToolCallRequest, 0, len(tools))
-	for _, tool := range tools {
+	for index, tool := range tools {
 		toolType := strings.TrimSpace(kitutil.Interface2String(tool["type"]))
 		if toolType == "function" {
 			out = append(out, dto.ToolCallRequest{
@@ -398,6 +506,20 @@ func responsesRequestToolsToChat(raw json.RawMessage) ([]dto.ToolCallRequest, er
 					Description: kitutil.Interface2String(tool["description"]),
 					Parameters:  tool["parameters"],
 				},
+			})
+			continue
+		}
+		if toolType != "custom" {
+			// Hosted tools (mcp_server, web_search, code_interpreter, ...)
+			// have no Chat Completions representation; forwarding their raw
+			// shape would 400 on strict upstreams (#5938).
+			convdiag.Add(ctx, types.ConversionDiagnostic{
+				Code:     "unsupported_hosted_tool",
+				Path:     fmt.Sprintf("tools[%d]", index),
+				Message:  fmt.Sprintf("Chat Completions cannot represent hosted tool %q; the tool was omitted", toolType),
+				Severity: types.ConversionDiagnosticWarning,
+				From:     types.RelayFormatOpenAIResponses,
+				To:       types.RelayFormatOpenAI,
 			})
 			continue
 		}
@@ -469,7 +591,26 @@ func responsesRequestTextToChatResponseFormat(raw json.RawMessage) (*dto.Respons
 
 	out := &dto.ResponseFormat{Type: formatType}
 	if formatType == "json_schema" {
-		schemaRaw, err := kitutil.Marshal(format)
+		// Chat Completions expects the json_schema payload itself: the
+		// Responses text.format object minus its redundant "type" key (the
+		// flat {name, strict, schema} shape; a legacy nested "json_schema"
+		// object is flattened too).
+		schema := make(map[string]any, len(format))
+		for key, value := range format {
+			if key == "type" {
+				continue
+			}
+			schema[key] = value
+		}
+		if nested, ok := schema["json_schema"].(map[string]any); ok {
+			delete(schema, "json_schema")
+			for key, value := range nested {
+				if _, exists := schema[key]; !exists {
+					schema[key] = value
+				}
+			}
+		}
+		schemaRaw, err := kitutil.Marshal(schema)
 		if err != nil {
 			return nil, err
 		}
@@ -484,11 +625,16 @@ func RequestTextToChatResponseFormat(raw json.RawMessage) (*dto.ResponseFormat, 
 
 func responsesImagePartToChatImageURL(part map[string]any) any {
 	if imageURL, ok := part["image_url"]; ok {
-		// Chat Completions takes the URL inside an object. detail is left out:
-		// Chat upstreams that validate it with older OpenAI SDKs reject newer
-		// values such as "original".
-		if url, ok := imageURL.(string); ok {
-			return map[string]any{"url": url}
+		if url, isString := imageURL.(string); isString {
+			// Chat Completions requires image_url to be an object, not a
+			// bare string. detail is normalized through the shared whitelist:
+			// strict Chat upstreams reject newer Responses values such as
+			// "original".
+			wrapped := map[string]any{"url": url}
+			if detail, hasDetail := part["detail"]; hasDetail {
+				wrapped["detail"] = relaymedia.ResponsesImageDetail(kitutil.Interface2String(detail))
+			}
+			return wrapped
 		}
 		return imageURL
 	}

@@ -14,85 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestClaudeMessagesToOpenAIChatPreservesAssistantTextWithToolCalls(t *testing.T) {
-	text := "I will look that up."
-	request := dto.ClaudeRequest{
-		Model: "claude-test",
-		Messages: []dto.ClaudeMessage{
-			{
-				Role: "assistant",
-				Content: []dto.ClaudeMediaMessage{
-					{Type: "text", Text: &text},
-					{
-						Type:  "tool_use",
-						Id:    "call_1",
-						Name:  "lookup",
-						Input: map[string]any{"query": "weather"},
-					},
-				},
-			},
-		},
-	}
-
-	result, err := ConvertRequest(
-		context.Background(),
-		&convmeta.Values{},
-		types.RelayFormatOpenAI,
-		&request,
-	)
-	require.NoError(t, err)
-
-	converted, ok := result.Value.(*dto.GeneralOpenAIRequest)
-	require.True(t, ok)
-	require.Len(t, converted.Messages, 1)
-
-	assistant := converted.Messages[0]
-	assert.Equal(t, "assistant", assistant.Role)
-	toolCalls := assistant.ParseToolCalls()
-	require.Len(t, toolCalls, 1)
-	assert.Equal(t, "call_1", toolCalls[0].ID)
-	require.Len(t, assistant.ParseContent(), 1)
-	assert.Equal(t, "text", assistant.ParseContent()[0].Type)
-	assert.Equal(t, text, assistant.ParseContent()[0].Text)
-}
-
-func TestClaudeMessagesToOpenAIChatKeepsToolOnlyContentEmpty(t *testing.T) {
-	request := dto.ClaudeRequest{
-		Model: "claude-test",
-		Messages: []dto.ClaudeMessage{
-			{
-				Role: "assistant",
-				Content: []dto.ClaudeMediaMessage{
-					{
-						Type:  "tool_use",
-						Id:    "call_1",
-						Name:  "lookup",
-						Input: map[string]any{"query": "weather"},
-					},
-				},
-			},
-		},
-	}
-
-	result, err := ConvertRequest(
-		context.Background(),
-		&convmeta.Values{},
-		types.RelayFormatOpenAI,
-		&request,
-	)
-	require.NoError(t, err)
-
-	converted, ok := result.Value.(*dto.GeneralOpenAIRequest)
-	require.True(t, ok)
-	require.Len(t, converted.Messages, 1)
-
-	assistant := converted.Messages[0]
-	assert.Empty(t, assistant.ParseContent())
-	toolCalls := assistant.ParseToolCalls()
-	require.Len(t, toolCalls, 1)
-	assert.Equal(t, "call_1", toolCalls[0].ID)
-}
-
 func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
 	tests := []struct {
 		converter      string
@@ -106,8 +27,8 @@ func TestRequestConverterRegistryListsSupportedTextConverters(t *testing.T) {
 		{converter: ConverterGeminiContentToOpenAIChat, from: types.RelayFormatGemini, to: types.RelayFormatOpenAI, quality: RequestConverterQualityFair, advancedCustom: true},
 		{converter: ConverterOpenAIChatToClaudeMessages, from: types.RelayFormatOpenAI, to: types.RelayFormatClaude, quality: RequestConverterQualityFair, advancedCustom: true},
 		{converter: ConverterOpenAIChatToGeminiContent, from: types.RelayFormatOpenAI, to: types.RelayFormatGemini, quality: RequestConverterQualityFair, advancedCustom: true},
-		{converter: ConverterOpenAIChatToOpenAIResponses, from: types.RelayFormatOpenAI, to: types.RelayFormatOpenAIResponses, quality: RequestConverterQualityGood, advancedCustom: true},
-		{converter: ConverterOpenAIResponsesToOpenAIChat, from: types.RelayFormatOpenAIResponses, to: types.RelayFormatOpenAI, quality: RequestConverterQualityGood, advancedCustom: true},
+		{converter: ConverterOpenAIChatToOpenAIResponses, from: types.RelayFormatOpenAI, to: types.RelayFormatOpenAIResponses, quality: RequestConverterQualityFair, advancedCustom: true},
+		{converter: ConverterOpenAIResponsesToOpenAIChat, from: types.RelayFormatOpenAIResponses, to: types.RelayFormatOpenAI, quality: RequestConverterQualityFair, advancedCustom: true},
 		{
 			converter: requestConverterClaudeToGemini,
 			from:      types.RelayFormatClaude,
@@ -201,7 +122,7 @@ func TestConvertRequestToTargetRecordsConversionChain(t *testing.T) {
 	assert.Equal(t, types.RelayFormatOpenAI, result.From)
 	assert.Equal(t, types.RelayFormat(types.RelayFormatOpenAIResponses), result.To)
 	assert.Equal(t, ConverterOpenAIChatToOpenAIResponses, result.Converter)
-	assert.Equal(t, RequestConverterQualityGood, result.Quality)
+	assert.Equal(t, RequestConverterQualityFair, result.Quality)
 	assert.Equal(t, []RequestStep{
 		{
 			Converter: ConverterOpenAIChatToOpenAIResponses,
@@ -274,7 +195,6 @@ func TestConvertRequestClaudeToChatResolvesToolResultNames(t *testing.T) {
 	}{
 		{0, "call_1", "first"},
 		{2, "call_1", "first"},
-		{3, "missing", ""},
 		{4, "call_1", "explicit"},
 	} {
 		message := chatReq.Messages[tt.index]
@@ -283,6 +203,8 @@ func TestConvertRequestClaudeToChatResolvesToolResultNames(t *testing.T) {
 		require.NotNil(t, message.Name)
 		assert.Equal(t, tt.name, *message.Name)
 	}
+	// An unresolvable tool_use_id keeps Name nil instead of an empty string.
+	assert.Nil(t, chatReq.Messages[3].Name)
 	assert.Equal(t, "assistant", chatReq.Messages[1].Role)
 	assert.Equal(t, "assistant", chatReq.Messages[5].Role)
 }
@@ -370,7 +292,7 @@ func TestConvertRequestClaudeToResponsesDefaultsImageDetail(t *testing.T) {
 		},
 	}
 
-	result, err := ConvertRequestByID(context.Background(), nil, ConverterClaudeMessagesToOpenAIResponses, req)
+	result, err := ConvertRequestByID(context.Background(), nil, requestConverterClaudeToResponses, req)
 	require.NoError(t, err)
 	responsesReq, ok := result.Value.(*dto.OpenAIResponsesRequest)
 	require.True(t, ok)
@@ -405,26 +327,36 @@ func TestConvertRequestClaudeToResponsesDropsIncompatibleContextManagement(t *te
 }
 
 func TestConvertRequestClaudeAdaptiveThinkingPreservesEffort(t *testing.T) {
+	adaptive := &dto.Thinking{Type: "adaptive", Display: "summarized"}
 	tests := []struct {
 		name         string
+		originModel  string
+		thinking     *dto.Thinking
 		outputConfig []byte
 		wantEffort   string
 	}{
-		{name: "adaptive default", wantEffort: "high"},
-		{name: "explicit low", outputConfig: mustRawMessage(t, map[string]any{"effort": "low"}), wantEffort: "low"},
-		{name: "explicit xhigh", outputConfig: mustRawMessage(t, map[string]any{"effort": "xhigh"}), wantEffort: "xhigh"},
+		{name: "adaptive default", originModel: "gpt-5.6-sol", thinking: adaptive, wantEffort: "high"},
+		{name: "explicit low", originModel: "gpt-5.6-sol", thinking: adaptive, outputConfig: mustRawMessage(t, map[string]any{"effort": "low"}), wantEffort: "low"},
+		{name: "explicit xhigh", originModel: "gpt-5.6-sol", thinking: adaptive, outputConfig: mustRawMessage(t, map[string]any{"effort": "xhigh"}), wantEffort: "xhigh"},
+		// Claude models think by default at their own default effort: medium on
+		// Opus 5.5, high on the others.
+		{name: "opus 5.5 adaptive default", originModel: "claude-opus-5-5", thinking: adaptive, wantEffort: "medium"},
+		{name: "opus 5.5 without thinking", originModel: "claude-opus-5-5", wantEffort: "medium"},
+		{name: "opus 5.5 explicit high", originModel: "claude-opus-5-5", thinking: adaptive, outputConfig: mustRawMessage(t, map[string]any{"effort": "high"}), wantEffort: "high"},
+		{name: "opus 5 adaptive default", originModel: "claude-opus-5", thinking: adaptive, wantEffort: "high"},
+		{name: "opus 5 without thinking", originModel: "claude-opus-5", wantEffort: "high"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			info := &convmeta.Values{
-				OriginModelName: "gpt-5.6-sol",
+				OriginModelName: tt.originModel,
 				ConversionChain: []types.RelayFormat{types.RelayFormatClaude},
 			}
 			req := &dto.ClaudeRequest{
 				Model:        "gpt-5.6-sol",
 				OutputConfig: tt.outputConfig,
-				Thinking:     &dto.Thinking{Type: "adaptive", Display: "summarized"},
+				Thinking:     tt.thinking,
 				Messages: []dto.ClaudeMessage{
 					{Role: "user", Content: "hello"},
 				},
@@ -439,6 +371,39 @@ func TestConvertRequestClaudeAdaptiveThinkingPreservesEffort(t *testing.T) {
 			assert.Equal(t, tt.wantEffort, responsesReq.Reasoning.Effort)
 			assert.Equal(t, "detailed", responsesReq.Reasoning.Summary)
 			assert.Equal(t, tt.wantEffort, info.GetReasoningEffort())
+		})
+	}
+}
+
+func TestApplyClaudeThinkingModelLabelsNativeThinkingWithModelDefaultEffort(t *testing.T) {
+	tests := []struct {
+		name         string
+		model        string
+		thinkingType string
+		outputConfig []byte
+		wantEffort   string
+	}{
+		{name: "opus 5.5 adaptive", model: "claude-opus-5-5", thinkingType: "adaptive", wantEffort: "medium"},
+		{name: "opus 5.5 enabled", model: "claude-opus-5-5", thinkingType: "enabled", wantEffort: "medium"},
+		{name: "opus 5.5 explicit high", model: "claude-opus-5-5", thinkingType: "adaptive", outputConfig: mustRawMessage(t, map[string]any{"effort": "high"}), wantEffort: "high"},
+		{name: "opus 5 adaptive", model: "claude-opus-5", thinkingType: "adaptive", wantEffort: "high"},
+		{name: "sonnet 5.5 adaptive", model: "claude-sonnet-5-5", thinkingType: "adaptive", wantEffort: "high"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			info := &convmeta.Values{OriginModelName: tt.model, UpstreamModelName: tt.model}
+			req := &dto.ClaudeRequest{
+				Model:        tt.model,
+				Thinking:     &dto.Thinking{Type: tt.thinkingType},
+				OutputConfig: tt.outputConfig,
+				Messages:     []dto.ClaudeMessage{{Role: "user", Content: "hello"}},
+			}
+
+			require.NoError(t, ApplyClaudeThinkingModel(req, info))
+			assert.Equal(t, tt.wantEffort, info.GetReasoningEffort())
+			assert.Equal(t, tt.thinkingType, req.Thinking.Type)
+			assert.Equal(t, tt.outputConfig, []byte(req.OutputConfig))
 		})
 	}
 }
@@ -1041,4 +1006,83 @@ func mustMarshalRequestJSON(t *testing.T, value any) []byte {
 	raw, err := kitutil.Marshal(value)
 	require.NoError(t, err)
 	return raw
+}
+
+func TestClaudeMessagesToOpenAIChatPreservesAssistantTextWithToolCalls(t *testing.T) {
+	text := "I will look that up."
+	request := dto.ClaudeRequest{
+		Model: "claude-test",
+		Messages: []dto.ClaudeMessage{
+			{
+				Role: "assistant",
+				Content: []dto.ClaudeMediaMessage{
+					{Type: "text", Text: &text},
+					{
+						Type:  "tool_use",
+						Id:    "call_1",
+						Name:  "lookup",
+						Input: map[string]any{"query": "weather"},
+					},
+				},
+			},
+		},
+	}
+
+	result, err := ConvertRequest(
+		context.Background(),
+		&convmeta.Values{},
+		types.RelayFormatOpenAI,
+		&request,
+	)
+	require.NoError(t, err)
+
+	converted, ok := result.Value.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	require.Len(t, converted.Messages, 1)
+
+	assistant := converted.Messages[0]
+	assert.Equal(t, "assistant", assistant.Role)
+	toolCalls := assistant.ParseToolCalls()
+	require.Len(t, toolCalls, 1)
+	assert.Equal(t, "call_1", toolCalls[0].ID)
+	require.Len(t, assistant.ParseContent(), 1)
+	assert.Equal(t, "text", assistant.ParseContent()[0].Type)
+	assert.Equal(t, text, assistant.ParseContent()[0].Text)
+}
+
+func TestClaudeMessagesToOpenAIChatKeepsToolOnlyContentEmpty(t *testing.T) {
+	request := dto.ClaudeRequest{
+		Model: "claude-test",
+		Messages: []dto.ClaudeMessage{
+			{
+				Role: "assistant",
+				Content: []dto.ClaudeMediaMessage{
+					{
+						Type:  "tool_use",
+						Id:    "call_1",
+						Name:  "lookup",
+						Input: map[string]any{"query": "weather"},
+					},
+				},
+			},
+		},
+	}
+
+	result, err := ConvertRequest(
+		context.Background(),
+		&convmeta.Values{},
+		types.RelayFormatOpenAI,
+		&request,
+	)
+	require.NoError(t, err)
+
+	converted, ok := result.Value.(*dto.GeneralOpenAIRequest)
+	require.True(t, ok)
+	require.Len(t, converted.Messages, 1)
+
+	assistant := converted.Messages[0]
+	assert.Empty(t, assistant.ParseContent())
+	toolCalls := assistant.ParseToolCalls()
+	require.Len(t, toolCalls, 1)
+	assert.Equal(t, "call_1", toolCalls[0].ID)
 }

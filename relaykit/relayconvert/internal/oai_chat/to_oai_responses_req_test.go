@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
@@ -206,4 +207,54 @@ func assistantMessageWithTool(content string, id string, name string, args strin
 		},
 	})
 	return msg
+}
+
+// B12: explicitly-provided max_output_tokens below 16 clamps to 16.
+func TestChatCompletionsRequestToResponsesClampsMaxOutputTokens(t *testing.T) {
+	maxTokens := uint(5)
+	got, err := ChatCompletionsRequestToResponsesRequest(context.Background(), &dto.GeneralOpenAIRequest{
+		Model:     "gpt-test",
+		Messages:  []dto.Message{{Role: "user", Content: "hi"}},
+		MaxTokens: &maxTokens,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, got.MaxOutputTokens)
+	assert.Equal(t, uint(16), *got.MaxOutputTokens)
+
+	maxCompletionTokens := uint(5)
+	got, err = ChatCompletionsRequestToResponsesRequest(context.Background(), &dto.GeneralOpenAIRequest{
+		Model:               "gpt-test",
+		Messages:            []dto.Message{{Role: "user", Content: "hi"}},
+		MaxCompletionTokens: &maxCompletionTokens,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, got.MaxOutputTokens)
+	assert.Equal(t, uint(16), *got.MaxOutputTokens)
+}
+
+// B13: non-text parts in system/developer messages are reported instead of
+// being silently dropped.
+func TestChatCompletionsRequestToResponsesSystemNonTextPartsDiagnostic(t *testing.T) {
+	ctx, collector := convdiag.WithCollector(context.Background())
+	got, err := ChatCompletionsRequestToResponsesRequest(ctx, &dto.GeneralOpenAIRequest{
+		Model: "gpt-test",
+		Messages: []dto.Message{
+			{Role: "system", Content: []dto.MediaContent{
+				{Type: dto.ContentTypeText, Text: "rules"},
+				{Type: dto.ContentTypeImageURL, ImageUrl: &dto.MessageImageUrl{Url: "https://example.test/a.png"}},
+			}},
+			{Role: "user", Content: "hi"},
+		},
+	})
+	require.NoError(t, err)
+
+	// The text part still lands in instructions.
+	var instructions string
+	require.NoError(t, kitutil.Unmarshal(got.Instructions, &instructions))
+	assert.Contains(t, instructions, "rules")
+
+	diagnostics := collector.Diagnostics()
+	require.Len(t, diagnostics, 1)
+	assert.Equal(t, "dropped_content_part", diagnostics[0].Code)
+	assert.Contains(t, diagnostics[0].Path, "messages[0].content[1]")
 }

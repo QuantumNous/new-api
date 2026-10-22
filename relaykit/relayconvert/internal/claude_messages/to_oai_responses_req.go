@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
 	relaymedia "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/media"
+	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 )
@@ -249,23 +250,21 @@ func claudeToolChoiceToResponses(value any) (json.RawMessage, json.RawMessage, e
 	if value == nil {
 		return nil, nil, nil
 	}
-	choice, err := kitutil.Any2Type[dto.ClaudeToolChoice](value)
+	choice, err := sharedclaude.NormalizeClaudeToolChoice(value)
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid Claude tool_choice: %w", err)
+		return nil, nil, err
 	}
 
 	var converted any
 	switch choice.Type {
-	case "", "auto":
-		converted = "auto"
-	case "any":
+	case "required":
 		converted = "required"
 	case "none":
 		converted = "none"
 	case "tool":
 		converted = map[string]any{"type": "function", "name": choice.Name}
 	default:
-		return nil, nil, fmt.Errorf("unsupported Claude tool_choice type %q", choice.Type)
+		converted = "auto"
 	}
 	toolChoice, err := kitutil.Marshal(converted)
 	if err != nil {

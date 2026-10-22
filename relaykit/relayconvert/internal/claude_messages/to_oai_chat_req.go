@@ -2,12 +2,14 @@ package claudemessages
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/internal/convdiag"
+	sharedclaude "github.com/QuantumNous/new-api/relaykit/relayconvert/internal/shared/claude"
 	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/reasoning"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -33,6 +35,10 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 	}
 	if claudeRequest.MaxTokens != nil {
 		openAIRequest.MaxTokens = kitutil.GetPointer(*claudeRequest.MaxTokens)
+	} else if claudeRequest.MaxTokensToSample != nil {
+		// Legacy Anthropic alias for max_tokens; honor it when the modern
+		// field is absent (mirrors the Responses-side converter).
+		openAIRequest.MaxTokens = kitutil.GetPointer(*claudeRequest.MaxTokensToSample)
 	}
 	if claudeRequest.TopP != nil {
 		openAIRequest.TopP = kitutil.GetPointer(*claudeRequest.TopP)
@@ -95,13 +101,16 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 		info.SetReasoningEffort(string(effectiveEffort))
 	}
 
-	if len(claudeRequest.StopSequences) == 1 {
-		openAIRequest.Stop = claudeRequest.StopSequences[0]
-	} else if len(claudeRequest.StopSequences) > 1 {
+	if len(claudeRequest.StopSequences) > 0 {
+		// Always forward stop as an array: collapsing a single sequence to a
+		// string is lossy round-trip-wise and 400s on strict upstreams (#7175).
 		openAIRequest.Stop = claudeRequest.StopSequences
 	}
 
-	tools, _ := kitutil.Any2Type[[]dto.Tool](claudeRequest.Tools)
+	tools, err := kitutil.Any2Type[[]dto.Tool](claudeRequest.Tools)
+	if err != nil {
+		return nil, fmt.Errorf("invalid Claude tools: %w", err)
+	}
 	openAITools := make([]dto.ToolCallRequest, 0)
 	for _, claudeTool := range tools {
 		openAITool := dto.ToolCallRequest{
@@ -115,6 +124,15 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 		openAITools = append(openAITools, openAITool)
 	}
 	openAIRequest.Tools = openAITools
+
+	if claudeRequest.ToolChoice != nil {
+		toolChoice, parallelToolCalls, err := sharedclaude.ClaudeToolChoiceToChat(claudeRequest.ToolChoice)
+		if err != nil {
+			return nil, err
+		}
+		openAIRequest.ToolChoice = toolChoice
+		openAIRequest.ParallelTooCalls = parallelToolCalls
+	}
 
 	openAIMessages := make([]dto.Message, 0)
 	if claudeRequest.System != nil {
@@ -156,6 +174,9 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 		}
 	}
 
+	// Tool results whose name is not inline-resolvable keep Name nil until the
+	// second pass, which can also resolve forward references to tool_use
+	// blocks appearing later in the conversation.
 	type unnamedToolResult struct {
 		index int
 		id    string
@@ -163,167 +184,226 @@ func ClaudeMessagesRequestToOpenAIChat(ctx context.Context, claudeRequest dto.Cl
 	toolNames := make(map[string]string)
 	var unnamedToolResults []unnamedToolResult
 	for messageIndex, claudeMessage := range claudeRequest.Messages {
-		openAIMessage := dto.Message{
-			Role: claudeMessage.Role,
-		}
 		if claudeMessage.IsStringContent() {
-			openAIMessage.SetStringContent(claudeMessage.GetStringContent())
-		} else {
-			content, err := claudeMessage.ParseContent()
-			if err != nil {
-				return nil, err
+			openAIMessage := dto.Message{
+				Role: claudeMessage.Role,
 			}
-			var toolCalls []dto.ToolCallRequest
-			mediaMessages := make([]dto.MediaContent, 0, len(content))
+			openAIMessage.SetStringContent(claudeMessage.GetStringContent())
+			openAIMessages = append(openAIMessages, openAIMessage)
+			continue
+		}
+		content, err := claudeMessage.ParseContent()
+		if err != nil {
+			return nil, err
+		}
 
-			for blockIndex, mediaMsg := range content {
+		// Flush model: text/image blocks accumulate into the pending message
+		// so a tool_result in the middle of a Claude message flushes the
+		// pending content first and preserves the original block order.
+		role := claudeMessage.Role
+		var pendingContent []dto.MediaContent
+		var pendingToolCalls []dto.ToolCallRequest
+		// Media hoisted out of tool_result blocks rides after the whole tool
+		// batch so parallel tool messages stay contiguous.
+		var hoistedToolResultMedia []dto.MediaContent
+		flushPending := func() {
+			if len(pendingContent) == 0 && len(pendingToolCalls) == 0 {
+				return
+			}
+			pending := dto.Message{Role: role}
+			pending.SetMediaContent(pendingContent)
+			if len(pendingToolCalls) > 0 {
+				pending.SetToolCalls(pendingToolCalls)
+			}
+			openAIMessages = append(openAIMessages, pending)
+			pendingContent = nil
+			pendingToolCalls = nil
+		}
+		// Hoisted media merges into the pending content so text following a
+		// tool_result shares one user message with the hoisted images.
+		mergeHoistedToolResultMedia := func() {
+			if len(hoistedToolResultMedia) == 0 {
+				return
+			}
+			pendingContent = append(hoistedToolResultMedia, pendingContent...)
+			hoistedToolResultMedia = nil
+		}
+
+		for blockIndex, mediaMsg := range content {
+			switch mediaMsg.Type {
+			case "thinking", "redacted_thinking":
+				// Chat Completions has no encrypted-thinking history slot.
+				// Never fabricate a signature for it upstream, just record
+				// that the block was dropped.
+				convdiag.Add(ctx, types.ConversionDiagnostic{
+					Code:     "thinking_history_dropped",
+					Path:     fmt.Sprintf("messages[%d].content[%d]", messageIndex, blockIndex),
+					Message:  "Claude thinking history block cannot be represented in Chat Completions and was dropped",
+					Severity: types.ConversionDiagnosticWarning,
+					From:     types.RelayFormatClaude,
+					To:       types.RelayFormatOpenAI,
+				})
+			case "text", "input_text":
+				mergeHoistedToolResultMedia()
+				message := dto.MediaContent{
+					Type: "text",
+					Text: mediaMsg.GetText(),
+				}
+				if isOpenRouter {
+					message.CacheControl = mediaMsg.CacheControl
+				}
+				pendingContent = append(pendingContent, message)
+			case "image":
+				// claudeImageSourceURL rejects file references Chat cannot
+				// resolve; nil/URL/base64 sources resolve uniformly.
+				sourceURL := claudeImageSourceURL(mediaMsg.Source)
+				if sourceURL == "" {
+					sourceType := ""
+					if mediaMsg.Source != nil {
+						sourceType = mediaMsg.Source.Type
+					}
+					convdiag.Add(ctx, types.ConversionDiagnostic{
+						Code:     "unsupported_media_source",
+						Path:     fmt.Sprintf("messages[%d].content[%d].source", messageIndex, blockIndex),
+						Message:  fmt.Sprintf("OpenAI Chat Completions cannot reference a Claude image with source type %q; the image was omitted", sourceType),
+						Severity: types.ConversionDiagnosticError,
+						From:     types.RelayFormatClaude,
+						To:       types.RelayFormatOpenAI,
+					})
+					continue
+				}
+				mergeHoistedToolResultMedia()
+				pendingContent = append(pendingContent, dto.MediaContent{
+					Type:     "image_url",
+					ImageUrl: &dto.MessageImageUrl{Url: sourceURL},
+				})
+			case "document":
+				if mediaMsg.Source != nil && mediaMsg.Source.Type == "text" {
+					// A plain-text document keeps its content as a Chat text part.
+					mergeHoistedToolResultMedia()
+					pendingContent = append(pendingContent, dto.MediaContent{Type: "text", Text: kitutil.Interface2String(mediaMsg.Source.Data)})
+					continue
+				}
+				if mediaMsg.Source == nil || mediaMsg.Source.Type != "base64" || mediaMsg.Source.MediaType != "application/pdf" {
+					sourceType, mediaType := "", ""
+					if mediaMsg.Source != nil {
+						sourceType = mediaMsg.Source.Type
+						mediaType = mediaMsg.Source.MediaType
+					}
+					convdiag.Add(ctx, types.ConversionDiagnostic{
+						Code:     "unsupported_media_source",
+						Path:     fmt.Sprintf("messages[%d].content[%d].source", messageIndex, blockIndex),
+						Message:  fmt.Sprintf("OpenAI Chat Completions cannot reference a Claude document with source type %q (media type %q); the document was omitted", sourceType, mediaType),
+						Severity: types.ConversionDiagnosticError,
+						From:     types.RelayFormatClaude,
+						To:       types.RelayFormatOpenAI,
+					})
+					continue
+				}
+				mergeHoistedToolResultMedia()
+				pendingContent = append(pendingContent, dto.MediaContent{
+					Type: "file",
+					File: map[string]any{
+						"file_data": fmt.Sprintf("data:%s;base64,%s", mediaMsg.Source.MediaType, kitutil.Interface2String(mediaMsg.Source.Data)),
+						"filename":  "document.pdf",
+					},
+				})
+			case "tool_use":
 				if _, exists := toolNames[mediaMsg.Id]; !exists {
+					// First registration wins; duplicate ids keep the
+					// earliest tool name.
 					toolNames[mediaMsg.Id] = mediaMsg.Name
 				}
-				switch mediaMsg.Type {
-				case "text", "input_text":
-					message := dto.MediaContent{
-						Type:         "text",
-						Text:         mediaMsg.GetText(),
-						CacheControl: mediaMsg.CacheControl,
-					}
-					mediaMessages = append(mediaMessages, message)
-				case "image":
-					url := claudeImageSourceURL(mediaMsg.Source)
-					if url == "" {
-						sourceType := ""
-						if mediaMsg.Source != nil {
-							sourceType = mediaMsg.Source.Type
-						}
-						convdiag.Add(ctx, types.ConversionDiagnostic{
-							Code:     "unsupported_media_source",
-							Path:     fmt.Sprintf("messages[%d].content[%d].source", messageIndex, blockIndex),
-							Message:  fmt.Sprintf("OpenAI Chat Completions cannot reference a Claude image with source type %q; the image was omitted", sourceType),
-							Severity: types.ConversionDiagnosticError,
-						})
-						continue
-					}
-					mediaMessages = append(mediaMessages, dto.MediaContent{
-						Type:     "image_url",
-						ImageUrl: &dto.MessageImageUrl{Url: url},
-					})
-				case "document":
-					if mediaMsg.Source != nil && mediaMsg.Source.Type == "text" {
-						// A plain-text document keeps its content as a Chat text part.
-						mediaMessages = append(mediaMessages, dto.MediaContent{Type: "text", Text: kitutil.Interface2String(mediaMsg.Source.Data)})
-						continue
-					}
-					if mediaMsg.Source == nil || mediaMsg.Source.Type != "base64" || mediaMsg.Source.MediaType != "application/pdf" {
-						sourceType, mediaType := "", ""
-						if mediaMsg.Source != nil {
-							sourceType, mediaType = mediaMsg.Source.Type, mediaMsg.Source.MediaType
-						}
-						convdiag.Add(ctx, types.ConversionDiagnostic{
-							Code:     "unsupported_media_source",
-							Path:     fmt.Sprintf("messages[%d].content[%d].source", messageIndex, blockIndex),
-							Message:  fmt.Sprintf("OpenAI Chat Completions carries only base64 PDF and plain-text documents, not a %q source of type %q; the document was omitted", sourceType, mediaType),
-							Severity: types.ConversionDiagnosticError,
-						})
-						continue
-					}
-					mediaMessages = append(mediaMessages, dto.MediaContent{
-						Type: dto.ContentTypeFile,
-						File: &dto.MessageFile{
-							FileName: "document.pdf",
-							FileData: "data:application/pdf;base64," + kitutil.Interface2String(mediaMsg.Source.Data),
-						},
-					})
-				case "tool_use":
-					toolCall := dto.ToolCallRequest{
-						ID:   mediaMsg.Id,
-						Type: "function",
-						Function: dto.FunctionRequest{
-							Name:      mediaMsg.Name,
-							Arguments: requestToJSONString(mediaMsg.Input),
-						},
-					}
-					toolCalls = append(toolCalls, toolCall)
-				case "tool_result":
-					toolName := mediaMsg.Name
-					if toolName == "" {
-						unnamedToolResults = append(unnamedToolResults, unnamedToolResult{index: len(openAIMessages), id: mediaMsg.ToolUseId})
-					}
-					oaiToolMessage := dto.Message{
-						Role:       "tool",
-						Name:       &toolName,
-						ToolCallId: mediaMsg.ToolUseId,
-					}
-					if mediaMsg.IsStringContent() {
-						oaiToolMessage.SetStringContent(mediaMsg.GetStringContent())
-					} else {
-						content, media := claudeToolResultToChat(mediaMsg.ParseMediaContent())
-						oaiToolMessage.SetStringContent(content)
-						// A Chat tool message only carries text. Images from the tool result
-						// join the user message this Claude message becomes, which lands right
-						// after the tool batch and keeps the tool messages contiguous.
-						mediaMessages = append(mediaMessages, media...)
-					}
-					openAIMessages = append(openAIMessages, oaiToolMessage)
+				toolCall := dto.ToolCallRequest{
+					ID:   mediaMsg.Id,
+					Type: "function",
+					Function: dto.FunctionRequest{
+						Name:      mediaMsg.Name,
+						Arguments: requestToJSONString(mediaMsg.Input),
+					},
 				}
-			}
-
-			if len(toolCalls) > 0 {
-				openAIMessage.SetToolCalls(toolCalls)
-			}
-			if len(mediaMessages) > 0 {
-				openAIMessage.SetMediaContent(mediaMessages)
+				pendingToolCalls = append(pendingToolCalls, toolCall)
+			case "tool_result":
+				flushPending()
+				toolName := mediaMsg.Name
+				oaiToolMessage := dto.Message{
+					Role:       "tool",
+					ToolCallId: mediaMsg.ToolUseId,
+				}
+				if toolName != "" {
+					name := toolName
+					oaiToolMessage.Name = &name
+				} else {
+					unnamedToolResults = append(unnamedToolResults, unnamedToolResult{index: len(openAIMessages), id: mediaMsg.ToolUseId})
+				}
+				if mediaMsg.IsStringContent() {
+					oaiToolMessage.SetStringContent(mediaMsg.GetStringContent())
+				} else {
+					content, media := claudeToolResultToChat(mediaMsg.ParseMediaContent())
+					oaiToolMessage.SetStringContent(content)
+					// A Chat tool message only carries text. Images from the tool result
+					// join the user message this Claude message becomes, which lands right
+					// after the tool batch and keeps the tool messages contiguous.
+					hoistedToolResultMedia = append(hoistedToolResultMedia, media...)
+				}
+				openAIMessages = append(openAIMessages, oaiToolMessage)
 			}
 		}
-		if len(openAIMessage.ParseContent()) > 0 || len(openAIMessage.ToolCalls) > 0 {
-			openAIMessages = append(openAIMessages, openAIMessage)
-		}
+		mergeHoistedToolResultMedia()
+		flushPending()
 	}
 	for _, result := range unnamedToolResults {
-		*openAIMessages[result.index].Name = toolNames[result.id]
+		if result.index < 0 || result.index >= len(openAIMessages) {
+			continue
+		}
+		// Only backfill a name we actually resolved; an unknown tool_use_id
+		// keeps Name nil instead of an empty string.
+		if name := toolNames[result.id]; name != "" {
+			openAIMessages[result.index].Name = &name
+		}
 	}
 
 	openAIRequest.Messages = openAIMessages
+
+	// Claude-only request fields have no Chat Completions equivalent. Record
+	// each dropped field so hosts can surface the loss instead of silently
+	// swallowing it.
+	droppedFields := make([]types.ConversionDiagnostic, 0, 6)
+	appendDropped := func(field string, present bool) {
+		if !present {
+			return
+		}
+		droppedFields = append(droppedFields, types.ConversionDiagnostic{
+			Code:     "dropped_request_field",
+			Path:     field,
+			Message:  fmt.Sprintf("Claude request field %q has no Chat Completions equivalent and was dropped", field),
+			Severity: types.ConversionDiagnosticWarning,
+			From:     types.RelayFormatClaude,
+			To:       types.RelayFormatOpenAI,
+		})
+	}
+	appendDropped("metadata", rawJSONFieldPresent(claudeRequest.Metadata))
+	appendDropped("mcp_servers", rawJSONFieldPresent(claudeRequest.McpServers))
+	appendDropped("context_management", rawJSONFieldPresent(claudeRequest.ContextManagement))
+	appendDropped("container", rawJSONFieldPresent(claudeRequest.Container))
+	appendDropped("service_tier", claudeRequest.ServiceTier != "")
+	appendDropped("chat_template_kwargs", rawJSONFieldPresent(claudeRequest.ChatTemplateKwargs))
+	appendDropped("output_config", rawJSONFieldPresent(claudeRequest.OutputConfig))
+	appendDropped("output_format", rawJSONFieldPresent(claudeRequest.OutputFormat))
+	convdiag.Add(ctx, droppedFields...)
+
 	return &openAIRequest, nil
 }
 
-// claudeToolResultToChat maps a structured tool_result content array onto Chat Completions,
-// where a tool message may only carry text. Text blocks stay on the tool message and image
-// blocks come back in Chat shape for the caller to place on the following user message;
-// stringifying them instead would hand base64 image data to the upstream text tokenizer.
-// Arrays holding any other block type keep the historical stringified form so nothing is lost.
-func claudeToolResultToChat(blocks []dto.ClaudeMediaMessage) (string, []dto.MediaContent) {
-	texts := make([]string, 0, len(blocks))
-	media := make([]dto.MediaContent, 0, len(blocks))
-	for _, block := range blocks {
-		switch {
-		case block.Type == "text" || block.Type == "input_text":
-			if text := block.GetText(); text != "" {
-				texts = append(texts, text)
-			}
-		case block.Type == "image":
-			url := claudeImageSourceURL(block.Source)
-			if url == "" {
-				return requestToJSONString(blocks), nil
-			}
-			media = append(media, dto.MediaContent{Type: "image_url", ImageUrl: &dto.MessageImageUrl{Url: url}})
-		default:
-			return requestToJSONString(blocks), nil
-		}
+func rawJSONFieldPresent(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
 	}
-	switch {
-	case len(texts) == 0 && len(media) == 0:
-		return requestToJSONString(blocks), nil
-	case len(texts) == 0:
-		// Upstreams reject empty tool content; the images ride on the following user message.
-		return "[image]", media
-	default:
-		return strings.Join(texts, "\n"), media
-	}
+	return kitutil.GetJsonType(raw) != "null"
 }
 
-// claudeImageSourceURL is the Chat image_url for a Claude image source: a data
-// URL for base64 data or the URL of a url source. Other sources, such as Files
-// API references, have no Chat equivalent and yield "".
+// claudeImageSourceURL resolves a Claude image source to a Chat image_url
+// value. File references have no Chat representation and yield "".
 func claudeImageSourceURL(source *dto.ClaudeMessageSource) string {
 	if source == nil || source.Type == "file" {
 		return ""
@@ -344,4 +424,39 @@ func requestToJSONString(v any) string {
 		return "{}"
 	}
 	return string(b)
+}
+
+// claudeToolResultToChat maps a structured tool_result content array onto Chat Completions,
+// where a tool message may only carry text. Text blocks stay on the tool message and image
+// blocks come back in Chat shape for the caller to place on the following user message;
+// stringifying them instead would hand base64 image data to the upstream text tokenizer.
+// Arrays holding any other block type keep the historical stringified form so nothing is lost.
+func claudeToolResultToChat(blocks []dto.ClaudeMediaMessage) (string, []dto.MediaContent) {
+	texts := make([]string, 0, len(blocks))
+	media := make([]dto.MediaContent, 0, len(blocks))
+	for _, block := range blocks {
+		switch {
+		case block.Type == "text" || block.Type == "input_text":
+			if text := block.GetText(); text != "" {
+				texts = append(texts, text)
+			}
+		case block.Type == "image" && block.Source != nil:
+			url := block.Source.Url
+			if url == "" {
+				url = fmt.Sprintf("data:%s;base64,%s", block.Source.MediaType, kitutil.Interface2String(block.Source.Data))
+			}
+			media = append(media, dto.MediaContent{Type: "image_url", ImageUrl: &dto.MessageImageUrl{Url: url}})
+		default:
+			return requestToJSONString(blocks), nil
+		}
+	}
+	switch {
+	case len(texts) == 0 && len(media) == 0:
+		return requestToJSONString(blocks), nil
+	case len(texts) == 0:
+		// Upstreams reject empty tool content; the images ride on the following user message.
+		return "[image]", media
+	default:
+		return strings.Join(texts, "\n"), media
+	}
 }

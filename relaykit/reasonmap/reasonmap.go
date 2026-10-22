@@ -30,6 +30,10 @@ func ClaudeStopReasonToOpenAIFinishReason(stopReason string) string {
 
 func OpenAIFinishReasonToClaudeStopReason(finishReason string) string {
 	switch strings.ToLower(finishReason) {
+	case "":
+		// A missing finish reason must still produce a valid Claude terminal
+		// event; end_turn is the neutral default.
+		return "end_turn"
 	case "stop":
 		return "end_turn"
 	case "stop_sequence":
@@ -38,9 +42,12 @@ func OpenAIFinishReasonToClaudeStopReason(finishReason string) string {
 		return "max_tokens"
 	case types.FinishReasonContentFilter:
 		return "refusal"
-	case "tool_calls":
+	case "tool_calls", "function_call":
+		// function_call is the legacy pre-tool_calls finish reason.
 		return "tool_use"
 	default:
-		return finishReason
+		// Unknown reasons map to end_turn instead of passing an invalid
+		// stop_reason through to Claude clients.
+		return "end_turn"
 	}
 }

@@ -72,6 +72,10 @@ type ClaudeConvertInfo struct {
 	Usage            *dto.Usage
 	FinishReason     string
 	Done             bool
+	// MessageStartSent records that message_start was already emitted so the
+	// terminal synthesis never duplicates or skips it, regardless of how many
+	// chunks each conversion call consumed.
+	MessageStartSent bool
 
 	ToolCallBaseIndex      int
 	ToolCallMaxIndexOffset int

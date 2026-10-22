@@ -182,7 +182,8 @@ func StreamResponseOpenAI2Claude(openAIResponse *dto.ChatCompletionsStreamRespon
 			})
 		}
 	}
-	if info.GetSendResponseCount() == 1 {
+	if !state.MessageStartSent {
+		state.MessageStartSent = true
 		// Client-visible Claude stream usage matches billing merge: first
 		// frame records first, a later non-zero field overrides, and a later
 		// zero/missing field never erases a first-frame positive. Anthropic
@@ -447,7 +448,9 @@ func FinalizeStreamResponseOpenAI2Claude(info convmeta.Meta) []*dto.ClaudeRespon
 }
 
 func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info convmeta.Meta) *dto.ClaudeResponse {
-	var stopReason string
+	// Claude requires a terminal stop_reason; end_turn is the neutral
+	// fallback when the response carries no choices at all.
+	stopReason := "end_turn"
 	contents := make([]dto.ClaudeMediaMessage, 0)
 	claudeResponse := &dto.ClaudeResponse{
 		Id:    openAIResponse.Id,
@@ -455,7 +458,10 @@ func ResponseOpenAI2Claude(openAIResponse *dto.OpenAITextResponse, info convmeta
 		Role:  "assistant",
 		Model: openAIResponse.Model,
 	}
-	for _, choice := range openAIResponse.Choices {
+	// Only the first choice converts: Claude messages have no candidate
+	// list, and concatenating choices would interleave unrelated content.
+	if len(openAIResponse.Choices) > 0 {
+		choice := openAIResponse.Choices[0]
 		stopReason = stopReasonOpenAI2Claude(choice.FinishReason)
 		reasoningContent := choice.Message.GetReasoningContent()
 		textContent := choice.Message.StringContent()

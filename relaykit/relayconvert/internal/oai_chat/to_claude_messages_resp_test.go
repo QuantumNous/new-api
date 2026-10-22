@@ -5,6 +5,7 @@ import (
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/relayconvert/convmeta"
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -421,4 +422,46 @@ func TestNormalizeCacheCreationSplit(t *testing.T) {
 
 func ptr[T any](value T) *T {
 	return &value
+}
+
+// A20: non-stream chat->claude converts only the first choice instead of
+// interleaving every candidate.
+func TestResponseOpenAI2ClaudeUsesFirstChoiceOnly(t *testing.T) {
+	chat := &dto.OpenAITextResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.OpenAITextResponseChoice{
+			{Index: 0, Message: dto.Message{Role: "assistant", Content: "first"}, FinishReason: "stop"},
+			{Index: 1, Message: dto.Message{Role: "assistant", Content: "second candidate"}, FinishReason: "length"},
+		},
+	}
+	claude := ResponseOpenAI2Claude(chat, nil)
+	require.Len(t, claude.Content, 1)
+	assert.Equal(t, "text", claude.Content[0].Type)
+	assert.Equal(t, "first", claude.Content[0].GetText())
+	assert.Equal(t, "end_turn", claude.StopReason, "first choice stop reason wins")
+}
+
+// B17 part 1: non-stream thinking without signature is reported.
+func TestResponseOpenAI2ClaudeThinkingSignatureDiagnostic(t *testing.T) {
+	chat := &dto.OpenAITextResponse{
+		Id:    "chatcmpl_1",
+		Model: "gpt-test",
+		Choices: []dto.OpenAITextResponseChoice{
+			{Index: 0, Message: dto.Message{Role: "assistant", Content: "answer", ReasoningContent: kitutil.GetPointer("hmm")}, FinishReason: "stop"},
+		},
+	}
+	claude := ResponseOpenAI2Claude(chat, nil)
+	// No signature is fabricated.
+	for _, block := range claude.Content {
+		assert.Empty(t, block.Signature)
+	}
+}
+
+// A14: unknown/empty finish reasons map to valid Claude stop reasons.
+func TestStopReasonOpenAI2ClaudeFallbacks(t *testing.T) {
+	assert.Equal(t, "end_turn", stopReasonOpenAI2Claude(""))
+	assert.Equal(t, "end_turn", stopReasonOpenAI2Claude("weird_reason"))
+	assert.Equal(t, "tool_use", stopReasonOpenAI2Claude("function_call"))
+	assert.Equal(t, "tool_use", stopReasonOpenAI2Claude("tool_calls"))
 }

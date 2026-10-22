@@ -55,10 +55,10 @@
       }
     },
     {
-      "id": "",
+      "id": "msg_fixed",
       "object": "chat.completion.chunk",
       "created": 0,
-      "model": "",
+      "model": "claude-test",
       "system_fingerprint": null,
       "choices": [
         {
@@ -73,10 +73,10 @@
       "usage": null
     },
     {
-      "id": "",
+      "id": "msg_fixed",
       "object": "chat.completion.chunk",
       "created": 0,
-      "model": "",
+      "model": "claude-test",
       "system_fingerprint": null,
       "choices": [
         {
@@ -91,10 +91,10 @@
       "usage": null
     },
     {
-      "id": "",
+      "id": "msg_fixed",
       "object": "chat.completion.chunk",
       "created": 0,
-      "model": "",
+      "model": "claude-test",
       "system_fingerprint": null,
       "choices": [
         {
@@ -105,16 +105,16 @@
         }
       ],
       "usage": {
-        "prompt_tokens": 0,
+        "prompt_tokens": 4,
         "completion_tokens": 2,
-        "total_tokens": 2,
+        "total_tokens": 6,
         "usage_semantic": "openai",
         "usage_source": "anthropic",
         "billing_usage": {
           "source": "claude_messages",
           "semantic": "anthropic",
           "claude_usage": {
-            "input_tokens": 0,
+            "input_tokens": 4,
             "cache_creation_input_tokens": 0,
             "cache_read_input_tokens": 0,
             "output_tokens": 2,
@@ -134,7 +134,7 @@
           "image_tokens": 0,
           "reasoning_tokens": 0
         },
-        "input_tokens": 0,
+        "input_tokens": 4,
         "output_tokens": 0,
         "input_tokens_details": null,
         "claude_cache_creation_5_m_tokens": 0,
