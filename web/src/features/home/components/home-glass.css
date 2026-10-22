@@ -252,6 +252,29 @@ For commercial licensing, please contact support@quantumnous.com
 .ci-liquidHome .ci-heroActions .ci-heroClientAction:hover {
   background: #ffffff70;
 }
+.ci-liquidHome .ci-heroActions .ci-heroOpenDesktop {
+  border-color: #2f4a2f66;
+  background: #1d2f1df5;
+  color: #f4ffe8;
+  box-shadow:
+    inset 0 1px 0 #ffffff38,
+    0 12px 28px -12px #2b452f77;
+  font-weight: 650;
+}
+.ci-liquidHome .ci-heroActions .ci-heroOpenDesktop:hover {
+  background: #243b24f5;
+}
+.ci-liquidHome .ci-heroOpenDesktopHint {
+  margin: 12px auto 0;
+  max-width: 28rem;
+  text-align: center;
+  color: color-mix(in srgb, var(--ci-color-ink, #213121) 72%, transparent);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.ci-liquidHome[data-theme='dark'] .ci-heroOpenDesktopHint {
+  color: color-mix(in srgb, #e8f0dc 78%, transparent);
+}
 
 /* Keep the existing table and copy interactions, changing only their surfaces. */
 .ci-liquidHome :is(.ci-pricingPanel, .ci-codeCard) {

@@ -57,6 +57,11 @@ describe('public product journey', () => {
     const clientLink = within(navigation).getByRole('link', { name: 'Client' })
     expect(clientLink).toHaveAttribute('href', '/client')
     expect(
+      screen
+        .getAllByRole('link', { name: 'Open YesChoy desktop in one click' })
+        .every((link) => link.getAttribute('href') === '/desktop/connect')
+    ).toBe(true)
+    expect(
       within(navigation).queryByRole('link', { name: 'Docs' })
     ).not.toBeInTheDocument()
     expect(

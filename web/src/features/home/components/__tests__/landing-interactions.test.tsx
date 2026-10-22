@@ -175,7 +175,7 @@ describe('landing interactions and price layout', () => {
     [false, '/sign-up'],
     [true, '/dashboard'],
   ])(
-    'centers the hero client action beside the auth-aware primary action (authenticated=%s)',
+    'centers the one-click desktop open beside the auth-aware primary action (authenticated=%s)',
     async (isAuthenticated, primaryHref) => {
       if (isAuthenticated) {
         useAuthStore.getState().auth.setBundle(createTestAuthBundle())
@@ -193,11 +193,21 @@ describe('landing interactions and price layout', () => {
       const actions = hero.querySelector('.ci-heroActions--primary')
       expect(actions).not.toBeNull()
       expect(
+        within(hero).getByRole('link', {
+          name: 'Open YesChoy desktop in one click',
+        })
+      ).toHaveAttribute('href', '/desktop/connect')
+      expect(
         within(hero).getByRole('link', { name: 'Start saving' })
       ).toHaveAttribute('href', primaryHref)
       expect(
         within(hero).getByRole('link', { name: 'Client' })
       ).toHaveAttribute('href', '/client')
+      expect(
+        within(hero).getByText(
+          'Already installed? One tap opens the app and signs you into this site—no long URL.'
+        )
+      ).toBeVisible()
     }
   )
 
