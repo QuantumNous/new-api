@@ -3214,6 +3214,7 @@
     "Model assignments": "انتساب مدل‌ها",
     "model billing support": "مدل با پشتیبانی محاسبۀ هزینه",
     "Model Call Analytics": "تحلیل فراخوانی مدل‌ها",
+    "Cache usage is recorded only after the upgrade; historical data is not backfilled.": "مصرف کش فقط پس از ارتقا ثبت می‌شود؛ داده‌های قبلی تکمیل نمی‌شوند.",
     "Model context usage": "مصرف پنجرۀ زمینۀ مدل",
     "Model deleted": "مدل حذف شد",
     "Model Deployment": "استقرار مدل",
