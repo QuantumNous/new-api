@@ -121,8 +121,15 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	var secondLastStreamData string // 保留倒数第二个stream data；部分兼容网关把完整usage放在倒数第二个事件
 	seenStreamToolCalls := make(map[string]struct{})
 	var streamFunctionCallNames []string
+	// 在收到正文、工具调用或明确结束标记前暂不向客户端写数据。
+	// CommandCode 等上游可能在长上下文下只返回 role/usage 元数据后直接 EOF；
+	// 若提前写出这些帧，控制器将无法把本次尝试判为失败并自动重试。
+	var bufferedStreamData []string
+	bufferedBytes := 0
+	streamCommitted := false
+	const maxEmptyStreamBufferBytes = 8 << 20
 
-	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+	consumeStreamData := func(data string, sr *helper.StreamResult) {
 		if lastStreamData != "" {
 			if err := HandleStreamFormat(c, info, lastStreamData, info.ChannelSetting.ForceFormat, info.ChannelSetting.ThinkingToContent); err != nil {
 				common.SysLog(common.LogText("error handling stream format: %s", err.Error()))
@@ -141,9 +148,35 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 				sr.Error(err)
 			}
 		}
+	}
+
+	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
+		if !streamCommitted {
+			if !isMeaningfulOpenAIStreamData(data) && bufferedBytes+len(data) <= maxEmptyStreamBufferBytes {
+				bufferedStreamData = append(bufferedStreamData, data)
+				bufferedBytes += len(data)
+				return
+			}
+			streamCommitted = true
+			for _, pending := range bufferedStreamData {
+				consumeStreamData(pending, sr)
+			}
+			bufferedStreamData = nil
+		}
+		consumeStreamData(data, sr)
 	})
 
 	info.StreamStatus.RequireTerminal()
+
+	// 整段流没有任何可见正文、工具调用或结束原因时，说明上游在返回元数据后
+	// 异常 EOF。此时客户端尚未收到内容，返回可重试的 502，让控制器换渠道重试。
+	if !streamCommitted {
+		return nil, types.NewOpenAIError(
+			fmt.Errorf("upstream stream ended before any assistant content or tool call"),
+			types.ErrorCodeEmptyResponse,
+			http.StatusBadGateway,
+		)
+	}
 
 	// 处理最后的响应
 	shouldSendLastResp := true
@@ -195,6 +228,30 @@ func OaiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Re
 	HandleFinalResponse(c, info, lastStreamData, responseId, createAt, model, systemFingerprint, usage, containStreamUsage)
 
 	return usage, nil
+}
+
+// isMeaningfulOpenAIStreamData reports whether an SSE frame contains a visible
+// answer, a tool call, or an explicit finish reason. Role-only and usage-only
+// frames are deliberately excluded so an empty upstream stream can be retried
+// before any bytes are committed to the downstream client.
+func isMeaningfulOpenAIStreamData(data string) bool {
+	var response dto.ChatCompletionsStreamResponse
+	if err := common.UnmarshalJsonStr(data, &response); err != nil {
+		return false
+	}
+	for _, choice := range response.Choices {
+		if choice.FinishReason != nil && *choice.FinishReason != "" {
+			return true
+		}
+		delta := choice.Delta
+		if strings.TrimSpace(delta.GetContentString()) != "" {
+			return true
+		}
+		if len(delta.ToolCalls) > 0 || len(delta.Annotations) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // observeStreamChoices collects billable function call names and records the
