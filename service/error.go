@@ -141,13 +141,11 @@ const upstreamQuotaInsufficientMessage = "请联系管理员修复该分组"
 
 var upstreamQuotaMarkers = []string{
 	"insufficient_quota",
-	"insufficient quota",
-	"quota_exceeded",
-	"quota exceeded",
-	"resource_exhausted",
-	"resource exhausted",
+	"insufficient_balance",
+	"insufficient balance",
 	"credit balance is too low",
 	"credit balance too low",
+	"credit balance is depleted",
 	"exceeded your current quota",
 	"billing_not_active",
 	"billing not active",
@@ -155,10 +153,6 @@ var upstreamQuotaMarkers = []string{
 	"insufficient_user_quota",
 	"余额不足",
 	"余额不够",
-	"额度不足",
-	"额度不够",
-	"配额不足",
-	"配额不够",
 }
 
 // NormalizeUpstreamQuotaError masks provider billing failures while keeping
@@ -193,6 +187,8 @@ func isUpstreamQuotaError(err *types.NewAPIError) bool {
 	if err == nil {
 		return false
 	}
+	// Generic quota/resource exhaustion also covers RPM/TPM limits. Only
+	// explicit billing failures should replace the message and stop retries.
 	openAIError := err.ToOpenAIError()
 	searchText := strings.ToLower(strings.Join([]string{
 		string(err.GetErrorCode()),
@@ -201,6 +197,12 @@ func isUpstreamQuotaError(err *types.NewAPIError) bool {
 		err.Error(),
 		openAIError.Message,
 	}, " "))
+	// Gemini uses RESOURCE_EXHAUSTED for both rate limits (429) and depleted
+	// prepaid credit (402); the status code disambiguates the billing case.
+	if err.StatusCode == http.StatusPaymentRequired &&
+		(strings.Contains(searchText, "resource_exhausted") || strings.Contains(searchText, "resource exhausted")) {
+		return true
+	}
 	for _, marker := range upstreamQuotaMarkers {
 		if strings.Contains(searchText, marker) {
 			return true
