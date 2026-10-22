@@ -20,6 +20,7 @@ import {
   CHANNEL_TYPES,
   CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_XIAOMI,
 } from '../constants'
 
 // ============================================================================
@@ -178,6 +179,16 @@ export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
       baseUrl: 'Base URL is required for this channel type',
       key: 'Enter API key for this channel',
       models: 'Models',
+    },
+  },
+  [CHANNEL_TYPE_XIAOMI]: {
+    id: CHANNEL_TYPE_XIAOMI,
+    name: CHANNEL_TYPES[CHANNEL_TYPE_XIAOMI],
+    icon: 'openai',
+    hints: {
+      baseUrl: 'Xiaomi MiMo API address, without /v1',
+      key: 'MiMo API key from the Xiaomi MiMo platform',
+      models: 'mimo-v2.6-pro,mimo-v2.5-tts,mimo-v2.5-asr',
     },
   },
 }
