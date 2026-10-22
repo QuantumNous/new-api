@@ -694,8 +694,11 @@ test('the header places reorder before batch mode while shared display controls 
   expect(toolbar.getByRole('group', { name: 'View mode' })).toBeVisible()
 })
 
-test('the header honors the saved ID preference and changes the shared sort direction', async () => {
-  localStorage.setItem('channels-id-sort', 'true')
+test('the header restores the saved sort and persists direction changes', async () => {
+  localStorage.setItem(
+    'channels:sort',
+    JSON.stringify({ id: 'id', desc: true })
+  )
   await mount('card', false)
   const header = within(screen.getByRole('banner'))
   expect(
@@ -715,6 +718,10 @@ test('the header honors the saved ID preference and changes the shared sort dire
   )
   expect(header.getByRole('button', { name: 'Ascending' })).toBeEnabled()
   expect(screen.getByRole('button', { name: 'Drag mode' })).toBeDisabled()
+  expect(JSON.parse(localStorage.getItem('channels:sort') ?? 'null')).toEqual({
+    id: 'id',
+    desc: false,
+  })
 })
 
 test('the compact more-actions button opens by keyboard and restores focus on Escape', async () => {
