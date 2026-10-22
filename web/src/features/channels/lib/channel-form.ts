@@ -31,7 +31,7 @@ import {
   MODEL_FETCHABLE_TYPES,
   OPENAI_FIELD_PASSTHROUGH_TYPES,
 } from '../constants'
-import type { Channel } from '../types'
+import type { Channel, ChannelModelMappingRule } from '../types'
 import {
   CHANNEL_TYPE_ADVANCED_CUSTOM,
   advancedCustomConfigUsesRelativeUpstreamPath,
@@ -295,6 +295,24 @@ export const channelFormSchema = z
     upstream_model_update_check_enabled: z.boolean().optional(),
     upstream_model_update_auto_sync_enabled: z.boolean().optional(),
     upstream_model_update_ignored_models: z.string().optional(),
+    model_mapping_rules: z
+      .array(
+        z.object({
+          type: z.enum([
+            'strip_prefix',
+            'strip_suffix',
+            'add_prefix',
+            'add_suffix',
+            'replace',
+            'regex_replace',
+          ]),
+          values: z.string().optional(),
+          value: z.string().optional(),
+          find: z.string().optional(),
+          replace_with: z.string().optional(),
+        })
+      )
+      .optional(),
   })
   .superRefine((data, ctx) => {
     if (
@@ -488,6 +506,7 @@ export const CHANNEL_FORM_DEFAULT_VALUES: ChannelFormValues = {
   upstream_model_update_check_enabled: false,
   upstream_model_update_auto_sync_enabled: false,
   upstream_model_update_ignored_models: '',
+  model_mapping_rules: [],
   advanced_custom: '',
 }
 
@@ -564,6 +583,7 @@ export function transformChannelToFormDefaults(
   let upstreamModelUpdateCheckEnabled = false
   let upstreamModelUpdateAutoSyncEnabled = false
   let upstreamModelUpdateIgnoredModels = ''
+  let modelMappingRules: ChannelModelMappingRule[] = []
   let advancedCustom = ''
 
   if (channel.settings) {
@@ -593,6 +613,9 @@ export function transformChannelToFormDefaults(
       )
         ? parsed.upstream_model_update_ignored_models.join(',')
         : ''
+      if (Array.isArray(parsed.model_mapping_rules)) {
+        modelMappingRules = parsed.model_mapping_rules
+      }
       if (parsed.advanced_custom) {
         advancedCustom = stringifyAdvancedCustomConfig(parsed.advanced_custom)
       }
@@ -649,6 +672,7 @@ export function transformChannelToFormDefaults(
     upstream_model_update_check_enabled: upstreamModelUpdateCheckEnabled,
     upstream_model_update_auto_sync_enabled: upstreamModelUpdateAutoSyncEnabled,
     upstream_model_update_ignored_models: upstreamModelUpdateIgnoredModels,
+    model_mapping_rules: modelMappingRules,
     advanced_custom: advancedCustom,
   }
 }
@@ -847,6 +871,12 @@ function buildSettingsJSON(formData: ChannelFormValues): string {
     }
   } else if ('advanced_custom' in settingsObj) {
     delete settingsObj.advanced_custom
+  }
+
+  if (formData.model_mapping_rules?.length) {
+    settingsObj.model_mapping_rules = formData.model_mapping_rules
+  } else {
+    delete settingsObj.model_mapping_rules
   }
 
   return JSON.stringify(settingsObj)

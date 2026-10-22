@@ -1232,6 +1232,73 @@ test('quick options and detailed settings share changes across tabs and save the
   })
 })
 
+test('applying saved mapping rules previews renames and saves the confirmed models, mapping, and rules', async () => {
+  editingChannel.models = 'relay/gpt-6,gemini-3-flash'
+  editingChannel.settings = JSON.stringify({
+    model_mapping_rules: [{ type: 'strip_prefix', values: 'relay/' }],
+  })
+  const post = vi.spyOn(api, 'post').mockResolvedValue({
+    data: {
+      success: true,
+      data: {
+        models: ['gpt-6', 'gemini-3-flash'],
+        model_mapping: { 'gpt-6': 'relay/gpt-6' },
+        changed: [
+          { from: 'relay/gpt-6', to: 'gpt-6', upstream: 'relay/gpt-6' },
+        ],
+        conflicts: [],
+      },
+    },
+  })
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+
+  await user.click(screen.getByRole('tab', { name: /Routing & Mapping/ }))
+  const rules = screen.getByRole('group', { name: 'Model mapping rules' })
+  expect(within(rules).getByRole('textbox', { name: 'Prefix' })).toHaveValue(
+    'relay/'
+  )
+  await user.click(
+    within(rules).getByRole('button', { name: 'Apply to existing models' })
+  )
+  expect(post).toHaveBeenCalledWith(
+    '/api/channel/model_mapping_rules/preview',
+    {
+      models: ['relay/gpt-6', 'gemini-3-flash'],
+      model_mapping: {},
+      rules: [{ type: 'strip_prefix', values: 'relay/' }],
+    },
+    expect.anything()
+  )
+  const dialog = await screen.findByRole('dialog', {
+    name: 'Apply rules to existing models',
+  })
+  expect(
+    within(dialog).getByRole('list', { name: 'Renamed models' })
+  ).toHaveTextContent('relay/gpt-6gpt-6')
+  await user.click(
+    within(dialog).getByRole('button', { name: 'Apply changes' })
+  )
+  expect(put).not.toHaveBeenCalled()
+
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as {
+    models: string
+    model_mapping: string
+    settings: string
+  }
+  expect(payload.models).toBe('gpt-6,gemini-3-flash')
+  expect(JSON.parse(payload.model_mapping)).toEqual({ 'gpt-6': 'relay/gpt-6' })
+  expect(JSON.parse(payload.settings)).toMatchObject({
+    model_mapping_rules: [{ type: 'strip_prefix', values: 'relay/' }],
+  })
+})
+
 test('quick options show only applicable shortcuts when the provider changes', async () => {
   const user = userEvent.setup()
   render(<ConfigurationHarness />)

@@ -134,6 +134,7 @@ import {
   getGroups,
   getPrefillGroups,
   getTaskPluginOptions,
+  previewModelMappingRules,
   refreshCodexCredential,
 } from '../../api'
 import {
@@ -205,7 +206,7 @@ import {
   assessBaseUrlTrust,
   nextTaskPluginBaseUrl,
 } from '../../lib/task-plugin-base-url'
-import type { Channel } from '../../types'
+import type { Channel, ModelMappingRulesPreview } from '../../types'
 import { ChannelPluginExtensions } from '../channel-plugin-extensions'
 import { ChannelQuickOptions } from '../channel-quick-options'
 import { ChannelTypeLogo } from '../channel-type-badge'
@@ -231,6 +232,8 @@ import {
   ModelMappingEditor,
   type ModelMappingDraftRequest,
 } from '../model-mapping-editor'
+import { ModelMappingRulesEditor } from '../model-mapping-rules-editor'
+import { ModelMappingRulesPreviewDialog } from '../model-mapping-rules-preview-dialog'
 import { ModelRedirectPanel } from '../model-redirect-panel'
 import { ResponsesWebSocketSetting } from '../responses-websocket-setting'
 import { UpstreamModelSelection } from '../upstream-model-selection'
@@ -483,6 +486,9 @@ export function ChannelMutateDrawer({
   const [batchMapping, setBatchMapping] = useState<{
     source: ModelMappingBatchSource
   } | null>(null)
+  const [rulesPreview, setRulesPreview] =
+    useState<ModelMappingRulesPreview | null>(null)
+  const [rulesPreviewLoading, setRulesPreviewLoading] = useState(false)
   const [redirectPanelOpen, setRedirectPanelOpen] = useState(false)
   const [redirectSyncModels, setRedirectSyncModels] = useState(true)
   const syncedAliasesRef = useRef(new Set<string>())
@@ -1448,6 +1454,50 @@ export function ChannelMutateDrawer({
     [form, syncModelsWithMapping]
   )
 
+  const handlePreviewMappingRules = useCallback(async () => {
+    let mapping: unknown
+    try {
+      mapping = JSON.parse(form.getValues('model_mapping')?.trim() || '{}')
+    } catch {
+      mapping = null
+    }
+    if (!mapping || typeof mapping !== 'object' || Array.isArray(mapping)) {
+      toast.error(t('Fix the model mapping JSON before applying rules'))
+      return
+    }
+    setRulesPreviewLoading(true)
+    try {
+      setRulesPreview(
+        await previewModelMappingRules({
+          models: parseModelsString(form.getValues('models') || ''),
+          model_mapping: mapping as Record<string, string>,
+          rules: form.getValues('model_mapping_rules') ?? [],
+        })
+      )
+    } catch (error: unknown) {
+      handleServerError(error, t('Failed to preview model mapping rules'))
+    } finally {
+      setRulesPreviewLoading(false)
+    }
+  }, [form, t])
+
+  const handleConfirmMappingRules = useCallback(
+    (preview: ModelMappingRulesPreview) => {
+      form.setValue('models', formatModelsArray(preview.models), {
+        shouldDirty: true,
+      })
+      form.setValue(
+        'model_mapping',
+        Object.keys(preview.model_mapping).length > 0
+          ? JSON.stringify(preview.model_mapping, null, 2)
+          : '',
+        { shouldDirty: true }
+      )
+      setRulesPreview(null)
+    },
+    [form]
+  )
+
   const handleBatchMappingApply = useCallback(
     (result: ModelMappingBatchResult) =>
       applyMappingPairs(result.pairs, result.syncModels),
@@ -2186,6 +2236,45 @@ export function ChannelMutateDrawer({
         </FormItem>
       )}
     />
+  )
+
+  const modelMappingRulesFields = (
+    <div
+      role='group'
+      aria-label={t('Model mapping rules')}
+      className={channelConfigurationBlockClassName(
+        configuration.blocks.modelMappingRules,
+        'flex flex-col gap-4'
+      )}
+    >
+      <SubHeading
+        title={t('Model mapping rules')}
+        status={configuration.blocks.modelMappingRules}
+        icon={<Wand2 className='h-3.5 w-3.5' />}
+        iconTone='info'
+      />
+      <p className='text-muted-foreground text-sm'>
+        {t(
+          'Rules run in order and turn upstream model names into the names users call. Models added by upstream model sync are renamed automatically and mapped to the upstream name. Ignored models are matched against upstream names before the rules run.'
+        )}
+      </p>
+      <FormField
+        control={form.control}
+        name='model_mapping_rules'
+        render={({ field }) => (
+          <FormItem>
+            <ModelMappingRulesEditor
+              value={field.value ?? []}
+              onChange={field.onChange}
+              disabled={isSubmitting}
+              applying={rulesPreviewLoading}
+              onApplyToExisting={handlePreviewMappingRules}
+            />
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+    </div>
   )
 
   const routingFields = (
@@ -4728,6 +4817,7 @@ export function ChannelMutateDrawer({
         routing={
           <>
             {redirectPanelActive ? redirectPanelNotice : modelMappingFields}
+            {modelMappingRulesFields}
             {routingFields}
           </>
         }
@@ -5092,6 +5182,14 @@ export function ChannelMutateDrawer({
           onRedirect={(model) => requestMappingDraft(model, '')}
         />
       )}
+
+      <ModelMappingRulesPreviewDialog
+        preview={rulesPreview}
+        onOpenChange={(nextOpen) => {
+          if (!nextOpen) setRulesPreview(null)
+        }}
+        onConfirm={handleConfirmMappingRules}
+      />
 
       {open && batchMapping && (
         <ModelMappingBatchDialog

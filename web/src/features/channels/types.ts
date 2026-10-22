@@ -115,7 +115,35 @@ export interface ChannelOtherSettings {
   upstream_model_update_ignored_models?: string[]
   upstream_model_update_last_check_time?: number
   upstream_model_update_last_detected_models?: string[]
+  model_mapping_rules?: ChannelModelMappingRule[]
   advanced_custom?: AdvancedCustomConfig
+}
+
+export type ChannelModelMappingRuleType =
+  | 'strip_prefix'
+  | 'strip_suffix'
+  | 'add_prefix'
+  | 'add_suffix'
+  | 'replace'
+  | 'regex_replace'
+
+/** One saved step that rewrites an upstream model name; applied in order. */
+export interface ChannelModelMappingRule {
+  type: ChannelModelMappingRuleType
+  /** Comma-separated affixes for strip rules. */
+  values?: string
+  /** Affix for add rules. */
+  value?: string
+  /** Text or RE2 pattern for replace rules. */
+  find?: string
+  replace_with?: string
+}
+
+export interface ModelMappingRulesPreview {
+  models: string[]
+  model_mapping: Record<string, string>
+  changed: { from: string; to: string; upstream: string }[]
+  conflicts: { model?: string; target: string; upstream: string }[]
 }
 
 export interface AdvancedCustomConfig {
