@@ -14,6 +14,7 @@ export const AUTHORIZATION_LOG_ACTIONS = [
   'partner_oauth.binding.admin_revoke',
   'partner_oauth.binding.client_delete',
   'partner_oauth.credential.issue',
+  'partner_oauth.payment.order_create',
 ] as const
 
 export interface AuthorizationLog {

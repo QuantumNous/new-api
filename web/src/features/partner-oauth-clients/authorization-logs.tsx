@@ -103,6 +103,7 @@ export function PartnerOAuthAuthorizationLogs() {
         'Client deletion revoked binding'
       ),
       'partner_oauth.credential.issue': t('Credential issued'),
+      'partner_oauth.payment.order_create': t('Payment order created'),
     }),
     [t]
   )

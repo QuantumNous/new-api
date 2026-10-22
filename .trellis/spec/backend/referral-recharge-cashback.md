@@ -41,6 +41,14 @@ func InsertOnlineTopUp(
     metadata CashbackRequestMetadata,
 ) error
 
+// Same, inside the caller's transaction (Partner OAuth payment orders).
+func InsertOnlineTopUpTx(
+    tx *gorm.DB,
+    topUp *TopUp,
+    baseQuota int,
+    metadata CashbackRequestMetadata,
+) error
+
 func CompleteTopUpCashbackTx(
     tx *gorm.DB,
     topUp *TopUp,
@@ -286,6 +294,14 @@ wallet quota; floating-point money arithmetic is forbidden.
 - `InsertOnlineTopUp` creates `TopUp` and its context atomically. Pre-enable
   contexts settle normally but never create rewards. Orders created before the
   code owned order-local snapshots are not backfilled.
+- `CashbackRequestMetadata.IneligibleReason` excludes an order at creation.
+  The only allowed value is `partner_oauth` (orders a partner assistant placed
+  through `POST /api/integrations/v1/payment/orders`). The context still keeps
+  face evidence and settles principal normally, but stores the reason in
+  `cashback_order_contexts.ineligible_reason`, binds no campaign, records no
+  request IP/UA/device evidence (the request came from the partner server, not
+  the payer's browser), writes no device link, and completion creates no
+  reward. Unknown reasons are rejected.
 - A clearly post-enable online order cannot settle without its context. For
   legacy context-less orders, `first_enabled_at` remains a compatibility
   fallback, with timestamp equality treated as pre-activation because new
@@ -501,6 +517,7 @@ wallet quota; floating-point money arithmetic is forbidden.
 | Post-enable online order lacks its context | Roll back provider completion; callback path must return retryable failure |
 | Manual top-up completion | Credit only the top-up; persist ineligible source when context exists; create no reward |
 | New order predates first enable | Persist an ineligible context; payment succeeds normally and creates no reward |
+| Partner OAuth payment order | Persist context with `ineligible_reason=partner_oauth`, empty request evidence and no device link; payment succeeds normally and creates no reward |
 | Legacy pending order has no checkout face evidence under a fixed payment-time strategy | Complete purchase; create canceled zero-value fixed reward with `face_basis_unavailable` |
 | New checkout face conversion disagrees with base quota | Reject order/context atomically; never settle by guessing from price |
 | Device signal absent, malformed, too long, or Web Crypto unavailable | Continue auth/payment; snapshot `missing`/`invalid` risk evidence |

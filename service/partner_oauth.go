@@ -27,6 +27,7 @@ import (
 const (
 	PartnerOAuthScopeAccountRead    = "account:read"
 	PartnerOAuthScopeCredentialRead = "credential:read"
+	PartnerOAuthScopePaymentWrite   = "payment:write"
 	PartnerOAuthScopeOfflineAccess  = "offline_access"
 
 	PartnerOAuthRequestTTL     = 10 * time.Minute
@@ -46,6 +47,7 @@ var (
 	partnerOAuthCanonicalScopes = []string{
 		PartnerOAuthScopeAccountRead,
 		PartnerOAuthScopeCredentialRead,
+		PartnerOAuthScopePaymentWrite,
 		PartnerOAuthScopeOfflineAccess,
 	}
 	partnerOAuthStatePattern     = regexp.MustCompile(`^[A-Za-z0-9\-._~]{32,128}$`)

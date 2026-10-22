@@ -63,7 +63,7 @@ func ValidPartnerOAuthLogAction(action string) bool {
 		"partner_oauth.token.issue", "partner_oauth.code.replay_detected",
 		"partner_oauth.refresh.reuse_detected", "partner_oauth.binding.revoke",
 		"partner_oauth.binding.admin_revoke", "partner_oauth.binding.client_delete",
-		"partner_oauth.credential.issue":
+		"partner_oauth.credential.issue", "partner_oauth.payment.order_create":
 		return true
 	}
 	return false

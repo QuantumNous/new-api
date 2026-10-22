@@ -65,7 +65,7 @@ func CompleteTopUpCashbackTx(tx *gorm.DB, topUp *TopUp, creditedQuota int, sourc
 	if err := tx.Save(&orderContext).Error; err != nil {
 		return err
 	}
-	if !eligibleCashbackCompletionSource(source) || !orderContext.EligibleAfterFirstEnable {
+	if !eligibleCashbackCompletionSource(source) || !orderContext.EligibleAfterFirstEnable || orderContext.IneligibleReason != "" {
 		return nil
 	}
 
