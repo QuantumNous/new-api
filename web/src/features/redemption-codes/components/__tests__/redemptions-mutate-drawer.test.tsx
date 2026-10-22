@@ -280,6 +280,77 @@ describe('redemption drawer', () => {
     expect(updates[0]?.quota).toBe(1000000)
   })
 
+  test('shows Never expires and saves 0 for a never-expiring code opened after an expiring code', async () => {
+    const expiring = { ...redemption(1), expired_time: 1893456000 }
+    const neverExpiring = { ...redemption(2), expired_time: 0 }
+    const byId = new Map([
+      [expiring.id, expiring],
+      [neverExpiring.id, neverExpiring],
+    ])
+    const updates: Array<Record<string, unknown>> = []
+    apiClient.get = async (url) => {
+      const match = /^\/api\/redemption\/(\d+)$/.exec(url)
+      const data = match ? byId.get(Number(match[1])) : undefined
+      if (!data) throw new Error(`Unexpected GET ${url}`)
+      return { data: { success: true, data } }
+    }
+    apiClient.put = async (_url, data) => {
+      expect(data && typeof data === 'object').toBeTruthy()
+      updates.push(data as Record<string, unknown>)
+      return { data: { success: true, data: neverExpiring } }
+    }
+    const expiryButtonText = () => {
+      const label = [
+        ...document.querySelectorAll<HTMLLabelElement>('label'),
+      ].find((candidate) => candidate.textContent?.trim() === 'Expiration Time')
+      const item = label?.closest('[data-slot="form-item"]')
+      return item?.querySelector<HTMLButtonElement>('button')?.textContent ?? ''
+    }
+
+    useSystemConfigStore.getState().setConfig({
+      currency: {
+        displayInCurrency: true,
+        quotaDisplayType: 'USD',
+        quotaPerUnit: 500000,
+        usdExchangeRate: 1,
+        customCurrencySymbol: '¤',
+        customCurrencyExchangeRate: 1,
+      },
+    })
+    const tree = (open: boolean, currentRow: Redemption) => (
+      <I18nextProvider i18n={i18n}>
+        <RedemptionsProvider>
+          <RedemptionsMutateDrawer
+            open={open}
+            currentRow={currentRow}
+            onOpenChange={() => undefined}
+          />
+        </RedemptionsProvider>
+        <Toaster duration={60_000} />
+      </I18nextProvider>
+    )
+    const view = render(tree(true, expiring))
+    renderedDrawer = { result: view }
+    await waitForLoadedForm()
+    await waitFor(() => expect(expiryButtonText()).toMatch(/\d{4}-\d{2}-\d{2}/))
+
+    const closeButton = screen
+      .getAllByRole('button', { name: 'Close' })
+      .find((candidate) => candidate.textContent?.trim() === 'Close')
+    if (!closeButton) throw new Error('Expected footer Close button')
+    fireEvent.click(closeButton)
+    view.rerender(tree(false, expiring))
+    view.rerender(tree(true, neverExpiring))
+    await waitFor(() => expect(getControlByLabel('Name').value).toBe('code-2'))
+    await waitForLoadedForm()
+    await waitFor(() => expect(expiryButtonText()).toContain('Never expires'))
+
+    submitForm()
+    await waitFor(() => expect(updates).toHaveLength(1))
+    expect(updates[0]?.id).toBe(2)
+    expect(updates[0]?.expired_time).toBe(0)
+  })
+
   test('ignores an older response after switching records', async () => {
     const first = redemption(1, 500001)
     const second = redemption(2, 1000001)
