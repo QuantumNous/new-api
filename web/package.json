@@ -53,7 +53,7 @@
     "dompurify": "3.4.16",
     "i18next": "^26.3.4",
     "i18next-browser-languagedetector": "^8.2.1",
-    "input-otp": "^1.4.2",
+    "input-otp": "^1.5.0",
     "katex": "^0.18.2",
     "lucide-react": "^1.23.0",
     "marked": "^18.0.5",
