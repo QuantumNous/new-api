@@ -137,6 +137,78 @@ func RelayErrorHandler(ctx context.Context, resp *http.Response, showBodyWhenFai
 	return
 }
 
+const upstreamQuotaInsufficientMessage = "请联系管理员修复该分组"
+
+var upstreamQuotaMarkers = []string{
+	"insufficient_quota",
+	"insufficient quota",
+	"quota_exceeded",
+	"quota exceeded",
+	"resource_exhausted",
+	"resource exhausted",
+	"credit balance is too low",
+	"credit balance too low",
+	"exceeded your current quota",
+	"billing_not_active",
+	"billing not active",
+	"arrearage",
+	"insufficient_user_quota",
+	"余额不足",
+	"余额不够",
+	"额度不足",
+	"额度不够",
+	"配额不足",
+	"配额不够",
+}
+
+// NormalizeUpstreamQuotaError masks provider billing failures while keeping
+// local quota errors available to the user. A normalized upstream error skips
+// retries so the request does not keep selecting the same misconfigured group.
+func NormalizeUpstreamQuotaError(err *types.NewAPIError) *types.NewAPIError {
+	if err == nil || isLocalQuotaError(err) || !isUpstreamQuotaError(err) {
+		return err
+	}
+
+	return types.NewOpenAIError(
+		errors.New(upstreamQuotaInsufficientMessage),
+		types.ErrorCodeUpstreamQuotaInsufficient,
+		err.StatusCode,
+		types.ErrOptionWithSkipRetry(),
+	)
+}
+
+func isLocalQuotaError(err *types.NewAPIError) bool {
+	if err == nil || err.GetErrorType() != types.ErrorTypeNewAPIError {
+		return false
+	}
+	switch err.GetErrorCode() {
+	case types.ErrorCodeInsufficientUserQuota, types.ErrorCodePreConsumeTokenQuotaFailed:
+		return true
+	default:
+		return false
+	}
+}
+
+func isUpstreamQuotaError(err *types.NewAPIError) bool {
+	if err == nil {
+		return false
+	}
+	openAIError := err.ToOpenAIError()
+	searchText := strings.ToLower(strings.Join([]string{
+		string(err.GetErrorCode()),
+		openAIError.Type,
+		fmt.Sprintf("%v", openAIError.Code),
+		err.Error(),
+		openAIError.Message,
+	}, " "))
+	for _, marker := range upstreamQuotaMarkers {
+		if strings.Contains(searchText, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 func ResetStatusCode(newApiErr *types.NewAPIError, statusCodeMappingStr string) {
 	if newApiErr == nil {
 		return

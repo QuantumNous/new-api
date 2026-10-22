@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -147,6 +148,71 @@ func TestRelayErrorHandlerKeepsInvalidJSONBodyInDebugLog(t *testing.T) {
 	require.NotNil(t, newAPIError)
 	require.NotContains(t, logBuffer.String(), "[truncated")
 	require.Contains(t, logBuffer.String(), body)
+}
+
+func TestNormalizeUpstreamQuotaError(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		err        *types.NewAPIError
+		normalized bool
+	}{
+		{
+			name: "openai insufficient quota code",
+			err: types.WithOpenAIError(types.OpenAIError{
+				Message: "You exceeded your current quota.",
+				Type:    "insufficient_quota",
+				Code:    "insufficient_quota",
+			}, http.StatusTooManyRequests),
+			normalized: true,
+		},
+		{
+			name: "anthropic credit balance message",
+			err: types.WithClaudeError(types.ClaudeError{
+				Type:    "invalid_request_error",
+				Message: "Your credit balance is too low to access the API.",
+			}, http.StatusBadRequest),
+			normalized: true,
+		},
+		{
+			name: "local user quota remains unchanged",
+			err: types.NewErrorWithStatusCode(
+				errors.New("用户额度不足, 剩余额度: 0"),
+				types.ErrorCodeInsufficientUserQuota,
+				http.StatusForbidden,
+			),
+			normalized: false,
+		},
+		{
+			name: "ordinary rate limit remains unchanged",
+			err: types.WithOpenAIError(types.OpenAIError{
+				Message: "Too many requests",
+				Type:    "rate_limit_error",
+				Code:    "rate_limit_exceeded",
+			}, http.StatusTooManyRequests),
+			normalized: false,
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			result := NormalizeUpstreamQuotaError(testCase.err)
+			if !testCase.normalized {
+				require.Same(t, testCase.err, result)
+				return
+			}
+
+			require.NotSame(t, testCase.err, result)
+			require.Equal(t, types.ErrorCodeUpstreamQuotaInsufficient, result.GetErrorCode())
+			require.Equal(t, upstreamQuotaInsufficientMessage, result.ToOpenAIError().Message)
+			require.True(t, types.IsSkipRetryError(result))
+			require.Equal(t, testCase.err.StatusCode, result.StatusCode)
+		})
+	}
 }
 
 func withDebugEnabled(t *testing.T, enabled bool) {
