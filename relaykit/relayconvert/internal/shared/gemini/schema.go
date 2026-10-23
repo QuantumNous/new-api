@@ -45,6 +45,28 @@ func CleanFunctionParameters(params interface{}) interface{} {
 	return cleanGeminiFunctionParametersWithDepth(params, 0)
 }
 
+// CleanFunctionParametersJSON is CleanFunctionParameters for raw function
+// parameters. Parameters with an empty properties object are left out.
+func CleanFunctionParametersJSON(parameters json.RawMessage) (json.RawMessage, error) {
+	if len(parameters) == 0 {
+		return nil, nil
+	}
+	var schema any
+	if err := kitutil.Unmarshal(parameters, &schema); err != nil {
+		return nil, err
+	}
+	if object, ok := schema.(map[string]any); ok {
+		if properties, ok := object["properties"].(map[string]any); ok && len(properties) == 0 {
+			return nil, nil
+		}
+	}
+	cleaned := CleanFunctionParameters(schema)
+	if cleaned == nil {
+		return nil, nil
+	}
+	return kitutil.Marshal(cleaned)
+}
+
 func cleanGeminiFunctionParametersWithDepth(params interface{}, depth int) interface{} {
 	if params == nil {
 		return nil

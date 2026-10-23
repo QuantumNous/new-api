@@ -276,7 +276,8 @@ func TestModelPricingConversionDatabaseMatrix(t *testing.T) {
 				}{
 					{"unrecognized-model", nil, model.CacheWriteNone},
 					{"gpt-5.6-terra", nil, model.CacheWriteNone},
-					{"gpt-5.6-terra", common.GetPointer(1.25), model.CacheWriteStandard},
+					{"gpt-5.6-terra", common.GetPointer(1.25), model.CacheWriteOpenAITTL},
+					{"custom-GPT-alias", common.GetPointer(0.0), model.CacheWriteOpenAITTL},
 					{"vendor/claude-sonnet-4-6-high", nil, model.CacheWriteClaudeTTL},
 					{"custom-CLAUDE-alias", common.GetPointer(0.0), model.CacheWriteClaudeTTL},
 					{"deepseek-reasoner", common.GetPointer(0.0), model.CacheWriteStandard},
@@ -306,13 +307,19 @@ func TestModelPricingConversionDatabaseMatrix(t *testing.T) {
 						vars := billingexpr.UsedVars(response.Data.Expression)
 						assert.Equal(t, tc.mode != model.CacheWriteNone, vars["cc"])
 						assert.Equal(t, tc.mode == model.CacheWriteClaudeTTL, vars["cc1h"])
+						assert.Equal(t, tc.mode == model.CacheWriteOpenAITTL, vars["cc12h"])
 						if tc.configured != nil && *tc.configured == 0 {
-							cost, _, err := billingexpr.RunExpr(response.Data.Expression, billingexpr.TokenParams{CC: 100, CC1h: 100})
+							cost, _, err := billingexpr.RunExpr(response.Data.Expression, billingexpr.TokenParams{CC: 100, CC1h: 100, CC12h: 100})
 							require.NoError(t, err)
 							assert.Zero(t, cost, "explicit zero cache prices must stay free")
 						}
 					})
 				}
+				// GPT names price the 12h write at twice the configured write price.
+				openai, err := model.PreviewModelPricingConversion("gpt-5.6-terra", model.PricingValues{"ModelRatio": 5.0, "CompletionRatio": 5.0, "CacheRatio": 0.1, "CreateCacheRatio": 1.25})
+				require.NoError(t, err)
+				assert.Equal(t, model.CacheWriteOpenAITTL, openai.CacheWriteMode)
+				assert.Equal(t, `tier("base", p * 10 + c * 50 + cr * 1 + cc * 12.5 + cc12h * 25)`, openai.Expression)
 				// The billing name remains authoritative for cache terms.
 				require.NoError(t, (&model.Channel{Name: "Cache alias", Type: 1, Models: "opaque-cache-alias", ModelMapping: common.GetPointer(`{"opaque-cache-alias":"claude-sonnet-4-6"}`)}).Insert())
 				alias, err := model.PreviewModelPricingConversion("opaque-cache-alias", model.PricingValues{"ModelRatio": 2.0})

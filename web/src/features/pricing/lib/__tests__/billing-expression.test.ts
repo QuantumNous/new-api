@@ -44,6 +44,8 @@ import {
 import {
   buildEstimatorTokens,
   evalExprLocally,
+  generateExprFromVisualConfig,
+  tryParseVisualConfig,
   type ExtraTokenValues,
 } from '../tier-expr'
 
@@ -51,6 +53,7 @@ const extras: ExtraTokenValues = {
   cacheReadTokens: 100,
   cacheCreateTokens: 0,
   cacheCreate1hTokens: 0,
+  cacheCreate12hTokens: 0,
   imageTokens: 0,
   imageOutputTokens: 0,
   imageCacheTokens: 0,
@@ -58,17 +61,89 @@ const extras: ExtraTokenValues = {
   audioOutputTokens: 0,
 }
 
+test('parses a 12-hour cache write price and regenerates the expression unchanged', () => {
+  const source =
+    'tier("base", p * 10 + c * 40 + cr * 1 + cc * 12.5 + cc12h * 25)'
+  const config = tryParseVisualConfig(source)
+  assert(config)
+  expect(config.tiers[0]).toMatchObject({
+    cache_create_unit_cost: 12.5,
+    cache_create_12h_unit_cost: 25,
+  })
+  expect(generateExprFromVisualConfig(config)).toBe(source)
+})
+
+test('estimates long-lived cache writes at their own price, at the cc price fallback, or free when cc is unpriced', () => {
+  const source =
+    'len <= 2000 ? tier("short", p * 10 + c * 40 + cr * 1 + cc * 12.5 + cc12h * 25) : tier("long", p * 20 + c * 80 + cr * 2 + cc * 25 + cc12h * 50)'
+  const tokens = {
+    ...extras,
+    cacheCreateTokens: 200,
+    cacheCreate12hTokens: 300,
+  }
+  expect(buildEstimatorTokens(1000, 100, tokens, source)).toMatchObject({
+    len: 1600,
+    cc: 200,
+    cc12h: 300,
+  })
+  expect(evalExprLocally(source, 1000, 100, tokens)).toEqual({
+    cost: 24100,
+    matchedTier: 'short',
+    error: null,
+  })
+  expect(
+    evalExprLocally(source, 1000, 100, { ...tokens, cacheCreate12hTokens: 950 })
+  ).toMatchObject({ cost: 80700, matchedTier: 'long' })
+
+  const ccOnly = 'tier("base", p * 10 + c * 50 + cr * 1 + cc * 12.5)'
+  const twelveHours = { ...tokens, cacheCreate12hTokens: 1000 }
+  const oneHour = {
+    ...extras,
+    cacheCreateTokens: 200,
+    cacheCreate1hTokens: 1000,
+  }
+  expect(evalExprLocally(ccOnly, 1000, 100, twelveHours).cost).toBe(42600)
+  expect(
+    evalExprLocally(
+      'tier("base", p * 10 + c * 50 + cr * 1 + cc * 12.5 + cc12h * 25)',
+      1000,
+      100,
+      twelveHours
+    ).cost
+  ).toBe(42600)
+  expect(evalExprLocally(ccOnly, 1000, 100, oneHour).cost).toBe(37600)
+  expect(
+    evalExprLocally(
+      'tier("base", p * 10 + c * 50 + cr * 1 + cc * 12.5 + cc1h * 20)',
+      1000,
+      100,
+      oneHour
+    ).cost
+  ).toBe(37600)
+  expect(
+    evalExprLocally('tier("base", p * 10 + c * 50)', 1000, 100, {
+      ...oneHour,
+      cacheCreate12hTokens: 1000,
+    }).cost
+  ).toBe(15000)
+})
+
 test('evaluates and round-trips separate image cache prices including an explicit zero', () => {
   const source =
     'tier("standard", p * 5 + cr * 1.25 + img * 8 + img_cr * 2 + c * 30)'
   const document = parseVisualBillingDocument(source)
   expect(
-    buildEstimatorTokens(300, 100, {
-      ...extras,
-      cacheReadTokens: 100,
-      imageTokens: 400,
-      imageCacheTokens: 200,
-    }).len
+    buildEstimatorTokens(
+      300,
+      100,
+      {
+        ...extras,
+        cacheReadTokens: 100,
+        imageTokens: 400,
+        imageCacheTokens: 200,
+      },
+      source
+    ).len
   ).toBe(1000)
   assert(document)
   const regenerated = serializeVisualBillingDocument(document)

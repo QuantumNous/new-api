@@ -21,13 +21,14 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 	claudeTools := make([]any, 0, len(textRequest.Tools))
 
 	for _, tool := range textRequest.Tools {
-		if _, ok := tool.Function.Parameters.(map[string]any); !ok && tool.Type != "function" {
+		if kitutil.GetJsonType(tool.Function.Parameters) != "object" && tool.Type != "function" {
 			continue
 		}
+		inputSchema, _ := sharedclaude.FunctionParametersToInputSchema(tool.Function.Parameters)
 		claudeTools = append(claudeTools, &dto.Tool{
 			Name:        tool.Function.Name,
 			Description: tool.Function.Description,
-			InputSchema: sharedclaude.FunctionParametersToInputSchema(tool.Function.Parameters),
+			InputSchema: inputSchema,
 		})
 	}
 
