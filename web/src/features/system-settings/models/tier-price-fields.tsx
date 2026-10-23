@@ -137,28 +137,32 @@ export function TierPriceFields(props: TierPriceFieldsProps) {
   const renderPriceVariable = (variable: {
     key: VisualPrice['variable']
     label: string
-  }) => (
-    <PriceField
-      key={variable.key}
-      currency={props.currency}
-      label={
-        variable.key === 'cc' && props.prices.cc1h !== undefined
-          ? t('Cache Creation (5m)')
-          : t(variable.label)
-      }
-      value={props.prices[variable.key] ?? 0}
-      onChange={(value) => props.onChange(variable.key, value)}
-      included={
-        props.onInclude ? props.prices[variable.key] !== undefined : undefined
-      }
-      onInclude={
-        props.onInclude
-          ? (included) => props.onInclude?.(variable.key, included)
-          : undefined
-      }
-      invalid={props.invalidVariables?.includes(variable.key)}
-    />
-  )
+  }) => {
+    let label = t(variable.label)
+    if (variable.key === 'cc' && props.prices.cc1h !== undefined) {
+      label = t('Cache Creation (5m)')
+    } else if (variable.key === 'cc' && props.prices.cc12h !== undefined) {
+      label = t('Cache Creation (30m)')
+    }
+    return (
+      <PriceField
+        key={variable.key}
+        currency={props.currency}
+        label={label}
+        value={props.prices[variable.key] ?? 0}
+        onChange={(value) => props.onChange(variable.key, value)}
+        included={
+          props.onInclude ? props.prices[variable.key] !== undefined : undefined
+        }
+        onInclude={
+          props.onInclude
+            ? (included) => props.onInclude?.(variable.key, included)
+            : undefined
+        }
+        invalid={props.invalidVariables?.includes(variable.key)}
+      />
+    )
+  }
   const billingControl = props.onBillingUnitChange && (
     <Select
       items={[

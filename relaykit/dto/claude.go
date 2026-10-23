@@ -188,10 +188,10 @@ func (c *ClaudeMessage) ParseContent() ([]ClaudeMediaMessage, error) {
 }
 
 type Tool struct {
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	InputSchema map[string]any `json:"input_schema"`
-	Strict      *bool          `json:"strict,omitempty"`
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	InputSchema json.RawMessage `json:"input_schema"`
+	Strict      *bool           `json:"strict,omitempty"`
 }
 
 type InputSchema struct {
@@ -259,6 +259,25 @@ type ClaudeRequest struct {
 	// ServiceTier specifies upstream service level and may affect billing.
 	// This field is filtered by default and can be enabled via channel setting allow_service_tier.
 	ServiceTier string `json:"service_tier,omitempty"`
+}
+
+// UnmarshalJSON keeps client tools as raw JSON: Claude keeps schema property
+// order in strict tool input, and decoded maps would sort the properties. A
+// null tools value stays absent, as the former decoded value did.
+func (c *ClaudeRequest) UnmarshalJSON(data []byte) error {
+	type requestFields ClaudeRequest
+	var fields struct {
+		requestFields
+		Tools json.RawMessage `json:"tools,omitempty"`
+	}
+	if err := kitutil.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	*c = ClaudeRequest(fields.requestFields)
+	if len(fields.Tools) > 0 && kitutil.GetJsonType(fields.Tools) != "null" {
+		c.Tools = fields.Tools
+	}
+	return nil
 }
 
 // OutputConfigForEffort just for extract effort
@@ -421,6 +440,18 @@ func (c *ClaudeRequest) AddTool(tool any) {
 	switch tools := c.Tools.(type) {
 	case []any:
 		c.Tools = append(tools, tool)
+	case json.RawMessage:
+		// Existing client tools stay raw, keeping their schema property order.
+		var items []json.RawMessage
+		if err := kitutil.Unmarshal(tools, &items); err != nil {
+			c.Tools = []any{tool}
+			return
+		}
+		merged := make([]any, 0, len(items)+1)
+		for _, item := range items {
+			merged = append(merged, item)
+		}
+		c.Tools = append(merged, tool)
 	default:
 		// 如果Tools不是[]any类型，重新初始化为[]any
 		c.Tools = []any{tool}
@@ -436,6 +467,13 @@ func (c *ClaudeRequest) GetTools() []any {
 	switch tools := c.Tools.(type) {
 	case []any:
 		return tools
+	case json.RawMessage:
+		// Client tools stay raw for the upstream; readers get decoded copies.
+		var decoded []any
+		if err := kitutil.Unmarshal(tools, &decoded); err != nil {
+			return nil
+		}
+		return decoded
 	default:
 		return nil
 	}

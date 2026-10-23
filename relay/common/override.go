@@ -1678,12 +1678,14 @@ func syncRuntimeHeaderOverrideFromContext(info *RelayInfo, context map[string]an
 	info.UseRuntimeHeadersOverride = true
 }
 
+// moveValue and copyValue write the source's raw bytes: a decoded value
+// would be re-encoded with sorted object keys.
 func moveValue(data []byte, fromPath, toPath string) ([]byte, error) {
 	sourceValue := gjson.GetBytes(data, fromPath)
 	if !sourceValue.Exists() {
 		return data, fmt.Errorf("source path does not exist: %s", fromPath)
 	}
-	result, err := sjson.SetBytes(data, toPath, sourceValue.Value())
+	result, err := sjson.SetRawBytes(data, toPath, []byte(sourceValue.Raw))
 	if err != nil {
 		return nil, err
 	}
@@ -1695,7 +1697,7 @@ func copyValue(data []byte, fromPath, toPath string) ([]byte, error) {
 	if !sourceValue.Exists() {
 		return data, fmt.Errorf("source path does not exist: %s", fromPath)
 	}
-	return sjson.SetBytes(data, toPath, sourceValue.Value())
+	return sjson.SetRawBytes(data, toPath, []byte(sourceValue.Raw))
 }
 
 func isPathBasedOperation(mode string) bool {
@@ -1808,10 +1810,10 @@ func modifyArray(data []byte, path string, value any, isPrepend bool) ([]byte, e
 			newArray = append(newArray, value)
 		}
 	}
-	// 添加原值
+	// 添加原值（保留原始字节，对象键顺序不变）
 	addOriginal := func() {
 		current.ForEach(func(_, val gjson.Result) bool {
-			newArray = append(newArray, val.Value())
+			newArray = append(newArray, common.RawMessage(val.Raw))
 			return true
 		})
 	}

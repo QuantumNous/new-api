@@ -59,7 +59,7 @@ afterEach(() => {
   }
 })
 
-it.each(['none', 'standard', 'claude_ttl'] as const)(
+it.each(['none', 'standard', 'claude_ttl', 'openai_ttl'] as const)(
   'uses the %s cache profile consistently in current billing and draft previews',
   async (mode) => {
     const cacheWriteMode = mode
@@ -134,11 +134,15 @@ it.each(['none', 'standard', 'claude_ttl'] as const)(
         expect(
           within(panel).queryByText('Cache create (1h) price')
         ).not.toBeInTheDocument()
-      } else {
         expect(
-          within(panel).getByText(
-            mode === 'claude_ttl' ? 'Cache Creation (5m)' : 'Cache write price'
-          ).nextElementSibling
+          within(panel).queryByText('Cache create (12h) price')
+        ).not.toBeInTheDocument()
+      } else {
+        let writeLabel = 'Cache write price'
+        if (mode === 'claude_ttl') writeLabel = 'Cache Creation (5m)'
+        if (mode === 'openai_ttl') writeLabel = 'Cache Creation (30m)'
+        expect(
+          within(panel).getByText(writeLabel).nextElementSibling
         ).toHaveTextContent('$5')
         if (mode === 'claude_ttl') {
           expect(
@@ -148,6 +152,16 @@ it.each(['none', 'standard', 'claude_ttl'] as const)(
         } else {
           expect(
             within(panel).queryByText('Cache create (1h) price')
+          ).not.toBeInTheDocument()
+        }
+        if (mode === 'openai_ttl') {
+          expect(
+            within(panel).getByText('Cache create (12h) price')
+              .nextElementSibling
+          ).toHaveTextContent('$10')
+        } else {
+          expect(
+            within(panel).queryByText('Cache create (12h) price')
           ).not.toBeInTheDocument()
         }
       }

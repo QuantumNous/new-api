@@ -121,6 +121,15 @@ export const BILLING_VARS: BillingVar[] = [
     group: 'cache',
   },
   {
+    key: 'cc12h',
+    field: 'cacheCreate12hPrice',
+    tierField: 'cache_create_12h_unit_cost',
+    label: 'Cache create (12h) price',
+    shortLabel: 'Cache Write (12h)',
+    side: 'input',
+    group: 'cache',
+  },
+  {
     key: 'img',
     field: 'imagePrice',
     tierField: 'image_unit_cost',
@@ -180,6 +189,10 @@ export const BILLING_CACHE_VAR_MAP = BILLING_EXTRA_VARS.map((v) => ({
   field: v.tierField as string,
   exprVar: v.key,
 }))
+
+/** Long-lived cache writes cost a fixed multiple of the `cc` write price. */
+export const CLAUDE_CACHE_CREATION_1H_MULTIPLIER = 6 / 3.75
+export const OPENAI_CACHE_CREATION_12H_MULTIPLIER = 2
 
 // ---------------------------------------------------------------------------
 // Request rule constants
