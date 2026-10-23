@@ -81,6 +81,8 @@ export interface UserProfile {
   telegram_id?: string
   /** LinuxDO ID (OAuth) */
   linux_do_id?: string
+  /** Feishu / Lark ID (OAuth) */
+  feishu_id?: string
   /** Parent account ID (0 = no parent / is a parent or standalone account) */
   parent_id?: number
 }

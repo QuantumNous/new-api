@@ -652,6 +652,7 @@ func GetSelf(c *gin.Context) {
 		"oidc_id":             user.OidcId,
 		"wechat_id":           user.WeChatId,
 		"telegram_id":         user.TelegramId,
+		"feishu_id":           user.FeishuId,
 		"group":               user.Group,
 		"loadtest_enabled":    user.Role >= common.RoleAdminUser || user.IsToB(),
 		"quota":               user.Quota,
