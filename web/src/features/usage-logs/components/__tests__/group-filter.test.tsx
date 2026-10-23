@@ -37,6 +37,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
+import { createTestAuthBundle } from '@/test-utils/auth-bundle'
 
 import { CommonLogsFilterBar } from '../common-logs-filter-bar'
 import { UsageLogsProvider } from '../usage-logs-provider'
@@ -146,7 +147,10 @@ it('loads personal groups and filters choices without submitting until Search', 
 })
 
 it('loads all groups in the administrator view', async () => {
-  useAuthStore.getState().auth.setUser({ id: 1, username: 'admin', role: 10 })
+  useAuthStore.getState().auth.setBundle({
+    ...createTestAuthBundle(),
+    user: { id: 1, username: 'admin', role: 10 },
+  })
   await renderFilter()
   await userEvent.click(screen.getByRole('combobox', { name: 'Group' }))
   expect(await screen.findByRole('option', { name: 'premium' })).toBeVisible()
@@ -268,7 +272,10 @@ it('lets mobile users select a long group name inside the filter drawer and subm
 it.each([1, 10])(
   'excludes only auto from group choices for role %s',
   async (role) => {
-    useAuthStore.getState().auth.setUser({ id: 1, username: 'viewer', role })
+    useAuthStore.getState().auth.setBundle({
+      ...createTestAuthBundle(),
+      user: { id: 1, username: 'viewer', role },
+    })
     const router = await renderFilter('/usage-logs/common', {
       auto: { desc: '', ratio: 1 },
       'auto-team': { desc: '', ratio: 1 },

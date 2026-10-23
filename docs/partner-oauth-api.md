@@ -45,6 +45,11 @@ GET  /api/integrations/v1/account
 POST /api/integrations/v1/credential
         ↓
 用 api_key 调用 {base_url}/models 和 {base_url}/chat/completions
+
+余额不足时（可选）：
+GET  /api/integrations/v1/balance
+POST /api/integrations/v1/payment/orders   拿到 checkout_url 给用户付款
+GET  /api/integrations/v1/payment/orders/{order_id}   轮询到账
 ```
 
 之后用刷新令牌续期 OAuth 访问令牌。解除绑定时调用 `/oauth/revoke`。
@@ -55,6 +60,10 @@ POST /api/integrations/v1/credential
 | POST | `/oauth/token` | 助手后端或原生客户端 |
 | GET | `/api/integrations/v1/account` | 持有 OAuth 访问令牌的一方 |
 | POST | `/api/integrations/v1/credential` | 同上 |
+| GET | `/api/integrations/v1/balance` | 同上 |
+| GET | `/api/integrations/v1/payment/options` | 同上 |
+| POST | `/api/integrations/v1/payment/orders` | 同上 |
+| GET | `/api/integrations/v1/payment/orders/{order_id}` | 同上 |
 | POST | `/oauth/revoke` | 与 `/oauth/token` 相同的客户端 |
 | GET | `{base_url}/models` | 持有 `api_key` 的一方 |
 | POST | `{base_url}/chat/completions` | 同上 |
@@ -63,15 +72,16 @@ POST /api/integrations/v1/credential
 
 ## 权限
 
-`scope` 用空格分隔，只能是下面三个，且必须落在该客户端被允许的子集里。
+`scope` 用空格分隔，只能是下面四个，且必须落在该客户端被允许的子集里。
 
 | scope | 作用 |
 | --- | --- |
-| `account:read` | 读取本次授权对应的账号 |
+| `account:read` | 读取本次授权对应的账号和钱包余额 |
 | `credential:read` | 领取本次授权的模型 API Key |
+| `payment:write` | 为该账号创建充值订单。用户仍需在支付页面亲自付款 |
 | `offline_access` | 发放刷新令牌。需要在访问令牌过期后继续使用时必须申请 |
 
-完整绑定使用 `account:read credential:read offline_access`。不返回 `id_token`。
+完整绑定使用 `account:read credential:read offline_access`；需要在助手里充值时再加 `payment:write`。`payment:write` 要平台在客户端配置里单独开通，已有绑定不会自动获得，需要用户重新授权；平台关闭该客户端的 `payment:write` 后，已有绑定的充值接口立即返回 `403 insufficient_scope`。不返回 `id_token`。
 
 ## 时效
 
@@ -293,7 +303,126 @@ curl -X POST "$MODEL_BASE_URL/chat/completions" \
 
 本次接入范围是模型列表和文本 Chat Completions。模型接口的错误格式与上面的 OAuth 错误不同。模型 Key 返回 401 时，不要靠刷新 OAuth 令牌来修复。
 
-## 8. 错误
+## 8. 查询余额
+
+```text
+GET {ISSUER}/api/integrations/v1/balance
+Authorization: Bearer {access_token}
+```
+
+需要 `account:read`。不能带查询参数。
+
+```json
+{
+  "account_id": "acct_888",
+  "binding_id": "bnd_example",
+  "quota": 1250000,
+  "used_quota": 300000,
+  "amount": "2.5",
+  "currency": "USD",
+  "currency_symbol": "$",
+  "quota_per_unit": "500000"
+}
+```
+
+- `quota` 是钱包剩余额度（内部单位，可能为负），`used_quota` 是累计消耗。比较、判断余额是否足够时用 `quota`。
+- `amount` 是按站点展示货币换算后的金额，十进制字符串，最多 6 位小数，用于展示。`currency` 为 `USD`、`CNY` 或 `CUSTOM`（自定义货币，看 `currency_symbol`）。
+- 只包含钱包余额，不含订阅套餐额度。模型请求时是否有足够额度仍以模型接口为准。
+- 余额在消费后可能有几秒延迟。
+
+## 9. 充值
+
+充值分三步：查询可用支付方式，下单拿到收银台地址交给用户付款，轮询订单直到到账。需要 `payment:write`。当前只支持易支付（支付宝、微信等，以 `methods` 为准）。
+
+### 9.1 支付方式
+
+```text
+GET {ISSUER}/api/integrations/v1/payment/options
+Authorization: Bearer {access_token}
+```
+
+```json
+{
+  "available": true,
+  "currency": "USD",
+  "amount_unit_quota": "500000",
+  "pay_currency": "CNY",
+  "min_amount": 1,
+  "max_amount": 100000,
+  "amount_options": [{ "amount": 10, "pay_money": "70.00" }],
+  "methods": [{ "id": "alipay", "name": "支付宝" }]
+}
+```
+
+- `amount` 是充值数量：1 个单位到账 `amount_unit_quota` 额度。`currency` 为 `USD` 时 1 个单位就是 1 美元额度；为 `TOKENS` 时单位是额度本身。
+- `pay_money` 是用户实际支付的金额（`pay_currency`），已经包含账号分组倍率和预设折扣。其他金额的实付价在下单响应里给出。
+- `available=false` 表示平台暂未开放充值，不要展示充值入口。
+
+### 9.2 下单
+
+```text
+POST {ISSUER}/api/integrations/v1/payment/orders
+Authorization: Bearer {access_token}
+Content-Type: application/json
+Idempotency-Key: {16-64 个 A-Z a-z 0-9 - _}
+```
+
+```json
+{
+  "amount": 10,
+  "payment_method": "alipay",
+  "return_url": "https://assistant.example.com/billing/done"
+}
+```
+
+- `amount`、`payment_method` 必填，`return_url` 可选。不能带其他字段或查询参数。
+- `Idempotency-Key` 必填，每次新的充值意图生成一个新值。网络超时后用同一个值重试，会返回同一笔订单（HTTP 200），不会重复下单；同一个值换了请求内容会得到 `409 idempotency_conflict`。平台暂停充值时，重试未支付订单会返回 `503 payment_unavailable` 而不再给出收银台地址，订单状态用 9.3 查询。
+- `return_url` 必须和该客户端已登记的某个回调地址同源（协议、域名、端口都相同）；公共客户端登记的回环回调允许任意端口。
+
+成功时 HTTP 201：
+
+```json
+{
+  "order_id": "USR888NOab12cd1760000000",
+  "status": "pending",
+  "amount": 10,
+  "currency": "USD",
+  "pay_money": "70.00",
+  "pay_currency": "CNY",
+  "payment_method": "alipay",
+  "checkout_url": "https://pay.example.com/submit.php?...",
+  "created_at": "2026-10-23T08:00:00Z"
+}
+```
+
+`checkout_url` 是支付平台收银台地址，在内嵌 WebView、弹窗或系统浏览器里打开即可，页面会展示支付宝或微信的收款码。不要修改它的参数，也不要记录到日志里。
+
+每次绑定 1 小时内最多下 20 单，30 分钟内最多 5 笔未支付订单，超出返回 `429 rate_limited`。
+
+### 9.3 查询订单
+
+```text
+GET {ISSUER}/api/integrations/v1/payment/orders/{order_id}
+Authorization: Bearer {access_token}
+```
+
+返回下单时的字段（不含 `checkout_url`），付款成功后 `status` 变为 `success` 并带 `paid_at`。`status` 可能是 `pending`、`success`、`failed`、`expired`。只能查询本次绑定下的订单，其他订单返回 `404 order_not_found`。
+
+打开收银台后每 5 秒左右查询一次，收到 429 时按 `Retry-After` 退避；用户关闭支付窗口或超过合理时间后停止轮询。易支付订单未付款时会一直是 `pending`，不会自动变成 `expired`。到账以本接口的 `success` 或余额接口为准。
+
+### 9.4 支付后跳回
+
+下单时带了 `return_url`，用户在收银台付款后，浏览器会先回到野菜API完成验签入账，再跳到：
+
+```text
+{return_url}?order_id={order_id}&status=success
+```
+
+`return_url` 原有的查询参数会保留。`status` 只是提示（可能是 `success` 或 `pending`），不能当作到账凭据，必须再调用 9.3 确认。没带 `return_url`，或者付款时这次绑定已撤销、客户端已停用、该地址已不在登记的回调来源里，付款后浏览器停在野菜API站内。
+
+第三方下的充值订单会出现在用户的充值记录里，不参与邀请和充值返现活动。
+
+## 10. 错误
 
 ### Token 与撤销
 
@@ -333,21 +462,27 @@ curl -X POST "$MODEL_BASE_URL/chat/completions" \
 
 | HTTP | `error.code` | 处理 |
 | --- | --- | --- |
-| 400 | `invalid_request` | 去掉查询参数，或把凭证请求体改成 `{}` |
+| 400 | `invalid_request` | 去掉查询参数，把凭证请求体改成 `{}`，或修正下单字段和 `Idempotency-Key` |
+| 400 | `invalid_amount` | 充值数量低于最小值、超过上限，或会让余额超过系统上限 |
+| 400 | `invalid_payment_method` | 换成 `payment/options` 里返回的支付方式 |
+| 400 | `invalid_return_url` | `return_url` 必须与已登记回调地址同源 |
 | 401 | `invalid_token` | 有刷新令牌就刷新一次，再重试原请求一次 |
 | 403 | `insufficient_scope` | 重新授权并带上所需 scope |
 | 403 | `account_disabled` | 停止调用，提示账号不可用 |
 | 403 | `credential_disabled` | 停止调用。不要再领一把新 Key 绕过禁用 |
 | 403 | `credential_expired` | 请用户重新授权 |
 | 404 | `credential_not_found` | Key 已删除，请用户重新授权 |
-| 415 | `unsupported_media_type` | 凭证接口必须是 `application/json` |
+| 404 | `order_not_found` | 订单不存在或不属于本次绑定 |
+| 409 | `idempotency_conflict` | 同一个 `Idempotency-Key` 用于不同请求，换一个新值 |
+| 415 | `unsupported_media_type` | 凭证和下单接口必须是 `application/json` |
 | 429 | `rate_limited` | 看 `Retry-After` |
+| 503 | `payment_unavailable` | 平台暂未开放充值，稍后再试或隐藏入口 |
 
-完全没有 `Authorization` 时，账号和凭证接口返回 401、空正文，以及 `WWW-Authenticate: Bearer realm="integration"`。令牌无效时正文是上面的 JSON，并带 `Bearer error="invalid_token"`。缺权限时带 `Bearer error="insufficient_scope", scope="所需权限"`。
+完全没有 `Authorization` 时，这些接口返回 401、空正文，以及 `WWW-Authenticate: Bearer realm="integration"`。令牌无效时正文是上面的 JSON，并带 `Bearer error="invalid_token"`。缺权限时带 `Bearer error="insufficient_scope", scope="所需权限"`。
 
 访问令牌只放在 `Authorization: Bearer` 头里。查询参数或正文里的 `access_token` 会被拒绝。
 
-账号查询、同一绑定的凭证领取、撤销可以有限重试。429 优先遵守 `Retry-After`。不要用这套重试去重放授权码、旧刷新令牌或已经发出的模型请求。
+`/api/integrations/v1/*` 按绑定限流：每个绑定每分钟最多 120 次，同一出口 IP 合计每分钟最多 1200 次，超出返回 `429 rate_limited`。账号查询、同一绑定的凭证领取、撤销可以有限重试。429 优先遵守 `Retry-After`。不要用这套重试去重放授权码、旧刷新令牌或已经发出的模型请求。
 
 ## 实现时注意
 

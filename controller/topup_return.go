@@ -68,7 +68,8 @@ func EpayBrowserReturn(c *gin.Context) {
 		return
 	}
 	targetPath := "/wallet"
-	if verified.TradeStatus == epay.StatusTradeSuccess {
+	paid := verified.TradeStatus == epay.StatusTradeSuccess
+	if paid {
 		if params["pid"] == "" || params["pid"] != client.Config.PartnerID || verified.TradeNo == "" {
 			c.AbortWithStatus(http.StatusBadRequest)
 			return
@@ -83,6 +84,10 @@ func EpayBrowserReturn(c *gin.Context) {
 			return
 		}
 		targetPath = "/usage-logs"
+	}
+	if partnerTarget := partnerPaymentReturnTarget(topUp, paid); partnerTarget != "" {
+		c.Redirect(http.StatusFound, partnerTarget)
+		return
 	}
 	c.Redirect(http.StatusFound, paymentReturnURLForTopUp(topUp, targetPath))
 }

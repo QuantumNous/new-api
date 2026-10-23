@@ -380,3 +380,125 @@ func TestDeleteExpiredPartnerOAuthTokens(t *testing.T) {
 	_, err = FindPartnerOAuthToken(HashPartnerOAuthToken("oa_live"))
 	require.NoError(t, err)
 }
+
+// TestPartnerOAuthPaymentOrderStore covers the dialect-sensitive parts of
+// partner payment orders: the new cashback context column on an existing
+// table, rollback of the whole order on an idempotency conflict, and the
+// pending-order join. MySQL and PostgreSQL run when their task-isolated DSNs
+// are set.
+func TestPartnerOAuthPaymentOrderStore(t *testing.T) {
+	for _, dialect := range []struct {
+		name string
+		dsn  string
+		kind common.DatabaseType
+		open func(string) gorm.Dialector
+	}{
+		{"sqlite", ":memory:", common.DatabaseTypeSQLite, func(dsn string) gorm.Dialector { return sqlite.Open(dsn) }},
+		{"mysql", os.Getenv("TEST_MYSQL_DSN"), common.DatabaseTypeMySQL, func(dsn string) gorm.Dialector { return mysql.Open(dsn) }},
+		{"postgres", os.Getenv("TEST_POSTGRES_DSN"), common.DatabaseTypePostgreSQL, func(dsn string) gorm.Dialector {
+			return postgres.New(postgres.Config{DSN: dsn, PreferSimpleProtocol: true})
+		}},
+	} {
+		t.Run(dialect.name, func(t *testing.T) {
+			if strings.TrimSpace(dialect.dsn) == "" {
+				t.Skip("task-isolated database DSN not configured")
+			}
+			db, err := gorm.Open(dialect.open(dialect.dsn), &gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: "poap_"}})
+			require.NoError(t, err)
+			sqlDB, err := db.DB()
+			require.NoError(t, err)
+			sqlDB.SetMaxOpenConns(1)
+			models := []any{&User{}, &Option{}, &TopUp{}, &CashbackOrderContext{}, &PartnerOAuthBinding{}, &PartnerOAuthPaymentOrder{}}
+			oldDB, oldLog, oldMain, oldLogKind := DB, LOG_DB, common.MainDatabaseType(), common.LogDatabaseType()
+			DB, LOG_DB = db, db
+			common.SetDatabaseTypes(dialect.kind, dialect.kind)
+			t.Cleanup(func() {
+				require.NoError(t, db.Migrator().DropTable(models...))
+				_ = sqlDB.Close()
+				DB, LOG_DB = oldDB, oldLog
+				common.SetDatabaseTypes(oldMain, oldLogKind)
+			})
+			require.NoError(t, db.Migrator().DropTable(models...))
+
+			// A released schema has cashback contexts without ineligible_reason.
+			require.NoError(t, db.AutoMigrate(models...))
+			require.NoError(t, db.Migrator().DropColumn(&CashbackOrderContext{}, "ineligible_reason"))
+			user := &User{Username: "payment-store", Password: "unused", Status: common.UserStatusEnabled, Group: "default", AffCode: "payment-store-aff"}
+			require.NoError(t, db.Create(user).Error)
+			legacyTopUp := &TopUp{UserId: user.Id, Amount: 1, Money: 7, TradeNo: "legacy-order", PaymentProvider: PaymentProviderEpay, PaymentMethod: "alipay", Status: common.TopUpStatusSuccess}
+			require.NoError(t, db.Create(legacyTopUp).Error)
+			require.NoError(t, db.Omit("ineligible_reason").Create(&CashbackOrderContext{
+				TopUpID: legacyTopUp.Id, TradeNo: legacyTopUp.TradeNo, UserID: user.Id, PaymentProvider: PaymentProviderEpay,
+				BaseQuota: 500_000, FaceAmount: 1, QuotaPerFaceUnit: "500000", DeviceSignalStatus: CashbackDeviceSignalMissing,
+			}).Error)
+			require.NoError(t, db.AutoMigrate(models...))
+			require.NoError(t, db.AutoMigrate(models...))
+			require.True(t, db.Migrator().HasColumn(&CashbackOrderContext{}, "ineligible_reason"))
+			var legacy CashbackOrderContext
+			require.NoError(t, db.Where("top_up_id = ?", legacyTopUp.Id).First(&legacy).Error)
+			assert.Empty(t, legacy.IneligibleReason)
+			assert.Equal(t, 500_000, legacy.BaseQuota)
+			require.NoError(t, db.Create(&PartnerOAuthBinding{BindingId: "bnd_store", ClientId: "pc_store", UserId: user.Id,
+				Status: PartnerOAuthBindingStatusActive, ExpiresAt: time.Now().Add(time.Hour).Unix()}).Error)
+
+			since := time.Now().Add(-time.Hour).Unix()
+			limits := PartnerOAuthPaymentOrderLimits{RecentSince: since, MaxRecent: 20, PendingSince: since, MaxPending: 5}
+			newOrder := func(tradeNo, keyHash string) (*PartnerOAuthPaymentOrder, *TopUp, error) {
+				topUp := &TopUp{UserId: user.Id, Amount: 10, Money: 70, TradeNo: tradeNo, PaymentProvider: PaymentProviderEpay,
+					PaymentMethod: "alipay", CreateTime: time.Now().Unix(), Status: common.TopUpStatusPending}
+				order := &PartnerOAuthPaymentOrder{BindingId: "bnd_store", IdempotencyKeyHash: keyHash, RequestHash: strings.Repeat("b", 64),
+					ClientId: "pc_store", RequestedAmount: 10, ReturnURL: "https://assistant.example.com/done"}
+				return order, topUp, CreatePartnerOAuthPaymentOrder(order, topUp, 5_000_000, CashbackRequestMetadata{
+					FaceAmount: 10, QuotaPerFaceUnit: "500000", RequestIP: "203.0.113.9", UserAgent: "partner-server"}, limits)
+			}
+			order, topUp, err := newOrder("partner-order-1", strings.Repeat("a", 64))
+			require.NoError(t, err)
+			var context CashbackOrderContext
+			require.NoError(t, db.Where("top_up_id = ?", topUp.Id).First(&context).Error)
+			assert.Equal(t, CashbackIneligiblePartnerOAuth, context.IneligibleReason)
+			assert.Empty(t, context.RequestIP)
+			assert.Empty(t, strings.TrimSpace(context.RequestUserAgentHash)) // PostgreSQL pads empty char(64).
+
+			_, _, err = newOrder("partner-order-2", strings.Repeat("a", 64))
+			require.ErrorIs(t, err, ErrPartnerOAuthPaymentIdempotencyRace)
+			var topUps, contexts int64
+			require.NoError(t, db.Model(&TopUp{}).Where("trade_no = ?", "partner-order-2").Count(&topUps).Error)
+			require.NoError(t, db.Model(&CashbackOrderContext{}).Where("trade_no = ?", "partner-order-2").Count(&contexts).Error)
+			assert.Zero(t, topUps, "the conflicting order must not leave a top-up behind")
+			assert.Zero(t, contexts)
+
+			found, foundTopUp, err := FindPartnerOAuthPaymentOrderByIdempotency("bnd_store", strings.Repeat("a", 64))
+			require.NoError(t, err)
+			assert.Equal(t, order.Id, found.Id)
+			assert.Equal(t, int64(10), found.RequestedAmount)
+			assert.Equal(t, "partner-order-1", foundTopUp.TradeNo)
+			_, _, err = GetPartnerOAuthPaymentOrder("bnd_other", "partner-order-1")
+			assert.ErrorIs(t, err, ErrPartnerOAuthPaymentOrderNotFound)
+			_, _, err = GetPartnerOAuthPaymentOrder("bnd_store", "legacy-order")
+			assert.ErrorIs(t, err, ErrPartnerOAuthPaymentOrderNotFound)
+			link, err := GetPartnerOAuthPaymentOrderByTopUpID(topUp.Id)
+			require.NoError(t, err)
+			assert.Equal(t, "https://assistant.example.com/done", link.ReturnURL)
+			_, err = GetPartnerOAuthPaymentOrderByTopUpID(legacyTopUp.Id)
+			assert.ErrorIs(t, err, ErrPartnerOAuthPaymentOrderNotFound)
+
+			// Limits are checked under the binding lock and leave no top-up behind.
+			limits.MaxPending = 1
+			_, _, err = newOrder("partner-order-3", strings.Repeat("c", 64))
+			require.ErrorIs(t, err, ErrPartnerOAuthPaymentRateLimited)
+			require.NoError(t, db.Model(&TopUp{}).Where("trade_no = ?", "partner-order-3").Count(&topUps).Error)
+			assert.Zero(t, topUps)
+			require.NoError(t, db.Model(&TopUp{}).Where("id = ?", topUp.Id).Update("status", common.TopUpStatusSuccess).Error)
+			_, _, err = newOrder("partner-order-3", strings.Repeat("c", 64))
+			require.NoError(t, err, "a paid order no longer counts as pending")
+			limits.MaxRecent = 2
+			_, _, err = newOrder("partner-order-4", strings.Repeat("d", 64))
+			require.ErrorIs(t, err, ErrPartnerOAuthPaymentRateLimited)
+
+			limits.MaxRecent = 20
+			require.NoError(t, db.Model(&PartnerOAuthBinding{}).Where("binding_id = ?", "bnd_store").Update("status", "revoked").Error)
+			_, _, err = newOrder("partner-order-5", strings.Repeat("e", 64))
+			require.ErrorIs(t, err, ErrPartnerOAuthBindingNotFound)
+		})
+	}
+}

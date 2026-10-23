@@ -15,6 +15,11 @@ const (
 	partnerOAuthPrincipalKey         = "partner_oauth_principal"
 	partnerOAuthRateStyleOAuth       = "oauth"
 	partnerOAuthRateStyleIntegration = "integration"
+
+	// Each authorized binding gets its own integration budget, so one partner
+	// backend serving many users from a single IP is not limited as one caller.
+	partnerOAuthBindingRateLimit  = 120
+	partnerOAuthBindingRateWindow = 60
 )
 
 func PartnerOAuthRequestID() gin.HandlerFunc {
@@ -39,32 +44,33 @@ func PartnerOAuthRateLimit(mark string, max int, windowSeconds int64, style stri
 	if max <= 0 || windowSeconds <= 0 {
 		return defNext
 	}
+	return func(c *gin.Context) {
+		partnerOAuthRateTake(c, mark, c.ClientIP(), max, windowSeconds, style)
+	}
+}
+
+// partnerOAuthRateTake counts one request against subject's fixed window and
+// aborts with 429 (or 500 when Redis fails) once the window is used up.
+func partnerOAuthRateTake(c *gin.Context, mark, subject string, max int, windowSeconds int64, style string) bool {
 	if common.RedisEnabled {
-		return func(c *gin.Context) {
-			allowed, _, ttlSeconds, err := redisFixedWindowTake(
-				c.Request.Context(),
-				redisIPRateLimitKey(mark, c.ClientIP()),
-				max,
-				windowSeconds,
-			)
-			if err != nil {
-				logger.LogError(c.Request.Context(), "partner oauth rate limit failed: "+err.Error())
-				c.Status(http.StatusInternalServerError)
-				c.Abort()
-				return
-			}
-			if !allowed {
-				writePartnerOAuthRateLimited(c, ttlSeconds, style)
-			}
+		allowed, _, ttlSeconds, err := redisFixedWindowTake(c.Request.Context(), redisIPRateLimitKey(mark, subject), max, windowSeconds)
+		if err != nil {
+			logger.LogError(c.Request.Context(), "partner oauth rate limit failed: "+err.Error())
+			c.Status(http.StatusInternalServerError)
+			c.Abort()
+			return false
 		}
+		if !allowed {
+			writePartnerOAuthRateLimited(c, ttlSeconds, style)
+		}
+		return allowed
 	}
 	inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
-	return func(c *gin.Context) {
-		key := mark + c.ClientIP()
-		if !inMemoryRateLimiter.Request(key, max, windowSeconds) {
-			writePartnerOAuthRateLimited(c, windowSeconds, style)
-		}
+	if !inMemoryRateLimiter.Request(mark+subject, max, windowSeconds) {
+		writePartnerOAuthRateLimited(c, windowSeconds, style)
+		return false
 	}
+	return true
 }
 
 func PartnerOAuthClientAuthLimited(c *gin.Context, clientID string) bool {
@@ -144,6 +150,9 @@ func PartnerOAuthBearer(requiredScope string) gin.HandlerFunc {
 				www = `Bearer realm="integration", error="invalid_token"`
 			}
 			writePartnerIntegrationError(c, typed.Status, typed.Code, typed.Description, www)
+			return
+		}
+		if !partnerOAuthRateTake(c, "POA-BIND", principal.Binding.BindingId, partnerOAuthBindingRateLimit, partnerOAuthBindingRateWindow, partnerOAuthRateStyleIntegration) {
 			return
 		}
 		c.Set(partnerOAuthPrincipalKey, principal)

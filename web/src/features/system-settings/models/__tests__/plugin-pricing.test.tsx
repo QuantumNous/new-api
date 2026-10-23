@@ -32,6 +32,7 @@ import { pricingOptions } from '@/features/model-pricing/pricing'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
 import { usePricingPreferencesStore } from '@/stores/pricing-preferences-store'
+import { createTestAuthBundle } from '@/test-utils/auth-bundle'
 
 import {
   ModelPricingEditorPanel,
@@ -50,9 +51,10 @@ afterEach(() => {
 })
 
 it('keeps provider drafts across tabs and saves nested expressions with the model version', async () => {
-  useAuthStore
-    .getState()
-    .auth.setUser({ id: 1, username: 'administrator', role: 100 })
+  useAuthStore.getState().auth.setBundle({
+    ...createTestAuthBundle(),
+    user: { id: 1, username: 'administrator', role: 100 },
+  })
   usePricingPreferencesStore.setState({ currency: 'USD' })
   const expression = 'tier("base", u("seconds") * 0.4)'
   const values = {

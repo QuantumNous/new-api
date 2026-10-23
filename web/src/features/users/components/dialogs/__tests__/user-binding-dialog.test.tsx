@@ -284,7 +284,9 @@ describe('UserBindingDialog partner applications', () => {
     )
 
     await screen.findByText('Example Assistant')
-    expect(screen.getByText('Read your account profile')).toBeInTheDocument()
+    expect(
+      screen.getByText('Read your account profile and balance')
+    ).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Revoke' }))
     fireEvent.click(
       screen.getByRole('button', { name: 'Revoke authorization' })

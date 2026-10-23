@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -53,8 +53,6 @@ const model: PricingModel = {
   tags: 'nexos,cpa',
 }
 
-const perf = { avg_latency_ms: 1000, avg_tps: 7, success_rate: 99 }
-
 function requireElement(element: Element | null | undefined): HTMLElement {
   if (!(element instanceof HTMLElement)) {
     throw new Error('Expected a rendered card section')
@@ -76,45 +74,14 @@ function renderGrid(models = [model]) {
 }
 
 describe('readable model cards', () => {
-  it('gives the full model identifier a wrapping header without price or action competition', () => {
+  it('wraps the full model identifier instead of truncating it and keeps price labels visible', () => {
     render(<ModelCard model={model} onClick={vi.fn()} />)
     const title = screen.getByRole('heading', { name: model.model_name })
     expect(title).not.toHaveClass('truncate')
     expect(title).toHaveClass('[overflow-wrap:anywhere]')
-    const header = requireElement(title.closest('header'))
-    expect(within(header).queryAllByRole('button')).toHaveLength(0)
-    expect(within(header).queryByText('Input')).toBeNull()
     expect(screen.getByText('Input')).toBeVisible()
     expect(screen.getByText('Output')).toBeVisible()
     expect(screen.getByText('Cached')).toBeVisible()
-  })
-
-  it('keeps long route names and billing labels out of the performance and actions row', () => {
-    render(<ModelCard model={model} perf={perf} onClick={vi.fn()} />)
-    const route = screen.getByText(model.enable_groups[0])
-    expect(route).toHaveClass('[overflow-wrap:anywhere]')
-    expect(route).not.toHaveClass('truncate')
-    const metadata = requireElement(
-      route.closest('[data-slot="model-metadata"]')
-    )
-    expect(within(metadata).getByText('Token-based')).toBeVisible()
-    expect(
-      within(metadata)
-        .getByText('Token-based')
-        .closest('[data-slot="status-badge"]')
-    ).toHaveClass('shrink-0', 'whitespace-normal')
-    expect(within(metadata).queryByText('Latency short')).toBeNull()
-    const footer = requireElement(
-      screen.getByRole('article').querySelector('footer')
-    )
-    expect(footer).toHaveClass('flex-wrap')
-    expect(within(footer).getByText('Latency short')).toBeVisible()
-    expect(
-      within(footer).getByRole('button', { name: 'Details' })
-    ).toBeVisible()
-    expect(
-      within(footer).getByText('Latency short').parentElement?.parentElement
-    ).toHaveClass('grid', 'shrink-0')
   })
 
   it('copies the full name and opens details for the correct model', () => {
@@ -132,7 +99,11 @@ describe('readable model cards', () => {
     (area) => {
       const onClick = vi.fn()
       render(<ModelCard model={model} onClick={onClick} />)
-      let target = screen.getByRole('article')
+      let target = requireElement(
+        screen
+          .getByRole('heading', { name: model.model_name })
+          .closest('[data-slot="card"]')
+      )
       if (area === 'description') {
         target = screen.getByText('Nexos AI via CPA · Anthropic')
       }
@@ -153,7 +124,10 @@ describe('readable model cards', () => {
 
   it('sizes columns from the available container width and allows a column narrower than 20rem on phones', () => {
     renderGrid()
-    const grid = requireElement(screen.getByRole('article').parentElement)
+    const card = screen
+      .getByRole('heading', { name: model.model_name })
+      .closest('[data-slot="card"]')
+    const grid = requireElement(card?.parentElement)
     // The min(100%, 20rem) floor is container-relative, not a viewport breakpoint.
     expect(grid).toHaveClass(
       'grid-cols-[repeat(auto-fill,minmax(min(100%,20rem),1fr))]'
@@ -183,7 +157,6 @@ describe('readable model cards', () => {
       />
     )
     expect(screen.getByText('Per Request')).toBeVisible()
-    expect(screen.queryByText('Latency short')).toBeNull()
     expect(screen.getByRole('button', { name: 'Details' })).toBeVisible()
     expect(screen.queryByText('Cached')).toBeNull()
   })

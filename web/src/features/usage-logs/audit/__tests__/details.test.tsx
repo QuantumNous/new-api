@@ -28,12 +28,16 @@ import userEvent from '@testing-library/user-event'
 import { createInstance } from 'i18next'
 import type { ReactElement } from 'react'
 import { I18nextProvider } from 'react-i18next'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import zh from '@/i18n/locales/zh.json'
 import type { PermissionResourceDef } from '@/lib/admin-permissions'
 import { api } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
+import {
+  DEFAULT_CURRENCY_CONFIG,
+  useSystemConfigStore,
+} from '@/stores/system-config-store'
 
 import type { AuditLog } from '../api'
 import { AuditLogDetailsDialog } from '../components/audit-log-details-dialog'
@@ -72,10 +76,21 @@ const entry: AuditLog = {
   },
 }
 
+beforeEach(() => {
+  // These tests assert USD amounts independently of the deployment's
+  // default CNY display setting.
+  useSystemConfigStore.getState().setConfig({
+    currency: { ...DEFAULT_CURRENCY_CONFIG, quotaDisplayType: 'USD' },
+  })
+})
+
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  useSystemConfigStore
+    .getState()
+    .setConfig({ currency: { ...DEFAULT_CURRENCY_CONFIG } })
 })
 
 it.each([

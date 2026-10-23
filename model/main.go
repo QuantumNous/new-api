@@ -390,6 +390,7 @@ func migrateDB() error {
 		&PartnerOAuthClient{},
 		&PartnerOAuthBinding{},
 		&PartnerOAuthToken{},
+		&PartnerOAuthPaymentOrder{},
 		&UserAccessToken{},
 	)
 	if err != nil {

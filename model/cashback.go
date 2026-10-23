@@ -64,6 +64,10 @@ const (
 	CashbackDeviceSourceLogin        CashbackDeviceSource = "login"
 	CashbackDeviceSourceTopUp        CashbackDeviceSource = "topup"
 
+	// CashbackIneligiblePartnerOAuth marks orders a partner assistant placed on
+	// the payer's behalf; they never earn cashback.
+	CashbackIneligiblePartnerOAuth = "partner_oauth"
+
 	CashbackDeviceSignalHeader  = "X-Device-Signal"
 	CashbackDeviceSignalMissing = "missing"
 	CashbackDeviceSignalInvalid = "invalid"
@@ -99,6 +103,7 @@ type CashbackOrderContext struct {
 	DeviceFingerprintHash         string                   `json:"device_fingerprint_hash" gorm:"type:char(64);index"`
 	DeviceSignalStatus            string                   `json:"device_signal_status" gorm:"type:varchar(16);not null;default:'missing'"`
 	EligibleAfterFirstEnable      bool                     `json:"eligible_after_first_enable" gorm:"not null;default:false"`
+	IneligibleReason              string                   `json:"ineligible_reason" gorm:"type:varchar(32)"`
 	CompletionSource              CashbackCompletionSource `json:"completion_source" gorm:"type:varchar(32);index"`
 	CompletionProvider            string                   `json:"completion_provider" gorm:"type:varchar(50)"`
 	IncidentKind                  CashbackIncidentKind     `json:"incident_kind" gorm:"type:varchar(20);index"`
@@ -178,6 +183,10 @@ type CashbackRequestMetadata struct {
 	DeviceSignal     string
 	FaceAmount       int64
 	QuotaPerFaceUnit string
+	// IneligibleReason excludes the order from cashback at creation time. Such
+	// orders keep their context for principal accounting but record no request
+	// evidence, because the request did not come from the payer's browser.
+	IneligibleReason string
 }
 
 // cashbackTransaction uses READ COMMITTED so aggregate reads performed after
@@ -270,7 +279,7 @@ func (context *CashbackOrderContext) BeforeSave(_ *gorm.DB) error {
 			return errors.New("cashback face conversion does not match principal")
 		}
 	}
-	if context.CampaignID < 0 {
+	if context.CampaignID < 0 || (context.IneligibleReason != "" && context.IneligibleReason != CashbackIneligiblePartnerOAuth) {
 		return ErrCashbackInvalidInput
 	}
 	if context.CreditedQuota < 0 || context.CreditedQuota > common.MaxWalletQuota {
@@ -441,80 +450,97 @@ func upsertCashbackDeviceLinkTx(tx *gorm.DB, userID int, deviceHash, signalStatu
 }
 
 func InsertOnlineTopUp(topUp *TopUp, baseQuota int, metadata CashbackRequestMetadata) error {
+	return DB.Transaction(func(tx *gorm.DB) error {
+		return InsertOnlineTopUpTx(tx, topUp, baseQuota, metadata)
+	})
+}
+
+// InsertOnlineTopUpTx creates the order and its cashback context inside the
+// caller's transaction, so callers can commit other order records atomically.
+func InsertOnlineTopUpTx(tx *gorm.DB, topUp *TopUp, baseQuota int, metadata CashbackRequestMetadata) error {
 	if topUp == nil {
 		return errors.New("top-up is required")
 	}
 	if baseQuota <= 0 || baseQuota > common.MaxWalletQuota || metadata.FaceAmount <= 0 || metadata.QuotaPerFaceUnit == "" {
 		return ErrInvalidTopUpQuota
 	}
-	return DB.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(topUp).Error; err != nil {
-			return err
-		}
-		firstEnabledAt, err := cashbackFirstEnabledAtTx(tx)
-		if err != nil {
-			return err
-		}
+	if metadata.IneligibleReason != "" && metadata.IneligibleReason != CashbackIneligiblePartnerOAuth {
+		return ErrCashbackInvalidInput
+	}
+	excluded := metadata.IneligibleReason != ""
+	if excluded {
+		metadata.RequestIP, metadata.UserAgent, metadata.DeviceSignal = "", "", ""
+	}
+	if err := tx.Create(topUp).Error; err != nil {
+		return err
+	}
+	firstEnabledAt, err := cashbackFirstEnabledAtTx(tx)
+	if err != nil {
+		return err
+	}
 
-		// Persist the activation decision with every new online order. Payment
-		// completion must not try to reconstruct transaction ordering from two
-		// second-resolution timestamps.
-		orderPlacedAt, err := getDBTimestampOnStrict(tx)
+	// Persist the activation decision with every new online order. Payment
+	// completion must not try to reconstruct transaction ordering from two
+	// second-resolution timestamps.
+	orderPlacedAt, err := getDBTimestampOnStrict(tx)
+	if err != nil {
+		return err
+	}
+	eligibleAfterFirstEnable := firstEnabledAt > 0 && topUp.CreateTime >= firstEnabledAt && orderPlacedAt >= firstEnabledAt
+	var campaignID int64
+	if eligibleAfterFirstEnable && !excluded {
+		setting, err := loadCashbackSettingTx(tx)
 		if err != nil {
 			return err
 		}
-		eligibleAfterFirstEnable := firstEnabledAt > 0 && topUp.CreateTime >= firstEnabledAt && orderPlacedAt >= firstEnabledAt
-		var campaignID int64
-		if eligibleAfterFirstEnable {
-			setting, err := loadCashbackSettingTx(tx)
-			if err != nil {
+		if setting.InviteeEnabled {
+			var campaign CashbackCampaign
+			err := tx.Where("start_at <= ? AND end_at > ? AND (stopped_at = 0 OR stopped_at > ?) AND start_at <= ? AND end_at > ?",
+				orderPlacedAt, orderPlacedAt, orderPlacedAt, topUp.CreateTime, topUp.CreateTime).
+				Order("id desc").First(&campaign).Error
+			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 				return err
 			}
-			if setting.InviteeEnabled {
-				var campaign CashbackCampaign
-				err := tx.Where("start_at <= ? AND end_at > ? AND (stopped_at = 0 OR stopped_at > ?) AND start_at <= ? AND end_at > ?",
-					orderPlacedAt, orderPlacedAt, orderPlacedAt, topUp.CreateTime, topUp.CreateTime).
-					Order("id desc").First(&campaign).Error
-				if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-					return err
-				}
-				if err == nil {
-					campaignID = campaign.ID
-				}
+			if err == nil {
+				campaignID = campaign.ID
 			}
 		}
-		deviceHash, deviceStatus := ParseCashbackDeviceSignal(metadata.DeviceSignal)
-		requestIP := normalizeCashbackIP(metadata.RequestIP)
-		userAgentHash := HashCashbackUserAgent(metadata.UserAgent)
-		context := CashbackOrderContext{
-			TopUpID:                  topUp.Id,
-			CampaignID:               campaignID,
-			TradeNo:                  topUp.TradeNo,
-			UserID:                   topUp.UserId,
-			PaymentProvider:          topUp.PaymentProvider,
-			BaseQuota:                baseQuota,
-			FaceAmount:               metadata.FaceAmount,
-			QuotaPerFaceUnit:         metadata.QuotaPerFaceUnit,
-			RequestIP:                requestIP,
-			RequestUserAgentHash:     userAgentHash,
-			DeviceFingerprintHash:    deviceHash,
-			DeviceSignalStatus:       deviceStatus,
-			EligibleAfterFirstEnable: eligibleAfterFirstEnable,
-		}
-		if err := tx.Create(&context).Error; err != nil {
-			return err
-		}
-		return upsertCashbackDeviceLinkTx(
-			tx,
-			topUp.UserId,
-			cashbackDeviceLinkHash(topUp.UserId, deviceHash),
-			deviceStatus,
-			requestIP,
-			userAgentHash,
-			CashbackDeviceSourceTopUp,
-			time.Now().Unix(),
-		)
-	})
+	}
+	deviceHash, deviceStatus := ParseCashbackDeviceSignal(metadata.DeviceSignal)
+	requestIP := normalizeCashbackIP(metadata.RequestIP)
+	userAgentHash := HashCashbackUserAgent(metadata.UserAgent)
+	context := CashbackOrderContext{
+		TopUpID:                  topUp.Id,
+		CampaignID:               campaignID,
+		TradeNo:                  topUp.TradeNo,
+		UserID:                   topUp.UserId,
+		PaymentProvider:          topUp.PaymentProvider,
+		BaseQuota:                baseQuota,
+		FaceAmount:               metadata.FaceAmount,
+		QuotaPerFaceUnit:         metadata.QuotaPerFaceUnit,
+		RequestIP:                requestIP,
+		RequestUserAgentHash:     userAgentHash,
+		DeviceFingerprintHash:    deviceHash,
+		DeviceSignalStatus:       deviceStatus,
+		EligibleAfterFirstEnable: eligibleAfterFirstEnable,
+		IneligibleReason:         metadata.IneligibleReason,
+	}
+	if err := tx.Create(&context).Error; err != nil {
+		return err
+	}
+	if excluded {
+		return nil
+	}
+	return upsertCashbackDeviceLinkTx(
+		tx,
+		topUp.UserId,
+		cashbackDeviceLinkHash(topUp.UserId, deviceHash),
+		deviceStatus,
+		requestIP,
+		userAgentHash,
+		CashbackDeviceSourceTopUp,
+		time.Now().Unix(),
+	)
 }
 
 func cashbackFirstEnabledAtTx(tx *gorm.DB) (int64, error) {

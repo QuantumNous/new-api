@@ -136,9 +136,11 @@ function renderQuota(apiKey: ApiKey = key) {
 beforeEach(() => {
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   localStorage.clear()
-  useSystemConfigStore
-    .getState()
-    .setConfig({ currency: { ...DEFAULT_CURRENCY_CONFIG } })
+  // These tests assert USD amounts independently of the deployment's
+  // default CNY display setting.
+  useSystemConfigStore.getState().setConfig({
+    currency: { ...DEFAULT_CURRENCY_CONFIG, quotaDisplayType: 'USD' },
+  })
   vi.spyOn(api, 'get').mockResolvedValue({ data: { success: true, data: {} } })
 })
 afterEach(() => {

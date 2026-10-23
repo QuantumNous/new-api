@@ -32,8 +32,12 @@ function navigateWithoutReferrer(href: string) {
 }
 
 function scopeLabel(scope: string, t: (key: string) => string) {
-  if (scope === 'account:read') return t('Read your account profile')
+  if (scope === 'account:read')
+    return t('Read your account profile and balance')
   if (scope === 'credential:read') return t('Receive a dedicated API key')
+  if (scope === 'payment:write') {
+    return t('Create top-up orders that you confirm on the payment page')
+  }
   if (scope === 'offline_access') return t('Stay connected for 30 days')
   return scope
 }

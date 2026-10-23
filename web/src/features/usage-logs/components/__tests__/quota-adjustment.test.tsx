@@ -132,8 +132,10 @@ describe('quota adjustment log localization', () => {
   let queryClient: QueryClient
 
   beforeEach(() => {
+    // These tests assert USD amounts independently of the deployment's
+    // default CNY display setting.
     useSystemConfigStore.getState().setConfig({
-      currency: { ...DEFAULT_CURRENCY_CONFIG },
+      currency: { ...DEFAULT_CURRENCY_CONFIG, quotaDisplayType: 'USD' },
     })
     queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },

@@ -20,7 +20,6 @@ import { ConfigDrawer } from '@/components/config-drawer'
 import { LanguageSwitcher } from '@/components/language-switcher'
 import { NotificationPopover } from '@/components/notification-popover'
 import { ProfileDropdown } from '@/components/profile-dropdown'
-import { Search } from '@/components/search'
 import { SystemUpdateAction } from '@/features/system-update/system-update-action'
 import { useConsoleMode } from '@/hooks/use-console-mode'
 import { useNotifications } from '@/hooks/use-notifications'
@@ -146,7 +145,6 @@ export function AppHeader({
             !isEasyMode && showTopNav && links.length > 0 && 'xl:ms-0'
           )}
         >
-          {!isEasyMode && <Search className='w-8 flex-none [&>span]:hidden sm:[&>span]:inline' />}
           {showNotifications && !isEasyMode && <AppHeaderNotifications />}
           <CommunityHelp variant='header' />
           <ConsoleModeControl compact />

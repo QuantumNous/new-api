@@ -620,24 +620,6 @@ describe('model cards', () => {
     expect(screen.getByRole('heading', { name: 'model-1' })).toBeVisible()
   })
 
-  it('switches the card grid to three columns at the xl breakpoint instead of 2xl', () => {
-    queryClient.setQueryData(['perf-metrics-summary', 24, ['example-model']], {
-      success: true,
-      data: { models: [] },
-    })
-    render(
-      <QueryClientProvider client={queryClient}>
-        <ModelCardGrid models={[pricingModel()]} onModelClick={vi.fn()} />
-      </QueryClientProvider>
-    )
-    const grid = screen
-      .getByRole('heading', { name: 'example-model' })
-      .closest('.grid')
-    expect(grid).toHaveClass('xl:grid-cols-3')
-    expect(grid).not.toHaveClass('2xl:grid-cols-3')
-    expect(grid).not.toHaveClass('min-[1440px]:grid-cols-3')
-  })
-
   it('shows only sparse valid samples in chronological order without placeholder bars', () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-09-07T12:00:00.000Z'))

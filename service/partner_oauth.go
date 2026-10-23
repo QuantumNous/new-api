@@ -27,6 +27,7 @@ import (
 const (
 	PartnerOAuthScopeAccountRead    = "account:read"
 	PartnerOAuthScopeCredentialRead = "credential:read"
+	PartnerOAuthScopePaymentWrite   = "payment:write"
 	PartnerOAuthScopeOfflineAccess  = "offline_access"
 
 	PartnerOAuthRequestTTL     = 10 * time.Minute
@@ -46,6 +47,7 @@ var (
 	partnerOAuthCanonicalScopes = []string{
 		PartnerOAuthScopeAccountRead,
 		PartnerOAuthScopeCredentialRead,
+		PartnerOAuthScopePaymentWrite,
 		PartnerOAuthScopeOfflineAccess,
 	}
 	partnerOAuthStatePattern     = regexp.MustCompile(`^[A-Za-z0-9\-._~]{32,128}$`)
@@ -1005,7 +1007,11 @@ func AuthenticatePartnerOAuthAccessToken(rawToken, requiredScope string) (*Partn
 	if user.Status != common.UserStatusEnabled {
 		return nil, partnerOAuthErr(http.StatusForbidden, "account_disabled", "account is disabled")
 	}
-	if requiredScope != "" && !HasPartnerOAuthScope(binding.Scope, requiredScope) {
+	// Client scope edits otherwise apply to future grants only; payment:write
+	// starts charges on the user's behalf, so removing it from the client
+	// takes effect for existing bindings at once.
+	revokedByClient := requiredScope == PartnerOAuthScopePaymentWrite && !HasPartnerOAuthScope(client.Scopes, requiredScope)
+	if requiredScope != "" && (!HasPartnerOAuthScope(binding.Scope, requiredScope) || revokedByClient) {
 		return nil, &PartnerOAuthError{
 			Status:      http.StatusForbidden,
 			Code:        "insufficient_scope",

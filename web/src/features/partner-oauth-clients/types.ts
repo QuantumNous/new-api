@@ -6,6 +6,7 @@ import { z } from 'zod'
 export const PARTNER_OAUTH_SCOPES = [
   'account:read',
   'credential:read',
+  'payment:write',
   'offline_access',
 ] as const
 

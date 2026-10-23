@@ -20,7 +20,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, render, screen, cleanup, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import i18next from 'i18next'
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 
 import { api } from '@/lib/api'
 import {
@@ -256,10 +256,21 @@ it('updates count unit labels across cards, table cells and breakdowns with loca
   }
 })
 
+beforeEach(() => {
+  // These tests assert USD amounts independently of the deployment's
+  // default CNY display setting.
+  useSystemConfigStore.getState().setConfig({
+    currency: { ...DEFAULT_CURRENCY_CONFIG, quotaDisplayType: 'USD' },
+  })
+})
+
 afterEach(async () => {
   cleanup()
   clients.forEach((client) => client.clear())
   clients.length = 0
+  useSystemConfigStore
+    .getState()
+    .setConfig({ currency: { ...DEFAULT_CURRENCY_CONFIG } })
   vi.restoreAllMocks()
   await i18next.changeLanguage('en')
 })
