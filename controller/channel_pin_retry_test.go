@@ -28,6 +28,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 )
 
 func TestShouldRetryHonorsPinRetryMode(t *testing.T) {
@@ -422,6 +423,70 @@ func TestRetryChannelSelectionKeepsFallbackAndPins(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, channel)
 			assert.Equal(t, 2, channel.Id)
+		})
+	}
+}
+
+func TestAutoGroupSelectionSkipsErrors(t *testing.T) {
+	for _, dialect := range []struct{ kind, env string }{{"sqlite", ""}, {"mysql", "TEST_MYSQL_DSN"}, {"postgres", "TEST_POSTGRES_DSN"}} {
+		t.Run(dialect.kind, func(t *testing.T) {
+			if dialect.env != "" && os.Getenv(dialect.env) == "" {
+				t.Skip("set " + dialect.env + " to run this database")
+			}
+			db := modelManagementDB(t, dialect.kind, os.Getenv(dialect.env))
+			previousGroups := setting.UserUsableGroups2JSONString()
+			previousRatios := ratio_setting.GroupRatio2JSONString()
+			require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(`{"default":"Default","vip":"VIP"}`))
+			require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(`{"default":1,"vip":1}`))
+			t.Cleanup(func() {
+				require.NoError(t, setting.UpdateUserUsableGroupsByJSONString(previousGroups))
+				require.NoError(t, ratio_setting.UpdateGroupRatioByJSONString(previousRatios))
+			})
+			channel := model.Channel{Id: 2, Name: "backup", Type: 1, Key: "test-only", Status: common.ChannelStatusEnabled, Models: "retry-test", Group: "vip"}
+			require.NoError(t, db.Create(&channel).Error)
+			require.NoError(t, channel.AddAbilities(db))
+			selectionErr := errors.New("test group selection failure")
+			require.NoError(t, db.Callback().Query().After("gorm:query").Register("test:group_selection_failure", func(tx *gorm.DB) {
+				if tx.Statement.Table == "abilities" && slices.ContainsFunc(tx.Statement.Vars, func(value any) bool { return value == "default" }) {
+					tx.AddError(selectionErr)
+				}
+			}))
+			t.Cleanup(func() { require.NoError(t, db.Callback().Query().Remove("test:group_selection_failure")) })
+			for _, used := range [][]string{nil, {"1"}} {
+				for _, tc := range []struct {
+					name, group string
+					autoGroups  []string
+					wantID      int
+					wantError   bool
+				}{
+					{"auto_fallback", "auto", []string{"default", "vip"}, 2, false},
+					{"auto_exhausted", "auto", []string{"default"}, 0, false},
+					{"fixed_group", "default", nil, 0, true},
+				} {
+					t.Run(fmt.Sprintf("%s/used=%v", tc.name, used), func(t *testing.T) {
+						c := newPinRetryContext()
+						c.Set("use_channel", used)
+						common.SetContextKey(c, constant.ContextKeyUserGroup, "default")
+						common.SetContextKey(c, constant.ContextKeyTokenAutoGroups, tc.autoGroups)
+						param := &service.RetryParam{Ctx: c, TokenGroup: tc.group, ModelName: "retry-test", Retry: common.GetPointer(1)}
+						selected, group, err := service.CacheGetRandomSatisfiedChannel(param)
+						if tc.wantError {
+							require.ErrorIs(t, err, selectionErr)
+							assert.Nil(t, selected)
+							return
+						}
+						require.NoError(t, err)
+						if tc.wantID == 0 {
+							assert.Nil(t, selected)
+							return
+						}
+						require.NotNil(t, selected)
+						assert.Equal(t, tc.wantID, selected.Id)
+						assert.Equal(t, "vip", group)
+						assert.Equal(t, 0, param.GetRetry(), "skipping an unavailable group resets its retry count")
+					})
+				}
+			}
 		})
 	}
 }

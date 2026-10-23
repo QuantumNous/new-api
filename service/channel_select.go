@@ -150,7 +150,8 @@ func CacheGetRandomSatisfiedChannel(param *RetryParam) (*model.Channel, string, 
 
 			channel, err = getRetryChannel(param, autoGroup, priorityRetry, filters)
 			if err != nil {
-				return nil, autoGroup, err
+				logger.LogError(param.Ctx, common.LogText("Auto group %s channel selection failed: %v", autoGroup, err))
+				channel = nil
 			}
 			if channel == nil {
 				// Current group has no available channel for this model, try next group
