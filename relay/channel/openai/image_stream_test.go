@@ -638,6 +638,7 @@ func TestOpenaiImageStreamHandlerRecordsUpstreamErrorEvent(t *testing.T) {
 }
 
 func TestImageURLProxyPreservesImageBillingAndUsage(t *testing.T) {
+	t.Setenv("CRYPTO_SECRET", common.CryptoSecret)
 	oldAddress, oldPublicAddress := system_setting.ServerAddress, system_setting.TaskPublicAddress
 	oldTimeout := constant.StreamingTimeout
 	system_setting.ServerAddress, system_setting.TaskPublicAddress = "https://gateway.example", ""

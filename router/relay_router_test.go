@@ -129,6 +129,7 @@ func setupRelayRouterTestDB(t *testing.T) {
 
 func TestImageProxyRoutesValidateCapabilityWithoutAPIToken(t *testing.T) {
 	require.NoError(t, i18n.Init())
+	t.Setenv("CRYPTO_SECRET", common.CryptoSecret)
 	proxyURL, err := service.BuildImageProxyURL("https://upstream.example/image.png", 1)
 	require.NoError(t, err)
 	engine := gin.New()

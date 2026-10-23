@@ -12,6 +12,7 @@ const (
 	MsgImageProxyDownloadFailed = "image_proxy.download_failed"
 	MsgImageProxyUnsupported    = "image_proxy.unsupported"
 	MsgImageProxyCreateFailed   = "image_proxy.create_failed"
+	MsgImageProxySecretRequired = "image_proxy.secret_required"
 
 	MsgDatabaseError          = "common.database_error"
 	MsgAuthUserBanned         = "auth.user_banned"

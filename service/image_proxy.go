@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 
@@ -22,10 +23,23 @@ const (
 )
 
 var ErrImageProxyInvalid = errors.New("image proxy token is invalid")
+var ErrImageProxySecretRequired = errors.New("image URL proxy requires a persistent CRYPTO_SECRET or SESSION_SECRET")
 
 type ImageProxyTarget struct {
 	URL       string `json:"url"`
 	ChannelID int    `json:"channel_id"`
+}
+
+// ValidateImageProxySecret requires the effective key to come from deployment configuration.
+func ValidateImageProxySecret() error {
+	secret := os.Getenv("CRYPTO_SECRET")
+	if secret == "" {
+		secret = os.Getenv("SESSION_SECRET")
+	}
+	if secret == "" || secret != common.CryptoSecret {
+		return ErrImageProxySecretRequired
+	}
+	return nil
 }
 
 func imageProxyCipher() (cipher.AEAD, error) {
@@ -65,6 +79,9 @@ func ValidateImageProxyTargetURL(rawURL string) error {
 
 // BuildImageProxyURL encrypts an upstream image URL for access through this site.
 func BuildImageProxyURL(rawURL string, channelID int) (string, error) {
+	if err := ValidateImageProxySecret(); err != nil {
+		return "", err
+	}
 	if channelID <= 0 {
 		return "", ErrImageProxyInvalid
 	}

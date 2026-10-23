@@ -752,6 +752,7 @@ func setupImageProxyDownloadTest(t *testing.T) {
 	previousPublicAddress := system_setting.TaskPublicAddress
 	previousMemoryCache := common.MemoryCacheEnabled
 	common.CryptoSecret = "image-proxy-download-test-secret"
+	t.Setenv("CRYPTO_SECRET", common.CryptoSecret)
 	system_setting.TaskPublicAddress = "https://gateway.example"
 	common.MemoryCacheEnabled = false
 	t.Cleanup(func() {

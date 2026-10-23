@@ -14,11 +14,101 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/model_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestImageProxyRequiresPersistentSecretBeforeRelay(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	previousSecret := common.CryptoSecret
+	previousAutoDisable := common.AutomaticDisableChannelEnabled
+	common.AutomaticDisableChannelEnabled = true
+	t.Cleanup(func() {
+		common.CryptoSecret = previousSecret
+		common.AutomaticDisableChannelEnabled = previousAutoDisable
+	})
+	for _, test := range []struct {
+		name, path, cryptoSecret, sessionSecret, effectiveSecret, language string
+		channelType                                                        int
+		enabled, rejected                                                  bool
+	}{
+		{name: "generation without secret", path: "/v1/images/generations", enabled: true, rejected: true},
+		{name: "edit without secret", path: "/v1/images/edits", enabled: true, rejected: true},
+		{name: "task plugin without secret", path: "/v1/images/generations", channelType: constant.ChannelTypeTaskPlugin, enabled: true, rejected: true},
+		{name: "disabled generation", path: "/v1/images/generations"},
+		{name: "disabled edit", path: "/v1/images/edits"},
+		{name: "unrelated API", path: "/v1/chat/completions", enabled: true},
+		{name: "crypto secret", path: "/v1/images/generations", cryptoSecret: "persistent-crypto", effectiveSecret: "persistent-crypto", enabled: true},
+		{name: "session secret fallback", path: "/v1/images/edits", sessionSecret: "persistent-session", effectiveSecret: "persistent-session", enabled: true},
+		{name: "crypto secret takes precedence", path: "/v1/images/generations", cryptoSecret: "persistent-crypto", sessionSecret: "persistent-session", effectiveSecret: "persistent-crypto", enabled: true},
+		{name: "configured secret must be effective", path: "/v1/images/generations", cryptoSecret: "persistent-crypto", sessionSecret: "persistent-session", effectiveSecret: "persistent-session", enabled: true, rejected: true},
+		{name: "simplified Chinese error", path: "/v1/images/generations", enabled: true, rejected: true, language: "zh-CN"},
+		{name: "traditional Chinese error", path: "/v1/images/generations", enabled: true, rejected: true, language: "zh-TW"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("CRYPTO_SECRET", test.cryptoSecret)
+			t.Setenv("SESSION_SECRET", test.sessionSecret)
+			common.CryptoSecret = test.effectiveSecret
+			if common.CryptoSecret == "" {
+				common.CryptoSecret = "process-local-secret"
+			}
+			channelType := test.channelType
+			if channelType == 0 {
+				channelType = constant.ChannelTypeOpenAI
+			}
+			channel := &model.Channel{Id: 37, Type: channelType, Status: common.ChannelStatusEnabled, Models: "image-model", Key: "upstream-test-key"}
+			channel.SetSetting(dto.ChannelSettings{ImageURLProxy: test.enabled, TaskPluginKey: "image-proxy-test"})
+			relayCalled := false
+			router := gin.New()
+			router.POST(test.path, func(c *gin.Context) {
+				if channelType == constant.ChannelTypeTaskPlugin {
+					c.Set("expected_task_plugin_key", "image-proxy-test")
+				}
+				c.Set(contextKeyTaskPluginEndpointSelection, taskPluginEndpointSelection{Model: "image-model", Channel: channel})
+			}, Distribute(), func(c *gin.Context) {
+				relayCalled = true
+				c.Status(http.StatusNoContent)
+			})
+			request := httptest.NewRequest(http.MethodPost, test.path, strings.NewReader(`{"model":"image-model","prompt":"test"}`))
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("Accept-Language", test.language)
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+			assert.Equal(t, !test.rejected, relayCalled, "configuration errors must stop before the relay and its billing")
+			if test.rejected {
+				require.Equal(t, http.StatusInternalServerError, recorder.Code)
+				assert.Contains(t, recorder.Body.String(), "CRYPTO_SECRET")
+				assert.Contains(t, recorder.Body.String(), "SESSION_SECRET")
+				if test.language == "zh-CN" {
+					assert.Contains(t, recorder.Body.String(), "请联系管理员")
+				} else if test.language == "zh-TW" {
+					assert.Contains(t, recorder.Body.String(), "請聯繫管理員")
+				} else {
+					assert.Contains(t, recorder.Body.String(), "requires a persistent")
+				}
+				_, err := service.BuildImageProxyURL("https://upstream.example/image.png", channel.Id)
+				assert.ErrorIs(t, err, service.ErrImageProxySecretRequired)
+			} else {
+				require.Equal(t, http.StatusNoContent, recorder.Code)
+			}
+			// Retries use the same channel setup without the distributor middleware.
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = request
+			setupErr := SetupContextForSelectedChannel(c, channel, "image-model")
+			if test.rejected {
+				require.NotNil(t, setupErr)
+				assert.True(t, types.IsSkipRetryError(setupErr))
+				assert.False(t, service.ShouldDisableChannel(setupErr))
+			} else {
+				require.Nil(t, setupErr)
+			}
+		})
+	}
+}
 
 func TestChannelMatchesExpectedTaskPluginUsesGenericChannelSetting(t *testing.T) {
 	channel := &model.Channel{Type: constant.ChannelTypeTaskPlugin}

@@ -28,6 +28,7 @@ func setupImageProxyTest(t *testing.T) {
 	previousPublicAddress := system_setting.TaskPublicAddress
 	previousServerAddress := system_setting.ServerAddress
 	common.CryptoSecret = "image-proxy-test-secret"
+	t.Setenv("CRYPTO_SECRET", common.CryptoSecret)
 	system_setting.TaskPublicAddress = "https://images.example/gateway/"
 	system_setting.ServerAddress = "https://fallback.example"
 	t.Cleanup(func() {
@@ -88,7 +89,7 @@ func TestImageProxyCapabilityRejectsTamperingAndWrongSecret(t *testing.T) {
 	_, err = ReadImageProxyToken(token)
 	assert.ErrorIs(t, err, ErrImageProxyInvalid)
 	_, err = BuildImageProxyURL("https://upstream.example/image.png", 37)
-	assert.ErrorIs(t, err, ErrImageProxyInvalid)
+	assert.ErrorIs(t, err, ErrImageProxySecretRequired)
 }
 
 func TestImageProxyCapabilityDoesNotExpire(t *testing.T) {

@@ -1669,6 +1669,7 @@ func imageProtocolTestOutcome(info *relaycommon.RelayInfo, status model.TaskStat
 // rendered by the plugin, `created` is host-filled, and response_format
 // b64_json inlines each URL while keeping the URL.
 func TestServeTaskPluginImageProtocolRendersImmediateResultAndInlinesBase64(t *testing.T) {
+	t.Setenv("CRYPTO_SECRET", common.CryptoSecret)
 	oldAddress, oldPublicAddress := system_setting.ServerAddress, system_setting.TaskPublicAddress
 	system_setting.ServerAddress, system_setting.TaskPublicAddress = "https://gateway.example", ""
 	t.Cleanup(func() { system_setting.ServerAddress, system_setting.TaskPublicAddress = oldAddress, oldPublicAddress })
