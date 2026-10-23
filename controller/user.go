@@ -446,6 +446,175 @@ func GetAffCode(c *gin.Context) {
 	return
 }
 
+// childView is the subset of User fields exposed to the parent account owner.
+type childView struct {
+	Id          int    `json:"id"`
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	Email       string `json:"email"`
+	UsedQuota   int    `json:"used_quota"`
+	Status      int    `json:"status"`
+}
+
+// GetSelfChildren returns all sub-accounts attached to the caller's account.
+func GetSelfChildren(c *gin.Context) {
+	id := c.GetInt("id")
+	children, err := model.GetUserChildren(id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	views := make([]childView, 0, len(children))
+	for _, u := range children {
+		views = append(views, childView{
+			Id:          u.Id,
+			Username:    u.Username,
+			DisplayName: u.DisplayName,
+			Email:       u.Email,
+			UsedQuota:   u.UsedQuota,
+			Status:      u.Status,
+		})
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": views})
+}
+
+// AddSelfChild attaches a user as a sub-account of the caller.
+// Body: {"user_id": <int>} or {"email": "<string>"}
+func AddSelfChild(c *gin.Context) {
+	myId := c.GetInt("id")
+
+	var body struct {
+		UserId int    `json:"user_id"`
+		Email  string `json:"email"`
+	}
+	if err := json.NewDecoder(c.Request.Body).Decode(&body); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	// Resolve target user
+	var target *model.User
+	var err error
+	if body.UserId != 0 {
+		target, err = model.GetUserById(body.UserId, false)
+	} else if body.Email != "" {
+		target, err = model.GetUniqueUserByEmail(model.NormalizeEmail(body.Email))
+	} else {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	// Validation
+	if target.Id == myId {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams) // can't be own child
+		return
+	}
+	if target.ParentId != 0 {
+		common.ApiErrorMsg(c, "该用户已隶属于其他父账号")
+		return
+	}
+	hasChildren, err := model.HasChildren(target.Id)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if hasChildren {
+		common.ApiErrorMsg(c, "该用户已有子账号，不能作为子账号使用")
+		return
+	}
+
+	if err := model.SetUserParentId(target.Id, myId); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.InvalidateUserCache(target.Id); err != nil {
+		common.SysLog(fmt.Sprintf("failed to invalidate cache for user %d: %s", target.Id, err.Error()))
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
+}
+
+// RemoveSelfChild detaches a sub-account from the caller.
+func RemoveSelfChild(c *gin.Context) {
+	myId := c.GetInt("id")
+	childId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || childId == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	target, err := model.GetUserById(childId, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if target.ParentId != myId {
+		common.ApiErrorI18n(c, i18n.MsgUserNoPermissionSameLevel)
+		return
+	}
+
+	if err := model.SetUserParentId(childId, 0); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.InvalidateUserCache(childId); err != nil {
+		common.SysLog(fmt.Sprintf("failed to invalidate cache for user %d: %s", childId, err.Error()))
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
+}
+
+// GetSelfParent returns the parent account info for a child account.
+func GetSelfParent(c *gin.Context) {
+	id := c.GetInt("id")
+	user, err := model.GetUserById(id, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if user.ParentId == 0 {
+		c.JSON(http.StatusOK, gin.H{"success": true, "data": nil})
+		return
+	}
+	parent, err := model.GetUserById(user.ParentId, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "data": gin.H{
+		"id":           parent.Id,
+		"username":     parent.Username,
+		"display_name": parent.DisplayName,
+		"email":        parent.Email,
+	}})
+}
+
+// RemoveSelfParent allows a child account to detach itself from its parent.
+func RemoveSelfParent(c *gin.Context) {
+	id := c.GetInt("id")
+	user, err := model.GetUserById(id, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if user.ParentId == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if err := model.SetUserParentId(id, 0); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.InvalidateUserCache(id); err != nil {
+		common.SysLog(fmt.Sprintf("failed to invalidate cache for user %d: %s", id, err.Error()))
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
+}
+
 func GetSelf(c *gin.Context) {
 	id := c.GetInt("id")
 	userRole := c.GetInt("role")
@@ -500,6 +669,7 @@ func GetSelf(c *gin.Context) {
 		"permissions":         permissions,                // 新增权限字段
 		"onboarding_required": onboardingStatus.Required,
 		"onboarding_version":  onboardingStatus.Version,
+		"parent_id":           user.ParentId,
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -733,6 +903,52 @@ func UpdateUser(c *gin.Context) {
 		"message": "",
 	})
 	return
+}
+
+// AdminSetUserParent sets or clears the parent account for a user.
+// Body: {"parent_id": <int>}  — send 0 to detach.
+func AdminSetUserParent(c *gin.Context) {
+	targetId, err := strconv.Atoi(c.Param("id"))
+	if err != nil || targetId == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	var body struct {
+		ParentId int `json:"parent_id"`
+	}
+	if err := json.NewDecoder(c.Request.Body).Decode(&body); err != nil {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	if body.ParentId == targetId {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	// Verify parent exists when non-zero
+	if body.ParentId != 0 {
+		if _, err := model.GetUserById(body.ParentId, false); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+	}
+
+	if err := model.SetUserParentId(targetId, body.ParentId); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	if err := model.InvalidateUserCache(targetId); err != nil {
+		common.SysLog(fmt.Sprintf("failed to invalidate cache for user %d: %s", targetId, err.Error()))
+	}
+
+	recordManageAuditFor(c, targetId, "user.set_parent", map[string]interface{}{
+		"parent_id": body.ParentId,
+	})
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": ""})
 }
 
 func AdminClearUserBinding(c *gin.Context) {

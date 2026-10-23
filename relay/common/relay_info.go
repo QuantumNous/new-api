@@ -89,8 +89,9 @@ type RelayInfo struct {
 	TokenId           int
 	TokenKey          string
 	TokenGroup        string
-	UserId            int
-	UsingGroup        string // 使用的分组，当auto跨分组重试时，会变动
+	UserId        int
+	BillingUserId int // parent account ID when sub-account, else same as UserId
+	UsingGroup    string // 使用的分组，当auto跨分组重试时，会变动
 	UserGroup         string // 用户所在分组
 	TokenUnlimited    bool
 	StartTime         time.Time
@@ -469,8 +470,8 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 	info := &RelayInfo{
 		Request: request,
 
-		RequestId:  reqId,
-		UserId:     common.GetContextKeyInt(c, constant.ContextKeyUserId),
+		RequestId: reqId,
+		UserId:    common.GetContextKeyInt(c, constant.ContextKeyUserId),
 		UsingGroup: common.GetContextKeyString(c, constant.ContextKeyUsingGroup),
 		UserGroup:  common.GetContextKeyString(c, constant.ContextKeyUserGroup),
 		UserQuota:  common.GetContextKeyInt(c, constant.ContextKeyUserQuota),
@@ -499,6 +500,12 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 			//promptTokens: common.GetContextKeyInt(c, constant.ContextKeyPromptTokens),
 			estimatePromptTokens: common.GetContextKeyInt(c, constant.ContextKeyEstimatedTokens),
 		},
+	}
+
+	if billingUserId := common.GetContextKeyInt(c, constant.ContextKeyBillingUserId); billingUserId != 0 {
+		info.BillingUserId = billingUserId
+	} else {
+		info.BillingUserId = info.UserId
 	}
 
 	if info.RelayMode == relayconstant.RelayModeUnknown {

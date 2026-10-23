@@ -552,6 +552,11 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 		return fmt.Errorf("token is nil")
 	}
 	c.Set("id", token.UserId)
+	billingUserId, err := model.GetBillingUserId(token.UserId)
+	if err != nil {
+		billingUserId = token.UserId
+	}
+	common.SetContextKey(c, constant.ContextKeyBillingUserId, billingUserId)
 	c.Set("token_id", token.Id)
 	c.Set("token_key", token.Key)
 	c.Set("token_name", token.Name)

@@ -50,6 +50,54 @@ export async function updateUserProfile(
   return res.data
 }
 
+// ============================================================================
+// Team / Sub-account APIs
+// ============================================================================
+
+export type ChildAccount = {
+  id: number
+  username: string
+  display_name: string
+  email: string
+  used_quota: number
+  status: number
+}
+
+export async function getChildAccounts(): Promise<ApiResponse<ChildAccount[]>> {
+  const res = await api.get('/api/user/self/children')
+  return res.data
+}
+
+export async function addChildAccount(data: {
+  user_id?: number
+  email?: string
+}): Promise<ApiResponse> {
+  const res = await api.post('/api/user/self/children', data)
+  return res.data
+}
+
+export async function removeChildAccount(id: number): Promise<ApiResponse> {
+  const res = await api.delete(`/api/user/self/children/${id}`)
+  return res.data
+}
+
+export type ParentAccount = {
+  id: number
+  username: string
+  display_name: string
+  email: string
+}
+
+export async function getSelfParent(): Promise<ApiResponse<ParentAccount | null>> {
+  const res = await api.get('/api/user/self/parent')
+  return res.data
+}
+
+export async function removeSelfParent(): Promise<ApiResponse> {
+  const res = await api.delete('/api/user/self/parent')
+  return res.data
+}
+
 /**
  * Update user settings
  */

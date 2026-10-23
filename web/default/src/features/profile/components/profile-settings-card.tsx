@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Link2, Settings } from 'lucide-react'
+import { Link2, Settings, Users } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,6 +28,7 @@ import { TitledCard } from '@/components/ui/titled-card'
 import type { UserProfile } from '../types'
 import { AccountBindingsTab } from './tabs/account-bindings-tab'
 import { NotificationTab } from './tabs/notification-tab'
+import { TeamMembersTab } from './tabs/team-members-tab'
 
 // ============================================================================
 // Profile Settings Card Component
@@ -73,7 +74,7 @@ export function ProfileSettingsCard({
       disableHoverEffect
     >
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className='grid w-full grid-cols-2 items-stretch gap-1 rounded-xl p-1 group-data-horizontal/tabs:h-10'>
+        <TabsList className='grid w-full grid-cols-3 items-stretch gap-1 rounded-xl p-1 group-data-horizontal/tabs:h-10'>
           <TabsTrigger
             value='bindings'
             className='h-full gap-2 rounded-lg px-3 py-0 leading-none'
@@ -81,6 +82,14 @@ export function ProfileSettingsCard({
             <Link2 className='h-4 w-4' />
             <span className='hidden sm:inline'>{t('Account Bindings')}</span>
             <span className='sm:hidden'>{t('Bindings')}</span>
+          </TabsTrigger>
+          <TabsTrigger
+            value='team'
+            className='h-full gap-2 rounded-lg px-3 py-0 leading-none'
+          >
+            <Users className='h-4 w-4' />
+            <span className='hidden sm:inline'>{t('Team Members')}</span>
+            <span className='sm:hidden'>{t('Team')}</span>
           </TabsTrigger>
           <TabsTrigger
             value='settings'
@@ -96,6 +105,10 @@ export function ProfileSettingsCard({
 
         <TabsContent value='bindings' className='mt-4 sm:mt-6'>
           <AccountBindingsTab profile={profile} onUpdate={onProfileUpdate} />
+        </TabsContent>
+
+        <TabsContent value='team' className='mt-4 sm:mt-6'>
+          <TeamMembersTab profile={profile} onUpdate={onProfileUpdate} />
         </TabsContent>
 
         <TabsContent value='settings' className='mt-4 sm:mt-6'>
