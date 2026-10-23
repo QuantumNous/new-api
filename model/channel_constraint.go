@@ -37,7 +37,7 @@ func ChannelSatisfiesFilters(ch *Channel, modelName string, filters []dto.Channe
 
 // filterCandidateIDs applies filters to a cached candidate id list.
 // Caller must hold channelSyncLock (read lock). The input slice is never mutated.
-// A missing id in channelsIDM is kept for request_path and exclusions
+// A missing id in channelsIDM is kept for request_path
 // (downstream consistency error) and dropped for the other filters.
 func filterCandidateIDs(ids []int, modelName string, filters []dto.ChannelFilter) (kept []int, emptiedBy dto.ChannelFilterKind) {
 	if len(ids) == 0 {
@@ -75,7 +75,7 @@ func filtersByKind(filters []dto.ChannelFilter, kind dto.ChannelFilterKind) []dt
 }
 
 func candidatePassesKindFilters(ch *Channel, exists bool, modelName string, kind dto.ChannelFilterKind, filters []dto.ChannelFilter) bool {
-	if !exists && (kind == dto.FilterRequestPath || kind == dto.FilterExcludeChannels) {
+	if !exists && kind == dto.FilterRequestPath {
 		return true
 	}
 	if !exists || ch == nil {
