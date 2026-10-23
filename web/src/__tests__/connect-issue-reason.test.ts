@@ -3,6 +3,17 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { beforeAll, describe, expect, it } from 'vitest'
 
+declare global {
+  interface Window {
+    YeschoyConnect: {
+      normalizeIssueReasonCode: (
+        reason: string,
+        status?: number
+      ) => string
+    }
+  }
+}
+
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), '../..')
 
 beforeAll(() => {
@@ -10,7 +21,7 @@ beforeAll(() => {
     join(repoRoot, 'public/connect.js'),
     'utf8'
   )
-  // connect.js is a browser IIFE; eval mirrors how /desktop/connect loads it.
+  // connect.js is a browser IIFE; eval mirrors third-party embeds (station SPA no longer loads it).
   // eslint-disable-next-line no-eval
   eval(script)
 })

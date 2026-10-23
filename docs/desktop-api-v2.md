@@ -117,13 +117,15 @@ v2 为官方桌面助手补齐网页登录授权和桌面会话，同时复用 N
 
 - 方法：`GET`
 - 路径：`/desktop/connect`（固定、区分大小写）
-- 页面加载同源 `/connect.js`（亦可改为托管在 `https://yeschoy.com/connect.js`）
+- 实现：TanStack SPA 路由（与站点登录共用同一套会话 / Access Token）。未登录时引导到 `/sign-in?redirect=/desktop/connect?auto=1`，登录后回到本页并可自动发码唤起 `yeschoy://connect`
+- Go 侧对该路径返回 SPA 壳（`index.html`），不再提供独立 `connect.html`
+- 可选：`/connect.js` 仍可作为第三方页面嵌入的轻量助手，**本站连接页不再依赖它**
 
 ### 签发连接码（浏览器）
 
 - 方法：`POST`
 - 路径：`/api/desktop/v2/connect-codes`
-- 鉴权：网站浏览器会话 Cookie（`credentials: include`）；未登录返回 `session_required`（401）
+- 鉴权：浏览器会话 Access Token（`Authorization: Bearer`）。SPA 连接页直接使用仪表盘会话里的 access token；未登录返回 `session_required`（401）。可选的 `/connect.js` 嵌入脚本仍可通过 `POST /api/user/auth/refresh`（HttpOnly refresh cookie）自行换 token
 - 请求体（可选）：`{"origin":"https://your-station.example"}`；省略时可用 `Origin` 请求头或由 `Host` 推导 canonical HTTPS origin
 - TTL：300 秒，单次使用；响应 `data` 含 `code`、`origin`、`expiresAt`、`ttlSeconds`
 
@@ -193,7 +195,7 @@ v2 为官方桌面助手补齐网页登录授权和桌面会话，同时复用 N
 
 1. `ServerAddress` 为公开站点 `https://yeschoy.com`，用于生成授权页和充值页地址。
 2. Redis 已启用且可写；否则账户、用量等接口仍可用，但桌面网页登录会被关闭。
-3. 反向代理允许 `/api/desktop/v2/*`、`/desktop/connect`、`/connect.js` 和 `/desktop-authorize`，并保留 HTTPS。
+3. 反向代理允许 `/api/desktop/v2/*`、`/desktop/connect`、`/desktop-authorize`（以及可选的 `/connect.js` 嵌入脚本），并保留 HTTPS。
 4. 发布包含更新后的前端静态资源。
 5. 先在测试账号完成“同意、拒绝、过期、重复兑换、刷新、退出”全流程，再开放最低版本为 `0.2.0` 的桌面客户端。
 
