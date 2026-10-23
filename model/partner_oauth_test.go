@@ -408,7 +408,7 @@ func TestPartnerOAuthPaymentOrderStore(t *testing.T) {
 			sqlDB, err := db.DB()
 			require.NoError(t, err)
 			sqlDB.SetMaxOpenConns(1)
-			models := []any{&User{}, &Option{}, &TopUp{}, &CashbackOrderContext{}, &PartnerOAuthPaymentOrder{}}
+			models := []any{&User{}, &Option{}, &TopUp{}, &CashbackOrderContext{}, &PartnerOAuthBinding{}, &PartnerOAuthPaymentOrder{}}
 			oldDB, oldLog, oldMain, oldLogKind := DB, LOG_DB, common.MainDatabaseType(), common.LogDatabaseType()
 			DB, LOG_DB = db, db
 			common.SetDatabaseTypes(dialect.kind, dialect.kind)
@@ -438,14 +438,18 @@ func TestPartnerOAuthPaymentOrderStore(t *testing.T) {
 			require.NoError(t, db.Where("top_up_id = ?", legacyTopUp.Id).First(&legacy).Error)
 			assert.Empty(t, legacy.IneligibleReason)
 			assert.Equal(t, 500_000, legacy.BaseQuota)
+			require.NoError(t, db.Create(&PartnerOAuthBinding{BindingId: "bnd_store", ClientId: "pc_store", UserId: user.Id,
+				Status: PartnerOAuthBindingStatusActive, ExpiresAt: time.Now().Add(time.Hour).Unix()}).Error)
 
+			since := time.Now().Add(-time.Hour).Unix()
+			limits := PartnerOAuthPaymentOrderLimits{RecentSince: since, MaxRecent: 20, PendingSince: since, MaxPending: 5}
 			newOrder := func(tradeNo, keyHash string) (*PartnerOAuthPaymentOrder, *TopUp, error) {
 				topUp := &TopUp{UserId: user.Id, Amount: 10, Money: 70, TradeNo: tradeNo, PaymentProvider: PaymentProviderEpay,
 					PaymentMethod: "alipay", CreateTime: time.Now().Unix(), Status: common.TopUpStatusPending}
 				order := &PartnerOAuthPaymentOrder{BindingId: "bnd_store", IdempotencyKeyHash: keyHash, RequestHash: strings.Repeat("b", 64),
 					ClientId: "pc_store", RequestedAmount: 10, ReturnURL: "https://assistant.example.com/done"}
 				return order, topUp, CreatePartnerOAuthPaymentOrder(order, topUp, 5_000_000, CashbackRequestMetadata{
-					FaceAmount: 10, QuotaPerFaceUnit: "500000", RequestIP: "203.0.113.9", UserAgent: "partner-server"})
+					FaceAmount: 10, QuotaPerFaceUnit: "500000", RequestIP: "203.0.113.9", UserAgent: "partner-server"}, limits)
 			}
 			order, topUp, err := newOrder("partner-order-1", strings.Repeat("a", 64))
 			require.NoError(t, err)
@@ -475,17 +479,23 @@ func TestPartnerOAuthPaymentOrderStore(t *testing.T) {
 			assert.Equal(t, "https://assistant.example.com/done", GetPartnerOAuthPaymentReturnURL(topUp.Id))
 			assert.Empty(t, GetPartnerOAuthPaymentReturnURL(legacyTopUp.Id))
 
-			since := time.Now().Add(-time.Hour).Unix()
-			pending, err := CountPartnerOAuthPaymentOrders("bnd_store", since, true)
-			require.NoError(t, err)
-			assert.Equal(t, int64(1), pending)
+			// Limits are checked under the binding lock and leave no top-up behind.
+			limits.MaxPending = 1
+			_, _, err = newOrder("partner-order-3", strings.Repeat("c", 64))
+			require.ErrorIs(t, err, ErrPartnerOAuthPaymentRateLimited)
+			require.NoError(t, db.Model(&TopUp{}).Where("trade_no = ?", "partner-order-3").Count(&topUps).Error)
+			assert.Zero(t, topUps)
 			require.NoError(t, db.Model(&TopUp{}).Where("id = ?", topUp.Id).Update("status", common.TopUpStatusSuccess).Error)
-			pending, err = CountPartnerOAuthPaymentOrders("bnd_store", since, true)
-			require.NoError(t, err)
-			assert.Zero(t, pending)
-			total, err := CountPartnerOAuthPaymentOrders("bnd_store", since, false)
-			require.NoError(t, err)
-			assert.Equal(t, int64(1), total)
+			_, _, err = newOrder("partner-order-3", strings.Repeat("c", 64))
+			require.NoError(t, err, "a paid order no longer counts as pending")
+			limits.MaxRecent = 2
+			_, _, err = newOrder("partner-order-4", strings.Repeat("d", 64))
+			require.ErrorIs(t, err, ErrPartnerOAuthPaymentRateLimited)
+
+			limits.MaxRecent = 20
+			require.NoError(t, db.Model(&PartnerOAuthBinding{}).Where("binding_id = ?", "bnd_store").Update("status", "revoked").Error)
+			_, _, err = newOrder("partner-order-5", strings.Repeat("e", 64))
+			require.ErrorIs(t, err, ErrPartnerOAuthBindingNotFound)
 		})
 	}
 }

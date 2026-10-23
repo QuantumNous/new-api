@@ -376,7 +376,7 @@ Idempotency-Key: {16-64 个 A-Z a-z 0-9 - _}
 ```
 
 - `amount`、`payment_method` 必填，`return_url` 可选。不能带其他字段或查询参数。
-- `Idempotency-Key` 必填，每次新的充值意图生成一个新值。网络超时后用同一个值重试，会返回同一笔订单（HTTP 200），不会重复下单；同一个值换了请求内容会得到 `409 idempotency_conflict`。
+- `Idempotency-Key` 必填，每次新的充值意图生成一个新值。网络超时后用同一个值重试，会返回同一笔订单（HTTP 200），不会重复下单；同一个值换了请求内容会得到 `409 idempotency_conflict`。平台暂停充值时，重试未支付订单会返回 `503 payment_unavailable` 而不再给出收银台地址，订单状态用 9.3 查询。
 - `return_url` 必须和该客户端已登记的某个回调地址同源（协议、域名、端口都相同）；公共客户端登记的回环回调允许任意端口。
 
 成功时 HTTP 201：

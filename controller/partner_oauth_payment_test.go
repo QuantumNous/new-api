@@ -383,6 +383,11 @@ func TestPartnerOAuthPaymentOrderRejectsInvalidRequests(t *testing.T) {
 	unavailable := partnerIntegrationRequest(engine, http.MethodPost, "/api/integrations/v1/payment/orders", "oa_validation_writer", "validation-key-00009", validBody)
 	assert.Equal(t, http.StatusServiceUnavailable, unavailable.Code)
 	assert.Equal(t, "payment_unavailable", partnerIntegrationErrorCode(t, unavailable))
+	// A replay must not hand out a checkout URL whose payment notify would refuse.
+	replay := partnerIntegrationRequest(engine, http.MethodPost, "/api/integrations/v1/payment/orders", "oa_validation_writer", "pending-limit-key-10", validBody)
+	assert.Equal(t, http.StatusServiceUnavailable, replay.Code)
+	assert.Equal(t, "payment_unavailable", partnerIntegrationErrorCode(t, replay))
+	assert.NotContains(t, replay.Body.String(), "checkout_url")
 }
 
 func TestPartnerOAuthPaymentReturnURLMustUseRegisteredOrigin(t *testing.T) {

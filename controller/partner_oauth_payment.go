@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -90,6 +91,17 @@ func partnerEpayMethods() []partnerPaymentMethod {
 		methods = append(methods, partnerPaymentMethod{ID: method["type"], Name: method["name"]})
 	}
 	return methods
+}
+
+// partnerEpayMethodAvailable reports whether new payments can start with this
+// Epay method right now; settlement rejects payments made while it is off.
+func partnerEpayMethodAvailable(method string) bool {
+	if !isEpayTopUpEnabled() || GetEpayClient() == nil {
+		return false
+	}
+	return slices.ContainsFunc(partnerEpayMethods(), func(item partnerPaymentMethod) bool {
+		return item.ID == method
+	})
 }
 
 func partnerPaymentCurrency() string {
@@ -255,6 +267,12 @@ func replayPartnerPaymentOrder(c *gin.Context, requestHash string, order *model.
 	}
 	view := partnerPaymentOrderView(topUp, order.RequestedAmount)
 	if topUp.Status == common.TopUpStatusPending {
+		// A fresh checkout URL for a method that was switched off would take a
+		// payment the notify callback then refuses to credit.
+		if !partnerEpayMethodAvailable(topUp.PaymentMethod) {
+			writePartnerIntegrationAPIError(c, &service.PartnerOAuthError{Status: http.StatusServiceUnavailable, Code: "payment_unavailable", Description: "payment is not available"})
+			return
+		}
 		checkoutURL, err := partnerEpayCheckout(topUp, view.Amount)
 		if err != nil {
 			writePartnerIntegrationAPIError(c, &service.PartnerOAuthError{Status: http.StatusServiceUnavailable, Code: "payment_unavailable", Description: "payment is temporarily unavailable"})
@@ -293,14 +311,7 @@ func PartnerOAuthCreatePaymentOrder(c *gin.Context) {
 		writePartnerIntegrationAPIError(c, &service.PartnerOAuthError{Status: http.StatusServiceUnavailable, Code: "payment_unavailable", Description: "payment is not available"})
 		return
 	}
-	methodAllowed := false
-	for _, method := range partnerEpayMethods() {
-		if method.ID == req.PaymentMethod {
-			methodAllowed = true
-			break
-		}
-	}
-	if !methodAllowed {
+	if !partnerEpayMethodAvailable(req.PaymentMethod) {
 		writePartnerIntegrationAPIError(c, &service.PartnerOAuthError{Status: http.StatusBadRequest, Code: "invalid_payment_method", Description: "payment_method is not available"})
 		return
 	}
@@ -334,21 +345,6 @@ func PartnerOAuthCreatePaymentOrder(c *gin.Context) {
 
 	now := time.Now()
 	bindingID := principal.Binding.BindingId
-	recent, err := model.CountPartnerOAuthPaymentOrders(bindingID, now.Add(-time.Hour).Unix(), false)
-	if err != nil {
-		writePartnerIntegrationAPIError(c, err)
-		return
-	}
-	pending, err := model.CountPartnerOAuthPaymentOrders(bindingID, now.Add(-partnerPaymentPendingWindow).Unix(), true)
-	if err != nil {
-		writePartnerIntegrationAPIError(c, err)
-		return
-	}
-	if recent >= partnerPaymentHourlyOrderLimit || pending >= partnerPaymentPendingLimit {
-		c.Header("Retry-After", "60")
-		writePartnerIntegrationAPIError(c, &service.PartnerOAuthError{Status: http.StatusTooManyRequests, Code: "rate_limited", Description: "too many payment orders, please retry later"})
-		return
-	}
 
 	// The bearer middleware read this user row from the database for this request.
 	payMoney := getPayMoney(req.Amount, principal.User.Group)
@@ -390,7 +386,22 @@ func PartnerOAuthCreatePaymentOrder(c *gin.Context) {
 		ReturnURL:          req.ReturnURL,
 		CreatedAt:          now.Unix(),
 	}
-	err = model.CreatePartnerOAuthPaymentOrder(order, topUp, baseQuota, onlineTopUpCashbackMetadata(c, baseQuota, req.Amount, false))
+	limits := model.PartnerOAuthPaymentOrderLimits{
+		RecentSince:  now.Add(-time.Hour).Unix(),
+		MaxRecent:    partnerPaymentHourlyOrderLimit,
+		PendingSince: now.Add(-partnerPaymentPendingWindow).Unix(),
+		MaxPending:   partnerPaymentPendingLimit,
+	}
+	err = model.CreatePartnerOAuthPaymentOrder(order, topUp, baseQuota, onlineTopUpCashbackMetadata(c, baseQuota, req.Amount, false), limits)
+	if errors.Is(err, model.ErrPartnerOAuthPaymentRateLimited) {
+		c.Header("Retry-After", "60")
+		writePartnerIntegrationAPIError(c, &service.PartnerOAuthError{Status: http.StatusTooManyRequests, Code: "rate_limited", Description: "too many payment orders, please retry later"})
+		return
+	}
+	if errors.Is(err, model.ErrPartnerOAuthBindingNotFound) {
+		writePartnerIntegrationAPIError(c, &service.PartnerOAuthError{Status: http.StatusUnauthorized, Code: "invalid_token", Description: "access token is invalid", WWWAuth: `Bearer realm="integration", error="invalid_token"`})
+		return
+	}
 	if errors.Is(err, model.ErrPartnerOAuthPaymentIdempotencyRace) {
 		existing, existingTopUp, findErr := model.FindPartnerOAuthPaymentOrderByIdempotency(bindingID, keyHash)
 		if findErr != nil {
