@@ -40,6 +40,11 @@ import zhTW from '@/i18n/locales/zh-TW.json'
 import zh from '@/i18n/locales/zh.json'
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
+import {
+  DEFAULT_CURRENCY_CONFIG,
+  useSystemConfigStore,
+} from '@/stores/system-config-store'
+import { createTestAuthBundle } from '@/test-utils/auth-bundle'
 
 import { AuditLogs } from '..'
 import { AuditLogViewer } from '../components/audit-log-viewer'
@@ -400,10 +405,18 @@ beforeEach(() => {
     setItem: () => undefined,
     removeItem: () => undefined,
   })
+  // These tests assert USD amounts independently of the deployment's
+  // default CNY display setting.
+  useSystemConfigStore.getState().setConfig({
+    currency: { ...DEFAULT_CURRENCY_CONFIG, quotaDisplayType: 'USD' },
+  })
 })
 afterEach(() => {
   cleanup()
   useAuthStore.getState().auth.reset()
+  useSystemConfigStore
+    .getState()
+    .setConfig({ currency: { ...DEFAULT_CURRENCY_CONFIG } })
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
 })
@@ -586,11 +599,14 @@ it('changing rows per page resets pagination and sends the selected page size', 
 it.each([10, 100])(
   'role %i defaults to all audit records and can switch both ways',
   async (role) => {
-    useAuthStore.getState().auth.setUser({
-      id: 1,
-      username: 'admin',
-      role,
-      permissions: { admin_permissions: { audit: { read: role === 10 } } },
+    useAuthStore.getState().auth.setBundle({
+      ...createTestAuthBundle(),
+      user: {
+        id: 1,
+        username: 'admin',
+        role,
+        permissions: { admin_permissions: { audit: { read: role === 10 } } },
+      },
     })
     const get = vi.spyOn(api, 'get').mockResolvedValue({
       data: { success: true, data: { items: [], total: 0 } },
@@ -633,7 +649,10 @@ it.each([10, 100])(
 it.each([1, 10])(
   'role %i without an audit grant queries only its own records without scope tabs',
   async (role) => {
-    useAuthStore.getState().auth.setUser({ id: 2, username: 'alice', role })
+    useAuthStore.getState().auth.setBundle({
+      ...createTestAuthBundle(),
+      user: { id: 2, username: 'alice', role },
+    })
     const get = vi.spyOn(api, 'get').mockResolvedValue({
       data: { success: true, data: { items: [], total: 0 } },
     })
@@ -663,7 +682,9 @@ it('clears global records and open details on revocation, falls back to self, an
     role: 10,
     permissions: { admin_permissions: { audit: { read: true } } },
   }
-  useAuthStore.getState().auth.setUser(admin)
+  useAuthStore
+    .getState()
+    .auth.setBundle({ ...createTestAuthBundle(), user: admin })
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })

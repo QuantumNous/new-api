@@ -29,24 +29,32 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from '@/lib/api'
 import { useAuthStore } from '@/stores/auth-store'
+import { useConsoleModeStore } from '@/stores/console-mode-store'
 import { useSystemConfigStore } from '@/stores/system-config-store'
+import { createTestAuthBundle } from '@/test-utils/auth-bundle'
 
 import { OverviewDashboard } from '../overview-dashboard'
 
 const storageKey = 'dashboard_overview_setup_guide_expanded'
+const initialMode = useConsoleModeStore.getState().mode
 let client: QueryClient
 let keyLookupError: Error | null
 
 beforeEach(() => {
   window.localStorage.clear()
   useSystemConfigStore.setState(useSystemConfigStore.getInitialState(), true)
-  useAuthStore.getState().auth.setUser({
-    id: 1,
-    username: 'dashboard-user',
-    role: 1,
-    quota: 1000000,
-    used_quota: 1000,
-    request_count: 1,
+  // The setup guide belongs to the developer console; easy mode is the default.
+  useConsoleModeStore.getState().setMode('developer')
+  useAuthStore.getState().auth.setBundle({
+    ...createTestAuthBundle(),
+    user: {
+      id: 1,
+      username: 'dashboard-user',
+      role: 1,
+      quota: 1000000,
+      used_quota: 1000,
+      request_count: 1,
+    },
   })
   client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -90,6 +98,7 @@ afterEach(() => {
   client.clear()
   useAuthStore.setState(useAuthStore.getInitialState(), true)
   useSystemConfigStore.setState(useSystemConfigStore.getInitialState(), true)
+  useConsoleModeStore.getState().setMode(initialMode)
   window.localStorage.clear()
 })
 
@@ -114,7 +123,7 @@ describe('overview setup guide', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'false')
     expect(
       screen.getAllByRole('heading').map((heading) => heading.textContent)
-    ).toEqual(['Overview', 'Usage at a glance'])
+    ).toEqual(['Overview', 'Monitor balance, usage, and request volume'])
     expect(screen.queryByText('Setup guide complete')).not.toBeInTheDocument()
     expect(screen.queryByText('Setup progress: 3/3')).not.toBeInTheDocument()
     for (const name of ['API Keys', 'Channels', 'Usage Logs', 'Pricing']) {

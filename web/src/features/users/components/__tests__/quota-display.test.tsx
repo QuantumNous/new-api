@@ -121,9 +121,11 @@ function QuotaTable(props: { remaining: number; used: number }) {
 
 beforeEach(() => {
   vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
-  useSystemConfigStore
-    .getState()
-    .setConfig({ currency: { ...DEFAULT_CURRENCY_CONFIG } })
+  // These tests assert USD amounts independently of the deployment's
+  // default CNY display setting.
+  useSystemConfigStore.getState().setConfig({
+    currency: { ...DEFAULT_CURRENCY_CONFIG, quotaDisplayType: 'USD' },
+  })
 })
 afterEach(() => {
   cleanup()

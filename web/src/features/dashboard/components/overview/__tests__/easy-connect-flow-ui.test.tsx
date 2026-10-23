@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -78,11 +79,10 @@ function renderFlow() {
   return queryClient
 }
 
-function chooseModel(model: string) {
-  const input = screen.getByRole('combobox')
-  fireEvent.pointerDown(input)
-  act(() => input.focus())
-  fireEvent.mouseDown(screen.getByRole('option', { name: model }))
+async function chooseModel(model: string) {
+  const user = userEvent.setup()
+  await user.click(screen.getByRole('combobox'))
+  await user.click(await screen.findByRole('option', { name: model }))
 }
 
 function createdKey(): ApiKey {
@@ -248,7 +248,7 @@ describe('easy connect flow', () => {
   it('replaces an incompatible route and hides old connection details when the model changes', async () => {
     renderFlow()
     await screen.findByRole('radio', { name: /Value route/ })
-    chooseModel('gpt-5.6')
+    await chooseModel('gpt-5.6')
     fireEvent.click(await screen.findByRole('radio', { name: /Codex route/ }))
     expect(screen.getByRole('radio', { name: /Automatic route/ })).toBeVisible()
     fireEvent.click(
@@ -256,7 +256,7 @@ describe('easy connect flow', () => {
     )
     await screen.findByRole('button', { name: 'Copy everything' })
 
-    chooseModel(DEEPSEEK)
+    await chooseModel(DEEPSEEK)
 
     expect(screen.queryByRole('radio', { name: /Codex route/ })).toBeNull()
     expect(screen.getByRole('radio', { name: /Value route/ })).toHaveAttribute(
@@ -307,7 +307,7 @@ describe('easy connect flow', () => {
   it('shows an empty state instead of falling back to all routes for an unsupported model', async () => {
     renderFlow()
     await screen.findByRole('radio', { name: /Value route/ })
-    chooseModel('minimax-m3')
+    await chooseModel('minimax-m3')
     expect(screen.queryAllByRole('radio')).toHaveLength(0)
     expect(
       screen.getByText(
@@ -363,7 +363,11 @@ describe('easy connect flow', () => {
       await queryClient.invalidateQueries({ queryKey: ['user-group-models'] })
     })
 
-    expect(screen.queryByRole('button', { name: 'Copy everything' })).toBeNull()
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('button', { name: 'Copy everything' })
+      ).toBeNull()
+    )
     expect(screen.queryAllByRole('radio')).toHaveLength(0)
     expect(
       screen.getByRole('button', { name: 'Generate connection details' })
@@ -399,7 +403,7 @@ describe('easy connect flow', () => {
     fireEvent.click(
       screen.getByRole('button', { name: 'Generate connection details' })
     )
-    chooseModel('gpt-5.6')
+    await chooseModel('gpt-5.6')
     await act(async () => resolveModels({ success: true, data: [DEEPSEEK] }))
     expect(createApiKey).not.toHaveBeenCalled()
     expect(screen.queryByRole('button', { name: 'Copy everything' })).toBeNull()

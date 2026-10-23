@@ -32,6 +32,7 @@ import { api } from '@/lib/api'
 import { ROLE } from '@/lib/roles'
 import { useAuthStore } from '@/stores/auth-store'
 import { useSystemConfigStore } from '@/stores/system-config-store'
+import { createTestAuthBundle } from '@/test-utils/auth-bundle'
 
 import { usageLogSchema } from '../../data/schema'
 import { UsageLogsProvider, useUsageLogsContext } from '../usage-logs-provider'
@@ -57,9 +58,10 @@ async function renderLogs(props: {
   enabledPlans: boolean[]
   activeSubscription: boolean
 }) {
-  useAuthStore
-    .getState()
-    .auth.setUser({ id: 1, username: 'tester', role: props.role })
+  useAuthStore.getState().auth.setBundle({
+    ...createTestAuthBundle(),
+    user: { id: 1, username: 'tester', role: props.role },
+  })
   const records = ['wallet', 'subscription'].map((source, index) =>
     usageLogSchema.parse({
       id: index + 1,
@@ -87,6 +89,9 @@ async function renderLogs(props: {
       url.startsWith('/api/log/self?')
     ) {
       data = { items: records, total: records.length }
+    } else if (url === '/api/status') {
+      // The page maps status into the display currency; assert USD amounts.
+      data = { quota_display_type: 'USD' }
     } else if (url === '/api/group/') {
       data = []
     } else if (url === '/api/user/self/groups') {
