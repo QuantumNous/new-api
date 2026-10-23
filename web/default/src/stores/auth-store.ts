@@ -54,6 +54,8 @@ export interface AuthUser {
   stripe_customer?: string
   sidebar_modules?: string
   permissions?: UserPermissions
+  parent_id?: number
+  has_children?: boolean
 }
 
 interface AuthState {

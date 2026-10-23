@@ -102,6 +102,20 @@ export async function getUserQuotaDates(
   return res.data
 }
 
+// Get quota data for the calling user's team (parent + all children).
+// Only available to parent accounts; children and admins are rejected by the backend.
+export async function getTeamQuotaDates(params: {
+  start_timestamp: number
+  end_timestamp: number
+  default_time?: string
+}) {
+  const res = await api.get<{ success: boolean; data: QuotaDataItem[] }>(
+    '/api/data/team',
+    { params }
+  )
+  return res.data
+}
+
 // Distinct key names / models that have consumption rows in the window. Used
 // by the consumption chart's inline quick filters.
 export async function getQuotaDataDimensions(

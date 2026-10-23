@@ -10,6 +10,32 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// getTeamUserIds builds the set [parentId, child1, child2, ...] for team queries.
+// Returns (nil, false) if the caller is itself a child account (parent_id != 0).
+func getTeamUserIds(c *gin.Context) ([]int, bool) {
+	userId := c.GetInt("id")
+	user, err := model.GetUserById(userId, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return nil, false
+	}
+	if user.ParentId != 0 {
+		common.ApiErrorMsg(c, "子账号不能查看团队数据")
+		return nil, false
+	}
+	children, err := model.GetUserChildren(userId)
+	if err != nil {
+		common.ApiError(c, err)
+		return nil, false
+	}
+	ids := make([]int, 0, len(children)+1)
+	ids = append(ids, userId)
+	for _, ch := range children {
+		ids = append(ids, ch.Id)
+	}
+	return ids, true
+}
+
 func GetAllLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	logType, _ := strconv.Atoi(c.Query("type"))
@@ -133,6 +159,64 @@ func GetLogsStat(c *gin.Context) {
 		},
 	})
 	return
+}
+
+func GetTeamLogs(c *gin.Context) {
+	userIds, ok := getTeamUserIds(c)
+	if !ok {
+		return
+	}
+	pageInfo := common.GetPageQuery(c)
+	logType, _ := strconv.Atoi(c.Query("type"))
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	tokenName := c.Query("token_name")
+	modelName := c.Query("model_name")
+	keyword := c.Query("keyword")
+	group := c.Query("group")
+	requestId := c.Query("request_id")
+	upstreamRequestId := c.Query("upstream_request_id")
+	logs, total, err := model.GetTeamLogs(userIds, logType, startTimestamp, endTimestamp, modelName, keyword, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), group, requestId, upstreamRequestId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(logs)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func GetTeamLogsStat(c *gin.Context) {
+	userIds, ok := getTeamUserIds(c)
+	if !ok {
+		return
+	}
+	logType, _ := strconv.Atoi(c.Query("type"))
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	tokenName := c.Query("token_name")
+	modelName := c.Query("model_name")
+	group := c.Query("group")
+	stat, err := model.SumTeamUsedQuota(userIds, logType, startTimestamp, endTimestamp, modelName, tokenName, group)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"quota":                   stat.Quota,
+			"rpm":                     stat.Rpm,
+			"tpm":                     stat.Tpm,
+			"cache_input_tokens":      stat.CacheInputTokens,
+			"cache_read_tokens":       stat.CacheReadTokens,
+			"cache_write_tokens":      stat.CacheWriteTokens,
+			"cache_hit_requests":      stat.CacheHitRequests,
+			"cache_eligible_requests": stat.CacheEligibleRequests,
+			"cache_hit_rate":          stat.CacheHitRate,
+		},
+	})
 }
 
 func GetLogsSelfStat(c *gin.Context) {

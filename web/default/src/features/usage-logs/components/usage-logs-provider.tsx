@@ -20,10 +20,11 @@ For commercial licensing, please contact support@quantumnous.com
 import { createContext, useContext, useState, type ReactNode } from 'react'
 
 import { useIsAdmin } from '@/hooks/use-admin'
+import { useAuthStore } from '@/stores/auth-store'
 
 import type { ChannelAffinityInfo } from '../types'
 
-export type LogsViewScope = 'all' | 'self'
+export type LogsViewScope = 'all' | 'self' | 'team'
 
 interface UsageLogsContextValue {
   selectedUserId: number | null
@@ -93,12 +94,21 @@ export function useUsageLogsContext() {
  */
 export function useLogsViewScope() {
   const canManageScope = useIsAdmin()
+  const user = useAuthStore((s) => s.auth.user)
   const { viewScope, setViewScope } = useUsageLogsContext()
+
+  // A parent account (has children, not a child itself) can switch to team view
+  const canManageTeamScope =
+    !canManageScope &&
+    Boolean(user?.has_children) &&
+    (user?.parent_id ?? 0) === 0
 
   return {
     canManageScope,
+    canManageTeamScope,
     viewScope,
     setViewScope,
     isAdminView: canManageScope && viewScope === 'all',
+    isTeamView: canManageTeamScope && viewScope === 'team',
   }
 }

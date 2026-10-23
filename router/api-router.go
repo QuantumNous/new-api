@@ -354,6 +354,8 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute.GET("/search", middleware.AdminAuth(), controller.SearchAllLogs)
 		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs)
 		logRoute.GET("/self/search", middleware.UserAuth(), middleware.SearchRateLimit(), controller.SearchUserLogs)
+		logRoute.GET("/team", middleware.UserAuth(), controller.GetTeamLogs)
+		logRoute.GET("/team/stat", middleware.UserAuth(), controller.GetTeamLogsStat)
 
 		systemTaskRoute := apiRouter.Group("/system-task")
 		systemTaskRoute.Use(middleware.RootAuth())
@@ -377,6 +379,7 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/dimensions", middleware.AdminAuth(), controller.GetAdminQuotaDataDimensions)
 		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
 		dataRoute.GET("/self/dimensions", middleware.UserAuth(), controller.GetSelfQuotaDataDimensions)
+		dataRoute.GET("/team", middleware.UserAuth(), controller.GetTeamQuotaDates)
 		dataRoute.GET("/flow", middleware.AdminAuth(), controller.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", middleware.UserAuth(), controller.GetUserFlowQuotaDates)
 		// Per-key spend ranking over a time range. The self variant scopes to
@@ -431,6 +434,7 @@ func SetApiRouter(router *gin.Engine) {
 		taskRoute := apiRouter.Group("/task")
 		{
 			taskRoute.GET("/self", middleware.UserAuth(), controller.GetUserTask)
+			taskRoute.GET("/team", middleware.UserAuth(), controller.GetTeamTask)
 			taskRoute.GET("/", middleware.AdminAuth(), controller.GetAllTask)
 		}
 

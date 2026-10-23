@@ -119,3 +119,36 @@ export const getAllTaskLogs = (params: GetTaskLogsParams) =>
 
 export const getUserTaskLogs = (params: GetTaskLogsParams) =>
   fetchLogs('/api/task', params, false)
+
+// ============================================================================
+// Team Log APIs (parent accounts)
+// ============================================================================
+
+export const getTeamLogs = (
+  params: Omit<GetLogsParams, 'username' | 'channel'> = {}
+): Promise<GetLogsResponse> => {
+  const queryParams = buildQueryParams({
+    p: (params as Record<string, unknown>).p || 1,
+    page_size: (params as Record<string, unknown>).page_size || 20,
+    ...params,
+  })
+  return api.get(`/api/log/team?${queryParams}`).then((r) => r.data)
+}
+
+export const getTeamLogStats = (
+  params: Omit<GetLogStatsParams, 'username' | 'channel'> = {}
+): Promise<GetLogStatsResponse> => {
+  const queryParams = buildQueryParams(
+    params as unknown as Record<string, unknown>
+  )
+  return api.get(`/api/log/team/stat?${queryParams}`).then((r) => r.data)
+}
+
+export const getTeamTaskLogs = (params: GetTaskLogsParams): Promise<GetLogsResponse> => {
+  const queryParams = buildQueryParams({
+    p: (params as Record<string, unknown>).p || 1,
+    page_size: (params as Record<string, unknown>).page_size || 20,
+    ...params,
+  })
+  return api.get(`/api/task/team?${queryParams}`).then((r) => r.data)
+}

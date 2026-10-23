@@ -350,6 +350,18 @@ func GetQuotaDataByUserId(userId int, startTime int64, endTime int64, tokenName 
 	return quotaDatas, err
 }
 
+// GetQuotaDataByUserIds returns hourly quota data for a parent + children set.
+func GetQuotaDataByUserIds(userIds []int, startTime int64, endTime int64, tokenName string, modelName string) (quotaData []*QuotaData, err error) {
+	var quotaDatas []*QuotaData
+	tx := DB.Table("quota_data").
+		Select("user_id, username, model_name, created_at, sum(count) as count, sum(quota) as quota, sum(token_used) as token_used, sum(cache_read_tokens) as cache_read_tokens, sum(input_tokens_total) as input_tokens_total").
+		Where("user_id IN ? AND created_at >= ? AND created_at <= ?", userIds, startTime, endTime).
+		Group("user_id, username, model_name, created_at")
+	tx = quotaDataFilteredBy(tx, tokenName, modelName)
+	err = tx.Find(&quotaDatas).Error
+	return quotaDatas, err
+}
+
 func GetQuotaDataGroupByUser(startTime int64, endTime int64, tokenName string, modelName string) (quotaData []*QuotaData, err error) {
 	var quotaDatas []*QuotaData
 	tx := DB.Table("quota_data").

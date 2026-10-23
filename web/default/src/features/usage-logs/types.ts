@@ -433,6 +433,7 @@ export interface GetTaskLogsParams {
 export interface FetchLogsConfig {
   logCategory: LogCategory
   isAdmin: boolean
+  isTeamView?: boolean
   page: number
   pageSize: number
   searchParams: Record<string, unknown>

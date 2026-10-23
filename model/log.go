@@ -829,6 +829,58 @@ func GetUserLogs(userId int, logType int, startTimestamp int64, endTimestamp int
 	return logs, total, err
 }
 
+// GetTeamLogs returns logs for a parent account and all its children.
+func GetTeamLogs(userIds []int, logType int, startTimestamp int64, endTimestamp int64, modelName string, keyword string, tokenName string, startIdx int, num int, group string, requestId string, upstreamRequestId string) (logs []*Log, total int64, err error) {
+	var tx *gorm.DB
+	if logType == LogTypeUnknown {
+		tx = LOG_DB.Where("logs.user_id IN ?", userIds)
+	} else {
+		tx = LOG_DB.Where("logs.user_id IN ? AND logs.type = ?", userIds, logType)
+	}
+
+	if tx, err = applyExplicitLogTextFilter(tx, "logs.model_name", modelName); err != nil {
+		return nil, 0, err
+	}
+	if tx, err = applyLogKeywordFilter(tx, keyword); err != nil {
+		return nil, 0, err
+	}
+	if tokenName != "" {
+		tx = tx.Where("logs.token_name = ?", tokenName)
+	}
+	if requestId != "" {
+		tx = tx.Where("logs.request_id = ?", requestId)
+	}
+	if upstreamRequestId != "" {
+		tx = tx.Where("logs.upstream_request_id = ?", upstreamRequestId)
+	}
+	if startTimestamp != 0 {
+		tx = tx.Where("logs.created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("logs.created_at <= ?", endTimestamp)
+	}
+	if group != "" {
+		tx = tx.Where("logs."+logGroupCol+" = ?", group)
+	}
+	err = tx.Model(&Log{}).Limit(logSearchCountLimit).Count(&total).Error
+	if err != nil {
+		common.SysError("failed to count team logs: " + err.Error())
+		return nil, 0, errors.New("查询日志失败")
+	}
+	order := "logs.id desc"
+	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
+		order = clickHouseLogOrder("logs.")
+	}
+	err = tx.Order(order).Limit(num).Offset(startIdx).Find(&logs).Error
+	if err != nil {
+		common.SysError("failed to search team logs: " + err.Error())
+		return nil, 0, errors.New("查询日志失败")
+	}
+
+	formatUserLogs(logs, startIdx)
+	return logs, total, err
+}
+
 type Stat struct {
 	Quota                 int     `json:"quota"`
 	Rpm                   int     `json:"rpm"`
@@ -919,6 +971,67 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 		stat.CacheHitRate = float64(stat.CacheReadTokens) / float64(stat.CacheInputTokens) * 100
 	}
 
+	return stat, nil
+}
+
+// SumTeamUsedQuota is like SumUsedQuota but scoped to a set of user IDs (parent + children).
+func SumTeamUsedQuota(userIds []int, logType int, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, group string) (stat Stat, err error) {
+	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
+	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, COALESCE(sum(prompt_tokens), 0) + COALESCE(sum(completion_tokens), 0) tpm")
+	cacheQuery := LOG_DB.Table("logs").Select("COALESCE(sum(input_tokens_total), 0) cache_input_tokens, COALESCE(sum(cache_read_tokens), 0) cache_read_tokens, COALESCE(sum(cache_write_tokens), 0) cache_write_tokens, COALESCE(sum(CASE WHEN cache_read_tokens > 0 THEN 1 ELSE 0 END), 0) cache_hit_requests, count(*) cache_eligible_requests")
+
+	tx = tx.Where("user_id IN ?", userIds)
+	rpmTpmQuery = rpmTpmQuery.Where("user_id IN ?", userIds)
+	cacheQuery = cacheQuery.Where("user_id IN ?", userIds)
+
+	if tokenName != "" {
+		tx = tx.Where("token_name = ?", tokenName)
+		rpmTpmQuery = rpmTpmQuery.Where("token_name = ?", tokenName)
+		cacheQuery = cacheQuery.Where("token_name = ?", tokenName)
+	}
+	if startTimestamp != 0 {
+		tx = tx.Where("created_at >= ?", startTimestamp)
+		cacheQuery = cacheQuery.Where("created_at >= ?", startTimestamp)
+	}
+	if endTimestamp != 0 {
+		tx = tx.Where("created_at <= ?", endTimestamp)
+		cacheQuery = cacheQuery.Where("created_at <= ?", endTimestamp)
+	}
+	if tx, err = applyExplicitLogTextFilter(tx, "model_name", modelName); err != nil {
+		return stat, err
+	}
+	if rpmTpmQuery, err = applyExplicitLogTextFilter(rpmTpmQuery, "model_name", modelName); err != nil {
+		return stat, err
+	}
+	if cacheQuery, err = applyExplicitLogTextFilter(cacheQuery, "model_name", modelName); err != nil {
+		return stat, err
+	}
+	if group != "" {
+		tx = tx.Where(logGroupCol+" = ?", group)
+		rpmTpmQuery = rpmTpmQuery.Where(logGroupCol+" = ?", group)
+		cacheQuery = cacheQuery.Where(logGroupCol+" = ?", group)
+	}
+
+	tx = tx.Where("type = ?", LogTypeConsume)
+	rpmTpmQuery = rpmTpmQuery.Where("type = ?", LogTypeConsume)
+	cacheQuery = cacheQuery.Where("type = ? AND cache_stats_available = ?", LogTypeConsume, true)
+	rpmTpmQuery = rpmTpmQuery.Where("created_at >= ?", time.Now().Add(-60*time.Second).Unix())
+
+	if err := tx.Scan(&stat).Error; err != nil {
+		common.SysError("failed to query team log stat: " + err.Error())
+		return stat, errors.New("查询统计数据失败")
+	}
+	if err := rpmTpmQuery.Scan(&stat).Error; err != nil {
+		common.SysError("failed to query team rpm/tpm stat: " + err.Error())
+		return stat, errors.New("查询统计数据失败")
+	}
+	if err := cacheQuery.Scan(&stat).Error; err != nil {
+		common.SysError("failed to query team cache stat: " + err.Error())
+		return stat, errors.New("查询统计数据失败")
+	}
+	if stat.CacheInputTokens > 0 {
+		stat.CacheHitRate = float64(stat.CacheReadTokens) / float64(stat.CacheInputTokens) * 100
+	}
 	return stat, nil
 }
 

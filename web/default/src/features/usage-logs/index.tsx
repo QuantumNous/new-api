@@ -79,7 +79,8 @@ function UsageLogsContent() {
     affinityDialogOpen,
     setAffinityDialogOpen,
   } = useUsageLogsContext()
-  const { canManageScope, viewScope, setViewScope } = useLogsViewScope()
+  const { canManageScope, canManageTeamScope, viewScope, setViewScope } =
+    useLogsViewScope()
   const tabNavGroups = useMemo<NavGroup[]>(
     () => [
       {
@@ -118,7 +119,7 @@ function UsageLogsContent() {
 
   const handleViewScopeChange = useCallback(
     (scope: string) => {
-      if (scope === 'all' || scope === 'self') {
+      if (scope === 'all' || scope === 'self' || scope === 'team') {
         setViewScope(scope as LogsViewScope)
       }
     },
@@ -143,6 +144,16 @@ function UsageLogsContent() {
               <TabsList>
                 <TabsTrigger value='all'>{t('All')}</TabsTrigger>
                 <TabsTrigger value='self'>{t('Only Mine')}</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </SectionPageLayout.Actions>
+        )}
+        {canManageTeamScope && (
+          <SectionPageLayout.Actions>
+            <Tabs value={viewScope} onValueChange={handleViewScopeChange}>
+              <TabsList>
+                <TabsTrigger value='self'>{t('Only Mine')}</TabsTrigger>
+                <TabsTrigger value='team'>{t('Team Logs')}</TabsTrigger>
               </TabsList>
             </Tabs>
           </SectionPageLayout.Actions>

@@ -671,6 +671,7 @@ func GetSelf(c *gin.Context) {
 		"onboarding_required": onboardingStatus.Required,
 		"onboarding_version":  onboardingStatus.Version,
 		"parent_id":           user.ParentId,
+		"has_children":        user.ParentId == 0 && func() bool { ok, _ := model.HasChildren(id); return ok }(),
 	}
 
 	c.JSON(http.StatusOK, gin.H{

@@ -24,7 +24,12 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useStatus } from '@/hooks/use-status'
 import { cn } from '@/lib/utils'
 
-import { getCostReconciliation, getLogStats, getUserLogStats } from '../api'
+import {
+  getCostReconciliation,
+  getLogStats,
+  getTeamLogStats,
+  getUserLogStats,
+} from '../api'
 import { DEFAULT_LOG_STATS } from '../constants'
 import { formatUsageLogQuotaUSD, formatUsageLogUSDMicros } from '../lib/money'
 import { buildApiParams } from '../lib/utils'
@@ -50,7 +55,7 @@ function StatBadge(props: {
 
 export function CommonLogsStats() {
   const { t } = useTranslation()
-  const { isAdminView: isAdmin } = useLogsViewScope()
+  const { isAdminView: isAdmin, isTeamView } = useLogsViewScope()
   const searchParams = route.useSearch()
   const { sensitiveVisible } = useUsageLogsContext()
   const { status } = useStatus()
@@ -78,7 +83,7 @@ export function CommonLogsStats() {
   })
 
   const { data: stats, isLoading } = useQuery({
-    queryKey: ['usage-logs-stats', isAdmin, searchParams],
+    queryKey: ['usage-logs-stats', isAdmin, isTeamView, searchParams],
     queryFn: async () => {
       const params = buildApiParams({
         page: 1,
@@ -88,9 +93,14 @@ export function CommonLogsStats() {
         isAdmin,
       })
 
-      const result = isAdmin
-        ? await getLogStats(params)
-        : await getUserLogStats(params)
+      let result
+      if (isAdmin) {
+        result = await getLogStats(params)
+      } else if (isTeamView) {
+        result = await getTeamLogStats(params)
+      } else {
+        result = await getUserLogStats(params)
+      }
 
       return result.success
         ? result.data || DEFAULT_LOG_STATS

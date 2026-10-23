@@ -502,6 +502,60 @@ func TaskCountAllTasks(queryParams SyncTaskQueryParams) int64 {
 	return total
 }
 
+// TaskGetAllTeamTask returns tasks for a parent account and all its children.
+func TaskGetAllTeamTask(userIds []int, startIdx int, num int, queryParams SyncTaskQueryParams) []*Task {
+	var tasks []*Task
+	query := DB.Where("user_id IN ?", userIds)
+	if queryParams.TaskID != "" {
+		query = query.Where("task_id = ?", queryParams.TaskID)
+	}
+	if queryParams.Action != "" {
+		query = query.Where("action = ?", queryParams.Action)
+	}
+	if queryParams.Status != "" {
+		query = query.Where("status = ?", queryParams.Status)
+	}
+	if queryParams.Platform != "" {
+		query = query.Where("platform = ?", queryParams.Platform)
+	}
+	if queryParams.StartTimestamp != 0 {
+		query = query.Where("submit_time >= ?", queryParams.StartTimestamp)
+	}
+	if queryParams.EndTimestamp != 0 {
+		query = query.Where("submit_time <= ?", queryParams.EndTimestamp)
+	}
+	if err := query.Omit("channel_id").Order("id desc").Limit(num).Offset(startIdx).Find(&tasks).Error; err != nil {
+		return nil
+	}
+	return tasks
+}
+
+// TaskCountAllTeamTask returns total tasks for a parent + children set.
+func TaskCountAllTeamTask(userIds []int, queryParams SyncTaskQueryParams) int64 {
+	var total int64
+	query := DB.Model(&Task{}).Where("user_id IN ?", userIds)
+	if queryParams.TaskID != "" {
+		query = query.Where("task_id = ?", queryParams.TaskID)
+	}
+	if queryParams.Action != "" {
+		query = query.Where("action = ?", queryParams.Action)
+	}
+	if queryParams.Status != "" {
+		query = query.Where("status = ?", queryParams.Status)
+	}
+	if queryParams.Platform != "" {
+		query = query.Where("platform = ?", queryParams.Platform)
+	}
+	if queryParams.StartTimestamp != 0 {
+		query = query.Where("submit_time >= ?", queryParams.StartTimestamp)
+	}
+	if queryParams.EndTimestamp != 0 {
+		query = query.Where("submit_time <= ?", queryParams.EndTimestamp)
+	}
+	_ = query.Count(&total).Error
+	return total
+}
+
 // TaskCountAllUserTask returns total tasks for given user
 func TaskCountAllUserTask(userId int, queryParams SyncTaskQueryParams) int64 {
 	var total int64

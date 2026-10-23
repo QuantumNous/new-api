@@ -36,6 +36,29 @@ func GetAllTask(c *gin.Context) {
 	common.ApiSuccess(c, pageInfo)
 }
 
+func GetTeamTask(c *gin.Context) {
+	userIds, ok := getTeamUserIds(c)
+	if !ok {
+		return
+	}
+	pageInfo := common.GetPageQuery(c)
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	queryParams := model.SyncTaskQueryParams{
+		Platform:       constant.TaskPlatform(c.Query("platform")),
+		TaskID:         c.Query("task_id"),
+		Status:         c.Query("status"),
+		Action:         c.Query("action"),
+		StartTimestamp: startTimestamp,
+		EndTimestamp:   endTimestamp,
+	}
+	items := model.TaskGetAllTeamTask(userIds, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), queryParams)
+	total := model.TaskCountAllTeamTask(userIds, queryParams)
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(tasksToDto(items, true))
+	common.ApiSuccess(c, pageInfo)
+}
+
 func GetUserTask(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 

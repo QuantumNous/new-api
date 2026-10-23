@@ -229,7 +229,8 @@ export function Dashboard() {
   const { t } = useTranslation()
   const navigate = useNavigate()
   const params = route.useParams()
-  const userRole = useAuthStore((state) => state.auth.user?.role)
+  const user = useAuthStore((state) => state.auth.user)
+  const userRole = user?.role
   const activeSection = (params.section ??
     DASHBOARD_DEFAULT_SECTION) as DashboardSectionId
 
@@ -279,6 +280,11 @@ export function Dashboard() {
 
   const meta = SECTION_META[activeSection] ?? SECTION_META.overview
   const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
+  const canManageTeamScope =
+    !isAdmin &&
+    Boolean(user?.has_children) &&
+    (user?.parent_id ?? 0) === 0
+  const [isTeamView, setIsTeamView] = useState(false)
   const visibleSections = useMemo(
     () =>
       DASHBOARD_SECTION_IDS.filter(
@@ -302,6 +308,17 @@ export function Dashboard() {
   const modelActions =
     activeSection === 'models' ? (
       <>
+        {canManageTeamScope && (
+          <Tabs
+            value={isTeamView ? 'team' : 'self'}
+            onValueChange={(v) => setIsTeamView(v === 'team')}
+          >
+            <TabsList>
+              <TabsTrigger value='self'>{t('Only Mine')}</TabsTrigger>
+              <TabsTrigger value='team'>{t('Team Logs')}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
         <ModelsChartPreferences
           preferences={chartPreferences}
           onPreferencesChange={handleChartPreferencesChange}
@@ -392,6 +409,7 @@ export function Dashboard() {
                 <Suspense fallback={<LogStatCardsFallback />}>
                   <LazyLogStatCards
                     filters={modelFilters}
+                    isTeamView={isTeamView}
                     onDataUpdate={handleDataUpdate}
                   />
                 </Suspense>
