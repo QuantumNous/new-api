@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"encoding/base64"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -381,7 +382,7 @@ func TestDisabledArtifactStorePreservesPluginUpstreamContent(t *testing.T) {
 	}}
 	task.SetData(map[string]any{"response": map[string]any{
 		"generateVideoResponse": map[string]any{
-			"generatedVideos": []any{map[string]any{"video": map[string]any{"uri": upstream.URL}}},
+			"generatedSamples": []any{map[string]any{"video": map[string]any{"uri": upstream.URL}}},
 		},
 	}})
 	require.NoError(t, model.DB.Save(task).Error)
@@ -609,6 +610,81 @@ func TestTaskMediaResponseHeaderTimeoutCancelsBeforeHeaders(t *testing.T) {
 	require.NoError(t, err)
 	_, err = doTaskMediaRequest(upstream.Client(), request, 10*time.Millisecond)
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
+}
+
+// A descriptor with a content path reads the artifact out of a long-running
+// operation the upstream returns again, as Vertex does for inline video.
+func TestProxyTaskMediaReadsArtifactFromJSONContentPath(t *testing.T) {
+	task := setupGenericTaskTest(t)
+	previousLimit := constant.MaxFileDownloadMB
+	constant.MaxFileDownloadMB = 1
+	t.Cleanup(func() { constant.MaxFileDownloadMB = previousLimit })
+	inline := base64.StdEncoding.EncodeToString([]byte("inline-video"))
+	var replyStatus int
+	var reply string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.JSONEq(t, `{"operationName":"op"}`, string(body))
+		assert.Equal(t, "Bearer access-token", r.Header.Get("Authorization"))
+		assert.Empty(t, r.Header.Get("Range"))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(replyStatus)
+		_, _ = w.Write([]byte(reply))
+	}))
+	defer upstream.Close()
+	allowPrivateTaskMediaTest(t)
+
+	for _, testCase := range []struct {
+		name, method, reply string
+		replyStatus         int
+		status              int
+		code, body          string
+	}{
+		{name: "inline video", method: http.MethodGet, reply: `{"name":"op","done":true,"response":{"videos":[{"bytesBase64Encoded":"` + inline + `"}]}}`, status: http.StatusOK, body: "inline-video"},
+		{name: "headers only", method: http.MethodHead, reply: `{"name":"op","done":true,"response":{"videos":[{"bytesBase64Encoded":"` + inline + `"}]}}`, status: http.StatusOK},
+		{name: "URL-safe base64", method: http.MethodGet, reply: `{"done":true,"response":{"videos":[{"bytesBase64Encoded":"-_8="}]}}`, status: http.StatusOK, body: "\xfb\xff"},
+		{name: "written to storage", method: http.MethodGet, reply: `{"done":true,"response":{"videos":[{"gcsUri":"gs://bucket/video.mp4"}]}}`, status: http.StatusGone, code: "artifact_gone"},
+		{name: "operation failed", method: http.MethodGet, reply: `{"done":true,"error":{"code":3,"message":"bad request"}}`, status: http.StatusBadGateway, code: "artifact_upstream_error"},
+		{name: "operation running", method: http.MethodGet, reply: `{"name":"op"}`, status: http.StatusConflict, code: "artifact_not_ready"},
+		{name: "operation expired", method: http.MethodGet, replyStatus: http.StatusNotFound, reply: `{"error":{"code":404}}`, status: http.StatusGone, code: "artifact_gone"},
+		{name: "reply too large", method: http.MethodGet, reply: `{"done":true,"response":{"videos":[{"bytesBase64Encoded":"` + strings.Repeat("A", 3<<20) + `"}]}}`, status: http.StatusBadGateway, code: "artifact_request_rejected"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			replyStatus, reply = http.StatusOK, testCase.reply
+			if testCase.replyStatus != 0 {
+				replyStatus = testCase.replyStatus
+			}
+			recorder := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(recorder)
+			c.Request = httptest.NewRequest(testCase.method, "/v1/tasks/task_generic/artifacts/video/content", nil)
+			c.Request.Header.Set("Range", "bytes=0-3")
+
+			err := proxyTaskMedia(c, task, &relaychannel.TaskContentRequest{
+				URL: upstream.URL, Method: http.MethodPost, Body: []byte(`{"operationName":"op"}`),
+				Headers:     map[string]string{"Authorization": "Bearer access-token"},
+				ContentPath: []any{"response", "videos", int64(0), "bytesBase64Encoded"}, MimeType: "video/webm",
+			})
+
+			if testCase.code != "" {
+				var proxyErr *taskMediaProxyError
+				require.ErrorAs(t, err, &proxyErr)
+				assert.Equal(t, testCase.status, proxyErr.status)
+				assert.Equal(t, testCase.code, proxyErr.code)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, testCase.status, recorder.Code)
+			assert.Equal(t, "video/webm", recorder.Header().Get("Content-Type"))
+			assert.Equal(t, "nosniff", recorder.Header().Get("X-Content-Type-Options"))
+			if testCase.method == http.MethodHead {
+				assert.Equal(t, "12", recorder.Header().Get("Content-Length"))
+				assert.Empty(t, recorder.Body.String())
+				return
+			}
+			assert.Equal(t, testCase.body, recorder.Body.String())
+		})
+	}
 }
 
 func TestWriteVideoDataURLStreamsAndSupportsHead(t *testing.T) {

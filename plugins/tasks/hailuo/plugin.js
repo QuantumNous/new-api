@@ -152,13 +152,18 @@ export const meta = {
     },
   ],
   // MiniMax request and response bodies, for clients and for a downstream New
-  // API gateway. The task id of a query is a path parameter on both versions,
-  // where MiniMax /v1 reads it from the query string.
+  // API gateway, at MiniMax's own paths; the gateway also serves each under
+  // /hailuo. The /v1 query reads the task id from the query string, as MiniMax
+  // does. /hailuo/v1/query/video_generation/:task_id is the address earlier
+  // gateways serve it at, which a downstream gateway polls.
   routes: [
-    { method: "POST", path: "/hailuo/v1/video_generation", type: "submit", decode: "createTask", render: "taskCreated", models: V1_MODELS },
+    { method: "POST", path: "/v1/video_generation", type: "submit", decode: "createTask", render: "taskCreated", models: V1_MODELS },
+    { method: "GET", path: "/v1/query/video_generation", type: "query", taskIdParam: "task_id", render: "taskStatus" },
     { method: "GET", path: "/hailuo/v1/query/video_generation/:task_id", type: "query", render: "taskStatus" },
-    { method: "POST", path: "/hailuo/v2/video_generation", type: "submit", decode: "createH3Task", render: "taskCreated", models: [H3_MODEL] },
-    { method: "GET", path: "/hailuo/v2/query/video_generation/:task_id", type: "query", render: "h3TaskStatus" },
+    // The video of a /v1 task, under the file id its query reports.
+    { method: "GET", path: "/v1/files/retrieve", type: "query", taskIdParam: "file_id", render: "fileRetrieve" },
+    { method: "POST", path: "/v2/video_generation", type: "submit", decode: "createH3Task", render: "taskCreated", models: [H3_MODEL] },
+    { method: "GET", path: "/v2/query/video_generation/:task_id", type: "query", render: "h3TaskStatus" },
   ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
 };
@@ -181,7 +186,8 @@ function definedFields(source, keys) {
 }
 
 // On a New API channel the same plugin answers on another gateway, which
-// serves the MiniMax wire format only on the prefixed native routes.
+// serves the MiniMax wire format under /hailuo, the form every gateway release
+// serves.
 function viaGateway(ctx) {
   return Boolean(ctx.upstream && ctx.upstream.kind === "new_api");
 }
@@ -527,6 +533,9 @@ export const native = {
   taskStatus: function (ctx, task) {
     const data = plainObject(task.data) || {};
     const output = Object.assign({}, data, { task_id: task.task_id });
+    // The client downloads the video through the gateway, whose
+    // /v1/files/retrieve takes the task id as the file id.
+    if (typeof output.file_id === "string" && trimmed(output.file_id)) output.file_id = task.task_id;
     if (task.status === "FAILURE") output.status = "Fail";
     else if (typeof data.status !== "string") output.status = task.status === "IN_PROGRESS" ? "Processing" : "Queueing";
     return output;
@@ -543,6 +552,15 @@ export const native = {
       output.status = task.status === "IN_PROGRESS" ? "running" : "queued";
     }
     return Object.assign({}, data, { task: output });
+  },
+  // /v1/files/retrieve for the file id taskStatus reports: download_url is
+  // the gateway's own address for the video, which takes no credentials.
+  fileRetrieve: function (ctx, task) {
+    const video = (ctx.artifacts || {}).video;
+    if (!video || !trimmed((plainObject(task.data) || {}).file_id)) throw new Error("artifact_not_found");
+    const file = { file_id: task.task_id, filename: task.task_id + ".mp4", purpose: "video_generation", download_url: video.url };
+    if (Number(task.finished_at) > 0) file.created_at = Number(task.finished_at);
+    return { file: file, base_resp: { status_code: 0, status_msg: "success" } };
   },
   // MiniMax reports a rejected call in base_resp on both versions.
   error: function (ctx, error) {

@@ -90,3 +90,38 @@ func TestJimengParseTaskResultUnknownStatus(t *testing.T) {
 	assert.Equal(t, "UNKNOWN", result["status"])
 	assert.Contains(t, common.Interface2String(result["reason"]), "weird")
 }
+
+// Jimeng's Bearer API takes the bodies of the signed actions:
+// submit_task_v2 creates a task, get_result_v2 reads one by req_key and
+// task_id.
+func TestJimengBearerAPIDecoders(t *testing.T) {
+	plugin := loadJimengPlugin(t)
+	decode := func(member string, body any) (map[string]any, error) {
+		value, err := plugin.Engine.CallPath(t.Context(), "native", []string{member}, map[string]any{"body": map[string]any{"kind": "json", "value": body}})
+		if err != nil {
+			return nil, err
+		}
+		encoded, err := common.Marshal(value)
+		require.NoError(t, err)
+		var decoded map[string]any
+		require.NoError(t, common.Unmarshal(encoded, &decoded))
+		return decoded, nil
+	}
+
+	submit, err := decode("submitTask", map[string]any{"req_key": "jimeng_ti2v_v30_pro", "prompt": "a cat", "image_urls": []any{"https://cdn.example/a.png"}})
+	require.NoError(t, err)
+	assert.Equal(t, "submit", submit["kind"])
+	assert.Equal(t, "jimeng_ti2v_v30_pro", submit["model"])
+	assert.Equal(t, "image_to_video", submit["action"])
+	query, err := decode("getResult", map[string]any{"req_key": "jimeng_ti2v_v30_pro", "task_id": "task_pub"})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"kind": "query", "taskIds": []any{"task_pub"}}, query)
+	for _, body := range []map[string]any{{"task_id": "task_pub"}, {"req_key": "", "task_id": "task_pub"}} {
+		_, err = decode("getResult", body)
+		require.ErrorContains(t, err, "req_key is required")
+	}
+	_, err = decode("getResult", map[string]any{"req_key": "jimeng_ti2v_v30_pro"})
+	require.ErrorContains(t, err, "task_id is required")
+	_, err = plugin.Engine.CallPath(t.Context(), "native", []string{"submitTask"}, map[string]any{"body": map[string]any{"kind": "multipart"}})
+	require.ErrorContains(t, err, "JSON body required")
+}

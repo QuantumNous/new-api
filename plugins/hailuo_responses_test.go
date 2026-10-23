@@ -826,3 +826,50 @@ func TestHailuoThroughNewAPIGateway(t *testing.T) {
 		}
 	})
 }
+
+// MiniMax's v1 query reports the video's file_id and /v1/files/retrieve
+// resolves it. Through the gateway the file id is the task id, and the
+// download_url is the gateway's address for the task's video.
+func TestHailuoNativeFileIDIsTheTaskAndRetrieveReturnsTheGatewayDownload(t *testing.T) {
+	plugin := loadHailuoPlugin(t)
+	call := func(member string, args ...any) (map[string]any, error) {
+		value, err := plugin.Engine.CallPath(t.Context(), "native", []string{member}, args...)
+		if err != nil {
+			return nil, err
+		}
+		encoded, err := common.Marshal(value)
+		require.NoError(t, err)
+		var decoded map[string]any
+		require.NoError(t, common.Unmarshal(encoded, &decoded))
+		return decoded, nil
+	}
+	success := map[string]any{"status_code": 0, "status_msg": "success"}
+	v1 := map[string]any{"task_id": "task_pub", "status": "SUCCESS", "finished_at": 1760000000, "data": map[string]any{
+		"task_id": "private-task", "status": "Success", "file_id": "private-file", "video_width": 1280, "video_height": 720, "base_resp": success,
+	}}
+	video := map[string]any{"key": "video", "type": "video", "url": "https://gateway.example/v1/tasks/task_pub/artifacts/video/content?access=signed"}
+
+	status, err := call("taskStatus", map[string]any{}, v1)
+	require.NoError(t, err)
+	encoded, err := common.Marshal(status)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"task_id":"task_pub","status":"Success","file_id":"task_pub","video_width":1280,"video_height":720,"base_resp":{"status_code":0,"status_msg":"success"}}`, string(encoded))
+	running, err := call("taskStatus", map[string]any{}, map[string]any{"task_id": "task_pub", "status": "IN_PROGRESS", "data": map[string]any{"task_id": "private-task", "status": "Processing", "base_resp": success}})
+	require.NoError(t, err)
+	assert.NotContains(t, running, "file_id")
+
+	retrieved, err := call("fileRetrieve", map[string]any{"artifacts": map[string]any{"video": video}}, v1)
+	require.NoError(t, err)
+	encoded, err = common.Marshal(retrieved)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"file":{"file_id":"task_pub","filename":"task_pub.mp4","purpose":"video_generation","created_at":1760000000,"download_url":"https://gateway.example/v1/tasks/task_pub/artifacts/video/content?access=signed"},"base_resp":{"status_code":0,"status_msg":"success"}}`, string(encoded))
+	_, err = call("fileRetrieve", map[string]any{"artifacts": map[string]any{}}, v1)
+	require.ErrorContains(t, err, "artifact_not_found")
+	// An H3 task has no v1 file to retrieve.
+	h3 := map[string]any{"task_id": "task_h3", "status": "SUCCESS", "data": map[string]any{"task": map[string]any{"id": "private", "status": "succeeded", "content": map[string]any{"url": "https://cdn.example/h3.mp4"}}}}
+	_, err = call("fileRetrieve", map[string]any{"artifacts": map[string]any{"video": video}}, h3)
+	require.ErrorContains(t, err, "artifact_not_found")
+	h3Status, err := call("h3TaskStatus", map[string]any{}, h3)
+	require.NoError(t, err)
+	assert.NotContains(t, h3Status, "file_id")
+}

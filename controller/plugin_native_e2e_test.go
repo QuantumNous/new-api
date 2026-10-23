@@ -229,7 +229,8 @@ func TestKlingNativeRouteSubmitPollSettleAndQuery(t *testing.T) {
 	queryRecorder := httptest.NewRecorder()
 	queryContext, _ := gin.CreateTestContext(queryRecorder)
 	queryContext.Request = httptest.NewRequest(http.MethodGet, "/kling/v1/videos/text2video/task_kling_public", nil)
-	queryContext.Params = gin.Params{{Key: "task_id", Value: "task_kling_public"}}
+	// The inner plugin router names wildcards by position.
+	queryContext.Params = gin.Params{{Key: "s4", Value: "task_kling_public"}}
 	queryContext.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{
 		Generation: generation,
 		Plugin:     queryBinding.Plugin,

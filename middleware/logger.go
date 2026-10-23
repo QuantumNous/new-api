@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -39,6 +40,17 @@ func SetUpLogger(server *gin.Engine) {
 			} else if param.Request.URL.RawQuery != "" {
 				query := param.Request.URL.Query().Encode()
 				path = param.Request.URL.EscapedPath() + relaycommon.SanitizeURLForLog("?"+query)
+			}
+			// Gemini API clients may send their API key as ?key=.
+			if base, rawQuery, found := strings.Cut(path, "?"); found {
+				parts := strings.Split(rawQuery, "&")
+				for index, part := range parts {
+					rawName, _, _ := strings.Cut(part, "=")
+					if name, err := url.QueryUnescape(rawName); err == nil && name == "key" {
+						parts[index] = rawName + "=[REDACTED]"
+					}
+				}
+				path = base + "?" + strings.Join(parts, "&")
 			}
 			return fmt.Sprintf("[GIN] %s | %s | %s | %3d | %13v | %15s | %7s %s\n",
 				param.TimeStamp.Format("2006/01/02 - 15:04:05"),

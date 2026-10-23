@@ -236,7 +236,13 @@ function PluginDetailContent(props: { plugin: TaskPluginListItem }) {
           </TabsList>
         </div>
         <TabsContent value='overview' className={panelClassName}>
-          {detailState ?? (detail && <PluginMetadataCard meta={detail.meta} />)}
+          {detailState ??
+            (detail && (
+              <PluginMetadataCard
+                meta={detail.meta}
+                skippedRoutes={detail.skipped_routes}
+              />
+            ))}
         </TabsContent>
         <TabsContent value='billing' className={panelClassName}>
           {detailState ?? (

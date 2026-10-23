@@ -29,11 +29,12 @@ export const meta = {
     { label: "v2-master pro 5s", facts: { units: 10 } },
   ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
+  // Kling's own paths; the gateway also serves each under /kling.
   routes: [
-    { method: "POST", path: "/kling/v1/videos/text2video", type: "submit", action: "text_to_video", decode: "decodeSubmit", render: "taskCreated" },
-    { method: "POST", path: "/kling/v1/videos/image2video", type: "submit", action: "image_to_video", decode: "decodeSubmit", render: "taskCreated" },
-    { method: "GET", path: "/kling/v1/videos/text2video/:task_id", type: "query", render: "taskStatus" },
-    { method: "GET", path: "/kling/v1/videos/image2video/:task_id", type: "query", render: "taskStatus" },
+    { method: "POST", path: "/v1/videos/text2video", type: "submit", action: "text_to_video", decode: "decodeSubmit", render: "taskCreated" },
+    { method: "POST", path: "/v1/videos/image2video", type: "submit", action: "image_to_video", decode: "decodeSubmit", render: "taskCreated" },
+    { method: "GET", path: "/v1/videos/text2video/:task_id", type: "query", render: "taskStatus" },
+    { method: "GET", path: "/v1/videos/image2video/:task_id", type: "query", render: "taskStatus" },
   ],
 };
 

@@ -289,12 +289,23 @@ export const meta = {
     { models: Z_IMAGE_MODELS, schema: Z_IMAGE_USAGE_SCHEMA },
     { models: QWEN_IMAGE3_MODELS, schema: QWEN_IMAGE3_USAGE_SCHEMA },
   ].concat(wanVideoUsageProfiles()),
+  // DashScope's own paths, which the gateway also serves under /alibaba, each
+  // beside its /ali address, the form every gateway release serves.
   routes: [
     // Synchronous vendor call with no task to re-query; the response is
     // delivered once and never persisted.
     {
       method: "POST",
       path: "/ali/api/v1/services/aigc/multimodal-generation/generation",
+      type: "submit",
+      models: ["wan2.7-image-pro", "wan2.7-image", "wan2.6-image", "wan2.6-t2i"].concat(Object.keys(QWEN_IMAGE_LIMITS), IMAGE_MODEL_SNAPSHOTS),
+      decode: "createImageTask",
+      render: "imageCreated",
+      retainResult: false,
+    },
+    {
+      method: "POST",
+      path: "/api/v1/services/aigc/multimodal-generation/generation",
       type: "submit",
       models: ["wan2.7-image-pro", "wan2.7-image", "wan2.6-image", "wan2.6-t2i"].concat(Object.keys(QWEN_IMAGE_LIMITS), IMAGE_MODEL_SNAPSHOTS),
       decode: "createImageTask",
@@ -311,7 +322,23 @@ export const meta = {
     },
     {
       method: "POST",
+      path: "/api/v1/services/aigc/image-generation/generation",
+      type: "submit",
+      models: ["wan2.7-image-pro", "wan2.7-image", "wan2.6-image", "wan2.6-t2i"],
+      decode: "createImageTask",
+      render: "taskCreated",
+    },
+    {
+      method: "POST",
       path: "/ali/api/v1/services/aigc/text2image/image-synthesis",
+      type: "submit",
+      models: ["wan2.5-t2i-preview", "wan2.2-t2i-flash", "wan2.2-t2i-plus", "wanx2.1-t2i-turbo", "wanx2.1-t2i-plus", "wanx2.0-t2i-turbo"],
+      decode: "createImageTask",
+      render: "taskCreated",
+    },
+    {
+      method: "POST",
+      path: "/api/v1/services/aigc/text2image/image-synthesis",
       type: "submit",
       models: ["wan2.5-t2i-preview", "wan2.2-t2i-flash", "wan2.2-t2i-plus", "wanx2.1-t2i-turbo", "wanx2.1-t2i-plus", "wanx2.0-t2i-turbo"],
       decode: "createImageTask",
@@ -325,9 +352,20 @@ export const meta = {
       decode: "createImageTask",
       render: "taskCreated",
     },
+    {
+      method: "POST",
+      path: "/api/v1/services/aigc/image2image/image-synthesis",
+      type: "submit",
+      models: ["wan2.5-i2i-preview", "wanx2.1-imageedit"],
+      decode: "createImageTask",
+      render: "taskCreated",
+    },
     { method: "POST", path: "/ali/api/v1/services/aigc/video-generation/video-synthesis", type: "submit", decode: "createVideoTask", render: "taskCreated" },
+    { method: "POST", path: "/api/v1/services/aigc/video-generation/video-synthesis", type: "submit", decode: "createVideoTask", render: "taskCreated" },
     { method: "POST", path: "/ali/api/v1/services/aigc/image2video/video-synthesis", type: "submit", decode: "createVideoTask", render: "taskCreated" },
+    { method: "POST", path: "/api/v1/services/aigc/image2video/video-synthesis", type: "submit", decode: "createVideoTask", render: "taskCreated" },
     { method: "GET", path: "/ali/api/v1/tasks/:task_id", type: "query", render: "taskStatus" },
+    { method: "GET", path: "/api/v1/tasks/:task_id", type: "query", render: "taskStatus" },
   ],
   protocols: [
     { name: "openai_responses", supports: ["stream", "sync", "background"] },
@@ -344,8 +382,9 @@ function viaNewAPI(ctx) {
   return !!(ctx.upstream && ctx.upstream.kind === "new_api");
 }
 
-// Another New API gateway serves the DashScope wire format only on this
-// plugin's /ali native routes; DashScope itself serves the unprefixed paths.
+// Another New API gateway serves the DashScope wire format under /ali, the
+// form every gateway release serves; DashScope itself serves the unprefixed
+// paths.
 function apiRoot(ctx) {
   return ctx.baseUrl + (viaNewAPI(ctx) ? "/ali" : "");
 }

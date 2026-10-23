@@ -2647,3 +2647,117 @@ func TestTaskAdaptorChainsSunoBatchFetchThroughNewAPIUpstream(t *testing.T) {
 	assert.Equal(t, "SUCCESS", results["task_up_public"].TaskInfo.Status)
 	assert.Equal(t, []string{"POST /suno/submit/MUSIC", "POST /suno/fetch"}, seen)
 }
+
+// When distribution binds another candidate of a shared native route, that
+// plugin decodes the request again, reading the parameters under its own
+// names, and must resolve the same model.
+func TestTaskAdaptorReDecodesReboundNativeRouteCandidate(t *testing.T) {
+	sourceFor := func(key, model, param string) string {
+		return fmt.Sprintf(`
+export const meta = {apiVersion:1,key:%q,name:%q,version:"1.0.0",author:{name:"Test"},models:["claimed-model","drifted-model"],fetchMode:"per_task",
+	routes:[{method:"POST",path:"/probe/v1/jobs/:%s",type:"submit",action:"route-action",decode:"createJob",render:"jobCreated"}]};
+export const native = {
+	createJob(ctx){return {kind:"submit",model:%q,action:"by-"+%q,requestBody:{by:%q,param:ctx.params[%q]}};},
+	jobCreated(ctx,task){return task;},
+};
+export function buildSubmitRequest(ctx){return {url:ctx.baseUrl+"/submit",method:"POST",body:ctx.requestBody}}
+export function parseSubmitResponse(){return {taskId:"one"}}
+export function buildQueryRequest(){return {url:"https://provider.example"}}
+export function parseTaskResult(){return {status:"SUCCESS"}}
+`, key, key, param, model, key, key, param)
+	}
+	for _, testCase := range []struct {
+		name, betaModel string
+		wantError       bool
+	}{
+		{name: "same model", betaModel: "claimed-model"},
+		{name: "model drift", betaModel: "drifted-model", wantError: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			registry := pluginruntime.NewRegistry()
+			_, err := registry.Register(sourceFor("route-alpha", "claimed-model", "kind"), pluginruntime.Options{})
+			require.NoError(t, err)
+			beta, err := registry.Register(sourceFor("route-beta", testCase.betaModel, "variant"), pluginruntime.Options{})
+			require.NoError(t, err)
+			generation := registry.Generation()
+			candidates := generation.LookupDeclaredRoutes("POST", "/probe/v1/jobs/:x")
+			require.Len(t, candidates, 2)
+
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/probe/v1/jobs/video", nil)
+			c.Params = gin.Params{{Key: "s3", Value: "video"}}
+			c.Set(pluginruntime.ContextKeyPinnedRoute, pluginruntime.PinnedRoute{Generation: generation, Plugin: beta, Route: candidates[1].Route, Candidates: candidates})
+			c.Set(pluginruntime.ContextKeyRouteRequest, pluginruntime.RouteRequestContext{
+				Params: map[string]string{"kind": "video"}, Body: map[string]any{"kind": "json", "value": map[string]any{}},
+				RequestBody: map[string]any{"by": "route-alpha", "param": "video"},
+			})
+			c.Set("task_request", map[string]any{"by": "route-alpha", "param": "video"})
+			c.Set("task_action", "by-route-alpha")
+			c.Set("resolved_task_model", "claimed-model")
+			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://provider.example"}, TaskRelayInfo: &relaycommon.TaskRelayInfo{}, OriginModelName: "claimed-model"}
+			adaptor := New(beta)
+			adaptor.Init(info)
+
+			taskErr := adaptor.ValidateRequestAndSetAction(c, info)
+
+			if testCase.wantError {
+				require.NotNil(t, taskErr)
+				assert.Equal(t, http.StatusBadRequest, taskErr.StatusCode)
+				assert.Contains(t, taskErr.Message, "pinned model")
+				return
+			}
+			require.Nil(t, taskErr)
+			assert.Equal(t, map[string]any{"by": "route-beta", "param": "video"}, c.MustGet("task_request"))
+			assert.Equal(t, "by-route-beta", c.GetString("task_action"))
+			assert.Equal(t, "by-route-beta", info.Action)
+			assert.Equal(t, map[string]string{"variant": "video"}, c.MustGet(pluginruntime.ContextKeyRouteRequest).(pluginruntime.RouteRequestContext).Params)
+		})
+	}
+}
+
+// buildContentRequest may address the artifact's bytes inside a JSON reply;
+// the path follows the JSON change path rules and the media type must fit a
+// header.
+func TestTaskAdaptorBuildContentRequestPassesContentPath(t *testing.T) {
+	descriptorFor := func(contentPath, mimeType string) string {
+		return strings.Replace(mockPlugin, `export function listArtifacts() { return []; }
+export function buildContentRequest() { throw new Error("artifact_not_found"); }`, `export function listArtifacts() { return [{key: "video", type: "video"}]; }
+export function buildContentRequest(ctx) {
+  return {url: ctx.baseUrl + "/operations:fetch", method: "POST", body: {operationName: "op"}, responseType: "json", contentPath: `+contentPath+`, mimeType: `+mimeType+`};
+}`, 1)
+	}
+	task := &model.Task{TaskID: "task", Status: model.TaskStatusSuccess, Data: []byte(`{}`)}
+	for _, testCase := range []struct {
+		name, contentPath, mimeType string
+		wantError                   string
+	}{
+		{name: "operation video bytes", contentPath: `["response", "videos", 0, "bytesBase64Encoded"]`, mimeType: `"video/mp4"`},
+		{name: "too deep", contentPath: `Array.from({length: 33}, function() { return "a"; })`, mimeType: `"video/mp4"`, wantError: "at most 32 segments"},
+		{name: "negative index", contentPath: `["response", -1]`, mimeType: `"video/mp4"`, wantError: "non-negative integers"},
+		{name: "fractional index", contentPath: `["response", 1.5]`, mimeType: `"video/mp4"`, wantError: "non-negative integers"},
+		{name: "object segment", contentPath: `["response", {}]`, mimeType: `"video/mp4"`, wantError: "strings or integers"},
+		{name: "header injection", contentPath: `["response"]`, mimeType: `"video/mp4\r\nX-Injected: 1"`, wantError: "invalid artifact mimeType"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			plugin, err := pluginruntime.NewRegistry().Register(descriptorFor(testCase.contentPath, testCase.mimeType), pluginruntime.Options{})
+			require.NoError(t, err)
+			adaptor := New(plugin)
+			adaptor.Init(&relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: "https://provider.example", ApiKey: "key"}})
+
+			descriptor, err := adaptor.BuildContentRequest(t.Context(), task, "video", channel.TaskArtifactClientRequest{Method: http.MethodHead})
+
+			if testCase.wantError != "" {
+				require.ErrorContains(t, err, testCase.wantError)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, http.MethodPost, descriptor.Method)
+			assert.JSONEq(t, `{"operationName":"op"}`, string(descriptor.Body))
+			require.Len(t, descriptor.ContentPath, 4)
+			assert.Equal(t, []any{"response", "videos"}, descriptor.ContentPath[:2])
+			assert.EqualValues(t, 0, descriptor.ContentPath[2])
+			assert.Equal(t, "bytesBase64Encoded", descriptor.ContentPath[3])
+			assert.Equal(t, "video/mp4", descriptor.MimeType)
+		})
+	}
+}

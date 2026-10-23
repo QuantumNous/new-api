@@ -285,6 +285,82 @@ test('shows all four Incho interfaces and explains absent authentication and ext
   ).not.toBeInTheDocument()
 })
 
+test('lists each vendor path once with a /{key} form named by the source key and folds routes under that key into legacy addresses', async () => {
+  const user = userEvent.setup()
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(`export const meta = {
+  key: 'incho',
+  models: ['incho_music'],
+  routes: [
+    {method: 'POST', path: '/v1/music/generations', type: 'submit'},
+    {method: 'GET', path: '/incho/fetch/:task_id', type: 'query'},
+  ],
+};`)
+    )
+  )
+  renderDialog()
+  const endpoints = screen.getByRole('region', { name: 'Supported interfaces' })
+  expect(
+    await within(endpoints).findByText('/v1/music/generations')
+  ).toBeVisible()
+  expect(
+    within(endpoints).queryByText('/incho/v1/music/generations')
+  ).not.toBeInTheDocument()
+  expect(
+    within(endpoints).queryByRole('button', { name: '/demo' })
+  ).not.toBeInTheDocument()
+
+  await user.click(within(endpoints).getByRole('button', { name: '/incho' }))
+
+  expect(
+    within(endpoints).getByText('/incho/v1/music/generations')
+  ).toBeVisible()
+  const legacy = within(endpoints).getByRole('button', {
+    name: 'Legacy addresses (1)',
+  })
+  expect(legacy).toHaveAttribute('aria-expanded', 'false')
+  await user.click(legacy)
+  expect(within(endpoints).getByText('/incho/fetch/:task_id')).toBeVisible()
+  expect(
+    within(endpoints).queryByText('/incho/incho/fetch/:task_id')
+  ).not.toBeInTheDocument()
+  expect(within(endpoints).queryByText(/Only served/)).not.toBeInTheDocument()
+})
+
+test('a plugin whose routes all sit under a prefix of its key lists them as declared without an address toggle', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async () =>
+        new Response(`export const meta = {
+  key: 'sunoapi',
+  models: ['suno_music'],
+  routes: [
+    {method: 'POST', path: '/suno/submit/:action', type: 'submit'},
+    {method: 'POST', path: '/suno/fetch', type: 'dynamic'},
+    {method: 'GET', path: '/suno/fetch/:task_id', type: 'query'},
+  ],
+};`)
+    )
+  )
+  renderDialog()
+  const endpoints = screen.getByRole('region', { name: 'Supported interfaces' })
+  expect(
+    await within(endpoints).findByText('/suno/submit/:action')
+  ).toBeVisible()
+  expect(within(endpoints).getByText('/suno/fetch')).toBeVisible()
+  expect(within(endpoints).getByText('/suno/fetch/:task_id')).toBeVisible()
+  expect(
+    within(endpoints).queryByRole('group', { name: 'Address format' })
+  ).not.toBeInTheDocument()
+  expect(
+    within(endpoints).queryByRole('button', { name: /Legacy addresses/ })
+  ).not.toBeInTheDocument()
+})
+
 test('keyboard users can expand the full model list and inspect a protocol model scope', async () => {
   const user = userEvent.setup()
   vi.stubGlobal(

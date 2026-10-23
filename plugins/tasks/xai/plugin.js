@@ -120,11 +120,14 @@ export const meta = {
       ],
     },
   ],
+  // xAI's own paths; the gateway also serves each under /xai.
   routes: [
-    { method: "POST", path: "/xai/v1/videos/generations", type: "submit", decode: "createGeneration", render: "videoCreated" },
-    { method: "POST", path: "/xai/v1/videos/edits", type: "submit", decode: "createEdit", render: "videoCreated", models: ["grok-imagine-video"] },
-    { method: "POST", path: "/xai/v1/videos/extensions", type: "submit", decode: "createExtension", render: "videoCreated", models: ["grok-imagine-video"] },
-    { method: "GET", path: "/xai/v1/videos/:request_id", type: "query", taskIdParam: "request_id", render: "videoStatus" },
+    { method: "POST", path: "/v1/videos/generations", type: "submit", decode: "createGeneration", render: "videoCreated" },
+    { method: "POST", path: "/v1/videos/edits", type: "submit", decode: "createEdit", render: "videoCreated", models: ["grok-imagine-video"] },
+    { method: "POST", path: "/v1/videos/extensions", type: "submit", decode: "createExtension", render: "videoCreated", models: ["grok-imagine-video"] },
+    // The host's GET /v1/videos/:task_id hands a task submitted on these
+    // routes to this query; other tasks keep the OpenAI video object there.
+    { method: "GET", path: "/v1/videos/:request_id", type: "query", taskIdParam: "request_id", render: "videoStatus" },
   ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
 };
@@ -137,8 +140,8 @@ function plainObject(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : null;
 }
 
-// Another New API gateway serves the xAI wire format only on this plugin's
-// prefixed native routes.
+// Another New API gateway serves the xAI wire format under /xai, the form
+// every gateway release serves.
 function apiRoot(ctx) {
   return ctx.baseUrl + (ctx.upstream && ctx.upstream.kind === "new_api" ? "/xai" : "");
 }

@@ -211,37 +211,53 @@ func pinnedTaskPluginIdentities(c *gin.Context, expected string) ([]int, []strin
 	if c == nil || expected == "" {
 		return nil, nil
 	}
+	// A shared host endpoint and a native route several plugins declare both
+	// admit a channel of any candidate.
+	var generation *jsplugin.RoutingGeneration
+	var candidates []*jsplugin.LoadedPlugin
 	if value, exists := c.Get(jsplugin.ContextKeyPinnedEndpoint); exists {
-		pinned, ok := value.(jsplugin.PinnedEndpoint)
-		if ok && pinned.Generation != nil && len(pinned.Candidates) > 1 {
-			expectedFound := false
-			channelTypes := make([]int, 0, len(pinned.Candidates))
-			pluginKeys := make([]string, 0, len(pinned.Candidates))
-			seen := make(map[int]struct{}, len(pinned.Candidates))
+		if pinned, ok := value.(jsplugin.PinnedEndpoint); ok && len(pinned.Candidates) > 1 {
+			generation = pinned.Generation
 			for _, candidate := range pinned.Candidates {
-				if candidate.Plugin == nil {
+				candidates = append(candidates, candidate.Plugin)
+			}
+		}
+	} else if value, exists := c.Get(jsplugin.ContextKeyPinnedRoute); exists {
+		if pinned, ok := value.(jsplugin.PinnedRoute); ok && len(pinned.Candidates) > 1 {
+			generation = pinned.Generation
+			for _, candidate := range pinned.Candidates {
+				candidates = append(candidates, candidate.Plugin)
+			}
+		}
+	}
+	if generation != nil {
+		expectedFound := false
+		channelTypes := make([]int, 0, len(candidates))
+		pluginKeys := make([]string, 0, len(candidates))
+		seen := make(map[int]struct{}, len(candidates))
+		for _, candidate := range candidates {
+			if candidate == nil {
+				continue
+			}
+			if candidate.Meta.Key == expected {
+				expectedFound = true
+			}
+			pluginKeys = append(pluginKeys, candidate.Meta.Key)
+			for _, channelType := range candidate.Meta.ChannelTypes {
+				if channelType == 0 || channelType == constant.ChannelTypeTaskPlugin {
 					continue
 				}
-				if candidate.Plugin.Meta.Key == expected {
-					expectedFound = true
+				if _, duplicate := seen[channelType]; duplicate {
+					continue
 				}
-				pluginKeys = append(pluginKeys, candidate.Plugin.Meta.Key)
-				for _, channelType := range candidate.Plugin.Meta.ChannelTypes {
-					if channelType == 0 || channelType == constant.ChannelTypeTaskPlugin {
-						continue
-					}
-					if _, duplicate := seen[channelType]; duplicate {
-						continue
-					}
-					if plugin, indexed := pinned.Generation.GetByChannelType(channelType); indexed && plugin == candidate.Plugin {
-						seen[channelType] = struct{}{}
-						channelTypes = append(channelTypes, channelType)
-					}
+				if plugin, indexed := generation.GetByChannelType(channelType); indexed && plugin == candidate {
+					seen[channelType] = struct{}{}
+					channelTypes = append(channelTypes, channelType)
 				}
 			}
-			if expectedFound {
-				return channelTypes, pluginKeys
-			}
+		}
+		if expectedFound {
+			return channelTypes, pluginKeys
 		}
 	}
 	value, exists := c.Get(jsplugin.ContextKeyPinnedPlugin)

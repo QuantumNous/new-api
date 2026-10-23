@@ -738,6 +738,12 @@ func (r *Registry) prepareGeneration(
 	if err != nil {
 		return nil, nil, err
 	}
+	// The preparer decides admission by whether a key is built in, which the
+	// filtered factory passed here no longer tells for a switched-off key.
+	generation.factoryKeys = pluginMapKeys(r.factory)
+	for key := range factory {
+		generation.factoryKeys[key] = struct{}{}
+	}
 	if r.preparer != nil {
 		prepared, prepareErr := r.preparer(generation, current)
 		if prepareErr != nil {
@@ -1297,6 +1303,14 @@ func normalizeV1Meta(meta *Meta) error {
 	if !ValidPluginKey(meta.Key) {
 		return fmt.Errorf("plugin meta key must match %s", pluginKeyPattern)
 	}
+	// The host serves the plugin's routes under /{key}, so the key must not
+	// name a host namespace.
+	if meta.Key == "api" || slices.ContainsFunc(reservedRouteNamespaces, func(namespace string) bool {
+		first, _, _ := strings.Cut(strings.TrimPrefix(namespace, "/"), "/")
+		return first == meta.Key
+	}) {
+		return fmt.Errorf("plugin meta key %q is a reserved path segment", meta.Key)
+	}
 	if !pluginVersionPattern.MatchString(meta.Version) {
 		return fmt.Errorf("plugin meta version must be semver")
 	}
@@ -1357,15 +1371,23 @@ func normalizeV1Meta(meta *Meta) error {
 				return fmt.Errorf("plugin route %s %s model %q is not declared in plugin meta models", meta.Routes[index].Method, meta.Routes[index].Path, model)
 			}
 		}
-		shape, err := routePathShape(meta.Routes[index].Path)
-		if err != nil {
-			return err
+		// A route outside the plugin's own prefix is also served under
+		// /{key}; that address must not repeat another declaration either.
+		addresses := []string{meta.Routes[index].Path}
+		if !routeHasOwnPrefix(meta.Key, meta.Routes[index].Path) {
+			addresses = append(addresses, "/"+meta.Key+meta.Routes[index].Path)
 		}
-		key := meta.Routes[index].Method + " " + shape
-		if _, exists := routeKeys[key]; exists {
-			return fmt.Errorf("plugin meta routes contain duplicate route %s %s", meta.Routes[index].Method, meta.Routes[index].Path)
+		for _, address := range addresses {
+			shape, err := routePathShape(address)
+			if err != nil {
+				return err
+			}
+			key := meta.Routes[index].Method + " " + shape
+			if _, exists := routeKeys[key]; exists {
+				return fmt.Errorf("plugin meta routes contain duplicate route %s %s", meta.Routes[index].Method, address)
+			}
+			routeKeys[key] = struct{}{}
 		}
-		routeKeys[key] = struct{}{}
 	}
 	protocols := make(map[string]struct{}, len(meta.Protocols))
 	for index := range meta.Protocols {

@@ -47,6 +47,11 @@ type requestDescriptor struct {
 	RewriteModel   string            `json:"rewriteModel"`
 	BodyType       string            `json:"bodyType"`
 	Parts          []requestPart     `json:"parts"`
+
+	// ContentPath and MimeType are read from buildContentRequest only: the
+	// artifact's bytes are a base64 string at that path of the JSON reply.
+	ContentPath []any  `json:"contentPath"`
+	MimeType    string `json:"mimeType"`
 	// BodyText is the body as JSON.stringify wrote it, for a plugin that
 	// preserves JSON order: the upstream gets the members in that order.
 	BodyText json.RawMessage `json:"-"`
@@ -67,6 +72,9 @@ type orderedRequestDescriptor struct {
 	RewriteModel   string            `json:"rewriteModel"`
 	BodyType       string            `json:"bodyType"`
 	Parts          []requestPart     `json:"parts"`
+
+	ContentPath []any  `json:"contentPath"`
+	MimeType    string `json:"mimeType"`
 }
 
 type requestPart struct {
@@ -151,6 +159,40 @@ func (a *TaskAdaptor) ValidateRequestAndSetAction(c *gin.Context, info *relaycom
 						c.Set("task_action", action)
 						info.Action = action
 					}
+				}
+			}
+		}
+	}
+	// On a native path several plugins declare, the channel may have bound a
+	// plugin other than the one that prepared the request; it decodes again.
+	if pinnedValue, exists := c.Get(pluginruntime.ContextKeyPinnedRoute); exists {
+		if pinned, ok := pinnedValue.(pluginruntime.PinnedRoute); ok && len(pinned.Candidates) > 1 && pinned.Plugin == a.plugin {
+			if requestValue, present := c.Get(pluginruntime.ContextKeyRouteRequest); present {
+				if requestContext, valid := requestValue.(pluginruntime.RouteRequestContext); valid {
+					requestContext.Params = pluginruntime.RouteParams(c.Params, pinned.Route)
+					resolvedValue, requestBodyText, callErr := a.plugin.Engine.CallPathWithMemberJSON(
+						context.WithoutCancel(c.Request.Context()), 0, a.plugin.Meta.JSONTextMember("requestBody"),
+						"native", []string{pinned.Route.Decode}, requestContext.JSValueFor(a.plugin.Meta),
+					)
+					resolved, resolvedOK := resolvedValue.(map[string]any)
+					kind, _ := resolved["kind"].(string)
+					resolvedModel, _ := resolved["model"].(string)
+					if callErr != nil || !resolvedOK || kind != string(pluginruntime.RouteTypeSubmit) || resolvedModel != c.GetString("resolved_task_model") {
+						return service.TaskErrorWrapperLocal(fmt.Errorf("final task plugin decoder rejected the pinned model"), "plugin_request_invalid", http.StatusBadRequest)
+					}
+					if _, forbidden := resolved["renderer"]; forbidden {
+						return service.TaskErrorWrapperLocal(fmt.Errorf("decoder must not return renderer"), "plugin_request_invalid", http.StatusBadRequest)
+					}
+					requestContext.RequestBody = resolved["requestBody"]
+					c.Set(pluginruntime.ContextKeyRouteRequest, requestContext)
+					c.Set("task_request", requestContext.RequestBody)
+					c.Set(pluginruntime.ContextKeyRequestBodyText, requestBodyText)
+					action := pinned.Route.Action
+					if resolvedAction, valid := resolved["action"].(string); valid && strings.TrimSpace(resolvedAction) != "" {
+						action = resolvedAction
+					}
+					c.Set("task_action", action)
+					info.Action = action
 				}
 			}
 		}
@@ -1071,6 +1113,35 @@ func (a *TaskAdaptor) ListArtifacts(task *model.Task) ([]channel.TaskArtifact, e
 	return validateTaskArtifacts(value)
 }
 
+// RendererArtifacts projects a SUCCESS task's artifacts for a presenter as
+// {key: {key, type, url, mimeType?}}, each url a gateway content address from
+// contentURL. Other tasks, and plugins without listArtifacts, have none.
+func RendererArtifacts(plugin *pluginruntime.LoadedPlugin, task *model.Task, contentURL func(taskID, artifactKey string) (string, error)) (map[string]any, error) {
+	projected := make(map[string]any)
+	if task == nil || task.Status != model.TaskStatusSuccess {
+		return projected, nil
+	}
+	artifacts, err := New(plugin).ListArtifacts(task)
+	if err != nil {
+		return nil, fmt.Errorf("project task artifacts: %w", err)
+	}
+	if len(artifacts) > 0 && contentURL == nil {
+		return nil, fmt.Errorf("task artifact projection is unavailable")
+	}
+	for _, artifact := range artifacts {
+		artifactURL, urlErr := contentURL(task.TaskID, artifact.Key)
+		if urlErr != nil {
+			return nil, fmt.Errorf("build task artifact content URL: %w", urlErr)
+		}
+		item := map[string]any{"key": artifact.Key, "type": artifact.Type, "url": artifactURL}
+		if artifact.MimeType != "" {
+			item["mimeType"] = artifact.MimeType
+		}
+		projected[artifact.Key] = item
+	}
+	return projected, nil
+}
+
 func (a *TaskAdaptor) BuildContentRequest(ctx context.Context, task *model.Task, artifactKey string, clientRequest channel.TaskArtifactClientRequest) (*channel.TaskContentRequest, error) {
 	if !a.hasHook(context.Background(), "buildContentRequest") {
 		return nil, nil
@@ -1134,6 +1205,12 @@ func (a *TaskAdaptor) BuildContentRequest(ctx context.Context, task *model.Task,
 			}
 		}
 	}
+	if err = pluginruntime.ValidateJSONPath(descriptor.ContentPath); err != nil {
+		return nil, fmt.Errorf("plugin returned an invalid artifact content path: %w", err)
+	}
+	if len(descriptor.MimeType) > 255 || strings.ContainsAny(descriptor.MimeType, "\r\n") {
+		return nil, fmt.Errorf("plugin returned an invalid artifact mimeType")
+	}
 	headers := descriptor.Headers
 	if !descriptor.Credentialless {
 		var overrides map[string]string
@@ -1159,6 +1236,8 @@ func (a *TaskAdaptor) BuildContentRequest(ctx context.Context, task *model.Task,
 		Headers:        headers,
 		Body:           body,
 		Credentialless: descriptor.Credentialless,
+		ContentPath:    descriptor.ContentPath,
+		MimeType:       descriptor.MimeType,
 	}, nil
 }
 
@@ -1380,7 +1459,7 @@ func validateTaskArtifacts(value any) ([]channel.TaskArtifact, error) {
 		if rawMimeType, exists := item["mimeType"]; exists {
 			var mimeTypeOK bool
 			mimeType, mimeTypeOK = rawMimeType.(string)
-			if !mimeTypeOK {
+			if !mimeTypeOK || len(mimeType) > 255 || strings.ContainsAny(mimeType, "\r\n") {
 				return nil, fmt.Errorf("plugin artifact has invalid mimeType")
 			}
 		}
@@ -1410,6 +1489,7 @@ func (a *TaskAdaptor) requestDescriptor(ctx context.Context, hook string, args .
 		ResponseType: ordered.ResponseType, URL: ordered.URL, Method: ordered.Method, Headers: ordered.Headers,
 		Credentialless: ordered.Credentialless, Action: ordered.Action, Model: ordered.Model,
 		RewriteModel: ordered.RewriteModel, BodyType: ordered.BodyType, Parts: ordered.Parts,
+		ContentPath: ordered.ContentPath, MimeType: ordered.MimeType,
 	}
 	switch {
 	case len(ordered.Body) == 0 || string(ordered.Body) == "null":

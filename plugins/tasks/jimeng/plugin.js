@@ -42,7 +42,13 @@ export const meta = {
     { label: "3.0 Pro 10s", facts: { seconds: 10, product: "v30_pro" } },
   ],
   protocols: [{ name: "openai_responses", supports: ["stream", "sync", "background"] }, "openai_video"],
-  routes: [{ method: "POST", path: "/jimeng/", type: "dynamic", decode: "decodeRequest", render: "renderTask" }],
+  // Jimeng's Bearer API, which takes the bodies of the signed
+  // CVSync2AsyncSubmitTask and CVSync2AsyncGetResult actions; the gateway also
+  // serves each route under /jimeng.
+  routes: [
+    { method: "POST", path: "/api/common/v3/submit_task_v2", type: "submit", decode: "submitTask", render: "renderTask" },
+    { method: "POST", path: "/api/common/v3/get_result_v2", type: "dynamic", decode: "getResult", render: "renderTask" },
+  ],
 };
 
 function trimmed(value) {
@@ -127,25 +133,14 @@ function actionForImageCount(imageCount) {
   return "text_to_video";
 }
 
-function decodeNativeRequest(ctx) {
+function nativeBody(ctx) {
   if (!ctx.body || ctx.body.kind !== "json") throw new Error("JSON body required");
   const requestBody = ctx.body.value;
-  const query = ctx.query || {};
-  const actions = query.Action || [];
-  const action = actions.length ? actions[0] : "";
-  if (!action) throw new Error("Action query parameter is required");
+  return requestBody && typeof requestBody === "object" ? requestBody : {};
+}
 
-  const body = requestBody && typeof requestBody === "object" ? requestBody : {};
-  if (action === "CVSync2AsyncGetResult") {
-    if (typeof body.task_id !== "string" || body.task_id.trim() === "") {
-      throw new Error("task_id is required for CVSync2AsyncGetResult");
-    }
-    return { kind: "query", taskIds: [body.task_id] };
-  }
-  if (action !== "CVSync2AsyncSubmitTask") {
-    throw new Error("unsupported Jimeng Action");
-  }
-
+function submitTask(ctx) {
+  const body = nativeBody(ctx);
   const images = imageValues(body);
   return {
     kind: "submit",
@@ -160,8 +155,11 @@ function decodeNativeRequest(ctx) {
   };
 }
 
+// Jimeng itself is called at the site root with a V4 signature; another New
+// API gateway serves the Bearer API under /jimeng instead.
 function endpoint(ctx, action) {
-  return ctx.baseUrl + (viaGateway(ctx) ? "/jimeng/" : "/") + "?Action=" + action + "&Version=2022-08-31";
+  if (viaGateway(ctx)) return ctx.baseUrl + "/jimeng/api/common/v3/" + (action === "CVSync2AsyncGetResult" ? "get_result_v2" : "submit_task_v2");
+  return ctx.baseUrl + "/?Action=" + action + "&Version=2022-08-31";
 }
 
 function requestHeaders(ctx, method, url, bodyText) {
@@ -559,7 +557,13 @@ protocols.openai_video = {
 };
 
 export const native = {
-  decodeRequest: decodeNativeRequest,
+  submitTask: submitTask,
+  getResult: function (ctx) {
+    const body = nativeBody(ctx);
+    if (typeof body.req_key !== "string" || body.req_key.trim() === "") throw new Error("req_key is required");
+    if (typeof body.task_id !== "string" || body.task_id.trim() === "") throw new Error("task_id is required");
+    return { kind: "query", taskIds: [body.task_id] };
+  },
   renderTask: function (ctx, tasks) {
     return legacyRenderers.jimeng_native(tasks);
   },

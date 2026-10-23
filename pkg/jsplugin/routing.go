@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/gin-gonic/gin"
 )
 
 type RouteType string
@@ -201,9 +202,36 @@ func LookupHostProtocolOperation(method, path string) (string, HostProtocolOpera
 	return "", HostProtocolOperation{}, false
 }
 
+// RouteBinding is one address a plugin serves. Besides each declared route the
+// host registers its copy under /{key} (Pinned), which always reaches this
+// plugin. A declared route whose first segment is the key, or a proper prefix
+// of it (/ali for alibaba, /suno for sunoapi), already does (OwnPrefix) and
+// gets no copy.
 type RouteBinding struct {
-	Plugin *LoadedPlugin
-	Route  Route
+	Plugin    *LoadedPlugin
+	Route     Route
+	Pinned    bool
+	OwnPrefix bool
+}
+
+// RouteGroup is one method and path shape of the inner router with every
+// binding that serves it, in ascending key order. GinPath names each wildcard
+// by its segment position (:s2, *s3), so bindings that name the same position
+// differently share one registration.
+type RouteGroup struct {
+	Method   string
+	Shape    string
+	GinPath  string
+	Bindings []RouteBinding
+}
+
+// SkippedRoute is a declared top-level route the gateway does not register;
+// the plugin's /{key} copy still serves it. Reason is host_namespace,
+// host_route or key_namespace.
+type SkippedRoute struct {
+	PluginKey string
+	Route     Route
+	Reason    string
 }
 
 type ProtocolBinding struct {
@@ -233,10 +261,15 @@ type PinnedPlugin struct {
 	Plugin     *LoadedPlugin
 }
 
+// PinnedRoute carries the generation and the bindings of the matched native
+// route. Plugin and Route name the binding that decodes or renders; on a path
+// several plugins declare, Candidates lists them all and distribution may
+// rebind Plugin and Route to the candidate the selected channel executes.
 type PinnedRoute struct {
 	Generation *RoutingGeneration
 	Plugin     *LoadedPlugin
 	Route      Route
+	Candidates []RouteBinding
 }
 
 // PinnedEndpoint carries the exact generation and endpoint candidates selected
@@ -383,12 +416,16 @@ type RoutingGeneration struct {
 	modelPlugins         map[string][]*LoadedPlugin
 	canonicalModelByFold map[string]string
 	byChannelType        map[int]*LoadedPlugin
-	routeIndex           map[string]RouteBinding
+	routeIndex           map[string][]RouteBinding
 	protocolIndex        map[string][]ProtocolBinding
 	plugins              []*LoadedPlugin
 	routes               []RouteBinding
 	runtime              http.Handler
 	retainCurrent        map[string]struct{}
+	// factoryKeys are the keys of the built-in plugins, overridden or
+	// switched off included.
+	factoryKeys map[string]struct{}
+	skipped     []SkippedRoute
 }
 
 var (
@@ -398,8 +435,11 @@ var (
 	memberNamePattern  = regexp.MustCompile(`^[A-Za-z_$][A-Za-z0-9_$]*$`)
 )
 
+// reservedRouteNamespaces are host paths a plugin route may never enter:
+// console pages, assets and the generic task routes. The other host
+// namespaces, such as /api, follow the outer router's static routes and are
+// decided at admission.
 var reservedRouteNamespaces = []string{
-	"/api",
 	"/assets",
 	"/setup",
 	"/v1/tasks",
@@ -499,22 +539,32 @@ func (g *RoutingGeneration) CanonicalModel(model string) (string, bool) {
 	return declared, ok
 }
 
-// LookupDeclaredRoute resolves a manifest path declaration. It does not match
-// an incoming concrete URL; runtime matching is delegated to Gin.
+// LookupDeclaredRoute resolves a manifest path declaration, or its /{key}
+// copy, to the first binding in ascending key order. It does not match an
+// incoming concrete URL; runtime matching is delegated to Gin.
 func (g *RoutingGeneration) LookupDeclaredRoute(method, path string) (RouteBinding, bool) {
-	if g == nil {
+	bindings := g.LookupDeclaredRoutes(method, path)
+	if len(bindings) == 0 {
 		return RouteBinding{}, false
+	}
+	return bindings[0], true
+}
+
+// LookupDeclaredRoutes returns every binding of a path shape, in ascending
+// key order.
+func (g *RoutingGeneration) LookupDeclaredRoutes(method, path string) []RouteBinding {
+	if g == nil {
+		return nil
 	}
 	normalizedMethod, err := normalizeRouteMethod(method)
 	if err != nil {
-		return RouteBinding{}, false
+		return nil
 	}
 	shape, err := routePathShape(path)
 	if err != nil {
-		return RouteBinding{}, false
+		return nil
 	}
-	binding, ok := g.routeIndex[normalizedMethod+" "+shape]
-	return binding, ok
+	return slices.Clone(g.routeIndex[normalizedMethod+" "+shape])
 }
 
 func (g *RoutingGeneration) LookupEndpoint(method, path, model string) (ProtocolBinding, bool) {
@@ -560,6 +610,93 @@ func (g *RoutingGeneration) Routes() []RouteBinding {
 	return append([]RouteBinding(nil), g.routes...)
 }
 
+// RouteGroups returns the inner router's registrations: one per method and
+// path shape, without the skipped routes.
+func (g *RoutingGeneration) RouteGroups() []RouteGroup {
+	if g == nil {
+		return nil
+	}
+	skipped := make(map[string]struct{}, len(g.skipped))
+	for _, route := range g.skipped {
+		skipped[route.PluginKey+" "+route.Route.Method+" "+route.Route.Path] = struct{}{}
+	}
+	groups := make([]RouteGroup, 0, len(g.routes))
+	positions := make(map[string]int, len(g.routes))
+	for _, binding := range g.routes {
+		if _, skip := skipped[binding.Plugin.Meta.Key+" "+binding.Route.Method+" "+binding.Route.Path]; skip {
+			continue
+		}
+		shape, err := routePathShape(binding.Route.Path)
+		if err != nil {
+			continue
+		}
+		indexKey := binding.Route.Method + " " + shape
+		position, exists := positions[indexKey]
+		if !exists {
+			segments := strings.Split(strings.TrimPrefix(shape, "/"), "/")
+			for index, segment := range segments {
+				if segment == ":" || segment == "*" {
+					segments[index] = segment + "s" + strconv.Itoa(index)
+				}
+			}
+			position = len(groups)
+			positions[indexKey] = position
+			groups = append(groups, RouteGroup{Method: binding.Route.Method, Shape: shape, GinPath: "/" + strings.Join(segments, "/")})
+		}
+		groups[position].Bindings = append(groups[position].Bindings, binding)
+	}
+	return groups
+}
+
+// RouteParams names the inner router's positional wildcards after the
+// parameters route declares.
+func RouteParams(params gin.Params, route Route) map[string]string {
+	named := make(map[string]string, len(params))
+	for index, segment := range strings.Split(strings.TrimPrefix(route.Path, "/"), "/") {
+		name, wildcard := strings.CutPrefix(segment, ":")
+		if !wildcard {
+			name, wildcard = strings.CutPrefix(segment, "*")
+		}
+		if !wildcard {
+			continue
+		}
+		if value, found := params.Get("s" + strconv.Itoa(index)); found {
+			named[name] = value
+		}
+	}
+	return named
+}
+
+// FactoryKey reports whether key belongs to a built-in plugin, whether or not
+// an override or the disabled list replaces it in this generation.
+func (g *RoutingGeneration) FactoryKey(key string) bool {
+	if g == nil {
+		return false
+	}
+	_, found := g.factoryKeys[key]
+	return found
+}
+
+// SkippedRoutes returns the declared top-level routes the gateway does not
+// register.
+func (g *RoutingGeneration) SkippedRoutes() []SkippedRoute {
+	if g == nil {
+		return nil
+	}
+	return slices.Clone(g.skipped)
+}
+
+// WithSkippedRoutes returns a shallow immutable copy that leaves the given
+// routes out of RouteGroups. Callers use it before publication.
+func (g *RoutingGeneration) WithSkippedRoutes(skipped []SkippedRoute) *RoutingGeneration {
+	if g == nil {
+		return nil
+	}
+	prepared := *g
+	prepared.skipped = slices.Clone(skipped)
+	return &prepared
+}
+
 // RuntimeHandler is the inner router built for this exact generation. It is
 // published in the same atomic pointer as the routing indexes.
 func (g *RoutingGeneration) RuntimeHandler() http.Handler {
@@ -603,6 +740,7 @@ func (g *RoutingGeneration) RebuildWithPlugins(plugins []*LoadedPlugin) (*Routin
 	}
 	rebuilt.PublishedAt = g.PublishedAt
 	rebuilt.retainCurrent = cloneStringSet(g.retainCurrent)
+	rebuilt.factoryKeys = g.factoryKeys
 	return rebuilt, nil
 }
 
@@ -775,9 +913,6 @@ func validateRoute(route *Route) error {
 		if !pathNamePattern.MatchString(route.TaskIDParam) {
 			return fmt.Errorf("query route %s %s has invalid taskIdParam %q", route.Method, route.Path, route.TaskIDParam)
 		}
-		if !pathHasParameter(route.Path, route.TaskIDParam) {
-			return fmt.Errorf("query route %s %s must contain :%s", route.Method, route.Path, route.TaskIDParam)
-		}
 	case RouteTypeDynamic:
 		if route.Decode == "" || route.Render == "" || route.TaskIDParam != "" {
 			return fmt.Errorf("dynamic route %s %s must declare decode and render and must not declare taskIdParam", route.Method, route.Path)
@@ -824,6 +959,37 @@ func validateModelScope(models []string, subject string) error {
 
 func pathHasParameter(routePath, name string) bool {
 	return slices.Contains(strings.Split(routePath, "/"), ":"+name)
+}
+
+// TaskIDInQuery reports whether a query route reads its task id from the
+// query string, as the MiniMax v1 query does (?task_id=): the route's path
+// has no parameter named taskIdParam.
+func (r Route) TaskIDInQuery() bool {
+	return r.Type == RouteTypeQuery && !pathHasParameter(r.Path, r.TaskIDParam)
+}
+
+// routeHasOwnPrefix reports whether a declared route already lives under the
+// plugin's own address: its first segment is the key or a proper prefix of it.
+func routeHasOwnPrefix(key, routePath string) bool {
+	first, _, _ := strings.Cut(strings.TrimPrefix(routePath, "/"), "/")
+	return first != "" && strings.HasPrefix(key, first)
+}
+
+// PluginRouteBindings returns the addresses plugin serves: each declared route
+// and, unless the route lives under the plugin's own prefix, its /{key} copy.
+func PluginRouteBindings(plugin *LoadedPlugin) []RouteBinding {
+	key := plugin.Meta.Key
+	bindings := make([]RouteBinding, 0, 2*len(plugin.Meta.Routes))
+	for _, route := range plugin.Meta.Routes {
+		if routeHasOwnPrefix(key, route.Path) {
+			bindings = append(bindings, RouteBinding{Plugin: plugin, Route: route, OwnPrefix: true})
+			continue
+		}
+		pinned := route
+		pinned.Path = "/" + key + route.Path
+		bindings = append(bindings, RouteBinding{Plugin: plugin, Route: route}, RouteBinding{Plugin: plugin, Route: pinned, Pinned: true})
+	}
+	return bindings
 }
 
 func ResolveRouteAction(route Route, resolvedAction string) string {
@@ -933,7 +1099,7 @@ func buildRoutingGenerationFromPlugins(effective map[string]*LoadedPlugin, numbe
 		modelPlugins:         make(map[string][]*LoadedPlugin),
 		canonicalModelByFold: make(map[string]string),
 		byChannelType:        make(map[int]*LoadedPlugin),
-		routeIndex:           make(map[string]RouteBinding),
+		routeIndex:           make(map[string][]RouteBinding),
 		protocolIndex:        make(map[string][]ProtocolBinding),
 		plugins:              make([]*LoadedPlugin, 0, len(effective)),
 	}
@@ -970,17 +1136,15 @@ func buildRoutingGenerationFromPlugins(effective map[string]*LoadedPlugin, numbe
 			generation.byChannelType[channelType] = plugin
 		}
 
-		for _, route := range plugin.Meta.Routes {
-			shape, err := routePathShape(route.Path)
+		// Plugins may share a path shape; the request resolves which one
+		// serves it (see PinnedRoute).
+		for _, binding := range PluginRouteBindings(plugin) {
+			shape, err := routePathShape(binding.Route.Path)
 			if err != nil {
 				return nil, err
 			}
-			indexKey := route.Method + " " + shape
-			if other, exists := generation.routeIndex[indexKey]; exists {
-				return nil, fmt.Errorf("plugin %s route %s %s conflicts with plugin %s route %s", plugin.Meta.Key, route.Method, route.Path, other.Plugin.Meta.Key, other.Route.Path)
-			}
-			binding := RouteBinding{Plugin: plugin, Route: route}
-			generation.routeIndex[indexKey] = binding
+			indexKey := binding.Route.Method + " " + shape
+			generation.routeIndex[indexKey] = append(generation.routeIndex[indexKey], binding)
 			generation.routes = append(generation.routes, binding)
 		}
 
@@ -1014,9 +1178,10 @@ func buildRoutingGenerationFromPlugins(effective map[string]*LoadedPlugin, numbe
 }
 
 // PreflightRoutingConflict reports whether admitting candidate into the
-// current generation would collide on a channel type, native route, or
-// protocol-model binding. A same-key entry is replaced first so re-uploading
-// a plugin (or overriding a factory built-in) does not self-conflict.
+// current generation would collide on a channel type, a case-folded model
+// name, or a protocol-model binding. A same-key entry is replaced first so
+// re-uploading a plugin (or overriding a factory built-in) does not
+// self-conflict.
 func PreflightRoutingConflict(current *RoutingGeneration, candidate *LoadedPlugin) error {
 	if candidate == nil {
 		return fmt.Errorf("cannot preflight a nil plugin")

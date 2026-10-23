@@ -315,12 +315,13 @@ export const meta = {
   usageProfiles: capabilityUsageProfiles(VIDEO_MODELS, seedanceUsageSchema, seedanceUsageExamples).concat(
     capabilityUsageProfiles(IMAGE_MODELS, seedreamUsageSchema, seedreamUsageExamples)
   ),
+  // Ark's own paths; the gateway also serves each under /doubao.
   routes: [
-    { method: "POST", path: "/doubao/api/v3/contents/generations/tasks", type: "submit", decode: "createTask", render: "taskCreated" },
-    { method: "GET", path: "/doubao/api/v3/contents/generations/tasks/:task_id", type: "query", render: "taskStatus" },
+    { method: "POST", path: "/api/v3/contents/generations/tasks", type: "submit", decode: "createTask", render: "taskCreated" },
+    { method: "GET", path: "/api/v3/contents/generations/tasks/:task_id", type: "query", render: "taskStatus" },
     // The vendor image API answers synchronously and has no task to re-query;
     // the complete response is delivered once and never persisted.
-    { method: "POST", path: "/doubao/api/v3/images/generations", type: "submit", decode: "createImage", render: "imageCreated", retainResult: false },
+    { method: "POST", path: "/api/v3/images/generations", type: "submit", decode: "createImage", render: "imageCreated", retainResult: false },
   ],
   protocols: [
     { name: "openai_responses", supports: ["stream", "sync", "background"] },
@@ -333,8 +334,8 @@ function trimmed(value) {
   return String(value || "").trim();
 }
 
-// Another New API gateway serves the Ark wire format only on this plugin's
-// prefixed native routes; Ark itself serves the unprefixed paths.
+// Another New API gateway serves the Ark wire format under /doubao, the form
+// every gateway release serves; Ark itself serves the unprefixed paths.
 function apiRoot(ctx) {
   return ctx.baseUrl + (ctx.upstream && ctx.upstream.kind === "new_api" ? "/doubao" : "");
 }
