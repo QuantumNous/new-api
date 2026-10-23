@@ -98,7 +98,15 @@ func CreatePartnerOAuthPaymentOrder(order *PartnerOAuthPaymentOrder, topUp *TopU
 		return tx.Create(order).Error
 	})
 	if isDatabaseDuplicatedKey(DB, err) {
-		return ErrPartnerOAuthPaymentIdempotencyRace
+		// Only a stored order with this key is an idempotency race; any other
+		// duplicate (for example a trade number collision) stays an error the
+		// partner can retry with the same key.
+		var used int64
+		if countErr := DB.Model(&PartnerOAuthPaymentOrder{}).
+			Where("binding_id = ? AND idempotency_key_hash = ?", order.BindingId, order.IdempotencyKeyHash).
+			Count(&used).Error; countErr == nil && used > 0 {
+			return ErrPartnerOAuthPaymentIdempotencyRace
+		}
 	}
 	return err
 }
@@ -155,12 +163,16 @@ func countPartnerOAuthPaymentOrdersTx(tx *gorm.DB, bindingID string, since int64
 	return count, err
 }
 
-// GetPartnerOAuthPaymentReturnURL returns the partner return URL registered
-// for a top-up, or "" when the order has none or was not placed by a partner.
-func GetPartnerOAuthPaymentReturnURL(topUpID int) string {
+// GetPartnerOAuthPaymentOrderByTopUpID returns the partner link of a top-up;
+// orders not placed by a partner report ErrPartnerOAuthPaymentOrderNotFound.
+func GetPartnerOAuthPaymentOrderByTopUpID(topUpID int) (*PartnerOAuthPaymentOrder, error) {
 	var order PartnerOAuthPaymentOrder
-	if err := DB.Select("return_url").Where("top_up_id = ?", topUpID).First(&order).Error; err != nil {
-		return ""
+	err := DB.Where("top_up_id = ?", topUpID).First(&order).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, ErrPartnerOAuthPaymentOrderNotFound
 	}
-	return order.ReturnURL
+	if err != nil {
+		return nil, err
+	}
+	return &order, nil
 }

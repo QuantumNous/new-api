@@ -476,8 +476,11 @@ func TestPartnerOAuthPaymentOrderStore(t *testing.T) {
 			assert.ErrorIs(t, err, ErrPartnerOAuthPaymentOrderNotFound)
 			_, _, err = GetPartnerOAuthPaymentOrder("bnd_store", "legacy-order")
 			assert.ErrorIs(t, err, ErrPartnerOAuthPaymentOrderNotFound)
-			assert.Equal(t, "https://assistant.example.com/done", GetPartnerOAuthPaymentReturnURL(topUp.Id))
-			assert.Empty(t, GetPartnerOAuthPaymentReturnURL(legacyTopUp.Id))
+			link, err := GetPartnerOAuthPaymentOrderByTopUpID(topUp.Id)
+			require.NoError(t, err)
+			assert.Equal(t, "https://assistant.example.com/done", link.ReturnURL)
+			_, err = GetPartnerOAuthPaymentOrderByTopUpID(legacyTopUp.Id)
+			assert.ErrorIs(t, err, ErrPartnerOAuthPaymentOrderNotFound)
 
 			// Limits are checked under the binding lock and leave no top-up behind.
 			limits.MaxPending = 1

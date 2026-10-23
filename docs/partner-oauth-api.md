@@ -81,7 +81,7 @@ GET  /api/integrations/v1/payment/orders/{order_id}   轮询到账
 | `payment:write` | 为该账号创建充值订单。用户仍需在支付页面亲自付款 |
 | `offline_access` | 发放刷新令牌。需要在访问令牌过期后继续使用时必须申请 |
 
-完整绑定使用 `account:read credential:read offline_access`；需要在助手里充值时再加 `payment:write`。`payment:write` 要平台在客户端配置里单独开通，已有绑定不会自动获得，需要用户重新授权。不返回 `id_token`。
+完整绑定使用 `account:read credential:read offline_access`；需要在助手里充值时再加 `payment:write`。`payment:write` 要平台在客户端配置里单独开通，已有绑定不会自动获得，需要用户重新授权；平台关闭该客户端的 `payment:write` 后，已有绑定的充值接口立即返回 `403 insufficient_scope`。不返回 `id_token`。
 
 ## 时效
 
@@ -408,7 +408,7 @@ Authorization: Bearer {access_token}
 
 返回下单时的字段（不含 `checkout_url`），付款成功后 `status` 变为 `success` 并带 `paid_at`。`status` 可能是 `pending`、`success`、`failed`、`expired`。只能查询本次绑定下的订单，其他订单返回 `404 order_not_found`。
 
-打开收银台后每 2–3 秒查询一次；用户关闭支付窗口或超过合理时间后停止轮询。到账以本接口的 `success` 或余额接口为准。
+打开收银台后每 5 秒左右查询一次，收到 429 时按 `Retry-After` 退避；用户关闭支付窗口或超过合理时间后停止轮询。易支付订单未付款时会一直是 `pending`，不会自动变成 `expired`。到账以本接口的 `success` 或余额接口为准。
 
 ### 9.4 支付后跳回
 
@@ -418,7 +418,7 @@ Authorization: Bearer {access_token}
 {return_url}?order_id={order_id}&status=success
 ```
 
-`return_url` 原有的查询参数会保留。`status` 只是提示（可能是 `success` 或 `pending`），不能当作到账凭据，必须再调用 9.3 确认。没带 `return_url` 时，付款后浏览器停在野菜API站内。
+`return_url` 原有的查询参数会保留。`status` 只是提示（可能是 `success` 或 `pending`），不能当作到账凭据，必须再调用 9.3 确认。没带 `return_url`，或者付款时这次绑定已撤销、客户端已停用、该地址已不在登记的回调来源里，付款后浏览器停在野菜API站内。
 
 第三方下的充值订单会出现在用户的充值记录里，不参与邀请和充值返现活动。
 
@@ -482,7 +482,7 @@ Authorization: Bearer {access_token}
 
 访问令牌只放在 `Authorization: Bearer` 头里。查询参数或正文里的 `access_token` 会被拒绝。
 
-账号查询、同一绑定的凭证领取、撤销可以有限重试。429 优先遵守 `Retry-After`。不要用这套重试去重放授权码、旧刷新令牌或已经发出的模型请求。
+`/api/integrations/v1/*` 按绑定限流：每个绑定每分钟最多 120 次，同一出口 IP 合计每分钟最多 1200 次，超出返回 `429 rate_limited`。账号查询、同一绑定的凭证领取、撤销可以有限重试。429 优先遵守 `Retry-After`。不要用这套重试去重放授权码、旧刷新令牌或已经发出的模型请求。
 
 ## 实现时注意
 

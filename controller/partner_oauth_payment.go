@@ -450,7 +450,7 @@ func PartnerOAuthGetPaymentOrder(c *gin.Context) {
 // partnerPaymentReturnTarget sends the payer back to the partner when the
 // order registered a return URL; status is only a hint for the partner UI.
 func partnerPaymentReturnTarget(topUp *model.TopUp, paid bool) string {
-	returnURL := model.GetPartnerOAuthPaymentReturnURL(topUp.Id)
+	returnURL := service.PartnerOAuthPaymentReturnURL(topUp.Id)
 	if returnURL == "" {
 		return ""
 	}

@@ -17,7 +17,8 @@ func SetPartnerOAuthRouter(router *gin.Engine) {
 	}
 
 	integration := router.Group("/api/integrations/v1")
-	integration.Use(middleware.RouteTag("api"), middleware.PartnerOAuthRequestID(), middleware.PartnerOAuthNoStore(), middleware.PartnerOAuthRateLimit("POA-INT", 120, 60, "integration"))
+	// The per-IP budget only caps floods; PartnerOAuthBearer adds the per-binding limit.
+	integration.Use(middleware.RouteTag("api"), middleware.PartnerOAuthRequestID(), middleware.PartnerOAuthNoStore(), middleware.PartnerOAuthRateLimit("POA-INT", 1200, 60, "integration"))
 	{
 		integration.GET("/account", middleware.PartnerOAuthBearer(service.PartnerOAuthScopeAccountRead), controller.PartnerOAuthAccount)
 		integration.POST("/credential", middleware.PartnerOAuthBearer(service.PartnerOAuthScopeCredentialRead), controller.PartnerOAuthCredential)

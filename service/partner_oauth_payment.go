@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -68,6 +69,30 @@ func ValidatePartnerOAuthIdempotencyKey(raw string) (string, error) {
 	}
 	sum := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(sum[:]), nil
+}
+
+// PartnerOAuthPaymentReturnURL returns where the Epay browser return should
+// send the payer of a partner order, or "" to stay on the site. The return URL
+// was checked when the order was placed; it is used only while the binding and
+// client are still active and its origin is still registered, so a partner
+// that was revoked, disabled or reconfigured since then is skipped.
+func PartnerOAuthPaymentReturnURL(topUpID int) string {
+	order, err := model.GetPartnerOAuthPaymentOrderByTopUpID(topUpID)
+	if err != nil || order.ReturnURL == "" {
+		return ""
+	}
+	binding, err := model.GetPartnerOAuthBindingByBindingID(order.BindingId)
+	if err != nil || binding.Status != model.PartnerOAuthBindingStatusActive || binding.ExpiresAt <= time.Now().Unix() {
+		return ""
+	}
+	client, err := model.GetPartnerOAuthClientByClientID(order.ClientId)
+	if err != nil || client.Status != model.PartnerOAuthClientStatusEnabled {
+		return ""
+	}
+	if ValidatePartnerOAuthPaymentReturnURL(client, order.ReturnURL) != nil {
+		return ""
+	}
+	return order.ReturnURL
 }
 
 // ValidatePartnerOAuthPaymentReturnURL accepts a URL only when its origin is

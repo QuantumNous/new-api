@@ -88,6 +88,11 @@ func setupPartnerOAuthPaymentController(t *testing.T) *gin.Engine {
 // accessToken, without walking the authorization flow.
 func seedPartnerPaymentBinding(t *testing.T, user *model.User, client *model.PartnerOAuthClient, scope, accessToken string) string {
 	t.Helper()
+	// Payment endpoints also require the client to still allow payment:write.
+	if service.HasPartnerOAuthScope(scope, service.PartnerOAuthScopePaymentWrite) && !service.HasPartnerOAuthScope(client.Scopes, service.PartnerOAuthScopePaymentWrite) {
+		client.Scopes += " " + service.PartnerOAuthScopePaymentWrite
+		require.NoError(t, model.DB.Model(client).Update("scopes", client.Scopes).Error)
+	}
 	var bindingID string
 	require.NoError(t, model.DB.Transaction(func(tx *gorm.DB) error {
 		binding, err := model.CreatePartnerOAuthBindingWithTx(tx, model.PartnerOAuthBindingCreate{
@@ -191,6 +196,27 @@ func TestPartnerOAuthBalanceFollowsDisplayCurrency(t *testing.T) {
 	assert.Contains(t, rec.Header().Get("WWW-Authenticate"), `scope="account:read"`)
 	rec = partnerIntegrationRequest(engine, http.MethodGet, "/api/integrations/v1/balance?x=1", "oa_balance_reader", "", "")
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestPartnerOAuthIntegrationRateLimitIsPerBinding(t *testing.T) {
+	engine := setupPartnerOAuthPaymentController(t)
+	user := &model.User{Username: "rate-limit-user", Password: "unused", Status: common.UserStatusEnabled, Group: "default", AuthVersion: 1}
+	require.NoError(t, model.DB.Create(user).Error)
+	client, _ := createPartnerTestClient(t, model.PartnerOAuthTokenAuthMethodBasic, []string{"https://assistant.example.com/oauth/callback"})
+	seedPartnerPaymentBinding(t, user, client, "account:read", "oa_rate_busy")
+	seedPartnerPaymentBinding(t, user, client, "account:read", "oa_rate_quiet")
+
+	// Both bindings share one partner server IP; only the busy one is limited.
+	for range 120 {
+		rec := partnerIntegrationRequest(engine, http.MethodGet, "/api/integrations/v1/balance", "oa_rate_busy", "", "")
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	}
+	limited := partnerIntegrationRequest(engine, http.MethodGet, "/api/integrations/v1/balance", "oa_rate_busy", "", "")
+	assert.Equal(t, http.StatusTooManyRequests, limited.Code)
+	assert.Equal(t, "rate_limited", partnerIntegrationErrorCode(t, limited))
+	assert.NotEmpty(t, limited.Header().Get("Retry-After"))
+	quiet := partnerIntegrationRequest(engine, http.MethodGet, "/api/integrations/v1/balance", "oa_rate_quiet", "", "")
+	assert.Equal(t, http.StatusOK, quiet.Code, quiet.Body.String())
 }
 
 func TestPartnerOAuthPaymentOrderSettlesWithoutCashbackAndReturnsToPartner(t *testing.T) {
@@ -324,6 +350,33 @@ func TestPartnerOAuthPaymentOrderSettlesWithoutCashbackAndReturnsToPartner(t *te
 	require.NoError(t, err)
 	require.NoError(t, model.DB.Model(&model.CashbackReward{}).Count(&rewards).Error)
 	assert.Equal(t, int64(1), rewards)
+
+	// Removing payment:write from the client stops existing bindings at once;
+	// other scopes keep the future-grants-only rule.
+	require.NoError(t, model.DB.Model(&model.PartnerOAuthClient{}).Where("id = ?", client.Id).Update("scopes", "account:read").Error)
+	revokedScopeRec := partnerIntegrationRequest(engine, http.MethodGet, "/api/integrations/v1/payment/orders/"+created.OrderID, "oa_payment_writer", "", "")
+	assert.Equal(t, http.StatusForbidden, revokedScopeRec.Code)
+	assert.Equal(t, "insufficient_scope", partnerIntegrationErrorCode(t, revokedScopeRec))
+	assert.Equal(t, http.StatusOK, partnerIntegrationRequest(engine, http.MethodGet, "/api/integrations/v1/balance", "oa_payment_writer", "", "").Code)
+
+	// A disabled client no longer receives the payer after a verified return.
+	require.NoError(t, model.DB.Model(&model.PartnerOAuthClient{}).Where("id = ?", client.Id).Update("status", model.PartnerOAuthClientStatusDisabled).Error)
+	unpaid := epay.GenerateParams(map[string]string{
+		"pid": "merchant-id", "type": "alipay", "out_trade_no": created.OrderID,
+		"trade_no": "provider-order", "trade_status": "WAIT_BUYER_PAY", "money": "70.00",
+	}, "merchant-secret")
+	unpaidQuery := url.Values{}
+	for key, value := range unpaid {
+		unpaidQuery.Set(key, value)
+	}
+	staleReq := httptest.NewRequest(http.MethodGet, "/api/user/epay/return?"+unpaidQuery.Encode(), nil)
+	staleReq.Host = "localhost:3000"
+	staleRec := httptest.NewRecorder()
+	engine.ServeHTTP(staleRec, staleReq)
+	require.Equal(t, http.StatusFound, staleRec.Code, staleRec.Body.String())
+	staleLocation, err := url.Parse(staleRec.Header().Get("Location"))
+	require.NoError(t, err)
+	assert.NotEqual(t, "assistant.example.com", staleLocation.Host)
 }
 
 func TestPartnerOAuthPaymentOrderRejectsInvalidRequests(t *testing.T) {
