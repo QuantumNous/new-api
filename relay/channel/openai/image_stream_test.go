@@ -713,6 +713,84 @@ func TestImageURLProxyStreamReportsRewriteFailure(t *testing.T) {
 	}
 }
 
+func TestImageURLProxyJSONStreamPreservesUsageOnRewriteFailure(t *testing.T) {
+	t.Setenv("CRYPTO_SECRET", common.CryptoSecret)
+	oldAddress, oldPublicAddress := system_setting.ServerAddress, system_setting.TaskPublicAddress
+	system_setting.ServerAddress, system_setting.TaskPublicAddress = "https://gateway.example", ""
+	t.Cleanup(func() {
+		system_setting.ServerAddress, system_setting.TaskPublicAddress = oldAddress, oldPublicAddress
+	})
+	const validImage = `{"url":"https://upstream.example/image.png?secret=upstream"}`
+	const invalidImage = `{"url":"ftp://upstream.example/image.png?secret=upstream"}`
+	for _, tc := range []struct {
+		name, path, data      string
+		enabled               bool
+		wantEvents, wantCount int
+	}{
+		{"first image fails", "/v1/images/generations", `[` + invalidImage + `,` + validImage + `]`, true, 0, 2},
+		{"later image fails", "/v1/images/generations", `[` + validImage + `,` + invalidImage + `]`, true, 1, 2},
+		{"object edit fails", "/v1/images/edits", invalidImage, true, 0, 1},
+		{"disabled keeps URLs", "/v1/images/generations", `[` + validImage + `,` + invalidImage + `]`, false, 2, 2},
+	} {
+		for _, mode := range []string{"fixed", "expression"} {
+			t.Run(tc.name+"/"+mode, func(t *testing.T) {
+				body := `{"created":1710000000,"data":` + tc.data + `,"usage":{"input_tokens":10,"output_tokens":20,"total_tokens":30}}`
+				c, recorder, resp, info := newImageTestContext(t, body, "application/json", true)
+				c.Request.URL.Path = tc.path
+				common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{ImageURLProxy: tc.enabled})
+				common.SetContextKey(c, constant.ContextKeyChannelId, 42)
+				requested := 3
+				info.ImageRequestCount = requested
+				if mode == "expression" {
+					info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{EstimatedImageCount: &requested}
+				} else {
+					info.PriceData.UsePrice = true
+					info.PriceData.AddOtherRatio("n", float64(requested))
+				}
+
+				usage, apiErr := OpenaiImageStreamHandler(c, info, resp)
+
+				require.Nil(t, apiErr, "completed upstream usage must reach settlement instead of the refund path")
+				require.NotNil(t, usage)
+				assert.Equal(t, 10, usage.PromptTokens)
+				assert.Equal(t, 20, usage.CompletionTokens)
+				assert.Equal(t, 30, usage.TotalTokens)
+				if mode == "expression" {
+					require.NotNil(t, info.BillingImageCount)
+					assert.Equal(t, tc.wantCount, *info.BillingImageCount)
+					assert.Empty(t, info.PriceData.OtherRatios())
+				} else {
+					assert.Equal(t, float64(tc.wantCount), info.PriceData.OtherRatios()["n"])
+				}
+				output := recorder.Body.String()
+				assert.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+				assert.Equal(t, tc.wantEvents, strings.Count(output, "event: image_generation.completed"))
+				assert.Equal(t, tc.wantEvents, info.ReceivedResponseCount)
+				var chunks []string
+				for line := range strings.SplitSeq(output, "\n") {
+					if data, ok := strings.CutPrefix(line, "data: "); ok {
+						chunks = append(chunks, data)
+					}
+				}
+				require.NotNil(t, info.StreamStatus)
+				if tc.enabled {
+					require.Len(t, chunks, tc.wantEvents+2)
+					assert.JSONEq(t, `{"error":{"message":"image proxy token is invalid","type":"new_api_error","param":"","code":"bad_response_body"}}`, chunks[len(chunks)-2])
+					assert.True(t, info.StreamStatus.ResponseFailed())
+					assert.Equal(t, relaycommon.StreamEndReasonHandlerStop, info.StreamStatus.EndReason)
+					assert.Equal(t, 1, info.StreamStatus.TotalErrorCount())
+					assert.NotContains(t, output, "upstream.example")
+				} else {
+					require.Len(t, chunks, tc.wantEvents+1)
+					assert.Contains(t, output, `"url":"ftp://upstream.example/image.png?secret=upstream"`)
+					assert.False(t, info.StreamStatus.HasErrors())
+				}
+				assert.Equal(t, "[DONE]", chunks[len(chunks)-1])
+			})
+		}
+	}
+}
+
 func TestImageURLProxyPreservesImageBillingAndUsage(t *testing.T) {
 	t.Setenv("CRYPTO_SECRET", common.CryptoSecret)
 	oldAddress, oldPublicAddress := system_setting.ServerAddress, system_setting.TaskPublicAddress

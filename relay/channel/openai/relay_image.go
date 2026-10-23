@@ -351,7 +351,18 @@ func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 		}
 		payload, err = service.RewriteImageURLs(c, payload)
 		if err != nil {
-			return nil, types.NewError(err, types.ErrorCodeBadResponseBody, types.ErrOptionWithSkipRetry())
+			apiErr := types.NewError(err, types.ErrorCodeBadResponseBody)
+			openaiErr := apiErr.ToOpenAIError(common.UpstreamAddresses(c)...)
+			info.ReceivedResponseCount += emitted
+			if info.StreamStatus == nil {
+				info.StreamStatus = relaycommon.NewStreamStatus()
+			}
+			info.StreamStatus.RecordError(apiErr.Error())
+			info.StreamStatus.MarkFailed(string(apiErr.GetErrorCode()), openaiErr.Type, apiErr.StatusCode)
+			info.StreamStatus.SetEndReason(relaycommon.StreamEndReasonHandlerStop, apiErr)
+			_ = helper.ObjectData(c, gin.H{"error": openaiErr})
+			helper.Done(c)
+			return &usageResp.Usage, nil
 		}
 		if writeErr := helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: "image_generation.completed"}, string(payload)); writeErr != nil {
 			if info != nil && info.StreamStatus != nil {
