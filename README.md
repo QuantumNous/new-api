@@ -284,6 +284,21 @@ Open [http://localhost:5173](http://localhost:5173); the development server prox
 
 Read [AGENTS.md](./AGENTS.md) before contributing. Run checks appropriate to your change, including `make test` for the Go modules and `bun run typecheck`, `bun run lint`, `bun run test`, and `bun run build` in `web/` for frontend changes. Changes to RelayKit must also pass `GOWORK=off go build ./...` from `relaykit/`.
 
+### Upstream Git repository
+
+The official source repository is [QuantumNous/new-api](https://github.com/QuantumNous/new-api). The local `upstream` remote points to `https://github.com/QuantumNous/new-api.git`. `origin` remains this fork, `git@github.com:Bobby0403/new-api.git`.
+
+```bash
+git fetch upstream
+git merge upstream/main
+```
+
+If that remote is not configured yet:
+
+```bash
+git remote add upstream https://github.com/QuantumNous/new-api.git
+```
+
 <a id="documentation"></a>
 
 ## Documentation and community
