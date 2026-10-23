@@ -637,6 +637,82 @@ func TestOpenaiImageStreamHandlerRecordsUpstreamErrorEvent(t *testing.T) {
 	require.Contains(t, recorder.Body.String(), `stream ID 77`)
 }
 
+func TestImageURLProxyStreamReportsRewriteFailure(t *testing.T) {
+	t.Setenv("CRYPTO_SECRET", common.CryptoSecret)
+	oldAddress, oldPublicAddress := system_setting.ServerAddress, system_setting.TaskPublicAddress
+	oldTimeout := constant.StreamingTimeout
+	constant.StreamingTimeout = 30
+	system_setting.TaskPublicAddress = ""
+	t.Cleanup(func() {
+		system_setting.ServerAddress, system_setting.TaskPublicAddress = oldAddress, oldPublicAddress
+		constant.StreamingTimeout = oldTimeout
+	})
+	for _, tc := range []struct {
+		name, path, target, address, wantMessage string
+		enabled, upstreamOpen                    bool
+		requested                                int
+	}{
+		{"generation invalid target", "/v1/images/generations", "ftp://upstream.example/image.png?secret=upstream", "https://gateway.example", service.ErrImageProxyInvalid.Error(), true, true, 3},
+		{"edit invalid target", "/v1/images/edits", "ftp://upstream.example/image.png?secret=upstream", "https://gateway.example", service.ErrImageProxyInvalid.Error(), true, true, 3},
+		{"invalid gateway address", "/v1/images/generations", "https://upstream.example/image.png?secret=upstream", "invalid", "image proxy base URL is invalid", true, false, 1},
+		{"disabled keeps stream", "/v1/images/generations", "ftp://upstream.example/image.png?secret=upstream", "invalid", "", false, false, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			system_setting.ServerAddress = tc.address
+			eventType := "image_generation"
+			if tc.path == "/v1/images/edits" {
+				eventType = "image_edit"
+			}
+			partial := `{"type":"` + eventType + `.partial_image","b64_json":"partial"}`
+			completed := `{"type":"` + eventType + `.completed","url":"` + tc.target + `","usage":{"input_tokens":10,"output_tokens":20,"total_tokens":30}}`
+			body := "data: " + partial + "\n\ndata: " + completed + "\n\ndata: {\"type\":\"unexpected_tail\"}\n\n"
+			if !tc.upstreamOpen {
+				body += "data: [DONE]\n\n"
+			}
+			c, recorder, resp, info := newImageTestContext(t, body, "text/event-stream", true)
+			if tc.upstreamOpen {
+				resp.Body = &blockingBody{chunk: []byte(body), closed: make(chan struct{})}
+			}
+			c.Request.URL.Path = tc.path
+			common.SetContextKey(c, constant.ContextKeyChannelSetting, dto.ChannelSettings{ImageURLProxy: tc.enabled})
+			common.SetContextKey(c, constant.ContextKeyChannelId, 42)
+			info.ImageRequestCount = tc.requested
+			info.PriceData.UsePrice = true
+			info.PriceData.AddOtherRatio("n", float64(tc.requested))
+
+			usage, apiErr := OpenaiImageStreamHandler(c, info, resp)
+
+			require.Nil(t, apiErr, "a response rewrite failure must not trigger a generation retry or refund")
+			require.NotNil(t, usage)
+			assert.Equal(t, 10, usage.PromptTokens)
+			assert.Equal(t, 20, usage.CompletionTokens)
+			assert.Equal(t, 30, usage.TotalTokens)
+			assert.Equal(t, float64(tc.requested), info.PriceData.OtherRatios()["n"])
+			assert.Equal(t, "text/event-stream", recorder.Header().Get("Content-Type"))
+			var chunks []string
+			for line := range strings.SplitSeq(recorder.Body.String(), "\n") {
+				if data, ok := strings.CutPrefix(line, "data: "); ok {
+					chunks = append(chunks, data)
+				}
+			}
+			require.NotNil(t, info.StreamStatus)
+			if !tc.enabled {
+				require.Len(t, chunks, 4)
+				assert.JSONEq(t, completed, chunks[1])
+				assert.False(t, info.StreamStatus.HasErrors())
+			} else {
+				require.Len(t, chunks, 3)
+				assert.JSONEq(t, fmt.Sprintf(`{"error":{"message":%q,"type":"new_api_error","param":"","code":"bad_response_body"}}`, tc.wantMessage), chunks[1])
+				assert.True(t, info.StreamStatus.ResponseFailed())
+				assert.Equal(t, 1, info.StreamStatus.TotalErrorCount())
+				assert.NotContains(t, recorder.Body.String(), "upstream.example")
+			}
+			assert.JSONEq(t, partial, chunks[0])
+			assert.Equal(t, "[DONE]", chunks[len(chunks)-1])
+		})
+	}
+}
+
 func TestImageURLProxyPreservesImageBillingAndUsage(t *testing.T) {
 	t.Setenv("CRYPTO_SECRET", common.CryptoSecret)
 	oldAddress, oldPublicAddress := system_setting.ServerAddress, system_setting.TaskPublicAddress

@@ -145,6 +145,7 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 	usage := &dto.Usage{}
 	var lastStreamData []byte
 	var completedImages int64
+	var rewriteError *types.NewAPIError
 
 	helper.StreamScannerHandler(c, resp, info, func(data string, sr *helper.StreamResult) {
 		raw := common.StringToByteSlice(data)
@@ -169,7 +170,8 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		}
 		output, err := service.RewriteImageURLs(c, raw)
 		if err != nil {
-			sr.Stop(err)
+			rewriteError = types.NewError(err, types.ErrorCodeBadResponseBody)
+			sr.Stop(rewriteError)
 			return
 		}
 		if err := writeOpenaiImageStreamChunk(c, output); err != nil {
@@ -177,9 +179,11 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 		}
 	})
 
-	// StreamScannerHandler consumes the upstream [DONE]; re-emit it so the
-	// client still receives a terminal data: [DONE].
-	if info.StreamStatus != nil && info.StreamStatus.EndReason == relaycommon.StreamEndReasonDone {
+	// Report rewrite failures in-band to preserve settlement for generated images.
+	if rewriteError != nil {
+		_ = helper.ObjectData(c, gin.H{"error": rewriteError.ToOpenAIError(common.UpstreamAddresses(c)...)})
+		helper.Done(c)
+	} else if info.StreamStatus != nil && info.StreamStatus.EndReason == relaycommon.StreamEndReasonDone {
 		helper.Done(c)
 	}
 
