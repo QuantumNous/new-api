@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	pluginruntime "github.com/QuantumNous/new-api/pkg/jsplugin"
@@ -164,6 +165,18 @@ func serveTaskPluginImageProtocol(c *gin.Context, pinned pluginruntime.PinnedEnd
 			}
 			item["b64_json"] = encoded
 		}
+	}
+	if service.ImageURLProxyEnabled(c) {
+		body, encodeErr := common.Marshal(response)
+		if encodeErr == nil {
+			body, encodeErr = service.RewriteImageURLs(c, body)
+		}
+		if encodeErr != nil {
+			respondPluginProtocolError(c, http.StatusInternalServerError, "image_proxy_error", i18n.T(c, i18n.MsgImageProxyCreateFailed))
+			return
+		}
+		c.Data(http.StatusOK, "application/json; charset=utf-8", body)
+		return
 	}
 	c.JSON(http.StatusOK, response)
 }

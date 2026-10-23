@@ -43,8 +43,11 @@ func OpenaiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 
 	info.UpdateImageCount(openaiImageResponseCount(responseBody))
 
-	// 写入新的 response body
-	service.IOCopyBytesGracefully(c, resp, responseBody)
+	output, err := service.RewriteImageURLs(c, responseBody)
+	if err != nil {
+		return nil, types.NewError(err, types.ErrorCodeBadResponseBody, types.ErrOptionWithSkipRetry())
+	}
+	service.IOCopyBytesGracefully(c, resp, output)
 
 	normalizeOpenAIUsage(&usageResp.Usage)
 	applyUsagePostProcessing(info, &usageResp.Usage, responseBody)
@@ -164,7 +167,12 @@ func OpenaiImageStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp 
 				completedImages++
 			}
 		}
-		if err := writeOpenaiImageStreamChunk(c, raw); err != nil {
+		output, err := service.RewriteImageURLs(c, raw)
+		if err != nil {
+			sr.Stop(err)
+			return
+		}
+		if err := writeOpenaiImageStreamChunk(c, output); err != nil {
 			sr.Stop(err)
 		}
 	})
@@ -336,6 +344,10 @@ func openaiImageJSONAsStreamHandler(c *gin.Context, info *relaycommon.RelayInfo,
 			if err != nil {
 				return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 			}
+		}
+		payload, err = service.RewriteImageURLs(c, payload)
+		if err != nil {
+			return nil, types.NewError(err, types.ErrorCodeBadResponseBody, types.ErrOptionWithSkipRetry())
 		}
 		if writeErr := helper.ResponseChunkData(c, dto.ResponsesStreamResponse{Type: "image_generation.completed"}, string(payload)); writeErr != nil {
 			if info != nil && info.StreamStatus != nil {
