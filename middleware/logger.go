@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"fmt"
-	"net/url"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -12,7 +11,6 @@ import (
 
 const RouteTagKey = "route_tag"
 
-// RouteTag attaches a route category for access logging.
 func RouteTag(tag string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Set(RouteTagKey, tag)
@@ -20,7 +18,6 @@ func RouteTag(tag string) gin.HandlerFunc {
 	}
 }
 
-// SetUpLogger installs access logging that redacts query credentials without changing requests.
 func SetUpLogger(server *gin.Engine) {
 	server.Use(redactTaskArtifactAccessQuery())
 	server.Use(gin.LoggerWithFormatter(func(param gin.LogFormatterParams) string {
@@ -37,17 +34,9 @@ func SetUpLogger(server *gin.Engine) {
 		// Redact the log value only; the handler still needs the original query.
 		if strings.HasPrefix(path, "/api/oauth/") || strings.HasPrefix(path, "/oauth/") {
 			path, _, _ = strings.Cut(path, "?")
-		} else {
-			// RequestURI escapes the path but leaves '#' in RawQuery untouched.
-			// Escape it on a copy so credentials cannot be parsed as a fragment.
-			logURL := *param.Request.URL
-			if _, err := url.ParseQuery(logURL.RawQuery); err != nil {
-				// A malformed query cannot be safely redacted; log only the path.
-				logURL.RawQuery = ""
-				logURL.ForceQuery = false
-			}
-			logURL.RawQuery = strings.ReplaceAll(logURL.RawQuery, "#", "%23")
-			path = relaycommon.SanitizeURLForLog(logURL.RequestURI())
+		} else if param.Request.URL.RawQuery != "" {
+			query := param.Request.URL.Query().Encode()
+			path = param.Request.URL.EscapedPath() + relaycommon.SanitizeURLForLog("?"+query)
 		}
 		return fmt.Sprintf("[GIN] %s | %s | %s | %3d | %13v | %15s | %7s %s\n",
 			param.TimeStamp.Format("2006/01/02 - 15:04:05"),
