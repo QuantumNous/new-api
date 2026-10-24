@@ -270,14 +270,17 @@ func GetSelfTokenUsage(c *gin.Context) {
 }
 
 // GetTeamSummaryStats returns the aggregate used_quota and request_count for
-// the caller's team (parent account + all children). Only callable by a parent
-// account (parent_id = 0, has children).
+// the caller's team. Children's consumption is counted only for periods when
+// they were bound to this parent (tracked in user_parent_bindings). Only
+// callable by a parent account (parent_id = 0, has children).
 func GetTeamSummaryStats(c *gin.Context) {
-	userIds, ok := getTeamUserIds(c)
+	// Validate caller is a parent account (reuse getTeamUserIds for the check).
+	_, ok := getTeamUserIds(c)
 	if !ok {
 		return
 	}
-	usedQuota, requestCount, err := model.GetTeamUsageSummary(userIds)
+	parentId := c.GetInt("id")
+	usedQuota, requestCount, err := model.GetTeamUsageSummaryByBindings(parentId)
 	if err != nil {
 		common.ApiError(c, err)
 		return

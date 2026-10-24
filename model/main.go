@@ -336,6 +336,7 @@ func migrateDB() error {
 		&LoadTestAgent{},
 		&LoadTestRun{},
 		&LoadTestRunWorker{},
+		&UserParentBinding{},
 	)
 	if err != nil {
 		return err
@@ -344,6 +345,9 @@ func migrateDB() error {
 		return err
 	}
 	if err := normalizeLoadTestExecutionModes(); err != nil {
+		return err
+	}
+	if err := BackfillCurrentBindings(); err != nil {
 		return err
 	}
 	if err := removeLegacyUserTypeColumn(); err != nil {

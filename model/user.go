@@ -1084,10 +1084,28 @@ func GetUserSetting(id int, fromDB bool) (settingMap dto.UserSetting, err error)
 	return userBase.GetSetting(), nil
 }
 
-// SetUserParentId sets or clears the parent account for a user.
-// parentId == 0 clears the relationship.
+// SetUserParentId sets or clears the parent account for a user, and keeps the
+// binding history table in sync. parentId == 0 clears the relationship.
 func SetUserParentId(userId, parentId int) error {
-	return DB.Model(&User{}).Where("id = ?", userId).Update("parent_id", parentId).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		// Look up the current parent so we can close the right binding row.
+		var cur User
+		if err := tx.Select("parent_id").Where("id = ?", userId).First(&cur).Error; err != nil {
+			return err
+		}
+		if cur.ParentId > 0 {
+			if err := recordUnbind(tx, userId, cur.ParentId); err != nil {
+				return err
+			}
+		}
+		if err := tx.Model(&User{}).Where("id = ?", userId).Update("parent_id", parentId).Error; err != nil {
+			return err
+		}
+		if parentId > 0 {
+			return recordBind(tx, parentId, userId)
+		}
+		return nil
+	})
 }
 
 // GetUserChildren returns all users whose parent_id equals parentId.
@@ -1337,17 +1355,3 @@ func RootUserExists() bool {
 	return true
 }
 
-// GetTeamUsageSummary returns the aggregate used_quota and request_count for
-// the given set of user ids (a parent account + its children).
-func GetTeamUsageSummary(userIds []int) (usedQuota int64, requestCount int64, err error) {
-	type result struct {
-		UsedQuota    int64
-		RequestCount int64
-	}
-	var r result
-	err = DB.Model(&User{}).
-		Select("COALESCE(SUM(used_quota), 0) AS used_quota, COALESCE(SUM(request_count), 0) AS request_count").
-		Where("id IN ?", userIds).
-		Scan(&r).Error
-	return r.UsedQuota, r.RequestCount, err
-}
