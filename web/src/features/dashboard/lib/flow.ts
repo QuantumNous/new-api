@@ -68,6 +68,7 @@ type FlowNodeRank = {
 }
 
 type FlowPathContext = {
+  noApiTokenLabel?: string
   deletedTokenLabel?: (tokenId: number) => string
 }
 
@@ -194,12 +195,13 @@ function tokenNode(row: FlowQuotaDataItem, ctx: FlowPathContext): FlowPathNode {
   return {
     id:
       tokenID > 0 ? `token:${tokenID}` : `token:${row.token_name || 'unknown'}`,
-    label: row.token_name || deletedTokenLabel(tokenID, ctx),
+    label: row.token_name || fallbackTokenLabel(tokenID, ctx),
     kind: 'token',
   }
 }
 
-function deletedTokenLabel(tokenID: number, ctx: FlowPathContext): string {
+function fallbackTokenLabel(tokenID: number, ctx: FlowPathContext): string {
+  if (tokenID === 0) return ctx.noApiTokenLabel ?? 'No API Token'
   if (tokenID <= 0) return 'Unknown Token'
   return ctx.deletedTokenLabel?.(tokenID) ?? `token-${tokenID}`
 }
@@ -981,6 +983,7 @@ export function buildDashboardFlowData(
   const role = options.role ?? DEFAULT_FLOW_ROLE
   const palette = options.colorPalette
   const ctx = {
+    noApiTokenLabel: options.noApiTokenLabel,
     deletedTokenLabel: options.deletedTokenLabel,
   }
   const stages = resolveVisibleStages(role, options.visibleStages)
