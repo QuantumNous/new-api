@@ -24,9 +24,9 @@ import type { RankingPeriod } from '../types'
 
 const PERIODS: { id: RankingPeriod; labelKey: string }[] = [
   { id: 'today', labelKey: 'Today' },
-  { id: 'week', labelKey: 'Week' },
-  { id: 'month', labelKey: 'Month' },
-  { id: 'year', labelKey: 'Year' },
+  { id: 'week', labelKey: 'Last 7 days' },
+  { id: 'month', labelKey: 'Last 30 days' },
+  { id: 'year', labelKey: 'Last year' },
 ]
 
 type RankingsHeroProps = {
