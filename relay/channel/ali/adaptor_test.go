@@ -3,8 +3,10 @@ package ali
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -334,5 +336,154 @@ func TestAliResponsesWebSearchUsage(t *testing.T) {
 			counts[name] = tool.CallCount
 		}
 		assert.Equal(t, map[string]int{aliSearchAgentKey: 2, dto.BuildInToolWebSearch: 0, dto.BuildInToolWebSearchPreview: 0}, counts, raw)
+	}
+}
+
+// Bailian multimodal embedding models are served only by the native
+// multimodal-embedding endpoint, which takes input.contents; text embedding
+// models keep compatible mode and the OpenAI body.
+func TestEmbeddingRequestByModel(t *testing.T) {
+	const (
+		base       = "https://dashscope.invalid"
+		nativePath = "/api/v1/services/embeddings/multimodal-embedding/multimodal-embedding"
+	)
+	tests := []struct {
+		model    string
+		request  string // OpenAI embedding request fields after model
+		wantPath string
+		wantBody string // "" means a conversion error
+	}{
+		{
+			model:    "qwen3-vl-embedding",
+			request:  `"input":"a cat"`,
+			wantPath: nativePath,
+			wantBody: `{"model":"qwen3-vl-embedding","input":{"contents":[{"text":"a cat"}]}}`,
+		},
+		{
+			model:    "tongyi-embedding-vision-plus-2026-03-06",
+			request:  `"input":["a cat","a dog"],"dimensions":1024`,
+			wantPath: nativePath,
+			wantBody: `{"model":"tongyi-embedding-vision-plus-2026-03-06","input":{"contents":[{"text":"a cat"},{"text":"a dog"}]},"parameters":{"dimension":1024}}`,
+		},
+		{
+			model: "multimodal-embedding-v1",
+			request: `"input":[{"type":"text","text":"a cat"},` +
+				`{"type":"image_url","image_url":{"url":"data:image/png;base64,iVBORw0KGgo="}},` +
+				`{"type":"video_url","video_url":{"url":"https://example.com/cat.mp4"}}]`,
+			wantPath: nativePath,
+			wantBody: `{"model":"multimodal-embedding-v1","input":{"contents":[{"text":"a cat"},` +
+				`{"image":"data:image/png;base64,iVBORw0KGgo="},{"video":"https://example.com/cat.mp4"}]}}`,
+		},
+		{
+			model:    "qwen3-vl-embedding",
+			request:  `"input":[{"type":"image_url","image_url":{"url":""}}]`,
+			wantPath: nativePath,
+		},
+		{
+			model:    "text-embedding-v4",
+			request:  `"input":"a cat","dimensions":1024`,
+			wantPath: "/compatible-mode/v1/embeddings",
+			wantBody: `{"model":"text-embedding-v4","input":"a cat","dimensions":1024}`,
+		},
+	}
+	for _, tt := range tests {
+		info := &relaycommon.RelayInfo{
+			RelayMode:   constant.RelayModeEmbeddings,
+			RelayFormat: types.RelayFormatEmbedding,
+			ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: base, UpstreamModelName: tt.model},
+		}
+		url, err := (&Adaptor{}).GetRequestURL(info)
+		require.NoError(t, err, tt.request)
+		assert.Equal(t, base+tt.wantPath, url, tt.request)
+
+		var request dto.EmbeddingRequest
+		require.NoError(t, common.UnmarshalJsonStr(`{"model":"`+tt.model+`",`+tt.request+`}`, &request))
+		converted, err := (&Adaptor{}).ConvertEmbeddingRequest(nil, info, request)
+		if tt.wantBody == "" {
+			assert.Error(t, err, tt.request)
+			continue
+		}
+		require.NoError(t, err, tt.request)
+		wire, err := common.Marshal(converted)
+		require.NoError(t, err)
+		assert.JSONEq(t, tt.wantBody, string(wire), tt.request)
+	}
+}
+
+// The native response becomes an OpenAI embedding list. prompt_tokens is all
+// billable input and image_tokens its visual part, priced at the image ratio;
+// output_tokens is not priced and never billed. A response without usage
+// bills the request estimate.
+func TestMultimodalEmbeddingResponse(t *testing.T) {
+	tests := []struct {
+		name      string
+		model     string
+		body      string
+		estimate  int
+		wantData  []dto.EmbeddingResponseItem
+		wantUsage *dto.Usage // nil means an upstream error
+	}{
+		{
+			name:  "visual tokens reported apart",
+			model: "qwen3-vl-embedding",
+			body: `{"output":{"embeddings":[{"index":0,"embedding":[0.1,-0.2],"type":"text"},{"index":1,"embedding":[0.3,0.4],"type":"image"}]},` +
+				`"usage":{"input_tokens":43,"image_tokens":1247,"total_tokens":1290},"request_id":"r1"}`,
+			wantData: []dto.EmbeddingResponseItem{
+				{Object: "embedding", Index: 0, Embedding: []float64{0.1, -0.2}},
+				{Object: "embedding", Index: 1, Embedding: []float64{0.3, 0.4}},
+			},
+			wantUsage: &dto.Usage{PromptTokens: 1290, TotalTokens: 1290,
+				PromptTokensDetails: dto.InputTokenDetails{TextTokens: 43, ImageTokens: 1247}},
+		},
+		{
+			name:  "input_tokens split in input_tokens_details",
+			model: "tongyi-embedding-vision-plus",
+			body: `{"output":{"embeddings":[{"index":0,"embedding":[0.5],"type":"fused"}]},` +
+				`"usage":{"input_tokens":903,"input_tokens_details":{"image_tokens":896,"text_tokens":7},"output_tokens":3,"total_tokens":906},"request_id":"r2"}`,
+			wantData: []dto.EmbeddingResponseItem{{Object: "embedding", Index: 0, Embedding: []float64{0.5}}},
+			wantUsage: &dto.Usage{PromptTokens: 903, TotalTokens: 903,
+				PromptTokensDetails: dto.InputTokenDetails{TextTokens: 7, ImageTokens: 896}},
+		},
+		{
+			name:      "no usage bills the estimate",
+			model:     "qwen3-vl-embedding",
+			body:      `{"output":{"embeddings":[{"index":0,"embedding":[0.5],"type":"text"}]},"request_id":"r3"}`,
+			estimate:  12,
+			wantData:  []dto.EmbeddingResponseItem{{Object: "embedding", Index: 0, Embedding: []float64{0.5}}},
+			wantUsage: &dto.Usage{PromptTokens: 12, TotalTokens: 12},
+		},
+		{
+			name:  "error code in a 200 body",
+			model: "qwen3-vl-embedding",
+			body:  `{"code":"InvalidParameter","message":"The input is invalid.","request_id":"r4"}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			info := &relaycommon.RelayInfo{
+				RelayMode:   constant.RelayModeEmbeddings,
+				RelayFormat: types.RelayFormatEmbedding,
+				ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: tt.model},
+			}
+			info.SetEstimatePromptTokens(tt.estimate)
+			resp := &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader(tt.body))}
+
+			usage, apiErr := (&Adaptor{}).DoResponse(c, resp, info)
+			if tt.wantUsage == nil {
+				require.NotNil(t, apiErr)
+				assert.Equal(t, http.StatusInternalServerError, apiErr.StatusCode)
+				assert.Equal(t, "InvalidParameter", string(apiErr.GetErrorCode()))
+				assert.Empty(t, w.Body.String())
+				return
+			}
+			require.Nil(t, apiErr)
+			assert.Equal(t, tt.wantUsage, usage)
+
+			var got dto.EmbeddingResponse
+			require.NoError(t, common.Unmarshal(w.Body.Bytes(), &got))
+			assert.Equal(t, dto.EmbeddingResponse{Object: "list", Data: tt.wantData, Model: tt.model, Usage: *tt.wantUsage}, got)
+		})
 	}
 }

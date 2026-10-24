@@ -268,10 +268,7 @@ func TestConvertGeminiRequestMapsSystemInstructionToolsAndMultimodal(t *testing.
 				{
 					Name:        "lookup",
 					Description: "Lookup data",
-					Parameters: map[string]any{
-						"type":       "object",
-						"properties": map[string]any{"q": map[string]any{"type": "string"}},
-					},
+					Parameters:  json.RawMessage(`{"type":"object","properties":{"q":{"type":"string"}}}`),
 				},
 			},
 		},

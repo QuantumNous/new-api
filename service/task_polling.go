@@ -277,7 +277,13 @@ func updateBatchTasks(ctx context.Context, adaptor BatchTaskPollingAdaptor, chan
 	// The channel type tells plugin adaptors whether the upstream is another
 	// New API gateway, the same signal submission derives from the request.
 	info := &relaycommon.RelayInfo{}
-	info.ChannelMeta = &relaycommon.ChannelMeta{ChannelType: ch.Type, ChannelId: ch.Id, ChannelBaseUrl: baseURL, ChannelSetting: ch.GetSetting()}
+	info.ChannelMeta = &relaycommon.ChannelMeta{
+		ChannelType:     ch.Type,
+		ChannelId:       ch.Id,
+		ChannelBaseUrl:  baseURL,
+		ChannelSetting:  ch.GetSetting(),
+		HeadersOverride: ch.GetHeaderOverride(),
+	}
 	info.ApiKey = ch.Key
 	adaptor.Init(info)
 	resp, err := adaptor.FetchBatchTasks(baseURL, ch.Key, tasks, proxy)
@@ -449,10 +455,11 @@ func updateVideoTasks(ctx context.Context, platform constant.TaskPlatform, chann
 	}
 	info := &relaycommon.RelayInfo{}
 	info.ChannelMeta = &relaycommon.ChannelMeta{
-		ChannelType:    cacheGetChannel.Type,
-		ChannelId:      cacheGetChannel.Id,
-		ChannelBaseUrl: cacheGetChannel.GetBaseURL(),
-		ChannelSetting: cacheGetChannel.GetSetting(),
+		ChannelType:     cacheGetChannel.Type,
+		ChannelId:       cacheGetChannel.Id,
+		ChannelBaseUrl:  cacheGetChannel.GetBaseURL(),
+		ChannelSetting:  cacheGetChannel.GetSetting(),
+		HeadersOverride: cacheGetChannel.GetHeaderOverride(),
 	}
 	info.ApiKey = cacheGetChannel.Key
 	adaptor.Init(info)
@@ -769,7 +776,8 @@ func unrecognizedPollDetail(reason string, body []byte) string {
 func recordPollFailure(ctx context.Context, adaptor TaskPollingAdaptor, task *model.Task, fromStatus model.TaskStatus, class string, statusCode int, detail string) error {
 	task.PrivateData.PollFailures++
 	// TASK_POLL_MAX_FAILURES <= 0 disables the consecutive-failure cutoff, matching
-	// TASK_TIMEOUT_MINUTES semantics; the 24h sweep remains the only backstop.
+	// TASK_TIMEOUT_MINUTES semantics; the 72h sweep (TASK_TIMEOUT_MINUTES default
+	// 4320) remains the only backstop.
 	giveUp := constant.TaskPollMaxFailures > 0 && task.PrivateData.PollFailures >= constant.TaskPollMaxFailures
 	if giveUp || class == pollClassUnrecognized || class == pollClassHookError {
 		// The redacted body is intentionally not persisted to Task.Data on these
