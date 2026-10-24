@@ -1651,3 +1651,35 @@ func TestPostTextConsumeQuotaLogsMissingUsageAsStructuredContent(t *testing.T) {
 		map[string]any{"key": "Upstream returned no usage, so nothing was charged (possibly an upstream timeout)"},
 	}, other["content_parts"])
 }
+
+func TestRealtimePluralTokenDetailsQuota(t *testing.T) {
+	const raw = `{
+		"total_tokens": 377,
+		"input_tokens": 336,
+		"output_tokens": 41,
+		"input_tokens_details": {"text_tokens": 228, "audio_tokens": 108},
+		"output_tokens_details": {"text_tokens": 9, "audio_tokens": 32}
+	}`
+	var usage dto.RealtimeUsage
+	require.NoError(t, common.Unmarshal([]byte(raw), &usage))
+	assert.Equal(t, 228, usage.InputTokenDetails.TextTokens)
+	assert.Equal(t, 108, usage.InputTokenDetails.AudioTokens)
+	assert.Equal(t, 9, usage.OutputTokenDetails.TextTokens)
+	assert.Equal(t, 32, usage.OutputTokenDetails.AudioTokens)
+
+	quota, clamp := calculateAudioQuota(QuotaInfo{
+		InputDetails: TokenDetails{
+			TextTokens:  usage.InputTokenDetails.TextTokens,
+			AudioTokens: usage.InputTokenDetails.AudioTokens,
+		},
+		OutputDetails: TokenDetails{
+			TextTokens:  usage.OutputTokenDetails.TextTokens,
+			AudioTokens: usage.OutputTokenDetails.AudioTokens,
+		},
+		ModelName:  "realtime-usage-probe",
+		ModelRatio: 1,
+		GroupRatio: 1,
+	})
+	assert.Nil(t, clamp)
+	assert.Equal(t, 377, quota)
+}

@@ -177,3 +177,61 @@ func TestBillingUsageJSONUsesProtocolNamedFields(t *testing.T) {
 	assert.Nil(t, clone.ClaudeUsage.BillingUsage)
 	assert.Nil(t, clone.GeminiUsageMetadata.BillingUsage)
 }
+
+func TestRealtimeUsageDetails(t *testing.T) {
+	tests := []struct {
+		name     string
+		raw      string
+		textIn   int
+		audioIn  int
+		textOut  int
+		audioOut int
+	}{
+		{
+			name:     "plural details",
+			raw:      `{"total_tokens":377,"input_tokens":336,"output_tokens":41,"input_tokens_details":{"text_tokens":228,"audio_tokens":108},"output_tokens_details":{"text_tokens":9,"audio_tokens":32}}`,
+			textIn:   228,
+			audioIn:  108,
+			textOut:  9,
+			audioOut: 32,
+		},
+		{
+			name:     "singular details",
+			raw:      `{"input_token_details":{"text_tokens":228,"audio_tokens":108},"output_token_details":{"text_tokens":9,"audio_tokens":32}}`,
+			textIn:   228,
+			audioIn:  108,
+			textOut:  9,
+			audioOut: 32,
+		},
+		{
+			name:     "singular details win",
+			raw:      `{"input_token_details":{"text_tokens":1,"audio_tokens":2},"output_token_details":{"text_tokens":3,"audio_tokens":4},"input_tokens_details":{"text_tokens":228,"audio_tokens":108},"output_tokens_details":{"text_tokens":9,"audio_tokens":32}}`,
+			textIn:   1,
+			audioIn:  2,
+			textOut:  3,
+			audioOut: 4,
+		},
+		{
+			name: "null details",
+			raw:  `{"input_token_details":null,"output_token_details":null,"input_tokens_details":null,"output_tokens_details":null}`,
+		},
+		{
+			name: "present null singular beats plural",
+			raw:  `{"input_token_details":null,"output_token_details":null,"input_tokens_details":{"text_tokens":228,"audio_tokens":108},"output_tokens_details":{"text_tokens":9,"audio_tokens":32}}`,
+		},
+		{
+			name: "missing details",
+			raw:  `{"total_tokens":377,"input_tokens":336,"output_tokens":41}`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var usage RealtimeUsage
+			require.NoError(t, kitutil.Unmarshal([]byte(tt.raw), &usage))
+			assert.Equal(t, tt.textIn, usage.InputTokenDetails.TextTokens)
+			assert.Equal(t, tt.audioIn, usage.InputTokenDetails.AudioTokens)
+			assert.Equal(t, tt.textOut, usage.OutputTokenDetails.TextTokens)
+			assert.Equal(t, tt.audioOut, usage.OutputTokenDetails.AudioTokens)
+		})
+	}
+}
