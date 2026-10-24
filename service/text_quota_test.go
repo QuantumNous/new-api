@@ -1651,3 +1651,63 @@ func TestPostTextConsumeQuotaLogsMissingUsageAsStructuredContent(t *testing.T) {
 		map[string]any{"key": "Upstream returned no usage, so nothing was charged (possibly an upstream timeout)"},
 	}, other["content_parts"])
 }
+
+// The provider's executor totals exclude three separately priced advisor passes.
+func TestClaudeIterationBilling(t *testing.T) {
+	executor := hosttypes.PriceData{ModelRatio: .5, CompletionRatio: 5, CacheRatio: .1, CacheCreationRatio: 1.25, CacheCreation1hRatio: 2, GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1}}
+	advisor := executor
+	advisor.ModelRatio = 2.5
+	passes := []dto.ClaudeUsageIteration{
+		{Type: "message", InputTokens: 67, OutputTokens: 40},
+		{Type: "advisor_message", Model: "claude-opus-4-8", InputTokens: 287, OutputTokens: 1600},
+		{Type: "message", InputTokens: 607, OutputTokens: 40},
+		{Type: "advisor_message", Model: "claude-opus-4-8", InputTokens: 827, OutputTokens: 1600},
+		{Type: "message", InputTokens: 1147, OutputTokens: 40},
+		{Type: "advisor_message", Model: "claude-opus-4-8", InputTokens: 1367, OutputTokens: 1600},
+		{Type: "message", InputTokens: 1687, OutputTokens: 320},
+	}
+	for _, tc := range []struct {
+		name       string
+		iterations []dto.ClaudeUsageIteration
+		group      float64
+		fixed      bool
+		want       int
+	}{
+		{"without iterations", nil, 1, false, 2854},
+		{"executor is not charged twice", []dto.ClaudeUsageIteration{{Type: "message", InputTokens: 3508, OutputTokens: 440}}, 1, false, 2854},
+		{"three advisors at their own rate", passes, 1, false, 69057},
+		{"group discount", passes, .5, false, 34528},
+		{"compaction", []dto.ClaudeUsageIteration{{Type: "compaction", InputTokens: 1000, OutputTokens: 100}}, 1, false, 3604},
+		{"cache TTL", []dto.ClaudeUsageIteration{{Type: "compaction", CacheReadInputTokens: 100, CacheCreationInputTokens: 100, CacheCreation: &dto.ClaudeCacheCreationUsage{Ephemeral5mInputTokens: 60, Ephemeral1hInputTokens: 40}}}, 1, false, 2937},
+		{"negative tokens cannot refund executor", []dto.ClaudeUsageIteration{{Type: "compaction", InputTokens: -90000, OutputTokens: -90000, CacheReadInputTokens: -100, CacheCreationInputTokens: -100}}, 1, false, 2854},
+		{"unknown and fallback semantics unchanged", []dto.ClaudeUsageIteration{{Type: "future", InputTokens: 100000}, {Type: "fallback_message", InputTokens: 100000}}, 1, false, 2854},
+		{"explicit request price retained", passes, 1, true, 5000},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			info := &relaycommon.RelayInfo{OriginModelName: "claude-haiku-4-5-20251001", PriceData: executor, ClaudeUsageIterations: tc.iterations, ClaudeAdvisorPricing: map[string]relaycommon.ClaudeIterationPricing{"claude-opus-4-8": {PriceData: advisor}}}
+			info.PriceData.GroupRatioInfo.GroupRatio = tc.group
+			info.PriceData.UsePrice = tc.fixed
+			info.PriceData.ModelPrice = .01
+			usage := &dto.Usage{PromptTokens: 3508, CompletionTokens: 440, UsageSemantic: "anthropic"}
+			got := calculateTextQuotaSummary(c, info, usage)
+			assert.Equal(t, tc.want, got.Quota)
+			t.Logf("executor input=3508 output=440; settled quota=%d", got.Quota)
+		})
+	}
+	t.Run("expression overrides legacy advisor ratios", func(t *testing.T) {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		expr := `tier("advisor", p * 10 + c * 50)`
+		snap := &billingexpr.BillingSnapshot{BillingMode: "tiered_expr", ExprString: expr, ExprHash: billingexpr.ExprHashString(expr), ExprVersion: 1, QuotaPerUnit: 500000, GroupRatio: 1}
+		info := &relaycommon.RelayInfo{PriceData: executor, ClaudeUsageIterations: passes, ClaudeAdvisorPricing: map[string]relaycommon.ClaudeIterationPricing{"claude-opus-4-8": {PriceData: advisor, Snapshot: snap}}}
+		got := calculateTextQuotaSummary(c, info, &dto.Usage{PromptTokens: 3508, CompletionTokens: 440, UsageSemantic: "anthropic"})
+		assert.Equal(t, 135259, got.Quota)
+	})
+	t.Run("oversized usage saturates and is audited", func(t *testing.T) {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		info := &relaycommon.RelayInfo{PriceData: executor, ClaudeUsageIterations: []dto.ClaudeUsageIteration{{Type: "compaction", OutputTokens: math.MaxInt}}}
+		got := calculateTextQuotaSummary(c, info, &dto.Usage{PromptTokens: 1, UsageSemantic: "anthropic"})
+		assert.Equal(t, common.MaxQuota, got.Quota)
+		assert.NotNil(t, info.QuotaClamp)
+	})
+}

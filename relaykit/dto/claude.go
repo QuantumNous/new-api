@@ -688,6 +688,22 @@ type ClaudeUsage struct {
 	ClaudeCacheCreation1hTokens int                  `json:"claude_cache_creation_1_h_tokens"`
 	ServerToolUse               *ClaudeServerToolUse `json:"server_tool_use,omitempty"`
 	BillingUsage                *BillingUsage        `json:"billing_usage,omitempty"`
+	// Iterations is the per-pass breakdown the provider reports when a request ran more than one
+	// sampling pass (advisor sub-inferences, compaction). Top-level counters exclude non-executor passes.
+	Iterations []ClaudeUsageIteration `json:"iterations,omitempty"`
+}
+
+// ClaudeUsageIteration is one entry of usage.iterations[]. Type is "message" (executor pass, already
+// counted in the top-level counters), "compaction", "advisor_message" (Model = advisor model) or another
+// type the provider adds later.
+type ClaudeUsageIteration struct {
+	Type                     string                    `json:"type"`
+	Model                    string                    `json:"model,omitempty"`
+	InputTokens              int                       `json:"input_tokens"`
+	OutputTokens             int                       `json:"output_tokens"`
+	CacheReadInputTokens     int                       `json:"cache_read_input_tokens"`
+	CacheCreationInputTokens int                       `json:"cache_creation_input_tokens"`
+	CacheCreation            *ClaudeCacheCreationUsage `json:"cache_creation,omitempty"`
 }
 
 type ClaudeCacheCreationUsage struct {
