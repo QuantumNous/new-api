@@ -128,11 +128,11 @@ describe.each(cases)('dashboard $granularity chart chronology', (scenario) => {
     const data = unorderedUsage(scenario.start, scenario.interval)
     const original = structuredClone(data)
     const result = processUserChartData(data, scenario.granularity)
-    const values: Array<{ Time: string; rawQuota: number }> =
+    const values: Array<{ Time: string; value: number }> =
       result.spec_user_trend.data[0].values
 
     expect(values.map((row) => row.Time)).toEqual(scenario.labels)
-    expect(values.map((row) => row.rawQuota / 500000)).toEqual([
+    expect(values.map((row) => row.value / 500000)).toEqual([
       11, 2, 3, 4, 5, 6, 7, 8,
     ])
     expect(data).toEqual(original)
@@ -152,5 +152,219 @@ describe.each(cases)('dashboard $granularity chart chronology', (scenario) => {
         )
       ).toEqual([0, 0, 0, 0, 0, 0, 8])
     }
+  })
+})
+
+describe('dashboard user display names', () => {
+  test('shows display names while keeping same-name accounts in separate series', () => {
+    const result = processUserChartData([
+      {
+        user_id: 1,
+        username: 'alice',
+        display_name: '同名',
+        created_at: 3600,
+        quota: 50,
+      },
+      {
+        user_id: 2,
+        username: 'bob',
+        display_name: '同名',
+        created_at: 3600,
+        quota: 30,
+      },
+    ])
+    const rank = result.spec_user_rank
+    const values = rank.data[0].values
+    expect(values.map((row: { value: number }) => row.value)).toEqual([50, 30])
+    expect(new Set(values.map((row: { User: string }) => row.User)).size).toBe(
+      2
+    )
+    const label = rank.axes[0].label.formatMethod
+    expect(values.map((row: { User: string }) => label(row.User))).toEqual([
+      '同名 (alice)',
+      '同名 (bob)',
+    ])
+    const legend = result.spec_user_trend.legends.item.label.formatMethod
+    expect(legend(values[0].User)).toBe('同名 (alice)')
+  })
+
+  test('merges renamed history by user ID and exposes the username in the tooltip', () => {
+    const result = processUserChartData(
+      [
+        {
+          user_id: 1,
+          username: 'old-login',
+          display_name: 'Alice',
+          created_at: 3600,
+          quota: 50,
+        },
+        {
+          user_id: 1,
+          username: 'new-login',
+          display_name: 'Alice',
+          created_at: 7200,
+          quota: 30,
+        },
+      ],
+      'day'
+    )
+    const rank = result.spec_user_rank
+    expect(rank.data[0].values).toHaveLength(1)
+    const row = rank.data[0].values[0]
+    expect(row.value).toBe(80)
+    expect(rank.axes[0].label.formatMethod(row.User)).toBe('Alice')
+    expect(rank.tooltip.mark.content[0].key(row)).toBe('Alice (new-login)')
+    expect(result.spec_user_trend.data[0].values[0].value).toBe(80)
+  })
+
+  test('falls back to usernames for blank names and legacy rows without IDs', () => {
+    const result = processUserChartData([
+      {
+        user_id: 1,
+        username: 'alice',
+        display_name: '  ',
+        created_at: 3600,
+        quota: 50,
+      },
+      { username: 'legacy-a', created_at: 3600, quota: 30 },
+      { user_id: 0, username: 'legacy-b', created_at: 3600, quota: 20 },
+    ])
+    const rank = result.spec_user_rank
+    expect(
+      rank.data[0].values.map((row: { User: string }) =>
+        rank.axes[0].label.formatMethod(row.User)
+      )
+    ).toEqual(['alice', 'legacy-a', 'legacy-b'])
+  })
+
+  test('keeps natural label collisions separate and preserves top-user limits', () => {
+    const result = processUserChartData(
+      [
+        {
+          user_id: 1,
+          username: 'alice',
+          display_name: 'Same',
+          created_at: 3600,
+          quota: 50,
+        },
+        {
+          user_id: 2,
+          username: 'bob',
+          display_name: 'Same',
+          created_at: 3600,
+          quota: 30,
+        },
+        {
+          user_id: 3,
+          username: 'charlie',
+          display_name: 'Same (alice)',
+          created_at: 3600,
+          quota: 20,
+        },
+      ],
+      'day',
+      undefined,
+      3
+    )
+    const rank = result.spec_user_rank
+    expect(rank.data[0].values).toHaveLength(3)
+    expect(
+      new Set(rank.data[0].values.map((row: { User: string }) => row.User)).size
+    ).toBe(3)
+    const labels = rank.data[0].values.map((row: { User: string }) =>
+      rank.axes[0].label.formatMethod(row.User)
+    )
+    expect(new Set(labels).size).toBe(3)
+    expect(
+      processUserChartData([], 'day').spec_user_rank.data[0].values
+    ).toEqual([])
+    expect(
+      processUserChartData(
+        [
+          { user_id: 1, username: 'alice', created_at: 3600, quota: 50 },
+          { user_id: 2, username: 'bob', created_at: 3600, quota: 30 },
+        ],
+        'day',
+        undefined,
+        1
+      ).spec_user_rank.data[0].values
+    ).toHaveLength(1)
+  })
+})
+
+describe('dashboard user usage metrics', () => {
+  const usage: QuotaDataItem[] = [
+    {
+      user_id: 1,
+      username: 'paid',
+      created_at: 3600,
+      quota: 500000,
+      token_used: 20,
+      count: 1,
+    },
+    {
+      user_id: 2,
+      username: 'free',
+      created_at: 3600,
+      quota: 0,
+      token_used: 900,
+      count: 3,
+    },
+    {
+      user_id: 2,
+      username: 'free',
+      created_at: 7200,
+      quota: 0,
+      token_used: 100,
+      count: 1,
+    },
+    {
+      user_id: 3,
+      username: 'frequent',
+      created_at: 3600,
+      quota: 0,
+      token_used: 10,
+      count: 9,
+    },
+  ]
+
+  test.each([
+    ['quota', 'user:1', 500000, '$1.00'],
+    ['tokens', 'user:2', 1000, '1,000'],
+    ['requests', 'user:3', 9, '9'],
+  ] as const)(
+    'ranks and formats the top user by %s including free usage',
+    (metric, user, value, formatted) => {
+      const original = structuredClone(usage)
+      const result = processUserChartData(usage, 'hour', undefined, 1, metric)
+      const rank = result.spec_user_rank
+      expect(rank.data[0].values).toEqual([{ User: user, value }])
+      expect(rank.label.formatMethod(value)).toBe(formatted)
+      expect(rank.tooltip.mark.content[0].value({ value })).toBe(formatted)
+      expect(rank.title.subtext).toBe(`Total: ${formatted}`)
+      expect(result.spec_user_trend.axes[1].label.formatMethod(value)).toBe(
+        formatted
+      )
+      expect(
+        result.spec_user_trend.data[0].values.map(
+          (row: { value: number }) => row.value
+        )
+      ).toEqual(metric === 'tokens' ? [900, 100] : [value, 0])
+      expect(usage).toEqual(original)
+    }
+  )
+
+  test('sorts and totals token tooltips numerically without currency formatting', () => {
+    const result = processUserChartData(usage, 'hour', undefined, 10, 'tokens')
+    expect(
+      result.spec_user_trend.tooltip.dimension.updateContent([
+        { key: 'paid', value: 20 },
+        { key: 'free', value: 900 },
+      ])
+    ).toEqual([
+      { key: 'Total:', value: '920' },
+      { key: 'free', value: '900' },
+      { key: 'paid', value: '20' },
+    ])
   })
 })

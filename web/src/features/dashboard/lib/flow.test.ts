@@ -796,3 +796,48 @@ describe('dashboard flow data', () => {
     expect(highlightedLink.zIndex > dimmedLink.zIndex).toBe(true)
   })
 })
+
+describe('flow user display names', () => {
+  const namedRows = rows.map((row) => ({ ...row, display_name: 'Same Name' }))
+
+  test.each(['admin', 'root'] as const)(
+    'shows names in %s graphs and filters without merging accounts',
+    (role) => {
+      const result = buildDashboardFlowData(namedRows, 'tokens', { role })
+      expect(
+        result.flow.nodes
+          .filter((node) => node.kind === 'user')
+          .map((node) => [node.id, node.label])
+      ).toEqual([
+        ['user:1', 'Same Name (alice)'],
+        ['user:2', 'Same Name (bob)'],
+      ])
+      expect(result.summary.tokens).toBe(90)
+      expect(
+        result.filterOptions.users.map((user) => [user.value, user.label])
+      ).toEqual([
+        ['user:1', 'Same Name (alice)'],
+        ['user:2', 'Same Name (bob)'],
+      ])
+      const filtered = buildDashboardFlowData(namedRows, 'tokens', {
+        role,
+        selectedUsers: ['user:2'],
+      })
+      expect(filtered.summary.tokens).toBe(30)
+    }
+  )
+
+  test('falls back for blank names and masks names when sensitive labels are hidden', () => {
+    const fallback = buildFlowFilterOptions(
+      [{ ...rows[0], display_name: '  ' }],
+      'tokens'
+    )
+    expect(fallback.users[0].label).toBe('alice')
+    const masked = buildDashboardFlowData(namedRows, 'tokens', {
+      role: 'admin',
+      maskSensitive: true,
+    })
+    expect(JSON.stringify(masked.flow)).not.toContain('Same Name')
+    expect(JSON.stringify(masked.flow)).not.toContain('alice')
+  })
+})
