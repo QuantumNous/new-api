@@ -17,12 +17,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
+import { getTeamSummaryStats } from '@/features/dashboard/api'
 import { useStatus } from '@/hooks/use-status'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import { getSelf } from '@/lib/api'
+import { useAuthStore } from '@/stores/auth-store'
 
 import { AffiliateRewardsCard } from './components/affiliate-rewards-card'
 import { AffiliateCenterDialog } from './components/dialogs/affiliate-center-dialog'
@@ -82,6 +85,17 @@ export function Wallet(props: WalletProps) {
   const [selectedCreemProduct, setSelectedCreemProduct] =
     useState<CreemProduct | null>(null)
   const [showSubscriptionPanel, setShowSubscriptionPanel] = useState(true)
+
+  const authUser = useAuthStore((state) => state.auth.user)
+  const isParent =
+    Boolean(authUser?.has_children) && (authUser?.parent_id ?? 0) === 0
+
+  const teamSummaryQuery = useQuery({
+    queryKey: ['wallet', 'team-summary'],
+    queryFn: getTeamSummaryStats,
+    enabled: isParent,
+    staleTime: 60 * 1000,
+  })
 
   const { status } = useStatus()
   const { currency } = useSystemConfig()
@@ -270,7 +284,15 @@ export function Wallet(props: WalletProps) {
         <SectionPageLayout.Content>
           <div className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-5'>
             <WalletStatsCard
-              user={user}
+              user={
+                isParent && teamSummaryQuery.data?.data && user
+                  ? {
+                      ...user,
+                      used_quota: teamSummaryQuery.data.data.used_quota,
+                      request_count: teamSummaryQuery.data.data.request_count,
+                    }
+                  : user
+              }
               lifetimeCampaignBonusQuota={
                 affiliateSummary?.lifetime_campaign_bonus_quota
               }
@@ -279,7 +301,7 @@ export function Wallet(props: WalletProps) {
                 affiliateSummary.campaign.ends_at >
                   Math.floor(Date.now() / 1000)
               }
-              loading={userLoading}
+              loading={userLoading || (isParent && teamSummaryQuery.isLoading)}
             />
 
             <AffiliateRewardsCard
