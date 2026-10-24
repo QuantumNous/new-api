@@ -1,0 +1,13 @@
+[Unit]
+Description=gpt-5.6-sol retry and queue proxy
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/gpt56-retry-proxy/gpt56_retry_proxy.py --listen 0.0.0.0:3000 --upstream http://127.0.0.1:3001 --attempts 5 --upstream-concurrency 1
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
