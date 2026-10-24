@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 // ============================================================================
 // User Actions
 // ============================================================================
-export { getUserActionMessage } from './user-actions'
+export { getUserActionMessage, userActionName } from './user-actions'
 
 // ============================================================================
 // Form Utilities

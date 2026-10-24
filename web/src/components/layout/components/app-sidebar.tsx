@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 
 import { Sidebar, SidebarContent, SidebarRail } from '@/components/ui/sidebar'
+import { useDirection } from '@/context/direction-provider'
 import { useLayout } from '@/context/layout-provider'
 import { useSidebarView } from '@/hooks/use-sidebar-view'
 import { MOTION_TRANSITION, MOTION_VARIANTS } from '@/lib/motion'
@@ -44,12 +45,17 @@ import { SidebarViewHeader } from './sidebar-view-header'
  * in the registry; this component requires no changes.
  */
 export function AppSidebar() {
+  const { dir } = useDirection()
   const { collapsible, variant } = useLayout()
   const { key, view, navGroups } = useSidebarView()
   const shouldReduce = useReducedMotion()
 
   return (
-    <Sidebar collapsible={collapsible} variant={variant}>
+    <Sidebar
+      side={dir === 'rtl' ? 'right' : 'left'}
+      collapsible={collapsible}
+      variant={variant}
+    >
       {view && <SidebarViewHeader view={view} />}
 
       <SidebarContent className='py-2'>
