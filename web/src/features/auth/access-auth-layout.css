@@ -18,21 +18,29 @@ For commercial licensing, please contact support@quantumnous.com
 */
 /* Authentication-only palette and geometry; console themes are unaffected. */
 .yecai-auth {
-  --auth-ink: #222820;
-  --auth-muted: #586052;
-  --auth-font:
-    'Avenir Next', 'Trebuchet MS', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
-  --background: #faf9f2;
+  --auth-ink: #07090d;
+  --auth-muted: #535c69;
+  --auth-font: var(--font-brand-sans);
+  --auth-canvas: #f8f9fb;
+  --auth-glass: rgb(255 255 255 / 72%);
+  --auth-glass-edge: rgb(7 9 13 / 8%);
+  --auth-glass-highlight: rgb(255 255 255 / 90%);
+  --auth-field: rgb(255 255 255 / 85%);
+  --auth-grid: rgb(7 9 13 / 5%);
+  --auth-glow-lime: rgb(210 255 58 / 40%);
+  --auth-glow-cyan: rgb(34 211 238 / 24%);
+  --auth-glow-mint: rgb(108 245 154 / 22%);
+  --background: var(--auth-canvas);
   --foreground: var(--auth-ink);
   --muted-foreground: var(--auth-muted);
-  --primary: #222820;
-  --primary-foreground: #fffef8;
-  --muted: #eef0e7;
-  --accent: #e6ecdf;
-  --accent-foreground: #222820;
-  --input: #7379664d;
-  --border: #73796640;
-  --ring: #7a9461;
+  --primary: #07090d;
+  --primary-foreground: #f8f9fb;
+  --muted: #eef1f5;
+  --accent: #e9edf2;
+  --accent-foreground: #07090d;
+  --input: rgb(7 9 13 / 16%);
+  --border: rgb(7 9 13 / 10%);
+  --ring: #0e9fb3;
   --font-sans: var(--auth-font);
   position: relative;
   isolation: isolate;
@@ -41,7 +49,7 @@ For commercial licensing, please contact support@quantumnous.com
   flex-direction: column;
   overflow: hidden;
   color: var(--auth-ink);
-  background: #e8e8d8;
+  background: var(--auth-canvas);
   font-family: var(--auth-font);
 }
 
@@ -52,11 +60,9 @@ For commercial licensing, please contact support@quantumnous.com
   inset: -12%;
   pointer-events: none;
   background:
-    radial-gradient(ellipse at 8% 56%, #f3b798 0%, #f3b79800 42%),
-    radial-gradient(ellipse at 78% 75%, #efbaaa 0%, #efbaaa00 42%),
-    radial-gradient(ellipse at 91% 18%, #dfb981b3 0%, #dfb98100 36%),
-    radial-gradient(ellipse at 36% 95%, #adc4c1 0%, #adc4c100 35%),
-    radial-gradient(ellipse at 53% 18%, #cadbc7 0%, #cadbc700 46%), #ece8d5;
+    radial-gradient(32% 40% at 16% 34%, var(--auth-glow-lime), transparent 70%),
+    radial-gradient(34% 42% at 84% 22%, var(--auth-glow-cyan), transparent 70%),
+    radial-gradient(40% 34% at 62% 96%, var(--auth-glow-mint), transparent 70%);
   animation: yecai-auth-ambient 24s ease-in-out infinite alternate;
   will-change: transform;
 }
@@ -67,9 +73,20 @@ For commercial licensing, please contact support@quantumnous.com
   z-index: -1;
   inset: 0;
   pointer-events: none;
-  opacity: 0.055;
-  mix-blend-mode: multiply;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' opacity='.7' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-image:
+    linear-gradient(var(--auth-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--auth-grid) 1px, transparent 1px);
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(
+    ellipse 80% 70% at 30% 45%,
+    #000 20%,
+    transparent 75%
+  );
+  mask-image: radial-gradient(
+    ellipse 80% 70% at 30% 45%,
+    #000 20%,
+    transparent 75%
+  );
 }
 
 .yecai-authHeader {
@@ -83,22 +100,22 @@ For commercial licensing, please contact support@quantumnous.com
 .yecai-authBrand {
   color: var(--auth-ink);
   text-decoration: none;
-  font-size: 21px;
-  font-weight: 750;
-  letter-spacing: -0.04em;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 .yecai-authNav {
   display: flex;
   align-items: center;
   gap: 3px;
   padding: 5px;
-  border: 1px solid #ffffff94;
-  border-radius: 18px;
-  background: #fffcf43d;
+  border: 1px solid var(--auth-glass-edge);
+  border-radius: 16px;
+  background: var(--auth-glass);
   box-shadow:
-    0 5px 24px #444b3310,
-    inset 0 1px 0 #ffffff54;
-  backdrop-filter: blur(20px);
+    0 10px 30px -18px rgb(7 9 13 / 25%),
+    inset 0 1px 0 var(--auth-glass-highlight);
+  backdrop-filter: blur(20px) saturate(160%);
 }
 .yecai-authNav a {
   display: inline-flex;
@@ -116,7 +133,7 @@ For commercial licensing, please contact support@quantumnous.com
 }
 .yecai-authNav a:hover {
   color: var(--auth-ink);
-  background: #ffffff52;
+  background: color-mix(in srgb, var(--auth-ink) 6%, transparent);
 }
 .yecai-authNavDivider {
   height: 19px;
@@ -137,7 +154,7 @@ For commercial licensing, please contact support@quantumnous.com
   color: var(--auth-ink);
 }
 .yecai-authTheme:hover {
-  background: #ffffff52;
+  background: color-mix(in srgb, var(--auth-ink) 6%, transparent);
 }
 .yecai-auth :is(a, button):focus-visible {
   outline: 2px solid var(--ring);
@@ -158,20 +175,30 @@ For commercial licensing, please contact support@quantumnous.com
   animation: yecai-auth-enter 700ms both;
 }
 .yecai-authEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   margin: 0 0 24px;
   color: var(--auth-muted);
   font-size: 14px;
   font-weight: 600;
   letter-spacing: 0.12em;
 }
+.yecai-authEyebrow::before {
+  content: '';
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--brand-gradient);
+}
 .yecai-authWelcome h1 {
   margin: 0;
   color: var(--auth-ink);
   font-family: var(--auth-font);
-  font-size: clamp(50px, 5.6vw, 82px);
-  font-weight: 650;
-  line-height: 1.16;
-  letter-spacing: -0.06em;
+  font-size: clamp(50px, 5.6vw, 80px);
+  font-weight: 700;
+  line-height: 1.14;
+  letter-spacing: -0.04em;
   white-space: pre-line;
   overflow-wrap: anywhere;
 }
@@ -186,13 +213,13 @@ For commercial licensing, please contact support@quantumnous.com
   width: 100%;
   min-width: 0;
   padding: clamp(28px, 3.2vw, 42px);
-  border: 1px solid #ffffffe0;
-  border-radius: 28px;
-  background: linear-gradient(135deg, #fffdf66e, #fffbf452);
+  border: 1px solid var(--auth-glass-edge);
+  border-radius: 24px;
+  background: var(--auth-glass);
   box-shadow:
-    0 28px 80px -35px #67523d45,
-    inset 0 1px 0 #ffffff85;
-  backdrop-filter: blur(24px);
+    0 30px 80px -36px rgb(7 9 13 / 28%),
+    inset 0 1px 0 var(--auth-glass-highlight);
+  backdrop-filter: blur(24px) saturate(150%);
   animation: yecai-auth-enter 800ms 100ms both;
 }
 .yecai-authFormContent {
@@ -213,7 +240,7 @@ For commercial licensing, please contact support@quantumnous.com
   padding-inline: 14px;
   border: 1px solid var(--input);
   border-radius: 12px;
-  background: #fffdf66b;
+  background: var(--auth-field);
   color: var(--auth-ink);
   font-family: var(--auth-font);
   font-size: 14px;
@@ -225,10 +252,10 @@ For commercial licensing, please contact support@quantumnous.com
 }
 .yecai-authPanel input:focus-visible,
 .yecai-authPanel textarea:focus-visible {
-  background: #fffdf6bf;
+  background: var(--auth-field);
   border-color: var(--ring);
   outline: none;
-  box-shadow: 0 0 0 3px #7a946126;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 22%, transparent);
 }
 .yecai-authPanel input::placeholder {
   color: var(--auth-muted);
@@ -244,14 +271,16 @@ For commercial licensing, please contact support@quantumnous.com
 .yecai-authPanel button[type='submit'] {
   height: 49px;
   margin-top: 5px;
-  border: 1px solid #222820;
+  border: 1px solid rgb(255 255 255 / 24%);
   border-radius: 12px;
-  background: #222820;
-  color: #fffef8;
+  background: var(--brand-gradient);
+  color: var(--brand-ink);
   font-family: var(--auth-font);
   font-size: 14px;
   font-weight: 650;
-  box-shadow: 0 8px 18px #34352516;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 45%),
+    0 12px 30px -14px rgb(108 245 154 / 70%);
   transition:
     transform 180ms,
     box-shadow 180ms,
@@ -259,8 +288,10 @@ For commercial licensing, please contact support@quantumnous.com
 }
 .yecai-authPanel button[type='submit']:hover:not(:disabled) {
   transform: translateY(-1px);
-  background: #343d2e;
-  box-shadow: 0 12px 22px #34352526;
+  background: var(--brand-gradient);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 45%),
+    0 16px 36px -12px rgb(34 211 238 / 70%);
 }
 .yecai-authPanel button[type='submit']:disabled {
   opacity: 0.55;
@@ -281,58 +312,31 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 .yecai-auth[data-theme='dark'] {
-  --auth-ink: #f0f0e7;
-  --auth-muted: #b8c0b3;
-  --background: #263129;
-  --foreground: var(--auth-ink);
-  --muted-foreground: var(--auth-muted);
-  --primary: #e7eddd;
-  --primary-foreground: #1e2921;
-  --muted: #344638;
-  --accent: #415042;
-  --accent-foreground: #f0f0e7;
-  --input: #c1cdb342;
-  --border: #c1cdb330;
-  --ring: #adbd8c;
-  background: #242e29;
-}
-.yecai-auth[data-theme='dark']::before {
-  background:
-    radial-gradient(ellipse at 8% 56%, #604535 0%, #60453500 42%),
-    radial-gradient(ellipse at 78% 75%, #4c4040 0%, #4c404000 42%),
-    radial-gradient(ellipse at 91% 18%, #65553799 0%, #65553700 36%),
-    radial-gradient(ellipse at 36% 95%, #314448 0%, #31444800 35%),
-    radial-gradient(ellipse at 53% 18%, #405340 0%, #40534000 46%), #242e29;
+  --auth-ink: #eef2f6;
+  --auth-muted: #9aa3b2;
+  --auth-canvas: #07090d;
+  --auth-glass: rgb(14 17 22 / 66%);
+  --auth-glass-edge: rgb(255 255 255 / 8%);
+  --auth-glass-highlight: rgb(255 255 255 / 6%);
+  --auth-field: rgb(7 9 13 / 60%);
+  --auth-grid: rgb(255 255 255 / 5%);
+  --auth-glow-lime: rgb(210 255 58 / 16%);
+  --auth-glow-cyan: rgb(34 211 238 / 18%);
+  --auth-glow-mint: rgb(124 92 255 / 14%);
+  --primary: #eef2f6;
+  --primary-foreground: #07090d;
+  --muted: #13171e;
+  --accent: #1b2028;
+  --accent-foreground: #eef2f6;
+  --input: rgb(255 255 255 / 14%);
+  --border: rgb(255 255 255 / 9%);
+  --ring: #22d3ee;
 }
 .yecai-auth[data-theme='dark'] .yecai-authPanel,
 .yecai-auth[data-theme='dark'] .yecai-authNav {
-  border-color: #e0ead328;
-  background: #2230258c;
   box-shadow:
-    0 28px 80px -35px #0005,
-    inset 0 1px 0 #ffffff0d;
-}
-.yecai-auth[data-theme='dark'] .yecai-authPanel :is(input, textarea) {
-  background: #18221c66;
-}
-.yecai-auth[data-theme='dark']
-  .yecai-authPanel
-  :is(input, textarea):focus-visible {
-  background: #18221cbf;
-}
-.yecai-auth[data-theme='dark'] .yecai-authPanel button[type='submit'] {
-  background: #e5ebdb;
-  color: #253023;
-  border-color: #e5ebdb;
-}
-.yecai-auth[data-theme='dark']
-  .yecai-authPanel
-  button[type='submit']:hover:not(:disabled) {
-  background: #f2f5eb;
-}
-.yecai-auth[data-theme='dark'] .yecai-authNav a:hover,
-.yecai-auth[data-theme='dark'] .yecai-authTheme:hover {
-  background: #ffffff0f;
+    0 30px 80px -36px rgb(0 0 0 / 70%),
+    inset 0 1px 0 var(--auth-glass-highlight);
 }
 
 @keyframes yecai-auth-enter {

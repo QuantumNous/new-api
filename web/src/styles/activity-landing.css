@@ -36,18 +36,44 @@ For commercial licensing, please contact support@quantumnous.com
   padding: clamp(9rem, 14vw, 13rem) 24px clamp(5rem, 9vw, 8rem);
   overflow: hidden;
   border: 1px solid var(--glass-edge);
-  border-radius: 32px;
+  border-radius: 28px;
+  /* Shares the home hero's aurora and grid tokens from home-glass.css. */
   background:
-    radial-gradient(ellipse at 10% 35%, #e9c9b4 0, transparent 48%),
-    radial-gradient(ellipse at 85% 15%, #f4e6bc 0, transparent 45%),
-    radial-gradient(ellipse at 65% 95%, #c8dfd6 0, transparent 52%), #e8edda;
-  box-shadow:
-    inset 0 1px 0 #ffffffc9,
-    0 18px 44px -30px #63704f40;
+    radial-gradient(34% 46% at 14% 34%, var(--hero-glow-lime), transparent 70%),
+    radial-gradient(36% 46% at 86% 18%, var(--hero-glow-cyan), transparent 70%),
+    radial-gradient(
+      44% 40% at 60% 100%,
+      var(--hero-glow-violet),
+      transparent 70%
+    ),
+    var(--hero-canvas);
+}
+
+.activity-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--hero-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--hero-grid) 1px, transparent 1px);
+  background-position: center top;
+  background-size: 56px 56px;
+  -webkit-mask-image: radial-gradient(
+    ellipse 65% 70% at 50% 45%,
+    #000 25%,
+    transparent 78%
+  );
+  mask-image: radial-gradient(
+    ellipse 65% 70% at 50% 45%,
+    #000 25%,
+    transparent 78%
+  );
 }
 
 .activity-hero__content {
   position: relative;
+  z-index: 1;
   width: min(100%, 860px);
   margin-inline: auto;
   text-align: center;
@@ -55,7 +81,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 .activity-kicker {
   margin: 0 0 1.1rem;
-  color: #465946;
+  color: var(--hero-body);
   font-size: 0.78rem;
   font-weight: 700;
   letter-spacing: 0.18em;
@@ -64,11 +90,11 @@ For commercial licensing, please contact support@quantumnous.com
 
 .activity-hero h1 {
   margin: 0;
-  color: #253426;
+  color: var(--hero-ink);
   font-family: var(--ci-font-display);
   font-size: clamp(2.7rem, 7vw, 6.5rem);
-  font-weight: 680;
-  letter-spacing: -0.07em;
+  font-weight: 700;
+  letter-spacing: -0.045em;
   line-height: 1.1;
   text-wrap: balance;
 }
@@ -76,7 +102,7 @@ For commercial licensing, please contact support@quantumnous.com
 .activity-hero__intro {
   max-width: 42rem;
   margin: 1.75rem auto 0;
-  color: #405349;
+  color: var(--hero-body);
   font-size: clamp(1rem, 1.5vw, 1.2rem);
   line-height: 1.8;
   text-wrap: pretty;
@@ -116,11 +142,17 @@ For commercial licensing, please contact support@quantumnous.com
   border: 1px solid var(--ci-border-subtle);
   border-radius: 26px;
   background: color-mix(in srgb, var(--ci-surface) 86%, transparent);
-  box-shadow: 0 18px 40px -34px #30433245;
+  box-shadow: 0 18px 40px -34px var(--glass-shadow);
 }
 
 .activity-card--invite {
-  background: color-mix(in srgb, var(--ci-surface) 78%, #e6f5b5);
+  background:
+    radial-gradient(
+      60% 60% at 100% 0%,
+      color-mix(in srgb, var(--brand-mint) 16%, transparent),
+      transparent 70%
+    ),
+    color-mix(in srgb, var(--ci-surface) 86%, transparent);
 }
 
 .activity-card__icon {
@@ -128,9 +160,9 @@ For commercial licensing, please contact support@quantumnous.com
   width: 54px;
   height: 54px;
   place-items: center;
-  border-radius: 18px;
-  background: color-mix(in srgb, var(--ci-lime-400) 22%, var(--ci-surface));
-  color: var(--ci-ink);
+  border-radius: 16px;
+  background: var(--brand-gradient);
+  color: var(--brand-ink);
 }
 
 .activity-card__index {
@@ -200,22 +232,6 @@ For commercial licensing, please contact support@quantumnous.com
 .activity-disclaimer svg {
   flex: none;
   margin-top: 0.1rem;
-}
-
-.activity-landing[data-theme='dark'] .activity-hero {
-  border-color: #ffffff24;
-  background:
-    radial-gradient(ellipse at 15% 30%, #524134 0, transparent 48%),
-    radial-gradient(ellipse at 85% 15%, #394435 0, transparent 48%),
-    radial-gradient(ellipse at 60% 95%, #254843 0, transparent 50%), #202d28;
-}
-
-.activity-landing[data-theme='dark'] :is(.activity-hero h1, .activity-kicker) {
-  color: #e8f1db;
-}
-
-.activity-landing[data-theme='dark'] .activity-hero__intro {
-  color: #d1d9c8;
 }
 
 @media (max-width: 760px) {

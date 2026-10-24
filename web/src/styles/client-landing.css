@@ -20,12 +20,12 @@ For commercial licensing, please contact support@quantumnous.com
   position: relative;
   overflow-x: clip;
   background:
-    radial-gradient(circle at 50% 5%, rgb(216 255 0 / 0.14), transparent 34rem),
     radial-gradient(
-      circle at 8% 35%,
-      rgb(120 183 148 / 0.1),
-      transparent 30rem
+      circle at 50% 5%,
+      rgb(210 255 58 / 0.14),
+      transparent 34rem
     ),
+    radial-gradient(circle at 8% 35%, rgb(34 211 238 / 0.1), transparent 30rem),
     var(--ci-canvas);
 }
 
@@ -57,8 +57,9 @@ For commercial licensing, please contact support@quantumnous.com
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgb(216 255 0 / 0.2),
-    rgb(216 255 0 / 0) 70%
+    rgb(210 255 58 / 0.2),
+    rgb(108 245 154 / 0.06) 45%,
+    rgb(34 211 238 / 0) 70%
   );
   pointer-events: none;
   transform: translateX(-50%);
@@ -110,14 +111,14 @@ For commercial licensing, please contact support@quantumnous.com
   margin: 0;
   color: var(--ci-ink);
   font-family: var(--ci-font-display);
-  font-weight: 500;
-  letter-spacing: -0.05em;
+  font-weight: 700;
+  letter-spacing: -0.045em;
 }
 
 .client-hero h1 {
   max-width: 13ch;
   font-size: clamp(3.5rem, 7.5vw, 7.2rem);
-  line-height: 0.94;
+  line-height: 1.02;
   text-wrap: balance;
 }
 
@@ -172,7 +173,11 @@ For commercial licensing, please contact support@quantumnous.com
   position: absolute;
   inset: 8% 5% -4%;
   border-radius: 50%;
-  background: rgb(216 255 0 / 0.14);
+  background: linear-gradient(
+    120deg,
+    rgb(210 255 58 / 0.14),
+    rgb(34 211 238 / 0.12)
+  );
   filter: blur(70px);
   content: '';
   pointer-events: none;

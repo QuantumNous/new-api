@@ -92,11 +92,17 @@ describe('landing interactions and price layout', () => {
 
     const badge = brand.children[2]
     expect(getComputedStyle(badge).borderRadius).toBe('999px')
-    expect(getComputedStyle(badge).color).toBe('rgb(63, 80, 61)')
+    expect(getComputedStyle(badge).color).toBe('var(--hero-body)')
     const landing = container.querySelector('.ci-liquidHome')
-    if (!landing) throw new Error('Missing landing page')
+    const root = container.querySelector('.ci-handoffRoot')
+    if (!landing || !root) throw new Error('Missing landing page')
+    expect(getComputedStyle(root).getPropertyValue('--hero-canvas')).toBe(
+      '#fcfdfe'
+    )
     landing.setAttribute('data-theme', 'dark')
-    expect(getComputedStyle(badge).color).toBe('rgb(225, 234, 216)')
+    expect(getComputedStyle(root).getPropertyValue('--hero-canvas')).toBe(
+      '#080a0f'
+    )
 
     const community = within(screen.getByRole('banner')).getByRole('button', {
       name: 'Community',

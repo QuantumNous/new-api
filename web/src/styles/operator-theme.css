@@ -33,11 +33,11 @@ body:where(:has(.dopa-console--developer):not([data-theme-preset])) {
 }
 
 body:where(:has(.dopa-console--developer)) {
-  --sidebar: var(--background);
+  --sidebar: var(--card);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: var(--muted);
+  --sidebar-accent: color-mix(in oklch, var(--foreground) 5%, var(--card));
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
@@ -56,8 +56,8 @@ body:where(:has(.dopa-console--developer)) {
   --dopa-sidebar-ink: var(--sidebar-foreground);
   --dopa-sidebar-muted: var(--muted-foreground);
   --dopa-sidebar-label: var(--muted-foreground);
-  --dopa-sidebar-active: var(--sidebar-primary);
-  --dopa-sidebar-active-ink: var(--sidebar-primary-foreground);
+  --dopa-sidebar-active: color-mix(in oklch, var(--foreground) 8%, var(--card));
+  --dopa-sidebar-active-ink: var(--foreground);
   --table-row: var(--card);
   --table-header: var(--muted);
   --table-header-hover: var(--secondary);
@@ -74,14 +74,28 @@ body:where(:has(.dopa-console--developer)) {
   );
 }
 
+/* A faint brand aurora sits behind the header; content keeps a flat canvas. */
 .dopa-console--developer {
-  background: var(--background);
+  background:
+    radial-gradient(
+      52rem 22rem at 100% -8rem,
+      color-mix(in oklch, var(--brand-cyan) 9%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      40rem 20rem at 18% -10rem,
+      color-mix(in oklch, var(--brand-lime) 8%, transparent),
+      transparent 70%
+    ),
+    var(--background);
+  background-attachment: fixed;
 }
 
 .dopa-console--developer > header {
   border-color: var(--border);
-  background: var(--background);
+  background: color-mix(in oklch, var(--background) 70%, transparent);
   box-shadow: none;
+  backdrop-filter: blur(16px) saturate(140%);
 }
 
 .dopa-console--developer .dopa-console-page,
@@ -99,10 +113,28 @@ body:where(:has(.dopa-console--developer)) {
 .dopa-console--developer [data-sidebar='menu-button'],
 .dopa-console--developer [data-sidebar='menu-sub-button'] {
   border-radius: var(--radius);
+  transition:
+    background-color 140ms ease,
+    color 140ms ease;
 }
 
-.dopa-console--developer [data-sidebar='menu-button'][data-active] {
-  box-shadow: none;
+.dopa-console--developer [data-sidebar='group-label'] {
+  font-family: var(--font-sans);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+/* Selected rows keep their neutral fill and gain a short brand rail. */
+.dopa-console--developer [data-sidebar='menu-button'][data-active],
+.dopa-console--developer [data-sidebar='menu-sub-button'][data-active] {
+  background:
+    linear-gradient(180deg, var(--brand-lime), var(--brand-cyan)) 0 50% / 3px
+      56% no-repeat,
+    var(--dopa-sidebar-active);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in oklch, var(--foreground) 6%, transparent);
+  font-weight: 600;
 }
 
 .dopa-console--developer [data-sidebar='header'],
@@ -126,7 +158,8 @@ body:where(:has(.dopa-console--developer)) {
 }
 
 .dopa-console--developer .dopa-console-title::before {
-  background: var(--accent);
+  inline-size: 0.3rem;
+  background: linear-gradient(180deg, var(--brand-lime), var(--brand-cyan));
 }
 
 /* Keep site links visible. Narrow headers use a second row, sharing the

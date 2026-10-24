@@ -76,13 +76,13 @@ For commercial licensing, please contact support@quantumnous.com
   border-radius: inherit;
   background: conic-gradient(
     from 25deg,
-    #b9e6eda8,
-    #9bd9f2d9 28%,
+    #22d3eea8,
+    #6cf59ad9 28%,
     #fffffff0 43%,
-    #efc7ddc4 55%,
+    #d2ff3ac4 55%,
     #fff8 72%,
-    #d8f0dc8c 86%,
-    #b9e6eda8
+    #6cf59a8c 86%,
+    #22d3eea8
   );
   -webkit-mask:
     linear-gradient(#fff 0 0) content-box,
