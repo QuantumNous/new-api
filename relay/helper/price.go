@@ -382,7 +382,8 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, billing
 		return hosttypes.PriceData{}, err
 	}
 
-	requestInput, err := ResolveIncomingBillingExprRequestInput(c, info)
+	usedVars := billingexpr.UsedVarsByHash(exprStr, exprHash)
+	requestInput, err := ResolveIncomingBillingExprRequestInput(c, info, BillingExprNeedsRequestBody(usedVars))
 	if err != nil {
 		return hosttypes.PriceData{}, err
 	}
