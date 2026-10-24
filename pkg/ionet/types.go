@@ -278,6 +278,9 @@ func (e *APIError) Error() string {
 	return e.Message
 }
 
+// Compile-time check that APIError satisfies the error interface.
+var _ error = (*APIError)(nil)
+
 // ListDeploymentsOptions represents options for listing deployments
 type ListDeploymentsOptions struct {
 	Status     string `json:"status,omitempty"`      // filter by status
