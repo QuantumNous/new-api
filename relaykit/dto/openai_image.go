@@ -21,12 +21,23 @@ type ImageBillingParameters struct {
 	PromptExtend *bool `json:"prompt_extend,omitempty"`
 }
 
+// ImageRequest keeps the provider scalars it declares separate from the fields
+// it only forwards. Image generation APIs such as xAI's grok-imagine accept
+// geometry hints (aspect_ratio/resolution) that no other provider shares, so
+// they stay optional pointers: an absent field is omitted instead of being sent
+// as an empty string.
+//
+// Anything not declared here lands in Extra, and MarshalJSON deliberately does
+// not re-marshal Extra (see the note in that method), so a parameter that must
+// reach the upstream provider has to be declared on this struct.
 type ImageRequest struct {
 	Model             string          `json:"model"`
 	Prompt            string          `json:"prompt" binding:"required"`
 	N                 *uint           `json:"n,omitempty"`
 	Size              string          `json:"size,omitempty"`
 	Quality           string          `json:"quality,omitempty"`
+	AspectRatio       *string         `json:"aspect_ratio,omitempty"`
+	Resolution        *string         `json:"resolution,omitempty"`
 	ResponseFormat    string          `json:"response_format,omitempty"`
 	Style             json.RawMessage `json:"style,omitempty"`
 	User              json.RawMessage `json:"user,omitempty"`
