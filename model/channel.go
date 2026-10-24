@@ -1014,6 +1014,9 @@ func (channel *Channel) ValidateSettings() error {
 			return err
 		}
 	}
+	if channelOtherSettings.RetryBudget < 0 || channelOtherSettings.RetryBudget > 99 {
+		return fmt.Errorf("retry_budget must be between 0 and 99")
+	}
 	if err := channelOtherSettings.ValidateToolLossPolicy(); err != nil {
 		return err
 	}
