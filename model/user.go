@@ -1336,3 +1336,18 @@ func RootUserExists() bool {
 	}
 	return true
 }
+
+// GetTeamUsageSummary returns the aggregate used_quota and request_count for
+// the given set of user ids (a parent account + its children).
+func GetTeamUsageSummary(userIds []int) (usedQuota int64, requestCount int64, err error) {
+	type result struct {
+		UsedQuota    int64
+		RequestCount int64
+	}
+	var r result
+	err = DB.Model(&User{}).
+		Select("COALESCE(SUM(used_quota), 0) AS used_quota, COALESCE(SUM(request_count), 0) AS request_count").
+		Where("id IN ?", userIds).
+		Scan(&r).Error
+	return r.UsedQuota, r.RequestCount, err
+}

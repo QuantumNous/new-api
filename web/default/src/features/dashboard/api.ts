@@ -116,6 +116,16 @@ export async function getTeamQuotaDates(params: {
   return res.data
 }
 
+// Get aggregate used_quota and request_count for the calling user's team.
+// Only callable by a parent account (parent_id = 0 with children).
+export async function getTeamSummaryStats() {
+  const res = await api.get<{
+    success: boolean
+    data?: { used_quota: number; request_count: number }
+  }>('/api/data/team/summary')
+  return res.data
+}
+
 // Distinct key names / models that have consumption rows in the window. Used
 // by the consumption chart's inline quick filters.
 export async function getQuotaDataDimensions(

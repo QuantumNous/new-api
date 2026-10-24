@@ -268,3 +268,26 @@ func GetSelfTokenUsage(c *gin.Context) {
 		"data":    rows,
 	})
 }
+
+// GetTeamSummaryStats returns the aggregate used_quota and request_count for
+// the caller's team (parent account + all children). Only callable by a parent
+// account (parent_id = 0, has children).
+func GetTeamSummaryStats(c *gin.Context) {
+	userIds, ok := getTeamUserIds(c)
+	if !ok {
+		return
+	}
+	usedQuota, requestCount, err := model.GetTeamUsageSummary(userIds)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data": gin.H{
+			"used_quota":    usedQuota,
+			"request_count": requestCount,
+		},
+	})
+}

@@ -380,6 +380,7 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/self", middleware.UserAuth(), controller.GetUserQuotaDates)
 		dataRoute.GET("/self/dimensions", middleware.UserAuth(), controller.GetSelfQuotaDataDimensions)
 		dataRoute.GET("/team", middleware.UserAuth(), controller.GetTeamQuotaDates)
+		dataRoute.GET("/team/summary", middleware.UserAuth(), controller.GetTeamSummaryStats)
 		dataRoute.GET("/flow", middleware.AdminAuth(), controller.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", middleware.UserAuth(), controller.GetUserFlowQuotaDates)
 		// Per-key spend ranking over a time range. The self variant scopes to

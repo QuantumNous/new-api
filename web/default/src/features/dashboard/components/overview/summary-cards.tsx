@@ -24,7 +24,11 @@ import { useTranslation } from 'react-i18next'
 
 import { StaggerContainer, StaggerItem } from '@/components/page-transition'
 import { Button } from '@/components/ui/button'
-import { getUserQuotaDates } from '@/features/dashboard/api'
+import {
+  getTeamQuotaDates,
+  getTeamSummaryStats,
+  getUserQuotaDates,
+} from '@/features/dashboard/api'
 import { useSummaryCardsConfig } from '@/features/dashboard/hooks/use-dashboard-config'
 import type { QuotaDataItem } from '@/features/dashboard/types'
 import { useStatus } from '@/hooks/use-status'
@@ -141,27 +145,51 @@ export function SummaryCards() {
   const user = useAuthStore((state) => state.auth.user)
   const { status, loading } = useStatus()
 
+  const isParent =
+    Boolean(user?.has_children) && (user?.parent_id ?? 0) === 0
+
   const summaryTimeRange = useMemo(() => computeTimeRange(1), [])
   const remainQuota = Number(user?.quota ?? 0)
-  const usedQuota = Number(user?.used_quota ?? 0)
-  const requestCount = Number(user?.request_count ?? 0)
+  const ownUsedQuota = Number(user?.used_quota ?? 0)
+  const ownRequestCount = Number(user?.request_count ?? 0)
 
   const usageTrendQuery = useQuery({
     queryKey: [
       'dashboard',
       'overview',
       'summary-sparklines',
+      isParent,
       summaryTimeRange.start_timestamp,
       summaryTimeRange.end_timestamp,
     ],
     queryFn: async () =>
-      getUserQuotaDates({
-        start_timestamp: summaryTimeRange.start_timestamp,
-        end_timestamp: summaryTimeRange.end_timestamp,
-        default_time: 'hour',
-      }),
+      isParent
+        ? getTeamQuotaDates({
+            start_timestamp: summaryTimeRange.start_timestamp,
+            end_timestamp: summaryTimeRange.end_timestamp,
+            default_time: 'hour',
+          })
+        : getUserQuotaDates({
+            start_timestamp: summaryTimeRange.start_timestamp,
+            end_timestamp: summaryTimeRange.end_timestamp,
+            default_time: 'hour',
+          }),
     staleTime: 60 * 1000,
   })
+
+  const teamSummaryQuery = useQuery({
+    queryKey: ['dashboard', 'overview', 'team-summary'],
+    queryFn: getTeamSummaryStats,
+    enabled: isParent,
+    staleTime: 60 * 1000,
+  })
+
+  const usedQuota = isParent
+    ? Number(teamSummaryQuery.data?.data?.used_quota ?? ownUsedQuota)
+    : ownUsedQuota
+  const requestCount = isParent
+    ? Number(teamSummaryQuery.data?.data?.request_count ?? ownRequestCount)
+    : ownRequestCount
 
   const summaryValues = useMemo(() => {
     return {
