@@ -69,6 +69,12 @@ export const CONSOLE_NAV: ConsoleNavItem[] = [
     href: '/beginner-guide',
     group: 'resources',
   },
+  {
+    id: 'client',
+    title: 'YesChoy client',
+    href: '/client',
+    group: 'resources',
+  },
 ]
 
 export function consoleNavPath(href: string): string {

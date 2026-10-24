@@ -133,6 +133,18 @@ describe('terminal sidebar transitions', () => {
     expect(screen.getByRole('link', { name: 'API keys' })).toBeVisible()
   })
 
+  it('lists the desktop client after the beginner guide in the easy sidebar', async () => {
+    await renderLayout()
+
+    const guide = screen.getByRole('link', { name: 'Beginner guide' })
+    const client = screen.getByRole('link', { name: 'YesChoy client' })
+    expect(client).toHaveAttribute('href', '/client')
+    expect(guide.parentElement).toBe(client.parentElement)
+    expect(
+      guide.compareDocumentPosition(client) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
   it('keeps one community entry in the terminal top bar', async () => {
     await renderLayout()
 
