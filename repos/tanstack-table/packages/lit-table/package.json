@@ -1,0 +1,60 @@
+{
+  "name": "@tanstack/lit-table",
+  "version": "8.21.3",
+  "description": "Headless UI for building powerful tables & datagrids for Lit.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TanStack/table.git",
+    "directory": "packages/lit-table"
+  },
+  "homepage": "https://tanstack.com/table",
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "keywords": [
+    "lit",
+    "table",
+    "lit-table",
+    "datagrid"
+  ],
+  "type": "commonjs",
+  "module": "build/lib/index.esm.js",
+  "main": "build/lib/index.js",
+  "types": "build/lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./build/lib/index.d.ts",
+      "import": "./build/lib/index.mjs",
+      "default": "./build/lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=12"
+  },
+  "files": [
+    "build/lib/*",
+    "build/umd/*",
+    "src"
+  ],
+  "scripts": {
+    "clean": "rimraf ./build",
+    "test:types": "tsc --noEmit",
+    "build": "pnpm build:rollup && pnpm build:types",
+    "build:rollup": "rollup --config rollup.config.mjs",
+    "build:types": "tsc --emitDeclarationOnly"
+  },
+  "dependencies": {
+    "@tanstack/table-core": "workspace:*"
+  },
+  "devDependencies": {
+    "lit": "^3.1.4"
+  },
+  "peerDependencies": {
+    "lit": "^3.1.3"
+  }
+}

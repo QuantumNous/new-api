@@ -1,0 +1,213 @@
+{
+  "percent": {
+    "key": "percent",
+    "oneDesc": "是否对数据进行百分比处理"
+  },
+  "name": {
+    "key": "name",
+    "oneDesc": "系列名称"
+  },
+  "id": {
+    "key": "id",
+    "oneDesc": "用户自定义的 series id"
+  },
+  "inverse": {
+    "key": "inverse",
+    "oneDesc": "是否反向"
+  },
+  "animation": {
+    "key": "animation",
+    "oneDesc": "是否开启系列动画"
+  },
+  "direction": {
+    "key": "direction",
+    "oneDesc": "图表布局方向"
+  },
+  "stack": {
+    "key": "stack",
+    "oneDesc": "是否对数据进行堆叠处理"
+  },
+  "animationEnter": {
+    "key": "animationEnter",
+    "oneDesc": "数据更新 - 新增数据动画"
+  },
+  "animationUpdate": {
+    "key": "animationUpdate",
+    "oneDesc": "数据更新 - 数据更新动画"
+  },
+  "animationExit": {
+    "key": "animationExit",
+    "oneDesc": "数据更新 - 数据删除动画"
+  },
+  "dataIndex": {
+    "key": "dataIndex",
+    "oneDesc": "系列关联的数据索引"
+  },
+  "valueField": {
+    "key": "valueField",
+    "oneDesc": "节点之间关系的权重字段"
+  },
+  "animationState": {
+    "key": "animationState",
+    "oneDesc": "状态切换动画"
+  },
+  "support3d": {
+    "key": "support3d",
+    "oneDesc": "是否支持3d视角"
+  },
+  "regionIndex": {
+    "key": "regionIndex",
+    "oneDesc": "系列关联的region索引"
+  },
+  "regionId": {
+    "key": "regionId",
+    "oneDesc": "系列关联的region id"
+  },
+  "totalLabel": {
+    "key": "totalLabel",
+    "oneDesc": "堆叠汇总标签"
+  },
+  "animationAppear": {
+    "key": "animationAppear",
+    "oneDesc": "图表入场动画\n支持配置图表内置不同动画效果"
+  },
+  "animationDisappear": {
+    "key": "animationDisappear",
+    "oneDesc": "图表退场动画"
+  },
+  "animationNormal": {
+    "key": "animationNormal",
+    "oneDesc": "循环动画"
+  },
+  "categoryField": {
+    "key": "categoryField",
+    "oneDesc": "节点名称字段配置"
+  },
+  "label": {
+    "key": "label",
+    "oneDesc": "标签配置"
+  },
+  "link": {
+    "key": "link",
+    "oneDesc": "边配置"
+  },
+  "node": {
+    "key": "node",
+    "oneDesc": "节点配置"
+  },
+  "dataId": {
+    "key": "dataId",
+    "oneDesc": "系列关联的数据id"
+  },
+  "dataKey": {
+    "key": "dataKey",
+    "oneDesc": "dataKey用于绑定数据与Mark的关系, 该配置在动画中非常重要."
+  },
+  "seriesField": {
+    "key": "seriesField",
+    "oneDesc": "分组字段"
+  },
+  "stackOffsetSilhouette": {
+    "key": "stackOffsetSilhouette",
+    "oneDesc": "是否围绕中心轴偏移轮廓"
+  },
+  "invalidType": {
+    "key": "invalidType",
+    "oneDesc": "null，undefined等非法数据点连接方式。"
+  },
+  "extensionMark": {
+    "key": "extensionMark",
+    "oneDesc": "扩展mark"
+  },
+  "interactions": {
+    "key": "interactions",
+    "oneDesc": "其他需要按需注册的类型交互"
+  },
+  "nameKey": {
+    "key": "nameKey"
+  },
+  "sourceField": {
+    "key": "sourceField",
+    "oneDesc": "来源节点数据字段\n层级数据不提供"
+  },
+  "targetField": {
+    "key": "targetField",
+    "oneDesc": "目标节点数据字段\n层级数据不提供"
+  },
+  "nodeAlign": {
+    "key": "nodeAlign",
+    "oneDesc": "节点的对齐类型，所有深度相同的节点，采用什么对齐方式，决定了节点在第几层：\n- 横向布局的桑基图，用于计算节点x坐标\n- 纵向布局的桑基图，用于计算节点y坐标"
+  },
+  "crossNodeAlign": {
+    "key": "crossNodeAlign",
+    "oneDesc": "横向布局的桑基图，设置节点Y坐标的对齐方式：\n'start' - '顶部对齐'\n'end' - '底部对齐'\n'middle' - '居中对齐'\n\n纵向布局的桑基图，设置节点X坐标的对齐方式：\n'start' - '左对齐'\n'end' - '右对齐'\n'middle' - '居中对齐'"
+  },
+  "nodeGap": {
+    "key": "nodeGap",
+    "oneDesc": "同一层中两个节点之间的间隙大小"
+  },
+  "nodeWidth": {
+    "key": "nodeWidth",
+    "oneDesc": "每个节点的宽度，支持三种取值\n1. 百分比字符串，例如：{ nodeWidth: '12%' }\n2. 以'px'为单位的简单数字，eg: { nodeWidth: 20 }\n3. function，通过自定义计算指定nodeWidth"
+  },
+  "linkWidth": {
+    "key": "linkWidth",
+    "oneDesc": "link宽度，单位px"
+  },
+  "minStepWidth": {
+    "key": "minStepWidth",
+    "oneDesc": "link + node 的最小宽度"
+  },
+  "minNodeHeight": {
+    "key": "minNodeHeight",
+    "oneDesc": "数据不为零或空时节点的最小大小\n - 这个配置可以用来避免数据太小时看不到太细的节点\n - 建议小于5px"
+  },
+  "minLinkHeight": {
+    "key": "minLinkHeight",
+    "oneDesc": "数据不为零或空时边的最小大小\n - 这个配置可以用来避免数据太小的时候看不到太细的链接\n - 建议小于5px\n - 当同时指定 `minNodeHeight` 和 `minLinkHeight` 两个选项时，此选项应小于 `minNodeHeight`"
+  },
+  "iterations": {
+    "key": "iterations",
+    "oneDesc": "布局的迭代次数"
+  },
+  "nodeKey": {
+    "key": "nodeKey",
+    "oneDesc": "解析node的key，defaultValue"
+  },
+  "linkSortBy": {
+    "key": "linkSortBy",
+    "oneDesc": "按此funtion排序link"
+  },
+  "nodeSortBy": {
+    "key": "nodeSortBy",
+    "oneDesc": "按此funtion排序node"
+  },
+  "setNodeLayer": {
+    "key": "setNodeLayer",
+    "oneDesc": "自定义指定节点层"
+  },
+  "dropIsolatedNode": {
+    "key": "dropIsolatedNode",
+    "oneDesc": "是否丢弃孤立的节点"
+  },
+  "nodeHeight": {
+    "key": "nodeHeight",
+    "oneDesc": "set the height of node"
+  },
+  "linkHeight": {
+    "key": "linkHeight",
+    "oneDesc": "set the height of link"
+  },
+  "equalNodeHeight": {
+    "key": "equalNodeHeight",
+    "oneDesc": "each node has same height"
+  },
+  "linkOverlap": {
+    "key": "linkOverlap",
+    "oneDesc": "设置桑基图线条布局方式，设置后为重叠布局，可以手动设置线条重叠位置(上/中/下)"
+  },
+  "emphasis": {
+    "key": "emphasis",
+    "oneDesc": "联动交互配置"
+  }
+}

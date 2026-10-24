@@ -1,0 +1,176 @@
+{
+    "id": "resp_04f6b17429cf2b02006949a673effc8196bc0d00ce027d3bdc",
+    "object": "response",
+    "created_at": 1766434419,
+    "status": "completed",
+    "background": false,
+    "billing": {
+      "payer": "developer"
+    },
+    "completed_at": 1766434427,
+    "error": null,
+    "incomplete_details": null,
+    "instructions": null,
+    "max_output_tokens": null,
+    "max_tool_calls": null,
+    "model": "gpt-5-mini-2025-08-07",
+    "output": [
+      {
+        "id": "mcpl_04f6b17429cf2b02006949a673fd08819695f8f57cdb9bed6f",
+        "type": "mcp_list_tools",
+        "server_label": "zip1",
+        "tools": [
+          {
+            "annotations": {
+              "read_only": false
+            },
+            "description": "Create a shortened URL using zip1.io with optional custom alias, password protection, and max clicks limit",
+            "input_schema": {
+              "properties": {
+                "alias": {
+                  "description": "Custom alias for the short URL (optional, alphanumeric and hyphens only)",
+                  "type": "string"
+                },
+                "description": {
+                  "description": "Description for the short URL (optional, max 100 characters)",
+                  "type": "string"
+                },
+                "max_clicks": {
+                  "description": "Maximum number of clicks allowed before the link expires (optional)",
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "password": {
+                  "description": "Password to protect the short URL (optional)",
+                  "type": "string"
+                },
+                "url": {
+                  "description": "The long URL to shorten (must include http:// or https://)",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url"
+              ],
+              "type": "object"
+            },
+            "name": "create_short_url"
+          },
+          {
+            "annotations": {
+              "read_only": false
+            },
+            "description": "Get detailed statistics and analytics for a shortened URL including click counts, countries, and recent activity",
+            "input_schema": {
+              "properties": {
+                "short_code": {
+                  "description": "The short code or custom alias of the URL to get stats for",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "short_code"
+              ],
+              "type": "object"
+            },
+            "name": "get_url_stats"
+          },
+          {
+            "annotations": {
+              "read_only": false
+            },
+            "description": "Check if a URL is valid and can be shortened by zip1.io",
+            "input_schema": {
+              "properties": {
+                "url": {
+                  "description": "The URL to validate",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url"
+              ],
+              "type": "object"
+            },
+            "name": "validate_url"
+          },
+          {
+            "annotations": {
+              "read_only": false
+            },
+            "description": "Generate a random 6-character alphanumeric short code suggestion (the actual code will be generated when creating the URL)",
+            "input_schema": {
+              "properties": {},
+              "type": "object"
+            },
+            "name": "generate_short_code"
+          }
+        ]
+      },
+      {
+        "id": "rs_04f6b17429cf2b02006949a67543c88196ad1f56cb7c8fe476",
+        "type": "reasoning",
+        "summary": []
+      },
+      {
+        "id": "msg_04f6b17429cf2b02006949a679f35c81968e9b234489fa32b8",
+        "type": "message",
+        "status": "completed",
+        "content": [
+          {
+            "type": "output_text",
+            "annotations": [],
+            "logprobs": [],
+            "text": "I couldn't create the short link because the shortening tool call was not approved. Do you want me to proceed and create a short URL on zip1.io with max clicks = 100? If yes, please confirm and optionally provide:\n- a custom alias (alphanumeric and hyphens only), and/or\n- a password, and/or\n- a short description.\n\nIf you don't want me to use the tool, I can give instructions so you can shorten it yourself."
+          }
+        ],
+        "role": "assistant"
+      }
+    ],
+    "parallel_tool_calls": true,
+    "previous_response_id": null,
+    "prompt_cache_key": null,
+    "prompt_cache_retention": null,
+    "reasoning": {
+      "effort": "medium",
+      "summary": null
+    },
+    "safety_identifier": null,
+    "service_tier": "default",
+    "store": true,
+    "temperature": 1,
+    "text": {
+      "format": {
+        "type": "text"
+      },
+      "verbosity": "medium"
+    },
+    "tool_choice": "auto",
+    "tools": [
+      {
+        "type": "mcp",
+        "allowed_tools": null,
+        "headers": null,
+        "require_approval": "always",
+        "server_description": "Link shortener",
+        "server_label": "zip1",
+        "server_url": "https://zip1.io/mcp"
+      }
+    ],
+    "top_logprobs": 0,
+    "top_p": 1,
+    "truncation": "disabled",
+    "usage": {
+      "input_tokens": 592,
+      "input_tokens_details": {
+        "cached_tokens": 0
+      },
+      "output_tokens": 421,
+      "output_tokens_details": {
+        "reasoning_tokens": 320
+      },
+      "total_tokens": 1013
+    },
+    "user": null,
+    "metadata": {}
+}

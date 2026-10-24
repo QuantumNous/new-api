@@ -1,0 +1,134 @@
+---
+description: 'Set the URL prefix of static assets in development mode.'
+---
+
+# dev.assetPrefix
+
+- **Type:** `boolean | string | 'auto'`
+- **Default:** [server.base](/config/server/base)
+
+Set the URL prefix of static assets in [development mode](/config/mode).
+
+`assetPrefix` affects most static asset URLs, including JavaScript files, CSS files, images, videos, etc. If it is set incorrectly, these resources may return 404 errors.
+
+This config is only used in `development` mode. In `production` mode or `none` mode, use [output.assetPrefix](/config/output/asset-prefix) to configure the URL prefix.
+
+## Default value
+
+The default value of `dev.assetPrefix` is the same as [server.base](/config/server/base).
+
+When `server.base` is `/foo`, `index.html` and other static assets can be accessed through `http://localhost:3000/foo/`.
+
+When you customize `dev.assetPrefix`, keep its URL prefix consistent with `server.base` so assets stay accessible through the Rsbuild dev server. For example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    assetPrefix: '/foo/bar/',
+  },
+  server: {
+    base: '/foo',
+  },
+};
+```
+
+## Boolean type
+
+If `assetPrefix` is set to `true`, the URL prefix will be `http://localhost:<port>/`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    assetPrefix: true,
+  },
+};
+```
+
+The resource URL loaded in the browser is as follows:
+
+```html
+<script defer src="http://localhost:3000/static/js/main.js"></script>
+```
+
+If `assetPrefix` is set to `false` or not set, `/` is used as the default value.
+
+## String type
+
+When the value of `assetPrefix` is a `string` type, the string will be used as a prefix and automatically appended to the static resource URL.
+
+- For example, set to a path relative to the root directory:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    assetPrefix: '/example/',
+  },
+};
+```
+
+The resource URL loaded in the browser is as follows:
+
+```html
+<script defer src="http://localhost:3000/example/static/js/index.js"></script>
+```
+
+- For example, set to a complete URL:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    assetPrefix: 'https://example.com/assets/',
+  },
+};
+```
+
+The resource URL loaded in the browser is as follows:
+
+```html
+<script defer src="https://example.com/assets/static/js/index.js"></script>
+```
+
+### Port placeholder
+
+The port number that Rsbuild server listens on may change. For example, if the port is in use, Rsbuild will automatically increment the port number until it finds an available port.
+
+To avoid `dev.assetPrefix` becoming invalid due to port changes, you can use one of the following methods:
+
+- Enable [server.strictPort](/config/server/strict-port).
+- Use the `<port>` placeholder to refer to the current port number. Rsbuild will replace the placeholder with the actual port number it is listening on.
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    assetPrefix: 'http://localhost:<port>/',
+  },
+};
+```
+
+## Path types
+
+The `assetPrefix` option accepts the following path types:
+
+- **absolute path**: The most common choice, including specific server paths like `/assets/`.
+- **'auto'**: Rspack will automatically calculate the path and generate relative paths based on file location.
+
+:::tip
+It's not recommended to set assetPrefix as a relative path, such as `'./assets/'`. This is because when assets are at different path depths, using relative paths may cause assets to load incorrectly.
+:::
+
+## Compare with `publicPath`
+
+The functionality of `dev.assetPrefix` is basically the same as the [output.publicPath](https://rspack.rs/config/output#outputpublicpath) config in Rspack.
+
+The differences from the native configuration are as follows:
+
+- `dev.assetPrefix` only takes effect in development mode.
+- `dev.assetPrefix` default value is the same as [server.base](/config/server/base).
+- `dev.assetPrefix` automatically appends a trailing `/` by default.
+- The value of `dev.assetPrefix` is written to the [process.env.ASSET_PREFIX](/guide/advanced/env-vars#processenvasset_prefix) environment variable (can only be accessed in client code).
+
+## Dynamic asset prefix
+
+Use the `import.meta.rspackPublicPath` variable provided by Rspack to dynamically set the URL prefix of static assets in JavaScript code.
+
+See [Rspack - Dynamically set publicPath](https://rspack.rs/guide/features/asset-base-path#dynamically-set-publicpath).

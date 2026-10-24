@@ -1,0 +1,268 @@
+---
+description: '快速开始使用 Rsbuild，包括创建项目、启动开发服务和构建生产产物。'
+---
+
+# 快速上手
+
+## 在线示例
+
+我们提供了基于 Rsbuild 的在线示例，通过示例项目，你可以直观感受 Rspack 的构建性能和 Rsbuild 的开发体验：
+
+- [StackBlitz 示例](https://stackblitz.com/~/github.com/rstackjs/rsbuild-stackblitz-example)
+- [CodeSandbox 示例](https://codesandbox.io/p/github/rstackjs/rsbuild-codesandbox-example)
+
+## 环境准备
+
+Rsbuild 支持使用 [Node.js](https://nodejs.org/)、[Deno](https://deno.com/) 或 [Bun](https://bun.sh/) 作为 JavaScript 运行时。
+
+参考以下安装指南，选择一种运行时：
+
+- [安装 Node.js](https://nodejs.org/zh-cn/download)
+- [安装 Bun](https://bun.com/docs/installation)
+- [安装 Deno](https://docs.deno.com/runtime/getting_started/installation/)
+
+:::tip 版本要求
+
+- Rsbuild v2 要求 Node.js 版本 20.19+, 22.12+。
+- Rsbuild v1 要求 Node.js 18.12.0 或更高版本。
+
+:::
+
+## 创建 Rsbuild 应用 \{#create-an-rsbuild-application}
+
+使用 [create-rsbuild](https://www.npmjs.com/package/create-rsbuild) 创建 Rsbuild 应用：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs
+  command={{
+    npm: 'npm create rsbuild@latest',
+    yarn: 'yarn create rsbuild',
+    pnpm: 'pnpm create rsbuild@latest',
+    bun: 'bun create rsbuild@latest',
+    deno: 'deno init --npm rsbuild@latest',
+  }}
+/>
+
+按照提示操作，并按需选择 TypeScript、ESLint 等额外工具。
+
+创建完成后，执行以下步骤：
+
+- 执行 `git init` 来初始化 Git 仓库。
+- 执行 `npm install`（或其他包管理器的 install 命令）安装 npm 依赖。
+- 执行 `npm run dev` 启动开发服务器，服务器默认运行在 `localhost:3000`。
+
+### 模板
+
+创建应用时，可选择 `create-rsbuild` 提供的下列模板，查看集成指南了解更多信息。
+
+| 模板    | 官方文档                        | Rsbuild 集成指南                       |
+| ------- | ------------------------------- | -------------------------------------- |
+| vanilla | 原生 JavaScript                 | -                                      |
+| react   | [React](https://react.dev/)     | [使用 React](/guide/framework/react)   |
+| vue     | [Vue](https://vuejs.org/)       | [使用 Vue](/guide/framework/vue)       |
+| lit     | [Lit](https://lit.dev/)         | -                                      |
+| preact  | [Preact](https://preactjs.com/) | [使用 Preact](/guide/framework/preact) |
+| svelte  | [Svelte](https://svelte.dev/)   | [使用 Svelte](/guide/framework/svelte) |
+| solid   | [Solid](https://solidjs.com/)   | [使用 Solid](/guide/framework/solid)   |
+
+`create-rsbuild` 提供了开箱即用的基础模板，你还可以通过以下方式获取更丰富的模板：
+
+- 前往 [Rspack - 生态](https://rspack.rs/zh/guide/start/quick-start#%E7%94%9F%E6%80%81) 了解基于 Rsbuild 的各种上层工具。
+- 前往 [awesome-rstack - Starter](https://github.com/rstackjs/awesome-rstack#starter) 获取更多社区维护的模板。
+
+### 可选工具
+
+`create-rsbuild` 可帮助设置以下常用工具。使用上下箭头和空格进行选择；如不需要这些工具，直接按回车跳过。
+
+| 工具                                                    | 用途                           |
+| ------------------------------------------------------- | ------------------------------ |
+| [Rstest](https://github.com/web-infra-dev/rstest)       | 测试                           |
+| [Rslint](https://github.com/web-infra-dev/rslint)       | 代码检查                       |
+| [ESLint](https://github.com/eslint/eslint)              | 代码检查                       |
+| [Prettier](https://github.com/prettier/prettier)        | 代码格式化                     |
+| [Biome](https://github.com/biomejs/biome)               | 代码检查和格式化               |
+| [Storybook](https://storybook.js.org/)                  | 组件开发                       |
+| [Tailwind CSS](https://tailwindcss.com)                 | 样式                           |
+| [React Compiler](/guide/framework/react#react-compiler) | 优化 React 应用，仅 React 模板 |
+
+### 当前目录
+
+如需在当前目录下创建应用，将 target folder 设置为 `.`：
+
+```
+◆  Create Rsbuild Project
+│
+◇  Project name or path
+│  .
+│
+◇  "." is not empty, please choose:
+│  Continue and override files
+```
+
+### 非交互模式
+
+[create-rsbuild](https://npmjs.com/package/create-rsbuild) 支持通过命令行选项进入非交互模式。使用该模式可以跳过所有提示，直接创建项目，适合脚本、CI 以及 coding agents 等自动化场景。
+
+例如，以下命令将在 `my-app` 目录中创建一个 React 应用：
+
+```bash
+npx -y create-rsbuild@latest my-app --template react
+
+# 使用缩写
+npx -y create-rsbuild@latest my-app -t react
+
+# 指定多个 tools
+npx -y create-rsbuild@latest my-app -t react --tools eslint,prettier
+```
+
+`create-rsbuild` 完整的 CLI 选项如下：
+
+```
+Usage: create-rsbuild [dir] [options]
+
+Options:
+
+  -h, --help            display help for command
+  -d, --dir <dir>       create project in specified directory
+  -t, --template <tpl>  specify the template to use
+  --tools <tool>        add additional tools, comma separated
+  --skill <skill>       add optional skills, comma separated
+  --override            override files in target directory
+  --packageName <name>  specify the package name
+  --template-version <ver>  specify the npm template version
+
+Available templates:
+
+  vanilla-js, vanilla-ts, react-js, react-ts, vue-js, vue-ts,
+  lit-js, lit-ts, preact-js, preact-ts, svelte-js, svelte-ts,
+  solid-js, solid-ts
+
+Optional tools:
+  react-compiler, rstest, eslint, rslint, biome, prettier, tailwindcss, storybook
+
+Optional skills:
+  rsbuild-best-practices, rstest-best-practices, vercel-react-best-practices
+```
+
+## 在 Monorepo 中使用 Rsbuild \{#use-rsbuild-in-monorepos}
+
+以下 Monorepo 工具提供了 Rsbuild 集成或示例，可用于在工作区中创建和管理 Rsbuild 应用。
+
+- [Nx](https://nx.dev/docs/technologies/build-tools/rsbuild/introduction) 通过 `@nx/rsbuild` 插件支持 Rsbuild，为 Nx 工作区提供生成器和执行器。
+- [Turborepo](https://turborepo.dev/docs/guides/frameworks/rsbuild) 提供创建 Rsbuild 应用和使用 Module Federation 的示例和指南。
+
+## 全栈框架 \{#full-stack-frameworks}
+
+如果你的应用需要全栈能力，可以直接使用基于 Rsbuild 的全栈框架，例如 [TanStack Start](https://tanstack.com/start/latest) 或 [Modern.js](https://github.com/web-infra-dev/modern.js)。这类框架基于 Rsbuild 构建，并提供 SSR、路由等更高层的能力。
+
+- [React 全栈框架](/guide/framework/react#full-stack-frameworks)
+- [Solid 全栈框架](/guide/framework/solid#full-stack-frameworks)
+
+## 从现有项目迁移 \{#migrate-from-existing-projects}
+
+如需从现有项目迁移到 Rsbuild，参考以下指南：
+
+- [从 webpack 迁移](/guide/migration/webpack)
+- [从 Create React App 迁移](/guide/migration/cra)
+- [从 Vue CLI 迁移](/guide/migration/vue-cli)
+- [从 Vite 迁移](/guide/migration/vite)
+- [从 Tsup 迁移到 Rslib](https://rslib.rs/zh/guide/migration/tsup)
+- [从 Storybook 迁移到 Storybook Rsbuild](https://rspack.rs/zh/guide/migration/storybook)
+
+### 其他项目
+
+如果项目不属于上述迁移指南中的类型，也可直接安装 [@rsbuild/core](https://npmjs.com/package/@rsbuild/core) 包：
+
+<PackageManagerTabs command="add @rsbuild/core -D" />
+
+安装完成后，参考以下文档配置项目：
+
+- 参考 [CLI 工具](/guide/basic/cli) 来了解可用的 CLI 命令。
+- 参考 [插件列表](/plugins/list/index) 来选择 Rsbuild 插件。
+- 参考 [配置 Rsbuild](/guide/configuration/rsbuild) 进行配置。
+
+## 命令行工具
+
+Rsbuild 内置了一个轻量的命令行工具，包含 dev、build 等命令。
+
+```json title="package.json"
+{
+  "scripts": {
+    // 启动开发服务器，等价于 "rsbuild dev"
+    "dev": "rsbuild",
+    // 构建用于生产的应用
+    "build": "rsbuild build",
+    // 在本地预览生产版本
+    "preview": "rsbuild preview"
+  }
+}
+```
+
+参考 [CLI 工具](/guide/basic/cli) 了解所有可用命令和选项。
+
+## 入口模块
+
+Rsbuild CLI 默认会自动检测 `src/index.(ts|js|tsx|jsx|mts|cts|mjs|cjs)` 作为入口模块，可使用 [source.entry](/config/source/entry) 配置项修改入口模块。
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    entry: {
+      foo: './src/pages/foo/index.ts',
+      bar: './src/pages/bar/index.ts',
+    },
+  },
+};
+```
+
+## 核心 npm 包
+
+### @rsbuild/core
+
+<a
+  href="https://npmjs.com/package/@rsbuild/core"
+  target="_blank"
+  style={{ display: 'block', marginTop: '16px' }}
+>
+  <img
+    src="https://img.shields.io/npm/v/@rsbuild/core?style=flat-square&colorA=564341&colorB=EDED91"
+    alt="@rsbuild/core"
+    style={{ pointerEvents: 'none' }}
+  />
+</a>
+
+Rsbuild 核心包，提供 CLI 命令和 JavaScript API。
+
+### create-rsbuild
+
+<a
+  href="https://npmjs.com/package/create-rsbuild"
+  target="_blank"
+  style={{ display: 'block', marginTop: '16px' }}
+>
+  <img
+    src="https://img.shields.io/npm/v/create-rsbuild?style=flat-square&colorA=564341&colorB=EDED91"
+    alt="create-rsbuild"
+    style={{ pointerEvents: 'none' }}
+  />
+</a>
+
+用于创建 Rsbuild 新项目。
+
+## 下一步
+
+你可能想要：
+
+import NextSteps from '@components/NextSteps';
+import Step from '@components/Step';
+
+<NextSteps>
+  <Step href="/guide/start/features" title="功能导航" description="了解 Rsbuild 提供的所有功能" />
+  <Step href="/guide/configuration/rsbuild" title="查阅配置" description="了解如何配置 Rsbuild" />
+  <Step
+    href="https://github.com/web-infra-dev/rsbuild"
+    title="支持 Rsbuild"
+    description="点个 Star 支持一下✨"
+  />
+</NextSteps>

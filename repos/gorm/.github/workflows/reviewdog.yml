@@ -1,0 +1,22 @@
+name: reviewdog
+on: [pull_request]
+jobs:
+  golangci-lint:
+    name: runner / golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v3
+      - name: golangci-lint
+        uses: reviewdog/action-golangci-lint@v2
+
+      - name: Setup reviewdog
+        uses: reviewdog/action-setup@v1
+
+      - name: gofumpt -s with reviewdog
+        env:
+          REVIEWDOG_GITHUB_API_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          go install mvdan.cc/gofumpt@v0.2.0
+          gofumpt -e -d . | \
+          reviewdog -name="gofumpt" -f=diff -f.diff.strip=0 -reporter=github-pr-review

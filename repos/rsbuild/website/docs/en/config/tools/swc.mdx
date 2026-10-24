@@ -1,0 +1,87 @@
+---
+description: 'You can set the options of builtin:swc-loader through tools.swc.'
+---
+
+# tools.swc
+
+- **Type:**
+
+```ts
+type ToolsSwc =
+  | Rspack.SwcLoaderOptions
+  | ((config: Rspack.SwcLoaderOptions) => Rspack.SwcLoaderOptions | undefined);
+```
+
+- **Default:**
+
+```js
+const defaultOptions = {
+  jsc: {
+    externalHelpers: true,
+    parser: {
+      tsx: false,
+      syntax: 'typescript',
+      decorators: true,
+    },
+  },
+  experimental: {
+    cacheRoot: './node_modules/.cache/.swc',
+    keepImportAttributes: true,
+  },
+  isModule: 'unknown',
+  env: {
+    // Read the browserslist configuration of the project
+    targets: browserslist,
+  },
+  // ...some other conditional options
+};
+```
+
+You can set the options of [builtin:swc-loader](https://rspack.rs/guide/features/builtin-swc-loader) through `tools.swc`.
+
+> Refer to [Configure SWC](/guide/configuration/swc) for more details.
+
+## Object type
+
+`tools.swc` can be configured as an object, this object will be deeply merged with the built-in `builtin:swc-loader` option.
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    swc: {
+      jsc: {
+        externalHelpers: false,
+      },
+    },
+  },
+};
+```
+
+## Function type
+
+`tools.swc` can also be configured as a function, this function takes one argument, which is the built-in `builtin:swc-loader` option. You can modify this object then return a new config. For example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    swc: (config) => {
+      config.jsc ||= {};
+      config.jsc.externalHelpers = false;
+      return config;
+    },
+  },
+};
+```
+
+:::tip
+The object returned by the `tools.swc` function will be used directly as the final `builtin:swc-loader` option, and will not be merged with the built-in `builtin:swc-loader` option anymore.
+:::
+
+## Configuration conflicts
+
+In the SWC configuration, `jsc.target` (which specifies the ECMAScript version, such as `es2015`) and `env` cannot coexist.
+
+To avoid conflicts, Rsbuild adopts the following handling strategies:
+
+- If Rsbuild detects that you have manually set `jsc.target` in `tools.swc`, it will automatically remove the built-in `env.targets`.
+- If [output.polyfill](/config/output/polyfill) is configured, Rsbuild will force set `env.mode`. In this case, you cannot use `jsc.target`.

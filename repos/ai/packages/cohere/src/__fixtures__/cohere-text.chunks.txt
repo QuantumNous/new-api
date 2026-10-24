@@ -1,0 +1,11 @@
+{"id":"321d178c-2c12-44d3-ae42-2f5510f6b1cc","type":"message-start","delta":{"message":{"role":"assistant","content":[],"tool_plan":"","tool_calls":[],"citations":[]}}}
+{"type":"content-start","index":0,"delta":{"message":{"content":{"type":"text","text":""}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"text":"The"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"text":" capital"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"text":" of"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"text":" France"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"text":" is"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"text":" Paris"}}}}
+{"type":"content-delta","index":0,"delta":{"message":{"content":{"text":"."}}}}
+{"type":"content-end","index":0}
+{"type":"message-end","delta":{"finish_reason":"COMPLETE","usage":{"billed_units":{"input_tokens":12,"output_tokens":7},"tokens":{"input_tokens":507,"output_tokens":10},"cached_tokens":448}}}

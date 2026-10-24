@@ -1,0 +1,26 @@
+{
+  "extends": "@internal/ts-config/tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["jest", "offscreencanvas", "node"],
+    "baseUrl": "./",
+    "rootDir": "./src",
+    "outDir": "./esm",
+    "composite": true,
+    "paths": {
+      "@visactor/vrender-core": ["./node_modules/@visactor/vrender-core/es/index"],
+      "@visactor/vrender-core/*": ["./node_modules/@visactor/vrender-core/es/*"]
+    }
+  },
+  "ts-node": {
+    "transpileOnly": true,
+    "compilerOptions": {
+      "module": "commonjs"
+    }
+  },
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../vchart"
+    }
+  ]
+}

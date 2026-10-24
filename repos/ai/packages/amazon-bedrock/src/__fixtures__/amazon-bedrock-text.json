@@ -1,0 +1,26 @@
+{
+  "metrics": {
+    "latencyMs": 1864
+  },
+  "output": {
+    "message": {
+      "content": [
+        {
+          "text": "Let me count the \"r\"s in \"strawberry\":\n\ns-t-**r**-a-w-b-e-**r**-**r**-y\n\nThere are **3** \"r\"s in \"strawberry.\""
+        }
+      ],
+      "role": "assistant"
+    }
+  },
+  "stopReason": "end_turn",
+  "usage": {
+    "cacheReadInputTokenCount": 0,
+    "cacheReadInputTokens": 0,
+    "cacheWriteInputTokenCount": 0,
+    "cacheWriteInputTokens": 0,
+    "inputTokens": 22,
+    "outputTokens": 57,
+    "serverToolUsage": {},
+    "totalTokens": 79
+  }
+}

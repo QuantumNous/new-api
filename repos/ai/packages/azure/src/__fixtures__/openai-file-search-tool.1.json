@@ -1,0 +1,89 @@
+{
+  "id": "resp_0a098396a8feca410068caae39e7648196b346e99fa8ec494c",
+  "object": "response",
+  "created_at": 1758113338,
+  "status": "completed",
+  "background": false,
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-5-mini-2025-08-07",
+  "output": [
+    {
+      "id": "rs_0a098396a8feca410068caae3b47208196957fe59419daad70",
+      "type": "reasoning",
+      "summary": []
+    },
+    {
+      "id": "fs_0a098396a8feca410068caae3cab5c8196a54fd00498464e62",
+      "type": "file_search_call",
+      "status": "completed",
+      "queries": [
+        "What is an embedding model according to this document?",
+        "What is an embedding model?",
+        "definition of embedding model in the document",
+        "embedding model description"
+      ],
+      "results": null
+    },
+    {
+      "id": "rs_0a098396a8feca410068caae3e21a081968e7ac588401c4a6a",
+      "type": "reasoning",
+      "summary": []
+    },
+    {
+      "id": "msg_0a098396a8feca410068caae457c508196b2fcd079d1d3ec74",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [
+            {
+              "type": "file_citation",
+              "file_id": "file-Ebzhf8H4DPGPr9pUhr7n7v",
+              "filename": "ai.pdf",
+              "index": 438
+            }
+          ],
+          "logprobs": [],
+          "text": "According to the document, an embedding model is used to convert complex data (like words or images) into a dense vector (a list of numbers) representation called an embedding, which captures semantic and syntactic relationships. Unlike generative models, embedding models do not generate new text or data; instead, they provide these vector representations to be used as input for other models or other natural language processing tasks ."
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "reasoning": { "effort": "medium", "summary": null },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1,
+  "text": { "format": { "type": "text" }, "verbosity": "medium" },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "file_search",
+      "filters": null,
+      "max_num_results": 20,
+      "ranking_options": { "ranker": "auto", "score_threshold": 0 },
+      "vector_store_ids": ["vs_68caad8bd5d88191ab766cf043d89a18"]
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 1,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 3700,
+    "input_tokens_details": { "cached_tokens": 2560 },
+    "output_tokens": 741,
+    "output_tokens_details": { "reasoning_tokens": 640 },
+    "total_tokens": 4441
+  },
+  "user": null,
+  "metadata": {}
+}

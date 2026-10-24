@@ -1,0 +1,40 @@
+@layer components {
+  .Code {
+    letter-spacing: normal;
+    color: var(--color-blue);
+
+    p &[data-inline],
+    li &[data-inline] {
+      font-size: 0.96875em; /* 16px becomes 15.5px */
+      letter-spacing: -0.01em;
+      word-spacing: -0.2em;
+      line-height: normal;
+    }
+
+    /* In a code block */
+    pre & {
+      white-space: normal;
+    }
+
+    & mark {
+      display: inline-block;
+    }
+
+    & a {
+      text-decoration: underline;
+      text-decoration-color: color-mix(in oklab, currentColor, transparent);
+      text-underline-offset: 2px;
+      text-decoration-thickness: 1px;
+
+      @media (hover: hover) {
+        &:hover {
+          text-decoration-color: currentColor;
+        }
+      }
+    }
+
+    .Link & {
+      text-decoration: inherit;
+    }
+  }
+}

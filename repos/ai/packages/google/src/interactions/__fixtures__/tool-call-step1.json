@@ -1,0 +1,37 @@
+{
+  "id": "v1_ChdUMnNIYXVxU0lJX2lxdHNQX2FicXVBWRIXVDJzSGF1cVNJSV9pcXRzUF9hYnF1QVk",
+  "status": "requires_action",
+  "usage": {
+    "total_tokens": 109,
+    "total_input_tokens": 53,
+    "input_tokens_by_modality": [
+      {
+        "modality": "text",
+        "tokens": 53
+      }
+    ],
+    "total_cached_tokens": 0,
+    "total_output_tokens": 15,
+    "total_tool_use_tokens": 0,
+    "total_thought_tokens": 41
+  },
+  "created": "2026-05-15T18:52:00Z",
+  "updated": "2026-05-15T18:52:00Z",
+  "service_tier": "standard",
+  "steps": [
+    {
+      "signature": "CtkBAQw51sduvOhi/4ERHaM4Pnc11QLqBpYXBj55LC+Gq9+/gkYFy1Vo2qWBLaCm64Snn6RkSxqeSLiz3aDeNbxSkcc8RQjxXL9CkvLk5HVXPd51mte2KjnT9F05LOKM9XZWgjivFDhW/Rc8C9Vt1hzC972uaN7acy7sgkbgaUNheVTrWbmEHI5wjzTZuBZvh1HHjZmyHftP31rEhPKsMEryLd0Kcd35sFISRq0c3RM7XaJf0TNzCfoqO6bm3aLrjqYkGO3Gk2cIdMXr0J3vm2Nm2/zbcKnSWGYifQ==",
+      "type": "thought"
+    },
+    {
+      "id": "zggxzq8r",
+      "type": "function_call",
+      "name": "getWeather",
+      "arguments": {
+        "location": "San Francisco"
+      }
+    }
+  ],
+  "object": "interaction",
+  "model": "gemini-2.5-flash"
+}

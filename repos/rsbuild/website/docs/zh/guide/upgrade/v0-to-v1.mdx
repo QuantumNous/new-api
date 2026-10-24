@@ -1,0 +1,407 @@
+---
+description: '当前文档列出了从 Rsbuild 0.7 到 1.0 的所有不兼容更新，你可以参考此文档来迁移。'
+---
+
+# 从 0.x 升级到 v1
+
+当前文档列出了从 Rsbuild 0.7 到 1.0 的所有不兼容更新，你可以参考此文档来迁移。
+
+> 查看 [Breaking changes in Rsbuild v1.0.0](https://github.com/web-infra-dev/rsbuild/discussions/2508) 了解更多细节。
+
+## [重要] Lightning CSS loader
+
+Rsbuild 现在默认启用 [lightningcss-loader](https://rspack.rs/zh/guide/features/builtin-lightningcss-loader) 来转换 CSS 文件，它取代了 `autoprefixer` 来添加 vendor prefixes，并提供了更好的性能。
+
+- `@rsbuild/plugin-lightningcss` 已被废弃且不再需要。
+- `tools.autoprefixer` 配置已被移除。
+
+考虑到 Lightning CSS 有一些未覆盖的边缘情况，你仍然可以通过 postcss 配置文件启用 autoprefixer：
+
+```js title="postcss.config.cjs"
+module.exports = {
+  plugins: {
+    autoprefixer: {},
+  },
+};
+```
+
+## [重要] output.polyfill
+
+Rsbuild v1 默认将 [output.polyfill](/config/output/polyfill) 设置为 `'off'`，这可以减少 polyfill 代码并默认生成更小的包。
+
+如果你的应用需要 polyfill，请将 `output.polyfill` 设置为 `'usage'` 或 `'entry'`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    polyfill: 'usage',
+  },
+};
+```
+
+## [重要] source.decorators
+
+Rsbuild 现在默认使用 `2022-11` 装饰器版本。这使得 Rsbuild 的默认行为与 TypeScript >= 5.0 和 esbuild >= 0.21.0 保持一致。
+
+如果你在使用旧版装饰器，可以添加以下配置：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  source: {
+    decorators: {
+      version: 'legacy',
+    },
+  },
+});
+```
+
+## [重要] output.targets
+
+:::tip
+Rsbuild v1 移除了 `output.targets` 选项，以及 `source.alias` / `source.entry` 等配置的 target 参数，改为通过 `environments` 配置以提供更灵活的多环境配置能力。
+
+对比原有选项，`environments` 覆盖范围更广，可对更多配置项进行多环境差异化配置。详情可参考[多环境构建](/guide/advanced/environments)。
+:::
+
+移除 `output.targets` 配置，改用 [output.target](/config/output/target) 和 [environments](/config/environments) 配置。
+
+- before:
+
+```js
+export default {
+  output: {
+    targets: ['web', 'node'],
+  },
+};
+```
+
+- after:
+
+```js
+export default {
+  environments: {
+    web: {
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      output: {
+        target: 'node',
+      },
+    },
+  },
+};
+```
+
+## source.alias
+
+移除 `source.alias` 函数的 `target` 参数，改用 [environments](/config/environments) 配置。
+
+- before:
+
+```js
+export default {
+  source: {
+    alias: (alias, { target }) => {
+      if (target === 'node') {
+        alias['@common'] = './src/node/common';
+      } else if (target === 'web') {
+        alias['@common'] = './src/web/common';
+      }
+    },
+  },
+  output: {
+    targets: ['web', 'node'],
+  },
+};
+```
+
+- after:
+
+```js
+export default {
+  environments: {
+    web: {
+      source: {
+        alias: {
+          '@common': './src/web/common',
+        },
+      },
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      source: {
+        alias: {
+          '@common': './src/node/common',
+        },
+      },
+      output: {
+        target: 'node',
+      },
+    },
+  },
+};
+```
+
+## source.entry
+
+移除了 `source.entry` 函数用法，改为使用 [environments](/config/environments) 配置。
+
+- before:
+
+```js
+export default {
+  source: {
+    entry({ target }) {
+      if (target === 'web') {
+        return {
+          index: './src/index.client.js',
+        };
+      }
+      if (target === 'node') {
+        return {
+          index: './src/index.server.js',
+        };
+      }
+    },
+  },
+  output: {
+    targets: ['web', 'node'],
+  },
+};
+```
+
+- after:
+
+```js
+export default {
+  environments: {
+    web: {
+      source: {
+        entry: {
+          index: './src/index.client.js',
+        },
+      },
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      source: {
+        entry: {
+          index: './src/index.server.js',
+        },
+      },
+      output: {
+        target: 'node',
+      },
+    },
+  },
+};
+```
+
+## output.overrideBrowserslist
+
+`output.overrideBrowserslist` 不再支持 `Record<RsbuildTarget, string[]>` 类型，使用 [environments](/config/environments) 配置代替。
+
+- before:
+
+```js
+export default {
+  output: {
+    overrideBrowserslist: {
+      web: ['iOS >= 9', 'Android >= 4.4'],
+      node: ['node >= 20'],
+    },
+  },
+};
+```
+
+- after:
+
+```js
+export default defineConfig({
+  environments: {
+    web: {
+      output: {
+        overrideBrowserslist: ['iOS >= 9', 'Android >= 4.4'],
+      },
+    },
+    node: {
+      output: {
+        overrideBrowserslist: ['node >= 20'],
+      },
+    },
+  },
+});
+```
+
+## output.emitAssets
+
+`output.emitAssets` 调整为 boolean 类型，使用 [environments](/config/environments) 配置代替。
+
+- before:
+
+```js
+export default {
+  output: {
+    targets: ['web', 'node'],
+    emitAssets: ({ target }) => target !== 'node',
+  },
+};
+```
+
+- after:
+
+```js
+export default {
+  environments: {
+    web: {
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      output: {
+        target: 'node',
+        emitAssets: false,
+      },
+    },
+  },
+};
+```
+
+## output.distPath.server
+
+移除 `output.distPath.server`，使用 [environments](/config/environments) 配置代替。
+
+```js
+export default {
+  environments: {
+    web: {
+      output: {
+        target: 'web',
+      },
+    },
+    node: {
+      output: {
+        target: 'node',
+        distPath: {
+          root: 'dist/server',
+        },
+      },
+    },
+  },
+};
+```
+
+## output.minify.html
+
+Rsbuild v1 移除了 `output.minify.html` 和 `output.minify.htmlOptions` 选项，不再对 HTML 文件进行压缩。
+
+之前 Rsbuild 使用 `html-minifier-terser` 来压缩 HTML 文件。但 `html-minifier-terser` 的性能无法满足 Rsbuild 应用的需求，并且在大多数情况下，压缩 HTML 带来的收益很小。
+
+目前，Rsbuild 不再内置 `html-minifier-terser`，因此我们提供了一个独立的插件 [rsbuild-plugin-html-minifier-terser](https://github.com/rstackjs/rsbuild-plugin-html-minifier-terser) 来支持 HTML 压缩。
+
+```ts title="rsbuild.config.ts"
+import { pluginHtmlMinifierTerser } from 'rsbuild-plugin-html-minifier-terser';
+
+export default {
+  plugins: [pluginHtmlMinifierTerser()],
+};
+```
+
+我们计划在未来使用一些性能更好的基于 Rust 的 HTML 压缩器。
+
+## output.charset
+
+[output.charset](/config/output/charset) 的默认值由 `ascii` 调整为 `utf8`。
+
+如果你需要使用 `ascii`，可以添加配置：
+
+```ts
+export default {
+  output: {
+    charset: 'ascii',
+  },
+};
+```
+
+## dev.startUrl
+
+`dev.startUrl` 被重命名为 [server.open](/config/server/open)：
+
+```js
+export default {
+  // [!code --]
+  dev: {
+    startUrl: true, // [!code --]
+  }, // [!code --]
+  // [!code ++]
+  server: {
+    open: true, // [!code ++]
+  }, // [!code ++]
+};
+```
+
+## dev.client.port
+
+[dev.client.port](/config/dev/client) 的默认值从 `<port>` 调整为 `''` (使用 `location.port`)。
+
+你也可以使用之前的默认值：
+
+```js
+export default {
+  dev: {
+    client: {
+      port: '<port>',
+    },
+  },
+};
+```
+
+## html.appIcon
+
+之前，[html.appIcon](/config/html/app-icon) 不支持 web app manifests，这意味着它仅适用于 iOS。
+
+现在 `html.appIcon` 支持生成 web app manifests，并且 `html.appIcon` 的类型有变更。
+
+- before:
+
+```js
+export default {
+  html: {
+    appIcon: './src/icon.png',
+  },
+};
+```
+
+- after:
+
+```js
+export default {
+  html: {
+    appIcon: {
+      icons: [{ src: './src/icon.png', size: 180 }],
+    },
+  },
+};
+```
+
+## 其他
+
+Rsbuild 1.0 对插件、dev server 等 API 进行了部分调整和优化。
+
+调整包括：
+
+- `onBeforeBuild` 钩子在 watch 模式下支持触发多次。
+- 新增 `onBeforeEnvironmentCompile` 和 `onAfterEnvironmentCompile` 钩子，分别在执行单个 environment 的构建前/后触发。
+- 移除 `api.getHtmlPaths`，改为 `environment.htmlPaths`。
+- 移除 `api.context.entry`，改为 `environment.entry`。
+- 移除 `api.context.targets`，改为 `environment.target`。
+- 移除 `rsbuildServer.onHTTPUpgrade`，改为 `rsbuildServer.connectWebSocket`。

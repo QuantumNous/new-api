@@ -1,0 +1,76 @@
+{
+  "id": "resp_0649b3e997efd46d00691e6a4bc16081969734bafe769996de",
+  "object": "response",
+  "created_at": 1763600971,
+  "status": "completed",
+  "background": false,
+  "content_filters": null,
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-4.1-mini",
+  "output": [
+    {
+      "id": "ig_0649b3e997efd46d00691e6a4c90488196af204d9557f8dba4",
+      "type": "image_generation_call",
+      "status": "completed",
+      "background": "opaque",
+      "output_format": "png",
+      "quality": "medium",
+      "result": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4z8AAAAMBAQDJ/pLvAAAAAElFTkSuQmCC",
+      "revised_prompt": "anime-style cute cat waving hello, big expressive eyes, soft fluffy fur, cheerful expression, pastel color palette, simple background",
+      "size": "1024x1024"
+    },
+    {
+      "id": "msg_0649b3e997efd46d00691e6a61a17c8196ada7b50d67bbb6b5",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "Here is an anime-like image of a cute cat waving hello. If you'd like any adjustments or another style, just let me know!"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "reasoning": { "effort": null, "summary": null },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": true,
+  "temperature": 1,
+  "text": { "format": { "type": "text" }, "verbosity": "medium" },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "image_generation",
+      "background": "auto",
+      "model": "gpt-image-1",
+      "moderation": "auto",
+      "n": 1,
+      "output_compression": 100,
+      "output_format": "png",
+      "quality": "medium",
+      "size": "1024x1024"
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 1,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 1977,
+    "input_tokens_details": { "cached_tokens": 0 },
+    "output_tokens": 65,
+    "output_tokens_details": { "reasoning_tokens": 0 },
+    "total_tokens": 2042
+  },
+  "user": null,
+  "metadata": {}
+}

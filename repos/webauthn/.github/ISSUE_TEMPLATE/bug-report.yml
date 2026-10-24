@@ -1,0 +1,76 @@
+---
+name: Bug Report
+description: Report a potential bug
+labels:
+  - type/potential-bug
+  - status/needs-triage
+  - priority/normal
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report. Please try to give as much information as possible for
+        us to be able to reproduce the issue and provide a quick fix.
+  - type: dropdown
+    id: version
+    attributes:
+      label: Version
+      description: What version of the library are you using or which versions do you see the issue in?
+      multiple: true
+      options:
+        - '0.13.4'
+        - '0.13.3'
+        - '0.13.2'
+        - '0.13.1'
+        - '0.13.0'
+        - '0.12.3'
+        - '0.12.2'
+        - '0.12.1'
+        - '0.12.0'
+        - '0.11.2'
+        - '0.11.1'
+        - '0.11.0'
+    validations:
+      required: true
+  - type: dropdown
+    id: go-version
+    attributes:
+      label: Go Version
+      description: What version of go are you using?
+      multiple: true
+      options:
+        - '1.25'
+        - '1.24'
+        - '1.23'
+        - 'Other'
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Describe the bug
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Describe how we can reproduce this issue
+    validations:
+      required: true
+  - type: textarea
+    id: expectations
+    attributes:
+      label: Expectations
+      description: Describe the desired or expected results
+    validations:
+      required: false
+  - type: textarea
+    id: documentation
+    attributes:
+      label: Documentation
+      description: Provide any relevant specification or other documentation if applicable
+    validations:
+      required: false
+...

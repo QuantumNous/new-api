@@ -1,0 +1,221 @@
+---
+description: 'Rsbuild 配备了一个内置的开发服务器，旨在提升开发体验。当你执行 rsbuild dev 或 rsbuild preview 命令时，该服务器将启动，并提供页面预览、路由、模块热更新等功能。'
+---
+
+# 开发服务器
+
+Rsbuild 配备了一个内置的开发服务器，旨在提升开发体验。当你执行 `rsbuild dev` 或 `rsbuild preview` 命令时，该服务器将启动，并提供页面预览、路由、模块热更新等功能。
+
+## 基础路径 \{#base-path}
+
+默认情况下，Rsbuild 服务器的基础路径是 `/`，你可以通过 http://localhost:3000/ 访问 `index.html` 等输出文件，以及 [public 目录](/guide/basic/static-assets#public-folder) 下的资源。
+
+Rsbuild 支持通过 [server.base](/config/server/base) 修改服务端的基础路径。当我们希望通过 http://localhost:3000/foo/ 访问到这些资源时，可以添加如下配置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    base: '/foo',
+  },
+};
+```
+
+## 查看静态资源 \{#view-static-assets}
+
+启动 dev server 后，你可以访问 `/rsbuild-dev-server` 查看 Rsbuild 在当前构建中生成的所有静态资源。
+
+例如，在浏览器中打开 `http://localhost:3000/rsbuild-dev-server`，可以看到：
+
+<img
+  src="https://assets.rspack.rs/rsbuild/assets/assets-report-page.png"
+  alt="rsbuild-dev-server"
+  width="600"
+/>
+
+## 页面路由 \{#page-routing}
+
+Rsbuild 的 Server 提供一套默认的路由约定，并允许用户通过配置项定制。
+
+### 默认行为
+
+Rsbuild server 会根据 [server.base](/config/server/base) 和 [source.entry](/config/source/entry) 配置生成对应的页面路由。
+
+当 entry 为 index 时，可通过 `/` 访问页面；当 entry 为 foo 时，可通过 `/foo` 访问该页面。
+
+当 server.base 为 `/base` 时，可通过 `/base` 访问 index 页面，通过 `/base/foo` 访问 foo 页面。
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    entry: {
+      index: './src/index.ts',
+      foo: './src/pages/foo/index.ts',
+    },
+  },
+};
+```
+
+### Fallback 行为
+
+当请求满足以下条件且未找到对应的静态资源时，[server.htmlFallback](/config/server/html-fallback) 将生效，默认会回退到 `index.html`：
+
+- 请求方法为 `GET` 或 `HEAD`
+- 请求头中的 `Accept` 包含 `text/html`（即类型为 `text/html` 或 `*/*`）
+
+### 自定义 Fallback 行为
+
+当 Rsbuild 默认的 [server.htmlFallback](/config/server/html-fallback) 配置无法满足你的需求，例如，希望在访问 `/` 时可以访问 `main.html`，可通过 [server.historyApiFallback](/config/server/history-api-fallback) 进行设置。
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    entry: {
+      main: './src/index.ts',
+    },
+  },
+  server: {
+    historyApiFallback: {
+      index: '/main.html',
+    },
+  },
+};
+```
+
+### HTML 输出路径
+
+通常情况下，`/` 指向 dist 产物根目录，而 HTML 文件输出到 dist 根目录下，此时可通过 `/some-path` 访问对应的 HTML 页面。
+
+若通过修改 [output.distPath.html](/config/output/dist-path) 将 HTML 文件输出到其他子目录下，此时需通过 `/[htmlPath]/some-path` 访问对应的 HTML 页面。
+
+例如，设置将 HTML 文件输出到 `HTML` 目录下，此时将通过 `/html/` 访问到 index.html，通过 `/html/foo` 访问到 foo.html。
+
+```ts
+export default {
+  source: {
+    entry: {
+      index: './src/index.ts',
+      foo: './src/pages/foo/index.ts',
+    },
+  },
+  output: {
+    distPath: {
+      html: 'html',
+    },
+  },
+};
+```
+
+## Rspack dev server
+
+Rsbuild 内置了一个轻量级的开发服务器，这与 Rspack CLI 或 webpack CLI 内置的开发服务器是不同的，它们之间存在一些差异，配置项也有所不同。
+
+### 对比
+
+与 Rspack CLI 内置的 `@rspack/dev-server` 相比，Rsbuild 的开发服务器有以下区别：
+
+- **配置项**：Rsbuild 提供了更丰富的 server 配置项。
+- **日志格式**：Rspack CLI 日志格式与 webpack CLI 基本一致，而 Rsbuild 的日志则更加清晰和易读。
+- **底层依赖**：Rsbuild 基于 `connect` 等轻量级库实现，相较于 `@rspack/dev-server` 使用的 `express`，具有更少的依赖和更快的启动速度。
+
+### 配置项
+
+Rsbuild 不支持使用 Rspack 的 [devServer](https://rspack.rs/zh/config/dev-server) 配置项，你可以使用 Rsbuild 的 `dev` 和 `server` 配置代替。
+
+在 Rsbuild 里，`dev` 包含一些仅在开发阶段生效的配置，而 `server` 配置对开发服务器和 preview 服务器均能生效。
+
+以下是 Rspack CLI 的 `devServer` 配置对应的 Rsbuild 配置：
+
+| Rspack CLI                                                                                           | Rsbuild                                                          |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| [devServer.client](https://rspack.rs/zh/config/dev-server#devserverclient)                           | [dev.client](/config/dev/client)                                 |
+| [devServer.compress](https://rspack.rs/zh/config/dev-server#devservercompress)                       | [server.compress](/config/server/compress)                       |
+| [devServer.devMiddleware.writeToDisk](https://rspack.rs/zh/config/dev-server#devserverdevmiddleware) | [dev.writeToDisk](/config/dev/write-to-disk)                     |
+| [devServer.headers](https://rspack.rs/zh/config/dev-server#devserverheaders)                         | [server.headers](/config/server/headers)                         |
+| [devServer.historyApiFallback](https://rspack.rs/zh/config/dev-server#devserverhistoryapifallback)   | [server.historyApiFallback](/config/server/history-api-fallback) |
+| [devServer.host](https://rspack.rs/zh/config/dev-server#devserverhost)                               | [server.host](/config/server/host)                               |
+| [devServer.hot](https://rspack.rs/zh/config/dev-server#devserverhot)                                 | [dev.hmr](/config/dev/hmr)                                       |
+| [devServer.liveReload](https://rspack.rs/zh/config/dev-server#devserverlivereload)                   | [dev.liveReload](/config/dev/live-reload)                        |
+| [devServer.open](https://rspack.rs/zh/config/dev-server#devserveropen)                               | [server.open](/config/server/open)                               |
+| [devServer.port](https://rspack.rs/zh/config/dev-server#devserverport)                               | [server.port](/config/server/port)                               |
+| [devServer.proxy](https://rspack.rs/zh/config/dev-server#devserverproxy)                             | [server.proxy](/config/server/proxy)                             |
+| [devServer.setupMiddlewares](https://rspack.rs/zh/config/dev-server#devserversetupmiddlewares)       | [server.setup](/config/server/setup)                             |
+| [devServer.static](https://rspack.rs/zh/config/dev-server#devserverstatic)                           | [server.publicDir](/config/server/public-dir)                    |
+| [devServer.watchFiles](https://rspack.rs/zh/config/dev-server#devserverwatchfiles)                   | [dev.watchFiles](/config/dev/watch-files)                        |
+
+> 更多配置请参考 [Config 总览](/config/index)。
+
+## 中间件 \{#middleware}
+
+Rsbuild 的中间件实现基于 [connect-next](https://github.com/rstackjs/connect-next)，一个轻量级的 HTTP 服务器框架，并使用 Node.js 标准的 `request` 和 `response` 对象来处理 HTTP 交互。
+
+### 注册中间件
+
+Rsbuild 提供了三种方式来注册中间件：
+
+1. 通过 Rsbuild 的 [server.setup](/config/server/setup) 配置项。
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    setup: ({ server }) => {
+      server.middlewares.use((req, res, next) => {
+        next();
+      });
+    },
+  },
+};
+```
+
+2. 在 Rsbuild 插件中，可以通过 [onBeforeStartDevServer](/plugins/dev/hooks#onbeforestartdevserver) 钩子来注册中间件。
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.onBeforeStartDevServer(({ server }) => {
+      server.middlewares.use((req, res, next) => {
+        next();
+      });
+    });
+  },
+});
+```
+
+3. 在使用 Rsbuild 的 JavaScript API 时，可以通过 [rsbuild.createDevServer](/api/javascript-api/instance#rsbuildcreatedevserver) 方法创建 dev server 实例，并使用 `use` 方法注册中间件。
+
+```ts
+const server = await rsbuild.createDevServer();
+
+server.middlewares.use((req, res, next) => {
+  next();
+});
+```
+
+### 集成第三方服务端框架
+
+当你从其他服务端框架（如 Express）迁移时，原有的中间件可能无法直接在 Rsbuild 中使用。比如，在 Rsbuild 的中间件中无法访问 Express 特有的 `req.params`、`req.path`、`req.search`、`req.query` 等属性。
+
+如果你需要在 Rsbuild 中复用已有的中间件，可以通过以下方式，将服务端应用整体作为中间件引入：
+
+```ts title="rsbuild.config.ts"
+import express from 'express';
+import expressMiddleware from 'my-express-middleware';
+
+// 初始化 Express app
+const app = express();
+
+app.use(expressMiddleware);
+
+export default {
+  server: {
+    setup: ({ server }) => {
+      server.middlewares.use(app);
+    },
+  },
+};
+```
+
+## 自定义 Server
+
+如果你希望将 Rsbuild dev server 集成到自定义的 server 中，可以通过 Rsbuild `createDevServer` 方法获取 Rsbuild dev server 的实例方法，进行按需调用。
+
+详情可参考 [Rsbuild - createDevServer](/api/javascript-api/instance#rsbuildcreatedevserver)。

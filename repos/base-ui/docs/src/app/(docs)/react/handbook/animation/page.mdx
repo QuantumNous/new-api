@@ -1,0 +1,233 @@
+# Animation
+
+<Subtitle>A guide to animating Base UI components.</Subtitle>
+<Meta name="description" content="A guide to animating Base UI components." />
+
+Base UI components can be animated using CSS transitions, CSS animations, or JavaScript animation libraries. Each component provides a number of data attributes to target its states, as well as a few attributes specifically for animation.
+
+## CSS transitions
+
+Use the following Base UI attributes for creating transitions when a component becomes visible or hidden:
+
+- `[data-starting-style]` corresponds to the initial style to transition from.
+- `[data-ending-style]` corresponds to the final style to transition to.
+
+Transitions are recommended over CSS animations, because a transition can be smoothly cancelled midway.
+For example, if the user closes a popup before it finishes opening, with CSS transitions it will smoothly animate to its closed state without any abrupt changes.
+
+```css title="popover.css"
+.Popup {
+  box-sizing: border-box;
+  padding: 1rem 1.5rem;
+  background-color: canvas;
+  transform-origin: var(--transform-origin);
+  transition:
+    transform 150ms,
+    opacity 150ms;
+
+  /* @highlight-start */
+  &[data-starting-style],
+  &[data-ending-style] {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  /* @highlight-end */
+}
+```
+
+## CSS animations
+
+Use the following Base UI attributes for creating CSS animations when a component becomes visible or hidden:
+
+- `[data-open]` corresponds to the style applied when a component becomes visible.
+- `[data-closed]` corresponds to the style applied before a component becomes hidden.
+
+```css title="popover.css"
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes scaleOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+
+.Popup[data-open] {
+  animation: scaleIn 250ms ease-out;
+}
+
+.Popup[data-closed] {
+  animation: scaleOut 250ms ease-in;
+}
+```
+
+## JavaScript animations
+
+JavaScript animation libraries such as [Motion](https://motion.dev) require control of the mounting and unmounting lifecycle of components in order for exit animations to play.
+
+Base UI relies on [`element.getAnimations()`](https://developer.mozilla.org/en-US/docs/Web/API/Element/getAnimations) to detect if animations have finished on an element. When using Motion, `opacity` animations are reflected in `element.getAnimations()`, so Base UI automatically waits for the animation finish before unmounting the component. If `opacity` isn't part of your animation (such as in a translating drawer component), you should still animate it using a value close to `1` (such as `opacity: 0.9999`), so that Base UI can detect the animation.
+
+### Animating components unmounted from DOM when closed with Motion
+
+Most popup components like Popover, Dialog, Tooltip, and Menu are unmounted from the DOM when they are closed by default. To animate them with Motion:
+
+- Make the component controlled with the `open` prop so `<AnimatePresence>` can see the state as a child
+- Specify `keepMounted` on the `<Portal>` part
+- Use the `render` prop to compose the `<Popup>` with `motion.div`
+
+import { DemoAnimatedPopoverMotionKeepMountedFalse } from './demos/animated-popover-motion-keep-mounted-false';
+
+<DemoAnimatedPopoverMotionKeepMountedFalse />
+
+```jsx title="animated-popover.tsx"
+function App() {
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger>Trigger</Popover.Trigger>
+      <AnimatePresence>
+        {open && (
+          <Popover.Portal keepMounted> {/* @highlight-text "keepMounted" */}
+            <Popover.Positioner>
+              <Popover.Popup
+                {/* @highlight-start */}
+                render={
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                  />
+                }
+                {/* @highlight-end */}
+              >
+                Popup
+              </Popover.Popup>
+            </Popover.Positioner>
+          </Popover.Portal>
+        )}
+      </AnimatePresence>
+    </Popover.Root>
+  );
+}
+```
+
+### Animating components kept in DOM when closed with Motion
+
+Components that specify `keepMounted` remain rendered in the DOM when they are closed. These elements need a different approach to be animated with Motion:
+
+- Use the `render` prop to compose the `<Popup>` with `motion.div`
+- Animate the properties based on the `open` state, avoiding `<AnimatePresence>`
+
+import { DemoAnimatedPopoverMotionKeepMountedTrue } from './demos/animated-popover-motion-keep-mounted-true';
+
+<DemoAnimatedPopoverMotionKeepMountedTrue />
+
+```jsx title="animated-popover.tsx"
+function App() {
+  return (
+    <Popover.Root>
+      <Popover.Trigger>Trigger</Popover.Trigger>
+      <Popover.Portal keepMounted> {/* @highlight-text "keepMounted" */}
+        <Popover.Positioner>
+          <Popover.Popup
+            // @highlight-start
+            render={(props, state) => (
+              <motion.div
+                {...(props as HTMLMotionProps<'div'>)}
+                initial={false}
+                animate={{
+                  opacity: state.open ? 1 : 0,
+                  scale: state.open ? 1 : 0.8,
+                }}
+              />
+            )}
+            {/* @highlight-end */}
+          >
+            Popup
+          </Popover.Popup>
+        </Popover.Positioner>
+      </Popover.Portal>
+    </Popover.Root>
+  );
+}
+```
+
+### Animating Select component with Motion
+
+The Select component is initially unmounted but remains mounted after interaction. To animate it with Motion, a mix of the two previous approaches is needed.
+
+import { DemoAnimatedSelectMotion } from './demos/animated-select-motion';
+
+<DemoAnimatedSelectMotion />
+
+### Manual unmounting
+
+For full control, you can manually unmount the component when it's closed once animations have finished using an `actionsRef` passed to the `<Root>`:
+
+```jsx title="manual-unmount.tsx"
+function App() {
+  const [open, setOpen] = React.useState(false);
+  const actionsRef = React.useRef(null); // @highlight-text "actionsRef"
+
+  return (
+    {/* @highlight-text "actionsRef" */}
+    <Popover.Root open={open} onOpenChange={setOpen} actionsRef={actionsRef}>
+      <Popover.Trigger>Trigger</Popover.Trigger>
+      <AnimatePresence>
+        {open && (
+          <Popover.Portal keepMounted>
+            <Popover.Positioner>
+              <Popover.Popup
+                render={
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    exit={{ scale: 0 }}
+                    onAnimationComplete={() => {
+                      if (!open) {
+                        actionsRef.current.unmount(); // @highlight-text "actionsRef"
+                      }
+                    }}
+                  />
+                }
+              >
+                Popup
+              </Popover.Popup>
+            </Popover.Positioner>
+          </Popover.Portal>
+        )}
+      </AnimatePresence>
+    </Popover.Root>
+  );
+}
+```
+
+export const metadata = {
+  keywords: [
+    'Base UI Animation',
+    'React Component Animations',
+    'CSS Transition Guide',
+    'Motion Framer Integration',
+    'Animation Data Attributes',
+    'Handbook Animation',
+    'Spring Animations',
+    'Enter Exit Animations',
+    'Transition Hooks',
+    'Animated Components',
+    'Keyframe Animations',
+  ],
+};

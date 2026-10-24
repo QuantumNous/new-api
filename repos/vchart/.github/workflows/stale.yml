@@ -1,0 +1,35 @@
+# This workflow warns and then closes issues and PRs that have had no activity for a specified amount of time.
+#
+# You can adjust the behavior by modifying this file.
+# For more information, see:
+# https://github.com/actions/stale
+name: Mark stale issues and pull requests
+
+on:
+  schedule:
+    - cron: '20 4 * * *'
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/stale@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          days-before-stale: 730
+          days-before-close: 7
+          stale-issue-message: 'This issue has been automatically marked as stale because it did not have recent activity. It will be closed in 7 days if no further activity occurs. If you wish not to mark it as stale, please leave a comment in this issue.'
+          close-issue-message: 'This issue has been automatically closed because it did not have recent activity. If this remains to be a problem with the latest version of @VisActor/VChart, please open a new issue and link this to it. Thanks!'
+          close-issue-reason: 'not_planned'
+          stale-issue-label: 'stale_issue'
+          stale-pr-message: 'This PR has been automatically marked as stale because it has not had recent activity. It will be closed in 7 days if no further activity occurs. If you wish not to mark it as stale, please leave a comment in this PR. We are sorry for this but 2 years is a long time and the code base has been changed a lot. Thanks for your contribution anyway.'
+          close-pr-message: 'This PR has been automatically closed because it has not had recent activity. Sorry for that and we are looking forward to your next contribution.'
+          stale-pr-label: 'stale_pr'
+          exempt-issue-labels: 'High Priority'
+          exempt-all-milestones: true
+          operations-per-run: 500
+          ascending: true

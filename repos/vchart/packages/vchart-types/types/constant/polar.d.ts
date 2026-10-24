@@ -1,0 +1,13 @@
+export declare const ARC_TRANSFORM_VALUE: string;
+export declare const ARC_RATIO: string;
+export declare const ARC_START_ANGLE: string;
+export declare const ARC_END_ANGLE: string;
+export declare const ARC_K: string;
+export declare const ARC_MIDDLE_ANGLE: string;
+export declare const ARC_QUADRANT: string;
+export declare const ARC_RADIAN: string;
+export declare const POLAR_START_RADIAN: number;
+export declare const POLAR_END_RADIAN: number;
+export declare const POLAR_START_ANGLE = -90;
+export declare const POLAR_END_ANGLE = 270;
+export declare const POLAR_DEFAULT_RADIUS = 0.6;

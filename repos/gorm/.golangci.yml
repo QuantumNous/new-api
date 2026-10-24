@@ -1,0 +1,20 @@
+linters:
+  enable:
+    - cyclop
+    - exportloopref
+    - gocritic
+    - gosec
+    - ineffassign
+    - misspell
+    - prealloc
+    - unconvert
+    - unparam
+    - goimports
+    - whitespace
+
+linters-settings:
+  whitespace:
+    multi-func: true
+  goimports:
+    local-prefixes: gorm.io/gorm
+

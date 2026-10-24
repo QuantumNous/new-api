@@ -1,0 +1,79 @@
+---
+description: 'Running a performance analysis helps you identify bottlenecks in your project so you can optimize the right areas.'
+---
+
+# Build profiling
+
+Running a performance analysis helps you identify bottlenecks in your project so you can optimize the right areas.
+
+## Using Rsdoctor
+
+Rsdoctor is a build analyzer that visualizes how long each loader and plugin takes to compile.
+
+See [Use Rsdoctor](/guide/debug/rsdoctor) for more information.
+
+## Node.js profiling
+
+A build runs both JavaScript and Rust code and incurs communication overhead between them.
+
+JavaScript overhead is usually higher than Rust overhead. Use Node.js profiling to understand where time is spent in JavaScript and pinpoint bottlenecks.
+
+For example, to capture a [CPU profile](https://nodejs.org/docs/v20.17.0/api/cli.html#--cpu-prof), run the following commands from your project root:
+
+```bash
+# dev
+node --cpu-prof ./node_modules/@rsbuild/core/bin/rsbuild.js dev
+
+# build
+node --cpu-prof ./node_modules/@rsbuild/core/bin/rsbuild.js build
+
+# Set higher precision sampling interval
+node --cpu-prof --cpu-prof-interval=100 ./node_modules/@rsbuild/core/bin/rsbuild.js build
+```
+
+These commands generate a `*.cpuprofile` file. You can use [speedscope](https://github.com/jlfwong/speedscope) to visualize it:
+
+```bash
+# Install speedscope
+npm install -g speedscope
+
+# View cpuprofile content
+# Replace the name with the local file name
+speedscope CPU.date.000000.00000.0.001.cpuprofile
+```
+
+## Rspack profiling
+
+Set the `RSPACK_PROFILE` environment variable to capture an Rspack build performance profile.
+
+```json title="package.json"
+{
+  "scripts": {
+    "dev:profile": "RSPACK_PROFILE=OVERVIEW rsbuild",
+    "build:profile": "RSPACK_PROFILE=OVERVIEW rsbuild build"
+  }
+}
+```
+
+Because Windows does not support this syntax, you can use [cross-env](https://npmjs.com/package/cross-env) to set environment variables across different systems:
+
+```json title="package.json"
+{
+  "scripts": {
+    "dev:profile": "cross-env RSPACK_PROFILE=OVERVIEW rsbuild",
+    "build:profile": "cross-env RSPACK_PROFILE=OVERVIEW rsbuild build"
+  },
+  "devDependencies": {
+    "cross-env": "^7.0.0"
+  }
+}
+```
+
+By default, Rspack uses the `logger` trace layer and writes the profile output to `.rspack-profile-${timestamp}-${pid}/rspack.log` under the project root. When `RSPACK_TRACE_OUTPUT` is a relative file path, it is resolved inside the generated `.rspack-profile-${timestamp}-${pid}` directory; absolute paths are used as-is. Set `RSPACK_TRACE_OUTPUT=stdout` or `RSPACK_TRACE_OUTPUT=stderr` explicitly if you need terminal output.
+
+:::tip
+
+- When shutting down the dev server, press `CTRL + D` instead of `CTRL + C` so Rspack can finish recording performance data.
+- For more information about Rspack profiling, refer to [Rspack - Tracing](https://rspack.rs/contribute/development/tracing).
+
+:::

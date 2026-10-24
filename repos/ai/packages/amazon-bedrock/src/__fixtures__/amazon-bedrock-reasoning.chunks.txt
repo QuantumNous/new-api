@@ -1,0 +1,26 @@
+{"messageStart":{"role":"assistant"}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"reasoningContent":{"text":"Let me count the r"}}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"reasoningContent":{"text":"'s in \""}}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"reasoningContent":{"text":"strawberry\":"}}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"reasoningContent":{"text":"\n\ns-t-r-a"}}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"reasoningContent":{"text":"-w-b-e-r"}}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"reasoningContent":{"text":"-r-y\n\nr"}}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"reasoningContent":{"text":" appears at positions "}}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"reasoningContent":{"text":"3, 8"}}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"reasoningContent":{"text":", and 9.\n\nSo there"}}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"reasoningContent":{"text":" are 3 r's."}}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"reasoningContent":{"text":""}}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"reasoningContent":{"signature":"Ep0CCkgICxABGAIqQOWPB6/PmA5SW9jC6FvaNq3E+U9ev4FMWcFWuAho+VGLCtazKc5WDjQ5i0MuxsY0o5pKDSVWVKii8KJDusXH4eASDK7jyzuk8iij7fJNihoMxHO9haYzt48R36HVIjCb/EmIFrJLIXShqN6DN//T6vZBtO9qj1QhNWJa3CGm8VZoq80S2/Ok4U0aVaIDiZcqggHC2b8BHuv8BHZrmsR0wjU1ynansBGMdfjnG+iIv8R5lPpRmYGhSVwNybwP3aQZ6o8Dr48Rau8TJfdsArW+r7bvL7bPs4f5nnlp2vG7WkMzWwABHK3fdM44zZ1GZQaWyECNWR2GfY6dXiklo94vgpFTPuZ97mfiN3LY6uYyBwL8RkDaGAE="}}}}
+{"contentBlockStop":{"contentBlockIndex":0}}
+{"contentBlockDelta":{"contentBlockIndex":1,"delta":{"text":"There"}}}
+{"contentBlockDelta":{"contentBlockIndex":1,"delta":{"text":" are **3** r's in \""}}}
+{"contentBlockDelta":{"contentBlockIndex":1,"delta":{"text":"strawberry\":"}}}
+{"contentBlockDelta":{"contentBlockIndex":1,"delta":{"text":"\n\n1"}}}
+{"contentBlockDelta":{"contentBlockIndex":1,"delta":{"text":". st"}}}
+{"contentBlockDelta":{"contentBlockIndex":1,"delta":{"text":"**"}}}
+{"contentBlockDelta":{"contentBlockIndex":1,"delta":{"text":"r**awbe"}}}
+{"contentBlockDelta":{"contentBlockIndex":1,"delta":{"text":"**r****"}}}
+{"contentBlockDelta":{"contentBlockIndex":1,"delta":{"text":"r**y"}}}
+{"contentBlockStop":{"contentBlockIndex":1}}
+{"messageStop":{"additionalModelResponseFields":{"delta":{"stop_sequence":null}},"stopReason":"end_turn"}}
+{"metadata":{"metrics":{"latencyMs":2281},"usage":{"inputTokens":51,"outputTokens":94,"serverToolUsage":{},"totalTokens":145}}}

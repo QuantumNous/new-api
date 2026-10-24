@@ -1,0 +1,276 @@
+---
+title: Realtime
+description: Learn how to build realtime voice conversations with the AI SDK.
+---
+
+# Realtime
+
+<Note type="warning">Realtime is an experimental feature.</Note>
+
+The AI SDK provides realtime models for bidirectional audio and text
+conversations over WebSockets. Realtime sessions run in the browser and connect
+directly to the provider using a short-lived token that you create on your
+server. You can also route the connection through [AI Gateway](/providers/ai-sdk-providers/ai-gateway#realtime).
+
+The typical flow is:
+
+1. The browser calls your setup endpoint.
+1. Your server creates a short-lived realtime token with `experimental_realtime.getToken()`.
+1. The browser opens a WebSocket connection to the provider or AI Gateway.
+1. The model streams audio, text, and tool calls back to the browser.
+1. Tool calls are handled by your application with `onToolCall`.
+
+## Setup Endpoint
+
+Create a setup endpoint that returns a short-lived token for the realtime
+provider. This endpoint can also attach tool definitions to the session.
+
+```ts filename='app/api/realtime/setup/route.ts'
+import { openai } from '@ai-sdk/openai';
+import { experimental_getRealtimeToolDefinitions, tool } from 'ai';
+import { z } from 'zod';
+
+const tools = {
+  getWeather: tool({
+    description: 'Get the current weather for a city',
+    inputSchema: z.object({
+      city: z.string().describe('The city to get weather for'),
+    }),
+  }),
+};
+
+export async function POST(request: Request) {
+  const body = await request.json().catch(() => ({}));
+  const toolDefinitions = await experimental_getRealtimeToolDefinitions({
+    tools,
+  });
+
+  const token = await openai.experimental_realtime.getToken({
+    model: 'gpt-realtime',
+    sessionConfig: {
+      ...body.sessionConfig,
+      tools: toolDefinitions,
+    },
+  });
+
+  return Response.json({
+    ...token,
+    tools: toolDefinitions,
+  });
+}
+```
+
+<Note>
+  In production, authenticate and rate-limit your setup endpoint. It creates
+  realtime sessions using your server-side API key.
+</Note>
+
+## AI Gateway
+
+Use [AI Gateway](/providers/ai-sdk-providers/ai-gateway) when you want the same
+realtime client code to work across supported upstream providers. The Gateway
+normalizes realtime events server-side, and the browser still receives only a
+short-lived client secret.
+
+Create the short-lived Gateway realtime token from a server-side setup endpoint:
+
+```ts filename='app/api/realtime/setup/route.ts'
+import { gateway } from 'ai';
+
+export async function POST() {
+  const token = await gateway.experimental_realtime.getToken({
+    model: 'openai/gpt-realtime-2',
+  });
+
+  return Response.json(token);
+}
+```
+
+Then use the matching Gateway realtime model in the browser:
+
+```tsx filename='app/realtime/page.tsx'
+'use client';
+
+import { experimental_useRealtime } from '@ai-sdk/react';
+import { gateway } from 'ai';
+
+export default function RealtimePage() {
+  const realtime = experimental_useRealtime({
+    model: gateway.experimental_realtime('openai/gpt-realtime-2'),
+    api: {
+      token: '/api/realtime/setup',
+    },
+    sessionConfig: {
+      instructions: 'You are a helpful assistant. Be concise.',
+      inputAudioTranscription: {},
+      voice: 'alloy',
+      turnDetection: { type: 'server-vad' },
+    },
+  });
+
+  // ...
+}
+```
+
+<Note>
+  `gateway.experimental_realtime.getToken()` must run on your server because it
+  uses your Gateway credential to mint a `vcst_` client secret. Creating the
+  realtime model with `gateway.experimental_realtime()` is safe in the browser.
+</Note>
+
+Tool definitions work the same way with AI Gateway: convert AI SDK tools with
+`experimental_getRealtimeToolDefinitions()` in your setup endpoint and return
+the definitions alongside the token. The hook includes them in the session
+update after the WebSocket opens.
+
+## Client Session
+
+Use the `experimental_useRealtime` hook to connect to a realtime model, capture
+microphone audio, play model audio, send text messages, and render messages.
+
+```tsx filename='app/realtime/page.tsx'
+'use client';
+
+import { openai } from '@ai-sdk/openai';
+import { experimental_useRealtime } from '@ai-sdk/react';
+
+export default function RealtimePage() {
+  const realtime = experimental_useRealtime({
+    model: openai.experimental_realtime('gpt-realtime'),
+    api: {
+      token: '/api/realtime/setup',
+    },
+    sessionConfig: {
+      instructions: 'You are a helpful assistant. Be concise.',
+      inputAudioTranscription: {},
+      voice: 'alloy',
+      turnDetection: { type: 'server-vad' },
+    },
+  });
+
+  return (
+    <div>
+      <button onClick={realtime.connect}>Connect</button>
+      <button onClick={realtime.disconnect}>Disconnect</button>
+
+      {realtime.messages.map(message => (
+        <div key={message.id}>
+          <strong>{message.role}</strong>
+          {message.parts.map((part, index) =>
+            part.type === 'text' ? <span key={index}>{part.text}</span> : null,
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+## Tool Calling
+
+Realtime tool execution is client-driven. The provider sends tool calls over the
+WebSocket, and your application handles them with `onToolCall`. If the result is
+available immediately, return it from `onToolCall`. The SDK sends it back to the
+provider as tool output.
+
+For server-backed tools, call an app-specific API endpoint from `onToolCall`.
+Avoid generic "execute tool by name" routes. App-specific endpoints are easier
+to secure because they can use your normal authentication, authorization,
+validation, and rate limiting rules.
+
+### Server-Backed Tool Endpoint
+
+```ts filename='app/api/weather/route.ts'
+import { z } from 'zod';
+
+const inputSchema = z.object({
+  city: z.string(),
+});
+
+export async function POST(request: Request) {
+  const input = inputSchema.safeParse(await request.json());
+
+  if (!input.success) {
+    return Response.json({ error: 'Invalid input' }, { status: 400 });
+  }
+
+  return Response.json({
+    city: input.data.city,
+    temperature: 72,
+    condition: 'sunny',
+  });
+}
+```
+
+### Client Tool Handler
+
+```tsx filename='app/realtime/page.tsx' highlight="10-24"
+import { openai } from '@ai-sdk/openai';
+import { experimental_useRealtime } from '@ai-sdk/react';
+
+export default function RealtimePage() {
+  const realtime = experimental_useRealtime({
+    model: openai.experimental_realtime('gpt-realtime'),
+    api: {
+      token: '/api/realtime/setup',
+    },
+    onToolCall: async ({ toolCall }) => {
+      if (toolCall.toolName === 'getWeather') {
+        const response = await fetch('/api/weather', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(toolCall.args),
+        });
+
+        if (!response.ok) {
+          throw new Error('Weather lookup failed');
+        }
+
+        return response.json();
+      }
+    },
+  });
+
+  // ...
+}
+```
+
+You can also submit tool output manually with `addToolOutput` when the tool
+requires user interaction or another asynchronous process:
+
+```tsx
+realtime.addToolOutput(toolCallId, {
+  approved: true,
+});
+```
+
+## Supported Providers
+
+Realtime models are available on providers that expose realtime WebSocket APIs:
+
+```ts
+import { openai } from '@ai-sdk/openai';
+import { google } from '@ai-sdk/google';
+import { xai } from '@ai-sdk/xai';
+
+const openaiModel = openai.experimental_realtime('gpt-realtime');
+const googleModel = google.experimental_realtime(
+  'gemini-3.1-flash-live-preview',
+);
+const xaiModel = xai.experimental_realtime('grok-voice-latest');
+```
+
+You can also route realtime through the [AI Gateway](/providers/ai-sdk-providers/ai-gateway#realtime), which normalizes the
+session so the same client code works across upstream providers:
+
+```ts
+import { gateway } from '@ai-sdk/gateway';
+
+const gatewayModel = gateway.experimental_realtime('openai/gpt-realtime-2');
+```
+
+`gateway.experimental_realtime.getToken()` mints a short-lived Gateway client
+secret on your server. The browser uses that token to open the Gateway
+WebSocket; the SDK handles the Gateway-specific WebSocket subprotocols for you.
+See the [AI Gateway realtime docs](/providers/ai-sdk-providers/ai-gateway#realtime)
+for Gateway-specific token and provider option details.

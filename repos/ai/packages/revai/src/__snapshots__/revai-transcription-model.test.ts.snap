@@ -1,0 +1,82 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`doGenerate > response headers > should include response data with timestamp, modelId and headers 1`] = `
+{
+  "body": {
+    "monologues": [
+      {
+        "elements": [
+          {
+            "confidence": 0.96,
+            "end_ts": 0.425,
+            "ts": 0.075,
+            "type": "text",
+            "value": "Hello",
+          },
+          {
+            "type": "punct",
+            "value": " ",
+          },
+          {
+            "confidence": 0.98,
+            "end_ts": 0.665,
+            "ts": 0.425,
+            "type": "text",
+            "value": "from",
+          },
+          {
+            "type": "punct",
+            "value": " ",
+          },
+          {
+            "confidence": 0.98,
+            "end_ts": 0.785,
+            "ts": 0.665,
+            "type": "text",
+            "value": "the",
+          },
+          {
+            "type": "punct",
+            "value": " ",
+          },
+          {
+            "confidence": 0.64,
+            "end_ts": 1.105,
+            "ts": 0.945,
+            "type": "text",
+            "value": "Sal",
+          },
+          {
+            "type": "punct",
+            "value": ",",
+          },
+          {
+            "type": "punct",
+            "value": " ",
+          },
+          {
+            "confidence": 0.96,
+            "end_ts": 2.145,
+            "ts": 1.185,
+            "type": "text",
+            "value": "A-I-S-D-K",
+          },
+          {
+            "type": "punct",
+            "value": ".",
+          },
+        ],
+        "speaker": 0,
+      },
+    ],
+  },
+  "headers": {
+    "content-length": "596",
+    "content-type": "application/json",
+    "x-ratelimit-remaining": "123",
+    "x-request-id": "test-request-id",
+  },
+  "modelId": "machine",
+  "timestamp": 1970-01-01T00:00:00.000Z,
+}
+`;

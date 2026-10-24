@@ -1,0 +1,15 @@
+.git
+.hg
+.jj
+.next
+.parcel-cache
+.pnpm-store
+.svelte-kit
+.svn
+.turbo
+.venv
+.vercel
+.yarn
+__pycache__
+node_modules
+venv

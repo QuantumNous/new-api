@@ -1,0 +1,5 @@
+{
+  "peerDependencies": {
+    "@e2e/auto-external-peer-pkg": "1.0.0"
+  }
+}

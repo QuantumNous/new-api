@@ -1,0 +1,262 @@
+---
+description: 'CSS Modules 让我们能以模块化的方式编写 CSS 代码，并且可以在 JavaScript 文件中导入和使用这些样式。使用 CSS Modules 可以自动生成唯一的类名，隔离不同模块之间的样式，避免类名冲突。'
+---
+
+# CSS Modules
+
+[CSS Modules](https://github.com/css-modules/css-modules) 让我们能以模块化的方式编写 CSS 代码，并且可以在 JavaScript 文件中导入和使用这些样式。使用 CSS Modules 可以自动生成唯一的类名，隔离不同模块之间的样式，避免类名冲突。
+
+Rsbuild 默认支持使用 CSS Modules，无需添加额外的配置。我们约定使用 `[name].module.css` 文件名来启用 CSS Modules。
+
+以下样式文件会被视为 CSS Modules：
+
+- `*.module.css`
+- `*.module.less`
+- `*.module.sass`
+- `*.module.scss`
+- `*.module.styl`
+- `*.module.stylus`
+
+## 用法示例
+
+在 `*.module.css` 文件中编写样式：
+
+```css title="button.module.css"
+.red {
+  background: red;
+}
+```
+
+在 JavaScript 文件中导入样式：
+
+```tsx title="Button.tsx"
+import styles from './button.module.css';
+
+export default () => {
+  return <button className={styles.red}>Button</button>;
+};
+```
+
+经过编译后，CSS Modules 中的类名会自动添加一个哈希值，以避免类名冲突：
+
+```css
+/* 开发模式下生成的类名 */
+.src-App-module__red-hiQIE4 {
+  background: red;
+}
+
+/* 生产模式下生成的类名 */
+.red-hiQIE4 {
+  background: red;
+}
+```
+
+:::tip
+参考 [自定义类名](#custom-class-names) 来修改生成类名的规则。
+:::
+
+## 具名导入
+
+如果你倾向于在 CSS Modules 中使用具名导入，可以通过 [output.cssModules.namedExport](/config/output/css-modules#cssmodulesnamedexport) 配置项来开启。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    cssModules: {
+      namedExport: true,
+    },
+  },
+};
+```
+
+开启后，你可以通过具名导入来引用类名：
+
+```tsx title="Button.tsx"
+import { red } from './button.module.css';
+
+export default () => {
+  return <button className={red}>Button</button>;
+};
+```
+
+## CSS Modules 识别规则
+
+在默认情况下，只有 `*.module.css` 结尾的文件才被视为 CSS Modules 模块。
+
+如果你想将其他 CSS 文件也当做 CSS Modules 模块进行处理，可以通过配置 [output.cssModules.auto](/config/output/css-modules#cssmodulesauto) 来实现。
+
+比如：
+
+```ts
+export default {
+  output: {
+    cssModules: {
+      auto: (resource) => {
+        return resource.includes('.module.') || resource.includes('shared/');
+      },
+    },
+  },
+};
+```
+
+设置后，以下两个文件都会被视为 CSS Modules：
+
+```ts
+import styles1 from './foo.module.css';
+import styles2 from './shared/bar.css';
+```
+
+## 自定义类名 \{#custom-class-names}
+
+自定义 CSS Modules 生成的类名也是我们比较常用的功能，你可以使用 [output.cssModules.localIdentName](/config/output/css-modules#cssmoduleslocalidentname) 来进行配置。
+
+```ts
+export default {
+  output: {
+    cssModules: {
+      localIdentName: '[hash:base64:4]',
+    },
+  },
+};
+```
+
+如果你需要自定义 CSS Modules 的其他配置，可以通过 [output.cssModules](/config/output/css-modules) 进行设置。
+
+## 全局样式
+
+在某些情况下，你可能需要在 CSS Modules 中使用全局样式，比如覆盖第三方库的样式，或者为特定元素设置全局样式。
+
+CSS Modules 提供了 `:global()` 伪类选择器来实现这个功能，`:global()` 内的选择器会保持原始的类名，使它能够正确地匹配全局元素。
+
+```css title="styles.module.css"
+/* 本地选择器，会被哈希化 */
+.container {
+  padding: 20px;
+}
+
+/* 全局选择器，不会被哈希化 */
+:global(.foo) {
+  color: red;
+}
+
+/* 组合使用本地和全局选择器，只有 .wrapper 会被哈希化 */
+.wrapper :global(.bar) {
+  margin: 10px;
+}
+```
+
+你也可以嵌套使用 `:global()`：
+
+```css title="card.module.css"
+.card {
+  /* 只影响 .card 内部的 .btn 元素 */
+  :global(.btn) {
+    background: blue;
+  }
+}
+```
+
+## 类型声明
+
+当你在 TypeScript 代码中引用 CSS Modules 时，TypeScript 可能会提示该模块缺少类型定义：
+
+```
+TS2307: Cannot find module './index.module.css' or its corresponding type declarations.
+```
+
+此时你可以使用以下任一方法添加类型声明：
+
+- 方法一：如果项目里安装了 `@rsbuild/core` 包，你可以在 `tsconfig.json` 中添加 `@rsbuild/core` 提供的 [预设类型](/guide/basic/typescript#preset-types)：
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "types": ["@rsbuild/core/types"]
+  }
+}
+```
+
+- 方法二：手动添加需要的类型声明：
+
+```ts title="src/env.d.ts"
+declare module '*.module.css' {
+  const classes: { readonly [key: string]: string };
+  export default classes;
+}
+declare module '*.module.scss' {
+  const classes: { readonly [key: string]: string };
+  export default classes;
+}
+declare module '*.module.sass' {
+  const classes: { readonly [key: string]: string };
+  export default classes;
+}
+declare module '*.module.less' {
+  const classes: { readonly [key: string]: string };
+  export default classes;
+}
+declare module '*.module.styl' {
+  const classes: { readonly [key: string]: string };
+  export default classes;
+}
+declare module '*.module.stylus' {
+  const classes: { readonly [key: string]: string };
+  export default classes;
+}
+```
+
+- 方法三：如果你需要使用**具名导入**来引用类名，可以更松散的类型定义：
+
+```ts title="src/env.d.ts"
+declare module '*.module.css';
+declare module '*.module.scss';
+declare module '*.module.sass';
+declare module '*.module.less';
+declare module '*.module.styl';
+declare module '*.module.stylus';
+```
+
+添加类型声明后，如果依然存在类型错误，请尝试重启当前 IDE，或者调整 `env.d.ts` 所在的目录，使 TypeScript 能够正确识别类型定义。
+
+## 类型生成
+
+上述方法虽然可以解决 CSS Modules 在 TypeScript 中的类型问题，但是无法准确地提示出 CSS Modules 导出了哪些类名。
+
+Rsbuild 支持为 CSS Modules 生成准确的类型声明，你只需要开启 [@rsbuild/plugin-typed-css-modules](https://github.com/rstackjs/rsbuild-plugin-typed-css-modules)，再执行构建命令，Rsbuild 就会为项目中所有的 CSS Modules 文件生成类型声明文件。
+
+```ts title="rsbuild.config.ts"
+import { pluginTypedCSSModules } from '@rsbuild/plugin-typed-css-modules';
+
+export default {
+  plugins: [pluginTypedCSSModules()],
+};
+```
+
+### 示例
+
+例如，创建 `src/index.ts` 和 `src/index.module.css` 两个文件：
+
+```tsx title="src/index.ts"
+import styles from './index.module.css';
+
+console.log(styles.pageHeader);
+```
+
+```css title="index.module.css"
+.page-header {
+  color: black;
+}
+```
+
+构建后，Rsbuild 会自动生成 `src/index.module.css.d.ts` 类型声明文件：
+
+```ts title="src/index.module.css.d.ts"
+interface CssExports {
+  'page-header': string;
+  pageHeader: string;
+}
+declare const cssExports: CssExports;
+export default cssExports;
+```
+
+此时再打开 `src/index.ts` 文件，可以看到 `styles` 对象已经具备了准确的类型。

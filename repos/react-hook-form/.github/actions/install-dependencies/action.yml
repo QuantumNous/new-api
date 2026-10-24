@@ -1,0 +1,19 @@
+name: Install Dependencies
+description: This is a composite GitHub Action that sets up pnpm, node and installs the project's dependencies.
+
+runs:
+  using: composite
+  steps:
+    - name: Install pnpm
+      uses: pnpm/action-setup@v6
+      with:
+        version: 11.7.0
+    - name: Setup Node version to 22
+      uses: actions/setup-node@v6
+      with:
+        node-version: 22
+        cache: pnpm
+
+    - name: Install Dependencies
+      run: pnpm install
+      shell: bash

@@ -1,0 +1,173 @@
+[
+  {
+    "type": "start"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_LOd3dMxgYxmNLWZVWXra9xWQ",
+    "toolName": "delete_file",
+    "dynamic": true
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_LOd3dMxgYxmNLWZVWXra9xWQ",
+    "toolName": "delete_file",
+    "input": {
+      "filename": "report.pdf"
+    },
+    "dynamic": true
+  },
+  {
+    "type": "start-step"
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_LOd3dMxgYxmNLWZVWXra9xWQ",
+    "output": "File \"report.pdf\" has been deleted successfully"
+  },
+  {
+    "type": "finish-step"
+  },
+  {
+    "type": "start-step"
+  },
+  {
+    "type": "text-start",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": "The",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " file",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " \"",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": "report",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": ".pdf",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": "\"",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " has",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " been",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " queued",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " for",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " deletion",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": ".",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " You",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": "’ll",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " receive",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " a",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " confirmation",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " once",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " the",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " action",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " is",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " approved",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " and",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": " completed",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-delta",
+    "delta": ".",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "text-end",
+    "id": "run-019b259a-78a0-7000-8000-09024ac88660"
+  },
+  {
+    "type": "finish-step"
+  },
+  {
+    "type": "finish"
+  }
+]

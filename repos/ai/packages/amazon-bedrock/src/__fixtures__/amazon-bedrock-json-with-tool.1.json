@@ -1,0 +1,41 @@
+{
+  "output": {
+    "message": {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "text",
+          "text": "Let me call a tool first."
+        },
+        {
+          "toolUse": {
+            "toolUseId": "tool-1",
+            "name": "get-weather",
+            "input": {
+              "location": "SF"
+            }
+          }
+        },
+        {
+          "type": "text",
+          "text": "Now the JSON."
+        },
+        {
+          "toolUse": {
+            "toolUseId": "json-tool-id",
+            "name": "json",
+            "input": {
+              "result": "data"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "usage": {
+    "inputTokens": 22,
+    "outputTokens": 48,
+    "totalTokens": 70
+  },
+  "stopReason": "tool_use"
+}

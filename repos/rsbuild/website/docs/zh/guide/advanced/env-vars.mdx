@@ -1,0 +1,636 @@
+---
+description: 'Rsbuild 支持在构建过程中向代码中注入环境变量或表达式，这对于区分运行环境、替换常量值等场景很有帮助。'
+---
+
+# 环境变量
+
+Rsbuild 支持在构建过程中向代码中注入环境变量或表达式，这对于区分运行环境、替换常量值等场景很有帮助。
+
+本章节将介绍如何在 Rsbuild 中使用环境变量。
+
+## 默认环境变量
+
+Rsbuild 默认通过 [source.define](#using-define) 向代码中注入以下环境变量，它们会在构建时被替换为指定的值：
+
+`import.meta.env` 包含以下环境变量：
+
+- [import.meta.env.MODE](#importmetaenvmode)
+- [import.meta.env.DEV](#importmetaenvdev)
+- [import.meta.env.PROD](#importmetaenvprod)
+- [import.meta.env.SSR](#importmetaenvssr)
+- [import.meta.env.BASE_URL](#importmetaenvbase_url)
+- [import.meta.env.ASSET_PREFIX](#importmetaenvasset_prefix)
+
+`process.env` 包含以下环境变量：
+
+- [process.env.BASE_URL](#processenvbase_url)
+- [process.env.ASSET_PREFIX](#processenvasset_prefix)
+- [process.env.NODE_ENV](#processenvnode_env)
+
+### import.meta.env.MODE
+
+- **类型：** `'production' | 'development' | 'none'`
+- **使用范围：** 源代码中可用，构建时通过 [define](/guide/advanced/env-vars#using-define) 替换
+
+你可以在 client 代码中使用 `import.meta.env.MODE` 来读取 [mode](/config/mode) 配置项的值。
+
+```ts
+if (import.meta.env.MODE === 'development') {
+  console.log('this is development mode');
+}
+```
+
+在开发模式，以上代码会被编译为：
+
+```js
+if (true) {
+  console.log('this is development mode');
+}
+```
+
+在生产模式，以上代码会被编译为：
+
+```js
+if (false) {
+  console.log('this is development mode');
+}
+```
+
+在代码压缩过程中，`if (false) { ... }` 会被识别为无效代码，并被自动移除。
+
+### import.meta.env.DEV
+
+- **类型：** `boolean`
+- **使用范围：** 源代码中可用，构建时通过 [define](/guide/advanced/env-vars#using-define) 替换
+
+当 [mode](/config/mode) 为 `'development'` 时，值为 `true`，否则为 `false`。
+
+```ts
+if (import.meta.env.DEV) {
+  console.log('this is development mode');
+}
+```
+
+### import.meta.env.PROD
+
+- **类型：** `boolean`
+- **使用范围：** 源代码中可用，构建时通过 [define](/guide/advanced/env-vars#using-define) 替换
+
+当 [mode](/config/mode) 为 `'production'` 时，值为 `true`，否则为 `false`。
+
+```ts
+if (import.meta.env.PROD) {
+  console.log('this is production mode');
+}
+```
+
+### import.meta.env.SSR
+
+- **类型：** `boolean`
+- **使用范围：** 源代码中可用，构建时通过 [define](/guide/advanced/env-vars#using-define) 替换
+
+当 [output.target](/config/output/target) 为 `'node'` 时，值为 `true`，否则为 `false`。
+
+```ts
+if (import.meta.env.SSR) {
+  console.log('this is the SSR build');
+}
+```
+
+### import.meta.env.BASE_URL
+
+- **类型：** `string`
+- **使用范围：** 源代码中可用，构建时通过 [define](/guide/advanced/env-vars#using-define) 替换
+
+你可以在 client 代码中使用 `import.meta.env.BASE_URL` 来访问服务端的[基础路径](/guide/basic/server#base-path)，它由 [server.base](/config/server/base) 配置项决定，这有助于在代码中引用 [public 目录](/guide/basic/static-assets#public-folder) 下的资源。
+
+比如，我们通过 [server.base](/config/server/base) 配置，将服务端的基础路径设置为 `/foo`：
+
+```ts
+export default {
+  server: {
+    base: '/foo',
+  },
+};
+```
+
+此时，public 目录下 `favicon.ico` 文件的访问 URL 为 `http://localhost:3000/foo/favicon.ico`，在 JS 文件中可以使用 `import.meta.env.BASE_URL` 来拼接 URL：
+
+```js title="index.js"
+const image = new Image();
+// 等价于 "/foo/favicon.ico"
+image.src = `${import.meta.env.BASE_URL}/favicon.ico`;
+```
+
+### import.meta.env.ASSET_PREFIX
+
+- **类型：** `string`
+- **使用范围：** 源代码中可用，构建时通过 [define](/guide/advanced/env-vars#using-define) 替换
+
+你可以在 client 代码中使用 `import.meta.env.ASSET_PREFIX` 来访问静态资源的前缀。
+
+- 在开发模式下，它等同于 [dev.assetPrefix](/config/dev/asset-prefix) 设置的值。
+- 在生产模式下，它等同于 [output.assetPrefix](/config/output/asset-prefix) 设置的值。
+- Rsbuild 会自动移除 `assetPrefix` 尾部的斜线符号，以便于进行字符串拼接。
+
+比如，我们通过 [output.copy](/config/output/copy) 配置，将 `static/icon.png` 图片拷贝到 `dist` 目录下：
+
+```ts
+export default {
+  dev: {
+    assetPrefix: '/',
+  },
+  output: {
+    copy: [{ from: './static', to: 'static' }],
+    assetPrefix: 'https://example.com',
+  },
+};
+```
+
+此时，我们可以在 client 代码中通过以下方式来拼接图片 URL：
+
+```jsx
+const Image = <img src={`${import.meta.env.ASSET_PREFIX}/static/icon.png`} />;
+```
+
+在开发模式，以上代码会被编译为：
+
+```jsx
+const Image = <img src={`/static/icon.png`} />;
+```
+
+在生产模式，以上代码会被编译为：
+
+```jsx
+const Image = <img src={`https://example.com/static/icon.png`} />;
+```
+
+### process.env.BASE_URL
+
+- **类型：** `string`
+- **使用范围：** 源代码中可用，构建时通过 [define](/guide/advanced/env-vars#using-define) 替换
+
+Rsbuild 也允许使用 `process.env.BASE_URL`，它是 [import.meta.env.BASE_URL](#importmetaenvbase_url) 的别名。
+
+例如，在 HTML 模板中，可以使用 `process.env.BASE_URL` 来拼接 URL：
+
+```html title="index.html"
+<!-- 等价于 "/foo/favicon.ico" -->
+<link rel="icon" href="<%= process.env.BASE_URL %>/favicon.ico" />
+```
+
+### process.env.ASSET_PREFIX
+
+- **类型：** `string`
+- **使用范围：** 源代码中可用，构建时通过 [define](/guide/advanced/env-vars#using-define) 替换
+
+Rsbuild 也允许使用 `process.env.ASSET_PREFIX`，它是 [import.meta.env.ASSET_PREFIX](#importmetaenvasset_prefix) 的别名。
+
+例如，在 HTML 模板中，可以使用 `process.env.ASSET_PREFIX` 来拼接 URL：
+
+```html title="index.html"
+<!-- 等价于 "https://example.com/static/icon.png" -->
+<link rel="icon" href="<%= process.env.ASSET_PREFIX %>/static/icon.png" />
+```
+
+### process.env.NODE_ENV
+
+- **类型：** `string`
+- **使用范围：** 在 Node.js 进程和源代码中均可用
+
+默认情况下，Rsbuild 会自动设置 `process.env.NODE_ENV` 环境变量，在开发模式为 `'development'`，生产模式为 `'production'`。
+
+你可以在 Node.js 和 client 代码中直接使用 `process.env.NODE_ENV`。
+
+```ts
+if (process.env.NODE_ENV === 'development') {
+  console.log('this is a development log');
+}
+```
+
+在开发模式，以上代码会被编译为：
+
+```js
+if (true) {
+  console.log('this is a development log');
+}
+```
+
+在生产模式，以上代码会被编译为：
+
+```js
+if (false) {
+  console.log('this is a development log');
+}
+```
+
+在代码压缩过程中，`if (false) { ... }` 会被识别为无效代码，并被自动移除。
+
+#### 自定义 NODE_ENV
+
+`process.env.NODE_ENV` 是由 Rspack 默认注入的，如果需要关闭注入或自定义它的值，可以使用 Rspack 的 [optimization.nodeEnv](https://rspack.rs/zh/config/optimization#optimizationnodeenv) 选项：
+
+```ts title="rsbuild.config.ts"
+export default {
+  tools: {
+    rspack: {
+      optimization: { nodeEnv: false },
+    },
+  },
+};
+```
+
+## `.env` 文件 \{#env-file}
+
+当项目根目录存在 `.env` 文件时，Rsbuild CLI 会自动使用 [dotenv](https://npmjs.com/package/dotenv) 来加载这些环境变量，并添加到当前 Node.js 进程中，其中的 [public 变量](#public-variables) 会被暴露在 `client` 代码中。
+
+你可以通过 `import.meta.env.[name]` 或 `process.env.[name]` 来访问这些环境变量。
+
+### 文件类型
+
+Rsbuild 支持读取以下 env 文件：
+
+| 文件名                   | 描述                                                          |
+| ------------------------ | ------------------------------------------------------------- |
+| `.env`                   | 在所有场景下默认加载。                                        |
+| `.env.local`             | `.env` 文件的本地用法，需要添加到 .gitignore 中。             |
+| `.env.development`       | 当 `process.env.NODE_ENV` 为 `'development'` 时读取。         |
+| `.env.production`        | 当 `process.env.NODE_ENV` 为 `'production'` 时读取。          |
+| `.env.development.local` | `.env.development` 文件的本地用法，需要添加到 .gitignore 中。 |
+| `.env.production.local`  | `.env.production` 文件的本地用法，需要添加到 .gitignore 中。  |
+
+如果同时存在上述的多个文件，那么多个文件都会被读取，并且表格下方的文件具有更高的优先级。
+
+### Env 模式 \{#env-mode}
+
+Rsbuild 也支持读取 `.env.[mode]` 和 `.env.[mode].local` 文件，你可以通过 CLI 的 `--env-mode <mode>` 选项来指定 env 模式。
+
+比如，指定 env 模式为 `test`：
+
+```bash
+npx rsbuild --env-mode test
+```
+
+Rsbuild 会按照以下顺序读取这些文件，并合并它们的内容。如果存在同名环境变量，后读取的文件将会覆盖先读取的文件中的值：
+
+- .env
+- .env.local
+- .env.test
+- .env.test.local
+
+:::tip
+`--env-mode` 选项的优先级高于 `process.env.NODE_ENV`。
+
+推荐使用 `--env-mode` 来指定 env 模式，不建议修改 `process.env.NODE_ENV`。
+
+:::
+
+#### 在 client 代码中访问
+
+Rsbuild 默认不会将 Env 模式注入到 client 代码中，但你可以通过 [source.define](#using-define) 手动定义一个全局标识符，使其在 client 代码中可用：
+
+```js title="rsbuild.config.js"
+export default ({ envMode }) => ({
+  source: {
+    define: {
+      ENV_MODE: JSON.stringify(envMode),
+    },
+  },
+});
+```
+
+在 client 代码中即可访问该值：
+
+```js title="src/index.js"
+if (ENV_MODE === 'my-mode') {
+  // ...
+}
+```
+
+### Env 目录 \{#env-directory}
+
+默认情况下，`.env` 文件位于项目的根目录。你可以通过 CLI 的 `--env-dir <dir>` 选项来指定 env 目录。
+
+比如，指定 env 目录为 `config`：
+
+```bash
+npx rsbuild --env-dir config
+```
+
+这种情况下，Rsbuild 会读取 `./config/.env` 等 env 文件。
+
+### 示例
+
+比如创建 `.env` 文件并添加以下内容：
+
+```shell title=".env"
+FOO=hello
+BAR=1
+```
+
+然后在 `rsbuild.config.ts` 文件中，你可以通过 `import.meta.env.[name]` 或 `process.env.[name]` 访问到上述环境变量：
+
+```ts title="rsbuild.config.ts"
+console.log(import.meta.env.FOO); // 'hello'
+console.log(import.meta.env.BAR); // '1'
+
+console.log(process.env.FOO); // 'hello'
+console.log(process.env.BAR); // '1'
+```
+
+此时，创建一个 `.env.local` 文件，添加以下内容：
+
+```shell title=".env.local"
+BAR=2
+```
+
+`BAR` 的值会被覆盖为 `'2'`：
+
+```ts title="rsbuild.config.ts"
+console.log(import.meta.env.BAR); // '2'
+console.log(process.env.BAR); // '2'
+```
+
+### 手动加载
+
+如果你没有使用 Rsbuild 的 CLI，而是使用了 Rsbuild 的 [JavaScript API](/api/start/index)，那么你需要手动调用 Rsbuild 提供的 [loadEnv](/api/javascript-api/core#loadenv) 方法来读取环境变量，并通过 [source.define](/config/source/define) 配置项注入到代码中。
+
+```ts
+import { loadEnv, mergeRsbuildConfig } from '@rsbuild/core';
+
+// 默认情况下，`publicVars` 是以 `PUBLIC_` 为前缀的变量
+const { parsed, publicVars } = loadEnv();
+
+const mergedConfig = mergeRsbuildConfig(
+  {
+    source: {
+      define: publicVars,
+    },
+  },
+  userConfig,
+);
+```
+
+### 禁用加载
+
+你可以通过 CLI 的 `--no-env` 选项来禁用加载 `.env` 文件。
+
+```bash
+npx rsbuild --no-env
+```
+
+在使用 `--no-env` 选项时，Rsbuild CLI 不会读取任何 `.env` 文件，你可以自行使用其他工具来管理环境变量，例如 [dotenvx](https://dotenvx.com/)。
+
+## public 变量 \{#public-variables}
+
+所有以 `PUBLIC_` 开头的环境变量可以在 client 代码中访问，比如定义了以下变量：
+
+```bash title=".env"
+PUBLIC_NAME=jack
+PASSWORD=123
+```
+
+在 client 代码中，你可以通过 `import.meta.env.PUBLIC_*` 或 `process.env.PUBLIC_*` 访问这些环境变量，Rsbuild 会匹配标识符替换为相应的值。
+
+```ts title="src/index.ts"
+console.log(import.meta.env.PUBLIC_NAME); // -> 'jack'
+console.log(import.meta.env.PASSWORD); // -> undefined
+
+console.log(process.env.PUBLIC_NAME); // -> 'jack'
+console.log(process.env.PASSWORD); // -> undefined
+```
+
+:::tip
+
+- public 变量的内容会出现在你的 client 代码中，请避免在 public 变量中包含敏感信息。
+- public 变量是通过 [source.define](/config/source/define) 替换的，请阅读[「使用 define」](#using-define)来了解 define 的原理和注意事项。
+
+:::
+
+### 替换范围
+
+public 变量会替换 client 代码中的标识符，替换范围包含：
+
+- JavaScript 文件，以及能转换为 JavaScript 代码的文件，比如 `.js`，`.ts`，`.tsx` 等。
+- HTML 模板文件，比如：
+
+```xml title="template.html"
+<div><%= process.env.PUBLIC_NAME %></div>
+```
+
+注意，public 变量不会替换以下文件中的标识符：
+
+- CSS 文件，比如 `.css`, `.scss`, `.less` 等。
+
+### 自定义前缀
+
+Rsbuild 提供了 [loadEnv](/api/javascript-api/core#loadenv) 方法，可以把任何前缀的环境变量注入到 client 代码中。
+
+比如将一个 Create React App 项目迁移到 Rsbuild 时，你可以通过以下方式来读取 `REACT_APP_` 开头的环境变量，并通过 [source.define](/config/source/define) 配置项注入：
+
+```ts title="rsbuild.config.ts"
+import { defineConfig, loadEnv } from '@rsbuild/core';
+
+const { publicVars } = loadEnv({ prefixes: ['REACT_APP_'] });
+
+export default defineConfig({
+  source: {
+    define: publicVars,
+  },
+});
+```
+
+## 使用 define \{#using-define}
+
+通过 [source.define](/config/source/define) 选项，你可以在构建时将代码中的全局标识符替换成其它值或者表达式。
+
+`define` 类似于其它一些语言提供的宏定义能力，它常用于在构建时向代码注入环境变量等信息。
+
+### 替换标识符
+
+define 最基础的用途是在构建时替换代码中的全局标识符。
+
+例如环境变量 `NODE_ENV` 的值会影响许多第三方模块的行为，在构建线上应用的产物时通常需要将它设置为 `"production"`：
+
+```js
+export default {
+  source: {
+    define: {
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+    },
+  },
+};
+```
+
+需要注意的是这里提供的值必须是 JSON 字符串，例如 `process.env.NODE_ENV` 的值为 `"production"` 则传入的值应当是 `"\"production\""` 才能够正确被处理。
+
+同理 `{ foo: "bar" }` 也应该被转换成 `"{\"foo\":\"bar\"}"`，如果直接传入原始对象则意味着把标识符 `process.env.NODE_ENV.foo` 替换为标识符 `bar`。
+
+`source.define` 的具体行为请参考 [API 文档](/config/source/define)。
+
+:::tip
+以上例子中的环境变量 `NODE_ENV` 已经由 Rsbuild 自动注入，通常你不需要手动配置它的值。
+:::
+
+### 标识符匹配
+
+需要注意的是，`source.define` 只能匹配完整的全局标识符，你可以将它理解为一个文本替换的过程。
+
+如果代码里的标识符与 `define` 里定义的 key 不是完全相同的，Rsbuild 将无法替换它。
+
+```js
+// Good
+console.log(process.env.NODE_ENV); // 'production'
+
+// Bad
+console.log(process.env['NODE_ENV']); // process is not defined!
+
+// Bad
+console.log(process.env?.NODE_ENV); // process is not defined!
+
+// Bad
+const { NODE_ENV } = process.env;
+console.log(NODE_ENV); // process is not defined!
+
+// Bad
+const env = process.env;
+console.log(env.NODE_ENV); // process is not defined!
+```
+
+### process.env 替换方式
+
+在使用 `source.define` 时，请避免替换整个 `process.env` 对象，比如下面的用法是不推荐的：
+
+```js
+export default {
+  source: {
+    define: {
+      'process.env': JSON.stringify(process.env),
+    },
+  },
+};
+```
+
+如果你采用了上述用法，将会导致如下问题：
+
+1. 额外注入了一些未使用的环境变量，导致开发服务器的环境变量被泄露到前端代码中。
+2. 由于每一处 `process.env` 代码都会被替换为完整的环境变量对象，导致前端代码的包体积增加，性能降低。
+
+因此，请按照实际需求来注入 `process.env` 上的环境变量，避免全量替换。
+
+## 类型声明
+
+### Public 变量
+
+当你在 TypeScript 代码中访问 Public 环境变量时，TypeScript 可能会提示该变量缺少类型定义，此时你需要添加相应的类型声明。
+
+比如你引用了一个 `PUBLIC_FOO` 变量，在 TypeScript 文件中会出现如下提示：
+
+```
+TS2304: Cannot find name 'PUBLIC_FOO'.
+```
+
+此时，你可以在项目中创建 `src/env.d.ts` 文件，并添加以下内容：
+
+```ts title="src/env.d.ts"
+declare const PUBLIC_FOO: string;
+```
+
+### import.meta.env
+
+Rsbuild 通过 [预设类型](/guide/basic/typescript#preset-types) 为 `import.meta.env` 提供了默认的 TypeScript 类型定义。你可以在 `tsconfig.json` 中添加：
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "types": ["@rsbuild/core/types"]
+  }
+}
+```
+
+如果你的项目中已经配置了 `compilerOptions.types`，请将 `@rsbuild/core/types` 追加到已有列表中。
+
+如果你自定义了以 `import.meta.env` 开头的环境变量，可以通过扩展 `ImportMetaEnv` interface 来实现：
+
+```ts title="src/env.d.ts"
+interface ImportMetaEnv {
+  // import.meta.env.PUBLIC_FOO
+  readonly PUBLIC_FOO: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+```
+
+默认情况下，Rsbuild 预设的类型允许你访问 `import.meta.env` 上的任何属性，而不会出现 TypeScript 类型错误。
+
+如果希望获得更严格的类型安全，你可以通过扩展 `RsbuildTypeOptions` interface 来开启 `strictImportMetaEnv` 选项。开启后，只有 Rsbuild 预定义或你在项目中明确声明的属性才能被访问，访问其他属性会导致 TypeScript 类型错误。
+
+你可以在 `src/env.d.ts` 文件中添加以下代码。请确保已经在 `tsconfig.json` 中引入了 [Rsbuild 预设类型](/guide/basic/typescript#preset-types)。
+
+```ts title="src/env.d.ts"
+interface RsbuildTypeOptions {
+  strictImportMetaEnv: true;
+}
+```
+
+### process.env
+
+如果缺少 `process.env` 的类型，请安装 [@types/node](https://npmjs.com/package/@types/node) 依赖：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @types/node -D" />
+
+然后扩展 `process.env` 的类型：
+
+```ts title="src/env.d.ts"
+declare namespace NodeJS {
+  interface ProcessEnv {
+    // process.env.PUBLIC_FOO
+    PUBLIC_FOO: string;
+  }
+}
+```
+
+## Tree shaking
+
+`define` 还可以用于标记死代码以协助 Rspack 进行 tree shaking 优化。
+
+例如通过将 `import.meta.env.LANGUAGE` 替换为具体值来实现针对不同语言的产物进行差异化构建：
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    define: {
+      'import.meta.env.LANGUAGE': JSON.stringify(import.meta.env.LANGUAGE),
+    },
+  },
+};
+```
+
+对于一段国际化代码：
+
+```js
+const App = () => {
+  if (import.meta.env.LANGUAGE === 'en') {
+    return <EntryFoo />;
+  } else if (import.meta.env.LANGUAGE === 'zh') {
+    return <EntryBar />;
+  }
+};
+```
+
+指定环境变量 `LANGUAGE=zh` 并执行构建，得到的产物会移除多余的代码：
+
+```js
+const App = () => {
+  if (false) {
+  } else if (true) {
+    return <EntryBar />;
+  }
+};
+```
+
+未用到的组件不会被打包，它们的外部依赖也会对应地被移除，最终可以得到体积更小的构建产物。

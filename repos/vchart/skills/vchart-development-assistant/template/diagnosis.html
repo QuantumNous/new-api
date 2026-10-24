@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VChart 诊断方案</title>
+
+    <!-- VChart CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@visactor/vchart/build/index.min.js"></script>
+    
+    <!-- Monaco Editor CDN - 使用简化加载方式 -->
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+    <script>
+      // 配置 Monaco Editor 路径
+      require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+    </script>
+
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+        background-color: #f8fafc;
+        min-height: 100vh;
+        padding: 24px;
+        color: #0f172a;
+      }
+      .page {
+        max-width: 1200px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+      header h1 {
+        font-size: 24px;
+        font-weight: 700;
+        margin-bottom: 8px;
+        color: #1e293b;
+      }
+      header .problem-desc {
+        color: #475569;
+        line-height: 1.6;
+        font-size: 15px;
+      }
+
+      /* 通用 Section 样式 */
+      .section {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(15, 23, 42, 0.08);
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+      }
+      .section-header {
+        padding: 16px 20px;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .section-header h2 {
+        font-size: 18px;
+        font-weight: 700;
+        color: #1e293b;
+      }
+      .section-header .badge {
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-weight: 500;
+      }
+      .section-body {
+        padding: 20px;
+      }
+
+      /* 代码编辑器容器 */
+      .code-editor {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        overflow: hidden;
+        min-height: 450px;
+      }
+      .code-editor .code-panel {
+        background: #1e293b;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+      .code-editor .preview-panel {
+        background: #fff;
+        border-left: 1px solid #e2e8f0;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+      }
+      .code-editor .preview-panel .chart-container {
+        flex: 1;
+        min-height: 400px;
+      }
+      .panel-header {
+        padding: 10px 16px;
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        flex-shrink: 0;
+      }
+      .code-panel .panel-header {
+        background: #0f172a;
+        color: #64748b;
+        border-bottom: 1px solid #334155;
+      }
+      .preview-panel .panel-header {
+        background: #f8fafc;
+        color: #64748b;
+        border-bottom: 1px solid #e2e8f0;
+        margin: -16px -16px 16px -16px;
+      }
+      
+      /* Monaco 编辑器容器 */
+      .monaco-editor-container {
+        flex: 1;
+        min-height: 400px;
+        overflow: hidden;
+      }
+
+      /* 代码块样式（只读模式） */
+      .code-block {
+        padding: 16px;
+        font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+        font-size: 13px;
+        line-height: 1.6;
+        position: relative;
+        overflow: auto;
+        max-height: 400px;
+      }
+      .code-block pre {
+        margin: 0;
+        color: #e2e8f0;
+      }
+      .code-line {
+        display: block;
+        padding: 2px 8px;
+        margin: 0 -8px;
+        border-left: 3px solid transparent;
+      }
+      .code-line.highlight {
+        background: rgba(239, 68, 68, 0.15);
+        border-left-color: #ef4444;
+      }
+      .code-line.highlight-fix {
+        background: rgba(34, 197, 94, 0.15);
+        border-left-color: #22c55e;
+      }
+      .code-line .line-number {
+        display: inline-block;
+        width: 28px;
+        text-align: right;
+        margin-right: 16px;
+        color: #64748b;
+        user-select: none;
+        font-size: 12px;
+      }
+      .code-line.highlight .line-number,
+      .code-line.highlight-fix .line-number {
+        font-weight: 600;
+      }
+      .code-line.highlight .line-number { color: #ef4444; }
+      .code-line.highlight-fix .line-number { color: #22c55e; }
+
+      /* 语法高亮 */
+      .token-key { color: #a5b4fc; }
+      .token-string { color: #86efac; }
+      .token-number { color: #fbbf24; }
+      .token-boolean { color: #fb923c; }
+      .token-punctuation { color: #cbd5e1; }
+      .token-comment { color: #64748b; font-style: italic; }
+
+      /* 问题回顾部分 */
+      .problem-section .badge { background: #fef3c7; color: #92400e; }
+      .problem-section .section-header { background: #fffbeb; }
+
+      /* 诊断分析部分 */
+      .diagnosis-section .badge { background: #e0e7ff; color: #3730a3; }
+      .diagnosis-section .section-header { background: #eef2ff; }
+      .diagnosis-list {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .diagnosis-item {
+        display: flex;
+        gap: 12px;
+        padding: 16px;
+        background: #f8fafc;
+        border-radius: 8px;
+        border-left: 4px solid #6366f1;
+      }
+      .diagnosis-item .icon {
+        font-size: 20px;
+        flex-shrink: 0;
+      }
+      .diagnosis-item .label {
+        font-weight: 600;
+        color: #334155;
+        margin-bottom: 4px;
+      }
+      .diagnosis-item .content {
+        color: #475569;
+        line-height: 1.6;
+      }
+
+      /* 解决方案部分 */
+      .solutions-section .badge { background: #d1fae5; color: #065f46; }
+      .solutions-section .section-header { background: #ecfdf5; }
+      .solution-list {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+      .solution-item {
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .solution-item-header {
+        padding: 16px 20px;
+        background: #f8fafc;
+        border-bottom: 1px solid #e2e8f0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .solution-item-header h3 {
+        font-size: 16px;
+        font-weight: 700;
+        color: #1e293b;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .solution-item-header .solution-badge {
+        background: #22c55e;
+        color: #fff;
+        font-size: 11px;
+        padding: 3px 8px;
+        border-radius: 10px;
+        font-weight: 600;
+      }
+      .solution-item-body {
+        padding: 20px;
+      }
+      .solution-desc {
+        color: #475569;
+        line-height: 1.6;
+        margin-bottom: 16px;
+        padding: 12px 16px;
+        background: #f0fdf4;
+        border-radius: 8px;
+        border-left: 4px solid #22c55e;
+      }
+
+      /* 响应式 */
+      @media (max-width: 900px) {
+        .code-editor {
+          grid-template-columns: 1fr;
+        }
+        .code-editor .preview-panel {
+          border-left: none;
+          border-top: 1px solid #e2e8f0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <!-- 页面标题 -->
+      <header>
+        <h1>📊 {{REPORT_TITLE}}</h1>
+        <p class="problem-desc">{{REPORT_DESC}}</p>
+      </header>
+
+      <!-- 占位区域，由 JS 动态渲染 -->
+      <div id="app"></div>
+    </main>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        
+        // ====== CONFIG_START ======
+        {{CONFIG_BLOCK}}
+        // ====== CONFIG_END ======
+
+        // 工具函数：语法高亮
+        function highlightSyntax(code) {
+          return code
+            .replace(/"([^"]*)"/g, '<span class="token-string">"$1"</span>')
+            .replace(/\b(\d+)\b/g, '<span class="token-number">$1</span>')
+            .replace(/\b(true|false|null|undefined)\b/g, '<span class="token-boolean">$1</span>')
+            .replace(/([a-zA-Z_][a-zA-Z0-9_]*)(?=\s*:)/g, '<span class="token-key">$1</span>')
+            .replace(/([{}\[\](),;:])/g, '<span class="token-punctuation">$1</span>')
+            .replace(/\/\/.*$/gm, '<span class="token-comment">$&</span>');
+        }
+
+        // 工具函数：渲染代码块
+        function renderCodeBlock(code, highlightLines = [], highlightClass = 'highlight') {
+          const lines = code.split('\n');
+          const highlightSet = new Set(highlightLines);
+          
+          return lines.map((line, idx) => {
+            const lineNum = idx + 1;
+            const isHighlight = highlightSet.has(lineNum);
+            const lineClass = isHighlight ? `code-line ${highlightClass}` : 'code-line';
+            const lineNumStr = String(lineNum).padStart(2, ' ');
+            const highlightedCode = highlightSyntax(line) || ' ';
+            
+            return `<span class="${lineClass}"><span class="line-number">${lineNumStr}</span><span>${highlightedCode}</span></span>`;
+          }).join('\n');
+        }
+
+        // 工具函数：创建代码编辑器
+        function createCodeEditor(code, highlightLines, containerId, highlightClass = 'highlight', editable = false) {
+          const editorId = `editor-${containerId}`;
+          
+          if (editable) {
+            // 可编辑模式：使用 Monaco Editor
+            return `
+              <div class="code-editor">
+                <div class="code-panel">
+                  <div class="panel-header">📝 VChart Spec <span style="margin-left:auto;font-size:10px;opacity:0.7;">可编辑</span></div>
+                  <div id="${editorId}" class="monaco-editor-container"></div>
+                </div>
+                <div class="preview-panel">
+                  <div class="panel-header">👁️ 效果预览</div>
+                  <div class="chart-container" id="${containerId}"></div>
+                </div>
+              </div>
+            `;
+          } else {
+            // 只读模式：使用语法高亮显示
+            return `
+              <div class="code-editor">
+                <div class="code-panel">
+                  <div class="panel-header">📝 VChart Spec</div>
+                  <div class="code-block">
+                    <pre>${renderCodeBlock(code, highlightLines, highlightClass)}</pre>
+                  </div>
+                </div>
+                <div class="preview-panel">
+                  <div class="panel-header">👁️ 效果预览</div>
+                  <div class="chart-container" id="${containerId}"></div>
+                </div>
+              </div>
+            `;
+          }
+        }
+
+        // 规范化代码格式
+        const problemReviewCode = normalizeSpecCode(problemReview.specCode || '');
+        const solutionsWithCode = solutions.map((solution) => ({
+          ...solution,
+          code: normalizeSpecCode(solution.specCode || '')
+        }));
+
+        // 渲染页面
+        const app = document.getElementById('app');
+        
+        let html = '';
+
+        // 第一部分：问题回顾
+        html += `
+          <section class="section problem-section">
+            <div class="section-header">
+              <h2>🔍 问题回顾</h2>
+              <span class="badge">原始代码</span>
+            </div>
+            <div class="section-body">
+              ${createCodeEditor(problemReviewCode, problemReview.highlightLines, 'chart-problem', 'highlight', true)}
+            </div>
+          </section>
+        `;
+
+        // 第二部分：诊断分析
+        html += `
+          <section class="section diagnosis-section">
+            <div class="section-header">
+              <h2>🔬 诊断分析</h2>
+              <span class="badge">问题定位</span>
+            </div>
+            <div class="section-body">
+              <div class="diagnosis-list">
+                <div class="diagnosis-item">
+                  <span class="icon">🎯</span>
+                  <div>
+                    <div class="label">问题定位</div>
+                    <div class="content">${diagnosis.problem}</div>
+                  </div>
+                </div>
+                <div class="diagnosis-item">
+                  <span class="icon">💡</span>
+                  <div>
+                    <div class="label">原因分析</div>
+                    <div class="content">${diagnosis.cause}</div>
+                  </div>
+                </div>
+                ${diagnosis.suggestion ? `
+                <div class="diagnosis-item">
+                  <span class="icon">✨</span>
+                  <div>
+                    <div class="label">优化建议</div>
+                    <div class="content">${diagnosis.suggestion}</div>
+                  </div>
+                </div>
+                ` : ''}
+              </div>
+            </div>
+          </section>
+        `;
+
+        // 第三部分：解决方案
+        html += `
+          <section class="section solutions-section">
+            <div class="section-header">
+              <h2>✅ 解决方案</h2>
+              <span class="badge">${solutions.length} 个方案</span>
+            </div>
+            <div class="section-body">
+              <div class="solution-list">
+                ${solutionsWithCode.map((sol, idx) => `
+                  <div class="solution-item">
+                    <div class="solution-item-header">
+                      <h3>
+                        <span class="solution-badge">方案 ${idx + 1}</span>
+                        ${sol.title}
+                      </h3>
+                    </div>
+                    <div class="solution-item-body">
+                      <div class="solution-desc">${sol.description}</div>
+                      ${createCodeEditor(sol.code, sol.highlightLines, `chart-solution-${idx}`, 'highlight-fix', true)}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </section>
+        `;
+
+        app.innerHTML = html;
+
+        // 初始化 Monaco Editor。Monaco Editor 使用 AMD 模块系统，必须通过 require 异步加载。
+        
+        // 存储 Monaco 编辑器实例和图表实例
+        const editors = {};
+        const charts = {};
+
+        // 工具函数：规范化代码格式（确保代码可执行）
+        function normalizeSpecCode(code) {
+          if (!code || !code.trim()) {
+            return 'const spec = {};';
+          }
+          
+          code = code.trim();
+          
+          // 如果代码已包含多行定义（变量、常量等），保持原样
+          if (code.includes('\n') && /const|let|var|function/.test(code)) {
+            // 检查是否已有 spec 定义
+            if (/const\s+spec\s*=/.test(code) || /let\s+spec\s*=/.test(code) || /var\s+spec\s*=/.test(code)) {
+              return code;
+            }
+          }
+          
+          // 如果已经是标准格式：const spec = {...}
+          if (/^const\s+spec\s*=\s*{[\s\S]*};?\s*$/.test(code)) {
+            return code.endsWith(';') ? code : code + ';';
+          }
+          
+          // 如果只是 JSON 对象（以 { 开头），补充声明
+          if (code.startsWith('{')) {
+            return `const spec = ${code};`;
+          }
+          
+          // 如果有 spec = 但缺少 const
+          if (/^spec\s*=/.test(code)) {
+            return 'const ' + code;
+          }
+          
+          // 尝试提取 spec 对象部分
+          const match = code.match(/{[\s\S]*}/);
+          if (match) {
+            return `const spec = ${match[0]};`;
+          }
+          
+          // 无法识别，返回原代码并添加注释
+          return `// 原始代码格式不标准，可能需要手动修正\nconst spec = ${code};`;
+        }
+
+        // 工具函数：从代码字符串中提取 spec 对象（支持包含变量定义的完整代码）
+        function parseSpec(codeStr) {
+          try {
+            // 方案1：如果代码包含多行定义，执行整段代码并返回 spec
+            if (codeStr.includes('\n') && (/const|let|var/.test(codeStr) || /function/.test(codeStr))) {
+              // 执行完整代码块，最后返回 spec
+              const fn = new Function(`
+                ${codeStr}
+                return spec;
+              `);
+              return fn();
+            }
+            
+            // 方案2：单行或简单的 const spec = {...} 格式
+            const specMatch = codeStr.match(/const\s+spec\s*=\s*({[\s\S]*});?\s*$/m);
+            if (specMatch) {
+              const specJson = specMatch[1];
+              const fn = new Function(`return ${specJson}`);
+              return fn();
+            }
+            
+            throw new Error('无法解析 spec 对象，请确保代码格式正确');
+          } catch (e) {
+            throw new Error('代码解析错误: ' + e.message);
+          }
+        }
+
+        // 工具函数：创建 Monaco 编辑器
+        function createMonacoEditor(editorId, code, chartId) {
+          require(['vs/editor/editor.main'], function () {
+            const editor = monaco.editor.create(document.getElementById(editorId), {
+              value: code,
+              language: 'javascript',
+              theme: 'vs-dark',
+              fontSize: 13,
+              lineNumbers: 'on',
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              automaticLayout: true,
+              tabSize: 2,
+              wordWrap: 'on'
+            });
+            
+            // 保存编辑器实例
+            editors[editorId] = editor;
+            
+            // 监听内容变化
+            let updateTimer = null;
+            editor.onDidChangeModelContent(() => {
+              clearTimeout(updateTimer);
+              updateTimer = setTimeout(() => {
+                updateChart(editorId, chartId);
+              }, 800);
+            });
+          });
+        }
+
+        // 工具函数：更新图表（销毁旧图表，创建新图表）
+        function updateChart(editorId, chartId) {
+          const editor = editors[editorId];
+          const chartContainer = document.getElementById(chartId);
+          
+          if (!editor || !chartContainer) return;
+          
+          try {
+            const code = editor.getValue();
+            const newSpec = parseSpec(code);
+            
+            // 销毁旧图表
+            if (charts[chartId]) {
+              charts[chartId].release();
+              delete charts[chartId];
+            }
+            
+            // 清空容器
+            chartContainer.innerHTML = '';
+            
+            // 创建新图表
+            const chart = new VChart.default(newSpec, { dom: chartId });
+            chart.renderSync();
+            charts[chartId] = chart;
+            
+            // 成功更新，清除错误样式
+            chartContainer.style.border = 'none';
+          } catch (e) {
+            // 显示错误
+            chartContainer.innerHTML = `
+              <div style="color:#ef4444;padding:20px;background:#fef2f2;border-radius:8px;border:1px solid #fee2e2;">
+                <div style="font-weight:600;margin-bottom:8px;">⚠️ 图表渲染失败</div>
+                <div style="font-size:13px;line-height:1.6;">${e.message}</div>
+              </div>
+            `;
+          }
+        }
+
+        // 渲染图表
+        // 问题图表（可编辑）
+        if (problemReview.specCode || problemReviewCode) {
+          const chartId = 'chart-problem';
+          const editorId = `editor-${chartId}`;
+          
+          // 创建 Monaco 编辑器（即使初始渲染失败也要创建编辑器）
+          createMonacoEditor(editorId, problemReviewCode, chartId);
+          
+          try {
+            // 尝试创建初始图表
+            const chart = new VChart.default(parseSpec(problemReviewCode), { dom: chartId });
+            chart.renderSync();
+            charts[chartId] = chart;
+          } catch (e) {
+            // 初始渲染失败，显示错误但保留编辑器功能
+            document.getElementById(chartId).innerHTML = `
+              <div style="color:#ef4444;padding:20px;background:#fef2f2;border-radius:8px;border:1px solid #fee2e2;">
+                <div style="font-weight:600;margin-bottom:8px;">⚠️ 初始代码存在问题</div>
+                <div style="font-size:13px;line-height:1.6;">${e.message}</div>
+                <div style="font-size:12px;margin-top:8px;color:#dc2626;">💡 提示：请在左侧编辑器中修正代码，图表将自动更新</div>
+              </div>
+            `;
+          }
+        }
+
+        // 解决方案图表（可编辑）
+        solutionsWithCode.forEach((sol, idx) => {
+          if (sol.code) {
+            const chartId = `chart-solution-${idx}`;
+            const editorId = `editor-${chartId}`;
+            
+            // 创建 Monaco 编辑器（即使初始渲染失败也要创建编辑器）
+            createMonacoEditor(editorId, sol.code, chartId);
+            
+            try {
+              // 尝试创建初始图表
+              const chart = new VChart.default(parseSpec(sol.code), { dom: chartId });
+              chart.renderSync();
+              charts[chartId] = chart;
+            } catch (e) {
+              // 初始渲染失败，显示错误但保留编辑器功能
+              document.getElementById(chartId).innerHTML = `
+                <div style="color:#ef4444;padding:20px;background:#fef2f2;border-radius:8px;border:1px solid #fee2e2;">
+                  <div style="font-weight:600;margin-bottom:8px;">⚠️ 解决方案代码存在问题</div>
+                  <div style="font-size:13px;line-height:1.6;">${e.message}</div>
+                  <div style="font-size:12px;margin-top:8px;color:#dc2626;">💡 提示：请在左侧编辑器中修正代码，图表将自动更新</div>
+                </div>
+              `;
+            }
+          }
+        });
+
+      });
+    </script>
+  </body>
+</html>

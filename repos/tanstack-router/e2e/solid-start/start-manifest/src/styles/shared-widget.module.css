@@ -1,0 +1,17 @@
+.widget {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-top: 4px solid rgb(249, 115, 22);
+  border-radius: 0.75rem;
+  background: rgb(255, 247, 237);
+}
+
+.title {
+  font-weight: 700;
+  color: rgb(154, 52, 18);
+}
+
+.content {
+  margin-top: 0.5rem;
+  color: rgb(124, 45, 18);
+}

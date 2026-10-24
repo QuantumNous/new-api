@@ -1,0 +1,166 @@
+# .github/release.yml
+
+name: Release on npm
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "packages/zod/package.json"
+      - "packages/zod/src/**"
+      - ".github/workflows/release.yml"
+
+jobs:
+  test-node:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        node: ["lts/*"]
+        typescript: ["5.5", "latest"]
+    name: Test with TypeScript ${{ matrix.typescript }} on Node ${{ matrix.node }} (${{ matrix.os }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install
+      - run: pnpm add typescript@${{ matrix.typescript }} -w
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm run --filter @zod/resolution test:all
+      - run: pnpm run --filter @zod/integration test:all
+
+  lint:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: ["latest"]
+    name: Lint on Node ${{ matrix.node }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install
+      - run: pnpm format:check
+      - run: pnpm lint:check
+
+  check-circular:
+    runs-on: ubuntu-latest
+    name: Check for circular dependencies
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "latest"
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install
+      - run: pnpm check:circular
+
+  build_and_publish:
+    needs: [test-node, lint, check-circular]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+
+      - name: Upgrade npm to latest (required for trusted publishing >=11.5.1)
+        run: npm install -g npm@latest
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        
+      - run: pnpm install
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm run --filter @zod/resolution test:all
+      - run: pnpm run prepublishOnly
+        working-directory: ./packages/zod
+
+      - id: publish
+        name: Publish to NPM
+        uses: JS-DevTools/npm-publish@v4
+        with:
+          # dry-run: true
+          provenance: true
+          package: ./packages/zod
+      
+      - run: pnpm jsr publish --allow-slow-types # --dry-run
+        if: ${{ steps.publish.outputs.type }}
+        working-directory: ./packages/zod
+
+      - name: Post-publish
+        if: ${{ steps.publish.outputs.type }}
+        run: |
+          echo "Published ${{ steps.publish.outputs.type }} version: ${{ steps.publish.outputs.version }}"
+
+      - name: Set canary version
+        if: ${{ !steps.publish.outputs.type }}
+        working-directory: ./packages/zod
+        run: |
+          npm --no-git-tag-version version minor
+          npm --no-git-tag-version version $(npm pkg get version | sed 's/"//g')-canary.$(date +'%Y%m%dT%H%M%S')
+
+      - name: Publish canary
+        if: ${{ !steps.publish.outputs.type }}
+        uses: JS-DevTools/npm-publish@v4
+        with:
+          dry-run: false
+          provenance: true
+          tag: canary
+          package: ./packages/zod
+      
+      - name: Done with canary
+        if: ${{ !steps.publish.outputs.type }}
+        run: |
+          echo "Canary published."
+          exit 0
+     
+      - name: Configure changelog
+        if: ${{ steps.publish.outputs.type }}
+        run: |
+          echo '{"categories": [], "template": "## Commits:\n\n${{ '${{UNCATEGORIZED}}' }}", "pr_template": ${{ '"- ${{MERGE_SHA}} ${{TITLE}}"' }} }' > changelog_config.json
+          cat changelog_config.json
+          echo "last_tag=$(git describe --tags --abbrev=0)" >> $GITHUB_ENV
+          echo "curr_commit=$(git rev-parse HEAD)" >> $GITHUB_ENV
+
+      - name: Generate changelog
+        if: ${{ steps.publish.outputs.type }}
+        id: github_release
+        uses: mikepenz/release-changelog-builder-action@v2.9.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          fromTag: "${{ env.last_tag }}"
+          toTag: ${{ github.ref }}
+          commitMode: true
+          configuration: changelog_config.json
+
+      - name: Create release
+        if: ${{ steps.publish.outputs.type }}
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.publish.outputs.version }}
+          release_name: v${{ steps.publish.outputs.version }}
+          commitish: ${{ github.ref }}
+          body: ${{steps.github_release.outputs.changelog}}
+          draft: false
+          prerelease: false
+

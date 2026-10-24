@@ -1,0 +1,279 @@
+# skills/_artifacts/skill_tree.yaml
+library:
+  name: '@tanstack/router'
+  version: '1.166.2'
+  repository: 'https://github.com/TanStack/router'
+  description: >-
+    Type-safe router for React and Solid with built-in SWR caching,
+    JSON-first search params, and end-to-end type inference.
+generated_from:
+  domain_map: '_artifacts/domain_map.yaml'
+  skill_spec: '_artifacts/skill_spec.md'
+generated_at: '2026-03-07'
+
+skills:
+  # ── Router Core Skills ───────────────────────────────────────────
+  - name: 'Router Core'
+    slug: 'router-core'
+    type: 'core'
+    domain: 'defining-routes'
+    path: 'skills/router-core/SKILL.md'
+    package: 'packages/router-core'
+    description: >-
+      Framework-agnostic core concepts for TanStack Router: route trees,
+      createRouter, createRoute, createRootRoute, createRootRouteWithContext,
+      addChildren, Register type declaration, route matching, route sorting,
+      file naming conventions. Entry point for all router skills.
+    sources:
+      - 'TanStack/router:docs/router/overview.md'
+      - 'TanStack/router:docs/router/routing/routing-concepts.md'
+      - 'TanStack/router:docs/router/routing/route-trees.md'
+      - 'TanStack/router:docs/router/routing/route-matching.md'
+      - 'TanStack/router:docs/router/guide/creating-a-router.md'
+      - 'TanStack/router:docs/router/decisions-on-dx.md'
+      - 'TanStack/router:packages/router-core/src'
+
+  - name: 'Search Params'
+    slug: 'router-core/search-params'
+    type: 'sub-skill'
+    domain: 'managing-url-state'
+    path: 'skills/router-core/search-params/SKILL.md'
+    package: 'packages/router-core'
+    description: >-
+      validateSearch, search param validation with Zod/Valibot/ArkType adapters,
+      fallback(), search middlewares (retainSearchParams, stripSearchParams),
+      custom serialization (parseSearch, stringifySearch), search param
+      inheritance, loaderDeps for cache keys, reading and writing search params.
+    requires:
+      - 'router-core'
+    sources:
+      - 'TanStack/router:docs/router/guide/search-params.md'
+      - 'TanStack/router:docs/router/how-to/setup-basic-search-params.md'
+      - 'TanStack/router:docs/router/how-to/validate-search-params.md'
+      - 'TanStack/router:docs/router/how-to/navigate-with-search-params.md'
+      - 'TanStack/router:docs/router/how-to/share-search-params-across-routes.md'
+      - 'TanStack/router:docs/router/how-to/arrays-objects-dates-search-params.md'
+      - 'TanStack/router:docs/router/guide/custom-search-param-serialization.md'
+    subsystems:
+      - 'Zod adapter'
+      - 'Valibot adapter'
+      - 'ArkType adapter'
+    references:
+      - 'references/validation-patterns.md'
+
+  - name: 'Path Params'
+    slug: 'router-core/path-params'
+    type: 'sub-skill'
+    domain: 'managing-url-state'
+    path: 'skills/router-core/path-params/SKILL.md'
+    package: 'packages/router-core'
+    description: >-
+      Dynamic path segments ($paramName), splat routes ($ / _splat),
+      optional params ({-$paramName}), prefix/suffix patterns ({$param}.ext),
+      useParams, params.parse/stringify, pathParamsAllowedCharacters,
+      i18n locale patterns.
+    requires:
+      - 'router-core'
+    sources:
+      - 'TanStack/router:docs/router/guide/path-params.md'
+      - 'TanStack/router:docs/router/guide/internationalization-i18n.md'
+      - 'TanStack/router:docs/router/routing/routing-concepts.md'
+
+  - name: 'Navigation'
+    slug: 'router-core/navigation'
+    type: 'sub-skill'
+    domain: 'navigating'
+    path: 'skills/router-core/navigation/SKILL.md'
+    package: 'packages/router-core'
+    description: >-
+      Link component, useNavigate, Navigate component, router.navigate,
+      ToOptions/NavigateOptions/LinkOptions, from/to relative navigation,
+      activeOptions/activeProps, preloading (intent/viewport/render),
+      preloadDelay, navigation blocking (useBlocker, Block), createLink,
+      linkOptions helper, scroll restoration, MatchRoute.
+    requires:
+      - 'router-core'
+    sources:
+      - 'TanStack/router:docs/router/guide/navigation.md'
+      - 'TanStack/router:docs/router/guide/preloading.md'
+      - 'TanStack/router:docs/router/guide/navigation-blocking.md'
+      - 'TanStack/router:docs/router/guide/link-options.md'
+      - 'TanStack/router:docs/router/guide/custom-link.md'
+      - 'TanStack/router:docs/router/guide/scroll-restoration.md'
+
+  - name: 'Data Loading'
+    slug: 'router-core/data-loading'
+    type: 'sub-skill'
+    domain: 'loading-data'
+    path: 'skills/router-core/data-loading/SKILL.md'
+    package: 'packages/router-core'
+    description: >-
+      Route loader option, loaderDeps for cache keys, staleTime/gcTime/
+      defaultPreloadStaleTime SWR caching, pendingComponent/pendingMs/
+      pendingMinMs, errorComponent/onError/onCatch, beforeLoad, router
+      context and createRootRouteWithContext DI pattern, router.invalidate,
+      Await component, deferred data loading with unawaited promises.
+    requires:
+      - 'router-core'
+    sources:
+      - 'TanStack/router:docs/router/guide/data-loading.md'
+      - 'TanStack/router:docs/router/guide/deferred-data-loading.md'
+      - 'TanStack/router:docs/router/guide/router-context.md'
+      - 'TanStack/router:docs/router/guide/data-mutations.md'
+
+  - name: 'Auth and Guards'
+    slug: 'router-core/auth-and-guards'
+    type: 'sub-skill'
+    domain: 'protecting-routes'
+    path: 'skills/router-core/auth-and-guards/SKILL.md'
+    package: 'packages/router-core'
+    description: >-
+      Route protection with beforeLoad, redirect()/throw redirect(),
+      isRedirect helper, authenticated layout routes (_authenticated),
+      non-redirect auth (inline login), RBAC with roles and permissions,
+      auth provider integration (Auth0, Clerk, Supabase), router context
+      for auth state.
+    requires:
+      - 'router-core'
+      - 'router-core/data-loading'
+    sources:
+      - 'TanStack/router:docs/router/guide/authenticated-routes.md'
+      - 'TanStack/router:docs/router/how-to/setup-authentication.md'
+      - 'TanStack/router:docs/router/how-to/setup-auth-providers.md'
+      - 'TanStack/router:docs/router/how-to/setup-rbac.md'
+
+  - name: 'Code Splitting'
+    slug: 'router-core/code-splitting'
+    type: 'sub-skill'
+    domain: 'rendering-and-layout'
+    path: 'skills/router-core/code-splitting/SKILL.md'
+    package: 'packages/router-core'
+    description: >-
+      Automatic code splitting (autoCodeSplitting), .lazy.tsx convention,
+      createLazyFileRoute, createLazyRoute, lazyRouteComponent, getRouteApi
+      for typed hooks in split files, codeSplitGroupings per-route override,
+      splitBehavior programmatic config, critical vs non-critical properties.
+    requires:
+      - 'router-core'
+    sources:
+      - 'TanStack/router:docs/router/guide/code-splitting.md'
+      - 'TanStack/router:docs/router/guide/automatic-code-splitting.md'
+
+  - name: 'Not Found and Errors'
+    slug: 'router-core/not-found-and-errors'
+    type: 'sub-skill'
+    domain: 'rendering-and-layout'
+    path: 'skills/router-core/not-found-and-errors/SKILL.md'
+    package: 'packages/router-core'
+    description: >-
+      notFound() function, notFoundComponent, defaultNotFoundComponent,
+      notFoundMode (fuzzy/root), errorComponent, onError/onCatch,
+      CatchBoundary, NotFoundRoute (deprecated), route masking (mask
+      option, createRouteMask, unmaskOnReload).
+    requires:
+      - 'router-core'
+    sources:
+      - 'TanStack/router:docs/router/guide/not-found-errors.md'
+      - 'TanStack/router:docs/router/guide/route-masking.md'
+
+  - name: 'Type Safety'
+    slug: 'router-core/type-safety'
+    type: 'sub-skill'
+    domain: 'type-safety'
+    path: 'skills/router-core/type-safety/SKILL.md'
+    package: 'packages/router-core'
+    description: >-
+      Full type inference philosophy (never cast, never annotate inferred
+      values), Register module declaration, from narrowing on hooks and
+      Link, strict:false for shared components, getRouteApi for code-split
+      typed access, addChildren with object syntax for TS perf, LinkProps
+      and ValidateLinkOptions type utilities, as const satisfies pattern.
+    requires:
+      - 'router-core'
+    sources:
+      - 'TanStack/router:docs/router/guide/type-safety.md'
+      - 'TanStack/router:docs/router/guide/type-utilities.md'
+      - 'TanStack/router:docs/router/guide/render-optimizations.md'
+
+  - name: 'SSR'
+    slug: 'router-core/ssr'
+    type: 'sub-skill'
+    domain: 'server-side-rendering'
+    path: 'skills/router-core/ssr/SKILL.md'
+    package: 'packages/router-core'
+    description: >-
+      Non-streaming and streaming SSR, RouterClient/RouterServer,
+      renderRouterToString/renderRouterToStream, createRequestHandler,
+      defaultRenderHandler/defaultStreamHandler, HeadContent/Scripts
+      components, head route option (meta/links/styles/scripts),
+      ScriptOnce, automatic loader dehydration/hydration, memory
+      history on server, data serialization, document head management.
+    requires:
+      - 'router-core'
+      - 'router-core/data-loading'
+    sources:
+      - 'TanStack/router:docs/router/guide/ssr.md'
+      - 'TanStack/router:docs/router/guide/document-head-management.md'
+      - 'TanStack/router:docs/router/how-to/setup-ssr.md'
+
+  # ── React Router Skills ──────────────────────────────────────────
+  - name: 'React Router'
+    slug: 'react-router'
+    type: 'framework'
+    domain: 'defining-routes'
+    path: 'skills/react-router/SKILL.md'
+    package: 'packages/react-router'
+    description: >-
+      React bindings for TanStack Router: RouterProvider, useRouter,
+      useRouterState, useMatch, useMatches, useLocation, useSearch,
+      useParams, useNavigate, useLoaderData, useLoaderDeps,
+      useRouteContext, useBlocker, useCanGoBack, Link, Navigate,
+      Outlet, CatchBoundary, ErrorComponent. React-specific patterns
+      for hooks, providers, SSR hydration, and createLink with
+      forwardRef.
+    requires:
+      - 'router-core'
+    sources:
+      - 'TanStack/router:packages/react-router/src'
+      - 'TanStack/router:docs/router/guide/creating-a-router.md'
+      - 'TanStack/router:docs/router/installation/manual.md'
+
+  # ── Composition Skills ───────────────────────────────────────────
+  - name: 'External Data Loading (TanStack Query)'
+    slug: 'compositions/router-query'
+    type: 'composition'
+    domain: 'loading-data'
+    path: 'skills/compositions/router-query/SKILL.md'
+    package: 'packages/react-router'
+    description: >-
+      Integrating TanStack Router with TanStack Query: queryClient
+      in router context, ensureQueryData/prefetchQuery in loaders,
+      useSuspenseQuery in components, defaultPreloadStaleTime: 0,
+      setupRouterSsrQueryIntegration for SSR dehydration/hydration
+      and streaming, per-request QueryClient isolation.
+    requires:
+      - 'router-core'
+      - 'router-core/data-loading'
+      - 'react-router'
+    sources:
+      - 'TanStack/router:docs/router/guide/external-data-loading.md'
+      - 'TanStack/router:docs/router/integrations/query.md'
+
+  # ── Lifecycle Skills ─────────────────────────────────────────────
+  - name: 'Migrate from React Router'
+    slug: 'lifecycle/migrate-from-react-router'
+    type: 'lifecycle'
+    domain: 'defining-routes'
+    path: 'skills/lifecycle/migrate-from-react-router/SKILL.md'
+    package: 'packages/react-router'
+    description: >-
+      Step-by-step migration from React Router v7 to TanStack Router:
+      route definition conversion, Link/useNavigate API differences,
+      useSearchParams to validateSearch + useSearch, useParams with from,
+      Outlet replacement, loader conversion, code splitting differences.
+    requires:
+      - 'router-core'
+      - 'react-router'
+    sources:
+      - 'TanStack/router:docs/router/how-to/migrate-from-react-router.md'
+      - 'TanStack/router:docs/router/installation/migrate-from-react-router.md'

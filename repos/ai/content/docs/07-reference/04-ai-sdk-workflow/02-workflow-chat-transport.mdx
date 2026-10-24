@@ -1,0 +1,347 @@
+---
+title: WorkflowChatTransport
+description: API Reference for the WorkflowChatTransport class.
+---
+
+# `WorkflowChatTransport`
+
+A [`ChatTransport`](/docs/ai-sdk-ui/transport) implementation for [`useChat`](/docs/reference/ai-sdk-ui/use-chat) that enables automatic stream reconnection for workflow-based chat apps. It posts messages to a chat endpoint, extracts the `x-workflow-run-id` response header, and reconnects to a `/{runId}/stream` endpoint on interruption (network failures, page refreshes, function timeouts).
+
+Unlike [`DefaultChatTransport`](/docs/ai-sdk-ui/transport) which assumes the full response arrives in a single HTTP request, `WorkflowChatTransport` is designed for the [Workflow SDK](https://vercel.com/docs/workflow) where the initial response stream may be interrupted by function timeouts. The transport automatically detects missing `finish` events and reconnects to resume from where the stream left off.
+
+```tsx
+'use client';
+
+import { useChat } from '@ai-sdk/react';
+import { WorkflowChatTransport } from '@ai-sdk/workflow';
+
+export default function Chat() {
+  const { messages, sendMessage } = useChat({
+    transport: new WorkflowChatTransport({
+      api: '/api/chat',
+      maxConsecutiveErrors: 5,
+      initialStartIndex: -50,
+    }),
+  });
+
+  // ... render chat UI
+}
+```
+
+## Import
+
+<Snippet
+  text={`import { WorkflowChatTransport } from "@ai-sdk/workflow"`}
+  prompt={false}
+/>
+
+## Constructor
+
+### Parameters
+
+<PropertiesTable
+  content={[
+    {
+      name: 'api',
+      type: 'string',
+      isOptional: true,
+      description:
+        "API endpoint for chat requests. The reconnection endpoint is derived from this as `{api}/{runId}/stream`. Default: '/api/chat'.",
+    },
+    {
+      name: 'fetch',
+      type: 'typeof fetch',
+      isOptional: true,
+      description:
+        'Custom fetch implementation to use for HTTP requests. Default: global fetch.',
+    },
+    {
+      name: 'maxConsecutiveErrors',
+      type: 'number',
+      isOptional: true,
+      description:
+        'Maximum number of consecutive errors allowed during reconnection attempts before giving up. Default: 3.',
+    },
+    {
+      name: 'initialStartIndex',
+      type: 'number',
+      isOptional: true,
+      description:
+        'Default chunk index to start from when reconnecting. Negative values read from the end of the stream (e.g., -50 fetches the last 50 chunks), useful for resuming after a page refresh without replaying the full conversation. Can be overridden per-call via reconnectToStream options. Default: 0.',
+    },
+    {
+      name: 'onChatSendMessage',
+      type: '(response: Response, options: SendMessagesOptions) => void | Promise<void>',
+      isOptional: true,
+      description:
+        'Callback invoked after the initial POST request succeeds. Useful for inspecting response headers (e.g., extracting workflow run ID) or tracking chat history on the client side.',
+    },
+    {
+      name: 'onChatEnd',
+      type: '({ chatId, chunkIndex }) => void | Promise<void>',
+      isOptional: true,
+      description:
+        'Callback invoked when the stream ends (receives a finish chunk). Receives the chat ID and total chunk count. Useful for cleanup or state updates.',
+    },
+    {
+      name: 'prepareSendMessagesRequest',
+      type: 'PrepareSendMessagesRequest',
+      isOptional: true,
+      description:
+        'Function to customize the POST request before sending. Can override the API endpoint, headers, credentials, and body.',
+    },
+    {
+      name: 'prepareReconnectToStreamRequest',
+      type: 'PrepareReconnectToStreamRequest',
+      isOptional: true,
+      description:
+        'Function to customize the reconnection GET request. Can override the API endpoint, headers, and credentials.',
+    },
+  ]}
+/>
+
+## Methods
+
+### `sendMessages()`
+
+Sends messages to the chat endpoint via POST and returns a streaming response. If the stream is interrupted (no `finish` event received), the transport automatically reconnects via GET to `{api}/{runId}/stream?startIndex={chunkIndex}` to resume from where it left off.
+
+The POST request includes the messages as JSON and expects the response to include an `x-workflow-run-id` header identifying the workflow run.
+
+```ts
+const stream = await transport.sendMessages({
+  chatId: 'chat-123',
+  trigger: 'submit-message',
+  messages: [...],
+  abortSignal: controller.signal,
+});
+```
+
+<PropertiesTable
+  content={[
+    {
+      name: 'chatId',
+      type: 'string',
+      description: 'Unique identifier for the chat session.',
+    },
+    {
+      name: 'trigger',
+      type: "'submit-message' | 'regenerate-message'",
+      description: 'The type of message submission.',
+    },
+    {
+      name: 'messageId',
+      type: 'string | undefined',
+      description:
+        'ID of the message to regenerate, or undefined for new messages.',
+    },
+    {
+      name: 'messages',
+      type: 'UIMessage[]',
+      description:
+        'Array of UI messages representing the conversation history.',
+    },
+    {
+      name: 'abortSignal',
+      type: 'AbortSignal | undefined',
+      description:
+        'Signal to abort the request. Propagated to both the initial POST and any reconnection GET requests.',
+    },
+  ]}
+/>
+
+#### Returns
+
+Returns a `Promise<ReadableStream<UIMessageChunk>>` that includes chunks from both the initial POST response and any automatic reconnection.
+
+### `reconnectToStream()`
+
+Reconnects to an existing chat stream that was previously interrupted. Useful for resuming after a page refresh or when the client needs to re-establish a connection.
+
+```ts
+const stream = await transport.reconnectToStream({
+  chatId: 'chat-123',
+  startIndex: -50, // Optional: fetch last 50 chunks
+});
+```
+
+<PropertiesTable
+  content={[
+    {
+      name: 'chatId',
+      type: 'string',
+      description:
+        'The chat ID to reconnect to. Used to construct the reconnection URL.',
+    },
+    {
+      name: 'abortSignal',
+      type: 'AbortSignal | undefined',
+      description: 'Signal to abort the reconnection request.',
+    },
+    {
+      name: 'startIndex',
+      type: 'number',
+      isOptional: true,
+      description:
+        "Override the start index for this reconnection. Negative values read from the end of the stream. When omitted, falls back to the constructor's initialStartIndex.",
+    },
+  ]}
+/>
+
+#### Returns
+
+Returns a `Promise<ReadableStream<UIMessageChunk> | null>`.
+
+## How Reconnection Works
+
+The transport follows this flow:
+
+1. **POST** to `{api}` with messages. The response must include an `x-workflow-run-id` header.
+2. **Stream** the SSE response, counting chunks as they arrive.
+3. **Detect interruption**: If the stream closes without a `finish` event (e.g., function timeout, network error), the transport knows the response is incomplete.
+4. **Reconnect** via GET to `{api}/{runId}/stream?startIndex={chunkIndex}` to resume from the last received chunk.
+5. **Retry**: If the reconnection stream also interrupts, retry up to `maxConsecutiveErrors` times.
+6. **Complete**: Once a `finish` event is received, call `onChatEnd` and close the stream.
+
+### Negative Start Index
+
+When `initialStartIndex` is negative (e.g., `-50`), the transport sends it as-is in the first reconnection request. The server should resolve this to an absolute position and return the `x-workflow-stream-tail-index` response header so the transport can compute the correct position for subsequent retries.
+
+If the header is missing or invalid, the transport falls back to replaying from the beginning (`startIndex=0`).
+
+## Server Requirements
+
+For `WorkflowChatTransport` to work, your server must provide two endpoints:
+
+### POST `{api}` (e.g., `/api/chat`)
+
+- Accept messages as JSON body
+- Return an SSE stream of `UIMessageChunk` events
+- Include an `x-workflow-run-id` response header
+
+### GET `{api}/{runId}/stream` (e.g., `/api/chat/{runId}/stream`)
+
+- Accept a `startIndex` query parameter
+- Return the SSE stream starting from the given chunk index
+- For negative `startIndex`, resolve to the tail and include `x-workflow-stream-tail-index` response header
+
+See the [WorkflowAgent guide](/docs/agents/workflow-agent) for complete endpoint examples.
+
+## Examples
+
+### Basic Usage with useChat
+
+```tsx
+'use client';
+
+import { useChat } from '@ai-sdk/react';
+import { WorkflowChatTransport } from '@ai-sdk/workflow';
+import { useMemo } from 'react';
+
+export default function Chat() {
+  const transport = useMemo(
+    () => new WorkflowChatTransport({ api: '/api/chat' }),
+    [],
+  );
+
+  const { messages, sendMessage, status } = useChat({ transport });
+
+  return (
+    <div>
+      {messages.map(message => (
+        <div key={message.id}>
+          {message.role === 'user' ? 'User: ' : 'AI: '}
+          {message.parts.map((part, index) =>
+            part.type === 'text' ? <span key={index}>{part.text}</span> : null,
+          )}
+        </div>
+      ))}
+      <button onClick={() => sendMessage({ text: 'Hello!' })}>Send</button>
+    </div>
+  );
+}
+```
+
+### With Callbacks and Page Refresh Recovery
+
+```tsx
+'use client';
+
+import { useChat } from '@ai-sdk/react';
+import { WorkflowChatTransport } from '@ai-sdk/workflow';
+import { useMemo } from 'react';
+
+export default function Chat() {
+  const transport = useMemo(
+    () =>
+      new WorkflowChatTransport({
+        api: '/api/chat',
+        maxConsecutiveErrors: 5,
+        initialStartIndex: -50, // Resume from last 50 chunks on page refresh
+        onChatSendMessage: response => {
+          const runId = response.headers.get('x-workflow-run-id');
+          console.log('Workflow run started:', runId);
+        },
+        onChatEnd: ({ chatId, chunkIndex }) => {
+          console.log(`Chat ${chatId} complete, ${chunkIndex} chunks`);
+        },
+      }),
+    [],
+  );
+
+  const { messages, sendMessage } = useChat({ transport });
+
+  // ... render chat UI
+}
+```
+
+### Server-Side Endpoints (Next.js)
+
+```ts filename="app/api/chat/route.ts"
+import { createModelCallToUIChunkTransform } from '@ai-sdk/workflow';
+import { createUIMessageStreamResponse, type UIMessage } from 'ai';
+import { start } from 'workflow/api';
+import { chat } from '@/workflow/agent-chat';
+
+export async function POST(request: Request) {
+  const { messages }: { messages: UIMessage[] } = await request.json();
+  const run = await start(chat, [messages]);
+
+  return createUIMessageStreamResponse({
+    stream: run.readable.pipeThrough(createModelCallToUIChunkTransform()),
+    headers: {
+      'x-workflow-run-id': run.runId,
+    },
+  });
+}
+```
+
+```ts filename="app/api/chat/[runId]/stream/route.ts"
+import { createModelCallToUIChunkTransform } from '@ai-sdk/workflow';
+import type { NextRequest } from 'next/server';
+import { getRun } from 'workflow/api';
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ runId: string }> },
+) {
+  const { runId } = await params;
+  const startIndex = Number(
+    new URL(request.url).searchParams.get('startIndex') ?? '0',
+  );
+
+  const run = await getRun(runId);
+  const readable = run
+    .getReadable({ startIndex })
+    .pipeThrough(createModelCallToUIChunkTransform());
+
+  return new Response(readable, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+      'x-workflow-run-id': runId,
+    },
+  });
+}
+```

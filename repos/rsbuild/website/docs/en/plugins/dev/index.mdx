@@ -1,0 +1,379 @@
+---
+description: "Rsbuild's architecture is centered on a plugin system."
+---
+
+# Plugin development
+
+Rsbuild's architecture is centered on a plugin system. Most of Rsbuild's functionality is implemented through plugins, which keeps the core lightweight while providing flexible extensibility.
+
+Rsbuild plugins are functions that can register hooks at different stages, listen to events, and execute custom logic. If you want to modify the default behavior, add new features, or integrate third-party tools, plugins provide a comprehensive API to fulfill these requirements.
+
+## Comparison
+
+Before developing a Rsbuild plugin, you may have been familiar with the plugin systems of tools such as webpack, Vite, esbuild, etc.
+
+Rsbuild's plugin API is similar to esbuild's, and compared with webpack or Rspack plugins, Rsbuild's plugin API is simpler and easier to get started with.
+
+```ts
+// esbuild plugin
+const esbuildPlugin = {
+  name: 'example',
+  setup(build) {
+    build.onEnd(() => console.log('done'));
+  },
+};
+
+// Rsbuild plugin
+const rsbuildPlugin = () => ({
+  name: 'example',
+  setup(api) {
+    api.onAfterBuild(() => console.log('done'));
+  },
+});
+
+// Rspack plugin
+class RspackExamplePlugin {
+  apply(compiler) {
+    compiler.hooks.done.tap('RspackExamplePlugin', () => {
+      console.log('done');
+    });
+  }
+}
+```
+
+From a functional perspective, Rsbuild's plugin API mainly revolves around Rsbuild's operation process and build configuration, providing various hooks for extension. On the other hand, Rspack's plugin API is more complex and comprehensive, capable of modifying every aspect of the bundling process.
+
+Rspack plugins can be integrated into Rsbuild plugins. If the hooks provided by Rsbuild do not meet your requirements, you can also implement the functionality using Rspack plugin and register Rspack plugins in the Rsbuild plugin:
+
+```ts
+const rsbuildPlugin = () => ({
+  name: 'example',
+  setup(api) {
+    api.modifyRspackConfig((config) => {
+      config.plugins.push(new RspackExamplePlugin());
+    });
+  },
+});
+```
+
+## Developing plugins
+
+Plugins provide a function similar to `(options?: PluginOptions) => RsbuildPlugin` as an entry point.
+
+### Plugin example
+
+```ts title="pluginFoo.ts"
+import type { RsbuildPlugin } from '@rsbuild/core';
+
+export type PluginFooOptions = {
+  message?: string;
+};
+
+export const pluginFoo = (options: PluginFooOptions = {}): RsbuildPlugin => ({
+  name: 'plugin-foo',
+
+  setup(api) {
+    api.onAfterStartDevServer(() => {
+      const msg = options.message || 'hello!';
+      console.log(msg);
+    });
+  },
+});
+```
+
+Registering the plugin:
+
+```ts title="rsbuild.config.ts"
+import { pluginFoo } from './pluginFoo';
+
+export default {
+  plugins: [pluginFoo({ message: 'world!' })],
+};
+```
+
+### Plugin structure
+
+Function-based plugins can **accept an options object** and **return a plugin instance**, managing internal state through closures.
+
+The roles of each part are as follows:
+
+- The `name` property is used to label the plugin's name.
+- `setup` serves as the main entry point for the plugin logic.
+- The `api` object contains various hooks and utility functions.
+
+### Naming convention
+
+The naming convention for plugins is as follows:
+
+- The function of the plugin is named `pluginAbc` and exported by name.
+- The `name` of the plugin follows the format `scope:foo-bar` or `plugin-foo-bar`, adding `scope:` can avoid naming conflicts with other plugins.
+
+Here is an example:
+
+```ts title="pluginFooBar.ts"
+import type { RsbuildPlugin } from '@rsbuild/core';
+
+export const pluginFooBar = (): RsbuildPlugin => ({
+  name: 'scope:foo-bar',
+  setup() {},
+});
+```
+
+:::tip
+The `name` of official Rsbuild plugins uniformly uses `rsbuild:` as a prefix, for example, `rsbuild:react` corresponds to `@rsbuild/plugin-react`.
+:::
+
+### Template repository
+
+[rsbuild-plugin-template](https://github.com/rstackjs/rsbuild-plugin-template) is a minimal Rsbuild plugin template repository that you can use as a basis for developing your Rsbuild plugin.
+
+### Environment plugin
+
+Rsbuild supports building outputs for multiple environments at the same time, and supports [add plugins for specified environment](/guide/advanced/environments#plugins-specified-environment).
+
+If you want the plugin you develop to support use as an Environment plugin, you need to pay attention to the following points:
+
+1. Each environment has its own Rsbuild config:
+   - Use [environment context](/guide/advanced/environments#environment-context) instead of `getRsbuildConfig` to get environment information.
+   - When modifying the Rsbuild config for a specific environment, prioritize using [modifyEnvironmentConfig](/plugins/dev/hooks#modifyenvironmentconfig) instead of [modifyRsbuildConfig](/plugins/dev/hooks#modifyrsbuildconfig) to avoid affecting other environments.
+2. Be aware of side effects, your plugin code may be executed multiple times:
+   - When the same plugin is registered multiple times in different environments, it will be regarded as multiple Rsbuild plugins (even if they point to the same plugin instance), because they have different Rsbuild environment contexts.
+
+Here is an example:
+
+```ts title="pluginFoo.ts"
+import type { RsbuildPlugin } from '@rsbuild/core';
+
+export type PluginFooOptions = {
+  title?: string;
+};
+
+export const pluginFoo = (options: PluginFooOptions = {}): RsbuildPlugin => ({
+  name: 'plugin-foo',
+
+  setup(api) {
+    api.modifyEnvironmentConfig((config) => {
+      config.html.title = options.title || 'My Default Title';
+    });
+    api.modifyBundlerChain((chain, { environment }) => {
+      chain.name(environment.config.html.title);
+    });
+  },
+});
+```
+
+### Reference other plugins
+
+Rsbuild's [plugins](/config/plugins) config supports passing a nested array, which means you can reference and register other Rsbuild plugins within your plugin.
+
+For example, register `pluginBar` within `pluginFoo`:
+
+```ts
+import { pluginBar } from 'rsbuild-plugin-bar';
+
+export const pluginFoo = (): RsbuildPlugin => {
+  const foo = {
+    name: 'plugin-foo',
+    setup(api) {
+      // ...
+    },
+  };
+  return [foo, pluginBar()];
+};
+```
+
+## Lifetime hooks
+
+Rsbuild internally uses lifecycle hooks to schedule tasks, and plugins can also register hooks to take part in any stage of the workflow and implement their own features.
+
+The full list of Rsbuild's lifetime hooks can be found in the [API References](/plugins/dev/hooks).
+
+Rsbuild does not take over the hooks of the underlying Rspack, whose documents can be found here: [Rspack Plugin API](https://rspack.rs/api/plugin-api).
+
+## Migrate Vite plugin
+
+See [Migrate Vite plugin](/guide/migration/vite-plugin) to learn how to migrate a Vite plugin to Rsbuild plugin.
+
+## Use Rsbuild config
+
+Custom plugins usually receive their options from the parameters passed to the initialization function, so you can define and use those arguments however you like.
+
+Sometimes a plugin needs to read or modify Rsbuild's configuration. To do that effectively, it's helpful to understand how Rsbuild generates and consumes its config:
+
+- Read, parse config and merge with default values.
+- Plugins modify the config by `api.modifyRsbuildConfig(...)`.
+- Normalize the config and provide it to consume, then the config can no longer be modified.
+
+Refer to this tiny example:
+
+```ts
+export const pluginUploadDist = (): RsbuildPlugin => ({
+  name: 'plugin-upload-dist',
+  setup(api) {
+    api.modifyRsbuildConfig((config) => {
+      // Try to disable minification.
+      config.output.minify = false;
+      // Other plugins might re-enable it...
+    });
+    api.onBeforeBuild(() => {
+      // use the normalized config.
+      const config = api.getNormalizedConfig();
+      if (config.output.minify !== false) {
+        // let it crash when enable minimize.
+        throw new Error('You must disable minimize to upload readable dist files.');
+      }
+    });
+    api.onAfterBuild(() => {
+      const config = api.getNormalizedConfig();
+      const distRoot = config.output.distPath.root;
+
+      // upload all files in `distRoot`...
+    });
+  },
+});
+```
+
+There are 3 ways to use Rsbuild config:
+
+- register callback with `api.modifyRsbuildConfig(config => {})` to modify config.
+- use `api.getRsbuildConfig()` to get Rsbuild config.
+- use `api.getNormalizedConfig()` to get finally normalized config.
+
+When normalized, the config object is merged with the default values again and most optional properties are removed, ensuring those fields are always available. For `pluginUploadDist`, part of its type looks like:
+
+```ts
+api.modifyRsbuildConfig((config: RsbuildConfig) => {});
+api.getRsbuildConfig() as RsbuildConfig;
+type RsbuildConfig = {
+  output?: {
+    minify?: boolean;
+    distPath?: { root?: string };
+  };
+};
+
+api.getNormalizedConfig() as NormalizedConfig;
+type NormalizedConfig = {
+  output: {
+    minify: boolean;
+    distPath: { root: string };
+  };
+};
+```
+
+The return type of `getNormalizedConfig()` differs slightly from `RsbuildConfig`; it's narrower because defaults have already been applied. You don't need to provide default values when you use it.
+
+Therefore, the best way to use configuration options is to:
+
+- **Modify the config** with `api.modifyRsbuildConfig(config => {})`.
+- Read `api.getNormalizedConfig()` as the **actual config used by the plugin** later in its lifecycle.
+
+## Modify Rspack configuration
+
+Rsbuild plugin allows you to modify the built-in Rspack configuration, including:
+
+- [api.modifyRspackConfig](/plugins/dev/hooks#modifyrspackconfig): Modify the Rspack configuration object.
+- [api.modifyBundlerChain](/plugins/dev/hooks#modifybundlerchain): Modify the Rspack configuration through [rspack-chain](https://github.com/rstackjs/rspack-chain).
+
+### Example
+
+For example, register [eslint-rspack-plugin](https://github.com/rstackjs/eslint-rspack-plugin) via Rsbuild plugin:
+
+```ts
+import type { RsbuildPlugin } from '@rsbuild/core';
+import ESLintRspackPlugin from 'eslint-rspack-plugin';
+
+export const pluginEslint = (options?: Options): RsbuildPlugin => ({
+  name: 'plugin-eslint',
+  setup(api) {
+    api.modifyRspackConfig((config) => {
+      config.plugins.push(
+        new ESLintRspackPlugin({
+          // plugins options
+        }),
+      );
+    });
+  },
+});
+```
+
+## Extending plugin API
+
+When building custom tools on top of Rsbuild's [JavaScript API](/api/start/), you may want to extend the existing plugin API to provide additional capabilities — for example, exposing utility functions or sharing context objects.
+
+You can achieve this by using the [rsbuild.expose()](/api/javascript-api/instance#rsbuildexpose) method on the Rsbuild instance.
+
+This method works the same way as the plugin's [api.expose()](/plugins/dev/core#apiexpose), allowing you to expose custom methods or objects to Rsbuild plugins.
+
+For example, you can expose `getState` and `setCount` methods:
+
+```ts title="myToolkit.ts"
+import { createRsbuild } from '@rsbuild/core';
+
+export const MY_TOOLKIT_ID = 'my-toolkit';
+
+const rsbuild = await createRsbuild({
+  // ...
+});
+
+const state = {
+  count: 0,
+};
+
+rsbuild.expose(MY_TOOLKIT_ID, {
+  getState() {
+    return state;
+  },
+  setCount(count: number) {
+    state.count = count;
+  },
+});
+```
+
+Plugins can then access these extended APIs using the [api.useExposed()](/plugins/dev/core#apiuseexposed) method:
+
+```ts title="myPlugin.ts"
+import { MY_TOOLKIT_ID } from './myToolkit';
+
+const myPlugin = {
+  name: 'my-plugin',
+  setup(api) {
+    const toolkitApi = api.useExposed(MY_TOOLKIT_ID);
+    if (toolkitApi) {
+      const { count } = toolkitApi.getState();
+      toolkitApi.setCount(count + 1);
+    }
+  },
+};
+```
+
+## Dependency declaration
+
+When publishing an Rsbuild plugin, you should declare `@rsbuild/core` in `peerDependencies` in `package.json`, and install it in `devDependencies` for local development:
+
+```json
+{
+  "peerDependencies": {
+    "@rsbuild/core": "^2.0.0"
+  },
+  "devDependencies": {
+    "@rsbuild/core": "^2.0.0"
+  }
+}
+```
+
+If your plugin only references types from `@rsbuild/core`, you can declare it as an optional peer dependency:
+
+```json
+{
+  "peerDependencies": {
+    "@rsbuild/core": "^2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@rsbuild/core": {
+      "optional": true
+    }
+  }
+}
+```
+
+In this case, the plugin will not produce unnecessary peer dependency warnings when it is used by higher-level tools based on Rsbuild, such as Rslib or Rspress.

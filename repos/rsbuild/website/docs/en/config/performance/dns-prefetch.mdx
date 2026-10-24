@@ -1,0 +1,42 @@
+---
+description: 'Reference for the Rsbuild performance.dns-prefetch option, including behavior, defaults, configuration details, and usage examples.'
+---
+
+# performance.dnsPrefetch
+
+- **Type:** `string[] | undefined`
+- **Default:** `undefined`
+
+Injects [`<link rel="dns-prefetch">`](https://developer.mozilla.org/en-US/docs/Web/HTML/Attributes/rel/dns-prefetch) tags into the HTML file.
+
+## When to use
+
+When a browser requests a resource from a (third party) server, that cross-origin's domain name must be resolved to an IP address before the browser can issue the request. This process is known as DNS resolution. While DNS caching can help to reduce this latency, DNS resolution can add significant latency to requests.
+
+Configuring `dns-prefetch` can resolve the domain before requesting resources, reducing request latency and improving loading performance.
+
+For more information, see [Using dns-prefetch](https://developer.mozilla.org/en-US/docs/Web/Performance/dns-prefetch).
+
+## Example
+
+```ts title="rsbuild.config.ts"
+export default {
+  performance: {
+    dnsPrefetch: ['https://example.com'],
+  },
+};
+```
+
+The generated HTML tag in HTML is:
+
+```html
+<link rel="dns-prefetch" href="https://example.com" />
+```
+
+## Notes
+
+In general, a website should not configure more than 10 DNS prefetches.
+
+Using too many DNS prefetches can lead to performance issues because browsers have limits on the number of DNS requests they can maintain. Excessive DNS prefetching, or prefetching for domains that are not ultimately used can cause resource contention and may reduce browser efficiency.
+
+For more details, refer to [What Is a DNS Prefetch?](https://www.splunk.com/en_us/blog/learn/dns-prefetch.html).

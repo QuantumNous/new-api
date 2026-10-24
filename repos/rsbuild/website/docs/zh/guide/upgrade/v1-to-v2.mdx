@@ -1,0 +1,571 @@
+---
+description: '当前文档列出了从 Rsbuild v1 到 2.0 的所有不兼容更新，你可以参考此文档来迁移。'
+---
+
+import { PackageManagerTabs } from '@theme';
+
+# 从 v1 升级到 v2
+
+当前文档列出了从 Rsbuild v1 到 2.0 的所有不兼容更新，你可以参考此文档来迁移。
+
+## 使用 Agent Skills
+
+如果你正在使用支持 skills 的 coding agent，可以安装 [rsbuild-v2-upgrade](https://github.com/rstackjs/agent-skills#rsbuild-v2-upgrade) skill，由 Agent 自动协助完成依赖升级、配置调整和迁移检查，减少手动操作成本。
+
+```bash
+npx skills add rstackjs/agent-skills --skill rsbuild-v2-upgrade
+```
+
+安装后，让 coding agent 协助完成升级即可。
+
+## 升级 Rsbuild 到 v2
+
+- 将 `@rsbuild/core` 升级到 2.0 版本。
+
+- 如果你使用了 `@rsbuild/plugin-react` 或 `@rsbuild/plugin-svgr`，也需要同时将它们升级到 2.0 版本，以保持与 `@rsbuild/core` 的版本兼容。例如：
+
+```json
+{
+  "devDependencies": {
+    "@rsbuild/core": "^2.0.0",
+    "@rsbuild/plugin-react": "^2.0.0",
+    "@rsbuild/plugin-svgr": "^2.0.0"
+  }
+}
+```
+
+- 其他 Rsbuild 插件也推荐升级到最新的版本：
+
+```bash
+# 升级当前目录中的 Rsbuild 依赖
+npx taze major --include /rsbuild/ -w
+
+# 或递归升级整个 monorepo 中的 Rsbuild 依赖
+npx taze major --include /rsbuild/ -w -r
+```
+
+## Rspack v2
+
+Rsbuild v2 现在依赖 [@rspack/core](https://www.npmjs.com/package/@rspack/core) v2，如果你使用了自定义的 Rspack 配置或插件，可能需要进行相应的调整。
+
+参考 [Rspack v2 升级指南](https://github.com/web-infra-dev/rspack/discussions/9270) 了解所有不兼容更新。
+
+## 默认 browserslist 更新
+
+在 Rsbuild 2.0 中，默认的 browserslist 已进行更新，以更好地反映现代 Web 平台的基线水平。
+
+### Web 产物
+
+默认的 Web browserslist 已升级到更现代的 [Baseline](https://web-platform-dx.github.io/web-features/)。新的默认值对应于 [`baseline widely available on 2025-05-01`](https://browsersl.ist/#q=baseline+widely+available+on+2025-05-01)：
+
+- Chrome 87 → 107
+- Edge 88 → 107
+- Firefox 78 → 104
+- Safari 14 → 16
+
+这一变化会影响 JavaScript 和 CSS 的转换结果，以及 polyfill 的注入方式。
+
+如果你的项目已经定义了自己的 browserslist 配置，例如通过 `.browserslistrc` 或 `package.json#browserslist`，Rsbuild 将继续使用该配置。默认值只会在未检测到任何 browserslist 配置时生效。
+
+如果你希望保持之前的行为，可以在项目根目录创建一个 `.browserslistrc` 文件：
+
+```text title=".browserslistrc"
+chrome >= 87
+edge >= 88
+firefox >= 78
+safari >= 14
+```
+
+### Node 产物
+
+Rsbuild 2.0 也更新了默认的 Node.js 产物版本。由于 Node.js 18 已于 2025 年 4 月 [结束维护](https://nodejs.org/en/about/eol)，Rsbuild 现在默认使用 Node 20+。
+
+- Node 16 → 20
+
+如果你希望保持之前的行为，可以通过 [output.overrideBrowserslist](/config/output/override-browserslist) 进行配置：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+    overrideBrowserslist: ['node >= 16'],
+  },
+};
+```
+
+## Node.js 支持
+
+Rsbuild 2.0 最低支持的 Node.js 版本为 20.19+ 或 22.12+，不再支持 Node.js 18。
+
+## Pure ESM 包
+
+[@rsbuild/core](https://www.npmjs.com/package/@rsbuild/core) 现已以 pure ESM 包的形式发布。
+
+## 依赖变更
+
+### Polyfill
+
+[core-js](https://www.npmjs.com/package/core-js) polyfill 从 `@rsbuild/core` 的默认依赖变更为可选的 peer 依赖，这减少了 1.2MB 的安装体积。
+
+如果你启用了 [output.polyfill](/config/output/polyfill)，请在项目中安装 `core-js` v3：
+
+<PackageManagerTabs command="add core-js" />
+
+### Module Federation
+
+如果你使用了 [moduleFederation.options](/config/module-federation/options) 选项，请在项目中手动安装 [@module-federation/runtime-tools](https://www.npmjs.com/package/@module-federation/runtime-tools)，它现在是 `@rspack/core` 的 optional peer 依赖：
+
+<PackageManagerTabs command="add @module-federation/runtime-tools" />
+
+这一变更仅影响通过 `moduleFederation.options` 使用 Module Federation v1.5 的项目。如果你使用的是 Module Federation v2，则不受影响。
+
+## 配置
+
+### 默认 host 变更
+
+[server.host](/config/server/host) 的默认值从 `'0.0.0.0'` 变更为 `'localhost'`。
+
+这防止了开发服务器默认暴露在局域网中，从而确保了"默认安全"。
+
+如果你需要从同一局域网内的其他设备访问服务器（例如进行移动端测试），可以将 host 手动设置为 `'0.0.0.0'`：
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    host: '0.0.0.0',
+  },
+};
+```
+
+你也可以使用 CLI 的 `--host` 选项来开启网络访问：
+
+```bash
+rsbuild --host
+```
+
+### 默认 decorators 版本
+
+[source.decorators.version](/config/source/decorators#decoratorsversion) 的默认值从 `2022-03` 变更为 `2023-11`。
+
+对大多数项目来说，这一变化带来的实际影响很小。如果你的项目依赖此前的默认行为，可以显式指定 decorators 版本：
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    decorators: {
+      version: '2022-03',
+    },
+  },
+};
+```
+
+### Node 产物
+
+当 [output.target](/config/output/target) 为 `node` 时，Rsbuild 2.0 会通过 [output.module](/config/output/module) 默认输出 ESM 产物，并保持 [output.minify](/config/output/minify) 关闭。在 Rsbuild v1 中，默认行为是输出 CommonJS 且开启压缩。
+
+该调整更贴近 Node 的现代 ESM 生态，同时保留更清晰的调试堆栈与排查体验。
+
+因此运行时需要支持加载 ESM（例如在 package.json 中设置 `"type": "module"` 或输出 `.mjs` 文件），否则需要显式切回 CommonJS。
+
+如果你希望恢复 v1 的行为，可以显式禁用 ESM 并开启压缩：
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    target: 'node',
+    module: false,
+    minify: true,
+  },
+};
+```
+
+### 移除 `source.alias`
+
+废弃的 `source.alias` 选项已被移除，使用 [resolve.alias](/config/resolve/alias) 进行替代。
+
+```diff title="rsbuild.config.ts"
+export default {
+- source: {
++ resolve: {
+    alias: {
+      '@': './src',
+    },
+  },
+};
+```
+
+### 移除 `source.aliasStrategy`
+
+废弃的 `source.aliasStrategy` 选项已被移除，使用 [resolve.aliasStrategy](/config/resolve/alias-strategy) 进行替代。
+
+```diff title="rsbuild.config.ts"
+export default {
+- source: {
++ resolve: {
+    aliasStrategy: 'prefer-alias',
+  },
+};
+```
+
+### 移除 `performance.bundleAnalyze`
+
+废弃的 `performance.bundleAnalyze` 选项已被移除。
+
+早期 Rsbuild 内置了 `webpack-bundle-analyzer`，但如今 Rsdoctor 已支持产物体积分析，因此无需在 `@rsbuild/core` 中继续内置；同时移除内置依赖可以降低安装体积。
+
+推荐使用 [Rsdoctor](/guide/debug/rsdoctor) 分析产物体积，或通过 [tools.rspack](/config/tools/rspack) 自行注册 [webpack-bundle-analyzer](https://www.npmjs.com/package/webpack-bundle-analyzer)：
+
+```ts title="rsbuild.config.ts"
+import { BundleAnalyzerPlugin } from 'webpack-bundle-analyzer';
+
+export default {
+  tools: {
+    rspack: {
+      plugins: [
+        new BundleAnalyzerPlugin({
+          analyzerMode: 'static',
+        }),
+      ],
+    },
+  },
+};
+```
+
+### 移除 `performance.removeMomentLocale`
+
+`performance.removeMomentLocale` 选项已被移除。
+
+该选项原本用于从产物中移除 Moment.js 的语言包。但在 Rspack v2 中，Moment 的 locales 默认不会被打包，因此该选项已不再需要。
+
+> 背景信息可参考 [web-infra-dev/rsbuild#6991](https://github.com/web-infra-dev/rsbuild/pull/6991)。
+
+### 移除 `performance.profile`
+
+`performance.profile` 选项已被移除。如果你依赖它来输出 stats JSON 文件，可以在自定义插件中调用 [stats.toJson()](/api/javascript-api/instance#stats-object) 代替：
+
+```ts title="rsbuild.config.ts"
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const statsJsonPlugin = {
+  name: 'stats-json-plugin',
+  setup(api) {
+    api.onAfterBuild(({ stats }) => {
+      writeFileSync(
+        join(api.context.distPath, 'stats.json'),
+        JSON.stringify(stats?.toJson({}), null, 2),
+      );
+    });
+  },
+};
+
+export default {
+  plugins: [statsJsonPlugin],
+};
+```
+
+### 迁移 `performance.chunkSplit` \{#migrate-performancechunksplit}
+
+`performance.chunkSplit` 已在 Rsbuild 2.0 中废弃，但暂未移除，仍可继续使用。
+
+我们推荐使用新的 [splitChunks](/config/split-chunks) 选项代替它，新选项对齐了 Rspack 的 [optimization.splitChunks](https://rspack.rs/zh/plugins/webpack/split-chunks-plugin) 配置，并提供了与 `performance.chunkSplit.strategy` 相似的预设选项。
+
+#### strategy
+
+- `strategy: 'split-by-experience'` → `splitChunks.preset: 'default'`
+
+```diff title="rsbuild.config.ts"
+export default {
+-  performance: {
+-    chunkSplit: {
+-      strategy: 'split-by-experience',
+-    },
+-  },
++  splitChunks: {
++    preset: 'default',
++  },
+};
+```
+
+- `strategy: 'split-by-module'` → `splitChunks.preset: 'per-package'`
+
+```diff title="rsbuild.config.ts"
+export default {
+-  performance: {
+-    chunkSplit: {
+-      strategy: 'split-by-module',
+-    },
+-  },
++  splitChunks: {
++    preset: 'per-package',
++  },
+};
+```
+
+- `strategy: 'single-vendor'` → `splitChunks.preset: 'single-vendor'`
+
+```diff title="rsbuild.config.ts"
+export default {
+-  performance: {
+-    chunkSplit: {
+-      strategy: 'single-vendor',
+-    },
+-  },
++  splitChunks: {
++    preset: 'single-vendor',
++  },
+};
+```
+
+- `strategy: 'all-in-one'` → 关闭拆包
+
+```diff title="rsbuild.config.ts"
+export default {
+-  performance: {
+-    chunkSplit: {
+-      strategy: 'all-in-one',
+-    },
+-  },
++  splitChunks: false,
+};
+```
+
+- `strategy: 'custom'` + `splitChunks` → `splitChunks.preset: 'none'`
+
+```diff title="rsbuild.config.ts"
+export default {
+-  performance: {
+-    chunkSplit: {
+-      strategy: 'custom',
+-      splitChunks: {
+-        // ...
+-      },
+-    },
+-  },
++  splitChunks: {
++    preset: 'none',
++    // ...
++  },
+};
+```
+
+- `strategy: 'split-by-size'` → 直接配置 `minSize` / `maxSize`
+
+```diff title="rsbuild.config.ts"
+export default {
+-  performance: {
+-    chunkSplit: {
+-      strategy: 'split-by-size',
+-      minSize: 20000,
+-      maxSize: 50000,
+-    },
+-  },
++  splitChunks: {
++    preset: 'none',
++    minSize: 20000,
++    maxSize: 50000,
++  },
+};
+```
+
+- `override` → 直接使用 `splitChunks`
+
+```diff title="rsbuild.config.ts"
+export default {
+-  performance: {
+-    chunkSplit: {
+-      override: {
+-        // ...
+-      },
+-    },
+-  },
++  splitChunks: {
++    // ...
++  },
+};
+```
+
+#### forceSplitting
+
+`forceSplitting` 是对 `cacheGroups` 的语法糖，可以直接替换为 `cacheGroups`：
+
+```diff title="rsbuild.config.ts"
+export default {
+-  performance: {
+-    chunkSplit: {
+-      forceSplitting: {
+-        axios: /node_modules[\\/]axios/,
+-      },
+-    },
+-  },
++  splitChunks: {
++    cacheGroups: {
++      axios: {
++        test: /node_modules[\\/]axios/,
++        name: 'axios',
++        chunks: 'all',
++        priority: 0, // 使用 single-vendor 时可设置为 1
++        enforce: true,
++      },
++    },
++  },
+};
+```
+
+### Proxy 中间件升级 \{#proxy-middleware-upgraded}
+
+Rsbuild 依赖的 [http-proxy-middleware](https://github.com/chimurai/http-proxy-middleware) 从 v2 升级到了 v4，个别配置项发生了变化。
+
+你可以根据以下示例进行迁移，或查看 [http-proxy-middleware v3 不兼容更新](https://github.com/chimurai/http-proxy-middleware/blob/master/MIGRATION_V3.md#v3-breaking-changes) 了解更多细节。
+
+- `context` 选项替换为 `pathFilter`：
+
+```diff title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: [
+      {
+-       context: '/api',
++       pathFilter: '/api',
+        target: 'https://example.com',
+      },
+    ],
+  },
+};
+```
+
+- Rsbuild 现在会对所有代理配置写法应用默认代理选项。在数组写法中，[`changeOrigin`](https://github.com/chimurai/http-proxy-middleware#httpxy-options) 现在默认值为 `true`，与对象写法保持一致。如果你依赖之前的 `false` 默认值，请显式设置：
+
+```diff title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: [
+      {
+        pathFilter: '/api',
+        target: 'https://example.com',
++       changeOrigin: false,
+      },
+    ],
+  },
+};
+```
+
+- 事件改为使用 `on` 统一配置：
+
+```diff title="rsbuild.config.ts"
+export default {
+  server: {
+    proxy: {
+      '/api': {
+-       onOpen: () => {},
+-       onClose: () => {},
+-       onError: () => {},
+-       onProxyReq: () => {},
+-       onProxyRes: () => {},
++       on: {
++         open: () => {},
++         close: () => {},
++         error: () => {},
++         proxyReq: () => {},
++         proxyRes: () => {},
++       },
+      },
+    },
+  },
+};
+```
+
+## JavaScript API
+
+- 移除 `rsbuild.build()` 中废弃的 `compiler` 参数
+- 移除 `rsbuild.startDevServer()` 中废弃的 `compiler` 参数
+- 移除 [sockWrite](/api/javascript-api/server-api#sockwrite) 中废弃的 `content-changed` 消息类型。使用 `full-reload` 代替
+- 重命名 `rsbuild.onAfterStartProdServer` 方法为 `rsbuild.onAfterStartPreviewServer`
+- 重命名 `rsbuild.onBeforeStartProdServer` 方法为 `rsbuild.onBeforeStartPreviewServer`
+- [loadConfig](/api/javascript-api/core#loadconfig) 方法的 `loader` 参数的默认值从 `jiti` 变更为 `auto`，优先使用原生 Node.js 加载器
+
+## 插件 API
+
+- 重命名 `api.onAfterStartProdServer` 钩子为 `api.onAfterStartPreviewServer`
+- 重命名 `api.onBeforeStartProdServer` 钩子为 `api.onBeforeStartPreviewServer`
+
+## 移除 webpack 支持
+
+Rsbuild 2.0 不再支持使用 webpack 作为打包工具。在 Rsbuild v1 版本中，该能力主要用于验证 Rspack 与 webpack 之间的兼容性。随着 Rspack 的逐步成熟和稳定，这一用途已不再必要，因此相关支持被正式移除。
+
+具体变更如下：
+
+- 移除 `@rsbuild/webpack` 包。
+- 移除 `@rsbuild/plugin-webpack-swc` 包。
+- 移除 `provider` 配置项。
+- 移除 `tools.webpack` 和 `tools.webpackChain` 配置项。
+- 移除 `api.modifyWebpackChain` 和 `api.modifyWebpackConfig` 插件钩子。
+- 移除 `api.context.bundlerType` 中的 `webpack` 类型。
+- 移除 webpack 相关的类型。
+
+## 内置规则变化
+
+Rsbuild 内置的 JS 和 CSS 转换规则现在使用了 [oneOf](https://rspack.rs/config/module-rules#rulesoneof) 来区分不同的分支，如果你使用 [tools.bundlerChain](/config/tools/bundler-chain#toolsbundlerchain) 或 [api.modifyBundlerChain](/plugins/dev/hooks#modifybundlerchain) 修改了 JS 或 CSS 规则，可能需要进行相应调整。
+
+### JS 规则
+
+内置 JS 规则现在拆分为两个 `oneOf` 分支：
+
+- `CHAIN_ID.ONE_OF.JS_MAIN`：用于 SWC 转换
+- `CHAIN_ID.ONE_OF.JS_RAW`：用于处理 `?raw` 导入
+
+如果你之前在 `CHAIN_ID.RULE.JS` 上添加 loader，需要迁移到 `JS_MAIN` 分支：
+
+```diff title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain(chain, { CHAIN_ID }) {
+      const jsRule = chain.module.rule(CHAIN_ID.RULE.JS);
+
+-     jsRule.use('my-loader').loader('my-loader');
++     jsRule
++       .oneOf(CHAIN_ID.ONE_OF.JS_MAIN)
++       .use('my-loader')
++       .loader('my-loader');
+    },
+  },
+};
+```
+
+### CSS 规则
+
+内置 CSS 规则拆分为三个 `oneOf` 分支：
+
+- `CHAIN_ID.ONE_OF.CSS_MAIN`：常规 CSS 转换
+- `CHAIN_ID.ONE_OF.CSS_RAW`：用于处理 `?raw` 导入
+- `CHAIN_ID.ONE_OF.CSS_INLINE`：用于处理 `?inline` 导入
+
+如果你之前在 `CHAIN_ID.RULE.CSS` 上添加 loader，需要迁移到 `CSS_MAIN` 分支：
+
+```diff title="rsbuild.config.ts"
+export default {
+  tools: {
+    bundlerChain(chain, { CHAIN_ID }) {
+      const cssRule = chain.module.rule(CHAIN_ID.RULE.CSS);
+
+-     cssRule.use('my-css-loader').loader('my-css-loader');
++     cssRule
++       .oneOf(CHAIN_ID.ONE_OF.CSS_MAIN)
++       .use('my-css-loader')
++       .loader('my-css-loader');
+    },
+  },
+};
+```
+
+Less / Sass / Stylus 插件的内置规则也已采用相同的 `oneOf` 结构，修改规则时请使用对应的 `ONE_OF` 分支。
+
+## 其他
+
+- 查询参数 `?__inline=false` 已被移除，使用 `?url` 代替。
+- `dev.setupMiddlewares` 配置项已废弃，请使用 [server.setup](/config/server/setup) 代替。
+- `style-loader` 从 v3 升级到了 v4，`tools.styleLoader` 的部分配置项发生变化，详见 [style-loader v4.0.0 发布说明](https://github.com/webpack/style-loader/releases/tag/v4.0.0)。
+- `html.templateParameters` 中废弃的默认参数已被移除：
+  - `webpackConfig`：使用 `rspackConfig` 代替。
+  - `htmlWebpackPlugin`：使用 `htmlPlugin` 代替。
+- 如果你通过全局 `logger.override()` 自定义 Rsbuild 日志，升级到 v2 后需要改用 [customLogger](/config/custom-logger)。因为 v2 的实例 logger 不再受全局 `logger.override()` 影响。

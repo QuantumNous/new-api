@@ -1,0 +1,117 @@
+
+{
+  "id": "resp_0f35ed53160b395301693cc957829881909359e7f80cdd20b5",
+  "object": "response",
+  "created_at": 1765591383,
+  "status": "completed",
+  "background": false,
+  "billing": {
+    "payer": "developer"
+  },
+  "error": null,
+  "incomplete_details": null,
+  "instructions": null,
+  "max_output_tokens": null,
+  "max_tool_calls": null,
+  "model": "gpt-5-mini-2025-08-07",
+  "output": [
+    {
+      "id": "rs_0f35ed53160b395301693cc95817ac8190b978637daea4987e",
+      "type": "reasoning",
+      "encrypted_content": "gAAAAABpPMlcH0HHEv5_ozHwP5Gxz5ZLE7A8Aw7GK94sa1KWHqXLrAch29KZrZqCzH6PkWnLWTxIZv4TL70DPoKbS_ryNp6d2rC8vS04U7qWLdsbYnsqmPYVCCQ2Rigd84Yh9mgctGTs_w5x7NY3pm5lOxUv5jGHAW20nAMGfpFAAYRjW1aAA7f1CjfcXgm8CgNOc1Mu3L9a-q64LU8taFhc_9-GNBqRD-Gxul4pVXTQ4BlnYwOGOsfctcM_SNxYgYM2gS0pawkltN5250JlO7LaUcteD8E47fpcHGS9hmzDpMGWvIpuksPjzBnVn_R9JJcJSd_rMO8TTrGlXT-Thw_UOdX3aZZLac2OMD_MIkGN4GuGISC674RZlJWi8_x-C-VqdkRm0qsEwYvFp17ykYReCtPocXWtOI1dyVZogyQYO5b6qEmHjPXIFqyoPHLjes_CrWyR7ChVcR_GTJq55lsHfppBevMU4wGbHga6CgaC_dcbGo4ECXPh0HUqs4U7t58JgJcCQ1DX1AygF4cRjKAs4mqTXOR4ruHutmknG61sOuc19FtOyhIadquNd2EBb9pa7Rix5Rk_0cTb1jkUBVH3QknhjjCDvvlp8MIp5jU55ANgI9ZpL3TTVWziTCJLdeLMUpohKggDJ7axs9qdhl3dfdvdhLnN5GimFNxWglWn8ioQ7KMYil9HxGErd47q0GxfFqnuNMfchsLESwCdmGMqsaavEjZjD_bQ_iXASQgmk2FYXo41tsHtrVBzJCFFLhswr1t47b8qb3_pJeevwLeuBfRR56ZKxQLyp35rLGzizSKknkKRrbimGL8L4hSI2ktPlH0JZlBiH7mhsBPSs8W7GhZjMYFUQ3RMBshUjHGx3Tu_iW5pNKkrI_XWDHaCNurXBNYV9Kj23Xj6GAQaFzGn62GpvKbObXFlW941aRuZLPCAhGHRZptxrNZEg_DcVcUrMEPHubEA5YUMSb4iZtszE0FT7kVmYmFU3SR-heOU2umXykQx5wnCoi0FtzWLDSXUbElcex-5k11pIoQH59HQYhfNzogV9p9MO1O9hGRaJkA_RZbUxRVKqDURRjNWzXJb8SdoCcRZSFdv_2WRv5NCt1XHBFcAL8DSa6Mu2y0DR-SW7kpu-yKRa8_R4g9dtweK6JRWZxG_TLxH_JIAwfmbts97zBwC-9pcmnC1UshE6_Z9RwRe3a2OTBNkS6dTHV8WMgM02fVFPhiFmFLj_jGUzxW4uQlWnTorO2-X2C-EcgzOGkEngM6_fhY-ZWTN4xEA6GRoCTSTYEaHq1MPIASasagN6N-NwALyBzLJ3vmwdo6ub5KS1JB4G_knIapiUKaGjVTGXCVG8iVTCrjc-fhrZnnY4yZyQP8RSc33JTIE3fYgPyJ9qwHRYlsH70TVbv0gXmUKCE-woT2nqyqYJMdIwtPWOpAc2lXEr5xeM0mZ3XzuArSP3rogl-p6TZNhrKfzQbMlL3yC9UK_rkShXOoi4MpOmNbnNgRCO2XZ_qO7MTTFqZwaM6VOnX3SStqEaTskoASEz7no-6OmMC7eJRZj1LtUqh2kCQ==",
+      "summary": [
+        {
+          "type": "summary_text",
+          "text": "**Reporting final result**\n\nThe tool returned 570, and now I need to report this final result. The user asked for a clear breakdown, so I'll include the steps taken: first, I added 12 and 7 to get 19; then, I multiplied 19 by 3 for 57; finally, I multiplied 57 by 10 to arrive at 570. I want to keep it concise, so I'll simply say, \"Final result: 570,\" without heavy formatting. Let's finalize that!"
+        }
+      ]
+    },
+    {
+      "id": "msg_0f35ed53160b395301693cc95c1d288190997018450969162b",
+      "type": "message",
+      "status": "completed",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "12 + 7 = 19\n19 × 3 = 57\n57 × 10 = 570\n\nFinal result: 570"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "parallel_tool_calls": true,
+  "previous_response_id": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": "high",
+    "summary": "detailed"
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "store": false,
+  "temperature": 1,
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "tool_choice": "auto",
+  "tools": [
+    {
+      "type": "function",
+      "description": "A minimal calculator for basic arithmetic. Call it once per step.",
+      "name": "calculator",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "a": {
+            "type": "number",
+            "description": "First operand."
+          },
+          "b": {
+            "type": "number",
+            "description": "Second operand."
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "subtract",
+              "multiply",
+              "divide"
+            ],
+            "default": "add",
+            "description": "Arithmetic operation to perform."
+          }
+        },
+        "required": [
+          "a",
+          "b",
+          "op"
+        ],
+        "additionalProperties": false
+      },
+      "strict": true
+    }
+  ],
+  "top_logprobs": 0,
+  "top_p": 1,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 865,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 163,
+    "output_tokens_details": {
+      "reasoning_tokens": 128
+    },
+    "total_tokens": 1028
+  },
+  "user": null,
+  "metadata": {}
+}

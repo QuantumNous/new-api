@@ -1,0 +1,266 @@
+---
+description: '本章节介绍如何将 Vite 插件迁移到 Rsbuild 插件。'
+---
+
+# Vite 插件
+
+本章节介绍如何将 Vite 插件迁移到 Rsbuild 插件。
+
+## 现有插件
+
+在迁移一个 Vite 插件之前，建议先检查 Rsbuild 生态中是否存在对应的插件，你可以通过以下页面来查找：
+
+- [Rsbuild 官方插件](/plugins/list)
+- [Rsbuild 社区插件](https://github.com/rstackjs/awesome-rstack#rsbuild-plugins)
+
+## 定义一个插件
+
+Rsbuild 插件的定义方式与 Vite 相似，通常都是一个接收插件选项作为参数的函数，并返回插件的描述对象。
+
+两者的主要区别在于：Vite 的 hooks 直接定义在插件描述对象上，而 Rsbuild 的 hooks 是通过 [api 对象](/plugins/dev/core) 来访问和调用，这允许你更灵活地控制插件 API 的调用时机。
+
+- Vite 插件：
+
+```ts title="vitePlugin.ts"
+const vitePlugin = (options) => ({
+  name: 'vite-plugin',
+  transform() {
+    // ...
+  },
+});
+```
+
+- Rsbuild 插件：
+
+```ts title="rsbuildPlugin.ts"
+const rsbuildPlugin = (options) => ({
+  name: 'rsbuild-plugin',
+  setup(api) {
+    api.transform(() => {
+      // ...
+    });
+  },
+});
+```
+
+## 插件 hooks
+
+Rsbuild 的插件 API 覆盖了大部分的 Vite 和 Rollup 插件 hooks，例如：
+
+| Vite 插件 hooks      | Rsbuild 插件 API                                                                                                       |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `resolveId`          | [resolve](/plugins/dev/core#apiresolve)                                                                                |
+| `transform`          | [transform](/plugins/dev/core#apitransform)                                                                            |
+| `config`             | [modifyRsbuildConfig](/plugins/dev/hooks#modifyrsbuildconfig)                                                          |
+| `configResolved`     | [getNormalizedConfig](/plugins/dev/core#apigetnormalizedconfig)                                                        |
+| `configEnvironment`  | [modifyEnvironmentConfig](/plugins/dev/hooks#modifyenvironmentconfig)                                                  |
+| `configureServer`    | [onBeforeStartDevServer](/plugins/dev/hooks#onbeforestartdevserver)                                                    |
+| `buildStart`         | [onBeforeBuild](/plugins/dev/hooks#onbeforebuild), [onBeforeStartDevServer](/plugins/dev/hooks#onbeforestartdevserver) |
+| `buildEnd`           | [onAfterBuild](/plugins/dev/hooks#onafterbuild), [onCloseDevServer](/plugins/dev/hooks#onclosedevserver)               |
+| `closeBundle`        | [onCloseBuild](/plugins/dev/hooks#onclosebuild), [onCloseDevServer](/plugins/dev/hooks#onclosedevserver)               |
+| `transformIndexHtml` | [modifyHTML](/plugins/dev/hooks#modifyhtml), [modifyHTMLTags](/plugins/dev/hooks#modifyhtmltags)                       |
+
+请参考 [插件系统](/plugins/dev/index) 文档来了解更多。
+
+## `config` 钩子
+
+Rsbuild 提供了 [modifyRsbuildConfig](/plugins/dev/hooks#modifyrsbuildconfig) 钩子来修改 Rsbuild 配置。由于 Rsbuild 与 Vite 的配置结构存在差异，在迁移 Vite 插件时，需要对配置进行调整。
+
+例如，需要将 Vite 的 `define` 选项替换为 Rsbuild 的 [source.define](/config/source/define) 选项。
+
+- Vite 插件：
+
+```ts title="vitePlugin.ts"
+const vitePlugin = {
+  name: 'my-plugin',
+  config: (config) => {
+    config.define = {
+      ...config.define,
+      FOO: '"foo"',
+    };
+  },
+};
+```
+
+- Rsbuild 插件：
+
+```ts title="rsbuildPlugin.ts"
+const rsbuildPlugin = {
+  name: 'my-plugin',
+  setup(api) {
+    api.modifyRsbuildConfig((config) => {
+      config.source ||= {};
+      config.source.define = {
+        ...config.source.define,
+        FOO: '"foo"',
+      };
+    });
+  },
+};
+```
+
+:::tip
+查看 [配置迁移](/guide/migration/vite#config-migration) 了解如何将 Vite 的配置迁移到 Rsbuild。
+:::
+
+## `configEnvironment` 钩子
+
+Rsbuild 提供了 [modifyEnvironmentConfig](/plugins/dev/hooks#modifyenvironmentconfig) 钩子来修改特定 environment 的配置。
+
+- Vite 插件：
+
+```ts
+const vitePlugin = {
+  name: 'config-environment',
+  configEnvironment(name, config) {
+    if (name === 'web') {
+      config.resolve.alias = {
+        // ...
+      };
+    }
+  },
+};
+```
+
+- Rsbuild 插件：
+
+```js
+const rsbuildPlugin = {
+  name: 'config-environment',
+  setup(api) {
+    api.modifyEnvironmentConfig((config, { name }) => {
+      if (name === 'web') {
+        config.resolve.alias = {
+          // ...
+        };
+      }
+    });
+  },
+};
+```
+
+## `configResolved` 钩子
+
+Rsbuild 提供了 [api.getNormalizedConfig](/plugins/dev/core#apigetnormalizedconfig) 方法来获取已解析的配置。这个方法与 Vite 的 `configResolved` 钩子的使用场景类似。
+
+- Vite 插件：
+
+```ts title="vitePlugin.ts"
+const vitePlugin = () => {
+  let config;
+  return {
+    name: 'read-config',
+    configResolved(resolvedConfig) {
+      config = resolvedConfig;
+    },
+    transform() {
+      console.log(config);
+      // ...
+    },
+  };
+};
+```
+
+- Rsbuild 插件：
+
+```ts title="rsbuildPlugin.ts"
+const rsbuildPlugin = () => ({
+  name: 'read-config',
+  setup(api) {
+    api.transform(() => {
+      const config = api.getNormalizedConfig();
+      console.log(config);
+      // ...
+    });
+  },
+});
+```
+
+## `transformIndexHtml` 钩子
+
+Vite 的 `transformIndexHtml` 钩子对应了 Rsbuild 的两个钩子：
+
+- [modifyHTML](/plugins/dev/hooks#modifyhtml)：用于修改 HTML 内容
+- [modifyHTMLTags](/plugins/dev/hooks#modifyhtmltags)：用于修改 HTML 标签
+
+下面一个是替换 HTML 标题的示例。
+
+- Vite 插件：
+
+```ts title="vitePlugin.ts"
+const htmlPlugin = () => {
+  return {
+    name: 'html-plugin',
+    transformIndexHtml(html) {
+      return html.replace(/<title>(.*?)<\/title>/, `<title>Title replaced!</title>`);
+    },
+  };
+};
+```
+
+- Rsbuild 插件：
+
+```ts title="rsbuildPlugin.ts"
+const rsbuildPlugin = {
+  name: 'html-plugin',
+  setup(api) {
+    api.modifyHTML((html) => {
+      return html.replace(/<title>(.*?)<\/title>/, `<title>Title replaced!</title>`);
+    });
+  },
+};
+```
+
+## `configureServer` 钩子
+
+Rsbuild 提供了 `onBeforeStartDevServer` 钩子来替代 Vite 的 `configureServer` 钩子，它允许你获取 dev server 实例和添加自定义的中间件。
+
+- Vite 插件：
+
+```ts title="vitePlugin.ts"
+const vitePlugin = () => ({
+  name: 'setup-middleware',
+  configureServer(server) {
+    server.middlewares.use((req, res, next) => {
+      // custom handle request...
+    });
+  },
+});
+```
+
+- Rsbuild 插件：
+
+```ts title="rsbuildPlugin.ts"
+const rsbuildPlugin = {
+  name: 'setup-middleware',
+  setup(api) {
+    api.onBeforeStartDevServer(({ server }) => {
+      server.middlewares.use((req, res, next) => {
+        // custom handle request...
+      });
+    });
+  },
+};
+```
+
+## `apply` 属性
+
+Rsbuild 插件提供了与 Vite 插件一致的 [apply 属性](/plugins/dev/core#conditional-application)。
+
+- Vite 插件：
+
+```ts title="vitePlugin.ts"
+const vitePlugin = {
+  name: 'vite-plugin',
+  apply: 'build',
+};
+```
+
+- Rsbuild 插件：
+
+```ts title="rsbuildPlugin.ts"
+const rsbuildPlugin = {
+  name: 'rsbuild-plugin',
+  apply: 'build',
+};
+```

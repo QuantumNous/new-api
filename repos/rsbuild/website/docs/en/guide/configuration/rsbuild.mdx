@@ -1,0 +1,286 @@
+---
+description: 'Rsbuild provides a wide range of configuration options with sensible defaults for most use cases.'
+---
+
+# Configure Rsbuild
+
+Rsbuild provides a wide range of configuration options with sensible defaults for most use cases. In most scenarios, you can use Rsbuild out of the box without any configuration.
+
+When you need to customize build behavior, use the options below.
+
+## Configuration structure
+
+The Rsbuild configuration structure looks like this:
+
+```js title="rsbuild.config.mjs"
+export default {
+  plugins: [
+    // configure Rsbuild plugins
+  ],
+  dev: {
+    // options for local development
+  },
+  html: {
+    // options for HTML generation
+  },
+  tools: {
+    // options for the low-level tools
+  },
+  output: {
+    // options for build outputs
+  },
+  resolve: {
+    // options for module resolution
+  },
+  source: {
+    // options for input source code
+  },
+  server: {
+    // options for the Rsbuild server
+    // mainly for local development and preview
+    // some options (e.g. publicDir, base) also affect production builds
+  },
+  security: {
+    // options for Web security
+  },
+  performance: {
+    // options for build performance and runtime performance
+  },
+  moduleFederation: {
+    // options for module federation
+  },
+  environments: {
+    // define different Rsbuild configurations for each environment
+  },
+};
+```
+
+You can find detailed descriptions of every option on the [Configure Overview](/config/) page.
+
+## Configuration file
+
+When you use the Rsbuild CLI, or call `loadConfig` without specifying `path`, Rsbuild looks for a configuration file in the project root in the following order:
+
+- rsbuild.config.ts
+- rsbuild.config.js
+- rsbuild.config.mts
+- rsbuild.config.mjs
+- rsbuild.config.cts
+- rsbuild.config.cjs
+
+If multiple config files exist at the same time, Rsbuild uses the first matching file in this list.
+
+We recommend using `rsbuild.config.ts` and importing the `defineConfig` utility from `@rsbuild/core`. It provides TypeScript hints and autocompletion to help you avoid configuration mistakes.
+
+For example, in `rsbuild.config.ts`, you can define the Rsbuild [resolve.alias](/config/resolve/alias) configuration:
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  resolve: {
+    alias: {
+      '@common': './src/common',
+    },
+  },
+});
+```
+
+:::tip
+If Node.js shows the `[MODULE_TYPELESS_PACKAGE_JSON]` warning for `rsbuild.config.ts`, you can add `"type": "module"` to package.json or rename the file to `rsbuild.config.mts` to resolve the warning.
+:::
+
+If you are developing a non-TypeScript project, you can use the `.mjs` format for the configuration file:
+
+```js title="rsbuild.config.mjs"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  resolve: {
+    alias: (opts) => {
+      opts['@common'] = './src/common';
+    },
+  },
+});
+```
+
+## Specify config file
+
+The Rsbuild CLI uses the `--config` option to specify the config file. It can be set to a relative or absolute path.
+
+For example, if you need to use the `rsbuild.prod.config.mjs` file when running `build`, add the following scripts to `package.json`:
+
+```json title="package.json"
+{
+  "scripts": {
+    "build": "rsbuild build --config rsbuild.prod.config.mjs"
+  }
+}
+```
+
+You can also abbreviate the `--config` option to `-c`:
+
+```bash
+rsbuild build -c rsbuild.prod.config.mjs
+```
+
+## Specify config loader
+
+Rsbuild provides three ways to load configuration files:
+
+- `auto` (Default): Use Node.js's native loader to load configuration files first, falling back to jiti if it fails.
+- `jiti`: Use [jiti](https://github.com/unjs/jiti) to load the configuration file, providing interoperability between ESM and CommonJS. The module resolution behavior differs slightly from Node.js native behavior.
+- `native`: Use Node.js native loader to load the configuration file. This ensures that module resolution behavior is consistent with Node.js native behavior and has better performance. This requires your JavaScript runtime to natively support TypeScript.
+
+  For example, Node.js v22.6.0+ natively supports TypeScript. You can use the following command with the Node.js native loader to load the configuration file:
+
+  ```bash
+  # Node.js >= v22.18.0
+  # No need to set --experimental-strip-types
+  npx rsbuild build --config-loader native
+
+  # Node.js v22.6.0 - v22.17.1
+  # Need to set --experimental-strip-types
+  NODE_OPTIONS="--experimental-strip-types" npx rsbuild build --config-loader native
+  ```
+
+### About Node.js native loader
+
+When using Node.js's native loader, note the following limitations:
+
+1. When importing JSON files, you need to use import attributes:
+
+   ```ts
+   import pkgJson from './package.json' with { type: 'json' }; // ✅ Correct
+   import pkgJson from './package.json'; // ❌ Incorrect
+   ```
+
+2. When importing TypeScript files, you need to include the `.ts` extension:
+
+   ```ts
+   import baseConfig from './rsbuild.base.config.ts'; // ✅ Correct
+   import baseConfig from './rsbuild.base.config'; // ❌ Incorrect
+   ```
+
+> See [Node.js - Running TypeScript Natively](https://nodejs.org/en/learn/typescript/run-natively#running-typescript-natively) for more details.
+
+## Using environment variables
+
+In the configuration file, you can use Node.js environment variables such as `process.env.NODE_ENV` to dynamically set different configurations:
+
+```ts title="rsbuild.config.ts"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig({
+  resolve: {
+    alias: {
+      '@request':
+        process.env.NODE_ENV === 'development' ? './src/request.dev.js' : './src/request.prod.js',
+    },
+  },
+});
+```
+
+## Export function
+
+Rsbuild supports exporting a function in the config file, which allows you to dynamically compute the config and return it to Rsbuild.
+
+```js title="rsbuild.config.js"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig(({ env, command, envMode }) => ({
+  resolve: {
+    alias: {
+      '@foo': env === 'development' ? './src/foo.dev.ts' : './src/foo.prod.ts',
+    },
+  },
+}));
+```
+
+:::tip
+The exported config function must provide a return value. If you do not need to return any config, you can return an empty object.
+:::
+
+The function accepts the following parameters:
+
+### env
+
+- **Type:** `string`
+- **Default:** `process.env.NODE_ENV`
+
+The current runtime environment.
+
+- When running `rsbuild dev`, the default value of env is `development`.
+- When running `rsbuild build` or `rsbuild preview`, the default value of env is `production`.
+
+### envMode
+
+- **Type:** `string`
+- **Default:** `process.env.NODE_ENV`
+
+The current value of the CLI parameter `--env-mode`.
+
+For example, when running `rsbuild build --env-mode test`, the value of `envMode` is `test`.
+
+### command
+
+- **Type:** `string`
+
+The current CLI command, such as `dev`, `build`, `preview`.
+
+## Export async function
+
+Rsbuild also supports exporting an async function in the config file, which lets you perform async work:
+
+```js title="rsbuild.config.js"
+import { defineConfig } from '@rsbuild/core';
+
+export default defineConfig(async ({ env, command }) => {
+  const result = await someAsyncFunction();
+
+  return {
+    html: {
+      title: result,
+    },
+  };
+});
+```
+
+## Merge configurations
+
+You can use the [mergeRsbuildConfig](/api/javascript-api/core#mergersbuildconfig) function exported by `@rsbuild/core` to merge multiple configurations.
+
+```ts title="rsbuild.config.ts"
+import { defineConfig, mergeRsbuildConfig } from '@rsbuild/core';
+
+const config1 = defineConfig({
+  dev: { port: '3000' },
+});
+const config2 = defineConfig({
+  dev: { port: '3001' },
+});
+
+// { dev: { port: '3001' }
+export default mergeRsbuildConfig(config1, config2);
+```
+
+## Debug the config
+
+You can enable Rsbuild's debug mode by setting `DEBUG=rsbuild` when running a build.
+
+```bash
+DEBUG=rsbuild pnpm dev
+```
+
+In debug mode, Rsbuild writes the config to the dist directory, making it easier to inspect and debug.
+
+```
+config inspection completed, open the following files to view the content:
+
+   - Rsbuild config: /Project/demo/dist/.rsbuild/rsbuild.config.mjs
+   - Rspack config (web): /Project/demo/dist/.rsbuild/rspack.config.web.mjs
+```
+
+Open the generated `/dist/.rsbuild/rsbuild.config.mjs` file to see the complete content of the Rsbuild config.
+
+For a complete introduction to debug mode, see the [Debug Mode](/guide/debug/debug-mode) chapter.

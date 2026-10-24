@@ -1,0 +1,112 @@
+---
+description: 'Frequently asked questions about Rsbuild, focused on HMR behavior and development-time updates.'
+---
+
+# HMR FAQ
+
+### How to troubleshoot HMR issues?
+
+There are several possible reasons why HMR may not work. This document covers the most common causes and provides troubleshooting guidance.
+
+Before troubleshooting, it's helpful to understand how HMR works:
+
+:::tip HMR principle
+
+1. The browser establishes a WebSocket connection with the dev server for real-time communication.
+2. When the dev server finishes recompiling, it sends a notification to the browser via WebSocket. The browser then sends a `hot-update.(js|json)` request to the dev server to load the newly compiled module.
+3. After receiving the new module, React projects use React Refresh (an official React tool) to update components. Other frameworks have similar tools.
+
+:::
+
+After understanding how HMR works, you can follow these troubleshooting steps:
+
+#### 1. Check the WebSocket connection
+
+Open the browser console and check for the presence of the `[HMR] connected.` log.
+
+- If present, the WebSocket connection is working correctly. Continue with the following steps.
+- If not present, open the Network panel in Chrome and check the status of the `ws://[host]:[port]/rsbuild-hmr` request. If the request failed, this indicates that HMR failed because the WebSocket connection was not established.
+
+The WebSocket connection can fail for various reasons, such as a network proxy preventing the WebSocket request from reaching the dev server. Check whether the WebSocket request address matches your dev server address. If it doesn't match, configure the WebSocket request address using [dev.client](/config/dev/client).
+
+#### 2. Check the hot-update requests
+
+When you modify a module's code and trigger a recompilation, the browser sends several `hot-update.json` and `hot-update.js` requests to the dev server to fetch the updated code.
+
+Try modifying a module and inspect the content of the `hot-update.(js|json)` requests. If the request contains the latest code, the hot update request is working correctly.
+
+If the request content is incorrect, it's likely due to a network proxy. Check whether the `hot-update.(js|json)` request address matches your dev server address. If it doesn't match, adjust the proxy rules to route the `hot-update.(js|json)` requests to the dev server address.
+
+#### 3. Check for other causes
+
+If the above steps don't reveal any issues, other factors may be causing HMR to fail. For example, the code may not meet React's HMR requirements. Refer to the following questions for further troubleshooting.
+
+---
+
+### HMR not working with external React?
+
+To ensure HMR works properly, you need to use the development builds of React and ReactDOM.
+
+If you exclude React via `externals` during bundling, the production build of React is typically injected through a CDN, which can cause HMR to fail.
+
+```js
+export default {
+  output: {
+    externals: {
+      react: 'React',
+      'react-dom': 'ReactDOM',
+    },
+  },
+};
+```
+
+To solve this problem, reference the React development builds and install React DevTools. Hot reloading will then work properly.
+
+If you're unsure which React build you're using, refer to the [React documentation - Use the Production Build](https://legacy.reactjs.org/docs/optimizing-performance.html#use-the-production-build).
+
+---
+
+### HMR not working with filename hash in development mode?
+
+Typically, filename hashes should only be set in production mode (when `process.env.NODE_ENV === 'production'`).
+
+Setting filename hashes in development mode can cause HMR to fail, especially for CSS files. This is because the hash changes every time the file content changes, preventing tools like [mini-css-extract-plugin](https://npmjs.com/package/mini-css-extract-plugin) from reading the latest file content.
+
+- Correct usage:
+
+```js
+export default {
+  output: {
+    filename: {
+      css: process.env.NODE_ENV === 'production' ? '[name].[contenthash:10].css' : '[name].css',
+    },
+  },
+};
+```
+
+- Incorrect usage:
+
+```js
+export default {
+  output: {
+    filename: {
+      css: '[name].[contenthash:10].css',
+    },
+  },
+};
+```
+
+---
+
+### HMR not working with HTTPS?
+
+When HTTPS is enabled, the HMR connection may fail due to certificate issues. If you open the console, you'll see an HMR connection failed error.
+
+```
+» WebSocket connection to 'wss://localhost:3000/rsbuild-hmr' failed:
+[HMR] disconnected. Attempting to reconnect.
+```
+
+To solve this problem, click "Advanced" -> "Proceed to [domain] (unsafe)" in the Chrome warning page.
+
+> Tip: When accessing the page via localhost, the "Your connection is not private" warning may not appear. In that case, access the page via a network domain instead.

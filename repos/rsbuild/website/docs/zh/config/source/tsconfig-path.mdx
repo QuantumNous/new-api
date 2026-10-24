@@ -1,0 +1,43 @@
+---
+description: '配置自定义的 tsconfig.json 文件路径，可以是相对路径或绝对路径。'
+---
+
+# source.tsconfigPath
+
+- **类型：** `string`
+- **默认值：** `'tsconfig.json'`
+
+配置自定义的 tsconfig.json 文件路径，可以是相对路径或绝对路径。
+
+## 作用
+
+`tsconfig.json` 配置文件影响 Rsbuild 的以下行为：
+
+- `paths` 字段用于配置 [路径别名](/guide/advanced/alias)。
+- 设置 [@rsbuild/plugin-type-check](https://github.com/rstackjs/rsbuild-plugin-type-check) 的检查范围和规则。
+
+## 示例
+
+`source.tsconfigPath` 的值可以设置为相对路径或绝对路径，相对路径将会相对于项目根目录进行解析。
+
+- 相对路径示例：
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    tsconfigPath: './tsconfig.custom.json',
+  },
+};
+```
+
+- 绝对路径示例：
+
+```ts
+import path from 'node:path';
+
+export default {
+  source: {
+    tsconfigPath: path.join(__dirname, 'tsconfig.custom.json'),
+  },
+};
+```

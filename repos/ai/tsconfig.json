@@ -1,0 +1,215 @@
+{
+  "references": [
+    {
+      "path": "packages/ai"
+    },
+    {
+      "path": "packages/alibaba"
+    },
+    {
+      "path": "packages/amazon-bedrock"
+    },
+    {
+      "path": "packages/angular"
+    },
+    {
+      "path": "packages/anthropic-aws"
+    },
+    {
+      "path": "packages/anthropic"
+    },
+    {
+      "path": "packages/assemblyai"
+    },
+    {
+      "path": "packages/azure"
+    },
+    {
+      "path": "packages/baseten"
+    },
+    {
+      "path": "packages/black-forest-labs"
+    },
+    {
+      "path": "packages/bytedance"
+    },
+    {
+      "path": "packages/cerebras"
+    },
+    {
+      "path": "packages/codemod"
+    },
+    {
+      "path": "packages/cohere"
+    },
+    {
+      "path": "packages/deepgram"
+    },
+    {
+      "path": "packages/deepinfra"
+    },
+    {
+      "path": "packages/deepseek"
+    },
+    {
+      "path": "packages/devtools"
+    },
+    {
+      "path": "packages/elevenlabs"
+    },
+    {
+      "path": "packages/fal"
+    },
+    {
+      "path": "packages/fireworks"
+    },
+    {
+      "path": "packages/gateway"
+    },
+    {
+      "path": "packages/gladia"
+    },
+    {
+      "path": "packages/google-vertex"
+    },
+    {
+      "path": "packages/google"
+    },
+    {
+      "path": "packages/groq"
+    },
+    {
+      "path": "packages/harness-claude-code"
+    },
+    {
+      "path": "packages/harness-codex"
+    },
+    {
+      "path": "packages/harness-deepagents"
+    },
+    {
+      "path": "packages/harness-opencode"
+    },
+    {
+      "path": "packages/harness-pi"
+    },
+    {
+      "path": "packages/harness"
+    },
+    {
+      "path": "packages/huggingface"
+    },
+    {
+      "path": "packages/hume"
+    },
+    {
+      "path": "packages/klingai"
+    },
+    {
+      "path": "packages/langchain"
+    },
+    {
+      "path": "packages/llamaindex"
+    },
+    {
+      "path": "packages/lmnt"
+    },
+    {
+      "path": "packages/luma"
+    },
+    {
+      "path": "packages/mcp"
+    },
+    {
+      "path": "packages/mistral"
+    },
+    {
+      "path": "packages/moonshotai"
+    },
+    {
+      "path": "packages/open-responses"
+    },
+    {
+      "path": "packages/openai-compatible"
+    },
+    {
+      "path": "packages/openai"
+    },
+    {
+      "path": "packages/otel"
+    },
+    {
+      "path": "packages/perplexity"
+    },
+    {
+      "path": "packages/policy-opa"
+    },
+    {
+      "path": "packages/prodia"
+    },
+    {
+      "path": "packages/provider-utils"
+    },
+    {
+      "path": "packages/provider"
+    },
+    {
+      "path": "packages/quiverai"
+    },
+    {
+      "path": "packages/react"
+    },
+    {
+      "path": "packages/replicate"
+    },
+    {
+      "path": "packages/revai"
+    },
+    {
+      "path": "packages/rsc"
+    },
+    {
+      "path": "packages/sandbox-just-bash"
+    },
+    {
+      "path": "packages/sandbox-vercel"
+    },
+    {
+      "path": "packages/svelte"
+    },
+    {
+      "path": "packages/test-server"
+    },
+    {
+      "path": "packages/togetherai"
+    },
+    {
+      "path": "packages/tui"
+    },
+    {
+      "path": "packages/valibot"
+    },
+    {
+      "path": "packages/vercel"
+    },
+    {
+      "path": "packages/voyage"
+    },
+    {
+      "path": "packages/vue"
+    },
+    {
+      "path": "packages/workflow-harness"
+    },
+    {
+      "path": "packages/workflow"
+    },
+    {
+      "path": "packages/xai"
+    }
+  ],
+  "include": [],
+  "compilerOptions": {
+    "strictNullChecks": true
+  }
+}

@@ -1,0 +1,187 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.5rem;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.description {
+  max-width: 52rem;
+  margin: 0.5rem 0 0;
+  color: var(--color-gray-600);
+}
+
+.summary {
+  display: grid;
+  gap: 0.5rem;
+  align-content: start;
+  min-width: 14rem;
+  padding: 1rem;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.75rem;
+  background: var(--color-gray-50);
+  font-size: 0.875rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr);
+  gap: 1.5rem;
+}
+
+.controlsPanel,
+.previewCard,
+.logCard {
+  border: 1px solid var(--color-gray-200);
+  border-radius: 1rem;
+  background: white;
+}
+
+.controlsPanel {
+  padding: 1rem;
+}
+
+.controlsHeader {
+  display: grid;
+  gap: 0.75rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--color-gray-200);
+}
+
+.inputLabel {
+  display: grid;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.input {
+  width: 100%;
+}
+
+.hint {
+  margin: 0;
+  color: var(--color-gray-600);
+  font-size: 0.875rem;
+}
+
+.buttonRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tabControls {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.tabRow {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.875rem;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 0.75rem;
+}
+
+.tabMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  font-size: 0.875rem;
+}
+
+.tabMeta span {
+  color: var(--color-gray-600);
+}
+
+.switches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.previewPanel {
+  display: grid;
+  gap: 1rem;
+}
+
+.previewCard {
+  padding: 1rem;
+}
+
+.panelDetails {
+  display: grid;
+  gap: 0.375rem;
+  justify-items: center;
+  text-align: center;
+}
+
+.panelGhost {
+  background: linear-gradient(135deg, rgb(239 68 68 / 0.08), transparent 65%), white;
+}
+
+.logCard {
+  padding: 1rem;
+}
+
+.logHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.logHeader h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.emptyState {
+  margin: 0;
+  color: var(--color-gray-600);
+}
+
+.logList {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.logItem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  background: var(--color-gray-50);
+  font-family: ui-monospace, monospace;
+  font-size: 0.875rem;
+}
+
+@media (max-width: 900px) {
+  .page {
+    padding: 1rem;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}

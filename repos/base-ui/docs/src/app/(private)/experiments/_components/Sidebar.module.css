@@ -1,0 +1,15 @@
+.root {
+  border-right: 1px solid var(--color-gray-200);
+  overflow: auto;
+
+  & h2 {
+    text-transform: uppercase;
+    font-weight: bold;
+    font-size: 0.75rem;
+    color: var(--color-gray-500);
+  }
+}
+
+.panel:has(*) {
+  padding: 16px;
+}

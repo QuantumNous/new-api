@@ -1,0 +1,9 @@
+{
+  "extends": "@scripts/config/tsconfig",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "skipLibCheck": false
+  },
+  "include": ["index.ts"]
+}

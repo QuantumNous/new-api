@@ -1,0 +1,16 @@
+{"messageStart":{"role":"assistant"}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":"Let"}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":" me count the \""}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":"r\"s in \""}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":"strawberry\":\n\ns-t-"}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":"**"}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":"r**-a-w-b"}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":"-e-**"}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":"r**-**"}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":"r**-y\n\nThere"}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":" are **3"}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":"** r"}}}
+{"contentBlockDelta":{"contentBlockIndex":0,"delta":{"text":"'s in \"strawberry.\""}}}
+{"contentBlockStop":{"contentBlockIndex":0}}
+{"messageStop":{"additionalModelResponseFields":{"delta":{"stop_sequence":null}},"stopReason":"end_turn"}}
+{"metadata":{"metrics":{"latencyMs":2040},"usage":{"inputTokens":22,"outputTokens":55,"serverToolUsage":{},"totalTokens":77}}}

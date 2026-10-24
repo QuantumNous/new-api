@@ -1,0 +1,86 @@
+/* CSS Module for RSC CSS Modules test */
+
+.container {
+  background-color: #e0f2fe;
+  border: 2px solid #0284c7;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.badge {
+  display: inline-block;
+  background-color: #0284c7;
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: bold;
+  letter-spacing: 0.5px;
+}
+
+.timestamp {
+  font-size: 11px;
+  color: #64748b;
+  font-family: monospace;
+}
+
+.title {
+  margin: 0 0 8px 0;
+  color: #0c4a6e;
+  font-size: 18px;
+}
+
+.description {
+  color: #0369a1;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.featureList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.featureItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background-color: #f0f9ff;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  color: #0c4a6e;
+}
+
+.featureItem:last-child {
+  margin-bottom: 0;
+}
+
+.featureIcon {
+  width: 24px;
+  height: 24px;
+  background-color: #0284c7;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.footer {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid #bae6fd;
+  font-size: 12px;
+  color: #64748b;
+}

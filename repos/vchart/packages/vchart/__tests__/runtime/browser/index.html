@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta
+      name="viewport"
+      content="width=device-width,
+               initial-scale=1.0,
+               maximum-scale=1.0,
+               minimum-scale=1.0,
+               user-scalable=no"
+    />
+    <title>VChart Runtime Test</title>
+
+    <style>
+      html,
+      body {
+        touch-action: pan-y;
+        -webkit-text-size-adjust: 100%;
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        width: 100%;
+        display: flex;
+        flex-direction: column; /* 让按钮和图表容器垂直排列 */
+      }
+      #controlPanel {
+        padding: 10px;
+        background-color: #eee;
+        text-align: center;
+        flex-shrink: 0; /* 防止按钮区域被压缩 */
+      }
+      #chartContainer {
+        flex-grow: 1; /* 让图表容器填充剩余空间 */
+        position: relative; /* 确保内部绝对定位有效 */
+      }
+      /* 为 id="chart" 添加样式，使其填充 chartContainer */
+      #chart {
+        width: 100%;
+        height: 100%;
+        /* 可以添加一个边框以便调试时观察 */
+        /* outline: solid blue 1px; */
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- 添加控制面板和按钮 -->
+    <div id="controlPanel">
+      <button id="toggleScriptBtn">切换视图</button>
+    </div>
+
+    <!-- 图表将在此容器内创建 -->
+    <div id="chartContainer">
+      <!-- 在 chartContainer 内部添加一个 id 为 chart 的 div -->
+      <!-- 这个 div 将被 index.page.local.ts 使用 -->
+      <!-- 当 index.page.dashboard.ts 加载时，其 setupLayout 会清空 chartContainer 的内容，所以这个 div 不会影响仪表盘视图 -->
+      <div id="chart"></div>
+    </div>
+
+    <!-- 添加新的控制脚本 -->
+    <script type="module">
+      const params = new URLSearchParams(window.location.search);
+      const currentView = params.get('view') === 'dashboard' ? 'dashboard' : 'default';
+      const button = document.getElementById('toggleScriptBtn');
+
+      let scriptSrc;
+      let nextViewUrl;
+      let buttonText;
+
+      if (currentView === 'dashboard') {
+        scriptSrc = './index.page.dashboard.ts';
+        nextViewUrl = './index.html'; // 切换回默认视图
+        buttonText = '切换到默认视图 (单图)';
+      } else {
+        scriptSrc = './index.page.ts'; // 默认加载这个脚本
+        nextViewUrl = './index.html?view=dashboard'; // 切换到仪表盘视图
+        buttonText = '切换到仪表盘视图 (6图)';
+      }
+
+      // 设置按钮文本
+      button.textContent = buttonText;
+
+      // 添加按钮点击事件监听器
+      button.addEventListener('click', () => {
+        window.location.href = nextViewUrl;
+      });
+
+      // 动态创建并添加当前视图所需的脚本
+      const script = document.createElement('script');
+      script.type = 'module';
+      script.src = scriptSrc;
+      document.body.appendChild(script);
+
+      console.log(`Loading view: ${currentView}, script: ${scriptSrc}`);
+    </script>
+  </body>
+</html>

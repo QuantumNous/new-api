@@ -1,0 +1,30 @@
+@layer components {
+  .Popup {
+    max-width: var(--available-width, none);
+    max-height: var(--available-height, none);
+    border-radius: var(--radius-6);
+    background-color: var(--color-popup);
+    box-shadow:
+      0 1px 3px 0 var(--blackA-1),
+      0 2px 4px -1px var(--blackA-1),
+      0 4px 12px -2px var(--blackA-1),
+      0 4px 16px -4px var(--blackA-1),
+      0 8px 24px -4px var(--blackA-1),
+      0 12px 48px -4px var(--blackA-1);
+    outline: 1px solid var(--blackA-3);
+
+    @media (prefers-color-scheme: dark) {
+      /* Use stronger outline in dark mode because the shadow isn't really visible */
+      outline-color: var(--gray-c3);
+      outline-offset: -1px;
+    }
+
+    overflow: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+}

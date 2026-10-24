@@ -1,0 +1,100 @@
+<table>
+  <thead>
+    @for (headerGroup of table.getHeaderGroups(); track headerGroup.id) {
+      <tr>
+        @for (header of headerGroup.headers; track header.id) {
+          <th [attr.colSpan]="header.colSpan">
+            @if (!header.isPlaceholder) {
+              <ng-container
+                *flexRender="
+                  header.column.columnDef.header;
+                  props: header.getContext();
+                  let header
+                "
+              >
+                <span>{{ header }}</span>
+              </ng-container>
+            }
+          </th>
+        }
+      </tr>
+    }
+  </thead>
+  <tbody>
+    @for (row of table.getRowModel().rows; track row.id) {
+      <tr>
+        @for (cell of row.getVisibleCells(); track cell.id) {
+          <td>
+            <ng-container
+              *flexRender="
+                cell.column.columnDef.cell;
+                props: cell.getContext();
+                let cell
+              "
+            >
+              {{ cell }}
+            </ng-container>
+          </td>
+        }
+      </tr>
+    }
+  </tbody>
+</table>
+
+<div class="h-2"></div>
+<div class="flex items-center gap-2">
+  <button
+    class="border rounded p-1"
+    (click)="table.setPageIndex(0)"
+    [disabled]="!table.getCanPreviousPage()"
+  >
+    <<
+  </button>
+  <button
+    class="border rounded p-1"
+    (click)="table.previousPage()"
+    [disabled]="!table.getCanPreviousPage()"
+  >
+    <
+  </button>
+  <button
+    class="border rounded p-1"
+    (click)="table.nextPage()"
+    [disabled]="!table.getCanNextPage()"
+  >
+    >
+  </button>
+  <button
+    class="border rounded p-1"
+    (click)="table.setPageIndex(table.getPageCount() - 1)"
+    [disabled]="!table.getCanNextPage()"
+  >
+    >>
+  </button>
+  <span class="flex items-center gap-1">
+    <div>Page</div>
+    <strong>
+      {{ table.getState().pagination.pageIndex + 1 }} of
+      {{ table.getPageCount() }}
+    </strong>
+  </span>
+  <span class="flex items-center gap-1">
+    | Go to page:
+    <input
+      type="number"
+      [value]="table.getState().pagination.pageIndex + 1"
+      (input)="onPageInputChange($event)"
+      class="border p-1 rounded w-16"
+    />
+  </span>
+
+  <select
+    [value]="table.getState().pagination.pageSize"
+    (change)="onPageSizeChange($event)"
+  >
+    @for (pageSize of [10, 20, 30, 40, 50]; track pageSize) {
+      <option [value]="pageSize">Show {{ pageSize }}</option>
+    }
+  </select>
+</div>
+<div>{{ table.getRowModel().rows.length }} Rows</div>

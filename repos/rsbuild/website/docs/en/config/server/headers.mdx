@@ -1,0 +1,52 @@
+---
+description: 'Adds headers to all responses sent from Rsbuild server. This configuration directly leverages Node.js response.setHeader() method under the hood.'
+---
+
+# server.headers
+
+- **Type:** `Record<string, string | string[]>`
+- **Default:** `undefined`
+
+Adds headers to all responses sent from Rsbuild server. This configuration directly leverages Node.js [response.setHeader()](https://nodejs.org/api/http.html#responsesetheadername-value) method under the hood.
+
+If the header already exists in the to-be-sent headers, its value will be overwritten.
+
+:::tip
+
+To set CORS headers like `Access-Control-Allow-Origin`, use [server.cors](/config/server/cors) option.
+
+If both `server.headers` and `server.cors` are used, `server.headers` will override `server.cors`.
+
+:::
+
+## Usage
+
+The `server.headers` option accepts an object where:
+
+- Keys are header names (case-insensitive)
+- Values are either a string or an array of strings
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    headers: {
+      'X-Custom-Foo': 'bar',
+    },
+  },
+};
+```
+
+## Multiple values
+
+Use an array of strings to send multiple headers with the same name.
+
+```ts title="rsbuild.config.ts"
+export default {
+  server: {
+    headers: {
+      // Multiple Set-Cookie headers
+      'Set-Cookie': ['type=ninja', 'language=javascript'],
+    },
+  },
+};
+```

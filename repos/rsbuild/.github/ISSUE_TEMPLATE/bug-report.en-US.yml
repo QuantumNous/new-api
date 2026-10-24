@@ -1,0 +1,56 @@
+name: '🐞 Bug Report'
+description: Report a Bug to Rsbuild
+title: '[Bug]: '
+type: Bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this issue! Before submitting, please note:
+
+         - Confirm that your problem cannot be solved by official documentation.
+         - Make sure you've searched in the [Issues](https://github.com/web-infra-dev/rsbuild/issues) and haven't found the same issue.
+         - If it's not a bug report, please post to the [Discussions](https://github.com/web-infra-dev/rsbuild/discussions).
+         - If it's an upsteam bug, please report it to the relevant repository, such as [Rspack](https://github.com/web-infra-dev/rspack), [SWC](https://github.com/swc-project/swc) and [Lightning CSS](https://github.com/parcel-bundler/lightningcss).
+
+  - type: textarea
+    id: versions
+    attributes:
+      label: Version
+      description: Run `npx envinfo --system --browsers --npmPackages '@rsbuild/*'` in your project, and paste the output into the textarea below.
+      placeholder: |
+        System:
+        Browsers:
+        npmPackages:
+      render: sh
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Please describe the Bug, including screenshots, etc.
+    validations:
+      required: true
+
+  - type: input
+    id: repro
+    attributes:
+      label: Reproduce link
+      description: 'Please provide a minimal reproduction of the issue. You can create a GitHub repo and use `npm create rsbuild@latest` as a starter. Or fork from the the [rsbuild-codesandbox-example](https://codesandbox.io/p/github/rstackjs/rsbuild-codesandbox-example).'
+      placeholder: paste link here
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce-steps
+    attributes:
+      label: Reproduce Steps
+      description: Please provide the minimal steps so that we can quickly reproduce the problem.
+      placeholder: |
+        for example:
+        1. run `pnpm i && pnpm dev`
+        2. check the error logs
+    validations:
+      required: true

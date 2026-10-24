@@ -1,0 +1,4 @@
+{
+  "indexToken": { "regex": "\\+page" },
+  "routeToken": { "regex": "\\+layout" }
+}

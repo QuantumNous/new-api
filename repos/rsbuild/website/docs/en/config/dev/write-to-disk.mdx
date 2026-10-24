@@ -1,0 +1,46 @@
+---
+description: 'Controls whether the build output from development mode is written to disk.'
+---
+
+# dev.writeToDisk
+
+- **Type:** `boolean | ((filename: string) => boolean)`
+- **Default:** `false`
+
+Controls whether the build output from development mode is written to disk.
+
+:::tip
+In development mode, Rsbuild stores the build outputs in memory on the dev server by default, rather than writing them to disk. This can reduce the overhead of fs operations. You can refer to [View Static Assets](/guide/basic/server#view-static-assets) to view all static assets generated in the current build.
+:::
+
+## Writing to disk
+
+You can choose to write the build output to disk, which is usually used for inspecting the content of the build output or configuring proxy rules for static assets.
+
+Simply set the `dev.writeToDisk` option to `true`:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    writeToDisk: true,
+  },
+};
+```
+
+:::tip
+Setting `writeToDisk: true` is used for viewing the build output from development mode. It does not change the behavior of the dev server. When accessing files through a browser, the dev server will still read the file content from memory.
+:::
+
+## Matching specific files
+
+You can also set `dev.writeToDisk` to a function to match only certain files. When the function returns `false`, the file will not be written; when it returns `true`, the file will be written to disk.
+
+For example, to write files to disk while excluding hot-update temporary files:
+
+```ts title="rsbuild.config.ts"
+export default {
+  dev: {
+    writeToDisk: (file) => !file.includes('.hot-update.'),
+  },
+};
+```

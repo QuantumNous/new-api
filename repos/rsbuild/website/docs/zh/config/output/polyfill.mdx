@@ -1,0 +1,68 @@
+---
+description: '当你启用 polyfill 注入时，请确保项目中已安装 core-js v3，它是一个流行的 JavaScript polyfill 库。'
+---
+
+# output.polyfill
+
+- **类型：** `'entry' | 'usage' | 'off'`
+- **默认值：** `'off'`
+
+控制 polyfills 的注入方式。
+
+> 请查看 [Polyfill 方案](/guide/advanced/browser-compatibility#polyfills) 了解详细内容。
+
+## 安装 core-js
+
+当你启用 polyfill 注入时，请确保项目中已安装 [core-js](https://github.com/zloirock/core-js) v3，它是一个流行的 JavaScript polyfill 库。
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add core-js" />
+
+## 可选值
+
+### usage
+
+当 `output.polyfill` 配置为 `'usage'` 时，Rsbuild 会在每个文件中根据代码中使用的 API 注入 polyfills。这提供了最优的包体积，因为只包含所需的 polyfills。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    polyfill: 'usage',
+  },
+};
+```
+
+### entry
+
+当 `output.polyfill` 配置为 `'entry'` 时，Rsbuild 会在每个入口文件中注入 polyfills。这确保了所有 polyfills 都可用，但可能会增加包体积。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    polyfill: 'entry',
+  },
+};
+```
+
+:::tip
+需要注意的是，当你将页面与 [Web Workers](/guide/basic/web-workers) 一起打包时，由于 Web Workers 线程与主线程（页面）环境隔离，`entry` 方案对 Web Workers 并不适用，此时可以使用 `usage` 方案。
+:::
+
+### off
+
+当 `output.polyfill` 配置为 `'off'` 时，Rsbuild 不会注入 polyfills，你需要自行处理代码的兼容性。
+
+```ts title="rsbuild.config.ts"
+export default {
+  output: {
+    polyfill: 'off',
+  },
+};
+```
+
+## 版本历史
+
+| 版本   | 变更内容                       |
+| ------ | ------------------------------ |
+| v2.0.0 | Rsbuild 不再默认依赖 `core-js` |

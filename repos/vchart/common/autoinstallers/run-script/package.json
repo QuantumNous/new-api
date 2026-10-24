@@ -1,0 +1,15 @@
+{
+  "name": "run-script",
+  "version": "0.0.1",
+  "private": true,
+  "dependencies": {
+    "@microsoft/rush-lib": "5.148.0",
+    "minimist": "1.2.8",
+    "ts-node": "10.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "*",
+    "@types/minimist": "1.2.2",
+    "typescript": "4.9.5"
+  }
+}

@@ -1,0 +1,312 @@
+---
+title: Add Skills to Your Agent
+description: Learn how to extend your agent with specialized capabilities loaded at runtime with Agent Skills.
+tags: ['agent', 'skills', 'tools', 'extensibility']
+---
+
+# Add Skills to Your Agent
+
+In this guide, you will learn how to extend your agent with [Agent Skills](https://agentskills.io), a lightweight, open format for adding specialized knowledge and workflows that load at runtime from markdown files.
+
+At its core, a skill is a folder containing a `SKILL.md` file with metadata and instructions that tell an agent how to perform a specific task.
+
+```
+my-skill/
+├── SKILL.md          # Required: instructions + metadata
+├── scripts/          # Optional: executable code
+├── references/       # Optional: documentation
+└── assets/           # Optional: templates, resources
+```
+
+## How Skills Work
+
+Skills use **progressive disclosure** to manage context efficiently:
+
+1. **Discovery**: At startup, agents load only the name and description of each available skill (just enough to know when it might be relevant)
+2. **Activation**: When a task matches a skill's description, the agent reads the full `SKILL.md` instructions into context
+3. **Execution**: The agent follows the instructions, optionally loading referenced files or executing bundled code as needed
+
+This approach keeps agents fast while giving them access to more context on demand.
+
+## The SKILL.md File
+
+Every skill starts with a `SKILL.md` file containing YAML frontmatter and Markdown instructions:
+
+```yaml
+---
+name: pdf-processing
+description: Extract text and tables from PDF files, fill forms, merge documents.
+---
+
+# PDF Processing
+
+## When to use this skill
+Use this skill when the user needs to work with PDF files...
+
+## How to extract text
+1. Use pdfplumber for text extraction...
+
+## How to fill forms
+...
+```
+
+The frontmatter requires:
+
+- `name`: A short identifier
+- `description`: Instructions for when to use this skill
+
+The Markdown body contains the actual skill content with no restrictions on structure or content.
+
+## Prerequisites
+
+To support skills, your agent needs:
+
+1. **Filesystem access** to discover and load skill files (read files, read directories)
+2. **A load skill tool** that reads the `SKILL.md` content into context
+3. **Command execution** (optional) if skills bundle scripts (e.g. a full sandbox environment)
+
+## Step 1: Define a Sandbox Abstraction
+
+<Note>
+  This guide uses a generic sandbox abstraction for flexibility across
+  environments. If you're building for Node.js, you can use `fs/promises` and
+  `child_process` directly instead.
+</Note>
+
+Create a generic sandbox interface that provides a consistent way to interact with the filesystem. This abstraction lets you implement it differently depending on your environment (Node.js fs, a containerized sandbox, cloud storage, etc.):
+
+```ts
+interface Sandbox {
+  readFile(path: string, encoding: 'utf-8'): Promise<string>;
+  readdir(
+    path: string,
+    opts: { withFileTypes: true },
+  ): Promise<{ name: string; isDirectory(): boolean }[]>;
+  exec(command: string): Promise<{ stdout: string; stderr: string }>;
+}
+```
+
+## Step 2: Discover Skills at Startup
+
+Scan skill directories and extract metadata from each `SKILL.md`:
+
+```ts
+interface SkillMetadata {
+  name: string;
+  description: string;
+  path: string;
+}
+
+async function discoverSkills(
+  sandbox: Sandbox,
+  directories: string[],
+): Promise<SkillMetadata[]> {
+  const skills: SkillMetadata[] = [];
+  const seenNames = new Set<string>();
+
+  for (const dir of directories) {
+    let entries;
+    try {
+      entries = await sandbox.readdir(dir, { withFileTypes: true });
+    } catch {
+      continue; // Skip directories that don't exist
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+
+      const skillDir = `${dir}/${entry.name}`;
+      const skillFile = `${skillDir}/SKILL.md`;
+
+      try {
+        const content = await sandbox.readFile(skillFile, 'utf-8');
+        const frontmatter = parseFrontmatter(content);
+
+        // First skill with a given name wins (allows project overrides)
+        if (seenNames.has(frontmatter.name)) continue;
+        seenNames.add(frontmatter.name);
+
+        skills.push({
+          name: frontmatter.name,
+          description: frontmatter.description,
+          path: skillDir,
+        });
+      } catch {
+        continue; // Skip skills without valid SKILL.md
+      }
+    }
+  }
+  return skills;
+}
+
+function parseFrontmatter(content: string) {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!match?.[1]) throw new Error('No frontmatter found');
+  // Parse YAML using your preferred library
+  return yaml.parse(match[1]);
+}
+```
+
+## Step 3: Build the System Prompt
+
+Include discovered skills in the system prompt so the agent knows what's available:
+
+```ts
+function buildSkillsPrompt(skills: SkillMetadata[]): string {
+  const skillsList = skills
+    .map(s => `- ${s.name}: ${s.description}`)
+    .join('\n');
+
+  return `
+## Skills
+
+Use the \`loadSkill\` tool to load a skill when the user's request
+would benefit from specialized instructions.
+
+Available skills:
+${skillsList}
+`;
+}
+```
+
+The agent sees only names and descriptions. Full instructions stay out of the context window until loaded.
+
+## Step 4: Create the Load Skill Tool
+
+The load skill tool reads the full `SKILL.md` and returns the body (without frontmatter):
+
+```ts
+function stripFrontmatter(content: string): string {
+  const match = content.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);
+  return match ? content.slice(match[0].length).trim() : content.trim();
+}
+
+const loadSkillTool = tool({
+  description: 'Load a skill to get specialized instructions',
+  inputSchema: z.object({
+    name: z.string().describe('The skill name to load'),
+  }),
+  execute: async ({ name }, { context }) => {
+    const { sandbox, skills } = context as {
+      sandbox: Sandbox;
+      skills: SkillMetadata[];
+    };
+
+    const skill = skills.find(s => s.name.toLowerCase() === name.toLowerCase());
+    if (!skill) {
+      return { error: `Skill '${name}' not found` };
+    }
+
+    const skillFile = `${skill.path}/SKILL.md`;
+    const content = await sandbox.readFile(skillFile, 'utf-8');
+    const body = stripFrontmatter(content);
+
+    return {
+      skillDirectory: skill.path,
+      content: body,
+    };
+  },
+});
+```
+
+The tool returns the skill directory path alongside the content so the agent can construct full paths to bundled resources.
+
+## Step 5: Create the Agent
+
+Wire up the sandbox and skills using `callOptionsSchema` and `prepareCall`:
+
+```ts
+const callOptionsSchema = z.object({
+  sandbox: z.custom<Sandbox>(),
+  skills: z.array(
+    z.object({
+      name: z.string(),
+      description: z.string(),
+      path: z.string(),
+    }),
+  ),
+});
+
+const readFileTool = tool({
+  description: 'Read a file from the filesystem',
+  inputSchema: z.object({ path: z.string() }),
+  execute: async ({ path }, { context }) => {
+    const { sandbox } = context as { sandbox: Sandbox };
+    return sandbox.readFile(path, 'utf-8');
+  },
+});
+
+const bashTool = tool({
+  description: 'Execute a bash command',
+  inputSchema: z.object({ command: z.string() }),
+  execute: async ({ command }, { context }) => {
+    const { sandbox } = context as { sandbox: Sandbox };
+    return sandbox.exec(command);
+  },
+});
+
+const agent = new ToolLoopAgent({
+  model: yourModel,
+  tools: {
+    loadSkill: loadSkillTool,
+    readFile: readFileTool,
+    bash: bashTool,
+  },
+  callOptionsSchema,
+  prepareCall: ({ options, ...settings }) => ({
+    ...settings,
+    instructions: `${settings.instructions}\n\n${buildSkillsPrompt(options.skills)}`,
+    context: {
+      sandbox: options.sandbox,
+      skills: options.skills,
+    },
+  }),
+});
+```
+
+## Step 6: Run the Agent
+
+```ts
+// Create sandbox (your filesystem/execution abstraction)
+const sandbox = createSandbox({ workingDirectory: process.cwd() });
+
+// Discover skills at startup
+const skills = await discoverSkills(sandbox, [
+  '.agents/skills',
+  '~/.config/agent/skills',
+]);
+
+// Run the agent
+const result = await agent.run({
+  prompt: userMessage,
+  options: { sandbox, skills },
+});
+```
+
+When a user asks something that matches a skill description, the agent calls `loadSkill`. The full instructions load into context, and the agent follows them using `bash` and `readFile` to access bundled resources.
+
+## Accessing Bundled Resources
+
+Skills can reference files relative to their directory. The agent uses existing tools to access them:
+
+```markdown
+Skill directory: /path/to/.agents/skills/my-skill
+
+# My Skill Instructions
+
+Read the configuration template:
+templates/config.json
+
+Run the setup script:
+bash scripts/setup.sh
+```
+
+The agent sees the skill directory path in the tool result and prepends it when accessing `templates/config.json` or `scripts/setup.sh`. No special resource loading mechanism is needed—the agent uses the same tools it uses for everything else.
+
+## Learn More
+
+- [Agent Skills specification](https://agentskills.io/specification) for the full format details
+- [Example skills](https://github.com/anthropics/skills) on GitHub
+- [Authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) for writing effective skills
+- [Reference library](https://github.com/agentskills/agentskills/tree/main/skills-ref) to validate skills and generate prompt XML
+- [skills.sh](https://skills.sh) to browse and discover community skills

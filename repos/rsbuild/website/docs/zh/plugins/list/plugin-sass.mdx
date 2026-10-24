@@ -1,0 +1,226 @@
+---
+description: '使用 Sass 作为 CSS 预处理器，基于 sass-loader 实现。'
+---
+
+# Sass 插件
+
+import { SourceCode } from '@theme';
+
+<SourceCode href="https://github.com/web-infra-dev/rsbuild/tree/main/packages/plugin-sass" />
+
+使用 [Sass](https://sass-lang.com/) 作为 CSS 预处理器，基于 [sass-loader](https://github.com/webpack/sass-loader) 实现。
+
+## 快速开始
+
+### 安装插件
+
+执行以下命令安装插件：
+
+import { PackageManagerTabs } from '@theme';
+
+<PackageManagerTabs command="add @rsbuild/plugin-sass -D" />
+
+:::tip
+
+- Sass 插件仅支持 @rsbuild/core >= 0.7.0 版本。
+- 当 @rsbuild/core 版本小于 0.7.0 时，内置支持 Sass 插件，你不需要安装该插件。
+
+:::
+
+### 注册插件
+
+在 Rsbuild 配置中注册插件：
+
+```ts title="rsbuild.config.ts"
+import { pluginSass } from '@rsbuild/plugin-sass';
+
+export default {
+  plugins: [pluginSass()],
+};
+```
+
+注册后，即可在代码中引入 `*.scss`，`*.sass`，`*.module.scss` 或 `*.module.sass` 文件，无须添加其他配置。
+
+## 选项
+
+如果你需要自定义 Sass 的编译行为，可以使用以下配置项。
+
+### sassLoaderOptions
+
+修改 [sass-loader](https://github.com/webpack/sass-loader) 的配置。
+
+- **类型：** `Object | Function`
+- **默认值：**
+
+```js
+const defaultOptions = {
+  api: 'modern-compiler',
+  implementation: require.resolve('sass-embedded'),
+  sourceMap: rsbuildConfig.output.sourceMap.css,
+  sassOptions: {
+    quietDeps: true,
+    silenceDeprecations: ['legacy-js-api', 'import'],
+  },
+};
+```
+
+- **示例：**
+
+当 `sassLoaderOptions` 的值是一个对象时，它会与默认配置通过 `Object.assign` 进行浅层合并，值得注意的是，`sassOptions` 会通过 deepMerge 进行深层合并。
+
+```js
+pluginSass({
+  sassLoaderOptions: {
+    sourceMap: true,
+  },
+});
+```
+
+当 `sassLoaderOptions` 的值是一个函数时，默认配置作为第一个参数传入，你可以直接修改配置对象，也可以返回一个值作为最终结果：
+
+```js
+pluginSass({
+  sassLoaderOptions(config) {
+    config.additionalData = async (content, loaderContext) => {
+      // ...
+    };
+  },
+});
+```
+
+### include
+
+- **类型：** [Rspack.RuleSetCondition](https://rspack.rs/zh/config/module-rules#condition)
+- **默认值：** `/\.s(?:a|c)ss$/`
+- **版本：** `>= 1.1.0`
+
+用于指定一部分 `.scss` 或 `.sass` 模块，这些模块会被 `sass-loader` 编译。这个值与 Rspack 中的 [rules[].test](https://rspack.rs/zh/config/module-rules#rulestest) 选项相同。
+
+比如：
+
+```ts
+pluginSass({
+  include: /\.custom\.scss$/,
+});
+```
+
+### exclude
+
+- **类型：** [Rspack.RuleSetCondition](https://rspack.rs/zh/config/module-rules#condition)
+- **默认值：** `undefined`
+
+用于排除一部分 `.sass` 或 `.scss` 模块，这些模块不会被 `sass-loader` 编译。
+
+比如：
+
+```ts
+pluginSass({
+  exclude: /some-folder[\\/]foo\.scss/,
+});
+```
+
+### rewriteUrls
+
+- **类型：** `boolean`
+- **默认值：** `true`
+- **版本：** `>= 1.2.0`
+
+是否使用 [resolve-url-loader](https://github.com/bholloway/resolve-url-loader/tree/v5/packages/resolve-url-loader) 来重写 URL。
+
+当启用时，`resolve-url-loader` 允许你在 Sass 文件中写相对路径的 URL，这些 URL 会被正确地从当前 Sass 文件的位置解析，而不是相对于 Sass 入口文件（例如 `main.scss`）。
+
+如果设置为 `false`，构建性能会得到提升，但 Rsbuild 会使用 Sass 的原生 URL 解析，这意味着所有 URL 必须相对于 Sass 入口文件。
+
+```ts
+pluginSass({
+  rewriteUrls: false,
+});
+```
+
+## 实践
+
+### 修改 Sass implementation
+
+Sass 提供了多种实现，包括 [sass](https://npmjs.com/package/sass)、[sass-embedded](https://npmjs.com/package/sass-embedded) 和 [node-sass](https://npmjs.com/package/node-sass)。
+
+Rsbuild 默认使用最新的 `sass-embedded` 实现。`sass-embedded` 是一个围绕原生 Dart Sass 可执行文件的 JavaScript wrapper，具备一致的 API 和最佳的性能。
+
+如果你需要使用其他 Sass 实现，而不是使用 Rsbuild 内置的 `sass-embedded`，可以在项目中安装需要使用的 Sass 实现，并通过 `sass-loader` 的 [implementation](https://github.com/webpack/sass-loader#implementation) 选项来设置。
+
+```ts
+pluginSass({
+  sassLoaderOptions: {
+    implementation: require.resolve('sass'),
+  },
+});
+```
+
+:::tip
+从 `sass-embedded` 修改为其他 Sass 实现，可能会导致构建性能显著下降。
+:::
+
+### 选择 Sass API
+
+Rsbuild 默认使用最新的 `modern-compiler` API，如果你依赖了 Sass 的 `legacy` API，可以将 sass-loader 的 [api](https://github.com/webpack/sass-loader#api) 选项设置为 `legacy`，以兼容一些废弃的 Sass 写法。
+
+```ts
+pluginSass({
+  sassLoaderOptions: {
+    api: 'legacy',
+  },
+});
+```
+
+:::tip
+Sass 的 `legacy` API 已经被废弃，并且将在 Sass 2.0 中被移除，建议迁移到 `modern-compiler` API，详见 [Sass - Legacy JS API](https://sass-lang.com/documentation/breaking-changes/legacy-js-api/)。
+:::
+
+### 忽略 Sass 废弃提示
+
+Sass 会通过 warning 日志提示你一些废弃的写法，这些写法在 Sass 未来的大版本中将会被移除，建议根据日志进行修改。如果你不想看到这些日志，可以通过 Sass 的 [silenceDeprecations](https://sass-lang.com/documentation/js-api/interfaces/stringoptions/#silenceDeprecations) 选项来忽略这些警告。
+
+例如，`@import` 已经被 Sass 废弃，当你使用该语法时，Sass 会输出如下日志：
+
+```
+Sass @import rules are deprecated and will be removed in Dart Sass 3.0.0.
+
+More info and automated migrator: https://sass-lang.com/d/import
+
+ 0 | @import './b.scss';
+```
+
+`@rsbuild/plugin-sass` 默认添加了如下配置来忽略 `@import` 的警告，如果你需要忽略其他废弃警告，可以使用同样的方式。
+
+```ts
+pluginSass({
+  sassLoaderOptions: {
+    sassOptions: {
+      silenceDeprecations: ['import'],
+    },
+  },
+});
+```
+
+> 请查看 [Sass Deprecations](https://sass-lang.com/documentation/js-api/interfaces/deprecations/) 了解更多信息。
+
+### 配置多个 Sass 插件
+
+通过使用 `include` 和 `exclude` 选项，你可以同时注册多个 Sass 插件，并为每个插件指定不同的选项。
+
+例如：
+
+```ts
+export default {
+  plugins: [
+    pluginSass({
+      exclude: /\.another\.scss$/,
+    }),
+    pluginSass({
+      include: /\.another\.scss$/,
+      sassLoaderOptions: {
+        // some custom options
+      },
+    }),
+  ],
+};
+```

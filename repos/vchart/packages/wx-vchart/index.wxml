@@ -1,0 +1,20 @@
+<view class="vchart" id="{{ canvasId }}" style="{{ styles }}">
+  <canvas
+    class="cs-canvas"
+    bindtouchstart="bindEvent"
+    bindtouchmove="bindEvent"
+    bindtouchend="bindEvent"
+    bindmousemove="bindEvent"
+    bindmouseover="bindEvent"
+    bindmouseout="bindEvent"
+    bindmousedown="bindEvent"
+    bindmouseup="bindEvent"
+    id="{{ canvasId }}_draw_canvas"
+    canvas-id="{{ canvasId }}_draw_canvas"
+    type="2d"
+  ></canvas>
+  <canvas width="{{ offscreenCanvasWidth }}" height="{{ offscreenCanvasHeight }}" id="{{ canvasId }}_hit_canvas"
+    canvas-id="{{ canvasId }}_hit_canvas" class="cs-tooltip-canvas" type="2d"></canvas>
+  <canvas width="{{ offscreenCanvasWidth }}" height="{{ offscreenCanvasHeight }}" id="{{ canvasId }}_tooltip_canvas"
+    canvas-id="{{ canvasId }}_tooltip_canvas" class="cs-tooltip-canvas" type="2d"></canvas>
+</view>

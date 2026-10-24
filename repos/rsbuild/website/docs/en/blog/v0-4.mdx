@@ -1,0 +1,165 @@
+---
+description: 'Rsbuild 0.4 adds built-in Module Federation config and updates plugin hook ordering and default behavior.'
+date: 2024-02-06 08:00:00
+sidebar: false
+authors:
+  - name: Jiahan Chen
+    avatar: 'https://github.com/chenjiahan.png'
+    github: 'chenjiahan'
+  - name: 9aoy
+    avatar: 'https://github.com/9aoy.png'
+    github: '9aoy'
+---
+
+import { BlogAuthors } from '@rstack-dev/doc-ui/blog-authors';
+
+# Announcing Rsbuild 0.4
+
+_February 6, 2024_
+
+<BlogAuthors />
+
+![](https://assets.rspack.rs/rsbuild/rsbuild-banner-v0-4.png)
+
+Rsbuild 0.4 provides built-in support for module federation. It also contains some incompatible API updates. Please refer to the current document for upgrading.
+
+### Module Federation config
+
+Rsbuild now provides a built-in [moduleFederation](/config/module-federation/options) option, which will make configuring Module Federation in Rsbuild much easier.
+
+- **Example:**
+
+```ts title="rsbuild.config.ts"
+export default defineConfig({
+  moduleFederation: {
+    options: {
+      // ModuleFederationPluginOptions
+    },
+  },
+});
+```
+
+When you use this option, Rsbuild will automatically set the default `publicPath` and `splitChunks` config, making module federation ready to use out of the box.
+
+> See [RFC - Provide first-class support for Module Federation](https://github.com/web-infra-dev/rsbuild/discussions/1461) for details.
+
+### Plugin hook order
+
+In Rsbuild plugin, you can now declare the order of hooks using the `order` field:
+
+```ts
+const myPlugin = () => ({
+  setup(api) {
+    api.modifyRsbuildConfig({
+      handler: () => console.log('hello'),
+      order: 'pre',
+    });
+  },
+});
+```
+
+> For more details, see [Plugin Hooks](/plugins/dev/hooks).
+
+### Rename disableFilenameHash
+
+The `output.disableFilenameHash` config has been renamed to [output.filenameHash](/config/output/filename-hash).
+
+- Before:
+
+```ts
+export default {
+  output: {
+    disableFilenameHash: true,
+  },
+};
+```
+
+- After:
+
+```ts
+export default {
+  output: {
+    filenameHash: false,
+  },
+};
+```
+
+## Remove postcss-flexbugs-fixes
+
+Rsbuild 0.4 removed the built-in [postcss-flexbugs-fixes](https://github.com/luisrudge/postcss-flexbugs-fixes) plugin.
+
+This plugin is used to fix some flex bugs for IE 10 / 11. Considering that modern browsers no longer have these flex issues, we removed this plugin to improve build performance.
+
+If your project needs to be compatible with IE 10 / 11 and encounters these flex issues, you can manually add this plugin in Rsbuild:
+
+- Install plugin:
+
+```bash
+npm add postcss-flexbugs-fixes -D
+```
+
+- Register plugin in `postcss.config.cjs`:
+
+```js
+module.exports = {
+  'postcss-flexbugs-fixes': {},
+};
+```
+
+## Pure React plugin
+
+The React plugin has removed default [source.transformImport](/config/source/transform-import) config for [antd](https://npmjs.com/package/antd) v4 and [@arco-design/web-react](https://npmjs.com/package/@arco-design/web-react).
+
+Configurations related to the UI library should be provided in the UI library-specific plugins, such as `rsbuild-plugin-antd` or `rsbuild-plugin-arco`, and the React plugin will concentrate on providing fundamental abilities for React.
+
+- If your project is using `antd` v3 or v4, you can manually add the following config:
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: [
+      {
+        libraryName: 'antd',
+        libraryDirectory: 'es',
+        style: 'css',
+      },
+    ],
+  },
+};
+```
+
+- If your project is using `@arco-design/web-react`, you can manually add the following config:
+
+```ts title="rsbuild.config.ts"
+export default {
+  source: {
+    transformImport: [
+      {
+        libraryName: '@arco-design/web-react',
+        libraryDirectory: 'es',
+        camelToDashComponentName: false,
+        style: 'css',
+      },
+      {
+        libraryName: '@arco-design/web-react/icon',
+        libraryDirectory: 'react-icon',
+        camelToDashComponentName: false,
+      },
+    ],
+  },
+};
+```
+
+## JavaScript API
+
+The `loadConfig` method now returns both the contents of the config and the path to the config file:
+
+```js
+import { loadConfig } from '@rsbuild/core';
+
+// 0.3
+const config = await loadConfig();
+
+// 0.4
+const { content, filePath } = await loadConfig();
+```

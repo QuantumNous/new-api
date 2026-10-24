@@ -1,0 +1,48 @@
+html {
+  font-family: sans-serif;
+  font-size: 14px;
+}
+
+.List table {
+  background-color: #fff;
+  border: 1px solid #e6e4dc;
+  max-width: 100%;
+  border-collapse: collapse;
+
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  position: relative;
+}
+
+.List thead {
+  display: flex;
+  flex-direction: column;
+  background-color: #fff;
+
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.List thead tr {
+  height: 70px;
+}
+
+.List tr {
+  display: flex;
+  flex-direction: row;
+}
+
+.List td,
+.List th {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  width: 180px;
+}
+
+.ListItemEven {
+  background-color: #e6e4dc;
+}

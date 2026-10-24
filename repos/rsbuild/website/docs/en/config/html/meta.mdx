@@ -1,0 +1,202 @@
+---
+description: 'If the HTML template used in the current project already contains the charset or viewport meta tags, then the tags in the HTML template take precedence.'
+---
+
+# html.meta
+
+- **Type:** `Object | Function`
+- **Default:**
+
+```ts
+const defaultMeta = {
+  // <meta charset="utf-8" />
+  charset: {
+    charset: 'utf-8',
+  },
+  // <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  viewport: 'width=device-width, initial-scale=1.0',
+};
+```
+
+Configures the `<meta>` tags of the HTML.
+
+:::tip
+If the HTML template used in the current project already contains the charset or viewport meta tags, then the tags in the HTML template take precedence.
+:::
+
+## String type
+
+- **Type:**
+
+```ts
+type MetaOptions = {
+  [name: string]: string;
+};
+```
+
+When the `value` of a `meta` object is a string, the `key` of the object is automatically mapped to `name`, and the `value` is mapped to `content`.
+
+To set a description, for example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    meta: {
+      description: 'a description of the page',
+    },
+  },
+};
+```
+
+The generated `meta` tag in HTML is:
+
+```html
+<meta name="description" content="a description of the page" />
+```
+
+## Object type
+
+- **Type:**
+
+```ts
+type MetaOptions = {
+  [name: string]:
+    | string
+    | false
+    | {
+        [attr: string]: string | boolean;
+      };
+};
+```
+
+When the `value` of a `meta` object is an object, the `key: value` of the object is mapped to the attribute of the `meta` tag.
+
+In this case, the `name` and `content` properties will not be set by default.
+
+### Charset tag
+
+To generate `charset` tag, for example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    meta: {
+      charset: {
+        charset: 'utf-8',
+      },
+    },
+  },
+};
+```
+
+The `meta` tag in HTML is:
+
+```html
+<meta charset="utf-8" />
+```
+
+### Open Graph tags
+
+Generate [Open Graph tags](https://ogp.me/):
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    meta: {
+      'og:title': {
+        property: 'og:title',
+        content: 'Example Title',
+      },
+      'og:image': {
+        property: 'og:image',
+        content: 'https://example.com/og.png',
+      },
+    },
+  },
+};
+```
+
+The generated `meta` tags in the final HTML will look like:
+
+```html
+<meta property="og:title" content="Example Title" />
+<meta property="og:image" content="https://example.com/og.png" />
+```
+
+## Function usage
+
+- **Type:**
+
+```ts
+type MetaFunction = (context: {
+  value: MetaOptions;
+  entryName: string;
+}) => MetaOptions | void | Promise<MetaOptions | void>;
+```
+
+When `html.meta` is of type `Function`, the function receives an object as an argument with the following properties:
+
+- `value`: the default meta configuration of Rsbuild.
+- `entryName`: the name of the current entry.
+
+You can directly modify the configuration object and not return anything, or you can return an object as the final configuration.
+
+For example, you can directly modify the built-in `meta` configuration object:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    meta({ value }) {
+      value.description = 'this is my page';
+      return value;
+    },
+  },
+};
+```
+
+In the MPA (Multi-Page Application) scenario, you can return different `meta` configurations based on the entry name, thus generating different `meta` tags for each page:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    meta({ entryName }) {
+      switch (entryName) {
+        case 'foo':
+          return {
+            description: 'this is foo page',
+          };
+        case 'bar':
+          return {
+            description: 'this is bar page',
+          };
+        default:
+          return {
+            description: 'this is other pages',
+          };
+      }
+    },
+  },
+};
+```
+
+## Remove default value
+
+Setting the `value` of the `meta` object to `false` means the meta tag will not be generated.
+
+To remove the `viewport`, for example:
+
+```ts title="rsbuild.config.ts"
+export default {
+  html: {
+    meta: {
+      viewport: false,
+    },
+  },
+};
+```
+
+## Version history
+
+| Version | Changes                                          |
+| ------- | ------------------------------------------------ |
+| v2.0.8  | Added support for async functions in `html.meta` |

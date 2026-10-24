@@ -1,0 +1,213 @@
+{
+  "direction": {
+    "key": "direction",
+    "oneDesc": "图表的方向配置。\n- 'vertical' 垂直布局，即常见的直角坐标系布局，x 轴位于底部，y 轴位于左侧。\n- 'horizontal' 水平布局，可理解为 x 轴和 y 轴位置互换。"
+  },
+  "markLine": {
+    "key": "markLine",
+    "oneDesc": "参考线配置"
+  },
+  "markArea": {
+    "key": "markArea",
+    "oneDesc": "参考区域配置"
+  },
+  "markPoint": {
+    "key": "markPoint",
+    "oneDesc": "参考点配置"
+  },
+  "padding": {
+    "key": "padding",
+    "oneDesc": "布局 padding的配置"
+  },
+  "percent": {
+    "key": "percent",
+    "oneDesc": "是否对数据进行百分比处理"
+  },
+  "name": {
+    "key": "name",
+    "oneDesc": "系列名称"
+  },
+  "id": {
+    "key": "id",
+    "oneDesc": "用户自定义的 series id"
+  },
+  "animation": {
+    "key": "animation",
+    "oneDesc": "是否开启系列动画"
+  },
+  "stack": {
+    "key": "stack",
+    "oneDesc": "是否对数据进行堆叠处理"
+  },
+  "animationEnter": {
+    "key": "animationEnter",
+    "oneDesc": "数据更新 - 新增数据动画"
+  },
+  "animationUpdate": {
+    "key": "animationUpdate",
+    "oneDesc": "数据更新 - 数据更新动画"
+  },
+  "animationExit": {
+    "key": "animationExit",
+    "oneDesc": "数据更新 - 数据删除动画"
+  },
+  "dataIndex": {
+    "key": "dataIndex",
+    "oneDesc": "系列关联的数据索引"
+  },
+  "sampling": {
+    "key": "sampling",
+    "oneDesc": "数据采样 - 采样方法"
+  },
+  "animationState": {
+    "key": "animationState",
+    "oneDesc": "状态切换动画"
+  },
+  "large": {
+    "key": "large",
+    "oneDesc": "是否开启大数据渲染模式，开启后会降低渲染的精度"
+  },
+  "largeThreshold": {
+    "key": "largeThreshold",
+    "oneDesc": "开启大数据渲染优化的阀值，对应的是data的长度;推荐 largeThreshold < progressiveThreshold"
+  },
+  "progressiveStep": {
+    "key": "progressiveStep",
+    "oneDesc": "分片长度"
+  },
+  "progressiveThreshold": {
+    "key": "progressiveThreshold",
+    "oneDesc": "开启分片渲染的阀值，对应的是单系列data的长度"
+  },
+  "support3d": {
+    "key": "support3d",
+    "oneDesc": "是否支持3d视角"
+  },
+  "regionIndex": {
+    "key": "regionIndex",
+    "oneDesc": "系列关联的region索引"
+  },
+  "regionId": {
+    "key": "regionId",
+    "oneDesc": "系列关联的region id"
+  },
+  "totalLabel": {
+    "key": "totalLabel",
+    "oneDesc": "堆叠汇总标签"
+  },
+  "animationAppear": {
+    "key": "animationAppear",
+    "oneDesc": "图表入场动画\n支持配置图表内置不同动画效果"
+  },
+  "animationDisappear": {
+    "key": "animationDisappear",
+    "oneDesc": "图表退场动画"
+  },
+  "animationNormal": {
+    "key": "animationNormal",
+    "oneDesc": "循环动画"
+  },
+  "xField": {
+    "key": "xField",
+    "oneDesc": "x轴字段"
+  },
+  "yField": {
+    "key": "yField",
+    "oneDesc": "y轴字段"
+  },
+  "label": {
+    "key": "label",
+    "oneDesc": "标签配置"
+  },
+  "point": {
+    "key": "point",
+    "oneDesc": "点图元配置.同时可以配置选中，hover等交互状态下的点和鼠标的样式"
+  },
+  "line": {
+    "key": "line",
+    "oneDesc": "线图元配置.同时可以配置选中，hover等交互状态下的线条和鼠标的样式"
+  },
+  "area": {
+    "key": "area",
+    "oneDesc": "面积图元配置.同时可以配置选中，hover等交互状态下的area和鼠标的样式"
+  },
+  "areaLabel": {
+    "key": "areaLabel",
+    "oneDesc": "每条线对应一个标签，一般放在折线的最尾端，值为当前折线对应的图例名称"
+  },
+  "x2Field": {
+    "key": "x2Field",
+    "oneDesc": "用于区间数据，声明区间末尾的数据字段。"
+  },
+  "y2Field": {
+    "key": "y2Field",
+    "oneDesc": "用于区间数据，声明区间末尾的数据字段。"
+  },
+  "zField": {
+    "key": "zField",
+    "oneDesc": "z轴字段\n用于3d散点图等"
+  },
+  "sortDataByAxis": {
+    "key": "sortDataByAxis",
+    "oneDesc": "是否将数据按照数轴排序"
+  },
+  "dataId": {
+    "key": "dataId",
+    "oneDesc": "系列关联的数据id"
+  },
+  "dataKey": {
+    "key": "dataKey",
+    "oneDesc": "dataKey用于绑定数据与Mark的关系, 该配置在动画中非常重要."
+  },
+  "seriesField": {
+    "key": "seriesField",
+    "oneDesc": "分组字段"
+  },
+  "stackOffsetSilhouette": {
+    "key": "stackOffsetSilhouette",
+    "oneDesc": "是否围绕中心轴偏移轮廓"
+  },
+  "invalidType": {
+    "key": "invalidType",
+    "oneDesc": "null，undefined等非法数据点连接方式。"
+  },
+  "extensionMark": {
+    "key": "extensionMark",
+    "oneDesc": "扩展mark"
+  },
+  "interactions": {
+    "key": "interactions",
+    "oneDesc": "其他需要按需注册的类型交互"
+  },
+  "activePoint": {
+    "key": "activePoint",
+    "oneDesc": "是否使用额外的 activePoint 显示交互点，可以在点隐藏时显示被交互的点"
+  },
+  "samplingFactor": {
+    "key": "samplingFactor",
+    "oneDesc": "数据采样 - 采样系数"
+  },
+  "minField": {
+    "key": "minField",
+    "oneDesc": "数据字段配置"
+  },
+  "maxField": {
+    "key": "maxField"
+  },
+  "seriesMark": {
+    "key": "seriesMark",
+    "oneDesc": "系列主 mark 类型配置，该配置会影响图例的展示"
+  },
+  "pointDis": {
+    "key": "pointDis",
+    "oneDesc": "标记点之间的距离，px"
+  },
+  "pointDisMul": {
+    "key": "pointDisMul",
+    "oneDesc": "标记点之间的距离， pointSize 的倍数"
+  },
+  "markOverlap": {
+    "key": "markOverlap",
+    "oneDesc": "是否允许标记图形相互覆盖"
+  }
+}

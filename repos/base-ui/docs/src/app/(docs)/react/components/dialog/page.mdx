@@ -1,0 +1,356 @@
+# Dialog
+
+<Subtitle>A popup that opens on top of the entire page.</Subtitle>
+<Meta
+  name="description"
+  content="A high-quality, unstyled React dialog component that opens on top of the entire page."
+/>
+
+import { DemoDialogHero } from './demos/hero';
+
+<DemoDialogHero />
+
+## Usage guidelines
+
+- **Dialog doesn't support gestures:** Use [Drawer](/react/components/drawer) when you need gesture support or snap points. A panel that slides in from the edge of the screen and doesn't need gesture support is a positioned Dialog.
+
+## Anatomy
+
+Import the component and assemble its parts:
+
+```jsx title="Anatomy"
+import { Dialog } from '@base-ui/react/dialog';
+
+<Dialog.Root>
+  <Dialog.Trigger />
+  <Dialog.Portal>
+    <Dialog.Backdrop />
+    <Dialog.Viewport>
+      <Dialog.Popup>
+        <Dialog.Title />
+        <Dialog.Description />
+        <Dialog.Close />
+      </Dialog.Popup>
+    </Dialog.Viewport>
+  </Dialog.Portal>
+</Dialog.Root>;
+```
+
+## Examples
+
+### State
+
+By default, Dialog is an uncontrolled component that manages its own state.
+
+```tsx title="Uncontrolled dialog"
+<Dialog.Root>
+  <Dialog.Trigger>Open</Dialog.Trigger>
+  <Dialog.Portal>
+    <Dialog.Popup>
+      <Dialog.Title>Example dialog</Dialog.Title>
+      <Dialog.Close>Close</Dialog.Close>
+    </Dialog.Popup>
+  </Dialog.Portal>
+</Dialog.Root>
+```
+
+Use `open` and `onOpenChange` props if you need to access or control the state of the dialog.
+For example, you can control the dialog state in order to open it imperatively from another place in your app.
+
+```tsx title="Controlled dialog"
+const [open, setOpen] = React.useState(false);
+return (
+  <Dialog.Root open={open} onOpenChange={setOpen}>
+    <Dialog.Trigger>Open</Dialog.Trigger>
+    <Dialog.Portal>
+      <Dialog.Popup>
+        <form
+          // Close the dialog once the form data is submitted
+          onSubmit={async () => {
+            await submitData();
+            setOpen(false);
+          }}
+        >
+          ...
+        </form>
+      </Dialog.Popup>
+    </Dialog.Portal>
+  </Dialog.Root>
+);
+```
+
+It's also common to use `onOpenChange` if your app needs to do something when the dialog is closed or opened. This is recommended over `React.useEffect` when reacting to state changes.
+
+```tsx title="Running code when dialog state changes"
+<Dialog.Root
+  open={open}
+  onOpenChange={(open) => {
+    // Do stuff when the dialog is closed
+    if (!open) {
+      doStuff();
+    }
+    // Set the new state
+    setOpen(open);
+  }}
+>
+```
+
+### Open from a menu
+
+In order to open a dialog using a menu, control the dialog state and open it imperatively using the `onClick` handler on the menu item.
+
+```tsx title="Connecting a dialog to a menu"
+import * as React from 'react';
+import { Dialog } from '@base-ui/react/dialog';
+import { Menu } from '@base-ui/react/menu';
+
+function ExampleMenu() {
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+
+  return (
+    <React.Fragment>
+      <Menu.Root>
+        <Menu.Trigger>Open menu</Menu.Trigger>
+        <Menu.Portal>
+          <Menu.Positioner>
+            <Menu.Popup>
+              {/* @highlight-start */}
+              {/* Open the dialog when the menu item is clicked */}
+              <Menu.Item onClick={() => setDialogOpen(true)}>Open dialog</Menu.Item>
+              {/* @highlight-end */}
+            </Menu.Popup>
+          </Menu.Positioner>
+        </Menu.Portal>
+      </Menu.Root>
+
+      {/* @highlight-start */}
+      {/* Control the dialog state */}
+      <Dialog.Root open={dialogOpen} onOpenChange={setDialogOpen}>
+        {/* @highlight-end */}
+        <Dialog.Portal>
+          <Dialog.Backdrop />
+          <Dialog.Popup>
+            {/* prettier-ignore */}
+            {/* Rest of the dialog */}
+          </Dialog.Popup>
+        </Dialog.Portal>
+      </Dialog.Root>
+    </React.Fragment>
+  );
+}
+```
+
+### Nested dialogs
+
+You can nest dialogs within one another normally.
+
+Use the `[data-nested-dialog-open]` selector and the `var(--nested-dialogs)` CSS variable to customize the styling of the parent dialog. Backdrops of the child dialogs won't be rendered so that you can present the parent dialog in a clean way behind the one on top of it.
+
+import { DemoDialogNested } from './demos/nested';
+
+<DemoDialogNested />
+
+### Close confirmation
+
+This example shows a nested confirmation dialog that opens if the text entered in the parent dialog is going to be discarded.
+
+To implement this, both dialogs should be controlled. The confirmation dialog may be opened when `onOpenChange` callback of the parent dialog receives a request to close. This way, the confirmation is automatically shown when the user clicks the backdrop, presses the Esc key, or clicks a close button.
+
+import { DemoDialogCloseConfirmation } from './demos/close-confirmation';
+
+<DemoDialogCloseConfirmation />
+
+### Outside scroll dialog
+
+The dialog can be made scrollable by using `<Dialog.Viewport>` as an outer scrollable container for `<Dialog.Popup>` while the popup can extend past the bottom edge. The scrollable area uses the [Scroll Area component](/react/components/scroll-area) to provide custom scrollbars.
+
+import { DemoDialogOutsideScroll } from './demos/outside-scroll';
+
+<DemoDialogOutsideScroll />
+
+### Inside scroll dialog
+
+The dialog can be made scrollable by making an inner container scrollable while the popup stays fully on screen. `<Dialog.Viewport>` is used as a positioning container for `<Dialog.Popup>`, while an inner scrollable area is created using the [Scroll Area component](/react/components/scroll-area).
+
+import { DemoDialogInsideScroll } from './demos/inside-scroll';
+
+<DemoDialogInsideScroll />
+
+### Placing elements outside the popup
+
+When adding elements that should appear "outside" the colored popup area, continue to place them inside `<Dialog.Popup>`, but create a child element that has the popup styles. This ensures they are kept in the tab order and announced correctly by screen readers.
+
+`<Dialog.Popup>` has `pointer-events: none`, while inner content (the colored popup and close button) has `pointer-events: auto` so clicks on the backdrop continue to be registered.
+
+import { DemoDialogUncontained } from './demos/uncontained';
+
+<DemoDialogUncontained />
+
+### Detached triggers
+
+A dialog can be controlled by a trigger located either inside or outside the `<Dialog.Root>` component.
+For simple, one-off interactions, place the `<Dialog.Trigger>` inside `<Dialog.Root>`, as shown in the example at the top of this page.
+
+However, if defining the dialog's content next to its trigger is not practical, you can use a detached trigger.
+This involves placing the `<Dialog.Trigger>` outside of `<Dialog.Root>` and linking them with a `handle` created by the `Dialog.createHandle()` function.
+
+```jsx title="Detached triggers"
+const demoDialog = Dialog.createHandle();
+
+// @highlight
+// @highlight-text "handle={demoDialog}"
+<Dialog.Trigger handle={demoDialog}>Open</Dialog.Trigger> {/* @highlight-text "handle={demoDialog}" */}
+
+// @highlight
+// @highlight-text "handle={demoDialog}"
+<Dialog.Root handle={demoDialog}>
+  ...
+</Dialog.Root>
+```
+
+import { DemoDialogDetachedTriggersSimple } from './demos/detached-triggers-simple';
+
+<DemoDialogDetachedTriggersSimple />
+
+### Multiple triggers
+
+A single dialog can be opened by multiple trigger elements.
+You can achieve this by using the same `handle` for several detached triggers, or by placing multiple `<Dialog.Trigger>` components inside a single `<Dialog.Root>`.
+
+```jsx title="Multiple triggers within the Root part"
+<Dialog.Root>
+  <Dialog.Trigger>Trigger 1</Dialog.Trigger>
+  <Dialog.Trigger>Trigger 2</Dialog.Trigger>
+  ...
+</Dialog.Root>
+```
+
+```jsx title="Multiple detached triggers"
+const demoDialog = Dialog.createHandle();
+
+<Dialog.Trigger handle={demoDialog}>Trigger 1</Dialog.Trigger>
+<Dialog.Trigger handle={demoDialog}>Trigger 2</Dialog.Trigger>
+<Dialog.Root handle={demoDialog}>
+  ...
+</Dialog.Root>
+```
+
+The dialog can render different content depending on which trigger opened it.
+This is achieved by passing a `payload` to the `<Dialog.Trigger>` and using the function-as-a-child pattern in `<Dialog.Root>`.
+
+The payload can be strongly typed by providing a type argument to the `createHandle()` function:
+
+```jsx title="Detached triggers with payload"
+// @highlight
+const demoDialog = Dialog.createHandle<{ text: string }>();
+
+// @highlight
+// @highlight-text "payload"
+<Dialog.Trigger handle={demoDialog} payload={{ text: 'Trigger 1' }}>
+  Trigger 1
+</Dialog.Trigger>
+
+// @highlight
+// @highlight-text "payload"
+<Dialog.Trigger handle={demoDialog} payload={{ text: 'Trigger 2' }}>
+  Trigger 2
+</Dialog.Trigger>
+
+<Dialog.Root handle={demoDialog}>
+  {({ payload }) => ( // @highlight-text "payload"
+    <Dialog.Portal>
+      <Dialog.Popup>
+        <Dialog.Title>Dialog</Dialog.Title>
+        {payload !== undefined && ( // @highlight-text "payload"
+          <Dialog.Description>
+            This has been opened by {payload.text} {/* @highlight-text "payload" */}
+          </Dialog.Description>
+        )}
+      </Dialog.Popup>
+    </Dialog.Portal>
+  )}
+</Dialog.Root>
+```
+
+### Controlled mode with multiple triggers
+
+You can control the dialog's open state externally using the `open` and `onOpenChange` props on `<Dialog.Root>`.
+This allows you to manage the dialog's visibility based on your application's state.
+When using multiple triggers, you have to manage which trigger is active with the `triggerId` prop on `<Dialog.Root>` and the `id` prop on each `<Dialog.Trigger>`.
+
+Note that there is no separate `onTriggerIdChange` prop.
+Instead, the `onOpenChange` callback receives an additional argument, `eventDetails`, which contains the trigger element that initiated the state change.
+
+import { DemoDialogDetachedTriggersControlled } from './demos/detached-triggers-controlled';
+
+<DemoDialogDetachedTriggersControlled />
+
+## API reference
+
+import { TypesDialog } from './types';
+
+### Root
+
+<TypesDialog.Root />
+
+### Trigger
+
+<TypesDialog.Trigger />
+
+### Portal
+
+<TypesDialog.Portal />
+
+### Backdrop
+
+<TypesDialog.Backdrop />
+
+### Viewport
+
+<TypesDialog.Viewport />
+
+### Popup
+
+<TypesDialog.Popup />
+
+### Title
+
+<TypesDialog.Title />
+
+### Description
+
+<TypesDialog.Description />
+
+### Close
+
+<TypesDialog.Close />
+
+## createHandle
+
+<TypesDialog.createHandle />
+
+[//]: # '@exclude-table-of-contents'
+
+### Handle
+
+<TypesDialog.Handle />
+
+export const metadata = {
+  keywords: [
+    'React Dialog',
+    'Modal Dialog Component',
+    'Modal Popup',
+    'Modal Window',
+    'Popup Window',
+    'Modal Overlay',
+    'Overlay',
+    'Lightbox',
+    'Popover Dialog',
+    'Controlled Dialog State',
+    'Nested Dialog React',
+    'Focus Trap Dialog',
+    'Accessible Dialog',
+    'Headless React Components',
+    'Base UI',
+  ],
+};
