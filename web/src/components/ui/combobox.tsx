@@ -48,6 +48,8 @@ type LegacyComboboxProps = {
   searchPlaceholder?: string
   emptyText?: string
   allowCustomValue?: boolean
+  /** Virtualize the editable dropdown when allowCustomValue is enabled. */
+  virtualized?: boolean
   showSelectedIcon?: boolean
   className?: string
   popupClassName?: string
@@ -90,6 +92,7 @@ function Combobox(
         className={props.className}
         popupClassName={props.popupClassName}
         allowCustomValue={props.allowCustomValue}
+        virtualized={props.virtualized}
         openOnFocus={props.openOnFocus}
       />
     )
@@ -488,5 +491,6 @@ export {
   ComboboxChipsInput,
   ComboboxTrigger,
   ComboboxValue,
+  // oxlint-disable-next-line react/only-export-components -- Shared anchor hook for composed combobox controls.
   useComboboxAnchor,
 }
