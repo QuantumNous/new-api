@@ -303,6 +303,21 @@ it('labels a task whose result was returned in the response as synchronous', () 
   expect(screen.queryByText('Async')).not.toBeInTheDocument()
 })
 
+it('shows sub-second duration from ut for a synchronous task', () => {
+  renderLogs({
+    logs: [
+      {
+        ...log,
+        use_time: 0,
+        prompt_tokens: 0,
+        completion_tokens: 0,
+        other: JSON.stringify({ is_task: true, task_sync: true, ut: 1234 }),
+      },
+    ],
+  })
+  expect(screen.getByText('1.2s')).toBeVisible()
+})
+
 it('shows mapped model names in full when inspecting a mobile model badge', async () => {
   const user = userEvent.setup()
   renderLogs({
