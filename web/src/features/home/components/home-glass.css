@@ -354,6 +354,14 @@ For commercial licensing, please contact support@quantumnous.com
     0 24px 60px -28px rgb(7 9 13 / 55%),
     0 0 0 1px rgb(108 245 154 / 6%);
 }
+/* The terminal stays dark, so its ghost copy button keeps light ink. */
+.ci-liquidHome .ci-codeCard .ci-codeCopy {
+  color: #c9d1db;
+}
+.ci-liquidHome .ci-codeCard .ci-codeCopy:hover {
+  background: rgb(255 255 255 / 8%);
+  color: #fff;
+}
 .ci-liquidHome .ci-catalogFilters :is(input, select) {
   border-color: var(--ci-color-border-subtle);
   border-radius: 12px;
