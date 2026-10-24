@@ -16,11 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useQuery } from '@tanstack/react-query'
+
 import { Main } from '@/components/layout'
 import {
   CardStaggerContainer,
   CardStaggerItem,
 } from '@/components/page-transition'
+import { getTeamSummaryStats } from '@/features/dashboard/api'
 import { useStatus } from '@/hooks/use-status'
 import { useAuthStore } from '@/stores/auth-store'
 
@@ -35,7 +38,27 @@ import { useProfile } from './hooks'
 export function Profile() {
   const { profile, loading, refreshProfile } = useProfile()
   const { status } = useStatus()
-  const permissions = useAuthStore((s) => s.auth.user?.permissions)
+  const authUser = useAuthStore((s) => s.auth.user)
+  const permissions = authUser?.permissions
+
+  const isParent =
+    Boolean(authUser?.has_children) && (authUser?.parent_id ?? 0) === 0
+
+  const teamSummaryQuery = useQuery({
+    queryKey: ['profile', 'team-summary'],
+    queryFn: getTeamSummaryStats,
+    enabled: isParent,
+    staleTime: 60 * 1000,
+  })
+
+  const displayProfile =
+    isParent && teamSummaryQuery.data?.data && profile
+      ? {
+          ...profile,
+          used_quota: teamSummaryQuery.data.data.used_quota,
+          request_count: teamSummaryQuery.data.data.request_count,
+        }
+      : profile
 
   const checkinEnabled = status?.checkin_enabled === true
   const turnstileEnabled = !!(
@@ -49,7 +72,10 @@ export function Profile() {
       <div className='min-h-0 flex-1 overflow-auto px-3 py-3 sm:px-4 sm:py-6'>
         <CardStaggerContainer className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-6'>
           <CardStaggerItem>
-            <ProfileHeader profile={profile} loading={loading} />
+            <ProfileHeader
+              profile={displayProfile}
+              loading={loading || (isParent && teamSummaryQuery.isLoading)}
+            />
           </CardStaggerItem>
 
           <CardStaggerItem>
