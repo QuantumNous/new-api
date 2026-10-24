@@ -60,7 +60,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { getFlowQuotaDates } from '@/features/dashboard/api'
+import { getFlowQuotaDates, getTeamFlowQuotaDates } from '@/features/dashboard/api'
 import {
   buildDashboardFlowData,
   buildFlowSankeySpec,
@@ -98,6 +98,7 @@ interface FlowChartsProps {
   filters?: DashboardFilters
   // When false, sensitive node labels are masked in the rendered Sankey.
   sensitiveVisible?: boolean
+  isTeamView?: boolean
 }
 
 const FLOW_METRIC_OPTIONS = [
@@ -259,10 +260,12 @@ export function FlowCharts(props: FlowChartsProps) {
   const user = useAuthStore((state) => state.auth.user)
   const isRoot = Boolean(user?.role && user.role >= ROLE.SUPER_ADMIN)
   const isAdmin = Boolean(user?.role && user.role >= ROLE.ADMIN)
+  const isTeamView = props.isTeamView ?? false
+  // In team view a parent account sees user+group+model+channel stages (same as admin).
   let flowRole: FlowRole = 'user'
   if (isRoot) {
     flowRole = 'root'
-  } else if (isAdmin) {
+  } else if (isAdmin || isTeamView) {
     flowRole = 'admin'
   }
   const [metric, setMetric] = useState<FlowMetric>('quota')
@@ -335,8 +338,11 @@ export function FlowCharts(props: FlowChartsProps) {
     isError,
     isLoading,
   } = useQuery({
-    queryKey: ['dashboard', 'flow', flowQueryParams, flowRole],
-    queryFn: () => getFlowQuotaDates(flowQueryParams, isAdmin),
+    queryKey: ['dashboard', 'flow', flowQueryParams, flowRole, isTeamView],
+    queryFn: () =>
+      isTeamView
+        ? getTeamFlowQuotaDates(flowQueryParams)
+        : getFlowQuotaDates(flowQueryParams, isAdmin),
     select: (res) =>
       requireSuccessfulFlowRows(res, t('Please try again later.')),
     staleTime: 60_000,
@@ -643,7 +649,7 @@ export function FlowCharts(props: FlowChartsProps) {
         </div>
 
         <div className='flex min-w-0 items-center gap-2 xl:justify-end'>
-          {isAdmin && (
+          {(isAdmin || isTeamView) && (
             <div className='flex min-w-0 flex-col gap-2 sm:flex-row xl:w-[min(24rem,34vw)]'>
               <MultiSelect
                 options={userFilterOptions}

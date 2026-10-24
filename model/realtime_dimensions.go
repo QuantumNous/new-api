@@ -435,6 +435,81 @@ func GetRealtimeKeyBreakdowns(userId int) RealtimeKeyBreakdowns {
 	}
 }
 
+// GetTeamKeyBreakdowns aggregates the per-key realtime breakdown across all
+// users in a team (parent + currently-bound children). It calls
+// GetRealtimeKeyBreakdowns for each user and merges entries with the same
+// token id, summing the window counts and recomputing derived rates.
+func GetTeamKeyBreakdowns(userIds []int) RealtimeKeyBreakdowns {
+	now := realtimeNow()
+
+	byToken := make(map[int][]RealtimeWindow)
+	tokenNames := make(map[int]string)
+	truncated := false
+
+	for _, userId := range userIds {
+		bd := GetRealtimeKeyBreakdowns(userId)
+		if bd.Truncated {
+			truncated = true
+		}
+		for _, key := range bd.Keys {
+			existing, ok := byToken[key.TokenID]
+			if !ok {
+				existing = make([]RealtimeWindow, len(key.Windows))
+				for i, w := range key.Windows {
+					existing[i].WindowSeconds = w.WindowSeconds
+				}
+			}
+			for i, w := range key.Windows {
+				if i >= len(existing) {
+					break
+				}
+				existing[i].Requests += w.Requests
+				existing[i].Tokens += w.Tokens
+				existing[i].CacheReadTokens += w.CacheReadTokens
+				existing[i].InputTokensTotal += w.InputTokensTotal
+				existing[i].RPM += w.RPM
+				existing[i].TPM += w.TPM
+				existing[i].AvgConcurrency += w.AvgConcurrency
+			}
+			byToken[key.TokenID] = existing
+			if key.TokenName != "" {
+				tokenNames[key.TokenID] = key.TokenName
+			}
+		}
+	}
+
+	keys := make([]RealtimeKeyBreakdown, 0, len(byToken))
+	for tokenId, windows := range byToken {
+		for i := range windows {
+			windows[i].CacheHitRate = realtimeCacheHitRate(realtimeWindowResult{
+				CacheReadTokens:  windows[i].CacheReadTokens,
+				InputTokensTotal: windows[i].InputTokensTotal,
+			})
+		}
+		keys = append(keys, RealtimeKeyBreakdown{
+			TokenID:   tokenId,
+			TokenName: tokenNames[tokenId],
+			Windows:   windows,
+		})
+	}
+
+	sort.Slice(keys, func(i, j int) bool {
+		li := keys[i].Windows[len(keys[i].Windows)-1]
+		lj := keys[j].Windows[len(keys[j].Windows)-1]
+		if li.Requests != lj.Requests {
+			return li.Requests > lj.Requests
+		}
+		return keys[i].TokenID < keys[j].TokenID
+	})
+
+	return RealtimeKeyBreakdowns{
+		Now:       now,
+		NodeName:  common.NodeName,
+		Truncated: truncated,
+		Keys:      keys,
+	}
+}
+
 // resolveRealtimeTokenNames fills in each key's display name. The lookup is
 // one primary-key IN query per response; a key that no longer exists keeps an
 // empty name, which omitempty drops from the payload rather than showing a

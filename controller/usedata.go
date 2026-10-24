@@ -269,6 +269,56 @@ func GetSelfTokenUsage(c *gin.Context) {
 	})
 }
 
+// GetTeamTokenUsage is the per-key spend ranking for a parent account's team.
+// A child's rows are included only when their created_at falls inside an active
+// binding window, matching the same binding-period semantics as GetTeamSummaryStats.
+func GetTeamTokenUsage(c *gin.Context) {
+	_, ok := getTeamUserIds(c)
+	if !ok {
+		return
+	}
+	parentId := c.GetInt("id")
+	startTimestamp, endTimestamp, ok := parseTokenUsageRange(c)
+	if !ok {
+		return
+	}
+	if endTimestamp-startTimestamp > 2592000 {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "时间跨度不能超过 1 个月"})
+		return
+	}
+	rows, err := model.GetTeamTokenUsageRanking(parentId, startTimestamp, endTimestamp,
+		c.Query("token_name"), c.Query("model_name"), parseTokenUsageLimit(c))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": rows})
+}
+
+// GetTeamFlowQuotaDates serves the distribution (Sankey) view for a parent's team.
+// Returns admin-style rows (user_id, username, use_group, model_name, channel_id)
+// filtered to the team members that were active in the requested time window.
+func GetTeamFlowQuotaDates(c *gin.Context) {
+	userIds, ok := getTeamUserIds(c)
+	if !ok {
+		return
+	}
+	startTimestamp, endTimestamp, ok := parseFlowQuotaTimeRange(c)
+	if !ok {
+		return
+	}
+	if endTimestamp-startTimestamp > 2592000 {
+		c.JSON(http.StatusOK, gin.H{"success": false, "message": "时间跨度不能超过 1 个月"})
+		return
+	}
+	dates, err := model.GetTeamFlowQuotaData(userIds, startTimestamp, endTimestamp)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": dates})
+}
+
 // GetTeamSummaryStats returns the aggregate used_quota and request_count for
 // the caller's team. Children's consumption is counted only for periods when
 // they were bound to this parent (tracked in user_parent_bindings). Only

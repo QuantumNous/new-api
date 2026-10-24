@@ -82,6 +82,38 @@ func GetSelfRealtimeKeyBreakdown(c *gin.Context) {
 	})
 }
 
+// GetTeamRealtimeMetrics returns the aggregate realtime throughput for the
+// calling parent account's team (parent + currently-bound children). Like the
+// self endpoint it reads in-process rings only; multi-node deployments see
+// per-node numbers for the team rather than a cluster-wide total.
+func GetTeamRealtimeMetrics(c *gin.Context) {
+	userIds, ok := getTeamUserIds(c)
+	if !ok {
+		return
+	}
+	snapshot := model.GetTeamRealtimeSnapshot(userIds)
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    snapshot,
+	})
+}
+
+// GetTeamRealtimeKeyBreakdown returns the per-key realtime breakdown for the
+// calling parent account's team. Keys from the parent and all currently-bound
+// children are merged into a single ranked list.
+func GetTeamRealtimeKeyBreakdown(c *gin.Context) {
+	userIds, ok := getTeamUserIds(c)
+	if !ok {
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    model.GetTeamKeyBreakdowns(userIds),
+	})
+}
+
 // parseRealtimeFilter reads the optional key / model filter from the query.
 // It reports false after writing an error response when a value is malformed.
 func parseRealtimeFilter(c *gin.Context) (model.RealtimeFilter, bool) {

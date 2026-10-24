@@ -290,9 +290,10 @@ export function Dashboard() {
       DASHBOARD_SECTION_IDS.filter(
         (section) =>
           section !== 'overview' &&
-          ((section !== 'users' && section !== 'packages') || isAdmin)
+          section !== 'packages' &&
+          (section !== 'users' || isAdmin || (canManageTeamScope && isTeamView))
       ),
-    [isAdmin]
+    [isAdmin, canManageTeamScope, isTeamView]
   )
   const handleSectionChange = useCallback(
     (section: string) => {
@@ -334,6 +335,17 @@ export function Dashboard() {
   const flowActions =
     activeSection === 'flow' ? (
       <>
+        {canManageTeamScope && (
+          <Tabs
+            value={isTeamView ? 'team' : 'self'}
+            onValueChange={(v) => setIsTeamView(v === 'team')}
+          >
+            <TabsList>
+              <TabsTrigger value='self'>{t('Only Mine')}</TabsTrigger>
+              <TabsTrigger value='team'>{t('Team Logs')}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
         <Tooltip>
           <TooltipTrigger
             render={
@@ -368,7 +380,19 @@ export function Dashboard() {
         />
       </>
     ) : null
-  const sectionActions = modelActions ?? flowActions
+  const usersActions =
+    activeSection === 'users' && canManageTeamScope ? (
+      <Tabs
+        value={isTeamView ? 'team' : 'self'}
+        onValueChange={(v) => setIsTeamView(v === 'team')}
+      >
+        <TabsList>
+          <TabsTrigger value='self'>{t('Only Mine')}</TabsTrigger>
+          <TabsTrigger value='team'>{t('Team Logs')}</TabsTrigger>
+        </TabsList>
+      </Tabs>
+    ) : null
+  const sectionActions = modelActions ?? flowActions ?? usersActions
 
   return (
     <SectionPageLayout>
@@ -402,7 +426,7 @@ export function Dashboard() {
             <>
               <FadeIn>
                 <Suspense fallback={<RealtimeMetricsFallback />}>
-                  <LazyRealtimeMetricsPanel />
+                  <LazyRealtimeMetricsPanel isTeamView={isTeamView} />
                 </Suspense>
               </FadeIn>
               <FadeIn delay={0.05}>
@@ -451,17 +475,18 @@ export function Dashboard() {
               </FadeIn>
               <FadeIn delay={0.25}>
                 <Suspense fallback={<ModelChartsFallback />}>
-                  <LazyTokenUsageCard filters={modelFilters} />
+                  <LazyTokenUsageCard filters={modelFilters} isTeamView={isTeamView} />
                 </Suspense>
               </FadeIn>
             </>
           )}
-          {activeSection === 'users' && (
+          {activeSection === 'users' && (isAdmin || (canManageTeamScope && isTeamView)) && (
             <FadeIn>
               <Suspense fallback={<ModelChartsFallback />}>
                 <LazyUserCharts
                   filters={userChartsFilters}
                   onFiltersChange={setUserChartsFilters}
+                  isTeamView={canManageTeamScope && isTeamView}
                 />
               </Suspense>
             </FadeIn>
@@ -477,6 +502,7 @@ export function Dashboard() {
                 <LazyFlowCharts
                   filters={modelFilters}
                   sensitiveVisible={flowSensitiveVisible}
+                  isTeamView={canManageTeamScope && isTeamView}
                 />
               </Suspense>
             </FadeIn>

@@ -40,6 +40,8 @@ import {
 } from '@/components/ui/table'
 import {
   getSelfRealtimeKeyBreakdown,
+  getTeamRealtimeKeyBreakdown,
+  getTeamTokenUsage,
   getTokenUsage,
 } from '@/features/dashboard/api'
 import { getDefaultDays } from '@/features/dashboard/lib'
@@ -51,6 +53,7 @@ import { useAuthStore } from '@/stores/auth-store'
 
 interface TokenUsageCardProps {
   filters: DashboardFilters
+  isTeamView?: boolean
 }
 
 // realtimeRankingWindowSeconds picks which trailing window the "current
@@ -70,6 +73,7 @@ const realtimeRefetchIntervalMs = 10_000
 // money, and only the rings know what is happening in the current window.
 export function TokenUsageCard(props: TokenUsageCardProps) {
   const { t } = useTranslation()
+  const { isTeamView = false } = props
   const userRole = useAuthStore((state) => state.auth.user?.role)
   const isAdmin = Boolean(userRole && userRole >= ROLE.ADMIN)
 
@@ -92,31 +96,38 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
       'dashboard',
       'token-usage',
       isAdmin,
+      isTeamView,
       timeRange,
       props.filters?.username,
       props.filters?.token_name,
       props.filters?.model_name,
     ],
     queryFn: () =>
-      getTokenUsage(
-        {
-          ...timeRange,
-          ...(props.filters?.username && { username: props.filters.username }),
-          ...(props.filters?.token_name && { token_name: props.filters.token_name }),
-          ...(props.filters?.model_name && { model_name: props.filters.model_name }),
-        },
-        isAdmin
-      ),
+      isTeamView
+        ? getTeamTokenUsage({
+            ...timeRange,
+            ...(props.filters?.token_name && { token_name: props.filters.token_name }),
+            ...(props.filters?.model_name && { model_name: props.filters.model_name }),
+          })
+        : getTokenUsage(
+            {
+              ...timeRange,
+              ...(props.filters?.username && { username: props.filters.username }),
+              ...(props.filters?.token_name && { token_name: props.filters.token_name }),
+              ...(props.filters?.model_name && { model_name: props.filters.model_name }),
+            },
+            isAdmin
+          ),
     select: (res) => (res.success ? (res.data ?? []) : []),
     staleTime: 60_000,
   })
 
-  // Realtime ranking is always "my own keys" — the breakdown comes from the
-  // in-process rings scoped to the session user, so there is no admin/other
-  // user variant the way the historical spend table has one.
+  // In team view the realtime ranking spans the whole team; in self/admin view
+  // it is always the session user's own keys.
   const realtimeQuery = useQuery({
-    queryKey: ['dashboard', 'token-usage-realtime'],
-    queryFn: () => getSelfRealtimeKeyBreakdown(),
+    queryKey: ['dashboard', 'token-usage-realtime', isTeamView],
+    queryFn: () =>
+      isTeamView ? getTeamRealtimeKeyBreakdown() : getSelfRealtimeKeyBreakdown(),
     select: (res) => (res.success ? (res.data?.keys ?? []) : []),
     refetchInterval: realtimeRefetchIntervalMs,
     staleTime: 5_000,
@@ -308,7 +319,7 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
               <TableRow className='hover:bg-transparent'>
                 <TableHead className='w-10 pl-3 sm:pl-5'>#</TableHead>
                 <TableHead>{t('Key')}</TableHead>
-                {isAdmin && <TableHead>{t('User')}</TableHead>}
+                {(isAdmin || isTeamView) && <TableHead>{t('User')}</TableHead>}
                 <TableHead className='text-right'>{t('Requests')}</TableHead>
                 <TableHead className='text-right'>Tokens</TableHead>
                 <TableHead className='text-right'>{t('Last used')}</TableHead>
@@ -331,7 +342,7 @@ export function TokenUsageCard(props: TokenUsageCardProps) {
                       {row.token_name || `#${row.token_id}`}
                     </span>
                   </TableCell>
-                  {isAdmin && (
+                  {(isAdmin || isTeamView) && (
                     <TableCell className='text-muted-foreground max-w-[140px]'>
                       <span className='block truncate' title={row.username}>
                         {row.username || '--'}

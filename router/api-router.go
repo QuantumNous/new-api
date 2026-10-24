@@ -381,6 +381,8 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/self/dimensions", middleware.UserAuth(), controller.GetSelfQuotaDataDimensions)
 		dataRoute.GET("/team", middleware.UserAuth(), controller.GetTeamQuotaDates)
 		dataRoute.GET("/team/summary", middleware.UserAuth(), controller.GetTeamSummaryStats)
+		dataRoute.GET("/team/token-usage", middleware.UserAuth(), controller.GetTeamTokenUsage)
+		dataRoute.GET("/team/flow", middleware.UserAuth(), controller.GetTeamFlowQuotaDates)
 		dataRoute.GET("/flow", middleware.AdminAuth(), controller.GetAllFlowQuotaDates)
 		dataRoute.GET("/flow/self", middleware.UserAuth(), controller.GetUserFlowQuotaDates)
 		// Per-key spend ranking over a time range. The self variant scopes to
@@ -393,6 +395,8 @@ func SetApiRouter(router *gin.Engine) {
 		dataRoute.GET("/realtime/self", middleware.UserAuth(), controller.GetSelfRealtimeMetrics)
 		dataRoute.GET("/realtime/self/dimensions", middleware.UserAuth(), controller.GetSelfRealtimeDimensions)
 		dataRoute.GET("/realtime/self/keys", middleware.UserAuth(), controller.GetSelfRealtimeKeyBreakdown)
+		dataRoute.GET("/realtime/team", middleware.UserAuth(), controller.GetTeamRealtimeMetrics)
+		dataRoute.GET("/realtime/team/keys", middleware.UserAuth(), controller.GetTeamRealtimeKeyBreakdown)
 		// Historical counterpart to /realtime/self: unbounded range and spend,
 		// at the hourly resolution quota_data actually stores.
 		dataRoute.GET("/usage/self", middleware.UserAuth(), controller.GetSelfUsageStats)

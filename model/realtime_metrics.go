@@ -519,6 +519,72 @@ func GetRealtimeUserSummaries(window int64) []RealtimeUserSummary {
 	return summaries
 }
 
+// GetTeamRealtimeSnapshot aggregates realtime snapshots for a set of users
+// (a parent account plus its currently-bound children) into a single combined
+// snapshot. It is the realtime counterpart to GetTeamUsageSummaryByBindings:
+// the per-key breakdown reads current rings and does not apply binding-period
+// filtering — that is only meaningful for historical (quota_data) queries.
+func GetTeamRealtimeSnapshot(userIds []int) RealtimeSnapshot {
+	now := realtimeNow()
+	longest := realtimeWindows[len(realtimeWindows)-1]
+
+	result := RealtimeSnapshot{
+		Now:      now,
+		NodeName: common.NodeName,
+		Windows:  make([]RealtimeWindow, len(realtimeWindows)),
+		Series:   emptySeries(now, longest),
+	}
+	for i, w := range realtimeWindows {
+		result.Windows[i].WindowSeconds = int(w)
+	}
+
+	type rawWindow struct{ requests, tokens, cacheRead, cacheInput, busySec int }
+	raws := make([]rawWindow, len(realtimeWindows))
+
+	for _, userId := range userIds {
+		s := GetRealtimeSnapshot(userId)
+		for i, w := range s.Windows {
+			raws[i].requests += w.Requests
+			raws[i].tokens += w.Tokens
+			raws[i].cacheRead += w.CacheReadTokens
+			raws[i].cacheInput += w.InputTokensTotal
+			// Recover BusySeconds from the already-derived AvgConcurrency field so
+			// the team total can be recomputed correctly: AvgConcurrency = busy/W, so
+			// busy = AvgConcurrency * W.
+			raws[i].busySec += int(w.AvgConcurrency * float64(w.WindowSeconds))
+		}
+		for j := range s.Series {
+			if j < len(result.Series) {
+				result.Series[j].Requests += s.Series[j].Requests
+				result.Series[j].Tokens += s.Series[j].Tokens
+				result.Series[j].CacheReadTokens += s.Series[j].CacheReadTokens
+				result.Series[j].InputTokensTotal += s.Series[j].InputTokensTotal
+			}
+		}
+	}
+
+	for i, w := range realtimeWindows {
+		r := raws[i]
+		windowMinutes := float64(w) / 60
+		result.Windows[i] = RealtimeWindow{
+			WindowSeconds:    int(w),
+			Requests:         r.requests,
+			Tokens:           r.tokens,
+			CacheReadTokens:  r.cacheRead,
+			InputTokensTotal: r.cacheInput,
+			RPM:              float64(r.requests) / windowMinutes,
+			TPM:              float64(r.tokens) / windowMinutes,
+			CacheHitRate: realtimeCacheHitRate(realtimeWindowResult{
+				CacheReadTokens:  r.cacheRead,
+				InputTokensTotal: r.cacheInput,
+			}),
+			AvgConcurrency: float64(r.busySec) / float64(w),
+		}
+	}
+
+	return result
+}
+
 // FillRealtimeUsernames resolves the username for each summary. The registry
 // only stores user ids, and the admin table wants something readable, so the
 // names are looked up in one query at read time rather than being cached on the

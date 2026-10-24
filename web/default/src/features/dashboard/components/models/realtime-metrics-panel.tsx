@@ -25,6 +25,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import {
   getSelfRealtimeDimensions,
   getSelfRealtimeMetrics,
+  getTeamRealtimeMetrics,
 } from '@/features/dashboard/api'
 import type {
   RealtimeBucket,
@@ -125,16 +126,19 @@ function dropPartialTrailingBucket(series: RealtimeBucket[]) {
   return series.length > 1 ? series.slice(0, -1) : []
 }
 
+interface RealtimeMetricsPanelProps {
+  isTeamView?: boolean
+}
+
 /**
  * Realtime RPM / TPM over the last minute, five minutes and hour.
  *
- * The panel always shows the signed-in user's own traffic: it calls the
- * session-scoped endpoint, which takes no user identifier, so there is no
- * request shape that could ask for someone else's numbers. Reading another
- * account's throughput is an admin action served by the /api/data/realtime/users
- * routes, not something this component can be pointed at.
+ * When isTeamView is true the panel shows aggregate traffic for the parent
+ * account and all currently-bound children by calling the team endpoint.
+ * The key/model filter bar is hidden in team view because the aggregated
+ * ring data does not map to a single user's key selection.
  */
-export function RealtimeMetricsPanel() {
+export function RealtimeMetricsPanel({ isTeamView = false }: RealtimeMetricsPanelProps) {
   const { i18n, t } = useTranslation()
   const [snapshot, setSnapshot] = useState<RealtimeSnapshot | null>(null)
   const [dimensions, setDimensions] = useState<RealtimeDimensions | null>(null)
@@ -155,7 +159,9 @@ export function RealtimeMetricsPanel() {
 
     const poll = async () => {
       try {
-        const res = await getSelfRealtimeMetrics({ tokenId, model })
+        const res = isTeamView
+          ? await getTeamRealtimeMetrics()
+          : await getSelfRealtimeMetrics({ tokenId, model })
         if (cancelled) return
         setSnapshot(res?.data ?? null)
         setError(false)
@@ -173,19 +179,17 @@ export function RealtimeMetricsPanel() {
     }, REALTIME_POLL_INTERVAL_MS)
 
     return () => {
-      // Changing the filter tears this effect down, so an in-flight response
-      // for the previous selection resolves into a cancelled closure and is
-      // dropped rather than being rendered under the new label.
       cancelled = true
       clearInterval(timer)
       abortController.abort()
     }
-  }, [tokenId, model])
+  }, [isTeamView, tokenId, model])
 
-  // The option lists are fetched unfiltered and on their own schedule. Tying
-  // them to the metrics poll would let selecting a key shrink the very list the
-  // selection was made from, stranding the user with no way back.
+  // The option lists are only meaningful in self view; in team view there is no
+  // per-key filter, so skip the fetch entirely.
   useEffect(() => {
+    if (isTeamView) return
+
     let cancelled = false
 
     const loadDimensions = async () => {
@@ -207,7 +211,7 @@ export function RealtimeMetricsPanel() {
       cancelled = true
       clearInterval(timer)
     }
-  }, [])
+  }, [isTeamView])
 
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
 
@@ -223,10 +227,11 @@ export function RealtimeMetricsPanel() {
 
   const hasAnyTraffic = windows.some((w) => (w.metrics?.requests ?? 0) > 0)
 
-  // The bar renders nothing without options, so the bordered strip around it
-  // would otherwise show as an empty band on accounts with a single key.
+  // The filter bar is only shown in self view. In team view the aggregated data
+  // spans all members' keys so a single-key filter is not meaningful.
   const hasFilterOptions =
-    (dimensions?.tokens.length ?? 0) > 0 || (dimensions?.models.length ?? 0) > 0
+    !isTeamView &&
+    ((dimensions?.tokens.length ?? 0) > 0 || (dimensions?.models.length ?? 0) > 0)
 
   const trendSeries = useMemo(
     () => dropPartialTrailingBucket(snapshot?.series ?? []),

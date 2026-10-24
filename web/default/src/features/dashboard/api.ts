@@ -192,6 +192,41 @@ export async function getSelfRealtimeKeyBreakdown() {
   return res.data
 }
 
+// Get the parent account's team aggregate realtime throughput
+// (parent + currently-bound children). Only callable by a parent account.
+export async function getTeamRealtimeMetrics() {
+  const res = await api.get<{ success: boolean; data: RealtimeSnapshot }>(
+    '/api/data/realtime/team'
+  )
+  return res.data
+}
+
+// Get the parent account's team per-key realtime breakdown.
+// Keys from the parent and all currently-bound children are merged.
+export async function getTeamRealtimeKeyBreakdown() {
+  const res = await api.get<{ success: boolean; data: RealtimeKeyBreakdowns }>(
+    '/api/data/realtime/team/keys'
+  )
+  return res.data
+}
+
+// Get the parent account's per-key historical spend for the team.
+// Children's rows are included only during binding periods.
+export async function getTeamTokenUsage(params: {
+  start_timestamp: number
+  end_timestamp: number
+  token_name?: string
+  model_name?: string
+  limit?: number
+}) {
+  const res = await api.get<{
+    success: boolean
+    data?: TokenUsageItem[]
+    message?: string
+  }>('/api/data/team/token-usage', { params })
+  return res.data
+}
+
 // Get the calling user's historical usage, including spend, over an arbitrary
 // range. This reads the hourly rollup rather than the in-memory rings, so it
 // can answer for a month but cannot resolve finer than an hour.
@@ -247,6 +282,21 @@ export async function getUserQuotaDataByUsers(params: {
     '/api/data/users',
     { params }
   )
+  return res.data
+}
+
+// Get flow distribution data for the parent account's team (parent + bound children).
+// Returns admin-style rows with user/group/model/channel breakdown.
+export async function getTeamFlowQuotaDates(params: {
+  start_timestamp: number
+  end_timestamp: number
+  default_time?: string
+}) {
+  const res = await api.get<{
+    success: boolean
+    data?: FlowQuotaDataItem[]
+    message?: string
+  }>('/api/data/team/flow', { params })
   return res.data
 }
 

@@ -73,11 +73,14 @@ export const DASHBOARD_DEFAULT_SECTION = dashboardRegistry.defaultSection
 
 export function getDashboardSectionNavItems(
   t: TFunction,
-  options?: { isAdmin?: boolean }
+  options?: { isAdmin?: boolean; canManageTeamScope?: boolean }
 ) {
   const all = dashboardRegistry.getSectionNavItems(t)
   if (options?.isAdmin) return all
-  return all.filter(
-    (_, idx) => !ADMIN_ONLY_SECTIONS.has(DASHBOARD_SECTIONS[idx].id)
-  )
+  return all.filter((_, idx) => {
+    const id = DASHBOARD_SECTIONS[idx].id
+    if (id === 'packages') return false
+    if (id === 'users') return options?.canManageTeamScope ?? false
+    return true
+  })
 }

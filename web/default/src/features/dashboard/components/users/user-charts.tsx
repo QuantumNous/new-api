@@ -36,6 +36,7 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useTheme } from '@/context/theme-provider'
 import {
   getQuotaDataDimensions,
+  getTeamQuotaDates,
   getUserQuotaDataByUsers,
 } from '@/features/dashboard/api'
 import {
@@ -81,6 +82,7 @@ const ALL_DIMENSION = '__all__'
 interface UserChartsProps {
   filters: UserChartsFilters
   onFiltersChange: (filters: UserChartsFilters) => void
+  isTeamView?: boolean
 }
 
 export function UserCharts(props: UserChartsProps) {
@@ -89,6 +91,7 @@ export function UserCharts(props: UserChartsProps) {
   const [themeReady, setThemeReady] = useState(false)
   const [tokenNameFilter, setTokenNameFilter] = useState('')
   const [modelNameFilter, setModelNameFilter] = useState('')
+  const isTeamView = props.isTeamView ?? false
   const themeManagerRef = useRef<
     (typeof import('@visactor/vchart'))['ThemeManager'] | null
   >(null)
@@ -154,25 +157,31 @@ export function UserCharts(props: UserChartsProps) {
     queryKey: [
       'dashboard',
       'user-quota',
+      isTeamView,
       timeRange,
       tokenNameFilter,
       modelNameFilter,
     ],
     queryFn: () =>
-      getUserQuotaDataByUsers({
-        ...timeRange,
-        token_name: tokenNameFilter || undefined,
-        model_name: modelNameFilter || undefined,
-      }),
+      isTeamView
+        ? getTeamQuotaDates(timeRange)
+        : getUserQuotaDataByUsers({
+            ...timeRange,
+            token_name: tokenNameFilter || undefined,
+            model_name: modelNameFilter || undefined,
+          }),
     select: (res) => (res.success ? res.data : []),
     staleTime: 60_000,
   })
 
   const dimsQuery = useQuery({
-    queryKey: ['quota-data-dimensions', true],
-    queryFn: () => getQuotaDataDimensions(undefined, true),
+    queryKey: ['quota-data-dimensions', isTeamView],
+    queryFn: () => getQuotaDataDimensions(undefined, !isTeamView),
     select: (res) => res.data || { keys: [], models: [] },
     staleTime: 60_000,
+    // In team view the key/model filters are still useful (they drive
+    // self-dimensions); skip the admin-only endpoint to avoid 403.
+    enabled: !isTeamView,
   })
 
   const chartData = useMemo(
