@@ -259,6 +259,31 @@ describe('landing interactions and price layout', () => {
     }
   )
 
+  it('lists only confirmed hackathon partners in the Forge ecosystem', async () => {
+    await renderApp(
+      <CiLandingPage
+        isAuthenticated={false}
+        models={models}
+        maxSavingsPercent={0}
+      />,
+      client
+    )
+    const partners = screen.getByRole('list', { name: 'Event partners' })
+    const items = within(partners).getAllByRole('listitem')
+
+    expect(items).toHaveLength(5)
+    expect(
+      within(partners).getByRole('img', { name: 'Fastrun Cloud' })
+    ).toBeVisible()
+    expect(
+      within(partners).getByRole('img', { name: 'Moonstone' })
+    ).toBeVisible()
+    expect(within(partners).getByText('Wengu Bilingual School')).toBeVisible()
+    expect(within(partners).getByText('OpenForge')).toBeVisible()
+    expect(items[4]).toHaveTextContent('Model supply partner')
+    expect(within(partners).queryByText(/DeepSeek|Y Combinator/)).toBeNull()
+  })
+
   it('uses the savings translation instead of the on/off control translation', async () => {
     const discounted = buildModelCatalog(
       [{ ...models[0].pricingModel, group_ratio: { default: 0.5 } }],

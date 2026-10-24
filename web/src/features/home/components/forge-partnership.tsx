@@ -29,8 +29,9 @@ import './forge-partnership.css'
 export const FORGE_HACKATHON_URL = 'https://qupper.fastrun.com.cn/'
 export const FORGE_SECTION_ID = 'hackathon'
 
-const FORGE_LOGO = '/partners/qupper-forge/qupper-forge-logo.webp'
-const FORGE_MARK = '/partners/qupper-forge/qupper-forge-mark.webp'
+const FORGE_ASSETS = '/partners/qupper-forge'
+const FORGE_LOGO = `${FORGE_ASSETS}/qupper-forge-logo.webp`
+const FORGE_MARK = `${FORGE_ASSETS}/qupper-forge-mark.webp`
 
 /** Hero announcement that jumps to the hackathon spotlight below the fold. */
 export function ForgeHeroBadge() {
@@ -60,18 +61,87 @@ export function ForgeHeroBadge() {
   )
 }
 
+/**
+ * Confirmed partners from the event's ecosystem page. Partners the event
+ * still lists as "in talks" stay off this list until they are confirmed.
+ */
+function ForgeEcosystem() {
+  const { t } = useTranslation()
+  const partners = [
+    {
+      name: t('Fastrun Cloud'),
+      role: t('Event host'),
+      logo: {
+        src: `${FORGE_ASSETS}/kuaipao-cloud.webp`,
+        w: 650,
+        h: 96,
+        badge: false,
+      },
+    },
+    {
+      name: 'Moonstone',
+      role: t('Event co-host'),
+      logo: {
+        src: `${FORGE_ASSETS}/moonstone.webp`,
+        w: 299,
+        h: 74,
+        badge: true,
+      },
+    },
+    { name: t('Wengu Bilingual School'), role: t('Venue partner') },
+    { name: 'OpenForge', role: t('Mentors & developer community') },
+  ]
+
+  return (
+    <div className='ci-forgeEcosystem'>
+      <p className='ci-forgeKicker' id='forge-ecosystem-title'>
+        <span aria-hidden='true' />
+        {t('Event partners')}
+      </p>
+      <ul aria-labelledby='forge-ecosystem-title'>
+        {partners.map((partner) => (
+          <li key={partner.name}>
+            {partner.logo ? (
+              <img
+                src={partner.logo.src}
+                alt={partner.name}
+                width={partner.logo.w}
+                height={partner.logo.h}
+                className={
+                  partner.logo.badge ? 'ci-forgePartnerLogo--badge' : undefined
+                }
+                loading='lazy'
+              />
+            ) : (
+              <strong>{partner.name}</strong>
+            )}
+            <span>{partner.role}</span>
+          </li>
+        ))}
+        <li className='ci-forgeEcosystemSelf'>
+          <CiMark size={26} withWordmark />
+          <span>{t('Model supply partner')}</span>
+        </li>
+      </ul>
+    </div>
+  )
+}
+
 export function ForgeSpotlight(props: { primaryTo: string; baseUrl: string }) {
   const { t } = useTranslation()
-  const facts = [
+  const stats = [
     { value: t('4 days'), label: t('On-site build and demo') },
     { value: t('30 days'), label: t('Live trial run') },
-    { value: t('Free entry'), label: t('Solo or teams of up to 4') },
-    { value: '2027', label: t('Dalian · date to be announced') },
+    { value: '400+', label: t('Builders in the open call') },
+    { value: '40', label: t('Finalist seats') },
   ]
   const tracks = [
-    t('Cloud native & infrastructure'),
-    t('AI-native products'),
-    t('Open theme'),
+    {
+      kicker: 'BUILD THE FOUNDATION',
+      name: t('Cloud native & infrastructure'),
+    },
+    { kicker: 'INTELLIGENCE, SHIPPED', name: t('AI-native products') },
+    { kicker: 'MAKE SOMETHING REAL', name: t('Open theme') },
   ]
 
   return (
@@ -81,111 +151,120 @@ export function ForgeSpotlight(props: { primaryTo: string; baseUrl: string }) {
       aria-labelledby='forge-spotlight-title'
     >
       <div className='ci-container'>
-        <div className='ci-forgeFrame'>
-          <div className='ci-forgeCard'>
-            <div className='ci-forgeTop'>
-              <div className='ci-forgeLockup'>
-                <CiMark size={34} withWordmark />
-                <span className='ci-forgeCross' aria-hidden='true'>
-                  ×
-                </span>
-                <img
-                  src={FORGE_LOGO}
-                  alt="Qupper's Forge"
-                  width={560}
-                  height={144}
-                />
+        <div className='ci-forgePanel'>
+          <div className='ci-forgeHead'>
+            <div className='ci-forgeLockup'>
+              <CiMark size={30} withWordmark />
+              <span className='ci-forgeCross' aria-hidden='true'>
+                ×
+              </span>
+              <img
+                src={FORGE_LOGO}
+                alt="Qupper's Forge"
+                width={560}
+                height={144}
+              />
+            </div>
+            <p className='ci-forgeMeta'>
+              <span>SEASON 02 · 2027</span>
+              <span>{t('Dalian · date to be announced')}</span>
+            </p>
+          </div>
+
+          <div className='ci-forgeBody'>
+            <div className='ci-forgeCopy'>
+              <p className='ci-forgeKicker'>
+                <span aria-hidden='true' />
+                {t('Hackathon model supply partner')}
+              </p>
+              <h2 id='forge-spotlight-title'>
+                <span>BUILD FOR REAL.</span>{' '}
+                <span className='ci-forgeAccent'>SHIP FOR MARKET.</span>
+              </h2>
+              <p className='ci-forgeLead'>
+                {t(
+                  "{{product}} supplies the models for Qupper's Forge, the Fastrun Cloud hackathon. Teams call leading models through one OpenAI-compatible API and forge ideas into products they can ship.",
+                  { product: PRODUCT_NAME }
+                )}
+              </p>
+              <div className='ci-forgeActions'>
+                <a
+                  className='ci-button ci-button--size-sm ci-forgePrimary'
+                  href={FORGE_HACKATHON_URL}
+                  target='_blank'
+                  rel='noopener noreferrer'
+                >
+                  {t('Explore the hackathon')}
+                  <span className='sr-only'> ({t('Open in new tab')})</span>
+                  <ArrowUpRight size={17} aria-hidden='true' />
+                </a>
+                <Link
+                  to={props.primaryTo}
+                  className='ci-button ci-button--outline ci-button--size-sm ci-forgeSecondary'
+                >
+                  {t('Start building')}{' '}
+                  <ArrowRight size={17} aria-hidden='true' />
+                </Link>
               </div>
-              <span className='ci-forgeSeason'>SEASON 02</span>
+              <p className='ci-forgeNote'>
+                {t('Free entry')} · {t('Solo or teams of up to 4')}
+              </p>
             </div>
 
-            <div className='ci-forgeMain'>
-              <div className='ci-forgeCopy'>
-                <p className='ci-forgeRole'>
-                  <span aria-hidden='true' />
-                  {t('Hackathon model supply partner')}
-                </p>
-                <h2 id='forge-spotlight-title'>
-                  <span>BUILD FOR REAL.</span>{' '}
-                  <span className='ci-forgeGradientText'>SHIP FOR MARKET.</span>
-                </h2>
-                <p className='ci-forgeLead'>
-                  {t(
-                    "{{product}} supplies the models for Qupper's Forge, the Fastrun Cloud hackathon. Teams call leading models through one OpenAI-compatible API and forge ideas into products they can ship.",
-                    { product: PRODUCT_NAME }
-                  )}
-                </p>
-                <div className='ci-forgeActions'>
-                  <a
-                    className='ci-button ci-button--size-sm ci-forgePrimary'
-                    href={FORGE_HACKATHON_URL}
-                    target='_blank'
-                    rel='noopener noreferrer'
-                  >
-                    {t('Explore the hackathon')}
-                    <span className='sr-only'> ({t('Open in new tab')})</span>
-                    <ArrowUpRight size={17} aria-hidden='true' />
-                  </a>
-                  <Link
-                    to={props.primaryTo}
-                    className='ci-button ci-button--outline ci-button--size-sm ci-forgeSecondary'
-                  >
-                    {t('Start building')}{' '}
-                    <ArrowRight size={17} aria-hidden='true' />
-                  </Link>
-                </div>
-              </div>
-
-              <div className='ci-forgeVisual' aria-hidden='true'>
-                <div className='ci-forgeAnvil'>
-                  <img src={FORGE_MARK} alt='' width={240} height={182} />
-                  {[0, 1, 2, 3, 4, 5].map((spark) => (
-                    <i key={spark} className='ci-forgeSpark' />
-                  ))}
-                </div>
-                <div className='ci-forgeConsole'>
-                  <div className='ci-forgeConsoleBar'>
-                    <span>
-                      <i />
-                      <i />
-                      <i />
-                    </span>
-                    <b>forge.config.ts</b>
-                  </div>
-                  <p className='ci-forgeConsoleMuted'>
-                    // Qupper&apos;s Forge × {PRODUCT_NAME}
-                  </p>
-                  <p>
-                    baseURL: <em>&quot;{props.baseUrl}&quot;</em>
-                  </p>
-                  <p>
-                    build: <em>&quot;for real&quot;</em>
-                  </p>
-                  <p>
-                    ship: <em>&quot;for market&quot;</em>
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <dl className='ci-forgeFacts'>
-              {facts.map((fact) => (
-                <div key={fact.label}>
-                  <dt>{fact.label}</dt>
-                  <dd>{fact.value}</dd>
-                </div>
-              ))}
-            </dl>
-
-            <div className='ci-forgeTracks'>
-              <span>{t('Tracks')}</span>
-              <ul>
-                {tracks.map((track) => (
-                  <li key={track}>{track}</li>
+            <div className='ci-forgeVisual' aria-hidden='true'>
+              <div className='ci-forgeAnvil'>
+                <img src={FORGE_MARK} alt='' width={240} height={182} />
+                {[0, 1, 2, 3, 4, 5].map((spark) => (
+                  <i key={spark} className='ci-forgeSpark' />
                 ))}
-              </ul>
+              </div>
+              <div className='ci-forgeConsole'>
+                <div className='ci-forgeConsoleBar'>
+                  <span>
+                    <i />
+                    <i />
+                    <i />
+                  </span>
+                  <b>forge.config.ts</b>
+                </div>
+                <p className='ci-forgeConsoleMuted'>
+                  // Qupper&apos;s Forge × {PRODUCT_NAME}
+                </p>
+                <p>
+                  baseURL: <em>&quot;{props.baseUrl}&quot;</em>
+                </p>
+                <p>
+                  build: <em>&quot;for real&quot;</em>
+                </p>
+                <p>
+                  ship: <em>&quot;for market&quot;</em>
+                </p>
+              </div>
             </div>
           </div>
+
+          <dl className='ci-forgeStats'>
+            {stats.map((stat) => (
+              <div key={stat.label}>
+                <dt>{stat.label}</dt>
+                <dd>{stat.value}</dd>
+              </div>
+            ))}
+          </dl>
+
+          <ol className='ci-forgeTracks' aria-label={t('Tracks')}>
+            {tracks.map((track, index) => (
+              <li key={track.kicker}>
+                <span className='ci-forgeTrackIndex'>
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <span className='ci-forgeTrackKicker'>{track.kicker}</span>
+                <strong>{track.name}</strong>
+              </li>
+            ))}
+          </ol>
+
+          <ForgeEcosystem />
         </div>
       </div>
     </section>
