@@ -9,7 +9,9 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -123,4 +125,24 @@ func setupRelayRouterTestDB(t *testing.T) {
 			require.NoError(t, os.Unsetenv("SQL_DSN"))
 		}
 	})
+}
+
+func TestImageProxyRoutesValidateCapabilityWithoutAPIToken(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	t.Setenv("CRYPTO_SECRET", common.CryptoSecret)
+	proxyURL, err := service.BuildImageProxyURL("https://upstream.example/image.png", 1)
+	require.NoError(t, err)
+	engine := gin.New()
+	SetRelayRouter(engine)
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		t.Run(method, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			engine.ServeHTTP(recorder, httptest.NewRequest(method, proxyURL+"a", nil))
+			assert.Equal(t, http.StatusForbidden, recorder.Code)
+			assert.Contains(t, recorder.Header().Get("Cache-Control"), "no-store")
+			if method == http.MethodHead {
+				assert.Empty(t, recorder.Body.String())
+			}
+		})
+	}
 }

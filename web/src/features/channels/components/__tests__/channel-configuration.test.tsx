@@ -34,7 +34,7 @@ import {
 } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
-import { afterEach, beforeEach, expect, test, vi } from 'vitest'
+import { afterEach, assert, beforeEach, expect, test, vi } from 'vitest'
 
 import { api } from '@/lib/api'
 import { createAppQueryClient } from '@/lib/query-client'
@@ -47,6 +47,12 @@ import {
   CHANNEL_TYPE_SGLANG,
   CHANNEL_TYPE_VLLM,
 } from '../../constants'
+import {
+  CHANNEL_FORM_DEFAULT_VALUES,
+  transformChannelToFormDefaults,
+  transformFormDataToCreatePayload,
+  transformFormDataToUpdatePayload,
+} from '../../lib/channel-form'
 import { channelSchema, type Channel } from '../../types'
 import { ChannelPluginExtensions } from '../channel-plugin-extensions'
 import { ChannelsProvider } from '../channels-provider'
@@ -1599,6 +1605,59 @@ test('request processing configuration does not mark the network category as con
   expect(
     screen.getByRole('tab', { name: /Request & Response/ })
   ).not.toHaveAccessibleName(/Configured/)
+})
+
+test.each([undefined, false, true])(
+  'image URL proxy %s is saved in channel.setting and restored on reload',
+  (enabled) => {
+    const values = {
+      ...CHANNEL_FORM_DEFAULT_VALUES,
+      ...(enabled === undefined ? {} : { image_url_proxy: enabled }),
+    }
+    const payloads = [
+      transformFormDataToCreatePayload(values).channel,
+      transformFormDataToUpdatePayload(values, editingChannel.id),
+    ]
+    for (const payload of payloads) {
+      assert(typeof payload.setting === 'string')
+      expect(JSON.parse(payload.setting).image_url_proxy).toBe(enabled === true)
+      expect(JSON.parse(payload.settings || '{}')).not.toHaveProperty(
+        'image_url_proxy'
+      )
+      expect(
+        transformChannelToFormDefaults({
+          ...editingChannel,
+          setting: payload.setting,
+        }).image_url_proxy
+      ).toBe(enabled === true)
+    }
+  }
+)
+
+test('image URL proxy defaults off and its accessible switch updates configuration and the saved value', async () => {
+  const put = vi
+    .spyOn(api, 'put')
+    .mockResolvedValue({ data: { success: true } })
+  const user = userEvent.setup()
+  render(<ConfigurationHarness currentRow={editingChannel} />)
+  await screen.findByDisplayValue('Existing channel')
+  const requestTab = screen.getByRole('tab', { name: /Request & Response/ })
+  await user.click(requestTab)
+  const toggle = screen.getByRole('switch', { name: 'Proxy image URLs' })
+  expect(toggle).not.toBeChecked()
+  expect(requestTab).not.toHaveAccessibleName(/Configured/)
+  await user.click(toggle)
+  expect(toggle).toBeChecked()
+  expect(requestTab).toHaveAccessibleName(/Configured/)
+  toggle.focus()
+  await user.keyboard(' ')
+  expect(toggle).not.toBeChecked()
+  expect(requestTab).not.toHaveAccessibleName(/Configured/)
+  await user.click(toggle)
+  await user.click(screen.getByRole('button', { name: 'Update Channel' }))
+  await waitFor(() => expect(put).toHaveBeenCalled())
+  const payload = put.mock.calls[0]?.[1] as { setting: string }
+  expect(JSON.parse(payload.setting).image_url_proxy).toBe(true)
 })
 
 test.each([1, 57, 58, 59, 60])(

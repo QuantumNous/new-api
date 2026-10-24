@@ -6,13 +6,16 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	relaychannel "github.com/QuantumNous/new-api/relay/channel"
@@ -738,4 +741,360 @@ func TestSelfTaskMediaURLGuard(t *testing.T) {
 	assert.False(t, isSelfTaskMediaURL(c, remoteURL))
 	assert.True(t, isTaskMediaFallbackLoop(remoteURL.String(), "task-1"))
 	assert.False(t, isTaskMediaFallbackLoop(remoteURL.String(), "task-2"))
+}
+
+func setupImageProxyDownloadTest(t *testing.T) {
+	t.Helper()
+	require.NoError(t, i18n.Init())
+	setupGenericTaskTest(t)
+	allowPrivateTaskMediaTest(t)
+	previousSecret := common.CryptoSecret
+	previousPublicAddress := system_setting.TaskPublicAddress
+	previousMemoryCache := common.MemoryCacheEnabled
+	common.CryptoSecret = "image-proxy-download-test-secret"
+	t.Setenv("CRYPTO_SECRET", common.CryptoSecret)
+	system_setting.TaskPublicAddress = "https://gateway.example"
+	common.MemoryCacheEnabled = false
+	t.Cleanup(func() {
+		common.CryptoSecret = previousSecret
+		system_setting.TaskPublicAddress = previousPublicAddress
+		common.MemoryCacheEnabled = previousMemoryCache
+	})
+}
+
+func imageProxyDownloadContext(t *testing.T, method, rawURL string) (*gin.Context, *httptest.ResponseRecorder) {
+	t.Helper()
+	proxyURL, err := service.BuildImageProxyURL(rawURL, 1)
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = httptest.NewRequest(method, proxyURL, nil)
+	return c, recorder
+}
+
+func TestImageProxyPublicDownloadFiltersHeadersAndCredentials(t *testing.T) {
+	setupImageProxyDownloadTest(t)
+	image := imageProxyTestPNG
+	received := make(chan *http.Request, 2)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received <- r.Clone(r.Context())
+		if r.Method == http.MethodHead {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", `image/png; name="https://hidden-provider.invalid/image.png"`)
+		w.Header().Set("Content-Length", strconv.Itoa(len(image)))
+		w.Header().Set("Location", "https://hidden-provider.invalid/image.png")
+		w.Header().Set("Content-Location", "https://hidden-provider.invalid/image.png")
+		w.Header().Set("Link", "<https://hidden-provider.invalid/image.png>")
+		w.Header().Set("Content-Disposition", `inline; filename="https://hidden-provider.invalid/image.png"`)
+		w.Header().Set("Set-Cookie", "provider=secret")
+		w.Header().Set("ETag", "https://hidden-provider.invalid/image.png")
+		w.Header().Set("Cache-Control", "public, max-age=86400")
+		_, _ = io.WriteString(w, image)
+	}))
+	defer upstream.Close()
+
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		t.Run(method, func(t *testing.T) {
+			c, recorder := imageProxyDownloadContext(t, method, upstream.URL+"/image.png?signature=upstream-secret")
+			for _, header := range []string{"Authorization", "Cookie", "Referer", "Proxy-Authorization", "Origin"} {
+				c.Request.Header.Set(header, "client-secret")
+			}
+			ImageProxy(c)
+			assert.Equal(t, http.StatusOK, recorder.Code)
+			assert.Equal(t, "image/png", recorder.Header().Get("Content-Type"))
+			assert.Equal(t, strconv.Itoa(len(image)), recorder.Header().Get("Content-Length"))
+			assert.Equal(t, "private, no-store", recorder.Header().Get("Cache-Control"))
+			assert.Equal(t, "sandbox; default-src 'none'", recorder.Header().Get("Content-Security-Policy"))
+			assert.Equal(t, "no-referrer", recorder.Header().Get("Referrer-Policy"))
+			assert.Equal(t, "nosniff", recorder.Header().Get("X-Content-Type-Options"))
+			for _, header := range []string{"Location", "Content-Location", "Link", "Content-Disposition", "Set-Cookie", "ETag"} {
+				assert.Empty(t, recorder.Header().Get(header))
+			}
+			if method == http.MethodHead {
+				assert.Empty(t, recorder.Body.String())
+			} else {
+				assert.Equal(t, image, recorder.Body.String())
+			}
+			request := <-received
+			assert.Equal(t, http.MethodGet, request.Method)
+			assert.Equal(t, "/image.png?signature=upstream-secret", request.URL.String())
+			for _, header := range []string{"Authorization", "Cookie", "Referer", "Proxy-Authorization", "Origin"} {
+				assert.Empty(t, request.Header.Get(header))
+			}
+		})
+	}
+}
+
+func TestImageProxyFollowsRedirectsWithoutCredentialsOrReferer(t *testing.T) {
+	setupImageProxyDownloadTest(t)
+	received := make(chan http.Header, 3)
+	imageServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received <- r.Header.Clone()
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = io.WriteString(w, imageProxyTestPNG)
+	}))
+	defer imageServer.Close()
+	redirectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received <- r.Header.Clone()
+		if r.URL.Path == "/start" {
+			w.Header().Set("Set-Cookie", "provider=secret")
+			http.Redirect(w, r, "/step", http.StatusFound)
+			return
+		}
+		http.Redirect(w, r, imageServer.URL+"/final.webp?signature=hidden", http.StatusFound)
+	}))
+	defer redirectServer.Close()
+	c, recorder := imageProxyDownloadContext(t, http.MethodGet, redirectServer.URL+"/start")
+	c.Request.Header.Set("Authorization", "Bearer client-secret")
+	c.Request.Header.Set("Cookie", "session=client-secret")
+	c.Request.Header.Set("Referer", "https://gateway.example/private")
+	ImageProxy(c)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, imageProxyTestPNG, recorder.Body.String())
+	assert.Empty(t, recorder.Header().Get("Location"))
+	assert.Empty(t, recorder.Header().Get("Set-Cookie"))
+	for range 3 {
+		header := <-received
+		assert.Empty(t, header.Get("Authorization"))
+		assert.Empty(t, header.Get("Cookie"))
+		assert.Empty(t, header.Get("Referer"))
+	}
+}
+
+func TestImageProxyRejectsInvalidCapabilitiesBeforeFetch(t *testing.T) {
+	setupImageProxyDownloadTest(t)
+	var calls atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		w.Header().Set("Content-Type", "image/png")
+	}))
+	defer upstream.Close()
+	validURL, err := service.BuildImageProxyURL(upstream.URL+"/image.png", 1)
+	require.NoError(t, err)
+	parsed, err := url.Parse(validURL)
+	require.NoError(t, err)
+	query := parsed.Query()
+	query.Set("token", query.Get("token")+"a")
+	parsed.RawQuery = query.Encode()
+
+	engine := gin.New()
+	engine.Any("/v1/images/proxy", ImageProxy)
+	for _, test := range []struct {
+		name, method, requestURL, message string
+		status                            int
+	}{
+		{"missing", http.MethodGet, "/v1/images/proxy", "Image link is invalid", http.StatusForbidden},
+		{"raw URL", http.MethodGet, "/v1/images/proxy?url=" + url.QueryEscape(upstream.URL), "Image link is invalid", http.StatusForbidden},
+		{"tampered", http.MethodGet, parsed.String(), "Image link is invalid", http.StatusForbidden},
+		{"head invalid", http.MethodHead, parsed.String(), "", http.StatusForbidden},
+		{"post", http.MethodPost, validURL, "Image download requires GET or HEAD", http.StatusMethodNotAllowed},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			engine.ServeHTTP(recorder, httptest.NewRequest(test.method, test.requestURL, nil))
+			assert.Equal(t, test.status, recorder.Code)
+			assert.Contains(t, recorder.Header().Get("Cache-Control"), "no-store")
+			if test.method == http.MethodHead {
+				assert.Empty(t, recorder.Body.String())
+			} else {
+				assert.Contains(t, recorder.Body.String(), test.message)
+			}
+			assert.NotContains(t, recorder.Body.String(), upstream.URL)
+		})
+	}
+	assert.Zero(t, calls.Load())
+}
+
+func TestImageProxyRejectsUpstreamErrorsAndActiveContent(t *testing.T) {
+	setupImageProxyDownloadTest(t)
+	for _, test := range []struct {
+		name, mediaType, message string
+		status                   int
+	}{
+		{"upstream error", "image/png", "Image download failed", http.StatusForbidden},
+		{"upstream image expired", "image/png", "Image download failed", http.StatusGone},
+		{"HTML", "text/html", "Image response is not a supported image", http.StatusOK},
+		{"SVG", "image/svg+xml", "Image response is not a supported image", http.StatusOK},
+		{"invalid type", "image/png; bad parameter", "Image response is not a supported image", http.StatusOK},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", test.mediaType)
+				w.Header().Set("Location", "https://hidden-provider.invalid/image.png")
+				w.Header().Set("Set-Cookie", "provider=secret")
+				w.WriteHeader(test.status)
+				_, _ = io.WriteString(w, `<script>https://hidden-provider.invalid/provider-secret</script>`)
+			}))
+			defer upstream.Close()
+			c, recorder := imageProxyDownloadContext(t, http.MethodGet, upstream.URL)
+			ImageProxy(c)
+			assert.Equal(t, http.StatusBadGateway, recorder.Code)
+			assert.Contains(t, recorder.Body.String(), test.message)
+			assert.NotContains(t, recorder.Body.String(), "hidden-provider.invalid")
+			assert.NotContains(t, recorder.Body.String(), "provider-secret")
+			assert.Empty(t, recorder.Header().Get("Location"))
+			assert.Empty(t, recorder.Header().Get("Set-Cookie"))
+		})
+	}
+}
+
+func TestImageProxyChecksSSRFAndRedirectTargets(t *testing.T) {
+	setupImageProxyDownloadTest(t)
+	var downloads atomic.Int32
+	imageServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		downloads.Add(1)
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = io.WriteString(w, imageProxyTestPNG)
+	}))
+	defer imageServer.Close()
+	fetch := system_setting.GetFetchSetting()
+	fetch.AllowPrivateIp = false
+	c, recorder := imageProxyDownloadContext(t, http.MethodGet, imageServer.URL)
+	ImageProxy(c)
+	assert.Equal(t, http.StatusBadGateway, recorder.Code)
+	assert.Zero(t, downloads.Load())
+
+	fetch.AllowPrivateIp = true
+	var proxyLoops atomic.Int32
+	redirectServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/loop" {
+			http.Redirect(w, r, "/v1/images/proxy?token=nested-secret", http.StatusFound)
+		} else if r.URL.Path == "/v1/images/proxy" {
+			proxyLoops.Add(1)
+		} else {
+			http.Redirect(w, r, imageServer.URL, http.StatusFound)
+		}
+	}))
+	defer redirectServer.Close()
+	parsedRedirect, err := url.Parse(redirectServer.URL)
+	require.NoError(t, err)
+	fetch.AllowedPorts = []string{parsedRedirect.Port()}
+	system_setting.TaskPublicAddress = redirectServer.URL
+	for _, path := range []string{"/redirect", "/loop"} {
+		c, recorder = imageProxyDownloadContext(t, http.MethodGet, redirectServer.URL+path)
+		ImageProxy(c)
+		assert.Equal(t, http.StatusBadGateway, recorder.Code)
+		assert.NotContains(t, recorder.Body.String(), redirectServer.URL)
+		assert.NotContains(t, recorder.Body.String(), "nested-secret")
+	}
+	assert.Zero(t, downloads.Load())
+	assert.Zero(t, proxyLoops.Load())
+}
+
+func TestImageProxyUsesOriginatingChannelProxy(t *testing.T) {
+	setupImageProxyDownloadTest(t)
+	received := make(chan *http.Request, 1)
+	proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received <- r.Clone(r.Context())
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = io.WriteString(w, imageProxyTestPNG)
+	}))
+	defer proxy.Close()
+	t.Cleanup(func() { service.InvalidateProxyClient(proxy.URL) })
+	settings, err := common.Marshal(map[string]string{"proxy": proxy.URL})
+	require.NoError(t, err)
+	require.NoError(t, model.DB.Model(&model.Channel{}).Where("id = ?", 1).Update("setting", string(settings)).Error)
+	c, recorder := imageProxyDownloadContext(t, http.MethodGet, "http://8.8.8.8/image.png?signature=hidden")
+	ImageProxy(c)
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, imageProxyTestPNG, recorder.Body.String())
+	request := <-received
+	assert.Equal(t, "http://8.8.8.8/image.png?signature=hidden", request.URL.String())
+	assert.Empty(t, request.Header.Get("Authorization"))
+	assert.Empty(t, request.Header.Get("Referer"))
+}
+
+const imageProxyTestPNG = "\x89\x50\x4e\x47\x0d\x0a\x1a\x0a\x00\x00\x00\x0d\x49\x48\x44\x52\x00\x00\x00\x01\x00\x00\x00\x01\x08\x04\x00\x00\x00\xb5\x1c\x0c\x02\x00\x00\x00\x0b\x49\x44\x41\x54\x78\xda\x63\xfc\xff\x1f\x00\x03\x03\x02\x00\xef\x9a\xee\xdd\x00\x00\x00\x00\x49\x45\x4e\x44\xae\x42\x60\x82"
+
+func TestImageProxySniffsRasterImagesAndPreservesTheStream(t *testing.T) {
+	setupImageProxyDownloadTest(t)
+	image := imageProxyTestPNG + strings.Repeat("png-trailer", 100)
+	for _, test := range []struct {
+		name, mediaType, body string
+		status                int
+	}{
+		{"binary PNG", "application/octet-stream", image, http.StatusOK},
+		{"untyped PNG", "", image, http.StatusOK},
+		{"binary HTML", "application/octet-stream", "<html>https://hidden-provider.invalid/error</html>", http.StatusBadGateway},
+		{"untyped HTML", "", "<html>https://hidden-provider.invalid/error</html>", http.StatusBadGateway},
+		{"mislabeled HTML", "image/png", "<html>https://hidden-provider.invalid/error</html>", http.StatusBadGateway},
+		{"mislabeled SVG", "image/png", `<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>`, http.StatusBadGateway},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if test.mediaType == "" {
+					w.Header()["Content-Type"] = nil
+				} else {
+					w.Header().Set("Content-Type", test.mediaType)
+				}
+				_, _ = io.WriteString(w, test.body)
+			}))
+			defer upstream.Close()
+			c, recorder := imageProxyDownloadContext(t, http.MethodGet, upstream.URL)
+			ImageProxy(c)
+			assert.Equal(t, test.status, recorder.Code)
+			if test.status == http.StatusOK {
+				assert.Equal(t, "image/png", recorder.Header().Get("Content-Type"))
+				assert.Equal(t, test.body, recorder.Body.String())
+			} else {
+				assert.Contains(t, recorder.Body.String(), "Image response is not a supported image")
+				assert.NotContains(t, recorder.Body.String(), "hidden-provider.invalid")
+				assert.NotContains(t, recorder.Body.String(), "<svg")
+			}
+		})
+	}
+}
+
+func TestImageProxyAllowsOtherOriginImageProxies(t *testing.T) {
+	setupImageProxyDownloadTest(t)
+	var downloads atomic.Int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		downloads.Add(1)
+		assert.Equal(t, "/v1/images/proxy", r.URL.Path)
+		assert.Equal(t, "upstream-capability", r.URL.Query().Get("token"))
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = io.WriteString(w, imageProxyTestPNG)
+	}))
+	defer upstream.Close()
+	rawURL := upstream.URL + "/v1/images/proxy?token=upstream-capability"
+	redirect := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, rawURL, http.StatusFound)
+	}))
+	defer redirect.Close()
+	for _, targetURL := range []string{rawURL, redirect.URL} {
+		c, recorder := imageProxyDownloadContext(t, http.MethodGet, targetURL)
+		ImageProxy(c)
+		assert.Equal(t, http.StatusOK, recorder.Code)
+		assert.Equal(t, imageProxyTestPNG, recorder.Body.String())
+		assert.Empty(t, recorder.Header().Get("Location"))
+	}
+	assert.Equal(t, int32(2), downloads.Load())
+
+	system_setting.TaskPublicAddress = upstream.URL
+	c, recorder := imageProxyDownloadContext(t, http.MethodGet, rawURL)
+	ImageProxy(c)
+	assert.Equal(t, http.StatusBadGateway, recorder.Code)
+	assert.Equal(t, int32(2), downloads.Load(), "a URL back to this site's proxy must not be fetched")
+}
+
+func TestImageProxyErrorsUseClientLanguage(t *testing.T) {
+	require.NoError(t, i18n.Init())
+	engine := gin.New()
+	engine.GET("/v1/images/proxy", ImageProxy)
+	for _, tc := range []struct{ language, message string }{
+		{"en", "Image link is invalid"},
+		{"zh-CN", "图片链接无效"},
+		{"zh-TW", "圖片連結無效"},
+	} {
+		t.Run(tc.language, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodGet, "/v1/images/proxy", nil)
+			request.Header.Set("Accept-Language", tc.language)
+			engine.ServeHTTP(recorder, request)
+			assert.Equal(t, http.StatusForbidden, recorder.Code)
+			assert.Contains(t, recorder.Body.String(), tc.message)
+		})
+	}
 }

@@ -17,6 +17,9 @@ func SetRelayRouter(router *gin.Engine) {
 	router.Use(middleware.DecompressRequestMiddleware())
 	router.Use(middleware.BodyStorageCleanup()) // 清理请求体存储
 	router.Use(middleware.StatsMiddleware())
+	imageProxyRouter := router.Group("/v1/images/proxy", middleware.RouteTag("relay"))
+	imageProxyRouter.GET("", controller.ImageProxy)
+	imageProxyRouter.HEAD("", controller.ImageProxy)
 	// https://platform.openai.com/docs/api-reference/introduction
 	modelsRouter := router.Group("/v1/models")
 	modelsRouter.Use(middleware.RouteTag("relay"))
