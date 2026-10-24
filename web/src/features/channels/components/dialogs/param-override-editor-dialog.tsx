@@ -2331,6 +2331,11 @@ function RuleEditor(ruleEditorProps: RuleEditorProps) {
                   rows={3}
                   className='max-h-[200px] resize-y overflow-y-auto font-mono text-xs'
                 />
+                {mode === 'set_header' && (
+                  <p className='text-muted-foreground text-xs'>
+                    {t('set_header mapping note')}
+                  </p>
+                )}
               </div>
             )}
           </>
