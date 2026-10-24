@@ -90,7 +90,10 @@ function AudioPreviewCell({ log }: { log: TaskLog }) {
   )
 }
 
-export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
+export function useTaskLogsColumns(
+  isAdmin: boolean,
+  isTeamView = false
+): ColumnDef<TaskLog>[] {
   const { t } = useTranslation()
   const columns: ColumnDef<TaskLog>[] = [
     {
@@ -120,7 +123,11 @@ export function useTaskLogsColumns(isAdmin: boolean): ColumnDef<TaskLog>[] {
   ]
 
   if (isAdmin) {
-    columns.push(createChannelColumn<TaskLog>({ headerLabel: t('Channel') }), {
+    columns.push(createChannelColumn<TaskLog>({ headerLabel: t('Channel') }))
+  }
+
+  if (isAdmin || isTeamView) {
+    columns.push({
       id: 'user',
       header: t('User'),
       accessorFn: (row) => row.username || row.user_id,

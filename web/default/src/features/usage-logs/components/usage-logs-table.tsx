@@ -143,7 +143,7 @@ export function UsageLogsTable({ logCategory }: UsageLogsTableProps) {
   })
 
   const logs = data?.items || []
-  const columns = useColumnsByCategory(logCategory, isAdmin)
+  const columns = useColumnsByCategory(logCategory, isAdmin, isTeamView)
   const isLoadingData = isLoading || (isFetching && !data)
 
   const { table } = useDataTable({

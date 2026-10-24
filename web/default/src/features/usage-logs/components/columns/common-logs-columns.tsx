@@ -303,7 +303,10 @@ function buildTypeDetailSegments(
   return segments
 }
 
-export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
+export function useCommonLogsColumns(
+  isAdmin: boolean,
+  isTeamView = false
+): ColumnDef<UsageLog>[] {
   const { t } = useTranslation()
   const columns: ColumnDef<UsageLog>[] = [
     {
@@ -497,8 +500,12 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
             </TooltipProvider>
           )
         },
-      },
-      {
+      }
+    )
+  }
+
+  if (isAdmin || isTeamView) {
+    columns.push({
         id: 'user',
         header: t('User'),
         accessorFn: (row) => row.username,
