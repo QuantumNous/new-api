@@ -176,6 +176,49 @@ func TestFilterCandidateIDs(t *testing.T) {
 	}
 }
 
+func TestRetrySelectionSkipsMissingCachedChannels(t *testing.T) {
+	channelSyncLock.Lock()
+	previousChannels, previousGroups := channelsIDM, group2model2channels
+	previousMemory := common.MemoryCacheEnabled
+	common.MemoryCacheEnabled = true
+	channelsIDM = map[int]*Channel{
+		1: {Id: 1, Type: constant.ChannelTypeOpenAI},
+		2: {Id: 2, Type: constant.ChannelTypeOpenAI},
+	}
+	group2model2channels = map[string]map[string][]int{"default": {"retry-test": {1, 999999, 2}}}
+	channelSyncLock.Unlock()
+	t.Cleanup(func() {
+		channelSyncLock.Lock()
+		channelsIDM, group2model2channels = previousChannels, previousGroups
+		common.MemoryCacheEnabled = previousMemory
+		channelSyncLock.Unlock()
+	})
+
+	pathFilter := dto.ChannelFilter{Kind: dto.FilterRequestPath, RequestPath: "/v1/images/generations"}
+	for _, tc := range []struct {
+		name      string
+		filters   []dto.ChannelFilter
+		wantError bool
+	}{
+		{"missing_untried", []dto.ChannelFilter{{Kind: dto.FilterExcludeChannels, ExcludedChannelIDs: []int{1}}}, false},
+		{"missing_already_tried", []dto.ChannelFilter{{Kind: dto.FilterExcludeChannels, ExcludedChannelIDs: []int{1, 999999}}}, false},
+		{"with_request_path", []dto.ChannelFilter{pathFilter, {Kind: dto.FilterExcludeChannels, ExcludedChannelIDs: []int{1}}}, false},
+		{"without_exclusion", []dto.ChannelFilter{pathFilter}, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			channel, err := GetRandomSatisfiedChannel("default", "retry-test", 0, tc.filters)
+			if tc.wantError {
+				require.ErrorContains(t, err, "database consistency error")
+				assert.Nil(t, channel)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, channel)
+			assert.Equal(t, 2, channel.Id, "a missing cache entry must not block the untried backup")
+		})
+	}
+}
+
 func TestChannelSatisfiesFilters(t *testing.T) {
 	alphaSetting := `{"task_plugin_key":"alpha"}`
 	alpha := &Channel{Id: 1, Type: constant.ChannelTypeTaskPlugin, Setting: &alphaSetting}
