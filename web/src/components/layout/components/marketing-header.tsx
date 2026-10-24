@@ -61,7 +61,7 @@ export function MarketingHeader(props: MarketingHeaderProps) {
           aria-current={props.currentPage === 'home' ? 'page' : undefined}
           href='/#top'
         >
-          <CiMark size={22} withWordmark />
+          <CiMark size={26} withWordmark />
         </a>
         <nav
           id='main-navigation'

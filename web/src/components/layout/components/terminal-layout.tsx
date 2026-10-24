@@ -201,7 +201,7 @@ export function TerminalLayout(props: TerminalLayoutProps) {
         aria-hidden={(compactViewport && collapsed) || undefined}
       >
         <Link to='/' className='ci-appBrand' aria-label={PRODUCT_NAME}>
-          <CiMark size={22} withWordmark />
+          <CiMark size={26} withWordmark />
         </Link>
         <label className='ci-appSearch'>
           <Search size={14} />

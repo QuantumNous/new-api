@@ -39,7 +39,7 @@ export function CiStatusPage(props: CiStatusPageProps) {
       <header className='ci-header'>
         <div className='ci-headerInner'>
           <Link to='/' className='ci-logo' aria-label={`${PRODUCT_NAME} home`}>
-            <CiMark size={22} withWordmark />
+            <CiMark size={26} withWordmark />
           </Link>
           <CommunityHelp variant='header' />
         </div>

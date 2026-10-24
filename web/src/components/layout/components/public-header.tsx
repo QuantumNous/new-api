@@ -141,7 +141,7 @@ export function PublicHeader(props: PublicHeaderProps) {
   }, [authPromptTarget?.href, navigate])
 
   const logoContent: React.ReactNode = customLogo ?? (
-    <CiMark size={22} withWordmark />
+    <CiMark size={26} withWordmark />
   )
 
   let desktopAuthContent: React.ReactNode = (

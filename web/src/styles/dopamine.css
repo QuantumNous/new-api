@@ -1649,7 +1649,8 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 .dopa-developer-header .dopa-system-brand {
-  min-inline-size: 1.25rem;
+  /* Never narrower than the 26px logo tile, so the mark is not clipped. */
+  min-inline-size: 1.625rem;
   max-inline-size: 100%;
   overflow: hidden;
 }

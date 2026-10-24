@@ -75,11 +75,13 @@ it('keeps a full logo boundary when the inline brand shares a narrow header with
     const brand = screen.getByRole('link', { name: 'Go to home' })
     const brandStyle = getComputedStyle(brand)
 
-    expect(brandStyle.minInlineSize).toBe('1.25rem')
+    // The minimum width matches the 26px (size-6.5) logo tile.
+    expect(brandStyle.minInlineSize).toBe('1.625rem')
     expect(brandStyle.maxInlineSize).toBe('100%')
     expect(brandStyle.overflow).toBe('hidden')
     expect(screen.getByRole('img', { name: 'Logo' }).parentElement).toHaveClass(
-      'shrink-0'
+      'shrink-0',
+      'size-6.5'
     )
   } finally {
     style.remove()
