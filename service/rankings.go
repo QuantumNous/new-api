@@ -254,9 +254,15 @@ func buildRankingModelMeta() map[string]rankingModelMeta {
 	return meta
 }
 
+// modelMeta resolves display metadata for a model name: catalog metadata first,
+// then the default vendor rules for log-only models (no enabled channel, so they
+// never reach the pricing catalog), and Unknown as the last resort.
 func modelMeta(modelName string, meta map[string]rankingModelMeta) rankingModelMeta {
 	if item, ok := meta[modelName]; ok && item.vendor != "" {
 		return item
+	}
+	if vendor := model.LookupDefaultVendorName(modelName); vendor != "" {
+		return rankingModelMeta{vendor: vendor, vendorIcon: model.GetDefaultVendorIcon(vendor)}
 	}
 	return rankingModelMeta{vendor: rankingUnknownVendor}
 }
