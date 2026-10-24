@@ -147,6 +147,17 @@ describe('application header console mode', () => {
     ).toHaveAttribute('href', 'https://docs.example.com')
   })
 
+  it('lets the developer brand fill free header space so its name is not squeezed out', async () => {
+    useConsoleModeStore.getState().setMode('developer')
+    await renderApp(<AppHeader />, client)
+
+    expect(screen.getByText('野菜API').parentElement).toHaveClass(
+      '@container/system-brand',
+      'min-w-0',
+      'flex-1'
+    )
+  })
+
   it('uses the private developer guide when no external docs link is configured', async () => {
     useConsoleModeStore.getState().setMode('developer')
     client.setQueryData(['status'], {})

@@ -120,7 +120,15 @@ export function AppHeader({
       showSidebarTrigger={!isEasyMode}
       className={isEasyMode ? 'dopa-easy-header' : 'dopa-developer-header'}
     >
-      <div className='@container/system-brand flex min-w-0 items-center gap-1'>
+      {/* An inline-size container has no content width of its own, so the
+          developer header lets it take the free space; otherwise it collapses
+          to zero and hides the product name beside the logo. */}
+      <div
+        className={cn(
+          '@container/system-brand flex min-w-0 items-center gap-1',
+          !isEasyMode && 'flex-1'
+        )}
+      >
         <SystemBrand variant='inline' />
         <SystemUpdateAction presentation='version' />
       </div>
