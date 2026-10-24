@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MiniMax OpenAI 响应清洗改动审查报告</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f8fb;
+      --panel: #ffffff;
+      --ink: #18202f;
+      --muted: #5f6b7c;
+      --line: #d9e0ea;
+      --green: #0f7b4f;
+      --green-bg: #e8f7ef;
+      --blue: #2358b8;
+      --blue-bg: #eaf1ff;
+      --amber: #946200;
+      --amber-bg: #fff5dc;
+      --red: #b42318;
+      --red-bg: #fff0ee;
+      --code: #101828;
+      --code-bg: #eef2f7;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.55;
+    }
+    header {
+      background: #101828;
+      color: white;
+      padding: 36px 28px;
+      border-bottom: 1px solid #0b1220;
+    }
+    header .wrap, main {
+      max-width: 1180px;
+      margin: 0 auto;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: 30px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+    header p {
+      margin: 0;
+      color: #cbd5e1;
+      max-width: 880px;
+    }
+    main {
+      padding: 24px 20px 48px;
+    }
+    section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 22px;
+      margin: 18px 0;
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+    }
+    h2 {
+      margin: 0 0 14px;
+      font-size: 20px;
+      letter-spacing: 0;
+    }
+    h3 {
+      margin: 18px 0 8px;
+      font-size: 16px;
+      letter-spacing: 0;
+    }
+    p { margin: 8px 0; }
+    a { color: var(--blue); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcfe;
+    }
+    .metric strong {
+      display: block;
+      font-size: 22px;
+      margin-bottom: 4px;
+    }
+    .metric span { color: var(--muted); font-size: 13px; }
+    .pill {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 650;
+      margin-right: 6px;
+      white-space: nowrap;
+    }
+    .pill.green { color: var(--green); background: var(--green-bg); }
+    .pill.blue { color: var(--blue); background: var(--blue-bg); }
+    .pill.amber { color: var(--amber); background: var(--amber-bg); }
+    .pill.red { color: var(--red); background: var(--red-bg); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    th, td {
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--line);
+      padding: 11px 12px;
+      font-size: 14px;
+    }
+    th {
+      background: #f1f5f9;
+      color: #344054;
+      font-weight: 700;
+    }
+    tr:last-child td { border-bottom: 0; }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      color: var(--code);
+      background: var(--code-bg);
+      border-radius: 5px;
+      padding: 1px 5px;
+      font-size: 0.92em;
+    }
+    pre {
+      margin: 10px 0 0;
+      padding: 14px;
+      background: #0b1220;
+      color: #dbeafe;
+      border-radius: 8px;
+      overflow: auto;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .box {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcfe;
+    }
+    .box.bad { border-color: #f5b5ae; background: var(--red-bg); }
+    .box.good { border-color: #9ed8b7; background: var(--green-bg); }
+    .list {
+      margin: 10px 0 0;
+      padding-left: 20px;
+    }
+    .list li { margin: 6px 0; }
+    .callout {
+      border-left: 4px solid var(--blue);
+      background: var(--blue-bg);
+      padding: 12px 14px;
+      border-radius: 6px;
+      color: #1f3f7a;
+    }
+    .callout.warn {
+      border-left-color: var(--amber);
+      background: var(--amber-bg);
+      color: #6f4a00;
+    }
+    .callout.ok {
+      border-left-color: var(--green);
+      background: var(--green-bg);
+      color: #0b5c3b;
+    }
+    footer {
+      max-width: 1180px;
+      margin: 0 auto 32px;
+      padding: 0 20px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    @media (max-width: 860px) {
+      .grid, .compare { grid-template-columns: 1fr; }
+      header { padding: 28px 20px; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <h1>MiniMax OpenAI 响应清洗改动审查报告</h1>
+      <p>用于判断本次改动是否只修复 #5833 / #5834 描述的问题，是否存在不应该修改的范围。</p>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <h2>结论概览</h2>
+      <div class="grid">
+        <div class="metric">
+          <strong>2</strong>
+          <span>目标 issue：#5833、#5834</span>
+        </div>
+        <div class="metric">
+          <strong>2</strong>
+          <span>生产代码文件有改动</span>
+        </div>
+        <div class="metric">
+          <strong>1</strong>
+          <span>测试文件新增回归测试</span>
+        </div>
+        <div class="metric">
+          <strong>0</strong>
+          <span>数据库/前端/API 路由改动</span>
+        </div>
+      </div>
+      <p class="callout ok">
+        本次改动的核心是：MiniMax 文本聊天走 OpenAI Chat Completions 输出时，强制使用项目已有的 OpenAI DTO 格式化路径，过滤 MiniMax 上游的私有字段。
+      </p>
+    </section>
+
+    <section>
+      <h2>对应 Issue</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Issue</th>
+            <th>问题</th>
+            <th>本次覆盖方式</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><a href="https://github.com/QuantumNous/new-api/issues/5833">#5833</a></td>
+            <td>MiniMax 流式响应最后一个 chunk 多出 <code>message</code> 块，严格客户端可能重复追加完整内容。</td>
+            <td>流式 E2E 和单测确认输出只保留 <code>delta</code> 与 <code>finish_reason</code>，不再输出 <code>message</code>。</td>
+          </tr>
+          <tr>
+            <td><a href="https://github.com/QuantumNous/new-api/issues/5834">#5834</a></td>
+            <td>MiniMax 响应泄漏非 OpenAI 字段，例如 <code>input_sensitive</code>、<code>service_tier</code>、<code>base_resp</code>、<code>name</code>、<code>audio_content</code>。</td>
+            <td>非流式和流式测试都扫描确认这些字段不再出现在客户端响应中。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>改动文件</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>文件</th>
+            <th>类型</th>
+            <th>改动内容</th>
+            <th>为什么需要</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>relay/channel/minimax/adaptor.go</code></td>
+            <td><span class="pill green">生产代码</span></td>
+            <td>MiniMax + OpenAI Chat Completions 响应时设置 <code>info.ChannelSetting.ForceFormat = true</code>。</td>
+            <td>MiniMax 上游可能返回厂商私有字段；强制走已有 OpenAI DTO marshal 路径，相当于白名单输出。</td>
+          </tr>
+          <tr>
+            <td><code>relay/channel/openai/relay-openai.go</code></td>
+            <td><span class="pill green">生产代码</span></td>
+            <td>在 <code>forceFormat</code> 非流式响应 marshal 前清掉 <code>choices[].message.name</code>。</td>
+            <td>项目复用了请求侧 <code>dto.Message</code>，请求里 <code>name</code> 合法，但 MiniMax 响应里的 <code>name</code> 是供应商元数据，不应出现在 OpenAI 响应。</td>
+          </tr>
+          <tr>
+            <td><code>relay/channel/minimax/adaptor_test.go</code></td>
+            <td><span class="pill blue">测试代码</span></td>
+            <td>新增非流式和流式回归测试，构造污染响应并断言输出已清洗。</td>
+            <td>锁定 #5833 / #5834 的真实问题形态，防止以后改回原样透传。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>前后对比</h2>
+      <div class="compare">
+        <div class="box bad">
+          <h3>修复前可能返回</h3>
+          <pre>{
+  "message": {
+    "role": "assistant",
+    "content": "hello",
+    "name": "MiniMax AI",
+    "audio_content": ""
+  },
+  "input_sensitive": false,
+  "service_tier": "standard",
+  "base_resp": {"status_code": 0}
+}</pre>
+        </div>
+        <div class="box good">
+          <h3>修复后实际返回</h3>
+          <pre>{
+  "message": {
+    "role": "assistant",
+    "content": "hello"
+  },
+  "usage": {
+    "prompt_tokens": 1,
+    "completion_tokens": 2,
+    "total_tokens": 3
+  }
+}</pre>
+        </div>
+      </div>
+
+      <div class="compare" style="margin-top: 14px;">
+        <div class="box bad">
+          <h3>修复前流式尾块</h3>
+          <pre>data: {
+  "choices": [{
+    "delta": {},
+    "message": {
+      "role": "assistant",
+      "content": "hello",
+      "name": "MiniMax AI"
+    },
+    "finish_reason": "stop"
+  }]
+}</pre>
+        </div>
+        <div class="box good">
+          <h3>修复后流式尾块</h3>
+          <pre>data: {
+  "choices": [{
+    "delta": {},
+    "finish_reason": "stop"
+  }]
+}
+
+data: [DONE]</pre>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>为什么这样改</h2>
+      <ul class="list">
+        <li><strong>复用已有机制：</strong>项目已经有 <code>ForceFormat</code>，它会把响应反序列化为 OpenAI DTO 再 marshal，天然能过滤 DTO 不支持的字段。</li>
+        <li><strong>范围小：</strong>只在 MiniMax + OpenAI Chat Completions 文本响应路径打开，不影响 MiniMax 图片、TTS、Claude 格式，也不影响普通 OpenAI 兼容渠道默认透传。</li>
+        <li><strong>符合接口契约：</strong><code>/v1/chat/completions</code> 对下游承诺的是 OpenAI 兼容响应，不应该泄漏 MiniMax 的厂商元数据。</li>
+        <li><strong>避免重复内容：</strong>流式响应里 <code>message</code> 属于非流式结构，严格客户端会把它当完整消息再追加一次。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>没有修改的范围</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>范围</th>
+            <th>是否修改</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>数据库 schema / migration</td>
+            <td><span class="pill green">没有</span></td>
+            <td>不涉及表结构、字段迁移或兼容性变更。</td>
+          </tr>
+          <tr>
+            <td>前端页面</td>
+            <td><span class="pill green">没有</span></td>
+            <td>没有改 web/default 或 web/classic。</td>
+          </tr>
+          <tr>
+            <td>路由和鉴权</td>
+            <td><span class="pill green">没有</span></td>
+            <td>没有改 router、middleware、token 验证逻辑。</td>
+          </tr>
+          <tr>
+            <td>其他 provider</td>
+            <td><span class="pill amber">仅间接受影响 forceFormat</span></td>
+            <td><code>relay-openai.go</code> 中清理 <code>message.name</code> 只在 <code>forceFormat</code> 为 true 时生效。默认普通 OpenAI 透传路径不受影响。</td>
+          </tr>
+          <tr>
+            <td>MiniMax 图片/TTS/Claude 格式</td>
+            <td><span class="pill green">没有</span></td>
+            <td>改动条件限定为 <code>RelayModeChatCompletions</code> 和 <code>RelayFormatOpenAI</code>。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>你需要重点判断的点</h2>
+      <div class="callout warn">
+        唯一值得审查的边界是：是否允许在 <code>forceFormat</code> 非流式响应中去掉 <code>message.name</code>。我的判断是应该去掉，因为这里处理的是响应输出，MiniMax 的 <code>name</code> 是厂商元数据；但如果项目明确希望保留 OpenAI 响应里的 assistant <code>name</code>，这部分需要调整为仅 MiniMax 生效。
+      </div>
+      <ul class="list">
+        <li>如果你认为 <code>message.name</code> 在 OpenAI 响应中必须保留：应把清理逻辑从通用 OpenAI <code>forceFormat</code> 分支挪回 MiniMax 专属清洗。</li>
+        <li>如果你认为 MiniMax 私有字段不应在 OpenAI endpoint 暴露：当前改法是正确方向。</li>
+        <li>如果你担心其他开启 <code>forceFormat</code> 的渠道：当前只清理 <code>message.name</code>，其他字段仍按 DTO 原逻辑处理。</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>测试证据</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>测试</th>
+            <th>结果</th>
+            <th>验证内容</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>go test ./relay/channel/minimax ./relay/channel/openai -count=1</code></td>
+            <td><span class="pill green">通过</span></td>
+            <td>目标 MiniMax 和委托 OpenAI handler 包通过。</td>
+          </tr>
+          <tr>
+            <td><code>go test ./relay/channel/... -count=1</code></td>
+            <td><span class="pill green">通过</span></td>
+            <td>相邻渠道包没有被破坏。</td>
+          </tr>
+          <tr>
+            <td><code>go test ./...</code></td>
+            <td><span class="pill green">通过</span></td>
+            <td>后端全量 Go 测试通过。</td>
+          </tr>
+          <tr>
+            <td>HTTP E2E：非流式</td>
+            <td><span class="pill green">HTTP 200，通过</span></td>
+            <td>真实 new-api + 临时 SQLite + mock MiniMax upstream；响应不含污染字段。</td>
+          </tr>
+          <tr>
+            <td>HTTP E2E：流式 SSE</td>
+            <td><span class="pill green">HTTP 200，通过</span></td>
+            <td>真实 SSE 输出含 <code>delta</code>、<code>finish_reason</code>、<code>[DONE]</code>，不含 <code>message/name/audio_content</code>。</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>本次改动的最小代码片段</h2>
+      <h3>MiniMax adaptor：只对 OpenAI 文本聊天强制格式化</h3>
+      <pre>if info.RelayFormat == types.RelayFormatOpenAI &&
+   info.RelayMode == constant.RelayModeChatCompletions {
+    info.ChannelSetting.ForceFormat = true
+}</pre>
+
+      <h3>OpenAI handler：forceFormat 响应清理 message.name</h3>
+      <pre>if forceFormat {
+    for i := range simpleResponse.Choices {
+        simpleResponse.Choices[i].Message.Name = nil
+    }
+    responseBody, err = common.Marshal(simpleResponse)
+}</pre>
+    </section>
+  </main>
+
+  <footer>
+    报告文件：docs/superpowers/reports/minimax-openai-response-sanitize-review.html
+  </footer>
+</body>
+</html>
