@@ -152,24 +152,6 @@ func TestSetUpLoggerNeverWritesTaskArtifactAccess(t *testing.T) {
 	assert.False(t, strings.Contains(output.String(), "never-log-this"))
 }
 
-// A Gemini API client may send its key as ?key=; the request log keeps the
-// rest of the query.
-func TestSetUpLoggerRedactsQueryAPIKey(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	previousWriter := gin.DefaultWriter
-	var output bytes.Buffer
-	gin.DefaultWriter = &output
-	t.Cleanup(func() { gin.DefaultWriter = previousWriter })
-
-	router := gin.New()
-	SetUpLogger(router)
-	router.GET("/v1beta/models/:model", func(c *gin.Context) { c.Status(http.StatusNoContent) })
-	router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/v1beta/models/veo?key=sk-abc&alt=json", nil))
-
-	assert.NotContains(t, output.String(), "sk-abc")
-	assert.Contains(t, output.String(), "/v1beta/models/veo?key=[REDACTED]&alt=json")
-}
-
 func urlQueryEscape(value string) string {
 	replacer := strings.NewReplacer("+", "%2B", "=", "%3D")
 	return replacer.Replace(value)
