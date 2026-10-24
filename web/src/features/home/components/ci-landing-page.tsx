@@ -52,6 +52,7 @@ import { formatPerMillionTokens } from '../lib/pricing-savings'
 import { CatalogPrice } from './catalog-price'
 import { CatalogVendorIcon } from './catalog-vendor-icon'
 import { CiMark } from './ci-mark'
+import { ForgeHeroBadge, ForgeSpotlight } from './forge-partnership'
 import { GlassCursor } from './glass-cursor'
 
 import './home-glass.css'
@@ -161,6 +162,7 @@ export function CiLandingPage(props: LandingPageProps) {
           <section className='ci-hero' id='top'>
             <div className='ci-heroGrid'>
               <div className='ci-heroCopy'>
+                <ForgeHeroBadge />
                 <div className='ci-heroBrand'>
                   <CiMark size={56} />
                   <span className='ci-heroProductName'>{PRODUCT_NAME}</span>
@@ -254,6 +256,8 @@ export function CiLandingPage(props: LandingPageProps) {
               </div>
             </div>
           </section>
+
+          <ForgeSpotlight primaryTo={primaryTo} baseUrl={address.baseUrl} />
 
           <Catalog models={props.models} />
 

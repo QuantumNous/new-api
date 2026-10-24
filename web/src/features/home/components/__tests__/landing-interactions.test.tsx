@@ -211,6 +211,48 @@ describe('landing interactions and price layout', () => {
     }
   )
 
+  it.each([
+    [false, '/sign-up'],
+    [true, '/dashboard'],
+  ])(
+    'jumps from the hero hackathon badge to the Qupper’s Forge spotlight with an external event link (authenticated=%s)',
+    async (isAuthenticated, primaryHref) => {
+      if (isAuthenticated) {
+        useAuthStore.getState().auth.setBundle(createTestAuthBundle())
+      }
+      const { container } = await renderApp(
+        <CiLandingPage
+          isAuthenticated={isAuthenticated}
+          models={models}
+          maxSavingsPercent={0}
+        />,
+        client
+      )
+      const hero = container.querySelector<HTMLElement>('.ci-hero')
+      if (!hero) throw new Error('Missing hero')
+
+      const badge = within(hero).getByRole('link', { name: /Qupper's Forge/ })
+      const spotlight = screen.getByRole('region', {
+        name: 'BUILD FOR REAL. SHIP FOR MARKET.',
+      })
+      expect(badge).toHaveAttribute('href', `#${spotlight.id}`)
+      expect(spotlight.previousElementSibling).toBe(hero)
+
+      const eventLink = within(spotlight).getByRole('link', {
+        name: /Explore the hackathon/,
+      })
+      expect(eventLink).toHaveAttribute(
+        'href',
+        'https://qupper.fastrun.com.cn/'
+      )
+      expect(eventLink).toHaveAttribute('target', '_blank')
+      expect(eventLink).toHaveAttribute('rel', 'noopener noreferrer')
+      expect(
+        within(spotlight).getByRole('link', { name: 'Start building' })
+      ).toHaveAttribute('href', primaryHref)
+    }
+  )
+
   it('uses the savings translation instead of the on/off control translation', async () => {
     const discounted = buildModelCatalog(
       [{ ...models[0].pricingModel, group_ratio: { default: 0.5 } }],
