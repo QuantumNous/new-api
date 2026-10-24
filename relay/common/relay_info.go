@@ -132,6 +132,9 @@ type RelayInfo struct {
 	ChatToGeminiStreamState any
 	ReceivedResponseCount   int
 	FinalPreConsumedQuota   int // 最终预消耗的配额
+	// RealtimeCommittedQuota is the absolute session quota already accepted for
+	// this realtime request. It is not the wallet hold and is not stored.
+	RealtimeCommittedQuota int
 	// ForcePreConsume 为 true 时禁用 BillingSession 的信任额度旁路，
 	// 强制预扣全额。用于异步任务（视频/音乐生成等），因为请求返回后任务仍在运行，
 	// 必须在提交前锁定全额。

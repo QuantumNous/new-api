@@ -241,7 +241,7 @@ func runFixedPriceAccountingCases(t *testing.T, db, logDB *gorm.DB) {
 						info.ResponsesUsageInfo = &relaycommon.ResponsesUsageInfo{BuiltInTools: map[string]*relaycommon.BuildInToolInfo{"fixed_billing_tool": {CallCount: 1}}}
 					}
 					if tc.realtime {
-						PostWssConsumeQuota(ctx, info, info.OriginModelName, &dto.RealtimeUsage{
+						PostWssConsumeQuota(ctx, info, &dto.RealtimeUsage{
 							InputTokens: tc.usage.PromptTokens, OutputTokens: tc.usage.CompletionTokens, TotalTokens: tc.usage.TotalTokens,
 						}, nil)
 					} else if tc.audio {
@@ -1650,4 +1650,437 @@ func TestPostTextConsumeQuotaLogsMissingUsageAsStructuredContent(t *testing.T) {
 	assert.Equal(t, []any{
 		map[string]any{"key": "Upstream returned no usage, so nothing was charged (possibly an upstream timeout)"},
 	}, other["content_parts"])
+}
+
+// Realtime settlement must leave the wallet, token, and consume log equal to
+// one absolute charge for the cumulative session. The websocket caller passes
+// the upstream model name; the log must still record the billing model.
+func TestRealtimeSessionSettlement(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	// Refunds settle asynchronously through model.DB, so this test uses the
+	// package database from TestMain instead of swapping globals.
+	db := model.DB
+	require.NoError(t, db.AutoMigrate(&model.SubscriptionPlan{}, &model.SubscriptionPreConsumeRecord{}))
+
+	const (
+		startWallet = 100_000
+		startToken  = 80_000
+		billingName = "client-realtime"
+		upstream    = "upstream-realtime"
+	)
+	seq := 0
+	open := func(t *testing.T, opt realtimeOpenOpt) *realtimeSession {
+		t.Helper()
+		seq++
+		wallet := opt.wallet
+		if wallet == 0 {
+			wallet = startWallet
+		}
+		tokenRemain := opt.tokenRemain
+		if tokenRemain == 0 {
+			tokenRemain = startToken
+		}
+		if opt.trust {
+			wallet = 6_000_000
+			tokenRemain = 6_000_000
+		}
+		groupRatio := opt.groupRatio
+		if groupRatio == 0 {
+			groupRatio = 1
+		}
+		modelRatio := opt.modelRatio
+		if modelRatio == 0 && !opt.zeroRatio {
+			modelRatio = 1
+		}
+		user := model.User{
+			Username: fmt.Sprintf("rt%d", seq), Password: "realtime-test", Quota: wallet,
+			Status: common.UserStatusEnabled, AffCode: fmt.Sprintf("rt%d", seq),
+		}
+		require.NoError(t, db.Create(&user).Error)
+		token := model.Token{
+			UserId: user.Id, Key: fmt.Sprintf("rt-key-%d", seq), Name: "rt",
+			RemainQuota: tokenRemain, Status: common.TokenStatusEnabled,
+		}
+		require.NoError(t, db.Create(&token).Error)
+		channel := model.Channel{Name: fmt.Sprintf("rt-%d", seq), Key: "unused", Status: common.ChannelStatusEnabled}
+		require.NoError(t, db.Create(&channel).Error)
+		var plan model.SubscriptionPlan
+		var sub model.UserSubscription
+		if opt.subscriptionTotal > 0 {
+			plan = model.SubscriptionPlan{Title: "rt", Currency: "USD", DurationUnit: "month", DurationValue: 1, Enabled: true, QuotaResetPeriod: model.SubscriptionResetNever}
+			require.NoError(t, db.Create(&plan).Error)
+			now := time.Now()
+			sub = model.UserSubscription{
+				UserId: user.Id, PlanId: plan.Id, AmountTotal: opt.subscriptionTotal, AmountUsed: 0,
+				StartTime: now.Add(-time.Second).Unix(), EndTime: now.Add(30 * 24 * time.Hour).Unix(), Status: "active",
+			}
+			require.NoError(t, db.Create(&sub).Error)
+			model.InvalidateSubscriptionPlanCache(plan.Id)
+		}
+		t.Cleanup(func() {
+			require.NoError(t, db.Where("user_id = ?", user.Id).Delete(&model.Log{}).Error)
+			require.NoError(t, db.Where("user_id = ?", user.Id).Delete(&model.SubscriptionPreConsumeRecord{}).Error)
+			require.NoError(t, db.Where("user_id = ?", user.Id).Delete(&model.UserSubscription{}).Error)
+			require.NoError(t, db.Unscoped().Delete(&token).Error)
+			require.NoError(t, db.Unscoped().Delete(&user).Error)
+			require.NoError(t, db.Unscoped().Delete(&channel).Error)
+			if plan.Id != 0 {
+				model.InvalidateSubscriptionPlanCache(plan.Id)
+				require.NoError(t, db.Unscoped().Delete(&plan).Error)
+			}
+		})
+
+		preference := "wallet_only"
+		if opt.subscriptionTotal > 0 {
+			preference = "subscription_only"
+		}
+		info := &relaycommon.RelayInfo{
+			UserId: user.Id, TokenId: token.Id, TokenKey: token.Key,
+			ChannelMeta:      &relaycommon.ChannelMeta{ChannelId: channel.Id, UpstreamModelName: upstream},
+			OriginModelName:  billingName,
+			BillingModelName: billingName,
+			UsingGroup:       "default", UserGroup: "default",
+			UserSetting:     dto.UserSetting{BillingPreference: preference},
+			ForcePreConsume: !opt.trust,
+			StartTime:       time.Now(),
+			RelayFormat:     types.RelayFormatOpenAIRealtime,
+			RequestId:       fmt.Sprintf("rt-req-%d", seq),
+			PriceData: hosttypes.PriceData{
+				ModelRatio: modelRatio, ModelPrice: opt.modelPrice, UsePrice: opt.usePrice, FreeModel: opt.freeModel,
+				GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: groupRatio},
+			},
+		}
+		if opt.image {
+			info.ImageRequestCount = 1
+		}
+		if opt.expression != "" {
+			info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{
+				BillingMode: "tiered_expr", ExprString: opt.expression, ExprHash: billingexpr.ExprHashString(opt.expression),
+				QuotaPerUnit: common.QuotaPerUnit, GroupRatio: groupRatio, EstimatedBillingUnit: billingexpr.BillingUnitToken,
+			}
+			info.BillingRequestInput = &billingexpr.RequestInput{}
+		}
+		ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+		ctx.Request = httptest.NewRequest("POST", "/v1/realtime", nil)
+		if opt.trust {
+			ctx.Set("token_quota", tokenRemain)
+		}
+		if !opt.skipBilling {
+			require.Nil(t, PreConsumeBilling(ctx, opt.opening, info))
+		}
+		return &realtimeSession{ctx: ctx, info: info, db: db, userID: user.Id, tokenID: token.Id, channelID: channel.Id, subID: sub.Id}
+	}
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	require.NoError(t, PreWssConsumeQuota(ctx, nil, realtimeTurn(1, 0, 0, 0)))
+	require.NoError(t, PreWssConsumeQuota(ctx, &relaycommon.RelayInfo{}, nil))
+
+	first := realtimeTurn(100, 40, 10, 5)
+	second := realtimeTurn(120, 50, 10, 5)
+	require.Equal(t, 155, first.TotalTokens)
+	require.Equal(t, 185, second.TotalTokens)
+
+	t.Run("1 two token turns settle once", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{opening: 100})
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, first))
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, second))
+		assert.Equal(t, 185, s.info.RealtimeCommittedQuota)
+		assert.Equal(t, 185, s.info.Billing.GetPreConsumedQuota())
+		finishRealtimeSession(s.ctx, s.info, second)
+		s.assertBooks(t, startWallet-185, startToken-185, 185, 1, 185)
+		s.assertLog(t, 185, billingName, false)
+		require.NoError(t, s.info.Billing.Settle(185))
+		s.assertBooks(t, startWallet-185, startToken-185, 185, 1, 185)
+	})
+
+	t.Run("2 opening reserve above usage refunds the difference", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{opening: 1_000})
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, first))
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, second))
+		assert.Equal(t, 1_000, s.info.Billing.GetPreConsumedQuota())
+		finishRealtimeSession(s.ctx, s.info, second)
+		s.assertBooks(t, startWallet-185, startToken-185, 185, 1, 185)
+		s.assertLog(t, 185, billingName, false)
+	})
+
+	t.Run("3 fixed price charges once", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{opening: 5_000, usePrice: true, modelPrice: 0.01})
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, realtimeTurn(10, 0, 0, 0)))
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, realtimeTurn(30, 0, 0, 0)))
+		finishRealtimeSession(s.ctx, s.info, realtimeTurn(30, 0, 0, 0))
+		s.assertBooks(t, startWallet-5_000, startToken-5_000, 5_000, 1, 5_000)
+		s.assertLog(t, 5_000, billingName, false)
+	})
+
+	t.Run("4 fixed price group ratio", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{opening: 10_000, usePrice: true, modelPrice: 0.01, groupRatio: 2})
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, realtimeTurn(10, 4, 0, 0)))
+		finishRealtimeSession(s.ctx, s.info, realtimeTurn(10, 4, 0, 0))
+		s.assertBooks(t, startWallet-10_000, startToken-10_000, 10_000, 1, 10_000)
+		s.assertLog(t, 10_000, billingName, false)
+	})
+
+	t.Run("5 empty session refunds the opening reserve", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{opening: 1_000})
+		finishRealtimeSession(s.ctx, s.info, &dto.RealtimeUsage{})
+		s.assertBooks(t, startWallet, startToken, 0, 0, 0)
+		s.assertLog(t, 0, billingName, true)
+	})
+
+	t.Run("6 committed session keeps the charge when final usage is empty", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{opening: 1_000})
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, first))
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, second))
+		assert.Equal(t, 185, s.info.RealtimeCommittedQuota)
+		assert.Equal(t, 1_000, s.info.Billing.GetPreConsumedQuota())
+		finishRealtimeSession(s.ctx, s.info, &dto.RealtimeUsage{})
+		s.assertBooks(t, startWallet-185, startToken-185, 185, 1, 185)
+		s.assertLog(t, 185, billingName, false)
+	})
+
+	t.Run("7 second turn stops when the wallet cannot cover it", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{wallet: 200, tokenRemain: 100_000, opening: 100})
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, realtimeTurn(150, 0, 0, 0)))
+		assert.Equal(t, 150, s.info.RealtimeCommittedQuota)
+		s.assertBooks(t, 50, 99_850, 0, 0, 0)
+		require.Error(t, PreWssConsumeQuota(s.ctx, s.info, realtimeTurn(500, 0, 0, 0)))
+		assert.Equal(t, 150, s.info.RealtimeCommittedQuota)
+		s.assertBooks(t, 50, 99_850, 0, 0, 0)
+		finishRealtimeSession(s.ctx, s.info, realtimeTurn(150, 0, 0, 0))
+		s.assertBooks(t, 50, 99_850, 150, 1, 150)
+		s.assertLog(t, 150, billingName, false)
+	})
+
+	t.Run("8 trusted wallet freezes on the first turn and charges once", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{trust: true})
+		session := s.info.Billing.(*BillingSession)
+		assert.True(t, session.trusted)
+		assert.Equal(t, 0, s.info.Billing.GetPreConsumedQuota())
+		s.assertBooks(t, 6_000_000, 6_000_000, 0, 0, 0)
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, second))
+		assert.False(t, session.trusted)
+		assert.Equal(t, 185, s.info.Billing.GetPreConsumedQuota())
+		s.assertBooks(t, 6_000_000-185, 6_000_000-185, 0, 0, 0)
+		finishRealtimeSession(s.ctx, s.info, second)
+		s.assertBooks(t, 6_000_000-185, 6_000_000-185, 185, 1, 185)
+		s.assertLog(t, 185, billingName, false)
+	})
+
+	t.Run("9 subscription raises the same hold and does not touch the wallet", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{opening: 100, subscriptionTotal: 10_000})
+		s.assertSub(t, 100)
+		s.assertBooks(t, startWallet, startToken-100, 0, 0, 0)
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, first))
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, second))
+		s.assertSub(t, 185)
+		s.assertBooks(t, startWallet, startToken-185, 0, 0, 0)
+		finishRealtimeSession(s.ctx, s.info, second)
+		s.assertSub(t, 185)
+		s.assertBooks(t, startWallet, startToken-185, 185, 1, 185)
+		assert.Equal(t, int64(0), s.info.SubscriptionPostDelta)
+		s.assertLog(t, 185, billingName, false)
+	})
+
+	t.Run("10b subscription token shortfall rolls the extra hold back", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{opening: 100, tokenRemain: 200, subscriptionTotal: 10_000})
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, realtimeTurn(150, 0, 0, 0)))
+		assert.Equal(t, 150, s.info.RealtimeCommittedQuota)
+		s.assertSub(t, 150)
+		require.Error(t, PreWssConsumeQuota(s.ctx, s.info, realtimeTurn(400, 0, 0, 0)))
+		assert.Equal(t, 150, s.info.RealtimeCommittedQuota)
+		s.assertSub(t, 150)
+		s.assertBooks(t, startWallet, 50, 0, 0, 0)
+		finishRealtimeSession(s.ctx, s.info, realtimeTurn(150, 0, 0, 0))
+		s.assertSub(t, 150)
+		s.assertBooks(t, startWallet, 50, 150, 1, 150)
+		s.assertLog(t, 150, billingName, false)
+	})
+
+	t.Run("10 subscription shortfall drops the turn and refunds an uncommitted session", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{opening: 100, subscriptionTotal: 120})
+		s.assertSub(t, 100)
+		require.Error(t, PreWssConsumeQuota(s.ctx, s.info, second))
+		s.assertSub(t, 100)
+		finishRealtimeSession(s.ctx, s.info, &dto.RealtimeUsage{})
+		s.assertSub(t, 0)
+		s.assertBooks(t, startWallet, startToken, 0, 0, 0)
+		s.assertLog(t, 0, billingName, true)
+	})
+
+	t.Run("11 free model records the request without a charge", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{freeModel: true, skipBilling: true})
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, realtimeTurn(100, 40, 0, 0)))
+		finishRealtimeSession(s.ctx, s.info, realtimeTurn(100, 40, 0, 0))
+		s.assertBooks(t, startWallet, startToken, 0, 1, 0)
+		s.assertLog(t, 0, billingName, false)
+	})
+
+	t.Run("11 zero model ratio records the request without a charge", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{zeroRatio: true, skipBilling: true})
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, realtimeTurn(100, 40, 0, 0)))
+		finishRealtimeSession(s.ctx, s.info, realtimeTurn(100, 40, 0, 0))
+		s.assertBooks(t, startWallet, startToken, 0, 1, 0)
+		s.assertLog(t, 0, billingName, false)
+	})
+
+	t.Run("12 log model name is the billing name", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{opening: 185})
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, second))
+		finishRealtimeSession(s.ctx, s.info, second)
+		log := s.assertLog(t, 185, billingName, false)
+		assert.NotEqual(t, upstream, log.ModelName)
+	})
+
+	t.Run("13 tiered expression reprices the cumulative total", func(t *testing.T) {
+		const expr = `len <= 100 ? tier("s", p * 1) : tier("l", p * 3)`
+		s := open(t, realtimeOpenOpt{expression: expr})
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, realtimeTurn(50, 0, 0, 0)))
+		assert.Equal(t, 25, s.info.Billing.GetPreConsumedQuota())
+		s.assertBooks(t, startWallet-25, startToken-25, 0, 0, 0)
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, realtimeTurn(200, 0, 0, 0)))
+		assert.Equal(t, 300, s.info.Billing.GetPreConsumedQuota())
+		finishRealtimeSession(s.ctx, s.info, realtimeTurn(200, 0, 0, 0))
+		s.assertBooks(t, startWallet-300, startToken-300, 300, 1, 300)
+		log := s.assertLog(t, 300, billingName, false)
+		var other map[string]any
+		require.NoError(t, common.UnmarshalJsonStr(log.Other, &other))
+		assert.Equal(t, "token", other["billing_unit"])
+	})
+
+	t.Run("14 settling again does not charge or write another log", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{opening: 100})
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, first))
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, second))
+		finishRealtimeSession(s.ctx, s.info, second)
+		require.NoError(t, s.info.Billing.Settle(185))
+		s.assertBooks(t, startWallet-185, startToken-185, 185, 1, 185)
+		var logs []model.Log
+		require.NoError(t, db.Where("user_id = ?", s.userID).Find(&logs).Error)
+		assert.Len(t, logs, 1)
+	})
+
+	t.Run("audio fixed price is not zero", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{opening: 5_000, usePrice: true, modelPrice: 0.01})
+		PostAudioConsumeQuota(s.ctx, s.info, &dto.Usage{
+			PromptTokens: 10, CompletionTokens: 10, TotalTokens: 20,
+			PromptTokensDetails:    dto.InputTokenDetails{TextTokens: 10},
+			CompletionTokenDetails: dto.OutputTokenDetails{TextTokens: 10},
+		}, nil)
+		s.assertBooks(t, startWallet-5_000, startToken-5_000, 5_000, 1, 5_000)
+		s.assertLog(t, 5_000, billingName, false)
+	})
+
+	t.Run("funding two atomic reserves refund the whole freeze", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{skipBilling: true})
+		funding := &WalletFunding{userId: s.userID}
+		require.NoError(t, funding.PreConsume(1_000))
+		require.NoError(t, funding.PreConsume(400))
+		s.assertBooks(t, startWallet-1_400, startToken, 0, 0, 0)
+		require.NoError(t, funding.Refund())
+		s.assertBooks(t, startWallet, startToken, 0, 0, 0)
+	})
+
+	t.Run("nil usage refunds like an empty session", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{opening: 1_000})
+		finishRealtimeSession(s.ctx, s.info, nil)
+		s.assertBooks(t, startWallet, startToken, 0, 0, 0)
+		s.assertLog(t, 0, billingName, true)
+	})
+
+	t.Run("negative fixed price is rejected and clamps settlement", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{usePrice: true, modelPrice: -0.01})
+		require.Error(t, PreWssConsumeQuota(s.ctx, s.info, realtimeTurn(10, 0, 0, 0)))
+		assert.Zero(t, s.info.RealtimeCommittedQuota)
+		finishRealtimeSession(s.ctx, s.info, realtimeTurn(10, 0, 0, 0))
+		s.assertBooks(t, startWallet, startToken, 0, 1, 0)
+		s.assertLog(t, 0, billingName, false)
+	})
+
+	t.Run("tiered evaluation error keeps the opening reserve", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{opening: 1_000, expression: `param("missing")`})
+		require.NoError(t, PreWssConsumeQuota(s.ctx, s.info, realtimeTurn(50, 0, 0, 0)))
+		assert.Equal(t, 1_000, s.info.RealtimeCommittedQuota)
+		assert.Equal(t, 1_000, s.info.Billing.GetPreConsumedQuota())
+		finishRealtimeSession(s.ctx, s.info, realtimeTurn(50, 0, 0, 0))
+		s.assertBooks(t, startWallet-1_000, startToken-1_000, 1_000, 1, 1_000)
+		s.assertLog(t, 1_000, billingName, false)
+	})
+
+	t.Run("funding token failure still refunds the opening freeze", func(t *testing.T) {
+		s := open(t, realtimeOpenOpt{opening: 800, tokenRemain: 1_000, image: true})
+		require.Error(t, s.info.Billing.Reserve(1_300))
+		funding := s.info.Billing.(*BillingSession).funding.(*WalletFunding)
+		assert.Equal(t, 800, funding.consumed)
+		s.assertBooks(t, startWallet-800, 200, 0, 0, 0)
+		require.NoError(t, funding.Refund())
+		s.assertBooks(t, startWallet, 200, 0, 0, 0)
+	})
+}
+
+type realtimeOpenOpt struct {
+	wallet, tokenRemain, opening          int
+	groupRatio, modelRatio, modelPrice    float64
+	usePrice, freeModel, trust, zeroRatio bool
+	skipBilling, image                    bool
+	subscriptionTotal                     int64
+	expression                            string
+}
+
+type realtimeSession struct {
+	ctx              *gin.Context
+	info             *relaycommon.RelayInfo
+	db               *gorm.DB
+	userID, tokenID  int
+	channelID, subID int
+}
+
+func realtimeTurn(textIn, textOut, audioIn, audioOut int) *dto.RealtimeUsage {
+	return &dto.RealtimeUsage{
+		InputTokens:        textIn + audioIn,
+		OutputTokens:       textOut + audioOut,
+		TotalTokens:        textIn + textOut + audioIn + audioOut,
+		InputTokenDetails:  dto.InputTokenDetails{TextTokens: textIn, AudioTokens: audioIn},
+		OutputTokenDetails: dto.OutputTokenDetails{TextTokens: textOut, AudioTokens: audioOut},
+	}
+}
+
+func finishRealtimeSession(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.RealtimeUsage) {
+	PostWssConsumeQuota(ctx, info, usage, nil)
+}
+
+func (s *realtimeSession) assertBooks(t *testing.T, wallet, tokenRemain, used, requests int, channelUsed int64) {
+	t.Helper()
+	var user model.User
+	require.NoError(t, s.db.First(&user, s.userID).Error)
+	var token model.Token
+	require.NoError(t, s.db.First(&token, s.tokenID).Error)
+	var channel model.Channel
+	require.NoError(t, s.db.First(&channel, s.channelID).Error)
+	assert.Equal(t, wallet, user.Quota, "wallet")
+	assert.Equal(t, tokenRemain, token.RemainQuota, "token")
+	assert.Equal(t, used, user.UsedQuota, "used quota")
+	assert.Equal(t, requests, user.RequestCount, "request count")
+	assert.Equal(t, channelUsed, channel.UsedQuota, "channel used")
+}
+
+func (s *realtimeSession) assertSub(t *testing.T, used int64) {
+	t.Helper()
+	var sub model.UserSubscription
+	require.NoError(t, s.db.First(&sub, s.subID).Error)
+	assert.Equal(t, used, sub.AmountUsed)
+}
+
+func (s *realtimeSession) assertLog(t *testing.T, quota int, modelName string, timeout bool) model.Log {
+	t.Helper()
+	var logs []model.Log
+	require.NoError(t, s.db.Where("user_id = ?", s.userID).Find(&logs).Error)
+	require.Len(t, logs, 1)
+	assert.Equal(t, quota, logs[0].Quota, "log quota")
+	assert.Equal(t, modelName, logs[0].ModelName, "log model")
+	if timeout {
+		assert.Contains(t, logs[0].Content, "Possibly an upstream timeout")
+	} else {
+		assert.NotContains(t, logs[0].Content, "Possibly an upstream timeout")
+	}
+	return logs[0]
 }

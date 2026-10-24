@@ -135,6 +135,7 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 						usage.OutputTokenDetails.TextTokens += realtimeUsage.OutputTokenDetails.TextTokens
 						err := preConsumeUsage(c, info, usage, sumUsage)
 						if err != nil {
+							localUsage = &dto.RealtimeUsage{}
 							errChan <- fmt.Errorf("error consume usage: %v", err)
 							return
 						}
@@ -228,15 +229,21 @@ func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.R
 		return fmt.Errorf("invalid usage pointer")
 	}
 
-	totalUsage.TotalTokens += usage.TotalTokens
-	totalUsage.InputTokens += usage.InputTokens
-	totalUsage.OutputTokens += usage.OutputTokens
-	totalUsage.InputTokenDetails.CachedTokens += usage.InputTokenDetails.CachedTokens
-	totalUsage.InputTokenDetails.TextTokens += usage.InputTokenDetails.TextTokens
-	totalUsage.InputTokenDetails.AudioTokens += usage.InputTokenDetails.AudioTokens
-	totalUsage.OutputTokenDetails.TextTokens += usage.OutputTokenDetails.TextTokens
-	totalUsage.OutputTokenDetails.AudioTokens += usage.OutputTokenDetails.AudioTokens
-	// clear usage
-	err := service.PreWssConsumeQuota(ctx, info, usage)
-	return err
+	candidate := *totalUsage
+	candidate.TotalTokens += usage.TotalTokens
+	candidate.InputTokens += usage.InputTokens
+	candidate.OutputTokens += usage.OutputTokens
+	candidate.InputTokenDetails.CachedTokens += usage.InputTokenDetails.CachedTokens
+	candidate.InputTokenDetails.TextTokens += usage.InputTokenDetails.TextTokens
+	candidate.InputTokenDetails.AudioTokens += usage.InputTokenDetails.AudioTokens
+	candidate.OutputTokenDetails.TextTokens += usage.OutputTokenDetails.TextTokens
+	candidate.OutputTokenDetails.AudioTokens += usage.OutputTokenDetails.AudioTokens
+	if err := service.PreWssConsumeQuota(ctx, info, &candidate); err != nil {
+		// Leftover buffers are billed again after the read loops stop.
+		// Drop this turn so a failed reserve is not added a second time.
+		*usage = dto.RealtimeUsage{}
+		return err
+	}
+	*totalUsage = candidate
+	return nil
 }
