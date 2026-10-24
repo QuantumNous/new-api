@@ -29,12 +29,16 @@ func ApplyReasoning(ctx context.Context, req *dto.ClaudeRequest, info convmeta.M
 	if preserveSuffix {
 		suffix = reasoning.Intent{}
 	}
+	if info != nil && !reasoning.IsKnownClaudeModel(capabilityModel) && reasoning.IsKnownClaudeModel(info.GetOriginModelName()) {
+		capabilityModel = info.GetOriginModelName()
+	}
 	// A native Claude request without a host modifier is already in the target
 	// protocol, including Claude-compatible proxies that keep native controls
 	// instead of applying Anthropic model rules. Read portable effort for
 	// accounting metadata, but do not run the capability renderer or rewrite
-	// provider-native controls.
-	if !crossProtocol && source.IsEmpty() && suffix.IsEmpty() {
+	// provider-native controls, unless the model is known to reject the
+	// request's thinking object.
+	if !crossProtocol && source.IsEmpty() && suffix.IsEmpty() && !reasoning.ClaudeRejectsNativeThinking(capabilityModel, req.Thinking) {
 		if info != nil {
 			effort := req.GetEfforts()
 			if effort == "" && req.Thinking != nil {
@@ -62,9 +66,6 @@ func ApplyReasoning(ctx context.Context, req *dto.ClaudeRequest, info convmeta.M
 		return err
 	}
 	convdiag.Add(ctx, diagnostics...)
-	if info != nil && !reasoning.IsKnownClaudeModel(capabilityModel) && reasoning.IsKnownClaudeModel(info.GetOriginModelName()) {
-		capabilityModel = info.GetOriginModelName()
-	}
 	intent, diagnostics, err := reasoning.MergeExplicitAndSuffix(explicit, suffix, req.Model)
 	if err != nil {
 		return err
