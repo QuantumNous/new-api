@@ -17,7 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
+import {
+  act,
+  cleanup,
+  renderHook,
+  waitFor,
+  type RenderHookResult,
+} from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -63,7 +69,13 @@ describe('notice updates in the notification center', () => {
     localStorage.clear()
   })
 
-  function renderNoticeHooks() {
+  function renderNoticeHooks(): RenderHookResult<
+    {
+      notices: ReturnType<typeof useNotifications>
+      update: ReturnType<typeof useUpdateOption>
+    },
+    unknown
+  > {
     return renderHook(
       () => ({ notices: useNotifications(), update: useUpdateOption() }),
       {
