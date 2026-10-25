@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { X } from 'lucide-react'
+import { Gift, X } from 'lucide-react'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -140,17 +140,24 @@ export function RewardBanner() {
       ref={bannerRef}
       role='region'
       aria-label={t('Current rewards')}
-      className='relative z-50 bg-[#a83f2c] px-11 py-2 text-center text-[13px] leading-5 text-white'
+      className='relative z-50 overflow-hidden border-b border-white/10 bg-(--brand-ink) px-11 py-1.5 text-center text-[13px] leading-5 text-white/90'
     >
-      <p className='mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-x-2 gap-y-0.5'>
+      {/* A faint lime → cyan wash ties the strip to the brand sweep below. */}
+      <div
+        aria-hidden='true'
+        className='pointer-events-none absolute inset-0 bg-[radial-gradient(60%_140%_at_30%_0%,color-mix(in_srgb,var(--brand-lime)_14%,transparent),transparent_70%),radial-gradient(50%_140%_at_75%_100%,color-mix(in_srgb,var(--brand-cyan)_12%,transparent),transparent_70%)]'
+      />
+      <p className='relative mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-x-3 gap-y-1'>
         <span
           aria-hidden='true'
-          className='hidden size-1.5 shrink-0 bg-white sm:inline-block'
-        />
-        <span>{content.segments.join(' | ')}</span>
+          className='hidden size-5 shrink-0 place-items-center rounded-md bg-(image:--brand-gradient) text-(--brand-ink) sm:grid'
+        >
+          <Gift className='size-3' strokeWidth={2.5} />
+        </span>
+        <span className='tracking-wide'>{content.segments.join(' | ')}</span>
         <Link
           to={isAuthenticated ? '/wallet' : '/sign-up'}
-          className='font-semibold whitespace-nowrap underline underline-offset-4 hover:text-white/85 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white'
+          className='inline-flex items-center rounded-full bg-(image:--brand-gradient) px-3 py-0.5 text-xs font-semibold whitespace-nowrap text-(--brand-ink) shadow-[0_0_12px_color-mix(in_srgb,var(--brand-mint)_35%,transparent)] transition-[filter,box-shadow] hover:shadow-[0_0_18px_color-mix(in_srgb,var(--brand-mint)_55%,transparent)] hover:brightness-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--brand-mint)'
         >
           {t('Top up now')} →
         </Link>
@@ -161,7 +168,7 @@ export function RewardBanner() {
         size='icon-sm'
         aria-label={t('Dismiss reward banner')}
         onClick={dismiss}
-        className='absolute top-1/2 right-2 -translate-y-1/2 text-white hover:bg-white/15 hover:text-white'
+        className='absolute top-1/2 right-2 -translate-y-1/2 text-white/60 hover:bg-white/10 hover:text-white'
       >
         <X aria-hidden='true' />
       </Button>
