@@ -122,6 +122,8 @@ func TestCanonicalOpenAIUsageMergesInputTokenDetailsFieldwise(t *testing.T) {
 	assert.Equal(t, 7, usage.PromptTokensDetails.CachedCreationTokens)
 }
 
+// TestBillingUsageJSONUsesProtocolNamedFields checks protocol-specific wire keys
+// and prevents recursive billing envelopes when usage is cloned.
 func TestBillingUsageJSONUsesProtocolNamedFields(t *testing.T) {
 	billingUsage := &BillingUsage{
 		OpenAIUsage:         &Usage{PromptTokens: 1, BillingUsage: NewClaudeMessagesBillingUsage(&ClaudeUsage{InputTokens: 9})},
