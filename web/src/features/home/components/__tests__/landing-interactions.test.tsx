@@ -280,11 +280,12 @@ describe('landing interactions and price layout', () => {
     ).toBeVisible()
     expect(within(partners).getByText('Wengu Bilingual School')).toBeVisible()
     expect(within(partners).getByText('OpenForge')).toBeVisible()
-    // Our own card sits right after the host, with the all-gradient mark.
+    // Our own card sits right after the host, with the all-green mark.
+    expect(items[1]).toHaveTextContent(`${PRODUCT_NAME}API`)
     expect(items[1]).toHaveTextContent('Model supply partner')
     expect(items[1].querySelector('img')).toHaveAttribute(
       'src',
-      '/yeschoy-mark-gradient.svg'
+      '/yeschoy-mark-green.svg'
     )
     expect(within(partners).queryByText(/DeepSeek|Y Combinator/)).toBeNull()
   })

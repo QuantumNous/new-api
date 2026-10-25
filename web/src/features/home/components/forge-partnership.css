@@ -775,10 +775,17 @@ For commercial licensing, please contact support@quantumnous.com
     ),
     rgb(255 255 255 / 3%);
 }
-.ci-forgeEcosystemSelf .ci-mark span {
-  color: var(--forge-ink);
-  font-size: 16px;
+.ci-forgeEcosystem .ci-forgeEcosystemSelf {
+  grid-template-rows: auto;
+  gap: 4px;
+}
+.ci-forgeEcosystemSelf img {
+  margin-bottom: 2px;
+  filter: drop-shadow(0 0 10px rgb(74 222 128 / 35%));
+}
+.ci-forgeEcosystem .ci-forgeEcosystemSelf strong {
   font-weight: 700;
+  line-height: 22px;
 }
 .ci-forgeEcosystem .ci-forgeEcosystemSelf > span {
   color: var(--forge-teal);
