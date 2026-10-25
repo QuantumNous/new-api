@@ -3462,7 +3462,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Các Dự Án Liên Quan",
     "footer.defaultCopyright": "Bản quyền được bảo lưu.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
+    "footer.newapi.projectAttributionSuffix": "Bản quyền được bảo lưu. Được thiết kế và phát triển bởi các cộng tác viên dự án.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "Với kênh tùy chỉnh nâng cao, thiết lập này chỉ áp dụng cho các route /v1/responses không chuyển đổi giao thức.",
     "For capacity sellers": "Dành cho bên bán công suất",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Đối với các kênh được thêm sau ngày 10 tháng 5 năm 2025, không cần loại bỏ \".\" khỏi tên mô hình trong quá trình triển khai",
@@ -8970,6 +8970,22 @@
     "Venue partner": "Đối tác địa điểm",
     "Mentors & developer community": "Cố vấn và cộng đồng nhà phát triển",
     "Fastrun Cloud": "Fastrun Cloud",
-    "Wengu Bilingual School": "Trường song ngữ Wengu"
+    "Wengu Bilingual School": "Trường song ngữ Wengu",
+    "{{threshold}} get {{reward}}": "{{threshold}} tặng {{reward}}",
+    "First top-up {{tiers}}": "Nạp lần đầu {{tiers}}",
+    "Top up {{tiers}}": "Nạp tiền {{tiers}}",
+    "First top-up: {{reward}} for every {{step}}": "Nạp lần đầu: tặng {{reward}} cho mỗi {{step}}",
+    "Top-up: {{reward}} for every {{step}}": "Nạp tiền: tặng {{reward}} cho mỗi {{step}}",
+    "First top-up: {{percent}} back": "Nạp lần đầu: hoàn {{percent}}",
+    "Top-up: {{percent}} back": "Nạp tiền: hoàn {{percent}}",
+    "New users get {{amount}} on sign-up": "Người dùng mới đăng ký tặng {{amount}}",
+    "Current rewards": "Ưu đãi hiện tại",
+    "Top up now": "Nạp ngay",
+    "Dismiss reward banner": "Đóng biểu ngữ ưu đãi",
+    "Eligible orders": "Đơn hàng áp dụng",
+    "First top-up only": "Chỉ nạp lần đầu",
+    "Every top-up": "Mọi lần nạp",
+    "Only a payer with no earlier successful top-up qualifies, once. A first top-up below every tier still uses it up.": "Chỉ người thanh toán chưa từng nạp thành công mới đủ điều kiện, một lần. Lần nạp đầu dưới mọi mốc vẫn được tính là đã dùng.",
+    "This campaign rewards first top-ups only, and your account has topped up before.": "Chương trình này chỉ thưởng cho lần nạp đầu, và tài khoản của bạn đã từng nạp tiền."
   }
 }

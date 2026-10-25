@@ -121,15 +121,19 @@ export type CashbackCampaign = {
   end_at: number
   stopped_at: number
   max_rewards_per_user: number
+  payer_scope: CashbackCampaignPayerScope
   created_by: number
   stopped_by: number
   created_at: number
   status: 'planned' | 'active' | 'ended'
 }
 
+// '' rewards every eligible order; first_top_up only the payer's first top-up.
+export type CashbackCampaignPayerScope = '' | 'first_top_up'
+
 export type CashbackCampaignCreate = Pick<
   CashbackCampaign,
-  'start_at' | 'end_at' | 'max_rewards_per_user'
+  'start_at' | 'end_at' | 'max_rewards_per_user' | 'payer_scope'
 >
 
 export type CashbackCampaignResponse = {

@@ -18,12 +18,25 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { getCurrencyDisplay } from '@/lib/currency'
 
-/** Exact CNY cents from a checkout rule, never the site's quota/display FX. */
+/**
+ * Exact CNY cents from a checkout rule, never the site's quota/display FX.
+ * `wholeYuan` drops `.00` from whole amounts for compact marketing copy.
+ */
 export function formatCashbackCents(
   cents: number,
-  locale?: Intl.LocalesArgument
+  locale?: Intl.LocalesArgument,
+  options?: { wholeYuan?: boolean }
 ): string {
   if (!Number.isSafeInteger(cents)) return '-'
+  const yuan = BigInt(cents) / 100n
+  if (options?.wholeYuan && cents % 100 === 0) {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: 'CNY',
+      currencyDisplay: 'narrowSymbol',
+      maximumFractionDigits: 0,
+    }).format(yuan)
+  }
   const formatter = new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: 'CNY',
@@ -31,7 +44,6 @@ export function formatCashbackCents(
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })
-  const yuan = BigInt(cents) / 100n
   const fraction = String(Math.abs(cents % 100)).padStart(2, '0')
   return formatter
     .formatToParts(yuan)

@@ -604,6 +604,66 @@ describe('cashback campaigns', () => {
     expect(createCashbackCampaign).not.toHaveBeenCalled()
   })
 
+  it('creates a first-top-up campaign with a fixed limit of one reward', async () => {
+    vi.spyOn(toast, 'success').mockReturnValue('success')
+    createCashbackCampaign.mockResolvedValueOnce({ success: true, data: {} })
+    renderCampaigns()
+    await screen.findByText('No campaigns created yet')
+    const limit = screen.getByRole('spinbutton', { name: 'Rewards per payer' })
+    fireEvent.change(limit, { target: { value: '5' } })
+    fireEvent.change(screen.getByLabelText('Campaign start'), {
+      target: { value: dayjs().add(2, 'hour').format('YYYY-MM-DDTHH:mm') },
+    })
+    fireEvent.change(screen.getByLabelText('Campaign end'), {
+      target: { value: dayjs().add(1, 'day').format('YYYY-MM-DDTHH:mm') },
+    })
+
+    await userEvent.click(
+      screen.getByRole('switch', { name: 'First top-up only' })
+    )
+    expect(limit).toBeDisabled()
+    expect(limit).toHaveValue(1)
+    fireEvent.click(screen.getByRole('button', { name: 'Create campaign' }))
+
+    await waitFor(() =>
+      expect(createCashbackCampaign).toHaveBeenCalledWith(
+        expect.objectContaining({
+          max_rewards_per_user: 1,
+          payer_scope: 'first_top_up',
+        }),
+        expect.anything()
+      )
+    )
+  })
+
+  it('labels each campaign with the orders it rewards', async () => {
+    const start = dayjs().add(2, 'hour').startOf('minute')
+    const campaign = {
+      id: 3,
+      start_at: start.unix(),
+      end_at: start.add(1, 'day').unix(),
+      stopped_at: 0,
+      stopped_by: 0,
+      created_by: 9,
+      max_rewards_per_user: 1,
+      created_at: start.unix(),
+      status: 'planned' as const,
+    }
+    listCashbackCampaigns.mockResolvedValueOnce({
+      success: true,
+      data: [
+        { ...campaign, payer_scope: 'first_top_up' },
+        { ...campaign, id: 4, payer_scope: '' },
+      ],
+    })
+    renderCampaigns()
+
+    expect(
+      await screen.findByRole('cell', { name: 'First top-up only' })
+    ).toBeVisible()
+    expect(screen.getByRole('cell', { name: 'Every top-up' })).toBeVisible()
+  })
+
   it('shows the backend reason instead of the HTTP status when creating a campaign fails', async () => {
     const errorToast = vi.spyOn(toast, 'error').mockReturnValue('error')
     createCashbackCampaign.mockRejectedValueOnce(
@@ -847,7 +907,12 @@ describe('cashback campaigns', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create campaign' }))
     await waitFor(() =>
       expect(createCashbackCampaign).toHaveBeenCalledWith(
-        { start_at: start.unix(), end_at: end.unix(), max_rewards_per_user: 1 },
+        {
+          start_at: start.unix(),
+          end_at: end.unix(),
+          max_rewards_per_user: 1,
+          payer_scope: '',
+        },
         expect.anything()
       )
     )

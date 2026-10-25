@@ -3462,7 +3462,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Projets liés",
     "footer.defaultCopyright": "Tous droits réservés.",
-    "footer.new\u0061pi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
+    "footer.newapi.projectAttributionSuffix": "Tous droits réservés. Conçu et développé par les contributeurs du projet.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "Pour les canaux personnalisés avancés, ceci ne s’applique qu’aux routes /v1/responses sans conversion de protocole.",
     "For capacity sellers": "Pour les vendeurs de capacité",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "Pour les canaux ajoutés après le 10 mai 2025, pas besoin de supprimer \".\" des noms de modèles lors du déploiement",
@@ -8970,6 +8970,22 @@
     "Venue partner": "Partenaire du lieu",
     "Mentors & developer community": "Mentors et communauté de développeurs",
     "Fastrun Cloud": "Fastrun Cloud",
-    "Wengu Bilingual School": "École bilingue Wengu"
+    "Wengu Bilingual School": "École bilingue Wengu",
+    "{{threshold}} get {{reward}}": "{{threshold}} : {{reward}} offerts",
+    "First top-up {{tiers}}": "Première recharge : {{tiers}}",
+    "Top up {{tiers}}": "Recharge : {{tiers}}",
+    "First top-up: {{reward}} for every {{step}}": "Première recharge : {{reward}} offerts par tranche de {{step}}",
+    "Top-up: {{reward}} for every {{step}}": "Recharge : {{reward}} offerts par tranche de {{step}}",
+    "First top-up: {{percent}} back": "Première recharge : {{percent}} remboursés",
+    "Top-up: {{percent}} back": "Recharge : {{percent}} remboursés",
+    "New users get {{amount}} on sign-up": "Nouveaux utilisateurs : {{amount}} offerts à l’inscription",
+    "Current rewards": "Offres en cours",
+    "Top up now": "Recharger",
+    "Dismiss reward banner": "Fermer la bannière des offres",
+    "Eligible orders": "Commandes éligibles",
+    "First top-up only": "Première recharge uniquement",
+    "Every top-up": "Chaque recharge",
+    "Only a payer with no earlier successful top-up qualifies, once. A first top-up below every tier still uses it up.": "Seul un payeur sans recharge réussie antérieure est éligible, une seule fois. Une première recharge sous tous les paliers consomme quand même cette éligibilité.",
+    "This campaign rewards first top-ups only, and your account has topped up before.": "Cette campagne ne récompense que la première recharge, et votre compte a déjà été rechargé."
   }
 }

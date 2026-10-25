@@ -3462,7 +3462,7 @@
     "footer.columns.related.links.oneApi": "1つのAPI",
     "footer.columns.related.title": "関連プロジェクト",
     "footer.defaultCopyright": "すべての権利を留保します。",
-    "footer.new\u0061pi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
+    "footer.newapi.projectAttributionSuffix": "すべての権利を留保します。プロジェクトコントリビューターにより設計・開発されています。",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "高度なカスタムチャネルでは、プロトコル変換を行わない /v1/responses ルートにのみ適用されます。",
     "For capacity sellers": "容量の供給者向け",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "2025 年 5 月 10 日以降に追加されたチャネルの場合、デプロイ時にモデル名から「.」を削除する必要はありません",
@@ -8970,6 +8970,22 @@
     "Venue partner": "会場協力",
     "Mentors & developer community": "メンターと開発者コミュニティ",
     "Fastrun Cloud": "Fastrun Cloud",
-    "Wengu Bilingual School": "文谷バイリンガルスクール"
+    "Wengu Bilingual School": "文谷バイリンガルスクール",
+    "{{threshold}} get {{reward}}": "{{threshold}}で{{reward}}進呈",
+    "First top-up {{tiers}}": "初回チャージ {{tiers}}",
+    "Top up {{tiers}}": "チャージ {{tiers}}",
+    "First top-up: {{reward}} for every {{step}}": "初回チャージ {{step}}ごとに{{reward}}進呈",
+    "Top-up: {{reward}} for every {{step}}": "チャージ {{step}}ごとに{{reward}}進呈",
+    "First top-up: {{percent}} back": "初回チャージ {{percent}}還元",
+    "Top-up: {{percent}} back": "チャージ {{percent}}還元",
+    "New users get {{amount}} on sign-up": "新規登録で{{amount}}進呈",
+    "Current rewards": "現在の特典",
+    "Top up now": "チャージする",
+    "Dismiss reward banner": "特典バナーを閉じる",
+    "Eligible orders": "対象注文",
+    "First top-up only": "初回チャージのみ",
+    "Every top-up": "すべてのチャージ",
+    "Only a payer with no earlier successful top-up qualifies, once. A first top-up below every tier still uses it up.": "過去に成功したチャージがない支払者のみ、1回限り対象です。初回チャージがどの段階にも届かなくても、初回の資格は消費されます。",
+    "This campaign rewards first top-ups only, and your account has topped up before.": "このキャンペーンは初回チャージのみが対象で、お客様のアカウントは既にチャージ済みです。"
   }
 }

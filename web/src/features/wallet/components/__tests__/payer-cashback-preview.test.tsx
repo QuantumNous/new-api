@@ -599,6 +599,32 @@ test('preset cashback hints stay hidden when the payer cannot receive cashback',
   expect(screen.queryByText(/^Cashback /)).not.toBeInTheDocument()
 })
 
+test('a payer who topped up before is told the campaign is for first top-ups only', async () => {
+  api.defaults.adapter = async (config) => ({
+    config,
+    status: 200,
+    statusText: 'OK',
+    headers: {},
+    data: {
+      success: true,
+      data: {
+        status: 'not_first_top_up',
+        strategy: 'tiered',
+        tiers: [{ threshold_cents: 10000, reward_cents: 500 }],
+        reward_quota: 0,
+        as_of: 1,
+      },
+    },
+  })
+  renderCnyRechargeForm(250)
+  expect(
+    await screen.findByText(
+      'This campaign rewards first top-ups only, and your account has topped up before.'
+    )
+  ).toBeVisible()
+  expect(screen.queryByText(/^Cashback /)).not.toBeInTheDocument()
+})
+
 test('a capped estimate explains the rule amount and the limit that reduced it', async () => {
   api.defaults.adapter = async (config) => ({
     config,

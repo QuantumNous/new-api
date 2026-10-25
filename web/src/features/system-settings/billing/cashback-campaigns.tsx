@@ -34,6 +34,7 @@ import { Button } from '@/components/ui/button'
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -41,6 +42,7 @@ import {
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Switch } from '@/components/ui/switch'
 import { handleServerError } from '@/lib/handle-server-error'
 import { createServerError } from '@/lib/server-error-message'
 
@@ -49,6 +51,10 @@ import {
   listCashbackCampaigns,
   stopCashbackCampaign,
 } from '../api'
+import {
+  SettingsSwitchContent,
+  SettingsSwitchItem,
+} from '../components/settings-form-layout'
 import { SettingsSection } from '../components/settings-section'
 import type { CashbackCampaign } from '../types'
 
@@ -58,6 +64,14 @@ type CampaignValues = {
   start: string
   end: string
   maxRewardsPerUser: number
+  firstTopUpOnly: boolean
+}
+
+const emptyCampaign: CampaignValues = {
+  start: '',
+  end: '',
+  maxRewardsPerUser: 1,
+  firstTopUpOnly: false,
 }
 
 export function CashbackCampaigns() {
@@ -74,6 +88,7 @@ export function CashbackCampaigns() {
         .int(t('Reward limit must be a whole number'))
         .min(1, t('Reward limit must be between 1 and 100000'))
         .max(100000, t('Reward limit must be between 1 and 100000')),
+      firstTopUpOnly: z.boolean(),
     })
     .superRefine((values, context) => {
       if (
@@ -101,8 +116,9 @@ export function CashbackCampaigns() {
     })
   const form = useForm<CampaignValues>({
     resolver: zodResolver(schema),
-    defaultValues: { start: '', end: '', maxRewardsPerUser: 1 },
+    defaultValues: emptyCampaign,
   })
+  const firstTopUpOnly = form.watch('firstTopUpOnly')
   const query = useQuery({
     queryKey: campaignKey,
     queryFn: async () => {
@@ -147,12 +163,16 @@ export function CashbackCampaigns() {
       const response = await create.mutateAsync({
         start_at: Math.floor(new Date(values.start).getTime() / 1000),
         end_at: Math.floor(new Date(values.end).getTime() / 1000),
-        max_rewards_per_user: values.maxRewardsPerUser,
+        // A first top-up happens once, so the server requires a limit of 1.
+        max_rewards_per_user: values.firstTopUpOnly
+          ? 1
+          : values.maxRewardsPerUser,
+        payer_scope: values.firstTopUpOnly ? 'first_top_up' : '',
       })
       if (!response.success || !response.data) {
         throw createServerError(response, t('Failed to create campaign'))
       }
-      form.reset({ start: '', end: '', maxRewardsPerUser: 1 })
+      form.reset(emptyCampaign)
       toast.success(t('Campaign created'))
     } catch (error) {
       handleServerError(error, t('Failed to create campaign'))
@@ -180,6 +200,14 @@ export function CashbackCampaigns() {
           {dayjs.unix(row.end_at).format('YYYY-MM-DD HH:mm')}
         </span>
       ),
+    },
+    {
+      id: 'scope',
+      header: t('Eligible orders'),
+      cell: (row: CashbackCampaign) =>
+        row.payer_scope === 'first_top_up'
+          ? t('First top-up only')
+          : t('Every top-up'),
     },
     {
       id: 'limit',
@@ -270,6 +298,28 @@ export function CashbackCampaigns() {
         >
           <FormField
             control={form.control}
+            name='firstTopUpOnly'
+            render={({ field }) => (
+              <SettingsSwitchItem className='sm:col-span-2 lg:col-span-4'>
+                <SettingsSwitchContent>
+                  <FormLabel>{t('First top-up only')}</FormLabel>
+                  <FormDescription>
+                    {t(
+                      'Only a payer with no earlier successful top-up qualifies, once. A first top-up below every tier still uses it up.'
+                    )}
+                  </FormDescription>
+                </SettingsSwitchContent>
+                <FormControl>
+                  <Switch
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+              </SettingsSwitchItem>
+            )}
+          />
+          <FormField
+            control={form.control}
             name='start'
             render={({ field }) => (
               <FormItem>
@@ -307,6 +357,8 @@ export function CashbackCampaigns() {
                     max={100000}
                     step={1}
                     {...field}
+                    value={firstTopUpOnly ? 1 : field.value}
+                    disabled={firstTopUpOnly}
                   />
                 </FormControl>
                 <FormMessage />

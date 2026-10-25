@@ -23,6 +23,8 @@ export type CashbackPublicOffer = {
   rate_bps?: number
   fixed_per_hundred?: number
   tiers?: CashbackTier[]
+  /** Payer offers only; absent means every eligible order is rewarded. */
+  payer_scope?: 'first_top_up' | ''
 }
 export type CashbackPublicOffers = {
   active: boolean

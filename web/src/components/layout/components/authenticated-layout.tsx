@@ -49,7 +49,11 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
       <SearchProvider>
         <SidebarProvider
           defaultOpen={defaultOpen}
-          className={cn('dopa-console flex-col', 'dopa-console--developer')}
+          className={cn(
+            'dopa-console flex-col',
+            'dopa-console--developer',
+            'min-h-[calc(100svh-var(--reward-banner-height,0px))]'
+          )}
           data-console-mode='developer'
         >
           <SkipToMain />
@@ -59,9 +63,9 @@ export function AuthenticatedLayout(props: AuthenticatedLayoutProps) {
             <SidebarInset
               className={cn(
                 '@container/content dopa-console-page',
-                'h-[calc(100svh-var(--app-header-height,0px))]',
+                'h-[calc(100svh-var(--app-header-height,0px)-var(--reward-banner-height,0px))]',
                 'min-h-0 overflow-hidden',
-                'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-(var(--spacing)*4))]'
+                'peer-data-[variant=inset]:h-[calc(100svh-var(--app-header-height,0px)-var(--reward-banner-height,0px)-(var(--spacing)*4))]'
               )}
             >
               {outlet}

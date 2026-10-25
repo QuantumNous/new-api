@@ -3474,7 +3474,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "Related Projects",
     "footer.defaultCopyright": "All rights reserved.",
-    "footer.new\u0061pi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
+    "footer.newapi.projectAttributionSuffix": "All rights reserved. Designed and developed by the project contributors.",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.",
     "For capacity sellers": "For capacity sellers",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment",
@@ -8982,6 +8982,22 @@
     "Venue partner": "Venue partner",
     "Mentors & developer community": "Mentors & developer community",
     "Fastrun Cloud": "Fastrun Cloud",
-    "Wengu Bilingual School": "Wengu Bilingual School"
+    "Wengu Bilingual School": "Wengu Bilingual School",
+    "{{threshold}} get {{reward}}": "{{threshold}} get {{reward}}",
+    "First top-up {{tiers}}": "First top-up {{tiers}}",
+    "Top up {{tiers}}": "Top up {{tiers}}",
+    "First top-up: {{reward}} for every {{step}}": "First top-up: {{reward}} for every {{step}}",
+    "Top-up: {{reward}} for every {{step}}": "Top-up: {{reward}} for every {{step}}",
+    "First top-up: {{percent}} back": "First top-up: {{percent}} back",
+    "Top-up: {{percent}} back": "Top-up: {{percent}} back",
+    "New users get {{amount}} on sign-up": "New users get {{amount}} on sign-up",
+    "Current rewards": "Current rewards",
+    "Top up now": "Top up now",
+    "Dismiss reward banner": "Dismiss reward banner",
+    "Eligible orders": "Eligible orders",
+    "First top-up only": "First top-up only",
+    "Every top-up": "Every top-up",
+    "Only a payer with no earlier successful top-up qualifies, once. A first top-up below every tier still uses it up.": "Only a payer with no earlier successful top-up qualifies, once. A first top-up below every tier still uses it up.",
+    "This campaign rewards first top-ups only, and your account has topped up before.": "This campaign rewards first top-ups only, and your account has topped up before."
   }
 }

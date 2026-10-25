@@ -180,6 +180,8 @@ export interface SystemStatus {
   privacy_policy_enabled?: boolean
   oauth_register_enabled?: boolean
   register_enabled?: boolean
+  /** Wallet quota granted to every new registration; 0 when disabled. */
+  quota_for_new_user?: number
   password_login_enabled?: boolean
   password_login_encryption_enabled?: boolean
   password_register_enabled?: boolean

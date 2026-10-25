@@ -4822,7 +4822,7 @@ html:not([data-theme='light']) .ci-publicHeaderScope .ci-header {
     right: 0;
     left: 0;
     display: none;
-    height: calc(100dvh - 60px);
+    height: calc(100dvh - 60px - var(--reward-banner-height, 0px));
     align-items: stretch;
     justify-content: flex-start;
     padding: 8px 14px 16px;
@@ -5477,8 +5477,9 @@ html:lang(zh-TW) .ci-finalCta h2 i {
   grid-template-columns: 248px minmax(0, 1fr);
   transition: grid-template-columns var(--ci-sidebar-motion)
     var(--ci-sidebar-ease);
-  height: 100svh;
-  min-height: 100svh;
+  /* The site-wide reward banner sits above the shell. */
+  height: calc(100svh - var(--reward-banner-height, 0px));
+  min-height: calc(100svh - var(--reward-banner-height, 0px));
   overflow: hidden;
   /* A faint brand aurora sits behind the sidebar and top bar. */
   background:
@@ -5503,7 +5504,7 @@ html:lang(zh-TW) .ci-finalCta h2 i {
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  max-height: 100svh;
+  max-height: calc(100svh - var(--reward-banner-height, 0px));
   overflow: hidden;
   border-right: 1px solid var(--ci-color-border-subtle);
   background: color-mix(in srgb, var(--ci-color-surface) 64%, transparent);
@@ -6775,6 +6776,8 @@ html:lang(zh-TW) .ci-finalCta h2 i {
     inset: 0 auto 0 0;
     z-index: 60;
     width: min(248px, 86vw);
+    /* The drawer overlays the reward banner, so it spans the full viewport. */
+    max-height: 100svh;
     box-shadow: var(--ci-shadow-lg);
   }
   .ci-app:not(.ci-app--collapsed) .ci-appSidebar {

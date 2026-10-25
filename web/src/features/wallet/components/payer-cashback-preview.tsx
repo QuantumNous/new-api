@@ -101,6 +101,11 @@ export function PayerCashbackPreviewView(props: ViewProps) {
       case 'limit_reached':
         message = t('Your cashback campaign limit has been reached.')
         break
+      case 'not_first_top_up':
+        message = t(
+          'This campaign rewards first top-ups only, and your account has topped up before.'
+        )
+        break
       case 'cap_exhausted':
         message = t(
           'Your cashback allowance for the past 24 hours is exhausted.'

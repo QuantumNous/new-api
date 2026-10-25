@@ -40,6 +40,7 @@ export interface PayerCashbackPreview {
     | 'no_campaign'
     | 'ineligible'
     | 'limit_reached'
+    | 'not_first_top_up'
     | 'select_amount'
     | 'below_minimum'
     | 'rounds_to_zero'

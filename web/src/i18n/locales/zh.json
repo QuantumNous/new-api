@@ -3474,7 +3474,7 @@
     "footer.columns.related.links.oneApi": "One API",
     "footer.columns.related.title": "相关项目",
     "footer.defaultCopyright": "版权所有。",
-    "footer.new\u0061pi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
+    "footer.newapi.projectAttributionSuffix": "版权所有，由项目贡献者设计与开发。",
     "For advanced custom channels this applies only to /v1/responses routes without protocol conversion.": "高级自定义渠道仅对 /v1/responses 且不做协议转换的路由生效。",
     "For capacity sellers": "算力供给方",
     "For channels added after May 10, 2025, no need to remove \".\" from model names during deployment": "对于 2025 年 5 月 10 日之后添加的渠道，在部署时无需从模型名称中移除 \".\"",
@@ -8982,6 +8982,22 @@
     "Venue partner": "场地支持",
     "Mentors & developer community": "导师与开发者社群",
     "Fastrun Cloud": "快跑云",
-    "Wengu Bilingual School": "文谷双语学校"
+    "Wengu Bilingual School": "文谷双语学校",
+    "{{threshold}} get {{reward}}": "{{threshold}} 送 {{reward}}",
+    "First top-up {{tiers}}": "首充 {{tiers}}",
+    "Top up {{tiers}}": "充值 {{tiers}}",
+    "First top-up: {{reward}} for every {{step}}": "首充每满 {{step}} 送 {{reward}}",
+    "Top-up: {{reward}} for every {{step}}": "充值每满 {{step}} 送 {{reward}}",
+    "First top-up: {{percent}} back": "首充返 {{percent}}",
+    "Top-up: {{percent}} back": "充值返 {{percent}}",
+    "New users get {{amount}} on sign-up": "新用户注册送 {{amount}}",
+    "Current rewards": "当前奖励",
+    "Top up now": "去充值",
+    "Dismiss reward banner": "关闭奖励横幅",
+    "Eligible orders": "适用订单",
+    "First top-up only": "仅限首充",
+    "Every top-up": "每笔充值",
+    "Only a payer with no earlier successful top-up qualifies, once. A first top-up below every tier still uses it up.": "只有从未成功充值过的用户可获得一次奖励。首笔充值即使未达到任何档位，也算已用掉首充资格。",
+    "This campaign rewards first top-ups only, and your account has topped up before.": "本活动仅奖励首次充值，你的账户之前已充值过。"
   }
 }

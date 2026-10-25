@@ -33,6 +33,7 @@ import { ThemeCustomizationProvider } from '@/context/theme-customization-provid
 import { saveAffiliateCode } from '@/features/auth/lib/storage'
 import { GeneralError } from '@/features/errors/general-error'
 import { NotFoundError } from '@/features/errors/not-found-error'
+import { RewardBanner } from '@/features/reward-banner'
 import { getSetupStatus } from '@/features/setup/api'
 import { useSystemConfig } from '@/hooks/use-system-config'
 import {
@@ -96,6 +97,7 @@ function RootComponent() {
   return (
     <ThemeCustomizationProvider>
       <NavigationProgress />
+      <RewardBanner />
       <Outlet />
       <Toaster closeButton duration={5000} position='top-center' richColors />
       {import.meta.env.MODE === 'development' && (
