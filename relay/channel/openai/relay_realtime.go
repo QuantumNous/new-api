@@ -16,6 +16,8 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// OpenaiRealtimeHandler relays websocket events and returns cumulative usage
+// accepted by quota reservation for the final session settlement.
 func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.NewAPIError, *dto.RealtimeUsage) {
 	if info == nil || info.ClientWs == nil || info.TargetWs == nil {
 		return types.NewError(fmt.Errorf("invalid websocket connection"), types.ErrorCodeBadResponse), nil
@@ -224,6 +226,8 @@ func OpenaiRealtimeHandler(c *gin.Context, info *relaycommon.RelayInfo) (*types.
 	return nil, sumUsage
 }
 
+// preConsumeUsage commits a turn to the session total only after reserving it.
+// A rejected turn is cleared so shutdown cannot submit the same usage again.
 func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.RealtimeUsage, totalUsage *dto.RealtimeUsage) error {
 	if usage == nil || totalUsage == nil {
 		return fmt.Errorf("invalid usage pointer")

@@ -1596,9 +1596,8 @@ func TestPostTextConsumeQuotaLogsMissingUsageAsStructuredContent(t *testing.T) {
 	}, other["content_parts"])
 }
 
-// Realtime settlement must leave the wallet, token, and consume log equal to
-// one absolute charge for the cumulative session. The websocket caller passes
-// the upstream model name; the log must still record the billing model.
+// TestRealtimeSessionSettlement checks that wallet, token, and log reflect one
+// cumulative charge, including rejected reservations, refunds, and model aliases.
 func TestRealtimeSessionSettlement(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	// Refunds settle asynchronously through model.DB, so this test uses the
@@ -1978,6 +1977,7 @@ type realtimeSession struct {
 	channelID, subID int
 }
 
+// realtimeTurn constructs consistent totals and text/audio details for one turn.
 func realtimeTurn(textIn, textOut, audioIn, audioOut int) *dto.RealtimeUsage {
 	return &dto.RealtimeUsage{
 		InputTokens:        textIn + audioIn,
@@ -1988,10 +1988,12 @@ func realtimeTurn(textIn, textOut, audioIn, audioOut int) *dto.RealtimeUsage {
 	}
 }
 
+// finishRealtimeSession exercises the same final settlement entry point as the websocket relay.
 func finishRealtimeSession(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.RealtimeUsage) {
 	PostWssConsumeQuota(ctx, info, usage, nil)
 }
 
+// assertBooks checks persisted wallet, token, request, and channel accounting together.
 func (s *realtimeSession) assertBooks(t *testing.T, wallet, tokenRemain, used, requests int, channelUsed int64) {
 	t.Helper()
 	var user model.User
@@ -2007,6 +2009,7 @@ func (s *realtimeSession) assertBooks(t *testing.T, wallet, tokenRemain, used, r
 	assert.Equal(t, channelUsed, channel.UsedQuota, "channel used")
 }
 
+// assertSub checks the subscription amount consumed by this realtime session.
 func (s *realtimeSession) assertSub(t *testing.T, used int64) {
 	t.Helper()
 	var sub model.UserSubscription
@@ -2014,6 +2017,7 @@ func (s *realtimeSession) assertSub(t *testing.T, used int64) {
 	assert.Equal(t, used, sub.AmountUsed)
 }
 
+// assertLog checks the single consumption record and its timeout/refund classification.
 func (s *realtimeSession) assertLog(t *testing.T, quota int, modelName string, timeout bool) model.Log {
 	t.Helper()
 	var logs []model.Log

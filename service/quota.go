@@ -119,6 +119,8 @@ func realtimeSessionQuota(relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeU
 	return q, nil, audioClamp
 }
 
+// PreWssConsumeQuota reserves the cumulative realtime charge without settling it.
+// The accepted quota advances only when any required reservation succeeds.
 func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeUsage) error {
 	if relayInfo == nil || usage == nil || relayInfo.PriceData.FreeModel {
 		return nil
@@ -140,6 +142,8 @@ func PreWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usag
 	return nil
 }
 
+// PostWssConsumeQuota settles and logs the final cumulative realtime charge.
+// Empty usage refunds an uncommitted session but preserves an accepted charge.
 func PostWssConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.RealtimeUsage, extraContent []*common.Message) {
 	if usage == nil {
 		usage = &dto.RealtimeUsage{}
@@ -256,6 +260,8 @@ func CalcOpenRouterCacheCreateTokens(usage dto.Usage, priceData types.PriceData)
 	return quota
 }
 
+// PostAudioConsumeQuota settles audio usage with the request's snapshotted pricing,
+// including ModelPrice for fixed-price requests, and records the consumption log.
 func PostAudioConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, usage *dto.Usage, extraContent []*common.Message) {
 	if usage == nil {
 		usage = &dto.Usage{PromptTokens: relayInfo.GetEstimatePromptTokens(), TotalTokens: relayInfo.GetEstimatePromptTokens()}

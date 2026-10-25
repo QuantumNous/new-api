@@ -164,6 +164,8 @@ func (s *BillingSession) ReserveBeforeSubmit(targetQuota int) error {
 	return s.reserve(targetQuota, true)
 }
 
+// reserve raises funding and token holds to the cumulative target quota.
+// Image and realtime requests require available funds even for trusted sessions.
 func (s *BillingSession) reserve(targetQuota int, requireAvailableQuota bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

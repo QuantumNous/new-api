@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// WssHelper connects the realtime adaptor and settles its cumulative usage when the relay completes.
 func WssHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *types.NewAPIError) {
 	info.InitChannelMeta(c)
 
