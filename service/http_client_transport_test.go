@@ -561,6 +561,31 @@ func TestCloseIdleConnectionsRedialsHTTP2(t *testing.T) {
 	assert.NotEqual(t, addrs[0], addrs[1], "after CloseIdleConnections the next request must redial")
 }
 
+func TestSystemProxyFillsOnlyAnEmptyChannelProxy(t *testing.T) {
+	initDefaultHTTPClientFixture(t)
+	previous := common.SystemProxy
+	t.Cleanup(func() { common.SystemProxy = previous })
+
+	common.SystemProxy = ""
+	direct, err := GetHttpClientWithProxySettings("", dto.ChannelSettings{})
+	require.NoError(t, err)
+	assert.Same(t, GetHttpClient(), direct)
+
+	common.SystemProxy = "http://system-proxy.example:8080"
+	fallback, err := GetHttpClientWithProxySettings("", dto.ChannelSettings{})
+	require.NoError(t, err)
+	system, err := GetHttpClientWithProxy("http://system-proxy.example:8080")
+	require.NoError(t, err)
+	assert.Same(t, system, fallback)
+	assert.Same(t, system, GetHttpClient())
+
+	channel, err := GetHttpClientWithProxySettings("http://channel-proxy.example:8080", dto.ChannelSettings{})
+	require.NoError(t, err)
+	assert.NotSame(t, fallback, channel)
+	assert.Equal(t, "http://channel-proxy.example:8080", EffectiveOutboundProxy("http://channel-proxy.example:8080"))
+	assert.Equal(t, "http://system-proxy.example:8080", EffectiveOutboundProxy("  "))
+}
+
 func TestNormalizeHTTPTransportPolicyClampsWithoutPanic(t *testing.T) {
 	assert.Equal(t, defaultHTTPTransportPolicy(), NormalizeHTTPTransportPolicy(dto.ChannelSettings{}))
 	assert.Equal(t, HTTPTransportPolicy{Protocol: dto.HTTPProtocolAuto, Shards: 1}, NormalizeHTTPTransportPolicy(dto.ChannelSettings{HTTPProtocol: "AUTO"}))

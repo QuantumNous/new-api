@@ -150,7 +150,21 @@ func InitHttpClient() {
 // self-hosted services, or local proxies. Code paths that fetch arbitrary
 // user-controlled URLs must use GetSSRFProtectedHTTPClient or
 // ValidateSSRFProtectedFetchURL instead.
+// EffectiveOutboundProxy returns the channel proxy when set, otherwise the
+// system proxy. An empty result keeps the process environment proxy.
+func EffectiveOutboundProxy(channelProxy string) string {
+	if proxy := strings.TrimSpace(channelProxy); proxy != "" {
+		return proxy
+	}
+	return strings.TrimSpace(common.SystemProxy)
+}
+
 func GetHttpClient() *http.Client {
+	if proxy := strings.TrimSpace(common.SystemProxy); proxy != "" {
+		if client, err := GetHttpClientWithProxy(proxy); err == nil && client != nil {
+			return client
+		}
+	}
 	return httpClient
 }
 
@@ -391,7 +405,7 @@ func GetHttpClientWithProxy(rawProxyURL string) (*http.Client, error) {
 // GetHttpClientWithProxy / GetHttpClient for the empty-proxy case.
 func GetHttpClientWithProxySettings(rawProxyURL string, settings dto.ChannelSettings) (*http.Client, error) {
 	policy := NormalizeHTTPTransportPolicy(settings)
-	trimmedProxyURL := strings.TrimSpace(rawProxyURL)
+	trimmedProxyURL := EffectiveOutboundProxy(rawProxyURL)
 
 	if trimmedProxyURL == "" {
 		return getOrCreateDirectClient(policy)

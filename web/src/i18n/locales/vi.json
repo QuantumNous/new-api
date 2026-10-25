@@ -1,5 +1,8 @@
 {
   "translation": {
+    "System Proxy": "Proxy hệ thống",
+    "Outbound proxy used when a channel does not set its own. Supports HTTP, HTTPS, SOCKS5, and SOCKS5H. Leave empty to keep direct connections or the process environment proxy.": "Proxy đầu ra khi kênh không tự đặt proxy. Hỗ trợ HTTP, HTTPS, SOCKS5 và SOCKS5H. Để trống để giữ kết nối trực tiếp hoặc proxy môi trường.",
+    "Invalid system proxy": "Proxy hệ thống không hợp lệ",
     "360": "360",
     "1000": "1000",
     "10000": "10000",

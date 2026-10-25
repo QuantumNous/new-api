@@ -407,8 +407,8 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	}
 	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
 	dialer := *websocket.DefaultDialer
-	if info.ChannelSetting.Proxy != "" {
-		proxyURL, _, proxyErr := common2.ParseProxyURLRuntime(info.ChannelSetting.Proxy)
+	if proxyValue := service.EffectiveOutboundProxy(info.ChannelSetting.Proxy); proxyValue != "" {
+		proxyURL, _, proxyErr := common2.ParseProxyURLRuntime(proxyValue)
 		if proxyErr != nil {
 			return nil, proxyErr
 		}
