@@ -155,6 +155,8 @@ func (s *BillingSession) GetPreConsumedQuota() int {
 	return s.preConsumedQuota
 }
 
+// Reserve raises the session hold to an absolute target without settling it.
+// Realtime requests still require available quota when the session is trusted.
 func (s *BillingSession) Reserve(targetQuota int) error {
 	return s.reserve(targetQuota, false)
 }
