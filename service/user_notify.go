@@ -13,38 +13,56 @@ import (
 	"github.com/QuantumNous/new-api/setting/system_setting"
 )
 
-func NotifyRootUser(t string, subject string, content string) {
-	user := model.GetRootUser().ToBaseUser()
-	err := NotifyUser(user.Id, user.Email, user.GetSetting(), dto.NewNotify(t, subject, content, nil))
-	if err != nil {
-		common.SysLog(fmt.Sprintf("failed to notify root user: %s", err.Error()))
-	}
+// NotifyChannelWatchers sends a channel notice (a channel disabled or enabled
+// automatically, or a test of all channels finished) to every administrator
+// who receives channel notices. Until they choose, the root user receives them
+// and other administrators do not. render builds the subject and content in
+// the recipient's saved language; an empty language means DEFAULT_LANGUAGE.
+func NotifyChannelWatchers(notifyType string, render func(lang string) (subject string, content string)) {
+	notifyAdmins(notifyType, func(role int, setting dto.UserSetting) bool {
+		if setting.ChannelNotifyEnabled != nil {
+			return *setting.ChannelNotifyEnabled
+		}
+		return role == common.RoleRootUser
+	}, render)
 }
 
-func NotifyUpstreamModelUpdateWatchers(subject string, content string) {
+// NotifyUpstreamModelUpdateWatchers sends the upstream model update notice to
+// every administrator who enabled it. render builds the subject and content in
+// the recipient's saved language; an empty language means DEFAULT_LANGUAGE.
+func NotifyUpstreamModelUpdateWatchers(render func(lang string) (subject string, content string)) {
+	sentCount := notifyAdmins(dto.NotifyTypeChannelUpdate, func(_ int, setting dto.UserSetting) bool {
+		return setting.UpstreamModelUpdateNotifyEnabled
+	}, render)
+	common.SysLog(common.LogText("upstream model update notifications sent: %d", sentCount))
+}
+
+// notifyAdmins sends a notice to each enabled administrator for whom receives
+// returns true, and returns how many notices it sent.
+func notifyAdmins(notifyType string, receives func(role int, setting dto.UserSetting) bool, render func(lang string) (subject string, content string)) int {
 	var users []model.User
 	if err := model.DB.
 		Select("id", "email", "role", "status", "setting").
 		Where("status = ? AND role >= ?", common.UserStatusEnabled, common.RoleAdminUser).
 		Find(&users).Error; err != nil {
-		common.SysLog(fmt.Sprintf("failed to query upstream update notification users: %s", err.Error()))
-		return
+		common.SysLog(common.LogText("failed to query administrators to notify: %s", err.Error()))
+		return 0
 	}
 
-	notification := dto.NewNotify(dto.NotifyTypeChannelUpdate, subject, content, nil)
 	sentCount := 0
 	for _, user := range users {
 		userSetting := user.GetSetting()
-		if !userSetting.UpstreamModelUpdateNotifyEnabled {
+		if !receives(user.Role, userSetting) {
 			continue
 		}
-		if err := NotifyUser(user.Id, user.Email, userSetting, notification); err != nil {
-			common.SysLog(fmt.Sprintf("failed to notify user %d for upstream model update: %s", user.Id, err.Error()))
+		subject, content := render(userSetting.Language)
+		if err := NotifyUser(user.Id, user.Email, userSetting, dto.NewNotify(notifyType, subject, content, nil)); err != nil {
+			common.SysLog(common.LogText("failed to send notice %s to user %d: %s", notifyType, user.Id, err.Error()))
 			continue
 		}
 		sentCount++
 	}
-	common.SysLog(fmt.Sprintf("upstream model update notifications sent: %d", sentCount))
+	return sentCount
 }
 
 func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data dto.Notify) error {
@@ -56,7 +74,7 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 	// Check notification limit
 	canSend, err := CheckNotificationLimit(userId, data.Type)
 	if err != nil {
-		common.SysLog(fmt.Sprintf("failed to check notification limit: %s", err.Error()))
+		common.SysLog(common.LogText("failed to check notification limit: %s", err.Error()))
 		return err
 	}
 	if !canSend {
@@ -71,14 +89,14 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 			emailToUse = userEmail
 		}
 		if emailToUse == "" {
-			common.SysLog(fmt.Sprintf("user %d has no email, skip sending email", userId))
+			common.SysLog(common.LogText("user %d has no email, skip sending email", userId))
 			return nil
 		}
 		return sendEmailNotify(emailToUse, data)
 	case dto.NotifyTypeWebhook:
 		webhookURLStr := userSetting.WebhookUrl
 		if webhookURLStr == "" {
-			common.SysLog(fmt.Sprintf("user %d has no webhook url, skip sending webhook", userId))
+			common.SysLog(common.LogText("user %d has no webhook url, skip sending webhook", userId))
 			return nil
 		}
 
@@ -88,7 +106,7 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 	case dto.NotifyTypeBark:
 		barkURL := userSetting.BarkUrl
 		if barkURL == "" {
-			common.SysLog(fmt.Sprintf("user %d has no bark url, skip sending bark", userId))
+			common.SysLog(common.LogText("user %d has no bark url, skip sending bark", userId))
 			return nil
 		}
 		return sendBarkNotify(barkURL, data)
@@ -96,7 +114,7 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 		gotifyUrl := userSetting.GotifyUrl
 		gotifyToken := userSetting.GotifyToken
 		if gotifyUrl == "" || gotifyToken == "" {
-			common.SysLog(fmt.Sprintf("user %d has no gotify url or token, skip sending gotify", userId))
+			common.SysLog(common.LogText("user %d has no gotify url or token, skip sending gotify", userId))
 			return nil
 		}
 		return sendGotifyNotify(gotifyUrl, gotifyToken, userSetting.GotifyPriority, data)

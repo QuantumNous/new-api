@@ -1,11 +1,13 @@
 package gemini
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
+	"github.com/QuantumNous/new-api/relaykit/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -103,7 +105,7 @@ func TestConvertOpenAIResponsesRequestToGeminiFunctionCallConversation(t *testin
 	assert.Equal(t, map[string]any{"ok": true}, got.Contents[1].Parts[0].FunctionResponse.Response)
 }
 
-func TestConvertOpenAIResponsesRequestToGeminiSkipsCustomToolCalls(t *testing.T) {
+func TestConvertOpenAIResponsesRequestToGeminiKeepsCustomToolCalls(t *testing.T) {
 	got := mustConvertResponsesToGemini(t, dto.OpenAIResponsesRequest{
 		Model: "gemini-test",
 		Input: mustGeminiRawMessage(t, []map[string]any{
@@ -140,17 +142,34 @@ func TestConvertOpenAIResponsesRequestToGeminiSkipsCustomToolCalls(t *testing.T)
 		}),
 	})
 
-	assert.Empty(t, got.GetTools())
-	require.Len(t, got.Contents, 2)
+	// The cleaned schema has no additionalProperties, and the unknown tool is dropped.
+	assert.JSONEq(t, `[{"functionDeclarations":[{
+		"name":"apply_patch",
+		"description":"This tool takes freeform text. Put the complete raw text in the \"input\" argument.",
+		"parameters":{"type":"OBJECT","properties":{"input":{"type":"STRING","description":"Raw input for the tool."}},"required":["input"]}
+	}]}]`, string(got.Tools))
+
+	require.Len(t, got.Contents, 3)
 	assert.Equal(t, "model", got.Contents[0].Role)
-	require.Len(t, got.Contents[0].Parts, 1)
-	assert.Equal(t, "before custom", got.Contents[0].Parts[0].Text)
-	assert.Nil(t, got.Contents[0].Parts[0].FunctionCall)
+	require.Len(t, got.Contents[0].Parts, 2)
+	require.NotNil(t, got.Contents[0].Parts[0].FunctionCall)
+	assert.Equal(t, "apply_patch", got.Contents[0].Parts[0].FunctionCall.FunctionName)
+	assert.Equal(t, map[string]any{"input": "patch body"}, got.Contents[0].Parts[0].FunctionCall.Arguments)
+	assert.Equal(t, "before custom", got.Contents[0].Parts[1].Text)
 
 	assert.Equal(t, "user", got.Contents[1].Role)
-	require.Len(t, got.Contents[1].Parts, 1)
-	assert.Equal(t, "next turn", got.Contents[1].Parts[0].Text)
-	assert.Nil(t, got.Contents[1].Parts[0].FunctionResponse)
+	require.Len(t, got.Contents[1].Parts, 2)
+	for i, output := range []string{"ok", "legacy custom output"} {
+		response := got.Contents[1].Parts[i].FunctionResponse
+		require.NotNil(t, response)
+		assert.Equal(t, "apply_patch", response.Name)
+		assert.Equal(t, map[string]any{"content": output}, response.Response)
+		assert.JSONEq(t, `"call_custom"`, string(response.ID))
+	}
+
+	assert.Equal(t, "user", got.Contents[2].Role)
+	require.Len(t, got.Contents[2].Parts, 1)
+	assert.Equal(t, "next turn", got.Contents[2].Parts[0].Text)
 }
 
 func mustConvertResponsesToGemini(t *testing.T, req dto.OpenAIResponsesRequest) *dto.GeminiChatRequest {
@@ -173,4 +192,27 @@ func mustGeminiRawMessage(t *testing.T, value any) []byte {
 	raw, err := common.Marshal(value)
 	require.NoError(t, err)
 	return raw
+}
+
+// Gemini embeds plain text only. A content part fails the request with a 400
+// that skips retries, because the request estimate billed for this channel
+// counts parts Gemini would never receive.
+func TestConvertEmbeddingRequestRejectsContentParts(t *testing.T) {
+	imagePart := map[string]any{"type": "image_url", "image_url": map[string]any{"url": "https://example.com/cat.png"}}
+	textPart := map[string]any{"type": "text", "text": "a cat"}
+	for _, input := range []any{[]any{"a cat", imagePart}, []any{textPart}} {
+		info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gemini-embedding-001"}}
+		_, err := (&Adaptor{}).ConvertEmbeddingRequest(nil, info, dto.EmbeddingRequest{Model: "gemini-embedding-001", Input: input})
+		var apiErr *types.NewAPIError
+		require.ErrorAs(t, err, &apiErr)
+		assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
+		assert.True(t, types.IsSkipRetryError(apiErr))
+	}
+
+	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{UpstreamModelName: "gemini-embedding-001"}}
+	got, err := (&Adaptor{}).ConvertEmbeddingRequest(nil, info, dto.EmbeddingRequest{Model: "gemini-embedding-001", Input: []any{"a cat", "a dog"}})
+	require.NoError(t, err)
+	wire, err := common.Marshal(got)
+	require.NoError(t, err)
+	assert.JSONEq(t, `["a cat","a dog"]`, gjson.GetBytes(wire, "requests.#.content.parts.0.text").Raw)
 }

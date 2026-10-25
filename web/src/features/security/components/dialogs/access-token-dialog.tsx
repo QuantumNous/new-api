@@ -35,10 +35,8 @@ export function AccessTokenDialog(props: {
       onOpenChange={(open) => {
         if (!open) props.onClose()
       }}
-      title={t('Access Token')}
-      description={t(
-        "Save this token now. You won't be able to view it again after closing this dialog."
-      )}
+      title={t('Access tokens')}
+      description={t('Copy this token now. It will not be shown again.')}
       contentClassName='sm:max-w-md'
       contentHeight='auto'
       footer={<Button onClick={props.onClose}>{t('Close')}</Button>}

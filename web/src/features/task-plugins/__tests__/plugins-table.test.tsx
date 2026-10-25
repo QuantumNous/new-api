@@ -222,6 +222,45 @@ test('confirmed disable blocked by usage opens the existing cascade confirmation
   )
 })
 
+test('usage dialog offers one cancel button and force operation posts force params', async () => {
+  const user = userEvent.setup()
+  const post = vi
+    .spyOn(api, 'post')
+    .mockResolvedValueOnce({
+      data: {
+        success: false,
+        message: 'Plugin in use',
+        data: {
+          channels: [{ id: 7, name: 'Video channel' }],
+          in_flight_count: 0,
+        },
+      },
+    })
+    .mockResolvedValueOnce({ data: { success: true, data: null } })
+  await user.click(renderPlugins(true))
+  await user.click(
+    within(
+      await screen.findByRole('alertdialog', { name: 'Disable plugin?' })
+    ).getByRole('button', { name: 'Disable' })
+  )
+  const usage = await screen.findByRole('alertdialog', {
+    name: 'Plugin is still in use',
+  })
+  expect(within(usage).getAllByRole('button', { name: 'Cancel' })).toHaveLength(
+    1
+  )
+  await user.click(
+    within(usage).getByRole('button', { name: 'Force operation' })
+  )
+  await waitFor(() =>
+    expect(post).toHaveBeenLastCalledWith(
+      '/api/plugin/task/example/status',
+      { enabled: false },
+      expect.objectContaining({ params: { cascade: true, force: true } })
+    )
+  )
+})
+
 test.each(['factory', 'override_over_factory'] as const)(
   '%s deletion protects the factory plugin while allowing custom version removal',
   async (source) => {

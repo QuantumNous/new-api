@@ -1,10 +1,13 @@
 package media
 
 import (
-	"errors"
-	"sync"
-
 	"context"
+	"encoding/base64"
+	"errors"
+	"strings"
+	"sync"
+	"unicode/utf8"
+
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
@@ -43,4 +46,38 @@ func DecodeBase64FileData(base64String string) (string, string, error) {
 		return "", "", errors.New("relayconvert media resolver is not configured")
 	}
 	return resolver(base64String)
+}
+
+// DefaultResponsesImageDetail is used when the source protocol carries no detail
+// hint. Sending the default explicitly also supports strict Responses validators
+// that reject input_image parts without detail.
+const DefaultResponsesImageDetail = "auto"
+
+// ResponsesImageDetail preserves supported image detail levels and defaults
+// missing or unrecognized hints to "auto".
+func ResponsesImageDetail(detail string) string {
+	switch normalized := strings.ToLower(strings.TrimSpace(detail)); normalized {
+	case "low", "high", "auto", "original":
+		return normalized
+	default:
+		return DefaultResponsesImageDetail
+	}
+}
+
+// IsTextMimeType reports whether a MIME type is plain text that a target can
+// carry as text: text/* and application/json, ignoring parameters.
+func IsTextMimeType(mimeType string) bool {
+	mediaType, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(mimeType)), ";")
+	mediaType = strings.TrimSpace(mediaType)
+	return strings.HasPrefix(mediaType, "text/") || mediaType == "application/json"
+}
+
+// DecodeText decodes base64 file data as text. It reports false when the data
+// is not valid base64 or the bytes are not UTF-8.
+func DecodeText(base64Data string) (string, bool) {
+	decoded, err := base64.StdEncoding.DecodeString(strings.TrimSpace(base64Data))
+	if err != nil || !utf8.Valid(decoded) {
+		return "", false
+	}
+	return string(decoded), true
 }

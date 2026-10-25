@@ -60,14 +60,11 @@ export function TwoFASetupDialog(props: TwoFASetupDialogProps) {
         if (!open) props.onCancel()
       }}
       title={t('Setup Two-Factor Authentication')}
-      description={
-        <>
-          {t('Step')}
-          {step + 1}
-          {t('of 3:')}
-          {stepLabels[step]}
-        </>
-      }
+      description={t('Step {{current}} of {{total}}: {{label}}', {
+        current: step + 1,
+        total: stepLabels.length,
+        label: stepLabels[step],
+      })}
       contentClassName='sm:max-w-lg'
       contentHeight='auto'
       bodyClassName='space-y-4'

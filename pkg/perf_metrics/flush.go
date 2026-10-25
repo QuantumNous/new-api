@@ -1,7 +1,6 @@
 package perfmetrics
 
 import (
-	"fmt"
 	"strconv"
 	"time"
 
@@ -52,7 +51,7 @@ func flushCompletedBuckets() {
 		})
 		if err != nil {
 			bucket.addCounters(drained)
-			common.SysError(fmt.Sprintf("failed to flush perf metric bucket model=%s group=%s bucket=%d: %s", k.model, k.group, k.bucketTs, err.Error()))
+			common.SysError(common.LogText("failed to flush perf metric bucket model=%s group=%s bucket=%d: %s", k.model, k.group, k.bucketTs, err.Error()))
 			return true
 		}
 
@@ -73,7 +72,7 @@ func cleanupExpiredMetrics(retentionDays int) {
 	}
 	cutoff := time.Now().Add(-time.Duration(retentionDays) * 24 * time.Hour).Unix()
 	if err := model.DeletePerfMetricsBefore(cutoff); err != nil {
-		common.SysError("failed to cleanup expired perf metrics: " + err.Error())
+		common.SysError(common.LogText("failed to cleanup expired perf metrics: %s", err.Error()))
 	}
 }
 

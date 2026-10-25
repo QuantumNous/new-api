@@ -23,6 +23,7 @@ import { toast } from 'sonner'
 import { handleServerError } from '@/lib/handle-server-error'
 
 import { requestWaffoPancakePayment, isApiSuccess } from '../api'
+import { getPaymentErrorTranslation } from '../lib'
 
 function getCheckoutUrl(data: unknown): string | null {
   if (!data || typeof data !== 'object') {
@@ -97,7 +98,9 @@ export function useWaffoPancakePayment() {
         }
 
         handleServerError(response, undefined, {
-          title: getErrorMessage(response.message, response.data),
+          title:
+            getPaymentErrorTranslation(response) ??
+            getErrorMessage(response.message, response.data),
         })
         return false
       } catch (_error) {

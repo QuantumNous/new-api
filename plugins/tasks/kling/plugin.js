@@ -7,7 +7,7 @@ export const meta = {
     en: "Kuaishou Kling video generation (text-to-video and image-to-video)",
     zh: "快手可灵视频生成（文生视频、图生视频）",
   },
-  version: "1.1.0",
+  version: "1.1.1",
   author: { name: "QuantumNous" },
   channelTypes: [50],
   models: ["kling-v1", "kling-v1-6", "kling-v2-master"],
@@ -106,8 +106,11 @@ function viaGateway(ctx) {
 }
 
 function tokenFor(ctx) {
-  if (viaGateway(ctx)) return ctx.apiKey;
-  const parts = ctx.apiKey.split("|");
+  const apiKey = trimmed(ctx.apiKey);
+  if (!apiKey) throw new Error("api_key is empty");
+  if (viaGateway(ctx)) return apiKey;
+  const parts = apiKey.split("|");
+  if (parts.length === 1) return apiKey;
   if (parts.length !== 2) throw new Error("invalid api_key, required format is accessKey|secretKey");
   const now = utils.unixNow();
   return utils.jwtSignHS256({ iss: parts[0].trim(), exp: now + 1800, nbf: now - 5 }, parts[1].trim());
@@ -162,13 +165,14 @@ function validateKlingDuration(value) {
   return n;
 }
 
+// The duration Kling receives and the one billed: metadata.duration (the whole
+// body on native routes) overrides the top-level duration, which defaults to 5.
 function outboundDuration(req) {
-  const n = Number(req && req.duration);
-  if (Number.isFinite(n) && n > 0) return n;
   const metadata = (req && req.metadata) || {};
-  const fromMeta = Number(metadata.duration);
-  if (Number.isFinite(fromMeta) && fromMeta > 0) return fromMeta;
-  return 5;
+  let value = metadata.duration;
+  if (value === undefined || value === null) value = req && req.duration;
+  if (value === undefined || value === null) return 5;
+  return validateKlingDuration(value);
 }
 
 function outboundMode(req, model) {
@@ -241,7 +245,6 @@ export function buildSubmitRequest(ctx) {
       prompt: req.prompt,
       image: req.image,
       mode: outboundMode(req, model),
-      duration: String(req.duration || 5),
       aspect_ratio: aspectRatio(req.size),
       model_name: model,
       model: model,
@@ -250,6 +253,7 @@ export function buildSubmitRequest(ctx) {
     metadata
   );
   body.mode = outboundMode({ mode: body.mode, metadata: metadata }, model);
+  body.duration = String(outboundDuration(req));
   if (body.image) body.image = filePlaceholder(body.image);
   if (body.image_tail) body.image_tail = filePlaceholder(body.image_tail);
   if (!body.prompt) delete body.prompt;

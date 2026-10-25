@@ -38,7 +38,7 @@ interface CompactDateTimeRangePickerProps {
 }
 
 function toInputValue(date?: Date): string {
-  return date ? dayjs(date).format('YYYY-MM-DDTHH:mm') : ''
+  return date ? dayjs(date).format('YYYY-MM-DDTHH:mm:ss') : ''
 }
 
 function fromInputValue(value: string): Date | undefined {
@@ -60,19 +60,15 @@ export function CompactDateTimeRangePicker({
 
   const label = useMemo(() => {
     if (!start && !end) return t('Date Range')
-    // The popover's <input type="datetime-local"> only supports minute
-    // precision, so seconds are always 00 (manual pick) or 59 (preset
-    // end-of-day). Hide them in the trigger label to keep the button
-    // width compact while still showing the meaningful timestamp.
-    const startText = start ? dayjs(start).format('YYYY-MM-DD HH:mm') : '-'
-    const endText = end ? dayjs(end).format('YYYY-MM-DD HH:mm') : '-'
+    const startText = start ? dayjs(start).format('YYYY-MM-DD HH:mm:ss') : '-'
+    const endText = end ? dayjs(end).format('YYYY-MM-DD HH:mm:ss') : '-'
     return `${startText} ~ ${endText}`
   }, [end, start, t])
 
   const mobileLabel = useMemo(() => {
     if (!start || !end) return label
     if (dayjs(start).isSame(end, 'day')) {
-      return `${dayjs(start).format('MM/DD HH:mm')}–${dayjs(end).format('HH:mm')}`
+      return `${dayjs(start).format('MM/DD HH:mm:ss')}–${dayjs(end).format('HH:mm:ss')}`
     }
     return label
   }, [start, end, label])
@@ -158,6 +154,7 @@ export function CompactDateTimeRangePicker({
               </div>
               <Input
                 type='datetime-local'
+                step={1}
                 value={draftStart}
                 aria-label={t('Start Time')}
                 onChange={(e) => setDraftStart(e.target.value)}
@@ -173,6 +170,7 @@ export function CompactDateTimeRangePicker({
               </div>
               <Input
                 type='datetime-local'
+                step={1}
                 value={draftEnd}
                 aria-label={t('End Time')}
                 onChange={(e) => setDraftEnd(e.target.value)}

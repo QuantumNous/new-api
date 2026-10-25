@@ -57,7 +57,7 @@ function ModelBadgeContent(props: ModelBadgeProps & { copyable: boolean }) {
       className={cn(
         'border-border/60 bg-muted/30 h-6 max-w-none gap-1.5 rounded-md border px-2 [font-family:var(--font-body)]',
         provider?.icon && 'text-foreground',
-        props.wrapText && 'h-auto min-h-6 max-w-full py-0.5 whitespace-normal',
+        props.wrapText && 'h-auto min-h-6 max-w-full py-px whitespace-normal',
         props.className
       )}
     >
@@ -79,7 +79,7 @@ function ModelBadgeContent(props: ModelBadgeProps & { copyable: boolean }) {
         <span
           className={
             props.wrapText
-              ? 'line-clamp-2 [overflow-wrap:anywhere]'
+              ? 'line-clamp-2 leading-5 [overflow-wrap:anywhere]'
               : 'whitespace-nowrap'
           }
         >
@@ -223,23 +223,41 @@ export function ResponseModelDetails(props: {
           className='h-auto whitespace-normal'
         />
       )}
-      <DetailRow
-        label={t('Request Model')}
-        value={props.observation.requested_model}
-        mono
-      />
-      <DetailRow
-        label={t('Upstream Model')}
-        value={
-          props.observation.upstream_model || props.observation.requested_model
-        }
-        mono
-      />
-      <DetailRow
-        label={t('Response Model')}
-        value={props.observation.returned_model}
-        mono
-      />
+      {[
+        {
+          label: t('Request Model'),
+          value: props.observation.requested_model,
+        },
+        {
+          label: t('Upstream Model'),
+          value:
+            props.observation.upstream_model ||
+            props.observation.requested_model,
+        },
+        {
+          label: t('Response Model'),
+          value: props.observation.returned_model,
+        },
+      ].map((model) => (
+        <DetailRow
+          key={model.label}
+          label={model.label}
+          value={
+            <span className='inline-flex max-w-full items-start gap-1 align-top'>
+              <span className='min-w-0 leading-5 wrap-anywhere'>
+                {model.value}
+              </span>
+              <CopyButton
+                value={model.value}
+                className='size-5'
+                iconClassName='size-3'
+                aria-label={t('Copy {{field}}', { field: model.label })}
+              />
+            </span>
+          }
+          mono
+        />
+      ))}
       {mismatch && (
         <p className='text-muted-foreground text-xs'>
           {t(

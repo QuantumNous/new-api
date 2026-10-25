@@ -2,7 +2,6 @@ package openai
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"math"
 	"net/http"
@@ -59,7 +58,7 @@ func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 		// 读取响应体到缓冲区
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
-			logger.LogError(c, fmt.Sprintf("failed to read TTS response body: %v", err))
+			logger.LogError(c, common.LogText("failed to read TTS response body: %v", err))
 			c.Writer.WriteHeaderNow()
 			return usage
 		}
@@ -68,7 +67,7 @@ func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 		c.Writer.WriteHeaderNow()
 		_, err = c.Writer.Write(bodyBytes)
 		if err != nil {
-			logger.LogError(c, fmt.Sprintf("failed to write TTS response: %v", err))
+			logger.LogError(c, common.LogText("failed to write TTS response: %v", err))
 		}
 
 		// 计算音频时长并更新 usage
@@ -96,7 +95,7 @@ func OpenaiTTSHandler(c *gin.Context, resp *http.Response, info *relaycommon.Rel
 		usage.PromptTokensDetails.TextTokens = usage.PromptTokens
 
 		if durationErr != nil {
-			logger.LogWarn(c, fmt.Sprintf("failed to get audio duration: %v", durationErr))
+			logger.LogWarn(c, common.LogText("failed to get audio duration: %v", durationErr))
 			// 如果无法获取时长，则设置保底的 CompletionTokens，根据body大小计算
 			sizeInKB := float64(len(bodyBytes)) / 1000.0
 			estimatedTokens := int(math.Ceil(sizeInKB)) // 粗略估算每KB约等于1 token

@@ -13,7 +13,9 @@
           "type": "text"
         },
         {
-          "image_url": "https://example.com/cat.png",
+          "image_url": {
+            "url": "https://example.com/cat.png"
+          },
           "type": "image_url"
         }
       ]
@@ -47,6 +49,7 @@
         "description": "Get weather by city",
         "name": "get_weather",
         "parameters": {
+          "type": "object",
           "properties": {
             "city": {
               "type": "string"
@@ -54,8 +57,7 @@
           },
           "required": [
             "city"
-          ],
-          "type": "object"
+          ]
         }
       }
     }
