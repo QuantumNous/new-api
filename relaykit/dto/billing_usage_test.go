@@ -147,6 +147,8 @@ func TestBillingUsageJSONUsesProtocolNamedFields(t *testing.T) {
 	assert.Nil(t, clone.GeminiUsageMetadata.BillingUsage)
 }
 
+// TestRealtimeUsageDetails checks plural fallback and singular-key precedence,
+// including a null singular value paired with populated plural details.
 func TestRealtimeUsageDetails(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -1596,6 +1596,8 @@ func TestPostTextConsumeQuotaLogsMissingUsageAsStructuredContent(t *testing.T) {
 	}, other["content_parts"])
 }
 
+// TestRealtimePluralTokenDetailsQuota verifies decoded text/audio counts reach
+// audio billing instead of collapsing to the minimum charge for zero details.
 func TestRealtimePluralTokenDetailsQuota(t *testing.T) {
 	const raw = `{
 		"total_tokens": 377,

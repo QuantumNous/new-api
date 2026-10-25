@@ -50,6 +50,8 @@ type RealtimeUsage struct {
 	OutputTokenDetails OutputTokenDetails `json:"output_token_details"`
 }
 
+// UnmarshalJSON accepts singular and plural realtime token-detail keys.
+// A present singular key takes precedence, including null; only absence permits fallback.
 func (u *RealtimeUsage) UnmarshalJSON(data []byte) error {
 	type realtimeUsage RealtimeUsage
 	var wire struct {
