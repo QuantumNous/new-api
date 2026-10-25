@@ -139,4 +139,13 @@ func TestPricingSyncCompleteSourcesAndArrayFormats(t *testing.T) {
 	assert.Equal(t, float64(4), response.Data.Prices["sync-token"].Upstreams["Expressions(1)"]["completion_ratio"])
 	assert.Equal(t, float64(0), response.Data.Prices["sync-token"].Upstreams["Expressions(1)"]["cache_ratio"])
 	assert.Equal(t, float64(0), response.Data.Prices["sync-free"].Upstreams["Legacy(2)"]["model_ratio"])
+	assert.NotContains(t, response.Data.Prices, "sync-already")
+	body["include_unchanged"] = true
+	recorder = modelManagementRequest(t, FetchUpstreamRatios, http.MethodPost, "/api/ratio_sync/fetch", body, &response)
+	require.True(t, response.Success, recorder.Body.String())
+	assert.Equal(t, map[string]any{"billing_mode": "tiered_expr", "billing_expr": expression}, response.Data.Prices["sync-already"].Upstreams["Expressions(1)"])
+	assert.NotContains(t, response.Data.Prices["sync-already"].Upstreams, "Legacy(2)")
+	assert.NotContains(t, response.Data.Prices, "sync-unpriced")
+	assert.NotContains(t, response.Data.Prices, "sync-invalid-expression")
+	assert.NotContains(t, response.Data.Differences, "sync-already")
 }

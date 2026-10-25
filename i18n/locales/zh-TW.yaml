@@ -32,6 +32,8 @@ quota.pre_consume_insufficient: "預扣費額度失敗，使用者剩餘額度�
 quota.subscription_insufficient: "訂閱額度不足或未設定訂閱：{{.Error}}"
 relay.model_price_not_configured: "模型 {{.Model}} 的價格尚未由管理員設定，暫時無法使用，請聯絡站點管理員開啟該模型"
 relay.model_price_not_configured_admin: "模型 {{.Model}} 的價格未設定。請前往「系統設定 → 營運設定」開啟自用模式，或在「系統設定 → 分組與模型定價設定」中為該模型設定價格"
+relay.task_usage_price_unsupported: "模型 {{.Model}} 使用了任務用量表達式；請為一般轉發設定常規定價，並為插件單獨設定計費表達式"
+relay.shared_task_price_needs_override: "模型 {{.Model}} 與任務插件 {{.Plugin}} 共用了計費表達式；請先為插件設定獨立的計費表達式，再使用一般轉發定價"
 relay.task_channel_disabled: "該任務所屬管道已被停用"
 relay.group_saturated: "目前分組負載已飽和，請稍後再試，或升級帳戶以提升服務品質。"
 relay.group_upstream_saturated: "目前分組上游負載已飽和，請稍後再試"

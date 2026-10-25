@@ -2,6 +2,7 @@ package relayconvert
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/QuantumNous/new-api/relaykit/dto"
@@ -300,7 +301,7 @@ func TestConvertRequestClaudeToResponsesPreservesMixedBlockOrder(t *testing.T) {
 		Tools: []dto.Tool{{
 			Name:        "lookup",
 			Description: "Look up a value",
-			InputSchema: map[string]any{"type": "object", "properties": map[string]any{"q": map[string]any{"type": "string"}}},
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"q":{"type":"string"}}}`),
 			Strict:      &strict,
 		}},
 		ToolChoice: dto.ClaudeToolChoice{Type: "tool", Name: "lookup", DisableParallelToolUse: true},
@@ -752,8 +753,8 @@ func TestConvertRequestResponsesToGeminiUsesDirectConverter(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, functions, 1)
 	assert.Equal(t, "lookup", functions[0].Name)
-	params, ok := functions[0].Parameters.(map[string]any)
-	require.True(t, ok)
+	var params map[string]any
+	require.NoError(t, kitutil.Unmarshal(functions[0].Parameters, &params))
 	assert.Equal(t, "OBJECT", params["type"])
 	assert.NotContains(t, params, "additionalProperties")
 	assert.NotContains(t, params, "propertyNames")
@@ -823,6 +824,73 @@ func TestConvertRequestResponsesToGeminiSkipsThoughtSignatureWhenDisabled(t *tes
 	assert.Empty(t, geminiReq.Contents[0].Parts[0].ThoughtSignature)
 }
 
+func TestConvertRequestOpenAIChatToGeminiImageConfig(t *testing.T) {
+	tests := []struct {
+		name   string
+		fields string
+		want   string
+	}{
+		{
+			name: "omitted",
+		},
+		{
+			name:   "top level 4K",
+			fields: `,"imageConfig":{"imageSize":"4K"}`,
+			want:   `{"imageSize":"4K"}`,
+		},
+		{
+			name:   "top level aspect ratio",
+			fields: `,"imageConfig":{"imageSize":"4K","aspectRatio":"16:9"}`,
+			want:   `{"imageSize":"4K","aspectRatio":"16:9"}`,
+		},
+		{
+			name:   "google extra body",
+			fields: `,"extra_body":{"google":{"image_config":{"image_size":"4K","aspect_ratio":"16:9"}}}`,
+			want:   `{"imageSize":"4K","aspectRatio":"16:9"}`,
+		},
+		{
+			name:   "google extra body takes precedence",
+			fields: `,"imageConfig":{"imageSize":"1K"},"extra_body":{"google":{"image_config":{"image_size":"4K"}}}`,
+			want:   `{"imageSize":"4K"}`,
+		},
+		{
+			name:   "empty google image config keeps top level config",
+			fields: `,"imageConfig":{"imageSize":"4K"},"extra_body":{"google":{"image_config":{}}}`,
+			want:   `{"imageSize":"4K"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			raw := `{"model":"gemini-3.1-flash-image-preview","temperature":0.7,"top_p":1,"messages":[{"role":"user","content":[{"type":"text","text":"Remove the distant car"}]}]` + tt.fields + `}`
+			var request dto.GeneralOpenAIRequest
+			require.NoError(t, kitutil.Unmarshal([]byte(raw), &request))
+
+			body, err := kitutil.Marshal(request)
+			require.NoError(t, err)
+			var copiedRequest dto.GeneralOpenAIRequest
+			require.NoError(t, kitutil.Unmarshal(body, &copiedRequest))
+
+			result, err := ConvertRequest(context.Background(), nil, types.RelayFormatGemini, &copiedRequest)
+			require.NoError(t, err)
+			body, err = kitutil.Marshal(result.Value)
+			require.NoError(t, err)
+			var upstream map[string]json.RawMessage
+			require.NoError(t, kitutil.Unmarshal(body, &upstream))
+			var generationConfig map[string]json.RawMessage
+			require.NoError(t, kitutil.Unmarshal(upstream["generationConfig"], &generationConfig))
+
+			assert.NotContains(t, upstream, "imageConfig")
+			if tt.want == "" {
+				assert.NotContains(t, generationConfig, "imageConfig")
+				return
+			}
+			require.Contains(t, generationConfig, "imageConfig")
+			assert.JSONEq(t, tt.want, string(generationConfig["imageConfig"]))
+		})
+	}
+}
+
 func TestConvertRequestOpenAIChatToGeminiAddsThoughtSignatureForAdvancedCustom(t *testing.T) {
 	assistantMessage := dto.Message{Role: "assistant", Content: ""}
 	assistantMessage.SetToolCalls([]dto.ToolCallRequest{
@@ -854,7 +922,7 @@ func TestConvertRequestOpenAIChatToGeminiAddsThoughtSignatureForAdvancedCustom(t
 				Type: "function",
 				Function: dto.FunctionRequest{
 					Name:       "lookup",
-					Parameters: map[string]any{"type": "object"},
+					Parameters: json.RawMessage(`{"type":"object"}`),
 				},
 			},
 		},
