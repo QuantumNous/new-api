@@ -16,6 +16,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+
+export const CHANNEL_PRIORITY_GUIDE_KEYS = {
+  card: 'channels:priority-drag-guide:card:v1',
+  table: 'channels:priority-drag-guide:v1',
+} as const
 // ============================================================================
 // Channel Types (from constant/channel.go)
 // All label/name values are i18n keys; use t(value) when displaying.

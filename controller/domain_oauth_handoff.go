@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/oauth"
@@ -426,7 +427,7 @@ func ConsumeDomainBindHandoff(c *gin.Context) {
 		return
 	}
 	user, err := model.GetUserById(identity.UserID, false)
-	notificationFailed := err != nil || service.NotifyAccountSecurityChange(user.Email, "Login account linked: "+provider.GetName()) != nil
+	notificationFailed := err != nil || service.NotifyAccountSecurityChange(service.AccountMailLanguage(c, user.Id), user.Email, i18n.MsgSecurityEventLoginLinked, map[string]any{"Provider": provider.GetName()}) != nil
 	recordUserSecurityAudit(c, identity.UserID, "user.binding_bind", map[string]any{"provider": flow.Provider, "success": true, "notification_failed": notificationFailed})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,

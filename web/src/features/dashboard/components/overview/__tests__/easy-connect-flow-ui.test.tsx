@@ -103,6 +103,7 @@ function createdKey(): ApiKey {
     model_limits_enabled: true,
     model_limits: DEEPSEEK,
     allow_ips: '',
+    allow_user_quota_query: true,
   }
 }
 

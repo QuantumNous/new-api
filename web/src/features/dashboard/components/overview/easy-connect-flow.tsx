@@ -330,6 +330,7 @@ export function EasyConnectFlow(props: EasyConnectFlowProps) {
           model_limits_enabled: true,
           model_limits: selectedModel,
           allow_ips: '',
+          allow_user_quota_query: true,
           group: selectedGroup,
           auto_groups: [],
           cross_group_retry: selectedGroup === 'auto',

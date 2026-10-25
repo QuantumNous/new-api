@@ -111,7 +111,7 @@
     "oxfmt": "^0.72.0",
     "oxlint": "^1.72.0",
     "shadcn": "^4.12.0",
-    "vitest": "^4.1.10"
+    "vitest": "^5.0.4"
   },
   "overrides": {
     "brace-expansion": "2.1.1",

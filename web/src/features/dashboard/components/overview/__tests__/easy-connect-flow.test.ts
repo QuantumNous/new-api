@@ -40,6 +40,7 @@ function createApiKey(overrides: Partial<ApiKey> = {}): ApiKey {
     model_limits_enabled: true,
     model_limits: 'deepseek-v4,gpt-5.6',
     allow_ips: '',
+    allow_user_quota_query: true,
     ...overrides,
   }
 }

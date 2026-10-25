@@ -214,7 +214,7 @@ func runFixedPriceAccountingCases(t *testing.T, db, logDB *gorm.DB) {
 		usage                                     *dto.Usage
 		audio, stream, refund, insufficient, tool bool
 		realtime, reserveInsufficient             bool
-		wallet, outboundImages                    int
+		wallet, outboundImages, retryReservation  int
 		groupRatio                                float64
 		want                                      int
 		unit                                      billingexpr.BillingUnit
@@ -244,6 +244,8 @@ func runFixedPriceAccountingCases(t *testing.T, db, logDB *gorm.DB) {
 		{name: "image quantity exceeds one-image wallet before submission", expression: `tier("image", fixed(0.04)) * image_count`, requestedImages: 4, wallet: 20000, insufficient: true},
 		{name: "image override reserves extra quantity", expression: `tier("image", fixed(0.04)) * image_count`, requestedImages: 1, outboundImages: 4, want: 80000, unit: billingexpr.BillingUnitRequest},
 		{name: "image override cannot exceed remaining wallet", expression: `tier("image", fixed(0.04)) * image_count`, requestedImages: 1, outboundImages: 4, wallet: 40000, reserveInsufficient: true, refund: true},
+		{name: "task retry holds a pricier channel and refunds all of it", expression: flat, retryReservation: 40000, refund: true},
+		{name: "task retry cannot exceed remaining wallet", expression: flat, retryReservation: 40000, wallet: 20000, reserveInsufficient: true, refund: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			quota := startingQuota
@@ -305,6 +307,17 @@ func runFixedPriceAccountingCases(t *testing.T, db, logDB *gorm.DB) {
 					} else {
 						require.Nil(t, reserveErr)
 						assert.Equal(t, tc.want, info.Billing.GetPreConsumedQuota())
+					}
+				}
+				if tc.retryReservation > 0 {
+					retryErr := PreConsumeBilling(ctx, tc.retryReservation, info)
+					if tc.reserveInsufficient {
+						require.NotNil(t, retryErr)
+						assert.Equal(t, types.ErrorCodeInsufficientUserQuota, retryErr.GetErrorCode())
+						assert.Equal(t, reservation, info.Billing.GetPreConsumedQuota())
+					} else {
+						require.Nil(t, retryErr)
+						assert.Equal(t, tc.retryReservation, info.Billing.GetPreConsumedQuota())
 					}
 				}
 				if tc.refund {
@@ -1432,6 +1445,40 @@ func TestCalculateTextQuotaSummaryZeroTokensStillBillsToolSurcharge(t *testing.T
 	assert.Greater(t, summary.Quota, 0, "quota must not be zeroed out for a zero-token web search request")
 	expected := common.QuotaFromDecimal(summary.ToolCallSurchargeQuota)
 	assert.Equal(t, expected, summary.Quota)
+}
+
+func TestClaudeCacheOnlyUsageRemainsBillable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, tc := range []struct {
+		name      string
+		usage     dto.ClaudeUsage
+		wantQuota int
+	}{
+		{name: "one-hour cache write", usage: dto.ClaudeUsage{CacheCreationInputTokens: 20000, CacheCreation: &dto.ClaudeCacheCreationUsage{Ephemeral1hInputTokens: 20000}}, wantQuota: 100000},
+		{name: "five-minute cache write", usage: dto.ClaudeUsage{CacheCreationInputTokens: 100, CacheCreation: &dto.ClaudeCacheCreationUsage{Ephemeral5mInputTokens: 100}}, wantQuota: 313},
+		{name: "cache read", usage: dto.ClaudeUsage{CacheReadInputTokens: 100}, wantQuota: 25},
+		{name: "no usage", usage: dto.ClaudeUsage{}, wantQuota: 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+			info := &relaycommon.RelayInfo{
+				RelayFormat:     types.RelayFormatClaude,
+				OriginModelName: "claude-opus-4-8",
+				PriceData: hosttypes.PriceData{
+					ModelRatio: 2.5, CompletionRatio: 5, CacheRatio: 0.1,
+					CacheCreationRatio: 1.25, CacheCreation5mRatio: 1.25, CacheCreation1hRatio: 2,
+					GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: 1},
+				},
+			}
+			usage := &dto.Usage{UsageSemantic: dto.BillingUsageSemanticAnthropic, BillingUsage: dto.NewClaudeMessagesBillingUsage(&tc.usage)}
+			summary := calculateTextQuotaSummary(ctx, info, effectiveBillingUsage(usage))
+			assert.Zero(t, summary.PromptTokens)
+			assert.Zero(t, summary.CompletionTokens)
+			assert.Equal(t, tc.wantQuota, summary.Quota)
+			assert.Equal(t, tc.wantQuota > 0, summary.hasBillableUsage())
+			t.Logf("input=%d output=%d quota=%d", summary.PromptTokens, summary.CompletionTokens, summary.Quota)
+		})
+	}
 }
 
 func TestCalculateTextQuotaSummaryDoesNotApplyRequestMultipliersToToolSurcharge(t *testing.T) {

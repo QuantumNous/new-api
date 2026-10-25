@@ -48,6 +48,9 @@ export function Profile() {
   )
   const turnstileSiteKey = status?.turnstile_site_key || ''
   const canConfigureSidebar = permissions?.sidebar_settings !== false
+  // Older cached status payloads lack these fields; the site default is on.
+  const quotaRemindEnabled = status?.quota_remind_enabled !== false
+  const quotaRemindThreshold = status?.quota_remind_threshold ?? 0
 
   const body = (
     <CardStaggerContainer className='mx-auto flex w-full max-w-7xl flex-col gap-4 sm:gap-6'>
@@ -62,6 +65,8 @@ export function Profile() {
               profile={profile}
               loading={loading}
               onProfileUpdate={refreshProfile}
+              quotaRemindEnabled={quotaRemindEnabled}
+              quotaRemindThreshold={quotaRemindThreshold}
             />
             <LanguagePreferencesCard
               profile={profile}

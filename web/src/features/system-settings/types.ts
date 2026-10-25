@@ -441,7 +441,12 @@ export type OperationsSettings = {
   DefaultCollapseSidebar: boolean
   DemoSiteEnabled: boolean
   SelfUseModeEnabled: boolean
+  QuotaRemindEnabled: boolean
   QuotaRemindThreshold: string
+  EmailProvider: 'smtp' | 'resend'
+  ResendApiKey: string
+  ResendKeyConfigured: boolean
+  ResendFrom: string
   SMTPServer: string
   SMTPPort: string
   SMTPAccount: string

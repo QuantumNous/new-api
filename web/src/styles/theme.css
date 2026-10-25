@@ -224,6 +224,9 @@ For commercial licensing, please contact support@quantumnous.com
 }
 
 .dark {
+  /* Native controls follow the theme; Dark Reader also reads this to detect
+     the built-in dark theme. */
+  color-scheme: dark;
   /* Obsidian canvas with the brand lime as the primary signal. */
   --background: oklch(0.13 0.006 260);
   --foreground: oklch(0.96 0.005 250);

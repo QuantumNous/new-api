@@ -144,7 +144,8 @@ it('refetches the channel list with the current filters and marks Refresh busy w
   gate = new Promise((resolve) => {
     release = resolve
   })
-  await userEvent.click(refresh)
+  refresh.focus()
+  await userEvent.setup().keyboard('{Enter}')
 
   await waitFor(() => expect(searchCalls()).toHaveLength(2))
   expect(searchCalls()[1][1]?.params).toEqual(searchCalls()[0][1]?.params)
