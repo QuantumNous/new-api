@@ -21,7 +21,7 @@ import { readFileSync } from 'node:fs'
 import { QueryClient } from '@tanstack/react-query'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { PRODUCT_NAME } from '@/lib/product-brand'
 import { useAuthStore } from '@/stores/auth-store'
@@ -282,6 +282,71 @@ describe('landing interactions and price layout', () => {
     expect(within(partners).getByText('OpenForge')).toBeVisible()
     expect(items[4]).toHaveTextContent('Model supply partner')
     expect(within(partners).queryByText(/DeepSeek|Y Combinator/)).toBeNull()
+  })
+
+  describe('hero hackathon badge click', () => {
+    beforeEach(() => {
+      window.history.replaceState(null, '', window.location.pathname)
+    })
+    afterEach(() => {
+      vi.restoreAllMocks()
+      Reflect.deleteProperty(document, 'startViewTransition')
+    })
+
+    async function renderBadge() {
+      const { container } = await renderApp(
+        <CiLandingPage
+          isAuthenticated={false}
+          models={models}
+          maxSavingsPercent={0}
+        />,
+        client
+      )
+      const hero = container.querySelector<HTMLElement>('.ci-hero')
+      const panel = container.querySelector<HTMLElement>('.ci-forgePanel')
+      if (!hero || !panel) throw new Error('Missing hero or spotlight panel')
+      const badge = within(hero).getByRole('link', { name: /Qupper's Forge/ })
+      return { badge, panel }
+    }
+
+    it('keeps the anchor jump and lights up the spotlight when motion is reduced', async () => {
+      const startViewTransition = vi.fn()
+      Object.defineProperty(document, 'startViewTransition', {
+        configurable: true,
+        value: startViewTransition,
+      })
+      const { badge, panel } = await renderBadge()
+
+      await userEvent.click(badge)
+
+      expect(startViewTransition).not.toHaveBeenCalled()
+      expect(window.location.hash).toBe('#hackathon')
+      expect(panel).toHaveClass('is-landed')
+    })
+
+    it('morphs the badge into the spotlight panel when view transitions are available', async () => {
+      let morphTarget = ''
+      Object.defineProperty(document, 'startViewTransition', {
+        configurable: true,
+        value: (update: () => void) => {
+          update()
+          morphTarget = panel.style.getPropertyValue('view-transition-name')
+          return { finished: Promise.resolve() }
+        },
+      })
+      const { badge, panel } = await renderBadge()
+      vi.spyOn(window, 'matchMedia').mockImplementation(
+        (query: string) => ({ matches: false, media: query }) as MediaQueryList
+      )
+
+      await userEvent.click(badge)
+
+      expect(morphTarget).toBe('forge-spotlight')
+      expect(window.location.hash).toBe('#hackathon')
+      expect(badge.style.getPropertyValue('view-transition-name')).toBe('')
+      await waitFor(() => expect(panel).toHaveClass('is-landed'))
+      expect(panel.style.getPropertyValue('view-transition-name')).toBe('')
+    })
   })
 
   it('uses the savings translation instead of the on/off control translation', async () => {

@@ -1,3 +1,5 @@
+import { Link } from '@tanstack/react-router'
+import { ArrowRight, ArrowUpRight } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -16,8 +18,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Link } from '@tanstack/react-router'
-import { ArrowRight, ArrowUpRight } from 'lucide-react'
+import type { MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PRODUCT_NAME } from '@/lib/product-brand'
@@ -36,8 +37,53 @@ const FORGE_MARK = `${FORGE_ASSETS}/qupper-forge-mark.webp`
 /** Hero announcement that jumps to the hackathon spotlight below the fold. */
 export function ForgeHeroBadge() {
   const { t } = useTranslation()
+
+  // Grows the pill into the spotlight panel; the anchor jump stays the fallback.
+  function handleClick(event: MouseEvent<HTMLAnchorElement>) {
+    const modified =
+      event.button !== 0 ||
+      event.metaKey ||
+      event.ctrlKey ||
+      event.shiftKey ||
+      event.altKey
+    const section = document.querySelector<HTMLElement>(`#${FORGE_SECTION_ID}`)
+    const panel = section?.querySelector<HTMLElement>('.ci-forgePanel')
+    if (modified || !section || !panel) return
+
+    panel.classList.remove('is-landed')
+    const reducedMotion = window.matchMedia(
+      '(prefers-reduced-motion: reduce)'
+    ).matches
+    if (reducedMotion || !document.startViewTransition) {
+      void panel.offsetWidth
+      panel.classList.add('is-landed')
+      return
+    }
+
+    event.preventDefault()
+    const badge = event.currentTarget
+    badge.style.setProperty('view-transition-name', 'forge-spotlight')
+    const transition = document.startViewTransition(() => {
+      badge.style.removeProperty('view-transition-name')
+      panel.style.setProperty('view-transition-name', 'forge-spotlight')
+      if (window.location.hash === `#${FORGE_SECTION_ID}`) {
+        section.scrollIntoView({ block: 'start' })
+      } else {
+        window.location.hash = FORGE_SECTION_ID
+      }
+    })
+    void transition.finished.finally(() => {
+      panel.style.removeProperty('view-transition-name')
+      panel.classList.add('is-landed')
+    })
+  }
+
   return (
-    <a className='ci-forgeBadge' href={`#${FORGE_SECTION_ID}`}>
+    <a
+      className='ci-forgeBadge'
+      href={`#${FORGE_SECTION_ID}`}
+      onClick={handleClick}
+    >
       <span className='ci-forgeBadgeTag'>{t('Collab')}</span>
       <img src={FORGE_MARK} alt='' width={44} height={33} aria-hidden='true' />
       <span className='ci-forgeBadgeText'>

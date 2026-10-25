@@ -66,6 +66,55 @@ For commercial licensing, please contact support@quantumnous.com
     transform 200ms ease,
     box-shadow 200ms ease,
     border-color 200ms ease;
+  /* Lands first, ahead of the hero copy's fade-up, so it is read first. */
+  animation: ci-forge-badge-in 760ms cubic-bezier(0.22, 1, 0.36, 1) 80ms
+    backwards;
+}
+/* A teal comet orbits the border to keep pulling the eye back. */
+.ci-forgeBadge::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  padding: 1.5px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--forge-orbit),
+    transparent 0deg 210deg,
+    rgb(111 227 238 / 90%) 290deg,
+    #6cf59a 340deg,
+    transparent 360deg
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box exclude,
+    linear-gradient(#000 0 0);
+  animation: ci-forge-orbit 4.8s linear infinite;
+  pointer-events: none;
+}
+/* A light sheen crosses the pill once in a while. */
+.ci-forgeBadge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+      105deg,
+      transparent 38%,
+      rgb(255 255 255 / 18%) 48%,
+      rgb(143 227 234 / 22%) 52%,
+      transparent 62%
+    )
+    no-repeat;
+  background-size: 260% 100%;
+  animation: ci-forge-sheen 6s ease-in-out 900ms infinite;
+  pointer-events: none;
+}
+.ci-forgeBadge:active {
+  transform: scale(0.97);
+  transition-duration: 90ms;
 }
 /* Outranks the landing's link reset, which inherits the hero ink colour. */
 .ci-handoffRoot .ci-heroCopy a.ci-forgeBadge {
@@ -112,9 +161,13 @@ For commercial licensing, please contact support@quantumnous.com
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* Our own name gets the accent so the pairing reads at a glance. */
 .ci-forgeBadgeWith {
-  color: var(--forge-muted);
-  font-weight: 500;
+  background: var(--forge-accent);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-weight: 750;
 }
 .ci-forgeBadgeWith > span {
   color: var(--forge-teal);
@@ -126,6 +179,10 @@ For commercial licensing, please contact support@quantumnous.com
   color: var(--forge-muted);
   font-size: 12px;
   white-space: nowrap;
+}
+.ci-forgeBadgeEvent {
+  color: var(--forge-ink);
+  font-weight: 600;
 }
 .ci-forgeBadgeRole {
   padding-left: 8px;
@@ -145,6 +202,101 @@ For commercial licensing, please contact support@quantumnous.com
 }
 .ci-forgeBadge:hover .ci-forgeBadgeArrow {
   transform: translateX(2px);
+}
+.ci-forgeBadgeArrow {
+  position: relative;
+}
+.ci-forgeBadgeArrow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  animation: ci-forge-ping 2.6s cubic-bezier(0.2, 0.7, 0.3, 1) 1.2s infinite;
+  pointer-events: none;
+}
+
+@property --forge-orbit {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+@keyframes ci-forge-badge-in {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(-16px) scale(0.92);
+  }
+}
+@keyframes ci-forge-orbit {
+  to {
+    --forge-orbit: 360deg;
+  }
+}
+@keyframes ci-forge-sheen {
+  0% {
+    background-position: 130% 0;
+  }
+  22%,
+  100% {
+    background-position: -30% 0;
+  }
+}
+@keyframes ci-forge-ping {
+  0% {
+    box-shadow: 0 0 0 0 rgb(111 227 238 / 55%);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 12px rgb(111 227 238 / 0%);
+  }
+}
+
+/* Clicking the badge morphs it into the spotlight panel (View Transitions);
+   browsers without them jump to the panel and get the landing glow only. */
+::view-transition-group(forge-spotlight) {
+  overflow: clip;
+  border-radius: 28px;
+  box-shadow:
+    0 0 0 1px rgb(143 227 234 / 45%),
+    0 40px 120px -40px rgb(34 211 238 / 65%);
+  animation-duration: 760ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+::view-transition-old(forge-spotlight) {
+  height: 100%;
+  object-fit: contain;
+  animation: ci-forge-vt-out 280ms ease-out both;
+}
+::view-transition-new(forge-spotlight) {
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  animation: ci-forge-vt-in 420ms ease-out 90ms both;
+}
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 520ms;
+}
+@keyframes ci-forge-vt-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes ci-forge-vt-in {
+  from {
+    opacity: 0;
+  }
+}
+.ci-forgePanel.is-landed {
+  animation: ci-forge-landed 1.2s ease-out;
+}
+@keyframes ci-forge-landed {
+  0% {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 6%),
+      0 0 0 2px rgb(143 227 234 / 75%),
+      0 0 90px 4px rgb(34 211 238 / 45%);
+  }
 }
 
 /* Spotlight */
@@ -716,7 +868,12 @@ For commercial licensing, please contact support@quantumnous.com
 }
 @media (prefers-reduced-motion: reduce) {
   .ci-forgeAnvil::before,
-  .ci-forgeSpark {
+  .ci-forgeSpark,
+  .ci-forgeBadge,
+  .ci-forgeBadge::before,
+  .ci-forgeBadge::after,
+  .ci-forgeBadgeArrow::after,
+  .ci-forgePanel.is-landed {
     animation: none;
   }
   .ci-forgeBadge,
