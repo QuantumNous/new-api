@@ -20,6 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestGeminiImageHandlerBillsPayloadCount checks actual image quantities for
+// fixed and expression pricing, including filtered payloads and invalid counts.
 func TestGeminiImageHandlerBillsPayloadCount(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)

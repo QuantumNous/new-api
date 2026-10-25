@@ -30,6 +30,8 @@ type ImageResponse struct {
 	TimeElapsed string `json:"time_elapsed"`
 }
 
+// responseJimeng2OpenAIImage preserves URL and base64 entries in the client response;
+// billable image counting handles the two representations separately.
 func responseJimeng2OpenAIImage(_ *gin.Context, response *ImageResponse, info *relaycommon.RelayInfo) *dto.ImageResponse {
 	imageResponse := dto.ImageResponse{
 		Created: info.StartTime.Unix(),
@@ -49,7 +51,8 @@ func responseJimeng2OpenAIImage(_ *gin.Context, response *ImageResponse, info *r
 	return &imageResponse
 }
 
-// jimengImageHandler handles the Jimeng image generation response
+// jimengImageHandler converts successful responses and bills the larger nonblank
+// URL/base64 count so two representations of an image do not charge twice.
 func jimengImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.Usage, *types.NewAPIError) {
 	var jimengResponse ImageResponse
 	responseBody, err := io.ReadAll(resp.Body)

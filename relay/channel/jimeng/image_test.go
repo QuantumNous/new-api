@@ -16,6 +16,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestJimengImageHandlerBillsPayloadCount checks fixed and expression quantities,
+// dual representations, and reservation preservation for invalid counts or errors.
 func TestJimengImageHandlerBillsPayloadCount(t *testing.T) {
 	oldMode := gin.Mode()
 	gin.SetMode(gin.TestMode)
