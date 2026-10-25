@@ -9,9 +9,10 @@ import (
 )
 
 type cashbackCampaignCreateRequest struct {
-	StartAt           int64 `json:"start_at"`
-	EndAt             int64 `json:"end_at"`
-	MaxRewardsPerUser int   `json:"max_rewards_per_user"`
+	StartAt           int64  `json:"start_at"`
+	EndAt             int64  `json:"end_at"`
+	MaxRewardsPerUser int    `json:"max_rewards_per_user"`
+	PayerScope        string `json:"payer_scope"`
 }
 
 func ListCashbackCampaigns(c *gin.Context) {
@@ -29,7 +30,7 @@ func CreateCashbackCampaign(c *gin.Context) {
 		cashbackAPIError(c, http.StatusBadRequest, err)
 		return
 	}
-	campaign, err := model.CreateCashbackCampaign(request.StartAt, request.EndAt, request.MaxRewardsPerUser, c.GetInt("id"))
+	campaign, err := model.CreateCashbackCampaign(request.StartAt, request.EndAt, request.MaxRewardsPerUser, c.GetInt("id"), request.PayerScope)
 	if err != nil {
 		cashbackAPIError(c, cashbackErrorStatus(err), err)
 		return
@@ -37,6 +38,7 @@ func CreateCashbackCampaign(c *gin.Context) {
 	recordManageAudit(c, "cashback.campaign_create", map[string]any{
 		"campaign_id": campaign.ID, "start_at": campaign.StartAt,
 		"end_at": campaign.EndAt, "max_rewards_per_user": campaign.MaxRewardsPerUser,
+		"payer_scope": campaign.PayerScope,
 	})
 	common.ApiSuccess(c, campaign)
 }

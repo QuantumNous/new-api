@@ -206,6 +206,19 @@ func CompleteTopUpCashbackTx(tx *gorm.DB, topUp *TopUp, creditedQuota int, sourc
 			return err
 		}
 		rewardQuota, capReason := capCashbackQuota(calculatedQuota, dailyUsed, setting)
+		notFirstTopUp := false
+		if direction.Direction == CashbackDirectionInvitee && campaign.PayerScope == CashbackPayerScopeFirstTopUp {
+			// The payer row is locked above, so concurrent completions for the
+			// same payer serialize and see each other's committed success.
+			notFirstTopUp, err = cashbackPayerHasPriorTopUpTx(tx, invitee.Id, topUp.Id)
+			if err != nil {
+				return err
+			}
+			if notFirstTopUp {
+				rewardQuota = 0
+				capReason = appendCashbackReason(capReason, "not_first_top_up")
+			}
+		}
 		if faceBasisUnavailable {
 			capReason = appendCashbackReason(capReason, "face_basis_unavailable")
 		}
@@ -255,7 +268,7 @@ func CompleteTopUpCashbackTx(tx *gorm.DB, topUp *TopUp, creditedQuota int, sourc
 			riskLevel = CashbackRiskSevere
 		} else if rewardQuota == 0 {
 			settlementStatus = CashbackSettlementCanceled
-			if !faceBasisUnavailable && !notApplicable {
+			if !faceBasisUnavailable && !notApplicable && !notFirstTopUp {
 				if calculatedQuota == 0 {
 					capReason = appendCashbackReason(capReason, "below_minimum")
 				} else {
@@ -488,6 +501,17 @@ func calculateCashbackTieredQuota(context *CashbackOrderContext, tiers []operati
 		return 0, nil, ErrCashbackInvalidInput
 	}
 	return quota, matched, nil
+}
+
+// Any earlier successful wallet top-up, whatever its provider or completion
+// source, uses up the payer's first top-up. Subscription purchases mirror into
+// top_ups with a zero amount and are not wallet top-ups.
+func cashbackPayerHasPriorTopUpTx(tx *gorm.DB, payerID, excludeTopUpID int) (bool, error) {
+	var count int64
+	err := tx.Model(&TopUp{}).
+		Where("user_id = ? AND status = ? AND amount > 0 AND id <> ?", payerID, common.TopUpStatusSuccess, excludeTopUpID).
+		Count(&count).Error
+	return count > 0, err
 }
 
 // A positive reward consumes its campaign slot permanently, even if it is

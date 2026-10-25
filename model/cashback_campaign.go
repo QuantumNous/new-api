@@ -11,6 +11,13 @@ import (
 
 const maxCashbackCampaignRewardsPerUser = 100_000
 
+// Payer scopes decide which orders a campaign rewards. The empty scope keeps
+// the original every-order behavior for existing campaigns.
+const (
+	CashbackPayerScopeEveryOrder = ""
+	CashbackPayerScopeFirstTopUp = "first_top_up"
+)
+
 // CashbackCampaign has an immutable scheduled window. Stopping it only
 // shortens the eligibility window for payments not yet completed.
 type CashbackCampaign struct {
@@ -19,6 +26,7 @@ type CashbackCampaign struct {
 	EndAt             int64  `json:"end_at" gorm:"type:bigint;not null;index"`
 	StoppedAt         int64  `json:"stopped_at" gorm:"type:bigint;not null;default:0"`
 	MaxRewardsPerUser int    `json:"max_rewards_per_user" gorm:"not null"`
+	PayerScope        string `json:"payer_scope" gorm:"type:varchar(32);not null;default:''"`
 	CreatedBy         int    `json:"created_by" gorm:"not null"`
 	StoppedBy         int    `json:"stopped_by"`
 	CreatedAt         int64  `json:"created_at" gorm:"autoCreateTime;type:bigint"`
@@ -43,7 +51,22 @@ func (campaign *CashbackCampaign) BeforeCreate(_ *gorm.DB) error {
 	if campaign.StartAt <= 0 || campaign.EndAt <= campaign.StartAt || campaign.MaxRewardsPerUser <= 0 || campaign.MaxRewardsPerUser > maxCashbackCampaignRewardsPerUser || campaign.CreatedBy <= 0 || campaign.StoppedAt != 0 {
 		return ErrCashbackInvalidInput
 	}
-	return nil
+	return validCashbackPayerScope(campaign.PayerScope, campaign.MaxRewardsPerUser)
+}
+
+// A first-top-up campaign can reward each payer at most once by definition.
+func validCashbackPayerScope(scope string, maxRewardsPerUser int) error {
+	switch scope {
+	case CashbackPayerScopeEveryOrder:
+		return nil
+	case CashbackPayerScopeFirstTopUp:
+		if maxRewardsPerUser != 1 {
+			return ErrCashbackInvalidInput
+		}
+		return nil
+	default:
+		return ErrCashbackInvalidInput
+	}
 }
 
 // The version Option row serializes configuration and campaign mutations on
@@ -57,10 +80,13 @@ func lockCashbackCampaignConfigTx(tx *gorm.DB) error {
 	return lockForUpdate(tx).Where(map[string]any{"key": key}).First(&option).Error
 }
 
-func CreateCashbackCampaign(startAt, endAt int64, maxRewardsPerUser, operatorID int) (CashbackCampaign, error) {
+func CreateCashbackCampaign(startAt, endAt int64, maxRewardsPerUser, operatorID int, payerScope string) (CashbackCampaign, error) {
 	var campaign CashbackCampaign
 	if operatorID <= 0 || maxRewardsPerUser <= 0 || maxRewardsPerUser > maxCashbackCampaignRewardsPerUser || endAt <= startAt {
 		return campaign, ErrCashbackInvalidInput
+	}
+	if err := validCashbackPayerScope(payerScope, maxRewardsPerUser); err != nil {
+		return campaign, err
 	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		if err := lockCashbackCampaignConfigTx(tx); err != nil {
@@ -82,7 +108,7 @@ func CreateCashbackCampaign(startAt, endAt int64, maxRewardsPerUser, operatorID 
 		if overlap > 0 {
 			return fmt.Errorf("%w: campaign window overlaps", ErrCashbackInvalidState)
 		}
-		campaign = CashbackCampaign{StartAt: startAt, EndAt: endAt, MaxRewardsPerUser: maxRewardsPerUser, CreatedBy: operatorID}
+		campaign = CashbackCampaign{StartAt: startAt, EndAt: endAt, MaxRewardsPerUser: maxRewardsPerUser, PayerScope: payerScope, CreatedBy: operatorID}
 		return tx.Create(&campaign).Error
 	})
 	if err == nil {

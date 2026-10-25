@@ -278,9 +278,17 @@ func TestCashbackCampaignCreateAndStop(t *testing.T) {
 		handler(context)
 		return recorder
 	}
+	for _, invalid := range []string{
+		fmt.Sprintf(`{"start_at":%d,"end_at":%d,"max_rewards_per_user":1,"payer_scope":"second_top_up"}`, start, start+3600),
+		fmt.Sprintf(`{"start_at":%d,"end_at":%d,"max_rewards_per_user":2,"payer_scope":"first_top_up"}`, start, start+3600),
+	} {
+		response := call(http.MethodPost, "/api/cashback/campaigns", invalid, CreateCashbackCampaign)
+		assert.Equal(t, http.StatusBadRequest, response.Code, invalid)
+	}
 	response := call(http.MethodPost, "/api/cashback/campaigns", body, CreateCashbackCampaign)
 	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
 	assert.Contains(t, response.Body.String(), `"status":"planned"`)
+	assert.Contains(t, response.Body.String(), `"payer_scope":""`)
 	response = call(http.MethodPost, "/api/cashback/campaigns", body, CreateCashbackCampaign)
 	assert.Equal(t, http.StatusConflict, response.Code)
 	response = call(http.MethodPost, "/api/cashback/campaigns/1/stop", "", StopCashbackCampaign)
@@ -288,8 +296,10 @@ func TestCashbackCampaignCreateAndStop(t *testing.T) {
 	assert.Contains(t, response.Body.String(), `"status":"ended"`)
 	response = call(http.MethodPost, "/api/cashback/campaigns/1/stop", "", StopCashbackCampaign)
 	assert.Equal(t, http.StatusOK, response.Code)
-	response = call(http.MethodPost, "/api/cashback/campaigns", body, CreateCashbackCampaign)
+	firstTopUp := strings.Replace(body, `}`, `,"payer_scope":"first_top_up"}`, 1)
+	response = call(http.MethodPost, "/api/cashback/campaigns", firstTopUp, CreateCashbackCampaign)
 	assert.Equal(t, http.StatusOK, response.Code)
+	assert.Contains(t, response.Body.String(), `"payer_scope":"first_top_up"`)
 
 	var audit []model.AuditLog
 	require.NoError(t, model.LOG_DB.Where("action IN ?", []string{"cashback.campaign_create", "cashback.campaign_stop"}).Order("id").Find(&audit).Error)
@@ -472,6 +482,9 @@ func TestPublicCashbackOffersOnlyExposesLiveRules(t *testing.T) {
 	require.NoError(t, model.DB.Create(&campaign).Error)
 	response = call()
 	assert.Contains(t, response.Body.String(), `"invitee":{"strategy":"rate","rate_bps":1000}`)
+	require.NoError(t, model.DB.Model(&campaign).Update("payer_scope", model.CashbackPayerScopeFirstTopUp).Error)
+	response = call()
+	assert.Contains(t, response.Body.String(), `"invitee":{"strategy":"rate","payer_scope":"first_top_up","rate_bps":1000}`)
 	require.NoError(t, model.DB.Model(&campaign).Update("stopped_at", now).Error)
 	response = call()
 	assert.NotContains(t, response.Body.String(), `"invitee":`)

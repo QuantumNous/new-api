@@ -93,12 +93,12 @@ snapshot and overrun the cap.
 
 | Route | Auth / guard | Contract |
 | --- | --- | --- |
-| `GET /api/user/topup/cashback-preview?amount=<integer>` or `?product_id=<id>` | Authenticated user + scoped rate limit (60/minute when rate limiting is enabled) | Exactly one selection; response `data: {status, strategy?, rate_bps?, fixed_per_hundred?, tiers?, matched_tier?, config_version?, reward_quota, as_of}`; `status` adds `not_applicable` for tiered token/Creem face and `rounds_to_zero` when a tier is reached but the exact conversion floors to zero quota; only unreached tiers use `below_minimum`. Only this user's payer estimate; no risk or inviter evidence. |
-| `GET /api/cashback/public-offers` | Anonymous + global API rate limit | Whitelisted `{active,currency:"CNY",inviter?,invitee?}` with only active directions' `strategy` and selected `rate_bps` / `fixed_per_hundred` / `tiers` (cent pairs); payer requires a live campaign. Read errors return 503, never false inactivity. |
+| `GET /api/user/topup/cashback-preview?amount=<integer>` or `?product_id=<id>` | Authenticated user + scoped rate limit (60/minute when rate limiting is enabled) | Exactly one selection; response `data: {status, strategy?, rate_bps?, fixed_per_hundred?, tiers?, matched_tier?, config_version?, reward_quota, as_of}`; `status` adds `not_applicable` for tiered token/Creem face, `rounds_to_zero` when a tier is reached but the exact conversion floors to zero quota, and `not_first_top_up` when a first-top-up campaign is live and the user already has a successful wallet top-up; only unreached tiers use `below_minimum`. Only this user's payer estimate; no risk or inviter evidence. |
+| `GET /api/cashback/public-offers` | Anonymous + global API rate limit | Whitelisted `{active,currency:"CNY",inviter?,invitee?}` with only active directions' `strategy` and selected `rate_bps` / `fixed_per_hundred` / `tiers` (cent pairs); payer requires a live campaign, and its offer carries `payer_scope:"first_top_up"` only for a first-top-up campaign (omitted for every-order campaigns). Read errors return 503, never false inactivity. |
 | `GET /api/cashback/config` | Root | Returns the stored config, `compliance_confirmed`, and the complete `available_auto_review_risk_flags` catalog |
 | `PUT /api/cashback/config` | Root | Replaces required fields atomically; omitted optional strategy/fixed-amount and review-policy fields preserve current values under the version-row lock |
 | `GET /api/cashback/campaigns` | Root | Lists bounded campaign history |
-| `POST /api/cashback/campaigns` | Root + critical rate limit | Creates a nonoverlapping scheduled campaign with `start_at`, `end_at`, `max_rewards_per_user` |
+| `POST /api/cashback/campaigns` | Root + critical rate limit | Creates a nonoverlapping scheduled campaign with `start_at`, `end_at`, `max_rewards_per_user`, optional `payer_scope` (`""` every order, `"first_top_up"`; the latter requires `max_rewards_per_user=1`, otherwise `400`) |
 | `POST /api/cashback/campaigns/:id/stop` | Root + critical rate limit | Idempotently stops a campaign without modifying its start/end or existing rewards |
 | `GET /api/cashback/rewards` | Admin | Paginated list; filters: `trade_no`, `user_id`, `direction`, `review_status`, `settlement_status`, `risk_level` |
 | `GET /api/cashback/rewards/:id` | Admin | Returns reward, order context, snapshots, and usernames; every read emits `cashback.sensitive_view` |
@@ -181,7 +181,10 @@ These cashback tables are registered in the main-database migration list:
   reconciliation batches. `LOG_DB` remains human-facing best-effort audit
   evidence and is never the money ledger.
 - `CashbackCampaign`: immutable `[start_at,end_at)` window, optional early
-  `stopped_at`, positive per-payer reward limit and creator/stopper identities.
+  `stopped_at`, positive per-payer reward limit, immutable `payer_scope`
+  (`varchar(32) not null default ''`; `''` = every order for all historical
+  rows, `first_top_up` = payer's first wallet top-up only; a string, not a
+  bool, to avoid boolean-default migration churn) and creator/stopper identities.
   `CashbackOrderContext.campaign_id=0` preserves old/unbound orders;
   `CashbackReward.review_source` distinguishes automatic and manual review while
   empty historical values remain readable.
@@ -269,6 +272,19 @@ wallet quota; floating-point money arithmetic is forbidden.
   must also complete inside the same live campaign. Positive payer rewards
   consume one per-user per-campaign slot even if later canceled or recovered.
   Zero rewards do not count. No campaign never blocks inviter cashback.
+- A `first_top_up` campaign rewards a payer only when, at verified completion
+  and under the existing ascending payer/inviter row locks, the payer has no
+  other successful `TopUp` with `amount > 0` (any provider or completion
+  source, including Partner OAuth balance and admin manual completion;
+  subscription purchases mirror into `top_ups` with `amount = 0` and do not
+  count; redemption codes and registration grants are not top-ups). Otherwise
+  the payer direction records a canceled zero reward with
+  `cap_reason=not_first_top_up` and `blocking_reason=no_payable_cashback_quota`.
+  The first top-up is final even when it earns nothing (for example below
+  every tier), so later orders are never first. Inviter rewards on the same
+  order are unaffected. Rolling back to a binary without this column turns a
+  live first-top-up campaign into an every-order campaign: stop such
+  campaigns before rollback.
 - The authenticated, user-rate-limited `GET /api/user/topup/cashback-preview`
   returns only a payer-facing, point-in-time rule and estimate for the selected
   standard face amount or enabled Creem product ID. It reads current campaign,
@@ -486,7 +502,13 @@ wallet quota; floating-point money arithmetic is forbidden.
   it refreshes on focus and every 30 seconds, including while backgrounded.
   During a refresh or error it must hide cached active rules. The permanently
   translated National Day kicker is marketing copy, not activity eligibility;
-  no live offer still renders an explicit inactive state. `/activity` instead
+  no live offer still renders an explicit inactive state. The site-wide
+  reward banner (all pages except setup, OAuth, desktop and error routes) is
+  built only from the live public offer plus `/api/status`
+  `quota_for_new_user`/`register_enabled`; it never accepts administrator
+  free text. Unlike the campaign page it keeps the last successful offer
+  during a background refresh (60s interval and on focus) to avoid flicker,
+  but hides entirely on a failed read. `/activity` instead
   introduces DeepSeek and GPT subscription cards without asserting plan terms.
   A reached tier whose exact conversion floors to zero keeps its matched tier
   in audited detail,
@@ -576,6 +598,7 @@ wallet quota; floating-point money arithmetic is forbidden.
 - Configuration: defaults; independent strategy/fixed/tier fields; exact cent parsing, order, count, bounds, mixed nominal return bounds; old-client omitted-field preservation under concurrent versioned writes; missing/null/empty/selected risk policy and allowlist validation; compliance; positive caps; immutable first-enable timestamp. Verify Option and in-memory slice replacement on SQLite/MySQL/PostgreSQL.
 - Migration: cashback side tables without columns on `TopUp`; fresh, representative released-schema upgrade and twice-repeated migration on real SQLite/MySQL/PostgreSQL when their schema changes; old context/reward rows retain data, indexes and uniqueness. Historical empty strategy is rate.
 - Tiered compatibility: tiered adds only two Option keys and no tables or columns. Existing `CashbackOrderContext` checkout face/factor and provider remain unchanged; old missing face evidence cannot qualify for tiered. Verify Option, existing order/reward read/write and retry on real SQLite/MySQL/PostgreSQL before rollout; do not claim three-engine compatibility without the matrix.
+- First-top-up campaigns: first wallet top-up rewarded, later orders and payers with any earlier successful wallet top-up (manual included) get canceled `not_first_top_up` rows, zero-amount subscription mirrors do not count, a below-minimum first order still uses the first top-up, preview returns `not_first_top_up`, creation rejects unknown scopes and `max_rewards_per_user != 1`; concurrent completions for one payer yield exactly one first reward on real PostgreSQL.
 - Preview: authenticated selection/invalid/disabled-product cases; tiered standard cent boundaries, `rounds_to_zero` with matched evidence, explicit token/Creem/factor-1 `not_applicable`; compare unchanged fixed/rate currency, token and Creem face estimates with verified settlement, positive campaign slots (including later canceled/rejected), 24-hour caps and zero/ineligible/no-campaign states; assert no reward/wallet write. Public route tests cover anonymous access, Root-only config, limiter, inactive/missing Option state, and no sensitive fields; mounted-page tests cover polling/focus refresh and stale-rule suppression. Use real three-dialect integration for query and counting changes, not SQLite alone.
 - Provider matrix: Epay, Stripe, Creem, Waffo, and Waffo Pancake create correct checkout face evidence (including token normalization and Creem product quota); fixed 99/100/250 and split 60+40, mixed directions, single/24-hour caps, payment-time switches, legacy missing-basis cancellation and unchanged historical reward; forged callbacks rejected, verified retries idempotent, manual completion ineligible.
 - Transactionality: a missing required context or cashback insert failure rolls

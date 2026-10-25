@@ -676,6 +676,47 @@ func testCashbackProductionDatabase(t *testing.T, databaseType common.DatabaseTy
 	require.Equal(t, payerRewards[0].ID, ordered[2].SourceID)
 	require.EqualValues(t, payerRewards[0].RewardQuota, ordered[2].Quota)
 
+	// Under a first-top-up campaign, concurrent completions for one payer
+	// serialize on the payer row: exactly one is first, the other is recorded
+	// as a canceled not_first_top_up reward.
+	require.NoError(t, db.Model(&campaign).Update("payer_scope", CashbackPayerScopeFirstTopUp).Error)
+	firstPayer := User{Username: namespace + "_first_payer", AffCode: "first_" + namespace[len(namespace)-8:], Status: common.UserStatusEnabled}
+	require.NoError(t, db.Create(&firstPayer).Error)
+	firstOrders := make([]TopUp, 2)
+	for i := range firstOrders {
+		firstOrders[i] = TopUp{UserId: firstPayer.Id, Amount: 1, Money: 1, TradeNo: fmt.Sprintf("%s_first_%d", namespace, i),
+			PaymentProvider: PaymentProviderEpay, PaymentMethod: "alipay", CreateTime: now, Status: common.TopUpStatusPending}
+		require.NoError(t, insertCashbackTestTopUp(&firstOrders[i], 1_000, CashbackRequestMetadata{}))
+	}
+	start = make(chan struct{})
+	firstResults := make(chan error, 2)
+	for i := range firstOrders {
+		waitGroup.Add(1)
+		go func(tradeNo string) {
+			defer waitGroup.Done()
+			<-start
+			_, err := RechargeEpay(tradeNo, "alipay", "1.00", "127.0.0.1", epayTestDetails(tradeNo))
+			firstResults <- err
+		}(firstOrders[i].TradeNo)
+	}
+	close(start)
+	waitGroup.Wait()
+	close(firstResults)
+	for err := range firstResults {
+		require.NoError(t, err)
+	}
+	var firstRewards []CashbackReward
+	require.NoError(t, db.Where("beneficiary_id = ? AND direction = ?", firstPayer.Id, CashbackDirectionInvitee).Order("reward_quota desc").Find(&firstRewards).Error)
+	require.Len(t, firstRewards, 2)
+	require.Positive(t, firstRewards[0].RewardQuota)
+	require.Zero(t, firstRewards[1].RewardQuota)
+	require.Equal(t, "not_first_top_up", firstRewards[1].CapReason)
+	require.Equal(t, CashbackSettlementCanceled, firstRewards[1].SettlementStatus)
+	preview, err = PreviewPayerCashback(firstPayer.Id, 1_000, 1, "1000")
+	require.NoError(t, err)
+	require.Equal(t, "not_first_top_up", preview.Status)
+	require.NoError(t, db.Model(&campaign).Update("payer_scope", CashbackPayerScopeEveryOrder).Error)
+
 	selectedPolicy := []string{"device_missing"}
 	_, setting, err = UpdateCashbackSettingAtomic(setting, true, now, operation_setting.CashbackReviewPolicyUpdate{
 		AutoReviewRiskFlags: &selectedPolicy,
@@ -876,7 +917,7 @@ func testCashbackProductionDatabase(t *testing.T, databaseType common.DatabaseTy
 		go func() {
 			defer waitGroup.Done()
 			<-createStart
-			_, err := CreateCashbackCampaign(now+7200, now+10800, 1, 1)
+			_, err := CreateCashbackCampaign(now+7200, now+10800, 1, 1, CashbackPayerScopeEveryOrder)
 			campaignResults <- err
 		}()
 	}

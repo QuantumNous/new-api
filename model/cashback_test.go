@@ -3142,6 +3142,92 @@ func TestCashbackCampaignBindsOrderAndLimitsOnlyPositivePayerRewards(t *testing.
 	assert.Equal(t, CashbackDirectionInviter, thirdRewards[0].Direction)
 }
 
+func TestCashbackFirstTopUpCampaignRewardsOnlyThePayersFirstWalletTopUp(t *testing.T) {
+	setupCashbackTestDB(t)
+	now := time.Now().Unix()
+	saveCashbackTestSetting(t, now-100)
+	var campaign CashbackCampaign
+	require.NoError(t, DB.First(&campaign).Error)
+	require.NoError(t, DB.Model(&campaign).Updates(map[string]any{"max_rewards_per_user": 1, "payer_scope": CashbackPayerScopeFirstTopUp}).Error)
+	payerReward := func(topUp TopUp) CashbackReward {
+		var reward CashbackReward
+		require.NoError(t, DB.Where("top_up_id = ? AND direction = ?", topUp.Id, CashbackDirectionInvitee).First(&reward).Error)
+		return reward
+	}
+	assertNotFirst := func(reward CashbackReward) {
+		assert.Zero(t, reward.RewardQuota)
+		assert.Equal(t, CashbackSettlementCanceled, reward.SettlementStatus)
+		assert.Equal(t, "not_first_top_up", reward.CapReason)
+		assert.Equal(t, "no_payable_cashback_quota", reward.BlockingReason)
+	}
+
+	inviter, payer := createCashbackUsers(t, now-30*24*60*60)
+	preview, err := PreviewPayerCashback(payer.Id, 1_000, 1, "1000")
+	require.NoError(t, err)
+	assert.Equal(t, "estimated", preview.Status)
+	first := createCompletedCashbackTopUp(t, payer, now, now, 1_000, 1_000)
+	assert.Positive(t, payerReward(first).RewardQuota)
+	preview, err = PreviewPayerCashback(payer.Id, 1_000, 1, "1000")
+	require.NoError(t, err)
+	assert.Equal(t, "not_first_top_up", preview.Status)
+	assert.Zero(t, preview.RewardQuota)
+	second := createCompletedCashbackTopUp(t, payer, now+1, now+1, 1_000, 1_000)
+	assertNotFirst(payerReward(second))
+	var inviterReward CashbackReward
+	require.NoError(t, DB.Where("top_up_id = ? AND direction = ?", second.Id, CashbackDirectionInviter).First(&inviterReward).Error)
+	assert.Equal(t, inviter.Id, inviterReward.BeneficiaryID)
+	assert.Positive(t, inviterReward.RewardQuota)
+
+	// A successful wallet top-up before the campaign, even a manual one,
+	// already used the payer's first top-up.
+	veteran := User{Username: "first-topup-veteran", AffCode: "first-topup-veteran", Status: common.UserStatusEnabled}
+	require.NoError(t, DB.Create(&veteran).Error)
+	require.NoError(t, DB.Create(&TopUp{UserId: veteran.Id, Amount: 10, Money: 10, TradeNo: "veteran-manual-topup",
+		PaymentMethod: "alipay", CreateTime: now - 86400, CompleteTime: now - 86400, Status: common.TopUpStatusSuccess}).Error)
+	assertNotFirst(payerReward(createCompletedCashbackTopUp(t, veteran, now+2, now+2, 1_000, 1_000)))
+
+	// Subscription purchases mirror into top_ups with a zero amount and are
+	// not wallet top-ups.
+	subscriber := User{Username: "first-topup-subscriber", AffCode: "first-topup-subscriber", Status: common.UserStatusEnabled}
+	require.NoError(t, DB.Create(&subscriber).Error)
+	require.NoError(t, DB.Create(&TopUp{UserId: subscriber.Id, Amount: 0, Money: 30, TradeNo: "subscriber-plan-order",
+		PaymentMethod: "alipay", CreateTime: now - 86400, CompleteTime: now - 86400, Status: common.TopUpStatusSuccess}).Error)
+	assert.Positive(t, payerReward(createCompletedCashbackTopUp(t, subscriber, now+3, now+3, 1_000, 1_000)).RewardQuota)
+
+	// A first top-up below the minimum earns nothing and still counts as first.
+	small := User{Username: "first-topup-small", AffCode: "first-topup-small", Status: common.UserStatusEnabled}
+	require.NoError(t, DB.Create(&small).Error)
+	tooSmall := payerReward(createCompletedCashbackTopUp(t, small, now+4, now+4, 1, 1))
+	assert.Zero(t, tooSmall.RewardQuota)
+	assert.Equal(t, "below_minimum", tooSmall.CapReason)
+	assertNotFirst(payerReward(createCompletedCashbackTopUp(t, small, now+5, now+5, 1_000, 1_000)))
+}
+
+func TestCreateCashbackCampaignValidatesPayerScope(t *testing.T) {
+	setupCashbackTestDB(t)
+	now := time.Now().Unix()
+	for _, tc := range []struct {
+		name       string
+		scope      string
+		maxRewards int
+	}{
+		{"unknown scope", "second_top_up", 1},
+		{"first top-up allows only one reward", CashbackPayerScopeFirstTopUp, 2},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := CreateCashbackCampaign(now+3600, now+7200, tc.maxRewards, 1, tc.scope)
+			assert.ErrorIs(t, err, ErrCashbackInvalidInput)
+		})
+	}
+	campaign, err := CreateCashbackCampaign(now+3600, now+7200, 1, 1, CashbackPayerScopeFirstTopUp)
+	require.NoError(t, err)
+	campaigns, err := ListCashbackCampaigns()
+	require.NoError(t, err)
+	require.Len(t, campaigns, 1)
+	assert.Equal(t, campaign.ID, campaigns[0].ID)
+	assert.Equal(t, CashbackPayerScopeFirstTopUp, campaigns[0].PayerScope)
+}
+
 func TestCashbackOrderDoesNotBindCampaignOnFutureApplicationTimestamp(t *testing.T) {
 	setupCashbackTestDB(t)
 	now := time.Now().Unix()

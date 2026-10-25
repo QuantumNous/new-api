@@ -94,6 +94,16 @@ func PreviewPayerCashback(userID, baseQuota int, faceAmount int64, factor string
 			preview.Status = "ineligible"
 			return nil
 		}
+		if campaign.PayerScope == CashbackPayerScopeFirstTopUp {
+			hasPrior, err := cashbackPayerHasPriorTopUpTx(tx, userID, 0)
+			if err != nil {
+				return err
+			}
+			if hasPrior {
+				preview.Status = "not_first_top_up"
+				return nil
+			}
+		}
 		used, err := cashbackCampaignPayerRewardsUsedTx(tx, campaign.ID, userID)
 		if err != nil {
 			return err
@@ -141,6 +151,7 @@ func PreviewPayerCashback(userID, baseQuota int, faceAmount int64, factor string
 // Fixed-per-hundred is in CNY yuan; tier amounts are CNY cents, never wallet quota.
 type CashbackPublicOffer struct {
 	Strategy        string                           `json:"strategy"`
+	PayerScope      string                           `json:"payer_scope,omitempty"`
 	RateBPS         int                              `json:"rate_bps,omitempty"`
 	FixedPerHundred int                              `json:"fixed_per_hundred,omitempty"`
 	Tiers           []operation_setting.CashbackTier `json:"tiers,omitempty"`
@@ -186,6 +197,7 @@ func GetCashbackPublicOffers() (CashbackPublicOffers, error) {
 			}
 			if err == nil {
 				result.Invitee = publicCashbackOffer(setting.InviteeStrategy, setting.InviteeRateBPS, setting.InviteeFixedPerHundred, setting.InviteeTiers)
+				result.Invitee.PayerScope = campaign.PayerScope
 			}
 		}
 		result.Active = result.Inviter != nil || result.Invitee != nil
