@@ -116,9 +116,11 @@ describe('RewardBanner', () => {
     await renderAt('/')
 
     const banner = await screen.findByRole('region', {
-      name: 'Current rewards',
+      name: 'Announcements',
     })
-    expect(banner).toHaveTextContent('First top-up ¥100 get ¥5')
+    await waitFor(() =>
+      expect(banner).toHaveTextContent('First top-up ¥100 get ¥5')
+    )
     expect(screen.getByRole('link', { name: /Top up now/ })).toHaveAttribute(
       'href',
       '/sign-up'
@@ -135,7 +137,7 @@ describe('RewardBanner', () => {
     ).toHaveAttribute('href', '/wallet')
   })
 
-  it('stays hidden when the offers request fails even with a sign-up grant', async () => {
+  it('keeps only the hackathon when the offers request fails even with a sign-up grant', async () => {
     serveOffers(() => ({ status: 500, data: { success: false } }))
     await renderAt('/', { quota_for_new_user: 500_000 })
 
@@ -144,7 +146,22 @@ describe('RewardBanner', () => {
         'error'
       )
     )
-    expect(screen.queryByRole('region', { name: 'Current rewards' })).toBeNull()
+    const banner = screen.getByRole('region', { name: 'Announcements' })
+    expect(banner).toHaveTextContent('Fastrun Cloud Hackathon')
+    expect(banner).not.toHaveTextContent(/New users get/)
+    expect(screen.queryByRole('link', { name: /Top up now/ })).toBeNull()
+  })
+
+  it('links the hackathon to the home spotlight beside the live offer', async () => {
+    serveOffers(() => offersReply(firstTopUpOffers))
+    await renderAt('/wallet')
+
+    expect(
+      await screen.findByRole('link', { name: /Top up now/ })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /Explore the hackathon/ })
+    ).toHaveAttribute('href', '/#hackathon')
   })
 
   it('shows only the sign-up grant when no campaign is live', async () => {
@@ -152,9 +169,11 @@ describe('RewardBanner', () => {
     await renderAt('/', { quota_for_new_user: 500_000 })
 
     const banner = await screen.findByRole('region', {
-      name: 'Current rewards',
+      name: 'Announcements',
     })
-    expect(banner).toHaveTextContent(/New users get .+ on sign-up/)
+    await waitFor(() =>
+      expect(banner).toHaveTextContent(/New users get .+ on sign-up/)
+    )
     expect(banner).not.toHaveTextContent('Top up ¥')
   })
 
@@ -169,9 +188,7 @@ describe('RewardBanner', () => {
           client.getQueryState(['cashback', 'public-offers'])?.status
         ).toBe('success')
       )
-      expect(
-        screen.queryByRole('region', { name: 'Current rewards' })
-      ).toBeNull()
+      expect(screen.queryByRole('region', { name: 'Announcements' })).toBeNull()
     }
   )
 
@@ -180,10 +197,8 @@ describe('RewardBanner', () => {
     serveOffers(() => offersReply(offers))
     const view = await renderAt('/')
 
-    await userEvent.click(
-      await screen.findByRole('button', { name: 'Dismiss reward banner' })
-    )
-    expect(screen.queryByRole('region', { name: 'Current rewards' })).toBeNull()
+    await userEvent.click(await screen.findByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('region', { name: 'Announcements' })).toBeNull()
 
     view.unmount()
     client.clear()
@@ -193,7 +208,7 @@ describe('RewardBanner', () => {
         'success'
       )
     )
-    expect(screen.queryByRole('region', { name: 'Current rewards' })).toBeNull()
+    expect(screen.queryByRole('region', { name: 'Announcements' })).toBeNull()
 
     offers = {
       ...firstTopUpOffers,
@@ -203,7 +218,7 @@ describe('RewardBanner', () => {
       await client.refetchQueries({ queryKey: ['cashback', 'public-offers'] })
     })
     expect(
-      await screen.findByRole('region', { name: 'Current rewards' })
+      await screen.findByRole('region', { name: 'Announcements' })
     ).toHaveTextContent('Top-up: 5% back')
   })
 })

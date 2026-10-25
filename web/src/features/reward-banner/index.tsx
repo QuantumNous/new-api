@@ -24,6 +24,11 @@ import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
 import { getPublicCashbackOffers } from '@/features/cashback/api'
+import {
+  FORGE_MARK,
+  FORGE_PARTNER_NAME,
+  FORGE_SECTION_ID,
+} from '@/features/home/lib/forge-hackathon'
 import { useStatus } from '@/hooks/use-status'
 import { toIntlLocale } from '@/i18n/languages'
 import { formatQuotaWithCurrency } from '@/lib/currency'
@@ -33,6 +38,8 @@ import { buildRewardBannerContent } from './lib/banner-content'
 
 export const REWARD_BANNER_DISMISS_KEY = 'reward-banner-dismissed'
 const BANNER_HEIGHT_VAR = '--reward-banner-height'
+// Bump when the hackathon copy changes so a past dismissal does not hide it.
+const FORGE_ANNOUNCEMENT_ID = 'qupper-forge-2026'
 
 // Pages where marketing copy would interrupt a flow: install, sign-in
 // handoffs, embedded assistant authorization, and error pages.
@@ -57,7 +64,10 @@ function readDismissedKey(): string | null {
   }
 }
 
-/** Site-wide strip advertising the live sign-up grant and top-up campaign. */
+/**
+ * Site-wide strip announcing the Fastrun Cloud hackathon partnership beside
+ * the live sign-up grant and top-up campaign.
+ */
 export function RewardBanner() {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
@@ -88,7 +98,7 @@ export function RewardBanner() {
 
   // A failed read hides every rule; a background refresh keeps the last
   // confirmed rules so the strip does not flicker each minute.
-  const content =
+  const rewards =
     hiddenRoute || offers.isError
       ? null
       : buildRewardBannerContent(
@@ -99,7 +109,12 @@ export function RewardBanner() {
           },
           { t, locale, formatQuota: (quota) => formatQuotaWithCurrency(quota) }
         )
-  const visible = content !== null && content.rulesKey !== dismissedKey
+  // One dismissal covers the whole strip until either announcement changes.
+  const announcementKey = JSON.stringify({
+    forge: FORGE_ANNOUNCEMENT_ID,
+    rewards: rewards?.rulesKey ?? null,
+  })
+  const visible = !hiddenRoute && announcementKey !== dismissedKey
 
   // Full-height shells subtract this so the banner never adds a page scroll.
   useLayoutEffect(() => {
@@ -126,49 +141,90 @@ export function RewardBanner() {
   if (!visible) return null
 
   function dismiss() {
-    if (!content) return
     try {
-      window.localStorage.setItem(REWARD_BANNER_DISMISS_KEY, content.rulesKey)
+      window.localStorage.setItem(REWARD_BANNER_DISMISS_KEY, announcementKey)
     } catch {
       /* the dismissal still applies to this page view */
     }
-    setDismissedKey(content.rulesKey)
+    setDismissedKey(announcementKey)
   }
 
   return (
     <div
       ref={bannerRef}
       role='region'
-      aria-label={t('Current rewards')}
-      className='relative z-50 overflow-hidden border-b border-white/10 bg-(--brand-ink) px-11 py-1.5 text-center text-[13px] leading-5 text-white/90'
+      aria-label={t('Announcements')}
+      className='border-foreground/5 bg-background text-foreground/80 relative z-50 overflow-hidden border-b px-11 py-1.5 text-center text-[13px] leading-5 dark:border-white/10'
     >
-      {/* A faint lime → cyan wash ties the strip to the brand sweep below. */}
+      {/* A soft lime → cyan wash continues the brand sweep of the page. */}
       <div
         aria-hidden='true'
-        className='pointer-events-none absolute inset-0 bg-[radial-gradient(60%_140%_at_30%_0%,color-mix(in_srgb,var(--brand-lime)_14%,transparent),transparent_70%),radial-gradient(50%_140%_at_75%_100%,color-mix(in_srgb,var(--brand-cyan)_12%,transparent),transparent_70%)]'
+        className='pointer-events-none absolute inset-0 bg-[linear-gradient(90deg,color-mix(in_srgb,var(--brand-lime)_26%,transparent),color-mix(in_srgb,var(--brand-mint)_14%,transparent)_50%,color-mix(in_srgb,var(--brand-cyan)_22%,transparent))] dark:opacity-35'
       />
-      <p className='relative mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-x-3 gap-y-1'>
-        <span
-          aria-hidden='true'
-          className='hidden size-5 shrink-0 place-items-center rounded-md bg-(image:--brand-gradient) text-(--brand-ink) sm:grid'
-        >
-          <Gift className='size-3' strokeWidth={2.5} />
-        </span>
-        <span className='tracking-wide'>{content.segments.join(' | ')}</span>
-        <Link
-          to={isAuthenticated ? '/wallet' : '/sign-up'}
-          className='inline-flex items-center rounded-full bg-(image:--brand-gradient) px-3 py-0.5 text-xs font-semibold whitespace-nowrap text-(--brand-ink) shadow-[0_0_12px_color-mix(in_srgb,var(--brand-mint)_35%,transparent)] transition-[filter,box-shadow] hover:shadow-[0_0_18px_color-mix(in_srgb,var(--brand-mint)_55%,transparent)] hover:brightness-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-(--brand-mint)'
-        >
-          {t('Top up now')} →
-        </Link>
-      </p>
+      <div className='relative mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-5 gap-y-1'>
+        <p className='flex flex-wrap items-center justify-center gap-x-2.5 gap-y-0.5'>
+          <img
+            src={FORGE_MARK}
+            alt=''
+            width={22}
+            height={17}
+            aria-hidden='true'
+            className='hidden shrink-0 drop-shadow-[0_0_4px_rgb(34_211_238/0.35)] sm:block'
+          />
+          <span className='tracking-wide'>
+            <span className='text-foreground font-semibold'>
+              {t('Fastrun Cloud Hackathon')}
+            </span>{' '}
+            <span aria-hidden='true' className='text-muted-foreground'>
+              ×
+            </span>{' '}
+            {FORGE_PARTNER_NAME}
+            <span className='text-muted-foreground'>
+              {' · '}
+              {t('Model supply partner')}
+            </span>
+          </span>
+          <Link
+            to='/'
+            hash={FORGE_SECTION_ID}
+            className='text-xs font-semibold whitespace-nowrap text-cyan-700 underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current dark:text-(--brand-cyan)'
+          >
+            {t('Explore the hackathon')} →
+          </Link>
+        </p>
+        {rewards ? (
+          <>
+            <span
+              aria-hidden='true'
+              className='bg-foreground/15 hidden h-3.5 w-px md:block'
+            />
+            <p className='flex flex-wrap items-center justify-center gap-x-3 gap-y-1'>
+              <span
+                aria-hidden='true'
+                className='hidden size-5 shrink-0 place-items-center rounded-md bg-(image:--brand-gradient) text-(--brand-ink) sm:grid'
+              >
+                <Gift className='size-3' strokeWidth={2.5} />
+              </span>
+              <span className='tracking-wide'>
+                {rewards.segments.join(' | ')}
+              </span>
+              <Link
+                to={isAuthenticated ? '/wallet' : '/sign-up'}
+                className='bg-foreground text-background focus-visible:outline-foreground inline-flex items-center rounded-full px-3 py-0.5 text-xs font-semibold whitespace-nowrap transition-opacity hover:opacity-85 focus-visible:outline-2 focus-visible:outline-offset-2'
+              >
+                {t('Top up now')} →
+              </Link>
+            </p>
+          </>
+        ) : null}
+      </div>
       <Button
         type='button'
         variant='ghost'
         size='icon-sm'
-        aria-label={t('Dismiss reward banner')}
+        aria-label={t('Close')}
         onClick={dismiss}
-        className='absolute top-1/2 right-2 -translate-y-1/2 text-white/60 hover:bg-white/10 hover:text-white'
+        className='text-foreground/50 hover:bg-foreground/5 hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2'
       >
         <X aria-hidden='true' />
       </Button>

@@ -23,20 +23,20 @@ import { useTranslation } from 'react-i18next'
 
 import { PRODUCT_NAME } from '@/lib/product-brand'
 
+import {
+  FORGE_ASSETS,
+  FORGE_HACKATHON_URL,
+  FORGE_MARK,
+  FORGE_PARTNER_NAME,
+  FORGE_SECTION_ID,
+} from '../lib/forge-hackathon'
 import { CiMark } from './ci-mark'
 
 import './forge-partnership.css'
 
-export const FORGE_HACKATHON_URL = 'https://qupper.fastrun.com.cn/'
-export const FORGE_SECTION_ID = 'hackathon'
-
-const FORGE_ASSETS = '/partners/qupper-forge'
 const FORGE_LOGO = `${FORGE_ASSETS}/qupper-forge-logo.webp`
-const FORGE_MARK = `${FORGE_ASSETS}/qupper-forge-mark.webp`
 // The all-green mark stands out among the monochrome partner logos.
 const SELF_MARK = '/yeschoy-mark-green.svg'
-// The event pairing names the API product, not just the brand.
-const PARTNER_NAME = `${PRODUCT_NAME}API`
 
 /** Hero announcement that jumps to the hackathon spotlight below the fold. */
 export function ForgeHeroBadge() {
@@ -94,7 +94,7 @@ export function ForgeHeroBadge() {
         <strong>
           Qupper&apos;s Forge{' '}
           <span className='ci-forgeBadgeWith'>
-            <span aria-hidden='true'>×</span> {PARTNER_NAME}
+            <span aria-hidden='true'>×</span> {FORGE_PARTNER_NAME}
           </span>
         </strong>
         <span>
@@ -180,7 +180,7 @@ function ForgeEcosystem() {
             height={32}
             aria-hidden='true'
           />
-          <strong>{PARTNER_NAME}</strong>
+          <strong>{FORGE_PARTNER_NAME}</strong>
           <span>{t('Model supply partner')}</span>
         </li>
         {partners.slice(1).map(renderPartner)}
