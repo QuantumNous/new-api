@@ -29,6 +29,7 @@ export function isOptionalProxyURL(value: string): boolean {
   const trimmedValue = value.trim()
   if (!trimmedValue) return true
   if (value !== trimmedValue) return false
+  if (trimmedValue.includes('?') || trimmedValue.includes('#')) return false
 
   try {
     const parsedURL = new URL(trimmedValue)

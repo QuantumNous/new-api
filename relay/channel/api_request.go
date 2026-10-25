@@ -1,9 +1,11 @@
 package channel
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -412,7 +414,12 @@ func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 		if proxyErr != nil {
 			return nil, proxyErr
 		}
-		dialer.Proxy = http.ProxyURL(proxyURL)
+		// gorilla/websocket only dials http and socks5 proxies. Dial the accepted
+		// schemes here, including https and socks5h, and disable its proxy wrapper.
+		dialer.Proxy = func(*http.Request) (*url.URL, error) { return nil, nil }
+		dialer.NetDialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return service.DialContextThroughProxy(ctx, proxyURL, network, addr)
+		}
 	}
 	if info.ChannelSetting.TLSInsecureSkipVerify {
 		dialer.TLSClientConfig = common2.InsecureTLSConfig
@@ -459,7 +466,7 @@ func keepUpstreamRedirectResponse(_ *http.Request, _ []*http.Request) error {
 // proxy, or neither. The target omits proxy credentials.
 func outboundProxyForLog(channelProxy string) (source, target string) {
 	channelProxy = strings.TrimSpace(channelProxy)
-	systemProxy := strings.TrimSpace(common2.SystemProxy)
+	systemProxy := strings.TrimSpace(common2.GetSystemProxy())
 	raw := ""
 	switch {
 	case channelProxy != "":

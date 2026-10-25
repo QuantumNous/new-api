@@ -17,5 +17,7 @@ describe('isOptionalProxyURL', () => {
     expect(isOptionalProxyURL(' ftp://proxy.example ')).toBe(false)
     expect(isOptionalProxyURL('socks5://proxy.example:1080/path')).toBe(false)
     expect(isOptionalProxyURL('http://proxy.example?x=1')).toBe(false)
+    expect(isOptionalProxyURL('http://proxy.example?')).toBe(false)
+    expect(isOptionalProxyURL('http://proxy.example#')).toBe(false)
   })
 })

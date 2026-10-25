@@ -149,7 +149,7 @@ func EffectiveOutboundProxy(channelProxy string) string {
 	if proxy := strings.TrimSpace(channelProxy); proxy != "" {
 		return proxy
 	}
-	return strings.TrimSpace(common.SystemProxy)
+	return strings.TrimSpace(common.GetSystemProxy())
 }
 
 // GetHttpClient returns the general outbound client used by relay/provider
@@ -158,7 +158,7 @@ func EffectiveOutboundProxy(channelProxy string) string {
 // Code paths that fetch arbitrary user-controlled URLs must use
 // GetSSRFProtectedHTTPClient or ValidateSSRFProtectedFetchURL instead.
 func GetHttpClient() *http.Client {
-	if proxy := strings.TrimSpace(common.SystemProxy); proxy != "" {
+	if proxy := strings.TrimSpace(common.GetSystemProxy()); proxy != "" {
 		if client, err := GetHttpClientWithProxy(proxy); err == nil && client != nil {
 			return client
 		}
