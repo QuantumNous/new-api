@@ -17,15 +17,25 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { DEFAULT_LOGO } from '@/lib/constants'
-import { PRODUCT_NAME } from '@/lib/product-brand'
+import { PRODUCT_NAME, PRODUCT_NAME_LATIN } from '@/lib/product-brand'
 
 export function CiMark(props: {
   size?: number
   withWordmark?: boolean
+  /** Sets the Latin name under the Chinese one instead of a single line. */
+  stackedWordmark?: boolean
   /** Overrides the default mark, e.g. the all-gradient variant. */
   src?: string
 }) {
   const size = props.size ?? 22
+  const wordmark = props.stackedWordmark ? (
+    <span className='ci-markStack'>
+      <span>{PRODUCT_NAME}</span>
+      <span className='ci-markLatin'>{PRODUCT_NAME_LATIN}</span>
+    </span>
+  ) : (
+    <span>{PRODUCT_NAME}</span>
+  )
   return (
     <span
       className='ci-mark'
@@ -38,7 +48,7 @@ export function CiMark(props: {
         height={size}
         aria-hidden='true'
       />
-      {props.withWordmark ? <span>{PRODUCT_NAME}</span> : null}
+      {props.withWordmark ? wordmark : null}
     </span>
   )
 }

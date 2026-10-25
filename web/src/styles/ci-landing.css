@@ -5452,6 +5452,25 @@ html:lang(zh-TW) .ci-finalCta h2 i {
   letter-spacing: -0.02em;
   color: var(--ci-color-heading, inherit);
 }
+.ci-mark .ci-markStack {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ci-mark .ci-markStack > span {
+  line-height: 1;
+}
+.ci-mark .ci-markStack > span:first-child {
+  font-size: 15px;
+  letter-spacing: 0.04em;
+}
+.ci-mark .ci-markStack > .ci-markLatin {
+  color: var(--ci-muted);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
 .ci-button--lime {
   background: var(--ci-color-accent);
   color: var(--ci-color-accent-foreground);

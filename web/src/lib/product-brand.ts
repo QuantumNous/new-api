@@ -21,6 +21,9 @@ import { DEFAULT_SYSTEM_NAME, resolveSystemName } from '@/lib/constants'
 /** Public product name shown in the landing, auth, and access-terminal chrome. */
 export const PRODUCT_NAME = '野菜'
 
+/** Latin brand name set under the Chinese name in stacked lockups. */
+export const PRODUCT_NAME_LATIN = 'YesChoy'
+
 /**
  * Use the operator-configured system name when they set one.
  * The protected upstream default still reads as New API internally;

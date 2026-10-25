@@ -82,9 +82,6 @@ describe('default home campaign deadline', () => {
       'href',
       '/sign-up'
     )
-    expect(
-      screen.queryByRole('link', { name: 'Models' })
-    ).not.toBeInTheDocument()
   })
 
   it('hides cached active offers while the home campaign request fails', async () => {
