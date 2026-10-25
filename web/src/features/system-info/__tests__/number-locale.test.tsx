@@ -22,7 +22,7 @@ import i18next from 'i18next'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { api } from '@/lib/api'
+import { api, type ApiRequestConfig } from '@/lib/api'
 
 import { SystemInstancesPanel } from '../components/system-instances-panel'
 import { SystemTasksPanel } from '../components/system-tasks-panel'
@@ -46,30 +46,32 @@ function renderWithClient(children: ReactNode) {
 }
 
 function mockApi() {
-  vi.spyOn(api, 'get').mockImplementation(async (url, config) => {
-    if (url === '/api/system-info/instances') {
-      return { data: { success: true, message: '', data: [instance] } }
-    }
-    if (config?.params?.scope === 'active') {
-      return {
-        data: {
-          success: true,
-          data: [
-            {
-              id: 2,
-              task_id: 'a',
-              type: 'model_update',
-              status: 'running',
-              created_at: 100,
-              updated_at: 200,
-            },
-          ],
-          total: 1,
-        },
+  vi.spyOn(api, 'get').mockImplementation(
+    async (url, config?: ApiRequestConfig) => {
+      if (url === '/api/system-info/instances') {
+        return { data: { success: true, message: '', data: [instance] } }
       }
+      if (config?.params?.scope === 'active') {
+        return {
+          data: {
+            success: true,
+            data: [
+              {
+                id: 2,
+                task_id: 'a',
+                type: 'model_update',
+                status: 'running',
+                created_at: 100,
+                updated_at: 200,
+              },
+            ],
+            total: 1,
+          },
+        }
+      }
+      return { data: { success: true, data: [], total: 0 } }
     }
-    return { data: { success: true, data: [], total: 0 } }
-  })
+  )
 }
 
 afterEach(async () => {
