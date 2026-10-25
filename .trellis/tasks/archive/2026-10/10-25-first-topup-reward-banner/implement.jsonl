@@ -1,0 +1,9 @@
+{"file": ".trellis/spec/backend/referral-recharge-cashback.md", "reason": "Cashback campaign, payer eligibility, preview and public-offers contract being extended"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "New campaign column must pass three-DB migration rules and Docker-only DB testing"}
+{"file": ".trellis/spec/backend/partner-oauth.md", "reason": "Partner OAuth balance-payment orders count as prior top-ups"}
+{"file": ".trellis/spec/backend/index.md", "reason": "Backend pre-development checklist"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend code and test quality rules"}
+{"file": ".trellis/spec/frontend/index.md", "reason": "Frontend pre-development checklist"}
+{"file": ".trellis/spec/frontend/component-guidelines.md", "reason": "Banner component reuse and structure"}
+{"file": ".trellis/spec/frontend/state-management.md", "reason": "React Query polling and localStorage dismissal"}
+{"file": "web/AGENTS.md", "reason": "Frontend i18n, currency formatting, tests and lint rules"}

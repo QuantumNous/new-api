@@ -1,0 +1,5 @@
+{"file": ".trellis/spec/backend/referral-recharge-cashback.md", "reason": "Verify payer eligibility, locks, preview statuses and public whitelist stay within contract"}
+{"file": ".trellis/spec/backend/database-guidelines.md", "reason": "Verify three-DB migration evidence for the new column"}
+{"file": ".trellis/spec/backend/quality-guidelines.md", "reason": "Backend quality gate"}
+{"file": ".trellis/spec/frontend/quality-guidelines.md", "reason": "Frontend quality gate"}
+{"file": "web/AGENTS.md", "reason": "i18n parity, Intl locale, test placement and lint rules"}

@@ -8,8 +8,8 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 22
-- **Last Active**: 2026-10-02
+- **Total Sessions**: 23
+- **Last Active**: 2026-10-25
 <!-- @@@/auto:current-status -->
 
 ---
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~667 | Active |
+| `journal-1.md` | ~691 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 23 | 2026-10-25 | First-top-up campaigns and site-wide reward banner | `34c4edad1`, `90b670970`, `7d4e1a241` | `feat/partner-oauth` |
 | 22 | 2026-10-02 | 返现自动审核逐项风险配置 | `3910c2bc4`, `24354d223` | `feat/recharge-cashback` |
 | 21 | 2026-10-02 | 首页返现活动限时展示与狂蹬卡活动页 | `8f1aabf77`, `efdbe7ffa` | `feat/recharge-cashback` |
 | 20 | 2026-10-01 | 订阅套餐按适用分组扣费 | `97ade2774`, `d7b95ada5` | `feat/recharge-cashback` |

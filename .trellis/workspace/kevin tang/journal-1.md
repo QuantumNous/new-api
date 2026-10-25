@@ -665,3 +665,27 @@
 ### Status
 
 [OK] **Completed**
+
+
+## Session 23: First-top-up campaigns and site-wide reward banner
+<!-- trellis-session: v=2 fp=7195443f0d58fddb -->
+
+**Date**: 2026-10-25
+**Task**: First-top-up campaigns and site-wide reward banner
+**Branch**: `feat/partner-oauth`
+
+### Summary
+
+Forge hero badge attention/morph effects and wording; first_top_up payer scope for cashback campaigns (PostgreSQL-only verification by owner decision); site-wide live reward banner.
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `34c4edad1` | feat(home): draw attention to the Forge badge and morph it into the spotlight on click |
+| `90b670970` | feat(cashback): add first-top-up-only campaigns |
+| `7d4e1a241` | feat(web): add the first-top-up campaign toggle and a site-wide reward banner |
+
+### Status
+
+[OK] **Completed**
