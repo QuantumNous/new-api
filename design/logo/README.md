@@ -13,11 +13,11 @@
 
 ## 横版（C 方案）
 
-给合作方用的长方形 logo，2:1（1200×600，比 16:9 更扁）：左边 C 方案的「野」，右边「野菜」字标与渐变「YESCHOY」，字标上下与「野」对齐。文字已转成路径，不依赖字体；字形来自 Noto Sans SC Black 与 Inter Bold（均为 SIL OFL，可用于 logo）。
+给合作方用的长方形 logo，2:1（1200×600，比 16:9 更扁）：只有 C 方案的「野」，居中，高度占画布 60%，不带字标。
 
 | 文件 | 用途 |
 |---|---|
 | `ye-c-wide.svg` / `ye-c-wide.png` | 带深色圆角底板，任何背景都能直接放 |
-| `ye-c-wide-transparent.svg` / `ye-c-wide-transparent.png` | 透明底，白字，只适合放在深色背景上 |
+| `ye-c-wide-transparent.svg` / `ye-c-wide-transparent.png` | 透明底，「里」为白色，只适合放在深色背景上 |
 
 PNG 为 2400×1200（2 倍图），带透明通道。
