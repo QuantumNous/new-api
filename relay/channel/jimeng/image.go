@@ -1,11 +1,12 @@
 package jimeng
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
+	"github.com/QuantumNous/new-api/common"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -57,7 +58,7 @@ func jimengImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.R
 	}
 	service.CloseResponseBodyGracefully(resp)
 
-	err = json.Unmarshal(responseBody, &jimengResponse)
+	err = common.Unmarshal(responseBody, &jimengResponse)
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
@@ -74,7 +75,7 @@ func jimengImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.R
 
 	// Convert Jimeng response to OpenAI format
 	fullTextResponse := responseJimeng2OpenAIImage(c, &jimengResponse, info)
-	jsonResponse, err := json.Marshal(fullTextResponse)
+	jsonResponse, err := common.Marshal(fullTextResponse)
 	if err != nil {
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
@@ -86,5 +87,17 @@ func jimengImageHandler(c *gin.Context, resp *http.Response, info *relaycommon.R
 		return nil, types.NewError(err, types.ErrorCodeBadResponseBody)
 	}
 
+	var urls, base64Images int64
+	for _, url := range jimengResponse.Data.ImageUrls {
+		if strings.TrimSpace(url) != "" {
+			urls++
+		}
+	}
+	for _, payload := range jimengResponse.Data.BinaryDataBase64 {
+		if strings.TrimSpace(payload) != "" {
+			base64Images++
+		}
+	}
+	info.UpdateImageCount(max(urls, base64Images))
 	return &dto.Usage{}, nil
 }

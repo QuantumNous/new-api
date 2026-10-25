@@ -10,6 +10,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -18,6 +19,81 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestGeminiImageHandlerBillsPayloadCount(t *testing.T) {
+	oldMode := gin.Mode()
+	gin.SetMode(gin.TestMode)
+	t.Cleanup(func() { gin.SetMode(oldMode) })
+
+	overMax := make([]dto.GeminiImagePrediction, dto.MaxImageN+1)
+	for i := range overMax {
+		overMax[i].BytesBase64Encoded = "aW1hZ2U="
+	}
+	for _, tc := range []struct {
+		name        string
+		requested   int
+		predictions []dto.GeminiImagePrediction
+		wantN       float64
+		wantEntries int
+		expression  bool
+		wantBilled  *int
+		wantErr     bool
+	}{
+		{"filtered predictions", 4, []dto.GeminiImagePrediction{
+			{BytesBase64Encoded: "aW1hZ2Ux"}, {BytesBase64Encoded: "aW1hZ2Uy"},
+			{BytesBase64Encoded: "ZmlsdGVyZWQ=", RaiFilteredReason: "safety"}, {RaiFilteredReason: "safety"},
+		}, 2, 2, false, nil, false},
+		{"blank payloads", 3, []dto.GeminiImagePrediction{
+			{BytesBase64Encoded: "aW1hZ2U="}, {}, {BytesBase64Encoded: "   "},
+		}, 1, 3, false, nil, false},
+		{"more than requested", 1, []dto.GeminiImagePrediction{
+			{BytesBase64Encoded: "aW1hZ2Ux"}, {BytesBase64Encoded: "aW1hZ2Uy"},
+		}, 2, 2, false, nil, false},
+		{"all filtered keeps reservation", 4, []dto.GeminiImagePrediction{
+			{BytesBase64Encoded: "ZmlsdGVyZWQ=", RaiFilteredReason: "safety"},
+		}, 4, 0, false, nil, false},
+		{"over maximum keeps reservation", 1, overMax, 1, dto.MaxImageN + 1, false, nil, false},
+		{"expression uses actual count", 4, []dto.GeminiImagePrediction{
+			{BytesBase64Encoded: "aW1hZ2Ux"}, {BytesBase64Encoded: "aW1hZ2Uy"},
+		}, 4, 2, true, common.GetPointer(2), false},
+		{"expression zero keeps reservation", 4, []dto.GeminiImagePrediction{
+			{RaiFilteredReason: "safety"},
+		}, 4, 0, true, nil, false},
+		{"no predictions returns error", 4, nil, 4, 0, false, nil, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", nil)
+			info := &relaycommon.RelayInfo{}
+			info.PriceData.UsePrice = !tc.expression
+			info.PriceData.ModelPrice = 0.04
+			info.PriceData.GroupRatioInfo.GroupRatio = 1
+			info.PriceData.AddOtherRatio("n", float64(tc.requested))
+			if tc.expression {
+				info.TieredBillingSnapshot = &billingexpr.BillingSnapshot{EstimatedImageCount: &tc.requested}
+			}
+			body, err := common.Marshal(dto.GeminiImageResponse{Predictions: tc.predictions})
+			require.NoError(t, err)
+			response := &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(body))}
+
+			usage, apiErr := GeminiImageHandler(ctx, info, response)
+
+			assert.Equal(t, tc.wantN, info.PriceData.OtherRatios()["n"])
+			assert.Equal(t, tc.wantBilled, info.BillingImageCount)
+			if tc.wantErr {
+				require.NotNil(t, apiErr)
+				assert.Nil(t, usage)
+				return
+			}
+			require.Nil(t, apiErr)
+			require.NotNil(t, usage)
+			var images dto.ImageResponse
+			require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &images))
+			assert.Len(t, images.Data, tc.wantEntries)
+		})
+	}
+}
 
 func TestStreamResponseGeminiChat2OpenAIAttachesUsageMetadata(t *testing.T) {
 	t.Parallel()

@@ -560,6 +560,7 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		Data:    make([]dto.ImageData, 0, len(geminiResponse.Predictions)),
 	}
 
+	var billableImages int64
 	for _, prediction := range geminiResponse.Predictions {
 		if prediction.RaiFilteredReason != "" {
 			continue // skip filtered image
@@ -567,7 +568,11 @@ func GeminiImageHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.
 		openAIResponse.Data = append(openAIResponse.Data, dto.ImageData{
 			B64Json: prediction.BytesBase64Encoded,
 		})
+		if strings.TrimSpace(prediction.BytesBase64Encoded) != "" {
+			billableImages++
+		}
 	}
+	info.UpdateImageCount(billableImages)
 
 	jsonResponse, jsonErr := common.Marshal(openAIResponse)
 	if jsonErr != nil {
