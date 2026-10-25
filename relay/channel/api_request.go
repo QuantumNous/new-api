@@ -454,6 +454,25 @@ func keepUpstreamRedirectResponse(_ *http.Request, _ []*http.Request) error {
 	return http.ErrUseLastResponse
 }
 
+func outboundProxyForLog(channelProxy string) (source, target string) {
+	channelProxy = strings.TrimSpace(channelProxy)
+	systemProxy := strings.TrimSpace(common2.SystemProxy)
+	raw := ""
+	switch {
+	case channelProxy != "":
+		source, raw = "channel", channelProxy
+	case systemProxy != "":
+		source, raw = "system", systemProxy
+	default:
+		return "direct-or-env", "none"
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Host == "" {
+		return source, "invalid"
+	}
+	return source, parsed.Scheme + "://" + parsed.Host
+}
+
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	client, err := service.GetHttpClientWithProxySettings(info.ChannelSetting.Proxy, info.ChannelSetting)
 	if err != nil {
@@ -486,11 +505,17 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 	}
 
 	common2.SetContextKey(c, appconstant.ContextKeyUpstreamRequestOrigin, req.URL.Scheme+"://"+req.URL.Host)
+	proxySource, proxyTarget := outboundProxyForLog(info.ChannelSetting.Proxy)
+	upstream := ""
+	if req.URL != nil {
+		upstream = req.URL.Scheme + "://" + req.URL.Host
+	}
 	resp, err := relayClient.Do(req)
 	if err != nil {
-		logger.LogError(c, common2.LogText("do request failed: %s", err.Error()))
+		logger.LogError(c, common2.LogText("outbound proxy=%s target=%s upstream=%s result=failed error=%s", proxySource, proxyTarget, upstream, err.Error()))
 		return nil, types.NewError(err, types.ErrorCodeDoRequestFailed, types.ErrOptionWithHideErrMsg("upstream error: do request failed"))
 	}
+	logger.LogInfo(c, common2.LogText("outbound proxy=%s target=%s upstream=%s result=success status=%d", proxySource, proxyTarget, upstream, resp.StatusCode))
 	if resp == nil {
 		return nil, errors.New("resp is nil")
 	}
