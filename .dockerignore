@@ -5,6 +5,7 @@
 .gitignore
 Makefile
 docs
+design
 .eslintcache
 .gocache
 /web/node_modules
