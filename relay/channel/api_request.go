@@ -444,6 +444,7 @@ func toWebSocketURL(raw string) string {
 	}
 }
 
+// DoRequest sends the prepared upstream request and returns the upstream response.
 func DoRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	return doRequest(c, req, info)
 }
@@ -454,6 +455,8 @@ func keepUpstreamRedirectResponse(_ *http.Request, _ []*http.Request) error {
 	return http.ErrUseLastResponse
 }
 
+// outboundProxyForLog reports whether the relay used a channel proxy, the system
+// proxy, or neither. The target omits proxy credentials.
 func outboundProxyForLog(channelProxy string) (source, target string) {
 	channelProxy = strings.TrimSpace(channelProxy)
 	systemProxy := strings.TrimSpace(common2.SystemProxy)
@@ -473,6 +476,7 @@ func outboundProxyForLog(channelProxy string) (source, target string) {
 	return source, parsed.Scheme + "://" + parsed.Host
 }
 
+// doRequest dials the upstream, logs the selected outbound proxy, and returns the response.
 func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http.Response, error) {
 	client, err := service.GetHttpClientWithProxySettings(info.ChannelSetting.Proxy, info.ChannelSetting)
 	if err != nil {

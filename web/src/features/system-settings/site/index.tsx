@@ -41,6 +41,7 @@ const defaultSiteSettings: SiteSettings = {
   SidebarModulesAdmin: '',
 }
 
+/** Renders the site settings page, including the system proxy field. */
 export function SiteSettings() {
   return (
     <SettingsPage

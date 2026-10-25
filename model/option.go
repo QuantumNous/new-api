@@ -232,6 +232,8 @@ func SyncOptions(frequency int) {
 	}
 }
 
+// validateOptionValue rejects option values that cannot be stored safely.
+// SystemProxy must be empty or an http, https, socks5, or socks5h proxy URL.
 func validateOptionValue(key string, value string) error {
 	if key == legacyAccessTokenRetireAtKey {
 		return errLegacyRetireAtReadOnly
@@ -379,6 +381,8 @@ func UpdateOptionsBulk(values map[string]string) error {
 	return nil
 }
 
+// updateOptionMap stores an option and applies its in-memory side effect.
+// SystemProxy is trimmed and used as the fallback outbound proxy.
 func updateOptionMap(key string, value string) (err error) {
 	if key == retiredThemeOptionKey || key == legacyAccessTokenRetireAtKey {
 		common.OptionMapRWMutex.Lock()

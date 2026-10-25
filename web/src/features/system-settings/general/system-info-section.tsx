@@ -71,11 +71,13 @@ type SystemInfoSectionProps = {
   defaultValues: SystemInfoFormValues
 }
 
+/** Converts a settings value to the string shown in the form. */
 function normalizeValue(value: unknown): string {
   if (value === undefined || value === null) return ''
   return typeof value === 'string' ? value : String(value)
 }
 
+/** Renders the system information form, including the optional system outbound proxy. */
 export function SystemInfoSection({ defaultValues }: SystemInfoSectionProps) {
   const { t } = useTranslation()
   const updateOption = useUpdateOption()

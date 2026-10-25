@@ -561,6 +561,8 @@ func TestCloseIdleConnectionsRedialsHTTP2(t *testing.T) {
 	assert.NotEqual(t, addrs[0], addrs[1], "after CloseIdleConnections the next request must redial")
 }
 
+// TestSystemProxyFillsOnlyAnEmptyChannelProxy checks that a system proxy is
+// used only when the channel proxy is empty.
 func TestSystemProxyFillsOnlyAnEmptyChannelProxy(t *testing.T) {
 	initDefaultHTTPClientFixture(t)
 	previous := common.SystemProxy

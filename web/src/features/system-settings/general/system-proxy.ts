@@ -24,6 +24,7 @@ const SUPPORTED_PROXY_PROTOCOLS = new Set([
   'socks5h:',
 ])
 
+/** Returns true when value is empty or a host-only http, https, socks5, or socks5h proxy URL. */
 export function isOptionalProxyURL(value: string): boolean {
   const trimmedValue = value.trim()
   if (!trimmedValue) return true

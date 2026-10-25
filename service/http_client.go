@@ -143,13 +143,6 @@ func InitHttpClient() {
 	ssrfProtectedHTTPClient = newProtectedFetchHTTPClient()
 }
 
-// GetHttpClient returns the general outbound client used by relay/provider
-// integrations. Do not attach the SSRF-protected dialer here: provider base URLs
-// are root/operator-managed deployment targets, not arbitrary user-controlled
-// input, and may legitimately point at private networks, private-link endpoints,
-// self-hosted services, or local proxies. Code paths that fetch arbitrary
-// user-controlled URLs must use GetSSRFProtectedHTTPClient or
-// ValidateSSRFProtectedFetchURL instead.
 // EffectiveOutboundProxy returns the channel proxy when set, otherwise the
 // system proxy. An empty result keeps the process environment proxy.
 func EffectiveOutboundProxy(channelProxy string) string {
@@ -159,6 +152,11 @@ func EffectiveOutboundProxy(channelProxy string) string {
 	return strings.TrimSpace(common.SystemProxy)
 }
 
+// GetHttpClient returns the general outbound client used by relay/provider
+// integrations. When SystemProxy is set, that proxy is used. Do not attach the
+// SSRF-protected dialer here: provider base URLs are operator-managed targets.
+// Code paths that fetch arbitrary user-controlled URLs must use
+// GetSSRFProtectedHTTPClient or ValidateSSRFProtectedFetchURL instead.
 func GetHttpClient() *http.Client {
 	if proxy := strings.TrimSpace(common.SystemProxy); proxy != "" {
 		if client, err := GetHttpClientWithProxy(proxy); err == nil && client != nil {
