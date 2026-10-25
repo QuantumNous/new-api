@@ -761,7 +761,7 @@ For commercial licensing, please contact support@quantumnous.com
   font-weight: 650;
   line-height: 26px;
 }
-.ci-forgeEcosystem li > span {
+.ci-forgeEcosystem li > span:not(.ci-mark) {
   color: var(--forge-muted);
   font-size: 12px;
 }
@@ -777,17 +777,41 @@ For commercial licensing, please contact support@quantumnous.com
 }
 .ci-forgeEcosystem .ci-forgeEcosystemSelf {
   grid-template-rows: auto;
-  gap: 4px;
+  gap: 8px;
 }
-.ci-forgeEcosystemSelf img {
-  margin-bottom: 2px;
+/* Mark on one side, 野菜 over YesChoy on the other. */
+.ci-forgeEcosystemSelf .ci-mark img {
+  margin-right: 3px;
   filter: drop-shadow(0 0 10px rgb(74 222 128 / 35%));
 }
-.ci-forgeEcosystem .ci-forgeEcosystemSelf strong {
-  font-weight: 700;
-  line-height: 22px;
+.ci-forgeEcosystem .ci-forgeEcosystemSelf .ci-mark .ci-markStack {
+  align-items: flex-start;
+  gap: 5px;
 }
-.ci-forgeEcosystem .ci-forgeEcosystemSelf > span {
+.ci-forgeEcosystem
+  .ci-forgeEcosystemSelf
+  .ci-mark
+  .ci-markStack
+  > span:first-child {
+  color: var(--forge-ink);
+  font-size: 18px;
+  font-weight: 700;
+}
+/* The panel stays dark in both themes, so always use the bright sweep. */
+.ci-forgeEcosystem
+  .ci-forgeEcosystemSelf
+  .ci-mark
+  .ci-markStack
+  > .ci-markLatin {
+  background-image: linear-gradient(
+    90deg,
+    var(--brand-lime),
+    var(--brand-mint),
+    var(--brand-cyan)
+  );
+  font-size: 11px;
+}
+.ci-forgeEcosystem .ci-forgeEcosystemSelf > span:not(.ci-mark) {
   color: var(--forge-teal);
 }
 

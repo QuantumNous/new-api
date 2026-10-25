@@ -23,7 +23,7 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { PRODUCT_NAME } from '@/lib/product-brand'
+import { PRODUCT_NAME, PRODUCT_NAME_LATIN } from '@/lib/product-brand'
 import { useAuthStore } from '@/stores/auth-store'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 import { createTestAuthBundle } from '@/test-utils/auth-bundle'
@@ -280,8 +280,10 @@ describe('landing interactions and price layout', () => {
     ).toBeVisible()
     expect(within(partners).getByText('Wengu Bilingual School')).toBeVisible()
     expect(within(partners).getByText('OpenForge')).toBeVisible()
-    // Our own card sits right after the host, with the all-green mark.
-    expect(items[1]).toHaveTextContent(`${PRODUCT_NAME}API`)
+    // Our own card sits right after the host: the all-green mark beside
+    // the stacked 野菜 / YesChoy wordmark.
+    expect(within(items[1]).getByText(PRODUCT_NAME)).toBeVisible()
+    expect(within(items[1]).getByText(PRODUCT_NAME_LATIN)).toBeVisible()
     expect(items[1]).toHaveTextContent('Model supply partner')
     expect(items[1].querySelector('img')).toHaveAttribute(
       'src',

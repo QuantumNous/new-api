@@ -173,14 +173,7 @@ function ForgeEcosystem() {
       <ul aria-labelledby='forge-ecosystem-title'>
         {partners.slice(0, 1).map(renderPartner)}
         <li className='ci-forgeEcosystemSelf'>
-          <img
-            src={SELF_MARK}
-            alt=''
-            width={32}
-            height={32}
-            aria-hidden='true'
-          />
-          <strong>{FORGE_PARTNER_NAME}</strong>
+          <CiMark size={36} src={SELF_MARK} withWordmark stackedWordmark />
           <span>{t('Model supply partner')}</span>
         </li>
         {partners.slice(1).map(renderPartner)}
