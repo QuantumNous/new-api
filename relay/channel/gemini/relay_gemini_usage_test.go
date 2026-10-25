@@ -97,6 +97,8 @@ func TestGeminiImageHandlerBillsPayloadCount(t *testing.T) {
 	}
 }
 
+// TestStreamResponseGeminiChat2OpenAIAttachesUsageMetadata checks that conversion
+// preserves reported upstream usage without inventing metadata when it is absent.
 func TestStreamResponseGeminiChat2OpenAIAttachesUsageMetadata(t *testing.T) {
 	t.Parallel()
 
