@@ -259,7 +259,7 @@ describe('landing interactions and price layout', () => {
     }
   )
 
-  it('lists only confirmed hackathon partners in the Forge ecosystem', async () => {
+  it('lists only confirmed hackathon partners and puts us second with the gradient mark', async () => {
     await renderApp(
       <CiLandingPage
         isAuthenticated={false}
@@ -280,7 +280,12 @@ describe('landing interactions and price layout', () => {
     ).toBeVisible()
     expect(within(partners).getByText('Wengu Bilingual School')).toBeVisible()
     expect(within(partners).getByText('OpenForge')).toBeVisible()
-    expect(items[4]).toHaveTextContent('Model supply partner')
+    // Our own card sits right after the host, with the all-gradient mark.
+    expect(items[1]).toHaveTextContent('Model supply partner')
+    expect(items[1].querySelector('img')).toHaveAttribute(
+      'src',
+      '/yeschoy-mark-gradient.svg'
+    )
     expect(within(partners).queryByText(/DeepSeek|Y Combinator/)).toBeNull()
   })
 

@@ -19,7 +19,12 @@ For commercial licensing, please contact support@quantumnous.com
 import { DEFAULT_LOGO } from '@/lib/constants'
 import { PRODUCT_NAME } from '@/lib/product-brand'
 
-export function CiMark(props: { size?: number; withWordmark?: boolean }) {
+export function CiMark(props: {
+  size?: number
+  withWordmark?: boolean
+  /** Overrides the default mark, e.g. the all-gradient variant. */
+  src?: string
+}) {
   const size = props.size ?? 22
   return (
     <span
@@ -27,7 +32,7 @@ export function CiMark(props: { size?: number; withWordmark?: boolean }) {
       style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}
     >
       <img
-        src={DEFAULT_LOGO}
+        src={props.src ?? DEFAULT_LOGO}
         alt=''
         width={size}
         height={size}

@@ -859,7 +859,9 @@ For commercial licensing, please contact support@quantumnous.com
   .ci-forgeEcosystem ul {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  /* Full-width on top keeps the four partners in two even rows. */
   .ci-forgeEcosystem .ci-forgeEcosystemSelf {
+    order: -1;
     grid-column: 1 / -1;
   }
   .ci-forgeStats > div {

@@ -33,6 +33,8 @@ export const FORGE_SECTION_ID = 'hackathon'
 const FORGE_ASSETS = '/partners/qupper-forge'
 const FORGE_LOGO = `${FORGE_ASSETS}/qupper-forge-logo.webp`
 const FORGE_MARK = `${FORGE_ASSETS}/qupper-forge-mark.webp`
+// The all-gradient mark stands out among the monochrome partner logos.
+const SELF_MARK = '/yeschoy-mark-gradient.svg'
 
 /** Hero announcement that jumps to the hackathon spotlight below the fold. */
 export function ForgeHeroBadge() {
@@ -138,6 +140,28 @@ function ForgeEcosystem() {
     { name: 'OpenForge', role: t('Mentors & developer community') },
   ]
 
+  function renderPartner(partner: (typeof partners)[number]) {
+    return (
+      <li key={partner.name}>
+        {partner.logo ? (
+          <img
+            src={partner.logo.src}
+            alt={partner.name}
+            width={partner.logo.w}
+            height={partner.logo.h}
+            className={
+              partner.logo.badge ? 'ci-forgePartnerLogo--badge' : undefined
+            }
+            loading='lazy'
+          />
+        ) : (
+          <strong>{partner.name}</strong>
+        )}
+        <span>{partner.role}</span>
+      </li>
+    )
+  }
+
   return (
     <div className='ci-forgeEcosystem'>
       <p className='ci-forgeKicker' id='forge-ecosystem-title'>
@@ -145,29 +169,12 @@ function ForgeEcosystem() {
         {t('Event partners')}
       </p>
       <ul aria-labelledby='forge-ecosystem-title'>
-        {partners.map((partner) => (
-          <li key={partner.name}>
-            {partner.logo ? (
-              <img
-                src={partner.logo.src}
-                alt={partner.name}
-                width={partner.logo.w}
-                height={partner.logo.h}
-                className={
-                  partner.logo.badge ? 'ci-forgePartnerLogo--badge' : undefined
-                }
-                loading='lazy'
-              />
-            ) : (
-              <strong>{partner.name}</strong>
-            )}
-            <span>{partner.role}</span>
-          </li>
-        ))}
+        {partners.slice(0, 1).map(renderPartner)}
         <li className='ci-forgeEcosystemSelf'>
-          <CiMark size={26} withWordmark />
+          <CiMark size={26} withWordmark src={SELF_MARK} />
           <span>{t('Model supply partner')}</span>
         </li>
+        {partners.slice(1).map(renderPartner)}
       </ul>
     </div>
   )
