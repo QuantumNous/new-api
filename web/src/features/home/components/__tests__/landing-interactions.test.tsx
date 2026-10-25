@@ -259,7 +259,7 @@ describe('landing interactions and price layout', () => {
     }
   )
 
-  it('lists only confirmed hackathon partners and puts us second with the gradient mark', async () => {
+  it('lists only the host and us, with our gradient mark second', async () => {
     await renderApp(
       <CiLandingPage
         isAuthenticated={false}
@@ -271,17 +271,13 @@ describe('landing interactions and price layout', () => {
     const partners = screen.getByRole('list', { name: 'Event partners' })
     const items = within(partners).getAllByRole('listitem')
 
-    expect(items).toHaveLength(5)
+    expect(items).toHaveLength(2)
     expect(
-      within(partners).getByRole('img', { name: 'Fastrun Cloud' })
+      within(items[0]).getByRole('img', { name: 'Fastrun Cloud' })
     ).toBeVisible()
-    expect(
-      within(partners).getByRole('img', { name: 'Moonstone' })
-    ).toBeVisible()
-    expect(within(partners).getByText('Wengu Bilingual School')).toBeVisible()
-    expect(within(partners).getByText('OpenForge')).toBeVisible()
-    // Our own card sits right after the host: the all-green mark beside
-    // the stacked 野菜 / YesChoy wordmark.
+    expect(items[0]).toHaveTextContent('Event host')
+    // Our own card: the all-green mark beside the stacked 野菜 / YesChoy
+    // wordmark.
     expect(within(items[1]).getByText(PRODUCT_NAME)).toBeVisible()
     expect(within(items[1]).getByText(PRODUCT_NAME_LATIN)).toBeVisible()
     expect(items[1]).toHaveTextContent('Model supply partner')
@@ -289,7 +285,6 @@ describe('landing interactions and price layout', () => {
       'src',
       '/yeschoy-mark-green.svg'
     )
-    expect(within(partners).queryByText(/DeepSeek|Y Combinator/)).toBeNull()
   })
 
   describe('hero hackathon badge click', () => {

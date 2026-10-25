@@ -714,25 +714,50 @@ For commercial licensing, please contact support@quantumnous.com
 .ci-forgeEcosystem {
   padding-top: 4px;
 }
+/* Host and us as one lockup: two cards bridged by a × seal on the seam. */
 .ci-forgeEcosystem ul {
+  position: relative;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.ci-forgeEcosystem li {
+.ci-forgeEcosystem ul::after {
+  content: '×';
+  content: '×' / '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
   display: grid;
-  min-height: 96px;
-  grid-template-rows: 40px auto;
+  width: 44px;
+  height: 44px;
   place-items: center;
-  align-content: center;
-  gap: 8px;
-  padding: 16px 12px;
+  border: 1px solid var(--forge-line-strong);
+  border-radius: 50%;
+  background: var(--forge-bg);
+  box-shadow: 0 0 24px rgb(111 227 238 / 18%);
+  color: var(--forge-teal);
+  font-family: var(--forge-mono);
+  font-size: 18px;
+  line-height: 1;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+.ci-forgeEcosystem li {
+  display: flex;
+  min-height: 132px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px 32px;
   border: 1px solid var(--forge-line);
-  border-radius: 16px;
-  background: rgb(255 255 255 / 2.5%);
+  border-radius: 18px;
+  background:
+    radial-gradient(70% 120% at 50% 0%, rgb(255 255 255 / 5%), transparent 70%),
+    rgb(255 255 255 / 2.5%);
   text-align: center;
   transition:
     border-color 200ms ease,
@@ -740,49 +765,41 @@ For commercial licensing, please contact support@quantumnous.com
 }
 .ci-forgeEcosystem li:hover {
   border-color: var(--forge-line-strong);
-  background: rgb(255 255 255 / 4.5%);
+  background-color: rgb(255 255 255 / 4.5%);
 }
-/* Partner logos render as one monochrome set on the night panel. */
-.ci-forgeEcosystem li:not(.ci-forgeEcosystemSelf) img {
+/* The host logo renders monochrome on the night panel. */
+.ci-forgeEcosystem li > img {
   width: auto;
   max-width: 100%;
-  height: 26px;
+  height: 34px;
+  /* Matches the 40px mark so both roles sit on one line. */
+  margin-block: 3px;
   object-fit: contain;
   filter: brightness(0) invert(1);
-  opacity: 0.86;
+  opacity: 0.9;
 }
-/* Badge-style logos carry small type, so they get more height. */
-.ci-forgeEcosystem li img.ci-forgePartnerLogo--badge {
-  height: 40px;
-}
-.ci-forgeEcosystem li strong {
-  color: var(--forge-ink);
-  font-size: 16px;
-  font-weight: 650;
-  line-height: 26px;
-}
-.ci-forgeEcosystem li > span:not(.ci-mark) {
+.ci-forgeEcosystemRole {
   color: var(--forge-muted);
-  font-size: 12px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
 }
 .ci-forgeEcosystem .ci-forgeEcosystemSelf {
-  border-color: rgb(143 227 234 / 40%);
+  border-color: rgb(143 227 234 / 36%);
   background:
     radial-gradient(
-      90% 120% at 50% 0%,
-      rgb(108 245 154 / 12%),
+      70% 120% at 50% 0%,
+      rgb(108 245 154 / 13%),
       transparent 70%
     ),
     rgb(255 255 255 / 3%);
 }
-.ci-forgeEcosystem .ci-forgeEcosystemSelf {
-  grid-template-rows: auto;
-  gap: 8px;
+.ci-forgeEcosystemSelf .ci-forgeEcosystemRole {
+  color: var(--forge-teal);
 }
 /* Mark on one side, 野菜 over YesChoy on the other. */
 .ci-forgeEcosystemSelf .ci-mark img {
-  margin-right: 3px;
-  filter: drop-shadow(0 0 10px rgb(74 222 128 / 35%));
+  margin-right: 4px;
+  filter: drop-shadow(0 0 12px rgb(74 222 128 / 35%));
 }
 .ci-forgeEcosystem .ci-forgeEcosystemSelf .ci-mark .ci-markStack {
   align-items: flex-start;
@@ -794,7 +811,7 @@ For commercial licensing, please contact support@quantumnous.com
   .ci-markStack
   > span:first-child {
   color: var(--forge-ink);
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
 }
 /* The panel stays dark in both themes, so always use the bright sweep. */
@@ -809,10 +826,7 @@ For commercial licensing, please contact support@quantumnous.com
     var(--brand-mint),
     var(--brand-cyan)
   );
-  font-size: 11px;
-}
-.ci-forgeEcosystem .ci-forgeEcosystemSelf > span:not(.ci-mark) {
-  color: var(--forge-teal);
+  font-size: 12px;
 }
 
 @keyframes ci-forge-spin {
@@ -837,11 +851,6 @@ For commercial licensing, please contact support@quantumnous.com
   --spark-x: -22px;
 }
 
-@media (max-width: 1080px) {
-  .ci-forgeEcosystem ul {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-}
 @media (max-width: 900px) {
   .ci-forgeBody {
     grid-template-columns: 1fr;
@@ -887,13 +896,12 @@ For commercial licensing, please contact support@quantumnous.com
     grid-template-columns: 1fr;
     justify-items: center;
   }
+  /* Stacked cards keep the seal centered on the horizontal seam. */
   .ci-forgeEcosystem ul {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
-  /* Full-width on top keeps the four partners in two even rows. */
-  .ci-forgeEcosystem .ci-forgeEcosystemSelf {
-    order: -1;
-    grid-column: 1 / -1;
+  .ci-forgeEcosystem li {
+    min-height: 112px;
   }
   .ci-forgeStats > div {
     padding: 18px 14px;

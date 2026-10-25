@@ -35,7 +35,7 @@ import { CiMark } from './ci-mark'
 import './forge-partnership.css'
 
 const FORGE_LOGO = `${FORGE_ASSETS}/qupper-forge-logo.webp`
-// The all-green mark stands out among the monochrome partner logos.
+// The all-green mark stands out beside the monochrome host logo.
 const SELF_MARK = '/yeschoy-mark-green.svg'
 
 /** Hero announcement that jumps to the hackathon spotlight below the fold. */
@@ -112,57 +112,12 @@ export function ForgeHeroBadge() {
 }
 
 /**
- * Confirmed partners from the event's ecosystem page. Partners the event
- * still lists as "in talks" stay off this list until they are confirmed.
+ * The host and us, joined by a center seal: the spotlight is about the
+ * model supply partnership, so the wider partner roster stays on the
+ * event's own site.
  */
 function ForgeEcosystem() {
   const { t } = useTranslation()
-  const partners = [
-    {
-      name: t('Fastrun Cloud'),
-      role: t('Event host'),
-      logo: {
-        src: `${FORGE_ASSETS}/kuaipao-cloud.webp`,
-        w: 650,
-        h: 96,
-        badge: false,
-      },
-    },
-    {
-      name: 'Moonstone',
-      role: t('Event co-host'),
-      logo: {
-        src: `${FORGE_ASSETS}/moonstone.webp`,
-        w: 299,
-        h: 74,
-        badge: true,
-      },
-    },
-    { name: t('Wengu Bilingual School'), role: t('Venue partner') },
-    { name: 'OpenForge', role: t('Mentors & developer community') },
-  ]
-
-  function renderPartner(partner: (typeof partners)[number]) {
-    return (
-      <li key={partner.name}>
-        {partner.logo ? (
-          <img
-            src={partner.logo.src}
-            alt={partner.name}
-            width={partner.logo.w}
-            height={partner.logo.h}
-            className={
-              partner.logo.badge ? 'ci-forgePartnerLogo--badge' : undefined
-            }
-            loading='lazy'
-          />
-        ) : (
-          <strong>{partner.name}</strong>
-        )}
-        <span>{partner.role}</span>
-      </li>
-    )
-  }
 
   return (
     <div className='ci-forgeEcosystem'>
@@ -171,12 +126,22 @@ function ForgeEcosystem() {
         {t('Event partners')}
       </p>
       <ul aria-labelledby='forge-ecosystem-title'>
-        {partners.slice(0, 1).map(renderPartner)}
-        <li className='ci-forgeEcosystemSelf'>
-          <CiMark size={36} src={SELF_MARK} withWordmark stackedWordmark />
-          <span>{t('Model supply partner')}</span>
+        <li>
+          <img
+            src={`${FORGE_ASSETS}/kuaipao-cloud.webp`}
+            alt={t('Fastrun Cloud')}
+            width={650}
+            height={96}
+            loading='lazy'
+          />
+          <span className='ci-forgeEcosystemRole'>{t('Event host')}</span>
         </li>
-        {partners.slice(1).map(renderPartner)}
+        <li className='ci-forgeEcosystemSelf'>
+          <CiMark size={40} src={SELF_MARK} withWordmark stackedWordmark />
+          <span className='ci-forgeEcosystemRole'>
+            {t('Model supply partner')}
+          </span>
+        </li>
       </ul>
     </div>
   )
