@@ -323,7 +323,7 @@ func alibabaObject(t *testing.T, value any) map[string]any {
 	return result
 }
 
-// Exercise the production host's recursive usage validation as well as the
+// Exercise the production host's usage validation as well as the
 // converter, without sending a paid generation request or needing a database.
 func submitAlibabaRequest(t *testing.T, plugin *jsplugin.LoadedPlugin, upstream string, request map[string]any) (map[string]any, map[string]any, string) {
 	t.Helper()

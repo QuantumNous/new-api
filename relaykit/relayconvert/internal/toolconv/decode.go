@@ -405,7 +405,7 @@ func decodeOpenAIResponsesDefinition(raw json.RawMessage) (Definition, error) {
 			Function: &Function{
 				Name:        strings.TrimSpace(kitutil.Interface2String(tool["name"])),
 				Description: kitutil.Interface2String(tool["description"]),
-				Parameters:  tool["parameters"],
+				Parameters:  kitutil.ObjectMember(raw, "parameters"),
 				Strict:      boolPointer(tool, "strict"),
 			},
 		}, nil
@@ -512,7 +512,7 @@ func decodeClaudeDefinition(raw json.RawMessage) (Definition, error) {
 			Function: &Function{
 				Name:        strings.TrimSpace(kitutil.Interface2String(tool["name"])),
 				Description: kitutil.Interface2String(tool["description"]),
-				Parameters:  tool["input_schema"],
+				Parameters:  kitutil.ObjectMember(raw, "input_schema"),
 				Strict:      boolPointer(tool, "strict"),
 			},
 		}, nil
@@ -532,21 +532,27 @@ func decodeGeminiDefinitions(raw json.RawMessage) ([]Definition, error) {
 		return nil, err
 	}
 	definitions := make([]Definition, 0)
-	if functions, ok := tool["functionDeclarations"].([]any); ok {
-		for _, value := range functions {
-			function, ok := value.(map[string]any)
-			if !ok {
+	if _, ok := tool["functionDeclarations"].([]any); ok {
+		var declarations struct {
+			FunctionDeclarations []json.RawMessage `json:"functionDeclarations"`
+		}
+		if err := kitutil.Unmarshal(raw, &declarations); err != nil {
+			return nil, err
+		}
+		for _, declaration := range declarations.FunctionDeclarations {
+			var function map[string]any
+			if err := kitutil.Unmarshal(declaration, &function); err != nil || function == nil {
 				continue
 			}
-			parameters := function["parameters"]
+			parametersKey := "parameters"
 			parametersJSONSchema, hasParametersJSONSchema := function["parametersJsonSchema"]
-			if parameters != nil && hasParametersJSONSchema && parametersJSONSchema != nil {
+			if function["parameters"] != nil && hasParametersJSONSchema && parametersJSONSchema != nil {
 				return nil, fmt.Errorf("function %q declares both parameters and parametersJsonSchema", strings.TrimSpace(kitutil.Interface2String(function["name"])))
 			}
-			if parameters == nil && hasParametersJSONSchema {
-				parameters = parametersJSONSchema
+			if function["parameters"] == nil && hasParametersJSONSchema {
+				parametersKey = "parametersJsonSchema"
 			}
-			functionRaw, err := rawJSON(map[string]any{"functionDeclarations": []any{value}})
+			functionRaw, err := rawJSON(map[string]any{"functionDeclarations": []json.RawMessage{declaration}})
 			if err != nil {
 				return nil, err
 			}
@@ -558,7 +564,7 @@ func decodeGeminiDefinitions(raw json.RawMessage) ([]Definition, error) {
 				Function: &Function{
 					Name:          strings.TrimSpace(kitutil.Interface2String(function["name"])),
 					Description:   kitutil.Interface2String(function["description"]),
-					Parameters:    parameters,
+					Parameters:    kitutil.ObjectMember(declaration, parametersKey),
 					OpenAPISchema: function["parameters"] != nil,
 				},
 			})

@@ -114,6 +114,22 @@ func JsonRawMessageToString(data json.RawMessage) string {
 	return value
 }
 
+// ObjectMember returns a member of a JSON object exactly as written, or nil
+// when the member is missing or null or data is not an object. A decoded map
+// encoded again would sort the keys of nested objects, such as the property
+// order of a schema.
+func ObjectMember(data []byte, key string) json.RawMessage {
+	var members map[string]json.RawMessage
+	if err := Unmarshal(data, &members); err != nil {
+		return nil
+	}
+	member := members[key]
+	if GetJsonType(member) == "null" {
+		return nil
+	}
+	return member
+}
+
 func StringToByteSlice(s string) []byte {
 	tmp1 := (*[2]uintptr)(unsafe.Pointer(&s))
 	tmp2 := [3]uintptr{tmp1[0], tmp1[1], tmp1[1]}

@@ -31,6 +31,8 @@ quota.pre_consume_insufficient: "Not enough quota to pre-consume for this reques
 quota.subscription_insufficient: "Subscription quota is insufficient or no subscription is configured: {{.Error}}"
 relay.model_price_not_configured: "Model {{.Model}} has not been priced by the administrator yet. Please contact the site administrator to enable this model."
 relay.model_price_not_configured_admin: "Model {{.Model}} price not configured. Go to System Settings → Operation Settings to enable self-use mode, or configure the model price in System Settings → Group & Model Pricing."
+relay.task_usage_price_unsupported: "Model {{.Model}} uses a task usage expression; configure ordinary relay pricing and separate plugin billing expressions"
+relay.shared_task_price_needs_override: "Model {{.Model}} shares its billing expression with task plugin {{.Plugin}}; configure a separate plugin billing expression before using ordinary relay pricing"
 relay.task_channel_disabled: "The channel of this task has been disabled"
 relay.group_saturated: "The current group is at capacity. Please try again later, or upgrade your account for better service."
 relay.group_upstream_saturated: "The upstream of the current group is at capacity. Please try again later"
