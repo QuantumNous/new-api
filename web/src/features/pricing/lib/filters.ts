@@ -82,39 +82,37 @@ export function filterByGroup(
   return models.filter((m) => m.enable_groups?.includes(group))
 }
 
-/** Pricing units used by the active configuration, shared by filters and counts. */
-export function getModelQuotaTypes(
+/** Pricing category of the active configuration, shared by filters and counts. */
+export function getModelQuotaType(
   model: PricingModel
-): Exclude<QuotaTypeOption, 'all'>[] {
+): Exclude<QuotaTypeOption, 'all'> | undefined {
   // Task-usage models retain their own category.
-  if (hasTaskUsageSchema(model)) return [QUOTA_TYPES.TASK]
+  if (hasTaskUsageSchema(model)) return QUOTA_TYPES.TASK
 
   if (model.billing_mode === 'tiered_expr' && model.billing_expr) {
     const compiled = compileBillingExpression(model.billing_expr)
     if (compiled.status === 'ready') {
-      if (!compiled.functions.has('fixed')) return [QUOTA_TYPES.TOKEN]
+      if (!compiled.functions.has('fixed')) return QUOTA_TYPES.TOKEN
 
-      // Inspect every pricing leaf, not just the current or first tier.
-      const quotaTypes = new Set<'token' | 'request'>()
+      // Only models whose pricing leaves are all fixed count as per-request.
+      let hasTokenPricing = false
       visitExpression(compiled.ast, (node) => {
         if (node.kind !== 'call' || node.name !== 'tier') return
         const price = node.args[1]
-        quotaTypes.add(
-          price.kind === 'call' && price.name === 'fixed'
-            ? QUOTA_TYPES.REQUEST
-            : QUOTA_TYPES.TOKEN
-        )
+        if (price.kind !== 'call' || price.name !== 'fixed') {
+          hasTokenPricing = true
+        }
       })
-      return [...quotaTypes]
+      return hasTokenPricing ? QUOTA_TYPES.TOKEN : QUOTA_TYPES.REQUEST
     }
   }
 
   // Preserve legacy classification when the expression cannot be parsed.
-  if (model.quota_type === QUOTA_TYPE_VALUES.TOKEN) return [QUOTA_TYPES.TOKEN]
+  if (model.quota_type === QUOTA_TYPE_VALUES.TOKEN) return QUOTA_TYPES.TOKEN
   if (model.quota_type === QUOTA_TYPE_VALUES.REQUEST) {
-    return [QUOTA_TYPES.REQUEST]
+    return QUOTA_TYPES.REQUEST
   }
-  return []
+  return undefined
 }
 
 /**
@@ -125,9 +123,7 @@ export function filterByQuotaType(
   quotaType: string
 ): PricingModel[] {
   if (quotaType === QUOTA_TYPES.ALL) return models
-  return models.filter((model) =>
-    getModelQuotaTypes(model).some((type) => type === quotaType)
-  )
+  return models.filter((model) => getModelQuotaType(model) === quotaType)
 }
 
 /**

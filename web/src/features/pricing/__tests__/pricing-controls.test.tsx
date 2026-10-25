@@ -99,13 +99,23 @@ describe('pricing controls', () => {
       matches: ['request'],
     },
     {
-      name: 'mixed token and request pricing across nested time tiers',
+      name: 'mixed pricing across nested time tiers classified only as token-based',
       pricing: {
         billing_mode: 'tiered_expr',
         billing_expr:
           'hour("UTC") < 12 ? (len < 1000 ? tier("short", fixed(0.01)) : tier("long", p * 2 + c * 8)) : tier("night", fixed(0.02))',
       },
-      matches: ['token', 'request'],
+      matches: ['token'],
+    },
+    {
+      name: 'mixed pricing overriding a legacy request quota type',
+      pricing: {
+        quota_type: 1,
+        billing_mode: 'tiered_expr',
+        billing_expr:
+          'len < 1000 ? tier("short", fixed(0.01)) : tier("long", p * 2 + c * 8)',
+      },
+      matches: ['token'],
     },
     {
       name: 'dynamic token pricing overriding a legacy request quota type',
