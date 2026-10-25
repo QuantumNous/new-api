@@ -5465,11 +5465,23 @@ html:lang(zh-TW) .ci-finalCta h2 i {
   letter-spacing: 0.04em;
 }
 .ci-mark .ci-markStack > .ci-markLatin {
-  color: var(--ci-muted);
+  /* The brand sweep, deepened in light mode so it stays readable on white. */
+  background: linear-gradient(90deg, #65a30d, #059669, #0891b2);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
   font-size: 9.5px;
-  font-weight: 600;
+  font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
+}
+:is(.dark, [data-theme='dark']) .ci-mark .ci-markStack > .ci-markLatin {
+  background-image: linear-gradient(
+    90deg,
+    var(--brand-lime),
+    var(--brand-mint),
+    var(--brand-cyan)
+  );
 }
 .ci-button--lime {
   background: var(--ci-color-accent);
