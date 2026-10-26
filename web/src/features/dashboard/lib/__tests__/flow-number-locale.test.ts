@@ -44,7 +44,14 @@ type TooltipLine = {
 
 function tooltipLines(locale: Intl.LocalesArgument): TooltipLine[] {
   const flow = buildDashboardFlowData(rows, 'quota', { locale }).flow
-  const spec = buildFlowSankeySpec(flow, 'Flow', String, undefined, locale)
+  const spec = buildFlowSankeySpec(
+    flow,
+    'Flow',
+    String,
+    undefined,
+    undefined,
+    locale
+  )
   return spec.tooltip.mark.content as TooltipLine[]
 }
 
