@@ -1,15 +1,20 @@
 package controller
 
 import (
+	"io"
+	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/ali"
+	"github.com/QuantumNous/new-api/relay/channel/cloudflare"
 	"github.com/QuantumNous/new-api/relay/channel/openai"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -237,4 +242,66 @@ func TestDirectOpenAIResponsesKeepsExistingParameters(t *testing.T) {
 	encoded, err := common.Marshal(converted)
 	require.NoError(t, err)
 	assert.JSONEq(t, body, string(encoded))
+}
+
+func TestCloudflareEmbeddingResponseCompatibility(t *testing.T) {
+	tests := []struct {
+		name        string
+		body        string
+		forceFormat bool
+		wantTokens  int
+	}{
+		{
+			name:       "single embedding preserves upstream usage",
+			body:       `{"object":"list","data":[{"object":"embedding","index":0,"embedding":[0.1,-0.2]}],"model":"@cf/baai/bge-large-en-v1.5","usage":{"prompt_tokens":8,"total_tokens":8}}`,
+			wantTokens: 8,
+		},
+		{
+			name:        "batch embeddings survive force format",
+			body:        `{"object":"list","data":[{"object":"embedding","index":0,"embedding":[0.1,-0.2]},{"object":"embedding","index":1,"embedding":[0.3,0.4]}],"model":"@cf/baai/bge-large-en-v1.5","usage":{"prompt_tokens":16,"total_tokens":16},"extra":"preserved"}`,
+			forceFormat: true,
+			wantTokens:  16,
+		},
+		{
+			name:       "base64 embedding is forwarded unchanged",
+			body:       `{"object":"list","data":[{"object":"embedding","index":0,"embedding":"zczMPc3MTL4="}],"model":"@cf/baai/bge-large-en-v1.5","usage":{"prompt_tokens":5,"total_tokens":5}}`,
+			wantTokens: 5,
+		},
+		{
+			name:        "missing usage falls back to input estimate",
+			body:        `{"object":"list","data":[{"object":"embedding","index":0,"embedding":[0.1,-0.2]}],"model":"@cf/baai/bge-large-en-v1.5"}`,
+			forceFormat: true,
+			wantTokens:  99,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := httptest.NewRecorder()
+			c, _ := gin.CreateTestContext(w)
+			c.Request = httptest.NewRequest(http.MethodPost, "/v1/embeddings", nil)
+			info := &relaycommon.RelayInfo{
+				RelayMode:   relayconstant.RelayModeEmbeddings,
+				RelayFormat: types.RelayFormatEmbedding,
+				ChannelMeta: &relaycommon.ChannelMeta{
+					ChannelType:       constant.ChannelCloudflare,
+					UpstreamModelName: "@cf/baai/bge-large-en-v1.5",
+					ChannelSetting:    dto.ChannelSettings{ForceFormat: tt.forceFormat},
+				},
+			}
+			info.SetEstimatePromptTokens(99)
+			resp := &http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{"Content-Type": []string{"application/json"}},
+				Body:       io.NopCloser(strings.NewReader(tt.body)),
+			}
+
+			usage, apiErr := (&cloudflare.Adaptor{}).DoResponse(c, resp, info)
+			require.Nil(t, apiErr)
+			require.IsType(t, &dto.Usage{}, usage)
+			assert.Equal(t, &dto.Usage{PromptTokens: tt.wantTokens, TotalTokens: tt.wantTokens}, usage)
+			assert.Equal(t, http.StatusOK, w.Code)
+			assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+			assert.JSONEq(t, tt.body, w.Body.String())
+		})
+	}
 }
