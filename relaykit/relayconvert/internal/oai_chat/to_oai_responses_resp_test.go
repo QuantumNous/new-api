@@ -91,6 +91,16 @@ func TestChatCompletionsResponseToResponsesDropsEmptyNameToolCalls(t *testing.T)
 	assert.Equal(t, usage.BillingUsage, convertedUsage.BillingUsage)
 }
 
+func TestUsageFromChatUsagePreservesCacheCreationInputTokensAlone(t *testing.T) {
+	usage := dto.Usage{PromptTokens: 12, TotalTokens: 12}
+	usage.PromptTokensDetails.CacheCreationInputTokens = 9
+
+	converted := UsageFromChatUsage(&usage)
+
+	require.NotNil(t, converted.InputTokensDetails)
+	assert.Equal(t, 9, converted.InputTokensDetails.CacheCreationInputTokens)
+}
+
 func TestChatCompletionsResponseToResponsesEmitsReasoningSummaryBeforeText(t *testing.T) {
 	message := dto.Message{Role: "assistant", Content: "final answer"}
 	message.ReasoningContent = lo.ToPtr("thinking summary")

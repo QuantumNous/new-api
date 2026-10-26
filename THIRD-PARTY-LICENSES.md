@@ -156,7 +156,6 @@ Transitive dependencies should be audited before a final external release.
 | web      | development | npm       | `@types/node-forge`                                     | `1.3.14`                             | MIT                     |
 | web      | development | npm       | `@types/react`                                          | `19.2.17`                            | MIT                     |
 | web      | development | npm       | `@types/react-dom`                                      | `19.2.3`                             | MIT                     |
-| web      | development | npm       | `@typescript/native-preview`                            | `7.0.0-dev.20260707.2`               | Apache-2.0              |
 | web      | development | npm       | `@xyflow/react`                                         | `12.11.2`                            | MIT                     |
 | web      | development | npm       | `embla-carousel-react`                                  | `8.6.0`                              | MIT                     |
 | web      | development | npm       | `jsdom`                                                 | `29.1.1`                             | MIT                     |

@@ -80,7 +80,8 @@ type GeneralOpenAIRequest struct {
 	Metadata             json.RawMessage `json:"metadata,omitempty"`
 	Prediction           json.RawMessage `json:"prediction,omitempty"`
 	// gemini
-	ExtraBody json.RawMessage `json:"extra_body,omitempty"`
+	ExtraBody   json.RawMessage `json:"extra_body,omitempty"`
+	ImageConfig json.RawMessage `json:"imageConfig,omitempty"`
 	//xai
 	SearchParameters json.RawMessage `json:"search_parameters,omitempty"`
 	// OpenAI Chat web search.

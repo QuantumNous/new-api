@@ -112,18 +112,7 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 		}
 	}
 
-	if textRequest.Stop != nil {
-		switch stop := textRequest.Stop.(type) {
-		case string:
-			claudeRequest.StopSequences = []string{stop}
-		case []any:
-			stopSequences := make([]string, 0)
-			for _, item := range stop {
-				stopSequences = append(stopSequences, item.(string))
-			}
-			claudeRequest.StopSequences = stopSequences
-		}
-	}
+	claudeRequest.StopSequences = parseClaudeStopSequences(textRequest.Stop)
 
 	formatMessages := make([]dto.Message, 0)
 	lastMessage := dto.Message{
@@ -353,4 +342,23 @@ func OpenAIChatRequestToClaudeMessages(c context.Context, info convmeta.Meta, te
 		return nil, sharedclaude.ErrMissingMaxTokens
 	}
 	return &claudeRequest, nil
+}
+
+func parseClaudeStopSequences(stop any) []string {
+	switch stop := stop.(type) {
+	case string:
+		return []string{stop}
+	case []string:
+		return stop
+	case []any:
+		sequences := make([]string, 0, len(stop))
+		for _, item := range stop {
+			if sequence, ok := item.(string); ok {
+				sequences = append(sequences, sequence)
+			}
+		}
+		return sequences
+	default:
+		return nil
+	}
 }

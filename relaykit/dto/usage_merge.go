@@ -48,6 +48,7 @@ func MergeUsageNonZero(current *Usage, incoming *Usage) *Usage {
 		if details.CachedTokens > 0 ||
 			details.CachedCreationTokens > 0 ||
 			details.CacheWriteTokens > 0 ||
+			details.CacheCreationInputTokens > 0 ||
 			details.TextTokens > 0 ||
 			details.AudioTokens > 0 ||
 			details.ImageTokens > 0 || details.CachedTokensDetails != nil ||
@@ -319,6 +320,9 @@ func mergeInputTokenDetails(current *InputTokenDetails, incoming InputTokenDetai
 	}
 	if incoming.CacheWriteTokens > 0 {
 		current.CacheWriteTokens = incoming.CacheWriteTokens
+	}
+	if incoming.CacheCreationInputTokens > 0 {
+		current.CacheCreationInputTokens = incoming.CacheCreationInputTokens
 	}
 	if incoming.CacheWriteTokensDetails != nil {
 		// A detached copy; like the scalar counts, a later zero keeps the
