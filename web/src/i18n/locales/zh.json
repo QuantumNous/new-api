@@ -1710,6 +1710,7 @@
     "Current pricing conditions": "当前计价条件",
     "Current quota": "当前额度",
     "Current site: {{origin}}": "当前站点：{{origin}}",
+    "Current tier": "当前档位",
     "Current time": "当前时间",
     "Current token": "当前令牌",
     "Current total = used + remaining. Changing the remaining quota updates the total and percentage.": "当前总额度 = 已用 + 剩余。修改剩余额度后，总额度和已用比例会随之更新。",

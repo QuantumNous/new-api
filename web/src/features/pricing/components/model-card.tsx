@@ -21,6 +21,7 @@ import { memo, useMemo, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { CopyButton } from '@/components/copy-button'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card'
 import { getLobeIcon } from '@/lib/lobe-icon'
@@ -331,6 +332,17 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
           className='mt-auto flex min-w-0 flex-col gap-1.5'
         >
           <ModelBillingModeBadge model={props.model} appearance='caption' />
+          {isTokenBased &&
+            dynamicSummary?.isTimePricing &&
+            dynamicSummary.tier?.label && (
+              <Badge
+                variant='secondary'
+                className='w-fit max-w-full truncate'
+                title={`${t('Current tier')}: ${dynamicSummary.tier.label}`}
+              >
+                {t('Current tier')}: {dynamicSummary.tier.label}
+              </Badge>
+            )}
           {dynamicSummary?.providerCount && (
             <span className='text-muted-foreground text-xs break-words'>
               {t('{{count}} providers', {

@@ -1710,6 +1710,7 @@
     "Current pricing conditions": "Điều kiện tính giá hiện tại",
     "Current quota": "Hạn mức hiện tại",
     "Current site: {{origin}}": "Trang hiện tại: {{origin}}",
+    "Current tier": "Bậc giá hiện tại",
     "Current time": "Thời gian hiện tại",
     "Current token": "Token hiện tại",
     "Current total = used + remaining. Changing the remaining quota updates the total and percentage.": "Tổng hiện tại = đã dùng + còn lại. Thay đổi hạn mức còn lại sẽ cập nhật tổng và tỷ lệ đã dùng.",

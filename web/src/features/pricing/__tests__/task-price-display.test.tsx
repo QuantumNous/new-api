@@ -76,6 +76,21 @@ it('renders weekday and hour conditions as time windows instead of expression so
   expect(screen.queryByText(/weekday\(/)).not.toBeInTheDocument()
 })
 
+it('marks the time-matched token tier as current when requested by model details', () => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-09-07T09:30:00+08:00'))
+  render(
+    <DynamicPricingBreakdown
+      billingExpr='hour("Asia/Shanghai") >= 9 && hour("Asia/Shanghai") < 12 ? tier("peak", p * 3 + c * 9) : tier("off_peak", p * 1.5 + c * 4.5)'
+      showCurrentTimeTier
+    />
+  )
+  expect(screen.getAllByText('Current tier')).toHaveLength(2)
+  expect(screen.getAllByText('peak').length).toBeGreaterThan(0)
+  expect(screen.queryAllByText('Current tier')).toHaveLength(2)
+  expect(screen.queryByText('Matched')).not.toBeInTheDocument()
+})
+
 const model: PricingModel = {
   id: 1,
   model_name: 'incho_music',
@@ -260,6 +275,7 @@ afterEach(async () => {
   cleanup()
   clients.forEach((client) => client.clear())
   clients.length = 0
+  vi.useRealTimers()
   vi.restoreAllMocks()
   await i18next.changeLanguage('en')
 })
