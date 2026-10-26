@@ -23,7 +23,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { api } from '@/lib/api'
 
-import { LogSettingsSection } from '../log-settings-section'
+import { ServerLogFiles } from '../server-log-files'
 
 function renderSection(): void {
   vi.spyOn(api, 'get').mockImplementation(async (url: string) => ({
@@ -44,7 +44,7 @@ function renderSection(): void {
   }))
   render(
     <QueryClientProvider client={new QueryClient()}>
-      <LogSettingsSection defaultEnabled />
+      <ServerLogFiles />
     </QueryClientProvider>
   )
 }
