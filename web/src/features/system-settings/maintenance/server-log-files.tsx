@@ -43,8 +43,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { toIntlLocale } from '@/i18n/languages'
 import { api } from '@/lib/api'
 import dayjs from '@/lib/dayjs'
+import { formatDisplayDate, formatFixed } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
@@ -75,7 +77,8 @@ function formatBytes(bytes: number, decimals = 2): string {
  * the server writes to disk and deletes old ones.
  */
 export function ServerLogFiles() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const titleId = useId()
   const [serverLogInfo, setServerLogInfo] = useState<ServerLogInfo | null>(null)
   const [serverLogCleanupMode, setServerLogCleanupMode] = useState('by_count')
@@ -164,7 +167,7 @@ export function ServerLogFiles() {
                   <span className='text-muted-foreground'>
                     {t('Log File Count')}:
                   </span>{' '}
-                  {serverLogInfo.file_count}
+                  {formatFixed(serverLogInfo.file_count, 0, locale)}
                 </div>
                 <div>
                   <span className='text-muted-foreground'>
@@ -177,8 +180,17 @@ export function ServerLogFiles() {
                     <span className='text-muted-foreground'>
                       {t('Date Range')}:
                     </span>{' '}
-                    {dayjs(serverLogInfo.oldest_time).format('YYYY-MM-DD')} ~{' '}
-                    {dayjs(serverLogInfo.newest_time).format('YYYY-MM-DD')}
+                    {formatDisplayDate(
+                      dayjs(serverLogInfo.oldest_time).toDate(),
+                      'YYYY-MM-DD',
+                      locale
+                    )}{' '}
+                    ~{' '}
+                    {formatDisplayDate(
+                      dayjs(serverLogInfo.newest_time).toDate(),
+                      'YYYY-MM-DD',
+                      locale
+                    )}
                   </div>
                 )}
               </div>
