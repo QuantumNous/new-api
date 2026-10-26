@@ -30,6 +30,7 @@ import {
 import {
   STATUS_QUERY_KEY,
   ensureStatus,
+  readCachedStatus,
   statusQueryOptions,
 } from '@/lib/status-query'
 import { useSystemConfigStore } from '@/stores/system-config-store'
@@ -90,6 +91,38 @@ afterEach(() => {
 })
 
 describe('shared status query deduplication', () => {
+  test('replaces a legacy system name from both browser cache and status response', async () => {
+    window.localStorage.setItem(
+      'status',
+      JSON.stringify({ system_name: 'New API' })
+    )
+    expect(readCachedStatus()?.system_name).toBe('SuiXing')
+
+    stubStatusEndpoint('New API')
+    const queryClient = createQueryClient()
+    const status = await ensureStatus(queryClient)
+
+    expect(status?.system_name).toBe('SuiXing')
+    expect(useSystemConfigStore.getState().config.systemName).toBe('SuiXing')
+  })
+
+  test('replaces the legacy documentation link in a status response', async () => {
+    const queryClient = createQueryClient()
+    apiClient.get = async () => ({
+      data: {
+        success: true,
+        data: {
+          system_name: 'SuiXing',
+          docs_link: 'https://docs.newapi.pro',
+        },
+      },
+    })
+
+    const status = await ensureStatus(queryClient)
+
+    expect(status?.docs_link).toBe('https://github.com/kavoj/35sz-api#readme')
+  })
+
   test.each(['cold', 'stale'] as const)(
     'deduplicates %s cache requests across guards and hook consumers',
     async (cacheState) => {

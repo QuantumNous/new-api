@@ -47,6 +47,19 @@ export const STATUS_STORAGE_KEY = 'status'
 /** Status payload shape — loose on purpose; the backend map is open-ended. */
 export type StatusData = Record<string, unknown>
 
+function normalizeLegacyStatus(status: StatusData): StatusData {
+  const legacyName = status.system_name === 'New API'
+  const legacyDocs = status.docs_link === 'https://docs.newapi.pro'
+  if (!legacyName && !legacyDocs) return status
+  return {
+    ...status,
+    ...(legacyName && { system_name: DEFAULT_SYSTEM_NAME }),
+    ...(legacyDocs && {
+      docs_link: 'https://github.com/kavoj/35sz-api#readme',
+    }),
+  }
+}
+
 /** Coerce a status field to a number, keeping `fallback` for unusable values. */
 function toNumber(value: unknown, fallback: number): number {
   if (typeof value === 'number' && !Number.isNaN(value)) return value
@@ -108,7 +121,7 @@ export function readCachedStatus(): StatusData | null {
   try {
     if (typeof window === 'undefined') return null
     const raw = window.localStorage.getItem(STATUS_STORAGE_KEY)
-    return raw ? (JSON.parse(raw) as StatusData) : null
+    return raw ? normalizeLegacyStatus(JSON.parse(raw) as StatusData) : null
   } catch {
     return null
   }
@@ -132,7 +145,8 @@ function writeCachedStatus(status: StatusData | null): void {
  * and writing the localStorage snapshot — so consumers never repeat either one.
  */
 async function fetchStatus(): Promise<StatusData | null> {
-  const status = (await getStatus()) as StatusData | null
+  const response = (await getStatus()) as StatusData | null
+  const status = response ? normalizeLegacyStatus(response) : null
 
   if (status) {
     try {

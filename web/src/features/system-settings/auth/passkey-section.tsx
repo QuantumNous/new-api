@@ -370,7 +370,7 @@ export function PasskeySection(props: PasskeySectionProps) {
                 <FormLabel>{t('Passkey display name')}</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder={t('e.g. New API Console')}
+                    placeholder={t('e.g. SuiXing Console')}
                     value={field.value ?? ''}
                     onChange={(event) => field.onChange(event.target.value)}
                     name={field.name}

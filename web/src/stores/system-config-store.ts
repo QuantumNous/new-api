@@ -94,7 +94,7 @@ export const useSystemConfigStore = create<SystemConfigState>()(
       setLoading: (loading) => set({ loading }),
     }),
     {
-      name: 'system-config-storage',
+      name: 'suixing-system-config-storage',
       partialize: (state) => ({
         config: state.config,
         loadedLogoUrl: state.loadedLogoUrl,

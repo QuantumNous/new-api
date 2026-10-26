@@ -251,7 +251,7 @@ test('changing built-in providers updates server-provided URL placeholders witho
   expect(geminiAddress).toHaveValue('')
 
   await user.click(screen.getByRole('button', { name: 'Change provider' }))
-  await user.click(screen.getByRole('option', { name: /^New API / }))
+  await user.click(screen.getByRole('option', { name: /^SuiXing / }))
   expect(screen.getByRole('textbox', { name: 'Base URL' })).toHaveAttribute(
     'placeholder',
     'Leave empty to use default'

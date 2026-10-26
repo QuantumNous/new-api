@@ -131,7 +131,7 @@
   "Midjourney refund succeeded but clearing the quota failed, task %s: %s": "Midjourney 退款成功但清除 quota 失败 task %s: %s",
   "Midjourney task response ignored: unknown mj_id=%s": "上游返回了未知的 Midjourney 任务 mj_id=%s，已忽略",
   "Network:": "网络地址:",
-  "New API %s started": "New API %s 已启动",
+  "SuiXing %s started": "随星知 API %s 已启动",
   "No .env file found, using default environment variables. If needed, please create a .env file and set the relevant variables.": "未找到 .env 文件，直接使用进程的环境变量。需要时可以新建 .env 文件，把变量写在里面。",
   "No available channel in group %s for model %s at priorityRetry %d, trying next group": "分组 %s 没有模型 %s 的可用渠道 (priorityRetry=%d)，尝试下一个分组",
   "No update needed for task %s": "任务 %s 没有变化，跳过更新",

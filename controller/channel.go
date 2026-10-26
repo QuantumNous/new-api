@@ -653,7 +653,7 @@ func validateChannel(channel *model.Channel, isAdd bool) error {
 	}
 
 	if channel.Type == constant.ChannelTypeNewAPI && strings.TrimSpace(channel.GetBaseURL()) == "" {
-		return fmt.Errorf("New API channel base URL cannot be empty")
+		return fmt.Errorf("SuiXing channel base URL cannot be empty")
 	}
 	if channel.Type == constant.ChannelTypeVLLM && strings.TrimSpace(channel.GetBaseURL()) == "" {
 		return fmt.Errorf("vLLM channel base URL cannot be empty")

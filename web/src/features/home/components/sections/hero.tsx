@@ -1,3 +1,15 @@
+import { Link } from '@tanstack/react-router'
+import {
+  ArrowRight,
+  BookOpen,
+  Check,
+  Copy,
+  Handshake,
+  Layers,
+  Network,
+  Sparkles,
+  Variable,
+} from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,26 +29,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useCallback, useState } from 'react'
-import { Link } from '@tanstack/react-router'
-import {
-  ArrowRight,
-  BookOpen,
-  Check,
-  Copy,
-  Handshake,
-  Layers,
-  Network,
-  Sparkles,
-  Variable,
-} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
 import { useStatus } from '@/hooks/use-status'
 
-import { StarField } from '../star-field'
 import { HeroTerminalDemo } from '../hero-terminal-demo'
+import { StarField } from '../star-field'
 
 interface HeroProps {
   className?: string
@@ -48,9 +48,12 @@ export function Hero(props: HeroProps) {
   const { status } = useStatus()
   const [copied, setCopied] = useState(false)
   const docsUrl =
-    (status?.docs_link as string | undefined) || 'https://docs.newapi.pro'
+    (status?.docs_link as string | undefined) ||
+    'https://github.com/kavoj/35sz-api#readme'
   const baseUrl =
-    (status as Record<string, unknown>)?.server_address as string | undefined ||
+    ((status as Record<string, unknown>)?.server_address as
+      | string
+      | undefined) ||
     (typeof window !== 'undefined' ? window.location.origin : '')
 
   const handleCopyUrl = useCallback(async () => {
@@ -146,7 +149,7 @@ export function Hero(props: HeroProps) {
             <span className='bg-gradient-to-r from-cyan-400 via-blue-400 to-violet-500 bg-clip-text text-transparent'>
               {systemName}
             </span>
-            <span className='text-muted-foreground/30 mx-2 select-none font-light'>
+            <span className='text-muted-foreground/30 mx-2 font-light select-none'>
               ·
             </span>
             <span className='bg-gradient-to-r from-amber-400 via-orange-400 to-rose-500 bg-clip-text text-transparent'>
@@ -235,19 +238,19 @@ export function Hero(props: HeroProps) {
         className='landing-animate-fade-up mx-auto mt-10 max-w-md opacity-0'
         style={{ animationDelay: '400ms' }}
       >
-        <div className='flex items-center gap-2 rounded-xl border border-border/50 bg-white p-3 shadow-sm backdrop-blur-sm transition-all duration-300 hover:border-cyan-400/40 hover:shadow-md dark:bg-white/95'>
+        <div className='border-border/50 flex items-center gap-2 rounded-xl border bg-white p-3 shadow-sm backdrop-blur-sm transition-all duration-300 hover:border-cyan-400/40 hover:shadow-md dark:bg-white/95'>
           <div className='min-w-0 flex-1'>
             <p className='text-muted-foreground/60 mb-0.5 text-xs font-medium tracking-wider uppercase'>
               Base URL
             </p>
-            <p className='text-foreground truncate text-base font-mono font-medium tracking-tight'>
+            <p className='text-foreground truncate font-mono text-base font-medium tracking-tight'>
               {baseUrl}
             </p>
           </div>
           <button
             type='button'
             onClick={handleCopyUrl}
-            className='flex size-9 shrink-0 items-center justify-center rounded-lg border border-border/40 bg-white text-muted-foreground transition-all duration-200 hover:border-cyan-500/30 hover:bg-cyan-500/10 hover:text-cyan-500 dark:bg-white/90'
+            className='border-border/40 text-muted-foreground flex size-9 shrink-0 items-center justify-center rounded-lg border bg-white transition-all duration-200 hover:border-cyan-500/30 hover:bg-cyan-500/10 hover:text-cyan-500 dark:bg-white/90'
             title={t('Copy Base URL')}
           >
             {copied ? (
