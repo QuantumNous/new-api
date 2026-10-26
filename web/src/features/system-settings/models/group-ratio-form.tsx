@@ -156,6 +156,8 @@ export const GroupRatioForm = memo(function GroupRatioForm({
                 setEditMode('visual')
                 setSection('auto')
                 requestAnimationFrame(() => form.setFocus('MaxTokenAutoGroups'))
+              } else {
+                setEditMode('json')
               }
             })}
             disabled={isSaving}
