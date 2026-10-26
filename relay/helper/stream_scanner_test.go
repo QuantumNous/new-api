@@ -227,6 +227,51 @@ func TestStreamScannerHandler_DoneStopsScanner(t *testing.T) {
 	assert.Equal(t, int64(50), count.Load(), "data after [DONE] must not be processed")
 }
 
+// TestStreamScannerHandler_BareDoneStopsStream covers an upstream that writes a
+// base SSE termination line without the "data:" field name. Such a line is six
+// bytes long, so it passes the length gate; it must still terminate the stream
+// instead of being sliced into "]" and forwarded as a data frame.
+func TestStreamScannerHandler_BareDoneStopsStream(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		name string
+		body string
+	}{
+		{name: "bare [DONE]", body: "data: {\"x\":1}\n\n[DONE]\n\ndata: should_not_appear\n"},
+		{name: "data: [DONE]", body: "data: {\"x\":1}\n\ndata: [DONE]\n\ndata: should_not_appear\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			c, resp, info := setupStreamTest(t, strings.NewReader(test.body))
+
+			var received []string
+			StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+				received = append(received, data)
+			})
+
+			require.Equal(t, []string{`{"x":1}`}, received,
+				"only the frame before [DONE] may be delivered, and nothing after it")
+			require.NotNil(t, info.StreamStatus)
+			assert.Equal(t, relaycommon.StreamEndReasonDone, info.StreamStatus.EndReason)
+			assert.Equal(t, 1, info.ReceivedResponseCount)
+		})
+	}
+}
+
+func TestStreamScannerHandler_PayloadPreservedVerbatim(t *testing.T) {
+	t.Parallel()
+
+	const payload = `{"x":1,"nested":{"s":"  a  "},"arr":[1,2]}`
+	c, resp, info := setupStreamTest(t, strings.NewReader("data: "+payload+"\n[DONE]\n"))
+
+	var received []string
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {
+		received = append(received, data)
+	})
+
+	require.Equal(t, []string{payload}, received, "normal data frames must not be trimmed or truncated")
+}
+
 func TestStreamScannerHandler_StopStopsStream(t *testing.T) {
 	t.Parallel()
 

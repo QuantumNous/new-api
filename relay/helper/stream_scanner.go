@@ -304,7 +304,10 @@ func StreamScannerHandler(c *gin.Context, resp *http.Response, info *relaycommon
 			if data[:5] != "data:" && data[:6] != "[DONE]" {
 				continue
 			}
-			data = data[5:]
+			// A bare "[DONE]" has no "data:" field name; slicing 5 bytes off it
+			// would leave "]" and forward it as a data frame. Trim only the
+			// optional field name so both forms reach the terminator check below.
+			data = strings.TrimPrefix(data, "data:")
 			data = strings.TrimSpace(data)
 			if data == "" {
 				continue
