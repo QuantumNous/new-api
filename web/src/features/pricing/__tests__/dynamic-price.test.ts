@@ -126,6 +126,18 @@ describe('expression price summaries', () => {
     }
   )
 
+  test('does not expose a current tier when the active time branch has multiple usage tiers', () => {
+    const summary = getDynamicPricingSummary(
+      pricingModel({
+        billing_mode: 'tiered_expr',
+        billing_expr:
+          'hour("UTC") < 12 ? (len < 1000 ? tier("short", p * 4 + c * 12) : tier("long", p * 2 + c * 6)) : tier("night", p + c * 3)',
+      }),
+      { tokenUnit: 'M', now: new Date('2026-09-07T10:00:00Z') }
+    )
+    expect(summary?.currentTokenTier).toBeNull()
+  })
+
   test('keeps the first token tier inside a time branch and leaves request multipliers separate', () => {
     const base =
       'hour("UTC") < 12 ? (len < 1000 ? tier("first", p * 4 + c * 12) : tier("cheaper", p * 2 + c * 6)) : tier("night", p * 1 + c * 3)'

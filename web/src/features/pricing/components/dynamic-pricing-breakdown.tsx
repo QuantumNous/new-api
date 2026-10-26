@@ -351,9 +351,10 @@ export function DynamicPricingBreakdown({
       split.billingExpr,
       new Date(billingTime)
     )
-    return (currentTiers ?? []).filter(
+    const currentTokenTiers = (currentTiers ?? []).filter(
       (tier) => tier.billingUnit !== 'request' && Boolean(tier.conditionText)
     )
+    return currentTokenTiers.length === 1 ? currentTokenTiers : []
   }, [billingTime, expr, showCurrentTimeTier, usageSchema])
 
   const isCurrentTimeTier = (tier: BreakdownTier): boolean =>

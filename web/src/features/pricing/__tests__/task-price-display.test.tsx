@@ -102,6 +102,18 @@ it('marks the time-matched token tier as current when requested by model details
   expect(screen.queryByText('Matched')).not.toBeInTheDocument()
 })
 
+it('does not mark a current tier when the active time branch has multiple usage tiers', () => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-09-07T10:00:00Z'))
+  render(
+    <DynamicPricingBreakdown
+      billingExpr='hour("UTC") < 12 ? (len < 1000 ? tier("short", p * 4 + c * 12) : tier("long", p * 2 + c * 6)) : tier("night", p + c * 3)'
+      showCurrentTimeTier
+    />
+  )
+  expect(screen.queryByText('Current tier')).not.toBeInTheDocument()
+})
+
 const model: PricingModel = {
   id: 1,
   model_name: 'incho_music',

@@ -169,6 +169,18 @@ describe('model cards', () => {
     expect(screen.queryByText(/Current tier:/)).not.toBeInTheDocument()
   })
 
+  it('does not show a current tier when the active time branch has multiple usage tiers', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T10:00:00Z'))
+    const model = pricingModel({
+      billing_mode: 'tiered_expr',
+      billing_expr:
+        'hour("UTC") < 12 ? (len < 1000 ? tier("short", p * 4 + c * 12) : tier("long", p * 2 + c * 6)) : tier("night", p + c * 3)',
+    })
+    render(<ModelCard model={model} onClick={vi.fn()} tokenUnit='M' />)
+    expect(screen.queryByText(/Current tier:/)).not.toBeInTheDocument()
+  })
+
   it('copies the complete long model name without opening details', async () => {
     const user = userEvent.setup()
     const onClick = vi.fn()
