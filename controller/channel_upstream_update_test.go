@@ -197,6 +197,41 @@ func TestFetchOrdinaryOpenAIModelsKeepsExistingEmptyDataBehavior(t *testing.T) {
 	require.Empty(t, models)
 }
 
+func TestGetVolcengineModelsURLSupportsPlanEndpoints(t *testing.T) {
+	tests := []struct {
+		name    string
+		baseURL string
+		want    string
+	}{
+		{
+			name:    "regular Ark",
+			baseURL: "https://ark.cn-beijing.volces.com",
+			want:    "https://ark.cn-beijing.volces.com/api/v3/models",
+		},
+		{
+			name:    "Agent Plan Anthropic base",
+			baseURL: "https://ark.cn-beijing.volces.com/api/plan",
+			want:    "https://ark.cn-beijing.volces.com/api/plan/v3/models",
+		},
+		{
+			name:    "Agent Plan OpenAI base",
+			baseURL: "https://ark.cn-beijing.volces.com/api/plan/v3",
+			want:    "https://ark.cn-beijing.volces.com/api/plan/v3/models",
+		},
+		{
+			name:    "Coding Plan preset",
+			baseURL: "doubao-coding-plan",
+			want:    "https://ark.cn-beijing.volces.com/api/coding/v3/models",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.want, getVolcengineModelsURL(test.baseURL))
+		})
+	}
+}
+
 func TestFetchModelsAdvancedCustomCreatePreview(t *testing.T) {
 	receivedAuthorization := make(chan string, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

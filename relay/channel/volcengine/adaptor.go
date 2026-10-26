@@ -43,6 +43,10 @@ func isVolcengineAgentPlanBase(baseURL string) bool {
 		baseURL == "https://ark.cn-beijing.volces.com/api/plan/v3"
 }
 
+func isVolcengineAgentPlanAnthropicBase(baseURL string) bool {
+	return normalizeVolcengineBaseURL(baseURL) == "https://ark.cn-beijing.volces.com/api/plan"
+}
+
 func buildVolcengineURL(baseURL string, regularPath string, agentPlanPath string) string {
 	baseURL = normalizeVolcengineBaseURL(baseURL)
 	if isVolcengineAgentPlanBase(baseURL) {
@@ -57,7 +61,7 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 }
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
-	if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+	if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok || isVolcengineAgentPlanAnthropicBase(info.ChannelBaseUrl) {
 		adaptor := claude.Adaptor{}
 		return adaptor.ConvertClaudeRequest(c, info, req)
 	}
@@ -310,6 +314,9 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 
 	switch info.RelayFormat {
 	case types.RelayFormatClaude:
+		if isVolcengineAgentPlanAnthropicBase(baseUrl) {
+			return fmt.Sprintf("%s/v1/messages", normalizeVolcengineBaseURL(baseUrl)), nil
+		}
 		if hasSpecialPlan && specialPlan.ClaudeBaseURL != "" {
 			return fmt.Sprintf("%s/v1/messages", specialPlan.ClaudeBaseURL), nil
 		}
@@ -361,6 +368,11 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
+	if info.RelayFormat == types.RelayFormatClaude && isVolcengineAgentPlanAnthropicBase(info.ChannelBaseUrl) {
+		adaptor := claude.Adaptor{}
+		return adaptor.SetupRequestHeader(c, req, info)
+	}
+
 	channel.SetupApiRequestHeader(info, c, req)
 
 	if info.RelayMode == constant.RelayModeAudioSpeech {
@@ -427,7 +439,7 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, request
 
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (usage any, err *types.NewAPIError) {
 	if info.RelayFormat == types.RelayFormatClaude {
-		if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok {
+		if _, ok := channelconstant.ChannelSpecialBases[info.ChannelBaseUrl]; ok || isVolcengineAgentPlanAnthropicBase(info.ChannelBaseUrl) {
 			adaptor := claude.Adaptor{}
 			return adaptor.DoResponse(c, resp, info)
 		}

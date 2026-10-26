@@ -1,12 +1,18 @@
 package volcengine
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/constant"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestVolcengineRegularArkURLs(t *testing.T) {
@@ -119,6 +125,55 @@ func TestVolcengineAgentPlanClaudeFormatURL(t *testing.T) {
 	if got != want {
 		t.Fatalf("Agent Plan Claude-format URL = %q, want %q", got, want)
 	}
+}
+
+func TestVolcengineAgentPlanAnthropicBaseUsesMessagesURL(t *testing.T) {
+	adaptor := &Adaptor{}
+	info := &relaycommon.RelayInfo{
+		RelayMode:   relayconstant.RelayModeChatCompletions,
+		RelayFormat: types.RelayFormatClaude,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ChannelBaseUrl: "https://ark.cn-beijing.volces.com/api/plan",
+		},
+	}
+
+	got, err := adaptor.GetRequestURL(info)
+	require.NoError(t, err)
+	assert.Equal(t, "https://ark.cn-beijing.volces.com/api/plan/v1/messages", got)
+}
+
+func TestVolcengineAgentPlanAnthropicBaseUsesAnthropicProtocol(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	request := httptest.NewRequest(http.MethodPost, "/v1/messages", nil)
+	request.Header.Set("anthropic-version", "2023-10-01")
+	context, _ := gin.CreateTestContext(httptest.NewRecorder())
+	context.Request = request
+
+	maxTokens := uint(256)
+	claudeRequest := &dto.ClaudeRequest{
+		Model:     "doubao-seed-code",
+		MaxTokens: &maxTokens,
+	}
+	info := &relaycommon.RelayInfo{
+		RelayFormat:     types.RelayFormatClaude,
+		OriginModelName: claudeRequest.Model,
+		ChannelMeta: &relaycommon.ChannelMeta{
+			ApiKey:            "ark-test-key",
+			ChannelBaseUrl:    "https://ark.cn-beijing.volces.com/api/plan/",
+			UpstreamModelName: claudeRequest.Model,
+		},
+	}
+
+	adaptor := &Adaptor{}
+	converted, err := adaptor.ConvertClaudeRequest(context, info, claudeRequest)
+	require.NoError(t, err)
+	assert.Same(t, claudeRequest, converted)
+
+	headers := http.Header{}
+	require.NoError(t, adaptor.SetupRequestHeader(context, &headers, info))
+	assert.Equal(t, "ark-test-key", headers.Get("x-api-key"))
+	assert.Equal(t, "2023-10-01", headers.Get("anthropic-version"))
+	assert.Empty(t, headers.Get("Authorization"))
 }
 
 func TestVolcengineAgentPlanDoesNotAffectSpecialBases(t *testing.T) {

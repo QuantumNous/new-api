@@ -1101,15 +1101,6 @@ export function ChannelMutateDrawer({
   }, [currentType, isEditing, form])
 
   useEffect(() => {
-    if (currentType !== 45 || currentBaseUrl !== 'doubao-coding-plan') return
-
-    form.setValue('base_url', 'https://ark.cn-beijing.volces.com', {
-      shouldDirty: false,
-      shouldValidate: true,
-    })
-  }, [currentBaseUrl, currentType, form])
-
-  useEffect(() => {
     if (isEditing || supportsMultiKeyAddMode) return
     if (multiKeyMode && multiKeyMode !== 'single') {
       form.setValue('multi_key_mode', 'single', {
@@ -4109,12 +4100,24 @@ export function ChannelMutateDrawer({
                           value: 'https://ark.ap-southeast.bytepluses.com',
                           label: t('https://ark.ap-southeast.bytepluses.com'),
                         },
+                        {
+                          value: 'doubao-coding-plan',
+                          label: t('Doubao Coding Plan'),
+                        },
+                        {
+                          value:
+                            'https://ark.cn-beijing.volces.com/api/plan',
+                          label: t('Doubao Agent Plan (Anthropic)'),
+                        },
+                        {
+                          value:
+                            'https://ark.cn-beijing.volces.com/api/plan/v3',
+                          label: t('Doubao Agent Plan (OpenAI)'),
+                        },
                       ]}
                       onValueChange={field.onChange}
                       value={
-                        field.value === 'doubao-coding-plan'
-                          ? 'https://ark.cn-beijing.volces.com'
-                          : field.value || 'https://ark.cn-beijing.volces.com'
+                        field.value || 'https://ark.cn-beijing.volces.com'
                       }
                     >
                       <FormControl>
@@ -4130,11 +4133,22 @@ export function ChannelMutateDrawer({
                           <SelectItem value='https://ark.ap-southeast.bytepluses.com'>
                             {t('https://ark.ap-southeast.bytepluses.com')}
                           </SelectItem>
+                          <SelectItem value='doubao-coding-plan'>
+                            {t('Doubao Coding Plan')}
+                          </SelectItem>
+                          <SelectItem value='https://ark.cn-beijing.volces.com/api/plan'>
+                            {t('Doubao Agent Plan (Anthropic)')}
+                          </SelectItem>
+                          <SelectItem value='https://ark.cn-beijing.volces.com/api/plan/v3'>
+                            {t('Doubao Agent Plan (OpenAI)')}
+                          </SelectItem>
                         </SelectGroup>
                       </SelectContent>
                     </Select>
                     <FormDescription>
-                      {t('Select the API endpoint region')}
+                      {t(
+                        'Select the API endpoint. Agent Plan supports Anthropic and OpenAI protocols; Coding Plan uses the dedicated coding endpoint.'
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -4758,8 +4772,7 @@ export function ChannelMutateDrawer({
                 {formatFields}
                 {ollamaOpenAIChatFields}
                 {thinkingFields}
-                {currentType !== CHANNEL_TYPE_ADVANCED_CUSTOM &&
-                  passthroughFields}
+                {passthroughFields}
                 {systemPromptFields}
                 {systemPromptOverrideFields}
               </fieldset>
@@ -5153,6 +5166,7 @@ export function ChannelMutateDrawer({
         onConfirm={() => handleStatusCodeRiskAction(true)}
       />
       <PassthroughWarningDialog
+        channelType={currentType}
         open={passthroughWarningKind !== null}
         kind={passthroughWarningKind}
         onOpenChange={(v) => {
