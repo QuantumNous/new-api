@@ -201,6 +201,15 @@ func handleFinalStream(c *gin.Context, info *relaycommon.RelayInfo, resp *dto.Ch
 	return nil
 }
 
+/** captureGeminiResponseID uses the provider's response identifier as a log
+ * correlation fallback, preserving header IDs and the first non-empty stream ID.
+ */
+func captureGeminiResponseID(c *gin.Context, responseID string) {
+	if responseID != "" && c.GetString(common.UpstreamRequestIdKey) == "" {
+		c.Set(common.UpstreamRequestIdKey, responseID)
+	}
+}
+
 func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.Response, callback func(data string, geminiResponse *dto.GeminiChatResponse) bool) (*dto.Usage, *types.NewAPIError) {
 	var usage = &dto.Usage{}
 	var imageCount int
@@ -217,6 +226,8 @@ func geminiStreamHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http
 			sr.Stop(streamErr)
 			return
 		}
+
+		captureGeminiResponseID(c, geminiResponse.ResponseID)
 
 		if len(geminiResponse.Candidates) == 0 && geminiResponse.PromptFeedback != nil && geminiResponse.PromptFeedback.BlockReason != nil {
 			info.PerformanceBusinessRejection = true
@@ -421,6 +432,7 @@ func GeminiChatHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *http.R
 	if err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	captureGeminiResponseID(c, geminiResponse.ResponseID)
 	info.ObserveResponseModel(gjson.GetBytes(responseBody, "modelVersion").Str)
 	var grounding geminiGroundingCounter
 	grounding.observe(&geminiResponse)

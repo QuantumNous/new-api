@@ -32,3 +32,20 @@ func TestGeminiChatResponseMarshalKeepsUsageMetadataField(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(data), `"usageMetadata"`)
 }
+
+/** TestGeminiChatResponseID preserves provider IDs without adding absent fields. */
+func TestGeminiChatResponseID(t *testing.T) {
+	var response GeminiChatResponse
+	require.NoError(t, kitutil.Unmarshal([]byte(`{"responseId":"synthetic-response-id","usageMetadata":{"promptTokenCount":5}}`), &response))
+	assert.Equal(t, "synthetic-response-id", response.ResponseID)
+	assert.True(t, response.HasUsageMetadata)
+	data, err := kitutil.Marshal(response)
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"responseId":"synthetic-response-id"`)
+	require.NoError(t, kitutil.Unmarshal([]byte(`{"candidates":[]}`), &response))
+	assert.Empty(t, response.ResponseID)
+	assert.False(t, response.HasUsageMetadata)
+	data, err = kitutil.Marshal(response)
+	require.NoError(t, err)
+	assert.NotContains(t, string(data), `"responseId"`)
+}

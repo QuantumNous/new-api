@@ -32,6 +32,7 @@ func GeminiResponsesHandler(c *gin.Context, info *relaycommon.RelayInfo, resp *h
 	if err := common.Unmarshal(responseBody, &geminiResponse); err != nil {
 		return nil, types.NewOpenAIError(err, types.ErrorCodeBadResponseBody, http.StatusInternalServerError)
 	}
+	captureGeminiResponseID(c, geminiResponse.ResponseID)
 	info.ObserveResponseModel(gjson.GetBytes(responseBody, "modelVersion").Str)
 	var grounding geminiGroundingCounter
 	grounding.observe(&geminiResponse)
