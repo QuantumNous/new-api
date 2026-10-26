@@ -39,7 +39,7 @@ describe('CompactDateTimeRangePicker in Persian', () => {
     )
 
     expect(
-      screen.getByText('۱۴۰۵/۰۷/۰۳ ۰۰:۰۰ ~ ۱۴۰۵/۰۷/۰۳ ۱۱:۳۵')
+      screen.getByText('۱۴۰۵/۰۷/۰۳ ۰۰:۰۰:۰۰ ~ ۱۴۰۵/۰۷/۰۳ ۱۱:۳۵:۰۰')
     ).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /۱۴۰۵\/۰۷\/۰۳/ }))
