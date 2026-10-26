@@ -130,7 +130,12 @@ describe('model cards', () => {
     })
     render(<ModelCard model={model} onClick={vi.fn()} tokenUnit='M' />)
     expect(screen.getByText('Current period price')).toBeVisible()
-    expect(screen.getByText('Current tier: off_peak')).toBeVisible()
+    const offPeakTier = screen.getByText('Current tier: off_peak')
+    expect(offPeakTier).toBeVisible()
+    expect(offPeakTier.previousElementSibling).toHaveTextContent(
+      'Current period price'
+    )
+    expect(offPeakTier).toHaveClass('bg-emerald-100', 'text-emerald-700')
     expect(screen.getByText('$1.5')).toBeVisible()
     act(() => vi.advanceTimersByTime(1000))
     expect(screen.getByText('Current tier: peak')).toBeVisible()

@@ -178,9 +178,19 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               )
             })}
           {dynamicSummary.isTimePricing && (
-            <span className='text-muted-foreground col-span-full text-xs'>
-              {t('Current period price')}
-            </span>
+            <div className='col-span-full flex flex-wrap items-center gap-1.5'>
+              <span className='text-muted-foreground text-xs'>
+                {t('Current period price')}
+              </span>
+              {isTokenBased && dynamicSummary.tier?.label && (
+                <Badge
+                  variant='secondary'
+                  className='bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                >
+                  {t('Current tier')}: {dynamicSummary.tier.label}
+                </Badge>
+              )}
+            </div>
           )}
           {dynamicSummary.isMixedBilling && (
             <span className='text-muted-foreground col-span-full text-xs'>
@@ -332,17 +342,6 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
           className='mt-auto flex min-w-0 flex-col gap-1.5'
         >
           <ModelBillingModeBadge model={props.model} appearance='caption' />
-          {isTokenBased &&
-            dynamicSummary?.isTimePricing &&
-            dynamicSummary.tier?.label && (
-              <Badge
-                variant='secondary'
-                className='w-fit max-w-full truncate'
-                title={`${t('Current tier')}: ${dynamicSummary.tier.label}`}
-              >
-                {t('Current tier')}: {dynamicSummary.tier.label}
-              </Badge>
-            )}
           {dynamicSummary?.providerCount && (
             <span className='text-muted-foreground text-xs break-words'>
               {t('{{count}} providers', {
