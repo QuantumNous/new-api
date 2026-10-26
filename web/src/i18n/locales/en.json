@@ -7737,6 +7737,9 @@
     "{{count}} entry(s) updated": "{{count}} 条条目已更新",
     "中转": "Relay",
     "分销": "Distribution",
-    "团队": "Team"
+    "团队": "Team",
+    "Based on new-api (AGPL-3.0)": "Based on new-api (AGPL-3.0)",
+    "Upstream source": "Upstream source",
+    "This project": "This project"
   }
 }

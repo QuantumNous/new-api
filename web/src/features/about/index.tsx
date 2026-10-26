@@ -28,6 +28,36 @@ import { requireServerSuccess } from '@/lib/server-error-message'
 
 import { getAboutContent } from './api'
 
+function AboutAttribution() {
+  const { t } = useTranslation()
+
+  return (
+    <footer className='text-muted-foreground mx-auto max-w-6xl px-4 pt-2 pb-10 text-xs'>
+      <p>
+        {t('Based on new-api (AGPL-3.0)')}
+        {' · '}
+        <a
+          href='https://github.com/QuantumNous/new-api'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='hover:text-foreground underline underline-offset-2'
+        >
+          {t('Upstream source')}
+        </a>
+        {' · '}
+        <a
+          href='https://github.com/kavoj/35sz-api'
+          target='_blank'
+          rel='noopener noreferrer'
+          className='hover:text-foreground underline underline-offset-2'
+        >
+          {t('This project')}
+        </a>
+      </p>
+    </footer>
+  )
+}
+
 function EmptyAboutState() {
   const { t } = useTranslation()
 
@@ -104,6 +134,7 @@ export function About() {
     return (
       <PublicLayout>
         <EmptyAboutState />
+        <AboutAttribution />
       </PublicLayout>
     )
   }
@@ -130,6 +161,7 @@ export function About() {
           content={rawContent}
           className='prose-neutral dark:prose-invert max-w-none'
         />
+        <AboutAttribution />
       </PublicLayout>
     )
   }
@@ -143,6 +175,7 @@ export function About() {
           className='prose-neutral dark:prose-invert max-w-none'
         />
       </div>
+      <AboutAttribution />
     </PublicLayout>
   )
 }
