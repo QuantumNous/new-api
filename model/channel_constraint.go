@@ -9,13 +9,14 @@ import (
 
 var filterEvalOrder = []dto.ChannelFilterKind{
 	dto.FilterRequestPath,
+	dto.FilterTaskPluginEndpoint,
 	dto.FilterTaskPluginIdentity,
 	dto.FilterResponsesWebSocket,
 }
 
 // ChannelSatisfiesFilters reports whether ch passes every filter.
-// On false, it returns the kind of the first violated filter (request_path
-// then task_plugin_identity) for error attribution.
+// On false, it returns the first violated filter in filterEvalOrder for error
+// attribution.
 func ChannelSatisfiesFilters(ch *Channel, modelName string, filters []dto.ChannelFilter) (bool, dto.ChannelFilterKind) {
 	if ch == nil {
 		return false, ""
@@ -36,7 +37,7 @@ func ChannelSatisfiesFilters(ch *Channel, modelName string, filters []dto.Channe
 // filterCandidateIDs applies filters to a cached candidate id list.
 // Caller must hold channelSyncLock (read lock). The input slice is never mutated.
 // A missing id in channelsIDM is kept for request_path (downstream consistency
-// error) and dropped for task_plugin_identity, matching the previous filters.
+// error) and dropped for the other filters.
 func filterCandidateIDs(ids []int, modelName string, filters []dto.ChannelFilter) (kept []int, emptiedBy dto.ChannelFilterKind) {
 	if len(ids) == 0 {
 		return ids, ""
@@ -109,6 +110,18 @@ func channelMatchesFilter(ch *Channel, modelName string, filter dto.ChannelFilte
 			return setting.BindsTaskPlugin(filter.TaskPluginKey) || slices.ContainsFunc(filter.TaskPluginKeys, setting.BindsTaskPlugin)
 		}
 		return slices.Contains(filter.TaskPluginChannelTypes, ch.Type)
+	case dto.FilterTaskPluginEndpoint:
+		pluginChannel := slices.Contains(filter.TaskPluginChannelTypes, ch.Type)
+		if ch.Type == constant.ChannelTypeTaskPlugin || ch.Type == constant.ChannelTypeNewAPI {
+			pluginChannel = slices.ContainsFunc(filter.TaskPluginKeys, ch.GetSetting().BindsTaskPlugin)
+		}
+		if filter.TaskPluginRelayOnly {
+			return ch.Type != constant.ChannelTypeTaskPlugin && !pluginChannel
+		}
+		// Ordinary channels and matching plugin channels compete using the same
+		// group, priority, weight, affinity, and pin rules. Unrelated type-61
+		// plugins cannot execute this endpoint.
+		return ch.Type != constant.ChannelTypeTaskPlugin || pluginChannel
 	case dto.FilterResponsesWebSocket:
 		if !ch.GetSetting().ResponsesWebSocketEnabled {
 			return false

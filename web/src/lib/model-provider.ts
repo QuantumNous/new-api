@@ -42,7 +42,22 @@ const MODEL_PROVIDER_RULES: readonly ModelProviderRule[] = [
   {
     name: 'NVIDIA',
     icon: 'Nvidia.Color',
-    keywords: ['nvidia/', 'nvidia.', 'nemotron'],
+    keywords: [
+      'nvidia/',
+      'nvidia.',
+      'nemotron',
+      'nv-embed',
+      'nv-rerank',
+      'riva-',
+      'parakeet-',
+      'canary-',
+      'nemoretriever',
+    ],
+  },
+  {
+    name: 'Cloudflare',
+    icon: 'Cloudflare.Color',
+    keywords: ['clef'],
   },
   {
     name: 'OpenAI',
@@ -175,7 +190,7 @@ const MODEL_PROVIDER_RULES: readonly ModelProviderRule[] = [
     name: 'Meta',
     icon: 'Meta.Color',
     fallbackKeywords: ['meta-'],
-    keywords: ['meta-llama', 'llama-', 'llama2', 'llama3'],
+    keywords: ['meta-llama', 'meta/', 'muse-', 'llama-', 'llama2', 'llama3'],
   },
   {
     name: 'Cohere',

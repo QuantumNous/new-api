@@ -101,18 +101,7 @@ func AlphaSearchHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError
 	}
 
 	// Upstream alpha search returns no usage; bill one web_search_preview call.
-	if info.ResponsesUsageInfo == nil {
-		info.ResponsesUsageInfo = &relaycommon.ResponsesUsageInfo{
-			BuiltInTools: make(map[string]*relaycommon.BuildInToolInfo),
-		}
-	}
-	if info.ResponsesUsageInfo.BuiltInTools == nil {
-		info.ResponsesUsageInfo.BuiltInTools = make(map[string]*relaycommon.BuildInToolInfo)
-	}
-	info.ResponsesUsageInfo.BuiltInTools[dto.BuildInToolWebSearchPreview] = &relaycommon.BuildInToolInfo{
-		ToolName:  dto.BuildInToolWebSearchPreview,
-		CallCount: 1,
-	}
+	info.SetBillableToolCount(dto.BuildInToolWebSearchPreview, 1)
 
 	usage := &dto.Usage{}
 	service.PostTextConsumeQuota(c, info, usage, nil)

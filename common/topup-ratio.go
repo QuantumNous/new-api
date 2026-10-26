@@ -17,7 +17,7 @@ func TopupGroupRatio2JSONString() string {
 	defer topupGroupRatioMutex.RUnlock()
 	jsonBytes, err := json.Marshal(topupGroupRatio)
 	if err != nil {
-		SysError("error marshalling topup group ratio: " + err.Error())
+		SysError(LogText("error marshalling topup group ratio: %s", err.Error()))
 	}
 	return string(jsonBytes)
 }
@@ -34,7 +34,7 @@ func GetTopupGroupRatio(name string) float64 {
 	defer topupGroupRatioMutex.RUnlock()
 	ratio, ok := topupGroupRatio[name]
 	if !ok {
-		SysError("topup group ratio not found: " + name)
+		SysError(LogText("topup group ratio not found: %s", name))
 		return 1
 	}
 	return ratio

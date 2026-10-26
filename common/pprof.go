@@ -17,23 +17,23 @@ func Monitor() {
 			panic(err)
 		}
 		if percent[0] > 80 {
-			fmt.Println("cpu usage too high")
+			fmt.Println(LogText("cpu usage too high"))
 			// write pprof file
 			if _, err := os.Stat("./pprof"); os.IsNotExist(err) {
 				err := os.Mkdir("./pprof", os.ModePerm)
 				if err != nil {
-					SysLog("创建pprof文件夹失败 " + err.Error())
+					SysLog(LogText("failed to create the pprof directory: %s", err.Error()))
 					continue
 				}
 			}
 			f, err := os.Create("./pprof/" + fmt.Sprintf("cpu-%s.pprof", time.Now().Format("20060102150405")))
 			if err != nil {
-				SysLog("创建pprof文件失败 " + err.Error())
+				SysLog(LogText("failed to create the pprof file: %s", err.Error()))
 				continue
 			}
 			err = pprof.StartCPUProfile(f)
 			if err != nil {
-				SysLog("启动pprof失败 " + err.Error())
+				SysLog(LogText("failed to start pprof: %s", err.Error()))
 				continue
 			}
 			time.Sleep(10 * time.Second) // profile for 30 seconds

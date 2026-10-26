@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	kitutil "github.com/QuantumNous/new-api/relaykit/relayconvert/kitutil"
 	"github.com/QuantumNous/new-api/relaykit/types"
 )
 
@@ -32,15 +33,36 @@ type EmbeddingRequest struct {
 }
 
 func (r *EmbeddingRequest) GetTokenCountMeta() *types.TokenCountMeta {
-	var texts = make([]string, 0)
-
-	inputs := r.ParseInput()
-	for _, input := range inputs {
-		texts = append(texts, input)
+	texts := r.ParseInput()
+	var files []*types.FileMeta
+	// Chat-style parts count like chat message content: text parts as text,
+	// image and video parts as files.
+	items, _ := r.Input.([]any)
+	for _, item := range items {
+		if _, ok := item.(map[string]any); !ok {
+			continue
+		}
+		part, err := kitutil.Any2Type[MediaContent](item)
+		if err != nil {
+			continue
+		}
+		switch part.Type {
+		case ContentTypeText:
+			texts = append(texts, part.Text)
+		case ContentTypeImageURL:
+			if source := part.ToFileSource(); source != nil {
+				files = append(files, &types.FileMeta{FileType: types.FileTypeImage, Source: source, Detail: part.GetImageMedia().Detail})
+			}
+		case ContentTypeVideoUrl:
+			if source := part.ToFileSource(); source != nil {
+				files = append(files, &types.FileMeta{FileType: types.FileTypeVideo, Source: source})
+			}
+		}
 	}
 
 	return &types.TokenCountMeta{
 		CombineText: strings.Join(texts, "\n"),
+		Files:       files,
 	}
 }
 

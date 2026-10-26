@@ -12,6 +12,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay"
@@ -233,10 +234,11 @@ func initTaskArtifactAdaptor(task *model.Task) (relaychannel.TaskAdaptor, error)
 	}
 	adaptor.Init(&relaycommon.RelayInfo{
 		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelType:    channelModel.Type,
-			ChannelBaseUrl: baseURL,
-			ApiKey:         pluginKey,
-			ChannelSetting: channelModel.GetSetting(),
+			ChannelType:     channelModel.Type,
+			ChannelBaseUrl:  baseURL,
+			ApiKey:          pluginKey,
+			ChannelSetting:  channelModel.GetSetting(),
+			HeadersOverride: channelModel.GetHeaderOverride(),
 		},
 	})
 	return adaptor, nil
@@ -383,8 +385,11 @@ func TaskArtifactContent(c *gin.Context) {
 		Method:  c.Request.Method,
 		Headers: taskArtifactClientHeaders(c.Request.Header),
 	}
-	descriptor, err := provider.BuildContentRequest(task, artifactKey, clientRequest)
+	descriptor, err := provider.BuildContentRequest(c.Request.Context(), task, artifactKey, clientRequest)
 	if err != nil || descriptor == nil {
+		if err != nil {
+			logger.LogWarn(c.Request.Context(), fmt.Sprintf("Failed to resolve plugin %s content for task %s: %v", artifactKey, task.TaskID, err))
+		}
 		writeTaskArtifactError(c, http.StatusInternalServerError, "artifact_plugin_error", "Artifact content plugin failed")
 		return
 	}

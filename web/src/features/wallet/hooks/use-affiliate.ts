@@ -23,7 +23,10 @@ import { toast } from 'sonner'
 import { useCopyToClipboard } from '@/hooks/use-copy-to-clipboard'
 import { getSelf } from '@/lib/api'
 import { handleServerError } from '@/lib/handle-server-error'
-import { requireServerSuccess } from '@/lib/server-error-message'
+import {
+  getServerMessage,
+  requireServerSuccess,
+} from '@/lib/server-error-message'
 
 import { getAffiliateCode, transferAffiliateQuota } from '../api'
 import { generateAffiliateLink } from '../lib'
@@ -69,7 +72,9 @@ export function useAffiliate() {
       const response = await transferAffiliateQuota({ quota })
 
       if (response.success) {
-        toast.success(response.message || i18next.t('Transfer successful'))
+        toast.success(
+          getServerMessage(response) || i18next.t('Transfer successful')
+        )
         await getSelf()
         return true
       }

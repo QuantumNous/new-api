@@ -113,7 +113,7 @@ For commercial licensing, please contact support@quantumnous.com
     @apply bg-background text-foreground has-[div[data-variant='inset']]:bg-sidebar min-h-svh w-full;
     /* Font is driven by the theme's font axis via `--font-body`
      * (defined in theme.css, swapped by `[data-theme-font='...']` blocks
-     * in theme-presets.css). Defaults to the project's humanist sans. */
+     * in theme-presets.css). Defaults to the browser's sans-serif. */
     font-family: var(--font-body);
   }
 
@@ -585,9 +585,9 @@ For commercial licensing, please contact support@quantumnous.com
     transition: background-color 120ms ease;
   }
 
-  /* Table row stagger-in animation */
+  /* Only fill the entrance delay; completed animations must release transform/opacity. */
   [data-slot='table'] tbody tr {
-    animation: tableRowEnter 0.2s cubic-bezier(0.33, 1, 0.68, 1) both;
+    animation: tableRowEnter 0.2s cubic-bezier(0.33, 1, 0.68, 1) backwards;
   }
   [data-slot='table'] tbody tr:nth-child(2) {
     animation-delay: 25ms;

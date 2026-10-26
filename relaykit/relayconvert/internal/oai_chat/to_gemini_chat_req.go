@@ -22,6 +22,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 		Contents: make([]dto.GeminiChatContent, 0, len(textRequest.Messages)),
 		GenerationConfig: dto.GeminiChatGenerationConfig{
 			Temperature: textRequest.Temperature,
+			ImageConfig: textRequest.ImageConfig,
 		},
 	}
 
@@ -159,14 +160,11 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 	if textRequest.Tools != nil {
 		functions := make([]dto.FunctionRequest, 0, len(textRequest.Tools))
 		for _, tool := range textRequest.Tools {
-			if tool.Function.Parameters != nil {
-				if params, ok := tool.Function.Parameters.(map[string]any); ok {
-					if props, hasProps := params["properties"].(map[string]any); hasProps && len(props) == 0 {
-						tool.Function.Parameters = nil
-					}
-				}
+			parameters, err := sharedgemini.CleanFunctionParametersJSON(tool.Function.Parameters)
+			if err != nil {
+				return nil, fmt.Errorf("invalid tool parameters: %w", err)
 			}
-			tool.Function.Parameters = sharedgemini.CleanFunctionParameters(tool.Function.Parameters)
+			tool.Function.Parameters = parameters
 			functions = append(functions, tool.Function)
 		}
 		geminiTools := geminiRequest.GetTools()
@@ -186,11 +184,8 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 		geminiRequest.GenerationConfig.ResponseMimeType = "application/json"
 
 		if len(textRequest.ResponseFormat.JsonSchema) > 0 {
-			var jsonSchema dto.FormatJsonSchema
-			if err := kitutil.Unmarshal(textRequest.ResponseFormat.JsonSchema, &jsonSchema); err == nil {
-				cleanedSchema := sharedgemini.RemoveAdditionalProperties(jsonSchema.Schema, 0)
-				geminiRequest.GenerationConfig.ResponseSchema = cleanedSchema
-			}
+			sharedgemini.ApplyResponseSchema(c, &geminiRequest.GenerationConfig, textRequest.ResponseFormat.JsonSchema,
+				"response_format.json_schema.schema", opts.Gemini.SupportsJSONSchemaModel(upstreamModelName))
 		}
 	}
 
@@ -339,7 +334,7 @@ func OpenAIChatRequestToGeminiGenerateContent(c context.Context, textRequest dto
 					return nil, fmt.Errorf("get file data from '%s' failed: %w", source.GetIdentifier(), err)
 				}
 
-				if _, ok := sharedgemini.SupportedMimeTypes[strings.ToLower(mimeType)]; !ok {
+				if !sharedgemini.IsSupportedMimeType(mimeType) {
 					return nil, fmt.Errorf("mime type is not supported by Gemini: '%s', url: '%s', supported types are: %v", mimeType, source.GetIdentifier(), sharedgemini.SupportedMimeTypesList())
 				}
 

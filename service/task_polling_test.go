@@ -243,6 +243,7 @@ func TestPollingPassesExecutingChannelTypeToAdaptor(t *testing.T) {
 	const channelID = 112
 	baseURL := "https://gateway.example"
 	gateway := &model.Channel{Id: channelID, Type: constant.ChannelTypeNewAPI, Name: "gateway", Key: "sk-gateway", Status: common.ChannelStatusEnabled, BaseURL: &baseURL}
+	gateway.HeaderOverride = common.GetPointer(`{"X-API-Key":"{api_key}"}`)
 	gateway.SetOtherSettings(dto.ChannelOtherSettings{DisableTaskPollingSleep: true})
 	require.NoError(t, model.DB.Create(gateway).Error)
 	task := seedPollingTask(t, channelID, "task_gateway", "upstream_gateway")
@@ -259,6 +260,7 @@ func TestPollingPassesExecutingChannelTypeToAdaptor(t *testing.T) {
 	assert.Equal(t, constant.ChannelTypeNewAPI, meta.ChannelType, "the adaptor derives the upstream kind from the channel type")
 	assert.Equal(t, channelID, meta.ChannelId)
 	assert.Equal(t, baseURL, meta.ChannelBaseUrl)
+	assert.Equal(t, map[string]any{"X-API-Key": "{api_key}"}, meta.HeadersOverride)
 
 	batch := &batchPollingAdaptor{}
 	require.NoError(t, UpdateBatchTasks(context.Background(), batch, taskChannels, tasks))
@@ -267,6 +269,7 @@ func TestPollingPassesExecutingChannelTypeToAdaptor(t *testing.T) {
 	assert.Equal(t, constant.ChannelTypeNewAPI, meta.ChannelType)
 	assert.Equal(t, channelID, meta.ChannelId)
 	assert.Equal(t, baseURL, meta.ChannelBaseUrl)
+	assert.Equal(t, map[string]any{"X-API-Key": "{api_key}"}, meta.HeadersOverride)
 }
 
 func TestDispatchPlatformUpdateUsesFetchMode(t *testing.T) {
@@ -766,10 +769,44 @@ func TestSweepTimedOutTasksHonorsRefundRolloutBoundary(t *testing.T) {
 	assert.EqualValues(t, model.TaskStatusFailure, reloadedModern.Status)
 	assert.Zero(t, reloadedLegacy.Quota)
 	assert.Zero(t, reloadedModern.Quota)
-	assert.Contains(t, reloadedLegacy.FailReason, "旧系统遗留任务")
-	assert.Contains(t, reloadedModern.FailReason, "任务超时")
+	assert.Contains(t, reloadedLegacy.FailReason, "old system")
+	assert.Equal(t, "Task timed out", reloadedModern.FailReason)
 	assert.Equal(t, initialQuota+modernTaskQuota, getUserQuota(t, userID))
 	assert.Equal(t, int64(1), countLogs(t))
+}
+
+// TASK_TIMEOUT_MINUTES defaults to 72 hours, the longest a vendor keeps a
+// task running (Ark can be configured to 72h, Vidu off-peak runs 48h).
+func TestSweepTimedOutTasksAtTheDefaultDeadline(t *testing.T) {
+	truncate(t)
+
+	const userID, initialQuota, taskQuota = 404, 10_000, 1_500
+	seedUser(t, userID, initialQuota)
+	running := makeTask(userID, 0, taskQuota, 0, BillingSourceWallet, 0)
+	running.TaskID = "running_for_60_hours"
+	running.Progress = "50%"
+	running.SubmitTime = time.Now().Add(-60 * time.Hour).Unix()
+	require.NoError(t, model.DB.Create(running).Error)
+	stuck := makeTask(userID, 0, taskQuota, 0, BillingSourceWallet, 0)
+	stuck.TaskID = "running_for_73_hours"
+	stuck.Progress = "50%"
+	stuck.SubmitTime = time.Now().Add(-73 * time.Hour).Unix()
+	require.NoError(t, model.DB.Create(stuck).Error)
+
+	previousTimeout := constant.TaskTimeoutMinutes
+	constant.TaskTimeoutMinutes = 4320
+	t.Cleanup(func() { constant.TaskTimeoutMinutes = previousTimeout })
+
+	sweepTimedOutTasks(context.Background())
+
+	var reloadedRunning, reloadedStuck model.Task
+	require.NoError(t, model.DB.First(&reloadedRunning, running.ID).Error)
+	require.NoError(t, model.DB.First(&reloadedStuck, stuck.ID).Error)
+	assert.NotEqualValues(t, model.TaskStatusFailure, reloadedRunning.Status)
+	assert.Equal(t, taskQuota, reloadedRunning.Quota)
+	assert.EqualValues(t, model.TaskStatusFailure, reloadedStuck.Status)
+	assert.Equal(t, "Task timed out", reloadedStuck.FailReason)
+	assert.Equal(t, initialQuota+taskQuota, getUserQuota(t, userID))
 }
 
 type scriptedPollingAdaptor struct {
@@ -846,7 +883,7 @@ func TestUpdateVideoSingleTaskPollClassification(t *testing.T) {
 			statusCode:    http.StatusNotFound,
 			wantStatus:    model.TaskStatusFailure,
 			wantRefund:    true,
-			wantReason:    "upstream task not found (HTTP 404)",
+			wantReason:    "Upstream task not found",
 			wantUnchanged: false,
 		},
 		{
@@ -864,7 +901,7 @@ func TestUpdateVideoSingleTaskPollClassification(t *testing.T) {
 			wantStatus:    model.TaskStatusFailure,
 			wantFailures:  3,
 			wantRefund:    true,
-			wantReason:    "poll failed: transient (HTTP 429)",
+			wantReason:    "Failed to query the upstream task status",
 		},
 		{
 			name:          "UNKNOWN increments",
@@ -948,7 +985,7 @@ func TestUpdateVideoSingleTaskPollClassification(t *testing.T) {
 				assert.Empty(t, persisted.FailReason)
 			}
 			if testCase.wantReason != "" {
-				assert.Contains(t, persisted.FailReason, testCase.wantReason)
+				assert.Equal(t, testCase.wantReason, persisted.FailReason)
 			}
 			if testCase.wantState != "" {
 				assert.JSONEq(t, testCase.wantState, string(persisted.PrivateData.PluginState))
@@ -983,7 +1020,7 @@ func TestUpdateBatchTasksPollClassification(t *testing.T) {
 			statusCode: http.StatusNotFound,
 			wantStatus: model.TaskStatusFailure,
 			wantRefund: true,
-			wantReason: "upstream task not found (HTTP 404)",
+			wantReason: "Upstream task not found",
 		},
 		{
 			name:         "401 increments every task",
@@ -1030,7 +1067,7 @@ func TestUpdateBatchTasksPollClassification(t *testing.T) {
 			assert.EqualValues(t, testCase.wantStatus, persisted.Status)
 			assert.Equal(t, testCase.wantFailures, persisted.PrivateData.PollFailures)
 			if testCase.wantReason != "" {
-				assert.Contains(t, persisted.FailReason, testCase.wantReason)
+				assert.Equal(t, testCase.wantReason, persisted.FailReason)
 			}
 			if testCase.wantRefund {
 				assert.Equal(t, initialQuota+preConsumed, getUserQuota(t, userID))

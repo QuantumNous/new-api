@@ -241,6 +241,12 @@ func TestChatCompletionsStreamToResponsesEmitsReasoningSummaryPartLifecycle(t *t
 		responsesEventCompleted,
 	}, types)
 
+	// The Responses schema requires summary on every reasoning item, including
+	// the one announced before any summary text exists.
+	itemAdded, err := kitutil.Marshal(events[1].Payload)
+	require.NoError(t, err)
+	assert.Contains(t, string(itemAdded), `"summary":[]`)
+
 	partAdded := events[2].Payload
 	assert.Equal(t, "resp_1_reasoning_0", partAdded.ItemID)
 	assert.Equal(t, 0, lo.FromPtr(partAdded.OutputIndex))

@@ -30,9 +30,9 @@ import {
 } from 'lucide-react'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { SiGithub, SiDiscord } from 'react-icons/si'
 import { toast } from 'sonner'
 
+import { IconGithub, IconDiscord } from '@/assets/brand-icons'
 import { ConfirmDialog } from '@/components/confirm-dialog'
 import { Dialog } from '@/components/dialog'
 import { StatusBadge } from '@/components/status-badge'
@@ -110,14 +110,14 @@ const BUILTIN_BINDINGS: ReadonlyArray<{
     key: 'github',
     field: 'github_id',
     label: 'GitHub',
-    icon: <SiGithub className='h-4 w-4' />,
+    icon: <IconGithub className='h-4 w-4' />,
     statusKey: 'github_oauth',
   },
   {
     key: 'discord',
     field: 'discord_id',
     label: 'Discord',
-    icon: <SiDiscord className='h-4 w-4' />,
+    icon: <IconDiscord className='h-4 w-4' />,
     statusKey: 'discord_oauth',
   },
   {

@@ -53,6 +53,7 @@ func (a *Adaptor) ConvertGeminiRequest(*gin.Context, *relaycommon.RelayInfo, *dt
 
 func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayInfo, req *dto.ClaudeRequest) (any, error) {
 	if supportsAliAnthropicMessages(info.UpstreamModelName) {
+		ensureAnthropicWebSearchEntrypoint(req)
 		return req, nil
 	}
 
@@ -71,6 +72,18 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
+	if info.RelayMode == constant.RelayModeResponses {
+		info.VendorToolUsage = aliResponsesToolUsage
+	}
+	if info.RelayFormat == types.RelayFormatClaude {
+		if supportsAliAnthropicMessages(info.UpstreamModelName) {
+			info.WebSearchBillingKey = aliSearchAgentKey
+		} else {
+			// Claude clients on models outside the Anthropic-compatible list
+			// are converted to compatible-mode Chat.
+			info.ConvOptions().WebSearch = encodeWebSearch(info)
+		}
+	}
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
@@ -85,11 +98,15 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	default:
 		switch info.RelayMode {
 		case constant.RelayModeEmbeddings:
-			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/embeddings", info.ChannelBaseUrl)
+			if isMultimodalEmbeddingModel(info.UpstreamModelName) {
+				fullRequestURL = fmt.Sprintf("%s/api/v1/services/embeddings/multimodal-embedding/multimodal-embedding", info.ChannelBaseUrl)
+			} else {
+				fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/embeddings", info.ChannelBaseUrl)
+			}
 		case constant.RelayModeRerank:
 			fullRequestURL = fmt.Sprintf("%s/api/v1/services/rerank/text-rerank/text-rerank", info.ChannelBaseUrl)
 		case constant.RelayModeResponses:
-			fullRequestURL = fmt.Sprintf("%s/api/v2/apps/protocols/compatible-mode/v1/responses", info.ChannelBaseUrl)
+			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/responses", info.ChannelBaseUrl)
 		case constant.RelayModeCompletions:
 			fullRequestURL = fmt.Sprintf("%s/compatible-mode/v1/completions", info.ChannelBaseUrl)
 		default:
@@ -157,6 +174,9 @@ func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dt
 }
 
 func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
+	if isMultimodalEmbeddingModel(info.UpstreamModelName) {
+		return convertToMultimodalEmbeddingRequest(request)
+	}
 	return request, nil
 }
 
@@ -187,6 +207,13 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 		switch info.RelayMode {
 		case constant.RelayModeRerank:
 			err, usage = RerankHandler(c, resp, info)
+		case constant.RelayModeEmbeddings:
+			if isMultimodalEmbeddingModel(info.UpstreamModelName) {
+				err, usage = MultimodalEmbeddingHandler(c, resp, info)
+			} else {
+				adaptor := openai.Adaptor{}
+				usage, err = adaptor.DoResponse(c, resp, info)
+			}
 		default:
 			adaptor := openai.Adaptor{}
 			usage, err = adaptor.DoResponse(c, resp, info)

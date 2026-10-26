@@ -16,7 +16,6 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
-	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
@@ -31,7 +30,7 @@ const maxTaskPluginSourceBytes = 8 << 20
 func taskPluginCompileError(c *gin.Context, err error) {
 	var unknownField *jsplugin.UnknownMetaFieldError
 	if errors.As(err, &unknownField) {
-		common.ApiErrorI18n(c, i18n.MsgTaskPluginUnknownMetaField, map[string]any{"Field": unknownField.Field})
+		common.ApiErrorT(c, "Plugin metadata contains an unknown field \"{{field}}\". If this plugin was downloaded from the official marketplace, it may require a newer version of new-api. Try updating new-api and installing the plugin again.", map[string]any{"field": unknownField.Field})
 		return
 	}
 	common.ApiError(c, err)
@@ -787,7 +786,7 @@ func syncTaskPluginsOnceContext(ctx context.Context) error {
 				}
 			}
 			taskPluginSyncState.errors[plugin.Key] = compileErr.Error()
-			common.SysError(fmt.Sprintf("compile task plugin %s@%s: %v", plugin.Key, plugin.Version, compileErr))
+			common.SysError(common.LogText("compile task plugin %s@%s: %v", plugin.Key, plugin.Version, compileErr))
 			logger.LogDebug(
 				ctx,
 				"task_plugin subsystem=sync event=plugin plugin=%q version=%q action=compile_failed retained_incumbent=%t",

@@ -25,11 +25,11 @@ const (
 // TokenRef identifies a PAT generation without storing its bearer credential.
 type AuditLog struct {
 	Id         int        `json:"id"`
-	EventId    string     `json:"event_id" gorm:"type:varchar(64);uniqueIndex"`
+	EventId    string     `json:"event_id" gorm:"type:varchar(64);uniqueIndex;index:idx_audit_time_event,priority:2"`
 	UserId     int        `json:"user_id" gorm:"index:idx_audit_user_time,priority:1"`
 	Username   string     `json:"username" gorm:"type:varchar(64);index"`
 	ActorRole  int        `json:"actor_role"` // Immutable role of the actor when the event began, not the log owner.
-	CreatedAt  int64      `json:"created_at" gorm:"type:bigint;index:idx_audit_user_time,priority:2;index:idx_audit_token_time,priority:2;index"`
+	CreatedAt  int64      `json:"created_at" gorm:"type:bigint;index:idx_audit_user_time,priority:2;index:idx_audit_token_time,priority:2;index;index:idx_audit_time_event,priority:1"`
 	Category   string     `json:"category" gorm:"type:varchar(24);index"`
 	Action     string     `json:"action" gorm:"type:varchar(128)"`
 	TokenRef   string     `json:"token_ref" gorm:"type:varchar(64);index:idx_audit_token_time,priority:1"`
@@ -102,7 +102,7 @@ func RecordAuditLog(c *gin.Context, entry AuditLog) {
 	switch entry.ActorRole {
 	case common.RoleCommonUser, common.RoleAdminUser, common.RoleRootUser:
 	default:
-		logger.LogError(ctx, fmt.Sprintf("audit actor role unavailable (request_id=%s, actor_role=%d)", entry.RequestId, entry.ActorRole))
+		logger.LogError(ctx, common.LogText("audit actor role unavailable (request_id=%s, actor_role=%d)", entry.RequestId, entry.ActorRole))
 		entry.ActorRole = 0 // Unknown actors remain visible to root only.
 	}
 	if entry.Username == "" {
@@ -113,14 +113,14 @@ func RecordAuditLog(c *gin.Context, entry AuditLog) {
 		entry.UserAgent = string(ua[:512])
 	}
 	if LOG_DB == nil {
-		logger.LogError(ctx, fmt.Sprintf("audit log write failed (request_id=%s): log database unavailable", entry.RequestId))
+		logger.LogError(ctx, common.LogText("audit log write failed (request_id=%s): log database unavailable", entry.RequestId))
 		return
 	}
 	var row any = &entry
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		encoded, err := common.Marshal(entry.Other)
 		if err != nil {
-			logger.LogError(ctx, fmt.Sprintf("audit log write failed (request_id=%s): %v", entry.RequestId, err))
+			logger.LogError(ctx, common.LogText("audit log write failed (request_id=%s): %v", entry.RequestId, err))
 			return
 		}
 		// The ClickHouse GORM insert callback passes structs to the native
@@ -132,7 +132,7 @@ func RecordAuditLog(c *gin.Context, entry AuditLog) {
 		}{AuditLog: entry, EncodedOther: string(encoded)}
 	}
 	if err := LOG_DB.Table("audit_logs").Create(row).Error; err != nil {
-		logger.LogError(ctx, fmt.Sprintf("audit log write failed (request_id=%s): %v", entry.RequestId, err))
+		logger.LogError(ctx, common.LogText("audit log write failed (request_id=%s): %v", entry.RequestId, err))
 	}
 }
 

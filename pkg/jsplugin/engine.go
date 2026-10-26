@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/Calcium-Ion/moejs"
 	"github.com/QuantumNous/new-api/common"
@@ -50,6 +51,21 @@ func (e *HookError) Unwrap() error {
 		return nil
 	}
 	return e.wrapped
+}
+
+// ResultError reports a hook result that CallInto could not store: one the
+// host codec cannot encode (a NaN, an infinity, a cycle) or one the target's
+// type rejects. Its message is the codec's.
+type ResultError struct {
+	err error
+}
+
+func (e *ResultError) Error() string {
+	return e.err.Error()
+}
+
+func (e *ResultError) Unwrap() error {
+	return e.err
 }
 
 func newHookError(hook, rawMessage string, wrapped error) *HookError {
@@ -93,8 +109,11 @@ type Engine struct {
 	module    *moejs.Module
 	pool      chan *runtimeInstance
 	semaphore chan struct{}
-	hooksMu   sync.RWMutex
-	hooks     map[hookKey]moejs.Hook
+	// parked bounds the runtimes that lent their slot to other calls while
+	// utils.fetch waits on the network; its capacity is the concurrency.
+	parked  chan struct{}
+	hooksMu sync.RWMutex
+	hooks   map[hookKey]moejs.Hook
 	// exports holds the exports that were not undefined once the module
 	// loaded; it is written only by Compile.
 	exports map[string]struct{}
@@ -115,6 +134,8 @@ const maxCachedHooks = 256
 type runtimeInstance struct {
 	runtime    *moejs.Runtime
 	logContext *runtimeLogContext
+	// call is the hook call running on the runtime, nil between calls.
+	call *runtimeCall
 }
 
 type runtimeLogContext struct {
@@ -160,6 +181,7 @@ func Compile(source string, options Options) (*Engine, error) {
 		log:       options.Log,
 		module:    module,
 		semaphore: make(chan struct{}, concurrency),
+		parked:    make(chan struct{}, concurrency),
 		pool:      make(chan *runtimeInstance, concurrency),
 		hooks:     make(map[hookKey]moejs.Hook),
 		exports:   make(map[string]struct{}),
@@ -201,8 +223,8 @@ func (e *Engine) Export(ctx context.Context, exportName string) (any, error) {
 		}
 	}()
 	timedOut := errors.New("plugin export timed out")
-	stopInterrupt := watchRuntimeContext(instance.runtime, ctx, e.timeout, timedOut)
-	defer stopInterrupt()
+	watchdog := watchRuntimeContext(instance.runtime, ctx, e.timeout, timedOut)
+	defer watchdog.stop()
 	value, found := instance.runtime.Export(exportName)
 	if !found || value.IsUndefined() {
 		return nil, fmt.Errorf("plugin export %q not found", exportName)
@@ -257,8 +279,8 @@ func (e *Engine) HasCallablePath(ctx context.Context, exportName string, members
 		}
 	}()
 	timedOut := errors.New("plugin inspection timed out")
-	stopInterrupt := watchRuntimeContext(instance.runtime, ctx, e.timeout, timedOut)
-	defer stopInterrupt()
+	watchdog := watchRuntimeContext(instance.runtime, ctx, e.timeout, timedOut)
+	defer watchdog.stop()
 	found, err := instance.runtime.Has(hook)
 	if err == nil {
 		return found, nil
@@ -273,27 +295,56 @@ func (e *Engine) HasCallablePath(ctx context.Context, exportName string, members
 	return false, fmt.Errorf("plugin %s@%s hook %s inspection failed: %w%s", e.key, e.version, hook.Name(), err, thrownAt(instance.runtime, exception))
 }
 
-// RawJSON is a hook argument given as JSON text. As a top-level argument the
-// hook receives JSON.parse of it, with no Go values built in between; text
-// nested too deep for JSON.parse, and a RawJSON inside another argument, are
-// decoded with the host codec instead.
+// RawJSON is a hook argument given as JSON text: the hook receives JSON.parse
+// of it, members in order, whether it is an argument or inside one, with no Go
+// values built in between; text nested too deep for JSON.parse is decoded with
+// the host codec instead. The engine parses the bytes in place, without the
+// copy ParseJSON makes, and strings of the call's result may share them, so
+// the caller must never change them once passed.
 type RawJSON []byte
 
 // Call invokes one named module export and returns its JSON-compatible value.
 func (e *Engine) Call(ctx context.Context, exportName string, args ...any) (result any, err error) {
-	return e.call(ctx, 0, exportName, nil, args...)
+	result, _, err = e.call(ctx, callOptions{}, exportName, nil, args...)
+	return result, err
+}
+
+// CallInto invokes one named module export and stores its result in target as
+// the host codec decodes the encoding of the value Call returns, without that
+// round trip for plain results. A result the codec cannot encode or target's
+// type rejects is a *ResultError, and target may then hold part of it.
+func (e *Engine) CallInto(ctx context.Context, target any, exportName string, args ...any) error {
+	_, _, err := e.call(ctx, callOptions{target: target}, exportName, nil, args...)
+	return err
+}
+
+// CallJSONInto is CallInto with the semantics of JSON.stringify's text of the
+// result instead of the host codec's encoding: objects keep their member
+// order, which a json.RawMessage in target receives as text, members whose
+// value is undefined are left out and toJSON runs.
+func (e *Engine) CallJSONInto(ctx context.Context, target any, exportName string, args ...any) error {
+	_, _, err := e.call(ctx, callOptions{target: target, stringify: true}, exportName, nil, args...)
+	return err
 }
 
 // CallMember invokes a function stored on an exported object, such as a
 // renderer in the renderers export.
 func (e *Engine) CallMember(ctx context.Context, exportName, memberName string, args ...any) (result any, err error) {
-	return e.call(ctx, 0, exportName, []string{memberName}, args...)
+	result, _, err = e.call(ctx, callOptions{}, exportName, []string{memberName}, args...)
+	return result, err
 }
 
 // CallPath invokes a function nested below an exported object. It is used for
 // protocol hooks such as protocols.openai_responses.renderEvents.
 func (e *Engine) CallPath(ctx context.Context, exportName string, members []string, args ...any) (result any, err error) {
-	return e.call(ctx, 0, exportName, members, args...)
+	result, _, err = e.call(ctx, callOptions{}, exportName, members, args...)
+	return result, err
+}
+
+// CallPathInto is CallInto for a function nested below an exported object.
+func (e *Engine) CallPathInto(ctx context.Context, target any, exportName string, members []string, args ...any) error {
+	_, _, err := e.call(ctx, callOptions{target: target}, exportName, members, args...)
+	return err
 }
 
 // CallPathWithAdmissionTimeout gives long-lived observers a separate bound for
@@ -307,36 +358,63 @@ func (e *Engine) CallPathWithAdmissionTimeout(
 	members []string,
 	args ...any,
 ) (result any, err error) {
-	return e.call(ctx, admissionTimeout, exportName, members, args...)
+	result, _, err = e.call(ctx, callOptions{admissionTimeout: admissionTimeout}, exportName, members, args...)
+	return result, err
 }
 
-func (e *Engine) call(
+// CallPathWithMemberJSON is CallPathWithAdmissionTimeout that also returns the
+// result's member as the text JSON.stringify writes for it, which keeps the
+// member order of its objects. The text is nil when member is empty or the
+// result has no such member.
+func (e *Engine) CallPathWithMemberJSON(
 	ctx context.Context,
 	admissionTimeout time.Duration,
+	member string,
 	exportName string,
 	members []string,
 	args ...any,
-) (any, error) {
-	if err := e.acquireCallSlot(ctx, admissionTimeout); err != nil {
-		return nil, err
+) (result any, text json.RawMessage, err error) {
+	return e.call(ctx, callOptions{admissionTimeout: admissionTimeout, jsonMember: member}, exportName, members, args...)
+}
+
+// callOptions is what a hook call does besides calling: the bound on waiting
+// for a JavaScript slot, the Go value the result is stored in instead of
+// being returned (from its JSON.stringify text when stringify is set), and a
+// member of the result also returned as JSON text.
+type callOptions struct {
+	admissionTimeout time.Duration
+	target           any
+	stringify        bool
+	jsonMember       string
+}
+
+func (e *Engine) call(ctx context.Context, opts callOptions, exportName string, members []string, args ...any) (any, json.RawMessage, error) {
+	if err := e.acquireCallSlot(ctx, opts.admissionTimeout); err != nil {
+		return nil, nil, err
 	}
-	defer func() { <-e.semaphore }()
+	call := &runtimeCall{engine: e, ctx: ctx, holdsSlot: true}
+	// utils.fetch may lend the slot out; return what the call holds now.
+	defer call.release()
 
 	hook, err := e.hook(exportName, members)
 	if err != nil {
 		if len(members) == 0 {
-			return nil, fmt.Errorf("plugin export %q not found", exportName)
+			return nil, nil, fmt.Errorf("plugin export %q not found", exportName)
 		}
-		return nil, fmt.Errorf("plugin hook %q not found", exportName)
+		return nil, nil, fmt.Errorf("plugin hook %q not found", exportName)
 	}
 	instance, err := e.getRuntime(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	call.runtime, call.hook = instance.runtime, hook.Name()
+	call.fetcher, _ = ctx.Value(fetcherContextKey{}).(Fetcher)
+	instance.call = call
 	reusable := true
 	defer func() {
 		instance.runtime.ClearInterrupt()
 		instance.logContext.context = nil
+		instance.call = nil
 		if reusable {
 			// An idle pooled runtime must not keep this call's request
 			// data alive.
@@ -349,9 +427,9 @@ func (e *Engine) call(
 	for index, arg := range args {
 		var converted moejs.Value
 		if raw, ok := arg.(RawJSON); !ok {
-			value, _ := pluginValue(arg, 0)
+			value, _ := pluginValue(instance.runtime, arg, 0)
 			converted, err = instance.runtime.FromGo(value)
-		} else if converted, err = instance.runtime.ParseJSON(raw); err != nil {
+		} else if converted, err = instance.runtime.ParseJSONString(unsafe.String(unsafe.SliceData(raw), len(raw))); err != nil {
 			// JSON.parse stops at a lower nesting depth than the host codec.
 			var decoded any
 			if err = common.Unmarshal(raw, &decoded); err == nil {
@@ -359,32 +437,58 @@ func (e *Engine) call(
 			}
 		}
 		if err != nil {
-			return nil, fmt.Errorf("plugin %s@%s hook %s argument %d: %w", e.key, e.version, hook.Name(), index+1, err)
+			return nil, nil, fmt.Errorf("plugin %s@%s hook %s argument %d: %w", e.key, e.version, hook.Name(), index+1, err)
 		}
 		callArgs = append(callArgs, converted)
 	}
 
 	timedOut := errors.New("plugin call timed out")
-	stopInterrupt := watchRuntimeContext(instance.runtime, ctx, e.timeout, timedOut)
-	defer stopInterrupt()
+	call.watchdog = watchRuntimeContext(instance.runtime, ctx, e.timeout, timedOut)
+	// utils.fetch pauses and restarts the watchdog; stop whichever watch is
+	// current when the call ends.
+	defer call.watchdog.stop()
 
 	value, err := instance.runtime.Call(hook, callArgs...)
 	var interrupted *moejs.InterruptedError
 	var exception *moejs.Exception
 	if err == nil {
 		var result any
-		if result, err = instance.runtime.ToGo(value); err == nil {
-			return result, nil
+		var memberText json.RawMessage
+		switch {
+		case opts.target != nil && opts.stringify:
+			err = instance.runtime.Unmarshal(value, opts.target)
+		case opts.target != nil:
+			err = instance.runtime.ToGoInto(value, opts.target)
+		default:
+			result, err = instance.runtime.ToGo(value)
+		}
+		if err == nil && opts.jsonMember != "" {
+			// After the result's Go value: AppendJSON may run a toJSON or
+			// a getter, which ToGo never does.
+			var member moejs.Value
+			if member, err = instance.runtime.Get(value, opts.jsonMember); err == nil && !member.IsUndefined() {
+				memberText, err = instance.runtime.AppendJSON(nil, member)
+			}
+		}
+		if err == nil {
+			return result, memberText, nil
 		}
 		if errors.As(err, &interrupted) {
 			reusable = false
-			return nil, fmt.Errorf("plugin %s@%s hook %s interrupted: %w", e.key, e.version, hook.Name(), interruptCause(interrupted))
+			return nil, nil, fmt.Errorf("plugin %s@%s hook %s interrupted: %w", e.key, e.version, hook.Name(), interruptCause(interrupted))
+		}
+		// Past ToGo's errors, ToGoInto fails as json.Marshal and
+		// json.Unmarshal do, which is the host codec (common/json.go), and
+		// Unmarshal and AppendJSON as JSON.stringify does (a BigInt, a cycle).
+		var internal *moejs.InternalError
+		if (opts.target != nil || opts.jsonMember != "") && !errors.As(err, &exception) && !errors.As(err, &internal) {
+			return nil, nil, &ResultError{err: err}
 		}
 	}
 	switch {
 	case errors.Is(err, moejs.ErrHookNotFound):
 		if len(members) == 0 {
-			return nil, fmt.Errorf("plugin export %q not found", exportName)
+			return nil, nil, fmt.Errorf("plugin export %q not found", exportName)
 		}
 		// Name the path up to the first missing member, as far as data
 		// properties show it; getters on the path are not run again.
@@ -400,18 +504,18 @@ func (e *Engine) call(
 			}
 			current, found = current.AsObject().GetOwnDataValue(instance.runtime.Realm().KeyFromGoString(member))
 		}
-		return nil, fmt.Errorf("plugin hook %q not found", hookName)
+		return nil, nil, fmt.Errorf("plugin hook %q not found", hookName)
 	case errors.Is(err, moejs.ErrNotCallable):
-		return nil, fmt.Errorf("plugin hook %q is not a function", hook.Name())
+		return nil, nil, fmt.Errorf("plugin hook %q is not a function", hook.Name())
 	case errors.As(err, &interrupted):
 		reusable = false
-		return nil, fmt.Errorf("plugin %s@%s hook %s failed: %w", e.key, e.version, hook.Name(), interruptCause(interrupted))
+		return nil, nil, fmt.Errorf("plugin %s@%s hook %s failed: %w", e.key, e.version, hook.Name(), interruptCause(interrupted))
 	case errors.As(err, &exception):
 		wrapped := fmt.Errorf("plugin %s@%s hook %s failed: %w%s", e.key, e.version, hook.Name(), err, thrownAt(instance.runtime, exception))
-		return nil, newHookError(hook.Name(), exception.Message(), wrapped)
+		return nil, nil, newHookError(hook.Name(), exception.Message(), wrapped)
 	}
 	reusable = false
-	return nil, fmt.Errorf("plugin %s@%s hook %s failed: %w", e.key, e.version, hook.Name(), err)
+	return nil, nil, fmt.Errorf("plugin %s@%s hook %s failed: %w", e.key, e.version, hook.Name(), err)
 }
 
 // hook resolves a hook path against the module's export table. Only
@@ -505,12 +609,13 @@ var pluginValueContainers = []reflect.Type{
 
 // pluginValue returns a hook argument in the shapes moejs converts: nil,
 // booleans, numbers, strings, JSON-shaped maps and slices and engine values.
-// Other Go values (structs, pointers, maps and slices of other element
-// types) take their JSON form through the configured codec, RawJSON is
-// decoded by it, and named scalars and containers become their underlying
-// type. changed is false when v has supported shapes throughout, the usual
-// case, so an argument is passed on without a copy.
-func pluginValue(v any, depth int) (converted any, changed bool) {
+// A RawJSON inside the argument becomes rt's parse of it (RawJSON); other Go
+// values (structs, pointers, maps and slices of other element types) take
+// their JSON form through the configured codec, and named scalars and
+// containers become their underlying type. changed is false when v has
+// supported shapes throughout, the usual case, so an argument is passed on
+// without a copy.
+func pluginValue(rt *moejs.Runtime, v any, depth int) (converted any, changed bool) {
 	if depth > maxPluginValueDepth {
 		return v, false
 	}
@@ -520,6 +625,10 @@ func pluginValue(v any, depth int) (converted any, changed bool) {
 		moejs.Value, moejs.NativeFunc:
 		return v, false
 	case RawJSON:
+		if parsed, err := rt.ParseJSONString(unsafe.String(unsafe.SliceData(typed), len(typed))); err == nil {
+			return parsed, true
+		}
+		// JSON.parse stops at a lower nesting depth than the host codec.
 		var decoded any
 		if err := common.Unmarshal(typed, &decoded); err != nil {
 			return v, false
@@ -528,7 +637,7 @@ func pluginValue(v any, depth int) (converted any, changed bool) {
 	case map[string]any:
 		var copied map[string]any
 		for key, item := range typed {
-			if item, changed = pluginValue(item, depth+1); changed {
+			if item, changed = pluginValue(rt, item, depth+1); changed {
 				if copied == nil {
 					copied = maps.Clone(typed)
 				}
@@ -542,7 +651,7 @@ func pluginValue(v any, depth int) (converted any, changed bool) {
 	case []any:
 		var copied []any
 		for index, item := range typed {
-			if item, changed = pluginValue(item, depth+1); changed {
+			if item, changed = pluginValue(rt, item, depth+1); changed {
 				if copied == nil {
 					copied = slices.Clone(typed)
 				}
@@ -556,7 +665,7 @@ func pluginValue(v any, depth int) (converted any, changed bool) {
 	case []map[string]any:
 		var copied []map[string]any
 		for index, item := range typed {
-			if next, changed := pluginValue(item, depth+1); changed {
+			if next, changed := pluginValue(rt, item, depth+1); changed {
 				if copied == nil {
 					copied = slices.Clone(typed)
 				}
@@ -586,7 +695,7 @@ func pluginValue(v any, depth int) (converted any, changed bool) {
 		case reflect.Map, reflect.Slice:
 			for _, container := range pluginValueContainers {
 				if value.Type().ConvertibleTo(container) {
-					converted, _ = pluginValue(value.Convert(container).Interface(), depth)
+					converted, _ = pluginValue(rt, value.Convert(container).Interface(), depth)
 					return converted, true
 				}
 			}
@@ -622,20 +731,72 @@ func (e *Engine) getRuntime(ctx context.Context) (*runtimeInstance, error) {
 	}
 }
 
-// A timeout callback must finish before its runtime can be reused. Merely
-// stopping a timer does not wait for an already-started Interrupt call.
-func watchRuntimeContext(runtime *moejs.Runtime, ctx context.Context, timeout time.Duration, timeoutError error) func() {
-	callContext, cancel := context.WithTimeoutCause(ctx, timeout, timeoutError)
+// runtimeWatchdog interrupts a runtime with timeoutError once it has run for
+// its timeout, or with the context's cause once ctx ends. utils.fetch pauses
+// it, so the timeout counts JavaScript time only. A timeout callback must
+// finish before its runtime can be reused: merely stopping a timer does not
+// wait for an already-started Interrupt call.
+type runtimeWatchdog struct {
+	runtime      *moejs.Runtime
+	ctx          context.Context
+	timeoutError error
+	remaining    time.Duration
+	started      time.Time
+	watch        context.Context
+	stopWatch    func() bool
+	cancel       context.CancelFunc
+	interrupted  chan struct{}
+	paused       bool
+}
+
+func watchRuntimeContext(runtime *moejs.Runtime, ctx context.Context, timeout time.Duration, timeoutError error) *runtimeWatchdog {
+	watchdog := &runtimeWatchdog{runtime: runtime, ctx: ctx, timeoutError: timeoutError, remaining: timeout}
+	watchdog.start()
+	return watchdog
+}
+
+func (w *runtimeWatchdog) start() {
+	watch, cancel := context.WithTimeoutCause(w.ctx, w.remaining, w.timeoutError)
 	interrupted := make(chan struct{})
-	stop := context.AfterFunc(callContext, func() {
-		runtime.Interrupt(context.Cause(callContext))
+	w.stopWatch = context.AfterFunc(watch, func() {
+		w.runtime.Interrupt(context.Cause(watch))
 		close(interrupted)
 	})
-	return func() {
-		if !stop() {
-			<-interrupted
-		}
-		cancel()
+	w.watch, w.cancel, w.interrupted = watch, cancel, interrupted
+	w.started, w.paused = time.Now(), false
+}
+
+func (w *runtimeWatchdog) stop() {
+	if w.paused {
+		return
+	}
+	if !w.stopWatch() {
+		<-w.interrupted
+	}
+	w.cancel()
+}
+
+// pause stops the clock while a host function waits. It reports false when
+// the watchdog already fired: its interrupt is then ending the call, and the
+// host function must return instead of waiting.
+func (w *runtimeWatchdog) pause() bool {
+	if !w.stopWatch() {
+		<-w.interrupted
+		return false
+	}
+	w.cancel()
+	w.remaining -= time.Since(w.started)
+	w.paused = true
+	return true
+}
+
+// resume restarts the clock with the time left at pause and the same timeout
+// cause. When the time is up or ctx ended meanwhile, it waits for the
+// interrupt that follows, so the host function can return it.
+func (w *runtimeWatchdog) resume() {
+	w.start()
+	if w.watch.Err() != nil {
+		<-w.interrupted
 	}
 }
 
@@ -644,6 +805,7 @@ func (e *Engine) newRuntime(ctx context.Context) (*runtimeInstance, error) {
 	// so eval and the Function constructors throw an EvalError.
 	runtime := moejs.NewRuntime(moejs.Options{DisableDynamicCode: true})
 	logContext := &runtimeLogContext{context: ctx}
+	instance := &runtimeInstance{runtime: runtime, logContext: logContext}
 	logOutput := e.log
 	if logOutput == nil {
 		logOutput = func(message string) {
@@ -652,13 +814,13 @@ func (e *Engine) newRuntime(ctx context.Context) (*runtimeInstance, error) {
 	}
 	if err := injectGlobals(runtime, func() string {
 		return fmt.Sprintf("[plugin:%s@%s]", e.key, e.version)
-	}, e.now, logOutput); err != nil {
+	}, e.now, logOutput, func() *runtimeCall { return instance.call }); err != nil {
 		return nil, fmt.Errorf("inject plugin utils: %w", err)
 	}
 	timedOut := errors.New("plugin initialization timed out")
-	stopInterrupt := watchRuntimeContext(runtime, ctx, e.timeout, timedOut)
+	watchdog := watchRuntimeContext(runtime, ctx, e.timeout, timedOut)
 	err := runtime.Load(e.module)
-	stopInterrupt()
+	watchdog.stop()
 	runtime.ClearInterrupt()
 	var interrupted *moejs.InterruptedError
 	if errors.As(err, &interrupted) {
@@ -667,7 +829,7 @@ func (e *Engine) newRuntime(ctx context.Context) (*runtimeInstance, error) {
 	if err != nil {
 		return nil, fmt.Errorf("evaluate plugin: %w", err)
 	}
-	return &runtimeInstance{runtime: runtime, logContext: logContext}, nil
+	return instance, nil
 }
 
 func sourceWithoutCommentsAndStrings(source string) string {

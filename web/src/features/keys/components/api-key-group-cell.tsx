@@ -57,6 +57,7 @@ export function ApiKeyGroupCell(props: ApiKeyGroupCellProps) {
           group={group}
           ratio={ratio}
           ratioLabel={group ? undefined : t('Inherited')}
+          type='text'
           className='px-0'
           containerClassName={cn('gap-3', isMobile && 'w-full justify-between')}
         />

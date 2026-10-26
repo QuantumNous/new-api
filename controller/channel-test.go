@@ -16,6 +16,7 @@ import (
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
+	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -292,7 +293,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 	//// 创建一个用于日志的 info 副本，移除 ApiKey
 	//logInfo := info
 	//logInfo.ApiKey = ""
-	common.SysLog(fmt.Sprintf("testing channel %d with model %s , info %+v ", channel.Id, testModel, info.ToString()))
+	common.SysLog(common.LogText("testing channel %d with model %s , info %+v ", channel.Id, testModel, info.ToString()))
 
 	priceData, err := helper.ModelPriceHelper(c, info, 0, request.GetTokenCountMeta())
 	if err != nil {
@@ -446,7 +447,7 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		httpResp = resp.(*http.Response)
 		if httpResp.StatusCode != http.StatusOK {
 			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
-			common.SysError(fmt.Sprintf(
+			common.SysError(common.LogText(
 				"channel test bad response: channel_id=%d name=%s type=%d model=%s endpoint_type=%s status=%d err=%v",
 				channel.Id,
 				channel.Name,
@@ -507,15 +508,15 @@ func testChannel(ctx context.Context, channel *model.Channel, testUserID int, te
 		PromptTokens:     usage.PromptTokens,
 		CompletionTokens: usage.CompletionTokens,
 		ModelName:        info.OriginModelName,
-		TokenName:        "模型测试",
+		TokenName:        "Model test",
 		Quota:            quota,
-		Content:          "模型测试",
+		Content:          []*common.Message{common.NewMessage("Model test")},
 		UseTimeSeconds:   int(consumedTime),
 		IsStream:         info.IsStream,
 		Group:            info.UsingGroup,
 		Other:            other,
 	})
-	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
+	common.SysLog(common.LogText("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
 	return testResult{
 		context:     c,
 		localErr:    nil,
@@ -937,7 +938,12 @@ func testChannelForHealthCheck(ctx context.Context, channel *model.Channel, test
 
 	if common.AutomaticDisableChannelEnabled && !shouldBanChannel {
 		if milliseconds > disableThreshold {
-			err := fmt.Errorf("响应时间 %.2fs 超过阈值 %.2fs", float64(milliseconds)/1000.0, float64(disableThreshold)/1000.0)
+			// The reason is stored with the channel and sent in the disable
+			// notice; no request states a language here.
+			err := errors.New(i18n.Translate("", i18n.MsgChannelResponseTimeExceeded, map[string]any{
+				"Seconds":   fmt.Sprintf("%.2f", float64(milliseconds)/1000.0),
+				"Threshold": fmt.Sprintf("%.2f", float64(disableThreshold)/1000.0),
+			}))
 			newAPIError = types.NewOpenAIError(err, types.ErrorCodeChannelResponseTimeExceeded, http.StatusRequestTimeout)
 			shouldBanChannel = true
 		}
@@ -1084,8 +1090,9 @@ func performChannelTests(ctx context.Context, channels []*model.Channel, testUse
 // stops promptly. mode selects the channel set: an empty mode falls back to the
 // configured monitor ChannelTestMode (scheduled behavior), while a manual
 // trigger passes ChannelTestModeScheduledAll to test every channel. When notify
-// is set the root user is notified on completion. Cross-instance execution is
-// guarded by the system task per-type lock, so no process-local guard is needed.
+// is set, the administrators who receive channel notices are notified on
+// completion. Cross-instance execution is guarded by the system task per-type
+// lock, so no process-local guard is needed.
 func runChannelTestTask(ctx context.Context, mode string, notify bool, report func(processed, total int)) (channelTestSummary, error) {
 	testUserID, err := resolveChannelTestUserID(nil)
 	if err != nil {
@@ -1103,7 +1110,9 @@ func runChannelTestTask(ctx context.Context, mode string, notify bool, report fu
 	concurrency := operation_setting.GetMonitorSetting().ChannelTestConcurrency
 	summary := performChannelTests(ctx, selected, testUserID, allowDisable, concurrency, report)
 	if notify && (ctx == nil || ctx.Err() == nil) {
-		service.NotifyRootUser(dto.NotifyTypeChannelTest, "通道测试完成", "所有通道测试已完成")
+		service.NotifyChannelWatchers(dto.NotifyTypeChannelTest, func(lang string) (string, string) {
+			return i18n.Translate(lang, i18n.MsgChannelTestCompletedSubject), i18n.Translate(lang, i18n.MsgChannelTestCompletedContent)
+		})
 	}
 	return summary, nil
 }
@@ -1138,15 +1147,12 @@ func TestAllChannels(c *gin.Context) {
 		return
 	}
 	if !created {
-		c.JSON(http.StatusConflict, gin.H{
-			"success": false,
-			"message": "已有通道测试任务正在运行或等待中，不能启动本次手动任务",
-			"data": gin.H{
-				"task_id": task.TaskID,
-				"status":  task.Status,
-				"type":    task.Type,
-			},
-		})
+		msg := common.NewMessage("A channel test task is already running or queued. Cannot start this manual task")
+		common.ApiErrorStatus(c, http.StatusConflict, msg, gin.H{"data": gin.H{
+			"task_id": task.TaskID,
+			"status":  task.Status,
+			"type":    task.Type,
+		}})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{

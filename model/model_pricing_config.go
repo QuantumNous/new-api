@@ -280,7 +280,7 @@ func GetModelPricingSnapshot(names []string) (*ModelPricingSnapshot, error) {
 		}
 		plugins := generation.PluginsByModel(name)
 		configuredVariants, _ := configured[billing_setting.PluginBillingExprOption].(map[string]any)
-		if len(plugins) >= 2 || len(configuredVariants) > 0 {
+		if len(plugins) > 0 || len(configuredVariants) > 0 {
 			keys := make(map[string]bool, len(plugins)+len(configuredVariants))
 			for _, plugin := range plugins {
 				keys[plugin.Meta.Key] = true
@@ -555,7 +555,7 @@ func mutateModelPricingOptions(mutate func(*gorm.DB, map[string]map[string]any) 
 			return err
 		}
 		if len(duplicated) > 0 {
-			common.SysError("options table has duplicate pricing keys [" + strings.Join(duplicated, ", ") + "]; the table is missing a primary key")
+			common.SysError(common.LogText("options table has duplicate pricing keys [%s]; the table is missing a primary key", strings.Join(duplicated, ", ")))
 		}
 		defaults := defaultPricingMaps()
 		for _, key := range modelPricingOptionKeys {
