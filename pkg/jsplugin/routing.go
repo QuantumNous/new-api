@@ -223,6 +223,9 @@ const (
 	// order, the decoded requestBody as JSON text (json.RawMessage) beside
 	// the Go value in task_request.
 	ContextKeyRequestBodyText = "task_plugin_request_body_text"
+	// ContextKeyRelayEndpoint retains the shared endpoint candidates when an
+	// ordinary channel wins, so task USD expressions cannot become relay prices.
+	ContextKeyRelayEndpoint = "task_plugin_relay_endpoint"
 )
 
 type PinnedPlugin struct {

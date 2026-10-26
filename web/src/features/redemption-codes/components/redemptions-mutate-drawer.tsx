@@ -113,6 +113,7 @@ export function RedemptionsMutateDrawer({
   // Load existing data when updating
   useEffect(() => {
     if (!open) {
+      form.reset(REDEMPTION_FORM_DEFAULT_VALUES)
       setRedemptionLoadState('idle')
       setLoadedRedemption(null)
       return
@@ -239,7 +240,7 @@ export function RedemptionsMutateDrawer({
 
   const handleSetExpiry = (months: number, days: number, hours: number) => {
     const newDate = addTimeToDate(months, days, hours)
-    form.setValue('expired_time', newDate)
+    form.setValue('expired_time', newDate ?? null)
   }
 
   const { meta: currencyMeta } = getCurrencyDisplay()
@@ -259,15 +260,7 @@ export function RedemptionsMutateDrawer({
 
   return (
     <>
-      <Sheet
-        open={open}
-        onOpenChange={(v) => {
-          onOpenChange(v)
-          if (!v) {
-            form.reset()
-          }
-        }}
-      >
+      <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           className={sideDrawerContentClassName('sm:max-w-[600px]')}
         >
@@ -355,8 +348,8 @@ export function RedemptionsMutateDrawer({
                         <div className='flex flex-col gap-2'>
                           <FormControl>
                             <DateTimePicker
-                              value={field.value}
-                              onChange={field.onChange}
+                              value={field.value ?? undefined}
+                              onChange={(date) => field.onChange(date ?? null)}
                               placeholder={t('Never expires')}
                             />
                           </FormControl>

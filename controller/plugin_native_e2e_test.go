@@ -63,6 +63,10 @@ func (b *nativeRouteBilling) Reserve(quota int) error {
 	return nil
 }
 
+// ReserveBeforeSubmit holds nothing: this fixture charges in Reserve once the
+// upstream has accepted.
+func (*nativeRouteBilling) ReserveBeforeSubmit(int) error { return nil }
+
 func TestKlingNativeRouteSubmitPollSettleAndQuery(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	service.InitHttpClient()

@@ -28,6 +28,8 @@ export interface QuotaDataItem {
   username?: string
   model_name?: string
   created_at: number
+  cache_read_tokens?: number
+  cache_creation_tokens?: number
   token_used?: number
   count?: number
   quota?: number

@@ -199,11 +199,17 @@ type RelayInfo struct {
 	// value suppresses the protocol items counted under that key, so a vendor
 	// count can supersede web_search_call items billed under a different key.
 	VendorToolUsage func(raw []byte) map[string]int
-	// WebSearchBillingKey overrides the tool-price key the Claude handler uses
-	// for usage.server_tool_use.web_search_requests. Set by a channel adaptor
-	// whose Anthropic-compatible endpoint bills search under its own price
-	// list; empty keeps the protocol default web_search.
+	// WebSearchBillingKey overrides the tool-price key of hosted web search:
+	// usage.server_tool_use.web_search_requests and web_search_tool_result
+	// blocks in the Claude handler, and web_search_call items counted by
+	// CountBillableToolCall. Set by a channel adaptor whose upstream bills
+	// search under its own price list; empty keeps the protocol defaults.
 	WebSearchBillingKey string
+	// WebFetchBillingKey overrides the tool-price key of
+	// usage.server_tool_use.web_fetch_requests in the Claude handler, for an
+	// upstream that bills page fetches under its own price list; empty keeps
+	// the protocol default web_fetch.
+	WebFetchBillingKey string
 	// requestInferredToolKey is the tool-price key RecordRequestInferredToolCall
 	// billed for the current channel attempt.
 	requestInferredToolKey string
@@ -329,6 +335,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	// The adaptor Init of this attempt sets the vendor billing hooks again.
 	info.VendorToolUsage = nil
 	info.WebSearchBillingKey = ""
+	info.WebFetchBillingKey = ""
 	if info.requestInferredToolKey != "" && info.ResponsesUsageInfo != nil {
 		delete(info.ResponsesUsageInfo.BuiltInTools, info.requestInferredToolKey)
 	}
@@ -722,6 +729,9 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 			return GenRelayInfoAlphaSearch(c, request), nil
 		}
 		return nil, errors.New("request is not a AlphaSearchRequest")
+	case types.RelayFormatDeepSeekTools:
+		info = genBaseRelayInfo(c, request)
+		info.RelayFormat = types.RelayFormatDeepSeekTools
 	case types.RelayFormatTask:
 		info = genBaseRelayInfo(c, nil)
 		info.TaskRelayInfo = &TaskRelayInfo{}
@@ -955,6 +965,7 @@ func (info *RelayInfo) ConvOptions() *convmeta.Options {
 
 	claudeSettings := model_setting.GetClaudeSettings()
 	geminiSettings := model_setting.GetGeminiSettings()
+	channelType := info.GetChannelType()
 	options := &convmeta.Options{
 		Claude: convmeta.ClaudeOptions{
 			ThinkingAdapterEnabled:                claudeSettings.ThinkingAdapterEnabled,
@@ -967,6 +978,11 @@ func (info *RelayInfo) ConvOptions() *convmeta.Options {
 			FunctionCallThoughtSignatureEnabled:   geminiSettings.FunctionCallThoughtSignatureEnabled,
 			SupportsImagine:                       model_setting.IsGeminiModelSupportImagine,
 			SafetySetting:                         model_setting.GetGeminiSafetySetting,
+			// Gemini API v1 has no parametersJsonSchema; v1beta and Vertex AI
+			// accept it.
+			SupportsJSONSchema: func(modelName string) bool {
+				return channelType == constant.ChannelTypeVertexAi || model_setting.GetGeminiVersionSetting(modelName) != "v1"
+			},
 		},
 		OpenRouterDialect:      info != nil && info.GetChannelType() == constant.ChannelTypeOpenRouter,
 		PreserveThinkingSuffix: model_setting.ShouldPreserveThinkingSuffix,
@@ -1137,7 +1153,9 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 		return jsonData, nil
 	}
 
-	var data map[string]any
+	// Only top-level members are decoded: nested values keep the client's
+	// bytes and key order, which upstreams follow when they fill a schema.
+	var data map[string]json.RawMessage
 	if err := common.Unmarshal(jsonData, &data); err != nil {
 		common.SysError(common.LogText("RemoveDisabledFields Unmarshal error :%s", err.Error()))
 		return jsonData, nil
@@ -1180,16 +1198,18 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 
 	// 默认移除 stream_options.include_obfuscation，除非明确允许（避免关闭响应流混淆保护）
 	if !channelOtherSettings.AllowIncludeObfuscation {
-		if streamOptionsAny, exists := data["stream_options"]; exists {
-			if streamOptions, ok := streamOptionsAny.(map[string]any); ok {
-				if _, includeExists := streamOptions["include_obfuscation"]; includeExists {
-					delete(streamOptions, "include_obfuscation")
+		var streamOptions map[string]json.RawMessage
+		if err := common.Unmarshal(data["stream_options"], &streamOptions); err == nil && streamOptions != nil {
+			delete(streamOptions, "include_obfuscation")
+			if len(streamOptions) == 0 {
+				delete(data, "stream_options")
+			} else {
+				encoded, err := common.Marshal(streamOptions)
+				if err != nil {
+					common.SysError(common.LogText("RemoveDisabledFields Marshal error :%s", err.Error()))
+					return jsonData, nil
 				}
-				if len(streamOptions) == 0 {
-					delete(data, "stream_options")
-				} else {
-					data["stream_options"] = streamOptions
-				}
+				data["stream_options"] = encoded
 			}
 		}
 	}

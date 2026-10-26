@@ -49,7 +49,7 @@ import {
   useSecureVerification,
 } from '@/features/auth/secure-verification'
 import { toIntlLocale } from '@/i18n/languages'
-import { formatFromNow } from '@/lib/format'
+import { formatTimestampRelative } from '@/lib/format'
 import { handleServerError } from '@/lib/handle-server-error'
 import { AuthOperationError } from '@/lib/secure-verification'
 
@@ -138,7 +138,7 @@ export function PasskeyCard({ loading: pageLoading }: PasskeyCardProps) {
 
   const formattedLastUsed =
     lastUsed && !Number.isNaN(Date.parse(lastUsed))
-      ? formatFromNow(Date.parse(lastUsed), locale)
+      ? formatTimestampRelative(Date.parse(lastUsed), 'milliseconds', locale)
       : t('Not used yet')
 
   const showUnsupportedNotice = !supported && !enabled

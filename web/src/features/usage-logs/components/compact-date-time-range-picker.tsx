@@ -40,7 +40,7 @@ interface CompactDateTimeRangePickerProps {
 }
 
 function toInputValue(date?: Date): string {
-  return date ? dayjs(date).format('YYYY-MM-DDTHH:mm') : ''
+  return date ? dayjs(date).format('YYYY-MM-DDTHH:mm:ss') : ''
 }
 
 function fromInputValue(value: string): Date | undefined {
@@ -63,16 +63,12 @@ export function CompactDateTimeRangePicker({
 
   const label = useMemo(() => {
     if (!start && !end) return t('Date Range')
-    // The popover's <input type="datetime-local"> only supports minute
-    // precision, so seconds are always 00 (manual pick) or 59 (preset
-    // end-of-day). Hide them in the trigger label to keep the button
-    // width compact while still showing the meaningful timestamp.
     // Solar Hijri in Persian; the Date values and the inputs stay Gregorian.
     const startText = start
-      ? formatDisplayDate(start, 'YYYY-MM-DD HH:mm', locale)
+      ? formatDisplayDate(start, 'YYYY-MM-DD HH:mm:ss', locale)
       : '-'
     const endText = end
-      ? formatDisplayDate(end, 'YYYY-MM-DD HH:mm', locale)
+      ? formatDisplayDate(end, 'YYYY-MM-DD HH:mm:ss', locale)
       : '-'
     return `${startText} ~ ${endText}`
   }, [end, start, t, locale])
@@ -80,7 +76,7 @@ export function CompactDateTimeRangePicker({
   const mobileLabel = useMemo(() => {
     if (!start || !end) return label
     if (dayjs(start).isSame(end, 'day')) {
-      return `${formatDisplayDate(start, 'MM/DD HH:mm', locale)}–${formatDisplayDate(end, 'HH:mm', locale)}`
+      return `${formatDisplayDate(start, 'MM/DD HH:mm:ss', locale)}–${formatDisplayDate(end, 'HH:mm:ss', locale)}`
     }
     return label
   }, [start, end, label, locale])
@@ -166,6 +162,7 @@ export function CompactDateTimeRangePicker({
               </div>
               <Input
                 type='datetime-local'
+                step={1}
                 value={draftStart}
                 aria-label={t('Start Time')}
                 onChange={(e) => setDraftStart(e.target.value)}
@@ -181,6 +178,7 @@ export function CompactDateTimeRangePicker({
               </div>
               <Input
                 type='datetime-local'
+                step={1}
                 value={draftEnd}
                 aria-label={t('End Time')}
                 onChange={(e) => setDraftEnd(e.target.value)}

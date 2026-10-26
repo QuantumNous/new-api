@@ -7,6 +7,8 @@ import (
 	"errors"
 	"io"
 	"math"
+	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"runtime"
@@ -572,6 +574,193 @@ func TestEngineBoundsConcurrentCallsAndCancelsAnOccupiedRuntime(t *testing.T) {
 	release <- struct{}{}
 	require.ErrorIs(t, <-canceled, context.Canceled)
 	require.NoError(t, <-healthy)
+}
+
+func TestEngineFetchContract(t *testing.T) {
+	engine, err := Compile(`
+export function run(request) { return utils.fetch(request); }
+export function fetchBytes(url) { return Array.from(new Uint8Array(utils.fetch({url: url, responseType: "bytes"}).body)); }
+export function fetchFiveTimes() {
+  const failures = [];
+  for (let i = 0; i < 5; i++) {
+    try { utils.fetch({url: "https://api.example/json"}); } catch (e) { failures.push(e.message); }
+  }
+  return failures;
+}`, Options{Key: "fetch"})
+	require.NoError(t, err)
+	var requests []FetchRequest
+	ctx := WithFetcher(t.Context(), func(_ context.Context, request FetchRequest) (FetchResponse, error) {
+		requests = append(requests, request)
+		switch request.URL {
+		case "https://api.example/json":
+			return FetchResponse{Status: http.StatusOK, Headers: map[string]string{"Content-Type": "application/json"}, Body: []byte(`{"file":{"id":7}}`)}, nil
+		case "https://api.example/text":
+			return FetchResponse{Status: http.StatusNotFound, Body: []byte("not found")}, nil
+		case "https://api.example/bytes":
+			return FetchResponse{Status: http.StatusPartialContent, Body: []byte{0, 0x80, 0xff, '{'}}, nil
+		case "https://api.example/large":
+			return FetchResponse{Status: http.StatusOK, Body: bytes.Repeat([]byte("a"), MaxFetchBodyBytes+1)}, nil
+		case "https://api.example/down?token=secret":
+			return FetchResponse{}, &url.Error{Op: "Get", URL: request.URL, Err: errors.New("connection refused")}
+		}
+		return FetchResponse{Status: http.StatusOK, Body: []byte(`{"ignored":true}`)}, nil
+	})
+
+	_, err = engine.Call(t.Context(), "run", map[string]any{"url": "https://api.example/json"})
+	assert.ErrorContains(t, err, "utils.fetch is not available in run")
+
+	value, err := engine.Call(ctx, "run", map[string]any{"url": "https://api.example/json", "headers": map[string]any{"Authorization": "Bearer key"}})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{
+		"status":  int64(http.StatusOK),
+		"headers": map[string]any{"Content-Type": "application/json"},
+		"body":    map[string]any{"file": map[string]any{"id": int64(7)}},
+	}, value)
+	assert.Equal(t, []FetchRequest{{Hook: "run", URL: "https://api.example/json", Method: http.MethodGet, Headers: map[string]string{"Authorization": "Bearer key"}}}, requests)
+
+	value, err = engine.Call(ctx, "run", map[string]any{"url": "https://api.example/text"})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]any{"status": int64(http.StatusNotFound), "headers": map[string]any{}, "body": "not found"}, value)
+
+	value, err = engine.Call(ctx, "run", map[string]any{"url": "https://api.example/head", "method": "head"})
+	require.NoError(t, err)
+	assert.Equal(t, "", value.(map[string]any)["body"])
+	assert.Equal(t, http.MethodHead, requests[len(requests)-1].Method)
+
+	// Bytes that are neither JSON nor UTF-8 reach the plugin unchanged.
+	value, err = engine.Call(ctx, "fetchBytes", "https://api.example/bytes")
+	require.NoError(t, err)
+	assert.Equal(t, []any{int64(0), int64(0x80), int64(0xff), int64('{')}, value)
+
+	sent := len(requests)
+	for name, request := range map[string]map[string]any{
+		"unsupported member \"body\"":            {"url": "https://api.example/json", "body": "x"},
+		"only GET and HEAD":                      {"url": "https://api.example/json", "method": "POST"},
+		`responseType must be "json" or "bytes"`: {"url": "https://api.example/json", "responseType": "text"},
+		"request header \"Host\" is not":         {"url": "https://api.example/json?token=secret", "headers": map[string]any{"Host": "other.example"}},
+		"absolute http(s) URL":                   {"url": "/v1/files/retrieve"},
+		"exceeds 65536 bytes":                    {"url": "https://api.example/" + strings.Repeat("a", 64<<10)},
+	} {
+		_, err = engine.Call(ctx, "run", request)
+		require.Error(t, err, name)
+		assert.Contains(t, err.Error(), name)
+		assert.NotContains(t, err.Error(), "secret")
+	}
+	assert.Len(t, requests, sent, "rejected requests must not reach the fetcher")
+
+	_, err = engine.Call(ctx, "run", map[string]any{"url": "https://api.example/large"})
+	assert.ErrorContains(t, err, "utils.fetch response from api.example exceeds 1048576 bytes")
+
+	_, err = engine.Call(ctx, "run", map[string]any{"url": "https://api.example/down?token=secret"})
+	var hookErr *HookError
+	require.ErrorAs(t, err, &hookErr)
+	assert.Equal(t, "utils.fetch to api.example failed: connection refused", hookErr.Message)
+
+	value, err = engine.Call(ctx, "fetchFiveTimes")
+	require.NoError(t, err)
+	assert.Equal(t, []any{"utils.fetch allows at most 4 requests per hook call"}, value)
+}
+
+func TestEngineFetchLendsItsExecutionSlot(t *testing.T) {
+	engine, err := Compile(`
+export function fetchOnce() { return utils.fetch({url: "https://api.example/slow"}).body; }
+export function plain() { return 42; }`, Options{Key: "fetch-slot", Concurrency: 1})
+	require.NoError(t, err)
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	ctx := WithFetcher(t.Context(), func(context.Context, FetchRequest) (FetchResponse, error) {
+		close(entered)
+		<-release
+		return FetchResponse{Status: http.StatusOK, Body: []byte(`"done"`)}, nil
+	})
+	fetched := make(chan any, 1)
+	go func() {
+		value, err := engine.Call(ctx, "fetchOnce")
+		assert.NoError(t, err)
+		fetched <- value
+	}()
+	<-entered
+
+	// The only slot is lent while the fetch waits; without that this call
+	// would wait for its deadline.
+	waitContext, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	value, err := engine.Call(waitContext, "plain")
+	require.NoError(t, err)
+	assert.Equal(t, int64(42), value)
+
+	close(release)
+	assert.Equal(t, "done", <-fetched)
+}
+
+func TestEngineFetchWaitDoesNotCountTowardCallTimeout(t *testing.T) {
+	engine, err := Compile(`export function run() { return utils.fetch({url: "https://api.example/slow"}).status; }`, Options{
+		Key: "fetch-clock", Timeout: 20 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	ctx := WithFetcher(t.Context(), func(context.Context, FetchRequest) (FetchResponse, error) {
+		close(entered)
+		<-release
+		return FetchResponse{Status: http.StatusNoContent}, nil
+	})
+	result := make(chan error, 1)
+	var value any
+	go func() {
+		var err error
+		value, err = engine.Call(ctx, "run")
+		result <- err
+	}()
+	<-entered
+	// Five times the JavaScript timeout: the clock is stopped while waiting.
+	time.Sleep(100 * time.Millisecond)
+	close(release)
+	require.NoError(t, <-result)
+	assert.Equal(t, int64(http.StatusNoContent), value)
+}
+
+func TestEngineInterruptsAFetchThatCannotResume(t *testing.T) {
+	engine, err := Compile(`
+let calls = 0;
+export function run(fetch) {
+  calls++;
+  if (!fetch) return calls;
+  try { utils.fetch({url: "https://api.example/slow"}); } catch (e) { return "caught: " + e.message; }
+  return "resumed";
+}`, Options{Key: "fetch-resume", Concurrency: 1})
+	require.NoError(t, err)
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	ctx = WithFetcher(ctx, func(context.Context, FetchRequest) (FetchResponse, error) {
+		close(entered)
+		<-release
+		return FetchResponse{Status: http.StatusOK}, nil
+	})
+	result := make(chan error, 1)
+	go func() {
+		_, err := engine.Call(ctx, "run", true)
+		result <- err
+	}()
+	<-entered
+	// Another call takes the lent slot and the caller leaves before the fetch
+	// returns, so the slot cannot be taken back.
+	engine.semaphore <- struct{}{}
+	cancel()
+	close(release)
+	err = <-result
+	<-engine.semaphore
+
+	require.ErrorIs(t, err, context.Canceled)
+	var hookErr *HookError
+	assert.False(t, errors.As(err, &hookErr), "JavaScript must not catch a failed resume")
+	value, err := engine.Call(t.Context(), "run", false)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), value, "an interrupted runtime must be discarded")
+	assert.Empty(t, engine.semaphore)
+	assert.Empty(t, engine.parked)
 }
 
 func TestEnginePreservesMutableExportAndMemberBindings(t *testing.T) {

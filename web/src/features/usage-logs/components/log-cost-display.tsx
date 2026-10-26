@@ -117,7 +117,7 @@ export function LogCostDisplay(props: LogCostDisplayProps) {
               <TooltipTrigger
                 render={
                   <span
-                    className='inline-flex shrink-0 cursor-help'
+                    className='inline-flex shrink-0 cursor-help items-center'
                     role='img'
                     aria-label={source}
                     tabIndex={0}

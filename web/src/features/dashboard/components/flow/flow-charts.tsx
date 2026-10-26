@@ -88,6 +88,7 @@ import { toIntlLocale } from '@/i18n/languages'
 import { formatQuota } from '@/lib/format'
 import { ROLE } from '@/lib/roles'
 import { requireServerSuccess } from '@/lib/server-error-message'
+import { useThemeColor } from '@/lib/theme-color'
 import { computeTimeRange } from '@/lib/time'
 import { useChartTheme } from '@/lib/use-chart-theme'
 import { cn } from '@/lib/utils'
@@ -259,6 +260,7 @@ export function FlowCharts(props: FlowChartsProps) {
   const { t, i18n } = useTranslation()
   const locale = toIntlLocale(i18n.resolvedLanguage || i18n.language)
   const { resolvedTheme, themeReady } = useChartTheme()
+  const textColor = useThemeColor('--foreground')
   const chartInstanceRef = useRef<IVChart | null>(null)
   const user = useAuthStore((state) => state.auth.user)
   const isRoot = Boolean(user?.role && user.role >= ROLE.SUPER_ADMIN)
@@ -473,9 +475,10 @@ export function FlowCharts(props: FlowChartsProps) {
           requests: t('Requests'),
           share: t('Share'),
         },
+        textColor,
         locale
       ),
-    [chartTitle, flowData.flow, t, locale]
+    [chartTitle, flowData.flow, t, textColor, locale]
   )
   const chartTheme = resolvedTheme === 'dark' ? 'dark' : 'light'
   const chartKey = [
@@ -498,7 +501,7 @@ export function FlowCharts(props: FlowChartsProps) {
     isLoading,
     isError,
     linkCount: flowData.flow.links.length,
-    themeReady,
+    themeReady: themeReady && textColor !== undefined,
   })
   const flowErrorMessage =
     flowError instanceof Error

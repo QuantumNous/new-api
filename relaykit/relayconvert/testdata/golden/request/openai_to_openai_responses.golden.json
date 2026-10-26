@@ -8,6 +8,7 @@
           "type": "input_text"
         },
         {
+          "detail": "high",
           "image_url": "https://example.com/cat.png",
           "type": "input_image"
         }
@@ -43,6 +44,7 @@
       "description": "Get weather by city",
       "name": "get_weather",
       "parameters": {
+        "type": "object",
         "properties": {
           "city": {
             "type": "string"
@@ -50,8 +52,7 @@
         },
         "required": [
           "city"
-        ],
-        "type": "object"
+        ]
       },
       "type": "function"
     }

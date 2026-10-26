@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { toIntlLocale } from '@/i18n/languages'
-import { formatDisplayDate, formatFromNow } from '@/lib/format'
+import { formatDisplayDate, formatTimestampRelative } from '@/lib/format'
 import type { LoginSession } from '@/stores/auth-store'
 
 import { loginMethodLabel, sessionDevice } from './login-session-utils'
@@ -66,7 +66,11 @@ export function LoginSessionItem({ session, onRevoke }: LoginSessionItemProps) {
         </p>
         <p className='text-muted-foreground mt-1 text-xs'>
           {t('Last active {{time}} · Expires {{expires}}', {
-            time: formatFromNow(session.last_active_at * 1000, locale),
+            time: formatTimestampRelative(
+              session.last_active_at,
+              'seconds',
+              locale
+            ),
             expires: formatDisplayDate(
               session.expires_at * 1000,
               'YYYY-MM-DD HH:mm',

@@ -566,24 +566,35 @@ func TestResponsesWSShutdownInterruptsBusyWriter(t *testing.T) {
 	defer cleanupTarget()
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &responsesWSSession{ctx: ctx, cancel: cancel, client: server, target: target}
-	// A blocked network writer owns this lock. Closing the connection must
-	// remain possible so that writer can be interrupted.
+	// Blocked network writers own these locks. Shutdown must not wait for
+	// them: its close frames are bounded control writes, and closing the
+	// sockets is what interrupts those writers.
+	s.clientWriteMu.Lock()
+	defer s.clientWriteMu.Unlock()
 	s.targetWriteMu.Lock()
 	defer s.targetWriteMu.Unlock()
 	done := make(chan struct{})
-	go func() { s.shutdown(); close(done) }()
+	go func() { s.shutdown(websocket.CloseInternalServerErr, "upstream connection closed"); close(done) }()
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
-		t.Fatal("shutdown waited for the network writer")
+		t.Fatal("shutdown waited for a network writer")
 	}
-	require.NoError(t, peer.SetReadDeadline(time.Now().Add(time.Second)))
-	_, _, err := peer.ReadMessage()
-	assert.Error(t, err)
-	require.NoError(t, client.SetReadDeadline(time.Now().Add(time.Second)))
-	_, _, err = client.ReadMessage()
-	assert.Error(t, err)
+	// A dropped socket would read as a synthetic 1006; 1011 is the frame.
+	for _, conn := range []*websocket.Conn{client, peer} {
+		require.NoError(t, conn.SetReadDeadline(time.Now().Add(time.Second)))
+		_, _, err := conn.ReadMessage()
+		assert.True(t, websocket.IsCloseError(err, websocket.CloseInternalServerErr), "want a 1011 close frame, got %v", err)
+	}
 	assert.Nil(t, s.getTarget())
+
+	// An upstream dial that completes after shutdown is closed with a frame too.
+	late, latePeer, cleanupLate := newTestWebSocketPair(t)
+	defer cleanupLate()
+	assert.False(t, s.setTarget(late))
+	require.NoError(t, latePeer.SetReadDeadline(time.Now().Add(time.Second)))
+	_, _, err := latePeer.ReadMessage()
+	assert.True(t, websocket.IsCloseError(err, websocket.CloseNormalClosure), "want a 1000 close frame, got %v", err)
 }
 
 func TestResponsesWSPassthroughPreservesRawPricingParameters(t *testing.T) {

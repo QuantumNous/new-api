@@ -10,8 +10,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/textproto"
+	"os"
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -20,12 +22,14 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/jsplugin"
 	builtinplugins "github.com/QuantumNous/new-api/plugins"
+	kitdto "github.com/QuantumNous/new-api/relaykit/dto"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 const genericTaskPluginSource = `
@@ -177,15 +181,27 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 	})
 }
 
-func TestPrepareTaskPluginNativeRouteRejectsMultipartBeforeDecoder(t *testing.T) {
+func TestPrepareTaskPluginNativeRoutePassesMultipartToDecoder(t *testing.T) {
 	plugin := compileTaskRoutePlugin(t, `
 export const meta = {
   apiVersion: 1, key: "route-multipart-test", name: "Multipart", version: "1.0.0",
   author: {name: "Test"},
   models: ["multipart-model"], fetchMode: "per_task",
-  routes: [{method: "POST", path: "/vendor/uploads", type: "submit", decode: "decodeUpload", render: "created"}],
+  routes: [
+    {method: "POST", path: "/vendor/uploads", type: "submit", decode: "decodeUpload", render: "created"},
+    {method: "POST", path: "/vendor/scoped", type: "submit", decode: "decodeUpload", render: "created", models: ["multipart-model"]},
+  ],
 };
-export const native = {decodeUpload: function() { throw new Error("decoder must not run"); }, created: function(ctx, task) { return task; }};
+export const native = {
+  decodeUpload: function(ctx) {
+    if (ctx.body.kind !== "multipart") throw new Error("multipart body expected");
+    return {kind: "submit", model: "multipart-model", requestBody: {
+      caption: ctx.body.fields.caption[0], tags: ctx.body.fields.tag.slice(),
+      files: ctx.body.files.map(function(file) { return [file.ref, file.filename, file.size]; }),
+    }};
+  },
+  created: function(ctx, task) { return task; },
+};
 export function buildSubmitRequest() { return {url: "https://example.com"}; }
 export function parseSubmitResponse() { return {taskId: "one"}; }
 export function buildQueryRequest() { return {url: "https://example.com"}; }
@@ -203,7 +219,9 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 	require.NoError(t, writer.Close())
 
 	router := gin.New()
+	var taskRequest any
 	router.POST("/vendor/uploads", pinTaskPluginRoute(plugin, 0), PrepareTaskPluginRoute(), func(c *gin.Context) {
+		taskRequest, _ = c.Get("task_request")
 		c.Status(http.StatusNoContent)
 	})
 	request := httptest.NewRequest(http.MethodPost, "/vendor/uploads", bytes.NewReader(body.Bytes()))
@@ -212,7 +230,29 @@ export function parseTaskResult() { return {status: "SUCCESS"}; }
 
 	router.ServeHTTP(recorder, request)
 
+	require.Equal(t, http.StatusNoContent, recorder.Code, recorder.Body.String())
+	assert.Equal(t, map[string]any{
+		"caption": "hello",
+		"tags":    []any{"one", "two"},
+		"files":   []any{[]any{"request_file:media", "clip.bin", int64(11)}},
+	}, taskRequest)
+
+	form := httptest.NewRequest(http.MethodPost, "/vendor/uploads", strings.NewReader("caption=hello"))
+	form.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, form)
+	assert.Equal(t, http.StatusUnsupportedMediaType, recorder.Code, "submit routes still refuse url-encoded forms")
+
+	// A route scoped to models reads the model from a JSON body.
+	router.POST("/vendor/scoped", pinTaskPluginRoute(plugin, 1), PrepareTaskPluginRoute(), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	scoped := httptest.NewRequest(http.MethodPost, "/vendor/scoped", bytes.NewReader(body.Bytes()))
+	scoped.Header.Set("Content-Type", writer.FormDataContentType())
+	recorder = httptest.NewRecorder()
+	router.ServeHTTP(recorder, scoped)
 	assert.Equal(t, http.StatusUnsupportedMediaType, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "this route requires a JSON body")
 }
 
 func TestPrepareTaskPluginRouteModelScope(t *testing.T) {
@@ -401,7 +441,6 @@ func TestBuildTaskPluginRouteRequestRejectsUnsafeBodies(t *testing.T) {
 		{name: "invalid json UTF-8", contentType: "application/json", body: []byte{'{', '"', 'x', '"', ':', '"', 0xff, '"', '}'}, errorText: "valid UTF-8"},
 		{name: "invalid form UTF-8", contentType: "application/x-www-form-urlencoded", body: []byte("x=%FF"), errorText: "valid UTF-8"},
 		{name: "too many repeated form fields", contentType: "application/x-www-form-urlencoded", body: []byte(strings.Repeat("x=v&", maxTaskPluginFormFields) + "x=v"), errorText: "exceeds 256 fields"},
-		{name: "oversized form field", contentType: "application/x-www-form-urlencoded", body: []byte("x=" + strings.Repeat("a", maxTaskPluginFieldValueBytes+1)), errorText: "exceeds 1048576 bytes"},
 		{name: "missing multipart boundary", contentType: "multipart/form-data", body: []byte("body"), errorText: "boundary is required"},
 	}
 	for _, testCase := range tests {
@@ -455,12 +494,6 @@ func TestBuildTaskPluginRouteRequestRejectsUnsafeBodies(t *testing.T) {
 			_, err = part.Write([]byte{0xff})
 			require.NoError(t, err)
 		}, errorText: "valid UTF-8"},
-		{name: "oversized multipart field", build: func(t *testing.T, writer *multipart.Writer) {
-			part, err := writer.CreateFormField("field")
-			require.NoError(t, err)
-			_, err = part.Write([]byte(strings.Repeat("a", maxTaskPluginFieldValueBytes+1)))
-			require.NoError(t, err)
-		}, errorText: "exceeds 1048576 bytes"},
 		{name: "nested multipart", build: func(t *testing.T, writer *multipart.Writer) {
 			header := make(textproto.MIMEHeader)
 			header.Set("Content-Disposition", `form-data; name="nested"`)
@@ -504,6 +537,30 @@ func TestBuildTaskPluginRouteRequestRejectsUnsafeBodies(t *testing.T) {
 			require.ErrorContains(t, err, testCase.errorText)
 		})
 	}
+
+	t.Run("multipart fields are bounded by the request body limit only", func(t *testing.T) {
+		previous := constant.MaxRequestBodyMB
+		t.Cleanup(func() { constant.MaxRequestBodyMB = previous })
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		// A JSON request sent as a field, larger than the old 1 MiB field cap.
+		require.NoError(t, writer.WriteField("request", strings.Repeat("a", 2<<20)))
+		require.NoError(t, writer.Close())
+		send := func(limitMB int) (map[string]any, error) {
+			constant.MaxRequestBodyMB = limitMB
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/body", bytes.NewReader(body.Bytes()))
+			c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+			request, err := buildTaskPluginRouteRequest(c)
+			decoded, _ := request.Body.(map[string]any)
+			return decoded, err
+		}
+		decoded, err := send(4)
+		require.NoError(t, err)
+		assert.Len(t, decoded["fields"].(map[string][]string)["request"][0], 2<<20)
+		_, err = send(1)
+		require.ErrorContains(t, err, "request body exceeds 1 MB")
+	})
 
 	t.Run("oversized multipart file", func(t *testing.T) {
 		previous := constant.MaxFileDownloadMB
@@ -780,6 +837,100 @@ func TestTaskPluginEndpointUsesOneCanonicalModelForDuplicateJSONKeys(t *testing.
 
 			assert.False(t, reachedDownstream)
 			assert.Equal(t, http.StatusBadRequest, recorder.Code)
+		})
+	}
+}
+
+func TestRequestBodyFailuresReportTheirCause(t *testing.T) {
+	require.NoError(t, appI18n.Init())
+	require.NotNil(t, jsplugin.DefaultRegistry.Generation(), "the built-in plugins keep a routing generation, as in production")
+	_, err := jsplugin.DefaultRegistry.Register(genericTaskPluginSource, jsplugin.Options{})
+	require.NoError(t, err)
+	t.Cleanup(func() { jsplugin.DefaultRegistry.Unregister("generic-entry-test") })
+	routePlugin := compileTaskRoutePlugin(t, genericTaskPluginSource)
+	previous := constant.MaxRequestBodyMB
+	constant.MaxRequestBodyMB = 1
+	t.Cleanup(func() { constant.MaxRequestBodyMB = previous })
+
+	reached := func(c *gin.Context) { c.Status(http.StatusNoContent) }
+	router := gin.New()
+	router.POST("/v1/responses", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), Distribute(), reached)
+	router.POST("/v1/video/generations", PinTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), Distribute(), reached)
+	router.POST("/v1/chat/completions", Distribute(), reached)
+	router.POST("/mj/submit/imagine", Distribute(), reached)
+	router.POST("/v1/tasks/:key", PrepareTaskPluginSubmit(), reached)
+	router.POST("/vendor/jobs", func(c *gin.Context) {
+		c.Set(jsplugin.ContextKeyPinnedRoute, jsplugin.PinnedRoute{Plugin: routePlugin})
+	}, PrepareTaskPluginRoute(), reached)
+	oversized := `{"model":"gpt-x","prompt":"` + strings.Repeat("a", 1<<20) + `"}`
+	tests := []struct {
+		name    string
+		path    string
+		body    io.Reader
+		status  int
+		message string
+	}{
+		{
+			name:    "oversized body on a plugin protocol path",
+			path:    "/v1/responses",
+			body:    strings.NewReader(oversized),
+			status:  http.StatusRequestEntityTooLarge,
+			message: "Invalid request: request body exceeds 1 MB: request body too large",
+		},
+		{
+			name:    "body cut off on a plugin protocol path",
+			path:    "/v1/responses",
+			body:    io.MultiReader(strings.NewReader(`{"model":"gpt-x","input":"`), iotest.ErrReader(io.ErrUnexpectedEOF)),
+			status:  http.StatusBadRequest,
+			message: "Invalid request: unexpected EOF",
+		},
+		{
+			// The endpoint check lets this path through and the distributor reads the body again.
+			name:    "oversized body on the legacy video path",
+			path:    "/v1/video/generations",
+			body:    strings.NewReader(oversized),
+			status:  http.StatusRequestEntityTooLarge,
+			message: "Invalid request: request body exceeds 1 MB: request body too large",
+		},
+		{
+			name:    "oversized Midjourney body",
+			path:    "/mj/submit/imagine",
+			body:    strings.NewReader(oversized),
+			status:  http.StatusRequestEntityTooLarge,
+			message: "Invalid request: request body exceeds 1 MB: request body too large",
+		},
+		{
+			name:    "oversized task plugin submission",
+			path:    "/v1/tasks/generic-entry-test",
+			body:    strings.NewReader(oversized),
+			status:  http.StatusRequestEntityTooLarge,
+			message: "request body exceeds 1 MB: request body too large",
+		},
+		{
+			name:    "oversized plugin route body",
+			path:    "/vendor/jobs",
+			body:    strings.NewReader(oversized),
+			status:  http.StatusRequestEntityTooLarge,
+			message: "request body exceeds 1 MB: request body too large",
+		},
+		{
+			name:    "invalid JSON on an ordinary path",
+			path:    "/v1/chat/completions",
+			body:    strings.NewReader(`{"model":"gpt-x",`),
+			status:  http.StatusBadRequest,
+			message: "Invalid request: invalid JSON request body",
+		},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodPost, testCase.path, testCase.body)
+			request.Header.Set("Content-Type", "application/json")
+			recorder := httptest.NewRecorder()
+
+			router.ServeHTTP(recorder, request)
+
+			assert.Equal(t, testCase.status, recorder.Code)
+			assert.Contains(t, recorder.Body.String(), `"message":"`+testCase.message)
 		})
 	}
 }
@@ -1899,6 +2050,275 @@ func TestPrepareTaskPluginEndpointFiltersEachSharedCandidate(t *testing.T) {
 			} else {
 				assert.Equal(t, http.StatusNoContent, recorder.Code, recorder.Body.String())
 				assert.Equal(t, tc.wantKeys, gotKeys)
+			}
+		})
+	}
+}
+
+func TestRouteTaskPluginEndpointUsesSelectedChannel(t *testing.T) {
+	require.NoError(t, appI18n.Init())
+	for _, dialect := range []string{"sqlite", "mysql", "postgres"} {
+		t.Run(dialect, func(t *testing.T) {
+			dsn := ""
+			if dialect != "sqlite" {
+				dsn = os.Getenv("TEST_" + strings.ToUpper(dialect) + "_DSN")
+				if dsn == "" {
+					t.Skip("database test DSN not configured")
+				}
+			}
+			previousDB, previousMain, previousLog := model.DB, common.MainDatabaseType(), common.LogDatabaseType()
+			previousPath, previousMaster := common.SQLitePath, common.IsMasterNode
+			previousCache, previousRedis := common.MemoryCacheEnabled, common.RedisEnabled
+			common.SQLitePath, common.IsMasterNode = t.TempDir()+"/routing.db", false
+			common.RedisEnabled = false
+			t.Setenv("SQL_DSN", dsn)
+			require.NoError(t, model.InitDB())
+			database := model.DB
+			// Every table belongs to this run, including when a developer points
+			// a test DSN at a database shared with another test suite.
+			database.Config.NamingStrategy = schema.NamingStrategy{TablePrefix: "endpoint_route_" + common.GetUUID() + "_"}
+			require.NoError(t, database.AutoMigrate(&model.Channel{}, &model.Ability{}, &model.Task{}))
+			t.Cleanup(func() {
+				for _, table := range []any{&model.Ability{}, &model.Channel{}, &model.Task{}} {
+					require.NoError(t, database.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(table).Error)
+				}
+				common.MemoryCacheEnabled = true
+				model.InitChannelCache()
+				require.NoError(t, database.Migrator().DropTable(&model.Ability{}, &model.Channel{}, &model.Task{}))
+				model.DB = previousDB
+				common.SetDatabaseTypes(previousMain, previousLog)
+				common.SQLitePath, common.IsMasterNode = previousPath, previousMaster
+				common.MemoryCacheEnabled, common.RedisEnabled = previousCache, previousRedis
+				if previousDB != nil {
+					model.InitChannelCache()
+				}
+				sqlDB, err := database.DB()
+				require.NoError(t, err)
+				require.NoError(t, sqlDB.Close())
+			})
+			query := "SELECT version()"
+			if dialect == "sqlite" {
+				query = "SELECT sqlite_version()"
+			}
+			var version string
+			require.NoError(t, database.Raw(query).Scan(&version).Error)
+			t.Logf("database version: %s", version)
+
+			for _, memoryCache := range []bool{false, true} {
+				t.Run(fmt.Sprintf("memory_cache=%t", memoryCache), func(t *testing.T) {
+					common.MemoryCacheEnabled = memoryCache
+					for _, tc := range []struct {
+						name, path, model        string
+						pluginType               int
+						ordinaryType             int
+						ordinaryPriority         int64
+						pluginPriority           int64
+						pluginOnly, wantPlugin   bool
+						multipart, stream        bool
+						pinOrdinary, pinPlugin   bool
+						wrongGroup, wrongModel   bool
+						disabled, unrelated      bool
+						decoderRejects, syncOnly bool
+						originPin, retry         bool
+						legacy, mapped, shared   bool
+						wantStatus               int
+					}{
+						{name: "ordinary images bypass plugin decoder", decoderRejects: true},
+						{name: "ordinary images win by priority", ordinaryPriority: 20},
+						{name: "plugin images win by priority", pluginPriority: 20, wantPlugin: true},
+						{name: "type 61 plugin remains usable", pluginOnly: true, wantPlugin: true},
+						{name: "Alibaba legacy channel remains usable", legacy: true, pluginOnly: true, wantPlugin: true},
+						{name: "OpenAI can win against Alibaba for qwen-image-3.0", legacy: true, ordinaryPriority: 20},
+						{name: "Alibaba can win against OpenAI for qwen-image-3.0", legacy: true, pluginPriority: 20, wantPlugin: true},
+						{name: "bound New API uses plugin", pluginType: constant.ChannelTypeNewAPI, pluginPriority: 20, wantPlugin: true},
+						{name: "unbound New API uses ordinary relay", ordinaryType: constant.ChannelTypeNewAPI, decoderRejects: true},
+						{name: "unrelated type 61 cannot steal request", unrelated: true, pluginPriority: 20},
+						{name: "disabled plugin channel is ignored", disabled: true, pluginPriority: 20},
+						{name: "plugin in another group is ignored", wrongGroup: true, pluginPriority: 20},
+						{name: "plugin without requested model is ignored", wrongModel: true, pluginPriority: 20},
+						{name: "ordinary channel pin wins", pinOrdinary: true, pluginPriority: 20},
+						{name: "plugin channel pin wins", pinPlugin: true, wantPlugin: true},
+						{name: "ordinary model spelling is preserved", model: "CHANNEL-ROUTE-MODEL", decoderRejects: true},
+						{name: "mapped plugin alias remains usable", model: "friendly-image", mapped: true, pluginOnly: true, wantPlugin: true},
+						{name: "ordinary alias is not rewritten by plugin", model: "friendly-image", mapped: true, decoderRejects: true},
+						{name: "ordinary multipart edits are preserved", path: "/v1/images/edits", multipart: true, decoderRejects: true},
+						{name: "plugin multipart edits remain usable", path: "/v1/images/edits", multipart: true, pluginOnly: true, wantPlugin: true},
+						{name: "ordinary Responses bypass unsupported plugin mode", path: "/v1/responses", stream: true, syncOnly: true},
+						{name: "plugin Responses remain usable", path: "/v1/responses", pluginOnly: true, wantPlugin: true},
+						{name: "ordinary videos bypass plugin decoder", path: "/v1/videos", multipart: true, decoderRejects: true},
+						{name: "plugin videos remain usable", path: "/v1/videos", multipart: true, pluginOnly: true, wantPlugin: true},
+						{name: "selected plugin retains validation errors", pluginOnly: true, decoderRejects: true, wantStatus: http.StatusBadRequest},
+						{name: "selected plugin retains mode errors", path: "/v1/responses", pluginOnly: true, stream: true, syncOnly: true, wantStatus: http.StatusBadRequest},
+						{name: "origin task still pins its channel", pluginOnly: true, originPin: true, wantPlugin: true},
+						{name: "ordinary retries stay on ordinary channels", ordinaryPriority: 20, pluginPriority: 10, retry: true},
+						{name: "plugin retries stay on plugin channels", pluginPriority: 20, retry: true, wantPlugin: true},
+						{name: "rejected shared candidate still allows another plugin", pluginOnly: true, shared: true, decoderRejects: true, pluginPriority: 20, wantPlugin: true},
+					} {
+						t.Run(tc.name, func(t *testing.T) {
+							for _, table := range []any{&model.Ability{}, &model.Channel{}, &model.Task{}} {
+								require.NoError(t, database.Session(&gorm.Session{AllowGlobalUpdate: true}).Delete(table).Error)
+							}
+							key := "channel-route-test"
+							path := common.GetStringIfEmpty(tc.path, "/v1/images/generations")
+							modelName := common.GetStringIfEmpty(tc.model, "channel-route-model")
+							if tc.legacy {
+								key, modelName = "alibaba", "qwen-image-3.0"
+							}
+							decode := `return {model: ctx.model, action: "generate", requestBody: {normalized: true}};`
+							if tc.decoderRejects {
+								decode = `throw new Error("plugin rejected this request");`
+							} else if tc.originPin {
+								decode = `return {model: ctx.model, originTaskIds: ["task-route-origin"], requestBody: {normalized: true}};`
+							}
+							source := taskProtocolPluginSource(key, "1.0.0", `["channel-route-model"]`, path, decode)
+							if tc.syncOnly {
+								source = taskResponsesPluginSource(key, 0, `["channel-route-model"]`, `["sync"]`, `renderFinal: function() { return {}; },`, decode)
+							}
+							if !tc.legacy {
+								_, err := jsplugin.DefaultRegistry.Register(source, jsplugin.Options{})
+								require.NoError(t, err)
+								t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister(key)) })
+							}
+							ordinary := &model.Channel{Type: constant.ChannelTypeOpenAI, Status: common.ChannelStatusEnabled, Name: "ordinary", Key: "ordinary-key", Group: "route-test", Models: modelName, Priority: common.GetPointer(tc.ordinaryPriority + 1)}
+							if tc.ordinaryType != 0 {
+								ordinary.Type = tc.ordinaryType
+							}
+							plugin := &model.Channel{Type: constant.ChannelTypeTaskPlugin, Status: common.ChannelStatusEnabled, Name: "plugin", Key: "plugin-key", Group: "route-test", Models: modelName, Priority: &tc.pluginPriority}
+							if tc.pluginType != 0 {
+								plugin.Type = tc.pluginType
+							}
+							plugin.SetSetting(kitdto.ChannelSettings{TaskPluginKey: key})
+							if tc.legacy {
+								plugin.Type = constant.ChannelTypeAli
+							}
+							if tc.mapped {
+								plugin.ModelMapping = common.GetPointer(`{"friendly-image":"channel-route-model"}`)
+							}
+							if tc.unrelated {
+								plugin.SetSetting(kitdto.ChannelSettings{TaskPluginKey: "unrelated"})
+							}
+							if tc.wrongGroup {
+								plugin.Group = "another-group"
+							}
+							if tc.wrongModel {
+								plugin.Models = "another-model"
+							}
+							if tc.disabled {
+								plugin.Status = common.ChannelStatusManuallyDisabled
+							}
+							channels := []*model.Channel{plugin}
+							if !tc.pluginOnly {
+								channels = append(channels, ordinary)
+							}
+							if tc.originPin || tc.retry || tc.shared {
+								alternate := &model.Channel{Type: ordinary.Type, Status: common.ChannelStatusEnabled, Name: "alternate", Key: "alternate-key", Group: "route-test", Models: modelName}
+								if tc.wantPlugin {
+									alternate.Type = plugin.Type
+									alternate.SetSetting(plugin.GetSetting())
+								}
+								if tc.shared {
+									const alternateKey = "channel-route-ztest"
+									alternateSource := taskProtocolPluginSource(alternateKey, "1.0.0", `["channel-route-model"]`, path, `return {model: ctx.model, requestBody: {normalized: true}};`)
+									_, err := jsplugin.DefaultRegistry.Register(alternateSource, jsplugin.Options{})
+									require.NoError(t, err)
+									t.Cleanup(func() { require.NoError(t, jsplugin.DefaultRegistry.Unregister(alternateKey)) })
+									alternate.SetSetting(kitdto.ChannelSettings{TaskPluginKey: alternateKey})
+								}
+								channels = append(channels, alternate)
+							}
+							for _, channel := range channels {
+								require.NoError(t, channel.Insert())
+							}
+							if tc.originPin {
+								require.NoError(t, database.Create(&model.Task{TaskID: "task-route-origin", UserId: 7, ChannelId: channels[len(channels)-1].Id, Platform: constant.TaskPlatform(key), Status: model.TaskStatusSuccess}).Error)
+							}
+							model.InitChannelCache()
+							body := []byte(fmt.Sprintf(`{"model":%q,"prompt":"a cat","size":"1024x1024","stream":%t}`, modelName, tc.stream))
+							contentType := "application/json"
+							if tc.multipart {
+								var form bytes.Buffer
+								writer := multipart.NewWriter(&form)
+								require.NoError(t, writer.WriteField("model", modelName))
+								require.NoError(t, writer.WriteField("prompt", "a cat"))
+								file, err := writer.CreateFormFile("image", "reference.png")
+								require.NoError(t, err)
+								_, err = file.Write([]byte("image bytes"))
+								require.NoError(t, err)
+								require.NoError(t, writer.Close())
+								body, contentType = form.Bytes(), writer.FormDataContentType()
+							}
+							reached := false
+							router := gin.New()
+							router.POST(path, func(c *gin.Context) {
+								common.SetContextKey(c, constant.ContextKeyUsingGroup, "route-test")
+								common.SetContextKey(c, constant.ContextKeyUserId, 7)
+								if tc.pinOrdinary || tc.pinPlugin {
+									id := ordinary.Id
+									if tc.pinPlugin {
+										id = plugin.Id
+									}
+									service.GetChannelConstraints(c).AddPin(dto.ChannelPin{ChannelId: id, Source: dto.PinSourceToken, Rank: dto.PinRankToken})
+								}
+							}, RouteTaskPluginEndpoint(), PrepareTaskPluginEndpoint(), Distribute(), func(c *gin.Context) {
+								reached = true
+								_, pinned := c.Get(jsplugin.ContextKeyPinnedEndpoint)
+								assert.Equal(t, tc.wantPlugin, pinned)
+								_, relayEndpoint := c.Get(jsplugin.ContextKeyRelayEndpoint)
+								assert.Equal(t, !tc.wantPlugin, relayEndpoint)
+								expected := ordinary
+								if tc.wantPlugin {
+									expected = plugin
+									if tc.shared {
+										assert.Equal(t, "channel-route-ztest", c.GetString("task_plugin_key"))
+									} else {
+										assert.Equal(t, key, c.GetString("task_plugin_key"))
+									}
+									if tc.legacy {
+										assert.NotNil(t, c.MustGet("task_request"))
+									} else {
+										assert.Equal(t, map[string]any{"normalized": true}, c.MustGet("task_request"))
+									}
+									if tc.mapped {
+										assert.Equal(t, "channel-route-model", c.MustGet(jsplugin.ContextKeyPinnedEndpoint).(jsplugin.PinnedEndpoint).MappedModel)
+									}
+									if tc.originPin || tc.shared {
+										expected = channels[len(channels)-1]
+									}
+								} else {
+									assert.Empty(t, c.GetString("expected_task_plugin_key"))
+									assert.Empty(t, c.GetString("resolved_task_model"))
+									storage, err := common.GetBodyStorage(c)
+									require.NoError(t, err)
+									got, err := storage.Bytes()
+									require.NoError(t, err)
+									assert.Equal(t, body, got, "ordinary relay must receive the original body")
+								}
+								assert.Equal(t, expected.Id, common.GetContextKeyInt(c, constant.ContextKeyChannelId))
+								assert.Equal(t, expected.Key, common.GetContextKeyString(c, constant.ContextKeyChannelKey))
+								if tc.retry {
+									next, _, err := service.CacheGetRandomSatisfiedChannel(&service.RetryParam{Ctx: c, TokenGroup: "route-test", ModelName: modelName, Retry: common.GetPointer(1)})
+									require.NoError(t, err)
+									require.NotNil(t, next)
+									assert.Equal(t, channels[len(channels)-1].Id, next.Id)
+								}
+								c.Status(http.StatusNoContent)
+							})
+							request := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(body))
+							request.Header.Set("Content-Type", contentType)
+							recorder := httptest.NewRecorder()
+							router.ServeHTTP(recorder, request)
+							status := tc.wantStatus
+							if status == 0 {
+								status = http.StatusNoContent
+							}
+							assert.Equal(t, status, recorder.Code, recorder.Body.String())
+							assert.Equal(t, status == http.StatusNoContent, reached)
+							if tc.decoderRejects && status == http.StatusBadRequest {
+								assert.Contains(t, recorder.Body.String(), "plugin rejected this request")
+							}
+						})
+					}
+				})
 			}
 		})
 	}

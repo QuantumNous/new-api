@@ -22,9 +22,10 @@ const MAX_EXTENSION_INPUT_SECONDS = 15;
 const MAX_REFERENCE_IMAGES = 7;
 const MAX_KEYFRAMES = 4;
 const MAX_REFERENCE_AUDIOS = 3;
-// Edits and extensions keep the input video's resolution (capped at 720p),
-// which neither the request nor the result reports.
-const SOURCE_RESOLUTION = "source";
+// Edits and extensions keep the input video's resolution, capped at 720p,
+// which neither the request nor the result reports: the cap is reserved and
+// the output file's MP4 header settles the resolution.
+const EDIT_RESOLUTION_CAP = "720p";
 
 const SECONDS_FIELD = {
   type: "number",
@@ -51,15 +52,10 @@ const MODERATED_FIELD = {
   description: { en: "Blocked by content moderation", zh: "被内容审核拦截" },
 };
 const RESOLUTION_DESCRIPTION = { en: "Output video resolution", zh: "输出视频分辨率" };
-const SOURCE_RESOLUTION_LABELS = { source: { en: "Same as input video", zh: "与输入视频相同" } };
 
 const GROK_IMAGINE_VIDEO_USAGE_SCHEMA = {
   seconds: SECONDS_FIELD,
-  resolution: {
-    enum: VIDEO_MODELS["grok-imagine-video"].resolutions.concat(SOURCE_RESOLUTION),
-    enumLabels: SOURCE_RESOLUTION_LABELS,
-    description: RESOLUTION_DESCRIPTION,
-  },
+  resolution: { enum: VIDEO_MODELS["grok-imagine-video"].resolutions, description: RESOLUTION_DESCRIPTION },
   input_images: INPUT_IMAGES_FIELD,
   input_video_seconds: INPUT_VIDEO_SECONDS_FIELD,
   moderated: MODERATED_FIELD,
@@ -81,26 +77,24 @@ export const meta = {
     en: "xAI Grok Imagine video generation (text-to-video, image-to-video, reference-to-video, video editing, and video extension)",
     zh: "xAI Grok Imagine 视频生成（文生视频、图生视频、参考生视频、视频编辑、视频延长）",
   },
-  version: "1.0.0",
+  version: "1.1.0",
   author: { name: "QuantumNous" },
   channelTypes: [48], // xAI-type channels serve the video API with the same key
   baseUrl: "https://api.x.ai",
+  // Result videos, whose headers settle the resolution of edits and extensions.
+  allowedHosts: ["vidgen.x.ai"],
   models: Object.keys(VIDEO_MODELS),
   fetchMode: "per_task",
   upstreams: ["vendor", "new_api"],
   // Fallback for a channel alias that resolves to more than one model: the
   // union of every model's fields and resolutions.
   usageSchema: Object.assign({}, GROK_IMAGINE_VIDEO_USAGE_SCHEMA, {
-    resolution: {
-      enum: ["480p", "720p", "1080p", SOURCE_RESOLUTION],
-      enumLabels: SOURCE_RESOLUTION_LABELS,
-      description: RESOLUTION_DESCRIPTION,
-    },
+    resolution: { enum: ["480p", "720p", "1080p"], description: RESOLUTION_DESCRIPTION },
   }),
   usageExamples: [
     { label: "1.5 480p 8s", facts: { seconds: 8, resolution: "480p", input_images: 0, input_video_seconds: 0, moderated: false } },
     { label: "1.5 1080p 8s · image", facts: { seconds: 8, resolution: "1080p", input_images: 1, input_video_seconds: 0, moderated: false } },
-    { label: "edit 8s", facts: { seconds: 8, resolution: SOURCE_RESOLUTION, input_images: 0, input_video_seconds: 8, moderated: false } },
+    { label: "edit 8s · 720p", facts: { seconds: 8, resolution: "720p", input_images: 0, input_video_seconds: 8, moderated: false } },
     { label: "480p 8s · blocked", facts: { seconds: 8, resolution: "480p", input_images: 0, input_video_seconds: 0, moderated: true } },
   ],
   usageProfiles: [
@@ -110,8 +104,8 @@ export const meta = {
       examples: [
         { label: "480p 8s", facts: { seconds: 8, resolution: "480p", input_images: 0, input_video_seconds: 0, moderated: false } },
         { label: "720p 8s · image", facts: { seconds: 8, resolution: "720p", input_images: 1, input_video_seconds: 0, moderated: false } },
-        { label: "edit 8s", facts: { seconds: 8, resolution: SOURCE_RESOLUTION, input_images: 0, input_video_seconds: 8, moderated: false } },
-        { label: "extend 8s + 6s", facts: { seconds: 6, resolution: SOURCE_RESOLUTION, input_images: 0, input_video_seconds: 8, moderated: false } },
+        { label: "edit 8s · 720p", facts: { seconds: 8, resolution: "720p", input_images: 0, input_video_seconds: 8, moderated: false } },
+        { label: "extend 8s + 6s · 480p", facts: { seconds: 6, resolution: "480p", input_images: 0, input_video_seconds: 8, moderated: false } },
         { label: "480p 8s · blocked", facts: { seconds: 8, resolution: "480p", input_images: 0, input_video_seconds: 0, moderated: true } },
       ],
     },
@@ -480,11 +474,11 @@ export function extractUsage(ctx) {
   const videoInput = VIDEO_MODELS[videoModel(ctx)].videoInput;
   let facts;
   if (request.action === "video_edit") {
-    // Input URLs do not expose duration; reserve the documented maximum and
-    // settle on the result's duration.
-    facts = { seconds: MAX_EDIT_SECONDS, resolution: SOURCE_RESOLUTION, input_images: 0, input_video_seconds: MAX_EDIT_SECONDS };
+    // Input URLs expose neither duration nor resolution; reserve the
+    // documented maximum and the resolution cap, and settle on the result.
+    facts = { seconds: MAX_EDIT_SECONDS, resolution: EDIT_RESOLUTION_CAP, input_images: 0, input_video_seconds: MAX_EDIT_SECONDS };
   } else if (request.action === "video_extension") {
-    facts = { seconds: body.duration, resolution: SOURCE_RESOLUTION, input_images: 0, input_video_seconds: MAX_EXTENSION_INPUT_SECONDS };
+    facts = { seconds: body.duration, resolution: EDIT_RESOLUTION_CAP, input_images: 0, input_video_seconds: MAX_EXTENSION_INPUT_SECONDS };
   } else {
     const images = (body.image ? 1 : 0) + (body.reference_images || []).length + (body.last_frame ? 1 : 0) + (body.keyframes || []).length;
     facts = { seconds: body.duration, resolution: body.resolution, input_images: images, input_video_seconds: 0 };
@@ -517,18 +511,31 @@ export function parseTaskResult(ctx, body, response) {
   }
   // A moderated output is done without a video. xAI still bills it, and only
   // a SUCCESS task keeps its charge.
-  if (status === "done") return { status: "SUCCESS" };
+  if (status === "done") {
+    const result = { status: "SUCCESS" };
+    // An edit or extension is billed by the resolution of its output, which
+    // only the file reveals; an unreadable file keeps the reserved cap.
+    if ((ctx.action === "video_edit" || ctx.action === "video_extension") && videoURL(data)) {
+      const resolution = outputResolution(videoURL(data));
+      if (resolution) result.state = Object.assign({}, plainObject(ctx.state) || {}, { output_resolution: resolution });
+    }
+    return result;
+  }
   if (status === "failed") return chargedFailure(data) ? { status: "SUCCESS" } : { status: "FAILURE", reason: failureReason(data) };
   if (status === "expired") return { status: "FAILURE", reason: "the video expired before it was retrieved" };
   return { status: "UNKNOWN", reason: "unrecognized status: " + String(status || "") };
 }
 
-export function extractUsageOnComplete(task, _result, body) {
+export function extractUsageOnComplete(task, result, body) {
   // Legacy ratio pricing calls this hook without a poll body.
   const data = plainObject(body);
   if (!data || typeof data.status !== "string") return null;
   const facts = {};
   if (filteredOutput(data) || chargedFailure(data)) facts.moderated = true;
+  // The state this poll returned arrives with its result; earlier polls left
+  // theirs on the task.
+  const state = plainObject(result && result.plugin_state) || plainObject(task && task.state) || {};
+  if (VIDEO_MODELS["grok-imagine-video"].resolutions.includes(state.output_resolution)) facts.resolution = state.output_resolution;
   const duration = Number(data.status === "done" && plainObject(data.video) ? data.video.duration : NaN);
   if (!(duration > 0)) return facts;
   const action = task && task.action;
@@ -538,12 +545,126 @@ export function extractUsageOnComplete(task, _result, body) {
   } else if (action === "video_extension") {
     // The extension length was reserved as seconds; the rest of the output is
     // the input video.
-    const extension = Number(plainObject(task.state) && task.state.extension_seconds);
+    const extension = Number(state.extension_seconds);
     if (extension > 0) facts.input_video_seconds = Math.min(Math.max(duration - extension, 0), MAX_EXTENSION_INPUT_SECONDS);
   } else {
     facts.seconds = Math.min(duration, MAX_DURATION);
   }
   return facts;
+}
+
+// xAI bills the output of an edit or extension by its resolution but reports
+// neither it nor the source's, so the output's MP4 header is read: the moov
+// box, reached by stepping over the top-level boxes with ranged reads, holds a
+// tkhd per track with the track's size.
+const PROBE_READ_BYTES = 64 * 1024;
+const PROBE_MAX_BYTES = 1024 * 1024; // the utils.fetch body limit
+const PROBE_MAX_READS = 3; // utils.fetch allows 4 per hook call
+
+function outputResolution(url) {
+  try {
+    const track = videoTrack(url);
+    if (!track) return "";
+    return Math.min(track.width, track.height) > 480 ? "720p" : "480p";
+  } catch (_error) {
+    return "";
+  }
+}
+
+// Reads bytes [start, start + length) of the file. A server that ignores
+// Range answers 200 with the whole file, bounded by the fetch body limit.
+function readBytes(url, start, length) {
+  const response = utils.fetch({ url: url, headers: { Range: "bytes=" + start + "-" + (start + length - 1) }, responseType: "bytes" });
+  if (response.status !== 206 && response.status !== 200) throw new Error("HTTP " + response.status);
+  let first = 0;
+  if (response.status === 206) {
+    const range = /^bytes (\d+)-/.exec(response.headers["Content-Range"] || "");
+    first = range ? Number(range[1]) : start;
+  }
+  return { start: first, bytes: new Uint8Array(response.body) };
+}
+
+function be32(bytes, offset) {
+  return bytes[offset] * 16777216 + bytes[offset + 1] * 65536 + bytes[offset + 2] * 256 + bytes[offset + 3];
+}
+
+// An ISO BMFF box header: a 32-bit size and a four-character type, with a
+// 64-bit size following when the size is 1; a size of 0 reaches end.
+function boxHeader(bytes, offset, end) {
+  if (offset + 8 > end) return null;
+  let size = be32(bytes, offset);
+  let header = 8;
+  if (size === 1) {
+    if (offset + 16 > end) return null;
+    size = be32(bytes, offset + 8) * 4294967296 + be32(bytes, offset + 12);
+    header = 16;
+  }
+  const open = size === 0;
+  if (open) size = end - offset;
+  if (size < header) return null;
+  return { type: String.fromCharCode(bytes[offset + 4], bytes[offset + 5], bytes[offset + 6], bytes[offset + 7]), size: size, header: header, open: open };
+}
+
+function videoTrack(url) {
+  let reads = 0;
+  let chunk = { start: 0, bytes: new Uint8Array(0) };
+  const read = function (start, length) {
+    if (reads >= PROBE_MAX_READS) throw new Error("too many reads");
+    reads++;
+    chunk = readBytes(url, start, length);
+  };
+  let offset = 0;
+  for (let i = 0; i < 32; i++) {
+    if (offset < chunk.start || offset + 16 > chunk.start + chunk.bytes.length) read(offset, PROBE_READ_BYTES);
+    let local = offset - chunk.start;
+    let box = local >= 0 ? boxHeader(chunk.bytes, local, chunk.bytes.length) : null;
+    if (!box) return null;
+    if (box.type !== "moov") {
+      offset += box.size;
+      continue;
+    }
+    if (box.open || local + box.size > chunk.bytes.length) {
+      read(offset, box.open ? PROBE_MAX_BYTES : Math.min(box.size, PROBE_MAX_BYTES));
+      local = offset - chunk.start;
+      box = local >= 0 ? boxHeader(chunk.bytes, local, chunk.bytes.length) : null;
+      if (!box) return null;
+    }
+    return moovVideoTrack(chunk.bytes, local + box.header, Math.min(local + box.size, chunk.bytes.length));
+  }
+  return null;
+}
+
+// The largest track with a size is the video; audio tracks have none.
+function moovVideoTrack(bytes, start, end) {
+  let best = null;
+  let offset = start;
+  while (true) {
+    const box = boxHeader(bytes, offset, end);
+    if (!box || offset + box.size > end) return best;
+    if (box.type === "trak") {
+      const track = trackSize(bytes, offset + box.header, offset + box.size);
+      if (track && (!best || track.width * track.height > best.width * best.height)) best = track;
+    }
+    offset += box.size;
+  }
+}
+
+// tkhd stores the track's width and height as 16.16 fixed-point numbers after
+// fields whose size depends on its version.
+function trackSize(bytes, start, end) {
+  let offset = start;
+  while (true) {
+    const box = boxHeader(bytes, offset, end);
+    if (!box || offset + box.size > end) return null;
+    if (box.type === "tkhd") {
+      const fields = offset + box.header;
+      const width = fields + 4 + (bytes[fields] === 1 ? 84 : 72);
+      if (width + 8 > offset + box.size) return null;
+      const track = { width: bytes[width] * 256 + bytes[width + 1], height: bytes[width + 4] * 256 + bytes[width + 5] };
+      return track.width > 0 && track.height > 0 ? track : null;
+    }
+    offset += box.size;
+  }
 }
 
 export function listArtifacts(task) {

@@ -14,6 +14,7 @@ import (
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	hostreasoning "github.com/QuantumNous/new-api/setting/reasoning"
+	"github.com/QuantumNous/new-api/types"
 	"github.com/shopspring/decimal"
 )
 
@@ -126,19 +127,69 @@ const (
 	CacheWriteNone      CacheWriteMode = "none"
 	CacheWriteStandard  CacheWriteMode = "standard"
 	CacheWriteClaudeTTL CacheWriteMode = "claude_ttl"
+	CacheWriteOpenAITTL CacheWriteMode = "openai_ttl"
 )
 
 // ResolveCacheWriteMode describes display and migration only. A generic engine
 // fallback is not configured cache-write pricing. Only Claude names inherit the
-// legacy dual-TTL rule; other models retain their configured write price.
+// legacy dual-TTL rule; a configured write price on a GPT name also prices the
+// OpenAI 12h write, and other models retain their configured write price.
 func ResolveCacheWriteMode(name string, configured PricingValues) CacheWriteMode {
 	if strings.Contains(strings.ToLower(name), "claude") {
 		return CacheWriteClaudeTTL
 	}
 	if _, exists := configured["CreateCacheRatio"]; exists {
+		if strings.Contains(strings.ToLower(name), "gpt") {
+			return CacheWriteOpenAITTL
+		}
 		return CacheWriteStandard
 	}
 	return CacheWriteNone
+}
+
+// declaredEndpointNames resolves the endpoint types declared by one model
+// metadata row. Model metadata accepts two shapes — the map form (custom paths)
+// and the type-array form (declared protocols) — and conversion must honour
+// both. Reading only the map form made array-form metadata look like a broken
+// routing configuration and blocked an otherwise convertible model.
+func declaredEndpointNames(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return nil, nil
+	}
+	var value any
+	if err := common.UnmarshalJsonStr(raw, &value); err != nil {
+		return nil, err
+	}
+	// Normalize whitespace here: the callers match these names against the
+	// endpoint switch, so a padded value such as "image-generation " would
+	// silently fall through and drop the image-count settlement rule.
+	switch endpoints := value.(type) {
+	case []any:
+		names := make([]string, 0, len(endpoints))
+		for _, endpoint := range endpoints {
+			text, ok := endpoint.(string)
+			if !ok {
+				return nil, errors.New("invalid endpoint type")
+			}
+			text = strings.TrimSpace(text)
+			if text == "" {
+				return nil, errors.New("invalid endpoint type")
+			}
+			names = append(names, text)
+		}
+		return names, nil
+	case map[string]any:
+		names := make([]string, 0, len(endpoints))
+		for endpoint := range endpoints {
+			endpoint = strings.TrimSpace(endpoint)
+			if endpoint == "" {
+				continue
+			}
+			names = append(names, endpoint)
+		}
+		return names, nil
+	}
+	return nil, errors.New("invalid endpoints")
 }
 
 func PreviewModelPricingConversion(name string, draft PricingValues) (*ModelPricingConversion, error) {
@@ -249,11 +300,11 @@ func PreviewModelPricingConversion(name string, draft PricingValues) (*ModelPric
 		if entry.Endpoints == "" || !slices.ContainsFunc(names, entry.MatchesName) {
 			continue
 		}
-		var endpoints map[string]any
-		if err := common.UnmarshalJsonStr(entry.Endpoints, &endpoints); err != nil {
+		endpoints, err := declaredEndpointNames(entry.Endpoints)
+		if err != nil {
 			return &ModelPricingConversion{UnsupportedReason: "The model routing configuration could not be verified."}, nil
 		}
-		for endpoint := range endpoints {
+		for _, endpoint := range endpoints {
 			switch constant.EndpointType(endpoint) {
 			case constant.EndpointTypeImageGeneration:
 				if fixedPrice {
@@ -297,8 +348,9 @@ func PreviewModelPricingConversion(name string, draft PricingValues) (*ModelPric
 		var expressionBody strings.Builder
 		expressionBody.WriteString(`tier("base", p * `)
 		expressionBody.WriteString(base.String())
-		// Retain explicit zero coefficients for included categories. Only
-		// Claude names inherit the relay's 1h / 5m factor of 6 / 3.75.
+		// Retain explicit zero coefficients for included categories. Claude
+		// names inherit the relay's 1h / 5m factor and GPT names its 12h / 30m
+		// factor.
 		for _, lane := range []struct {
 			variable, key string
 			multiplier    float64
@@ -306,14 +358,16 @@ func PreviewModelPricingConversion(name string, draft PricingValues) (*ModelPric
 			{"c", "CompletionRatio", 1},
 			{"cr", "CacheRatio", 1},
 			{"cc", "CreateCacheRatio", 1},
-			{"cc1h", "CreateCacheRatio", 6 / 3.75},
+			{"cc1h", "CreateCacheRatio", types.ClaudeCacheCreation1hMultiplier},
+			{"cc12h", "CreateCacheRatio", types.OpenAICacheCreation12hMultiplier},
 			{"img", "ImageRatio", 1},
 		} {
 			if ordinaryAudio && !preview.BillingDetails.AudioTextBranches && lane.variable != "c" {
 				continue
 			}
 			if lane.variable == "cc" && preview.CacheWriteMode == CacheWriteNone ||
-				lane.variable == "cc1h" && preview.CacheWriteMode != CacheWriteClaudeTTL {
+				lane.variable == "cc1h" && preview.CacheWriteMode != CacheWriteClaudeTTL ||
+				lane.variable == "cc12h" && preview.CacheWriteMode != CacheWriteOpenAITTL {
 				continue
 			}
 			multiplier := effective[lane.key].(float64)
