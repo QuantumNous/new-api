@@ -81,13 +81,24 @@ it('marks the time-matched token tier as current when requested by model details
   vi.setSystemTime(new Date('2026-09-07T09:30:00+08:00'))
   render(
     <DynamicPricingBreakdown
-      billingExpr='hour("Asia/Shanghai") >= 9 && hour("Asia/Shanghai") < 12 ? tier("peak", p * 3 + c * 9) : tier("off_peak", p * 1.5 + c * 4.5)'
+      billingExpr='hour("Asia/Shanghai") >= 9 && hour("Asia/Shanghai") < 12 ? tier("shared", p * 3 + c * 9) : tier("shared", p * 1.5 + c * 4.5)'
       showCurrentTimeTier
     />
   )
-  expect(screen.getAllByText('Current tier')).toHaveLength(2)
-  expect(screen.getAllByText('peak').length).toBeGreaterThan(0)
-  expect(screen.queryAllByText('Current tier')).toHaveLength(2)
+  const badges = screen.getAllByText('Current tier')
+  expect(badges).toHaveLength(2)
+  const mobileTier = badges.find((badge) =>
+    badge.closest('div.rounded-md.border.p-2')
+  )
+  const desktopTier = badges.find((badge) => badge.closest('tr'))
+  expect(mobileTier?.closest('div.rounded-md.border.p-2')).toHaveTextContent(
+    '$3'
+  )
+  expect(
+    mobileTier?.closest('div.rounded-md.border.p-2')
+  ).not.toHaveTextContent('$1.5')
+  expect(desktopTier?.closest('tr')).toHaveTextContent('$3')
+  expect(desktopTier?.closest('tr')).not.toHaveTextContent('$1.5')
   expect(screen.queryByText('Matched')).not.toBeInTheDocument()
 })
 

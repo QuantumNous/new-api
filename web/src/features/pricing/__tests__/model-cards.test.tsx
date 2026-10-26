@@ -148,6 +148,27 @@ describe('model cards', () => {
     expect(screen.getByText('$1.5')).toBeVisible()
   })
 
+  it('does not label a static tier as current', () => {
+    const model = pricingModel({
+      billing_mode: 'tiered_expr',
+      billing_expr: 'tier("standard", p * 2 + c * 4)',
+    })
+    render(<ModelCard model={model} onClick={vi.fn()} tokenUnit='M' />)
+    expect(screen.queryByText(/Current tier:/)).not.toBeInTheDocument()
+  })
+
+  it('does not show a request-billed branch as the current token tier', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-09-07T13:00:00Z'))
+    const model = pricingModel({
+      billing_mode: 'tiered_expr',
+      billing_expr:
+        'hour("UTC") < 12 ? tier("tokens", p * 2 + c * 4) : tier("request", fixed(0.1))',
+    })
+    render(<ModelCard model={model} onClick={vi.fn()} tokenUnit='M' />)
+    expect(screen.queryByText(/Current tier:/)).not.toBeInTheDocument()
+  })
+
   it('copies the complete long model name without opening details', async () => {
     const user = userEvent.setup()
     const onClick = vi.fn()

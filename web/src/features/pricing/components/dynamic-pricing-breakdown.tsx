@@ -342,21 +342,30 @@ export function DynamicPricingBreakdown({
     }
   }, [expr, usageSchema, requestRules])
 
-  const currentTierLabels = useMemo(() => {
+  const currentTimeTiers = useMemo<ParsedTier[]>(() => {
     if (!showCurrentTimeTier || usageSchema || billingTime === undefined) {
-      return new Set<string>()
+      return []
     }
     const split = splitBillingExprAndRequestRules(expr)
     const currentTiers = getCurrentTimePricingTiers(
       split.billingExpr,
       new Date(billingTime)
     )
-    return new Set(
-      (currentTiers ?? [])
-        .filter((tier) => tier.billingUnit !== 'request')
-        .map((tier) => normalizeTierLabel(tier.label))
+    return (currentTiers ?? []).filter(
+      (tier) => tier.billingUnit !== 'request' && Boolean(tier.conditionText)
     )
   }, [billingTime, expr, showCurrentTimeTier, usageSchema])
+
+  const isCurrentTimeTier = (tier: BreakdownTier): boolean =>
+    !isTaskBreakdownTier(tier) &&
+    Boolean(tier.conditionText) &&
+    currentTimeTiers.some(
+      (currentTier) =>
+        normalizeTierLabel(currentTier.label) ===
+          normalizeTierLabel(tier.label) &&
+        currentTier.billingUnit === tier.billingUnit &&
+        currentTier.conditionText === tier.conditionText
+    )
 
   const hasTiers = tiers.length > 0
   const hasRules = ruleGroups.length > 0
@@ -526,9 +535,7 @@ export function DynamicPricingBreakdown({
                 matchedBillingUnit,
                 matchedFixedPrice
               )
-              const isCurrentTier =
-                !isTaskBreakdownTier(tier) &&
-                currentTierLabels.has(normalizeTierLabel(tier.label))
+              const isCurrentTier = isCurrentTimeTier(tier)
               const rowKey = nextOccurrenceKey(
                 JSON.stringify(tier),
                 mobileTierKeyOccurrences
@@ -634,9 +641,7 @@ export function DynamicPricingBreakdown({
                 matchedBillingUnit,
                 matchedFixedPrice
               )
-              const isCurrentTier =
-                !isTaskBreakdownTier(tier) &&
-                currentTierLabels.has(normalizeTierLabel(tier.label))
+              const isCurrentTier = isCurrentTimeTier(tier)
               return cn(
                 (isMatched || isCurrentTier) &&
                   'bg-emerald-50/70 hover:bg-emerald-50/70 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/10'
@@ -670,9 +675,7 @@ export function DynamicPricingBreakdown({
                     matchedBillingUnit,
                     matchedFixedPrice
                   )
-                  const isCurrentTier =
-                    !isTaskBreakdownTier(tier) &&
-                    currentTierLabels.has(normalizeTierLabel(tier.label))
+                  const isCurrentTier = isCurrentTimeTier(tier)
                   return (
                     <>
                       <div className='flex flex-wrap items-center gap-1.5'>

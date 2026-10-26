@@ -87,6 +87,7 @@ export type DynamicPricingTier = ParsedTier | ParsedTaskTier
 export type DynamicPricingSummary = {
   tiers: DynamicPricingTier[]
   tier: DynamicPricingTier | null
+  currentTokenTier?: ParsedTier | null
   tierCount: number
   hasRequestRules: boolean
   isSpecialExpression: boolean
@@ -565,6 +566,9 @@ export function getDynamicPricingSummary(
   return {
     tiers,
     tier,
+    currentTokenTier: timeTiers?.find(
+      (timeTier) => timeTier.billingUnit !== 'request'
+    ),
     tierCount: tiers.length,
     hasRequestRules: hasDynamicRequestRules(model),
     isSpecialExpression: rawExpression.trim().length > 0 && tiers.length === 0,
