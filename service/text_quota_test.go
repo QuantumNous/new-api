@@ -29,6 +29,74 @@ import (
 	"gorm.io/gorm"
 )
 
+func TestAudioSettlementConfiguredPrice(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, realtime := range []bool{false, true} {
+		for _, tc := range []struct {
+			name                   string
+			price, group           float64
+			usePrice               bool
+			tokens, reserved, want int
+		}{
+			{"per request", 0.02, 1, true, 17, 10000, 10000},
+			{"group multiplier", 0.02, 1.5, true, 17, 10000, 15000},
+			{"refund excess reservation", 0.02, 0.5, true, 17, 10000, 5000},
+			{"free request", 0, 1, true, 17, 10000, 0},
+			{"empty usage refunds reservation", 0.02, 1, true, 0, 10000, 0},
+			{"token pricing ignores request price", 0.02, 1, false, 17, 10000, 34},
+		} {
+			t.Run(fmt.Sprintf("realtime=%t/%s", realtime, tc.name), func(t *testing.T) {
+				truncate(t)
+				const userID, tokenID, channelID, startingQuota = 63, 63, 63, 100000
+				seedUser(t, userID, startingQuota)
+				seedToken(t, tokenID, userID, "audio-settlement-test", startingQuota)
+				seedChannel(t, channelID)
+				ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+				ctx.Request = httptest.NewRequest("POST", "/v1/audio/speech", nil)
+				info := &relaycommon.RelayInfo{
+					UserId: userID, TokenId: tokenID, TokenKey: "audio-settlement-test",
+					ChannelMeta:     &relaycommon.ChannelMeta{ChannelId: channelID},
+					OriginModelName: "tts-1", UsingGroup: "default", UserGroup: "default",
+					StartTime: time.Now(), ForcePreConsume: true, IsStream: realtime,
+					UserSetting: dto.UserSetting{BillingPreference: "wallet_only", QuotaWarningEnabled: common.GetPointer(false)},
+					PriceData: hosttypes.PriceData{
+						UsePrice: tc.usePrice, ModelPrice: tc.price, ModelRatio: 2,
+						GroupRatioInfo: hosttypes.GroupRatioInfo{GroupRatio: tc.group},
+					},
+				}
+				require.Nil(t, PreConsumeBilling(ctx, tc.reserved, info))
+				assert.Equal(t, startingQuota-tc.reserved, getUserQuota(t, userID))
+				assert.Equal(t, startingQuota-tc.reserved, getTokenRemainQuota(t, tokenID))
+				usage := dto.Usage{TotalTokens: tc.tokens}
+				if tc.usePrice {
+					usage.CompletionTokens = tc.tokens
+					usage.CompletionTokenDetails.AudioTokens = tc.tokens
+				} else {
+					usage.PromptTokens = tc.tokens
+					usage.PromptTokensDetails.TextTokens = tc.tokens
+				}
+				if realtime {
+					PostWssConsumeQuota(ctx, info, info.OriginModelName, &dto.RealtimeUsage{
+						InputTokens: usage.PromptTokens, OutputTokens: usage.CompletionTokens, TotalTokens: usage.TotalTokens,
+						InputTokenDetails: usage.PromptTokensDetails, OutputTokenDetails: usage.CompletionTokenDetails,
+					}, nil)
+				} else {
+					PostAudioConsumeQuota(ctx, info, &usage, nil)
+				}
+				assert.Equal(t, startingQuota-tc.want, getUserQuota(t, userID))
+				assert.Equal(t, startingQuota-tc.want, getTokenRemainQuota(t, tokenID))
+				assert.Equal(t, tc.want, getTokenUsedQuota(t, tokenID))
+				used, _ := getUserUsageAccounting(t, userID)
+				assert.Equal(t, tc.want, used)
+				assert.Equal(t, int64(tc.want), getChannelUsedQuota(t, channelID))
+				log := getLastLog(t)
+				require.NotNil(t, log)
+				assert.Equal(t, tc.want, log.Quota)
+			})
+		}
+	}
+}
+
 // The configured DSNs must point at isolated test databases. Each dialect runs
 // the real reservation, settlement and log paths with the same billing cases.
 func TestFixedPriceBillingDatabaseMatrix(t *testing.T) {
