@@ -1,6 +1,7 @@
 package router
 
 import (
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/relaykit/types"
@@ -14,6 +15,7 @@ import (
 // observe the canonical value, exactly as they would on the /v1 route.
 func canonicalPlaygroundPath(path string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		c.Set(string(constant.ContextKeyPlaygroundRequest), true)
 		c.Request.URL.Path = path
 		c.Next()
 	}

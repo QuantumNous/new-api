@@ -672,6 +672,12 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		info.IsPlayground = true
 		info.RequestURLPath = strings.TrimPrefix(info.RequestURLPath, "/pg")
 		info.RequestURLPath = "/v1" + info.RequestURLPath
+	} else if c.GetBool(string(constant.ContextKeyPlaygroundRequest)) {
+		// The playground generation routes rewrite their path to the canonical /v1
+		// one before the relay handlers run, because plugin ownership and
+		// path-scoped channel filters resolve from it. That rewrite erases the /pg
+		// prefix this check keys off, so fall back to the marker the rewrite sets.
+		info.IsPlayground = true
 	}
 
 	userSetting, ok := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting)
@@ -1097,6 +1103,7 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 	aux := &struct {
 		Metadata json.RawMessage `json:"metadata,omitempty"`
 		Duration json.RawMessage `json:"duration,omitempty"`
+		Seconds  json.RawMessage `json:"seconds,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(t),
@@ -1120,6 +1127,21 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 		}
 	}
 
+	if len(aux.Seconds) > 0 {
+		// Clients disagree on the type: the OpenAI SDK sends a string, our own
+		// playground used to send a number. Accept both rather than reject the
+		// whole submission over a type mismatch.
+		var secondsInt int
+		if err := common.Unmarshal(aux.Seconds, &secondsInt); err == nil {
+			t.Seconds = strconv.Itoa(secondsInt)
+		} else {
+			var secondsStr string
+			if err := common.Unmarshal(aux.Seconds, &secondsStr); err == nil {
+				t.Seconds = secondsStr
+			}
+		}
+	}
+
 	if len(aux.Metadata) > 0 {
 		var metadataStr string
 		if err := common.Unmarshal(aux.Metadata, &metadataStr); err == nil && metadataStr != "" {
@@ -1138,6 +1160,7 @@ func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
 
 	return nil
 }
+
 func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {
 	metadata := t.Metadata
 	if metadata != nil {

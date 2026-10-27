@@ -201,9 +201,7 @@ export function PlaygroundMedia({
         const payload = await submitVideoTask({
           model: activeModel,
           prompt: trimmed,
-          ...(seconds !== UNSET_OPTION_VALUE
-            ? { seconds: Number(seconds) }
-            : {}),
+          ...(seconds !== UNSET_OPTION_VALUE ? { seconds } : {}),
           ...(resolution !== UNSET_OPTION_VALUE
             ? { metadata: { resolution } }
             : {}),

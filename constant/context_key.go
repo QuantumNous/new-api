@@ -10,6 +10,12 @@ const (
 	ContextKeyOriginalModel    ContextKey = "original_model"
 	ContextKeyRequestStartTime ContextKey = "request_start_time"
 
+	// ContextKeyPlaygroundRequest marks a request that arrived on a /pg route but
+	// has already been rewritten to its canonical /v1 path. Billing and the
+	// temporary-token checks key off the /pg prefix, so the marker has to survive
+	// the rewrite.
+	ContextKeyPlaygroundRequest ContextKey = "playground_request"
+
 	/* token related keys */
 	ContextKeyTokenUnlimited         ContextKey = "token_unlimited_quota"
 	ContextKeyTokenKey               ContextKey = "token_key"

@@ -174,10 +174,12 @@ export interface ImageGenerationResponse {
   }
 }
 
+// seconds is a string on the wire: the task relay decodes it into a Go string,
+// and the upstream plugins read it as one.
 export interface VideoGenerationRequest {
   model: string
   prompt: string
-  seconds?: number
+  seconds?: string
   metadata?: {
     resolution?: string
     duration?: number
