@@ -21,6 +21,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestTEIRerankHTTPConversion checks native HTTP conversion, original document
+// indices, top_n boundaries, credential isolation, and full-request usage.
 func TestTEIRerankHTTPConversion(t *testing.T) {
 	service.InitHttpClient()
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -86,6 +88,8 @@ func TestTEIRerankHTTPConversion(t *testing.T) {
 	}
 }
 
+// TestTEIRerankRejectsInvalidInput checks that unsupported or missing inputs
+// produce HTTP 400 errors and that body pass-through cannot bypass conversion.
 func TestTEIRerankRejectsInvalidInput(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -108,6 +112,8 @@ func TestTEIRerankRejectsInvalidInput(t *testing.T) {
 	require.ErrorContains(t, err, "pass-through")
 }
 
+// TestTEIRerankRejectsMalformedResponseAndMarksEstimatedUsage checks response
+// integrity and explicitly marked estimates when upstream token counts are absent.
 func TestTEIRerankRejectsMalformedResponseAndMarksEstimatedUsage(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -144,6 +150,8 @@ func TestTEIRerankRejectsMalformedResponseAndMarksEstimatedUsage(t *testing.T) {
 	}
 }
 
+// TestTEIRerankURLAndUpstreamAuthentication checks base URL restrictions, endpoint
+// construction, and the optional channel credential independently of employee keys.
 func TestTEIRerankURLAndUpstreamAuthentication(t *testing.T) {
 	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{}, RelayMode: relayconstant.RelayModeRerank}
 	adaptor := &Adaptor{}
@@ -170,6 +178,9 @@ func TestTEIRerankURLAndUpstreamAuthentication(t *testing.T) {
 	assert.Empty(t, header.Get("Authorization"))
 }
 
+// TestTEIRerankParameterOverridesPreserveCandidates checks final-body validation
+// for replayable and plain readers. Changed candidates never reach the model;
+// identical candidates and unrelated overrides retain correct results and usage.
 func TestTEIRerankParameterOverridesPreserveCandidates(t *testing.T) {
 	service.InitHttpClient()
 	for _, bodyKind := range []string{"replayable", "reader"} {
@@ -261,8 +272,8 @@ func TestTEIRerankParameterOverridesPreserveCandidates(t *testing.T) {
 	}
 }
 
-// Run explicitly against a TEI sequence-classification deployment. The default
-// unit suite remains independent of models, GPU hardware and external services.
+// TestTEIRerankLive checks scores, original documents, and upstream token counts
+// against TEI when TEI_RERANK_BASE_URL is set; otherwise it skips the external call.
 func TestTEIRerankLive(t *testing.T) {
 	base := os.Getenv("TEI_RERANK_BASE_URL")
 	if base == "" {

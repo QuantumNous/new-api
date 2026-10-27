@@ -24,8 +24,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// A fresh adaptor is created for each relay attempt. Request state must not be
-// shared between callers, including top_n and the original document indices.
+// Adaptor converts unified rerank requests and TEI responses. Each relay attempt
+// owns its candidate documents and top_n limit; callers must not share an instance.
 type Adaptor struct {
 	openai.Adaptor
 	documents       []string
@@ -36,6 +36,8 @@ type Adaptor struct {
 
 var _ channel.Adaptor = (*Adaptor)(nil)
 
+// rerankRequest is TEI's native request body. TEI scores every text; the adaptor
+// applies the public top_n limit after receiving all scores.
 type rerankRequest struct {
 	Query      string   `json:"query"`
 	Texts      []string `json:"texts"`
@@ -44,6 +46,7 @@ type rerankRequest struct {
 	RawScores  bool     `json:"raw_scores"`
 }
 
+// Init initializes the embedded adaptor and clears state from any prior attempt.
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	a.Adaptor.Init(info)
 	a.documents = nil
@@ -52,6 +55,8 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 	a.converted = false
 }
 
+// GetRequestURL validates the configured HTTP(S) base URL and appends /rerank
+// unless already present. Other relay modes are rejected.
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	if info.RelayMode != relayconstant.RelayModeRerank {
 		return "", errors.New("TEI channels only support rerank requests")
@@ -68,6 +73,8 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 	return base.String(), nil
 }
 
+// SetupRequestHeader selects JSON transport and adds the channel's bearer key
+// when configured. Empty keys and EMPTY never become upstream credentials.
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *relaycommon.RelayInfo) error {
 	channel.SetupApiRequestHeader(info, c, header)
 	header.Set("Content-Type", "application/json")
@@ -81,10 +88,13 @@ func (a *Adaptor) SetupRequestHeader(c *gin.Context, header *http.Header, info *
 	return nil
 }
 
+// invalidRequest creates a non-retryable HTTP 400 error without candidate text.
 func invalidRequest(message string, args ...any) error {
 	return types.NewErrorWithStatusCode(fmt.Errorf(message, args...), types.ErrorCodeInvalidRequest, http.StatusBadRequest, types.ErrOptionWithSkipRetry())
 }
 
+// ConvertRerankRequest validates supported inputs and maps documents to TEI texts.
+// It retains original indices and response options for local result processing.
 func (a *Adaptor) ConvertRerankRequest(_ *gin.Context, mode int, request dto.RerankRequest) (any, error) {
 	a.converted = false
 	if mode != relayconstant.RelayModeRerank {
@@ -116,6 +126,8 @@ func (a *Adaptor) ConvertRerankRequest(_ *gin.Context, mode int, request dto.Rer
 	return rerankRequest{Query: request.Query, Texts: documents, ReturnText: a.returnDocuments, Truncate: false, RawScores: false}, nil
 }
 
+// DoRequest rejects body pass-through and candidate changes made by parameter
+// overrides before invoking TEI, preserving the original document-index mapping.
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, body io.Reader) (any, error) {
 	if !a.converted {
 		return nil, invalidRequest("TEI rerank requires request conversion; disable request body pass-through")
@@ -155,6 +167,9 @@ func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, body io
 	return channel.DoApiRequest(a, c, info, body)
 }
 
+// DoResponse validates TEI's complete score array, sorts and trims results, and
+// restores requested documents by index. Usage covers all scored pairs, using
+// x-compute-tokens when valid or the marked input estimate, with no output tokens.
 func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (any, *types.NewAPIError) {
 	defer service.CloseResponseBodyGracefully(resp)
 	const maxResponseBytes = 8 << 20
@@ -209,8 +224,10 @@ func (a *Adaptor) DoResponse(c *gin.Context, resp *http.Response, info *relaycom
 	return &usage, nil
 }
 
+// GetModelList provides common model aliases, not discovery of the TEI deployment.
 func (a *Adaptor) GetModelList() []string {
 	return []string{"bge-reranker-v2-m3", "BAAI/bge-reranker-v2-m3"}
 }
 
+// GetChannelName identifies this adaptor to the gateway.
 func (a *Adaptor) GetChannelName() string { return "TEI" }
