@@ -55,7 +55,7 @@ func TestTEIRerankHTTPConversion(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(recorder)
-			c.Request = httptest.NewRequest(http.MethodPost, "/v1/rerank", nil)
+			c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/rerank", nil)
 			c.Request.Header.Set("Authorization", "Bearer employee-key")
 			info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: upstream.URL + "/prefix/"}, RelayMode: relayconstant.RelayModeRerank, IsChannelTest: true}
 			adaptor := &Adaptor{}
@@ -160,7 +160,7 @@ func TestTEIRerankURLAndUpstreamAuthentication(t *testing.T) {
 	_, err = adaptor.GetRequestURL(info)
 	require.Error(t, err)
 	c, _ := gin.CreateTestContext(httptest.NewRecorder())
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/rerank", nil)
+	c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/rerank", nil)
 	info.ApiKey = "upstream-key"
 	header := http.Header{}
 	require.NoError(t, adaptor.SetupRequestHeader(c, &header, info))
@@ -215,7 +215,7 @@ func TestTEIRerankParameterOverridesPreserveCandidates(t *testing.T) {
 				defer upstream.Close()
 				recorder := httptest.NewRecorder()
 				c, _ := gin.CreateTestContext(recorder)
-				c.Request = httptest.NewRequest(http.MethodPost, "/v1/rerank", nil)
+				c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/rerank", nil)
 				info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: upstream.URL}, RelayMode: relayconstant.RelayModeRerank, IsChannelTest: true}
 				require.NoError(t, common.UnmarshalJsonStr(tc.override, &info.ParamOverride))
 				adaptor := &Adaptor{}
@@ -227,7 +227,7 @@ func TestTEIRerankParameterOverridesPreserveCandidates(t *testing.T) {
 				// Match RerankHelper: overrides run after conversion, before DoRequest.
 				data, err = relaycommon.ApplyParamOverrideWithRelayInfo(data, info)
 				require.NoError(t, err)
-				var body io.Reader = io.LimitReader(bytes.NewReader(data), int64(len(data)))
+				body := io.LimitReader(bytes.NewReader(data), int64(len(data)))
 				if bodyKind == "replayable" {
 					replayable, closer, err := relaycommon.NewOutboundJSONBody(data)
 					require.NoError(t, err)
@@ -271,7 +271,7 @@ func TestTEIRerankLive(t *testing.T) {
 	service.InitHttpClient()
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
-	c.Request = httptest.NewRequest(http.MethodPost, "/v1/rerank", nil)
+	c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/rerank", nil)
 	info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: base, ApiKey: os.Getenv("TEI_RERANK_API_KEY")}, RelayMode: relayconstant.RelayModeRerank, IsChannelTest: true}
 	adaptor := &Adaptor{}
 	adaptor.Init(info)
