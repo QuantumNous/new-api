@@ -20,6 +20,7 @@ import {
   CHANNEL_TYPES,
   CHANNEL_TYPE_VLLM,
   CHANNEL_TYPE_SGLANG,
+  CHANNEL_TYPE_TEI,
 } from '../constants'
 
 // ============================================================================
@@ -49,6 +50,16 @@ export interface ChannelTypeConfig {
  * Configuration for each channel type
  */
 export const CHANNEL_TYPE_CONFIGS: Record<number, ChannelTypeConfig> = {
+  [CHANNEL_TYPE_TEI]: {
+    id: CHANNEL_TYPE_TEI,
+    name: CHANNEL_TYPES[CHANNEL_TYPE_TEI],
+    icon: 'HuggingFace',
+    hints: {
+      baseUrl: 'TEI server address, without /rerank',
+      key: 'TEI API key, or EMPTY if authentication is disabled',
+      models: 'Enter the model name served by TEI',
+    },
+  },
   [CHANNEL_TYPE_SGLANG]: {
     id: CHANNEL_TYPE_SGLANG,
     name: CHANNEL_TYPES[CHANNEL_TYPE_SGLANG],
