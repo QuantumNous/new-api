@@ -96,6 +96,14 @@ func newRelayHTTPTransport() *http.Transport {
 	transport.MaxIdleConns = common.RelayMaxIdleConns
 	transport.MaxIdleConnsPerHost = common.RelayMaxIdleConnsPerHost
 	transport.IdleConnTimeout = time.Duration(common.RelayIdleConnTimeout) * time.Second
+	if seconds := common.RelayHTTP2PingIdleTimeout; seconds > 0 {
+		if transport.HTTP2 == nil {
+			transport.HTTP2 = &http.HTTP2Config{}
+		}
+		// Probe the upstream connection, independently of downstream SSE heartbeats.
+		transport.HTTP2.SendPingTimeout = time.Duration(min(seconds, maxTimeoutSeconds)) * time.Second
+		transport.HTTP2.PingTimeout = time.Duration(min(max(common.RelayHTTP2PingTimeout, 0), maxTimeoutSeconds)) * time.Second
+	}
 	// Bound the wait for upstream response headers. Without it, an upstream that
 	// accepts the connection but never responds (and never sends FIN/RST) parks the
 	// goroutine forever, and every buffer that request owns -- the raw body read by
