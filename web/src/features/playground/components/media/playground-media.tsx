@@ -16,7 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { DownloadIcon, Loader2Icon, SendIcon } from 'lucide-react'
+import {
+  DownloadIcon,
+  Loader2Icon,
+  RefreshCwIcon,
+  RotateCcwIcon,
+  SendIcon,
+  Trash2Icon,
+} from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -29,8 +36,15 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
+import { formatQuota } from '@/lib/format'
 
-import { fetchVideoTask, generateImage, submitVideoTask } from '../../api'
+import {
+  deleteGenerationRecord,
+  fetchGenerationRecords,
+  fetchVideoTask,
+  generateImage,
+  submitVideoTask,
+} from '../../api'
 import {
   IMAGE_SIZE_OPTIONS,
   UNSET_OPTION_VALUE,
@@ -38,7 +52,7 @@ import {
   VIDEO_SECONDS_OPTIONS,
   VIDEO_TASK_POLL_INTERVAL_MS,
 } from '../../constants'
-import type { MediaGenerationItem, ModelOption } from '../../types'
+import type { GenerationRecord, ModelOption } from '../../types'
 
 interface PlaygroundMediaProps {
   mode: 'image' | 'video'
@@ -48,21 +62,45 @@ interface PlaygroundMediaProps {
   onModelChange: (value: string) => void
 }
 
+// A task that never reported a final state stops being polled, and stops looking
+// like it is still rendering: the browser may have been closed mid-render, and
+// the row would otherwise spin forever.
+const STALE_PENDING_MS = 10 * 60 * 1000
+
+const HISTORY_PAGE_SIZE = 50
+
 function readErrorMessage(error: unknown, fallback: string): string {
   const candidate = error as {
-    response?: { data?: { error?: { message?: string } } }
+    response?: { data?: { error?: { message?: string }; message?: string } }
     message?: string
   }
   return (
     candidate?.response?.data?.error?.message ||
+    candidate?.response?.data?.message ||
     candidate?.message ||
     fallback
   )
 }
 
-function buildImageSource(entry: { url?: string; b64_json?: string }): string {
-  if (entry.url) return entry.url
-  if (entry.b64_json) return `data:image/png;base64,${entry.b64_json}`
+function isPending(record: GenerationRecord): boolean {
+  return record.status === 'queued' || record.status === 'running'
+}
+
+function isStale(record: GenerationRecord): boolean {
+  return isPending(record) && Date.now() - record.created_at * 1000 > STALE_PENDING_MS
+}
+
+function paramText(
+  params: Record<string, string | number> | undefined,
+  keys: string[]
+): string {
+  if (!params) return ''
+  for (const key of keys) {
+    const value = params[key]
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return String(value)
+    }
+  }
   return ''
 }
 
@@ -78,85 +116,77 @@ export function PlaygroundMedia({
   const [size, setSize] = useState<string>(UNSET_OPTION_VALUE)
   const [seconds, setSeconds] = useState<string>(UNSET_OPTION_VALUE)
   const [resolution, setResolution] = useState<string>(UNSET_OPTION_VALUE)
-  const [items, setItems] = useState<MediaGenerationItem[]>([])
+  const [records, setRecords] = useState<GenerationRecord[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [notice, setNotice] = useState('')
+  const [deletingId, setDeletingId] = useState<number | null>(null)
 
   const activeModel = useMemo(
     () => models.find((model) => model.value === modelValue)?.value ?? '',
     [models, modelValue]
   )
 
-  const updateItems = useCallback(
-    (
-      updater: (current: MediaGenerationItem[]) => MediaGenerationItem[]
-    ) => {
-      setItems((current) => updater(current))
-    },
-    []
-  )
+  // The list is served by the gateway, so it is the only source of truth: a
+  // refresh, a new tab, or another device all show the same history.
+  const refresh = useCallback(async () => {
+    try {
+      const page = await fetchGenerationRecords({
+        kind: mode,
+        pageSize: HISTORY_PAGE_SIZE,
+      })
+      setRecords(page.items)
+    } catch (error) {
+      setNotice(readErrorMessage(error, t('Generation failed')))
+    } finally {
+      setIsLoading(false)
+    }
+  }, [mode, t])
 
-  const patchItem = useCallback(
-    (key: string, patch: Partial<MediaGenerationItem>) => {
-      updateItems((current) =>
-        current.map((item) => (item.key === key ? { ...item, ...patch } : item))
-      )
-    },
-    [updateItems]
-  )
-
-  // Reset the one-shot history when the user switches between image and video:
-  // a video card in the image tab would only be a stale leftover.
+  // Switching between image and video shows that mode's own history.
   useEffect(() => {
-    updateItems(() => [])
+    setRecords([])
     setPrompt('')
-  }, [mode, updateItems])
+    setNotice('')
+    setIsLoading(true)
+    void refresh()
+  }, [mode, refresh])
 
-  // Poll every queued video task until it reports a result. A task can outlive
-  // the browser tab, so a failed poll keeps the card running instead of
-  // dropping the id the user would need to check again.
-  const pendingTasks = items
-    .filter((item) => item.status === 'running' && item.taskId)
-    .map((item) => ({ key: item.key, taskId: item.taskId as string }))
+  const pendingTaskIds = useMemo(
+    () =>
+      records
+        .filter((record) => isPending(record) && record.task_id && !isStale(record))
+        .map((record) => record.task_id as string),
+    [records]
+  )
 
+  // Poll every queued video task until it reaches a final state. The server
+  // writes the outcome into the row, so each tick simply re-reads the list.
   useEffect(() => {
-    if (pendingTasks.length === 0) return
+    if (pendingTaskIds.length === 0) return
     let cancelled = false
 
     const poll = async () => {
-      for (const task of pendingTasks) {
+      for (const taskId of pendingTaskIds) {
         if (cancelled) return
         try {
-          const payload = await fetchVideoTask(task.taskId)
-          const data = payload?.data
-          if (!data) continue
-          const status = String(data.status ?? '').toUpperCase()
-          if (status === 'SUCCESS') {
-            patchItem(task.key, {
-              status: 'done',
-              videoUrl: data.result_url,
-              progress: '100%',
-            })
-          } else if (status === 'FAILURE') {
-            patchItem(task.key, {
-              status: 'error',
-              errorMessage: data.fail_reason || t('Generation failed'),
-            })
-          } else if (data.progress) {
-            patchItem(task.key, { progress: data.progress })
-          }
+          await fetchVideoTask(taskId)
         } catch {
-          // Keep polling: the task lives on the server, not in this request.
+          // The task lives on the server; a single failed poll is not the end.
         }
+      }
+      if (!cancelled) {
+        await refresh()
       }
     }
 
-    const timer = window.setInterval(poll, VIDEO_TASK_POLL_INTERVAL_MS)
+    const timer = window.setInterval(() => void poll(), VIDEO_TASK_POLL_INTERVAL_MS)
     return () => {
       cancelled = true
       window.clearInterval(timer)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingTasks.map((task) => task.taskId).join(','), patchItem, t])
+  }, [pendingTaskIds.join(','), refresh])
 
   const canSubmit = Boolean(activeModel) && prompt.trim().length > 0 && !isSubmitting
 
@@ -164,41 +194,17 @@ export function PlaygroundMedia({
     const trimmed = prompt.trim()
     if (!activeModel || !trimmed || isSubmitting) return
 
-    const key = `${mode}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
     setIsSubmitting(true)
-    updateItems((current) => [
-      {
-        key,
-        mode,
-        prompt: trimmed,
-        model: activeModel,
-        status: 'running',
-      },
-      ...current,
-    ])
-    setPrompt('')
-
+    setNotice('')
     try {
       if (mode === 'image') {
-        const payload = await generateImage({
+        await generateImage({
           model: activeModel,
           prompt: trimmed,
           ...(size !== UNSET_OPTION_VALUE ? { size } : {}),
         })
-        const images = (payload?.data ?? [])
-          .map((entry) => buildImageSource(entry))
-          .filter((source) => source.length > 0)
-        if (images.length === 0) {
-          patchItem(key, {
-            status: 'error',
-            errorMessage:
-              payload?.error?.message || t('The model returned no result'),
-          })
-        } else {
-          patchItem(key, { status: 'done', images })
-        }
       } else {
-        const payload = await submitVideoTask({
+        await submitVideoTask({
           model: activeModel,
           prompt: trimmed,
           ...(seconds !== UNSET_OPTION_VALUE ? { seconds } : {}),
@@ -206,25 +212,45 @@ export function PlaygroundMedia({
             ? { metadata: { resolution } }
             : {}),
         })
-        const taskId = payload?.task_id || payload?.id
-        if (!taskId) {
-          patchItem(key, {
-            status: 'error',
-            errorMessage:
-              payload?.error?.message || t('The model returned no result'),
-          })
-        } else {
-          patchItem(key, { taskId, progress: payload?.status })
-        }
       }
+      setPrompt('')
     } catch (error) {
-      patchItem(key, {
-        status: 'error',
-        errorMessage: readErrorMessage(error, t('Generation failed')),
-      })
+      setNotice(readErrorMessage(error, t('Generation failed')))
     } finally {
       setIsSubmitting(false)
+      await refresh()
     }
+  }
+
+  const handleDelete = async (record: GenerationRecord) => {
+    if (!window.confirm(t('Delete this record? The generated file is deleted too.'))) {
+      return
+    }
+    setDeletingId(record.id)
+    try {
+      await deleteGenerationRecord(record.id)
+      setRecords((current) => current.filter((item) => item.id !== record.id))
+    } catch (error) {
+      setNotice(readErrorMessage(error, t('Generation failed')))
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  // Reuse puts the prompt and the settings back into the composer, so a result
+  // the user liked can be re-run with one edit instead of retyping.
+  const handleReuse = (record: GenerationRecord) => {
+    setPrompt(record.prompt)
+    if (record.model) onModelChange(record.model)
+    if (record.kind === 'image') {
+      const reuseSize = paramText(record.params, ['size'])
+      setSize(reuseSize || UNSET_OPTION_VALUE)
+      return
+    }
+    const reuseSeconds = paramText(record.params, ['seconds', 'duration'])
+    setSeconds(reuseSeconds || UNSET_OPTION_VALUE)
+    const reuseResolution = paramText(record.params, ['resolution'])
+    setResolution(reuseResolution || UNSET_OPTION_VALUE)
   }
 
   const renderParams = () => {
@@ -285,12 +311,160 @@ export function PlaygroundMedia({
     )
   }
 
+  const renderRecord = (record: GenerationRecord) => {
+    const stale = isStale(record)
+    const settings = [
+      paramText(record.params, ['size']),
+      paramText(record.params, ['seconds', 'duration'])
+        ? `${paramText(record.params, ['seconds', 'duration'])}s`
+        : '',
+      paramText(record.params, ['resolution']),
+    ].filter((value) => value.length > 0)
+
+    return (
+      <div
+        key={record.id}
+        className='border-border/70 bg-background/95 rounded-xl border p-4 shadow-sm'
+      >
+        <div className='mb-3 flex flex-wrap items-start gap-2'>
+          <p className='min-w-0 flex-1 text-sm break-words'>{record.prompt}</p>
+          <span className='bg-muted text-muted-foreground rounded-md px-1.5 py-0.5 text-[11px]'>
+            {record.model}
+          </span>
+          {settings.map((value) => (
+            <span
+              key={value}
+              className='bg-muted text-muted-foreground rounded-md px-1.5 py-0.5 text-[11px]'
+            >
+              {value}
+            </span>
+          ))}
+        </div>
+
+        <div className='text-muted-foreground mb-3 flex flex-wrap items-center gap-3 text-[11px]'>
+          <span>
+            {new Date(record.created_at * 1000).toLocaleString()}
+          </span>
+          {record.quota > 0 ? <span>{formatQuota(record.quota)}</span> : null}
+        </div>
+
+        {isPending(record) && !stale ? (
+          <div className='text-muted-foreground flex items-center gap-2 text-xs'>
+            <Loader2Icon className='size-3.5 animate-spin' />
+            <span>{t('Generating')}</span>
+          </div>
+        ) : null}
+
+        {stale ? (
+          <p className='text-muted-foreground text-xs'>
+            {t('Interrupted')}: {t('This task stopped responding. Submit it again.')}
+          </p>
+        ) : null}
+
+        {record.status === 'failure' && record.fail_reason ? (
+          <p className='text-destructive text-xs break-words'>{record.fail_reason}</p>
+        ) : null}
+
+        {record.kind === 'image' && record.urls.length > 0 ? (
+          <div className='flex flex-wrap gap-3'>
+            {record.urls.map((url) => (
+              <div key={url} className='group relative'>
+                <img
+                  alt={record.prompt}
+                  className='border-border/60 max-h-72 rounded-lg border object-contain'
+                  src={url}
+                />
+                <a
+                  className='bg-background/90 text-foreground border-border/60 absolute right-2 bottom-2 flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] opacity-0 transition-opacity group-hover:opacity-100'
+                  download
+                  href={url}
+                  rel='noreferrer'
+                  target='_blank'
+                >
+                  <DownloadIcon className='size-3' />
+                  {t('Download')}
+                </a>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {record.kind === 'video' && record.urls.length > 0 ? (
+          <div className='space-y-2'>
+            <video
+              className='border-border/60 w-full max-w-xl rounded-lg border'
+              controls
+              src={record.urls[0]}
+            />
+            <a
+              className='text-primary inline-flex items-center gap-1 text-xs hover:underline'
+              download
+              href={record.urls[0]}
+              rel='noreferrer'
+              target='_blank'
+            >
+              <DownloadIcon className='size-3' />
+              {t('Download')}
+            </a>
+          </div>
+        ) : null}
+
+        <div className='mt-3 flex items-center gap-1'>
+          <Button
+            className='text-muted-foreground hover:text-foreground h-7 px-2 text-[11px]'
+            onClick={() => handleReuse(record)}
+            size='sm'
+            type='button'
+            variant='ghost'
+          >
+            <RotateCcwIcon className='size-3' />
+            {t('Reuse')}
+          </Button>
+          <div className='flex-1' />
+          <Button
+            className='text-muted-foreground hover:text-destructive h-7 px-2 text-[11px]'
+            disabled={deletingId === record.id}
+            onClick={() => void handleDelete(record)}
+            size='sm'
+            type='button'
+            variant='ghost'
+          >
+            {deletingId === record.id ? (
+              <Loader2Icon className='size-3 animate-spin' />
+            ) : (
+              <Trash2Icon className='size-3' />
+            )}
+            {t('Delete')}
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className='flex size-full min-h-0 flex-col overflow-hidden'>
       <div className='min-h-0 flex-1 overflow-y-auto px-1'>
         <div className='mx-auto w-full max-w-4xl space-y-4 py-6'>
-          {items.length === 0 ? (
-            <div className='text-muted-foreground flex flex-col items-center gap-2 py-16 text-center text-sm'>
+          <div className='flex items-center gap-2'>
+            <h2 className='text-sm font-medium'>{t('Generation history')}</h2>
+            <Button
+              className='text-muted-foreground hover:text-foreground h-6 px-1.5'
+              onClick={() => void refresh()}
+              size='sm'
+              type='button'
+              variant='ghost'
+            >
+              <RefreshCwIcon className='size-3' />
+            </Button>
+          </div>
+
+          {isLoading ? (
+            <div className='text-muted-foreground flex items-center gap-2 py-10 text-xs'>
+              <Loader2Icon className='size-3.5 animate-spin' />
+              <span>{t('Loading...')}</span>
+            </div>
+          ) : records.length === 0 ? (
+            <div className='text-muted-foreground flex flex-col items-center gap-2 py-12 text-center text-sm'>
               <p className='text-foreground text-base font-medium'>
                 {mode === 'image' ? t('Image generation') : t('Video generation')}
               </p>
@@ -299,88 +473,20 @@ export function PlaygroundMedia({
                   ? t('Describe the image you want, then generate it.')
                   : t('Describe the video you want, then generate it.')}
               </p>
+              <p className='text-xs'>{t('No history yet')}</p>
               {!isModelLoading && models.length === 0 ? (
                 <p className='text-destructive'>{t('No model available')}</p>
               ) : null}
             </div>
           ) : (
-            items.map((item) => (
-              <div
-                key={item.key}
-                className='border-border/70 bg-background/95 rounded-xl border p-4 shadow-sm'
-              >
-                <div className='mb-3 flex flex-wrap items-start gap-2'>
-                  <p className='min-w-0 flex-1 text-sm break-words'>
-                    {item.prompt}
-                  </p>
-                  <span className='bg-muted text-muted-foreground rounded-md px-1.5 py-0.5 text-[11px]'>
-                    {item.model}
-                  </span>
-                </div>
-
-                {item.status === 'running' ? (
-                  <div className='text-muted-foreground flex items-center gap-2 text-xs'>
-                    <Loader2Icon className='size-3.5 animate-spin' />
-                    <span>
-                      {item.taskId
-                        ? `${t('Generating')}${item.progress ? ` · ${item.progress}` : ''}`
-                        : t('Generating')}
-                    </span>
-                  </div>
-                ) : null}
-
-                {item.status === 'error' ? (
-                  <p className='text-destructive text-xs break-words'>
-                    {item.errorMessage || t('Generation failed')}
-                  </p>
-                ) : null}
-
-                {item.images?.length ? (
-                  <div className='flex flex-wrap gap-3'>
-                    {item.images.map((source) => (
-                      <div key={source} className='group relative'>
-                        <img
-                          alt={item.prompt}
-                          className='border-border/60 max-h-72 rounded-lg border object-contain'
-                          src={source}
-                        />
-                        <a
-                          className='bg-background/90 text-foreground border-border/60 absolute right-2 bottom-2 flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] opacity-0 transition-opacity group-hover:opacity-100'
-                          download
-                          href={source}
-                          rel='noreferrer'
-                          target='_blank'
-                        >
-                          <DownloadIcon className='size-3' />
-                          {t('Download')}
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
-
-                {item.videoUrl ? (
-                  <div className='space-y-2'>
-                    <video
-                      className='border-border/60 w-full max-w-xl rounded-lg border'
-                      controls
-                      src={item.videoUrl}
-                    />
-                    <a
-                      className='text-primary inline-flex items-center gap-1 text-xs hover:underline'
-                      download
-                      href={item.videoUrl}
-                      rel='noreferrer'
-                      target='_blank'
-                    >
-                      <DownloadIcon className='size-3' />
-                      {t('Download')}
-                    </a>
-                  </div>
-                ) : null}
-              </div>
-            ))
+            records.map(renderRecord)
           )}
+
+          {notice ? (
+            <p className='text-destructive border-destructive/30 rounded-lg border px-3 py-2 text-xs break-words'>
+              {notice}
+            </p>
+          ) : null}
         </div>
       </div>
 

@@ -23,6 +23,8 @@ import { API_ENDPOINTS } from './constants'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
+  GenerationRecord,
+  GenerationRecordList,
   ImageGenerationRequest,
   ImageGenerationResponse,
   ModelOption,
@@ -149,5 +151,41 @@ export async function fetchVideoTask(
     { skipErrorHandler: true } as Record<string, unknown>
   )
   return res.data as VideoTaskResponse
+}
+
+/**
+ * Read the generation history the gateway keeps for this user. Media URLs in
+ * the rows are capability links to files stored on the deployment itself, so
+ * they survive the upstream link expiring.
+ */
+export async function fetchGenerationRecords(params: {
+  kind: 'image' | 'video'
+  page?: number
+  pageSize?: number
+}): Promise<GenerationRecordList> {
+  const res = await api.get(API_ENDPOINTS.GENERATION_RECORDS, {
+    params: {
+      kind: params.kind,
+      p: params.page ?? 1,
+      page_size: params.pageSize ?? 50,
+    },
+  })
+  const { data } = res
+  requireServerSuccess(data)
+
+  const items = Array.isArray(data?.data)
+    ? (data.data as GenerationRecord[])
+    : []
+  return { items, total: Number(data?.total ?? items.length) }
+}
+
+/**
+ * Delete one history row. The media files it owns go with it.
+ */
+export async function deleteGenerationRecord(id: number): Promise<void> {
+  const res = await api.delete(
+    `${API_ENDPOINTS.GENERATION_RECORDS}/${encodeURIComponent(String(id))}`
+  )
+  requireServerSuccess(res.data)
 }
 

@@ -388,6 +388,7 @@ func migrateDB() error {
 		&UserCommissionStats{},
 		&CommissionRecord{},
 		&CommissionRedemption{},
+		&GenerationRecord{},
 	)
 	if err != nil {
 		return err

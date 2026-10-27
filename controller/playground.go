@@ -28,6 +28,7 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relaykit/types"
+	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -129,22 +130,34 @@ func Playground(c *gin.Context) {
 }
 
 // PlaygroundImage relays an image generation request. The route that mounts it
-// has already resolved the temporary token through PlaygroundSessionAuth.
+// has already resolved the temporary token through PlaygroundSessionAuth. The
+// response is captured on its way to the browser so the grid of images the
+// caller just paid for also lands in the playground history.
 func PlaygroundImage(c *gin.Context) {
+	fields := service.ReadGenerationRequestFields(c)
+	capture := service.CaptureGenerationResponse(c)
 	RelayTaskPluginEndpoint(c, func(c *gin.Context) {
 		Relay(c, types.RelayFormatOpenAIImage)
 	})
+	finishPlaygroundImage(c, capture, fields)
 }
 
 // PlaygroundTask submits a video generation task for the session user.
 func PlaygroundTask(c *gin.Context) {
+	fields := service.ReadGenerationRequestFields(c)
+	capture := service.CaptureGenerationResponse(c)
 	RelayTask(c)
+	finishPlaygroundTaskSubmit(c, capture, fields)
 }
 
-// PlaygroundTaskFetch reports the state of a video task the session user owns.
+// PlaygroundTaskFetch reports the state of a video task the session user owns,
+// and completes the history row once the task reaches a final state.
 func PlaygroundTaskFetch(c *gin.Context) {
-	if taskID := c.Param("task_id"); taskID != "" {
+	taskID := c.Param("task_id")
+	if taskID != "" {
 		c.Request.URL.Path = "/v1/video/generations/" + taskID
 	}
+	capture := service.CaptureGenerationResponse(c)
 	RelayTaskFetch(c)
+	finishPlaygroundTaskPoll(c, capture, taskID)
 }

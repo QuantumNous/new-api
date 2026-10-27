@@ -215,15 +215,26 @@ export interface VideoTaskResponse {
   }
 }
 
-export interface MediaGenerationItem {
-  key: string
-  mode: 'image' | 'video'
-  prompt: string
+// One row of the generation history the gateway keeps for the playground. Media
+// lives on the deployment's own disk, so `urls` stays valid after the upstream
+// link expires.
+export interface GenerationRecord {
+  id: number
+  created_at: number
+  kind: 'image' | 'video'
   model: string
-  status: 'running' | 'done' | 'error'
-  errorMessage?: string
-  taskId?: string
-  progress?: string
-  images?: string[]
-  videoUrl?: string
+  prompt: string
+  params?: Record<string, string | number>
+  status: GenerationStatus
+  task_id?: string
+  fail_reason?: string
+  quota: number
+  urls: string[]
+}
+
+export type GenerationStatus = 'queued' | 'running' | 'success' | 'failure'
+
+export interface GenerationRecordList {
+  items: GenerationRecord[]
+  total: number
 }

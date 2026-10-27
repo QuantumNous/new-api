@@ -40,6 +40,7 @@ export const API_ENDPOINTS = {
   USER_MODELS: '/api/user/models',
   USER_MODEL_KINDS: '/api/user/models/kinds',
   USER_GROUPS: '/api/user/self/groups',
+  GENERATION_RECORDS: '/api/generation/records',
 } as const
 
 // Playground modes. Only chat is backed by the conversation transcript; the two

@@ -62,3 +62,22 @@ func SetPlaygroundGenerationRouter(engine *gin.Engine) {
 		videoRouter.GET("/:task_id", controller.PlaygroundTaskFetch)
 	}
 }
+
+// SetPlaygroundHistoryRouter mounts the playground history API and the media
+// files it points at. History rows belong to the session user, so the list and
+// delete routes use the same browser auth as the playground itself; the media
+// route carries no session because it is used as an <img> or <video> source and
+// is guarded by its signed access parameter instead.
+func SetPlaygroundHistoryRouter(engine *gin.Engine) {
+	generationRouter := engine.Group("/api/generation")
+	generationRouter.Use(middleware.RouteTag("api"))
+	{
+		records := generationRouter.Group("/records")
+		records.Use(middleware.DisableCache(), middleware.UserAuth())
+		{
+			records.GET("", controller.GetGenerationRecords)
+			records.DELETE("/:id", controller.DeleteGenerationRecord)
+		}
+		generationRouter.GET("/media/*file", middleware.DisableCache(), controller.GetGenerationMedia)
+	}
+}
