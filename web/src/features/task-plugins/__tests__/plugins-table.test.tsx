@@ -21,6 +21,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, expect, test, vi } from 'vitest'
 
+import { PageFooterProvider } from '@/components/layout/components/page-footer'
 import { api } from '@/lib/api'
 
 import { PluginsTable } from '../components/plugins-table'
@@ -84,11 +85,15 @@ function renderPlugins(
   vi.spyOn(api, 'get').mockResolvedValue({
     data: { success: true, data: [{ ...item, enabled: !enabled }] },
   })
-  render(
+  const footer = document.createElement('div')
+  const rendered = render(
     <QueryClientProvider client={client}>
-      <PluginsTable onDetails={() => undefined} onUpload={() => undefined} />
+      <PageFooterProvider container={footer}>
+        <PluginsTable onDetails={() => undefined} onUpload={() => undefined} />
+      </PageFooterProvider>
     </QueryClientProvider>
   )
+  rendered.container.append(footer)
   return screen.getAllByRole('switch', { name: 'Enable plugin example' })[0]
 }
 
@@ -145,6 +150,35 @@ test.each(['card', 'table'] as const)(
     })
   }
 )
+
+test('searching from a later page uses filtered pagination and clearing restores all pages', async () => {
+  const user = userEvent.setup()
+  renderPlugins(true, 'table', 'factory', [
+    ...Array.from({ length: 20 }, (_, index) => ({
+      key: `plugin-${index}`,
+      name: `Plugin ${index}`,
+    })),
+    { key: 'google', name: 'Google Veo' },
+  ])
+  const next = screen.getByRole('button', { name: 'Go to next page' })
+  const previous = screen.getByRole('button', { name: 'Go to previous page' })
+  expect(next).toBeEnabled()
+  await user.click(next)
+  expect(previous).toBeEnabled()
+
+  const search = screen.getByPlaceholderText('Filter plugins...')
+  await user.type(search, 'google')
+  await waitFor(() => {
+    expect(
+      screen.getByRole('switch', { name: 'Enable plugin google' })
+    ).toBeVisible()
+    expect(previous).toBeDisabled()
+    expect(next).toBeDisabled()
+  })
+
+  await user.clear(search)
+  await waitFor(() => expect(next).toBeEnabled())
+})
 
 test.each([
   ['card', true],

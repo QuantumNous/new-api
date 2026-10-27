@@ -325,7 +325,6 @@ export function PluginsTable(props: PluginsTableProps) {
   const { table } = useDataTable({
     data: pluginsQuery.data ?? [],
     columns,
-    totalCount: pluginsQuery.data?.length ?? 0,
     columnFilters,
     onColumnFiltersChange: setColumnFilters,
     globalFilter,
