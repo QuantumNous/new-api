@@ -157,8 +157,9 @@ function ChatRouteComponent() {
     <iframe
       src={iframeSrc}
       key={iframeSrc}
-      className='h-full w-full border-0'
-      allow='camera; microphone'
+      className='min-h-0 w-full flex-1 border-0'
+      allow='camera; microphone; fullscreen'
+      allowFullScreen
       title={`Chat preset: ${preset.name}`}
     />
   )
