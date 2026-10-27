@@ -129,6 +129,30 @@ func resolveModelMetadata(records []Model, names []string) map[string]*Model {
 	return resolved
 }
 
+// GetModelPricingKinds resolves the pricing kind of concrete model names using
+// the same metadata precedence the public catalog applies, so a caller can tell
+// chat models apart from image and video generators. Names without metadata fall
+// back to the "chat" default every legacy row carries.
+func GetModelPricingKinds(names []string) (map[string]string, error) {
+	kinds := make(map[string]string, len(names))
+	if len(names) == 0 {
+		return kinds, nil
+	}
+	var allMeta []Model
+	if err := DB.Find(&allMeta).Error; err != nil {
+		return nil, err
+	}
+	resolved := resolveModelMetadata(allMeta, names)
+	for _, name := range names {
+		kind := constant.PricingKindChat
+		if metadata, ok := resolved[name]; ok && metadata != nil {
+			kind = constant.NormalizePricingKind(metadata.PricingKind)
+		}
+		kinds[name] = kind
+	}
+	return kinds, nil
+}
+
 // FillModelSquareStates applies the same metadata policy as the public catalog
 // to live routes, then aggregates concrete models for metadata rule rows.
 func FillModelSquareStates(rows []*Model, configured map[string][]int, connections []ModelConnection) error {

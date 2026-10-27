@@ -17,31 +17,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-/*
-Copyright (C) 2023-2026 QuantumNous
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License as
-published by the Free Software Foundation, either version 3 of the
-License, or (at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-GNU Affero General Public License for more details.
-
-You should have received a copy of the GNU Affero General Public License
-along with this program. If not, see <https://www.gnu.org/licenses/>.
-
-For commercial licensing, please contact support@quantumnous.com
-*/
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { handleServerError } from '@/lib/handle-server-error'
 import { requireServerSuccess } from '@/lib/server-error-message'
 
-import { getUserGroups, getUserModels } from '../api'
+import { getUserGroups, getUserModelKinds, getUserModels } from '../api'
+import { PRICING_KINDS } from '../constants'
 import {
   getGroupFallback,
   getModelFallback,
@@ -59,6 +42,13 @@ type UsePlaygroundOptionsParams = {
     key: K,
     value: PlaygroundConfig[K]
   ) => void
+}
+
+// Generation models cannot answer a chat completion: the chat relay forwards
+// them to the task relay, which has no prompt to submit. Keep them out of the
+// chat picker and offer them only in their own mode.
+function isGenerationKind(kind: string | undefined): boolean {
+  return kind === PRICING_KINDS.IMAGE_GEN || kind === PRICING_KINDS.VIDEO_GEN
 }
 
 export function usePlaygroundOptions({
@@ -82,6 +72,13 @@ export function usePlaygroundOptions({
     enabled: currentGroup !== '',
   })
 
+  const { data: modelKinds } = useQuery({
+    queryKey: ['playground-model-kinds', currentGroup],
+    queryFn: async () => getUserModelKinds(currentGroup),
+    enabled: currentGroup !== '',
+    staleTime: 5 * 60 * 1000,
+  })
+
   const {
     data: groupsData,
     error: groupsError,
@@ -90,6 +87,24 @@ export function usePlaygroundOptions({
     queryKey: ['playground-groups'],
     queryFn: async () => requireServerSuccess(await getUserGroups()),
   })
+
+  const { chatModels, imageModels, videoModels } = useMemo(() => {
+    const all = modelsData ?? []
+    // Until the kinds arrive every model is treated as a chat model, which is
+    // the behaviour the playground had before the split.
+    if (!modelKinds) {
+      return { chatModels: all, imageModels: [], videoModels: [] }
+    }
+    return {
+      chatModels: all.filter((model) => !isGenerationKind(modelKinds[model.value])),
+      imageModels: all.filter(
+        (model) => modelKinds[model.value] === PRICING_KINDS.IMAGE_GEN
+      ),
+      videoModels: all.filter(
+        (model) => modelKinds[model.value] === PRICING_KINDS.VIDEO_GEN
+      ),
+    }
+  }, [modelsData, modelKinds])
 
   useEffect(() => {
     if (!isModelsError) return
@@ -118,18 +133,18 @@ export function usePlaygroundOptions({
   useEffect(() => {
     if (!modelsData) return
 
-    setModels(modelsData)
-    const fallback = getModelFallback(modelsData, currentModel)
+    setModels(chatModels)
+    const fallback = getModelFallback(chatModels, currentModel)
 
     if (fallback) {
       updateConfig('model', fallback)
       return
     }
 
-    if (shouldClearModelForGroup(modelsData, currentModel)) {
+    if (shouldClearModelForGroup(chatModels, currentModel)) {
       updateConfig('model', '')
     }
-  }, [modelsData, currentModel, setModels, updateConfig])
+  }, [modelsData, chatModels, currentModel, setModels, updateConfig])
 
   useEffect(() => {
     if (!groupsData) return
@@ -144,5 +159,8 @@ export function usePlaygroundOptions({
 
   return {
     isLoadingModels,
+    chatModels,
+    imageModels,
+    videoModels,
   }
 }

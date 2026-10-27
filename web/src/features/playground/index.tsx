@@ -16,14 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { useEffect, useState } from 'react'
+
 import { PlaygroundChat } from './components/chat/playground-chat'
 import { PlaygroundInput } from './components/input/playground-input'
+import { PlaygroundMedia } from './components/media/playground-media'
+import { PlaygroundModeTabs } from './components/playground-mode-tabs'
+import { PLAYGROUND_MODES } from './constants'
 import {
   useChatHandler,
   usePlaygroundConversation,
   usePlaygroundOptions,
   usePlaygroundState,
 } from './hooks'
+import type { PlaygroundMode } from './types'
 
 export function Playground() {
   const {
@@ -40,6 +46,12 @@ export function Playground() {
     updateParameterEnabled,
     clearMessages,
   } = usePlaygroundState()
+
+  // Generation modes keep their own model: the chat model cannot answer an
+  // image or video request.
+  const [mode, setMode] = useState<PlaygroundMode>(PLAYGROUND_MODES.CHAT)
+  const [imageModel, setImageModel] = useState('')
+  const [videoModel, setVideoModel] = useState('')
 
   const { sendChat, stopGeneration, isGenerating } = useChatHandler({
     config,
@@ -66,7 +78,7 @@ export function Playground() {
     clearMessages()
   }
 
-  const { isLoadingModels } = usePlaygroundOptions({
+  const { isLoadingModels, imageModels, videoModels } = usePlaygroundOptions({
     currentGroup: config.group,
     currentModel: config.model,
     setGroups,
@@ -74,47 +86,94 @@ export function Playground() {
     updateConfig,
   })
 
+  useEffect(() => {
+    if (imageModels.length === 0) {
+      if (imageModel !== '') setImageModel('')
+      return
+    }
+    if (!imageModels.some((model) => model.value === imageModel)) {
+      setImageModel(imageModels[0].value)
+    }
+  }, [imageModels, imageModel])
+
+  useEffect(() => {
+    if (videoModels.length === 0) {
+      if (videoModel !== '') setVideoModel('')
+      return
+    }
+    if (!videoModels.some((model) => model.value === videoModel)) {
+      setVideoModel(videoModels[0].value)
+    }
+  }, [videoModels, videoModel])
+
+  const mediaModels = mode === PLAYGROUND_MODES.IMAGE ? imageModels : videoModels
+  const mediaModel =
+    mode === PLAYGROUND_MODES.IMAGE ? imageModel : videoModel
+  const setMediaModel =
+    mode === PLAYGROUND_MODES.IMAGE ? setImageModel : setVideoModel
+
   return (
     <div className='relative flex size-full min-h-0 flex-col overflow-hidden'>
-      {/* Full-width scroll container: scrolling works even over side whitespace */}
-      <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
-        <PlaygroundChat
-          messages={messages}
-          isLoadingMessages={isLoadingMessages}
-          onRegenerateMessage={handleRegenerateMessage}
-          onEditMessage={handleEditMessage}
-          onDeleteMessage={handleDeleteMessage}
-          onSelectPrompt={handleSendMessage}
-          isGenerating={isGenerating}
-          editingKey={editingMessageKey}
-          onCancelEdit={handleEditOpenChange}
-          onSaveEdit={(newContent) => applyEdit(newContent, false)}
-          onSaveEditAndSubmit={(newContent) => applyEdit(newContent, true)}
-        />
-      </div>
+      <PlaygroundModeTabs
+        hasImageModels={imageModels.length > 0}
+        hasVideoModels={videoModels.length > 0}
+        mode={mode}
+        onModeChange={setMode}
+      />
 
-      {/* Input area: center content and constrain to the same container width */}
-      <div className='mx-auto w-full max-w-4xl'>
-        <PlaygroundInput
-          config={config}
-          disabled={isGenerating}
-          groups={groups}
-          groupValue={config.group}
-          isGenerating={isGenerating}
-          isModelLoading={isLoadingModels}
-          modelValue={config.model}
-          models={models}
-          onGroupChange={(value) => updateConfig('group', value)}
-          onConfigChange={updateConfig}
-          onClearMessages={handleClearMessages}
-          onModelChange={(value) => updateConfig('model', value)}
-          onParameterEnabledChange={updateParameterEnabled}
-          onStop={stopGeneration}
-          onSubmit={handleSendMessage}
-          parameterEnabled={parameterEnabled}
-          hasMessages={messages.length > 0}
-        />
-      </div>
+      {mode === PLAYGROUND_MODES.CHAT ? (
+        <>
+          {/* Full-width scroll container: scrolling works even over side whitespace */}
+          <div className='flex min-h-0 flex-1 flex-col overflow-hidden'>
+            <PlaygroundChat
+              messages={messages}
+              isLoadingMessages={isLoadingMessages}
+              onRegenerateMessage={handleRegenerateMessage}
+              onEditMessage={handleEditMessage}
+              onDeleteMessage={handleDeleteMessage}
+              onSelectPrompt={handleSendMessage}
+              isGenerating={isGenerating}
+              editingKey={editingMessageKey}
+              onCancelEdit={handleEditOpenChange}
+              onSaveEdit={(newContent) => applyEdit(newContent, false)}
+              onSaveEditAndSubmit={(newContent) => applyEdit(newContent, true)}
+            />
+          </div>
+
+          {/* Input area: center content and constrain to the same container width */}
+          <div className='mx-auto w-full max-w-4xl'>
+            <PlaygroundInput
+              config={config}
+              disabled={isGenerating}
+              groups={groups}
+              groupValue={config.group}
+              isGenerating={isGenerating}
+              isModelLoading={isLoadingModels}
+              modelValue={config.model}
+              models={models}
+              onGroupChange={(value) => updateConfig('group', value)}
+              onConfigChange={updateConfig}
+              onClearMessages={handleClearMessages}
+              onModelChange={(value) => updateConfig('model', value)}
+              onParameterEnabledChange={updateParameterEnabled}
+              onStop={stopGeneration}
+              onSubmit={handleSendMessage}
+              parameterEnabled={parameterEnabled}
+              hasMessages={messages.length > 0}
+            />
+          </div>
+        </>
+      ) : (
+        <div className='min-h-0 flex-1 overflow-hidden'>
+          <PlaygroundMedia
+            isModelLoading={isLoadingModels}
+            mode={mode}
+            models={mediaModels}
+            modelValue={mediaModel}
+            onModelChange={setMediaModel}
+          />
+        </div>
+      )}
     </div>
   )
 }

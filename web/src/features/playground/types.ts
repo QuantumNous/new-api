@@ -151,3 +151,77 @@ export interface GroupOption {
   ratio: number | string
   desc?: string
 }
+
+// Generation modes
+export type PlaygroundMode = 'chat' | 'image' | 'video'
+
+export interface ImageGenerationRequest {
+  model: string
+  prompt: string
+  size?: string
+  n?: number
+}
+
+export interface ImageGenerationResponse {
+  created?: number
+  data?: Array<{
+    url?: string
+    b64_json?: string
+    revised_prompt?: string
+  }>
+  error?: {
+    message?: string
+  }
+}
+
+export interface VideoGenerationRequest {
+  model: string
+  prompt: string
+  seconds?: number
+  metadata?: {
+    resolution?: string
+    duration?: number
+  }
+}
+
+// The relay answers either with the OpenAI video shape or with the task
+// fallback shape; both carry the id the caller has to poll.
+export interface VideoTaskSubmission {
+  id?: string
+  task_id?: string
+  status?: string
+  model?: string
+  created_at?: number
+  error?: {
+    message?: string
+  }
+}
+
+export interface VideoTaskResponse {
+  code?: string
+  message?: string
+  data?: {
+    task_id?: string
+    status?: string
+    progress?: string
+    result_url?: string
+    fail_reason?: string
+    quota?: number
+  } | null
+  error?: {
+    message?: string
+  }
+}
+
+export interface MediaGenerationItem {
+  key: string
+  mode: 'image' | 'video'
+  prompt: string
+  model: string
+  status: 'running' | 'done' | 'error'
+  errorMessage?: string
+  taskId?: string
+  progress?: string
+  images?: string[]
+  videoUrl?: string
+}

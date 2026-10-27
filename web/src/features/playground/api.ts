@@ -23,8 +23,13 @@ import { API_ENDPOINTS } from './constants'
 import type {
   ChatCompletionRequest,
   ChatCompletionResponse,
+  ImageGenerationRequest,
+  ImageGenerationResponse,
   ModelOption,
   GroupOption,
+  VideoGenerationRequest,
+  VideoTaskResponse,
+  VideoTaskSubmission,
 } from './types'
 
 /**
@@ -86,3 +91,63 @@ export async function getUserGroups(): Promise<GroupOption[]> {
     desc: info.desc,
   }))
 }
+
+/**
+ * Get the pricing kind of every model the user can reach, so the playground can
+ * keep generators out of the chat picker.
+ */
+export async function getUserModelKinds(
+  group: string
+): Promise<Record<string, string>> {
+  const res = await api.get(API_ENDPOINTS.USER_MODEL_KINDS, {
+    params: { group },
+  })
+  const { data } = res
+  requireServerSuccess(data)
+
+  if (!data.success || !data.data) {
+    return {}
+  }
+
+  return data.data as Record<string, string>
+}
+
+/**
+ * Generate one image. Returns the raw relay payload: either a `data` array of
+ * URLs / base64 payloads, or an error the caller renders inline.
+ */
+export async function generateImage(
+  payload: ImageGenerationRequest
+): Promise<ImageGenerationResponse> {
+  const res = await api.post(API_ENDPOINTS.IMAGE_GENERATIONS, payload, {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data as ImageGenerationResponse
+}
+
+/**
+ * Submit a video generation task. The relay answers with a queued task the
+ * caller has to poll.
+ */
+export async function submitVideoTask(
+  payload: VideoGenerationRequest
+): Promise<VideoTaskSubmission> {
+  const res = await api.post(API_ENDPOINTS.VIDEO_GENERATIONS, payload, {
+    skipErrorHandler: true,
+  } as Record<string, unknown>)
+  return res.data as VideoTaskSubmission
+}
+
+/**
+ * Read the current state of a submitted video task.
+ */
+export async function fetchVideoTask(
+  taskId: string
+): Promise<VideoTaskResponse> {
+  const res = await api.get(
+    `${API_ENDPOINTS.VIDEO_GENERATIONS}/${encodeURIComponent(taskId)}`,
+    { skipErrorHandler: true } as Record<string, unknown>
+  )
+  return res.data as VideoTaskResponse
+}
+

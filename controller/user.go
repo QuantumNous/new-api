@@ -656,6 +656,44 @@ func GetUserModels(c *gin.Context) {
 	})
 }
 
+// GetUserModelKinds reports the pricing kind of every model the caller can use,
+// so the playground can offer chat, image and video models in separate pickers
+// instead of letting a video model be sent to the chat endpoint.
+func GetUserModelKinds(c *gin.Context) {
+	user, err := model.GetUserCache(c.GetInt("id"))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	groups := service.GetUserUsableGroups(user.Group)
+	group := c.Query("group")
+	var groupsToQuery []string
+	switch {
+	case group == "":
+		for g := range groups {
+			groupsToQuery = append(groupsToQuery, g)
+		}
+	case group == "auto":
+		if _, ok := groups[group]; ok {
+			groupsToQuery = service.GetUserAutoGroup(user.Group)
+		}
+	default:
+		if _, ok := groups[group]; ok {
+			groupsToQuery = []string{group}
+		}
+	}
+	kinds, err := model.GetModelPricingKinds(service.GetGroupsEnabledModels(groupsToQuery))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "",
+		"data":    kinds,
+	})
+}
+
 func UpdateUser(c *gin.Context) {
 	var updatedUser model.User
 	err := common.DecodeJson(c.Request.Body, &updatedUser)

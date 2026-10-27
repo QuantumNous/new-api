@@ -35,9 +35,45 @@ export const MESSAGE_STATUS = {
 // API endpoints
 export const API_ENDPOINTS = {
   CHAT_COMPLETIONS: '/pg/chat/completions',
+  IMAGE_GENERATIONS: '/pg/images/generations',
+  VIDEO_GENERATIONS: '/pg/video/generations',
   USER_MODELS: '/api/user/models',
+  USER_MODEL_KINDS: '/api/user/models/kinds',
   USER_GROUPS: '/api/user/self/groups',
 } as const
+
+// Playground modes. Only chat is backed by the conversation transcript; the two
+// generation modes keep their own one-shot history because a task result has no
+// turn structure to preserve.
+export const PLAYGROUND_MODES = {
+  CHAT: 'chat',
+  IMAGE: 'image',
+  VIDEO: 'video',
+} as const
+
+export const PRICING_KINDS = {
+  CHAT: 'chat',
+  MULTIMODAL_CHAT: 'multimodal-chat',
+  IMAGE_GEN: 'image-gen',
+  VIDEO_GEN: 'video-gen',
+} as const
+
+// Generation parameters. An empty value means "let the model decide", which is
+// the safest default: accepted sizes and durations are model specific.
+export const IMAGE_SIZE_OPTIONS = [
+  '1024x1024',
+  '1536x1024',
+  '1024x1536',
+  '2048x2048',
+] as const
+
+export const VIDEO_RESOLUTION_OPTIONS = ['480p', '720p', '1080p'] as const
+
+export const VIDEO_SECONDS_OPTIONS = [4, 8, 12] as const
+
+export const UNSET_OPTION_VALUE = 'unset' as const
+
+export const VIDEO_TASK_POLL_INTERVAL_MS = 4000
 
 // Default group — uses 'default' as the safe fallback; auto-group is
 // only selected when the backend confirms it is available for the user.
