@@ -337,6 +337,15 @@ func GetOpenAIChatCapabilities(modelName, reasoningEffort string) OpenAIChatCapa
 		SupportsTopP:        true,
 		SupportsLogProbs:    true,
 	}
+	// Amazon Bedrock serves OpenAI models as openai.<model> (in-Region) and
+	// global./us.openai.<model> (cross-Region inference profiles).
+	// https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-sol.html
+	for _, prefix := range []string{"global.openai.", "us.openai.", "openai."} {
+		if model, ok := strings.CutPrefix(modelName, prefix); ok {
+			modelName = model
+			break
+		}
+	}
 	if IsOpenAIReasoningOModel(modelName) {
 		capabilities.UseMaxCompletionTokens = true
 		capabilities.UseDeveloperRole = !strings.HasPrefix(modelName, "o1-mini") && !strings.HasPrefix(modelName, "o1-preview")
