@@ -2,6 +2,7 @@
 package tei
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -118,6 +119,38 @@ func (a *Adaptor) ConvertRerankRequest(_ *gin.Context, mode int, request dto.Rer
 func (a *Adaptor) DoRequest(c *gin.Context, info *relaycommon.RelayInfo, body io.Reader) (any, error) {
 	if !a.converted {
 		return nil, invalidRequest("TEI rerank requires request conversion; disable request body pass-through")
+	}
+	if len(info.ParamOverride) > 0 {
+		// Overrides have already run. TEI indices refer to the final texts,
+		// while the public response must still identify the original documents.
+		// Read a separate cursor so disk-backed bodies keep their size/replay
+		// metadata and remain owned by the caller through the HTTP request.
+		var reader io.Reader
+		if replayable, ok := body.(common.ReplayableBody); ok {
+			copy, err := replayable.NewReader()
+			if err != nil {
+				return nil, invalidRequest("failed to read final TEI request")
+			}
+			defer copy.Close()
+			reader = copy
+		} else {
+			data, err := io.ReadAll(body)
+			if err != nil {
+				return nil, invalidRequest("failed to read final TEI request")
+			}
+			reader = bytes.NewReader(data)
+			body = bytes.NewReader(data)
+		}
+		// Match the exact TEI field name; JSON struct decoding would also
+		// accept "Texts", which TEI does not recognize as "texts".
+		var fields map[string]common.RawMessage
+		var texts []string
+		if err := common.DecodeJson(reader, &fields); err != nil {
+			return nil, invalidRequest("invalid final TEI request")
+		}
+		if err := common.Unmarshal(fields["texts"], &texts); err != nil || !slices.Equal(texts, a.documents) {
+			return nil, invalidRequest("TEI parameter overrides must preserve texts content, count and order")
+		}
 	}
 	return channel.DoApiRequest(a, c, info, body)
 }

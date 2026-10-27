@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -167,6 +168,97 @@ func TestTEIRerankURLAndUpstreamAuthentication(t *testing.T) {
 	info.ApiKey = "EMPTY"
 	require.NoError(t, adaptor.SetupRequestHeader(c, &header, info))
 	assert.Empty(t, header.Get("Authorization"))
+}
+
+func TestTEIRerankParameterOverridesPreserveCandidates(t *testing.T) {
+	service.InitHttpClient()
+	for _, bodyKind := range []string{"replayable", "reader"} {
+		for _, tc := range []struct {
+			name     string
+			override string
+			reject   bool
+		}{
+			{name: "reordered candidates", override: `{"texts":["Paris","apple"]}`, reject: true},
+			{name: "fewer candidates", override: `{"texts":["Paris"]}`, reject: true},
+			{name: "more candidates", override: `{"texts":["apple","Paris","extra"]}`, reject: true},
+			{name: "changed candidate", override: `{"texts":["pear","Paris"]}`, reject: true},
+			{name: "null candidates", override: `{"texts":null}`, reject: true},
+			{name: "object candidate", override: `{"texts":[{"text":"apple"},"Paris"]}`, reject: true},
+			{name: "operation changes candidate", override: `{"operations":[{"path":"texts.0","mode":"set","value":"pear"}]}`, reject: true},
+			{name: "operation deletes candidates", override: `{"operations":[{"path":"texts","mode":"delete"}]}`, reject: true},
+			{name: "different casing cannot hide deletion", override: `{"Texts":["apple","Paris"],"operations":[{"path":"texts","mode":"delete"}]}`, reject: true},
+			{name: "identical candidates", override: `{"texts":["apple","Paris"]}`},
+			{name: "unrelated setting", override: `{"raw_scores":true}`},
+		} {
+			t.Run(bodyKind+"/"+tc.name, func(t *testing.T) {
+				var calls atomic.Int32
+				upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					calls.Add(1)
+					data, err := io.ReadAll(r.Body)
+					if !assert.NoError(t, err) {
+						return
+					}
+					if bodyKind == "replayable" {
+						assert.Equal(t, int64(len(data)), r.ContentLength)
+					}
+					var effective map[string]any
+					if !assert.NoError(t, common.Unmarshal(data, &effective)) {
+						return
+					}
+					assert.Equal(t, []any{"apple", "Paris"}, effective["texts"])
+					if tc.name == "unrelated setting" {
+						assert.Equal(t, true, effective["raw_scores"])
+					}
+					w.Header().Set("x-compute-tokens", "37")
+					_, _ = io.WriteString(w, `[{"index":0,"score":0.1},{"index":1,"score":0.9}]`)
+				}))
+				defer upstream.Close()
+				recorder := httptest.NewRecorder()
+				c, _ := gin.CreateTestContext(recorder)
+				c.Request = httptest.NewRequest(http.MethodPost, "/v1/rerank", nil)
+				info := &relaycommon.RelayInfo{ChannelMeta: &relaycommon.ChannelMeta{ChannelBaseUrl: upstream.URL}, RelayMode: relayconstant.RelayModeRerank, IsChannelTest: true}
+				require.NoError(t, common.UnmarshalJsonStr(tc.override, &info.ParamOverride))
+				adaptor := &Adaptor{}
+				adaptor.Init(info)
+				converted, err := adaptor.ConvertRerankRequest(c, info.RelayMode, dto.RerankRequest{Query: "capital?", Documents: []any{"apple", "Paris"}, TopN: new(1), ReturnDocuments: new(true)})
+				require.NoError(t, err)
+				data, err := common.Marshal(converted)
+				require.NoError(t, err)
+				// Match RerankHelper: overrides run after conversion, before DoRequest.
+				data, err = relaycommon.ApplyParamOverrideWithRelayInfo(data, info)
+				require.NoError(t, err)
+				var body io.Reader = io.LimitReader(bytes.NewReader(data), int64(len(data)))
+				if bodyKind == "replayable" {
+					replayable, closer, err := relaycommon.NewOutboundJSONBody(data)
+					require.NoError(t, err)
+					defer closer.Close()
+					body = replayable
+				}
+				resp, err := adaptor.DoRequest(c, info, body)
+				if tc.reject {
+					if resp != nil {
+						resp.(*http.Response).Body.Close()
+					}
+					var apiErr *types.NewAPIError
+					require.ErrorAs(t, err, &apiErr)
+					assert.Equal(t, http.StatusBadRequest, apiErr.StatusCode)
+					assert.Contains(t, apiErr.Error(), "texts")
+					assert.Zero(t, calls.Load(), "invalid overrides must not invoke the model")
+					return
+				}
+				require.NoError(t, err)
+				usage, apiErr := adaptor.DoResponse(c, resp.(*http.Response), info)
+				require.Nil(t, apiErr)
+				assert.EqualValues(t, 1, calls.Load())
+				assert.Equal(t, 37, usage.(*dto.Usage).TotalTokens)
+				var result dto.RerankResponse
+				require.NoError(t, common.Unmarshal(recorder.Body.Bytes(), &result))
+				require.Len(t, result.Results, 1)
+				assert.Equal(t, 1, result.Results[0].Index)
+				assert.Equal(t, map[string]any{"text": "Paris"}, result.Results[0].Document)
+			})
+		}
+	}
 }
 
 // Run explicitly against a TEI sequence-classification deployment. The default
