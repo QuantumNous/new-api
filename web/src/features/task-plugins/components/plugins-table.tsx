@@ -329,6 +329,7 @@ export function PluginsTable(props: PluginsTableProps) {
     columnFilters,
     onColumnFiltersChange: setColumnFilters,
     globalFilter,
+    globalFilterFn: 'includesString',
     onGlobalFilterChange: setGlobalFilter,
     withFilteredRowModel: true,
     withPaginationRowModel: true,
