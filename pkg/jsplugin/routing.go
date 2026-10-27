@@ -108,6 +108,25 @@ var hostProtocols = []HostProtocolDefinition{
 // (`POST /v1/images/generations` and `POST /v1/images/edits`) from a plugin.
 const ProtocolOpenAIImage = "openai_image"
 
+// endpointPathAliases maps a host path that names the same endpoint as a
+// declared protocol path onto that protocol path. The playground serves video
+// generation on /v1/video/generations while every task plugin claims the
+// OpenAI video endpoint POST /v1/videos. Without the alias the lookup misses,
+// no plugin is pinned, and distribution then drops every task-plugin channel
+// from the request because an unpinned request may only use ordinary channels.
+var endpointPathAliases = map[string]string{
+	"/v1/video/generations": "/v1/videos",
+}
+
+// CanonicalEndpointPath resolves an aliased host path to the path the host
+// protocols declare. Unaliased paths are returned unchanged.
+func CanonicalEndpointPath(path string) string {
+	if canonical, ok := endpointPathAliases[path]; ok {
+		return canonical
+	}
+	return path
+}
+
 func HostProtocol(name string) (HostProtocolDefinition, bool) {
 	for _, definition := range hostProtocols {
 		if definition.Name == name {
@@ -188,6 +207,7 @@ func orderProtocolSupports(protocol string, supports []string) []string {
 
 func LookupHostProtocolOperation(method, path string) (string, HostProtocolOperation, bool) {
 	method = strings.ToUpper(strings.TrimSpace(method))
+	path = CanonicalEndpointPath(path)
 	for _, definition := range hostProtocols {
 		for _, operation := range definition.Operations {
 			if operation.Path != path || operation.ModelField == "" {
@@ -525,7 +545,7 @@ func (g *RoutingGeneration) LookupEndpoint(method, path, model string) (Protocol
 	if err != nil {
 		return ProtocolBinding{}, false
 	}
-	bindings := g.protocolIndex[endpointIndexKey(normalizedMethod, path, model)]
+	bindings := g.protocolIndex[endpointIndexKey(normalizedMethod, CanonicalEndpointPath(path), model)]
 	if len(bindings) == 0 {
 		return ProtocolBinding{}, false
 	}
@@ -542,7 +562,7 @@ func (g *RoutingGeneration) LookupEndpointCandidates(method, path, model string)
 	if err != nil {
 		return nil
 	}
-	bindings := g.protocolIndex[endpointIndexKey(normalizedMethod, path, model)]
+	bindings := g.protocolIndex[endpointIndexKey(normalizedMethod, CanonicalEndpointPath(path), model)]
 	return append([]ProtocolBinding(nil), bindings...)
 }
 

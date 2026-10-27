@@ -99,6 +99,48 @@ func TestLookupHostProtocolOperationExcludesRetrieveWithoutModelField(t *testing
 	}
 }
 
+// The playground serves video generation on /v1/video/generations while every
+// task plugin claims the OpenAI video endpoint POST /v1/videos. Pinning the
+// aliased path is what lets plugin-backed (type 61) channels compete for a
+// playground request; without it the pin misses and distribution drops them.
+func TestPlaygroundVideoPathPinsTheOpenAIVideoEndpoint(t *testing.T) {
+	registry := NewRegistry()
+	plugin := mustCompileRoutingPlugin(t, "video-routing", 61, `["video-a"]`, `protocols: ["openai_video"],`, videoProtocolExport)
+	require.NoError(t, registry.ReplaceOverrides([]*LoadedPlugin{plugin}))
+
+	for _, path := range []string{"/v1/videos", "/v1/video/generations"} {
+		candidates := registry.Generation().LookupEndpointCandidates(http.MethodPost, path, "video-a")
+		require.Len(t, candidates, 1, path)
+		assert.Equal(t, "openai_video", candidates[0].Protocol)
+		assert.Equal(t, "/v1/videos", candidates[0].Operation.Path, "the pinned operation keeps the declared path")
+		assert.Same(t, plugin, candidates[0].Plugin)
+	}
+
+	assert.Empty(t,
+		registry.Generation().LookupEndpointCandidates(http.MethodGet, "/v1/video/generations", "video-a"),
+		"only the create endpoint is aliased; polling keeps its own path",
+	)
+	assert.Empty(t,
+		registry.Generation().LookupEndpointCandidates(http.MethodPost, "/v1/video/generations-other", "video-a"),
+		"the alias is an exact path, not a prefix",
+	)
+}
+
+func TestLookupHostProtocolOperationAliasesPlaygroundVideoPath(t *testing.T) {
+	protocol, operation, ok := LookupHostProtocolOperation(http.MethodPost, "/v1/video/generations")
+	require.True(t, ok)
+	assert.Equal(t, "openai_video", protocol)
+	assert.Equal(t, "/v1/videos", operation.Path)
+	assert.Equal(t, "model", operation.ModelField)
+
+	_, _, ok = LookupHostProtocolOperation(http.MethodGet, "/v1/video/generations")
+	assert.False(t, ok, "retrieve has no model field, so it is not a submit protocol path")
+
+	assert.Equal(t, "/v1/videos", CanonicalEndpointPath("/v1/video/generations"))
+	assert.Equal(t, "/v1/videos", CanonicalEndpointPath("/v1/videos"))
+	assert.Equal(t, "/v1/images/generations", CanonicalEndpointPath("/v1/images/generations"))
+}
+
 // The OpenAI Images protocol is claimed in bare-string form, binds both image
 // endpoints for every declared model, and requires the render hook that shapes
 // the synchronous response.
