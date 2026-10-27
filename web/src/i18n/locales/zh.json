@@ -5372,6 +5372,23 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Realtime user usage": "实时用户调用",
+    "Realtime status": "实时状态",
+    "Live": "实时",
+    "Last updated": "上次更新",
+    "Active users": "活跃用户",
+    "Realtime TPM": "实时 TPM",
+    "Error rate": "错误率",
+    "No realtime usage data": "暂无实时调用数据",
+    "Unable to load realtime usage": "无法加载实时调用数据",
+    "You do not have permission to view realtime usage": "您没有查看实时调用数据的权限",
+    "Auto-refresh": "自动刷新",
+    "Refresh now": "立即刷新",
+    "Refreshing realtime usage...": "正在刷新实时调用数据…",
+    "Errors": "错误数",
+    "Last call": "最后调用",
+    "Realtime trend": "实时趋势",
+    "Search users": "搜索用户"
   }
 }

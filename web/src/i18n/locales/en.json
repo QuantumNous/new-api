@@ -5372,6 +5372,23 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Realtime user usage": "Realtime user usage",
+    "Realtime status": "Realtime status",
+    "Live": "Live",
+    "Last updated": "Last updated",
+    "Active users": "Active users",
+    "Realtime TPM": "Realtime TPM",
+    "Error rate": "Error rate",
+    "No realtime usage data": "No realtime usage data",
+    "Unable to load realtime usage": "Unable to load realtime usage",
+    "You do not have permission to view realtime usage": "You do not have permission to view realtime usage",
+    "Auto-refresh": "Auto-refresh",
+    "Refresh now": "Refresh now",
+    "Refreshing realtime usage...": "Refreshing realtime usage...",
+    "Errors": "Errors",
+    "Last call": "Last call",
+    "Realtime trend": "Realtime trend",
+    "Search users": "Search users"
   }
 }

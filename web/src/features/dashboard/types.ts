@@ -33,6 +33,45 @@ export interface QuotaDataItem {
   quota?: number
 }
 
+// ============================================================================
+// Realtime User Usage Types
+// ============================================================================
+
+export interface RealtimeUsageSummary {
+  active_users: number
+  requests: number
+  total_tokens: number
+  tpm: number
+  error_rate: number
+}
+
+export interface RealtimeUsageUser {
+  user_id: number
+  username: string
+  requests: number
+  total_tokens: number
+  input_tokens: number
+  output_tokens: number
+  tpm: number
+  errors: number
+  error_rate: number
+  last_call_at: number
+}
+
+export interface RealtimeUsageTrend {
+  timestamp: number
+  requests: number
+  total_tokens: number
+  errors: number
+}
+
+export interface RealtimeUsageSnapshot {
+  summary: RealtimeUsageSummary
+  users: RealtimeUsageUser[]
+  trend: RealtimeUsageTrend[]
+  updated_at: number
+}
+
 export interface FlowQuotaDataItem {
   user_id?: number
   username?: string
