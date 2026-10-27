@@ -206,7 +206,7 @@ func BuildGenerationMediaURL(relPath string) string {
 	for i, segment := range segments {
 		segments[i] = urlPathEscape(segment)
 	}
-	return fmt.Sprintf("/pg/media/%s?%s=%s", strings.Join(segments, "/"),
+	return fmt.Sprintf("/api/generation/media/%s?%s=%s", strings.Join(segments, "/"),
 		generationMediaAccessParameter, signGenerationMedia(relPath))
 }
 
