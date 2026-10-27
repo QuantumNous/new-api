@@ -688,6 +688,7 @@
     "Describe the video you want, then generate it.": "描述你想要的视频，然后生成。",
     "Generating": "生成中",
     "Generation failed": "生成失败",
+    "Server is busy, please try again shortly.": "服务器当前繁忙，请稍后重试",
     "Image generation": "图片生成",
     "No model available": "暂无可用模型",
     "Resolution": "分辨率",

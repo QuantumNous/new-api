@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 
@@ -147,12 +149,27 @@ func finishPlaygroundImage(c *gin.Context, capture *service.GenerationCapture, f
 			record.FailReason = "生成成功，但结果文件保存失败，请重新生成"
 		} else {
 			record.ResultURLs = encodeGenerationStoredPaths(stored)
+			record.Quota = generationQuotaFor(c, record.Model)
 		}
 	}
 
 	if err := model.CreateGenerationRecord(record); err != nil {
 		common.SysError(common.LogText("failed to write generation history: %s", err.Error()))
 	}
+}
+
+// generationQuotaFor reads what the request that just finished was charged. A
+// synchronous relay settles billing while it writes the response, so the ledger
+// is the only place the amount exists; the request start time keeps the lookup
+// from picking up an earlier generation of the same model.
+func generationQuotaFor(c *gin.Context, modelName string) int {
+	since := time.Now().Unix() - 90
+	if value, exists := common.GetContextKey(c, constant.ContextKeyRequestStartTime); exists {
+		if startedAt, ok := value.(time.Time); ok && !startedAt.IsZero() {
+			since = startedAt.Unix() - 1
+		}
+	}
+	return model.LatestGenerationCharge(c.GetInt("id"), modelName, since)
 }
 
 // finishPlaygroundTaskSubmit writes the row a submitted video task owns. The

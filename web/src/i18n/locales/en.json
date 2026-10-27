@@ -688,6 +688,7 @@
     "Describe the video you want, then generate it.": "Describe the video you want, then generate it.",
     "Generating": "Generating",
     "Generation failed": "Generation failed",
+    "Server is busy, please try again shortly.": "The server is busy right now, please try again in a moment.",
     "Image generation": "Image generation",
     "No model available": "No model available",
     "Resolution": "Resolution",

@@ -82,6 +82,15 @@ function readErrorMessage(error: unknown, fallback: string): string {
   )
 }
 
+function describeError(
+  error: unknown,
+  fallback: string,
+  busyMessage: string
+): string {
+  const message = readErrorMessage(error, fallback)
+  return /overloaded/i.test(message) ? busyMessage : message
+}
+
 function isPending(record: GenerationRecord): boolean {
   return record.status === 'queued' || record.status === 'running'
 }
@@ -137,11 +146,49 @@ export function PlaygroundMedia({
       })
       setRecords(page.items)
     } catch (error) {
-      setNotice(readErrorMessage(error, t('Generation failed')))
+      setNotice(
+        describeError(
+          error,
+          t('Generation failed'),
+          t('Server is busy, please try again shortly.')
+        )
+      )
     } finally {
       setIsLoading(false)
     }
   }, [mode, t])
+
+  // The relay writes the history row while it is still finishing the response,
+  // so a re-read issued as soon as the request resolves can land before the row
+  // exists and leave the page looking like nothing happened. Poll briefly until
+  // the new row shows up instead of trusting a single read.
+  const refreshUntilNewRecord = useCallback(
+    async (knownTopId: number) => {
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        try {
+          const page = await fetchGenerationRecords({
+            kind: mode,
+            pageSize: HISTORY_PAGE_SIZE,
+          })
+          setRecords(page.items)
+          if ((page.items[0]?.id ?? 0) > knownTopId) return
+        } catch (error) {
+          setNotice(
+            describeError(
+              error,
+              t('Generation failed'),
+              t('Server is busy, please try again shortly.')
+            )
+          )
+          return
+        }
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, 400)
+        })
+      }
+    },
+    [mode, t]
+  )
 
   // Switching between image and video shows that mode's own history.
   useEffect(() => {
@@ -194,6 +241,7 @@ export function PlaygroundMedia({
     const trimmed = prompt.trim()
     if (!activeModel || !trimmed || isSubmitting) return
 
+    const knownTopId = records[0]?.id ?? 0
     setIsSubmitting(true)
     setNotice('')
     try {
@@ -214,11 +262,18 @@ export function PlaygroundMedia({
         })
       }
       setPrompt('')
+      await refreshUntilNewRecord(knownTopId)
     } catch (error) {
-      setNotice(readErrorMessage(error, t('Generation failed')))
+      setNotice(
+        describeError(
+          error,
+          t('Generation failed'),
+          t('Server is busy, please try again shortly.')
+        )
+      )
+      await refresh()
     } finally {
       setIsSubmitting(false)
-      await refresh()
     }
   }
 

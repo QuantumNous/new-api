@@ -100,6 +100,27 @@ func GetGenerationRecordByTaskID(taskId string) (*GenerationRecord, error) {
 	return &record, nil
 }
 
+// LatestGenerationCharge returns the quota the caller was charged for a model
+// since the given moment. A synchronous relay settles billing as it writes the
+// response, so the history row cannot read its own price from the response and
+// has to ask the ledger instead.
+func LatestGenerationCharge(userId int, modelName string, since int64) int {
+	if userId <= 0 || modelName == "" {
+		return 0
+	}
+	var quota int
+	err := LOG_DB.Table("logs").
+		Select("quota").
+		Where("user_id = ? AND model_name = ? AND created_at >= ? AND quota > 0", userId, modelName, since).
+		Order("id desc").
+		Limit(1).
+		Scan(&quota).Error
+	if err != nil {
+		return 0
+	}
+	return quota
+}
+
 func DeleteGenerationRecord(userId int, id int64) error {
 	result := DB.Where("id = ? AND user_id = ?", id, userId).Delete(&GenerationRecord{})
 	if result.Error != nil {
