@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,69 @@ import (
 
 	"gorm.io/gorm"
 )
+
+func totalTokensFromUsage(promptTokens, completionTokens int, other map[string]interface{}) int {
+	total := promptTokens + completionTokens
+	for _, key := range []string{"cache_tokens", "cache_write_tokens"} {
+		if value, ok := other[key]; ok {
+			switch number := value.(type) {
+			case int:
+				total += number
+			case int64:
+				total += int(number)
+			case float64:
+				total += int(number)
+			case string:
+				if parsed, err := strconv.Atoi(number); err == nil {
+					total += parsed
+				}
+			}
+		}
+	}
+	if _, ok := other["cache_write_tokens"]; !ok {
+		keys := []string{"cache_creation_tokens"}
+		if _, hasTotal := other["cache_creation_tokens"]; !hasTotal {
+			keys = []string{"cache_creation_tokens_5m", "cache_creation_tokens_1h"}
+		}
+		for _, key := range keys {
+			if value, ok := other[key]; ok {
+				switch number := value.(type) {
+				case int:
+					total += number
+				case int64:
+					total += int(number)
+				case float64:
+					total += int(number)
+				case string:
+					if parsed, err := strconv.Atoi(number); err == nil {
+						total += parsed
+					}
+				}
+			}
+		}
+	}
+	return total
+}
+
+func totalTokensSQLExpression() string {
+	cacheRead := "0"
+	cacheWrite := "0"
+	switch {
+	case common.UsingLogDatabase(common.DatabaseTypeMySQL):
+		cacheRead = "CASE WHEN JSON_VALID(other) THEN COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_tokens')) AS UNSIGNED), 0) ELSE 0 END"
+		cacheWrite = "CASE WHEN JSON_VALID(other) THEN COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_write_tokens')) AS UNSIGNED), CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_creation_tokens')) AS UNSIGNED), CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_creation_tokens_5m')) AS UNSIGNED) + CAST(JSON_UNQUOTE(JSON_EXTRACT(other, '$.cache_creation_tokens_1h')) AS UNSIGNED), 0) ELSE 0 END"
+	case common.UsingLogDatabase(common.DatabaseTypePostgreSQL):
+		cacheRead = "COALESCE(NULLIF(other::jsonb->>'cache_tokens', '')::bigint, 0)"
+		cacheWrite = "COALESCE(NULLIF(other::jsonb->>'cache_write_tokens', '')::bigint, 0)"
+	case common.UsingLogDatabase(common.DatabaseTypeSQLite):
+		cacheRead = "COALESCE(CAST(json_extract(other, '$.cache_tokens') AS INTEGER), 0)"
+		cacheWrite = "COALESCE(CAST(json_extract(other, '$.cache_write_tokens') AS INTEGER), 0)"
+	case common.UsingLogDatabase(common.DatabaseTypeClickHouse):
+		cacheRead = "JSONExtractInt(other, 'cache_tokens')"
+		cacheWrite = "JSONExtractInt(other, 'cache_write_tokens')"
+	}
+	return "COALESCE(SUM(prompt_tokens + completion_tokens + " + cacheRead + " + " + cacheWrite + "), 0)"
+}
 
 func applyExplicitLogTextFilter(tx *gorm.DB, column string, value string) (*gorm.DB, error) {
 	if value == "" {
@@ -394,7 +458,7 @@ func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams)
 			ModelName: params.ModelName,
 			Quota:     params.Quota,
 			CreatedAt: createdAt,
-			TokenUsed: params.PromptTokens + params.CompletionTokens,
+			TokenUsed: totalTokensFromUsage(params.PromptTokens, params.CompletionTokens, params.Other),
 			UseGroup:  params.Group,
 			TokenID:   params.TokenId,
 			ChannelID: params.ChannelId,
@@ -619,7 +683,7 @@ func SumUsedQuota(logType int, startTimestamp int64, endTimestamp int64, modelNa
 	tx := LOG_DB.Table("logs").Select("COALESCE(sum(quota), 0) quota")
 
 	// 为rpm和tpm创建单独的查询
-	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, COALESCE(sum(prompt_tokens), 0) + COALESCE(sum(completion_tokens), 0) tpm")
+	rpmTpmQuery := LOG_DB.Table("logs").Select("count(*) rpm, " + totalTokensSQLExpression() + " tpm")
 
 	if tx, err = applyExplicitLogTextFilter(tx, "username", username); err != nil {
 		return stat, err
