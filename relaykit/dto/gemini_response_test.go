@@ -8,6 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+/** TestGeminiChatResponseUsageMetadataPresence distinguishes absent, empty, and
+ * populated upstream usage metadata after decoding.
+ */
 func TestGeminiChatResponseUsageMetadataPresence(t *testing.T) {
 	var missing GeminiChatResponse
 	require.NoError(t, kitutil.Unmarshal([]byte(`{"candidates":[]}`), &missing))
@@ -27,6 +30,9 @@ func TestGeminiChatResponseUsageMetadataPresence(t *testing.T) {
 	assert.True(t, HasGeminiUsageMetadataTokens(populated.GetUsageMetadata()))
 }
 
+/** TestGeminiChatResponseMarshalKeepsUsageMetadataField verifies that encoding
+ * a zero-value response preserves the usageMetadata field.
+ */
 func TestGeminiChatResponseMarshalKeepsUsageMetadataField(t *testing.T) {
 	data, err := kitutil.Marshal(GeminiChatResponse{})
 	require.NoError(t, err)
