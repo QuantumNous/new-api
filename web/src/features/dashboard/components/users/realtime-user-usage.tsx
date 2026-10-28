@@ -87,6 +87,28 @@ function statusTone(user: RealtimeUsageUser): IconBadgeTone {
   return 'success'
 }
 
+function statusDotClass(user: RealtimeUsageUser) {
+  const tone = statusTone(user)
+  if (tone === 'destructive') return 'bg-destructive'
+  if (tone === 'warning') return 'bg-warning'
+  return 'bg-success'
+}
+
+function errorRateClass(errorRate: number) {
+  if (errorRate >= 0.2) return 'text-destructive'
+  if (errorRate >= 0.05) return 'text-warning'
+  return 'text-muted-foreground'
+}
+
+function sortAriaValue(
+  activeKey: SortKey,
+  key: SortKey,
+  direction: SortDirection
+) {
+  if (activeKey !== key) return 'none' as const
+  return direction === 'asc' ? ('ascending' as const) : ('descending' as const)
+}
+
 function getRealtimeStatus(
   hasInitialError: boolean,
   isStale: boolean,
@@ -104,6 +126,17 @@ function getRealtimeStatus(
     label: translate(pageVisible && autoRefresh ? 'Live' : 'Paused'),
     variant: 'secondary' as const,
   }
+}
+
+function realtimeStatusDotClass(
+  hasInitialError: boolean,
+  isStale: boolean,
+  pageVisible: boolean,
+  autoRefresh: boolean
+) {
+  if (hasInitialError) return 'bg-destructive'
+  if (isStale || !pageVisible || !autoRefresh) return 'bg-warning'
+  return 'bg-success animate-pulse'
 }
 
 function chartSpec(
@@ -220,7 +253,7 @@ export function RealtimeUserUsage() {
   })
 
   const snapshot = usageQuery.data
-  const users = snapshot?.users ?? []
+  const users = useMemo(() => snapshot?.users ?? [], [snapshot])
   const filteredUsers = useMemo(() => {
     const normalizedSearch = search.trim().toLowerCase()
     return users
@@ -277,9 +310,12 @@ export function RealtimeUserUsage() {
           <span
             className={cn(
               'size-2 rounded-full',
-              hasInitialError || isStale || !pageVisible || !autoRefresh
-                ? 'bg-warning'
-                : 'bg-success animate-pulse'
+              realtimeStatusDotClass(
+                hasInitialError,
+                isStale,
+                pageVisible,
+                autoRefresh
+              )
             )}
             aria-hidden='true'
           />
@@ -370,7 +406,7 @@ export function RealtimeUserUsage() {
                       <TableRow>
                         <TableHead>{t('Users')}</TableHead>
                         {(['requests', 'total_tokens', 'tpm', 'error_rate'] as const).map((key) => (
-                          <TableHead key={key} className='text-right' aria-sort={sortKey === key ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                          <TableHead key={key} className='text-right' aria-sort={sortAriaValue(sortKey, key, sortDirection)}>
                             <button type='button' aria-label={t('Sort by {{field}}', { field: t(SORT_LABEL_KEYS[key]) })} className='hover:text-foreground inline-flex items-center gap-1 text-right' onClick={() => toggleSort(key)}>
                               {t(SORT_LABEL_KEYS[key])}
                               {sortKey === key && (sortDirection === 'asc' ? <ArrowUp className='size-3' /> : <ArrowDown className='size-3' />)}
@@ -385,7 +421,7 @@ export function RealtimeUserUsage() {
                         <TableRow key={user.user_id} data-state={selectedUserId === user.user_id ? 'selected' : undefined}>
                           <TableCell>
                             <button type='button' aria-label={t('Select {{username}}', { username: user.username || `#${user.user_id}` })} aria-pressed={selectedUserId === user.user_id} className='flex items-center gap-2 text-left' onClick={() => setSelectedUserId(user.user_id)}>
-                              <span className={cn('size-2 rounded-full', statusTone(user) === 'destructive' ? 'bg-destructive' : statusTone(user) === 'warning' ? 'bg-warning' : 'bg-success')} aria-hidden='true' />
+                              <span className={cn('size-2 rounded-full', statusDotClass(user))} aria-hidden='true' />
                               <span className='max-w-40 truncate font-medium'>{user.username || `#${user.user_id}`}</span>
                               {selectedUserId === user.user_id && <Check className='text-primary size-3.5' />}
                             </button>
@@ -393,7 +429,7 @@ export function RealtimeUserUsage() {
                           <TableCell className='text-right font-mono'>{formatNumber(user.requests)}</TableCell>
                           <TableCell className='text-right font-mono'>{formatNumber(user.total_tokens)}</TableCell>
                           <TableCell className='text-right font-mono'>{formatNumber(user.tpm)}</TableCell>
-                          <TableCell className={cn('text-right font-mono', user.error_rate >= 0.2 ? 'text-destructive' : user.error_rate >= 0.05 ? 'text-warning' : 'text-muted-foreground')}>{formatPercent(user.error_rate)}</TableCell>
+                          <TableCell className={cn('text-right font-mono', errorRateClass(user.error_rate))}>{formatPercent(user.error_rate)}</TableCell>
                           <TableCell className='text-muted-foreground text-xs'>{formatTimestamp(user.last_call_at)}</TableCell>
                         </TableRow>
                       ))}
