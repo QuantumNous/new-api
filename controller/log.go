@@ -320,6 +320,12 @@ func GetExternalBillingSelfStat(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": []model.ExternalBillingRow{*row}})
+	// Keep the array contract: no row means no usage, so return an empty array
+	// (the page then shows its empty state) instead of a zeroed phantom account.
+	rows := []model.ExternalBillingRow{}
+	if row != nil {
+		rows = append(rows, *row)
+	}
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "", "data": rows})
 	return
 }

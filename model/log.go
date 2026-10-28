@@ -778,6 +778,11 @@ type ExternalBillingRow struct {
 	TotalTokens      int64  `json:"total_tokens"`
 	Quota            int64  `json:"quota"`
 	ModelCount       int64  `json:"model_count"`
+	// MatchedLogs is an internal sentinel: a bare aggregate query always returns
+	// one row (all zeros) even when nothing matched, so zeroed counters cannot be
+	// distinguished from a real zero-quota call. Counting matching rows is the
+	// only reliable way to tell "no usage" apart. Never serialised.
+	MatchedLogs int64 `json:"-"`
 }
 
 // SumExternalByUser aggregates, per user, consumption on external channels
@@ -833,12 +838,12 @@ func SumExternalSelfStat(startTimestamp int64, endTimestamp int64, userId int, u
 		common.SysError("failed to resolve external channels: " + err.Error())
 		return nil, errors.New("查询外部渠道统计数据失败")
 	}
-	row := &ExternalBillingRow{Username: username}
 	if len(externalChannelIds) == 0 {
-		return row, nil
+		return nil, nil
 	}
+	row := &ExternalBillingRow{}
 	tx := LOG_DB.Table("logs").
-		Select("COALESCE(sum(prompt_tokens),0) prompt_tokens, COALESCE(sum(completion_tokens),0) completion_tokens, COALESCE(sum(prompt_tokens),0)+COALESCE(sum(completion_tokens),0) total_tokens, COALESCE(sum(quota),0) quota, count(DISTINCT model_name) model_count").
+		Select("COALESCE(sum(prompt_tokens),0) prompt_tokens, COALESCE(sum(completion_tokens),0) completion_tokens, COALESCE(sum(prompt_tokens),0)+COALESCE(sum(completion_tokens),0) total_tokens, COALESCE(sum(quota),0) quota, count(DISTINCT model_name) model_count, count(*) matched_logs").
 		Where("logs.channel_id IN ?", externalChannelIds).
 		Where("logs.type = ?", LogTypeConsume).
 		Where("logs.user_id = ?", userId)
@@ -851,6 +856,12 @@ func SumExternalSelfStat(startTimestamp int64, endTimestamp int64, userId int, u
 	if err := tx.Scan(row).Error; err != nil {
 		common.SysError("failed to query self external billing stat: " + err.Error())
 		return nil, errors.New("查询外部渠道统计数据失败")
+	}
+	// A bare aggregate always yields one row (zeros) even with no match, so an
+	// all-zero row would render as a phantom account with no usage. Report no
+	// row at all when nothing matched; the controller then returns [].
+	if row.MatchedLogs == 0 {
+		return nil, nil
 	}
 	// Scan only populates the selected aggregate columns and clears the rest, so
 	// restore the display name after the query.
