@@ -27,7 +27,7 @@ import {
   Shuffle,
   SlidersHorizontal,
 } from 'lucide-react'
-import { useState, useMemo, useContext, useEffect } from 'react'
+import { useState, useMemo, useContext, useEffect, type ReactElement } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 
@@ -621,7 +621,7 @@ export function BalanceCell({ channel }: { channel: Channel }) {
 /**
  * Clickable external/internal classifier for a channel (persisted into channels.tag).
  */
-function ExternalTagToggle({ channel, tag }: { channel: Channel; tag: string }) {
+function ExternalTagToggle({ channel, tag }: { channel: Channel; tag: string }): ReactElement {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
   const next = tag === 'external' ? 'internal' : 'external'
