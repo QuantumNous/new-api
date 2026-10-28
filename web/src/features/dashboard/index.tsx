@@ -107,12 +107,6 @@ const LazyUserCharts = lazy(() =>
   }))
 )
 
-const LazyRealtimeUserUsage = lazy(() =>
-  import('./components/users/realtime-user-usage').then((m) => ({
-    default: m.RealtimeUserUsage,
-  }))
-)
-
 const LazyFlowCharts = lazy(() =>
   import('./components/flow/flow-charts').then((m) => ({
     default: m.FlowCharts,
@@ -399,11 +393,6 @@ export function Dashboard() {
           {activeSection === 'users' && (
             <FadeIn>
               <div className='space-y-5'>
-                {isAdmin && (
-                  <Suspense fallback={<ModelChartsFallback />}>
-                    <LazyRealtimeUserUsage />
-                  </Suspense>
-                )}
                 <Suspense fallback={<ModelChartsFallback />}>
                   <LazyUserCharts
                     filters={userChartsFilters}
